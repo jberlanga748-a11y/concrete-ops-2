@@ -2759,7 +2759,50 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
                     ) : null}
                   </div>
                 ) : null}
-                {response.type === "workflow-context-summary" ? (
+                {response.type === "next-best-actions" ? (
+                  <div className="mt-3 grid gap-2">
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.08] p-3">
+                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Agent next actions</p>
+                      <p className="mt-1 text-sm font-black text-white">{response.nextActions?.actions?.length || 0} ranked review-first suggestion{response.nextActions?.actions?.length === 1 ? "" : "s"}.</p>
+                      <p className="mt-1 text-xs font-bold leading-5 text-slate-300">{response.nextActions?.safetyBoundary}</p>
+                    </div>
+                    <div className="grid gap-2">
+                      {(response.nextActions?.actions || []).map((item, index) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => openModule(item.moduleId)}
+                          className="co-apex-assistant-context-card co-focus-ring w-full rounded-2xl border border-white/10 bg-white/[0.06] p-3 text-left transition hover:border-orange-400/50 hover:bg-orange-500/10"
+                        >
+                          <span className="flex min-w-0 items-start justify-between gap-3">
+                            <span className="min-w-0">
+                              <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-orange-200">#{index + 1} - {item.actionLabel}</span>
+                              <span className="mt-1 block break-words text-sm font-black text-white">{item.title}</span>
+                              <span className="mt-1 block break-words text-xs font-bold leading-5 text-slate-300">{item.reason}</span>
+                              <span className="mt-2 block break-words text-[11px] font-bold leading-5 text-blue-100">{item.reviewLabel}</span>
+                              <span className="mt-1 block break-words text-[11px] font-bold leading-5 text-slate-400">{item.blockedAutomation}</span>
+                            </span>
+                            <span className="shrink-0 rounded-lg bg-white/10 px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-200">{item.needsAttention || 0} review</span>
+                          </span>
+                          {item.supportingRecords?.length ? (
+                            <span className="mt-2 flex flex-wrap gap-1">
+                              {item.supportingRecords.map((record) => (
+                                <span key={`${item.id}-${record.id}`} className="rounded-lg bg-white/10 px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-200">{record.label}</span>
+                              ))}
+                            </span>
+                          ) : null}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {(response.actions || []).map((action) => (
+                        <Button key={`${action.moduleId}-${action.actionLabel}`} type="button" size="sm" onClick={() => openModule(action.moduleId)}>
+                          {action.actionLabel}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                ) : response.type === "workflow-context-summary" ? (
                   <div className="mt-3 grid gap-2">
                     <div className="rounded-2xl border border-white/10 bg-white/[0.08] p-3">
                       <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Agent workflow context</p>

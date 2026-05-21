@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   deriveApexAssistantShellState,
   resolveApexAssistantCommand,
+  resolveAssistantNextBestActionsCommand,
   resolveAssistantChangeOrderReviewCommand,
   resolveAssistantCrewReadinessCommand,
   resolveAssistantCustomerAccountCommand,
@@ -111,6 +112,47 @@ test("assistant summarizes workflow context without mutating records", () => {
   assert.ok(command.workflowContext.attentionCount > 0);
   assert.match(command.message, /review-first/i);
   assert.match(command.workflowContext.safetyBoundary, /No customer contact/i);
+  assert.equal(command.actions.some((action) => action.moduleId === "reports"), true);
+});
+
+test("assistant returns ranked next best actions without mutation controls", () => {
+  const command = resolveAssistantNextBestActionsCommand("show next best actions", {
+    permissions: {
+      leads: { canView: true },
+      estimates: { canView: true },
+      jobs: { canView: true },
+      reports: { canView: true },
+      uploads: { canView: true },
+      safety: { canView: true },
+    },
+    leads: [{ id: "LEAD-1", customer: "Friendly Fence", status: "Follow Up" }],
+    estimates: [{ id: "EST-1", title: "Fence Estimate", status: "Draft" }],
+    jobs: [{ id: "JOB-1", title: "Fence Install", status: "Scheduled" }],
+    dailyReports: [{ id: "DR-1", title: "Daily", status: "Submitted" }],
+    uploads: [{ id: "UP-1", title: "Photos", status: "Needs Review" }],
+    safetyIncidents: [{ id: "SAFE-1", title: "Open hazard", status: "Open" }],
+  });
+
+  assert.equal(command.type, "next-best-actions");
+  assert.equal(command.nextActions.mode, "review_first_next_actions");
+  assert.ok(command.nextActions.actions.length > 0);
+  assert.match(command.nextActions.safetyBoundary, /No customer contact/i);
+  assert.match(command.nextActions.actions[0].blockedAutomation, /automatically/i);
+});
+
+test("assistant command routes explicit next best action prompts to ranked actions", () => {
+  const command = resolveApexAssistantCommand("what should we do now", {
+    commandContext: {
+      permissions: {
+        jobs: { canView: true },
+        reports: { canView: true },
+      },
+      jobs: [{ id: "JOB-1", title: "Assigned Fence", status: "Scheduled" }],
+      dailyReports: [{ id: "DR-1", title: "Daily", status: "Submitted" }],
+    },
+  });
+
+  assert.equal(command.type, "next-best-actions");
   assert.equal(command.actions.some((action) => action.moduleId === "reports"), true);
 });
 

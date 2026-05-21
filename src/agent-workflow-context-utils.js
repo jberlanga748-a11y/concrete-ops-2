@@ -52,6 +52,131 @@ function moduleSummary({ id, label, moduleId = id, canView = false, count = 0, n
   };
 }
 
+const NEXT_ACTION_RULES = {
+  safety: {
+    priority: 100,
+    title: "Review unresolved safety items",
+    reason: "Safety issues should be reviewed before closeout, billing readiness, or crew handoff.",
+    reviewLabel: "Open the existing safety workflow and resolve or document the item manually.",
+    blockedAutomation: "No incident is closed, assigned, messaged, or escalated automatically.",
+    tone: "red",
+  },
+  proof: {
+    priority: 90,
+    title: "Close proof gaps before ready-to-bill",
+    reason: "Reports, photos, tickets, and checklists are the fastest path from field work to billing confidence.",
+    reviewLabel: "Open the proof queue and review missing or submitted field evidence.",
+    blockedAutomation: "No report, upload, checklist, ticket, invoice, or billing status is approved automatically.",
+    tone: "amber",
+  },
+  jobs: {
+    priority: 82,
+    title: "Review active job readiness",
+    reason: "Active jobs connect schedule, crews, field proof, safety, and customer closeout.",
+    reviewLabel: "Open Jobs and review startup, handoff, proof, and next field action.",
+    blockedAutomation: "No crew, schedule, job status, customer message, or field update is changed automatically.",
+    tone: "blue",
+  },
+  estimates: {
+    priority: 74,
+    title: "Review estimate packet or handoff candidates",
+    reason: "Draft, review, and approved estimates may be ready for proposal packet review or job handoff prep.",
+    reviewLabel: "Open Estimates and review the proposal, quantities, takeoff, packet, and handoff notes.",
+    blockedAutomation: "No proposal is sent, approved, priced, converted, or marked accepted automatically.",
+    tone: "orange",
+  },
+  leads: {
+    priority: 68,
+    title: "Review lead follow-up and estimate prep",
+    reason: "Follow-up-ready leads are the cleanest place for the agent to prepare drafts without contacting anyone.",
+    reviewLabel: "Open Leads and review missing info, fit score, and estimate draft readiness.",
+    blockedAutomation: "No call, email, text, lead conversion, or estimate draft is created without human approval.",
+    tone: "orange",
+  },
+  changeOrders: {
+    priority: 64,
+    title: "Review pending change orders",
+    reason: "Scope changes need office review before pricing, proposal updates, or billing decisions.",
+    reviewLabel: "Open Change Orders and verify scope, photos, customer context, and pricing impact.",
+    blockedAutomation: "No change order is priced, approved, rejected, sent, or billed automatically.",
+    tone: "amber",
+  },
+  employees: {
+    priority: 58,
+    title: "Review crew and time readiness",
+    reason: "Crew/time signals can expose active clocks, workload, or readiness issues before dispatch decisions.",
+    reviewLabel: "Open Employees or Time and review crew assignment, time, and field readiness manually.",
+    blockedAutomation: "No employee record, role, invite, schedule, or time entry is changed automatically.",
+    tone: "blue",
+  },
+  jobDraftImports: {
+    priority: 52,
+    title: "Review imported draft packages",
+    reason: "Imported drafts can become useful job setup context after human matching and review.",
+    reviewLabel: "Open Imported Drafts and confirm customer match, scope, and missing details.",
+    blockedAutomation: "No job, customer, estimate, or upload is created from an import automatically.",
+    tone: "slate",
+  },
+  customers: {
+    priority: 42,
+    title: "Review customer account context",
+    reason: "Customer records help connect leads, estimates, jobs, proof, and support history before follow-up.",
+    reviewLabel: "Open Customers and review linked records before taking account action.",
+    blockedAutomation: "No customer message, balance change, package change, or account update happens automatically.",
+    tone: "slate",
+  },
+};
+
+function actionRuleFor(module = {}) {
+  return NEXT_ACTION_RULES[module.id] || {
+    priority: 30,
+    title: `Review ${module.label || "workflow"} context`,
+    reason: module.summary || "This workflow has visible context available for human review.",
+    reviewLabel: `Open ${module.label || "the workflow"} and review the existing records.`,
+    blockedAutomation: "No record is created, updated, approved, sent, or converted automatically.",
+    tone: "slate",
+  };
+}
+
+export function deriveAgentNextBestActions(context = {}, { limit = 5 } = {}) {
+  const workflowContext = context?.modules ? context : deriveAgentWorkflowContext(context);
+  const visibleModules = asArray(workflowContext.modules).filter((module) => module.canView);
+  const ranked = visibleModules
+    .filter((module) => Number(module.needsAttention || 0) > 0 || Number(module.count || 0) > 0)
+    .map((module) => {
+      const rule = actionRuleFor(module);
+      const needsAttention = Number(module.needsAttention || 0);
+      const count = Number(module.count || 0);
+      const score = rule.priority + Math.min(needsAttention * 4, 24) + Math.min(count, 8);
+      return {
+        id: `next-${module.id}`,
+        moduleId: module.moduleId || module.id,
+        actionLabel: module.nextActionLabel || `Open ${module.label}`,
+        title: rule.title,
+        reason: rule.reason,
+        reviewLabel: rule.reviewLabel,
+        blockedAutomation: rule.blockedAutomation,
+        tone: rule.tone,
+        score,
+        sourceCount: count,
+        needsAttention,
+        supportingRecords: asArray(module.records).slice(0, 3),
+      };
+    })
+    .sort((left, right) => right.score - left.score)
+    .slice(0, Math.max(1, Number(limit) || 5));
+
+  return {
+    mode: "review_first_next_actions",
+    generatedAt: new Date().toISOString(),
+    summary: ranked.length
+      ? `Ranked ${ranked.length} next action${ranked.length === 1 ? "" : "s"} from visible workflow context.`
+      : "No visible workflow records are available for next action suggestions.",
+    actions: ranked,
+    safetyBoundary: "Suggestions only. No customer contact, send, approve, convert, schedule, invoice, payment, role, package, or field update is performed.",
+  };
+}
+
 export function deriveAgentWorkflowContext(context = {}) {
   const permissions = context.permissions || {};
   const leads = visibleRecords(context, "leads", Boolean(permissions?.leads?.canView));
@@ -215,4 +340,8 @@ export function deriveAgentWorkflowContext(context = {}) {
 
 export function hasAgentWorkflowContextIntent(input = "") {
   return /\b(workflow context|agent context|what can you see|what do you see|summarize app|summarize workflow|daily operations|daily ops|what needs attention|what should (we|i) do|next best action|next best actions|run the app|help run)\b/.test(normalize(input));
+}
+
+export function hasAgentNextBestActionsIntent(input = "") {
+  return /\b(next best action|next best actions|what should (we|i) do next|what should (we|i) do now|where should (we|i) start|rank(ed)? actions|agent action queue)\b/.test(normalize(input));
 }

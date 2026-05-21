@@ -1,4 +1,9 @@
-import { deriveAgentWorkflowContext, hasAgentWorkflowContextIntent } from "./agent-workflow-context-utils.js";
+import {
+  deriveAgentNextBestActions,
+  deriveAgentWorkflowContext,
+  hasAgentNextBestActionsIntent,
+  hasAgentWorkflowContextIntent,
+} from "./agent-workflow-context-utils.js";
 
 const ROUTE_COMMANDS = [
   {
@@ -124,6 +129,7 @@ const ROUTE_COMMANDS = [
 
 const DEFAULT_PROMPTS = [
   "What needs attention?",
+  "Show next best actions",
   "Summarize workflow context",
   "Summarize missing proof",
   "Review daily closeout",
@@ -186,6 +192,9 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
 
   const blocked = resolveBlockedActionCommand(input);
   if (blocked) return blocked;
+
+  const nextBestActionsCommand = resolveAssistantNextBestActionsCommand(input, state.commandContext || {});
+  if (nextBestActionsCommand) return nextBestActionsCommand;
 
   const workflowContextCommand = resolveAssistantWorkflowContextCommand(input, state.commandContext || {});
   if (workflowContextCommand) return workflowContextCommand;
@@ -294,6 +303,25 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
     moduleId: "commandCenter",
     actionLabel: "Open Command Center",
     message: "I can route you to Apex HQ workflows and summarize Watchtower items. I will not create, send, approve, or edit records automatically in this phase.",
+  };
+}
+
+export function resolveAssistantNextBestActionsCommand(input = "", context = {}) {
+  if (!hasAgentNextBestActionsIntent(input)) return null;
+  const workflowContext = context.agentWorkflowContext || deriveAgentWorkflowContext(context);
+  const nextActions = deriveAgentNextBestActions(workflowContext, { limit: 5 });
+  const actions = nextActions.actions.map((action) => ({
+    moduleId: action.moduleId,
+    actionLabel: action.actionLabel,
+  }));
+
+  return {
+    type: "next-best-actions",
+    moduleId: nextActions.actions[0]?.moduleId || "commandCenter",
+    actionLabel: nextActions.actions[0]?.actionLabel || "Open Command Center",
+    message: `${nextActions.summary} This stays review-first: I only suggest the next workflow to inspect.`,
+    nextActions,
+    actions,
   };
 }
 

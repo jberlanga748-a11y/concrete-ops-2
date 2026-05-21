@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { deriveAgentWorkflowContext, hasAgentWorkflowContextIntent } from "./agent-workflow-context-utils.js";
+import {
+  deriveAgentNextBestActions,
+  deriveAgentWorkflowContext,
+  hasAgentNextBestActionsIntent,
+  hasAgentWorkflowContextIntent,
+} from "./agent-workflow-context-utils.js";
 
 test("agent workflow context summarizes visible office workflow areas", () => {
   const context = deriveAgentWorkflowContext({
@@ -77,4 +82,58 @@ test("agent workflow context intent recognizes operator prompts", () => {
   assert.equal(hasAgentWorkflowContextIntent("what should we do next?"), true);
   assert.equal(hasAgentWorkflowContextIntent("summarize workflow context"), true);
   assert.equal(hasAgentWorkflowContextIntent("open estimates"), false);
+});
+
+test("agent next best actions ranks visible review work without mutation", () => {
+  const workflowContext = deriveAgentWorkflowContext({
+    user: { role: "Administrator" },
+    permissions: {
+      leads: { canView: true },
+      estimates: { canView: true },
+      jobs: { canView: true },
+      reports: { canView: true },
+      uploads: { canView: true },
+      safety: { canView: true },
+    },
+    leads: [{ id: "LEAD-1", customer: "Friendly Fence", status: "Follow Up" }],
+    estimates: [{ id: "EST-1", title: "Fence Estimate", status: "Draft" }],
+    jobs: [{ id: "JOB-1", title: "Fence Install", status: "In Progress" }],
+    dailyReports: [{ id: "DR-1", title: "Daily", status: "Submitted" }],
+    uploads: [{ id: "UP-1", title: "Photos", status: "Needs Review" }],
+    safetyIncidents: [{ id: "SAFE-1", title: "Open hazard", status: "Open" }],
+  });
+
+  const result = deriveAgentNextBestActions(workflowContext);
+
+  assert.equal(result.mode, "review_first_next_actions");
+  assert.equal(result.actions[0].moduleId, "incidents");
+  assert.match(result.actions[0].blockedAutomation, /automatically/i);
+  assert.equal(result.actions.some((action) => action.moduleId === "reports"), true);
+  assert.match(result.safetyBoundary, /Suggestions only/i);
+});
+
+test("agent next best actions stay scoped to field-visible modules", () => {
+  const result = deriveAgentNextBestActions({
+    user: { role: "Employee" },
+    permissions: {
+      jobs: { canView: true },
+      reports: { canView: true },
+      uploads: { canView: true },
+      leads: { canView: false },
+      estimates: { canView: false },
+    },
+    jobs: [{ id: "JOB-1", title: "Assigned Fence", status: "Scheduled" }],
+    leads: [{ id: "LEAD-1", customer: "Hidden Lead", status: "Follow Up" }],
+    estimates: [{ id: "EST-1", title: "Hidden Estimate", status: "Draft" }],
+  });
+
+  assert.equal(result.actions.some((action) => action.moduleId === "leads"), false);
+  assert.equal(result.actions.some((action) => action.moduleId === "estimates"), false);
+  assert.equal(result.actions.some((action) => action.moduleId === "jobs"), true);
+});
+
+test("agent next best actions intent recognizes ranked operator prompts", () => {
+  assert.equal(hasAgentNextBestActionsIntent("show next best actions"), true);
+  assert.equal(hasAgentNextBestActionsIntent("what should we do now"), true);
+  assert.equal(hasAgentNextBestActionsIntent("summarize workflow context"), false);
 });
