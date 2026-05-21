@@ -173,7 +173,7 @@ import { buildCalculatorCopyText, calculateConcreteResult, calculateTakeoffResul
 import { changeOrderStatusLabel, deriveChangeOrderListState, filterChangeOrderRequests } from "./change-order-utils";
 import { deriveCommandCenterState } from "./command-center-utils";
 import { contactHistoryBadgeTone, contactHistoryTimeline, createContactHistoryDraft, deriveCommunicationCenterState, deriveContactHistoryPanelState } from "./contact-history-utils";
-import { CustomerFilterHeader, CustomersTablePolished as ExtractedCustomersTablePolished } from "./customer-route-components";
+import { CustomerFilterHeader, CustomerIntakeCard as ExtractedCustomerIntakeCard, CustomersTablePolished as ExtractedCustomersTablePolished } from "./customer-route-components";
 import { SupportCommandWorkbench as ExtractedSupportCommandWorkbench } from "./support-route-components";
 import { deriveCustomerListState, filterCustomers, relatedCustomerRecords } from "./customer-utils";
 import { buildDeliveryTicketSupportContext, deliveryTicketTitle, deriveDeliveryTicketCloseoutReadiness, deriveDeliveryTicketListState, filterDeliveryTickets } from "./delivery-ticket-utils";
@@ -14203,47 +14203,6 @@ function CustomersTablePolished({ rows, selectedId, onSelect }) {
   );
 }
 
-function CustomerIntakeCard({ draft, setDraft, onCreateCustomer, disabled, canManage }) {
-  if (!canManage) {
-    return (
-      <Card className="p-5">
-        <SectionHeader title="New customer" description="Customer creation is restricted to owner/admin roles." />
-        <StateCard title="Read-only access" description="You can review linked customers here, but only office leadership can create or update them." tone="slate" />
-      </Card>
-    );
-  }
-
-  return (
-    <Card className="p-5">
-      <SectionHeader title="New customer" description="Create a durable customer record with contact and service-area details." />
-      <form className="grid gap-3" onSubmit={onCreateCustomer}>
-        <div className="grid gap-3 md:grid-cols-2">
-          <InputField label="Customer name" value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} placeholder="Dana Martinez" />
-          <InputField label="Company" value={draft.company} onChange={(event) => setDraft((current) => ({ ...current, company: event.target.value }))} placeholder="Optional" />
-        </div>
-        <div className="grid gap-3 md:grid-cols-2">
-          <InputField label="Phone" value={draft.phone} onChange={(event) => setDraft((current) => ({ ...current, phone: event.target.value }))} placeholder="503-555-0199" />
-          <InputField label="Email" type="email" value={draft.email} onChange={(event) => setDraft((current) => ({ ...current, email: event.target.value }))} placeholder="dana@example.com" />
-        </div>
-        <div className="grid gap-3 md:grid-cols-3">
-          <InputField label="City" value={draft.city} onChange={(event) => setDraft((current) => ({ ...current, city: event.target.value }))} placeholder="Salem" />
-          <InputField label="Service area" value={draft.serviceArea} onChange={(event) => setDraft((current) => ({ ...current, serviceArea: event.target.value }))} placeholder="Mid-Valley" />
-          <SelectField label="Status" value={draft.status} onChange={(event) => setDraft((current) => ({ ...current, status: event.target.value }))}>
-            <option>Prospect</option>
-            <option>Active</option>
-            <option>Inactive</option>
-          </SelectField>
-        </div>
-        <TextAreaField label="Notes" value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Preferred finish, scheduling constraints, gate access..." />
-        <Button type="submit" disabled={disabled}>
-          <Icon name="plus" />
-          Add customer
-        </Button>
-      </form>
-    </Card>
-  );
-}
-
 function RelatedRecordsCard({ title, description, emptyLabel, items, renderItem }) {
   return (
     <Card className="p-5">
@@ -22580,7 +22539,7 @@ function CustomersPagePolished({
           <span>Open tools</span>
         </summary>
         <div className="co-customers-tools-panel mt-3">
-          <CustomerIntakeCard draft={customerDraft} setDraft={setCustomerDraft} onCreateCustomer={onCreateCustomer} disabled={busy} canManage={canManage} />
+          <ExtractedCustomerIntakeCard draft={customerDraft} setDraft={setCustomerDraft} onCreateCustomer={onCreateCustomer} disabled={busy} canManage={canManage} />
         </div>
       </details>
     </div>

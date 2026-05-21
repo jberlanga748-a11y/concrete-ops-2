@@ -1,5 +1,16 @@
 import { getCustomerFilterLayoutClasses } from "./customer-filter-layout";
-import { Badge, Icon, StatusBadge } from "./app-shell-components";
+import {
+  Badge,
+  Button,
+  Card,
+  Icon,
+  InputField,
+  SectionHeader,
+  SelectField,
+  StateCard,
+  StatusBadge,
+  TextAreaField,
+} from "./app-shell-components";
 
 export function CustomerFilterHeader({ filters, active, setActive, search, setSearch, placeholder = "Search..." }) {
   const layout = getCustomerFilterLayoutClasses();
@@ -129,5 +140,46 @@ export function CustomersTablePolished({ rows, selectedId, onSelect }) {
         </div>
       </div>
     </>
+  );
+}
+
+export function CustomerIntakeCard({ draft, setDraft, onCreateCustomer, disabled, canManage }) {
+  if (!canManage) {
+    return (
+      <Card className="p-5">
+        <SectionHeader title="New customer" description="Customer creation is restricted to owner/admin roles." />
+        <StateCard title="Read-only access" description="You can review linked customers here, but only office leadership can create or update them." tone="slate" />
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="p-5">
+      <SectionHeader title="New customer" description="Create a durable customer record with contact and service-area details." />
+      <form className="grid gap-3" onSubmit={onCreateCustomer}>
+        <div className="grid gap-3 md:grid-cols-2">
+          <InputField label="Customer name" value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} placeholder="Dana Martinez" />
+          <InputField label="Company" value={draft.company} onChange={(event) => setDraft((current) => ({ ...current, company: event.target.value }))} placeholder="Optional" />
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <InputField label="Phone" value={draft.phone} onChange={(event) => setDraft((current) => ({ ...current, phone: event.target.value }))} placeholder="503-555-0199" />
+          <InputField label="Email" type="email" value={draft.email} onChange={(event) => setDraft((current) => ({ ...current, email: event.target.value }))} placeholder="dana@example.com" />
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <InputField label="City" value={draft.city} onChange={(event) => setDraft((current) => ({ ...current, city: event.target.value }))} placeholder="Salem" />
+          <InputField label="Service area" value={draft.serviceArea} onChange={(event) => setDraft((current) => ({ ...current, serviceArea: event.target.value }))} placeholder="Mid-Valley" />
+          <SelectField label="Status" value={draft.status} onChange={(event) => setDraft((current) => ({ ...current, status: event.target.value }))}>
+            <option>Prospect</option>
+            <option>Active</option>
+            <option>Inactive</option>
+          </SelectField>
+        </div>
+        <TextAreaField label="Notes" value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Preferred finish, scheduling constraints, gate access..." />
+        <Button type="submit" disabled={disabled}>
+          <Icon name="plus" />
+          Add customer
+        </Button>
+      </form>
+    </Card>
   );
 }
