@@ -54,6 +54,7 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 | 2026-05-21 | P2 | GitHub Actions demo smoke evidence pointer refresh | Done; latest scheduled demo smoke runs recorded and artifact index linked | `19d080a` |
 | 2026-05-21 | P3 | Pilot route audit P3 backlog extraction | Done; desktop `/leads` long-text screenshot finding captured as scoped non-blocking backlog | `56c999a` |
 | 2026-05-21 | P3 | Desktop Leads long-text row polish | Done; desktop `/leads` long fencing copy wraps intentionally and employee phone redirect still passes | `d438f94` |
+| 2026-05-21 | P2 | Leads verifier reliability | Done; `verify:leads` now runs focused server/shared/frontend groups instead of one aggregate command that stalled locally | `c4f2083` |
 
 ## Active Queue
 
