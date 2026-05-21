@@ -19517,6 +19517,8 @@ function LeadCommandRail({
   const email = leadContactEmail(lead);
   const missingItems = Array.isArray(lead.missingInfoItems) ? lead.missingInfoItems : [];
   const assistant = leadAssistantState?.leadId === lead.id ? leadAssistantState : null;
+  const followUpDue = isLeadFollowUpDue(lead);
+  const readyForEstimate = isLeadReadyForEstimate(lead);
   const readinessRows = [
     { label: "Contact info confirmed", ok: Boolean(phone || email) },
     { label: "Job address confirmed", ok: Boolean(lead.city || lead.address || lead.projectAddress) },
@@ -19524,27 +19526,74 @@ function LeadCommandRail({
     { label: "Next step assigned", ok: Boolean(lead.nextStep) },
     { label: "Follow-up scheduled", ok: Boolean(lead.followUpDueAt) },
   ];
+  const readinessGapCount = readinessRows.filter((row) => !row.ok).length + missingItems.length;
   const recentHistory = contactHistoryTimeline(contactHistory, "lead", lead.id).slice(0, 5);
+  const assistantPriorities = [
+    { value: followUpDue ? "Due" : lead.followUpDueAt ? "Set" : "Open", label: "follow-up status", tone: followUpDue ? "orange" : lead.followUpDueAt ? "green" : "slate" },
+    { value: readyForEstimate ? "Ready" : "Prep", label: "estimate path", tone: readyForEstimate ? "green" : "orange" },
+    { value: readinessGapCount, label: "readiness gaps", tone: readinessGapCount ? "orange" : "green" },
+  ];
+  const assistantActions = [
+    { label: "Check missing info", icon: "clipboard", onClick: () => onCheckMissingInfo(lead), disabled: disabled || Boolean(lead.archivedAt) || !canManage },
+    { label: "Score lead fit", icon: "check", onClick: () => onScoreLead(lead), disabled: disabled || Boolean(lead.archivedAt) || !canManage },
+    { label: "Create estimate draft", icon: "document", onClick: () => onCreateEstimateFromLead(lead), disabled: disabled || Boolean(lead.archivedAt) || !canManage || !canCreateEstimate },
+  ];
 
   return (
     <div className="co-leads-right-rail space-y-4">
-      <Card className="co-leads-rail-card p-4">
+      <AssistantRail
+        className="co-leads-assistant-rail"
+        eyebrow="Lead Assistant"
+        title="Review command"
+        description="Work the selected lead into the next office action without sending, converting, or pricing automatically."
+        priorities={assistantPriorities}
+        actions={assistantActions}
+      />
+
+      <Card className="co-leads-rail-card co-leads-summary-card p-4">
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Selected Lead Summary</p>
             <h3 className="mt-2 break-words text-xl font-black text-slate-950">{lead.customer || "Unnamed lead"}</h3>
             <p className="mt-1 break-words text-xs font-bold text-slate-500">{[lead.project, lead.city, leadSourceLabel(lead.source || "Call-in")].filter(Boolean).join(" / ")}</p>
           </div>
-          <StatusBadge status={isLeadFollowUpDue(lead) ? "Follow-Up Due" : lead.status || "New"} />
+          <StatusBadge status={followUpDue ? "Follow-Up Due" : lead.status || "New"} />
         </div>
-        <div className="mt-4 grid gap-2 text-sm font-bold text-slate-700">
-          {phone ? <p><span className="text-slate-400">Phone:</span> {phone}</p> : null}
-          {email ? <p><span className="text-slate-400">Email:</span> {email}</p> : null}
-          <p><span className="text-slate-400">Owner:</span> {lead.owner || "Unassigned"}</p>
-          <p><span className="text-slate-400">Value:</span> {currency(lead.value)}</p>
-          <p><span className="text-slate-400">Next follow-up:</span> {formatLeadFollowUpDate(lead.followUpDueAt)}</p>
+        <div className="co-leads-summary-badges">
+          <Badge tone={lead.priority === "High" ? "amber" : lead.priority === "Low" ? "slate" : "blue"}>{lead.priority || "Normal"}</Badge>
+          <LeadScoreBadge lead={lead} />
+          <LeadMissingInfoBadge lead={lead} />
+          {readyForEstimate ? <Badge tone="green">Estimate ready</Badge> : <Badge tone="amber">Needs prep</Badge>}
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-2">
+        <div className="co-leads-summary-facts">
+          <div>
+            <span>Contact</span>
+            <strong>{phone || email || "Missing"}</strong>
+          </div>
+          {phone && email ? (
+            <div>
+              <span>Email</span>
+              <strong>{email}</strong>
+            </div>
+          ) : null}
+          <div>
+            <span>Owner</span>
+            <strong>{lead.owner || "Unassigned"}</strong>
+          </div>
+          <div>
+            <span>Pipeline value</span>
+            <strong>{currency(lead.value)}</strong>
+          </div>
+          <div>
+            <span>Next follow-up</span>
+            <strong>{formatLeadFollowUpDate(lead.followUpDueAt)}</strong>
+          </div>
+          <div>
+            <span>Next action</span>
+            <strong>{lead.nextStep || "Assign next step"}</strong>
+          </div>
+        </div>
+        <div className="co-leads-summary-actions mt-4 grid grid-cols-2 gap-2">
           <Button type="button" size="sm" onClick={() => onCreateEstimateFromLead(lead)} disabled={disabled || Boolean(lead.archivedAt) || !canManage || !canCreateEstimate}>Create Estimate</Button>
           <Button type="button" size="sm" variant="secondary" onClick={onCreateJob} disabled={disabled || Boolean(lead.archivedAt) || !canManage}>Create Job</Button>
           <Button type="button" size="sm" variant="secondary" onClick={onConvertToCustomer} disabled={disabled || Boolean(lead.archivedAt) || !canManage}>Convert</Button>
