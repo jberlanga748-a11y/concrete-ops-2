@@ -36991,6 +36991,82 @@ button.co-work-queue-card:hover:not(:disabled) {
   font-weight: 900;
 }
 
+.co-estimate-proposal-brand-strip {
+  display: grid;
+  grid-template-columns: minmax(13.5rem, 1.35fr) repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-right: 1rem;
+  margin-left: 1rem;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.96);
+  padding-bottom: 0.82rem;
+}
+
+.co-estimate-proposal-brand-strip > div {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 0.22rem;
+  border: 1px solid rgba(226, 232, 240, 0.98);
+  border-radius: 0.52rem;
+  background: #f8fafc;
+  padding: 0.62rem;
+}
+
+.co-estimate-proposal-brand-main {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  background: linear-gradient(135deg, #07111f 0%, #111827 100%) !important;
+}
+
+.co-estimate-proposal-brand-main > span {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  border-radius: 0.5rem;
+  background: #f97316;
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.co-estimate-proposal-brand-strip em {
+  color: #64748b;
+  font-size: 0.58rem;
+  font-style: normal;
+  font-weight: 950;
+  letter-spacing: 0.11em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.co-estimate-proposal-brand-main em {
+  color: #fed7aa;
+}
+
+.co-estimate-proposal-brand-strip strong {
+  display: block;
+  min-width: 0;
+  color: #07111f;
+  font-size: 0.72rem;
+  font-weight: 950;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.co-estimate-proposal-brand-main strong {
+  color: #ffffff;
+}
+
+.co-estimate-proposal-brand-strip p {
+  color: #94a3b8;
+  font-size: 0.64rem;
+  font-weight: 850;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
 .co-estimate-proposal-media,
 .co-estimate-proposal-scope,
 .co-estimate-proposal-inclusions-grid,
@@ -37389,6 +37465,14 @@ button.co-work-queue-card:hover:not(:disabled) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .co-estimate-proposal-brand-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .co-estimate-proposal-brand-main {
+    grid-column: 1 / -1;
+  }
+
   .co-estimate-studio-shell .co-command-page-frame-footer .co-assistant-rail,
   .co-estimate-studio-shell .co-command-page-frame-footer .co-assistant-rail-actions {
     grid-template-columns: minmax(0, 1fr);
@@ -37529,6 +37613,7 @@ button.co-work-queue-card:hover:not(:disabled) {
   }
 
   .co-estimate-proposal-head,
+  .co-estimate-proposal-brand-strip,
   .co-estimate-proposal-inclusions-grid,
   .co-estimate-proposal-line-items {
     grid-template-columns: minmax(0, 1fr);

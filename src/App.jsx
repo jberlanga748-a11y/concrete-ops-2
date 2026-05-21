@@ -1483,6 +1483,8 @@ function EstimateProposalWorkbench({
   optionTotals,
   sections,
   backup,
+  companyName = DEFAULT_COMPANY_NAME,
+  companyProfile = {},
   canManage,
   filteredRows = [],
   rows = [],
@@ -1539,6 +1541,16 @@ function EstimateProposalWorkbench({
   const topLineItems = Array.isArray(preview.items) ? preview.items.filter((item) => item?.description || item?.name).slice(0, 3) : [];
   const customerLabel = estimateDisplayCustomer(preview);
   const totalLabel = formatEstimateCurrency(optionTotals?.totalWithSelectedOptions ?? totals?.grandTotal ?? estimateDisplayTotal(preview));
+  const logoInitials = resolveWorkspaceLogoInitials({ companySettings: companyProfile, companyName });
+  const contractorContact = [
+    estimateRailProfileLine(companyProfile.businessPhone),
+    estimateRailProfileLine(companyProfile.businessEmail),
+    estimateRailProfileLine(companyProfile.website),
+  ].filter(Boolean);
+  const serviceLine = estimateRailProfileLine(companyProfile.serviceArea, companyProfile.businessAddress);
+  const licenseLine = estimateRailProfileLine(companyProfile.licenseText, "License / insurance details pending");
+  const validityLine = estimateRailProfileLine(companyProfile.printPacketFooter, "Valid for 30 days unless noted in proposal terms.");
+  const proposalDate = preview?.createdAt ? new Date(preview.createdAt).toLocaleDateString("en-US") : "Review date pending";
 
   return (
     <Card className="co-estimate-proposal-workbench">
@@ -1555,6 +1567,33 @@ function EstimateProposalWorkbench({
           <span>Proposal Total</span>
           <strong>{totalLabel}</strong>
           <em>Base {formatEstimateCurrency(totals?.grandTotal || 0)}</em>
+        </div>
+      </div>
+
+      <div className="co-estimate-proposal-brand-strip" aria-label="Proposal identity">
+        <div className="co-estimate-proposal-brand-main">
+          <span>{logoInitials}</span>
+          <div>
+            <em>Prepared by</em>
+            <strong>{companyName || DEFAULT_COMPANY_NAME}</strong>
+            <p>{contractorContact.length > 0 ? contractorContact.join(" / ") : "Add phone, email, or website in Settings branding."}</p>
+          </div>
+        </div>
+        <div>
+          <em>Service Area</em>
+          <strong>{serviceLine || "Confirm service area"}</strong>
+        </div>
+        <div>
+          <em>License / Insurance</em>
+          <strong>{licenseLine}</strong>
+        </div>
+        <div>
+          <em>Proposal Date</em>
+          <strong>{proposalDate}</strong>
+        </div>
+        <div>
+          <em>Terms</em>
+          <strong>{validityLine}</strong>
         </div>
       </div>
 
@@ -33519,6 +33558,8 @@ function EstimatesPagePolished({
             optionTotals={detailOptionTotals}
             sections={detailProposalSections}
             backup={detailEstimateBackup}
+            companyName={companyName}
+            companyProfile={companyProfile}
             canManage={canManage}
             filteredRows={filteredRows}
             rows={rows}

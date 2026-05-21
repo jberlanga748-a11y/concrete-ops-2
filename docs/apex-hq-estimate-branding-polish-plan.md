@@ -1,6 +1,6 @@
 # Apex HQ Estimate Branding Polish Plan
 
-Status: build plan for the next Estimates polish pass
+Status: first focused Estimate Studio branding pass completed; PDF/print polish remains available for future targeted passes
 Owner: Apex HQ build workflow
 Reference: `C:\Users\jberl\Downloads\Generateimage 1.png`
 
@@ -282,3 +282,19 @@ Build the smallest high-impact pass:
 5. Commit, push, and deploy demo only if checks pass.
 
 This gives demos a visible upgrade quickly without touching permissions, pricing logic, or database schema.
+
+## Completed First-Viewport UI Pass
+
+Completed on 2026-05-21:
+
+- added a proposal identity strip to the selected Estimate Studio workbench
+- reused existing company profile fields only: company name, logo initials, phone, email, website, service area, address, license text, and packet footer
+- preserved estimate math, proposal actions, print/PDF behavior, package gates, and field-user estimate denial
+- passed `npm.cmd run verify:estimates`, `npm.cmd run verify:roles`, `npm.cmd run build`, and desktop/tablet/phone `/estimates` visual audits
+
+Evidence:
+
+- admin desktop `/estimates`: `ui-audit/estimate-branding-polish/2026-05-21T09-30-58-165Z/manifest.json`
+- admin tablet `/estimates`: `ui-audit/estimate-branding-polish/2026-05-21T09-30-58-188Z/manifest.json`
+- admin phone `/estimates`: `ui-audit/estimate-branding-polish/2026-05-21T09-30-58-206Z/manifest.json`
+- employee phone `/estimates`: `ui-audit/estimate-branding-polish/2026-05-21T09-30-58-142Z/manifest.json`
