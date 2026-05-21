@@ -173,7 +173,7 @@ import { buildCalculatorCopyText, calculateConcreteResult, calculateTakeoffResul
 import { changeOrderStatusLabel, deriveChangeOrderListState, filterChangeOrderRequests } from "./change-order-utils";
 import { deriveCommandCenterState } from "./command-center-utils";
 import { contactHistoryBadgeTone, contactHistoryTimeline, createContactHistoryDraft, deriveCommunicationCenterState, deriveContactHistoryPanelState } from "./contact-history-utils";
-import { CustomerFilterHeader, CustomerIntakeCard as ExtractedCustomerIntakeCard, CustomersTablePolished as ExtractedCustomersTablePolished } from "./customer-route-components";
+import { CustomerFilterHeader, CustomerIntakeCard as ExtractedCustomerIntakeCard, CustomersTablePolished as ExtractedCustomersTablePolished, RelatedRecordsCard as ExtractedRelatedRecordsCard } from "./customer-route-components";
 import { SupportCommandWorkbench as ExtractedSupportCommandWorkbench } from "./support-route-components";
 import { deriveCustomerListState, filterCustomers, relatedCustomerRecords } from "./customer-utils";
 import { buildDeliveryTicketSupportContext, deliveryTicketTitle, deriveDeliveryTicketCloseoutReadiness, deriveDeliveryTicketListState, filterDeliveryTickets } from "./delivery-ticket-utils";
@@ -14203,21 +14203,6 @@ function CustomersTablePolished({ rows, selectedId, onSelect }) {
   );
 }
 
-function RelatedRecordsCard({ title, description, emptyLabel, items, renderItem }) {
-  return (
-    <Card className="p-5">
-      <SectionHeader title={title} description={description} />
-      {items.length === 0 ? (
-        <StateCard title={emptyLabel} description={`No ${title.toLowerCase()} are linked yet.`} tone="slate" />
-      ) : (
-        <div className="space-y-3">
-          {items.map(renderItem)}
-        </div>
-      )}
-    </Card>
-  );
-}
-
 function CustomerDetailPanel({
   customer,
   canView,
@@ -14321,7 +14306,7 @@ function CustomerDetailPanel({
         onRestore={onRestoreContactHistory}
       />
 
-      <RelatedRecordsCard
+      <ExtractedRelatedRecordsCard
         title="Related leads"
         description="Open opportunities connected to this customer."
         emptyLabel="No linked leads"
@@ -14339,7 +14324,7 @@ function CustomerDetailPanel({
         )}
       />
 
-      <RelatedRecordsCard
+      <ExtractedRelatedRecordsCard
         title="Related jobs"
         description="Scheduled or active work linked to this customer."
         emptyLabel="No linked jobs"
@@ -14358,14 +14343,14 @@ function CustomerDetailPanel({
       />
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <RelatedRecordsCard
+        <ExtractedRelatedRecordsCard
           title="Estimates"
           description="Estimate records will appear here once that module is built."
           emptyLabel="No linked estimates"
           items={[]}
           renderItem={() => null}
         />
-        <RelatedRecordsCard
+        <ExtractedRelatedRecordsCard
           title="Change orders"
           description="Approved scope changes will appear here when available."
           emptyLabel="No linked change orders"
@@ -14374,7 +14359,7 @@ function CustomerDetailPanel({
         />
       </div>
 
-      <RelatedRecordsCard
+      <ExtractedRelatedRecordsCard
         title="Activity"
         description="Recent activity mentioning this customer."
         emptyLabel="No customer activity yet"

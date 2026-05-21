@@ -183,3 +183,18 @@ export function CustomerIntakeCard({ draft, setDraft, onCreateCustomer, disabled
     </Card>
   );
 }
+
+export function RelatedRecordsCard({ title, description, emptyLabel, items, renderItem }) {
+  return (
+    <Card className="p-5">
+      <SectionHeader title={title} description={description} />
+      {items.length === 0 ? (
+        <StateCard title={emptyLabel} description={`No ${title.toLowerCase()} are linked yet.`} tone="slate" />
+      ) : (
+        <div className="space-y-3">
+          {items.map(renderItem)}
+        </div>
+      )}
+    </Card>
+  );
+}
