@@ -77,6 +77,11 @@ import {
   generateLeadAssistantDrafts,
 } from "../shared/leadAiAssistant.js";
 import {
+  deriveAgentDailyOpsBrief,
+  deriveAgentNextBestActions,
+  deriveAgentWorkflowContext,
+} from "../src/agent-workflow-context-utils.js";
+import {
   buildEstimateRoughNotesContext,
   generateEstimateRoughNotesDrafts,
 } from "../shared/estimateRoughNotesAi.js";
@@ -5650,6 +5655,134 @@ function sanitizeBootstrap(state, user) {
   };
 }
 
+function assertCanViewAgentContext(bootstrapPayload) {
+  if (!bootstrapPayload?.permissions?.aiOffice?.canView) {
+    throw new ApiError(403, "Agent context requires AI Office access for an office role.");
+  }
+}
+
+function sanitizeAgentContextModule(module = {}) {
+  return {
+    id: String(module.id || ""),
+    label: String(module.label || ""),
+    moduleId: String(module.moduleId || module.id || ""),
+    canView: Boolean(module.canView),
+    count: Number(module.count || 0),
+    needsAttention: Number(module.needsAttention || 0),
+    tone: String(module.tone || "slate"),
+    summary: String(module.summary || ""),
+    nextActionLabel: String(module.nextActionLabel || "Open"),
+    records: Array.isArray(module.records) ? module.records.slice(0, 3).map((record) => ({
+      id: String(record?.id || ""),
+      label: String(record?.label || ""),
+      status: String(record?.status || ""),
+    })) : [],
+  };
+}
+
+function sanitizeAgentContextAction(action = {}) {
+  return {
+    id: String(action.id || ""),
+    moduleId: String(action.moduleId || ""),
+    actionLabel: String(action.actionLabel || ""),
+    title: String(action.title || ""),
+    reason: String(action.reason || ""),
+    reviewLabel: String(action.reviewLabel || ""),
+    blockedAutomation: String(action.blockedAutomation || ""),
+    tone: String(action.tone || "slate"),
+    score: Number(action.score || 0),
+    sourceCount: Number(action.sourceCount || 0),
+    needsAttention: Number(action.needsAttention || 0),
+    supportingRecords: Array.isArray(action.supportingRecords) ? action.supportingRecords.slice(0, 3).map((record) => ({
+      id: String(record?.id || ""),
+      label: String(record?.label || ""),
+      status: String(record?.status || ""),
+    })) : [],
+  };
+}
+
+function sanitizeAgentContextBrief(brief = {}) {
+  return {
+    mode: String(brief.mode || "review_first_daily_ops_brief"),
+    title: String(brief.title || "Daily operations brief"),
+    summary: String(brief.summary || ""),
+    metrics: Array.isArray(brief.metrics) ? brief.metrics.slice(0, 6).map((metric) => ({
+      label: String(metric?.label || ""),
+      value: Number(metric?.value || 0),
+    })) : [],
+    sections: Array.isArray(brief.sections) ? brief.sections.slice(0, 4).map((section) => ({
+      id: String(section?.id || ""),
+      label: String(section?.label || ""),
+      items: Array.isArray(section?.items) ? section.items.slice(0, 5).map((item) => ({
+        id: String(item?.id || ""),
+        label: String(item?.label || ""),
+        detail: String(item?.detail || ""),
+        moduleId: String(item?.moduleId || ""),
+        actionLabel: String(item?.actionLabel || ""),
+        count: Number(item?.count || 0),
+      })) : [],
+    })) : [],
+    actions: Array.isArray(brief.actions) ? brief.actions.slice(0, 5).map((action) => ({
+      moduleId: String(action?.moduleId || ""),
+      actionLabel: String(action?.actionLabel || ""),
+      label: String(action?.label || ""),
+    })) : [],
+    safetyBoundary: String(brief.safetyBoundary || ""),
+  };
+}
+
+function buildAgentContextPayload(bootstrapPayload, requestId) {
+  assertCanViewAgentContext(bootstrapPayload);
+  const workflowContext = deriveAgentWorkflowContext(bootstrapPayload);
+  const nextActions = deriveAgentNextBestActions(workflowContext, { limit: 5 });
+  const dailyBrief = deriveAgentDailyOpsBrief(workflowContext);
+  const visibleModules = Array.isArray(workflowContext.modules)
+    ? workflowContext.modules.filter((module) => module.canView).map(sanitizeAgentContextModule)
+    : [];
+
+  return {
+    mode: "read_only_agent_context",
+    generatedAt: new Date().toISOString(),
+    requestId,
+    currentCompanyId: String(bootstrapPayload.currentCompanyId || ""),
+    currentWorkspaceId: String(bootstrapPayload.currentWorkspaceId || bootstrapPayload.currentCompanyId || ""),
+    user: {
+      id: String(bootstrapPayload.user?.id || ""),
+      name: String(bootstrapPayload.user?.name || ""),
+      role: String(bootstrapPayload.user?.role || ""),
+      companyId: String(bootstrapPayload.user?.companyId || bootstrapPayload.currentCompanyId || ""),
+    },
+    permissions: {
+      aiOffice: {
+        canView: Boolean(bootstrapPayload.permissions?.aiOffice?.canView),
+        canUseLeadAssistant: Boolean(bootstrapPayload.permissions?.aiOffice?.canUseLeadAssistant),
+      },
+      opportunityScout: {
+        canView: Boolean(bootstrapPayload.permissions?.opportunityScout?.canView),
+        canManage: Boolean(bootstrapPayload.permissions?.opportunityScout?.canManage),
+      },
+      audit: {
+        canView: Boolean(bootstrapPayload.permissions?.audit?.canView),
+      },
+    },
+    summary: {
+      text: String(workflowContext.summary || ""),
+      visibleModuleCount: Number(workflowContext.visibleModuleCount || 0),
+      attentionCount: Number(workflowContext.attentionCount || 0),
+    },
+    modules: visibleModules,
+    topActions: Array.isArray(workflowContext.topActions) ? workflowContext.topActions.slice(0, 5).map((action) => ({
+      moduleId: String(action?.moduleId || ""),
+      actionLabel: String(action?.actionLabel || ""),
+      label: String(action?.label || ""),
+      count: Number(action?.count || 0),
+    })) : [],
+    nextActions: Array.isArray(nextActions.actions) ? nextActions.actions.map(sanitizeAgentContextAction) : [],
+    brief: sanitizeAgentContextBrief(dailyBrief),
+    safetyBoundary: "Read-only agent context. No record creation, approval, conversion, scheduling, invoicing, payment, package, role, field update, customer contact, or bid submission is performed.",
+  };
+}
+
 function sanitizeSetupStatus(state) {
   const demoUserExists = serverConfig.demoMode
     && state.users.some((user) => DEMO_USER_EMAILS.includes(user.email.toLowerCase()));
@@ -6936,6 +7069,23 @@ app.get("/api/bootstrap", requireAuth, asyncRoute(async (req, res) => {
     jobCount: Array.isArray(payload.jobs) ? payload.jobs.length : 0,
     prePourCount: Array.isArray(payload.prePourChecklists) ? payload.prePourChecklists.length : 0,
     postPourCount: Array.isArray(payload.postPourChecklists) ? payload.postPourChecklists.length : 0,
+  });
+  res.json(payload);
+}));
+
+app.get("/api/agent/context", requireAuth, asyncRoute(async (req, res) => {
+  const routeProfiler = createRouteProfiler("GET /api/agent/context", res.locals.requestId);
+  const state = await readDb();
+  routeProfiler.mark("readDbMs");
+  const bootstrapPayload = sanitizeBootstrap(state, req.auth.user);
+  routeProfiler.mark("sanitizeMs");
+  const payload = buildAgentContextPayload(bootstrapPayload, res.locals.requestId);
+  routeProfiler.mark("deriveMs");
+  routeProfiler.log({
+    authMs: req.authPerf?.totalMs || 0,
+    visibleModuleCount: payload.summary.visibleModuleCount,
+    attentionCount: payload.summary.attentionCount,
+    nextActionCount: payload.nextActions.length,
   });
   res.json(payload);
 }));
