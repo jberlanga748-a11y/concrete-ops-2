@@ -41,12 +41,13 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 | 2026-05-21 | P2 | Fencing walkthrough preflight | Done; one-command demo health, route, browser, field-role, and role-test preflight | `2c3759e` |
 | 2026-05-21 | P4 | Fencing preflight source-of-truth sync | Done; tracker and launch readiness updated | `1980a9e` |
 | 2026-05-21 | P1 | Fencing pilot intake gate | Done; fail-closed pre-login setup gate with risky-promise and secret-like text rejection | `467c173` |
+| 2026-05-21 | P4 | Autonomous build queue | Done; priority queue and stop gates created | `92f09ff` |
+| 2026-05-21 | P1 | Day 3 / Day 10 fencing pilot check-in packet | Done; read-only check-in generator, scorecard, safety boundaries, and tests | `2886d93` |
 
 ## Active Queue
 
 | Priority | Task | Status | Why It Matters | Safe Scope | Verification | Stop / Approval Gate |
 | --- | --- | --- | --- | --- | --- | --- |
-| P1 | Day 3 / Day 10 pilot check-in packet generator | Ready | Gives the first fencing pilot a structured follow-up cadence after access is created | Docs/script/tests only; no outreach, no user creation | targeted tests, `verify:pilot-readiness`, docs check | Stop before sending messages or committing real customer emails |
 | P1 | Customer pilot setup approval packet for the fencing candidate | Ready | Converts intake details into an approval checklist before any isolated pilot app/workspace setup | Plan-only docs/script; no Fly resources, no secrets | targeted tests, docs check | Stop before Fly app/volume creation or customer data entry |
 | P2 | Demo auth smoke preflight docs sync | Ready | Makes the difference between local missing `APEX_SMOKE_PASSWORD` and GitHub configured auth smoke clearer | Docs/scripts only; no secrets | docs check, hosted smoke skip-auth | Stop before reading/setting secret values |
 | P2 | CI launch-gate summary refresh | Ready | Keeps GitHub evidence easy to read for pilot/demo gates | GitHub workflow/docs helper only | workflow/script tests | Stop before changing production auth smoke behavior |
@@ -65,5 +66,4 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 ## Next Recommended Task
 
-Build the Day 3 / Day 10 pilot check-in packet generator. It is safe, high leverage, and keeps the first fencing pilot from turning into vague feedback after the walkthrough.
-
+Build the customer pilot setup approval packet for the fencing candidate, then move to demo auth smoke preflight docs sync.
