@@ -60,7 +60,7 @@ Route: `/command-center`
 
 Show:
 
-- today’s work
+- today's work
 - jobs needing proof
 - reports/uploads needing review
 - next actions
@@ -139,7 +139,7 @@ Routes: `/jobs`, `/reports`, `/uploads` as field user
 Show:
 
 - Field Mode
-- today’s required items
+- today's required items
 - upload photos
 - daily report
 - checklist or proof item
@@ -227,11 +227,11 @@ Pause the pilot if the contractor needs:
 
 The walkthrough is successful if the contractor says one of these:
 
-- “That would save me chasing.”
-- “That would help my crew know what to do.”
-- “That would make estimates look cleaner.”
-- “I would try that on one job.”
-- “Can we test it with my real workflow?”
+- "That would save me chasing."
+- "That would help my crew know what to do."
+- "That would make estimates look cleaner."
+- "I would try that on one job."
+- "Can we test it with my real workflow?"
 
 ## After The Call
 
@@ -244,5 +244,12 @@ Immediately fill out:
 - Day 10 review date
 - issues or objections
 - whether this is demo-only, 3-5 day validation, or paid founder pilot
+
+Then update the operator packet:
+
+- use `docs/apex-hq-one-page-pilot-onboarding-checklist.md` for the Day 0 setup decision
+- use `docs/apex-hq-pilot-feedback-intake-form.md` for every objection, bug, workflow complaint, and feature request
+- use `docs/apex-hq-fencing-pilot-setup-approval-packet.md` before outside login or customer-specific app setup
+- keep `docs/apex-hq-fencing-pilot-artifact-index.md` as the source map for the current pilot gates
 
 Production deploy remains locked unless approved through the backup-first release checklist.
