@@ -26,6 +26,7 @@ Purpose: keep the builder, QA flow, and business chat pointed at the same pilot 
 | `docs/apex-hq-demo-auth-smoke-preflight.md` | Auth smoke decision matrix for local, GitHub, Vercel preview, Fly demo, and production. |
 | `docs/apex-hq-fly-demo-auth-smoke-readiness-report.md` | Latest local Fly demo auth-smoke readiness evidence. |
 | `docs/apex-hq-github-demo-smoke-evidence.md` | Latest scheduled GitHub demo smoke evidence pointer. |
+| `docs/apex-hq-pilot-route-audit-p3-backlog.md` | Scoped P3 backlog from the screenshot-only route audit. |
 
 ## Repeatable Commands
 
@@ -74,6 +75,7 @@ npm.cmd run verify:pilot-readiness
 - Employee phone manifest: `ui-audit/fencing-first-walkthrough/2026-05-21T08-22-25-677Z/manifest.json`
 - Local Fly demo auth smoke readiness: skip-auth smoke PASS, local auth smoke NO-GO because `APEX_SMOKE_PASSWORD` is missing in the current shell
 - GitHub scheduled demo smoke: latest observed run `26207043659` passed on 2026-05-21T05:19:24Z and ran auth/bootstrap smoke
+- Known P3 visual backlog: desktop `/leads` long fencing text possible clipping in screenshot-only audit, not a walkthrough blocker
 
 ## Hard Stops
 
