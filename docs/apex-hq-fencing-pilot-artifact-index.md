@@ -104,6 +104,7 @@ npm.cmd run launch:gate-status -- --json
   - note: admin desktop `/estimates` had one retryable timeout and then passed on retry; no route remained failed.
 - Latest founder demo readiness check: `npm.cmd run verify:founder-demo` and `npm.cmd run brief:founder-demo` passed on 2026-05-21. Production and demo readiness endpoints returned HTTP 200 with database `ok`, founder-demo brief tests passed, and the generated brief remained manual-only with no outreach, tracker mutation, account creation, production change, or release action.
 - Latest demo smoke refresh: `npm.cmd run verify:demo`, Fly demo `/api/ready`, `fly status -a concrete-ops-demo`, `fly checks list -a concrete-ops-demo`, and `npm.cmd run smoke:hosted -- --base-url=https://concrete-ops-demo.fly.dev --skip-auth --json` passed on 2026-05-21. Fly demo stayed on v130 with image `registry.fly.io/concrete-ops-demo:deployment-01KS4Z90RCA1G8RCBKSQQDEE2F`, service check passing, hosted `/api/ready` at 30ms, and all checked app routes returned HTTP 200.
+- Latest Opportunity Scout safety verification: `npm.cmd run verify:opportunity-scout` passed on 2026-05-21 with 69 tests. Coverage included owner/admin access, Basic/package locking, field-user blocking, company scoping, redaction, missing-info extraction, dedupe, review-only AI planning, human approval before lead conversion, blocked source terms, source access human-review stops, and rejection of auto-contact, bid submission, credential, and token payloads.
 
 ## Hard Stops
 
