@@ -17588,10 +17588,11 @@ function ScheduleOperatingPlanWorkbench({
 }) {
   const primaryRows = scheduleUniqueRows([
     ...scheduleState.todayRows,
-    ...scheduleState.tomorrowRows,
     ...scheduleState.missingRows,
+    ...scheduleState.tomorrowRows,
     ...scheduleState.unassignedRows,
-  ]).slice(0, 7);
+  ]).slice(0, 5);
+  const tomorrowPrepRows = scheduleUniqueRows(scheduleState.tomorrowRows).slice(0, 3);
   const crewLoads = Array.from(primaryRows.reduce((map, row) => {
     const labels = row.crewLabels.length ? row.crewLabels : [row.foreman || "Unassigned"];
     labels.slice(0, 2).forEach((label) => {
@@ -17660,7 +17661,7 @@ function ScheduleOperatingPlanWorkbench({
 
         <div className="co-schedule-selected-panel">
           <div className="co-schedule-command-section-head">
-            <span>Selected job and crew</span>
+            <span>Selected job and tomorrow prep</span>
             <strong>{focusRow ? (focusRow.missing.length ? "Needs action" : "Ready") : "Waiting"}</strong>
           </div>
           {focusRow ? (
@@ -17705,6 +17706,23 @@ function ScheduleOperatingPlanWorkbench({
               <span>Select a row to inspect crew, proof, report, safety, and next action context.</span>
             </div>
           )}
+          <div className="co-schedule-tomorrow-prep">
+            <div className="co-schedule-command-section-head">
+              <span>Tomorrow prep</span>
+              <strong>{tomorrowPrepRows.length || "Clear"}</strong>
+            </div>
+            {tomorrowPrepRows.length ? tomorrowPrepRows.map((row) => (
+              <button key={`tomorrow-${row.job.id}-${row.dateKey || "scheduled"}`} type="button" onClick={() => onSelectRow(row)}>
+                <span>
+                  <strong>{jobTitle(row.job)}</strong>
+                  <em>{[formatJobScheduleDetail(row.job), row.crewLabels.length ? row.crewLabels.slice(0, 2).join(", ") : "Crew pending"].filter(Boolean).join(" / ")}</em>
+                </span>
+                <Badge tone={row.missing.length ? "amber" : "green"}>{row.missing.length ? `${row.missing.length} gaps` : "Ready"}</Badge>
+              </button>
+            )) : (
+              <p>No tomorrow jobs need prep in this view.</p>
+            )}
+          </div>
         </div>
       </div>
     </section>
@@ -17759,7 +17777,6 @@ function SchedulePage({
     { label: "Tomorrow", value: stats.tomorrow, helper: "Prep before morning", icon: "clock", tone: stats.tomorrow ? "blue" : "slate", actionLabel: "Open jobs", onAction: () => setActive("jobs") },
     { label: "Unassigned", value: stats.unassigned, helper: "Needs date or crew", icon: "users", tone: stats.unassigned ? "amber" : "green", actionLabel: "Assign crew", onAction: () => setActive("jobs") },
     { label: "Needs Follow-Up", value: stats.missingActivity, helper: "Missing activity or readiness", icon: "alert", tone: stats.missingActivity ? "red" : "green", actionLabel: "Review", onAction: () => setActive("jobs") },
-    { label: "Active Clocks", value: stats.activeClocks, helper: "Crew time running", icon: "clock", tone: stats.activeClocks ? "green" : "slate", actionLabel: "Open time", onAction: () => setActive("time") },
   ];
 
   function openModule(moduleId) {

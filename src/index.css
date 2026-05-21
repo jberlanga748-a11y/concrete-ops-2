@@ -36445,7 +36445,7 @@ button.co-work-queue-card:hover:not(:disabled) {
 .co-schedule-plan-kpis {
   display: grid;
   min-width: 0;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.72rem;
   margin-bottom: 0.86rem;
 }
@@ -36551,9 +36551,7 @@ button.co-work-queue-card:hover:not(:disabled) {
   overflow: hidden;
   border: 1px solid rgba(203, 213, 225, 0.98);
   border-radius: 0.64rem;
-  background:
-    linear-gradient(135deg, rgba(255, 247, 237, 0.72), rgba(255, 255, 255, 0.98) 24rem),
-    #ffffff;
+  background: #ffffff;
   box-shadow: 0 22px 52px -44px rgba(7, 17, 31, 0.66);
 }
 
@@ -36604,7 +36602,7 @@ button.co-work-queue-card:hover:not(:disabled) {
 .co-schedule-command-grid {
   display: grid;
   min-width: 0;
-  grid-template-columns: minmax(18rem, 0.88fr) minmax(0, 1.12fr);
+  grid-template-columns: minmax(20rem, 0.95fr) minmax(0, 1.05fr);
   gap: 0.86rem;
   padding: 0.86rem;
 }
@@ -36628,7 +36626,9 @@ button.co-work-queue-card:hover:not(:disabled) {
   display: grid;
   align-content: start;
   gap: 0.72rem;
-  background: #ffffff;
+  background:
+    linear-gradient(180deg, rgba(255, 247, 237, 0.46), rgba(255, 255, 255, 0.98) 14rem),
+    #ffffff;
 }
 
 .co-schedule-command-section-head {
@@ -36734,6 +36734,57 @@ button.co-work-queue-card:hover:not(:disabled) {
   border-radius: 0.54rem;
   background: #f8fafc;
   padding: 0.62rem;
+}
+
+.co-schedule-tomorrow-prep {
+  display: grid;
+  min-width: 0;
+  gap: 0.42rem;
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  border-radius: 0.54rem;
+  background: #ffffff;
+  padding: 0.62rem;
+}
+
+.co-schedule-tomorrow-prep button {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  border-radius: 0.48rem;
+  background: #f8fafc;
+  padding: 0.52rem 0.58rem;
+  text-align: left;
+}
+
+.co-schedule-tomorrow-prep button:hover {
+  border-color: rgba(249, 115, 22, 0.34);
+  background: #fff7ed;
+}
+
+.co-schedule-tomorrow-prep button span {
+  display: grid;
+  min-width: 0;
+  gap: 0.12rem;
+}
+
+.co-schedule-tomorrow-prep button strong {
+  overflow-wrap: anywhere;
+  color: #07111f;
+  font-size: 0.76rem;
+  font-weight: 950;
+  line-height: 1.12;
+}
+
+.co-schedule-tomorrow-prep button em,
+.co-schedule-tomorrow-prep p {
+  color: #64748b;
+  font-size: 0.68rem;
+  font-style: normal;
+  font-weight: 850;
+  line-height: 1.22;
 }
 
 .co-schedule-crew-load > span {
