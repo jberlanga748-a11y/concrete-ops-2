@@ -258,6 +258,20 @@ const ALLOWED_UPLOAD_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "
 const MAX_UPLOAD_SIZE_BYTES = 8 * 1024 * 1024;
 const CALCULATOR_RESULT_TYPES = new Set(["slab", "footing", "wall", "round_column", "roundColumn", "multi_section"]);
 const PUBLIC_REQUEST_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+const AGENT_PROPOSAL_AUDIT_EVENT_TYPES = new Set([
+  "agent.proposal.generated",
+  "agent.proposal.blocked",
+  "agent.proposal.dismissed",
+  "agent.proposal.rejected",
+]);
+const AGENT_PROPOSAL_AUDIT_SECRET_PATTERNS = Object.freeze([
+  /\b(password|passcode|api[_ -]?key|secret|token|bearer|cookie|session|mfa|captcha)\s*[:=]\s*[^\s,;]+/gi,
+  /\b(bearer)\s+[a-z0-9._~+/=-]{8,}/gi,
+  /\b(sk-[a-z0-9_-]{12,})\b/gi,
+  /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,
+]);
+const AGENT_PROPOSAL_UNSAFE_AUTOMATION_PATTERN = /\b(send|submit|bid|email|text|sms|call|notify|contact|approve|convert|invoice|charge|collect payment)\b/i;
+const AGENT_PROPOSAL_SECRET_SIGNAL_PATTERN = /\b(password|passcode|api[_ -]?key|secret|token|bearer|cookie|session|mfa|captcha|paywall|login|portal credential)\b/i;
 const PUBLIC_REQUEST_RATE_LIMIT_MAX = 5;
 const PUBLIC_DEMO_INTEREST_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const PUBLIC_DEMO_INTEREST_RATE_LIMIT_MAX = 5;
@@ -5704,6 +5718,95 @@ async function appendAuthAuditEvent({ user, action, summary, detail, changedFiel
   });
 }
 
+function redactAgentProposalAuditText(value, { maxLength = 500 } = {}) {
+  let redacted = String(value ?? "").trim();
+  if (!redacted) return "";
+  AGENT_PROPOSAL_AUDIT_SECRET_PATTERNS.forEach((pattern) => {
+    redacted = redacted.replace(pattern, (match) => {
+      if (match.includes("@")) return "[REDACTED]";
+      const label = match.split(/[:=\s]/)[0] || "secret";
+      return `${label}: [REDACTED]`;
+    });
+  });
+  redacted = redacted.replace(/\s+/g, " ").trim();
+  if (redacted.length <= maxLength) return redacted;
+  return `${redacted.slice(0, Math.max(0, maxLength - 1)).trim()}...`;
+}
+
+function redactedAuditList(value, { limit = 8, maxLength = 220 } = {}) {
+  return (Array.isArray(value) ? value : [])
+    .map((item) => redactAgentProposalAuditText(item, { maxLength }))
+    .filter(Boolean)
+    .slice(0, limit);
+}
+
+function normalizeAgentProposalDraftPrepSummary(value) {
+  return (Array.isArray(value) ? value : [])
+    .slice(0, 5)
+    .map((item) => ({
+      prepType: redactAgentProposalAuditText(item?.prepType, { maxLength: 80 }),
+      label: redactAgentProposalAuditText(item?.label, { maxLength: 120 }),
+      reviewLabel: redactAgentProposalAuditText(item?.reviewLabel, { maxLength: 180 }),
+    }))
+    .filter((item) => item.prepType || item.label || item.reviewLabel);
+}
+
+function normalizeAgentProposalAuditPayload(payload = {}) {
+  const eventType = optionalEnum(payload.eventType, AGENT_PROPOSAL_AUDIT_EVENT_TYPES, "Agent proposal audit event type", "agent.proposal.generated");
+  const proposalId = requiredString(payload.proposalId, "Proposal ID").slice(0, 160);
+  const proposalType = requiredString(payload.proposalType, "Proposal type").slice(0, 120);
+  const status = optionalString(payload.status, eventType === "agent.proposal.blocked" ? "blocked" : "needs_human_review").slice(0, 80);
+  const approvalRequired = payload.approvalRequired !== false;
+  if (!approvalRequired) {
+    throw new ApiError(400, "Agent proposal audit records must keep human approval required.");
+  }
+
+  const redactedPromptPreview = redactAgentProposalAuditText(payload.redactedPromptPreview || payload.prompt || "");
+  const redactedResponsePreview = redactAgentProposalAuditText(payload.redactedResponsePreview || payload.response || "");
+  const combinedSignals = [
+    payload.prompt,
+    payload.response,
+    redactedPromptPreview,
+    redactedResponsePreview,
+    payload.summary,
+  ].filter(Boolean).join(" ");
+  const blockedReasons = [
+    ...redactedAuditList(payload.blockedReasons, { limit: 12, maxLength: 220 }),
+    AGENT_PROPOSAL_SECRET_SIGNAL_PATTERN.test(combinedSignals) ? "Secret-like content must be redacted before audit storage" : "",
+    AGENT_PROPOSAL_UNSAFE_AUTOMATION_PATTERN.test(combinedSignals) ? "Unsafe automation request remains review-only" : "",
+  ].filter(Boolean);
+
+  return {
+    eventType,
+    proposalId,
+    proposalType,
+    status,
+    riskLevel: optionalString(payload.riskLevel, eventType === "agent.proposal.blocked" || blockedReasons.length ? "review_required" : "low").slice(0, 80),
+    sourceRoute: redactAgentProposalAuditText(payload.sourceRoute, { maxLength: 160 }),
+    sourceModule: redactAgentProposalAuditText(payload.sourceModule, { maxLength: 80 }),
+    summary: redactAgentProposalAuditText(payload.summary || "Agent action proposal", { maxLength: 220 }),
+    redactedPromptPreview,
+    redactedResponsePreview,
+    approvalRequired,
+    requiredApprovals: redactedAuditList(payload.requiredApprovals, { limit: 8, maxLength: 220 }),
+    blockedReasons: [...new Set(blockedReasons)].slice(0, 12),
+    draftPrepSummary: normalizeAgentProposalDraftPrepSummary(payload.draftPrepSummary),
+    targetEntityType: redactAgentProposalAuditText(payload.targetEntityType, { maxLength: 80 }),
+    targetEntityId: redactAgentProposalAuditText(payload.targetEntityId, { maxLength: 160 }),
+    createdDraftEntityType: "",
+    createdDraftEntityId: "",
+  };
+}
+
+function assertCanCreateAgentProposalAudit(state, user) {
+  const entitlements = resolvePackageEntitlements({
+    hasFeature: (featureKey) => companyHasFeature(state, user, featureKey),
+  });
+  if (!entitlements.aiOffice.canUse || !canViewLeads(user)) {
+    throw new ApiError(403, "You do not have permission to audit AI Office action proposals.");
+  }
+}
+
 function pickImportedDraftEditableFields(updates = {}) {
   const allowedFields = [
     "importStatus",
@@ -6674,6 +6777,55 @@ app.get("/api/bootstrap", requireAuth, asyncRoute(async (req, res) => {
     postPourCount: Array.isArray(payload.postPourChecklists) ? payload.postPourChecklists.length : 0,
   });
   res.json(payload);
+}));
+
+app.post("/api/agent-action-proposals/audit", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanCreateAgentProposalAudit(state, req.auth.user);
+  const normalized = normalizeAgentProposalAuditPayload(req.body || {});
+  const companyId = currentCompanyIdForRequestUser(state, req.auth.user);
+  const detail = JSON.stringify({
+    ...normalized,
+    actorUserId: req.auth.user.id,
+    actorRole: req.auth.user.role,
+  });
+
+  const auditEvent = await insertAuditEventRecord({
+    id: makeAuditId(),
+    companyId,
+    entityType: "agentActionProposal",
+    entityId: normalized.proposalId,
+    action: normalized.eventType,
+    summary: normalized.summary,
+    detail,
+    actorUserId: req.auth.user.id,
+    actorName: req.auth.user.name,
+    changedFields: [
+      "proposalId",
+      "proposalType",
+      "status",
+      "sourceModule",
+      "redactedPromptPreview",
+      "redactedResponsePreview",
+      "blockedReasons",
+    ],
+  });
+
+  res.status(201).json({
+    auditEvent: {
+      id: auditEvent.id,
+      companyId,
+      entityType: "agentActionProposal",
+      entityId: normalized.proposalId,
+      action: normalized.eventType,
+      summary: normalized.summary,
+      actorUserId: req.auth.user.id,
+      actorName: req.auth.user.name,
+      createdAt: auditEvent.createdAt,
+      detail: normalized,
+    },
+    requestId: res.locals.requestId,
+  });
 }));
 
 app.get("/api/export/company", requireAuth, asyncRoute(async (req, res) => {
