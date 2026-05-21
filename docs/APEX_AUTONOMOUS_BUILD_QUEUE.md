@@ -77,7 +77,7 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 | 2026-05-21 | P2 | Pilot readiness gate refresh after safety baseline | Done; full `verify:pilot-readiness` passed after latest SaaS safety, workflow, and field/support verification refreshes | `da6ca3d` |
 | 2026-05-21 | P2 | Launch gate snapshot refresh after readiness baseline | Done; guided demo and demo/pilot monitoring baseline are GO, while customer pilot, production auth smoke, and wider paid launch remain NO-GO | `dda56d4` |
 | 2026-05-21 | P2 | Fencing walkthrough preflight refresh after readiness baseline | Done; Fly demo ready, hosted skip-auth smoke, admin desktop/tablet audits, employee phone audit, and roles passed | `181dd00` |
-| 2026-05-21 | P2 | GitHub CI evidence refresh after autonomous pushes | Done; latest CI on `5ad848c` passed whitespace, auth/signup, tenant/role/package, public/demo, server/backup/export, and build checks | `pending` |
+| 2026-05-21 | P2 | GitHub CI evidence refresh after autonomous pushes | Done; latest CI on `5ad848c` passed whitespace, auth/signup, tenant/role/package, public/demo, server/backup/export, and build checks | `e83f48e` |
 
 ## Active Queue
 
