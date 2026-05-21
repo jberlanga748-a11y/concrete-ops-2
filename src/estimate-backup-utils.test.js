@@ -18,12 +18,16 @@ import {
   serializeEstimateBackup,
 } from "./estimate-backup-utils.js";
 import { buildPrintDocumentHtml, deriveEstimatePrintPacket } from "./print-packets.js";
+import { normalizeFenceTakeoff } from "./fence-takeoff-utils.js";
+
+const EMPTY_FENCE_TAKEOFF = normalizeFenceTakeoff();
 
 test("old estimates without backup fields normalize safely", () => {
   assert.deepEqual(deriveEstimateBackup({ internalNotes: "Office-only note." }), {
     sovRows: [],
     takeoffRows: [],
     referenceRows: [],
+    fenceTakeoff: EMPTY_FENCE_TAKEOFF,
     notes: "",
   });
   assert.equal(getEstimateInternalNotesWithoutBackup("Office-only note."), "Office-only note.");
@@ -79,6 +83,7 @@ test("SOV rows and backup notes normalize safely", () => {
     sovRows: [row],
     takeoffRows: [],
     referenceRows: [],
+    fenceTakeoff: EMPTY_FENCE_TAKEOFF,
     notes: "estimator backup note",
   });
 });
@@ -137,6 +142,7 @@ test("backup data stores in internal notes without overwriting line items or vis
     sovRows: [{ section: "Concrete", description: "Placement", quantity: "8", unit: "CY", amount: "1800", notes: "Backup only" }],
     takeoffRows: [{ item: "Concrete volume", quantity: "8", unit: "CY", source: "Takeoff sheet", estimatorNote: "Round up after waste review" }],
     referenceRows: [{ fileName: "Bluebeam takeoff.png", referenceType: "Screenshot", url: "https://files.example.test/takeoff.png", source: "A2.0", notes: "Office proof only" }],
+    fenceTakeoff: EMPTY_FENCE_TAKEOFF,
     notes: "Backup rows do not change line items.",
   });
 });
@@ -161,6 +167,22 @@ test("backup rows do not affect estimate base totals", () => {
     feesTotal: 50,
     grandTotal: 270,
   });
+});
+
+test("satellite fence takeoff stores inside office-only backup block", () => {
+  const estimate = mergeEstimateBackup({ internalNotes: "Fence estimate." }, {
+    fenceTakeoff: {
+      address: "123 Fence Ave, Salem OR",
+      segments: [{ label: "Back run", linearFeet: 125, material: "Cedar", height: "6 ft", fenceType: "Privacy", gates: 2 }],
+    },
+  });
+  const backup = deriveEstimateBackup(estimate);
+
+  assert.equal(getEstimateInternalNotesWithoutBackup(estimate.internalNotes), "Fence estimate.");
+  assert.equal(backup.fenceTakeoff.address, "123 Fence Ave, Salem OR");
+  assert.equal(backup.fenceTakeoff.totalLinearFeet, 125);
+  assert.equal(backup.fenceTakeoff.gateCount, 2);
+  assert.match(serializeEstimateBackup(backup), /Fence Ave|fenceTakeoff/);
 });
 
 test("internal note edits preserve existing backup block", () => {

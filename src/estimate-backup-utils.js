@@ -1,3 +1,5 @@
+import { fenceTakeoffHasContent, normalizeFenceTakeoff } from "./fence-takeoff-utils.js";
+
 const LEGACY_BRAND_PATTERN = ["Concrete", "Ops"].join("\\s+");
 const ESTIMATE_BACKUP_BLOCK_START = "[Apex HQ Estimate Backup]";
 const ESTIMATE_BACKUP_BLOCK_END = "[/Apex HQ Estimate Backup]";
@@ -20,7 +22,8 @@ function backupHasContent(backup = {}) {
     textValue(backup?.notes)
     || (Array.isArray(backup?.sovRows) && backup.sovRows.some(rowHasContent))
     || (Array.isArray(backup?.takeoffRows) && backup.takeoffRows.some(rowHasContent))
-    || (Array.isArray(backup?.referenceRows) && backup.referenceRows.some(rowHasContent)),
+    || (Array.isArray(backup?.referenceRows) && backup.referenceRows.some(rowHasContent))
+    || fenceTakeoffHasContent(backup?.fenceTakeoff),
   );
 }
 
@@ -111,6 +114,7 @@ export function normalizeEstimateBackup(backup = {}) {
     referenceRows: (Array.isArray(backup?.referenceRows) ? backup.referenceRows : [])
       .map((row) => normalizeEstimateReferenceAttachmentRow(row))
       .filter(rowHasContent),
+    fenceTakeoff: normalizeFenceTakeoff(backup?.fenceTakeoff),
     notes: textValue(backup?.notes),
   };
 }

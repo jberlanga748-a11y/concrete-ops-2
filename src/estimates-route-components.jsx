@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import "mapbox-gl/dist/mapbox-gl.css";
 
 import { Badge, Button, Card, FilterBar, Icon, InputField, SectionHeader, SelectField, StatCard, StateCard, StatusBadge, TextAreaField } from "./app-shell-components";
 import { DEFAULT_COMPANY_NAME, resolveWorkspaceLogoInitials } from "./brand-utils";
@@ -8,6 +9,7 @@ import { estimateRoughNotesHasSuggestions, estimateRoughNotesText } from "./esti
 import { deriveEstimateSentSnapshots, getEstimateVisibleInternalNotes, mergeEstimateGcPacketLite, mergeEstimateOfficeInternalNotes } from "./estimate-snapshot-utils";
 import { calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEstimateTotals, deriveEstimateJobHandoffReadiness, deriveEstimateProposalSections, estimateCustomerEmail, estimateStatusLabel, formatEstimateCurrency, mergeEstimateProposalSections } from "./estimate-utils";
 import { ESTIMATE_LINE_ITEM_STARTERS, ESTIMATE_TEMPLATE_STARTERS, addEstimateLineItemStarter, applyEstimateTemplateStarter, buildEstimateLineItemsFromRoughNotes } from "./estimate-template-utils";
+import { buildFenceTakeoffBackupRows, buildFenceTakeoffDraftLineItems, buildFenceTakeoffFieldHandoff, buildFenceTakeoffProposalSummary, mergeFenceTakeoffIntoDraft, normalizeFenceTakeoff, summarizeFenceTakeoffByAssembly } from "./fence-takeoff-utils";
 import { ESTIMATE_PACKET_PRESETS, ESTIMATE_PACKET_SECTION_DEFS, INTERNAL_REVIEW_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
 
 export function estimateDisplayTitle(estimate) {
@@ -808,6 +810,442 @@ export function EstimateBackupEditor({ draft, setDraft, disabled = false }) {
   );
 }
 
+const DEFAULT_MAPBOX_TOKEN = import.meta.env?.VITE_MAPBOX_TOKEN || "";
+
+function formatFenceFeet(value) {
+  const parsed = Number.parseFloat(String(value ?? ""));
+  if (!Number.isFinite(parsed)) return "0 LF";
+  return `${parsed.toLocaleString("en-US", { maximumFractionDigits: 1 })} LF`;
+}
+
+function buildFenceSegmentsFromFeatures(features = [], previousSegments = []) {
+  return features.map((feature, index) => {
+    const previous = previousSegments[index] || {};
+    return {
+      ...previous,
+      id: previous.id || feature.id || `fence-segment-${index + 1}`,
+      label: previous.label || `Segment ${index + 1}`,
+      fenceType: previous.fenceType || "Fence run",
+      height: previous.height || "6 ft",
+      material: previous.material || "Cedar",
+      gates: previous.gates ?? 0,
+      geojson: {
+        type: "Feature",
+        properties: {},
+        geometry: feature.geometry,
+      },
+    };
+  });
+}
+
+function FenceSatelliteTakeoffMap({ token = DEFAULT_MAPBOX_TOKEN, takeoff, disabled, onChange }) {
+  const containerRef = useRef(null);
+  const mapRef = useRef(null);
+  const latestTakeoffRef = useRef(takeoff);
+  const onChangeRef = useRef(onChange);
+  const drawingRef = useRef(false);
+  const draftPointsRef = useRef([]);
+  const [mapReady, setMapReady] = useState(false);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [draftPoints, setDraftPoints] = useState([]);
+  const [mapStatus, setMapStatus] = useState(token ? "Loading satellite map..." : "Add VITE_MAPBOX_TOKEN to enable the satellite drawing map.");
+  const [addressInput, setAddressInput] = useState(takeoff.address || "");
+  const [searchBusy, setSearchBusy] = useState(false);
+
+  const segmentFeatures = useMemo(() => normalizeFenceTakeoff(takeoff).segments
+    .map((segment) => segment.geojson)
+    .filter((feature) => feature?.geometry?.type === "LineString"), [takeoff]);
+
+  const draftFeature = useMemo(() => ({
+    type: "FeatureCollection",
+    features: draftPoints.length >= 2 ? [{
+      type: "Feature",
+      properties: {},
+      geometry: { type: "LineString", coordinates: draftPoints },
+    }] : [],
+  }), [draftPoints]);
+
+  useEffect(() => {
+    latestTakeoffRef.current = takeoff;
+  }, [takeoff]);
+
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  useEffect(() => {
+    setAddressInput(takeoff.address || "");
+  }, [takeoff.address]);
+
+  useEffect(() => {
+    drawingRef.current = isDrawing;
+    const canvas = mapRef.current?.getCanvas?.();
+    if (canvas) canvas.style.cursor = isDrawing ? "crosshair" : "";
+  }, [isDrawing]);
+
+  useEffect(() => {
+    draftPointsRef.current = draftPoints;
+  }, [draftPoints]);
+
+  function upsertMapSourceData(sourceId, featureCollection) {
+    const source = mapRef.current?.getSource?.(sourceId);
+    if (source?.setData) source.setData(featureCollection);
+  }
+
+  function syncMapData() {
+    if (!mapRef.current || !mapReady) return;
+    upsertMapSourceData("apex-fence-segments", { type: "FeatureCollection", features: segmentFeatures });
+    upsertMapSourceData("apex-fence-draft", draftFeature);
+  }
+
+  useEffect(() => {
+    syncMapData();
+  }, [draftFeature, mapReady, segmentFeatures]);
+
+  useEffect(() => {
+    if (!token || disabled || !containerRef.current || mapRef.current) return undefined;
+    let cancelled = false;
+    let cleanup = () => {};
+
+    async function loadMap() {
+      try {
+        const { default: mapboxgl } = await import("mapbox-gl");
+        if (cancelled || !containerRef.current) return;
+
+        mapboxgl.accessToken = token;
+        const normalized = normalizeFenceTakeoff(latestTakeoffRef.current);
+        const map = new mapboxgl.Map({
+          container: containerRef.current,
+          style: "mapbox://styles/mapbox/satellite-streets-v12",
+          center: normalized.center.length === 2 ? normalized.center : [-123.0351, 44.9429],
+          zoom: normalized.zoom || 18,
+          attributionControl: false,
+        });
+
+        mapRef.current = map;
+        map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
+        map.addControl(new mapboxgl.AttributionControl({ compact: true }), "bottom-right");
+
+        map.on("load", () => {
+          if (!map.getSource("apex-fence-segments")) {
+            map.addSource("apex-fence-segments", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+          }
+          if (!map.getSource("apex-fence-draft")) {
+            map.addSource("apex-fence-draft", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+          }
+          if (!map.getLayer("apex-fence-segments-line")) {
+            map.addLayer({
+              id: "apex-fence-segments-line",
+              type: "line",
+              source: "apex-fence-segments",
+              paint: { "line-color": "#f97316", "line-width": 4, "line-opacity": 0.96 },
+            });
+          }
+          if (!map.getLayer("apex-fence-draft-line")) {
+            map.addLayer({
+              id: "apex-fence-draft-line",
+              type: "line",
+              source: "apex-fence-draft",
+              paint: { "line-color": "#10b981", "line-width": 4, "line-dasharray": [1.4, 1.1] },
+            });
+          }
+          setMapReady(true);
+          setMapStatus("Click Start Drawing, then click fence points on the satellite map. Finish Segment saves the run.");
+        });
+        map.on("click", (event) => {
+          if (!drawingRef.current || disabled) return;
+          const nextPoints = [...draftPointsRef.current, [event.lngLat.lng, event.lngLat.lat]];
+          setDraftPoints(nextPoints);
+          setMapStatus(nextPoints.length >= 2 ? "Fence run in progress. Click more points or Finish Segment." : "First point set. Click the next fence corner.");
+        });
+        map.on("moveend", () => {
+          const center = map.getCenter();
+          onChangeRef.current({
+            ...latestTakeoffRef.current,
+            center: [center.lng, center.lat],
+            zoom: map.getZoom(),
+          });
+        });
+
+        cleanup = () => {
+          map.remove();
+          mapRef.current = null;
+          setMapReady(false);
+        };
+      } catch (error) {
+        setMapStatus(error?.message || "Satellite map could not load. Check the Mapbox token and network.");
+      }
+    }
+
+    loadMap();
+    return () => {
+      cancelled = true;
+      cleanup();
+    };
+  }, [disabled, token]);
+
+  function startDrawing() {
+    if (disabled || !token || !mapRef.current) return;
+    setDraftPoints([]);
+    setIsDrawing(true);
+    setMapStatus("Drawing mode active. Click the first fence corner on the satellite map.");
+  }
+
+  function undoPoint() {
+    const nextPoints = draftPoints.slice(0, -1);
+    setDraftPoints(nextPoints);
+    setMapStatus(nextPoints.length ? "Point removed. Continue drawing or finish the segment." : "No draft points left. Click the first fence corner.");
+  }
+
+  function cancelDrawing() {
+    setDraftPoints([]);
+    setIsDrawing(false);
+    setMapStatus("Drawing cancelled. Start Drawing when ready.");
+  }
+
+  function finishSegment() {
+    if (draftPoints.length < 2) {
+      setMapStatus("Add at least two points before finishing a segment.");
+      return;
+    }
+    const previous = normalizeFenceTakeoff(latestTakeoffRef.current).segments;
+    const nextFeature = {
+      type: "Feature",
+      properties: {},
+      geometry: { type: "LineString", coordinates: draftPoints },
+    };
+    const nextSegments = buildFenceSegmentsFromFeatures([nextFeature], []).map((segment) => ({
+      ...segment,
+      id: `fence-segment-${previous.length + 1}`,
+      label: `Segment ${previous.length + 1}`,
+    }));
+    const center = mapRef.current?.getCenter?.();
+    onChangeRef.current({
+      ...latestTakeoffRef.current,
+      center: center ? [center.lng, center.lat] : latestTakeoffRef.current.center,
+      zoom: mapRef.current?.getZoom?.() || latestTakeoffRef.current.zoom,
+      segments: [...previous, ...nextSegments],
+      updatedAt: new Date().toISOString(),
+    });
+    setDraftPoints([]);
+    setIsDrawing(false);
+    setMapStatus("Fence segment saved. Label it below or draw another run.");
+  }
+
+  async function searchAddress() {
+    const query = addressInput.trim();
+    if (!query || !token || !mapRef.current) return;
+    setSearchBusy(true);
+    try {
+      const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?limit=1&access_token=${encodeURIComponent(token)}`);
+      const payload = await response.json();
+      const center = payload?.features?.[0]?.center;
+      if (Array.isArray(center) && center.length === 2) {
+        mapRef.current.flyTo({ center, zoom: 19, essential: true });
+        onChangeRef.current({ ...latestTakeoffRef.current, address: query, center, zoom: 19, updatedAt: new Date().toISOString() });
+        setMapStatus("Address centered. Draw each fence run on the satellite image.");
+      } else {
+        setMapStatus("No Mapbox result found. Check the address and try again.");
+      }
+    } catch (error) {
+      setMapStatus(error?.message || "Address search failed.");
+    } finally {
+      setSearchBusy(false);
+    }
+  }
+
+  return (
+    <div className="co-fence-takeoff-map-shell">
+      <div className="co-fence-takeoff-search">
+        <InputField
+          label="Address / jobsite search"
+          value={addressInput}
+          onChange={(event) => setAddressInput(event.target.value)}
+          placeholder="Enter project address"
+          disabled={disabled}
+        />
+        <Button type="button" variant="secondary" onClick={searchAddress} disabled={disabled || !token || searchBusy || !addressInput.trim()}>
+          {searchBusy ? "Searching" : "Search Map"}
+        </Button>
+      </div>
+      {token ? (
+        <div className="co-fence-takeoff-draw-actions">
+          <Button type="button" size="sm" onClick={startDrawing} disabled={disabled || !mapReady || isDrawing}>Start Drawing</Button>
+          <Button type="button" size="sm" variant="secondary" onClick={finishSegment} disabled={disabled || !isDrawing || draftPoints.length < 2}>Finish Segment</Button>
+          <Button type="button" size="sm" variant="secondary" onClick={undoPoint} disabled={disabled || !isDrawing || draftPoints.length === 0}>Undo Point</Button>
+          <Button type="button" size="sm" variant="secondary" onClick={cancelDrawing} disabled={disabled || !isDrawing}>Cancel</Button>
+          <span>{draftPoints.length} point{draftPoints.length === 1 ? "" : "s"}</span>
+        </div>
+      ) : null}
+      {token ? (
+        <div ref={containerRef} className="co-fence-takeoff-map" aria-label="Satellite fence takeoff map" />
+      ) : (
+        <div className="co-fence-takeoff-map co-fence-takeoff-map--empty">
+          <Icon name="lock" />
+          <strong>Mapbox token needed</strong>
+          <p>Add <code>VITE_MAPBOX_TOKEN</code> to local/demo env to enable satellite search and drawing. Existing takeoff rows and labels remain editable.</p>
+        </div>
+      )}
+      <p className="co-fence-takeoff-map-status">{mapStatus}</p>
+    </div>
+  );
+}
+
+export function FenceTakeoffLiteEditor({ draft, setDraft, disabled = false, token = DEFAULT_MAPBOX_TOKEN, jobsiteAddress = "" }) {
+  const backup = deriveEstimateBackup(draft);
+  const takeoff = useMemo(() => normalizeFenceTakeoff({
+    address: backup.fenceTakeoff?.address || jobsiteAddress,
+    ...backup.fenceTakeoff,
+  }), [backup.fenceTakeoff, jobsiteAddress]);
+  const assemblies = summarizeFenceTakeoffByAssembly(takeoff);
+  const proposalSummary = buildFenceTakeoffProposalSummary(takeoff);
+  const fieldHandoff = buildFenceTakeoffFieldHandoff(takeoff);
+  const draftLineItems = buildFenceTakeoffDraftLineItems(takeoff);
+
+  const commitTakeoff = (nextTakeoff) => {
+    setDraft((current) => mergeEstimateBackup(current, {
+      ...deriveEstimateBackup(current),
+      fenceTakeoff: normalizeFenceTakeoff(nextTakeoff),
+    }));
+  };
+
+  const updateSegment = (index, field, value) => {
+    const nextSegments = takeoff.segments.map((segment, segmentIndex) => (
+      segmentIndex === index ? { ...segment, [field]: value } : segment
+    ));
+    commitTakeoff({ ...takeoff, segments: nextSegments, updatedAt: new Date().toISOString() });
+  };
+
+  const addManualSegment = () => {
+    commitTakeoff({
+      ...takeoff,
+      segments: [
+        ...takeoff.segments,
+        {
+          id: `manual-fence-segment-${takeoff.segments.length + 1}`,
+          label: `Manual segment ${takeoff.segments.length + 1}`,
+          fenceType: "Fence run",
+          height: "6 ft",
+          material: "Cedar",
+          gates: 0,
+          linearFeet: 100,
+          notes: "Manual estimate-grade segment. Replace with satellite drawing when Mapbox token is configured.",
+        },
+      ],
+      updatedAt: new Date().toISOString(),
+    });
+  };
+
+  const removeSegment = (index) => {
+    commitTakeoff({
+      ...takeoff,
+      segments: takeoff.segments.filter((_, segmentIndex) => segmentIndex !== index),
+      updatedAt: new Date().toISOString(),
+    });
+  };
+
+  const applyTakeoffToDraft = () => {
+    setDraft((current) => {
+      const currentBackup = deriveEstimateBackup(current);
+      const nextBackupRows = [
+        ...currentBackup.takeoffRows.filter((row) => row.source !== "Satellite Fence Takeoff Lite"),
+        ...buildFenceTakeoffBackupRows(takeoff),
+      ];
+      const withDraftItems = mergeFenceTakeoffIntoDraft(current, takeoff);
+      return mergeEstimateBackup(withDraftItems, {
+        ...currentBackup,
+        takeoffRows: nextBackupRows,
+        fenceTakeoff: takeoff,
+      });
+    });
+  };
+
+  return (
+    <div className="co-fence-takeoff-lite rounded-3xl border border-emerald-100 bg-emerald-50/60 p-4 shadow-sm shadow-emerald-100/50">
+      <SectionHeader
+        title="Satellite Fence Takeoff Lite"
+        description="Draw estimate-grade fence runs, label segment assemblies, create draft quantities, and prepare proposal/field handoff notes."
+        action={<Badge tone="green">Office only</Badge>}
+      />
+      <div className="co-fence-takeoff-disclaimer">
+        Estimate-grade only. Field verify fence line, gates, slope, utility locates, access, and property boundaries before final pricing or install. This is not survey-grade.
+      </div>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
+        <FenceSatelliteTakeoffMap token={token} takeoff={takeoff} disabled={disabled} onChange={commitTakeoff} />
+        <div className="co-fence-takeoff-summary">
+          <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+            <StatCard title="Linear feet" value={formatFenceFeet(takeoff.totalLinearFeet)} detail={`${takeoff.segments.length} segment${takeoff.segments.length === 1 ? "" : "s"}`} />
+            <StatCard title="Gates" value={String(takeoff.gateCount)} detail="Openings marked for review" />
+            <StatCard title="Draft rows" value={String(draftLineItems.length)} detail="Quantity rows ready to price" />
+          </div>
+          <div className="mt-3 grid gap-2">
+            <Button type="button" onClick={applyTakeoffToDraft} disabled={disabled || takeoff.segments.length === 0}>
+              Apply Quantities to Estimate
+            </Button>
+            <Button type="button" variant="secondary" onClick={addManualSegment} disabled={disabled}>
+              Add Manual Segment
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+        <div className="co-fence-segment-list">
+          <SectionHeader title="Fence segments" description="Label each drawn run by type, height, material, gates, and estimator notes." />
+          {takeoff.segments.length ? (
+            <div className="grid gap-3">
+              {takeoff.segments.map((segment, index) => (
+                <div key={segment.id || index} className="co-fence-segment-card">
+                  <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_140px_150px_150px_90px]">
+                    <InputField label={`Segment ${index + 1}`} value={segment.label} onChange={(event) => updateSegment(index, "label", event.target.value)} disabled={disabled} />
+                    <InputField label="Type" value={segment.fenceType} onChange={(event) => updateSegment(index, "fenceType", event.target.value)} disabled={disabled} placeholder="Privacy" />
+                    <InputField label="Height" value={segment.height} onChange={(event) => updateSegment(index, "height", event.target.value)} disabled={disabled} placeholder="6 ft" />
+                    <InputField label="Material" value={segment.material} onChange={(event) => updateSegment(index, "material", event.target.value)} disabled={disabled} placeholder="Cedar" />
+                    <InputField label="Gates" value={segment.gates} onChange={(event) => updateSegment(index, "gates", event.target.value)} disabled={disabled} inputMode="numeric" />
+                  </div>
+                  <div className="mt-3 grid gap-3 md:grid-cols-[120px_minmax(0,1fr)]">
+                    <InputField label="Linear feet" value={segment.linearFeet} onChange={(event) => updateSegment(index, "linearFeet", event.target.value)} disabled={disabled || Boolean(segment.geojson)} inputMode="decimal" />
+                    <TextAreaField label="Estimator note" value={segment.notes} onChange={(event) => updateSegment(index, "notes", event.target.value)} disabled={disabled} placeholder="Slope, removal, access, gate swing, utility, or install assumption." />
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                    <Badge tone={segment.geojson ? "green" : "amber"}>{segment.geojson ? "Map measured" : "Manual LF"}</Badge>
+                    <button type="button" className="text-xs font-black uppercase tracking-[0.16em] text-slate-500 hover:text-slate-950 disabled:text-slate-300" onClick={() => removeSegment(index)} disabled={disabled}>Remove segment</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <StateCard title="No fence segments yet" description="Add a Mapbox token to draw on satellite imagery, or add a manual segment for estimate-grade quantity planning." tone="slate" />
+          )}
+        </div>
+
+        <div className="co-fence-output-panel">
+          <SectionHeader title="Proposal and handoff output" description="Review-safe copy generated from the takeoff. No bid, send, or job action happens automatically." />
+          <div className="co-fence-output-card">
+            <p className="co-fence-output-label">Assemblies</p>
+            {assemblies.length ? assemblies.map((group) => (
+              <div key={group.key} className="co-fence-output-row">
+                <span>{group.height} {group.material} {group.fenceType}</span>
+                <strong>{formatFenceFeet(group.linearFeet)}</strong>
+              </div>
+            )) : <p className="co-fence-output-empty">Draw or add segments to build quantity groups.</p>}
+          </div>
+          <div className="co-fence-output-card">
+            <p className="co-fence-output-label">Proposal-safe summary</p>
+            <p>{proposalSummary || "No proposal summary yet."}</p>
+          </div>
+          <div className="co-fence-output-card">
+            <p className="co-fence-output-label">Field handoff checklist</p>
+            <ul>
+              {(fieldHandoff.length ? fieldHandoff : ["Add takeoff segments before generating a field checklist."]).map((item) => <li key={item}>{item}</li>)}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function EstimateGcPacketLiteEditor({ draft, setDraft, disabled = false }) {
   const gcPacketLite = deriveEstimateGcPacketLite(draft);
   const updateGcPacketLite = (field, value) => {
@@ -1359,6 +1797,7 @@ export function EstimateCommandRailPolished({
         <div className="grid grid-cols-2 gap-2">
           {canManage && canUseAiRoughNotes ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("roughNotes")}>AI notes</Button> : null}
           <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("edit")}>Edit pricing</Button>
+          {canManage ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("fenceTakeoff")}>Fence Takeoff</Button> : null}
           <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("sections")}>Sections</Button>
           <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("backup")}>SOV / Backup</Button>
           {canUseGcPackets ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("packet")}>Packet</Button> : null}
