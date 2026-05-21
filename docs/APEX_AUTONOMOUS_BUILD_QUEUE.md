@@ -80,7 +80,7 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 | 2026-05-21 | P2 | GitHub CI evidence refresh after autonomous pushes | Done; latest CI on `5ad848c` passed whitespace, auth/signup, tenant/role/package, public/demo, server/backup/export, and build checks | `e83f48e` |
 | 2026-05-21 | P2 | Latest GitHub CI closeout | Done; latest CI on `028abc3` passed after the final queue/evidence push | `abe535a` |
 | 2026-05-21 | P3 | App shell component architecture extraction | Done; shared Icon, WorkQueueCard, AssistantRail, CommandPageFrame, and EstimateStudioShell moved out of the App.jsx monolith with build, role, estimate, and browser audits passing | `ef035ce` |
-| 2026-05-21 | P3 | Shared UI primitive architecture extraction | Done; Button, Badge, StatusBadge, Card, PageHeader, SectionHeader, StatCard, and ProposalTotalCard moved into the shared shell module with build, role, route, design-token, and browser audits passing | `pending` |
+| 2026-05-21 | P3 | Shared UI primitive architecture extraction | Done; Button, Badge, StatusBadge, Card, PageHeader, SectionHeader, StatCard, and ProposalTotalCard moved into the shared shell module with build, role, route, design-token, and browser audits passing | `85473d6` |
 
 ## Active Queue
 
