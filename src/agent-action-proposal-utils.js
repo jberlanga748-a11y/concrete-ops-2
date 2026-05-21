@@ -8,6 +8,7 @@ const DEFAULT_BLOCKED_ACTIONS = Object.freeze([
 
 const TYPE_LABELS = Object.freeze({
   "blocked-command": "Blocked request",
+  "package-blocked": "Package locked request",
   "safe-fallback": "Review route",
   route: "Review route",
   watchtower: "Watchtower review",
@@ -92,6 +93,7 @@ function fieldOnlyPermissions(permissions = {}) {
 
 function inferTone(status, response = {}) {
   if (status === "blocked") return "red";
+  if (response.type === "package-blocked") return "amber";
   if (response.type === "release-readiness-review" || response.type === "safety-incident-review") return "amber";
   if (response.type === "missing-proof-summary" || response.type === "daily-closeout-readiness") return "orange";
   if (WRITE_LIKE_TYPES.has(response.type)) return "blue";
@@ -107,13 +109,92 @@ function blockedActionsForResponse(response = {}) {
   return [...new Set([...DEFAULT_BLOCKED_ACTIONS, ...extra])];
 }
 
+function prepRecordLabel(record = {}) {
+  return text(record.label || record.title || record.customerName || record.projectName || record.id || "Review target");
+}
+
+function prepRecordHelper(record = {}, fallback = "Open the existing workflow and review before taking action.") {
+  return text(record.helper || record.description || record.detail || fallback);
+}
+
+function buildDraftPrepForMatches(response = {}, { prepType = "Workflow prep", safeOutput = "", reviewLabel = "" } = {}) {
+  const matches = asArray(response.matches);
+  const records = matches.length ? matches.slice(0, 3) : response.fallback ? [response.fallback] : [];
+  return records.map((record, index) => ({
+    id: text(record.id) || `${response.type || "proposal"}:${index}`,
+    prepType,
+    label: prepRecordLabel(record),
+    helper: prepRecordHelper(record),
+    safeOutput,
+    reviewLabel,
+    warnings: asArray(record.reviewWarnings).slice(0, 4),
+  }));
+}
+
+function buildAgentDraftPrep(response = {}) {
+  if (response.type === "estimate-draft-review") {
+    const prep = buildDraftPrepForMatches(response, {
+      prepType: "Estimate draft prep",
+      safeOutput: response.roughNotes
+        ? "Rough notes can be carried into the Estimate Studio draft editor for manual review."
+        : "A blank estimate draft can be opened for manual entry.",
+      reviewLabel: "No estimate is saved until a user reviews and saves it in Estimates.",
+    });
+    return prep.map((item) => ({
+      ...item,
+      fields: [
+        response.query ? `Target: ${response.query}` : "",
+        response.roughNotes ? "Rough notes captured" : "No rough notes captured",
+      ].filter(Boolean),
+    }));
+  }
+
+  if (response.type === "estimate-packet-review") {
+    return buildDraftPrepForMatches(response, {
+      prepType: "Proposal packet prep",
+      safeOutput: "Packet tools open existing estimate context for review.",
+      reviewLabel: "No proposal is sent, printed, or approved from the assistant.",
+    });
+  }
+
+  if (response.type === "estimate-job-handoff-review") {
+    return buildDraftPrepForMatches(response, {
+      prepType: "Job handoff prep",
+      safeOutput: "Handoff context can be reviewed in Estimates before any manual job conversion.",
+      reviewLabel: "No job, schedule, crew assignment, or field visibility changes from the assistant.",
+    });
+  }
+
+  if (response.type === "lead-follow-up") {
+    return buildDraftPrepForMatches(response, {
+      prepType: "Lead follow-up prep",
+      safeOutput: "Lead context can be opened for manual follow-up review.",
+      reviewLabel: "No call, email, text, or lead status update happens from the assistant.",
+    });
+  }
+
+  if (response.type === "support-workflow-review") {
+    return [{
+      id: "support-handoff-prep",
+      prepType: "Support handoff prep",
+      label: text(response.workflow || "Support workflow"),
+      helper: text(response.blockerLevel || "Copy-only support context"),
+      safeOutput: "Support context can be reviewed and copied manually.",
+      reviewLabel: "No ticket, upload, permission change, escalation, email, or text is created automatically.",
+      warnings: [],
+    }];
+  }
+
+  return [];
+}
+
 export function buildAgentActionProposal(response = {}, { permissions = {} } = {}) {
   if (!response || typeof response !== "object") {
     return null;
   }
 
   const fieldOnly = fieldOnlyPermissions(permissions);
-  const status = fieldOnly || response.type === "blocked-command" ? "blocked" : "needs_human_review";
+  const status = fieldOnly || response.type === "blocked-command" || response.type === "package-blocked" ? "blocked" : "needs_human_review";
   const moduleId = targetModuleId(response);
   const actionLabel = targetLabel(response);
   const typeLabel = TYPE_LABELS[response.type] || "Workflow review";
@@ -139,6 +220,7 @@ export function buildAgentActionProposal(response = {}, { permissions = {} } = {
       "Use the normal Apex HQ button only if you approve the action",
     ],
     blockedActions: blockedActionsForResponse(response),
+    draftPrep: buildAgentDraftPrep(response),
     proof: {
       commandType: response.type || "unknown",
       commandText: text(response.commandText),

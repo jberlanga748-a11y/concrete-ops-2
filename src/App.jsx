@@ -2584,6 +2584,41 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
                         </ul>
                       </div>
                     </div>
+                    {actionProposal.draftPrep?.length ? (
+                      <div className="mt-3 rounded-xl border border-blue-300/20 bg-blue-500/10 p-2">
+                        <span className="block text-[10px] font-black uppercase tracking-[0.14em] text-blue-100">Draft-only prep</span>
+                        <div className="mt-2 grid gap-2">
+                          {actionProposal.draftPrep.slice(0, 3).map((item) => (
+                            <div key={item.id} className="rounded-xl border border-white/10 bg-white/[0.06] p-2">
+                              <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <p className="text-xs font-black uppercase tracking-[0.08em] text-blue-100">{item.prepType}</p>
+                                  <p className="mt-1 break-words text-sm font-black text-white">{item.label}</p>
+                                </div>
+                                {item.warnings?.length ? <Badge tone="amber">{item.warnings.length} review</Badge> : <Badge tone="blue">Draft</Badge>}
+                              </div>
+                              <p className="mt-1 text-xs font-bold leading-5 text-slate-300">{item.helper}</p>
+                              <p className="mt-1 text-xs font-bold leading-5 text-blue-100">{item.safeOutput}</p>
+                              <p className="mt-1 text-[11px] font-bold leading-5 text-slate-400">{item.reviewLabel}</p>
+                              {item.fields?.length ? (
+                                <div className="mt-2 flex flex-wrap gap-1">
+                                  {item.fields.map((field) => (
+                                    <span key={field} className="rounded-lg bg-white/10 px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-200">{field}</span>
+                                  ))}
+                                </div>
+                              ) : null}
+                              {item.warnings?.length ? (
+                                <div className="mt-2 flex flex-wrap gap-1">
+                                  {item.warnings.map((warning) => (
+                                    <span key={warning} className="rounded-lg bg-orange-500/20 px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-orange-100">{warning}</span>
+                                  ))}
+                                </div>
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
                 {response.type === "missing-proof-summary" ? (

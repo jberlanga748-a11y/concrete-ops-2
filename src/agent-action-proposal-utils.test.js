@@ -26,7 +26,55 @@ test("agent action proposal wraps assistant route commands as review-first packe
   assert.equal(proposal.targetModuleId, "estimates");
   assert.match(proposal.allowedNextStep, /review/i);
   assert.ok(proposal.reviewChecklist.some((item) => /matched item/i.test(item)));
+  assert.equal(proposal.draftPrep.length, 1);
+  assert.equal(proposal.draftPrep[0].prepType, "Job handoff prep");
+  assert.match(proposal.draftPrep[0].reviewLabel, /No job, schedule, crew assignment/i);
   assert.ok(proposal.blockedActions.some((item) => /No job, lead, or estimate conversion/i.test(item)));
+  assert.equal(validateAgentActionProposalSafety(proposal).ok, true);
+});
+
+test("agent action proposal exposes estimate draft prep without saving a draft", () => {
+  const proposal = buildAgentActionProposal({
+    type: "estimate-draft-review",
+    moduleId: "estimates",
+    actionLabel: "Review draft in Estimates",
+    message: "I found ABC Builders. Review before creating a Draft estimate.",
+    query: "ABC Builders",
+    roughNotes: "Demo old cedar fence and install 120 LF 6 ft cedar.",
+    matches: [{
+      id: "lead:LEAD-ABC",
+      label: "ABC Builders - Fence replacement",
+      helper: "Lead match - Salem",
+    }],
+  }, {
+    permissions: {
+      aiOffice: { canView: true },
+      estimates: { canView: true, canManage: true },
+    },
+  });
+
+  assert.equal(proposal.status, "needs_human_review");
+  assert.equal(proposal.draftPrep.length, 1);
+  assert.equal(proposal.draftPrep[0].prepType, "Estimate draft prep");
+  assert.match(proposal.draftPrep[0].safeOutput, /Rough notes/i);
+  assert.ok(proposal.draftPrep[0].fields.includes("Rough notes captured"));
+  assert.match(proposal.draftPrep[0].reviewLabel, /No estimate is saved/i);
+  assert.equal(validateAgentActionProposalSafety(proposal).ok, true);
+});
+
+test("agent action proposal treats package-locked assistant results as blocked", () => {
+  const proposal = buildAgentActionProposal({
+    type: "package-blocked",
+    moduleId: "estimates",
+    actionLabel: "Open Estimates",
+    message: "Assistant rough-note estimate drafts require the Premium AI Rough Notes feature.",
+  }, {
+    permissions: { aiOffice: { canView: true } },
+  });
+
+  assert.equal(proposal.status, "blocked");
+  assert.equal(proposal.tone, "red");
+  assert.equal(proposal.typeLabel, "Package locked request");
   assert.equal(validateAgentActionProposalSafety(proposal).ok, true);
 });
 
