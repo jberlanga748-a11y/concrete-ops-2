@@ -4586,15 +4586,15 @@ function LeadsTable({ rows, selectedId, onSelect, maxRows = null, mobileMaxRows 
             return (
               <tr key={row.id} onClick={() => onSelect(row.id)} className={`co-leads-command-row cursor-pointer transition hover:bg-orange-50/45 ${selected ? "is-selected bg-orange-50/70" : ""} ${followUpDue ? "is-due" : ""} ${readyForEstimate ? "is-ready" : ""}`}>
                 <td className="px-4 py-3">
-                  <p className="font-black text-slate-950">{row.customer}</p>
-                  <p className="text-xs font-bold text-slate-500">{row.id} / {row.city}</p>
+                  <p className="co-leads-table-title font-black text-slate-950">{row.customer}</p>
+                  <p className="co-leads-table-meta text-xs font-bold text-slate-500">{row.id} / {row.city}</p>
                 </td>
-                <td className="px-4 py-3 text-sm font-bold text-slate-700"><span className="line-clamp-2">{row.project || "No project yet"}</span></td>
+                <td className="px-4 py-3 text-sm font-bold text-slate-700"><span className="co-leads-table-copy">{row.project || "No project yet"}</span></td>
                 <td className="px-4 py-3 text-sm font-bold text-slate-600"><span className="truncate">{row.city || "No city"}</span></td>
-                <td className="px-4 py-3 text-sm font-bold text-slate-600"><span className="line-clamp-2">{leadSourceLabel(row.source || "Call-in")}</span></td>
+                <td className="px-4 py-3 text-sm font-bold text-slate-600"><span className="co-leads-table-copy">{leadSourceLabel(row.source || "Call-in")}</span></td>
                 <td className="px-4 py-3"><StatusBadge status={row.status || "New"} /></td>
                 <td className="max-w-[260px] px-4 py-3 text-sm font-bold text-slate-600">
-                  <span className="line-clamp-2">{row.nextStep || "Add next step"}</span>
+                  <span className="co-leads-table-copy">{row.nextStep || "Add next step"}</span>
                 </td>
                 <td className="px-4 py-3 text-sm font-black text-slate-950">{formatLeadFollowUpDate(row.followUpDueAt)}</td>
                 <td className="px-4 py-3">

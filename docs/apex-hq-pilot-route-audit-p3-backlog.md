@@ -1,6 +1,6 @@
 # Apex HQ Pilot Route Audit P3 Backlog
 
-Status: scoped follow-up backlog from the fencing walkthrough screenshot pass
+Status: resolved by focused desktop Leads row polish
 
 Purpose: keep visual follow-ups explicit and small so Apex HQ does not drift back into random polish while preparing for a first friendly pilot.
 
@@ -25,19 +25,19 @@ The screenshot-only checker flagged possible clipped text in longer fencing lead
 - `Confirm phased fence section sequence with the maintenance team`
 - `Coordinate install window and patient access with the office manager`
 
-The main visual route audit passed `/leads`, so this is not a guided walkthrough blocker.
+The main visual route audit passed `/leads`, so this was not a guided walkthrough blocker.
 
-## Recommended Fix Scope
+## Completed Fix Scope
 
-Do later as a focused UI pass:
+Completed as a focused UI pass:
 
-- inspect `/leads` desktop row/card cells with real long fencing copy
-- allow lead names and follow-up notes to wrap or clamp intentionally
-- keep dense command-board layout
-- preserve mobile card layout
-- preserve field-user redirects and office-only lead access
-- rerun admin desktop `/leads` screenshot audit
-- rerun employee phone restricted-route check for `/leads`
+- inspected `/leads` desktop row cells with real long fencing copy
+- allowed lead names, project text, source labels, and next-step notes to wrap intentionally in the dense command table
+- kept the dense command-board layout
+- preserved mobile card layout
+- preserved field-user redirects and office-only lead access
+- reran admin desktop `/leads` visual route audit
+- reran employee phone restricted-route check for `/leads`
 
 ## Do Not Combine With
 
@@ -51,11 +51,20 @@ Do later as a focused UI pass:
 
 ## Acceptance Criteria
 
-- admin desktop `/leads` has no obvious clipped long lead/follow-up text in the screenshot pass
-- main visual audit still passes `/leads`
-- employee phone `/leads` remains field-safe and redirects/blocks correctly
-- `npm.cmd run verify:roles` passes if any route guard or nav path is touched
-- no horizontal overflow
+- admin desktop `/leads` has no obvious clipped long lead/follow-up text in the screenshot pass: passed
+- main visual audit still passes `/leads`: passed
+- employee phone `/leads` remains field-safe and redirects/blocks correctly: passed
+- `npm.cmd run verify:roles` passes: passed
+- no horizontal overflow in checked routes: passed
+
+## Verification Evidence
+
+- admin desktop manifest: `ui-audit/leads-long-text-polish-admin/2026-05-21T09-07-28-492Z/manifest.json`
+- employee phone restricted-route manifest: `ui-audit/leads-long-text-polish/2026-05-21T09-07-07-864Z/manifest.json`
+- `npm.cmd run build`
+- `npm.cmd run verify:roles`
+- targeted `verify:leads` test groups passed after the aggregate command hung without output in the local shell
+- `git diff --check`
 
 ## Priority
 
