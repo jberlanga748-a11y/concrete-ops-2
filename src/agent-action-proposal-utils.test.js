@@ -98,6 +98,36 @@ test("agent action proposal exposes workflow draft prep as review-only output", 
   assert.equal(validateAgentActionProposalSafety(proposal).ok, true);
 });
 
+test("agent action proposal treats daily ops briefs as auditable review packets", () => {
+  const proposal = buildAgentActionProposal({
+    type: "daily-ops-brief",
+    moduleId: "reports",
+    actionLabel: "Open reports",
+    message: "Daily operations brief. Brief only. No records are saved, sent, approved, converted, scheduled, invoiced, billed, assigned, or updated.",
+    brief: {
+      title: "Daily operations brief",
+      metrics: [{ label: "Review signals", value: 3 }],
+    },
+    actions: [{ moduleId: "reports", actionLabel: "Open reports" }],
+  }, {
+    permissions: {
+      aiOffice: { canView: true },
+      audit: { canView: true },
+    },
+  });
+  const event = normalizeAgentActionProposalAuditEvent(proposal, {
+    actor: { id: "USR-1", role: "Administrator" },
+    prompt: "daily operations brief",
+  });
+
+  assert.equal(proposal.typeLabel, "Daily operations brief");
+  assert.equal(proposal.status, "needs_human_review");
+  assert.equal(validateAgentActionProposalSafety(proposal).ok, true);
+  assert.equal(event.proposalType, "daily-ops-brief");
+  assert.equal(event.approvalRequired, true);
+  assert.ok(event.blockedReasons.some((item) => /No customer email/i.test(item)));
+});
+
 test("agent action proposal treats package-locked assistant results as blocked", () => {
   const proposal = buildAgentActionProposal({
     type: "package-blocked",

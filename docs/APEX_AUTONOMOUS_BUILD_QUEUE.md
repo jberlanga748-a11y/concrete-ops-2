@@ -37,6 +37,7 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 | Date | Priority | Task | Result | Commit |
 | --- | --- | --- | --- | --- |
+| 2026-05-21 | P1 | Agent Brief Audit Record v1 | Done; generated daily operations briefs are now first-class review packets in the existing manual audit-record path, with redacted audit metadata and no workflow mutation | This commit |
 | 2026-05-21 | P1 | Agent Daily Ops Brief v1 | Done; Apex Assistant can generate a review-only daily operations brief with metrics, attention sections, next actions, and route buttons without saving, sending, approving, converting, scheduling, invoicing, assigning, or updating records | This commit |
 | 2026-05-21 | P1 | Agent Workflow Draft Prep v1 | Done; Apex Assistant can prepare a review-only draft packet from the top next-best action using the existing Agent Action Proposal UI, with no saved records, sends, approvals, conversions, scheduling, invoices, package changes, or field updates | This commit |
 | 2026-05-21 | P1 | Agent Next Best Action Queue v1 | Done; Apex Assistant now turns visible workflow context into ranked, review-first next action suggestions with route buttons and explicit blocked automation boundaries | This commit |
@@ -139,4 +140,4 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 ## Next Recommended Task
 
-Next safe build action is Agent Brief Audit Record v1: allow office users with audit access to record the generated daily operations brief as a redacted, review-only audit event without sending, approving, converting, scheduling, or mutating workflow records. Human-input tasks remain blocked until real pilot details or smoke secrets are provided.
+Next safe build action is Agent Context API Planning v1: design the server-side read-only context endpoint the assistant will eventually use, including role/package gates, payload limits, audit boundaries, and no-mutation rules before any backend implementation. Human-input tasks remain blocked until real pilot details or smoke secrets are provided.

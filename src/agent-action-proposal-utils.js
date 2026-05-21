@@ -34,6 +34,7 @@ const TYPE_LABELS = Object.freeze({
   "material-planning-review": "Material planning review",
   "release-readiness-review": "Release readiness review",
   "workflow-draft-prep": "Workflow draft prep",
+  "daily-ops-brief": "Daily operations brief",
   "pilot-handoff-readiness": "Pilot handoff review",
   "estimate-draft-review": "Estimate draft review",
   "estimate-packet-review": "Estimate packet review",
