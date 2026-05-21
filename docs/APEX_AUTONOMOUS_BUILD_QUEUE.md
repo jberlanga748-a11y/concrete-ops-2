@@ -57,6 +57,7 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 | 2026-05-21 | P2 | Leads verifier reliability | Done; `verify:leads` now runs focused server/shared/frontend groups instead of one aggregate command that stalled locally | `c4f2083` |
 | 2026-05-21 | P2 | Fencing walkthrough preflight refresh | Done; latest Fly demo preflight, hosted skip-auth smoke, admin desktop/tablet audits, employee phone audits, and roles passed | `cf60e07` |
 | 2026-05-21 | P2 | Full pilot readiness gate refresh | Done; local `verify:pilot-readiness` passed docs, pilot gates, roles, backup, restore, and build | `162a35f` |
+| 2026-05-21 | P2 | Demo smoke automation verification | Done; local `verify:demo` passed Fly demo smoke planner, cleanup, package setter, visual audit, and production-auth workflow tests | `pending` |
 
 ## Active Queue
 
