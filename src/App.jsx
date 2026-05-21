@@ -182,6 +182,7 @@ import {
   EstimateCommandRailPolished,
   EstimateGcPacketLiteEditor,
   EstimateJobHandoffReadinessCard,
+  EstimatePacketSettingsPanel,
   EstimateRoughNotesHelper,
   EstimateSentHistoryCard,
   EstimateProposalSectionsEditor,
@@ -237,7 +238,7 @@ import { buildTimeTrackingSupportContext, deriveCrewWeeklySummary, deriveTimeJob
 import { deriveChecklistItems, deriveToolChecklistJobReadiness, deriveToolChecklistListState, filterToolChecklists, toolChecklistItemStatusLabel, toolChecklistStatusLabel } from "./tool-checklist-utils";
 import { ALLOWED_UPLOAD_TYPES, buildUploadSupportContext, deriveAllowedUploadJobs, deriveUploadDraftFromSelection, deriveUploadListState, filterUploads, findSelectedUpload, gpsStatusLabel, uploadCustomerLabel, uploadJobLabel, uploadTitle, uploadUploaderLabel, validateUploadFile } from "./upload-utils";
 import { deriveUserListState, getCrewAssignmentOptions, getForemanAssignmentOptions, USER_ROLE_OPTIONS } from "./user-utils";
-import { DEFAULT_ESTIMATE_PACKET_PRESET_ID, ESTIMATE_PACKET_PRESETS, ESTIMATE_PACKET_SECTION_DEFS, INTERNAL_REVIEW_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
+import { DEFAULT_ESTIMATE_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
 import { CONTACT_HISTORY_DIRECTIONS, CONTACT_HISTORY_METHODS, CONTACT_HISTORY_OUTCOMES } from "../shared/contactHistory.js";
 
 const APEX_BRAND_ASSETS = {
@@ -1096,110 +1097,6 @@ function StartupStatusBadge({ status }) {
   if (normalizedStatus === "In Progress") tone = "blue";
   if (normalizedStatus === "Needs Review") tone = "amber";
   return <Badge tone={tone}>{normalizedStatus}</Badge>;
-}
-
-function EstimatePacketSettingsPanel({
-  presetId,
-  sectionIds,
-  setPresetId,
-  setSectionIds,
-  canIncludeInternalSections = false,
-}) {
-  const resolvedSettings = resolveEstimatePacketSettings({
-    presetId,
-    sectionIds,
-    allowInternalSections: canIncludeInternalSections,
-  });
-  const selectedPreset = getEstimatePacketPreset(resolvedSettings.presetId);
-  const customerSectionDefs = ESTIMATE_PACKET_SECTION_DEFS.filter((section) => !section.internalOnly);
-  const internalSectionDefs = ESTIMATE_PACKET_SECTION_DEFS.filter((section) => section.internalOnly);
-  const showInternalSections = canIncludeInternalSections && resolvedSettings.presetId === INTERNAL_REVIEW_PACKET_PRESET_ID;
-
-  function applyPreset(nextPresetId) {
-    const nextPreset = getEstimatePacketPreset(nextPresetId);
-    setPresetId(nextPreset.id);
-    setSectionIds(nextPreset.sectionIds);
-  }
-
-  function toggleSection(sectionId) {
-    setSectionIds((current) => {
-      const currentIds = new Set(Array.isArray(current) ? current : []);
-      if (currentIds.has(sectionId)) {
-        currentIds.delete(sectionId);
-      } else {
-        currentIds.add(sectionId);
-      }
-      return Array.from(currentIds);
-    });
-  }
-
-  return (
-    <div className="rounded-3xl border border-indigo-100 bg-indigo-50/50 p-4 shadow-sm shadow-indigo-100/50">
-      <SectionHeader
-        title="Packet Preset"
-        description="Choose a simple packet preset, then toggle which existing estimate and GC Lite sections appear in the printed packet."
-        action={<Badge tone={showInternalSections ? "amber" : "violet"}>{showInternalSections ? "Office only" : "Customer facing"}</Badge>}
-      />
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
-        <div className="rounded-2xl border border-indigo-100 bg-white/85 p-3">
-          <SelectField label="Packet preset" value={resolvedSettings.presetId} onChange={(event) => applyPreset(event.target.value)}>
-            {ESTIMATE_PACKET_PRESETS.map((preset) => <option key={preset.id} value={preset.id}>{preset.label}</option>)}
-          </SelectField>
-          <p className="mt-2 text-sm font-bold leading-5 text-slate-600">{selectedPreset.description}</p>
-          <p className="mt-2 text-xs font-bold uppercase tracking-[0.14em] text-indigo-700">
-            This phase keeps packet settings as print-screen state only. It does not change the estimate record.
-          </p>
-        </div>
-        <div className="rounded-2xl border border-indigo-100 bg-white/85 p-3">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Included sections</p>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            {customerSectionDefs.map((section) => (
-              <label key={section.id} className="flex min-w-0 items-start gap-2 rounded-2xl border border-indigo-100 bg-indigo-50/40 p-3 text-sm font-bold text-slate-700">
-                <input
-                  type="checkbox"
-                  className="mt-1 h-4 w-4 rounded border-indigo-200 text-indigo-700"
-                  checked={resolvedSettings.sectionIds.includes(section.id)}
-                  onChange={() => toggleSection(section.id)}
-                />
-                <span className="min-w-0">
-                  <span className="block text-slate-950">{section.label}</span>
-                  <span className="mt-1 block text-xs leading-4 text-slate-500">{section.description}</span>
-                </span>
-              </label>
-            ))}
-          </div>
-          {showInternalSections ? (
-            <div className="mt-3 rounded-2xl border border-amber-100 bg-amber-50/80 p-3">
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-700">Office-only sections</p>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {internalSectionDefs.map((section) => (
-                  <label key={section.id} className="flex min-w-0 items-start gap-2 rounded-2xl border border-amber-100 bg-white/80 p-3 text-sm font-bold text-slate-700">
-                    <input
-                      type="checkbox"
-                      className="mt-1 h-4 w-4 rounded border-amber-200 text-amber-700"
-                      checked={resolvedSettings.sectionIds.includes(section.id)}
-                      onChange={() => toggleSection(section.id)}
-                    />
-                    <span className="min-w-0">
-                      <span className="block text-slate-950">{section.label}</span>
-                      <span className="mt-1 block text-xs leading-4 text-slate-500">{section.description}</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-              <p className="mt-2 text-xs font-bold leading-5 text-amber-700">
-                Internal Review Packet is office-only. Field roles still cannot access estimates, pricing, packet settings, or internal notes.
-              </p>
-            </div>
-          ) : (
-            <p className="mt-3 rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs font-bold leading-5 text-indigo-700">
-              Customer-facing presets automatically exclude SOV backup, takeoff backup, internal notes, and sent snapshot history.
-            </p>
-          )}
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function CustomerFilterHeader({ filters, active, setActive, search, setSearch, placeholder = "Search..." }) {
