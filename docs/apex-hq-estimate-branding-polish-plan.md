@@ -1,6 +1,6 @@
 # Apex HQ Estimate Branding Polish Plan
 
-Status: first focused Estimate Studio branding pass completed; PDF/print polish remains available for future targeted passes
+Status: first focused Estimate Studio branding pass and PDF proposal header pass completed; deeper PDF/print polish remains available for future targeted passes
 Owner: Apex HQ build workflow
 Reference: `C:\Users\jberl\Downloads\Generateimage 1.png`
 
@@ -327,3 +327,14 @@ Verification:
 - `npm.cmd run verify:roles`
 - `npm.cmd run build`
 - `git diff --check`
+
+Demo deployment evidence:
+
+- Fly demo app: `concrete-ops-demo`
+- Fly demo version: `130`
+- Fly demo image: `registry.fly.io/concrete-ops-demo:deployment-01KS4Z90RCA1G8RCBKSQQDEE2F`
+- deployed commit: `bfa68fa`
+- backup before deploy: `/app/data/backups/app-data-20260521-095335Z.sqlite` and `/app/data/backups/app-data-20260521-095335Z.json`
+- hosted `/api/ready` passed after deploy with database `ok`
+- hosted skip-auth smoke passed against `https://concrete-ops-demo.fly.dev`
+- authenticated hosted smoke skipped because `APEX_SMOKE_PASSWORD` was not set locally
