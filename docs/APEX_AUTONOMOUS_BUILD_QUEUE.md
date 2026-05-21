@@ -85,7 +85,7 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 | 2026-05-21 | P3 | Estimate command rail architecture extraction | Done; the branded proposal/action/tools rail moved into the estimate route component module with build, role, estimate, route, and browser audits passing | `d92a5bd` |
 | 2026-05-21 | P3 | Shared brand utility architecture extraction | Done; Apex brand constants, visible-name normalization, and logo-initial helpers moved into `src/brand-utils.js` with tests, build, role, estimate, route, and browser audits passing | `ff3f0dd` |
 | 2026-05-21 | P3 | Shared form primitive architecture extraction | Done; FilterBar, SelectField, and StateCard moved into the shared shell module with build, role, estimate, route, and browser audits passing | `4ddda8d` |
-| 2026-05-21 | P3 | Estimate proposal workbench architecture extraction | Done; proposal workbench and its private list/takeoff helpers moved into the estimate route component module with build, role, estimate, route, and browser audits passing | pending |
+| 2026-05-21 | P3 | Estimate proposal workbench architecture extraction | Done; proposal workbench and its private list/takeoff helpers moved into the estimate route component module with build, role, estimate, route, and browser audits passing | `3c21729` |
 
 ## Active Queue
 
