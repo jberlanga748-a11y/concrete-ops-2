@@ -82,7 +82,7 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 | 2026-05-21 | P3 | App shell component architecture extraction | Done; shared Icon, WorkQueueCard, AssistantRail, CommandPageFrame, and EstimateStudioShell moved out of the App.jsx monolith with build, role, estimate, and browser audits passing | `ef035ce` |
 | 2026-05-21 | P3 | Shared UI primitive architecture extraction | Done; Button, Badge, StatusBadge, Card, PageHeader, SectionHeader, StatCard, and ProposalTotalCard moved into the shared shell module with build, role, route, design-token, and browser audits passing | `85473d6` |
 | 2026-05-21 | P3 | Estimate route component architecture extraction | Done; estimate display helpers, polished estimate table, and job handoff readiness card moved out of `App.jsx` with build, role, estimate, route, and browser audits passing | `1eeefee` |
-| 2026-05-21 | P3 | Estimate command rail architecture extraction | Done; the branded proposal/action/tools rail moved into the estimate route component module with build, role, estimate, route, and browser audits passing | pending |
+| 2026-05-21 | P3 | Estimate command rail architecture extraction | Done; the branded proposal/action/tools rail moved into the estimate route component module with build, role, estimate, route, and browser audits passing | `d92a5bd` |
 
 ## Active Queue
 
