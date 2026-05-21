@@ -33121,11 +33121,10 @@ function ChangeOrdersPagePolished({
   const underReviewRows = activeChangeRows.filter((request) => request.status === "under_review");
   const missingDetailRows = activeChangeRows.filter((request) => !request.jobId || !request.reason || !request.scopeDescription);
   const changeOrderKpis = [
-    { label: "Visible Requests", value: filteredRows.length, helper: "Current board", icon: "refresh", tone: "blue" },
     { label: "Needs Review", value: filteredRows.filter((request) => request.status === "requested").length, helper: "Waiting for office review", icon: "alert", tone: "amber", actionLabel: "Review", onAction: () => setStatusFilter("Requested") },
     { label: "Under Review", value: filteredRows.filter((request) => request.status === "under_review").length, helper: "Being reviewed now", icon: "clock", tone: "blue", actionLabel: "Open", onAction: () => setStatusFilter("Under Review") },
     { label: "Approved", value: filteredRows.filter((request) => request.status === "approved_for_pricing").length, helper: canManage ? "Ready for office costing" : "Accepted by the office", icon: "check", tone: "green", actionLabel: "Approved", onAction: () => setStatusFilter("Approved for Pricing") },
-    { label: "Open Total", value: totalOpen, helper: "All active request work", icon: "clipboard", tone: totalOpen ? "amber" : "green" },
+    { label: "Needs Details", value: missingDetailRows.length, helper: "Missing job, reason, or scope context", icon: "clipboard", tone: missingDetailRows.length ? "orange" : "green", actionLabel: missingDetailRows.length ? "Fix details" : "Ready", onAction: () => openPriorityRequest((request) => missingDetailRows.some((entry) => entry.id === request.id), { statusFilter: "All", archiveFilter: "Active", search: "", toolTab: missingDetailRows.length ? "review" : "" }) },
   ];
   const statusFilterOptions = ["All", "Requested", "Under Review", "Approved for Pricing", "Rejected"].map((filter) => ({
     value: filter,
@@ -33291,22 +33290,8 @@ function ChangeOrdersPagePolished({
         onOpenApproved={() => openPriorityRequest((request) => request.status === "approved_for_pricing" && !request.archivedAt, { statusFilter: "Approved for Pricing", archiveFilter: "Active", search: "", toolTab: "review" })}
       />
 
-      <div className="co-change-orders-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
+      <div className="co-change-orders-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-4 lg:px-6">
         {changeOrderKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
-      </div>
-
-      <div className="co-toolbox-priority-grid mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 xl:grid-cols-4 lg:px-6">
-        {changeOrderPriorityCards.map((card) => (
-          <button key={card.label} type="button" className="co-toolbox-priority-card co-focus-ring" data-tone={card.tone} onClick={card.onAction}>
-            <span className="co-toolbox-priority-icon"><Icon name={card.icon} className="h-4 w-4" /></span>
-            <span className="min-w-0">
-              <span className="co-toolbox-priority-value">{card.value}</span>
-              <span className="co-toolbox-priority-label">{card.label}</span>
-              <span className="co-toolbox-priority-helper">{card.helper}</span>
-            </span>
-            <span className="co-toolbox-priority-action">{card.actionLabel} -&gt;</span>
-          </button>
-        ))}
       </div>
 
       <div className="co-change-orders-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
@@ -33380,6 +33365,20 @@ function ChangeOrdersPagePolished({
         </div>
 
         <ChangeOrdersCommandRailPolished request={selectedRequest} canCreate={canCreate} canManage={canManage} busy={busy} onOpenTool={openTools} onArchive={onArchiveRequest} />
+      </div>
+
+      <div className="co-toolbox-priority-grid co-change-orders-secondary-actions mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 xl:grid-cols-4 lg:px-6">
+        {changeOrderPriorityCards.map((card) => (
+          <button key={card.label} type="button" className="co-toolbox-priority-card co-focus-ring" data-tone={card.tone} onClick={card.onAction}>
+            <span className="co-toolbox-priority-icon"><Icon name={card.icon} className="h-4 w-4" /></span>
+            <span className="min-w-0">
+              <span className="co-toolbox-priority-value">{card.value}</span>
+              <span className="co-toolbox-priority-label">{card.label}</span>
+              <span className="co-toolbox-priority-helper">{card.helper}</span>
+            </span>
+            <span className="co-toolbox-priority-action">{card.actionLabel} -&gt;</span>
+          </button>
+        ))}
       </div>
 
       <details

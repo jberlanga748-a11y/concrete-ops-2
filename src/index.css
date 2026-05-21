@@ -22555,7 +22555,7 @@ textarea {
 
 @media (min-width: 1024px) and (max-width: 1399px) {
   .co-change-orders-kpi-grid {
-    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
   }
 
   .co-change-orders-kpi-grid .co-command-kpi {
