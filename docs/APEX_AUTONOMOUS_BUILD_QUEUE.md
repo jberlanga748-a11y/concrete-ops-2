@@ -43,12 +43,12 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 | 2026-05-21 | P1 | Fencing pilot intake gate | Done; fail-closed pre-login setup gate with risky-promise and secret-like text rejection | `467c173` |
 | 2026-05-21 | P4 | Autonomous build queue | Done; priority queue and stop gates created | `92f09ff` |
 | 2026-05-21 | P1 | Day 3 / Day 10 fencing pilot check-in packet | Done; read-only check-in generator, scorecard, safety boundaries, and tests | `2886d93` |
+| 2026-05-21 | P1 | Fencing customer pilot setup approval packet | Done; fail-closed approval packet before outside login or customer pilot resource setup | `f2f4074` |
 
 ## Active Queue
 
 | Priority | Task | Status | Why It Matters | Safe Scope | Verification | Stop / Approval Gate |
 | --- | --- | --- | --- | --- | --- | --- |
-| P1 | Customer pilot setup approval packet for the fencing candidate | Ready | Converts intake details into an approval checklist before any isolated pilot app/workspace setup | Plan-only docs/script; no Fly resources, no secrets | targeted tests, docs check | Stop before Fly app/volume creation or customer data entry |
 | P2 | Demo auth smoke preflight docs sync | Ready | Makes the difference between local missing `APEX_SMOKE_PASSWORD` and GitHub configured auth smoke clearer | Docs/scripts only; no secrets | docs check, hosted smoke skip-auth | Stop before reading/setting secret values |
 | P2 | CI launch-gate summary refresh | Ready | Keeps GitHub evidence easy to read for pilot/demo gates | GitHub workflow/docs helper only | workflow/script tests | Stop before changing production auth smoke behavior |
 | P3 | Fencing demo screenshot manifest refresh | Ready | Captures current screenshots after pilot scripts so walkthrough evidence is up to date | Browser evidence only; no app changes | visual audit command | Stop if UI failure suggests app code change |
@@ -66,4 +66,4 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 ## Next Recommended Task
 
-Build the customer pilot setup approval packet for the fencing candidate, then move to demo auth smoke preflight docs sync.
+Sync the demo auth smoke preflight docs so local, GitHub, Vercel preview, Fly demo, and production-safe auth smoke expectations are clear.
