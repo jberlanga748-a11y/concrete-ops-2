@@ -56,6 +56,7 @@ import {
   convertEstimateToJob,
   convertLead,
   convertLeadToCustomer,
+  createAgentEstimateDraft,
   createChangeOrderRequest,
   createContactHistory,
   createEstimate,
@@ -2301,12 +2302,13 @@ function NotificationCenterButton({ source = {}, permissions = {}, user = null, 
   );
 }
 
-function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenUploadReview = () => {}, onOpenTimeReview = () => {}, onOpenChangeOrderReview = () => {}, onOpenLeadFollowUp = () => {}, onOpenCustomerAccount = () => {}, onOpenCrewReadiness = () => {}, onOpenScheduleDispatch = () => {}, onOpenImportedDraftReview = () => {}, onOpenSupportWorkflow = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenPrePourReview = () => {}, onOpenPostPourReview = () => {}, onOpenSafetyIncidentReview = () => {}, onOpenToolChecklistReview = () => {}, onRecordAgentProposalAudit = async () => null }) {
+function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onCreateAgentEstimateDraft = async () => null, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenUploadReview = () => {}, onOpenTimeReview = () => {}, onOpenChangeOrderReview = () => {}, onOpenLeadFollowUp = () => {}, onOpenCustomerAccount = () => {}, onOpenCrewReadiness = () => {}, onOpenScheduleDispatch = () => {}, onOpenImportedDraftReview = () => {}, onOpenSupportWorkflow = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenPrePourReview = () => {}, onOpenPostPourReview = () => {}, onOpenSafetyIncidentReview = () => {}, onOpenToolChecklistReview = () => {}, onRecordAgentProposalAudit = async () => null }) {
   const assistantState = useMemo(() => deriveApexAssistantShellState({ permissions, commandCenter }), [commandCenter, permissions]);
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [response, setResponse] = useState(null);
   const [auditRecordState, setAuditRecordState] = useState({ proposalId: "", status: "idle", message: "" });
+  const [draftActionState, setDraftActionState] = useState({ leadId: "", status: "idle", message: "" });
   const actionProposal = useMemo(() => (
     response ? buildAgentActionProposal(response, { permissions }) : null
   ), [permissions, response]);
@@ -2330,6 +2332,7 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
 
   useEffect(() => {
     setAuditRecordState({ proposalId: actionProposal?.id || "", status: "idle", message: "" });
+    setDraftActionState({ leadId: "", status: "idle", message: "" });
   }, [actionProposal?.id]);
 
   if (!assistantState.canView) return null;
@@ -2370,6 +2373,36 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
         proposalId: actionProposal.id,
         status: "error",
         message: error?.message || "Could not record this proposal audit.",
+      });
+    }
+  }
+
+  async function approveAndCreateEstimateDraft(match = {}) {
+    if (!actionProposal || actionProposal.proof?.commandType !== "estimate-draft-review" || match.type !== "lead" || !match.leadId) return;
+    if (!permissions.estimates?.canManage || draftActionState.status === "saving") return;
+    const proposal = normalizeAgentActionProposalAuditEvent(actionProposal, {
+      actor: commandContext.user,
+      sourceRoute: commandContext.currentRoute,
+      sourceModule: actionProposal.targetModuleId,
+      prompt: actionProposal.proof?.commandText || "",
+      response: actionProposal.proof?.message || response?.message || "",
+      targetEntity: { type: "lead", id: match.leadId },
+    });
+    setDraftActionState({ leadId: match.leadId, status: "saving", message: "Approving and creating a draft estimate..." });
+    try {
+      const created = await onCreateAgentEstimateDraft({ proposal, leadId: match.leadId });
+      setDraftActionState({
+        leadId: match.leadId,
+        status: "created",
+        message: created?.id ? "Draft estimate created. No proposal was sent." : "Draft estimate is ready. No proposal was sent.",
+      });
+      setOpen(false);
+      setResponse(null);
+    } catch (error) {
+      setDraftActionState({
+        leadId: match.leadId,
+        status: "error",
+        message: error?.message || "Could not create this draft estimate.",
       });
     }
   }
@@ -3081,15 +3114,42 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
                 ) : response.type === "estimate-draft-review" ? (
                   <div className="mt-3 grid gap-2">
                     {response.matches?.length ? response.matches.map((match) => (
-                      <button
-                        key={match.id}
-                        type="button"
-                        onClick={() => startEstimateDraft(match)}
-                        className="co-focus-ring rounded-2xl border border-white/10 bg-white/[0.08] p-3 text-left transition hover:border-orange-300/60 hover:bg-orange-500/20"
-                      >
-                        <span className="block text-sm font-black text-white">{match.label}</span>
-                        <span className="mt-1 block text-xs font-bold leading-5 text-slate-300">{match.helper || "Review in Estimates before creating a draft."}</span>
-                      </button>
+                      <div key={match.id} className="rounded-2xl border border-white/10 bg-white/[0.08] p-3">
+                        <button
+                          type="button"
+                          onClick={() => startEstimateDraft(match)}
+                          className="co-focus-ring w-full rounded-xl p-0 text-left transition hover:text-orange-100"
+                        >
+                          <span className="block text-sm font-black text-white">{match.label}</span>
+                          <span className="mt-1 block text-xs font-bold leading-5 text-slate-300">{match.helper || "Review in Estimates before creating a draft."}</span>
+                        </button>
+                        {match.type === "lead" && match.leadId ? (
+                          <div className="mt-3 rounded-xl border border-emerald-300/20 bg-emerald-500/10 p-2">
+                            <p className="text-[11px] font-bold leading-4 text-emerald-100">
+                              Human approval creates a Draft estimate from this lead. No proposal is sent, no customer is contacted, and no job is created.
+                            </p>
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="primary"
+                                disabled={draftActionState.status === "saving"}
+                                onClick={() => approveAndCreateEstimateDraft(match)}
+                              >
+                                {draftActionState.status === "saving" && draftActionState.leadId === match.leadId ? "Creating draft..." : "Approve & create draft"}
+                              </Button>
+                              <Button type="button" size="sm" variant="secondary" onClick={() => startEstimateDraft(match)}>
+                                Open editor
+                              </Button>
+                            </div>
+                            {draftActionState.leadId === match.leadId && draftActionState.message ? (
+                              <p className={`mt-2 text-[11px] font-bold leading-4 ${draftActionState.status === "error" ? "text-red-100" : "text-emerald-100"}`}>
+                                {draftActionState.message}
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
                     )) : null}
                     <Button type="button" size="sm" onClick={() => startEstimateDraft(response.fallback || {})}>
                       {response.matches?.length ? "Start clean new draft instead" : response.actionLabel}
@@ -40738,6 +40798,32 @@ export default function App() {
     return auditEvent;
   }
 
+  async function handleCreateAgentEstimateDraft(payload) {
+    if (!sessionToken || !appState.permissions.audit?.canView || !appState.permissions.estimates?.canManage) {
+      throw new Error("You do not have permission to create agent estimate drafts.");
+    }
+    const existingEstimateIds = new Set(appState.estimates.map((estimate) => estimate.id));
+    setBusy(true);
+    try {
+      const nextState = await createAgentEstimateDraft(sessionToken, payload);
+      const createdEstimate = (nextState.estimates || []).find((estimate) => estimate.id === nextState.agentDraftEstimateId)
+        || (nextState.estimates || []).find((estimate) => !existingEstimateIds.has(estimate.id))
+        || null;
+      applyBootstrap(nextState);
+      setEstimateViewMode("browse");
+      setEstimateFocusId(createdEstimate?.id || nextState.agentDraftEstimateId || "");
+      setErrorMessage("");
+      setActive("estimates");
+      return createdEstimate || true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      throw error;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function handleReset() {
     if (!window.confirm("Reset the workspace to the seeded demo data?")) return;
     runMutation(() => resetWorkspace(sessionToken));
@@ -41259,6 +41345,7 @@ export default function App() {
         }}
         onOpenModule={setActive}
         onStartEstimateDraft={handleStartAssistantEstimateDraft}
+        onCreateAgentEstimateDraft={handleCreateAgentEstimateDraft}
         onOpenEstimatePacket={handleOpenAssistantEstimatePacket}
         onOpenEstimateJobHandoff={handleOpenAssistantEstimateJobHandoff}
         onOpenJobHandoff={handleOpenAssistantJobHandoff}

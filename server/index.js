@@ -5826,14 +5826,52 @@ function parseAgentProposalAuditDetail(detail) {
 }
 
 function hasGeneratedAgentProposalAudit(state, user, proposal) {
+  return hasAgentProposalAuditEvent(state, user, proposal, "agent.proposal.generated");
+}
+
+function hasAgentProposalAuditEvent(state, user, proposal, action) {
   const companyId = currentCompanyIdForRequestUser(state, user);
   return (Array.isArray(state.auditEvents) ? state.auditEvents : []).some((event) => {
     if (event?.companyId !== companyId) return false;
     if (event?.entityType !== "agentActionProposal") return false;
     if (event?.entityId !== proposal.proposalId) return false;
-    if (event?.action !== "agent.proposal.generated") return false;
+    if (event?.action !== action) return false;
     const detail = parseAgentProposalAuditDetail(event.detail);
     return !detail.proposalType || detail.proposalType === proposal.proposalType;
+  });
+}
+
+function appendAgentProposalAuditEvent(state, user, proposal, overrides = {}) {
+  const eventType = overrides.eventType || proposal.eventType;
+  const status = overrides.status || proposal.status;
+  const summary = overrides.summary || proposal.summary;
+  const detail = JSON.stringify({
+    ...proposal,
+    eventType,
+    status,
+    summary,
+    actorUserId: user.id,
+    actorRole: user.role,
+    createdDraftEntityType: overrides.createdDraftEntityType || "",
+    createdDraftEntityId: overrides.createdDraftEntityId || "",
+  });
+  appendAuditEvent(state, {
+    entityType: "agentActionProposal",
+    entityId: proposal.proposalId,
+    action: eventType,
+    summary,
+    detail,
+    actor: user,
+    changedFields: [
+      "proposalId",
+      "proposalType",
+      "status",
+      "sourceModule",
+      "redactedPromptPreview",
+      "redactedResponsePreview",
+      "blockedReasons",
+      ...(overrides.createdDraftEntityId ? ["createdDraftEntityType", "createdDraftEntityId"] : []),
+    ],
   });
 }
 
@@ -5872,6 +5910,49 @@ function assertCanRecordAgentProposalAuditEvent(state, user, proposal) {
   if (proposal.eventType === "agent.proposal.approved_for_draft") {
     assertCanApproveAgentProposalDraftPrep(state, user, proposal);
   }
+}
+
+function firstPresentString(...values) {
+  for (const value of values) {
+    const normalized = String(value ?? "").trim();
+    if (normalized) return normalized;
+  }
+  return "";
+}
+
+function buildEstimateDraftPayloadFromLead(lead = {}, customers = []) {
+  const linkedCustomer = (Array.isArray(customers) ? customers : []).find((customer) => customer?.id && customer.id === lead.customerId) || null;
+  const customerName = firstPresentString(linkedCustomer?.name, linkedCustomer?.company, lead.customer);
+  const title = firstPresentString(lead.project, lead.title, customerName ? `${customerName} estimate` : "Lead estimate");
+  const scopeSummary = firstPresentString(
+    lead.scopeSummary,
+    lead.description,
+    lead.notes,
+    lead.project ? `Estimate for ${lead.project}.` : "",
+  );
+  const internalNotes = [
+    lead.id ? `Created from lead ${lead.id} by Apex Assistant after human approval.` : "Created from lead by Apex Assistant after human approval.",
+    lead.source ? `Lead source: ${lead.source}.` : "",
+    lead.nextStep ? `Lead next step: ${lead.nextStep}.` : "",
+    lead.followUpDueAt ? `Lead follow-up due: ${lead.followUpDueAt}.` : "",
+    customerName ? `Lead customer: ${customerName}.` : "",
+    "Draft only: no proposal was sent and no customer contact was created.",
+  ].filter(Boolean).join("\n");
+
+  return {
+    customerId: firstPresentString(linkedCustomer?.id, lead.customerId),
+    customerName,
+    leadId: firstPresentString(lead.id),
+    customerEmail: firstPresentString(linkedCustomer?.email, lead.customerEmail, lead.email, lead.contactEmail),
+    title,
+    status: "draft",
+    scopeSummary,
+    internalNotes,
+    customerNotes: "",
+    taxRate: "",
+    feesTotal: "",
+    items: [],
+  };
 }
 
 function pickImportedDraftEditableFields(updates = {}) {
@@ -6892,6 +6973,115 @@ app.post("/api/agent-action-proposals/audit", requireAuth, asyncRoute(async (req
       detail: normalized,
     },
     requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent-action-proposals/create-estimate-draft", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageEstimatesForRequest(req.auth.user);
+  const proposalPayload = req.body?.proposal && typeof req.body.proposal === "object" ? req.body.proposal : req.body || {};
+  const normalized = normalizeAgentProposalAuditPayload({
+    ...proposalPayload,
+    eventType: "agent.proposal.generated",
+    status: "needs_human_review",
+    proposalType: proposalPayload.proposalType || "estimate-draft-review",
+    targetEntityType: proposalPayload.targetEntityType || "lead",
+    targetEntityId: proposalPayload.targetEntityId || req.body?.leadId || "",
+  });
+  const leadId = optionalString(req.body?.leadId || normalized.targetEntityId, "");
+
+  if (normalized.proposalType !== "estimate-draft-review") {
+    throw new ApiError(403, "Only estimate draft agent proposals can create draft estimates.");
+  }
+  if (!leadId) {
+    throw new ApiError(400, "Lead ID is required before Apex Assistant can create an estimate draft.");
+  }
+
+  let createdEstimateId = "";
+  const nextState = await updateDb((draft) => {
+    assertCanCreateAgentProposalAudit(draft, req.auth.user);
+    if (!canApproveAgentProposalDraftPrepForType(draft, req.auth.user, normalized)) {
+      throw new ApiError(403, "You do not have permission to create estimate drafts from this agent proposal.");
+    }
+
+    const lead = findCompanyScopedRecord(draft.leads || [], leadId, req.auth.user, draft, "Lead");
+    if (lead.archivedAt) {
+      throw new ApiError(400, "Archived leads cannot be used for agent estimate drafts.");
+    }
+
+    const existingDraft = (draft.estimates || []).find((estimate) => (
+      estimate.leadId === lead.id
+      && estimate.status === "draft"
+      && !estimate.jobId
+      && !estimate.archivedAt
+      && recordBelongsToCompany(estimate, currentCompanyIdForRequestUser(draft, req.auth.user))
+    )) || null;
+
+    if (!hasAgentProposalAuditEvent(draft, req.auth.user, normalized, "agent.proposal.generated")) {
+      appendAgentProposalAuditEvent(draft, req.auth.user, normalized, {
+        eventType: "agent.proposal.generated",
+        status: "needs_human_review",
+        summary: normalized.summary || "Estimate draft review packet",
+      });
+    }
+
+    if (!hasAgentProposalAuditEvent(draft, req.auth.user, normalized, "agent.proposal.approved_for_draft")) {
+      appendAgentProposalAuditEvent(draft, req.auth.user, normalized, {
+        eventType: "agent.proposal.approved_for_draft",
+        status: "approved_for_draft",
+        summary: "Estimate draft approved for agent draft creation",
+      });
+    }
+
+    const changedAt = new Date().toISOString();
+    let estimate = existingDraft;
+    if (!estimate) {
+      draft.estimates ||= [];
+      draft.estimateItems ||= [];
+      const payload = buildEstimateDraftPayloadFromLead(lead, draft.customers || []);
+      const links = resolveEstimateLinks(draft, payload, req.auth.user);
+      estimate = createEstimateShape(payload, req.auth.user, changedAt, links.customer, links.lead, { subtotal: 0, taxRate: null, taxTotal: null, feesTotal: null, grandTotal: 0 });
+      estimate.status = "draft";
+      assignCompanyIdForCreate(estimate, req.auth.user, draft);
+      assertSameCompanyRecords(estimate, links.customer, "Customer");
+      if (links.lead) assertSameCompanyRecords(estimate, links.lead, "Lead");
+      const items = normalizeEstimateItemsPayload([], changedAt, estimate.id);
+      const totals = calculateEstimateTotals(items, { taxRate: "", feesTotal: "" });
+      estimate.subtotal = totals.subtotal;
+      estimate.taxRate = totals.taxRate;
+      estimate.taxTotal = totals.taxTotal;
+      estimate.feesTotal = totals.feesTotal;
+      estimate.grandTotal = totals.grandTotal;
+      applyEstimateStatusTimestamps(estimate, "draft", changedAt);
+
+      draft.estimates.unshift(estimate);
+      appendActivity(draft, "Agent draft estimate created", `${req.auth.user.name} approved Apex Assistant to create draft estimate ${estimate.title} from ${lead.customer || lead.project || "a lead"}.`);
+      appendAuditEvent(draft, {
+        entityType: "estimate",
+        entityId: estimate.id,
+        action: "agent_draft_created",
+        summary: "Agent draft estimate created",
+        detail: `${req.auth.user.name} approved Apex Assistant to create draft estimate ${estimate.title}. No proposal was sent and no customer contact was created.`,
+        actor: req.auth.user,
+        changedFields: ["customerId", "leadId", "customerEmail", "title", "status", "internalNotes"],
+      });
+    }
+
+    createdEstimateId = estimate.id;
+    if (!hasAgentProposalAuditEvent(draft, req.auth.user, normalized, "agent.proposal.draft_created")) {
+      appendAgentProposalAuditEvent(draft, req.auth.user, normalized, {
+        eventType: "agent.proposal.draft_created",
+        status: existingDraft ? "existing_draft_ready" : "draft_created",
+        summary: existingDraft ? "Existing estimate draft opened from agent approval" : "Estimate draft created from agent approval",
+        createdDraftEntityType: "estimate",
+        createdDraftEntityId: estimate.id,
+      });
+    }
+    return draft;
+  });
+
+  res.status(201).json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    agentDraftEstimateId: createdEstimateId,
   });
 }));
 

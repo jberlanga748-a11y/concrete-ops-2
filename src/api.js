@@ -107,6 +107,10 @@ export function recordAgentActionProposalAudit(token, payload) {
   return request("/api/agent-action-proposals/audit", { method: "POST", token, body: payload });
 }
 
+export function createAgentEstimateDraft(token, payload) {
+  return request("/api/agent-action-proposals/create-estimate-draft", { method: "POST", token, body: payload });
+}
+
 export function updateCompanySettings(token, payload) {
   return request("/api/settings/company", { method: "PATCH", token, body: payload });
 }

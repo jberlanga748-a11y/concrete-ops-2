@@ -133,6 +133,76 @@ function insertUser(sqliteFile, user) {
   }
 }
 
+function insertCustomerAndLead(sqliteFile, {
+  customerId = "CUST-AGENT-DRAFT",
+  leadId = "LEAD-AGENT-DRAFT",
+  companyId = DEFAULT_COMPANY_ID,
+} = {}) {
+  const database = new DatabaseSync(sqliteFile);
+  const now = new Date().toISOString();
+  try {
+    database.prepare(`
+      INSERT INTO customers (id, sort_index, company_id, name, company, phone, email, city, service_area, status, notes, created_at, updated_at, archived_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      customerId,
+      9001,
+      companyId,
+      "Agent Draft Customer",
+      "Agent Draft Customer",
+      "503-555-0199",
+      "agent-draft-customer@example.test",
+      "Salem",
+      "Salem",
+      "Prospect",
+      "Created for agent draft tests.",
+      now,
+      now,
+      null,
+    );
+    database.prepare(`
+      INSERT INTO leads (id, sort_index, company_id, customer_id, customer, city, project, status, priority, value, owner, owner_id, age, source, follow_up_due_at, next_step, notes, fit_score, fit_label, fit_reason, fit_risks, fit_next_step, score_source, scored_at, missing_info_status, missing_info_count, missing_info_items, missing_info_next_step, missing_info_checked_at, created_at, updated_at, archived_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      leadId,
+      9001,
+      companyId,
+      customerId,
+      "Agent Draft Customer",
+      "Salem",
+      "Agent Draft Patio",
+      "Qualified",
+      "High",
+      18500,
+      "Jason M.",
+      "",
+      "Today",
+      "Website",
+      "",
+      "Prepare estimate draft",
+      "Customer needs a new patio estimate with broom finish.",
+      82,
+      "Strong fit",
+      "Concrete scope is in service area.",
+      "Confirm access and preferred schedule.",
+      "Create draft estimate.",
+      "manual",
+      now,
+      "complete",
+      0,
+      "[]",
+      "",
+      now,
+      now,
+      now,
+      null,
+    );
+  } finally {
+    database.close();
+  }
+  return { customerId, leadId };
+}
+
 function auditEvents(sqliteFile) {
   const database = new DatabaseSync(sqliteFile);
   try {
@@ -140,6 +210,19 @@ function auditEvents(sqliteFile) {
       SELECT entity_type AS entityType, entity_id AS entityId, action, summary, detail, actor_user_id AS actorUserId, actor_name AS actorName
       FROM audit_events
       WHERE entity_type = 'agentActionProposal'
+      ORDER BY sort_index DESC
+    `).all();
+  } finally {
+    database.close();
+  }
+}
+
+function estimateRows(sqliteFile) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    return database.prepare(`
+      SELECT id, lead_id AS leadId, customer_id AS customerId, status, sent_at AS sentAt, sent_to AS sentTo, provider_message_id AS providerMessageId, job_id AS jobId, internal_notes AS internalNotes
+      FROM estimates
       ORDER BY sort_index DESC
     `).all();
   } finally {
@@ -270,6 +353,16 @@ test("agent proposal audit rejects non-review-first records", async () => {
 
     assert.equal(response.response.status, 400);
     assert.match(response.payload.error, /human approval required/i);
+
+    const fakeDraftCreated = await requestJson(fixture.baseUrl, "/api/agent-action-proposals/audit", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify(agentAuditPayload({
+        eventType: "agent.proposal.draft_created",
+        status: "draft_created",
+      })),
+    });
+    assert.equal(fakeDraftCreated.response.status, 400);
     assert.equal(auditEvents(fixture.sqliteFile).length, 0);
   } finally {
     await fixture.stop();
@@ -388,6 +481,126 @@ test("agent proposal approval-for-draft keeps field users and unsupported propos
       }),
     });
     assert.equal(unsupportedApproval.response.status, 403);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("agent proposal can create a draft estimate from an approved lead without sending or converting", async () => {
+  const fixture = await startServer();
+
+  try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.PREMIUM);
+    const { leadId } = insertCustomerAndLead(fixture.sqliteFile);
+    const adminLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const beforeCounts = tableCounts(fixture.sqliteFile, ["estimates", "jobs", "contact_history"]);
+
+    const payload = await assertOk(fixture.baseUrl, "/api/agent-action-proposals/create-estimate-draft", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({
+        leadId,
+        proposal: agentAuditPayload({
+          proposalId: `agent-proposal:estimate-draft-review:${leadId}`,
+          targetEntityType: "lead",
+          targetEntityId: leadId,
+          summary: "Estimate draft review packet",
+          redactedPromptPreview: "Create estimate draft for Agent Draft Customer contact agent@example.test. Do not send.",
+          redactedResponsePreview: "Draft only. No send or customer contact.",
+        }),
+      }),
+    });
+    const afterCounts = tableCounts(fixture.sqliteFile, ["estimates", "jobs", "contact_history"]);
+    const estimate = estimateRows(fixture.sqliteFile).find((row) => row.id === payload.agentDraftEstimateId);
+
+    assert.equal(afterCounts.estimates, beforeCounts.estimates + 1);
+    assert.equal(afterCounts.jobs, beforeCounts.jobs);
+    assert.equal(afterCounts.contact_history, beforeCounts.contact_history);
+    assert.ok(estimate);
+    assert.equal(estimate.leadId, leadId);
+    assert.equal(estimate.status, "draft");
+    assert.equal(estimate.sentAt || "", "");
+    assert.equal(estimate.sentTo || "", "");
+    assert.equal(estimate.providerMessageId || "", "");
+    assert.equal(estimate.jobId || "", "");
+    assert.match(estimate.internalNotes, /No proposal was sent/i);
+
+    const records = auditEvents(fixture.sqliteFile);
+    const proposalActions = records.map((record) => record.action);
+    assert.ok(proposalActions.includes("agent.proposal.generated"));
+    assert.ok(proposalActions.includes("agent.proposal.approved_for_draft"));
+    assert.ok(proposalActions.includes("agent.proposal.draft_created"));
+    const draftCreatedRecord = records.find((record) => record.action === "agent.proposal.draft_created");
+    const draftCreatedDetail = JSON.parse(draftCreatedRecord.detail);
+    assert.equal(draftCreatedDetail.createdDraftEntityType, "estimate");
+    assert.equal(draftCreatedDetail.createdDraftEntityId, payload.agentDraftEstimateId);
+    assert.doesNotMatch(JSON.stringify(records), /example\.test/i);
+    assert.match(JSON.stringify(records), /\[REDACTED\]/);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("agent proposal estimate draft creation blocks field users and unsupported proposal types", async () => {
+  const fixture = await startServer();
+
+  try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.PREMIUM);
+    const { leadId } = insertCustomerAndLead(fixture.sqliteFile, {
+      customerId: "CUST-AGENT-DRAFT-BLOCKED",
+      leadId: "LEAD-AGENT-DRAFT-BLOCKED",
+    });
+    const employeeUser = createUserRecord({
+      id: "U-AGENT-DRAFT-EMPLOYEE",
+      email: "agent-draft-employee@apexhq.test",
+      password: "apexdemo123",
+      name: "Agent Draft Employee",
+      role: "Employee",
+    });
+    insertUser(fixture.sqliteFile, employeeUser);
+    const employeeLogin = await login(fixture.baseUrl, {
+      email: employeeUser.email,
+      password: "apexdemo123",
+    });
+    const adminLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+
+    const employeeBlocked = await requestJson(fixture.baseUrl, "/api/agent-action-proposals/create-estimate-draft", {
+      method: "POST",
+      headers: authHeaders(employeeLogin.token),
+      body: JSON.stringify({
+        leadId,
+        proposal: agentAuditPayload({
+          proposalId: `agent-proposal:estimate-draft-review:${leadId}`,
+          targetEntityId: leadId,
+        }),
+      }),
+    });
+    assert.equal(employeeBlocked.response.status, 403);
+
+    const unsupported = await requestJson(fixture.baseUrl, "/api/agent-action-proposals/create-estimate-draft", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({
+        leadId,
+        proposal: agentAuditPayload({
+          proposalId: "agent-proposal:lead-follow-up:leads",
+          proposalType: "lead-follow-up",
+          targetEntityId: leadId,
+        }),
+      }),
+    });
+    assert.equal(unsupported.response.status, 403);
+
+    const counts = tableCounts(fixture.sqliteFile, ["estimates", "jobs", "contact_history"]);
+    assert.equal(estimateRows(fixture.sqliteFile).some((estimate) => estimate.leadId === leadId), false);
+    assert.equal(counts.jobs >= 0, true);
+    assert.equal(counts.contact_history >= 0, true);
   } finally {
     await fixture.stop();
   }
