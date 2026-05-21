@@ -1,6 +1,7 @@
 import { missingInfoTone } from "../shared/leadMissingInfo.js";
 import { leadScoreTone } from "../shared/leadScoring.js";
 import { Badge, Icon, StatusBadge } from "./app-shell-components";
+import { deriveLeadPilotWorkflowReadiness } from "./lead-utils";
 
 function todayDateInputValue() {
   return new Date().toISOString().slice(0, 10);
@@ -176,5 +177,39 @@ export function LeadsTable({ rows, selectedId, onSelect, maxRows = null, mobileM
         </div>
       </div>
     </>
+  );
+}
+
+export function LeadPilotWorkflowReadinessCard({ lead, customers = [] }) {
+  const readiness = deriveLeadPilotWorkflowReadiness(lead, { customers });
+
+  return (
+    <div className="rounded-3xl border border-orange-100 bg-orange-50/70 p-4">
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-black text-slate-950">Pilot workflow readiness</p>
+            <Badge tone={readiness.tone}>{readiness.status}</Badge>
+            <Badge tone="slate">{readiness.readyCount} / {readiness.totalCount}</Badge>
+          </div>
+          <p className="mt-1 text-sm leading-6 text-slate-600">{readiness.summary}</p>
+        </div>
+        <div className="rounded-2xl border border-orange-100 bg-white px-3 py-2 text-sm font-black text-orange-800">
+          {readiness.nextAction}
+        </div>
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        {readiness.steps.map((step) => (
+          <div key={step.id} className={`rounded-2xl border p-3 ${step.complete ? "border-emerald-100 bg-white" : "border-amber-100 bg-white"}`}>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">{step.label}</p>
+              <Badge tone={step.complete ? "green" : "amber"}>{step.complete ? "Ready" : "Needed"}</Badge>
+            </div>
+            <p className="mt-2 text-xs font-bold leading-5 text-slate-600">{step.helper}</p>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 text-xs font-bold text-slate-500">Pilot path: lead or estimate to job setup to photo/proof to owner follow-up. Nothing is sent or automated from this card.</p>
+    </div>
   );
 }
