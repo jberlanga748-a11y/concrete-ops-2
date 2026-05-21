@@ -2,7 +2,7 @@
 
 Date: 2026-05-21
 
-Latest evidence refresh: 2026-05-21T08:22:37Z
+Latest evidence refresh: 2026-05-21T09:23:40Z
 
 Target environment: `https://concrete-ops-demo.fly.dev`
 
@@ -71,19 +71,19 @@ Auth smoke was intentionally skipped for this refresh because the preflight ran 
 
 Admin desktop route audit:
 
-- Manifest: `ui-audit/fencing-first-walkthrough/2026-05-21T08-22-06-200Z/manifest.json`
+- Manifest: `ui-audit/fencing-first-walkthrough/2026-05-21T09-23-09-399Z/manifest.json`
 - Routes: `/command-center`, `/leads`, `/estimates`, `/jobs`, `/schedule`, `/reports`, `/uploads`, `/support`
 - Result: 8 checked, 0 failures
 
 Admin tablet route audit:
 
-- Manifest: `ui-audit/fencing-first-walkthrough/2026-05-21T08-22-18-828Z/manifest.json`
+- Manifest: `ui-audit/fencing-first-walkthrough/2026-05-21T09-23-21-902Z/manifest.json`
 - Routes: `/estimates`, `/jobs`, `/schedule`
 - Result: 3 checked, 0 failures
 
 Employee phone route audit:
 
-- Manifest: `ui-audit/fencing-first-walkthrough/2026-05-21T08-22-25-677Z/manifest.json`
+- Manifest: `ui-audit/fencing-first-walkthrough/2026-05-21T09-23-28-771Z/manifest.json`
 - Routes: `/jobs`, `/reports`, `/uploads`, `/time`, `/estimates`, `/leads`, `/settings`
 - Result: 7 checked, 0 failures
 - Restricted office routes redirected to field-safe workspace paths.
@@ -92,7 +92,7 @@ Screenshot capture:
 
 - Manifest: `ui-audit/fencing-first-walkthrough-screenshots/2026-05-21T07-26-26-201Z/manifest.json`
 - Screenshots captured: 18
-- Noted issue: the screenshot-only checker flagged long text truncation on desktop Leads rows. The main visual audit passed the route. Treat as P3 follow-up, not a walkthrough blocker.
+- Prior screenshot-only Leads row truncation finding was resolved in the focused desktop Leads text polish pass. The current admin desktop route audit passed `/leads`.
 
 ## Verification Commands
 
