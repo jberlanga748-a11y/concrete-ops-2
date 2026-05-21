@@ -12,6 +12,15 @@ Purpose: keep the builder, QA flow, and business chat pointed at the same pilot 
 - Public self-serve launch: NO-GO
 - Production deploy: NO-GO unless approved through the backup-first release checklist
 
+Latest launch gate snapshot, 2026-05-21T10:10:57Z:
+
+- Guided demo readiness: GO
+- Customer pilot handoff readiness: NO-GO until a real company, owner/admin contact, exact workflow, first record, first field/proof action, and 2-3 success criteria are provided
+- Production auth smoke readiness: NO-GO until production smoke users, secret, and production-safety approval are explicitly approved
+- Production monitoring upgrade readiness: NO-GO until a provider/destination/access owner/redaction plan is selected and tested demo-first
+- Wider paid launch readiness: NO-GO pending legal/privacy/public-claims review, production monitoring, production auth smoke, and customer-specific pilot setup approval
+- Next highest leverage: pick one real pilot candidate/workflow and run `npm.cmd run pilot:rehearsal` with 2-3 success criteria
+
 ## Core Pilot Docs
 
 | Artifact | Purpose |
@@ -66,6 +75,12 @@ Pilot readiness verification:
 npm.cmd run verify:pilot-readiness
 ```
 
+Launch gate snapshot:
+
+```powershell
+npm.cmd run launch:gate-status -- --json
+```
+
 ## Latest Evidence
 
 - Fly demo target: `https://concrete-ops-demo.fly.dev`
@@ -78,6 +93,7 @@ npm.cmd run verify:pilot-readiness
 - GitHub scheduled demo smoke: latest observed run `26207043659` passed on 2026-05-21T05:19:24Z and ran auth/bootstrap smoke
 - Known P3 visual backlog: desktop `/leads` long fencing text wrap polish resolved; no open visual backlog from the latest walkthrough route audit
 - Latest local pilot readiness gate: `npm.cmd run verify:pilot-readiness` passed on 2026-05-21T09:59Z with docs, pilot config, rehearsal, fencing gates, roles, backup export, restore drill, and build. Backup verification produced `app-data-20260521-095905Z.sqlite` / `.json`; restore drill used `app-data-20260521-095906Z.sqlite` / `.json`.
+- Latest launch gate snapshot: `npm.cmd run launch:gate-status -- --json` ran on 2026-05-21T10:10Z. Guided demo readiness was `GO`; customer pilot handoff, production auth smoke, production monitoring upgrade, and wider paid launch remained `NO-GO` for explicit setup/approval reasons.
 
 ## Hard Stops
 
