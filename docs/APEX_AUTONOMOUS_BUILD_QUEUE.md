@@ -37,6 +37,7 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 | Date | Priority | Task | Result | Commit |
 | --- | --- | --- | --- | --- |
+| 2026-05-21 | P1 | Agent proposal server-side audit log planning | Done; proposal audit plan defines append-only event types, redaction boundaries, permission gates, API phases, and approval stops before any persistence work | This commit |
 | 2026-05-21 | P1 | Agent Action Proposal draft-prep slice | Done; review packets now show draft-only prep context for estimate drafts, packets, handoffs, lead follow-up, and support handoff without saving or sending | This commit |
 | 2026-05-21 | P1 | Agent Action Proposal framework slice | Done; Apex Assistant responses now render review-first action proposal packets with approval-required checklist and blocked-action boundaries | This commit |
 | 2026-05-21 | P1 | Fencing pilot walkthrough packet | Done; first-user packet and readiness report created | `fa7f86d` |
@@ -105,7 +106,7 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 | Priority | Task | Status | Why It Matters | Safe Scope | Verification | Stop / Approval Gate |
 | --- | --- | --- | --- | --- | --- | --- |
-| P1 | Agent proposal server-side audit log planning | Ready | The UI now has review-first packets; the next safety layer is a plan for optional server-side audit/action-proposal persistence without mutating workflow records | Plan first; no schema or persistence without approval | architecture note, permission review | Stop before database/schema/API writes |
+| P1 | Agent proposal audit utility hardening | Ready | The audit plan is now explicit; the next safe slice is shared redaction and normalized event helpers before any server write path exists | Utility tests only; no schema, no API, no persistence, no workflow mutation | build, roles, targeted utility tests | Stop before database/schema/API writes |
 | P3 | Continue route module extraction | Ready | `App.jsx` is still a monolith; shared primitives are now separated enough to move feature route chunks more safely | Extract one presentational route chunk with existing props; no auth, package, data, or action changes | build, targeted verifier, route tests, browser audit | Stop if state/action wiring or permission gates must move |
 | P2 | Local demo auth smoke rerun when secret is available | Blocked | Would prove login/bootstrap from the local operator shell | Run only; no docs unless evidence changes | hosted auth smoke | Blocked until `APEX_SMOKE_PASSWORD` is present locally |
 
@@ -121,4 +122,4 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 ## Next Recommended Task
 
-Next safe build action is planning the server-side Agent Action Proposal audit layer before any persistence or action-approval API is added. Human-input tasks remain blocked until real pilot details or smoke secrets are provided.
+Next safe build action is utility-only hardening for Agent Action Proposal audit redaction and event normalization. Human-input tasks remain blocked until real pilot details or smoke secrets are provided.
