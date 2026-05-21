@@ -90,6 +90,7 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 | 2026-05-21 | P3 | Estimate option editor architecture extraction | Done; option editor and option status constants moved into the estimate route component module with build, role, estimate, route, and browser audits passing | `c58159c` |
 | 2026-05-21 | P3 | Estimate starter panel architecture extraction | Done; estimate starter panel moved into the estimate route component module with build, role, estimate, route, and browser audits passing | `88997df` |
 | 2026-05-21 | P3 | Estimate backup editor architecture extraction | Done; estimate backup/SOV/takeoff/reference editor moved into the estimate route component module with build, role, estimate, route, and browser audits passing | `bc99525` |
+| 2026-05-21 | P3 | Estimate GC packet editor architecture extraction | Done; GC Packet Lite editor moved into the estimate route component module with build, role, estimate, route, and browser audits passing | pending |
 
 ## Active Queue
 

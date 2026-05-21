@@ -3,6 +3,8 @@ import { useState } from "react";
 import { Badge, Button, Card, FilterBar, Icon, InputField, SectionHeader, SelectField, StateCard, StatusBadge, TextAreaField } from "./app-shell-components";
 import { DEFAULT_COMPANY_NAME, resolveWorkspaceLogoInitials } from "./brand-utils";
 import { createEmptyReferenceAttachmentRow, createEmptySovRow, createEmptyTakeoffRow, deriveEstimateBackup, mergeEstimateBackup } from "./estimate-backup-utils";
+import { deriveEstimateGcPacketLite } from "./estimate-gc-packet-utils";
+import { mergeEstimateGcPacketLite } from "./estimate-snapshot-utils";
 import { calculateEstimateLineTotal, deriveEstimateJobHandoffReadiness, estimateCustomerEmail, estimateStatusLabel, formatEstimateCurrency } from "./estimate-utils";
 import { ESTIMATE_LINE_ITEM_STARTERS, ESTIMATE_TEMPLATE_STARTERS, addEstimateLineItemStarter, applyEstimateTemplateStarter } from "./estimate-template-utils";
 
@@ -695,6 +697,93 @@ export function EstimateBackupEditor({ draft, setDraft, disabled = false }) {
           disabled={disabled}
           placeholder="Estimator backup notes, quantity assumptions, SOV review notes, or pricing reminders."
         />
+      </div>
+    </div>
+  );
+}
+
+export function EstimateGcPacketLiteEditor({ draft, setDraft, disabled = false }) {
+  const gcPacketLite = deriveEstimateGcPacketLite(draft);
+  const updateGcPacketLite = (field, value) => {
+    setDraft((current) => mergeEstimateGcPacketLite(current, {
+      ...deriveEstimateGcPacketLite(current),
+      [field]: value,
+    }));
+  };
+
+  return (
+    <div className="rounded-3xl border border-indigo-100 bg-indigo-50/50 p-4 shadow-sm shadow-indigo-100/50">
+      <SectionHeader
+        title="GC Packet Lite"
+        description="Use this for commercial GC-facing proposal notes. Review customer-facing sections before sending."
+        action={<Badge tone="violet">GC Lite</Badge>}
+      />
+      <div className="rounded-2xl border border-indigo-100 bg-white/85 px-3 py-2 text-sm font-bold text-indigo-800">
+        Captured here for future GC packet output. Current estimate print/PDF stays unchanged in this phase.
+      </div>
+      <div className="mt-3 grid gap-3">
+        <div className="grid gap-3 lg:grid-cols-2">
+          <TextAreaField
+            label="Proposal Cover Note"
+            value={gcPacketLite.proposalCoverNote}
+            onChange={(event) => updateGcPacketLite("proposalCoverNote", event.target.value)}
+            disabled={disabled}
+            placeholder="Short GC-facing cover note or bid response introduction."
+          />
+          <TextAreaField
+            label="Proposal Summary"
+            value={gcPacketLite.proposalSummary}
+            onChange={(event) => updateGcPacketLite("proposalSummary", event.target.value)}
+            disabled={disabled}
+            placeholder="High-level commercial proposal summary for GC review."
+          />
+        </div>
+        <div className="grid gap-3 lg:grid-cols-3">
+          <TextAreaField
+            label="Qualifications"
+            value={gcPacketLite.qualifications}
+            onChange={(event) => updateGcPacketLite("qualifications", event.target.value)}
+            disabled={disabled}
+            className="field-input min-h-24 resize-y"
+            placeholder="Qualifications, bid conditions, or GC-facing clarifications."
+          />
+          <TextAreaField
+            label="Schedule Notes"
+            value={gcPacketLite.scheduleNotes}
+            onChange={(event) => updateGcPacketLite("scheduleNotes", event.target.value)}
+            disabled={disabled}
+            className="field-input min-h-24 resize-y"
+            placeholder="Schedule assumptions, sequencing, access, or notice requirements."
+          />
+          <TextAreaField
+            label="Addenda / RFI References"
+            value={gcPacketLite.addendaRfiReferences}
+            onChange={(event) => updateGcPacketLite("addendaRfiReferences", event.target.value)}
+            disabled={disabled}
+            className="field-input min-h-24 resize-y"
+            placeholder="Addenda reviewed, RFI references, plan dates, or bid clarifications."
+          />
+        </div>
+        <div className="rounded-2xl border border-amber-100 bg-amber-50/80 p-3">
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-amber-700">Office-only packet notes</p>
+          <div className="mt-3 grid gap-3 lg:grid-cols-2">
+            <TextAreaField
+              label="GC Review Notes - Office Only"
+              value={gcPacketLite.gcReviewNotes}
+              onChange={(event) => updateGcPacketLite("gcReviewNotes", event.target.value)}
+              disabled={disabled}
+              placeholder="Internal GC review reminders, bid strategy, or follow-up context."
+            />
+            <TextAreaField
+              label="Internal Packet Notes - Office Only"
+              value={gcPacketLite.internalPacketNotes}
+              onChange={(event) => updateGcPacketLite("internalPacketNotes", event.target.value)}
+              disabled={disabled}
+              placeholder="Internal packet assembly notes, missing items, or review checklist reminders."
+            />
+          </div>
+          <p className="mt-2 text-xs font-bold leading-5 text-amber-700">Office-only notes do not print for customers.</p>
+        </div>
       </div>
     </div>
   );
