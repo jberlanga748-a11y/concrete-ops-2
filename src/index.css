@@ -27524,6 +27524,129 @@ textarea {
   line-height: 1.45;
 }
 
+.co-ai-agent-command-board {
+  border-color: rgba(148, 163, 184, 0.34) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 250, 252, 0.96)) !important;
+}
+
+.co-ai-agent-command-board .co-ai-board-header {
+  background:
+    linear-gradient(135deg, rgba(255, 247, 237, 0.92), #ffffff 46%, rgba(248, 250, 252, 0.98)) !important;
+}
+
+.co-ai-agent-workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1.32fr) minmax(18rem, 0.78fr);
+  gap: 0.85rem;
+  padding: 0.85rem;
+}
+
+.co-ai-agent-workflow-panel,
+.co-ai-agent-focus-panel {
+  min-width: 0;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 0.9rem;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.co-ai-agent-workflow-panel {
+  padding: 0.85rem;
+}
+
+.co-ai-agent-focus-panel {
+  overflow: hidden;
+}
+
+.co-ai-section-kicker {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.72rem;
+}
+
+.co-ai-section-kicker span {
+  color: #f97316;
+  font-size: 0.66rem;
+  font-weight: 950;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.co-ai-section-kicker strong {
+  color: #0f172a;
+  font-size: 0.82rem;
+  font-weight: 950;
+  letter-spacing: 0;
+  text-align: right;
+}
+
+.co-ai-agent-focus-panel .co-ai-section-kicker {
+  margin-bottom: 0;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.94);
+  background: rgba(248, 250, 252, 0.9);
+  padding: 0.72rem 0.85rem;
+}
+
+.co-ai-agent-command-board .co-ai-workflow-card {
+  min-height: 6.7rem;
+  padding: 0.72rem;
+}
+
+.co-ai-agent-command-board .co-ai-workflow-helper {
+  margin-top: 0.22rem;
+  font-size: 0.73rem;
+}
+
+.co-ai-agent-command-board .co-ai-focus-row {
+  padding: 0.68rem 0.75rem;
+}
+
+.co-ai-agent-command-board .co-ai-focus-description {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.co-ai-guardrail-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  border-top: 1px solid rgba(226, 232, 240, 0.95);
+  background: rgba(248, 250, 252, 0.92);
+  padding: 0.72rem 0.85rem 0.85rem;
+}
+
+.co-ai-guardrail-strip > div {
+  min-width: 0;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 0.78rem;
+  background: #ffffff;
+  padding: 0.62rem;
+}
+
+.co-ai-guardrail-strip span {
+  display: block;
+  color: #64748b;
+  font-size: 0.64rem;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.co-ai-guardrail-strip strong {
+  display: block;
+  margin-top: 0.18rem;
+  color: #334155;
+  font-size: 0.72rem;
+  font-weight: 850;
+  line-height: 1.28;
+}
+
 .co-ai-job-finder-strip {
   --co-job-finder-tone: #f97316;
   display: grid;
@@ -28730,7 +28853,12 @@ textarea {
   position: static;
   max-height: none;
   overflow: visible;
-  padding-right: 0;
+  border: 1px solid rgba(30, 41, 59, 0.9);
+  border-radius: 1rem;
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.97), rgba(2, 8, 23, 0.98));
+  padding: 0.65rem;
+  box-shadow: 0 24px 54px -42px rgba(2, 8, 23, 0.9);
 }
 
 .co-ai-right-rail > * + * {
@@ -28738,7 +28866,19 @@ textarea {
 }
 
 .co-ai-rail-card {
+  border-color: rgba(51, 65, 85, 0.88) !important;
+  background: rgba(15, 23, 42, 0.88) !important;
   padding: 0.82rem;
+  box-shadow: none !important;
+}
+
+.co-ai-rail-card .co-section-accent h3,
+.co-ai-rail-card h3 {
+  color: #f8fafc;
+}
+
+.co-ai-rail-card .co-section-accent p {
+  color: #94a3b8;
 }
 
 .co-ai-boundary-list,
@@ -28752,9 +28892,9 @@ textarea {
 .co-ai-action-row,
 .co-ai-scout-quality-row,
 .co-ai-snapshot-grid > div {
-  border: 1px solid var(--co-ai-border);
+  border: 1px solid rgba(51, 65, 85, 0.9);
   border-radius: 0.85rem;
-  background: var(--co-ai-soft);
+  background: rgba(15, 23, 42, 0.72);
 }
 
 .co-ai-boundary-row,
@@ -28773,7 +28913,7 @@ textarea {
 .co-ai-scout-quality-row small,
 .co-ai-snapshot-grid span,
 .co-ai-snapshot-grid em {
-  color: #64748b;
+  color: #94a3b8;
   font-size: 0.75rem;
   font-style: normal;
   font-weight: 800;
@@ -28804,7 +28944,7 @@ textarea {
 
 .co-ai-scout-quality-row:hover {
   border-color: color-mix(in srgb, var(--co-ai-tone) 40%, white);
-  background: color-mix(in srgb, var(--co-ai-tone) 6%, white);
+  background: color-mix(in srgb, var(--co-ai-tone) 16%, rgba(15, 23, 42, 0.86));
   transform: translateY(-1px);
 }
 
@@ -28815,7 +28955,7 @@ textarea {
 }
 
 .co-ai-scout-quality-row strong {
-  color: #0f172a;
+  color: #e2e8f0;
   font-size: 0.82rem;
   font-weight: 950;
 }
@@ -28827,7 +28967,7 @@ textarea {
   min-width: 2rem;
   height: 2rem;
   border-radius: 0.68rem;
-  background: color-mix(in srgb, var(--co-ai-tone) 12%, white);
+  background: color-mix(in srgb, var(--co-ai-tone) 22%, rgba(15, 23, 42, 0.9));
   color: var(--co-ai-tone);
   font-size: 0.95rem;
   font-weight: 950;
@@ -28842,7 +28982,7 @@ textarea {
 
 .co-ai-boundary-row strong,
 .co-ai-snapshot-grid strong {
-  color: #0f172a;
+  color: #f8fafc;
   font-size: 0.95rem;
   font-weight: 900;
 }
@@ -28875,7 +29015,7 @@ textarea {
 
 .co-ai-action-row:hover {
   border-color: color-mix(in srgb, var(--co-ai-tone) 40%, white);
-  background: color-mix(in srgb, var(--co-ai-tone) 6%, white);
+  background: color-mix(in srgb, var(--co-ai-tone) 16%, rgba(15, 23, 42, 0.86));
 }
 
 @media (min-width: 1024px) and (max-width: 1439px) {
@@ -28938,7 +29078,7 @@ textarea {
     display: block;
     max-height: none;
     overflow: visible;
-    padding-right: 0;
+    padding: 0.65rem;
   }
 
   .co-ai-right-rail > * + * {
@@ -28956,6 +29096,10 @@ textarea {
 
   .co-ai-workflow-card {
     min-height: 7.2rem;
+  }
+
+  .co-ai-agent-workbench {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -28986,10 +29130,15 @@ textarea {
     position: static;
     max-height: none;
     overflow: visible;
-    padding-right: 0;
+    padding: 0.65rem;
   }
 
   .co-ai-job-finder-strip {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .co-ai-agent-workbench,
+  .co-ai-guardrail-strip {
     grid-template-columns: minmax(0, 1fr);
   }
 }

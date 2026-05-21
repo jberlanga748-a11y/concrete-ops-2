@@ -25557,32 +25557,6 @@ function CopilotPagePolished({
     { label: "Pipeline", value: compactCurrency(pipelineValue), helper: "Open value" },
     { label: "Uploads", value: visibleUploads.length, helper: "Photo evidence" },
   ].filter(Boolean);
-  const assistantCommandCards = [
-    {
-      id: "next-review",
-      label: "Next review",
-      value: nextActions[0]?.label || "Open Command Center",
-      helper: "Start with the highest-signal office action.",
-      tone: nextActions[0]?.tone || "green",
-      action: nextActions[0]?.action || (() => openModule("commandCenter")),
-    },
-    {
-      id: "manual-first",
-      label: "Guardrail",
-      value: "Manual approval",
-      helper: "No auto-send, approvals, record changes, or customer contact.",
-      tone: "amber",
-      action: () => openModule("copilot"),
-    },
-    {
-      id: "role-safe",
-      label: "Role safety",
-      value: "Field users blocked",
-      helper: "Assistant context stays office-only or assigned-scope.",
-      tone: "green",
-      action: () => openModule("commandCenter"),
-    },
-  ];
   const foundDraftReviewChecks = [
     {
       id: "source-proof",
@@ -25640,29 +25614,81 @@ function CopilotPagePolished({
         }
       />
 
-      <div className="co-ai-command-hero mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(24rem,0.74fr)] lg:px-6">
-        <div className="co-ai-command-hero-copy">
-          <span>Apex Assistant</span>
-          <h2>Review the next office move before anyone changes the work.</h2>
-          <p>The assistant routes owners, admins, and office roles into existing Apex HQ workflows with saved context, visible guardrails, and manual approval at every step.</p>
-        </div>
-        <div className="co-ai-command-hero-cards">
-          {assistantCommandCards.map((card) => (
-            <button key={card.id} type="button" className="co-ai-command-card co-focus-ring" data-tone={card.tone} onClick={card.action}>
-              <span>{card.label}</span>
-              <strong>{card.value}</strong>
-              <em>{card.helper}</em>
-            </button>
-          ))}
-        </div>
-      </div>
-
       <div className="co-ai-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 lg:grid-cols-4 lg:px-6">
         {aiKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
       </div>
 
       <div className="co-ai-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
         <div className="min-w-0 space-y-3">
+          <Card className="co-ai-main-board co-ai-agent-command-board overflow-hidden">
+            <div className="co-ai-board-header border-b border-slate-200 bg-white p-4">
+              <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                <div className="min-w-0">
+                  <h2>{agentCommandCenter.headline}</h2>
+                  <p>{agentCommandCenter.summary}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge tone="amber">{agentCommandCenter.modeLabel}</Badge>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => openModule("leads")}>Lead Assistant</Button>
+                  <Button type="button" size="sm" onClick={() => openModule("commandCenter")}>Command Center</Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="co-ai-agent-workbench">
+              <section className="co-ai-agent-workflow-panel">
+                <div className="co-ai-section-kicker">
+                  <span>Agent lanes</span>
+                  <strong>What the assistant can help with right now</strong>
+                </div>
+                <div className="co-ai-workflow-grid grid gap-3 md:grid-cols-2">
+                  {workflowCards.slice(0, 6).map((card) => (
+                    <button key={card.title} type="button" className="co-ai-workflow-card co-focus-ring" data-tone={card.tone} onClick={card.onAction}>
+                      <span className="co-ai-workflow-icon"><Icon name={card.icon} className="h-5 w-5" /></span>
+                      <span className="min-w-0">
+                        <span className="co-ai-workflow-title">{card.title}</span>
+                        <span className="co-ai-workflow-helper">{card.helper}</span>
+                      </span>
+                      <Badge tone={card.tone === "orange" ? "amber" : card.tone}>{card.badge}</Badge>
+                      <span className="co-ai-workflow-action">{card.actionLabel} -&gt;</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              <section className="co-ai-agent-focus-panel">
+                <div className="co-ai-section-kicker">
+                  <span>Review queue</span>
+                  <strong>Needs owner/admin attention</strong>
+                </div>
+                <div className="co-ai-focus-list">
+                  {focusRows.length ? focusRows.slice(0, 6).map((row) => (
+                    <button key={row.id} type="button" className="co-ai-focus-row co-focus-ring" data-tone={row.tone} onClick={row.onAction}>
+                      <span className="co-ai-focus-icon"><Icon name={row.icon} className="h-4 w-4" /></span>
+                      <span className="min-w-0">
+                        <span className="co-ai-focus-eyebrow">{row.eyebrow}</span>
+                        <span className="co-ai-focus-title">{row.title}</span>
+                        <span className="co-ai-focus-description">{row.description}</span>
+                      </span>
+                      <span className="co-ai-focus-action">{row.actionLabel}</span>
+                    </button>
+                  )) : (
+                    <StateCard title="Apex HQ AI is clear" description="New leads, blocked queue items, approved leads, and startup-watch jobs will appear here when they need office review." tone="slate" />
+                  )}
+                </div>
+              </section>
+            </div>
+
+            <div className="co-ai-guardrail-strip">
+              {agentCommandCenter.guardrails.map((item) => (
+                <div key={item.id}>
+                  <span>{item.label}</span>
+                  <strong>{item.detail}</strong>
+                </div>
+              ))}
+            </div>
+          </Card>
+
           {canViewOpportunityScout ? (
           <Card className="co-ai-main-board co-ai-scout-board overflow-hidden">
             <div className="co-ai-board-header border-b border-slate-200 bg-white p-4">
@@ -26321,69 +26347,6 @@ function CopilotPagePolished({
           </Card>
           )}
 
-          <Card className="co-ai-main-board overflow-hidden">
-            <div className="co-ai-board-header border-b border-slate-200 bg-white p-4">
-              <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-                <div className="min-w-0">
-                  <h2>{agentCommandCenter.headline}</h2>
-                  <p>{agentCommandCenter.summary}</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Badge tone="amber">{agentCommandCenter.modeLabel}</Badge>
-                  <Button type="button" size="sm" variant="secondary" onClick={() => openModule("leads")}>Lead Assistant</Button>
-                  <Button type="button" size="sm" onClick={() => openModule("commandCenter")}>Command Center</Button>
-                </div>
-              </div>
-            </div>
-
-            <div className="co-ai-workflow-grid grid gap-3 p-4 md:grid-cols-2">
-              {workflowCards.map((card) => (
-                <button key={card.title} type="button" className="co-ai-workflow-card co-focus-ring" data-tone={card.tone} onClick={card.onAction}>
-                  <span className="co-ai-workflow-icon"><Icon name={card.icon} className="h-5 w-5" /></span>
-                  <span className="min-w-0">
-                    <span className="co-ai-workflow-title">{card.title}</span>
-                    <span className="co-ai-workflow-helper">{card.helper}</span>
-                  </span>
-                  <Badge tone={card.tone === "orange" ? "amber" : card.tone}>{card.badge}</Badge>
-                  <span className="co-ai-workflow-action">{card.actionLabel} -&gt;</span>
-                </button>
-              ))}
-            </div>
-            <div className="grid gap-2 border-t border-slate-200 bg-slate-50 p-4 md:grid-cols-3">
-              {agentCommandCenter.guardrails.map((item) => (
-                <div key={item.id} className="rounded-2xl border border-slate-200 bg-white p-3">
-                  <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{item.label}</p>
-                  <p className="mt-1 text-xs font-bold leading-5 text-slate-600">{item.detail}</p>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          <Card className="co-ai-main-board overflow-hidden">
-            <div className="co-ai-board-header border-b border-slate-200 bg-white p-4">
-                <div className="min-w-0">
-                <h2>Assistant Focus Queue</h2>
-                <p>Highest-signal records and queues to open next. Every row routes to an existing Apex HQ workflow.</p>
-              </div>
-            </div>
-            <div className="co-ai-focus-list">
-              {focusRows.length ? focusRows.map((row) => (
-                <button key={row.id} type="button" className="co-ai-focus-row co-focus-ring" data-tone={row.tone} onClick={row.onAction}>
-                  <span className="co-ai-focus-icon"><Icon name={row.icon} className="h-4 w-4" /></span>
-                  <span className="min-w-0">
-                    <span className="co-ai-focus-eyebrow">{row.eyebrow}</span>
-                    <span className="co-ai-focus-title">{row.title}</span>
-                    <span className="co-ai-focus-description">{row.description}</span>
-                  </span>
-                  <span className="co-ai-focus-action">{row.actionLabel}</span>
-                </button>
-              )) : (
-                <div className="p-4">
-                  <StateCard title="Apex HQ AI is clear" description="New leads, blocked queue items, approved leads, and startup-watch jobs will appear here when they need office review." tone="slate" />
-                </div>
-              )}
-            </div>
-          </Card>
         </div>
 
         <aside className="co-ai-right-rail min-w-0">
