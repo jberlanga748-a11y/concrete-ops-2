@@ -19522,10 +19522,25 @@ function LeadCommandRail({
   if (!lead) {
     return (
       <div className="co-leads-right-rail space-y-4">
-        <Card className="co-leads-rail-card p-4">
-          <SectionHeader title="Selected lead summary" description="Choose a lead from the inbox to review actions, missing info, and next steps." />
-          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">No lead selected.</div>
-        </Card>
+        <div className="co-leads-detail-stack">
+          <Card className="co-leads-rail-card p-4">
+            <SectionHeader title="Selected lead summary" description="Choose a lead from the inbox to review actions, missing info, and next steps." />
+            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">No lead selected.</div>
+          </Card>
+        </div>
+        <div className="co-leads-action-stack">
+          <AssistantRail
+            className="co-leads-assistant-rail"
+            eyebrow="Lead Assistant"
+            title="Pick a lead"
+            description="Select a lead to see estimate readiness, missing info, and next office actions."
+            priorities={[
+              { value: "Open", label: "lead review", tone: "orange" },
+              { value: "Draft", label: "safe actions only", tone: "slate" },
+            ]}
+            actions={[]}
+          />
+        </div>
       </div>
     );
   }
@@ -19558,182 +19573,186 @@ function LeadCommandRail({
 
   return (
     <div className="co-leads-right-rail space-y-4">
-      <AssistantRail
-        className="co-leads-assistant-rail"
-        eyebrow="Lead Assistant"
-        title="Review command"
-        description="Work the selected lead into the next office action without sending, converting, or pricing automatically."
-        priorities={assistantPriorities}
-        actions={assistantActions}
-      />
-
-      <Card className="co-leads-rail-card co-leads-summary-card p-4">
-        <div className="flex min-w-0 items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Selected Lead Summary</p>
-            <h3 className="mt-2 break-words text-xl font-black text-slate-950">{lead.customer || "Unnamed lead"}</h3>
-            <p className="mt-1 break-words text-xs font-bold text-slate-500">{[lead.project, lead.city, leadSourceLabel(lead.source || "Call-in")].filter(Boolean).join(" / ")}</p>
+      <div className="co-leads-detail-stack">
+        <Card className="co-leads-rail-card co-leads-summary-card p-4">
+          <div className="flex min-w-0 items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Selected Lead Summary</p>
+              <h3 className="mt-2 break-words text-xl font-black text-slate-950">{lead.customer || "Unnamed lead"}</h3>
+              <p className="mt-1 break-words text-xs font-bold text-slate-500">{[lead.project, lead.city, leadSourceLabel(lead.source || "Call-in")].filter(Boolean).join(" / ")}</p>
+            </div>
+            <StatusBadge status={followUpDue ? "Follow-Up Due" : lead.status || "New"} />
           </div>
-          <StatusBadge status={followUpDue ? "Follow-Up Due" : lead.status || "New"} />
-        </div>
-        <div className="co-leads-summary-badges">
-          <Badge tone={lead.priority === "High" ? "amber" : lead.priority === "Low" ? "slate" : "blue"}>{lead.priority || "Normal"}</Badge>
-          <LeadScoreBadge lead={lead} />
-          <LeadMissingInfoBadge lead={lead} />
-          {readyForEstimate ? <Badge tone="green">Estimate ready</Badge> : <Badge tone="amber">Needs prep</Badge>}
-        </div>
-        <div className="co-leads-summary-facts">
-          <div>
-            <span>Contact</span>
-            <strong>{phone || email || "Missing"}</strong>
+          <div className="co-leads-summary-badges">
+            <Badge tone={lead.priority === "High" ? "amber" : lead.priority === "Low" ? "slate" : "blue"}>{lead.priority || "Normal"}</Badge>
+            <LeadScoreBadge lead={lead} />
+            <LeadMissingInfoBadge lead={lead} />
+            {readyForEstimate ? <Badge tone="green">Estimate ready</Badge> : <Badge tone="amber">Needs prep</Badge>}
           </div>
-          {phone && email ? (
+          <div className="co-leads-summary-facts">
             <div>
-              <span>Email</span>
-              <strong>{email}</strong>
+              <span>Contact</span>
+              <strong>{phone || email || "Missing"}</strong>
             </div>
-          ) : null}
-          <div>
-            <span>Owner</span>
-            <strong>{lead.owner || "Unassigned"}</strong>
-          </div>
-          <div>
-            <span>Pipeline value</span>
-            <strong>{currency(lead.value)}</strong>
-          </div>
-          <div>
-            <span>Next follow-up</span>
-            <strong>{formatLeadFollowUpDate(lead.followUpDueAt)}</strong>
-          </div>
-          <div>
-            <span>Next action</span>
-            <strong>{lead.nextStep || "Assign next step"}</strong>
-          </div>
-        </div>
-        <div className="co-leads-summary-actions mt-4 grid grid-cols-2 gap-2">
-          <Button type="button" size="sm" onClick={() => onCreateEstimateFromLead(lead)} disabled={disabled || Boolean(lead.archivedAt) || !canManage || !canCreateEstimate}>Create Estimate</Button>
-          <Button type="button" size="sm" variant="secondary" onClick={onCreateJob} disabled={disabled || Boolean(lead.archivedAt) || !canManage}>Create Job</Button>
-          <Button type="button" size="sm" variant="secondary" onClick={onConvertToCustomer} disabled={disabled || Boolean(lead.archivedAt) || !canManage}>Convert</Button>
-          {lead.archivedAt ? (
-            <Button type="button" size="sm" variant="secondary" onClick={onRestore} disabled={disabled || !canManage}>Restore</Button>
-          ) : (
-            <Button type="button" size="sm" variant="secondary" onClick={onArchive} disabled={disabled || !canManage}>Archive</Button>
-          )}
-        </div>
-        {lead.archivedAt ? <Button type="button" size="sm" variant="danger" className="mt-2 w-full" onClick={onDelete} disabled={disabled || !canManage}>Delete Permanently</Button> : null}
-        <SaveStateText saveState={saveState} />
-      </Card>
-
-      <Card className="co-leads-rail-card p-4">
-        <SectionHeader title="Missing info / readiness" description="Keep the lead ready for estimating and follow-up." action={<LeadMissingInfoBadge lead={lead} />} />
-        <div className="space-y-2">
-          {readinessRows.map((row) => (
-            <div key={row.label} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
-              <span className="text-sm font-bold text-slate-700">{row.label}</span>
-              <Badge tone={row.ok ? "green" : "amber"}>{row.ok ? "OK" : "Needs"}</Badge>
+            {phone && email ? (
+              <div>
+                <span>Email</span>
+                <strong>{email}</strong>
+              </div>
+            ) : null}
+            <div>
+              <span>Owner</span>
+              <strong>{lead.owner || "Unassigned"}</strong>
             </div>
-          ))}
-        </div>
-        {missingItems.length > 0 ? (
-          <div className="mt-3 rounded-xl border border-amber-100 bg-amber-50/70 p-3">
-            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-700">Missing items</p>
-            <ul className="mt-2 space-y-1 text-sm font-bold leading-5 text-slate-700">
-              {missingItems.slice(0, 4).map((item) => <li key={item.key || item.label}>- {item.label || item.reason}</li>)}
-            </ul>
+            <div>
+              <span>Pipeline value</span>
+              <strong>{currency(lead.value)}</strong>
+            </div>
+            <div>
+              <span>Next follow-up</span>
+              <strong>{formatLeadFollowUpDate(lead.followUpDueAt)}</strong>
+            </div>
+            <div>
+              <span>Next action</span>
+              <strong>{lead.nextStep || "Assign next step"}</strong>
+            </div>
           </div>
-        ) : null}
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <Button type="button" size="sm" variant="secondary" onClick={() => onCheckMissingInfo(lead)} disabled={disabled || Boolean(lead.archivedAt) || !canManage}>{leadHasMissingInfoCheck(lead) ? "Re-check" : "Check Info"}</Button>
-          <Button type="button" size="sm" variant="secondary" onClick={() => onScoreLead(lead)} disabled={disabled || Boolean(lead.archivedAt) || !canManage}>{leadHasScore(lead) ? "Re-score" : "Score"}</Button>
-        </div>
-      </Card>
+          <div className="co-leads-summary-actions mt-4 grid grid-cols-2 gap-2">
+            <Button type="button" size="sm" onClick={() => onCreateEstimateFromLead(lead)} disabled={disabled || Boolean(lead.archivedAt) || !canManage || !canCreateEstimate}>Create Estimate</Button>
+            <Button type="button" size="sm" variant="secondary" onClick={onCreateJob} disabled={disabled || Boolean(lead.archivedAt) || !canManage}>Create Job</Button>
+            <Button type="button" size="sm" variant="secondary" onClick={onConvertToCustomer} disabled={disabled || Boolean(lead.archivedAt) || !canManage}>Convert</Button>
+            {lead.archivedAt ? (
+              <Button type="button" size="sm" variant="secondary" onClick={onRestore} disabled={disabled || !canManage}>Restore</Button>
+            ) : (
+              <Button type="button" size="sm" variant="secondary" onClick={onArchive} disabled={disabled || !canManage}>Archive</Button>
+            )}
+          </div>
+          {lead.archivedAt ? <Button type="button" size="sm" variant="danger" className="mt-2 w-full" onClick={onDelete} disabled={disabled || !canManage}>Delete Permanently</Button> : null}
+          <SaveStateText saveState={saveState} />
+        </Card>
 
-      <details className="co-leads-rail-details">
-        <summary>
-          <span>Lead edit</span>
-          <span>Status, owner, follow-up, and notes</span>
-        </summary>
-        <div className="grid gap-3 p-3">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-            <SelectField label="Status" value={lead.status || "New"} onChange={(event) => onFieldChange("status", event.target.value)} disabled={!canManage || disabled}>
-              <option>New</option>
-              <option>Contacted</option>
-              <option>Site Visit</option>
-              <option>Estimate Sent</option>
-              <option>Approved</option>
-            </SelectField>
-            <SelectField label="Priority" value={lead.priority || "Normal"} onChange={(event) => onFieldChange("priority", event.target.value)} disabled={!canManage || disabled}>
-              <option>Low</option>
-              <option>Normal</option>
-              <option>High</option>
-            </SelectField>
-          </div>
-          <SelectField label="Owner" value={lead.ownerId || ""} onChange={(event) => onFieldChange("ownerId", event.target.value)} disabled={!canManage || disabled}>
-            <option value="">Unassigned</option>
-            {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
-          </SelectField>
-          <InputField label="Follow-up due" type="date" value={lead.followUpDueAt || ""} onChange={(event) => onFieldChange("followUpDueAt", event.target.value)} disabled={!canManage || disabled} />
-          <InputField label="Next step" value={lead.nextStep || ""} onChange={(event) => onFieldChange("nextStep", event.target.value)} disabled={!canManage || disabled} />
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-            <InputField label="City" value={lead.city || ""} onChange={(event) => onFieldChange("city", event.target.value)} disabled={!canManage || disabled} />
-            <InputField label="Value" type="number" value={lead.value || ""} onChange={(event) => onFieldChange("value", Number(event.target.value))} disabled={!canManage || disabled} />
-          </div>
-          <SelectField label="Linked customer" value={lead.customerId || ""} onChange={(event) => onFieldChange("customerId", event.target.value)} disabled={!canManage || disabled}>
-            <option value="">Create or match automatically</option>
-            {customers.filter((customer) => !customer.archivedAt).map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
-          </SelectField>
-          <TextAreaField label="Notes" value={lead.notes || ""} onChange={(event) => onFieldChange("notes", event.target.value)} disabled={!canManage || disabled} className="field-input min-h-24 resize-y" />
-        </div>
-      </details>
-
-      <Card className="co-leads-rail-card p-4">
-        <SectionHeader title="AI lead assistant" description="Draft-only support for next steps and outreach copy." action={<Badge tone="blue">Beta</Badge>} />
-        <Button type="button" className="w-full" onClick={() => onGenerateLeadAssistant(lead)} disabled={disabled || Boolean(lead.archivedAt) || !canManage || Boolean(assistant?.loading)}>
-          {assistant?.loading ? "Generating..." : assistant?.result?.ok ? "Regenerate Drafts" : "Generate Drafts"}
-        </Button>
-        {assistant?.error ? <p className="mt-3 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-800">{assistant.error}</p> : null}
-        {assistant?.result?.ok ? (
-          <div className="mt-3 space-y-3 text-sm font-bold leading-5 text-slate-700">
-            <p><span className="text-slate-400">Summary:</span> {assistant.result.leadSummary || "Review the lead before follow-up."}</p>
-            <p><span className="text-slate-400">Next step:</span> {assistant.result.recommendedNextStep || "Choose the next office action."}</p>
-          </div>
-        ) : null}
-      </Card>
-
-      <Card className="co-leads-rail-card p-4">
-        <SectionHeader title="Recent contact history" description="Latest outreach tied to this lead." action={<Badge tone="slate">{recentHistory.length}</Badge>} />
-        {recentHistory.length > 0 ? (
+        <Card className="co-leads-rail-card p-4">
+          <SectionHeader title="Missing info / readiness" description="Keep the lead ready for estimating and follow-up." action={<LeadMissingInfoBadge lead={lead} />} />
           <div className="space-y-2">
-            {recentHistory.map((item) => (
-              <div key={item.id} className="rounded-xl border border-slate-200 bg-white p-3">
-                <p className="text-sm font-black text-slate-950">{item.title || item.method || "Contact logged"}</p>
-                <p className="mt-1 text-xs font-bold leading-5 text-slate-500">{item.description || item.notes || formatDateTime(item.createdAt)}</p>
+            {readinessRows.map((row) => (
+              <div key={row.label} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
+                <span className="text-sm font-bold text-slate-700">{row.label}</span>
+                <Badge tone={row.ok ? "green" : "amber"}>{row.ok ? "OK" : "Needs"}</Badge>
               </div>
             ))}
           </div>
-        ) : (
-          <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 text-sm font-bold text-slate-500">No contact history yet.</p>
-        )}
-        <details className="co-leads-rail-details co-leads-contact-editor mt-3">
+          {missingItems.length > 0 ? (
+            <div className="mt-3 rounded-xl border border-amber-100 bg-amber-50/70 p-3">
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-700">Missing items</p>
+              <ul className="mt-2 space-y-1 text-sm font-bold leading-5 text-slate-700">
+                {missingItems.slice(0, 4).map((item) => <li key={item.key || item.label}>- {item.label || item.reason}</li>)}
+              </ul>
+            </div>
+          ) : null}
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <Button type="button" size="sm" variant="secondary" onClick={() => onCheckMissingInfo(lead)} disabled={disabled || Boolean(lead.archivedAt) || !canManage}>{leadHasMissingInfoCheck(lead) ? "Re-check" : "Check Info"}</Button>
+            <Button type="button" size="sm" variant="secondary" onClick={() => onScoreLead(lead)} disabled={disabled || Boolean(lead.archivedAt) || !canManage}>{leadHasScore(lead) ? "Re-score" : "Score"}</Button>
+          </div>
+        </Card>
+      </div>
+
+      <div className="co-leads-action-stack">
+        <AssistantRail
+          className="co-leads-assistant-rail"
+          eyebrow="Lead Assistant"
+          title="Review command"
+          description="Work the selected lead into the next office action without sending, converting, or pricing automatically."
+          priorities={assistantPriorities}
+          actions={assistantActions}
+        />
+
+        <details className="co-leads-rail-details">
           <summary>
-            <span>Log contact / edit history</span>
-            <span>Manual outreach notes</span>
+            <span>Lead edit</span>
+            <span>Status, owner, follow-up, and notes</span>
           </summary>
-          <div className="pt-3">
-            <ContactHistoryPanel
-              entityType="lead"
-              entity={lead}
-              records={contactHistory}
-              permissions={contactHistoryPermissions}
-              disabled={disabled}
-              onCreate={onCreateContactHistory}
-              onUpdate={onUpdateContactHistory}
-              onArchive={onArchiveContactHistory}
-              onRestore={onRestoreContactHistory}
-            />
+          <div className="grid gap-3 p-3">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+              <SelectField label="Status" value={lead.status || "New"} onChange={(event) => onFieldChange("status", event.target.value)} disabled={!canManage || disabled}>
+                <option>New</option>
+                <option>Contacted</option>
+                <option>Site Visit</option>
+                <option>Estimate Sent</option>
+                <option>Approved</option>
+              </SelectField>
+              <SelectField label="Priority" value={lead.priority || "Normal"} onChange={(event) => onFieldChange("priority", event.target.value)} disabled={!canManage || disabled}>
+                <option>Low</option>
+                <option>Normal</option>
+                <option>High</option>
+              </SelectField>
+            </div>
+            <SelectField label="Owner" value={lead.ownerId || ""} onChange={(event) => onFieldChange("ownerId", event.target.value)} disabled={!canManage || disabled}>
+              <option value="">Unassigned</option>
+              {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+            </SelectField>
+            <InputField label="Follow-up due" type="date" value={lead.followUpDueAt || ""} onChange={(event) => onFieldChange("followUpDueAt", event.target.value)} disabled={!canManage || disabled} />
+            <InputField label="Next step" value={lead.nextStep || ""} onChange={(event) => onFieldChange("nextStep", event.target.value)} disabled={!canManage || disabled} />
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+              <InputField label="City" value={lead.city || ""} onChange={(event) => onFieldChange("city", event.target.value)} disabled={!canManage || disabled} />
+              <InputField label="Value" type="number" value={lead.value || ""} onChange={(event) => onFieldChange("value", Number(event.target.value))} disabled={!canManage || disabled} />
+            </div>
+            <SelectField label="Linked customer" value={lead.customerId || ""} onChange={(event) => onFieldChange("customerId", event.target.value)} disabled={!canManage || disabled}>
+              <option value="">Create or match automatically</option>
+              {customers.filter((customer) => !customer.archivedAt).map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
+            </SelectField>
+            <TextAreaField label="Notes" value={lead.notes || ""} onChange={(event) => onFieldChange("notes", event.target.value)} disabled={!canManage || disabled} className="field-input min-h-24 resize-y" />
           </div>
         </details>
-      </Card>
+
+        <Card className="co-leads-rail-card p-4">
+          <SectionHeader title="AI lead assistant" description="Draft-only support for next steps and outreach copy." action={<Badge tone="blue">Beta</Badge>} />
+          <Button type="button" className="w-full" onClick={() => onGenerateLeadAssistant(lead)} disabled={disabled || Boolean(lead.archivedAt) || !canManage || Boolean(assistant?.loading)}>
+            {assistant?.loading ? "Generating..." : assistant?.result?.ok ? "Regenerate Drafts" : "Generate Drafts"}
+          </Button>
+          {assistant?.error ? <p className="mt-3 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-800">{assistant.error}</p> : null}
+          {assistant?.result?.ok ? (
+            <div className="mt-3 space-y-3 text-sm font-bold leading-5 text-slate-700">
+              <p><span className="text-slate-400">Summary:</span> {assistant.result.leadSummary || "Review the lead before follow-up."}</p>
+              <p><span className="text-slate-400">Next step:</span> {assistant.result.recommendedNextStep || "Choose the next office action."}</p>
+            </div>
+          ) : null}
+        </Card>
+
+        <Card className="co-leads-rail-card p-4">
+          <SectionHeader title="Recent contact history" description="Latest outreach tied to this lead." action={<Badge tone="slate">{recentHistory.length}</Badge>} />
+          {recentHistory.length > 0 ? (
+            <div className="space-y-2">
+              {recentHistory.map((item) => (
+                <div key={item.id} className="rounded-xl border border-slate-200 bg-white p-3">
+                  <p className="text-sm font-black text-slate-950">{item.title || item.method || "Contact logged"}</p>
+                  <p className="mt-1 text-xs font-bold leading-5 text-slate-500">{item.description || item.notes || formatDateTime(item.createdAt)}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 text-sm font-bold text-slate-500">No contact history yet.</p>
+          )}
+          <details className="co-leads-rail-details co-leads-contact-editor mt-3">
+            <summary>
+              <span>Log contact / edit history</span>
+              <span>Manual outreach notes</span>
+            </summary>
+            <div className="pt-3">
+              <ContactHistoryPanel
+                entityType="lead"
+                entity={lead}
+                records={contactHistory}
+                permissions={contactHistoryPermissions}
+                disabled={disabled}
+                onCreate={onCreateContactHistory}
+                onUpdate={onUpdateContactHistory}
+                onArchive={onArchiveContactHistory}
+                onRestore={onRestoreContactHistory}
+              />
+            </div>
+          </details>
+        </Card>
+      </div>
     </div>
   );
 }
@@ -20065,16 +20084,28 @@ function LeadsPage({
   const today = todayDateInputValue();
   const [activeLeadTool, setActiveLeadTool] = useState("intake");
   const [showAllMobileLeads, setShowAllMobileLeads] = useState(false);
-  const visibleLeadRowCap = 6;
+  const visibleLeadRowCap = 5;
   const mobileLeadPreviewCap = 3;
   const mobileVisibleLeadRowCap = showAllMobileLeads ? visibleLeadRowCap : mobileLeadPreviewCap;
   const canManageSources = permissions?.leads?.canManageSources ?? permissions?.leads?.canManage;
+  const leadNeedsActionCount = rows.filter((lead) => (
+    lead.status === "New"
+    || isLeadFollowUpDue(lead, today)
+    || (lead.followUpDueAt && String(lead.followUpDueAt).slice(0, 10) < today)
+  )).length;
+  const leadEstimateReadyCount = rows.filter(isLeadReadyForEstimate).length;
+  const leadMissingInfoCount = rows.filter((lead) => {
+    const missingItems = Array.isArray(lead.missingInfoItems) ? lead.missingInfoItems : [];
+    const missingCount = Number(lead.missingInfoCount || 0);
+    const missingStatus = String(lead.missingInfoStatus || "").toLowerCase();
+    return missingItems.length > 0 || missingCount > 0 || missingStatus.includes("missing") || !leadHasMissingInfoCheck(lead);
+  }).length;
+  const leadWaitingCount = rows.filter(isLeadWaitingOnResponse).length;
   const leadKpis = [
-    { label: "New Leads", value: rows.filter((lead) => lead.status === "New").length, helper: "Uncontacted new leads", icon: "users", tone: "blue", actionLabel: "View new leads", onAction: () => setFilter("New") },
-    { label: "Follow-Ups Due", value: rows.filter((lead) => isLeadFollowUpDue(lead, today)).length, helper: "Need your follow-up today", icon: "clipboard", tone: "orange", actionLabel: "View follow-up queue", onAction: () => setDueFilter("Due today") },
-    { label: "Overdue", value: rows.filter((lead) => lead.followUpDueAt && String(lead.followUpDueAt).slice(0, 10) < today).length, helper: "Past due follow-ups", icon: "alert", tone: "red", actionLabel: "View overdue", onAction: () => setDueFilter("Overdue") },
-    { label: "Waiting on Response", value: rows.filter(isLeadWaitingOnResponse).length, helper: "Customer has not replied", icon: "clock", tone: "amber", actionLabel: "View waiting", onAction: () => setFilter("All") },
-    { label: "Ready for Estimate", value: rows.filter(isLeadReadyForEstimate).length, helper: "Ready to build estimate", icon: "check", tone: "green", actionLabel: "View ready leads", onAction: () => setScoreFilter("All scores") },
+    { label: "Needs Action", value: leadNeedsActionCount, helper: "New, due, or overdue lead work", icon: "clipboard", tone: "orange", actionLabel: "Open action queue", onAction: () => setDueFilter("Due today") },
+    { label: "Estimate Ready", value: leadEstimateReadyCount, helper: "Enough info to draft an estimate", icon: "check", tone: "green", actionLabel: "View ready leads", onAction: () => setScoreFilter("All scores") },
+    { label: "Missing Info", value: leadMissingInfoCount, helper: "Blocked until details are filled in", icon: "alert", tone: "red", actionLabel: "Review blockers", onAction: () => setScoreFilter("All scores") },
+    { label: "Waiting Reply", value: leadWaitingCount, helper: "Customer or GC response needed", icon: "clock", tone: "amber", actionLabel: "View waiting", onAction: () => setFilter("All") },
   ];
   const leadToolTabs = [
     { id: "intake", label: "Intake", count: permissions.leads.canManage ? 1 : 0 },
@@ -20155,7 +20186,7 @@ function LeadsPage({
           </div>
         }
       />
-      <div className="co-leads-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
+      <div className="co-leads-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-4 lg:px-6">
         {leadKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
       </div>
 
@@ -20241,7 +20272,7 @@ function LeadsPage({
               onOpenLeads={() => setActive?.("leads")}
               onCreateContactHistory={onCreateContactHistory}
               compact
-              maxItems={5}
+              maxItems={4}
             />
           </section>
         </div>
