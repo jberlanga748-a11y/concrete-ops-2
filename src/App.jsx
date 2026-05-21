@@ -9,6 +9,7 @@ import {
   EstimateStudioShell,
   FilterBar,
   Icon,
+  InputField,
   PageHeader,
   ProposalTotalCard,
   SectionHeader,
@@ -16,6 +17,7 @@ import {
   StatCard,
   StateCard,
   StatusBadge,
+  TextAreaField,
   WorkQueueCard,
 } from "./app-shell-components";
 import {
@@ -1904,24 +1906,6 @@ function CustomerFilterHeader({ filters, active, setActive, search, setSearch, p
         <input className={layout.searchInput} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={placeholder} />
       </div>
     </div>
-  );
-}
-
-function InputField({ label, ...props }) {
-  return (
-    <label className="field-label">
-      <span>{label}</span>
-      <input className="field-input" {...props} />
-    </label>
-  );
-}
-
-function TextAreaField({ label, ...props }) {
-  return (
-    <label className="field-label">
-      <span>{label}</span>
-      <textarea className="field-input min-h-28 resize-y" {...props} />
-    </label>
   );
 }
 

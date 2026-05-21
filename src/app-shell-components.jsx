@@ -161,6 +161,24 @@ export function SelectField({ label, children, ...props }) {
   );
 }
 
+export function InputField({ label, ...props }) {
+  return (
+    <label className="field-label">
+      <span>{label}</span>
+      <input className="field-input" {...props} />
+    </label>
+  );
+}
+
+export function TextAreaField({ label, ...props }) {
+  return (
+    <label className="field-label">
+      <span>{label}</span>
+      <textarea className="field-input min-h-28 resize-y" {...props} />
+    </label>
+  );
+}
+
 export function StateCard({ title, description, tone = "blue" }) {
   const tones = {
     blue: "border-blue-200 bg-white text-slate-600",
