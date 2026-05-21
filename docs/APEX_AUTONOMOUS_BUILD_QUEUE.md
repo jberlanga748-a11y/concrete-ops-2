@@ -52,12 +52,14 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 | 2026-05-21 | P2 | Fly demo auth-smoke readiness check | Done; Fly demo readiness and skip-auth smoke passed; local auth smoke blocked by missing local `APEX_SMOKE_PASSWORD` | `f807df7` |
 | 2026-05-21 | P4 | Fencing pilot artifact index | Done; pilot gates, docs, scripts, evidence, and hard stops mapped in one source | `e46c2af` |
 | 2026-05-21 | P2 | GitHub Actions demo smoke evidence pointer refresh | Done; latest scheduled demo smoke runs recorded and artifact index linked | `19d080a` |
+| 2026-05-21 | P3 | Pilot route audit P3 backlog extraction | Done; desktop `/leads` long-text screenshot finding captured as scoped non-blocking backlog | `56c999a` |
 
 ## Active Queue
 
 | Priority | Task | Status | Why It Matters | Safe Scope | Verification | Stop / Approval Gate |
 | --- | --- | --- | --- | --- | --- | --- |
-| P3 | Pilot route audit P3 backlog extraction | Ready | Turns the known screenshot-only long-text issue into a scoped backlog item instead of random polish | Docs only unless approved | docs check | Stop before UI edits |
+| P3 | Desktop Leads long-text row polish | Ready | Fixes the only known screenshot-only pilot route polish issue without broad redesign | `/leads` UI only; preserve mobile and role redirects | build, visual route audit, roles if routing touched | Stop before permission or lead logic changes |
+| P2 | Local demo auth smoke rerun when secret is available | Blocked | Would prove login/bootstrap from the local operator shell | Run only; no docs unless evidence changes | hosted auth smoke | Blocked until `APEX_SMOKE_PASSWORD` is present locally |
 
 ## Blocked / Needs Human Input
 
@@ -71,4 +73,4 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 ## Next Recommended Task
 
-Extract the pilot route audit P3 backlog next so the known screenshot-only long-text issue is tracked without starting random UI polish.
+Next safe build task is the desktop Leads long-text row polish, but keep it scoped to UI layout only and preserve all role/lead behavior.
