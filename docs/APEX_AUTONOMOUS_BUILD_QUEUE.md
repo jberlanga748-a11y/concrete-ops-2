@@ -82,12 +82,13 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 | 2026-05-21 | P3 | App shell component architecture extraction | Done; shared Icon, WorkQueueCard, AssistantRail, CommandPageFrame, and EstimateStudioShell moved out of the App.jsx monolith with build, role, estimate, and browser audits passing | `ef035ce` |
 | 2026-05-21 | P3 | Shared UI primitive architecture extraction | Done; Button, Badge, StatusBadge, Card, PageHeader, SectionHeader, StatCard, and ProposalTotalCard moved into the shared shell module with build, role, route, design-token, and browser audits passing | `85473d6` |
 | 2026-05-21 | P3 | Estimate route component architecture extraction | Done; estimate display helpers, polished estimate table, and job handoff readiness card moved out of `App.jsx` with build, role, estimate, route, and browser audits passing | `1eeefee` |
+| 2026-05-21 | P3 | Estimate command rail architecture extraction | Done; the branded proposal/action/tools rail moved into the estimate route component module with build, role, estimate, route, and browser audits passing | pending |
 
 ## Active Queue
 
 | Priority | Task | Status | Why It Matters | Safe Scope | Verification | Stop / Approval Gate |
 | --- | --- | --- | --- | --- | --- | --- |
-| P3 | Continue estimate route module extraction | Ready | `App.jsx` is still a monolith; the next safe architecture gain is moving one more presentational estimate panel without route state or business logic | Extract only presentational components with existing props; no auth, package, data, or action changes | build, estimate verification, route tests, browser `/estimates` audit | Stop if state/action wiring or permission gates must move |
+| P3 | Continue estimate route module extraction | Ready | `App.jsx` is still a monolith; the next safe architecture gain is moving the estimate workbench or route shell only if it can keep existing props and handlers intact | Extract only presentational components with existing props; no auth, package, data, or action changes | build, estimate verification, route tests, browser `/estimates` audit | Stop if state/action wiring or permission gates must move |
 | P2 | Local demo auth smoke rerun when secret is available | Blocked | Would prove login/bootstrap from the local operator shell | Run only; no docs unless evidence changes | hosted auth smoke | Blocked until `APEX_SMOKE_PASSWORD` is present locally |
 
 ## Blocked / Needs Human Input
@@ -102,4 +103,4 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 ## Next Recommended Task
 
-Next safe build action is continuing the `/estimates` route module extraction by moving another presentational panel out of `App.jsx` without changing route state, permissions, package gates, data flow, or business logic. Human-input tasks remain blocked until real pilot details or smoke secrets are provided.
+Next safe build action is continuing the `/estimates` route module extraction only if the next component can move without pulling route state, permissions, package gates, data flow, or business logic. Human-input tasks remain blocked until real pilot details or smoke secrets are provided.

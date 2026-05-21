@@ -1,5 +1,10 @@
-import { Badge, Icon, StatusBadge } from "./app-shell-components";
-import { estimateStatusLabel, formatEstimateCurrency } from "./estimate-utils";
+import { Badge, Button, Card, Icon, SectionHeader, StatusBadge } from "./app-shell-components";
+import { deriveEstimateJobHandoffReadiness, estimateCustomerEmail, estimateStatusLabel, formatEstimateCurrency } from "./estimate-utils";
+
+const APP_NAME = "Apex HQ";
+const DEFAULT_COMPANY_NAME = "Apex HQ Workspace";
+const DEMO_COMPANY_NAME = "Apex HQ Demo Company";
+const DEFAULT_LOGO_INITIALS = "AH";
 
 export function estimateDisplayTitle(estimate) {
   return estimate?.title || "Estimate draft";
@@ -19,6 +24,50 @@ export function estimateDisplayTotal(estimate) {
 
 export function estimateRailProfileLine(...values) {
   return values.map((value) => String(value ?? "").trim()).find(Boolean) || "";
+}
+
+function legacyBrandPhrase(...parts) {
+  return parts.join(" ");
+}
+
+function sanitizeLogoInitials(value) {
+  return String(value ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3);
+}
+
+function normalizeVisibleBrandName(value) {
+  const trimmed = String(value ?? "").trim();
+  const legacyBrandNames = new Map([
+    [legacyBrandPhrase("Concrete", "Ops"), APP_NAME],
+    [legacyBrandPhrase("Concrete", "Ops", "2"), APP_NAME],
+    [legacyBrandPhrase("Concrete", "Ops", "Workspace"), DEFAULT_COMPANY_NAME],
+    [legacyBrandPhrase("Concrete", "Ops", "Demo", "Company"), DEMO_COMPANY_NAME],
+  ]);
+  return legacyBrandNames.get(trimmed) || trimmed;
+}
+
+function deriveLogoInitialsFromCompanyName(companyName) {
+  const words = String(companyName ?? "").trim().split(/\s+/).filter(Boolean);
+  if (words.length >= 2) {
+    return words.slice(0, 2).map((word) => word[0]).join("").toUpperCase();
+  }
+  if (words.length === 1) {
+    return words[0].slice(0, 2).toUpperCase();
+  }
+  return "";
+}
+
+function resolveEstimateWorkspaceLogoInitials({ companySettings, companyName } = {}) {
+  const explicitLogoInitials = sanitizeLogoInitials(companySettings?.logoInitials);
+  if (explicitLogoInitials) {
+    const normalizedCompanyName = normalizeVisibleBrandName(companyName || companySettings?.companyName);
+    if (explicitLogoInitials === "CO" && [APP_NAME, DEFAULT_COMPANY_NAME, DEMO_COMPANY_NAME].includes(normalizedCompanyName)) {
+      return DEFAULT_LOGO_INITIALS;
+    }
+    return explicitLogoInitials;
+  }
+
+  const derivedInitials = sanitizeLogoInitials(deriveLogoInitialsFromCompanyName(companyName));
+  return derivedInitials || DEFAULT_LOGO_INITIALS;
 }
 
 function formatEstimateUpdatedAt(value) {
@@ -129,6 +178,172 @@ export function EstimatesTablePolished({ rows, selectedId, onSelect, maxRows = 6
         </div>
       </div>
     </>
+  );
+}
+
+export function EstimateCommandRailPolished({
+  estimate,
+  preview,
+  totals,
+  optionTotals,
+  companyName = DEFAULT_COMPANY_NAME,
+  companyProfile = {},
+  canManage,
+  canUseAiRoughNotes = false,
+  canUseGcPackets = false,
+  busy,
+  detailSaveDisabled,
+  canMarkSent,
+  copyFeedback,
+  emailSendingConfigured,
+  newDraftMode = false,
+  onSave,
+  onMarkSent,
+  onMarkApproved,
+  onConvert,
+  onPrint,
+  onSend,
+  onCopyEstimate,
+  onCopyCustomerMessage,
+  onOpenTool,
+}) {
+  if (!estimate) {
+    return (
+      <div className="co-estimates-right-rail space-y-4">
+        <Card className="co-estimates-rail-card co-estimates-empty-card p-4">
+          <SectionHeader
+            title="Estimate Studio Summary"
+            description={newDraftMode
+              ? "AI Rough Notes is building a new draft. No saved estimate is selected yet."
+              : "Choose an estimate from the board to review proposal totals, workflow, and tools."}
+          />
+          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">
+            {newDraftMode ? "New draft in progress." : "No estimate selected."}
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  const jobHandoffReadiness = deriveEstimateJobHandoffReadiness(preview || estimate);
+  const logoInitials = resolveEstimateWorkspaceLogoInitials({ companySettings: companyProfile, companyName });
+  const profileContact = [
+    estimateRailProfileLine(companyProfile.businessPhone),
+    estimateRailProfileLine(companyProfile.businessEmail),
+    estimateRailProfileLine(companyProfile.website),
+  ].filter(Boolean);
+  const projectLocation = estimateRailProfileLine(preview?.lead?.location, preview?.customer?.address, companyProfile.serviceArea, companyProfile.businessAddress);
+  const proposalValidity = estimateRailProfileLine(companyProfile.printPacketFooter, "Valid for 30 days unless noted in proposal terms.");
+
+  return (
+    <div className="co-estimates-right-rail space-y-4">
+      <Card className="co-estimates-rail-card co-estimates-branding-card p-4">
+        <div className="co-estimates-branding-head">
+          <span className="co-estimates-branding-logo">{logoInitials}</span>
+          <span className="min-w-0">
+            <p>Company Branding</p>
+            <strong>{companyName || DEFAULT_COMPANY_NAME}</strong>
+          </span>
+        </div>
+        <div className="co-estimates-branding-grid">
+          <span>
+            <em>Customer</em>
+            <strong>{estimateDisplayCustomer(preview || estimate)}</strong>
+          </span>
+          <span>
+            <em>Project</em>
+            <strong>{estimateDisplayLead(preview || estimate)}</strong>
+          </span>
+          <span>
+            <em>Location</em>
+            <strong>{projectLocation || "Confirm jobsite before send"}</strong>
+          </span>
+          <span>
+            <em>Proposal terms</em>
+            <strong>{proposalValidity}</strong>
+          </span>
+        </div>
+        {profileContact.length > 0 ? (
+          <div className="co-estimates-branding-contact">
+            {profileContact.map((line) => <span key={line}>{line}</span>)}
+          </div>
+        ) : null}
+      </Card>
+
+      <Card className="co-estimates-rail-card co-estimates-selected-card p-4">
+        <div className="flex min-w-0 items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Proposal Summary</p>
+            <h3 className="mt-2 break-words text-xl font-black text-slate-950">{estimateDisplayTitle(estimate)}</h3>
+            <p className="mt-1 break-words text-xs font-bold text-slate-500">{estimateDisplayCustomer(estimate)}</p>
+          </div>
+          <StatusBadge status={estimateStatusLabel(estimate.status)} />
+        </div>
+        <div className="co-estimates-total-spotlight">
+          <p>Estimate total</p>
+          <strong>{formatEstimateCurrency(optionTotals.totalWithSelectedOptions)}</strong>
+          <span>Base {formatEstimateCurrency(totals.grandTotal)} + selected options {formatEstimateCurrency(optionTotals.selectedOptionsTotal)}. Review before manual send.</span>
+        </div>
+        <div className="co-estimates-summary-facts mt-4 grid gap-2 text-sm font-bold text-slate-700">
+          <p><span className="text-slate-400">Base total:</span> {formatEstimateCurrency(totals.grandTotal)}</p>
+          <p><span className="text-slate-400">Selected options:</span> {formatEstimateCurrency(optionTotals.selectedOptionsTotal)}</p>
+          <p><span className="text-slate-400">Customer email:</span> {estimateCustomerEmail(preview) || "Not set"}</p>
+          <p><span className="text-slate-400">Lead:</span> {estimateDisplayLead(estimate)}</p>
+          <p><span className="text-slate-400">Job:</span> {estimate.jobId ? "Converted" : "Not converted yet"}</p>
+        </div>
+        <EstimateJobHandoffReadinessCard readiness={jobHandoffReadiness} />
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <Button type="button" size="sm" onClick={onSave} disabled={!canManage || detailSaveDisabled}>Save</Button>
+          <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("edit")}>Edit</Button>
+          <Button type="button" size="sm" variant="secondary" onClick={onPrint} disabled={!preview}>Print</Button>
+          <Button type="button" size="sm" onClick={onSend} disabled={!preview || busy}>{emailSendingConfigured ? "Send" : "Copy to send"}</Button>
+        </div>
+        {copyFeedback ? <p className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700">{copyFeedback}</p> : null}
+      </Card>
+
+      <Card className="co-estimates-rail-card co-estimates-actions-card p-4">
+        <SectionHeader title="Proposal actions" description={emailSendingConfigured ? "Email sending is configured." : "Manual send mode: copy or print the customer-ready message, then record the send in Apex HQ."} />
+        <div className="grid gap-2">
+          <button type="button" className="co-estimates-action-row" onClick={onCopyEstimate} disabled={!preview}>
+            <span>Copy estimate</span>
+            <Icon name="document" />
+          </button>
+          <button type="button" className="co-estimates-action-row" onClick={onCopyCustomerMessage} disabled={!preview}>
+            <span>Copy customer message</span>
+            <Icon name="quote" />
+          </button>
+          {canMarkSent ? (
+            <button type="button" className="co-estimates-action-row" onClick={onMarkSent} disabled={detailSaveDisabled}>
+              <span>Mark sent</span>
+              <Icon name="check" />
+            </button>
+          ) : null}
+          {canManage && estimate.status !== "approved" && !estimate.jobId ? (
+            <button type="button" className="co-estimates-action-row" onClick={onMarkApproved} disabled={detailSaveDisabled}>
+              <span>Mark approved</span>
+              <Icon name="check" />
+            </button>
+          ) : null}
+          {estimate.status === "approved" && !estimate.jobId ? (
+            <button type="button" className="co-estimates-action-row" onClick={onConvert} disabled={busy}>
+              <span>Convert to job</span>
+              <Icon name="briefcase" />
+            </button>
+          ) : null}
+        </div>
+      </Card>
+
+      <Card className="co-estimates-rail-card co-estimates-tools-card p-4">
+        <SectionHeader title="Estimate tools" description="Pricing, line items, AI notes, proposal sections, SOV, and packet settings stay in the tools drawer." />
+        <div className="grid grid-cols-2 gap-2">
+          {canManage && canUseAiRoughNotes ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("roughNotes")}>AI notes</Button> : null}
+          <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("edit")}>Edit pricing</Button>
+          <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("sections")}>Sections</Button>
+          <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("backup")}>SOV / Backup</Button>
+          {canUseGcPackets ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("packet")}>Packet</Button> : null}
+        </div>
+      </Card>
+    </div>
   );
 }
 
