@@ -88,6 +88,7 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 | 2026-05-21 | P3 | Estimate proposal workbench architecture extraction | Done; proposal workbench and its private list/takeoff helpers moved into the estimate route component module with build, role, estimate, route, and browser audits passing | `3c21729` |
 | 2026-05-21 | P3 | Shared input primitive architecture extraction | Done; InputField and TextAreaField moved into the shared shell module with build, role, estimate, route, and browser audits passing | `a0ec218` |
 | 2026-05-21 | P3 | Estimate option editor architecture extraction | Done; option editor and option status constants moved into the estimate route component module with build, role, estimate, route, and browser audits passing | `c58159c` |
+| 2026-05-21 | P3 | Estimate starter panel architecture extraction | Done; estimate starter panel moved into the estimate route component module with build, role, estimate, route, and browser audits passing | pending |
 
 ## Active Queue
 

@@ -181,6 +181,7 @@ import {
   EstimateJobHandoffReadinessCard,
   EstimateOptionsEditor,
   EstimateProposalWorkbench,
+  EstimateStarterPanel,
   EstimatesTablePolished,
   ESTIMATE_ADD_ON_STATUS_OPTIONS,
   ESTIMATE_ALTERNATE_STATUS_OPTIONS,
@@ -190,7 +191,7 @@ import {
   estimateDisplayTotal,
   estimateRailProfileLine,
 } from "./estimates-route-components";
-import { ESTIMATE_LINE_ITEM_STARTERS, ESTIMATE_TEMPLATE_STARTERS, addEstimateLineItemStarter, buildEstimateLineItemsFromRoughNotes, applyEstimateTemplateStarter } from "./estimate-template-utils";
+import { buildEstimateLineItemsFromRoughNotes } from "./estimate-template-utils";
 import { buildCustomerPortalPreviewPacket, deriveCustomerPortalPreviewState } from "./customer-portal-preview-utils";
 import { deriveFieldOpsAgentState } from "./field-ops-agent-utils";
 import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspace-utils";
@@ -1128,61 +1129,6 @@ function StartupStatusBadge({ status }) {
   if (normalizedStatus === "In Progress") tone = "blue";
   if (normalizedStatus === "Needs Review") tone = "amber";
   return <Badge tone={tone}>{normalizedStatus}</Badge>;
-}
-
-function EstimateStarterPanel({ setDraft, disabled = false }) {
-  const [templateId, setTemplateId] = useState(ESTIMATE_TEMPLATE_STARTERS[0]?.id || "");
-  const [lineItemStarterId, setLineItemStarterId] = useState(ESTIMATE_LINE_ITEM_STARTERS[0]?.id || "");
-  const selectedTemplate = ESTIMATE_TEMPLATE_STARTERS.find((template) => template.id === templateId) || ESTIMATE_TEMPLATE_STARTERS[0];
-  const selectedLineItem = ESTIMATE_LINE_ITEM_STARTERS.find((starter) => starter.id === lineItemStarterId) || ESTIMATE_LINE_ITEM_STARTERS[0];
-
-  function handleApplyTemplate() {
-    if (!selectedTemplate) return;
-    setDraft((current) => createEstimateDraft(applyEstimateTemplateStarter(current, selectedTemplate.id)));
-  }
-
-  function handleAddLineItemStarter() {
-    if (!selectedLineItem) return;
-    setDraft((current) => createEstimateDraft(addEstimateLineItemStarter(current, selectedLineItem.id)));
-  }
-
-  return (
-    <div className="rounded-3xl border border-emerald-100 bg-emerald-50/60 p-4 shadow-sm shadow-emerald-100/50">
-      <SectionHeader
-        title="Estimate starters"
-        description="Templates are starters only. Review scope, pricing, exclusions, and totals before sending."
-        action={<Badge tone="emerald">Editable</Badge>}
-      />
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-        <div className="rounded-2xl border border-emerald-100 bg-white/80 p-3">
-          <SelectField label="Start From Template" value={templateId} onChange={(event) => setTemplateId(event.target.value)} disabled={disabled}>
-            {ESTIMATE_TEMPLATE_STARTERS.map((template) => <option key={template.id} value={template.id}>{template.title}</option>)}
-          </SelectField>
-          <p className="mt-2 text-sm font-bold leading-5 text-slate-600">{selectedTemplate?.description || "Choose a reusable estimate starter."}</p>
-          <p className="mt-1 text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">
-            Adds {selectedTemplate?.lineItems?.length || 0} editable line item starter{selectedTemplate?.lineItems?.length === 1 ? "" : "s"} with blank pricing.
-          </p>
-          <div className="mt-3">
-            <Button type="button" variant="secondary" size="sm" onClick={handleApplyTemplate} disabled={disabled || !selectedTemplate}>
-              Start From Template
-            </Button>
-          </div>
-        </div>
-        <div className="rounded-2xl border border-emerald-100 bg-white/80 p-3">
-          <SelectField label="Add Line Item From Library" value={lineItemStarterId} onChange={(event) => setLineItemStarterId(event.target.value)} disabled={disabled}>
-            {ESTIMATE_LINE_ITEM_STARTERS.map((starter) => <option key={starter.id} value={starter.id}>{starter.title}</option>)}
-          </SelectField>
-          <p className="mt-2 text-sm font-bold leading-5 text-slate-600">{selectedLineItem?.description || "Choose a reusable line item starter."}</p>
-          <p className="mt-1 text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">Pricing stays blank until office fills it in.</p>
-          <div className="mt-3">
-            <Button type="button" variant="secondary" size="sm" onClick={handleAddLineItemStarter} disabled={disabled || !selectedLineItem}>
-              Add Line Item From Library
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function EstimateBackupEditor({ draft, setDraft, disabled = false }) {
@@ -32600,7 +32546,7 @@ function EstimatesPagePolished({
                     <InputField label="Fees total" value={createDraft.feesTotal} onChange={(event) => setCreateDraft((current) => ({ ...current, feesTotal: event.target.value }))} placeholder="Optional" inputMode="decimal" />
                   </div>
                   <div className="mt-3">
-                    <EstimateStarterPanel setDraft={setCreateDraft} disabled={busy} />
+                    <EstimateStarterPanel setDraft={setCreateDraft} normalizeDraft={createEstimateDraft} disabled={busy} />
                   </div>
                   <div className="mt-4 space-y-3">
                     <SectionHeader title="Line items" description="Line totals update automatically from quantity and unit price." />
@@ -32763,7 +32709,7 @@ function EstimatesPagePolished({
               <SectionHeader title="Proposal Sections / Starters" description="Use reusable starters and customer-facing proposal sections without changing estimate math." />
               {selectedEstimate ? (
                 <div className="grid gap-3">
-                  <EstimateStarterPanel setDraft={setDetailDraft} disabled={busy || !canManage} />
+                  <EstimateStarterPanel setDraft={setDetailDraft} normalizeDraft={createEstimateDraft} disabled={busy || !canManage} />
                   <EstimateProposalSectionsEditor draft={detailDraft} setDraft={setDetailDraft} disabled={busy || !canManage} />
                 </div>
               ) : (
@@ -32912,7 +32858,7 @@ function EstimatesPagePolished({
                 <InputField label="Fees total" value={createDraft.feesTotal} onChange={(event) => setCreateDraft((current) => ({ ...current, feesTotal: event.target.value }))} placeholder="Optional" inputMode="decimal" />
               </div>
               <div className="mt-3 grid gap-3">
-                <EstimateStarterPanel setDraft={setCreateDraft} disabled={busy} />
+                <EstimateStarterPanel setDraft={setCreateDraft} normalizeDraft={createEstimateDraft} disabled={busy} />
                 <EstimateBackupEditor draft={createDraft} setDraft={setCreateDraft} disabled={busy} />
                 <EstimateProposalSectionsEditor draft={createDraft} setDraft={setCreateDraft} disabled={busy} />
                 <EstimateGcPacketLiteEditor draft={createDraft} setDraft={setCreateDraft} disabled={busy} />
@@ -33009,7 +32955,7 @@ function EstimatesPagePolished({
                   <InputField label="Fees total" value={detailDraft.feesTotal} onChange={(event) => setDetailDraft((current) => ({ ...current, feesTotal: event.target.value }))} inputMode="decimal" />
                 </div>
                 <div className="grid gap-3">
-                  <EstimateStarterPanel setDraft={setDetailDraft} disabled={busy || !canManage} />
+                  <EstimateStarterPanel setDraft={setDetailDraft} normalizeDraft={createEstimateDraft} disabled={busy || !canManage} />
                   <EstimateBackupEditor draft={detailDraft} setDraft={setDetailDraft} disabled={busy || !canManage} />
                   <EstimateProposalSectionsEditor draft={detailDraft} setDraft={setDetailDraft} disabled={busy || !canManage} />
                   <EstimateGcPacketLiteEditor draft={detailDraft} setDraft={setDetailDraft} disabled={busy || !canManage} />
