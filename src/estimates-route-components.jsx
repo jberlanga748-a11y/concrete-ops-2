@@ -1,12 +1,12 @@
 import { useState } from "react";
 
-import { Badge, Button, Card, FilterBar, Icon, InputField, SectionHeader, SelectField, StateCard, StatusBadge, TextAreaField } from "./app-shell-components";
+import { Badge, Button, Card, FilterBar, Icon, InputField, SectionHeader, SelectField, StatCard, StateCard, StatusBadge, TextAreaField } from "./app-shell-components";
 import { DEFAULT_COMPANY_NAME, resolveWorkspaceLogoInitials } from "./brand-utils";
 import { createEmptyReferenceAttachmentRow, createEmptySovRow, createEmptyTakeoffRow, deriveEstimateBackup, mergeEstimateBackup } from "./estimate-backup-utils";
 import { deriveEstimateGcPacketLite } from "./estimate-gc-packet-utils";
 import { estimateRoughNotesHasSuggestions, estimateRoughNotesText } from "./estimate-rough-notes-utils";
-import { getEstimateVisibleInternalNotes, mergeEstimateGcPacketLite, mergeEstimateOfficeInternalNotes } from "./estimate-snapshot-utils";
-import { calculateEstimateLineTotal, deriveEstimateJobHandoffReadiness, deriveEstimateProposalSections, estimateCustomerEmail, estimateStatusLabel, formatEstimateCurrency, mergeEstimateProposalSections } from "./estimate-utils";
+import { deriveEstimateSentSnapshots, getEstimateVisibleInternalNotes, mergeEstimateGcPacketLite, mergeEstimateOfficeInternalNotes } from "./estimate-snapshot-utils";
+import { calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEstimateTotals, deriveEstimateJobHandoffReadiness, deriveEstimateProposalSections, estimateCustomerEmail, estimateStatusLabel, formatEstimateCurrency, mergeEstimateProposalSections } from "./estimate-utils";
 import { ESTIMATE_LINE_ITEM_STARTERS, ESTIMATE_TEMPLATE_STARTERS, addEstimateLineItemStarter, applyEstimateTemplateStarter, buildEstimateLineItemsFromRoughNotes } from "./estimate-template-utils";
 
 export function estimateDisplayTitle(estimate) {
@@ -1008,6 +1008,91 @@ export function EstimateRoughNotesHelper({
           <p className="text-xs font-bold leading-5 text-slate-500">Fill New Estimate form does not save. Create draft now saves a Draft estimate, opens it, and keeps it visible in the list.</p>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function sentSnapshotStatusLabel(status = "sent") {
+  const labels = {
+    sent: "Sent",
+    printed: "Printed",
+    failed: "Failed",
+    draft: "Draft",
+  };
+  return labels[String(status || "sent").trim().toLowerCase()] || "Sent";
+}
+
+function sentSnapshotMethodLabel(method = "manual") {
+  const labels = {
+    email: "Email",
+    print: "Print",
+    manual: "Manual",
+  };
+  return labels[String(method || "manual").trim().toLowerCase()] || "Manual";
+}
+
+export function EstimateSentHistoryCard({ estimate, disabled = false, onRecordSnapshot, formatDateTimeValue = (value) => String(value || "") }) {
+  const snapshots = deriveEstimateSentSnapshots(estimate);
+  const latestSnapshot = snapshots[0] || null;
+  const latestSentAt = latestSnapshot?.sentAt || latestSnapshot?.createdAt || estimate?.sentAt || "";
+  const latestRecipient = latestSnapshot?.customerEmail || estimate?.sentTo || estimateCustomerEmail(estimate) || "Recipient not recorded";
+  const latestMethod = latestSnapshot?.method || (estimate?.sentAt ? "email" : "manual");
+  const latestStatus = latestSnapshot?.status || (estimate?.sentAt ? "sent" : "draft");
+  const latestBaseTotal = latestSnapshot ? latestSnapshot.baseTotal : calculateEstimateTotals(estimate?.items, {
+    taxRate: estimate?.taxRate,
+    feesTotal: estimate?.feesTotal,
+  }).grandTotal;
+  const latestSelectedOptionsTotal = latestSnapshot ? latestSnapshot.selectedOptionsTotal : calculateEstimateOptionTotals(estimate).selectedOptionsTotal;
+
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-100/70">
+      <SectionHeader
+        title="Sent Proposal History"
+        description="Office-only sent records show what was shared, when, and to whom."
+        action={<Badge tone="slate">Office only</Badge>}
+      />
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-600">
+        Sent records are office-only and do not replace the customer-facing PDF archive.
+      </div>
+      <div className="mt-3 grid gap-3 md:grid-cols-4">
+        <StatCard title="Last sent / recorded" value={latestSentAt ? formatDateTimeValue(latestSentAt) : "Not recorded"} />
+        <StatCard title="Recipient" value={latestRecipient} />
+        <StatCard title="Method / status" value={`${sentSnapshotStatusLabel(latestStatus)} via ${sentSnapshotMethodLabel(latestMethod)}`} />
+        <StatCard title="Base total at send" value={formatEstimateCurrency(latestBaseTotal || 0)} detail={latestSelectedOptionsTotal > 0 ? `Selected options: ${formatEstimateCurrency(latestSelectedOptionsTotal)}` : "No selected options recorded."} />
+      </div>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-xs font-bold leading-5 text-slate-500">
+          Use a manual snapshot when an estimate was shared outside the email button, such as printed, forwarded, or reviewed by phone.
+        </p>
+        <Button type="button" variant="secondary" onClick={onRecordSnapshot} disabled={disabled || typeof onRecordSnapshot !== "function"}>
+          Record Sent Snapshot
+        </Button>
+      </div>
+      {snapshots.length > 0 ? (
+        <div className="mt-3 space-y-2">
+          {snapshots.slice(0, 5).map((snapshot) => (
+            <div key={snapshot.snapshotId || `${snapshot.createdAt}-${snapshot.customerEmail}`} className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 text-sm text-slate-600">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-black text-slate-950">{snapshot.estimateTitle || estimate?.title || "Estimate snapshot"}</p>
+                  <p className="mt-1 break-words text-xs font-bold text-slate-500">
+                    {snapshot.customerEmail || "Recipient not recorded"} - {snapshot.sentAt || snapshot.createdAt ? formatDateTimeValue(snapshot.sentAt || snapshot.createdAt) : "Date not recorded"}
+                  </p>
+                </div>
+                <Badge tone={snapshot.status === "failed" ? "red" : "green"}>{sentSnapshotStatusLabel(snapshot.status)} / {sentSnapshotMethodLabel(snapshot.method)}</Badge>
+              </div>
+              <div className="mt-2 grid gap-2 text-xs font-bold text-slate-500 md:grid-cols-3">
+                <span>Base: {formatEstimateCurrency(snapshot.baseTotal || 0)}</span>
+                <span>Selected options: {formatEstimateCurrency(snapshot.selectedOptionsTotal || 0)}</span>
+                <span>Status then: {estimateStatusLabel(snapshot.estimateStatusAtSend || "draft")}</span>
+              </div>
+              {snapshot.notes ? <p className="mt-2 text-xs font-bold text-slate-500">{snapshot.notes}</p> : null}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <StateCard title="No sent snapshots recorded yet" description="The latest send status is still tracked on the estimate. Use Record Sent Snapshot when office wants a simple history entry." tone="slate" />
+      )}
     </div>
   );
 }
