@@ -48,12 +48,12 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 | 2026-05-21 | P2 | CI launch-gate summary refresh | Done; summary now shows GO/NO-GO counts, blocker counts, first blockers, and warning counts | `f156548` |
 | 2026-05-21 | P3 | Fencing demo screenshot manifest refresh | Done; Fly demo preflight, admin desktop/tablet audits, employee phone audit, hosted smoke, and roles passed | `bf56464` |
 | 2026-05-21 | P4 | First-pilot support severity quick card | Done; P0-P3 pilot triage card added without SLA/legal/security/pricing claims | `f91e3e2` |
+| 2026-05-21 | P1 | Customer pilot config approval dry-run | Done; in-memory customer pilot config verification and approval-only setup plan added | `7b91e90` |
 
 ## Active Queue
 
 | Priority | Task | Status | Why It Matters | Safe Scope | Verification | Stop / Approval Gate |
 | --- | --- | --- | --- | --- | --- | --- |
-| P1 | Customer pilot config approval dry-run for the fencing candidate | Ready | Prepares the next approval-only step before any customer-specific app or volume is created | Plan/docs/script only; no Fly resources, no secrets, no customer data | pilot config checks, docs check | Stop before creating Fly app/volume or setting secrets |
 | P2 | Fly demo auth-smoke readiness check | Ready | Confirms whether demo auth smoke can run from the current environment without printing secrets | Read-only presence check and skip-auth fallback only | hosted smoke skip-auth, docs check | Stop before reading or setting secret values |
 
 ## Blocked / Needs Human Input
@@ -68,4 +68,4 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 ## Next Recommended Task
 
-Prepare the customer pilot config approval dry-run next, but stop before any Fly app, volume, secret, outside login, or customer data mutation.
+Run the Fly demo auth-smoke readiness check next, using skip-auth fallback if `APEX_SMOKE_PASSWORD` is unavailable and without printing or changing secrets.
