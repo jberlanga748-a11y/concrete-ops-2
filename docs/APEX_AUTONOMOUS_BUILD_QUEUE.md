@@ -74,7 +74,7 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 | 2026-05-21 | P2 | Core workflow verification refresh | Done; Leads, Jobs, Daily Reports, Uploads, and Estimates verification passed after rerunning Leads alone to clear a parallel test-server readiness timeout | `852e971` |
 | 2026-05-21 | P2 | Field/support verification refresh | Done; Time, Safety, Tool Checklist, Delivery Tickets, Pre/Post-Pour, Change Orders, Customers, and Users verification passed after rerunning Tool Checklist alone | `edfacbb` |
 | 2026-05-21 | P2 | SaaS safety verification refresh | Done; Packages, Entitlements, Auth, Exports, Backup, Restore, Server, and Build verification passed | `e988548` |
-| 2026-05-21 | P2 | Pilot readiness gate refresh after safety baseline | Done; full `verify:pilot-readiness` passed after latest SaaS safety, workflow, and field/support verification refreshes | `pending` |
+| 2026-05-21 | P2 | Pilot readiness gate refresh after safety baseline | Done; full `verify:pilot-readiness` passed after latest SaaS safety, workflow, and field/support verification refreshes | `da6ca3d` |
 
 ## Active Queue
 
