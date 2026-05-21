@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { Badge, Button, Card, FilterBar, Icon, InputField, SectionHeader, SelectField, StateCard, StatusBadge, TextAreaField } from "./app-shell-components";
 import { DEFAULT_COMPANY_NAME, resolveWorkspaceLogoInitials } from "./brand-utils";
+import { createEmptyReferenceAttachmentRow, createEmptySovRow, createEmptyTakeoffRow, deriveEstimateBackup, mergeEstimateBackup } from "./estimate-backup-utils";
 import { calculateEstimateLineTotal, deriveEstimateJobHandoffReadiness, estimateCustomerEmail, estimateStatusLabel, formatEstimateCurrency } from "./estimate-utils";
 import { ESTIMATE_LINE_ITEM_STARTERS, ESTIMATE_TEMPLATE_STARTERS, addEstimateLineItemStarter, applyEstimateTemplateStarter } from "./estimate-template-utils";
 
@@ -562,6 +563,138 @@ export function EstimateStarterPanel({ setDraft, normalizeDraft = (draft) => dra
             </Button>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+export function EstimateBackupEditor({ draft, setDraft, disabled = false }) {
+  const backup = deriveEstimateBackup(draft);
+  const sovRows = backup.sovRows.length > 0 ? backup.sovRows : [createEmptySovRow()];
+  const takeoffRows = backup.takeoffRows.length > 0 ? backup.takeoffRows : [createEmptyTakeoffRow()];
+  const referenceRows = backup.referenceRows.length > 0 ? backup.referenceRows : [createEmptyReferenceAttachmentRow()];
+  const commitBackup = (updates) => {
+    setDraft((current) => mergeEstimateBackup(current, {
+      ...deriveEstimateBackup(current),
+      ...updates,
+    }));
+  };
+  const updateSovRow = (index, field, value) => {
+    const nextRows = sovRows.map((row, rowIndex) => rowIndex === index ? { ...row, [field]: value } : row);
+    commitBackup({ sovRows: nextRows });
+  };
+  const updateTakeoffRow = (index, field, value) => {
+    const nextRows = takeoffRows.map((row, rowIndex) => rowIndex === index ? { ...row, [field]: value } : row);
+    commitBackup({ takeoffRows: nextRows });
+  };
+  const updateReferenceRow = (index, field, value) => {
+    const nextRows = referenceRows.map((row, rowIndex) => rowIndex === index ? { ...row, [field]: value } : row);
+    commitBackup({ referenceRows: nextRows });
+  };
+  const removeSovRow = (index) => {
+    const nextRows = sovRows.filter((_, rowIndex) => rowIndex !== index);
+    commitBackup({ sovRows: nextRows.length > 0 ? nextRows : [] });
+  };
+  const removeTakeoffRow = (index) => {
+    const nextRows = takeoffRows.filter((_, rowIndex) => rowIndex !== index);
+    commitBackup({ takeoffRows: nextRows.length > 0 ? nextRows : [] });
+  };
+  const removeReferenceRow = (index) => {
+    const nextRows = referenceRows.filter((_, rowIndex) => rowIndex !== index);
+    commitBackup({ referenceRows: nextRows.length > 0 ? nextRows : [] });
+  };
+
+  return (
+    <div className="rounded-3xl border border-amber-100 bg-amber-50/60 p-4 shadow-sm shadow-amber-100/50">
+      <SectionHeader
+        title="Estimate Backup / SOV"
+        description="Use this section for office estimate backup. Review customer-facing proposal output before sending."
+        action={<Badge tone="amber">Office only</Badge>}
+      />
+      <div className="rounded-2xl border border-amber-100 bg-white/80 px-3 py-2 text-sm font-bold text-amber-800">
+        Backup rows do not change the estimate total unless added to line items.
+      </div>
+      <div className="mt-3 space-y-4">
+        <div>
+          <SectionHeader title="Schedule of Values" description="Simple office backup rows only. This is not billing or payment scheduling yet." />
+          <div className="space-y-3">
+            {sovRows.map((row, index) => (
+              <div key={`sov-${index}`} className="rounded-2xl border border-amber-100 bg-white p-3">
+                <div className="grid gap-3 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.5fr)_90px_90px_120px]">
+                  <InputField label={`Section / Item ${index + 1}`} value={row.section || ""} onChange={(event) => updateSovRow(index, "section", event.target.value)} disabled={disabled} placeholder="Mobilization" />
+                  <InputField label="Description" value={row.description || ""} onChange={(event) => updateSovRow(index, "description", event.target.value)} disabled={disabled} placeholder="Office SOV description" />
+                  <InputField label="Qty" value={row.quantity || ""} onChange={(event) => updateSovRow(index, "quantity", event.target.value)} disabled={disabled} inputMode="decimal" />
+                  <InputField label="Unit" value={row.unit || ""} onChange={(event) => updateSovRow(index, "unit", event.target.value)} disabled={disabled} placeholder="LS" />
+                  <InputField label="Amount" value={row.amount || ""} onChange={(event) => updateSovRow(index, "amount", event.target.value)} disabled={disabled} inputMode="decimal" />
+                </div>
+                <div className="mt-3">
+                  <TextAreaField label="SOV notes" value={row.notes || ""} onChange={(event) => updateSovRow(index, "notes", event.target.value)} disabled={disabled} className="field-input min-h-20 resize-y" placeholder="Estimator backup note for this SOV row." />
+                </div>
+                <div className="mt-3 flex justify-end">
+                  <button type="button" className="text-xs font-black uppercase tracking-[0.16em] text-slate-500 hover:text-slate-950 disabled:cursor-not-allowed disabled:text-slate-300" onClick={() => removeSovRow(index)} disabled={disabled}>Remove SOV row</button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3">
+            <Button type="button" variant="secondary" size="sm" onClick={() => commitBackup({ sovRows: [...sovRows, createEmptySovRow()] })} disabled={disabled}>Add SOV Row</Button>
+          </div>
+        </div>
+        <div>
+          <SectionHeader title="Takeoff backup" description="Keep quantity backup, sheet/source notes, and estimator assumptions out of the customer proposal." />
+          <div className="space-y-3">
+            {takeoffRows.map((row, index) => (
+              <div key={`takeoff-${index}`} className="rounded-2xl border border-amber-100 bg-white p-3">
+                <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_90px_90px_minmax(0,1.2fr)]">
+                  <InputField label={`Takeoff item ${index + 1}`} value={row.item || ""} onChange={(event) => updateTakeoffRow(index, "item", event.target.value)} disabled={disabled} placeholder={'4" sidewalk'} />
+                  <InputField label="Qty" value={row.quantity || ""} onChange={(event) => updateTakeoffRow(index, "quantity", event.target.value)} disabled={disabled} inputMode="decimal" />
+                  <InputField label="Unit" value={row.unit || ""} onChange={(event) => updateTakeoffRow(index, "unit", event.target.value)} disabled={disabled} placeholder="SF" />
+                  <InputField label="Source / sheet / note" value={row.source || ""} onChange={(event) => updateTakeoffRow(index, "source", event.target.value)} disabled={disabled} placeholder="A1.1, field measure, sketch" />
+                </div>
+                <div className="mt-3">
+                  <TextAreaField label="Estimator note" value={row.estimatorNote || ""} onChange={(event) => updateTakeoffRow(index, "estimatorNote", event.target.value)} disabled={disabled} className="field-input min-h-20 resize-y" placeholder="Backup assumption, waste note, or measurement context." />
+                </div>
+                <div className="mt-3 flex justify-end">
+                  <button type="button" className="text-xs font-black uppercase tracking-[0.16em] text-slate-500 hover:text-slate-950 disabled:cursor-not-allowed disabled:text-slate-300" onClick={() => removeTakeoffRow(index)} disabled={disabled}>Remove takeoff row</button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3">
+            <Button type="button" variant="secondary" size="sm" onClick={() => commitBackup({ takeoffRows: [...takeoffRows, createEmptyTakeoffRow()] })} disabled={disabled}>Add Takeoff Row</Button>
+          </div>
+        </div>
+        <div>
+          <SectionHeader title="Reference attachments" description="Track Bluebeam screenshots, plan PDFs, takeoff photos, or reference links for office review. Storage upload comes later." />
+          <div className="space-y-3">
+            {referenceRows.map((row, index) => (
+              <div key={`reference-${index}`} className="rounded-2xl border border-amber-100 bg-white p-3">
+                <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_150px_minmax(0,1.2fr)]">
+                  <InputField label={`File / reference ${index + 1}`} value={row.fileName || ""} onChange={(event) => updateReferenceRow(index, "fileName", event.target.value)} disabled={disabled} placeholder="A1.1 slab takeoff screenshot" />
+                  <InputField label="Type" value={row.referenceType || ""} onChange={(event) => updateReferenceRow(index, "referenceType", event.target.value)} disabled={disabled} placeholder="Bluebeam, PDF, photo" />
+                  <InputField label="Source / sheet" value={row.source || ""} onChange={(event) => updateReferenceRow(index, "source", event.target.value)} disabled={disabled} placeholder="A1.1, field photo, takeoff set" />
+                </div>
+                <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                  <InputField label="Reference URL / path" value={row.url || ""} onChange={(event) => updateReferenceRow(index, "url", event.target.value)} disabled={disabled} placeholder="Optional link or file path" />
+                  <TextAreaField label="Reference notes" value={row.notes || ""} onChange={(event) => updateReferenceRow(index, "notes", event.target.value)} disabled={disabled} className="field-input min-h-20 resize-y" placeholder="What this reference proves, quantity context, or review notes." />
+                </div>
+                <div className="mt-3 flex justify-end">
+                  <button type="button" className="text-xs font-black uppercase tracking-[0.16em] text-slate-500 hover:text-slate-950 disabled:cursor-not-allowed disabled:text-slate-300" onClick={() => removeReferenceRow(index)} disabled={disabled}>Remove reference</button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3">
+            <Button type="button" variant="secondary" size="sm" onClick={() => commitBackup({ referenceRows: [...referenceRows, createEmptyReferenceAttachmentRow()] })} disabled={disabled}>Add Reference</Button>
+          </div>
+        </div>
+        <TextAreaField
+          label="Backup notes"
+          value={backup.notes || ""}
+          onChange={(event) => commitBackup({ notes: event.target.value })}
+          disabled={disabled}
+          placeholder="Estimator backup notes, quantity assumptions, SOV review notes, or pricing reminders."
+        />
       </div>
     </div>
   );
