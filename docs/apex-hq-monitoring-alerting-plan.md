@@ -70,6 +70,26 @@ Apex HQ demo hosted smoke failed
 
 Secret setup, verification, rotation, and failure handling are defined in `docs/apex-hq-github-actions-smoke-secrets.md`.
 
+## Current Demo/Pilot Monitoring Baseline
+
+Current baseline as of 2026-05-21:
+
+- provider: `github-actions`
+- environment: `demo`
+- alert destination: `github-issues`
+- retention window for pilot-stage evidence: `30` days
+- access owner: `John`
+- rollout: demo-first only
+- sensitive payload posture: do not capture request bodies, passwords, tokens, authorization headers, customer payloads, estimate contents, upload contents, or payment data
+
+Read-only validation command:
+
+```powershell
+npm.cmd run monitor:upgrade-readiness -- --provider=github-actions --environment=demo --alert-destination=github-issues --retention-days=30 --access-owner=John --redaction-confirmed --request-id-search --error-alerts --demo-first --json
+```
+
+Latest result: GO for the demo/pilot monitoring baseline. This does not enable a production log drain, paid vendor, production auth smoke, production deploy, secret change, or customer-data monitoring.
+
 ## Existing Platform Checks
 
 Fly production already checks:
@@ -211,6 +231,7 @@ P3:
 ## Phase 1 Follow-Ups
 
 - Watch the scheduled GitHub Actions readiness monitor for false positives during Fly cold starts. Latest current-head manual dispatch: `26141723994` passed on May 20, 2026.
+- Keep the GitHub Actions baseline as the current demo/pilot monitoring path until a real pilot or production incident shows a need for a dedicated provider.
 - Decide whether production should keep at least one Fly machine running using `docs/apex-hq-production-cold-start-decision.md`. May 20, 2026 read-only check showed a stopped-machine wake at about 5.9s and warm `/api/ready` checks under 0.5s.
 - Watch Docker `/api/ready` health checks during the next demo deploy for false positives during cold start.
 - Use `docs/apex-hq-incident-notes-log.md` for Phase 1 incident notes until a dedicated tracker exists.

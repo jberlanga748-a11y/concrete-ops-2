@@ -21,6 +21,22 @@ Already in place:
 
 This is enough for founder-led demos and controlled early pilots. It is not enough for many customers, formal uptime commitments, or hands-off production operations.
 
+Current explicit baseline decision, 2026-05-21:
+
+- keep `github-actions` as the demo/pilot monitoring baseline
+- route readiness and demo smoke failures to GitHub issues
+- use 30 days as the pilot-stage evidence retention window
+- John owns access and alert handling
+- keep production log drains, paid providers, production auth smoke, and provider changes behind explicit production-safety approval
+
+Validated with:
+
+```powershell
+npm.cmd run monitor:upgrade-readiness -- --provider=github-actions --environment=demo --alert-destination=github-issues --retention-days=30 --access-owner=John --redaction-confirmed --request-id-search --error-alerts --demo-first --json
+```
+
+Result: GO for the demo/pilot baseline only. No provider setup, log drain, secret change, deploy, Fly change, or production log export was performed.
+
 ## Upgrade Triggers
 
 Move beyond the Phase 1 baseline when any of these become true:
@@ -202,6 +218,8 @@ Phase 2A:
 - keep GitHub readiness issue workflow active
 - configure `APEX_SMOKE_PASSWORD` for demo auth smoke
 - review two weeks of scheduled demo smoke and readiness-monitor noise
+
+Phase 2A current decision: use GitHub issues as the single alert destination for demo/pilot readiness failures until a real pilot or production incident justifies a dedicated provider.
 
 Phase 2B:
 

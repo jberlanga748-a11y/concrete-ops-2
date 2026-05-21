@@ -17,7 +17,7 @@ Latest launch gate snapshot, 2026-05-21T10:10:57Z:
 - Guided demo readiness: GO
 - Customer pilot handoff readiness: NO-GO until a real company, owner/admin contact, exact workflow, first record, first field/proof action, and 2-3 success criteria are provided
 - Production auth smoke readiness: NO-GO until production smoke users, secret, and production-safety approval are explicitly approved
-- Production monitoring upgrade readiness: NO-GO until a provider/destination/access owner/redaction plan is selected and tested demo-first
+- Production monitoring upgrade readiness: GO for the current demo/pilot GitHub Actions baseline only; production log drains, paid providers, and production auth smoke remain blocked without explicit production-safety approval
 - Wider paid launch readiness: NO-GO pending legal/privacy/public-claims review, production monitoring, production auth smoke, and customer-specific pilot setup approval
 - Next highest leverage: pick one real pilot candidate/workflow and run `npm.cmd run pilot:rehearsal` with 2-3 success criteria
 
@@ -94,6 +94,7 @@ npm.cmd run launch:gate-status -- --json
 - Known P3 visual backlog: desktop `/leads` long fencing text wrap polish resolved; no open visual backlog from the latest walkthrough route audit
 - Latest local pilot readiness gate: `npm.cmd run verify:pilot-readiness` passed on 2026-05-21T09:59Z with docs, pilot config, rehearsal, fencing gates, roles, backup export, restore drill, and build. Backup verification produced `app-data-20260521-095905Z.sqlite` / `.json`; restore drill used `app-data-20260521-095906Z.sqlite` / `.json`.
 - Latest launch gate snapshot: `npm.cmd run launch:gate-status -- --json` ran on 2026-05-21T10:10Z. Guided demo readiness was `GO`; customer pilot handoff, production auth smoke, production monitoring upgrade, and wider paid launch remained `NO-GO` for explicit setup/approval reasons.
+- Latest monitoring baseline validation: `npm.cmd run monitor:upgrade-readiness -- --provider=github-actions --environment=demo --alert-destination=github-issues --retention-days=30 --access-owner=John --redaction-confirmed --request-id-search --error-alerts --demo-first --json` returned `GO` on 2026-05-21T10:22Z for demo/pilot monitoring only.
 
 ## Hard Stops
 
