@@ -24,6 +24,10 @@ test("pilot rehearsal plan builds day 0, day 3, and day 10 dates", () => {
 
   assert.equal(plan.day3Date, "2026-06-04");
   assert.equal(plan.day10Date, "2026-06-11");
+  assert.ok(plan.referenceDocs.includes("docs/apex-hq-first-guided-user-walkthrough-script.md"));
+  assert.ok(plan.referenceDocs.includes("docs/apex-hq-pilot-feedback-intake-form.md"));
+  assert.ok(plan.guidedWalkthroughRoutes.includes("/estimates"));
+  assert.ok(plan.guidedWalkthroughRoutes.includes("/support"));
   assert.equal(validatePilotRehearsalPlan(plan).ok, true);
 });
 
@@ -75,6 +79,10 @@ test("pilot rehearsal markdown preserves safety boundaries", () => {
   const markdown = formatPilotRehearsalMarkdown(plan);
 
   assert.match(markdown, /Boundary: this plan does not create apps/i);
+  assert.match(markdown, /Guided Walkthrough Routes/i);
+  assert.match(markdown, /\/command-center/i);
+  assert.match(markdown, /Required Reference Docs/i);
+  assert.match(markdown, /apex-hq-first-guided-user-walkthrough-script\.md/i);
   assert.match(markdown, /no guaranteed leads/i);
   assert.match(markdown, /Day 3/i);
   assert.match(markdown, /Day 10/i);

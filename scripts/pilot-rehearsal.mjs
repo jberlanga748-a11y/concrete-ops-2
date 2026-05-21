@@ -5,6 +5,23 @@ import { pathToFileURL } from "node:url";
 
 const DEFAULT_OUTPUT_DIR = path.resolve(process.cwd(), "tmp", "pilot-rehearsals");
 const SAFE_WORKFLOW = "lead/estimate -> job -> schedule/handoff -> field photo/report/upload -> owner review";
+const PILOT_REFERENCE_DOCS = [
+  "docs/apex-hq-first-guided-user-walkthrough-script.md",
+  "docs/apex-hq-one-page-pilot-onboarding-checklist.md",
+  "docs/apex-hq-pilot-feedback-intake-form.md",
+  "docs/apex-hq-pilot-readiness-checklist.md",
+  "docs/apex-hq-support-intake-process.md",
+];
+const GUIDED_WALKTHROUGH_ROUTES = [
+  "/command-center",
+  "/leads",
+  "/estimates",
+  "/jobs",
+  "/schedule",
+  "/reports",
+  "/uploads",
+  "/support",
+];
 const RISKY_PROMISE_PATTERNS = [
   /guarantee(?:d|s)?\s+(?:leads|jobs|revenue|growth|sales|results)/i,
   /AI\s+(?:runs|prices|bids|approves|sends|contacts|handles)/i,
@@ -125,6 +142,8 @@ export function buildPilotRehearsalPlan(input = {}) {
     day3Date: addDays(startDate, 3),
     day10Date: addDays(startDate, 10),
     successCriteria,
+    referenceDocs: PILOT_REFERENCE_DOCS,
+    guidedWalkthroughRoutes: GUIDED_WALKTHROUGH_ROUTES,
     boundaries: [
       "one workflow only",
       "no custom build promise",
@@ -206,6 +225,14 @@ Boundary: this plan does not create apps, users, records, outreach, Fly resource
 ## Success Criteria
 
 ${formatBullets(plan.successCriteria)}
+
+## Guided Walkthrough Routes
+
+${formatBullets(plan.guidedWalkthroughRoutes)}
+
+## Required Reference Docs
+
+${formatBullets(plan.referenceDocs)}
 
 ## Day 0
 
