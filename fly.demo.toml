@@ -3,7 +3,7 @@ app = "concrete-ops-demo"
 primary_region = "sjc"
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = "Dockerfile.demo"
 
 [env]
   NODE_ENV = "production"
