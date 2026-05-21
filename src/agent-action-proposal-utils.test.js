@@ -3,6 +3,8 @@ import test from "node:test";
 
 import {
   buildAgentActionProposal,
+  normalizeAgentActionProposalAuditEvent,
+  redactAgentProposalAuditText,
   validateAgentActionProposalSafety,
 } from "./agent-action-proposal-utils.js";
 
@@ -126,4 +128,77 @@ test("agent action proposal safety validator fails closed on unsafe packets", ()
   assert.equal(result.ok, false);
   assert.ok(result.failures.some((failure) => /approval/i.test(failure)));
   assert.ok(result.failures.some((failure) => /outbound/i.test(failure)));
+});
+
+test("agent proposal audit redaction removes secret-like payloads", () => {
+  const redacted = redactAgentProposalAuditText(
+    "Please use password: fence123 and bearer abcdefghijklmnop to submit the bid. Contact bob@example.com.",
+  );
+
+  assert.doesNotMatch(redacted, /fence123/);
+  assert.doesNotMatch(redacted, /abcdefghijklmnop/);
+  assert.doesNotMatch(redacted, /bob@example.com/i);
+  assert.match(redacted, /\[REDACTED\]/);
+});
+
+test("agent proposal audit event normalizes review-first proposal metadata only", () => {
+  const proposal = buildAgentActionProposal({
+    type: "estimate-draft-review",
+    moduleId: "estimates",
+    actionLabel: "Review draft in Estimates",
+    message: "Prepare rough notes only. Do not send or submit anything.",
+    query: "Newco Builders",
+    roughNotes: "Use token: secret-value and install 120 LF cedar.",
+    matches: [{ id: "lead:1", label: "Newco Builders", helper: "Lead match" }],
+  }, {
+    permissions: { aiOffice: { canView: true }, estimates: { canView: true, canManage: true } },
+  });
+
+  const event = normalizeAgentActionProposalAuditEvent(proposal, {
+    actor: { id: "USER-1", role: "Administrator" },
+    sourceRoute: "/command-center",
+    prompt: "Create estimate and email customer with api_key=123456",
+    response: "No email is sent. Review only.",
+    targetEntity: { type: "lead", id: "lead:1" },
+  });
+
+  assert.equal(event.eventType, "agent.proposal.generated");
+  assert.equal(event.proposalId, proposal.id);
+  assert.equal(event.actorUserId, "USER-1");
+  assert.equal(event.sourceModule, "estimates");
+  assert.equal(event.approvalRequired, true);
+  assert.equal(event.safetyOk, true);
+  assert.doesNotMatch(event.redactedPromptPreview, /123456/);
+  assert.ok(event.blockedReasons.some((reason) => /Unsafe automation/i.test(reason)));
+  assert.ok(event.blockedReasons.some((reason) => /Secret-like/i.test(reason)));
+  assert.equal(event.draftPrepSummary.length, 1);
+  assert.equal(event.targetEntityType, "lead");
+});
+
+test("agent proposal audit event stays blocked for field-only users", () => {
+  const proposal = buildAgentActionProposal({
+    type: "lead-follow-up",
+    moduleId: "leads",
+    actionLabel: "Open Leads",
+    message: "Follow up with this lead.",
+    matches: [{ id: "lead:2", label: "Fence lead" }],
+  }, {
+    permissions: {
+      jobs: { canManageField: true, canManageAll: false },
+      leads: { canView: false },
+      aiOffice: { canView: false },
+      opportunityScout: { canView: false },
+    },
+  });
+
+  const event = normalizeAgentActionProposalAuditEvent(proposal, {
+    actor: { id: "FIELD-1", role: "Employee" },
+    sourceRoute: "/jobs",
+  });
+
+  assert.equal(proposal.status, "blocked");
+  assert.equal(event.eventType, "agent.proposal.blocked");
+  assert.equal(event.status, "blocked");
+  assert.equal(event.riskLevel, "review_required");
+  assert.equal(event.actorRole, "Employee");
 });

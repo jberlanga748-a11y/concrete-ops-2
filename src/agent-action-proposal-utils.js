@@ -50,6 +50,32 @@ function text(value) {
   return String(value ?? "").trim();
 }
 
+const SECRET_PATTERNS = Object.freeze([
+  /\b(password|passcode|api[_ -]?key|secret|token|bearer|cookie|session|mfa|captcha)\s*[:=]\s*[^\s,;]+/gi,
+  /\b(bearer)\s+[a-z0-9._~+/=-]{8,}/gi,
+  /\b(sk-[a-z0-9_-]{12,})\b/gi,
+  /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,
+]);
+
+const UNSAFE_AUTOMATION_PATTERN = /\b(send|submit|bid|email|text|sms|call|notify|contact|approve|convert|invoice|charge|collect payment)\b/i;
+const SECRET_SIGNAL_PATTERN = /\b(password|passcode|api[_ -]?key|secret|token|bearer|cookie|session|mfa|captcha|paywall|login|portal credential)\b/i;
+
+export function redactAgentProposalAuditText(value, { maxLength = 240 } = {}) {
+  const source = text(value);
+  if (!source) return "";
+  let redacted = source;
+  SECRET_PATTERNS.forEach((pattern) => {
+    redacted = redacted.replace(pattern, (match) => {
+      if (match.includes("@")) return "[REDACTED]";
+      const label = match.split(/[:=\s]/)[0] || "secret";
+      return `${label}: [REDACTED]`;
+    });
+  });
+  redacted = redacted.replace(/\s+/g, " ").trim();
+  if (redacted.length <= maxLength) return redacted;
+  return `${redacted.slice(0, Math.max(0, maxLength - 1)).trim()}…`;
+}
+
 function asArray(value) {
   return Array.isArray(value) ? value : [];
 }
@@ -240,5 +266,56 @@ export function validateAgentActionProposalSafety(proposal = {}) {
   return {
     ok: failures.length === 0,
     failures,
+  };
+}
+
+export function normalizeAgentActionProposalAuditEvent(proposal = {}, {
+  actor = {},
+  sourceRoute = "",
+  sourceModule = "",
+  prompt = "",
+  response = "",
+  status = "",
+  targetEntity = {},
+  createdDraft = {},
+} = {}) {
+  const safeProposal = proposal && typeof proposal === "object" ? proposal : {};
+  const safety = validateAgentActionProposalSafety(safeProposal);
+  const promptPreview = redactAgentProposalAuditText(prompt || safeProposal.proof?.commandText || "");
+  const responsePreview = redactAgentProposalAuditText(response || safeProposal.proof?.message || "");
+  const combinedSignals = `${prompt || ""} ${response || ""} ${safeProposal.proof?.message || ""}`;
+  const blockedReasons = [
+    ...asArray(safeProposal.blockedActions),
+    SECRET_SIGNAL_PATTERN.test(combinedSignals) ? "Secret-like content must be redacted before audit storage" : "",
+    UNSAFE_AUTOMATION_PATTERN.test(combinedSignals) ? "Unsafe automation request remains review-only" : "",
+  ].filter(Boolean);
+
+  return {
+    eventType: safeProposal.status === "blocked" ? "agent.proposal.blocked" : "agent.proposal.generated",
+    proposalId: text(safeProposal.id || "agent-proposal:unknown"),
+    proposalType: text(safeProposal.proof?.commandType || safeProposal.typeLabel || "unknown"),
+    status: text(status || safeProposal.status || "needs_human_review"),
+    riskLevel: safeProposal.status === "blocked" || blockedReasons.length ? "review_required" : "low",
+    sourceRoute: text(sourceRoute),
+    sourceModule: text(sourceModule || safeProposal.targetModuleId),
+    actorUserId: text(actor.id || actor.userId),
+    actorRole: text(actor.role || actor.title),
+    summary: redactAgentProposalAuditText(safeProposal.title || safeProposal.typeLabel || "Agent action proposal"),
+    redactedPromptPreview: promptPreview,
+    redactedResponsePreview: responsePreview,
+    approvalRequired: safeProposal.approvalRequired !== false,
+    requiredApprovals: asArray(safeProposal.reviewChecklist).slice(0, 8),
+    blockedReasons: [...new Set(blockedReasons)].slice(0, 12),
+    draftPrepSummary: asArray(safeProposal.draftPrep).slice(0, 5).map((item) => ({
+      prepType: text(item.prepType),
+      label: redactAgentProposalAuditText(item.label, { maxLength: 120 }),
+      reviewLabel: redactAgentProposalAuditText(item.reviewLabel, { maxLength: 180 }),
+    })),
+    targetEntityType: text(targetEntity.type),
+    targetEntityId: text(targetEntity.id),
+    createdDraftEntityType: text(createdDraft.type),
+    createdDraftEntityId: text(createdDraft.id),
+    safetyOk: safety.ok,
+    safetyFailures: safety.failures,
   };
 }
