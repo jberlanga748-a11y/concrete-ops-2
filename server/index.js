@@ -261,6 +261,7 @@ const PUBLIC_REQUEST_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const AGENT_PROPOSAL_AUDIT_EVENT_TYPES = new Set([
   "agent.proposal.generated",
   "agent.proposal.blocked",
+  "agent.proposal.approved_for_draft",
   "agent.proposal.dismissed",
   "agent.proposal.rejected",
 ]);
@@ -5755,10 +5756,16 @@ function normalizeAgentProposalAuditPayload(payload = {}) {
   const eventType = optionalEnum(payload.eventType, AGENT_PROPOSAL_AUDIT_EVENT_TYPES, "Agent proposal audit event type", "agent.proposal.generated");
   const proposalId = requiredString(payload.proposalId, "Proposal ID").slice(0, 160);
   const proposalType = requiredString(payload.proposalType, "Proposal type").slice(0, 120);
-  const status = optionalString(payload.status, eventType === "agent.proposal.blocked" ? "blocked" : "needs_human_review").slice(0, 80);
+  const status = optionalString(
+    payload.status,
+    eventType === "agent.proposal.blocked" ? "blocked" : eventType === "agent.proposal.approved_for_draft" ? "approved_for_draft" : "needs_human_review",
+  ).slice(0, 80);
   const approvalRequired = payload.approvalRequired !== false;
   if (!approvalRequired) {
     throw new ApiError(400, "Agent proposal audit records must keep human approval required.");
+  }
+  if (eventType === "agent.proposal.approved_for_draft" && /blocked|package/i.test(status)) {
+    throw new ApiError(400, "Blocked agent proposal packets cannot be approved for draft prep.");
   }
 
   const redactedPromptPreview = redactAgentProposalAuditText(payload.redactedPromptPreview || payload.prompt || "");
@@ -5804,6 +5811,66 @@ function assertCanCreateAgentProposalAudit(state, user) {
   });
   if (!entitlements.aiOffice.canUse || !canViewLeads(user)) {
     throw new ApiError(403, "You do not have permission to audit AI Office action proposals.");
+  }
+}
+
+function parseAgentProposalAuditDetail(detail) {
+  if (detail && typeof detail === "object") return detail;
+  if (!detail || typeof detail !== "string") return {};
+  try {
+    const parsed = JSON.parse(detail);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function hasGeneratedAgentProposalAudit(state, user, proposal) {
+  const companyId = currentCompanyIdForRequestUser(state, user);
+  return (Array.isArray(state.auditEvents) ? state.auditEvents : []).some((event) => {
+    if (event?.companyId !== companyId) return false;
+    if (event?.entityType !== "agentActionProposal") return false;
+    if (event?.entityId !== proposal.proposalId) return false;
+    if (event?.action !== "agent.proposal.generated") return false;
+    const detail = parseAgentProposalAuditDetail(event.detail);
+    return !detail.proposalType || detail.proposalType === proposal.proposalType;
+  });
+}
+
+function canApproveAgentProposalDraftPrepForType(state, user, proposal) {
+  const entitlements = resolvePackageEntitlements({
+    hasFeature: (featureKey) => companyHasFeature(state, user, featureKey),
+  });
+  switch (proposal.proposalType) {
+    case "estimate-draft-review":
+      return entitlements.estimates.canUseProposalTools && canManageEstimates(user);
+    case "estimate-packet-review":
+      return entitlements.estimates.canUseGcPackets && canManageEstimates(user);
+    case "estimate-job-handoff-review":
+      return entitlements.estimates.canUseGcPackets && canManageEstimates(user) && canCreateJobs(user);
+    case "lead-follow-up":
+      return entitlements.aiOffice.canUseLeadAssistant && canManageLeads(user);
+    case "support-workflow-review":
+      return entitlements.support.canUse && isOfficeManager(user);
+    default:
+      return false;
+  }
+}
+
+function assertCanApproveAgentProposalDraftPrep(state, user, proposal) {
+  assertCanCreateAgentProposalAudit(state, user);
+  if (!hasGeneratedAgentProposalAudit(state, user, proposal)) {
+    throw new ApiError(409, "Record the generated agent proposal before approving draft prep.");
+  }
+  if (!canApproveAgentProposalDraftPrepForType(state, user, proposal)) {
+    throw new ApiError(403, "You do not have permission to approve draft prep for this agent proposal.");
+  }
+}
+
+function assertCanRecordAgentProposalAuditEvent(state, user, proposal) {
+  assertCanCreateAgentProposalAudit(state, user);
+  if (proposal.eventType === "agent.proposal.approved_for_draft") {
+    assertCanApproveAgentProposalDraftPrep(state, user, proposal);
   }
 }
 
@@ -6781,8 +6848,8 @@ app.get("/api/bootstrap", requireAuth, asyncRoute(async (req, res) => {
 
 app.post("/api/agent-action-proposals/audit", requireAuth, asyncRoute(async (req, res) => {
   const state = await readDb();
-  assertCanCreateAgentProposalAudit(state, req.auth.user);
   const normalized = normalizeAgentProposalAuditPayload(req.body || {});
+  assertCanRecordAgentProposalAuditEvent(state, req.auth.user, normalized);
   const companyId = currentCompanyIdForRequestUser(state, req.auth.user);
   const detail = JSON.stringify({
     ...normalized,

@@ -147,6 +147,18 @@ function auditEvents(sqliteFile) {
   }
 }
 
+function tableCounts(sqliteFile, tableNames) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    return Object.fromEntries(tableNames.map((tableName) => [
+      tableName,
+      database.prepare(`SELECT COUNT(*) AS count FROM ${tableName}`).get().count,
+    ]));
+  } finally {
+    database.close();
+  }
+}
+
 function agentAuditPayload(overrides = {}) {
   return {
     eventType: "agent.proposal.generated",
@@ -259,6 +271,123 @@ test("agent proposal audit rejects non-review-first records", async () => {
     assert.equal(response.response.status, 400);
     assert.match(response.payload.error, /human approval required/i);
     assert.equal(auditEvents(fixture.sqliteFile).length, 0);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("agent proposal approval-for-draft is audit-only and requires a generated event", async () => {
+  const fixture = await startServer();
+
+  try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.PREMIUM);
+    const adminLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+
+    const approvalPayload = agentAuditPayload({
+      eventType: "agent.proposal.approved_for_draft",
+      status: "approved_for_draft",
+      summary: "Estimate draft prep approved for manual review",
+    });
+
+    const missingGenerated = await requestJson(fixture.baseUrl, "/api/agent-action-proposals/audit", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify(approvalPayload),
+    });
+    assert.equal(missingGenerated.response.status, 409);
+    assert.match(missingGenerated.payload.error, /generated agent proposal/i);
+
+    await assertOk(fixture.baseUrl, "/api/agent-action-proposals/audit", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify(agentAuditPayload()),
+    });
+
+    const beforeCounts = tableCounts(fixture.sqliteFile, ["leads", "estimates", "jobs", "contact_history", "daily_reports", "uploads"]);
+    const approved = await assertOk(fixture.baseUrl, "/api/agent-action-proposals/audit", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify(approvalPayload),
+    });
+    const afterCounts = tableCounts(fixture.sqliteFile, ["leads", "estimates", "jobs", "contact_history", "daily_reports", "uploads"]);
+
+    assert.equal(approved.auditEvent.action, "agent.proposal.approved_for_draft");
+    assert.equal(approved.auditEvent.detail.status, "approved_for_draft");
+    assert.deepEqual(afterCounts, beforeCounts);
+
+    const records = auditEvents(fixture.sqliteFile);
+    assert.equal(records.length, 2);
+    assert.deepEqual(records.map((record) => record.action), [
+      "agent.proposal.approved_for_draft",
+      "agent.proposal.generated",
+    ]);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("agent proposal approval-for-draft keeps field users and unsupported proposal types blocked", async () => {
+  const fixture = await startServer();
+
+  try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.PREMIUM);
+    const adminLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const employeeUser = createUserRecord({
+      id: "U-AGENT-APPROVAL-EMPLOYEE",
+      email: "agent-approval-employee@apexhq.test",
+      password: "apexdemo123",
+      name: "Agent Approval Employee",
+      role: "Employee",
+    });
+    insertUser(fixture.sqliteFile, employeeUser);
+    const employeeLogin = await login(fixture.baseUrl, {
+      email: employeeUser.email,
+      password: "apexdemo123",
+    });
+
+    await assertOk(fixture.baseUrl, "/api/agent-action-proposals/audit", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify(agentAuditPayload()),
+    });
+
+    const employeeBlocked = await requestJson(fixture.baseUrl, "/api/agent-action-proposals/audit", {
+      method: "POST",
+      headers: authHeaders(employeeLogin.token),
+      body: JSON.stringify(agentAuditPayload({
+        eventType: "agent.proposal.approved_for_draft",
+        status: "approved_for_draft",
+      })),
+    });
+    assert.equal(employeeBlocked.response.status, 403);
+
+    const unsupportedGenerated = agentAuditPayload({
+      proposalId: "agent-proposal:daily-closeout-readiness:reports",
+      proposalType: "daily-closeout-readiness",
+      sourceModule: "reports",
+      summary: "Daily closeout review packet",
+    });
+    await assertOk(fixture.baseUrl, "/api/agent-action-proposals/audit", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify(unsupportedGenerated),
+    });
+    const unsupportedApproval = await requestJson(fixture.baseUrl, "/api/agent-action-proposals/audit", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({
+        ...unsupportedGenerated,
+        eventType: "agent.proposal.approved_for_draft",
+        status: "approved_for_draft",
+      }),
+    });
+    assert.equal(unsupportedApproval.response.status, 403);
   } finally {
     await fixture.stop();
   }
