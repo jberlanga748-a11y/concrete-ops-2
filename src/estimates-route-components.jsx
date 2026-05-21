@@ -4,9 +4,10 @@ import { Badge, Button, Card, FilterBar, Icon, InputField, SectionHeader, Select
 import { DEFAULT_COMPANY_NAME, resolveWorkspaceLogoInitials } from "./brand-utils";
 import { createEmptyReferenceAttachmentRow, createEmptySovRow, createEmptyTakeoffRow, deriveEstimateBackup, mergeEstimateBackup } from "./estimate-backup-utils";
 import { deriveEstimateGcPacketLite } from "./estimate-gc-packet-utils";
+import { estimateRoughNotesHasSuggestions, estimateRoughNotesText } from "./estimate-rough-notes-utils";
 import { getEstimateVisibleInternalNotes, mergeEstimateGcPacketLite, mergeEstimateOfficeInternalNotes } from "./estimate-snapshot-utils";
 import { calculateEstimateLineTotal, deriveEstimateJobHandoffReadiness, deriveEstimateProposalSections, estimateCustomerEmail, estimateStatusLabel, formatEstimateCurrency, mergeEstimateProposalSections } from "./estimate-utils";
-import { ESTIMATE_LINE_ITEM_STARTERS, ESTIMATE_TEMPLATE_STARTERS, addEstimateLineItemStarter, applyEstimateTemplateStarter } from "./estimate-template-utils";
+import { ESTIMATE_LINE_ITEM_STARTERS, ESTIMATE_TEMPLATE_STARTERS, addEstimateLineItemStarter, applyEstimateTemplateStarter, buildEstimateLineItemsFromRoughNotes } from "./estimate-template-utils";
 
 export function estimateDisplayTitle(estimate) {
   return estimate?.title || "Estimate draft";
@@ -881,6 +882,132 @@ export function EstimateProposalSectionsEditor({ draft, setDraft, disabled = fal
           <p className="mt-2 text-xs font-bold leading-5 text-amber-700">Internal notes are for office use only and should not print for the customer.</p>
         </div>
       </div>
+    </div>
+  );
+}
+
+function EstimateRoughNotesPreviewBlock({ title, value, items }) {
+  const textValue = estimateRoughNotesText(value);
+  const listItems = Array.isArray(items) ? items.map((item) => estimateRoughNotesText(item)).filter(Boolean) : [];
+  if (!textValue && listItems.length === 0) return null;
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-3">
+      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">{title}</p>
+      {textValue ? <p className="mt-2 whitespace-pre-line text-sm font-bold leading-6 text-slate-700">{textValue}</p> : null}
+      {listItems.length > 0 ? (
+        <ul className="mt-2 space-y-1 text-sm font-bold leading-6 text-slate-700">
+          {listItems.map((item, index) => <li key={`${title}-${index}-${item}`}>- {item}</li>)}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+export function EstimateRoughNotesHelper({
+  roughNotes,
+  setRoughNotes,
+  assistant,
+  onGenerate,
+  onApplyToSelected,
+  onApplyToNew,
+  onCreateNew,
+  canApplySelected = false,
+  canCreateNew = false,
+  disabled = false,
+}) {
+  const loading = Boolean(assistant?.loading);
+  const result = assistant?.result || null;
+  const hasSuggestions = estimateRoughNotesHasSuggestions(result);
+  const suggestedLineItems = hasSuggestions ? buildEstimateLineItemsFromRoughNotes(roughNotes, result) : [];
+  const messageTone = result?.configured === false || assistant?.error ? "amber" : "emerald";
+  const message = assistant?.error || result?.message || "";
+
+  return (
+    <div className="rounded-3xl border border-orange-100 bg-orange-50/40 p-4 shadow-sm shadow-orange-100/40">
+      <SectionHeader
+        title="AI Rough Notes Helper"
+        description="Paste contractor notes, generate review-only proposal language, then choose what to apply to the draft. Type a new customer/company name if you do not want to pick an existing customer."
+        action={<Badge tone="orange">Review only</Badge>}
+      />
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <TextAreaField
+          label="Rough contractor notes"
+          value={roughNotes}
+          onChange={(event) => setRoughNotes(event.target.value)}
+          disabled={disabled || loading}
+          className="field-input min-h-48 resize-y"
+          placeholder="Example: demo old sidewalk, pour 4 inch broom finish, 300 sf, include base rock, exclude permits."
+        />
+        <div className="rounded-2xl border border-orange-100 bg-white p-3">
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Safe assistant rules</p>
+          <div className="mt-3 space-y-2 text-sm font-bold leading-6 text-slate-600">
+            <p>Nothing sends, prices, or approves automatically.</p>
+            <p>Apply actions fill draft fields. Create draft now saves a new Draft estimate.</p>
+            <p>If the estimate is brand new, enter a customer/company name instead of selecting an existing customer.</p>
+            <p>Pricing, final scope, and customer terms still need office review.</p>
+          </div>
+          <Button type="button" className="mt-4 w-full" onClick={onGenerate} disabled={disabled || loading || !estimateRoughNotesText(roughNotes)}>
+            {loading ? "Generating..." : hasSuggestions ? "Regenerate Suggestions" : "Generate Suggestions"}
+          </Button>
+          {message ? (
+            <p className={`mt-3 rounded-xl border px-3 py-2 text-xs font-black ${messageTone === "amber" ? "border-amber-100 bg-amber-50 text-amber-800" : "border-emerald-100 bg-emerald-50 text-emerald-700"}`}>
+              {message}
+            </p>
+          ) : null}
+        </div>
+      </div>
+
+      {hasSuggestions ? (
+        <div className="mt-4 space-y-3">
+          <div className="grid gap-3 lg:grid-cols-2">
+            <EstimateRoughNotesPreviewBlock title="Suggested title" value={result.suggestedTitle} />
+            <EstimateRoughNotesPreviewBlock title="Customer / company name" value={result.customerName} />
+            <EstimateRoughNotesPreviewBlock title="Contact name" value={result.contactName} />
+            <EstimateRoughNotesPreviewBlock title="Customer email" value={result.customerEmail} />
+            <EstimateRoughNotesPreviewBlock title="Project name" value={result.projectName} />
+            <EstimateRoughNotesPreviewBlock title="Job location" value={result.jobLocation} />
+            <EstimateRoughNotesPreviewBlock title="Scope of work" value={result.scopeOfWork} />
+            <EstimateRoughNotesPreviewBlock title="Inclusions" items={result.inclusions} />
+            <EstimateRoughNotesPreviewBlock title="Exclusions" items={result.exclusions} />
+            <EstimateRoughNotesPreviewBlock title="Assumptions" items={result.assumptions} />
+            <EstimateRoughNotesPreviewBlock title="Schedule notes" value={result.scheduleNotes} />
+            <EstimateRoughNotesPreviewBlock title="Clarifications to verify" items={result.clarificationNotes} />
+            <EstimateRoughNotesPreviewBlock title="Customer notes / terms" value={result.customerNotes} />
+            <EstimateRoughNotesPreviewBlock title="GC packet summary" value={result.gcProposalSummary} />
+            <EstimateRoughNotesPreviewBlock title="GC cover note" value={result.gcCoverNote} />
+            <EstimateRoughNotesPreviewBlock title="GC qualifications" value={result.gcQualifications} />
+            <EstimateRoughNotesPreviewBlock title="Office review warnings" items={result.reviewWarnings} />
+          </div>
+          {suggestedLineItems.length > 0 ? (
+            <div className="rounded-2xl border border-orange-100 bg-white p-3">
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Suggested editable line items</p>
+              <div className="mt-3 grid gap-2 md:grid-cols-2">
+                {suggestedLineItems.map((item, index) => (
+                  <div key={`${item.description || "line"}-${index}`} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-sm font-black text-slate-900">{item.description || `Line item ${index + 1}`}</p>
+                    <p className="mt-1 text-xs font-bold text-slate-500">{[item.quantity, item.unit].filter(Boolean).join(" ") || "Review quantity/unit"} - pricing stays blank for office review</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {result.internalReviewNotes ? (
+            <div className="rounded-2xl border border-amber-100 bg-amber-50/80 p-3">
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-700">Office-only review notes</p>
+              <p className="mt-2 whitespace-pre-line text-sm font-bold leading-6 text-amber-800">{result.internalReviewNotes}</p>
+            </div>
+          ) : null}
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" onClick={() => onApplyToSelected?.({ includeProposal: true, includeGcPacket: true, includeReviewNotes: true })} disabled={disabled || !canApplySelected}>Apply all to selected draft</Button>
+            <Button type="button" variant="secondary" onClick={() => onApplyToSelected?.({ includeProposal: true, includeGcPacket: false, includeReviewNotes: true })} disabled={disabled || !canApplySelected}>Apply proposal only</Button>
+            <Button type="button" variant="secondary" onClick={() => onApplyToSelected?.({ includeProposal: false, includeGcPacket: true, includeReviewNotes: true })} disabled={disabled || !canApplySelected}>Apply GC packet only</Button>
+            <Button type="button" variant="secondary" onClick={() => onApplyToNew?.({ includeProposal: true, includeGcPacket: true, includeReviewNotes: true })} disabled={disabled}>Fill New Estimate form</Button>
+            <Button type="button" onClick={() => onCreateNew?.({ includeProposal: true, includeGcPacket: true, includeReviewNotes: true })} disabled={disabled || !canCreateNew}>Create draft now</Button>
+          </div>
+          <p className="text-xs font-bold leading-5 text-slate-500">Fill New Estimate form does not save. Create draft now saves a Draft estimate, opens it, and keeps it visible in the list.</p>
+        </div>
+      ) : null}
     </div>
   );
 }
