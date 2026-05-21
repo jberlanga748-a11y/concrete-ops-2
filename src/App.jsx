@@ -179,8 +179,11 @@ import { buildEstimateCopyText, buildEstimateCustomerMessage, buildEstimateDraft
 import {
   EstimateCommandRailPolished,
   EstimateJobHandoffReadinessCard,
+  EstimateOptionsEditor,
   EstimateProposalWorkbench,
   EstimatesTablePolished,
+  ESTIMATE_ADD_ON_STATUS_OPTIONS,
+  ESTIMATE_ALTERNATE_STATUS_OPTIONS,
   estimateDisplayCustomer,
   estimateDisplayLead,
   estimateDisplayTitle,
@@ -1125,79 +1128,6 @@ function StartupStatusBadge({ status }) {
   if (normalizedStatus === "In Progress") tone = "blue";
   if (normalizedStatus === "Needs Review") tone = "amber";
   return <Badge tone={tone}>{normalizedStatus}</Badge>;
-}
-
-const ESTIMATE_ALTERNATE_STATUS_OPTIONS = ["optional", "included", "excluded", "accepted"];
-const ESTIMATE_ADD_ON_STATUS_OPTIONS = ["optional", "selected", "included", "accepted", "excluded"];
-
-function estimateOptionStatusLabel(status = "optional") {
-  const labels = {
-    optional: "Optional",
-    included: "Included",
-    excluded: "Excluded",
-    accepted: "Accepted",
-    selected: "Selected",
-  };
-  return labels[String(status || "optional").trim().toLowerCase()] || "Optional";
-}
-
-function EstimateOptionsEditor({
-  title,
-  description,
-  options = [],
-  onChange,
-  addLabel,
-  nameLabel = "Title",
-  defaultTitle,
-  statusOptions = ESTIMATE_ALTERNATE_STATUS_OPTIONS,
-  disabled = false,
-}) {
-  const rows = Array.isArray(options) ? options : [];
-  const updateOption = (index, field, value) => {
-    onChange(rows.map((option, optionIndex) => optionIndex === index ? { ...option, [field]: value } : option));
-  };
-  const addOption = () => {
-    onChange([
-      ...rows,
-      { title: defaultTitle, description: "", amount: "", status: statusOptions[0] || "optional", notes: "" },
-    ]);
-  };
-  const removeOption = (index) => {
-    onChange(rows.filter((_, optionIndex) => optionIndex !== index));
-  };
-
-  return (
-    <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-3">
-      <SectionHeader title={title} description={description} />
-      {rows.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-blue-200 bg-white/70 px-3 py-4 text-sm font-bold text-slate-500">No {title.toLowerCase()} added yet.</p>
-      ) : (
-        <div className="space-y-3">
-          {rows.map((option, index) => (
-            <div key={`${title}-${index}`} className="rounded-2xl border border-blue-100 bg-white p-3">
-              <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_130px_160px]">
-                <InputField label={`${nameLabel} ${index + 1}`} value={option.title || ""} onChange={(event) => updateOption(index, "title", event.target.value)} disabled={disabled} />
-                <InputField label="Amount" value={option.amount ?? ""} onChange={(event) => updateOption(index, "amount", event.target.value)} inputMode="decimal" disabled={disabled} />
-                <SelectField label="Status" value={option.status || "optional"} onChange={(event) => updateOption(index, "status", event.target.value)} disabled={disabled}>
-                  {statusOptions.map((status) => <option key={status} value={status}>{estimateOptionStatusLabel(status)}</option>)}
-                </SelectField>
-              </div>
-              <div className="mt-3 grid gap-3 md:grid-cols-2">
-                <TextAreaField label="Description" value={option.description || ""} onChange={(event) => updateOption(index, "description", event.target.value)} className="field-input min-h-20 resize-y" disabled={disabled} />
-                <TextAreaField label="Notes" value={option.notes || ""} onChange={(event) => updateOption(index, "notes", event.target.value)} className="field-input min-h-20 resize-y" disabled={disabled} />
-              </div>
-              <div className="mt-3 flex justify-end">
-                <button type="button" className="text-xs font-black uppercase tracking-[0.16em] text-slate-500 hover:text-slate-950 disabled:cursor-not-allowed disabled:text-slate-300" onClick={() => removeOption(index)} disabled={disabled}>Remove</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-      <div className="mt-3">
-        <Button type="button" variant="secondary" size="sm" onClick={addOption} disabled={disabled}>{addLabel}</Button>
-      </div>
-    </div>
-  );
 }
 
 function EstimateStarterPanel({ setDraft, disabled = false }) {
