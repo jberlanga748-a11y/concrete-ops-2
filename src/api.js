@@ -87,6 +87,10 @@ export function getBootstrap(token) {
   return request("/api/bootstrap", { token });
 }
 
+export function getAgentContext(token) {
+  return request("/api/agent/context", { token });
+}
+
 export function exportCompanyData(token) {
   return request("/api/export/company", { token });
 }

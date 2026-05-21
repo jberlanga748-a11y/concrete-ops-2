@@ -37,6 +37,7 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 | Date | Priority | Task | Result | Commit |
 | --- | --- | --- | --- | --- |
+| 2026-05-21 | P1 | Agent Context API client integration | Done; Apex Assistant can now sync the authenticated read-only server agent context, use it for workflow-summary prompts when available, and fall back to local visible state without creating or changing records | This commit |
 | 2026-05-21 | P1 | Agent Context API v1 | Done; authenticated office users now have a compact read-only `/api/agent/context` payload derived from existing tenant/package/role-scoped bootstrap data, while Basic packages and field roles are denied and no audit/write side effects occur | This commit |
 | 2026-05-21 | P1 | Agent Context API Planning v1 | Done; Phase 1 plan defines a future read-only server Agent Context API using existing auth, package, tenant, and visible-record gates, with payload minimization and no-mutation rules before implementation | This commit |
 | 2026-05-21 | P1 | Agent Brief Audit Record v1 | Done; generated daily operations briefs are now first-class review packets in the existing manual audit-record path, with redacted audit metadata and no workflow mutation | This commit |
@@ -127,7 +128,7 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 | Priority | Task | Status | Why It Matters | Safe Scope | Verification | Stop / Approval Gate |
 | --- | --- | --- | --- | --- | --- | --- |
 | P1 | Agent proposal send execution gate implementation | Blocked | Send review packets can now be prepared without outbound contact, but execution would contact a customer and mark records sent | Requires explicit approval for the customer-contact boundary, safe test recipient strategy, idempotency plan, audit events, and backup-first demo smoke | estimate/proposal tests, roles, email-provider tests, browser QA, hosted demo smoke with approved test recipient | Stop before any autonomous outbound email/text/bid submission or production customer contact |
-| P1 | Agent Context API client integration | Ready | The backend now exposes read-only scoped agent context; next safe step is letting Apex Assistant fetch it explicitly instead of relying only on local bootstrap-derived context | Add a fetch helper and UI read/refresh path only; no mutation, sends, approvals, conversions, schedule, invoice, package, or role changes | build, roles, leads, targeted agent tests, browser smoke | Stop if the UI path requires new auth/package behavior |
+| P1 | Agent server context action hydration | Ready | The assistant now consumes server context, but action proposals still mostly assemble from local UI context; next step is normalizing server context into proposal prep without widening permissions | Utility-only or UI-only hydration of server context into existing review-first proposal helpers; no mutation, sends, approvals, conversions, schedule, invoice, package, or role changes | build, roles, leads, targeted agent tests, browser smoke | Stop if new server mutation or new permission behavior is required |
 | P3 | Continue route module extraction | Ready | `App.jsx` is still a monolith; shared primitives are now separated enough to move feature route chunks more safely | Extract one presentational route chunk with existing props; no auth, package, data, or action changes | build, targeted verifier, route tests, browser audit | Stop if state/action wiring or permission gates must move |
 | P2 | Local demo auth smoke rerun when secret is available | Blocked | Would prove login/bootstrap from the local operator shell | Run only; no docs unless evidence changes | hosted auth smoke | Blocked until `APEX_SMOKE_PASSWORD` is present locally |
 
@@ -143,4 +144,4 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 ## Next Recommended Task
 
-Next safe build action is Agent Context API client integration: wire Apex Assistant to request the new read-only `GET /api/agent/context` payload behind existing AI Office visibility, with no workflow mutation. Human-input tasks remain blocked until real pilot details or smoke secrets are provided.
+Next safe build action is Agent server context action hydration: let existing review-first proposal helpers use the synced server context where possible, without adding mutation or outbound behavior. Human-input tasks remain blocked until real pilot details or smoke secrets are provided.

@@ -25,6 +25,7 @@ import {
   resolveApexAssistantCommand,
 } from "./apex-assistant-shell-utils";
 import { buildAgentActionProposal, deriveAgentActionProposalAuditHistory, normalizeAgentActionProposalAuditEvent } from "./agent-action-proposal-utils";
+import { agentContextPayloadToWorkflowContext } from "./agent-context-api-utils";
 import { deriveAgentWorkflowContext } from "./agent-workflow-context-utils";
 import { deriveAiOfficeAgentCommandCenter } from "./ai-office-utils";
 import { DEFAULT_APP_PERMISSIONS, mergePermissionScope, normalizeAppPermissions } from "./app-state-utils";
@@ -90,6 +91,7 @@ import {
   endBreak,
   exportCompanyData,
   getBootstrap,
+  getAgentContext,
   getHealth,
   getOwnerHealth,
   getSetupStatus,
@@ -2305,7 +2307,7 @@ function NotificationCenterButton({ source = {}, permissions = {}, user = null, 
   );
 }
 
-function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onCreateAgentEstimateDraft = async () => null, onPrepareAgentEstimateSend = async () => null, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenUploadReview = () => {}, onOpenTimeReview = () => {}, onOpenChangeOrderReview = () => {}, onOpenLeadFollowUp = () => {}, onOpenCustomerAccount = () => {}, onOpenCrewReadiness = () => {}, onOpenScheduleDispatch = () => {}, onOpenImportedDraftReview = () => {}, onOpenSupportWorkflow = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenPrePourReview = () => {}, onOpenPostPourReview = () => {}, onOpenSafetyIncidentReview = () => {}, onOpenToolChecklistReview = () => {}, onRecordAgentProposalAudit = async () => null }) {
+function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, agentContextState = { status: "idle", workflowContext: null, message: "" }, onRefreshAgentContext = async () => null, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onCreateAgentEstimateDraft = async () => null, onPrepareAgentEstimateSend = async () => null, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenUploadReview = () => {}, onOpenTimeReview = () => {}, onOpenChangeOrderReview = () => {}, onOpenLeadFollowUp = () => {}, onOpenCustomerAccount = () => {}, onOpenCrewReadiness = () => {}, onOpenScheduleDispatch = () => {}, onOpenImportedDraftReview = () => {}, onOpenSupportWorkflow = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenPrePourReview = () => {}, onOpenPostPourReview = () => {}, onOpenSafetyIncidentReview = () => {}, onOpenToolChecklistReview = () => {}, onRecordAgentProposalAudit = async () => null }) {
   const assistantState = useMemo(() => deriveApexAssistantShellState({ permissions, commandCenter }), [commandCenter, permissions]);
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -2333,6 +2335,13 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
     && !proposalAlreadyRecorded
     && auditRecordState.status !== "saving",
   );
+  const usingServerAgentContext = Boolean(agentContextState.workflowContext?.source === "server");
+
+  useEffect(() => {
+    if (!open || !assistantState.canView || !permissions.aiOffice?.canView) return;
+    if (agentContextState.status !== "idle") return;
+    onRefreshAgentContext();
+  }, [agentContextState.status, assistantState.canView, onRefreshAgentContext, open, permissions.aiOffice?.canView]);
 
   useEffect(() => {
     setAuditRecordState({ proposalId: actionProposal?.id || "", status: "idle", message: "" });
@@ -2624,6 +2633,25 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
                 <Badge tone={assistantState.statusLabel === "Operations clear" ? "green" : "amber"}>{assistantState.watchtowerQueue.length || assistantState.watchtowerActions.length}</Badge>
               </div>
               <p className="mt-1 text-xs font-bold leading-5 text-slate-300">{assistantState.summary}</p>
+              {permissions.aiOffice?.canView ? (
+                <div className="mt-3 flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.04] p-2">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Server context</p>
+                    <p className="mt-1 text-xs font-bold leading-5 text-slate-300">
+                      {agentContextState.status === "loading"
+                        ? "Refreshing read-only agent context..."
+                        : agentContextState.status === "error"
+                          ? agentContextState.message || "Server context is unavailable."
+                          : usingServerAgentContext
+                            ? `Synced ${agentContextState.workflowContext.visibleModuleCount || 0} areas from API.`
+                            : "Using local workspace context until server context is refreshed."}
+                    </p>
+                  </div>
+                  <Button type="button" size="sm" variant="secondary" onClick={onRefreshAgentContext} disabled={agentContextState.status === "loading"}>
+                    {agentContextState.status === "loading" ? "Syncing..." : usingServerAgentContext ? "Refresh" : "Sync"}
+                  </Button>
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -37628,6 +37656,7 @@ export default function App() {
   const [userEditDraft, setUserEditDraft] = useState(INITIAL_USER_FORM);
   const [leadDraft, setLeadDraft] = useState(INITIAL_LEAD_FORM);
   const [leadAssistantState, setLeadAssistantState] = useState({ leadId: "", loading: false, result: null, error: "" });
+  const [agentContextState, setAgentContextState] = useState({ status: "idle", payload: null, workflowContext: null, message: "" });
   const [jobDraft, setJobDraft] = useState(INITIAL_JOB_FORM);
   const [createReportDraft, setCreateReportDraft] = useState(INITIAL_DAILY_REPORT_FORM);
   const [reportEditDraft, setReportEditDraft] = useState(INITIAL_DAILY_REPORT_FORM);
@@ -38150,6 +38179,7 @@ export default function App() {
     setSelectedImportedDraftId("");
     setSelectedTimeEntryId("");
     setEstimateFocusId("");
+    setAgentContextState({ status: "idle", payload: null, workflowContext: null, message: "" });
   }
 
   useEffect(() => () => {
@@ -38217,6 +38247,10 @@ export default function App() {
     if (!appState.user?.id) return;
     setLeadDraft((current) => (current.ownerId ? current : { ...current, ownerId: appState.user.id, owner: appState.user.name }));
   }, [appState.user]);
+
+  useEffect(() => {
+    setAgentContextState({ status: "idle", payload: null, workflowContext: null, message: "" });
+  }, [appState.currentCompanyId, appState.permissions.aiOffice?.canView, appState.user?.id, sessionToken]);
 
   const workspaceCompanyName = useMemo(
     () => resolveWorkspaceCompanyName({
@@ -40735,6 +40769,50 @@ export default function App() {
     }
   }
 
+  async function handleRefreshAgentContext() {
+    if (!sessionToken || !appState.permissions.aiOffice?.canView) {
+      setAgentContextState({
+        status: "error",
+        payload: null,
+        workflowContext: null,
+        message: "AI Office access is required for server agent context.",
+      });
+      return null;
+    }
+
+    setAgentContextState((current) => ({
+      ...current,
+      status: "loading",
+      message: "Refreshing read-only agent context...",
+    }));
+
+    try {
+      const payload = await getAgentContext(sessionToken);
+      const workflowContext = agentContextPayloadToWorkflowContext(payload);
+      if (!workflowContext) {
+        throw new Error("Server returned an invalid agent context payload.");
+      }
+      setAgentContextState({
+        status: "ready",
+        payload,
+        workflowContext,
+        message: "Server agent context synced.",
+      });
+      return payload;
+    } catch (error) {
+      if (error.status === 401) {
+        clearSession();
+      }
+      setAgentContextState({
+        status: "error",
+        payload: null,
+        workflowContext: null,
+        message: error?.message || "Could not refresh server agent context.",
+      });
+      return null;
+    }
+  }
+
   function handleReset() {
     if (!window.confirm("Reset the workspace to the seeded demo data?")) return;
     runMutation(() => resetWorkspace(sessionToken));
@@ -41253,7 +41331,7 @@ export default function App() {
           calculatorResults: appState.permissions.calculator?.canUse ? appState.calculatorResults : [],
           auditEvents: appState.permissions.audit?.canView ? appState.auditEvents : [],
           activity: appState.permissions.appHealth?.canView ? appState.activity : [],
-          agentWorkflowContext: deriveAgentWorkflowContext({
+          agentWorkflowContext: agentContextState.workflowContext || deriveAgentWorkflowContext({
             user: appState.user,
             permissions: appState.permissions,
             jobs: appState.permissions.jobs?.canView ? appState.jobs : [],
@@ -41273,6 +41351,8 @@ export default function App() {
             estimates: appState.permissions.estimates?.canView ? appState.estimates : [],
           }),
         }}
+        agentContextState={agentContextState}
+        onRefreshAgentContext={handleRefreshAgentContext}
         onOpenModule={setActive}
         onStartEstimateDraft={handleStartAssistantEstimateDraft}
         onCreateAgentEstimateDraft={handleCreateAgentEstimateDraft}
