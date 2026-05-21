@@ -89,7 +89,7 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 | 2026-05-21 | P3 | Shared input primitive architecture extraction | Done; InputField and TextAreaField moved into the shared shell module with build, role, estimate, route, and browser audits passing | `a0ec218` |
 | 2026-05-21 | P3 | Estimate option editor architecture extraction | Done; option editor and option status constants moved into the estimate route component module with build, role, estimate, route, and browser audits passing | `c58159c` |
 | 2026-05-21 | P3 | Estimate starter panel architecture extraction | Done; estimate starter panel moved into the estimate route component module with build, role, estimate, route, and browser audits passing | `88997df` |
-| 2026-05-21 | P3 | Estimate backup editor architecture extraction | Done; estimate backup/SOV/takeoff/reference editor moved into the estimate route component module with build, role, estimate, route, and browser audits passing | pending |
+| 2026-05-21 | P3 | Estimate backup editor architecture extraction | Done; estimate backup/SOV/takeoff/reference editor moved into the estimate route component module with build, role, estimate, route, and browser audits passing | `bc99525` |
 
 ## Active Queue
 
