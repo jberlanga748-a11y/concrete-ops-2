@@ -97,7 +97,7 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 | 2026-05-21 | P3 | Estimate packet settings panel architecture extraction | Done; packet settings panel moved into the estimate route component module with build, role, estimate, route, and browser audits passing | `f801eeb` |
 | 2026-05-21 | P3 | Customer filter header architecture extraction | Done; customer filter header moved into a customer route component module with build, role, customer, route, and browser audits passing | `b63367b` |
 | 2026-05-21 | P3 | Leads table architecture extraction | Done; lead table, score/missing-info badges, and lead display helpers moved into a lead route component module with build, role, lead, route, and browser audits passing | `a1a1108` |
-| 2026-05-21 | P3 | Lead readiness card architecture extraction | Done; pilot workflow readiness card moved into the lead route component module with build, role, lead, route, and browser audits passing | pending |
+| 2026-05-21 | P3 | Lead readiness card architecture extraction | Done; pilot workflow readiness card moved into the lead route component module with build, role, lead, route, and browser audits passing | `483b464` |
 
 ## Active Queue
 
