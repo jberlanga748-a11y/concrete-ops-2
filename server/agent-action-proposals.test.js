@@ -363,6 +363,15 @@ test("agent proposal audit rejects non-review-first records", async () => {
       })),
     });
     assert.equal(fakeDraftCreated.response.status, 400);
+    const fakeSendReady = await requestJson(fixture.baseUrl, "/api/agent-action-proposals/audit", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify(agentAuditPayload({
+        eventType: "agent.proposal.send_ready_for_human",
+        status: "ready_for_human_send",
+      })),
+    });
+    assert.equal(fakeSendReady.response.status, 400);
     assert.equal(auditEvents(fixture.sqliteFile).length, 0);
   } finally {
     await fixture.stop();
@@ -601,6 +610,180 @@ test("agent proposal estimate draft creation blocks field users and unsupported 
     assert.equal(estimateRows(fixture.sqliteFile).some((estimate) => estimate.leadId === leadId), false);
     assert.equal(counts.jobs >= 0, true);
     assert.equal(counts.contact_history >= 0, true);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("agent proposal can prepare estimate send review without sending email or marking sent", async () => {
+  const fixture = await startServer();
+
+  try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.PREMIUM);
+    const adminLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: { Authorization: `Bearer ${adminLogin.token}` },
+    });
+    const created = await assertOk(fixture.baseUrl, "/api/estimates", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({
+        customerId: bootstrap.customers[0].id,
+        leadId: bootstrap.leads[0].id,
+        title: "Agent Send Review Estimate",
+        status: "draft",
+        customerEmail: "agent-send-review@example.test",
+        scopeSummary: "Prepare packet for review.",
+        internalNotes: "Internal only.",
+        customerNotes: "Customer-facing note.",
+        items: [{ description: "Fence install", quantity: 100, unit: "lf", unitPrice: 42 }],
+      }),
+    });
+    const estimate = created.estimates.find((entry) => entry.title === "Agent Send Review Estimate");
+    const beforeCounts = tableCounts(fixture.sqliteFile, ["jobs", "contact_history"]);
+
+    const prepared = await assertOk(fixture.baseUrl, "/api/agent-action-proposals/prepare-estimate-send", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({
+        estimateId: estimate.id,
+        proposal: agentAuditPayload({
+          proposalId: `agent-proposal:estimate-packet-review:${estimate.id}`,
+          proposalType: "estimate-packet-review",
+          sourceModule: "estimates",
+          targetEntityType: "estimate",
+          targetEntityId: estimate.id,
+          summary: "Estimate packet review packet",
+          redactedPromptPreview: "Prepare proposal send for review. Do not email agent-send-review@example.test.",
+          redactedResponsePreview: "Send review only. No email was sent.",
+        }),
+      }),
+    });
+    const afterCounts = tableCounts(fixture.sqliteFile, ["jobs", "contact_history"]);
+    const afterEstimate = estimateRows(fixture.sqliteFile).find((row) => row.id === estimate.id);
+
+    assert.equal(prepared.agentEstimateSendReview.estimateId, estimate.id);
+    assert.equal(prepared.agentEstimateSendReview.status, "ready_for_human_send");
+    assert.equal(prepared.agentEstimateSendReview.recipientPresent, true);
+    assert.equal(afterEstimate.status, "draft");
+    assert.equal(afterEstimate.sentAt || "", "");
+    assert.equal(afterEstimate.sentTo || "", "");
+    assert.equal(afterEstimate.providerMessageId || "", "");
+    assert.deepEqual(afterCounts, beforeCounts);
+
+    const records = auditEvents(fixture.sqliteFile);
+    const sendReadyRecord = records.find((record) => record.action === "agent.proposal.send_ready_for_human");
+    assert.ok(sendReadyRecord);
+    assert.doesNotMatch(sendReadyRecord.detail, /agent-send-review@example\.test/i);
+    assert.match(sendReadyRecord.detail, /No email was sent by Apex Assistant/i);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("agent proposal estimate send review blocks field users, unsupported proposals, and missing recipients", async () => {
+  const fixture = await startServer();
+
+  try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.PREMIUM);
+    const adminLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const employeeUser = createUserRecord({
+      id: "U-AGENT-SEND-EMPLOYEE",
+      email: "agent-send-employee@apexhq.test",
+      password: "apexdemo123",
+      name: "Agent Send Employee",
+      role: "Employee",
+    });
+    insertUser(fixture.sqliteFile, employeeUser);
+    const employeeLogin = await login(fixture.baseUrl, {
+      email: employeeUser.email,
+      password: "apexdemo123",
+    });
+    const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: { Authorization: `Bearer ${adminLogin.token}` },
+    });
+    const created = await assertOk(fixture.baseUrl, "/api/estimates", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({
+        customerId: bootstrap.customers[0].id,
+        leadId: bootstrap.leads[0].id,
+        title: "Agent Send Blocked Estimate",
+        status: "draft",
+        customerEmail: "agent-send-blocked@example.test",
+        scopeSummary: "Prepare packet for review.",
+        internalNotes: "",
+        customerNotes: "",
+        items: [{ description: "Fence install", quantity: 50, unit: "lf", unitPrice: 45 }],
+      }),
+    });
+    const estimate = created.estimates.find((entry) => entry.title === "Agent Send Blocked Estimate");
+    const basePayload = {
+      estimateId: estimate.id,
+      proposal: agentAuditPayload({
+        proposalId: `agent-proposal:estimate-packet-review:${estimate.id}`,
+        proposalType: "estimate-packet-review",
+        targetEntityType: "estimate",
+        targetEntityId: estimate.id,
+      }),
+    };
+
+    const employeeBlocked = await requestJson(fixture.baseUrl, "/api/agent-action-proposals/prepare-estimate-send", {
+      method: "POST",
+      headers: authHeaders(employeeLogin.token),
+      body: JSON.stringify(basePayload),
+    });
+    assert.equal(employeeBlocked.response.status, 403);
+
+    const unsupported = await requestJson(fixture.baseUrl, "/api/agent-action-proposals/prepare-estimate-send", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({
+        ...basePayload,
+        proposal: {
+          ...basePayload.proposal,
+          proposalId: "agent-proposal:lead-follow-up:leads",
+          proposalType: "lead-follow-up",
+        },
+      }),
+    });
+    assert.equal(unsupported.response.status, 403);
+
+    const noRecipientCreated = await assertOk(fixture.baseUrl, "/api/estimates", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({
+        customerName: "Agent Send No Recipient Customer",
+        title: "Agent Send Missing Recipient",
+        status: "draft",
+        customerEmail: "",
+        scopeSummary: "Missing recipient.",
+        internalNotes: "",
+        customerNotes: "",
+        items: [{ description: "Fence install", quantity: 20, unit: "lf", unitPrice: 40 }],
+      }),
+    });
+    const noRecipientEstimate = noRecipientCreated.estimates.find((entry) => entry.title === "Agent Send Missing Recipient");
+    const missingRecipient = await requestJson(fixture.baseUrl, "/api/agent-action-proposals/prepare-estimate-send", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({
+        estimateId: noRecipientEstimate.id,
+        proposal: {
+          ...basePayload.proposal,
+          proposalId: `agent-proposal:estimate-packet-review:${noRecipientEstimate.id}`,
+          targetEntityId: noRecipientEstimate.id,
+        },
+      }),
+    });
+    assert.equal(missingRecipient.response.status, 400);
+    assert.match(missingRecipient.payload.error, /customer email/i);
   } finally {
     await fixture.stop();
   }

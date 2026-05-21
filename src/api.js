@@ -111,6 +111,10 @@ export function createAgentEstimateDraft(token, payload) {
   return request("/api/agent-action-proposals/create-estimate-draft", { method: "POST", token, body: payload });
 }
 
+export function prepareAgentEstimateSend(token, payload) {
+  return request("/api/agent-action-proposals/prepare-estimate-send", { method: "POST", token, body: payload });
+}
+
 export function updateCompanySettings(token, payload) {
   return request("/api/settings/company", { method: "PATCH", token, body: payload });
 }

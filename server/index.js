@@ -5912,6 +5912,19 @@ function assertCanRecordAgentProposalAuditEvent(state, user, proposal) {
   }
 }
 
+function assertCanPrepareAgentProposalEstimateSend(state, user, proposal) {
+  assertCanCreateAgentProposalAudit(state, user);
+  const entitlements = resolvePackageEntitlements({
+    hasFeature: (featureKey) => companyHasFeature(state, user, featureKey),
+  });
+  if (proposal.proposalType !== "estimate-packet-review") {
+    throw new ApiError(403, "Only estimate packet agent proposals can prepare estimate send review.");
+  }
+  if (!entitlements.estimates.canUseGcPackets || !canManageEstimates(user)) {
+    throw new ApiError(403, "You do not have permission to prepare estimate send review.");
+  }
+}
+
 function firstPresentString(...values) {
   for (const value of values) {
     const normalized = String(value ?? "").trim();
@@ -7082,6 +7095,88 @@ app.post("/api/agent-action-proposals/create-estimate-draft", requireAuth, async
   res.status(201).json({
     ...sanitizeBootstrap(nextState, req.auth.user),
     agentDraftEstimateId: createdEstimateId,
+  });
+}));
+
+app.post("/api/agent-action-proposals/prepare-estimate-send", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageEstimatesForRequest(req.auth.user);
+  const proposalPayload = req.body?.proposal && typeof req.body.proposal === "object" ? req.body.proposal : req.body || {};
+  const estimateId = optionalString(req.body?.estimateId || proposalPayload.targetEntityId, "");
+  const normalized = normalizeAgentProposalAuditPayload({
+    ...proposalPayload,
+    eventType: "agent.proposal.generated",
+    status: "needs_human_review",
+    proposalType: proposalPayload.proposalType || "estimate-packet-review",
+    targetEntityType: "estimate",
+    targetEntityId: estimateId,
+  });
+
+  if (!estimateId) {
+    throw new ApiError(400, "Estimate ID is required before Apex Assistant can prepare send review.");
+  }
+
+  let sendReview = null;
+  const nextState = await updateDb((draft) => {
+    assertCanPrepareAgentProposalEstimateSend(draft, req.auth.user, normalized);
+    const estimateRecord = findEstimate(draft, estimateId, req.auth.user);
+    if (estimateRecord.archivedAt) {
+      throw new ApiError(400, "Archived estimates cannot be prepared for send review.");
+    }
+    if (estimateRecord.sentAt || estimateRecord.status === "sent") {
+      throw new ApiError(409, "This estimate is already marked sent.");
+    }
+
+    const estimate = sanitizeEstimateForUser(estimateRecord, draft, req.auth.user);
+    const sentTo = estimateCustomerEmail(estimate);
+    if (!sentTo) {
+      throw new ApiError(400, "Add a customer email before preparing send review.");
+    }
+    const emailSubject = buildEstimateEmailSubject({ estimate });
+
+    if (!hasAgentProposalAuditEvent(draft, req.auth.user, normalized, "agent.proposal.generated")) {
+      appendAgentProposalAuditEvent(draft, req.auth.user, normalized, {
+        eventType: "agent.proposal.generated",
+        status: "needs_human_review",
+        summary: normalized.summary || "Estimate packet review packet",
+      });
+    }
+
+    if (!hasAgentProposalAuditEvent(draft, req.auth.user, normalized, "agent.proposal.send_ready_for_human")) {
+      appendAgentProposalAuditEvent(draft, req.auth.user, {
+        ...normalized,
+        requiredApprovals: [
+          ...new Set([
+            ...(normalized.requiredApprovals || []),
+            "Owner/admin must review recipient, scope, total, attachments, and terms before pressing the normal send button.",
+          ]),
+        ],
+        blockedReasons: [
+          ...new Set([
+            ...(normalized.blockedReasons || []),
+            "No email was sent by Apex Assistant.",
+            "No bid submission, customer contact, invoice, payment, job conversion, or field update was created.",
+          ]),
+        ],
+      }, {
+        eventType: "agent.proposal.send_ready_for_human",
+        status: "ready_for_human_send",
+        summary: "Estimate send review prepared",
+      });
+    }
+
+    sendReview = {
+      estimateId: estimateRecord.id,
+      status: "ready_for_human_send",
+      recipientPresent: true,
+      emailSubject,
+      emailSendingConfigured: isEstimateEmailConfigured(),
+    };
+    return draft;
+  });
+
+  res.status(201).json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    agentEstimateSendReview: sendReview,
   });
 }));
 

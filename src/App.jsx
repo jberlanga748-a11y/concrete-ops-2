@@ -97,6 +97,7 @@ import {
   markLeadSourceChecked,
   planOpportunitySearchWithAi,
   previewOpportunityScoutAgent,
+  prepareAgentEstimateSend,
   recordAgentActionProposalAudit,
   resetWorkspace,
   requestPasswordReset,
@@ -2302,13 +2303,14 @@ function NotificationCenterButton({ source = {}, permissions = {}, user = null, 
   );
 }
 
-function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onCreateAgentEstimateDraft = async () => null, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenUploadReview = () => {}, onOpenTimeReview = () => {}, onOpenChangeOrderReview = () => {}, onOpenLeadFollowUp = () => {}, onOpenCustomerAccount = () => {}, onOpenCrewReadiness = () => {}, onOpenScheduleDispatch = () => {}, onOpenImportedDraftReview = () => {}, onOpenSupportWorkflow = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenPrePourReview = () => {}, onOpenPostPourReview = () => {}, onOpenSafetyIncidentReview = () => {}, onOpenToolChecklistReview = () => {}, onRecordAgentProposalAudit = async () => null }) {
+function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onCreateAgentEstimateDraft = async () => null, onPrepareAgentEstimateSend = async () => null, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenUploadReview = () => {}, onOpenTimeReview = () => {}, onOpenChangeOrderReview = () => {}, onOpenLeadFollowUp = () => {}, onOpenCustomerAccount = () => {}, onOpenCrewReadiness = () => {}, onOpenScheduleDispatch = () => {}, onOpenImportedDraftReview = () => {}, onOpenSupportWorkflow = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenPrePourReview = () => {}, onOpenPostPourReview = () => {}, onOpenSafetyIncidentReview = () => {}, onOpenToolChecklistReview = () => {}, onRecordAgentProposalAudit = async () => null }) {
   const assistantState = useMemo(() => deriveApexAssistantShellState({ permissions, commandCenter }), [commandCenter, permissions]);
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [response, setResponse] = useState(null);
   const [auditRecordState, setAuditRecordState] = useState({ proposalId: "", status: "idle", message: "" });
   const [draftActionState, setDraftActionState] = useState({ leadId: "", status: "idle", message: "" });
+  const [sendReviewState, setSendReviewState] = useState({ estimateId: "", status: "idle", message: "" });
   const actionProposal = useMemo(() => (
     response ? buildAgentActionProposal(response, { permissions }) : null
   ), [permissions, response]);
@@ -2333,6 +2335,7 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
   useEffect(() => {
     setAuditRecordState({ proposalId: actionProposal?.id || "", status: "idle", message: "" });
     setDraftActionState({ leadId: "", status: "idle", message: "" });
+    setSendReviewState({ estimateId: "", status: "idle", message: "" });
   }, [actionProposal?.id]);
 
   if (!assistantState.canView) return null;
@@ -2403,6 +2406,34 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
         leadId: match.leadId,
         status: "error",
         message: error?.message || "Could not create this draft estimate.",
+      });
+    }
+  }
+
+  async function prepareEstimateSendReview(match = {}) {
+    if (!actionProposal || actionProposal.proof?.commandType !== "estimate-packet-review" || match.type !== "estimate" || !match.estimateId) return;
+    if (!permissions.estimates?.canManage || sendReviewState.status === "saving") return;
+    const proposal = normalizeAgentActionProposalAuditEvent(actionProposal, {
+      actor: commandContext.user,
+      sourceRoute: commandContext.currentRoute,
+      sourceModule: actionProposal.targetModuleId,
+      prompt: actionProposal.proof?.commandText || "",
+      response: actionProposal.proof?.message || response?.message || "",
+      targetEntity: { type: "estimate", id: match.estimateId },
+    });
+    setSendReviewState({ estimateId: match.estimateId, status: "saving", message: "Preparing send review..." });
+    try {
+      await onPrepareAgentEstimateSend({ proposal, estimateId: match.estimateId });
+      setSendReviewState({
+        estimateId: match.estimateId,
+        status: "ready",
+        message: "Send review prepared. Use the normal Estimates send/copy controls after final review.",
+      });
+    } catch (error) {
+      setSendReviewState({
+        estimateId: match.estimateId,
+        status: "error",
+        message: error?.message || "Could not prepare send review.",
       });
     }
   }
@@ -3158,15 +3189,42 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
                 ) : response.type === "estimate-packet-review" ? (
                   <div className="mt-3 grid gap-2">
                     {response.matches?.length ? response.matches.map((match) => (
-                      <button
-                        key={match.id}
-                        type="button"
-                        onClick={() => openEstimatePacket(match)}
-                        className="co-focus-ring rounded-2xl border border-white/10 bg-white/[0.08] p-3 text-left transition hover:border-orange-300/60 hover:bg-orange-500/20"
-                      >
-                        <span className="block text-sm font-black text-white">{match.label}</span>
-                        <span className="mt-1 block text-xs font-bold leading-5 text-slate-300">{match.helper || "Open packet tools for review. No send or print happens automatically."}</span>
-                      </button>
+                      <div key={match.id} className="rounded-2xl border border-white/10 bg-white/[0.08] p-3">
+                        <button
+                          type="button"
+                          onClick={() => openEstimatePacket(match)}
+                          className="co-focus-ring w-full rounded-xl p-0 text-left transition hover:text-orange-100"
+                        >
+                          <span className="block text-sm font-black text-white">{match.label}</span>
+                          <span className="mt-1 block text-xs font-bold leading-5 text-slate-300">{match.helper || "Open packet tools for review. No send or print happens automatically."}</span>
+                        </button>
+                        {match.type === "estimate" && match.estimateId ? (
+                          <div className="mt-3 rounded-xl border border-blue-300/20 bg-blue-500/10 p-2">
+                            <p className="text-[11px] font-bold leading-4 text-blue-100">
+                              Prepares an audit-only send review. Apex Assistant will not email, submit, print, mark sent, or contact the customer.
+                            </p>
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="primary"
+                                disabled={sendReviewState.status === "saving"}
+                                onClick={() => prepareEstimateSendReview(match)}
+                              >
+                                {sendReviewState.status === "saving" && sendReviewState.estimateId === match.estimateId ? "Preparing..." : "Prepare send review"}
+                              </Button>
+                              <Button type="button" size="sm" variant="secondary" onClick={() => openEstimatePacket(match)}>
+                                Open packet
+                              </Button>
+                            </div>
+                            {sendReviewState.estimateId === match.estimateId && sendReviewState.message ? (
+                              <p className={`mt-2 text-[11px] font-bold leading-4 ${sendReviewState.status === "error" ? "text-red-100" : "text-blue-100"}`}>
+                                {sendReviewState.message}
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
                     )) : null}
                     <Button type="button" size="sm" onClick={() => openEstimatePacket(response.fallback || {})}>
                       {response.matches?.length ? "Open Estimates instead" : response.actionLabel}
@@ -40824,6 +40882,25 @@ export default function App() {
     }
   }
 
+  async function handlePrepareAgentEstimateSend(payload) {
+    if (!sessionToken || !appState.permissions.audit?.canView || !appState.permissions.estimates?.canManage) {
+      throw new Error("You do not have permission to prepare agent estimate send review.");
+    }
+    setBusy(true);
+    try {
+      const nextState = await prepareAgentEstimateSend(sessionToken, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return nextState.agentEstimateSendReview || true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      throw error;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function handleReset() {
     if (!window.confirm("Reset the workspace to the seeded demo data?")) return;
     runMutation(() => resetWorkspace(sessionToken));
@@ -41346,6 +41423,7 @@ export default function App() {
         onOpenModule={setActive}
         onStartEstimateDraft={handleStartAssistantEstimateDraft}
         onCreateAgentEstimateDraft={handleCreateAgentEstimateDraft}
+        onPrepareAgentEstimateSend={handlePrepareAgentEstimateSend}
         onOpenEstimatePacket={handleOpenAssistantEstimatePacket}
         onOpenEstimateJobHandoff={handleOpenAssistantEstimateJobHandoff}
         onOpenJobHandoff={handleOpenAssistantJobHandoff}

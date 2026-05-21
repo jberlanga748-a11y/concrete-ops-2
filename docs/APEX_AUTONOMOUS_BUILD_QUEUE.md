@@ -37,6 +37,7 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 | Date | Priority | Task | Result | Commit |
 | --- | --- | --- | --- | --- |
+| 2026-05-21 | P1 | Agent proposal send review framework | Done; assistant can prepare an audit-only estimate send review packet for human send, with no email, bid submission, sent status, contact history, invoice, job conversion, or field update | This commit |
 | 2026-05-21 | P1 | Agent lead-to-estimate draft creation | Done; server action and assistant UI create a real Draft estimate from a lead only after a human approval click, with no send/contact/job conversion and field-user blocking | This commit |
 | 2026-05-21 | P1 | Agent approval-for-draft audit-only endpoint | Done; existing proposal audit endpoint now records `approved_for_draft` only after a prior generated proposal exists, with domain permission gates, field-user blocking, and tests proving no leads, estimates, jobs, reports, uploads, or contact history are created | This commit |
 | 2026-05-21 | P1 | Agent approval-for-draft safety plan | Done; Phase 1 plan defines the role/package/domain-permission gates, non-mutating approval audit boundary, tests, demo verification, and NO-GO lines before any draft approval implementation | This commit |
@@ -113,7 +114,7 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 | Priority | Task | Status | Why It Matters | Safe Scope | Verification | Stop / Approval Gate |
 | --- | --- | --- | --- | --- | --- | --- |
-| P1 | Agent proposal send approval framework | Ready | The agent can now prepare and create internal draft estimates; the next risky boundary is a proposal-send queue that must remain human-approved and audited | Plan first; no customer email/send until templates, allowlists, audit, and owner/admin approval gates are explicit | estimate/proposal tests, roles, browser QA, hosted demo smoke | Stop before any outbound email/text/bid submission or production customer contact |
+| P1 | Agent proposal send execution gate | Ready | Send review packets can now be prepared without outbound contact; the next boundary is a separate owner/admin execution gate that still must not bypass human approval | Plan first; keep normal send/manual-copy controls as the only outbound path until templates, allowlists, audit, and owner/admin approval gates are explicit | estimate/proposal tests, roles, browser QA, hosted demo smoke | Stop before any autonomous outbound email/text/bid submission or production customer contact |
 | P3 | Continue route module extraction | Ready | `App.jsx` is still a monolith; shared primitives are now separated enough to move feature route chunks more safely | Extract one presentational route chunk with existing props; no auth, package, data, or action changes | build, targeted verifier, route tests, browser audit | Stop if state/action wiring or permission gates must move |
 | P2 | Local demo auth smoke rerun when secret is available | Blocked | Would prove login/bootstrap from the local operator shell | Run only; no docs unless evidence changes | hosted auth smoke | Blocked until `APEX_SMOKE_PASSWORD` is present locally |
 
