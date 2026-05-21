@@ -28,6 +28,7 @@ import {
   resolveAssistantTimeReviewCommand,
   resolveAssistantToolChecklistReviewCommand,
   resolveAssistantUploadReviewCommand,
+  resolveAssistantWorkflowContextCommand,
 } from "./apex-assistant-shell-utils.js";
 
 test("assistant shell is hidden without AI Office permission", () => {
@@ -86,6 +87,31 @@ test("assistant commands route to existing modules without write actions", () =>
   assert.equal(estimateCommand.moduleId, "estimates");
   assert.equal(fallbackCommand.moduleId, "commandCenter");
   assert.match(fallbackCommand.message, /will not send customer messages automatically/i);
+});
+
+test("assistant summarizes workflow context without mutating records", () => {
+  const command = resolveAssistantWorkflowContextCommand("what should we do next", {
+    permissions: {
+      leads: { canView: true },
+      estimates: { canView: true },
+      jobs: { canView: true },
+      reports: { canView: true },
+      uploads: { canView: true },
+      customers: { canView: true },
+    },
+    leads: [{ id: "LEAD-1", customer: "Friendly Fence", status: "Follow Up" }],
+    estimates: [{ id: "EST-1", title: "Fence Estimate", status: "Draft" }],
+    jobs: [{ id: "JOB-1", title: "Fence Install", status: "Scheduled" }],
+    dailyReports: [{ id: "DR-1", title: "Daily", status: "Submitted" }],
+    uploads: [{ id: "UP-1", title: "Photos", status: "Needs Review" }],
+    customers: [{ id: "CUS-1", name: "Friendly Fence", status: "Active" }],
+  });
+
+  assert.equal(command.type, "workflow-context-summary");
+  assert.ok(command.workflowContext.attentionCount > 0);
+  assert.match(command.message, /review-first/i);
+  assert.match(command.workflowContext.safetyBoundary, /No customer contact/i);
+  assert.equal(command.actions.some((action) => action.moduleId === "reports"), true);
 });
 
 test("empty assistant command starts with highest watchtower action", () => {

@@ -37,6 +37,7 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 | Date | Priority | Task | Result | Commit |
 | --- | --- | --- | --- | --- |
+| 2026-05-21 | P1 | Agent Workflow Context v1 | Done; Apex Assistant now has a permission-scoped read-only workflow context summary across visible leads, estimates, jobs, proof, customers, employees, safety, change orders, and imports with no mutation or customer-contact behavior | This commit |
 | 2026-05-21 | P3 | Customer related records card extraction | Done; customer linked leads/jobs/activity/contact-history card wrapper now lives in the customer route component module without changing record selection, rendering callbacks, permissions, or data flow | This commit |
 | 2026-05-21 | P3 | Customer intake card component extraction | Done; customer create/read-only intake card now lives in the customer route component module without changing customer creation permissions, form state, or API behavior | This commit |
 | 2026-05-21 | P3 | Customer table component extraction | Done; Customers page now uses the customer route component module for the polished records table without changing customer state, permissions, filters, forms, or API behavior | This commit |

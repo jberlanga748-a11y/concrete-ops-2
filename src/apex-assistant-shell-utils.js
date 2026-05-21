@@ -1,3 +1,5 @@
+import { deriveAgentWorkflowContext, hasAgentWorkflowContextIntent } from "./agent-workflow-context-utils.js";
+
 const ROUTE_COMMANDS = [
   {
     id: "reports",
@@ -122,6 +124,7 @@ const ROUTE_COMMANDS = [
 
 const DEFAULT_PROMPTS = [
   "What needs attention?",
+  "Summarize workflow context",
   "Summarize missing proof",
   "Review daily closeout",
   "Start estimate from rough notes",
@@ -183,6 +186,9 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
 
   const blocked = resolveBlockedActionCommand(input);
   if (blocked) return blocked;
+
+  const workflowContextCommand = resolveAssistantWorkflowContextCommand(input, state.commandContext || {});
+  if (workflowContextCommand) return workflowContextCommand;
 
   if (!text || text === normalizeText(DEFAULT_PROMPTS[0])) {
     if (firstAction) {
@@ -288,6 +294,35 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
     moduleId: "commandCenter",
     actionLabel: "Open Command Center",
     message: "I can route you to Apex HQ workflows and summarize Watchtower items. I will not create, send, approve, or edit records automatically in this phase.",
+  };
+}
+
+export function resolveAssistantWorkflowContextCommand(input = "", context = {}) {
+  if (!hasAgentWorkflowContextIntent(input)) return null;
+  const workflowContext = context.agentWorkflowContext || deriveAgentWorkflowContext(context);
+  const modules = asArray(workflowContext.modules).filter((module) => module.canView);
+  const attentionModules = modules.filter((module) => Number(module.needsAttention || 0) > 0);
+  const actions = asArray(workflowContext.topActions).length
+    ? workflowContext.topActions
+    : modules.slice(0, 3).map((module) => ({
+      moduleId: module.moduleId,
+      actionLabel: module.nextActionLabel || `Open ${module.label}`,
+      label: module.label,
+      count: module.needsAttention || module.count || 0,
+    }));
+
+  return {
+    type: "workflow-context-summary",
+    moduleId: actions[0]?.moduleId || "commandCenter",
+    actionLabel: actions[0]?.actionLabel || "Open Command Center",
+    message: `${workflowContext.summary} This is review-first: no records are changed, no customers are contacted, and no sends or approvals happen automatically.`,
+    workflowContext: {
+      ...workflowContext,
+      modules: modules.slice(0, 6),
+      attentionModules: attentionModules.slice(0, 4),
+      topActions: actions.slice(0, 4),
+    },
+    actions: actions.slice(0, 4),
   };
 }
 

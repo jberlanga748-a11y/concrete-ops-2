@@ -25,6 +25,7 @@ import {
   resolveApexAssistantCommand,
 } from "./apex-assistant-shell-utils";
 import { buildAgentActionProposal, deriveAgentActionProposalAuditHistory, normalizeAgentActionProposalAuditEvent } from "./agent-action-proposal-utils";
+import { deriveAgentWorkflowContext } from "./agent-workflow-context-utils";
 import { deriveAiOfficeAgentCommandCenter } from "./ai-office-utils";
 import { DEFAULT_APP_PERMISSIONS, mergePermissionScope, normalizeAppPermissions } from "./app-state-utils";
 import {
@@ -2758,7 +2759,40 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
                     ) : null}
                   </div>
                 ) : null}
-                {response.type === "missing-proof-summary" ? (
+                {response.type === "workflow-context-summary" ? (
+                  <div className="mt-3 grid gap-2">
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.08] p-3">
+                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Agent workflow context</p>
+                      <p className="mt-1 text-sm font-black text-white">{response.workflowContext?.attentionCount || 0} item{response.workflowContext?.attentionCount === 1 ? "" : "s"} need review across {response.workflowContext?.visibleModuleCount || 0} visible workflow area{response.workflowContext?.visibleModuleCount === 1 ? "" : "s"}.</p>
+                      <p className="mt-1 text-xs font-bold leading-5 text-slate-300">{response.workflowContext?.safetyBoundary}</p>
+                    </div>
+                    <div className="grid gap-2">
+                      {(response.workflowContext?.modules || []).map((module) => (
+                        <button
+                          key={module.id}
+                          type="button"
+                          onClick={() => openModule(module.moduleId)}
+                          className="co-apex-assistant-context-card co-focus-ring w-full rounded-2xl border border-white/10 bg-white/[0.06] p-3 text-left transition hover:border-orange-400/50 hover:bg-orange-500/10"
+                        >
+                          <span className="flex min-w-0 items-start justify-between gap-3">
+                            <span className="min-w-0">
+                              <span className="block break-words text-sm font-black text-white">{module.label}</span>
+                              <span className="mt-1 block break-words text-xs font-bold leading-5 text-slate-300">{module.summary}</span>
+                            </span>
+                            <span className="shrink-0 rounded-lg bg-white/10 px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-200">{module.needsAttention || 0} review</span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {(response.actions || []).map((action) => (
+                        <Button key={`${action.moduleId}-${action.actionLabel}`} type="button" size="sm" onClick={() => openModule(action.moduleId)}>
+                          {action.actionLabel}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                ) : response.type === "missing-proof-summary" ? (
                   <div className="mt-3 grid gap-2">
                     {response.job?.title ? (
                       <div className="rounded-2xl border border-white/10 bg-white/[0.08] p-3">
@@ -41129,6 +41163,25 @@ export default function App() {
           calculatorResults: appState.permissions.calculator?.canUse ? appState.calculatorResults : [],
           auditEvents: appState.permissions.audit?.canView ? appState.auditEvents : [],
           activity: appState.permissions.appHealth?.canView ? appState.activity : [],
+          agentWorkflowContext: deriveAgentWorkflowContext({
+            user: appState.user,
+            permissions: appState.permissions,
+            jobs: appState.permissions.jobs?.canView ? appState.jobs : [],
+            dailyReports: appState.permissions.reports?.canView ? appState.dailyReports : [],
+            uploads: appState.permissions.uploads?.canView ? appState.uploads : [],
+            timeEntries: appState.permissions.time?.canView ? appState.timeEntries : [],
+            changeOrderRequests: appState.permissions.changeOrders?.canView ? appState.changeOrderRequests : [],
+            deliveryTickets: appState.permissions.deliveryTickets?.canView ? appState.deliveryTickets : [],
+            prePourChecklists: appState.permissions.prePour?.canView ? appState.prePourChecklists : [],
+            postPourChecklists: appState.permissions.postPour?.canView ? appState.postPourChecklists : [],
+            safetyIncidents: appState.permissions.safety?.canView ? appState.safetyIncidents : [],
+            toolChecklists: appState.permissions.toolChecklist?.canUse ? appState.toolChecklists : [],
+            leads: appState.permissions.leads?.canView ? appState.leads : [],
+            customers: appState.permissions.customers?.canView ? appState.customers : [],
+            users: appState.permissions.users?.canView ? appState.users : [],
+            jobDraftImports: appState.permissions.jobDraftImports?.canView ? appState.jobDraftImports : [],
+            estimates: appState.permissions.estimates?.canView ? appState.estimates : [],
+          }),
         }}
         onOpenModule={setActive}
         onStartEstimateDraft={handleStartAssistantEstimateDraft}
