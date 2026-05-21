@@ -76,6 +76,7 @@ npm.cmd run verify:pilot-readiness
 - Local Fly demo auth smoke readiness: skip-auth smoke PASS, local auth smoke NO-GO because `APEX_SMOKE_PASSWORD` is missing in the current shell
 - GitHub scheduled demo smoke: latest observed run `26207043659` passed on 2026-05-21T05:19:24Z and ran auth/bootstrap smoke
 - Known P3 visual backlog: desktop `/leads` long fencing text wrap polish resolved; no open visual backlog from the latest walkthrough route audit
+- Latest local pilot readiness gate: `npm.cmd run verify:pilot-readiness` passed on 2026-05-21T09:25Z with docs, pilot config, rehearsal, fencing gates, roles, backup export, restore drill, and build. Backup verification produced `app-data-20260521-092512Z.sqlite` / `.json`.
 
 ## Hard Stops
 
