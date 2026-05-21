@@ -37,6 +37,7 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 | Date | Priority | Task | Result | Commit |
 | --- | --- | --- | --- | --- |
+| 2026-05-21 | P1 | Agent approval-for-draft safety plan | Done; Phase 1 plan defines the role/package/domain-permission gates, non-mutating approval audit boundary, tests, demo verification, and NO-GO lines before any draft approval implementation | This commit |
 | 2026-05-21 | P1 | Agent proposal manual audit record | Done; Apex Assistant proposal packets now have an explicit manual audit-record button that writes through the existing redacted append-only endpoint without approving, drafting, sending, converting, or changing workflow records | This commit |
 | 2026-05-21 | P1 | Agent proposal audit UI history surface | Done; Apex Assistant now shows a read-only proposal audit history for audit-permitted office users with no approval or mutation controls | This commit |
 | 2026-05-21 | P1 | Agent proposal audit API Phase 1 | Done; append-only `/api/agent-action-proposals/audit` records redacted review-first proposal audit events using existing `audit_events` with package/role gates and field-user denial | This commit |
@@ -110,7 +111,7 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 | Priority | Task | Status | Why It Matters | Safe Scope | Verification | Stop / Approval Gate |
 | --- | --- | --- | --- | --- | --- | --- |
-| P1 | Agent proposal approval-for-draft safety plan | Ready | Manual audit recording is in place; the next agent slice must define how human approval can prepare drafts without bypassing domain permissions | Phase 1 report only unless explicitly approved; no approval API or workflow mutation yet | safety report, role/package matrix, draft endpoint inventory | Stop before adding approval or draft creation endpoints |
+| P1 | Agent approval-for-draft audit-only endpoint | Ready | The safety plan is complete; the next safe agent slice can record human approval-for-draft decisions without creating or changing domain records | Server audit event only; no draft creation, no sends, no conversions, no schema unless proven necessary | agent proposal tests, roles, leads/estimates, build | Stop before any domain mutation endpoint or UI draft creation |
 | P3 | Continue route module extraction | Ready | `App.jsx` is still a monolith; shared primitives are now separated enough to move feature route chunks more safely | Extract one presentational route chunk with existing props; no auth, package, data, or action changes | build, targeted verifier, route tests, browser audit | Stop if state/action wiring or permission gates must move |
 | P2 | Local demo auth smoke rerun when secret is available | Blocked | Would prove login/bootstrap from the local operator shell | Run only; no docs unless evidence changes | hosted auth smoke | Blocked until `APEX_SMOKE_PASSWORD` is present locally |
 
@@ -126,4 +127,4 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 ## Next Recommended Task
 
-Next safe build action is a Phase 1 safety report for agent proposal approval-for-draft boundaries, or a lower-risk route module extraction if we want more architecture cleanup before adding more agent capabilities. Human-input tasks remain blocked until real pilot details or smoke secrets are provided.
+Next safe build action is the audit-only approval-for-draft endpoint, or a lower-risk route module extraction if we want more architecture cleanup before adding more agent capabilities. Human-input tasks remain blocked until real pilot details or smoke secrets are provided.
