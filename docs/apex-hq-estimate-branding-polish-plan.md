@@ -298,3 +298,14 @@ Evidence:
 - admin tablet `/estimates`: `ui-audit/estimate-branding-polish/2026-05-21T09-30-58-188Z/manifest.json`
 - admin phone `/estimates`: `ui-audit/estimate-branding-polish/2026-05-21T09-30-58-206Z/manifest.json`
 - employee phone `/estimates`: `ui-audit/estimate-branding-polish/2026-05-21T09-30-58-142Z/manifest.json`
+
+Demo deployment evidence:
+
+- Fly demo app: `concrete-ops-demo`
+- Fly demo version: `129`
+- Fly demo image: `registry.fly.io/concrete-ops-demo:deployment-01KS4Y457SK3S3ZG5EX29YTVM0`
+- backup before deploy: `/app/data/backups/app-data-20260521-093325Z.sqlite` and `/app/data/backups/app-data-20260521-093325Z.json`
+- hosted skip-auth smoke passed against `https://concrete-ops-demo.fly.dev`
+- deployed admin desktop `/estimates`: `ui-audit/estimate-branding-demo-smoke/2026-05-21T09-35-06-952Z/manifest.json`
+- deployed admin tablet `/estimates`: `ui-audit/estimate-branding-demo-smoke/2026-05-21T09-35-06-920Z/manifest.json`
+- deployed employee phone `/estimates`: `ui-audit/estimate-branding-demo-smoke/2026-05-21T09-35-06-923Z/manifest.json`
