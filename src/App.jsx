@@ -24,6 +24,7 @@ import {
   deriveApexAssistantShellState,
   resolveApexAssistantCommand,
 } from "./apex-assistant-shell-utils";
+import { buildAgentActionProposal } from "./agent-action-proposal-utils";
 import { deriveAiOfficeAgentCommandCenter } from "./ai-office-utils";
 import { DEFAULT_APP_PERMISSIONS, mergePermissionScope, normalizeAppPermissions } from "./app-state-utils";
 import {
@@ -2304,6 +2305,9 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [response, setResponse] = useState(null);
+  const actionProposal = useMemo(() => (
+    response ? buildAgentActionProposal(response, { permissions }) : null
+  ), [permissions, response]);
 
   if (!assistantState.canView) return null;
 
@@ -2554,6 +2558,34 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
             {response ? (
               <div className="co-apex-assistant-response mt-4 rounded-2xl border border-orange-400/30 bg-orange-500/10 p-3">
                 <p className="text-sm font-black text-white">{response.message}</p>
+                {actionProposal ? (
+                  <div className="mt-3 rounded-2xl border border-white/10 bg-slate-950/70 p-3">
+                    <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-orange-200">Agent Action Proposal</p>
+                        <p className="mt-1 break-words text-sm font-black text-white">{actionProposal.title}</p>
+                      </div>
+                      <Badge tone={actionProposal.status === "blocked" ? "red" : actionProposal.tone}>
+                        {actionProposal.status === "blocked" ? "Blocked" : "Review first"}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-xs font-bold leading-5 text-slate-300">{actionProposal.allowedNextStep}</p>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      <div className="rounded-xl border border-white/10 bg-white/[0.06] p-2">
+                        <span className="block text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Review checklist</span>
+                        <ul className="mt-2 grid gap-1 text-xs font-bold leading-5 text-slate-200">
+                          {actionProposal.reviewChecklist.slice(0, 4).map((item) => <li key={item}>- {item}</li>)}
+                        </ul>
+                      </div>
+                      <div className="rounded-xl border border-white/10 bg-white/[0.06] p-2">
+                        <span className="block text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Blocked actions</span>
+                        <ul className="mt-2 grid gap-1 text-xs font-bold leading-5 text-slate-200">
+                          {actionProposal.blockedActions.slice(0, 4).map((item) => <li key={item}>- {item}</li>)}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
                 {response.type === "missing-proof-summary" ? (
                   <div className="mt-3 grid gap-2">
                     {response.job?.title ? (
