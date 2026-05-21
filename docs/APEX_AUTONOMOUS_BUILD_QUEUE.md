@@ -51,12 +51,12 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 | 2026-05-21 | P1 | Customer pilot config approval dry-run | Done; in-memory customer pilot config verification and approval-only setup plan added | `7b91e90` |
 | 2026-05-21 | P2 | Fly demo auth-smoke readiness check | Done; Fly demo readiness and skip-auth smoke passed; local auth smoke blocked by missing local `APEX_SMOKE_PASSWORD` | `f807df7` |
 | 2026-05-21 | P4 | Fencing pilot artifact index | Done; pilot gates, docs, scripts, evidence, and hard stops mapped in one source | `e46c2af` |
+| 2026-05-21 | P2 | GitHub Actions demo smoke evidence pointer refresh | Done; latest scheduled demo smoke runs recorded and artifact index linked | `19d080a` |
 
 ## Active Queue
 
 | Priority | Task | Status | Why It Matters | Safe Scope | Verification | Stop / Approval Gate |
 | --- | --- | --- | --- | --- | --- | --- |
-| P2 | GitHub Actions demo smoke evidence pointer refresh | Ready | Makes the latest local vs scheduled demo smoke status easier to compare | Docs only; no workflow dispatch, no secrets | docs check | Stop before reading or setting secret values |
 | P3 | Pilot route audit P3 backlog extraction | Ready | Turns the known screenshot-only long-text issue into a scoped backlog item instead of random polish | Docs only unless approved | docs check | Stop before UI edits |
 
 ## Blocked / Needs Human Input
@@ -71,4 +71,4 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 ## Next Recommended Task
 
-Refresh the GitHub Actions demo smoke evidence pointers next without dispatching workflows, reading secrets, or changing CI behavior.
+Extract the pilot route audit P3 backlog next so the known screenshot-only long-text issue is tracked without starting random UI polish.
