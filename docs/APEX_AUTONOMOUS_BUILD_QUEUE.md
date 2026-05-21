@@ -72,6 +72,7 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 | 2026-05-21 | P2 | Demo smoke refresh | Done; local demo verifier, Fly demo status/checks, `/api/ready`, and hosted skip-auth route smoke passed on v130 | `f24852b` |
 | 2026-05-21 | P2 | Opportunity Scout safety verification refresh | Done; 69 local tests passed for review-first intake, redaction, dedupe, approval gates, package/role blocking, and no auto-contact/bid/credential behavior | `408a53e` |
 | 2026-05-21 | P2 | Core workflow verification refresh | Done; Leads, Jobs, Daily Reports, Uploads, and Estimates verification passed after rerunning Leads alone to clear a parallel test-server readiness timeout | `852e971` |
+| 2026-05-21 | P2 | Field/support verification refresh | Done; Time, Safety, Tool Checklist, Delivery Tickets, Pre/Post-Pour, Change Orders, Customers, and Users verification passed after rerunning Tool Checklist alone | `pending` |
 
 ## Active Queue
 
