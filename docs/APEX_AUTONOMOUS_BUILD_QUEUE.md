@@ -37,6 +37,7 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 | Date | Priority | Task | Result | Commit |
 | --- | --- | --- | --- | --- |
+| 2026-05-21 | P3 | Customer table component extraction | Done; Customers page now uses the customer route component module for the polished records table without changing customer state, permissions, filters, forms, or API behavior | This commit |
 | 2026-05-21 | P3 | Support command workbench component extraction | Done; Support command workbench now lives in a route component module and the existing Support page calls it without changing state, permissions, support copy, or API behavior | This commit |
 | 2026-05-21 | P1 | Agent proposal send execution gate safety plan | Done; Phase 1 plan defines the future human-send execution boundary, required server gates, negative tests, and explicit NO-GO lines before any outbound customer contact | This commit |
 | 2026-05-21 | P1 | Agent proposal send review framework | Done; assistant can prepare an audit-only estimate send review packet for human send, with no email, bid submission, sent status, contact history, invoice, job conversion, or field update | This commit |

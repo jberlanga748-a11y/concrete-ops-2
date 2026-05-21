@@ -1,4 +1,5 @@
 import { getCustomerFilterLayoutClasses } from "./customer-filter-layout";
+import { Badge, Icon, StatusBadge } from "./app-shell-components";
 
 export function CustomerFilterHeader({ filters, active, setActive, search, setSearch, placeholder = "Search..." }) {
   const layout = getCustomerFilterLayoutClasses();
@@ -21,5 +22,112 @@ export function CustomerFilterHeader({ filters, active, setActive, search, setSe
         <input className={layout.searchInput} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={placeholder} />
       </div>
     </div>
+  );
+}
+
+function customerStatusText(customer) {
+  return customer?.archivedAt ? "Archived" : (customer?.status || "Prospect");
+}
+
+function customerContactText(customer) {
+  return [customer?.phone, customer?.email].filter(Boolean).join(" / ") || "No contact set";
+}
+
+export function CustomersTablePolished({ rows, selectedId, onSelect }) {
+  return (
+    <>
+      <div className="co-customers-mobile-list grid gap-3 p-3 md:hidden">
+        {rows.map((customer) => {
+          const selected = customer.id === selectedId;
+          return (
+            <button
+              key={customer.id}
+              type="button"
+              onClick={() => onSelect(customer.id)}
+              className={`co-customers-mobile-card co-mobile-record-card co-office-list-card w-full rounded-[1.15rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/70" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/30"}`}
+            >
+              <div className="flex min-w-0 items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="break-words text-base font-black text-slate-950">{customer.name || "Unnamed customer"}</p>
+                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{customer.company || customer.id}</p>
+                </div>
+                <StatusBadge status={customerStatusText(customer)} />
+              </div>
+              <div className="mt-4 grid gap-3">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Contact</p>
+                  <p className="mt-1 break-words text-sm font-bold text-slate-700">{customerContactText(customer)}</p>
+                </div>
+                <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">City</p>
+                    <p className="mt-1 break-words text-sm font-bold text-slate-700">{customer.city || "Not set"}</p>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Service area</p>
+                    <p className="mt-1 break-words text-sm font-bold text-slate-700">{customer.serviceArea || "Not set"}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 flex items-center justify-between gap-2">
+                {selected ? <Badge tone="blue">Selected</Badge> : <span className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Review</span>}
+                <span className="co-leads-row-action">
+                  Open
+                  <Icon name="arrowUpRight" />
+                </span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      <div className="hidden md:block">
+        <div className="table-shell">
+          <table className="co-customers-command-table w-full min-w-[740px] text-left">
+            <thead>
+              <tr>
+                <th>Customer / Company</th>
+                <th>Status</th>
+                <th>Contact</th>
+                <th>City</th>
+                <th>Service Area</th>
+                <th>Notes</th>
+                <th className="text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((customer) => {
+                const selected = customer.id === selectedId;
+                return (
+                  <tr key={customer.id} onClick={() => onSelect(customer.id)} className={`cursor-pointer transition hover:bg-orange-50/45 ${selected ? "bg-orange-50/70" : ""}`}>
+                    <td>
+                      <p className="font-black text-slate-950">{customer.name || "Unnamed customer"}</p>
+                      <p className="text-xs font-bold text-slate-500">{customer.company || customer.id}</p>
+                    </td>
+                    <td><StatusBadge status={customerStatusText(customer)} /></td>
+                    <td>
+                      <p className="font-bold text-slate-700">{customer.phone || "Phone not set"}</p>
+                      <p className="text-xs font-bold text-slate-500">{customer.email || "Email not set"}</p>
+                    </td>
+                    <td className="font-bold text-slate-700">{customer.city || "Not set"}</td>
+                    <td className="font-bold text-slate-700"><span className="line-clamp-2">{customer.serviceArea || "Not set"}</span></td>
+                    <td className="text-slate-600"><span className="line-clamp-2">{customer.notes || "No notes yet"}</span></td>
+                    <td>
+                      <div className="flex justify-end gap-2">
+                        <button type="button" className="co-leads-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(customer.id); }} aria-label={`Review ${customer.name || "customer"}`}>
+                          <Icon name="document" />
+                        </button>
+                        <button type="button" className="co-leads-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(customer.id); }} aria-label={`Open ${customer.name || "customer"}`}>
+                          <Icon name="arrowUpRight" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
   );
 }

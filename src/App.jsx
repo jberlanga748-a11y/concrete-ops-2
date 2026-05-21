@@ -173,7 +173,7 @@ import { buildCalculatorCopyText, calculateConcreteResult, calculateTakeoffResul
 import { changeOrderStatusLabel, deriveChangeOrderListState, filterChangeOrderRequests } from "./change-order-utils";
 import { deriveCommandCenterState } from "./command-center-utils";
 import { contactHistoryBadgeTone, contactHistoryTimeline, createContactHistoryDraft, deriveCommunicationCenterState, deriveContactHistoryPanelState } from "./contact-history-utils";
-import { CustomerFilterHeader } from "./customer-route-components";
+import { CustomerFilterHeader, CustomersTablePolished as ExtractedCustomersTablePolished } from "./customer-route-components";
 import { SupportCommandWorkbench as ExtractedSupportCommandWorkbench } from "./support-route-components";
 import { deriveCustomerListState, filterCustomers, relatedCustomerRecords } from "./customer-utils";
 import { buildDeliveryTicketSupportContext, deliveryTicketTitle, deriveDeliveryTicketCloseoutReadiness, deriveDeliveryTicketListState, filterDeliveryTickets } from "./delivery-ticket-utils";
@@ -22534,7 +22534,7 @@ function CustomersPagePolished({
                     />
                   </div>
                 ) : (
-                  <CustomersTablePolished rows={visibleRows} selectedId={selectedCustomerId} onSelect={onSelectCustomer} />
+                  <ExtractedCustomersTablePolished rows={visibleRows} selectedId={selectedCustomerId} onSelect={onSelectCustomer} />
                 )}
                 <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
                   <p className="text-sm font-bold text-slate-600">Showing {visibleRows.length} of {totalCustomers} customers</p>
