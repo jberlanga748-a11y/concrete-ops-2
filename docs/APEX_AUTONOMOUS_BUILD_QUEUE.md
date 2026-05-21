@@ -37,6 +37,7 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 | Date | Priority | Task | Result | Commit |
 | --- | --- | --- | --- | --- |
+| 2026-05-21 | P1 | Agent proposal audit UI history surface | Done; Apex Assistant now shows a read-only proposal audit history for audit-permitted office users with no approval or mutation controls | This commit |
 | 2026-05-21 | P1 | Agent proposal audit API Phase 1 | Done; append-only `/api/agent-action-proposals/audit` records redacted review-first proposal audit events using existing `audit_events` with package/role gates and field-user denial | This commit |
 | 2026-05-21 | P1 | Agent proposal audit utility hardening | Done; shared utilities now redact secret-like proposal audit text and normalize review-first audit event metadata without server writes | This commit |
 | 2026-05-21 | P1 | Agent proposal server-side audit log planning | Done; proposal audit plan defines append-only event types, redaction boundaries, permission gates, API phases, and approval stops before any persistence work | This commit |
@@ -108,7 +109,7 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 | Priority | Task | Status | Why It Matters | Safe Scope | Verification | Stop / Approval Gate |
 | --- | --- | --- | --- | --- | --- | --- |
-| P1 | Agent proposal audit UI history surface | Ready | The audit endpoint now persists review-first records; the next useful slice is a read-only owner/admin audit history surface without adding approval or workflow mutation | Read-only UI only; no approval API, no draft creation, no schema changes | build, roles, targeted audit tests, browser smoke | Stop before action approval, draft creation, or broader audit visibility changes |
+| P1 | Agent proposal persisted audit hookup | Ready | The UI can show proposal audit history; the next slice is deciding whether assistant-generated local proposals should auto-record redacted generated/blocked events | Phase 1 report first; no auto-write without explicit approval | safety report, duplicate/idempotency plan, roles, audit endpoint tests | Stop before auto-persisting assistant output |
 | P3 | Continue route module extraction | Ready | `App.jsx` is still a monolith; shared primitives are now separated enough to move feature route chunks more safely | Extract one presentational route chunk with existing props; no auth, package, data, or action changes | build, targeted verifier, route tests, browser audit | Stop if state/action wiring or permission gates must move |
 | P2 | Local demo auth smoke rerun when secret is available | Blocked | Would prove login/bootstrap from the local operator shell | Run only; no docs unless evidence changes | hosted auth smoke | Blocked until `APEX_SMOKE_PASSWORD` is present locally |
 
@@ -124,4 +125,4 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 ## Next Recommended Task
 
-Next safe build action is a read-only Agent Action Proposal audit history surface for permitted office users. Human-input tasks remain blocked until real pilot details or smoke secrets are provided.
+Next safe build action is a Phase 1 safety report for optionally hooking generated assistant proposals to the persisted audit endpoint. Human-input tasks remain blocked until real pilot details or smoke secrets are provided.

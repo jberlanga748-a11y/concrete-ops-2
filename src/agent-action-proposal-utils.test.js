@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   buildAgentActionProposal,
+  deriveAgentActionProposalAuditHistory,
   normalizeAgentActionProposalAuditEvent,
   redactAgentProposalAuditText,
   validateAgentActionProposalSafety,
@@ -201,4 +202,40 @@ test("agent proposal audit event stays blocked for field-only users", () => {
   assert.equal(event.status, "blocked");
   assert.equal(event.riskLevel, "review_required");
   assert.equal(event.actorRole, "Employee");
+});
+
+test("agent proposal audit history is read-only and permission gated", () => {
+  const events = [
+    {
+      id: "AUDIT-1",
+      entityType: "agentActionProposal",
+      entityId: "agent-proposal:estimate",
+      action: "agent.proposal.generated",
+      summary: "Estimate draft review packet",
+      actorName: "Demo Admin",
+      createdAt: "2026-05-21T16:55:00.000Z",
+      detail: JSON.stringify({
+        proposalType: "estimate-draft-review",
+        status: "needs_human_review",
+        sourceModule: "estimates",
+        requiredApprovals: ["Read the summary", "Use normal controls"],
+        blockedReasons: ["No customer email, text, call, or notification"],
+      }),
+    },
+    {
+      id: "AUDIT-2",
+      entityType: "estimate",
+      action: "created",
+      summary: "Estimate created",
+    },
+  ];
+
+  assert.deepEqual(deriveAgentActionProposalAuditHistory(events, { canView: false }), []);
+  const history = deriveAgentActionProposalAuditHistory(events, { canView: true });
+  assert.equal(history.length, 1);
+  assert.equal(history[0].id, "AUDIT-1");
+  assert.equal(history[0].tone, "blue");
+  assert.equal(history[0].sourceModule, "estimates");
+  assert.equal(history[0].requiredApprovals.length, 2);
+  assert.equal(history[0].blockedReasons.length, 1);
 });

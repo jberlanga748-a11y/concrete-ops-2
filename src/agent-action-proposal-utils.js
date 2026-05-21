@@ -319,3 +319,51 @@ export function normalizeAgentActionProposalAuditEvent(proposal = {}, {
     safetyFailures: safety.failures,
   };
 }
+
+function parseAuditDetail(detail) {
+  if (detail && typeof detail === "object") return detail;
+  if (!detail || typeof detail !== "string") return {};
+  try {
+    const parsed = JSON.parse(detail);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function auditTone(action = "", status = "") {
+  if (/blocked|rejected/i.test(`${action} ${status}`)) return "red";
+  if (/dismissed/i.test(action)) return "slate";
+  if (/draft_created/i.test(action)) return "green";
+  return "blue";
+}
+
+export function deriveAgentActionProposalAuditHistory(auditEvents = [], { canView = false, limit = 5 } = {}) {
+  if (!canView) return [];
+  return asArray(auditEvents)
+    .map((event, index) => {
+      const detail = parseAuditDetail(event?.detail);
+      const action = text(event?.action || detail.eventType);
+      const entityType = text(event?.entityType);
+      const isAgentProposal = entityType === "agentActionProposal" || action.startsWith("agent.proposal.");
+      if (!isAgentProposal) return null;
+      const status = text(detail.status || (action.includes("blocked") ? "blocked" : "needs_human_review"));
+      return {
+        id: text(event?.id) || text(detail.proposalId) || `agent-proposal-audit-${index}`,
+        proposalId: text(event?.entityId || detail.proposalId),
+        action,
+        status,
+        tone: auditTone(action, status),
+        summary: text(event?.summary || detail.summary || "Agent proposal audit event"),
+        proposalType: text(detail.proposalType || detail.proposalTypeLabel || "agent proposal"),
+        sourceModule: text(detail.sourceModule || "Apex Assistant"),
+        actorName: text(event?.actorName || detail.actorName || "Apex HQ user"),
+        createdAt: text(event?.createdAt || detail.createdAt),
+        blockedReasons: asArray(detail.blockedReasons).map(text).filter(Boolean).slice(0, 3),
+        requiredApprovals: asArray(detail.requiredApprovals).map(text).filter(Boolean).slice(0, 3),
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime())
+    .slice(0, Math.max(0, Number(limit) || 5));
+}

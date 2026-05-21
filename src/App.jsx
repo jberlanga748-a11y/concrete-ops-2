@@ -24,7 +24,7 @@ import {
   deriveApexAssistantShellState,
   resolveApexAssistantCommand,
 } from "./apex-assistant-shell-utils";
-import { buildAgentActionProposal } from "./agent-action-proposal-utils";
+import { buildAgentActionProposal, deriveAgentActionProposalAuditHistory } from "./agent-action-proposal-utils";
 import { deriveAiOfficeAgentCommandCenter } from "./ai-office-utils";
 import { DEFAULT_APP_PERMISSIONS, mergePermissionScope, normalizeAppPermissions } from "./app-state-utils";
 import {
@@ -2308,6 +2308,12 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
   const actionProposal = useMemo(() => (
     response ? buildAgentActionProposal(response, { permissions }) : null
   ), [permissions, response]);
+  const proposalAuditHistory = useMemo(() => (
+    deriveAgentActionProposalAuditHistory(commandContext.auditEvents, {
+      canView: Boolean(permissions.audit?.canView),
+      limit: 4,
+    })
+  ), [commandContext.auditEvents, permissions.audit?.canView]);
 
   if (!assistantState.canView) return null;
 
@@ -3081,6 +3087,41 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
                 ) : (
                   <Button type="button" size="sm" className="mt-3" onClick={() => openModule(response.moduleId)}>{response.actionLabel}</Button>
                 )}
+              </div>
+            ) : null}
+
+            {permissions.audit?.canView ? (
+              <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.05] p-3">
+                <div className="flex min-w-0 items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Proposal audit history</p>
+                    <p className="mt-1 text-sm font-black text-white">Review-first records</p>
+                  </div>
+                  <Badge tone={proposalAuditHistory.length ? "blue" : "slate"}>{proposalAuditHistory.length}</Badge>
+                </div>
+                {proposalAuditHistory.length ? (
+                  <div className="mt-3 grid gap-2">
+                    {proposalAuditHistory.map((event) => (
+                      <div key={event.id} className="rounded-xl border border-white/10 bg-slate-950/60 p-2">
+                        <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="break-words text-xs font-black text-white">{event.summary}</p>
+                            <p className="mt-1 text-[11px] font-bold leading-4 text-slate-400">{event.sourceModule} / {event.actorName} / {formatDateTime(event.createdAt)}</p>
+                          </div>
+                          <Badge tone={event.tone}>{event.status === "blocked" ? "Blocked" : "Audit"}</Badge>
+                        </div>
+                        {event.blockedReasons.length ? (
+                          <p className="mt-2 text-[11px] font-bold leading-4 text-orange-100">{event.blockedReasons[0]}</p>
+                        ) : event.requiredApprovals.length ? (
+                          <p className="mt-2 text-[11px] font-bold leading-4 text-blue-100">{event.requiredApprovals[0]}</p>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-xs font-bold leading-5 text-slate-400">No agent proposal audit records are visible yet. Generated proposal records will appear here after server audit is enabled in the workflow.</p>
+                )}
+                <p className="mt-3 text-[11px] font-bold leading-5 text-slate-500">Read-only history. This panel cannot approve, create, send, convert, or change records.</p>
               </div>
             ) : null}
 
@@ -41127,7 +41168,7 @@ export default function App() {
           jobDraftImports: appState.permissions.jobDraftImports?.canView ? appState.jobDraftImports : [],
           estimates: appState.permissions.estimates?.canView ? appState.estimates : [],
           calculatorResults: appState.permissions.calculator?.canUse ? appState.calculatorResults : [],
-          auditEvents: appState.permissions.appHealth?.canView ? appState.auditEvents : [],
+          auditEvents: appState.permissions.audit?.canView ? appState.auditEvents : [],
           activity: appState.permissions.appHealth?.canView ? appState.activity : [],
         }}
         onOpenModule={setActive}
