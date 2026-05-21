@@ -1,6 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { AssistantRail, CommandPageFrame, EstimateStudioShell, Icon, WorkQueueCard } from "./app-shell-components";
+import {
+  AssistantRail,
+  Badge,
+  Button,
+  Card,
+  CommandPageFrame,
+  EstimateStudioShell,
+  Icon,
+  PageHeader,
+  ProposalTotalCard,
+  SectionHeader,
+  StatCard,
+  StatusBadge,
+  WorkQueueCard,
+} from "./app-shell-components";
 import {
   deriveApexAssistantShellState,
   resolveApexAssistantCommand,
@@ -170,7 +184,7 @@ import { buildNotificationStateStorageKey, canViewNotificationCenter, deriveNoti
 import { applyOpportunityScoutAgentPreviewToDraft, applyOpportunityScoutSourceCheckToDraft, buildOpportunityScoutSourceBrief, deriveOpportunityScoutState } from "./opportunity-scout-utils";
 import { buildEnterpriseTrustReviewPacket, buildOwnerSupportPacket, deriveAppHealthAuditState, deriveEnterpriseTrustReadinessState, deriveOverallOwnerHealthStatus, formatBytes, healthStatusTone, ownerHealthStatusLabel, ownerHealthWarnings } from "./owner-health-utils";
 import { getReleaseSafetyCommandGroups, getReleaseSafetySections, releaseSafetyStatusTone } from "./release-safety-utils";
-import { DESIGN_COLORS, getButtonToneClass, getCardClass, getStatusToneClass } from "./design-tokens";
+import { DESIGN_COLORS } from "./design-tokens";
 import { canCapturePilotFeedback, canRequestPackageReview, canViewJob } from "../shared/permissions.js";
 import { LEAD_SCORE_LABELS, leadScoreTone } from "../shared/leadScoring.js";
 import { missingInfoTone } from "../shared/leadMissingInfo.js";
@@ -1135,35 +1149,6 @@ function formatFileSize(bytes) {
   return `${size} B`;
 }
 
-function Button({ children, variant = "primary", size = "md", className = "", ...props }) {
-  const sizes = {
-    sm: "min-h-8 px-3 py-1.5 text-xs",
-    md: "min-h-9 px-3.5 py-2 text-sm",
-    lg: "min-h-10 px-4 py-2.5 text-sm",
-  };
-
-  return (
-    <button className={`co-focus-ring inline-flex min-w-0 max-w-full items-center justify-center gap-2 rounded-xl text-center font-black leading-tight transition whitespace-normal break-words disabled:cursor-not-allowed disabled:opacity-60 ${getButtonToneClass(variant)} ${sizes[size]} ${className}`} {...props}>
-      {children}
-    </button>
-  );
-}
-
-function Badge({ children, tone = "blue" }) {
-  return <span className={`inline-flex min-w-0 max-w-full items-center rounded-lg px-2.5 py-0.5 text-[11px] font-black leading-5 tracking-[0.02em] ring-1 break-words ${getStatusToneClass(tone)}`}>{children}</span>;
-}
-
-function StatusBadge({ status }) {
-  const normalized = status.toLowerCase();
-  let tone = "slate";
-  if (["approved", "ready", "done", "complete"].includes(normalized)) tone = "green";
-  if (["new", "in progress", "in_progress", "estimate sent"].includes(normalized)) tone = "blue";
-  if (["blocked"].includes(normalized)) tone = "red";
-  if (["due today", "site visit", "waiting", "planned", "field complete", "field_complete"].includes(normalized)) tone = "amber";
-  if (["scheduled", "ready to bill", "billing_ready"].includes(normalized)) tone = "violet";
-  return <Badge tone={tone}>{status}</Badge>;
-}
-
 function StartupStatusBadge({ status }) {
   const normalizedStatus = JOB_STARTUP_STATUSES.includes(status) ? status : "Not Started";
   let tone = "slate";
@@ -1171,60 +1156,6 @@ function StartupStatusBadge({ status }) {
   if (normalizedStatus === "In Progress") tone = "blue";
   if (normalizedStatus === "Needs Review") tone = "amber";
   return <Badge tone={tone}>{normalizedStatus}</Badge>;
-}
-
-function Card({ children, className = "", variant = "default", ...props }) {
-  return <div className={`${getCardClass(variant)} ${className}`} {...props}>{children}</div>;
-}
-
-function PageHeader({ eyebrow, title, description, actions, tabs }) {
-  return (
-    <div className="co-page-header mb-4 border-b border-slate-200/90 bg-white/95 px-5 py-4 shadow-[0_18px_48px_-44px_rgba(7,17,31,0.62)] backdrop-blur sm:px-6">
-      <div className="mx-auto w-full max-w-[1520px]">
-        <div className="flex min-w-0 max-w-full flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-orange-700">{eyebrow}</p>
-            <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-[1.85rem]">{title}</h1>
-            {description ? <p className="mt-1.5 max-w-4xl text-sm font-bold leading-5 text-slate-600">{description}</p> : null}
-          </div>
-          {actions ? <div className="co-page-header-actions flex min-w-0 max-w-full flex-wrap gap-2 lg:justify-end">{actions}</div> : null}
-        </div>
-        {tabs ? <div className="co-page-header-tabs mt-4 flex min-w-0 max-w-full gap-2 overflow-x-auto pb-1">{tabs}</div> : null}
-      </div>
-    </div>
-  );
-}
-
-function SectionHeader({ title, description, action }) {
-  return (
-    <div className="mb-3 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-      <div className="co-section-accent min-w-0">
-        <h2 className="break-words text-base font-black text-slate-950">{title}</h2>
-        {description ? <p className="mt-1 break-words text-sm font-bold leading-5 text-slate-600">{description}</p> : null}
-      </div>
-      {action ? <div className="min-w-0 max-w-full w-full sm:w-auto sm:shrink-0">{action}</div> : null}
-    </div>
-  );
-}
-
-function StatCard({ title, value, detail }) {
-  return (
-    <div className="min-w-0 max-w-full rounded-xl border border-slate-200 bg-white/95 p-3 shadow-[0_14px_34px_-30px_rgba(7,17,31,0.5)]">
-      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{title}</p>
-      <p className="mt-2 break-words text-xl font-black text-slate-950">{value}</p>
-      {detail ? <p className="mt-1 break-words text-sm font-bold text-slate-600">{detail}</p> : null}
-    </div>
-  );
-}
-
-function ProposalTotalCard({ value, detail, label = "Proposal total" }) {
-  return (
-    <div className="min-w-0 max-w-full rounded-xl border border-slate-800 bg-gradient-to-br from-slate-950 via-slate-900 to-orange-950 p-5 text-white shadow-sm shadow-slate-900/20">
-      <p className="text-xs font-black uppercase tracking-[0.2em] text-orange-100">{label}</p>
-      <p className="mt-2 break-words text-3xl font-black tracking-tight sm:text-4xl">{value}</p>
-      {detail ? <p className="mt-2 break-words text-sm font-bold leading-6 text-orange-100">{detail}</p> : null}
-    </div>
-  );
 }
 
 function estimateStudioListItems(value, fallback = []) {
