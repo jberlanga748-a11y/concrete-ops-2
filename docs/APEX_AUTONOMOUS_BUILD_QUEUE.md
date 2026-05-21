@@ -68,7 +68,7 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 | 2026-05-21 | P2 | Demo/pilot monitoring baseline decision | Done; GitHub Actions plus GitHub issues documented as the current demo/pilot monitoring baseline with production log drains and paid providers still blocked | `55ba741` |
 | 2026-05-21 | P3 | Full visual route sweep refresh | Done; local build, role tests, and full visual route audit passed across admin desktop/phone/tablet plus foreman/employee phone/tablet with zero final failures | `b571a1c` |
 | 2026-05-21 | P4 | Master build tracker sync | Done; master phase tracker now reflects v130 demo evidence, monitoring baseline decision, latest pilot readiness, and full visual route sweep | `b0ec339` |
-| 2026-05-21 | P2 | Founder demo readiness refresh | Done; founder-demo readiness and manual-only brief passed with production/demo readiness endpoints healthy and no outreach or data mutation | `pending` |
+| 2026-05-21 | P2 | Founder demo readiness refresh | Done; founder-demo readiness and manual-only brief passed with production/demo readiness endpoints healthy and no outreach or data mutation | `1dbee17` |
 
 ## Active Queue
 
