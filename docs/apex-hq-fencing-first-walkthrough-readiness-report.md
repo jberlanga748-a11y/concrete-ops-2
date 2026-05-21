@@ -2,6 +2,8 @@
 
 Date: 2026-05-21
 
+Latest evidence refresh: 2026-05-21T08:22:37Z
+
 Target environment: `https://concrete-ops-demo.fly.dev`
 
 Status: guided walkthrough GO, controlled pilot GO with supervision, public launch NO-GO.
@@ -63,25 +65,25 @@ Checked:
 - `/support`
 - field/demo utility routes
 
-Auth smoke was not run because `APEX_SMOKE_PASSWORD` was not present in the local shell.
+Auth smoke was intentionally skipped for this refresh because the preflight ran without `--allow-auth`.
 
 ## Browser Evidence
 
 Admin desktop route audit:
 
-- Manifest: `ui-audit/fencing-first-walkthrough/2026-05-21T07-23-54-425Z/manifest.json`
+- Manifest: `ui-audit/fencing-first-walkthrough/2026-05-21T08-22-06-200Z/manifest.json`
 - Routes: `/command-center`, `/leads`, `/estimates`, `/jobs`, `/schedule`, `/reports`, `/uploads`, `/support`
 - Result: 8 checked, 0 failures
 
 Admin tablet route audit:
 
-- Manifest: `ui-audit/fencing-first-walkthrough/2026-05-21T07-24-22-113Z/manifest.json`
+- Manifest: `ui-audit/fencing-first-walkthrough/2026-05-21T08-22-18-828Z/manifest.json`
 - Routes: `/estimates`, `/jobs`, `/schedule`
 - Result: 3 checked, 0 failures
 
 Employee phone route audit:
 
-- Manifest: `ui-audit/fencing-first-walkthrough/2026-05-21T07-24-37-244Z/manifest.json`
+- Manifest: `ui-audit/fencing-first-walkthrough/2026-05-21T08-22-25-677Z/manifest.json`
 - Routes: `/jobs`, `/reports`, `/uploads`, `/time`, `/estimates`, `/leads`, `/settings`
 - Result: 7 checked, 0 failures
 - Restricted office routes redirected to field-safe workspace paths.
@@ -120,7 +122,7 @@ Result: PASS.
 ## Remaining Gaps Before A Real User
 
 - Confirm actual company name, owner/admin email, field lead email, and first real record.
-- Run auth hosted smoke with `APEX_SMOKE_PASSWORD` available.
+- Run auth hosted smoke with `APEX_SMOKE_PASSWORD` available and `--allow-auth` explicitly set.
 - Confirm pilot terms/customer data expectations before outside login.
 - Keep the contractor's current system as backup.
 - Do not promise custom fencing features, guaranteed leads, automatic bidding, payments, payroll, or public launch readiness.
