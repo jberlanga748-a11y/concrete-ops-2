@@ -102,6 +102,7 @@ Do not use:
 | Public claims scan | Built; scans curated public/source copy for unsupported positive claims |
 | Pilot rehearsal helper | Built; read-only Day 0/3/10 packet generator and validator |
 | Fencing walkthrough preflight | Built; `npm.cmd run pilot:fencing-preflight -- --run --json` checks Fly demo health, hosted routes, admin desktop/tablet walkthrough routes, employee phone redirects, and role tests |
+| Fencing pilot intake gate | Built; `npm.cmd run pilot:fencing-intake -- --json` fails closed before outside login if setup, support, backup, terms, data-boundary, or success criteria are missing |
 | Launch gate status helper | Built; local and manual GitHub read-only combined GO/NO-GO view |
 
 ## Business Launch Checklist
