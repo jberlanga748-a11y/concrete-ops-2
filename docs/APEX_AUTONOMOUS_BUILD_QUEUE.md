@@ -45,12 +45,12 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 | 2026-05-21 | P1 | Day 3 / Day 10 fencing pilot check-in packet | Done; read-only check-in generator, scorecard, safety boundaries, and tests | `2886d93` |
 | 2026-05-21 | P1 | Fencing customer pilot setup approval packet | Done; fail-closed approval packet before outside login or customer pilot resource setup | `f2f4074` |
 | 2026-05-21 | P2 | Demo auth smoke preflight docs sync | Done; local/GitHub/Vercel/Fly-demo/production auth-smoke boundaries documented | `6e66a1c` |
+| 2026-05-21 | P2 | CI launch-gate summary refresh | Done; summary now shows GO/NO-GO counts, blocker counts, first blockers, and warning counts | `f156548` |
 
 ## Active Queue
 
 | Priority | Task | Status | Why It Matters | Safe Scope | Verification | Stop / Approval Gate |
 | --- | --- | --- | --- | --- | --- | --- |
-| P2 | CI launch-gate summary refresh | Ready | Keeps GitHub evidence easy to read for pilot/demo gates | GitHub workflow/docs helper only | workflow/script tests | Stop before changing production auth smoke behavior |
 | P3 | Fencing demo screenshot manifest refresh | Ready | Captures current screenshots after pilot scripts so walkthrough evidence is up to date | Browser evidence only; no app changes | visual audit command | Stop if UI failure suggests app code change |
 | P4 | First-pilot support severity quick card | Ready | Gives support triage a one-page reference during the friendly pilot | Docs only | docs check | Stop before making SLA/legal claims |
 
@@ -66,4 +66,4 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 ## Next Recommended Task
 
-Refresh the CI launch-gate summary evidence so demo and pilot readiness signals stay easy to read without running auth smoke or deploys.
+Refresh the fencing demo screenshot manifest so the walkthrough has current browser evidence for desktop, tablet, and employee phone routes.
