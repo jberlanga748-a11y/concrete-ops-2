@@ -80,7 +80,7 @@ import {
   deriveAgentDailyOpsBrief,
   deriveAgentNextBestActions,
   deriveAgentWorkflowContext,
-} from "../src/agent-workflow-context-utils.js";
+} from "../shared/agentWorkflowContext.js";
 import {
   buildEstimateRoughNotesContext,
   generateEstimateRoughNotesDrafts,
