@@ -15,19 +15,24 @@ export function extractLaunchGateJson(output = "") {
 
 export function buildLaunchGateSummary(report = {}, title = "Apex HQ launch gate status") {
   const gates = Array.isArray(report.gates) ? report.gates : [];
+  const goCount = gates.filter((gate) => gate.status === "GO").length;
+  const noGoCount = gates.filter((gate) => gate.status !== "GO").length;
   const rows = gates.map((gate) => {
     const blockers = Array.isArray(gate.blockers) ? gate.blockers : [];
-    const topBlocker = blockers[0] || "";
-    return `| ${gate.status === "GO" ? "PASS" : "NO-GO"} | ${gate.name || "unknown"} | ${gate.status || "UNKNOWN"} | ${topBlocker.replaceAll("|", "\\|")} |`;
+    const warnings = Array.isArray(gate.warnings) ? gate.warnings : [];
+    const topBlocker = blockers[0] || "none";
+    const warningSummary = warnings.length ? `${warnings.length} warning(s)` : "none";
+    return `| ${gate.status === "GO" ? "PASS" : "NO-GO"} | ${gate.name || "unknown"} | ${gate.status || "UNKNOWN"} | ${blockers.length} | ${topBlocker.replaceAll("|", "\\|")} | ${warningSummary} |`;
   });
 
   return [
     `### ${title}`,
     "",
     `Checked at: \`${report.checkedAt || "unknown"}\``,
+    `Gate summary: ${goCount} GO / ${noGoCount} NO-GO`,
     "",
-    "| Result | Gate | Status | First blocker |",
-    "| --- | --- | --- | --- |",
+    "| Result | Gate | Status | Blockers | First blocker | Warnings |",
+    "| --- | --- | --- | ---: | --- | --- |",
     ...rows,
     "",
     `Next highest leverage: ${report.nextHighestLeverage || "unknown"}`,

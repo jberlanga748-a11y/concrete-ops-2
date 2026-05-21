@@ -23,15 +23,17 @@ test("buildLaunchGateSummary renders gates and blockers", () => {
     checkedAt: "2026-05-20T00:00:00.000Z",
     gates: [
       { name: "Guided demo readiness", status: "GO", blockers: [] },
-      { name: "Production auth smoke readiness", status: "NO-GO", blockers: ["Secret missing"] },
+      { name: "Production auth smoke readiness", status: "NO-GO", blockers: ["Secret missing"], warnings: ["Approval missing"] },
     ],
     nextHighestLeverage: "Pick one real pilot candidate.",
     boundary: "read-only",
   });
 
+  assert.match(summary, /Gate summary: 1 GO \/ 1 NO-GO/);
   assert.match(summary, /Guided demo readiness/);
   assert.match(summary, /Production auth smoke readiness/);
   assert.match(summary, /Secret missing/);
+  assert.match(summary, /1 warning\(s\)/);
   assert.match(summary, /Pick one real pilot candidate/);
 });
 
