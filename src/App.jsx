@@ -2759,7 +2759,54 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
                     ) : null}
                   </div>
                 ) : null}
-                {response.type === "next-best-actions" ? (
+                {response.type === "daily-ops-brief" ? (
+                  <div className="mt-3 grid gap-2">
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.08] p-3">
+                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Daily operations brief</p>
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        {(response.brief?.metrics || []).map((metric) => (
+                          <span key={metric.label} className="rounded-xl border border-white/10 bg-white/[0.06] p-2">
+                            <span className="block text-lg font-black text-white">{metric.value}</span>
+                            <span className="mt-1 block text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">{metric.label}</span>
+                          </span>
+                        ))}
+                      </div>
+                      <p className="mt-2 text-xs font-bold leading-5 text-slate-300">{response.brief?.safetyBoundary}</p>
+                    </div>
+                    {(response.brief?.sections || []).map((section) => (
+                      <div key={section.id} className="rounded-2xl border border-white/10 bg-white/[0.06] p-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-orange-200">{section.label}</p>
+                        <div className="mt-2 grid gap-2">
+                          {(section.items || []).length ? section.items.map((item) => (
+                            <button
+                              key={`${section.id}-${item.id}`}
+                              type="button"
+                              onClick={() => openModule(item.moduleId)}
+                              className="co-focus-ring rounded-xl border border-white/10 bg-white/[0.05] p-2 text-left transition hover:border-orange-400/50 hover:bg-orange-500/10"
+                            >
+                              <span className="flex min-w-0 items-start justify-between gap-2">
+                                <span className="min-w-0">
+                                  <span className="block break-words text-sm font-black text-white">{item.label}</span>
+                                  <span className="mt-1 block break-words text-xs font-bold leading-5 text-slate-300">{item.detail}</span>
+                                </span>
+                                <span className="shrink-0 rounded-lg bg-white/10 px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-200">{item.count || 0}</span>
+                              </span>
+                            </button>
+                          )) : (
+                            <p className="rounded-xl border border-white/10 bg-white/[0.05] p-2 text-xs font-bold leading-5 text-slate-300">No visible items in this section.</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    <div className="flex flex-wrap gap-2">
+                      {(response.actions || []).map((action) => (
+                        <Button key={`${action.moduleId}-${action.actionLabel}`} type="button" size="sm" onClick={() => openModule(action.moduleId)}>
+                          {action.actionLabel}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                ) : response.type === "next-best-actions" ? (
                   <div className="mt-3 grid gap-2">
                     <div className="rounded-2xl border border-white/10 bg-white/[0.08] p-3">
                       <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Agent next actions</p>

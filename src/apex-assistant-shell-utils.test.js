@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   deriveApexAssistantShellState,
   resolveApexAssistantCommand,
+  resolveAssistantDailyOpsBriefCommand,
   resolveAssistantNextBestActionsCommand,
   resolveAssistantWorkflowDraftPrepCommand,
   resolveAssistantChangeOrderReviewCommand,
@@ -185,6 +186,39 @@ test("assistant command routes draft packet prompts before next-action listing",
 
   assert.equal(command.type, "workflow-draft-prep");
   assert.equal(command.actionLabel, "Open reports");
+});
+
+test("assistant returns a daily operations brief without write behavior", () => {
+  const command = resolveAssistantDailyOpsBriefCommand("daily operations brief", {
+    permissions: {
+      leads: { canView: true },
+      jobs: { canView: true },
+      reports: { canView: true },
+      uploads: { canView: true },
+    },
+    leads: [{ id: "LEAD-1", customer: "Friendly Fence", status: "Follow Up" }],
+    jobs: [{ id: "JOB-1", title: "Fence Install", status: "Scheduled" }],
+    dailyReports: [{ id: "DR-1", title: "Daily", status: "Submitted" }],
+    uploads: [{ id: "UP-1", title: "Photos", status: "Needs Review" }],
+  });
+
+  assert.equal(command.type, "daily-ops-brief");
+  assert.ok(command.brief.metrics.length > 0);
+  assert.match(command.message, /Brief only/i);
+  assert.ok(command.actions.length > 0);
+});
+
+test("assistant command routes daily ops brief prompts before generic status", () => {
+  const command = resolveApexAssistantCommand("give me the daily ops brief", {
+    commandContext: {
+      permissions: {
+        jobs: { canView: true },
+      },
+      jobs: [{ id: "JOB-1", title: "Assigned Fence", status: "Scheduled" }],
+    },
+  });
+
+  assert.equal(command.type, "daily-ops-brief");
 });
 
 test("empty assistant command starts with highest watchtower action", () => {

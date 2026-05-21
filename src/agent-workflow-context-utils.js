@@ -249,6 +249,75 @@ export function deriveAgentWorkflowDraftPrep(context = {}, { actionId = "" } = {
   };
 }
 
+export function deriveAgentDailyOpsBrief(context = {}) {
+  const workflowContext = context?.modules ? context : deriveAgentWorkflowContext(context);
+  const nextActions = deriveAgentNextBestActions(workflowContext, { limit: 5 });
+  const visibleModules = asArray(workflowContext.modules).filter((module) => module.canView);
+  const attentionModules = visibleModules
+    .filter((module) => Number(module.needsAttention || 0) > 0)
+    .sort((left, right) => Number(right.needsAttention || 0) - Number(left.needsAttention || 0));
+  const quietModules = visibleModules
+    .filter((module) => Number(module.needsAttention || 0) <= 0)
+    .slice(0, 4);
+
+  return {
+    mode: "review_first_daily_ops_brief",
+    generatedAt: new Date().toISOString(),
+    title: "Daily operations brief",
+    summary: workflowContext.summary,
+    metrics: [
+      { label: "Visible workflow areas", value: visibleModules.length },
+      { label: "Areas needing review", value: attentionModules.length },
+      { label: "Review signals", value: workflowContext.attentionCount || 0 },
+      { label: "Ranked next actions", value: nextActions.actions.length },
+    ],
+    sections: [
+      {
+        id: "needs-attention",
+        label: "Needs attention",
+        items: attentionModules.slice(0, 5).map((module) => ({
+          id: module.id,
+          label: module.label,
+          detail: module.summary,
+          moduleId: module.moduleId,
+          actionLabel: module.nextActionLabel,
+          count: module.needsAttention,
+        })),
+      },
+      {
+        id: "next-actions",
+        label: "Recommended next actions",
+        items: nextActions.actions.slice(0, 5).map((action) => ({
+          id: action.id,
+          label: action.title,
+          detail: action.reason,
+          moduleId: action.moduleId,
+          actionLabel: action.actionLabel,
+          count: action.needsAttention,
+        })),
+      },
+      {
+        id: "quiet-areas",
+        label: "Visible areas without urgent pressure",
+        items: quietModules.map((module) => ({
+          id: module.id,
+          label: module.label,
+          detail: module.summary,
+          moduleId: module.moduleId,
+          actionLabel: module.nextActionLabel,
+          count: module.count,
+        })),
+      },
+    ],
+    actions: nextActions.actions.map((action) => ({
+      moduleId: action.moduleId,
+      actionLabel: action.actionLabel,
+      label: action.title,
+    })).slice(0, 5),
+    safetyBoundary: "Brief only. No records are saved, sent, approved, converted, scheduled, invoiced, billed, assigned, or updated.",
+  };
+}
+
 export function deriveAgentWorkflowContext(context = {}) {
   const permissions = context.permissions || {};
   const leads = visibleRecords(context, "leads", Boolean(permissions?.leads?.canView));
@@ -420,4 +489,8 @@ export function hasAgentNextBestActionsIntent(input = "") {
 
 export function hasAgentWorkflowDraftPrepIntent(input = "") {
   return /\b(prepare|build|draft|make)\b.*\b(next action|next best action|workflow packet|review packet|draft packet|action packet)\b/.test(normalize(input));
+}
+
+export function hasAgentDailyOpsBriefIntent(input = "") {
+  return /\b(daily ops brief|daily operations brief|operations brief|morning brief|summarize today|today's brief|todays brief|operator brief)\b/.test(normalize(input));
 }

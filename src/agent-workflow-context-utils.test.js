@@ -3,8 +3,10 @@ import test from "node:test";
 
 import {
   deriveAgentNextBestActions,
+  deriveAgentDailyOpsBrief,
   deriveAgentWorkflowContext,
   deriveAgentWorkflowDraftPrep,
+  hasAgentDailyOpsBriefIntent,
   hasAgentNextBestActionsIntent,
   hasAgentWorkflowContextIntent,
   hasAgentWorkflowDraftPrepIntent,
@@ -162,4 +164,32 @@ test("agent workflow draft prep intent recognizes packet prompts", () => {
   assert.equal(hasAgentWorkflowDraftPrepIntent("prepare next action draft packet"), true);
   assert.equal(hasAgentWorkflowDraftPrepIntent("build workflow packet"), true);
   assert.equal(hasAgentWorkflowDraftPrepIntent("show next best actions"), false);
+});
+
+test("agent daily ops brief summarizes visible context without actions", () => {
+  const brief = deriveAgentDailyOpsBrief({
+    user: { role: "Administrator" },
+    permissions: {
+      leads: { canView: true },
+      jobs: { canView: true },
+      reports: { canView: true },
+      uploads: { canView: true },
+    },
+    leads: [{ id: "LEAD-1", customer: "Friendly Fence", status: "Follow Up" }],
+    jobs: [{ id: "JOB-1", title: "Fence Install", status: "In Progress" }],
+    dailyReports: [{ id: "DR-1", title: "Daily", status: "Submitted" }],
+    uploads: [{ id: "UP-1", title: "Photos", status: "Needs Review" }],
+  });
+
+  assert.equal(brief.mode, "review_first_daily_ops_brief");
+  assert.ok(brief.metrics.find((metric) => metric.label === "Visible workflow areas").value > 0);
+  assert.ok(brief.sections.find((section) => section.id === "needs-attention").items.length > 0);
+  assert.ok(brief.actions.length > 0);
+  assert.match(brief.safetyBoundary, /No records are saved/i);
+});
+
+test("agent daily ops brief intent recognizes operator brief prompts", () => {
+  assert.equal(hasAgentDailyOpsBriefIntent("daily operations brief"), true);
+  assert.equal(hasAgentDailyOpsBriefIntent("give me the morning brief"), true);
+  assert.equal(hasAgentDailyOpsBriefIntent("show next best actions"), false);
 });

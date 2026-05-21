@@ -1,7 +1,9 @@
 import {
   deriveAgentNextBestActions,
+  deriveAgentDailyOpsBrief,
   deriveAgentWorkflowContext,
   deriveAgentWorkflowDraftPrep,
+  hasAgentDailyOpsBriefIntent,
   hasAgentNextBestActionsIntent,
   hasAgentWorkflowContextIntent,
   hasAgentWorkflowDraftPrepIntent,
@@ -133,6 +135,7 @@ const DEFAULT_PROMPTS = [
   "What needs attention?",
   "Show next best actions",
   "Prepare next action draft packet",
+  "Daily operations brief",
   "Summarize workflow context",
   "Summarize missing proof",
   "Review daily closeout",
@@ -198,6 +201,9 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
 
   const workflowDraftPrepCommand = resolveAssistantWorkflowDraftPrepCommand(input, state.commandContext || {});
   if (workflowDraftPrepCommand) return workflowDraftPrepCommand;
+
+  const dailyOpsBriefCommand = resolveAssistantDailyOpsBriefCommand(input, state.commandContext || {});
+  if (dailyOpsBriefCommand) return dailyOpsBriefCommand;
 
   const nextBestActionsCommand = resolveAssistantNextBestActionsCommand(input, state.commandContext || {});
   if (nextBestActionsCommand) return nextBestActionsCommand;
@@ -309,6 +315,26 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
     moduleId: "commandCenter",
     actionLabel: "Open Command Center",
     message: "I can route you to Apex HQ workflows and summarize Watchtower items. I will not create, send, approve, or edit records automatically in this phase.",
+  };
+}
+
+export function resolveAssistantDailyOpsBriefCommand(input = "", context = {}) {
+  if (!hasAgentDailyOpsBriefIntent(input)) return null;
+  const workflowContext = context.agentWorkflowContext || deriveAgentWorkflowContext(context);
+  const brief = deriveAgentDailyOpsBrief(workflowContext);
+  const actions = brief.actions.map((action) => ({
+    moduleId: action.moduleId,
+    actionLabel: action.actionLabel,
+  }));
+
+  return {
+    type: "daily-ops-brief",
+    moduleId: actions[0]?.moduleId || "commandCenter",
+    actionLabel: actions[0]?.actionLabel || "Open Command Center",
+    message: `${brief.title}: ${brief.summary} ${brief.safetyBoundary}`,
+    commandText: String(input || "").trim(),
+    brief,
+    actions,
   };
 }
 
