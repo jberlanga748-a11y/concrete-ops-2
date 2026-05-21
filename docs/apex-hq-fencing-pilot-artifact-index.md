@@ -102,6 +102,7 @@ npm.cmd run launch:gate-status -- --json
   - `ui-audit/visual-polish/2026-05-21T10-26-41-202Z/manifest.json`
   - `ui-audit/visual-polish/2026-05-21T10-27-07-729Z/manifest.json`
   - note: admin desktop `/estimates` had one retryable timeout and then passed on retry; no route remained failed.
+- Latest founder demo readiness check: `npm.cmd run verify:founder-demo` and `npm.cmd run brief:founder-demo` passed on 2026-05-21. Production and demo readiness endpoints returned HTTP 200 with database `ok`, founder-demo brief tests passed, and the generated brief remained manual-only with no outreach, tracker mutation, account creation, production change, or release action.
 
 ## Hard Stops
 
