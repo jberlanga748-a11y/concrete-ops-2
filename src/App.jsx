@@ -181,12 +181,10 @@ import {
   EstimateCommandRailPolished,
   EstimateGcPacketLiteEditor,
   EstimateJobHandoffReadinessCard,
-  EstimateOptionsEditor,
+  EstimateProposalSectionsEditor,
   EstimateProposalWorkbench,
   EstimateStarterPanel,
   EstimatesTablePolished,
-  ESTIMATE_ADD_ON_STATUS_OPTIONS,
-  ESTIMATE_ALTERNATE_STATUS_OPTIONS,
   estimateDisplayCustomer,
   estimateDisplayLead,
   estimateDisplayTitle,
@@ -1131,102 +1129,6 @@ function StartupStatusBadge({ status }) {
   if (normalizedStatus === "In Progress") tone = "blue";
   if (normalizedStatus === "Needs Review") tone = "amber";
   return <Badge tone={tone}>{normalizedStatus}</Badge>;
-}
-
-function EstimateProposalSectionsEditor({ draft, setDraft, disabled = false }) {
-  const sections = deriveEstimateProposalSections(draft);
-  const updateSection = (field, value) => {
-    setDraft((current) => mergeEstimateProposalSections(current, { [field]: value }));
-  };
-  const updateInternalNotes = (value) => {
-    setDraft((current) => mergeEstimateOfficeInternalNotes(current, value));
-  };
-  const visibleInternalNotes = getEstimateVisibleInternalNotes(sections.internalNotes);
-
-  return (
-    <div className="rounded-3xl border border-blue-100 bg-white p-4 shadow-sm shadow-blue-100/40">
-      <SectionHeader
-        title="Proposal sections"
-        description="Use these sections to build a cleaner customer-facing estimate. Review pricing and scope before sending."
-        action={<Badge tone="blue">Customer proposal</Badge>}
-      />
-      <div className="grid gap-3">
-        <TextAreaField
-          label="Scope of Work"
-          value={sections.scopeOfWork}
-          onChange={(event) => updateSection("scopeOfWork", event.target.value)}
-          placeholder="Describe the work being proposed in plain customer-facing language."
-          disabled={disabled}
-        />
-        <div className="grid gap-3 lg:grid-cols-3">
-          <TextAreaField
-            label="Inclusions"
-            value={sections.inclusions}
-            onChange={(event) => updateSection("inclusions", event.target.value)}
-            placeholder="Included prep, placement, finish, cleanup, or coordination."
-            className="field-input min-h-24 resize-y"
-            disabled={disabled}
-          />
-          <TextAreaField
-            label="Exclusions"
-            value={sections.exclusions}
-            onChange={(event) => updateSection("exclusions", event.target.value)}
-            placeholder="Items not included unless added later."
-            className="field-input min-h-24 resize-y"
-            disabled={disabled}
-          />
-          <TextAreaField
-            label="Assumptions / Clarifications"
-            value={sections.assumptions}
-            onChange={(event) => updateSection("assumptions", event.target.value)}
-            placeholder="Access, weather, base conditions, schedule, or other assumptions."
-            className="field-input min-h-24 resize-y"
-            disabled={disabled}
-          />
-        </div>
-        <div className="grid gap-3 xl:grid-cols-2">
-          <EstimateOptionsEditor
-            title="Alternates"
-            description="Optional proposal choices. Optional or excluded alternates do not change the base estimate total."
-            options={sections.alternates}
-            onChange={(nextOptions) => updateSection("alternates", nextOptions)}
-            addLabel="Add alternate"
-            defaultTitle="New alternate"
-            statusOptions={ESTIMATE_ALTERNATE_STATUS_OPTIONS}
-            disabled={disabled}
-          />
-          <EstimateOptionsEditor
-            title="Optional Add-ons"
-            description="Add-ons can be tracked as optional, selected, included, accepted, or excluded without changing base line items."
-            options={sections.addOns}
-            onChange={(nextOptions) => updateSection("addOns", nextOptions)}
-            addLabel="Add add-on"
-            nameLabel="Name"
-            defaultTitle="New add-on"
-            statusOptions={ESTIMATE_ADD_ON_STATUS_OPTIONS}
-            disabled={disabled}
-          />
-        </div>
-        <TextAreaField
-          label="Customer Notes / Terms"
-          value={sections.customerNotes}
-          onChange={(event) => updateSection("customerNotes", event.target.value)}
-          placeholder="Customer-facing terms, proposal validity, payment terms, or scheduling notes."
-          disabled={disabled}
-        />
-        <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-3">
-          <TextAreaField
-            label="Internal Notes (office only)"
-            value={visibleInternalNotes}
-            onChange={(event) => updateInternalNotes(event.target.value)}
-            placeholder="Office-only sales notes. Not included in customer copy, email, or print output."
-            disabled={disabled}
-          />
-          <p className="mt-2 text-xs font-bold leading-5 text-amber-700">Internal notes are for office use only and should not print for the customer.</p>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function EstimateRoughNotesPreviewBlock({ title, value, items }) {
