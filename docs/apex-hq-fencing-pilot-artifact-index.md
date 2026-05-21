@@ -95,6 +95,13 @@ npm.cmd run launch:gate-status -- --json
 - Latest local pilot readiness gate: `npm.cmd run verify:pilot-readiness` passed on 2026-05-21T09:59Z with docs, pilot config, rehearsal, fencing gates, roles, backup export, restore drill, and build. Backup verification produced `app-data-20260521-095905Z.sqlite` / `.json`; restore drill used `app-data-20260521-095906Z.sqlite` / `.json`.
 - Latest launch gate snapshot: `npm.cmd run launch:gate-status -- --json` ran on 2026-05-21T10:10Z. Guided demo readiness was `GO`; customer pilot handoff, production auth smoke, production monitoring upgrade, and wider paid launch remained `NO-GO` for explicit setup/approval reasons.
 - Latest monitoring baseline validation: `npm.cmd run monitor:upgrade-readiness -- --provider=github-actions --environment=demo --alert-destination=github-issues --retention-days=30 --access-owner=John --redaction-confirmed --request-id-search --error-alerts --demo-first --json` returned `GO` on 2026-05-21T10:22Z for demo/pilot monitoring only.
+- Latest local full visual route sweep: `npm.cmd run build`, `npm.cmd run verify:roles`, and `npm.cmd run audit:visual-polish:full` passed on 2026-05-21T10:28Z with zero final failures. Evidence manifests:
+  - `ui-audit/visual-polish/2026-05-21T10-25-01-655Z/manifest.json`
+  - `ui-audit/visual-polish/2026-05-21T10-25-48-223Z/manifest.json`
+  - `ui-audit/visual-polish/2026-05-21T10-26-14-764Z/manifest.json`
+  - `ui-audit/visual-polish/2026-05-21T10-26-41-202Z/manifest.json`
+  - `ui-audit/visual-polish/2026-05-21T10-27-07-729Z/manifest.json`
+  - note: admin desktop `/estimates` had one retryable timeout and then passed on retry; no route remained failed.
 
 ## Hard Stops
 
