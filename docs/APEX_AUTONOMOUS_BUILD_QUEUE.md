@@ -37,6 +37,7 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 | Date | Priority | Task | Result | Commit |
 | --- | --- | --- | --- | --- |
+| 2026-05-22 | P3 | Owner health status panel extraction | Done; Owner Health Status moved into the App Health route component module with import-boundary coverage, owner-health API/utility tests, build/server/role/browser checks, and Fly demo v156 hosted smoke passing | `89c219a` |
 | 2026-05-22 | P3 | Settings plan readiness panel extraction | Done; Plan Readiness moved into a settings route component module with import-boundary coverage, local build/role/entitlement/browser checks, and Fly demo v155 hosted smoke passing | `58b88ff` |
 | 2026-05-22 | P3 | Customer portal manual preview panel extraction | Done; Settings customer portal manual preview moved into the App Health route component module with import-boundary coverage, preview packet tests, local build/role/entitlement/browser checks, and Fly demo v154 hosted smoke passing | `9fdc6da` |
 | 2026-05-22 | P3 | App Health install/style panel extraction | Done; PWA install guidance and UI style foundation panels moved into the App Health route component module with design/PWA tests, local build/role/browser checks, and Fly demo v153 hosted smoke passing | `2ffb0e4` |
