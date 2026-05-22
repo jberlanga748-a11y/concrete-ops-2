@@ -255,7 +255,7 @@ import {
   SUPPORT_PILOT_FEEDBACK_WORKFLOW,
 } from "./support-utils";
 import { buildTimeTrackingSupportContext, deriveCrewWeeklySummary, deriveTimeJobCostingReadiness, deriveTimeWorkspace, formatMinutes } from "./time-utils";
-import { TimeKpiCardPolished, TimeStatusBadge, TimeSummaryMetricsPolished } from "./time-route-components";
+import { TimeKpiCardPolished, TimeMobileAccordionCard, TimeMobileFieldGroup, TimeStatusBadge, TimeSummaryMetricsPolished } from "./time-route-components";
 import { deriveChecklistItems, deriveToolChecklistJobReadiness, deriveToolChecklistListState, filterToolChecklists, toolChecklistItemStatusLabel, toolChecklistStatusLabel } from "./tool-checklist-utils";
 import { ALLOWED_UPLOAD_TYPES, buildUploadSupportContext, deriveAllowedUploadJobs, deriveUploadDraftFromSelection, deriveUploadListState, filterUploads, findSelectedUpload, gpsStatusLabel, uploadCustomerLabel, uploadJobLabel, uploadTitle, uploadUploaderLabel, validateUploadFile } from "./upload-utils";
 import { deriveUserListState, getCrewAssignmentOptions, getForemanAssignmentOptions, USER_ROLE_OPTIONS } from "./user-utils";
@@ -5209,47 +5209,6 @@ function workCategoryLabel(workCategory = "") {
   };
 
   return labels[workCategory] || "Other";
-}
-
-function TimeMobileAccordionCard({ title, summary, badge, defaultOpen = false, children }) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
-
-  return (
-    <div className="co-mobile-accordion panel-sheen rounded-3xl border border-blue-100 bg-white/95 shadow-panel md:hidden">
-      <button type="button" className="flex w-full cursor-pointer items-start justify-between gap-3 p-3.5 text-left" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
-        <span className="min-w-0">
-          <span className="block text-base font-black text-slate-950">{title}</span>
-          {summary ? <span className="mt-1 block break-words text-xs font-bold leading-5 text-slate-500">{summary}</span> : null}
-        </span>
-        <span className="flex shrink-0 items-center gap-2">
-          {badge}
-          <span className={`co-mobile-toggle-pill rounded-full px-2.5 py-1 text-xs font-black ${isOpen ? "is-active bg-blue-700 text-white" : "bg-blue-50 text-blue-700"}`}>{isOpen ? "Hide ^" : "Show v"}</span>
-        </span>
-      </button>
-      {isOpen ? <div className="border-t border-blue-100 p-3.5">
-        {children}
-      </div> : null}
-    </div>
-  );
-}
-
-function TimeMobileFieldGroup({ title, summary, defaultOpen = false, children }) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
-
-  return (
-    <div className="co-mobile-field-group rounded-2xl border border-blue-100 bg-white">
-      <button type="button" className="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-left" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
-        <span className="min-w-0">
-          <span className="block text-sm font-black text-slate-950">{title}</span>
-          {summary ? <span className="mt-0.5 block text-xs font-bold text-slate-500">{summary}</span> : null}
-        </span>
-        <span className="co-mobile-toggle-pill shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-700">{isOpen ? "Hide ^" : "Show v"}</span>
-      </button>
-      {isOpen ? <div className="grid gap-3 border-t border-blue-100 p-3">
-        {children}
-      </div> : null}
-    </div>
-  );
 }
 
 function WeekSummaryCard({ summary, title = "This Week", description, accent = "blue", compactMobile = false }) {
