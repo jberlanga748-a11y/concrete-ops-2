@@ -2,15 +2,15 @@
 
 Date: 2026-05-22
 
-Latest evidence refresh: 2026-05-22T16:29:19Z
+Latest evidence refresh: 2026-05-22T17:13:06Z
 
 Target environment: `https://concrete-ops-demo.fly.dev`
 
 Latest demo deployment:
 
-- Fly demo version: `164`
-- Fly demo image: `registry.fly.io/concrete-ops-demo:deployment-01KS87FK72X22MGBX0YD17GZYE`
-- Latest pushed commit at refresh: `2024550`
+- Fly demo version: `166`
+- Fly demo image: `registry.fly.io/concrete-ops-demo:deployment-01KS8ACQQ60BB5KJSF4R687HA8`
+- Latest pushed commit at refresh: `df55b49`
 
 Status: app rehearsal GO, guided walkthrough GO for demo, real-company outside access NO-GO until intake details are complete, public launch NO-GO.
 
@@ -73,25 +73,25 @@ Checked:
 
 Auth smoke was intentionally skipped for this refresh because the preflight ran without `--allow-auth`.
 
-Latest auth-smoke note: local authenticated hosted smoke remains blocked because `APEX_SMOKE_PASSWORD` is not set in the current shell. Skip-auth hosted smoke passed against the demo app after the v164 deploy.
+Latest auth-smoke note: local authenticated hosted smoke remains blocked because `APEX_SMOKE_PASSWORD` is not set in the current shell. Skip-auth hosted smoke passed against the demo app after the v166 deploy.
 
 ## Browser Evidence
 
 Admin desktop route audit:
 
-- Manifest: `ui-audit/fencing-first-walkthrough/2026-05-22T16-28-20-814Z/manifest.json`
+- Manifest: `ui-audit/fencing-first-walkthrough/2026-05-22T17-07-55-218Z/manifest.json`
 - Routes: `/command-center`, `/leads`, `/estimates`, `/jobs`, `/schedule`, `/reports`, `/uploads`, `/support`
 - Result: 8 checked, 0 failures
 
 Admin tablet route audit:
 
-- Manifest: `ui-audit/fencing-first-walkthrough/2026-05-22T16-28-33-378Z/manifest.json`
+- Manifest: `ui-audit/fencing-first-walkthrough/2026-05-22T17-08-08-179Z/manifest.json`
 - Routes: `/estimates`, `/jobs`, `/schedule`
 - Result: 3 checked, 0 failures
 
 Employee phone route audit:
 
-- Manifest: `ui-audit/fencing-first-walkthrough/2026-05-22T16-28-40-325Z/manifest.json`
+- Manifest: `ui-audit/fencing-first-walkthrough/2026-05-22T17-08-15-250Z/manifest.json`
 - Routes: `/jobs`, `/reports`, `/uploads`, `/time`, `/estimates`, `/leads`, `/settings`
 - Result: 7 checked, 0 failures
 - Restricted office routes redirected to field-safe workspace paths.
@@ -166,7 +166,7 @@ Command:
 npm.cmd run verify:pilot-readiness
 ```
 
-Result: PASS on 2026-05-21T09:59Z. A narrower Sunday readiness run on 2026-05-22T16:29Z also passed all local app rehearsal checks and remained real-company NO-GO only because intake details are not yet provided.
+Result: PASS on 2026-05-21T09:59Z. A narrower Sunday readiness run on 2026-05-22T17:13Z also passed all local app rehearsal checks and remained real-company NO-GO only because intake details are not yet provided.
 
 Covered:
 

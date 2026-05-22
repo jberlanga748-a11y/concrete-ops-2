@@ -37,7 +37,8 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 | Date | Priority | Task | Result | Commit |
 | --- | --- | --- | --- | --- |
-| 2026-05-22 | P3 | Mobile assistant trigger overlap fix | Done; closed Apex Assistant trigger now flows below mobile content instead of floating over command tiles, while the opened assistant remains a fixed drawer and employee phone redirects stay safe | This commit |
+| 2026-05-22 | P2 | Sunday pilot evidence refresh after Fly demo v166 | Done; backup-first Fly demo v166 deploy passed hosted smoke, admin desktop, admin tablet, employee phone field/restricted audits, mobile assistant regression, roles, and local Sunday app rehearsal while real-company outside access remains intake-gated | This commit |
+| 2026-05-22 | P3 | Mobile assistant trigger overlap fix | Done; closed Apex Assistant trigger now flows below mobile content instead of floating over command tiles, while the opened assistant remains a fixed drawer and employee phone redirects stay safe | `df55b49` |
 | 2026-05-22 | P3 | App Health desktop KPI clipping fix | Done; `/app-health` desktop KPI tiles now keep helper/action content inside the card without visual-audit clipping, while employee routes still redirect to Field Mode | `794f459` |
 | 2026-05-22 | P3 | Office activity panel extraction | Done; generic recent activity and audit trail panels moved out of `App.jsx` into `src/office-activity-route-components.jsx` with import-boundary coverage, roles/build/customer checks, and focused browser audits passing for command center and settings | `d11f4c0` |
 | 2026-05-22 | P3 | Contact history route component extraction | Done; shared contact history UI moved out of `App.jsx` into `src/contact-history-route-components.jsx` with import-boundary coverage, customer/lead/role/build checks, and browser audits passing for leads, customers, and communications | `ffc9ead` |
