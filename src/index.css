@@ -29598,6 +29598,332 @@ textarea {
   .co-ai-snapshot-grid > div {
     padding: 0.52rem 0.58rem;
   }
+
+  .co-module-changeOrders,
+  .co-change-orders-page {
+    height: calc(100dvh - var(--layout-topbar-height, 4.5rem));
+    min-height: 0 !important;
+    overflow: hidden;
+  }
+
+  .co-change-orders-page {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .co-change-orders-page .co-page-header {
+    margin-bottom: 0 !important;
+    padding-top: 0.62rem !important;
+    padding-bottom: 0.58rem !important;
+  }
+
+  .co-change-orders-page .co-page-header h1 {
+    font-size: clamp(1.28rem, 1.45vw, 1.7rem) !important;
+    line-height: 1 !important;
+  }
+
+  .co-change-orders-page .co-page-header p:not(:first-child) {
+    margin-top: 0.18rem !important;
+    max-width: 62rem;
+    font-size: 0.76rem !important;
+    line-height: 1.24 !important;
+  }
+
+  .co-change-orders-page .co-page-header-actions button {
+    min-height: 2rem !important;
+    padding: 0.35rem 0.72rem !important;
+    font-size: 0.72rem !important;
+  }
+
+  .co-change-orders-desktop-workspace-frame {
+    display: grid;
+    min-height: 0;
+    overflow: hidden;
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    padding-top: 0.55rem;
+    padding-bottom: 0.6rem;
+  }
+
+  .co-change-orders-desktop-workspace-frame .co-change-orders-kpi-grid {
+    padding-top: 0 !important;
+    padding-bottom: 0.55rem !important;
+  }
+
+  .co-change-orders-kpi-grid .co-command-kpi {
+    min-height: 4.35rem !important;
+    height: 4.35rem !important;
+    padding: 0.55rem 0.68rem !important;
+  }
+
+  .co-change-orders-kpi-grid .co-command-kpi-body {
+    gap: 0.58rem;
+  }
+
+  .co-change-orders-kpi-grid .co-command-kpi-icon {
+    height: 2.05rem;
+    width: 2.05rem;
+  }
+
+  .co-change-orders-kpi-grid .co-command-kpi-icon svg {
+    height: 1rem;
+    width: 1rem;
+  }
+
+  .co-change-orders-kpi-grid .co-command-kpi-value {
+    font-size: 1.24rem;
+    line-height: 0.92;
+  }
+
+  .co-change-orders-kpi-grid .co-command-kpi p:nth-child(2) {
+    font-size: 0.72rem !important;
+    line-height: 1.05 !important;
+  }
+
+  .co-change-orders-kpi-grid .co-command-kpi p:nth-child(3),
+  .co-change-orders-kpi-grid .co-command-kpi-link {
+    font-size: 0.6rem !important;
+    min-height: 0;
+    line-height: 1.08 !important;
+  }
+
+  .co-change-orders-command-layout {
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+    padding-bottom: 0.55rem !important;
+  }
+
+  .co-change-orders-command-layout > div:first-child {
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .co-change-orders-main-board {
+    display: grid;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden !important;
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  }
+
+  .co-change-orders-board-header {
+    padding: 0.68rem 0.8rem !important;
+  }
+
+  .co-change-orders-board-header h2 {
+    font-size: 0.92rem;
+    line-height: 1.05;
+  }
+
+  .co-change-orders-board-header p {
+    margin-top: 0.18rem !important;
+    font-size: 0.68rem !important;
+    line-height: 1.16 !important;
+  }
+
+  .co-change-orders-main-board .co-filter-bar {
+    gap: 0.45rem !important;
+    padding: 0.52rem 0.62rem !important;
+  }
+
+  .co-change-orders-main-board .co-filter-bar button,
+  .co-change-orders-board-footer button {
+    min-height: 1.92rem !important;
+    padding: 0.32rem 0.62rem !important;
+    font-size: 0.66rem !important;
+  }
+
+  .co-change-orders-main-board .field-input {
+    min-height: 2rem !important;
+    padding-top: 0.34rem !important;
+    padding-bottom: 0.34rem !important;
+    font-size: 0.72rem !important;
+  }
+
+  .co-change-orders-advanced-filters > summary,
+  .co-change-orders-secondary-drawer > summary,
+  .co-change-orders-tools-drawer > summary {
+    min-height: 0 !important;
+    padding: 0.52rem 0.68rem !important;
+  }
+
+  .co-change-orders-advanced-filters > summary span:first-child,
+  .co-change-orders-secondary-drawer > summary strong,
+  .co-change-orders-tools-drawer > summary strong {
+    font-size: 0.72rem !important;
+    line-height: 1.1;
+  }
+
+  .co-change-orders-advanced-filters > summary span:last-child,
+  .co-change-orders-secondary-drawer > summary > span:last-child,
+  .co-change-orders-tools-drawer > summary > span:last-child,
+  .co-change-orders-secondary-drawer > summary em,
+  .co-change-orders-tools-drawer > summary em {
+    font-size: 0.62rem !important;
+    line-height: 1.16;
+  }
+
+  .co-change-orders-list-scroll {
+    min-height: 0;
+    max-height: none !important;
+    overflow: auto !important;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  }
+
+  .co-change-orders-command-table th {
+    padding: 0.4rem 0.48rem;
+    font-size: 0.56rem;
+  }
+
+  .co-change-orders-command-table td {
+    padding: 0.44rem 0.48rem;
+    font-size: 0.64rem;
+  }
+
+  .co-change-orders-board-footer {
+    padding: 0.56rem 0.72rem !important;
+  }
+
+  .co-change-orders-board-footer p {
+    font-size: 0.72rem !important;
+    line-height: 1.15;
+  }
+
+  .co-change-orders-right-rail {
+    position: static !important;
+    min-height: 0;
+    max-height: 100% !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    padding-right: 0.12rem;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  }
+
+  .co-change-orders-command-assistant {
+    gap: 0.55rem !important;
+  }
+
+  .co-change-orders-command-assistant > .co-change-orders-rail-card,
+  .co-change-orders-command-assistant > .co-change-orders-assistant-card {
+    padding: 0.68rem !important;
+  }
+
+  .co-change-orders-selected-metrics,
+  .co-change-orders-readonly-grid {
+    gap: 0.42rem;
+    margin-top: 0.54rem;
+  }
+
+  .co-change-orders-selected-metrics > div,
+  .co-change-orders-readonly-grid > div,
+  .co-change-orders-readiness-list span {
+    padding: 0.48rem;
+  }
+
+  .co-change-orders-note-panel {
+    margin-top: 0.46rem;
+    padding: 0.52rem;
+  }
+
+  .co-change-orders-note-panel p {
+    font-size: 0.68rem;
+    line-height: 1.22;
+  }
+
+  .co-change-orders-readiness-list {
+    gap: 0.42rem;
+  }
+
+  .co-change-orders-secondary-drawer,
+  .co-change-orders-tools-drawer {
+    min-width: 0;
+    margin-top: 0;
+    overflow: hidden;
+  }
+
+  .co-change-orders-secondary-drawer > summary,
+  .co-change-orders-tools-drawer > summary {
+    display: flex;
+    min-width: 0;
+    cursor: pointer;
+    list-style: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.8rem;
+    border: 1px solid rgba(203, 213, 225, 0.96);
+    border-radius: 0.64rem;
+    background: rgba(255, 255, 255, 0.96);
+  }
+
+  .co-change-orders-secondary-drawer > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .co-change-orders-secondary-drawer > summary strong,
+  .co-change-orders-secondary-drawer > summary em {
+    display: block;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .co-change-orders-secondary-drawer > summary strong {
+    color: #07111f;
+    font-weight: 950;
+  }
+
+  .co-change-orders-secondary-drawer > summary em {
+    margin-top: 0.16rem;
+    color: #64748b;
+    font-style: normal;
+    font-weight: 850;
+  }
+
+  .co-change-orders-secondary-drawer > summary > span:last-child {
+    flex: 0 0 auto;
+    border: 1px solid rgba(203, 213, 225, 0.92);
+    border-radius: 999px;
+    background: #ffffff;
+    padding: 0.28rem 0.55rem;
+    color: #c2410c;
+    font-weight: 950;
+  }
+
+  .co-change-orders-secondary-drawer[open] > summary > span:last-child {
+    color: #2563eb;
+  }
+
+  .co-change-orders-secondary-drawer .co-change-orders-secondary-actions {
+    max-height: min(25vh, 15rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0.62rem 0 0;
+  }
+
+  .co-change-orders-secondary-actions .co-toolbox-priority-card {
+    min-height: 4.85rem;
+    padding: 0.58rem;
+  }
+
+  .co-change-orders-tools-drawer {
+    padding-bottom: 0 !important;
+  }
+
+  .co-change-orders-tools-drawer[open] {
+    min-height: 0;
+  }
+
+  .co-change-orders-tools-panel {
+    max-height: min(38vh, 24rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-right: 0.12rem;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  }
 }
 
 @media (min-width: 1440px) {
@@ -39170,4 +39496,30 @@ button.co-work-queue-card:hover:not(:disabled) {
 
 .co-module-dashboard .co-command-page .co-command-cockpit-metrics span {
   color: #cbd5e1 !important;
+}
+
+@media (min-width: 1180px) {
+  .co-change-orders-desktop-workspace-frame .co-change-orders-command-layout {
+    align-items: stretch !important;
+  }
+
+  .co-change-orders-desktop-workspace-frame .co-change-orders-right-rail,
+  .co-change-orders-desktop-workspace-frame .co-change-orders-command-assistant {
+    position: static !important;
+    align-self: stretch !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: 100% !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    padding-right: 0.12rem !important;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  }
+
+  .co-change-orders-desktop-workspace-frame .co-change-orders-command-layout,
+  .co-change-orders-desktop-workspace-frame .co-change-orders-main-board {
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
 }
