@@ -19,3 +19,14 @@ test("App imports the extracted job planner form", () => {
   assert.match(appSource, /import \{[^}]*JobPilotHandoffReadinessCard[^}]*JobPlannerCard[^}]*\} from "\.\/job-route-components"/s);
   assert.doesNotMatch(appSource, /function JobPlannerCard\(/);
 });
+
+test("App imports the extracted job startup and calculation cards", () => {
+  const appSource = fs.readFileSync(new URL("./App.jsx", import.meta.url), "utf8");
+  const routeComponentsSource = fs.readFileSync(new URL("./job-route-components.jsx", import.meta.url), "utf8");
+
+  assert.match(routeComponentsSource, /export function JobStartupChecklistCard\b/);
+  assert.match(routeComponentsSource, /export function JobCalculationsCard\b/);
+  assert.match(appSource, /import \{[^}]*JobCalculationsCard[^}]*JobStartupChecklistCard[^}]*\} from "\.\/job-route-components"/s);
+  assert.doesNotMatch(appSource, /function JobStartupChecklistCard\(/);
+  assert.doesNotMatch(appSource, /function JobCalculationsCard\(/);
+});
