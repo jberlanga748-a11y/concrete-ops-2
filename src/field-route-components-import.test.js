@@ -11,14 +11,16 @@ test("App imports extracted field mobile shell helpers", () => {
   assert.match(routeComponentsSource, /export function FieldDetailDisclosure\b/);
   assert.match(routeComponentsSource, /export function FieldJobSummaryCard\b/);
   assert.match(routeComponentsSource, /export function FieldMobileQuickNav\b/);
+  assert.match(routeComponentsSource, /export function FieldNextJobCard\b/);
   assert.match(routeComponentsSource, /export function FieldWorkspaceDisclosure\b/);
   assert.match(routeComponentsSource, /export function getFieldMobileNavItems\b/);
-  assert.match(appSource, /import \{[^}]*FieldActionGrid[^}]*FieldAssignmentNoticePanel[^}]*FieldDetailDisclosure[^}]*FieldJobSummaryCard[^}]*FieldMobileQuickNav[^}]*FieldWorkspaceDisclosure[^}]*getFieldMobileNavItems[^}]*\} from "\.\/field-route-components"/s);
+  assert.match(appSource, /import \{[^}]*FieldActionGrid[^}]*FieldAssignmentNoticePanel[^}]*FieldDetailDisclosure[^}]*FieldJobSummaryCard[^}]*FieldMobileQuickNav[^}]*FieldNextJobCard[^}]*FieldWorkspaceDisclosure[^}]*getFieldMobileNavItems[^}]*\} from "\.\/field-route-components"/s);
   assert.doesNotMatch(appSource, /function FieldActionGrid\(/);
   assert.doesNotMatch(appSource, /function FieldAssignmentNoticePanel\(/);
   assert.doesNotMatch(appSource, /function FieldDetailDisclosure\(/);
   assert.doesNotMatch(appSource, /function FieldJobSummaryCard\(/);
   assert.doesNotMatch(appSource, /function FieldMobileQuickNav\(/);
+  assert.doesNotMatch(appSource, /function FieldNextJobCard\(/);
   assert.doesNotMatch(appSource, /function FieldWorkspaceDisclosure\(/);
   assert.doesNotMatch(appSource, /function getFieldMobileNavItems\(/);
 });

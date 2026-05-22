@@ -212,7 +212,7 @@ import {
 import { buildEstimateLineItemsFromRoughNotes } from "./estimate-template-utils";
 import { deriveCustomerPortalPreviewState } from "./customer-portal-preview-utils";
 import { deriveFieldOpsAgentState } from "./field-ops-agent-utils";
-import { FieldActionGrid, FieldAssignmentNoticePanel, FieldDetailDisclosure, FieldJobSummaryCard, FieldMobileQuickNav, FieldWorkspaceDisclosure, getFieldMobileNavItems } from "./field-route-components";
+import { FieldActionGrid, FieldAssignmentNoticePanel, FieldDetailDisclosure, FieldJobSummaryCard, FieldMobileQuickNav, FieldNextJobCard, FieldWorkspaceDisclosure, getFieldMobileNavItems } from "./field-route-components";
 import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspace-utils";
 import { deriveFollowUpQueueState, filterFollowUpQueueItems, FOLLOW_UP_QUEUE_GROUPS, FOLLOW_UP_QUEUE_TYPE_FILTERS } from "./follow-up-queue-utils";
 import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobTitle, normalizeJobStatus } from "./job-utils";
@@ -4218,104 +4218,6 @@ function humanizeAssignmentRole(roleOnJob = "") {
   const normalized = String(roleOnJob || "").replaceAll("_", " ").trim().toLowerCase();
   if (!normalized) return "Crew";
   return normalized.replace(/\b\w/g, (character) => character.toUpperCase());
-}
-
-function FieldNextJobCard({ job, titleOverride = "", descriptionOverride = "", onSelect, setActive, permissions, activeEntry }) {
-  const title = titleOverride || (job && isTomorrowSchedule(job) ? "Tomorrow's job" : "Next assigned job");
-  const mapUrl = directionsUrl(job?.address);
-  const crewCount = Array.isArray(job?.crewAssignments) ? job.crewAssignments.length : 0;
-  const canRoute = typeof setActive === "function";
-
-  return (
-    <Card className="co-field-next-job-card p-5">
-      <SectionHeader
-        title={title}
-        description={descriptionOverride || "Primary field assignment with the fastest safe actions for this role."}
-        action={job ? <Badge tone="orange">Field-safe</Badge> : null}
-      />
-      {job ? (
-        <div className="co-field-next-job-highlight rounded-3xl border border-blue-100 bg-blue-50/50 p-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="break-words text-xl font-black text-slate-950">{jobTitle(job)}</p>
-              <p className="mt-1 break-words text-sm font-bold text-slate-600">{job.customer || "Assigned site"}</p>
-            </div>
-            <StatusBadge status={jobStatusLabel(job.status || job.stage)} />
-          </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <div className="rounded-2xl border border-blue-100 bg-white p-3">
-              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">When</p>
-              <p className="mt-1 text-sm font-bold leading-6 text-slate-700">{formatJobScheduleDetail(job)}</p>
-            </div>
-            <div className="rounded-2xl border border-blue-100 bg-white p-3">
-              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Where</p>
-              <p className="mt-1 break-words text-sm font-bold leading-6 text-slate-700">{job.address || "Address pending"}</p>
-              {mapUrl ? (
-                <a className="mt-2 inline-flex min-h-[2rem] items-center text-xs font-black uppercase tracking-[0.14em] text-blue-700 hover:text-blue-900" href={mapUrl} target="_blank" rel="noreferrer">
-                  Open directions
-                </a>
-              ) : null}
-            </div>
-          </div>
-          <div className="mt-4">
-            <FieldDetailDisclosure title="More job notes" summary={`Foreman, crew, field notes, materials, equipment, and safety`}>
-              <div className="grid gap-3 lg:grid-cols-3">
-                <div className="rounded-2xl border border-blue-100 bg-white p-3">
-                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Foreman</p>
-                  <p className="mt-1 text-sm font-bold leading-6 text-slate-700">{job.foremanAssignment?.userName || job.assignedForemanName || "Unassigned"}</p>
-                </div>
-                <div className="rounded-2xl border border-blue-100 bg-white p-3">
-                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Crew</p>
-                  <p className="mt-1 text-sm font-bold leading-6 text-slate-700">{crewCount} crew assigned</p>
-                </div>
-                <div className="rounded-2xl border border-blue-100 bg-white p-3">
-                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Field notes</p>
-                  <p className="mt-1 text-sm leading-6 text-slate-700">{job.fieldNotes || "No field notes yet."}</p>
-                </div>
-                <div className="rounded-2xl border border-blue-100 bg-white p-3">
-                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Materials</p>
-                  <p className="mt-1 text-sm leading-6 text-slate-700">{job.materialNotes || "No material notes yet."}</p>
-                </div>
-                <div className="rounded-2xl border border-blue-100 bg-white p-3">
-                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Equipment</p>
-                  <p className="mt-1 text-sm leading-6 text-slate-700">{job.equipmentNotes || "No equipment notes yet."}</p>
-                </div>
-                <div className="rounded-2xl border border-blue-100 bg-white p-3">
-                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Safety</p>
-                  <p className="mt-1 text-sm leading-6 text-slate-700">{job.safetyNotes || "No safety notes yet."}</p>
-                </div>
-              </div>
-            </FieldDetailDisclosure>
-          </div>
-          <div className="co-field-next-job-actions mt-4 flex flex-wrap gap-2">
-            {permissions?.time?.canView && canRoute ? (
-              <Button type="button" size="sm" onClick={() => setActive("time")}>
-                <Icon name="clock" />
-                {activeEntry ? "Open time" : "Clock in"}
-              </Button>
-            ) : null}
-            {permissions?.reports?.canView && canRoute ? (
-              <Button type="button" size="sm" variant="secondary" onClick={() => setActive("reports")}>
-                <Icon name="document" />
-                Daily report
-              </Button>
-            ) : null}
-            {permissions?.uploads?.canView && canRoute ? (
-              <Button type="button" size="sm" variant="secondary" onClick={() => setActive("uploads")}>
-                <Icon name="upload" />
-                Photos
-              </Button>
-            ) : null}
-            <Button type="button" size="sm" onClick={() => onSelect(job.id)}>
-              View job details
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <StateCard title="No scheduled assigned job yet" description="When office schedules and assigns a job, the next one will appear here with address and field notes." tone="slate" />
-      )}
-    </Card>
-  );
 }
 
 function FieldJobFocusCard({ job, permissions, onFieldChange, disabled, embedded = false }) {
