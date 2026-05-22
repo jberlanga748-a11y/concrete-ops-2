@@ -58,6 +58,7 @@ import {
   assistLead as assistLeadRequest,
   bootstrapAdminAccount,
   completePasswordReset,
+  convertAgentEstimateToJob,
   convertEstimateToJob,
   convertLead,
   convertLeadToCustomer,
@@ -2308,7 +2309,7 @@ function NotificationCenterButton({ source = {}, permissions = {}, user = null, 
   );
 }
 
-function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, agentContextState = { status: "idle", workflowContext: null, message: "" }, onRefreshAgentContext = async () => null, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onCreateAgentEstimateDraft = async () => null, onPrepareAgentEstimateSend = async () => null, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenUploadReview = () => {}, onOpenTimeReview = () => {}, onOpenChangeOrderReview = () => {}, onOpenLeadFollowUp = () => {}, onOpenCustomerAccount = () => {}, onOpenCrewReadiness = () => {}, onOpenScheduleDispatch = () => {}, onOpenImportedDraftReview = () => {}, onOpenSupportWorkflow = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenPrePourReview = () => {}, onOpenPostPourReview = () => {}, onOpenSafetyIncidentReview = () => {}, onOpenToolChecklistReview = () => {}, onRecordAgentProposalAudit = async () => null }) {
+function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, agentContextState = { status: "idle", workflowContext: null, message: "" }, onRefreshAgentContext = async () => null, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onCreateAgentEstimateDraft = async () => null, onPrepareAgentEstimateSend = async () => null, onConvertAgentEstimateToJob = async () => null, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenUploadReview = () => {}, onOpenTimeReview = () => {}, onOpenChangeOrderReview = () => {}, onOpenLeadFollowUp = () => {}, onOpenCustomerAccount = () => {}, onOpenCrewReadiness = () => {}, onOpenScheduleDispatch = () => {}, onOpenImportedDraftReview = () => {}, onOpenSupportWorkflow = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenPrePourReview = () => {}, onOpenPostPourReview = () => {}, onOpenSafetyIncidentReview = () => {}, onOpenToolChecklistReview = () => {}, onRecordAgentProposalAudit = async () => null }) {
   const assistantState = useMemo(() => deriveApexAssistantShellState({ permissions, commandCenter }), [commandCenter, permissions]);
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -2316,6 +2317,7 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
   const [auditRecordState, setAuditRecordState] = useState({ proposalId: "", status: "idle", message: "" });
   const [draftActionState, setDraftActionState] = useState({ leadId: "", status: "idle", message: "" });
   const [sendReviewState, setSendReviewState] = useState({ estimateId: "", status: "idle", message: "" });
+  const [jobDraftState, setJobDraftState] = useState({ estimateId: "", status: "idle", message: "" });
   const actionProposal = useMemo(() => (
     response ? buildAgentActionProposal(response, { permissions, workflowContext: commandContext.agentWorkflowContext }) : null
   ), [commandContext.agentWorkflowContext, permissions, response]);
@@ -2348,6 +2350,7 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
     setAuditRecordState({ proposalId: actionProposal?.id || "", status: "idle", message: "" });
     setDraftActionState({ leadId: "", status: "idle", message: "" });
     setSendReviewState({ estimateId: "", status: "idle", message: "" });
+    setJobDraftState({ estimateId: "", status: "idle", message: "" });
   }, [actionProposal?.id]);
 
   if (!assistantState.canView) return null;
@@ -2446,6 +2449,56 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
         estimateId: match.estimateId,
         status: "error",
         message: error?.message || "Could not prepare send review.",
+      });
+    }
+  }
+
+  async function approveAndCreateJobDraft(match = {}) {
+    if (!actionProposal || actionProposal.proof?.commandType !== "estimate-job-handoff-review" || match.type !== "estimate" || !match.estimateId) return;
+    if (!permissions.estimates?.canManage || !permissions.jobs?.canCreate || jobDraftState.status === "saving") return;
+    const proposal = normalizeAgentActionProposalAuditEvent(actionProposal, {
+      actor: commandContext.user,
+      sourceRoute: commandContext.currentRoute,
+      sourceModule: actionProposal.targetModuleId,
+      prompt: actionProposal.proof?.commandText || "",
+      response: actionProposal.proof?.message || response?.message || "",
+      targetEntity: { type: "estimate", id: match.estimateId },
+    });
+    const approvedProposal = {
+      ...proposal,
+      eventType: "agent.proposal.approved_for_draft",
+      status: "approved_for_draft",
+      summary: "Job draft approved for agent estimate handoff",
+      requiredApprovals: [
+        ...new Set([
+          ...(proposal.requiredApprovals || []),
+          "Human owner/admin/estimator approved draft job creation from this estimate handoff.",
+        ]),
+      ],
+      blockedReasons: [
+        ...new Set([
+          ...(proposal.blockedReasons || []),
+          "No schedule, crew assignment, field visibility, customer contact, invoice, payment, or billing action was created.",
+        ]),
+      ],
+    };
+    setJobDraftState({ estimateId: match.estimateId, status: "saving", message: "Recording approval and creating a draft job..." });
+    try {
+      await onRecordAgentProposalAudit(proposal);
+      await onRecordAgentProposalAudit(approvedProposal);
+      const created = await onConvertAgentEstimateToJob({ proposal, estimateId: match.estimateId });
+      setJobDraftState({
+        estimateId: match.estimateId,
+        status: "created",
+        message: created?.id ? "Draft job created. No schedule, crew, send, invoice, or field update happened." : "Draft job is ready for office review.",
+      });
+      setOpen(false);
+      setResponse(null);
+    } catch (error) {
+      setJobDraftState({
+        estimateId: match.estimateId,
+        status: "error",
+        message: error?.message || "Could not create this draft job.",
       });
     }
   }
@@ -3418,22 +3471,49 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
                       </div>
                     ) : null}
                     {response.matches?.length ? response.matches.map((match) => (
-                      <button
-                        key={match.id}
-                        type="button"
-                        onClick={() => openEstimateJobHandoff(match)}
-                        className="co-focus-ring rounded-2xl border border-white/10 bg-white/[0.08] p-3 text-left transition hover:border-orange-300/60 hover:bg-orange-500/20"
-                      >
-                        <span className="block text-sm font-black text-white">{match.label}</span>
-                        <span className="mt-1 block text-xs font-bold leading-5 text-slate-300">{match.helper || "Review estimate-to-job handoff. No job is created automatically."}</span>
-                        {match.reviewWarnings?.length ? (
-                          <span className="mt-2 flex flex-wrap gap-1">
-                            {match.reviewWarnings.slice(0, 3).map((warning) => (
-                              <span key={warning} className="rounded-lg bg-orange-500/20 px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-orange-100">{warning}</span>
-                            ))}
-                          </span>
+                      <div key={match.id} className="rounded-2xl border border-white/10 bg-white/[0.08] p-3">
+                        <button
+                          type="button"
+                          onClick={() => openEstimateJobHandoff(match)}
+                          className="co-focus-ring w-full rounded-xl p-0 text-left transition hover:text-orange-100"
+                        >
+                          <span className="block text-sm font-black text-white">{match.label}</span>
+                          <span className="mt-1 block text-xs font-bold leading-5 text-slate-300">{match.helper || "Review estimate-to-job handoff. No job is created automatically."}</span>
+                          {match.reviewWarnings?.length ? (
+                            <span className="mt-2 flex flex-wrap gap-1">
+                              {match.reviewWarnings.slice(0, 3).map((warning) => (
+                                <span key={warning} className="rounded-lg bg-orange-500/20 px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-orange-100">{warning}</span>
+                              ))}
+                            </span>
+                          ) : null}
+                        </button>
+                        {match.readyForJobHandoff && !match.converted && match.estimateId ? (
+                          <div className="mt-3 rounded-xl border border-emerald-300/20 bg-emerald-500/10 p-2">
+                            <p className="text-[11px] font-bold leading-4 text-emerald-100">
+                              Human approval creates a Draft job from this approved estimate. Apex will not schedule it, assign a crew, expose it to field users, contact the customer, invoice, or bill.
+                            </p>
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="primary"
+                                disabled={jobDraftState.status === "saving"}
+                                onClick={() => approveAndCreateJobDraft(match)}
+                              >
+                                {jobDraftState.status === "saving" && jobDraftState.estimateId === match.estimateId ? "Creating draft job..." : "Approve & create draft job"}
+                              </Button>
+                              <Button type="button" size="sm" variant="secondary" onClick={() => openEstimateJobHandoff(match)}>
+                                Open handoff
+                              </Button>
+                            </div>
+                            {jobDraftState.estimateId === match.estimateId && jobDraftState.message ? (
+                              <p className={`mt-2 text-[11px] font-bold leading-4 ${jobDraftState.status === "error" ? "text-red-100" : "text-emerald-100"}`}>
+                                {jobDraftState.message}
+                              </p>
+                            ) : null}
+                          </div>
                         ) : null}
-                      </button>
+                      </div>
                     )) : null}
                     <div className="flex flex-wrap gap-2">
                       {(response.actions?.length ? response.actions : [response.fallback]).filter(Boolean).map((action) => (
@@ -38222,6 +38302,34 @@ export default function App() {
     }
   }
 
+  async function handleConvertAgentEstimateToJob(payload) {
+    if (!sessionToken || !appState.permissions.audit?.canView || !appState.permissions.estimates?.canManage || !appState.permissions.jobs?.canCreate) {
+      throw new Error("You do not have permission to create agent job drafts.");
+    }
+    const existingJobIds = new Set(appState.jobs.map((job) => job.id));
+    setBusy(true);
+    try {
+      const nextState = await convertAgentEstimateToJob(sessionToken, payload);
+      const createdJob = (nextState.jobs || []).find((job) => job.id === nextState.agentJobId)
+        || (nextState.jobs || []).find((job) => !existingJobIds.has(job.id))
+        || null;
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      if (createdJob?.id) {
+        navigateToJob(createdJob.id);
+      } else {
+        setActive("jobs");
+      }
+      return createdJob || true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      throw error;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleRefreshAgentContext() {
     if (!sessionToken || !appState.permissions.aiOffice?.canView) {
       setAgentContextState({
@@ -38812,6 +38920,7 @@ export default function App() {
         onStartEstimateDraft={handleStartAssistantEstimateDraft}
         onCreateAgentEstimateDraft={handleCreateAgentEstimateDraft}
         onPrepareAgentEstimateSend={handlePrepareAgentEstimateSend}
+        onConvertAgentEstimateToJob={handleConvertAgentEstimateToJob}
         onOpenEstimatePacket={handleOpenAssistantEstimatePacket}
         onOpenEstimateJobHandoff={handleOpenAssistantEstimateJobHandoff}
         onOpenJobHandoff={handleOpenAssistantJobHandoff}
