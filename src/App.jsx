@@ -2310,7 +2310,7 @@ function NotificationCenterButton({ source = {}, permissions = {}, user = null, 
   );
 }
 
-function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, agentContextState = { status: "idle", workflowContext: null, message: "" }, onRefreshAgentContext = async () => null, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onCreateAgentEstimateDraft = async () => null, onPrepareAgentEstimateSend = async () => null, onConvertAgentEstimateToJob = async () => null, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenUploadReview = () => {}, onOpenTimeReview = () => {}, onOpenChangeOrderReview = () => {}, onOpenLeadFollowUp = () => {}, onOpenCustomerAccount = () => {}, onOpenCrewReadiness = () => {}, onOpenScheduleDispatch = () => {}, onOpenImportedDraftReview = () => {}, onOpenSupportWorkflow = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenPrePourReview = () => {}, onOpenPostPourReview = () => {}, onOpenSafetyIncidentReview = () => {}, onOpenToolChecklistReview = () => {}, onRecordAgentProposalAudit = async () => null }) {
+function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, agentContextState = { status: "idle", workflowContext: null, message: "" }, assistantCommandSeed = null, onAssistantCommandSeedHandled = () => {}, onRefreshAgentContext = async () => null, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onCreateAgentEstimateDraft = async () => null, onPrepareAgentEstimateSend = async () => null, onConvertAgentEstimateToJob = async () => null, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenUploadReview = () => {}, onOpenTimeReview = () => {}, onOpenChangeOrderReview = () => {}, onOpenLeadFollowUp = () => {}, onOpenCustomerAccount = () => {}, onOpenCrewReadiness = () => {}, onOpenScheduleDispatch = () => {}, onOpenImportedDraftReview = () => {}, onOpenSupportWorkflow = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenPrePourReview = () => {}, onOpenPostPourReview = () => {}, onOpenSafetyIncidentReview = () => {}, onOpenToolChecklistReview = () => {}, onRecordAgentProposalAudit = async () => null }) {
   const assistantState = useMemo(() => deriveApexAssistantShellState({ permissions, commandCenter }), [commandCenter, permissions]);
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -2319,6 +2319,7 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
   const [draftActionState, setDraftActionState] = useState({ leadId: "", status: "idle", message: "" });
   const [sendReviewState, setSendReviewState] = useState({ estimateId: "", status: "idle", message: "" });
   const [jobDraftState, setJobDraftState] = useState({ estimateId: "", status: "idle", message: "" });
+  const [handledCommandSeedNonce, setHandledCommandSeedNonce] = useState(null);
   const actionProposal = useMemo(() => (
     response ? buildAgentActionProposal(response, { permissions, workflowContext: commandContext.agentWorkflowContext }) : null
   ), [commandContext.agentWorkflowContext, permissions, response]);
@@ -2346,6 +2347,18 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
     if (agentContextState.status !== "idle") return;
     onRefreshAgentContext();
   }, [agentContextState.status, assistantState.canView, onRefreshAgentContext, open, permissions.aiOffice?.canView]);
+
+  useEffect(() => {
+    const nonce = assistantCommandSeed?.nonce;
+    if (!nonce || handledCommandSeedNonce === nonce || !assistantState.canView) return;
+    const commandText = assistantCommandSeed.commandText || "Review daily closeout and ready-to-bill proof chain";
+    const result = resolveApexAssistantCommand(commandText, { ...assistantState, commandContext });
+    setResponse(result);
+    setPrompt("");
+    setOpen(true);
+    setHandledCommandSeedNonce(nonce);
+    onAssistantCommandSeedHandled(nonce);
+  }, [assistantCommandSeed?.nonce, assistantState, commandContext, handledCommandSeedNonce, onAssistantCommandSeedHandled]);
 
   useEffect(() => {
     setAuditRecordState({ proposalId: actionProposal?.id || "", status: "idle", message: "" });
@@ -23291,6 +23304,7 @@ function CopilotPagePolished({
   onOpenEstimate,
   onOpenEstimatePacket,
   onOpenEstimateJobHandoff,
+  onOpenCloseoutReview,
   onOpenUploadReview,
   onOpenTimeReview,
   onOpenChangeOrderReview,
@@ -23714,6 +23728,19 @@ function CopilotPagePolished({
     }
     if (target.recordType === "report" && target.record) {
       openReport(target.record);
+      return;
+    }
+    if (target.recordType === "dailyCloseout") {
+      if (typeof onOpenCloseoutReview === "function") {
+        onOpenCloseoutReview({
+          label: target.title,
+          helper: target.description || target.helper,
+          commandText: "Review daily closeout and ready-to-bill proof chain",
+          type: "dailyCloseout",
+        });
+        return;
+      }
+      openModule("reports");
       return;
     }
     if (target.recordType === "upload" && target.record) {
@@ -35269,6 +35296,7 @@ export default function App() {
   const [assistantPostPourReviewSeed, setAssistantPostPourReviewSeed] = useState(null);
   const [assistantSafetyIncidentReviewSeed, setAssistantSafetyIncidentReviewSeed] = useState(null);
   const [assistantToolChecklistReviewSeed, setAssistantToolChecklistReviewSeed] = useState(null);
+  const [assistantCommandSeed, setAssistantCommandSeed] = useState(null);
   const [customerDraft, setCustomerDraft] = useState(INITIAL_CUSTOMER_FORM);
   const [createUserDraft, setCreateUserDraft] = useState(INITIAL_USER_FORM);
   const [userEditDraft, setUserEditDraft] = useState(INITIAL_USER_FORM);
@@ -35440,6 +35468,32 @@ export default function App() {
       nonce: Date.now(),
     });
     setActive("reports");
+    return true;
+  }
+
+  function handleOpenAssistantCloseoutReview(seed = {}) {
+    const hasOfficeCloseoutAccess = Boolean(
+      appState.permissions.jobs?.canManageAll
+      || appState.permissions.reports?.canReview
+      || appState.permissions.reports?.canManageAll
+      || appState.permissions.uploads?.canManageAll
+      || appState.permissions.deliveryTickets?.canManageAll
+      || appState.permissions.prePour?.canReview
+      || appState.permissions.postPour?.canReview
+      || appState.permissions.safety?.canReviewIncidents
+      || appState.permissions.time?.canManageAll
+      || appState.permissions.time?.canViewAll
+      || appState.permissions.time?.canCorrect,
+    );
+    if (!hasOfficeCloseoutAccess) {
+      setErrorMessage("Daily closeout readiness requires an office role that can review jobs, proof, time, safety, or closeout workflows.");
+      return false;
+    }
+    setAssistantCommandSeed({
+      ...seed,
+      commandText: seed.commandText || "Review daily closeout and ready-to-bill proof chain",
+      nonce: Date.now(),
+    });
     return true;
   }
 
@@ -38886,6 +38940,7 @@ export default function App() {
                 onUpdateAgentLearningPreference={handleUpdateAgentLearningPreference}
                 onOpenEstimatePacket={handleOpenAssistantEstimatePacket}
                 onOpenEstimateJobHandoff={handleOpenAssistantEstimateJobHandoff}
+                onOpenCloseoutReview={handleOpenAssistantCloseoutReview}
                 onOpenUploadReview={handleOpenAssistantUploadReview}
                 onOpenTimeReview={handleOpenAssistantTimeReview}
                 onOpenChangeOrderReview={handleOpenAssistantChangeOrderReview}
@@ -39016,6 +39071,12 @@ export default function App() {
       <ApexAssistantShell
         permissions={appState.permissions}
         commandCenter={assistantCommandCenter}
+        assistantCommandSeed={assistantCommandSeed}
+        onAssistantCommandSeedHandled={(nonce) => {
+          if (!assistantCommandSeed || assistantCommandSeed.nonce === nonce) {
+            setAssistantCommandSeed(null);
+          }
+        }}
         commandContext={{
           user: appState.user,
           currentRoute: active ? `/${active}` : "/command-center",

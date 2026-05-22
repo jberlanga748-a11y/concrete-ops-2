@@ -221,8 +221,9 @@ export function deriveAiOfficeAgentCommandCenter({
       icon: "clipboard",
       badge: `${reportsNeedingReview.length + missingUploads + closeoutBlockers} closeout items`,
       tone: toneForCount(reportsNeedingReview.length + missingUploads + closeoutBlockers, { active: "amber", highAt: 5 }),
-      actionLabel: "Open reports",
+      actionLabel: "Review closeout",
       moduleId: "reports",
+      recordType: "dailyCloseout",
     } : null,
     fieldOpsAgent?.canView ? {
       id: "field-ops-agent",

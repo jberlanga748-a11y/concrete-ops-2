@@ -68,6 +68,7 @@ test("AI Office agent command center builds role-safe review lanes from visible 
   assert.equal(state.modeLabel, "Review-first");
   assert.equal(state.workflowCards.some((card) => card.id === "opportunity-scout"), true);
   assert.equal(state.workflowCards.some((card) => card.id === "proof-closeout"), true);
+  assert.equal(state.workflowCards.some((card) => card.id === "proof-closeout" && card.recordType === "dailyCloseout" && card.actionLabel === "Review closeout"), true);
   assert.equal(state.workflowCards.some((card) => card.id === "estimate-action-agent"), true);
   assert.equal(state.workflowCards.some((card) => card.id === "field-ops-agent"), true);
   assert.equal(state.workflowCards.some((card) => card.id === "release-readiness"), true);
