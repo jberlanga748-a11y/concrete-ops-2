@@ -26,7 +26,7 @@ import {
   deriveApexAssistantShellState,
   resolveApexAssistantCommand,
 } from "./apex-assistant-shell-utils";
-import { AppHealthAuditActivityPanel, CustomerPortalManualPreviewPanel, EnterpriseTrustReadinessPanel, PwaInstallGuidancePanel, ReleaseSafetyRollbackPanel, UiStyleFoundationPanel } from "./app-health-route-components";
+import { AppHealthAuditActivityPanel, CustomerPortalManualPreviewPanel, EnterpriseTrustReadinessPanel, OwnerHealthStatusPanel, PwaInstallGuidancePanel, ReleaseSafetyRollbackPanel, UiStyleFoundationPanel } from "./app-health-route-components";
 import { buildAgentActionProposal, deriveAgentActionProposalAuditHistory, normalizeAgentActionProposalAuditEvent } from "./agent-action-proposal-utils";
 import { agentContextPayloadToWorkflowContext } from "./agent-context-api-utils";
 import { deriveAgentWorkflowContext } from "./agent-workflow-context-utils";
@@ -96,7 +96,6 @@ import {
   getBootstrap,
   getAgentContext,
   getHealth,
-  getOwnerHealth,
   getSetupStatus,
   login,
   logout,
@@ -220,7 +219,7 @@ import { LeadMissingInfoBadge, LeadPilotWorkflowReadinessCard, LeadScoreBadge, L
 import { buildManualOutreachContactPayload, buildManualOutreachDrafts } from "./manual-outreach-drafts";
 import { buildNotificationStateStorageKey, canViewNotificationCenter, deriveNotificationCenterState, extractNotificationStateForCompany, filterNotificationItems, normalizeNotificationState, notificationActionLabel, notificationSeverityTone, notificationTriggerLabel, NOTIFICATION_CENTER_FILTERS } from "./notification-center-utils";
 import { applyOpportunityScoutAgentPreviewToDraft, applyOpportunityScoutSourceCheckToDraft, buildOpportunityScoutSourceBrief, deriveOpportunityScoutState } from "./opportunity-scout-utils";
-import { buildOwnerSupportPacket, deriveAppHealthAuditState, deriveOverallOwnerHealthStatus, formatBytes, healthStatusTone, ownerHealthStatusLabel, ownerHealthWarnings } from "./owner-health-utils";
+import { deriveAppHealthAuditState } from "./owner-health-utils";
 import { canCapturePilotFeedback, canRequestPackageReview, canViewJob } from "../shared/permissions.js";
 import { LEAD_SCORE_LABELS } from "../shared/leadScoring.js";
 import { calculateNextLeadSourceCheckDate, createLeadSourceDraft, createLeadSourceDraftFromStarter, deriveDailySourceCheckState, deriveLeadSourceListState, leadSourceLocation, LEAD_SOURCE_CADENCE_OPTIONS, LEAD_SOURCE_STARTERS, LEAD_SOURCE_TYPE_OPTIONS, validateLeadSourcePayload } from "../shared/leadSources.js";
@@ -26527,230 +26526,6 @@ function ManagedSetupPanelPolished({
             <p className="text-sm font-bold text-slate-500">{notice || "Manual checklist choices are stored in Settings. Smart hints use existing company, user, lead source, and job data."}</p>
           </div>
         </div>
-      </div>
-    </Card>
-  );
-}
-
-function OwnerHealthStatusPanel({ sessionToken, canView = false, user = null, companyName = "" }) {
-  const [health, setHealth] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [notice, setNotice] = useState("");
-  const [supportCopyMessage, setSupportCopyMessage] = useState("");
-
-  async function refreshHealth({ silent = false } = {}) {
-    if (!canView || !sessionToken) return;
-    setLoading(true);
-    if (!silent) setNotice("");
-    try {
-      const payload = await getOwnerHealth(sessionToken);
-      setHealth(payload);
-      setNotice("");
-    } catch {
-      setNotice("Owner Health Status could not be loaded. Try again in a moment.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadHealth() {
-      if (!canView || !sessionToken) return;
-      setLoading(true);
-      try {
-        const payload = await getOwnerHealth(sessionToken);
-        if (!cancelled) {
-          setHealth(payload);
-          setNotice("");
-        }
-      } catch {
-        if (!cancelled) setNotice("Owner Health Status could not be loaded. Try again in a moment.");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    loadHealth();
-    return () => {
-      cancelled = true;
-    };
-  }, [canView, sessionToken]);
-
-  if (!canView) return null;
-
-  const overallStatus = deriveOverallOwnerHealthStatus(health || {});
-  const warnings = ownerHealthWarnings(health || {});
-  const counts = health?.counts || {};
-  const supportPacket = buildOwnerSupportPacket(health || {}, {
-    companyName,
-    userName: user?.name || user?.email || "Workspace owner",
-  });
-  const sectionCards = [
-    {
-      id: "app",
-      label: "App",
-      status: health?.app?.status || "unknown",
-      message: health?.app?.environment ? `${health.app.environment} · uptime ${Math.max(0, Number(health.app.uptimeSeconds || 0))}s` : "App status has not been checked yet.",
-    },
-    {
-      id: "database",
-      label: "Database",
-      status: health?.database?.status || "unknown",
-      message: health?.database?.message || "Database status has not been checked yet.",
-    },
-    {
-      id: "storage",
-      label: "Storage",
-      status: health?.storage?.status || "unknown",
-      message: health?.storage
-        ? `${health.storage.message || "Storage checked."} Free: ${formatBytes(health.storage.freeBytes)} / Total: ${formatBytes(health.storage.totalBytes)}`
-        : "Storage status has not been checked yet.",
-    },
-    {
-      id: "ai",
-      label: "AI",
-      status: health?.ai?.status || "unknown",
-      message: health?.ai?.message || "AI configuration status has not been checked yet.",
-    },
-    {
-      id: "websiteIntake",
-      label: "Website intake",
-      status: health?.websiteIntake?.status || "unknown",
-      message: health?.websiteIntake?.message || "Website intake status has not been checked yet.",
-    },
-    {
-      id: "backups",
-      label: "Backups",
-      status: health?.backups?.status || "unknown",
-      message: health?.backups?.message || "Backup/export status has not been checked yet.",
-    },
-  ];
-  const countItems = [
-    ["Companies", counts.companies],
-    ["Users", counts.users],
-    ["Leads", counts.leads],
-    ["Customers", counts.customers],
-    ["Estimates", counts.estimates],
-    ["Jobs", counts.jobs],
-    ["Active jobs", counts.activeJobs],
-    ["Uploads", counts.uploads],
-    ["Open follow-ups", counts.openFollowUps],
-  ];
-
-  async function copySupportPacket() {
-    try {
-      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(supportPacket);
-      } else if (typeof document !== "undefined") {
-        const textArea = document.createElement("textarea");
-        textArea.value = supportPacket;
-        textArea.setAttribute("readonly", "");
-        textArea.style.position = "fixed";
-        textArea.style.opacity = "0";
-        document.body.appendChild(textArea);
-        textArea.select();
-        document.execCommand("copy");
-        document.body.removeChild(textArea);
-      } else {
-        throw new Error("Clipboard unavailable");
-      }
-      setSupportCopyMessage("Support packet copied. Paste it into your support message with what happened.");
-    } catch {
-      setSupportCopyMessage("Could not copy automatically. Select the packet text and copy it manually.");
-    }
-  }
-
-  return (
-    <Card className="p-5">
-      <SectionHeader
-        title="Owner Health Status"
-        description="A safe owner-only status check for app readiness, database, storage, configured integrations, and workspace activity."
-        action={(
-          <Button type="button" variant="secondary" size="sm" onClick={() => refreshHealth()} disabled={loading || !sessionToken}>
-            {loading ? "Checking..." : "Refresh"}
-          </Button>
-        )}
-      />
-      <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <p className="text-sm font-black text-slate-950">Overall owner status</p>
-            <p className="mt-1 text-sm leading-6 text-slate-600">No secrets, tokens, customer lists, pricing, or internal record details are shown here.</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge tone={healthStatusTone(overallStatus)}>{ownerHealthStatusLabel(overallStatus)}</Badge>
-            {health?.generatedAt ? <Badge tone="slate">Checked {formatDateTime(health.generatedAt)}</Badge> : null}
-          </div>
-        </div>
-        {notice ? <p className="mt-3 text-sm font-bold text-amber-700">{notice}</p> : null}
-      </div>
-
-      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {sectionCards.map((section) => (
-          <div key={section.id} className="rounded-2xl border border-blue-100 bg-white p-4">
-            <div className="flex items-start justify-between gap-3">
-              <p className="text-sm font-black text-slate-950">{section.label}</p>
-              <Badge tone={healthStatusTone(section.status)}>{ownerHealthStatusLabel(section.status)}</Badge>
-            </div>
-            <p className="mt-3 text-sm leading-6 text-slate-600">{section.message}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-        <div className="rounded-2xl border border-blue-100 bg-white p-4">
-          <p className="text-sm font-black text-slate-950">Workspace counts</p>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            {countItems.map(([label, value]) => (
-              <div key={label} className="rounded-2xl border border-blue-50 bg-blue-50/50 p-3">
-                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{label}</p>
-                <p className="mt-1 text-xl font-black text-slate-950">{Number.isFinite(Number(value)) ? Number(value) : 0}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="rounded-2xl border border-blue-100 bg-white p-4">
-          <p className="text-sm font-black text-slate-950">Warnings</p>
-          <div className="mt-3 grid gap-2">
-            {warnings.length ? warnings.map((warning) => (
-              <div key={warning.id} className="rounded-2xl border border-blue-50 bg-blue-50/50 p-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge tone={healthStatusTone(warning.severity)}>{ownerHealthStatusLabel(warning.severity)}</Badge>
-                  <p className="text-sm font-black text-slate-950">{warning.title}</p>
-                </div>
-                <p className="mt-2 text-sm leading-6 text-slate-600">{warning.message}</p>
-              </div>
-            )) : (
-              <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm font-bold text-emerald-700">
-                No owner health warnings are active.
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-        <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge tone="slate">Support packet</Badge>
-              <Badge tone="green">Copy only</Badge>
-              <Badge tone="slate">No secrets</Badge>
-            </div>
-            <p className="mt-2 text-sm font-black text-slate-950">Report an issue with clean diagnostics</p>
-            <p className="mt-1 text-sm leading-6 text-slate-600">Copy a safe app-health summary, then add what screen you were on and what you expected. Apex HQ does not send this automatically.</p>
-          </div>
-          <Button type="button" size="sm" variant="secondary" onClick={copySupportPacket}>
-            <Icon name="clipboard" />Copy support packet
-          </Button>
-        </div>
-        {supportCopyMessage ? <p className="mt-3 text-sm font-bold text-emerald-700">{supportCopyMessage}</p> : null}
-        <details className="mt-3">
-          <summary className="cursor-pointer text-sm font-black text-slate-700">Preview packet</summary>
-          <pre className="mt-3 max-h-72 overflow-auto rounded-2xl border border-slate-200 bg-white p-3 text-xs leading-5 text-slate-700">{supportPacket}</pre>
-        </details>
       </div>
     </Card>
   );

@@ -55,3 +55,12 @@ test("App imports the extracted customer portal manual preview panel", () => {
   assert.match(appSource, /import \{[^}]*CustomerPortalManualPreviewPanel[^}]*\} from "\.\/app-health-route-components"/s);
   assert.doesNotMatch(appSource, /function CustomerPortalManualPreviewPanel/);
 });
+
+test("App imports the extracted owner health status panel", () => {
+  const appSource = fs.readFileSync(new URL("./App.jsx", import.meta.url), "utf8");
+  const routeComponentsSource = fs.readFileSync(new URL("./app-health-route-components.jsx", import.meta.url), "utf8");
+
+  assert.match(routeComponentsSource, /export function OwnerHealthStatusPanel/);
+  assert.match(appSource, /import \{[^}]*OwnerHealthStatusPanel[^}]*\} from "\.\/app-health-route-components"/s);
+  assert.doesNotMatch(appSource, /function OwnerHealthStatusPanel/);
+});
