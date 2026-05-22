@@ -37,6 +37,7 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 | Date | Priority | Task | Result | Commit |
 | --- | --- | --- | --- | --- |
+| 2026-05-22 | P3 | Command Center KPI primitive extraction | Done; shared Command Center KPI, section, item, and module strip primitives moved into the route component module with import-boundary coverage, build/role/browser checks, and Fly demo v159 hosted smoke passing | `4d57c1c` |
 | 2026-05-22 | P3 | Command Center presentation card extraction | Done; Command Center presentation cards moved into a route component module with import-boundary coverage, local build/role/browser checks, and Fly demo v158 hosted smoke passing | `895f809` |
 | 2026-05-22 | P3 | Settings command rail extraction | Done; Settings right rail/mobile rail moved into the settings route component module with import-boundary coverage, local build/role/entitlement/browser checks, and Fly demo v157 hosted smoke passing | `0dcb572` |
 | 2026-05-22 | P3 | Owner health status panel extraction | Done; Owner Health Status moved into the App Health route component module with import-boundary coverage, owner-health API/utility tests, build/server/role/browser checks, and Fly demo v156 hosted smoke passing | `89c219a` |
