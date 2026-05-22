@@ -37,7 +37,8 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 | Date | Priority | Task | Result | Commit |
 | --- | --- | --- | --- | --- |
-| 2026-05-22 | P3 | Estimate proposal first-viewport polish | Done; selected proposal is promoted in the option rail and Estimate Studio proposal density/branding is tightened for a stronger branded first viewport while estimate/role/build/browser checks remain clean | This commit |
+| 2026-05-22 | P3 | Estimate Studio tablet rail polish | Done; tablet Estimate Studio now keeps the option rail, selected proposal workbench, and branded customer/proposal rail visible together at 1024px with no horizontal overflow while phone stacking and field blocking remain safe | This commit |
+| 2026-05-22 | P3 | Estimate proposal first-viewport polish | Done; selected proposal is promoted in the option rail and Estimate Studio proposal density/branding is tightened for a stronger branded first viewport while estimate/role/build/browser checks remain clean | `f91e412` |
 | 2026-05-22 | P3 | Field next job card extraction | Done; next assigned job mobile card moved into `src/field-route-components.jsx` with import-boundary coverage, field/role/build checks, and browser audits passing for employee mobile field routes | `cfe0bd7` |
 | 2026-05-22 | P3 | Field assignment summary extraction | Done; field job summary cards and assignment notice panel moved into `src/field-route-components.jsx` with import-boundary coverage, field/role/build checks, and browser audits passing for employee mobile field routes | `f1024f5` |
 | 2026-05-22 | P3 | Field mobile disclosure extraction | Done; mobile field detail/workspace disclosure wrappers moved into `src/field-route-components.jsx` with import-boundary coverage, field/role/build checks, and browser audits passing for employee mobile field routes | `d1798d8` |
