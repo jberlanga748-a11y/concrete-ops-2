@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   Badge,
@@ -18,6 +18,7 @@ import {
   getReleaseSafetySections,
   releaseSafetyStatusTone,
 } from "./release-safety-utils";
+import { DESIGN_COLORS } from "./design-tokens";
 
 function formatDateTime(value) {
   if (!value) return "Not recorded";
@@ -420,6 +421,150 @@ export function ReleaseSafetyRollbackPanel({ canView = false }) {
               <pre className="mt-3 overflow-x-auto rounded-2xl border border-slate-200 bg-slate-950 p-3 text-xs leading-5 text-slate-100"><code>{group.text}</code></pre>
             </div>
           ))}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+export function PwaInstallGuidancePanel({ canView = false }) {
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [installState, setInstallState] = useState("idle");
+
+  useEffect(() => {
+    if (!canView || typeof window === "undefined") return undefined;
+
+    function handleBeforeInstallPrompt(event) {
+      event.preventDefault();
+      setInstallPrompt(event);
+      setInstallState("available");
+    }
+
+    function handleInstalled() {
+      setInstallPrompt(null);
+      setInstallState("installed");
+    }
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("appinstalled", handleInstalled);
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      window.removeEventListener("appinstalled", handleInstalled);
+    };
+  }, [canView]);
+
+  async function handleInstallClick() {
+    if (!installPrompt?.prompt) return;
+
+    setInstallState("prompting");
+    try {
+      await installPrompt.prompt();
+      const choice = await installPrompt.userChoice;
+      setInstallPrompt(null);
+      setInstallState(choice?.outcome === "accepted" ? "installed" : "dismissed");
+    } catch {
+      setInstallState("fallback");
+    }
+  }
+
+  if (!canView) return null;
+
+  const installAvailable = Boolean(installPrompt);
+  const statusMessage = installState === "installed"
+    ? "Apex HQ has been installed or the browser reported a successful install."
+    : installState === "dismissed"
+      ? "Install was dismissed. You can still use the browser menu install option later."
+      : installState === "fallback"
+        ? "The browser install prompt was not available. Use the manual install steps below."
+        : "Chrome or Edge may show an install button when the browser confirms this device supports app install.";
+
+  return (
+    <Card className="p-5">
+      <SectionHeader
+        title="Install Apex HQ"
+        description="Add Apex HQ to a desktop or mobile home screen as an installable app shell. Live workspace data still requires an internet connection."
+        action={installAvailable ? (
+          <Button type="button" variant="primary" size="sm" onClick={handleInstallClick} disabled={installState === "prompting"}>
+            {installState === "prompting" ? "Opening..." : "Install App"}
+          </Button>
+        ) : null}
+      />
+      <div className="rounded-2xl border border-orange-100 bg-orange-50/70 p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge tone="amber">Installable app shell</Badge>
+          <Badge tone="slate">No offline editing</Badge>
+          <Badge tone="slate">No browser alerts</Badge>
+        </div>
+        <p className="mt-3 text-sm leading-6 text-orange-900">
+          Offline editing is not enabled yet. Keep an internet connection active for leads, jobs, reports, photos, estimates, and owner tools.
+        </p>
+        <p className="mt-2 text-sm font-bold text-orange-800">{statusMessage}</p>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <div className="rounded-2xl border border-blue-100 bg-white p-4">
+          <p className="text-sm font-black text-slate-950">Windows desktop</p>
+          <p className="mt-2 text-sm leading-6 text-slate-600">Open Apex HQ in Chrome or Edge, use the browser install button or menu, then pin it to the taskbar or Start menu.</p>
+        </div>
+        <div className="rounded-2xl border border-blue-100 bg-white p-4">
+          <p className="text-sm font-black text-slate-950">iPhone or iPad</p>
+          <p className="mt-2 text-sm leading-6 text-slate-600">Open the live app in Safari, tap Share, then choose Add to Home Screen.</p>
+        </div>
+        <div className="rounded-2xl border border-blue-100 bg-white p-4">
+          <p className="text-sm font-black text-slate-950">Android</p>
+          <p className="mt-2 text-sm leading-6 text-slate-600">Open the live app in Chrome, then use Install app or Add to Home screen from the browser menu.</p>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+export function UiStyleFoundationPanel({ canView = false }) {
+  if (!canView) return null;
+
+  const swatches = [
+    ["Brand orange", DESIGN_COLORS.brand.orange],
+    ["Shell dark", DESIGN_COLORS.shell.dark],
+    ["Workspace", DESIGN_COLORS.workspace.page],
+    ["Card", DESIGN_COLORS.workspace.card],
+  ];
+
+  return (
+    <Card className="p-5">
+      <SectionHeader
+        title="UI Style Foundation"
+        description="Design tokens are now in place for the dark shell, orange brand accent, light workspace, rounded cards, and soft construction SaaS polish. Full page-by-page UI polish continues in phases 12B-12J."
+      />
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+        <div className="co-sidebar-shell rounded-3xl border border-slate-800 p-4 text-white">
+          <div className="flex items-center gap-3">
+            <div className="grid size-11 place-items-center rounded-2xl bg-orange-500 text-sm font-black text-white">AH</div>
+            <div>
+              <p className="text-sm font-black">Apex HQ</p>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-300">Team workspace</p>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-2 text-sm font-bold">
+            <div className="rounded-2xl bg-orange-600 px-3 py-2">Dashboard active state</div>
+            <div className="rounded-2xl px-3 py-2 text-slate-300">Jobs / Leads / Reports</div>
+          </div>
+        </div>
+        <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {swatches.map(([label, value]) => (
+              <div key={label} className="rounded-2xl border border-slate-200 bg-white p-3">
+                <div className="h-10 rounded-xl border border-slate-200" style={{ background: value }} />
+                <p className="mt-2 text-sm font-black text-slate-950">{label}</p>
+                <p className="text-xs font-bold text-slate-500">{value}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button type="button" size="sm">Primary action</Button>
+            <Button type="button" size="sm" variant="secondary">Secondary action</Button>
+            <Badge tone="orange">Orange accent</Badge>
+            <Badge tone="slate">Soft badge</Badge>
+          </div>
         </div>
       </div>
     </Card>

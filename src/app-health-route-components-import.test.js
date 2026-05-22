@@ -28,3 +28,21 @@ test("App imports the extracted release safety rollback panel", () => {
   assert.match(appSource, /import \{[^}]*ReleaseSafetyRollbackPanel[^}]*\} from "\.\/app-health-route-components"/s);
   assert.doesNotMatch(appSource, /function ReleaseSafetyRollbackPanel/);
 });
+
+test("App imports the extracted PWA install guidance panel", () => {
+  const appSource = fs.readFileSync(new URL("./App.jsx", import.meta.url), "utf8");
+  const routeComponentsSource = fs.readFileSync(new URL("./app-health-route-components.jsx", import.meta.url), "utf8");
+
+  assert.match(routeComponentsSource, /export function PwaInstallGuidancePanel/);
+  assert.match(appSource, /import \{[^}]*PwaInstallGuidancePanel[^}]*\} from "\.\/app-health-route-components"/s);
+  assert.doesNotMatch(appSource, /function PwaInstallGuidancePanel/);
+});
+
+test("App imports the extracted UI style foundation panel", () => {
+  const appSource = fs.readFileSync(new URL("./App.jsx", import.meta.url), "utf8");
+  const routeComponentsSource = fs.readFileSync(new URL("./app-health-route-components.jsx", import.meta.url), "utf8");
+
+  assert.match(routeComponentsSource, /export function UiStyleFoundationPanel/);
+  assert.match(appSource, /import \{[^}]*UiStyleFoundationPanel[^}]*\} from "\.\/app-health-route-components"/s);
+  assert.doesNotMatch(appSource, /function UiStyleFoundationPanel/);
+});
