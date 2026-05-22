@@ -254,8 +254,8 @@ import {
   SUPPORT_BLOCKER_OPTIONS,
   SUPPORT_PILOT_FEEDBACK_WORKFLOW,
 } from "./support-utils";
-import { buildTimeTrackingSupportContext, deriveCrewWeeklySummary, deriveTimeJobCostingReadiness, deriveTimeWorkspace, formatMinutes, timeStatusTone } from "./time-utils";
-import { TimeKpiCardPolished, TimeSummaryMetricsPolished } from "./time-route-components";
+import { buildTimeTrackingSupportContext, deriveCrewWeeklySummary, deriveTimeJobCostingReadiness, deriveTimeWorkspace, formatMinutes } from "./time-utils";
+import { TimeKpiCardPolished, TimeStatusBadge, TimeSummaryMetricsPolished } from "./time-route-components";
 import { deriveChecklistItems, deriveToolChecklistJobReadiness, deriveToolChecklistListState, filterToolChecklists, toolChecklistItemStatusLabel, toolChecklistStatusLabel } from "./tool-checklist-utils";
 import { ALLOWED_UPLOAD_TYPES, buildUploadSupportContext, deriveAllowedUploadJobs, deriveUploadDraftFromSelection, deriveUploadListState, filterUploads, findSelectedUpload, gpsStatusLabel, uploadCustomerLabel, uploadJobLabel, uploadTitle, uploadUploaderLabel, validateUploadFile } from "./upload-utils";
 import { deriveUserListState, getCrewAssignmentOptions, getForemanAssignmentOptions, USER_ROLE_OPTIONS } from "./user-utils";
@@ -5192,10 +5192,6 @@ function EmployeeWorkspacePage({ rows, user, selectedJobId, onSelectJob, selecte
       onEndBreak={onEndBreak}
     />
   );
-}
-
-function TimeStatusBadge({ status }) {
-  return <Badge tone={timeStatusTone(status)}>{status === "on_break" ? "On Break" : status === "completed" ? "Completed" : "Active"}</Badge>;
 }
 
 function workCategoryLabel(workCategory = "") {

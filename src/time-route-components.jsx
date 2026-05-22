@@ -1,5 +1,9 @@
-import { Icon } from "./app-shell-components";
-import { formatMinutes } from "./time-utils";
+import { Badge, Icon } from "./app-shell-components";
+import { formatMinutes, timeStatusTone } from "./time-utils";
+
+export function TimeStatusBadge({ status }) {
+  return <Badge tone={timeStatusTone(status)}>{status === "on_break" ? "On Break" : status === "completed" ? "Completed" : "Active"}</Badge>;
+}
 
 export function TimeKpiCardPolished({ item }) {
   const tone = item.tone || "orange";
