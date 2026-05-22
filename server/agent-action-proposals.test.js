@@ -230,6 +230,19 @@ function estimateRows(sqliteFile) {
   }
 }
 
+function jobRows(sqliteFile) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    return database.prepare(`
+      SELECT id, customer_id AS customerId, lead_id AS leadId, title, status, assigned_foreman_id AS assignedForemanId, assigned_user_id AS assignedUserId, field_planning_visible AS fieldPlanningVisible, visible_to_foreman AS visibleToForeman, notes
+      FROM jobs
+      ORDER BY sort_index DESC
+    `).all();
+  } finally {
+    database.close();
+  }
+}
+
 function tableCounts(sqliteFile, tableNames) {
   const database = new DatabaseSync(sqliteFile);
   try {
@@ -784,6 +797,173 @@ test("agent proposal estimate send review blocks field users, unsupported propos
     });
     assert.equal(missingRecipient.response.status, 400);
     assert.match(missingRecipient.payload.error, /customer email/i);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("agent proposal can convert an approved estimate to a draft job only after human approval", async () => {
+  const fixture = await startServer();
+
+  try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.PREMIUM);
+    const adminLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: { Authorization: `Bearer ${adminLogin.token}` },
+    });
+    const created = await assertOk(fixture.baseUrl, "/api/estimates", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({
+        customerId: bootstrap.customers[0].id,
+        leadId: bootstrap.leads[0].id,
+        title: "Agent Job Handoff Estimate",
+        status: "approved",
+        customerEmail: "agent-job-handoff@example.test",
+        scopeSummary: "Approved fence project ready for job handoff.",
+        internalNotes: "Internal only.",
+        customerNotes: "Customer terms.",
+        items: [{ description: "Fence install", quantity: 120, unit: "lf", unitPrice: 48 }],
+      }),
+    });
+    const estimate = created.estimates.find((entry) => entry.title === "Agent Job Handoff Estimate");
+    const proposal = agentAuditPayload({
+      proposalId: `agent-proposal:estimate-job-handoff-review:${estimate.id}`,
+      proposalType: "estimate-job-handoff-review",
+      sourceModule: "estimates",
+      targetEntityType: "estimate",
+      targetEntityId: estimate.id,
+      summary: "Estimate job handoff review packet",
+      redactedPromptPreview: "Prepare job handoff. Do not email, schedule, assign crew, or notify customer.",
+      redactedResponsePreview: "Review only. Approved estimate can become a draft job after approval.",
+    });
+
+    const missingApproval = await requestJson(fixture.baseUrl, "/api/agent-action-proposals/convert-estimate-to-job", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({ estimateId: estimate.id, proposal }),
+    });
+    assert.equal(missingApproval.response.status, 409);
+
+    await assertOk(fixture.baseUrl, "/api/agent-action-proposals/audit", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify(proposal),
+    });
+    await assertOk(fixture.baseUrl, "/api/agent-action-proposals/audit", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({
+        ...proposal,
+        eventType: "agent.proposal.approved_for_draft",
+        status: "approved_for_draft",
+      }),
+    });
+
+    const beforeCounts = tableCounts(fixture.sqliteFile, ["jobs", "contact_history"]);
+    const converted = await assertOk(fixture.baseUrl, "/api/agent-action-proposals/convert-estimate-to-job", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({ estimateId: estimate.id, proposal }),
+    });
+    const afterCounts = tableCounts(fixture.sqliteFile, ["jobs", "contact_history"]);
+    const createdJob = jobRows(fixture.sqliteFile).find((job) => job.id === converted.agentJobId);
+    const convertedEstimate = estimateRows(fixture.sqliteFile).find((row) => row.id === estimate.id);
+
+    assert.equal(afterCounts.jobs, beforeCounts.jobs + 1);
+    assert.equal(afterCounts.contact_history, beforeCounts.contact_history);
+    assert.ok(createdJob);
+    assert.equal(createdJob.status, "draft");
+    assert.equal(createdJob.assignedForemanId || "", "");
+    assert.equal(createdJob.assignedUserId || "", "");
+    assert.equal(Boolean(createdJob.fieldPlanningVisible), false);
+    assert.equal(Boolean(createdJob.visibleToForeman), false);
+    assert.match(createdJob.notes, /No schedule, crew assignment, customer contact, billing, or field visibility change was automated/i);
+    assert.equal(convertedEstimate.jobId, converted.agentJobId);
+    assert.equal(convertedEstimate.sentAt || "", "");
+    assert.equal(convertedEstimate.sentTo || "", "");
+    assert.equal(convertedEstimate.providerMessageId || "", "");
+
+    const records = auditEvents(fixture.sqliteFile);
+    const actions = records.map((record) => record.action);
+    assert.ok(actions.includes("agent.proposal.job_created"));
+    assert.doesNotMatch(JSON.stringify(records), /agent-job-handoff@example\.test/i);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("agent proposal estimate to job conversion blocks field users and unsupported proposal types", async () => {
+  const fixture = await startServer();
+
+  try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.PREMIUM);
+    const adminLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const employeeUser = createUserRecord({
+      id: "U-AGENT-JOB-EMPLOYEE",
+      email: "agent-job-employee@apexhq.test",
+      password: "apexdemo123",
+      name: "Agent Job Employee",
+      role: "Employee",
+    });
+    insertUser(fixture.sqliteFile, employeeUser);
+    const employeeLogin = await login(fixture.baseUrl, {
+      email: employeeUser.email,
+      password: "apexdemo123",
+    });
+    const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: { Authorization: `Bearer ${adminLogin.token}` },
+    });
+    const created = await assertOk(fixture.baseUrl, "/api/estimates", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({
+        customerId: bootstrap.customers[0].id,
+        leadId: bootstrap.leads[0].id,
+        title: "Agent Job Blocked Estimate",
+        status: "approved",
+        customerEmail: "agent-job-blocked@example.test",
+        scopeSummary: "Approved project.",
+        items: [{ description: "Fence install", quantity: 25, unit: "lf", unitPrice: 40 }],
+      }),
+    });
+    const estimate = created.estimates.find((entry) => entry.title === "Agent Job Blocked Estimate");
+    const basePayload = {
+      estimateId: estimate.id,
+      proposal: agentAuditPayload({
+        proposalId: `agent-proposal:estimate-job-handoff-review:${estimate.id}`,
+        proposalType: "estimate-job-handoff-review",
+        targetEntityType: "estimate",
+        targetEntityId: estimate.id,
+      }),
+    };
+
+    const employeeBlocked = await requestJson(fixture.baseUrl, "/api/agent-action-proposals/convert-estimate-to-job", {
+      method: "POST",
+      headers: authHeaders(employeeLogin.token),
+      body: JSON.stringify(basePayload),
+    });
+    assert.equal(employeeBlocked.response.status, 403);
+
+    const unsupported = await requestJson(fixture.baseUrl, "/api/agent-action-proposals/convert-estimate-to-job", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({
+        ...basePayload,
+        proposal: {
+          ...basePayload.proposal,
+          proposalId: "agent-proposal:estimate-packet-review:blocked",
+          proposalType: "estimate-packet-review",
+        },
+      }),
+    });
+    assert.equal(unsupported.response.status, 403);
   } finally {
     await fixture.stop();
   }

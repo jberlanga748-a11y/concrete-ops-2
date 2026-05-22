@@ -7483,6 +7483,69 @@ app.post("/api/agent-action-proposals/prepare-estimate-send", requireAuth, async
   });
 }));
 
+app.post("/api/agent-action-proposals/convert-estimate-to-job", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageEstimatesForRequest(req.auth.user);
+  const proposalPayload = req.body?.proposal && typeof req.body.proposal === "object" ? req.body.proposal : req.body || {};
+  const estimateId = optionalString(req.body?.estimateId || proposalPayload.targetEntityId, "");
+  const normalized = normalizeAgentProposalAuditPayload({
+    ...proposalPayload,
+    eventType: "agent.proposal.generated",
+    status: "needs_human_review",
+    proposalType: proposalPayload.proposalType || "estimate-job-handoff-review",
+    targetEntityType: "estimate",
+    targetEntityId: estimateId,
+  });
+
+  if (!estimateId) {
+    throw new ApiError(400, "Estimate ID is required before Apex Assistant can convert an estimate to a job.");
+  }
+  if (normalized.proposalType !== "estimate-job-handoff-review") {
+    throw new ApiError(403, "Only estimate job handoff agent proposals can convert estimates to jobs.");
+  }
+
+  let createdJobId = "";
+  const changedAt = new Date().toISOString();
+  const nextState = await updateDb((draft) => {
+    assertCanCreateAgentProposalAudit(draft, req.auth.user);
+    if (!canApproveAgentProposalDraftPrepForType(draft, req.auth.user, normalized)) {
+      throw new ApiError(403, "You do not have permission to convert estimates from this agent proposal.");
+    }
+    if (!hasAgentProposalAuditEvent(draft, req.auth.user, normalized, "agent.proposal.generated")) {
+      throw new ApiError(409, "Record the generated agent job handoff proposal before conversion.");
+    }
+    if (!hasAgentProposalAuditEvent(draft, req.auth.user, normalized, "agent.proposal.approved_for_draft")) {
+      throw new ApiError(409, "Approve the agent job handoff proposal before conversion.");
+    }
+
+    const job = convertApprovedEstimateToJobInDraft(draft, estimateId, req.auth.user, {}, changedAt, { agentApproved: true });
+    createdJobId = job.id;
+    if (!hasAgentProposalAuditEvent(draft, req.auth.user, normalized, "agent.proposal.job_created")) {
+      appendAgentProposalAuditEvent(draft, req.auth.user, {
+        ...normalized,
+        blockedReasons: [
+          ...new Set([
+            ...(normalized.blockedReasons || []),
+            "No proposal was sent by Apex Assistant.",
+            "No bid submission, customer contact, invoice, payment, schedule change, crew assignment, or field visibility change was created.",
+          ]),
+        ],
+      }, {
+        eventType: "agent.proposal.job_created",
+        status: "job_draft_created",
+        summary: "Job draft created from agent-approved handoff",
+        createdDraftEntityType: "job",
+        createdDraftEntityId: job.id,
+      });
+    }
+    return draft;
+  });
+
+  res.status(201).json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    agentJobId: createdJobId,
+  });
+}));
+
 app.get("/api/export/company", requireAuth, asyncRoute(async (req, res) => {
   if (!canExportData(req.auth.user)) {
     throw new ApiError(403, "Only owners can export workspace data.");
@@ -7938,6 +8001,105 @@ app.patch("/api/estimates/:id", requireAuth, asyncRoute(async (req, res) => {
   res.json(sanitizeBootstrap(nextState, req.auth.user));
 }));
 
+function convertApprovedEstimateToJobInDraft(draft, estimateId, user, payload = {}, changedAt = new Date().toISOString(), { agentApproved = false } = {}) {
+  const estimate = findEstimate(draft, estimateId, user);
+  if (optionalEstimateStatus(estimate.status, "draft") !== "approved") {
+    throw new ApiError(409, "Only approved estimates can be converted into jobs.");
+  }
+
+  const customer = findCompanyScopedRecord(draft.customers || [], estimate.customerId, user, draft, "Customer");
+  const linkedLead = estimate.leadId ? findCompanyScopedRecord(draft.leads || [], estimate.leadId, user, draft, "Lead") : null;
+  assertSameCompanyRecords(estimate, customer, "Customer");
+  if (linkedLead) assertSameCompanyRecords(estimate, linkedLead, "Lead");
+  let job = null;
+
+  if (payload.jobId) {
+    job = findCompanyScopedRecord(draft.jobs || [], requiredString(payload.jobId, "Job"), user, draft, "Job");
+    assertSameCompanyRecords(estimate, job, "Job");
+    estimate.jobId = job.id;
+    markUpdated(estimate, changedAt);
+    appendAuditEvent(draft, {
+      entityType: "estimate",
+      entityId: estimate.id,
+      action: agentApproved ? "agent_converted" : "converted",
+      summary: agentApproved ? "Agent-approved estimate linked to job" : "Estimate linked to job",
+      detail: `${estimate.title} was linked to ${normalizeJobRecord(job).title}.`,
+      actor: user,
+      changedFields: ["jobId", "updatedAt"],
+    });
+    return job;
+  }
+
+  if (estimate.jobId) {
+    throw new ApiError(409, "This estimate has already been converted to a job.");
+  }
+
+  const sourceJobNotes = [
+    `Created from approved estimate ${estimate.id}: ${estimate.title}.`,
+    linkedLead ? `Lead/project: ${linkedLead.project || linkedLead.customer}.` : "",
+    estimate.customerNotes ? `Customer notes/terms: ${estimate.customerNotes}` : "",
+    agentApproved ? "Apex Assistant prepared this job after human approval. No schedule, crew assignment, customer contact, billing, or field visibility change was automated." : "",
+    "Next step: schedule the job and assign foreman/crew.",
+  ].filter(Boolean).join("\n");
+
+  job = normalizeJobRecord({
+    id: makeId("J"),
+    companyId: estimate.companyId,
+    customerId: customer.id,
+    leadId: estimate.leadId || "",
+    title: estimate.title,
+    customer: customer.name,
+    address: "",
+    siteContact: "",
+    scopeSummary: estimate.scopeSummary || "Scope pending.",
+    scheduledStart: "",
+    scheduledEnd: "",
+    estimatedDuration: "",
+    crewSizeNeeded: 0,
+    equipmentNotes: "",
+    safetyNotes: "",
+    materialNotes: "",
+    fieldNotes: "",
+    assignedForemanId: "",
+    assignedUserId: "",
+    fieldPlanningVisible: false,
+    visibleToForeman: false,
+    status: "draft",
+    crew: "Assign crew",
+    nextStep: "Review approved estimate and schedule field kickoff",
+    progress: 0,
+    notes: sourceJobNotes,
+    createdAt: changedAt,
+    updatedAt: changedAt,
+    archivedAt: null,
+  });
+
+  draft.jobs ||= [];
+  draft.jobs.unshift(job);
+  estimate.jobId = job.id;
+  markUpdated(estimate, changedAt);
+  appendActivity(draft, agentApproved ? "Agent-approved estimate converted to job" : "Estimate converted to job", `${estimate.title} was converted into ${job.title}.`);
+  appendAuditEvent(draft, {
+    entityType: "estimate",
+    entityId: estimate.id,
+    action: agentApproved ? "agent_converted" : "converted",
+    summary: agentApproved ? "Agent-approved estimate converted to job" : "Estimate converted to job",
+    detail: `${estimate.title} was converted into ${job.title}.`,
+    actor: user,
+    changedFields: ["jobId", "updatedAt"],
+  });
+  appendAuditEvent(draft, {
+    entityType: "job",
+    entityId: job.id,
+    action: agentApproved ? "agent_created" : "created",
+    summary: agentApproved ? "Job created from agent-approved estimate" : "Job created from estimate",
+    detail: `${job.title} was created from approved estimate ${estimate.title}.`,
+    actor: user,
+    changedFields: ["customerId", "leadId", "title", "scopeSummary"],
+  });
+  return job;
+}
+
 app.post("/api/estimates/:id/send", requireAuth, asyncRoute(async (req, res) => {
   assertCanManageEstimatesForRequest(req.auth.user);
   if (!isEstimateEmailConfigured()) {
@@ -8023,99 +8185,7 @@ app.post("/api/estimates/:id/convert-to-job", requireAuth, asyncRoute(async (req
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    const estimate = findEstimate(draft, req.params.id, req.auth.user);
-    if (optionalEstimateStatus(estimate.status, "draft") !== "approved") {
-      throw new ApiError(409, "Only approved estimates can be converted into jobs.");
-    }
-
-    const customer = findCompanyScopedRecord(draft.customers || [], estimate.customerId, req.auth.user, draft, "Customer");
-    const linkedLead = estimate.leadId ? findCompanyScopedRecord(draft.leads || [], estimate.leadId, req.auth.user, draft, "Lead") : null;
-    assertSameCompanyRecords(estimate, customer, "Customer");
-    if (linkedLead) assertSameCompanyRecords(estimate, linkedLead, "Lead");
-    let job = null;
-
-    if (payload.jobId) {
-      job = findCompanyScopedRecord(draft.jobs || [], requiredString(payload.jobId, "Job"), req.auth.user, draft, "Job");
-      assertSameCompanyRecords(estimate, job, "Job");
-      estimate.jobId = job.id;
-      markUpdated(estimate, changedAt);
-      appendAuditEvent(draft, {
-        entityType: "estimate",
-        entityId: estimate.id,
-        action: "converted",
-        summary: "Estimate linked to job",
-        detail: `${estimate.title} was linked to ${normalizeJobRecord(job).title}.`,
-        actor: req.auth.user,
-        changedFields: ["jobId", "updatedAt"],
-      });
-      return draft;
-    }
-
-    if (estimate.jobId) {
-      throw new ApiError(409, "This estimate has already been converted to a job.");
-    }
-
-    const sourceJobNotes = [
-      `Created from approved estimate ${estimate.id}: ${estimate.title}.`,
-      linkedLead ? `Lead/project: ${linkedLead.project || linkedLead.customer}.` : "",
-      estimate.customerNotes ? `Customer notes/terms: ${estimate.customerNotes}` : "",
-      "Next step: schedule the job and assign foreman/crew.",
-    ].filter(Boolean).join("\n");
-
-    job = normalizeJobRecord({
-      id: makeId("J"),
-      companyId: estimate.companyId,
-      customerId: customer.id,
-      leadId: estimate.leadId || "",
-      title: estimate.title,
-      customer: customer.name,
-      address: "",
-      siteContact: "",
-      scopeSummary: estimate.scopeSummary || "Scope pending.",
-      scheduledStart: "",
-      scheduledEnd: "",
-      estimatedDuration: "",
-      crewSizeNeeded: 0,
-      equipmentNotes: "",
-      safetyNotes: "",
-      materialNotes: "",
-      fieldNotes: "",
-      assignedForemanId: "",
-      assignedUserId: "",
-      fieldPlanningVisible: false,
-      visibleToForeman: false,
-      status: "draft",
-      crew: "Assign crew",
-      nextStep: "Review approved estimate and schedule field kickoff",
-      progress: 0,
-      notes: sourceJobNotes,
-      createdAt: changedAt,
-      updatedAt: changedAt,
-      archivedAt: null,
-    });
-
-    draft.jobs.unshift(job);
-    estimate.jobId = job.id;
-    markUpdated(estimate, changedAt);
-    appendActivity(draft, "Estimate converted to job", `${estimate.title} was converted into ${job.title}.`);
-    appendAuditEvent(draft, {
-      entityType: "estimate",
-      entityId: estimate.id,
-      action: "converted",
-      summary: "Estimate converted to job",
-      detail: `${estimate.title} was converted into ${job.title}.`,
-      actor: req.auth.user,
-      changedFields: ["jobId", "updatedAt"],
-    });
-    appendAuditEvent(draft, {
-      entityType: "job",
-      entityId: job.id,
-      action: "created",
-      summary: "Job created from estimate",
-      detail: `${job.title} was created from approved estimate ${estimate.title}.`,
-      actor: req.auth.user,
-      changedFields: ["customerId", "leadId", "title", "scopeSummary"],
-    });
+    convertApprovedEstimateToJobInDraft(draft, req.params.id, req.auth.user, payload, changedAt);
     return draft;
   });
 

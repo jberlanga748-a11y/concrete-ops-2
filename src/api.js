@@ -119,6 +119,10 @@ export function prepareAgentEstimateSend(token, payload) {
   return request("/api/agent-action-proposals/prepare-estimate-send", { method: "POST", token, body: payload });
 }
 
+export function convertAgentEstimateToJob(token, payload) {
+  return request("/api/agent-action-proposals/convert-estimate-to-job", { method: "POST", token, body: payload });
+}
+
 export function getAgentLearningPreferences(token) {
   return request("/api/agent/learning-preferences", { token });
 }
