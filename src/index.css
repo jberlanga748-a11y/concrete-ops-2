@@ -40112,3 +40112,401 @@ button.co-work-queue-card:hover:not(:disabled) {
     display: none !important;
   }
 }
+
+/* North Star mobile/tablet translation: field mode and Estimate Studio. */
+@media (max-width: 767px) {
+  :root {
+    --co-mobile-bottom-nav-height: 5.95rem;
+    --co-mobile-bottom-nav-clearance: calc(var(--co-mobile-bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 1.45rem);
+  }
+
+  .co-field-workspace-page,
+  .co-field-tool-page,
+  .co-module-frame[data-field-workspace="true"] {
+    scroll-padding-bottom: var(--co-mobile-bottom-nav-clearance);
+  }
+
+  .co-field-workspace-page .co-field-command-layout,
+  .co-field-workspace-page .co-field-landing-stack,
+  .co-field-tool-page,
+  .co-reports-page[data-field-workspace="true"],
+  .co-uploads-page[data-field-workspace="true"],
+  .co-time-page[data-field-workspace="true"],
+  .co-jobs-page[data-field-workspace="true"] {
+    padding-bottom: var(--co-mobile-bottom-nav-clearance) !important;
+  }
+
+  .co-field-operator-panel,
+  .co-field-required-panel,
+  .co-field-action-dock,
+  .co-field-mobile-focus-card,
+  .co-field-focus-card-embedded,
+  .co-field-notice-card,
+  .co-mobile-record-card {
+    border-radius: 0.5rem !important;
+  }
+
+  .co-field-operator-panel,
+  .co-field-required-panel,
+  .co-field-action-dock,
+  .co-mobile-record-card {
+    border-color: rgba(203, 213, 225, 0.92) !important;
+    background: #ffffff !important;
+    box-shadow: 0 14px 34px -30px rgba(7, 17, 31, 0.5) !important;
+  }
+
+  .co-field-operator-shell {
+    gap: 0.72rem !important;
+    padding: 0.72rem !important;
+  }
+
+  .co-field-operator-copy h2 {
+    margin-top: 0.42rem !important;
+    font-size: 1.18rem !important;
+    line-height: 1.08 !important;
+  }
+
+  .co-field-operator-copy p,
+  .co-field-required-copy strong,
+  .co-field-notice-list span,
+  .co-mobile-record-card p {
+    color: #64748b !important;
+  }
+
+  .co-field-operator-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.5rem !important;
+  }
+
+  .co-field-operator-actions > .btn,
+  .co-field-operator-actions > button,
+  .co-field-operator-actions > .co-field-operator-link,
+  .co-field-required-actions .btn {
+    min-height: 3rem !important;
+    border-radius: 0.5rem !important;
+    padding: 0.62rem 0.58rem !important;
+    font-size: 0.74rem !important;
+    line-height: 1.15 !important;
+    white-space: normal !important;
+  }
+
+  .co-field-operator-actions > .btn:first-child,
+  .co-field-operator-actions > button:first-child {
+    grid-column: 1 / -1;
+    min-height: 3.28rem !important;
+    background: var(--color-brand-orange) !important;
+    color: #ffffff !important;
+    box-shadow: 0 16px 30px -22px rgba(194, 65, 12, 0.8) !important;
+  }
+
+  .co-field-required-panel {
+    padding: 0.64rem !important;
+  }
+
+  .co-field-workspace-page .co-field-required-panel {
+    max-height: calc(100dvh - var(--co-mobile-bottom-nav-height) - 17rem);
+    overflow-y: auto;
+  }
+
+  .co-field-required-list,
+  .co-field-assignment-list,
+  .co-field-assigned-job-list {
+    gap: 0.5rem !important;
+  }
+
+  .co-field-required-item {
+    grid-template-columns: 2.12rem minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    align-items: center;
+    gap: 0.5rem 0.58rem;
+    border-radius: 0.5rem !important;
+    padding: 0.58rem !important;
+  }
+
+  .co-field-required-item:first-child {
+    grid-template-columns: 2.12rem minmax(0, 1fr);
+  }
+
+  .co-field-required-item .co-field-required-icon {
+    height: 2.12rem;
+    width: 2.12rem;
+    border-radius: 0.5rem;
+  }
+
+  .co-field-required-copy p {
+    font-size: 0.82rem !important;
+    line-height: 1.12 !important;
+  }
+
+  .co-field-required-copy strong {
+    margin-top: 0.18rem !important;
+    font-size: 0.68rem !important;
+  }
+
+  .co-field-required-copy em {
+    margin-top: 0.26rem !important;
+    color: #94a3b8 !important;
+    font-size: 0.56rem !important;
+    letter-spacing: 0.08em !important;
+  }
+
+  .co-field-required-actions {
+    grid-column: 1 / -1 !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.42rem !important;
+  }
+
+  .co-field-required-actions .btn:first-child:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .co-field-action-dock {
+    padding: 0.72rem !important;
+  }
+
+  .co-field-action-dock .grid,
+  .co-field-workspace-page .co-field-action-dock .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.5rem !important;
+  }
+
+  .co-field-action-dock button,
+  .co-field-action-dock a {
+    min-height: 3.1rem;
+    border-radius: 0.5rem !important;
+  }
+
+  .co-field-mobile-focus-card,
+  .co-field-focus-card-embedded,
+  .co-field-notice-card {
+    border-color: rgba(30, 41, 59, 0.82) !important;
+    background:
+      radial-gradient(circle at 12% 0%, rgba(249, 115, 22, 0.16), transparent 8rem),
+      linear-gradient(180deg, #111827, #07111f) !important;
+    color: #e2e8f0 !important;
+    box-shadow: 0 18px 42px -30px rgba(7, 17, 31, 0.8) !important;
+  }
+
+  .co-field-mobile-focus-card h2,
+  .co-field-mobile-focus-card h3,
+  .co-field-mobile-focus-card strong,
+  .co-field-focus-card-embedded h2,
+  .co-field-focus-card-embedded h3,
+  .co-field-focus-card-embedded strong,
+  .co-field-notice-card h2,
+  .co-field-notice-card h3,
+  .co-field-notice-card strong {
+    color: #f8fafc !important;
+  }
+
+  .co-field-mobile-focus-card p,
+  .co-field-mobile-focus-card span,
+  .co-field-focus-card-embedded p,
+  .co-field-focus-card-embedded span,
+  .co-field-notice-card p,
+  .co-field-notice-card span {
+    color: #cbd5e1 !important;
+  }
+
+  nav.co-mobile-bottom-nav {
+    right: max(0.72rem, env(safe-area-inset-right, 0px)) !important;
+    bottom: max(0.58rem, env(safe-area-inset-bottom, 0px)) !important;
+    left: max(0.72rem, env(safe-area-inset-left, 0px)) !important;
+    min-height: var(--co-mobile-bottom-nav-height) !important;
+    border-radius: 0.72rem !important;
+    border-color: rgba(71, 85, 105, 0.82) !important;
+    background:
+      radial-gradient(circle at 8% 0%, rgba(249, 115, 22, 0.2), transparent 9rem),
+      linear-gradient(180deg, rgba(15, 23, 42, 0.98), #07111f) !important;
+    box-shadow: 0 -18px 44px -26px rgba(7, 17, 31, 0.86) !important;
+  }
+
+  nav.co-mobile-bottom-nav > div.scrollbar-none {
+    min-height: calc(var(--co-mobile-bottom-nav-height) - 1.08rem);
+    align-items: stretch;
+  }
+
+  nav.co-mobile-bottom-nav .co-mobile-bottom-nav-button {
+    min-height: 4.38rem !important;
+    border-radius: 0.5rem !important;
+    color: #cbd5e1 !important;
+  }
+
+  nav.co-mobile-bottom-nav .co-mobile-bottom-nav-button.is-active {
+    background: rgba(249, 115, 22, 0.16) !important;
+    color: #ffffff !important;
+  }
+
+  .co-mobile-bottom-spacer {
+    height: var(--co-mobile-bottom-nav-clearance) !important;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .co-workspace-shell:has(.co-estimates-page) {
+    padding-bottom: 0 !important;
+  }
+
+  .co-workspace-shell:has(.co-estimates-page) nav.co-mobile-bottom-nav,
+  body:has(.co-estimates-page) nav.co-mobile-bottom-nav,
+  .co-workspace-shell:has(.co-estimates-page) .co-mobile-bottom-spacer {
+    display: none !important;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1179px) {
+  .co-estimate-studio-shell {
+    padding-right: 0.86rem !important;
+    padding-left: 0.86rem !important;
+  }
+
+  .co-estimates-page .co-page-header {
+    margin-bottom: 0.72rem !important;
+  }
+
+  .co-estimates-page .co-estimates-kpi-grid {
+    gap: 0.46rem !important;
+    padding-bottom: 0.58rem !important;
+  }
+
+  .co-estimates-page .co-estimates-kpi-grid .co-command-kpi {
+    min-width: 8.25rem !important;
+    height: 3.55rem !important;
+    min-height: 3.55rem !important;
+    border-radius: 0.5rem !important;
+    padding: 0.42rem 0.5rem !important;
+  }
+
+  .co-estimate-studio-option-rail,
+  .co-estimate-studio-workbench,
+  .co-estimates-main-board,
+  .co-estimates-right-rail > .co-estimates-rail-card,
+  .co-estimates-branding-card,
+  .co-estimates-selected-card,
+  .co-estimate-proposal-workbench {
+    border-radius: 0.5rem !important;
+  }
+
+  .co-estimate-studio-option-head,
+  .co-estimate-studio-packet-head {
+    padding: 0.66rem !important;
+  }
+
+  .co-estimate-studio-option-list {
+    gap: 0.46rem !important;
+    padding: 0.58rem !important;
+  }
+
+  .co-estimate-studio-option-list .co-work-queue-card {
+    border-radius: 0.5rem !important;
+    padding: 0.58rem !important;
+  }
+
+  .co-estimate-studio-workbench {
+    gap: 0.58rem !important;
+  }
+
+  .co-estimate-proposal-workbench {
+    gap: 0.58rem !important;
+  }
+
+  .co-estimate-proposal-head {
+    padding: 0.76rem 0.76rem 0.64rem !important;
+  }
+
+  .co-estimate-proposal-brand-strip {
+    margin-right: 0.76rem !important;
+    margin-left: 0.76rem !important;
+    gap: 0.44rem !important;
+    padding-bottom: 0.62rem !important;
+  }
+
+  .co-estimate-studio-packet-tiles {
+    gap: 0.44rem !important;
+  }
+
+  .co-estimate-studio-packet-tiles button {
+    min-height: 3.5rem !important;
+    border-radius: 0.5rem !important;
+    padding: 0.38rem !important;
+    font-size: 0.58rem !important;
+  }
+
+  .co-estimates-right-rail {
+    gap: 0.58rem !important;
+  }
+
+  .co-estimates-right-rail > * + * {
+    margin-top: 0.58rem !important;
+  }
+
+  .co-estimates-right-rail > .co-estimates-rail-card,
+  .co-estimates-branding-card,
+  .co-estimates-selected-card {
+    padding: 0.72rem !important;
+  }
+
+  .co-estimates-right-rail .co-estimates-total-spotlight {
+    border-radius: 0.5rem !important;
+    padding: 0.72rem !important;
+  }
+
+  .co-estimate-studio-shell .co-command-page-frame-footer {
+    margin-top: 0.58rem !important;
+  }
+
+  .co-estimate-studio-shell .co-command-page-frame-footer .co-assistant-rail {
+    border-radius: 0.5rem !important;
+  }
+
+  .co-estimate-studio-shell .co-command-page-frame-footer .co-assistant-rail-head,
+  .co-estimate-studio-shell .co-command-page-frame-footer .co-assistant-rail-actions {
+    padding: 0.62rem !important;
+  }
+}
+
+@media (min-width: 960px) and (max-width: 1179px) {
+  .co-estimate-studio-shell .co-command-page-frame-grid {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(14rem, 16rem) !important;
+    gap: 0.58rem !important;
+    align-items: start;
+  }
+
+  .co-estimate-studio-shell .co-command-page-frame-main {
+    grid-template-columns: minmax(9.25rem, 10.5rem) minmax(0, 1fr) !important;
+    gap: 0.58rem !important;
+  }
+
+  .co-estimate-studio-shell .co-command-page-frame-rail {
+    min-width: 0 !important;
+  }
+
+  .co-estimate-studio-option-rail,
+  .co-estimate-studio-workbench,
+  .co-estimates-right-rail {
+    max-height: calc(100dvh - var(--layout-topbar-height, 4.5rem) - 7.5rem);
+    overflow-y: auto;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 959px) {
+  .co-estimate-studio-shell .co-command-page-frame-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .co-estimate-studio-shell .co-command-page-frame-main {
+    grid-template-columns: minmax(10.5rem, 0.34fr) minmax(0, 1fr) !important;
+    gap: 0.58rem !important;
+  }
+
+  .co-estimate-studio-shell .co-command-page-frame-rail {
+    margin-top: 0.58rem;
+  }
+
+  .co-estimates-right-rail {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.58rem;
+  }
+}
