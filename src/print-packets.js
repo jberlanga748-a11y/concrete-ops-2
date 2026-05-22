@@ -10,6 +10,7 @@ import { toolChecklistItemStatusLabel, toolChecklistStatusLabel } from "./tool-c
 import { gpsStatusLabel, uploadTitle } from "./upload-utils.js";
 import { deriveEstimateBackup } from "./estimate-backup-utils.js";
 import { deriveEstimatePrintModel } from "../shared/estimatePrint.js";
+import { buildConstructionAgentTradeContext } from "../shared/constructionTrades.js";
 
 function safeArray(value) {
   return Array.isArray(value) ? value.filter(Boolean) : [];
@@ -244,6 +245,22 @@ function fieldTakeoffReferenceRecords(backup = {}) {
   return [...takeoffRecords, ...referenceRecords].filter((record) => record.title || record.meta.length);
 }
 
+function fieldTradeGuidanceRecords(items = []) {
+  return safeArray(items)
+    .map((item) => cleanPacketText(item))
+    .filter(Boolean)
+    .map((item) => ({ title: item }));
+}
+
+function deriveEstimateFieldTradeContext(estimate = {}, companyProfile = {}) {
+  return buildConstructionAgentTradeContext({
+    trade: estimate?.trade || estimate?.projectType || companyProfile.primaryTrade,
+    companySettings: companyProfile,
+    estimate,
+    lead: estimate?.lead || {},
+  });
+}
+
 export function deriveEstimatePrintPacket({
   companyName = "Apex HQ",
   companyProfile = {},
@@ -401,6 +418,7 @@ export function deriveEstimateForemanHandoffPacket({
   const projectName = estimateProjectName(estimate);
   const fieldQuantityRecords = fieldQuantityRecordsFromEstimate(printModel);
   const fieldReferenceRecords = fieldTakeoffReferenceRecords(backup);
+  const tradeContext = deriveEstimateFieldTradeContext(estimate, companyProfile);
   const safeProposalSections = [
     ...printModel.proposalSections,
     ...printModel.gcPacketLiteSections,
@@ -441,6 +459,24 @@ export function deriveEstimateForemanHandoffPacket({
         description: "Field-safe source references from the estimate backup. Office notes and private file URLs are intentionally excluded.",
         records: fieldReferenceRecords,
       }] : []),
+      {
+        title: `${tradeContext.tradeLabel} Field Handoff Checklist`,
+        type: "records",
+        description: "Trade-specific field reminders for the foreman. Pricing, margin, and office notes are intentionally excluded.",
+        records: fieldTradeGuidanceRecords(tradeContext.fieldHandoffChecklist),
+      },
+      {
+        title: `${tradeContext.tradeLabel} Proof Photo Checklist`,
+        type: "records",
+        description: "Photos the crew should capture so office review, change-order review, and closeout stay clean.",
+        records: fieldTradeGuidanceRecords(tradeContext.proofPhotoChecklist),
+      },
+      {
+        title: `${tradeContext.tradeLabel} Change-Order Watchouts`,
+        type: "records",
+        description: "If any of these show up in the field, stop and route the issue through review before doing unapproved extra work.",
+        records: fieldTradeGuidanceRecords(tradeContext.changeOrderWatchouts),
+      },
     ],
   });
 }

@@ -267,6 +267,7 @@ test("estimate foreman handoff packet includes field scope and quantities withou
       logoImageUrl: "https://cdn.example.test/bcc-logo.png",
       businessPhone: "(503) 555-0188",
       businessEmail: "office@buildersconcrete.test",
+      primaryTrade: "concrete",
     },
     printPacketFooter: "Field handoff footer.",
     printPacketDisclaimer: "Review before field use.",
@@ -341,6 +342,12 @@ test("estimate foreman handoff packet includes field scope and quantities withou
   assert.match(html, /Warehouse slab/);
   assert.match(html, /Bluebeam slab takeoff\.png/);
   assert.match(html, /Source S2\.1/);
+  assert.match(html, /Concrete Field Handoff Checklist/);
+  assert.match(html, /Confirm layout and elevations/);
+  assert.match(html, /Concrete Proof Photo Checklist/);
+  assert.match(html, /Forms\/rebar/);
+  assert.match(html, /Concrete Change-Order Watchouts/);
+  assert.match(html, /Unsuitable subgrade/);
   assert.match(html, /class="logo-image"/);
   assert.doesNotMatch(html, /Unit price/);
   assert.doesNotMatch(html, /Line total/);
