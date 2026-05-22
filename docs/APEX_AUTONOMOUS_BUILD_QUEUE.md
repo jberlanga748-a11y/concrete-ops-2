@@ -37,6 +37,7 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 | Date | Priority | Task | Result | Commit |
 | --- | --- | --- | --- | --- |
+| 2026-05-22 | P3 | App Health release safety panel extraction | Done; Release Safety / Rollback panel moved into the App Health route component module with release-safety tests, local build/role/browser checks, and Fly demo v152 hosted smoke passing | `057246c` |
 | 2026-05-22 | P3 | App Health trust readiness panel extraction | Done; Enterprise Trust Readiness panel moved into the App Health route component module with import-boundary coverage, local build/role/browser checks, and Fly demo v151 hosted smoke passing | `77b8cf5` |
 | 2026-05-22 | P3 | App Health audit activity panel extraction | Done; App Health audit/activity trust panel moved into a route component module with import-boundary coverage, local build/role/browser checks, and Fly demo v150 hosted smoke passing | `c04a94a` |
 | 2026-05-22 | P1 | Agent server context action hydration | Done; assistant action proposals now show read-only server/local context proof, visible area counts, review signals, matched module summary, and context confirmation checklist while preserving review-first safety and field-user blocking | `54a5cbb` |
