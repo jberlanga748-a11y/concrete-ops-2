@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { Badge, Button, Card, Icon, InputField, SectionHeader, SelectField, StateCard, TextAreaField } from "./app-shell-components";
+import { AssistantRail, Badge, Button, Card, CommandPageFrame, Icon, InputField, SectionHeader, SelectField, StateCard, TextAreaField, WorkQueueCard } from "./app-shell-components";
 import { jobTitle } from "./job-utils";
 import { gpsStatusLabel, uploadCustomerLabel, uploadJobLabel, uploadTitle, uploadUploaderLabel } from "./upload-utils";
 
@@ -86,6 +86,20 @@ function uploadFileSizeLabel(bytes) {
 
 function uploadCapturedAt(upload) {
   return upload?.takenAt || upload?.uploadedAt || upload?.createdAt;
+}
+
+function todayDateInputValue() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function uploadEvidenceDateKey(upload) {
+  const value = upload?.uploadedAt || upload?.createdAt || uploadCapturedAt(upload);
+  if (!value) return "";
+  const text = String(value);
+  if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10);
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().slice(0, 10);
 }
 
 export function UploadListCard({ upload, selected, onSelect }) {
@@ -762,6 +776,177 @@ export function UploadsMobileFocusPanel({
         </button>
       </div>
     </div>
+  );
+}
+
+
+export function UploadsProofWorkbench({
+  visibleRows,
+  selectedUpload,
+  latestVisibleUpload,
+  sessionToken,
+  evidenceCommandItems,
+  evidenceNextAction,
+  evidenceNextDetail,
+  visibleCount,
+  todayUploadCount,
+  currentJobUploadCount,
+  currentEvidenceJobLabel,
+  gpsCount,
+  missingGpsCount,
+  missingNotesCount,
+  imageCount,
+  canCreate,
+  onUpload,
+  onJumpToBoard,
+  onOpenToday,
+  onOpenCurrentJob,
+  onOpenMissingGps,
+  onOpenCaptionGap,
+  onOpenUpload,
+  onSetActive,
+  onSetGps,
+}) {
+  const focusUpload = selectedUpload || latestVisibleUpload || visibleRows[0] || null;
+  const queueRows = visibleRows.slice(0, 6);
+  const kpis = [
+    { label: "Visible evidence", value: visibleCount, helper: "Current proof board", tone: visibleCount ? "orange" : "slate", action: "Open board", onClick: onJumpToBoard },
+    { label: "Today", value: todayUploadCount, helper: "Captured today", tone: todayUploadCount ? "orange" : "slate", action: "Open today", onClick: onOpenToday },
+    { label: "GPS captured", value: gpsCount, helper: "Location context present", tone: gpsCount ? "green" : "slate", action: "View GPS", onClick: () => onSetGps("Has GPS") },
+    { label: "Missing proof context", value: missingGpsCount + missingNotesCount, helper: "GPS or caption gaps", tone: missingGpsCount || missingNotesCount ? "amber" : "green", action: "Review gaps", onClick: missingGpsCount ? onOpenMissingGps : onOpenCaptionGap },
+  ];
+
+  function uploadStatus(upload) {
+    if (upload.archivedAt) return { label: "Archived", tone: "slate" };
+    if (!upload.hasGps) return { label: "GPS gap", tone: "amber" };
+    if (!String(upload.caption || upload.notes || "").trim()) return { label: "Caption gap", tone: "orange" };
+    return { label: "Ready", tone: "green" };
+  }
+
+  return (
+    <CommandPageFrame
+      className="co-proof-engine-frame co-uploads-proof-frame"
+      kpis={
+        <div className="co-proof-engine-kpis">
+          {kpis.map((item) => (
+            <button key={item.label} type="button" className="co-proof-engine-kpi" data-tone={item.tone} onClick={item.onClick}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+              <em>{item.helper}</em>
+              <b>{item.action}</b>
+            </button>
+          ))}
+        </div>
+      }
+      rail={
+        <AssistantRail
+          eyebrow="Apex Assistant"
+          title="Photo Evidence"
+          description={`${evidenceNextAction}. ${evidenceNextDetail}`}
+          priorities={evidenceCommandItems.map((item) => ({ value: item.value, label: item.label, tone: item.tone }))}
+          actions={[
+            canCreate ? { label: "Upload photo", icon: "upload", onClick: onUpload } : null,
+            { label: "Review board", icon: "check", onClick: onJumpToBoard },
+            { label: "Missing GPS", icon: "alert", onClick: onOpenMissingGps, disabled: !missingGpsCount },
+          ].filter(Boolean)}
+        />
+      }
+    >
+      <section className="co-proof-engine-workbench" aria-label="Photo evidence proof engine">
+        <div className="co-proof-engine-head">
+          <div className="min-w-0">
+            <p className="co-proof-engine-eyebrow">Jobsite proof intake</p>
+            <h2>Photos, captions, GPS, reports, and billing proof</h2>
+            <p>Office review starts with the newest job-linked evidence, proof gaps, and what is ready to attach to closeout.</p>
+          </div>
+          <div className="co-proof-engine-actions">
+            <Button type="button" variant="secondary" onClick={onJumpToBoard}>Open board</Button>
+            <Button type="button" variant="secondary" onClick={onOpenMissingGps}>Missing GPS</Button>
+            {canCreate ? <Button type="button" onClick={onUpload}>Upload photo</Button> : null}
+          </div>
+        </div>
+        <div className="co-proof-engine-board co-proof-engine-board--uploads">
+          <div className="co-proof-engine-queue">
+            <div className="co-proof-engine-section-head">
+              <span>Evidence review queue</span>
+              <strong>{queueRows.length || "Clear"}</strong>
+            </div>
+            {queueRows.length ? queueRows.map((upload) => {
+              const status = uploadStatus(upload);
+              const selected = focusUpload?.id === upload.id;
+              return (
+                <WorkQueueCard
+                  key={upload.id}
+                  eyebrow={uploadEvidenceDateKey(upload) === todayDateInputValue() ? "Today" : "Jobsite proof"}
+                  title={uploadTitle(upload)}
+                  meta={`${uploadJobLabel(upload)} / ${uploadUploaderLabel(upload)}`}
+                  status={status.label}
+                  tone={status.tone}
+                  actionLabel="Open proof"
+                  selected={selected}
+                  onClick={() => onOpenUpload(upload)}
+                >
+                  <div className="co-proof-engine-row-meta">
+                    <span>{uploadDateTimeLabel(uploadCapturedAt(upload))}</span>
+                    <span>{gpsStatusLabel(upload)}</span>
+                    <span>{String(upload.caption || upload.notes || "").trim() ? "Caption ready" : "Needs caption"}</span>
+                  </div>
+                </WorkQueueCard>
+              );
+            }) : (
+              <div className="co-proof-engine-empty">
+                <strong>No visible evidence</strong>
+                <span>Upload jobsite photos to start the proof intake queue.</span>
+              </div>
+            )}
+          </div>
+          <div className="co-proof-engine-detail">
+            <div className="co-proof-engine-section-head">
+              <span>Selected proof item</span>
+              <strong>{focusUpload ? uploadStatus(focusUpload).label : "Waiting"}</strong>
+            </div>
+            {focusUpload ? (
+              <>
+                <div className="co-proof-engine-upload-preview">
+                  {String(focusUpload.fileType || "").startsWith("image/") ? (
+                    <AuthenticatedUploadPreview upload={focusUpload} token={sessionToken} className="h-full min-h-[11rem] w-full rounded-[0.55rem] object-cover" />
+                  ) : (
+                    <div className="co-proof-engine-file-preview">
+                      <Icon name="document" />
+                      <span>{focusUpload.fileName || "Uploaded file"}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="co-proof-engine-detail-title">
+                  <div className="min-w-0">
+                    <h3>{uploadTitle(focusUpload)}</h3>
+                    <p>{uploadJobLabel(focusUpload)} / {uploadCustomerLabel(focusUpload)} / {uploadUploaderLabel(focusUpload)}</p>
+                  </div>
+                  <Badge tone={uploadStatus(focusUpload).tone}>{uploadStatus(focusUpload).label}</Badge>
+                </div>
+                <div className="co-proof-engine-proof-grid">
+                  <span data-state="ready">Captured<strong>{uploadDateTimeLabel(uploadCapturedAt(focusUpload))}</strong></span>
+                  <span data-state={focusUpload.hasGps ? "ready" : "needs"}>GPS<strong>{gpsStatusLabel(focusUpload)}</strong></span>
+                  <span data-state={String(focusUpload.caption || focusUpload.notes || "").trim() ? "ready" : "needs"}>Caption<strong>{String(focusUpload.caption || focusUpload.notes || "").trim() ? "Ready" : "Needed"}</strong></span>
+                  <span data-state="ready">File<strong>{uploadFileSizeLabel(focusUpload.fileSize)}</strong></span>
+                </div>
+                <p className="co-proof-engine-note">{focusUpload.caption || focusUpload.notes || "No caption has been added yet. Add short jobsite context before closeout review."}</p>
+                <div className="co-proof-engine-next">
+                  <span>Proof connection</span>
+                  <strong>{currentEvidenceJobLabel}</strong>
+                  <p>{imageCount} image proof item{imageCount === 1 ? "" : "s"} visible, {currentJobUploadCount} tied to the current job.</p>
+                </div>
+              </>
+            ) : (
+              <div className="co-proof-engine-empty">
+                <strong>No proof selected</strong>
+                <span>Choose an upload, open today, or capture new jobsite evidence.</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+    </CommandPageFrame>
   );
 }
 
