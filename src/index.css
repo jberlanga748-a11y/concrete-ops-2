@@ -31292,6 +31292,101 @@ textarea {
   color: #fed7aa;
 }
 
+@media (min-width: 1180px) {
+  .co-app-health-page {
+    display: grid;
+    height: calc(100dvh - var(--layout-topbar-height, 4rem));
+    min-height: 0;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .co-app-health-page .co-page-header {
+    margin-bottom: 0 !important;
+    padding-top: 0.72rem !important;
+    padding-bottom: 0.72rem !important;
+  }
+
+  .co-app-health-page .co-page-header h1 {
+    font-size: 1.65rem !important;
+  }
+
+  .co-app-health-page .co-page-header p:not(:first-child) {
+    max-width: 62rem !important;
+    font-size: 0.82rem !important;
+    line-height: 1.32 !important;
+  }
+
+  .co-app-health-page .co-settings-kpi-grid {
+    min-height: 0;
+    grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+    gap: 0.55rem !important;
+    padding-bottom: 0.55rem !important;
+  }
+
+  .co-app-health-page .co-settings-kpi-grid .co-command-kpi {
+    min-height: 4.95rem !important;
+    height: 4.95rem !important;
+    padding: 0.62rem 0.58rem 0.5rem !important;
+  }
+
+  .co-app-health-page .co-settings-command-layout {
+    min-height: 0;
+    height: 100%;
+    align-items: stretch;
+    overflow: hidden;
+    padding-bottom: 0.85rem !important;
+  }
+
+  .co-app-health-page .co-settings-left-stack {
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .co-app-health-page .co-settings-left-stack > :not(#settings-owner-health) {
+    display: none !important;
+  }
+
+  .co-app-health-page #settings-owner-health {
+    display: grid;
+    min-height: 0;
+    height: 100%;
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .co-app-health-page #settings-owner-health > summary {
+    min-height: 3.6rem;
+    padding-top: 0.68rem;
+    padding-bottom: 0.68rem;
+  }
+
+  .co-app-health-page #settings-owner-health .co-settings-tools-panel {
+    display: block !important;
+    height: calc(100% - 3.85rem);
+    max-height: calc(100% - 3.85rem);
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  }
+
+  .co-app-health-page #settings-owner-health .co-settings-tools-panel > * + * {
+    margin-top: 0.75rem;
+  }
+
+  .co-app-health-page .co-settings-right-rail {
+    position: static !important;
+    max-height: none !important;
+    height: 100%;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+
 @media (min-width: 1024px) and (max-width: 1439px) {
   .co-settings-command-layout {
     grid-template-columns: minmax(0, 1fr) !important;
