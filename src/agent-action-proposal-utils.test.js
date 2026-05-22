@@ -180,6 +180,50 @@ test("agent action proposal treats daily ops briefs as auditable review packets"
   assert.ok(event.blockedReasons.some((item) => /No customer email/i.test(item)));
 });
 
+test("agent action proposal exposes closeout billing review packet without invoice actions", () => {
+  const proposal = buildAgentActionProposal({
+    type: "daily-closeout-readiness",
+    moduleId: "reports",
+    actionLabel: "Open Reports",
+    message: "Daily closeout readiness is ready for office review. No billing action, invoice, customer message, or job status change happens automatically.",
+    closeoutSummary: [{ id: "billing-candidates", label: "Billing review candidates", detail: "1 job still has closeout blockers." }],
+    billingReviewPacket: {
+      mode: "review_first_closeout_billing_packet",
+      title: "Closeout billing review packet",
+      summary: "1 closeout candidate reviewed. Start with Westview Warehouse.",
+      summaryItems: [
+        { id: "estimate-change-orders", label: "Estimate / change order review", detail: "$48,750 in linked estimate total is visible for office review." },
+        { id: "proof-safety-blockers", label: "Proof / safety blockers", detail: "1 proof gap should be checked before billing is treated as clean." },
+      ],
+      rows: [
+        { jobId: "JOB-1", title: "Westview Warehouse", readyForBillingReview: false, nextAction: "No reviewed daily report linked" },
+      ],
+      blockedActions: [
+        "No invoice is created",
+        "No payment is collected",
+        "No customer email, text, call, or notification is sent",
+      ],
+      safetyBoundary: "Review-only closeout billing prep. Apex does not invoice, collect payment, contact customers, submit bills, change statuses, approve records, or finalize profit/loss from this packet.",
+    },
+  }, {
+    permissions: {
+      aiOffice: { canView: true },
+      jobs: { canManageAll: true },
+      reports: { canReview: true },
+    },
+  });
+
+  assert.equal(proposal.status, "needs_human_review");
+  assert.equal(proposal.typeLabel, "Daily closeout review");
+  assert.equal(proposal.draftPrep.length, 1);
+  assert.equal(proposal.draftPrep[0].prepType, "Closeout billing review prep");
+  assert.match(proposal.draftPrep[0].safeOutput, /Office review packet only/i);
+  assert.ok(proposal.draftPrep[0].fields.some((item) => /Westview Warehouse: No reviewed daily report linked/i.test(item)));
+  assert.ok(proposal.draftPrep[0].warnings.some((item) => /No invoice is created/i.test(item)));
+  assert.ok(proposal.blockedActions.some((item) => /No invoice, payment, package, or billing action/i.test(item)));
+  assert.equal(validateAgentActionProposalSafety(proposal).ok, true);
+});
+
 test("agent action proposal treats package-locked assistant results as blocked", () => {
   const proposal = buildAgentActionProposal({
     type: "package-blocked",

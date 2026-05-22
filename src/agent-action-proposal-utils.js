@@ -228,6 +228,28 @@ function buildAgentDraftPrep(response = {}) {
     }];
   }
 
+  if (response.type === "daily-closeout-readiness") {
+    const packet = response.billingReviewPacket || {};
+    const rows = asArray(packet.rows);
+    const summaryItems = asArray(packet.summaryItems);
+    return [{
+      id: text(packet.mode || "daily-closeout-readiness"),
+      prepType: "Closeout billing review prep",
+      label: text(packet.title || "Closeout billing review packet"),
+      helper: text(packet.summary || response.message || "Review closeout, proof, time, change orders, and billing readiness."),
+      safeOutput: "Office review packet only. Use the existing Jobs, Reports, Uploads, Time, Tickets, and Change Orders screens before billing work.",
+      reviewLabel: text(packet.safetyBoundary || "No invoice, payment collection, customer message, status change, or profit/loss finalization happens from the assistant."),
+      fields: [
+        ...summaryItems.map((item) => `${text(item.label)}: ${text(item.detail)}`),
+        ...rows.slice(0, 3).map((row) => `${text(row.title)}: ${row.readyForBillingReview ? "ready for manual billing review" : text(row.nextAction || "needs closeout review")}`),
+      ].filter(Boolean).slice(0, 6),
+      warnings: [
+        ...asArray(packet.blockedActions),
+        "No invoice, payment, customer send, job status change, or profit/loss finalization",
+      ].filter(Boolean).slice(0, 6),
+    }];
+  }
+
   return [];
 }
 
