@@ -46,3 +46,12 @@ test("App imports the extracted UI style foundation panel", () => {
   assert.match(appSource, /import \{[^}]*UiStyleFoundationPanel[^}]*\} from "\.\/app-health-route-components"/s);
   assert.doesNotMatch(appSource, /function UiStyleFoundationPanel/);
 });
+
+test("App imports the extracted customer portal manual preview panel", () => {
+  const appSource = fs.readFileSync(new URL("./App.jsx", import.meta.url), "utf8");
+  const routeComponentsSource = fs.readFileSync(new URL("./app-health-route-components.jsx", import.meta.url), "utf8");
+
+  assert.match(routeComponentsSource, /export function CustomerPortalManualPreviewPanel/);
+  assert.match(appSource, /import \{[^}]*CustomerPortalManualPreviewPanel[^}]*\} from "\.\/app-health-route-components"/s);
+  assert.doesNotMatch(appSource, /function CustomerPortalManualPreviewPanel/);
+});

@@ -26,7 +26,7 @@ import {
   deriveApexAssistantShellState,
   resolveApexAssistantCommand,
 } from "./apex-assistant-shell-utils";
-import { AppHealthAuditActivityPanel, EnterpriseTrustReadinessPanel, PwaInstallGuidancePanel, ReleaseSafetyRollbackPanel, UiStyleFoundationPanel } from "./app-health-route-components";
+import { AppHealthAuditActivityPanel, CustomerPortalManualPreviewPanel, EnterpriseTrustReadinessPanel, PwaInstallGuidancePanel, ReleaseSafetyRollbackPanel, UiStyleFoundationPanel } from "./app-health-route-components";
 import { buildAgentActionProposal, deriveAgentActionProposalAuditHistory, normalizeAgentActionProposalAuditEvent } from "./agent-action-proposal-utils";
 import { agentContextPayloadToWorkflowContext } from "./agent-context-api-utils";
 import { deriveAgentWorkflowContext } from "./agent-workflow-context-utils";
@@ -208,7 +208,7 @@ import {
   estimateRailProfileLine,
 } from "./estimates-route-components";
 import { buildEstimateLineItemsFromRoughNotes } from "./estimate-template-utils";
-import { buildCustomerPortalPreviewPacket, deriveCustomerPortalPreviewState } from "./customer-portal-preview-utils";
+import { deriveCustomerPortalPreviewState } from "./customer-portal-preview-utils";
 import { deriveFieldOpsAgentState } from "./field-ops-agent-utils";
 import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspace-utils";
 import { deriveFollowUpQueueState, filterFollowUpQueueItems, FOLLOW_UP_QUEUE_GROUPS, FOLLOW_UP_QUEUE_TYPE_FILTERS } from "./follow-up-queue-utils";
@@ -26877,151 +26877,6 @@ function OwnerHealthStatusPanel({ sessionToken, canView = false, user = null, co
           <pre className="mt-3 max-h-72 overflow-auto rounded-2xl border border-slate-200 bg-white p-3 text-xs leading-5 text-slate-700">{supportPacket}</pre>
         </details>
       </div>
-    </Card>
-  );
-}
-
-function CustomerPortalManualPreviewPanel({
-  canPreview = false,
-  state,
-  user,
-  packageReadiness,
-  onOpenSupport,
-}) {
-  const [copyNotice, setCopyNotice] = useState("");
-  const preview = state?.preview || {};
-  const packet = useMemo(() => buildCustomerPortalPreviewPacket({ state, user }), [state, user]);
-
-  async function copyPreviewPacket() {
-    if (!canPreview) return;
-    try {
-      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(packet);
-      } else if (typeof document !== "undefined") {
-        const textArea = document.createElement("textarea");
-        textArea.value = packet;
-        textArea.setAttribute("readonly", "");
-        textArea.style.position = "fixed";
-        textArea.style.opacity = "0";
-        document.body.appendChild(textArea);
-        textArea.select();
-        document.execCommand("copy");
-        document.body.removeChild(textArea);
-      } else {
-        throw new Error("Clipboard unavailable");
-      }
-      setCopyNotice("Internal preview packet copied for owner/admin review.");
-    } catch {
-      setCopyNotice("Could not copy automatically. Select the preview text and copy it manually.");
-    }
-  }
-
-  if (!canPreview) {
-    const currentPackage = packageReadiness?.currentPackage?.label || "Current package";
-    const canRequestReview = typeof onOpenSupport === "function";
-
-    return (
-      <Card className="co-settings-console-card p-5">
-        <SectionHeader
-          title="Customer portal manual preview"
-          description="Elite owner/admin preview is locked for this workspace. No customer access, links, approvals, or notifications exist here."
-          action={<Badge tone="amber">Elite locked</Badge>}
-        />
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px]">
-          <StateCard
-            title={`${currentPackage} workspace`}
-            description="Customer portal remains an Elite future feature. Basic and Premium workspaces keep proposal, job, and proof workflows internal until a manual package review is approved."
-            tone="slate"
-          />
-          <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
-            <p className="text-sm font-black text-amber-900">Locked boundary</p>
-            <p className="mt-2 text-sm font-bold leading-6 text-amber-800">No customer login, share link, self-serve approval, payment, invoice, checkout, or automatic notification was added.</p>
-            {canRequestReview ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                className="mt-3"
-                onClick={() => onOpenSupport({
-                  workflow: "Upgrade / package review",
-                  blockerLevel: "Not a blocker",
-                  currentPackage,
-                  requestedPackage: "Elite",
-                  requestedFeature: "Customer portal manual approval preview",
-                  upgradeReason: "Review Elite access for an owner/admin internal preview of customer-facing proposal and progress content. No customer auth, share links, self-serve approvals, payments, invoices, or notifications.",
-                  summary: "Please review whether Elite customer portal preview access is appropriate for this workspace.",
-                  expected: "Founder/operator reviews manually before any package change or customer-facing portal work.",
-                  workaround: "Keep using existing estimates, jobs, reports, uploads, and manual print/share workflows.",
-                })}
-              >
-                <Icon name="help" />Request manual review
-              </Button>
-            ) : null}
-          </div>
-        </div>
-      </Card>
-    );
-  }
-
-  return (
-    <Card className="co-settings-console-card p-5">
-      <SectionHeader
-        title="Customer portal manual preview"
-        description="Owner/admin internal preview only. Review what could become customer-facing before any future sharing model exists."
-        action={<Badge tone="green">Elite preview</Badge>}
-      />
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-        <div className="grid gap-3">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <StatCard title="Customer" value={preview.customer || "Customer pending"} detail="Customer-facing label candidate." />
-            <StatCard title="Proposal" value={preview.estimateStatus || "Pending"} detail={`${preview.estimateTitle || "Approved proposal pending"} / ${preview.estimateTotal || "$0"}`} />
-            <StatCard title="Job progress" value={preview.jobStatus || "Pending"} detail={preview.jobTitle || "Job pending"} />
-            <StatCard title="Proof ready" value={preview.proofPhotoCount || 0} detail={`${preview.progressUpdateCount || 0} progress update(s), ${preview.reviewedChangeOrderCount || 0} reviewed change order(s).`} />
-          </div>
-          <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-700">Customer-facing content candidate</p>
-            <div className="mt-3 grid gap-3 text-sm leading-6 text-slate-700">
-              <p><strong>Scope:</strong> {preview.scopeSummary || "Approved scope summary pending."}</p>
-              <p><strong>Exclusions:</strong> {preview.exclusions || "Exclusions pending owner/admin review."}</p>
-              <p><strong>Schedule:</strong> {preview.scheduleExpectation || "Schedule pending"}</p>
-              <p><strong>Next step:</strong> {preview.nextStep || "Next step pending owner/admin review"}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid gap-3">
-          <div className="rounded-2xl border border-slate-200 bg-white p-4">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Manual readiness</p>
-            <div className="mt-3 grid gap-2">
-              {(state?.readiness || []).map((item) => (
-                <div key={item.id} className="co-settings-blocker-row">
-                  <span>{item.label}</span>
-                  <Badge tone={item.ready ? "green" : "amber"}>{item.ready ? "Ready" : "Review"}</Badge>
-                  <em>{item.detail}</em>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Hard boundaries</p>
-            <div className="mt-3 grid gap-2">
-              {(state?.boundaries || []).map((boundary) => (
-                <div key={boundary} className="co-ai-boundary-row" data-state="manual">
-                  <span>{boundary}</span>
-                  <strong>Manual</strong>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <Button type="button" variant="secondary" onClick={copyPreviewPacket}>
-              <Icon name="clipboard" />Copy internal preview
-            </Button>
-            <p className="text-sm font-bold text-slate-500">{copyNotice || "Copy-only. Apex HQ does not send, publish, approve, or create a customer portal from this preview."}</p>
-          </div>
-        </div>
-      </div>
-      <pre className="mt-4 max-h-80 overflow-auto rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs leading-5 text-slate-700">{packet}</pre>
     </Card>
   );
 }
