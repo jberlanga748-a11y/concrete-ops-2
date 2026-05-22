@@ -222,6 +222,200 @@ function insertReviewedEstimate(sqliteFile) {
   }
 }
 
+function insertReviewedCloseout(sqliteFile) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    const now = new Date().toISOString();
+    const job = database.prepare("SELECT id, customer_id AS customerId, lead_id AS leadId FROM jobs WHERE company_id = ? LIMIT 1").get(DEFAULT_COMPANY_ID);
+    const customer = database.prepare("SELECT id FROM customers WHERE company_id = ? LIMIT 1").get(DEFAULT_COMPANY_ID);
+    const user = database.prepare("SELECT id FROM users WHERE company_id = ? LIMIT 1").get(DEFAULT_COMPANY_ID);
+    assert.ok(job?.id);
+    assert.ok(customer?.id);
+    assert.ok(user?.id);
+
+    database.prepare(`
+      UPDATE jobs
+      SET title = ?, job = ?, status = ?, stage = ?, progress = ?, notes = ?, updated_at = ?
+      WHERE id = ?
+    `).run(
+      "Reviewed cedar fence closeout",
+      "Reviewed cedar fence closeout",
+      "billing_ready",
+      "Billing Ready",
+      100,
+      "Reviewed reports, proof photos, time, change orders, and office ready-to-bill signoff.",
+      now,
+      job.id,
+    );
+
+    database.prepare(`
+      INSERT INTO estimates (
+        id, sort_index, company_id, customer_id, lead_id, job_id, customer_email, title, status,
+        scope_summary, internal_notes, customer_notes, subtotal, tax_rate, tax_total, fees_total, grand_total,
+        created_by, sent_at, sent_by, sent_to, email_subject, provider_message_id, approved_at, rejected_at,
+        archived_at, created_at, updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      "EST-AGENT-LEARNING-CLOSEOUT",
+      -998,
+      DEFAULT_COMPANY_ID,
+      customer.id,
+      job.leadId || null,
+      job.id,
+      "",
+      "Approved fence closeout estimate",
+      "approved",
+      "6 ft cedar fence closeout with gates, cleanup, proof photos, and customer walkthrough.",
+      "Office reviewed estimate revenue before ready-to-bill.",
+      "Approved fence scope.",
+      12000,
+      null,
+      null,
+      null,
+      12000,
+      user.id,
+      "",
+      "",
+      "",
+      "",
+      "",
+      now,
+      "",
+      "",
+      now,
+      now,
+    );
+
+    database.prepare(`
+      INSERT INTO daily_reports (
+        id, sort_index, company_id, job_id, report_date, status, created_by, submitted_by, reviewed_by,
+        crew_summary, work_performed, delays, safety_notes, equipment_used, material_notes,
+        concrete_poured, yards_poured, weather, visitor_notes, inspection_notes, general_notes,
+        created_at, updated_at, submitted_at, reviewed_at, reopened_at, archived_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      "DR-AGENT-LEARNING-CLOSEOUT",
+      -998,
+      DEFAULT_COMPANY_ID,
+      job.id,
+      now.slice(0, 10),
+      "reviewed",
+      user.id,
+      user.id,
+      user.id,
+      "Crew completed fence closeout.",
+      "Final gate alignment, cleanup, walkthrough, and photo proof captured.",
+      "",
+      "No safety blockers at closeout.",
+      "Fence tools and cleanup kit.",
+      "Final material receipts attached.",
+      0,
+      0,
+      "Dry",
+      "Customer completed walkthrough.",
+      "Office reviewed final workmanship.",
+      "Ready for billing review after office signoff.",
+      now,
+      now,
+      now,
+      now,
+      null,
+      null,
+    );
+
+    database.prepare(`
+      INSERT INTO uploads (
+        id, sort_index, company_id, job_id, customer_id, report_id, incident_id, change_order_id,
+        tool_checklist_item_id, uploaded_by, file_name, file_type, file_size, storage_path,
+        caption, notes, taken_at, uploaded_at, latitude, longitude, location_accuracy,
+        location_captured_at, location_unavailable_reason, created_at, updated_at, archived_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      "UPL-AGENT-LEARNING-CLOSEOUT",
+      -998,
+      DEFAULT_COMPANY_ID,
+      job.id,
+      customer.id,
+      "DR-AGENT-LEARNING-CLOSEOUT",
+      null,
+      null,
+      null,
+      user.id,
+      "final-fence-proof.jpg",
+      "image/jpeg",
+      128000,
+      "uploads/test-final-fence-proof.jpg",
+      "Final fence proof",
+      "Final photo proof for closeout review.",
+      now,
+      now,
+      null,
+      null,
+      null,
+      null,
+      "",
+      now,
+      now,
+      null,
+    );
+
+    database.prepare(`
+      INSERT INTO time_entries (
+        id, sort_index, company_id, user_id, job_id, work_category, clock_in_at, clock_out_at,
+        break_start_at, break_end_at, total_minutes, break_minutes, status, notes, created_at, updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      "TE-AGENT-LEARNING-CLOSEOUT",
+      -998,
+      DEFAULT_COMPANY_ID,
+      user.id,
+      job.id,
+      "job",
+      now,
+      now,
+      null,
+      null,
+      420,
+      30,
+      "completed",
+      "Reviewed closeout labor time.",
+      now,
+      now,
+    );
+
+    database.prepare(`
+      INSERT INTO change_order_requests (
+        id, sort_index, company_id, job_id, customer_id, requested_by, reason, scope_description,
+        field_notes, status, office_notes, reviewed_by, reviewed_at, created_at, updated_at, archived_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      "COR-AGENT-LEARNING-CLOSEOUT",
+      -998,
+      DEFAULT_COMPANY_ID,
+      job.id,
+      customer.id,
+      user.id,
+      "Added gate hardware",
+      "Recognized gate hardware change before billing review.",
+      "Field confirmed installed hardware.",
+      "approved_for_pricing",
+      "Office reviewed change before closeout.",
+      user.id,
+      now,
+      now,
+      now,
+      null,
+    );
+  } finally {
+    database.close();
+  }
+}
+
 test("agent learning memory is package gated, role gated, and company persisted", async () => {
   const fixture = await startServer();
 
@@ -379,6 +573,57 @@ test("agent learning can suggest inactive memory from reviewed estimates while f
     assert.equal(auditEvents(fixture.sqliteFile)[0].action, "suggested");
 
     const duplicateScan = await assertOk(fixture.baseUrl, "/api/agent/learning-preferences/suggest-from-estimates", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+    });
+    assert.equal(duplicateScan.agentLearningSuggestions.length, 0);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("agent learning can suggest inactive memory from reviewed closeouts while field users stay blocked", async () => {
+  const fixture = await startServer();
+
+  try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.PREMIUM);
+    insertReviewedCloseout(fixture.sqliteFile);
+    const adminLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const employeeUser = createUserRecord({
+      id: "U-AGENT-LEARNING-CLOSEOUT-EMPLOYEE",
+      email: "agent-learning-closeout-employee@apexhq.test",
+      password: "apexdemo123",
+      name: "Agent Learning Closeout Employee",
+      role: "Employee",
+    });
+    insertUser(fixture.sqliteFile, employeeUser);
+    const employeeLogin = await login(fixture.baseUrl, {
+      email: employeeUser.email,
+      password: "apexdemo123",
+    });
+
+    const employeeBlocked = await requestJson(fixture.baseUrl, "/api/agent/learning-preferences/suggest-from-closeouts", {
+      method: "POST",
+      headers: authHeaders(employeeLogin.token),
+    });
+    assert.equal(employeeBlocked.response.status, 403);
+
+    const suggested = await assertOk(fixture.baseUrl, "/api/agent/learning-preferences/suggest-from-closeouts", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+    });
+
+    assert.ok(suggested.agentLearningSuggestions.length > 0);
+    assert.equal(suggested.agentLearningSuggestions.every((entry) => entry.status === "suggested"), true);
+    assert.equal(suggested.agentLearningSuggestions.every((entry) => entry.sourceType === "reviewed-closeout-pattern"), true);
+    assert.equal(suggested.companySettings.agentLearningPreferences.some((entry) => entry.status === "approved"), false);
+    assert.ok(storedLearningPreferences(fixture.sqliteFile).some((entry) => entry.category === "closeout"));
+    assert.equal(auditEvents(fixture.sqliteFile)[0].action, "suggested");
+
+    const duplicateScan = await assertOk(fixture.baseUrl, "/api/agent/learning-preferences/suggest-from-closeouts", {
       method: "POST",
       headers: authHeaders(adminLogin.token),
     });

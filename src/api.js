@@ -135,6 +135,10 @@ export function suggestAgentLearningFromEstimates(token) {
   return request("/api/agent/learning-preferences/suggest-from-estimates", { method: "POST", token });
 }
 
+export function suggestAgentLearningFromCloseouts(token) {
+  return request("/api/agent/learning-preferences/suggest-from-closeouts", { method: "POST", token });
+}
+
 export function updateAgentLearningPreference(token, id, payload) {
   return request(`/api/agent/learning-preferences/${id}`, { method: "PATCH", token, body: payload });
 }

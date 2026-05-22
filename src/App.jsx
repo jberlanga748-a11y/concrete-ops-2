@@ -132,6 +132,7 @@ import {
   submitDailyReport,
   submitPublicEstimateRequest,
   suggestAgentLearningFromEstimates,
+  suggestAgentLearningFromCloseouts,
   startBreak,
   toggleQueueItem,
   archiveDailyReport,
@@ -23322,6 +23323,7 @@ function CopilotPagePolished({
   onReviewFoundOpportunityWithAi,
   onCreateAgentLearningPreference,
   onSuggestAgentLearningFromEstimates,
+  onSuggestAgentLearningFromCloseouts,
   onUpdateAgentLearningPreference,
 }) {
   const liveLeads = normalizeObjectArray(leads).filter((lead) => !lead.archivedAt);
@@ -23650,6 +23652,22 @@ function CopilotPagePolished({
           ? `${count} estimate learning suggestion${count === 1 ? "" : "s"} prepared for approval.`
           : "No new estimate learning suggestions found."
         : "Could not prepare estimate learning suggestions.",
+    });
+  }
+
+  async function suggestLearningFromCloseouts() {
+    if (!canManageAgentLearning || learningActionState.status === "saving") return;
+    setLearningActionState({ status: "saving", id: "suggest-closeouts", message: "" });
+    const result = await onSuggestAgentLearningFromCloseouts?.();
+    const count = Number(result?.count || 0);
+    setLearningActionState({
+      status: result?.ok ? "success" : "error",
+      id: "suggest-closeouts",
+      message: result?.ok
+        ? count
+          ? `${count} closeout learning suggestion${count === 1 ? "" : "s"} prepared for approval.`
+          : "No new closeout learning suggestions found."
+        : "Could not prepare closeout learning suggestions.",
     });
   }
 
@@ -24747,10 +24765,19 @@ function CopilotPagePolished({
                     {learningActionState.status === "saving" && learningActionState.id === "suggest-estimates" ? "Scanning..." : "Suggest from estimates"}
                   </Button>
                 </div>
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2">
+                  <span className="text-[11px] font-bold leading-4 text-slate-500">Let Apex suggest closeout habits from reviewed jobs. Suggestions stay inactive and never finalize invoices or profit/loss.</span>
+                  <Button type="button" size="sm" variant="secondary" disabled={busy || learningActionState.status === "saving"} onClick={suggestLearningFromCloseouts}>
+                    {learningActionState.status === "saving" && learningActionState.id === "suggest-closeouts" ? "Scanning..." : "Suggest from closeouts"}
+                  </Button>
+                </div>
                 {learningActionState.id === "new" && learningActionState.message ? (
                   <p className={`mt-2 text-xs font-bold ${learningActionState.status === "error" ? "text-red-700" : "text-emerald-700"}`}>{learningActionState.message}</p>
                 ) : null}
                 {learningActionState.id === "suggest-estimates" && learningActionState.message ? (
+                  <p className={`mt-2 text-xs font-bold ${learningActionState.status === "error" ? "text-red-700" : "text-emerald-700"}`}>{learningActionState.message}</p>
+                ) : null}
+                {learningActionState.id === "suggest-closeouts" && learningActionState.message ? (
                   <p className={`mt-2 text-xs font-bold ${learningActionState.status === "error" ? "text-red-700" : "text-emerald-700"}`}>{learningActionState.message}</p>
                 ) : null}
               </form>
@@ -36993,6 +37020,25 @@ export default function App() {
     }
   }
 
+  async function handleSuggestAgentLearningFromCloseouts() {
+    if (!sessionToken || !appState.permissions.aiOffice?.canManageLearning) {
+      return { ok: false, count: 0 };
+    }
+    setBusy(true);
+    try {
+      const nextState = await suggestAgentLearningFromCloseouts(sessionToken);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return { ok: true, count: nextState.agentLearningSuggestions?.length || 0 };
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, count: 0 };
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleUpdateAgentLearningPreference(preferenceId, payload) {
     if (!sessionToken || !appState.permissions.aiOffice?.canManageLearning) return false;
     setBusy(true);
@@ -38937,6 +38983,7 @@ export default function App() {
                 onReviewFoundOpportunityWithAi={handleReviewFoundOpportunityWithAi}
                 onCreateAgentLearningPreference={handleCreateAgentLearningPreference}
                 onSuggestAgentLearningFromEstimates={handleSuggestAgentLearningFromEstimates}
+                onSuggestAgentLearningFromCloseouts={handleSuggestAgentLearningFromCloseouts}
                 onUpdateAgentLearningPreference={handleUpdateAgentLearningPreference}
                 onOpenEstimatePacket={handleOpenAssistantEstimatePacket}
                 onOpenEstimateJobHandoff={handleOpenAssistantEstimateJobHandoff}

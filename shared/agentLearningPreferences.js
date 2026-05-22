@@ -158,8 +158,28 @@ function estimateText(estimate = {}) {
   ].filter(Boolean).join(" ");
 }
 
+function closeoutText(job = {}, estimate = {}) {
+  return [
+    job.title,
+    job.name,
+    job.project,
+    job.scopeSummary,
+    job.trade,
+    estimateText(estimate),
+  ].filter(Boolean).join(" ");
+}
+
 function inferTradeTags(estimate = {}) {
   const textValue = normalizeComparableText(estimateText(estimate));
+  const tags = [];
+  if (/\bfence|fencing|gate|post|picket|cedar|chain link|vinyl\b/.test(textValue)) tags.push("fence");
+  if (/\bconcrete|slab|driveway|patio|broom|stamped|aggregate|pour|forms?\b/.test(textValue)) tags.push("concrete");
+  if (/\bdeck|framing|roof|siding|remodel|drywall|flooring|paint|plumb|electrical\b/.test(textValue)) tags.push("general construction");
+  return tags.length ? tags : ["construction"];
+}
+
+function inferCloseoutTradeTags(job = {}, estimate = {}) {
+  const textValue = normalizeComparableText(closeoutText(job, estimate));
   const tags = [];
   if (/\bfence|fencing|gate|post|picket|cedar|chain link|vinyl\b/.test(textValue)) tags.push("fence");
   if (/\bconcrete|slab|driveway|patio|broom|stamped|aggregate|pour|forms?\b/.test(textValue)) tags.push("concrete");
@@ -187,6 +207,27 @@ function estimateProposalText(estimate = {}) {
 function isReviewedEstimate(estimate = {}) {
   const status = rawText(estimate.status, 40).toLowerCase();
   return !estimate.archivedAt && ["approved", "sent"].includes(status);
+}
+
+function recordJobId(record = {}) {
+  return rawText(record.jobId || record.job?.id || record.job?.jobId, 80);
+}
+
+function jobId(record = {}) {
+  return rawText(record.id || record.jobId, 80);
+}
+
+function relatedRecords(records = [], targetJobId = "") {
+  return (Array.isArray(records) ? records : []).filter((record) => !record.archivedAt && recordJobId(record) === targetJobId);
+}
+
+function normalizeCloseoutStatus(value = "") {
+  return rawText(value, 60).toLowerCase().replace(/\s+/g, "_");
+}
+
+function isCloseoutReviewedJob(job = {}) {
+  const status = normalizeCloseoutStatus(job.status || job.stage);
+  return !job.archivedAt && ["field_complete", "completed", "billing_ready", "closed"].includes(status);
 }
 
 function suggestionKey(entry = {}) {
@@ -245,6 +286,80 @@ export function buildAgentLearningSuggestionsFromEstimates(estimates = [], exist
   for (const candidate of candidates) {
     const normalized = normalizeAgentLearningPreference(candidate, {
       id: `ALP-SUGGEST-${suggestions.length + 1}-${rawText(candidate.sourceEntityId || "estimate", 20)}`,
+      now,
+    });
+    if (normalized.blockedReasons.length || !normalized.title || !normalized.preference) continue;
+    const key = suggestionKey(normalized);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    suggestions.push(normalized);
+    if (suggestions.length >= 6) break;
+  }
+  return suggestions;
+}
+
+export function buildAgentLearningSuggestionsFromCloseoutContext(context = {}, existingPreferences = [], { now = new Date().toISOString() } = {}) {
+  const existingKeys = new Set(normalizeAgentLearningPreferences(existingPreferences).map(suggestionKey));
+  const estimates = Array.isArray(context.estimates) ? context.estimates : [];
+  const jobs = (Array.isArray(context.jobs) ? context.jobs : [])
+    .filter(isCloseoutReviewedJob)
+    .slice(0, 20);
+  const candidates = [];
+
+  for (const job of jobs) {
+    const id = jobId(job);
+    if (!id) continue;
+    const estimate = estimates.find((entry) => !entry.archivedAt && recordJobId(entry) === id) || {};
+    const reports = relatedRecords(context.dailyReports, id);
+    const uploads = relatedRecords(context.uploads, id);
+    const timeEntries = relatedRecords(context.timeEntries, id);
+    const changeOrders = relatedRecords(context.changeOrderRequests, id);
+    const reviewedReports = reports.filter((report) => normalizeCloseoutStatus(report.status) === "reviewed").length;
+    const completedTime = timeEntries.filter((entry) => !["active", "clocked_in", "in_progress", "on_break"].includes(normalizeCloseoutStatus(entry.status || "")) && (Number(entry.totalMinutes || 0) > 0 || entry.clockOutAt || entry.clockOut)).length;
+    const recognizedChanges = changeOrders.filter((request) => ["approved", "accepted", "closed", "billing_ready", "billable"].includes(normalizeCloseoutStatus(request.status))).length;
+    const primaryTrade = inferCloseoutTradeTags(job, estimate)[0] || "construction";
+    const tags = inferCloseoutTradeTags(job, estimate);
+    const closeoutSignals = [
+      reviewedReports ? `${reviewedReports} reviewed daily report${reviewedReports === 1 ? "" : "s"}` : "",
+      uploads.length ? `${uploads.length} proof upload${uploads.length === 1 ? "" : "s"}` : "",
+      completedTime ? `${completedTime} completed time entr${completedTime === 1 ? "y" : "ies"}` : "",
+      recognizedChanges ? `${recognizedChanges} recognized change order${recognizedChanges === 1 ? "" : "s"}` : "",
+    ].filter(Boolean);
+    if (reviewedReports && uploads.length) {
+      candidates.push({
+        category: "closeout",
+        title: `${primaryTrade[0].toUpperCase()}${primaryTrade.slice(1)} closeout proof standard`,
+        preference: `For ${primaryTrade} closeout, require reviewed daily report proof, final photo evidence, clean time review, safety/change-order review, and manual ready-to-bill signoff before billing work. Never let Apex finalize invoices or profit/loss automatically.`,
+        appliesTo: tags,
+        sourceType: "reviewed-closeout-pattern",
+        sourceEntityType: "job",
+        sourceEntityId: id,
+        sourceNote: `Suggested from reviewed closeout ${job.title || job.name || id}: ${closeoutSignals.join(", ") || "office-reviewed closeout"}.`,
+        status: "suggested",
+        confidence: closeoutSignals.length >= 3 ? 74 : 66,
+      });
+    }
+    if (completedTime || recognizedChanges) {
+      candidates.push({
+        category: "proof",
+        title: `${primaryTrade[0].toUpperCase()}${primaryTrade.slice(1)} profit review inputs`,
+        preference: `For ${primaryTrade} profit/loss review, gather approved estimate revenue, recognized change orders, reviewed crew time, material/supplier receipts, subcontractor/equipment costs, and closeout blockers before the office finalizes margin manually.`,
+        appliesTo: tags,
+        sourceType: "reviewed-closeout-pattern",
+        sourceEntityType: "job",
+        sourceEntityId: id,
+        sourceNote: `Suggested from closeout review ${job.title || job.name || id}.`,
+        status: "suggested",
+        confidence: 70,
+      });
+    }
+  }
+
+  const suggestions = [];
+  const seen = new Set(existingKeys);
+  for (const candidate of candidates) {
+    const normalized = normalizeAgentLearningPreference(candidate, {
+      id: `ALP-CLOSEOUT-${suggestions.length + 1}-${rawText(candidate.sourceEntityId || "job", 20)}`,
       now,
     });
     if (normalized.blockedReasons.length || !normalized.title || !normalized.preference) continue;

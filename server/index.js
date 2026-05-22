@@ -82,6 +82,7 @@ import {
   deriveAgentWorkflowContext,
 } from "../shared/agentWorkflowContext.js";
 import {
+  buildAgentLearningSuggestionsFromCloseoutContext,
   buildAgentLearningSuggestionsFromEstimates,
   normalizeAgentLearningPreference,
   normalizeAgentLearningPreferences,
@@ -6003,6 +6004,27 @@ function estimatesForAgentLearningSuggestions(state, user) {
     }));
 }
 
+function closeoutContextForAgentLearningSuggestions(state, user) {
+  const companyId = currentCompanyIdForRequestUser(state, user);
+  const companyRecords = (records = []) => (Array.isArray(records) ? records : [])
+    .filter((record) => recordBelongsToCompany(record, companyId));
+  const jobs = companyRecords(state.jobs);
+  const visibleJobIds = new Set(jobs.map((job) => job.id).filter(Boolean));
+  const jobScopedRecords = (records = []) => (Array.isArray(records) ? records : [])
+    .filter((record) => {
+      if (record.companyId) return recordBelongsToCompany(record, companyId);
+      return visibleJobIds.has(record.jobId || record.job?.id || record.job?.jobId);
+    });
+  return {
+    jobs,
+    estimates: estimatesForAgentLearningSuggestions(state, user),
+    dailyReports: jobScopedRecords(state.dailyReports),
+    uploads: jobScopedRecords(state.uploads),
+    timeEntries: jobScopedRecords(state.timeEntries),
+    changeOrderRequests: jobScopedRecords(state.changeOrderRequests),
+  };
+}
+
 function parseAgentProposalAuditDetail(detail) {
   if (detail && typeof detail === "object") return detail;
   if (!detail || typeof detail !== "string") return {};
@@ -7231,6 +7253,57 @@ app.post("/api/agent/learning-preferences/suggest-from-estimates", requireAuth, 
         entityId: suggestion.id,
         action: "suggested",
         summary: "Apex learning suggestion prepared",
+        detail: JSON.stringify({
+          id: suggestion.id,
+          title: suggestion.title,
+          category: suggestion.category,
+          sourceType: suggestion.sourceType,
+          sourceEntityType: suggestion.sourceEntityType,
+          sourceEntityId: suggestion.sourceEntityId,
+        }),
+        actor: req.auth.user,
+        changedFields: ["agentLearningPreferences"],
+      });
+    }
+    return draft;
+  });
+
+  res.status(createdSuggestions.length ? 201 : 200).json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    agentLearningSuggestions: createdSuggestions.map(publicAgentLearningPreference),
+  });
+}));
+
+app.post("/api/agent/learning-preferences/suggest-from-closeouts", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let createdSuggestions = [];
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageAgentLearningPreferences(draft, req.auth.user);
+    const current = agentLearningPreferencesForState(draft, req.auth.user);
+    const closeoutContext = closeoutContextForAgentLearningSuggestions(draft, req.auth.user);
+    createdSuggestions = buildAgentLearningSuggestionsFromCloseoutContext(closeoutContext, current, { now })
+      .map((suggestion, index) => ({
+        ...suggestion,
+        id: makeId(`ALP-CLOSEOUT-${index + 1}`),
+        createdBy: req.auth.user.id,
+        createdAt: now,
+        updatedAt: now,
+        status: "suggested",
+      }));
+
+    if (!createdSuggestions.length) {
+      return draft;
+    }
+
+    persistAgentLearningPreferences(draft, req.auth.user, [...createdSuggestions, ...current].slice(0, 80));
+    appendActivity(draft, "Apex closeout learning suggestions prepared", `${req.auth.user.name} prepared ${createdSuggestions.length} Apex Assistant closeout learning suggestion${createdSuggestions.length === 1 ? "" : "s"} from reviewed closeouts.`);
+    for (const suggestion of createdSuggestions) {
+      appendAuditEvent(draft, {
+        entityType: "agentLearningPreference",
+        entityId: suggestion.id,
+        action: "suggested",
+        summary: "Apex closeout learning suggestion prepared",
         detail: JSON.stringify({
           id: suggestion.id,
           title: suggestion.title,

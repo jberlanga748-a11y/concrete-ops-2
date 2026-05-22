@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   buildAgentLearningContext,
+  buildAgentLearningSuggestionsFromCloseoutContext,
   buildAgentLearningSuggestionsFromEstimates,
   detectAgentLearningSafetyIssues,
   normalizeAgentLearningPreference,
@@ -128,4 +129,43 @@ test("agent learning estimate suggestions dedupe against existing memory", () =>
   ], existing);
 
   assert.equal(suggestions.some((entry) => entry.title === "Fence estimate structure"), false);
+});
+
+test("agent learning suggests review-first memory from reviewed closeouts", () => {
+  const suggestions = buildAgentLearningSuggestionsFromCloseoutContext({
+    jobs: [
+      { id: "JOB-FENCE-1", title: "Cedar fence install", status: "billing_ready" },
+      { id: "JOB-DRAFT", title: "Draft patio", status: "scheduled" },
+    ],
+    estimates: [{ id: "EST-1", jobId: "JOB-FENCE-1", scopeSummary: "6 ft cedar fence and gate", grandTotal: 12000 }],
+    dailyReports: [{ id: "DR-1", jobId: "JOB-FENCE-1", status: "reviewed" }],
+    uploads: [{ id: "UP-1", jobId: "JOB-FENCE-1", caption: "Final gate alignment" }],
+    timeEntries: [{ id: "TE-1", jobId: "JOB-FENCE-1", status: "completed", totalMinutes: 420 }],
+    changeOrderRequests: [{ id: "CO-1", jobId: "JOB-FENCE-1", status: "approved", amount: 400 }],
+  }, []);
+
+  assert.ok(suggestions.length >= 2);
+  assert.equal(suggestions.every((entry) => entry.status === "suggested"), true);
+  assert.equal(suggestions.every((entry) => entry.sourceType === "reviewed-closeout-pattern"), true);
+  assert.ok(suggestions.some((entry) => entry.category === "closeout" && /manual ready-to-bill signoff/i.test(entry.preference)));
+  assert.ok(suggestions.some((entry) => entry.category === "proof" && /office finalizes margin manually/i.test(entry.preference)));
+  assert.equal(suggestions.every((entry) => entry.appliesTo.includes("fence")), true);
+});
+
+test("agent learning closeout suggestions dedupe against existing memory", () => {
+  const existing = [{
+    id: "EXISTING",
+    category: "closeout",
+    title: "Fence closeout proof standard",
+    preference: "For fence closeout, require reviewed daily report proof, final photo evidence, clean time review, safety/change-order review, and manual ready-to-bill signoff before billing work. Never let Apex finalize invoices or profit/loss automatically.",
+    status: "suggested",
+  }];
+  const suggestions = buildAgentLearningSuggestionsFromCloseoutContext({
+    jobs: [{ id: "JOB-FENCE-1", title: "Fence closeout", status: "billing_ready" }],
+    estimates: [{ id: "EST-1", jobId: "JOB-FENCE-1", scopeSummary: "Fence" }],
+    dailyReports: [{ id: "DR-1", jobId: "JOB-FENCE-1", status: "reviewed" }],
+    uploads: [{ id: "UP-1", jobId: "JOB-FENCE-1" }],
+  }, existing);
+
+  assert.equal(suggestions.some((entry) => entry.title === "Fence closeout proof standard"), false);
 });
