@@ -27494,8 +27494,10 @@ textarea {
 
 @media (max-width: 767px) {
   .co-apex-assistant-shell.is-closed .co-apex-assistant-trigger {
-    width: 3.5rem;
-    min-height: 3.5rem;
+    width: 100%;
+    min-height: 3.25rem;
+    justify-content: flex-start;
+    padding: 0.68rem 0.9rem !important;
   }
 
   .co-apex-assistant-shell {
@@ -27504,7 +27506,23 @@ textarea {
     width: min(25rem, calc(100vw - 1.5rem)) !important;
   }
 
+  .co-apex-assistant-shell.is-closed {
+    position: static !important;
+    width: auto !important;
+    margin: 0.8rem 0.75rem calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1rem);
+  }
+
+  .co-apex-assistant-shell.is-closed .co-apex-assistant-trigger > span:not(:first-child) {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+  }
+
   .co-apex-assistant-shell.is-open {
+    position: fixed !important;
     left: 0.75rem;
   }
 
