@@ -37,7 +37,8 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 | Date | Priority | Task | Result | Commit |
 | --- | --- | --- | --- | --- |
-| 2026-05-22 | P3 | Support desktop assistant overlap polish | Done; support request drawer summary now reserves desktop space for the floating Apex Assistant trigger so the first viewport action row stays readable while support workflow behavior remains unchanged | This commit |
+| 2026-05-22 | P3 | Support command header polish | Done; `/support` now opens as a Support Command Center with manual handoff language instead of generic help/package copy while route behavior and permissions remain unchanged | This commit |
+| 2026-05-22 | P3 | Support desktop assistant overlap polish | Done; support request drawer summary now reserves desktop space for the floating Apex Assistant trigger so the first viewport action row stays readable while support workflow behavior remains unchanged | `af5738d` |
 | 2026-05-22 | P3 | Estimate Studio tablet rail polish | Done; tablet Estimate Studio now keeps the option rail, selected proposal workbench, and branded customer/proposal rail visible together at 1024px with no horizontal overflow while phone stacking and field blocking remain safe | `b008654` |
 | 2026-05-22 | P3 | Estimate proposal first-viewport polish | Done; selected proposal is promoted in the option rail and Estimate Studio proposal density/branding is tightened for a stronger branded first viewport while estimate/role/build/browser checks remain clean | `f91e412` |
 | 2026-05-22 | P3 | Field next job card extraction | Done; next assigned job mobile card moved into `src/field-route-components.jsx` with import-boundary coverage, field/role/build checks, and browser audits passing for employee mobile field routes | `cfe0bd7` |

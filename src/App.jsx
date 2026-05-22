@@ -34110,9 +34110,9 @@ function SupportPage({ user, companyName, currentCompanyId, active, permissions,
     <div className="co-office-page co-support-page">
       <PageHeader
         eyebrow="Support"
-        title="Help / Support"
-        description="Copy a clear issue report, find the right workspace, and keep support manual until messaging automation is ready."
-        actions={<Badge tone="green">Basic included</Badge>}
+        title="Support Command Center"
+        description="Triage workflow issues, copy safe handoff packets, and keep support manual until messaging automation is ready."
+        actions={<Badge tone="green">Manual handoff</Badge>}
       />
       <DesktopCommandWorkspaceFrame className="co-support-desktop-workspace-frame">
         <ExtractedSupportCommandWorkbench
