@@ -8,6 +8,7 @@ export const DEFAULT_COMPANY_SETTINGS = {
   website: "",
   businessAddress: "",
   serviceArea: "",
+  primaryTrade: "general-contractor",
   licenseText: "",
   printPacketFooter: "",
   printPacketDisclaimer: "",

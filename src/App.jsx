@@ -234,6 +234,7 @@ import { canCapturePilotFeedback, canRequestPackageReview, canViewJob } from "..
 import { LEAD_SCORE_LABELS } from "../shared/leadScoring.js";
 import { calculateNextLeadSourceCheckDate, createLeadSourceDraft, createLeadSourceDraftFromStarter, deriveDailySourceCheckState, deriveLeadSourceListState, leadSourceLocation, LEAD_SOURCE_CADENCE_OPTIONS, LEAD_SOURCE_STARTERS, LEAD_SOURCE_TYPE_OPTIONS, validateLeadSourcePayload } from "../shared/leadSources.js";
 import { OPPORTUNITY_INTAKE_SOURCE_TYPES, OPPORTUNITY_SCOUT_SOURCE_ADAPTERS, OPPORTUNITY_SCOUT_SOURCE_CHECK_RESULTS, OPPORTUNITY_SEARCH_PROFILE_STARTERS, OPPORTUNITY_SOURCE_ACCESS_STATUSES, OPPORTUNITY_SOURCE_TERMS_STATUSES, buildOpportunityScoutSourceCheckNote } from "../shared/opportunityScout.js";
+import { CONSTRUCTION_TRADE_PROFILES } from "../shared/constructionTrades.js";
 import { buildManagedSetupSupportContext, deriveFirstOwnerOnboardingState, deriveManagedCompanySetupState } from "../shared/managedCompanySetup.js";
 import { packageReadinessSummary } from "../shared/packages.js";
 import { canAccessModule, canAccessWorkspaceModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, getWorkspaceModuleLock, resolveDashboardShortcut } from "./navigation-utils";
@@ -385,6 +386,7 @@ const EMPTY_APP_STATE = {
     licenseText: "",
     printPacketFooter: "",
     printPacketDisclaimer: "",
+    primaryTrade: "general-contractor",
     toolChecklistEnabled: true,
     managedSetupStatus: "Not Started",
     managedSetupChecklist: [],
@@ -23316,6 +23318,7 @@ function SettingsPagePolished({
   }));
   const [brandingNotice, setBrandingNotice] = useState("");
   const [profileDraft, setProfileDraft] = useState(() => ({
+    primaryTrade: safeCompanySettings.primaryTrade || "general-contractor",
     businessPhone: safeCompanySettings.businessPhone || "",
     businessEmail: safeCompanySettings.businessEmail || "",
     website: safeCompanySettings.website || "",
@@ -23343,6 +23346,7 @@ function SettingsPagePolished({
 
   useEffect(() => {
     setProfileDraft({
+      primaryTrade: safeCompanySettings.primaryTrade || "general-contractor",
       businessPhone: safeCompanySettings.businessPhone || "",
       businessEmail: safeCompanySettings.businessEmail || "",
       website: safeCompanySettings.website || "",
@@ -23355,6 +23359,7 @@ function SettingsPagePolished({
     safeCompanySettings.businessEmail,
     safeCompanySettings.businessPhone,
     safeCompanySettings.licenseText,
+    safeCompanySettings.primaryTrade,
     safeCompanySettings.serviceArea,
     safeCompanySettings.website,
   ]);
@@ -23378,6 +23383,7 @@ function SettingsPagePolished({
     || brandingDraft.logoImageUrl.trim() !== (safeCompanySettings.logoImageUrl || "")
     || previewAccentColor !== normalizeAccentColor(safeCompanySettings.accentColor);
   const profileDirty = profileDraft.businessPhone !== (safeCompanySettings.businessPhone || "")
+    || profileDraft.primaryTrade !== (safeCompanySettings.primaryTrade || "general-contractor")
     || profileDraft.businessEmail !== (safeCompanySettings.businessEmail || "")
     || profileDraft.website !== (safeCompanySettings.website || "")
     || profileDraft.businessAddress !== (safeCompanySettings.businessAddress || "")
@@ -23453,6 +23459,7 @@ function SettingsPagePolished({
     event.preventDefault();
     if (typeof onUpdateCompanySettings !== "function") return;
     const saved = await onUpdateCompanySettings({
+      primaryTrade: profileDraft.primaryTrade || "general-contractor",
       businessPhone: profileDraft.businessPhone.trim(),
       businessEmail: profileDraft.businessEmail.trim(),
       website: profileDraft.website.trim(),
@@ -23784,6 +23791,19 @@ function SettingsPagePolished({
                       placeholder="https://apexhqdemo.com"
                       disabled={busy || typeof onUpdateCompanySettings !== "function"}
                     />
+                    <SelectField
+                      label="Primary trade"
+                      value={profileDraft.primaryTrade}
+                      onChange={(event) => {
+                        setProfileDraft((current) => ({ ...current, primaryTrade: event.target.value }));
+                        setProfileNotice("");
+                      }}
+                      disabled={busy || typeof onUpdateCompanySettings !== "function"}
+                    >
+                      {CONSTRUCTION_TRADE_PROFILES.map((trade) => (
+                        <option key={trade.id} value={trade.id}>{trade.label}</option>
+                      ))}
+                    </SelectField>
                     <InputField
                       label="Service area"
                       value={profileDraft.serviceArea}
@@ -23819,7 +23839,7 @@ function SettingsPagePolished({
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
                     <Button type="submit" disabled={busy || !profileDirty || typeof onUpdateCompanySettings !== "function"}>Save company profile</Button>
-                    <p className="text-sm font-bold text-slate-500">{profileNotice || "These details can be reused in daily report and job packet printouts when they are available."}</p>
+                    <p className="text-sm font-bold text-slate-500">{profileNotice || "Primary trade focuses estimate starters; contact details can be reused in reports and packets."}</p>
                   </div>
                 </form>
               </Card>
@@ -27004,6 +27024,7 @@ function EstimatesPagePolished({
   const canManage = Boolean(permissions?.estimates?.canManage);
   const canUseAiRoughNotes = Boolean(permissions?.estimates?.canUseAiRoughNotes);
   const canUseGcPackets = Boolean(permissions?.estimates?.canUseGcPackets);
+  const estimatePrimaryTrade = companyProfile?.primaryTrade || "general-contractor";
   const singleCustomerId = visibleCustomers.length === 1 ? visibleCustomers[0].id : "";
   const singleCustomerName = visibleCustomers.length === 1 ? visibleCustomers[0].name || "" : "";
   const singleCustomerEmail = singleCustomerId ? visibleCustomers.find((customer) => customer.id === singleCustomerId)?.email || "" : "";
@@ -27669,7 +27690,7 @@ function EstimatesPagePolished({
                     <InputField label="Fees total" value={createDraft.feesTotal} onChange={(event) => setCreateDraft((current) => ({ ...current, feesTotal: event.target.value }))} placeholder="Optional" inputMode="decimal" />
                   </div>
                   <div className="mt-3">
-                    <EstimateStarterPanel setDraft={setCreateDraft} normalizeDraft={createEstimateDraft} disabled={busy} />
+                    <EstimateStarterPanel setDraft={setCreateDraft} normalizeDraft={createEstimateDraft} disabled={busy} tradeId={estimatePrimaryTrade} />
                   </div>
                   <div className="mt-4 space-y-3">
                     <SectionHeader title="Line items" description="Line totals update automatically from quantity and unit price." />
@@ -27832,7 +27853,7 @@ function EstimatesPagePolished({
               <SectionHeader title="Proposal Sections / Starters" description="Use reusable starters and customer-facing proposal sections without changing estimate math." />
               {selectedEstimate ? (
                 <div className="grid gap-3">
-                  <EstimateStarterPanel setDraft={setDetailDraft} normalizeDraft={createEstimateDraft} disabled={busy || !canManage} />
+                  <EstimateStarterPanel setDraft={setDetailDraft} normalizeDraft={createEstimateDraft} disabled={busy || !canManage} tradeId={estimatePrimaryTrade} />
                   <EstimateProposalSectionsEditor draft={detailDraft} setDraft={setDetailDraft} disabled={busy || !canManage} />
                 </div>
               ) : (
@@ -28075,7 +28096,7 @@ function EstimatesPagePolished({
                 <InputField label="Fees total" value={createDraft.feesTotal} onChange={(event) => setCreateDraft((current) => ({ ...current, feesTotal: event.target.value }))} placeholder="Optional" inputMode="decimal" />
               </div>
               <div className="mt-3 grid gap-3">
-                <EstimateStarterPanel setDraft={setCreateDraft} normalizeDraft={createEstimateDraft} disabled={busy} />
+                <EstimateStarterPanel setDraft={setCreateDraft} normalizeDraft={createEstimateDraft} disabled={busy} tradeId={estimatePrimaryTrade} />
                 <EstimateBackupEditor draft={createDraft} setDraft={setCreateDraft} disabled={busy} />
                 <EstimateProposalSectionsEditor draft={createDraft} setDraft={setCreateDraft} disabled={busy} />
                 <EstimateGcPacketLiteEditor draft={createDraft} setDraft={setCreateDraft} disabled={busy} />
@@ -28172,7 +28193,7 @@ function EstimatesPagePolished({
                   <InputField label="Fees total" value={detailDraft.feesTotal} onChange={(event) => setDetailDraft((current) => ({ ...current, feesTotal: event.target.value }))} inputMode="decimal" />
                 </div>
                 <div className="grid gap-3">
-                  <EstimateStarterPanel setDraft={setDetailDraft} normalizeDraft={createEstimateDraft} disabled={busy || !canManage} />
+                  <EstimateStarterPanel setDraft={setDetailDraft} normalizeDraft={createEstimateDraft} disabled={busy || !canManage} tradeId={estimatePrimaryTrade} />
                   <EstimateBackupEditor draft={detailDraft} setDraft={setDetailDraft} disabled={busy || !canManage} />
                   <EstimateProposalSectionsEditor draft={detailDraft} setDraft={setDetailDraft} disabled={busy || !canManage} />
                   <EstimateGcPacketLiteEditor draft={detailDraft} setDraft={setDetailDraft} disabled={busy || !canManage} />
@@ -34025,6 +34046,7 @@ export default function App() {
     businessAddress: appState.companySettings?.businessAddress || "",
     serviceArea: appState.companySettings?.serviceArea || "",
     licenseText: appState.companySettings?.licenseText || "",
+    primaryTrade: appState.companySettings?.primaryTrade || "general-contractor",
   }), [appState.companySettings, workspaceLogoInitials]);
   const workspacePrintPacketFooter = appState.companySettings?.printPacketFooter || "";
   const workspacePrintPacketDisclaimer = appState.companySettings?.printPacketDisclaimer || "";

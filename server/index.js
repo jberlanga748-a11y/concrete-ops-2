@@ -235,6 +235,7 @@ import {
   isOperationsManager,
   isOwner,
 } from "../shared/permissions.js";
+import { normalizeConstructionTradeId } from "../shared/constructionTrades.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.join(__dirname, "..");
@@ -7826,6 +7827,9 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
     const nextLicenseText = payload.licenseText == null
       ? draft.companySettings.licenseText
       : optionalCompanySettingText(payload.licenseText, "", 200);
+    const nextPrimaryTrade = payload.primaryTrade == null
+      ? draft.companySettings.primaryTrade
+      : normalizeConstructionTradeId(payload.primaryTrade) || draft.companySettings.primaryTrade || DEFAULT_COMPANY_SETTINGS.primaryTrade;
     const nextPrintPacketFooter = payload.printPacketFooter == null
       ? draft.companySettings.printPacketFooter
       : optionalCompanySettingText(payload.printPacketFooter, "", 240);
@@ -7897,6 +7901,11 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
       draft.companySettings.licenseText = nextLicenseText;
       profileChangedFields.push("licenseText");
       profileChanges.push("license text");
+    }
+    if ((draft.companySettings.primaryTrade || DEFAULT_COMPANY_SETTINGS.primaryTrade) !== nextPrimaryTrade) {
+      draft.companySettings.primaryTrade = nextPrimaryTrade;
+      profileChangedFields.push("primaryTrade");
+      profileChanges.push("primary trade");
     }
     if (draft.companySettings.printPacketFooter !== nextPrintPacketFooter) {
       draft.companySettings.printPacketFooter = nextPrintPacketFooter;

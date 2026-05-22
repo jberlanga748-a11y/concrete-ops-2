@@ -9,6 +9,9 @@ import {
   applyEstimateTemplateStarter,
   buildEstimateLineItemFromStarter,
   buildEstimateLineItemsFromRoughNotes,
+  getEstimateLineItemStartersForTrade,
+  getEstimateStarterTradeSummary,
+  getEstimateTemplateStartersForTrade,
   normalizeEstimateTemplateStarter,
 } from "./estimate-template-utils.js";
 import { buildPrintDocumentHtml, deriveEstimatePrintPacket } from "./print-packets.js";
@@ -201,4 +204,23 @@ test("construction-wide templates create proposal sections without pricing guess
     assert.match(`${sections.scopeOfWork}\n${sections.inclusions}\n${sections.exclusions}\n${sections.assumptions}\n${sections.customerNotes}`, contentPattern);
     assert.match(sections.internalNotes, /Review scope, pricing, exclusions, and totals before sending/);
   });
+});
+
+test("estimate starters can be focused by company primary trade", () => {
+  const fencingTemplates = getEstimateTemplateStartersForTrade("fencing");
+  assert.deepEqual(fencingTemplates.map((template) => template.id), ["fence-install", "gate-repair-replacement", "fence-repair"]);
+  assert.equal(fencingTemplates.some((template) => template.id === "driveway-approach"), false);
+
+  const fencingLineItems = getEstimateLineItemStartersForTrade("fencing");
+  assert.equal(fencingLineItems.some((starter) => starter.id === "fence-panels-rails"), true);
+  assert.equal(fencingLineItems.some((starter) => starter.id === "concrete-placement"), false);
+
+  const roofingSummary = getEstimateStarterTradeSummary("roof");
+  assert.equal(roofingSummary.tradeId, "roofing");
+  assert.equal(roofingSummary.tradeLabel, "Roofing");
+  assert.equal(getEstimateTemplateStartersForTrade("roof").some((template) => template.id === "roof-replacement"), true);
+  assert.equal(getEstimateLineItemStartersForTrade("roof").some((starter) => starter.id === "roofing-shingle-system"), true);
+
+  assert.equal(getEstimateTemplateStartersForTrade("general-contractor").length, ESTIMATE_TEMPLATE_STARTERS.length);
+  assert.equal(getEstimateLineItemStartersForTrade("unknown-trade").length, ESTIMATE_LINE_ITEM_STARTERS.length);
 });

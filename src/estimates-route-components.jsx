@@ -8,7 +8,7 @@ import { deriveEstimateGcPacketLite } from "./estimate-gc-packet-utils";
 import { estimateRoughNotesHasSuggestions, estimateRoughNotesText } from "./estimate-rough-notes-utils";
 import { deriveEstimateSentSnapshots, getEstimateVisibleInternalNotes, mergeEstimateGcPacketLite, mergeEstimateOfficeInternalNotes } from "./estimate-snapshot-utils";
 import { calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEstimateTotals, deriveEstimateJobHandoffReadiness, deriveEstimateProposalSections, estimateCustomerEmail, estimateStatusLabel, formatEstimateCurrency, mergeEstimateProposalSections } from "./estimate-utils";
-import { ESTIMATE_LINE_ITEM_STARTERS, ESTIMATE_TEMPLATE_STARTERS, addEstimateLineItemStarter, applyEstimateTemplateStarter, buildEstimateLineItemsFromRoughNotes } from "./estimate-template-utils";
+import { addEstimateLineItemStarter, applyEstimateTemplateStarter, buildEstimateLineItemsFromRoughNotes, getEstimateLineItemStartersForTrade, getEstimateStarterTradeSummary, getEstimateTemplateStartersForTrade } from "./estimate-template-utils";
 import { buildFenceTakeoffBackupRows, buildFenceTakeoffDraftLineItems, buildFenceTakeoffFieldHandoff, buildFenceTakeoffProposalSummary, mergeFenceTakeoffIntoDraft, normalizeFenceTakeoff, summarizeFenceTakeoffByAssembly } from "./fence-takeoff-utils";
 import { ESTIMATE_PACKET_PRESETS, ESTIMATE_PACKET_SECTION_DEFS, INTERNAL_REVIEW_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
 
@@ -519,11 +519,24 @@ export function EstimateOptionsEditor({
   );
 }
 
-export function EstimateStarterPanel({ setDraft, normalizeDraft = (draft) => draft, disabled = false }) {
-  const [templateId, setTemplateId] = useState(ESTIMATE_TEMPLATE_STARTERS[0]?.id || "");
-  const [lineItemStarterId, setLineItemStarterId] = useState(ESTIMATE_LINE_ITEM_STARTERS[0]?.id || "");
-  const selectedTemplate = ESTIMATE_TEMPLATE_STARTERS.find((template) => template.id === templateId) || ESTIMATE_TEMPLATE_STARTERS[0];
-  const selectedLineItem = ESTIMATE_LINE_ITEM_STARTERS.find((starter) => starter.id === lineItemStarterId) || ESTIMATE_LINE_ITEM_STARTERS[0];
+export function EstimateStarterPanel({ setDraft, normalizeDraft = (draft) => draft, disabled = false, tradeId = "general-contractor" }) {
+  const templateOptions = useMemo(() => getEstimateTemplateStartersForTrade(tradeId), [tradeId]);
+  const lineItemOptions = useMemo(() => getEstimateLineItemStartersForTrade(tradeId), [tradeId]);
+  const starterSummary = useMemo(() => getEstimateStarterTradeSummary(tradeId), [tradeId]);
+  const [templateId, setTemplateId] = useState(templateOptions[0]?.id || "");
+  const [lineItemStarterId, setLineItemStarterId] = useState(lineItemOptions[0]?.id || "");
+  const selectedTemplate = templateOptions.find((template) => template.id === templateId) || templateOptions[0];
+  const selectedLineItem = lineItemOptions.find((starter) => starter.id === lineItemStarterId) || lineItemOptions[0];
+
+  useEffect(() => {
+    if (templateOptions.some((template) => template.id === templateId)) return;
+    setTemplateId(templateOptions[0]?.id || "");
+  }, [templateId, templateOptions]);
+
+  useEffect(() => {
+    if (lineItemOptions.some((starter) => starter.id === lineItemStarterId)) return;
+    setLineItemStarterId(lineItemOptions[0]?.id || "");
+  }, [lineItemOptions, lineItemStarterId]);
 
   function handleApplyTemplate() {
     if (!selectedTemplate) return;
@@ -538,14 +551,14 @@ export function EstimateStarterPanel({ setDraft, normalizeDraft = (draft) => dra
   return (
     <div className="rounded-3xl border border-emerald-100 bg-emerald-50/60 p-4 shadow-sm shadow-emerald-100/50">
       <SectionHeader
-        title="Estimate starters"
-        description="Templates are starters only. Review scope, pricing, exclusions, and totals before sending."
-        action={<Badge tone="emerald">Editable</Badge>}
+        title={`Estimate starters - ${starterSummary.tradeLabel}`}
+        description={`${starterSummary.helper} Templates are starters only. Review scope, pricing, exclusions, and totals before sending.`}
+        action={<Badge tone="emerald">{starterSummary.isFocused ? "Trade focused" : "Full library"}</Badge>}
       />
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
         <div className="rounded-2xl border border-emerald-100 bg-white/80 p-3">
           <SelectField label="Start From Template" value={templateId} onChange={(event) => setTemplateId(event.target.value)} disabled={disabled}>
-            {ESTIMATE_TEMPLATE_STARTERS.map((template) => <option key={template.id} value={template.id}>{template.title}</option>)}
+            {templateOptions.map((template) => <option key={template.id} value={template.id}>{template.title}</option>)}
           </SelectField>
           <p className="mt-2 text-sm font-bold leading-5 text-slate-600">{selectedTemplate?.description || "Choose a reusable estimate starter."}</p>
           <p className="mt-1 text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">
@@ -559,7 +572,7 @@ export function EstimateStarterPanel({ setDraft, normalizeDraft = (draft) => dra
         </div>
         <div className="rounded-2xl border border-emerald-100 bg-white/80 p-3">
           <SelectField label="Add Line Item From Library" value={lineItemStarterId} onChange={(event) => setLineItemStarterId(event.target.value)} disabled={disabled}>
-            {ESTIMATE_LINE_ITEM_STARTERS.map((starter) => <option key={starter.id} value={starter.id}>{starter.title}</option>)}
+            {lineItemOptions.map((starter) => <option key={starter.id} value={starter.id}>{starter.title}</option>)}
           </SelectField>
           <p className="mt-2 text-sm font-bold leading-5 text-slate-600">{selectedLineItem?.description || "Choose a reusable line item starter."}</p>
           <p className="mt-1 text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">Pricing stays blank until office fills it in.</p>

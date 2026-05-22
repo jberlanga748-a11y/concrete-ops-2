@@ -262,6 +262,7 @@ test("tool checklist toggle and role-scoped checklist workflows work without lea
         website: "https://pacificnwconcrete.test",
         businessAddress: "123 Concrete Way, Salem, OR 97301",
         serviceArea: "Salem and Portland metro",
+        primaryTrade: "roof",
         licenseText: "CCB #123456 · Bonded and insured.",
       }),
     });
@@ -270,6 +271,7 @@ test("tool checklist toggle and role-scoped checklist workflows work without lea
     assert.equal(companyProfileState.companySettings.website, "https://pacificnwconcrete.test");
     assert.equal(companyProfileState.companySettings.businessAddress, "123 Concrete Way, Salem, OR 97301");
     assert.equal(companyProfileState.companySettings.serviceArea, "Salem and Portland metro");
+    assert.equal(companyProfileState.companySettings.primaryTrade, "roofing");
     assert.equal(companyProfileState.companySettings.licenseText, "CCB #123456 · Bonded and insured.");
     assert.equal(companyProfileState.auditEvents[0]?.summary, "Company profile updated");
 

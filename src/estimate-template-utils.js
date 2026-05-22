@@ -1,4 +1,5 @@
 import { deriveEstimateProposalSections, mergeEstimateProposalSections } from "./estimate-utils.js";
+import { getConstructionTradeProfile, normalizeConstructionTradeId } from "../shared/constructionTrades.js";
 
 function textValue(value) {
   return String(value ?? "").trim();
@@ -574,6 +575,75 @@ export const ESTIMATE_TEMPLATE_STARTERS = [
     lineItems: ["mobilization", "hvac-equipment-startup", "fixtures-material-allowance", "disposal-trucking"],
   },
 ];
+
+const GENERAL_CONTRACTOR_TRADE_ID = "general-contractor";
+
+const ESTIMATE_TEMPLATE_IDS_BY_TRADE = {
+  concrete: ["concrete-flatwork", "sidewalk-walkway", "driveway-approach", "ada-ramp", "curb-curb-gutter", "small-commercial-slab", "footing-stem-wall", "general-concrete-repair"],
+  fencing: ["fence-install", "gate-repair-replacement", "fence-repair"],
+  roofing: ["roof-replacement"],
+  landscaping: ["landscape-install"],
+  remodeling: ["remodel-room"],
+  painting: ["painting-project"],
+  excavation: ["excavation-sitework"],
+  plumbing: ["plumbing-service"],
+  electrical: ["electrical-service"],
+  hvac: ["hvac-service-replacement"],
+  [GENERAL_CONTRACTOR_TRADE_ID]: [],
+};
+
+const ESTIMATE_LINE_ITEM_IDS_BY_TRADE = {
+  concrete: ["mobilization", "demo-sawcut-haul-off", "excavation-grading-prep", "base-rock", "forming", "rebar-wire-mesh", "concrete-placement", "pump-conveyor-allowance", "finish-work", "cure-sawcut-cleanup", "traffic-control-allowance"],
+  fencing: ["mobilization", "fence-line-layout", "fence-post-setting", "fence-panels-rails", "gate-hardware", "fence-stain-seal", "disposal-trucking"],
+  roofing: ["mobilization", "roof-tear-off-disposal", "roofing-shingle-system", "roof-flashing-ventilation", "disposal-trucking"],
+  landscaping: ["mobilization", "landscape-site-prep", "irrigation-allowance", "sod-turf-planting", "paver-retaining-wall", "disposal-trucking"],
+  remodeling: ["mobilization", "remodel-demo-protection", "carpentry-framing-trim", "drywall-paint-finish", "fixtures-material-allowance", "disposal-trucking"],
+  painting: ["mobilization", "painting-prep-protection", "paint-coating-system"],
+  excavation: ["mobilization", "excavation-trenching-grading", "base-rock", "disposal-trucking"],
+  plumbing: ["mobilization", "plumbing-fixture-piping", "fixtures-material-allowance"],
+  electrical: ["mobilization", "electrical-circuit-device", "fixtures-material-allowance"],
+  hvac: ["mobilization", "hvac-equipment-startup", "fixtures-material-allowance", "disposal-trucking"],
+  [GENERAL_CONTRACTOR_TRADE_ID]: [],
+};
+
+function resolveStarterTradeId(tradeId = GENERAL_CONTRACTOR_TRADE_ID) {
+  return normalizeConstructionTradeId(tradeId) || GENERAL_CONTRACTOR_TRADE_ID;
+}
+
+function filterStartersById(source = [], ids = []) {
+  if (!Array.isArray(ids) || ids.length === 0) return source.slice();
+  const idSet = new Set(ids);
+  const matches = source.filter((entry) => idSet.has(entry.id));
+  return matches.length > 0 ? matches : source.slice();
+}
+
+export function getEstimateTemplateStartersForTrade(tradeId = GENERAL_CONTRACTOR_TRADE_ID) {
+  const normalizedTradeId = resolveStarterTradeId(tradeId);
+  const templateIds = ESTIMATE_TEMPLATE_IDS_BY_TRADE[normalizedTradeId] || [];
+  return filterStartersById(ESTIMATE_TEMPLATE_STARTERS, templateIds);
+}
+
+export function getEstimateLineItemStartersForTrade(tradeId = GENERAL_CONTRACTOR_TRADE_ID) {
+  const normalizedTradeId = resolveStarterTradeId(tradeId);
+  const starterIds = ESTIMATE_LINE_ITEM_IDS_BY_TRADE[normalizedTradeId] || [];
+  return filterStartersById(ESTIMATE_LINE_ITEM_STARTERS, starterIds);
+}
+
+export function getEstimateStarterTradeSummary(tradeId = GENERAL_CONTRACTOR_TRADE_ID) {
+  const normalizedTradeId = resolveStarterTradeId(tradeId);
+  const profile = getConstructionTradeProfile(normalizedTradeId);
+  const isFocused = normalizedTradeId !== GENERAL_CONTRACTOR_TRADE_ID;
+  return {
+    tradeId: normalizedTradeId,
+    tradeLabel: profile?.label || "General Contractor",
+    templateCount: getEstimateTemplateStartersForTrade(normalizedTradeId).length,
+    lineItemCount: getEstimateLineItemStartersForTrade(normalizedTradeId).length,
+    isFocused,
+    helper: isFocused
+      ? `Focused from the company primary trade: ${profile?.label || "selected trade"}.`
+      : "Showing the full construction starter library.",
+  };
+}
 
 export function normalizeEstimateLineItemStarter(starter = {}) {
   return {
