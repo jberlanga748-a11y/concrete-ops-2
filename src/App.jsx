@@ -255,7 +255,7 @@ import {
   SUPPORT_PILOT_FEEDBACK_WORKFLOW,
 } from "./support-utils";
 import { buildTimeTrackingSupportContext, deriveCrewWeeklySummary, deriveTimeJobCostingReadiness, deriveTimeWorkspace, formatMinutes } from "./time-utils";
-import { TimeKpiCardPolished, TimeMobileAccordionCard, TimeMobileFieldGroup, TimeStatusBadge, TimeSummaryMetricsPolished } from "./time-route-components";
+import { TimeKpiCardPolished, TimeMobileAccordionCard, TimeMobileFieldGroup, TimeStatusBadge, TimeSummaryMetricsPolished, WeekSummaryCard } from "./time-route-components";
 import { deriveChecklistItems, deriveToolChecklistJobReadiness, deriveToolChecklistListState, filterToolChecklists, toolChecklistItemStatusLabel, toolChecklistStatusLabel } from "./tool-checklist-utils";
 import { ALLOWED_UPLOAD_TYPES, buildUploadSupportContext, deriveAllowedUploadJobs, deriveUploadDraftFromSelection, deriveUploadListState, filterUploads, findSelectedUpload, gpsStatusLabel, uploadCustomerLabel, uploadJobLabel, uploadTitle, uploadUploaderLabel, validateUploadFile } from "./upload-utils";
 import { deriveUserListState, getCrewAssignmentOptions, getForemanAssignmentOptions, USER_ROLE_OPTIONS } from "./user-utils";
@@ -5209,83 +5209,6 @@ function workCategoryLabel(workCategory = "") {
   };
 
   return labels[workCategory] || "Other";
-}
-
-function WeekSummaryCard({ summary, title = "This Week", description, accent = "blue", compactMobile = false }) {
-  const cardClassName = compactMobile ? "p-3.5 md:p-5" : "p-5";
-  const metricCardClassName = compactMobile ? "rounded-2xl border border-blue-100 bg-blue-50/50 p-3 md:p-4" : "rounded-2xl border border-blue-100 bg-blue-50/50 p-4";
-  const metricValueClassName = compactMobile ? "mt-1 text-lg font-black text-slate-950 md:mt-2 md:text-xl" : "mt-2 text-xl font-black text-slate-950";
-  const sectionCardClassName = compactMobile ? "rounded-2xl border border-blue-100 p-3 md:p-4" : "rounded-2xl border border-blue-100 p-4";
-  const outerGridClassName = compactMobile ? "grid gap-2.5 sm:grid-cols-3" : "grid gap-3 sm:grid-cols-3";
-  const lowerGridClassName = compactMobile ? "mt-3 grid gap-3 lg:grid-cols-2" : "mt-4 grid gap-4 lg:grid-cols-2";
-  const summaryText = `Worked ${formatMinutes(summary.totalMinutes)} / Breaks ${formatMinutes(summary.breakMinutes)} / ${summary.groupedBreakdown.length} categories`;
-  const content = (
-    <>
-      <div className={outerGridClassName}>
-        <div className={metricCardClassName}>
-          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Worked</p>
-          <p className={metricValueClassName}>{formatMinutes(summary.totalMinutes)}</p>
-        </div>
-        <div className={metricCardClassName}>
-          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Breaks</p>
-          <p className={metricValueClassName}>{formatMinutes(summary.breakMinutes)}</p>
-        </div>
-        <div className={metricCardClassName}>
-          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Categories</p>
-          <p className={metricValueClassName}>{summary.groupedBreakdown.length}</p>
-        </div>
-      </div>
-      <div className={lowerGridClassName}>
-        <div className={sectionCardClassName}>
-          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Daily breakdown</p>
-          <div className="mt-3 space-y-2">
-            {summary.dayBreakdown.map((day) => (
-              <div key={day.label} className="flex items-center justify-between text-sm">
-                <span className="font-bold text-slate-600">{day.label}</span>
-                <span className="font-black text-slate-950">{day.minutes ? formatMinutes(day.minutes) : "No time yet"}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className={sectionCardClassName}>
-          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Job / category breakdown</p>
-          {summary.groupedBreakdown.length === 0 ? (
-            <p className="mt-3 text-sm text-slate-500">No time logged this week yet.</p>
-          ) : (
-            <div className="mt-3 space-y-2">
-              {summary.groupedBreakdown.map((group) => (
-                <div key={group.label} className="flex items-center justify-between text-sm">
-                  <span className="font-bold text-slate-600">{group.label}</span>
-                  <span className="font-black text-slate-950">{formatMinutes(group.minutes)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    </>
-  );
-
-  if (compactMobile) {
-    return (
-      <>
-        <TimeMobileAccordionCard title={title} summary={summaryText} badge={summary.activeEntry ? <TimeStatusBadge status={summary.activeEntry.status} /> : null}>
-          {content}
-        </TimeMobileAccordionCard>
-        <Card className="hidden p-5 md:block">
-          <SectionHeader title={title} description={description} action={summary.activeEntry ? <TimeStatusBadge status={summary.activeEntry.status} /> : null} />
-          {content}
-        </Card>
-      </>
-    );
-  }
-
-  return (
-    <Card className={cardClassName}>
-      <SectionHeader title={title} description={description} action={summary.activeEntry ? <TimeStatusBadge status={summary.activeEntry.status} /> : null} />
-      {content}
-    </Card>
-  );
 }
 
 function RecentTimeEntriesCard({ entries, title = "Recent entries", description, emptyTitle = "No time entries yet", emptyDescription = "Clock in to start your first time entry.", showUser = false, compact = false, compactMobile = false }) {
