@@ -8,14 +8,18 @@ test("App imports extracted command center presentation cards", () => {
 
   for (const name of [
     "CommandCenterMorningFlowCard",
+    "CommandCenterItem",
+    "CommandCenterKpiCard",
     "CommandCenterOpsPulseCard",
     "CommandCenterOwnerHealthCard",
     "CommandCenterProofChainCard",
     "CommandCenterQuickAction",
+    "CommandCenterSection",
     "CommandCenterSummaryCard",
     "CommandCenterTableCard",
     "CommandCenterWatchtowerCard",
     "FieldOpsAgentSummaryCard",
+    "ModuleKpiStrip",
   ]) {
     assert.match(commandComponentsSource, new RegExp(`export function ${name}\\b`));
     assert.match(appSource, new RegExp(`import \\{[^}]*${name}[^}]*\\} from "\\./command-center-route-components"`, "s"));

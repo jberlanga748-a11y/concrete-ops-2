@@ -4,7 +4,105 @@ import {
   Card,
   Icon,
   SectionHeader,
+  StateCard,
 } from "./app-shell-components";
+
+function KpiCard({ item }) {
+  const displayValue = item.value ?? 0;
+  return (
+    <Card className="co-kpi-card min-w-0 p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">{item.label}</p>
+          <p className="mt-2 break-words text-2xl font-black text-slate-950 sm:text-3xl">{displayValue}</p>
+          <p className="mt-1 break-words text-sm font-bold text-slate-600">{item.helper}</p>
+        </div>
+        <div className="shrink-0 rounded-xl border border-orange-200 bg-orange-50 p-2.5 text-orange-700">
+          <Icon name={item.icon} />
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+export function CommandCenterSection({ title, description, count, emptyTitle, emptyDescription, badgeTone = "blue", children, className = "", compact = false, footer = null }) {
+  return (
+    <Card className={`co-command-card ${compact ? "p-2.5" : "p-3"} ${className}`}>
+      <SectionHeader
+        title={title}
+        description={description}
+        action={<Badge tone={count > 0 ? badgeTone : "slate"}>{count} item{count === 1 ? "" : "s"}</Badge>}
+      />
+      <div className={compact ? "co-command-priority-list" : "space-y-2"}>
+        {count > 0 ? children : <StateCard title={emptyTitle} description={emptyDescription} tone="slate" />}
+      </div>
+      {footer ? <div className="mt-1.5 border-t border-slate-200 pt-1.5">{footer}</div> : null}
+    </Card>
+  );
+}
+
+export function CommandCenterItem({ eyebrow, title, description, meta, badges, actions, tone = "orange", icon = "alert", compact = false }) {
+  const metaParts = typeof meta === "string" ? meta.split(" / ").filter(Boolean) : [];
+
+  return (
+    <div className={`co-command-priority-row border ${compact ? "px-2.5 py-1" : "p-2.5"}`} data-tone={tone}>
+      <div className="grid min-w-0 grid-cols-[2rem_minmax(0,1fr)] gap-1.5 sm:grid-cols-[2.15rem_minmax(0,1fr)] lg:grid-cols-[2.2rem_minmax(0,1.2fr)_auto_minmax(10rem,0.8fr)_auto] lg:items-center">
+        <span className="co-command-priority-marker" aria-hidden="true">
+          <Icon name={icon} className="co-command-priority-icon h-[1.05rem] w-[1.05rem]" />
+        </span>
+        <div className="min-w-0">
+          {eyebrow ? <p className="co-command-priority-eyebrow text-[9px] font-black uppercase tracking-[0.18em] text-orange-800">{eyebrow}</p> : null}
+          <p className={`${compact ? "text-[13px]" : "text-base"} break-words font-black leading-[1.08] text-slate-950`}>{title}</p>
+          {description ? <p className="mt-0.5 break-words text-[12px] font-bold leading-[1.22] text-slate-700">{description}</p> : null}
+        </div>
+        {badges ? <div className="co-command-priority-badges col-start-2 flex min-w-0 flex-wrap gap-1 sm:items-center lg:col-start-auto">{badges}</div> : null}
+        <div className="co-command-priority-meta col-start-2 min-w-0 lg:col-start-auto">
+          {metaParts.length ? metaParts.map((part) => <span key={part}>{part}</span>) : meta ? <span>{meta}</span> : null}
+        </div>
+        {actions ? <div className="co-command-priority-actions col-start-2 flex w-full shrink-0 flex-wrap gap-1.5 sm:w-auto sm:justify-start lg:col-start-auto lg:justify-end">{actions}</div> : null}
+      </div>
+    </div>
+  );
+}
+
+export function CommandCenterKpiCard({ item }) {
+  const tone = item.tone || "orange";
+  const value = Number.isFinite(Number(item.value)) ? Number(item.value) : 0;
+  const displayValue = item.displayValue ?? value;
+  const canRunAction = typeof item.onAction === "function" && !item.disabled;
+
+  return (
+    <div className="co-command-kpi border p-3" data-tone={tone}>
+      <div className="co-command-kpi-body">
+        <div className="co-command-kpi-icon">
+          <Icon name={item.icon} className="h-5 w-5" />
+        </div>
+        <div className="min-w-0">
+          <p className={`co-command-kpi-value ${value > 0 ? "" : "is-empty"}`}>{displayValue}</p>
+          <p className="mt-0.5 break-words text-sm font-black leading-tight text-slate-950">{item.label}</p>
+          <p className="mt-0.5 break-words text-xs font-bold leading-[1.35] text-slate-700">{item.helper}</p>
+        </div>
+      </div>
+      {item.actionLabel ? (
+        <button type="button" onClick={canRunAction ? item.onAction : undefined} disabled={!canRunAction} aria-disabled={!canRunAction} className={`co-command-kpi-link co-focus-ring ${canRunAction ? "" : "is-disabled"}`}>
+          {item.actionLabel}
+          {canRunAction ? <span aria-hidden="true">-&gt;</span> : null}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+export function ModuleKpiStrip({ items = [] }) {
+  const visibleItems = items.filter(Boolean);
+  if (visibleItems.length === 0) return null;
+
+  return (
+    <div className="co-module-kpi-strip mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-2 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 lg:grid-cols-4 lg:px-8">
+      {visibleItems.map((item) => <KpiCard key={item.label} item={item} />)}
+    </div>
+  );
+}
 
 export function CommandCenterSummaryCard({ title, description, count, tone = "orange", rows = [], emptyText = "Nothing waiting.", actionLabel = "View all", onAction }) {
   return (
