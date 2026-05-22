@@ -255,7 +255,7 @@ import {
   SUPPORT_PILOT_FEEDBACK_WORKFLOW,
 } from "./support-utils";
 import { buildTimeTrackingSupportContext, deriveCrewWeeklySummary, deriveTimeJobCostingReadiness, deriveTimeWorkspace, formatMinutes, timeStatusTone } from "./time-utils";
-import { TimeKpiCardPolished } from "./time-route-components";
+import { TimeKpiCardPolished, TimeSummaryMetricsPolished } from "./time-route-components";
 import { deriveChecklistItems, deriveToolChecklistJobReadiness, deriveToolChecklistListState, filterToolChecklists, toolChecklistItemStatusLabel, toolChecklistStatusLabel } from "./tool-checklist-utils";
 import { ALLOWED_UPLOAD_TYPES, buildUploadSupportContext, deriveAllowedUploadJobs, deriveUploadDraftFromSelection, deriveUploadListState, filterUploads, findSelectedUpload, gpsStatusLabel, uploadCustomerLabel, uploadJobLabel, uploadTitle, uploadUploaderLabel, validateUploadFile } from "./upload-utils";
 import { deriveUserListState, getCrewAssignmentOptions, getForemanAssignmentOptions, USER_ROLE_OPTIONS } from "./user-utils";
@@ -5639,35 +5639,6 @@ function TimeEntriesTable({ rows, selectedId, onSelect }) {
         })}
       </tbody>
     </table>
-  );
-}
-
-function TimeSummaryMetricsPolished({ summary, activeCount = 0, label = "This week" }) {
-  const safeSummary = summary || { totalMinutes: 0, breakMinutes: 0, groupedBreakdown: [] };
-
-  return (
-    <div className="co-time-summary-strip">
-      <div>
-        <span>{label}</span>
-        <strong>{formatMinutes(safeSummary.totalMinutes)}</strong>
-        <small>worked</small>
-      </div>
-      <div>
-        <span>Breaks</span>
-        <strong>{formatMinutes(safeSummary.breakMinutes)}</strong>
-        <small>recorded</small>
-      </div>
-      <div>
-        <span>Categories</span>
-        <strong>{safeSummary.groupedBreakdown?.length || 0}</strong>
-        <small>visible</small>
-      </div>
-      <div>
-        <span>Clocked in</span>
-        <strong>{activeCount}</strong>
-        <small>right now</small>
-      </div>
-    </div>
   );
 }
 
