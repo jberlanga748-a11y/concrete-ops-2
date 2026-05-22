@@ -14,12 +14,16 @@ import {
 import { buildPrintDocumentHtml, deriveEstimatePrintPacket } from "./print-packets.js";
 
 test("estimate template starters are static editable starters with blank prices", () => {
-  assert.equal(ESTIMATE_TEMPLATE_STARTERS.length, 11);
-  assert.equal(ESTIMATE_LINE_ITEM_STARTERS.length, 17);
+  assert.equal(ESTIMATE_TEMPLATE_STARTERS.length, 19);
+  assert.equal(ESTIMATE_LINE_ITEM_STARTERS.length, 34);
   assert.equal(ESTIMATE_TEMPLATE_STARTERS.some((template) => template.title === "Concrete Flatwork"), true);
   assert.equal(ESTIMATE_TEMPLATE_STARTERS.some((template) => template.title === "ADA Ramp"), true);
   assert.equal(ESTIMATE_TEMPLATE_STARTERS.some((template) => template.title === "Fence Install"), true);
   assert.equal(ESTIMATE_TEMPLATE_STARTERS.some((template) => template.title === "Gate Repair / Replacement"), true);
+  assert.equal(ESTIMATE_TEMPLATE_STARTERS.some((template) => template.title === "Roof Replacement"), true);
+  assert.equal(ESTIMATE_TEMPLATE_STARTERS.some((template) => template.title === "Landscape Install"), true);
+  assert.equal(ESTIMATE_TEMPLATE_STARTERS.some((template) => template.title === "Room Remodel"), true);
+  assert.equal(ESTIMATE_TEMPLATE_STARTERS.some((template) => template.title === "Plumbing Service"), true);
 
   ESTIMATE_LINE_ITEM_STARTERS.forEach((starter) => {
     assert.equal(starter.unitPrice, "");
@@ -35,6 +39,11 @@ test("estimate template starters are static editable starters with blank prices"
   assert.equal(fence.title, "Fence Install");
   assert.equal(fence.lineItems.every((item) => item.unitPrice === ""), true);
   assert.match(fence.sections.scopeOfWork, /set posts/);
+
+  const roofing = normalizeEstimateTemplateStarter(ESTIMATE_TEMPLATE_STARTERS.find((template) => template.id === "roof-replacement"));
+  assert.equal(roofing.title, "Roof Replacement");
+  assert.equal(roofing.lineItems.every((item) => item.unitPrice === ""), true);
+  assert.match(roofing.sections.scopeOfWork, /roofing material system/);
 });
 
 test("applying a template fills existing estimate fields without adding schema fields", () => {
@@ -162,4 +171,34 @@ test("template-created estimates still print customer-facing content without int
   assert.match(html, /Base Estimate Total/);
   assert.doesNotMatch(html, /Private margin note/);
   assert.doesNotMatch(html, /Template starter:/);
+});
+
+test("construction-wide templates create proposal sections without pricing guesses", () => {
+  const tradeTemplates = [
+    ["roof-replacement", /Roof replacement proposal/, /decking allowance/i],
+    ["landscape-install", /Landscape installation proposal/, /irrigation/i],
+    ["remodel-room", /Remodel proposal/, /allowance/i],
+    ["painting-project", /Painting proposal/, /color selections/i],
+    ["excavation-sitework", /Excavation \/ sitework proposal/, /hidden-condition/i],
+    ["plumbing-service", /Plumbing service proposal/, /fixture selections/i],
+    ["electrical-service", /Electrical service proposal/, /permit\/inspection/i],
+    ["hvac-service-replacement", /HVAC service \/ replacement proposal/, /startup/i],
+  ];
+
+  tradeTemplates.forEach(([templateId, titlePattern, contentPattern]) => {
+    const draft = applyEstimateTemplateStarter({
+      title: "",
+      scopeSummary: "",
+      customerNotes: "",
+      internalNotes: "",
+      items: [],
+    }, templateId);
+    const sections = deriveEstimateProposalSections(draft);
+
+    assert.match(draft.title, titlePattern);
+    assert.equal(draft.items.length > 0, true);
+    assert.equal(draft.items.every((item) => item.unitPrice === ""), true);
+    assert.match(`${sections.scopeOfWork}\n${sections.inclusions}\n${sections.exclusions}\n${sections.assumptions}\n${sections.customerNotes}`, contentPattern);
+    assert.match(sections.internalNotes, /Review scope, pricing, exclusions, and totals before sending/);
+  });
 });
