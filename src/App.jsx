@@ -20164,7 +20164,10 @@ function LeadsPage({
       if (target?.tagName === "DETAILS") {
         target.open = true;
       }
-      target?.scrollIntoView({ behavior: "smooth", block: "start" });
+      const isMobile = typeof window !== "undefined" && window.matchMedia("(max-width: 1179px)").matches;
+      if (isMobile) {
+        target?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
     });
   }
 
@@ -20197,13 +20200,14 @@ function LeadsPage({
           </div>
         }
       />
-      <div className="co-leads-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-4 lg:px-6">
-        {leadKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
-      </div>
+      <DesktopCommandWorkspaceFrame className="co-leads-desktop-workspace-frame">
+        <div className="co-leads-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-4 lg:px-6">
+          {leadKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
+        </div>
 
-      <div className="co-leads-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
-        <div className="co-leads-left-stack min-w-0 space-y-3">
-          <Card className="co-leads-main-board overflow-hidden">
+        <div className="co-leads-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
+          <div className="co-leads-left-stack min-w-0 space-y-3">
+            <Card className="co-leads-main-board overflow-hidden">
             <div className="co-leads-board-header border-b border-slate-200 bg-white p-4">
               <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                 <div className="min-w-0">
@@ -20264,9 +20268,9 @@ function LeadsPage({
                 <Button type="button" size="sm" variant="secondary" onClick={() => setFilter("All")}>Clear filters</Button>
               </div>
             </div>
-          </Card>
+            </Card>
 
-          <section id="lead-followup-board">
+            <section id="lead-followup-board">
             <FollowUpQueuePanel
               leads={leads}
               customers={customers}
@@ -20285,82 +20289,83 @@ function LeadsPage({
               compact
               maxItems={4}
             />
-          </section>
+            </section>
+          </div>
+
+          <LeadCommandRail
+            lead={selectedLead}
+            onFieldChange={onLeadFieldChange}
+            onScoreLead={onScoreLead}
+            onCheckMissingInfo={onCheckMissingInfo}
+            onGenerateLeadAssistant={onGenerateLeadAssistant}
+            leadAssistantState={leadAssistantState}
+            onCreateJob={onCreateJobFromLead}
+            onCreateEstimateFromLead={onCreateEstimateFromLead}
+            onConvertToCustomer={onConvertLeadToCustomer}
+            onArchive={onArchiveLead}
+            onRestore={onRestoreLead}
+            onDelete={onDeleteLead}
+            users={users}
+            customers={customers}
+            contactHistory={contactHistory}
+            contactHistoryPermissions={permissions.contactHistory}
+            onCreateContactHistory={onCreateContactHistory}
+            onUpdateContactHistory={onUpdateContactHistory}
+            onArchiveContactHistory={onArchiveContactHistory}
+            onRestoreContactHistory={onRestoreContactHistory}
+            disabled={busy}
+            saveState={leadSaveState}
+            canManage={permissions.leads.canManage}
+            canCreateEstimate={permissions?.estimates?.canManage}
+          />
         </div>
 
-        <LeadCommandRail
-          lead={selectedLead}
-          onFieldChange={onLeadFieldChange}
-          onScoreLead={onScoreLead}
-          onCheckMissingInfo={onCheckMissingInfo}
-          onGenerateLeadAssistant={onGenerateLeadAssistant}
-          leadAssistantState={leadAssistantState}
-          onCreateJob={onCreateJobFromLead}
-          onCreateEstimateFromLead={onCreateEstimateFromLead}
-          onConvertToCustomer={onConvertLeadToCustomer}
-          onArchive={onArchiveLead}
-          onRestore={onRestoreLead}
-          onDelete={onDeleteLead}
-          users={users}
-          customers={customers}
-          contactHistory={contactHistory}
-          contactHistoryPermissions={permissions.contactHistory}
-          onCreateContactHistory={onCreateContactHistory}
-          onUpdateContactHistory={onUpdateContactHistory}
-          onArchiveContactHistory={onArchiveContactHistory}
-          onRestoreContactHistory={onRestoreContactHistory}
-          disabled={busy}
-          saveState={leadSaveState}
-          canManage={permissions.leads.canManage}
-          canCreateEstimate={permissions?.estimates?.canManage}
-        />
-      </div>
-
-      <details id="lead-tools-drawer" className="co-leads-tools-drawer mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-24 sm:px-6 md:pb-4 lg:px-8">
-        <summary>
-          <span>
-            <strong>Lead Tools</strong>
-            <em>Intake, review queue, source checks, and source management stay available here.</em>
-          </span>
-          <span>Open tools</span>
-        </summary>
-        <div className="co-leads-tool-tabs mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
-          {leadToolTabs.map((tab) => (
-            <button key={tab.id} type="button" className={activeLeadTool === tab.id ? "is-active" : ""} onClick={() => selectLeadTool(tab.id)}>
-              {tab.label}
-              <span>{tab.count}</span>
-            </button>
-          ))}
-        </div>
-        <div className="co-leads-tools-panel mt-3">
-          {activeLeadTool === "intake" ? (
-            <LeadIntakeCard draft={leadDraft} setDraft={setLeadDraft} onCreateLead={onCreateLead} disabled={busy} canManage={permissions.leads.canManage} customers={customers} users={users} />
-          ) : null}
-          {activeLeadTool === "review" ? (
-            <LeadInboxReviewQueue inboxState={leadInboxState} onSelectLead={onSelectLead} onScoreLead={onScoreLead} onCheckMissingInfo={onCheckMissingInfo} onCreateEstimateFromLead={onCreateEstimateFromLead} canManage={permissions?.leads?.canManage} canCreateEstimate={permissions?.estimates?.canManage} disabled={busy} />
-          ) : null}
-          {activeLeadTool === "sourceChecks" ? (
-            <DailySourceCheckPanel
-              sources={leadSources}
-              canManage={canManageSources}
-              onMarkSourceChecked={onMarkLeadSourceChecked}
-              onStartLeadFromSource={handleStartLeadFromSource}
-              disabled={busy}
-            />
-          ) : null}
-          {activeLeadTool === "sources" ? (
-            <LeadSourcesPanel
-              sources={leadSources}
-              canManage={canManageSources}
-              onCreateSource={onCreateLeadSource}
-              onUpdateSource={onUpdateLeadSource}
-              onArchiveSource={onArchiveLeadSource}
-              onRestoreSource={onRestoreLeadSource}
-              disabled={busy}
-            />
-          ) : null}
-        </div>
-      </details>
+        <details id="lead-tools-drawer" className="co-leads-tools-drawer mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-24 sm:px-6 md:pb-4 lg:px-8">
+          <summary>
+            <span>
+              <strong>Lead Tools</strong>
+              <em>Intake, review queue, source checks, and source management stay available here.</em>
+            </span>
+            <span>Open tools</span>
+          </summary>
+          <div className="co-leads-tool-tabs mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
+            {leadToolTabs.map((tab) => (
+              <button key={tab.id} type="button" className={activeLeadTool === tab.id ? "is-active" : ""} onClick={() => selectLeadTool(tab.id)}>
+                {tab.label}
+                <span>{tab.count}</span>
+              </button>
+            ))}
+          </div>
+          <div className="co-leads-tools-panel mt-3">
+            {activeLeadTool === "intake" ? (
+              <LeadIntakeCard draft={leadDraft} setDraft={setLeadDraft} onCreateLead={onCreateLead} disabled={busy} canManage={permissions.leads.canManage} customers={customers} users={users} />
+            ) : null}
+            {activeLeadTool === "review" ? (
+              <LeadInboxReviewQueue inboxState={leadInboxState} onSelectLead={onSelectLead} onScoreLead={onScoreLead} onCheckMissingInfo={onCheckMissingInfo} onCreateEstimateFromLead={onCreateEstimateFromLead} canManage={permissions?.leads?.canManage} canCreateEstimate={permissions?.estimates?.canManage} disabled={busy} />
+            ) : null}
+            {activeLeadTool === "sourceChecks" ? (
+              <DailySourceCheckPanel
+                sources={leadSources}
+                canManage={canManageSources}
+                onMarkSourceChecked={onMarkLeadSourceChecked}
+                onStartLeadFromSource={handleStartLeadFromSource}
+                disabled={busy}
+              />
+            ) : null}
+            {activeLeadTool === "sources" ? (
+              <LeadSourcesPanel
+                sources={leadSources}
+                canManage={canManageSources}
+                onCreateSource={onCreateLeadSource}
+                onUpdateSource={onUpdateLeadSource}
+                onArchiveSource={onArchiveLeadSource}
+                onRestoreSource={onRestoreLeadSource}
+                disabled={busy}
+              />
+            ) : null}
+          </div>
+        </details>
+      </DesktopCommandWorkspaceFrame>
     </div>
   );
 }
