@@ -10,7 +10,10 @@ import {
   findSelectedUpload,
   filterUploads,
   gpsStatusLabel,
+  uploadCapturedAt,
   uploadCustomerLabel,
+  uploadEvidenceDateKey,
+  uploadEvidenceJobId,
   uploadJobLabel,
   uploadTitle,
   uploadUploaderLabel,
@@ -145,6 +148,16 @@ test("upload display helpers tolerate missing gps and sparse uploader or job rec
   assert.equal(uploadUploaderLabel(upload), "U-9");
   assert.equal(uploadCustomerLabel(upload), "Not set");
   assert.equal(gpsStatusLabel(upload), "Not requested");
+});
+
+test("upload evidence helpers derive captured time, date key, and job id safely", () => {
+  assert.equal(uploadCapturedAt({ takenAt: "2026-04-25T08:30:00.000Z", uploadedAt: "2026-04-26T10:00:00.000Z" }), "2026-04-25T08:30:00.000Z");
+  assert.equal(uploadCapturedAt({ uploadedAt: "2026-04-26T10:00:00.000Z" }), "2026-04-26T10:00:00.000Z");
+  assert.equal(uploadEvidenceDateKey({ uploadedAt: "2026-04-26T10:00:00.000Z" }), "2026-04-26");
+  assert.equal(uploadEvidenceDateKey({ uploadedAt: "not a date" }), "");
+  assert.equal(uploadEvidenceJobId({ jobId: "J-1", job: { id: "J-2" } }), "J-1");
+  assert.equal(uploadEvidenceJobId({ job: { id: "J-2" } }), "J-2");
+  assert.equal(uploadEvidenceJobId({}), "");
 });
 
 test("findSelectedUpload tolerates missing arrays and falls back safely", () => {

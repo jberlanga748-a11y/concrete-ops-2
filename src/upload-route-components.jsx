@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { AssistantRail, Badge, Button, Card, CommandPageFrame, Icon, InputField, SectionHeader, SelectField, StateCard, TextAreaField, WorkQueueCard } from "./app-shell-components";
 import { jobTitle } from "./job-utils";
-import { gpsStatusLabel, uploadCustomerLabel, uploadJobLabel, uploadTitle, uploadUploaderLabel } from "./upload-utils";
+import { gpsStatusLabel, uploadCapturedAt, uploadCustomerLabel, uploadEvidenceDateKey, uploadJobLabel, uploadTitle, uploadUploaderLabel } from "./upload-utils";
 
 const UPLOAD_PREVIEW_CACHE_LIMIT = 24;
 const uploadPreviewCache = new Map();
@@ -84,22 +84,8 @@ function uploadFileSizeLabel(bytes) {
   return `${size} B`;
 }
 
-function uploadCapturedAt(upload) {
-  return upload?.takenAt || upload?.uploadedAt || upload?.createdAt;
-}
-
 function todayDateInputValue() {
   return new Date().toISOString().slice(0, 10);
-}
-
-function uploadEvidenceDateKey(upload) {
-  const value = upload?.uploadedAt || upload?.createdAt || uploadCapturedAt(upload);
-  if (!value) return "";
-  const text = String(value);
-  if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10);
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "";
-  return parsed.toISOString().slice(0, 10);
 }
 
 export function UploadListCard({ upload, selected, onSelect }) {

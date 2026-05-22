@@ -258,7 +258,7 @@ import {
 import { buildTimeTrackingSupportContext, deriveCrewWeeklySummary, deriveTimeJobCostingReadiness, deriveTimeWorkspace, formatMinutes } from "./time-utils";
 import { ActiveTimeCard, RecentTimeEntriesCard, TimeCommandRailPolished, TimeCorrectionPanel, TimeEntriesTablePolished, TimeEntryCard, TimeKpiCardPolished, TimeMobileAccordionCard, TimeMobileFieldGroup, TimeStatusBadge, TimeSummaryMetricsPolished, WeekSummaryCard, workCategoryLabel } from "./time-route-components";
 import { deriveChecklistItems, deriveToolChecklistJobReadiness, deriveToolChecklistListState, filterToolChecklists, toolChecklistItemStatusLabel, toolChecklistStatusLabel } from "./tool-checklist-utils";
-import { ALLOWED_UPLOAD_TYPES, buildUploadSupportContext, deriveAllowedUploadJobs, deriveUploadDraftFromSelection, deriveUploadListState, filterUploads, findSelectedUpload, gpsStatusLabel, uploadCustomerLabel, uploadJobLabel, uploadTitle, uploadUploaderLabel, validateUploadFile } from "./upload-utils";
+import { ALLOWED_UPLOAD_TYPES, buildUploadSupportContext, deriveAllowedUploadJobs, deriveUploadDraftFromSelection, deriveUploadListState, filterUploads, findSelectedUpload, gpsStatusLabel, uploadCapturedAt, uploadEvidenceDateKey, uploadEvidenceJobId, uploadJobLabel, uploadTitle, uploadUploaderLabel, validateUploadFile } from "./upload-utils";
 import { AuthenticatedUploadPreview, fetchAuthenticatedUploadPreviewUrl, UploadCreateCard, UploadDetailPanel, UploadListCard, UploadMobileAccordionCard, UploadMobileFieldGroup, UploadsCommandRailPolished, UploadsFieldOperatorPanel, UploadsMobileFocusPanel, UploadsProofWorkbench, UploadsTablePolished } from "./upload-route-components";
 import { deriveUserListState, getCrewAssignmentOptions, getForemanAssignmentOptions, USER_ROLE_OPTIONS } from "./user-utils";
 import { PlanReadinessPanel, SettingsCommandRailPolished } from "./settings-route-components";
@@ -6834,21 +6834,6 @@ function DailyReportDetailPanel({
     </div>
   );
 }
-
-function uploadCapturedAt(upload) {
-  return upload?.takenAt || upload?.uploadedAt || upload?.createdAt;
-}
-
-function uploadEvidenceDateKey(upload) {
-  return dailyReportDateKey(upload?.uploadedAt || upload?.createdAt || uploadCapturedAt(upload));
-}
-
-function uploadEvidenceJobId(upload) {
-  return upload?.jobId || upload?.job?.id || "";
-}
-
-
-
 
 function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, sessionToken, busy, errorMessage, onCreateUpload, onUpdateUpload, onArchiveUpload, onOpenSupport, assistantUploadReviewSeed = null, onAssistantUploadReviewSeedHandled = () => {} }) {
   const [filter, setFilter] = useState("Active only");

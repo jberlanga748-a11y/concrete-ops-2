@@ -21,6 +21,24 @@ export function uploadCustomerLabel(upload) {
   return upload?.job?.customer || upload?.customerName || "Not set";
 }
 
+export function uploadCapturedAt(upload) {
+  return upload?.takenAt || upload?.uploadedAt || upload?.createdAt;
+}
+
+export function uploadEvidenceDateKey(upload) {
+  const value = upload?.uploadedAt || upload?.createdAt || uploadCapturedAt(upload);
+  if (!value) return "";
+  const text = String(value);
+  if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10);
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().slice(0, 10);
+}
+
+export function uploadEvidenceJobId(upload) {
+  return upload?.jobId || upload?.job?.id || "";
+}
+
 export function findSelectedUpload(visibleUploads, uploads, selectedUploadId) {
   const safeVisibleUploads = Array.isArray(visibleUploads) ? visibleUploads : [];
   const safeUploads = Array.isArray(uploads) ? uploads : [];
