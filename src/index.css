@@ -35500,6 +35500,94 @@ textarea {
   overflow-wrap: anywhere;
 }
 
+@media (min-width: 1180px) {
+  .co-support-page {
+    height: calc(100dvh - var(--layout-topbar-height, 4rem));
+    min-height: 0 !important;
+    overflow: hidden;
+    padding-bottom: 0 !important;
+  }
+
+  .co-support-desktop-workspace-frame {
+    position: relative;
+    display: grid;
+    height: calc(100dvh - var(--layout-topbar-height, 4rem) - 8.5rem);
+    min-height: 0;
+    overflow: hidden;
+    grid-template-rows: minmax(0, 1fr);
+    padding-bottom: 4.5rem;
+  }
+
+  .co-support-desktop-workspace-frame .co-support-northstar-frame {
+    display: grid;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    grid-template-rows: auto minmax(0, 1fr);
+    padding-bottom: 0;
+  }
+
+  .co-support-desktop-workspace-frame .co-command-page-frame-grid {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .co-support-desktop-workspace-frame .co-command-page-frame-main,
+  .co-support-desktop-workspace-frame .co-command-page-frame-rail {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .co-support-desktop-workspace-frame .co-command-page-frame-rail,
+  .co-support-desktop-workspace-frame .co-support-workflow-queue,
+  .co-support-desktop-workspace-frame .co-support-selected-panel {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  }
+
+  .co-support-desktop-workspace-frame .co-support-command-workbench {
+    display: grid;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .co-support-desktop-workspace-frame .co-support-command-grid {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .co-support-desktop-workspace-frame .co-support-workflow-queue,
+  .co-support-desktop-workspace-frame .co-support-selected-panel {
+    min-height: 0;
+    align-content: start;
+  }
+
+  .co-support-desktop-workspace-frame .co-assistant-rail {
+    height: 100%;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  .co-support-tools-drawer .co-support-command-layout {
+    grid-template-columns: minmax(0, 1.1fr) minmax(18rem, 0.9fr) !important;
+    gap: 0.85rem !important;
+    padding: 0 !important;
+  }
+
+  .co-support-tools-drawer .co-support-request-card,
+  .co-support-tools-drawer .co-support-preview-card,
+  .co-support-tools-drawer .co-support-rail-card {
+    box-shadow: none !important;
+  }
+}
+
 @media (min-width: 768px) and (max-width: 1180px) {
   .co-support-command-kpis {
     display: flex;

@@ -37035,26 +37035,34 @@ function SupportPage({ user, companyName, currentCompanyId, active, permissions,
         description="Copy a clear issue report, find the right workspace, and keep support manual until messaging automation is ready."
         actions={<Badge tone="green">Basic included</Badge>}
       />
-      <ExtractedSupportCommandWorkbench
-        user={user}
-        companyName={companyName}
-        currentCompanyId={currentCompanyId}
-        selectedWorkflow={selectedWorkflow}
-        blockerLevel={draft.blockerLevel}
-        draft={draft}
-        isOfficeUser={isOfficeUser}
-        isPilotFeedback={isPilotFeedback}
-        isUpgradeReview={isUpgradeReview}
-        canRequestUpgradeReview={canRequestUpgradeReview}
-        supportWorkflowOptions={supportWorkflowOptions}
-        onSelectWorkflow={(workflow) => updateDraft("workflow", workflow)}
-        onSetBlocker={(blocker) => updateDraft("blockerLevel", blocker)}
-        onCopySupportRequest={copySupportRequest}
-        onOpenModule={(moduleId) => setActive?.(moduleId)}
-      />
-      <div className="co-support-command-layout grid min-w-0 gap-4 px-5 sm:px-6 xl:grid-cols-[minmax(0,1fr)_360px] lg:px-8">
-        <div className="grid gap-4">
-          <Card className="co-support-request-card p-5">
+      <DesktopCommandWorkspaceFrame className="co-support-desktop-workspace-frame">
+        <ExtractedSupportCommandWorkbench
+          user={user}
+          companyName={companyName}
+          currentCompanyId={currentCompanyId}
+          selectedWorkflow={selectedWorkflow}
+          blockerLevel={draft.blockerLevel}
+          draft={draft}
+          isOfficeUser={isOfficeUser}
+          isPilotFeedback={isPilotFeedback}
+          isUpgradeReview={isUpgradeReview}
+          canRequestUpgradeReview={canRequestUpgradeReview}
+          supportWorkflowOptions={supportWorkflowOptions}
+          onSelectWorkflow={(workflow) => updateDraft("workflow", workflow)}
+          onSetBlocker={(blocker) => updateDraft("blockerLevel", blocker)}
+          onCopySupportRequest={copySupportRequest}
+          onOpenModule={(moduleId) => setActive?.(moduleId)}
+        />
+        <DesktopCommandDrawer
+          className="co-support-tools-drawer"
+          variant="bottom"
+          title={isPilotFeedback ? "Feedback Packet Tools" : "Support Request Tools"}
+          description={isPilotFeedback ? "Edit pilot feedback context, preview the packet, and keep it manual." : "Edit request details, preview the handoff packet, and open the right workspace."}
+          summaryLabel={isPilotFeedback ? "Open feedback tools" : "Open request tools"}
+        >
+          <div className="co-support-command-layout grid min-w-0 gap-4 px-5 sm:px-6 xl:grid-cols-[minmax(0,1fr)_360px] lg:px-8">
+            <div className="grid gap-4">
+              <Card className="co-support-request-card p-5">
             <SectionHeader
               title={isPilotFeedback ? "Capture pilot feedback" : "Create a support request"}
               description={isPilotFeedback ? "Owner/admin internal notes for founder-led demos and controlled pilots. Copy the packet for manual review." : "Apex HQ does not send this automatically. Copy the packet, add a screenshot if useful, and send it through your normal support channel."}
@@ -37144,19 +37152,19 @@ function SupportPage({ user, companyName, currentCompanyId, active, permissions,
               <Button type="button" onClick={copySupportRequest}><Icon name="clipboard" />{isPilotFeedback ? "Copy feedback packet" : "Copy support request"}</Button>
               <p className="text-sm font-bold text-slate-500">{copyMessage || (isPilotFeedback ? "Copy-only keeps feedback safe: no survey, outreach, testimonial, or automation is created." : "Copy-only keeps support safe: no email, text, upload, or ticket is created automatically.")}</p>
             </div>
-          </Card>
+              </Card>
 
-          <Card className="co-support-preview-card p-5">
+              <Card className="co-support-preview-card p-5">
             <SectionHeader
               title={isPilotFeedback ? "Feedback packet preview" : "Support packet preview"}
               description={isPilotFeedback ? "Review before saving in founder notes. Nothing is sent, published, or written to customer records." : "Review before sending. Add a screenshot or screen recording outside Apex HQ when useful."}
             />
             <pre className="max-h-[420px] overflow-auto rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs leading-5 text-slate-700">{supportPacket}</pre>
-          </Card>
-        </div>
+              </Card>
+            </div>
 
-        <aside className="co-support-rail grid h-fit gap-4">
-          <div className="co-support-rail-card p-4">
+            <aside className="co-support-rail grid h-fit gap-4">
+              <div className="co-support-rail-card p-4">
             <SectionHeader title="Quick help" description="Common support info to capture before a call or message." />
             <div className="grid gap-2 text-sm leading-6 text-slate-700">
               <div className="co-support-context-tile"><strong>Company</strong><br />{companyName || "Apex HQ Workspace"}</div>
@@ -37164,9 +37172,9 @@ function SupportPage({ user, companyName, currentCompanyId, active, permissions,
               <div className="co-support-context-tile"><strong>Current page</strong><br />{typeof window !== "undefined" ? window.location.pathname : "/support"}</div>
               <div className="co-support-context-tile"><strong>Priority</strong><br />Blocker, workaround, and expected result matter most.</div>
             </div>
-          </div>
+              </div>
 
-          <div className="co-support-rail-card p-4">
+              <div className="co-support-rail-card p-4">
             <SectionHeader title="Open workspace" description="Jump back to the screen involved in the issue." />
             <div className="grid gap-2">
               {quickActions.map((action) => (
@@ -37179,9 +37187,9 @@ function SupportPage({ user, companyName, currentCompanyId, active, permissions,
                 </button>
               ))}
             </div>
-          </div>
+              </div>
 
-          <div className="co-support-rail-card p-4">
+              <div className="co-support-rail-card p-4">
             <SectionHeader title="Support rules" description="What Apex HQ will not do from this page." />
             <div className="grid gap-2">
               <div className="co-ai-boundary-row" data-state="manual"><span>Sending</span><strong>Manual only</strong></div>
@@ -37190,16 +37198,18 @@ function SupportPage({ user, companyName, currentCompanyId, active, permissions,
               <div className="co-ai-boundary-row" data-state="manual"><span>Feedback</span><strong>Internal only</strong></div>
               <div className="co-ai-boundary-row" data-state="manual"><span>Custom builds</span><strong>Not promised</strong></div>
             </div>
-          </div>
+              </div>
 
-          {isOfficeUser ? (
-            <div className="co-support-rail-card p-4">
-              <SectionHeader title="Owner tools" description="Office roles can open setup and health tools when included." />
-              <Button type="button" size="sm" variant="secondary" onClick={() => setActive?.("settings")}>Open Settings</Button>
-            </div>
-          ) : null}
-        </aside>
-      </div>
+              {isOfficeUser ? (
+                <div className="co-support-rail-card p-4">
+                  <SectionHeader title="Owner tools" description="Office roles can open setup and health tools when included." />
+                  <Button type="button" size="sm" variant="secondary" onClick={() => setActive?.("settings")}>Open Settings</Button>
+                </div>
+              ) : null}
+            </aside>
+          </div>
+        </DesktopCommandDrawer>
+      </DesktopCommandWorkspaceFrame>
     </div>
   );
 }
