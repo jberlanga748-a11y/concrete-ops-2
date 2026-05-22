@@ -31369,9 +31369,26 @@ textarea {
   }
 
   .co-app-health-page .co-settings-kpi-grid .co-command-kpi {
-    min-height: 4.95rem !important;
-    height: 4.95rem !important;
-    padding: 0.62rem 0.58rem 0.5rem !important;
+    min-height: 5.3rem !important;
+    height: 5.3rem !important;
+    padding: 0.58rem 0.58rem 1.45rem !important;
+  }
+
+  .co-app-health-page .co-settings-kpi-grid .co-command-kpi p:nth-child(3) {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .co-app-health-page .co-settings-kpi-grid .co-command-kpi-link {
+    position: absolute;
+    right: 0.58rem;
+    bottom: 0.36rem;
+    margin-top: 0 !important;
+    min-height: 1.15rem !important;
+    font-size: 0.58rem !important;
+    line-height: 1 !important;
   }
 
   .co-app-health-page .co-settings-command-layout {

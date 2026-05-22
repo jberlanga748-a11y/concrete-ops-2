@@ -37,7 +37,8 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 | Date | Priority | Task | Result | Commit |
 | --- | --- | --- | --- | --- |
-| 2026-05-22 | P3 | Office activity panel extraction | Done; generic recent activity and audit trail panels moved out of `App.jsx` into `src/office-activity-route-components.jsx` with import-boundary coverage, roles/build/customer checks, and focused browser audits passing for command center and settings | This commit |
+| 2026-05-22 | P3 | App Health desktop KPI clipping fix | Done; `/app-health` desktop KPI tiles now keep helper/action content inside the card without visual-audit clipping, while employee routes still redirect to Field Mode | This commit |
+| 2026-05-22 | P3 | Office activity panel extraction | Done; generic recent activity and audit trail panels moved out of `App.jsx` into `src/office-activity-route-components.jsx` with import-boundary coverage, roles/build/customer checks, and focused browser audits passing for command center and settings | `d11f4c0` |
 | 2026-05-22 | P3 | Contact history route component extraction | Done; shared contact history UI moved out of `App.jsx` into `src/contact-history-route-components.jsx` with import-boundary coverage, customer/lead/role/build checks, and browser audits passing for leads, customers, and communications | `ffc9ead` |
 | 2026-05-22 | P2 | Sunday pilot evidence refresh after estimate polish | Done; local Sunday app rehearsal checks passed, Fly demo v164 walkthrough preflight passed, current desktop/tablet/employee route manifests recorded, and real-company outside access remains gated until intake details are supplied | `f9234fc` |
 | 2026-05-22 | P3 | Estimate Studio tablet layout tightening | Done; `/estimates` tablet composition now gives the proposal workbench more width, converts the branded rail into an internal-scroll tablet rail, compacts the assistant dock, and keeps field users blocked | `2024550` |
