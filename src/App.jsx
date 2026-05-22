@@ -23270,6 +23270,7 @@ function CopilotPagePolished({
   foundOpportunities = [],
   contactHistory = [],
   jobs = [],
+  estimates = [],
   queueItems = [],
   jobDraftImports = [],
   dailyReports = [],
@@ -23286,6 +23287,9 @@ function CopilotPagePolished({
   setActive,
   onSelectLead,
   onSelectJob,
+  onOpenEstimate,
+  onOpenEstimatePacket,
+  onOpenEstimateJobHandoff,
   onSelectImportedDraft,
   onSelectReport,
   onCreateOpportunitySearchProfile,
@@ -23654,18 +23658,39 @@ function CopilotPagePolished({
     opportunityScout,
     leads: liveLeads,
     jobs: liveJobs,
+    estimates,
     queueItems: openQueueItems,
     jobDraftImports: liveDrafts,
     dailyReports: visibleReports,
     uploads: visibleUploads,
     agentLearningPreferences,
     fieldOpsAgent,
-  }), [permissions, stats, opportunityScout, liveLeads, liveJobs, openQueueItems, liveDrafts, visibleReports, visibleUploads, agentLearningPreferences, fieldOpsAgent]);
+  }), [permissions, stats, opportunityScout, liveLeads, liveJobs, estimates, openQueueItems, liveDrafts, visibleReports, visibleUploads, agentLearningPreferences, fieldOpsAgent]);
 
   function openAgentCommandTarget(target = {}) {
     if (target.recordType === "agentLearning") {
       document.getElementById("agent-learning-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
+    }
+    if (target.recordType === "estimate" && target.record) {
+      const seed = {
+        estimateId: target.record.id,
+        label: target.title,
+        helper: target.description,
+        type: "estimate",
+      };
+      if (target.actionMode === "jobHandoff" && typeof onOpenEstimateJobHandoff === "function") {
+        onOpenEstimateJobHandoff(seed);
+        return;
+      }
+      if (target.actionMode === "packet" && typeof onOpenEstimatePacket === "function") {
+        onOpenEstimatePacket(seed);
+        return;
+      }
+      if (typeof onOpenEstimate === "function") {
+        onOpenEstimate(target.record.id);
+        return;
+      }
     }
     if (target.recordType === "lead" && target.record) {
       openLead(target.record);
@@ -38797,6 +38822,8 @@ export default function App() {
                 onCreateAgentLearningPreference={handleCreateAgentLearningPreference}
                 onSuggestAgentLearningFromEstimates={handleSuggestAgentLearningFromEstimates}
                 onUpdateAgentLearningPreference={handleUpdateAgentLearningPreference}
+                onOpenEstimatePacket={handleOpenAssistantEstimatePacket}
+                onOpenEstimateJobHandoff={handleOpenAssistantEstimateJobHandoff}
                 onCreateContactHistory={handleCreateContactHistory}
                 onUpdateContactHistory={handleUpdateContactHistory}
                 onArchiveContactHistory={handleArchiveContactHistory}

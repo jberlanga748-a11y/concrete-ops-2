@@ -22,9 +22,27 @@ function jobName(job = {}) {
   return text(job.title || job.name || job.projectName || job.customer || "Job");
 }
 
+function estimateName(estimate = {}) {
+  return text(estimate.title || estimate.project || estimate.customerName || estimate.customer?.name || "Estimate");
+}
+
 function isReportNeedingOfficeReview(report = {}) {
   const status = normalizeStatus(report.status || report.reviewStatus);
   return ["submitted", "needs review", "needs_review"].includes(status);
+}
+
+function isEstimateDraftReview(estimate = {}) {
+  const status = normalizeStatus(estimate.status || "draft");
+  return status === "draft" && !estimate.archivedAt;
+}
+
+function isEstimatePacketReview(estimate = {}) {
+  const status = normalizeStatus(estimate.status || "draft");
+  return ["draft", "sent"].includes(status) && !estimate.archivedAt && !estimate.jobId;
+}
+
+function isEstimateJobHandoffReady(estimate = {}) {
+  return normalizeStatus(estimate.status) === "approved" && !estimate.jobId && !estimate.archivedAt;
 }
 
 function isStartupWatchJob(job = {}) {
@@ -71,6 +89,7 @@ export function deriveAiOfficeAgentCommandCenter({
   jobDraftImports = [],
   dailyReports = [],
   uploads = [],
+  estimates = [],
   agentLearningPreferences = [],
   fieldOpsAgent = null,
 } = {}) {
@@ -92,6 +111,7 @@ export function deriveAiOfficeAgentCommandCenter({
   const visibleDrafts = activeRecords(jobDraftImports);
   const visibleReports = activeRecords(dailyReports);
   const visibleUploads = activeRecords(uploads);
+  const visibleEstimates = activeRecords(estimates);
   const visibleLearning = activeRecords(agentLearningPreferences);
   const scoutStats = opportunityScout?.stats || {};
   const canViewOpportunityScout = Boolean(permissions?.opportunityScout?.canView);
@@ -103,6 +123,9 @@ export function deriveAiOfficeAgentCommandCenter({
   const dueQueueItems = visibleQueueItems.filter((item) => normalizeStatus(item.status) === "due today");
   const startupWatchJobs = visibleJobs.filter(isStartupWatchJob);
   const reportsNeedingReview = visibleReports.filter(isReportNeedingOfficeReview);
+  const draftEstimateReviews = visibleEstimates.filter(isEstimateDraftReview);
+  const packetEstimateReviews = visibleEstimates.filter(isEstimatePacketReview);
+  const jobHandoffEstimateReviews = visibleEstimates.filter(isEstimateJobHandoffReady);
   const missingUploads = Number(stats.fieldProofGaps || 0) || visibleUploads.filter((upload) => !upload.jobId && !upload.reportId).length;
   const readyDrafts = visibleDrafts.filter((draft) => ["ready", "needs review", "imported"].includes(normalizeStatus(draft.status || draft.importStatus || "imported")));
   const readyToBill = visibleJobs.filter((job) => normalizeStatus(job.status || job.stage) === "billing ready").length
@@ -143,6 +166,16 @@ export function deriveAiOfficeAgentCommandCenter({
       tone: toneForCount(startupWatchJobs.length, { active: "amber", highAt: 5 }),
       actionLabel: "Open jobs",
       moduleId: "jobs",
+    } : null,
+    permissions?.estimates?.canView || permissions?.estimates?.canManage ? {
+      id: "estimate-action-agent",
+      title: "Estimate Action Agent",
+      helper: "Review draft estimates, proposal packets, and approved estimate-to-job handoffs before any human-approved draft prep.",
+      icon: "document",
+      badge: `${draftEstimateReviews.length + jobHandoffEstimateReviews.length} estimate actions`,
+      tone: jobHandoffEstimateReviews.length ? "green" : draftEstimateReviews.length ? "amber" : "slate",
+      actionLabel: "Open estimates",
+      moduleId: "estimates",
     } : null,
     permissions?.reports?.canView || permissions?.uploads?.canView ? {
       id: "proof-closeout",
@@ -221,6 +254,45 @@ export function deriveAiOfficeAgentCommandCenter({
       moduleId: "commandCenter",
       recordType: "queue",
       record: item,
+    })),
+    ...jobHandoffEstimateReviews.slice(0, 2).map((estimate) => ({
+      id: `estimate-handoff-${estimate.id}`,
+      eyebrow: "Estimate to job handoff",
+      title: estimateName(estimate),
+      description: "Approved estimate is ready for reviewed draft job prep. No schedule, crew, field visibility, send, invoice, or billing action happens here.",
+      tone: "green",
+      icon: "briefcase",
+      actionLabel: "Review handoff",
+      moduleId: "estimates",
+      recordType: "estimate",
+      actionMode: "jobHandoff",
+      record: estimate,
+    })),
+    ...draftEstimateReviews.slice(0, 2).map((estimate) => ({
+      id: `estimate-draft-${estimate.id}`,
+      eyebrow: "Draft estimate review",
+      title: estimateName(estimate),
+      description: "Draft estimate needs scope, options, packet, takeoff, or pricing review before it is sent.",
+      tone: "amber",
+      icon: "document",
+      actionLabel: "Open estimate",
+      moduleId: "estimates",
+      recordType: "estimate",
+      actionMode: "packet",
+      record: estimate,
+    })),
+    ...packetEstimateReviews.filter((estimate) => !draftEstimateReviews.some((draft) => draft.id === estimate.id)).slice(0, 1).map((estimate) => ({
+      id: `estimate-packet-${estimate.id}`,
+      eyebrow: "Proposal packet review",
+      title: estimateName(estimate),
+      description: "Review proposal packet content, attachments, and customer-facing summary before any manual send.",
+      tone: "blue",
+      icon: "document",
+      actionLabel: "Review packet",
+      moduleId: "estimates",
+      recordType: "estimate",
+      actionMode: "packet",
+      record: estimate,
     })),
     ...(canViewOpportunityScout ? asArray(opportunityScout.foundOpportunityQueue).slice(0, 3).map((opportunity) => ({
       id: `found-${opportunity.id || opportunity.opportunityId}`,
@@ -323,6 +395,9 @@ export function deriveAiOfficeAgentCommandCenter({
       approvedLeads: approvedLeads.length,
       startupWatchJobs: startupWatchJobs.length,
       reportsNeedingReview: reportsNeedingReview.length,
+      draftEstimateReviews: draftEstimateReviews.length,
+      packetEstimateReviews: packetEstimateReviews.length,
+      jobHandoffEstimateReviews: jobHandoffEstimateReviews.length,
       missingUploads,
       readyDrafts: readyDrafts.length,
       readyToBill,

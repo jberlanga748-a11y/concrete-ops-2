@@ -10,6 +10,7 @@ test("AI Office agent command center builds role-safe review lanes from visible 
       opportunityScout: { canView: true },
       leads: { canView: true },
       jobs: { canView: true, canManageAll: true },
+      estimates: { canView: true, canManage: true },
       reports: { canView: true, canReview: true },
       uploads: { canView: true, canManageAll: true },
       customers: { canView: true },
@@ -29,6 +30,10 @@ test("AI Office agent command center builds role-safe review lanes from visible 
       { id: "LEAD-2", customer: "Approved GC", status: "Approved" },
     ],
     jobs: [{ id: "JOB-1", title: "Westview Warehouse", status: "scheduled", startupStatus: "Needs Review" }],
+    estimates: [
+      { id: "EST-APPROVED", title: "Approved warehouse slab", status: "approved" },
+      { id: "EST-DRAFT", title: "Draft patio estimate", status: "draft" },
+    ],
     queueItems: [{ id: "Q-1", title: "Blocked proof", status: "Blocked" }],
     jobDraftImports: [{ id: "DRAFT-1", jobName: "Imported slab", status: "Ready" }],
     dailyReports: [{ id: "REPORT-1", status: "Submitted", jobTitle: "Westview Warehouse" }],
@@ -60,16 +65,21 @@ test("AI Office agent command center builds role-safe review lanes from visible 
   assert.equal(state.modeLabel, "Review-first");
   assert.equal(state.workflowCards.some((card) => card.id === "opportunity-scout"), true);
   assert.equal(state.workflowCards.some((card) => card.id === "proof-closeout"), true);
+  assert.equal(state.workflowCards.some((card) => card.id === "estimate-action-agent"), true);
   assert.equal(state.workflowCards.some((card) => card.id === "field-ops-agent"), true);
   assert.equal(state.workflowCards.some((card) => card.id === "release-readiness"), true);
   assert.equal(state.workflowCards.some((card) => card.id === "agent-learning"), true);
   assert.equal(state.focusRows[0].id, "learning-ALP-1");
   assert.equal(state.focusRows[1].id, "queue-Q-1");
+  assert.equal(state.focusRows.some((row) => row.id === "estimate-handoff-EST-APPROVED" && row.actionMode === "jobHandoff"), true);
+  assert.equal(state.focusRows.some((row) => row.id === "estimate-draft-EST-DRAFT" && row.actionMode === "packet"), true);
   assert.equal(state.focusRows.some((row) => row.recordType === "fieldOps" && row.moduleId === "incidents"), true);
   assert.equal(state.focusRows.some((row) => row.recordType === "report" && row.moduleId === "reports"), true);
   assert.equal(state.counts.readyToBill, 1);
   assert.equal(state.counts.fieldOpsReview, 2);
   assert.equal(state.counts.suggestedLearning, 1);
+  assert.equal(state.counts.jobHandoffEstimateReviews, 1);
+  assert.equal(state.counts.draftEstimateReviews, 1);
   assert.match(state.summary, /routes into an existing Apex HQ workflow/i);
   assert.equal(state.guardrails.some((item) => /No auto-send/i.test(item.detail)), true);
 });
