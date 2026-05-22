@@ -2318,8 +2318,8 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
   const [draftActionState, setDraftActionState] = useState({ leadId: "", status: "idle", message: "" });
   const [sendReviewState, setSendReviewState] = useState({ estimateId: "", status: "idle", message: "" });
   const actionProposal = useMemo(() => (
-    response ? buildAgentActionProposal(response, { permissions }) : null
-  ), [permissions, response]);
+    response ? buildAgentActionProposal(response, { permissions, workflowContext: commandContext.agentWorkflowContext }) : null
+  ), [commandContext.agentWorkflowContext, permissions, response]);
   const proposalAuditHistory = useMemo(() => (
     deriveAgentActionProposalAuditHistory(commandContext.auditEvents, {
       canView: Boolean(permissions.audit?.canView),
@@ -2712,6 +2712,27 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
                       </Badge>
                     </div>
                     <p className="mt-2 text-xs font-bold leading-5 text-slate-300">{actionProposal.allowedNextStep}</p>
+                    {actionProposal.contextProof ? (
+                      <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.05] p-2">
+                        <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Context proof</p>
+                            <p className="mt-1 text-xs font-bold leading-5 text-slate-300">
+                              {actionProposal.contextProof.source === "server" ? "Synced server context" : "Visible app context"}
+                              {actionProposal.contextProof.visibleModuleCount ? ` - ${actionProposal.contextProof.visibleModuleCount} visible areas` : ""}
+                              {actionProposal.contextProof.attentionCount ? ` - ${actionProposal.contextProof.attentionCount} review signals` : ""}
+                            </p>
+                          </div>
+                          {actionProposal.contextProof.requestId ? <Badge tone="blue">API</Badge> : <Badge tone="slate">Read-only</Badge>}
+                        </div>
+                        {actionProposal.contextProof.module ? (
+                          <p className="mt-2 text-xs font-bold leading-5 text-slate-300">
+                            {actionProposal.contextProof.module.label}: {actionProposal.contextProof.module.summary || "Visible for review-first context."}
+                          </p>
+                        ) : null}
+                        <p className="mt-1 text-[11px] font-bold leading-5 text-slate-400">{actionProposal.contextProof.safetyBoundary}</p>
+                      </div>
+                    ) : null}
                     {permissions.audit?.canView ? (
                       <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.05] p-2">
                         <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">

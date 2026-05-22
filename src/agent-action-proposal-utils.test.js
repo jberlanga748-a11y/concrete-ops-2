@@ -98,6 +98,58 @@ test("agent action proposal exposes workflow draft prep as review-only output", 
   assert.equal(validateAgentActionProposalSafety(proposal).ok, true);
 });
 
+test("agent action proposal hydrates review packets with read-only server context", () => {
+  const proposal = buildAgentActionProposal({
+    type: "workflow-draft-prep",
+    moduleId: "reports",
+    actionLabel: "Open reports",
+    message: "Prepare review notes. Nothing is saved.",
+    draftPacket: {
+      title: "Close proof gaps draft packet",
+      summary: "Prepare review notes for Open reports.",
+      target: { id: "next-proof", moduleId: "reports", actionLabel: "Open reports", title: "Close proof gaps" },
+      items: [{ label: "Human next step", detail: "Open reports and review proof." }],
+      blockedActions: ["No customer email, text, call, notification, bid submission, or proposal send"],
+      safetyBoundary: "Draft prep only. Nothing is saved, sent, approved, converted, scheduled, invoiced, or changed.",
+    },
+  }, {
+    permissions: {
+      aiOffice: { canView: true },
+      reports: { canView: true },
+    },
+    workflowContext: {
+      source: "server",
+      mode: "server_read_only_review_first",
+      requestId: "REQ-123",
+      generatedAt: "2026-05-22T05:00:00.000Z",
+      visibleModuleCount: 4,
+      attentionCount: 7,
+      summary: "Server context shows proof gaps.",
+      safetyBoundary: "Read-only server context. No records are changed.",
+      modules: [{
+        id: "proof",
+        moduleId: "reports",
+        label: "Proof Engine",
+        canView: true,
+        count: 12,
+        needsAttention: 3,
+        summary: "3 proof items need review.",
+        nextActionLabel: "Open reports",
+        records: [{ id: "REPORT-1", label: "Westview Daily Report", status: "Submitted" }],
+      }],
+      topActions: [{ moduleId: "reports", actionLabel: "Open reports", label: "Proof Engine", count: 3 }],
+    },
+  });
+
+  assert.equal(proposal.contextProof.source, "server");
+  assert.equal(proposal.contextProof.requestId, "REQ-123");
+  assert.equal(proposal.contextProof.module.label, "Proof Engine");
+  assert.equal(proposal.contextProof.module.records[0].label, "Westview Daily Report");
+  assert.ok(proposal.reviewChecklist.some((item) => /synced server context/i.test(item)));
+  assert.ok(proposal.draftPrep[0].fields.some((item) => /Context: server/i.test(item)));
+  assert.equal(validateAgentActionProposalSafety(proposal).ok, true);
+});
+
 test("agent action proposal treats daily ops briefs as auditable review packets", () => {
   const proposal = buildAgentActionProposal({
     type: "daily-ops-brief",

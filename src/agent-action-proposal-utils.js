@@ -231,7 +231,74 @@ function buildAgentDraftPrep(response = {}) {
   return [];
 }
 
-export function buildAgentActionProposal(response = {}, { permissions = {} } = {}) {
+function contextModuleMatchesTarget(module = {}, moduleId = "") {
+  const target = text(moduleId).toLowerCase();
+  if (!target) return false;
+  return [module.id, module.moduleId, module.key]
+    .map((value) => text(value).toLowerCase())
+    .filter(Boolean)
+    .includes(target);
+}
+
+function buildAgentActionContextProof(response = {}, workflowContext = null) {
+  if (!workflowContext || typeof workflowContext !== "object") return null;
+  const moduleId = targetModuleId(response);
+  const modules = asArray(workflowContext.modules).filter((module) => module?.canView !== false);
+  const matchedModule = modules.find((module) => contextModuleMatchesTarget(module, moduleId))
+    || modules.find((module) => asArray(workflowContext.topActions).some((action) => (
+      contextModuleMatchesTarget(module, action?.moduleId)
+      && text(action?.moduleId).toLowerCase() === text(moduleId).toLowerCase()
+    )))
+    || null;
+  const source = text(workflowContext.source) || ((workflowContext.mode || "").includes("server") ? "server" : "local");
+
+  return {
+    mode: "read_only_context_proof",
+    source,
+    requestId: text(workflowContext.requestId),
+    generatedAt: text(workflowContext.generatedAt),
+    visibleModuleCount: Number(workflowContext.visibleModuleCount || modules.length || 0),
+    attentionCount: Number(workflowContext.attentionCount || 0),
+    summary: text(workflowContext.summary),
+    safetyBoundary: text(workflowContext.safetyBoundary || "Read-only context. No records are changed."),
+    module: matchedModule ? {
+      id: text(matchedModule.id || matchedModule.moduleId),
+      moduleId: text(matchedModule.moduleId || matchedModule.id),
+      label: text(matchedModule.label || matchedModule.id || "Workflow"),
+      count: Number(matchedModule.count || 0),
+      needsAttention: Number(matchedModule.needsAttention || 0),
+      summary: text(matchedModule.summary),
+      nextActionLabel: text(matchedModule.nextActionLabel),
+      records: asArray(matchedModule.records).slice(0, 3).map((record) => ({
+        id: text(record.id || record.label),
+        label: text(record.label || record.title || record.name || record.id || "Record"),
+        status: text(record.status || record.state || record.reviewStatus || "Review"),
+      })),
+    } : null,
+    topActions: asArray(workflowContext.topActions).slice(0, 3).map((action) => ({
+      moduleId: text(action.moduleId),
+      actionLabel: text(action.actionLabel || action.label || "Open workflow"),
+      label: text(action.label || action.title || action.moduleId || "Workflow"),
+      count: Number(action.count || 0),
+    })),
+  };
+}
+
+function hydrateDraftPrepWithContext(draftPrep = [], contextProof = null) {
+  if (!contextProof) return draftPrep;
+  const contextFields = [
+    contextProof.source ? `Context: ${contextProof.source}` : "",
+    contextProof.visibleModuleCount ? `Visible areas: ${contextProof.visibleModuleCount}` : "",
+    contextProof.attentionCount ? `Review signals: ${contextProof.attentionCount}` : "",
+  ].filter(Boolean);
+  if (!contextFields.length) return draftPrep;
+  return asArray(draftPrep).map((item) => ({
+    ...item,
+    fields: [...asArray(item.fields), ...contextFields].slice(0, 6),
+  }));
+}
+
+export function buildAgentActionProposal(response = {}, { permissions = {}, workflowContext = null } = {}) {
   if (!response || typeof response !== "object") {
     return null;
   }
@@ -242,6 +309,15 @@ export function buildAgentActionProposal(response = {}, { permissions = {} } = {
   const actionLabel = targetLabel(response);
   const typeLabel = TYPE_LABELS[response.type] || "Workflow review";
   const count = matchCount(response);
+  const contextProof = buildAgentActionContextProof(response, workflowContext);
+  const reviewChecklist = [
+    "Read the assistant summary",
+    count ? `Review ${count} matched item${count === 1 ? "" : "s"} or checklist row${count === 1 ? "" : "s"}` : "Confirm the target workflow and record",
+    contextProof ? `Confirm ${contextProof.source === "server" ? "synced server" : "visible app"} context before acting` : "",
+    "Confirm role/package access in the existing screen",
+    "Use the normal Apex HQ button only if you approve the action",
+  ].filter(Boolean);
+  const draftPrep = hydrateDraftPrepWithContext(buildAgentDraftPrep(response), contextProof);
 
   return {
     id: `agent-proposal:${response.type || "unknown"}:${moduleId || "none"}`,
@@ -256,14 +332,10 @@ export function buildAgentActionProposal(response = {}, { permissions = {} } = {
     allowedNextStep: status === "blocked"
       ? "Open an allowed Apex HQ workspace route and complete any action manually."
       : `Open ${actionLabel} and review the existing workflow before changing anything.`,
-    reviewChecklist: [
-      "Read the assistant summary",
-      count ? `Review ${count} matched item${count === 1 ? "" : "s"} or checklist row${count === 1 ? "" : "s"}` : "Confirm the target workflow and record",
-      "Confirm role/package access in the existing screen",
-      "Use the normal Apex HQ button only if you approve the action",
-    ],
+    reviewChecklist,
     blockedActions: blockedActionsForResponse(response),
-    draftPrep: buildAgentDraftPrep(response),
+    draftPrep,
+    contextProof,
     proof: {
       commandType: response.type || "unknown",
       commandText: text(response.commandText),
