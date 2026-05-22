@@ -26,6 +26,7 @@ Latest launch gate snapshot, 2026-05-21T10:10:57Z:
 | Artifact | Purpose |
 | --- | --- |
 | `docs/apex-hq-first-fencing-pilot-packet.md` | Founder-review packet for the first fencing walkthrough. |
+| `docs/apex-hq-pwa-install-walkthrough.md` | Phone/tablet install guide for the Sunday pilot, including role-safe first-launch checks and offline limitation language. |
 | `docs/apex-hq-fencing-first-walkthrough-readiness-report.md` | Latest Fly demo route, tablet, phone, role, and smoke evidence. |
 | `docs/apex-hq-fencing-pilot-intake-gate.md` | Pre-login setup gate before outside access is considered. |
 | `docs/apex-hq-fencing-pilot-checkin-packet.md` | Day 3 and Day 10 check-in questions and scorecard. |
