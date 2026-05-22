@@ -212,7 +212,7 @@ import {
 import { buildEstimateLineItemsFromRoughNotes } from "./estimate-template-utils";
 import { deriveCustomerPortalPreviewState } from "./customer-portal-preview-utils";
 import { deriveFieldOpsAgentState } from "./field-ops-agent-utils";
-import { FieldActionGrid, FieldMobileQuickNav, getFieldMobileNavItems } from "./field-route-components";
+import { FieldActionGrid, FieldDetailDisclosure, FieldMobileQuickNav, FieldWorkspaceDisclosure, getFieldMobileNavItems } from "./field-route-components";
 import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspace-utils";
 import { deriveFollowUpQueueState, filterFollowUpQueueItems, FOLLOW_UP_QUEUE_GROUPS, FOLLOW_UP_QUEUE_TYPE_FILTERS } from "./follow-up-queue-utils";
 import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobTitle, normalizeJobStatus } from "./job-utils";
@@ -4218,51 +4218,6 @@ function humanizeAssignmentRole(roleOnJob = "") {
   const normalized = String(roleOnJob || "").replaceAll("_", " ").trim().toLowerCase();
   if (!normalized) return "Crew";
   return normalized.replace(/\b\w/g, (character) => character.toUpperCase());
-}
-
-function FieldDetailDisclosure({ title, summary, children, defaultOpen = false }) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
-
-  return (
-    <div className="co-mobile-field-group rounded-2xl border border-blue-100 bg-white">
-      <button type="button" className="flex w-full cursor-pointer items-center justify-between gap-3 px-4 py-3 text-left" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
-        <span className="min-w-0">
-          <span className="block text-sm font-black text-slate-950">{title}</span>
-          {summary ? <span className="mt-1 block break-words text-xs font-bold leading-5 text-slate-500">{summary}</span> : null}
-        </span>
-        <span className="co-mobile-toggle-pill shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-blue-700">{isOpen ? "Hide ^" : "Show v"}</span>
-      </button>
-      {isOpen ? <div className="border-t border-blue-100 p-4">
-        {children}
-      </div> : null}
-    </div>
-  );
-}
-
-function FieldWorkspaceDisclosure({ title, description, badge, defaultOpen = false, children }) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
-
-  useEffect(() => {
-    if (defaultOpen) setIsOpen(true);
-  }, [defaultOpen]);
-
-  return (
-    <div className="co-mobile-accordion panel-sheen w-full min-w-0 max-w-full rounded-3xl border border-blue-100 bg-white/95 shadow-panel">
-      <button type="button" className="flex w-full cursor-pointer items-start justify-between gap-3 p-5 text-left" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
-        <span className="min-w-0">
-          <span className="block text-base font-black text-slate-950">{title}</span>
-          {description ? <span className="mt-1 block break-words text-sm leading-5 text-slate-500">{description}</span> : null}
-        </span>
-        <span className="flex shrink-0 items-center gap-2">
-          {badge ? <Badge tone="slate">{badge}</Badge> : null}
-          <span className="co-mobile-toggle-pill rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-blue-700">{isOpen ? "Hide ^" : "Show v"}</span>
-        </span>
-      </button>
-      {isOpen ? <div className="border-t border-blue-100 p-5">
-        {children}
-      </div> : null}
-    </div>
-  );
 }
 
 function FieldJobSummaryCard({ job, selected, onSelect, note = "" }) {
