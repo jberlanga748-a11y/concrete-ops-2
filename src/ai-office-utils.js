@@ -71,6 +71,7 @@ export function deriveAiOfficeAgentCommandCenter({
   jobDraftImports = [],
   dailyReports = [],
   uploads = [],
+  agentLearningPreferences = [],
   fieldOpsAgent = null,
 } = {}) {
   if (!canUseAiOfficeAgentCommand(permissions)) {
@@ -91,8 +92,10 @@ export function deriveAiOfficeAgentCommandCenter({
   const visibleDrafts = activeRecords(jobDraftImports);
   const visibleReports = activeRecords(dailyReports);
   const visibleUploads = activeRecords(uploads);
+  const visibleLearning = activeRecords(agentLearningPreferences);
   const scoutStats = opportunityScout?.stats || {};
   const canViewOpportunityScout = Boolean(permissions?.opportunityScout?.canView);
+  const canManageLearning = Boolean(permissions?.aiOffice?.canManageLearning);
   const newLeads = visibleLeads.filter((lead) => normalizeStatus(lead.status || "new") === "new");
   const highPriorityLeads = visibleLeads.filter((lead) => normalizeStatus(lead.priority) === "high");
   const approvedLeads = visibleLeads.filter((lead) => ["approved", "converted"].includes(normalizeStatus(lead.status)));
@@ -104,6 +107,8 @@ export function deriveAiOfficeAgentCommandCenter({
   const readyDrafts = visibleDrafts.filter((draft) => ["ready", "needs review", "imported"].includes(normalizeStatus(draft.status || draft.importStatus || "imported")));
   const readyToBill = visibleJobs.filter((job) => normalizeStatus(job.status || job.stage) === "billing ready").length
     || Number(stats.jobsReadyToBill || stats.moneyReadyItems || 0);
+  const suggestedLearning = visibleLearning.filter((entry) => normalizeStatus(entry.status) === "suggested");
+  const approvedLearning = visibleLearning.filter((entry) => normalizeStatus(entry.status) === "approved");
   const fieldOpsStats = fieldOpsAgent?.stats || {};
   const fieldOpsItems = fieldOpsAgent?.canView ? asArray(fieldOpsAgent.items) : [];
   const fieldOpsReviewCount = Number(fieldOpsStats.total || fieldOpsItems.length || 0);
@@ -179,9 +184,32 @@ export function deriveAiOfficeAgentCommandCenter({
       actionLabel: "Open App Health",
       moduleId: "appHealth",
     } : null,
+    canManageLearning ? {
+      id: "agent-learning",
+      title: "Apex Learning Queue",
+      helper: "Review contractor preferences suggested from approved work before they become active AI memory.",
+      icon: "spark",
+      badge: suggestedLearning.length ? `${suggestedLearning.length} suggested` : `${approvedLearning.length} approved`,
+      tone: suggestedLearning.length ? "amber" : approvedLearning.length ? "green" : "slate",
+      actionLabel: "Review memory",
+      moduleId: "copilot",
+      recordType: "agentLearning",
+    } : null,
   ].filter(Boolean);
 
   const focusRows = [
+    ...suggestedLearning.slice(0, 3).map((entry) => ({
+      id: `learning-${entry.id}`,
+      eyebrow: "Learning approval",
+      title: entry.title || "Apex memory suggestion",
+      description: entry.preference || "Review this contractor preference before Apex uses it in future drafts.",
+      tone: "amber",
+      icon: "spark",
+      actionLabel: "Review memory",
+      moduleId: "copilot",
+      recordType: "agentLearning",
+      record: entry,
+    })),
     ...blockedQueueItems.slice(0, 2).map((item) => ({
       id: `queue-${item.id}`,
       eyebrow: "Blocked office queue",
@@ -298,6 +326,8 @@ export function deriveAiOfficeAgentCommandCenter({
       missingUploads,
       readyDrafts: readyDrafts.length,
       readyToBill,
+      suggestedLearning: suggestedLearning.length,
+      approvedLearning: approvedLearning.length,
       scoutChecksNeeded: scoutStats.checksNeeded || 0,
       openFoundOpportunities: scoutStats.openFoundOpportunities || 0,
       fieldOpsReview: fieldOpsReviewCount,

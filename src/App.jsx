@@ -23658,10 +23658,15 @@ function CopilotPagePolished({
     jobDraftImports: liveDrafts,
     dailyReports: visibleReports,
     uploads: visibleUploads,
+    agentLearningPreferences,
     fieldOpsAgent,
-  }), [permissions, stats, opportunityScout, liveLeads, liveJobs, openQueueItems, liveDrafts, visibleReports, visibleUploads, fieldOpsAgent]);
+  }), [permissions, stats, opportunityScout, liveLeads, liveJobs, openQueueItems, liveDrafts, visibleReports, visibleUploads, agentLearningPreferences, fieldOpsAgent]);
 
   function openAgentCommandTarget(target = {}) {
+    if (target.recordType === "agentLearning") {
+      document.getElementById("agent-learning-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
     if (target.recordType === "lead" && target.record) {
       openLead(target.record);
       return;
@@ -24555,7 +24560,7 @@ function CopilotPagePolished({
         </div>
 
         <aside className="co-ai-right-rail min-w-0">
-          <Card className="co-ai-rail-card">
+          <Card id="agent-learning-panel" className="co-ai-rail-card">
             <SectionHeader title="Office Guardrails" description="Apex HQ AI stays inside office workflows and saved records." />
             <div className="co-ai-boundary-list">
               <div className="co-ai-boundary-row" data-state="safe">

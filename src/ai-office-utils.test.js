@@ -6,7 +6,7 @@ import { deriveAiOfficeAgentCommandCenter } from "./ai-office-utils.js";
 test("AI Office agent command center builds role-safe review lanes from visible context", () => {
   const state = deriveAiOfficeAgentCommandCenter({
     permissions: {
-      aiOffice: { canView: true },
+      aiOffice: { canView: true, canManageLearning: true },
       opportunityScout: { canView: true },
       leads: { canView: true },
       jobs: { canView: true, canManageAll: true },
@@ -33,6 +33,10 @@ test("AI Office agent command center builds role-safe review lanes from visible 
     jobDraftImports: [{ id: "DRAFT-1", jobName: "Imported slab", status: "Ready" }],
     dailyReports: [{ id: "REPORT-1", status: "Submitted", jobTitle: "Westview Warehouse" }],
     uploads: [{ id: "UPLOAD-1", fileName: "finish.jpg" }],
+    agentLearningPreferences: [
+      { id: "ALP-1", title: "Fence proposal tone", preference: "Use concise fence proposal language.", status: "suggested" },
+      { id: "ALP-2", title: "Approved concrete memory", preference: "Use broom finish as base.", status: "approved" },
+    ],
     fieldOpsAgent: {
       canView: true,
       roleScope: "Company field risk",
@@ -58,11 +62,14 @@ test("AI Office agent command center builds role-safe review lanes from visible 
   assert.equal(state.workflowCards.some((card) => card.id === "proof-closeout"), true);
   assert.equal(state.workflowCards.some((card) => card.id === "field-ops-agent"), true);
   assert.equal(state.workflowCards.some((card) => card.id === "release-readiness"), true);
-  assert.equal(state.focusRows[0].id, "queue-Q-1");
+  assert.equal(state.workflowCards.some((card) => card.id === "agent-learning"), true);
+  assert.equal(state.focusRows[0].id, "learning-ALP-1");
+  assert.equal(state.focusRows[1].id, "queue-Q-1");
   assert.equal(state.focusRows.some((row) => row.recordType === "fieldOps" && row.moduleId === "incidents"), true);
   assert.equal(state.focusRows.some((row) => row.recordType === "report" && row.moduleId === "reports"), true);
   assert.equal(state.counts.readyToBill, 1);
   assert.equal(state.counts.fieldOpsReview, 2);
+  assert.equal(state.counts.suggestedLearning, 1);
   assert.match(state.summary, /routes into an existing Apex HQ workflow/i);
   assert.equal(state.guardrails.some((item) => /No auto-send/i.test(item.detail)), true);
 });
