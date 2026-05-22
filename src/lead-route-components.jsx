@@ -1,10 +1,22 @@
+import { useState } from "react";
+
 import { missingInfoTone } from "../shared/leadMissingInfo.js";
 import { leadScoreTone } from "../shared/leadScoring.js";
-import { Badge, Icon, StatusBadge } from "./app-shell-components";
+import { Badge, Button, Icon, StatusBadge } from "./app-shell-components";
 import { deriveLeadPilotWorkflowReadiness } from "./lead-utils";
 
 function todayDateInputValue() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function formatDateTime(value) {
+  if (!value) return "Not recorded";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return String(value);
+  return new Intl.DateTimeFormat("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(parsed);
 }
 
 export function leadSourceLabel(source) {
@@ -59,6 +71,220 @@ export function LeadMissingInfoBadge({ lead }) {
   const count = Number(lead.missingInfoCount || 0);
   const label = lead.missingInfoStatus === "Complete" ? "Info complete" : `Needs ${count} item${count === 1 ? "" : "s"}`;
   return <Badge tone={missingInfoTone(lead.missingInfoStatus || count)}>{label}</Badge>;
+}
+
+export function LeadScoreCard({ lead, canManage = false, disabled = false, onScoreLead = () => {} }) {
+  const hasScore = leadHasScore(lead);
+  const risks = Array.isArray(lead?.fitRisks) ? lead.fitRisks : [];
+  return (
+    <div className="rounded-3xl border border-blue-100 bg-blue-50/60 p-4">
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-black text-slate-950">Rule-based lead score</p>
+            <LeadScoreBadge lead={lead} />
+            {hasScore ? <Badge tone="slate">Rule-Based</Badge> : null}
+          </div>
+          <p className="mt-1 text-sm leading-6 text-slate-600">
+            {hasScore ? lead.fitReason || "Local rules scored this lead." : "Score this lead with local business rules. No AI, scraping, or external calls are used."}
+          </p>
+        </div>
+        {canManage ? (
+          <Button type="button" className="w-full sm:w-auto" onClick={() => onScoreLead(lead)} disabled={disabled || Boolean(lead.archivedAt)}>
+            {hasScore ? "Re-score Lead" : "Score Lead"}
+          </Button>
+        ) : null}
+      </div>
+      {hasScore ? (
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          <div className="rounded-2xl border border-blue-100 bg-white p-3">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Recommended next step</p>
+            <p className="mt-1 text-sm font-bold leading-6 text-slate-700">{lead.fitNextStep || "Review and choose the next office step."}</p>
+          </div>
+          <div className="rounded-2xl border border-blue-100 bg-white p-3">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Risks / missing info</p>
+            {risks.length > 0 ? (
+              <ul className="mt-1 space-y-1 text-sm font-bold leading-6 text-slate-700">
+                {risks.slice(0, 4).map((risk) => <li key={risk}>- {risk}</li>)}
+              </ul>
+            ) : (
+              <p className="mt-1 text-sm font-bold text-emerald-700">No major rule-based risks found.</p>
+            )}
+          </div>
+          <p className="text-xs font-bold text-slate-500 md:col-span-2">Scored {formatDateTime(lead.scoredAt)}. Scores are office-only and based on saved lead/source fields.</p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export function LeadMissingInfoCard({ lead, canManage = false, disabled = false, onCheckMissingInfo = () => {} }) {
+  const hasCheck = leadHasMissingInfoCheck(lead);
+  const items = Array.isArray(lead?.missingInfoItems) ? lead.missingInfoItems : [];
+  const required = items.filter((item) => item.severity === "required");
+  const recommended = items.filter((item) => item.severity === "recommended");
+  const optional = items.filter((item) => item.severity === "optional");
+
+  function MissingGroup({ title, rows, tone }) {
+    if (rows.length === 0) return null;
+    return (
+      <div className="rounded-2xl border border-blue-100 bg-white p-3">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">{title}</p>
+          <Badge tone={tone}>{rows.length}</Badge>
+        </div>
+        <div className="space-y-2">
+          {rows.slice(0, 5).map((item) => (
+            <div key={item.key} className="rounded-2xl border border-blue-50 bg-blue-50/50 p-3">
+              <p className="text-sm font-black text-slate-950">{item.label}</p>
+              <p className="mt-1 text-xs font-bold leading-5 text-slate-600">{item.reason}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-3xl border border-amber-100 bg-amber-50/60 p-4">
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-black text-slate-950">Missing Info Checker</p>
+            <LeadMissingInfoBadge lead={lead} />
+            <Badge tone="slate">Rule-Based</Badge>
+          </div>
+          <p className="mt-1 text-sm leading-6 text-slate-600">
+            {hasCheck ? lead.missingInfoNextStep || "Review missing lead details before estimating." : "Check required and recommended lead details before spending time estimating or following up."}
+          </p>
+        </div>
+        {canManage ? (
+          <Button type="button" className="w-full sm:w-auto" onClick={() => onCheckMissingInfo(lead)} disabled={disabled || Boolean(lead.archivedAt)}>
+            {hasCheck ? "Re-check Missing Info" : "Check Missing Info"}
+          </Button>
+        ) : null}
+      </div>
+      {hasCheck ? (
+        <div className="mt-3 space-y-3">
+          {lead.missingInfoStatus === "Needs Info" ? (
+            <p className="rounded-2xl border border-amber-100 bg-white px-3 py-2 text-sm font-black text-amber-800">Fill missing info before estimating.</p>
+          ) : (
+            <p className="rounded-2xl border border-emerald-100 bg-white px-3 py-2 text-sm font-black text-emerald-800">Core lead info is complete enough for office follow-up or estimating.</p>
+          )}
+          <div className="grid gap-3 lg:grid-cols-3">
+            <MissingGroup title="Required" rows={required} tone="red" />
+            <MissingGroup title="Recommended" rows={recommended} tone="amber" />
+            <MissingGroup title="Optional" rows={optional} tone="slate" />
+          </div>
+          {items.length === 0 ? <p className="text-sm font-bold text-emerald-700">No missing items found.</p> : null}
+          <p className="text-xs font-bold text-slate-500">Checked {formatDateTime(lead.missingInfoCheckedAt)}. Missing info checks are office-only and use saved lead/source fields.</p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export function LeadAiAssistantCard({ lead, canManage = false, disabled = false, assistant = null, onGenerateLeadAssistant = () => {} }) {
+  const [copyMessage, setCopyMessage] = useState("");
+  if (!canManage) return null;
+
+  const result = assistant?.result || null;
+  const loading = Boolean(assistant?.loading);
+  const message = assistant?.error || result?.message || "";
+  const generated = Boolean(result?.configured && result?.ok);
+  const unavailable = Boolean(message && !generated);
+
+  async function copyText(label, value) {
+    if (!value) return;
+    if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+      setCopyMessage("Copy is not available in this browser. Select the draft text and copy it manually.");
+      return;
+    }
+    await navigator.clipboard.writeText(value);
+    setCopyMessage(`${label} copied.`);
+  }
+
+  function DraftBlock({ title, value, copyLabel }) {
+    if (!value) return null;
+    return (
+      <div className="rounded-2xl border border-blue-100 bg-white p-3">
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">{title}</p>
+          <Button type="button" size="sm" variant="secondary" onClick={() => copyText(copyLabel || title, value)}>Copy</Button>
+        </div>
+        <p className="mt-2 whitespace-pre-wrap text-sm font-bold leading-6 text-slate-700">{value}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-3xl border border-sky-100 bg-sky-50/60 p-4">
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-black text-slate-950">AI Lead Assistant</p>
+            <Badge tone="blue">Draft only</Badge>
+            <Badge tone="slate">Office review</Badge>
+          </div>
+          <p className="mt-1 text-sm leading-6 text-slate-600">
+            Generate review-only lead help: summary, next step, missing info questions, email/SMS drafts, call script, and estimating handoff notes. Nothing is sent.
+          </p>
+        </div>
+        <Button type="button" className="w-full sm:w-auto" onClick={() => onGenerateLeadAssistant(lead)} disabled={disabled || loading || Boolean(lead.archivedAt)}>
+          {loading ? "Generating..." : generated ? "Regenerate" : "Generate AI Lead Drafts"}
+        </Button>
+      </div>
+
+      {unavailable ? (
+        <p className="mt-3 rounded-2xl border border-amber-100 bg-white px-3 py-2 text-sm font-bold text-amber-800">{message}</p>
+      ) : null}
+
+      {generated ? (
+        <div className="mt-3 space-y-3">
+          <div className="grid gap-3 lg:grid-cols-2">
+            <div className="rounded-2xl border border-blue-100 bg-white p-3">
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">AI summary</p>
+              <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{result.leadSummary || "Review the lead details before follow-up."}</p>
+            </div>
+            <div className="rounded-2xl border border-blue-100 bg-white p-3">
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Recommended next step</p>
+              <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{result.recommendedNextStep || "Choose the next office action."}</p>
+              {result.suggestedFollowUpTiming ? <p className="mt-2 text-xs font-bold text-slate-500">Suggested timing: {result.suggestedFollowUpTiming}</p> : null}
+              {result.suggestedStatus ? <Badge tone="blue">{result.suggestedStatus}</Badge> : null}
+            </div>
+          </div>
+
+          {Array.isArray(result.missingInfoQuestions) && result.missingInfoQuestions.length > 0 ? (
+            <div className="rounded-2xl border border-blue-100 bg-white p-3">
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Missing info questions</p>
+              <ul className="mt-2 space-y-1 text-sm font-bold leading-6 text-slate-700">
+                {result.missingInfoQuestions.map((question) => <li key={question}>- {question}</li>)}
+              </ul>
+            </div>
+          ) : null}
+
+          <div className="grid gap-3 xl:grid-cols-2">
+            <DraftBlock title="Follow-up email draft" value={result.followUpEmailDraft} copyLabel="Email draft" />
+            <DraftBlock title="SMS/text draft" value={result.followUpSmsDraft} copyLabel="SMS draft" />
+            <DraftBlock title="Call script" value={result.callScript} copyLabel="Call script" />
+            <DraftBlock title="Estimating handoff notes" value={result.estimatingHandoffNotes} copyLabel="Estimating handoff notes" />
+          </div>
+
+          {Array.isArray(result.riskNotes) && result.riskNotes.length > 0 ? (
+            <div className="rounded-2xl border border-amber-100 bg-white p-3">
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Risk notes</p>
+              <ul className="mt-2 space-y-1 text-sm font-bold leading-6 text-amber-800">
+                {result.riskNotes.map((risk) => <li key={risk}>- {risk}</li>)}
+              </ul>
+            </div>
+          ) : null}
+
+          <p className="text-xs font-bold text-slate-500">AI drafts are review-only. Apex HQ does not send emails or texts from this card.</p>
+          {copyMessage ? <p className="rounded-2xl border border-emerald-100 bg-white px-3 py-2 text-sm font-bold text-emerald-700">{copyMessage}</p> : null}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 export function LeadsTable({ rows, selectedId, onSelect, maxRows = null, mobileMaxRows = null }) {
