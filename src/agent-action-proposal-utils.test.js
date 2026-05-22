@@ -27,8 +27,10 @@ test("agent action proposal wraps assistant route commands as review-first packe
   assert.equal(proposal.status, "needs_human_review");
   assert.equal(proposal.approvalRequired, true);
   assert.equal(proposal.targetModuleId, "estimates");
+  assert.equal(proposal.actionPolicy.actionClass, "prepare_job_handoff");
   assert.match(proposal.allowedNextStep, /review/i);
   assert.ok(proposal.reviewChecklist.some((item) => /matched item/i.test(item)));
+  assert.ok(proposal.reviewChecklist.some((item) => /approved estimate before using the normal convert-to-job workflow/i.test(item)));
   assert.equal(proposal.draftPrep.length, 1);
   assert.equal(proposal.draftPrep[0].prepType, "Job handoff prep");
   assert.match(proposal.draftPrep[0].reviewLabel, /No job, schedule, crew assignment/i);
@@ -57,6 +59,7 @@ test("agent action proposal exposes estimate draft prep without saving a draft",
   });
 
   assert.equal(proposal.status, "needs_human_review");
+  assert.equal(proposal.actionPolicy.actionClass, "create_draft");
   assert.equal(proposal.draftPrep.length, 1);
   assert.equal(proposal.draftPrep[0].prepType, "Estimate draft prep");
   assert.match(proposal.draftPrep[0].safeOutput, /Rough notes/i);
@@ -215,6 +218,7 @@ test("agent action proposal exposes closeout billing review packet without invoi
 
   assert.equal(proposal.status, "needs_human_review");
   assert.equal(proposal.typeLabel, "Daily closeout review");
+  assert.equal(proposal.actionPolicy.actionClass, "prepare_closeout_review");
   assert.equal(proposal.draftPrep.length, 1);
   assert.equal(proposal.draftPrep[0].prepType, "Closeout billing review prep");
   assert.match(proposal.draftPrep[0].safeOutput, /Office review packet only/i);

@@ -1,3 +1,5 @@
+import { getAgentActionPolicy } from "../shared/agentActionPolicy.js";
+
 const DEFAULT_BLOCKED_ACTIONS = Object.freeze([
   "No customer email, text, call, or notification",
   "No bid submission or proposal send",
@@ -327,6 +329,7 @@ export function buildAgentActionProposal(response = {}, { permissions = {}, work
 
   const fieldOnly = fieldOnlyPermissions(permissions);
   const status = fieldOnly || response.type === "blocked-command" || response.type === "package-blocked" ? "blocked" : "needs_human_review";
+  const actionPolicy = getAgentActionPolicy(response.type || "unknown");
   const moduleId = targetModuleId(response);
   const actionLabel = targetLabel(response);
   const typeLabel = TYPE_LABELS[response.type] || "Workflow review";
@@ -337,6 +340,7 @@ export function buildAgentActionProposal(response = {}, { permissions = {}, work
     count ? `Review ${count} matched item${count === 1 ? "" : "s"} or checklist row${count === 1 ? "" : "s"}` : "Confirm the target workflow and record",
     contextProof ? `Confirm ${contextProof.source === "server" ? "synced server" : "visible app"} context before acting` : "",
     "Confirm role/package access in the existing screen",
+    actionPolicy.requiredHumanStep,
     "Use the normal Apex HQ button only if you approve the action",
   ].filter(Boolean);
   const draftPrep = hydrateDraftPrepWithContext(buildAgentDraftPrep(response), contextProof);
@@ -350,12 +354,13 @@ export function buildAgentActionProposal(response = {}, { permissions = {}, work
     title: status === "blocked" ? "Assistant action blocked" : `${typeLabel} packet`,
     targetModuleId: moduleId,
     actionLabel,
+    actionPolicy,
     approvalRequired: true,
     allowedNextStep: status === "blocked"
       ? "Open an allowed Apex HQ workspace route and complete any action manually."
       : `Open ${actionLabel} and review the existing workflow before changing anything.`,
     reviewChecklist,
-    blockedActions: blockedActionsForResponse(response),
+    blockedActions: [...new Set([...blockedActionsForResponse(response), ...asArray(actionPolicy.blockedAutomation)])],
     draftPrep,
     contextProof,
     proof: {
