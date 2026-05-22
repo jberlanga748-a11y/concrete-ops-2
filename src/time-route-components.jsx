@@ -3,6 +3,23 @@ import { useState } from "react";
 import { Badge, Card, Icon, SectionHeader } from "./app-shell-components";
 import { formatMinutes, timeStatusTone } from "./time-utils";
 
+export function workCategoryLabel(workCategory = "") {
+  const labels = {
+    job: "Job",
+    office_admin: "Office/Admin",
+    estimating: "Estimating",
+    lead_follow_up: "Lead Follow-up",
+    shop_yard: "Shop/Yard",
+    travel: "Travel",
+    training: "Training",
+    meeting: "Meeting",
+    maintenance: "Maintenance",
+    other: "Other",
+  };
+
+  return labels[workCategory] || "Other";
+}
+
 export function TimeStatusBadge({ status }) {
   return <Badge tone={timeStatusTone(status)}>{status === "on_break" ? "On Break" : status === "completed" ? "Completed" : "Active"}</Badge>;
 }

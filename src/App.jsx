@@ -255,7 +255,7 @@ import {
   SUPPORT_PILOT_FEEDBACK_WORKFLOW,
 } from "./support-utils";
 import { buildTimeTrackingSupportContext, deriveCrewWeeklySummary, deriveTimeJobCostingReadiness, deriveTimeWorkspace, formatMinutes } from "./time-utils";
-import { TimeKpiCardPolished, TimeMobileAccordionCard, TimeMobileFieldGroup, TimeStatusBadge, TimeSummaryMetricsPolished, WeekSummaryCard } from "./time-route-components";
+import { TimeKpiCardPolished, TimeMobileAccordionCard, TimeMobileFieldGroup, TimeStatusBadge, TimeSummaryMetricsPolished, WeekSummaryCard, workCategoryLabel } from "./time-route-components";
 import { deriveChecklistItems, deriveToolChecklistJobReadiness, deriveToolChecklistListState, filterToolChecklists, toolChecklistItemStatusLabel, toolChecklistStatusLabel } from "./tool-checklist-utils";
 import { ALLOWED_UPLOAD_TYPES, buildUploadSupportContext, deriveAllowedUploadJobs, deriveUploadDraftFromSelection, deriveUploadListState, filterUploads, findSelectedUpload, gpsStatusLabel, uploadCustomerLabel, uploadJobLabel, uploadTitle, uploadUploaderLabel, validateUploadFile } from "./upload-utils";
 import { deriveUserListState, getCrewAssignmentOptions, getForemanAssignmentOptions, USER_ROLE_OPTIONS } from "./user-utils";
@@ -5192,23 +5192,6 @@ function EmployeeWorkspacePage({ rows, user, selectedJobId, onSelectJob, selecte
       onEndBreak={onEndBreak}
     />
   );
-}
-
-function workCategoryLabel(workCategory = "") {
-  const labels = {
-    job: "Job",
-    office_admin: "Office/Admin",
-    estimating: "Estimating",
-    lead_follow_up: "Lead Follow-up",
-    shop_yard: "Shop/Yard",
-    travel: "Travel",
-    training: "Training",
-    meeting: "Meeting",
-    maintenance: "Maintenance",
-    other: "Other",
-  };
-
-  return labels[workCategory] || "Other";
 }
 
 function RecentTimeEntriesCard({ entries, title = "Recent entries", description, emptyTitle = "No time entries yet", emptyDescription = "Clock in to start your first time entry.", showUser = false, compact = false, compactMobile = false }) {
