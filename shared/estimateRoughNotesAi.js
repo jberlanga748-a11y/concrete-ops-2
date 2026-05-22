@@ -1,3 +1,5 @@
+import { buildConstructionAgentTradeContext } from "./constructionTrades.js";
+
 export const ESTIMATE_ROUGH_NOTES_DEFAULT_MODEL = "gpt-4o-mini";
 export const ESTIMATE_ROUGH_NOTES_OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
@@ -90,6 +92,7 @@ export function buildEstimateRoughNotesContext({
       id: text(estimate?.id, 80),
       title: text(estimate?.title, 220),
       status: text(estimate?.status, 80),
+      trade: text(estimate?.trade || estimate?.projectType, 120),
       scopeSummary: text(estimate?.scopeSummary, 1800),
       customerNotes: text(estimate?.customerNotes, 1800),
       lineItems: items.map((item) => ({
@@ -115,6 +118,13 @@ export function buildEstimateRoughNotesContext({
       serviceArea: text(companySettings.serviceArea, 220),
       licenseText: text(companySettings.licenseText, 220),
     },
+    constructionTrade: buildConstructionAgentTradeContext({
+      trade: estimate?.trade || estimate?.projectType,
+      companySettings,
+      estimate,
+      lead: estimate?.lead || {},
+      roughNotes,
+    }),
   };
 }
 
@@ -198,6 +208,7 @@ export function buildEstimateRoughNotesOpenAiRequest(context, model = ESTIMATE_R
           "Generate review-only contractor proposal language from rough notes.",
           "Do not send messages, approve estimates, invent pricing, invent quantities, promise schedule, promise warranty, or make legal claims.",
           "When the rough notes include customer/company, contact, project, or location details, extract them into customerName, contactName, customerEmail, projectName, and jobLocation.",
+          "Use the provided constructionTrade context to adapt scope, inclusions, exclusions, options, handoff notes, proof-photo needs, and change-order watchouts to the detected trade.",
           "Use practical contractor language: clear scope, inclusions, exclusions, assumptions, clarifications, and GC-ready wording.",
           "Return only JSON matching the provided schema.",
         ].join(" "),

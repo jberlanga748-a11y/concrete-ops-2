@@ -28,6 +28,7 @@ test("estimate rough notes context only includes safe proposal context", () => {
       id: "E-1",
       title: "Sidewalk replacement",
       status: "draft",
+      trade: "concrete",
       scopeSummary: "Existing notes",
       internalNotes: "Office-only pricing strategy should not be included.",
       items: [{ description: "Concrete sidewalk", quantity: 300, unit: "sf", unitPrice: 12 }],
@@ -39,10 +40,13 @@ test("estimate rough notes context only includes safe proposal context", () => {
 
   assert.equal(context.roughNotes.includes("broom finish"), true);
   assert.equal(context.estimate.title, "Sidewalk replacement");
+  assert.equal(context.estimate.trade, "concrete");
   assert.equal(context.estimate.lineItems[0].description, "Concrete sidewalk");
   assert.equal(Object.hasOwn(context.estimate.lineItems[0], "unitPrice"), false);
   assert.equal(Object.hasOwn(context.estimate.customer, "email"), false);
   assert.equal(Object.hasOwn(context.estimate, "internalNotes"), false);
+  assert.equal(context.constructionTrade.tradeId, "concrete");
+  assert.ok(context.constructionTrade.optionFamilies.some((option) => /broom/i.test(option)));
   assert.equal(context.company.name, "Apex HQ");
 });
 
@@ -57,6 +61,7 @@ test("estimate rough notes request asks OpenAI for strict structured JSON", () =
   assert.ok(request.response_format.json_schema.schema.required.includes("projectName"));
   assert.match(request.messages[0].content, /review-only/i);
   assert.match(request.messages[0].content, /Do not send/i);
+  assert.match(request.messages[0].content, /constructionTrade context/i);
 });
 
 test("estimate rough notes helper sanitizes AI output and avoids extra fields", () => {

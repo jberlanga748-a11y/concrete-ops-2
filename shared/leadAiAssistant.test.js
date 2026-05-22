@@ -26,6 +26,7 @@ test("lead assistant context only includes safe lead, source, score, missing inf
     lead: {
       id: "L-1",
       customer: "Benton County",
+      trade: "roofing",
       project: "Sidewalk replacement",
       city: "Albany",
       source: "Lead Finder",
@@ -42,9 +43,12 @@ test("lead assistant context only includes safe lead, source, score, missing inf
   });
 
   assert.equal(context.lead.customer, "Benton County");
+  assert.equal(context.lead.trade, "roofing");
   assert.equal(context.leadScore.fitLabel, "Strong Fit");
   assert.equal(context.missingInfo.items[0].label, "Project address");
   assert.equal(context.leadSource.name, "Oregon public bids");
+  assert.equal(context.constructionTrade.tradeId, "roofing");
+  assert.ok(context.constructionTrade.optionFamilies.some((option) => /shingle/i.test(option)));
   assert.equal(context.company.name, "Apex HQ");
   assert.equal(Object.hasOwn(context, "customers"), false);
   assert.equal(Object.hasOwn(context, "jobs"), false);
@@ -58,6 +62,7 @@ test("lead assistant request asks OpenAI for strict structured JSON", () => {
   assert.equal(request.response_format.json_schema.strict, true);
   assert.ok(request.response_format.json_schema.schema.required.includes("followUpEmailDraft"));
   assert.match(request.messages[0].content, /review-only drafts/i);
+  assert.match(request.messages[0].content, /constructionTrade context/i);
 });
 
 test("lead assistant sanitizes AI output and avoids extra fields", () => {

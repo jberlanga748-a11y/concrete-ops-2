@@ -1,3 +1,5 @@
+import { buildConstructionAgentTradeContext } from "./constructionTrades.js";
+
 export const LEAD_ASSISTANT_DEFAULT_MODEL = "gpt-4o-mini";
 export const LEAD_ASSISTANT_OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
@@ -82,10 +84,12 @@ function safeLeadSourceContext(lead = {}, leadSources = []) {
 }
 
 export function buildLeadAssistantContext({ lead = {}, leadSources = [], companySettings = {} } = {}) {
+  const leadSource = safeLeadSourceContext(lead, leadSources);
   return {
     lead: {
       id: text(lead.id, 80),
       customer: text(lead.customer || lead.company || lead.contactName, 220),
+      trade: text(lead.trade || lead.projectType, 120),
       project: text(lead.project || lead.description, 600),
       city: text(lead.city, 120),
       status: text(lead.status, 80),
@@ -118,7 +122,13 @@ export function buildLeadAssistantContext({ lead = {}, leadSources = [], company
       nextStep: text(lead.missingInfoNextStep, 700),
       checkedAt: text(lead.missingInfoCheckedAt, 80),
     },
-    leadSource: safeLeadSourceContext(lead, leadSources),
+    leadSource,
+    constructionTrade: buildConstructionAgentTradeContext({
+      trade: lead.trade || lead.projectType,
+      companySettings,
+      lead,
+      source: leadSource || {},
+    }),
     company: {
       name: text(companySettings.companyName, 180),
       businessPhone: text(companySettings.businessPhone, 80),
@@ -183,6 +193,7 @@ export function buildLeadAssistantOpenAiRequest(context, model = LEAD_ASSISTANT_
         content: [
           "You are an office-only lead assistant for a contractor operations platform.",
           "Generate review-only drafts. Do not claim an appointment was scheduled, do not send messages, and do not promise pricing.",
+          "Use the provided constructionTrade context to adapt missing-info questions, estimate handoff notes, scope language, proof-photo needs, and change-order watchouts to the detected trade.",
           "Keep the tone professional, practical, and concise for a contractor office admin.",
           "Return only JSON matching the provided schema.",
         ].join(" "),
