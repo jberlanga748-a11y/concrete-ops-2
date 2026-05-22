@@ -37,7 +37,8 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 | Date | Priority | Task | Result | Commit |
 | --- | --- | --- | --- | --- |
-| 2026-05-22 | P3 | Lead intake route component extraction | Done; lead intake form and shared lead source options moved into `src/lead-route-components.jsx` with import-boundary coverage, lead/role/build checks, and browser audits passing for admin and employee `/leads` access | This commit |
+| 2026-05-22 | P3 | Job planner route component extraction | Done; job planner/create-job form moved into `src/job-route-components.jsx` with import-boundary coverage, job/role/build checks, and browser audits passing for admin and employee `/jobs` access | This commit |
+| 2026-05-22 | P3 | Lead intake route component extraction | Done; lead intake form and shared lead source options moved into `src/lead-route-components.jsx` with import-boundary coverage, lead/role/build checks, and browser audits passing for admin and employee `/leads` access | `23d49dc` |
 | 2026-05-22 | P2 | Sunday pilot evidence refresh after Fly demo v166 | Done; backup-first Fly demo v166 deploy passed hosted smoke, admin desktop, admin tablet, employee phone field/restricted audits, mobile assistant regression, roles, and local Sunday app rehearsal while real-company outside access remains intake-gated | `e05e1c4` |
 | 2026-05-22 | P3 | Mobile assistant trigger overlap fix | Done; closed Apex Assistant trigger now flows below mobile content instead of floating over command tiles, while the opened assistant remains a fixed drawer and employee phone redirects stay safe | `df55b49` |
 | 2026-05-22 | P3 | App Health desktop KPI clipping fix | Done; `/app-health` desktop KPI tiles now keep helper/action content inside the card without visual-audit clipping, while employee routes still redirect to Field Mode | `794f459` |
