@@ -2,8 +2,10 @@ import { useState } from "react";
 
 import { missingInfoTone } from "../shared/leadMissingInfo.js";
 import { leadScoreTone } from "../shared/leadScoring.js";
-import { Badge, Button, Icon, StatusBadge } from "./app-shell-components";
+import { Badge, Button, Card, Icon, InputField, SectionHeader, SelectField, StateCard, StatusBadge, TextAreaField } from "./app-shell-components";
 import { deriveLeadPilotWorkflowReadiness } from "./lead-utils";
+
+export const LEAD_SOURCE_OPTIONS = ["Website", "Referral", "Call-in", "Drive-by", "Repeat Customer", "Partner", "Lead Finder", "Opportunity Scout", "public_request_form"];
 
 function todayDateInputValue() {
   return new Date().toISOString().slice(0, 10);
@@ -71,6 +73,73 @@ export function LeadMissingInfoBadge({ lead }) {
   const count = Number(lead.missingInfoCount || 0);
   const label = lead.missingInfoStatus === "Complete" ? "Info complete" : `Needs ${count} item${count === 1 ? "" : "s"}`;
   return <Badge tone={missingInfoTone(lead.missingInfoStatus || count)}>{label}</Badge>;
+}
+
+export function LeadIntakeCard({ draft, setDraft, onCreateLead, disabled, canManage, customers = [], users = [] }) {
+  if (!canManage) {
+    return (
+      <Card className="p-5">
+        <SectionHeader title="New lead intake" description="Lead creation is restricted to office management roles." />
+        <StateCard title="Read-only access" description="You can review the pipeline, but only owner/admin/operations roles can create or update leads." tone="slate" />
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="p-5">
+      <SectionHeader title="New lead intake" description="Create a new lead record for the office team." />
+      <form className="grid gap-3" onSubmit={onCreateLead}>
+        <div className="grid gap-3 md:grid-cols-2">
+          <SelectField label="Existing customer" value={draft.customerId} onChange={(event) => {
+            const selectedCustomer = customers.find((customer) => customer.id === event.target.value);
+            setDraft((current) => ({
+              ...current,
+              customerId: event.target.value,
+              customer: selectedCustomer?.name || current.customer,
+              city: selectedCustomer?.city || current.city,
+            }));
+          }}>
+            <option value="">Create or match automatically</option>
+            {customers.filter((customer) => !customer.archivedAt).map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
+          </SelectField>
+          <InputField label="Customer" value={draft.customer} onChange={(event) => setDraft((current) => ({ ...current, customer: event.target.value }))} placeholder="Dana Martinez" />
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <InputField label="City" value={draft.city} onChange={(event) => setDraft((current) => ({ ...current, city: event.target.value }))} placeholder="Albany" />
+          <InputField label="Project" value={draft.project} onChange={(event) => setDraft((current) => ({ ...current, project: event.target.value }))} placeholder="Front walkway replacement" />
+          <InputField label="Follow-up due" type="date" value={draft.followUpDueAt} onChange={(event) => setDraft((current) => ({ ...current, followUpDueAt: event.target.value }))} />
+        </div>
+        <div className="grid gap-3 md:grid-cols-4">
+          <SelectField label="Status" value={draft.status} onChange={(event) => setDraft((current) => ({ ...current, status: event.target.value }))}>
+            <option>New</option>
+            <option>Contacted</option>
+            <option>Site Visit</option>
+            <option>Estimate Sent</option>
+            <option>Approved</option>
+          </SelectField>
+          <SelectField label="Priority" value={draft.priority} onChange={(event) => setDraft((current) => ({ ...current, priority: event.target.value }))}>
+            <option>Low</option>
+            <option>Normal</option>
+            <option>High</option>
+          </SelectField>
+          <SelectField label="Owner" value={draft.ownerId} onChange={(event) => setDraft((current) => ({ ...current, ownerId: event.target.value }))}>
+            <option value="">Unassigned</option>
+            {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+          </SelectField>
+          <SelectField label="Lead source" value={draft.source} onChange={(event) => setDraft((current) => ({ ...current, source: event.target.value }))}>
+            {LEAD_SOURCE_OPTIONS.map((source) => <option key={source} value={source}>{leadSourceLabel(source)}</option>)}
+          </SelectField>
+          <InputField label="Value" type="number" value={draft.value} onChange={(event) => setDraft((current) => ({ ...current, value: event.target.value }))} placeholder="8200" />
+        </div>
+        <InputField label="Next step" value={draft.nextStep} onChange={(event) => setDraft((current) => ({ ...current, nextStep: event.target.value }))} placeholder="Schedule site measure" />
+        <TextAreaField label="Notes" value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Gate access, finish details, timing notes..." />
+        <Button type="submit" disabled={disabled}>
+          <Icon name="plus" />
+          Add lead
+        </Button>
+      </form>
+    </Card>
+  );
 }
 
 export function LeadScoreCard({ lead, canManage = false, disabled = false, onScoreLead = () => {} }) {

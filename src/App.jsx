@@ -218,7 +218,7 @@ import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobT
 import { CITY_STATE_WARNING, CUSTOMER_MATCH_STATUSES, IMPORTED_JOB_DRAFT_STATUSES, createImportedJobDraftFromPackage, filterImportedJobDrafts, formatImportedDraftSummary, getCustomerMatchWarnings, getImportedDraftWarnings, getImportedJobDraftStats, isImportedDraftReadyForJob, normalizeImportedJobDraft, normalizeImportedJobDrafts, validateJobDraftImportPackage } from "../shared/jobDraftImports.js";
 import { JOB_STARTUP_STATUSES, buildStartupSummary, canMarkStartupReady, calculateStartupStatus, getStartupCriticalWarnings, markStartupItem, normalizeJobStartupFields, normalizeStartupChecklist } from "../shared/jobStartup.js";
 import { deriveLeadInboxState, deriveLeadListState, relatedLeadActivity } from "./lead-utils";
-import { LeadAiAssistantCard, LeadMissingInfoBadge, LeadMissingInfoCard, LeadPilotWorkflowReadinessCard, LeadScoreBadge, LeadScoreCard, LeadsTable, formatLeadFollowUpDate, isLeadFollowUpDue, isLeadReadyForEstimate, leadContactEmail, leadContactPhone, leadHasMissingInfoCheck, leadHasScore, leadSourceLabel } from "./lead-route-components";
+import { LEAD_SOURCE_OPTIONS, LeadAiAssistantCard, LeadIntakeCard, LeadMissingInfoBadge, LeadMissingInfoCard, LeadPilotWorkflowReadinessCard, LeadScoreBadge, LeadScoreCard, LeadsTable, formatLeadFollowUpDate, isLeadFollowUpDue, isLeadReadyForEstimate, leadContactEmail, leadContactPhone, leadHasMissingInfoCheck, leadHasScore, leadSourceLabel } from "./lead-route-components";
 import { buildManualOutreachContactPayload, buildManualOutreachDrafts } from "./manual-outreach-drafts";
 import { buildNotificationStateStorageKey, canViewNotificationCenter, deriveNotificationCenterState, extractNotificationStateForCompany, filterNotificationItems, normalizeNotificationState, notificationActionLabel, notificationSeverityTone, notificationTriggerLabel, NOTIFICATION_CENTER_FILTERS } from "./notification-center-utils";
 import { applyOpportunityScoutAgentPreviewToDraft, applyOpportunityScoutSourceCheckToDraft, buildOpportunityScoutSourceBrief, deriveOpportunityScoutState } from "./opportunity-scout-utils";
@@ -280,7 +280,6 @@ const INVITE_ACTIVATION_PATH = "/activate-invite";
 const PASSWORD_RESET_PATH = "/reset-password";
 const PUBLIC_ESTIMATE_REQUEST_PATH = "/request-estimate";
 const APEX_PUBLIC_REQUEST_URL = `https://app.apexhq.online${PUBLIC_ESTIMATE_REQUEST_PATH}`;
-const LEAD_SOURCE_OPTIONS = ["Website", "Referral", "Call-in", "Drive-by", "Repeat Customer", "Partner", "Lead Finder", "Opportunity Scout", "public_request_form"];
 const UPLOAD_PREVIEW_CACHE_LIMIT = 24;
 const PRINT_VIEW_ERROR_MESSAGE = "Could not open the print view. Please try again or use your browser print command.";
 const uploadPreviewCache = new Map();
@@ -14807,73 +14806,6 @@ function CustomerOperationsWorkbench({
         </div>
       </section>
     </CommandPageFrame>
-  );
-}
-
-function LeadIntakeCard({ draft, setDraft, onCreateLead, disabled, canManage, customers, users }) {
-  if (!canManage) {
-    return (
-      <Card className="p-5">
-        <SectionHeader title="New lead intake" description="Lead creation is restricted to office management roles." />
-        <StateCard title="Read-only access" description="You can review the pipeline, but only owner/admin/operations roles can create or update leads." tone="slate" />
-      </Card>
-    );
-  }
-
-  return (
-    <Card className="p-5">
-      <SectionHeader title="New lead intake" description="Create a new lead record for the office team." />
-      <form className="grid gap-3" onSubmit={onCreateLead}>
-        <div className="grid gap-3 md:grid-cols-2">
-          <SelectField label="Existing customer" value={draft.customerId} onChange={(event) => {
-            const selectedCustomer = customers.find((customer) => customer.id === event.target.value);
-            setDraft((current) => ({
-              ...current,
-              customerId: event.target.value,
-              customer: selectedCustomer?.name || current.customer,
-              city: selectedCustomer?.city || current.city,
-            }));
-          }}>
-            <option value="">Create or match automatically</option>
-            {customers.filter((customer) => !customer.archivedAt).map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
-          </SelectField>
-          <InputField label="Customer" value={draft.customer} onChange={(event) => setDraft((current) => ({ ...current, customer: event.target.value }))} placeholder="Dana Martinez" />
-        </div>
-        <div className="grid gap-3 md:grid-cols-3">
-          <InputField label="City" value={draft.city} onChange={(event) => setDraft((current) => ({ ...current, city: event.target.value }))} placeholder="Albany" />
-          <InputField label="Project" value={draft.project} onChange={(event) => setDraft((current) => ({ ...current, project: event.target.value }))} placeholder="Front walkway replacement" />
-          <InputField label="Follow-up due" type="date" value={draft.followUpDueAt} onChange={(event) => setDraft((current) => ({ ...current, followUpDueAt: event.target.value }))} />
-        </div>
-        <div className="grid gap-3 md:grid-cols-4">
-          <SelectField label="Status" value={draft.status} onChange={(event) => setDraft((current) => ({ ...current, status: event.target.value }))}>
-            <option>New</option>
-            <option>Contacted</option>
-            <option>Site Visit</option>
-            <option>Estimate Sent</option>
-            <option>Approved</option>
-          </SelectField>
-          <SelectField label="Priority" value={draft.priority} onChange={(event) => setDraft((current) => ({ ...current, priority: event.target.value }))}>
-            <option>Low</option>
-            <option>Normal</option>
-            <option>High</option>
-          </SelectField>
-          <SelectField label="Owner" value={draft.ownerId} onChange={(event) => setDraft((current) => ({ ...current, ownerId: event.target.value }))}>
-            <option value="">Unassigned</option>
-            {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
-          </SelectField>
-                <SelectField label="Lead source" value={draft.source} onChange={(event) => setDraft((current) => ({ ...current, source: event.target.value }))}>
-                  {LEAD_SOURCE_OPTIONS.map((source) => <option key={source} value={source}>{source === "public_request_form" ? "Public request form" : source}</option>)}
-                </SelectField>
-          <InputField label="Value" type="number" value={draft.value} onChange={(event) => setDraft((current) => ({ ...current, value: event.target.value }))} placeholder="8200" />
-        </div>
-        <InputField label="Next step" value={draft.nextStep} onChange={(event) => setDraft((current) => ({ ...current, nextStep: event.target.value }))} placeholder="Schedule site measure" />
-        <TextAreaField label="Notes" value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Gate access, finish details, timing notes..." />
-        <Button type="submit" disabled={disabled}>
-          <Icon name="plus" />
-          Add lead
-        </Button>
-      </form>
-    </Card>
   );
 }
 

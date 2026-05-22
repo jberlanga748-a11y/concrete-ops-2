@@ -24,3 +24,14 @@ test("App imports extracted lead assistant and readiness cards", () => {
     assert.doesNotMatch(appSource, new RegExp(`function ${name}\\(`));
   }
 });
+
+test("App imports extracted lead intake form and shared lead source options", () => {
+  const appSource = fs.readFileSync(new URL("./App.jsx", import.meta.url), "utf8");
+  const routeComponentsSource = fs.readFileSync(new URL("./lead-route-components.jsx", import.meta.url), "utf8");
+
+  assert.match(routeComponentsSource, /export const LEAD_SOURCE_OPTIONS\b/);
+  assert.match(routeComponentsSource, /export function LeadIntakeCard\b/);
+  assert.match(appSource, /import \{[^}]*LEAD_SOURCE_OPTIONS[^}]*LeadIntakeCard[^}]*\} from "\.\/lead-route-components"/s);
+  assert.doesNotMatch(appSource, /const LEAD_SOURCE_OPTIONS =/);
+  assert.doesNotMatch(appSource, /function LeadIntakeCard\(/);
+});
