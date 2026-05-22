@@ -15,6 +15,14 @@ const REVIEW_ONLY_BLOCKED_ACTIONS = Object.freeze([
   "No profit/loss result is finalized without reviewed cost inputs",
 ]);
 
+const PROFIT_LOSS_REQUIRED_INPUTS = Object.freeze([
+  "Approved estimate and recognized change-order revenue",
+  "Reviewed crew hours and labor-cost basis",
+  "Material receipts and supplier tickets",
+  "Subcontractor, rental, equipment, disposal, and overhead costs",
+  "Closeout proof, safety, and change-order blockers cleared",
+]);
+
 function asArray(value) {
   return Array.isArray(value) ? value : [];
 }
@@ -154,6 +162,14 @@ function buildJobCloseoutRow(job = {}, context = {}) {
     .filter(changeOrderIsRecognizedForReviewTotal)
     .reduce((sum, changeOrder) => sum + changeOrderReviewAmount(changeOrder), 0);
   const estimateTotal = estimate ? jobEstimateTotal(estimate) : 0;
+  const reviewTotal = money(estimateTotal + recognizedChangeOrderTotal);
+  const profitLossWarnings = [
+    !estimateTotal ? "No linked estimate revenue available" : "",
+    !completedMinutes ? "No completed crew time is linked" : "",
+    activeTimeEntries.length ? "Active time is still open" : "",
+    changeOrdersNeedingReview.length ? "Change orders still need pricing/billing review" : "",
+    blockers.length ? "Closeout blockers remain before profit/loss can be trusted" : "",
+  ].filter(Boolean);
 
   return {
     jobId,
@@ -164,7 +180,7 @@ function buildJobCloseoutRow(job = {}, context = {}) {
     estimateId: estimate?.id || "",
     estimateTotal,
     recognizedChangeOrderTotal,
-    reviewTotal: money(estimateTotal + recognizedChangeOrderTotal),
+    reviewTotal,
     time: {
       entries: timeEntries.length,
       completedMinutes,
@@ -185,6 +201,16 @@ function buildJobCloseoutRow(job = {}, context = {}) {
     },
     safety: {
       open: openSafety.length,
+    },
+    profitLossReview: {
+      mode: "review_only_profit_loss_inputs",
+      estimatedRevenue: reviewTotal,
+      completedHoursLabel: formatHours(completedMinutes),
+      readyForManualReview: profitLossWarnings.length === 0,
+      requiredInputs: PROFIT_LOSS_REQUIRED_INPUTS.slice(),
+      warnings: profitLossWarnings,
+      nextStep: profitLossWarnings[0] || "Review labor, material, subcontractor, equipment, overhead, and change-order costs before finalizing profit/loss.",
+      boundary: "Apex prepares review context only. It does not finalize margin, create invoices, collect payment, or send customer billing.",
     },
     blockers,
     nextAction: blockers.length ? blockers[0] : "Manual billing review packet is clean",
@@ -245,6 +271,18 @@ export function buildJobCloseoutBillingReviewPacket(context = {}, {
     + rows.filter((row) => row.proof.reviewedReports === 0 || row.proof.uploads === 0).length;
   const changeOrdersNeedingReview = rows.reduce((sum, row) => sum + row.changeOrders.needsReview, 0);
   const safetyOpen = rows.reduce((sum, row) => sum + row.safety.open, 0);
+  const profitLossReadyRows = rows.filter((row) => row.profitLossReview.readyForManualReview);
+  const profitLossWarnings = rows.reduce((sum, row) => sum + row.profitLossReview.warnings.length, 0);
+  const profitLossReviewItems = rows.slice(0, 4).map((row) => ({
+    jobId: row.jobId,
+    title: row.title,
+    estimatedRevenue: row.profitLossReview.estimatedRevenue,
+    completedHoursLabel: row.profitLossReview.completedHoursLabel,
+    readyForManualReview: row.profitLossReview.readyForManualReview,
+    nextStep: row.profitLossReview.nextStep,
+    requiredInputs: row.profitLossReview.requiredInputs,
+    boundary: row.profitLossReview.boundary,
+  }));
 
   const summaryItems = [
     {
@@ -261,6 +299,11 @@ export function buildJobCloseoutBillingReviewPacket(context = {}, {
       id: "time-profit-loss-inputs",
       label: "Time / profit-loss inputs",
       detail: `${formatHours(actualMinutes)} completed job time and ${openTimeEntries} active time entr${openTimeEntries === 1 ? "y" : "ies"} are visible. Profit/loss is not finalized without reviewed labor, material, subcontractor, and overhead cost inputs.`,
+    },
+    {
+      id: "profit-loss-review-prep",
+      label: "Profit/loss review prep",
+      detail: `${profitLossReadyRows.length} job${profitLossReadyRows.length === 1 ? "" : "s"} have clean review inputs and ${profitLossWarnings} profit/loss input warning${profitLossWarnings === 1 ? "" : "s"} remain. Apex prepares context only; the office finalizes cost and margin manually.`,
     },
     {
       id: "proof-safety-blockers",
@@ -291,11 +334,14 @@ export function buildJobCloseoutBillingReviewPacket(context = {}, {
       reviewTotal: money(estimateTotal + changeOrderTotal),
       completedMinutes: actualMinutes,
       activeTimeEntries: openTimeEntries,
+      profitLossReadyForManualReview: profitLossReadyRows.length,
+      profitLossInputWarnings: profitLossWarnings,
       proofGaps,
       changeOrdersNeedingReview,
       safetyOpen,
     },
     rows,
+    profitLossReviewItems,
     summaryItems,
     blockedActions: REVIEW_ONLY_BLOCKED_ACTIONS.slice(),
     safetyBoundary: "Review-only closeout billing prep. Apex does not invoice, collect payment, contact customers, submit bills, change statuses, approve records, or finalize profit/loss from this packet.",

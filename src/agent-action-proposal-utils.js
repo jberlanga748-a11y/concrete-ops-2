@@ -234,6 +234,7 @@ function buildAgentDraftPrep(response = {}) {
     const packet = response.billingReviewPacket || {};
     const rows = asArray(packet.rows);
     const summaryItems = asArray(packet.summaryItems);
+    const profitLossItems = asArray(packet.profitLossReviewItems);
     return [{
       id: text(packet.mode || "daily-closeout-readiness"),
       prepType: "Closeout billing review prep",
@@ -243,6 +244,7 @@ function buildAgentDraftPrep(response = {}) {
       reviewLabel: text(packet.safetyBoundary || "No invoice, payment collection, customer message, status change, or profit/loss finalization happens from the assistant."),
       fields: [
         ...summaryItems.map((item) => `${text(item.label)}: ${text(item.detail)}`),
+        ...profitLossItems.slice(0, 2).map((item) => `${text(item.title)} profit/loss prep: ${item.readyForManualReview ? "inputs look ready for manual review" : text(item.nextStep || "cost inputs need review")}`),
         ...rows.slice(0, 3).map((row) => `${text(row.title)}: ${row.readyForBillingReview ? "ready for manual billing review" : text(row.nextAction || "needs closeout review")}`),
       ].filter(Boolean).slice(0, 6),
       warnings: [

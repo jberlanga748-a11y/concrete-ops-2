@@ -35,9 +35,16 @@ test("closeout billing review packet connects estimate, proof, time, and safety 
   assert.equal(packet.metrics.candidates, 1);
   assert.equal(packet.metrics.readyForBillingReview, 1);
   assert.equal(packet.metrics.estimateTotal, 12400);
+  assert.equal(packet.metrics.profitLossReadyForManualReview, 1);
+  assert.equal(packet.metrics.profitLossInputWarnings, 0);
   assert.equal(packet.rows[0].readyForBillingReview, true);
+  assert.equal(packet.rows[0].profitLossReview.readyForManualReview, true);
+  assert.equal(packet.rows[0].profitLossReview.requiredInputs.some((input) => /material receipts/i.test(input)), true);
+  assert.match(packet.rows[0].profitLossReview.boundary, /does not finalize margin/i);
+  assert.equal(packet.profitLossReviewItems[0].title, "Cedar Fence");
   assert.equal(packet.rows[0].time.completedHoursLabel, "8h");
   assert.match(packet.summaryItems.find((item) => item.id === "time-profit-loss-inputs").detail, /Profit\/loss is not finalized/i);
+  assert.match(packet.summaryItems.find((item) => item.id === "profit-loss-review-prep").detail, /office finalizes cost and margin manually/i);
   assert.match(packet.safetyBoundary, /does not invoice/i);
   assert.equal(packet.blockedActions.some((action) => /No invoice is created/i.test(action)), true);
   assert.equal(packet.blockedActions.some((action) => /No payment is collected/i.test(action)), true);
@@ -63,6 +70,9 @@ test("closeout billing review packet blocks active time, missing proof, safety, 
   assert.equal(packet.metrics.proofGaps, 2);
   assert.equal(packet.metrics.changeOrdersNeedingReview, 1);
   assert.equal(packet.metrics.safetyOpen, 1);
+  assert.equal(packet.metrics.profitLossReadyForManualReview, 0);
+  assert.ok(packet.metrics.profitLossInputWarnings >= 4);
+  assert.match(packet.rows[0].profitLossReview.nextStep, /No completed crew time|Active time|Change orders|Closeout blockers/i);
   assert.deepEqual(packet.rows[0].blockers, [
     "Job is not marked billing ready or closed",
     "1 active time entry still open",

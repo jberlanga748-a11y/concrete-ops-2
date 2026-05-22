@@ -201,6 +201,9 @@ test("agent action proposal exposes closeout billing review packet without invoi
       rows: [
         { jobId: "JOB-1", title: "Westview Warehouse", readyForBillingReview: false, nextAction: "No reviewed daily report linked" },
       ],
+      profitLossReviewItems: [
+        { jobId: "JOB-1", title: "Westview Warehouse", readyForManualReview: false, nextStep: "No completed crew time is linked" },
+      ],
       blockedActions: [
         "No invoice is created",
         "No payment is collected",
@@ -222,6 +225,7 @@ test("agent action proposal exposes closeout billing review packet without invoi
   assert.equal(proposal.draftPrep.length, 1);
   assert.equal(proposal.draftPrep[0].prepType, "Closeout billing review prep");
   assert.match(proposal.draftPrep[0].safeOutput, /Office review packet only/i);
+  assert.ok(proposal.draftPrep[0].fields.some((item) => /profit\/loss prep/i.test(item)));
   assert.ok(proposal.draftPrep[0].fields.some((item) => /Westview Warehouse: No reviewed daily report linked/i.test(item)));
   assert.ok(proposal.draftPrep[0].warnings.some((item) => /No invoice is created/i.test(item)));
   assert.ok(proposal.blockedActions.some((item) => /No invoice, payment, package, or billing action/i.test(item)));

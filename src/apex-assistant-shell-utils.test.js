@@ -345,7 +345,8 @@ test("assistant opens daily closeout readiness without approving or billing", ()
   assert.equal(command.type, "daily-closeout-readiness");
   assert.equal(command.moduleId, "reports");
   assert.equal(command.actions.map((action) => action.moduleId).join(","), "reports,uploads,jobs,time,deliveryTickets");
-  assert.equal(command.closeoutSummary.length, 5);
+  assert.equal(command.closeoutSummary.length, 6);
+  assert.equal(command.closeoutSummary.some((item) => /Profit\/loss review prep/i.test(item.label)), true);
   assert.equal(command.closeoutSummary.some((item) => /Billing review candidates/i.test(item.label)), true);
   assert.equal(command.closeoutSummary.some((item) => /does not create invoices, collect payment, send customer messages/i.test(item.detail)), true);
   assert.equal(command.billingReviewPacket.metrics.estimateTotal, 48750);
