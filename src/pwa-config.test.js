@@ -33,13 +33,18 @@ test("PWA manifest exists with installable Apex HQ metadata", () => {
   assert.equal(manifest.short_name, "Apex HQ");
   assert.match(manifest.description, /Apex HQ:/i);
   assert.match(manifest.description, /contractor operations platform/i);
+  assert.equal(manifest.id, "/");
+  assert.equal(manifest.lang, "en-US");
+  assert.equal(manifest.dir, "ltr");
   assert.equal(manifest.start_url, "/");
   assert.equal(manifest.scope, "/");
   assert.equal(manifest.display, "standalone");
-  assert.equal(manifest.orientation, "portrait-primary");
-  assert.match(manifest.theme_color, /^#[0-9A-F]{6}$/i);
-  assert.match(manifest.background_color, /^#[0-9A-F]{6}$/i);
+  assert.deepEqual(manifest.display_override, ["standalone", "minimal-ui"]);
+  assert.equal(manifest.orientation, "any");
+  assert.equal(manifest.theme_color, "#0B1118");
+  assert.equal(manifest.background_color, "#0B1118");
   assert.deepEqual(manifest.categories, ["business", "productivity"]);
+  assert.equal(manifest.prefer_related_applications, false);
 });
 
 test("manifest icon entries reference local PNG files that exist", () => {
@@ -62,12 +67,32 @@ test("manifest icon entries reference local PNG files that exist", () => {
   }
 });
 
+test("manifest shortcuts stay role-safe for field install workflows", () => {
+  const manifest = readJson(manifestPath);
+  const shortcuts = Array.isArray(manifest.shortcuts) ? manifest.shortcuts : [];
+  const shortcutUrls = shortcuts.map((shortcut) => shortcut.url);
+
+  assert.deepEqual(shortcutUrls, ["/jobs", "/reports", "/uploads", "/time"]);
+
+  for (const shortcut of shortcuts) {
+    assert.equal(typeof shortcut.name, "string");
+    assert.equal(typeof shortcut.short_name, "string");
+    assert.equal(typeof shortcut.description, "string");
+    assert.match(shortcut.url, /^\/(jobs|reports|uploads|time)$/);
+    assert.ok(Array.isArray(shortcut.icons), `${shortcut.name} should include an icon`);
+    assert.ok(shortcut.icons.some((icon) => icon.src === "/icons/icon-192.png"));
+  }
+});
+
 test("index html links the manifest and mobile app metadata without secrets", () => {
   const html = fs.readFileSync(htmlPath, "utf8");
 
   assert.match(html, /<link rel="manifest" href="\/manifest\.webmanifest"/);
   assert.match(html, /<meta name="application-name" content="Apex HQ"/);
-  assert.match(html, /<meta name="theme-color" content="#F97316"/);
+  assert.match(html, /<meta name="theme-color" content="#0B1118"/);
+  assert.match(html, /<meta name="color-scheme" content="light dark"/);
+  assert.match(html, /<meta name="msapplication-TileColor" content="#0B1118"/);
+  assert.match(html, /<meta name="msapplication-TileImage" content="\/icons\/icon-192\.png"/);
   assert.match(html, /<meta name="apple-mobile-web-app-capable" content="yes"/);
   assert.match(html, /<meta name="apple-mobile-web-app-title" content="Apex HQ"/);
   assert.match(html, /<meta name="apple-mobile-web-app-status-bar-style" content="default"/);
