@@ -37,7 +37,8 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 | Date | Priority | Task | Result | Commit |
 | --- | --- | --- | --- | --- |
-| 2026-05-22 | P3 | Job startup/calculation card extraction | Done; job startup checklist and internal calculation cards moved into `src/job-route-components.jsx` with import-boundary coverage, job/role/build checks, and browser audits passing for admin and employee `/jobs` access | This commit |
+| 2026-05-22 | P3 | Field mobile shell helper extraction | Done; field action grid, mobile nav ordering, and bottom quick nav moved into `src/field-route-components.jsx` with import-boundary coverage, field/role/build checks, and browser audits passing for employee mobile field routes | This commit |
+| 2026-05-22 | P3 | Job startup/calculation card extraction | Done; job startup checklist and internal calculation cards moved into `src/job-route-components.jsx` with import-boundary coverage, job/role/build checks, and browser audits passing for admin and employee `/jobs` access | `ae93f6e` |
 | 2026-05-22 | P3 | Job planner route component extraction | Done; job planner/create-job form moved into `src/job-route-components.jsx` with import-boundary coverage, job/role/build checks, and browser audits passing for admin and employee `/jobs` access | `9fce277` |
 | 2026-05-22 | P3 | Lead intake route component extraction | Done; lead intake form and shared lead source options moved into `src/lead-route-components.jsx` with import-boundary coverage, lead/role/build checks, and browser audits passing for admin and employee `/leads` access | `23d49dc` |
 | 2026-05-22 | P2 | Sunday pilot evidence refresh after Fly demo v166 | Done; backup-first Fly demo v166 deploy passed hosted smoke, admin desktop, admin tablet, employee phone field/restricted audits, mobile assistant regression, roles, and local Sunday app rehearsal while real-company outside access remains intake-gated | `e05e1c4` |
