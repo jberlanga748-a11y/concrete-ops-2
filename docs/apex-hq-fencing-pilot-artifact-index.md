@@ -21,6 +21,15 @@ Latest launch gate snapshot, 2026-05-21T10:10:57Z:
 - Wider paid launch readiness: NO-GO pending legal/privacy/public-claims review, production monitoring, production auth smoke, and customer-specific pilot setup approval
 - Next highest leverage: pick one real pilot candidate/workflow and run `npm.cmd run pilot:rehearsal` with 2-3 success criteria
 
+Latest Sunday readiness refresh, 2026-05-22T16:29:19Z:
+
+- App rehearsal: GO
+- Local verification: GO
+- Fly demo walkthrough preflight: GO against demo v164
+- Real-company guided walkthrough: NO-GO until actual company, owner/admin, field lead, first record, current tools, lost-info pain, support channel, backup confirmation, written expectations, data-boundary acknowledgement, and 2-3 success criteria are provided
+- Outside login creation: NO-GO until the intake gate is complete
+- Production deploy: NO-GO unless explicitly approved through the backup-first release checklist
+
 ## Core Pilot Docs
 
 | Artifact | Purpose |
@@ -85,11 +94,12 @@ npm.cmd run launch:gate-status -- --json
 ## Latest Evidence
 
 - Fly demo target: `https://concrete-ops-demo.fly.dev`
-- Latest walkthrough evidence refresh: `2026-05-21T11:03:46Z`
-- Latest Fly demo deploy evidence: v130, image `registry.fly.io/concrete-ops-demo:deployment-01KS4Z90RCA1G8RCBKSQQDEE2F`, pushed commit `2a59644`
-- Admin desktop manifest: `ui-audit/fencing-first-walkthrough/2026-05-21T11-03-15-095Z/manifest.json`
-- Admin tablet manifest: `ui-audit/fencing-first-walkthrough/2026-05-21T11-03-27-566Z/manifest.json`
-- Employee phone manifest: `ui-audit/fencing-first-walkthrough/2026-05-21T11-03-34-729Z/manifest.json`
+- Latest walkthrough evidence refresh: `2026-05-22T16:29:19Z`
+- Latest Fly demo deploy evidence: v164, image `registry.fly.io/concrete-ops-demo:deployment-01KS87FK72X22MGBX0YD17GZYE`, pushed commit `2024550`
+- Admin desktop manifest: `ui-audit/fencing-first-walkthrough/2026-05-22T16-28-20-814Z/manifest.json`
+- Admin tablet manifest: `ui-audit/fencing-first-walkthrough/2026-05-22T16-28-33-378Z/manifest.json`
+- Employee phone manifest: `ui-audit/fencing-first-walkthrough/2026-05-22T16-28-40-325Z/manifest.json`
+- Estimate tablet tightening evidence: `ui-audit/estimate-tablet-tighten-demo/2026-05-22T16-16-15-516Z/manifest.json` and `ui-audit/estimate-tablet-tighten-demo-custom/2026-05-22T16-17-03-795Z/admin-tablet-landscape-estimates-demo.png`
 - Local Fly demo auth smoke readiness: skip-auth smoke PASS after v130 deploy, local auth smoke NO-GO because `APEX_SMOKE_PASSWORD` is missing in the current shell
 - GitHub scheduled demo smoke: latest observed run `26207043659` passed on 2026-05-21T05:19:24Z and ran auth/bootstrap smoke
 - Latest GitHub CI: run `26222254607` passed on 2026-05-21 for commit `028abc3`. The CI job covered whitespace, auth/signup safety, tenant/role/package safety, public intake/demo safety, server behavior and backup/export tooling, and frontend build.
@@ -110,7 +120,8 @@ npm.cmd run launch:gate-status -- --json
 - Latest core workflow verification: `npm.cmd run verify:leads`, `npm.cmd run verify:jobs`, `npm.cmd run verify:daily-reports`, `npm.cmd run verify:uploads`, and `npm.cmd run verify:estimates` passed on 2026-05-21. This refreshed the lead/opportunity, job, daily report, upload/proof, and estimate/proposal workflow tests. A parallel `verify:leads` attempt had one AI lead assistant test-server readiness timeout, then the same command passed fully when rerun alone.
 - Latest field/support verification: `npm.cmd run verify:time`, `npm.cmd run verify:safety`, `npm.cmd run verify:tool-checklist`, `npm.cmd run verify:delivery-tickets`, `npm.cmd run verify:pre-pour`, `npm.cmd run verify:post-pour`, `npm.cmd run verify:change-orders`, `npm.cmd run verify:customers`, and `npm.cmd run verify:users` passed on 2026-05-21. A first Tool Checklist attempt had a test-server readiness timeout, then passed fully when rerun alone before the remaining checks continued.
 - Latest SaaS safety verification: `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:auth`, `npm.cmd run verify:exports`, `npm.cmd run verify:backup`, `npm.cmd run verify:restore`, `npm.cmd run verify:server`, and `npm.cmd run build` passed on 2026-05-21. Backup verification produced `app-data-20260521-105842Z.sqlite` / `.json`; the restore drill used the same backup pair and returned database `ok`. Local server smoke also logged login at 26ms and bootstrap at 6ms or less during the checked path.
-- Latest fencing walkthrough preflight: `npm.cmd run pilot:fencing-preflight -- --run --json` passed against `https://concrete-ops-demo.fly.dev` on 2026-05-21T11:03Z. Fly demo `/api/ready`, first-user packet validation, hosted skip-auth route smoke, admin desktop audit, admin tablet audit, employee phone field/restricted-route audit, and role tests all passed. The preflight decision remained guided walkthrough `GO`, friendly validation `GO with supervision`, public launch `NO-GO`, and production deploy `NO-GO unless explicitly approved through backup-first release`.
+- Latest Sunday readiness run: `npm.cmd run pilot:sunday-readiness -- --run-local --json` ran on 2026-05-22T16:29Z. The command returned app rehearsal `GO` and local verification `GO`; it remained real-company guided walkthrough `NO-GO` by design because actual company/owner/field/intake acknowledgements have not been supplied yet.
+- Latest fencing walkthrough preflight: `npm.cmd run pilot:fencing-preflight -- --run --base-url=https://concrete-ops-demo.fly.dev --json` passed against `https://concrete-ops-demo.fly.dev` on 2026-05-22T16:28Z. Fly demo `/api/ready`, first-user packet validation, hosted skip-auth route smoke, admin desktop audit, admin tablet audit, employee phone field/restricted-route audit, and role tests all passed. The preflight decision remained guided walkthrough `GO`, friendly validation `GO with supervision`, public launch `NO-GO`, and production deploy `NO-GO unless explicitly approved through backup-first release`.
 - Latest app shell architecture extraction: `npm.cmd run build`, `npm.cmd run verify:roles`, and `npm.cmd run verify:estimates` passed on 2026-05-21 after moving shared shell primitives out of `src/App.jsx` into `src/app-shell-components.jsx`. Local browser audits also passed for admin desktop `/command-center`, `/estimates`, `/jobs` and employee phone `/jobs`, `/reports`, `/uploads`, `/time`. Evidence manifests: `ui-audit/app-architecture-shell-extract/2026-05-21T11-55-16-826Z/manifest.json` and `ui-audit/app-architecture-shell-extract/2026-05-21T11-55-16-823Z/manifest.json`.
 - Latest shared UI primitive extraction: `npm.cmd run build`, `npm.cmd run verify:roles`, and `node --test --test-concurrency=1 src/app-routing.test.js src/navigation-utils.test.js src/design-tokens.test.js` passed on 2026-05-21 after moving common UI primitives into `src/app-shell-components.jsx`. Local browser audits passed for admin desktop `/command-center`, `/estimates`, `/jobs`, `/support` and employee phone `/jobs`, `/reports`, `/uploads`, `/time`. Evidence manifests: `ui-audit/app-architecture-ui-primitives/2026-05-21T12-02-38-045Z/manifest.json` and `ui-audit/app-architecture-ui-primitives/2026-05-21T12-02-38-035Z/manifest.json`.
 - Latest estimate route component extraction: `npm.cmd run build`, `npm.cmd run verify:estimates`, `npm.cmd run verify:roles`, and `node --test --test-concurrency=1 src/app-routing.test.js src/navigation-utils.test.js src/design-tokens.test.js` passed on 2026-05-21 after moving estimate display helpers, the polished estimate table, and the estimate-to-job handoff readiness card into `src/estimates-route-components.jsx`. Local browser audits passed for admin desktop/tablet/phone `/estimates` and employee phone `/jobs`, `/reports`, `/uploads`, `/time`. Evidence manifests: `ui-audit/app-architecture-estimates-extract/2026-05-21T12-15-22-815Z/manifest.json` and `ui-audit/app-architecture-estimates-extract-field/2026-05-21T12-15-22-852Z/manifest.json`.

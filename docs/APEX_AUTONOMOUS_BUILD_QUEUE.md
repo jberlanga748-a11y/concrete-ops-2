@@ -37,6 +37,8 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 | Date | Priority | Task | Result | Commit |
 | --- | --- | --- | --- | --- |
+| 2026-05-22 | P2 | Sunday pilot evidence refresh after estimate polish | Done; local Sunday app rehearsal checks passed, Fly demo v164 walkthrough preflight passed, current desktop/tablet/employee route manifests recorded, and real-company outside access remains gated until intake details are supplied | This commit |
+| 2026-05-22 | P3 | Estimate Studio tablet layout tightening | Done; `/estimates` tablet composition now gives the proposal workbench more width, converts the branded rail into an internal-scroll tablet rail, compacts the assistant dock, and keeps field users blocked | `2024550` |
 | 2026-05-22 | P1 | Estimate Studio branded proposal first viewport | Done; `/estimates` now defaults to a meaningful priced branded proposal instead of a zero-dollar draft, and the proposal brand strip is readable in the workbench while field users remain blocked | This commit |
 | 2026-05-22 | P4 | PWA pilot install walkthrough | Done; Sunday pilot guide explains iPhone/iPad, Android, and desktop install, role-safe first-launch checks, support notes, and clear no-offline-editing language | `9a6dfde` |
 | 2026-05-22 | P3 | PWA installability hardening | Done; manifest now has stable app identity, dark shell install theme, tablet-safe orientation, role-safe field shortcuts, and tests that keep private-data/offline caching out of the pilot PWA path | `c663ea4` |
@@ -158,4 +160,4 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 ## Next Recommended Task
 
-Next safe build action is Continue route module extraction: move one presentational route chunk out of `App.jsx` with existing props, preserving all permissions, package gates, data flow, and browser behavior. Human-input tasks remain blocked until real pilot details, outbound-contact approval, or smoke secrets are provided.
+Next safe build action is Continue route module extraction or another low-risk Sunday pilot polish item, preserving all permissions, package gates, data flow, and browser behavior. Human-input tasks remain blocked until real pilot details, outbound-contact approval, or smoke secrets are provided.

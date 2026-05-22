@@ -1,18 +1,18 @@
 # Apex HQ Fencing First Walkthrough Readiness Report
 
-Date: 2026-05-21
+Date: 2026-05-22
 
-Latest evidence refresh: 2026-05-21T09:59:17Z
+Latest evidence refresh: 2026-05-22T16:29:19Z
 
 Target environment: `https://concrete-ops-demo.fly.dev`
 
 Latest demo deployment:
 
-- Fly demo version: `130`
-- Fly demo image: `registry.fly.io/concrete-ops-demo:deployment-01KS4Z90RCA1G8RCBKSQQDEE2F`
-- Latest pushed commit at refresh: `2a59644`
+- Fly demo version: `164`
+- Fly demo image: `registry.fly.io/concrete-ops-demo:deployment-01KS87FK72X22MGBX0YD17GZYE`
+- Latest pushed commit at refresh: `2024550`
 
-Status: guided walkthrough GO, controlled pilot GO with supervision, public launch NO-GO.
+Status: app rehearsal GO, guided walkthrough GO for demo, real-company outside access NO-GO until intake details are complete, public launch NO-GO.
 
 ## What Was Prepared
 
@@ -73,39 +73,41 @@ Checked:
 
 Auth smoke was intentionally skipped for this refresh because the preflight ran without `--allow-auth`.
 
-Latest auth-smoke note: local authenticated hosted smoke remains blocked because `APEX_SMOKE_PASSWORD` is not set in the current shell. Skip-auth hosted smoke passed against the demo app after the v130 deploy.
+Latest auth-smoke note: local authenticated hosted smoke remains blocked because `APEX_SMOKE_PASSWORD` is not set in the current shell. Skip-auth hosted smoke passed against the demo app after the v164 deploy.
 
 ## Browser Evidence
 
 Admin desktop route audit:
 
-- Manifest: `ui-audit/fencing-first-walkthrough/2026-05-21T09-23-09-399Z/manifest.json`
+- Manifest: `ui-audit/fencing-first-walkthrough/2026-05-22T16-28-20-814Z/manifest.json`
 - Routes: `/command-center`, `/leads`, `/estimates`, `/jobs`, `/schedule`, `/reports`, `/uploads`, `/support`
 - Result: 8 checked, 0 failures
 
 Admin tablet route audit:
 
-- Manifest: `ui-audit/fencing-first-walkthrough/2026-05-21T09-23-21-902Z/manifest.json`
+- Manifest: `ui-audit/fencing-first-walkthrough/2026-05-22T16-28-33-378Z/manifest.json`
 - Routes: `/estimates`, `/jobs`, `/schedule`
 - Result: 3 checked, 0 failures
 
 Employee phone route audit:
 
-- Manifest: `ui-audit/fencing-first-walkthrough/2026-05-21T09-23-28-771Z/manifest.json`
+- Manifest: `ui-audit/fencing-first-walkthrough/2026-05-22T16-28-40-325Z/manifest.json`
 - Routes: `/jobs`, `/reports`, `/uploads`, `/time`, `/estimates`, `/leads`, `/settings`
 - Result: 7 checked, 0 failures
 - Restricted office routes redirected to field-safe workspace paths.
 
-Screenshot capture:
+Estimate tablet tightening evidence:
 
-- Manifest: `ui-audit/fencing-first-walkthrough-screenshots/2026-05-21T07-26-26-201Z/manifest.json`
-- Screenshots captured: 18
-- Prior screenshot-only Leads row truncation finding was resolved in the focused desktop Leads text polish pass. The current admin desktop route audit passed `/leads`.
+- Local tablet screenshot: `ui-audit/estimate-tablet-tighten-custom/2026-05-22T16-09-01-707Z/admin-tablet-landscape-estimates.png`
+- Demo tablet screenshot: `ui-audit/estimate-tablet-tighten-demo-custom/2026-05-22T16-17-03-795Z/admin-tablet-landscape-estimates-demo.png`
+- Demo `/estimates` route audit manifest: `ui-audit/estimate-tablet-tighten-demo/2026-05-22T16-16-15-516Z/manifest.json`
+- Tablet page-height ratio improved from about `3.86x` to `2.17x` at 1024x768, with the proposal workbench wider, the branded rail internally scrollable, and employee access still field-safe.
 
 ## Verification Commands
 
 ```powershell
 npm.cmd run pilot:fencing-preflight -- --run --json
+node scripts/sunday-pilot-readiness.mjs --run-local --json
 Invoke-RestMethod https://concrete-ops-demo.fly.dev/api/ready
 npm.cmd run pilot:first-user-packet -- --company="First Friendly Fencing Contractor" --trade="fencing" --workflow="lead / opportunity -> estimate -> job -> schedule -> field proof -> report/upload -> ready-to-bill review" --owner="Owner/admin to confirm" --field-lead="First field lead to confirm" --first-record="First active fence lead or estimate" --field-action="Upload one fence jobsite photo and complete one proof item" --success="Owner can see lead, estimate, job, schedule, proof, and next follow-up in one place" --success="One field user can complete one phone action without seeing office pricing or settings" --success="Owner can decide by Day 3 whether the workflow is useful enough for a 14-day founder pilot" --write
 npm.cmd run smoke:hosted -- --base-url=https://concrete-ops-demo.fly.dev --skip-auth --json
@@ -128,9 +130,29 @@ Result: PASS.
 - Employee direct access to `/estimates`, `/leads`, and `/settings` redirected to field-safe `/jobs`.
 - `npm.cmd run verify:roles` passed 12 tests.
 
+## Sunday Gate Result
+
+Command:
+
+```powershell
+npm.cmd run pilot:sunday-readiness -- --run-local --json
+```
+
+Result:
+
+- App rehearsal: GO.
+- Local verification: GO.
+- Real-company guided walkthrough: NO-GO until actual company/owner/field details and acknowledgements are supplied.
+- Outside login creation: NO-GO until intake is complete.
+- Production deploy: NO-GO unless explicitly approved through backup-first release.
+
+The command exits non-zero by design while real-company intake is incomplete. The local app checks passed; the blockers are missing human setup facts, not app test failures.
+
 ## Remaining Gaps Before A Real User
 
 - Confirm actual company name, owner/admin email, field lead email, and first real record.
+- Provide current tools, what gets lost most often, support channel, and 2-3 success criteria.
+- Confirm current tools stay as backup, written expectations are acknowledged, and no sensitive data beyond the pilot workflow is uploaded.
 - Run auth hosted smoke with `APEX_SMOKE_PASSWORD` available and `--allow-auth` explicitly set.
 - Confirm pilot terms/customer data expectations before outside login.
 - Keep the contractor's current system as backup.
@@ -144,7 +166,7 @@ Command:
 npm.cmd run verify:pilot-readiness
 ```
 
-Result: PASS on 2026-05-21T09:59Z.
+Result: PASS on 2026-05-21T09:59Z. A narrower Sunday readiness run on 2026-05-22T16:29Z also passed all local app rehearsal checks and remained real-company NO-GO only because intake details are not yet provided.
 
 Covered:
 
@@ -165,9 +187,9 @@ Backup/restore artifacts from the latest local readiness run:
 
 ## Recommendation
 
-Guided walkthrough: GO.
+Guided walkthrough demo rehearsal: GO.
 
-3-5 day friendly validation: GO with supervision after setup info is collected and auth smoke is run.
+3-5 day friendly validation: conditional GO with supervision after setup info is collected, acknowledgements are complete, and auth smoke is run.
 
 14-day founder pilot: CONDITIONAL GO after the friendly validation confirms usefulness and support load is manageable.
 
