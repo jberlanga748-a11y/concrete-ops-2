@@ -37,6 +37,7 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 | Date | Priority | Task | Result | Commit |
 | --- | --- | --- | --- | --- |
+| 2026-05-22 | P3 | App Health audit activity panel extraction | Done; App Health audit/activity trust panel moved into a route component module with import-boundary coverage, local build/role/browser checks, and Fly demo v150 hosted smoke passing | `c04a94a` |
 | 2026-05-22 | P1 | Agent server context action hydration | Done; assistant action proposals now show read-only server/local context proof, visible area counts, review signals, matched module summary, and context confirmation checklist while preserving review-first safety and field-user blocking | `54a5cbb` |
 | 2026-05-21 | P1 | Agent Context API client integration | Done; Apex Assistant can now sync the authenticated read-only server agent context, use it for workflow-summary prompts when available, and fall back to local visible state without creating or changing records | This commit |
 | 2026-05-21 | P1 | Agent Context API v1 | Done; authenticated office users now have a compact read-only `/api/agent/context` payload derived from existing tenant/package/role-scoped bootstrap data, while Basic packages and field roles are denied and no audit/write side effects occur | This commit |
