@@ -8,6 +8,7 @@ import {
   hasAgentWorkflowContextIntent,
   hasAgentWorkflowDraftPrepIntent,
 } from "./agent-workflow-context-utils.js";
+import { buildJobCloseoutBillingReviewPacket } from "./job-closeout-billing-utils.js";
 
 const ROUTE_COMMANDS = [
   {
@@ -487,7 +488,8 @@ export function resolveAssistantDailyCloseoutReadinessCommand(input = "", contex
     };
   }
 
-  const closeoutSummary = buildAssistantDailyCloseoutSummary(context);
+  const billingReviewPacket = buildJobCloseoutBillingReviewPacket(context);
+  const closeoutSummary = buildAssistantDailyCloseoutSummary(context, billingReviewPacket);
   const actions = [
     permissions?.reports?.canView || permissions?.reports?.canReview ? { moduleId: "reports", actionLabel: "Open Reports" } : null,
     permissions?.uploads?.canView || permissions?.uploads?.canManageAll ? { moduleId: "uploads", actionLabel: "Open Uploads" } : null,
@@ -503,6 +505,7 @@ export function resolveAssistantDailyCloseoutReadinessCommand(input = "", contex
     message: "Daily closeout readiness is ready for office review. No report approval, upload change, ticket link, checklist review, time correction, safety resolution, billing action, invoice, customer message, or job status change happens automatically.",
     commandText: rawText,
     closeoutSummary,
+    billingReviewPacket,
     actions,
   };
 }
@@ -2614,7 +2617,7 @@ function buildAssistantReleaseReadinessSummary(context = {}) {
   ];
 }
 
-function buildAssistantDailyCloseoutSummary(context = {}) {
+function buildAssistantDailyCloseoutSummary(context = {}, billingReviewPacket = null) {
   const commandCenter = context.commandCenter || {};
   const stats = commandCenter.stats || {};
   const jobs = asArray(context.jobs).filter((job) => !job?.archivedAt);
@@ -2634,6 +2637,11 @@ function buildAssistantDailyCloseoutSummary(context = {}) {
   const openSafety = incidents.filter((incident) => safetyIncidentIsOpen(incident)).length;
   const activeTime = timeEntries.filter((entry) => !entry.clockOut && ["active", "clocked_in", "in_progress"].includes(normalizeText(entry.status || "active"))).length;
   const readyToBill = jobs.filter((job) => normalizeText(job.status || job.stage) === "billing_ready").length || Number(stats.jobsReadyToBill || stats.moneyReadyItems || 0);
+  const reviewPacket = billingReviewPacket?.canView
+    ? billingReviewPacket
+    : buildJobCloseoutBillingReviewPacket(context);
+  const packetItems = asArray(reviewPacket.summaryItems);
+  if (packetItems.length) return packetItems;
 
   return [
     {

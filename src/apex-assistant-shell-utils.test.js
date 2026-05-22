@@ -324,16 +324,18 @@ test("assistant opens daily closeout readiness without approving or billing", ()
       { id: "JOB-1", title: "Westview Warehouse", status: "billing_ready" },
       { id: "JOB-2", title: "Maple Ridge", status: "in_progress" },
     ],
+    estimates: [{ id: "EST-1", jobId: "JOB-1", grandTotal: 48750 }],
     dailyReports: [
       { id: "REPORT-1", status: "submitted", jobId: "JOB-1" },
       { id: "REPORT-2", status: "reviewed", jobId: "JOB-2" },
     ],
-    uploads: [{ id: "UPLOAD-1", fileName: "finish.jpg" }],
-    deliveryTickets: [{ id: "TICKET-1", status: "pending" }],
+    uploads: [{ id: "UPLOAD-1", jobId: "JOB-1", fileName: "finish.jpg" }],
+    deliveryTickets: [{ id: "TICKET-1", jobId: "JOB-1", status: "pending" }],
+    changeOrderRequests: [{ id: "CO-1", jobId: "JOB-1", status: "approved_for_pricing", amount: 750 }],
     prePourChecklists: [{ id: "PRE-1", status: "completed" }],
     postPourChecklists: [{ id: "POST-1", status: "reopened" }],
     safetyIncidents: [{ id: "SAFE-1", status: "open" }],
-    timeEntries: [{ id: "TIME-1", status: "active" }],
+    timeEntries: [{ id: "TIME-1", jobId: "JOB-1", status: "active", clockInAt: "2026-05-22T07:00:00Z", clockOutAt: "" }],
     commandCenter: {
       stats: { missingReports: 1, fieldProofGaps: 2 },
       uploads: { jobsMissingPhotos: [{ id: "JOB-2" }] },
@@ -343,9 +345,12 @@ test("assistant opens daily closeout readiness without approving or billing", ()
   assert.equal(command.type, "daily-closeout-readiness");
   assert.equal(command.moduleId, "reports");
   assert.equal(command.actions.map((action) => action.moduleId).join(","), "reports,uploads,jobs,time,deliveryTickets");
-  assert.equal(command.closeoutSummary.length, 4);
-  assert.equal(command.closeoutSummary.some((item) => /ready-to-bill/i.test(item.label)), true);
-  assert.equal(command.closeoutSummary.some((item) => /does not create invoices, submit billing, change job status/i.test(item.detail)), true);
+  assert.equal(command.closeoutSummary.length, 5);
+  assert.equal(command.closeoutSummary.some((item) => /Billing review candidates/i.test(item.label)), true);
+  assert.equal(command.closeoutSummary.some((item) => /does not create invoices, collect payment, send customer messages/i.test(item.detail)), true);
+  assert.equal(command.billingReviewPacket.metrics.estimateTotal, 48750);
+  assert.equal(command.billingReviewPacket.metrics.changeOrdersNeedingReview, 1);
+  assert.equal(command.billingReviewPacket.blockedActions.some((item) => /No invoice is created/i.test(item)), true);
   assert.match(command.message, /No report approval, upload change, ticket link, checklist review, time correction, safety resolution, billing action, invoice/i);
 });
 
