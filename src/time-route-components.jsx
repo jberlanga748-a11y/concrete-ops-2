@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { Badge, Card, Icon, SectionHeader } from "./app-shell-components";
+import { Badge, Card, Icon, SectionHeader, StateCard } from "./app-shell-components";
 import { formatMinutes, timeStatusTone } from "./time-utils";
 
 export function workCategoryLabel(workCategory = "") {
@@ -22,6 +22,18 @@ export function workCategoryLabel(workCategory = "") {
 
 export function TimeStatusBadge({ status }) {
   return <Badge tone={timeStatusTone(status)}>{status === "on_break" ? "On Break" : status === "completed" ? "Completed" : "Active"}</Badge>;
+}
+
+function timeEntryDateTimeLabel(value) {
+  if (!value) return "Not recorded";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "Not recorded";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(parsed);
 }
 
 export function TimeKpiCardPolished({ item }) {
@@ -117,6 +129,73 @@ export function TimeMobileFieldGroup({ title, summary, defaultOpen = false, chil
       {isOpen ? <div className="grid gap-3 border-t border-blue-100 p-3">
         {children}
       </div> : null}
+    </div>
+  );
+}
+
+export function RecentTimeEntriesCard({ entries, title = "Recent entries", description, emptyTitle = "No time entries yet", emptyDescription = "Clock in to start your first time entry.", showUser = false, compact = false, compactMobile = false }) {
+  const safeEntries = Array.isArray(entries) ? entries : [];
+  const content = safeEntries.length === 0 ? (
+    <StateCard title={emptyTitle} description={emptyDescription} tone="slate" />
+  ) : (
+    <div className={compactMobile ? "space-y-2.5 md:space-y-3" : "space-y-3"}>
+      {safeEntries.map((entry) => <TimeEntryCard key={entry.id} entry={entry} showUser={showUser} compact={compact} compactMobile={compactMobile} />)}
+    </div>
+  );
+
+  if (compactMobile) {
+    return (
+      <>
+        <TimeMobileAccordionCard title={title} summary={`${safeEntries.length} visible entries`} badge={<Badge tone="slate">{safeEntries.length}</Badge>}>
+          {content}
+        </TimeMobileAccordionCard>
+        <Card className="hidden p-5 md:block">
+          <SectionHeader title={title} description={description} />
+          {content}
+        </Card>
+      </>
+    );
+  }
+
+  return (
+    <Card className={compactMobile ? "p-3.5 md:p-5" : "p-5"}>
+      <SectionHeader title={title} description={description} />
+      {content}
+    </Card>
+  );
+}
+
+export function TimeEntryCard({ entry, showUser = false, compact = false, compactMobile = false }) {
+  return (
+    <div className={compactMobile ? "co-mobile-record-card rounded-2xl border border-blue-100 bg-white p-3 md:p-4" : "rounded-2xl border border-blue-100 bg-white p-4"}>
+      <div className={compactMobile ? "flex flex-wrap items-start justify-between gap-2.5" : "flex flex-wrap items-start justify-between gap-3"}>
+        <div className="min-w-0">
+          <p className={compactMobile ? "break-words text-[13px] font-black text-slate-950 md:text-sm" : "break-words text-sm font-black text-slate-950"}>{entry.jobTitle || workCategoryLabel(entry.workCategory)}</p>
+          <p className="mt-1 break-words text-xs font-bold text-slate-500">{entry.workCategory === "job" ? (entry.address || "Jobsite details pending") : workCategoryLabel(entry.workCategory)}</p>
+          {showUser ? <p className="mt-1 break-words text-xs font-bold text-slate-500">{entry.userName}</p> : null}
+        </div>
+        <TimeStatusBadge status={entry.status} />
+      </div>
+      <div className={`${compactMobile ? "mt-2.5 gap-2.5 md:mt-3 md:gap-3" : "mt-3 gap-3"} grid ${compact ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Clock in</p>
+          <p className={compactMobile ? "mt-1 text-[13px] font-bold text-slate-700 md:text-sm" : "mt-1 text-sm font-bold text-slate-700"}>{timeEntryDateTimeLabel(entry.clockInAt)}</p>
+        </div>
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Clock out</p>
+          <p className={compactMobile ? "mt-1 text-[13px] font-bold text-slate-700 md:text-sm" : "mt-1 text-sm font-bold text-slate-700"}>{entry.clockOutAt ? timeEntryDateTimeLabel(entry.clockOutAt) : "Still active"}</p>
+        </div>
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Total</p>
+          <p className={compactMobile ? "mt-1 text-[13px] font-bold text-slate-700 md:text-sm" : "mt-1 text-sm font-bold text-slate-700"}>{entry.status === "completed" ? formatMinutes(entry.totalMinutes) : "In progress"}</p>
+        </div>
+      </div>
+      <div className={compactMobile ? "mt-2.5 flex flex-wrap gap-1.5 md:mt-3 md:gap-2" : "mt-3 flex flex-wrap gap-2"}>
+        <Badge tone="slate">{workCategoryLabel(entry.workCategory)}</Badge>
+        <Badge tone="slate">Break {formatMinutes(entry.breakMinutes)}</Badge>
+        {entry.scheduledStart ? <Badge tone="blue">{timeEntryDateTimeLabel(entry.scheduledStart)}</Badge> : null}
+      </div>
+      {entry.notes ? <p className={compactMobile ? "mt-2.5 text-[13px] leading-5 text-slate-600 md:mt-3 md:text-sm md:leading-6" : "mt-3 text-sm leading-6 text-slate-600"}>{entry.notes}</p> : null}
     </div>
   );
 }
