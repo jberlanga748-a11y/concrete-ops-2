@@ -131,6 +131,7 @@ import {
   submitPublicDemoInterest,
   submitDailyReport,
   submitPublicEstimateRequest,
+  suggestAgentLearningFromEstimates,
   startBreak,
   toggleQueueItem,
   archiveDailyReport,
@@ -23297,6 +23298,7 @@ function CopilotPagePolished({
   onConvertFoundOpportunityToLead,
   onReviewFoundOpportunityWithAi,
   onCreateAgentLearningPreference,
+  onSuggestAgentLearningFromEstimates,
   onUpdateAgentLearningPreference,
 }) {
   const liveLeads = normalizeObjectArray(leads).filter((lead) => !lead.archivedAt);
@@ -23609,6 +23611,22 @@ function CopilotPagePolished({
       status: ok ? "success" : "error",
       id: preference.id,
       message: ok ? `Memory ${status.replace(/_/g, " ")}.` : "Could not update Apex memory.",
+    });
+  }
+
+  async function suggestLearningFromEstimates() {
+    if (!canManageAgentLearning || learningActionState.status === "saving") return;
+    setLearningActionState({ status: "saving", id: "suggest-estimates", message: "" });
+    const result = await onSuggestAgentLearningFromEstimates?.();
+    const count = Number(result?.count || 0);
+    setLearningActionState({
+      status: result?.ok ? "success" : "error",
+      id: "suggest-estimates",
+      message: result?.ok
+        ? count
+          ? `${count} estimate learning suggestion${count === 1 ? "" : "s"} prepared for approval.`
+          : "No new estimate learning suggestions found."
+        : "Could not prepare estimate learning suggestions.",
     });
   }
 
@@ -24604,7 +24622,16 @@ function CopilotPagePolished({
                     {learningActionState.status === "saving" && learningActionState.id === "new" ? "Saving..." : "Teach Apex"}
                   </Button>
                 </div>
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2">
+                  <span className="text-[11px] font-bold leading-4 text-slate-500">Let Apex suggest memory from approved or sent estimates. Suggestions stay inactive until approved.</span>
+                  <Button type="button" size="sm" variant="secondary" disabled={busy || learningActionState.status === "saving"} onClick={suggestLearningFromEstimates}>
+                    {learningActionState.status === "saving" && learningActionState.id === "suggest-estimates" ? "Scanning..." : "Suggest from estimates"}
+                  </Button>
+                </div>
                 {learningActionState.id === "new" && learningActionState.message ? (
+                  <p className={`mt-2 text-xs font-bold ${learningActionState.status === "error" ? "text-red-700" : "text-emerald-700"}`}>{learningActionState.message}</p>
+                ) : null}
+                {learningActionState.id === "suggest-estimates" && learningActionState.message ? (
                   <p className={`mt-2 text-xs font-bold ${learningActionState.status === "error" ? "text-red-700" : "text-emerald-700"}`}>{learningActionState.message}</p>
                 ) : null}
               </form>
@@ -36801,6 +36828,25 @@ export default function App() {
     }
   }
 
+  async function handleSuggestAgentLearningFromEstimates() {
+    if (!sessionToken || !appState.permissions.aiOffice?.canManageLearning) {
+      return { ok: false, count: 0 };
+    }
+    setBusy(true);
+    try {
+      const nextState = await suggestAgentLearningFromEstimates(sessionToken);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return { ok: true, count: nextState.agentLearningSuggestions?.length || 0 };
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, count: 0 };
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleUpdateAgentLearningPreference(preferenceId, payload) {
     if (!sessionToken || !appState.permissions.aiOffice?.canManageLearning) return false;
     setBusy(true);
@@ -38744,6 +38790,7 @@ export default function App() {
                 onConvertFoundOpportunityToLead={handleConvertFoundOpportunityToLead}
                 onReviewFoundOpportunityWithAi={handleReviewFoundOpportunityWithAi}
                 onCreateAgentLearningPreference={handleCreateAgentLearningPreference}
+                onSuggestAgentLearningFromEstimates={handleSuggestAgentLearningFromEstimates}
                 onUpdateAgentLearningPreference={handleUpdateAgentLearningPreference}
                 onCreateContactHistory={handleCreateContactHistory}
                 onUpdateContactHistory={handleUpdateContactHistory}

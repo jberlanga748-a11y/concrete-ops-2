@@ -160,6 +160,68 @@ function auditEvents(sqliteFile) {
   }
 }
 
+function insertReviewedEstimate(sqliteFile) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    const now = new Date().toISOString();
+    const customer = database.prepare("SELECT id FROM customers WHERE company_id = ? LIMIT 1").get(DEFAULT_COMPANY_ID);
+    const user = database.prepare("SELECT id FROM users WHERE company_id = ? LIMIT 1").get(DEFAULT_COMPANY_ID);
+    assert.ok(customer?.id);
+    assert.ok(user?.id);
+    database.prepare(`
+      INSERT INTO estimates (
+        id, sort_index, company_id, customer_id, lead_id, job_id, customer_email, title, status,
+        scope_summary, internal_notes, customer_notes, subtotal, tax_rate, tax_total, fees_total, grand_total,
+        created_by, sent_at, sent_by, sent_to, email_subject, provider_message_id, approved_at, rejected_at,
+        archived_at, created_at, updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      "EST-AGENT-LEARNING-FENCE",
+      -999,
+      DEFAULT_COMPANY_ID,
+      customer.id,
+      null,
+      null,
+      "",
+      "Approved cedar fence proposal",
+      "approved",
+      "Build 6 ft cedar privacy fence with two gates, post layout, and cleanup.",
+      "",
+      "Includes demo, cedar posts, cedar panels, gate hardware, and final haul off.",
+      1000,
+      null,
+      null,
+      null,
+      1000,
+      user.id,
+      "",
+      "",
+      "",
+      "",
+      "",
+      now,
+      "",
+      "",
+      now,
+      now,
+    );
+    const itemRows = [
+      ["EST-AGENT-LEARNING-FENCE-ITEM-1", "Demo and haul off existing fence"],
+      ["EST-AGENT-LEARNING-FENCE-ITEM-2", "Set cedar posts in concrete"],
+      ["EST-AGENT-LEARNING-FENCE-ITEM-3", "Build 6 ft cedar privacy fence"],
+    ];
+    for (const [id, description] of itemRows) {
+      database.prepare(`
+        INSERT INTO estimate_items (id, sort_index, estimate_id, description, quantity, unit, unit_price, line_total, sort_order, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(id, -999, "EST-AGENT-LEARNING-FENCE", description, 1, "ea", 0, 0, 0, now, now);
+    }
+  } finally {
+    database.close();
+  }
+}
+
 test("agent learning memory is package gated, role gated, and company persisted", async () => {
   const fixture = await startServer();
 
@@ -272,6 +334,55 @@ test("agent learning memory rejects credentials and can approve or archive sugge
     assert.equal(archived.agentLearningPreference.status, "archived");
     assert.ok(archived.agentLearningPreference.archivedAt);
     assert.deepEqual(auditEvents(fixture.sqliteFile).map((event) => event.action).slice(0, 3), ["archived", "approved", "suggested"]);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("agent learning can suggest inactive memory from reviewed estimates while field users stay blocked", async () => {
+  const fixture = await startServer();
+
+  try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.PREMIUM);
+    insertReviewedEstimate(fixture.sqliteFile);
+    const adminLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const employeeUser = createUserRecord({
+      id: "U-AGENT-LEARNING-SUGGEST-EMPLOYEE",
+      email: "agent-learning-suggest-employee@apexhq.test",
+      password: "apexdemo123",
+      name: "Agent Learning Suggest Employee",
+      role: "Employee",
+    });
+    insertUser(fixture.sqliteFile, employeeUser);
+    const employeeLogin = await login(fixture.baseUrl, {
+      email: employeeUser.email,
+      password: "apexdemo123",
+    });
+
+    const employeeBlocked = await requestJson(fixture.baseUrl, "/api/agent/learning-preferences/suggest-from-estimates", {
+      method: "POST",
+      headers: authHeaders(employeeLogin.token),
+    });
+    assert.equal(employeeBlocked.response.status, 403);
+
+    const suggested = await assertOk(fixture.baseUrl, "/api/agent/learning-preferences/suggest-from-estimates", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+    });
+
+    assert.ok(suggested.agentLearningSuggestions.length > 0);
+    assert.equal(suggested.agentLearningSuggestions.every((entry) => entry.status === "suggested"), true);
+    assert.equal(suggested.companySettings.agentLearningPreferences.some((entry) => entry.status === "approved"), false);
+    assert.equal(auditEvents(fixture.sqliteFile)[0].action, "suggested");
+
+    const duplicateScan = await assertOk(fixture.baseUrl, "/api/agent/learning-preferences/suggest-from-estimates", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+    });
+    assert.equal(duplicateScan.agentLearningSuggestions.length, 0);
   } finally {
     await fixture.stop();
   }

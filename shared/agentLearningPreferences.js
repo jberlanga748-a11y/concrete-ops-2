@@ -141,3 +141,118 @@ export function summarizeAgentLearningPreferences(value = []) {
     archived: preferences.filter((entry) => entry.status === "archived").length,
   };
 }
+
+function normalizeComparableText(value = "") {
+  return rawText(value, 240).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function estimateText(estimate = {}) {
+  return [
+    estimate.title,
+    estimate.scopeSummary,
+    estimate.customerNotes,
+    estimate.proposalSummary,
+    estimate.projectType,
+    ...(Array.isArray(estimate.items) ? estimate.items.map((item) => item.description) : []),
+    ...(Array.isArray(estimate.estimateItems) ? estimate.estimateItems.map((item) => item.description) : []),
+  ].filter(Boolean).join(" ");
+}
+
+function inferTradeTags(estimate = {}) {
+  const textValue = normalizeComparableText(estimateText(estimate));
+  const tags = [];
+  if (/\bfence|fencing|gate|post|picket|cedar|chain link|vinyl\b/.test(textValue)) tags.push("fence");
+  if (/\bconcrete|slab|driveway|patio|broom|stamped|aggregate|pour|forms?\b/.test(textValue)) tags.push("concrete");
+  if (/\bdeck|framing|roof|siding|remodel|drywall|flooring|paint|plumb|electrical\b/.test(textValue)) tags.push("general construction");
+  return tags.length ? tags : ["construction"];
+}
+
+function estimateLineDescriptions(estimate = {}) {
+  const rows = [
+    ...(Array.isArray(estimate.items) ? estimate.items : []),
+    ...(Array.isArray(estimate.estimateItems) ? estimate.estimateItems : []),
+  ];
+  return rows
+    .map((item) => rawText(item.description || item.name || item.label, 72))
+    .filter(Boolean)
+    .slice(0, 5);
+}
+
+function estimateProposalText(estimate = {}) {
+  const source = rawText(estimate.proposalSummary || estimate.customerNotes || estimate.scopeSummary, 360);
+  if (!source) return "";
+  return source.split(/(?<=[.!?])\s+/).slice(0, 2).join(" ").slice(0, 260);
+}
+
+function isReviewedEstimate(estimate = {}) {
+  const status = rawText(estimate.status, 40).toLowerCase();
+  return !estimate.archivedAt && ["approved", "sent"].includes(status);
+}
+
+function suggestionKey(entry = {}) {
+  return [
+    normalizeComparableText(entry.category),
+    normalizeComparableText(entry.title),
+    normalizeComparableText(entry.preference),
+  ].join("|");
+}
+
+export function buildAgentLearningSuggestionsFromEstimates(estimates = [], existingPreferences = [], { now = new Date().toISOString() } = {}) {
+  const existingKeys = new Set(normalizeAgentLearningPreferences(existingPreferences).map(suggestionKey));
+  const reviewed = (Array.isArray(estimates) ? estimates : [])
+    .filter(isReviewedEstimate)
+    .slice(0, 20);
+  const candidates = [];
+
+  for (const estimate of reviewed) {
+    const tags = inferTradeTags(estimate);
+    const primaryTrade = tags[0] || "construction";
+    const lineDescriptions = estimateLineDescriptions(estimate);
+    if (lineDescriptions.length >= 2) {
+      candidates.push({
+        category: "estimate-style",
+        title: `${primaryTrade[0].toUpperCase()}${primaryTrade.slice(1)} estimate structure`,
+        preference: `For ${primaryTrade} estimates, use this reviewed structure as a starting point: ${lineDescriptions.join("; ")}. Keep prices and final scope human-reviewed.`,
+        appliesTo: tags,
+        sourceType: "approved-estimate-pattern",
+        sourceEntityType: "estimate",
+        sourceEntityId: estimate.id || "",
+        sourceNote: `Suggested from reviewed estimate ${estimate.title || estimate.id || "estimate"}.`,
+        status: "suggested",
+        confidence: 72,
+      });
+    }
+
+    const proposalText = estimateProposalText(estimate);
+    if (proposalText.length >= 40) {
+      candidates.push({
+        category: "proposal-language",
+        title: `${primaryTrade[0].toUpperCase()}${primaryTrade.slice(1)} proposal tone`,
+        preference: `When drafting ${primaryTrade} proposals, keep language close to this reviewed style: ${proposalText}`,
+        appliesTo: tags,
+        sourceType: "approved-estimate-pattern",
+        sourceEntityType: "estimate",
+        sourceEntityId: estimate.id || "",
+        sourceNote: `Suggested from reviewed estimate ${estimate.title || estimate.id || "estimate"}.`,
+        status: "suggested",
+        confidence: 68,
+      });
+    }
+  }
+
+  const suggestions = [];
+  const seen = new Set(existingKeys);
+  for (const candidate of candidates) {
+    const normalized = normalizeAgentLearningPreference(candidate, {
+      id: `ALP-SUGGEST-${suggestions.length + 1}-${rawText(candidate.sourceEntityId || "estimate", 20)}`,
+      now,
+    });
+    if (normalized.blockedReasons.length || !normalized.title || !normalized.preference) continue;
+    const key = suggestionKey(normalized);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    suggestions.push(normalized);
+    if (suggestions.length >= 6) break;
+  }
+  return suggestions;
+}

@@ -82,6 +82,7 @@ import {
   deriveAgentWorkflowContext,
 } from "../shared/agentWorkflowContext.js";
 import {
+  buildAgentLearningSuggestionsFromEstimates,
   normalizeAgentLearningPreference,
   normalizeAgentLearningPreferences,
   summarizeAgentLearningPreferences,
@@ -5991,6 +5992,17 @@ function publicAgentLearningPreference(preference) {
   return safePreference;
 }
 
+function estimatesForAgentLearningSuggestions(state, user) {
+  const companyId = currentCompanyIdForRequestUser(state, user);
+  const estimateItems = Array.isArray(state.estimateItems) ? state.estimateItems : [];
+  return (Array.isArray(state.estimates) ? state.estimates : [])
+    .filter((estimate) => recordBelongsToCompany(estimate, companyId))
+    .map((estimate) => ({
+      ...estimate,
+      estimateItems: estimateItems.filter((item) => item.estimateId === estimate.id),
+    }));
+}
+
 function parseAgentProposalAuditDetail(detail) {
   if (detail && typeof detail === "object") return detail;
   if (!detail || typeof detail !== "string") return {};
@@ -7186,6 +7198,57 @@ app.post("/api/agent/learning-preferences", requireAuth, asyncRoute(async (req, 
   res.status(201).json({
     ...sanitizeBootstrap(nextState, req.auth.user),
     agentLearningPreference: publicAgentLearningPreference(createdPreference),
+  });
+}));
+
+app.post("/api/agent/learning-preferences/suggest-from-estimates", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let createdSuggestions = [];
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageAgentLearningPreferences(draft, req.auth.user);
+    const current = agentLearningPreferencesForState(draft, req.auth.user);
+    const estimates = estimatesForAgentLearningSuggestions(draft, req.auth.user);
+    createdSuggestions = buildAgentLearningSuggestionsFromEstimates(estimates, current, { now })
+      .map((suggestion, index) => ({
+        ...suggestion,
+        id: makeId(`ALP-SUG-${index + 1}`),
+        createdBy: req.auth.user.id,
+        createdAt: now,
+        updatedAt: now,
+        status: "suggested",
+      }));
+
+    if (!createdSuggestions.length) {
+      return draft;
+    }
+
+    persistAgentLearningPreferences(draft, req.auth.user, [...createdSuggestions, ...current].slice(0, 80));
+    appendActivity(draft, "Apex learning suggestions prepared", `${req.auth.user.name} prepared ${createdSuggestions.length} Apex Assistant learning suggestion${createdSuggestions.length === 1 ? "" : "s"} from reviewed estimates.`);
+    for (const suggestion of createdSuggestions) {
+      appendAuditEvent(draft, {
+        entityType: "agentLearningPreference",
+        entityId: suggestion.id,
+        action: "suggested",
+        summary: "Apex learning suggestion prepared",
+        detail: JSON.stringify({
+          id: suggestion.id,
+          title: suggestion.title,
+          category: suggestion.category,
+          sourceType: suggestion.sourceType,
+          sourceEntityType: suggestion.sourceEntityType,
+          sourceEntityId: suggestion.sourceEntityId,
+        }),
+        actor: req.auth.user,
+        changedFields: ["agentLearningPreferences"],
+      });
+    }
+    return draft;
+  });
+
+  res.status(createdSuggestions.length ? 201 : 200).json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    agentLearningSuggestions: createdSuggestions.map(publicAgentLearningPreference),
   });
 }));
 
