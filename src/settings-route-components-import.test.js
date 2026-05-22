@@ -10,3 +10,12 @@ test("App imports the extracted plan readiness panel", () => {
   assert.match(appSource, /import \{[^}]*PlanReadinessPanel[^}]*\} from "\.\/settings-route-components"/s);
   assert.doesNotMatch(appSource, /function PlanReadinessPanel/);
 });
+
+test("App imports the extracted settings command rail", () => {
+  const appSource = fs.readFileSync(new URL("./App.jsx", import.meta.url), "utf8");
+  const settingsComponentsSource = fs.readFileSync(new URL("./settings-route-components.jsx", import.meta.url), "utf8");
+
+  assert.match(settingsComponentsSource, /export function SettingsCommandRailPolished/);
+  assert.match(appSource, /import \{[^}]*SettingsCommandRailPolished[^}]*\} from "\.\/settings-route-components"/s);
+  assert.doesNotMatch(appSource, /function SettingsCommandRailPolished/);
+});
