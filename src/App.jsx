@@ -189,6 +189,7 @@ import { deriveEstimateBackup } from "./estimate-backup-utils";
 import { deriveEstimateGcPacketLite } from "./estimate-gc-packet-utils";
 import { estimateRoughNotesBullets, estimateRoughNotesHasSuggestions, estimateRoughNotesText, hasMeaningfulEstimateItems } from "./estimate-rough-notes-utils";
 import { addEstimateSentSnapshot, getEstimateVisibleInternalNotes, mergeEstimateGcPacketLite, mergeEstimateOfficeInternalNotes } from "./estimate-snapshot-utils";
+import { buildEstimateVisualPreviewPacket, canRequestEstimateVisualPreview } from "./estimate-visual-preview-utils";
 import { buildEstimateCopyText, buildEstimateCustomerMessage, buildEstimateDraftFromLead, calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEstimateTotals, deriveEstimateListState, deriveEstimateProposalSections, estimateCustomerEmail, estimateStatusLabel, filterEstimates, formatEstimateCurrency, getEstimateFromLeadReadiness, mergeEstimateProposalSections, selectDefaultEstimateForReview } from "./estimate-utils";
 import {
   EstimateBackupEditor,
@@ -28605,6 +28606,14 @@ function EstimatesPagePolished({
     () => deriveEstimateBackup(detailEstimatePreview || detailDraft),
     [detailDraft, detailEstimatePreview],
   );
+  const visualPreviewPacket = useMemo(
+    () => buildEstimateVisualPreviewPacket({
+      estimate: detailEstimatePreview || detailDraft,
+      backup: detailEstimateBackup,
+      companySettings: companyProfile,
+    }),
+    [companyProfile, detailDraft, detailEstimateBackup, detailEstimatePreview],
+  );
   const detailSaveDisabled = busy || (!detailDraft.customerId && !detailDraft.leadId) || !detailDraft.title;
   const canMarkSent = canManage && detailDraft.status === "draft";
   const packetPrintSettings = useMemo(() => resolveEstimatePacketSettings({
@@ -28624,6 +28633,7 @@ function EstimatesPagePolished({
     canUseAiRoughNotes ? { id: "roughNotes", label: "AI Notes", count: estimateRoughNotesHasSuggestions(roughNotesState.result) ? 1 : 0 } : null,
     { id: "edit", label: "Edit / Pricing", count: selectedEstimate ? 1 : 0 },
     canManage ? { id: "fenceTakeoff", label: "Fence Takeoff", count: detailEstimateBackup.fenceTakeoff?.segments?.length || 0 } : null,
+    canManage ? { id: "visual", label: "Visual Preview", count: canRequestEstimateVisualPreview(visualPreviewPacket) ? 1 : 0 } : null,
     { id: "sections", label: "Sections", count: detailDraft.items?.length || 0 },
     { id: "backup", label: "SOV / Backup", count: 1 },
     canUseGcPackets ? { id: "packet", label: "Packet", count: packetSectionIds.length } : null,
@@ -28644,6 +28654,7 @@ function EstimatesPagePolished({
     { label: "Scope", icon: "clipboard", onClick: () => openEstimateTool("sections"), disabled: !selectedEstimate },
     { label: "Line Items", icon: "document", onClick: () => openEstimateTool("edit"), disabled: !selectedEstimate },
     { label: "Fence Takeoff", icon: "layers", onClick: () => openEstimateTool("fenceTakeoff"), disabled: !selectedEstimate || !canManage },
+    { label: "Visual Preview", icon: "photo", onClick: () => openEstimateTool("visual"), disabled: !selectedEstimate || !canManage },
     { label: "Exclusions", icon: "alert", onClick: () => openEstimateTool("sections"), disabled: !selectedEstimate },
     { label: "Photo Backup", icon: "clipboard", onClick: () => openEstimateTool("backup"), disabled: !selectedEstimate },
     { label: "Price Summary", icon: "briefcase", onClick: () => openEstimateTool("packet"), disabled: !selectedEstimate },
@@ -28652,6 +28663,7 @@ function EstimatesPagePolished({
   const estimateAssistantActions = [
     canUseAiRoughNotes ? { label: "Turn rough notes into packet", icon: "spark", onClick: () => openEstimateTool("roughNotes") } : null,
     { label: "Build fence takeoff", icon: "layers", onClick: () => openEstimateTool("fenceTakeoff"), disabled: !selectedEstimate || !canManage },
+    { label: "Prepare visual preview", icon: "photo", onClick: () => openEstimateTool("visual"), disabled: !selectedEstimate || !canManage },
     { label: "Review missing scope", icon: "clipboard", onClick: () => openEstimateTool("sections"), disabled: !selectedEstimate },
     { label: "Create foreman handoff", icon: "users", onClick: () => openEstimateTool("packet"), disabled: !selectedEstimate || !canUseGcPackets },
   ].filter(Boolean);
@@ -29409,6 +29421,84 @@ function EstimatesPagePolished({
                 />
               ) : (
                 <StateCard title="Fence takeoff unavailable" description="Fence takeoff tools are office-only and hidden from field users." tone="slate" />
+              )}
+            </Card>
+          ) : null}
+
+          {activeEstimateTool === "visual" ? (
+            <Card className="p-4">
+              <SectionHeader
+                title="AI Visual Preview Prep"
+                description={selectedEstimate ? "Prepare a review-first concept-image prompt from estimate scope, trade, options, and photo/takeoff evidence." : "Select an estimate before preparing a visual preview packet."}
+                action={selectedEstimate ? <Badge tone={canRequestEstimateVisualPreview(visualPreviewPacket) ? "green" : "amber"}>{canRequestEstimateVisualPreview(visualPreviewPacket) ? "Ready" : "Needs review"}</Badge> : null}
+              />
+              {selectedEstimate && canManage ? (
+                <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+                  <div className="grid gap-3">
+                    <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3">
+                      <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-800">Concept prompt</p>
+                      <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{visualPreviewPacket.prompt}</p>
+                    </div>
+                    {visualPreviewPacket.missingReviewItems.length ? (
+                      <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-3">
+                        <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-800">Needed before image generation</p>
+                        <ul className="mt-2 grid gap-1 text-sm font-bold leading-6 text-amber-900">
+                          {visualPreviewPacket.missingReviewItems.map((item) => <li key={item}>- {item}</li>)}
+                        </ul>
+                      </div>
+                    ) : (
+                      <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3 text-sm font-bold leading-6 text-emerald-800">
+                        Ready for a human-approved image generation step. This does not create an image or send anything automatically.
+                      </div>
+                    )}
+                    <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                      <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Safety boundaries</p>
+                      <ul className="mt-2 grid gap-1 text-sm font-bold leading-6 text-slate-600">
+                        {visualPreviewPacket.blockedActions.map((item) => <li key={item}>- {item}</li>)}
+                      </ul>
+                      <p className="mt-2 text-xs font-bold leading-5 text-slate-500">{visualPreviewPacket.disclaimer}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => copyEstimateText(
+                          () => visualPreviewPacket.prompt,
+                          "Visual preview prompt copied. Review it before using any image generator.",
+                        )}
+                      >
+                        Copy visual prompt
+                      </Button>
+                      <Button type="button" variant="secondary" onClick={() => setActiveEstimateTool("backup")}>
+                        Add photo / reference
+                      </Button>
+                      <Button type="button" variant="secondary" onClick={() => setActiveEstimateTool("sections")}>
+                        Review scope
+                      </Button>
+                    </div>
+                  </div>
+                  <aside className="grid h-fit gap-3">
+                    <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                      <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Detected trade</p>
+                      <p className="mt-1 text-xl font-black text-slate-950">{visualPreviewPacket.tradeLabel}</p>
+                      <p className="mt-1 text-xs font-bold text-slate-500">{visualPreviewPacket.referenceCount} reference item{visualPreviewPacket.referenceCount === 1 ? "" : "s"} available</p>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                      <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Option families</p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {visualPreviewPacket.optionFamilies.slice(0, 8).map((item) => <Badge key={item} tone="blue">{item}</Badge>)}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                      <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Proof photos to request</p>
+                      <ul className="mt-2 grid gap-1 text-xs font-bold leading-5 text-slate-600">
+                        {visualPreviewPacket.proofPhotoChecklist.slice(0, 6).map((item) => <li key={item}>- {item}</li>)}
+                      </ul>
+                    </div>
+                  </aside>
+                </div>
+              ) : (
+                <StateCard title="Visual preview unavailable" description="Visual preview prep is office-only and hidden from field users. Select an estimate before preparing concept image prompts." tone="slate" />
               )}
             </Card>
           ) : null}

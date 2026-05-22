@@ -1798,6 +1798,7 @@ export function EstimateCommandRailPolished({
           {canManage && canUseAiRoughNotes ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("roughNotes")}>AI notes</Button> : null}
           <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("edit")}>Edit pricing</Button>
           {canManage ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("fenceTakeoff")}>Fence Takeoff</Button> : null}
+          {canManage ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("visual")}>Visual Prep</Button> : null}
           <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("sections")}>Sections</Button>
           <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("backup")}>SOV / Backup</Button>
           {canUseGcPackets ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("packet")}>Packet</Button> : null}
