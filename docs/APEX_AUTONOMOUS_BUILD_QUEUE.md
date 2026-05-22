@@ -37,7 +37,8 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 | Date | Priority | Task | Result | Commit |
 | --- | --- | --- | --- | --- |
-| 2026-05-22 | P4 | PWA pilot install walkthrough | Done; Sunday pilot guide explains iPhone/iPad, Android, and desktop install, role-safe first-launch checks, support notes, and clear no-offline-editing language | Pending |
+| 2026-05-22 | P1 | Estimate Studio branded proposal first viewport | Done; `/estimates` now defaults to a meaningful priced branded proposal instead of a zero-dollar draft, and the proposal brand strip is readable in the workbench while field users remain blocked | This commit |
+| 2026-05-22 | P4 | PWA pilot install walkthrough | Done; Sunday pilot guide explains iPhone/iPad, Android, and desktop install, role-safe first-launch checks, support notes, and clear no-offline-editing language | `9a6dfde` |
 | 2026-05-22 | P3 | PWA installability hardening | Done; manifest now has stable app identity, dark shell install theme, tablet-safe orientation, role-safe field shortcuts, and tests that keep private-data/offline caching out of the pilot PWA path | `c663ea4` |
 | 2026-05-22 | P3 | Lead readiness assistant card extraction | Done; lead scoring, missing-info, and AI draft cards moved into the lead route component module with import-boundary coverage, full leads/roles/build checks, and Fly demo v160 hosted smoke passing | `ad7e9d8` |
 | 2026-05-22 | P3 | Command Center KPI primitive extraction | Done; shared Command Center KPI, section, item, and module strip primitives moved into the route component module with import-boundary coverage, build/role/browser checks, and Fly demo v159 hosted smoke passing | `4d57c1c` |

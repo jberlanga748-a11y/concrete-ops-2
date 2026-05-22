@@ -19,6 +19,7 @@ import {
   formatEstimateCurrency,
   getEstimateFromLeadReadiness,
   mergeEstimateProposalSections,
+  selectDefaultEstimateForReview,
 } from "./estimate-utils.js";
 
 test("line item totals and estimate totals calculate correctly", () => {
@@ -117,6 +118,28 @@ test("estimate helpers tolerate sparse estimate rows and missing item arrays", (
 test("status labels and currency formatting stay human friendly", () => {
   assert.equal(estimateStatusLabel("approved"), "Approved");
   assert.equal(formatEstimateCurrency(2386.1), "$2,386.10");
+});
+
+test("default estimate review selection favors meaningful branded proposals over zero-dollar drafts", () => {
+  const rows = [
+    { id: "draft-zero", status: "draft", grandTotal: 0, createdAt: "2026-05-22T10:00:00Z" },
+    { id: "priced-draft", status: "draft", grandTotal: 4200, createdAt: "2026-05-22T09:00:00Z" },
+    { id: "sent", status: "sent", grandTotal: 8900, createdAt: "2026-05-22T08:00:00Z" },
+    { id: "approved", status: "approved", grandTotal: 12400, createdAt: "2026-05-22T07:00:00Z" },
+  ];
+
+  assert.equal(selectDefaultEstimateForReview(rows)?.id, "approved");
+});
+
+test("default estimate review selection falls back safely when only drafts exist", () => {
+  const rows = [
+    { id: "old-zero", status: "draft", grandTotal: 0, updatedAt: "2026-05-21T10:00:00Z" },
+    { id: "new-zero", status: "draft", grandTotal: 0, updatedAt: "2026-05-22T10:00:00Z" },
+  ];
+
+  assert.equal(selectDefaultEstimateForReview(rows)?.id, "new-zero");
+  assert.equal(selectDefaultEstimateForReview([], rows)?.id, "new-zero");
+  assert.equal(selectDefaultEstimateForReview([], []), null);
 });
 
 test("estimate draft prefill from lead uses existing linked customer without line items", () => {

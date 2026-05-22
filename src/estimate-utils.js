@@ -22,6 +22,32 @@ export function estimateStatusLabel(status = "draft") {
   return labels[String(status || "draft").trim().toLowerCase()] || "Draft";
 }
 
+export function estimateReviewPriority(estimate = {}) {
+  const status = String(estimate?.status || "draft").trim().toLowerCase();
+  const total = Number(estimate?.grandTotal ?? estimate?.total ?? 0) || 0;
+  const hasPrice = total > 0;
+  if (estimate?.jobId && hasPrice) return 90;
+  if (status === "approved" && hasPrice) return 80;
+  if (status === "sent" && hasPrice) return 70;
+  if (hasPrice) return 60;
+  if (status === "approved" || status === "sent") return 40;
+  return 10;
+}
+
+export function selectDefaultEstimateForReview(filteredRows = [], allRows = []) {
+  const candidates = (Array.isArray(filteredRows) && filteredRows.length > 0 ? filteredRows : allRows)
+    .filter((estimate) => estimate && !estimate.archivedAt);
+  if (candidates.length === 0) return null;
+
+  return [...candidates].sort((a, b) => {
+    const priority = estimateReviewPriority(b) - estimateReviewPriority(a);
+    if (priority !== 0) return priority;
+    const bUpdated = Date.parse(b.updatedAt || b.createdAt || "") || 0;
+    const aUpdated = Date.parse(a.updatedAt || a.createdAt || "") || 0;
+    return bUpdated - aUpdated;
+  })[0] || null;
+}
+
 export function calculateEstimateLineTotal(item = {}) {
   const quantity = Number(item.quantity || 0);
   const unitPrice = Number(item.unitPrice || 0);

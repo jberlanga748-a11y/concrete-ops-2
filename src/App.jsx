@@ -188,7 +188,7 @@ import { deriveEstimateBackup } from "./estimate-backup-utils";
 import { deriveEstimateGcPacketLite } from "./estimate-gc-packet-utils";
 import { estimateRoughNotesBullets, estimateRoughNotesHasSuggestions, estimateRoughNotesText, hasMeaningfulEstimateItems } from "./estimate-rough-notes-utils";
 import { addEstimateSentSnapshot, getEstimateVisibleInternalNotes, mergeEstimateGcPacketLite, mergeEstimateOfficeInternalNotes } from "./estimate-snapshot-utils";
-import { buildEstimateCopyText, buildEstimateCustomerMessage, buildEstimateDraftFromLead, calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEstimateTotals, deriveEstimateListState, deriveEstimateProposalSections, estimateCustomerEmail, estimateStatusLabel, filterEstimates, formatEstimateCurrency, getEstimateFromLeadReadiness, mergeEstimateProposalSections } from "./estimate-utils";
+import { buildEstimateCopyText, buildEstimateCustomerMessage, buildEstimateDraftFromLead, calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEstimateTotals, deriveEstimateListState, deriveEstimateProposalSections, estimateCustomerEmail, estimateStatusLabel, filterEstimates, formatEstimateCurrency, getEstimateFromLeadReadiness, mergeEstimateProposalSections, selectDefaultEstimateForReview } from "./estimate-utils";
 import {
   EstimateBackupEditor,
   EstimateCommandRailPolished,
@@ -29549,10 +29549,11 @@ function EstimatesPagePolished({
     search,
   }), [archiveFilter, creatorFilter, customerFilter, leadFilter, rows, search, statusFilter]);
   const listState = useMemo(() => deriveEstimateListState(filteredRows, visibleCustomers, visibleLeads), [filteredRows, visibleCustomers, visibleLeads]);
+  const defaultEstimateForReview = useMemo(() => selectDefaultEstimateForReview(filteredRows, rows), [filteredRows, rows]);
   const selectedEstimate = estimateViewMode === "create"
     ? null
     : filteredRows.find((estimate) => estimate?.id === selectedEstimateId)
-      || filteredRows[0]
+      || defaultEstimateForReview
       || rows.find((estimate) => estimate?.id === selectedEstimateId)
       || null;
   const canManage = Boolean(permissions?.estimates?.canManage);
@@ -29781,10 +29782,10 @@ function EstimatesPagePolished({
 
   useEffect(() => {
     if (estimateViewMode !== "browse") return;
-    if (!selectedEstimateId && filteredRows[0]?.id) {
-      setSelectedEstimateId(filteredRows[0].id);
+    if (!selectedEstimateId && defaultEstimateForReview?.id) {
+      setSelectedEstimateId(defaultEstimateForReview.id);
     }
-  }, [estimateViewMode, filteredRows, selectedEstimateId]);
+  }, [defaultEstimateForReview?.id, estimateViewMode, selectedEstimateId]);
 
   useEffect(() => {
     if (singleCustomerId && !createDraft.customerId && !createDraft.leadId && !createDraft.customerName) {
