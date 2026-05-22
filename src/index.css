@@ -37051,46 +37051,46 @@ textarea {
   display: block;
   width: 100%;
   min-width: 0;
-  border: 1px solid rgba(203, 213, 225, 0.96);
+  border: 1px solid var(--border-card-strong);
   border-left: 3px solid rgba(249, 115, 22, 0.72);
-  border-radius: 0.5rem;
-  background: #ffffff;
+  border-radius: var(--radius-compact);
+  background: var(--color-card);
   padding: 0.72rem;
   text-align: left;
-  box-shadow: 0 16px 34px -32px rgba(7, 17, 31, 0.58);
+  box-shadow: var(--shadow-card);
   transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
 }
 
 button.co-work-queue-card:hover:not(:disabled) {
   border-color: rgba(249, 115, 22, 0.62);
-  background: #fff7ed;
+  background: var(--color-brand-orange-soft);
   transform: translateY(-1px);
 }
 
 .co-work-queue-card.is-selected {
   border-color: rgba(249, 115, 22, 0.76);
-  background: linear-gradient(180deg, #fff7ed 0%, #ffffff 100%);
-  box-shadow: inset 3px 0 0 rgba(249, 115, 22, 0.86), 0 18px 38px -32px rgba(7, 17, 31, 0.68);
+  background: linear-gradient(180deg, var(--color-brand-orange-soft) 0%, var(--color-card) 100%);
+  box-shadow: inset 3px 0 0 rgba(249, 115, 22, 0.86), var(--shadow-card-strong);
 }
 
 .co-work-queue-card--green {
-  border-left-color: rgba(22, 163, 74, 0.78);
+  border-left-color: var(--color-status-green);
 }
 
 .co-work-queue-card--red {
-  border-left-color: rgba(220, 38, 38, 0.78);
+  border-left-color: var(--color-status-red);
 }
 
 .co-work-queue-card--blue {
-  border-left-color: rgba(37, 99, 235, 0.78);
+  border-left-color: var(--color-status-blue);
 }
 
 .co-work-queue-card--amber {
-  border-left-color: rgba(217, 119, 6, 0.78);
+  border-left-color: var(--color-status-amber);
 }
 
 .co-work-queue-card--slate {
-  border-left-color: rgba(71, 85, 105, 0.78);
+  border-left-color: var(--color-text-muted);
 }
 
 .co-work-queue-card-head {
@@ -37103,7 +37103,7 @@ button.co-work-queue-card:hover:not(:disabled) {
 
 .co-work-queue-card h3 {
   margin: 0.16rem 0 0;
-  color: #07111f;
+  color: var(--color-text-main);
   font-size: 0.83rem;
   font-weight: 950;
   line-height: 1.15;
@@ -37117,7 +37117,7 @@ button.co-work-queue-card:hover:not(:disabled) {
 }
 
 .co-work-queue-eyebrow {
-  color: #c2410c;
+  color: var(--color-brand-orange-dark);
   font-size: 0.58rem;
   font-weight: 950;
   letter-spacing: 0.12em;
@@ -37127,7 +37127,7 @@ button.co-work-queue-card:hover:not(:disabled) {
 
 .co-work-queue-meta {
   margin-top: 0.18rem;
-  color: #64748b;
+  color: var(--color-text-muted);
   font-size: 0.72rem;
   font-weight: 850;
   line-height: 1.2;
@@ -37135,7 +37135,7 @@ button.co-work-queue-card:hover:not(:disabled) {
 
 .co-work-queue-status {
   flex: 0 0 auto;
-  color: #07111f;
+  color: var(--color-text-main);
   font-size: 0.72rem;
   font-weight: 950;
   line-height: 1.1;
@@ -37144,7 +37144,7 @@ button.co-work-queue-card:hover:not(:disabled) {
 .co-work-queue-action {
   display: inline-flex;
   margin-top: 0.58rem;
-  color: #ea580c;
+  color: var(--color-brand-orange-dark);
   font-size: 0.62rem;
   font-weight: 950;
   letter-spacing: 0.08em;
@@ -37156,10 +37156,10 @@ button.co-work-queue-card:hover:not(:disabled) {
   overflow: hidden;
   border: 1px solid rgba(148, 163, 184, 0.22);
   border-left: 3px solid rgba(249, 115, 22, 0.82);
-  border-radius: 0.58rem;
-  background: linear-gradient(180deg, #0d1523 0%, #07111f 100%);
-  color: #f8fafc;
-  box-shadow: 0 24px 52px -44px rgba(7, 17, 31, 0.94);
+  border-radius: var(--radius-control);
+  background: linear-gradient(180deg, var(--color-shell-dark-soft) 0%, var(--color-shell-dark) 100%);
+  color: var(--color-shell-text);
+  box-shadow: var(--shadow-drawer);
 }
 
 .co-assistant-rail-head {
@@ -37167,7 +37167,7 @@ button.co-work-queue-card:hover:not(:disabled) {
 }
 
 .co-assistant-rail-head span {
-  color: #fb923c;
+  color: var(--color-brand-orange);
   font-size: 0.62rem;
   font-weight: 950;
   letter-spacing: 0.14em;
@@ -37176,7 +37176,7 @@ button.co-work-queue-card:hover:not(:disabled) {
 
 .co-assistant-rail-head h2 {
   margin-top: 0.22rem;
-  color: #f8fafc;
+  color: var(--color-shell-text);
   font-size: 0.95rem;
   font-weight: 950;
   line-height: 1.15;
@@ -37184,7 +37184,7 @@ button.co-work-queue-card:hover:not(:disabled) {
 
 .co-assistant-rail-head p {
   margin-top: 0.32rem;
-  color: #cbd5e1;
+  color: var(--color-shell-text-muted);
   font-size: 0.76rem;
   font-weight: 800;
   line-height: 1.35;
@@ -37200,7 +37200,7 @@ button.co-work-queue-card:hover:not(:disabled) {
 .co-assistant-rail-priority,
 .co-assistant-rail-actions button {
   border: 1px solid rgba(148, 163, 184, 0.22);
-  border-radius: 0.5rem;
+  border-radius: var(--radius-compact);
   background: rgba(255, 255, 255, 0.06);
 }
 
@@ -37212,13 +37212,13 @@ button.co-work-queue-card:hover:not(:disabled) {
 }
 
 .co-assistant-rail-priority span {
-  color: #fb923c;
+  color: var(--color-brand-orange);
   font-size: 0.96rem;
   font-weight: 950;
 }
 
 .co-assistant-rail-priority p {
-  color: #e5edf6;
+  color: var(--color-shell-text-muted);
   font-size: 0.72rem;
   font-weight: 850;
   line-height: 1.18;
@@ -37230,7 +37230,7 @@ button.co-work-queue-card:hover:not(:disabled) {
   align-items: center;
   gap: 0.5rem;
   padding: 0.56rem 0.66rem;
-  color: #f8fafc;
+  color: var(--color-shell-text);
   font-size: 0.72rem;
   font-weight: 900;
   text-align: left;
