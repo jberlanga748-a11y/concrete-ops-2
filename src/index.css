@@ -3213,6 +3213,119 @@ textarea {
     border-radius: 0.5rem !important;
   }
 
+  @media (min-width: 1180px) {
+    .co-command-page {
+      display: grid;
+      height: calc(100dvh - var(--layout-topbar-height, 4rem));
+      min-height: 0;
+      grid-template-rows: auto minmax(0, 1fr);
+      overflow: hidden;
+      padding-top: 0.45rem;
+    }
+
+    .co-command-hero {
+      margin: 0 1rem 0.55rem;
+      padding: 0.72rem 0.95rem !important;
+    }
+
+    .co-command-hero h1 {
+      font-size: 1.62rem !important;
+      line-height: 0.98;
+    }
+
+    .co-command-hero h1 + p {
+      max-width: 52rem;
+      font-size: 0.78rem;
+      line-height: 1.32;
+    }
+
+    .co-command-hero-actions button {
+      min-height: 2.15rem;
+      border-radius: var(--radius-control, 0.5rem) !important;
+    }
+
+    .co-command-header-metrics {
+      gap: 0.45rem;
+      margin-top: 0.58rem !important;
+    }
+
+    .co-command-header-metric {
+      grid-template-columns: 2rem minmax(0, 1fr);
+      gap: 0.52rem;
+      padding: 0.5rem 0.6rem;
+    }
+
+    .co-command-header-metric-icon {
+      height: 1.92rem;
+      width: 1.92rem;
+      border-radius: var(--radius-compact, 0.42rem);
+    }
+
+    .co-command-header-metric strong {
+      margin-top: 0.12rem;
+      font-size: 1.12rem;
+    }
+
+    .co-command-header-metric-helper {
+      margin-top: 0.12rem;
+      font-size: 0.62rem;
+      line-height: 1.15;
+    }
+
+    .co-command-demo-path,
+    .co-command-workspace-grid > .co-command-cockpit,
+    .co-command-workspace-grid > .co-command-ops-grid,
+    .co-command-workspace-grid > .co-command-card,
+    .co-command-workspace-grid > .co-command-kpi-grid {
+      display: none !important;
+    }
+
+    .co-command-workspace-grid {
+      min-height: 0;
+      height: 100%;
+      grid-template-rows: minmax(0, 1fr);
+      overflow: hidden;
+      padding-bottom: 0.85rem !important;
+    }
+
+    .co-command-main-workbench {
+      min-height: 0;
+      height: 100%;
+      grid-template-columns: minmax(0, 1fr) minmax(20rem, 23rem) !important;
+      align-items: stretch !important;
+      overflow: hidden;
+    }
+
+    .co-command-primary-stack,
+    .co-command-right-rail {
+      min-height: 0;
+      height: 100%;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+    }
+
+    .co-command-right-rail {
+      position: static !important;
+      align-content: start;
+      grid-template-columns: minmax(0, 1fr) !important;
+    }
+
+    .co-command-primary-stack .co-command-card,
+    .co-command-right-rail .co-command-card {
+      min-height: 0;
+    }
+
+    .co-command-table-card .table-shell {
+      max-height: 15rem;
+      overflow: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+    }
+  }
+
   .co-section-accent {
     border-left: 3px solid var(--color-brand-orange);
     padding-left: 0.75rem;

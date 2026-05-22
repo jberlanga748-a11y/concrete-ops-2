@@ -16409,7 +16409,7 @@ function CommandCenterPage({
           </div>
         ) : null}
       </div>
-      <div className="grid w-full gap-2.5 px-5 pb-8 sm:px-6 lg:px-7">
+      <div className="co-command-workspace-grid grid w-full gap-2.5 px-5 pb-8 sm:px-6 lg:px-7">
         <CommandCenterMorningFlowCard
           onOpenLeads={() => openModule("leads")}
           onOpenDrafts={canViewJobDraftImports ? () => openModule("jobDraftImports") : null}
@@ -16431,8 +16431,8 @@ function CommandCenterPage({
             <CommandCenterKpiCard key={card.label} item={card} />
           ))}
         </div>
-        <div className="grid items-start gap-2.5 2xl:grid-cols-[minmax(0,1fr)_23rem]">
-          <div className="grid min-w-0 gap-2.5">
+        <div className="co-command-main-workbench grid items-start gap-2.5 2xl:grid-cols-[minmax(0,1fr)_23rem]">
+          <div className="co-command-primary-stack grid min-w-0 gap-2.5">
             <CommandCenterSection
               title="Today's Priority Queue"
               description="The highest-priority office work, capped so the owner view stays scannable."
