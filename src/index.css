@@ -39822,3 +39822,105 @@ button.co-work-queue-card:hover:not(:disabled) {
     scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
   }
 }
+
+@media (min-width: 1180px) {
+  .co-module-employees > .co-employees-page {
+    height: calc(100dvh - var(--layout-topbar-height, 4rem));
+    min-height: 0 !important;
+    overflow: hidden;
+    padding-bottom: 0 !important;
+  }
+
+  .co-employees-overview-workbench {
+    display: none;
+  }
+
+  .co-employees-desktop-workspace-frame {
+    position: relative;
+    display: grid;
+    height: calc(100dvh - var(--layout-topbar-height, 4rem) - 8.7rem);
+    min-height: 0;
+    overflow: hidden;
+    grid-template-rows: auto minmax(0, 1fr);
+    padding-bottom: 4.55rem;
+  }
+
+  .co-employees-desktop-workspace-frame .co-employees-kpi-grid {
+    padding-bottom: 0.55rem !important;
+  }
+
+  .co-employees-desktop-workspace-frame .co-employees-command-layout {
+    align-items: stretch !important;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    grid-template-columns: minmax(0, 1fr) minmax(28rem, 36rem) !important;
+    padding-bottom: 0.58rem !important;
+  }
+
+  .co-employees-desktop-workspace-frame .co-employees-board-stack {
+    display: grid !important;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .co-employees-desktop-workspace-frame .co-employees-main-board {
+    display: grid;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden !important;
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  }
+
+  .co-employees-desktop-workspace-frame .co-employees-list-scroll {
+    height: 100%;
+    max-height: 100% !important;
+    min-height: 0;
+    overflow: auto !important;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  }
+
+  .co-employees-desktop-workspace-frame .co-employees-right-rail {
+    position: static !important;
+    align-self: stretch !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: 100% !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    padding-right: 0.12rem !important;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  }
+
+  .co-employees-desktop-workspace-frame .co-employees-tools-drawer {
+    position: absolute !important;
+    right: 0 !important;
+    bottom: 0.6rem !important;
+    left: 0 !important;
+    z-index: 8;
+    max-height: min(54vh, 30rem);
+    margin-right: auto !important;
+    margin-left: auto !important;
+    padding-bottom: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .co-employees-desktop-workspace-frame .co-employees-tools-drawer[open] {
+    display: block;
+    overflow: hidden !important;
+  }
+
+  .co-employees-desktop-workspace-frame .co-employees-tools-drawer[open] .co-employees-tools-panel {
+    min-height: 0;
+    max-height: calc(min(54vh, 30rem) - 9.2rem) !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    padding-right: 0.12rem;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  }
+}
