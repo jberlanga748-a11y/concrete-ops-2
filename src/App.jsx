@@ -6,6 +6,7 @@ import {
   Button,
   Card,
   CommandPageFrame,
+  DesktopCommandWorkspaceFrame,
   EstimateStudioShell,
   FilterBar,
   Icon,
@@ -2016,7 +2017,7 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
               <span className="co-mobile-user-chevron" aria-hidden="true">v</span>
             </button>
           </div>
-        </div>
+      </div>
         <div className="hidden min-w-0 md:block">
           <p className="text-[11px] font-black uppercase tracking-[0.2em] text-orange-200">{companyName || APP_NAME}</p>
           <p className="truncate text-base font-black text-white">{current?.label || "Dashboard"}</p>
@@ -17847,6 +17848,60 @@ function SchedulePage({
             ]}
           />
         }
+        footer={
+          <details className="co-schedule-support-drawer">
+            <summary>
+              <span>
+                <strong>Secondary Schedule Panels</strong>
+                <em>Week lookahead, unassigned jobs, and missing activity stay inside the dispatcher workspace.</em>
+              </span>
+              <span>Open panels</span>
+            </summary>
+            <div className="co-schedule-support-grid grid min-w-0 gap-3">
+              <ScheduleSection
+                title="Week Lookahead"
+                description={`Scheduled work through ${scheduleDateLabel(scheduleState.weekEndKey)}`}
+                rows={scheduleState.weekRows}
+                emptyTitle="No scheduled work this week"
+                emptyDescription="This week will populate from existing job scheduled start dates."
+                permissions={permissions}
+                onOpenJob={openJob}
+                onOpenModule={openModule}
+                onOpenReport={openReport}
+                limit={8}
+              />
+
+              <div className="co-schedule-day-grid">
+                <ScheduleSection
+                  title="Unassigned / Needs Crew"
+                  description="Jobs missing a start date, foreman, or crew coverage"
+                  rows={scheduleState.unassignedRows}
+                  emptyTitle="Crew coverage looks clear"
+                  emptyDescription="Jobs with missing dates or crew assignments will appear here."
+                  permissions={permissions}
+                  onOpenJob={openJob}
+                  onOpenModule={openModule}
+                  onOpenReport={openReport}
+                  compact
+                  limit={5}
+                />
+                <ScheduleSection
+                  title="Missing Activity / Needs Follow-Up"
+                  description="Due work missing reports, photos, startup, crew, or checklist completion"
+                  rows={scheduleState.missingRows}
+                  emptyTitle="No urgent activity gaps"
+                  emptyDescription="Missing reports, proof, crew, or readiness issues will appear here."
+                  permissions={permissions}
+                  onOpenJob={openJob}
+                  onOpenModule={openModule}
+                  onOpenReport={openReport}
+                  compact
+                  limit={5}
+                />
+              </div>
+            </div>
+          </details>
+        }
       >
         <ScheduleOperatingPlanWorkbench
           scheduleState={scheduleState}
@@ -17858,50 +17913,6 @@ function SchedulePage({
           onOpenReport={openReport}
         />
       </CommandPageFrame>
-
-      <div className="co-schedule-support-grid mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-5 sm:px-6 lg:px-6">
-          <ScheduleSection
-            title="Week Lookahead"
-            description={`Scheduled work through ${scheduleDateLabel(scheduleState.weekEndKey)}`}
-            rows={scheduleState.weekRows}
-            emptyTitle="No scheduled work this week"
-            emptyDescription="This week will populate from existing job scheduled start dates."
-            permissions={permissions}
-            onOpenJob={openJob}
-            onOpenModule={openModule}
-            onOpenReport={openReport}
-            limit={8}
-          />
-
-          <div className="co-schedule-day-grid">
-          <ScheduleSection
-            title="Unassigned / Needs Crew"
-            description="Jobs missing a start date, foreman, or crew coverage"
-            rows={scheduleState.unassignedRows}
-            emptyTitle="Crew coverage looks clear"
-            emptyDescription="Jobs with missing dates or crew assignments will appear here."
-            permissions={permissions}
-            onOpenJob={openJob}
-            onOpenModule={openModule}
-            onOpenReport={openReport}
-            compact
-            limit={5}
-          />
-          <ScheduleSection
-            title="Missing Activity / Needs Follow-Up"
-            description="Due work missing reports, photos, startup, crew, or checklist completion"
-            rows={scheduleState.missingRows}
-            emptyTitle="No urgent activity gaps"
-            emptyDescription="Missing reports, proof, crew, or readiness issues will appear here."
-            permissions={permissions}
-            onOpenJob={openJob}
-            onOpenModule={openModule}
-            onOpenReport={openReport}
-            compact
-            limit={5}
-          />
-        </div>
-      </div>
     </div>
   );
 }
@@ -25614,11 +25625,12 @@ function CopilotPagePolished({
         }
       />
 
-      <div className="co-ai-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 lg:grid-cols-4 lg:px-6">
-        {aiKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
-      </div>
+      <DesktopCommandWorkspaceFrame className="co-ai-desktop-workspace-frame">
+        <div className="co-ai-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 lg:grid-cols-4 lg:px-6">
+          {aiKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
+        </div>
 
-      <div className="co-ai-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
+        <div className="co-ai-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
         <div className="min-w-0 space-y-3">
           <Card className="co-ai-main-board co-ai-agent-command-board overflow-hidden">
             <div className="co-ai-board-header border-b border-slate-200 bg-white p-4">
@@ -26415,7 +26427,8 @@ function CopilotPagePolished({
             </div>
           </Card>
         </aside>
-      </div>
+        </div>
+      </DesktopCommandWorkspaceFrame>
     </div>
   );
 }

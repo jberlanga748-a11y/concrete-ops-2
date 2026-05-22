@@ -278,6 +278,14 @@ export function CommandPageFrame({ children, kpis, rail, footer, className = "" 
   );
 }
 
+export function DesktopCommandWorkspaceFrame({ children, className = "" }) {
+  return (
+    <div className={`co-desktop-command-workspace-frame ${className}`}>
+      {children}
+    </div>
+  );
+}
+
 export function EstimateStudioShell({
   options = [],
   selectedOptionId = "",
