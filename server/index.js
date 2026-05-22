@@ -82,6 +82,11 @@ import {
   deriveAgentWorkflowContext,
 } from "../shared/agentWorkflowContext.js";
 import {
+  normalizeAgentLearningPreference,
+  normalizeAgentLearningPreferences,
+  summarizeAgentLearningPreferences,
+} from "../shared/agentLearningPreferences.js";
+import {
   buildEstimateRoughNotesContext,
   generateEstimateRoughNotesDrafts,
 } from "../shared/estimateRoughNotesAi.js";
@@ -5600,6 +5605,7 @@ function sanitizeBootstrap(state, user) {
       aiOffice: {
         canView: packageEntitlements.aiOffice.canUse && canViewLeads(user),
         canUseLeadAssistant: packageEntitlements.aiOffice.canUseLeadAssistant && canManageLeads(user),
+        canManageLearning: packageEntitlements.aiOffice.canUse && (canManageLeads(user) || canManageEstimates(user)),
       },
       jobs: {
         canView: Boolean(user),
@@ -5945,6 +5951,44 @@ function assertCanCreateAgentProposalAudit(state, user) {
   if (!entitlements.aiOffice.canUse || !canViewLeads(user)) {
     throw new ApiError(403, "You do not have permission to audit AI Office action proposals.");
   }
+}
+
+function assertCanManageAgentLearningPreferences(state, user) {
+  const entitlements = resolvePackageEntitlements({
+    hasFeature: (featureKey) => companyHasFeature(state, user, featureKey),
+  });
+  if (!entitlements.aiOffice.canUse || (!canManageLeads(user) && !canManageEstimates(user))) {
+    throw new ApiError(403, "You do not have permission to manage Apex Assistant learning memory.");
+  }
+}
+
+function agentLearningPreferencesForState(state, user) {
+  return normalizeAgentLearningPreferences(companySettingsForState(state, user).agentLearningPreferences);
+}
+
+function rejectUnsafeAgentLearningPreference(preference) {
+  if (preference.blockedReasons?.length) {
+    throw new ApiError(400, preference.blockedReasons[0]);
+  }
+  if (!preference.title || !preference.preference) {
+    throw new ApiError(400, "Learning memory requires a title and preference.");
+  }
+}
+
+function persistAgentLearningPreferences(draft, user, preferences) {
+  const currentCompanyId = currentCompanyIdForRequestUser(draft, user);
+  draft.currentCompanyId = currentCompanyId;
+  draft.companySettingsByCompanyId ||= {};
+  draft.companySettings = {
+    ...companySettingsForState(draft, user),
+    agentLearningPreferences: normalizeAgentLearningPreferences(preferences),
+  };
+  draft.companySettingsByCompanyId[currentCompanyId] = draft.companySettings;
+}
+
+function publicAgentLearningPreference(preference) {
+  const { blockedReasons: _blockedReasons, ...safePreference } = preference;
+  return safePreference;
 }
 
 function parseAgentProposalAuditDetail(detail) {
@@ -7088,6 +7132,115 @@ app.get("/api/agent/context", requireAuth, asyncRoute(async (req, res) => {
     nextActionCount: payload.nextActions.length,
   });
   res.json(payload);
+}));
+
+app.get("/api/agent/learning-preferences", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageAgentLearningPreferences(state, req.auth.user);
+  const preferences = agentLearningPreferencesForState(state, req.auth.user);
+  res.json({
+    agentLearningPreferences: preferences.map(publicAgentLearningPreference),
+    summary: summarizeAgentLearningPreferences(preferences),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/learning-preferences", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let createdPreference = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageAgentLearningPreferences(draft, req.auth.user);
+    const current = agentLearningPreferencesForState(draft, req.auth.user);
+    createdPreference = normalizeAgentLearningPreference(req.body || {}, {
+      id: makeId("ALP"),
+      now,
+    });
+    createdPreference.createdBy = req.auth.user.id;
+    createdPreference.createdAt = now;
+    if (createdPreference.status === "approved") {
+      createdPreference.approvedBy = req.auth.user.id;
+      createdPreference.approvedAt = now;
+    }
+    rejectUnsafeAgentLearningPreference(createdPreference);
+    persistAgentLearningPreferences(draft, req.auth.user, [createdPreference, ...current].slice(0, 80));
+    appendActivity(draft, "Apex learning memory added", `${req.auth.user.name} added ${createdPreference.title} to Apex Assistant learning memory.`);
+    appendAuditEvent(draft, {
+      entityType: "agentLearningPreference",
+      entityId: createdPreference.id,
+      action: createdPreference.status === "approved" ? "approved" : "suggested",
+      summary: "Apex learning memory added",
+      detail: JSON.stringify({
+        id: createdPreference.id,
+        category: createdPreference.category,
+        title: createdPreference.title,
+        status: createdPreference.status,
+        sourceType: createdPreference.sourceType,
+      }),
+      actor: req.auth.user,
+      changedFields: ["agentLearningPreferences"],
+    });
+    return draft;
+  });
+
+  res.status(201).json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    agentLearningPreference: publicAgentLearningPreference(createdPreference),
+  });
+}));
+
+app.patch("/api/agent/learning-preferences/:id", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let updatedPreference = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageAgentLearningPreferences(draft, req.auth.user);
+    const current = agentLearningPreferencesForState(draft, req.auth.user);
+    const index = current.findIndex((entry) => entry.id === req.params.id);
+    if (index < 0) {
+      throw new ApiError(404, "Learning memory item not found.");
+    }
+    const existing = current[index];
+    updatedPreference = normalizeAgentLearningPreference(req.body || {}, {
+      existing,
+      now,
+    });
+    updatedPreference.createdBy = existing.createdBy;
+    updatedPreference.createdAt = existing.createdAt;
+    if (updatedPreference.status === "approved" && existing.status !== "approved") {
+      updatedPreference.approvedBy = req.auth.user.id;
+      updatedPreference.approvedAt = now;
+    }
+    if (updatedPreference.status === "archived" && existing.status !== "archived") {
+      updatedPreference.archivedAt = now;
+    }
+    rejectUnsafeAgentLearningPreference(updatedPreference);
+    const nextPreferences = [...current];
+    nextPreferences[index] = updatedPreference;
+    persistAgentLearningPreferences(draft, req.auth.user, nextPreferences);
+    appendActivity(draft, "Apex learning memory updated", `${req.auth.user.name} updated ${updatedPreference.title} in Apex Assistant learning memory.`);
+    appendAuditEvent(draft, {
+      entityType: "agentLearningPreference",
+      entityId: updatedPreference.id,
+      action: updatedPreference.status === "archived" ? "archived" : updatedPreference.status === "approved" ? "approved" : "updated",
+      summary: "Apex learning memory updated",
+      detail: JSON.stringify({
+        id: updatedPreference.id,
+        category: updatedPreference.category,
+        title: updatedPreference.title,
+        status: updatedPreference.status,
+        sourceType: updatedPreference.sourceType,
+      }),
+      actor: req.auth.user,
+      changedFields: ["agentLearningPreferences"],
+    });
+    return draft;
+  });
+
+  res.json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    agentLearningPreference: publicAgentLearningPreference(updatedPreference),
+  });
 }));
 
 app.post("/api/agent-action-proposals/audit", requireAuth, asyncRoute(async (req, res) => {

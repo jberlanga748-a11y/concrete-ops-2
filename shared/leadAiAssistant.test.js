@@ -39,7 +39,17 @@ test("lead assistant context only includes safe lead, source, score, missing inf
       missingInfoItems: [{ label: "Project address", severity: "recommended", reason: "Confirm site." }],
     },
     leadSources: [{ name: "Oregon public bids", type: "public bid portal", url: "https://example.test/private", notes: "Public portal only." }],
-    companySettings: { companyName: "Apex HQ", businessEmail: "office@example.test", serviceArea: "Willamette Valley" },
+    companySettings: {
+      companyName: "Apex HQ",
+      businessEmail: "office@example.test",
+      serviceArea: "Willamette Valley",
+      agentLearningPreferences: [{
+        id: "MEM-1",
+        title: "Lead qualification",
+        preference: "Ask for site access before estimating.",
+        status: "approved",
+      }],
+    },
   });
 
   assert.equal(context.lead.customer, "Benton County");
@@ -50,6 +60,7 @@ test("lead assistant context only includes safe lead, source, score, missing inf
   assert.equal(context.constructionTrade.tradeId, "roofing");
   assert.ok(context.constructionTrade.optionFamilies.some((option) => /shingle/i.test(option)));
   assert.equal(context.company.name, "Apex HQ");
+  assert.equal(context.agentLearning[0].title, "Lead qualification");
   assert.equal(Object.hasOwn(context, "customers"), false);
   assert.equal(Object.hasOwn(context, "jobs"), false);
 });

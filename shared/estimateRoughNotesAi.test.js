@@ -35,7 +35,17 @@ test("estimate rough notes context only includes safe proposal context", () => {
       customer: { name: "Martinez Residence", city: "Salem", email: "private@example.test" },
       lead: { customer: "Martinez Residence", project: "Driveway and sidewalk", notes: "Private lead notes" },
     },
-    companySettings: { companyName: "Apex HQ", businessEmail: "office@example.test", serviceArea: "Willamette Valley" },
+    companySettings: {
+      companyName: "Apex HQ",
+      businessEmail: "office@example.test",
+      serviceArea: "Willamette Valley",
+      agentLearningPreferences: [{
+        id: "MEM-1",
+        title: "Proposal language",
+        preference: "Keep proposal notes direct and contractor-professional.",
+        status: "approved",
+      }],
+    },
   });
 
   assert.equal(context.roughNotes.includes("broom finish"), true);
@@ -48,6 +58,7 @@ test("estimate rough notes context only includes safe proposal context", () => {
   assert.equal(context.constructionTrade.tradeId, "concrete");
   assert.ok(context.constructionTrade.optionFamilies.some((option) => /broom/i.test(option)));
   assert.equal(context.company.name, "Apex HQ");
+  assert.equal(context.agentLearning[0].title, "Proposal language");
 });
 
 test("estimate rough notes request asks OpenAI for strict structured JSON", () => {

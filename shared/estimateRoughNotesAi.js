@@ -1,4 +1,5 @@
 import { buildConstructionAgentTradeContext } from "./constructionTrades.js";
+import { buildAgentLearningContext } from "./agentLearningPreferences.js";
 
 export const ESTIMATE_ROUGH_NOTES_DEFAULT_MODEL = "gpt-4o-mini";
 export const ESTIMATE_ROUGH_NOTES_OPENAI_URL = "https://api.openai.com/v1/chat/completions";
@@ -118,6 +119,7 @@ export function buildEstimateRoughNotesContext({
       serviceArea: text(companySettings.serviceArea, 220),
       licenseText: text(companySettings.licenseText, 220),
     },
+    agentLearning: buildAgentLearningContext(companySettings.agentLearningPreferences),
     constructionTrade: buildConstructionAgentTradeContext({
       trade: estimate?.trade || estimate?.projectType,
       companySettings,

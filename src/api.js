@@ -119,6 +119,18 @@ export function prepareAgentEstimateSend(token, payload) {
   return request("/api/agent-action-proposals/prepare-estimate-send", { method: "POST", token, body: payload });
 }
 
+export function getAgentLearningPreferences(token) {
+  return request("/api/agent/learning-preferences", { token });
+}
+
+export function createAgentLearningPreference(token, payload) {
+  return request("/api/agent/learning-preferences", { method: "POST", token, body: payload });
+}
+
+export function updateAgentLearningPreference(token, id, payload) {
+  return request(`/api/agent/learning-preferences/${id}`, { method: "PATCH", token, body: payload });
+}
+
 export function updateCompanySettings(token, payload) {
   return request("/api/settings/company", { method: "PATCH", token, body: payload });
 }

@@ -17,6 +17,7 @@ export const DEFAULT_COMPANY_SETTINGS = {
   managedSetupChecklist: [],
   managedSetupNotes: "",
   managedSetupUpdatedAt: "",
+  agentLearningPreferences: [],
 };
 
 export function normalizeRole(role) {

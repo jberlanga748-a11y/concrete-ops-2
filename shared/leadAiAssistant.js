@@ -1,4 +1,5 @@
 import { buildConstructionAgentTradeContext } from "./constructionTrades.js";
+import { buildAgentLearningContext } from "./agentLearningPreferences.js";
 
 export const LEAD_ASSISTANT_DEFAULT_MODEL = "gpt-4o-mini";
 export const LEAD_ASSISTANT_OPENAI_URL = "https://api.openai.com/v1/chat/completions";
@@ -137,6 +138,7 @@ export function buildLeadAssistantContext({ lead = {}, leadSources = [], company
       serviceArea: text(companySettings.serviceArea, 220),
       licenseText: text(companySettings.licenseText, 220),
     },
+    agentLearning: buildAgentLearningContext(companySettings.agentLearningPreferences),
   };
 }
 

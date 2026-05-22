@@ -14,6 +14,7 @@ import {
 } from "../shared/companyScope.js";
 import { PACKAGE_IDS, normalizePackageId } from "../shared/packages.js";
 import { normalizeManagedSetupSettings } from "../shared/managedCompanySetup.js";
+import { normalizeAgentLearningPreferences } from "../shared/agentLearningPreferences.js";
 import { DEFAULT_COMPANY_SETTINGS } from "../shared/permissions.js";
 import { normalizeImportedJobDrafts } from "../shared/jobDraftImports.js";
 import { normalizeJobStartupFields } from "../shared/jobStartup.js";
@@ -3785,6 +3786,7 @@ function normalizeCompanySettings(settings = {}) {
     printPacketDisclaimer: normalizeText(settings?.printPacketDisclaimer, 320),
     packageId: normalizePackageId(settings?.packageId),
     toolChecklistEnabled: settings?.toolChecklistEnabled !== false,
+    agentLearningPreferences: normalizeAgentLearningPreferences(settings?.agentLearningPreferences),
     ...managedSetup,
   };
 }
@@ -3810,6 +3812,7 @@ function companySettingsPairs(settings = {}) {
     ["managedSetupChecklist", JSON.stringify(normalized.managedSetupChecklist || [])],
     ["managedSetupNotes", normalized.managedSetupNotes || ""],
     ["managedSetupUpdatedAt", normalized.managedSetupUpdatedAt || ""],
+    ["agentLearningPreferences", JSON.stringify(normalized.agentLearningPreferences || [])],
   ];
 }
 
