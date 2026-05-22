@@ -62,6 +62,7 @@ import {
   convertLead,
   convertLeadToCustomer,
   createAgentEstimateDraft,
+  createAgentLearningPreference,
   createChangeOrderRequest,
   createContactHistory,
   createEstimate,
@@ -153,6 +154,7 @@ import {
   updatePrePourChecklistItem,
   updateSafetyPolicy,
   updateCompanySettings,
+  updateAgentLearningPreference,
   updateToolChecklist,
   updateToolChecklistItem,
   updateUpload,
@@ -668,6 +670,15 @@ const INITIAL_FOUND_OPPORTUNITY_FORM = {
   reasonToBid: "",
   riskFlags: "",
   missingInfoItems: "",
+};
+
+const INITIAL_AGENT_LEARNING_FORM = {
+  category: "estimate-style",
+  title: "",
+  preference: "",
+  appliesTo: "",
+  sourceType: "manual",
+  status: "suggested",
 };
 
 const INITIAL_JOB_FORM = {
@@ -23205,6 +23216,8 @@ function CopilotPagePolished({
   onUpdateFoundOpportunity,
   onConvertFoundOpportunityToLead,
   onReviewFoundOpportunityWithAi,
+  onCreateAgentLearningPreference,
+  onUpdateAgentLearningPreference,
 }) {
   const liveLeads = normalizeObjectArray(leads).filter((lead) => !lead.archivedAt);
   const liveJobs = normalizeObjectArray(jobs).filter((job) => !job.archivedAt);
@@ -23219,8 +23232,12 @@ function CopilotPagePolished({
   const [opportunityAiReviews, setOpportunityAiReviews] = useState({});
   const [foundDraftAgentPreview, setFoundDraftAgentPreview] = useState({ status: "idle", result: null, message: "" });
   const [copiedScoutBriefId, setCopiedScoutBriefId] = useState("");
+  const [learningDraft, setLearningDraft] = useState(INITIAL_AGENT_LEARNING_FORM);
+  const [learningActionState, setLearningActionState] = useState({ status: "idle", id: "", message: "" });
   const canViewOpportunityScout = Boolean(permissions?.opportunityScout?.canView);
   const canManageOpportunityScout = Boolean(permissions?.opportunityScout?.canManage);
+  const canManageAgentLearning = Boolean(permissions?.aiOffice?.canManageLearning);
+  const agentLearningPreferences = normalizeObjectArray(companySettings.agentLearningPreferences);
   const leadSourceOptions = normalizeObjectArray(leadSources).filter((source) => !source.archivedAt && String(source.status || "active").toLowerCase() !== "inactive");
   const profileOptions = normalizeObjectArray(opportunitySearchProfiles).filter((profile) => !profile.archivedAt && String(profile.status || "active").toLowerCase() !== "archived");
   const estimatorOptions = normalizeObjectArray(users).filter((user) => ["Owner", "Administrator", "Operations Manager", "Estimator"].includes(user.role) && String(user.status || "active").toLowerCase() === "active");
@@ -23480,6 +23497,38 @@ function CopilotPagePolished({
     onUpdateFoundOpportunity?.(opportunity.opportunityId, {
       humanReviewStatus: "approved_for_lead",
       humanReviewNote: "Approved by the office for lead draft conversion.",
+    });
+  }
+
+  function updateLearningDraft(field, value) {
+    setLearningDraft((current) => ({ ...current, [field]: value }));
+    setLearningActionState((current) => (current.status === "idle" ? current : { status: "idle", id: "", message: "" }));
+  }
+
+  async function submitLearningDraft(event) {
+    event.preventDefault();
+    if (!canManageAgentLearning || !learningDraft.title.trim() || !learningDraft.preference.trim()) return;
+    setLearningActionState({ status: "saving", id: "new", message: "" });
+    const ok = await onCreateAgentLearningPreference?.({
+      ...learningDraft,
+      appliesTo: learningDraft.appliesTo.split(",").map((entry) => entry.trim()).filter(Boolean),
+    });
+    setLearningActionState({
+      status: ok ? "success" : "error",
+      id: "new",
+      message: ok ? "Apex memory saved for this company." : "Could not save Apex memory.",
+    });
+    if (ok) setLearningDraft(INITIAL_AGENT_LEARNING_FORM);
+  }
+
+  async function updateLearningStatus(preference, status) {
+    if (!canManageAgentLearning || !preference?.id) return;
+    setLearningActionState({ status: "saving", id: preference.id, message: "" });
+    const ok = await onUpdateAgentLearningPreference?.(preference.id, { status });
+    setLearningActionState({
+      status: ok ? "success" : "error",
+      id: preference.id,
+      message: ok ? `Memory ${status.replace(/_/g, " ")}.` : "Could not update Apex memory.",
     });
   }
 
@@ -24427,6 +24476,87 @@ function CopilotPagePolished({
                 <span>Workflows</span>
                 <strong>Existing routes</strong>
               </div>
+            </div>
+          </Card>
+
+          <Card className="co-ai-rail-card">
+            <SectionHeader title="Apex Learned" description="Company-scoped memory from approved office corrections and preferences." />
+            {canManageAgentLearning ? (
+              <form className="co-ai-scout-form" onSubmit={submitLearningDraft}>
+                <div className="co-ai-scout-form-grid">
+                  <label>
+                    <span>Category</span>
+                    <select value={learningDraft.category} onChange={(event) => updateLearningDraft("category", event.target.value)}>
+                      <option value="estimate-style">Estimate style</option>
+                      <option value="trade-defaults">Trade defaults</option>
+                      <option value="proposal-language">Proposal language</option>
+                      <option value="schedule">Schedule</option>
+                      <option value="crew">Crew</option>
+                      <option value="proof">Proof</option>
+                      <option value="closeout">Closeout</option>
+                      <option value="lead-qualification">Lead qualification</option>
+                      <option value="general">General</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Status</span>
+                    <select value={learningDraft.status} onChange={(event) => updateLearningDraft("status", event.target.value)}>
+                      <option value="suggested">Suggested</option>
+                      <option value="approved">Approved</option>
+                    </select>
+                  </label>
+                  <label className="md:col-span-2">
+                    <span>Title</span>
+                    <input value={learningDraft.title} onChange={(event) => updateLearningDraft("title", event.target.value)} placeholder="Broom finish base option" />
+                  </label>
+                  <label className="md:col-span-2">
+                    <span>Preference</span>
+                    <textarea value={learningDraft.preference} onChange={(event) => updateLearningDraft("preference", event.target.value)} placeholder="Use broom finish as the base concrete option unless the customer asks for stamped or exposed aggregate." rows={3} />
+                  </label>
+                  <label className="md:col-span-2">
+                    <span>Applies To</span>
+                    <input value={learningDraft.appliesTo} onChange={(event) => updateLearningDraft("appliesTo", event.target.value)} placeholder="concrete, driveway, fence" />
+                  </label>
+                </div>
+                <div className="co-ai-scout-form-footer">
+                  <span>No credentials, customer emails, or portal instructions. Field users cannot access this memory.</span>
+                  <Button type="submit" size="sm" disabled={busy || learningActionState.status === "saving" || !learningDraft.title.trim() || !learningDraft.preference.trim()}>
+                    {learningActionState.status === "saving" && learningActionState.id === "new" ? "Saving..." : "Teach Apex"}
+                  </Button>
+                </div>
+                {learningActionState.id === "new" && learningActionState.message ? (
+                  <p className={`mt-2 text-xs font-bold ${learningActionState.status === "error" ? "text-red-700" : "text-emerald-700"}`}>{learningActionState.message}</p>
+                ) : null}
+              </form>
+            ) : (
+              <StateCard title="Learning locked" description="Apex memory is available only to office roles with AI Office access." tone="slate" />
+            )}
+
+            <div className="mt-3 grid gap-2">
+              {agentLearningPreferences.filter((entry) => entry.status !== "archived").slice(0, 5).map((entry) => (
+                <div key={entry.id} className="co-ai-scout-quality-row" data-tone={entry.status === "approved" ? "green" : "amber"}>
+                  <span>
+                    <strong>{entry.title}</strong>
+                    <em>{entry.preference}</em>
+                    {entry.appliesTo?.length ? <em>Applies to: {entry.appliesTo.join(", ")}</em> : null}
+                  </span>
+                  <b>{entry.status === "approved" ? "Approved" : "Suggested"}</b>
+                  {canManageAgentLearning ? (
+                    <small className="flex flex-wrap gap-1">
+                      {entry.status !== "approved" ? (
+                        <button type="button" onClick={() => updateLearningStatus(entry, "approved")} disabled={busy || learningActionState.status === "saving"}>Approve</button>
+                      ) : null}
+                      <button type="button" onClick={() => updateLearningStatus(entry, "archived")} disabled={busy || learningActionState.status === "saving"}>Archive</button>
+                    </small>
+                  ) : null}
+                  {learningActionState.id === entry.id && learningActionState.message ? (
+                    <small>{learningActionState.message}</small>
+                  ) : null}
+                </div>
+              ))}
+              {!agentLearningPreferences.filter((entry) => entry.status !== "archived").length ? (
+                <p className="text-xs font-bold leading-5 text-slate-500">No contractor preferences saved yet. Teach Apex the company&apos;s estimating, scheduling, proof, and proposal habits as they are approved.</p>
+              ) : null}
             </div>
           </Card>
 
@@ -36574,6 +36704,40 @@ export default function App() {
     }
   }
 
+  async function handleCreateAgentLearningPreference(payload) {
+    if (!sessionToken || !appState.permissions.aiOffice?.canManageLearning) return false;
+    setBusy(true);
+    try {
+      const nextState = await createAgentLearningPreference(sessionToken, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleUpdateAgentLearningPreference(preferenceId, payload) {
+    if (!sessionToken || !appState.permissions.aiOffice?.canManageLearning) return false;
+    setBusy(true);
+    try {
+      const nextState = await updateAgentLearningPreference(sessionToken, preferenceId, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleCreateContactHistory(payload) {
     if (!sessionToken || !appState.permissions.contactHistory?.canManage) return false;
     setBusy(true);
@@ -38471,6 +38635,8 @@ export default function App() {
                 onUpdateFoundOpportunity={handleUpdateFoundOpportunity}
                 onConvertFoundOpportunityToLead={handleConvertFoundOpportunityToLead}
                 onReviewFoundOpportunityWithAi={handleReviewFoundOpportunityWithAi}
+                onCreateAgentLearningPreference={handleCreateAgentLearningPreference}
+                onUpdateAgentLearningPreference={handleUpdateAgentLearningPreference}
                 onCreateContactHistory={handleCreateContactHistory}
                 onUpdateContactHistory={handleUpdateContactHistory}
                 onArchiveContactHistory={handleArchiveContactHistory}
