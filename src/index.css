@@ -41017,7 +41017,7 @@ button.co-work-queue-card:hover:not(:disabled) {
 @media (min-width: 960px) and (max-width: 1179px) {
   .co-estimate-studio-shell .co-command-page-frame-grid {
     display: grid !important;
-    grid-template-columns: minmax(0, 1fr) minmax(14rem, 16rem) !important;
+    grid-template-columns: minmax(0, 1fr) !important;
     gap: 0.58rem !important;
     align-items: start;
   }
@@ -41032,10 +41032,91 @@ button.co-work-queue-card:hover:not(:disabled) {
   }
 
   .co-estimate-studio-option-rail,
-  .co-estimate-studio-workbench,
-  .co-estimates-right-rail {
+  .co-estimate-studio-workbench {
     max-height: calc(100dvh - var(--layout-topbar-height, 4.5rem) - 7.5rem);
     overflow-y: auto;
+  }
+
+  .co-estimates-right-rail {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 0.58rem !important;
+    max-height: calc(100dvh - var(--layout-topbar-height, 4.5rem) - 8.25rem) !important;
+    overflow-y: auto !important;
+  }
+
+  .co-estimates-right-rail > * + * {
+    margin-top: 0 !important;
+  }
+
+  .co-estimates-branding-card,
+  .co-estimates-actions-card {
+    grid-column: span 1;
+  }
+
+  .co-estimates-selected-card,
+  .co-estimates-tools-card {
+    grid-column: span 2;
+  }
+
+  .co-estimates-right-rail > .co-estimates-rail-card,
+  .co-estimates-branding-card,
+  .co-estimates-selected-card {
+    align-self: stretch;
+  }
+
+  .co-estimates-branding-contact {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .co-estimates-branding-contact span {
+    border-radius: 0.5rem !important;
+    line-height: 1.2 !important;
+  }
+
+  .co-estimates-selected-card {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.58rem;
+  }
+
+  .co-estimates-selected-card > .flex,
+  .co-estimates-selected-card > .mt-4.grid {
+    grid-column: 1 / -1;
+  }
+
+  .co-estimates-selected-card .co-estimates-total-spotlight,
+  .co-estimates-selected-card .co-estimates-summary-facts,
+  .co-estimates-selected-card > .mt-4.rounded-2xl {
+    margin-top: 0 !important;
+  }
+
+  .co-estimates-selected-card .co-estimates-summary-facts {
+    border-top: 0;
+    padding-top: 0;
+  }
+
+  .co-estimates-selected-card > .mt-4.rounded-2xl {
+    grid-column: 1 / -1;
+  }
+
+  .co-estimates-selected-card > .mt-4.rounded-2xl .mt-3.grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.42rem;
+  }
+
+  .co-estimates-selected-card > .mt-4.rounded-2xl .mt-3.grid > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.35rem;
+  }
+
+  .co-estimate-studio-shell .co-command-page-frame-footer .co-assistant-rail {
+    grid-template-columns: minmax(12rem, 0.42fr) minmax(0, 1fr) !important;
+  }
+
+  .co-estimate-studio-shell .co-command-page-frame-footer .co-assistant-rail-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 }
 
@@ -41054,8 +41135,12 @@ button.co-work-queue-card:hover:not(:disabled) {
   }
 
   .co-estimates-right-rail {
-    display: grid;
+    display: grid !important;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.58rem;
+  }
+
+  .co-estimates-right-rail > * + * {
+    margin-top: 0 !important;
   }
 }
