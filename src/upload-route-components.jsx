@@ -84,6 +84,10 @@ function uploadFileSizeLabel(bytes) {
   return `${size} B`;
 }
 
+function uploadCapturedAt(upload) {
+  return upload?.takenAt || upload?.uploadedAt || upload?.createdAt;
+}
+
 export function UploadListCard({ upload, selected, onSelect }) {
   return (
     <button type="button" onClick={() => onSelect(upload.id)} className={`co-mobile-record-card w-full min-w-0 max-w-full rounded-2xl border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/70" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/50"}`}>
@@ -440,6 +444,175 @@ export function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLo
     </>
   );
 }
+
+export function UploadsTablePolished({ rows, selectedId, onSelect }) {
+  return (
+    <>
+      <details className="co-uploads-mobile-list-drawer md:hidden">
+        <summary>
+          <span>
+            <strong>Evidence in view</strong>
+            <em>{rows.length} upload{rows.length === 1 ? "" : "s"} ready for review</em>
+          </span>
+          <span>{rows.length}</span>
+        </summary>
+        <div className="co-uploads-mobile-list grid gap-3 p-3">
+          {rows.map((upload) => {
+            const selected = upload.id === selectedId;
+
+            return (
+              <button
+                key={upload.id}
+                type="button"
+                onClick={() => onSelect(upload.id)}
+                className={`co-uploads-mobile-card co-mobile-record-card w-full rounded-[1.05rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/75" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/35"}`}
+              >
+                <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words text-base font-black text-slate-950">{uploadTitle(upload)}</p>
+                    <p className="mt-1 break-words text-xs font-bold text-slate-500">{uploadJobLabel(upload)} / {uploadUploaderLabel(upload)}</p>
+                  </div>
+                  <Badge tone={upload.hasGps ? "green" : "slate"}>{gpsStatusLabel(upload)}</Badge>
+                </div>
+                <div className="co-uploads-mobile-metrics">
+                  <span>Captured <strong>{uploadDateTimeLabel(uploadCapturedAt(upload))}</strong></span>
+                  <span>Size <strong>{uploadFileSizeLabel(upload.fileSize)}</strong></span>
+                  <span>Status <strong>{upload.archivedAt ? "Archived" : "Active"}</strong></span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </details>
+      <div className="co-uploads-list-scroll hidden min-w-0 overflow-auto md:block">
+        <table className="co-uploads-command-table w-full min-w-[900px] text-left">
+          <thead>
+            <tr>
+              <th>Evidence / Job</th>
+              <th>Uploader</th>
+              <th>Captured</th>
+              <th>GPS</th>
+              <th>File</th>
+              <th>Notes</th>
+              <th>Open</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((upload) => {
+              const selected = upload.id === selectedId;
+
+              return (
+                <tr key={upload.id} onClick={() => onSelect(upload.id)} className={`cursor-pointer transition hover:bg-orange-50/45 ${selected ? "bg-orange-50/70" : ""}`}>
+                  <td>
+                    <p className="font-black text-slate-950">{uploadTitle(upload)}</p>
+                    <p className="text-xs font-bold text-slate-500">{uploadJobLabel(upload)} / {uploadCustomerLabel(upload)}</p>
+                  </td>
+                  <td className="font-bold text-slate-700">{uploadUploaderLabel(upload)}</td>
+                  <td className="font-bold text-slate-700">{uploadDateTimeLabel(uploadCapturedAt(upload))}</td>
+                  <td><Badge tone={upload.hasGps ? "green" : "slate"}>{gpsStatusLabel(upload)}</Badge></td>
+                  <td>
+                    <p className="font-bold text-slate-700">{uploadFileSizeLabel(upload.fileSize)}</p>
+                    <p className="text-xs font-bold text-slate-500">{upload.fileType || "Unknown"}</p>
+                  </td>
+                  <td>
+                    <p className="font-bold text-slate-700">{upload.notes || upload.caption || "No notes yet"}</p>
+                  </td>
+                  <td>
+                    <button type="button" className="co-uploads-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(upload.id); }} aria-label={`Open upload ${upload.id}`}>
+                      <Icon name="arrowUpRight" />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+export function UploadsCommandRailPolished({
+  upload,
+  token,
+  canCreate,
+  canManage,
+  disabled,
+  onArchive,
+  onOpenTool,
+}) {
+  if (!upload) {
+    return (
+      <div className="co-uploads-right-rail space-y-4">
+        <Card className="co-uploads-rail-card p-4">
+          <SectionHeader title="Evidence Console" description="Select an upload or capture new photo evidence." />
+          <div className="co-uploads-empty-rail">
+            <span><Icon name="upload" /></span>
+            <strong>No upload selected</strong>
+            <p>Choose a row to review the image, job link, timestamp, GPS status, file metadata, and notes here.</p>
+          </div>
+          {canCreate ? <Button type="button" className="mt-3 w-full" onClick={() => onOpenTool("upload")}>Upload Photo</Button> : null}
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="co-uploads-right-rail space-y-4">
+      <Card className="co-uploads-rail-card p-4">
+        <div className="flex min-w-0 items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Selected evidence</p>
+            <h3 className="mt-2 break-words text-xl font-black leading-tight text-slate-950">{uploadTitle(upload)}</h3>
+            <p className="mt-1 break-words text-xs font-black text-slate-500">{uploadJobLabel(upload)} / {uploadUploaderLabel(upload)}</p>
+          </div>
+          <Badge tone={upload.hasGps ? "green" : "slate"}>{gpsStatusLabel(upload)}</Badge>
+        </div>
+
+        <AuthenticatedUploadPreview upload={upload} token={token} className="co-uploads-rail-preview mt-3 h-44 w-full rounded-xl object-cover" />
+
+        <div className="co-uploads-selected-metrics">
+          <div>
+            <span>Captured</span>
+            <strong>{uploadDateTimeLabel(uploadCapturedAt(upload))}</strong>
+          </div>
+          <div>
+            <span>File</span>
+            <strong>{uploadFileSizeLabel(upload.fileSize)}</strong>
+          </div>
+          <div>
+            <span>Customer</span>
+            <strong>{uploadCustomerLabel(upload)}</strong>
+          </div>
+          <div>
+            <span>Status</span>
+            <strong>{upload.archivedAt ? "Archived" : "Active"}</strong>
+          </div>
+        </div>
+
+        <div className="co-uploads-note-panel">
+          <span>Caption / notes</span>
+          <p>{upload.notes || upload.caption || "No notes recorded yet."}</p>
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <Button type="button" size="sm" onClick={() => onOpenTool("details")}>Edit Notes</Button>
+          {canManage && !upload.archivedAt ? <Button type="button" size="sm" variant="secondary" onClick={() => onArchive(upload.id)} disabled={disabled}>Archive</Button> : null}
+        </div>
+      </Card>
+
+      <Card className="co-uploads-rail-card p-4">
+        <SectionHeader title="Evidence Health" description="Photo evidence is strongest when job, time, and location context are present." />
+        <div className="co-uploads-readiness-list">
+          <span data-state={upload.jobId ? "ready" : "needs"}>Job link <strong>{upload.jobId ? "Set" : "Needed"}</strong></span>
+          <span data-state={upload.hasGps ? "ready" : "needs"}>GPS metadata <strong>{upload.hasGps ? "Captured" : gpsStatusLabel(upload)}</strong></span>
+          <span data-state={upload.caption || upload.notes ? "ready" : "needs"}>Notes <strong>{upload.caption || upload.notes ? "Added" : "Optional"}</strong></span>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 
 export function UploadDetailPanel({ upload, token, canManage, disabled, onSave, onArchive, compactMobile = false }) {
   const [draft, setDraft] = useState({ caption: "", notes: "" });

@@ -10,7 +10,7 @@ test("App imports extracted upload route mobile primitives", () => {
   assert.match(appSource, /import \{[^}]*fetchAuthenticatedUploadPreviewUrl[^}]*\} from "\.\/upload-route-components"/s);
   assert.doesNotMatch(appSource, /async function fetchAuthenticatedUploadPreviewUrl\(/);
 
-  for (const name of ["AuthenticatedUploadPreview", "UploadCreateCard", "UploadDetailPanel", "UploadListCard", "UploadMobileAccordionCard", "UploadMobileFieldGroup"]) {
+  for (const name of ["AuthenticatedUploadPreview", "UploadCreateCard", "UploadDetailPanel", "UploadListCard", "UploadMobileAccordionCard", "UploadMobileFieldGroup", "UploadsCommandRailPolished", "UploadsTablePolished"]) {
     assert.match(routeComponentsSource, new RegExp(`export function ${name}\\b`));
     assert.match(appSource, new RegExp(`import \\{[^}]*${name}[^}]*\\} from "\\./upload-route-components"`, "s"));
     assert.doesNotMatch(appSource, new RegExp(`function ${name}\\(`));
