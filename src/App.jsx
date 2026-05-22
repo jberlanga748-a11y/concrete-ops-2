@@ -6,6 +6,7 @@ import {
   Button,
   Card,
   CommandPageFrame,
+  DesktopCommandDrawer,
   DesktopCommandWorkspaceFrame,
   EstimateStudioShell,
   FilterBar,
@@ -17849,15 +17850,14 @@ function SchedulePage({
           />
         }
         footer={
-          <details className="co-schedule-support-drawer">
-            <summary>
-              <span>
-                <strong>Secondary Schedule Panels</strong>
-                <em>Week lookahead, unassigned jobs, and missing activity stay inside the dispatcher workspace.</em>
-              </span>
-              <span>Open panels</span>
-            </summary>
-            <div className="co-schedule-support-grid grid min-w-0 gap-3">
+          <DesktopCommandDrawer
+            className="co-schedule-support-drawer"
+            bodyClassName="co-schedule-support-grid grid min-w-0 gap-3"
+            title="Secondary Schedule Panels"
+            description="Week lookahead, unassigned jobs, and missing activity stay inside the dispatcher workspace."
+            summaryLabel="Open panels"
+            variant="bottom"
+          >
               <ScheduleSection
                 title="Week Lookahead"
                 description={`Scheduled work through ${scheduleDateLabel(scheduleState.weekEndKey)}`}
@@ -17899,8 +17899,7 @@ function SchedulePage({
                   limit={5}
                 />
               </div>
-            </div>
-          </details>
+          </DesktopCommandDrawer>
         }
       >
         <ScheduleOperatingPlanWorkbench
@@ -20320,14 +20319,14 @@ function LeadsPage({
           />
         </div>
 
-        <details id="lead-tools-drawer" className="co-leads-tools-drawer mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-24 sm:px-6 md:pb-4 lg:px-8">
-          <summary>
-            <span>
-              <strong>Lead Tools</strong>
-              <em>Intake, review queue, source checks, and source management stay available here.</em>
-            </span>
-            <span>Open tools</span>
-          </summary>
+        <DesktopCommandDrawer
+          id="lead-tools-drawer"
+          className="co-leads-tools-drawer mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-24 sm:px-6 md:pb-4 lg:px-8"
+          title="Lead Tools"
+          description="Intake, review queue, source checks, and source management stay available here."
+          summaryLabel="Open tools"
+          variant="right"
+        >
           <div className="co-leads-tool-tabs mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
             {leadToolTabs.map((tab) => (
               <button key={tab.id} type="button" className={activeLeadTool === tab.id ? "is-active" : ""} onClick={() => selectLeadTool(tab.id)}>
@@ -20364,7 +20363,7 @@ function LeadsPage({
               />
             ) : null}
           </div>
-        </details>
+        </DesktopCommandDrawer>
       </DesktopCommandWorkspaceFrame>
     </div>
   );
@@ -33172,7 +33171,9 @@ function ChangeOrdersPagePolished({
   function openTools(nextTab = "create") {
     setToolTab(nextTab);
     setShowTools(true);
-    window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+    if (typeof window !== "undefined" && window.matchMedia("(max-width: 1179px)").matches) {
+      window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+    }
   }
 
   function jumpToBoard() {
@@ -33374,14 +33375,13 @@ function ChangeOrdersPagePolished({
           <ChangeOrdersCommandRailPolished request={selectedRequest} canCreate={canCreate} canManage={canManage} busy={busy} onOpenTool={openTools} onArchive={onArchiveRequest} />
         </div>
 
-        <details className="co-change-orders-secondary-drawer mx-auto w-full max-w-[1520px] min-w-0 px-5 sm:px-6 lg:px-6">
-          <summary>
-            <span>
-              <strong>Review shortcuts</strong>
-              <em>Needs review, office review, missing details, and new-request actions stay inside the review board.</em>
-            </span>
-            <span>Open shortcuts</span>
-          </summary>
+        <DesktopCommandDrawer
+          className="co-change-orders-secondary-drawer mx-auto w-full max-w-[1520px] min-w-0 px-5 sm:px-6 lg:px-6"
+          title="Review shortcuts"
+          description="Needs review, office review, missing details, and new-request actions stay inside the review board."
+          summaryLabel="Open shortcuts"
+          variant="bottom"
+        >
           <div className="co-toolbox-priority-grid co-change-orders-secondary-actions grid w-full min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-4">
             {changeOrderPriorityCards.map((card) => (
               <button key={card.label} type="button" className="co-toolbox-priority-card co-focus-ring" data-tone={card.tone} onClick={card.onAction}>
@@ -33395,21 +33395,18 @@ function ChangeOrdersPagePolished({
               </button>
             ))}
           </div>
-        </details>
+        </DesktopCommandDrawer>
 
-        <details
-          ref={toolsRef}
+        <DesktopCommandDrawer
+          drawerRef={toolsRef}
           className="co-change-orders-tools-drawer mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-24 sm:px-6 md:pb-4 lg:px-6"
           open={showTools}
           onToggle={(event) => setShowTools(event.currentTarget.open)}
+          title="Change Order Tools"
+          description={canManage ? "Create a field request or review the selected change order before cost or billing work." : "Create a field request or review the selected change order with field-safe details."}
+          summaryLabel="Open tools"
+          variant="right"
         >
-          <summary>
-            <span>
-              <strong>Change Order Tools</strong>
-              <em>{canManage ? "Create a field request or review the selected change order before cost or billing work." : "Create a field request or review the selected change order with field-safe details."}</em>
-            </span>
-            <span>Open tools</span>
-          </summary>
           <div className="co-change-orders-tool-tabs mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
             {canCreate ? <button type="button" className={toolTab === "create" ? "is-active" : ""} onClick={() => setToolTab("create")}><Icon name="plus" />New Request</button> : null}
             <button type="button" className={toolTab === "review" ? "is-active" : ""} onClick={() => setToolTab("review")}><Icon name="clipboard" />Review</button>
@@ -33421,7 +33418,7 @@ function ChangeOrdersPagePolished({
               <ChangeOrderDetailPanelPolished request={selectedRequest} detailDraft={detailDraft} setDetailDraft={setDetailDraft} canManage={canManage} busy={busy} onUpdateRequest={onUpdateRequest} onArchiveRequest={onArchiveRequest} />
             )}
           </div>
-        </details>
+        </DesktopCommandDrawer>
       </DesktopCommandWorkspaceFrame>
     </div>
   );

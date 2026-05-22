@@ -286,6 +286,60 @@ export function DesktopCommandWorkspaceFrame({ children, className = "" }) {
   );
 }
 
+export function DesktopCommandDrawer({
+  children,
+  className = "",
+  bodyClassName = "",
+  description = "",
+  drawerRef,
+  id,
+  onToggle,
+  open,
+  summaryLabel = "Open",
+  title,
+  variant = "right",
+}) {
+  const closeDrawer = (event) => {
+    const drawer = event.currentTarget.closest("details");
+    if (drawer) {
+      drawer.open = false;
+      drawer.dispatchEvent(new Event("toggle", { bubbles: true }));
+    }
+  };
+
+  const openProps = typeof open === "boolean" ? { open } : {};
+
+  return (
+    <details
+      id={id}
+      ref={drawerRef}
+      className={`co-desktop-command-drawer co-desktop-command-drawer--${variant} ${className}`}
+      onToggle={onToggle}
+      {...openProps}
+    >
+      <summary>
+        <span>
+          <strong>{title}</strong>
+          {description ? <em>{description}</em> : null}
+        </span>
+        <span>{summaryLabel}</span>
+      </summary>
+      <div className="co-desktop-command-drawer-panel">
+        <div className="co-desktop-command-drawer-head">
+          <span>
+            <strong>{title}</strong>
+            {description ? <em>{description}</em> : null}
+          </span>
+          <button type="button" onClick={closeDrawer}>Close</button>
+        </div>
+        <div className={`co-desktop-command-drawer-body ${bodyClassName}`}>
+          {children}
+        </div>
+      </div>
+    </details>
+  );
+}
+
 export function EstimateStudioShell({
   options = [],
   selectedOptionId = "",
