@@ -22678,6 +22678,12 @@ function CustomersPagePolished({
   const activeVisibleRows = visibleRows.filter((customer) => !customer.archivedAt);
   const missingContactRows = activeVisibleRows.filter((customer) => !customer.phone || !customer.email);
   const totalCustomers = customers.length;
+  const customerWorkspaceKpis = [
+    { label: "Visible customers", value: canView ? visibleRows.length : 0, helper: "Accounts in the current board", icon: "users", tone: "blue", actionLabel: "View all", onAction: () => setFilter("All") },
+    { label: "Active accounts", value: activeVisibleRows.length, helper: "Not archived and ready for work", icon: "briefcase", tone: "green", actionLabel: "Active", onAction: () => setFilter("Active") },
+    { label: "Contact gaps", value: missingContactRows.length, helper: "Phone or email needs cleanup", icon: "alert", tone: missingContactRows.length ? "amber" : "green", actionLabel: "Review gaps", onAction: () => setFilter("All") },
+    { label: "Linked workflow", value: leads.length + jobs.length + estimates.length, helper: "Leads, jobs, and estimates in context", icon: "layers", tone: "orange", actionLabel: "Scan board", onAction: () => setFilter("All") },
+  ];
 
   return (
     <div className="co-office-page co-customers-page">
@@ -22692,106 +22698,115 @@ function CustomersPagePolished({
           </div>
         }
       />
-      {canView ? (
-        <CustomerOperationsWorkbench
-          customers={visibleRows}
-          selectedCustomer={selectedCustomer}
-          leads={leads}
-          jobs={jobs}
-          activity={activity}
-          estimates={estimates}
-          canManage={canManage}
-          onSelectCustomer={onSelectCustomer}
-          onSelectLead={onSelectLead}
-          onSelectJob={onSelectJob}
-          onCreateCustomer={() => setShowCreateCustomer(true)}
-          onSetFilter={(nextFilter) => {
-            setFilter(nextFilter);
-            setSearch("");
-          }}
-        />
-      ) : null}
 
-      <div className="co-customers-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
-        <div className="co-customers-left-stack min-w-0 space-y-3">
-          <Card className="co-customers-main-board overflow-hidden">
-            <div className="co-customers-board-header border-b border-slate-200 bg-white p-4">
-              <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-                <div className="min-w-0">
-                  <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Customer Work Board</h2>
-                  <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Scan accounts by contact readiness, current work, and linked job or lead context.</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" size="sm" variant="secondary" onClick={() => setFilter("All")}>All customers</Button>
-                  <Button type="button" size="sm" variant="secondary" onClick={() => setFilter("Prospect")}>Prospects</Button>
-                  {canManage ? <Button type="button" size="sm" onClick={() => setShowCreateCustomer(true)}>Create Customer</Button> : null}
-                </div>
-              </div>
-            </div>
-            {canView ? (
-              <>
-                <CustomerFilterHeader filters={["All", "Prospect", "Active", "Inactive", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search name, phone, email, city, service area..." />
-                {busy && visibleRows.length === 0 ? (
-                  <div className="p-5"><StateCard title="Loading customers" description="Pulling customer records for this workspace." /></div>
-                ) : errorMessage && visibleRows.length === 0 ? (
-                  <div className="p-5"><StateCard title="Customers unavailable" description={errorMessage} tone="red" /></div>
-                ) : visibleRows.length === 0 ? (
-                  <div className="p-5">
-                    <StateCard
-                      title={search || filter !== "All" ? "No matching customers" : "No customers yet"}
-                      description={search || filter !== "All" ? "Try a different search or status filter." : "Create the first customer record to start linking leads and jobs."}
-                    />
-                  </div>
-                ) : (
-                  <ExtractedCustomersTablePolished rows={visibleRows} selectedId={selectedCustomerId} onSelect={onSelectCustomer} />
-                )}
-                <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
-                  <p className="text-sm font-bold text-slate-600">Showing {visibleRows.length} of {totalCustomers} customers</p>
-                  <Button type="button" size="sm" variant="secondary" onClick={() => { setFilter("All"); setSearch(""); }}>Clear filters</Button>
-                </div>
-              </>
-            ) : (
-              <div className="p-5">
-                <StateCard title="Customer access unavailable" description="This role cannot open the customer workspace until customer-specific assignments exist." tone="slate" />
-              </div>
-            )}
-          </Card>
-        </div>
-
-        <CustomerCommandRailPolished
-            customer={selectedCustomer}
-            canView={canView}
+      <div className="co-customers-overview-workbench">
+        {canView ? (
+          <CustomerOperationsWorkbench
+            customers={visibleRows}
+            selectedCustomer={selectedCustomer}
+            leads={leads}
+            jobs={jobs}
+            activity={activity}
+            estimates={estimates}
             canManage={canManage}
-            notFound={canView && customerRouteRequested && !selectedCustomer}
-            disabled={busy}
-            saveState={customerSaveState}
-            onFieldChange={onCustomerFieldChange}
-            onArchive={onArchiveCustomer}
-            onRestore={onRestoreCustomer}
-            related={relatedRecords}
+            onSelectCustomer={onSelectCustomer}
             onSelectLead={onSelectLead}
             onSelectJob={onSelectJob}
-            contactHistory={contactHistory}
-            contactHistoryPermissions={permissions.contactHistory}
-            onCreateContactHistory={onCreateContactHistory}
-            onUpdateContactHistory={onUpdateContactHistory}
-            onArchiveContactHistory={onArchiveContactHistory}
-            onRestoreContactHistory={onRestoreContactHistory}
+            onCreateCustomer={() => setShowCreateCustomer(true)}
+            onSetFilter={(nextFilter) => {
+              setFilter(nextFilter);
+              setSearch("");
+            }}
           />
+        ) : null}
       </div>
 
-      <details className="co-customers-tools-drawer mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-4 sm:px-6 lg:px-8" open={showCreateCustomer} onToggle={(event) => setShowCreateCustomer(event.currentTarget.open)}>
-        <summary>
-          <span>
-            <strong>Customer Tools</strong>
-            <em>Create customer records without crowding the command board.</em>
-          </span>
-          <span>Open tools</span>
-        </summary>
-        <div className="co-customers-tools-panel mt-3">
-          <ExtractedCustomerIntakeCard draft={customerDraft} setDraft={setCustomerDraft} onCreateCustomer={onCreateCustomer} disabled={busy} canManage={canManage} />
+      <DesktopCommandWorkspaceFrame className="co-customers-desktop-workspace-frame">
+        <div className="co-customers-kpi-grid co-command-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-2 gap-2.5 px-5 pb-3 sm:px-6 lg:grid-cols-4 lg:px-6">
+          {customerWorkspaceKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
         </div>
-      </details>
+
+        <div className="co-customers-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
+          <div className="co-customers-left-stack min-w-0 space-y-3">
+            <Card className="co-customers-main-board overflow-hidden">
+              <div className="co-customers-board-header border-b border-slate-200 bg-white p-4">
+                <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                  <div className="min-w-0">
+                    <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Customer Work Board</h2>
+                    <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Scan accounts by contact readiness, current work, and linked job or lead context.</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" size="sm" variant="secondary" onClick={() => setFilter("All")}>All customers</Button>
+                    <Button type="button" size="sm" variant="secondary" onClick={() => setFilter("Prospect")}>Prospects</Button>
+                    {canManage ? <Button type="button" size="sm" onClick={() => setShowCreateCustomer(true)}>Create Customer</Button> : null}
+                  </div>
+                </div>
+              </div>
+              {canView ? (
+                <>
+                  <CustomerFilterHeader filters={["All", "Prospect", "Active", "Inactive", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search name, phone, email, city, service area..." />
+                  {busy && visibleRows.length === 0 ? (
+                    <div className="p-5"><StateCard title="Loading customers" description="Pulling customer records for this workspace." /></div>
+                  ) : errorMessage && visibleRows.length === 0 ? (
+                    <div className="p-5"><StateCard title="Customers unavailable" description={errorMessage} tone="red" /></div>
+                  ) : visibleRows.length === 0 ? (
+                    <div className="p-5">
+                      <StateCard
+                        title={search || filter !== "All" ? "No matching customers" : "No customers yet"}
+                        description={search || filter !== "All" ? "Try a different search or status filter." : "Create the first customer record to start linking leads and jobs."}
+                      />
+                    </div>
+                  ) : (
+                    <ExtractedCustomersTablePolished rows={visibleRows} selectedId={selectedCustomerId} onSelect={onSelectCustomer} />
+                  )}
+                  <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
+                    <p className="text-sm font-bold text-slate-600">Showing {visibleRows.length} of {totalCustomers} customers</p>
+                    <Button type="button" size="sm" variant="secondary" onClick={() => { setFilter("All"); setSearch(""); }}>Clear filters</Button>
+                  </div>
+                </>
+              ) : (
+                <div className="p-5">
+                  <StateCard title="Customer access unavailable" description="This role cannot open the customer workspace until customer-specific assignments exist." tone="slate" />
+                </div>
+              )}
+            </Card>
+          </div>
+
+          <CustomerCommandRailPolished
+              customer={selectedCustomer}
+              canView={canView}
+              canManage={canManage}
+              notFound={canView && customerRouteRequested && !selectedCustomer}
+              disabled={busy}
+              saveState={customerSaveState}
+              onFieldChange={onCustomerFieldChange}
+              onArchive={onArchiveCustomer}
+              onRestore={onRestoreCustomer}
+              related={relatedRecords}
+              onSelectLead={onSelectLead}
+              onSelectJob={onSelectJob}
+              contactHistory={contactHistory}
+              contactHistoryPermissions={permissions.contactHistory}
+              onCreateContactHistory={onCreateContactHistory}
+              onUpdateContactHistory={onUpdateContactHistory}
+              onArchiveContactHistory={onArchiveContactHistory}
+              onRestoreContactHistory={onRestoreContactHistory}
+            />
+        </div>
+
+        <details className="co-customers-tools-drawer mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-4 sm:px-6 lg:px-8" open={showCreateCustomer} onToggle={(event) => setShowCreateCustomer(event.currentTarget.open)}>
+          <summary>
+            <span>
+              <strong>Customer Tools</strong>
+              <em>Create customer records without crowding the command board.</em>
+            </span>
+            <span>Open tools</span>
+          </summary>
+          <div className="co-customers-tools-panel mt-3">
+            <ExtractedCustomerIntakeCard draft={customerDraft} setDraft={setCustomerDraft} onCreateCustomer={onCreateCustomer} disabled={busy} canManage={canManage} />
+          </div>
+        </details>
+      </DesktopCommandWorkspaceFrame>
     </div>
   );
 }
