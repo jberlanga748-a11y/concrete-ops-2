@@ -212,7 +212,7 @@ import {
 import { buildEstimateLineItemsFromRoughNotes } from "./estimate-template-utils";
 import { deriveCustomerPortalPreviewState } from "./customer-portal-preview-utils";
 import { deriveFieldOpsAgentState } from "./field-ops-agent-utils";
-import { FieldActionGrid, FieldDetailDisclosure, FieldMobileQuickNav, FieldWorkspaceDisclosure, getFieldMobileNavItems } from "./field-route-components";
+import { FieldActionGrid, FieldAssignmentNoticePanel, FieldDetailDisclosure, FieldJobSummaryCard, FieldMobileQuickNav, FieldWorkspaceDisclosure, getFieldMobileNavItems } from "./field-route-components";
 import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspace-utils";
 import { deriveFollowUpQueueState, filterFollowUpQueueItems, FOLLOW_UP_QUEUE_GROUPS, FOLLOW_UP_QUEUE_TYPE_FILTERS } from "./follow-up-queue-utils";
 import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobTitle, normalizeJobStatus } from "./job-utils";
@@ -4218,107 +4218,6 @@ function humanizeAssignmentRole(roleOnJob = "") {
   const normalized = String(roleOnJob || "").replaceAll("_", " ").trim().toLowerCase();
   if (!normalized) return "Crew";
   return normalized.replace(/\b\w/g, (character) => character.toUpperCase());
-}
-
-function FieldJobSummaryCard({ job, selected, onSelect, note = "" }) {
-  const crewCount = Array.isArray(job?.crewAssignments) ? job.crewAssignments.length : 0;
-
-  return (
-    <button
-      type="button"
-      onClick={() => onSelect(job.id)}
-      className={`co-mobile-record-card co-field-job-summary-card w-full rounded-3xl border p-4 text-left transition ${selected ? "is-selected border-blue-300 bg-blue-50/80 shadow-panel" : "border-blue-100 bg-white hover:border-blue-200 hover:bg-blue-50/50"}`}
-    >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-lg font-black text-slate-950">{jobTitle(job)}</p>
-          <p className="mt-1 text-sm font-bold text-slate-500">{job.customer || "Assigned site"}</p>
-        </div>
-        <StatusBadge status={jobStatusLabel(job.status || job.stage)} />
-      </div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <div>
-          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Schedule</p>
-          <p className="mt-1 text-sm font-bold text-slate-700">{formatJobScheduleDetail(job)}</p>
-        </div>
-        <div>
-          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Address</p>
-          <p className="mt-1 text-sm font-bold text-slate-700">{job.address || "Address pending"}</p>
-        </div>
-      </div>
-      <p className="mt-4 text-sm leading-6 text-slate-600">{job.scopeSummary || "Scope summary pending."}</p>
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        {note ? <Badge tone="orange">{note}</Badge> : null}
-        <Badge tone="slate">{crewCount} crew</Badge>
-        {job.siteContact ? <Badge tone="violet">Site contact ready</Badge> : null}
-        <span className="co-field-open-pill">Open details</span>
-      </div>
-    </button>
-  );
-}
-
-function FieldAssignmentNoticePanel({ notices, onSelectJob, onAcknowledge, disabled }) {
-  const visibleNotices = Array.isArray(notices) ? notices : [];
-  if (visibleNotices.length === 0) return null;
-
-  return (
-    <Card className="co-field-assignment-board border-amber-100 bg-amber-50/70 p-5">
-      <SectionHeader
-        title={visibleNotices.length === 1 ? "New job assignment" : "New job assignments"}
-        description="Review where to be, when to arrive, and field notes from the office."
-        action={<Badge tone="amber">{visibleNotices.length} notice{visibleNotices.length === 1 ? "" : "s"}</Badge>}
-      />
-      <div className="co-field-assignment-list">
-        {visibleNotices.map((notice) => {
-          const job = notice.job;
-          const mapUrl = directionsUrl(job?.address);
-          return (
-            <div key={notice.id} className="co-field-notice-card rounded-3xl border border-amber-100 bg-white p-4">
-              <div className="co-field-notice-heading flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="break-words text-lg font-black text-slate-950">{jobTitle(job)}</p>
-                  <p className="mt-1 break-words text-sm font-bold text-slate-600">{job?.customer || "Assigned site"}</p>
-                </div>
-                <Badge tone="amber">Please acknowledge</Badge>
-              </div>
-              <div className="co-field-notice-list mt-3">
-                <div>
-                  <span>When</span>
-                  <strong>{formatJobScheduleDetail(job)}</strong>
-                </div>
-                <div>
-                  <span>Where</span>
-                  <strong>{job?.address || "Address pending"}</strong>
-                  {mapUrl ? (
-                    <a className="co-field-notice-link" href={mapUrl} target="_blank" rel="noreferrer">
-                      Open directions
-                    </a>
-                  ) : null}
-                </div>
-                <div>
-                  <span>Foreman</span>
-                  <strong>{job?.foremanAssignment?.userName || job?.assignedForemanName || "Unassigned"}</strong>
-                </div>
-                <div className="co-field-notice-wide">
-                  <span>Field notes</span>
-                  <strong>{job?.fieldNotes || "No field notes yet."}</strong>
-                </div>
-              </div>
-              <div className="co-field-notice-actions mt-3 flex flex-wrap gap-2">
-                <Button type="button" size="sm" onClick={() => onAcknowledge(job.id)} disabled={disabled}>
-                  <Icon name="check" />
-                  Got it
-                </Button>
-                <Button type="button" size="sm" variant="secondary" onClick={() => onSelectJob(job.id)}>
-                  View job details
-                </Button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </Card>
-  );
 }
 
 function FieldNextJobCard({ job, titleOverride = "", descriptionOverride = "", onSelect, setActive, permissions, activeEntry }) {

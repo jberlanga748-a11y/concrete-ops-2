@@ -37,7 +37,8 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 | Date | Priority | Task | Result | Commit |
 | --- | --- | --- | --- | --- |
-| 2026-05-22 | P3 | Field mobile disclosure extraction | Done; mobile field detail/workspace disclosure wrappers moved into `src/field-route-components.jsx` with import-boundary coverage, field/role/build checks, and browser audits passing for employee mobile field routes | This commit |
+| 2026-05-22 | P3 | Field assignment summary extraction | Done; field job summary cards and assignment notice panel moved into `src/field-route-components.jsx` with import-boundary coverage, field/role/build checks, and browser audits passing for employee mobile field routes | This commit |
+| 2026-05-22 | P3 | Field mobile disclosure extraction | Done; mobile field detail/workspace disclosure wrappers moved into `src/field-route-components.jsx` with import-boundary coverage, field/role/build checks, and browser audits passing for employee mobile field routes | `d1798d8` |
 | 2026-05-22 | P3 | Field mobile shell helper extraction | Done; field action grid, mobile nav ordering, and bottom quick nav moved into `src/field-route-components.jsx` with import-boundary coverage, field/role/build checks, and browser audits passing for employee mobile field routes | `987a930` |
 | 2026-05-22 | P3 | Job startup/calculation card extraction | Done; job startup checklist and internal calculation cards moved into `src/job-route-components.jsx` with import-boundary coverage, job/role/build checks, and browser audits passing for admin and employee `/jobs` access | `ae93f6e` |
 | 2026-05-22 | P3 | Job planner route component extraction | Done; job planner/create-job form moved into `src/job-route-components.jsx` with import-boundary coverage, job/role/build checks, and browser audits passing for admin and employee `/jobs` access | `9fce277` |
