@@ -35886,6 +35886,10 @@ textarea {
     padding-bottom: 4.5rem;
   }
 
+  .co-support-desktop-workspace-frame .co-support-tools-drawer > summary {
+    padding-right: 5.1rem;
+  }
+
   .co-support-desktop-workspace-frame .co-support-northstar-frame {
     display: grid;
     height: 100%;
