@@ -39499,7 +39499,14 @@ button.co-work-queue-card:hover:not(:disabled) {
 }
 
 @media (min-width: 1180px) {
+  .co-change-orders-desktop-workspace-frame {
+    position: relative !important;
+    grid-template-rows: auto minmax(0, 1fr) !important;
+    padding-bottom: 6.4rem !important;
+  }
+
   .co-change-orders-desktop-workspace-frame .co-change-orders-command-layout {
+    grid-row: 2 !important;
     align-items: stretch !important;
   }
 
@@ -39520,6 +39527,41 @@ button.co-work-queue-card:hover:not(:disabled) {
   .co-change-orders-desktop-workspace-frame .co-change-orders-command-layout,
   .co-change-orders-desktop-workspace-frame .co-change-orders-main-board {
     min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .co-change-orders-desktop-workspace-frame .co-change-orders-secondary-drawer,
+  .co-change-orders-desktop-workspace-frame .co-change-orders-tools-drawer {
+    position: absolute !important;
+    right: 0 !important;
+    left: 0 !important;
+    z-index: 8;
+    margin-right: auto !important;
+    margin-left: auto !important;
+  }
+
+  .co-change-orders-desktop-workspace-frame .co-change-orders-secondary-drawer {
+    bottom: 3.55rem !important;
+  }
+
+  .co-change-orders-desktop-workspace-frame .co-change-orders-tools-drawer {
+    bottom: 0.6rem !important;
+    max-height: min(52vh, 28rem);
+  }
+
+  .co-change-orders-desktop-workspace-frame .co-change-orders-tools-drawer[open] {
+    display: block;
+    overflow: hidden !important;
+  }
+
+  .co-change-orders-desktop-workspace-frame .co-change-orders-tools-drawer[open] .co-change-orders-tools-panel {
+    min-height: 0;
+    max-height: calc(min(52vh, 28rem) - 6.8rem) !important;
+    overflow-y: auto !important;
+  }
+
+  .co-change-orders-desktop-workspace-frame .co-change-orders-secondary-drawer[open] {
+    max-height: min(38vh, 21rem);
     overflow: hidden !important;
   }
 }
