@@ -28628,7 +28628,10 @@ function EstimatesPagePolished({
     { id: "backup", label: "SOV / Backup", count: 1 },
     canUseGcPackets ? { id: "packet", label: "Packet", count: packetSectionIds.length } : null,
   ].filter(Boolean);
-  const estimateStudioOptions = filteredRows.slice(0, 5).map((estimate) => ({
+  const estimateStudioOptionRows = selectedEstimate
+    ? [selectedEstimate, ...filteredRows.filter((estimate) => estimate.id !== selectedEstimate.id)].slice(0, 5)
+    : filteredRows.slice(0, 5);
+  const estimateStudioOptions = estimateStudioOptionRows.map((estimate) => ({
     id: estimate.id,
     title: estimateDisplayTitle(estimate),
     meta: estimateDisplayCustomer(estimate),
