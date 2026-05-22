@@ -26,6 +26,18 @@ function estimateName(estimate = {}) {
   return text(estimate.title || estimate.project || estimate.customerName || estimate.customer?.name || "Estimate");
 }
 
+function uploadName(upload = {}) {
+  return text(upload.fileName || upload.title || upload.name || "Photo evidence");
+}
+
+function changeOrderName(changeOrder = {}) {
+  return text(changeOrder.title || changeOrder.scopeSummary || changeOrder.description || "Change order request");
+}
+
+function safetyName(incident = {}) {
+  return text(incident.title || incident.summary || incident.description || "Safety incident");
+}
+
 function isReportNeedingOfficeReview(report = {}) {
   const status = normalizeStatus(report.status || report.reviewStatus);
   return ["submitted", "needs review", "needs_review"].includes(status);
@@ -50,6 +62,20 @@ function isStartupWatchJob(job = {}) {
   const status = normalizeStatus(job.status || job.stage);
   return ["not started", "in progress", "needs review"].includes(startupStatus)
     || ["planned", "scheduled"].includes(status);
+}
+
+function isActiveClockEntry(entry = {}) {
+  return Boolean(entry.clockInAt && !entry.clockOutAt && !entry.archivedAt);
+}
+
+function isChangeOrderBlockingCloseout(changeOrder = {}) {
+  const status = normalizeStatus(changeOrder.status || changeOrder.reviewStatus);
+  return !["approved", "rejected", "closed", "void", "archived"].includes(status);
+}
+
+function isOpenSafetyIncident(incident = {}) {
+  const status = normalizeStatus(incident.status || incident.reviewStatus);
+  return !["resolved", "closed", "archived"].includes(status);
 }
 
 function isFieldOnlyScope(permissions = {}) {
@@ -90,6 +116,9 @@ export function deriveAiOfficeAgentCommandCenter({
   dailyReports = [],
   uploads = [],
   estimates = [],
+  timeEntries = [],
+  changeOrderRequests = [],
+  safetyIncidents = [],
   agentLearningPreferences = [],
   fieldOpsAgent = null,
 } = {}) {
@@ -112,6 +141,9 @@ export function deriveAiOfficeAgentCommandCenter({
   const visibleReports = activeRecords(dailyReports);
   const visibleUploads = activeRecords(uploads);
   const visibleEstimates = activeRecords(estimates);
+  const visibleTimeEntries = activeRecords(timeEntries);
+  const visibleChangeOrders = activeRecords(changeOrderRequests);
+  const visibleSafetyIncidents = activeRecords(safetyIncidents);
   const visibleLearning = activeRecords(agentLearningPreferences);
   const scoutStats = opportunityScout?.stats || {};
   const canViewOpportunityScout = Boolean(permissions?.opportunityScout?.canView);
@@ -126,7 +158,12 @@ export function deriveAiOfficeAgentCommandCenter({
   const draftEstimateReviews = visibleEstimates.filter(isEstimateDraftReview);
   const packetEstimateReviews = visibleEstimates.filter(isEstimatePacketReview);
   const jobHandoffEstimateReviews = visibleEstimates.filter(isEstimateJobHandoffReady);
-  const missingUploads = Number(stats.fieldProofGaps || 0) || visibleUploads.filter((upload) => !upload.jobId && !upload.reportId).length;
+  const unlinkedUploads = visibleUploads.filter((upload) => !upload.jobId && !upload.reportId);
+  const activeClocks = visibleTimeEntries.filter(isActiveClockEntry);
+  const closeoutChangeOrders = visibleChangeOrders.filter(isChangeOrderBlockingCloseout);
+  const openSafetyIncidents = visibleSafetyIncidents.filter(isOpenSafetyIncident);
+  const closeoutBlockers = activeClocks.length + closeoutChangeOrders.length + openSafetyIncidents.length;
+  const missingUploads = Number(stats.fieldProofGaps || 0) || unlinkedUploads.length;
   const readyDrafts = visibleDrafts.filter((draft) => ["ready", "needs review", "imported"].includes(normalizeStatus(draft.status || draft.importStatus || "imported")));
   const readyToBill = visibleJobs.filter((job) => normalizeStatus(job.status || job.stage) === "billing ready").length
     || Number(stats.jobsReadyToBill || stats.moneyReadyItems || 0);
@@ -180,10 +217,10 @@ export function deriveAiOfficeAgentCommandCenter({
     permissions?.reports?.canView || permissions?.uploads?.canView ? {
       id: "proof-closeout",
       title: "Proof Closeout Agent",
-      helper: "Summarize submitted reports, photo gaps, unlinked uploads, and ready-to-bill blockers.",
+      helper: "Summarize submitted reports, photo gaps, unlinked uploads, active clocks, safety, change orders, and ready-to-bill blockers.",
       icon: "clipboard",
-      badge: `${reportsNeedingReview.length + missingUploads} proof items`,
-      tone: toneForCount(reportsNeedingReview.length + missingUploads, { active: "amber", highAt: 5 }),
+      badge: `${reportsNeedingReview.length + missingUploads + closeoutBlockers} closeout items`,
+      tone: toneForCount(reportsNeedingReview.length + missingUploads + closeoutBlockers, { active: "amber", highAt: 5 }),
       actionLabel: "Open reports",
       moduleId: "reports",
     } : null,
@@ -318,6 +355,54 @@ export function deriveAiOfficeAgentCommandCenter({
       recordType: "report",
       record: report,
     })),
+    ...unlinkedUploads.slice(0, 2).map((upload) => ({
+      id: `upload-${upload.id}`,
+      eyebrow: "Unlinked proof",
+      title: uploadName(upload),
+      description: "Photo or file evidence needs job/report linking before closeout can be trusted.",
+      tone: "amber",
+      icon: "upload",
+      actionLabel: "Review upload",
+      moduleId: "uploads",
+      recordType: "upload",
+      record: upload,
+    })),
+    ...activeClocks.slice(0, 2).map((entry) => ({
+      id: `time-${entry.id}`,
+      eyebrow: "Active time clock",
+      title: entry.userName || entry.employeeName || "Crew time entry",
+      description: "Open clock needs review before final labor cost and closeout math can be trusted.",
+      tone: "amber",
+      icon: "clock",
+      actionLabel: "Review time",
+      moduleId: "time",
+      recordType: "timeEntry",
+      record: entry,
+    })),
+    ...closeoutChangeOrders.slice(0, 2).map((changeOrder) => ({
+      id: `change-order-${changeOrder.id}`,
+      eyebrow: "Change order blocker",
+      title: changeOrderName(changeOrder),
+      description: "Change request must be reviewed before ready-to-bill or closeout summary.",
+      tone: "red",
+      icon: "alert",
+      actionLabel: "Review change order",
+      moduleId: "changeOrders",
+      recordType: "changeOrder",
+      record: changeOrder,
+    })),
+    ...openSafetyIncidents.slice(0, 2).map((incident) => ({
+      id: `safety-${incident.id}`,
+      eyebrow: "Safety blocker",
+      title: safetyName(incident),
+      description: "Open safety item must be reviewed before closeout readiness.",
+      tone: "red",
+      icon: "alert",
+      actionLabel: "Review safety",
+      moduleId: "incidents",
+      recordType: "safetyIncident",
+      record: incident,
+    })),
     ...fieldOpsItems.slice(0, 3).map((item) => ({
       id: `field-ops-${item.id}`,
       eyebrow: item.contextLabel || fieldOpsAgent?.roleScope || "Field Ops Agent",
@@ -378,7 +463,7 @@ export function deriveAiOfficeAgentCommandCenter({
       recordType: "draft",
       record: draft,
     })),
-  ].slice(0, 9);
+  ].slice(0, 12);
 
   return {
     canView: true,
@@ -398,6 +483,12 @@ export function deriveAiOfficeAgentCommandCenter({
       draftEstimateReviews: draftEstimateReviews.length,
       packetEstimateReviews: packetEstimateReviews.length,
       jobHandoffEstimateReviews: jobHandoffEstimateReviews.length,
+      unlinkedUploads: unlinkedUploads.length,
+      activeClocks: activeClocks.length,
+      closeoutChangeOrders: closeoutChangeOrders.length,
+      openSafetyIncidents: openSafetyIncidents.length,
+      closeoutBlockers,
+      proofCloseoutReview: reportsNeedingReview.length + missingUploads + closeoutBlockers,
       missingUploads,
       readyDrafts: readyDrafts.length,
       readyToBill,

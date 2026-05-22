@@ -38,6 +38,9 @@ test("AI Office agent command center builds role-safe review lanes from visible 
     jobDraftImports: [{ id: "DRAFT-1", jobName: "Imported slab", status: "Ready" }],
     dailyReports: [{ id: "REPORT-1", status: "Submitted", jobTitle: "Westview Warehouse" }],
     uploads: [{ id: "UPLOAD-1", fileName: "finish.jpg" }],
+    timeEntries: [{ id: "TIME-1", userName: "Mike R.", clockInAt: "2026-05-22T15:00:00.000Z", clockOutAt: "" }],
+    changeOrderRequests: [{ id: "COR-1", title: "Added approach apron", status: "requested" }],
+    safetyIncidents: [{ id: "SI-1", title: "Open trip hazard", status: "open" }],
     agentLearningPreferences: [
       { id: "ALP-1", title: "Fence proposal tone", preference: "Use concise fence proposal language.", status: "suggested" },
       { id: "ALP-2", title: "Approved concrete memory", preference: "Use broom finish as base.", status: "approved" },
@@ -73,6 +76,10 @@ test("AI Office agent command center builds role-safe review lanes from visible 
   assert.equal(state.focusRows[1].id, "queue-Q-1");
   assert.equal(state.focusRows.some((row) => row.id === "estimate-handoff-EST-APPROVED" && row.actionMode === "jobHandoff"), true);
   assert.equal(state.focusRows.some((row) => row.id === "estimate-draft-EST-DRAFT" && row.actionMode === "packet"), true);
+  assert.equal(state.focusRows.some((row) => row.id === "upload-UPLOAD-1" && row.recordType === "upload"), true);
+  assert.equal(state.focusRows.some((row) => row.id === "time-TIME-1" && row.recordType === "timeEntry"), true);
+  assert.equal(state.focusRows.some((row) => row.id === "change-order-COR-1" && row.recordType === "changeOrder"), true);
+  assert.equal(state.focusRows.some((row) => row.id === "safety-SI-1" && row.recordType === "safetyIncident"), true);
   assert.equal(state.focusRows.some((row) => row.recordType === "fieldOps" && row.moduleId === "incidents"), true);
   assert.equal(state.focusRows.some((row) => row.recordType === "report" && row.moduleId === "reports"), true);
   assert.equal(state.counts.readyToBill, 1);
@@ -80,6 +87,9 @@ test("AI Office agent command center builds role-safe review lanes from visible 
   assert.equal(state.counts.suggestedLearning, 1);
   assert.equal(state.counts.jobHandoffEstimateReviews, 1);
   assert.equal(state.counts.draftEstimateReviews, 1);
+  assert.equal(state.counts.closeoutBlockers, 3);
+  assert.equal(state.counts.proofCloseoutReview, 6);
+  assert.equal(state.counts.unlinkedUploads, 1);
   assert.match(state.summary, /routes into an existing Apex HQ workflow/i);
   assert.equal(state.guardrails.some((item) => /No auto-send/i.test(item.detail)), true);
 });

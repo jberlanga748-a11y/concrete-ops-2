@@ -23279,6 +23279,7 @@ function CopilotPagePolished({
   prePourChecklists = [],
   postPourChecklists = [],
   safetyIncidents = [],
+  changeOrderRequests = [],
   toolChecklists = [],
   timeEntries = [],
   users = [],
@@ -23290,6 +23291,10 @@ function CopilotPagePolished({
   onOpenEstimate,
   onOpenEstimatePacket,
   onOpenEstimateJobHandoff,
+  onOpenUploadReview,
+  onOpenTimeReview,
+  onOpenChangeOrderReview,
+  onOpenSafetyIncidentReview,
   onSelectImportedDraft,
   onSelectReport,
   onCreateOpportunitySearchProfile,
@@ -23663,9 +23668,12 @@ function CopilotPagePolished({
     jobDraftImports: liveDrafts,
     dailyReports: visibleReports,
     uploads: visibleUploads,
+    timeEntries,
+    changeOrderRequests,
+    safetyIncidents,
     agentLearningPreferences,
     fieldOpsAgent,
-  }), [permissions, stats, opportunityScout, liveLeads, liveJobs, estimates, openQueueItems, liveDrafts, visibleReports, visibleUploads, agentLearningPreferences, fieldOpsAgent]);
+  }), [permissions, stats, opportunityScout, liveLeads, liveJobs, estimates, openQueueItems, liveDrafts, visibleReports, visibleUploads, timeEntries, changeOrderRequests, safetyIncidents, agentLearningPreferences, fieldOpsAgent]);
 
   function openAgentCommandTarget(target = {}) {
     if (target.recordType === "agentLearning") {
@@ -23706,6 +23714,60 @@ function CopilotPagePolished({
     }
     if (target.recordType === "report" && target.record) {
       openReport(target.record);
+      return;
+    }
+    if (target.recordType === "upload" && target.record) {
+      if (typeof onOpenUploadReview === "function") {
+        onOpenUploadReview({
+          uploadId: target.record.id,
+          label: target.title,
+          helper: target.description,
+          type: "upload",
+        });
+        return;
+      }
+      openModule("uploads");
+      return;
+    }
+    if (target.recordType === "timeEntry" && target.record) {
+      if (typeof onOpenTimeReview === "function") {
+        onOpenTimeReview({
+          timeEntryId: target.record.id,
+          label: target.title,
+          helper: target.description,
+          type: "time",
+        });
+        return;
+      }
+      openModule("time");
+      return;
+    }
+    if (target.recordType === "changeOrder" && target.record) {
+      if (typeof onOpenChangeOrderReview === "function") {
+        onOpenChangeOrderReview({
+          changeOrderRequestId: target.record.id,
+          requestId: target.record.id,
+          label: target.title,
+          helper: target.description,
+          type: "changeOrder",
+        });
+        return;
+      }
+      openModule("changeOrders");
+      return;
+    }
+    if (target.recordType === "safetyIncident" && target.record) {
+      if (typeof onOpenSafetyIncidentReview === "function") {
+        onOpenSafetyIncidentReview({
+          safetyIncidentId: target.record.id,
+          incidentId: target.record.id,
+          label: target.title,
+          helper: target.description,
+          type: "safetyIncident",
+        });
+        return;
+      }
+      openModule("incidents");
       return;
     }
     if (target.recordType === "fieldOps" && target.record) {
@@ -38824,6 +38886,10 @@ export default function App() {
                 onUpdateAgentLearningPreference={handleUpdateAgentLearningPreference}
                 onOpenEstimatePacket={handleOpenAssistantEstimatePacket}
                 onOpenEstimateJobHandoff={handleOpenAssistantEstimateJobHandoff}
+                onOpenUploadReview={handleOpenAssistantUploadReview}
+                onOpenTimeReview={handleOpenAssistantTimeReview}
+                onOpenChangeOrderReview={handleOpenAssistantChangeOrderReview}
+                onOpenSafetyIncidentReview={handleOpenAssistantSafetyIncidentReview}
                 onCreateContactHistory={handleCreateContactHistory}
                 onUpdateContactHistory={handleUpdateContactHistory}
                 onArchiveContactHistory={handleArchiveContactHistory}
