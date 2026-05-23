@@ -18273,8 +18273,11 @@ function JobsPagePolished({
 
   const [showJobTools, setShowJobTools] = useState(false);
   const [activeJobTool, setActiveJobTool] = useState("create");
+  const [jobShellSelectionId, setJobShellSelectionId] = useState("");
+  const [jobShellMode, setJobShellMode] = useState("overview");
   const [showAllMobileJobs, setShowAllMobileJobs] = useState(false);
   const jobToolsRef = useRef(null);
+  const canUseJobsCommandShell = Boolean(permissions?.jobs?.canManageAll);
   const roleLabel = permissions.jobs.canManageAll ? "office scheduling" : "scope review";
   const pageTitle = "Jobs";
   const pageEyebrow = permissions.jobs.canManageAll ? "Field Ops" : "Job Scope";
@@ -18340,6 +18343,10 @@ function JobsPagePolished({
   ];
 
   function openJobTool(toolId = "details") {
+    if (canUseJobsCommandShell) {
+      setJobShellMode(toolId || "details");
+      return;
+    }
     setActiveJobTool(toolId);
     setShowJobTools(true);
     window.setTimeout(() => jobToolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
@@ -18458,6 +18465,399 @@ function JobsPagePolished({
         : activeFieldCount
           ? `${activeFieldCount} job${activeFieldCount === 1 ? " is" : "s are"} in progress.`
           : "No urgent job setup blockers in the current view.";
+
+  function jobShellDateKey(job) {
+    if (!job?.scheduledStart) return "";
+    const parsed = new Date(job.scheduledStart);
+    if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+    return String(job.scheduledStart || "").slice(0, 10);
+  }
+
+  function buildJobShellItem(job, kind = "job", priority = 80) {
+    if (!job?.id) return null;
+    const proofState = jobNorthStarProofState(job, visibleReportJobIds, visibleUploadJobIds, visibleTicketJobIds);
+    const safetyCount = visibleSafetyJobIds.has(job.id) ? 1 : 0;
+    const toolCount = visibleToolChecklistBlockedJobIds.has(job.id) ? 1 : 0;
+    const missingCrew = jobMissingCrew(job);
+    const missingStart = jobMissingStart(job);
+    const startupNeedsReview = jobStartupNeedsReview(job);
+    const status = normalizeJobStatus(job.status || job.stage);
+    const kindLabel = kind === "crew"
+      ? "Crew / Start Gap"
+      : kind === "startup"
+        ? "Startup Review"
+        : kind === "billing"
+          ? "Ready To Bill"
+          : kind === "today"
+            ? "Starts Today"
+            : kind === "problem"
+              ? "Problem"
+              : "Active Job";
+    const readiness = [
+      missingCrew ? "Crew" : "",
+      missingStart ? "Start" : "",
+      startupNeedsReview ? "Startup" : "",
+      toolCount ? "Tools" : "",
+      safetyCount ? "Safety" : "",
+      proofState.missingCount ? "Proof" : "",
+    ].filter(Boolean);
+
+    return {
+      id: `job-${job.id}`,
+      kind,
+      priority,
+      job,
+      eyebrow: kindLabel,
+      title: jobTitle(job),
+      meta: [job.customer, job.address || job.city, jobBoardScheduleLabel(job)].filter(Boolean).join(" / ") || "Job setup pending",
+      statusLabel: readiness.length ? readiness.slice(0, 3).join(" / ") : jobStatusLabel(job.status || job.stage),
+      tone: jobNorthStarTone(job, proofState, safetyCount, toolCount),
+      actionLabel: jobNorthStarNextAction(job, proofState, safetyCount, toolCount),
+      badges: [
+        { label: jobStatusLabel(job.status || job.stage), tone: status === "billing_ready" ? "green" : status === "in_progress" ? "blue" : "slate" },
+        { label: jobDisplayForeman(job), tone: missingCrew ? "amber" : "green" },
+        { label: `${proofState.missingCount} proof gap${proofState.missingCount === 1 ? "" : "s"}`, tone: proofState.missingCount ? "amber" : "green" },
+      ],
+    };
+  }
+
+  const jobShellKpis = [
+    {
+      id: "active-jobs",
+      label: "Active Jobs",
+      value: liveJobRows.length,
+      helper: `${activeFieldCount} in progress / ${visibleRows.length} visible`,
+      icon: "briefcase",
+      tone: liveJobRows.length ? "blue" : "slate",
+      onClick: () => {
+        const target = liveJobRows.find((job) => normalizeJobStatus(job.status || job.stage) === "in_progress") || liveJobRows[0];
+        if (target?.id) {
+          onSelectJob(target.id);
+          setJobShellSelectionId(`job-${target.id}`);
+          setJobShellMode("overview");
+        }
+      },
+    },
+    {
+      id: "starts-today",
+      label: "Starts Today",
+      value: liveJobRows.filter((job) => jobShellDateKey(job) === todayDateInputValue()).length,
+      helper: `${missingStartCount} missing start dates`,
+      icon: "clock",
+      tone: liveJobRows.some((job) => jobShellDateKey(job) === todayDateInputValue()) ? "orange" : "slate",
+      onClick: () => {
+        const target = liveJobRows.find((job) => jobShellDateKey(job) === todayDateInputValue());
+        if (target?.id) {
+          onSelectJob(target.id);
+          setJobShellSelectionId(`job-${target.id}`);
+          setJobShellMode("overview");
+        }
+      },
+    },
+    {
+      id: "crew-start-gaps",
+      label: "Crew / Start Gaps",
+      value: liveJobRows.filter((job) => jobMissingCrew(job) || jobMissingStart(job)).length,
+      helper: `${missingCrewCount} crew / ${missingStartCount} start`,
+      icon: "users",
+      tone: liveJobRows.some((job) => jobMissingCrew(job) || jobMissingStart(job)) ? "amber" : "green",
+      onClick: () => {
+        const target = liveJobRows.find((job) => jobMissingCrew(job) || jobMissingStart(job));
+        if (target?.id) {
+          onSelectJob(target.id);
+          setJobShellSelectionId(`job-${target.id}`);
+          setJobShellMode(jobMissingCrew(target) ? "crew" : "details");
+        }
+      },
+    },
+    {
+      id: "ready-to-bill",
+      label: "Ready To Bill",
+      value: readyToBillRows.length,
+      helper: `${visibleProofBlockers.length} proof blocker${visibleProofBlockers.length === 1 ? "" : "s"}`,
+      icon: "check",
+      tone: readyToBillRows.length ? "green" : "slate",
+      onClick: () => {
+        const target = readyToBillRows[0];
+        if (target?.id) {
+          onSelectJob(target.id);
+          setJobShellSelectionId(`job-${target.id}`);
+          setJobShellMode("overview");
+        }
+      },
+    },
+  ];
+  const jobShellQueue = useMemo(() => {
+    const items = [];
+    const seenJobIds = new Set();
+
+    function addJob(job, kind, priority) {
+      if (!job?.id || seenJobIds.has(job.id)) return;
+      const item = buildJobShellItem(job, kind, priority);
+      if (!item) return;
+      seenJobIds.add(job.id);
+      items.push(item);
+    }
+
+    liveJobRows.filter((job) => visibleSafetyJobIds.has(job.id) || visibleToolChecklistBlockedJobIds.has(job.id)).forEach((job, index) => addJob(job, "problem", 10 + index));
+    liveJobRows.filter((job) => jobMissingCrew(job) || jobMissingStart(job)).forEach((job, index) => addJob(job, "crew", 30 + index));
+    liveJobRows.filter(jobStartupNeedsReview).forEach((job, index) => addJob(job, "startup", 50 + index));
+    liveJobRows.filter((job) => jobShellDateKey(job) === todayDateInputValue()).forEach((job, index) => addJob(job, "today", 70 + index));
+    readyToBillRows.forEach((job, index) => addJob(job, "billing", 90 + index));
+    liveJobRows.forEach((job, index) => addJob(job, "job", 110 + index));
+
+    return items.sort((left, right) => left.priority - right.priority || left.title.localeCompare(right.title)).slice(0, 7);
+  }, [liveJobRows, readyToBillRows, visibleReportJobIds, visibleSafetyJobIds, visibleTicketJobIds, visibleToolChecklistBlockedJobIds, visibleUploadJobIds]);
+  const selectedJobShellFallbackItem = jobShellQueue.find((item) => item.id === jobShellSelectionId)
+    || jobShellQueue.find((item) => item.job?.id === selectedJobId)
+    || jobShellQueue[0]
+    || null;
+  const selectedJobShellItem = jobShellMode === "create"
+    ? {
+      id: "job-create",
+      kind: "create",
+      eyebrow: "Create Job",
+      title: "Create a job",
+      meta: "Inline planner",
+      statusLabel: permissions.jobs.canCreate ? "Draft" : "Unavailable",
+      tone: "blue",
+      actionLabel: "Create Job",
+    }
+    : selectedJobShellFallbackItem
+      || (selectedJob ? buildJobShellItem(selectedJob, "job", 120) : null);
+  const selectedJobShellId = selectedJobShellItem?.id || "";
+  const jobShellAssistantDescription = missingCrewCount || missingStartCount || startupReviewCount || toolBlockerCount
+    ? `${missingCrewCount + missingStartCount + startupReviewCount + toolBlockerCount} readiness item${missingCrewCount + missingStartCount + startupReviewCount + toolBlockerCount === 1 ? "" : "s"} need office review before clean field handoff.`
+    : readyToBillRows.length
+      ? `${readyToBillRows.length} job${readyToBillRows.length === 1 ? " is" : "s are"} ready for manual billing review.`
+      : "Jobs are clear in the current office view.";
+  const jobShellAssistantActions = [
+    permissions.jobs.canCreate ? { label: "Create Job", icon: "plus", onClick: () => { setJobShellMode("create"); setJobShellSelectionId("job-create"); } } : null,
+    { label: "Review Startup", icon: "clipboard", onClick: () => {
+      const target = liveJobRows.find(jobStartupNeedsReview);
+      if (target?.id) {
+        onSelectJob(target.id);
+        setJobShellSelectionId(`job-${target.id}`);
+        setJobShellMode("startup");
+      }
+    }, disabled: !startupReviewCount },
+    { label: "Fix Crew / Start", icon: "users", onClick: () => {
+      const target = liveJobRows.find((job) => jobMissingCrew(job) || jobMissingStart(job));
+      if (target?.id) {
+        onSelectJob(target.id);
+        setJobShellSelectionId(`job-${target.id}`);
+        setJobShellMode(jobMissingCrew(target) ? "crew" : "details");
+      }
+    }, disabled: !(missingCrewCount || missingStartCount) },
+  ].filter(Boolean);
+  const jobShellQuickActions = [
+    permissions.jobs.canCreate ? { id: "create-job", label: "Create Job", icon: "plus", onClick: () => { setJobShellMode("create"); setJobShellSelectionId("job-create"); } } : null,
+    { id: "startup-review", label: "Startup Review", icon: "clipboard", onClick: () => {
+      const target = liveJobRows.find(jobStartupNeedsReview);
+      if (target?.id) {
+        onSelectJob(target.id);
+        setJobShellSelectionId(`job-${target.id}`);
+        setJobShellMode("startup");
+      }
+    }, disabled: !startupReviewCount },
+    { id: "ready-to-bill", label: "Ready To Bill", icon: "check", onClick: () => {
+      const target = readyToBillRows[0];
+      if (target?.id) {
+        onSelectJob(target.id);
+        setJobShellSelectionId(`job-${target.id}`);
+        setJobShellMode("overview");
+      }
+    }, disabled: !readyToBillRows.length },
+  ].filter(Boolean);
+
+  useEffect(() => {
+    if (!canUseJobsCommandShell) return;
+    if (jobShellMode === "create") return;
+    const fallbackId = selectedJobShellFallbackItem?.id || "";
+    if (!jobShellSelectionId && fallbackId) {
+      setJobShellSelectionId(fallbackId);
+      if (selectedJobShellFallbackItem?.job?.id) onSelectJob(selectedJobShellFallbackItem.job.id);
+      return;
+    }
+    if (jobShellSelectionId && fallbackId && !jobShellQueue.some((item) => item.id === jobShellSelectionId)) {
+      setJobShellSelectionId(fallbackId);
+      if (selectedJobShellFallbackItem?.job?.id) onSelectJob(selectedJobShellFallbackItem.job.id);
+    }
+  }, [canUseJobsCommandShell, jobShellMode, jobShellQueue, jobShellSelectionId, onSelectJob, selectedJobShellFallbackItem?.id, selectedJobShellFallbackItem?.job?.id]);
+
+  function selectJobShellItem(item) {
+    if (!item) return;
+    setJobShellSelectionId(item.id);
+    setJobShellMode("overview");
+    if (item.job?.id) onSelectJob(item.job.id);
+  }
+
+  function renderJobShellOverview(item) {
+    const job = item?.job || selectedJob;
+    if (!job) {
+      return <StateCard title="No job selected" description="Select a job from the priority queue to review schedule, crew, startup, proof, and print actions." tone="slate" />;
+    }
+    const proofState = jobNorthStarProofState(job, visibleReportJobIds, visibleUploadJobIds, visibleTicketJobIds);
+    const safetyCount = visibleSafetyJobIds.has(job.id) ? 1 : 0;
+    const toolCount = visibleToolChecklistBlockedJobIds.has(job.id) ? 1 : 0;
+    const startupWarnings = getStartupCriticalWarnings(normalizeStartupChecklist(job.startupChecklist));
+    const progressValue = Math.max(0, Math.min(100, Number(job.progress || 0)));
+    const isBillingReadyJob = normalizeJobStatus(job.status || job.stage) === "billing_ready";
+    const overviewActions = [
+      { id: "details", label: "Details", onClick: () => setJobShellMode("details") },
+      { id: "startup", label: "Startup", variant: "secondary", onClick: () => setJobShellMode("startup") },
+      { id: "crew", label: "Crew", variant: "secondary", onClick: () => setJobShellMode("crew") },
+    ];
+
+    return (
+      <div className="co-jobs-shell-detail-scroll">
+        <div className="co-apex-selected-record">
+          <Badge tone={isBillingReadyJob ? "green" : jobNorthStarTone(job, proofState, safetyCount, toolCount)}>{item?.eyebrow || "Selected Job"}</Badge>
+          <h2>{jobTitle(job)}</h2>
+          <p>{[job.customer, job.address || job.city].filter(Boolean).join(" / ") || "Customer or location pending"}</p>
+        </div>
+        <div className="co-apex-selected-facts co-jobs-shell-selected-facts">
+          <span><em>Status</em><strong>{jobStatusLabel(job.status || job.stage)}</strong></span>
+          <span><em>Schedule</em><strong>{formatJobScheduleDetail(job)}</strong></span>
+          <span><em>Foreman</em><strong>{jobDisplayForeman(job)}</strong></span>
+          <span><em>Crew</em><strong>{jobCrewCount(job)} assigned/needed</strong></span>
+          <span><em>Startup</em><strong>{startupWarnings.length ? `${startupWarnings.length} warning${startupWarnings.length === 1 ? "" : "s"}` : (job.startupStatus || "Not Started")}</strong></span>
+          <span><em>Proof</em><strong>{proofState.missingCount ? `${proofState.missingCount} gap${proofState.missingCount === 1 ? "" : "s"}` : "Complete"}</strong></span>
+          <span><em>Tools</em><strong>{toolCount ? `${toolCount} blocker${toolCount === 1 ? "" : "s"}` : "Ready"}</strong></span>
+          <span><em>Progress</em><strong>{progressValue}%</strong></span>
+        </div>
+        <div className="co-apex-selected-next">
+          <span>Next safe action</span>
+          <strong>{jobNorthStarNextAction(job, proofState, safetyCount, toolCount)}</strong>
+          <p>{jobNextStep(job)} No external send, bid submission, billing action, or package change happens from this shell.</p>
+        </div>
+        {isBillingReadyJob ? (
+          <div className="co-jobs-shell-money-note">
+            <span>Ready-to-bill review</span>
+            <strong>Manual closeout only</strong>
+            <p>Confirm reports, photos, tickets, and office notes before finance acts outside Apex HQ.</p>
+          </div>
+        ) : null}
+        <div className="co-apex-selected-actions">
+          {overviewActions.map((action, index) => (
+            <Button key={action.id} type="button" variant={action.variant || (index === 0 ? "primary" : "secondary")} onClick={action.onClick}>{action.label}</Button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  function renderJobShellDetail(item) {
+    const mode = item?.kind === "create" ? "create" : jobShellMode;
+    if (mode === "create") {
+      return (
+        <div className="co-jobs-shell-detail-scroll">
+          <JobPlannerCard draft={jobDraft} setDraft={setJobDraft} onCreateJob={onCreateJob} disabled={busy || !permissions.jobs.canCreate} users={users} canCreate={permissions.jobs.canCreate} />
+        </div>
+      );
+    }
+
+    const job = item?.job || selectedJob;
+    if (!job) {
+      return <StateCard title="No job selected" description="Select a job before opening details, startup, or crew tools." tone="slate" />;
+    }
+
+    if (mode === "details") {
+      return (
+        <div className="co-jobs-shell-detail-scroll">
+          <JobDetailPanel
+            job={job}
+            users={users}
+            onFieldChange={onJobFieldChange}
+            onArchive={onArchiveJob}
+            onRestore={onRestoreJob}
+            onDelete={onDeleteJob}
+            onChangeForeman={onChangeForeman}
+            onAddAssignment={onAddAssignment}
+            onUpdateAssignment={onUpdateAssignment}
+            onRemoveAssignment={onRemoveAssignment}
+            saveState={jobSaveState}
+            disabled={busy}
+            permissions={permissions}
+            onPrintPacket={() => onPrintJobPacket?.(job)}
+          />
+        </div>
+      );
+    }
+
+    if (mode === "startup") {
+      return (
+        <div className="co-jobs-shell-detail-scroll">
+          <Card className="p-4">
+            <SectionHeader title="Startup Readiness" description="Review blockers before the job is treated as ready for field work." action={<StartupStatusBadge status={job.startupStatus || "Not Started"} />} />
+            <JobStartupChecklistCard job={job} onFieldChange={onJobFieldChange} disabled={busy} />
+          </Card>
+        </div>
+      );
+    }
+
+    if (mode === "crew") {
+      return (
+        <div className="co-jobs-shell-detail-scroll">
+          <Card className="p-4">
+            <SectionHeader title="Crew / Foreman" description="Assign the foreman and crew without opening a drawer." />
+            <JobCrewSection
+              job={job}
+              users={users}
+              disabled={busy}
+              canManageAssignments={Boolean(permissions?.jobs?.canManageAssignments)}
+              onChangeForeman={onChangeForeman}
+              onAddAssignment={onAddAssignment}
+              onUpdateAssignment={onUpdateAssignment}
+              onRemoveAssignment={onRemoveAssignment}
+            />
+          </Card>
+        </div>
+      );
+    }
+
+    return renderJobShellOverview(item);
+  }
+
+  if (canUseJobsCommandShell) {
+    return (
+      <div className="co-office-page co-jobs-page co-jobs-shell-page">
+        <ApexOfficeCommandShell
+          eyebrow="Field Ops"
+          title="Jobs"
+          description="Run active work, starts, crew gaps, and ready-to-bill reviews from one no-drawer office command view."
+          kpis={jobShellKpis}
+          queue={{
+            title: "Job priority queue",
+            description: `${jobShellQueue.length} priority job${jobShellQueue.length === 1 ? "" : "s"} shown from readiness, startup, starts today, and billing review.`,
+            items: jobShellQueue,
+            selectedId: selectedJobShellId,
+            onSelect: selectJobShellItem,
+            emptyState: <StateCard title="Job queue clear" description="Active jobs, starts, gaps, and billing-ready work appear here when they need review." tone="green" />,
+          }}
+          detail={{
+            title: jobShellMode === "create" ? "Create job" : jobShellMode === "details" ? "Job details" : jobShellMode === "startup" ? "Startup readiness" : jobShellMode === "crew" ? "Crew / Foreman" : "Selected job",
+            item: selectedJobShellItem,
+            render: renderJobShellDetail,
+            emptyState: <StateCard title="No job selected" description="Select a job from the queue to review field readiness." tone="slate" />,
+          }}
+          assistant={{
+            title: "Jobs",
+            description: jobShellAssistantDescription,
+            priorities: [
+              { value: liveJobRows.length, label: "active jobs", tone: liveJobRows.length ? "blue" : "slate" },
+              { value: liveJobRows.filter((job) => jobShellDateKey(job) === todayDateInputValue()).length, label: "starts today", tone: liveJobRows.some((job) => jobShellDateKey(job) === todayDateInputValue()) ? "orange" : "slate" },
+              { value: liveJobRows.filter((job) => jobMissingCrew(job) || jobMissingStart(job)).length, label: "crew/start gaps", tone: liveJobRows.some((job) => jobMissingCrew(job) || jobMissingStart(job)) ? "amber" : "green" },
+              { value: readyToBillRows.length, label: "ready to bill", tone: readyToBillRows.length ? "green" : "slate" },
+            ],
+            actions: jobShellAssistantActions,
+            guardrails: ["No desktop drawers", "No automatic sends or billing", "Field Mode stays separate"],
+          }}
+          quickActions={jobShellQuickActions}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="co-office-page co-jobs-page" data-money-view={isReadyToBillView ? "true" : undefined}>
