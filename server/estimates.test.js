@@ -332,6 +332,32 @@ test("office and estimator users can manage estimates while field roles are bloc
     assert.equal(approvedEstimate.status, "approved");
     assert.ok(approvedEstimate.approvedAt);
 
+    const deniedEstimatorConvert = await requestJson(fixture.baseUrl, `/api/estimates/${officeEstimate.id}/convert-to-job`, {
+      method: "POST",
+      headers: estimatorHeaders,
+      body: JSON.stringify({}),
+    });
+    assert.equal(deniedEstimatorConvert.response.status, 403);
+    assert.match(deniedEstimatorConvert.payload.error, /create jobs from estimates/i);
+
+    const deniedForemanConvert = await requestJson(fixture.baseUrl, `/api/estimates/${officeEstimate.id}/convert-to-job`, {
+      method: "POST",
+      headers: foremanHeaders,
+      body: JSON.stringify({}),
+    });
+    assert.equal(deniedForemanConvert.response.status, 403);
+
+    const deniedEmployeeConvert = await requestJson(fixture.baseUrl, `/api/estimates/${officeEstimate.id}/convert-to-job`, {
+      method: "POST",
+      headers: employeeHeaders,
+      body: JSON.stringify({}),
+    });
+    assert.equal(deniedEmployeeConvert.response.status, 403);
+
+    const afterDeniedConvertState = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers: officeHeaders });
+    const afterDeniedConvertEstimate = afterDeniedConvertState.estimates.find((estimate) => estimate.id === officeEstimate.id);
+    assert.equal(Boolean(afterDeniedConvertEstimate.jobId), false);
+
     const convertedState = await assertOk(fixture.baseUrl, `/api/estimates/${officeEstimate.id}/convert-to-job`, {
       method: "POST",
       headers: officeHeaders,

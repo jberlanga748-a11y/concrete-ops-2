@@ -3480,6 +3480,13 @@ function assertCanManageEstimatesForRequest(user) {
   }
 }
 
+function assertCanConvertEstimateToJobForRequest(user) {
+  assertCanManageEstimatesForRequest(user);
+  if (!canCreateJobs(user)) {
+    throw new ApiError(403, "You do not have permission to create jobs from estimates.");
+  }
+}
+
 function assertCanViewDeliveryTickets(user) {
   if (!canViewDeliveryTickets(user)) {
     throw new ApiError(403, "You do not have permission to view delivery tickets.");
@@ -8388,7 +8395,7 @@ app.post("/api/estimates/:id/send", requireAuth, asyncRoute(async (req, res) => 
 }));
 
 app.post("/api/estimates/:id/convert-to-job", requireAuth, asyncRoute(async (req, res) => {
-  assertCanManageEstimatesForRequest(req.auth.user);
+  assertCanConvertEstimateToJobForRequest(req.auth.user);
   const payload = req.body || {};
   const changedAt = new Date().toISOString();
 

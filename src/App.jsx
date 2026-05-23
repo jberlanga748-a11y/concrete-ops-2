@@ -39716,7 +39716,7 @@ export default function App() {
   }
 
   async function handleConvertEstimate(estimateId) {
-    if (!sessionToken || !appState.permissions.estimates.canManage) return false;
+    if (!sessionToken || !appState.permissions.estimates.canManage || !appState.permissions.jobs.canCreate) return false;
     setBusy(true);
     try {
       const nextState = await convertEstimateToJob(sessionToken, estimateId);
