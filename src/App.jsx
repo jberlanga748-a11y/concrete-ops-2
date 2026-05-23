@@ -21387,6 +21387,7 @@ function CopilotPagePolished({
   toolChecklists = [],
   timeEntries = [],
   users = [],
+  auditEvents = [],
   permissions,
   busy = false,
   setActive,
@@ -21996,6 +21997,10 @@ function CopilotPagePolished({
     selectedId: selectedAgentProposalId,
     decisions: agentProposalReviewDecisions,
   }), [actionProposalQueue, agentProposalReviewDecisions, selectedAgentProposalId]);
+  const aiOfficeProposalAuditHistory = useMemo(() => deriveAgentActionProposalAuditHistory(auditEvents, {
+    canView: Boolean(permissions?.audit?.canView),
+    limit: 4,
+  }), [auditEvents, permissions?.audit?.canView]);
   const selectedAgentProposalAuditRecorded = Boolean(actionProposalReview.selected?.id && (
     agentProposalAuditState.proposalId === actionProposalReview.selected.id && agentProposalAuditState.status === "recorded"
   ));
@@ -22982,6 +22987,29 @@ function CopilotPagePolished({
               </div>
             </div>
           </Card>
+
+          {permissions?.audit?.canView ? (
+            <Card className="co-ai-rail-card">
+              <SectionHeader title="Recent Proposal Audits" description="Read-only server records from review-first agent packets." />
+              <div className="co-ai-proposal-audit-list">
+                {aiOfficeProposalAuditHistory.length ? aiOfficeProposalAuditHistory.map((event) => (
+                  <div key={event.id} className="co-ai-proposal-audit-row" data-tone={event.tone}>
+                    <span>
+                      <strong>{event.summary}</strong>
+                      <em>{event.sourceModule} / {event.actorName} / {formatDateTime(event.createdAt)}</em>
+                      {event.blockedReasons[0] || event.requiredApprovals[0] ? (
+                        <small>{event.blockedReasons[0] || event.requiredApprovals[0]}</small>
+                      ) : null}
+                    </span>
+                    <b>{event.status === "blocked" ? "Blocked" : "Audit"}</b>
+                  </div>
+                )) : (
+                  <p className="text-xs font-bold leading-5 text-slate-500">No agent proposal audit records are visible yet. Use the review gate to record a packet after human review.</p>
+                )}
+              </div>
+              <p className="mt-3 text-[11px] font-bold leading-5 text-slate-500">Audit history is read-only. It cannot approve, create, send, convert, bill, schedule, or change records.</p>
+            </Card>
+          ) : null}
 
           <Card className="co-ai-rail-card">
             <SectionHeader title="Apex Learned" description="Company-scoped memory from approved office corrections and preferences." />
