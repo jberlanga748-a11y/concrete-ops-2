@@ -44297,7 +44297,23 @@ button.co-apex-command-kpi:hover:not(:disabled) {
   }
 }
 
+.co-sales-mobile-only {
+  display: none;
+}
+
+.co-sales-mobile-desktop-content {
+  display: contents;
+}
+
 @media (max-width: 767px) {
+  .co-sales-mobile-only {
+    display: block;
+  }
+
+  .co-sales-mobile-desktop-content {
+    display: none;
+  }
+
   .co-apex-mobile-role-shell {
     min-height: calc(100dvh - var(--co-mobile-bottom-nav-height, 5.75rem));
     min-width: 0;
