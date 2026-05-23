@@ -1,5 +1,5 @@
 import { deriveDailySourceCheckState, leadSourceLocation } from "../shared/leadSources.js";
-import { buildFoundOpportunityLeadHandoffPacket, buildOpportunityScoutAgentRunPacket, canConvertFoundOpportunityToLead, isConvertedFoundOpportunityToLead, parseOpportunityScoutSourceCheckOutcomes } from "../shared/opportunityScout.js";
+import { buildFoundOpportunityLeadHandoffPacket, buildOpportunityScoutAgentRunPacket, buildOpportunityScoutIngestionReadiness, canConvertFoundOpportunityToLead, isConvertedFoundOpportunityToLead, parseOpportunityScoutSourceCheckOutcomes } from "../shared/opportunityScout.js";
 
 const CLOSED_LEAD_STATUSES = new Set([
   "approved",
@@ -912,6 +912,7 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
   const searchProfiles = asArray(source.opportunitySearchProfiles).filter((entry) => sameCompany(entry, companyId) && !isArchived(entry));
   const activeProfiles = searchProfiles.filter(isActiveSearchProfile);
   const foundOpportunities = asArray(source.foundOpportunities).filter((entry) => sameCompany(entry, companyId) && !isArchived(entry));
+  const opportunityIntakePackets = asArray(source.opportunityIntakePackets || source.opportunityIngestionQueue).filter((entry) => sameCompany(entry, companyId) && !isArchived(entry));
   const openFoundOpportunities = foundOpportunities.filter(isOpenFoundOpportunity);
   const convertedLeadHandoffs = foundOpportunities
     .filter(isConvertedFoundOpportunityToLead)
@@ -1094,6 +1095,11 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
     companySettings,
     recentSourceCheckOutcomes,
   });
+  const ingestionReadiness = buildOpportunityScoutIngestionReadiness({
+    intakePackets: opportunityIntakePackets,
+    existingOpportunities: foundOpportunities,
+    companySettings,
+  });
   const humanTaskQueue = buildOpportunityScoutHumanTaskQueue({
     agentRunPacket,
     dueProfiles,
@@ -1108,6 +1114,7 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
     readiness,
     agentRunPacket,
     humanTaskQueue,
+    ingestionReadiness,
     dailyJobFinder,
     dailyRunSteps,
     qualityChecks,
@@ -1137,6 +1144,11 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
       dueSourceChecks: dailyCheck.stats.dueToday,
       recentSourceCheckOutcomes: recentSourceCheckOutcomes.length,
       foundWorkSourceCheckOutcomes: recentSourceCheckOutcomes.filter((outcome) => outcome.result === "found_work").length,
+      intakePackets: ingestionReadiness.stats.total,
+      intakePacketsReady: ingestionReadiness.stats.ready,
+      intakePacketsNeedInfo: ingestionReadiness.stats.needsInfo,
+      intakePacketsNeedHumanReview: ingestionReadiness.stats.humanReview,
+      intakePacketsBlocked: ingestionReadiness.stats.blocked,
       checksNeeded: dailyCheck.stats.checksNeeded + dueProfiles.length,
       openLeads: openLeads.length,
       highFitLeads: highFitLeads.length,

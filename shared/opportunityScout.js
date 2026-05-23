@@ -315,6 +315,127 @@ export function parseOpportunityScoutSourceCheckOutcomes(source = {}) {
     .filter(Boolean);
 }
 
+export function buildOpportunityScoutIngestionReadiness({
+  intakePackets = [],
+  existingOpportunities = [],
+  companySettings = {},
+  changedAt = new Date().toISOString(),
+} = {}) {
+  const packets = Array.isArray(intakePackets) ? intakePackets : [];
+  const rows = packets.slice(0, 12).map((packet = {}, index) => {
+    const intakeSourceType = normalizeOption(packet.intakeSourceType || packet.sourceType, OPPORTUNITY_INTAKE_SOURCE_TYPES, "manual");
+    const sourceAdapterId = adapterForSourceText(packet.sourceAdapterId || packet.adapterId || packet.channel || intakeSourceType || packet.sourceName);
+    const adapter = adapterById(sourceAdapterId);
+    const accessReview = classifyOpportunityScoutSourceAccess({
+      ...packet,
+      intakeSourceType,
+      sourceType: packet.sourceType || adapter.sourceType,
+      authMode: packet.authMode || adapter.authMode,
+    });
+    const extracted = extractOpportunityFieldsFromIntake(packet.intakeText || packet.body || packet.notes || "");
+    const fileMetadata = normalizeFileMetadata(packet.fileMetadata || packet.files || packet.attachments || []);
+    const normalizedOpportunity = normalizeFoundOpportunityPayload({
+      ...packet,
+      ...extracted,
+      title: packet.title || extracted.title || fileMetadata[0]?.name || packet.subject || packet.sourceName || "Opportunity intake packet",
+      intakeSourceType,
+      fileMetadata,
+    }, {
+      id: packet.id || `FO-INGEST-${index + 1}`,
+      changedAt,
+      createdBy: packet.createdBy || "",
+    });
+    const missingInfoItems = deriveFoundOpportunityMissingInfoItems(normalizedOpportunity);
+    const duplicateHints = findDuplicateFoundOpportunities(normalizedOpportunity, existingOpportunities);
+    const validationErrors = validateFoundOpportunityPayload(packet).filter((error) => !/title is required/i.test(error));
+    const adapterNeedsApproval = ["future_review", "human_required"].includes(adapter.status);
+    const needsHuman = accessReview.status === "needs_human" || adapterNeedsApproval;
+    const blocked = validationErrors.length > 0;
+    const reviewStatus = blocked
+      ? "blocked"
+      : needsHuman
+        ? "human_review_required"
+        : missingInfoItems.length
+          ? "needs_info"
+          : "ready_for_review";
+
+    return {
+      id: packet.id || `ingestion-${index + 1}`,
+      sourceName: collapseSpaces(packet.sourceName || packet.from || packet.channel || adapter.label || "Intake packet"),
+      title: normalizedOpportunity.title,
+      intakeSourceType,
+      sourceAdapterId,
+      adapterLabel: adapter.label,
+      reviewStatus,
+      tone: blocked ? "red" : needsHuman ? "amber" : missingInfoItems.length ? "orange" : "green",
+      extractedFields: {
+        title: normalizedOpportunity.title,
+        agency: normalizedOpportunity.agency,
+        city: normalizedOpportunity.city,
+        state: normalizedOpportunity.state,
+        trade: normalizedOpportunity.trade,
+        bidDueAt: normalizedOpportunity.bidDueAt,
+        contactEmail: normalizedOpportunity.contactEmail,
+        sourceUrl: normalizedOpportunity.sourceUrl,
+        scopeSummary: normalizedOpportunity.scopeSummary,
+      },
+      fileMetadata,
+      missingInfoItems,
+      duplicateHints,
+      accessReview,
+      validationErrors,
+      allowedActions: blocked
+        ? ["Reject unsafe packet", "Ask for non-secret source details"]
+        : needsHuman
+          ? ["Create human access review task", "Save only redacted notes", "Wait for authorized user review"]
+          : ["Prepare found opportunity draft", "Review missing info", "Compare duplicates"],
+      blockedActions: [
+        "No live email inbox connection",
+        "No OAuth or secret setup",
+        "No attachment download from private systems",
+        "No customer, GC, agency, or source contact",
+        "No bid submission",
+        "No lead or opportunity is saved automatically",
+      ],
+      safeNextAction: blocked
+        ? "Reject this packet until unsafe automation instructions or credentials are removed."
+        : needsHuman
+          ? "Stop and get an authorized office review before using this source."
+          : duplicateHints.length
+            ? "Review duplicate hints before saving a found opportunity draft."
+            : missingInfoItems.length
+              ? "Prepare a review draft and resolve missing info before Approve For Lead."
+              : "Prepare a found opportunity draft for human review.",
+    };
+  });
+
+  const blocked = rows.filter((row) => row.reviewStatus === "blocked").length;
+  const humanReview = rows.filter((row) => row.reviewStatus === "human_review_required").length;
+  const needsInfo = rows.filter((row) => row.reviewStatus === "needs_info").length;
+  const ready = rows.filter((row) => row.reviewStatus === "ready_for_review").length;
+
+  return {
+    mode: "review_first_ingestion_readiness",
+    summary: rows.length
+      ? `${rows.length} intake packet${rows.length === 1 ? "" : "s"} reviewed: ${ready} ready / ${needsInfo} need info / ${humanReview} need access review / ${blocked} blocked.`
+      : "No intake packets are queued for review.",
+    rows,
+    stats: {
+      total: rows.length,
+      ready,
+      needsInfo,
+      humanReview,
+      blocked,
+    },
+    guardrails: [
+      "Forwarded text and file metadata are treated as user-provided review material only.",
+      "Live email, OAuth, attachment sync, source contact, customer contact, and bid submission remain locked.",
+      "No found opportunity or lead is saved until a human uses the approved workflow.",
+    ],
+    companyContext: collapseSpaces(companySettings.serviceArea || companySettings.companyName || ""),
+  };
+}
+
 const DEFAULT_TRADES = [
   "concrete",
   "fencing",

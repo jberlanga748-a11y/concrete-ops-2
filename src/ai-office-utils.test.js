@@ -95,6 +95,117 @@ test("AI Office agent command center builds role-safe review lanes from visible 
   assert.equal(state.guardrails.some((item) => /No auto-send/i.test(item.detail)), true);
 });
 
+test("AI Office agent command center surfaces review-only growth source intelligence", () => {
+  const state = deriveAiOfficeAgentCommandCenter({
+    permissions: {
+      aiOffice: { canView: true },
+      leads: { canView: true },
+      jobs: { canManageAll: true },
+      estimates: { canView: true },
+    },
+    leads: [
+      { id: "LEAD-1", customer: "Warm GC", status: "Converted", source: "Referral" },
+      { id: "LEAD-2", customer: "Repeat Builder", status: "New", source: "Referral", followUpDueAt: "2026-05-20" },
+    ],
+    estimates: [
+      { id: "EST-1", leadId: "LEAD-2", title: "Warehouse apron", status: "sent", total: 62000, sentAt: "2026-05-10" },
+    ],
+  });
+
+  const sourceRow = state.focusRows.find((row) => row.recordType === "growthSourceInsight");
+  assert.ok(sourceRow);
+  assert.match(sourceRow.title, /Referral/i);
+  assert.match(sourceRow.description, /manual review signal/i);
+  assert.equal(sourceRow.moduleId, "leads");
+  assert.equal(sourceRow.record.blockedActions.some((item) => /No outreach/i.test(item)), true);
+  assert.equal(state.counts.growthSourceInsights, 1);
+});
+
+test("AI Office agent command center surfaces copy-only review request drafts", () => {
+  const state = deriveAiOfficeAgentCommandCenter({
+    permissions: {
+      aiOffice: { canView: true },
+      leads: { canView: true },
+      jobs: { canView: true, canManageAll: true },
+      estimates: { canView: true },
+    },
+    jobs: [
+      { id: "JOB-1", title: "Back patio replacement", customerName: "Salem Homeowner", status: "Completed", completedAt: "2026-05-16" },
+    ],
+  });
+
+  const reviewRow = state.focusRows.find((row) => row.recordType === "growthReviewRequestDraft");
+  assert.ok(reviewRow);
+  assert.match(reviewRow.title, /Back patio replacement/i);
+  assert.match(reviewRow.description, /copy-only/i);
+  assert.equal(reviewRow.moduleId, "jobs");
+  assert.equal(reviewRow.record.blockedActions.some((item) => /No email, SMS, survey/i.test(item)), true);
+  assert.equal(state.counts.growthReviewRequestDrafts, 1);
+});
+
+test("AI Office agent command center surfaces review-only owner BI scorecards", () => {
+  const state = deriveAiOfficeAgentCommandCenter({
+    permissions: {
+      aiOffice: { canView: true },
+      leads: { canView: true },
+      jobs: { canView: true, canManageAll: true },
+      estimates: { canView: true },
+      reports: { canView: true, canReview: true },
+      uploads: { canView: true, canManageAll: true },
+      deliveryTickets: { canManageAll: true },
+      time: { canManageAll: true },
+    },
+    leads: [
+      { id: "LEAD-1", customer: "Referral GC", status: "Converted", source: "Referral" },
+      { id: "LEAD-2", customer: "New GC", status: "New", source: "Referral", followUpDueAt: "2026-05-20" },
+    ],
+    jobs: [{ id: "JOB-1", title: "Owner BI patio", status: "billing_ready" }],
+    estimates: [
+      { id: "EST-1", leadId: "LEAD-1", jobId: "JOB-1", status: "approved", grandTotal: 10000 },
+      { id: "EST-2", leadId: "LEAD-2", status: "sent", total: 6000, sentAt: "2026-05-10" },
+    ],
+    dailyReports: [
+      {
+        id: "REPORT-1",
+        jobId: "JOB-1",
+        status: "reviewed",
+        reportDate: "2026-05-21",
+        workPerformed: "Finished patio",
+        crewSummary: "Foreman + 2",
+        weather: "Clear",
+        job: { title: "Owner BI patio" },
+      },
+      {
+        id: "REPORT-2",
+        jobId: "JOB-1",
+        status: "submitted",
+        reportDate: "2026-05-22",
+        workPerformed: "Cleanup",
+        crewSummary: "Foreman + 1",
+        weather: "Cloudy",
+        job: { title: "Owner BI patio" },
+      },
+    ],
+    uploads: [{ id: "UPLOAD-1", jobId: "JOB-1" }],
+    timeEntries: [{ id: "TIME-1", jobId: "JOB-1", totalMinutes: 300, status: "completed" }],
+    deliveryTickets: [{ id: "DT-1", jobId: "JOB-1", reportId: "REPORT-1", ticketUploadId: "UPLOAD-1", supplier: "Ready Mix", ticketNumber: "RM-1", yardsDelivered: 6 }],
+    proofStateByReportId: new Map([
+      ["REPORT-1", { gapCount: 0 }],
+      ["REPORT-2", { gapCount: 1 }],
+    ]),
+  });
+
+  const card = state.workflowCards.find((item) => item.id === "owner-bi");
+  const row = state.focusRows.find((item) => item.recordType === "ownerBusinessIntelligence");
+
+  assert.ok(card);
+  assert.equal(card.actionLabel, "Review BI");
+  assert.ok(row);
+  assert.match(row.description, /Review-only/i);
+  assert.equal(state.counts.ownerBiScorecards, 4);
+  assert.ok(state.counts.ownerBiReviewRows > 0);
+});
+
 test("AI Office agent command center blocks field-only users", () => {
   const state = deriveAiOfficeAgentCommandCenter({
     permissions: {

@@ -52,6 +52,10 @@ function customerLabel(record = {}) {
   return text(record.customer || record.customerName || record.customer?.name || record.company || "Customer");
 }
 
+function sourceLabel(record = {}) {
+  return text(record.sourceName || record.leadSourceName || record.source || record.leadSource || record.channel || record.origin);
+}
+
 function canViewGrowthAgent(permissions = {}) {
   if (permissions?.jobs?.canManageField && !permissions?.jobs?.canManageAll) return false;
   return Boolean(
@@ -147,6 +151,93 @@ function buildLeadFollowUpDraft(lead = {}, { overdueDays = 0 } = {}) {
   };
 }
 
+function buildReviewRequestDraft(job = {}, { completedDays = 0 } = {}) {
+  const customer = customerLabel(job);
+  const title = titleOf(job, "Completed job");
+  const subject = `Feedback on ${title}`;
+  const body = [
+    `Hi ${customer},`,
+    "",
+    `Thanks again for trusting us with ${title}.`,
+    "If everything looks complete on your end, the office would appreciate any quick feedback on how the project went.",
+    "If there is anything that still needs attention, please reply with the details so the team can review it before any public review or testimonial ask.",
+    "",
+    "Thanks,",
+    "Apex HQ workspace",
+  ].join("\n");
+
+  return {
+    id: `growth-review-${text(job.id || title)}`,
+    type: "review_request",
+    sourceId: text(job.id),
+    sourceModule: "jobs",
+    title: `Review feedback for ${title}`,
+    customer,
+    status: text(job.status || job.stage || "completed"),
+    urgency: completedDays <= 14 ? "high" : completedDays <= 30 ? "medium" : "normal",
+    reason: completedDays
+      ? `Job was completed about ${completedDays} day${completedDays === 1 ? "" : "s"} ago.`
+      : "Job appears complete and ready for a manual customer feedback review.",
+    draft: {
+      channel: "copy_only",
+      subject,
+      body,
+    },
+    requiredReview: [
+      "Confirm the job is truly complete and any punch, warranty, safety, or billing review items are handled first.",
+      "Confirm the customer gave permission before using any quote, logo, photo, or testimonial publicly.",
+      "Use the normal approved communication workflow outside this draft helper.",
+    ],
+    blockedActions: [
+      "No email, SMS, survey, review request, testimonial request, or customer notification is sent.",
+      "No testimonial, case study, public review, logo, photo, or customer proof is published.",
+      "No job status, invoice, payment, customer record, or outreach tracker is changed.",
+    ],
+  };
+}
+
+function buildSourceInsight(source, group = {}) {
+  const conversionRate = group.leads ? Math.round((group.convertedLeads / group.leads) * 100) : 0;
+  const openValue = group.openEstimateValue || 0;
+  const title = group.leads >= 2 && conversionRate >= 50
+    ? `Protect ${source} momentum`
+    : group.overdueLeads || group.staleEstimates
+      ? `Review ${source} follow-up`
+      : `Track ${source} quality`;
+  const detailParts = [
+    `${group.leads} lead${group.leads === 1 ? "" : "s"}`,
+    `${conversionRate}% converted`,
+    openValue ? `${money(openValue)} open estimate value` : "",
+    group.overdueLeads ? `${group.overdueLeads} overdue lead follow-up${group.overdueLeads === 1 ? "" : "s"}` : "",
+    group.staleEstimates ? `${group.staleEstimates} stale estimate${group.staleEstimates === 1 ? "" : "s"}` : "",
+  ].filter(Boolean);
+
+  return {
+    id: `lead-source-${normalize(source).replace(/\s+/g, "-")}`,
+    source,
+    title,
+    detail: `${detailParts.join(" / ")}. Use this as a manual review signal before adding spend, outreach, or new source work.`,
+    leads: group.leads || 0,
+    convertedLeads: group.convertedLeads || 0,
+    openLeads: group.openLeads || 0,
+    overdueLeads: group.overdueLeads || 0,
+    openEstimates: group.openEstimates || 0,
+    staleEstimates: group.staleEstimates || 0,
+    openEstimateValue: openValue,
+    conversionRate,
+    tone: group.overdueLeads || group.staleEstimates ? "amber" : conversionRate >= 50 && group.leads >= 2 ? "green" : "blue",
+    requiredReview: [
+      "Confirm the source, lead quality, and latest customer context before acting.",
+      "Use normal lead and estimate workflows for any follow-up or status changes.",
+      "Treat small sample sizes as signals, not proof of channel performance.",
+    ],
+    blockedActions: [
+      "No outreach, ads, source contact, customer contact, bid submission, or spend is triggered.",
+      "No lead, estimate, package, invoice, payment, or job record is changed.",
+    ],
+  };
+}
+
 export function deriveGrowthAgentState({
   permissions = {},
   leads = [],
@@ -161,6 +252,8 @@ export function deriveGrowthAgentState({
       summary: "Growth Agent is blocked for this role. Field users cannot access lead, estimate, pricing, or customer follow-up drafts.",
       scorecard: {},
       followUpDrafts: [],
+      reviewRequestDrafts: [],
+      sourceInsights: [],
       recommendations: [],
       safetyBoundary: "Blocked for this role.",
     };
@@ -174,6 +267,7 @@ export function deriveGrowthAgentState({
   const wonStatuses = new Set(["approved", "accepted", "won"]);
   const lostStatuses = new Set(["rejected", "declined", "lost", "archived"]);
   const openLeadStatuses = new Set(["new", "contacted", "site visit", "estimate sent", "open", "warm", "hot"]);
+  const completedJobStatuses = new Set(["field complete", "field completed", "complete", "completed", "closed", "done", "billing ready"]);
 
   const openEstimates = activeEstimates.filter((estimate) => openEstimateStatuses.has(statusOf(estimate, "draft")) && !estimate.jobId);
   const wonEstimates = activeEstimates.filter((estimate) => wonStatuses.has(statusOf(estimate)));
@@ -181,8 +275,13 @@ export function deriveGrowthAgentState({
   const convertedEstimates = activeEstimates.filter((estimate) => estimate.jobId || activeJobs.some((job) => job.estimateId === estimate.id));
   const openLeads = activeLeads.filter((lead) => openLeadStatuses.has(statusOf(lead, "new")));
   const convertedLeads = activeLeads.filter((lead) => ["approved", "converted", "won"].includes(statusOf(lead)));
+  const reviewCandidateJobs = activeJobs.filter((job) => (
+    completedJobStatuses.has(statusOf(job))
+    && !text(job.reviewRequestedAt || job.reviewRequestSentAt || job.testimonialRequestedAt)
+  ));
   const totalEstimateValue = activeEstimates.reduce((sum, estimate) => sum + estimateAmount(estimate), 0);
   const openEstimateValue = openEstimates.reduce((sum, estimate) => sum + estimateAmount(estimate), 0);
+  const leadsById = new Map(activeLeads.map((lead) => [text(lead.id), lead]));
 
   const estimateDrafts = openEstimates
     .map((estimate) => {
@@ -206,9 +305,72 @@ export function deriveGrowthAgentState({
     .slice(0, 3)
     .map(({ lead, overdueDays }) => buildLeadFollowUpDraft(lead, { overdueDays }));
 
+  const reviewRequestDrafts = reviewCandidateJobs
+    .map((job) => {
+      const completedAt = dateValue(job, ["completedAt", "closedAt", "fieldCompletedAt", "updatedAt"]);
+      const completedDays = completedAt ? daysBetween(completedAt, currentDate) : 0;
+      return { job, completedDays };
+    })
+    .sort((left, right) => left.completedDays - right.completedDays || titleOf(left.job).localeCompare(titleOf(right.job)))
+    .slice(0, 3)
+    .map(({ job, completedDays }) => buildReviewRequestDraft(job, { completedDays }));
+
   const followUpDrafts = [...estimateDrafts, ...leadDrafts].slice(0, 5);
   const closeRate = activeEstimates.length ? Math.round((wonEstimates.length / activeEstimates.length) * 100) : 0;
   const conversionRate = activeLeads.length ? Math.round((convertedLeads.length / activeLeads.length) * 100) : 0;
+  const sourceGroups = new Map();
+  const ensureSourceGroup = (source) => {
+    const label = text(source);
+    if (!label) return null;
+    const key = normalize(label);
+    if (!sourceGroups.has(key)) {
+      sourceGroups.set(key, {
+        source: label,
+        leads: 0,
+        convertedLeads: 0,
+        openLeads: 0,
+        overdueLeads: 0,
+        openEstimates: 0,
+        staleEstimates: 0,
+        openEstimateValue: 0,
+      });
+    }
+    return sourceGroups.get(key);
+  };
+
+  activeLeads.forEach((lead) => {
+    const group = ensureSourceGroup(sourceLabel(lead));
+    if (!group) return;
+    const leadStatus = statusOf(lead, "new");
+    const due = dateValue(lead, ["followUpDueAt", "nextFollowUpAt"]);
+    group.leads += 1;
+    if (["approved", "converted", "won"].includes(leadStatus)) group.convertedLeads += 1;
+    if (openLeadStatuses.has(leadStatus)) group.openLeads += 1;
+    if (due && daysBetween(due, currentDate) > 0) group.overdueLeads += 1;
+  });
+
+  openEstimates.forEach((estimate) => {
+    const linkedLead = leadsById.get(text(estimate.leadId));
+    const group = ensureSourceGroup(sourceLabel(estimate) || sourceLabel(linkedLead));
+    if (!group) return;
+    const anchor = dateValue(estimate, ["sentAt", "updatedAt", "createdAt"]);
+    const staleDays = anchor ? daysBetween(anchor, currentDate) : 0;
+    group.openEstimates += 1;
+    group.openEstimateValue += estimateAmount(estimate);
+    if (statusOf(estimate) === "sent" || staleDays >= 5) group.staleEstimates += 1;
+  });
+
+  const sourceInsights = Array.from(sourceGroups.values())
+    .filter((group) => group.leads || group.openEstimates)
+    .map((group) => buildSourceInsight(group.source, group))
+    .sort((left, right) => (
+      right.overdueLeads - left.overdueLeads
+      || right.staleEstimates - left.staleEstimates
+      || right.openEstimateValue - left.openEstimateValue
+      || right.leads - left.leads
+      || left.source.localeCompare(right.source)
+    ))
+    .slice(0, 3);
 
   const recommendations = [
     followUpDrafts.length ? {
@@ -223,6 +385,18 @@ export function deriveGrowthAgentState({
       detail: `${money(openEstimateValue)} is still open in estimates without a linked job.`,
       tone: openEstimateValue >= 50_000 ? "amber" : "blue",
     } : null,
+    sourceInsights.length ? {
+      id: "lead-source-intelligence",
+      title: "Review lead source quality",
+      detail: `${sourceInsights[0].source}: ${sourceInsights[0].detail}`,
+      tone: sourceInsights[0].tone,
+    } : null,
+    reviewRequestDrafts.length ? {
+      id: "review-request-drafts",
+      title: "Review customer feedback drafts",
+      detail: `${reviewRequestDrafts.length} copy-only review request draft${reviewRequestDrafts.length === 1 ? "" : "s"} are ready for completed jobs.`,
+      tone: "blue",
+    } : null,
     activeLeads.length && conversionRate < 35 ? {
       id: "lead-conversion-review",
       title: "Review lead conversion",
@@ -236,7 +410,9 @@ export function deriveGrowthAgentState({
     mode: "review_first_growth_agent",
     summary: followUpDrafts.length
       ? `${followUpDrafts.length} follow-up draft${followUpDrafts.length === 1 ? "" : "s"} need human review. Nothing is sent or changed by Apex.`
-      : "No stale estimate or lead follow-up draft is currently recommended from visible records.",
+      : reviewRequestDrafts.length
+        ? `${reviewRequestDrafts.length} customer feedback draft${reviewRequestDrafts.length === 1 ? "" : "s"} need human review. Nothing is sent or published by Apex.`
+        : "No stale estimate, lead follow-up, or review request draft is currently recommended from visible records.",
     scorecard: {
       leads: activeLeads.length,
       openLeads: openLeads.length,
@@ -250,8 +426,12 @@ export function deriveGrowthAgentState({
       convertedEstimates: convertedEstimates.length,
       totalEstimateValue,
       openEstimateValue,
+      leadSourcesTracked: sourceInsights.length,
+      reviewCandidateJobs: reviewCandidateJobs.length,
     },
     followUpDrafts,
+    reviewRequestDrafts,
+    sourceInsights,
     recommendations,
     safetyBoundary: "Review-only growth intelligence. No customer contact, auto-send, status change, estimate conversion, bid submission, invoice, payment, package change, ad publishing, or external action is performed.",
   };

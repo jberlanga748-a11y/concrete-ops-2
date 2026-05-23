@@ -175,6 +175,44 @@ test("opportunity scout includes saved search profiles and found opportunities",
   assert.equal(publicBrief.sourceReviewRequired, true);
 });
 
+test("opportunity scout derives review-first ingestion readiness from queued intake packets", () => {
+  const state = deriveOpportunityScoutState({
+    currentCompanyId: "COMPANY-A",
+    companySettings: { serviceArea: "Salem Oregon" },
+    opportunityIntakePackets: [
+      {
+        id: "PKT-1",
+        companyId: "COMPANY-A",
+        intakeSourceType: "pasted_text",
+        sourceName: "Forwarded bid invite",
+        intakeText: "Project: Library ADA ramp\nAgency: City of Salem\nLocation: Salem, OR\nBid due: June 10 2026\nScope: Concrete ramp replacement.",
+      },
+      {
+        id: "PKT-2",
+        companyId: "COMPANY-A",
+        sourceAdapterId: "email_ingestion",
+        title: "Private GC invite",
+        intakeText: "Login required with MFA before plan access.",
+      },
+      {
+        id: "PKT-3",
+        companyId: "COMPANY-B",
+        title: "Other company invite",
+        intakeText: "Project: should not leak",
+      },
+    ],
+  }, { today: TODAY });
+
+  assert.equal(state.ingestionReadiness.mode, "review_first_ingestion_readiness");
+  assert.equal(state.ingestionReadiness.rows.length, 2);
+  assert.equal(state.ingestionReadiness.rows.some((row) => row.id === "PKT-3"), false);
+  assert.equal(state.stats.intakePackets, 2);
+  assert.equal(state.stats.intakePacketsNeedHumanReview, 1);
+  assert.equal(state.ingestionReadiness.rows[1].reviewStatus, "human_review_required");
+  assert.ok(state.ingestionReadiness.guardrails.some((item) => /Live email, OAuth/i.test(item)));
+  assert.ok(state.ingestionReadiness.rows[0].blockedActions.some((action) => /No lead or opportunity is saved automatically/i.test(action)));
+});
+
 test("opportunity scout keeps Create Lead locked when source access still needs human review", () => {
   const state = deriveOpportunityScoutState({
     currentCompanyId: "COMPANY-A",

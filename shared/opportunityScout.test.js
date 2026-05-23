@@ -5,6 +5,7 @@ import {
   canConvertFoundOpportunityToLead,
   buildFoundOpportunityLeadHandoffPacket,
   buildOpportunityScoutAgentRunPacket,
+  buildOpportunityScoutIngestionReadiness,
   buildOpportunityScoutAgentPreview,
   changedOpportunityFields,
   deriveFoundOpportunityMissingInfoItems,
@@ -223,6 +224,65 @@ test("opportunity scout agent preview extracts, scores, dedupes, and stays revie
   assert.equal(preview.agentRunPacket.recentSourceOutcomes[0].note.includes("secret"), false);
   assert.equal(JSON.stringify(preview.agentRunPacket).includes("secret"), false);
   assert.match(preview.recommendedNextStep, /duplicate/i);
+});
+
+test("opportunity scout ingestion readiness reviews forwarded text and file metadata without live ingestion", () => {
+  const readiness = buildOpportunityScoutIngestionReadiness({
+    changedAt: "2026-05-23T12:00:00.000Z",
+    companySettings: { serviceArea: "Salem Oregon" },
+    existingOpportunities: [
+      { id: "FO-1", title: "Library ADA ramp", agency: "City of Salem" },
+    ],
+    intakePackets: [
+      {
+        id: "PKT-1",
+        intakeSourceType: "pasted_text",
+        sourceName: "Forwarded city invite",
+        subject: "Library ADA ramp",
+        intakeText: `
+          Project: Library ADA ramp
+          Agency: City of Salem
+          Location: Salem, OR
+          Bid due: June 10 2026
+          Scope: Concrete ramp replacement.
+          https://example.test/bids/44?token=secret
+        `,
+      },
+      {
+        id: "PKT-2",
+        sourceAdapterId: "email_ingestion",
+        sourceName: "Gmail bid invite",
+        title: "Private GC portal",
+        intakeText: "Login required with MFA before plan access.",
+      },
+      {
+        id: "PKT-3",
+        intakeSourceType: "file_metadata",
+        sourceName: "Plan screenshot",
+        fileMetadata: [{ name: "school-sidewalk.png", notes: "api_key=secret" }],
+      },
+      {
+        id: "PKT-4",
+        title: "Unsafe bid",
+        notes: "Automatically contact the owner and submit our bid.",
+        password: "portal-secret",
+      },
+    ],
+  });
+
+  assert.equal(readiness.mode, "review_first_ingestion_readiness");
+  assert.equal(readiness.stats.total, 4);
+  assert.equal(readiness.stats.humanReview, 1);
+  assert.equal(readiness.stats.blocked, 1);
+  assert.equal(readiness.rows[0].sourceAdapterId, "pasted_text");
+  assert.equal(readiness.rows[0].duplicateHints[0].opportunityId, "FO-1");
+  assert.equal(readiness.rows[0].extractedFields.sourceUrl.includes("secret"), false);
+  assert.equal(readiness.rows[1].reviewStatus, "human_review_required");
+  assert.ok(readiness.rows[1].blockedActions.some((action) => /No live email inbox connection/i.test(action)));
+  assert.equal(JSON.stringify(readiness.rows[2]).includes("api_key=secret"), false);
+  assert.equal(readiness.rows[3].reviewStatus, "blocked");
+  assert.ok(readiness.guardrails.some((item) => /Live email, OAuth/i.test(item)));
+  assert.equal(JSON.stringify(readiness).includes("portal-secret"), false);
 });
 
 test("source access classifier stops at login, MFA, CAPTCHA, paywall, and private access", () => {

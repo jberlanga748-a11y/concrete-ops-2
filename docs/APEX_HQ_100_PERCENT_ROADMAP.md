@@ -540,7 +540,7 @@ This section compares the older `docs/APEX_HQ_ROADMAP.md` product pillars agains
 | Watchtower / Missing Work Agent | Phase 1 complete | Phase 4 | Missing-work summaries and assistant next-action patterns exist. Remaining work is a central agent action inbox and stronger review queue. |
 | Field Ops Agent | Phase 1 complete | Phases 1, 4, 5 | Field-safe read-only summaries and mobile field workflows exist. Advanced GPS/weather/risk behavior remains later and requires consent/settings approval. |
 | Growth Agent | Partial / not complete | Phase 4 and Phase 11 | Lead/estimate follow-up intelligence exists in pieces. Full growth agent for close rates, stale estimates, and recommendations is not 100 percent. |
-| Lead / Job Finder Agent | Partial | Phase 4 and Phase 11 | Opportunity Scout review-first intake exists. More public-source adapters, email/file ingestion, and safe opportunity-to-lead workflows remain. |
+| Lead / Job Finder Agent | Complete for review-first expansion | Phase 4 and Phase 11 | Opportunity Scout review-first intake exists with source adapters, source access/terms stops, user-provided intake readiness, duplicate/missing-info review, and safe opportunity-to-lead gates. Live provider connections, OAuth, scraping, and bid submission remain locked. |
 | Marketing Agent | Not built | Phase 11 | Not required for first core SaaS 100 percent. Must remain draft/review-only and never auto-send outreach without approval. |
 | Ad Assistant Agent | Not built | Phase 11 | Not required for first core SaaS 100 percent. Must never auto-publish ads or spend money. |
 | Website Builder Agent | Not built | Phase 11 | Not required for first core SaaS 100 percent. Could become Elite/growth expansion after core app is stable. |
@@ -558,6 +558,8 @@ This section compares the older `docs/APEX_HQ_ROADMAP.md` product pillars agains
 
 These items were in the older roadmap but should not block the first 100 percent core contractor SaaS launch. They become expansion phases after the core workflow, pilot, self-serve, agent, and production gates are stable.
 
+Phase 11.0 approval gate: complete as the scope-control matrix for post-core expansion. See `docs/APEX_HQ_PHASE_11_0_APPROVAL_GATE_MATRIX.md`. This gate approves planning, review-first, read-only, draft-only, and locally verified safe slices. It does not approve production deploys, database migrations, secrets, billing/payments, auto-send email/SMS, bid submission, external customer portal access, permission weakening, or public legal/security/pricing claims.
+
 1. Integrations.
    - QuickBooks.
    - Gmail/Google Calendar/Google Drive.
@@ -566,6 +568,7 @@ These items were in the older roadmap but should not block the first 100 percent
    - Weather.
    - Sentry/log provider.
    - Twilio only with explicit messaging approval.
+   - Phase 11B Lead / Job Finder decision: complete for review-first Opportunity Scout expansion. See `docs/APEX_HQ_PHASE_11B_LEAD_JOB_FINDER_100_STATUS.md`. Live provider connections, OAuth/API keys, scraping, source contact, customer contact, and bid submission remain locked.
 
 2. Growth and marketing agents.
    - Stale estimate follow-up drafts.
@@ -574,6 +577,7 @@ These items were in the older roadmap but should not block the first 100 percent
    - Website/service page drafts.
    - Ad copy drafts.
    - No auto-send, auto-publish, ad spend, or public claims without approval.
+   - Phase 11A Growth Agent decision: complete for review-first stale estimate, lead follow-up, lead-source, close-rate, and review-request intelligence. See `docs/APEX_HQ_PHASE_11A_GROWTH_AGENT_100_STATUS.md`. Marketing, website, and ad copy drafts remain separate later work and must stay draft/review-only.
 
 3. Advanced reporting and business intelligence.
    - Profit/loss review.
@@ -581,6 +585,7 @@ These items were in the older roadmap but should not block the first 100 percent
    - Lead source reporting.
    - Close rate reporting.
    - Owner scorecards.
+   - Phase 11C Advanced Reporting / BI decision: complete for review-first owner scorecards, lead source reporting, close-rate reporting, labor/production KPIs, daily report BI, and profit/loss review prep. See `docs/APEX_HQ_PHASE_11C_ADVANCED_REPORTING_BI_100_STATUS.md`. Accounting replacement, payroll, invoices, payments, external BI integrations, public financial claims, and production data changes remain locked.
 
 4. Customer portal expansion.
    - Secure proposal approval.
