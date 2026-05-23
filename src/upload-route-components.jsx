@@ -448,14 +448,14 @@ export function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLo
 export function UploadsTablePolished({ rows, selectedId, onSelect }) {
   return (
     <>
-      <details className="co-uploads-mobile-list-drawer md:hidden">
-        <summary>
+      <div className="co-uploads-mobile-list-surface md:hidden">
+        <div className="co-field-mobile-section-head">
           <span>
             <strong>Evidence in view</strong>
             <em>{rows.length} upload{rows.length === 1 ? "" : "s"} ready for review</em>
           </span>
-          <span>{rows.length}</span>
-        </summary>
+          <b>{rows.length}</b>
+        </div>
         <div className="co-uploads-mobile-list grid gap-3 p-3">
           {rows.map((upload) => {
             const selected = upload.id === selectedId;
@@ -483,7 +483,7 @@ export function UploadsTablePolished({ rows, selectedId, onSelect }) {
             );
           })}
         </div>
-      </details>
+      </div>
       <div className="co-uploads-list-scroll hidden min-w-0 overflow-auto md:block">
         <table className="co-uploads-command-table w-full min-w-[900px] text-left">
           <thead>

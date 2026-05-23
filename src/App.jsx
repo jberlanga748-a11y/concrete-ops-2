@@ -6618,22 +6618,17 @@ function AdvancedReportsPrepPanel({ summary, onSetFilter, onOpenModule, onOpenRe
 
 function DailyReportsTablePolished({ rows, selectedId, onSelect, onOpenDetails, maxRows = 8, proofStateByReportId = new Map() }) {
   const visibleRows = maxRows ? rows.slice(0, maxRows) : rows;
-  function handleMobileListToggle(event) {
-    const drawer = event.currentTarget;
-    if (!drawer.open || window.innerWidth >= 768) return;
-    window.setTimeout(() => drawer.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
-  }
 
   return (
     <>
-      <details className="co-reports-mobile-list-drawer md:hidden" onToggle={handleMobileListToggle}>
-        <summary>
+      <div className="co-reports-mobile-list-surface md:hidden">
+        <div className="co-field-mobile-section-head">
           <span>
             <strong>Visible reports</strong>
             <em>{visibleRows.length} of {rows.length} reports shown</em>
           </span>
-          <span>Open</span>
-        </summary>
+          <b>{rows.length}</b>
+        </div>
         <div className="co-reports-mobile-list grid gap-3 p-3">
           {visibleRows.map((report) => {
             const selected = report.id === selectedId;
@@ -6665,7 +6660,7 @@ function DailyReportsTablePolished({ rows, selectedId, onSelect, onOpenDetails, 
             );
           })}
         </div>
-      </details>
+      </div>
       <div className="table-shell hidden min-w-0 overflow-x-auto md:block">
         <table className="co-reports-command-table w-full min-w-[840px] text-left">
           <thead>
@@ -7894,6 +7889,43 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
           onOpenTool={openTool}
         />
       </div>
+
+      {!permissions.uploads.canManageAll ? (
+        <div className="co-field-mobile-tool-surface co-uploads-mobile-tool-surface mx-4 mb-24 md:hidden">
+          <div className="co-field-mobile-section-head">
+            <span>
+              <strong>Photo tools</strong>
+              <em>Capture proof or update selected evidence without opening a drawer.</em>
+            </span>
+          </div>
+          <div className="co-field-mobile-tool-tabs" role="tablist" aria-label="Photo evidence tools">
+            {toolTabs.map((tab) => (
+              <button key={tab.id} type="button" className={activeTool === tab.id ? "is-active" : ""} onClick={() => selectTool(tab.id)}>
+                {tab.label}
+                <span>{tab.count}</span>
+              </button>
+            ))}
+          </div>
+          <div className="co-field-mobile-tool-body">
+            {activeTool === "upload" ? (
+              <UploadCreateCard
+                canCreate={canCreate}
+                jobs={allowedJobs}
+                draft={draft}
+                setDraft={setDraft}
+                onRequestLocation={handleRequestLocation}
+                onFileChange={handleFileChange}
+                onSubmit={handleSubmit}
+                loading={busy}
+                fileError={fileError}
+              />
+            ) : null}
+            {activeTool === "details" ? (
+              <UploadDetailPanel upload={selectedUpload} token={sessionToken} canManage={canManage} disabled={busy} onSave={handleSaveUpload} onArchive={handleArchiveSelected} />
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       <details
         ref={toolsRef}
@@ -10045,7 +10077,7 @@ function PpeMobileFocusPanel({
 
       <div className="co-prepour-mobile-focus-metrics">
         {metricItems.map((metric) => (
-          <button key={metric.label} type="button" data-tone={metric.tone} onClick={metric.onClick}>
+          <button key={metric.label} type="button" className="co-field-touch-target" data-tone={metric.tone} onClick={metric.onClick}>
             <span>{metric.label}</span>
             <strong>{metric.value}</strong>
           </button>
@@ -10531,6 +10563,30 @@ function PpeChecklistPagePolished({
               </div>
             </div>
           </Card>
+          {!canManage ? (
+            <div className="co-field-mobile-tool-surface co-ppe-mobile-tool-surface mt-3 md:hidden">
+              <div className="co-field-mobile-section-head">
+                <span>
+                  <strong>PPE tools</strong>
+                  <em>Acknowledge, review guidance, or report a concern without opening a drawer.</em>
+                </span>
+              </div>
+              <div className="co-field-mobile-tool-tabs" role="tablist" aria-label="PPE tools">
+                {canAcknowledge ? <button type="button" className={toolTab === "ack" ? "is-active" : ""} onClick={() => changeToolTab("ack")}><Icon name="check" />Acknowledge</button> : null}
+                <button type="button" className={toolTab === "policy" ? "is-active" : ""} onClick={() => changeToolTab("policy")}><Icon name="clipboard" />Guidance</button>
+                {canSubmitIncidents || canReview ? <button type="button" className={toolTab === "incident" ? "is-active" : ""} onClick={() => changeToolTab("incident")}><Icon name="alert" />Safety Watch</button> : null}
+              </div>
+              <div className="co-field-mobile-tool-body">
+                {toolTab === "ack" ? (
+                  <PpeAcknowledgePanelPolished canAcknowledge={canAcknowledge} allowedJobs={allowedJobs} visiblePolicies={visiblePolicies} ackDraft={ackDraft} setAckDraft={setAckDraft} acknowledgments={safetyAcknowledgments} canManage={canManage} ackState={acknowledgmentState} busy={busy} onSubmit={onAcknowledge} />
+                ) : toolTab === "incident" ? (
+                  <PpeIncidentToolsPanelPolished canSubmitIncidents={canSubmitIncidents} canReview={canReview} allowedJobs={allowedJobs} incidentDraft={incidentDraft} setIncidentDraft={setIncidentDraft} visibleIncidents={visibleIncidents} selectedIncident={selectedIncident} setSelectedIncidentId={setSelectedIncidentId} busy={busy} onSubmitIncident={onSubmitIncident} onReviewSafetyIncident={onReviewSafetyIncident} onResolveSafetyIncident={onResolveSafetyIncident} onArchiveSafetyIncident={onArchiveSafetyIncident} />
+                ) : (
+                  <PpePolicyPanelPolished canManage={canManage} visiblePolicies={visiblePolicies} selectedPolicy={selectedPolicy} setSelectedPolicyId={setSelectedPolicyId} policyDraft={policyDraft} setPolicyDraft={setPolicyDraft} onPolicySubmit={onPolicySubmit} onArchiveSafetyPolicy={onArchiveSafetyPolicy} busy={busy} />
+                )}
+              </div>
+            </div>
+          ) : null}
           <details
             ref={toolsRef}
             className="co-toolbox-tools-drawer mt-3 w-full min-w-0"
@@ -12052,6 +12108,50 @@ function ReportsPagePolished({
           onOpenTool={openReportTool}
         />
       </div>
+
+      {isFieldReportWorkspace ? (
+        <div className="co-field-mobile-tool-surface co-reports-mobile-tool-surface mx-4 mb-24 md:hidden">
+          <div className="co-field-mobile-section-head">
+            <span>
+              <strong>Report tools</strong>
+              <em>Start or finish the selected daily report without opening a drawer.</em>
+            </span>
+          </div>
+          <div className="co-field-mobile-tool-tabs" role="tablist" aria-label="Daily report tools">
+            {reportToolTabs.map((tab) => (
+              <button key={tab.id} type="button" className={activeReportTool === tab.id ? "is-active" : ""} onClick={() => selectReportTool(tab.id)}>
+                {tab.label}
+                <span>{tab.count}</span>
+              </button>
+            ))}
+          </div>
+          <div className="co-field-mobile-tool-body">
+            {activeReportTool === "create" ? (
+              <DailyReportCreateCard draft={createDraft} setDraft={setCreateDraft} onCreate={onCreateReport} disabled={busy} canCreate={canCreate} jobs={jobs.filter((job) => !job.archivedAt)} />
+            ) : null}
+            {activeReportTool === "details" ? (
+              <DailyReportDetailPanel
+                report={selectedReport}
+                proofState={selectedReportProofState}
+                reportDraft={reportDraft}
+                setReportDraft={setReportDraft}
+                onSave={onSaveReport}
+                onSubmit={onSubmitReport}
+                onReview={onReviewReport}
+                onReopen={onReopenReport}
+                onArchive={onArchiveReport}
+                canView={canView}
+                canEdit={canEdit}
+                canReview={canReviewActions}
+                canArchive={permissions.reports.canManageAll}
+                disabled={busy}
+                notFound={notFound}
+                onPrintReport={selectedReport ? () => onPrintDailyReport?.(selectedReport) : undefined}
+              />
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       <details
         ref={reportToolsRef}
@@ -23195,7 +23295,7 @@ function CalculatorMobileFocusPanel({
 
       <div className="co-prepour-mobile-focus-metrics">
         {metricItems.map((metric) => (
-          <button key={metric.label} type="button" data-tone={metric.tone} onClick={metric.onClick}>
+          <button key={metric.label} type="button" className="co-field-touch-target" data-tone={metric.tone} onClick={metric.onClick}>
             <span>{metric.label}</span>
             <strong>{metric.value}</strong>
           </button>
@@ -33527,6 +33627,27 @@ function ChangeOrdersPagePolished({
           </div>
         </DesktopCommandDrawer>
       </DesktopCommandWorkspaceFrame>
+      {!canManage ? (
+        <div className="co-field-mobile-tool-surface co-change-orders-mobile-tool-surface mx-4 mb-24 md:hidden">
+          <div className="co-field-mobile-section-head">
+            <span>
+              <strong>Change request tools</strong>
+              <em>Create or review a field scope request without opening a drawer.</em>
+            </span>
+          </div>
+          <div className="co-field-mobile-tool-tabs" role="tablist" aria-label="Change order tools">
+            {canCreate ? <button type="button" className={toolTab === "create" ? "is-active" : ""} onClick={() => setToolTab("create")}><Icon name="plus" />New Request</button> : null}
+            <button type="button" className={toolTab === "review" ? "is-active" : ""} onClick={() => setToolTab("review")}><Icon name="clipboard" />Review</button>
+          </div>
+          <div className="co-field-mobile-tool-body">
+            {toolTab === "create" ? (
+              <ChangeOrderCreatePanelPolished canCreate={canCreate} canManage={canManage} visibleJobs={visibleJobs} createDraft={createDraft} setCreateDraft={setCreateDraft} singleJobId={singleJobId} busy={busy} onCreateRequest={onCreateRequest} />
+            ) : (
+              <ChangeOrderDetailPanelPolished request={selectedRequest} detailDraft={detailDraft} setDetailDraft={setDetailDraft} canManage={canManage} busy={busy} onUpdateRequest={onUpdateRequest} onArchiveRequest={onArchiveRequest} />
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -36677,6 +36798,30 @@ function ToolChecklistPagePolished({
               </div>
             </div>
           </Card>
+          {isFieldToolChecklist ? (
+            <div className="co-field-mobile-tool-surface co-tool-checklist-mobile-tool-surface mt-3 md:hidden">
+              <div className="co-field-mobile-section-head">
+                <span>
+                  <strong>Checklist tools</strong>
+                  <em>Update items, add notes, or submit the selected loadout without opening a drawer.</em>
+                </span>
+              </div>
+              <div className="co-field-mobile-tool-tabs" role="tablist" aria-label="Tool checklist tools">
+                <button type="button" className={toolTab === "detail" ? "is-active" : ""} onClick={() => changeToolTab("detail")}><Icon name="clipboard" />Detail</button>
+                <button type="button" className={toolTab === "items" ? "is-active" : ""} onClick={() => changeToolTab("items")}><Icon name="layers" />Items</button>
+                {canAddItems ? <button type="button" className={toolTab === "add" ? "is-active" : ""} onClick={() => changeToolTab("add")}><Icon name="plus" />Add Item</button> : null}
+              </div>
+              <div className="co-field-mobile-tool-body">
+                {toolTab === "add" ? (
+                  <ToolChecklistAddItemPanelPolished canAddItems={canAddItems} checklist={selectedChecklist} itemDraft={itemDraft} setItemDraft={setItemDraft} busy={busy} onAddChecklistItem={onAddChecklistItem} />
+                ) : toolTab === "detail" ? (
+                  <ToolChecklistDetailPanelPolished checklist={selectedChecklist} permissions={permissions} busy={busy} onSaveChecklist={onSaveChecklist} onSubmitChecklist={onSubmitChecklist} onReviewChecklist={onReviewChecklist} onArchiveChecklist={onArchiveChecklist} />
+                ) : (
+                  <ToolChecklistItemsPanelPolished checklist={selectedChecklist} items={selectedItems} permissions={permissions} busy={busy} onUpdateChecklistItem={onUpdateChecklistItem} />
+                )}
+              </div>
+            </div>
+          ) : null}
           <details
             ref={toolsRef}
             className="co-toolbox-tools-drawer mt-3 w-full min-w-0"

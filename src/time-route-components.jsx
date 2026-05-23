@@ -448,14 +448,14 @@ export function TimeEntriesTablePolished({ rows, selectedId, onSelect, maxRows =
 
   return (
     <>
-      <details className="co-time-mobile-list-drawer md:hidden">
-        <summary>
+      <div className="co-time-mobile-list-surface md:hidden">
+        <div className="co-field-mobile-section-head">
           <span>
             <strong>Visible entries</strong>
             <em>{visibleRows.length} of {rows.length} entries shown</em>
           </span>
-          <span>Open</span>
-        </summary>
+          <b>{rows.length}</b>
+        </div>
         <div className="co-time-mobile-list grid gap-3 p-3">
           {visibleRows.map((entry) => {
             const selected = entry.id === selectedId;
@@ -491,7 +491,7 @@ export function TimeEntriesTablePolished({ rows, selectedId, onSelect, maxRows =
             );
           })}
         </div>
-      </details>
+      </div>
       <div className="table-shell hidden min-w-0 overflow-x-auto md:block">
         <table className={`co-time-command-table ${showUser ? "" : "is-own-view"} w-full min-w-[820px] text-left`}>
           <thead>

@@ -44815,3 +44815,251 @@ button.co-apex-command-kpi:hover:not(:disabled) {
     padding: 0.7rem;
   }
 }
+
+@media (max-width: 767px) {
+  .co-time-page .co-time-tools-drawer,
+  .co-uploads-page[data-field-workspace="true"] .co-uploads-advanced-filters,
+  .co-uploads-page[data-field-workspace="true"] .co-uploads-tools-drawer,
+  .co-reports-page[data-field-workspace="true"] .co-reports-advanced-filters,
+  .co-reports-page[data-field-workspace="true"] .co-reports-tools-drawer,
+  .co-ppe-page[data-field-workspace="true"] .co-toolbox-tools-drawer,
+  .co-tool-checklist-page.co-field-tool-page .co-incidents-advanced-filters,
+  .co-tool-checklist-page.co-field-tool-page .co-toolbox-tools-drawer,
+  .co-change-orders-page[data-field-workspace="true"] .co-change-orders-advanced-filters,
+  .co-change-orders-page[data-field-workspace="true"] .co-change-orders-secondary-drawer,
+  .co-change-orders-page[data-field-workspace="true"] .co-change-orders-tools-drawer {
+    display: none !important;
+  }
+
+  .co-time-page,
+  .co-uploads-page[data-field-workspace="true"],
+  .co-reports-page[data-field-workspace="true"],
+  .co-ppe-page[data-field-workspace="true"],
+  .co-tool-checklist-page.co-field-tool-page,
+  .co-change-orders-page[data-field-workspace="true"] {
+    padding-bottom: calc(6.4rem + env(safe-area-inset-bottom));
+  }
+
+  .co-field-mobile-section-head {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.8rem;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 0.9rem 1rem;
+  }
+
+  .co-field-mobile-section-head span {
+    display: grid;
+    min-width: 0;
+    gap: 0.16rem;
+  }
+
+  .co-field-mobile-section-head strong {
+    color: #0f172a;
+    font-size: 0.88rem;
+    font-weight: 950;
+    line-height: 1.2;
+  }
+
+  .co-field-mobile-section-head em {
+    color: #64748b;
+    font-size: 0.72rem;
+    font-style: normal;
+    font-weight: 850;
+    line-height: 1.35;
+  }
+
+  .co-field-mobile-section-head b {
+    display: inline-flex;
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: #fff7ed;
+    color: #9a3412;
+    font-size: 0.84rem;
+    font-weight: 950;
+  }
+
+  .co-time-mobile-list-surface,
+  .co-uploads-mobile-list-surface,
+  .co-reports-mobile-list-surface,
+  .co-field-mobile-tool-surface {
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+    border-radius: 1rem;
+    background: #ffffff;
+    box-shadow: 0 18px 38px -34px rgba(15, 23, 42, 0.55);
+  }
+
+  .co-field-mobile-tool-tabs {
+    display: flex;
+    min-width: 0;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding: 0.8rem;
+  }
+
+  .co-field-mobile-tool-tabs button,
+  button.h-10.w-10,
+  .co-time-page .co-focus-ring,
+  .co-time-page .h-10.w-10,
+  .co-app-shell .h-10.w-10,
+  .co-field-notice-link,
+  .co-toolbox-category-tabs button,
+  .co-filter-bar button,
+  .co-reports-board-footer-actions button,
+  .co-time-header-status button,
+  .co-time-command-rail-actions button,
+  .co-uploads-page[data-field-workspace="true"] .btn,
+  .co-reports-page[data-field-workspace="true"] .btn,
+  .co-ppe-page[data-field-workspace="true"] .btn,
+  .co-tool-checklist-page.co-field-tool-page .btn,
+  .co-change-orders-page[data-field-workspace="true"] .btn {
+    min-height: 2.75rem !important;
+  }
+
+  button.h-10.w-10 {
+    width: 2.75rem !important;
+    min-width: 2.75rem !important;
+  }
+
+  .co-time-page .co-focus-ring,
+  .co-uploads-page[data-field-workspace="true"] .co-focus-ring,
+  .co-reports-page[data-field-workspace="true"] .co-focus-ring,
+  .co-ppe-page[data-field-workspace="true"] .co-focus-ring,
+  .co-tool-checklist-page.co-field-tool-page .co-focus-ring,
+  .co-change-orders-page[data-field-workspace="true"] .co-focus-ring,
+  .co-field-notice-link {
+    display: inline-flex;
+    min-height: 2.75rem !important;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .co-field-workspace-page .co-focus-ring {
+    min-height: 2.75rem !important;
+  }
+
+  .co-field-mobile-tool-tabs button {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    gap: 0.42rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.82rem;
+    background: #f8fafc;
+    padding: 0 0.86rem;
+    color: #334155;
+    font-size: 0.76rem;
+    font-weight: 950;
+  }
+
+  .co-field-mobile-tool-tabs button.is-active {
+    border-color: #fb923c;
+    background: #fff7ed;
+    color: #9a3412;
+  }
+
+  .co-field-mobile-tool-tabs button span {
+    display: inline-flex;
+    min-height: 1.35rem;
+    min-width: 1.35rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.08);
+    font-size: 0.68rem;
+  }
+
+  .co-field-mobile-tool-body {
+    display: grid;
+    gap: 0.85rem;
+    border-top: 1px solid #e2e8f0;
+    background: #f8fafc;
+    padding: 0.85rem;
+  }
+
+  .co-field-mobile-tool-body .co-card,
+  .co-field-mobile-tool-body .card {
+    border-radius: 0.95rem !important;
+  }
+
+  .co-uploads-page[data-field-workspace="true"] .co-uploads-priority-card,
+  .co-reports-page[data-field-workspace="true"] .co-reports-mobile-card,
+  .co-ppe-page[data-field-workspace="true"] .co-toolbox-priority-card,
+  .co-tool-checklist-page.co-field-tool-page .co-toolbox-priority-card,
+  .co-change-orders-page[data-field-workspace="true"] .co-toolbox-priority-card,
+  .co-change-orders-page[data-field-workspace="true"] .co-change-orders-mobile-card,
+  .co-mobile-record-card {
+    min-height: 4.65rem;
+  }
+
+  .co-ppe-page[data-field-workspace="true"] .co-toolbox-mobile-card-action,
+  .co-tool-checklist-page.co-field-tool-page .co-toolbox-mobile-card-action,
+  .co-change-orders-page[data-field-workspace="true"] .co-change-orders-mobile-list-toggle,
+  .co-prepour-mobile-focus-actions button,
+  .co-prepour-mobile-focus-metrics button,
+  .co-toolbox-priority-grid button,
+  .co-change-orders-mobile-focus-actions button,
+  .co-change-orders-mobile-focus-metrics button,
+  .co-uploads-mobile-focus button,
+  .co-field-operator-actions button,
+  .co-field-operator-strip div {
+    min-height: 2.75rem !important;
+  }
+
+  .co-prepour-mobile-focus-metrics button,
+  .co-field-workspace-page .co-focus-ring {
+    height: auto !important;
+    min-height: 3rem !important;
+  }
+
+  .co-tool-checklist-page.co-field-tool-page .co-prepour-mobile-focus-metrics button,
+  .co-field-workspace-page button.co-focus-ring {
+    height: 3rem !important;
+    min-height: 3rem !important;
+  }
+
+  .co-field-touch-target {
+    height: auto !important;
+    min-height: 3rem !important;
+  }
+
+  .co-tool-checklist-status-actions button,
+  .co-toolbox-tool-tabs button,
+  .co-change-orders-tool-tabs button,
+  .co-uploads-tool-tabs button,
+  .co-reports-tool-tabs button {
+    min-height: 2.75rem !important;
+  }
+
+  .co-time-page .co-time-command-layout,
+  .co-uploads-page[data-field-workspace="true"] .co-uploads-command-layout,
+  .co-reports-page[data-field-workspace="true"] .co-reports-command-layout,
+  .co-ppe-page[data-field-workspace="true"] .co-toolbox-command-layout,
+  .co-tool-checklist-page.co-field-tool-page .co-toolbox-command-layout,
+  .co-change-orders-page[data-field-workspace="true"] .co-change-orders-command-layout {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+
+  .co-time-page .co-time-kpi-grid,
+  .co-uploads-page[data-field-workspace="true"] .co-uploads-kpi-grid,
+  .co-reports-page[data-field-workspace="true"] .co-reports-kpi-grid,
+  .co-ppe-page[data-field-workspace="true"] .co-toolbox-kpi-grid,
+  .co-tool-checklist-page.co-field-tool-page .co-toolbox-kpi-grid,
+  .co-change-orders-page[data-field-workspace="true"] .co-change-orders-kpi-grid {
+    display: none !important;
+  }
+
+  .co-time-page .co-time-board-header .flex.flex-wrap,
+  .co-uploads-page[data-field-workspace="true"] .co-uploads-board-header .flex.flex-wrap,
+  .co-reports-page[data-field-workspace="true"] .co-reports-board-header .flex.flex-wrap {
+    display: none !important;
+  }
+}

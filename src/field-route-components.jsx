@@ -314,11 +314,11 @@ export function FieldAssignmentNoticePanel({ notices, onSelectJob, onAcknowledge
                 </div>
               </div>
               <div className="co-field-notice-actions mt-3 flex flex-wrap gap-2">
-                <Button type="button" size="sm" onClick={() => onAcknowledge(job.id)} disabled={disabled}>
+                <Button type="button" size="sm" className="co-field-touch-target" onClick={() => onAcknowledge(job.id)} disabled={disabled}>
                   <Icon name="check" />
                   Got it
                 </Button>
-                <Button type="button" size="sm" variant="secondary" onClick={() => onSelectJob(job.id)}>
+                <Button type="button" size="sm" className="co-field-touch-target" variant="secondary" onClick={() => onSelectJob(job.id)}>
                   View job details
                 </Button>
               </div>
