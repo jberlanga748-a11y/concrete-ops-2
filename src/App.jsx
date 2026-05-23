@@ -29627,9 +29627,85 @@ function EstimatesPagePolished({
           ? `Resolve ${readiness.missing.slice(0, 3).join(", ")} before sending or converting.`
           : "Keep reviewing proposal context before any external action.";
     const activeShellMode = estimateShellModes.find((mode) => mode.id === estimateShellMode) || estimateShellModes[0];
+    const visibleEstimateShellModes = activeShellMode.id === "pricing"
+      ? estimateShellModes.filter((mode) => mode.id === "overview" || mode.id === "pricing")
+      : estimateShellModes;
+    const pricingSaveDisabled = busy || !canManage || !selectedEstimate?.id;
+
+    async function handleSaveEstimateShellPricing() {
+      if (!selectedEstimate?.id || !canManage || typeof onSaveEstimate !== "function") return false;
+      const saved = await onSaveEstimate(selectedEstimate.id, {
+        items: detailDraft.items,
+        taxRate: detailDraft.taxRate,
+        feesTotal: detailDraft.feesTotal,
+      });
+      if (saved) {
+        showCopyFeedback("Pricing saved through the existing estimate save path.", 5000);
+      }
+      return saved;
+    }
+
+    function renderEstimateShellPricingMode() {
+      return (
+        <div className="co-estimates-shell-pricing-panel" role="region" aria-label="Estimate pricing editor">
+          <div className="co-estimates-shell-pricing-head">
+            <div>
+              <Badge tone={canManage ? "blue" : "slate"}>{canManage ? "Pricing edit" : "Read only"}</Badge>
+              <h3>Pricing</h3>
+              <p>Line items, tax, and fees only. Saving here updates pricing data through the existing estimate save path.</p>
+            </div>
+            <StatusBadge status={estimateStatusLabel(status)} />
+          </div>
+          <div className="co-estimates-shell-pricing-context">
+            <span><em>Estimate</em><strong>{estimateDisplayTitle(estimate)}</strong></span>
+            <span><em>Customer</em><strong>{estimateDisplayCustomer(estimate) || "Customer pending"}</strong></span>
+            <span><em>Contact</em><strong>{estimateCustomerEmail(estimate) || "Missing"}</strong></span>
+          </div>
+          <div className="co-estimates-shell-pricing-adjustments">
+            <InputField label="Tax rate (%)" value={detailDraft.taxRate} onChange={(event) => setDetailDraft((current) => ({ ...current, taxRate: event.target.value }))} inputMode="decimal" disabled={!canManage || busy} />
+            <InputField label="Fees total" value={detailDraft.feesTotal} onChange={(event) => setDetailDraft((current) => ({ ...current, feesTotal: event.target.value }))} inputMode="decimal" disabled={!canManage || busy} />
+          </div>
+          <div className="co-estimates-shell-line-items">
+            <div className="co-estimates-shell-line-items-head">
+              <div>
+                <h4>Line items</h4>
+                <p>Pricing uses the existing estimate math and server validation.</p>
+              </div>
+              <Button type="button" variant="secondary" onClick={() => appendDraftItem(setDetailDraft)} disabled={!canManage || busy}>Add line item</Button>
+            </div>
+            {detailDraft.items.map((lineItem, index) => (
+              <div key={lineItem.id} className="co-estimates-shell-line-card">
+                <div className="co-estimates-shell-line-grid">
+                  <InputField label={`Description ${index + 1}`} value={lineItem.description} onChange={(event) => updateDraftItem(setDetailDraft, index, "description", event.target.value)} disabled={!canManage || busy} />
+                  <InputField label="Qty" value={lineItem.quantity} onChange={(event) => updateDraftItem(setDetailDraft, index, "quantity", event.target.value)} inputMode="decimal" disabled={!canManage || busy} />
+                  <InputField label="Unit" value={lineItem.unit} onChange={(event) => updateDraftItem(setDetailDraft, index, "unit", event.target.value)} disabled={!canManage || busy} />
+                  <InputField label="Unit price" value={lineItem.unitPrice} onChange={(event) => updateDraftItem(setDetailDraft, index, "unitPrice", event.target.value)} inputMode="decimal" disabled={!canManage || busy} />
+                </div>
+                <div className="co-estimates-shell-line-foot">
+                  <span>Line total: {formatEstimateCurrency(calculateEstimateLineTotal(lineItem))}</span>
+                  <button type="button" onClick={() => removeDraftItem(setDetailDraft, index)} disabled={!canManage || busy}>Remove item</button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="co-estimates-shell-pricing-totals">
+            <span><em>Subtotal</em><strong>{formatEstimateCurrency(detailTotals.subtotal)}</strong></span>
+            <span><em>Tax</em><strong>{formatEstimateCurrency(detailTotals.taxTotal || 0)}</strong></span>
+            <span><em>Fees</em><strong>{formatEstimateCurrency(detailTotals.feesTotal || 0)}</strong></span>
+            <span><em>Selected options</em><strong>{formatEstimateCurrency(detailOptionTotals.selectedOptionsTotal)}</strong></span>
+            <span><em>Total</em><strong>{formatEstimateCurrency(detailOptionTotals.totalWithSelectedOptions)}</strong></span>
+          </div>
+          <div className="co-estimates-shell-pricing-actions">
+            <Button type="button" onClick={handleSaveEstimateShellPricing} disabled={pricingSaveDisabled}>Save Pricing</Button>
+            <Button type="button" variant="secondary" onClick={() => setEstimateShellMode("overview")}>Return to overview</Button>
+          </div>
+        </div>
+      );
+    }
 
     function renderEstimateShellModePlaceholder() {
       if (activeShellMode.id === "overview") return null;
+      if (activeShellMode.id === "pricing") return renderEstimateShellPricingMode();
       return (
         <div className="co-estimates-shell-mode-placeholder" role="region" aria-label={`${activeShellMode.title} placeholder`}>
           <Badge tone="slate">Full tool migration pending</Badge>
@@ -29653,7 +29729,7 @@ function EstimatesPagePolished({
           <p>{[estimateDisplayCustomer(estimate), estimateDisplayLead(estimate)].filter(Boolean).join(" / ") || "Customer or lead pending"}</p>
         </div>
         <div className="co-estimates-shell-mode-tabs" role="tablist" aria-label="Estimate shell detail modes">
-          {estimateShellModes.map((mode) => (
+          {visibleEstimateShellModes.map((mode) => (
             <button
               key={mode.id}
               type="button"
@@ -29667,53 +29743,96 @@ function EstimatesPagePolished({
           ))}
         </div>
         {renderEstimateShellModePlaceholder()}
-        <div className="co-apex-selected-facts co-estimates-shell-selected-facts">
-          <span><em>Status</em><strong>{estimateStatusLabel(status)}</strong></span>
-          <span><em>Total</em><strong>{formatEstimateCurrency(readiness.optionTotals.totalWithSelectedOptions)}</strong></span>
-          <span><em>Base</em><strong>{formatEstimateCurrency(readiness.totals.grandTotal)}</strong></span>
-          <span><em>Contact</em><strong>{estimateCustomerEmail(estimate) || "Missing"}</strong></span>
-          <span><em>Line Items</em><strong>{estimate.items?.length || 0}</strong></span>
-          <span><em>Job</em><strong>{estimate.jobId ? "Converted" : "Not converted"}</strong></span>
-        </div>
-        <div className="co-estimates-shell-readiness-grid">
-          <div data-state={readiness.hasPricing ? "ready" : "needs"}>
-            <span>Pricing</span>
-            <strong>{readiness.hasPricing ? "Ready" : "Needs price"}</strong>
-            <p>Uses existing estimate totals only.</p>
-          </div>
-          <div data-state={proposalReadyCount === 4 ? "ready" : "needs"}>
-            <span>Proposal</span>
-            <strong>{proposalReadyCount} / 4</strong>
-            <p>Customer, contact, scope, and pricing.</p>
-          </div>
-          <div data-state={readiness.packetReady ? "ready" : "needs"}>
-            <span>Packet</span>
-            <strong>{readiness.packetReady ? "Ready enough" : "Needs backup"}</strong>
-            <p>{canUseGcPackets ? "GC packet remains package-gated." : "GC packet tools unavailable for this package."}</p>
-          </div>
-          <div data-state={handoffReadiness.readyForJob ? "ready" : "needs"}>
-            <span>Handoff</span>
-            <strong>{handoffReadiness.readyCount} / {handoffReadiness.totalCount}</strong>
-            <p>{handoffReadiness.status}</p>
-          </div>
-        </div>
-        <EstimateJobHandoffReadinessCard readiness={handoffReadiness} />
-        <div className="co-apex-selected-next">
-          <span>Next safe action</span>
-          <strong>{nextSafeAction}</strong>
-          <p>Slice 2A adds read-only shell mode scaffolding only. No pricing editor, proposal editor, backup editor, packet editor, AI rough notes, takeoff editor, send form, or convert-to-job form is inlined here.</p>
-        </div>
+        {activeShellMode.id === "pricing" ? null : (
+          <>
+            <div className="co-apex-selected-facts co-estimates-shell-selected-facts">
+              <span><em>Status</em><strong>{estimateStatusLabel(status)}</strong></span>
+              <span><em>Total</em><strong>{formatEstimateCurrency(readiness.optionTotals.totalWithSelectedOptions)}</strong></span>
+              <span><em>Base</em><strong>{formatEstimateCurrency(readiness.totals.grandTotal)}</strong></span>
+              <span><em>Contact</em><strong>{estimateCustomerEmail(estimate) || "Missing"}</strong></span>
+              <span><em>Line Items</em><strong>{estimate.items?.length || 0}</strong></span>
+              <span><em>Job</em><strong>{estimate.jobId ? "Converted" : "Not converted"}</strong></span>
+            </div>
+            <div className="co-estimates-shell-readiness-grid">
+              <div data-state={readiness.hasPricing ? "ready" : "needs"}>
+                <span>Pricing</span>
+                <strong>{readiness.hasPricing ? "Ready" : "Needs price"}</strong>
+                <p>Uses existing estimate totals only.</p>
+              </div>
+              <div data-state={proposalReadyCount === 4 ? "ready" : "needs"}>
+                <span>Proposal</span>
+                <strong>{proposalReadyCount} / 4</strong>
+                <p>Customer, contact, scope, and pricing.</p>
+              </div>
+              <div data-state={readiness.packetReady ? "ready" : "needs"}>
+                <span>Packet</span>
+                <strong>{readiness.packetReady ? "Ready enough" : "Needs backup"}</strong>
+                <p>{canUseGcPackets ? "GC packet remains package-gated." : "GC packet tools unavailable for this package."}</p>
+              </div>
+              <div data-state={handoffReadiness.readyForJob ? "ready" : "needs"}>
+                <span>Handoff</span>
+                <strong>{handoffReadiness.readyCount} / {handoffReadiness.totalCount}</strong>
+                <p>{handoffReadiness.status}</p>
+              </div>
+            </div>
+            <EstimateJobHandoffReadinessCard readiness={handoffReadiness} />
+            <div className="co-apex-selected-next">
+              <span>Next safe action</span>
+              <strong>{nextSafeAction}</strong>
+              <p>Slice 2A adds read-only shell mode scaffolding only. No pricing editor, proposal editor, backup editor, packet editor, AI rough notes, takeoff editor, send form, or convert-to-job form is inlined here.</p>
+            </div>
+          </>
+        )}
         {copyFeedback ? <p className="co-estimates-shell-feedback">{copyFeedback}</p> : null}
-        <div className="co-apex-selected-actions">
-          {safeActions.map((action, index) => (
-            <Button key={action.id} type="button" variant={action.variant || (index === 0 ? "primary" : "secondary")} onClick={action.onClick} disabled={action.disabled}>
-              {action.label}
-            </Button>
-          ))}
-        </div>
+        {activeShellMode.id === "pricing" ? null : (
+          <div className="co-apex-selected-actions">
+            {safeActions.map((action, index) => (
+              <Button key={action.id} type="button" variant={action.variant || (index === 0 ? "primary" : "secondary")} onClick={action.onClick} disabled={action.disabled}>
+                {action.label}
+              </Button>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
+
+  const estimateShellAssistantPrioritiesForMode = estimateShellMode === "pricing"
+    ? [
+      { value: detailDraft.items?.length || 0, label: "line items", tone: detailDraft.items?.length ? "blue" : "orange" },
+      { value: formatEstimateCurrency(detailTotals.subtotal), label: "subtotal", tone: detailTotals.subtotal ? "green" : "slate" },
+      { value: formatEstimateCurrency(detailTotals.taxTotal || 0), label: "tax", tone: detailTotals.taxTotal ? "blue" : "slate" },
+      { value: formatEstimateCurrency(detailTotals.feesTotal || 0), label: "fees", tone: detailTotals.feesTotal ? "blue" : "slate" },
+    ]
+    : [
+      { value: draftToPriceRows.length, label: "drafts to price", tone: draftToPriceRows.length ? "orange" : "green" },
+      { value: readyToSendRows.length, label: "ready to send", tone: readyToSendRows.length ? "blue" : "slate" },
+      { value: sentToWinRows.length, label: "sent to win", tone: sentToWinRows.length ? "amber" : "slate" },
+      { value: approvedHandoffRows.length, label: "handoffs", tone: approvedHandoffRows.length ? "green" : "slate" },
+    ];
+  const estimateShellAssistantActionsForMode = estimateShellMode === "pricing"
+    ? [
+      { label: "Review Pricing", icon: "document", onClick: () => setEstimateShellMode("pricing"), disabled: !selectedEstimate },
+      { label: "Overview", icon: "briefcase", onClick: () => setEstimateShellMode("overview") },
+    ]
+    : estimateShellAssistantActions;
+  const estimateShellQuickActionsForMode = estimateShellMode === "pricing"
+    ? [
+      { id: "pricing-mode", label: "Pricing", icon: "document", onClick: () => setEstimateShellMode("pricing"), disabled: !selectedEstimate },
+      { id: "pricing-overview", label: "Overview", icon: "briefcase", onClick: () => setEstimateShellMode("overview") },
+    ]
+    : estimateShellQuickActions;
+  const estimateShellGuardrailsForMode = estimateShellMode === "pricing"
+    ? [
+      "Pricing fields only",
+      "Minimal estimate save payload",
+      "Field roles stay blocked from estimates",
+    ]
+    : [
+      "Overview/readiness only",
+      "No automatic sends or job conversion",
+      "Field roles stay blocked from estimates",
+    ];
 
   if (!permissions?.estimates?.canView) {
     return (
@@ -29751,20 +29870,11 @@ function EstimatesPagePolished({
           assistant={{
             title: "Estimates",
             description: estimateShellAssistantDescription,
-            priorities: [
-              { value: draftToPriceRows.length, label: "drafts to price", tone: draftToPriceRows.length ? "orange" : "green" },
-              { value: readyToSendRows.length, label: "ready to send", tone: readyToSendRows.length ? "blue" : "slate" },
-              { value: sentToWinRows.length, label: "sent to win", tone: sentToWinRows.length ? "amber" : "slate" },
-              { value: approvedHandoffRows.length, label: "handoffs", tone: approvedHandoffRows.length ? "green" : "slate" },
-            ],
-            actions: estimateShellAssistantActions,
-            guardrails: [
-              "Overview/readiness only",
-              "No automatic sends or job conversion",
-              "Field roles stay blocked from estimates",
-            ],
+            priorities: estimateShellAssistantPrioritiesForMode,
+            actions: estimateShellAssistantActionsForMode,
+            guardrails: estimateShellGuardrailsForMode,
           }}
-          quickActions={estimateShellQuickActions}
+          quickActions={estimateShellQuickActionsForMode}
           className="co-estimates-command-shell"
         />
       </div>

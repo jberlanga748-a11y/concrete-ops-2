@@ -40243,6 +40243,168 @@ button.co-apex-command-kpi:hover:not(:disabled) {
     justify-self: start;
   }
 
+  .co-estimates-shell-pricing-panel {
+    display: grid;
+    min-width: 0;
+    gap: 0.58rem;
+  }
+
+  .co-estimates-shell-pricing-head {
+    display: flex;
+    min-width: 0;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.6rem;
+    border: 1px solid rgba(14, 116, 144, 0.16);
+    border-radius: 0.68rem;
+    background: #f8fafc;
+    padding: 0.62rem;
+  }
+
+  .co-estimates-shell-pricing-head > div {
+    min-width: 0;
+  }
+
+  .co-estimates-shell-pricing-head h3,
+  .co-estimates-shell-line-items-head h4 {
+    margin: 0.32rem 0 0;
+    color: var(--color-text-main);
+    font-size: 0.9rem;
+    font-weight: 950;
+    line-height: 1.16;
+  }
+
+  .co-estimates-shell-pricing-head p,
+  .co-estimates-shell-line-items-head p {
+    margin-top: 0.26rem;
+    color: var(--color-text-muted);
+    font-size: 0.7rem;
+    font-weight: 800;
+    line-height: 1.32;
+  }
+
+  .co-estimates-shell-pricing-context,
+  .co-estimates-shell-pricing-totals {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.42rem;
+  }
+
+  .co-estimates-shell-pricing-context span,
+  .co-estimates-shell-pricing-totals span {
+    min-width: 0;
+    border: 1px solid rgba(226, 232, 240, 0.92);
+    border-radius: 0.58rem;
+    background: #fff;
+    padding: 0.52rem;
+  }
+
+  .co-estimates-shell-pricing-context em,
+  .co-estimates-shell-pricing-totals em {
+    display: block;
+    color: var(--color-text-muted);
+    font-size: 0.62rem;
+    font-style: normal;
+    font-weight: 900;
+    line-height: 1;
+  }
+
+  .co-estimates-shell-pricing-context strong,
+  .co-estimates-shell-pricing-totals strong {
+    display: block;
+    min-width: 0;
+    margin-top: 0.28rem;
+    overflow-wrap: anywhere;
+    color: var(--color-text-main);
+    font-size: 0.78rem;
+    font-weight: 950;
+    line-height: 1.18;
+  }
+
+  .co-estimates-shell-pricing-adjustments {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .co-estimates-shell-line-items {
+    display: grid;
+    min-width: 0;
+    gap: 0.5rem;
+  }
+
+  .co-estimates-shell-line-items-head {
+    display: flex;
+    min-width: 0;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.6rem;
+  }
+
+  .co-estimates-shell-line-items-head > div {
+    min-width: 0;
+  }
+
+  .co-estimates-shell-line-card {
+    min-width: 0;
+    border: 1px solid rgba(226, 232, 240, 0.92);
+    border-radius: 0.62rem;
+    background: #fff;
+    padding: 0.58rem;
+  }
+
+  .co-estimates-shell-line-grid {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1.55fr) minmax(4.4rem, 0.5fr) minmax(4.4rem, 0.5fr) minmax(6.2rem, 0.7fr);
+    gap: 0.46rem;
+  }
+
+  .co-estimates-shell-line-foot {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    margin-top: 0.48rem;
+  }
+
+  .co-estimates-shell-line-foot span,
+  .co-estimates-shell-line-foot button {
+    color: var(--color-text-muted);
+    font-size: 0.68rem;
+    font-weight: 900;
+    line-height: 1.2;
+  }
+
+  .co-estimates-shell-line-foot button {
+    border: 0;
+    background: transparent;
+    color: #475569;
+    cursor: pointer;
+  }
+
+  .co-estimates-shell-line-foot button:hover {
+    color: var(--color-text-main);
+  }
+
+  .co-estimates-shell-line-foot button:disabled {
+    color: #cbd5e1;
+    cursor: not-allowed;
+  }
+
+  .co-estimates-shell-pricing-totals {
+    grid-template-columns: repeat(auto-fit, minmax(5.7rem, 1fr));
+  }
+
+  .co-estimates-shell-pricing-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
   .co-estimates-shell-selected-facts {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
