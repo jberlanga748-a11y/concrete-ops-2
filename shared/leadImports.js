@@ -72,6 +72,7 @@ export function createLeadImportFromPackage(packageJson = {}, options = {}) {
     customer: context.customerName || context.contactName,
     city: context.city,
     project,
+    trade: context.serviceType,
     status: "New",
     priority: normalizePriority(context.priority),
     value: 0,

@@ -219,6 +219,7 @@ test("lead workflow supports assignment, status history, customer linking, archi
         customer: "Taylor Mason",
         city: "Dallas",
         project: "Front steps",
+        trade: "fence",
         status: "Contacted",
         priority: "High",
         ownerId: before.user.id,
@@ -235,6 +236,7 @@ test("lead workflow supports assignment, status history, customer linking, archi
     assert.equal(createdLead.ownerId, before.user.id);
     assert.equal(createdLead.owner, before.user.name);
     assert.equal(createdLead.source, "Website");
+    assert.equal(createdLead.trade, "fencing");
     assert.equal(createdLead.followUpDueAt, "2026-05-02");
     assert.ok(createdLead.customerId, "Expected lead creation to link a customer record.");
     assert.equal(createdLead.fitScore, 0);
@@ -290,6 +292,7 @@ test("lead workflow supports assignment, status history, customer linking, archi
         status: "Site Visit",
         ownerId: before.user.id,
         source: "Referral",
+        trade: "roofing",
         followUpDueAt: "2026-05-04",
         customerId: existingCustomer.id,
         city: existingCustomer.city || "Salem",
@@ -301,6 +304,7 @@ test("lead workflow supports assignment, status history, customer linking, archi
     assert.ok(updatedLead, "Expected updated lead to be returned.");
     assert.equal(updatedLead.status, "Site Visit");
     assert.equal(updatedLead.source, "Referral");
+    assert.equal(updatedLead.trade, "roofing");
     assert.equal(updatedLead.followUpDueAt, "2026-05-04");
     assert.equal(updatedLead.customerId, existingCustomer.id);
     assert.equal(updatedLead.customer, existingCustomer.name);

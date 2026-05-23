@@ -567,6 +567,7 @@ const INITIAL_LEAD_FORM = {
   customerId: "",
   city: "",
   project: "",
+  trade: "",
   status: "New",
   priority: "Normal",
   owner: "",
@@ -687,6 +688,7 @@ const INITIAL_ESTIMATE_FORM = {
   customerName: "",
   customerEmail: "",
   title: "",
+  trade: "",
   status: "draft",
   scopeSummary: "",
   internalNotes: "",
@@ -717,6 +719,7 @@ function createEstimateDraft(record) {
     customerName: record?.customer?.name || record?.customerName || "",
     customerEmail: record?.customerEmail || estimateCustomerEmail(record) || "",
     title: record?.title || "",
+    trade: record?.trade || record?.lead?.trade || "",
     status: record?.status || "draft",
     scopeSummary: record?.scopeSummary || "",
     internalNotes: record?.internalNotes || "",
@@ -15735,8 +15738,10 @@ function LeadCommandRail({
   const assistant = leadAssistantState?.leadId === lead.id ? leadAssistantState : null;
   const followUpDue = isLeadFollowUpDue(lead);
   const readyForEstimate = isLeadReadyForEstimate(lead);
+  const tradeLabel = CONSTRUCTION_TRADE_PROFILES.find((trade) => trade.id === lead.trade)?.label || lead.trade || "Company default";
   const readinessRows = [
     { label: "Contact info confirmed", ok: Boolean(phone || email) },
+    { label: "Trade / work type set", ok: Boolean(lead.trade) },
     { label: "Job address confirmed", ok: Boolean(lead.city || lead.address || lead.projectAddress) },
     { label: "Scope description noted", ok: Boolean(lead.project || lead.scopeSummary || lead.notes) },
     { label: "Next step assigned", ok: Boolean(lead.nextStep) },
@@ -15771,6 +15776,7 @@ function LeadCommandRail({
             <Badge tone={lead.priority === "High" ? "amber" : lead.priority === "Low" ? "slate" : "blue"}>{lead.priority || "Normal"}</Badge>
             <LeadScoreBadge lead={lead} />
             <LeadMissingInfoBadge lead={lead} />
+            <Badge tone={lead.trade ? "blue" : "slate"}>{tradeLabel}</Badge>
             {readyForEstimate ? <Badge tone="green">Estimate ready</Badge> : <Badge tone="amber">Needs prep</Badge>}
           </div>
           <div className="co-leads-summary-facts">
@@ -15873,6 +15879,10 @@ function LeadCommandRail({
             <SelectField label="Owner" value={lead.ownerId || ""} onChange={(event) => onFieldChange("ownerId", event.target.value)} disabled={!canManage || disabled}>
               <option value="">Unassigned</option>
               {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+            </SelectField>
+            <SelectField label="Trade / work type" value={lead.trade || ""} onChange={(event) => onFieldChange("trade", event.target.value)} disabled={!canManage || disabled}>
+              <option value="">Use company default / infer from notes</option>
+              {CONSTRUCTION_TRADE_PROFILES.map((trade) => <option key={trade.id} value={trade.id}>{trade.label}</option>)}
             </SelectField>
             <InputField label="Follow-up due" type="date" value={lead.followUpDueAt || ""} onChange={(event) => onFieldChange("followUpDueAt", event.target.value)} disabled={!canManage || disabled} />
             <InputField label="Next step" value={lead.nextStep || ""} onChange={(event) => onFieldChange("nextStep", event.target.value)} disabled={!canManage || disabled} />
@@ -27024,7 +27034,7 @@ function EstimatesPagePolished({
   const canManage = Boolean(permissions?.estimates?.canManage);
   const canUseAiRoughNotes = Boolean(permissions?.estimates?.canUseAiRoughNotes);
   const canUseGcPackets = Boolean(permissions?.estimates?.canUseGcPackets);
-  const estimatePrimaryTrade = companyProfile?.primaryTrade || "general-contractor";
+  const companyPrimaryTrade = companyProfile?.primaryTrade || "general-contractor";
   const singleCustomerId = visibleCustomers.length === 1 ? visibleCustomers[0].id : "";
   const singleCustomerName = visibleCustomers.length === 1 ? visibleCustomers[0].name || "" : "";
   const singleCustomerEmail = singleCustomerId ? visibleCustomers.find((customer) => customer.id === singleCustomerId)?.email || "" : "";
@@ -27040,6 +27050,7 @@ function EstimatesPagePolished({
     () => visibleLeads.find((lead) => lead.id === detailDraft.leadId) || selectedEstimate?.lead || null,
     [detailDraft.leadId, selectedEstimate?.lead, visibleLeads],
   );
+  const estimatePrimaryTrade = detailDraft.trade || detailLead?.trade || selectedEstimate?.lead?.trade || createDraft.trade || companyPrimaryTrade;
   const detailEstimatePreview = useMemo(() => {
     if (!selectedEstimate) return null;
     return {

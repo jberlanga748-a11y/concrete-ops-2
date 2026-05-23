@@ -258,6 +258,7 @@ function deriveEstimateFieldTradeContext(estimate = {}, companyProfile = {}) {
     companySettings: companyProfile,
     estimate,
     lead: estimate?.lead || {},
+    roughNotes: [estimate?.internalNotes, estimate?.scopeSummary, estimate?.title].filter(Boolean).join("\n"),
   });
 }
 

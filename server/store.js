@@ -751,6 +751,7 @@ export function createSeedState() {
   const leads = withSeedTimestamps(INITIAL_LEADS, seededAt, 180).map((lead) => ({
     ...lead,
     ...(leadDemoDates[lead.id] || {}),
+    trade: normalizeConstructionTradeId(lead.trade || lead.project || lead.notes) || lead.trade || "",
     ownerId: officeActor.id,
   }));
   const jobs = withSeedTimestamps(INITIAL_JOBS, seededAt, 240).map((job) => {
@@ -2620,6 +2621,7 @@ function refreshDemoWalkthroughDatesInDatabase(database, demoSeed) {
         customer = ?,
         city = ?,
         project = ?,
+        trade = ?,
         status = ?,
         priority = ?,
         value = ?,
@@ -2796,6 +2798,7 @@ function refreshDemoWalkthroughDatesInDatabase(database, demoSeed) {
       lead.customer || "",
       lead.city || "",
       lead.project || "",
+      normalizeConstructionTradeId(lead.trade) || lead.trade || "",
       lead.status || "",
       lead.priority || "",
       lead.value ?? 0,
@@ -5844,6 +5847,17 @@ const MIGRATIONS = [
         }
       },
     },
+    {
+      version: 50,
+      description: "Persist lead trade context for multi-trade estimating.",
+      up(database) {
+        if (!columnExists(database, "leads", "trade")) {
+          database.exec("ALTER TABLE leads ADD COLUMN trade TEXT NOT NULL DEFAULT '';");
+        }
+
+        database.exec("CREATE INDEX IF NOT EXISTS idx_leads_trade ON leads(trade);");
+      },
+    },
   ];
 
 function runInTransaction(database, work) {
@@ -5903,8 +5917,8 @@ function writeStateToDb(state) {
   `);
 
   const insertLead = database.prepare(`
-    INSERT INTO leads (id, sort_index, company_id, customer_id, customer, city, project, status, priority, value, owner, owner_id, age, source, follow_up_due_at, next_step, notes, fit_score, fit_label, fit_reason, fit_risks, fit_next_step, score_source, scored_at, missing_info_status, missing_info_count, missing_info_items, missing_info_next_step, missing_info_checked_at, created_at, updated_at, archived_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO leads (id, sort_index, company_id, customer_id, customer, city, project, trade, status, priority, value, owner, owner_id, age, source, follow_up_due_at, next_step, notes, fit_score, fit_label, fit_reason, fit_risks, fit_next_step, score_source, scored_at, missing_info_status, missing_info_count, missing_info_items, missing_info_next_step, missing_info_checked_at, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertLeadSource = database.prepare(`
@@ -6189,6 +6203,7 @@ function writeStateToDb(state) {
         lead.customer,
         lead.city,
         lead.project,
+        normalizeConstructionTradeId(lead.trade) || lead.trade || "",
         lead.status,
         lead.priority,
         Number(lead.value || 0),
@@ -6976,7 +6991,7 @@ function readTableState() {
   `).all().map((customer) => withDefaultCompanyId(customer));
 
   const leads = database.prepare(`
-    SELECT id, company_id AS companyId, customer_id AS customerId, customer, city, project, status, priority, value, owner, owner_id AS ownerId, age, source, follow_up_due_at AS followUpDueAt, next_step AS nextStep, notes,
+    SELECT id, company_id AS companyId, customer_id AS customerId, customer, city, project, trade, status, priority, value, owner, owner_id AS ownerId, age, source, follow_up_due_at AS followUpDueAt, next_step AS nextStep, notes,
            fit_score AS fitScore, fit_label AS fitLabel, fit_reason AS fitReason, fit_risks AS fitRisks, fit_next_step AS fitNextStep, score_source AS scoreSource, scored_at AS scoredAt,
            missing_info_status AS missingInfoStatus, missing_info_count AS missingInfoCount, missing_info_items AS missingInfoItems, missing_info_next_step AS missingInfoNextStep, missing_info_checked_at AS missingInfoCheckedAt,
            created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt

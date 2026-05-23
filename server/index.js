@@ -263,6 +263,11 @@ const TOOL_CHECKLIST_STATUSES = new Set(["draft", "active", "submitted", "review
 const TOOL_CHECKLIST_ITEM_CATEGORIES = new Set(["hand_tools", "power_tools", "concrete_finishing", "forms_layout", "safety_ppe", "small_equipment", "consumables", "other"]);
 const TOOL_CHECKLIST_ITEM_STATUSES = new Set(["needed", "loaded", "on_site", "missing", "damaged", "returned", "not_needed"]);
 const COMPANY_ACCENT_COLORS = new Set(["blue", "slate", "emerald", "amber", "orange"]);
+
+function normalizeLeadTradeValue(value = "") {
+  const normalized = normalizeConstructionTradeId(value);
+  return normalized || optionalString(value, "").slice(0, 120);
+}
 const PRE_POUR_CHECKLIST_STATUSES = new Set(["draft", "completed", "reviewed", "reopened", "archived"]);
 const PRE_POUR_ITEM_STATUSES = new Set(["unchecked", "checked", "not_applicable"]);
 const POST_POUR_CHECKLIST_STATUSES = new Set(["draft", "completed", "reviewed", "reopened", "archived"]);
@@ -2679,6 +2684,7 @@ function sanitizeEstimateForUser(estimate, state, user) {
       id: lead.id,
       customer: lead.customer || "",
       project: lead.project || "",
+      trade: lead.trade || "",
       status: lead.status || "",
     } : null,
     job: job ? sanitizeJobForUser(job, user, state) : null,
@@ -2713,6 +2719,7 @@ function buildEstimateRoughNotesEstimateContext(state, user, payload = {}) {
       id: lead.id,
       customer: lead.customer || "",
       project: lead.project || "",
+      trade: lead.trade || "",
       status: lead.status || "",
     } : existingEstimate?.lead || null,
   };
@@ -6479,6 +6486,7 @@ app.post("/api/public/estimate-request", asyncRoute(async (req, res) => {
       customer: customer.name,
       city: customer.city || city,
       project: projectLabel,
+      trade: normalizeLeadTradeValue(projectType),
       status: "New",
       priority: "Normal",
       value: 0,
@@ -6605,6 +6613,7 @@ app.post("/api/public/demo-interest", asyncRoute(async (req, res) => {
       customer: company,
       city: location,
       project: `Apex HQ founder pilot - ${workflow}`,
+      trade: normalizeLeadTradeValue(trade),
       status: "New",
       priority: "Normal",
       value: 0,
@@ -10373,6 +10382,7 @@ app.post("/api/opportunity-scout/found-opportunities/:id/convert-to-lead", requi
       customer: requiredString(leadPayload.customer, "Customer"),
       city: requiredString(leadPayload.city, "City"),
       project: requiredString(leadPayload.project, "Project"),
+      trade: normalizeLeadTradeValue(opportunity.trade || opportunity.projectType),
       status: "New",
       priority: optionalEnum(leadPayload.priority, LEAD_PRIORITIES, "Priority", "Normal"),
       value: optionalNonNegativeNumber(leadPayload.value, "Value"),
@@ -10443,7 +10453,7 @@ app.post("/api/opportunity-scout/found-opportunities/:id/convert-to-lead", requi
       summary: "Lead created from Opportunity Scout",
       detail: `${newLead.customer} entered for ${newLead.project}.`,
       actor: req.auth.user,
-      changedFields: ["status", "owner", "source", "followUpDueAt"],
+      changedFields: ["status", "owner", "source", "followUpDueAt", "trade"],
     });
     return draft;
   });
@@ -12303,6 +12313,7 @@ app.post("/api/leads", requireAuth, asyncRoute(async (req, res) => {
     customer: requiredString(payload.customer, "Customer"),
     city: requiredString(payload.city, "City"),
     project: requiredString(payload.project, "Project"),
+    trade: normalizeLeadTradeValue(payload.trade),
     status: initialStatus,
     priority: optionalEnum(payload.priority, LEAD_PRIORITIES, "Priority", "Normal"),
     value: optionalNonNegativeNumber(payload.value, "Value"),
@@ -12429,6 +12440,7 @@ app.patch("/api/leads/:id", requireAuth, asyncRoute(async (req, res) => {
     const changedFields = [];
     const previousStatus = lead.status;
     const nextProject = updates.project == null ? lead.project : requiredString(updates.project, "Project");
+    const nextTrade = updates.trade == null ? lead.trade || "" : normalizeLeadTradeValue(updates.trade);
     const nextStatus = updates.status == null ? lead.status : optionalEnum(updates.status, LEAD_STATUSES, "Status", lead.status);
     const nextPriority = updates.priority == null ? lead.priority : optionalEnum(updates.priority, LEAD_PRIORITIES, "Priority", lead.priority);
     const nextValue = updates.value == null ? lead.value : optionalNonNegativeNumber(updates.value, "Value", lead.value);
@@ -12442,6 +12454,7 @@ app.patch("/api/leads/:id", requireAuth, asyncRoute(async (req, res) => {
     const nextCity = updates.city == null ? lead.city : requiredString(updates.city, "City");
 
     if (lead.project !== nextProject) changedFields.push("project");
+    if ((lead.trade || "") !== nextTrade) changedFields.push("trade");
     if (lead.status !== nextStatus) changedFields.push("status");
     if (lead.priority !== nextPriority) changedFields.push("priority");
     if (Number(lead.value) !== Number(nextValue)) changedFields.push("value");
@@ -12455,6 +12468,7 @@ app.patch("/api/leads/:id", requireAuth, asyncRoute(async (req, res) => {
 
     Object.assign(lead, {
       project: nextProject,
+      trade: nextTrade,
       status: nextStatus,
       priority: nextPriority,
       value: nextValue,

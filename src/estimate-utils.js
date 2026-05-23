@@ -1,5 +1,6 @@
 export { buildEstimateCustomerMessage, buildEstimateEmailSubject, estimateCustomerEmail } from "../shared/estimate-email.js";
 import { estimateCustomerEmail } from "../shared/estimate-email.js";
+import { inferConstructionTradeFromText, normalizeConstructionTradeId } from "../shared/constructionTrades.js";
 import { deriveEstimateBackup } from "./estimate-backup-utils.js";
 import { deriveEstimateGcPacketLite } from "./estimate-gc-packet-utils.js";
 
@@ -519,6 +520,8 @@ export function buildEstimateDraftFromLead(lead = {}, { customers = [] } = {}) {
   const customerId = textValue(linkedCustomer?.id || lead?.customerId);
   const customerName = firstText(linkedCustomer?.name, lead?.customer);
   const title = firstText(lead?.project, lead?.title, customerName ? `${customerName} estimate` : "Lead estimate");
+  const trade = normalizeConstructionTradeId(lead?.trade || lead?.projectType)
+    || inferConstructionTradeFromText(lead?.trade, lead?.projectType, lead?.project, lead?.scopeSummary, lead?.description, lead?.notes);
   const scopeSummary = firstText(
     lead?.scopeSummary,
     lead?.description,
@@ -538,6 +541,7 @@ export function buildEstimateDraftFromLead(lead = {}, { customers = [] } = {}) {
     leadId,
     customerEmail: firstText(linkedCustomer?.email, lead?.customerEmail, lead?.email, lead?.contactEmail),
     title,
+    trade,
     status: "draft",
     scopeSummary,
     internalNotes,

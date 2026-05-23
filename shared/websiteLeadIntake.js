@@ -89,6 +89,7 @@ export function createWebsiteLeadFromPackage(packageJson = {}, options = {}) {
     customer: context.customerName || context.contactName || "Website Lead",
     city: buildLocationText(context),
     project,
+    trade: context.serviceType,
     status: "New",
     priority: normalizePriority(context.timeline),
     value: 0,

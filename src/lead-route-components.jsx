@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { missingInfoTone } from "../shared/leadMissingInfo.js";
 import { leadScoreTone } from "../shared/leadScoring.js";
+import { CONSTRUCTION_TRADE_PROFILES } from "../shared/constructionTrades.js";
 import { Badge, Button, Card, Icon, InputField, SectionHeader, SelectField, StateCard, StatusBadge, TextAreaField } from "./app-shell-components";
 import { deriveLeadPilotWorkflowReadiness } from "./lead-utils";
 
@@ -109,6 +110,12 @@ export function LeadIntakeCard({ draft, setDraft, onCreateLead, disabled, canMan
           <InputField label="Project" value={draft.project} onChange={(event) => setDraft((current) => ({ ...current, project: event.target.value }))} placeholder="Front walkway replacement" />
           <InputField label="Follow-up due" type="date" value={draft.followUpDueAt} onChange={(event) => setDraft((current) => ({ ...current, followUpDueAt: event.target.value }))} />
         </div>
+        <SelectField label="Trade / work type" value={draft.trade || ""} onChange={(event) => setDraft((current) => ({ ...current, trade: event.target.value }))}>
+          <option value="">Use company default / infer from notes</option>
+          {CONSTRUCTION_TRADE_PROFILES.map((trade) => (
+            <option key={trade.id} value={trade.id}>{trade.label}</option>
+          ))}
+        </SelectField>
         <div className="grid gap-3 md:grid-cols-4">
           <SelectField label="Status" value={draft.status} onChange={(event) => setDraft((current) => ({ ...current, status: event.target.value }))}>
             <option>New</option>

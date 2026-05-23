@@ -162,6 +162,7 @@ test("estimate draft prefill from lead uses existing linked customer without lin
     leadId: "L-100",
     customerEmail: "megan@example.test",
     title: "Driveway replacement",
+    trade: "concrete",
     status: "draft",
     scopeSummary: "Replace cracked driveway and apron.",
     internalNotes: [
@@ -189,6 +190,7 @@ test("estimate draft from lead requires an existing linked customer before creat
   assert.match(readiness.message, /Link or convert this lead to a customer/);
   assert.equal(draft.customerId, "");
   assert.equal(draft.leadId, "L-101");
+  assert.equal(draft.trade, "concrete");
   assert.equal(draft.items.length, 0);
 });
 
