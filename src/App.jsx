@@ -27,7 +27,7 @@ import {
   resolveApexAssistantCommand,
 } from "./apex-assistant-shell-utils";
 import { AppHealthAuditActivityPanel, CustomerPortalManualPreviewPanel, EnterpriseTrustReadinessPanel, OwnerHealthStatusPanel, PwaInstallGuidancePanel, ReleaseSafetyRollbackPanel, UiStyleFoundationPanel } from "./app-health-route-components";
-import { buildAgentActionProposal, deriveAgentActionProposalAuditHistory, normalizeAgentActionProposalAuditEvent } from "./agent-action-proposal-utils";
+import { buildAgentActionProposal, deriveAgentActionProposalAuditHistory, deriveAgentActionProposalQueue, normalizeAgentActionProposalAuditEvent } from "./agent-action-proposal-utils";
 import { agentContextPayloadToWorkflowContext } from "./agent-context-api-utils";
 import { deriveAgentWorkflowContext } from "./agent-workflow-context-utils";
 import { deriveAiOfficeAgentCommandCenter } from "./ai-office-utils";
@@ -21983,6 +21983,11 @@ function CopilotPagePolished({
     ...row,
     onAction: () => openAgentCommandTarget(row),
   }));
+  const actionProposalQueue = useMemo(() => deriveAgentActionProposalQueue(agentCommandCenter.focusRows, {
+    permissions,
+    workflowContext: aiOfficeWorkflowContext,
+    limit: 4,
+  }), [agentCommandCenter.focusRows, aiOfficeWorkflowContext, permissions]);
 
   function renderAgentTradeGuidance(target) {
     const guidance = target?.tradeGuidance;
@@ -22817,6 +22822,28 @@ function CopilotPagePolished({
         </div>
 
         <aside className="co-ai-right-rail min-w-0">
+          <Card className="co-ai-rail-card">
+            <SectionHeader title="Agent Proposal Queue" description="Review-first packets prepared from the current AI Office queue. Nothing is created, sent, approved, converted, or billed here." />
+            <div className="co-ai-proposal-queue">
+              {actionProposalQueue.length ? actionProposalQueue.map((item) => (
+                <button key={item.id} type="button" className="co-ai-proposal-row co-focus-ring" data-tone={item.tone} onClick={() => openAgentCommandTarget(item.target)}>
+                  <span>
+                    <strong>{item.sourceTitle}</strong>
+                    <em>{item.helper}</em>
+                    {item.contextLabel || item.tradeLabel ? (
+                      <small>{[item.contextLabel, item.tradeLabel ? `Trade: ${item.tradeLabel}` : ""].filter(Boolean).join(" / ")}</small>
+                    ) : null}
+                  </span>
+                  <b>{item.statusLabel}</b>
+                  <i>{item.actionLabel}</i>
+                </button>
+              )) : (
+                <p className="text-xs font-bold leading-5 text-slate-500">No review packets are waiting. New lead, proof, estimate, job, support, and safety review items will appear here.</p>
+              )}
+            </div>
+            <p className="mt-3 text-[11px] font-bold leading-5 text-slate-500">Proposal queue is read-only. Use the normal workflow screen for any approved action.</p>
+          </Card>
+
           <Card id="agent-learning-panel" className="co-ai-rail-card">
             <SectionHeader title="Office Guardrails" description="Apex HQ AI stays inside office workflows and saved records." />
             <div className="co-ai-boundary-list">

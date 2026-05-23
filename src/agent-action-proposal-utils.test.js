@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   buildAgentActionProposal,
+  deriveAgentActionProposalQueue,
   deriveAgentActionProposalAuditHistory,
   normalizeAgentActionProposalAuditEvent,
   redactAgentProposalAuditText,
@@ -99,6 +100,97 @@ test("agent action proposal exposes workflow draft prep as review-only output", 
   assert.match(proposal.draftPrep[0].safeOutput, /does not save/i);
   assert.ok(proposal.draftPrep[0].warnings.some((item) => /No customer email/i.test(item)));
   assert.equal(validateAgentActionProposalSafety(proposal).ok, true);
+});
+
+test("agent action proposal queue converts AI Office focus rows into review-first packets", () => {
+  const queue = deriveAgentActionProposalQueue([
+    {
+      id: "lead-LEAD-1",
+      moduleId: "leads",
+      recordType: "lead",
+      title: "Fence replacement lead",
+      description: "Missing gate details before estimate prep.",
+      actionLabel: "Open lead",
+      record: { id: "LEAD-1", trade: "fencing" },
+      tradeGuidance: { label: "Fencing" },
+    },
+    {
+      id: "report-REPORT-1",
+      moduleId: "reports",
+      recordType: "report",
+      title: "Fence daily report",
+      description: "Submitted report needs office review.",
+      actionLabel: "Open report",
+      record: { id: "REPORT-1" },
+    },
+  ], {
+    permissions: {
+      aiOffice: { canView: true },
+      leads: { canView: true },
+      reports: { canView: true, canReview: true },
+    },
+    workflowContext: {
+      source: "local",
+      visibleModuleCount: 2,
+      attentionCount: 2,
+      modules: [
+        {
+          id: "leads",
+          moduleId: "leads",
+          label: "Leads",
+          canView: true,
+          summary: "1 lead needs review.",
+          tradeSummary: {
+            primaryTradeId: "fencing",
+            primaryTradeLabel: "Fencing",
+            proofPhotoChecklist: ["Gate hardware"],
+            fieldHandoffChecklist: ["Confirm fence line"],
+          },
+        },
+        {
+          id: "proof",
+          moduleId: "reports",
+          label: "Proof Engine",
+          canView: true,
+          summary: "1 proof item needs review.",
+        },
+      ],
+    },
+  });
+
+  assert.equal(queue.length, 2);
+  assert.equal(queue[0].proposal.mode, "review_first_action_proposal");
+  assert.equal(queue[0].proposal.proof.commandType, "lead-follow-up");
+  assert.equal(queue[0].proposal.contextProof.module.tradeSummary.primaryTradeLabel, "Fencing");
+  assert.equal(queue[0].tradeLabel, "Fencing");
+  assert.equal(queue[1].proposal.proof.commandType, "report-review");
+  assert.ok(queue[0].proposal.blockedActions.some((item) => /No customer email/i.test(item)));
+  assert.equal(validateAgentActionProposalSafety(queue[0].proposal).ok, true);
+});
+
+test("agent action proposal queue blocks field-only users", () => {
+  const queue = deriveAgentActionProposalQueue([
+    {
+      id: "lead-LEAD-1",
+      moduleId: "leads",
+      recordType: "lead",
+      title: "Fence replacement lead",
+      actionLabel: "Open lead",
+      record: { id: "LEAD-1" },
+    },
+  ], {
+    permissions: {
+      jobs: { canManageField: true, canManageAll: false },
+      leads: { canView: false },
+      aiOffice: { canView: false },
+      opportunityScout: { canView: false },
+    },
+  });
+
+  assert.equal(queue.length, 1);
+  assert.equal(queue[0].proposal.status, "blocked");
+  assert.equal(queue[0].statusLabel, "Blocked");
+  assert.equal(validateAgentActionProposalSafety(queue[0].proposal).ok, true);
 });
 
 test("agent action proposal hydrates review packets with read-only server context", () => {

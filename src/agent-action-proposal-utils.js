@@ -339,6 +339,109 @@ function hydrateDraftPrepWithContext(draftPrep = [], contextProof = null) {
   }));
 }
 
+function proposalTypeForAiOfficeTarget(target = {}) {
+  const recordType = text(target.recordType).toLowerCase();
+  const moduleId = text(target.moduleId).toLowerCase();
+  if (recordType === "dailycloseout") return "daily-closeout-readiness";
+  if (recordType === "report") return "report-review";
+  if (recordType === "upload") return "upload-review";
+  if (recordType === "timeentry") return "time-review";
+  if (recordType === "changeorder") return "change-order-review";
+  if (recordType === "safetyincident") return "safety-incident-review";
+  if (recordType === "lead") return "lead-follow-up";
+  if (recordType === "job") return "job-handoff-review";
+  if (recordType === "draft") return "imported-draft-review";
+  if (recordType === "fieldops") return moduleId === "time" ? "time-review" : moduleId === "uploads" ? "upload-review" : moduleId === "incidents" ? "safety-incident-review" : "job-handoff-review";
+  if (recordType === "estimate") return target.actionMode === "jobHandoff" ? "estimate-job-handoff-review" : "estimate-packet-review";
+  if (recordType === "opportunity") return "lead-follow-up";
+  if (recordType === "agentlearning") return "workflow-draft-prep";
+  if (moduleId === "schedule") return "schedule-dispatch-review";
+  if (moduleId === "customers") return "customer-account-review";
+  if (moduleId === "employees") return "crew-readiness-review";
+  if (moduleId === "support") return "support-workflow-review";
+  return "workflow-draft-prep";
+}
+
+function matchForAiOfficeTarget(target = {}) {
+  const record = target.record || {};
+  const id = text(target.id || record.id || record.opportunityId || target.title);
+  const recordType = text(target.recordType).toLowerCase();
+  const match = {
+    id,
+    label: text(target.title || record.title || record.customer || record.customerName || record.jobTitle || record.fileName || "Review item"),
+    helper: text(target.description || target.helper || "Open the existing Apex HQ workflow and review before acting."),
+    type: recordType || text(target.moduleId) || "workflow",
+    reviewWarnings: asArray(record.reviewWarnings || record.riskFlags || record.missingInfoItems).map(text).filter(Boolean).slice(0, 4),
+  };
+  if (recordType === "lead") match.leadId = text(record.id || target.recordId || id.replace(/^lead-/, ""));
+  if (recordType === "estimate") {
+    match.estimateId = text(record.id || target.recordId || id.replace(/^estimate-(draft|handoff|packet)-/, ""));
+    match.readyForJobHandoff = Boolean(target.actionMode === "jobHandoff" || record.status === "approved");
+    match.converted = Boolean(record.jobId);
+  }
+  if (recordType === "job" || recordType === "fieldops") match.jobId = text(record.id || record.relatedJobId || target.recordId);
+  if (recordType === "report") match.reportId = text(record.id || target.recordId);
+  if (recordType === "upload") match.uploadId = text(record.id || target.recordId);
+  if (recordType === "timeentry") match.timeEntryId = text(record.id || target.recordId);
+  if (recordType === "changeorder") match.changeOrderRequestId = text(record.id || target.recordId);
+  if (recordType === "safetyincident") match.safetyIncidentId = text(record.id || target.recordId);
+  return match;
+}
+
+function responseForAiOfficeTarget(target = {}) {
+  const type = proposalTypeForAiOfficeTarget(target);
+  const moduleId = text(target.moduleId || "commandCenter");
+  const actionLabel = text(target.actionLabel || "Open workflow");
+  const match = matchForAiOfficeTarget(target);
+  const message = text(target.description || target.helper || `Prepare a review-first packet for ${match.label}. Nothing is saved or sent.`);
+  const response = {
+    type,
+    moduleId,
+    actionLabel,
+    message,
+    matches: [match],
+  };
+  if (type === "workflow-draft-prep") {
+    response.draftPacket = {
+      title: `${match.label} review packet`,
+      summary: message,
+      target: { id: match.id, moduleId, actionLabel, title: match.label },
+      items: [
+        { label: "Context to review", detail: message },
+        { label: "Human next step", detail: actionLabel },
+      ],
+      blockedActions: DEFAULT_BLOCKED_ACTIONS,
+      safetyBoundary: "Draft prep only. Nothing is saved, sent, approved, converted, scheduled, invoiced, or changed.",
+    };
+  }
+  return response;
+}
+
+export function deriveAgentActionProposalQueue(targets = [], { permissions = {}, workflowContext = null, limit = 4 } = {}) {
+  return asArray(targets)
+    .slice(0, Math.max(1, Number(limit) || 4))
+    .map((target) => {
+      const response = responseForAiOfficeTarget(target);
+      const proposal = buildAgentActionProposal(response, { permissions, workflowContext });
+      if (!proposal) return null;
+      return {
+        id: `${proposal.id}:${target.id || response.moduleId}`,
+        target,
+        response,
+        proposal,
+        title: proposal.title,
+        sourceTitle: text(target.title || target.helper || proposal.typeLabel),
+        helper: text(target.description || target.helper || proposal.allowedNextStep),
+        tone: proposal.status === "blocked" ? "red" : proposal.tone,
+        statusLabel: proposal.status === "blocked" ? "Blocked" : "Needs review",
+        actionLabel: proposal.actionLabel,
+        contextLabel: proposal.contextProof?.module?.label || "",
+        tradeLabel: proposal.contextProof?.module?.tradeSummary?.primaryTradeLabel || target.tradeGuidance?.label || "",
+      };
+    })
+    .filter(Boolean);
+}
+
 export function buildAgentActionProposal(response = {}, { permissions = {}, workflowContext = null } = {}) {
   if (!response || typeof response !== "object") {
     return null;

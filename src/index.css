@@ -29129,6 +29129,7 @@ textarea {
 }
 
 .co-ai-boundary-list,
+.co-ai-proposal-queue,
 .co-ai-scout-quality-list,
 .co-ai-snapshot-grid {
   display: grid;
@@ -29137,6 +29138,7 @@ textarea {
 
 .co-ai-boundary-row,
 .co-ai-action-row,
+.co-ai-proposal-row,
 .co-ai-scout-quality-row,
 .co-ai-snapshot-grid > div {
   border: 1px solid rgba(51, 65, 85, 0.9);
@@ -29146,6 +29148,7 @@ textarea {
 
 .co-ai-boundary-row,
 .co-ai-action-row,
+.co-ai-proposal-row,
 .co-ai-scout-quality-row {
   display: flex;
   align-items: center;
@@ -29156,6 +29159,8 @@ textarea {
 
 .co-ai-boundary-row span,
 .co-ai-action-row span,
+.co-ai-proposal-row em,
+.co-ai-proposal-row small,
 .co-ai-scout-quality-row em,
 .co-ai-scout-quality-row small,
 .co-ai-snapshot-grid span,
@@ -29164,6 +29169,69 @@ textarea {
   font-size: 0.75rem;
   font-style: normal;
   font-weight: 800;
+}
+
+.co-ai-proposal-row {
+  --co-ai-tone: #64748b;
+  text-align: left;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.co-ai-proposal-row[data-tone="red"] {
+  --co-ai-tone: #ef4444;
+}
+
+.co-ai-proposal-row[data-tone="amber"],
+.co-ai-proposal-row[data-tone="orange"] {
+  --co-ai-tone: #f97316;
+}
+
+.co-ai-proposal-row[data-tone="green"] {
+  --co-ai-tone: #16a34a;
+}
+
+.co-ai-proposal-row[data-tone="blue"] {
+  --co-ai-tone: #2563eb;
+}
+
+.co-ai-proposal-row:hover {
+  border-color: color-mix(in srgb, var(--co-ai-tone) 40%, white);
+  background: color-mix(in srgb, var(--co-ai-tone) 16%, rgba(15, 23, 42, 0.86));
+  transform: translateY(-1px);
+}
+
+.co-ai-proposal-row span {
+  display: grid;
+  min-width: 0;
+  gap: 0.14rem;
+}
+
+.co-ai-proposal-row strong {
+  color: #e2e8f0;
+  font-size: 0.82rem;
+  font-weight: 950;
+}
+
+.co-ai-proposal-row b,
+.co-ai-proposal-row i {
+  flex: 0 0 auto;
+  font-style: normal;
+  font-size: 0.68rem;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.co-ai-proposal-row b {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--co-ai-tone) 18%, rgba(15, 23, 42, 0.9));
+  color: var(--co-ai-tone);
+  padding: 0.34rem 0.48rem;
+}
+
+.co-ai-proposal-row i {
+  color: var(--co-ai-tone);
 }
 
 .co-ai-scout-quality-row {
