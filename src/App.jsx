@@ -29641,7 +29641,7 @@ function EstimatesPagePolished({
           ? `Resolve ${readiness.missing.slice(0, 3).join(", ")} before sending or converting.`
           : "Keep reviewing proposal context before any external action.";
     const activeShellMode = estimateShellModes.find((mode) => mode.id === estimateShellMode) || estimateShellModes[0];
-    const isFocusedShellEditMode = ["pricing", "proposal", "backup", "packet"].includes(activeShellMode.id);
+    const isFocusedShellEditMode = ["pricing", "proposal", "backup", "packet", "roughNotes"].includes(activeShellMode.id);
     const visibleEstimateShellModes = isFocusedShellEditMode
       ? estimateShellModes.filter((mode) => mode.id === "overview" || mode.id === activeShellMode.id)
       : estimateShellModes;
@@ -30036,12 +30036,63 @@ function EstimatesPagePolished({
       );
     }
 
+    function renderEstimateShellRoughNotesMode() {
+      if (!canUseAiRoughNotes || !canManage) {
+        return (
+          <div className="co-estimates-shell-workflow-panel co-estimates-shell-rough-notes-panel" role="region" aria-label="Estimate rough notes AI readiness">
+            <div className="co-estimates-shell-workflow-head">
+              <div>
+                <Badge tone="slate">Locked</Badge>
+                <h3>Rough Notes AI</h3>
+                <p>AI Rough Notes requires proposal tools entitlement and an office role that can manage estimates.</p>
+              </div>
+              <StatusBadge status={estimateStatusLabel(status)} />
+            </div>
+            <div className="co-estimates-shell-packet-lock">
+              <strong>Review-first AI unavailable.</strong>
+              <span>Field users remain blocked from estimates and pricing. No rough notes generation, send, convert, takeoff, handoff, or pricing save runs here.</span>
+            </div>
+            <div className="co-estimates-shell-workflow-actions">
+              <Button type="button" variant="secondary" onClick={() => setEstimateShellMode("overview")}>Return to overview</Button>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="co-estimates-shell-workflow-panel co-estimates-shell-rough-notes-panel" role="region" aria-label="Estimate rough notes AI suggestions">
+          <div className="co-estimates-shell-workflow-head">
+            <div>
+              <Badge tone="orange">Review-first AI</Badge>
+              <h3>Rough Notes AI</h3>
+              <p>Generate review-only proposal and GC packet suggestions. Applying suggestions fills the selected draft locally; it does not save, send, price, convert, takeoff, or hand off work.</p>
+            </div>
+            <StatusBadge status={estimateStatusLabel(status)} />
+          </div>
+          <EstimateRoughNotesHelper
+            roughNotes={roughNotes}
+            setRoughNotes={setRoughNotes}
+            assistant={roughNotesState}
+            onGenerate={handleGenerateEstimateRoughNotes}
+            onApplyToSelected={applyRoughNotesToSelected}
+            canApplySelected={Boolean(selectedEstimate)}
+            showNewEstimateActions={false}
+            disabled={busy}
+          />
+          <div className="co-estimates-shell-workflow-actions">
+            <Button type="button" variant="secondary" onClick={() => setEstimateShellMode("overview")}>Return to overview</Button>
+          </div>
+        </div>
+      );
+    }
+
     function renderEstimateShellModePlaceholder() {
       if (activeShellMode.id === "overview") return null;
       if (activeShellMode.id === "pricing") return renderEstimateShellPricingMode();
       if (activeShellMode.id === "proposal") return renderEstimateShellProposalMode();
       if (activeShellMode.id === "backup") return renderEstimateShellBackupMode();
       if (activeShellMode.id === "packet") return renderEstimateShellPacketMode();
+      if (activeShellMode.id === "roughNotes") return renderEstimateShellRoughNotesMode();
       return (
         <div className="co-estimates-shell-mode-placeholder" role="region" aria-label={`${activeShellMode.title} placeholder`}>
           <Badge tone="slate">Full tool migration pending</Badge>
@@ -30161,6 +30212,13 @@ function EstimatesPagePolished({
             { value: packetPrintSettings.allowInternalSections ? 1 : 0, label: packetPrintSettings.allowInternalSections ? "office packet" : "customer safe", tone: packetPrintSettings.allowInternalSections ? "amber" : "green" },
             { value: canUseGcPackets ? 1 : 0, label: canUseGcPackets ? "entitled" : "locked", tone: canUseGcPackets ? "green" : "slate" },
           ]
+          : estimateShellMode === "roughNotes"
+            ? [
+              { value: estimateRoughNotesText(roughNotes) ? 1 : 0, label: "notes ready", tone: estimateRoughNotesText(roughNotes) ? "orange" : "slate" },
+              { value: estimateRoughNotesHasSuggestions(roughNotesState.result) ? 1 : 0, label: "suggestions", tone: estimateRoughNotesHasSuggestions(roughNotesState.result) ? "green" : "slate" },
+              { value: canUseAiRoughNotes ? 1 : 0, label: canUseAiRoughNotes ? "entitled" : "locked", tone: canUseAiRoughNotes ? "green" : "slate" },
+              { value: 0, label: "auto actions", tone: "green" },
+            ]
     : [
       { value: draftToPriceRows.length, label: "drafts to price", tone: draftToPriceRows.length ? "orange" : "green" },
       { value: readyToSendRows.length, label: "ready to send", tone: readyToSendRows.length ? "blue" : "slate" },
@@ -30187,6 +30245,11 @@ function EstimatesPagePolished({
             { label: "Review Packet", icon: "clipboard", onClick: () => setEstimateShellMode("packet"), disabled: !selectedEstimate },
             { label: "Overview", icon: "briefcase", onClick: () => setEstimateShellMode("overview") },
           ]
+          : estimateShellMode === "roughNotes"
+            ? [
+              { label: "Rough Notes", icon: "spark", onClick: () => setEstimateShellMode("roughNotes"), disabled: !selectedEstimate },
+              { label: "Overview", icon: "briefcase", onClick: () => setEstimateShellMode("overview") },
+            ]
     : estimateShellAssistantActions;
   const estimateShellQuickActionsForMode = estimateShellMode === "pricing"
     ? [
@@ -30208,6 +30271,11 @@ function EstimatesPagePolished({
             { id: "packet-mode", label: "Packet", icon: "clipboard", onClick: () => setEstimateShellMode("packet"), disabled: !selectedEstimate },
             { id: "packet-overview", label: "Overview", icon: "briefcase", onClick: () => setEstimateShellMode("overview") },
           ]
+          : estimateShellMode === "roughNotes"
+            ? [
+              { id: "rough-notes-mode", label: "Rough Notes", icon: "spark", onClick: () => setEstimateShellMode("roughNotes"), disabled: !selectedEstimate },
+              { id: "rough-notes-overview", label: "Overview", icon: "briefcase", onClick: () => setEstimateShellMode("overview") },
+            ]
     : estimateShellQuickActions;
   const estimateShellGuardrailsForMode = estimateShellMode === "pricing"
     ? [
@@ -30233,6 +30301,12 @@ function EstimatesPagePolished({
             "No send, convert, AI, takeoff, or handoff actions",
             "Field roles stay blocked from estimates",
           ]
+          : estimateShellMode === "roughNotes"
+            ? [
+              "Review-first AI only",
+              "No save, send, convert, takeoff, or handoff actions",
+              "Field roles stay blocked from estimates",
+            ]
     : [
       "Overview/readiness only",
       "No automatic sends or job conversion",

@@ -1502,6 +1502,7 @@ export function EstimateRoughNotesHelper({
   onCreateNew,
   canApplySelected = false,
   canCreateNew = false,
+  showNewEstimateActions = true,
   disabled = false,
 }) {
   const loading = Boolean(assistant?.loading);
@@ -1531,8 +1532,8 @@ export function EstimateRoughNotesHelper({
           <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Safe assistant rules</p>
           <div className="mt-3 space-y-2 text-sm font-bold leading-6 text-slate-600">
             <p>Nothing sends, prices, or approves automatically.</p>
-            <p>Apply actions fill draft fields. Create draft now saves a new Draft estimate.</p>
-            <p>If the estimate is brand new, enter a customer/company name instead of selecting an existing customer.</p>
+            <p>{showNewEstimateActions ? "Apply actions fill draft fields. Create draft now saves a new Draft estimate." : "Apply actions only fill the selected draft locally for human review."}</p>
+            {showNewEstimateActions ? <p>If the estimate is brand new, enter a customer/company name instead of selecting an existing customer.</p> : null}
             <p>Pricing, final scope, and customer terms still need office review.</p>
           </div>
           <Button type="button" className="mt-4 w-full" onClick={onGenerate} disabled={disabled || loading || !estimateRoughNotesText(roughNotes)}>
@@ -1590,10 +1591,14 @@ export function EstimateRoughNotesHelper({
             <Button type="button" onClick={() => onApplyToSelected?.({ includeProposal: true, includeGcPacket: true, includeReviewNotes: true })} disabled={disabled || !canApplySelected}>Apply all to selected draft</Button>
             <Button type="button" variant="secondary" onClick={() => onApplyToSelected?.({ includeProposal: true, includeGcPacket: false, includeReviewNotes: true })} disabled={disabled || !canApplySelected}>Apply proposal only</Button>
             <Button type="button" variant="secondary" onClick={() => onApplyToSelected?.({ includeProposal: false, includeGcPacket: true, includeReviewNotes: true })} disabled={disabled || !canApplySelected}>Apply GC packet only</Button>
-            <Button type="button" variant="secondary" onClick={() => onApplyToNew?.({ includeProposal: true, includeGcPacket: true, includeReviewNotes: true })} disabled={disabled}>Fill New Estimate form</Button>
-            <Button type="button" onClick={() => onCreateNew?.({ includeProposal: true, includeGcPacket: true, includeReviewNotes: true })} disabled={disabled || !canCreateNew}>Create draft now</Button>
+            {showNewEstimateActions ? <Button type="button" variant="secondary" onClick={() => onApplyToNew?.({ includeProposal: true, includeGcPacket: true, includeReviewNotes: true })} disabled={disabled}>Fill New Estimate form</Button> : null}
+            {showNewEstimateActions ? <Button type="button" onClick={() => onCreateNew?.({ includeProposal: true, includeGcPacket: true, includeReviewNotes: true })} disabled={disabled || !canCreateNew}>Create draft now</Button> : null}
           </div>
-          <p className="text-xs font-bold leading-5 text-slate-500">Fill New Estimate form does not save. Create draft now saves a Draft estimate, opens it, and keeps it visible in the list.</p>
+          <p className="text-xs font-bold leading-5 text-slate-500">
+            {showNewEstimateActions
+              ? "Fill New Estimate form does not save. Create draft now saves a Draft estimate, opens it, and keeps it visible in the list."
+              : "Shell Rough Notes only applies suggestions to the selected draft locally. Review and save in the dedicated estimate modes."}
+          </p>
         </div>
       ) : null}
     </div>
