@@ -65,6 +65,31 @@ function sqliteStringLiteral(value) {
   return value.replaceAll("'", "''");
 }
 
+async function collectUploadBackupManifest(rootDir, currentDir = rootDir) {
+  const entries = await fs.readdir(currentDir, { withFileTypes: true }).catch((error) => {
+    if (error?.code === "ENOENT") return [];
+    throw error;
+  });
+  const files = [];
+
+  for (const entry of entries) {
+    const absolutePath = path.join(currentDir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...await collectUploadBackupManifest(rootDir, absolutePath));
+      continue;
+    }
+    if (!entry.isFile()) continue;
+
+    const stats = await fs.stat(absolutePath);
+    files.push({
+      path: path.relative(rootDir, absolutePath).split(path.sep).join("/"),
+      size: stats.size,
+    });
+  }
+
+  return files.sort((left, right) => left.path.localeCompare(right.path));
+}
+
 export function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
   const derivedKey = crypto.scryptSync(password, salt, 64).toString("hex");
   return `${salt}:${derivedKey}`;
@@ -7911,26 +7936,52 @@ export async function createBackupArtifacts() {
   const database = createDatabaseConnection();
   const exportedAt = new Date().toISOString();
   const stamp = backupTimestamp();
-  const { backupDir } = getDataPaths();
+  const { backupDir, dataDir } = getDataPaths();
+  const uploadsDir = path.join(dataDir, "uploads");
   const sqliteBackupFile = path.join(backupDir, `app-data-${stamp}.sqlite`);
   const jsonExportFile = path.join(backupDir, `app-data-${stamp}.json`);
+  const uploadBackupDir = path.join(backupDir, `uploads-${stamp}`);
+  const uploadManifestFile = path.join(backupDir, `uploads-${stamp}.manifest.json`);
+  const uploadFiles = await collectUploadBackupManifest(uploadsDir);
   const exportPayload = {
     exportedAt,
     source: getDataPaths(),
+    uploadBackup: {
+      artifact: path.basename(uploadBackupDir),
+      manifest: path.basename(uploadManifestFile),
+      fileCount: uploadFiles.length,
+      totalBytes: uploadFiles.reduce((sum, file) => sum + file.size, 0),
+    },
     state: readTableState(),
   };
 
   await fs.mkdir(backupDir, { recursive: true });
   await fs.rm(sqliteBackupFile, { force: true });
   await fs.rm(jsonExportFile, { force: true });
+  await fs.rm(uploadBackupDir, { recursive: true, force: true });
+  await fs.rm(uploadManifestFile, { force: true });
 
   database.exec(`VACUUM INTO '${sqliteStringLiteral(sqliteBackupFile)}'`);
   await fs.writeFile(jsonExportFile, `${JSON.stringify(exportPayload, null, 2)}\n`, "utf8");
+  await fs.mkdir(uploadBackupDir, { recursive: true });
+  if (uploadFiles.length > 0) {
+    await fs.cp(uploadsDir, uploadBackupDir, { recursive: true });
+  }
+  await fs.writeFile(uploadManifestFile, `${JSON.stringify({
+    exportedAt,
+    artifact: path.basename(uploadBackupDir),
+    fileCount: uploadFiles.length,
+    totalBytes: uploadFiles.reduce((sum, file) => sum + file.size, 0),
+    files: uploadFiles,
+  }, null, 2)}\n`, "utf8");
 
   return {
     exportedAt,
     backupDir,
     sqliteBackupFile,
     jsonExportFile,
+    uploadBackupDir,
+    uploadManifestFile,
+    uploadFileCount: uploadFiles.length,
   };
 }

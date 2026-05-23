@@ -32,6 +32,8 @@ test("pre and post deploy checklists include folder, repo, build, diff, and heal
   assert.match(preDeploy, /correct Apex HQ project folder/i);
   assert.match(preDeploy, /Git remote is jberlanga748-a11y\/concrete-ops-2/i);
   assert.match(preDeploy, /npm\.cmd run build/i);
+  assert.match(preDeploy, /verify:backup.*uploaded-file backup artifacts/i);
+  assert.match(preDeploy, /verify:restore.*uploaded-file artifacts/i);
   assert.match(preDeploy, /git diff --check/i);
   assert.match(preDeploy, /Commit only relevant files using explicit paths/i);
   assert.match(postDeploy, /\/api\/ready returns ok true, status ready, and database ok/i);
@@ -69,6 +71,7 @@ test("storage warnings mention volume IDs and protect production data", () => {
   const storageWarnings = RELEASE_STORAGE_WARNINGS.join("\n");
 
   assert.match(storageWarnings, /Owner Health Status/i);
+  assert.match(storageWarnings, /uploaded-file backup artifacts/i);
   assert.match(storageWarnings, /volume ID/i);
   assert.match(storageWarnings, /Never delete the production data volume/i);
 });

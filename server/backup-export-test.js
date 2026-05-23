@@ -15,6 +15,12 @@ async function run() {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "concrete-ops-backup-"));
   const tempDataDir = path.join(tempRoot, "data");
   const tempBackupDir = path.join(tempRoot, "backups");
+  const uploadFixtureDir = path.join(tempDataDir, "uploads");
+  const uploadFixtureName = "build-zero-proof.txt";
+  const uploadFixtureBody = "uploaded file backup fixture";
+  await fs.mkdir(uploadFixtureDir, { recursive: true });
+  await fs.writeFile(path.join(uploadFixtureDir, uploadFixtureName), uploadFixtureBody, "utf8");
+
   const backupProcess = spawn(process.execPath, ["server/backup-export.js"], {
     stdio: "inherit",
     env: {
@@ -32,19 +38,36 @@ async function run() {
     }
 
     const backupFiles = await fs.readdir(tempBackupDir);
-    const sqliteBackupName = backupFiles.find((file) => file.endsWith(".sqlite"));
-    const jsonExportName = backupFiles.find((file) => file.endsWith(".json"));
+    const sqliteBackupName = backupFiles.find((file) => file.startsWith("app-data-") && file.endsWith(".sqlite"));
+    const jsonExportName = backupFiles.find((file) => file.startsWith("app-data-") && file.endsWith(".json"));
+    const uploadManifestName = backupFiles.find((file) => file.endsWith(".manifest.json"));
+    const uploadBackupName = backupFiles.find((file) => file.startsWith("uploads-") && !file.endsWith(".json"));
 
-    if (!sqliteBackupName || !jsonExportName) {
-      throw new Error("Expected both SQLite and JSON backup artifacts to be created.");
+    if (!sqliteBackupName || !jsonExportName || !uploadManifestName || !uploadBackupName) {
+      throw new Error("Expected SQLite, JSON, upload manifest, and uploaded-file backup artifacts to be created.");
     }
 
     const sqliteBackupFile = path.join(tempBackupDir, sqliteBackupName);
     const jsonExportFile = path.join(tempBackupDir, jsonExportName);
+    const uploadManifestFile = path.join(tempBackupDir, uploadManifestName);
+    const uploadedFileBackup = path.join(tempBackupDir, uploadBackupName, uploadFixtureName);
     const exportPayload = JSON.parse(await fs.readFile(jsonExportFile, "utf8"));
+    const uploadManifest = JSON.parse(await fs.readFile(uploadManifestFile, "utf8"));
 
     if (!Array.isArray(exportPayload.state?.leads) || exportPayload.state.leads.length < 5) {
       throw new Error("Expected JSON export to contain the seeded lead rows.");
+    }
+
+    if (exportPayload.uploadBackup?.fileCount !== 1 || uploadManifest.fileCount !== 1) {
+      throw new Error("Expected backup metadata to include uploaded file coverage.");
+    }
+
+    if (!uploadManifest.files.some((file) => file.path === uploadFixtureName && file.size === uploadFixtureBody.length)) {
+      throw new Error("Expected upload manifest to include the uploaded fixture file.");
+    }
+
+    if (await fs.readFile(uploadedFileBackup, "utf8") !== uploadFixtureBody) {
+      throw new Error("Expected uploaded file artifact to preserve file contents.");
     }
 
     if (!Array.isArray(exportPayload.state?.leadSources)) {
@@ -111,7 +134,7 @@ async function run() {
       database.close();
     }
 
-    console.log(`Backup verification passed: ${sqliteBackupName} and ${jsonExportName}`);
+    console.log(`Backup verification passed: ${sqliteBackupName}, ${jsonExportName}, ${uploadManifestName}, and ${uploadBackupName}`);
   } finally {
     backupProcess.kill("SIGTERM");
     await fs.rm(tempRoot, { recursive: true, force: true });

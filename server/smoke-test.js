@@ -67,6 +67,13 @@ function assertSecurityHeaders(response, { production = false } = {}) {
     }
   }
 
+  const cspReportOnly = response.headers.get("content-security-policy-report-only") || "";
+  for (const directive of ["default-src 'self'", "frame-ancestors 'none'", "object-src 'none'", "form-action 'self'"]) {
+    if (!cspReportOnly.includes(directive)) {
+      throw new Error(`Expected CSP report-only header to include ${directive}.`);
+    }
+  }
+
   const hsts = response.headers.get("strict-transport-security");
   if (production && hsts !== "max-age=15552000; includeSubDomains") {
     throw new Error(`Expected production HSTS header, received ${hsts}.`);

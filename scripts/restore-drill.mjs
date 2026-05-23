@@ -55,9 +55,17 @@ async function requestJson(url) {
   return payload;
 }
 
-function newestFile(files, suffix) {
+function newestFile(files, suffix, prefix = "") {
   return files
-    .filter((file) => file.endsWith(suffix))
+    .filter((file) => file.endsWith(suffix) && (!prefix || file.startsWith(prefix)))
+    .sort()
+    .at(-1);
+}
+
+function newestUploadSnapshot(entries) {
+  return entries
+    .filter((entry) => entry.isDirectory() && entry.name.startsWith("uploads-"))
+    .map((entry) => entry.name)
     .sort()
     .at(-1);
 }
@@ -67,12 +75,16 @@ async function run() {
   const sourceDataDir = path.join(tempRoot, "source-data");
   const backupDir = path.join(tempRoot, "backups");
   const restoreDataDir = path.join(tempRoot, "restore-data");
+  const uploadFixtureName = "restore-proof.txt";
+  const uploadFixtureBody = "uploaded file restore fixture";
   const port = process.env.APEX_RESTORE_DRILL_PORT || await findAvailablePort();
   const baseUrl = `http://127.0.0.1:${port}`;
   let restoredServer = null;
 
   try {
     await fs.mkdir(sourceDataDir, { recursive: true });
+    await fs.mkdir(path.join(sourceDataDir, "uploads"), { recursive: true });
+    await fs.writeFile(path.join(sourceDataDir, "uploads", uploadFixtureName), uploadFixtureBody, "utf8");
     await fs.mkdir(backupDir, { recursive: true });
     await fs.mkdir(restoreDataDir, { recursive: true });
 
@@ -91,15 +103,24 @@ async function run() {
     }
 
     const backupFiles = await fs.readdir(backupDir);
-    const sqliteBackupName = newestFile(backupFiles, ".sqlite");
-    const jsonExportName = newestFile(backupFiles, ".json");
-    if (!sqliteBackupName || !jsonExportName) {
-      throw new Error("Restore drill expected both SQLite and JSON backup artifacts.");
+    const backupEntries = await fs.readdir(backupDir, { withFileTypes: true });
+    const sqliteBackupName = newestFile(backupFiles, ".sqlite", "app-data-");
+    const jsonExportName = newestFile(backupFiles, ".json", "app-data-");
+    const uploadManifestName = newestFile(backupFiles, ".manifest.json");
+    const uploadSnapshotName = newestUploadSnapshot(backupEntries);
+    if (!sqliteBackupName || !jsonExportName || !uploadManifestName || !uploadSnapshotName) {
+      throw new Error("Restore drill expected SQLite, JSON, upload manifest, and uploaded-file backup artifacts.");
     }
 
     const sqliteBackupFile = path.join(backupDir, sqliteBackupName);
     const restoredDatabaseFile = path.join(restoreDataDir, "app-data.sqlite");
     await fs.copyFile(sqliteBackupFile, restoredDatabaseFile);
+    await fs.cp(path.join(backupDir, uploadSnapshotName), path.join(restoreDataDir, "uploads"), { recursive: true });
+
+    const restoredUploadBody = await fs.readFile(path.join(restoreDataDir, "uploads", uploadFixtureName), "utf8");
+    if (restoredUploadBody !== uploadFixtureBody) {
+      throw new Error("Restore drill did not preserve uploaded file artifact contents.");
+    }
 
     restoredServer = spawn(process.execPath, ["server/index.js"], {
       stdio: ["ignore", "pipe", "pipe"],
@@ -132,6 +153,8 @@ async function run() {
       status: "restore_drill_passed",
       sqliteBackup: sqliteBackupName,
       jsonExport: jsonExportName,
+      uploadManifest: uploadManifestName,
+      uploadSnapshot: uploadSnapshotName,
       ready: {
         status: ready.status,
         database: ready.checks?.database,

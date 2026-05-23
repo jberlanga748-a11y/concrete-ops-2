@@ -33,6 +33,10 @@ jobs:
         timeout-minutes: 2
         run: git diff --check
 
+      - name: Audit production dependencies
+        timeout-minutes: 3
+        run: npm audit --omit=dev
+
       - name: Verify auth and signup safety
         timeout-minutes: 8
         run: |
@@ -61,6 +65,10 @@ jobs:
           npm run verify:server
           npm run verify:backup
           npm run verify:restore
+
+      - name: Verify monitoring and release gates
+        timeout-minutes: 8
+        run: npm run verify:monitoring
 
       - name: Build frontend
         timeout-minutes: 5

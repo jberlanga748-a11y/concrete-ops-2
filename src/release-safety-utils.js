@@ -17,6 +17,8 @@ export const RELEASE_SAFETY_CHECKLISTS = {
     "Confirm no unrelated files are modified before continuing.",
     "Run the required phase tests and any focused tests for the change.",
     "Run npm.cmd run build.",
+    "Run npm.cmd run verify:backup and confirm both SQLite and uploaded-file backup artifacts are captured.",
+    "Run npm.cmd run verify:restore and confirm uploaded-file artifacts restore with the database.",
     "Run git diff --check.",
     "Commit only relevant files using explicit paths.",
     "Push only after tests pass.",
@@ -121,6 +123,7 @@ export const RELEASE_DANGEROUS_WARNINGS = [
 
 export const RELEASE_STORAGE_WARNINGS = [
   "Check storage in Owner Health Status before and after upload-heavy changes.",
+  "Treat uploaded-file backup artifacts as part of the required backup set.",
   "If crews upload lots of photos, monitor storage regularly.",
   "Use fly volumes list to find the correct volume ID.",
   "Extend storage only by volume ID.",

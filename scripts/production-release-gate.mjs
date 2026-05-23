@@ -14,7 +14,7 @@ function printHelp() {
 Usage:
   npm run launch:production-release-gate
   npm run launch:production-release-gate -- --json
-  npm run launch:production-release-gate -- --build-verified --roles-verified --server-verified --backup-verified --restore-verified --monitoring-verified --production-auth-readiness-verified --target-app=concrete-ops-2 --fly-config=fly.toml --support-owner="Owner" --rollback-owner="Owner" --backup-artifact="app-data-YYYY.sqlite" --rollback-release="v123" --incident-destination=github-issues --json
+  npm run launch:production-release-gate -- --build-verified --roles-verified --server-verified --backup-verified --restore-verified --monitoring-verified --production-auth-readiness-verified --target-app=concrete-ops-2 --fly-config=fly.toml --support-owner="Owner" --rollback-owner="Owner" --backup-artifact="app-data-YYYY.sqlite" --upload-backup-artifact="uploads-YYYY" --rollback-release="v123" --incident-destination=github-issues --json
 
 Approval-only flags:
   --hosted-smoke-verified
@@ -51,6 +51,7 @@ function parseArgs(argv = []) {
       supportOwner: "",
       rollbackOwner: "",
       backupArtifact: "",
+      uploadBackupArtifact: "",
       rollbackRelease: "",
       incidentDestination: "",
       productionApprovalPhrase: "",
@@ -74,6 +75,7 @@ function parseArgs(argv = []) {
     else if (arg.startsWith("--support-owner=")) options.release.supportOwner = valueAfterEquals(arg);
     else if (arg.startsWith("--rollback-owner=")) options.release.rollbackOwner = valueAfterEquals(arg);
     else if (arg.startsWith("--backup-artifact=")) options.release.backupArtifact = valueAfterEquals(arg);
+    else if (arg.startsWith("--upload-backup-artifact=")) options.release.uploadBackupArtifact = valueAfterEquals(arg);
     else if (arg.startsWith("--rollback-release=")) options.release.rollbackRelease = valueAfterEquals(arg);
     else if (arg.startsWith("--incident-destination=")) options.release.incidentDestination = valueAfterEquals(arg);
     else if (arg.startsWith("--production-approval-phrase=")) options.release.productionApprovalPhrase = valueAfterEquals(arg);
@@ -108,6 +110,7 @@ export function buildProductionReleaseGate({ evidence = {}, release = {}, checke
     supportOwner: String(release.supportOwner || "").trim(),
     rollbackOwner: String(release.rollbackOwner || "").trim(),
     backupArtifact: String(release.backupArtifact || "").trim(),
+    uploadBackupArtifact: String(release.uploadBackupArtifact || "").trim(),
     rollbackRelease: String(release.rollbackRelease || "").trim(),
     incidentDestination: String(release.incidentDestination || "").trim().toLowerCase(),
     productionApprovalPhrase: String(release.productionApprovalPhrase || "").trim(),
@@ -119,10 +122,11 @@ export function buildProductionReleaseGate({ evidence = {}, release = {}, checke
       ...missing(evidence.rolesVerified, "Run and pass npm.cmd run verify:roles."),
       ...missing(evidence.serverVerified, "Run and pass npm.cmd run verify:server."),
     ]),
-    gate("Backup and restore evidence", Boolean(evidence.backupVerified && evidence.restoreVerified && hasText(normalized.backupArtifact)), [
+    gate("Backup and restore evidence", Boolean(evidence.backupVerified && evidence.restoreVerified && hasText(normalized.backupArtifact) && hasText(normalized.uploadBackupArtifact)), [
       ...missing(evidence.backupVerified, "Run and pass npm.cmd run verify:backup."),
       ...missing(evidence.restoreVerified, "Run and pass npm.cmd run verify:restore."),
-      ...missing(hasText(normalized.backupArtifact), "Name the backup artifact captured before release."),
+      ...missing(hasText(normalized.backupArtifact), "Name the SQLite backup artifact captured before release."),
+      ...missing(hasText(normalized.uploadBackupArtifact), "Name the uploaded-file backup artifact captured before release."),
     ]),
     gate("Target and rollback path", Boolean(
       APPROVED_APPS.has(normalized.targetApp)
@@ -180,6 +184,7 @@ export function buildProductionReleaseGate({ evidence = {}, release = {}, checke
       app: normalized.targetApp,
       config: normalized.flyConfig,
       backupArtifact: normalized.backupArtifact,
+      uploadBackupArtifact: normalized.uploadBackupArtifact,
       rollbackRelease: normalized.rollbackRelease,
       rollbackOwner: normalized.rollbackOwner,
       supportOwner: normalized.supportOwner,

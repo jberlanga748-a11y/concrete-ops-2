@@ -32,6 +32,7 @@ test("production release gate can approve the release process while production d
       supportOwner: "John",
       rollbackOwner: "John",
       backupArtifact: "app-data-20260523-000000Z.sqlite",
+      uploadBackupArtifact: "uploads-20260523-000000Z",
       rollbackRelease: "v534",
       incidentDestination: "github-issues",
     },
@@ -60,6 +61,7 @@ test("production release gate blocks wrong app or config", () => {
       supportOwner: "John",
       rollbackOwner: "John",
       backupArtifact: "app-data.sqlite",
+      uploadBackupArtifact: "uploads-20260523-000000Z",
       rollbackRelease: "v534",
       incidentDestination: "github-issues",
     },
@@ -91,6 +93,7 @@ test("production release gate only goes green after explicit approval and smoke 
       supportOwner: "John",
       rollbackOwner: "John",
       backupArtifact: "app-data-20260523-000000Z.sqlite",
+      uploadBackupArtifact: "uploads-20260523-000000Z",
       rollbackRelease: "v534",
       incidentDestination: "incident-tracker",
       productionApprovalPhrase: "BACKUP_FIRST_PRODUCTION_RELEASE_APPROVED",
@@ -117,6 +120,7 @@ test("production release gate parser captures flags without mutating anything", 
     "--support-owner=Riley",
     "--rollback-owner=John",
     "--backup-artifact=app-data.sqlite",
+    "--upload-backup-artifact=uploads-20260523-000000Z",
     "--rollback-release=v534",
     "--incident-destination=github-issues",
   ]);
@@ -127,4 +131,32 @@ test("production release gate parser captures flags without mutating anything", 
   assert.equal(options.release.supportOwner, "Riley");
   assert.equal(options.release.rollbackOwner, "John");
   assert.equal(options.release.incidentDestination, "github-issues");
+  assert.equal(options.release.uploadBackupArtifact, "uploads-20260523-000000Z");
+});
+
+test("production release gate requires uploaded-file backup artifact evidence", () => {
+  const report = buildProductionReleaseGate({
+    evidence: {
+      buildVerified: true,
+      rolesVerified: true,
+      serverVerified: true,
+      backupVerified: true,
+      restoreVerified: true,
+      monitoringVerified: true,
+      productionAuthReadinessVerified: true,
+    },
+    release: {
+      targetApp: "concrete-ops-2",
+      flyConfig: "fly.toml",
+      supportOwner: "John",
+      rollbackOwner: "John",
+      backupArtifact: "app-data-20260523-000000Z.sqlite",
+      rollbackRelease: "v534",
+      incidentDestination: "github-issues",
+    },
+  });
+
+  const backupGate = report.gates.find((gate) => gate.name === "Backup and restore evidence");
+  assert.equal(report.releaseProcessReady, false);
+  assert.ok(backupGate.blockers.some((blocker) => /uploaded-file backup artifact/i.test(blocker)));
 });

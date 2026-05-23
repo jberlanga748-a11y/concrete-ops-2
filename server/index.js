@@ -368,6 +368,19 @@ function securityHeaders(_req, res, next) {
   res.setHeader("Referrer-Policy", "no-referrer");
   res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
   res.setHeader("Permissions-Policy", "geolocation=(), microphone=(), payment=(), usb=()");
+  res.setHeader("Content-Security-Policy-Report-Only", [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    "connect-src 'self' https://api.mapbox.com https://events.mapbox.com https://*.tiles.mapbox.com",
+    "worker-src 'self' blob:",
+    "form-action 'self'",
+  ].join("; "));
 
   if (serverConfig.nodeEnv === "production") {
     res.setHeader("Strict-Transport-Security", "max-age=15552000; includeSubDomains");
