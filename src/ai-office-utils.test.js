@@ -111,7 +111,67 @@ test("AI Office agent command center blocks field-only users", () => {
   assert.equal(state.canView, false);
   assert.deepEqual(state.workflowCards, []);
   assert.deepEqual(state.focusRows, []);
+  assert.deepEqual(state.tradeGuidance, []);
   assert.match(state.summary, /Field users stay limited/i);
+});
+
+test("AI Office agent command center surfaces trade-aware workflow guidance", () => {
+  const fencingSummary = {
+    primaryTradeId: "fencing",
+    primaryTradeLabel: "Fencing",
+    visibleTrades: [{ tradeId: "fencing", tradeLabel: "Fencing", count: 2 }],
+    fieldHandoffChecklist: ["Confirm fence line", "Mark gates"],
+    proofPhotoChecklist: ["Post hole layout", "Gate hardware"],
+    changeOrderWatchouts: ["Added gates", "Fence length changes"],
+    safetyBoundary: "Estimate-grade guidance only.",
+  };
+  const concreteSummary = {
+    primaryTradeId: "concrete",
+    primaryTradeLabel: "Concrete",
+    visibleTrades: [{ tradeId: "concrete", tradeLabel: "Concrete", count: 1 }],
+    fieldHandoffChecklist: ["Confirm subgrade", "Sawcut plan"],
+    proofPhotoChecklist: ["Forms", "Finish photos"],
+    changeOrderWatchouts: ["Extra demo"],
+    safetyBoundary: "Estimate-grade guidance only.",
+  };
+  const state = deriveAiOfficeAgentCommandCenter({
+    permissions: {
+      aiOffice: { canView: true },
+      leads: { canView: true },
+      jobs: { canView: true, canManageAll: true },
+      estimates: { canView: true, canManage: true },
+      reports: { canView: true, canReview: true },
+      uploads: { canView: true },
+    },
+    leads: [{ id: "LEAD-1", customer: "Fence GC", status: "New", trade: "fencing" }],
+    jobs: [{ id: "JOB-1", title: "Fence install", status: "scheduled" }],
+    estimates: [{ id: "EST-1", title: "Fence option", status: "draft" }],
+    dailyReports: [{ id: "REPORT-1", status: "Submitted", jobTitle: "Fence install" }],
+    uploads: [{ id: "UPLOAD-1", fileName: "post-hole.jpg" }],
+    agentWorkflowContext: {
+      modules: [
+        { id: "leads", moduleId: "leads", canView: true, tradeSummary: fencingSummary },
+        { id: "jobs", moduleId: "jobs", canView: true, tradeSummary: fencingSummary },
+        { id: "estimates", moduleId: "estimates", canView: true, tradeSummary: concreteSummary },
+        { id: "proof", moduleId: "reports", canView: true, tradeSummary: fencingSummary },
+      ],
+    },
+  });
+
+  const leadCard = state.workflowCards.find((card) => card.id === "lead-review");
+  const estimateCard = state.workflowCards.find((card) => card.id === "estimate-action-agent");
+  const proofCard = state.workflowCards.find((card) => card.id === "proof-closeout");
+  const leadRow = state.focusRows.find((row) => row.recordType === "lead");
+  const reportRow = state.focusRows.find((row) => row.recordType === "report");
+
+  assert.equal(leadCard.tradeGuidance.label, "Fencing");
+  assert.match(leadCard.tradeGuidance.detail, /Confirm fence line/i);
+  assert.equal(estimateCard.tradeGuidance.label, "Concrete");
+  assert.equal(proofCard.tradeGuidance.label, "Fencing");
+  assert.match(proofCard.tradeGuidance.detail, /Post hole layout/i);
+  assert.equal(leadRow.tradeSummary.primaryTradeId, "fencing");
+  assert.equal(reportRow.tradeGuidance.label, "Fencing");
+  assert.equal(state.tradeGuidance.length, 4);
 });
 
 test("AI Office agent command center keeps Premium assistant useful without Opportunity Scout controls", () => {

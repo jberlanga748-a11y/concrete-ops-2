@@ -105,6 +105,34 @@ function toneForCount(count, { empty = "green", active = "amber", high = "red", 
   return count >= highAt ? high : active;
 }
 
+function moduleTradeSummary(workflowContext = {}, moduleId = "") {
+  const normalizedModuleId = text(moduleId);
+  if (!normalizedModuleId) return null;
+  const module = asArray(workflowContext?.modules).find((entry) => (
+    entry?.id === normalizedModuleId || entry?.moduleId === normalizedModuleId
+  ));
+  if (!module?.canView) return null;
+  return module.tradeSummary || null;
+}
+
+function tradeGuidanceFor(summary = null, target = {}) {
+  if (!summary?.primaryTradeLabel) return null;
+  const recordType = text(target.recordType || target.moduleId || target.id).toLowerCase();
+  const proofItems = asArray(summary.proofPhotoChecklist).slice(0, 2);
+  const handoffItems = asArray(summary.fieldHandoffChecklist).slice(0, 2);
+  const watchoutItems = asArray(summary.changeOrderWatchouts).slice(0, 2);
+  const details = /proof|report|upload|closeout/.test(recordType)
+    ? proofItems
+    : /change/.test(recordType)
+      ? watchoutItems
+      : [...handoffItems, ...proofItems].slice(0, 2);
+
+  return {
+    label: summary.primaryTradeLabel,
+    detail: details.length ? details.join(" / ") : summary.safetyBoundary || "Use trade-specific review prompts.",
+  };
+}
+
 export function deriveAiOfficeAgentCommandCenter({
   permissions = {},
   stats = {},
@@ -121,6 +149,7 @@ export function deriveAiOfficeAgentCommandCenter({
   safetyIncidents = [],
   agentLearningPreferences = [],
   fieldOpsAgent = null,
+  agentWorkflowContext = null,
 } = {}) {
   if (!canUseAiOfficeAgentCommand(permissions)) {
     return {
@@ -130,6 +159,7 @@ export function deriveAiOfficeAgentCommandCenter({
       summary: "Field users stay limited to assigned work and cannot open office agent command surfaces.",
       workflowCards: [],
       focusRows: [],
+      tradeGuidance: [],
       guardrails: defaultAgentGuardrails(),
     };
   }
@@ -172,6 +202,33 @@ export function deriveAiOfficeAgentCommandCenter({
   const fieldOpsStats = fieldOpsAgent?.stats || {};
   const fieldOpsItems = fieldOpsAgent?.canView ? asArray(fieldOpsAgent.items) : [];
   const fieldOpsReviewCount = Number(fieldOpsStats.total || fieldOpsItems.length || 0);
+  const tradeSummaries = {
+    leads: moduleTradeSummary(agentWorkflowContext, "leads"),
+    estimates: moduleTradeSummary(agentWorkflowContext, "estimates"),
+    jobs: moduleTradeSummary(agentWorkflowContext, "jobs"),
+    proof: moduleTradeSummary(agentWorkflowContext, "proof"),
+  };
+  const tradeSummaryForTarget = (target = {}) => {
+    if (target.tradeSummary) return target.tradeSummary;
+    if (target.moduleId === "leads" || target.recordType === "lead") return tradeSummaries.leads;
+    if (target.moduleId === "estimates" || target.recordType === "estimate") return tradeSummaries.estimates;
+    if (target.moduleId === "jobs" || target.recordType === "job") return tradeSummaries.jobs;
+    if (["reports", "uploads", "deliveryTickets", "prePour", "postPour", "toolChecklist"].includes(target.moduleId)
+      || ["dailyCloseout", "report", "upload"].includes(target.recordType)) {
+      return tradeSummaries.proof;
+    }
+    if (target.id === "field-ops-agent" || target.recordType === "fieldOps") return tradeSummaries.proof || tradeSummaries.jobs;
+    return null;
+  };
+  const attachTradeGuidance = (target = {}) => {
+    const tradeSummary = tradeSummaryForTarget(target);
+    if (!tradeSummary) return target;
+    return {
+      ...target,
+      tradeSummary,
+      tradeGuidance: tradeGuidanceFor(tradeSummary, target),
+    };
+  };
 
   const workflowCards = [
     canViewOpportunityScout ? {
@@ -266,7 +323,7 @@ export function deriveAiOfficeAgentCommandCenter({
       moduleId: "copilot",
       recordType: "agentLearning",
     } : null,
-  ].filter(Boolean);
+  ].filter(Boolean).map(attachTradeGuidance);
 
   const focusRows = [
     ...suggestedLearning.slice(0, 3).map((entry) => ({
@@ -464,7 +521,18 @@ export function deriveAiOfficeAgentCommandCenter({
       recordType: "draft",
       record: draft,
     })),
-  ].slice(0, 12);
+  ].map(attachTradeGuidance).slice(0, 12);
+  const tradeGuidance = [
+    { id: "leads", label: "Lead trade focus", summary: tradeSummaries.leads },
+    { id: "estimates", label: "Estimate packet focus", summary: tradeSummaries.estimates },
+    { id: "jobs", label: "Field handoff focus", summary: tradeSummaries.jobs },
+    { id: "proof", label: "Proof closeout focus", summary: tradeSummaries.proof },
+  ]
+    .filter((item) => item.summary)
+    .map((item) => ({
+      ...item,
+      guidance: tradeGuidanceFor(item.summary, { moduleId: item.id }),
+    }));
 
   return {
     canView: true,
@@ -473,6 +541,7 @@ export function deriveAiOfficeAgentCommandCenter({
     summary: `${workflowCards.length} review lane${workflowCards.length === 1 ? "" : "s"} are available. Every lane routes into an existing Apex HQ workflow and keeps approval, messages, billing, and record changes manual.`,
     workflowCards,
     focusRows,
+    tradeGuidance,
     counts: {
       blockedQueue: blockedQueueItems.length,
       dueQueue: dueQueueItems.length,

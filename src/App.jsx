@@ -21367,6 +21367,7 @@ function CopilotPagePolished({
   stats = {},
   companySettings = {},
   currentCompanyId = "",
+  customers = [],
   leads = [],
   leadSources = [],
   opportunitySearchProfiles = [],
@@ -21778,6 +21779,27 @@ function CopilotPagePolished({
     }));
   }
 
+  const aiOfficeWorkflowContext = useMemo(() => deriveAgentWorkflowContext({
+    user,
+    permissions,
+    companySettings,
+    jobs: permissions?.jobs?.canView || permissions?.jobs?.canManageAll ? liveJobs : [],
+    dailyReports: permissions?.reports?.canView ? visibleReports : [],
+    uploads: permissions?.uploads?.canView || permissions?.uploads?.canManageAll ? visibleUploads : [],
+    timeEntries: permissions?.time?.canView ? timeEntries : [],
+    changeOrderRequests: permissions?.changeOrders?.canView ? changeOrderRequests : [],
+    deliveryTickets: permissions?.deliveryTickets?.canView ? deliveryTickets : [],
+    prePourChecklists: permissions?.prePour?.canView ? prePourChecklists : [],
+    postPourChecklists: permissions?.postPour?.canView ? postPourChecklists : [],
+    safetyIncidents: permissions?.safety?.canView ? safetyIncidents : [],
+    toolChecklists: permissions?.toolChecklist?.canUse ? toolChecklists : [],
+    leads: permissions?.leads?.canView ? liveLeads : [],
+    customers: permissions?.customers?.canView ? customers : [],
+    users: permissions?.users?.canView ? users : [],
+    jobDraftImports: permissions?.jobDraftImports?.canView ? liveDrafts : [],
+    estimates: permissions?.estimates?.canView || permissions?.estimates?.canManage ? estimates : [],
+  }), [changeOrderRequests, companySettings, customers, deliveryTickets, estimates, liveDrafts, liveJobs, liveLeads, permissions, postPourChecklists, prePourChecklists, safetyIncidents, timeEntries, toolChecklists, user, users, visibleReports, visibleUploads]);
+
   const agentCommandCenter = useMemo(() => deriveAiOfficeAgentCommandCenter({
     permissions,
     stats,
@@ -21794,7 +21816,8 @@ function CopilotPagePolished({
     safetyIncidents,
     agentLearningPreferences,
     fieldOpsAgent,
-  }), [permissions, stats, opportunityScout, liveLeads, liveJobs, estimates, openQueueItems, liveDrafts, visibleReports, visibleUploads, timeEntries, changeOrderRequests, safetyIncidents, agentLearningPreferences, fieldOpsAgent]);
+    agentWorkflowContext: aiOfficeWorkflowContext,
+  }), [permissions, stats, opportunityScout, liveLeads, liveJobs, estimates, openQueueItems, liveDrafts, visibleReports, visibleUploads, timeEntries, changeOrderRequests, safetyIncidents, agentLearningPreferences, fieldOpsAgent, aiOfficeWorkflowContext]);
 
   function openAgentCommandTarget(target = {}) {
     if (target.recordType === "agentLearning") {
@@ -21961,6 +21984,17 @@ function CopilotPagePolished({
     onAction: () => openAgentCommandTarget(row),
   }));
 
+  function renderAgentTradeGuidance(target) {
+    const guidance = target?.tradeGuidance;
+    if (!guidance?.label) return null;
+    return (
+      <span className="co-ai-trade-guidance">
+        <strong>{guidance.label}</strong>
+        <span>{guidance.detail}</span>
+      </span>
+    );
+  }
+
   const reportPreview = visibleReports.find((report) => ["Submitted", "Needs Review"].includes(report.status || report.reviewStatus));
   const nextActions = [
     canViewOpportunityScout && opportunityScout.stats.activeProfiles === 0 && opportunityScout.stats.activeSources === 0 ? { label: "Add search profile", action: () => openModule("copilot"), tone: "amber" } : null,
@@ -22079,6 +22113,7 @@ function CopilotPagePolished({
                       <span className="min-w-0">
                         <span className="co-ai-workflow-title">{card.title}</span>
                         <span className="co-ai-workflow-helper">{card.helper}</span>
+                        {renderAgentTradeGuidance(card)}
                       </span>
                       <Badge tone={card.tone === "orange" ? "amber" : card.tone}>{card.badge}</Badge>
                       <span className="co-ai-workflow-action">{card.actionLabel} -&gt;</span>
@@ -22100,6 +22135,7 @@ function CopilotPagePolished({
                         <span className="co-ai-focus-eyebrow">{row.eyebrow}</span>
                         <span className="co-ai-focus-title">{row.title}</span>
                         <span className="co-ai-focus-description">{row.description}</span>
+                        {renderAgentTradeGuidance(row)}
                       </span>
                       <span className="co-ai-focus-action">{row.actionLabel}</span>
                     </button>

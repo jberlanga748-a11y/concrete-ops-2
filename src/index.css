@@ -29010,6 +29010,28 @@ textarea {
   line-height: 1.35;
 }
 
+.co-ai-trade-guidance {
+  display: grid;
+  gap: 0.16rem;
+  margin-top: 0.46rem;
+  border: 1px solid color-mix(in srgb, var(--co-ai-tone, #f97316) 24%, #e2e8f0);
+  border-radius: var(--radius-compact, 0.5rem);
+  background: color-mix(in srgb, var(--co-ai-tone, #f97316) 7%, #ffffff);
+  padding: 0.42rem 0.48rem;
+  color: #334155;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.22;
+}
+
+.co-ai-trade-guidance strong {
+  color: var(--co-ai-tone, #f97316);
+  font-size: 0.58rem;
+  font-weight: 950;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
 .co-ai-workflow-action {
   grid-column: 2;
   align-self: end;
@@ -29721,6 +29743,18 @@ textarea {
   .co-ai-focus-description {
     font-size: 0.66rem;
     line-height: 1.18;
+  }
+
+  .co-ai-trade-guidance {
+    margin-top: 0.34rem;
+    padding: 0.34rem 0.38rem;
+    font-size: 0.6rem;
+    line-height: 1.12;
+  }
+
+  .co-ai-trade-guidance strong {
+    font-size: 0.52rem;
+    letter-spacing: 0.08em;
   }
 
   .co-ai-workflow-action,
