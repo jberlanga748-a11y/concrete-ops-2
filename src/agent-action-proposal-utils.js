@@ -442,6 +442,73 @@ export function deriveAgentActionProposalQueue(targets = [], { permissions = {},
     .filter(Boolean);
 }
 
+function checklistId(value = "", index = 0) {
+  const normalized = text(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+  return normalized || `check-${index + 1}`;
+}
+
+export function deriveAgentActionProposalReviewState(queue = [], { selectedId = "", decisions = {} } = {}) {
+  const items = asArray(queue);
+  const selected = items.find((item) => item.id === selectedId) || items[0] || null;
+  if (!selected?.proposal) {
+    return {
+      selected: null,
+      decision: null,
+      checklist: [],
+      blockedActions: [],
+      draftPrep: [],
+      status: "empty",
+      statusLabel: "No packets",
+      isBlocked: false,
+      isLocallyReviewed: false,
+      canMarkReviewed: false,
+      canOpenWorkflow: false,
+      completedCount: 0,
+      totalCount: 0,
+      safetyCopy: "New review-first packets will appear when Apex HQ finds office work that needs human attention.",
+    };
+  }
+
+  const decision = decisions[selected.id] || {};
+  const completed = new Set(asArray(decision.completedChecklist).map(text).filter(Boolean));
+  const checklist = asArray(selected.proposal.reviewChecklist).map((label, index) => {
+    const id = checklistId(label, index);
+    return {
+      id,
+      label: text(label),
+      complete: completed.has(id),
+    };
+  });
+  const completedCount = checklist.filter((item) => item.complete).length;
+  const totalCount = checklist.length;
+  const isBlocked = selected.proposal.status === "blocked";
+  const isLocallyReviewed = Boolean(decision.reviewedAt) && !isBlocked;
+  const canMarkReviewed = !isBlocked && totalCount > 0 && completedCount === totalCount;
+
+  return {
+    selected,
+    decision,
+    checklist,
+    blockedActions: asArray(selected.proposal.blockedActions).map(text).filter(Boolean).slice(0, 7),
+    draftPrep: asArray(selected.proposal.draftPrep).slice(0, 3),
+    status: isBlocked ? "blocked" : isLocallyReviewed ? "reviewed_locally" : canMarkReviewed ? "ready_to_open" : "needs_review",
+    statusLabel: isBlocked ? "Blocked" : isLocallyReviewed ? "Reviewed locally" : canMarkReviewed ? "Ready to open workflow" : "Needs review",
+    isBlocked,
+    isLocallyReviewed,
+    canMarkReviewed,
+    canOpenWorkflow: !isBlocked,
+    completedCount,
+    totalCount,
+    safetyCopy: isBlocked
+      ? "This packet is blocked by role, package, or safety rules. Use an allowed Apex HQ workflow instead."
+      : "Session-only review gate. It does not save approval, change records, send messages, convert work, bill, schedule, or assign crews.",
+  };
+}
+
 export function buildAgentActionProposal(response = {}, { permissions = {}, workflowContext = null } = {}) {
   if (!response || typeof response !== "object") {
     return null;

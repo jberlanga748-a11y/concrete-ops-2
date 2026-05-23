@@ -29200,6 +29200,12 @@ textarea {
   transform: translateY(-1px);
 }
 
+.co-ai-proposal-row[data-active="true"] {
+  border-color: color-mix(in srgb, var(--co-ai-tone) 58%, white);
+  background: color-mix(in srgb, var(--co-ai-tone) 20%, rgba(15, 23, 42, 0.9));
+  box-shadow: inset 3px 0 0 var(--co-ai-tone);
+}
+
 .co-ai-proposal-row span {
   display: grid;
   min-width: 0;
@@ -29232,6 +29238,140 @@ textarea {
 
 .co-ai-proposal-row i {
   color: var(--co-ai-tone);
+}
+
+.co-ai-proposal-review-panel {
+  margin-top: 0.65rem;
+  border: 1px solid rgba(71, 85, 105, 0.88);
+  border-radius: 0.9rem;
+  background: rgba(2, 8, 23, 0.58);
+  max-height: min(58vh, 27rem);
+  overflow-y: auto;
+  padding: 0.78rem;
+  overscroll-behavior: contain;
+}
+
+.co-ai-proposal-review-panel[data-state="ready_to_open"],
+.co-ai-proposal-review-panel[data-state="reviewed_locally"] {
+  border-color: rgba(34, 197, 94, 0.42);
+}
+
+.co-ai-proposal-review-panel[data-state="blocked"] {
+  border-color: rgba(239, 68, 68, 0.46);
+}
+
+.co-ai-proposal-review-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.co-ai-proposal-review-head span {
+  color: #fb923c;
+  font-size: 0.68rem;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.co-ai-proposal-review-head strong {
+  color: #e2e8f0;
+  font-size: 0.76rem;
+  font-weight: 950;
+}
+
+.co-ai-proposal-review-panel > p {
+  margin: 0.48rem 0 0;
+  color: #94a3b8;
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.co-ai-proposal-review-checks,
+.co-ai-proposal-prep-list,
+.co-ai-proposal-blocked-list {
+  display: grid;
+  gap: 0.42rem;
+  margin-top: 0.62rem;
+}
+
+.co-ai-proposal-check {
+  display: grid;
+  grid-template-columns: 1.65rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid rgba(51, 65, 85, 0.9);
+  border-radius: 0.72rem;
+  background: rgba(15, 23, 42, 0.7);
+  padding: 0.48rem 0.55rem;
+  text-align: left;
+}
+
+.co-ai-proposal-check span {
+  display: grid;
+  min-height: 1.25rem;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(71, 85, 105, 0.55);
+  color: #bbf7d0;
+  font-size: 0.58rem;
+  font-weight: 950;
+}
+
+.co-ai-proposal-check[data-complete="true"] {
+  border-color: rgba(34, 197, 94, 0.42);
+  background: rgba(20, 83, 45, 0.22);
+}
+
+.co-ai-proposal-check[data-complete="true"] span {
+  background: rgba(34, 197, 94, 0.2);
+}
+
+.co-ai-proposal-check strong {
+  color: #cbd5e1;
+  font-size: 0.73rem;
+  font-weight: 850;
+  line-height: 1.28;
+}
+
+.co-ai-proposal-prep-list > div {
+  display: grid;
+  gap: 0.12rem;
+  border-radius: 0.72rem;
+  background: rgba(15, 23, 42, 0.62);
+  padding: 0.55rem 0.6rem;
+}
+
+.co-ai-proposal-prep-list span,
+.co-ai-proposal-prep-list em,
+.co-ai-proposal-blocked-list small {
+  color: #94a3b8;
+  font-size: 0.68rem;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.co-ai-proposal-prep-list strong {
+  color: #e2e8f0;
+  font-size: 0.76rem;
+  font-weight: 950;
+}
+
+.co-ai-proposal-blocked-list small {
+  border-radius: 999px;
+  background: rgba(127, 29, 29, 0.22);
+  color: #fecaca;
+  padding: 0.32rem 0.48rem;
+}
+
+.co-ai-proposal-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.72rem;
 }
 
 .co-ai-scout-quality-row {

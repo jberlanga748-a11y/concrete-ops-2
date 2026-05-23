@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   buildAgentActionProposal,
   deriveAgentActionProposalQueue,
+  deriveAgentActionProposalReviewState,
   deriveAgentActionProposalAuditHistory,
   normalizeAgentActionProposalAuditEvent,
   redactAgentProposalAuditText,
@@ -191,6 +192,77 @@ test("agent action proposal queue blocks field-only users", () => {
   assert.equal(queue[0].proposal.status, "blocked");
   assert.equal(queue[0].statusLabel, "Blocked");
   assert.equal(validateAgentActionProposalSafety(queue[0].proposal).ok, true);
+});
+
+test("agent action proposal review state is session-only and requires checklist completion", () => {
+  const queue = deriveAgentActionProposalQueue([
+    {
+      id: "lead-LEAD-1",
+      moduleId: "leads",
+      recordType: "lead",
+      title: "Fence replacement lead",
+      description: "Missing gate details before estimate prep.",
+      actionLabel: "Open lead",
+      record: { id: "LEAD-1" },
+    },
+  ], {
+    permissions: {
+      aiOffice: { canView: true },
+      leads: { canView: true },
+    },
+  });
+
+  const initial = deriveAgentActionProposalReviewState(queue);
+  assert.equal(initial.status, "needs_review");
+  assert.equal(initial.canOpenWorkflow, true);
+  assert.equal(initial.canMarkReviewed, false);
+  assert.match(initial.safetyCopy, /Session-only review gate/i);
+  assert.ok(initial.blockedActions.some((item) => /No customer email/i.test(item)));
+
+  const completedChecklist = initial.checklist.map((item) => item.id);
+  const ready = deriveAgentActionProposalReviewState(queue, {
+    selectedId: queue[0].id,
+    decisions: {
+      [queue[0].id]: { completedChecklist },
+    },
+  });
+  assert.equal(ready.status, "ready_to_open");
+  assert.equal(ready.canMarkReviewed, true);
+
+  const reviewed = deriveAgentActionProposalReviewState(queue, {
+    selectedId: queue[0].id,
+    decisions: {
+      [queue[0].id]: { completedChecklist, reviewedAt: "2026-05-23T01:00:00.000Z" },
+    },
+  });
+  assert.equal(reviewed.status, "reviewed_locally");
+  assert.equal(reviewed.isLocallyReviewed, true);
+});
+
+test("agent action proposal review state stays blocked for field users", () => {
+  const queue = deriveAgentActionProposalQueue([
+    {
+      id: "lead-LEAD-1",
+      moduleId: "leads",
+      recordType: "lead",
+      title: "Fence replacement lead",
+      actionLabel: "Open lead",
+      record: { id: "LEAD-1" },
+    },
+  ], {
+    permissions: {
+      jobs: { canManageField: true, canManageAll: false },
+      leads: { canView: false },
+      aiOffice: { canView: false },
+      opportunityScout: { canView: false },
+    },
+  });
+
+  const state = deriveAgentActionProposalReviewState(queue);
+  assert.equal(state.status, "blocked");
+  assert.equal(state.canOpenWorkflow, false);
+  assert.equal(state.canMarkReviewed, false);
+  assert.match(state.safetyCopy, /blocked by role, package, or safety/i);
 });
 
 test("agent action proposal hydrates review packets with read-only server context", () => {

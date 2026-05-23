@@ -27,7 +27,7 @@ import {
   resolveApexAssistantCommand,
 } from "./apex-assistant-shell-utils";
 import { AppHealthAuditActivityPanel, CustomerPortalManualPreviewPanel, EnterpriseTrustReadinessPanel, OwnerHealthStatusPanel, PwaInstallGuidancePanel, ReleaseSafetyRollbackPanel, UiStyleFoundationPanel } from "./app-health-route-components";
-import { buildAgentActionProposal, deriveAgentActionProposalAuditHistory, deriveAgentActionProposalQueue, normalizeAgentActionProposalAuditEvent } from "./agent-action-proposal-utils";
+import { buildAgentActionProposal, deriveAgentActionProposalAuditHistory, deriveAgentActionProposalQueue, deriveAgentActionProposalReviewState, normalizeAgentActionProposalAuditEvent } from "./agent-action-proposal-utils";
 import { agentContextPayloadToWorkflowContext } from "./agent-context-api-utils";
 import { deriveAgentWorkflowContext } from "./agent-workflow-context-utils";
 import { deriveAiOfficeAgentCommandCenter } from "./ai-office-utils";
@@ -21431,6 +21431,8 @@ function CopilotPagePolished({
   const [copiedScoutBriefId, setCopiedScoutBriefId] = useState("");
   const [learningDraft, setLearningDraft] = useState(INITIAL_AGENT_LEARNING_FORM);
   const [learningActionState, setLearningActionState] = useState({ status: "idle", id: "", message: "" });
+  const [selectedAgentProposalId, setSelectedAgentProposalId] = useState("");
+  const [agentProposalReviewDecisions, setAgentProposalReviewDecisions] = useState({});
   const canViewOpportunityScout = Boolean(permissions?.opportunityScout?.canView);
   const canManageOpportunityScout = Boolean(permissions?.opportunityScout?.canManage);
   const canManageAgentLearning = Boolean(permissions?.aiOffice?.canManageLearning);
@@ -21988,6 +21990,50 @@ function CopilotPagePolished({
     workflowContext: aiOfficeWorkflowContext,
     limit: 4,
   }), [agentCommandCenter.focusRows, aiOfficeWorkflowContext, permissions]);
+  const actionProposalReview = useMemo(() => deriveAgentActionProposalReviewState(actionProposalQueue, {
+    selectedId: selectedAgentProposalId,
+    decisions: agentProposalReviewDecisions,
+  }), [actionProposalQueue, agentProposalReviewDecisions, selectedAgentProposalId]);
+
+  function toggleAgentProposalReviewCheck(checkId) {
+    const selectedId = actionProposalReview.selected?.id;
+    if (!selectedId || !checkId || actionProposalReview.isBlocked) return;
+    setAgentProposalReviewDecisions((current) => {
+      const existing = current[selectedId] || {};
+      const completed = new Set(Array.isArray(existing.completedChecklist) ? existing.completedChecklist : []);
+      if (completed.has(checkId)) {
+        completed.delete(checkId);
+      } else {
+        completed.add(checkId);
+      }
+      return {
+        ...current,
+        [selectedId]: {
+          ...existing,
+          completedChecklist: Array.from(completed),
+          reviewedAt: "",
+        },
+      };
+    });
+  }
+
+  function markAgentProposalReviewedLocally() {
+    const selectedId = actionProposalReview.selected?.id;
+    if (!selectedId || !actionProposalReview.canMarkReviewed) return;
+    setAgentProposalReviewDecisions((current) => ({
+      ...current,
+      [selectedId]: {
+        ...(current[selectedId] || {}),
+        completedChecklist: actionProposalReview.checklist.map((item) => item.id),
+        reviewedAt: new Date().toISOString(),
+      },
+    }));
+  }
+
+  function openSelectedAgentProposalWorkflow() {
+    if (!actionProposalReview.canOpenWorkflow || !actionProposalReview.selected?.target) return;
+    openAgentCommandTarget(actionProposalReview.selected.target);
+  }
 
   function renderAgentTradeGuidance(target) {
     const guidance = target?.tradeGuidance;
@@ -22824,9 +22870,48 @@ function CopilotPagePolished({
         <aside className="co-ai-right-rail min-w-0">
           <Card className="co-ai-rail-card">
             <SectionHeader title="Agent Proposal Queue" description="Review-first packets prepared from the current AI Office queue. Nothing is created, sent, approved, converted, or billed here." />
+            {actionProposalReview.selected ? (
+              <div className="co-ai-proposal-review-panel" data-state={actionProposalReview.status}>
+                <div className="co-ai-proposal-review-head">
+                  <span>Review gate</span>
+                  <strong>{actionProposalReview.statusLabel}</strong>
+                </div>
+                <p>{actionProposalReview.safetyCopy}</p>
+                <div className="co-ai-proposal-review-checks">
+                  {actionProposalReview.checklist.slice(0, 6).map((check) => (
+                    <button key={check.id} type="button" className="co-ai-proposal-check co-focus-ring" data-complete={check.complete ? "true" : "false"} onClick={() => toggleAgentProposalReviewCheck(check.id)} disabled={actionProposalReview.isBlocked}>
+                      <span>{check.complete ? "OK" : ""}</span>
+                      <strong>{check.label}</strong>
+                    </button>
+                  ))}
+                </div>
+                {actionProposalReview.draftPrep.length ? (
+                  <div className="co-ai-proposal-prep-list">
+                    {actionProposalReview.draftPrep.slice(0, 1).map((item) => (
+                      <div key={item.id}>
+                        <span>{item.prepType}</span>
+                        <strong>{item.label}</strong>
+                        <em>{item.safeOutput}</em>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                <div className="co-ai-proposal-blocked-list">
+                  {actionProposalReview.blockedActions.slice(0, 2).map((item) => <small key={item}>{item}</small>)}
+                </div>
+                <div className="co-ai-proposal-review-actions">
+                  <Button type="button" size="sm" variant="secondary" onClick={markAgentProposalReviewedLocally} disabled={!actionProposalReview.canMarkReviewed || actionProposalReview.isLocallyReviewed}>
+                    {actionProposalReview.isLocallyReviewed ? "Reviewed" : `Review checks ${actionProposalReview.completedCount}/${actionProposalReview.totalCount}`}
+                  </Button>
+                  <Button type="button" size="sm" onClick={openSelectedAgentProposalWorkflow} disabled={!actionProposalReview.canOpenWorkflow}>
+                    Open workflow
+                  </Button>
+                </div>
+              </div>
+            ) : null}
             <div className="co-ai-proposal-queue">
               {actionProposalQueue.length ? actionProposalQueue.map((item) => (
-                <button key={item.id} type="button" className="co-ai-proposal-row co-focus-ring" data-tone={item.tone} onClick={() => openAgentCommandTarget(item.target)}>
+                <button key={item.id} type="button" className="co-ai-proposal-row co-focus-ring" data-tone={item.tone} data-active={actionProposalReview.selected?.id === item.id ? "true" : "false"} onClick={() => setSelectedAgentProposalId(item.id)}>
                   <span>
                     <strong>{item.sourceTitle}</strong>
                     <em>{item.helper}</em>
