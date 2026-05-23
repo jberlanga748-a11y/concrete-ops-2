@@ -40434,6 +40434,11 @@ button.co-apex-command-kpi:hover:not(:disabled) {
     background: #fffbeb;
   }
 
+  .co-estimates-shell-packet-panel .co-estimates-shell-workflow-head {
+    border-color: rgba(124, 58, 237, 0.2);
+    background: #f5f3ff;
+  }
+
   .co-estimates-shell-workflow-head > div {
     min-width: 0;
   }
@@ -40490,6 +40495,99 @@ button.co-apex-command-kpi:hover:not(:disabled) {
     font-size: 0.78rem;
     font-weight: 950;
     line-height: 1.18;
+  }
+
+  .co-estimates-shell-packet-readiness-grid {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+    gap: 0.42rem;
+  }
+
+  .co-estimates-shell-packet-readiness-grid span {
+    min-width: 0;
+    border: 1px solid rgba(221, 214, 254, 0.95);
+    border-radius: 0.58rem;
+    background: #fff;
+    padding: 0.52rem;
+  }
+
+  .co-estimates-shell-packet-readiness-grid em {
+    display: block;
+    color: #6d28d9;
+    font-size: 0.62rem;
+    font-style: normal;
+    font-weight: 950;
+    line-height: 1;
+  }
+
+  .co-estimates-shell-packet-readiness-grid strong {
+    display: block;
+    min-width: 0;
+    margin-top: 0.28rem;
+    overflow-wrap: anywhere;
+    color: var(--color-text-main);
+    font-size: 0.78rem;
+    font-weight: 950;
+    line-height: 1.18;
+  }
+
+  .co-estimates-shell-packet-section-list {
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    gap: 0.36rem;
+    border: 1px solid rgba(221, 214, 254, 0.82);
+    border-radius: 0.68rem;
+    background: #faf5ff;
+    padding: 0.52rem;
+  }
+
+  .co-estimates-shell-packet-section-list span {
+    border: 1px solid rgba(221, 214, 254, 0.92);
+    border-radius: 999px;
+    background: #fff;
+    color: #4c1d95;
+    padding: 0.26rem 0.42rem;
+    font-size: 0.62rem;
+    font-weight: 950;
+    line-height: 1;
+  }
+
+  .co-estimates-shell-packet-section-list span[data-internal="true"] {
+    border-color: rgba(245, 158, 11, 0.32);
+    background: #fffbeb;
+    color: #92400e;
+  }
+
+  .co-estimates-shell-packet-forms {
+    display: grid;
+    min-width: 0;
+    gap: 0.56rem;
+  }
+
+  .co-estimates-shell-packet-lock {
+    display: grid;
+    min-width: 0;
+    gap: 0.24rem;
+    border: 1px solid rgba(203, 213, 225, 0.92);
+    border-radius: 0.68rem;
+    background: #f8fafc;
+    padding: 0.62rem;
+  }
+
+  .co-estimates-shell-packet-lock strong {
+    color: var(--color-text-main);
+    font-size: 0.78rem;
+    font-weight: 950;
+    line-height: 1.2;
+  }
+
+  .co-estimates-shell-packet-lock span {
+    color: var(--color-text-muted);
+    font-size: 0.7rem;
+    font-weight: 800;
+    line-height: 1.34;
   }
 
   .co-estimates-shell-proposal-fields {

@@ -265,7 +265,7 @@ import { ALLOWED_UPLOAD_TYPES, buildUploadSupportContext, deriveAllowedUploadJob
 import { AuthenticatedUploadPreview, fetchAuthenticatedUploadPreviewUrl, UploadCreateCard, UploadDetailPanel, UploadListCard, UploadMobileAccordionCard, UploadMobileFieldGroup, UploadsCommandRailPolished, UploadsFieldOperatorPanel, UploadsMobileFocusPanel, UploadsProofWorkbench, UploadsTablePolished } from "./upload-route-components";
 import { deriveUserListState, getCrewAssignmentOptions, getForemanAssignmentOptions, USER_ROLE_OPTIONS } from "./user-utils";
 import { PlanReadinessPanel, SettingsCommandRailPolished } from "./settings-route-components";
-import { DEFAULT_ESTIMATE_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
+import { DEFAULT_ESTIMATE_PACKET_PRESET_ID, ESTIMATE_PACKET_SECTION_DEFS, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
 import { CONTACT_HISTORY_DIRECTIONS, CONTACT_HISTORY_METHODS, CONTACT_HISTORY_OUTCOMES } from "../shared/contactHistory.js";
 
 const APEX_BRAND_ASSETS = {
@@ -28873,6 +28873,20 @@ function EstimatesPagePolished({
     () => deriveEstimateBackup(detailEstimatePreview || detailDraft),
     [detailDraft, detailEstimatePreview],
   );
+  const detailGcPacketLite = useMemo(
+    () => deriveEstimateGcPacketLite(detailEstimatePreview || detailDraft),
+    [detailDraft, detailEstimatePreview],
+  );
+  const detailGcPacketReadyCount = [
+    detailGcPacketLite.proposalCoverNote,
+    detailGcPacketLite.proposalSummary,
+    detailGcPacketLite.qualifications,
+    detailGcPacketLite.scheduleNotes,
+    detailGcPacketLite.addendaRfiReferences,
+    detailGcPacketLite.gcReviewNotes,
+    detailGcPacketLite.internalPacketNotes,
+  ].filter((value) => String(value || "").trim()).length;
+  const detailGcPacketTotalCount = 7;
   const visualPreviewPacket = useMemo(
     () => buildEstimateVisualPreviewPacket({
       estimate: detailEstimatePreview || detailDraft,
@@ -29561,7 +29575,7 @@ function EstimatesPagePolished({
     { id: "pricing", label: "Pricing", title: "Pricing Mode", manages: "future line item pricing review, options totals, taxes, fees, and price readiness." },
     { id: "proposal", label: "Proposal", title: "Proposal Mode", manages: "future proposal sections, inclusions, exclusions, assumptions, alternates, and customer-facing scope." },
     { id: "backup", label: "Backup", title: "Backup / SOV Mode", manages: "future internal backup rows, SOV notes, takeoff references, and office-only estimate support." },
-    { id: "packet", label: "Packet", title: "Packet Mode", manages: "future GC packet settings, print sections, branded customer packet readiness, and handoff packet review." },
+    { id: "packet", label: "Packet", title: "Packet Mode", manages: "GC packet settings, print sections, branded customer packet readiness, and internal GC Lite review." },
     { id: "roughNotes", label: "Rough Notes", title: "Rough Notes Mode", manages: "future review-first AI rough notes drafting without automatic pricing, approval, or customer output." },
     { id: "takeoff", label: "Takeoff", title: "Takeoff Mode", manages: "future fence takeoff, visual preview, photo evidence, and quantity backup review." },
     { id: "sendReview", label: "Send Review", title: "Send Review Mode", manages: "future manual send confirmation, email readiness, customer packet review, and sent snapshot checks." },
@@ -29627,16 +29641,33 @@ function EstimatesPagePolished({
           ? `Resolve ${readiness.missing.slice(0, 3).join(", ")} before sending or converting.`
           : "Keep reviewing proposal context before any external action.";
     const activeShellMode = estimateShellModes.find((mode) => mode.id === estimateShellMode) || estimateShellModes[0];
-    const isFocusedShellEditMode = ["pricing", "proposal", "backup"].includes(activeShellMode.id);
+    const isFocusedShellEditMode = ["pricing", "proposal", "backup", "packet"].includes(activeShellMode.id);
     const visibleEstimateShellModes = isFocusedShellEditMode
       ? estimateShellModes.filter((mode) => mode.id === "overview" || mode.id === activeShellMode.id)
       : estimateShellModes;
     const pricingSaveDisabled = busy || !canManage || !selectedEstimate?.id;
     const proposalSaveDisabled = busy || !canManage || !selectedEstimate?.id;
     const backupSaveDisabled = busy || !canManage || !selectedEstimate?.id;
+    const packetSaveDisabled = busy || !canManage || !canUseGcPackets || !selectedEstimate?.id;
     const shellProposalSections = deriveEstimateProposalSections(detailDraft);
     const proposalOptionStatusOptions = ["optional", "included", "excluded", "accepted"];
     const addOnStatusOptions = ["optional", "selected", "included", "accepted", "excluded"];
+    const shellGcPacketLite = deriveEstimateGcPacketLite(detailDraft);
+    const packetSelectedSections = ESTIMATE_PACKET_SECTION_DEFS.filter((section) => packetPrintSettings.sectionIds.includes(section.id));
+    const packetCustomerSections = packetSelectedSections.filter((section) => !section.internalOnly);
+    const packetInternalSections = packetSelectedSections.filter((section) => section.internalOnly);
+    const shellGcPacketFields = [
+      shellGcPacketLite.proposalCoverNote,
+      shellGcPacketLite.proposalSummary,
+      shellGcPacketLite.qualifications,
+      shellGcPacketLite.scheduleNotes,
+      shellGcPacketLite.addendaRfiReferences,
+      shellGcPacketLite.gcReviewNotes,
+      shellGcPacketLite.internalPacketNotes,
+    ];
+    const shellGcPacketReadyCount = shellGcPacketFields.filter((value) => String(value || "").trim()).length;
+    const shellGcPacketTotalCount = shellGcPacketFields.length;
+    const packetPrintReady = readiness.hasCustomer && readiness.hasScope && readiness.hasPricing && packetCustomerSections.length > 0;
 
     async function handleSaveEstimateShellPricing() {
       if (!selectedEstimate?.id || !canManage || typeof onSaveEstimate !== "function") return false;
@@ -29670,6 +29701,17 @@ function EstimatesPagePolished({
       });
       if (saved) {
         showCopyFeedback("Backup and SOV review saved through the existing estimate save path.", 5000);
+      }
+      return saved;
+    }
+
+    async function handleSaveEstimateShellPacket() {
+      if (!selectedEstimate?.id || !canManage || !canUseGcPackets || typeof onSaveEstimate !== "function") return false;
+      const saved = await onSaveEstimate(selectedEstimate.id, {
+        internalNotes: detailDraft.internalNotes,
+      });
+      if (saved) {
+        showCopyFeedback("GC packet readiness saved through the existing estimate save path.", 5000);
       }
       return saved;
     }
@@ -29920,11 +29962,86 @@ function EstimatesPagePolished({
       );
     }
 
+    function renderEstimateShellPacketMode() {
+      if (!canUseGcPackets) {
+        return (
+          <div className="co-estimates-shell-workflow-panel co-estimates-shell-packet-panel" role="region" aria-label="Estimate packet readiness">
+            <div className="co-estimates-shell-workflow-head">
+              <div>
+                <Badge tone="slate">Locked</Badge>
+                <h3>Packet Readiness</h3>
+                <p>GC packet settings require the proper estimate packet entitlement. This shell keeps packet readiness read-only for this package.</p>
+              </div>
+              <StatusBadge status={estimateStatusLabel(status)} />
+            </div>
+            <div className="co-estimates-shell-packet-readiness-grid">
+              <span><em>Preset</em><strong>{packetPrintSettings.presetLabel}</strong></span>
+              <span><em>Customer Sections</em><strong>{packetCustomerSections.length}</strong></span>
+              <span><em>GC Lite</em><strong>Locked</strong></span>
+              <span><em>Print Readiness</em><strong>{packetPrintReady ? "Ready context" : "Needs review"}</strong></span>
+            </div>
+            <div className="co-estimates-shell-packet-lock">
+              <strong>Packet tools unavailable for this package.</strong>
+              <span>Customer proposal readiness remains visible, but GC Lite editing, office-only sections, and packet saves stay blocked.</span>
+            </div>
+            <div className="co-estimates-shell-workflow-actions">
+              <Button type="button" variant="secondary" onClick={() => setEstimateShellMode("overview")}>Return to overview</Button>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="co-estimates-shell-workflow-panel co-estimates-shell-packet-panel" role="region" aria-label="Estimate packet settings and GC packet readiness">
+          <div className="co-estimates-shell-workflow-head">
+            <div>
+              <Badge tone={canManage ? "violet" : "slate"}>{canManage ? "Packet readiness" : "Read only"}</Badge>
+              <h3>Packet Settings / GC Readiness</h3>
+              <p>Packet preset, included sections, and GC Lite notes only. No send, convert, AI, takeoff, or handoff action runs here.</p>
+            </div>
+            <StatusBadge status={estimateStatusLabel(status)} />
+          </div>
+          <div className="co-estimates-shell-workflow-context">
+            <span><em>Estimate</em><strong>{estimateDisplayTitle(estimate)}</strong></span>
+            <span><em>Customer</em><strong>{estimateDisplayCustomer(estimate) || "Customer pending"}</strong></span>
+            <span><em>Packet</em><strong>{packetPrintSettings.presetLabel}</strong></span>
+          </div>
+          <div className="co-estimates-shell-packet-readiness-grid">
+            <span><em>Selected Preset</em><strong>{packetPrintSettings.presetLabel}</strong></span>
+            <span><em>Selected Sections</em><strong>{packetPrintSettings.sectionIds.length}</strong></span>
+            <span><em>GC Lite Completeness</em><strong>{shellGcPacketReadyCount} / {shellGcPacketTotalCount}</strong></span>
+            <span><em>Internal Exposure</em><strong>{packetPrintSettings.allowInternalSections ? `${packetInternalSections.length} office-only` : "Customer-safe"}</strong></span>
+            <span><em>Print Readiness</em><strong>{packetPrintReady ? "Ready context" : "Needs review"}</strong></span>
+          </div>
+          <div className="co-estimates-shell-packet-section-list" aria-label="Selected packet sections">
+            {packetSelectedSections.map((section) => (
+              <span key={section.id} data-internal={section.internalOnly ? "true" : "false"}>{section.label}</span>
+            ))}
+          </div>
+          <div className="co-estimates-shell-packet-forms">
+            <EstimatePacketSettingsPanel
+              presetId={packetPresetId}
+              sectionIds={packetSectionIds}
+              setPresetId={setPacketPresetId}
+              setSectionIds={setPacketSectionIds}
+              canIncludeInternalSections={canManage && canUseGcPackets}
+            />
+            <EstimateGcPacketLiteEditor draft={detailDraft} setDraft={setDetailDraft} disabled={!canManage || busy} />
+          </div>
+          <div className="co-estimates-shell-workflow-actions">
+            <Button type="button" onClick={handleSaveEstimateShellPacket} disabled={packetSaveDisabled}>Save GC Packet Readiness</Button>
+            <Button type="button" variant="secondary" onClick={() => setEstimateShellMode("overview")}>Return to overview</Button>
+          </div>
+        </div>
+      );
+    }
+
     function renderEstimateShellModePlaceholder() {
       if (activeShellMode.id === "overview") return null;
       if (activeShellMode.id === "pricing") return renderEstimateShellPricingMode();
       if (activeShellMode.id === "proposal") return renderEstimateShellProposalMode();
       if (activeShellMode.id === "backup") return renderEstimateShellBackupMode();
+      if (activeShellMode.id === "packet") return renderEstimateShellPacketMode();
       return (
         <div className="co-estimates-shell-mode-placeholder" role="region" aria-label={`${activeShellMode.title} placeholder`}>
           <Badge tone="slate">Full tool migration pending</Badge>
@@ -30037,6 +30154,13 @@ function EstimatesPagePolished({
           { value: canManage ? 1 : 0, label: canManage ? "editable" : "read only", tone: canManage ? "blue" : "slate" },
           { value: 0, label: "customer exposure", tone: "green" },
         ]
+        : estimateShellMode === "packet"
+          ? [
+            { value: packetPrintSettings.sectionIds.length, label: "sections", tone: packetPrintSettings.sectionIds.length ? "violet" : "slate" },
+            { value: canUseGcPackets ? `${detailGcPacketReadyCount}/${detailGcPacketTotalCount}` : 0, label: "GC Lite ready", tone: canUseGcPackets && detailGcPacketReadyCount ? "violet" : "slate" },
+            { value: packetPrintSettings.allowInternalSections ? 1 : 0, label: packetPrintSettings.allowInternalSections ? "office packet" : "customer safe", tone: packetPrintSettings.allowInternalSections ? "amber" : "green" },
+            { value: canUseGcPackets ? 1 : 0, label: canUseGcPackets ? "entitled" : "locked", tone: canUseGcPackets ? "green" : "slate" },
+          ]
     : [
       { value: draftToPriceRows.length, label: "drafts to price", tone: draftToPriceRows.length ? "orange" : "green" },
       { value: readyToSendRows.length, label: "ready to send", tone: readyToSendRows.length ? "blue" : "slate" },
@@ -30058,6 +30182,11 @@ function EstimatesPagePolished({
           { label: "Review Backup", icon: "clipboard", onClick: () => setEstimateShellMode("backup"), disabled: !selectedEstimate },
           { label: "Overview", icon: "briefcase", onClick: () => setEstimateShellMode("overview") },
         ]
+        : estimateShellMode === "packet"
+          ? [
+            { label: "Review Packet", icon: "clipboard", onClick: () => setEstimateShellMode("packet"), disabled: !selectedEstimate },
+            { label: "Overview", icon: "briefcase", onClick: () => setEstimateShellMode("overview") },
+          ]
     : estimateShellAssistantActions;
   const estimateShellQuickActionsForMode = estimateShellMode === "pricing"
     ? [
@@ -30074,6 +30203,11 @@ function EstimatesPagePolished({
           { id: "backup-mode", label: "Backup", icon: "clipboard", onClick: () => setEstimateShellMode("backup"), disabled: !selectedEstimate },
           { id: "backup-overview", label: "Overview", icon: "briefcase", onClick: () => setEstimateShellMode("overview") },
         ]
+        : estimateShellMode === "packet"
+          ? [
+            { id: "packet-mode", label: "Packet", icon: "clipboard", onClick: () => setEstimateShellMode("packet"), disabled: !selectedEstimate },
+            { id: "packet-overview", label: "Overview", icon: "briefcase", onClick: () => setEstimateShellMode("overview") },
+          ]
     : estimateShellQuickActions;
   const estimateShellGuardrailsForMode = estimateShellMode === "pricing"
     ? [
@@ -30093,6 +30227,12 @@ function EstimatesPagePolished({
           "No customer packet settings",
           "Field roles stay blocked from estimates",
         ]
+        : estimateShellMode === "packet"
+          ? [
+            "Packet readiness only",
+            "No send, convert, AI, takeoff, or handoff actions",
+            "Field roles stay blocked from estimates",
+          ]
     : [
       "Overview/readiness only",
       "No automatic sends or job conversion",
