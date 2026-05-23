@@ -5505,6 +5505,19 @@ function TimePage({
       : permissions.time.canManageOwn
         ? "Use the clock card to start clean job-linked time."
         : "No active visible time needs office attention.";
+  const tabletTimeRows = boardRows.slice(0, Math.min(boardRows.length, 6));
+  const selectedTabletTimeEntry = selectedTimeEntry || tabletTimeRows[0] || null;
+  const tabletTimeTitle = canViewAll ? "Time Command" : canViewCrew ? "Crew Time" : "My Time";
+  const tabletTimeDescription = canViewAll
+    ? "Clock first, review active time, and keep corrections in one tablet pass."
+    : canViewCrew
+      ? "Review crew time from field-safe cards with no payroll, pricing, or office controls."
+      : "Clock your assigned work and keep today's time clean.";
+  const tabletGuardrail = canViewAll
+    ? "Office view: corrections stay permission-gated and no pricing or payroll data is shown."
+    : canViewCrew
+      ? "Foreman view: crew time stays limited to field-safe work details."
+      : "Employee view: only your assigned work and your time controls are visible.";
 
   return (
     <div className="co-office-page co-time-page">
@@ -5525,6 +5538,125 @@ function TimePage({
           </div>
         }
       />
+
+      <section className="co-time-tablet-only mx-auto w-full max-w-[1520px] min-w-0 px-4 pb-4 sm:px-5" aria-label="Tablet time command">
+        <div className="co-time-tablet-shell">
+          <div className="co-time-tablet-head">
+            <div className="min-w-0">
+              <p>Tablet time</p>
+              <h2>{tabletTimeTitle}</h2>
+              <span>{tabletTimeDescription}</span>
+            </div>
+            <Badge tone={workspace.activeEntry ? "green" : "slate"}>{workspace.activeEntry ? "Clock active" : "Clock ready"}</Badge>
+          </div>
+
+          <div className="co-time-tablet-kpis" aria-label="Time status summary">
+            {timeKpis.slice(0, 4).map((item) => (
+              <div key={item.label} className="co-time-tablet-kpi" data-tone={item.tone}>
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+                <em>{item.helper}</em>
+              </div>
+            ))}
+          </div>
+
+          <div className="co-time-tablet-grid">
+            <section className="co-time-tablet-clock" aria-label="Clock controls">
+              {permissions.time.canManageOwn ? (
+                <ActiveTimeCard
+                  activeEntry={workspace.activeEntry}
+                  availableJobs={workspace.availableJobs}
+                  allowedCategories={workspace.allowedCategories}
+                  onClockIn={onClockIn}
+                  onClockOut={onClockOut}
+                  onStartBreak={onStartBreak}
+                  onEndBreak={onEndBreak}
+                  disabled={busy}
+                  description="Start or stop job-linked time from the top of the tablet."
+                  heroClock
+                />
+              ) : (
+                <Card className="p-4">
+                  <SectionHeader title="Clock controls are not available" description="Your role can review visible time, but cannot start or stop a personal clock from this screen." />
+                  <StateCard title="Read-only time view" description="Visible time remains role-scoped and field-safe." tone="slate" />
+                </Card>
+              )}
+            </section>
+
+            <section className="co-time-tablet-queue" aria-label="Visible time queue">
+              <div className="co-time-tablet-section-head">
+                <div>
+                  <strong>Time queue</strong>
+                  <span>{tabletTimeRows.length} of {boardRows.length} visible entries</span>
+                </div>
+                <Badge tone="slate">{permissions.time.canCorrect ? "Corrections on" : "Read-only"}</Badge>
+              </div>
+              <div className="co-time-tablet-list">
+                {tabletTimeRows.length === 0 ? (
+                  <StateCard title="No visible time entries" description={permissions.time.canManageOwn ? "Use the clock card to start the first entry." : "Entries appear here when visible crews track time."} tone="slate" />
+                ) : tabletTimeRows.map((entry) => {
+                  const selected = selectedTabletTimeEntry?.id === entry.id;
+                  const totalLabel = entry.status === "completed" ? formatMinutes(entry.totalMinutes) : "In progress";
+
+                  return (
+                    <button
+                      key={entry.id}
+                      type="button"
+                      className={`co-time-tablet-row co-focus-ring ${selected ? "is-selected" : ""}`}
+                      onClick={() => onSelectTimeEntry(entry.id)}
+                    >
+                      <span>
+                        <strong>{entry.jobTitle || workCategoryLabel(entry.workCategory)}</strong>
+                        <em>{showUserColumn ? `${entry.userName} / ${entry.userRole || "Field user"}` : workCategoryLabel(entry.workCategory)}</em>
+                      </span>
+                      <span>
+                        <TimeStatusBadge status={entry.status} />
+                        <b>{totalLabel}</b>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section className="co-time-tablet-selected" aria-label="Selected time entry">
+              <div className="co-time-tablet-section-head">
+                <div>
+                  <strong>Selected entry</strong>
+                  <span>{selectedTabletTimeEntry ? selectedTabletTimeEntry.id : "Nothing selected"}</span>
+                </div>
+              </div>
+              <div className="co-time-tablet-detail-scroll">
+                {selectedTabletTimeEntry ? (
+                  <>
+                    <TimeEntryCard entry={selectedTabletTimeEntry} showUser={showUserColumn} compact />
+                    <TimeCorrectionPanel
+                      entry={selectedTabletTimeEntry}
+                      draft={timeEditDraft}
+                      setDraft={setTimeEditDraft}
+                      onSave={onSaveTimeEntry}
+                      disabled={busy}
+                      canCorrect={permissions.time.canCorrect}
+                      compactMobile
+                    />
+                  </>
+                ) : (
+                  <StateCard title="No entry selected" description="Choose a time card to review status, breaks, notes, and correction availability." tone="slate" />
+                )}
+              </div>
+            </section>
+
+            <section className="co-time-tablet-summary" aria-label="Tablet time guardrails">
+              <TimeSummaryMetricsPolished summary={boardSummary} activeCount={clockedInCount} label={isOwnOnly ? "My week" : "Visible week"} />
+              <div className="co-time-tablet-safe-note">
+                <strong>{timeNextAction}</strong>
+                <span>{timeNextDetail}</span>
+                <em>{tabletGuardrail}</em>
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
 
       {permissions.time.canManageOwn ? (
         <div ref={clockHeroRef} className="co-time-clock-hero mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6">
