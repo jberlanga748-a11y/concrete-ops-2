@@ -372,6 +372,24 @@ test("manual jobs can initialize and persist startup checklist readiness", async
       password: "apexdemo123",
     });
     const headers = authHeaders(opsLogin.token);
+    const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers });
+    const leadState = await assertOk(fixture.baseUrl, "/api/leads", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        customer: "North Valley Shop",
+        city: "Albany",
+        project: "Fence replacement",
+        trade: "fence",
+        ownerId: bootstrap.user.id,
+        source: "Website",
+        value: 0,
+        nextStep: "Schedule site visit",
+        notes: "Replace shop yard fence.",
+      }),
+    });
+    const linkedLead = leadState.leads.find((lead) => lead.customer === "North Valley Shop" && lead.project === "Fence replacement");
+    assert.ok(linkedLead);
 
     const createState = await assertOk(fixture.baseUrl, "/api/jobs", {
       method: "POST",
@@ -379,6 +397,7 @@ test("manual jobs can initialize and persist startup checklist readiness", async
       body: JSON.stringify({
         title: "Startup Review Slab",
         customer: "North Valley Shop",
+        leadId: linkedLead.id,
         address: "22 Shop Rd, Albany, OR",
         scopeSummary: "Prepare and pour shop slab.",
         status: "planned",
@@ -387,6 +406,10 @@ test("manual jobs can initialize and persist startup checklist readiness", async
     const createdJob = createState.jobs.find((job) => job.title === "Startup Review Slab");
     assert.equal(createdJob.startupStatus, "Not Started");
     assert.equal(createdJob.startupChecklist.length, 18);
+    assert.match(createdJob.startupNotes, /Trade context: Fencing/);
+    assert.match(createdJob.startupNotes, /Field handoff focus:/);
+    assert.match(createdJob.startupNotes, /Proof photos to collect:/);
+    assert.match(createdJob.startupNotes, /Change-order watchouts:/);
 
     const partialChecklist = markStartupItem(normalizeStartupChecklist(createdJob.startupChecklist), "customerContactConfirmed", { checked: true }, { changedAt: "2026-05-10T10:00:00.000Z" });
     const blockedReady = await requestJson(fixture.baseUrl, `/api/jobs/${createdJob.id}`, {

@@ -222,6 +222,11 @@ test("office and estimator users can manage estimates while field roles are bloc
 
     const customerId = officeBootstrap.customers[0].id;
     const leadId = officeBootstrap.leads[0].id;
+    await assertOk(fixture.baseUrl, `/api/leads/${leadId}`, {
+      method: "PATCH",
+      headers: officeHeaders,
+      body: JSON.stringify({ trade: "fence" }),
+    });
 
     const createdOfficeState = await assertOk(fixture.baseUrl, "/api/estimates", {
       method: "POST",
@@ -332,6 +337,10 @@ test("office and estimator users can manage estimates while field roles are bloc
     assert.match(convertedJob.notes, /Customer notes\/terms: Two-day window once approved\./);
     assert.match(convertedJob.notes, /Next step: schedule the job and assign foreman\/crew\./);
     assert.doesNotMatch(convertedJob.notes, /Office-only pricing assumptions/);
+    assert.match(convertedJob.startupNotes, /Trade context: Fencing/);
+    assert.match(convertedJob.startupNotes, /Field handoff focus:/);
+    assert.match(convertedJob.startupNotes, /Proof photos to collect:/);
+    assert.doesNotMatch(convertedJob.startupNotes, /Office-only pricing assumptions/);
   } finally {
     await fixture.stop();
   }

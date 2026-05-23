@@ -235,7 +235,7 @@ import {
   isOperationsManager,
   isOwner,
 } from "../shared/permissions.js";
-import { normalizeConstructionTradeId } from "../shared/constructionTrades.js";
+import { buildConstructionAgentTradeContext, normalizeConstructionTradeId } from "../shared/constructionTrades.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.join(__dirname, "..");
@@ -267,6 +267,34 @@ const COMPANY_ACCENT_COLORS = new Set(["blue", "slate", "emerald", "amber", "ora
 function normalizeLeadTradeValue(value = "") {
   const normalized = normalizeConstructionTradeId(value);
   return normalized || optionalString(value, "").slice(0, 120);
+}
+
+function buildTradeAwareJobStartupNotes({ job = {}, lead = null, estimate = null, companySettings = {} } = {}) {
+  const tradeContext = buildConstructionAgentTradeContext({
+    trade: lead?.trade || estimate?.trade || estimate?.projectType || companySettings.primaryTrade,
+    companySettings,
+    lead: lead || {},
+    estimate: estimate || {},
+    roughNotes: [
+      job.scopeSummary,
+      job.fieldNotes,
+      job.notes,
+      lead?.project,
+      lead?.notes,
+      estimate?.title,
+      estimate?.scopeSummary,
+      estimate?.internalNotes,
+    ].filter(Boolean).join("\n"),
+  });
+  const listLine = (label, items = []) => items.length ? `${label}: ${items.slice(0, 6).join("; ")}` : "";
+
+  return [
+    `Trade context: ${tradeContext.tradeLabel}`,
+    listLine("Field handoff focus", tradeContext.fieldHandoffChecklist),
+    listLine("Proof photos to collect", tradeContext.proofPhotoChecklist),
+    listLine("Change-order watchouts", tradeContext.changeOrderWatchouts),
+    tradeContext.safetyBoundary,
+  ].filter(Boolean).join("\n");
 }
 const PRE_POUR_CHECKLIST_STATUSES = new Set(["draft", "completed", "reviewed", "reopened", "archived"]);
 const PRE_POUR_ITEM_STATUSES = new Set(["unchecked", "checked", "not_applicable"]);
@@ -8227,6 +8255,15 @@ function convertApprovedEstimateToJobInDraft(draft, estimateId, user, payload = 
     updatedAt: changedAt,
     archivedAt: null,
   });
+  Object.assign(job, createStartupChecklistFields(job, {}, {
+    changedAt,
+    startupNotes: buildTradeAwareJobStartupNotes({
+      job,
+      lead: linkedLead,
+      estimate,
+      companySettings: companySettingsForState(draft, user),
+    }),
+  }));
 
   draft.jobs ||= [];
   draft.jobs.unshift(job);
@@ -12696,6 +12733,14 @@ app.post("/api/leads/:id/convert", requireAuth, asyncRoute(async (req, res) => {
       updatedAt: changedAt,
       archivedAt: null,
     });
+    Object.assign(newJob, createStartupChecklistFields(newJob, {}, {
+      changedAt,
+      startupNotes: buildTradeAwareJobStartupNotes({
+        job: newJob,
+        lead,
+        companySettings: companySettingsForState(draft, req.auth.user),
+      }),
+    }));
 
     draft.jobs.unshift(newJob);
     lead.customerId = customer.id;
@@ -12816,8 +12861,9 @@ app.post("/api/jobs", requireAuth, asyncRoute(async (req, res) => {
   const nextState = await updateDb((draft) => {
     draft.jobAssignments ||= [];
     assignCompanyIdForCreate(newJob, req.auth.user, draft);
+    let linkedLead = null;
     if (newJob.leadId) {
-      findCompanyScopedRecord(draft.leads || [], newJob.leadId, req.auth.user, draft, "Lead");
+      linkedLead = findCompanyScopedRecord(draft.leads || [], newJob.leadId, req.auth.user, draft, "Lead");
     }
     newJob.assignedForemanId = resolveOptionalUserId(draft, payload.assignedForemanId, "Assigned foreman");
     newJob.assignedUserId = resolveOptionalUserId(draft, payload.assignedUserId, "Assigned user");
@@ -12834,6 +12880,14 @@ app.post("/api/jobs", requireAuth, asyncRoute(async (req, res) => {
       status: "Active",
     }, req.auth.user, { fallbackStatus: "Active" });
     newJob.customerId = customer.id;
+    Object.assign(newJob, createStartupChecklistFields(newJob, {}, {
+      changedAt: createdAt,
+      startupNotes: buildTradeAwareJobStartupNotes({
+        job: newJob,
+        lead: linkedLead,
+        companySettings: companySettingsForState(draft, req.auth.user),
+      }),
+    }));
     draft.jobs.unshift(newJob);
     if (newJob.assignedForemanId) {
       draft.jobAssignments.unshift(createJobAssignmentRecord(newJob, newJob.assignedForemanId, "foreman", req.auth.user, "", createdAt));
