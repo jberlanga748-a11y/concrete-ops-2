@@ -40071,6 +40071,223 @@ button.co-apex-command-kpi:hover:not(:disabled) {
   overflow: visible;
 }
 
+@media (min-width: 1024px) {
+  .co-estimates-shell-page {
+    height: calc(100vh - 4.5rem) !important;
+    min-height: 41rem;
+    overflow: hidden;
+    padding-bottom: 0 !important;
+  }
+
+  .co-estimates-shell-page .co-apex-office-command-shell {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .co-estimates-shell-page .co-apex-office-command-frame {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+  }
+
+  .co-estimates-shell-page .co-command-page-frame-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 21rem);
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  .co-estimates-shell-page .co-command-page-frame-main,
+  .co-estimates-shell-page .co-command-page-frame-rail {
+    min-height: 0;
+  }
+
+  .co-estimates-shell-page .co-apex-office-command-workspace {
+    height: 100%;
+    min-height: 0;
+    grid-template-columns: minmax(19rem, 0.78fr) minmax(0, 1.22fr);
+  }
+
+  .co-estimates-shell-page .co-apex-primary-queue-panel,
+  .co-estimates-shell-page .co-apex-selected-detail-panel,
+  .co-estimates-shell-page .co-apex-assistant-action-panel {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .co-estimates-shell-page .co-apex-primary-queue-panel {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .co-estimates-shell-page .co-apex-assistant-action-panel {
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .co-estimates-shell-page .co-assistant-rail {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  }
+
+  .co-estimates-shell-page .co-apex-primary-queue-list {
+    align-content: start;
+    grid-auto-rows: max-content;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  }
+
+  .co-estimates-shell-page .co-apex-primary-queue-list .co-work-queue-card {
+    padding: 0.5rem;
+  }
+
+  .co-estimates-shell-page .co-work-queue-card h3 {
+    font-size: 0.78rem;
+  }
+
+  .co-estimates-shell-page .co-work-queue-meta,
+  .co-estimates-shell-page .co-work-queue-status,
+  .co-estimates-shell-page .co-work-queue-action {
+    font-size: 0.66rem;
+  }
+
+  .co-estimates-shell-page .co-apex-selected-detail-body {
+    min-height: 0;
+    align-content: start;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  }
+
+  .co-estimates-shell-detail-scroll {
+    display: grid;
+    min-height: 0;
+    gap: 0.54rem;
+    overflow: visible;
+  }
+
+  .co-estimates-shell-selected-facts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .co-estimates-shell-readiness-grid {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .co-estimates-shell-readiness-grid > div {
+    min-width: 0;
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    border-radius: 0.58rem;
+    background: #f8fafc;
+    padding: 0.62rem;
+  }
+
+  .co-estimates-shell-readiness-grid > div[data-state="ready"] {
+    border-color: rgba(34, 197, 94, 0.26);
+    background: #f0fdf4;
+  }
+
+  .co-estimates-shell-readiness-grid > div[data-state="needs"] {
+    border-color: rgba(245, 158, 11, 0.28);
+    background: #fffbeb;
+  }
+
+  .co-estimates-shell-readiness-grid span {
+    display: block;
+    color: var(--color-text-muted);
+    font-size: 0.62rem;
+    font-weight: 950;
+    letter-spacing: 0.1em;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+
+  .co-estimates-shell-readiness-grid strong {
+    display: block;
+    margin-top: 0.28rem;
+    color: var(--color-text-main);
+    font-size: 0.8rem;
+    font-weight: 950;
+    line-height: 1.18;
+    overflow-wrap: anywhere;
+  }
+
+  .co-estimates-shell-readiness-grid p {
+    margin-top: 0.26rem;
+    color: var(--color-text-muted);
+    font-size: 0.68rem;
+    font-weight: 800;
+    line-height: 1.28;
+  }
+
+  .co-estimates-shell-feedback {
+    border: 1px solid rgba(16, 185, 129, 0.24);
+    border-radius: 0.58rem;
+    background: #ecfdf5;
+    color: #047857;
+    padding: 0.58rem 0.68rem;
+    font-size: 0.74rem;
+    font-weight: 900;
+    line-height: 1.32;
+  }
+
+  .co-estimates-shell-page .co-assistant-rail-head {
+    padding: 0.58rem 0.76rem 0.42rem;
+  }
+
+  .co-estimates-shell-page .co-assistant-rail-head h2 {
+    font-size: 0.88rem;
+  }
+
+  .co-estimates-shell-page .co-assistant-rail-head p {
+    font-size: 0.7rem;
+    line-height: 1.28;
+  }
+
+  .co-estimates-shell-page .co-assistant-rail-priorities,
+  .co-estimates-shell-page .co-assistant-rail-actions {
+    gap: 0.3rem;
+    padding: 0 0.54rem 0.54rem;
+  }
+
+  .co-estimates-shell-page .co-assistant-rail-priority {
+    padding: 0.34rem 0.48rem;
+  }
+
+  .co-estimates-shell-page .co-assistant-rail-actions button {
+    min-height: 1.9rem;
+    padding: 0.36rem 0.5rem;
+  }
+
+  .co-estimates-shell-page .co-apex-assistant-guardrails {
+    padding: 0.52rem;
+    padding-right: 4.3rem;
+  }
+
+  .co-estimates-shell-page .co-estimates-tools-drawer,
+  .co-estimates-shell-page .co-estimates-advanced-filters,
+  .co-estimates-shell-page .co-estimate-proposal-browse,
+  .co-estimates-shell-page .co-estimates-kpi-grid {
+    display: none !important;
+  }
+}
+
+.co-estimates-shell-page .co-apex-selected-detail-body {
+  overflow-y: auto;
+}
+
+.co-estimates-shell-detail-scroll {
+  align-items: start;
+}
+
 .co-schedule-northstar-frame {
   padding-bottom: 0.85rem;
 }

@@ -196,7 +196,7 @@ import { deriveEstimateGcPacketLite } from "./estimate-gc-packet-utils";
 import { estimateRoughNotesBullets, estimateRoughNotesHasSuggestions, estimateRoughNotesText, hasMeaningfulEstimateItems } from "./estimate-rough-notes-utils";
 import { addEstimateSentSnapshot, getEstimateVisibleInternalNotes, mergeEstimateGcPacketLite, mergeEstimateOfficeInternalNotes } from "./estimate-snapshot-utils";
 import { buildEstimateVisualPreviewPacket, canRequestEstimateVisualPreview } from "./estimate-visual-preview-utils";
-import { buildEstimateCopyText, buildEstimateCustomerMessage, buildEstimateDraftFromLead, calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEstimateTotals, deriveEstimateListState, deriveEstimateProposalSections, estimateCustomerEmail, estimateStatusLabel, filterEstimates, formatEstimateCurrency, getEstimateFromLeadReadiness, mergeEstimateProposalSections, selectDefaultEstimateForReview } from "./estimate-utils";
+import { buildEstimateCopyText, buildEstimateCustomerMessage, buildEstimateDraftFromLead, calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEstimateTotals, deriveEstimateJobHandoffReadiness, deriveEstimateListState, deriveEstimateProposalSections, estimateCustomerEmail, estimateStatusLabel, filterEstimates, formatEstimateCurrency, getEstimateFromLeadReadiness, mergeEstimateProposalSections, selectDefaultEstimateForReview } from "./estimate-utils";
 import {
   EstimateBackupEditor,
   EstimateCommandRailPolished,
@@ -732,6 +732,28 @@ function createEstimateDraft(record) {
       ? record.items.map((item) => createEstimateLineItemDraft(item))
       : [createEstimateLineItemDraft()],
   };
+}
+
+function useDesktopCommandViewport(minWidth = 1024) {
+  const [matches, setMatches] = useState(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return true;
+    return window.matchMedia(`(min-width: ${minWidth}px)`).matches;
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return undefined;
+    const mediaQuery = window.matchMedia(`(min-width: ${minWidth}px)`);
+    const update = () => setMatches(mediaQuery.matches);
+    update();
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", update);
+      return () => mediaQuery.removeEventListener("change", update);
+    }
+    mediaQuery.addListener(update);
+    return () => mediaQuery.removeListener(update);
+  }, [minWidth]);
+
+  return matches;
 }
 
 function mergeEstimateRoughNotesIntoDraft(draft = {}, result = {}, options = {}, roughNotesText = "") {
@@ -28784,10 +28806,13 @@ function EstimatesPagePolished({
   const [showEstimateTools, setShowEstimateTools] = useState(false);
   const [activeEstimateTool, setActiveEstimateTool] = useState("edit");
   const [visibleEstimateRowCap, setVisibleEstimateRowCap] = useState(6);
+  const [estimateShellSelectionId, setEstimateShellSelectionId] = useState("");
+  const [estimateShellMode, setEstimateShellMode] = useState("overview");
   const [roughNotes, setRoughNotes] = useState("");
   const [roughNotesState, setRoughNotesState] = useState({ loading: false, result: null, error: "" });
   const newEstimateRef = useRef(null);
   const copyFeedbackTimeoutRef = useRef(null);
+  const isDesktopCommandViewport = useDesktopCommandViewport(1024);
 
   const visibleCustomers = normalizeObjectArray(customers).filter((customer) => !customer.archivedAt);
   const visibleLeads = normalizeObjectArray(leads).filter((lead) => !lead.archivedAt);
@@ -28811,6 +28836,7 @@ function EstimatesPagePolished({
   const canManage = Boolean(permissions?.estimates?.canManage);
   const canUseAiRoughNotes = Boolean(permissions?.estimates?.canUseAiRoughNotes);
   const canUseGcPackets = Boolean(permissions?.estimates?.canUseGcPackets);
+  const canUseEstimatesCommandShell = Boolean(permissions?.estimates?.canView && isDesktopCommandViewport);
   const companyPrimaryTrade = companyProfile?.primaryTrade || "general-contractor";
   const singleCustomerId = visibleCustomers.length === 1 ? visibleCustomers[0].id : "";
   const singleCustomerName = visibleCustomers.length === 1 ? visibleCustomers[0].name || "" : "";
@@ -29313,6 +29339,331 @@ function EstimatesPagePolished({
     return converted;
   }
 
+  function estimateShellReadiness(estimate = {}) {
+    const sections = deriveEstimateProposalSections(estimate);
+    const backup = deriveEstimateBackup(estimate);
+    const gcPacketLite = deriveEstimateGcPacketLite(estimate);
+    const totals = calculateEstimateTotals(estimate?.items, {
+      taxRate: estimate?.taxRate,
+      feesTotal: estimate?.feesTotal,
+    });
+    const optionTotals = calculateEstimateOptionTotals(estimate);
+    const hasLineItems = Array.isArray(estimate?.items) && estimate.items.some((item) => item?.description || item?.unitPrice);
+    const hasPricing = hasLineItems && totals.grandTotal > 0;
+    const hasScope = Boolean(String(sections.scopeOfWork || estimate?.scopeSummary || "").trim());
+    const hasContact = Boolean(estimateCustomerEmail(estimate));
+    const hasCustomer = Boolean(estimate?.customer?.name || estimate?.customerName || estimate?.lead?.customer || estimate?.customerId);
+    const hasBackup = Boolean(
+      String(backup.notes || "").trim()
+      || (Array.isArray(backup.sovRows) && backup.sovRows.length)
+      || (Array.isArray(backup.takeoffRows) && backup.takeoffRows.length)
+      || (Array.isArray(backup.referenceRows) && backup.referenceRows.length)
+      || (Array.isArray(backup.fenceTakeoff?.segments) && backup.fenceTakeoff.segments.length)
+    );
+    const hasPacketNotes = Boolean(
+      String(gcPacketLite.proposalSummary || "").trim()
+      || String(gcPacketLite.proposalCoverNote || "").trim()
+      || String(gcPacketLite.qualifications || "").trim()
+      || String(gcPacketLite.scheduleNotes || "").trim()
+    );
+    const status = String(estimate?.status || "draft").trim().toLowerCase();
+    const readyToSend = status === "draft" && hasCustomer && hasContact && hasScope && hasPricing;
+    const approvedHandoff = status === "approved" && !estimate?.jobId;
+    const packetReady = hasScope && hasPricing && (hasBackup || hasPacketNotes || !canUseGcPackets);
+    const missing = [
+      hasCustomer ? "" : "customer",
+      hasContact ? "" : "contact",
+      hasScope ? "" : "scope",
+      hasPricing ? "" : "pricing",
+      packetReady ? "" : "packet backup",
+    ].filter(Boolean);
+
+    return {
+      totals,
+      optionTotals,
+      hasCustomer,
+      hasContact,
+      hasScope,
+      hasPricing,
+      hasBackup,
+      hasPacketNotes,
+      packetReady,
+      readyToSend,
+      approvedHandoff,
+      missing,
+    };
+  }
+
+  const estimateShellRows = useMemo(() => rows.filter((estimate) => !estimate?.archivedAt), [rows]);
+  const estimateShellStateById = useMemo(() => {
+    const map = new Map();
+    estimateShellRows.forEach((estimate) => {
+      if (estimate?.id) map.set(estimate.id, estimateShellReadiness(estimate));
+    });
+    return map;
+  }, [estimateShellRows, canUseGcPackets]);
+  const draftToPriceRows = estimateShellRows.filter((estimate) => {
+    const status = String(estimate?.status || "draft").trim().toLowerCase();
+    return status === "draft" && !estimateShellStateById.get(estimate.id)?.hasPricing;
+  });
+  const readyToSendRows = estimateShellRows.filter((estimate) => estimateShellStateById.get(estimate.id)?.readyToSend);
+  const sentToWinRows = estimateShellRows.filter((estimate) => String(estimate?.status || "").trim().toLowerCase() === "sent" && !estimate?.jobId);
+  const approvedHandoffRows = estimateShellRows.filter((estimate) => estimateShellStateById.get(estimate.id)?.approvedHandoff);
+
+  function selectEstimateShellEstimate(estimate, nextMode = "overview") {
+    if (!estimate?.id) return;
+    setEstimateViewMode("browse");
+    setSelectedEstimateId(estimate.id);
+    setEstimateShellSelectionId(`estimate-${estimate.id}`);
+    setEstimateShellMode(nextMode);
+  }
+
+  function openFullEstimateToolsPlaceholder(toolLabel = "full estimate tools") {
+    setShowEstimateTools(false);
+    showCopyFeedback(`Slice 1 is overview/readiness only. ${toolLabel} will move into the no-drawer detail modes in Slice 2. No estimate was changed, sent, priced, or converted.`, 7000);
+  }
+
+  const estimateShellKpis = [
+    {
+      id: "drafts-to-price",
+      label: "Drafts To Price",
+      value: draftToPriceRows.length,
+      helper: `${estimateShellRows.filter((estimate) => String(estimate?.status || "draft").trim().toLowerCase() === "draft").length} open draft${estimateShellRows.filter((estimate) => String(estimate?.status || "draft").trim().toLowerCase() === "draft").length === 1 ? "" : "s"}`,
+      icon: "document",
+      tone: draftToPriceRows.length ? "orange" : "green",
+      onClick: () => selectEstimateShellEstimate(draftToPriceRows[0]),
+    },
+    {
+      id: "ready-to-send",
+      label: "Ready To Send",
+      value: readyToSendRows.length,
+      helper: "Priced drafts with scope and contact",
+      icon: "arrowUpRight",
+      tone: readyToSendRows.length ? "blue" : "slate",
+      onClick: () => selectEstimateShellEstimate(readyToSendRows[0]),
+    },
+    {
+      id: "sent-to-win",
+      label: "Sent To Win",
+      value: sentToWinRows.length,
+      helper: "Customer proposals waiting",
+      icon: "quote",
+      tone: sentToWinRows.length ? "amber" : "slate",
+      onClick: () => selectEstimateShellEstimate(sentToWinRows[0]),
+    },
+    {
+      id: "approved-handoff",
+      label: "Approved Handoff",
+      value: approvedHandoffRows.length,
+      helper: "Approved, not converted",
+      icon: "check",
+      tone: approvedHandoffRows.length ? "green" : "slate",
+      onClick: () => selectEstimateShellEstimate(approvedHandoffRows[0]),
+    },
+  ];
+
+  function buildEstimateShellItem(estimate, kind = "estimate", priority = 100) {
+    if (!estimate?.id) return null;
+    const readiness = estimateShellStateById.get(estimate.id) || estimateShellReadiness(estimate);
+    const status = String(estimate?.status || "draft").trim().toLowerCase();
+    const tone = kind === "approved"
+      ? "green"
+      : kind === "ready"
+        ? "blue"
+        : kind === "sent"
+          ? "amber"
+          : readiness.missing.length
+            ? "orange"
+            : "slate";
+    const kindLabel = kind === "approved"
+      ? "Approved handoff"
+      : kind === "ready"
+        ? "Ready to send"
+        : kind === "sent"
+          ? "Sent to win"
+          : kind === "packet"
+            ? "Packet gap"
+            : kind === "draft"
+              ? "Draft to price"
+              : "Estimate";
+
+    return {
+      id: `estimate-${estimate.id}`,
+      kind,
+      priority,
+      estimate,
+      eyebrow: kindLabel,
+      title: estimateDisplayTitle(estimate),
+      meta: [estimateDisplayCustomer(estimate), estimateDisplayLead(estimate)].filter(Boolean).join(" / "),
+      statusLabel: readiness.missing.length ? `Needs ${readiness.missing.slice(0, 2).join(" / ")}` : estimateStatusLabel(status),
+      tone,
+      actionLabel: readiness.missing.length ? "Review gaps" : "Review",
+      badges: [
+        { label: estimateStatusLabel(status), tone: status === "approved" ? "green" : status === "sent" ? "blue" : "slate" },
+        { label: readiness.hasPricing ? formatEstimateCurrency(readiness.optionTotals.totalWithSelectedOptions) : "Pricing gap", tone: readiness.hasPricing ? "green" : "amber" },
+        { label: readiness.hasContact ? "Contact set" : "Contact gap", tone: readiness.hasContact ? "green" : "amber" },
+      ],
+    };
+  }
+
+  const estimateShellQueue = useMemo(() => {
+    const items = [];
+    const seenEstimateIds = new Set();
+
+    function addEstimate(estimate, kind, priority) {
+      if (!estimate?.id || seenEstimateIds.has(estimate.id)) return;
+      const item = buildEstimateShellItem(estimate, kind, priority);
+      if (!item) return;
+      seenEstimateIds.add(estimate.id);
+      items.push(item);
+    }
+
+    approvedHandoffRows.forEach((estimate, index) => addEstimate(estimate, "approved", 10 + index));
+    readyToSendRows.forEach((estimate, index) => addEstimate(estimate, "ready", 30 + index));
+    draftToPriceRows.forEach((estimate, index) => addEstimate(estimate, "draft", 50 + index));
+    sentToWinRows.forEach((estimate, index) => addEstimate(estimate, "sent", 70 + index));
+    estimateShellRows
+      .filter((estimate) => {
+        const readiness = estimateShellStateById.get(estimate.id);
+        return readiness && !readiness.packetReady && readiness.hasPricing;
+      })
+      .forEach((estimate, index) => addEstimate(estimate, "packet", 90 + index));
+    estimateShellRows.forEach((estimate, index) => addEstimate(estimate, "estimate", 110 + index));
+
+    return items.sort((left, right) => left.priority - right.priority || left.title.localeCompare(right.title)).slice(0, 7);
+  }, [approvedHandoffRows, draftToPriceRows, estimateShellRows, estimateShellStateById, readyToSendRows, sentToWinRows]);
+  const estimateShellFallbackItem = estimateShellQueue.find((item) => item.id === estimateShellSelectionId)
+    || estimateShellQueue.find((item) => item.estimate?.id === selectedEstimate?.id)
+    || estimateShellQueue[0]
+    || null;
+  const selectedEstimateShellItem = estimateShellFallbackItem
+    || (selectedEstimate ? buildEstimateShellItem(selectedEstimate, "estimate", 120) : null);
+  const estimateShellSelectedId = selectedEstimateShellItem?.id || "";
+  const estimateShellAssistantDescription = approvedHandoffRows.length
+    ? `${approvedHandoffRows.length} approved estimate${approvedHandoffRows.length === 1 ? "" : "s"} need manual job handoff review.`
+    : readyToSendRows.length
+      ? `${readyToSendRows.length} priced proposal${readyToSendRows.length === 1 ? "" : "s"} ready for human send review.`
+      : draftToPriceRows.length
+        ? `${draftToPriceRows.length} draft${draftToPriceRows.length === 1 ? "" : "s"} still need pricing.`
+        : "Estimate readiness is clear in the current office view.";
+  const estimateShellAssistantActions = [
+    { label: "Price Draft", icon: "document", onClick: () => selectEstimateShellEstimate(draftToPriceRows[0]), disabled: !draftToPriceRows.length },
+    { label: "Review Send", icon: "arrowUpRight", onClick: () => selectEstimateShellEstimate(readyToSendRows[0]), disabled: !readyToSendRows.length },
+    { label: "Review Handoff", icon: "check", onClick: () => selectEstimateShellEstimate(approvedHandoffRows[0]), disabled: !approvedHandoffRows.length },
+  ];
+  const estimateShellQuickActions = [
+    { id: "new-estimate", label: "New Estimate", icon: "plus", onClick: () => openFullEstimateToolsPlaceholder("New Estimate"), disabled: !canManage },
+    { id: "ready-send", label: "Ready Send", icon: "arrowUpRight", onClick: () => selectEstimateShellEstimate(readyToSendRows[0]), disabled: !readyToSendRows.length },
+    { id: "handoff", label: "Handoff", icon: "check", onClick: () => selectEstimateShellEstimate(approvedHandoffRows[0]), disabled: !approvedHandoffRows.length },
+  ];
+
+  useEffect(() => {
+    if (!canUseEstimatesCommandShell) return;
+    const fallbackId = estimateShellFallbackItem?.id || "";
+    if (!estimateShellSelectionId && fallbackId) {
+      setEstimateShellSelectionId(fallbackId);
+      if (estimateShellFallbackItem?.estimate?.id) setSelectedEstimateId(estimateShellFallbackItem.estimate.id);
+      return;
+    }
+    if (estimateShellSelectionId && fallbackId && !estimateShellQueue.some((item) => item.id === estimateShellSelectionId)) {
+      setEstimateShellSelectionId(fallbackId);
+      if (estimateShellFallbackItem?.estimate?.id) setSelectedEstimateId(estimateShellFallbackItem.estimate.id);
+    }
+  }, [canUseEstimatesCommandShell, estimateShellFallbackItem?.estimate?.id, estimateShellFallbackItem?.id, estimateShellQueue, estimateShellSelectionId]);
+
+  function selectEstimateShellItem(item) {
+    if (!item) return;
+    setEstimateShellSelectionId(item.id);
+    setEstimateShellMode("overview");
+    if (item.estimate?.id) {
+      setEstimateViewMode("browse");
+      setSelectedEstimateId(item.estimate.id);
+    }
+  }
+
+  function renderEstimateShellDetail(item) {
+    const estimate = item?.estimate || selectedEstimate;
+    if (!estimate) {
+      return <StateCard title="No estimate selected" description="Select a proposal from the priority queue to review readiness, total, contact, packet, and handoff context." tone="slate" />;
+    }
+
+    const readiness = estimateShellStateById.get(estimate.id) || estimateShellReadiness(estimate);
+    const handoffReadiness = deriveEstimateJobHandoffReadiness(estimate);
+    const status = String(estimate?.status || "draft").trim().toLowerCase();
+    const safeActions = [
+      { id: "full-tools", label: "Open Full Tools", onClick: () => openFullEstimateToolsPlaceholder("Full estimate tools") },
+      { id: "select-send", label: "Review Send Ready", variant: "secondary", onClick: () => selectEstimateShellEstimate(readyToSendRows[0]), disabled: !readyToSendRows.length },
+      { id: "select-handoff", label: "Review Handoff", variant: "secondary", onClick: () => selectEstimateShellEstimate(approvedHandoffRows[0]), disabled: !approvedHandoffRows.length },
+    ];
+    const proposalReadyCount = [
+      readiness.hasCustomer,
+      readiness.hasContact,
+      readiness.hasScope,
+      readiness.hasPricing,
+    ].filter(Boolean).length;
+    const nextSafeAction = readiness.approvedHandoff
+      ? "Review approved estimate-to-job handoff in the full workflow before creating any job."
+      : readiness.readyToSend
+        ? "Open the full send review workflow before any customer email or manual send."
+        : readiness.missing.length
+          ? `Resolve ${readiness.missing.slice(0, 3).join(", ")} before sending or converting.`
+          : "Keep reviewing proposal context before any external action.";
+
+    return (
+      <div className="co-estimates-shell-detail-scroll">
+        <div className="co-apex-selected-record">
+          <Badge tone={item?.tone || "blue"}>{item?.eyebrow || "Selected Estimate"}</Badge>
+          <h2>{estimateDisplayTitle(estimate)}</h2>
+          <p>{[estimateDisplayCustomer(estimate), estimateDisplayLead(estimate)].filter(Boolean).join(" / ") || "Customer or lead pending"}</p>
+        </div>
+        <div className="co-apex-selected-facts co-estimates-shell-selected-facts">
+          <span><em>Status</em><strong>{estimateStatusLabel(status)}</strong></span>
+          <span><em>Total</em><strong>{formatEstimateCurrency(readiness.optionTotals.totalWithSelectedOptions)}</strong></span>
+          <span><em>Base</em><strong>{formatEstimateCurrency(readiness.totals.grandTotal)}</strong></span>
+          <span><em>Contact</em><strong>{estimateCustomerEmail(estimate) || "Missing"}</strong></span>
+          <span><em>Line Items</em><strong>{estimate.items?.length || 0}</strong></span>
+          <span><em>Job</em><strong>{estimate.jobId ? "Converted" : "Not converted"}</strong></span>
+        </div>
+        <div className="co-estimates-shell-readiness-grid">
+          <div data-state={readiness.hasPricing ? "ready" : "needs"}>
+            <span>Pricing</span>
+            <strong>{readiness.hasPricing ? "Ready" : "Needs price"}</strong>
+            <p>Uses existing estimate totals only.</p>
+          </div>
+          <div data-state={proposalReadyCount === 4 ? "ready" : "needs"}>
+            <span>Proposal</span>
+            <strong>{proposalReadyCount} / 4</strong>
+            <p>Customer, contact, scope, and pricing.</p>
+          </div>
+          <div data-state={readiness.packetReady ? "ready" : "needs"}>
+            <span>Packet</span>
+            <strong>{readiness.packetReady ? "Ready enough" : "Needs backup"}</strong>
+            <p>{canUseGcPackets ? "GC packet remains package-gated." : "GC packet tools unavailable for this package."}</p>
+          </div>
+          <div data-state={handoffReadiness.readyForJob ? "ready" : "needs"}>
+            <span>Handoff</span>
+            <strong>{handoffReadiness.readyCount} / {handoffReadiness.totalCount}</strong>
+            <p>{handoffReadiness.status}</p>
+          </div>
+        </div>
+        <EstimateJobHandoffReadinessCard readiness={handoffReadiness} />
+        <div className="co-apex-selected-next">
+          <span>Next safe action</span>
+          <strong>{nextSafeAction}</strong>
+          <p>No pricing editor, send review, packet editor, AI rough notes, takeoff editor, or convert-to-job form is inlined in Slice 1. No external send or job conversion happens from this overview.</p>
+        </div>
+        {copyFeedback ? <p className="co-estimates-shell-feedback">{copyFeedback}</p> : null}
+        <div className="co-apex-selected-actions">
+          {safeActions.map((action, index) => (
+            <Button key={action.id} type="button" variant={action.variant || (index === 0 ? "primary" : "secondary")} onClick={action.onClick} disabled={action.disabled}>
+              {action.label}
+            </Button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   if (!permissions?.estimates?.canView) {
     return (
       <div className="co-office-page co-estimates-page">
@@ -29320,6 +29671,51 @@ function EstimatesPagePolished({
         <div className="px-5 sm:px-6 lg:px-8">
           <StateCard title="Estimate access unavailable" description="Field roles are blocked from estimates, proposal totals, and pricing." tone="slate" />
         </div>
+      </div>
+    );
+  }
+
+  if (canUseEstimatesCommandShell) {
+    return (
+      <div className="co-office-page co-estimates-page co-estimates-shell-page">
+        <ApexOfficeCommandShell
+          eyebrow="Office Sales"
+          title="Estimates"
+          description="Review pricing readiness, send-ready proposals, sent follow-up, and approved handoffs from one no-drawer command view."
+          kpis={estimateShellKpis}
+          queue={{
+            title: "Estimate priority queue",
+            description: `${estimateShellQueue.length} proposal item${estimateShellQueue.length === 1 ? "" : "s"} shown from pricing, send, follow-up, and handoff readiness.`,
+            items: estimateShellQueue,
+            selectedId: estimateShellSelectedId,
+            onSelect: selectEstimateShellItem,
+            emptyState: <StateCard title="Estimate queue clear" description="Drafts to price, send-ready proposals, sent follow-ups, and approved handoffs appear here when they need review." tone="green" />,
+          }}
+          detail={{
+            title: "Estimate overview",
+            item: selectedEstimateShellItem,
+            render: renderEstimateShellDetail,
+            emptyState: <StateCard title="No estimate selected" description="Select an estimate from the queue to review proposal readiness." tone="slate" />,
+          }}
+          assistant={{
+            title: "Estimates",
+            description: estimateShellAssistantDescription,
+            priorities: [
+              { value: draftToPriceRows.length, label: "drafts to price", tone: draftToPriceRows.length ? "orange" : "green" },
+              { value: readyToSendRows.length, label: "ready to send", tone: readyToSendRows.length ? "blue" : "slate" },
+              { value: sentToWinRows.length, label: "sent to win", tone: sentToWinRows.length ? "amber" : "slate" },
+              { value: approvedHandoffRows.length, label: "handoffs", tone: approvedHandoffRows.length ? "green" : "slate" },
+            ],
+            actions: estimateShellAssistantActions,
+            guardrails: [
+              "Overview/readiness only",
+              "No automatic sends or job conversion",
+              "Field roles stay blocked from estimates",
+            ],
+          }}
+          quickActions={estimateShellQuickActions}
+          className="co-estimates-command-shell"
+        />
       </div>
     );
   }
