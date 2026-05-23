@@ -1197,6 +1197,26 @@ function LoginScreen({
   const isSetupMode = backendStatus === "online" && setupStatus.checked && setupStatus.needsSetup;
   const isSignupMode = !isSetupMode && showSignup && setupStatus.publicSignupEnabled;
   const canShowDemoCredentials = setupStatus.demoMode && setupStatus.demoUserExists && !isSetupMode;
+  const heroKickerLabel = isSignupMode ? "Self-serve workspace" : "Founder-led demo workspace";
+  const heroKickerStatus = isSignupMode ? "Owner setup ready" : "Guided pilot ready";
+  const heroTitle = isSignupMode ? "Build your contractor command center" : "Apex HQ demo command";
+  const heroDescription = isSignupMode
+    ? "Create the company workspace, confirm services, invite the crew, and start the first lead-to-job workflow from one guided setup path."
+    : "Open the workspace as office leadership or step into field roles to preview the same job day from the crew side.";
+  const heroMetrics = isSignupMode
+    ? [
+        { label: "Workspace", value: "Company, owner, package" },
+        { label: "Setup", value: "Profile, services, team" },
+        { label: "First work", value: "Lead, estimate, job" },
+      ]
+    : [
+        { label: "Office", value: "Command center, leads, estimates" },
+        { label: "Field", value: "Jobs, reports, photos, safety" },
+        { label: "Review", value: "Proof, approvals, ready-to-bill" },
+      ];
+  const heroPath = isSignupMode
+    ? ["Company", "Services", "Team", "First estimate", "Field rollout"]
+    : ["Lead", "Estimate", "Job", "Field proof", "Owner review"];
   const signupReadinessSteps = [
     { label: "Workspace", detail: "Company, first owner, and scoped session are created together." },
     { label: "Setup path", detail: "Apex HQ opens into profile, services, team, and first work setup." },
@@ -1226,31 +1246,21 @@ function LoginScreen({
           <div className="co-login-hero-shade" aria-hidden="true" />
           <div className="co-login-hero-copy">
             <div className="co-login-hero-kicker">
-              <span>Founder-led demo workspace</span>
-              <strong>Guided pilot ready</strong>
+              <span>{heroKickerLabel}</span>
+              <strong>{heroKickerStatus}</strong>
             </div>
-            <h1>Apex HQ demo command</h1>
-            <p>Open the workspace as office leadership or step into field roles to preview the same job day from the crew side.</p>
+            <h1>{heroTitle}</h1>
+            <p>{heroDescription}</p>
             <div className="co-login-hero-metrics" aria-label="Demo workflow preview">
-              <div>
-                <span>Office</span>
-                <strong>Command center, leads, estimates</strong>
-              </div>
-              <div>
-                <span>Field</span>
-                <strong>Jobs, reports, photos, safety</strong>
-              </div>
-              <div>
-                <span>Review</span>
-                <strong>Proof, approvals, ready-to-bill</strong>
-              </div>
+              {heroMetrics.map((metric) => (
+                <div key={metric.label}>
+                  <span>{metric.label}</span>
+                  <strong>{metric.value}</strong>
+                </div>
+              ))}
             </div>
             <div className="co-login-workflow-strip" aria-label="Demo path">
-              <span>Lead</span>
-              <span>Estimate</span>
-              <span>Job</span>
-              <span>Field proof</span>
-              <span>Owner review</span>
+              {heroPath.map((item) => <span key={item}>{item}</span>)}
             </div>
           </div>
         </section>
@@ -1291,7 +1301,7 @@ function LoginScreen({
           {isSignupMode ? (
             <div className="co-login-signup-brief" aria-label="Signup setup preview">
               <div className="co-login-signup-brief-head">
-                <Badge tone="orange">Owner setup</Badge>
+                <span className="co-login-signup-badge">Owner setup</span>
                 <strong>From signup to first job without guessing what comes next.</strong>
                 <span>No card is charged in this setup flow. Security, company isolation, and role protection stay included for every workspace.</span>
               </div>
@@ -13491,7 +13501,8 @@ function DashboardDailyFocusBoard({
 
 function DashboardPage(props) {
   const isOfficeWorkspace = Boolean(props.permissions?.jobs?.canManageAll || props.permissions?.leads?.canView);
-  if (isOfficeWorkspace) {
+  const firstOwnerSetupIncomplete = Boolean(props.firstOwnerOnboarding && props.firstOwnerOnboarding.complete === false);
+  if (isOfficeWorkspace && !firstOwnerSetupIncomplete) {
     return <CommandCenterPage {...props} />;
   }
   return <DashboardPagePolished {...props} />;
@@ -14682,6 +14693,14 @@ function DashboardPagePolished({
 
       <div className="co-dashboard-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_330px] lg:px-6">
         <div className="co-dashboard-left-stack min-w-0 space-y-3">
+          {showFirstOwnerOnboarding ? (
+            <FirstOwnerOnboardingCard
+              onboarding={firstOwnerOnboarding}
+              onOpen={openFirstOwnerOnboardingStep}
+              onOpenSupport={onOpenSupport}
+            />
+          ) : null}
+
           <DashboardCockpitPanel
             stats={stats}
             pipelineValue={pipelineValue}
@@ -14702,14 +14721,6 @@ function DashboardPagePolished({
             setActive={setActive}
             onSelectJob={onSelectJob}
           />
-
-          {showFirstOwnerOnboarding ? (
-            <FirstOwnerOnboardingCard
-              onboarding={firstOwnerOnboarding}
-              onOpen={openFirstOwnerOnboardingStep}
-              onOpenSupport={onOpenSupport}
-            />
-          ) : null}
 
           <DashboardDailyFocusBoard
             leadRef={leadPipelineRef}
@@ -34693,6 +34704,7 @@ export default function App() {
       setAuthStatus("authenticated");
       setPublicSignupDraft(INITIAL_PUBLIC_SIGNUP_FORM);
       setShowPublicSignup(false);
+      navigateTo(getModulePath("dashboard"), { replace: true });
       setLoginError("");
     } catch (error) {
       if (error.code === "BACKEND_UNAVAILABLE" || error.status === 0) {

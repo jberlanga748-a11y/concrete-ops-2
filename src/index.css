@@ -571,6 +571,23 @@ textarea {
     gap: 0.42rem;
   }
 
+  .co-login-signup-badge {
+    display: inline-flex;
+    width: fit-content;
+    max-width: 100%;
+    align-items: center;
+    border: 1px solid rgba(253, 186, 116, 0.38);
+    border-radius: 999px;
+    background: rgba(249, 115, 22, 0.16);
+    padding: 0.18rem 0.62rem;
+    color: #fed7aa;
+    font-size: 0.68rem;
+    font-weight: 950;
+    letter-spacing: 0.08em;
+    line-height: 1.15;
+    text-transform: uppercase;
+  }
+
   .co-login-signup-brief-head strong {
     overflow-wrap: anywhere;
     color: #f8fafc;
