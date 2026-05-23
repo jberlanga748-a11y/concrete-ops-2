@@ -38315,6 +38315,454 @@ button.co-work-queue-card:hover:not(:disabled) {
   opacity: 0.48;
 }
 
+/* Apex no-drawer office shell primitives. */
+.co-apex-office-command-shell {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.78rem;
+}
+
+.co-apex-office-command-head {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.92rem 1.25rem 0;
+}
+
+.co-apex-office-command-head p {
+  color: var(--color-brand-orange-dark);
+  font-size: 0.68rem;
+  font-weight: 950;
+  letter-spacing: 0.14em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.co-apex-office-command-head h1 {
+  margin-top: 0.18rem;
+  color: var(--color-text-main);
+  font-size: 1.58rem;
+  font-weight: 950;
+  line-height: 1.05;
+}
+
+.co-apex-office-command-head span {
+  display: block;
+  margin-top: 0.22rem;
+  max-width: 58rem;
+  color: var(--color-text-muted);
+  font-size: 0.86rem;
+  font-weight: 820;
+  line-height: 1.35;
+}
+
+.co-apex-quick-action-bar {
+  display: flex;
+  min-width: 0;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.44rem;
+}
+
+.co-apex-office-command-frame {
+  max-width: none;
+  padding: 0 1.25rem 1rem;
+}
+
+.co-apex-command-kpi-strip {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.72rem;
+  margin-bottom: 0.78rem;
+}
+
+.co-apex-command-kpi {
+  --co-apex-kpi-tone: #64748b;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.68rem;
+  border: 1px solid rgba(203, 213, 225, 0.96);
+  border-left: 3px solid var(--co-apex-kpi-tone);
+  border-radius: 0.58rem;
+  background: #ffffff;
+  padding: 0.72rem;
+  text-align: left;
+  box-shadow: 0 16px 34px -32px rgba(7, 17, 31, 0.54);
+}
+
+button.co-apex-command-kpi {
+  cursor: pointer;
+}
+
+button.co-apex-command-kpi:hover:not(:disabled) {
+  border-color: rgba(249, 115, 22, 0.46);
+  background: #fff7ed;
+}
+
+.co-apex-command-kpi[data-tone="green"] {
+  --co-apex-kpi-tone: #16a34a;
+}
+
+.co-apex-command-kpi[data-tone="blue"] {
+  --co-apex-kpi-tone: #2563eb;
+}
+
+.co-apex-command-kpi[data-tone="orange"],
+.co-apex-command-kpi[data-tone="amber"] {
+  --co-apex-kpi-tone: #f97316;
+}
+
+.co-apex-command-kpi-icon {
+  display: grid;
+  width: 2.18rem;
+  height: 2.18rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 0.48rem;
+  background: rgba(248, 250, 252, 0.96);
+  color: var(--co-apex-kpi-tone);
+}
+
+.co-apex-command-kpi-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.12rem;
+}
+
+.co-apex-command-kpi-copy strong {
+  color: var(--co-apex-kpi-tone);
+  font-size: 1.42rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.co-apex-command-kpi-copy span,
+.co-apex-command-kpi-copy em {
+  overflow-wrap: anywhere;
+}
+
+.co-apex-command-kpi-copy span {
+  color: var(--color-text-main);
+  font-size: 0.8rem;
+  font-weight: 950;
+  line-height: 1.12;
+}
+
+.co-apex-command-kpi-copy em {
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+  font-style: normal;
+  font-weight: 850;
+  line-height: 1.22;
+}
+
+.co-apex-office-command-workspace {
+  display: grid;
+  min-width: 0;
+  gap: 0.86rem;
+}
+
+.co-apex-primary-queue-panel,
+.co-apex-selected-detail-panel,
+.co-apex-assistant-guardrails {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.co-apex-panel-head {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.72rem;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+  padding: 0.82rem 0.9rem 0.72rem;
+}
+
+.co-apex-panel-head span {
+  display: grid;
+  min-width: 0;
+  gap: 0.18rem;
+}
+
+.co-apex-panel-head strong {
+  overflow-wrap: anywhere;
+  color: var(--color-text-main);
+  font-size: 0.92rem;
+  font-weight: 950;
+  line-height: 1.12;
+}
+
+.co-apex-panel-head em {
+  overflow-wrap: anywhere;
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 820;
+  line-height: 1.28;
+}
+
+.co-apex-primary-queue-list,
+.co-apex-selected-detail-body {
+  display: grid;
+  min-width: 0;
+  gap: 0.54rem;
+  padding: 0.72rem;
+}
+
+.co-apex-primary-queue-list .co-work-queue-card {
+  padding: 0.56rem;
+}
+
+.co-apex-primary-queue-list .co-work-queue-body p {
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1.28;
+}
+
+.co-apex-queue-badges {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.42rem;
+}
+
+.co-apex-selected-record h2 {
+  margin-top: 0.42rem;
+  color: var(--color-text-main);
+  font-size: 1.16rem;
+  font-weight: 950;
+  line-height: 1.12;
+  overflow-wrap: anywhere;
+}
+
+.co-apex-selected-record p,
+.co-apex-selected-next p {
+  margin-top: 0.38rem;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.42;
+  overflow-wrap: anywhere;
+}
+
+.co-apex-selected-facts {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.co-apex-selected-facts span,
+.co-apex-selected-next {
+  min-width: 0;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 0.58rem;
+  background: #f8fafc;
+  padding: 0.66rem;
+}
+
+.co-apex-selected-facts em,
+.co-apex-selected-next span {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: 0.62rem;
+  font-style: normal;
+  font-weight: 950;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.co-apex-selected-facts strong,
+.co-apex-selected-next strong {
+  display: block;
+  margin-top: 0.3rem;
+  color: var(--color-text-main);
+  font-size: 0.8rem;
+  font-weight: 950;
+  line-height: 1.22;
+  overflow-wrap: anywhere;
+}
+
+.co-apex-selected-actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 0.44rem;
+}
+
+.co-apex-assistant-action-panel {
+  display: grid;
+  min-width: 0;
+  gap: 0.72rem;
+}
+
+.co-apex-assistant-guardrails {
+  padding: 0.78rem;
+}
+
+.co-apex-assistant-guardrails strong {
+  color: var(--color-text-main);
+  font-size: 0.78rem;
+  font-weight: 950;
+}
+
+.co-apex-assistant-guardrails ul {
+  display: grid;
+  gap: 0.28rem;
+  margin-top: 0.44rem;
+}
+
+.co-apex-assistant-guardrails li {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+  line-height: 1.25;
+}
+
+@media (min-width: 1024px) {
+  .co-today-page {
+    height: calc(100vh - 4.5rem);
+    min-height: 41rem;
+    overflow: hidden;
+  }
+
+  .co-today-page .co-apex-office-command-shell {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .co-today-page .co-apex-office-command-frame {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+  }
+
+  .co-today-page .co-command-page-frame-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 21rem);
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  .co-today-page .co-command-page-frame-main,
+  .co-today-page .co-command-page-frame-rail {
+    min-height: 0;
+  }
+
+  .co-today-page .co-apex-office-command-workspace {
+    height: 100%;
+    min-height: 0;
+    grid-template-columns: minmax(20rem, 0.86fr) minmax(0, 1.14fr);
+  }
+
+  .co-today-page .co-apex-primary-queue-panel,
+  .co-today-page .co-apex-selected-detail-panel,
+  .co-today-page .co-apex-assistant-action-panel {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .co-today-page .co-apex-primary-queue-list {
+    grid-auto-rows: minmax(0, auto);
+    overflow: hidden;
+  }
+
+  .co-today-page .co-apex-selected-detail-body {
+    align-content: start;
+    overflow: hidden;
+  }
+
+  .co-today-page .co-work-queue-card h3 {
+    font-size: 0.78rem;
+  }
+
+  .co-today-page .co-work-queue-meta,
+  .co-today-page .co-work-queue-status,
+  .co-today-page .co-work-queue-action {
+    font-size: 0.66rem;
+  }
+
+  .co-today-page .co-apex-primary-queue-list .co-work-queue-card {
+    padding: 0.5rem;
+  }
+
+  .co-today-page .co-assistant-rail-head {
+    padding: 0.68rem 0.82rem 0.5rem;
+  }
+
+  .co-today-page .co-assistant-rail-head h2 {
+    font-size: 0.88rem;
+  }
+
+  .co-today-page .co-assistant-rail-head p {
+    font-size: 0.7rem;
+    line-height: 1.28;
+  }
+
+  .co-today-page .co-assistant-rail-priorities,
+  .co-today-page .co-assistant-rail-actions {
+    gap: 0.36rem;
+    padding: 0 0.58rem 0.58rem;
+  }
+
+  .co-today-page .co-assistant-rail-priority {
+    padding: 0.4rem 0.52rem;
+  }
+
+  .co-today-page .co-assistant-rail-actions button {
+    min-height: 2.02rem;
+    padding: 0.42rem 0.54rem;
+  }
+
+  .co-today-page .co-apex-assistant-guardrails {
+    padding: 0.62rem;
+    padding-right: 4.3rem;
+  }
+
+  .co-today-page .co-apex-assistant-guardrails ul {
+    gap: 0.2rem;
+    margin-top: 0.34rem;
+  }
+}
+
+@media (max-width: 1023px) {
+  .co-today-page {
+    overflow: visible;
+  }
+
+  .co-apex-office-command-head {
+    flex-direction: column;
+    padding-inline: 1rem;
+  }
+
+  .co-apex-quick-action-bar {
+    justify-content: flex-start;
+  }
+
+  .co-apex-office-command-frame {
+    padding-inline: 1rem;
+  }
+
+  .co-apex-command-kpi-strip,
+  .co-apex-selected-facts {
+    grid-template-columns: 1fr;
+  }
+
+  .co-apex-office-command-workspace {
+    grid-template-columns: 1fr;
+  }
+}
+
 .co-proof-engine-frame {
   padding-bottom: 0.9rem;
 }

@@ -286,6 +286,176 @@ export function DesktopCommandWorkspaceFrame({ children, className = "" }) {
   );
 }
 
+export function ApexCommandKpiStrip({ items = [] }) {
+  const visibleItems = Array.isArray(items) ? items.slice(0, 4) : [];
+
+  return (
+    <div className="co-apex-command-kpi-strip" aria-label="Today metrics">
+      {visibleItems.map((item) => {
+        const Component = item.onClick ? "button" : "div";
+        return (
+          <Component
+            key={item.id || item.label}
+            type={item.onClick ? "button" : undefined}
+            className="co-apex-command-kpi"
+            data-tone={item.tone || "slate"}
+            onClick={item.onClick}
+          >
+            <span className="co-apex-command-kpi-icon">{item.icon ? <Icon name={item.icon} /> : null}</span>
+            <span className="co-apex-command-kpi-copy">
+              <strong>{item.value}</strong>
+              <span>{item.label}</span>
+              {item.helper ? <em>{item.helper}</em> : null}
+            </span>
+          </Component>
+        );
+      })}
+    </div>
+  );
+}
+
+export function ApexPrimaryQueuePanel({ title = "Priority queue", description = "", items = [], selectedId = "", onSelect, emptyState }) {
+  const visibleItems = Array.isArray(items) ? items.slice(0, 7) : [];
+
+  return (
+    <Card className="co-apex-primary-queue-panel">
+      <div className="co-apex-panel-head">
+        <span>
+          <strong>{title}</strong>
+          {description ? <em>{description}</em> : null}
+        </span>
+        <Badge tone={visibleItems.length ? "orange" : "green"}>{visibleItems.length}/7</Badge>
+      </div>
+      <div className="co-apex-primary-queue-list">
+        {visibleItems.length ? visibleItems.map((item) => (
+          <WorkQueueCard
+            key={item.id}
+            eyebrow={item.eyebrow || item.sourceLabel}
+            title={item.title}
+            meta={item.meta || item.description}
+            status={item.status || item.statusLabel}
+            tone={item.tone || "orange"}
+            actionLabel={item.actionLabel || "Review"}
+            selected={selectedId === item.id}
+            onClick={() => onSelect?.(item)}
+          >
+            {Array.isArray(item.badges) && item.badges.length ? (
+              <div className="co-apex-queue-badges">
+                {item.badges.slice(0, 3).map((badge) => <Badge key={badge.label || badge} tone={badge.tone || "slate"}>{badge.label || badge}</Badge>)}
+              </div>
+            ) : null}
+          </WorkQueueCard>
+        )) : (
+          emptyState || <StateCard title="Queue clear" description="Priority work appears here when it needs owner or office review." tone="green" />
+        )}
+      </div>
+    </Card>
+  );
+}
+
+export function ApexSelectedDetailPanel({ title = "Selected detail", item, children, emptyState }) {
+  return (
+    <Card className="co-apex-selected-detail-panel">
+      <div className="co-apex-panel-head">
+        <span>
+          <strong>{title}</strong>
+          <em>{item ? "Review context and choose a safe next step." : "Choose a queue item to inspect it."}</em>
+        </span>
+        {item?.statusLabel || item?.status ? <StatusBadge status={item.statusLabel || item.status} /> : null}
+      </div>
+      {item ? (
+        <div className="co-apex-selected-detail-body">
+          {children}
+        </div>
+      ) : (
+        emptyState || <StateCard title="Nothing selected" description="Select a priority item to see job, proof, estimate, or blocker context." tone="slate" />
+      )}
+    </Card>
+  );
+}
+
+export function ApexAssistantActionPanel({ title = "Today Assistant", description = "", priorities = [], actions = [], guardrails = [] }) {
+  const safeActions = Array.isArray(actions) ? actions.slice(0, 3) : [];
+  const safePriorities = Array.isArray(priorities) ? priorities.slice(0, 4) : [];
+  const safeGuardrails = Array.isArray(guardrails) ? guardrails.slice(0, 3) : [];
+
+  return (
+    <div className="co-apex-assistant-action-panel">
+      <AssistantRail
+        eyebrow="Apex Assistant"
+        title={title}
+        description={description}
+        priorities={safePriorities}
+        actions={safeActions}
+      />
+      {safeGuardrails.length ? (
+        <Card className="co-apex-assistant-guardrails">
+          <strong>Manual guardrails</strong>
+          <ul>
+            {safeGuardrails.map((item) => <li key={item}>{item}</li>)}
+          </ul>
+        </Card>
+      ) : null}
+    </div>
+  );
+}
+
+export function ApexQuickActionBar({ actions = [] }) {
+  const visibleActions = Array.isArray(actions) ? actions.slice(0, 3) : [];
+  if (!visibleActions.length) return null;
+
+  return (
+    <div className="co-apex-quick-action-bar" aria-label="Today quick actions">
+      {visibleActions.map((action, index) => (
+        <Button key={action.id || action.label} type="button" size="sm" variant={index === 0 ? "primary" : "secondary"} onClick={action.onClick} disabled={action.disabled}>
+          {action.icon ? <Icon name={action.icon} /> : null}
+          {action.label}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+export function ApexOfficeCommandShell({
+  eyebrow = "Apex HQ",
+  title,
+  description,
+  kpis = [],
+  queue,
+  detail,
+  assistant,
+  quickActions = [],
+  children,
+  className = "",
+}) {
+  const selectedItem = detail?.item || null;
+
+  return (
+    <section className={`co-apex-office-command-shell ${className}`}>
+      <div className="co-apex-office-command-head">
+        <div className="min-w-0">
+          <p>{eyebrow}</p>
+          <h1>{title}</h1>
+          {description ? <span>{description}</span> : null}
+        </div>
+        <ApexQuickActionBar actions={quickActions} />
+      </div>
+      <CommandPageFrame
+        className="co-apex-office-command-frame"
+        kpis={<ApexCommandKpiStrip items={kpis} />}
+        rail={<ApexAssistantActionPanel {...assistant} />}
+      >
+        <DesktopCommandWorkspaceFrame className="co-apex-office-command-workspace">
+          <ApexPrimaryQueuePanel {...queue} />
+          <ApexSelectedDetailPanel title={detail?.title} item={selectedItem} emptyState={detail?.emptyState}>
+            {children || detail?.render?.(selectedItem)}
+          </ApexSelectedDetailPanel>
+        </DesktopCommandWorkspaceFrame>
+      </CommandPageFrame>
+    </section>
+  );
+}
+
 export function DesktopCommandDrawer({
   children,
   className = "",
