@@ -6893,6 +6893,8 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
   const [successMessage, setSuccessMessage] = useState("");
   const [showTools, setShowTools] = useState(false);
   const [activeTool, setActiveTool] = useState("upload");
+  const [uploadShellSelectionId, setUploadShellSelectionId] = useState("");
+  const [uploadShellMode, setUploadShellMode] = useState("detail");
   const toolsRef = useRef(null);
   const boardRef = useRef(null);
   const isFieldUploadWorkspace = !permissions.uploads.canManageAll;
@@ -7094,6 +7096,8 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
 
   function openTool(toolId = "details") {
     setActiveTool(toolId);
+    setUploadShellMode(toolId === "upload" ? "upload" : "detail");
+    if (toolId === "upload") setUploadShellSelectionId("create-upload");
     setShowTools(true);
     window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
@@ -7280,10 +7284,251 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
         : canCreate
           ? "Start with a job-linked upload and optional GPS capture."
           : "No visible evidence blockers in the current view.";
+  const canUseUploadsCommandShell = Boolean(permissions.uploads.canManageAll && !isFieldUploadWorkspace);
+  const readyProofCount = visibleRows.filter((upload) => !upload.archivedAt && upload.hasGps && String(upload.caption || upload.notes || "").trim()).length;
+  const uploadShellKpis = [
+    {
+      id: "today",
+      label: "Today",
+      value: todayUploadCount,
+      helper: "Captured today",
+      icon: "calendar",
+      tone: todayUploadCount ? "orange" : "slate",
+      onClick: openTodayUploads,
+    },
+    {
+      id: "current-job",
+      label: "Current Job",
+      value: currentJobUploadCount,
+      helper: currentEvidenceJobLabel,
+      icon: "briefcase",
+      tone: currentJobUploadCount ? "blue" : "slate",
+      onClick: openCurrentJobUploads,
+    },
+    {
+      id: "proof-gaps",
+      label: "Proof Gaps",
+      value: missingGpsCount + missingNotesCount,
+      helper: "GPS or caption context",
+      icon: "alert",
+      tone: missingGpsCount || missingNotesCount ? "amber" : "green",
+      onClick: () => openFirstUploadShellItem((upload) => !upload.hasGps || !String(upload.caption || upload.notes || "").trim(), { gpsFilter: missingGpsCount ? "Missing GPS" : "All locations" }),
+    },
+    {
+      id: "ready-proof",
+      label: "Ready Proof",
+      value: readyProofCount,
+      helper: "GPS and context ready",
+      icon: "check",
+      tone: readyProofCount ? "green" : "slate",
+      onClick: () => openFirstUploadShellItem((upload) => upload.hasGps && String(upload.caption || upload.notes || "").trim(), { gpsFilter: "Has GPS" }),
+    },
+  ];
+  const uploadShellQueue = useMemo(() => {
+    const items = [];
+    const seenUploadIds = new Set();
+
+    function statusForUpload(upload) {
+      if (upload?.archivedAt) return { label: "Archived", tone: "slate" };
+      if (!upload?.hasGps) return { label: "GPS gap", tone: "amber" };
+      if (!String(upload?.caption || upload?.notes || "").trim()) return { label: "Caption gap", tone: "orange" };
+      return { label: "Ready", tone: "green" };
+    }
+
+    function addUpload(upload, kind, priority) {
+      if (!upload?.id || seenUploadIds.has(upload.id)) return;
+      seenUploadIds.add(upload.id);
+      const status = statusForUpload(upload);
+      const capturedAt = uploadCapturedAt(upload);
+      items.push({
+        id: `${kind}-${upload.id}`,
+        kind,
+        upload,
+        uploadId: upload.id,
+        priority,
+        eyebrow: uploadEvidenceDateKey(upload) === todayKey ? "Today" : kind === "missing-gps" ? "Missing GPS" : kind === "caption-gap" ? "Caption gap" : "Jobsite proof",
+        title: uploadTitle(upload),
+        meta: `${uploadJobLabel(upload)} / ${uploadUploaderLabel(upload)}`,
+        statusLabel: status.label,
+        tone: status.tone,
+        actionLabel: "Review proof",
+        badges: [
+          { label: gpsStatusLabel(upload), tone: upload.hasGps ? "green" : "amber" },
+          { label: String(upload.caption || upload.notes || "").trim() ? "Caption ready" : "Needs caption", tone: String(upload.caption || upload.notes || "").trim() ? "green" : "orange" },
+          { label: formatDateTime(capturedAt), tone: "slate" },
+        ],
+      });
+    }
+
+    visibleRows.filter((upload) => !String(upload.caption || upload.notes || "").trim()).forEach((upload, index) => addUpload(upload, "caption-gap", 10 + index));
+    visibleRows.filter((upload) => !upload.hasGps).forEach((upload, index) => addUpload(upload, "missing-gps", 30 + index));
+    visibleRows.filter((upload) => uploadEvidenceDateKey(upload) === todayKey).forEach((upload, index) => addUpload(upload, "today", 50 + index));
+    if (latestVisibleUpload) addUpload(latestVisibleUpload, "latest", 70);
+    visibleRows.forEach((upload, index) => addUpload(upload, "evidence", 90 + index));
+
+    return items.sort((left, right) => left.priority - right.priority).slice(0, 7);
+  }, [latestVisibleUpload, todayKey, visibleRows]);
+  const createUploadShellItem = {
+    id: "create-upload",
+    kind: "create",
+    title: "Upload photo evidence",
+    meta: currentEvidenceJobLabel,
+    statusLabel: "New",
+    tone: "orange",
+  };
+  const uploadShellFallbackItem = uploadShellQueue.find((item) => item.uploadId && item.uploadId === selectedUpload?.id) || uploadShellQueue[0] || null;
+  const selectedUploadShellItem = uploadShellMode === "upload" && uploadShellSelectionId === createUploadShellItem.id
+    ? createUploadShellItem
+    : uploadShellQueue.find((item) => item.id === uploadShellSelectionId) || uploadShellFallbackItem;
+  const uploadShellSelectedId = selectedUploadShellItem?.id || "";
+  const uploadShellAssistantDescription = missingGpsCount
+    ? `${missingGpsCount} upload${missingGpsCount === 1 ? "" : "s"} need location-context review before closeout.`
+    : missingNotesCount
+      ? `${missingNotesCount} upload${missingNotesCount === 1 ? "" : "s"} need caption or office note context.`
+      : todayUploadCount
+        ? `${todayUploadCount} upload${todayUploadCount === 1 ? "" : "s"} captured today and ready for review.`
+        : "Photo evidence is clear in the current view.";
+
+  useEffect(() => {
+    if (!canUseUploadsCommandShell) return;
+    const fallbackId = uploadShellFallbackItem?.id || "";
+    if (!uploadShellSelectionId && fallbackId) {
+      setUploadShellSelectionId(fallbackId);
+      setUploadShellMode("detail");
+      return;
+    }
+    if (uploadShellSelectionId && uploadShellMode !== "upload" && !uploadShellQueue.some((item) => item.id === uploadShellSelectionId)) {
+      setUploadShellSelectionId(fallbackId);
+    }
+  }, [canUseUploadsCommandShell, uploadShellFallbackItem?.id, uploadShellMode, uploadShellQueue, uploadShellSelectionId]);
+
+  function selectUploadShellItem(item) {
+    if (!item) return;
+    setUploadShellSelectionId(item.id);
+    if (item.kind === "create") {
+      setUploadShellMode("upload");
+      setActiveTool("upload");
+      return;
+    }
+    setUploadShellMode("detail");
+    setActiveTool("details");
+    if (item.upload?.id) setSelectedUploadId(item.upload.id);
+  }
+
+  function startUploadInShell() {
+    if (!canCreate) return;
+    setUploadShellSelectionId(createUploadShellItem.id);
+    setUploadShellMode("upload");
+    setActiveTool("upload");
+  }
+
+  function openFirstUploadShellItem(matchUpload, options = {}) {
+    const targetUpload = visibleRows.find(matchUpload) || safeUploads.find(matchUpload);
+    if (options.filter) setFilter(options.filter);
+    if (options.gpsFilter) setGpsFilter(options.gpsFilter);
+    if (options.jobFilter) setJobFilter(options.jobFilter);
+    setUploadShellMode("detail");
+    setActiveTool("details");
+    if (targetUpload?.id) {
+      setSelectedUploadId(targetUpload.id);
+      const matchingItem = uploadShellQueue.find((item) => item.uploadId === targetUpload.id);
+      setUploadShellSelectionId(matchingItem?.id || `evidence-${targetUpload.id}`);
+    }
+  }
+
+  function renderUploadShellDetail(item) {
+    const isCreateMode = item?.kind === "create" || uploadShellMode === "upload";
+    if (isCreateMode) {
+      return (
+        <div className="co-uploads-shell-detail-scroll">
+          {successMessage ? <div className="mb-3 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800">{successMessage}</div> : null}
+          <UploadCreateCard
+            canCreate={canCreate}
+            jobs={allowedJobs}
+            draft={draft}
+            setDraft={setDraft}
+            onRequestLocation={handleRequestLocation}
+            onFileChange={handleFileChange}
+            onSubmit={handleSubmit}
+            loading={busy}
+            fileError={fileError}
+          />
+        </div>
+      );
+    }
+
+    const detailUpload = item?.upload?.id === selectedUpload?.id ? selectedUpload : (item?.upload || selectedUpload);
+    return (
+      <div className="co-uploads-shell-detail-scroll">
+        {successMessage ? <div className="mb-3 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800">{successMessage}</div> : null}
+        <UploadDetailPanel
+          upload={detailUpload}
+          token={sessionToken}
+          canManage={canManage}
+          disabled={busy}
+          onSave={(nextDraft) => detailUpload?.id ? onUpdateUpload(detailUpload.id, nextDraft) : handleSaveUpload(nextDraft)}
+          onArchive={(uploadId) => handleArchiveSelected(uploadId || detailUpload?.id)}
+        />
+      </div>
+    );
+  }
   const uploadsEmptyTitle = safeUploads.length === 0 ? "No uploads yet" : "No uploads match these filters";
   const uploadsEmptyDescription = safeUploads.length === 0
     ? "Photo evidence will appear here after the first field upload."
     : "Clear filters or adjust the search to bring existing photo evidence back into view.";
+
+  if (canUseUploadsCommandShell) {
+    return (
+      <div className="co-office-page co-uploads-page co-uploads-shell-page">
+        <ApexOfficeCommandShell
+          eyebrow="Field Ops"
+          title="Photo Evidence"
+          description="Proof command for today's jobsite uploads, current-job evidence, GPS gaps, and closeout-ready photo context."
+          kpis={uploadShellKpis}
+          queue={{
+            title: "Upload proof queue",
+            description: `${uploadShellQueue.length} priority proof item${uploadShellQueue.length === 1 ? "" : "s"} shown from the current evidence view.`,
+            items: uploadShellQueue,
+            selectedId: uploadShellSelectedId,
+            onSelect: selectUploadShellItem,
+            emptyState: <StateCard title="Upload queue clear" description="GPS gaps, caption gaps, today's uploads, and recent proof appear here when they need review." tone="green" />,
+          }}
+          detail={{
+            title: selectedUploadShellItem?.kind === "create" ? "Upload photo" : "Selected evidence",
+            item: selectedUploadShellItem,
+            render: renderUploadShellDetail,
+            emptyState: <StateCard title="No upload selected" description="Select an upload proof item or start a new photo upload." tone="slate" />,
+          }}
+          assistant={{
+            title: "Photo Evidence",
+            description: uploadShellAssistantDescription,
+            priorities: [
+              { label: "Today", value: todayUploadCount, tone: todayUploadCount ? "orange" : "slate" },
+              { label: "Current job", value: currentJobUploadCount, tone: currentJobUploadCount ? "blue" : "slate" },
+              { label: "Proof gaps", value: missingGpsCount + missingNotesCount, tone: missingGpsCount || missingNotesCount ? "amber" : "green" },
+              { label: "Ready proof", value: readyProofCount, tone: readyProofCount ? "green" : "slate" },
+            ],
+            actions: [
+              canCreate ? { label: "Upload photo", icon: "upload", onClick: startUploadInShell } : null,
+              { label: "Review gaps", icon: "alert", onClick: () => openFirstUploadShellItem((upload) => !upload.hasGps || !String(upload.caption || upload.notes || "").trim(), { gpsFilter: missingGpsCount ? "Missing GPS" : "All locations" }), disabled: !missingGpsCount && !missingNotesCount },
+              { label: "Open today", icon: "calendar", onClick: openTodayUploads, disabled: !todayUploadCount },
+            ].filter(Boolean),
+            guardrails: [
+              "Manual proof review only",
+              "No automatic external sends",
+              "Role and company scope unchanged",
+            ],
+          }}
+          quickActions={[
+            canCreate ? { id: "upload-photo", label: "Upload Photo", icon: "upload", onClick: startUploadInShell } : null,
+            { id: "today", label: "Today", icon: "calendar", onClick: openTodayUploads },
+            { id: "proof-gaps", label: "Proof Gaps", icon: "alert", onClick: () => openFirstUploadShellItem((upload) => !upload.hasGps || !String(upload.caption || upload.notes || "").trim(), { gpsFilter: missingGpsCount ? "Missing GPS" : "All locations" }) },
+          ].filter(Boolean)}
+          className="co-uploads-command-shell"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="co-office-page co-uploads-page" data-field-workspace={isFieldUploadWorkspace ? "true" : undefined}>
