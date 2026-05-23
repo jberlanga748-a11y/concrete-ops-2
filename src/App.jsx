@@ -30111,6 +30111,8 @@ function ChangeOrdersPagePolished({
   const [detailDraft, setDetailDraft] = useState({ status: "requested", officeNotes: "" });
   const [showTools, setShowTools] = useState(false);
   const [toolTab, setToolTab] = useState("create");
+  const [changeOrderShellSelectionId, setChangeOrderShellSelectionId] = useState("");
+  const [changeOrderShellMode, setChangeOrderShellMode] = useState("detail");
   const [showAllMobileRows, setShowAllMobileRows] = useState(false);
   const toolsRef = useRef(null);
   const boardRef = useRef(null);
@@ -30135,6 +30137,7 @@ function ChangeOrdersPagePolished({
   }), [archiveFilter, dateFilter, jobFilter, requesterFilter, rows, search, statusFilter]);
   const listState = useMemo(() => deriveChangeOrderListState(filteredRows, visibleJobs), [filteredRows, visibleJobs]);
   const selectedRequest = filteredRows.find((request) => request.id === selectedRequestId)
+    || rows.find((request) => request.id === selectedRequestId)
     || filteredRows[0]
     || null;
   const singleJobId = visibleJobs.length === 1 ? visibleJobs[0].id : "";
@@ -30153,6 +30156,7 @@ function ChangeOrdersPagePolished({
     value: filter,
     label: changeOrderDisplayFilterLabel(filter, canManage),
   }));
+  const canUseChangeOrdersCommandShell = Boolean(canManage);
 
   useEffect(() => {
     if (!filteredRows.length) {
@@ -30187,6 +30191,17 @@ function ChangeOrdersPagePolished({
   }
 
   function openTools(nextTab = "create") {
+    if (canUseChangeOrdersCommandShell) {
+      setToolTab(nextTab);
+      setShowTools(false);
+      if (nextTab === "create" && canCreate) {
+        setChangeOrderShellMode("create");
+        setChangeOrderShellSelectionId("create-change-order");
+      } else {
+        setChangeOrderShellMode("detail");
+      }
+      return;
+    }
     setToolTab(nextTab);
     setShowTools(true);
     if (typeof window !== "undefined" && window.matchMedia("(max-width: 1179px)").matches) {
@@ -30276,6 +30291,187 @@ function ChangeOrdersPagePolished({
     ? [newRequestPriorityCard, needsReviewPriorityCard, officeReviewPriorityCard, detailsPriorityCard]
     : [needsReviewPriorityCard, officeReviewPriorityCard, detailsPriorityCard, newRequestPriorityCard];
 
+  const changeOrderShellKpis = [
+    {
+      id: "needs-review",
+      label: "Needs Review",
+      value: requestedRows.length,
+      helper: "Waiting for office triage",
+      icon: "alert",
+      tone: requestedRows.length ? "amber" : "green",
+      onClick: () => openFirstChangeOrderShellItem((request) => request.status === "requested" && !request.archivedAt),
+    },
+    {
+      id: "in-office-review",
+      label: "In Office Review",
+      value: underReviewRows.length,
+      helper: "Being reviewed now",
+      icon: "clock",
+      tone: underReviewRows.length ? "blue" : "slate",
+      onClick: () => openFirstChangeOrderShellItem((request) => request.status === "under_review" && !request.archivedAt),
+    },
+    {
+      id: "approved",
+      label: "Approved",
+      value: filteredRows.filter((request) => request.status === "approved_for_pricing").length,
+      helper: "Ready for office costing",
+      icon: "check",
+      tone: filteredRows.some((request) => request.status === "approved_for_pricing") ? "green" : "slate",
+      onClick: () => openFirstChangeOrderShellItem((request) => request.status === "approved_for_pricing" && !request.archivedAt),
+    },
+    {
+      id: "needs-details",
+      label: "Needs Details",
+      value: missingDetailRows.length,
+      helper: "Missing job, reason, or scope",
+      icon: "clipboard",
+      tone: missingDetailRows.length ? "orange" : "green",
+      onClick: () => openFirstChangeOrderShellItem((request) => missingDetailRows.some((entry) => entry.id === request.id)),
+    },
+  ];
+  const changeOrderShellQueue = useMemo(() => {
+    const items = [];
+    const seenIds = new Set();
+
+    function addRequest(request, kind, priority) {
+      if (!request?.id || seenIds.has(request.id)) return;
+      seenIds.add(request.id);
+      const statusLabel = changeOrderDisplayStatusLabel(request.status, canManage);
+      const createdLabel = formatDateTime(changeOrderRequestDate(request)) || "Date pending";
+      const scopeReady = Boolean(request.scopeDescription);
+      const reasonReady = Boolean(request.reason);
+      const eyebrow = kind === "requested"
+        ? "Needs review"
+        : kind === "under-review"
+          ? "In office review"
+          : kind === "missing-details"
+            ? "Needs details"
+            : kind === "approved"
+              ? "Approved"
+              : "Active change";
+
+      items.push({
+        id: `change-${request.id}`,
+        kind,
+        request,
+        requestId: request.id,
+        priority,
+        eyebrow,
+        title: changeOrderJobLabel(request),
+        meta: [changeOrderCustomerLabel(request, canManage), request.requestedByName || "Requester pending"].filter(Boolean).join(" / "),
+        statusLabel,
+        tone: changeOrderStatusTone(request.status),
+        actionLabel: "Review change",
+        badges: [
+          { label: request.reason || "Reason needed", tone: reasonReady ? "slate" : "amber" },
+          { label: scopeReady ? "Scope ready" : "Needs scope", tone: scopeReady ? "green" : "orange" },
+          { label: createdLabel, tone: "slate" },
+        ],
+      });
+    }
+
+    requestedRows.forEach((request, index) => addRequest(request, "requested", 10 + index));
+    underReviewRows.forEach((request, index) => addRequest(request, "under-review", 30 + index));
+    missingDetailRows.forEach((request, index) => addRequest(request, "missing-details", 50 + index));
+    filteredRows
+      .filter((request) => request.status === "approved_for_pricing" && !request.archivedAt)
+      .forEach((request, index) => addRequest(request, "approved", 70 + index));
+    activeChangeRows.forEach((request, index) => addRequest(request, "active", 90 + index));
+
+    return items.sort((left, right) => left.priority - right.priority).slice(0, 7);
+  }, [activeChangeRows, canManage, filteredRows, missingDetailRows, requestedRows, underReviewRows]);
+  const createChangeOrderShellItem = {
+    id: "create-change-order",
+    kind: "create",
+    title: "New change order request",
+    meta: canCreate ? "Capture job, reason, scope, and field notes" : "Creation unavailable for this role",
+    statusLabel: canCreate ? "Ready" : "Locked",
+    tone: canCreate ? "orange" : "slate",
+  };
+  const changeOrderShellFallbackItem = changeOrderShellQueue.find((item) => item.requestId === selectedRequest?.id)
+    || changeOrderShellQueue[0]
+    || null;
+  const selectedChangeOrderShellItem = changeOrderShellMode === "create" && changeOrderShellSelectionId === createChangeOrderShellItem.id
+    ? createChangeOrderShellItem
+    : changeOrderShellQueue.find((item) => item.id === changeOrderShellSelectionId) || changeOrderShellFallbackItem;
+  const selectedChangeOrderShellId = selectedChangeOrderShellItem?.id || "";
+  const changeOrderShellAssistantDescription = requestedRows.length
+    ? `${requestedRows.length} change order request${requestedRows.length === 1 ? "" : "s"} need first office review.`
+    : underReviewRows.length
+      ? `${underReviewRows.length} request${underReviewRows.length === 1 ? "" : "s"} are already in office review.`
+      : "Change-order review is clear in the current office queue.";
+
+  useEffect(() => {
+    if (!canUseChangeOrdersCommandShell) return;
+    if (changeOrderShellMode === "create") return;
+    const fallbackId = changeOrderShellFallbackItem?.id || "";
+    if (!changeOrderShellSelectionId && fallbackId) {
+      setChangeOrderShellSelectionId(fallbackId);
+      return;
+    }
+    if (changeOrderShellSelectionId && !changeOrderShellQueue.some((item) => item.id === changeOrderShellSelectionId)) {
+      setChangeOrderShellSelectionId(fallbackId);
+    }
+  }, [canUseChangeOrdersCommandShell, changeOrderShellFallbackItem?.id, changeOrderShellMode, changeOrderShellQueue, changeOrderShellSelectionId]);
+
+  function selectChangeOrderShellItem(item) {
+    if (!item) return;
+    setChangeOrderShellSelectionId(item.id);
+    setChangeOrderShellMode(item.kind === "create" ? "create" : "detail");
+    if (item.requestId) setSelectedRequestId(item.requestId);
+  }
+
+  function startChangeOrderInShell() {
+    if (!canCreate) return;
+    setToolTab("create");
+    setShowTools(false);
+    setChangeOrderShellMode("create");
+    setChangeOrderShellSelectionId(createChangeOrderShellItem.id);
+  }
+
+  function openFirstChangeOrderShellItem(matchRequest) {
+    const targetRequest = filteredRows.find(matchRequest) || rows.find(matchRequest);
+    if (!targetRequest?.id) return;
+    const targetItem = changeOrderShellQueue.find((item) => item.requestId === targetRequest.id);
+    setChangeOrderShellMode("detail");
+    setChangeOrderShellSelectionId(targetItem?.id || `change-${targetRequest.id}`);
+    setSelectedRequestId(targetRequest.id);
+  }
+
+  function renderChangeOrderShellDetail(item) {
+    if (item?.kind === "create") {
+      return (
+        <div className="co-change-orders-shell-detail-scroll">
+          <ChangeOrderCreatePanelPolished
+            canCreate={canCreate}
+            canManage={canManage}
+            visibleJobs={visibleJobs}
+            createDraft={createDraft}
+            setCreateDraft={setCreateDraft}
+            singleJobId={singleJobId}
+            busy={busy}
+            onCreateRequest={onCreateRequest}
+          />
+        </div>
+      );
+    }
+
+    const detailRequest = item?.request || selectedRequest;
+    return (
+      <div className="co-change-orders-shell-detail-scroll">
+        <ChangeOrderDetailPanelPolished
+          request={detailRequest}
+          detailDraft={detailDraft}
+          setDetailDraft={setDetailDraft}
+          canManage={canManage}
+          busy={busy}
+          onUpdateRequest={onUpdateRequest}
+          onArchiveRequest={onArchiveRequest}
+        />
+      </div>
+    );
+  }
+
   if (!permissions.changeOrders.canView) {
     return (
       <div className="co-office-page co-change-orders-page">
@@ -30283,6 +30479,59 @@ function ChangeOrdersPagePolished({
         <div className="px-5 sm:px-6 lg:px-8">
           <StateCard title="Change order access unavailable" description="Only office roles and foremen can open change order requests in this first pass." tone="slate" />
         </div>
+      </div>
+    );
+  }
+
+  if (canUseChangeOrdersCommandShell) {
+    return (
+      <div className="co-office-page co-change-orders-page co-change-orders-shell-page">
+        <ApexOfficeCommandShell
+          eyebrow="Field Tools"
+          title="Change Orders"
+          description="Review field scope-change requests, office status, missing details, and approved changes without drawers."
+          kpis={changeOrderShellKpis}
+          queue={{
+            title: "Change order queue",
+            description: `${changeOrderShellQueue.length} priority item${changeOrderShellQueue.length === 1 ? "" : "s"} shown from review, office review, details, and approved work.`,
+            items: changeOrderShellQueue,
+            selectedId: selectedChangeOrderShellId,
+            onSelect: selectChangeOrderShellItem,
+            emptyState: <StateCard title="Change order queue clear" description="Field scope changes appear here when they need office review, detail cleanup, or pricing approval." tone="green" />,
+          }}
+          detail={{
+            title: selectedChangeOrderShellItem?.kind === "create" ? "New change order request" : "Selected change order",
+            item: selectedChangeOrderShellItem,
+            render: renderChangeOrderShellDetail,
+            emptyState: <StateCard title="No change order selected" description="Select a request from the queue or start a new request." tone="slate" />,
+          }}
+          assistant={{
+            title: "Change Orders",
+            description: changeOrderShellAssistantDescription,
+            priorities: [
+              { value: requestedRows.length, label: "Needs review", tone: requestedRows.length ? "amber" : "green" },
+              { value: underReviewRows.length, label: "Office review", tone: underReviewRows.length ? "blue" : "slate" },
+              { value: filteredRows.filter((request) => request.status === "approved_for_pricing").length, label: "Approved", tone: "green" },
+              { value: missingDetailRows.length, label: "Needs details", tone: missingDetailRows.length ? "orange" : "green" },
+            ],
+            actions: [
+              { label: "Review Requests", icon: "alert", onClick: () => openFirstChangeOrderShellItem((request) => request.status === "requested" && !request.archivedAt), disabled: !requestedRows.length },
+              { label: "New Request", icon: "plus", onClick: startChangeOrderInShell, disabled: !canCreate },
+              { label: "Needs Details", icon: "clipboard", onClick: () => openFirstChangeOrderShellItem((request) => missingDetailRows.some((entry) => entry.id === request.id)), disabled: !missingDetailRows.length },
+            ],
+            guardrails: [
+              "Manual review only",
+              "No automatic billing or external sends",
+              "Role and company scope unchanged",
+            ],
+          }}
+          quickActions={[
+            { id: "new-request", label: "New Request", icon: "plus", onClick: startChangeOrderInShell, disabled: !canCreate },
+            { id: "needs-review", label: "Needs Review", icon: "alert", onClick: () => openFirstChangeOrderShellItem((request) => request.status === "requested" && !request.archivedAt), disabled: !requestedRows.length },
+            { id: "office-review", label: "Office Review", icon: "clock", onClick: () => openFirstChangeOrderShellItem((request) => request.status === "under_review" && !request.archivedAt), disabled: !underReviewRows.length },
+          ]}
+          className="co-change-orders-command-shell"
+        />
       </div>
     );
   }

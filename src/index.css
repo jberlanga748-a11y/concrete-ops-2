@@ -39690,6 +39690,183 @@ button.co-apex-command-kpi:hover:not(:disabled) {
   }
 }
 
+@media (min-width: 1024px) {
+  .co-change-orders-shell-page {
+    display: block !important;
+    height: calc(100vh - 4.5rem) !important;
+    min-height: 41rem;
+    overflow: hidden;
+    padding-bottom: 0 !important;
+  }
+
+  .co-change-orders-shell-page .co-apex-office-command-shell {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .co-change-orders-shell-page .co-apex-office-command-frame {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+  }
+
+  .co-change-orders-shell-page .co-command-page-frame-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 21rem);
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  .co-change-orders-shell-page .co-command-page-frame-main,
+  .co-change-orders-shell-page .co-command-page-frame-rail {
+    min-height: 0;
+  }
+
+  .co-change-orders-shell-page .co-apex-office-command-workspace {
+    height: 100%;
+    min-height: 0;
+    grid-template-columns: minmax(19rem, 0.82fr) minmax(0, 1.18fr);
+  }
+
+  .co-change-orders-shell-page .co-apex-primary-queue-panel,
+  .co-change-orders-shell-page .co-apex-selected-detail-panel,
+  .co-change-orders-shell-page .co-apex-assistant-action-panel {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .co-change-orders-shell-page .co-apex-primary-queue-panel {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .co-change-orders-shell-page .co-apex-assistant-action-panel {
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .co-change-orders-shell-page .co-assistant-rail {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  }
+
+  .co-change-orders-shell-page .co-apex-primary-queue-list {
+    align-content: start;
+    grid-auto-rows: max-content;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  }
+
+  .co-change-orders-shell-page .co-apex-primary-queue-list .co-work-queue-card {
+    padding: 0.5rem;
+  }
+
+  .co-change-orders-shell-page .co-work-queue-card h3 {
+    font-size: 0.78rem;
+  }
+
+  .co-change-orders-shell-page .co-work-queue-meta,
+  .co-change-orders-shell-page .co-work-queue-status,
+  .co-change-orders-shell-page .co-work-queue-action {
+    font-size: 0.66rem;
+  }
+
+  .co-change-orders-shell-page .co-apex-selected-detail-body {
+    min-height: 0;
+    align-content: start;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  }
+
+  .co-change-orders-shell-detail-scroll {
+    display: grid;
+    min-height: 0;
+    max-height: none;
+    align-content: start;
+    align-items: start;
+    gap: 0.54rem;
+    overflow: visible;
+  }
+
+  .co-change-orders-shell-detail-scroll > .co-change-orders-form-card {
+    height: auto;
+    margin: 0;
+    overflow: visible;
+  }
+
+  .co-change-orders-shell-detail-scroll .co-change-orders-form-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .co-change-orders-shell-detail-scroll .co-change-orders-form-grid > .md\:col-span-2 {
+    grid-column: auto !important;
+  }
+
+  .co-change-orders-shell-detail-scroll .co-change-orders-readonly-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .co-change-orders-shell-detail-scroll .co-change-orders-note-panel {
+    margin-top: 0.58rem;
+  }
+
+  .co-change-orders-shell-page .co-assistant-rail-head {
+    padding: 0.58rem 0.76rem 0.42rem;
+  }
+
+  .co-change-orders-shell-page .co-assistant-rail-head h2 {
+    font-size: 0.88rem;
+  }
+
+  .co-change-orders-shell-page .co-assistant-rail-head p {
+    font-size: 0.7rem;
+    line-height: 1.28;
+  }
+
+  .co-change-orders-shell-page .co-assistant-rail-priorities,
+  .co-change-orders-shell-page .co-assistant-rail-actions {
+    gap: 0.3rem;
+    padding: 0 0.54rem 0.54rem;
+  }
+
+  .co-change-orders-shell-page .co-assistant-rail-priority {
+    padding: 0.34rem 0.48rem;
+  }
+
+  .co-change-orders-shell-page .co-assistant-rail-actions button {
+    min-height: 1.9rem;
+    padding: 0.36rem 0.5rem;
+  }
+
+  .co-change-orders-shell-page .co-apex-assistant-guardrails {
+    padding: 0.52rem;
+    padding-right: 4.3rem;
+  }
+
+  .co-change-orders-shell-page .co-change-orders-secondary-drawer,
+  .co-change-orders-shell-page .co-change-orders-tools-drawer,
+  .co-change-orders-shell-page .co-change-orders-advanced-filters {
+    display: none !important;
+  }
+}
+
+@media (max-width: 1023px) {
+  .co-change-orders-shell-page {
+    overflow: visible;
+  }
+
+  .co-change-orders-shell-detail-scroll {
+    max-height: none;
+    overflow: visible;
+  }
+}
+
 .co-schedule-northstar-frame {
   padding-bottom: 0.85rem;
 }
