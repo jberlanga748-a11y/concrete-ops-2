@@ -17,6 +17,7 @@
     "verify:docs": "node scripts/docs-drift-check.mjs && node scripts/public-claims-check.mjs",
     "verify:pilot-config": "node --test --test-concurrency=1 scripts/verify-pilot-config.test.mjs scripts/create-pilot-config.test.mjs scripts/pilot-setup-plan.test.mjs && node scripts/verify-pilot-config.mjs --all --json",
     "verify:pilot-rehearsal": "node --test --test-concurrency=1 scripts/pilot-rehearsal.test.mjs",
+    "verify:paid-pilot-close": "node --test --test-concurrency=1 scripts/paid-pilot-close-readiness.test.mjs && node scripts/paid-pilot-close-readiness.mjs",
     "verify:first-user-pilot-packet": "node --test --test-concurrency=1 scripts/first-user-pilot-packet.test.mjs",
     "verify:fencing-pilot-preflight": "node --test --test-concurrency=1 scripts/fencing-pilot-preflight.test.mjs",
     "verify:fencing-pilot-intake": "node --test --test-concurrency=1 scripts/fencing-pilot-intake.test.mjs",
