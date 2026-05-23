@@ -1,3 +1,5 @@
+import { buildConstructionAgentTradeContext } from "./constructionTrades.js";
+
 function asArray(value) {
   return Array.isArray(value) ? value : [];
 }
@@ -37,7 +39,67 @@ function topRecords(records = [], fallback = "Record") {
     }));
 }
 
-function moduleSummary({ id, label, moduleId = id, canView = false, count = 0, needsAttention = 0, summary = "", nextActionLabel = "Open", records = [] }) {
+function tradeContextForRecord(record = {}, companySettings = {}) {
+  return buildConstructionAgentTradeContext({
+    trade: record.trade || record.tradeId || record.projectType || record.lead?.trade || record.job?.trade || "",
+    companySettings,
+    lead: {
+      trade: record.trade || record.lead?.trade || "",
+      project: record.project || record.title || record.customer || record.customerName || "",
+      notes: record.notes || record.scopeSummary || record.description || "",
+    },
+    estimate: {
+      trade: record.trade || record.estimateTrade || record.projectType || "",
+      title: record.title || record.estimateTitle || "",
+      scopeSummary: record.scopeSummary || record.description || "",
+      internalNotes: record.internalNotes || record.startupNotes || "",
+    },
+    roughNotes: [
+      record.title,
+      record.name,
+      record.project,
+      record.customer,
+      record.customerName,
+      record.scopeSummary,
+      record.description,
+      record.notes,
+      record.fieldNotes,
+      record.startupNotes,
+      record.trade,
+      record.projectType,
+    ].filter(Boolean).join("\n"),
+  });
+}
+
+function summarizeTradeContext(records = [], companySettings = {}) {
+  const contexts = asArray(records)
+    .filter((record) => record && typeof record === "object")
+    .slice(0, 8)
+    .map((record) => tradeContextForRecord(record, companySettings));
+  if (!contexts.length) return null;
+
+  const counts = new Map();
+  contexts.forEach((context) => {
+    const current = counts.get(context.tradeId) || { tradeId: context.tradeId, tradeLabel: context.tradeLabel, count: 0, context };
+    current.count += 1;
+    counts.set(context.tradeId, current);
+  });
+  const ranked = Array.from(counts.values()).sort((left, right) => right.count - left.count || left.tradeLabel.localeCompare(right.tradeLabel));
+  const primary = ranked[0]?.context;
+  if (!primary) return null;
+
+  return {
+    primaryTradeId: primary.tradeId,
+    primaryTradeLabel: primary.tradeLabel,
+    visibleTrades: ranked.map((entry) => ({ tradeId: entry.tradeId, tradeLabel: entry.tradeLabel, count: entry.count })).slice(0, 4),
+    fieldHandoffChecklist: primary.fieldHandoffChecklist.slice(0, 4),
+    proofPhotoChecklist: primary.proofPhotoChecklist.slice(0, 4),
+    changeOrderWatchouts: primary.changeOrderWatchouts.slice(0, 4),
+    safetyBoundary: primary.safetyBoundary,
+  };
+}
+
+function moduleSummary({ id, label, moduleId = id, canView = false, count = 0, needsAttention = 0, summary = "", nextActionLabel = "Open", records = [], tradeSummary = null }) {
   return {
     id,
     label,
@@ -49,6 +111,7 @@ function moduleSummary({ id, label, moduleId = id, canView = false, count = 0, n
     summary: canView ? summary : `${label} is outside this user's current role/package visibility.`,
     nextActionLabel,
     records: canView ? topRecords(records, label) : [],
+    tradeSummary: canView ? tradeSummary : null,
   };
 }
 
@@ -161,6 +224,7 @@ export function deriveAgentNextBestActions(context = {}, { limit = 5 } = {}) {
         sourceCount: count,
         needsAttention,
         supportingRecords: asArray(module.records).slice(0, 3),
+        tradeSummary: module.tradeSummary || null,
       };
     })
     .sort((left, right) => right.score - left.score)
@@ -205,6 +269,7 @@ export function deriveAgentWorkflowDraftPrep(context = {}, { actionId = "" } = {
   const supportLabels = asArray(selected.supportingRecords)
     .map((record) => text(record.label))
     .filter(Boolean);
+  const tradeSummary = selected.tradeSummary || null;
 
   return {
     mode: "review_first_workflow_draft_prep",
@@ -234,12 +299,21 @@ export function deriveAgentWorkflowDraftPrep(context = {}, { actionId = "" } = {
         label: "Human next step",
         detail: selected.reviewLabel,
       },
+      tradeSummary ? {
+        id: "trade-guidance",
+        label: `${tradeSummary.primaryTradeLabel} guidance`,
+        detail: [
+          tradeSummary.fieldHandoffChecklist?.length ? `Handoff: ${tradeSummary.fieldHandoffChecklist.slice(0, 3).join(", ")}` : "",
+          tradeSummary.proofPhotoChecklist?.length ? `Proof photos: ${tradeSummary.proofPhotoChecklist.slice(0, 3).join(", ")}` : "",
+          tradeSummary.changeOrderWatchouts?.length ? `Watchouts: ${tradeSummary.changeOrderWatchouts.slice(0, 3).join(", ")}` : "",
+        ].filter(Boolean).join(" | "),
+      } : null,
       {
         id: "safe-output",
         label: "Safe assistant output",
         detail: "A review note packet only. Use the existing Apex HQ screen to inspect and decide.",
       },
-    ],
+    ].filter(Boolean),
     blockedActions: [
       selected.blockedAutomation,
       "No customer email, text, call, notification, bid submission, or proposal send",
@@ -320,6 +394,7 @@ export function deriveAgentDailyOpsBrief(context = {}) {
 
 export function deriveAgentWorkflowContext(context = {}) {
   const permissions = context.permissions || {};
+  const companySettings = context.companySettings || context.settings || context.company || {};
   const leads = visibleRecords(context, "leads", Boolean(permissions?.leads?.canView));
   const estimates = visibleRecords(context, "estimates", Boolean(permissions?.estimates?.canView));
   const jobs = visibleRecords(context, "jobs", Boolean(permissions?.jobs?.canView || permissions?.jobs?.canManageAll));
@@ -363,6 +438,7 @@ export function deriveAgentWorkflowContext(context = {}) {
       summary: `${leadFollowups.length} lead${leadFollowups.length === 1 ? "" : "s"} look ready for follow-up or estimate prep.`,
       nextActionLabel: "Open leads",
       records: leadFollowups.length ? leadFollowups : leads,
+      tradeSummary: summarizeTradeContext(leadFollowups.length ? leadFollowups : leads, companySettings),
     }),
     moduleSummary({
       id: "estimates",
@@ -373,6 +449,7 @@ export function deriveAgentWorkflowContext(context = {}) {
       summary: `${draftEstimates.length} draft/review estimate${draftEstimates.length === 1 ? "" : "s"} and ${approvedEstimates.length} approved estimate${approvedEstimates.length === 1 ? "" : "s"} visible for packet or handoff review.`,
       nextActionLabel: "Open estimates",
       records: draftEstimates.length ? draftEstimates : estimates,
+      tradeSummary: summarizeTradeContext(draftEstimates.length ? draftEstimates : estimates, companySettings),
     }),
     moduleSummary({
       id: "jobs",
@@ -383,6 +460,7 @@ export function deriveAgentWorkflowContext(context = {}) {
       summary: `${activeJobs.length} active job${activeJobs.length === 1 ? "" : "s"} visible for schedule, field handoff, proof, and closeout context.`,
       nextActionLabel: "Open jobs",
       records: activeJobs.length ? activeJobs : jobs,
+      tradeSummary: summarizeTradeContext(activeJobs.length ? activeJobs : jobs, companySettings),
     }),
     moduleSummary({
       id: "proof",
@@ -394,6 +472,7 @@ export function deriveAgentWorkflowContext(context = {}) {
       summary: `${proofNeedsReview.length} proof/report/ticket/checklist item${proofNeedsReview.length === 1 ? "" : "s"} may need review before ready-to-bill.`,
       nextActionLabel: permissions?.reports?.canView ? "Open reports" : "Open uploads",
       records: proofNeedsReview,
+      tradeSummary: summarizeTradeContext(proofNeedsReview, companySettings),
     }),
     moduleSummary({
       id: "customers",

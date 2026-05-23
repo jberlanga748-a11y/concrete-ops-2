@@ -138,6 +138,15 @@ test("agent action proposal hydrates review packets with read-only server contex
         needsAttention: 3,
         summary: "3 proof items need review.",
         nextActionLabel: "Open reports",
+        tradeSummary: {
+          primaryTradeId: "fencing",
+          primaryTradeLabel: "Fencing",
+          visibleTrades: [{ tradeId: "fencing", tradeLabel: "Fencing", count: 2 }],
+          fieldHandoffChecklist: ["Confirm fence line", "Confirm gate swings"],
+          proofPhotoChecklist: ["Post holes", "Gate hardware"],
+          changeOrderWatchouts: ["Rocky digging"],
+          safetyBoundary: "Use this as review-only trade guidance. Do not invent pricing.",
+        },
         records: [{ id: "REPORT-1", label: "Westview Daily Report", status: "Submitted" }],
       }],
       topActions: [{ moduleId: "reports", actionLabel: "Open reports", label: "Proof Engine", count: 3 }],
@@ -147,9 +156,12 @@ test("agent action proposal hydrates review packets with read-only server contex
   assert.equal(proposal.contextProof.source, "server");
   assert.equal(proposal.contextProof.requestId, "REQ-123");
   assert.equal(proposal.contextProof.module.label, "Proof Engine");
+  assert.equal(proposal.contextProof.module.tradeSummary.primaryTradeLabel, "Fencing");
   assert.equal(proposal.contextProof.module.records[0].label, "Westview Daily Report");
   assert.ok(proposal.reviewChecklist.some((item) => /synced server context/i.test(item)));
   assert.ok(proposal.draftPrep[0].fields.some((item) => /Context: server/i.test(item)));
+  assert.ok(proposal.draftPrep[0].fields.some((item) => /Trade focus: Fencing/i.test(item)));
+  assert.ok(proposal.draftPrep[0].fields.some((item) => /Proof prompts: Post holes, Gate hardware/i.test(item)));
   assert.equal(validateAgentActionProposalSafety(proposal).ok, true);
 });
 

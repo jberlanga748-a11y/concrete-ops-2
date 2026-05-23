@@ -295,6 +295,19 @@ function buildAgentActionContextProof(response = {}, workflowContext = null) {
       needsAttention: Number(matchedModule.needsAttention || 0),
       summary: text(matchedModule.summary),
       nextActionLabel: text(matchedModule.nextActionLabel),
+      tradeSummary: matchedModule.tradeSummary ? {
+        primaryTradeId: text(matchedModule.tradeSummary.primaryTradeId),
+        primaryTradeLabel: text(matchedModule.tradeSummary.primaryTradeLabel),
+        visibleTrades: asArray(matchedModule.tradeSummary.visibleTrades).slice(0, 4).map((trade) => ({
+          tradeId: text(trade.tradeId),
+          tradeLabel: text(trade.tradeLabel),
+          count: Number(trade.count || 0),
+        })),
+        fieldHandoffChecklist: asArray(matchedModule.tradeSummary.fieldHandoffChecklist).map(text).filter(Boolean).slice(0, 4),
+        proofPhotoChecklist: asArray(matchedModule.tradeSummary.proofPhotoChecklist).map(text).filter(Boolean).slice(0, 4),
+        changeOrderWatchouts: asArray(matchedModule.tradeSummary.changeOrderWatchouts).map(text).filter(Boolean).slice(0, 4),
+        safetyBoundary: text(matchedModule.tradeSummary.safetyBoundary),
+      } : null,
       records: asArray(matchedModule.records).slice(0, 3).map((record) => ({
         id: text(record.id || record.label),
         label: text(record.label || record.title || record.name || record.id || "Record"),
@@ -316,6 +329,8 @@ function hydrateDraftPrepWithContext(draftPrep = [], contextProof = null) {
     contextProof.source ? `Context: ${contextProof.source}` : "",
     contextProof.visibleModuleCount ? `Visible areas: ${contextProof.visibleModuleCount}` : "",
     contextProof.attentionCount ? `Review signals: ${contextProof.attentionCount}` : "",
+    contextProof.module?.tradeSummary?.primaryTradeLabel ? `Trade focus: ${contextProof.module.tradeSummary.primaryTradeLabel}` : "",
+    contextProof.module?.tradeSummary?.proofPhotoChecklist?.length ? `Proof prompts: ${contextProof.module.tradeSummary.proofPhotoChecklist.slice(0, 3).join(", ")}` : "",
   ].filter(Boolean);
   if (!contextFields.length) return draftPrep;
   return asArray(draftPrep).map((item) => ({

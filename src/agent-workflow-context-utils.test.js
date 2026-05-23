@@ -15,6 +15,7 @@ import {
 test("agent workflow context summarizes visible office workflow areas", () => {
   const context = deriveAgentWorkflowContext({
     user: { role: "Administrator" },
+    companySettings: { primaryTrade: "concrete" },
     permissions: {
       leads: { canView: true },
       estimates: { canView: true },
@@ -32,9 +33,9 @@ test("agent workflow context summarizes visible office workflow areas", () => {
       toolChecklist: { canUse: true },
       jobDraftImports: { canView: true },
     },
-    leads: [{ id: "LEAD-1", customer: "Friendly Fence", status: "Follow Up" }],
-    estimates: [{ id: "EST-1", title: "Fence Estimate", status: "Draft" }, { id: "EST-2", title: "Approved Fence", status: "Approved" }],
-    jobs: [{ id: "JOB-1", title: "Fence Install", status: "In Progress" }],
+    leads: [{ id: "LEAD-1", customer: "Friendly Fence", status: "Follow Up", trade: "fencing" }],
+    estimates: [{ id: "EST-1", title: "Fence Estimate", status: "Draft", trade: "fencing" }, { id: "EST-2", title: "Approved Fence", status: "Approved", trade: "fencing" }],
+    jobs: [{ id: "JOB-1", title: "Fence Install", status: "In Progress", startupNotes: "Trade context: Fencing\nProof photos to collect: Post holes; Gate hardware" }],
     dailyReports: [{ id: "DR-1", title: "Daily", status: "Submitted" }],
     uploads: [{ id: "UP-1", title: "Photos", status: "Needs Review" }],
     customers: [{ id: "CUS-1", name: "Friendly Fence", status: "Active" }],
@@ -55,6 +56,9 @@ test("agent workflow context summarizes visible office workflow areas", () => {
   assert.ok(context.attentionCount > 0);
   assert.equal(context.modules.find((module) => module.id === "estimates").needsAttention, 2);
   assert.equal(context.modules.find((module) => module.id === "proof").needsAttention, 6);
+  assert.equal(context.modules.find((module) => module.id === "leads").tradeSummary.primaryTradeLabel, "Fencing");
+  assert.equal(context.modules.find((module) => module.id === "jobs").tradeSummary.primaryTradeLabel, "Fencing");
+  assert.ok(context.modules.find((module) => module.id === "jobs").tradeSummary.proofPhotoChecklist.some((item) => /post/i.test(item)));
   assert.equal(context.topActions[0].moduleId, "reports");
   assert.match(context.safetyBoundary, /No customer contact/i);
 });
@@ -149,13 +153,15 @@ test("agent workflow draft prep creates a review-only packet for the top action"
       reports: { canView: true },
       uploads: { canView: true },
     },
-    dailyReports: [{ id: "DR-1", title: "Daily", status: "Submitted" }],
-    uploads: [{ id: "UP-1", title: "Photos", status: "Needs Review" }],
+    dailyReports: [{ id: "DR-1", title: "Daily", status: "Submitted", job: { trade: "fencing", title: "Gate install" } }],
+    uploads: [{ id: "UP-1", title: "Photos", status: "Needs Review", job: { trade: "fencing", title: "Gate install" } }],
   });
 
   assert.equal(packet.mode, "review_first_workflow_draft_prep");
   assert.equal(packet.target.moduleId, "reports");
   assert.ok(packet.items.some((item) => item.id === "safe-output"));
+  assert.ok(packet.items.some((item) => item.id === "trade-guidance" && /Fencing guidance/.test(item.label)));
+  assert.ok(packet.items.some((item) => item.id === "trade-guidance" && /Proof photos:/i.test(item.detail)));
   assert.ok(packet.blockedActions.some((item) => /No customer email/i.test(item)));
   assert.match(packet.safetyBoundary, /Nothing is saved/i);
 });
