@@ -14839,13 +14839,57 @@ function EstimatorMobilePipelinePage({
   const visibleLeads = normalizeObjectArray(leads).filter((lead) => !lead.archivedAt);
   const visibleEstimates = normalizeObjectArray(estimates).filter((estimate) => !estimate.archivedAt);
   const queueItems = useMemo(() => buildEstimatorMobilePipelineQueue({ leads: visibleLeads, estimates: visibleEstimates, customers, companyName }), [companyName, customers, visibleEstimates, visibleLeads]);
+  const estimateRouteQueueItems = useMemo(() => {
+    if (activeModule !== "estimates") return [];
+    const contactDirectory = buildOwnerMobileContactDirectory({ customers, leads: visibleLeads, jobs: [] });
+    return visibleEstimates
+      .map((estimate, index) => {
+        const status = normalizeTodayStatus(estimate.status);
+        const isSent = status === "sent";
+        const isDraft = status === "draft";
+        const isApproved = status === "approved";
+        const contact = ownerMobileRecordContact(estimate, contactDirectory);
+        const row = {
+          id: `estimate-tablet-${estimate.id}`,
+          priority: isSent ? 10 + index : isDraft ? 20 + index : isApproved ? 30 + index : 40 + index,
+          kind: "estimate",
+          moduleId: "estimates",
+          recordId: estimate.id,
+          record: estimate,
+          eyebrow: isSent ? "Sent to win" : isDraft ? "Draft readiness" : isApproved ? "Approved handoff" : "Estimate review",
+          title: estimateDisplayTitle(estimate),
+          description: estimateDisplayCustomer(estimate) || "Estimate needs review.",
+          publicSummary: isSent
+            ? "I wanted to check whether you had any questions about the proposal"
+            : "your proposal is still in review and we will confirm the next step manually",
+          statusLabel: estimateStatusLabel(estimate.status),
+          actionLabel: "Open estimate",
+          tone: isSent ? "blue" : isDraft ? "orange" : isApproved ? "green" : "slate",
+          nextSafeAction: isApproved
+            ? "Open the estimate handoff review. Job conversion still requires job-create permission."
+            : "Open the estimate for review-first work. No send or conversion happens from tablet.",
+        };
+        const drafts = ownerMobileSafeContactDraft({ ...row, contact }, companyName);
+        return { ...row, contact, ...drafts };
+      })
+      .sort((left, right) => Number(left.priority || 99) - Number(right.priority || 99) || left.title.localeCompare(right.title))
+      .slice(0, 5);
+  }, [activeModule, companyName, customers, visibleEstimates, visibleLeads]);
+  const displayQueueItems = useMemo(() => {
+    if (activeModule !== "estimates") return queueItems;
+    return [
+      ...estimateRouteQueueItems,
+      ...queueItems.filter((item) => item.kind !== "estimate"),
+    ].filter((item, index, list) => list.findIndex((candidate) => candidate.id === item.id || (candidate.kind === item.kind && candidate.recordId === item.recordId)) === index).slice(0, 5);
+  }, [activeModule, estimateRouteQueueItems, queueItems]);
   const [selectedPipelineId, setSelectedPipelineId] = useState("");
-  const firstContactableItem = queueItems.find((item) => item.contact?.phone || item.contact?.email);
-  const selectedItem = queueItems.find((item) => item.id === selectedPipelineId) || firstContactableItem || queueItems[0] || null;
+  const firstContactableItem = displayQueueItems.find((item) => item.contact?.phone || item.contact?.email);
+  const selectedItem = displayQueueItems.find((item) => item.id === selectedPipelineId) || firstContactableItem || displayQueueItems[0] || null;
   const followUpsDue = visibleLeads.filter((lead) => leadNeedsMobileFollowUp(lead, today)).length;
   const estimateReady = visibleLeads.filter(isLeadReadyForEstimate).length;
   const sentToWin = visibleEstimates.filter((estimate) => normalizeTodayStatus(estimate.status) === "sent").length;
   const missingInfo = visibleLeads.filter(leadMissingMobileInfo).length;
+  const isEstimateRoute = activeModule === "estimates";
 
   useEffect(() => {
     if (selectedItem && selectedItem.id !== selectedPipelineId) {
@@ -14892,14 +14936,16 @@ function EstimatorMobilePipelinePage({
   return (
     <ApexMobileRoleShell
       eyebrow={companyName || DEFAULT_COMPANY_NAME}
-      title="Pipeline"
-      description={`${user?.name || "Estimator"} sales command: lead follow-ups, estimate-ready work, sent proposals, and missing info.`}
+      title={isEstimateRoute ? "Estimates" : "Pipeline"}
+      description={isEstimateRoute
+        ? `${user?.name || "Estimator"} estimate command: sent proposals, draft readiness, follow-ups, and missing info.`
+        : `${user?.name || "Estimator"} sales command: lead follow-ups, estimate-ready work, sent proposals, and missing info.`}
       className="co-estimator-mobile-pipeline"
     >
       <ApexMobileKpiGrid items={kpis} />
       <ApexMobileActionQueue
-        title="Top pipeline queue"
-        items={queueItems}
+        title={isEstimateRoute ? "Top estimate queue" : "Top pipeline queue"}
+        items={displayQueueItems}
         selectedId={selectedItem?.id}
         onSelect={(item) => setSelectedPipelineId(item.id)}
       />
@@ -18442,6 +18488,23 @@ function LeadsPage({
     <>
     {canUseEstimatorMobilePipeline ? (
       <div className="co-sales-mobile-only">
+        <EstimatorMobilePipelinePage
+          user={user}
+          companyName={companyName}
+          leads={leads}
+          estimates={estimates}
+          customers={customers}
+          permissions={permissions}
+          setActive={setActive}
+          onSelectLead={onSelectLead}
+          onOpenEstimate={onOpenEstimate}
+          onSelectCustomer={onSelectCustomer}
+          activeModule="leads"
+        />
+      </div>
+    ) : null}
+    {canUseEstimatorMobilePipeline ? (
+      <div className="co-sales-tablet-only">
         <EstimatorMobilePipelinePage
           user={user}
           companyName={companyName}
@@ -31802,6 +31865,27 @@ function EstimatesPagePolished({
           />
         </div>
       ) : null}
+      {canUseEstimatorMobilePipeline ? (
+        <div className="co-sales-tablet-only">
+          <EstimatorMobilePipelinePage
+            user={user}
+            companyName={companyName}
+            leads={leads}
+            estimates={estimates}
+            customers={customers}
+            permissions={permissions}
+            setActive={setActive}
+            onSelectLead={onSelectLead}
+            onSelectCustomer={onSelectCustomer}
+            onOpenEstimate={(id) => {
+              setEstimateViewMode("browse");
+              setSelectedEstimateId(id);
+              setActive?.("estimates");
+            }}
+            activeModule="estimates"
+          />
+        </div>
+      ) : null}
       <div className={canUseEstimatorMobilePipeline ? "co-sales-mobile-desktop-content" : ""}>
       <div className="co-office-page co-estimates-page co-estimates-shell-page">
         <ApexOfficeCommandShell
@@ -31843,6 +31927,27 @@ function EstimatesPagePolished({
     <>
     {canUseEstimatorMobilePipeline ? (
       <div className="co-sales-mobile-only">
+        <EstimatorMobilePipelinePage
+          user={user}
+          companyName={companyName}
+          leads={leads}
+          estimates={estimates}
+          customers={customers}
+          permissions={permissions}
+          setActive={setActive}
+          onSelectLead={onSelectLead}
+          onSelectCustomer={onSelectCustomer}
+          onOpenEstimate={(id) => {
+            setEstimateViewMode("browse");
+            setSelectedEstimateId(id);
+            setActive?.("estimates");
+          }}
+          activeModule="estimates"
+        />
+      </div>
+    ) : null}
+    {canUseEstimatorMobilePipeline ? (
+      <div className="co-sales-tablet-only">
         <EstimatorMobilePipelinePage
           user={user}
           companyName={companyName}
