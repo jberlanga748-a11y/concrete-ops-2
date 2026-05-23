@@ -28900,6 +28900,10 @@ function EstimatesPagePolished({
     () => deriveFenceTakeoffReadiness(detailEstimateBackup.fenceTakeoff),
     [detailEstimateBackup.fenceTakeoff],
   );
+  const detailEstimateHandoffReadiness = useMemo(
+    () => deriveEstimateJobHandoffReadiness(detailEstimatePreview || detailDraft),
+    [detailDraft, detailEstimatePreview],
+  );
   const detailSaveDisabled = busy || (!detailDraft.customerId && !detailDraft.leadId) || !detailDraft.title;
   const canMarkSent = canManage && detailDraft.status === "draft";
   const packetPrintSettings = useMemo(() => resolveEstimatePacketSettings({
@@ -29585,7 +29589,7 @@ function EstimatesPagePolished({
     { id: "takeoff", label: "Takeoff", title: "Takeoff Mode", manages: "fence takeoff, estimate-grade quantities, local draft quantity review, and office backup context." },
     { id: "visualPreview", label: "Visual Preview", title: "Visual Preview Mode", manages: "review-first customer concept prompt readiness without generation, sends, or estimate mutation." },
     { id: "sendReview", label: "Send Review", title: "Send Review Mode", manages: "explicit human-confirmed customer proposal send review, manual copy fallback, customer-facing print readiness, and sent status." },
-    { id: "handoff", label: "Handoff", title: "Handoff Mode", manages: "future approved estimate-to-job handoff checks before any job conversion." },
+    { id: "handoff", label: "Handoff", title: "Handoff Mode", manages: "approved estimate-to-job handoff checks, field-safe print review, and explicit human-confirmed conversion." },
   ];
   const estimateShellModeIds = new Set(estimateShellModes.map((mode) => mode.id));
 
@@ -29626,7 +29630,7 @@ function EstimatesPagePolished({
     }
 
     const readiness = estimateShellStateById.get(estimate.id) || estimateShellReadiness(estimate);
-    const handoffReadiness = deriveEstimateJobHandoffReadiness(estimate);
+    const handoffReadiness = deriveEstimateJobHandoffReadiness(detailEstimatePreview || estimate);
     const status = String(estimate?.status || "draft").trim().toLowerCase();
     const safeActions = [
       { id: "full-tools", label: "Open Full Tools", onClick: () => openFullEstimateToolsPlaceholder("Full estimate tools") },
@@ -29647,7 +29651,7 @@ function EstimatesPagePolished({
           ? `Resolve ${readiness.missing.slice(0, 3).join(", ")} before sending or converting.`
           : "Keep reviewing proposal context before any external action.";
     const activeShellMode = estimateShellModes.find((mode) => mode.id === estimateShellMode) || estimateShellModes[0];
-    const isFocusedShellEditMode = ["pricing", "proposal", "backup", "packet", "roughNotes", "takeoff", "visualPreview", "sendReview"].includes(activeShellMode.id);
+    const isFocusedShellEditMode = ["pricing", "proposal", "backup", "packet", "roughNotes", "takeoff", "visualPreview", "sendReview", "handoff"].includes(activeShellMode.id);
     const visibleEstimateShellModes = isFocusedShellEditMode
       ? estimateShellModes.filter((mode) => mode.id === "overview" || mode.id === activeShellMode.id)
       : estimateShellModes;
@@ -29689,6 +29693,19 @@ function EstimatesPagePolished({
       Boolean(detailProposalSections.customerNotes),
     ].filter(Boolean).length;
     const sendReviewCanSend = Boolean(emailSendingConfigured && canManage && detailEstimatePreview && detailEstimateCustomerEmail);
+    const canCreateJobsFromShell = Boolean(permissions?.jobs?.canCreate);
+    const selectedEstimateStatus = String(selectedEstimate?.status || estimate?.status || "draft").trim().toLowerCase();
+    const handoffCanConvert = Boolean(
+      selectedEstimate?.id
+        && handoffReadiness.readyForJob
+        && selectedEstimateStatus === "approved"
+        && !selectedEstimate.jobId
+        && permissions?.estimates?.canManage
+        && canCreateJobsFromShell,
+    );
+    const handoffPermissionNote = permissions?.estimates?.canManage && !canCreateJobsFromShell
+      ? "You can manage estimates, but creating jobs requires job-create permission."
+      : "";
 
     async function handleSaveEstimateShellPricing() {
       if (!selectedEstimate?.id || !canManage || typeof onSaveEstimate !== "function") return false;
@@ -29748,6 +29765,22 @@ function EstimatesPagePolished({
         showCopyFeedback("Reviewed takeoff draft saved through the existing estimate save path.", 5000);
       }
       return saved;
+    }
+
+    async function handleConvertEstimateShellHandoff() {
+      if (!handoffCanConvert || typeof onConvertEstimate !== "function" || !selectedEstimate?.id) return false;
+      const confirmed = window.confirm(
+        "Create a draft job from this approved estimate? Confirm you reviewed approval, customer/contact, scope, pricing, and field handoff backup. No crew, schedule, billing, customer contact, or field visibility will be automated.",
+      );
+      if (!confirmed) {
+        showCopyFeedback("Job conversion cancelled. No job was created.", 5000);
+        return false;
+      }
+      const converted = await onConvertEstimate(selectedEstimate.id);
+      if (converted) {
+        showCopyFeedback("Draft job created from approved estimate. Schedule, crew, billing, and field visibility still require manual review.", 7000);
+      }
+      return converted;
     }
 
     function updateShellProposalSection(field, value) {
@@ -30329,6 +30362,86 @@ function EstimatesPagePolished({
       );
     }
 
+    function renderEstimateShellHandoffMode() {
+      const fieldSafePacketSettings = {
+        ...packetPrintSettings,
+        allowInternalSections: false,
+      };
+      const handoffReadyFacts = [
+        { label: "Approved status", value: selectedEstimateStatus === "approved" ? "Approved" : estimateStatusLabel(selectedEstimateStatus), ready: selectedEstimateStatus === "approved" },
+        { label: "Job state", value: selectedEstimate?.jobId ? "Converted" : "Not converted", ready: !selectedEstimate?.jobId },
+        { label: "Customer/contact", value: `${readiness.hasCustomer ? "Customer" : "Customer missing"} / ${detailEstimateCustomerEmail ? "Contact" : "Contact missing"}`, ready: readiness.hasCustomer && Boolean(detailEstimateCustomerEmail) },
+        { label: "Scope", value: readiness.hasScope ? "Ready" : "Needs scope", ready: readiness.hasScope },
+        { label: "Pricing", value: readiness.hasPricing ? formatEstimateCurrency(readiness.optionTotals.totalWithSelectedOptions) : "Needs priced line items", ready: readiness.hasPricing },
+        { label: "Field backup", value: handoffReadiness.steps.find((step) => step.id === "field-handoff")?.complete ? "Ready" : "Needs backup", ready: handoffReadiness.steps.find((step) => step.id === "field-handoff")?.complete },
+      ];
+
+      return (
+        <div className="co-estimates-shell-workflow-panel co-estimates-shell-handoff-panel" role="region" aria-label="Estimate handoff and convert review">
+          <div className="co-estimates-shell-workflow-head">
+            <div>
+              <Badge tone={handoffReadiness.converted || handoffCanConvert ? "green" : selectedEstimateStatus === "approved" ? "amber" : "slate"}>
+                {handoffReadiness.converted ? "Converted" : handoffCanConvert ? "Ready to convert" : "Review first"}
+              </Badge>
+              <h3>Handoff / Convert</h3>
+              <p>Review approved estimate-to-job readiness before a human-confirmed draft job is created. No crew, schedule, billing, customer contact, or field visibility is automated here.</p>
+            </div>
+            <StatusBadge status={estimateStatusLabel(selectedEstimateStatus)} />
+          </div>
+          <div className="co-estimates-shell-workflow-context">
+            <span><em>Customer</em><strong>{estimateDisplayCustomer(estimate) || "Customer pending"}</strong></span>
+            <span><em>Contact</em><strong>{detailEstimateCustomerEmail || estimate?.customerPhone || "Missing"}</strong></span>
+            <span><em>Job</em><strong>{selectedEstimate?.jobId ? `Linked ${selectedEstimate.jobId}` : "Not converted"}</strong></span>
+          </div>
+          <div className="co-estimates-shell-handoff-grid">
+            <div className="co-estimates-shell-handoff-main">
+              <EstimateJobHandoffReadinessCard readiness={handoffReadiness} />
+              <div className="co-estimates-shell-handoff-card">
+                <span>Field-safe handoff summary</span>
+                <strong>{handoffReadiness.readyForJob ? "Ready for draft job setup" : handoffReadiness.status}</strong>
+                <p>Foreman handoff output stays field-safe: scope, quantities, references, required reports/photos/tickets, and change-order warnings only. Customer pricing, margin, internal backup rows, and private source URLs stay out of the field packet.</p>
+              </div>
+              {handoffPermissionNote ? (
+                <div className="co-estimates-shell-handoff-note">
+                  <strong>Read-only job creation</strong>
+                  <span>{handoffPermissionNote} The server convert endpoint still authorizes through estimate management; backend tightening is flagged as a separate follow-up.</span>
+                </div>
+              ) : null}
+            </div>
+            <aside className="co-estimates-shell-handoff-side">
+              {handoffReadyFacts.map((fact) => (
+                <div key={fact.label} data-state={fact.ready ? "ready" : "needs"}>
+                  <span>{fact.label}</span>
+                  <strong>{fact.value}</strong>
+                </div>
+              ))}
+              <div data-state="manual">
+                <span>Automation boundary</span>
+                <strong>Manual setup after convert</strong>
+                <p>Schedule, crew, billing, customer contact, and field visibility still require separate office review.</p>
+              </div>
+            </aside>
+          </div>
+          <div className="co-estimates-shell-workflow-actions">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => onPrintEstimateForemanHandoff?.(detailEstimatePreview, fieldSafePacketSettings)}
+              disabled={!detailEstimatePreview || !canUseGcPackets}
+            >
+              Print foreman handoff
+            </Button>
+            {handoffCanConvert ? (
+              <Button type="button" onClick={handleConvertEstimateShellHandoff} disabled={busy}>
+                Convert to job
+              </Button>
+            ) : null}
+            <Button type="button" variant="secondary" onClick={() => setEstimateShellMode("overview")}>Return to overview</Button>
+          </div>
+        </div>
+      );
+    }
+
     function renderEstimateShellModePlaceholder() {
       if (activeShellMode.id === "overview") return null;
       if (activeShellMode.id === "pricing") return renderEstimateShellPricingMode();
@@ -30339,6 +30452,7 @@ function EstimatesPagePolished({
       if (activeShellMode.id === "takeoff") return renderEstimateShellTakeoffMode();
       if (activeShellMode.id === "visualPreview") return renderEstimateShellVisualPreviewMode();
       if (activeShellMode.id === "sendReview") return renderEstimateShellSendReviewMode();
+      if (activeShellMode.id === "handoff") return renderEstimateShellHandoffMode();
       return (
         <div className="co-estimates-shell-mode-placeholder" role="region" aria-label={`${activeShellMode.title} placeholder`}>
           <Badge tone="slate">Full tool migration pending</Badge>
@@ -30486,6 +30600,13 @@ function EstimatesPagePolished({
                     { value: formatEstimateCurrency(detailOptionTotals.totalWithSelectedOptions), label: "review total", tone: detailOptionTotals.totalWithSelectedOptions ? "green" : "slate" },
                     { value: 0, label: "auto sends", tone: "green" },
                   ]
+                  : estimateShellMode === "handoff"
+                    ? [
+                      { value: detailEstimateHandoffReadiness.readyCount, label: "ready checks", tone: detailEstimateHandoffReadiness.readyForJob || detailEstimateHandoffReadiness.converted ? "green" : "amber" },
+                      { value: selectedEstimate?.jobId ? 1 : 0, label: selectedEstimate?.jobId ? "job linked" : "not linked", tone: selectedEstimate?.jobId ? "green" : "slate" },
+                      { value: permissions?.jobs?.canCreate ? 1 : 0, label: permissions?.jobs?.canCreate ? "job create" : "read only", tone: permissions?.jobs?.canCreate ? "blue" : "amber" },
+                      { value: 0, label: "auto setup", tone: "green" },
+                    ]
     : [
       { value: draftToPriceRows.length, label: "drafts to price", tone: draftToPriceRows.length ? "orange" : "green" },
       { value: readyToSendRows.length, label: "ready to send", tone: readyToSendRows.length ? "blue" : "slate" },
@@ -30535,6 +30656,12 @@ function EstimatesPagePolished({
                     { label: "Print Proposal", icon: "document", onClick: () => onPrintEstimate?.(detailEstimatePreview, { ...packetPrintSettings, allowInternalSections: false }), disabled: !selectedEstimate },
                     { label: emailSendingConfigured ? "Send Review" : "Manual Mode", icon: "arrowUpRight", onClick: emailSendingConfigured ? handleSendEstimate : () => copyEstimateText(() => buildEstimateCustomerMessage({ companyName, companyProfile, estimate: detailEstimatePreview }), "Manual send mode: customer message copied."), disabled: !selectedEstimate || (emailSendingConfigured && (!canManage || !detailEstimateCustomerEmail || busy)) },
                   ]
+                  : estimateShellMode === "handoff"
+                    ? [
+                      { label: "Print Handoff", icon: "document", onClick: () => onPrintEstimateForemanHandoff?.(detailEstimatePreview, { ...packetPrintSettings, allowInternalSections: false }), disabled: !selectedEstimate || !canUseGcPackets },
+                      { label: "Handoff", icon: "check", onClick: () => setEstimateShellMode("handoff"), disabled: !selectedEstimate },
+                      { label: "Overview", icon: "briefcase", onClick: () => setEstimateShellMode("overview") },
+                    ]
     : estimateShellAssistantActions;
   const estimateShellQuickActionsForMode = estimateShellMode === "pricing"
     ? [
@@ -30579,6 +30706,12 @@ function EstimatesPagePolished({
                     { id: "send-print", label: "Print", icon: "document", onClick: () => onPrintEstimate?.(detailEstimatePreview, { ...packetPrintSettings, allowInternalSections: false }), disabled: !selectedEstimate },
                     { id: "send-action", label: emailSendingConfigured ? "Send" : "Manual", icon: "arrowUpRight", onClick: emailSendingConfigured ? handleSendEstimate : () => copyEstimateText(() => buildEstimateCustomerMessage({ companyName, companyProfile, estimate: detailEstimatePreview }), "Manual send mode: customer message copied."), disabled: !selectedEstimate || (emailSendingConfigured && (!canManage || !detailEstimateCustomerEmail || busy)) },
                   ]
+                  : estimateShellMode === "handoff"
+                    ? [
+                      { id: "handoff-print", label: "Print", icon: "document", onClick: () => onPrintEstimateForemanHandoff?.(detailEstimatePreview, { ...packetPrintSettings, allowInternalSections: false }), disabled: !selectedEstimate || !canUseGcPackets },
+                      { id: "handoff-review", label: "Handoff", icon: "check", onClick: () => setEstimateShellMode("handoff"), disabled: !selectedEstimate },
+                      { id: "handoff-overview", label: "Overview", icon: "briefcase", onClick: () => setEstimateShellMode("overview") },
+                    ]
     : estimateShellQuickActions;
   const estimateShellGuardrailsForMode = estimateShellMode === "pricing"
     ? [
@@ -30628,6 +30761,12 @@ function EstimatesPagePolished({
                     "Manual mode copies only and never calls send endpoint",
                     "No convert or handoff controls",
                   ]
+                  : estimateShellMode === "handoff"
+                    ? [
+                      "Approved unconverted estimates only",
+                      "Requires estimate manage plus job create permission",
+                      "No schedule, crew, billing, customer contact, or field visibility automation",
+                    ]
     : [
       "Overview/readiness only",
       "No automatic sends or job conversion",
