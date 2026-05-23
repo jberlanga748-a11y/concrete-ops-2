@@ -7790,6 +7790,14 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
   const uploadsEmptyDescription = safeUploads.length === 0
     ? "Photo evidence will appear here after the first field upload."
     : "Clear filters or adjust the search to bring existing photo evidence back into view.";
+  const fieldTabletUploadRows = visibleRows.slice(0, 5);
+  const selectedFieldTabletUpload = selectedUpload || fieldTabletUploadRows[0] || null;
+  const fieldTabletUploadKpis = [
+    { label: "Today", value: todayUploadCount, helper: "Captured today", tone: todayUploadCount ? "orange" : "slate" },
+    { label: "Current Job", value: currentJobUploadCount, helper: currentEvidenceJobLabel, tone: currentJobUploadCount ? "green" : "slate" },
+    { label: "GPS Gaps", value: missingGpsCount, helper: "Location context", tone: missingGpsCount ? "amber" : "green" },
+    { label: "Caption Gaps", value: missingNotesCount, helper: "Photo context", tone: missingNotesCount ? "orange" : "green" },
+  ];
 
   if (canUseUploadsCommandShell) {
     return (
@@ -7862,6 +7870,130 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
           </div>
         }
       />
+
+      {isFieldUploadWorkspace ? (
+        <section className="co-field-tablet-command co-uploads-tablet-command mx-auto w-full max-w-[1520px] min-w-0 px-4 pb-4 sm:px-5" aria-label="Tablet photo evidence command">
+          <div className="co-field-tablet-shell">
+            <div className="co-field-tablet-head">
+              <div className="min-w-0">
+                <p>Tablet proof</p>
+                <h2>Photo Evidence</h2>
+                <span>Capture job proof, review visible uploads, and keep GPS or caption gaps easy to fix.</span>
+              </div>
+              <Badge tone={canCreate ? "orange" : "slate"}>{canCreate ? "Upload ready" : "Read-only"}</Badge>
+            </div>
+
+            <div className="co-field-tablet-kpis" aria-label="Photo evidence status">
+              {fieldTabletUploadKpis.map((item) => (
+                <div key={item.label} className="co-field-tablet-kpi" data-tone={item.tone}>
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                  <em>{item.helper}</em>
+                </div>
+              ))}
+            </div>
+
+            <div className="co-field-tablet-grid">
+              <section className="co-field-tablet-actions" aria-label="Photo upload actions">
+                <div className="co-field-tablet-section-head">
+                  <div>
+                    <strong>Upload photo</strong>
+                    <span>{currentEvidenceJobLabel}</span>
+                  </div>
+                  <Badge tone="slate">{allowedJobs.length} job{allowedJobs.length === 1 ? "" : "s"}</Badge>
+                </div>
+                <div className="co-field-tablet-scroll">
+                  {successMessage ? <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800">{successMessage}</div> : null}
+                  <UploadCreateCard
+                    canCreate={canCreate}
+                    jobs={allowedJobs}
+                    draft={draft}
+                    setDraft={setDraft}
+                    onRequestLocation={handleRequestLocation}
+                    onFileChange={handleFileChange}
+                    onSubmit={handleSubmit}
+                    loading={busy}
+                    fileError={fileError}
+                  />
+                </div>
+              </section>
+
+              <section className="co-field-tablet-queue" aria-label="Visible photo evidence queue">
+                <div className="co-field-tablet-section-head">
+                  <div>
+                    <strong>Proof queue</strong>
+                    <span>{fieldTabletUploadRows.length} of {visibleRows.length} visible uploads</span>
+                  </div>
+                  <Badge tone={missingGpsCount || missingNotesCount ? "amber" : "green"}>{missingGpsCount + missingNotesCount} gaps</Badge>
+                </div>
+                <div className="co-field-tablet-list">
+                  {fieldTabletUploadRows.length === 0 ? (
+                    <StateCard title="No visible uploads" description={canCreate ? "Use the upload card to capture the first job photo." : "Visible job proof appears here when uploaded."} tone="slate" />
+                  ) : fieldTabletUploadRows.map((upload) => (
+                    <button
+                      key={upload.id}
+                      type="button"
+                      className={`co-field-tablet-row co-focus-ring ${selectedFieldTabletUpload?.id === upload.id ? "is-selected" : ""}`}
+                      onClick={() => setSelectedUploadId(upload.id)}
+                    >
+                      <span>
+                        <strong>{uploadTitle(upload)}</strong>
+                        <em>{uploadJobLabel(upload)} / {uploadUploaderLabel(upload)}</em>
+                      </span>
+                      <span>
+                        <Badge tone={upload.hasGps ? "green" : "amber"}>{gpsStatusLabel(upload)}</Badge>
+                        <b>{uploadEvidenceDateKey(upload) || "No date"}</b>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              <section className="co-field-tablet-selected" aria-label="Selected photo evidence">
+                <div className="co-field-tablet-section-head">
+                  <div>
+                    <strong>Selected proof</strong>
+                    <span>{selectedFieldTabletUpload ? uploadTitle(selectedFieldTabletUpload) : "Nothing selected"}</span>
+                  </div>
+                </div>
+                <div className="co-field-tablet-detail-scroll">
+                  {selectedFieldTabletUpload ? (
+                    <div className="co-field-tablet-proof-detail">
+                      <div className="co-field-tablet-proof-title">
+                        <span>
+                          <strong>{uploadTitle(selectedFieldTabletUpload)}</strong>
+                          <em>{uploadJobLabel(selectedFieldTabletUpload)} / {uploadUploaderLabel(selectedFieldTabletUpload)}</em>
+                        </span>
+                        <Badge tone={selectedFieldTabletUpload.hasGps ? "green" : "amber"}>{gpsStatusLabel(selectedFieldTabletUpload)}</Badge>
+                      </div>
+                      <div className="co-field-tablet-proof-meta">
+                        <span><b>Captured</b>{uploadCapturedAt(selectedFieldTabletUpload) ? new Date(uploadCapturedAt(selectedFieldTabletUpload)).toLocaleString() : "Not recorded"}</span>
+                        <span><b>Job</b>{uploadJobLabel(selectedFieldTabletUpload)}</span>
+                        <span><b>Uploader</b>{uploadUploaderLabel(selectedFieldTabletUpload)}</span>
+                        <span><b>GPS</b>{gpsStatusLabel(selectedFieldTabletUpload)}</span>
+                      </div>
+                      <div className="co-field-tablet-proof-notes">
+                        <strong>Caption</strong>
+                        <p>{selectedFieldTabletUpload.caption || "No caption recorded."}</p>
+                        <strong>Notes</strong>
+                        <p>{selectedFieldTabletUpload.notes || "No field notes recorded."}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <StateCard title="No proof selected" description="Choose a photo evidence card to review field-safe metadata." tone="slate" />
+                  )}
+                </div>
+              </section>
+
+              <section className="co-field-tablet-summary" aria-label="Photo evidence guardrails">
+                <strong>{evidenceNextAction}</strong>
+                <span>{evidenceNextDetail}</span>
+                <em>Field tablet view: job proof only, no leads, estimates, pricing, private source URLs, or admin controls.</em>
+              </section>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       {permissions.uploads.canManageAll ? (
         <UploadsProofWorkbench
@@ -11830,6 +11962,39 @@ function ReportsPagePolished({
     ? [draftsPriorityCard, basicsPriorityCard, reviewPriorityCard]
     : [reviewPriorityCard, draftsPriorityCard, basicsPriorityCard];
   const canUseReportsCommandShell = Boolean(canView && permissions.reports.canManageAll && !isFieldReportWorkspace);
+  const fieldTabletReportRows = [
+    ...missingReportJobs.slice(0, 2).map((job) => ({
+      id: `missing-${job.id}`,
+      kind: "missing",
+      job,
+      title: jobTitle(job),
+      meta: jobScheduleLabel(job),
+      statusLabel: "Not started",
+      tone: "amber",
+    })),
+    ...visibleRows.slice(0, 5).map((report) => {
+      const proofState = proofStateByReportId.get(report.id);
+      return {
+        id: report.id,
+        kind: "report",
+        report,
+        title: jobTitle(report.job),
+        meta: `${report.reportDate || "Date pending"} / ${report.createdByName || "Field crew"}`,
+        statusLabel: reportStatusLabel(report.status),
+        tone: (proofState?.gapCount || 0) ? "amber" : dailyReportNeedsAction(report) ? "orange" : "green",
+      };
+    }),
+  ].slice(0, 5);
+  const selectedFieldTabletReport = selectedReport || fieldFocusReport || visibleRows[0] || null;
+  const selectedFieldTabletProof = selectedFieldTabletReport
+    ? proofStateByReportId.get(selectedFieldTabletReport.id)
+    : fieldFocusProof;
+  const fieldTabletReportKpis = [
+    { label: "Missing Today", value: missingReportJobs.length, helper: operatingDate, tone: missingReportJobs.length ? "amber" : "green" },
+    { label: "Drafts Open", value: needsActionCount, helper: "Draft or reopened", tone: needsActionCount ? "orange" : "green" },
+    { label: "Submitted", value: submittedCount, helper: "Waiting review", tone: submittedCount ? "orange" : "slate" },
+    { label: "Proof Gaps", value: proofGapReports.length, helper: "Photos, tickets, checklists", tone: proofGapReports.length ? "amber" : "green" },
+  ];
   const reportShellKpis = [
     {
       label: "Missing Today",
@@ -12113,6 +12278,118 @@ function ReportsPagePolished({
           </div>
         }
       />
+
+      {isFieldReportWorkspace ? (
+        <section className="co-field-tablet-command co-reports-tablet-command mx-auto w-full max-w-[1520px] min-w-0 px-4 pb-4 sm:px-5" aria-label="Tablet daily reports command">
+          <div className="co-field-tablet-shell">
+            <div className="co-field-tablet-head">
+              <div className="min-w-0">
+                <p>Tablet reports</p>
+                <h2>Daily Reports</h2>
+                <span>Start today's report, finish field drafts, and keep proof gaps visible without a drawer.</span>
+              </div>
+              <Badge tone={canCreate ? "orange" : "slate"}>{canCreate ? "Report ready" : "Read-only"}</Badge>
+            </div>
+
+            <div className="co-field-tablet-kpis" aria-label="Daily report status">
+              {fieldTabletReportKpis.map((item) => (
+                <div key={item.label} className="co-field-tablet-kpi" data-tone={item.tone}>
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                  <em>{item.helper}</em>
+                </div>
+              ))}
+            </div>
+
+            <div className="co-field-tablet-grid">
+              <section className="co-field-tablet-actions" aria-label="Start daily report">
+                <div className="co-field-tablet-section-head">
+                  <div>
+                    <strong>Start report</strong>
+                    <span>{fieldFocusJob ? jobTitle(fieldFocusJob) : "Visible field job"}</span>
+                  </div>
+                  <Badge tone="slate">{operatingDate}</Badge>
+                </div>
+                <div className="co-field-tablet-scroll">
+                  <DailyReportCreateCard draft={createDraft} setDraft={setCreateDraft} onCreate={onCreateReport} disabled={busy} canCreate={canCreate} jobs={jobs.filter((job) => !job.archivedAt)} />
+                </div>
+              </section>
+
+              <section className="co-field-tablet-queue" aria-label="Daily report queue">
+                <div className="co-field-tablet-section-head">
+                  <div>
+                    <strong>Report queue</strong>
+                    <span>{fieldTabletReportRows.length} priority item{fieldTabletReportRows.length === 1 ? "" : "s"}</span>
+                  </div>
+                  <Badge tone={needsActionCount || missingReportJobs.length ? "amber" : "green"}>{needsActionCount + missingReportJobs.length} open</Badge>
+                </div>
+                <div className="co-field-tablet-list">
+                  {fieldTabletReportRows.length === 0 ? (
+                    <StateCard title="No report actions" description="Visible reports, missing jobs, and proof gaps appear here when they need field attention." tone="green" />
+                  ) : fieldTabletReportRows.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={`co-field-tablet-row co-focus-ring ${selectedFieldTabletReport?.id === item.report?.id ? "is-selected" : ""}`}
+                      onClick={() => {
+                        if (item.kind === "missing") {
+                          startReportForJob(item.job);
+                          return;
+                        }
+                        if (item.report?.id) onSelectReport(item.report.id);
+                      }}
+                    >
+                      <span>
+                        <strong>{item.title}</strong>
+                        <em>{item.meta || "Daily report"}</em>
+                      </span>
+                      <span>
+                        <Badge tone={item.tone}>{item.statusLabel}</Badge>
+                        <b>{item.kind === "missing" ? "Start" : "Open"}</b>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              <section className="co-field-tablet-selected" aria-label="Selected daily report">
+                <div className="co-field-tablet-section-head">
+                  <div>
+                    <strong>Selected report</strong>
+                    <span>{selectedFieldTabletReport ? jobTitle(selectedFieldTabletReport.job) : "Nothing selected"}</span>
+                  </div>
+                </div>
+                <div className="co-field-tablet-detail-scroll">
+                  <DailyReportDetailPanel
+                    report={selectedFieldTabletReport}
+                    proofState={selectedFieldTabletProof}
+                    reportDraft={reportDraft}
+                    setReportDraft={setReportDraft}
+                    onSave={onSaveReport}
+                    onSubmit={onSubmitReport}
+                    onReview={onReviewReport}
+                    onReopen={onReopenReport}
+                    onArchive={onArchiveReport}
+                    canView={canView}
+                    canEdit={Boolean(selectedFieldTabletReport) && ((permissions.reports.canManageAll && !selectedFieldTabletReport.archivedAt) || (user?.role === "Foreman" && ["draft", "reopened"].includes(selectedFieldTabletReport.status)))}
+                    canReview={canReviewActions}
+                    canArchive={permissions.reports.canManageAll}
+                    disabled={busy}
+                    notFound={notFound}
+                    onPrintReport={selectedFieldTabletReport ? () => onPrintDailyReport?.(selectedFieldTabletReport) : undefined}
+                  />
+                </div>
+              </section>
+
+              <section className="co-field-tablet-summary" aria-label="Daily report guardrails">
+                <strong>{needsActionCount ? "Finish field drafts" : missingReportJobs.length ? "Start missing report" : "Reports are clear"}</strong>
+                <span>{needsActionCount ? `${needsActionCount} draft or reopened report${needsActionCount === 1 ? "" : "s"} need field completion.` : missingReportJobs.length ? `${missingReportJobs.length} job${missingReportJobs.length === 1 ? "" : "s"} still need today's report.` : "No field report blockers in the current view."}</span>
+                <em>Field tablet view: daily report work only, no leads, estimates, pricing, private notes, or admin controls.</em>
+              </section>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       {canView ? (
         <DailyReportsOperationsBoard
