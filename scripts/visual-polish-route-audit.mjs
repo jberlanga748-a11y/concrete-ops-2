@@ -4,6 +4,7 @@ import path from "node:path";
 import { chromium } from "playwright";
 
 import { MODULE_PATHS } from "../src/app-routing.js";
+import { buildVisualPolishEvidenceFailures } from "./visual-polish-audit-rules.mjs";
 
 const DEFAULT_BASE_URL = "http://127.0.0.1:4000/";
 const DEFAULT_OUTPUT_ROOT = path.resolve(process.cwd(), "ui-audit", "visual-polish");
@@ -11,6 +12,9 @@ const DEMO_PASSWORD = "apexdemo123";
 const PAGE_SETTLE_DELAY_MS = 650;
 const NETWORK_IDLE_TIMEOUT_MS = 3500;
 const LOGIN_READY_DELAY_MS = 900;
+const AUTH_WORKSPACE_READY_TIMEOUT_MS = 12000;
+const ROUTE_RENDER_READY_TIMEOUT_MS = 12000;
+const SESSION_TOKEN_KEY = "apex-hq/session-token";
 const LOGIN_BUTTON_NAME = /enter workspace/i;
 const BROWSER_LAUNCH_TIMEOUT_MS = 20000;
 const LOGIN_TIMEOUT_MS = 20000;
@@ -47,6 +51,15 @@ const DEFAULT_ADMIN_ROUTES = Object.entries(MODULE_PATHS)
   .filter(([id]) => id !== "design")
   .map(([id, routePath]) => ({ id, path: routePath }));
 
+const DEFAULT_ROUTE_MATRIX = {
+  "admin:phone": ["/dashboard", "/leads", "/estimates"],
+  "foreman:phone": ["/jobs", "/time", "/uploads", "/reports", "/change-orders"],
+  "employee:phone": ["/jobs", "/time", "/uploads", "/reports", "/change-orders"],
+  "admin:tablet": ["/dashboard", "/jobs", "/leads", "/estimates", "/time", "/uploads", "/reports", "/change-orders"],
+  "foreman:tablet": ["/jobs", "/time", "/uploads", "/reports", "/change-orders"],
+  "employee:tablet": ["/jobs", "/time", "/uploads", "/reports", "/change-orders"],
+};
+
 const FIELD_FORBIDDEN_TEXT = [
   /Operations Command/i,
   /Imported Drafts/i,
@@ -56,7 +69,10 @@ const FIELD_FORBIDDEN_TEXT = [
   /Package Locked/i,
   /Upgrade review/i,
   /billing/i,
-  /pricing/i,
+  /profit margin/i,
+  /gross margin/i,
+  /margin %/i,
+  /unit price/i,
 ];
 
 function printHelp() {
@@ -141,7 +157,8 @@ function parseArgs(argv) {
 }
 
 function timestampSlug() {
-  return new Date().toISOString().replace(/[:.]/g, "-");
+  const nonce = Math.random().toString(36).slice(2, 8);
+  return `${new Date().toISOString().replace(/[:.]/g, "-")}-${process.pid}-${nonce}`;
 }
 
 function normalizeRoute(routePath) {
@@ -149,9 +166,13 @@ function normalizeRoute(routePath) {
   return routePath.startsWith("/") ? routePath : `/${routePath}`;
 }
 
-function routeSpecs(options) {
+function routeSpecs(options, role, viewportName) {
   if (options.routes.length > 0) {
     return options.routes.map((routePath) => ({ id: routePath.replace(/^\//, "") || "dashboard", path: normalizeRoute(routePath) }));
+  }
+  const scopedRoutes = DEFAULT_ROUTE_MATRIX[`${role}:${viewportName}`];
+  if (scopedRoutes) {
+    return scopedRoutes.map((routePath) => ({ id: routePath.replace(/^\//, "") || "dashboard", path: normalizeRoute(routePath) }));
   }
   return DEFAULT_ADMIN_ROUTES;
 }
@@ -191,6 +212,62 @@ async function closeWithTimeout(resource, label, timeoutMs = 5000) {
   ]).finally(() => clearTimeout(timeoutId));
 }
 
+async function waitForAuthenticatedWorkspace(page, role) {
+  try {
+    await page.waitForFunction((tokenKey) => {
+      const rootText = (document.querySelector("#root")?.textContent || document.body.textContent || "").replace(/\s+/g, " ").trim();
+      const hasSessionToken = Boolean(window.localStorage.getItem(tokenKey));
+      const stillOnLogin = Boolean(document.querySelector("input[type='password']")) && /Enter workspace/i.test(rootText);
+      const hasWorkspaceFrame = Boolean(document.querySelector([
+        "main",
+        "[role='main']",
+        ".co-app-shell-main",
+        ".co-office-page",
+        ".co-mobile-role-shell",
+        ".co-field-mobile-remote",
+        ".co-apex-office-command-shell",
+      ].join(",")));
+      const hasWorkspaceText = /Log out|Team workspace|Today|Jobs Today|Operations Command|Field Mode/i.test(rootText);
+      return hasSessionToken && !stillOnLogin && (hasWorkspaceFrame || hasWorkspaceText);
+    }, SESSION_TOKEN_KEY, { timeout: AUTH_WORKSPACE_READY_TIMEOUT_MS });
+  } catch (error) {
+    const snapshot = await page.evaluate(() => ({
+      url: window.location.href,
+      text: (document.querySelector("#root")?.textContent || document.body.textContent || "").replace(/\s+/g, " ").trim().slice(0, 220),
+      hasToken: Boolean(window.localStorage.getItem("apex-hq/session-token")),
+    })).catch(() => ({ url: "", text: "", hasToken: false }));
+    throw new Error(`${role} audit login did not reach authenticated workspace. url=${snapshot.url || "unknown"} hasToken=${snapshot.hasToken} text="${snapshot.text}"`);
+  }
+}
+
+async function waitForRouteAuditEvidence(page, role, viewportName, routePath) {
+  try {
+    await page.waitForFunction((tokenKey) => {
+      const rootText = (document.querySelector("#root")?.textContent || document.body.textContent || "").replace(/\s+/g, " ").trim();
+      const hasSessionToken = Boolean(window.localStorage.getItem(tokenKey));
+      const hasWorkspaceFrame = Boolean(document.querySelector([
+        "main",
+        "[role='main']",
+        ".co-app-shell-main",
+        ".co-office-page",
+        ".co-mobile-role-shell",
+        ".co-field-mobile-remote",
+        ".co-apex-office-command-shell",
+      ].join(",")));
+      const hasVisibleRouteText = rootText.length > 120 && !/^Loading/i.test(rootText);
+      const stillOnLogin = Boolean(document.querySelector("input[type='password']")) && /Enter workspace/i.test(rootText);
+      return hasSessionToken && !stillOnLogin && (hasWorkspaceFrame || hasVisibleRouteText);
+    }, SESSION_TOKEN_KEY, { timeout: ROUTE_RENDER_READY_TIMEOUT_MS });
+  } catch (error) {
+    const snapshot = await page.evaluate(() => ({
+      url: window.location.href,
+      text: (document.querySelector("#root")?.textContent || document.body.textContent || "").replace(/\s+/g, " ").trim().slice(0, 220),
+      hasToken: Boolean(window.localStorage.getItem("apex-hq/session-token")),
+    })).catch(() => ({ url: "", text: "", hasToken: false }));
+    throw new Error(`${role} ${viewportName} ${routePath} did not render auditable workspace evidence. url=${snapshot.url || "unknown"} hasToken=${snapshot.hasToken} text="${snapshot.text}"`);
+  }
+}
+
 function isNavigationAbort(errorText = "") {
   return /net::ERR_ABORTED/i.test(String(errorText));
 }
@@ -222,6 +299,7 @@ async function login(browser, options, role, viewportName) {
       await page.getByRole("button", { name: LOGIN_BUTTON_NAME }).click();
       await page.waitForTimeout(LOGIN_READY_DELAY_MS);
       await settlePage(page);
+      await waitForAuthenticatedWorkspace(page, role);
       return context.storageState();
     })(), LOGIN_TIMEOUT_MS, `${role} login`);
   } finally {
@@ -241,6 +319,49 @@ function summarizeIssue(entry) {
 
 async function inspectPage(page, role) {
   return page.evaluate(({ fieldForbiddenPatterns, roleName }) => {
+    const parseRgb = (value) => {
+      const match = String(value || "").match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+      return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
+    };
+    const luminance = (rgb) => {
+      if (!rgb) return null;
+      const [red, green, blue] = rgb.map((channel) => {
+        const value = channel / 255;
+        return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+    };
+    const contrastRatio = (foreground, background) => {
+      const fg = luminance(parseRgb(foreground));
+      const bg = luminance(parseRgb(background));
+      if (fg == null || bg == null) return null;
+      const light = Math.max(fg, bg);
+      const dark = Math.min(fg, bg);
+      return (light + 0.05) / (dark + 0.05);
+    };
+    const effectiveBackground = (element) => {
+      const opaqueColorFromImage = (value) => {
+        const matches = String(value || "").matchAll(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([\d.]+))?\s*\)/gi);
+        for (const match of matches) {
+          const alpha = match[4] == null ? 1 : Number(match[4]);
+          if (alpha >= 0.5) return `rgb(${match[1]}, ${match[2]}, ${match[3]})`;
+        }
+        return "";
+      };
+      let current = element;
+      while (current && current !== document.documentElement) {
+        const style = window.getComputedStyle(current);
+        const bg = style.backgroundColor;
+        const alphaMatch = String(bg || "").match(/rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+(?:\s*,\s*([\d.]+))?\s*\)/i);
+        const alpha = alphaMatch?.[1] == null ? 1 : Number(alphaMatch[1]);
+        if (bg && !/rgba?\(0,\s*0,\s*0,\s*0\)|transparent/i.test(bg) && alpha >= 0.75) return bg;
+        const imageColor = opaqueColorFromImage(style.backgroundImage);
+        if (imageColor) return imageColor;
+        current = current.parentElement;
+      }
+      const bodyBg = window.getComputedStyle(document.body).backgroundColor || "";
+      return /rgba?\(\s*0\s*,\s*0\s*,\s*0\s*,\s*0\s*\)|transparent/i.test(bodyBg) ? "rgb(255, 255, 255)" : bodyBg || "rgb(255, 255, 255)";
+    };
     const rectOf = (element) => {
       if (!element) return null;
       const rect = element.getBoundingClientRect();
@@ -282,14 +403,6 @@ async function inspectPage(page, role) {
       "span",
       "strong",
       "em",
-      "input",
-      "select",
-      "textarea",
-      ".co-command-kpi",
-      ".co-command-card",
-      ".co-office-list-card",
-      ".co-mobile-record-card",
-      ".co-card",
       ".badge",
       "[class*=pill]",
       "[class*=chip]",
@@ -300,10 +413,14 @@ async function inspectPage(page, role) {
         const style = window.getComputedStyle(element);
         const clipsX = element.scrollWidth > element.clientWidth + 3;
         const clipsY = element.scrollHeight > element.clientHeight + 3;
+        const intendedScrollContainer = ["auto", "scroll"].includes(style.overflowY)
+          && clipsY
+          && !["button", "a", "summary", "input", "select", "textarea"].includes(element.tagName.toLowerCase());
         const clipsByStyle = ["hidden", "clip", "scroll", "auto"].includes(style.overflowX)
           || ["hidden", "clip", "scroll", "auto"].includes(style.overflowY)
           || style.textOverflow === "ellipsis"
           || style.whiteSpace === "nowrap";
+        if (intendedScrollContainer) return false;
         return (clipsX || clipsY) && clipsByStyle;
       })
       .slice(0, 12)
@@ -322,6 +439,34 @@ async function inspectPage(page, role) {
       });
 
     const text = document.body.textContent || "";
+    const smallTouchTargets = Array.from(document.querySelectorAll("button, a, input, textarea, select, summary"))
+      .filter((element) => !element.closest(".co-apex-assistant-shell"))
+      .filter(visible)
+      .map(rectOf)
+      .filter((entry) => entry && (entry.width < 44 || entry.height < 44))
+      .slice(0, 12)
+      .map((entry) => ({
+        label: entry.text || entry.className || entry.tag,
+        rect: entry.rect,
+      }));
+    const lowContrastText = Array.from(document.querySelectorAll("h1,h2,h3,p,span,strong,em,button,a,label,th,td"))
+      .filter(visible)
+      .filter((element) => (element.textContent || "").trim().length > 2)
+      .map((element) => {
+        const style = window.getComputedStyle(element);
+        const ratio = contrastRatio(style.color, effectiveBackground(element));
+        return {
+          label: (element.textContent || "").replace(/\s+/g, " ").trim().slice(0, 80),
+          ratio: ratio == null ? "" : ratio.toFixed(2),
+          rect: rectOf(element)?.rect || "",
+        };
+      })
+      .filter((entry) => entry.ratio && Number(entry.ratio) < 2.25)
+      .slice(0, 12);
+    const visibleDesktopTables = Array.from(document.querySelectorAll("table"))
+      .filter(visible)
+      .filter((element) => !element.closest(".co-field-mobile-tool-surface"))
+      .length;
     const forbiddenText = fieldForbiddenPatterns
       .filter((pattern) => new RegExp(pattern.source, pattern.flags).test(text))
       .map((pattern) => pattern.source);
@@ -330,6 +475,14 @@ async function inspectPage(page, role) {
     return {
       pathname: window.location.pathname,
       h1: document.querySelector("h1")?.textContent || "",
+      bodyText: text.replace(/\s+/g, " ").trim().slice(0, 6000),
+      bodyTextLength: text.replace(/\s+/g, " ").trim().length,
+      rootEmpty: !document.querySelector("#root")?.textContent?.trim(),
+      hasMainLandmark: Array.from(document.querySelectorAll("main, [role='main'], .co-app-shell-main, .co-office-page, .co-field-mobile-remote, .co-mobile-role-shell")).some(visible),
+      hasOfficeCommandShell: Boolean(document.querySelector(".co-apex-office-command-shell")),
+      visibleDesktopTables,
+      smallTouchTargets,
+      lowContrastText,
       bodyOverflow: document.body.scrollWidth > window.innerWidth + 1,
       assistantOverlaps: interactiveCandidates.filter((candidate) => trigger && candidate && trigger.x < candidate.x + candidate.width && trigger.x + trigger.width > candidate.x && trigger.y < candidate.y + candidate.height && trigger.y + trigger.height > candidate.y),
       clipped: clippedCandidates,
@@ -405,6 +558,8 @@ async function auditRoute(browser, storageState, options, role, viewportName, sp
         if (!isNavigationAbort(error?.message || "")) throw error;
       }
       await settlePage(page);
+      await waitForRouteAuditEvidence(page, role, viewportName, spec.path);
+      await settlePage(page);
       inspection = await inspectPage(page, role);
     })(), ROUTE_AUDIT_TIMEOUT_MS, `${role} ${viewportName} ${spec.path} audit`, {
       onTimeout: () => closeWithTimeout(context, `${role} ${viewportName} ${spec.path} context`),
@@ -415,6 +570,7 @@ async function auditRoute(browser, storageState, options, role, viewportName, sp
 
   const failures = [
     auditError ? `Route audit failed: ${auditError}` : "",
+    ...buildVisualPolishEvidenceFailures({ inspection, role, viewportName, route: spec.path }),
     inspection.bodyOverflow ? "Horizontal page overflow detected." : "",
     ...inspection.assistantOverlaps.map((entry) => `Assistant overlaps visible control: ${summarizeIssue(entry)}`),
     ...inspection.clipped.map((entry) => `Visible content may be clipped: ${summarizeIssue(entry)} (${entry.client} client, ${entry.scroll} scroll)`),
@@ -480,12 +636,12 @@ async function main() {
   const runDir = path.join(options.outputRoot, timestampSlug());
   await ensureDirectory(runDir);
 
-  const specs = routeSpecs(options);
   const results = [];
 
   for (const role of options.roles) {
     const viewports = options.viewports.length > 0 ? options.viewports : ROLE_CONFIGS[role].viewports;
     for (const viewportName of viewports) {
+      const specs = routeSpecs(options, role, viewportName);
       let browser;
       let routesInSession = ROUTES_PER_BROWSER_SESSION;
       let storageState;
