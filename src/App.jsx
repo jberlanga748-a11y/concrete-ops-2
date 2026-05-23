@@ -255,6 +255,7 @@ import { buildPostPourSupportContext, derivePostPourChecklistListState, derivePo
 import { buildPrePourSupportContext, derivePrePourChecklistListState, derivePrePourItems, filterPrePourChecklists, prePourChecklistStatusLabel, prePourItemStatusLabel, summarizePrePourChecklist } from "./pre-pour-utils";
 import { deriveDailyReportPrintPacket, deriveEstimateForemanHandoffPacket, deriveEstimatePrintPacket, deriveJobPrintPacket, openPrintDocument } from "./print-packets";
 import { RATE_BOOK_CATEGORIES, RATE_BOOK_CATEGORY_LABELS, buildEstimateLineItemFromRateBookItem, calculateRateBookUnitPrice, createRateBookDraft, deriveRateBookState, validateRateBookDraft } from "./rate-book-utils";
+import { deriveMaterialPrepState } from "./material-prep-utils";
 import { buildDailyReportsSupportContext, deriveAdvancedReportSummary, deriveDailyReportListState, filterDailyReports, reportStatusLabel } from "./report-utils";
 import { buildSafetyIncidentSupportContext, deriveAcknowledgmentState, deriveActivePpeItems, deriveSafetyIncidentListState, deriveSafetyJobCloseoutReadiness, deriveSafetyWorkspaceJobs, deriveVisibleSafetyPolicies, filterSafetyIncidents } from "./safety-utils";
 import {
@@ -355,6 +356,7 @@ const NAV_GROUPS = [
       { id: "customers", label: "Customers", icon: "users" },
       { id: "estimates", label: "Estimates", icon: "quote" },
       { id: "rateBook", label: "Rate Book", icon: "calculator" },
+      { id: "materialPrep", label: "Material Prep", icon: "clipboard" },
       { id: "jobDraftImports", label: "Imported Drafts", icon: "database" },
       { id: "changeOrders", label: "Change Orders", icon: "refresh" },
       { id: "employees", label: "Employees", icon: "users" },
@@ -38175,6 +38177,133 @@ function SupportPage({ user, companyName, currentCompanyId, active, permissions,
   );
 }
 
+function MaterialPrepPage({
+  estimates = [],
+  jobs = [],
+  customers = [],
+  rateBookItems = [],
+  permissions = DEFAULT_APP_PERMISSIONS,
+  setActive,
+}) {
+  const materialPrepState = useMemo(
+    () => deriveMaterialPrepState({ estimates, jobs, customers, rateBookItems }),
+    [customers, estimates, jobs, rateBookItems],
+  );
+  const [selectedId, setSelectedId] = useState("");
+  const selectedQueueItem = materialPrepState.queue.find((item) => item.id === selectedId) || materialPrepState.queue[0] || null;
+  const selectedPacket = selectedQueueItem?.packet || null;
+  const canView = Boolean(permissions?.materialPrep?.canView);
+
+  if (!canView) {
+    return (
+      <CommandPageFrame>
+        <StateCard title="Material prep is office-only" description="Field users, estimators, and unauthorized roles cannot access purchasing preparation." tone="amber" />
+      </CommandPageFrame>
+    );
+  }
+
+  const assistantActions = [
+    { label: "Open estimates", icon: "quote", onClick: () => setActive?.("estimates") },
+    { label: "Open jobs", icon: "briefcase", onClick: () => setActive?.("jobs") },
+    { label: "Review rate book", icon: "calculator", onClick: () => setActive?.("rateBook") },
+  ];
+
+  return (
+    <ApexOfficeCommandShell
+      eyebrow="Build 4A"
+      title="Material Prep"
+      description="Review approved estimate scope, linked jobs, vendor notes, and field delivery needs without ordering, payment, or supplier messages."
+      className="co-material-prep-shell"
+      kpis={materialPrepState.kpis}
+      queue={{
+        title: "Approved scope queue",
+        description: "Max 7 estimates ready or blocked for purchasing prep.",
+        items: materialPrepState.queue,
+        selectedId: selectedQueueItem?.id || "",
+        onSelect: (item) => setSelectedId(item.id),
+        emptyState: <StateCard title="No approved scope yet" description="Approved estimates with linked jobs will appear here for purchasing prep review." tone="slate" />,
+      }}
+      detail={{
+        title: "Prep packet",
+        item: selectedQueueItem,
+        emptyState: <StateCard title="No packet selected" description="Choose an approved estimate to review material, vendor, and delivery context." tone="slate" />,
+      }}
+      assistant={{
+        title: "Purchasing Guardrails",
+        description: "Review-only prep. Apex HQ will not order materials, contact vendors, create purchase orders, or move money from this screen.",
+        priorities: [
+          { label: "Ready packets", value: materialPrepState.readyPackets.length, tone: "green" },
+          { label: "Needs review", value: materialPrepState.blockedPackets.length, tone: materialPrepState.blockedPackets.length ? "amber" : "green" },
+        ],
+        actions: assistantActions,
+        guardrails: [
+          "No vendor order or supplier send.",
+          "No payment, purchase order, or billing action.",
+          "No field exposure to office pricing, cost, or margin.",
+        ],
+      }}
+      quickActions={[
+        { label: "Estimates", icon: "quote", onClick: () => setActive?.("estimates") },
+        { label: "Jobs", icon: "briefcase", onClick: () => setActive?.("jobs") },
+        { label: "Rate Book", icon: "calculator", onClick: () => setActive?.("rateBook") },
+      ]}
+    >
+      {selectedPacket ? (
+        <div className="co-material-prep-detail">
+          <div className="co-material-prep-summary">
+            <div>
+              <span>Customer</span>
+              <strong>{selectedPacket.customerName}</strong>
+            </div>
+            <div>
+              <span>Linked job</span>
+              <strong>{selectedPacket.jobTitle}</strong>
+            </div>
+            <div>
+              <span>Prep rows</span>
+              <strong>{selectedPacket.counts.total}</strong>
+            </div>
+          </div>
+
+          {selectedPacket.blockers.length ? (
+            <Card className="co-material-prep-warning">
+              <strong>Needs review before purchasing prep</strong>
+              <ul>
+                {selectedPacket.blockers.map((blocker) => <li key={blocker}>{blocker}</li>)}
+              </ul>
+            </Card>
+          ) : null}
+
+          <Card className="co-material-prep-card">
+            <SectionHeader title="Material / vendor prep" description="Quantities and notes are review-only and exclude price, cost, markup, margin, and internal backup text." />
+            <div className="co-material-prep-row-list">
+              {selectedPacket.rows.length ? selectedPacket.rows.map((row) => (
+                <div key={row.id} className="co-material-prep-row" data-category={row.category}>
+                  <div>
+                    <span>{row.category}</span>
+                    <strong>{row.description}</strong>
+                    <em>{row.quantityLabel}</em>
+                  </div>
+                  <p>{row.vendorNote}</p>
+                </div>
+              )) : (
+                <StateCard title="No prep rows" description="Add reviewed estimate line items or takeoff quantities before preparing purchasing context." tone="slate" />
+              )}
+            </div>
+          </Card>
+
+          <Card className="co-material-prep-card">
+            <SectionHeader title="Field delivery needs" description="Copy-safe internal checklist for staging, delivery timing, and received quantity review. No external sends." />
+            <ul className="co-material-prep-checklist">
+              {selectedPacket.fieldNeeds.length ? selectedPacket.fieldNeeds.map((need) => <li key={need}>{need}</li>) : <li>No field delivery needs derived yet.</li>}
+            </ul>
+          </Card>
+        </div>
+      ) : null}
+    </ApexOfficeCommandShell>
+  );
+}
+
 function RateBookPage({
   rateBookItems = [],
   permissions = {},
@@ -38622,6 +38751,17 @@ function MainContent(props) {
           onUpdateRateBookItem={props.onUpdateRateBookItem}
           onArchiveRateBookItem={props.onArchiveRateBookItem}
           onRestoreRateBookItem={props.onRestoreRateBookItem}
+        />
+      );
+    }
+    if (active === "materialPrep") {
+      return (
+        <MaterialPrepPage
+          {...props}
+          estimates={props.estimates}
+          jobs={props.jobs}
+          customers={props.customers}
+          rateBookItems={props.rateBookItems}
         />
       );
     }

@@ -32,6 +32,10 @@ export const DEFAULT_APP_PERMISSIONS = {
     canView: false,
     canManage: false,
   },
+  materialPrep: {
+    canView: false,
+    canManage: false,
+  },
   jobDraftImports: {
     canView: false,
     canManage: false,

@@ -13,6 +13,7 @@ export const MODULE_PATHS = {
   employees: "/employees",
   estimates: "/estimates",
   rateBook: "/rate-book",
+  materialPrep: "/material-prep",
   jobDraftImports: "/imported-drafts",
   changeOrders: "/change-orders",
   incidents: "/incidents",

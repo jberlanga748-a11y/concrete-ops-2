@@ -229,6 +229,18 @@ test("rate book module route resolves directly", () => {
   });
 });
 
+test("material prep module route resolves directly", () => {
+  assert.equal(getModulePath("materialPrep"), "/material-prep");
+  assert.deepEqual(parseAppPath("/material-prep"), {
+    active: "materialPrep",
+    leadId: "",
+    jobId: "",
+    customerId: "",
+    reportId: "",
+    importedDraftId: "",
+  });
+});
+
 test("AI Office route resolves directly while legacy copilot links still work", () => {
   assert.equal(getModulePath("copilot"), "/ai-office");
   assert.deepEqual(parseAppPath("/ai-office"), {

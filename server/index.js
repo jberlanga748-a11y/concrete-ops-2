@@ -185,6 +185,7 @@ import {
   canManageEstimates,
   canManageJobFieldUpdates,
   canManageLeads,
+  canManageMaterialPrep,
   canManageOwnTime,
   canManagePrePour,
   canManagePostPour,
@@ -5720,6 +5721,10 @@ function sanitizeBootstrap(state, user) {
       rateBook: {
         canView: canManageRateBook(user),
         canManage: canManageRateBook(user),
+      },
+      materialPrep: {
+        canView: canManageMaterialPrep(user),
+        canManage: canManageMaterialPrep(user),
       },
       jobDraftImports: {
         canView: packageEntitlements.jobDraftImports.canUse && canCreateJobs(user),

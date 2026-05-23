@@ -11182,6 +11182,140 @@ textarea {
   color: #0f172a;
 }
 
+.co-material-prep-shell .co-apex-selected-detail-body {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.co-material-prep-detail {
+  display: grid;
+  min-height: 0;
+  gap: 12px;
+}
+
+.co-material-prep-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.co-material-prep-summary > div,
+.co-material-prep-card,
+.co-material-prep-warning {
+  min-width: 0;
+  border-radius: 16px;
+}
+
+.co-material-prep-summary > div {
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  padding: 12px;
+}
+
+.co-material-prep-summary span,
+.co-material-prep-row span {
+  display: block;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.co-material-prep-summary strong {
+  display: block;
+  margin-top: 4px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  font-weight: 900;
+  color: #0f172a;
+}
+
+.co-material-prep-warning {
+  border-color: #fed7aa;
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.co-material-prep-warning strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.co-material-prep-warning ul,
+.co-material-prep-checklist {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.co-material-prep-warning li,
+.co-material-prep-checklist li {
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+.co-material-prep-row-list {
+  display: grid;
+  gap: 10px;
+}
+
+.co-material-prep-row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 12px;
+  align-items: start;
+  border: 1px solid #e2e8f0;
+  border-left: 5px solid #94a3b8;
+  border-radius: 14px;
+  background: #fff;
+  padding: 12px;
+}
+
+.co-material-prep-row[data-category="material"] {
+  border-left-color: #ea580c;
+}
+
+.co-material-prep-row[data-category="equipment"] {
+  border-left-color: #2563eb;
+}
+
+.co-material-prep-row[data-category="subcontractor"] {
+  border-left-color: #7c3aed;
+}
+
+.co-material-prep-row strong {
+  display: block;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  font-weight: 900;
+  color: #0f172a;
+}
+
+.co-material-prep-row em,
+.co-material-prep-row p {
+  display: block;
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 750;
+  line-height: 1.45;
+  color: #475569;
+}
+
+@media (max-width: 900px) {
+  .co-material-prep-summary,
+  .co-material-prep-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .co-rate-book-form {
   display: grid;
   gap: 0.85rem;
