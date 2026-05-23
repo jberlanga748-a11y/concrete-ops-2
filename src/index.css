@@ -38763,6 +38763,155 @@ button.co-apex-command-kpi:hover:not(:disabled) {
   }
 }
 
+@media (min-width: 1024px) {
+  .co-reports-shell-page {
+    height: calc(100vh - 4.5rem);
+    min-height: 41rem;
+    overflow: hidden;
+  }
+
+  .co-reports-shell-page .co-apex-office-command-shell {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .co-reports-shell-page .co-apex-office-command-frame {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+  }
+
+  .co-reports-shell-page .co-command-page-frame-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 21rem);
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  .co-reports-shell-page .co-command-page-frame-main,
+  .co-reports-shell-page .co-command-page-frame-rail {
+    min-height: 0;
+  }
+
+  .co-reports-shell-page .co-apex-office-command-workspace {
+    height: 100%;
+    min-height: 0;
+    grid-template-columns: minmax(19rem, 0.82fr) minmax(0, 1.18fr);
+  }
+
+  .co-reports-shell-page .co-apex-primary-queue-panel,
+  .co-reports-shell-page .co-apex-selected-detail-panel,
+  .co-reports-shell-page .co-apex-assistant-action-panel {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .co-reports-shell-page .co-apex-primary-queue-list {
+    grid-auto-rows: minmax(0, auto);
+    overflow: hidden;
+  }
+
+  .co-reports-shell-page .co-apex-primary-queue-list .co-work-queue-card {
+    padding: 0.5rem;
+  }
+
+  .co-reports-shell-page .co-work-queue-card h3 {
+    font-size: 0.78rem;
+  }
+
+  .co-reports-shell-page .co-work-queue-meta,
+  .co-reports-shell-page .co-work-queue-status,
+  .co-reports-shell-page .co-work-queue-action {
+    font-size: 0.66rem;
+  }
+
+  .co-reports-shell-page .co-apex-selected-detail-body {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .co-reports-shell-detail-scroll {
+    min-height: 0;
+    max-height: 100%;
+    overflow-y: auto;
+    padding-right: 0.2rem;
+  }
+
+  .co-reports-shell-detail-scroll > .min-w-0,
+  .co-reports-shell-detail-scroll > .co-reports-create-card {
+    margin: 0;
+  }
+
+  .co-reports-shell-detail-scroll .co-reports-create-card,
+  .co-reports-shell-detail-scroll .co-reports-create-header,
+  .co-reports-shell-detail-scroll .co-reports-create-form,
+  .co-reports-shell-detail-scroll .hidden.p-5.md\:block {
+    border-color: rgba(226, 232, 240, 0.78);
+  }
+
+  .co-reports-shell-detail-scroll .hidden.p-5.md\:block > .mb-3.grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .co-reports-shell-detail-scroll .hidden.p-5.md\:block h2 {
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+
+  .co-reports-shell-detail-scroll .hidden.p-5.md\:block .flex.min-w-0.flex-wrap.gap-2 {
+    justify-content: flex-start;
+  }
+
+  .co-reports-shell-page .co-assistant-rail-head {
+    padding: 0.68rem 0.82rem 0.5rem;
+  }
+
+  .co-reports-shell-page .co-assistant-rail-head h2 {
+    font-size: 0.88rem;
+  }
+
+  .co-reports-shell-page .co-assistant-rail-head p {
+    font-size: 0.7rem;
+    line-height: 1.28;
+  }
+
+  .co-reports-shell-page .co-assistant-rail-priorities,
+  .co-reports-shell-page .co-assistant-rail-actions {
+    gap: 0.36rem;
+    padding: 0 0.58rem 0.58rem;
+  }
+
+  .co-reports-shell-page .co-assistant-rail-priority {
+    padding: 0.4rem 0.52rem;
+  }
+
+  .co-reports-shell-page .co-assistant-rail-actions button {
+    min-height: 2.02rem;
+    padding: 0.42rem 0.54rem;
+  }
+
+  .co-reports-shell-page .co-apex-assistant-guardrails {
+    padding: 0.62rem;
+    padding-right: 4.3rem;
+  }
+
+  .co-reports-shell-page .co-reports-tools-drawer,
+  .co-reports-shell-page .co-reports-advanced-filters {
+    display: none !important;
+  }
+}
+
+@media (max-width: 1023px) {
+  .co-reports-shell-page {
+    overflow: visible;
+  }
+
+  .co-reports-shell-detail-scroll {
+    max-height: none;
+    overflow: visible;
+  }
+}
+
 .co-proof-engine-frame {
   padding-bottom: 0.9rem;
 }

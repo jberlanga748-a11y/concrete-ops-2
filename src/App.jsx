@@ -11007,6 +11007,8 @@ function ReportsPagePolished({
   const [showReportTools, setShowReportTools] = useState(false);
   const [activeReportTool, setActiveReportTool] = useState("create");
   const [visibleReportCap, setVisibleReportCap] = useState(8);
+  const [reportShellSelectionId, setReportShellSelectionId] = useState("");
+  const [reportShellMode, setReportShellMode] = useState("detail");
   const reportToolsRef = useRef(null);
   const listState = useMemo(() => deriveDailyReportListState(reports), [reports]);
   const visibleRows = useMemo(() => filterDailyReports(reports, {
@@ -11207,6 +11209,271 @@ function ReportsPagePolished({
   const mobileFocusCards = isFieldReportWorkspace
     ? [draftsPriorityCard, basicsPriorityCard, reviewPriorityCard]
     : [reviewPriorityCard, draftsPriorityCard, basicsPriorityCard];
+  const canUseReportsCommandShell = Boolean(canView && permissions.reports.canManageAll && !isFieldReportWorkspace);
+  const reportShellKpis = [
+    {
+      label: "Missing Today",
+      value: missingReportJobs.length,
+      helper: `${operatingDate} job reports not started`,
+      icon: "alert",
+      tone: missingReportJobs.length ? "amber" : "green",
+      onClick: () => {
+        setDateFilter(operatingDate);
+        setFilter("All");
+      },
+    },
+    {
+      label: "Drafts Open",
+      value: needsActionCount,
+      helper: "Draft or reopened reports",
+      icon: "document",
+      tone: needsActionCount ? "orange" : "green",
+      onClick: () => setFilter("Draft"),
+    },
+    {
+      label: "Needs Review",
+      value: submittedCount,
+      helper: "Submitted for office closeout",
+      icon: "clipboard",
+      tone: submittedCount ? "orange" : "green",
+      onClick: () => setFilter("Submitted"),
+    },
+    {
+      label: "Proof Gaps",
+      value: proofGapReports.length,
+      helper: "Notes, photos, tickets, or checklists",
+      icon: "upload",
+      tone: proofGapReports.length ? "amber" : "green",
+      onClick: () => {
+        const targetReport = proofGapReports[0];
+        if (targetReport?.id) {
+          onSelectReport(targetReport.id);
+          setReportShellSelectionId(`proof-${targetReport.id}`);
+          setReportShellMode("detail");
+        }
+      },
+    },
+  ];
+  const reportShellQueue = useMemo(() => {
+    const items = [];
+    const seenReportIds = new Set();
+
+    missingReportJobs.forEach((job, index) => {
+      items.push({
+        id: `missing-${job.id}`,
+        kind: "missing",
+        job,
+        priority: 10 + index,
+        eyebrow: "Missing report",
+        title: jobTitle(job),
+        meta: [job.customer, jobScheduleLabel(job)].filter(Boolean).join(" / ") || operatingDate,
+        statusLabel: "Not started",
+        tone: "amber",
+        actionLabel: canCreate ? "Start report" : "View job",
+        badges: [
+          { label: "Today", tone: "amber" },
+          { label: "Blocks proof", tone: "orange" },
+        ],
+      });
+    });
+
+    function addReportItem(report, kind, priority) {
+      if (!report?.id || seenReportIds.has(report.id)) return;
+      seenReportIds.add(report.id);
+      const proofState = proofStateByReportId.get(report.id);
+      const isProofGap = kind === "proof";
+      const isDraft = kind === "draft";
+      items.push({
+        id: `${kind}-${report.id}`,
+        kind,
+        report,
+        reportId: report.id,
+        priority,
+        eyebrow: isProofGap ? "Proof gap" : isDraft ? "Draft open" : "Needs review",
+        title: jobTitle(report.job),
+        meta: `${report.reportDate || "Date pending"} / ${report.createdByName || "Field crew"}`,
+        statusLabel: reportStatusLabel(report.status),
+        tone: isProofGap ? "amber" : isDraft ? "orange" : "orange",
+        actionLabel: "Open report",
+        badges: [
+          { label: dailyReportProofSummary(proofState), tone: (proofState?.gapCount || 0) ? "amber" : "green" },
+          { label: dailyReportConcreteSummary(report), tone: report.concretePoured ? "orange" : "slate" },
+          { label: reportStatusLabel(report.status), tone: "slate" },
+        ],
+      });
+    }
+
+    visibleRows.filter(dailyReportNeedsReview).forEach((report, index) => addReportItem(report, "review", 30 + index));
+    proofGapReports.forEach((report, index) => addReportItem(report, "proof", 50 + index));
+    visibleRows.filter(dailyReportNeedsAction).forEach((report, index) => addReportItem(report, "draft", 70 + index));
+
+    return items.sort((left, right) => left.priority - right.priority).slice(0, 7);
+  }, [canCreate, missingReportJobs, operatingDate, proofGapReports, proofStateByReportId, visibleRows]);
+  const createReportShellItem = {
+    id: "create-report",
+    kind: "create",
+    title: "Start daily report",
+    meta: operatingDate,
+    statusLabel: "New",
+    tone: "orange",
+  };
+  const reportShellFallbackItem = reportShellQueue.find((item) => item.reportId && item.reportId === selectedReport?.id) || reportShellQueue[0] || null;
+  const selectedReportShellItem = reportShellMode === "create" && reportShellSelectionId === createReportShellItem.id
+    ? createReportShellItem
+    : reportShellQueue.find((item) => item.id === reportShellSelectionId) || reportShellFallbackItem;
+  const reportShellSelectedId = selectedReportShellItem?.id || "";
+  const reportShellAssistantDescription = proofGapReports.length
+    ? `${proofGapReports.length} proof gap${proofGapReports.length === 1 ? "" : "s"} need office review before closeout.`
+    : submittedCount
+      ? `${submittedCount} submitted report${submittedCount === 1 ? "" : "s"} waiting on signoff.`
+      : missingReportJobs.length
+        ? `${missingReportJobs.length} job${missingReportJobs.length === 1 ? "" : "s"} still need today's report.`
+        : "Daily report closeout is clear for the current view.";
+
+  useEffect(() => {
+    if (!canUseReportsCommandShell) return;
+    const fallbackId = reportShellFallbackItem?.id || "";
+    if (!reportShellSelectionId && fallbackId) {
+      setReportShellSelectionId(fallbackId);
+      setReportShellMode("detail");
+      return;
+    }
+    if (reportShellSelectionId && reportShellMode !== "create" && !reportShellQueue.some((item) => item.id === reportShellSelectionId)) {
+      setReportShellSelectionId(fallbackId);
+    }
+  }, [canUseReportsCommandShell, reportShellFallbackItem?.id, reportShellMode, reportShellQueue, reportShellSelectionId]);
+
+  function selectReportShellItem(item) {
+    if (!item) return;
+    setReportShellSelectionId(item.id);
+    if (item.kind === "missing") {
+      setReportShellMode("create");
+      setCreateDraft((current) => ({
+        ...current,
+        jobId: item.job?.id || current.jobId || "",
+        reportDate: operatingDate || current.reportDate || todayDateInputValue(),
+      }));
+      return;
+    }
+    setReportShellMode(item.kind === "create" ? "create" : "detail");
+    if (item.report?.id) {
+      onSelectReport(item.report.id);
+    }
+  }
+
+  function startReportInShell(job = null) {
+    if (!canCreate) return;
+    const targetJob = job || missingReportJobs[0] || liveReportJobs[0] || null;
+    setCreateDraft((current) => ({
+      ...current,
+      jobId: targetJob?.id || current.jobId || "",
+      reportDate: operatingDate || current.reportDate || todayDateInputValue(),
+    }));
+    const matchingMissingItem = targetJob ? reportShellQueue.find((item) => item.kind === "missing" && item.job?.id === targetJob.id) : null;
+    setReportShellSelectionId(matchingMissingItem?.id || createReportShellItem.id);
+    setReportShellMode("create");
+  }
+
+  function openFirstReportShellItem(matchReport, nextFilter = "All") {
+    const targetReport = visibleRows.find(matchReport) || reports.find(matchReport);
+    setFilter(nextFilter);
+    if (!targetReport?.id) return;
+    onSelectReport(targetReport.id);
+    const matchingItem = reportShellQueue.find((item) => item.reportId === targetReport.id);
+    setReportShellSelectionId(matchingItem?.id || `review-${targetReport.id}`);
+    setReportShellMode("detail");
+  }
+
+  function renderReportShellDetail(item) {
+    const isCreateMode = item?.kind === "create" || item?.kind === "missing" || reportShellMode === "create";
+    if (isCreateMode) {
+      return (
+        <div className="co-reports-shell-detail-scroll">
+          <DailyReportCreateCard draft={createDraft} setDraft={setCreateDraft} onCreate={onCreateReport} disabled={busy} canCreate={canCreate} jobs={jobs.filter((job) => !job.archivedAt)} />
+        </div>
+      );
+    }
+
+    const detailReport = item?.report?.id === selectedReport?.id ? selectedReport : (item?.report || selectedReport);
+    const detailProofState = detailReport ? proofStateByReportId.get(detailReport.id) : selectedReportProofState;
+    const canEditDetailReport = Boolean(detailReport) && ((permissions.reports.canManageAll && !detailReport.archivedAt) || (user?.role === "Foreman" && ["draft", "reopened"].includes(detailReport.status)));
+
+    return (
+      <div className="co-reports-shell-detail-scroll">
+        <DailyReportDetailPanel
+          report={detailReport}
+          proofState={detailProofState}
+          reportDraft={reportDraft}
+          setReportDraft={setReportDraft}
+          onSave={onSaveReport}
+          onSubmit={onSubmitReport}
+          onReview={onReviewReport}
+          onReopen={onReopenReport}
+          onArchive={onArchiveReport}
+          canView={canView}
+          canEdit={canEditDetailReport}
+          canReview={canReviewActions}
+          canArchive={permissions.reports.canManageAll}
+          disabled={busy}
+          notFound={notFound}
+          onPrintReport={detailReport ? () => onPrintDailyReport?.(detailReport) : undefined}
+        />
+      </div>
+    );
+  }
+
+  if (canUseReportsCommandShell) {
+    return (
+      <div className="co-office-page co-reports-page co-reports-shell-page">
+        <ApexOfficeCommandShell
+          eyebrow="Field Ops"
+          title="Daily Reports"
+          description="Closeout command for missing reports, open drafts, office review, and proof gaps."
+          kpis={reportShellKpis}
+          queue={{
+            title: "Report closeout queue",
+            description: `${reportShellQueue.length} priority item${reportShellQueue.length === 1 ? "" : "s"} shown from the current report view.`,
+            items: reportShellQueue,
+            selectedId: reportShellSelectedId,
+            onSelect: selectReportShellItem,
+            emptyState: <StateCard title="Report queue clear" description="Missing reports, submitted reviews, drafts, and proof gaps appear here when they need action." tone="green" />,
+          }}
+          detail={{
+            title: selectedReportShellItem?.kind === "create" || selectedReportShellItem?.kind === "missing" ? "Start report" : "Selected report",
+            item: selectedReportShellItem,
+            render: renderReportShellDetail,
+            emptyState: <StateCard title="No report selected" description="Select a report queue item or start a new daily report." tone="slate" />,
+          }}
+          assistant={{
+            title: "Report Closeout",
+            description: reportShellAssistantDescription,
+            priorities: [
+              { label: "Missing", value: missingReportJobs.length, tone: missingReportJobs.length ? "amber" : "green" },
+              { label: "Drafts", value: needsActionCount, tone: needsActionCount ? "orange" : "green" },
+              { label: "Review", value: submittedCount, tone: submittedCount ? "orange" : "green" },
+              { label: "Proof gaps", value: proofGapReports.length, tone: proofGapReports.length ? "amber" : "green" },
+            ],
+            actions: [
+              canCreate ? { label: "Start report", icon: "plus", onClick: () => startReportInShell() } : null,
+              { label: canReviewActions ? "Review submitted" : "View submitted", icon: "check", onClick: () => openFirstReportShellItem(dailyReportNeedsReview, "Submitted") },
+              { label: "Open uploads", icon: "upload", onClick: () => openReportModule("uploads"), disabled: !permissions?.uploads?.canView },
+            ].filter(Boolean),
+            guardrails: [
+              "Manual report review only",
+              "No automatic external sends",
+              "Role and company scope unchanged",
+            ],
+          }}
+          quickActions={[
+            canCreate ? { id: "start-report", label: "Start Report", icon: "plus", onClick: () => startReportInShell() } : null,
+            { id: "review-queue", label: "Review Queue", icon: "check", onClick: () => openFirstReportShellItem(dailyReportNeedsReview, "Submitted") },
+            { id: "proof-gaps", label: "Proof Gaps", icon: "upload", onClick: () => openFirstReportShellItem((report) => (proofStateByReportId.get(report.id)?.gapCount || 0) > 0, "All") },
+          ].filter(Boolean)}
+          className="co-reports-command-shell"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="co-office-page co-reports-page" data-field-workspace={isFieldReportWorkspace ? "true" : undefined}>
