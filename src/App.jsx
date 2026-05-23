@@ -2,6 +2,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   AssistantRail,
+  ApexMobileActionQueue,
+  ApexMobileBottomNav,
+  ApexMobileContactActionBar,
+  ApexMobileKpiGrid,
+  ApexMobileRoleShell,
   ApexOfficeCommandShell,
   Badge,
   Button,
@@ -14044,7 +14049,7 @@ function todayRecordJobId(record = {}) {
   return record.jobId || record.linkedJobId || record.job?.id || "";
 }
 
-function buildTodayCommandQueue(commandCenter = {}, { jobs = [], estimates = [], permissions = {} } = {}) {
+function buildTodayCommandQueue(commandCenter = {}, { jobs = [], estimates = [], permissions = {}, limit = 3 } = {}) {
   const rows = [];
   const canViewEstimates = Boolean(permissions?.estimates?.canView);
   const liveJobs = normalizeObjectArray(jobs).filter((job) => !job.archivedAt);
@@ -14156,7 +14161,172 @@ function buildTodayCommandQueue(commandCenter = {}, { jobs = [], estimates = [],
 
   return rows
     .sort((left, right) => Number(left.priority || 99) - Number(right.priority || 99) || left.title.localeCompare(right.title))
-    .slice(0, 3);
+    .slice(0, limit);
+}
+
+function firstMobileText(...values) {
+  return values.find((value) => typeof value === "string" && value.trim())?.trim() || "";
+}
+
+function ownerMobileRecordContact(record = {}) {
+  const customer = record.customer && typeof record.customer === "object" ? record.customer : {};
+  return {
+    name: firstMobileText(record.contactName, record.customerName, customer.name, customer.company, record.customer, record.title, record.project),
+    phone: firstMobileText(record.contactPhone, record.customerPhone, record.phone, customer.phone, customer.contactPhone, record.primaryPhone),
+    email: firstMobileText(record.contactEmail, record.customerEmail, record.email, customer.email, customer.contactEmail, record.primaryEmail),
+  };
+}
+
+function ownerMobileSafeContactDraft(item = {}, companyName = DEFAULT_COMPANY_NAME) {
+  const recordTitle = item.title || "your project";
+  const status = item.statusLabel || item.status || item.eyebrow || "needs review";
+  const safeSummary = item.publicSummary || item.description || item.meta || "I have an Apex HQ update to review with you.";
+  const body = `Hi ${item.contact?.name || "there"}, this is ${companyName}. Quick update on ${recordTitle}: ${safeSummary} Current status: ${status}. Please reply when you have a minute.`;
+  return {
+    subject: `${companyName}: ${recordTitle}`,
+    textDraft: body,
+    emailBody: `${body}\n\nManual draft only. Nothing was sent automatically from Apex HQ.`,
+  };
+}
+
+function buildOwnerAdminMobileCommandQueue(commandCenter = {}, { jobs = [], estimates = [], dailyReports = [], changeOrderRequests = [], companyName = DEFAULT_COMPANY_NAME, permissions = {} } = {}) {
+  const canViewEstimates = Boolean(permissions?.estimates?.canView);
+  const liveJobs = normalizeObjectArray(jobs).filter((job) => !job.archivedAt);
+  const visibleEstimates = canViewEstimates ? normalizeObjectArray(estimates).filter((estimate) => !estimate.archivedAt) : [];
+  const reportRows = normalizeObjectArray(dailyReports).filter((report) => !report.archivedAt);
+  const openChangeOrders = normalizeObjectArray(commandCenter.changeOrders?.openChangeOrders).length
+    ? normalizeObjectArray(commandCenter.changeOrders.openChangeOrders)
+    : normalizeObjectArray(changeOrderRequests).filter((request) => !request.archivedAt && !["approved", "rejected", "declined", "closed", "completed", "archived"].includes(normalizeTodayStatus(request.status)));
+  const rows = [];
+
+  function attachContact(row, record = {}) {
+    const contact = ownerMobileRecordContact(record);
+    const drafts = ownerMobileSafeContactDraft({ ...row, contact }, companyName);
+    return { ...row, contact, ...drafts };
+  }
+
+  function addRow(row, record) {
+    if (!row?.id || !row?.title) return;
+    rows.push(attachContact(row, record || row.record || {}));
+  }
+
+  liveJobs
+    .filter((job) => normalizeTodayStatus(job.status || job.stage) === "billing ready")
+    .slice(0, 2)
+    .forEach((job, index) => addRow({
+      id: `mobile-ready-bill-${job.id}`,
+      priority: 10 + index,
+      kind: "job",
+      moduleId: "jobs",
+      recordId: job.id,
+      record: job,
+      eyebrow: "Ready to bill",
+      title: jobTitle(job),
+      description: [job.customer, job.address].filter(Boolean).join(" / ") || "Billing-ready job needs closeout review.",
+      publicSummary: "the job is ready for closeout review before any billing step",
+      statusLabel: jobStatusLabel(job.status || job.stage),
+      actionLabel: "Review job",
+      tone: "green",
+      nextSafeAction: "Review proof and closeout in Jobs. No billing is triggered here.",
+    }, job));
+
+  normalizeObjectArray(commandCenter.uploads?.jobsMissingPhotos)
+    .slice(0, 2)
+    .forEach((job, index) => addRow({
+      id: `mobile-proof-gap-${job.id}`,
+      priority: 20 + index,
+      kind: "job",
+      moduleId: "uploads",
+      recordId: job.id,
+      record: job,
+      eyebrow: "Job missing proof",
+      title: jobTitle(job),
+      description: [job.customer, job.address].filter(Boolean).join(" / ") || "Photo proof is missing.",
+      publicSummary: "we need to confirm jobsite proof before office closeout",
+      statusLabel: "Proof gap",
+      actionLabel: "Open proof",
+      tone: "amber",
+      nextSafeAction: "Open Photos or the job proof chain. Contact draft stays customer-safe.",
+    }, job));
+
+  visibleEstimates
+    .filter((estimate) => normalizeTodayStatus(estimate.status) === "sent")
+    .slice(0, 2)
+    .forEach((estimate, index) => addRow({
+      id: `mobile-estimate-followup-${estimate.id}`,
+      priority: 30 + index,
+      kind: "estimate",
+      moduleId: "estimates",
+      recordId: estimate.id,
+      record: estimate,
+      eyebrow: "Estimate needs follow-up",
+      title: estimateDisplayTitle(estimate),
+      description: estimateDisplayCustomer(estimate) || "Sent estimate waiting on a manual follow-up.",
+      publicSummary: "I wanted to check whether you had any questions about the proposal",
+      statusLabel: estimateStatusLabel(estimate.status),
+      actionLabel: "Review estimate",
+      tone: "orange",
+      nextSafeAction: "Open Estimates for review-first follow-up. No send happens here.",
+    }, estimate));
+
+  openChangeOrders.slice(0, 2).forEach((request, index) => addRow({
+    id: `mobile-change-review-${request.id}`,
+    priority: 40 + index,
+    kind: "changeOrder",
+    moduleId: "changeOrders",
+    recordId: request.id,
+    record: request,
+    eyebrow: "Change order needs review",
+    title: request.title || request.scope || request.reason || "Change order request",
+    description: [request.customer, request.jobTitle, request.status].filter(Boolean).join(" / ") || "Change order needs office review.",
+    publicSummary: "there is a change request that needs office review before work moves forward",
+    statusLabel: request.status || "Needs review",
+    actionLabel: "Open change",
+    tone: "red",
+    nextSafeAction: "Review the change order in its full route. No approval is automated.",
+  }, request));
+
+  normalizeObjectArray(commandCenter.dailyReports?.activeJobsMissingTodayReport)
+    .slice(0, 2)
+    .forEach((job, index) => addRow({
+      id: `mobile-report-overdue-${job.id}`,
+      priority: 50 + index,
+      kind: "report",
+      moduleId: "reports",
+      recordId: job.id,
+      record: job,
+      eyebrow: "Report overdue",
+      title: jobTitle(job),
+      description: [job.customer, job.address].filter(Boolean).join(" / ") || "Daily report is missing for active work.",
+      publicSummary: "we are checking the daily job update before closeout",
+      statusLabel: "Report missing",
+      actionLabel: "Open reports",
+      tone: "amber",
+      nextSafeAction: "Open Reports and request field-safe completion if needed.",
+    }, job));
+
+  if (!rows.length) {
+    reportRows.slice(0, 1).forEach((report) => addRow({
+      id: `mobile-report-review-${report.id}`,
+      priority: 60,
+      kind: "report",
+      moduleId: "reports",
+      recordId: report.id,
+      record: report,
+      eyebrow: "Report review",
+      title: report.title || report.jobTitle || "Daily report",
+      description: report.status || "Review the latest field report.",
+      publicSummary: "we are reviewing the latest job update",
+      statusLabel: report.status || "Review",
+      actionLabel: "Open report",
+      tone: "blue",
+      nextSafeAction: "Open Reports for the full review workflow.",
+    }, report));
+  }
+
+  return rows
+    .sort((left, right) => Number(left.priority || 99) - Number(right.priority || 99) || left.title.localeCompare(right.title))
+    .slice(0, 5);
 }
 
 function TodayCommandPage({
@@ -14321,11 +14491,170 @@ function TodayCommandPage({
   );
 }
 
+function OwnerAdminMobileCommandPage({
+  user,
+  currentCompanyId,
+  companyName = DEFAULT_COMPANY_NAME,
+  leads,
+  customers,
+  estimates,
+  contactHistory,
+  jobs,
+  leadSources,
+  jobDraftImports,
+  dailyReports,
+  uploads,
+  prePourChecklists,
+  postPourChecklists,
+  deliveryTickets,
+  safetyIncidents,
+  toolChecklists,
+  timeEntries,
+  changeOrderRequests,
+  permissions,
+  setActive,
+  onSelectJob,
+}) {
+  const commandCenter = useMemo(() => deriveCommandCenterState({
+    leads,
+    customers,
+    estimates,
+    contactHistory,
+    jobs,
+    leadSources,
+    jobDraftImports,
+    dailyReports,
+    uploads,
+    prePourChecklists,
+    postPourChecklists,
+    deliveryTickets,
+    safetyIncidents,
+    toolChecklists,
+    timeEntries,
+    changeOrderRequests,
+    currentCompanyId,
+  }, { companyId: currentCompanyId }), [changeOrderRequests, contactHistory, currentCompanyId, customers, dailyReports, deliveryTickets, estimates, jobDraftImports, jobs, leadSources, leads, postPourChecklists, prePourChecklists, safetyIncidents, timeEntries, toolChecklists, uploads]);
+  const canViewEstimates = Boolean(permissions?.estimates?.canView);
+  const moneyReadyCount = Number(commandCenter.stats.moneyReadyItems || 0);
+  const jobsTodayCount = Number(commandCenter.stats.scheduledTodayJobs || 0);
+  const estimatesToWinCount = canViewEstimates
+    ? Number(commandCenter.stats.sentEstimatesWaiting || 0) + Number(commandCenter.stats.draftEstimates || 0)
+    : 0;
+  const problemsCount = Number(commandCenter.proofChainSummary?.blockerCount || 0) + Number(commandCenter.stats.openChangeOrders || 0);
+  const queueItems = useMemo(() => buildOwnerAdminMobileCommandQueue(commandCenter, {
+    jobs,
+    estimates,
+    dailyReports,
+    changeOrderRequests,
+    companyName,
+    permissions,
+  }), [changeOrderRequests, commandCenter, companyName, dailyReports, estimates, jobs, permissions]);
+  const [selectedMobileCommandId, setSelectedMobileCommandId] = useState("");
+  const selectedItem = queueItems.find((item) => item.id === selectedMobileCommandId) || queueItems[0] || null;
+
+  useEffect(() => {
+    if (selectedItem && selectedItem.id !== selectedMobileCommandId) {
+      setSelectedMobileCommandId(selectedItem.id);
+    }
+  }, [selectedItem, selectedMobileCommandId]);
+
+  function openModule(moduleId) {
+    if (moduleId) setActive?.(moduleId);
+  }
+
+  function openMobileCommandItem(item = selectedItem) {
+    if (!item) return;
+    if (item.kind === "job" && item.recordId) {
+      onSelectJob?.(item.recordId);
+      return;
+    }
+    openModule(item.moduleId || "jobs");
+  }
+
+  const kpis = [
+    { id: "money-ready", label: "Money Ready", value: moneyReadyCount, helper: `${commandCenter.stats.jobsReadyToBill || 0} jobs / ${commandCenter.stats.approvedEstimatesReadyToConvert || 0} estimates`, icon: "check", tone: moneyReadyCount ? "green" : "slate", onClick: () => openModule(commandCenter.stats.jobsReadyToBill ? "jobs" : "estimates") },
+    { id: "jobs-today", label: "Jobs Today", value: jobsTodayCount, helper: `${commandCenter.stats.jobsMissingCrew || 0} crew gaps`, icon: "briefcase", tone: jobsTodayCount ? "blue" : "slate", onClick: () => openModule("jobs") },
+    { id: "estimates-to-win", label: "Estimates To Win", value: estimatesToWinCount, helper: canViewEstimates ? `${commandCenter.stats.sentEstimatesWaiting || 0} sent / ${commandCenter.stats.draftEstimates || 0} drafts` : "Locked", icon: "quote", tone: estimatesToWinCount ? "orange" : "slate", onClick: () => canViewEstimates && openModule("estimates") },
+    { id: "problems", label: "Problems", value: problemsCount, helper: `${commandCenter.proofChainSummary?.blockerCount || 0} blockers / ${commandCenter.stats.openChangeOrders || 0} changes`, icon: "alert", tone: problemsCount ? "amber" : "green", onClick: () => openModule(commandCenter.proofChainSummary?.nextModuleId || "reports") },
+  ];
+
+  return (
+    <ApexMobileRoleShell
+      eyebrow={companyName || DEFAULT_COMPANY_NAME}
+      title="Today"
+      description={`Owner mobile command for ${user?.name || "the office"}: money, jobs, estimates, and problems only.`}
+      className="co-owner-mobile-command"
+    >
+      <ApexMobileKpiGrid items={kpis} />
+      <ApexMobileActionQueue
+        title="Top action queue"
+        items={queueItems}
+        selectedId={selectedItem?.id}
+        onSelect={(item) => setSelectedMobileCommandId(item.id)}
+      />
+      <section className="co-apex-mobile-selected-card" data-tone={selectedItem?.tone || "slate"}>
+        {selectedItem ? (
+          <>
+            <div className="co-apex-mobile-selected-head">
+              <Badge tone={selectedItem.tone || "slate"}>{selectedItem.eyebrow || "Today"}</Badge>
+              <StatusBadge status={selectedItem.statusLabel || "Review"} />
+            </div>
+            <h2>{selectedItem.title}</h2>
+            <p>{selectedItem.description || "Review this item before taking action."}</p>
+            <div className="co-apex-mobile-selected-summary">
+              <span>
+                <em>Next safe action</em>
+                <strong>{selectedItem.nextSafeAction || selectedItem.actionLabel || "Open full route"}</strong>
+              </span>
+              <span>
+                <em>Contact</em>
+                <strong>{selectedItem.contact?.phone || selectedItem.contact?.email || "Not set"}</strong>
+              </span>
+            </div>
+            <ApexMobileContactActionBar
+              phone={selectedItem.contact?.phone}
+              email={selectedItem.contact?.email}
+              subject={selectedItem.subject}
+              textDraft={selectedItem.textDraft}
+              emailBody={selectedItem.emailBody}
+              onOpenContact={() => openMobileCommandItem(selectedItem)}
+            />
+            <div className="co-apex-mobile-selected-actions">
+              <Button type="button" onClick={() => openMobileCommandItem(selectedItem)}>{selectedItem.actionLabel || "Open"}</Button>
+              <Button type="button" variant="secondary" onClick={() => openModule(selectedItem.moduleId || "jobs")}>Full route</Button>
+            </div>
+            <p className="co-apex-mobile-guardrail">Manual only: text and email open drafts only. No calls, texts, emails, billing, bids, or conversions are sent from this card.</p>
+          </>
+        ) : (
+          <StateCard title="No mobile command actions" description="Money, job, estimate, and problem items will appear here when owner review is needed." tone="green" />
+        )}
+      </section>
+    </ApexMobileRoleShell>
+  );
+}
+
+function isOwnerAdminMobileCommandUser(user = {}, permissions = {}) {
+  const role = String(user?.role || "").trim().toLowerCase();
+  return ["owner", "administrator"].includes(role) && Boolean(permissions?.jobs?.canManageAll && permissions?.leads?.canView);
+}
+
 function DashboardPage(props) {
   if (props.permissions?.leads?.canView || shouldRenderCommandCenterForDashboard({
     permissions: props.permissions,
     firstOwnerOnboarding: props.firstOwnerOnboarding,
   })) {
+    if (isOwnerAdminMobileCommandUser(props.user, props.permissions)) {
+      return (
+        <>
+          <div className="md:hidden">
+            <OwnerAdminMobileCommandPage {...props} />
+          </div>
+          <div className="hidden md:block">
+            <TodayCommandPage {...props} />
+          </div>
+        </>
+      );
+    }
     return <TodayCommandPage {...props} />;
   }
   return <DashboardPagePolished {...props} />;
@@ -36861,6 +37190,28 @@ function MainContent(props) {
   return <GenericPage active={active} queueItems={props.queueItems} selectedLead={props.selectedLead} selectedJob={props.selectedJob} />;
 }
 
+const OWNER_ADMIN_MOBILE_NAV_ORDER = [
+  { id: "dashboard", label: "Today", icon: "grid" },
+  { id: "jobs", label: "Jobs", icon: "briefcase" },
+  { id: "estimates", label: "Estimates", icon: "quote" },
+  { id: "communications", label: "Messages", icon: "quote" },
+];
+
+function getOwnerAdminMobileNavItems(visibleNavItems = []) {
+  const visibleById = new Map((visibleNavItems || []).map((item) => [item.id, item]));
+  const ordered = OWNER_ADMIN_MOBILE_NAV_ORDER
+    .map((item) => {
+      const visible = visibleById.get(item.id);
+      return visible ? { ...visible, label: item.label, icon: item.icon || visible.icon } : null;
+    })
+    .filter(Boolean);
+  const orderedIds = new Set(ordered.map((item) => item.id));
+  return [
+    ...ordered,
+    ...(visibleNavItems || []).filter((item) => !orderedIds.has(item.id)),
+  ];
+}
+
 export default function App() {
   const [pathname, setPathname] = useState(() => normalizePathname(window.location.pathname));
   const [sessionToken, setSessionToken] = useState(() => window.localStorage.getItem(SESSION_TOKEN_KEY) || "");
@@ -40333,7 +40684,9 @@ export default function App() {
   }
 
   const isFieldMobileWorkspace = !appState.permissions?.jobs?.canManageAll && !appState.permissions?.leads?.canView;
+  const isOwnerAdminMobileWorkspace = isOwnerAdminMobileCommandUser(appState.user, appState.permissions);
   const mobileNavItems = isFieldMobileWorkspace ? getFieldMobileNavItems(visibleNavItems) : visibleNavItems;
+  const ownerAdminMobileNavItems = getOwnerAdminMobileNavItems(visibleNavItems);
   const customerRelated = relatedCustomerRecords(selectedCustomer, appState.leads, appState.jobs, appState.activity);
   const leadRelated = relatedLeadActivity(selectedLead, appState.customers, appState.activity, appState.leadStatusHistory);
 
@@ -40728,7 +41081,11 @@ export default function App() {
           <div className="co-mobile-bottom-spacer lg:hidden" aria-hidden="true" />
         </div>
       </div>
-      <FieldMobileQuickNav items={mobileNavItems} active={active} onOpen={setActive} />
+      {isOwnerAdminMobileWorkspace ? (
+        <ApexMobileBottomNav items={ownerAdminMobileNavItems} active={active} onOpen={setActive} />
+      ) : (
+        <FieldMobileQuickNav items={mobileNavItems} active={active} onOpen={setActive} />
+      )}
       <ApexAssistantShell
         permissions={appState.permissions}
         commandCenter={assistantCommandCenter}

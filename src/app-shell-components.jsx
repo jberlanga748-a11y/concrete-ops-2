@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 import { getButtonToneClass, getCardClass, getStatusToneClass } from "./design-tokens";
 
 function iconStrokeProps(className) {
@@ -39,6 +41,7 @@ export function Icon({ name, className = "h-4 w-4" }) {
     database: [<ellipse key="1" cx="12" cy="5" rx="7" ry="3" />, <path key="2" d="M5 5v6c0 1.7 3.1 3 7 3s7-1.3 7-3V5" />, <path key="3" d="M5 11v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6" />],
     lock: [<rect key="1" x="4" y="11" width="16" height="10" rx="2" />, <path key="2" d="M8 11V7a4 4 0 1 1 8 0v4" />],
     bell: [<path key="1" d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />, <path key="2" d="M10 21a2 2 0 0 0 4 0" />],
+    phone: [<path key="1" d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.9a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.2-1.2a2 2 0 0 1 2.1-.5c.9.3 1.9.6 2.9.7A2 2 0 0 1 22 16.9Z" />],
     help: [<circle key="1" cx="12" cy="12" r="9" />, <path key="2" d="M9.5 9a2.7 2.7 0 0 1 5 1.4c0 1.8-2.5 2.1-2.5 4" />, <path key="3" d="M12 18h.01" />],
   };
 
@@ -412,6 +415,172 @@ export function ApexQuickActionBar({ actions = [] }) {
           {action.label}
         </Button>
       ))}
+    </div>
+  );
+}
+
+function mobileHrefPhone(value = "") {
+  return String(value || "").replace(/[^\d+]/g, "");
+}
+
+function mobileDraftHref(kind, { phone = "", email = "", subject = "", body = "" } = {}) {
+  if (kind === "call") return phone ? `tel:${mobileHrefPhone(phone)}` : "";
+  if (kind === "text") return phone ? `sms:${mobileHrefPhone(phone)}?&body=${encodeURIComponent(body || "")}` : "";
+  if (kind === "email") return email ? `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject || "")}&body=${encodeURIComponent(body || "")}` : "";
+  return "";
+}
+
+export function ApexMobileRoleShell({ eyebrow = "Apex HQ", title, description, children, className = "" }) {
+  return (
+    <section className={`co-apex-mobile-role-shell ${className}`}>
+      <header className="co-apex-mobile-role-head">
+        <p>{eyebrow}</p>
+        <h1>{title}</h1>
+        {description ? <span>{description}</span> : null}
+      </header>
+      {children}
+    </section>
+  );
+}
+
+export function ApexMobileBottomNav({ items = [], active, onOpen }) {
+  const safeItems = Array.isArray(items) ? items.filter(Boolean) : [];
+  const primaryItems = safeItems.slice(0, 4);
+  const overflowItems = safeItems.slice(4);
+  const [isMoreOpen, setIsMoreOpen] = useState(false);
+  const activeInOverflow = overflowItems.some((item) => item.id === active);
+
+  useEffect(() => {
+    setIsMoreOpen(false);
+  }, [active, safeItems.length]);
+
+  if (!safeItems.length) return null;
+
+  function handleOpen(itemId) {
+    setIsMoreOpen(false);
+    onOpen?.(itemId);
+    window.setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }, 0);
+  }
+
+  return (
+    <nav className="co-mobile-bottom-nav co-apex-mobile-bottom-nav mobile-nav-safe fixed bottom-0 left-0 right-0 z-40 lg:hidden" aria-label="Owner mobile navigation">
+      {overflowItems.length ? (
+        <div className="co-mobile-bottom-nav-more-panel co-apex-mobile-bottom-nav-more-panel" hidden={!isMoreOpen}>
+          {overflowItems.map((item) => (
+            <button key={item.id} type="button" onClick={() => handleOpen(item.id)}>
+              <Icon name={item.icon || "grid"} className="h-4 w-4" />
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <div className="co-apex-mobile-bottom-nav-row">
+        {primaryItems.map((item) => {
+          const isActive = active === item.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => handleOpen(item.id)}
+              aria-label={item.ariaLabel || item.label}
+              aria-current={isActive ? "page" : undefined}
+              className={`co-mobile-bottom-nav-button co-apex-mobile-bottom-nav-button ${isActive ? "is-active" : ""}`}
+            >
+              <Icon name={item.icon || "grid"} className="h-4 w-4" />
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
+        {overflowItems.length ? (
+          <button
+            type="button"
+            onClick={() => setIsMoreOpen((current) => !current)}
+            aria-expanded={isMoreOpen}
+            className={`co-mobile-bottom-nav-button co-apex-mobile-bottom-nav-button co-apex-mobile-bottom-nav-more-toggle ${isMoreOpen || activeInOverflow ? "is-active" : ""}`}
+          >
+            <Icon name="grid" className="h-4 w-4" />
+            <span>More</span>
+          </button>
+        ) : null}
+      </div>
+    </nav>
+  );
+}
+
+export function ApexMobileKpiGrid({ items = [] }) {
+  const visibleItems = Array.isArray(items) ? items.slice(0, 4) : [];
+  return (
+    <div className="co-apex-mobile-kpi-grid" aria-label="Mobile command metrics">
+      {visibleItems.map((item) => {
+        const Component = item.onClick ? "button" : "div";
+        return (
+          <Component key={item.id || item.label} type={item.onClick ? "button" : undefined} onClick={item.onClick} className="co-apex-mobile-kpi-card" data-tone={item.tone || "slate"}>
+            <span>{item.icon ? <Icon name={item.icon} /> : null}</span>
+            <strong>{item.value}</strong>
+            <em>{item.label}</em>
+            {item.helper ? <small>{item.helper}</small> : null}
+          </Component>
+        );
+      })}
+    </div>
+  );
+}
+
+export function ApexMobileActionQueue({ title = "Action queue", items = [], selectedId = "", onSelect }) {
+  const visibleItems = Array.isArray(items) ? items.slice(0, 5) : [];
+  return (
+    <section className="co-apex-mobile-action-queue">
+      <div className="co-apex-mobile-section-head">
+        <span>{title}</span>
+        <Badge tone={visibleItems.length ? "orange" : "green"}>{visibleItems.length}/5</Badge>
+      </div>
+      <div className="co-apex-mobile-action-list">
+        {visibleItems.length ? visibleItems.map((item) => (
+          <button key={item.id} type="button" className={`co-apex-mobile-action-row ${selectedId === item.id ? "is-selected" : ""}`} data-tone={item.tone || "slate"} onClick={() => onSelect?.(item)}>
+            <span className="co-apex-mobile-action-dot" aria-hidden="true" />
+            <span className="min-w-0">
+              <strong>{item.title}</strong>
+              <small>{item.meta || item.description || "Review context"}</small>
+            </span>
+            <em>{item.actionLabel || "Review"}</em>
+          </button>
+        )) : (
+          <StateCard title="Queue clear" description="Priority mobile command work appears here when it needs owner review." tone="green" />
+        )}
+      </div>
+    </section>
+  );
+}
+
+export function ApexMobileContactActionBar({ phone = "", email = "", subject = "", textDraft = "", emailBody = "", onOpenContact }) {
+  const callHref = mobileDraftHref("call", { phone });
+  const textHref = mobileDraftHref("text", { phone, body: textDraft });
+  const emailHref = mobileDraftHref("email", { email, subject, body: emailBody });
+  const actions = [
+    { id: "call", label: "Call", icon: "phone", href: callHref, disabled: !callHref },
+    { id: "text", label: "Text Draft", icon: "quote", href: textHref, disabled: !textHref },
+    { id: "email", label: "Email Draft", icon: "document", href: emailHref, disabled: !emailHref },
+  ];
+
+  return (
+    <div className="co-apex-mobile-contact-actions" aria-label="Manual contact actions">
+      {actions.map((action) => action.disabled ? (
+        <button key={action.id} type="button" disabled>
+          <Icon name={action.icon} />
+          <span>{action.label}</span>
+        </button>
+      ) : (
+        <a key={action.id} href={action.href}>
+          <Icon name={action.icon} />
+          <span>{action.label}</span>
+        </a>
+      ))}
+      <button type="button" onClick={onOpenContact} disabled={!onOpenContact}>
+        <Icon name="users" />
+        <span>Open Contact</span>
+      </button>
     </div>
   );
 }
