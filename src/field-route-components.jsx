@@ -39,10 +39,10 @@ export function FieldActionGrid({ actions, onOpen }) {
 const FIELD_MOBILE_NAV_ORDER = [
   { id: "jobs", label: "Jobs", icon: "briefcase" },
   { id: "time", label: "Clock", icon: "clock" },
+  { id: "uploads", label: "Photos", icon: "upload" },
   { id: "reports", label: "Reports", icon: "document" },
   { id: "prePour", label: "Pre-Pour", icon: "clipboard" },
   { id: "postPour", label: "Post-Pour", icon: "clipboard" },
-  { id: "uploads", label: "Photos", icon: "upload" },
   { id: "deliveryTickets", label: "Tickets", icon: "clipboard" },
   { id: "ppe", label: "PPE", icon: "hardhat" },
   { id: "incidents", label: "Incidents", icon: "alert" },
@@ -81,12 +81,10 @@ export function getFieldMobileNavItems(visibleNavItems) {
 export function FieldMobileQuickNav({ items, active, onOpen }) {
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const safeItems = items || [];
-  const activeItem = safeItems.find((item) => item.id === active);
-  const visibleItems = activeItem
-    ? [activeItem, ...safeItems.filter((item) => item.id !== active)]
-    : safeItems;
-  const primaryItems = visibleItems.slice(0, 5);
-  const overflowItems = visibleItems.slice(5);
+  const primaryLimit = safeItems.length > 5 ? 4 : 5;
+  const primaryItems = safeItems.slice(0, primaryLimit);
+  const overflowItems = safeItems.slice(primaryLimit);
+  const activeInOverflow = overflowItems.some((item) => item.id === active);
 
   useEffect(() => {
     setIsMoreOpen(false);
@@ -137,7 +135,8 @@ export function FieldMobileQuickNav({ items, active, onOpen }) {
             type="button"
             onClick={() => setIsMoreOpen((current) => !current)}
             aria-expanded={isMoreOpen}
-            className={`co-mobile-bottom-nav-button co-mobile-bottom-nav-more-toggle flex min-w-[74px] shrink-0 flex-col items-center justify-center rounded-2xl border px-3 py-2 text-[11px] font-black transition ${isMoreOpen ? "is-active border-blue-700 bg-blue-700 text-white shadow-panel" : "border-blue-100 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50"}`}
+            aria-current={activeInOverflow ? "page" : undefined}
+            className={`co-mobile-bottom-nav-button co-mobile-bottom-nav-more-toggle flex min-w-[74px] shrink-0 flex-col items-center justify-center rounded-2xl border px-3 py-2 text-[11px] font-black transition ${isMoreOpen || activeInOverflow ? "is-active border-blue-700 bg-blue-700 text-white shadow-panel" : "border-blue-100 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50"}`}
           >
             <Icon name="grid" className="h-4 w-4" />
             <span className="mt-1 block max-w-[68px] truncate">More</span>

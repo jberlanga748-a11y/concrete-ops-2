@@ -4610,6 +4610,151 @@ function FieldJobOperatorPanel({ role = "employee", workspace, focusJob, permiss
   );
 }
 
+function FieldMobileRemoteControlPanel({
+  role = "employee",
+  workspace,
+  focusJob,
+  permissions,
+  setActive,
+  timeWorkspace,
+  onSelectJob,
+  onClockIn,
+  onClockOut,
+  onStartBreak,
+  onEndBreak,
+  busy,
+}) {
+  const isForeman = role === "foreman";
+  const primaryJob = workspace?.nextAssignedJob || focusJob || workspace?.assignedJobs?.[0] || null;
+  const activeEntry = timeWorkspace?.activeEntry || null;
+  const allowedCategories = Array.isArray(timeWorkspace?.allowedCategories) ? timeWorkspace.allowedCategories : [];
+  const canRoute = typeof setActive === "function";
+  const canQuickClockIn = Boolean(!activeEntry && primaryJob?.id && permissions?.time?.canManageOwn && allowedCategories.includes("job") && typeof onClockIn === "function");
+  const canClockOut = Boolean(activeEntry?.id && permissions?.time?.canManageOwn && typeof onClockOut === "function");
+  const canManageBreakTime = Boolean(activeEntry?.id && permissions?.time?.canManageOwn && typeof (activeEntry?.status === "on_break" ? onEndBreak : onStartBreak) === "function");
+  const tradeGuidance = deriveFieldTradeGuidance(primaryJob);
+  const proofPrompt = tradeGuidance?.proofPhotoChecklist?.slice(0, 2).join(", ");
+  const checklistTarget = permissions?.prePour?.canView && fieldChecklistNeedsAction(primaryJob?.prePourChecklist)
+    ? { id: "prePour", label: "Pre-Pour", helper: fieldChecklistSummary(primaryJob?.prePourChecklist) }
+    : permissions?.postPour?.canView && fieldChecklistNeedsAction(primaryJob?.postPourChecklist)
+      ? { id: "postPour", label: "Post-Pour", helper: fieldChecklistSummary(primaryJob?.postPourChecklist) }
+      : permissions?.toolChecklist?.canUse
+        ? { id: "toolChecklist", label: "Checklist", helper: "Tool and safety checks" }
+        : permissions?.safety?.canView
+          ? { id: "ppe", label: "Safety", helper: "PPE and field safety" }
+          : null;
+  const openFieldTool = (toolId) => {
+    if (!canRoute || !toolId) return;
+    setActive(toolId);
+    if (typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches) {
+      window.setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 0);
+    }
+  };
+  const quickClockIn = () => {
+    if (!canQuickClockIn) return;
+    onClockIn({ workCategory: "job", jobId: primaryJob.id, notes: "" });
+  };
+  const handleClockPrimary = activeEntry?.status === "on_break"
+    ? () => canManageBreakTime && onEndBreak(activeEntry.id)
+    : activeEntry
+      ? () => canManageBreakTime && onStartBreak(activeEntry.id)
+      : quickClockIn;
+  const clockLabel = activeEntry?.status === "on_break" ? "End Break" : activeEntry ? "Start Break" : "Clock In";
+  const clockHelper = activeEntry ? (activeEntry.jobTitle || workCategoryLabel(activeEntry.workCategory)) : primaryJob ? "Start job time" : "No job selected";
+  const actions = [
+    {
+      id: "clock",
+      label: clockLabel,
+      helper: clockHelper,
+      icon: "clock",
+      tone: activeEntry ? "green" : "orange",
+      onClick: handleClockPrimary,
+      disabled: busy || (activeEntry ? !canManageBreakTime : !canQuickClockIn),
+    },
+    permissions?.uploads?.canView ? {
+      id: "photos",
+      label: "Photos",
+      helper: proofPrompt || "Upload proof",
+      icon: "upload",
+      tone: "slate",
+      onClick: () => openFieldTool("uploads"),
+      disabled: !canRoute,
+    } : null,
+    isForeman && permissions?.reports?.canView ? {
+      id: "report",
+      label: "Daily Report",
+      helper: "Field notes",
+      icon: "document",
+      tone: "blue",
+      onClick: () => openFieldTool("reports"),
+      disabled: !canRoute,
+    } : null,
+    checklistTarget ? {
+      id: "checklist",
+      label: checklistTarget.label,
+      helper: checklistTarget.helper,
+      icon: "clipboard",
+      tone: "amber",
+      onClick: () => openFieldTool(checklistTarget.id),
+      disabled: !canRoute,
+    } : null,
+    isForeman && (permissions?.changeOrders?.canRequest || permissions?.changeOrders?.canManage) ? {
+      id: "change",
+      label: "Change Request",
+      helper: "Field request",
+      icon: "refresh",
+      tone: "slate",
+      onClick: () => openFieldTool("changeOrders"),
+      disabled: !canRoute,
+    } : permissions?.support?.canView ? {
+      id: "blocker",
+      label: "Blocker Note",
+      helper: "Ask office",
+      icon: "help",
+      tone: "slate",
+      onClick: () => openFieldTool("support"),
+      disabled: !canRoute,
+    } : null,
+  ].filter(Boolean).slice(0, 5);
+
+  return (
+    <section className="co-field-mobile-remote" aria-label={isForeman ? "Foreman Today job remote" : "Employee My Work remote"}>
+      <div className="co-field-mobile-remote-head">
+        <div>
+          <Badge tone="orange">{isForeman ? "Foreman" : "Employee"}</Badge>
+          <h2>{isForeman ? "Today's Job" : "My Work"}</h2>
+          <p>{primaryJob ? `${jobTitle(primaryJob)} / ${primaryJob.customer || "Assigned site"}` : "No assigned job is ready on this phone."}</p>
+        </div>
+        <StatusBadge status={activeEntry ? (activeEntry.status === "on_break" ? "On Break" : "Clock Running") : primaryJob ? "Ready" : "No Job"} />
+      </div>
+      {primaryJob ? (
+        <div className="co-field-mobile-remote-job">
+          <span>{formatJobScheduleDetail(primaryJob)}</span>
+          <strong>{primaryJob.address || "Address pending"}</strong>
+          <button type="button" onClick={() => onSelectJob?.(primaryJob.id)}>Open job</button>
+        </div>
+      ) : (
+        <div className="co-field-mobile-remote-empty">Contact the office if work should be assigned for today.</div>
+      )}
+      <div className="co-field-mobile-remote-actions">
+        {actions.map((action) => (
+          <button key={action.id} type="button" data-tone={action.tone} onClick={action.onClick} disabled={action.disabled}>
+            <Icon name={action.icon} />
+            <span>{action.label}</span>
+            <em>{action.helper}</em>
+          </button>
+        ))}
+      </div>
+      {activeEntry ? (
+        <div className="co-field-mobile-remote-footer">
+          <span>{activeEntry.status === "on_break" ? "Break is active" : "Clock is running"}</span>
+          <button type="button" onClick={() => canClockOut && onClockOut(activeEntry.id)} disabled={busy || !canClockOut}>Clock out</button>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function FieldWorkspaceKpisPolished({ workspace, timeWorkspace, focusJob, role = "employee" }) {
   const assignedCount = workspace.assignedJobs.length;
   const noticeCount = workspace.assignmentNotices.length;
@@ -4994,6 +5139,20 @@ function FieldWorkspacePagePolished({
         }
       />
       <div className="co-field-landing-stack mx-auto flex w-full max-w-[1400px] min-w-0 flex-col gap-3 px-5 pb-3 sm:px-6 lg:px-6">
+        <FieldMobileRemoteControlPanel
+          role={role}
+          workspace={workspace}
+          focusJob={focusJob}
+          permissions={permissions}
+          setActive={setActive}
+          timeWorkspace={timeWorkspace}
+          onSelectJob={onSelectJob}
+          onClockIn={onClockIn}
+          onClockOut={onClockOut}
+          onStartBreak={onStartBreak}
+          onEndBreak={onEndBreak}
+          busy={busy}
+        />
         <div className="co-field-operator-wrap">
           <FieldJobOperatorPanel role={role} workspace={workspace} focusJob={focusJob} permissions={permissions} setActive={setActive} onSelectJob={onSelectJob} activeEntry={timeWorkspace.activeEntry} />
         </div>

@@ -11103,6 +11103,10 @@ textarea {
   color: #334155;
 }
 
+.co-field-mobile-remote {
+  display: none;
+}
+
 .co-field-action-compact-strip {
   display: flex;
   min-width: 0;
@@ -11309,8 +11313,164 @@ textarea {
     padding-right: 1rem !important;
   }
 
+  .co-field-mobile-remote {
+    display: grid;
+    gap: 0.82rem;
+    border: 1px solid rgba(15, 23, 42, 0.32);
+    border-radius: 1rem;
+    background:
+      radial-gradient(circle at 92% 0%, rgba(249, 115, 22, 0.34), transparent 12rem),
+      radial-gradient(circle at 0% 100%, rgba(20, 89, 217, 0.2), transparent 13rem),
+      linear-gradient(135deg, #07111f 0%, #101827 58%, #18283a 100%);
+    padding: 0.9rem;
+    color: #f8fafc;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      0 24px 52px -38px rgba(7, 17, 31, 0.9);
+  }
+
+  .co-field-mobile-remote-head {
+    display: flex;
+    min-width: 0;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .co-field-mobile-remote-head h2 {
+    margin-top: 0.42rem;
+    color: #fff7ed;
+    font-size: 1.45rem;
+    font-weight: 950;
+    line-height: 1.02;
+    letter-spacing: 0;
+  }
+
+  .co-field-mobile-remote-head p {
+    margin-top: 0.3rem;
+    color: rgba(203, 213, 225, 0.9);
+    font-size: 0.82rem;
+    font-weight: 800;
+    line-height: 1.28;
+  }
+
+  .co-field-mobile-remote-job,
+  .co-field-mobile-remote-empty,
+  .co-field-mobile-remote-footer {
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0.75rem;
+    background: rgba(255, 255, 255, 0.08);
+    padding: 0.74rem;
+  }
+
+  .co-field-mobile-remote-job {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.24rem 0.65rem;
+    align-items: center;
+  }
+
+  .co-field-mobile-remote-job span,
+  .co-field-mobile-remote-job strong,
+  .co-field-mobile-remote-empty,
+  .co-field-mobile-remote-footer span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font-size: 0.78rem;
+    font-weight: 850;
+    line-height: 1.25;
+  }
+
+  .co-field-mobile-remote-job span {
+    color: #fdba74;
+  }
+
+  .co-field-mobile-remote-job strong {
+    grid-column: 1;
+    color: rgba(248, 250, 252, 0.94);
+  }
+
+  .co-field-mobile-remote-job button,
+  .co-field-mobile-remote-footer button {
+    grid-row: 1 / span 2;
+    grid-column: 2;
+    min-height: 2.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 0.62rem;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 0 0.78rem;
+    color: #fff7ed;
+    font-size: 0.72rem;
+    font-weight: 950;
+  }
+
+  .co-field-mobile-remote-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.58rem;
+  }
+
+  .co-field-mobile-remote-actions button {
+    display: grid;
+    min-height: 5.55rem;
+    align-content: start;
+    gap: 0.28rem;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 0.75rem;
+    background: rgba(255, 255, 255, 0.94);
+    padding: 0.72rem;
+    color: #07111f;
+    text-align: left;
+    box-shadow: 0 14px 30px -26px rgba(0, 0, 0, 0.6);
+  }
+
+  .co-field-mobile-remote-actions button:first-child {
+    grid-column: 1 / -1;
+    min-height: 4.8rem;
+    background: #fb4e00;
+    color: #ffffff;
+  }
+
+  .co-field-mobile-remote-actions button:disabled {
+    opacity: 0.62;
+  }
+
+  .co-field-mobile-remote-actions svg {
+    height: 1.05rem;
+    width: 1.05rem;
+  }
+
+  .co-field-mobile-remote-actions span {
+    font-size: 0.9rem;
+    font-weight: 950;
+    line-height: 1.1;
+  }
+
+  .co-field-mobile-remote-actions em {
+    color: #64748b;
+    font-size: 0.68rem;
+    font-style: normal;
+    font-weight: 850;
+    line-height: 1.15;
+  }
+
+  .co-field-mobile-remote-actions button:first-child em {
+    color: rgba(255, 255, 255, 0.88);
+  }
+
+  .co-field-mobile-remote-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.7rem;
+  }
+
   .co-field-required-wrap {
-    order: -1;
+    display: none;
+  }
+
+  .co-field-operator-wrap {
+    display: none;
   }
 
   .co-field-mobile-focus-card {
@@ -11578,10 +11738,7 @@ textarea {
   }
 
   .co-field-secondary-tools-drawer {
-    border: 1px solid rgba(203, 213, 225, 0.96);
-    border-radius: 0.85rem;
-    background: #ffffff;
-    overflow: hidden;
+    display: none !important;
   }
 
   .co-field-secondary-tools-drawer > summary {
