@@ -14793,11 +14793,15 @@ function ScheduleSection({ title, description, rows = [], emptyTitle, emptyDescr
 function scheduleUniqueRows(rows = []) {
   const seen = new Set();
   return normalizeObjectArray(rows).filter((row) => {
-    const key = `${row.job?.id || "job"}-${row.dateKey || "unscheduled"}`;
+    const key = scheduleRowKey(row);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
+}
+
+function scheduleRowKey(row = {}) {
+  return `${row.job?.id || "job"}-${row.dateKey || "unscheduled"}`;
 }
 
 function scheduleRowTone(row) {
@@ -14998,7 +15002,7 @@ function SchedulePage({
     ...scheduleState.unassignedRows,
     ...scheduleState.weekRows,
   ]), [scheduleState]);
-  const selectedScheduleRow = allScheduleRows.find((row) => `${row.job?.id || "job"}-${row.dateKey || "unscheduled"}` === selectedScheduleKey)
+  const selectedScheduleRow = allScheduleRows.find((row) => scheduleRowKey(row) === selectedScheduleKey)
     || scheduleState.missingRows[0]
     || scheduleState.todayRows[0]
     || scheduleState.tomorrowRows[0]
@@ -15028,7 +15032,242 @@ function SchedulePage({
   }
 
   function selectScheduleRow(row) {
-    setSelectedScheduleKey(`${row.job?.id || "job"}-${row.dateKey || "unscheduled"}`);
+    setSelectedScheduleKey(scheduleRowKey(row));
+  }
+
+  const canUseScheduleCommandShell = Boolean(permissions?.jobs?.canManageAll);
+  const scheduleShellKpis = [
+    {
+      id: "jobs-today",
+      label: "Jobs Today",
+      value: stats.today,
+      helper: "Scheduled or active",
+      icon: "briefcase",
+      tone: stats.today ? "blue" : "slate",
+      onClick: () => openModule("jobs"),
+    },
+    {
+      id: "tomorrow-prep",
+      label: "Tomorrow Prep",
+      value: stats.tomorrow,
+      helper: "Prep before morning",
+      icon: "clock",
+      tone: stats.tomorrow ? "orange" : "slate",
+      onClick: () => openModule("jobs"),
+    },
+    {
+      id: "crew-date-gaps",
+      label: "Crew / Date Gaps",
+      value: stats.unassigned,
+      helper: "Needs start or crew",
+      icon: "users",
+      tone: stats.unassigned ? "amber" : "green",
+      onClick: () => openModule("jobs"),
+    },
+    {
+      id: "problems",
+      label: "Problems",
+      value: stats.missingActivity,
+      helper: "Missing proof or readiness",
+      icon: "alert",
+      tone: stats.missingActivity ? "amber" : "green",
+      onClick: () => {
+        const targetRow = scheduleState.missingRows[0];
+        if (targetRow) setSelectedScheduleKey(scheduleRowKey(targetRow));
+      },
+    },
+  ];
+  const scheduleShellQueue = useMemo(() => {
+    const items = [];
+    const seenKeys = new Set();
+
+    function addRow(row, kind, priority) {
+      if (!row?.job) return;
+      const key = scheduleRowKey(row);
+      if (seenKeys.has(key)) return;
+      seenKeys.add(key);
+      const job = row.job;
+      const missingLabel = row.missing.length ? row.missing.slice(0, 3).join(" / ") : "Ready";
+      const crewLabel = row.crewLabels.length ? row.crewLabels.slice(0, 2).join(", ") : "Crew missing";
+      const eyebrow = kind === "problem"
+        ? "Problem"
+        : kind === "today"
+          ? "Today"
+          : kind === "tomorrow"
+            ? "Tomorrow prep"
+            : kind === "gap"
+              ? "Crew / date gap"
+              : "Week lookahead";
+
+      items.push({
+        id: key,
+        kind,
+        row,
+        job,
+        priority,
+        eyebrow,
+        title: jobTitle(job),
+        meta: [job.customer, job.address || job.city, scheduleDateLabel(row.dateKey)].filter(Boolean).join(" / ") || "Schedule pending",
+        statusLabel: missingLabel,
+        tone: scheduleRowTone(row),
+        actionLabel: "Review plan",
+        badges: [
+          { label: formatJobScheduleDetail(job), tone: "slate" },
+          { label: crewLabel, tone: row.crewLabels.length ? "green" : "amber" },
+          { label: `${row.proofState.photoCount} photos / ${row.proofState.ticketCount} tickets`, tone: row.proofState.gapCount ? "amber" : "green" },
+        ],
+      });
+    }
+
+    scheduleState.missingRows.forEach((row, index) => addRow(row, "problem", 10 + index));
+    scheduleState.todayRows.forEach((row, index) => addRow(row, "today", 30 + index));
+    scheduleState.tomorrowRows.forEach((row, index) => addRow(row, "tomorrow", 50 + index));
+    scheduleState.unassignedRows.forEach((row, index) => addRow(row, "gap", 70 + index));
+    scheduleState.weekRows.forEach((row, index) => addRow(row, "week", 90 + index));
+
+    return items.sort((left, right) => left.priority - right.priority).slice(0, 7);
+  }, [scheduleState]);
+  const scheduleShellFallbackItem = scheduleShellQueue.find((item) => item.id === selectedScheduleKey) || scheduleShellQueue[0] || null;
+  const selectedScheduleShellItem = scheduleShellQueue.find((item) => item.id === selectedScheduleKey) || scheduleShellFallbackItem;
+  const selectedScheduleShellId = selectedScheduleShellItem?.id || "";
+  const scheduleShellAssistantDescription = stats.missingActivity
+    ? `${stats.missingActivity} schedule item${stats.missingActivity === 1 ? "" : "s"} need crew, proof, report, or readiness review.`
+    : stats.today
+      ? `${stats.today} job${stats.today === 1 ? "" : "s"} ready for today's dispatch pass.`
+      : "Today and tomorrow are clear in the current operating plan.";
+
+  useEffect(() => {
+    if (!canUseScheduleCommandShell) return;
+    const fallbackId = scheduleShellFallbackItem?.id || "";
+    if (!selectedScheduleKey && fallbackId) {
+      setSelectedScheduleKey(fallbackId);
+      return;
+    }
+    if (selectedScheduleKey && !scheduleShellQueue.some((item) => item.id === selectedScheduleKey)) {
+      setSelectedScheduleKey(fallbackId);
+    }
+  }, [canUseScheduleCommandShell, scheduleShellFallbackItem?.id, scheduleShellQueue, selectedScheduleKey]);
+
+  function selectScheduleShellItem(item) {
+    if (!item) return;
+    setSelectedScheduleKey(item.id);
+  }
+
+  function openFirstScheduleShellItem(rows = [], fallbackModule = "jobs") {
+    const targetRow = normalizeObjectArray(rows)[0];
+    if (targetRow) {
+      setSelectedScheduleKey(scheduleRowKey(targetRow));
+      return;
+    }
+    openModule(fallbackModule);
+  }
+
+  function renderScheduleShellDetail(item) {
+    const row = item?.row || selectedScheduleRow;
+    const job = row?.job || null;
+    if (!row || !job) return null;
+
+    const missingLabel = row.missing.length ? row.missing.slice(0, 4).join(" / ") : "Ready";
+    const reportLabel = row.report ? reportStatusLabel(row.report.status) : row.dateKey && row.dateKey <= todayDateInputValue() ? "Missing" : "Not due";
+    const proofLabel = `${row.proofState.photoCount} photos / ${row.proofState.ticketCount} tickets`;
+    const checklistLabel = row.workflowCounts.total ? `${row.workflowCounts.total} open` : "Clear";
+    const crewLabel = row.crewLabels.length ? row.crewLabels.join(", ") : "Pending crew";
+    const mapUrl = directionsUrl(job.address || "");
+    const detailActions = [
+      { id: "job", label: "Open Job", onClick: () => openJob(row) },
+      permissions?.reports?.canView ? { id: "report", label: row.report ? "Open Report" : "Reports", variant: "secondary", onClick: () => openReport(row) } : null,
+      permissions?.uploads?.canView ? { id: "proof", label: "Open Proof", variant: "secondary", onClick: () => openModule("uploads") } : null,
+    ].filter(Boolean).slice(0, 3);
+
+    return (
+      <div className="co-schedule-shell-detail-scroll">
+        <div className="co-apex-selected-record">
+          <Badge tone={row.missing.length ? (row.tone === "red" ? "red" : "amber") : "green"}>{missingLabel}</Badge>
+          <h2>{jobTitle(job)}</h2>
+          <p>{[job.customer, job.address || job.city].filter(Boolean).join(" / ") || "Customer or location pending"}</p>
+        </div>
+        <div className="co-apex-selected-facts co-schedule-shell-selected-facts">
+          <span><em>Date</em><strong>{row.dateKey ? scheduleDateLabel(row.dateKey) : "Unscheduled"}</strong></span>
+          <span><em>Time</em><strong>{formatJobScheduleDetail(job)}</strong></span>
+          <span><em>Foreman</em><strong>{row.foreman}</strong></span>
+          <span><em>Crew</em><strong>{crewLabel}</strong></span>
+          <span><em>Report</em><strong>{reportLabel}</strong></span>
+          <span><em>Proof</em><strong>{proofLabel}</strong></span>
+          <span><em>Checklist</em><strong>{checklistLabel}</strong></span>
+          <span><em>Startup</em><strong>{row.startupWarnings.length ? `${row.startupWarnings.length} warning${row.startupWarnings.length === 1 ? "" : "s"}` : "Clear"}</strong></span>
+          <span><em>Status</em><strong>{jobStatusLabel(job.status || job.stage)}</strong></span>
+        </div>
+        <div className="co-apex-selected-next">
+          <span>Next safe action</span>
+          <strong>{row.missing.length ? "Clear blockers in the full module" : "Review the job plan"}</strong>
+          <p>Use the full job, report, or proof routes for updates. The schedule shell does not create reports, submit proof, change crew, or send external messages automatically.</p>
+        </div>
+        {mapUrl ? (
+          <div className="co-schedule-shell-map-note">
+            <span>Map available</span>
+            <a href={mapUrl} target="_blank" rel="noreferrer">Open jobsite map</a>
+          </div>
+        ) : null}
+        <div className="co-apex-selected-actions">
+          {detailActions.map((action, index) => (
+            <Button key={action.id} type="button" variant={action.variant || (index === 0 ? "primary" : "secondary")} onClick={action.onClick}>{action.label}</Button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (canUseScheduleCommandShell) {
+    return (
+      <div className="co-office-page co-schedule-page co-schedule-shell-page">
+        <ApexOfficeCommandShell
+          eyebrow="Operations"
+          title="Schedule"
+          description="Dispatch today, prep tomorrow, and clear crew, proof, report, and readiness gaps without drawers."
+          kpis={scheduleShellKpis}
+          queue={{
+            title: "Schedule priority queue",
+            description: `${scheduleShellQueue.length} priority item${scheduleShellQueue.length === 1 ? "" : "s"} shown from today, tomorrow, gaps, problems, and week lookahead.`,
+            items: scheduleShellQueue,
+            selectedId: selectedScheduleShellId,
+            onSelect: selectScheduleShellItem,
+            emptyState: <StateCard title="Schedule queue clear" description="Today's jobs, tomorrow prep, crew gaps, and schedule problems appear here when they need action." tone="green" />,
+          }}
+          detail={{
+            title: "Selected schedule item",
+            item: selectedScheduleShellItem,
+            render: renderScheduleShellDetail,
+            emptyState: <StateCard title="No schedule item selected" description="Select a job from the schedule priority queue to review dispatch details." tone="slate" />,
+          }}
+          assistant={{
+            title: "Schedule",
+            description: scheduleShellAssistantDescription,
+            priorities: [
+              { value: stats.today, label: "Jobs today", tone: stats.today ? "blue" : "slate" },
+              { value: stats.tomorrow, label: "Tomorrow prep", tone: stats.tomorrow ? "orange" : "slate" },
+              { value: stats.unassigned, label: "Crew/date gaps", tone: stats.unassigned ? "amber" : "green" },
+              { value: stats.missingActivity, label: "Problems", tone: stats.missingActivity ? "amber" : "green" },
+            ],
+            actions: [
+              { label: "Open Jobs", icon: "briefcase", onClick: () => openModule("jobs") },
+              { label: "Review Reports", icon: "document", onClick: () => openModule("reports"), disabled: !permissions?.reports?.canView },
+              { label: "Open Proof", icon: "upload", onClick: () => openModule("uploads"), disabled: !permissions?.uploads?.canView },
+            ],
+            guardrails: [
+              "Manual schedule review only",
+              "No automatic external sends",
+              "Role and company scope unchanged",
+            ],
+          }}
+          quickActions={[
+            { id: "open-jobs", label: "Open Jobs", icon: "briefcase", onClick: () => openModule("jobs") },
+            { id: "tomorrow-prep", label: "Tomorrow Prep", icon: "clock", onClick: () => openFirstScheduleShellItem(scheduleState.tomorrowRows, "jobs") },
+            { id: "problems", label: "Problems", icon: "alert", onClick: () => openFirstScheduleShellItem(scheduleState.missingRows, "jobs") },
+          ]}
+          className="co-schedule-command-shell"
+        />
+      </div>
+    );
   }
 
   return (

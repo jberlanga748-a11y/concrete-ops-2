@@ -39508,6 +39508,188 @@ button.co-apex-command-kpi:hover:not(:disabled) {
   }
 }
 
+@media (min-width: 1024px) {
+  .co-schedule-shell-page {
+    height: calc(100vh - 4.5rem) !important;
+    min-height: 41rem;
+    overflow: hidden;
+    padding-bottom: 0 !important;
+  }
+
+  .co-schedule-shell-page .co-apex-office-command-shell {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .co-schedule-shell-page .co-apex-office-command-frame {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+  }
+
+  .co-schedule-shell-page .co-command-page-frame-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 21rem);
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  .co-schedule-shell-page .co-command-page-frame-main,
+  .co-schedule-shell-page .co-command-page-frame-rail {
+    min-height: 0;
+  }
+
+  .co-schedule-shell-page .co-apex-office-command-workspace {
+    height: 100%;
+    min-height: 0;
+    grid-template-columns: minmax(19rem, 0.82fr) minmax(0, 1.18fr);
+  }
+
+  .co-schedule-shell-page .co-apex-primary-queue-panel,
+  .co-schedule-shell-page .co-apex-selected-detail-panel,
+  .co-schedule-shell-page .co-apex-assistant-action-panel {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .co-schedule-shell-page .co-apex-primary-queue-panel {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .co-schedule-shell-page .co-apex-assistant-action-panel {
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .co-schedule-shell-page .co-assistant-rail {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  }
+
+  .co-schedule-shell-page .co-apex-primary-queue-list {
+    align-content: start;
+    grid-auto-rows: max-content;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  }
+
+  .co-schedule-shell-page .co-apex-primary-queue-list .co-work-queue-card {
+    padding: 0.5rem;
+  }
+
+  .co-schedule-shell-page .co-work-queue-card h3 {
+    font-size: 0.78rem;
+  }
+
+  .co-schedule-shell-page .co-work-queue-meta,
+  .co-schedule-shell-page .co-work-queue-status,
+  .co-schedule-shell-page .co-work-queue-action {
+    font-size: 0.66rem;
+  }
+
+  .co-schedule-shell-page .co-apex-selected-detail-body {
+    min-height: 0;
+    align-content: start;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  }
+
+  .co-schedule-shell-detail-scroll {
+    display: grid;
+    min-height: 0;
+    max-height: none;
+    gap: 0.54rem;
+    overflow: visible;
+  }
+
+  .co-schedule-shell-selected-facts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .co-schedule-shell-map-note {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.72rem;
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    border-radius: 0.58rem;
+    background: #f8fafc;
+    padding: 0.66rem;
+  }
+
+  .co-schedule-shell-map-note span,
+  .co-schedule-shell-map-note a {
+    font-size: 0.72rem;
+    font-weight: 950;
+    line-height: 1.2;
+  }
+
+  .co-schedule-shell-map-note span {
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+  }
+
+  .co-schedule-shell-map-note a {
+    color: var(--color-brand-orange-dark);
+  }
+
+  .co-schedule-shell-page .co-assistant-rail-head {
+    padding: 0.58rem 0.76rem 0.42rem;
+  }
+
+  .co-schedule-shell-page .co-assistant-rail-head h2 {
+    font-size: 0.88rem;
+  }
+
+  .co-schedule-shell-page .co-assistant-rail-head p {
+    font-size: 0.7rem;
+    line-height: 1.28;
+  }
+
+  .co-schedule-shell-page .co-assistant-rail-priorities,
+  .co-schedule-shell-page .co-assistant-rail-actions {
+    gap: 0.3rem;
+    padding: 0 0.54rem 0.54rem;
+  }
+
+  .co-schedule-shell-page .co-assistant-rail-priority {
+    padding: 0.34rem 0.48rem;
+  }
+
+  .co-schedule-shell-page .co-assistant-rail-actions button {
+    min-height: 1.9rem;
+    padding: 0.36rem 0.5rem;
+  }
+
+  .co-schedule-shell-page .co-apex-assistant-guardrails {
+    padding: 0.52rem;
+    padding-right: 4.3rem;
+  }
+
+  .co-schedule-shell-page .co-schedule-support-drawer {
+    display: none !important;
+  }
+}
+
+@media (max-width: 1023px) {
+  .co-schedule-shell-page {
+    overflow: visible;
+  }
+
+  .co-schedule-shell-detail-scroll {
+    max-height: none;
+    overflow: visible;
+  }
+}
+
 .co-schedule-northstar-frame {
   padding-bottom: 0.85rem;
 }
