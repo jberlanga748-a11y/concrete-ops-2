@@ -514,18 +514,18 @@ Exit criteria:
 
 - Public launch is GO only when all gates are green.
 
-Current percent: 100% for public launch readiness gates and fail-closed launch control. Guided pilot was explicitly waived, legal/privacy/terms review was recorded, and explicit public launch approval was recorded. Actual public launch remains locked until production auth smoke passes on the real target and the backup-first release checklist is separately executed.
+Current percent: 100% for public launch readiness gates and fail-closed launch control. Guided pilot was explicitly waived, legal/privacy/terms review was recorded, explicit public launch approval was recorded, and production auth smoke passed on the real target. Production deploy still must use the backup-first release checklist.
 
 Phase 10 status tracker:
 
 - Public launch readiness gate: complete. `launch:public-readiness` separates launch-readiness-system GO from public-launch GO.
 - Controlled pilot/support readiness: represented as required launch gates.
 - Legal/privacy/terms/public claims: represented as human approval gates; approval recorded for the current launch decision.
-- Production auth and release safety: represented as production-only approval/smoke gates; blocked by missing production smoke secret/result.
+- Production auth and release safety: represented as production-only approval/smoke gates; production auth smoke passed after backup-first smoke-user repair.
 - Self-serve signup smoke: represented as a required launch gate.
 - Billing/payment boundary: complete for manual launch; payment collection remains locked.
 - Role, entitlement, field-user, and cross-company isolation: represented as required launch gates.
-- Public launch: locked. No production deploy, public signup enablement, secret change, customer creation, billing activation, or production auth smoke result is performed by this phase.
+- Public launch readiness: GO. No production deploy, public signup enablement, customer creation, or billing activation is performed by this phase.
 
 Phase 10 decision: complete for public launch readiness gates and launch control. See `docs/APEX_HQ_PHASE_10_PUBLIC_LAUNCH_100_STATUS.md`.
 

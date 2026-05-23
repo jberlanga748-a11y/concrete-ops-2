@@ -2,7 +2,7 @@
 
 Date: 2026-05-23
 Status: complete for public launch readiness gates and fail-closed launch control
-Public launch status: locked until production auth smoke passes on the real target
+Public launch status: readiness GO; production deploy must still use the backup-first release checklist
 
 ## Scope
 
@@ -56,13 +56,13 @@ Commands/checks run:
 
 - Launch readiness system: GO with local/read-only evidence
 - Launch readiness script result: `launchReadinessSystemReady=true`
-- Public launch script result: `publicLaunchReady=false`
+- Public launch script result: `publicLaunchReady=true`
 - Guided pilot: WAIVED with `GUIDED_PILOT_WAIVED_FOR_LAUNCH`
 - Legal/privacy/terms review: recorded with `LEGAL_PRIVACY_TERMS_REVIEW_RECORDED`
 - Explicit public launch approval: recorded with `PUBLIC_LAUNCH_SEPARATELY_APPROVED`
-- Public launch: NO-GO
-- Production auth smoke: NO-GO until `APEX_PRODUCTION_SMOKE_PASSWORD` is configured, the production auth smoke runs, and the smoke passes on the real production target
-- Production deploy: NO-GO unless separately approved through the backup-first release checklist
+- Production auth smoke: PASS on the real target
+- Public launch readiness: GO
+- Production deploy: backup-first release checklist required
 - Public signup enablement: NO-GO unless separately approved
 - Billing/payment collection: NO-GO unless separately approved
 
@@ -78,14 +78,12 @@ It does not mean Apex HQ is publicly launched.
 
 These are approval/execution gates, not Phase 10 build blockers:
 
-1. Configure `APEX_PRODUCTION_SMOKE_PASSWORD` in GitHub Actions repository secrets without printing it.
-2. Run approved production auth smoke on the real production target.
-3. Capture a fresh backup and rollback release immediately before production action.
-4. Approve public signup enablement on the intended production target.
-5. Execute production launch only through the backup-first release checklist.
+1. Capture a fresh backup and rollback release immediately before production action.
+2. Execute production launch only through the backup-first release checklist.
+3. Approve public signup enablement separately if broad self-serve signup should be opened.
 
 ## Decision
 
 Phase 10 is 100% for public launch readiness gates and launch control.
 
-Guided pilot was explicitly waived and legal/public launch approvals were recorded. Public launch remains locked until production auth smoke passes on the real target and the backup-first release checklist is separately executed.
+Guided pilot was explicitly waived, legal/public launch approvals were recorded, and production auth smoke passed on the real target. Production deploy still must be executed only through the backup-first release checklist.
