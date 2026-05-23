@@ -29584,7 +29584,7 @@ function EstimatesPagePolished({
     { id: "roughNotes", label: "Rough Notes", title: "Rough Notes Mode", manages: "future review-first AI rough notes drafting without automatic pricing, approval, or customer output." },
     { id: "takeoff", label: "Takeoff", title: "Takeoff Mode", manages: "fence takeoff, estimate-grade quantities, local draft quantity review, and office backup context." },
     { id: "visualPreview", label: "Visual Preview", title: "Visual Preview Mode", manages: "review-first customer concept prompt readiness without generation, sends, or estimate mutation." },
-    { id: "sendReview", label: "Send Review", title: "Send Review Mode", manages: "future manual send confirmation, email readiness, customer packet review, and sent snapshot checks." },
+    { id: "sendReview", label: "Send Review", title: "Send Review Mode", manages: "explicit human-confirmed customer proposal send review, manual copy fallback, customer-facing print readiness, and sent status." },
     { id: "handoff", label: "Handoff", title: "Handoff Mode", manages: "future approved estimate-to-job handoff checks before any job conversion." },
   ];
   const estimateShellModeIds = new Set(estimateShellModes.map((mode) => mode.id));
@@ -29647,7 +29647,7 @@ function EstimatesPagePolished({
           ? `Resolve ${readiness.missing.slice(0, 3).join(", ")} before sending or converting.`
           : "Keep reviewing proposal context before any external action.";
     const activeShellMode = estimateShellModes.find((mode) => mode.id === estimateShellMode) || estimateShellModes[0];
-    const isFocusedShellEditMode = ["pricing", "proposal", "backup", "packet", "roughNotes", "takeoff", "visualPreview"].includes(activeShellMode.id);
+    const isFocusedShellEditMode = ["pricing", "proposal", "backup", "packet", "roughNotes", "takeoff", "visualPreview", "sendReview"].includes(activeShellMode.id);
     const visibleEstimateShellModes = isFocusedShellEditMode
       ? estimateShellModes.filter((mode) => mode.id === "overview" || mode.id === activeShellMode.id)
       : estimateShellModes;
@@ -29676,6 +29676,19 @@ function EstimatesPagePolished({
     const packetPrintReady = readiness.hasCustomer && readiness.hasScope && readiness.hasPricing && packetCustomerSections.length > 0;
     const shellFenceTakeoffReadiness = deriveFenceTakeoffReadiness(detailEstimateBackup.fenceTakeoff);
     const takeoffSaveDisabled = busy || !canManage || !selectedEstimate?.id;
+    const customerSafePacketSettings = {
+      ...packetPrintSettings,
+      allowInternalSections: false,
+      sectionIds: packetCustomerSections.map((section) => section.id),
+    };
+    const sendReviewReadyCount = [
+      Boolean(detailEstimateCustomerEmail),
+      readiness.hasCustomer,
+      readiness.hasScope,
+      readiness.hasPricing,
+      Boolean(detailProposalSections.customerNotes),
+    ].filter(Boolean).length;
+    const sendReviewCanSend = Boolean(emailSendingConfigured && canManage && detailEstimatePreview && detailEstimateCustomerEmail);
 
     async function handleSaveEstimateShellPricing() {
       if (!selectedEstimate?.id || !canManage || typeof onSaveEstimate !== "function") return false;
@@ -30240,6 +30253,82 @@ function EstimatesPagePolished({
       );
     }
 
+    function renderEstimateShellSendReviewMode() {
+      return (
+        <div className="co-estimates-shell-workflow-panel co-estimates-shell-send-review-panel" role="region" aria-label="Estimate send review">
+          <div className="co-estimates-shell-workflow-head">
+            <div>
+              <Badge tone={emailSendingConfigured ? "blue" : "amber"}>{emailSendingConfigured ? "Email configured" : "Manual copy mode"}</Badge>
+              <h3>Send Review</h3>
+              <p>Review the customer-facing recipient, packet, message, and totals before any customer output. Email sending still requires the existing confirmation and server review gate.</p>
+            </div>
+            <StatusBadge status={estimateStatusLabel(status)} />
+          </div>
+          <div className="co-estimates-shell-workflow-context">
+            <span><em>Recipient</em><strong>{detailEstimateCustomerEmail || "Missing email"}</strong></span>
+            <span><em>Send Mode</em><strong>{emailSendingConfigured ? "Configured email" : "Manual copy only"}</strong></span>
+            <span><em>Sent Status</em><strong>{detailEstimatePreview?.sentAt ? `Sent ${formatDateTime(detailEstimatePreview.sentAt)}` : "Not sent"}</strong></span>
+          </div>
+          <div className="co-estimates-shell-send-grid">
+            <div className="co-estimates-shell-send-main">
+              <div className="co-estimates-shell-send-card">
+                <span>Customer-facing packet</span>
+                <strong>{packetCustomerSections.length} customer section{packetCustomerSections.length === 1 ? "" : "s"}</strong>
+                <p>Internal notes, SOV backup, private takeoff backup, sent history, provider IDs, and private file links are excluded from this send review surface.</p>
+              </div>
+              <div className="co-estimates-shell-send-card">
+                <span>Scope and terms readiness</span>
+                <strong>{readiness.hasScope ? "Scope ready" : "Scope missing"} / {detailProposalSections.customerNotes ? "Terms ready" : "Terms missing"}</strong>
+                <p>Only customer-facing scope summary and customer notes are reviewed here. Pricing, proposal, backup, packet, rough notes, and takeoff saves stay in their own modes.</p>
+              </div>
+              <div className="co-estimates-shell-send-message">
+                <span>Customer message preview</span>
+                <p>{buildEstimateCustomerMessage({ companyName, companyProfile, estimate: detailEstimatePreview }) || "Select an estimate to preview the customer message."}</p>
+              </div>
+            </div>
+            <aside className="co-estimates-shell-send-side">
+              <div>
+                <span>Readiness</span>
+                <strong>{sendReviewReadyCount} / 5</strong>
+                <p>{sendReviewCanSend ? "Ready for explicit human confirmation." : emailSendingConfigured ? "Needs recipient/readiness before configured send." : "Manual copy mode: no send endpoint call."}</p>
+              </div>
+              <div>
+                <span>Pricing summary</span>
+                <strong>{formatEstimateCurrency(detailOptionTotals.totalWithSelectedOptions)}</strong>
+                <p>Base {formatEstimateCurrency(detailTotals.grandTotal)} plus selected options {formatEstimateCurrency(detailOptionTotals.selectedOptionsTotal)}.</p>
+              </div>
+              <div>
+                <span>Privacy boundary</span>
+                <strong>Customer-facing only</strong>
+                <p>No internal notes, backup rows, private file links, convert controls, handoff execution, or AI actions appear in this mode.</p>
+              </div>
+            </aside>
+          </div>
+          <div className="co-estimates-shell-workflow-actions">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => copyEstimateText(
+                () => buildEstimateCustomerMessage({ companyName, companyProfile, estimate: detailEstimatePreview }),
+                "Customer message copied for manual review.",
+              )}
+              disabled={!detailEstimatePreview}
+            >
+              Copy customer message
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => onPrintEstimate?.(detailEstimatePreview, customerSafePacketSettings)} disabled={!detailEstimatePreview}>
+              Print customer proposal
+            </Button>
+            {emailSendingConfigured ? (
+              <Button type="button" onClick={handleSendEstimate} disabled={!sendReviewCanSend || busy}>
+                Send estimate
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      );
+    }
+
     function renderEstimateShellModePlaceholder() {
       if (activeShellMode.id === "overview") return null;
       if (activeShellMode.id === "pricing") return renderEstimateShellPricingMode();
@@ -30249,6 +30338,7 @@ function EstimatesPagePolished({
       if (activeShellMode.id === "roughNotes") return renderEstimateShellRoughNotesMode();
       if (activeShellMode.id === "takeoff") return renderEstimateShellTakeoffMode();
       if (activeShellMode.id === "visualPreview") return renderEstimateShellVisualPreviewMode();
+      if (activeShellMode.id === "sendReview") return renderEstimateShellSendReviewMode();
       return (
         <div className="co-estimates-shell-mode-placeholder" role="region" aria-label={`${activeShellMode.title} placeholder`}>
           <Badge tone="slate">Full tool migration pending</Badge>
@@ -30389,6 +30479,13 @@ function EstimatesPagePolished({
                   { value: canRequestEstimateVisualPreview(visualPreviewPacket) ? 1 : 0, label: "ready", tone: canRequestEstimateVisualPreview(visualPreviewPacket) ? "green" : "slate" },
                   { value: 0, label: "writes", tone: "green" },
                 ]
+                : estimateShellMode === "sendReview"
+                  ? [
+                    { value: detailEstimateCustomerEmail ? 1 : 0, label: detailEstimateCustomerEmail ? "recipient" : "no recipient", tone: detailEstimateCustomerEmail ? "green" : "orange" },
+                    { value: emailSendingConfigured ? 1 : 0, label: emailSendingConfigured ? "email ready" : "manual copy", tone: emailSendingConfigured ? "blue" : "amber" },
+                    { value: formatEstimateCurrency(detailOptionTotals.totalWithSelectedOptions), label: "review total", tone: detailOptionTotals.totalWithSelectedOptions ? "green" : "slate" },
+                    { value: 0, label: "auto sends", tone: "green" },
+                  ]
     : [
       { value: draftToPriceRows.length, label: "drafts to price", tone: draftToPriceRows.length ? "orange" : "green" },
       { value: readyToSendRows.length, label: "ready to send", tone: readyToSendRows.length ? "blue" : "slate" },
@@ -30432,6 +30529,12 @@ function EstimatesPagePolished({
                   { label: "Takeoff", icon: "layers", onClick: () => setEstimateShellMode("takeoff"), disabled: !selectedEstimate },
                   { label: "Overview", icon: "briefcase", onClick: () => setEstimateShellMode("overview") },
                 ]
+                : estimateShellMode === "sendReview"
+                  ? [
+                    { label: "Copy Message", icon: "quote", onClick: () => copyEstimateText(() => buildEstimateCustomerMessage({ companyName, companyProfile, estimate: detailEstimatePreview }), "Customer message copied for manual review."), disabled: !selectedEstimate },
+                    { label: "Print Proposal", icon: "document", onClick: () => onPrintEstimate?.(detailEstimatePreview, { ...packetPrintSettings, allowInternalSections: false }), disabled: !selectedEstimate },
+                    { label: emailSendingConfigured ? "Send Review" : "Manual Mode", icon: "arrowUpRight", onClick: emailSendingConfigured ? handleSendEstimate : () => copyEstimateText(() => buildEstimateCustomerMessage({ companyName, companyProfile, estimate: detailEstimatePreview }), "Manual send mode: customer message copied."), disabled: !selectedEstimate || (emailSendingConfigured && (!canManage || !detailEstimateCustomerEmail || busy)) },
+                  ]
     : estimateShellAssistantActions;
   const estimateShellQuickActionsForMode = estimateShellMode === "pricing"
     ? [
@@ -30470,6 +30573,12 @@ function EstimatesPagePolished({
                   { id: "visual-takeoff", label: "Takeoff", icon: "layers", onClick: () => setEstimateShellMode("takeoff"), disabled: !selectedEstimate },
                   { id: "visual-overview", label: "Overview", icon: "briefcase", onClick: () => setEstimateShellMode("overview") },
                 ]
+                : estimateShellMode === "sendReview"
+                  ? [
+                    { id: "send-copy", label: "Copy", icon: "quote", onClick: () => copyEstimateText(() => buildEstimateCustomerMessage({ companyName, companyProfile, estimate: detailEstimatePreview }), "Customer message copied for manual review."), disabled: !selectedEstimate },
+                    { id: "send-print", label: "Print", icon: "document", onClick: () => onPrintEstimate?.(detailEstimatePreview, { ...packetPrintSettings, allowInternalSections: false }), disabled: !selectedEstimate },
+                    { id: "send-action", label: emailSendingConfigured ? "Send" : "Manual", icon: "arrowUpRight", onClick: emailSendingConfigured ? handleSendEstimate : () => copyEstimateText(() => buildEstimateCustomerMessage({ companyName, companyProfile, estimate: detailEstimatePreview }), "Manual send mode: customer message copied."), disabled: !selectedEstimate || (emailSendingConfigured && (!canManage || !detailEstimateCustomerEmail || busy)) },
+                  ]
     : estimateShellQuickActions;
   const estimateShellGuardrailsForMode = estimateShellMode === "pricing"
     ? [
@@ -30513,6 +30622,12 @@ function EstimatesPagePolished({
                   "No image generation or estimate writes",
                   "Private URLs stay out of prompts",
                 ]
+                : estimateShellMode === "sendReview"
+                  ? [
+                    "Explicit human confirmation required for configured sends",
+                    "Manual mode copies only and never calls send endpoint",
+                    "No convert or handoff controls",
+                  ]
     : [
       "Overview/readiness only",
       "No automatic sends or job conversion",

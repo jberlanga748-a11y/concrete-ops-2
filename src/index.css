@@ -40893,6 +40893,74 @@ button.co-apex-command-kpi:hover:not(:disabled) {
     font-weight: 800;
   }
 
+  .co-estimates-shell-send-grid {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr) minmax(12.5rem, 0.38fr);
+    gap: 0.56rem;
+  }
+
+  .co-estimates-shell-send-main,
+  .co-estimates-shell-send-side {
+    display: grid;
+    min-width: 0;
+    align-content: start;
+    gap: 0.5rem;
+  }
+
+  .co-estimates-shell-send-card,
+  .co-estimates-shell-send-message,
+  .co-estimates-shell-send-side > div {
+    min-width: 0;
+    border: 1px solid rgba(226, 232, 240, 0.92);
+    border-radius: 0.68rem;
+    background: #fff;
+    padding: 0.62rem;
+  }
+
+  .co-estimates-shell-send-message {
+    background: #f8fafc;
+  }
+
+  .co-estimates-shell-send-card span,
+  .co-estimates-shell-send-message span,
+  .co-estimates-shell-send-side span {
+    display: block;
+    color: var(--color-text-muted);
+    font-size: 0.62rem;
+    font-weight: 950;
+    letter-spacing: 0.1em;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+
+  .co-estimates-shell-send-card strong,
+  .co-estimates-shell-send-side strong {
+    display: block;
+    min-width: 0;
+    margin-top: 0.28rem;
+    overflow-wrap: anywhere;
+    color: var(--color-text-main);
+    font-size: 0.82rem;
+    font-weight: 950;
+    line-height: 1.18;
+  }
+
+  .co-estimates-shell-send-card p,
+  .co-estimates-shell-send-message p,
+  .co-estimates-shell-send-side p {
+    margin-top: 0.32rem;
+    color: var(--color-text-muted);
+    font-size: 0.68rem;
+    font-weight: 800;
+    line-height: 1.34;
+    overflow-wrap: anywhere;
+  }
+
+  .co-estimates-shell-send-message p {
+    white-space: pre-wrap;
+  }
+
   .co-estimates-shell-selected-facts {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
