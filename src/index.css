@@ -38475,6 +38475,11 @@ button.co-apex-command-kpi:hover:not(:disabled) {
   overflow: hidden;
 }
 
+.co-apex-selected-detail-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
 .co-apex-panel-head {
   display: flex;
   min-width: 0;
@@ -38827,14 +38832,17 @@ button.co-apex-command-kpi:hover:not(:disabled) {
 
   .co-reports-shell-page .co-apex-selected-detail-body {
     min-height: 0;
-    overflow: hidden;
+    align-content: start;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
   }
 
   .co-reports-shell-detail-scroll {
     min-height: 0;
-    max-height: 100%;
-    overflow-y: auto;
-    padding-right: 0.2rem;
+    max-height: none;
+    overflow: visible;
   }
 
   .co-reports-shell-detail-scroll > .min-w-0,
@@ -39414,14 +39422,17 @@ button.co-apex-command-kpi:hover:not(:disabled) {
 
   .co-uploads-shell-page .co-apex-selected-detail-body {
     min-height: 0;
-    overflow: hidden;
+    align-content: start;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
   }
 
   .co-uploads-shell-detail-scroll {
     min-height: 0;
-    max-height: 100%;
-    overflow-y: auto;
-    padding-right: 0.2rem;
+    max-height: none;
+    overflow: visible;
   }
 
   .co-uploads-shell-detail-scroll > .hidden.p-5.md\:block,
