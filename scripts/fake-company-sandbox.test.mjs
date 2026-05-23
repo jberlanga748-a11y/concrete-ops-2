@@ -8,6 +8,7 @@ import test from "node:test";
 
 import {
   assertSafeSandboxTarget,
+  buildDemoWorkspaceSandboxPlan,
   buildSandboxPlan,
   createFakeCompanySandbox,
   defaultSandboxProfile,
@@ -35,7 +36,7 @@ async function waitForServer(baseUrl, serverOutput) {
   throw new Error(`Fake company sandbox test server did not become ready.\n${serverOutput()}`);
 }
 
-async function startServer({ publicSignupEnabled = true } = {}) {
+async function startServer({ publicSignupEnabled = true, demoMode = false, seedDemoData = false } = {}) {
   const tempDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "apex-hq-fake-company-"));
   const port = createPort();
   const baseUrl = `http://127.0.0.1:${port}`;
@@ -48,8 +49,8 @@ async function startServer({ publicSignupEnabled = true } = {}) {
       DATA_DIR: tempDataDir,
       LOG_LEVEL: "warn",
       PUBLIC_SIGNUP_ENABLED: publicSignupEnabled ? "true" : "false",
-      DEMO_MODE: "false",
-      SEED_DEMO_DATA: "false",
+      DEMO_MODE: demoMode ? "true" : "false",
+      SEED_DEMO_DATA: seedDemoData ? "true" : "false",
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -110,6 +111,16 @@ test("fake company sandbox plan documents the review-safe walkthrough", () => {
   assert.ok(plan.routes.field.includes("/jobs"));
 });
 
+test("demo workspace sandbox plan avoids public signup and separate workspace promises", () => {
+  const profile = defaultSandboxProfile({ suffix: "demo-plan" });
+  const plan = buildDemoWorkspaceSandboxPlan(profile);
+
+  assert.equal(plan.mode, "demo-workspace");
+  assert.equal(plan.company.owner, "demo.admin@apexhq.app");
+  assert.match(plan.company.note, /does not open public signup/i);
+  assert.ok(plan.workflow.includes("Apply company branding and managed setup notes"));
+});
+
 test("fake company sandbox creates an isolated local walkthrough dataset through public APIs", async () => {
   const fixture = await startServer();
   try {
@@ -151,6 +162,39 @@ test("fake company sandbox creates an isolated local walkthrough dataset through
     assert.ok(result.safetyChecks.closeoutBlockedActions.some((action) => /No invoice is created/.test(action)));
     assert.ok(result.warnings.some((warning) => /No emails/.test(warning)));
     assert.ok(result.warnings.some((warning) => /Ready-to-bill means manual review context only/.test(warning)));
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("fake company sandbox can seed the existing demo workspace without public signup", async () => {
+  const fixture = await startServer({ publicSignupEnabled: false, demoMode: true, seedDemoData: true });
+  try {
+    const profile = defaultSandboxProfile({
+      suffix: "demo-workspace-e2e",
+      foremanEmail: "foreman+demo-workspace-e2e@apexhq.test",
+      fieldEmail: "field+demo-workspace-e2e@apexhq.test",
+    });
+
+    const result = await createFakeCompanySandbox({
+      baseUrl: fixture.baseUrl,
+      profile,
+      demoWorkspace: true,
+    });
+
+    assert.equal(result.mode, "demo-workspace");
+    assert.equal(result.company.name, "Friendly Fence Sandbox demo-workspace-e2e");
+    assert.equal(result.credentials.owner.email, "demo.admin@apexhq.app");
+    assert.ok(result.created.customerId);
+    assert.ok(result.created.leadId);
+    assert.ok(result.created.estimateId);
+    assert.ok(result.created.jobId);
+    assert.ok(result.created.uploadId);
+    assert.ok(result.created.timeEntryId);
+    assert.equal(result.safetyChecks.fieldEstimateAccessSafe, true);
+    assert.equal(result.safetyChecks.reportReviewed, true);
+    assert.equal(result.safetyChecks.closeoutReadyForBillingReview, true);
+    assert.ok(result.warnings.some((warning) => /does not open public signup/i.test(warning)));
   } finally {
     await fixture.stop();
   }

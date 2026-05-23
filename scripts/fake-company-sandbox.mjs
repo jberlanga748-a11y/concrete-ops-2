@@ -78,6 +78,19 @@ export function buildSandboxPlan(profile = defaultSandboxProfile()) {
   };
 }
 
+export function buildDemoWorkspaceSandboxPlan(profile = defaultSandboxProfile()) {
+  return {
+    ...buildSandboxPlan(profile),
+    company: {
+      name: profile.companyName,
+      owner: "demo.admin@apexhq.app",
+      package: "demo-current",
+      note: "Demo workspace mode uses the existing seeded demo admin. It does not open public signup or create a separate production workspace.",
+    },
+    mode: "demo-workspace",
+  };
+}
+
 export function assertSafeSandboxTarget({ baseUrl, allowFlyDemo = false, allowProduction = false } = {}) {
   const url = new URL(baseUrl || "http://127.0.0.1:4000");
   const hostname = url.hostname.toLowerCase();
@@ -103,6 +116,7 @@ function parseArgs(argv) {
     if (arg === "--help" || arg === "-h") options.help = true;
     else if (arg === "--json") options.json = true;
     else if (arg === "--dry-run") options.dryRun = true;
+    else if (arg === "--demo-workspace") options.demoWorkspace = true;
     else if (arg === "--allow-fly-demo") options.allowFlyDemo = true;
     else if (arg.startsWith("--base-url=")) options.baseUrl = arg.slice("--base-url=".length);
     else if (arg.startsWith("--company=")) options.companyName = arg.slice("--company=".length);
@@ -112,6 +126,8 @@ function parseArgs(argv) {
     else if (arg.startsWith("--field-password=")) options.fieldPassword = arg.slice("--field-password=".length);
     else if (arg.startsWith("--foreman-email=")) options.foremanEmail = arg.slice("--foreman-email=".length);
     else if (arg.startsWith("--foreman-password=")) options.foremanPassword = arg.slice("--foreman-password=".length);
+    else if (arg.startsWith("--admin-email=")) options.adminEmail = arg.slice("--admin-email=".length);
+    else if (arg.startsWith("--admin-password=")) options.adminPassword = arg.slice("--admin-password=".length);
     else if (arg.startsWith("--suffix=")) options.suffix = arg.slice("--suffix=".length);
   }
   return options;
@@ -122,12 +138,15 @@ function printHelp() {
 
 Usage:
   npm run sandbox:fake-company -- --base-url=http://127.0.0.1:4000
+  npm run sandbox:fake-company -- --base-url=https://concrete-ops-demo.fly.dev --allow-fly-demo --demo-workspace
   npm run sandbox:fake-company -- --dry-run --json
 
 Safety:
   - Localhost is allowed by default.
   - concrete-ops-demo.fly.dev requires --allow-fly-demo.
   - Production hosts are always refused.
+  - New company mode requires public signup.
+  - Demo workspace mode uses the seeded demo admin and does not open public signup.
 `);
 }
 
@@ -182,20 +201,43 @@ async function signupOrLoginOwner(baseUrl, profile) {
   }
 }
 
+async function loginDemoWorkspaceOwner(baseUrl, { adminEmail = "demo.admin@apexhq.app", adminPassword = "apexdemo123" } = {}) {
+  return requestJson(baseUrl, "/api/auth/login", {
+    method: "POST",
+    headers: jsonHeaders(),
+    body: JSON.stringify({ email: adminEmail, password: adminPassword }),
+  });
+}
+
 async function createOrFindUser(baseUrl, token, { email, password, name, role, phone = "" }) {
+  async function findExistingUser() {
+    const bootstrap = await requestJson(baseUrl, "/api/bootstrap", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const bootstrapUser = (bootstrap.users || []).find((user) => String(user.email).toLowerCase() === email.toLowerCase());
+    if (bootstrapUser) return bootstrapUser;
+    const usersState = await requestJson(baseUrl, "/api/users", {
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => null);
+    return (usersState?.users || []).find((user) => String(user.email).toLowerCase() === email.toLowerCase()) || null;
+  }
+
   try {
     const state = await requestJson(baseUrl, "/api/users", {
       method: "POST",
       headers: jsonHeaders(token),
       body: JSON.stringify({ email, password, name, role, phone, status: "active", provisioningMode: "password" }),
     });
-    return state.users.find((user) => String(user.email).toLowerCase() === email.toLowerCase());
+    const created = (state.users || []).find((user) => String(user.email).toLowerCase() === email.toLowerCase())
+      || (String(state.provisionedUser?.email || "").toLowerCase() === email.toLowerCase()
+        ? { id: state.provisionedUser.id, email, name, role, phone, status: "active" }
+        : null)
+      || await findExistingUser();
+    if (!created) throw new Error(`User ${email} was created but could not be found in the returned workspace state.`);
+    return created;
   } catch (error) {
     if (error.status !== 409) throw error;
-    const state = await requestJson(baseUrl, "/api/bootstrap", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const existing = (state.users || []).find((user) => String(user.email).toLowerCase() === email.toLowerCase());
+    const existing = await findExistingUser();
     if (!existing) throw error;
     return existing;
   }
@@ -224,6 +266,8 @@ export async function createFakeCompanySandbox({
   baseUrl = "http://127.0.0.1:4000",
   profile = defaultSandboxProfile(),
   allowFlyDemo = false,
+  demoWorkspace = false,
+  adminCredentials = {},
   fetchImpl = globalThis.fetch,
 } = {}) {
   if (!fetchImpl) {
@@ -234,11 +278,16 @@ export async function createFakeCompanySandbox({
   try {
     const safeBaseUrl = assertSafeSandboxTarget({ baseUrl, allowFlyDemo });
     const setupStatus = await requestJson(safeBaseUrl, "/api/setup/status");
-    if (!setupStatus.publicSignupEnabled) {
+    if (!demoWorkspace && !setupStatus.publicSignupEnabled) {
       throw new Error("Public signup is disabled. Start a local/demo server with PUBLIC_SIGNUP_ENABLED=true before creating the sandbox.");
     }
+    if (demoWorkspace && !setupStatus.demoMode && !LOCAL_HOSTS.has(new URL(safeBaseUrl).hostname.toLowerCase())) {
+      throw new Error("Demo workspace sandbox mode is only allowed on localhost or a demo-mode Fly app.");
+    }
 
-    const ownerSession = await signupOrLoginOwner(safeBaseUrl, profile);
+    const ownerSession = demoWorkspace
+      ? await loginDemoWorkspaceOwner(safeBaseUrl, adminCredentials)
+      : await signupOrLoginOwner(safeBaseUrl, profile);
     const ownerToken = ownerSession.token;
     const currentCompanyId = ownerSession.currentCompanyId;
     const setupState = await requestJson(safeBaseUrl, "/api/settings/company", {
@@ -525,6 +574,7 @@ export async function createFakeCompanySandbox({
 
     return {
       baseUrl: safeBaseUrl,
+      mode: demoWorkspace ? "demo-workspace" : "new-company",
       company: {
         id: currentCompanyId,
         name: profile.companyName,
@@ -539,7 +589,9 @@ export async function createFakeCompanySandbox({
         },
       },
       credentials: {
-        owner: { email: profile.ownerEmail, password: profile.ownerPassword },
+        owner: demoWorkspace
+          ? { email: adminCredentials.adminEmail || "demo.admin@apexhq.app", password: adminCredentials.adminPassword || "apexdemo123" }
+          : { email: profile.ownerEmail, password: profile.ownerPassword },
         foreman: { email: profile.foremanEmail, password: profile.foremanPassword },
         employee: { email: profile.fieldEmail, password: profile.fieldPassword },
       },
@@ -566,10 +618,14 @@ export async function createFakeCompanySandbox({
       },
       walkthrough: buildSandboxPlan(profile).routes,
       warnings: [
-        "Sandbox data is fake and should stay local/demo-only.",
+        demoWorkspace
+          ? "Sandbox data is fake and was added to the existing demo workspace; use only for walkthroughs."
+          : "Sandbox data is fake and should stay local/demo-only.",
         "No emails, texts, bids, or customer messages were sent.",
         "Ready-to-bill means manual review context only; no invoice, payment, or customer billing was created.",
-        "Public signup creates a Basic package workspace; premium/Elite features may remain locked.",
+        demoWorkspace
+          ? "Demo workspace mode does not open public signup and does not create a separate real company workspace."
+          : "Public signup creates a Basic package workspace; premium/Elite features may remain locked.",
       ],
     };
   } finally {
@@ -585,7 +641,7 @@ async function main() {
   }
 
   const profile = defaultSandboxProfile(options);
-  const plan = buildSandboxPlan(profile);
+  const plan = options.demoWorkspace ? buildDemoWorkspaceSandboxPlan(profile) : buildSandboxPlan(profile);
   if (options.dryRun) {
     const payload = { mode: "dry-run", plan };
     if (options.json) console.log(JSON.stringify(payload, null, 2));
@@ -600,6 +656,11 @@ async function main() {
     baseUrl: options.baseUrl || "http://127.0.0.1:4000",
     profile,
     allowFlyDemo: Boolean(options.allowFlyDemo),
+    demoWorkspace: Boolean(options.demoWorkspace),
+    adminCredentials: {
+      adminEmail: options.adminEmail || "demo.admin@apexhq.app",
+      adminPassword: options.adminPassword || "apexdemo123",
+    },
   });
 
   if (options.json) {
