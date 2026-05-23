@@ -29420,7 +29420,7 @@ function EstimatesPagePolished({
 
   function openFullEstimateToolsPlaceholder(toolLabel = "full estimate tools") {
     setShowEstimateTools(false);
-    showCopyFeedback(`Slice 1 is overview/readiness only. ${toolLabel} will move into the no-drawer detail modes in Slice 2. No estimate was changed, sent, priced, or converted.`, 7000);
+    showCopyFeedback(`The ${toolLabel} shell mode is read-only in Slice 2A. Use the existing full estimate tools path for real edits; no estimate was changed, sent, priced, or converted.`, 7000);
   }
 
   const estimateShellKpis = [
@@ -29547,15 +29547,27 @@ function EstimatesPagePolished({
         ? `${draftToPriceRows.length} draft${draftToPriceRows.length === 1 ? "" : "s"} still need pricing.`
         : "Estimate readiness is clear in the current office view.";
   const estimateShellAssistantActions = [
-    { label: "Price Draft", icon: "document", onClick: () => selectEstimateShellEstimate(draftToPriceRows[0]), disabled: !draftToPriceRows.length },
-    { label: "Review Send", icon: "arrowUpRight", onClick: () => selectEstimateShellEstimate(readyToSendRows[0]), disabled: !readyToSendRows.length },
-    { label: "Review Handoff", icon: "check", onClick: () => selectEstimateShellEstimate(approvedHandoffRows[0]), disabled: !approvedHandoffRows.length },
+    { label: "Price Draft", icon: "document", onClick: () => selectEstimateShellEstimate(draftToPriceRows[0], "pricing"), disabled: !draftToPriceRows.length },
+    { label: "Review Send", icon: "arrowUpRight", onClick: () => selectEstimateShellEstimate(readyToSendRows[0], "sendReview"), disabled: !readyToSendRows.length },
+    { label: "Review Handoff", icon: "check", onClick: () => selectEstimateShellEstimate(approvedHandoffRows[0], "handoff"), disabled: !approvedHandoffRows.length },
   ];
   const estimateShellQuickActions = [
     { id: "new-estimate", label: "New Estimate", icon: "plus", onClick: () => openFullEstimateToolsPlaceholder("New Estimate"), disabled: !canManage },
-    { id: "ready-send", label: "Ready Send", icon: "arrowUpRight", onClick: () => selectEstimateShellEstimate(readyToSendRows[0]), disabled: !readyToSendRows.length },
-    { id: "handoff", label: "Handoff", icon: "check", onClick: () => selectEstimateShellEstimate(approvedHandoffRows[0]), disabled: !approvedHandoffRows.length },
+    { id: "ready-send", label: "Ready Send", icon: "arrowUpRight", onClick: () => selectEstimateShellEstimate(readyToSendRows[0], "sendReview"), disabled: !readyToSendRows.length },
+    { id: "handoff", label: "Handoff", icon: "check", onClick: () => selectEstimateShellEstimate(approvedHandoffRows[0], "handoff"), disabled: !approvedHandoffRows.length },
   ];
+  const estimateShellModes = [
+    { id: "overview", label: "Overview", title: "Overview", manages: "proposal readiness, current totals, contact status, packet readiness, and handoff context." },
+    { id: "pricing", label: "Pricing", title: "Pricing Mode", manages: "future line item pricing review, options totals, taxes, fees, and price readiness." },
+    { id: "proposal", label: "Proposal", title: "Proposal Mode", manages: "future proposal sections, inclusions, exclusions, assumptions, alternates, and customer-facing scope." },
+    { id: "backup", label: "Backup", title: "Backup / SOV Mode", manages: "future internal backup rows, SOV notes, takeoff references, and office-only estimate support." },
+    { id: "packet", label: "Packet", title: "Packet Mode", manages: "future GC packet settings, print sections, branded customer packet readiness, and handoff packet review." },
+    { id: "roughNotes", label: "Rough Notes", title: "Rough Notes Mode", manages: "future review-first AI rough notes drafting without automatic pricing, approval, or customer output." },
+    { id: "takeoff", label: "Takeoff", title: "Takeoff Mode", manages: "future fence takeoff, visual preview, photo evidence, and quantity backup review." },
+    { id: "sendReview", label: "Send Review", title: "Send Review Mode", manages: "future manual send confirmation, email readiness, customer packet review, and sent snapshot checks." },
+    { id: "handoff", label: "Handoff", title: "Handoff Mode", manages: "future approved estimate-to-job handoff checks before any job conversion." },
+  ];
+  const estimateShellModeIds = new Set(estimateShellModes.map((mode) => mode.id));
 
   useEffect(() => {
     if (!canUseEstimatesCommandShell) return;
@@ -29570,6 +29582,12 @@ function EstimatesPagePolished({
       if (estimateShellFallbackItem?.estimate?.id) setSelectedEstimateId(estimateShellFallbackItem.estimate.id);
     }
   }, [canUseEstimatesCommandShell, estimateShellFallbackItem?.estimate?.id, estimateShellFallbackItem?.id, estimateShellQueue, estimateShellSelectionId]);
+
+  useEffect(() => {
+    if (!estimateShellModeIds.has(estimateShellMode)) {
+      setEstimateShellMode("overview");
+    }
+  }, [estimateShellMode, estimateShellModeIds]);
 
   function selectEstimateShellItem(item) {
     if (!item) return;
@@ -29608,6 +29626,24 @@ function EstimatesPagePolished({
         : readiness.missing.length
           ? `Resolve ${readiness.missing.slice(0, 3).join(", ")} before sending or converting.`
           : "Keep reviewing proposal context before any external action.";
+    const activeShellMode = estimateShellModes.find((mode) => mode.id === estimateShellMode) || estimateShellModes[0];
+
+    function renderEstimateShellModePlaceholder() {
+      if (activeShellMode.id === "overview") return null;
+      return (
+        <div className="co-estimates-shell-mode-placeholder" role="region" aria-label={`${activeShellMode.title} placeholder`}>
+          <Badge tone="slate">Full tool migration pending</Badge>
+          <h3>{activeShellMode.title}</h3>
+          <p>This no-drawer shell mode will manage {activeShellMode.manages}</p>
+          <ul>
+            <li>No writes or pricing mutations run from this placeholder.</li>
+            <li>No customer send, job conversion, or AI generation is triggered.</li>
+            <li>Existing full estimate tools remain the safe path for actual work.</li>
+          </ul>
+          <Button type="button" variant="secondary" onClick={() => setEstimateShellMode("overview")}>Return to overview</Button>
+        </div>
+      );
+    }
 
     return (
       <div className="co-estimates-shell-detail-scroll">
@@ -29616,6 +29652,21 @@ function EstimatesPagePolished({
           <h2>{estimateDisplayTitle(estimate)}</h2>
           <p>{[estimateDisplayCustomer(estimate), estimateDisplayLead(estimate)].filter(Boolean).join(" / ") || "Customer or lead pending"}</p>
         </div>
+        <div className="co-estimates-shell-mode-tabs" role="tablist" aria-label="Estimate shell detail modes">
+          {estimateShellModes.map((mode) => (
+            <button
+              key={mode.id}
+              type="button"
+              role="tab"
+              aria-selected={activeShellMode.id === mode.id}
+              className={activeShellMode.id === mode.id ? "is-active" : ""}
+              onClick={() => setEstimateShellMode(mode.id)}
+            >
+              {mode.label}
+            </button>
+          ))}
+        </div>
+        {renderEstimateShellModePlaceholder()}
         <div className="co-apex-selected-facts co-estimates-shell-selected-facts">
           <span><em>Status</em><strong>{estimateStatusLabel(status)}</strong></span>
           <span><em>Total</em><strong>{formatEstimateCurrency(readiness.optionTotals.totalWithSelectedOptions)}</strong></span>
@@ -29650,7 +29701,7 @@ function EstimatesPagePolished({
         <div className="co-apex-selected-next">
           <span>Next safe action</span>
           <strong>{nextSafeAction}</strong>
-          <p>No pricing editor, send review, packet editor, AI rough notes, takeoff editor, or convert-to-job form is inlined in Slice 1. No external send or job conversion happens from this overview.</p>
+          <p>Slice 2A adds read-only shell mode scaffolding only. No pricing editor, proposal editor, backup editor, packet editor, AI rough notes, takeoff editor, send form, or convert-to-job form is inlined here.</p>
         </div>
         {copyFeedback ? <p className="co-estimates-shell-feedback">{copyFeedback}</p> : null}
         <div className="co-apex-selected-actions">
