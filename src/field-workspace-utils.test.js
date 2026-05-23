@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { buildJobAssignmentNoticeKey } from "../shared/job-assignment-notices.js";
-import { deriveEmployeeWorkspace, deriveForemanWorkspace, deriveNextAssignedJob } from "./field-workspace-utils.js";
+import { deriveEmployeeWorkspace, deriveFieldTradeGuidance, deriveForemanWorkspace, deriveNextAssignedJob } from "./field-workspace-utils.js";
 
 const NOW = new Date("2026-04-25T12:00:00.000Z");
 
@@ -118,4 +118,20 @@ test("field workspace helpers tolerate missing job arrays", () => {
   assert.deepEqual(employeeWorkspace.assignmentNotices, []);
   assert.equal(employeeWorkspace.primaryJob, null);
   assert.equal(employeeWorkspace.nextAssignedJob, null);
+});
+
+test("field trade guidance derives proof prompts from job startup notes", () => {
+  const guidance = deriveFieldTradeGuidance({
+    title: "North shop fence",
+    customer: "North Valley Shop",
+    scopeSummary: "Replace yard fence and install double gate.",
+    startupNotes: "Trade context: Fencing\nProof photos to collect: Existing fence/line; Post holes; Posts set; Gate hardware",
+  });
+
+  assert.equal(guidance.tradeLabel, "Fencing");
+  assert.ok(guidance.proofPhotoChecklist.some((item) => /post/i.test(item)));
+  assert.ok(guidance.fieldHandoffChecklist.some((item) => /gate/i.test(item)));
+  assert.ok(guidance.changeOrderWatchouts.length > 0);
+  assert.match(guidance.safetyBoundary, /review-only trade guidance/i);
+  assert.match(guidance.safetyBoundary, /Do not invent pricing/i);
 });

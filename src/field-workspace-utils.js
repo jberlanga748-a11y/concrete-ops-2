@@ -1,4 +1,5 @@
 import { deriveJobAssignmentNotices } from "../shared/job-assignment-notices.js";
+import { buildConstructionAgentTradeContext } from "../shared/constructionTrades.js";
 
 function activeAssignments(job) {
   if (Array.isArray(job?.assignments) && job.assignments.length > 0) {
@@ -82,5 +83,45 @@ export function deriveEmployeeWorkspace(jobs, userId, now = new Date()) {
     assignmentNotices: deriveJobAssignmentNotices(assignedJobs, userId),
     nextAssignedJob: deriveNextAssignedJob(assignedJobs, now),
     primaryJob: assignedJobs[0] || null,
+  };
+}
+
+export function deriveFieldTradeGuidance(job = {}, companySettings = {}) {
+  if (!job) return null;
+  const context = buildConstructionAgentTradeContext({
+    trade: job.trade || job.tradeId || job.projectType || companySettings.primaryTrade,
+    companySettings,
+    estimate: {
+      trade: job.estimateTrade || "",
+      title: job.estimateTitle || "",
+      scopeSummary: job.scopeSummary || "",
+      internalNotes: "",
+    },
+    lead: {
+      trade: job.leadTrade || "",
+      project: job.title || job.job || "",
+      notes: job.fieldNotes || job.notes || "",
+    },
+    roughNotes: [
+      job.title,
+      job.customer,
+      job.scopeSummary,
+      job.fieldNotes,
+      job.materialNotes,
+      job.equipmentNotes,
+      job.safetyNotes,
+      job.startupNotes,
+      job.notes,
+    ].filter(Boolean).join("\n"),
+  });
+
+  return {
+    tradeId: context.tradeId,
+    tradeLabel: context.tradeLabel,
+    fieldHandoffChecklist: context.fieldHandoffChecklist,
+    proofPhotoChecklist: context.proofPhotoChecklist,
+    changeOrderWatchouts: context.changeOrderWatchouts,
+    closeoutChecks: context.closeoutChecks,
+    safetyBoundary: context.safetyBoundary,
   };
 }

@@ -219,7 +219,7 @@ import { buildEstimateLineItemsFromRoughNotes } from "./estimate-template-utils"
 import { deriveCustomerPortalPreviewState } from "./customer-portal-preview-utils";
 import { deriveFieldOpsAgentState } from "./field-ops-agent-utils";
 import { FieldActionGrid, FieldAssignmentNoticePanel, FieldDetailDisclosure, FieldJobSummaryCard, FieldMobileQuickNav, FieldNextJobCard, FieldWorkspaceDisclosure, getFieldMobileNavItems } from "./field-route-components";
-import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspace-utils";
+import { deriveEmployeeWorkspace, deriveFieldTradeGuidance, deriveForemanWorkspace } from "./field-workspace-utils";
 import { deriveFollowUpQueueState, filterFollowUpQueueItems, FOLLOW_UP_QUEUE_GROUPS, FOLLOW_UP_QUEUE_TYPE_FILTERS } from "./follow-up-queue-utils";
 import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobTitle, normalizeJobStatus } from "./job-utils";
 import { CITY_STATE_WARNING, CUSTOMER_MATCH_STATUSES, IMPORTED_JOB_DRAFT_STATUSES, createImportedJobDraftFromPackage, filterImportedJobDrafts, formatImportedDraftSummary, getCustomerMatchWarnings, getImportedDraftWarnings, getImportedJobDraftStats, isImportedDraftReadyForJob, normalizeImportedJobDraft, normalizeImportedJobDrafts, validateJobDraftImportPackage } from "../shared/jobDraftImports.js";
@@ -4292,11 +4292,12 @@ function FieldJobFocusCard({ job, permissions, onFieldChange, disabled, embedded
   const crewAssignments = Array.isArray(job.crewAssignments) ? job.crewAssignments : [];
   const fieldNoteCount = [job.fieldNotes, job.materialNotes, job.equipmentNotes, job.safetyNotes].filter((value) => String(value || "").trim()).length;
   const checklistSummary = [job.prePourChecklist?.statusLabel || "Pre-pour pending", job.postPourChecklist?.statusLabel || "Post-pour pending"].join(" / ");
+  const tradeGuidance = deriveFieldTradeGuidance(job);
   const snapshotItems = [
     { label: "Schedule", value: formatJobScheduleDetail(job) },
     { label: "Address", value: job.address || "Address pending" },
     { label: "Crew", value: `${crewAssignments.length} assigned` },
-    { label: "Notes", value: fieldNoteCount ? `${fieldNoteCount} ready` : "No notes" },
+    { label: "Trade", value: tradeGuidance?.tradeLabel || "General Contractor" },
   ];
 
   return (
@@ -4353,6 +4354,30 @@ function FieldJobFocusCard({ job, permissions, onFieldChange, disabled, embedded
               </div>
             </div>
           </FieldDetailDisclosure>
+          {tradeGuidance ? (
+            <FieldDetailDisclosure title={`${tradeGuidance.tradeLabel} field proof`} summary={tradeGuidance.proofPhotoChecklist.slice(0, 2).join(" / ") || "Proof checklist ready"}>
+              <div className="grid gap-3 lg:grid-cols-3">
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Handoff focus</p>
+                  <ul className="mt-2 space-y-1 text-sm font-bold leading-6 text-slate-700">
+                    {tradeGuidance.fieldHandoffChecklist.slice(0, 4).map((item) => <li key={item}>- {item}</li>)}
+                  </ul>
+                </div>
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Photos to capture</p>
+                  <ul className="mt-2 space-y-1 text-sm font-bold leading-6 text-slate-700">
+                    {tradeGuidance.proofPhotoChecklist.slice(0, 4).map((item) => <li key={item}>- {item}</li>)}
+                  </ul>
+                </div>
+                <div className="rounded-2xl border border-amber-100 bg-amber-50/60 p-4">
+                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-700">Change watch</p>
+                  <ul className="mt-2 space-y-1 text-sm font-bold leading-6 text-slate-700">
+                    {tradeGuidance.changeOrderWatchouts.slice(0, 4).map((item) => <li key={item}>- {item}</li>)}
+                  </ul>
+                </div>
+              </div>
+            </FieldDetailDisclosure>
+          ) : null}
           <FieldDetailDisclosure title="Field notes" summary={fieldNoteCount ? `${fieldNoteCount} field note sections ready` : "No field notes yet"}>
             {canManageField ? (
               <div className="grid gap-3">
@@ -4755,6 +4780,9 @@ function FieldRequiredItemsPanel({
   const firstNotice = notices[0] || null;
   const activeEntry = timeWorkspace?.activeEntry || null;
   const allowedCategories = Array.isArray(timeWorkspace?.allowedCategories) ? timeWorkspace.allowedCategories : [];
+  const tradeGuidance = deriveFieldTradeGuidance(primaryJob);
+  const proofPrompt = tradeGuidance?.proofPhotoChecklist?.slice(0, 3).join(", ");
+  const reportPrompt = tradeGuidance?.fieldHandoffChecklist?.slice(0, 2).join(", ");
   const canRoute = typeof setActive === "function";
   const canQuickClockIn = Boolean(!activeEntry && primaryJob?.id && permissions?.time?.canManageOwn && allowedCategories.includes("job") && typeof onClockIn === "function");
   const canManageBreakTime = Boolean(activeEntry?.id && permissions?.time?.canManageOwn && typeof (activeEntry?.status === "on_break" ? onEndBreak : onStartBreak) === "function");
@@ -4819,9 +4847,9 @@ function FieldRequiredItemsPanel({
     permissions?.uploads?.canView ? {
       id: "photos",
       tone: "slate",
-      status: "Evidence",
+      status: tradeGuidance?.tradeLabel || "Evidence",
       title: "Photo evidence",
-      detail: primaryJob ? `Capture photos for ${jobTitle(primaryJob)}` : "Upload field photos when assigned",
+      detail: proofPrompt || (primaryJob ? `Capture photos for ${jobTitle(primaryJob)}` : "Upload field photos when assigned"),
       icon: "upload",
       actionLabel: "Upload photos",
       onAction: () => openFieldTool("uploads"),
@@ -4832,7 +4860,7 @@ function FieldRequiredItemsPanel({
       tone: "blue",
       status: "Foreman",
       title: "Daily report",
-      detail: "Open field notes, labor, weather, and progress",
+      detail: reportPrompt ? `Note: ${reportPrompt}` : "Open field notes, labor, weather, and progress",
       icon: "document",
       actionLabel: "Open report",
       onAction: () => openFieldTool("reports"),
