@@ -14168,19 +14168,117 @@ function firstMobileText(...values) {
   return values.find((value) => typeof value === "string" && value.trim())?.trim() || "";
 }
 
-function ownerMobileRecordContact(record = {}) {
-  const customer = record.customer && typeof record.customer === "object" ? record.customer : {};
+function normalizeMobileContactKey(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function ownerMobileParseSiteContact(value = "") {
+  const text = firstMobileText(value);
+  if (!text) return {};
+  const phoneMatch = text.match(/(?:\+?1[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})/);
+  const phone = phoneMatch?.[0]?.trim() || "";
+  const name = phone ? text.replace(phone, "").replace(/\s*[-/|,]\s*$/, "").trim() : text;
+  return { name, phone };
+}
+
+function ownerMobileContactFromCustomer(customer = {}) {
+  if (!customer || typeof customer !== "object") return {};
   return {
-    name: firstMobileText(record.contactName, record.customerName, customer.name, customer.company, record.customer, record.title, record.project),
-    phone: firstMobileText(record.contactPhone, record.customerPhone, record.phone, customer.phone, customer.contactPhone, record.primaryPhone),
-    email: firstMobileText(record.contactEmail, record.customerEmail, record.email, customer.email, customer.contactEmail, record.primaryEmail),
+    name: firstMobileText(customer.name, customer.company, customer.customer),
+    phone: firstMobileText(customer.phone, customer.contactPhone, customer.primaryPhone),
+    email: firstMobileText(customer.email, customer.contactEmail, customer.primaryEmail),
+    moduleId: "customers",
+    recordId: customer.id || "",
+    sourceLabel: "Customer",
   };
 }
 
+function ownerMobileMergeContact(...contacts) {
+  return contacts.reduce((merged, contact) => {
+    if (!contact || typeof contact !== "object") return merged;
+    return {
+      name: merged.name || contact.name || "",
+      phone: merged.phone || contact.phone || "",
+      email: merged.email || contact.email || "",
+      moduleId: merged.moduleId || contact.moduleId || "",
+      recordId: merged.recordId || contact.recordId || "",
+      sourceLabel: merged.sourceLabel || contact.sourceLabel || "",
+    };
+  }, { name: "", phone: "", email: "", moduleId: "", recordId: "", sourceLabel: "" });
+}
+
+function buildOwnerMobileContactDirectory({ customers = [], leads = [], jobs = [] } = {}) {
+  const customerById = new Map();
+  const customerByName = new Map();
+  normalizeObjectArray(customers).forEach((customer) => {
+    if (customer.id) customerById.set(String(customer.id), customer);
+    [customer.name, customer.company, customer.customer].forEach((name) => {
+      const key = normalizeMobileContactKey(name);
+      if (key && !customerByName.has(key)) customerByName.set(key, customer);
+    });
+  });
+
+  const leadById = new Map();
+  normalizeObjectArray(leads).forEach((lead) => {
+    if (lead.id) leadById.set(String(lead.id), lead);
+  });
+
+  const jobById = new Map();
+  normalizeObjectArray(jobs).forEach((job) => {
+    if (job.id) jobById.set(String(job.id), job);
+  });
+
+  return { customerById, customerByName, leadById, jobById };
+}
+
+function ownerMobileLinkedRecordContact(record = {}, directory = {}) {
+  if (!record || typeof record !== "object") return {};
+  const linkedJob = record.jobId ? directory.jobById?.get(String(record.jobId)) : null;
+  const lead = record.leadId ? directory.leadById?.get(String(record.leadId)) : linkedJob?.leadId ? directory.leadById?.get(String(linkedJob.leadId)) : null;
+  const customerId = firstMobileText(record.customerId, record.customer?.id, lead?.customerId, linkedJob?.customerId);
+  const customerName = firstMobileText(
+    typeof record.customer === "string" ? record.customer : "",
+    record.customerName,
+    lead?.customer,
+    linkedJob?.customer,
+  );
+  const customer = customerId
+    ? directory.customerById?.get(String(customerId))
+    : directory.customerByName?.get(normalizeMobileContactKey(customerName));
+  const leadContact = lead ? {
+    name: firstMobileText(lead.contactName, lead.customer, lead.project),
+    phone: firstMobileText(lead.contactPhone),
+    email: firstMobileText(lead.contactEmail),
+    moduleId: "leads",
+    recordId: lead.id || "",
+    sourceLabel: "Lead",
+  } : {};
+  return ownerMobileMergeContact(ownerMobileContactFromCustomer(customer), leadContact);
+}
+
+function ownerMobileRecordContact(record = {}, directory = {}) {
+  const customer = record.customer && typeof record.customer === "object" ? record.customer : {};
+  const siteContact = ownerMobileParseSiteContact(record.siteContact);
+  const directContact = {
+    name: firstMobileText(record.contactName, siteContact.name, record.customerName, customer.name, customer.company, record.customer, record.title, record.project),
+    phone: firstMobileText(record.contactPhone, record.customerPhone, record.phone, customer.phone, customer.contactPhone, record.primaryPhone, siteContact.phone),
+    email: firstMobileText(record.contactEmail, record.customerEmail, record.email, customer.email, customer.contactEmail, record.primaryEmail),
+  };
+  return ownerMobileMergeContact(directContact, ownerMobileLinkedRecordContact(record, directory), siteContact);
+}
+
+function ownerMobileSafeDraftText(value = "") {
+  return firstMobileText(value)
+    .replace(/https?:\/\/\S+/gi, "")
+    .replace(/\b(?:internal notes?|backup|sov|source urls?|private urls?|margin|cost basis)\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function ownerMobileSafeContactDraft(item = {}, companyName = DEFAULT_COMPANY_NAME) {
-  const recordTitle = item.title || "your project";
-  const status = item.statusLabel || item.status || item.eyebrow || "needs review";
-  const safeSummary = item.publicSummary || item.description || item.meta || "I have an Apex HQ update to review with you.";
+  const recordTitle = ownerMobileSafeDraftText(item.title) || "your project";
+  const status = ownerMobileSafeDraftText(item.statusLabel || item.status || item.eyebrow) || "needs review";
+  const safeSummary = ownerMobileSafeDraftText(item.publicSummary) || "I have an Apex HQ update to review with you.";
   const body = `Hi ${item.contact?.name || "there"}, this is ${companyName}. Quick update on ${recordTitle}: ${safeSummary} Current status: ${status}. Please reply when you have a minute.`;
   return {
     subject: `${companyName}: ${recordTitle}`,
@@ -14189,18 +14287,19 @@ function ownerMobileSafeContactDraft(item = {}, companyName = DEFAULT_COMPANY_NA
   };
 }
 
-function buildOwnerAdminMobileCommandQueue(commandCenter = {}, { jobs = [], estimates = [], dailyReports = [], changeOrderRequests = [], companyName = DEFAULT_COMPANY_NAME, permissions = {} } = {}) {
+function buildOwnerAdminMobileCommandQueue(commandCenter = {}, { jobs = [], estimates = [], dailyReports = [], changeOrderRequests = [], customers = [], leads = [], companyName = DEFAULT_COMPANY_NAME, permissions = {} } = {}) {
   const canViewEstimates = Boolean(permissions?.estimates?.canView);
   const liveJobs = normalizeObjectArray(jobs).filter((job) => !job.archivedAt);
   const visibleEstimates = canViewEstimates ? normalizeObjectArray(estimates).filter((estimate) => !estimate.archivedAt) : [];
   const reportRows = normalizeObjectArray(dailyReports).filter((report) => !report.archivedAt);
+  const contactDirectory = buildOwnerMobileContactDirectory({ customers, leads, jobs });
   const openChangeOrders = normalizeObjectArray(commandCenter.changeOrders?.openChangeOrders).length
     ? normalizeObjectArray(commandCenter.changeOrders.openChangeOrders)
     : normalizeObjectArray(changeOrderRequests).filter((request) => !request.archivedAt && !["approved", "rejected", "declined", "closed", "completed", "archived"].includes(normalizeTodayStatus(request.status)));
   const rows = [];
 
   function attachContact(row, record = {}) {
-    const contact = ownerMobileRecordContact(record);
+    const contact = ownerMobileRecordContact(record, contactDirectory);
     const drafts = ownerMobileSafeContactDraft({ ...row, contact }, companyName);
     return { ...row, contact, ...drafts };
   }
@@ -14514,6 +14613,8 @@ function OwnerAdminMobileCommandPage({
   permissions,
   setActive,
   onSelectJob,
+  onSelectLead,
+  onSelectCustomer,
 }) {
   const commandCenter = useMemo(() => deriveCommandCenterState({
     leads,
@@ -14546,11 +14647,14 @@ function OwnerAdminMobileCommandPage({
     estimates,
     dailyReports,
     changeOrderRequests,
+    customers,
+    leads,
     companyName,
     permissions,
-  }), [changeOrderRequests, commandCenter, companyName, dailyReports, estimates, jobs, permissions]);
+  }), [changeOrderRequests, commandCenter, companyName, customers, dailyReports, estimates, jobs, leads, permissions]);
   const [selectedMobileCommandId, setSelectedMobileCommandId] = useState("");
-  const selectedItem = queueItems.find((item) => item.id === selectedMobileCommandId) || queueItems[0] || null;
+  const firstContactableItem = queueItems.find((item) => item.contact?.phone || item.contact?.email);
+  const selectedItem = queueItems.find((item) => item.id === selectedMobileCommandId) || firstContactableItem || queueItems[0] || null;
 
   useEffect(() => {
     if (selectedItem && selectedItem.id !== selectedMobileCommandId) {
@@ -14569,6 +14673,22 @@ function OwnerAdminMobileCommandPage({
       return;
     }
     openModule(item.moduleId || "jobs");
+  }
+
+  function openMobileContact(item = selectedItem) {
+    if (!item?.contact) {
+      openMobileCommandItem(item);
+      return;
+    }
+    if (item.contact.moduleId === "customers" && item.contact.recordId && typeof onSelectCustomer === "function") {
+      onSelectCustomer(item.contact.recordId);
+      return;
+    }
+    if (item.contact.moduleId === "leads" && item.contact.recordId && typeof onSelectLead === "function") {
+      onSelectLead(item.contact.recordId);
+      return;
+    }
+    openMobileCommandItem(item);
   }
 
   const kpis = [
@@ -14617,7 +14737,7 @@ function OwnerAdminMobileCommandPage({
               subject={selectedItem.subject}
               textDraft={selectedItem.textDraft}
               emailBody={selectedItem.emailBody}
-              onOpenContact={() => openMobileCommandItem(selectedItem)}
+              onOpenContact={() => openMobileContact(selectedItem)}
             />
             <div className="co-apex-mobile-selected-actions">
               <Button type="button" onClick={() => openMobileCommandItem(selectedItem)}>{selectedItem.actionLabel || "Open"}</Button>

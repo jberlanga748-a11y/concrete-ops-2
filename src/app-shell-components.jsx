@@ -567,17 +567,17 @@ export function ApexMobileContactActionBar({ phone = "", email = "", subject = "
   return (
     <div className="co-apex-mobile-contact-actions" aria-label="Manual contact actions">
       {actions.map((action) => action.disabled ? (
-        <button key={action.id} type="button" disabled>
+        <button key={action.id} type="button" data-contact-action={action.id} disabled>
           <Icon name={action.icon} />
           <span>{action.label}</span>
         </button>
       ) : (
-        <a key={action.id} href={action.href}>
+        <a key={action.id} href={action.href} data-contact-action={action.id} aria-label={`${action.label} manual draft`}>
           <Icon name={action.icon} />
           <span>{action.label}</span>
         </a>
       ))}
-      <button type="button" onClick={onOpenContact} disabled={!onOpenContact}>
+      <button type="button" onClick={onOpenContact} data-contact-action="open-contact" disabled={!onOpenContact}>
         <Icon name="users" />
         <span>Open Contact</span>
       </button>
