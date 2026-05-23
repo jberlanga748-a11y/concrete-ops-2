@@ -97,6 +97,10 @@ export function canManageEstimates(user) {
   return isOfficeManager(user) || isEstimator(user);
 }
 
+export function canManageRateBook(user) {
+  return isOfficeManager(user);
+}
+
 export function canViewChangeOrders(user) {
   return isOfficeManager(user) || isEstimator(user) || isForeman(user);
 }
@@ -347,7 +351,7 @@ export function getAllowedModuleIds(user, companySettings = DEFAULT_COMPANY_SETT
   const modules = new Set();
 
   if (isOwner(user) || isAdministrator(user) || isOperationsManager(user)) {
-    ["dashboard", "commandCenter", "communications", "leads", "customers", "estimates", "jobDraftImports", "jobs", "schedule", "time", "reports", "uploads", "deliveryTickets", "changeOrders", "employees", "incidents", "toolbox", "ppe", "prePour", "postPour", "calculator", "appHealth", "settings", "copilot", "support"].forEach((moduleId) => modules.add(moduleId));
+    ["dashboard", "commandCenter", "communications", "leads", "customers", "estimates", "rateBook", "jobDraftImports", "jobs", "schedule", "time", "reports", "uploads", "deliveryTickets", "changeOrders", "employees", "incidents", "toolbox", "ppe", "prePour", "postPour", "calculator", "appHealth", "settings", "copilot", "support"].forEach((moduleId) => modules.add(moduleId));
   } else if (isEstimator(user)) {
     ["dashboard", "communications", "leads", "customers", "estimates", "jobs", "time", "calculator", "support"].forEach((moduleId) => modules.add(moduleId));
   } else if (isForeman(user)) {

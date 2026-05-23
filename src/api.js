@@ -283,6 +283,26 @@ export function convertEstimateToJob(token, id, payload = {}) {
   return request(`/api/estimates/${id}/convert-to-job`, { method: "POST", token, body: payload });
 }
 
+export function getRateBookItems(token) {
+  return request("/api/rate-book", { token });
+}
+
+export function createRateBookItem(token, payload) {
+  return request("/api/rate-book", { method: "POST", token, body: payload });
+}
+
+export function updateRateBookItem(token, id, payload) {
+  return request(`/api/rate-book/${id}`, { method: "PATCH", token, body: payload });
+}
+
+export function archiveRateBookItem(token, id) {
+  return request(`/api/rate-book/${id}/archive`, { method: "POST", token });
+}
+
+export function restoreRateBookItem(token, id) {
+  return request(`/api/rate-book/${id}/restore`, { method: "POST", token });
+}
+
 export function assistEstimateRoughNotes(token, payload) {
   return request("/api/ai/estimates/rough-notes", { method: "POST", token, body: payload });
 }

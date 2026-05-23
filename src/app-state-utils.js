@@ -28,6 +28,10 @@ export const DEFAULT_APP_PERMISSIONS = {
     canUseAiRoughNotes: false,
     canUseGcPackets: false,
   },
+  rateBook: {
+    canView: false,
+    canManage: false,
+  },
   jobDraftImports: {
     canView: false,
     canManage: false,

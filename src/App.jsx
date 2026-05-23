@@ -45,6 +45,7 @@ import {
   archiveUpload,
   archivePpeItem,
   archivePrePourChecklist,
+  archiveRateBookItem,
   archiveSafetyIncident,
   archiveSafetyPolicy,
   archiveToolChecklist,
@@ -88,6 +89,7 @@ import {
   createPrePourChecklist,
   createQueueItem,
   createCalculatorResult,
+  createRateBookItem,
   createUpload,
   createUser,
   checkLeadMissingInfo as checkLeadMissingInfoRequest,
@@ -130,6 +132,7 @@ import {
   restoreJob,
   restoreLead,
   restoreLeadSource,
+  restoreRateBookItem,
   restoreQueueItem,
   scoreLead as scoreLeadRequest,
   selectCompany,
@@ -161,6 +164,7 @@ import {
   updatePostPourChecklistItem,
   updatePrePourChecklist,
   updatePrePourChecklistItem,
+  updateRateBookItem,
   updateSafetyPolicy,
   updateCompanySettings,
   updateAgentLearningPreference,
@@ -250,6 +254,7 @@ import { DailyReportMobileAccordionCard, DailyReportMobileCard, DailyReportMobil
 import { buildPostPourSupportContext, derivePostPourChecklistListState, derivePostPourItems, filterPostPourChecklists, postPourChecklistStatusLabel, postPourItemStatusLabel, summarizePostPourChecklist } from "./post-pour-utils";
 import { buildPrePourSupportContext, derivePrePourChecklistListState, derivePrePourItems, filterPrePourChecklists, prePourChecklistStatusLabel, prePourItemStatusLabel, summarizePrePourChecklist } from "./pre-pour-utils";
 import { deriveDailyReportPrintPacket, deriveEstimateForemanHandoffPacket, deriveEstimatePrintPacket, deriveJobPrintPacket, openPrintDocument } from "./print-packets";
+import { RATE_BOOK_CATEGORIES, RATE_BOOK_CATEGORY_LABELS, buildEstimateLineItemFromRateBookItem, calculateRateBookUnitPrice, createRateBookDraft, deriveRateBookState, validateRateBookDraft } from "./rate-book-utils";
 import { buildDailyReportsSupportContext, deriveAdvancedReportSummary, deriveDailyReportListState, filterDailyReports, reportStatusLabel } from "./report-utils";
 import { buildSafetyIncidentSupportContext, deriveAcknowledgmentState, deriveActivePpeItems, deriveSafetyIncidentListState, deriveSafetyJobCloseoutReadiness, deriveSafetyWorkspaceJobs, deriveVisibleSafetyPolicies, filterSafetyIncidents } from "./safety-utils";
 import {
@@ -349,6 +354,7 @@ const NAV_GROUPS = [
       { id: "leads", label: "Leads", icon: "inbox" },
       { id: "customers", label: "Customers", icon: "users" },
       { id: "estimates", label: "Estimates", icon: "quote" },
+      { id: "rateBook", label: "Rate Book", icon: "calculator" },
       { id: "jobDraftImports", label: "Imported Drafts", icon: "database" },
       { id: "changeOrders", label: "Change Orders", icon: "refresh" },
       { id: "employees", label: "Employees", icon: "users" },
@@ -411,6 +417,7 @@ const EMPTY_APP_STATE = {
   leadStatusHistory: [],
   contactHistory: [],
   estimates: [],
+  rateBookItems: [],
   jobDraftImports: [],
   jobs: [],
   safetyPolicies: [],
@@ -538,6 +545,7 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
     leadStatusHistory: normalizeObjectArray(source.leadStatusHistory, fallback.leadStatusHistory),
     contactHistory: normalizeObjectArray(source.contactHistory, fallback.contactHistory),
     estimates: normalizeEstimateArray(source.estimates, fallback.estimates),
+    rateBookItems: normalizeObjectArray(source.rateBookItems, fallback.rateBookItems),
     jobDraftImports: normalizeObjectArray(source.jobDraftImports, fallback.jobDraftImports),
     jobs: normalizeObjectArray(source.jobs, fallback.jobs),
     safetyPolicies: normalizeObjectArray(source.safetyPolicies, fallback.safetyPolicies),
@@ -30232,6 +30240,7 @@ function EstimatesPagePolished({
   customers,
   leads,
   estimates,
+  rateBookItems = [],
   permissions,
   busy,
   onCreateEstimate,
@@ -30310,6 +30319,10 @@ function EstimatesPagePolished({
   const detailTotals = useMemo(() => calculateEstimateTotals(detailDraft.items, { taxRate: detailDraft.taxRate, feesTotal: detailDraft.feesTotal }), [detailDraft.feesTotal, detailDraft.items, detailDraft.taxRate]);
   const createOptionTotals = useMemo(() => calculateEstimateOptionTotals(createDraft), [createDraft]);
   const detailOptionTotals = useMemo(() => calculateEstimateOptionTotals(detailDraft), [detailDraft]);
+  const activeRateBookDefaults = useMemo(
+    () => deriveRateBookState(rateBookItems).activeItems.slice(0, 5),
+    [rateBookItems],
+  );
   const detailCustomer = useMemo(
     () => visibleCustomers.find((customer) => customer.id === detailDraft.customerId) || selectedEstimate?.customer || null,
     [detailDraft.customerId, selectedEstimate?.customer, visibleCustomers],
@@ -30611,6 +30624,18 @@ function EstimatesPagePolished({
         items: nextItems.length > 0 ? nextItems : [createEstimateLineItemDraft()],
       };
     });
+  }
+
+  function appendRateBookDefaultToDetail(item) {
+    const estimateLine = createEstimateLineItemDraft(buildEstimateLineItemFromRateBookItem(item));
+    setDetailDraft((current) => ({
+      ...current,
+      items: [
+        ...current.items.filter((lineItem) => lineItem.description || lineItem.unitPrice),
+        estimateLine,
+      ],
+    }));
+    showCopyFeedback("Rate book default added locally. Review and save pricing when ready.", 4000);
   }
 
   function showCopyFeedback(message, duration = 1800) {
@@ -31332,6 +31357,36 @@ function EstimatesPagePolished({
             <span><em>Customer</em><strong>{estimateDisplayCustomer(estimate) || "Customer pending"}</strong></span>
             <span><em>Contact</em><strong>{estimateCustomerEmail(estimate) || "Missing"}</strong></span>
           </div>
+          {activeRateBookDefaults.length ? (
+            <div className="co-estimates-shell-rate-book-defaults" aria-label="Rate book defaults">
+              <div className="co-estimates-shell-rate-book-head">
+                <div>
+                  <h4>Rate book defaults</h4>
+                  <p>Owner/admin internal defaults copy customer-safe description, unit, and unit price only.</p>
+                </div>
+                <Button type="button" size="sm" variant="secondary" onClick={() => setActive?.("rateBook")}>Manage rate book</Button>
+              </div>
+              <div className="co-estimates-shell-rate-book-list">
+                {activeRateBookDefaults.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className="co-estimates-shell-rate-book-chip"
+                    onClick={() => appendRateBookDefaultToDetail(item)}
+                    disabled={!canManage || busy}
+                  >
+                    <span>{item.title}</span>
+                    <strong>{formatEstimateCurrency(calculateRateBookUnitPrice(item))}/{item.unit || "ea"}</strong>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : permissions?.rateBook?.canManage ? (
+            <div className="co-estimates-shell-rate-book-empty">
+              <span>No rate book defaults yet.</span>
+              <Button type="button" size="sm" variant="secondary" onClick={() => setActive?.("rateBook")}>Create rate defaults</Button>
+            </div>
+          ) : null}
           <div className="co-estimates-shell-pricing-adjustments">
             <InputField label="Tax rate (%)" value={detailDraft.taxRate} onChange={(event) => setDetailDraft((current) => ({ ...current, taxRate: event.target.value }))} inputMode="decimal" disabled={!canManage || busy} />
             <InputField label="Fees total" value={detailDraft.feesTotal} onChange={(event) => setDetailDraft((current) => ({ ...current, feesTotal: event.target.value }))} inputMode="decimal" disabled={!canManage || busy} />
@@ -38120,6 +38175,148 @@ function SupportPage({ user, companyName, currentCompanyId, active, permissions,
   );
 }
 
+function RateBookPage({
+  rateBookItems = [],
+  permissions = {},
+  busy = false,
+  onCreateRateBookItem,
+  onUpdateRateBookItem,
+  onArchiveRateBookItem,
+  onRestoreRateBookItem,
+  setActive,
+}) {
+  const [draft, setDraft] = useState(createRateBookDraft());
+  const [showArchived, setShowArchived] = useState(false);
+  const [validationErrors, setValidationErrors] = useState([]);
+  const canManage = Boolean(permissions?.rateBook?.canManage);
+  const rateBookState = useMemo(() => deriveRateBookState(rateBookItems), [rateBookItems]);
+  const visibleItems = showArchived ? rateBookState.rows : rateBookState.activeItems;
+  const selectedExisting = draft.id ? rateBookItems.find((item) => item.id === draft.id) : null;
+  const previewUnitPrice = calculateRateBookUnitPrice(draft);
+
+  function editItem(item) {
+    setDraft(createRateBookDraft(item));
+    setValidationErrors([]);
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    if (!canManage) return;
+    const validation = validateRateBookDraft(draft);
+    if (!validation.ok) {
+      setValidationErrors(validation.errors);
+      return;
+    }
+    const saved = selectedExisting
+      ? await onUpdateRateBookItem?.(selectedExisting.id, validation.normalized)
+      : await onCreateRateBookItem?.(validation.normalized);
+    if (saved) {
+      setDraft(createRateBookDraft());
+      setValidationErrors([]);
+    }
+  }
+
+  return (
+    <>
+      <PageHeader
+        eyebrow="Build 3B"
+        title="Rate Book"
+        description="Company-standard internal defaults for labor, material, equipment, subcontractor, and markup pricing. Field users and customer packets never receive raw cost or margin data."
+        actions={(
+          <>
+            <Button type="button" variant="secondary" onClick={() => setActive?.("estimates")}>Open Estimates</Button>
+            <Button type="button" onClick={() => setDraft(createRateBookDraft())}>New Default</Button>
+          </>
+        )}
+      />
+      <CommandPageFrame>
+      <div className="co-rate-book-page">
+        <div className="co-rate-book-kpis">
+          <StatCard title="Active Defaults" value={rateBookState.counts.active} />
+          <StatCard title="Labor" value={rateBookState.counts.labor} />
+          <StatCard title="Materials" value={rateBookState.counts.material} />
+          <StatCard title="Subs / Equipment" value={rateBookState.counts.subcontractor + rateBookState.counts.equipment} />
+        </div>
+
+        <div className="co-rate-book-layout">
+          <Card className="co-rate-book-list-card">
+            <SectionHeader
+              title="Company Defaults"
+              description="Internal library rows. Applying one to an estimate copies only description, unit, and customer unit price."
+              action={<Button type="button" size="sm" variant="secondary" onClick={() => setShowArchived((value) => !value)}>{showArchived ? "Hide archived" : "Show archived"}</Button>}
+            />
+            <div className="co-rate-book-list">
+              {visibleItems.length ? visibleItems.map((item) => (
+                <button key={item.id} type="button" className={`co-rate-book-row ${draft.id === item.id ? "is-selected" : ""}`} onClick={() => editItem(item)}>
+                  <span>
+                    <strong>{item.title}</strong>
+                    <em>{RATE_BOOK_CATEGORY_LABELS[item.category] || "Other"}{item.trade ? ` / ${item.trade}` : ""}</em>
+                  </span>
+                  <span>
+                    <strong>{formatEstimateCurrency(calculateRateBookUnitPrice(item))}/{item.unit || "ea"}</strong>
+                    <em>{item.archivedAt || item.status === "archived" ? "Archived" : "Active"}</em>
+                  </span>
+                </button>
+              )) : (
+                <div className="co-rate-book-empty">
+                  <strong>No rate book defaults yet.</strong>
+                  <span>Add the first internal default to speed up reviewed estimate pricing.</span>
+                </div>
+              )}
+            </div>
+          </Card>
+
+          <Card className="co-rate-book-editor-card">
+            <SectionHeader
+              title={selectedExisting ? "Edit Default" : "New Default"}
+              description="Costs and markup stay internal. Estimate line items receive only the reviewed sell price."
+              action={selectedExisting ? <StatusBadge status={selectedExisting.archivedAt ? "Archived" : "Active"} /> : <Badge tone="blue">Draft</Badge>}
+            />
+            <form className="co-rate-book-form" onSubmit={handleSubmit}>
+              <div className="co-rate-book-form-grid">
+                <SelectField label="Category" value={draft.category} onChange={(event) => setDraft((current) => ({ ...current, category: event.target.value }))} disabled={!canManage || busy}>
+                  {RATE_BOOK_CATEGORIES.map((category) => <option key={category} value={category}>{RATE_BOOK_CATEGORY_LABELS[category]}</option>)}
+                </SelectField>
+                <InputField label="Trade" value={draft.trade} onChange={(event) => setDraft((current) => ({ ...current, trade: event.target.value }))} placeholder="concrete, fencing, general" disabled={!canManage || busy} />
+                <InputField label="Title" value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} disabled={!canManage || busy} />
+                <InputField label="Unit" value={draft.unit} onChange={(event) => setDraft((current) => ({ ...current, unit: event.target.value }))} disabled={!canManage || busy} />
+                <InputField label="Unit cost" value={draft.unitCost} inputMode="decimal" onChange={(event) => setDraft((current) => ({ ...current, unitCost: event.target.value, unitPrice: "" }))} disabled={!canManage || busy} />
+                <InputField label="Markup %" value={draft.markupPercent} inputMode="decimal" onChange={(event) => setDraft((current) => ({ ...current, markupPercent: event.target.value, unitPrice: "" }))} disabled={!canManage || busy} />
+                <InputField label="Sell unit price" value={draft.unitPrice} inputMode="decimal" onChange={(event) => setDraft((current) => ({ ...current, unitPrice: event.target.value }))} disabled={!canManage || busy} />
+                <SelectField label="Taxable" value={draft.taxable ? "yes" : "no"} onChange={(event) => setDraft((current) => ({ ...current, taxable: event.target.value === "yes" }))} disabled={!canManage || busy}>
+                  <option value="yes">Yes</option>
+                  <option value="no">No</option>
+                </SelectField>
+              </div>
+              <TextAreaField label="Estimate description" value={draft.description} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} disabled={!canManage || busy} />
+              <div className="co-rate-book-preview">
+                <span><em>Internal basis</em><strong>{formatEstimateCurrency(draft.unitCost)} + {Number(draft.markupPercent || 0)}%</strong></span>
+                <span><em>Estimate default</em><strong>{formatEstimateCurrency(previewUnitPrice)}/{draft.unit || "ea"}</strong></span>
+              </div>
+              {validationErrors.length ? (
+                <div className="co-rate-book-errors">
+                  {validationErrors.map((error) => <span key={error}>{error}</span>)}
+                </div>
+              ) : null}
+              <div className="co-rate-book-actions">
+                <Button type="submit" disabled={!canManage || busy}>{selectedExisting ? "Save Default" : "Create Default"}</Button>
+                <Button type="button" variant="secondary" onClick={() => setDraft(createRateBookDraft())} disabled={busy}>Clear</Button>
+                {selectedExisting && !selectedExisting.archivedAt ? (
+                  <Button type="button" variant="secondary" onClick={() => onArchiveRateBookItem?.(selectedExisting.id)} disabled={!canManage || busy}>Archive</Button>
+                ) : null}
+                {selectedExisting?.archivedAt ? (
+                  <Button type="button" variant="secondary" onClick={() => onRestoreRateBookItem?.(selectedExisting.id)} disabled={!canManage || busy}>Restore</Button>
+                ) : null}
+              </div>
+            </form>
+          </Card>
+        </div>
+      </div>
+      </CommandPageFrame>
+    </>
+  );
+}
+
 function GenericPage({ active, queueItems, selectedLead, selectedJob }) {
   const item = NAV_GROUPS.flatMap((group) => group.items).find((nav) => nav.id === active);
   const safeQueueItems = Array.isArray(queueItems) ? queueItems : [];
@@ -38389,6 +38586,7 @@ function MainContent(props) {
           customers={props.customers}
           leads={props.leads}
           estimates={props.estimates}
+          rateBookItems={props.rateBookItems}
           user={props.user}
           permissions={props.permissions}
           busy={props.busy}
@@ -38413,6 +38611,18 @@ function MainContent(props) {
            assistantEstimateJobHandoffSeed={props.assistantEstimateJobHandoffSeed}
            onAssistantEstimateJobHandoffSeedHandled={props.onAssistantEstimateJobHandoffSeedHandled}
          />
+      );
+    }
+    if (active === "rateBook") {
+      return (
+        <RateBookPage
+          {...props}
+          rateBookItems={props.rateBookItems}
+          onCreateRateBookItem={props.onCreateRateBookItem}
+          onUpdateRateBookItem={props.onUpdateRateBookItem}
+          onArchiveRateBookItem={props.onArchiveRateBookItem}
+          onRestoreRateBookItem={props.onRestoreRateBookItem}
+        />
       );
     }
     if (active === "jobDraftImports") {
@@ -41508,6 +41718,74 @@ export default function App() {
     }
   }
 
+  async function handleCreateRateBookItem(payload) {
+    if (!sessionToken || !appState.permissions.rateBook?.canManage) return false;
+    setBusy(true);
+    try {
+      const nextState = await createRateBookItem(sessionToken, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleUpdateRateBookItem(id, payload) {
+    if (!sessionToken || !appState.permissions.rateBook?.canManage) return false;
+    setBusy(true);
+    try {
+      const nextState = await updateRateBookItem(sessionToken, id, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleArchiveRateBookItem(id) {
+    if (!sessionToken || !appState.permissions.rateBook?.canManage) return false;
+    setBusy(true);
+    try {
+      const nextState = await archiveRateBookItem(sessionToken, id);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRestoreRateBookItem(id) {
+    if (!sessionToken || !appState.permissions.rateBook?.canManage) return false;
+    setBusy(true);
+    try {
+      const nextState = await restoreRateBookItem(sessionToken, id);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleConvertEstimate(estimateId) {
     if (!sessionToken || !appState.permissions.estimates.canManage || !appState.permissions.jobs.canCreate) return false;
     setBusy(true);
@@ -42409,6 +42687,11 @@ export default function App() {
                 onRestoreContactHistory={handleRestoreContactHistory}
                 onOpenEstimate={navigateToEstimate}
                 onCreateJobFromLead={handleCreateJobFromLead}
+                rateBookItems={appState.rateBookItems}
+                onCreateRateBookItem={handleCreateRateBookItem}
+                onUpdateRateBookItem={handleUpdateRateBookItem}
+                onArchiveRateBookItem={handleArchiveRateBookItem}
+                onRestoreRateBookItem={handleRestoreRateBookItem}
                 selectedJobId={selectedJobId}
                 onSelectJob={navigateToJob}
                 selectedJob={selectedJob}

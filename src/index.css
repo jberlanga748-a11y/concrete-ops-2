@@ -11103,6 +11103,149 @@ textarea {
   color: #334155;
 }
 
+.co-rate-book-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.co-rate-book-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.co-rate-book-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.78fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.co-rate-book-list-card,
+.co-rate-book-editor-card {
+  min-width: 0;
+}
+
+.co-rate-book-list {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 0.85rem;
+}
+
+.co-rate-book-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 4.15rem;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 0.75rem;
+  background: #fff;
+  padding: 0.8rem 0.9rem;
+  text-align: left;
+}
+
+.co-rate-book-row.is-selected {
+  border-color: rgba(249, 115, 22, 0.55);
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.12);
+}
+
+.co-rate-book-row span {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.co-rate-book-row strong {
+  color: #0f172a;
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.co-rate-book-row em {
+  color: #64748b;
+  font-size: 0.74rem;
+  font-style: normal;
+  font-weight: 750;
+}
+
+.co-rate-book-empty,
+.co-rate-book-errors {
+  display: grid;
+  gap: 0.22rem;
+  border: 1px dashed rgba(148, 163, 184, 0.75);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  color: #64748b;
+}
+
+.co-rate-book-empty strong {
+  color: #0f172a;
+}
+
+.co-rate-book-form {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 0.9rem;
+}
+
+.co-rate-book-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.co-rate-book-preview {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.co-rate-book-preview span {
+  display: grid;
+  gap: 0.16rem;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 0.7rem;
+  background: #f8fafc;
+  padding: 0.65rem;
+}
+
+.co-rate-book-preview em {
+  color: #64748b;
+  font-size: 0.68rem;
+  font-style: normal;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.co-rate-book-preview strong {
+  color: #0f172a;
+  font-size: 0.88rem;
+  font-weight: 950;
+}
+
+.co-rate-book-errors {
+  border-color: rgba(248, 113, 113, 0.55);
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.co-rate-book-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.62rem;
+}
+
+@media (max-width: 900px) {
+  .co-rate-book-kpis,
+  .co-rate-book-layout,
+  .co-rate-book-form-grid,
+  .co-rate-book-preview {
+    grid-template-columns: 1fr;
+  }
+}
+
 .co-field-mobile-remote {
   display: none;
 }
@@ -41440,6 +41583,74 @@ button.co-apex-command-kpi:hover:not(:disabled) {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
+  }
+
+  .co-estimates-shell-rate-book-defaults,
+  .co-estimates-shell-rate-book-empty {
+    border: 1px solid rgba(226, 232, 240, 0.95);
+    border-radius: 0.75rem;
+    background: #f8fafc;
+    padding: 0.75rem;
+  }
+
+  .co-estimates-shell-rate-book-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .co-estimates-shell-rate-book-head h4 {
+    margin: 0;
+    color: #0f172a;
+    font-size: 0.82rem;
+    font-weight: 900;
+  }
+
+  .co-estimates-shell-rate-book-head p,
+  .co-estimates-shell-rate-book-empty span {
+    margin: 0.18rem 0 0;
+    color: #64748b;
+    font-size: 0.75rem;
+    line-height: 1.35;
+  }
+
+  .co-estimates-shell-rate-book-list {
+    display: grid;
+    gap: 0.48rem;
+    margin-top: 0.62rem;
+  }
+
+  .co-estimates-shell-rate-book-chip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.7rem;
+    min-height: 2.75rem;
+    border: 1px solid rgba(203, 213, 225, 0.9);
+    border-radius: 0.62rem;
+    background: #fff;
+    padding: 0.55rem 0.65rem;
+    text-align: left;
+  }
+
+  .co-estimates-shell-rate-book-chip span {
+    color: #0f172a;
+    font-size: 0.78rem;
+    font-weight: 850;
+  }
+
+  .co-estimates-shell-rate-book-chip strong {
+    color: #ea580c;
+    font-size: 0.76rem;
+    white-space: nowrap;
+  }
+
+  .co-estimates-shell-rate-book-empty {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
   }
 
   .co-estimates-shell-workflow-panel {

@@ -14,6 +14,7 @@ import {
   canManageEstimates,
   canManageLeads,
   canManageOwnTime,
+  canManageRateBook,
   canManageChangeOrders,
   canManageCompanies,
   canManagePrePour,
@@ -58,6 +59,7 @@ test("owner has full office access and export rights", () => {
   assert.equal(canManageContactHistory(owner), true);
   assert.equal(canManageCustomers(owner), true);
   assert.equal(canManageEstimates(owner), true);
+  assert.equal(canManageRateBook(owner), true);
   assert.equal(canManageChangeOrders(owner), true);
   assert.equal(canViewDeliveryTickets(owner), true);
   assert.equal(canCreateDeliveryTickets(owner), true);
@@ -68,6 +70,7 @@ test("owner has full office access and export rights", () => {
   assert.equal(canExportData(owner), true);
   assert.equal(canRequestPackageReview(owner), true);
   assert.equal(getAllowedModuleIds(owner).has("commandCenter"), true);
+  assert.equal(getAllowedModuleIds(owner).has("rateBook"), true);
   assert.equal(getAllowedModuleIds(owner).has("communications"), true);
   assert.equal(getAllowedModuleIds(owner).has("schedule"), true);
   assert.equal(getAllowedModuleIds(owner).has("support"), true);
@@ -93,6 +96,7 @@ test("operations manager can manage users and see employees module", () => {
   assert.equal(canManageReports(operations), true);
   assert.equal(canManageChangeOrders(operations), true);
   assert.equal(canManageEstimates(operations), true);
+  assert.equal(canManageRateBook(operations), true);
   assert.equal(canViewDeliveryTickets(operations), true);
   assert.equal(canCreateDeliveryTickets(operations), true);
   assert.equal(canManageDeliveryTickets(operations), true);
@@ -105,6 +109,7 @@ test("operations manager can manage users and see employees module", () => {
   assert.equal(canToggleToolChecklist(operations), true);
   assert.equal(canViewAllToolChecklists(operations), true);
   assert.equal(modules.has("commandCenter"), true);
+  assert.equal(modules.has("rateBook"), true);
   assert.equal(modules.has("communications"), true);
   assert.equal(modules.has("schedule"), true);
   assert.equal(modules.has("employees"), true);
@@ -125,6 +130,7 @@ test("estimator gets sales access without settings access", () => {
   assert.equal(canManageContactHistory(estimator), true);
   assert.equal(canViewEstimates(estimator), true);
   assert.equal(canManageEstimates(estimator), true);
+  assert.equal(canManageRateBook(estimator), false);
   assert.equal(canViewChangeOrders(estimator), true);
   assert.equal(canManageChangeOrders(estimator), true);
   assert.equal(canViewDeliveryTickets(estimator), false);
@@ -133,6 +139,7 @@ test("estimator gets sales access without settings access", () => {
   assert.equal(canManageOwnTime(estimator), true);
   assert.equal(modules.has("time"), true);
   assert.equal(modules.has("commandCenter"), false);
+  assert.equal(modules.has("rateBook"), false);
   assert.equal(modules.has("communications"), true);
   assert.equal(modules.has("schedule"), false);
   assert.equal(modules.has("jobDraftImports"), false);
@@ -153,6 +160,7 @@ test("foreman stays field-only with calculator and safety access", () => {
   assert.equal(canCreateJobs(foreman), false);
   assert.equal(canViewCustomers(foreman), false);
   assert.equal(canViewEstimates(foreman), false);
+  assert.equal(canManageRateBook(foreman), false);
   assert.equal(canViewReports(foreman), true);
   assert.equal(canViewChangeOrders(foreman), true);
   assert.equal(canViewDeliveryTickets(foreman), true);
@@ -192,6 +200,7 @@ test("employee stays field-only with no office modules", () => {
   assert.equal(canManageContactHistory(employee), false);
   assert.equal(canViewCustomers(employee), false);
   assert.equal(canViewEstimates(employee), false);
+  assert.equal(canManageRateBook(employee), false);
   assert.equal(canViewReports(employee), false);
   assert.equal(canViewChangeOrders(employee), false);
   assert.equal(canViewDeliveryTickets(employee), true);
@@ -231,7 +240,7 @@ test("field roles do not get package readiness or upgrade control modules", () =
   for (const user of [{ role: "Foreman" }, { role: "Employee" }]) {
     const modules = getAllowedModuleIds(user, { toolChecklistEnabled: true });
 
-    for (const moduleId of ["settings", "appHealth", "copilot", "jobDraftImports", "estimates", "leads", "customers", "commandCenter", "communications", "schedule"]) {
+    for (const moduleId of ["settings", "appHealth", "copilot", "jobDraftImports", "estimates", "rateBook", "leads", "customers", "commandCenter", "communications", "schedule"]) {
       assert.equal(modules.has(moduleId), false, `${user.role} should not access ${moduleId}`);
     }
 

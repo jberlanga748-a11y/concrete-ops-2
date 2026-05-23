@@ -188,6 +188,7 @@ import {
   canManageOwnTime,
   canManagePrePour,
   canManagePostPour,
+  canManageRateBook,
   canManageReports,
   canManageSafety,
   canReviewSafetyIncidents,
@@ -254,6 +255,8 @@ const TIME_ENTRY_STATUSES = new Set(["active", "on_break", "completed"]);
 const TIME_WORK_CATEGORIES = new Set(["job", "office_admin", "estimating", "lead_follow_up", "shop_yard", "travel", "training", "meeting", "maintenance", "other"]);
 const DAILY_REPORT_STATUSES = new Set(["draft", "submitted", "reviewed", "reopened", "archived"]);
 const ESTIMATE_STATUSES = new Set(["draft", "sent", "approved", "rejected", "archived"]);
+const RATE_BOOK_CATEGORIES = new Set(["labor", "material", "equipment", "subcontractor", "other"]);
+const RATE_BOOK_STATUSES = new Set(["active", "archived"]);
 const CHANGE_ORDER_REQUEST_STATUSES = new Set(["requested", "under_review", "approved_for_pricing", "rejected", "archived"]);
 const SAFETY_POLICY_STATUSES = new Set(["active", "archived"]);
 const SAFETY_INCIDENT_TYPES = new Set(["concern", "near_miss", "injury", "property_damage", "hazard", "other"]);
@@ -2783,6 +2786,57 @@ function visibleImportedJobDraftsForUser(state, user) {
   return companyScopedRecordsForUser(state, user, normalizeImportedJobDrafts(state.jobDraftImports || []));
 }
 
+function normalizeRateBookCategory(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return RATE_BOOK_CATEGORIES.has(normalized) ? normalized : "other";
+}
+
+function normalizeRateBookStatus(value, fallback = "active") {
+  const normalized = String(value || fallback).trim().toLowerCase();
+  return RATE_BOOK_STATUSES.has(normalized) ? normalized : fallback;
+}
+
+function calculateRateBookUnitPrice({ unitCost = 0, markupPercent = 0, unitPrice = null } = {}) {
+  if (unitPrice != null && unitPrice !== "") {
+    return roundCurrency(optionalNonNegativeNumber(unitPrice, "Unit price", 0));
+  }
+  const cost = optionalNonNegativeNumber(unitCost, "Unit cost", 0);
+  const markup = optionalNonNegativeNumber(markupPercent, "Markup percent", 0);
+  return roundCurrency(cost * (1 + markup / 100));
+}
+
+function normalizeRateBookPayload(payload = {}, existing = null, user = null, changedAt = new Date().toISOString()) {
+  const unitCost = payload.unitCost == null ? (existing?.unitCost ?? 0) : optionalNonNegativeNumber(payload.unitCost, "Unit cost", 0);
+  const markupPercent = payload.markupPercent == null ? (existing?.markupPercent ?? 0) : optionalNonNegativeNumber(payload.markupPercent, "Markup percent", 0);
+  const unitPriceInput = payload.unitPrice != null
+    ? payload.unitPrice
+    : (payload.unitCost != null || payload.markupPercent != null ? null : existing?.unitPrice ?? null);
+  const unitPrice = calculateRateBookUnitPrice({ unitCost, markupPercent, unitPrice: unitPriceInput });
+
+  return {
+    id: existing?.id || makeId("RBI"),
+    category: normalizeRateBookCategory(payload.category == null ? existing?.category : payload.category),
+    trade: payload.trade == null ? (existing?.trade || "") : optionalString(payload.trade, ""),
+    title: payload.title == null && existing ? existing.title : requiredString(payload.title, "Rate book title"),
+    description: payload.description == null ? (existing?.description || "") : optionalString(payload.description, ""),
+    unit: payload.unit == null ? (existing?.unit || "ea") : optionalString(payload.unit, "ea"),
+    unitCost,
+    markupPercent,
+    unitPrice,
+    taxable: payload.taxable == null ? existing?.taxable !== false : payload.taxable !== false,
+    status: normalizeRateBookStatus(payload.status == null ? existing?.status : payload.status),
+    createdBy: existing?.createdBy || user?.id || "",
+    createdAt: existing?.createdAt || changedAt,
+    updatedAt: changedAt,
+    archivedAt: payload.archivedAt == null ? (existing?.archivedAt || null) : optionalString(payload.archivedAt, "") || null,
+  };
+}
+
+function visibleRateBookItemsForUser(state, user) {
+  if (!canManageRateBook(user)) return [];
+  return companyScopedRecordsForUser(state, user, state.rateBookItems || []);
+}
+
 function isBlankEstimateItem(item = {}) {
   const description = String(item?.description ?? "").trim();
   const quantity = item?.quantity == null || item?.quantity === "" ? 1 : Number(item.quantity);
@@ -3497,6 +3551,12 @@ function assertCanConvertEstimateToJobForRequest(user) {
   assertCanManageEstimatesForRequest(user);
   if (!canCreateJobs(user)) {
     throw new ApiError(403, "You do not have permission to create jobs from estimates.");
+  }
+}
+
+function assertCanManageRateBookForRequest(user) {
+  if (!canManageRateBook(user)) {
+    throw new ApiError(403, "You do not have permission to manage the company rate book.");
   }
 }
 
@@ -5563,6 +5623,7 @@ function sanitizeBootstrap(state, user) {
   const leadStatusHistory = visibleLeadStatusHistoryForUser(state, user);
   const contactHistory = visibleContactHistoryForUser(state, user);
   const estimates = visibleEstimatesForUser(state, user);
+  const rateBookItems = visibleRateBookItemsForUser(state, user);
   const jobDraftImports = packageEntitlements.jobDraftImports.canUse ? visibleImportedJobDraftsForUser(state, user) : [];
   const jobs = freshenDemoFieldDatesForUser(user, visibleJobsForUser(state, user, hydrationContext));
   const safetyPolicies = visibleSafetyPoliciesForUser(state, user);
@@ -5615,6 +5676,7 @@ function sanitizeBootstrap(state, user) {
     leadStatusHistory,
     contactHistory,
     estimates,
+    rateBookItems,
     jobDraftImports,
     jobs,
     safetyPolicies,
@@ -5654,6 +5716,10 @@ function sanitizeBootstrap(state, user) {
         canManage: canManageEstimates(user),
         canUseAiRoughNotes: packageEntitlements.estimates.canUseProposalTools && canManageEstimates(user),
         canUseGcPackets: packageEntitlements.estimates.canUseGcPackets && canManageEstimates(user),
+      },
+      rateBook: {
+        canView: canManageRateBook(user),
+        canManage: canManageRateBook(user),
       },
       jobDraftImports: {
         canView: packageEntitlements.jobDraftImports.canUse && canCreateJobs(user),
@@ -8414,6 +8480,120 @@ app.post("/api/estimates/:id/convert-to-job", requireAuth, asyncRoute(async (req
 
   const nextState = await updateDb((draft) => {
     convertApprovedEstimateToJobInDraft(draft, req.params.id, req.auth.user, payload, changedAt);
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.get("/api/rate-book", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageRateBookForRequest(req.auth.user);
+  const state = await readDb();
+  res.json({
+    rateBookItems: visibleRateBookItemsForUser(state, req.auth.user),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/rate-book", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageRateBookForRequest(req.auth.user);
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.rateBookItems ||= [];
+    const item = normalizeRateBookPayload(req.body || {}, null, req.auth.user, changedAt);
+    assignCompanyIdForCreate(item, req.auth.user, draft);
+    draft.rateBookItems.unshift(item);
+    appendActivity(draft, "Rate book item added", `${req.auth.user.name} added rate book item ${item.title}.`);
+    appendAuditEvent(draft, {
+      entityType: "rate_book_item",
+      entityId: item.id,
+      action: "created",
+      summary: "Rate book item created",
+      detail: `${req.auth.user.name} created internal rate book item ${item.title}.`,
+      actor: req.auth.user,
+      changedFields: ["category", "trade", "title", "unit", "unitCost", "markupPercent", "unitPrice", "taxable"],
+    });
+    return draft;
+  });
+
+  res.status(201).json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.patch("/api/rate-book/:id", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageRateBookForRequest(req.auth.user);
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.rateBookItems ||= [];
+    const item = findCompanyScopedRecord(draft.rateBookItems, req.params.id, req.auth.user, draft, "Rate book item");
+    const normalized = normalizeRateBookPayload(req.body || {}, item, req.auth.user, changedAt);
+    Object.assign(item, normalized, {
+      id: item.id,
+      companyId: item.companyId,
+      createdBy: item.createdBy,
+      createdAt: item.createdAt,
+    });
+    appendActivity(draft, "Rate book item updated", `${req.auth.user.name} updated rate book item ${item.title}.`);
+    appendAuditEvent(draft, {
+      entityType: "rate_book_item",
+      entityId: item.id,
+      action: "updated",
+      summary: "Rate book item updated",
+      detail: `${req.auth.user.name} updated internal rate book item ${item.title}.`,
+      actor: req.auth.user,
+      changedFields: ["category", "trade", "title", "description", "unit", "unitCost", "markupPercent", "unitPrice", "taxable", "status"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/rate-book/:id/archive", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageRateBookForRequest(req.auth.user);
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.rateBookItems ||= [];
+    const item = findCompanyScopedRecord(draft.rateBookItems, req.params.id, req.auth.user, draft, "Rate book item");
+    item.status = "archived";
+    item.archivedAt = changedAt;
+    item.updatedAt = changedAt;
+    appendAuditEvent(draft, {
+      entityType: "rate_book_item",
+      entityId: item.id,
+      action: "archived",
+      summary: "Rate book item archived",
+      detail: `${req.auth.user.name} archived internal rate book item ${item.title}.`,
+      actor: req.auth.user,
+      changedFields: ["status", "archivedAt", "updatedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/rate-book/:id/restore", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageRateBookForRequest(req.auth.user);
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.rateBookItems ||= [];
+    const item = findCompanyScopedRecord(draft.rateBookItems, req.params.id, req.auth.user, draft, "Rate book item");
+    item.status = "active";
+    item.archivedAt = null;
+    item.updatedAt = changedAt;
+    appendAuditEvent(draft, {
+      entityType: "rate_book_item",
+      entityId: item.id,
+      action: "restored",
+      summary: "Rate book item restored",
+      detail: `${req.auth.user.name} restored internal rate book item ${item.title}.`,
+      actor: req.auth.user,
+      changedFields: ["status", "archivedAt", "updatedAt"],
+    });
     return draft;
   });
 

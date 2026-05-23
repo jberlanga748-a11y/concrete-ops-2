@@ -683,6 +683,7 @@ export function createEmptyState() {
     jobDraftImports: [],
     estimates: [],
     estimateItems: [],
+    rateBookItems: [],
     safetyPolicies: [],
     ppeItems: [],
     safetyAcknowledgments: [],
@@ -1876,6 +1877,7 @@ export function createSeedState() {
     jobDraftImports: [],
     estimates: includeDemoRecords ? estimates : [],
     estimateItems: includeDemoRecords ? estimateItems : [],
+    rateBookItems: [],
     safetyPolicies,
     ppeItems,
     safetyAcknowledgments: includeDemoRecords ? safetyAcknowledgments : [],
@@ -2363,6 +2365,10 @@ function remapDemoSeedStateUserIds(seedState, actualUserIdsByEmail) {
       createdBy: replaceUserId(estimate.createdBy),
     })),
     estimateItems: seedState.estimateItems || [],
+    rateBookItems: mapRows(seedState.rateBookItems, (item) => ({
+      ...item,
+      createdBy: replaceUserId(item.createdBy),
+    })),
     safetyPolicies: mapRows(seedState.safetyPolicies, (policy) => ({
       ...policy,
       createdBy: replaceUserId(policy.createdBy),
@@ -2488,6 +2494,7 @@ function cleanupLegacyDemoSeedDataInDatabase(database) {
     ["job_assignments", pairRows(legacySeed.jobAssignments, canonicalSeed.jobAssignments)],
     ["estimates", pairRows(legacySeed.estimates, canonicalSeed.estimates)],
     ["estimate_items", pairRows(legacySeed.estimateItems, canonicalSeed.estimateItems)],
+    ["rate_book_items", pairRows(legacySeed.rateBookItems, canonicalSeed.rateBookItems)],
     ["safety_policies", pairRows(legacySeed.safetyPolicies, canonicalSeed.safetyPolicies)],
     ["ppe_items", pairRows(legacySeed.ppeItems, canonicalSeed.ppeItems)],
     ["safety_acknowledgments", pairRows(legacySeed.safetyAcknowledgments, canonicalSeed.safetyAcknowledgments)],
@@ -5883,6 +5890,40 @@ const MIGRATIONS = [
         database.exec("CREATE INDEX IF NOT EXISTS idx_leads_trade ON leads(trade);");
       },
     },
+    {
+      version: 51,
+      description: "Add company-scoped rate book items for internal estimate defaults.",
+      up(database) {
+        database.exec(`
+          CREATE TABLE IF NOT EXISTS rate_book_items (
+            id TEXT PRIMARY KEY,
+            sort_index INTEGER NOT NULL,
+            company_id TEXT NOT NULL DEFAULT '${DEFAULT_COMPANY_ID}',
+            category TEXT NOT NULL,
+            trade TEXT NOT NULL DEFAULT '',
+            title TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            unit TEXT NOT NULL DEFAULT 'ea',
+            unit_cost REAL NOT NULL DEFAULT 0,
+            markup_percent REAL NOT NULL DEFAULT 0,
+            unit_price REAL NOT NULL DEFAULT 0,
+            taxable INTEGER NOT NULL DEFAULT 1,
+            status TEXT NOT NULL DEFAULT 'active',
+            created_by TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            archived_at TEXT,
+            FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_rate_book_items_company_id ON rate_book_items(company_id);
+          CREATE INDEX IF NOT EXISTS idx_rate_book_items_category ON rate_book_items(category);
+          CREATE INDEX IF NOT EXISTS idx_rate_book_items_trade ON rate_book_items(trade);
+          CREATE INDEX IF NOT EXISTS idx_rate_book_items_status ON rate_book_items(status);
+          CREATE INDEX IF NOT EXISTS idx_rate_book_items_sort_index ON rate_book_items(sort_index);
+        `);
+      },
+    },
   ];
 
 function runInTransaction(database, work) {
@@ -6005,6 +6046,11 @@ function writeStateToDb(state) {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
+  const insertRateBookItem = database.prepare(`
+    INSERT INTO rate_book_items (id, sort_index, company_id, category, trade, title, description, unit, unit_cost, markup_percent, unit_price, taxable, status, created_by, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
   const insertSafetyPolicy = database.prepare(`
     INSERT INTO safety_policies (id, sort_index, company_id, title, body, category, status, created_by, created_at, updated_at, archived_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -6109,6 +6155,7 @@ function writeStateToDb(state) {
       const normalizedCompanySettings = companySettingsByCompanyId[DEFAULT_COMPANY_ID] || normalizeCompanySettings(state.companySettings);
       const companies = normalizeCompanies(state.companies, normalizedCompanySettings);
       database.exec(`
+      DELETE FROM rate_book_items;
       DELETE FROM companies;
       DELETE FROM company_settings;
       DELETE FROM sessions;
@@ -6578,6 +6625,28 @@ function writeStateToDb(state) {
         Number(item.sortOrder || index),
         item.createdAt || isoNow(),
         item.updatedAt || item.createdAt || isoNow(),
+      );
+    });
+
+    (state.rateBookItems || []).forEach((item, index) => {
+      insertRateBookItem.run(
+        item.id,
+        item.sortIndex ?? index,
+        normalizeCompanyId(item.companyId),
+        item.category || "other",
+        item.trade || "",
+        item.title || "",
+        item.description || "",
+        item.unit || "ea",
+        Number(item.unitCost || 0),
+        Number(item.markupPercent || 0),
+        Number(item.unitPrice || 0),
+        item.taxable === false ? 0 : 1,
+        item.status || "active",
+        item.createdBy || "",
+        item.createdAt || isoNow(),
+        item.updatedAt || item.createdAt || isoNow(),
+        item.archivedAt || null,
       );
     });
 
@@ -7171,6 +7240,17 @@ function readTableState() {
       ORDER BY sort_index ASC
     `).all();
 
+  const rateBookItems = database.prepare(`
+      SELECT id, company_id AS companyId, category, trade, title, description, unit, unit_cost AS unitCost,
+             markup_percent AS markupPercent, unit_price AS unitPrice, taxable, status, created_by AS createdBy,
+             created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
+      FROM rate_book_items
+      ORDER BY sort_index ASC
+    `).all().map((item) => ({
+      ...withDefaultCompanyId(item),
+      taxable: Boolean(item.taxable),
+    }));
+
   const safetyPolicies = database.prepare(`
       SELECT id, company_id AS companyId, title, body, category, status, created_by AS createdBy, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
       FROM safety_policies
@@ -7344,6 +7424,7 @@ function readTableState() {
     jobDraftImports,
     estimates,
     estimateItems,
+    rateBookItems,
     safetyPolicies,
     ppeItems,
     safetyAcknowledgments,
