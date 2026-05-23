@@ -38684,7 +38684,11 @@ button.co-apex-command-kpi:hover:not(:disabled) {
 
   .co-today-page .co-apex-selected-detail-body {
     align-content: start;
-    overflow: hidden;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
   }
 
   .co-today-page .co-work-queue-card h3 {
