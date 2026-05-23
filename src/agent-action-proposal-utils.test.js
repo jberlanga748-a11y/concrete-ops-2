@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   buildAgentActionProposal,
+  buildAgentActionProposalReviewAuditPayload,
   deriveAgentActionProposalQueue,
   deriveAgentActionProposalReviewState,
   deriveAgentActionProposalAuditHistory,
@@ -263,6 +264,48 @@ test("agent action proposal review state stays blocked for field users", () => {
   assert.equal(state.canOpenWorkflow, false);
   assert.equal(state.canMarkReviewed, false);
   assert.match(state.safetyCopy, /blocked by role, package, or safety/i);
+});
+
+test("agent action proposal review audit payload stays review-first and redacted", () => {
+  const queue = deriveAgentActionProposalQueue([
+    {
+      id: "lead-LEAD-1",
+      moduleId: "leads",
+      recordType: "lead",
+      title: "Fence replacement lead password=secret123",
+      description: "Missing gate details before estimate prep. email bob@example.com",
+      actionLabel: "Open lead",
+      record: { id: "LEAD-1" },
+    },
+  ], {
+    permissions: {
+      aiOffice: { canView: true },
+      leads: { canView: true },
+    },
+  });
+  const initial = deriveAgentActionProposalReviewState(queue);
+  const reviewed = deriveAgentActionProposalReviewState(queue, {
+    selectedId: queue[0].id,
+    decisions: {
+      [queue[0].id]: {
+        completedChecklist: initial.checklist.map((item) => item.id),
+        reviewedAt: "2026-05-23T02:00:00.000Z",
+      },
+    },
+  });
+
+  const payload = buildAgentActionProposalReviewAuditPayload(reviewed, {
+    actor: { id: "USER-1", role: "Administrator" },
+  });
+
+  assert.equal(payload.eventType, "agent.proposal.generated");
+  assert.equal(payload.approvalRequired, true);
+  assert.equal(payload.targetEntityType, "lead");
+  assert.equal(payload.targetEntityId, "LEAD-1");
+  assert.equal(payload.sourceRoute, "/ai-office");
+  assert.doesNotMatch(JSON.stringify(payload), /secret123|bob@example\.com/i);
+  assert.match(JSON.stringify(payload), /\[REDACTED\]/);
+  assert.ok(payload.blockedReasons.some((item) => /No customer email/i.test(item)));
 });
 
 test("agent action proposal hydrates review packets with read-only server context", () => {

@@ -27,7 +27,7 @@ import {
   resolveApexAssistantCommand,
 } from "./apex-assistant-shell-utils";
 import { AppHealthAuditActivityPanel, CustomerPortalManualPreviewPanel, EnterpriseTrustReadinessPanel, OwnerHealthStatusPanel, PwaInstallGuidancePanel, ReleaseSafetyRollbackPanel, UiStyleFoundationPanel } from "./app-health-route-components";
-import { buildAgentActionProposal, deriveAgentActionProposalAuditHistory, deriveAgentActionProposalQueue, deriveAgentActionProposalReviewState, normalizeAgentActionProposalAuditEvent } from "./agent-action-proposal-utils";
+import { buildAgentActionProposal, buildAgentActionProposalReviewAuditPayload, deriveAgentActionProposalAuditHistory, deriveAgentActionProposalQueue, deriveAgentActionProposalReviewState, normalizeAgentActionProposalAuditEvent } from "./agent-action-proposal-utils";
 import { agentContextPayloadToWorkflowContext } from "./agent-context-api-utils";
 import { deriveAgentWorkflowContext } from "./agent-workflow-context-utils";
 import { deriveAiOfficeAgentCommandCenter } from "./ai-office-utils";
@@ -21415,6 +21415,7 @@ function CopilotPagePolished({
   onSuggestAgentLearningFromEstimates,
   onSuggestAgentLearningFromCloseouts,
   onUpdateAgentLearningPreference,
+  onRecordAgentProposalAudit = async () => null,
 }) {
   const liveLeads = normalizeObjectArray(leads).filter((lead) => !lead.archivedAt);
   const liveJobs = normalizeObjectArray(jobs).filter((job) => !job.archivedAt);
@@ -21433,6 +21434,7 @@ function CopilotPagePolished({
   const [learningActionState, setLearningActionState] = useState({ status: "idle", id: "", message: "" });
   const [selectedAgentProposalId, setSelectedAgentProposalId] = useState("");
   const [agentProposalReviewDecisions, setAgentProposalReviewDecisions] = useState({});
+  const [agentProposalAuditState, setAgentProposalAuditState] = useState({ proposalId: "", status: "idle", message: "" });
   const canViewOpportunityScout = Boolean(permissions?.opportunityScout?.canView);
   const canManageOpportunityScout = Boolean(permissions?.opportunityScout?.canManage);
   const canManageAgentLearning = Boolean(permissions?.aiOffice?.canManageLearning);
@@ -21994,6 +21996,9 @@ function CopilotPagePolished({
     selectedId: selectedAgentProposalId,
     decisions: agentProposalReviewDecisions,
   }), [actionProposalQueue, agentProposalReviewDecisions, selectedAgentProposalId]);
+  const selectedAgentProposalAuditRecorded = Boolean(actionProposalReview.selected?.id && (
+    agentProposalAuditState.proposalId === actionProposalReview.selected.id && agentProposalAuditState.status === "recorded"
+  ));
 
   function toggleAgentProposalReviewCheck(checkId) {
     const selectedId = actionProposalReview.selected?.id;
@@ -22015,6 +22020,9 @@ function CopilotPagePolished({
         },
       };
     });
+    setAgentProposalAuditState((current) => (
+      current.proposalId === selectedId ? { proposalId: selectedId, status: "idle", message: "" } : current
+    ));
   }
 
   function markAgentProposalReviewedLocally() {
@@ -22033,6 +22041,24 @@ function CopilotPagePolished({
   function openSelectedAgentProposalWorkflow() {
     if (!actionProposalReview.canOpenWorkflow || !actionProposalReview.selected?.target) return;
     openAgentCommandTarget(actionProposalReview.selected.target);
+  }
+
+  async function recordSelectedAgentProposalAudit() {
+    const selected = actionProposalReview.selected;
+    if (!selected?.id || agentProposalAuditState.status === "saving") return;
+    if (!actionProposalReview.isBlocked && !actionProposalReview.isLocallyReviewed) return;
+    const payload = buildAgentActionProposalReviewAuditPayload(actionProposalReview, {
+      actor: user,
+      sourceRoute: "/ai-office",
+    });
+    if (!payload) return;
+    setAgentProposalAuditState({ proposalId: selected.id, status: "saving", message: "Recording audit..." });
+    try {
+      await onRecordAgentProposalAudit(payload);
+      setAgentProposalAuditState({ proposalId: selected.id, status: "recorded", message: "Recorded to the audit trail." });
+    } catch (error) {
+      setAgentProposalAuditState({ proposalId: selected.id, status: "error", message: error?.message || "Audit record failed." });
+    }
   }
 
   function renderAgentTradeGuidance(target) {
@@ -22903,10 +22929,16 @@ function CopilotPagePolished({
                   <Button type="button" size="sm" variant="secondary" onClick={markAgentProposalReviewedLocally} disabled={!actionProposalReview.canMarkReviewed || actionProposalReview.isLocallyReviewed}>
                     {actionProposalReview.isLocallyReviewed ? "Reviewed" : `Review checks ${actionProposalReview.completedCount}/${actionProposalReview.totalCount}`}
                   </Button>
+                  <Button type="button" size="sm" variant="secondary" onClick={recordSelectedAgentProposalAudit} disabled={agentProposalAuditState.status === "saving" || selectedAgentProposalAuditRecorded || (!actionProposalReview.isBlocked && !actionProposalReview.isLocallyReviewed)}>
+                    {agentProposalAuditState.status === "saving" ? "Recording" : selectedAgentProposalAuditRecorded ? "Audit recorded" : "Record audit"}
+                  </Button>
                   <Button type="button" size="sm" onClick={openSelectedAgentProposalWorkflow} disabled={!actionProposalReview.canOpenWorkflow}>
                     Open workflow
                   </Button>
                 </div>
+                {agentProposalAuditState.proposalId === actionProposalReview.selected.id && agentProposalAuditState.message ? (
+                  <p className="co-ai-proposal-audit-message" data-state={agentProposalAuditState.status}>{agentProposalAuditState.message}</p>
+                ) : null}
               </div>
             ) : null}
             <div className="co-ai-proposal-queue">
@@ -37243,6 +37275,7 @@ export default function App() {
                 onSuggestAgentLearningFromEstimates={handleSuggestAgentLearningFromEstimates}
                 onSuggestAgentLearningFromCloseouts={handleSuggestAgentLearningFromCloseouts}
                 onUpdateAgentLearningPreference={handleUpdateAgentLearningPreference}
+                onRecordAgentProposalAudit={handleRecordAgentProposalAudit}
                 onOpenEstimatePacket={handleOpenAssistantEstimatePacket}
                 onOpenEstimateJobHandoff={handleOpenAssistantEstimateJobHandoff}
                 onOpenCloseoutReview={handleOpenAssistantCloseoutReview}

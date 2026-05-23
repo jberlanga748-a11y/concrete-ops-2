@@ -29374,6 +29374,26 @@ textarea {
   margin-top: 0.72rem;
 }
 
+.co-ai-proposal-audit-message {
+  margin: 0.52rem 0 0 !important;
+  border-radius: 0.7rem;
+  background: rgba(30, 41, 59, 0.74);
+  color: #cbd5e1 !important;
+  padding: 0.42rem 0.55rem;
+  font-size: 0.7rem !important;
+  font-weight: 900 !important;
+}
+
+.co-ai-proposal-audit-message[data-state="recorded"] {
+  background: rgba(22, 101, 52, 0.24);
+  color: #bbf7d0 !important;
+}
+
+.co-ai-proposal-audit-message[data-state="error"] {
+  background: rgba(127, 29, 29, 0.26);
+  color: #fecaca !important;
+}
+
 .co-ai-scout-quality-row {
   --co-ai-tone: #64748b;
   text-align: left;

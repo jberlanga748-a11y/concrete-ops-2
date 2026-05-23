@@ -509,6 +509,28 @@ export function deriveAgentActionProposalReviewState(queue = [], { selectedId = 
   };
 }
 
+export function buildAgentActionProposalReviewAuditPayload(reviewState = {}, {
+  actor = {},
+  sourceRoute = "/ai-office",
+} = {}) {
+  const selected = reviewState?.selected;
+  if (!selected?.proposal) return null;
+  const match = asArray(selected.response?.matches)[0] || {};
+  const target = selected.target || {};
+  return normalizeAgentActionProposalAuditEvent(selected.proposal, {
+    actor,
+    sourceRoute,
+    sourceModule: selected.proposal.targetModuleId,
+    prompt: selected.proposal.proof?.commandText || selected.sourceTitle || "",
+    response: selected.proposal.proof?.message || selected.helper || "",
+    status: selected.proposal.status,
+    targetEntity: {
+      type: text(target.recordType || match.type),
+      id: text(target.record?.id || target.recordId || match.leadId || match.estimateId || match.jobId || match.reportId || match.uploadId || match.id),
+    },
+  });
+}
+
 export function buildAgentActionProposal(response = {}, { permissions = {}, workflowContext = null } = {}) {
   if (!response || typeof response !== "object") {
     return null;
