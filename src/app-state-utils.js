@@ -162,3 +162,10 @@ export function normalizeAppPermissions(sourcePermissions = {}, fallbackPermissi
     ]),
   );
 }
+
+export function shouldRenderCommandCenterForDashboard({ permissions = {}, firstOwnerOnboarding = null } = {}) {
+  const isOfficeWorkspace = Boolean(permissions?.jobs?.canManageAll || permissions?.leads?.canView);
+  const firstOwnerSetupIncomplete = Boolean(firstOwnerOnboarding && firstOwnerOnboarding.complete === false);
+
+  return isOfficeWorkspace && !firstOwnerSetupIncomplete;
+}

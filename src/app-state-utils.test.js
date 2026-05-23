@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { normalizeAppPermissions } from "./app-state-utils.js";
+import { normalizeAppPermissions, shouldRenderCommandCenterForDashboard } from "./app-state-utils.js";
 
 test("normalizes AI Office and Opportunity Scout permissions from bootstrap", () => {
   const permissions = normalizeAppPermissions({
@@ -44,4 +44,34 @@ test("preserves fallback permission scopes only when source omits the scope", ()
   assert.equal(permissions.aiOffice.canUseLeadAssistant, false);
   assert.equal(permissions.opportunityScout.canView, true);
   assert.equal(permissions.customerPortal.canPreview, true);
+});
+
+test("routes established office dashboards into Command Center", () => {
+  assert.equal(
+    shouldRenderCommandCenterForDashboard({
+      permissions: { jobs: { canManageAll: true }, leads: { canView: true } },
+      firstOwnerOnboarding: { complete: true },
+    }),
+    true,
+  );
+});
+
+test("keeps first-owner setup visible for new self-serve office workspaces", () => {
+  assert.equal(
+    shouldRenderCommandCenterForDashboard({
+      permissions: { jobs: { canManageAll: true }, leads: { canView: true } },
+      firstOwnerOnboarding: { complete: false, nextStep: { key: "service_setup" } },
+    }),
+    false,
+  );
+});
+
+test("does not route field users into Command Center", () => {
+  assert.equal(
+    shouldRenderCommandCenterForDashboard({
+      permissions: { jobs: { canView: true }, leads: { canView: false } },
+      firstOwnerOnboarding: null,
+    }),
+    false,
+  );
 });

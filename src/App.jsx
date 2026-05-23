@@ -31,7 +31,7 @@ import { buildAgentActionProposal, buildAgentActionProposalReviewAuditPayload, d
 import { agentContextPayloadToWorkflowContext } from "./agent-context-api-utils";
 import { deriveAgentWorkflowContext } from "./agent-workflow-context-utils";
 import { deriveAiOfficeAgentCommandCenter } from "./ai-office-utils";
-import { DEFAULT_APP_PERMISSIONS, mergePermissionScope, normalizeAppPermissions } from "./app-state-utils";
+import { DEFAULT_APP_PERMISSIONS, mergePermissionScope, normalizeAppPermissions, shouldRenderCommandCenterForDashboard } from "./app-state-utils";
 import {
   activateInvite,
   acknowledgeJobAssignmentNotice,
@@ -13500,9 +13500,10 @@ function DashboardDailyFocusBoard({
 }
 
 function DashboardPage(props) {
-  const isOfficeWorkspace = Boolean(props.permissions?.jobs?.canManageAll || props.permissions?.leads?.canView);
-  const firstOwnerSetupIncomplete = Boolean(props.firstOwnerOnboarding && props.firstOwnerOnboarding.complete === false);
-  if (isOfficeWorkspace && !firstOwnerSetupIncomplete) {
+  if (shouldRenderCommandCenterForDashboard({
+    permissions: props.permissions,
+    firstOwnerOnboarding: props.firstOwnerOnboarding,
+  })) {
     return <CommandCenterPage {...props} />;
   }
   return <DashboardPagePolished {...props} />;
