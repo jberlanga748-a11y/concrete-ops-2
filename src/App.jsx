@@ -191,7 +191,7 @@ import { CustomerFilterHeader, CustomerIntakeCard as ExtractedCustomerIntakeCard
 import { SupportCommandWorkbench as ExtractedSupportCommandWorkbench } from "./support-route-components";
 import { deriveCustomerListState, filterCustomers, relatedCustomerRecords } from "./customer-utils";
 import { buildDeliveryTicketSupportContext, deliveryTicketTitle, deriveDeliveryTicketCloseoutReadiness, deriveDeliveryTicketListState, filterDeliveryTickets } from "./delivery-ticket-utils";
-import { deriveEstimateBackup } from "./estimate-backup-utils";
+import { createEmptySovRow, deriveEstimateBackup, mergeEstimateBackup } from "./estimate-backup-utils";
 import { deriveEstimateGcPacketLite } from "./estimate-gc-packet-utils";
 import { estimateRoughNotesBullets, estimateRoughNotesHasSuggestions, estimateRoughNotesText, hasMeaningfulEstimateItems } from "./estimate-rough-notes-utils";
 import { addEstimateSentSnapshot, getEstimateVisibleInternalNotes, mergeEstimateGcPacketLite, mergeEstimateOfficeInternalNotes } from "./estimate-snapshot-utils";
@@ -29627,10 +29627,16 @@ function EstimatesPagePolished({
           ? `Resolve ${readiness.missing.slice(0, 3).join(", ")} before sending or converting.`
           : "Keep reviewing proposal context before any external action.";
     const activeShellMode = estimateShellModes.find((mode) => mode.id === estimateShellMode) || estimateShellModes[0];
-    const visibleEstimateShellModes = activeShellMode.id === "pricing"
-      ? estimateShellModes.filter((mode) => mode.id === "overview" || mode.id === "pricing")
+    const isFocusedShellEditMode = ["pricing", "proposal", "backup"].includes(activeShellMode.id);
+    const visibleEstimateShellModes = isFocusedShellEditMode
+      ? estimateShellModes.filter((mode) => mode.id === "overview" || mode.id === activeShellMode.id)
       : estimateShellModes;
     const pricingSaveDisabled = busy || !canManage || !selectedEstimate?.id;
+    const proposalSaveDisabled = busy || !canManage || !selectedEstimate?.id;
+    const backupSaveDisabled = busy || !canManage || !selectedEstimate?.id;
+    const shellProposalSections = deriveEstimateProposalSections(detailDraft);
+    const proposalOptionStatusOptions = ["optional", "included", "excluded", "accepted"];
+    const addOnStatusOptions = ["optional", "selected", "included", "accepted", "excluded"];
 
     async function handleSaveEstimateShellPricing() {
       if (!selectedEstimate?.id || !canManage || typeof onSaveEstimate !== "function") return false;
@@ -29643,6 +29649,98 @@ function EstimatesPagePolished({
         showCopyFeedback("Pricing saved through the existing estimate save path.", 5000);
       }
       return saved;
+    }
+
+    async function handleSaveEstimateShellProposal() {
+      if (!selectedEstimate?.id || !canManage || typeof onSaveEstimate !== "function") return false;
+      const saved = await onSaveEstimate(selectedEstimate.id, {
+        scopeSummary: detailDraft.scopeSummary,
+        customerNotes: detailDraft.customerNotes,
+      });
+      if (saved) {
+        showCopyFeedback("Proposal sections saved through the existing estimate save path.", 5000);
+      }
+      return saved;
+    }
+
+    async function handleSaveEstimateShellBackup() {
+      if (!selectedEstimate?.id || !canManage || typeof onSaveEstimate !== "function") return false;
+      const saved = await onSaveEstimate(selectedEstimate.id, {
+        internalNotes: detailDraft.internalNotes,
+      });
+      if (saved) {
+        showCopyFeedback("Backup and SOV review saved through the existing estimate save path.", 5000);
+      }
+      return saved;
+    }
+
+    function updateShellProposalSection(field, value) {
+      setDetailDraft((current) => mergeEstimateProposalSections(current, { [field]: value }));
+    }
+
+    function updateShellProposalOption(group, index, field, value) {
+      const currentOptions = Array.isArray(shellProposalSections[group]) ? shellProposalSections[group] : [];
+      const nextOptions = currentOptions.map((option, optionIndex) => optionIndex === index ? { ...option, [field]: value } : option);
+      updateShellProposalSection(group, nextOptions);
+    }
+
+    function appendShellProposalOption(group) {
+      const currentOptions = Array.isArray(shellProposalSections[group]) ? shellProposalSections[group] : [];
+      updateShellProposalSection(group, [
+        ...currentOptions,
+        {
+          title: "",
+          description: "",
+          amount: "",
+          status: "optional",
+          notes: "",
+        },
+      ]);
+    }
+
+    function removeShellProposalOption(group, index) {
+      const currentOptions = Array.isArray(shellProposalSections[group]) ? shellProposalSections[group] : [];
+      updateShellProposalSection(group, currentOptions.filter((_, optionIndex) => optionIndex !== index));
+    }
+
+    function renderEstimateShellProposalOptions({ group, title, description, addLabel, statusOptions }) {
+      const options = Array.isArray(shellProposalSections[group]) ? shellProposalSections[group] : [];
+      return (
+        <div className="co-estimates-shell-option-group">
+          <div className="co-estimates-shell-option-head">
+            <div>
+              <h4>{title}</h4>
+              <p>{description}</p>
+            </div>
+            <Button type="button" variant="secondary" onClick={() => appendShellProposalOption(group)} disabled={!canManage || busy}>{addLabel}</Button>
+          </div>
+          {options.length ? (
+            <div className="co-estimates-shell-option-list">
+              {options.map((option, index) => (
+                <div key={`${group}-${index}`} className="co-estimates-shell-option-card">
+                  <div className="co-estimates-shell-option-grid">
+                    <InputField label={`${title} ${index + 1}`} value={option.title || ""} onChange={(event) => updateShellProposalOption(group, index, "title", event.target.value)} disabled={!canManage || busy} />
+                    <InputField label="Amount" value={option.amount || ""} onChange={(event) => updateShellProposalOption(group, index, "amount", event.target.value)} inputMode="decimal" disabled={!canManage || busy} />
+                    <SelectField label="Status" value={option.status || "optional"} onChange={(event) => updateShellProposalOption(group, index, "status", event.target.value)} disabled={!canManage || busy}>
+                      {statusOptions.map((statusOption) => <option key={statusOption} value={statusOption}>{statusOption}</option>)}
+                    </SelectField>
+                  </div>
+                  <div className="co-estimates-shell-option-copy-grid">
+                    <TextAreaField label="Description" value={option.description || ""} onChange={(event) => updateShellProposalOption(group, index, "description", event.target.value)} className="field-input min-h-20 resize-y" disabled={!canManage || busy} />
+                    <TextAreaField label="Notes" value={option.notes || ""} onChange={(event) => updateShellProposalOption(group, index, "notes", event.target.value)} className="field-input min-h-20 resize-y" disabled={!canManage || busy} />
+                  </div>
+                  <div className="co-estimates-shell-option-foot">
+                    <span>Optional proposal item only. Base estimate pricing is unchanged here.</span>
+                    <button type="button" onClick={() => removeShellProposalOption(group, index)} disabled={!canManage || busy}>Remove</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="co-estimates-shell-empty-note">No {title.toLowerCase()} added yet.</p>
+          )}
+        </div>
+      );
     }
 
     function renderEstimateShellPricingMode() {
@@ -29703,9 +29801,130 @@ function EstimatesPagePolished({
       );
     }
 
+    function renderEstimateShellProposalMode() {
+      return (
+        <div className="co-estimates-shell-workflow-panel co-estimates-shell-proposal-panel" role="region" aria-label="Estimate proposal sections editor">
+          <div className="co-estimates-shell-workflow-head">
+            <div>
+              <Badge tone={canManage ? "blue" : "slate"}>{canManage ? "Proposal edit" : "Read only"}</Badge>
+              <h3>Proposal Sections</h3>
+              <p>Customer-facing scope, inclusions, exclusions, assumptions, terms, alternates, and add-ons only.</p>
+            </div>
+            <StatusBadge status={estimateStatusLabel(status)} />
+          </div>
+          <div className="co-estimates-shell-workflow-context">
+            <span><em>Estimate</em><strong>{estimateDisplayTitle(estimate)}</strong></span>
+            <span><em>Customer</em><strong>{estimateDisplayCustomer(estimate) || "Customer pending"}</strong></span>
+            <span><em>Contact</em><strong>{estimateCustomerEmail(estimate) || "Missing"}</strong></span>
+          </div>
+          <div className="co-estimates-shell-proposal-fields">
+            <TextAreaField label="Scope of Work" value={shellProposalSections.scopeOfWork} onChange={(event) => updateShellProposalSection("scopeOfWork", event.target.value)} disabled={!canManage || busy} />
+            <div className="co-estimates-shell-proposal-grid">
+              <TextAreaField label="Inclusions" value={shellProposalSections.inclusions} onChange={(event) => updateShellProposalSection("inclusions", event.target.value)} className="field-input min-h-24 resize-y" disabled={!canManage || busy} />
+              <TextAreaField label="Exclusions" value={shellProposalSections.exclusions} onChange={(event) => updateShellProposalSection("exclusions", event.target.value)} className="field-input min-h-24 resize-y" disabled={!canManage || busy} />
+              <TextAreaField label="Assumptions / Clarifications" value={shellProposalSections.assumptions} onChange={(event) => updateShellProposalSection("assumptions", event.target.value)} className="field-input min-h-24 resize-y" disabled={!canManage || busy} />
+            </div>
+            {renderEstimateShellProposalOptions({
+              group: "alternates",
+              title: "Alternates",
+              description: "Optional proposal choices that stay separate from base estimate pricing.",
+              addLabel: "Add alternate",
+              statusOptions: proposalOptionStatusOptions,
+            })}
+            {renderEstimateShellProposalOptions({
+              group: "addOns",
+              title: "Optional Add-ons",
+              description: "Add-ons can be selected for proposal totals without mutating base line items.",
+              addLabel: "Add add-on",
+              statusOptions: addOnStatusOptions,
+            })}
+            <TextAreaField label="Customer Notes / Terms" value={shellProposalSections.customerNotes} onChange={(event) => updateShellProposalSection("customerNotes", event.target.value)} disabled={!canManage || busy} />
+          </div>
+          <div className="co-estimates-shell-workflow-actions">
+            <Button type="button" onClick={handleSaveEstimateShellProposal} disabled={proposalSaveDisabled}>Save Proposal Sections</Button>
+            <Button type="button" variant="secondary" onClick={() => setEstimateShellMode("overview")}>Return to overview</Button>
+          </div>
+        </div>
+      );
+    }
+
+    function renderEstimateShellBackupMode() {
+      const shellBackup = deriveEstimateBackup(detailDraft);
+      const shellSovRows = shellBackup.sovRows.length > 0 ? shellBackup.sovRows : [createEmptySovRow()];
+      const updateShellBackup = (updates) => {
+        setDetailDraft((current) => mergeEstimateBackup(current, {
+          ...deriveEstimateBackup(current),
+          ...updates,
+        }));
+      };
+      const updateShellSovRow = (index, field, value) => {
+        updateShellBackup({
+          sovRows: shellSovRows.map((row, rowIndex) => rowIndex === index ? { ...row, [field]: value } : row),
+        });
+      };
+      const removeShellSovRow = (index) => {
+        updateShellBackup({ sovRows: shellSovRows.filter((_, rowIndex) => rowIndex !== index) });
+      };
+      return (
+        <div className="co-estimates-shell-workflow-panel co-estimates-shell-backup-panel" role="region" aria-label="Estimate backup and SOV editor">
+          <div className="co-estimates-shell-workflow-head">
+            <div>
+              <Badge tone={canManage ? "amber" : "slate"}>{canManage ? "Office backup" : "Read only"}</Badge>
+              <h3>Backup / SOV Review</h3>
+              <p>Internal SOV rows and estimator backup notes only.</p>
+            </div>
+            <StatusBadge status={estimateStatusLabel(status)} />
+          </div>
+          <div className="co-estimates-shell-workflow-context">
+            <span><em>Estimate</em><strong>{estimateDisplayTitle(estimate)}</strong></span>
+            <span><em>Customer</em><strong>{estimateDisplayCustomer(estimate) || "Customer pending"}</strong></span>
+            <span><em>Visibility</em><strong>Office only</strong></span>
+          </div>
+          <div className="co-estimates-shell-backup-editor">
+            <div className="co-estimates-shell-backup-note">
+              <strong>SOV backup does not change customer pricing.</strong>
+              <span>Use this review mode for internal schedule-of-values backup and estimator notes only.</span>
+            </div>
+            <div className="co-estimates-shell-sov-list">
+              {shellSovRows.map((row, index) => (
+                <div key={`shell-sov-${index}`} className="co-estimates-shell-sov-card">
+                  <div className="co-estimates-shell-sov-grid">
+                    <InputField label={`Section / Item ${index + 1}`} value={row.section || ""} onChange={(event) => updateShellSovRow(index, "section", event.target.value)} disabled={!canManage || busy} />
+                    <InputField label="Description" value={row.description || ""} onChange={(event) => updateShellSovRow(index, "description", event.target.value)} disabled={!canManage || busy} />
+                    <InputField label="Qty" value={row.quantity || ""} onChange={(event) => updateShellSovRow(index, "quantity", event.target.value)} inputMode="decimal" disabled={!canManage || busy} />
+                    <InputField label="Unit" value={row.unit || ""} onChange={(event) => updateShellSovRow(index, "unit", event.target.value)} disabled={!canManage || busy} />
+                    <InputField label="Amount" value={row.amount || ""} onChange={(event) => updateShellSovRow(index, "amount", event.target.value)} inputMode="decimal" disabled={!canManage || busy} />
+                  </div>
+                  <TextAreaField label="SOV notes" value={row.notes || ""} onChange={(event) => updateShellSovRow(index, "notes", event.target.value)} className="field-input min-h-20 resize-y" disabled={!canManage || busy} />
+                  <div className="co-estimates-shell-sov-foot">
+                    <span>Internal backup row only.</span>
+                    <button type="button" onClick={() => removeShellSovRow(index)} disabled={!canManage || busy}>Remove row</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <Button type="button" variant="secondary" onClick={() => updateShellBackup({ sovRows: [...shellSovRows, createEmptySovRow()] })} disabled={!canManage || busy}>Add SOV Row</Button>
+            <TextAreaField
+              label="Backup notes"
+              value={shellBackup.notes || ""}
+              onChange={(event) => updateShellBackup({ notes: event.target.value })}
+              className="field-input min-h-28 resize-y"
+              disabled={!canManage || busy}
+            />
+          </div>
+          <div className="co-estimates-shell-workflow-actions">
+            <Button type="button" onClick={handleSaveEstimateShellBackup} disabled={backupSaveDisabled}>Save Backup / SOV</Button>
+            <Button type="button" variant="secondary" onClick={() => setEstimateShellMode("overview")}>Return to overview</Button>
+          </div>
+        </div>
+      );
+    }
+
     function renderEstimateShellModePlaceholder() {
       if (activeShellMode.id === "overview") return null;
       if (activeShellMode.id === "pricing") return renderEstimateShellPricingMode();
+      if (activeShellMode.id === "proposal") return renderEstimateShellProposalMode();
+      if (activeShellMode.id === "backup") return renderEstimateShellBackupMode();
       return (
         <div className="co-estimates-shell-mode-placeholder" role="region" aria-label={`${activeShellMode.title} placeholder`}>
           <Badge tone="slate">Full tool migration pending</Badge>
@@ -29743,7 +29962,7 @@ function EstimatesPagePolished({
           ))}
         </div>
         {renderEstimateShellModePlaceholder()}
-        {activeShellMode.id === "pricing" ? null : (
+        {isFocusedShellEditMode ? null : (
           <>
             <div className="co-apex-selected-facts co-estimates-shell-selected-facts">
               <span><em>Status</em><strong>{estimateStatusLabel(status)}</strong></span>
@@ -29784,7 +30003,7 @@ function EstimatesPagePolished({
           </>
         )}
         {copyFeedback ? <p className="co-estimates-shell-feedback">{copyFeedback}</p> : null}
-        {activeShellMode.id === "pricing" ? null : (
+        {isFocusedShellEditMode ? null : (
           <div className="co-apex-selected-actions">
             {safeActions.map((action, index) => (
               <Button key={action.id} type="button" variant={action.variant || (index === 0 ? "primary" : "secondary")} onClick={action.onClick} disabled={action.disabled}>
@@ -29804,6 +30023,20 @@ function EstimatesPagePolished({
       { value: formatEstimateCurrency(detailTotals.taxTotal || 0), label: "tax", tone: detailTotals.taxTotal ? "blue" : "slate" },
       { value: formatEstimateCurrency(detailTotals.feesTotal || 0), label: "fees", tone: detailTotals.feesTotal ? "blue" : "slate" },
     ]
+    : estimateShellMode === "proposal"
+      ? [
+        { value: detailProposalSections.scopeOfWork ? 1 : 0, label: "scope", tone: detailProposalSections.scopeOfWork ? "green" : "orange" },
+        { value: detailProposalSections.inclusions ? 1 : 0, label: "inclusions", tone: detailProposalSections.inclusions ? "green" : "slate" },
+        { value: (detailProposalSections.alternates?.length || 0) + (detailProposalSections.addOns?.length || 0), label: "options", tone: (detailProposalSections.alternates?.length || 0) + (detailProposalSections.addOns?.length || 0) ? "blue" : "slate" },
+        { value: detailProposalSections.customerNotes ? 1 : 0, label: "terms", tone: detailProposalSections.customerNotes ? "green" : "slate" },
+      ]
+      : estimateShellMode === "backup"
+        ? [
+          { value: detailEstimateBackup.sovRows?.length || 0, label: "SOV rows", tone: detailEstimateBackup.sovRows?.length ? "amber" : "slate" },
+          { value: detailEstimateBackup.notes ? 1 : 0, label: "backup notes", tone: detailEstimateBackup.notes ? "amber" : "slate" },
+          { value: canManage ? 1 : 0, label: canManage ? "editable" : "read only", tone: canManage ? "blue" : "slate" },
+          { value: 0, label: "customer exposure", tone: "green" },
+        ]
     : [
       { value: draftToPriceRows.length, label: "drafts to price", tone: draftToPriceRows.length ? "orange" : "green" },
       { value: readyToSendRows.length, label: "ready to send", tone: readyToSendRows.length ? "blue" : "slate" },
@@ -29815,12 +30048,32 @@ function EstimatesPagePolished({
       { label: "Review Pricing", icon: "document", onClick: () => setEstimateShellMode("pricing"), disabled: !selectedEstimate },
       { label: "Overview", icon: "briefcase", onClick: () => setEstimateShellMode("overview") },
     ]
+    : estimateShellMode === "proposal"
+      ? [
+        { label: "Edit Proposal", icon: "clipboard", onClick: () => setEstimateShellMode("proposal"), disabled: !selectedEstimate },
+        { label: "Overview", icon: "briefcase", onClick: () => setEstimateShellMode("overview") },
+      ]
+      : estimateShellMode === "backup"
+        ? [
+          { label: "Review Backup", icon: "clipboard", onClick: () => setEstimateShellMode("backup"), disabled: !selectedEstimate },
+          { label: "Overview", icon: "briefcase", onClick: () => setEstimateShellMode("overview") },
+        ]
     : estimateShellAssistantActions;
   const estimateShellQuickActionsForMode = estimateShellMode === "pricing"
     ? [
       { id: "pricing-mode", label: "Pricing", icon: "document", onClick: () => setEstimateShellMode("pricing"), disabled: !selectedEstimate },
       { id: "pricing-overview", label: "Overview", icon: "briefcase", onClick: () => setEstimateShellMode("overview") },
     ]
+    : estimateShellMode === "proposal"
+      ? [
+        { id: "proposal-mode", label: "Proposal", icon: "clipboard", onClick: () => setEstimateShellMode("proposal"), disabled: !selectedEstimate },
+        { id: "proposal-overview", label: "Overview", icon: "briefcase", onClick: () => setEstimateShellMode("overview") },
+      ]
+      : estimateShellMode === "backup"
+        ? [
+          { id: "backup-mode", label: "Backup", icon: "clipboard", onClick: () => setEstimateShellMode("backup"), disabled: !selectedEstimate },
+          { id: "backup-overview", label: "Overview", icon: "briefcase", onClick: () => setEstimateShellMode("overview") },
+        ]
     : estimateShellQuickActions;
   const estimateShellGuardrailsForMode = estimateShellMode === "pricing"
     ? [
@@ -29828,6 +30081,18 @@ function EstimatesPagePolished({
       "Minimal estimate save payload",
       "Field roles stay blocked from estimates",
     ]
+    : estimateShellMode === "proposal"
+      ? [
+        "Proposal fields only",
+        "No send or conversion actions",
+        "Field roles stay blocked from estimates",
+      ]
+      : estimateShellMode === "backup"
+        ? [
+          "Internal backup only",
+          "No customer packet settings",
+          "Field roles stay blocked from estimates",
+        ]
     : [
       "Overview/readiness only",
       "No automatic sends or job conversion",
