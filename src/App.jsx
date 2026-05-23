@@ -196,6 +196,7 @@ import { deriveEstimateGcPacketLite } from "./estimate-gc-packet-utils";
 import { estimateRoughNotesBullets, estimateRoughNotesHasSuggestions, estimateRoughNotesText, hasMeaningfulEstimateItems } from "./estimate-rough-notes-utils";
 import { addEstimateSentSnapshot, getEstimateVisibleInternalNotes, mergeEstimateGcPacketLite, mergeEstimateOfficeInternalNotes } from "./estimate-snapshot-utils";
 import { buildEstimateVisualPreviewPacket, canRequestEstimateVisualPreview } from "./estimate-visual-preview-utils";
+import { deriveFenceTakeoffReadiness } from "./fence-takeoff-utils";
 import { buildEstimateCopyText, buildEstimateCustomerMessage, buildEstimateDraftFromLead, calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEstimateTotals, deriveEstimateJobHandoffReadiness, deriveEstimateListState, deriveEstimateProposalSections, estimateCustomerEmail, estimateStatusLabel, filterEstimates, formatEstimateCurrency, getEstimateFromLeadReadiness, mergeEstimateProposalSections, selectDefaultEstimateForReview } from "./estimate-utils";
 import {
   EstimateBackupEditor,
@@ -28895,6 +28896,10 @@ function EstimatesPagePolished({
     }),
     [companyProfile, detailDraft, detailEstimateBackup, detailEstimatePreview],
   );
+  const detailFenceTakeoffReadiness = useMemo(
+    () => deriveFenceTakeoffReadiness(detailEstimateBackup.fenceTakeoff),
+    [detailEstimateBackup.fenceTakeoff],
+  );
   const detailSaveDisabled = busy || (!detailDraft.customerId && !detailDraft.leadId) || !detailDraft.title;
   const canMarkSent = canManage && detailDraft.status === "draft";
   const packetPrintSettings = useMemo(() => resolveEstimatePacketSettings({
@@ -29577,7 +29582,8 @@ function EstimatesPagePolished({
     { id: "backup", label: "Backup", title: "Backup / SOV Mode", manages: "future internal backup rows, SOV notes, takeoff references, and office-only estimate support." },
     { id: "packet", label: "Packet", title: "Packet Mode", manages: "GC packet settings, print sections, branded customer packet readiness, and internal GC Lite review." },
     { id: "roughNotes", label: "Rough Notes", title: "Rough Notes Mode", manages: "future review-first AI rough notes drafting without automatic pricing, approval, or customer output." },
-    { id: "takeoff", label: "Takeoff", title: "Takeoff Mode", manages: "future fence takeoff, visual preview, photo evidence, and quantity backup review." },
+    { id: "takeoff", label: "Takeoff", title: "Takeoff Mode", manages: "fence takeoff, estimate-grade quantities, local draft quantity review, and office backup context." },
+    { id: "visualPreview", label: "Visual Preview", title: "Visual Preview Mode", manages: "review-first customer concept prompt readiness without generation, sends, or estimate mutation." },
     { id: "sendReview", label: "Send Review", title: "Send Review Mode", manages: "future manual send confirmation, email readiness, customer packet review, and sent snapshot checks." },
     { id: "handoff", label: "Handoff", title: "Handoff Mode", manages: "future approved estimate-to-job handoff checks before any job conversion." },
   ];
@@ -29641,7 +29647,7 @@ function EstimatesPagePolished({
           ? `Resolve ${readiness.missing.slice(0, 3).join(", ")} before sending or converting.`
           : "Keep reviewing proposal context before any external action.";
     const activeShellMode = estimateShellModes.find((mode) => mode.id === estimateShellMode) || estimateShellModes[0];
-    const isFocusedShellEditMode = ["pricing", "proposal", "backup", "packet", "roughNotes"].includes(activeShellMode.id);
+    const isFocusedShellEditMode = ["pricing", "proposal", "backup", "packet", "roughNotes", "takeoff", "visualPreview"].includes(activeShellMode.id);
     const visibleEstimateShellModes = isFocusedShellEditMode
       ? estimateShellModes.filter((mode) => mode.id === "overview" || mode.id === activeShellMode.id)
       : estimateShellModes;
@@ -29668,6 +29674,8 @@ function EstimatesPagePolished({
     const shellGcPacketReadyCount = shellGcPacketFields.filter((value) => String(value || "").trim()).length;
     const shellGcPacketTotalCount = shellGcPacketFields.length;
     const packetPrintReady = readiness.hasCustomer && readiness.hasScope && readiness.hasPricing && packetCustomerSections.length > 0;
+    const shellFenceTakeoffReadiness = deriveFenceTakeoffReadiness(detailEstimateBackup.fenceTakeoff);
+    const takeoffSaveDisabled = busy || !canManage || !selectedEstimate?.id;
 
     async function handleSaveEstimateShellPricing() {
       if (!selectedEstimate?.id || !canManage || typeof onSaveEstimate !== "function") return false;
@@ -29712,6 +29720,19 @@ function EstimatesPagePolished({
       });
       if (saved) {
         showCopyFeedback("GC packet readiness saved through the existing estimate save path.", 5000);
+      }
+      return saved;
+    }
+
+    async function handleSaveEstimateShellTakeoff() {
+      if (!selectedEstimate?.id || !canManage || typeof onSaveEstimate !== "function") return false;
+      const saved = await onSaveEstimate(selectedEstimate.id, {
+        internalNotes: detailDraft.internalNotes,
+        items: detailDraft.items,
+        scopeSummary: detailDraft.scopeSummary,
+      });
+      if (saved) {
+        showCopyFeedback("Reviewed takeoff draft saved through the existing estimate save path.", 5000);
       }
       return saved;
     }
@@ -30086,6 +30107,139 @@ function EstimatesPagePolished({
       );
     }
 
+    function renderEstimateShellTakeoffMode() {
+      if (!canManage) {
+        return (
+          <div className="co-estimates-shell-workflow-panel co-estimates-shell-takeoff-panel" role="region" aria-label="Estimate takeoff readiness">
+            <div className="co-estimates-shell-workflow-head">
+              <div>
+                <Badge tone="slate">Locked</Badge>
+                <h3>Takeoff</h3>
+                <p>Takeoff tools require an office role that can manage estimates.</p>
+              </div>
+              <StatusBadge status={estimateStatusLabel(status)} />
+            </div>
+            <div className="co-estimates-shell-packet-lock">
+              <strong>Estimate takeoff unavailable.</strong>
+              <span>Field users remain blocked from estimates and pricing. No takeoff, pricing, send, convert, or handoff action runs here.</span>
+            </div>
+            <div className="co-estimates-shell-workflow-actions">
+              <Button type="button" variant="secondary" onClick={() => setEstimateShellMode("overview")}>Return to overview</Button>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="co-estimates-shell-workflow-panel co-estimates-shell-takeoff-panel" role="region" aria-label="Estimate takeoff editor">
+          <div className="co-estimates-shell-workflow-head">
+            <div>
+              <Badge tone="green">Review-first takeoff</Badge>
+              <h3>Takeoff</h3>
+              <p>Draw or manually add estimate-grade quantities. Apply Quantities updates the local draft only; Save persists reviewed draft fields through the existing estimate save path.</p>
+            </div>
+            <StatusBadge status={estimateStatusLabel(status)} />
+          </div>
+          <div className="co-estimates-shell-workflow-context">
+            <span><em>Estimate</em><strong>{estimateDisplayTitle(estimate)}</strong></span>
+            <span><em>Customer</em><strong>{estimateDisplayCustomer(estimate) || "Customer pending"}</strong></span>
+            <span><em>Confidence</em><strong>{shellFenceTakeoffReadiness.label}</strong></span>
+          </div>
+          <FenceTakeoffLiteEditor
+            draft={detailDraft}
+            setDraft={setDetailDraft}
+            disabled={busy || !canManage}
+            jobsiteAddress={estimateRailProfileLine(detailLead?.location, detailCustomer?.address, companyProfile.serviceArea)}
+          />
+          <div className="co-estimates-shell-workflow-actions">
+            <Button type="button" onClick={handleSaveEstimateShellTakeoff} disabled={takeoffSaveDisabled}>Save Reviewed Takeoff Draft</Button>
+            <Button type="button" variant="secondary" onClick={() => setEstimateShellMode("overview")}>Return to overview</Button>
+          </div>
+        </div>
+      );
+    }
+
+    function renderEstimateShellVisualPreviewMode() {
+      return (
+        <div className="co-estimates-shell-workflow-panel co-estimates-shell-visual-preview-panel" role="region" aria-label="Estimate visual preview prep">
+          <div className="co-estimates-shell-workflow-head">
+            <div>
+              <Badge tone={canRequestEstimateVisualPreview(visualPreviewPacket) ? "green" : "amber"}>
+                {canRequestEstimateVisualPreview(visualPreviewPacket) ? "Ready context" : "Needs review"}
+              </Badge>
+              <h3>Visual Preview</h3>
+              <p>Review and copy a concept-image prompt only. This mode does not generate images, call an image API, save estimates, send proposals, convert jobs, or change pricing.</p>
+            </div>
+            <StatusBadge status={estimateStatusLabel(status)} />
+          </div>
+          <div className="co-estimates-shell-workflow-context">
+            <span><em>Trade</em><strong>{visualPreviewPacket.tradeLabel}</strong></span>
+            <span><em>References</em><strong>{visualPreviewPacket.referenceCount}</strong></span>
+            <span><em>Ready</em><strong>{canRequestEstimateVisualPreview(visualPreviewPacket) ? "Yes" : "Needs review"}</strong></span>
+          </div>
+          <div className="co-estimates-shell-visual-grid">
+            <div className="co-estimates-shell-visual-main">
+              <div className="co-estimates-shell-visual-prompt">
+                <span>Concept prompt</span>
+                <p>{visualPreviewPacket.prompt}</p>
+              </div>
+              {visualPreviewPacket.missingReviewItems.length ? (
+                <div className="co-estimates-shell-visual-warning">
+                  <strong>Needed before image generation</strong>
+                  <ul>
+                    {visualPreviewPacket.missingReviewItems.map((item) => <li key={item}>{item}</li>)}
+                  </ul>
+                </div>
+              ) : (
+                <div className="co-estimates-shell-visual-ready">Ready for a human-approved image generation step outside this shell. Nothing generates automatically.</div>
+              )}
+              <div className="co-estimates-shell-visual-safety">
+                <strong>Safety boundaries</strong>
+                <ul>
+                  {visualPreviewPacket.blockedActions.map((item) => <li key={item}>{item}</li>)}
+                </ul>
+                <p>{visualPreviewPacket.disclaimer}</p>
+              </div>
+            </div>
+            <aside className="co-estimates-shell-visual-side">
+              <div>
+                <span>References</span>
+                {visualPreviewPacket.references.length ? (
+                  <ul>
+                    {visualPreviewPacket.references.map((reference, index) => (
+                      <li key={`${reference.fileName || reference.source || "reference"}-${index}`}>
+                        <strong>{reference.fileName || reference.referenceType || `Reference ${index + 1}`}</strong>
+                        <em>{[reference.referenceType, reference.source, reference.hasUrl ? "URL tracked, not exposed in prompt" : ""].filter(Boolean).join(" / ")}</em>
+                      </li>
+                    ))}
+                  </ul>
+                ) : <p>No reference rows yet.</p>}
+              </div>
+              <div>
+                <span>Proof photos</span>
+                <ul>
+                  {(visualPreviewPacket.proofPhotoChecklist.length ? visualPreviewPacket.proofPhotoChecklist.slice(0, 6) : ["Add reference context before requesting proof photos."]).map((item) => <li key={item}>{item}</li>)}
+                </ul>
+              </div>
+            </aside>
+          </div>
+          <div className="co-estimates-shell-workflow-actions">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => copyEstimateText(
+                () => visualPreviewPacket.prompt,
+                "Visual preview prompt copied. Review it before using any image generator.",
+              )}
+            >
+              Copy visual prompt
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => setEstimateShellMode("overview")}>Return to overview</Button>
+          </div>
+        </div>
+      );
+    }
+
     function renderEstimateShellModePlaceholder() {
       if (activeShellMode.id === "overview") return null;
       if (activeShellMode.id === "pricing") return renderEstimateShellPricingMode();
@@ -30093,6 +30247,8 @@ function EstimatesPagePolished({
       if (activeShellMode.id === "backup") return renderEstimateShellBackupMode();
       if (activeShellMode.id === "packet") return renderEstimateShellPacketMode();
       if (activeShellMode.id === "roughNotes") return renderEstimateShellRoughNotesMode();
+      if (activeShellMode.id === "takeoff") return renderEstimateShellTakeoffMode();
+      if (activeShellMode.id === "visualPreview") return renderEstimateShellVisualPreviewMode();
       return (
         <div className="co-estimates-shell-mode-placeholder" role="region" aria-label={`${activeShellMode.title} placeholder`}>
           <Badge tone="slate">Full tool migration pending</Badge>
@@ -30166,7 +30322,7 @@ function EstimatesPagePolished({
             <div className="co-apex-selected-next">
               <span>Next safe action</span>
               <strong>{nextSafeAction}</strong>
-              <p>Slice 2A adds read-only shell mode scaffolding only. No pricing editor, proposal editor, backup editor, packet editor, AI rough notes, takeoff editor, send form, or convert-to-job form is inlined here.</p>
+              <p>The shell keeps estimate work review-first. Send review and convert-to-job remain outside this screen until their dedicated slices.</p>
             </div>
           </>
         )}
@@ -30219,6 +30375,20 @@ function EstimatesPagePolished({
               { value: canUseAiRoughNotes ? 1 : 0, label: canUseAiRoughNotes ? "entitled" : "locked", tone: canUseAiRoughNotes ? "green" : "slate" },
               { value: 0, label: "auto actions", tone: "green" },
             ]
+            : estimateShellMode === "takeoff"
+              ? [
+                { value: detailEstimateBackup.fenceTakeoff?.segments?.length || 0, label: "segments", tone: detailEstimateBackup.fenceTakeoff?.segments?.length ? "green" : "orange" },
+                { value: detailEstimateBackup.fenceTakeoff?.totalLinearFeet || 0, label: "LF", tone: detailEstimateBackup.fenceTakeoff?.totalLinearFeet ? "green" : "slate" },
+                { value: detailFenceTakeoffReadiness.manualSegmentCount || 0, label: "manual", tone: detailFenceTakeoffReadiness.manualSegmentCount ? "amber" : "slate" },
+                { value: canManage ? 1 : 0, label: canManage ? "editable" : "locked", tone: canManage ? "green" : "slate" },
+              ]
+              : estimateShellMode === "visualPreview"
+                ? [
+                  { value: visualPreviewPacket.referenceCount || 0, label: "references", tone: visualPreviewPacket.referenceCount ? "blue" : "orange" },
+                  { value: visualPreviewPacket.missingReviewItems.length, label: "review gaps", tone: visualPreviewPacket.missingReviewItems.length ? "amber" : "green" },
+                  { value: canRequestEstimateVisualPreview(visualPreviewPacket) ? 1 : 0, label: "ready", tone: canRequestEstimateVisualPreview(visualPreviewPacket) ? "green" : "slate" },
+                  { value: 0, label: "writes", tone: "green" },
+                ]
     : [
       { value: draftToPriceRows.length, label: "drafts to price", tone: draftToPriceRows.length ? "orange" : "green" },
       { value: readyToSendRows.length, label: "ready to send", tone: readyToSendRows.length ? "blue" : "slate" },
@@ -30250,6 +30420,18 @@ function EstimatesPagePolished({
               { label: "Rough Notes", icon: "spark", onClick: () => setEstimateShellMode("roughNotes"), disabled: !selectedEstimate },
               { label: "Overview", icon: "briefcase", onClick: () => setEstimateShellMode("overview") },
             ]
+            : estimateShellMode === "takeoff"
+              ? [
+                { label: "Takeoff", icon: "layers", onClick: () => setEstimateShellMode("takeoff"), disabled: !selectedEstimate },
+                { label: "Visual Preview", icon: "photo", onClick: () => setEstimateShellMode("visualPreview"), disabled: !selectedEstimate },
+                { label: "Overview", icon: "briefcase", onClick: () => setEstimateShellMode("overview") },
+              ]
+              : estimateShellMode === "visualPreview"
+                ? [
+                  { label: "Copy Prompt", icon: "photo", onClick: () => copyEstimateText(() => visualPreviewPacket.prompt, "Visual preview prompt copied. Review it before using any image generator."), disabled: !selectedEstimate },
+                  { label: "Takeoff", icon: "layers", onClick: () => setEstimateShellMode("takeoff"), disabled: !selectedEstimate },
+                  { label: "Overview", icon: "briefcase", onClick: () => setEstimateShellMode("overview") },
+                ]
     : estimateShellAssistantActions;
   const estimateShellQuickActionsForMode = estimateShellMode === "pricing"
     ? [
@@ -30276,6 +30458,18 @@ function EstimatesPagePolished({
               { id: "rough-notes-mode", label: "Rough Notes", icon: "spark", onClick: () => setEstimateShellMode("roughNotes"), disabled: !selectedEstimate },
               { id: "rough-notes-overview", label: "Overview", icon: "briefcase", onClick: () => setEstimateShellMode("overview") },
             ]
+            : estimateShellMode === "takeoff"
+              ? [
+                { id: "takeoff-mode", label: "Takeoff", icon: "layers", onClick: () => setEstimateShellMode("takeoff"), disabled: !selectedEstimate },
+                { id: "takeoff-visual", label: "Visual", icon: "photo", onClick: () => setEstimateShellMode("visualPreview"), disabled: !selectedEstimate },
+                { id: "takeoff-overview", label: "Overview", icon: "briefcase", onClick: () => setEstimateShellMode("overview") },
+              ]
+              : estimateShellMode === "visualPreview"
+                ? [
+                  { id: "visual-copy", label: "Copy Prompt", icon: "photo", onClick: () => copyEstimateText(() => visualPreviewPacket.prompt, "Visual preview prompt copied. Review it before using any image generator."), disabled: !selectedEstimate },
+                  { id: "visual-takeoff", label: "Takeoff", icon: "layers", onClick: () => setEstimateShellMode("takeoff"), disabled: !selectedEstimate },
+                  { id: "visual-overview", label: "Overview", icon: "briefcase", onClick: () => setEstimateShellMode("overview") },
+                ]
     : estimateShellQuickActions;
   const estimateShellGuardrailsForMode = estimateShellMode === "pricing"
     ? [
@@ -30307,6 +30501,18 @@ function EstimatesPagePolished({
               "No save, send, convert, takeoff, or handoff actions",
               "Field roles stay blocked from estimates",
             ]
+            : estimateShellMode === "takeoff"
+              ? [
+                "Apply Quantities is local only",
+                "Save uses reviewed draft payload",
+                "Field roles stay blocked from estimates",
+              ]
+              : estimateShellMode === "visualPreview"
+                ? [
+                  "Copy prompt only",
+                  "No image generation or estimate writes",
+                  "Private URLs stay out of prompts",
+                ]
     : [
       "Overview/readiness only",
       "No automatic sends or job conversion",

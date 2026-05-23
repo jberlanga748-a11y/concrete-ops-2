@@ -40778,6 +40778,121 @@ button.co-apex-command-kpi:hover:not(:disabled) {
     gap: 0.5rem;
   }
 
+  .co-estimates-shell-takeoff-panel .co-fence-takeoff-lite {
+    border-color: rgba(14, 116, 144, 0.18);
+    border-radius: 0.68rem;
+    padding: 0.62rem;
+  }
+
+  .co-estimates-shell-takeoff-panel .co-fence-takeoff-map {
+    min-height: 18rem;
+  }
+
+  .co-estimates-shell-takeoff-panel .co-fence-takeoff-map--empty {
+    min-height: 15rem;
+  }
+
+  .co-estimates-shell-visual-grid {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr) minmax(12.5rem, 0.42fr);
+    gap: 0.56rem;
+  }
+
+  .co-estimates-shell-visual-main,
+  .co-estimates-shell-visual-side {
+    display: grid;
+    min-width: 0;
+    align-content: start;
+    gap: 0.5rem;
+  }
+
+  .co-estimates-shell-visual-prompt,
+  .co-estimates-shell-visual-warning,
+  .co-estimates-shell-visual-ready,
+  .co-estimates-shell-visual-safety,
+  .co-estimates-shell-visual-side > div {
+    min-width: 0;
+    border: 1px solid rgba(226, 232, 240, 0.92);
+    border-radius: 0.68rem;
+    background: #fff;
+    padding: 0.62rem;
+  }
+
+  .co-estimates-shell-visual-warning {
+    border-color: rgba(245, 158, 11, 0.28);
+    background: #fffbeb;
+  }
+
+  .co-estimates-shell-visual-ready {
+    border-color: rgba(34, 197, 94, 0.24);
+    background: #f0fdf4;
+    color: #047857;
+    font-size: 0.74rem;
+    font-weight: 900;
+    line-height: 1.32;
+  }
+
+  .co-estimates-shell-visual-prompt span,
+  .co-estimates-shell-visual-side span,
+  .co-estimates-shell-visual-warning strong,
+  .co-estimates-shell-visual-safety strong {
+    display: block;
+    color: var(--color-text-main);
+    font-size: 0.72rem;
+    font-weight: 950;
+    line-height: 1.12;
+  }
+
+  .co-estimates-shell-visual-prompt p,
+  .co-estimates-shell-visual-safety p,
+  .co-estimates-shell-visual-side p,
+  .co-estimates-shell-visual-warning li,
+  .co-estimates-shell-visual-safety li,
+  .co-estimates-shell-visual-side li {
+    color: var(--color-text-muted);
+    font-size: 0.68rem;
+    font-weight: 800;
+    line-height: 1.34;
+    overflow-wrap: anywhere;
+  }
+
+  .co-estimates-shell-visual-prompt p,
+  .co-estimates-shell-visual-safety p {
+    margin-top: 0.34rem;
+  }
+
+  .co-estimates-shell-visual-warning ul,
+  .co-estimates-shell-visual-safety ul,
+  .co-estimates-shell-visual-side ul {
+    display: grid;
+    min-width: 0;
+    gap: 0.28rem;
+    margin-top: 0.42rem;
+    padding-left: 1rem;
+  }
+
+  .co-estimates-shell-visual-side li strong,
+  .co-estimates-shell-visual-side li em {
+    display: block;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .co-estimates-shell-visual-side li strong {
+    color: var(--color-text-main);
+    font-size: 0.7rem;
+    font-weight: 950;
+  }
+
+  .co-estimates-shell-visual-side li em {
+    margin-top: 0.12rem;
+    color: var(--color-text-muted);
+    font-style: normal;
+    font-size: 0.64rem;
+    font-weight: 800;
+  }
+
   .co-estimates-shell-selected-facts {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
