@@ -16,6 +16,7 @@ test("managed setup derives profile, user, source, and feature readiness", () =>
       companyName: "Pacific Concrete",
       businessPhone: "503-555-0100",
       businessEmail: "office@example.test",
+      primaryTrade: "concrete",
       serviceArea: "Salem and Portland",
       toolChecklistEnabled: true,
     },
@@ -31,6 +32,7 @@ test("managed setup derives profile, user, source, and feature readiness", () =>
   });
 
   assert.equal(state.items.find((item) => item.key === "company_name")?.completed, true);
+  assert.equal(state.items.find((item) => item.key === "primary_trade")?.completed, true);
   assert.equal(state.items.find((item) => item.key === "lead_source_added")?.completed, true);
   assert.equal(state.items.find((item) => item.key === "lead_scoring_available")?.completed, true);
   assert.equal(state.items.find((item) => item.key === "field_permissions_safe")?.completed, true);

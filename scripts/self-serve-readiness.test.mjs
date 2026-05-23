@@ -52,6 +52,40 @@ test("controlled self-serve pilot can go green while public launch remains block
   assert.ok(report.gates.find((gate) => gate.name === "Production signup enablement approval").blockers.some((blocker) => /demo mode/i.test(blocker)));
 });
 
+test("local disposable self-serve smoke can satisfy controlled readiness without public launch", () => {
+  const report = buildSelfServeReadinessReport({
+    checkedAt: "2026-05-23T00:00:00.000Z",
+    evidence: {
+      signupVerified: true,
+      usersVerified: true,
+      rolesVerified: true,
+      backupVerified: true,
+      restoreVerified: true,
+      buildVerified: true,
+      localSelfServeSmokeVerified: true,
+      hostedSmokeVerified: false,
+      supportOwner: "Pilot operator",
+      monitoringDestination: "Readiness runbook",
+      claimsVerified: true,
+      manualBillingBoundaryAcknowledged: true,
+    },
+    approvals: {
+      legalReviewAcknowledged: false,
+      productionSafetyApproved: false,
+      publicSignupEnableApproved: false,
+    },
+  });
+
+  const workflowGate = report.gates.find((gate) => gate.name === "Build and non-production workflow smoke");
+  const claimsGate = report.gates.find((gate) => gate.name === "Claims, legal, and billing boundary");
+
+  assert.equal(report.controlledSelfServePilotReady, true);
+  assert.equal(report.publicSelfServeReady, false);
+  assert.equal(report.ok, false);
+  assert.ok(workflowGate.warnings.some((warning) => /local disposable self-serve smoke/i.test(warning)));
+  assert.ok(claimsGate.blockers.some((blocker) => /legal/i.test(blocker)));
+});
+
 test("public self-serve launch requires legal and explicit signup enablement approvals", () => {
   const report = buildSelfServeReadinessReport({
     checkedAt: "2026-05-23T00:00:00.000Z",
@@ -95,6 +129,7 @@ test("CLI parser captures evidence and approval flags without mutating anything"
     "--signup-verified",
     "--users-verified",
     "--roles-verified",
+    "--local-self-serve-smoke-verified",
     "--support-owner=Riley",
     "--monitoring-destination=GitHub Issues",
     "--manual-billing-boundary-acknowledged",
@@ -107,6 +142,7 @@ test("CLI parser captures evidence and approval flags without mutating anything"
   assert.equal(options.evidence.signupVerified, true);
   assert.equal(options.evidence.usersVerified, true);
   assert.equal(options.evidence.rolesVerified, true);
+  assert.equal(options.evidence.localSelfServeSmokeVerified, true);
   assert.equal(options.evidence.supportOwner, "Riley");
   assert.equal(options.evidence.monitoringDestination, "GitHub Issues");
   assert.equal(options.evidence.manualBillingBoundaryAcknowledged, true);

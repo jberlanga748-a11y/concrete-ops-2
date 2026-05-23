@@ -33,7 +33,11 @@ const estimate = {
     }),
     "[/Apex HQ GC Packet Lite]",
     "[Apex HQ Estimate Backup]",
-    JSON.stringify({ notes: "Private SOV backup" }),
+    JSON.stringify({
+      takeoffRows: [{ item: "Driveway removal area", quantity: "720", unit: "SF", source: "Site plan A1.1", estimatorNote: "Confirm cracked panel allowance." }],
+      referenceRows: [{ fileName: "Driveway takeoff screenshot.png", referenceType: "Takeoff screenshot", url: "https://files.example.test/private/driveway.png", source: "Site plan A1.1", notes: "Office reference note." }],
+      notes: "Private SOV backup",
+    }),
     "[/Apex HQ Estimate Backup]",
     "[Apex HQ Sent Proposal History]",
     JSON.stringify([{ snapshotId: "snap-private", notes: "Private sent history" }]),
@@ -139,6 +143,13 @@ test("estimate PDF attachment includes customer-facing proposal details only", a
   assert.match(decodedText, /Schedule will be coordinated with the GC/);
   assert.match(decodedText, /ADDENDA \/ RFI REFERENCES/);
   assert.match(decodedText, /RFI 03 and Addendum 01 reviewed/);
+  assert.match(decodedText, /PROJECT TAKEOFF SUMMARY/);
+  assert.match(decodedText, /Driveway removal area/);
+  assert.match(decodedText, /720 SF/);
+  assert.match(decodedText, /Source Site plan A1\.1/);
+  assert.match(decodedText, /PROJECT REFERENCES/);
+  assert.match(decodedText, /Driveway takeoff screenshot\.png/);
+  assert.match(decodedText, /Type Takeoff screenshot/);
   assert.match(decodedText, /Description/);
   assert.match(decodedText, /Qty/);
   assert.match(decodedText, /Unit Price/);
@@ -172,6 +183,9 @@ test("estimate PDF attachment includes customer-facing proposal details only", a
   assert.doesNotMatch(decodedText, /Office-only GC strategy/);
   assert.doesNotMatch(decodedText, /Internal packet assembly note/);
   assert.doesNotMatch(decodedText, /Private SOV backup/);
+  assert.doesNotMatch(decodedText, /files\.example\.test/);
+  assert.doesNotMatch(decodedText, /Confirm cracked panel allowance/);
+  assert.doesNotMatch(decodedText, /Office reference note/);
   assert.doesNotMatch(decodedText, /Private sent history/);
   assert.doesNotMatch(decodedText, /Apex HQ GC Packet Lite/);
 });

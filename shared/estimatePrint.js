@@ -247,6 +247,60 @@ function normalizeBackupRows(rows = [], rowMapper) {
     .map((row) => rowMapper(row));
 }
 
+function rowHasCustomerSafeValue(row = {}, keys = []) {
+  return keys.some((key) => textBlock(row?.[key]));
+}
+
+function deriveCustomerEvidenceSections(internalNotes = "", includes = {}) {
+  if (!includes.projectEvidence) return [];
+
+  const backup = parseEstimateBackupBlock(internalNotes);
+  const sections = [];
+  const takeoffRows = (Array.isArray(backup?.takeoffRows) ? backup.takeoffRows : [])
+    .filter((row) => rowHasCustomerSafeValue(row, ["item", "quantity", "unit", "source"]))
+    .map((row = {}) => ({
+      title: textValue(row?.item || "Takeoff item"),
+      meta: [
+        [row?.quantity, row?.unit].map((value) => textValue(value)).filter(Boolean).join(" "),
+        row?.source ? `Source ${textValue(row.source)}` : "",
+      ].filter(Boolean),
+      body: [],
+    }))
+    .filter((record) => record.title || record.meta.length > 0);
+
+  if (takeoffRows.length > 0) {
+    sections.push({
+      key: "projectTakeoffSummary",
+      title: "Project Takeoff Summary",
+      type: "records",
+      records: takeoffRows,
+    });
+  }
+
+  const referenceRows = (Array.isArray(backup?.referenceRows) ? backup.referenceRows : [])
+    .filter((row) => rowHasCustomerSafeValue(row, ["fileName", "name", "title", "referenceType", "source"]))
+    .map((row = {}) => ({
+      title: textValue(row?.fileName || row?.name || row?.title || "Reference attachment"),
+      meta: [
+        row?.referenceType ? `Type ${textValue(row.referenceType)}` : "",
+        row?.source ? `Source ${textValue(row.source)}` : "",
+      ].filter(Boolean),
+      body: [],
+    }))
+    .filter((record) => record.title || record.meta.length > 0);
+
+  if (referenceRows.length > 0) {
+    sections.push({
+      key: "projectReferenceSummary",
+      title: "Project References",
+      type: "records",
+      records: referenceRows,
+    });
+  }
+
+  return sections;
+}
+
 function deriveEstimateBackupSections(internalNotes = "", includes = {}) {
   const backup = parseEstimateBackupBlock(internalNotes);
   const sections = [];
@@ -382,6 +436,7 @@ export function deriveEstimatePrintModel(estimate = {}, packetSettings = {}) {
     proposalSections,
     gcPacketLiteSections: deriveGcPacketLiteSections(estimate?.internalNotes)
       .filter((section) => includes[section.key]),
+    evidenceSections: deriveCustomerEvidenceSections(estimate?.internalNotes, includes),
     customerNotes: includes.customerNotesTerms ? customerSections.customerNotes : "",
     lineItems: normalizeLineItems(estimate?.items),
     totals: {

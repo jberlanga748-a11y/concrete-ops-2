@@ -129,8 +129,18 @@ test("internal review packet can include SOV, takeoff, and internal notes only w
     presetId: "internalReviewPacket",
     allowInternalSections: false,
   });
+  const customerText = JSON.stringify(customerFacing);
   assert.equal(customerFacing.internalSections.length, 0);
-  assert.equal(JSON.stringify(customerFacing).includes("Office-only GC review note"), false);
+  assert.equal(customerFacing.evidenceSections.some((section) => section.key === "projectTakeoffSummary"), true);
+  assert.equal(customerFacing.evidenceSections.some((section) => section.key === "projectReferenceSummary"), true);
+  assert.match(customerText, /4 inch sidewalk/);
+  assert.match(customerText, /500 SF/);
+  assert.match(customerText, /Bluebeam takeoff screenshot/);
+  assert.equal(customerText.includes("Office-only GC review note"), false);
+  assert.doesNotMatch(customerText, /Field verify/);
+  assert.doesNotMatch(customerText, /files\.example\.test\/takeoff/);
+  assert.doesNotMatch(customerText, /Shows sidewalk SF backup/);
+  assert.doesNotMatch(customerText, /Backup quantity note/);
 
   const internal = deriveEstimatePrintModel({ internalNotes }, {
     presetId: "internalReviewPacket",

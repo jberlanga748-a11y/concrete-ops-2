@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   buildAgentActionProposal,
+  deriveAgentActionInbox,
   buildAgentActionProposalReviewAuditPayload,
   deriveAgentActionProposalQueue,
   deriveAgentActionProposalReviewState,
@@ -264,6 +265,110 @@ test("agent action proposal review state stays blocked for field users", () => {
   assert.equal(state.canOpenWorkflow, false);
   assert.equal(state.canMarkReviewed, false);
   assert.match(state.safetyCopy, /blocked by role, package, or safety/i);
+});
+
+test("agent action inbox groups review packets and audit history into pilot statuses", () => {
+  const queue = deriveAgentActionProposalQueue([
+    {
+      id: "lead-LEAD-1",
+      moduleId: "leads",
+      recordType: "lead",
+      title: "Fence replacement lead",
+      description: "Missing gate details before estimate prep.",
+      actionLabel: "Open lead",
+      record: { id: "LEAD-1" },
+    },
+    {
+      id: "estimate-EST-1",
+      moduleId: "estimates",
+      recordType: "estimate",
+      title: "Approved gate proposal",
+      description: "Ready for handoff review.",
+      actionLabel: "Open estimate",
+      actionMode: "jobHandoff",
+      record: { id: "EST-1", status: "approved" },
+    },
+  ], {
+    permissions: {
+      aiOffice: { canView: true },
+      leads: { canView: true },
+      estimates: { canView: true, canManage: true },
+    },
+  });
+  const initialReview = deriveAgentActionProposalReviewState(queue);
+  const readyReview = deriveAgentActionProposalReviewState(queue, {
+    selectedId: queue[0].id,
+    decisions: {
+      [queue[0].id]: {
+        completedChecklist: initialReview.checklist.map((item) => item.id),
+        reviewedAt: "2026-05-23T06:00:00.000Z",
+      },
+    },
+  });
+  const auditHistory = deriveAgentActionProposalAuditHistory([
+    {
+      id: "AUDIT-APPROVED",
+      entityType: "agentActionProposal",
+      entityId: "agent-proposal:estimate-draft-review:estimates",
+      action: "agent.proposal.approved_for_draft",
+      summary: "Estimate draft prep approved",
+      detail: JSON.stringify({ status: "approved_for_draft", proposalType: "estimate-draft-review", sourceModule: "estimates" }),
+      actorName: "Jason M.",
+      createdAt: "2026-05-23T06:05:00.000Z",
+    },
+    {
+      id: "AUDIT-DRAFT",
+      entityType: "agentActionProposal",
+      entityId: "agent-proposal:estimate-draft-review:estimates",
+      action: "agent.proposal.draft_created",
+      summary: "Estimate draft created",
+      detail: JSON.stringify({ status: "draft_created", proposalType: "estimate-draft-review", sourceModule: "estimates" }),
+      actorName: "Jason M.",
+      createdAt: "2026-05-23T06:10:00.000Z",
+    },
+  ], { canView: true, limit: 5 });
+
+  const inbox = deriveAgentActionInbox({
+    queue,
+    reviewState: readyReview,
+    auditHistory,
+  });
+
+  assert.equal(inbox.counts.ready_for_review, 1);
+  assert.equal(inbox.counts.suggested, 1);
+  assert.equal(inbox.counts.approved_for_draft, 1);
+  assert.equal(inbox.counts.draft_created, 1);
+  assert.equal(inbox.waitingCount, 3);
+  assert.equal(inbox.completedCount, 1);
+  assert.ok(inbox.rows.some((row) => row.status === "approved_for_draft" && row.source === "audit"));
+  assert.match(inbox.safetyCopy, /does not create drafts, send messages/i);
+});
+
+test("agent action inbox keeps field-user queue blocked", () => {
+  const queue = deriveAgentActionProposalQueue([
+    {
+      id: "lead-LEAD-1",
+      moduleId: "leads",
+      recordType: "lead",
+      title: "Fence replacement lead",
+      actionLabel: "Open lead",
+      record: { id: "LEAD-1" },
+    },
+  ], {
+    permissions: {
+      jobs: { canManageField: true, canManageAll: false },
+      leads: { canView: false },
+      aiOffice: { canView: false },
+      opportunityScout: { canView: false },
+    },
+  });
+  const reviewState = deriveAgentActionProposalReviewState(queue);
+  const inbox = deriveAgentActionInbox({ queue, reviewState });
+
+  assert.equal(inbox.counts.blocked, 1);
+  assert.equal(inbox.blockedCount, 1);
+  assert.equal(inbox.rows[0].isBlocked, true);
+  assert.equal(inbox.rows[0].statusLabel, "Blocked");
 });
 
 test("agent action proposal review audit payload stays review-first and redacted", () => {

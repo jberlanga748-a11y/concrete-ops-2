@@ -142,6 +142,7 @@ export async function runSelfServeLocalSmoke(options = {}) {
         restoreVerified: false,
         buildVerified: false,
         claimsVerified: false,
+        localSelfServeSmokeVerified: true,
         hostedSmokeVerified: false,
         supportOwner: "Self-serve smoke operator",
         monitoringDestination: "Local smoke output",

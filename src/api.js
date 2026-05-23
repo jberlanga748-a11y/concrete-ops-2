@@ -275,8 +275,8 @@ export function updateEstimate(token, id, payload) {
   return request(`/api/estimates/${id}`, { method: "PATCH", token, body: payload });
 }
 
-export function sendEstimate(token, id) {
-  return request(`/api/estimates/${id}/send`, { method: "POST", token });
+export function sendEstimate(token, id, payload = {}) {
+  return request(`/api/estimates/${id}/send`, { method: "POST", token, body: payload });
 }
 
 export function convertEstimateToJob(token, id, payload = {}) {

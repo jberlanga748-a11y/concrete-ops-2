@@ -520,6 +520,7 @@ export async function buildEstimatePdfBuffer({
   }
   printModel.proposalSections.forEach((section) => drawTextSection(doc, section.title, section.text));
   printModel.gcPacketLiteSections.forEach((section) => drawTextSection(doc, section.title, section.text));
+  printModel.evidenceSections.forEach((section) => drawRecordSection(doc, section.title, section.records));
   if (printIncludes.estimateSummary) {
     drawLineItemsTable(doc, printModel.lineItems);
   }

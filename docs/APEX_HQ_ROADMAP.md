@@ -1,8 +1,12 @@
 # Apex HQ Roadmap
 
-This roadmap organizes the existing Apex HQ direction into a master coordinator plan. It does not replace `APEX_HQ_MASTER_ROADMAP.md`; it turns the existing roadmap into controlled execution lanes.
+This roadmap organizes the existing Apex HQ direction into controlled execution lanes.
 
 Current phase source of truth: `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md`.
+
+Current completion roadmap: `docs/APEX_HQ_100_PERCENT_ROADMAP.md`.
+
+Note: this file is the legacy product-direction roadmap. The 100 percent roadmap is now the execution source for what is complete, what is partial, what is missing, and what should wait until after core SaaS launch.
 
 ## Product Vision
 
@@ -58,21 +62,21 @@ Existing app foundations:
 
 | Pillar | Purpose | Timing |
 | --- | --- | --- |
-| Core Operations | leads, estimates, jobs, crews, reports, photos, tickets, safety, checklists, closeout | Now |
-| App Health Monitoring | crashes, failed API calls, uptime, health checks, troubleshooting guidance | Built / expand later |
-| Watchtower / Autopilot Agent | missing reports/photos/follow-ups, startup blockers, recommendations | Built / expand later |
-| Field Ops Agent | clock issues, missing field proof, weather/GPS risk with consent | Phase 1 built / expand later |
-| Growth Agent | stale estimates, lead targeting, close-rate recommendations | Later |
-| Lead / Job Finder Agent | finds opportunities, scores fit, drafts outreach with approval | Later |
-| Marketing Agent | manual-first campaigns, emails, texts, scripts, review asks | Later |
-| Ad Assistant Agent | ad copy/budget/audience drafts with approval before spend | Later |
-| Website Builder Agent | contractor websites, service pages, forms, SEO pages | Later |
-| Customer Portal | proposal approvals, photos, change orders, payments later | Later |
-| Communication System | notes, mentions, updates, summaries | Built / expand later |
-| Integrations | QuickBooks, Gmail, Calendar, Drive, Stripe, Twilio, Maps, Weather, DocuSign, CompanyCam, Sentry | Later |
-| Reporting / Intelligence | job costing, labor, close rates, lead sources, production KPIs | Later |
-| Customer Success | onboarding, demo/training mode, support, walkthroughs, help docs | Built / expand later |
-| Billing / Packages | Basic, Premium, Elite, usage limits, billing later | Foundation built / Stripe later |
+| Core Operations | leads, estimates, jobs, crews, reports, photos, tickets, safety, checklists, closeout | Mostly built; finish handoffs, closeout, billing review, and trade depth |
+| App Health Monitoring | crashes, failed API calls, uptime, health checks, troubleshooting guidance | Built for demo/pilot; production auth smoke and alert ownership remain |
+| Watchtower / Autopilot Agent | missing reports/photos/follow-ups, startup blockers, recommendations | Phase 1 built; central agent action inbox remains |
+| Field Ops Agent | clock issues, missing field proof, weather/GPS risk with consent | Phase 1 built; GPS/weather/risk behavior remains later and consent-gated |
+| Growth Agent | stale estimates, lead targeting, close-rate recommendations | Partial; after core agent workflow |
+| Lead / Job Finder Agent | finds opportunities, scores fit, drafts outreach with approval | Partial via Opportunity Scout; source adapters and opportunity-to-lead flow remain |
+| Marketing Agent | manual-first campaigns, emails, texts, scripts, review asks | Not built; post-core expansion |
+| Ad Assistant Agent | ad copy/budget/audience drafts with approval before spend | Not built; post-core expansion |
+| Website Builder Agent | contractor websites, service pages, forms, SEO pages | Not built; post-core expansion |
+| Customer Portal | proposal approvals, photos, change orders, payments later | Partial manual preview; tokenized portal remains |
+| Communication System | notes, mentions, updates, summaries | Foundation built; customer message review/send boundaries remain |
+| Integrations | QuickBooks, Gmail, Calendar, Drive, Stripe, Twilio, Maps, Weather, DocuSign, CompanyCam, Sentry | Mostly not built; post-core expansion |
+| Reporting / Intelligence | job costing, labor, close rates, lead sources, production KPIs | Partial; advanced reporting and profit/loss remain |
+| Customer Success | onboarding, demo/training mode, support, walkthroughs, help docs | Mostly built for pilot; public-scale support remains |
+| Billing / Packages | Basic, Premium, Elite, usage limits, billing later | Package foundation built; payment collection not built |
 
 ## Package Direction
 
@@ -103,8 +107,11 @@ Security is never a paid feature. All packages get safe auth, company separation
 
 ### Next
 
-- Advanced Reporting Prep Phase 2 after KPI priorities are confirmed.
-- Enterprise Trust Phase 2 after reporting scope is stable.
+- Finish one real guided pilot path using the existing intake, setup approval, smoke, support, and check-in gates.
+- Make estimates/proposals fully customer-ready with branded packet output, option comparison, photos/takeoff summary, and estimate-to-job handoff.
+- Make Apex Agent useful inside the real workflow through a central review queue, lead-to-estimate draft assistance, estimate proposal assistance, job handoff assistance, and closeout review.
+- Add trade setup/profile support so Apex HQ works for more construction contractor types without becoming generic.
+- Harden self-serve signup and onboarding on an approved hosted target before public launch.
 
 ### Later
 
@@ -121,6 +128,35 @@ Security is never a paid feature. All packages get safe auth, company separation
 - Integrations.
 - Enterprise SSO/MFA/SCIM.
 
+## Legacy Completion Checklist
+
+This checklist reconciles this older roadmap with the current 100 percent roadmap.
+
+| Item | Status | Notes |
+| --- | --- | --- |
+| React/Vite, Express, SQLite foundation | Done | Current app stack is built and repeatedly verified. |
+| Auth/setup routes | Done / maintain | Production auth smoke remains a launch gate. |
+| Company/workspace foundation | Done | Public signup and company scope are heavily tested. |
+| Public signup/company creation | Built locally | Hosted self-serve launch smoke and production approval remain. |
+| First owner onboarding | Done for current scope | Recent regression guard keeps setup visible after signup. |
+| User/role permissions | Done for current scope | Must remain a blocker for future changes. |
+| Customers/leads/estimates/jobs/crews | Mostly done | Needs final end-to-end pilot and trade-template polish. |
+| Time/reports/uploads/tickets/pre/post-pour/safety/checklists | Mostly done | Field mobile and role safety are strong; trade-specific prompts remain. |
+| Communication Center | Foundation done | Customer-facing send/review boundaries remain. |
+| App Health / readiness / backup / restore | Mostly done | Production monitoring/auth-smoke gates remain. |
+| Package entitlements | Done | Billing/payment is not built. |
+| Opportunity Scout | Built review-first MVP | Source adapters and expanded ingestion remain. |
+| Estimate Studio branding/PDF header | Partial-to-strong | Customer-ready proposal packet polish remains. |
+| Satellite Fence Takeoff Lite | MVP built | Browser QA with Mapbox token and quantity confidence polish remain. |
+| Apex Assistant / Agent | Partial | Review-first context, audit, and draft paths exist; full workflow agent remains. |
+| Customer Portal | Partial | Manual preview exists; tokenized customer portal remains. |
+| Growth/Marketing/Ad/Website agents | Not built | Post-core expansion, not first launch blockers. |
+| Integrations | Mostly not built | Post-core expansion. |
+| Offline/PWA advanced workflows | Partial | Installability exists; offline edit/sync remains. |
+| Payroll | Not built | Not a core launch requirement and should not be claimed. |
+| Billing/payments/Stripe | Not built | Requires separate approval. |
+| Enterprise SSO/MFA/SCIM | Not built | Later trust phase only. |
+
 ### Never
 
 - Hidden GPS tracking.
@@ -132,14 +168,16 @@ Security is never a paid feature. All packages get safe auth, company separation
 
 ## Recommended Build Order
 
-1. Advanced Reporting Prep Phase 2.
-2. Enterprise Trust Phase 2.
-3. Billing / manual upgrade prep.
-4. Customer Portal Planning Checkpoint.
-5. Assistant material planning prep.
-6. Assistant job conversion planning.
-7. Premium demo workspace prep.
-8. Public website / sales funnel planning.
+1. Real guided pilot gate and smoke.
+2. Estimate/proposal packet completion.
+3. Satellite Fence Takeoff QA and handoff completion.
+4. Agent action inbox and workflow draft assistance.
+5. Trade setup/profile and template packs.
+6. Self-serve hosted smoke and onboarding completion.
+7. Production auth smoke and monitoring gates.
+8. Customer portal and communication review/send gates.
+9. Billing/payment planning only after explicit approval.
+10. Post-core agents, integrations, offline sync, and enterprise features.
 
 Completed foundational phases that should not be restarted:
 

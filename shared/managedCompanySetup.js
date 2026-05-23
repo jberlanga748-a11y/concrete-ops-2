@@ -17,6 +17,7 @@ export const MANAGED_SETUP_CATEGORIES = [
       { key: "website", label: "Website", critical: false },
       { key: "address", label: "Business address", critical: false },
       { key: "license", label: "License / CCB text", critical: false },
+      { key: "primary_trade", label: "Primary trade selected", critical: true },
       { key: "service_area", label: "Service area", critical: true },
     ],
   },
@@ -159,6 +160,10 @@ function hasText(value) {
   return text(value, 500).length > 0;
 }
 
+function hasPrimaryTrade(companySettings = {}) {
+  return hasText(companySettings.primaryTrade || "general-contractor");
+}
+
 function normalizeRole(role) {
   return text(role, 80).toLowerCase();
 }
@@ -216,6 +221,7 @@ function deriveAutoCompletion({ companySettings = {}, users = [], leadSources = 
     website: hasText(companySettings.website),
     address: hasText(companySettings.businessAddress),
     license: hasText(companySettings.licenseText),
+    primary_trade: hasPrimaryTrade(companySettings),
     service_area: hasText(companySettings.serviceArea),
     contractor_mode: false,
     services_offered: hasTradeFocus,

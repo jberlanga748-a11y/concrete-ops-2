@@ -9,7 +9,7 @@ import { estimateRoughNotesHasSuggestions, estimateRoughNotesText } from "./esti
 import { deriveEstimateSentSnapshots, getEstimateVisibleInternalNotes, mergeEstimateGcPacketLite, mergeEstimateOfficeInternalNotes } from "./estimate-snapshot-utils";
 import { calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEstimateTotals, deriveEstimateJobHandoffReadiness, deriveEstimateProposalSections, estimateCustomerEmail, estimateStatusLabel, formatEstimateCurrency, mergeEstimateProposalSections } from "./estimate-utils";
 import { addEstimateLineItemStarter, applyEstimateTemplateStarter, buildEstimateLineItemsFromRoughNotes, getEstimateLineItemStartersForTrade, getEstimateStarterTradeSummary, getEstimateTemplateStartersForTrade } from "./estimate-template-utils";
-import { buildFenceTakeoffBackupRows, buildFenceTakeoffDraftLineItems, buildFenceTakeoffFieldHandoff, buildFenceTakeoffProposalSummary, mergeFenceTakeoffIntoDraft, normalizeFenceTakeoff, summarizeFenceTakeoffByAssembly } from "./fence-takeoff-utils";
+import { buildFenceTakeoffBackupRows, buildFenceTakeoffDraftLineItems, buildFenceTakeoffFieldHandoff, buildFenceTakeoffProofPhotoChecklist, buildFenceTakeoffProposalSummary, deriveFenceTakeoffReadiness, mergeFenceTakeoffIntoDraft, normalizeFenceTakeoff, summarizeFenceTakeoffByAssembly } from "./fence-takeoff-utils";
 import { ESTIMATE_PACKET_PRESETS, ESTIMATE_PACKET_SECTION_DEFS, INTERNAL_REVIEW_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
 
 export function estimateDisplayTitle(estimate) {
@@ -1113,6 +1113,8 @@ export function FenceTakeoffLiteEditor({ draft, setDraft, disabled = false, toke
   const assemblies = summarizeFenceTakeoffByAssembly(takeoff);
   const proposalSummary = buildFenceTakeoffProposalSummary(takeoff);
   const fieldHandoff = buildFenceTakeoffFieldHandoff(takeoff);
+  const proofPhotoChecklist = buildFenceTakeoffProofPhotoChecklist(takeoff);
+  const readiness = deriveFenceTakeoffReadiness(takeoff);
   const draftLineItems = buildFenceTakeoffDraftLineItems(takeoff);
 
   const commitTakeoff = (nextTakeoff) => {
@@ -1145,6 +1147,7 @@ export function FenceTakeoffLiteEditor({ draft, setDraft, disabled = false, toke
           notes: "Manual estimate-grade segment. Replace with satellite drawing when Mapbox token is configured.",
         },
       ],
+      adjustmentNotes: takeoff.adjustmentNotes || "Manual LF added before satellite drawing. Field verify before material order.",
       updatedAt: new Date().toISOString(),
     });
   };
@@ -1183,6 +1186,18 @@ export function FenceTakeoffLiteEditor({ draft, setDraft, disabled = false, toke
       <div className="co-fence-takeoff-disclaimer">
         Estimate-grade only. Field verify fence line, gates, slope, utility locates, access, and property boundaries before final pricing or install. This is not survey-grade.
       </div>
+      <div className="co-fence-readiness-card" data-tone={readiness.tone}>
+        <div>
+          <p>Quantity Confidence</p>
+          <strong>{readiness.label}</strong>
+          <span>{readiness.summary}</span>
+        </div>
+        <div className="co-fence-readiness-metrics">
+          <span>{readiness.mapSegmentCount} map</span>
+          <span>{readiness.manualSegmentCount} manual</span>
+          <span>{formatFenceFeet(readiness.totalLinearFeet)}</span>
+        </div>
+      </div>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
         <FenceSatelliteTakeoffMap token={token} takeoff={takeoff} disabled={disabled} onChange={commitTakeoff} />
         <div className="co-fence-takeoff-summary">
@@ -1200,6 +1215,17 @@ export function FenceTakeoffLiteEditor({ draft, setDraft, disabled = false, toke
             </Button>
           </div>
         </div>
+      </div>
+
+      <div className="co-fence-adjustment-card">
+        <TextAreaField
+          label="Manual adjustment notes"
+          value={takeoff.adjustmentNotes}
+          onChange={(event) => commitTakeoff({ ...takeoff, adjustmentNotes: event.target.value, updatedAt: new Date().toISOString() })}
+          disabled={disabled}
+          placeholder="Explain manual LF adjustments, slopes, gate assumptions, inaccessible runs, or field-verification notes."
+        />
+        <p>Included in proposal-safe takeoff summary and field handoff. Do not put margin, private cost, or customer-sensitive notes here.</p>
       </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
@@ -1251,6 +1277,12 @@ export function FenceTakeoffLiteEditor({ draft, setDraft, disabled = false, toke
             <p className="co-fence-output-label">Field handoff checklist</p>
             <ul>
               {(fieldHandoff.length ? fieldHandoff : ["Add takeoff segments before generating a field checklist."]).map((item) => <li key={item}>{item}</li>)}
+            </ul>
+          </div>
+          <div className="co-fence-output-card">
+            <p className="co-fence-output-label">Proof photos required</p>
+            <ul>
+              {(proofPhotoChecklist.length ? proofPhotoChecklist : ["Add takeoff segments before generating proof photo requirements."]).map((item) => <li key={item}>{item}</li>)}
             </ul>
           </div>
         </div>

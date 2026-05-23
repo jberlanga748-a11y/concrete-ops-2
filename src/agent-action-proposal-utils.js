@@ -658,9 +658,20 @@ function parseAuditDetail(detail) {
 
 function auditTone(action = "", status = "") {
   if (/blocked|rejected/i.test(`${action} ${status}`)) return "red";
+  if (/approved_for_draft/i.test(action)) return "amber";
   if (/dismissed/i.test(action)) return "slate";
   if (/draft_created/i.test(action)) return "green";
   return "blue";
+}
+
+function auditInboxStatus(action = "", status = "") {
+  const combined = `${action} ${status}`;
+  if (/draft_created/i.test(combined)) return "draft_created";
+  if (/approved_for_draft/i.test(combined)) return "approved_for_draft";
+  if (/blocked/i.test(combined)) return "blocked";
+  if (/dismissed|rejected/i.test(combined)) return "dismissed";
+  if (/reviewed|generated/i.test(combined)) return "ready_for_review";
+  return "suggested";
 }
 
 export function deriveAgentActionProposalAuditHistory(auditEvents = [], { canView = false, limit = 5 } = {}) {
@@ -691,4 +702,102 @@ export function deriveAgentActionProposalAuditHistory(auditEvents = [], { canVie
     .filter(Boolean)
     .sort((left, right) => new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime())
     .slice(0, Math.max(0, Number(limit) || 5));
+}
+
+const INBOX_STATUSES = Object.freeze([
+  { id: "suggested", label: "Suggested", tone: "blue" },
+  { id: "ready_for_review", label: "Ready for review", tone: "amber" },
+  { id: "approved_for_draft", label: "Approved for draft", tone: "orange" },
+  { id: "draft_created", label: "Draft created", tone: "green" },
+  { id: "blocked", label: "Blocked", tone: "red" },
+  { id: "dismissed", label: "Dismissed", tone: "slate" },
+]);
+
+function inboxStatusFromReviewState(item = {}, reviewState = {}) {
+  if (item.proposal?.status === "blocked" || reviewState.status === "blocked") return "blocked";
+  if (reviewState.selected?.id === item.id) {
+    if (reviewState.status === "reviewed_locally" || reviewState.status === "ready_to_open") return "ready_for_review";
+    if (reviewState.status === "needs_review") return "suggested";
+  }
+  if (item.statusLabel && /blocked/i.test(item.statusLabel)) return "blocked";
+  return "suggested";
+}
+
+function inboxStatusLabel(statusId = "") {
+  return INBOX_STATUSES.find((status) => status.id === statusId)?.label || "Suggested";
+}
+
+function inboxStatusTone(statusId = "") {
+  return INBOX_STATUSES.find((status) => status.id === statusId)?.tone || "blue";
+}
+
+export function deriveAgentActionInbox({
+  queue = [],
+  reviewState = {},
+  auditHistory = [],
+  limit = 8,
+} = {}) {
+  const queueRows = asArray(queue).map((item) => {
+    const status = inboxStatusFromReviewState(item, reviewState);
+    return {
+      id: text(item.id),
+      source: "queue",
+      status,
+      statusLabel: inboxStatusLabel(status),
+      tone: inboxStatusTone(status),
+      title: text(item.sourceTitle || item.title || "Review packet"),
+      helper: text(item.helper || item.proposal?.allowedNextStep || "Review this packet before acting."),
+      actionLabel: text(item.actionLabel || "Open workflow"),
+      moduleId: text(item.proposal?.targetModuleId || item.target?.moduleId),
+      proposalType: text(item.proposal?.proof?.commandType || item.proposal?.typeLabel),
+      isSelected: Boolean(reviewState.selected?.id && reviewState.selected.id === item.id),
+      isBlocked: status === "blocked",
+    };
+  });
+
+  const auditRows = asArray(auditHistory).map((event) => {
+    const status = auditInboxStatus(event.action, event.status);
+    return {
+      id: text(event.id || event.proposalId),
+      source: "audit",
+      status,
+      statusLabel: inboxStatusLabel(status),
+      tone: inboxStatusTone(status),
+      title: text(event.summary || "Recorded agent review"),
+      helper: text(event.blockedReasons?.[0] || event.requiredApprovals?.[0] || event.sourceModule || "Recorded in review-first audit history."),
+      actionLabel: "Audit history",
+      moduleId: text(event.sourceModule),
+      proposalType: text(event.proposalType),
+      isSelected: false,
+      isBlocked: status === "blocked",
+      createdAt: text(event.createdAt),
+    };
+  });
+
+  const rows = [...queueRows, ...auditRows]
+    .filter((row) => row.id || row.title)
+    .slice(0, Math.max(1, Number(limit) || 8));
+  const counts = Object.fromEntries(INBOX_STATUSES.map((status) => [status.id, 0]));
+  rows.forEach((row) => {
+    counts[row.status] = Number(counts[row.status] || 0) + 1;
+  });
+  const waitingCount = counts.suggested + counts.ready_for_review + counts.approved_for_draft;
+  const blockedCount = counts.blocked;
+  const completedCount = counts.draft_created + counts.dismissed;
+
+  return {
+    statuses: INBOX_STATUSES.map((status) => ({
+      ...status,
+      count: counts[status.id] || 0,
+    })),
+    counts,
+    rows,
+    waitingCount,
+    blockedCount,
+    completedCount,
+    summary: rows.length
+      ? `${waitingCount} waiting / ${blockedCount} blocked / ${completedCount} complete`
+      : "No agent action packets are waiting.",
+    safetyCopy: "Review-first inbox only. It does not create drafts, send messages, submit bids, convert records, schedule crews, bill, or change permissions.",
+  };
 }

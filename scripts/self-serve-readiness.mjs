@@ -10,7 +10,7 @@ Usage:
   npm run launch:self-serve-readiness
   npm run launch:self-serve-readiness -- --json
   npm run launch:self-serve-readiness -- --check-live --base-url=https://concrete-ops-demo.fly.dev --json
-  npm run launch:self-serve-readiness -- --signup-verified --users-verified --roles-verified --backup-verified --restore-verified --build-verified --claims-verified --hosted-smoke-verified --support-owner="Owner name" --monitoring-destination="GitHub Issues" --manual-billing-boundary-acknowledged --json
+  npm run launch:self-serve-readiness -- --signup-verified --users-verified --roles-verified --backup-verified --restore-verified --build-verified --claims-verified --local-self-serve-smoke-verified --support-owner="Owner name" --monitoring-destination="GitHub Issues" --manual-billing-boundary-acknowledged --json
 
 Evidence flags:
   --signup-verified                       npm run verify:signup passed for this release candidate.
@@ -20,6 +20,7 @@ Evidence flags:
   --restore-verified                      npm run verify:restore passed for this release candidate.
   --build-verified                        npm run build passed for this release candidate.
   --claims-verified                       npm run verify:claims passed for this release candidate.
+  --local-self-serve-smoke-verified       Local disposable self-serve smoke passed for signup, onboarding, fake company workflow, and field safety.
   --hosted-smoke-verified                 Hosted smoke passed on the intended target.
   --support-owner=<name>                  Person responsible for first self-serve support triage.
   --monitoring-destination=<destination>  Alert destination for /api/ready and auth/bootstrap failures.
@@ -57,6 +58,7 @@ export function parseArgs(argv = []) {
       restoreVerified: false,
       buildVerified: false,
       claimsVerified: false,
+      localSelfServeSmokeVerified: false,
       hostedSmokeVerified: false,
       supportOwner: "",
       monitoringDestination: "",
@@ -80,6 +82,7 @@ export function parseArgs(argv = []) {
     if (arg === "--restore-verified") options.evidence.restoreVerified = true;
     if (arg === "--build-verified") options.evidence.buildVerified = true;
     if (arg === "--claims-verified") options.evidence.claimsVerified = true;
+    if (arg === "--local-self-serve-smoke-verified") options.evidence.localSelfServeSmokeVerified = true;
     if (arg === "--hosted-smoke-verified") options.evidence.hostedSmokeVerified = true;
     if (arg === "--manual-billing-boundary-acknowledged") options.evidence.manualBillingBoundaryAcknowledged = true;
     if (arg === "--legal-review-acknowledged") options.approvals.legalReviewAcknowledged = true;
@@ -190,6 +193,7 @@ export function buildSelfServeReadinessReport({
   const setupOk = !live.checked || Boolean(live.setupStatus?.ok);
   const setupStatus = live.setupStatus?.payload || {};
   const liveProductionUnsafe = Boolean(setupStatus.demoMode);
+  const hasNonProductionWorkflowSmoke = Boolean(evidence.localSelfServeSmokeVerified || evidence.hostedSmokeVerified);
 
   const gates = [
     gate("Signup and workspace creation", Boolean(evidence.signupVerified), missing(evidence.signupVerified, "Run and pass npm.cmd run verify:signup.")),
@@ -201,12 +205,15 @@ export function buildSelfServeReadinessReport({
       ...missing(evidence.backupVerified, "Run and pass npm.cmd run verify:backup."),
       ...missing(evidence.restoreVerified, "Run and pass npm.cmd run verify:restore."),
     ]),
-    gate("Build and hosted smoke", Boolean(evidence.buildVerified && evidence.hostedSmokeVerified && readyOk && setupOk), [
+    gate("Build and non-production workflow smoke", Boolean(evidence.buildVerified && hasNonProductionWorkflowSmoke && readyOk && setupOk), [
       ...missing(evidence.buildVerified, "Run and pass npm.cmd run build."),
-      ...missing(evidence.hostedSmokeVerified, "Run and pass hosted smoke on the intended target."),
+      ...missing(hasNonProductionWorkflowSmoke, "Run and pass local self-serve smoke or hosted smoke on the intended non-production target."),
       ...missing(readyOk, "The checked target /api/ready endpoint is not healthy."),
       ...missing(setupOk, "The checked target /api/setup/status endpoint is not readable."),
-    ], live.warnings || []),
+    ], [
+      ...(evidence.localSelfServeSmokeVerified && !evidence.hostedSmokeVerified ? ["Controlled readiness is based on local disposable self-serve smoke; run hosted smoke before broad launch."] : []),
+      ...(live.warnings || []),
+    ]),
     gate("Support owner and alert path", Boolean(supportOwner && monitoringDestination), [
       ...missing(supportOwner, "Set a named first-response support owner."),
       ...missing(monitoringDestination, "Set a monitoring or alert destination for readiness/auth failures."),
@@ -228,10 +235,10 @@ export function buildSelfServeReadinessReport({
     "Signup and workspace creation",
     "Tenant, users, and role safety",
     "Backup and restore safety",
-    "Build and hosted smoke",
+    "Build and non-production workflow smoke",
     "Support owner and alert path",
   ].every((name) => gateByName.get(name)?.go);
-  const publicSelfServeReady = gates.every((item) => item.go);
+  const publicSelfServeReady = gates.every((item) => item.go) && Boolean(evidence.hostedSmokeVerified);
   const nextBlockedGate = gates.find((item) => !item.go) || null;
 
   return {

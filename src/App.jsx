@@ -27,7 +27,7 @@ import {
   resolveApexAssistantCommand,
 } from "./apex-assistant-shell-utils";
 import { AppHealthAuditActivityPanel, CustomerPortalManualPreviewPanel, EnterpriseTrustReadinessPanel, OwnerHealthStatusPanel, PwaInstallGuidancePanel, ReleaseSafetyRollbackPanel, UiStyleFoundationPanel } from "./app-health-route-components";
-import { buildAgentActionProposal, buildAgentActionProposalReviewAuditPayload, deriveAgentActionProposalAuditHistory, deriveAgentActionProposalQueue, deriveAgentActionProposalReviewState, normalizeAgentActionProposalAuditEvent } from "./agent-action-proposal-utils";
+import { buildAgentActionProposal, buildAgentActionProposalReviewAuditPayload, deriveAgentActionInbox, deriveAgentActionProposalAuditHistory, deriveAgentActionProposalQueue, deriveAgentActionProposalReviewState, normalizeAgentActionProposalAuditEvent } from "./agent-action-proposal-utils";
 import { agentContextPayloadToWorkflowContext } from "./agent-context-api-utils";
 import { deriveAgentWorkflowContext } from "./agent-workflow-context-utils";
 import { deriveAiOfficeAgentCommandCenter } from "./ai-office-utils";
@@ -257,6 +257,7 @@ import {
   SUPPORT_PILOT_FEEDBACK_WORKFLOW,
 } from "./support-utils";
 import { buildTimeTrackingSupportContext, deriveCrewWeeklySummary, deriveTimeJobCostingReadiness, deriveTimeWorkspace, formatMinutes } from "./time-utils";
+import { deriveConstructionTradeSetupState } from "./trade-setup-utils";
 import { ActiveTimeCard, RecentTimeEntriesCard, TimeCommandRailPolished, TimeCorrectionPanel, TimeEntriesTablePolished, TimeEntryCard, TimeKpiCardPolished, TimeMobileAccordionCard, TimeMobileFieldGroup, TimeStatusBadge, TimeSummaryMetricsPolished, WeekSummaryCard, workCategoryLabel } from "./time-route-components";
 import { deriveChecklistItems, deriveToolChecklistJobReadiness, deriveToolChecklistListState, filterToolChecklists, toolChecklistItemStatusLabel, toolChecklistStatusLabel } from "./tool-checklist-utils";
 import { ALLOWED_UPLOAD_TYPES, buildUploadSupportContext, deriveAllowedUploadJobs, deriveUploadDraftFromSelection, deriveUploadListState, filterUploads, findSelectedUpload, gpsStatusLabel, uploadCapturedAt, uploadEvidenceDateKey, uploadEvidenceJobId, uploadJobLabel, uploadTitle, uploadUploaderLabel, validateUploadFile } from "./upload-utils";
@@ -22013,6 +22014,12 @@ function CopilotPagePolished({
     canView: Boolean(permissions?.audit?.canView),
     limit: 4,
   }), [auditEvents, permissions?.audit?.canView]);
+  const agentActionInbox = useMemo(() => deriveAgentActionInbox({
+    queue: actionProposalQueue,
+    reviewState: actionProposalReview,
+    auditHistory: aiOfficeProposalAuditHistory,
+    limit: 8,
+  }), [actionProposalQueue, actionProposalReview, aiOfficeProposalAuditHistory]);
   const selectedAgentProposalAuditRecorded = Boolean(actionProposalReview.selected?.id && (
     agentProposalAuditState.proposalId === actionProposalReview.selected.id && agentProposalAuditState.status === "recorded"
   ));
@@ -22912,7 +22919,39 @@ function CopilotPagePolished({
 
         <aside className="co-ai-right-rail min-w-0">
           <Card className="co-ai-rail-card">
-            <SectionHeader title="Agent Proposal Queue" description="Review-first packets prepared from the current AI Office queue. Nothing is created, sent, approved, converted, or billed here." />
+            <SectionHeader title="Agent Action Inbox" description={agentActionInbox.summary} />
+            <div className="co-ai-action-inbox-strip" aria-label="Agent action inbox status counts">
+              {agentActionInbox.statuses.filter((status) => status.count > 0 || ["suggested", "ready_for_review", "blocked"].includes(status.id)).slice(0, 6).map((status) => (
+                <span key={status.id} data-tone={status.tone}>
+                  <b>{status.count}</b>
+                  <em>{status.label}</em>
+                </span>
+              ))}
+            </div>
+            <div className="co-ai-action-inbox-list">
+              {agentActionInbox.rows.length ? agentActionInbox.rows.slice(0, 4).map((row) => (
+                row.source === "queue" ? (
+                  <button key={`${row.source}-${row.id}`} type="button" className="co-ai-action-inbox-row co-focus-ring" data-tone={row.tone} data-active={row.isSelected ? "true" : "false"} onClick={() => setSelectedAgentProposalId(row.id)}>
+                    <span>
+                      <strong>{row.title}</strong>
+                      <em>{row.helper}</em>
+                    </span>
+                    <b>{row.statusLabel}</b>
+                  </button>
+                ) : (
+                  <div key={`${row.source}-${row.id}`} className="co-ai-action-inbox-row" data-tone={row.tone}>
+                    <span>
+                      <strong>{row.title}</strong>
+                      <em>{row.helper}</em>
+                    </span>
+                    <b>{row.statusLabel}</b>
+                  </div>
+                )
+              )) : (
+                <p className="co-ai-action-inbox-empty">No agent action packets are waiting. New lead, estimate, proof, job, support, and closeout review items will appear here.</p>
+              )}
+            </div>
+            <p className="co-ai-action-inbox-safety">{agentActionInbox.safetyCopy}</p>
             {actionProposalReview.selected ? (
               <div className="co-ai-proposal-review-panel" data-state={actionProposalReview.status}>
                 <div className="co-ai-proposal-review-head">
@@ -23656,6 +23695,11 @@ function SettingsPagePolished({
     jobs,
   }), [jobs, leadSources, safeCompanySettings, users]);
   const packageReadiness = useMemo(() => packageReadinessSummary(safeCompanySettings.packageId), [safeCompanySettings.packageId]);
+  const tradeSetupState = useMemo(() => deriveConstructionTradeSetupState({
+    ...safeCompanySettings,
+    primaryTrade: profileDraft.primaryTrade || safeCompanySettings.primaryTrade,
+    serviceArea: profileDraft.serviceArea || safeCompanySettings.serviceArea,
+  }), [profileDraft.primaryTrade, profileDraft.serviceArea, safeCompanySettings]);
   const customerPortalPreviewState = useMemo(() => deriveCustomerPortalPreviewState({
     estimates,
     jobs,
@@ -24098,6 +24142,54 @@ function SettingsPagePolished({
                   <div className="flex flex-wrap items-center gap-3">
                     <Button type="submit" disabled={busy || !profileDirty || typeof onUpdateCompanySettings !== "function"}>Save company profile</Button>
                     <p className="text-sm font-bold text-slate-500">{profileNotice || "Primary trade focuses estimate starters; contact details can be reused in reports and packets."}</p>
+                  </div>
+                  <div className="co-settings-trade-preview" aria-label="Primary trade workflow preview">
+                    <div className="co-settings-trade-preview-head">
+                      <span>
+                        <strong>{tradeSetupState.tradeLabel} workflow</strong>
+                        <em>{tradeSetupState.summary}</em>
+                      </span>
+                      <Badge tone={tradeSetupState.ready ? "green" : "amber"}>{tradeSetupState.status}</Badge>
+                    </div>
+                    <div className="co-settings-trade-preview-grid">
+                      <div>
+                        <p>Estimate starters</p>
+                        <strong>{tradeSetupState.estimateTemplates.length} shown / {tradeSetupState.lineItemStarters.length} line starters</strong>
+                        <ul>
+                          {tradeSetupState.estimateTemplates.slice(0, 3).map((template) => (
+                            <li key={template.id}>{template.title}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div>
+                        <p>Options / proposal</p>
+                        <strong>{tradeSetupState.optionFamilies.slice(0, 2).join(" / ") || "Trade options ready"}</strong>
+                        <ul>
+                          {tradeSetupState.proposalSections.slice(0, 3).map((section) => (
+                            <li key={section}>{section}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div>
+                        <p>Field handoff</p>
+                        <strong>{tradeSetupState.fieldHandoffChecklist.length} checklist prompts</strong>
+                        <ul>
+                          {tradeSetupState.fieldHandoffChecklist.slice(0, 3).map((item) => (
+                            <li key={item}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div>
+                        <p>Proof / closeout</p>
+                        <strong>{tradeSetupState.proofPhotoChecklist.length} photo prompts</strong>
+                        <ul>
+                          {tradeSetupState.proofPhotoChecklist.slice(0, 3).map((item) => (
+                            <li key={item}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                    <p className="co-settings-trade-preview-note">{tradeSetupState.agentGuidance.safetyBoundary}</p>
                   </div>
                 </form>
               </Card>
@@ -27741,7 +27833,15 @@ function EstimatesPagePolished({
       return false;
     }
 
-    const result = await onSendEstimate(detailEstimatePreview.id);
+    const reviewConfirmed = window.confirm(
+      "Send this customer proposal now? Confirm you reviewed the recipient, scope, total, attachments, exclusions, and terms.",
+    );
+    if (!reviewConfirmed) {
+      showCopyFeedback("Send cancelled. No email was sent.");
+      return false;
+    }
+
+    const result = await onSendEstimate(detailEstimatePreview.id, { reviewConfirmed: true });
     if (result?.sentTo) {
       showCopyFeedback(`Estimate sent to ${result.sentTo}.`);
     }
@@ -36450,11 +36550,11 @@ export default function App() {
     }
   }
 
-  async function handleSendEstimate(estimateId) {
+  async function handleSendEstimate(estimateId, payload = {}) {
     if (!sessionToken || !appState.permissions.estimates.canManage) return false;
     setBusy(true);
     try {
-      const nextState = await sendEstimate(sessionToken, estimateId);
+      const nextState = await sendEstimate(sessionToken, estimateId, payload);
       applyBootstrap(nextState);
       setErrorMessage("");
       return nextState.emailSend || true;

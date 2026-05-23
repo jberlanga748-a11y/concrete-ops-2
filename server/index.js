@@ -8293,6 +8293,9 @@ function convertApprovedEstimateToJobInDraft(draft, estimateId, user, payload = 
 
 app.post("/api/estimates/:id/send", requireAuth, asyncRoute(async (req, res) => {
   assertCanManageEstimatesForRequest(req.auth.user);
+  if (req.body?.reviewConfirmed !== true) {
+    throw new ApiError(400, "Confirm human review of the recipient, scope, total, attachments, exclusions, and terms before sending this estimate.");
+  }
   if (!isEstimateEmailConfigured()) {
     throw new ApiError(503, "Email sending is not configured yet.");
   }
@@ -8318,6 +8321,20 @@ app.post("/api/estimates/:id/send", requireAuth, asyncRoute(async (req, res) => 
     printPacketFooter: settings.printPacketFooter || "",
     printPacketDisclaimer: settings.printPacketDisclaimer || "",
     estimate,
+  });
+
+  await updateDb((draft) => {
+    const estimateToReview = findEstimate(draft, req.params.id, req.auth.user);
+    appendAuditEvent(draft, {
+      entityType: "estimate",
+      entityId: estimateToReview.id,
+      action: "send_review_confirmed",
+      summary: "Estimate send reviewed by human",
+      detail: `${req.auth.user.name} confirmed recipient, scope, total, attachments, exclusions, and terms before email delivery. No email has been sent by this review event.`,
+      actor: req.auth.user,
+      changedFields: [],
+    });
+    return draft;
   });
 
   let sendResult;

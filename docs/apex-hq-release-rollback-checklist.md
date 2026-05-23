@@ -62,6 +62,7 @@ npm.cmd run verify:demo
 npm.cmd run verify:server
 npm.cmd run verify:backup
 npm.cmd run verify:restore
+npm.cmd run verify:monitoring
 git diff --check
 ```
 
@@ -149,6 +150,7 @@ Before deploy:
 ```powershell
 fly status -a concrete-ops-2
 fly checks list -a concrete-ops-2
+npm.cmd run launch:production-release-gate -- --build-verified --roles-verified --server-verified --backup-verified --restore-verified --monitoring-verified --production-auth-readiness-verified --target-app=concrete-ops-2 --fly-config=fly.toml --support-owner="<owner>" --rollback-owner="<owner>" --backup-artifact="<backup file>" --rollback-release="<last known-good release>" --incident-destination=github-issues --json
 ```
 
 Deploy:

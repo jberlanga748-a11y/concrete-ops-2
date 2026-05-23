@@ -162,6 +162,19 @@ function insertUsers(sqliteFile, users) {
   }
 }
 
+function auditEvents(sqliteFile) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    return database.prepare(`
+      SELECT entity_type AS entityType, entity_id AS entityId, action, summary, detail, actor_name AS actorName, changed_fields AS changedFields, created_at AS createdAt
+      FROM audit_events
+      ORDER BY sort_index DESC
+    `).all();
+  } finally {
+    database.close();
+  }
+}
+
 function buildEstimatePayload({ customerId, leadId = "", ...overrides } = {}) {
   return {
     customerId,
@@ -260,6 +273,7 @@ test("office and estimator users can manage estimates while field roles are bloc
     const unconfiguredSend = await requestJson(fixture.baseUrl, `/api/estimates/${officeEstimate.id}/send`, {
       method: "POST",
       headers: officeHeaders,
+      body: JSON.stringify({ reviewConfirmed: true }),
     });
     assert.equal(unconfiguredSend.response.status, 503);
     assert.match(unconfiguredSend.payload.error, /Email sending is not configured yet/);
@@ -375,9 +389,19 @@ test("configured estimate email sends before marking estimate sent", async () =>
     });
     const estimate = createdState.estimates.find((entry) => entry.title === "Martinez Driveway Proposal");
 
+    const blockedWithoutReview = await requestJson(fixture.baseUrl, `/api/estimates/${estimate.id}/send`, {
+      method: "POST",
+      headers: officeHeaders,
+      body: JSON.stringify({}),
+    });
+    assert.equal(blockedWithoutReview.response.status, 400);
+    assert.match(blockedWithoutReview.payload.error, /Confirm human review/i);
+    assert.equal(emailApi.requests.length, 0);
+
     const sentState = await assertOk(fixture.baseUrl, `/api/estimates/${estimate.id}/send`, {
       method: "POST",
       headers: officeHeaders,
+      body: JSON.stringify({ reviewConfirmed: true }),
     });
 
     assert.equal(emailApi.requests.length, 1);
@@ -420,6 +444,14 @@ test("configured estimate email sends before marking estimate sent", async () =>
     assert.equal(sentEstimate.sentTo, "proposal-recipient@example.test");
     assert.equal(sentEstimate.emailSubject, "Estimate for Cedar fence replacement estimate");
     assert.equal(sentEstimate.providerMessageId, "msg_test_123");
+    const records = auditEvents(fixture.sqliteFile).filter((record) => record.entityId === estimate.id);
+    assert.equal(records.some((record) => record.action === "send_review_confirmed"), true);
+    assert.equal(records.some((record) => record.action === "sent"), true);
+    const reviewRecord = records.find((record) => record.action === "send_review_confirmed");
+    const sentRecord = records.find((record) => record.action === "sent");
+    assert.equal(new Date(reviewRecord.createdAt).getTime() <= new Date(sentRecord.createdAt).getTime(), true);
+    assert.match(reviewRecord.detail, /recipient, scope, total, attachments, exclusions, and terms/i);
+    assert.doesNotMatch(reviewRecord.detail, /proposal-recipient@example\.test/i);
   } finally {
     await fixture.stop();
     await emailApi.stop();
@@ -453,6 +485,7 @@ test("failed estimate email send does not mark estimate sent", async () => {
     const failedSend = await requestJson(fixture.baseUrl, `/api/estimates/${estimate.id}/send`, {
       method: "POST",
       headers: officeHeaders,
+      body: JSON.stringify({ reviewConfirmed: true }),
     });
     assert.equal(failedSend.response.status, 502);
     assert.match(failedSend.payload.error, /Provider unavailable/);
@@ -462,6 +495,9 @@ test("failed estimate email send does not mark estimate sent", async () => {
     assert.equal(afterFailureEstimate.status, "draft");
     assert.equal(afterFailureEstimate.sentAt, "");
     assert.equal(afterFailureEstimate.sentTo, "");
+    const records = auditEvents(fixture.sqliteFile).filter((record) => record.entityId === estimate.id);
+    assert.equal(records.some((record) => record.action === "send_review_confirmed"), true);
+    assert.equal(records.some((record) => record.action === "sent"), false);
   } finally {
     await fixture.stop();
     await emailApi.stop();
