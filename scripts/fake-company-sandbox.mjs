@@ -2,6 +2,8 @@
 
 import { fileURLToPath } from "node:url";
 
+import { buildJobCloseoutBillingReviewPacket } from "../src/job-closeout-billing-utils.js";
+
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 const FLY_DEMO_HOST = "concrete-ops-demo.fly.dev";
 const BLOCKED_PRODUCTION_HOSTS = new Set([
@@ -9,6 +11,7 @@ const BLOCKED_PRODUCTION_HOSTS = new Set([
   "apexhq.app",
   "www.apexhq.app",
 ]);
+const PNG_DATA_URL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WnV1n0AAAAASUVORK5CYII=";
 
 export function defaultSandboxProfile(overrides = {}) {
   const suffix = overrides.suffix || new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
@@ -56,12 +59,16 @@ export function buildSandboxPlan(profile = defaultSandboxProfile()) {
       { role: "Employee", email: profile.fieldEmail },
     ],
     workflow: [
+      "Apply company branding and managed setup notes",
       "Create customer account",
       "Create and score a fence lead",
       "Create an estimate draft with fence line items",
       "Approve estimate and convert it to a job",
       "Assign field crew and expose field planning",
+      "Clock field time against the assigned job",
       "Create and submit one field daily report",
+      "Upload one jobsite proof photo",
+      "Review the report and mark the job ready for manual billing review",
       "Verify field user remains blocked from office estimate data",
     ],
     routes: {
@@ -194,6 +201,21 @@ async function createOrFindUser(baseUrl, token, { email, password, name, role, p
   }
 }
 
+async function assignUserToJob(baseUrl, token, jobId, { userId, roleOnJob }) {
+  try {
+    return await requestJson(baseUrl, `/api/jobs/${jobId}/assignments`, {
+      method: "POST",
+      headers: jsonHeaders(token),
+      body: JSON.stringify({ userId, roleOnJob }),
+    });
+  } catch (error) {
+    if (error.status !== 409) throw error;
+    return requestJson(baseUrl, "/api/bootstrap", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  }
+}
+
 function findByIdOrLatest(records, id) {
   return records.find((record) => record.id === id) || records[0] || null;
 }
@@ -219,6 +241,33 @@ export async function createFakeCompanySandbox({
     const ownerSession = await signupOrLoginOwner(safeBaseUrl, profile);
     const ownerToken = ownerSession.token;
     const currentCompanyId = ownerSession.currentCompanyId;
+    const setupState = await requestJson(safeBaseUrl, "/api/settings/company", {
+      method: "PATCH",
+      headers: jsonHeaders(ownerToken),
+      body: JSON.stringify({
+        companyName: profile.companyName,
+        logoInitials: "FF",
+        accentColor: "orange",
+        businessPhone: profile.ownerPhone,
+        businessEmail: profile.ownerEmail,
+        website: "https://example.test/friendly-fence",
+        businessAddress: "2140 Mission St SE, Salem, OR",
+        serviceArea: `${profile.customerCity} and surrounding jobsites`,
+        licenseText: "Sandbox license: demo-only",
+        primaryTrade: "fencing",
+        printPacketFooter: "Sandbox proposal packet for founder-led walkthrough only.",
+        printPacketDisclaimer: "Estimate-grade quantities only. Final field verification required before production.",
+        managedSetupChecklist: [
+          { key: "roles_reviewed", completed: true, note: "Owner, foreman, and employee roles reviewed." },
+          { key: "contractor_mode", completed: true, note: "Fencing pilot workflow selected." },
+          { key: "branding_reviewed", completed: true, note: "Logo initials, phone, email, service area, and packet text set." },
+          { key: "proposal_terms_reviewed", completed: true, note: "Proposal footer and disclaimer set." },
+          { key: "foreman_workspace_reviewed", completed: true },
+          { key: "employee_workspace_reviewed", completed: true },
+        ],
+        managedSetupNotes: "Fake company sandbox is ready for a guided lead-to-closeout walkthrough.",
+      }),
+    });
     const foreman = await createOrFindUser(safeBaseUrl, ownerToken, {
       email: profile.foremanEmail,
       password: profile.foremanPassword,
@@ -346,6 +395,14 @@ export async function createFakeCompanySandbox({
       }),
     });
     const job = updatedJobState.jobs.find((entry) => entry.id === convertedJob.id) || convertedJob;
+    await assignUserToJob(safeBaseUrl, ownerToken, job.id, {
+      userId: foreman.id,
+      roleOnJob: "foreman",
+    });
+    await assignUserToJob(safeBaseUrl, ownerToken, job.id, {
+      userId: fieldUser.id,
+      roleOnJob: "crew",
+    });
 
     const foremanLogin = await requestJson(safeBaseUrl, "/api/auth/login", {
       method: "POST",
@@ -382,6 +439,77 @@ export async function createFakeCompanySandbox({
     const fieldBootstrap = await requestJson(safeBaseUrl, "/api/bootstrap", {
       headers: { Authorization: `Bearer ${fieldLogin.token}` },
     });
+    const clockedInState = await requestJson(safeBaseUrl, "/api/time-entries/clock-in", {
+      method: "POST",
+      headers: jsonHeaders(fieldLogin.token),
+      body: JSON.stringify({
+        workCategory: "job",
+        jobId: job.id,
+        notes: "Sandbox crew arrived for fence layout.",
+      }),
+    });
+    const activeTimeEntry = clockedInState.timeEntries.find((entry) => entry.jobId === job.id && entry.userId === fieldUser.id);
+    const clockedOutState = await requestJson(safeBaseUrl, `/api/time-entries/${activeTimeEntry.id}/clock-out`, {
+      method: "POST",
+      headers: jsonHeaders(fieldLogin.token),
+    });
+    const completedTimeEntry = clockedOutState.timeEntries.find((entry) => entry.id === activeTimeEntry.id);
+
+    const uploadState = await requestJson(safeBaseUrl, "/api/uploads", {
+      method: "POST",
+      headers: jsonHeaders(fieldLogin.token),
+      body: JSON.stringify({
+        jobId: job.id,
+        reportId: report.id,
+        fileName: "sandbox-fence-proof.png",
+        fileType: "image/png",
+        dataUrl: PNG_DATA_URL,
+        caption: "Fence line and gate location proof",
+        notes: "Sandbox proof photo for first-company walkthrough.",
+        latitude: 44.9429,
+        longitude: -123.0351,
+        locationAccuracy: 25,
+        locationCapturedAt: new Date().toISOString(),
+      }),
+    });
+    const upload = uploadState.uploads.find((entry) => entry.jobId === job.id && entry.fileName === "sandbox-fence-proof.png")
+      || uploadState.uploads.find((entry) => entry.jobId === job.id);
+
+    const reviewedReportState = await requestJson(safeBaseUrl, `/api/daily-reports/${report.id}/review`, {
+      method: "POST",
+      headers: jsonHeaders(ownerToken),
+    });
+    const reviewedReport = reviewedReportState.dailyReports.find((entry) => entry.id === report.id) || report;
+
+    const billingReadyState = await requestJson(safeBaseUrl, `/api/jobs/${job.id}`, {
+      method: "PATCH",
+      headers: jsonHeaders(ownerToken),
+      body: JSON.stringify({
+        status: "billing_ready",
+        progress: 100,
+        nextStep: "Owner reviews profit/loss inputs and prepares manual bill outside Apex.",
+        fieldNotes: `${job.fieldNotes || ""}\nSandbox closeout proof, daily report, and field time are ready for office review.`.trim(),
+      }),
+    });
+    const billingReadyJob = billingReadyState.jobs.find((entry) => entry.id === job.id) || job;
+    const ownerBootstrap = await requestJson(safeBaseUrl, "/api/bootstrap", {
+      headers: { Authorization: `Bearer ${ownerToken}` },
+    });
+    const closeoutPacket = buildJobCloseoutBillingReviewPacket({
+      jobs: ownerBootstrap.jobs,
+      estimates: ownerBootstrap.estimates,
+      dailyReports: ownerBootstrap.dailyReports,
+      uploads: ownerBootstrap.uploads,
+      timeEntries: ownerBootstrap.timeEntries,
+      changeOrderRequests: ownerBootstrap.changeOrderRequests,
+      deliveryTickets: ownerBootstrap.deliveryTickets,
+      safetyIncidents: ownerBootstrap.safetyIncidents,
+      prePourChecklists: ownerBootstrap.prePourChecklists,
+      postPourChecklists: ownerBootstrap.postPourChecklists,
+      toolChecklists: ownerBootstrap.toolChecklists,
+      permissions: ownerBootstrap.permissions,
+    });
+    const closeoutRow = closeoutPacket.rows.find((row) => row.jobId === job.id);
 
     let fieldEstimateBlocked = false;
     let fieldEstimateVisibleCount = 0;
@@ -400,7 +528,15 @@ export async function createFakeCompanySandbox({
       company: {
         id: currentCompanyId,
         name: profile.companyName,
-        packageId: ownerSession.companyPackage?.id || ownerSession.companySettings?.packageId || "basic",
+        packageId: setupState.companyPackage?.id || setupState.companySettings?.packageId || ownerSession.companyPackage?.id || ownerSession.companySettings?.packageId || "basic",
+        branding: {
+          logoInitials: setupState.companySettings?.logoInitials || "",
+          primaryTrade: setupState.companySettings?.primaryTrade || "",
+          businessEmail: setupState.companySettings?.businessEmail || "",
+          businessPhone: setupState.companySettings?.businessPhone || "",
+          serviceArea: setupState.companySettings?.serviceArea || "",
+          managedSetupStatus: setupState.companySettings?.managedSetupStatus || "",
+        },
       },
       credentials: {
         owner: { email: profile.ownerEmail, password: profile.ownerPassword },
@@ -411,8 +547,10 @@ export async function createFakeCompanySandbox({
         customerId: customer?.id || "",
         leadId: scoredLead.id,
         estimateId: approvedEstimate.id,
-        jobId: job.id,
-        dailyReportId: report.id,
+        jobId: billingReadyJob.id,
+        dailyReportId: reviewedReport.id,
+        uploadId: upload?.id || "",
+        timeEntryId: completedTimeEntry?.id || "",
       },
       safetyChecks: {
         fieldEstimateBlocked,
@@ -420,11 +558,17 @@ export async function createFakeCompanySandbox({
         fieldEstimateAccessSafe: fieldEstimateBlocked || fieldEstimateVisibleCount === 0,
         foremanVisibleJobs: Array.isArray(foremanBootstrap.jobs) ? foremanBootstrap.jobs.length : 0,
         employeeVisibleJobs: Array.isArray(fieldBootstrap.jobs) ? fieldBootstrap.jobs.length : 0,
+        reportReviewed: reviewedReport.status === "reviewed",
+        proofUploadLinked: Boolean(upload?.id && upload.jobId === job.id),
+        completedTimeEntryLinked: Boolean(completedTimeEntry?.id && completedTimeEntry.jobId === job.id && completedTimeEntry.status === "completed"),
+        closeoutReadyForBillingReview: Boolean(closeoutRow?.readyForBillingReview),
+        closeoutBlockedActions: closeoutPacket.blockedActions,
       },
       walkthrough: buildSandboxPlan(profile).routes,
       warnings: [
         "Sandbox data is fake and should stay local/demo-only.",
         "No emails, texts, bids, or customer messages were sent.",
+        "Ready-to-bill means manual review context only; no invoice, payment, or customer billing was created.",
         "Public signup creates a Basic package workspace; premium/Elite features may remain locked.",
       ],
     };

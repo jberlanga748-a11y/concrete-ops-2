@@ -101,7 +101,10 @@ test("fake company sandbox plan documents the review-safe walkthrough", () => {
 
   assert.equal(plan.company.name, "Friendly Fence Sandbox plan-test");
   assert.equal(plan.company.package, "basic");
+  assert.ok(plan.workflow.includes("Apply company branding and managed setup notes"));
   assert.ok(plan.workflow.includes("Create and score a fence lead"));
+  assert.ok(plan.workflow.includes("Upload one jobsite proof photo"));
+  assert.ok(plan.workflow.includes("Review the report and mark the job ready for manual billing review"));
   assert.ok(plan.workflow.includes("Verify field user remains blocked from office estimate data"));
   assert.ok(plan.routes.owner.includes("/estimates"));
   assert.ok(plan.routes.field.includes("/jobs"));
@@ -125,17 +128,29 @@ test("fake company sandbox creates an isolated local walkthrough dataset through
     assert.equal(result.baseUrl, fixture.baseUrl);
     assert.equal(result.company.name, "Friendly Fence Sandbox e2e-test");
     assert.equal(result.company.packageId, "basic");
+    assert.equal(result.company.branding.logoInitials, "FF");
+    assert.equal(result.company.branding.primaryTrade, "fencing");
+    assert.equal(result.company.branding.businessEmail, "owner+fake-company-e2e@apexhq.test");
+    assert.match(result.company.branding.managedSetupStatus, /Ready|Progress/);
     assert.ok(result.created.customerId);
     assert.ok(result.created.leadId);
     assert.ok(result.created.estimateId);
     assert.ok(result.created.jobId);
     assert.ok(result.created.dailyReportId);
+    assert.ok(result.created.uploadId);
+    assert.ok(result.created.timeEntryId);
     assert.equal(result.credentials.owner.email, "owner+fake-company-e2e@apexhq.test");
     assert.equal(result.credentials.employee.email, "field+fake-company-e2e@apexhq.test");
     assert.equal(result.safetyChecks.fieldEstimateAccessSafe, true);
     assert.equal(result.safetyChecks.fieldEstimateVisibleCount, 0);
     assert.equal(result.safetyChecks.foremanVisibleJobs >= 1, true);
+    assert.equal(result.safetyChecks.reportReviewed, true);
+    assert.equal(result.safetyChecks.proofUploadLinked, true);
+    assert.equal(result.safetyChecks.completedTimeEntryLinked, true);
+    assert.equal(result.safetyChecks.closeoutReadyForBillingReview, true);
+    assert.ok(result.safetyChecks.closeoutBlockedActions.some((action) => /No invoice is created/.test(action)));
     assert.ok(result.warnings.some((warning) => /No emails/.test(warning)));
+    assert.ok(result.warnings.some((warning) => /Ready-to-bill means manual review context only/.test(warning)));
   } finally {
     await fixture.stop();
   }
