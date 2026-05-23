@@ -1,3 +1,5 @@
+import { deriveGrowthAgentState } from "./growth-agent-utils.js";
+
 function asArray(value) {
   return Array.isArray(value) ? value : [];
 }
@@ -175,6 +177,12 @@ export function deriveAiOfficeAgentCommandCenter({
   const visibleChangeOrders = activeRecords(changeOrderRequests);
   const visibleSafetyIncidents = activeRecords(safetyIncidents);
   const visibleLearning = activeRecords(agentLearningPreferences);
+  const growthAgent = deriveGrowthAgentState({
+    permissions,
+    leads: visibleLeads,
+    estimates: visibleEstimates,
+    jobs: visibleJobs,
+  });
   const scoutStats = opportunityScout?.stats || {};
   const canViewOpportunityScout = Boolean(permissions?.opportunityScout?.canView);
   const canManageLearning = Boolean(permissions?.aiOffice?.canManageLearning);
@@ -250,6 +258,17 @@ export function deriveAiOfficeAgentCommandCenter({
       tone: toneForCount(newLeads.length + highPriorityLeads.length, { active: "orange", highAt: 6 }),
       actionLabel: "Open leads",
       moduleId: "leads",
+    } : null,
+    growthAgent.canView ? {
+      id: "growth-agent",
+      title: "Growth Follow-up Agent",
+      helper: "Prepare copy-only stale estimate and lead follow-up drafts for human review. Nothing sends or changes records.",
+      icon: "spark",
+      badge: growthAgent.followUpDrafts.length ? `${growthAgent.followUpDrafts.length} drafts` : `${growthAgent.scorecard?.estimateCloseRate || 0}% close rate`,
+      tone: growthAgent.followUpDrafts.some((draft) => draft.urgency === "high") ? "amber" : growthAgent.followUpDrafts.length ? "orange" : "slate",
+      actionLabel: "Review growth",
+      moduleId: "copilot",
+      recordType: "growthAgent",
     } : null,
     permissions?.jobs?.canView || permissions?.jobs?.canManageAll ? {
       id: "job-startup",
@@ -349,6 +368,18 @@ export function deriveAiOfficeAgentCommandCenter({
       moduleId: "commandCenter",
       recordType: "queue",
       record: item,
+    })),
+    ...asArray(growthAgent.followUpDrafts).slice(0, 3).map((draft) => ({
+      id: draft.id,
+      eyebrow: draft.type === "estimate_follow_up" ? "Stale estimate follow-up" : "Lead follow-up draft",
+      title: draft.title,
+      description: `${draft.reason} Draft is copy-only and requires human review before any contact.`,
+      tone: draft.urgency === "high" ? "amber" : "orange",
+      icon: "spark",
+      actionLabel: draft.sourceModule === "estimates" ? "Open estimate" : "Open lead",
+      moduleId: draft.sourceModule,
+      recordType: "growthFollowUpDraft",
+      record: draft,
     })),
     ...jobHandoffEstimateReviews.slice(0, 2).map((estimate) => ({
       id: `estimate-handoff-${estimate.id}`,
@@ -564,6 +595,10 @@ export function deriveAiOfficeAgentCommandCenter({
       readyToBill,
       suggestedLearning: suggestedLearning.length,
       approvedLearning: approvedLearning.length,
+      growthFollowUpDrafts: growthAgent.followUpDrafts.length,
+      estimateCloseRate: growthAgent.scorecard?.estimateCloseRate || 0,
+      leadConversionRate: growthAgent.scorecard?.leadConversionRate || 0,
+      openEstimateValue: growthAgent.scorecard?.openEstimateValue || 0,
       scoutChecksNeeded: scoutStats.checksNeeded || 0,
       openFoundOpportunities: scoutStats.openFoundOpportunities || 0,
       fieldOpsReview: fieldOpsReviewCount,
