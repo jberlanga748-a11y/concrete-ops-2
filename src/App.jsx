@@ -33744,6 +33744,42 @@ function ChangeOrdersPagePolished({
   const changeOrderPriorityCards = filteredRows.length === 0 && canCreate
     ? [newRequestPriorityCard, needsReviewPriorityCard, officeReviewPriorityCard, detailsPriorityCard]
     : [needsReviewPriorityCard, officeReviewPriorityCard, detailsPriorityCard, newRequestPriorityCard];
+  const fieldTabletChangeOrderRows = useMemo(() => {
+    const items = [];
+    const seen = new Set();
+
+    function addRequest(request, priorityLabel) {
+      if (!request?.id || seen.has(request.id)) return;
+      seen.add(request.id);
+      items.push({
+        id: request.id,
+        request,
+        title: changeOrderJobLabel(request),
+        meta: [request.reason || "Reason needed", request.scopeDescription ? "Scope ready" : "Needs scope"].join(" / "),
+        statusLabel: changeOrderDisplayStatusLabel(request.status, canManage),
+        statusTone: changeOrderStatusTone(request.status),
+        priorityLabel,
+      });
+    }
+
+    requestedRows.forEach((request) => addRequest(request, "Review"));
+    underReviewRows.forEach((request) => addRequest(request, "Tracking"));
+    missingDetailRows.forEach((request) => addRequest(request, "Context"));
+    filteredRows.filter((request) => !request.archivedAt).forEach((request) => addRequest(request, "Request"));
+    rows.forEach((request) => addRequest(request, "History"));
+
+    return items.slice(0, 5);
+  }, [canManage, filteredRows, missingDetailRows, requestedRows, rows, underReviewRows]);
+  const selectedFieldTabletChangeOrder = fieldTabletChangeOrderRows.find((item) => item.id === selectedRequest?.id)?.request
+    || selectedRequest
+    || fieldTabletChangeOrderRows[0]?.request
+    || null;
+  const fieldTabletChangeOrderKpis = [
+    { label: "Request Change", value: canCreate ? "Ready" : "View", helper: canCreate ? "Job, scope, notes" : "No request access", tone: canCreate ? "orange" : "slate" },
+    { label: "Track Requests", value: activeChangeRows.length, helper: "Open field requests", tone: activeChangeRows.length ? "amber" : "green" },
+    { label: "Needs Context", value: missingDetailRows.length, helper: "Proof or scope gaps", tone: missingDetailRows.length ? "orange" : "green" },
+    { label: "Office Review", value: underReviewRows.length, helper: "In review now", tone: underReviewRows.length ? "blue" : "slate" },
+  ];
 
   const changeOrderShellKpis = [
     {
@@ -34003,6 +34039,110 @@ function ChangeOrdersPagePolished({
           </div>
         }
       />
+
+      {!canManage ? (
+        <section className="co-field-tablet-command co-change-orders-tablet-command mx-auto w-full max-w-[1520px] min-w-0 px-4 pb-4 sm:px-5" aria-label="Tablet change order command">
+          <div className="co-field-tablet-shell">
+            <div className="co-field-tablet-head">
+              <div>
+                <p>Field command</p>
+                <h2>Change orders</h2>
+                <span>Request changes, track office review, and keep proof/context attached while office cost and management controls stay hidden.</span>
+              </div>
+              <Badge tone={canCreate ? "orange" : "slate"}>{canCreate ? "Request ready" : "View only"}</Badge>
+            </div>
+            <div className="co-field-tablet-kpis" aria-label="Change order field status">
+              {fieldTabletChangeOrderKpis.map((item) => (
+                <div key={item.label} className="co-field-tablet-kpi" data-tone={item.tone}>
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                  <em>{item.helper}</em>
+                </div>
+              ))}
+            </div>
+            <div className="co-field-tablet-grid">
+              <section className="co-field-tablet-actions" aria-label="Request change">
+                <div className="co-field-tablet-section-head">
+                  <div>
+                    <strong>Request change</strong>
+                    <span>Job, reason, scope, and field notes only.</span>
+                  </div>
+                  <Badge tone={canCreate ? "orange" : "slate"}>{canCreate ? "Open" : "Locked"}</Badge>
+                </div>
+                <div className="co-field-tablet-scroll">
+                  <ChangeOrderCreatePanelPolished
+                    canCreate={canCreate}
+                    canManage={canManage}
+                    visibleJobs={visibleJobs}
+                    createDraft={createDraft}
+                    setCreateDraft={setCreateDraft}
+                    singleJobId={singleJobId}
+                    busy={busy}
+                    onCreateRequest={onCreateRequest}
+                  />
+                </div>
+              </section>
+
+              <section className="co-field-tablet-queue" aria-label="Track change requests">
+                <div className="co-field-tablet-section-head">
+                  <div>
+                    <strong>Track requests</strong>
+                    <span>Top {fieldTabletChangeOrderRows.length || 0} visible requests.</span>
+                  </div>
+                  <Badge tone="slate">{rows.length} visible</Badge>
+                </div>
+                <div className="co-field-tablet-list">
+                  {fieldTabletChangeOrderRows.length ? fieldTabletChangeOrderRows.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={`co-field-tablet-row co-focus-ring ${selectedFieldTabletChangeOrder?.id === item.id ? "is-selected" : ""}`}
+                      onClick={() => setSelectedRequestId(item.id)}
+                    >
+                      <span>
+                        <strong>{item.title}</strong>
+                        <em>{item.meta}</em>
+                      </span>
+                      <b>{item.priorityLabel}</b>
+                    </button>
+                  )) : (
+                    <StateCard title="No change requests yet" description={visibleJobs.length ? "Start a request when scope changes need office review." : "No assigned job is available for change requests."} tone="slate" />
+                  )}
+                </div>
+              </section>
+
+              <section className="co-field-tablet-selected" aria-label="Selected change request">
+                <div className="co-field-tablet-section-head">
+                  <div>
+                    <strong>Selected detail</strong>
+                    <span>Field-safe status, scope, notes, and next action.</span>
+                  </div>
+                  <Badge tone={selectedFieldTabletChangeOrder ? changeOrderStatusTone(selectedFieldTabletChangeOrder.status) : "slate"}>
+                    {selectedFieldTabletChangeOrder ? changeOrderDisplayStatusLabel(selectedFieldTabletChangeOrder.status, canManage) : "None"}
+                  </Badge>
+                </div>
+                <div className="co-field-tablet-detail-scroll">
+                  <ChangeOrderDetailPanelPolished
+                    request={selectedFieldTabletChangeOrder}
+                    detailDraft={detailDraft}
+                    setDetailDraft={setDetailDraft}
+                    canManage={false}
+                    busy={busy}
+                    onUpdateRequest={onUpdateRequest}
+                    onArchiveRequest={onArchiveRequest}
+                  />
+                </div>
+              </section>
+
+              <section className="co-field-tablet-summary" aria-label="Change order field guardrails">
+                <strong>Field-safe change requests</strong>
+                <span>Use this tablet view to request a change, track status, and add proof/context in field notes. Office costing, private review text, sales work, and management controls stay hidden.</span>
+                <em>No mutation happens from viewing or selecting requests; submit only creates an explicit field request.</em>
+              </section>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <ChangeOrdersMobileFocusPanel
         filteredCount={filteredRows.length}
