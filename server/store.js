@@ -1,7 +1,9 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { Pool } from "pg";
 
 import { DEMO_COMPANY_NAME, DEMO_CREDENTIALS, DEMO_USERS, INITIAL_ACTIVITY, INITIAL_CUSTOMERS, INITIAL_JOBS, INITIAL_LEADS, INITIAL_QUEUE_ITEMS } from "./seed-data.js";
 import { serverConfig } from "./config.js";
@@ -19,6 +21,12 @@ import { DEFAULT_COMPANY_SETTINGS } from "../shared/permissions.js";
 import { normalizeConstructionTradeId } from "../shared/constructionTrades.js";
 import { normalizeImportedJobDrafts } from "../shared/jobDraftImports.js";
 import { normalizeJobStartupFields } from "../shared/jobStartup.js";
+import {
+  POSTGRES_IMPORT_TABLE_ORDER,
+  buildPostgresImportDataset,
+  buildPostgresImportSql,
+  quoteIdent,
+} from "../scripts/postgres-transfer.mjs";
 
 const SCHEMA_VERSION_KEY = "schema_version";
 export const SESSION_TTL_MS = serverConfig.sessionTtlMs;
@@ -30,6 +38,8 @@ let ensureDbPromise = null;
 let ensureDbTarget = "";
 let cleanupSessionsPromise = null;
 let lastExpiredSessionCleanupAtMs = 0;
+let postgresPool = null;
+let ensurePostgresPromise = null;
 const SESSION_CLEANUP_INTERVAL_MS = 60 * 1000;
 
 function sleep(ms) {
@@ -3878,11 +3888,8 @@ function companySettingsByCompanyIdForState(state = {}) {
   return settingsByCompanyId;
 }
 
-function createDatabaseConnection() {
-  if (db) return db;
-
-  db = new DatabaseSync(getSqliteFile());
-  db.exec(`
+function initializeDatabaseConnection(database) {
+  database.exec(`
     PRAGMA journal_mode = WAL;
     PRAGMA busy_timeout = 5000;
     PRAGMA foreign_keys = ON;
@@ -3892,6 +3899,14 @@ function createDatabaseConnection() {
       value TEXT NOT NULL
     );
   `);
+
+  return database;
+}
+
+function createDatabaseConnection() {
+  if (db) return db;
+
+  db = initializeDatabaseConnection(new DatabaseSync(getSqliteFile()));
 
   return db;
 }
@@ -5953,8 +5968,7 @@ function runMigrations(database) {
   }
 }
 
-function writeStateToDb(state) {
-  const database = createDatabaseConnection();
+function writeStateToDatabase(database, state) {
   runMigrations(database);
 
   const insertCompany = database.prepare(`
@@ -7035,8 +7049,11 @@ function writeStateToDb(state) {
   });
 }
 
-function readTableState() {
-  const database = createDatabaseConnection();
+function writeStateToDb(state) {
+  return writeStateToDatabase(createDatabaseConnection(), state);
+}
+
+function readTableState(database = createDatabaseConnection()) {
 
   const companySettingsRows = database.prepare(`
     SELECT company_id AS companyId, key, value
@@ -7622,6 +7639,483 @@ export function normalizeNotificationStateMap(value = {}) {
   return normalized;
 }
 
+function usePostgresStore() {
+  return serverConfig.dataProvider === "postgres";
+}
+
+function getPostgresDatabaseUrl() {
+  return serverConfig.postgresDatabaseUrl || process.env.DATABASE_URL || process.env.POSTGRES_DATABASE_URL || "";
+}
+
+function getPostgresPool() {
+  if (!postgresPool) {
+    const connectionString = getPostgresDatabaseUrl();
+    if (!connectionString) {
+      throw new Error("DATA_PROVIDER=postgres requires DATABASE_URL or POSTGRES_DATABASE_URL.");
+    }
+    postgresPool = new Pool({
+      connectionString,
+      application_name: "apex-hq-api",
+      ssl: serverConfig.postgresSslMode === "disable" ? false : { rejectUnauthorized: false },
+      max: serverConfig.postgresPoolMax,
+    });
+  }
+  return postgresPool;
+}
+
+async function withPostgresClient(work) {
+  const client = await getPostgresPool().connect();
+  try {
+    return await work(client);
+  } finally {
+    client.release();
+  }
+}
+
+async function withPostgresTransaction(work) {
+  return withPostgresClient(async (client) => {
+    await client.query("begin");
+    try {
+      const result = await work(client);
+      await client.query("commit");
+      return result;
+    } catch (error) {
+      await client.query("rollback").catch(() => undefined);
+      throw error;
+    }
+  });
+}
+
+function postgresValueForSqlite(value) {
+  if (value == null) return null;
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === "boolean") return value ? 1 : 0;
+  if (typeof value === "object") return JSON.stringify(value);
+  return value;
+}
+
+function parseSqliteDefaultValue(value) {
+  if (value == null) return null;
+  const normalized = String(value).trim();
+  if (!normalized || normalized.toUpperCase() === "NULL") return null;
+  if ((normalized.startsWith("'") && normalized.endsWith("'")) || (normalized.startsWith('"') && normalized.endsWith('"'))) {
+    return normalized.slice(1, -1).replace(/''/g, "'");
+  }
+  if (/^-?\d+(\.\d+)?$/.test(normalized)) return Number(normalized);
+  return normalized;
+}
+
+function postgresValueForSqliteColumn(value, column) {
+  const normalized = postgresValueForSqlite(value);
+  if (normalized != null || !column?.notnull) return normalized;
+  const defaultValue = parseSqliteDefaultValue(column.dflt_value);
+  if (defaultValue != null) return defaultValue;
+  if (String(column.type || "").toUpperCase().includes("INT")) return 0;
+  return "";
+}
+
+function insertPostgresRowsIntoSqlite(database, tableName, rows = []) {
+  if (!Array.isArray(rows) || rows.length === 0) return;
+
+  const sqliteColumns = database.prepare(`PRAGMA table_info(${quoteIdent(tableName)})`).all();
+  const sqliteColumnByName = new Map(sqliteColumns.map((column) => [column.name, column]));
+  const rowColumns = new Set(rows.flatMap((row) => Object.keys(row || {})));
+  const columns = sqliteColumns.map((column) => column.name).filter((column) => rowColumns.has(column));
+  if (columns.length === 0) return;
+
+  const insert = database.prepare(`
+    INSERT INTO ${quoteIdent(tableName)} (${columns.map(quoteIdent).join(", ")})
+    VALUES (${columns.map(() => "?").join(", ")})
+  `);
+  for (const row of rows) {
+    try {
+      insert.run(...columns.map((column) => postgresValueForSqliteColumn(row[column], sqliteColumnByName.get(column))));
+    } catch (error) {
+      throw new Error(`Failed to bridge Postgres table ${tableName}: ${error.message}`);
+    }
+  }
+}
+
+function clearSqliteBridgeState(database) {
+  database.exec("PRAGMA foreign_keys = OFF;");
+  try {
+    for (const tableName of [...POSTGRES_IMPORT_TABLE_ORDER].reverse()) {
+      if (tableName === "app_meta") continue;
+      database.prepare(`DELETE FROM ${quoteIdent(tableName)}`).run();
+    }
+  } finally {
+    database.exec("PRAGMA foreign_keys = ON;");
+  }
+}
+
+async function readPostgresTableRows(client, tableName) {
+  const result = await client.query(`SELECT * FROM public.${quoteIdent(tableName)}`);
+  return result.rows;
+}
+
+async function readPostgresDb() {
+  await ensurePostgresDb();
+  return withPostgresClient(async (client) => {
+    const database = initializeDatabaseConnection(new DatabaseSync(":memory:"));
+    try {
+      runMigrations(database);
+      clearSqliteBridgeState(database);
+      for (const tableName of POSTGRES_IMPORT_TABLE_ORDER) {
+        if (tableName === "app_meta") continue;
+        const rows = await readPostgresTableRows(client, tableName);
+        insertPostgresRowsIntoSqlite(database, tableName, rows);
+      }
+      return readTableState(database);
+    } finally {
+      database.close();
+    }
+  });
+}
+
+async function createSqliteTransferFileFromState(state) {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "apex-hq-postgres-state-"));
+  const sqlitePath = path.join(tempDir, "app-data.sqlite");
+  const database = initializeDatabaseConnection(new DatabaseSync(sqlitePath));
+  try {
+    writeStateToDatabase(database, state);
+    database.close();
+    return { tempDir, sqlitePath };
+  } catch (error) {
+    database.close();
+    await fs.rm(tempDir, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+async function writePostgresState(state) {
+  const transfer = await createSqliteTransferFileFromState(state);
+  try {
+    const dataset = await buildPostgresImportDataset({
+      sqlitePath: transfer.sqlitePath,
+      includeSessions: true,
+      pruneOrphanSettings: true,
+    });
+    const sql = buildPostgresImportSql(dataset, { mode: "replace" });
+    await withPostgresClient((client) => client.query(sql));
+  } finally {
+    await fs.rm(transfer.tempDir, { recursive: true, force: true });
+  }
+}
+
+async function ensurePostgresDbInternal() {
+  const shouldSeed = await withPostgresClient(async (client) => {
+    const requiredTables = ["companies", "company_settings", "users", "sessions", "audit_events"];
+    const result = await client.query(
+      `
+        SELECT table_name
+        FROM information_schema.tables
+        WHERE table_schema = 'public'
+          AND table_name = ANY($1::text[])
+      `,
+      [requiredTables],
+    );
+    const existing = new Set(result.rows.map((row) => row.table_name));
+    const missing = requiredTables.filter((tableName) => !existing.has(tableName));
+    if (missing.length > 0) {
+      throw new Error(`Postgres schema is missing required table(s): ${missing.join(", ")}. Apply Supabase migrations before DATA_PROVIDER=postgres.`);
+    }
+
+    const companyCount = Number((await client.query("SELECT count(*)::integer AS count FROM public.companies")).rows[0]?.count || 0);
+    return companyCount === 0;
+  });
+
+  if (shouldSeed) {
+    let nextState;
+    if (serverConfig.bootstrapAdmin) {
+      nextState = createBootstrapAdminState(serverConfig.bootstrapAdmin);
+    } else if (serverConfig.seedWorkspaceData || serverConfig.seedDemoData) {
+      nextState = serverConfig.demoMode && serverConfig.seedDemoData
+        ? createCanonicalDemoSeedState()
+        : createSeedState();
+    } else {
+      nextState = createEmptyState();
+    }
+    await writePostgresState(nextState);
+  }
+}
+
+async function ensurePostgresDb() {
+  if (!ensurePostgresPromise) {
+    ensurePostgresPromise = ensurePostgresDbInternal().catch((error) => {
+      ensurePostgresPromise = null;
+      throw error;
+    });
+  }
+  return ensurePostgresPromise;
+}
+
+function normalizePgRecord(row) {
+  if (!row) return null;
+  return Object.fromEntries(Object.entries(row).map(([key, value]) => [
+    key,
+    value instanceof Date ? value.toISOString() : value,
+  ]));
+}
+
+async function cleanupExpiredPostgresSessions(now = new Date().toISOString()) {
+  await ensurePostgresDb();
+  const nowMs = new Date(now).getTime();
+  if (cleanupSessionsPromise) return cleanupSessionsPromise;
+  if (Number.isFinite(nowMs) && nowMs - lastExpiredSessionCleanupAtMs < SESSION_CLEANUP_INTERVAL_MS) return;
+
+  cleanupSessionsPromise = withPostgresClient(async (client) => {
+    await client.query(
+      `
+        DELETE FROM public.sessions
+        WHERE expires_at IS NOT NULL
+          AND expires_at <= $1
+      `,
+      [now],
+    );
+    lastExpiredSessionCleanupAtMs = Number.isFinite(nowMs) ? nowMs : Date.now();
+  }).finally(() => {
+    cleanupSessionsPromise = null;
+  });
+
+  return cleanupSessionsPromise;
+}
+
+async function insertPostgresAuditEventRecord(event = {}) {
+  await ensurePostgresDb();
+  return queueWrite(async () => withPostgresTransaction(async (client) => {
+    const companyId = normalizeCompanyId(event.companyId);
+    const createdAt = event.createdAt || isoNow();
+    const sortIndex = Number((await client.query("SELECT COALESCE(MAX(sort_index), -1) + 1 AS next_sort_index FROM public.audit_events")).rows[0]?.next_sort_index ?? 0);
+    const id = event.id || makeAuditId();
+
+    await client.query(
+      `
+        INSERT INTO public.audit_events (
+          id, sort_index, company_id, entity_type, entity_id, action, summary, detail,
+          actor_user_id, actor_name, changed_fields, created_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12)
+      `,
+      [
+        id,
+        sortIndex,
+        companyId,
+        event.entityType || "",
+        event.entityId || null,
+        event.action || "",
+        event.summary || "",
+        event.detail || "",
+        event.actorUserId || null,
+        event.actorName || "Unknown user",
+        JSON.stringify(Array.isArray(event.changedFields) ? event.changedFields : []),
+        createdAt,
+      ],
+    );
+
+    return {
+      ...event,
+      id,
+      companyId,
+      sortIndex,
+      createdAt,
+    };
+  }));
+}
+
+async function findPostgresUserAuthRecordByEmail(email) {
+  await ensurePostgresDb();
+  return withPostgresClient(async (client) => {
+    const result = await client.query(
+      `
+        SELECT id, email, name, phone, role, status, company_id AS "companyId",
+               operator_access AS "operatorAccess", notification_state AS "notificationState",
+               invite_token_hash AS "inviteTokenHash", invite_sent_at AS "inviteSentAt",
+               invite_expires_at AS "inviteExpiresAt", invite_accepted_at AS "inviteAcceptedAt",
+               must_set_password AS "mustSetPassword", reset_token_hash AS "resetTokenHash",
+               reset_requested_at AS "resetRequestedAt", reset_expires_at AS "resetExpiresAt",
+               reset_used_at AS "resetUsedAt", created_at AS "createdAt", updated_at AS "updatedAt",
+               last_login_at AS "lastLoginAt", password_hash AS "passwordHash"
+        FROM public.users
+        WHERE email = $1
+        LIMIT 1
+      `,
+      [String(email || "").trim().toLowerCase()],
+    );
+    return mapUserRecord(normalizePgRecord(result.rows[0]));
+  });
+}
+
+async function findPostgresSessionAuthRecordByTokenHash(tokenHash) {
+  await ensurePostgresDb();
+  return withPostgresClient(async (client) => {
+    const result = await client.query(
+      `
+        SELECT
+          s.id AS "sessionId",
+          s.user_id AS "sessionUserId",
+          s.token_hash AS "sessionTokenHash",
+          s.current_company_id AS "sessionCurrentCompanyId",
+          s.created_at AS "sessionCreatedAt",
+          s.last_seen_at AS "sessionLastSeenAt",
+          s.expires_at AS "sessionExpiresAt",
+          u.id,
+          u.email,
+          u.name,
+          u.phone,
+          u.role,
+          u.status,
+          u.company_id AS "companyId",
+          u.operator_access AS "operatorAccess",
+          u.notification_state AS "notificationState",
+          u.invite_token_hash AS "inviteTokenHash",
+          u.invite_sent_at AS "inviteSentAt",
+          u.invite_expires_at AS "inviteExpiresAt",
+          u.invite_accepted_at AS "inviteAcceptedAt",
+          u.must_set_password AS "mustSetPassword",
+          u.reset_token_hash AS "resetTokenHash",
+          u.reset_requested_at AS "resetRequestedAt",
+          u.reset_expires_at AS "resetExpiresAt",
+          u.reset_used_at AS "resetUsedAt",
+          u.created_at AS "createdAt",
+          u.updated_at AS "updatedAt",
+          u.last_login_at AS "lastLoginAt",
+          u.password_hash AS "passwordHash"
+        FROM public.sessions s
+        JOIN public.users u ON u.id = s.user_id
+        WHERE s.token_hash = $1
+        LIMIT 1
+      `,
+      [tokenHash],
+    );
+    const row = normalizePgRecord(result.rows[0]);
+    if (!row) return null;
+
+    return {
+      session: mapSessionRecord({
+        id: row.sessionId,
+        userId: row.sessionUserId,
+        tokenHash: row.sessionTokenHash,
+        currentCompanyId: row.sessionCurrentCompanyId,
+        createdAt: row.sessionCreatedAt,
+        lastSeenAt: row.sessionLastSeenAt,
+        expiresAt: row.sessionExpiresAt,
+      }),
+      user: {
+        ...mapUserRecord(row),
+        currentCompanyId: normalizeCompanyId(row.sessionCurrentCompanyId),
+      },
+    };
+  });
+}
+
+async function replacePostgresSessionForUser(userId, { tokenHash, currentCompanyId = DEFAULT_COMPANY_ID, createdAt, lastSeenAt = createdAt, expiresAt, sessionId = makeId("S") } = {}) {
+  await ensurePostgresDb();
+  const sessionExpiresAt = expiresAt || nextSessionExpiry();
+  return queueWrite(async () => withPostgresTransaction(async (client) => {
+    await client.query("DELETE FROM public.sessions WHERE user_id = $1", [userId]);
+    await client.query(
+      `
+        INSERT INTO public.sessions (id, user_id, token_hash, current_company_id, created_at, last_seen_at, expires_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `,
+      [sessionId, userId, tokenHash, normalizeCompanyId(currentCompanyId), createdAt, lastSeenAt, sessionExpiresAt],
+    );
+    await client.query(
+      `
+        UPDATE public.users
+        SET last_login_at = $1, updated_at = $1
+        WHERE id = $2
+      `,
+      [createdAt, userId],
+    );
+
+    return {
+      id: sessionId,
+      userId,
+      tokenHash,
+      currentCompanyId: normalizeCompanyId(currentCompanyId),
+      createdAt,
+      lastSeenAt,
+      expiresAt: sessionExpiresAt,
+    };
+  }));
+}
+
+async function updatePostgresSessionCurrentCompanyByTokenHash(tokenHash, currentCompanyId, { lastSeenAt = isoNow(), expiresAt = nextSessionExpiry() } = {}) {
+  await ensurePostgresDb();
+  return queueWrite(async () => withPostgresClient(async (client) => {
+    const result = await client.query(
+      `
+        UPDATE public.sessions
+        SET current_company_id = $1, last_seen_at = $2, expires_at = $3
+        WHERE token_hash = $4
+      `,
+      [normalizeCompanyId(currentCompanyId), lastSeenAt, expiresAt, tokenHash],
+    );
+    return Number(result.rowCount || 0) > 0;
+  }));
+}
+
+async function deletePostgresSessionByTokenHash(tokenHash) {
+  await ensurePostgresDb();
+  return queueWrite(async () => withPostgresClient(async (client) => {
+    const result = await client.query("DELETE FROM public.sessions WHERE token_hash = $1", [tokenHash]);
+    return Number(result.rowCount || 0);
+  }));
+}
+
+async function touchPostgresSessionByTokenHash(tokenHash, { lastSeenAt, expiresAt } = {}) {
+  await ensurePostgresDb();
+  return queueWrite(async () => withPostgresClient(async (client) => {
+    const result = await client.query(
+      `
+        UPDATE public.sessions
+        SET last_seen_at = $1, expires_at = $2
+        WHERE token_hash = $3
+      `,
+      [lastSeenAt || isoNow(), expiresAt || nextSessionExpiry(), tokenHash],
+    );
+    return Number(result.rowCount || 0) > 0;
+  }));
+}
+
+async function resetPostgresDb() {
+  const next = serverConfig.demoMode && serverConfig.seedDemoData
+    ? createCanonicalDemoSeedState()
+    : createSeedState();
+  await writePostgresState(next);
+  return readPostgresDb();
+}
+
+async function createPostgresBackupArtifacts() {
+  await ensurePostgresDb();
+  const exportedAt = new Date().toISOString();
+  const stamp = backupTimestamp();
+  const { backupDir } = getDataPaths();
+  const jsonExportFile = path.join(backupDir, `postgres-app-data-${stamp}.json`);
+  const state = await readPostgresDb();
+
+  await fs.mkdir(backupDir, { recursive: true });
+  await fs.writeFile(jsonExportFile, `${JSON.stringify({
+    exportedAt,
+    source: {
+      dataProvider: "postgres",
+      project: "Supabase/Postgres",
+    },
+    state,
+  }, null, 2)}\n`, "utf8");
+
+  return {
+    exportedAt,
+    backupDir,
+    sqliteBackupFile: null,
+    jsonExportFile,
+    uploadBackupDir: null,
+    uploadManifestFile: null,
+    uploadFileCount: 0,
+  };
+}
+
 async function loadInitialState() {
   if (await jsonExists()) {
     const raw = await fs.readFile(getLegacyJsonFile(), "utf8");
@@ -7757,6 +8251,10 @@ async function ensureDbInternal() {
 }
 
 export async function ensureDb() {
+  if (usePostgresStore()) {
+    return ensurePostgresDb();
+  }
+
   const sqliteFile = getSqliteFile();
   if (ensureDbPromise && ensureDbTarget === sqliteFile) {
     return ensureDbPromise;
@@ -7774,6 +8272,10 @@ export async function ensureDb() {
 }
 
 export async function cleanupExpiredSessions(now = new Date().toISOString()) {
+  if (usePostgresStore()) {
+    return cleanupExpiredPostgresSessions(now);
+  }
+
   await ensureDb();
   const nowMs = new Date(now).getTime();
   if (cleanupSessionsPromise) {
@@ -7799,11 +8301,24 @@ export async function cleanupExpiredSessions(now = new Date().toISOString()) {
 }
 
 export async function readDb() {
+  if (usePostgresStore()) {
+    return readPostgresDb();
+  }
+
   await ensureDb();
   return withSqliteRetry(async () => readTableState());
 }
 
 export function updateDb(mutator) {
+  if (usePostgresStore()) {
+    return queueWrite(async () => {
+      const current = await readPostgresDb();
+      const next = await mutator(structuredClone(current));
+      await writePostgresState(next);
+      return readPostgresDb();
+    });
+  }
+
   return queueWrite(async () => {
     return withSqliteRetry(async () => {
       const current = await readDb();
@@ -7815,6 +8330,10 @@ export function updateDb(mutator) {
 }
 
 export async function insertAuditEventRecord(event = {}) {
+  if (usePostgresStore()) {
+    return insertPostgresAuditEventRecord(event);
+  }
+
   await ensureDb();
   return queueWrite(async () => {
     const database = createDatabaseConnection();
@@ -7856,6 +8375,10 @@ export async function insertAuditEventRecord(event = {}) {
 }
 
 export async function findUserAuthRecordByEmail(email) {
+  if (usePostgresStore()) {
+    return findPostgresUserAuthRecordByEmail(email);
+  }
+
   await ensureDb();
   return withSqliteRetry(async () => {
     const database = createDatabaseConnection();
@@ -7874,6 +8397,10 @@ export async function findUserAuthRecordByEmail(email) {
 }
 
 export async function findSessionAuthRecordByTokenHash(tokenHash) {
+  if (usePostgresStore()) {
+    return findPostgresSessionAuthRecordByTokenHash(tokenHash);
+  }
+
   await ensureDb();
   return withSqliteRetry(async () => {
     const database = createDatabaseConnection();
@@ -7935,6 +8462,10 @@ export async function findSessionAuthRecordByTokenHash(tokenHash) {
 }
 
 export async function replaceSessionForUser(userId, { tokenHash, currentCompanyId = DEFAULT_COMPANY_ID, createdAt, lastSeenAt = createdAt, expiresAt, sessionId = makeId("S") } = {}) {
+  if (usePostgresStore()) {
+    return replacePostgresSessionForUser(userId, { tokenHash, currentCompanyId, createdAt, lastSeenAt, expiresAt, sessionId });
+  }
+
   await ensureDb();
   return queueWrite(async () => {
     const database = createDatabaseConnection();
@@ -7967,6 +8498,10 @@ export async function replaceSessionForUser(userId, { tokenHash, currentCompanyI
 }
 
 export async function updateSessionCurrentCompanyByTokenHash(tokenHash, currentCompanyId, { lastSeenAt = isoNow(), expiresAt = nextSessionExpiry() } = {}) {
+  if (usePostgresStore()) {
+    return updatePostgresSessionCurrentCompanyByTokenHash(tokenHash, currentCompanyId, { lastSeenAt, expiresAt });
+  }
+
   await ensureDb();
   return queueWrite(async () => {
     const database = createDatabaseConnection();
@@ -7980,6 +8515,10 @@ export async function updateSessionCurrentCompanyByTokenHash(tokenHash, currentC
 }
 
 export async function deleteSessionByTokenHash(tokenHash) {
+  if (usePostgresStore()) {
+    return deletePostgresSessionByTokenHash(tokenHash);
+  }
+
   await ensureDb();
   return queueWrite(async () => {
     const database = createDatabaseConnection();
@@ -7992,6 +8531,10 @@ export async function deleteSessionByTokenHash(tokenHash) {
 }
 
 export async function touchSessionByTokenHash(tokenHash, { lastSeenAt, expiresAt } = {}) {
+  if (usePostgresStore()) {
+    return touchPostgresSessionByTokenHash(tokenHash, { lastSeenAt, expiresAt });
+  }
+
   await ensureDb();
   return queueWrite(async () => {
     const database = createDatabaseConnection();
@@ -8005,6 +8548,10 @@ export async function touchSessionByTokenHash(tokenHash, { lastSeenAt, expiresAt
 }
 
 export async function resetDb() {
+  if (usePostgresStore()) {
+    return resetPostgresDb();
+  }
+
   const next = serverConfig.demoMode && serverConfig.seedDemoData
     ? createCanonicalDemoSeedState()
     : createSeedState();
@@ -8013,6 +8560,10 @@ export async function resetDb() {
 }
 
 export async function createBackupArtifacts() {
+  if (usePostgresStore()) {
+    return createPostgresBackupArtifacts();
+  }
+
   await ensureDb();
   const database = createDatabaseConnection();
   const exportedAt = new Date().toISOString();

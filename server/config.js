@@ -13,6 +13,8 @@ const DEFAULT_SMOKE_TEST_PORT = 4100;
 const DEFAULT_SESSION_TTL_HOURS = 24 * 7;
 const ALLOWED_NODE_ENVS = new Set(["development", "test", "production"]);
 const ALLOWED_LOG_LEVELS = new Set(["debug", "info", "warn", "error"]);
+const ALLOWED_DATA_PROVIDERS = new Set(["sqlite", "postgres"]);
+const ALLOWED_POSTGRES_SSL_MODES = new Set(["require", "disable"]);
 const DEFAULT_PRODUCTION_CORS_ORIGINS = Object.freeze([
   "https://app.apexhq.online",
   "https://concrete-ops-2.fly.dev",
@@ -130,6 +132,25 @@ function parseOriginList(value, fieldName, fallback = []) {
   return Object.freeze([...new Set(origins)]);
 }
 
+function parsePostgresUrl(value, fieldName) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new Error(`${fieldName} must be a valid postgres connection URL.`);
+  }
+  if (!["postgres:", "postgresql:"].includes(parsed.protocol)) {
+    throw new Error(`${fieldName} must use the postgres:// or postgresql:// protocol.`);
+  }
+  if (!parsed.hostname) {
+    throw new Error(`${fieldName} must include a host.`);
+  }
+  return raw;
+}
+
 function resolveBootstrapAdmin(env) {
   const email = String(env.BOOTSTRAP_ADMIN_EMAIL || "").trim().toLowerCase();
   const password = String(env.BOOTSTRAP_ADMIN_PASSWORD || "").trim();
@@ -165,6 +186,15 @@ export function createServerConfig(env = process.env) {
     nodeEnv === "production" ? 1 : 0,
   );
   const logLevel = parseChoice(env.LOG_LEVEL, "LOG_LEVEL", ALLOWED_LOG_LEVELS, "info");
+  const dataProvider = parseChoice(env.DATA_PROVIDER, "DATA_PROVIDER", ALLOWED_DATA_PROVIDERS, "sqlite");
+  const postgresDatabaseUrl = parsePostgresUrl(env.DATABASE_URL || env.POSTGRES_DATABASE_URL, "DATABASE_URL");
+  if (dataProvider === "postgres") {
+    if (!postgresDatabaseUrl) {
+      throw new Error("DATA_PROVIDER=postgres requires DATABASE_URL or POSTGRES_DATABASE_URL.");
+    }
+  }
+  const postgresSslMode = parseChoice(env.POSTGRES_SSL_MODE, "POSTGRES_SSL_MODE", ALLOWED_POSTGRES_SSL_MODES, "require");
+  const postgresPoolMax = parseInteger(env.POSTGRES_POOL_MAX, "POSTGRES_POOL_MAX", 5);
   const demoMode = parseBoolean(env.DEMO_MODE, "DEMO_MODE", false);
   const demoPackageId = parseDemoPackageId(env.DEMO_PACKAGE_ID);
   const seedWorkspaceData = nodeEnv !== "production";
@@ -194,6 +224,10 @@ export function createServerConfig(env = process.env) {
     smokeTestPort,
     dataDir: parseDirectory(env.DATA_DIR, DEFAULT_DATA_DIR, "DATA_DIR"),
     backupDir: parseDirectory(env.BACKUP_DIR, DEFAULT_BACKUP_DIR, "BACKUP_DIR"),
+    dataProvider,
+    postgresDatabaseUrl,
+    postgresSslMode,
+    postgresPoolMax,
     demoMode,
     demoPackageId,
     seedWorkspaceData,

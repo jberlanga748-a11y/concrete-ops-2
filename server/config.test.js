@@ -20,6 +20,7 @@ test("development config stays local-friendly without trusting forwarded IPs", (
   const config = createServerConfig(baseEnv({ NODE_ENV: "development" }));
 
   assert.equal(config.nodeEnv, "development");
+  assert.equal(config.dataProvider, "sqlite");
   assert.equal(config.trustProxyHops, 0);
   assert.deepEqual(config.corsAllowedOrigins, []);
 });
@@ -96,5 +97,35 @@ test("demo package config defaults to Premium and validates package ids", () => 
   assert.throws(
     () => createServerConfig(baseEnv({ DEMO_PACKAGE_ID: "enterprise" })),
     /DEMO_PACKAGE_ID must be one of/i,
+  );
+});
+
+test("data provider config defaults to SQLite and validates Postgres runtime settings", () => {
+  assert.equal(createServerConfig(baseEnv({ DATA_PROVIDER: "sqlite" })).dataProvider, "sqlite");
+
+  assert.throws(
+    () => createServerConfig(baseEnv({ DATA_PROVIDER: "postgres" })),
+    /requires DATABASE_URL/i,
+  );
+
+  const config = createServerConfig(baseEnv({
+    DATA_PROVIDER: "postgres",
+    POSTGRES_DATABASE_URL: "postgresql://user:password@db.example.com:5432/app",
+    POSTGRES_SSL_MODE: "disable",
+    POSTGRES_POOL_MAX: "3",
+  }));
+  assert.equal(config.dataProvider, "postgres");
+  assert.equal(config.postgresDatabaseUrl, "postgresql://user:password@db.example.com:5432/app");
+  assert.equal(config.postgresSslMode, "disable");
+  assert.equal(config.postgresPoolMax, 3);
+
+  assert.throws(
+    () => createServerConfig(baseEnv({ DATA_PROVIDER: "postgres", DATABASE_URL: "https://example.com" })),
+    /postgres:\/\/ or postgresql:\/\//i,
+  );
+
+  assert.throws(
+    () => createServerConfig(baseEnv({ DATA_PROVIDER: "mongo" })),
+    /DATA_PROVIDER must be one of/i,
   );
 });

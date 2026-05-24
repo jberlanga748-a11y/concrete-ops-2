@@ -45,6 +45,14 @@
     "verify:billing-readiness": "node --test --test-concurrency=1 scripts/package-billing-readiness.test.mjs shared/packages.test.js shared/packageEntitlements.test.js src/support-utils.test.js",
     "verify:customer-portal-readiness": "node --test --test-concurrency=1 scripts/customer-portal-communication-readiness.test.mjs src/customer-portal-preview-utils.test.js shared/agentActionPolicy.test.js shared/permissions.test.js shared/packageEntitlements.test.js",
     "verify:public-launch-readiness": "node --test --test-concurrency=1 scripts/public-launch-readiness.test.mjs",
+    "verify:data-platform": "node --test --test-concurrency=1 scripts/data-platform-readiness.test.mjs",
+    "verify:postgres-transfer": "node --test --test-concurrency=1 scripts/postgres-transfer.test.mjs",
+    "verify:postgres-cutover-readiness": "node --test --test-concurrency=1 scripts/postgres-production-cutover-readiness.test.mjs",
+    "postgres:import-plan": "node scripts/postgres-import-plan.mjs",
+    "postgres:import-apply": "node scripts/postgres-import-apply.mjs",
+    "postgres:import-edge": "node scripts/supabase-edge-import.mjs",
+    "postgres:runtime-smoke": "node scripts/postgres-runtime-smoke.mjs",
+    "launch:postgres-cutover-readiness": "node scripts/postgres-production-cutover-readiness.mjs",
     "verify:opportunity-scout": "node --test --test-concurrency=1 server/opportunity-scout.test.js shared/opportunityScout.test.js shared/opportunityScoutAi.test.js src/opportunity-scout-utils.test.js src/navigation-utils.test.js",
     "verify:agent-learning": "node --test --test-concurrency=1 shared/agentLearningPreferences.test.js shared/leadAiAssistant.test.js shared/estimateRoughNotesAi.test.js server/agent-learning-preferences.test.js",
     "brief:founder-demo": "node scripts/founder-demo-brief.mjs",
@@ -114,8 +122,10 @@
     "express": "^5.1.0",
     "mapbox-gl": "^3.24.0",
     "pdfkit": "^0.18.0",
+    "pg": "^8.21.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.0.0",
