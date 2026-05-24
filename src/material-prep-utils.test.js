@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildMaterialPrepCopyText,
+  buildMaterialPrepPrintPacket,
   buildPurchasingPrepPacket,
   buildPurchasingPrepRows,
   deriveMaterialPrepState,
@@ -80,4 +82,50 @@ test("material prep blocks unlinked approved estimates without mutating estimate
   assert.equal(state.packets[0].ready, false);
   assert.match(state.packets[0].blockers.join(" "), /linked job/i);
   assert.equal(estimate.items[0].unitPrice, 12);
+});
+
+test("copy text excludes pricing and unsafe purchasing actions", () => {
+  const packet = buildPurchasingPrepPacket(
+    {
+      id: "EST-1",
+      title: "Safe packet",
+      status: "approved",
+      customerId: "C-1",
+      jobId: "J-1",
+      items: [{ id: "I-1", description: "Concrete material", quantity: 10, unit: "CY", unitPrice: 225, lineTotal: 2250 }],
+    },
+    {
+      customers: [{ id: "C-1", name: "Customer" }],
+      jobs: [{ id: "J-1", title: "Job" }],
+    },
+  );
+
+  const copy = buildMaterialPrepCopyText(packet, { companyName: "Apex Test" });
+
+  assert.match(copy, /Apex Test Material Prep/);
+  assert.match(copy, /No vendor order/i);
+  assert.doesNotMatch(copy, /\$\s*\d|unitPrice|lineTotal|Unit price:|Line total:|Margin:|Markup:/i);
+  assert.doesNotMatch(copy, /order now|send to vendor|take payment/i);
+});
+
+test("print packet is internal review only and excludes prices", () => {
+  const packet = buildPurchasingPrepPacket({
+    id: "EST-1",
+    title: "Print packet",
+    status: "approved",
+    jobId: "J-1",
+    items: [{ id: "I-1", description: "Rebar material", quantity: 200, unit: "LF", unitPrice: 4 }],
+  }, { jobs: [{ id: "J-1", title: "Job" }] });
+
+  const printPacket = buildMaterialPrepPrintPacket(packet, {
+    companyName: "Apex Test",
+    companyProfile: { businessEmail: "ops@example.test", logoInitials: "AT" },
+  });
+
+  assert.equal(printPacket.packetMode, "internal");
+  assert.equal(printPacket.companyName, "Apex Test");
+  assert.equal(printPacket.sections.some((section) => section.title === "Guardrails"), true);
+  assert.equal(JSON.stringify(printPacket).includes("unitPrice"), false);
+  assert.equal(JSON.stringify(printPacket).includes("$"), false);
+  assert.match(printPacket.disclaimerNote, /does not order materials/i);
 });

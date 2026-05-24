@@ -255,7 +255,7 @@ import { buildPostPourSupportContext, derivePostPourChecklistListState, derivePo
 import { buildPrePourSupportContext, derivePrePourChecklistListState, derivePrePourItems, filterPrePourChecklists, prePourChecklistStatusLabel, prePourItemStatusLabel, summarizePrePourChecklist } from "./pre-pour-utils";
 import { deriveDailyReportPrintPacket, deriveEstimateForemanHandoffPacket, deriveEstimatePrintPacket, deriveJobPrintPacket, openPrintDocument } from "./print-packets";
 import { RATE_BOOK_CATEGORIES, RATE_BOOK_CATEGORY_LABELS, buildEstimateLineItemFromRateBookItem, calculateRateBookUnitPrice, createRateBookDraft, deriveRateBookState, validateRateBookDraft } from "./rate-book-utils";
-import { deriveMaterialPrepState } from "./material-prep-utils";
+import { buildMaterialPrepCopyText, buildMaterialPrepPrintPacket, deriveMaterialPrepState } from "./material-prep-utils";
 import { buildDailyReportsSupportContext, deriveAdvancedReportSummary, deriveDailyReportListState, filterDailyReports, reportStatusLabel } from "./report-utils";
 import { buildSafetyIncidentSupportContext, deriveAcknowledgmentState, deriveActivePpeItems, deriveSafetyIncidentListState, deriveSafetyJobCloseoutReadiness, deriveSafetyWorkspaceJobs, deriveVisibleSafetyPolicies, filterSafetyIncidents } from "./safety-utils";
 import {
@@ -38183,6 +38183,8 @@ function MaterialPrepPage({
   customers = [],
   rateBookItems = [],
   permissions = DEFAULT_APP_PERMISSIONS,
+  companyName = "Apex HQ Workspace",
+  companyProfile = {},
   setActive,
 }) {
   const materialPrepState = useMemo(
@@ -38190,6 +38192,7 @@ function MaterialPrepPage({
     [customers, estimates, jobs, rateBookItems],
   );
   const [selectedId, setSelectedId] = useState("");
+  const [copyNotice, setCopyNotice] = useState("");
   const selectedQueueItem = materialPrepState.queue.find((item) => item.id === selectedId) || materialPrepState.queue[0] || null;
   const selectedPacket = selectedQueueItem?.packet || null;
   const canView = Boolean(permissions?.materialPrep?.canView);
@@ -38203,6 +38206,42 @@ function MaterialPrepPage({
   }
 
   const assistantActions = [
+    { label: "Copy packet", icon: "quote", onClick: () => handleCopyMaterialPrepPacket(), disabled: !selectedPacket },
+    { label: "Print packet", icon: "document", onClick: () => handlePrintMaterialPrepPacket(), disabled: !selectedPacket },
+    { label: "Open jobs", icon: "briefcase", onClick: () => setActive?.("jobs") },
+  ];
+
+  async function handleCopyMaterialPrepPacket() {
+    if (!selectedPacket) return false;
+    const copyText = buildMaterialPrepCopyText(selectedPacket, { companyName });
+    if (!copyText) return false;
+    try {
+      await navigator.clipboard.writeText(copyText);
+      setCopyNotice("Material prep packet copied for manual review. No vendor message was sent.");
+      return true;
+    } catch {
+      setCopyNotice("Copy was blocked by the browser. Select and copy the packet text manually.");
+      return false;
+    }
+  }
+
+  function handlePrintMaterialPrepPacket() {
+    if (!selectedPacket) return false;
+    const packet = buildMaterialPrepPrintPacket(selectedPacket, { companyName, companyProfile });
+    const opened = openPrintDocument(packet);
+    if (!opened) {
+      setCopyNotice("Print window was blocked. No vendor message, order, or payment was created.");
+    }
+    return opened;
+  }
+
+  const quickActions = [
+    { label: "Copy Packet", icon: "quote", onClick: handleCopyMaterialPrepPacket, disabled: !selectedPacket },
+    { label: "Print Packet", icon: "document", onClick: handlePrintMaterialPrepPacket, disabled: !selectedPacket },
+    { label: "Rate Book", icon: "calculator", onClick: () => setActive?.("rateBook") },
+  ];
+
+  const fallbackAssistantActions = [
     { label: "Open estimates", icon: "quote", onClick: () => setActive?.("estimates") },
     { label: "Open jobs", icon: "briefcase", onClick: () => setActive?.("jobs") },
     { label: "Review rate book", icon: "calculator", onClick: () => setActive?.("rateBook") },
@@ -38235,21 +38274,18 @@ function MaterialPrepPage({
           { label: "Ready packets", value: materialPrepState.readyPackets.length, tone: "green" },
           { label: "Needs review", value: materialPrepState.blockedPackets.length, tone: materialPrepState.blockedPackets.length ? "amber" : "green" },
         ],
-        actions: assistantActions,
+        actions: selectedPacket ? assistantActions : fallbackAssistantActions,
         guardrails: [
           "No vendor order or supplier send.",
           "No payment, purchase order, or billing action.",
           "No field exposure to office pricing, cost, or margin.",
         ],
       }}
-      quickActions={[
-        { label: "Estimates", icon: "quote", onClick: () => setActive?.("estimates") },
-        { label: "Jobs", icon: "briefcase", onClick: () => setActive?.("jobs") },
-        { label: "Rate Book", icon: "calculator", onClick: () => setActive?.("rateBook") },
-      ]}
+      quickActions={quickActions}
     >
       {selectedPacket ? (
         <div className="co-material-prep-detail">
+          {copyNotice ? <div className="co-material-prep-copy-notice">{copyNotice}</div> : null}
           <div className="co-material-prep-summary">
             <div>
               <span>Customer</span>
