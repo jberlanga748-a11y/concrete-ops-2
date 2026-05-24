@@ -7,6 +7,7 @@ const LOADING_PATTERNS = [
 
 const ROUTE_EXPECTATIONS = [
   { routes: ["/", "/dashboard", "/command-center"], labels: ["Money Ready", "Jobs Today", "Estimates To Win", "Problems"], desktopShell: true },
+  { routes: ["/communications"], labels: ["Communication Center", "Communication queue", "Manual outreach", "Manual communication"], desktopShell: true },
   { routes: ["/jobs"], labels: ["Active Jobs", "Starts Today", "Crew / Start Gaps", "Ready To Bill"], desktopShell: true },
   { routes: ["/schedule"], labels: ["Jobs Today", "Tomorrow Prep", "Crew / Date Gaps", "Problems"], desktopShell: true },
   { routes: ["/reports"], labels: ["Missing Today", "Drafts Open", "Needs Review", "Proof Gaps"], desktopShell: true },
@@ -15,8 +16,10 @@ const ROUTE_EXPECTATIONS = [
   { routes: ["/estimates"], labels: ["Drafts To Price", "Ready To Send", "Sent To Win", "Approved Handoff"], desktopShell: true },
   { routes: ["/leads"], labels: ["Leads", "Follow", "Estimate", "Missing Info"] },
   { routes: ["/time"], labels: ["Clock", "Time", "Break", "Proof"] },
-  { routes: ["/customers"], labels: ["Customers", "Contact"] },
-  { routes: ["/employees"], labels: ["Employees", "Users", "Role"] },
+  { routes: ["/calculator"], labels: ["Concrete Calculator", "Field Calculator", "Calculator Focus", "Live result"] },
+  { routes: ["/customers"], labels: ["Customers", "Contact", "Customer queue"], desktopShell: true },
+  { routes: ["/employees"], labels: ["Employees", "Users", "Role", "User queue"], desktopShell: true },
+  { routes: ["/rate-book"], labels: ["Rate Book", "Rate default queue", "Unit cost", "Markup"], desktopShell: true },
   { routes: ["/settings"], labels: ["Settings", "Security", "Package"] },
   { routes: ["/app-health"], labels: ["Owner Health", "App Health", "Backup"] },
   { routes: ["/ai-office"], labels: ["AI Office", "Review", "Agent"] },
@@ -55,6 +58,7 @@ function expectedForRoleRoute(routePath, role, viewportName) {
     if (normalized === "/uploads") return { labels: ["Photo", "Upload", "Proof"] };
     if (normalized === "/reports") return { labels: ["Daily Report", "Report", "Submit"] };
     if (normalized === "/change-orders") return { labels: ["Change", "Request", "Track"] };
+    if (normalized === "/calculator") return { labels: ["Field Calculator", "Calculator Focus", "Dims"] };
   }
   return null;
 }
@@ -98,7 +102,7 @@ export function buildVisualPolishEvidenceFailures({
   if (Array.isArray(inspection.lowContrastText) && inspection.lowContrastText.length > 0) {
     failures.push(`Severe low-contrast visible text: ${inspection.lowContrastText.slice(0, 4).map((item) => `${item.label || "text"}${item.ratio ? ` (${item.ratio})` : ""}`).join("; ")}`);
   }
-  if (isFieldRole(role) && ["/leads", "/estimates", "/settings", "/app-health", "/ai-office"].includes(routePath)) {
+  if (isFieldRole(role) && ["/communications", "/leads", "/estimates", "/rate-book", "/settings", "/app-health", "/ai-office"].includes(routePath)) {
     if (!["/jobs", "/"].includes(normalizePath(inspection.pathname || ""))) {
       failures.push(`Field role did not redirect away from restricted route ${routePath}.`);
     }

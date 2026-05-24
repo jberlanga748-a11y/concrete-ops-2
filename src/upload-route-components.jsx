@@ -448,7 +448,7 @@ export function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLo
 export function UploadsTablePolished({ rows, selectedId, onSelect }) {
   return (
     <>
-      <div className="co-uploads-mobile-list-surface md:hidden">
+      <div className="co-uploads-mobile-list-surface lg:hidden">
         <div className="co-field-mobile-section-head">
           <span>
             <strong>Evidence in view</strong>
@@ -484,7 +484,7 @@ export function UploadsTablePolished({ rows, selectedId, onSelect }) {
           })}
         </div>
       </div>
-      <div className="co-uploads-list-scroll hidden min-w-0 overflow-auto md:block">
+      <div className="co-uploads-list-scroll hidden min-w-0 overflow-auto lg:block">
         <table className="co-uploads-command-table w-full min-w-[900px] text-left">
           <thead>
             <tr>

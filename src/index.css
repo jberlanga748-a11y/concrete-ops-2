@@ -3024,6 +3024,34 @@ textarea {
     position: static;
   }
 
+  .co-command-center-shell-page.co-apex-office-command-shell {
+    gap: 0;
+  }
+
+  .co-command-center-shell-page .co-command-table .truncate,
+  .co-command-center-shell-page .co-command-table-primary,
+  .co-command-center-shell-page .co-command-table-secondary,
+  .co-command-center-shell-page .co-command-table-cell {
+    max-width: none !important;
+    overflow: visible !important;
+    overflow-wrap: anywhere;
+    text-overflow: clip !important;
+    white-space: normal !important;
+  }
+
+  .co-command-center-shell-page .co-command-table td {
+    vertical-align: top;
+  }
+
+  .co-command-center-shell-page .co-command-table-action {
+    min-height: 2.25rem;
+    white-space: normal;
+  }
+
+  body:has(.co-command-center-shell-page) .co-apex-assistant-shell.is-closed {
+    display: none !important;
+  }
+
   @media (min-width: 1536px) {
     .co-command-right-rail {
       position: sticky;
@@ -10141,6 +10169,13 @@ textarea {
     padding-bottom: 1rem;
   }
 
+  .co-jobs-page .co-page-header button,
+  .co-jobs-page .co-page-header a,
+  .co-jobs-page .co-page-header .btn {
+    min-height: 2.75rem !important;
+    min-width: 2.75rem !important;
+  }
+
   .co-jobs-kpi-grid {
     display: flex !important;
     grid-template-columns: none !important;
@@ -11382,12 +11417,213 @@ textarea {
   gap: 0.62rem;
 }
 
+.co-rate-book-shell-detail-scroll {
+  display: grid;
+  min-height: 0;
+  gap: 0.72rem;
+}
+
+.co-rate-book-filter-console {
+  display: grid;
+  gap: 0.5rem;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 0.72rem;
+  background: rgba(248, 250, 252, 0.94);
+  padding: 0.52rem;
+}
+
+.co-rate-book-category-tabs {
+  display: flex;
+  min-width: 0;
+  gap: 0.35rem;
+  overflow-x: auto;
+  padding-bottom: 0.1rem;
+}
+
+.co-rate-book-category-tabs button {
+  min-height: 2.5rem;
+  min-width: 2.75rem;
+  flex: 0 0 auto;
+  border: 1px solid rgba(203, 213, 225, 0.92);
+  border-radius: 0.62rem;
+  background: #ffffff;
+  padding: 0.48rem 0.62rem;
+  color: #334155;
+  font-size: 0.68rem;
+  font-weight: 950;
+}
+
+.co-rate-book-category-tabs button.is-active {
+  border-color: rgba(249, 115, 22, 0.55);
+  background: #fff7ed;
+  color: #c2410c;
+}
+
 @media (max-width: 900px) {
   .co-rate-book-kpis,
   .co-rate-book-layout,
   .co-rate-book-form-grid,
   .co-rate-book-preview {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 767px) {
+  .co-rate-book-legacy-page .co-page-header button,
+  .co-rate-book-legacy-page .co-page-header a,
+  .co-rate-book-legacy-page .btn {
+    min-height: 2.75rem !important;
+    min-width: 2.75rem !important;
+  }
+
+  .co-rate-book-legacy-page .co-command-page-frame {
+    padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1.25rem);
+  }
+}
+
+@media (min-width: 768px) {
+  .co-rate-book-shell-page {
+    height: calc(100vh - 4.5rem);
+    min-height: 41rem;
+    overflow: hidden;
+  }
+
+  .co-rate-book-shell-page .co-apex-office-command-shell {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .co-rate-book-shell-page .co-apex-office-command-frame {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+  }
+
+  .co-rate-book-shell-page .co-command-page-frame-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 21rem);
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  .co-rate-book-shell-page .co-command-page-frame-main,
+  .co-rate-book-shell-page .co-command-page-frame-rail {
+    min-height: 0;
+  }
+
+  .co-rate-book-shell-page .co-apex-office-command-workspace {
+    height: 100%;
+    min-height: 0;
+    grid-template-columns: minmax(19rem, 0.82fr) minmax(0, 1.18fr);
+  }
+
+  .co-rate-book-shell-page .co-apex-primary-queue-panel,
+  .co-rate-book-shell-page .co-apex-selected-detail-panel,
+  .co-rate-book-shell-page .co-apex-assistant-action-panel {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .co-rate-book-shell-page .co-apex-selected-detail-body {
+    min-height: 0;
+    align-content: start;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  body:has(.co-rate-book-shell-page) {
+    overflow-x: hidden;
+  }
+
+  body:has(.co-rate-book-shell-page) .mobile-content-safe {
+    padding-bottom: 0 !important;
+  }
+
+  body:has(.co-rate-book-shell-page) .co-mobile-bottom-spacer {
+    display: none !important;
+  }
+
+  body:has(.co-rate-book-shell-page) .co-topbar {
+    border-bottom-color: rgba(203, 213, 225, 0.95) !important;
+    background:
+      radial-gradient(circle at 8% 0%, rgba(249, 115, 22, 0.12), transparent 12rem),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 250, 252, 0.96)) !important;
+    box-shadow: 0 14px 38px -32px rgba(15, 23, 42, 0.45) !important;
+  }
+
+  body:has(.co-rate-book-shell-page) .co-topbar p:first-child {
+    color: #c2410c !important;
+  }
+
+  body:has(.co-rate-book-shell-page) .co-topbar p:last-child,
+  body:has(.co-rate-book-shell-page) .co-topbar-pill,
+  body:has(.co-rate-book-shell-page) .co-topbar .badge,
+  body:has(.co-rate-book-shell-page) .co-topbar [class*="rounded-full"] {
+    border-color: rgba(203, 213, 225, 0.98) !important;
+    background: rgba(255, 255, 255, 0.95) !important;
+    color: #0f172a !important;
+  }
+
+  body:has(.co-rate-book-shell-page) .co-topbar button,
+  body:has(.co-rate-book-shell-page) .co-topbar-logout,
+  .co-rate-book-shell-page .btn,
+  .co-rate-book-shell-page button,
+  .co-rate-book-shell-page a,
+  .co-rate-book-shell-page .field-input,
+  .co-rate-book-shell-page input,
+  .co-rate-book-shell-page select,
+  .co-rate-book-shell-page textarea,
+  .co-rate-book-shell-page .co-work-queue-card {
+    min-height: 2.75rem !important;
+    min-width: 2.75rem !important;
+  }
+
+  body:has(.co-rate-book-shell-page) .co-topbar-logout {
+    border-color: rgba(203, 213, 225, 0.98) !important;
+    background: rgba(255, 255, 255, 0.96) !important;
+    color: #0f172a !important;
+  }
+
+  body:has(.co-rate-book-shell-page) .co-topbar .relative > button[aria-label^="Open notifications"] {
+    width: 2.75rem !important;
+    color: #0f172a !important;
+  }
+
+  .co-rate-book-shell-page .co-apex-office-command-head {
+    padding: 0.9rem 1rem 0;
+  }
+
+  .co-rate-book-shell-page .co-apex-office-command-frame {
+    padding: 0 1rem 1rem;
+  }
+
+  .co-rate-book-shell-page .co-apex-command-kpi-strip {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.56rem;
+  }
+
+  .co-rate-book-shell-page .co-command-page-frame-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .co-rate-book-shell-page .co-apex-office-command-workspace {
+    grid-template-columns: minmax(16rem, 0.82fr) minmax(0, 1.18fr);
+  }
+
+  .co-rate-book-shell-page .co-apex-primary-queue-list {
+    max-height: 32rem;
+    overflow: hidden;
+  }
+
+  .co-rate-book-shell-page .co-apex-selected-detail-body {
+    max-height: 55rem;
+  }
+
+  .co-rate-book-shell-page .co-apex-assistant-action-panel,
+  body:has(.co-rate-book-shell-page) .co-apex-assistant-shell.is-closed {
+    display: none !important;
   }
 }
 
@@ -13161,6 +13397,38 @@ textarea {
 }
 
 @media (min-width: 768px) and (max-width: 1023px) {
+  body:has(:is(.co-field-tablet-command, .co-time-tablet-only)) .co-topbar {
+    border-bottom-color: rgba(203, 213, 225, 0.95) !important;
+    background:
+      radial-gradient(circle at 8% 0%, rgba(249, 115, 22, 0.12), transparent 12rem),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 250, 252, 0.96)) !important;
+    box-shadow: 0 14px 38px -32px rgba(15, 23, 42, 0.45) !important;
+  }
+
+  body:has(:is(.co-field-tablet-command, .co-time-tablet-only)) .co-topbar p:first-child {
+    color: #c2410c !important;
+  }
+
+  body:has(:is(.co-field-tablet-command, .co-time-tablet-only)) .co-topbar p:last-child,
+  body:has(:is(.co-field-tablet-command, .co-time-tablet-only)) .co-topbar-pill,
+  body:has(:is(.co-field-tablet-command, .co-time-tablet-only)) .co-topbar .badge,
+  body:has(:is(.co-field-tablet-command, .co-time-tablet-only)) .co-topbar [class*="rounded-full"] {
+    border-color: rgba(203, 213, 225, 0.98) !important;
+    background: rgba(255, 255, 255, 0.95) !important;
+    color: #0f172a !important;
+  }
+
+  body:has(:is(.co-field-tablet-command, .co-time-tablet-only)) .co-topbar-logout {
+    border-color: rgba(203, 213, 225, 0.98) !important;
+    background: rgba(255, 255, 255, 0.96) !important;
+    color: #0f172a !important;
+  }
+
+  body:has(:is(.co-field-tablet-command, .co-time-tablet-only)) .co-topbar .relative > button[aria-label^="Open notifications"] {
+    width: 2.75rem !important;
+    color: #0f172a !important;
+  }
+
   body:has(.co-field-tablet-command) {
     overflow-x: hidden;
   }
@@ -13267,13 +13535,24 @@ textarea {
     line-height: 1.08;
   }
 
-  .co-field-tablet-head span:not(.badge) {
+  .co-field-tablet-head span:not(.badge):not([class*="ring-"]) {
     display: block;
     margin-top: 0.38rem;
     color: rgba(226, 232, 240, 0.82);
     font-size: 0.84rem;
     font-weight: 850;
     line-height: 1.35;
+  }
+
+  .co-field-tablet-head .badge,
+  .co-field-tablet-head > span[class*="ring-"],
+  .co-time-tablet-head .badge,
+  .co-time-tablet-head > span[class*="ring-"] {
+    display: inline-flex;
+    min-width: max-content;
+    overflow: visible;
+    color: #0f172a !important;
+    white-space: nowrap;
   }
 
   .co-field-tablet-kpis {
@@ -13484,10 +13763,15 @@ textarea {
   }
 
   .co-field-tablet-row strong {
+    display: block;
+    max-width: 100%;
     color: #0f172a;
     font-size: 0.9rem;
     font-weight: 950;
     line-height: 1.16;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
   }
 
   .co-field-tablet-row em {
@@ -13503,7 +13787,26 @@ textarea {
     font-size: 0.72rem;
     font-weight: 950;
     line-height: 1.2;
+    max-width: 5.8rem;
     text-align: right;
+    white-space: normal;
+  }
+
+  .co-change-orders-tablet-command .co-field-tablet-row {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .co-change-orders-tablet-command .co-field-tablet-row b {
+    justify-self: start;
+    max-width: 100%;
+    text-align: left;
+  }
+
+  .co-change-orders-tablet-command .co-change-orders-readonly-grid strong {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
   }
 
   .co-field-tablet-summary strong,
@@ -13730,7 +14033,7 @@ textarea {
     line-height: 1.08;
   }
 
-  .co-time-tablet-head span:not(.badge) {
+  .co-time-tablet-head span:not(.badge):not([class*="ring-"]) {
     display: block;
     margin-top: 0.38rem;
     color: rgba(226, 232, 240, 0.82);
@@ -17568,6 +17871,8 @@ textarea {
   .co-calculator-page .co-toolbox-board-header .flex.flex-wrap.gap-2 > *,
   .co-calculator-page .co-calculator-waste-actions > * {
     justify-content: center;
+    min-height: 2.75rem !important;
+    min-width: 2.75rem !important;
     width: 100%;
   }
 
@@ -17583,7 +17888,7 @@ textarea {
 
   .co-calculator-page .co-calculator-type-tabs button {
     min-width: 0;
-    min-height: 2.5rem;
+    min-height: 2.75rem;
     width: 100%;
     padding: 0.55rem 0.42rem;
     font-size: 0.72rem;
@@ -17601,6 +17906,19 @@ textarea {
 
   .co-calculator-page .co-toolbox-command-layout {
     padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1.25rem) !important;
+  }
+
+  .co-calculator-page .btn,
+  .co-calculator-page button,
+  .co-calculator-page a,
+  .co-calculator-page input,
+  .co-calculator-page select,
+  .co-calculator-page textarea,
+  .co-calculator-page .field-input,
+  .co-calculator-page .co-focus-ring,
+  .co-calculator-page .co-toolbox-priority-card,
+  .co-calculator-page .co-toolbox-category-tabs button {
+    min-height: 2.75rem !important;
   }
 
   .co-calculator-page .co-toolbox-form-card:last-child {
@@ -30402,12 +30720,14 @@ textarea {
 .co-ai-focus-row[data-tone="orange"],
 .co-ai-action-row[data-tone="orange"] {
   --co-ai-tone: #f97316;
+  --co-ai-tone-text: #9a3412;
 }
 
 .co-ai-workflow-card[data-tone="green"],
 .co-ai-focus-row[data-tone="green"],
 .co-ai-action-row[data-tone="green"] {
   --co-ai-tone: #16a34a;
+  --co-ai-tone-text: #166534;
 }
 
 .co-ai-workflow-card[data-tone="blue"],
@@ -30480,7 +30800,7 @@ textarea {
 .co-ai-workflow-action {
   grid-column: 2;
   align-self: end;
-  color: var(--co-ai-tone);
+  color: var(--co-ai-tone-text, var(--co-ai-tone));
   font-size: 0.75rem;
   font-weight: 900;
   text-transform: uppercase;
@@ -30518,7 +30838,7 @@ textarea {
 
 .co-ai-focus-eyebrow {
   display: block;
-  color: var(--co-ai-tone);
+  color: var(--co-ai-tone-text, var(--co-ai-tone));
   font-size: 0.68rem;
   font-weight: 900;
   letter-spacing: 0.12em;
@@ -30535,7 +30855,7 @@ textarea {
 }
 
 .co-ai-focus-action {
-  color: var(--co-ai-tone);
+  color: var(--co-ai-tone-text, var(--co-ai-tone));
   font-size: 0.75rem;
   font-weight: 900;
   white-space: nowrap;
@@ -30618,25 +30938,35 @@ textarea {
 
 .co-ai-proposal-row {
   --co-ai-tone: #64748b;
+  --co-ai-tone-badge-bg: #1e293b;
+  --co-ai-tone-badge-text: #e2e8f0;
   text-align: left;
   transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
 }
 
 .co-ai-proposal-row[data-tone="red"] {
   --co-ai-tone: #ef4444;
+  --co-ai-tone-badge-bg: #450a0a;
+  --co-ai-tone-badge-text: #fee2e2;
 }
 
 .co-ai-proposal-row[data-tone="amber"],
 .co-ai-proposal-row[data-tone="orange"] {
   --co-ai-tone: #f97316;
+  --co-ai-tone-badge-bg: #431407;
+  --co-ai-tone-badge-text: #fed7aa;
 }
 
 .co-ai-proposal-row[data-tone="green"] {
   --co-ai-tone: #16a34a;
+  --co-ai-tone-badge-bg: #052e16;
+  --co-ai-tone-badge-text: #bbf7d0;
 }
 
 .co-ai-proposal-row[data-tone="blue"] {
   --co-ai-tone: #2563eb;
+  --co-ai-tone-badge-bg: #172554;
+  --co-ai-tone-badge-text: #dbeafe;
 }
 
 .co-ai-proposal-row:hover {
@@ -30661,23 +30991,27 @@ textarea {
   color: #e2e8f0;
   font-size: 0.82rem;
   font-weight: 950;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 .co-ai-proposal-row b,
 .co-ai-proposal-row i {
   flex: 0 0 auto;
+  max-width: 8rem;
   font-style: normal;
   font-size: 0.68rem;
   font-weight: 950;
   letter-spacing: 0.08em;
+  line-height: 1.12;
   text-transform: uppercase;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .co-ai-proposal-row b {
   border-radius: 999px;
-  background: color-mix(in srgb, var(--co-ai-tone) 18%, rgba(15, 23, 42, 0.9));
-  color: var(--co-ai-tone);
+  background: var(--co-ai-tone-badge-bg);
+  color: var(--co-ai-tone-badge-text);
   padding: 0.34rem 0.48rem;
 }
 
@@ -30745,12 +31079,13 @@ textarea {
 .co-ai-action-inbox-row {
   --co-ai-tone: #2563eb;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 0.62rem;
   border: 1px solid rgba(51, 65, 85, 0.9);
   border-radius: 0.76rem;
-  background: rgba(15, 23, 42, 0.66);
+  background: #0f172a;
+  color: #e2e8f0;
   padding: 0.55rem 0.62rem;
   text-align: left;
   box-shadow: inset 3px 0 0 color-mix(in srgb, var(--co-ai-tone) 52%, transparent);
@@ -30775,23 +31110,25 @@ textarea {
 
 .co-ai-action-inbox-row[data-active="true"] {
   border-color: color-mix(in srgb, var(--co-ai-tone) 56%, white);
-  background: color-mix(in srgb, var(--co-ai-tone) 18%, rgba(15, 23, 42, 0.86));
+  background: color-mix(in srgb, var(--co-ai-tone) 22%, #0f172a);
 }
 
 .co-ai-action-inbox-row span {
   display: grid;
   min-width: 0;
   gap: 0.08rem;
+  color: #e2e8f0;
 }
 
 .co-ai-action-inbox-row strong {
-  overflow: hidden;
+  overflow: visible;
+  overflow-wrap: anywhere;
   color: #e2e8f0;
   font-size: 0.76rem;
   font-weight: 950;
   line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .co-ai-action-inbox-row em,
@@ -30806,15 +31143,79 @@ textarea {
 
 .co-ai-action-inbox-row b {
   flex: 0 0 auto;
+  max-width: 8.5rem;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--co-ai-tone) 18%, rgba(15, 23, 42, 0.9));
-  color: var(--co-ai-tone);
+  background: #172554;
+  color: #dbeafe;
   padding: 0.3rem 0.42rem;
   font-size: 0.6rem;
   font-weight: 950;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  white-space: nowrap;
+  line-height: 1.12;
+  white-space: normal;
+}
+
+.co-ai-action-inbox-row[data-tone="red"] b {
+  background: #450a0a;
+  color: #fee2e2;
+}
+
+.co-ai-action-inbox-row[data-tone="amber"] b,
+.co-ai-action-inbox-row[data-tone="orange"] b {
+  background: #431407;
+  color: #fed7aa;
+}
+
+.co-ai-action-inbox-row[data-tone="green"] b {
+  background: #052e16;
+  color: #bbf7d0;
+}
+
+.co-ai-action-inbox-row[data-tone="slate"] b {
+  background: #1e293b;
+  color: #e2e8f0;
+}
+
+@media (max-width: 1023px) {
+  .co-topbar .hidden.min-w-0.md\:block p:first-child {
+    color: #b45309 !important;
+  }
+
+  .co-topbar .hidden.min-w-0.md\:block p:last-child,
+  .co-topbar-logout {
+    color: #07111f !important;
+  }
+
+  .co-topbar button,
+  .co-topbar a,
+  .co-topbar-logout,
+  .co-app-shell main button:not(.co-mobile-bottom-nav-button),
+  .co-app-shell main a:not(.co-mobile-bottom-nav-button),
+  .co-app-shell main summary,
+  .co-app-shell main select,
+  nav.co-mobile-bottom-nav .co-mobile-bottom-nav-button,
+  nav.co-mobile-bottom-nav .co-apex-mobile-bottom-nav-button {
+    min-height: 2.75rem !important;
+    min-width: 2.75rem !important;
+  }
+
+  .co-app-shell main button:not(.co-mobile-bottom-nav-button),
+  .co-app-shell main a:not(.co-mobile-bottom-nav-button),
+  .co-app-shell main summary {
+    align-items: center;
+  }
+
+  .co-apex-assistant-shell.is-closed {
+    display: none !important;
+  }
+
+  .co-settings-mobile-rail-drawer > summary em {
+    max-width: none !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+  }
 }
 
 .co-ai-action-inbox-safety {
@@ -30822,6 +31223,13 @@ textarea {
   border-radius: 0.7rem;
   background: rgba(2, 8, 23, 0.42);
   padding: 0.48rem 0.55rem;
+}
+
+.co-ai-agent-command-board .co-ai-focus-description {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+  -webkit-box-orient: initial;
 }
 
 .co-ai-proposal-review-panel {
@@ -33232,6 +33640,11 @@ textarea {
   box-shadow: 0 18px 40px -36px rgba(7, 17, 31, 0.66) !important;
 }
 
+.co-app-health-page .co-settings-kpi-grid .co-command-kpi[data-tone="amber"] {
+  --co-command-tone: #b45309;
+  --co-command-link: #92400e;
+}
+
 .co-app-health-page .co-settings-command-layout {
   grid-template-columns: minmax(0, 1fr) 340px !important;
 }
@@ -33357,6 +33770,19 @@ textarea {
 .co-app-health-page .co-settings-right-rail .co-settings-blocker-row span,
 .co-app-health-page .co-settings-right-rail .co-settings-count-grid span {
   color: rgba(203, 213, 225, 0.72);
+}
+
+.co-app-health-page .co-settings-right-rail .co-settings-rail-row > span:first-child,
+.co-app-health-page .co-settings-right-rail .co-settings-action-row > span:first-child,
+.co-app-health-page .co-settings-right-rail .co-settings-blocker-row > span:first-child,
+.co-app-health-page .co-settings-right-rail .co-settings-count-grid span {
+  color: rgba(203, 213, 225, 0.72);
+}
+
+.co-app-health-page .co-settings-right-rail .badge.bg-amber-50,
+.co-app-health-page .co-settings-right-rail span.bg-amber-50,
+.co-app-health-page .co-settings-right-rail [class*="bg-amber-50"][class*="text-amber"] {
+  color: #92400e !important;
 }
 
 .co-app-health-page .co-settings-right-rail .co-settings-rail-row strong,
@@ -38375,6 +38801,15 @@ textarea {
     background: rgba(255, 255, 255, 0.055) !important;
   }
 
+  .co-leads-right-rail .co-leads-rail-details > summary,
+  .co-leads-right-rail .co-leads-rail-details > summary span:first-child {
+    color: #f8fafc !important;
+  }
+
+  .co-leads-right-rail .co-leads-rail-details > summary span:last-child {
+    color: #cbd5e1 !important;
+  }
+
   .co-leads-right-rail .field-input,
   .co-leads-right-rail select,
   .co-leads-right-rail input,
@@ -38729,6 +39164,131 @@ textarea {
   .co-communications-log-row:hover::before {
     width: 4px;
   }
+
+  .co-communications-shell-page {
+    height: calc(100vh - 4.5rem);
+    min-height: 41rem;
+    overflow: hidden;
+  }
+
+  .co-communications-shell-page .co-apex-office-command-shell {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .co-communications-shell-page .co-apex-office-command-frame {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+  }
+
+  .co-communications-shell-page .co-command-page-frame-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 21rem);
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  .co-communications-shell-page .co-command-page-frame-main,
+  .co-communications-shell-page .co-command-page-frame-rail {
+    min-height: 0;
+  }
+
+  .co-communications-shell-page .co-apex-office-command-workspace {
+    height: 100%;
+    min-height: 0;
+    grid-template-columns: minmax(19rem, 0.82fr) minmax(0, 1.18fr);
+  }
+
+  .co-communications-shell-page .co-apex-primary-queue-panel,
+  .co-communications-shell-page .co-apex-selected-detail-panel,
+  .co-communications-shell-page .co-apex-assistant-action-panel {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .co-communications-shell-page .co-apex-primary-queue-list {
+    grid-auto-rows: minmax(0, auto);
+    overflow: hidden;
+  }
+
+  .co-communications-shell-page .co-apex-primary-queue-list .co-work-queue-card {
+    padding: 0.5rem;
+  }
+
+  .co-communications-shell-page .co-work-queue-card h3 {
+    font-size: 0.78rem;
+  }
+
+  .co-communications-shell-page .co-work-queue-meta,
+  .co-communications-shell-page .co-work-queue-status,
+  .co-communications-shell-page .co-work-queue-action {
+    font-size: 0.66rem;
+  }
+
+  .co-communications-shell-page .co-apex-selected-detail-body {
+    min-height: 0;
+    align-content: start;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  }
+
+  .co-communications-shell-detail-scroll {
+    display: grid;
+    min-height: 0;
+    gap: 0.72rem;
+    overflow: visible;
+  }
+
+  .co-communications-shell-detail-scroll .co-communications-form,
+  .co-communications-detail-section {
+    border: 1px solid rgba(226, 232, 240, 0.86);
+    border-radius: 0.72rem;
+    background: #ffffff;
+    padding: 0.78rem;
+  }
+
+  .co-communications-log-stack {
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid rgba(226, 232, 240, 0.76);
+    border-radius: 0.72rem;
+    background: #ffffff;
+  }
+
+  .co-communications-shell-page .co-assistant-rail-head {
+    padding: 0.68rem 0.82rem 0.5rem;
+  }
+
+  .co-communications-shell-page .co-assistant-rail-head h2 {
+    font-size: 0.88rem;
+  }
+
+  .co-communications-shell-page .co-assistant-rail-head p {
+    font-size: 0.7rem;
+    line-height: 1.28;
+  }
+
+  .co-communications-shell-page .co-assistant-rail-priorities,
+  .co-communications-shell-page .co-assistant-rail-actions {
+    gap: 0.36rem;
+    padding: 0 0.58rem 0.58rem;
+  }
+
+  .co-communications-shell-page .co-assistant-rail-priority {
+    padding: 0.4rem 0.52rem;
+  }
+
+  .co-communications-shell-page .co-assistant-rail-actions button {
+    min-height: 2.02rem;
+    padding: 0.42rem 0.54rem;
+  }
+
+  .co-communications-shell-page .co-apex-assistant-guardrails {
+    padding: 0.62rem;
+  }
 }
 
 @media (max-width: 767px) {
@@ -38804,6 +39364,175 @@ textarea {
   .co-communications-rail .co-leads-followup-card,
   .co-communications-rules-card {
     border-radius: 0.84rem !important;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  body:has(.co-communications-shell-page) {
+    overflow-x: hidden;
+  }
+
+  body:has(.co-communications-shell-page) .mobile-content-safe {
+    padding-bottom: 0 !important;
+  }
+
+  body:has(.co-communications-shell-page) .co-mobile-bottom-spacer {
+    display: none !important;
+  }
+
+  body:has(.co-communications-shell-page) nav.co-mobile-bottom-nav .co-apex-mobile-bottom-nav-row {
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(44px, 1fr)) !important;
+    gap: 0.3rem !important;
+    overflow: visible !important;
+  }
+
+  body:has(.co-communications-shell-page) nav.co-mobile-bottom-nav .co-mobile-bottom-nav-button {
+    min-height: 44px !important;
+    min-width: 44px !important;
+    width: 100% !important;
+  }
+
+  body:has(.co-communications-shell-page) .co-topbar,
+  body:has(.co-field-workspace-page) .co-topbar {
+    border-bottom-color: rgba(203, 213, 225, 0.95) !important;
+    background:
+      radial-gradient(circle at 8% 0%, rgba(249, 115, 22, 0.12), transparent 12rem),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 250, 252, 0.96)) !important;
+    box-shadow: 0 14px 38px -32px rgba(15, 23, 42, 0.45) !important;
+  }
+
+  body:has(.co-communications-shell-page) .co-topbar p:first-child,
+  body:has(.co-field-workspace-page) .co-topbar p:first-child {
+    color: #c2410c !important;
+  }
+
+  body:has(.co-communications-shell-page) .co-topbar p:last-child,
+  body:has(.co-communications-shell-page) .co-topbar-pill,
+  body:has(.co-communications-shell-page) .co-topbar .badge,
+  body:has(.co-communications-shell-page) .co-topbar [class*="rounded-full"],
+  body:has(.co-field-workspace-page) .co-topbar p:last-child,
+  body:has(.co-field-workspace-page) .co-topbar-pill,
+  body:has(.co-field-workspace-page) .co-topbar .badge,
+  body:has(.co-field-workspace-page) .co-topbar [class*="rounded-full"] {
+    border-color: rgba(203, 213, 225, 0.98) !important;
+    background: rgba(255, 255, 255, 0.95) !important;
+    color: #0f172a !important;
+  }
+
+  body:has(.co-communications-shell-page) .co-topbar button,
+  body:has(.co-communications-shell-page) .co-topbar-logout,
+  body:has(.co-field-workspace-page) .co-topbar button,
+  body:has(.co-field-workspace-page) .co-topbar-logout,
+  body:has(.co-field-workspace-page) .co-field-workspace-page .btn,
+  body:has(.co-field-workspace-page) .co-field-workspace-page button,
+  body:has(.co-field-workspace-page) .co-field-workspace-page a,
+  body:has(.co-field-workspace-page) .co-field-operator-actions > .btn,
+  body:has(.co-field-workspace-page) .co-field-operator-actions > button,
+  body:has(.co-field-workspace-page) .co-field-operator-actions > .co-field-operator-link {
+    min-height: 2.75rem !important;
+    min-width: 2.75rem !important;
+  }
+
+  body:has(.co-communications-shell-page) .co-topbar-logout,
+  body:has(.co-field-workspace-page) .co-topbar-logout {
+    border-color: rgba(203, 213, 225, 0.98) !important;
+    background: rgba(255, 255, 255, 0.96) !important;
+    color: #0f172a !important;
+  }
+
+  body:has(.co-communications-shell-page) .co-topbar .relative > button[aria-label^="Open notifications"],
+  body:has(.co-field-workspace-page) .co-topbar .relative > button[aria-label^="Open notifications"] {
+    width: 2.75rem !important;
+    color: #0f172a !important;
+  }
+
+  .co-communications-shell-page .co-apex-office-command-head {
+    padding: 0.9rem 1rem 0;
+  }
+
+  .co-communications-shell-page .co-apex-office-command-frame {
+    padding: 0 1rem 1rem;
+  }
+
+  .co-communications-shell-page .co-apex-command-kpi-strip {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.56rem;
+  }
+
+  .co-communications-shell-page .co-apex-command-kpi {
+    min-height: 4.7rem;
+    padding: 0.6rem;
+  }
+
+  .co-communications-shell-page .co-apex-command-kpi-icon {
+    width: 1.9rem;
+    height: 1.9rem;
+  }
+
+  .co-communications-shell-page .co-apex-command-kpi-copy strong {
+    font-size: 1.12rem;
+  }
+
+  .co-communications-shell-page .co-command-page-frame-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .co-communications-shell-page .co-apex-office-command-workspace {
+    grid-template-columns: minmax(16rem, 0.82fr) minmax(0, 1.18fr);
+  }
+
+  .co-communications-shell-page .co-apex-primary-queue-list {
+    max-height: 32rem;
+    overflow: hidden;
+  }
+
+  .co-communications-shell-page .co-apex-selected-detail-body {
+    max-height: 55rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
+
+  .co-communications-shell-detail-scroll {
+    display: grid;
+    gap: 0.72rem;
+  }
+
+  .co-communications-shell-detail-scroll .co-communications-form,
+  .co-communications-detail-section {
+    border: 1px solid rgba(226, 232, 240, 0.86);
+    border-radius: 0.72rem;
+    background: #ffffff;
+    padding: 0.78rem;
+  }
+
+  .co-communications-method-row button,
+  .co-communications-submit-row .btn,
+  .co-communications-submit-row button,
+  .co-communications-log-actions .btn,
+  .co-communications-log-actions button,
+  .co-communications-shell-page .btn,
+  .co-communications-shell-page button,
+  .co-communications-shell-page .co-apex-quick-action-bar button,
+  .co-communications-shell-page .co-assistant-rail-actions button {
+    min-height: 2.75rem !important;
+  }
+
+  .co-communications-shell-page .field-input,
+  .co-communications-shell-page input,
+  .co-communications-shell-page select,
+  .co-communications-shell-page textarea,
+  .co-communications-shell-page .co-work-queue-card {
+    min-height: 2.75rem !important;
+  }
+
+  .co-communications-shell-page .co-apex-assistant-action-panel {
+    display: none;
+  }
+
+  body:has(.co-communications-shell-page) .co-apex-assistant-shell.is-closed {
+    display: none !important;
   }
 }
 
@@ -41369,6 +42098,12 @@ button.co-apex-command-kpi:hover:not(:disabled) {
 @media (max-width: 1023px) {
   .co-jobs-shell-page {
     overflow: visible;
+  }
+
+  .co-jobs-shell-page .co-apex-quick-action-bar .btn,
+  .co-jobs-shell-page .co-apex-quick-action-bar button {
+    min-height: 2.75rem !important;
+    min-width: 2.75rem !important;
   }
 
   .co-jobs-shell-detail-scroll {
@@ -44685,8 +45420,8 @@ button.co-apex-command-kpi:hover:not(:disabled) {
     height: calc(100dvh - var(--layout-topbar-height, 4rem) - 8.7rem);
     min-height: 0;
     overflow: hidden;
-    grid-template-rows: auto minmax(0, 1fr);
-    padding-bottom: 4.55rem;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    padding-bottom: 0.58rem;
   }
 
   .co-leads-desktop-workspace-frame .co-leads-kpi-grid {
@@ -44777,31 +45512,51 @@ button.co-apex-command-kpi:hover:not(:disabled) {
   }
 
   .co-leads-desktop-workspace-frame .co-leads-tools-drawer {
-    position: absolute !important;
-    right: 0 !important;
-    bottom: 0.6rem !important;
-    left: 0 !important;
-    z-index: 8;
-    max-height: min(54vh, 30rem);
+    position: static !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: auto !important;
+    z-index: auto;
+    max-height: none;
     margin-right: auto !important;
     margin-left: auto !important;
     padding-bottom: 0 !important;
-    overflow: hidden !important;
+    overflow: visible !important;
   }
 
   .co-leads-desktop-workspace-frame .co-leads-tools-drawer[open] {
     display: block;
+    max-height: min(34vh, 22rem);
     overflow: hidden !important;
   }
 
   .co-leads-desktop-workspace-frame .co-leads-tools-drawer[open] .co-leads-tools-panel {
     min-height: 0;
-    max-height: calc(min(54vh, 30rem) - 6.9rem) !important;
+    max-height: calc(min(34vh, 22rem) - 6.9rem) !important;
     overflow-y: auto !important;
     overscroll-behavior: contain;
     padding-right: 0.12rem;
     scrollbar-width: thin;
     scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  }
+
+  .co-leads-followup-compact .co-leads-followup-table .line-clamp-2 {
+    display: block !important;
+    overflow: visible !important;
+    -webkit-line-clamp: unset !important;
+    -webkit-box-orient: initial !important;
+  }
+
+  .co-leads-followup-table td:last-child > div {
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .co-leads-row-action {
+    min-height: 1.9rem;
+    line-height: 1.15;
+    white-space: normal;
+    text-align: center;
   }
 }
 
@@ -46402,6 +47157,385 @@ button.co-apex-command-kpi:hover:not(:disabled) {
   }
 }
 
+@media (min-width: 768px) and (max-width: 1023px) {
+  body:has(.co-ppe-page) .co-topbar,
+  body:has(.co-prepour-page) .co-topbar,
+  body:has(.co-postpour-page) .co-topbar,
+  body:has(.co-tool-checklist-page) .co-topbar,
+  body:has(.co-delivery-page) .co-topbar {
+    border-bottom-color: rgba(203, 213, 225, 0.95) !important;
+    background:
+      radial-gradient(circle at 8% 0%, rgba(249, 115, 22, 0.12), transparent 12rem),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 250, 252, 0.96)) !important;
+    box-shadow: 0 14px 38px -32px rgba(15, 23, 42, 0.45) !important;
+  }
+
+  body:has(.co-ppe-page) .co-topbar p:first-child,
+  body:has(.co-prepour-page) .co-topbar p:first-child,
+  body:has(.co-postpour-page) .co-topbar p:first-child,
+  body:has(.co-tool-checklist-page) .co-topbar p:first-child,
+  body:has(.co-delivery-page) .co-topbar p:first-child {
+    color: #c2410c !important;
+  }
+
+  body:has(.co-ppe-page) .co-topbar p:last-child,
+  body:has(.co-prepour-page) .co-topbar p:last-child,
+  body:has(.co-postpour-page) .co-topbar p:last-child,
+  body:has(.co-tool-checklist-page) .co-topbar p:last-child,
+  body:has(.co-delivery-page) .co-topbar p:last-child {
+    color: #0f172a !important;
+  }
+
+  body:has(.co-ppe-page) .co-topbar-pill,
+  body:has(.co-ppe-page) .co-topbar .badge,
+  body:has(.co-ppe-page) .co-topbar [class*="rounded-full"],
+  body:has(.co-prepour-page) .co-topbar-pill,
+  body:has(.co-prepour-page) .co-topbar .badge,
+  body:has(.co-prepour-page) .co-topbar [class*="rounded-full"],
+  body:has(.co-postpour-page) .co-topbar-pill,
+  body:has(.co-postpour-page) .co-topbar .badge,
+  body:has(.co-postpour-page) .co-topbar [class*="rounded-full"],
+  body:has(.co-tool-checklist-page) .co-topbar-pill,
+  body:has(.co-tool-checklist-page) .co-topbar .badge,
+  body:has(.co-tool-checklist-page) .co-topbar [class*="rounded-full"],
+  body:has(.co-delivery-page) .co-topbar-pill,
+  body:has(.co-delivery-page) .co-topbar .badge,
+  body:has(.co-delivery-page) .co-topbar [class*="rounded-full"] {
+    border-color: rgba(203, 213, 225, 0.98) !important;
+    background: rgba(255, 255, 255, 0.95) !important;
+    color: #0f172a !important;
+  }
+
+  body:has(.co-ppe-page) .co-topbar button,
+  body:has(.co-ppe-page) .co-topbar-logout,
+  body:has(.co-prepour-page) .co-topbar button,
+  body:has(.co-prepour-page) .co-topbar-logout,
+  body:has(.co-postpour-page) .co-topbar button,
+  body:has(.co-postpour-page) .co-topbar-logout,
+  body:has(.co-tool-checklist-page) .co-topbar button,
+  body:has(.co-tool-checklist-page) .co-topbar-logout,
+  body:has(.co-delivery-page) .co-topbar button,
+  body:has(.co-delivery-page) .co-topbar-logout,
+  body:has(.co-ppe-page) .co-app-shell button,
+  body:has(.co-prepour-page) .co-app-shell button,
+  body:has(.co-postpour-page) .co-app-shell button,
+  body:has(.co-tool-checklist-page) .co-app-shell button,
+  body:has(.co-delivery-page) .co-app-shell button {
+    min-height: 2.75rem !important;
+  }
+
+  body:has(.co-ppe-page) .co-topbar-logout,
+  body:has(.co-prepour-page) .co-topbar-logout,
+  body:has(.co-postpour-page) .co-topbar-logout,
+  body:has(.co-tool-checklist-page) .co-topbar-logout,
+  body:has(.co-delivery-page) .co-topbar-logout {
+    border-color: rgba(203, 213, 225, 0.98) !important;
+    background: rgba(255, 255, 255, 0.96) !important;
+    color: #0f172a !important;
+  }
+
+  body:has(.co-ppe-page) .co-app-shell button,
+  body:has(.co-prepour-page) .co-app-shell button,
+  body:has(.co-postpour-page) .co-app-shell button,
+  body:has(.co-tool-checklist-page) .co-app-shell button,
+  body:has(.co-delivery-page) .co-app-shell button,
+  body:has(.co-ppe-page) .co-app-shell .field-input,
+  body:has(.co-prepour-page) .co-app-shell .field-input,
+  body:has(.co-postpour-page) .co-app-shell .field-input,
+  body:has(.co-tool-checklist-page) .co-app-shell .field-input,
+  body:has(.co-delivery-page) .co-app-shell .field-input {
+    min-width: 2.75rem !important;
+  }
+
+  body:has(.co-ppe-page) .co-app-shell .field-input,
+  body:has(.co-prepour-page) .co-app-shell .field-input,
+  body:has(.co-postpour-page) .co-app-shell .field-input,
+  body:has(.co-tool-checklist-page) .co-app-shell .field-input,
+  body:has(.co-delivery-page) .co-app-shell .field-input {
+    min-height: 2.75rem !important;
+  }
+
+  body:has(.co-ppe-page) .co-topbar .relative > button[aria-label^="Open notifications"],
+  body:has(.co-prepour-page) .co-topbar .relative > button[aria-label^="Open notifications"],
+  body:has(.co-postpour-page) .co-topbar .relative > button[aria-label^="Open notifications"],
+  body:has(.co-tool-checklist-page) .co-topbar .relative > button[aria-label^="Open notifications"],
+  body:has(.co-delivery-page) .co-topbar .relative > button[aria-label^="Open notifications"] {
+    min-width: 2.75rem !important;
+    width: 2.75rem !important;
+    color: #0f172a !important;
+  }
+
+  body:has(.co-ppe-page) nav.co-mobile-bottom-nav .co-apex-mobile-bottom-nav-row,
+  body:has(.co-prepour-page) nav.co-mobile-bottom-nav .co-apex-mobile-bottom-nav-row,
+  body:has(.co-postpour-page) nav.co-mobile-bottom-nav .co-apex-mobile-bottom-nav-row,
+  body:has(.co-tool-checklist-page) nav.co-mobile-bottom-nav .co-apex-mobile-bottom-nav-row,
+  body:has(.co-delivery-page) nav.co-mobile-bottom-nav .co-apex-mobile-bottom-nav-row {
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(44px, 1fr)) !important;
+    gap: 0.3rem !important;
+    overflow: visible !important;
+  }
+
+  body:has(.co-ppe-page) nav.co-mobile-bottom-nav .co-mobile-bottom-nav-button,
+  body:has(.co-prepour-page) nav.co-mobile-bottom-nav .co-mobile-bottom-nav-button,
+  body:has(.co-postpour-page) nav.co-mobile-bottom-nav .co-mobile-bottom-nav-button,
+  body:has(.co-tool-checklist-page) nav.co-mobile-bottom-nav .co-mobile-bottom-nav-button,
+  body:has(.co-delivery-page) nav.co-mobile-bottom-nav .co-mobile-bottom-nav-button {
+    min-height: 2.75rem !important;
+    min-width: 2.75rem !important;
+    width: 100% !important;
+  }
+
+  .co-uploads-mobile-list-surface,
+  .co-prepour-tablet-list-surface,
+  .co-postpour-tablet-items-surface,
+  .co-delivery-tablet-list-surface,
+  .co-ppe-page .co-toolbox-mobile-list,
+  .co-toolbox-talks-page .co-toolbox-mobile-list,
+  .co-tool-checklist-page .co-toolbox-mobile-list {
+    overflow: hidden;
+    border: 1px solid rgba(226, 232, 240, 0.95);
+    border-radius: 1rem;
+    background: #ffffff;
+    box-shadow: 0 18px 38px -34px rgba(15, 23, 42, 0.55);
+  }
+
+  .co-field-mobile-section-head {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.85rem;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.95);
+    padding: 0.95rem 1rem;
+  }
+
+  .co-field-mobile-section-head span {
+    display: grid;
+    min-width: 0;
+    gap: 0.18rem;
+  }
+
+  .co-field-mobile-section-head strong {
+    color: #0f172a;
+    font-size: 0.9rem;
+    font-weight: 950;
+    line-height: 1.2;
+  }
+
+  .co-field-mobile-section-head em {
+    color: #64748b;
+    font-size: 0.74rem;
+    font-style: normal;
+    font-weight: 850;
+    line-height: 1.35;
+  }
+
+  .co-field-mobile-section-head b {
+    display: inline-flex;
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: #fff7ed;
+    color: #9a3412;
+    font-size: 0.84rem;
+    font-weight: 950;
+  }
+
+  .co-uploads-mobile-list,
+  .co-prepour-tablet-list-surface .co-prepour-mobile-list,
+  .co-postpour-tablet-items-surface .co-postpour-items-list,
+  .co-postpour-tablet-items-surface .co-postpour-extra-items-list,
+  .co-delivery-tablet-list-surface .co-delivery-mobile-list,
+  .co-ppe-page .co-toolbox-mobile-list,
+  .co-toolbox-talks-page .co-toolbox-mobile-list,
+  .co-tool-checklist-page .co-toolbox-mobile-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 1rem !important;
+  }
+
+  .co-mobile-record-card {
+    min-height: 5rem;
+  }
+
+  .co-uploads-mobile-card,
+  .co-prepour-mobile-card,
+  .co-delivery-mobile-card,
+  .co-toolbox-mobile-card {
+    min-height: 5.25rem;
+  }
+
+  .co-toolbox-mobile-card-action,
+  .co-uploads-mobile-card,
+  .co-prepour-mobile-card,
+  .co-delivery-mobile-card,
+  .co-ppe-page .co-toolbox-category-tabs button,
+  .co-tool-checklist-page .co-toolbox-category-tabs button,
+  .co-toolbox-tool-tabs button {
+    min-height: 2.75rem !important;
+  }
+
+  .co-prepour-mobile-metrics strong,
+  .co-delivery-mobile-metrics strong,
+  .co-uploads-mobile-metrics strong {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .co-ppe-page[data-field-workspace="true"] .co-toolbox-tools-drawer,
+  .co-tool-checklist-page[data-field-workspace="true"] .co-incidents-advanced-filters,
+  .co-tool-checklist-page[data-field-workspace="true"] .co-toolbox-tools-drawer,
+  .co-delivery-page[data-field-workspace="true"] .co-delivery-right-rail,
+  .co-delivery-page[data-field-workspace="true"] .co-delivery-tools-drawer,
+  .co-prepour-page[data-field-workspace="true"] .co-prepour-tools-drawer:not([open]),
+  .co-postpour-page[data-field-workspace="true"] .co-prepour-tools-drawer:not([open]) {
+    display: none !important;
+  }
+
+  body:has(.co-field-tablet-command) .co-mobile-bottom-spacer,
+  body:has(.co-time-tablet-only) .co-mobile-bottom-spacer {
+    display: block !important;
+    height: var(--co-mobile-bottom-nav-clearance) !important;
+  }
+
+  .co-apex-assistant-shell {
+    bottom: var(--co-mobile-bottom-nav-clearance, 7rem) !important;
+  }
+
+  body:has(.co-ppe-page) .co-apex-assistant-shell.is-closed,
+  body:has(.co-prepour-page) .co-apex-assistant-shell.is-closed,
+  body:has(.co-postpour-page) .co-apex-assistant-shell.is-closed,
+  body:has(.co-tool-checklist-page) .co-apex-assistant-shell.is-closed,
+  body:has(.co-delivery-page) .co-apex-assistant-shell.is-closed {
+    display: none !important;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  body:has(:is(.co-incidents-page, .co-toolbox-talks-page)) .co-topbar {
+    border-bottom-color: rgba(203, 213, 225, 0.95) !important;
+    background:
+      radial-gradient(circle at 8% 0%, rgba(249, 115, 22, 0.12), transparent 12rem),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 250, 252, 0.96)) !important;
+    box-shadow: 0 14px 38px -32px rgba(15, 23, 42, 0.45) !important;
+  }
+
+  body:has(:is(.co-incidents-page, .co-toolbox-talks-page)) .co-topbar p:first-child {
+    color: #c2410c !important;
+  }
+
+  body:has(:is(.co-incidents-page, .co-toolbox-talks-page)) .co-topbar p:last-child,
+  body:has(:is(.co-incidents-page, .co-toolbox-talks-page)) .co-topbar-pill,
+  body:has(:is(.co-incidents-page, .co-toolbox-talks-page)) .co-topbar .badge,
+  body:has(:is(.co-incidents-page, .co-toolbox-talks-page)) .co-topbar [class*="rounded-full"] {
+    border-color: rgba(203, 213, 225, 0.98) !important;
+    background: rgba(255, 255, 255, 0.95) !important;
+    color: #0f172a !important;
+  }
+
+  body:has(:is(.co-incidents-page, .co-toolbox-talks-page)) .co-topbar button,
+  body:has(:is(.co-incidents-page, .co-toolbox-talks-page)) .co-topbar-logout,
+  body:has(:is(.co-incidents-page, .co-toolbox-talks-page)) .co-app-shell button,
+  body:has(:is(.co-incidents-page, .co-toolbox-talks-page)) .co-app-shell .field-input {
+    min-height: 2.75rem !important;
+    min-width: 2.75rem !important;
+  }
+
+  body:has(:is(.co-incidents-page, .co-toolbox-talks-page)) .co-topbar-logout {
+    border-color: rgba(203, 213, 225, 0.98) !important;
+    background: rgba(255, 255, 255, 0.96) !important;
+    color: #0f172a !important;
+  }
+
+  body:has(:is(.co-incidents-page, .co-toolbox-talks-page)) .co-topbar .relative > button[aria-label^="Open notifications"] {
+    width: 2.75rem !important;
+    color: #0f172a !important;
+  }
+
+  body:has(:is(.co-incidents-page, .co-toolbox-talks-page)) nav.co-mobile-bottom-nav .co-apex-mobile-bottom-nav-row {
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(44px, 1fr)) !important;
+    gap: 0.3rem !important;
+    overflow: visible !important;
+  }
+
+  body:has(:is(.co-incidents-page, .co-toolbox-talks-page)) nav.co-mobile-bottom-nav .co-mobile-bottom-nav-button {
+    min-height: 2.75rem !important;
+    min-width: 2.75rem !important;
+    width: 100% !important;
+  }
+
+  .co-incidents-page .co-incidents-advanced-filters,
+  .co-incidents-page .co-incidents-tools-drawer,
+  .co-toolbox-talks-page .co-toolbox-tools-drawer {
+    display: none !important;
+  }
+
+  .co-incidents-mobile-list,
+  .co-toolbox-talks-page .co-toolbox-mobile-list,
+  .co-incidents-mobile-tool-surface,
+  .co-toolbox-mobile-tool-surface {
+    overflow: hidden;
+    border: 1px solid rgba(226, 232, 240, 0.95);
+    border-radius: 1rem;
+    background: #ffffff;
+    box-shadow: 0 18px 38px -34px rgba(15, 23, 42, 0.55);
+  }
+
+  .co-incidents-mobile-list,
+  .co-toolbox-talks-page .co-toolbox-mobile-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 1rem !important;
+  }
+
+  .co-incidents-mobile-card,
+  .co-toolbox-mobile-card {
+    min-height: 5.25rem;
+  }
+
+  .co-incidents-mobile-card-action,
+  .co-toolbox-mobile-card-action,
+  .co-incidents-mobile-metrics strong {
+    min-height: 2.75rem !important;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .co-toolbox-talks-page .co-toolbox-filter-strip {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem !important;
+    padding: 0.85rem 1rem !important;
+  }
+
+  .co-toolbox-talks-page .co-toolbox-category-tabs {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.45rem;
+    overflow: visible;
+    padding-bottom: 0;
+    width: 100%;
+  }
+
+  .co-toolbox-talks-page .co-toolbox-category-tabs button {
+    min-height: 2.75rem !important;
+    min-width: 0;
+    width: 100%;
+    white-space: normal;
+    line-height: 1.1;
+  }
+
+  .co-toolbox-talks-page .co-toolbox-search {
+    min-height: 2.75rem !important;
+  }
+
+  body:has(:is(.co-incidents-page, .co-toolbox-talks-page)) .co-apex-assistant-shell.is-closed {
+    display: none !important;
+  }
+}
+
 @media (max-width: 767px) {
   .co-time-page .co-time-tools-drawer,
   .co-uploads-page[data-field-workspace="true"] .co-uploads-advanced-filters,
@@ -46648,4 +47782,860 @@ button.co-apex-command-kpi:hover:not(:disabled) {
   .co-reports-page[data-field-workspace="true"] .co-reports-board-header .flex.flex-wrap {
     display: none !important;
   }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  body:has(.co-communications-shell-page) nav.co-mobile-bottom-nav .co-apex-mobile-bottom-nav-row {
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(44px, 1fr)) !important;
+    gap: 0.3rem !important;
+    overflow: visible !important;
+  }
+
+  body:has(.co-communications-shell-page) nav.co-mobile-bottom-nav .co-mobile-bottom-nav-button,
+  body:has(.co-communications-shell-page) nav.co-mobile-bottom-nav .co-apex-mobile-bottom-nav-button {
+    min-height: 44px !important;
+    min-width: 44px !important;
+    width: 100% !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .co-customers-shell-page {
+    height: calc(100vh - 4.5rem);
+    min-height: 41rem;
+    overflow: hidden;
+  }
+
+  .co-customers-shell-page .co-apex-office-command-shell {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .co-customers-shell-page .co-apex-office-command-frame {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+  }
+
+  .co-customers-shell-page .co-command-page-frame-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 21rem);
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  .co-customers-shell-page .co-command-page-frame-main,
+  .co-customers-shell-page .co-command-page-frame-rail {
+    min-height: 0;
+  }
+
+  .co-customers-shell-page .co-apex-office-command-workspace {
+    height: 100%;
+    min-height: 0;
+    grid-template-columns: minmax(19rem, 0.82fr) minmax(0, 1.18fr);
+  }
+
+  .co-customers-shell-page .co-apex-primary-queue-panel,
+  .co-customers-shell-page .co-apex-selected-detail-panel,
+  .co-customers-shell-page .co-apex-assistant-action-panel {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .co-customers-shell-page .co-apex-primary-queue-list {
+    grid-auto-rows: minmax(0, auto);
+    overflow: hidden;
+  }
+
+  .co-customers-shell-page .co-apex-primary-queue-controls {
+    padding: 0.52rem 0.62rem 0;
+  }
+
+  .co-customers-shell-page .co-apex-primary-queue-controls .co-customer-filter-bar {
+    border: 1px solid rgba(226, 232, 240, 0.9) !important;
+    border-radius: 0.72rem;
+    background: rgba(248, 250, 252, 0.94) !important;
+    box-shadow: none !important;
+    padding: 0.52rem;
+  }
+
+  .co-customers-shell-page .co-apex-primary-queue-controls .co-customer-filter-bar button {
+    min-height: 2.5rem;
+    min-width: 2.75rem;
+  }
+
+  .co-customers-shell-page .co-apex-primary-queue-controls .co-customer-filter-bar input {
+    width: 100%;
+    min-height: 2.5rem;
+  }
+
+  .co-customers-shell-page .co-apex-primary-queue-controls .co-customer-filter-bar [class*="md:flex"] {
+    display: block;
+  }
+
+  .co-customers-shell-page .co-apex-primary-queue-list .co-work-queue-card {
+    padding: 0.5rem;
+  }
+
+  .co-customers-shell-page .co-work-queue-card h3 {
+    font-size: 0.78rem;
+  }
+
+  .co-customers-shell-page .co-work-queue-meta,
+  .co-customers-shell-page .co-work-queue-status,
+  .co-customers-shell-page .co-work-queue-action {
+    font-size: 0.66rem;
+  }
+
+  .co-customers-shell-page .co-apex-selected-detail-body {
+    min-height: 0;
+    align-content: start;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  }
+
+  .co-customers-shell-detail-scroll {
+    display: grid;
+    min-height: 0;
+    gap: 0.72rem;
+    overflow: visible;
+  }
+
+  .co-customers-shell-detail-scroll > .min-w-0,
+  .co-customers-shell-detail-scroll > .co-card {
+    margin: 0;
+  }
+
+  .co-customers-shell-detail-scroll .co-card {
+    border-color: rgba(226, 232, 240, 0.86);
+    border-radius: 0.72rem !important;
+    box-shadow: none !important;
+  }
+
+  .co-customers-shell-page .co-assistant-rail-head {
+    padding: 0.68rem 0.82rem 0.5rem;
+  }
+
+  .co-customers-shell-page .co-assistant-rail-head h2 {
+    font-size: 0.88rem;
+  }
+
+  .co-customers-shell-page .co-assistant-rail-head p {
+    font-size: 0.7rem;
+    line-height: 1.28;
+  }
+
+  .co-customers-shell-page .co-assistant-rail-priorities,
+  .co-customers-shell-page .co-assistant-rail-actions {
+    gap: 0.36rem;
+    padding: 0 0.58rem 0.58rem;
+  }
+
+  .co-customers-shell-page .co-assistant-rail-priority {
+    padding: 0.4rem 0.52rem;
+  }
+
+  .co-customers-shell-page .co-assistant-rail-actions button {
+    min-height: 2.02rem;
+    padding: 0.42rem 0.54rem;
+  }
+
+  .co-customers-shell-page .co-apex-assistant-guardrails {
+    padding: 0.62rem;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  body:has(.co-calculator-page) {
+    overflow-x: hidden;
+  }
+
+  body:has(.co-calculator-page) .co-topbar {
+    border-bottom-color: rgba(203, 213, 225, 0.95) !important;
+    background:
+      radial-gradient(circle at 8% 0%, rgba(249, 115, 22, 0.12), transparent 12rem),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 250, 252, 0.96)) !important;
+    box-shadow: 0 14px 38px -32px rgba(15, 23, 42, 0.45) !important;
+  }
+
+  body:has(.co-calculator-page) .co-topbar p:first-child {
+    color: #c2410c !important;
+  }
+
+  body:has(.co-calculator-page) .co-topbar p:last-child,
+  body:has(.co-calculator-page) .co-topbar-pill,
+  body:has(.co-calculator-page) .co-topbar .badge,
+  body:has(.co-calculator-page) .co-topbar [class*="rounded-full"] {
+    border-color: rgba(203, 213, 225, 0.98) !important;
+    background: rgba(255, 255, 255, 0.95) !important;
+    color: #0f172a !important;
+  }
+
+  body:has(.co-calculator-page) .co-topbar button,
+  body:has(.co-calculator-page) .co-topbar-logout,
+  .co-calculator-page .btn,
+  .co-calculator-page button,
+  .co-calculator-page a,
+  .co-calculator-page input,
+  .co-calculator-page select,
+  .co-calculator-page textarea,
+  .co-calculator-page .field-input,
+  .co-calculator-page .co-focus-ring,
+  .co-calculator-page .co-toolbox-priority-card,
+  .co-calculator-page .co-toolbox-category-tabs button {
+    min-height: 2.75rem !important;
+    min-width: 2.75rem !important;
+  }
+
+  body:has(.co-calculator-page) .co-topbar-logout {
+    border-color: rgba(203, 213, 225, 0.98) !important;
+    background: rgba(255, 255, 255, 0.96) !important;
+    color: #0f172a !important;
+  }
+
+  body:has(.co-calculator-page) .co-topbar .relative > button[aria-label^="Open notifications"] {
+    width: 2.75rem !important;
+    color: #0f172a !important;
+  }
+
+  body:has(.co-calculator-page) nav.co-mobile-bottom-nav .co-apex-mobile-bottom-nav-row {
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(44px, 1fr)) !important;
+    gap: 0.3rem !important;
+    overflow: visible !important;
+  }
+
+  body:has(.co-calculator-page) nav.co-mobile-bottom-nav .co-mobile-bottom-nav-button,
+  body:has(.co-calculator-page) nav.co-mobile-bottom-nav .co-apex-mobile-bottom-nav-button {
+    min-height: 2.75rem !important;
+    min-width: 2.75rem !important;
+    width: 100% !important;
+  }
+
+  body:has(.co-customers-shell-page) {
+    overflow-x: hidden;
+  }
+
+  body:has(.co-customers-shell-page) .mobile-content-safe {
+    padding-bottom: 0 !important;
+  }
+
+  body:has(.co-customers-shell-page) .co-mobile-bottom-spacer {
+    display: none !important;
+  }
+
+  body:has(.co-customers-shell-page) nav.co-mobile-bottom-nav .co-apex-mobile-bottom-nav-row {
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(44px, 1fr)) !important;
+    gap: 0.3rem !important;
+    overflow: visible !important;
+  }
+
+  body:has(.co-customers-shell-page) nav.co-mobile-bottom-nav .co-mobile-bottom-nav-button,
+  body:has(.co-customers-shell-page) nav.co-mobile-bottom-nav .co-apex-mobile-bottom-nav-button {
+    min-height: 44px !important;
+    min-width: 44px !important;
+    width: 100% !important;
+  }
+
+  body:has(.co-customers-shell-page) .co-topbar {
+    border-bottom-color: rgba(203, 213, 225, 0.95) !important;
+    background:
+      radial-gradient(circle at 8% 0%, rgba(249, 115, 22, 0.12), transparent 12rem),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 250, 252, 0.96)) !important;
+    box-shadow: 0 14px 38px -32px rgba(15, 23, 42, 0.45) !important;
+  }
+
+  body:has(.co-customers-shell-page) .co-topbar p:first-child {
+    color: #c2410c !important;
+  }
+
+  body:has(.co-customers-shell-page) .co-topbar p:last-child,
+  body:has(.co-customers-shell-page) .co-topbar-pill,
+  body:has(.co-customers-shell-page) .co-topbar .badge,
+  body:has(.co-customers-shell-page) .co-topbar [class*="rounded-full"] {
+    border-color: rgba(203, 213, 225, 0.98) !important;
+    background: rgba(255, 255, 255, 0.95) !important;
+    color: #0f172a !important;
+  }
+
+  body:has(.co-customers-shell-page) .co-topbar button,
+  body:has(.co-customers-shell-page) .co-topbar-logout,
+  .co-customers-shell-page .btn,
+  .co-customers-shell-page button,
+  .co-customers-shell-page a,
+  .co-customers-shell-page .field-input,
+  .co-customers-shell-page input,
+  .co-customers-shell-page select,
+  .co-customers-shell-page textarea,
+  .co-customers-shell-page .co-work-queue-card {
+    min-height: 2.75rem !important;
+    min-width: 2.75rem !important;
+  }
+
+  body:has(.co-customers-shell-page) .co-topbar-logout {
+    border-color: rgba(203, 213, 225, 0.98) !important;
+    background: rgba(255, 255, 255, 0.96) !important;
+    color: #0f172a !important;
+  }
+
+  body:has(.co-customers-shell-page) .co-topbar .relative > button[aria-label^="Open notifications"] {
+    width: 2.75rem !important;
+    color: #0f172a !important;
+  }
+
+  .co-customers-shell-page .co-apex-office-command-head {
+    padding: 0.9rem 1rem 0;
+  }
+
+  .co-customers-shell-page .co-apex-office-command-frame {
+    padding: 0 1rem 1rem;
+  }
+
+  .co-customers-shell-page .co-apex-command-kpi-strip {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.56rem;
+  }
+
+  .co-customers-shell-page .co-apex-command-kpi {
+    min-height: 4.7rem;
+    padding: 0.6rem;
+  }
+
+  .co-customers-shell-page .co-apex-command-kpi-icon {
+    width: 1.9rem;
+    height: 1.9rem;
+  }
+
+  .co-customers-shell-page .co-apex-command-kpi-copy strong {
+    font-size: 1.12rem;
+  }
+
+  .co-customers-shell-page .co-command-page-frame-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .co-customers-shell-page .co-apex-office-command-workspace {
+    grid-template-columns: minmax(16rem, 0.82fr) minmax(0, 1.18fr);
+  }
+
+  .co-customers-shell-page .co-apex-primary-queue-list {
+    max-height: 32rem;
+    overflow: hidden;
+  }
+
+  .co-customers-shell-page .co-apex-selected-detail-body {
+    max-height: 55rem;
+  }
+
+  .co-customers-shell-page .co-apex-assistant-action-panel,
+  body:has(.co-customers-shell-page) .co-apex-assistant-shell.is-closed {
+    display: none !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .co-customers-page .btn,
+  .co-customers-page button,
+  .co-customers-page a,
+  .co-customers-page input,
+  .co-customers-page select,
+  .co-customers-page textarea,
+  .co-customers-page .field-input {
+    min-height: 2.75rem !important;
+  }
+
+  .co-customers-page .co-page-header-actions,
+  .co-customers-page .co-customers-pulse-actions {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+  }
+
+  .co-customers-page .co-page-header-actions > *,
+  .co-customers-page .co-customers-pulse-actions > * {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .co-customers-page .co-customer-filter-bar button,
+  .co-customers-page .co-filter-bar button {
+    min-height: 2.75rem !important;
+    min-width: 2.75rem !important;
+  }
+
+  .co-customers-page .co-customer-filter-bar input,
+  .co-customers-page .co-filter-bar input {
+    min-height: 2.75rem !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .co-employees-shell-page {
+    height: calc(100vh - 4.5rem);
+    min-height: 41rem;
+    overflow: hidden;
+  }
+
+  .co-employees-shell-page .co-apex-office-command-shell {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .co-employees-shell-page .co-apex-office-command-frame {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+  }
+
+  .co-employees-shell-page .co-command-page-frame-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 21rem);
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  .co-employees-shell-page .co-command-page-frame-main,
+  .co-employees-shell-page .co-command-page-frame-rail {
+    min-height: 0;
+  }
+
+  .co-employees-shell-page .co-apex-office-command-workspace {
+    height: 100%;
+    min-height: 0;
+    grid-template-columns: minmax(19rem, 0.82fr) minmax(0, 1.18fr);
+  }
+
+  .co-employees-shell-page .co-apex-primary-queue-panel,
+  .co-employees-shell-page .co-apex-selected-detail-panel,
+  .co-employees-shell-page .co-apex-assistant-action-panel {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .co-employees-shell-page .co-apex-primary-queue-controls {
+    padding: 0.52rem 0.62rem 0;
+  }
+
+  .co-employees-shell-filter-console {
+    display: grid;
+    gap: 0.5rem;
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    border-radius: 0.72rem;
+    background: rgba(248, 250, 252, 0.94);
+    padding: 0.52rem;
+  }
+
+  .co-employees-shell-filter-console .co-employees-access-tabs {
+    display: flex;
+    gap: 0.35rem;
+    overflow-x: auto;
+    padding-bottom: 0.1rem;
+  }
+
+  .co-employees-shell-filter-console .co-employees-access-tabs button {
+    min-height: 2.5rem;
+    min-width: 2.75rem;
+    flex: 0 0 auto;
+    padding: 0.48rem 0.62rem;
+    font-size: 0.68rem;
+  }
+
+  .co-employees-shell-filter-console .field-input {
+    width: 100%;
+    min-height: 2.5rem;
+  }
+
+  .co-employees-shell-page .co-apex-primary-queue-list {
+    grid-auto-rows: minmax(0, auto);
+    overflow: hidden;
+  }
+
+  .co-employees-shell-page .co-apex-primary-queue-list .co-work-queue-card {
+    padding: 0.5rem;
+  }
+
+  .co-employees-shell-page .co-work-queue-card h3 {
+    font-size: 0.78rem;
+  }
+
+  .co-employees-shell-page .co-work-queue-meta,
+  .co-employees-shell-page .co-work-queue-status,
+  .co-employees-shell-page .co-work-queue-action {
+    font-size: 0.66rem;
+  }
+
+  .co-employees-shell-page .co-apex-selected-detail-body {
+    min-height: 0;
+    align-content: start;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  }
+
+  .co-employees-shell-detail-scroll {
+    display: grid;
+    min-height: 0;
+    gap: 0.72rem;
+    overflow: visible;
+  }
+
+  .co-employees-shell-detail-scroll > .co-card,
+  .co-employees-shell-detail-scroll .co-employees-right-rail {
+    margin: 0;
+  }
+
+  .co-employees-shell-detail-scroll .co-card,
+  .co-employees-shell-detail-scroll .co-employees-rail-card {
+    border-color: rgba(226, 232, 240, 0.86);
+    border-radius: 0.72rem !important;
+    box-shadow: none !important;
+  }
+
+  .co-employees-shell-detail-scroll .co-employees-right-rail {
+    display: grid;
+    gap: 0.72rem;
+  }
+
+  .co-employees-shell-page .co-assistant-rail-head {
+    padding: 0.68rem 0.82rem 0.5rem;
+  }
+
+  .co-employees-shell-page .co-assistant-rail-head h2 {
+    font-size: 0.88rem;
+  }
+
+  .co-employees-shell-page .co-assistant-rail-head p {
+    font-size: 0.7rem;
+    line-height: 1.28;
+  }
+
+  .co-employees-shell-page .co-assistant-rail-priorities,
+  .co-employees-shell-page .co-assistant-rail-actions {
+    gap: 0.36rem;
+    padding: 0 0.58rem 0.58rem;
+  }
+
+  .co-employees-shell-page .co-assistant-rail-priority {
+    padding: 0.4rem 0.52rem;
+  }
+
+  .co-employees-shell-page .co-assistant-rail-actions button {
+    min-height: 2.02rem;
+    padding: 0.42rem 0.54rem;
+  }
+
+  .co-employees-shell-page .co-apex-assistant-guardrails {
+    padding: 0.62rem;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  body:has(.co-employees-shell-page) {
+    overflow-x: hidden;
+  }
+
+  body:has(.co-employees-shell-page) .mobile-content-safe {
+    padding-bottom: 0 !important;
+  }
+
+  body:has(.co-employees-shell-page) .co-mobile-bottom-spacer {
+    display: none !important;
+  }
+
+  body:has(.co-employees-shell-page) nav.co-mobile-bottom-nav .co-apex-mobile-bottom-nav-row {
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(44px, 1fr)) !important;
+    gap: 0.3rem !important;
+    overflow: visible !important;
+  }
+
+  body:has(.co-employees-shell-page) nav.co-mobile-bottom-nav .co-mobile-bottom-nav-button,
+  body:has(.co-employees-shell-page) nav.co-mobile-bottom-nav .co-apex-mobile-bottom-nav-button {
+    min-height: 44px !important;
+    min-width: 44px !important;
+    width: 100% !important;
+  }
+
+  body:has(.co-employees-shell-page) .co-topbar {
+    border-bottom-color: rgba(203, 213, 225, 0.95) !important;
+    background:
+      radial-gradient(circle at 8% 0%, rgba(249, 115, 22, 0.12), transparent 12rem),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 250, 252, 0.96)) !important;
+    box-shadow: 0 14px 38px -32px rgba(15, 23, 42, 0.45) !important;
+  }
+
+  body:has(.co-employees-shell-page) .co-topbar p:first-child {
+    color: #c2410c !important;
+  }
+
+  body:has(.co-employees-shell-page) .co-topbar p:last-child,
+  body:has(.co-employees-shell-page) .co-topbar-pill,
+  body:has(.co-employees-shell-page) .co-topbar .badge,
+  body:has(.co-employees-shell-page) .co-topbar [class*="rounded-full"] {
+    border-color: rgba(203, 213, 225, 0.98) !important;
+    background: rgba(255, 255, 255, 0.95) !important;
+    color: #0f172a !important;
+  }
+
+  body:has(.co-employees-shell-page) .co-topbar button,
+  body:has(.co-employees-shell-page) .co-topbar-logout,
+  .co-employees-shell-page .btn,
+  .co-employees-shell-page button,
+  .co-employees-shell-page a,
+  .co-employees-shell-page .field-input,
+  .co-employees-shell-page input,
+  .co-employees-shell-page select,
+  .co-employees-shell-page textarea,
+  .co-employees-shell-page .co-work-queue-card {
+    min-height: 2.75rem !important;
+    min-width: 2.75rem !important;
+  }
+
+  body:has(.co-employees-shell-page) .co-topbar-logout {
+    border-color: rgba(203, 213, 225, 0.98) !important;
+    background: rgba(255, 255, 255, 0.96) !important;
+    color: #0f172a !important;
+  }
+
+  body:has(.co-employees-shell-page) .co-topbar .relative > button[aria-label^="Open notifications"] {
+    width: 2.75rem !important;
+    color: #0f172a !important;
+  }
+
+  .co-employees-shell-page .co-apex-office-command-head {
+    padding: 0.9rem 1rem 0;
+  }
+
+  .co-employees-shell-page .co-apex-office-command-frame {
+    padding: 0 1rem 1rem;
+  }
+
+  .co-employees-shell-page .co-apex-command-kpi-strip {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.56rem;
+  }
+
+  .co-employees-shell-page .co-apex-command-kpi {
+    min-height: 4.7rem;
+    padding: 0.6rem;
+  }
+
+  .co-employees-shell-page .co-apex-command-kpi-icon {
+    width: 1.9rem;
+    height: 1.9rem;
+  }
+
+  .co-employees-shell-page .co-apex-command-kpi-copy strong {
+    font-size: 1.12rem;
+  }
+
+  .co-employees-shell-page .co-command-page-frame-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .co-employees-shell-page .co-apex-office-command-workspace {
+    grid-template-columns: minmax(16rem, 0.82fr) minmax(0, 1.18fr);
+  }
+
+  .co-employees-shell-page .co-apex-primary-queue-list {
+    max-height: 32rem;
+    overflow: hidden;
+  }
+
+  .co-employees-shell-page .co-apex-selected-detail-body {
+    max-height: 55rem;
+  }
+
+  .co-employees-shell-page .co-apex-assistant-action-panel,
+  body:has(.co-employees-shell-page) .co-apex-assistant-shell.is-closed {
+    display: none !important;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  body:has(:is(.co-apex-office-command-shell, .co-sales-tablet-only .co-estimator-mobile-pipeline)) .co-topbar {
+    border-bottom-color: rgba(203, 213, 225, 0.95) !important;
+    background:
+      radial-gradient(circle at 8% 0%, rgba(249, 115, 22, 0.12), transparent 12rem),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 250, 252, 0.96)) !important;
+    box-shadow: 0 14px 38px -32px rgba(15, 23, 42, 0.45) !important;
+  }
+
+  body:has(:is(.co-apex-office-command-shell, .co-sales-tablet-only .co-estimator-mobile-pipeline)) .co-topbar p:first-child {
+    color: #c2410c !important;
+  }
+
+  body:has(:is(.co-apex-office-command-shell, .co-sales-tablet-only .co-estimator-mobile-pipeline)) .co-topbar p:last-child,
+  body:has(:is(.co-apex-office-command-shell, .co-sales-tablet-only .co-estimator-mobile-pipeline)) .co-topbar-pill,
+  body:has(:is(.co-apex-office-command-shell, .co-sales-tablet-only .co-estimator-mobile-pipeline)) .co-topbar .badge,
+  body:has(:is(.co-apex-office-command-shell, .co-sales-tablet-only .co-estimator-mobile-pipeline)) .co-topbar [class*="rounded-full"] {
+    border-color: rgba(203, 213, 225, 0.98) !important;
+    background: rgba(255, 255, 255, 0.95) !important;
+    color: #0f172a !important;
+  }
+
+  body:has(:is(.co-apex-office-command-shell, .co-sales-tablet-only .co-estimator-mobile-pipeline)) .co-topbar button,
+  body:has(:is(.co-apex-office-command-shell, .co-sales-tablet-only .co-estimator-mobile-pipeline)) .co-topbar-logout,
+  body:has(.co-apex-office-command-shell) .co-apex-quick-action-bar .btn,
+  body:has(.co-apex-office-command-shell) .co-apex-quick-action-bar button {
+    min-height: 2.75rem !important;
+    min-width: 2.75rem !important;
+  }
+
+  body:has(:is(.co-apex-office-command-shell, .co-sales-tablet-only .co-estimator-mobile-pipeline)) .co-topbar-logout {
+    border-color: rgba(203, 213, 225, 0.98) !important;
+    background: rgba(255, 255, 255, 0.96) !important;
+    color: #0f172a !important;
+  }
+
+  body:has(:is(.co-apex-office-command-shell, .co-sales-tablet-only .co-estimator-mobile-pipeline)) .co-topbar .relative > button[aria-label^="Open notifications"] {
+    width: 2.75rem !important;
+    color: #0f172a !important;
+  }
+
+  body:has(:is(.co-apex-office-command-shell, .co-sales-tablet-only .co-estimator-mobile-pipeline)) .co-apex-assistant-shell.is-closed {
+    display: none !important;
+  }
+
+  body:has(:is(.co-apex-office-command-shell, .co-sales-tablet-only .co-estimator-mobile-pipeline)) nav.co-mobile-bottom-nav .co-apex-mobile-bottom-nav-row {
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(44px, 1fr)) !important;
+    gap: 0.3rem !important;
+    overflow: visible !important;
+  }
+
+  body:has(:is(.co-apex-office-command-shell, .co-sales-tablet-only .co-estimator-mobile-pipeline)) nav.co-mobile-bottom-nav .co-mobile-bottom-nav-button,
+  body:has(:is(.co-apex-office-command-shell, .co-sales-tablet-only .co-estimator-mobile-pipeline)) nav.co-mobile-bottom-nav .co-apex-mobile-bottom-nav-button {
+    min-height: 44px !important;
+    min-width: 44px !important;
+    width: 100% !important;
+  }
+
+  .co-sales-tablet-only .co-apex-mobile-kpi-card strong {
+    min-height: 1.75rem;
+    overflow: visible;
+    line-height: 1.12;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  body:has(.co-rate-book-shell-page) nav.co-mobile-bottom-nav .co-apex-mobile-bottom-nav-row {
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(44px, 1fr)) !important;
+    gap: 0.3rem !important;
+    overflow: visible !important;
+  }
+
+  body:has(.co-rate-book-shell-page) nav.co-mobile-bottom-nav .co-mobile-bottom-nav-button,
+  body:has(.co-rate-book-shell-page) nav.co-mobile-bottom-nav .co-apex-mobile-bottom-nav-button {
+    min-height: 44px !important;
+    min-width: 44px !important;
+    width: 100% !important;
+  }
+
+  body:has(.co-rate-book-shell-page) nav.co-mobile-bottom-nav .co-mobile-bottom-nav-button span:last-child,
+  body:has(.co-rate-book-shell-page) nav.co-mobile-bottom-nav .co-apex-mobile-bottom-nav-button span:last-child {
+    max-width: 4.8rem !important;
+    overflow: visible !important;
+    line-height: 1.1 !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+  }
+}
+
+.co-command-center-shell-page.co-apex-office-command-shell {
+  display: grid;
+  gap: 0;
+}
+
+.co-command-center-shell-page .co-command-table .truncate,
+.co-command-center-shell-page .co-command-table-primary,
+.co-command-center-shell-page .co-command-table-secondary,
+.co-command-center-shell-page .co-command-table-cell {
+  max-width: none !important;
+  overflow: visible !important;
+  overflow-wrap: anywhere;
+  text-overflow: clip !important;
+  white-space: normal !important;
+}
+
+@media (min-width: 1180px) {
+  body:has(.co-command-center-shell-page) .co-apex-assistant-shell.is-closed {
+    display: none !important;
+  }
+
+  body:has(:is(.co-time-page, .co-delivery-page, .co-support-page)) .co-apex-assistant-shell.is-closed {
+    display: none !important;
+  }
+}
+
+@media (min-width: 1180px) {
+  .co-leads-desktop-workspace-frame > .co-leads-tools-drawer.co-desktop-command-drawer--right {
+    position: static !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: auto !important;
+    z-index: auto !important;
+    width: 100% !important;
+    max-width: 1520px !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .co-leads-desktop-workspace-frame > .co-leads-tools-drawer.co-desktop-command-drawer--right:not([open]) > .co-desktop-command-drawer-panel {
+    display: none !important;
+  }
+
+  .co-leads-desktop-workspace-frame > .co-leads-tools-drawer.co-desktop-command-drawer--right[open] {
+    top: auto !important;
+    max-height: min(34vh, 22rem) !important;
+    overflow: hidden !important;
+  }
+
+  .co-leads-desktop-workspace-frame > .co-leads-tools-drawer.co-desktop-command-drawer--right[open] .co-desktop-command-drawer-panel {
+    display: grid;
+    max-height: min(34vh, 22rem);
+    min-height: 0;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  body:has(.co-leads-page) .co-apex-assistant-shell.is-closed {
+    display: none !important;
+  }
+}
+
+.co-leads-right-rail .co-leads-summary-actions .btn.bg-orange-600,
+.co-leads-right-rail .co-leads-summary-actions button.bg-orange-600,
+.co-leads-right-rail .co-leads-detail-stack .co-leads-rail-card .co-leads-summary-actions button.bg-orange-600.rounded-xl {
+  border-color: #ea580c !important;
+  background: #ea580c !important;
+  color: #ffffff !important;
+}
+
+.co-leads-right-rail .co-leads-summary-actions .btn.bg-orange-600:hover,
+.co-leads-right-rail .co-leads-summary-actions button.bg-orange-600:hover,
+.co-leads-right-rail .co-leads-detail-stack .co-leads-rail-card .co-leads-summary-actions button.bg-orange-600.rounded-xl:hover {
+  background: #c2410c !important;
+  color: #ffffff !important;
+}
+
+.co-leads-right-rail .co-leads-action-stack .co-leads-rail-details .field-label,
+.co-leads-right-rail .co-leads-action-stack .co-leads-rail-details .field-label > span {
+  color: #f8fafc !important;
+}
+
+.co-leads-command-table th {
+  white-space: normal !important;
+}
+
+.co-leads-command-table th:nth-child(8),
+.co-leads-command-table td:nth-child(8) {
+  min-width: 4.35rem;
+  width: 9%;
 }

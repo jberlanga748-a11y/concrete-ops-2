@@ -254,7 +254,7 @@ import { DailyReportMobileAccordionCard, DailyReportMobileCard, DailyReportMobil
 import { buildPostPourSupportContext, derivePostPourChecklistListState, derivePostPourItems, filterPostPourChecklists, postPourChecklistStatusLabel, postPourItemStatusLabel, summarizePostPourChecklist } from "./post-pour-utils";
 import { buildPrePourSupportContext, derivePrePourChecklistListState, derivePrePourItems, filterPrePourChecklists, prePourChecklistStatusLabel, prePourItemStatusLabel, summarizePrePourChecklist } from "./pre-pour-utils";
 import { deriveDailyReportPrintPacket, deriveEstimateForemanHandoffPacket, deriveEstimatePrintPacket, deriveJobPrintPacket, openPrintDocument } from "./print-packets";
-import { RATE_BOOK_CATEGORIES, RATE_BOOK_CATEGORY_LABELS, buildEstimateLineItemFromRateBookItem, calculateRateBookUnitPrice, createRateBookDraft, deriveRateBookState, validateRateBookDraft } from "./rate-book-utils";
+import { RATE_BOOK_CATEGORIES, RATE_BOOK_CATEGORY_LABELS, buildEstimateLineItemFromRateBookItem, calculateRateBookUnitPrice, createRateBookDraft, deriveRateBookState, normalizeRateBookCategory, validateRateBookDraft } from "./rate-book-utils";
 import { buildMaterialPrepCopyText, buildMaterialPrepPrintPacket, deriveMaterialPrepState } from "./material-prep-utils";
 import { buildDailyReportsSupportContext, deriveAdvancedReportSummary, deriveDailyReportListState, filterDailyReports, reportStatusLabel } from "./report-utils";
 import { buildSafetyIncidentSupportContext, deriveAcknowledgmentState, deriveActivePpeItems, deriveSafetyIncidentListState, deriveSafetyJobCloseoutReadiness, deriveSafetyWorkspaceJobs, deriveVisibleSafetyPolicies, filterSafetyIncidents } from "./safety-utils";
@@ -4490,7 +4490,7 @@ function FieldJobFocusCard({ job, permissions, onFieldChange, disabled, embedded
         </div>
       </FocusShell>
       <FieldWorkspaceDisclosure title="Saved calculations" description="Calculator results connected to this assigned job." badge={(job.calculatorResults || []).length ? `${job.calculatorResults.length} saved` : "None"}>
-        <JobCalculationsCard calculations={job.calculatorResults} title="Saved calculations" description="Internal company calculation records for this job only." />
+        <JobCalculationsCard calculations={job.calculatorResults} title="Saved calculations" description="Team-visible concrete volume records for this job." showInternalBadge={false} />
       </FieldWorkspaceDisclosure>
     </div>
   );
@@ -8565,7 +8565,7 @@ function safetyIncidentPrimaryDate(incident) {
 function SafetyIncidentsTablePolished({ rows, selectedId, onSelect, onOpenDetails }) {
   return (
     <>
-      <div className="co-incidents-mobile-list grid gap-3 p-3 md:hidden">
+      <div className="co-incidents-mobile-list grid gap-3 p-3 lg:hidden">
         {rows.map((incident) => {
           const selected = incident.id === selectedId;
 
@@ -8593,7 +8593,7 @@ function SafetyIncidentsTablePolished({ rows, selectedId, onSelect, onOpenDetail
           );
         })}
       </div>
-      <div className="co-incidents-list-scroll hidden min-w-0 overflow-auto md:block">
+      <div className="co-incidents-list-scroll hidden min-w-0 overflow-auto lg:block">
         <table className="co-incidents-command-table w-full min-w-[960px] text-left">
           <thead>
             <tr>
@@ -8951,7 +8951,7 @@ function SafetyIncidentsMobileFocusPanel({
   ];
 
   return (
-    <section className="co-prepour-mobile-focus co-incidents-mobile-focus mx-4 mb-3 md:hidden" aria-label="Incidents mobile focus">
+    <section className="co-prepour-mobile-focus co-incidents-mobile-focus mx-4 mb-3 lg:hidden" aria-label="Incidents mobile focus">
       <div className="co-prepour-mobile-focus-copy">
         <span>Safety Focus</span>
         <h2>{focusTitle}</h2>
@@ -9342,6 +9342,27 @@ function SafetyIncidentsPagePolished({
             <Button type="button" size="sm" variant="secondary" onClick={clearFilters}>Clear filters</Button>
           </div>
         </Card>
+        {!canManage ? (
+          <div className="co-field-mobile-tool-surface co-incidents-mobile-tool-surface mt-3 lg:hidden">
+            <div className="co-field-mobile-section-head">
+              <span>
+                <strong>Incident tools</strong>
+                <em>Submit a field safety item or review the selected incident without opening a drawer.</em>
+              </span>
+            </div>
+            <div className="co-field-mobile-tool-tabs" role="tablist" aria-label="Incident tools">
+              {canSubmitIncidents ? <button type="button" className={toolTab === "submit" ? "is-active" : ""} onClick={() => selectTool("submit")}><Icon name="plus" />Submit</button> : null}
+              <button type="button" className={toolTab === "detail" ? "is-active" : ""} onClick={() => selectTool("detail")}><Icon name="alert" />Detail</button>
+            </div>
+            <div className="co-field-mobile-tool-body">
+              {toolTab === "submit" ? (
+                <SafetyIncidentSubmitPanelPolished canSubmit={canSubmitIncidents} allowedJobs={allowedJobs} incidentDraft={incidentDraft} setIncidentDraft={setIncidentDraft} busy={busy} onSubmit={onSubmitIncident} />
+              ) : (
+                <SafetyIncidentDetailPanelPolished incident={selectedIncident} canReview={canReview} busy={busy} onReview={onReviewSafetyIncident} onResolve={onResolveSafetyIncident} onArchive={onArchiveSafetyIncident} />
+              )}
+            </div>
+          </div>
+        ) : null}
         <details
           ref={toolsRef}
           className="co-incidents-tools-drawer mt-3 w-full min-w-0"
@@ -9389,7 +9410,7 @@ function toolboxPolicyStatusTone(policy) {
 function ToolboxTalksTablePolished({ policies, selectedId, onSelect, onOpenTalk }) {
   return (
     <>
-      <div className="co-toolbox-mobile-list grid gap-3 p-3 md:hidden">
+      <div className="co-toolbox-mobile-list grid gap-3 p-3 lg:hidden">
         {policies.map((policy) => {
           const selected = policy.id === selectedId;
 
@@ -9413,7 +9434,7 @@ function ToolboxTalksTablePolished({ policies, selectedId, onSelect, onOpenTalk 
           );
         })}
       </div>
-      <div className="co-toolbox-list-scroll hidden min-w-0 overflow-auto md:block">
+      <div className="co-toolbox-list-scroll hidden min-w-0 overflow-auto lg:block">
         <table className="co-toolbox-command-table w-full min-w-[820px] text-left">
           <thead>
             <tr>
@@ -9750,7 +9771,7 @@ function ToolboxTalksMobileFocusPanel({
   ];
 
   return (
-    <section className="co-prepour-mobile-focus co-toolbox-mobile-focus mx-4 mb-3 md:hidden" aria-label="Toolbox talks mobile focus">
+    <section className="co-prepour-mobile-focus co-toolbox-mobile-focus mx-4 mb-3 lg:hidden" aria-label="Toolbox talks mobile focus">
       <div className="co-prepour-mobile-focus-copy">
         <span>Toolbox Focus</span>
         <h2>{focusTitle}</h2>
@@ -10015,6 +10036,27 @@ function ToolboxTalksPagePolished({
               <Button type="button" size="sm" variant="secondary" onClick={clearFilters}>Clear filters</Button>
             </div>
           </Card>
+          {!canManage ? (
+            <div className="co-field-mobile-tool-surface co-toolbox-mobile-tool-surface mt-3 lg:hidden">
+              <div className="co-field-mobile-section-head">
+                <span>
+                  <strong>Toolbox tools</strong>
+                  <em>Acknowledge crew review and keep PPE reminders close without opening a drawer.</em>
+                </span>
+              </div>
+              <div className="co-field-mobile-tool-tabs" role="tablist" aria-label="Toolbox tools">
+                {canAcknowledge ? <button type="button" className={toolTab === "ack" ? "is-active" : ""} onClick={() => changeToolTab("ack")}><Icon name="check" />Acknowledge</button> : null}
+                <button type="button" className={toolTab === "ppe" ? "is-active" : ""} onClick={() => changeToolTab("ppe")}><Icon name="hardhat" />PPE</button>
+              </div>
+              <div className="co-field-mobile-tool-body">
+                {toolTab === "ack" ? (
+                  <ToolboxAcknowledgePanelPolished canAcknowledge={canAcknowledge} allowedJobs={allowedJobs} visiblePolicies={visiblePolicies} ackDraft={ackDraft} setAckDraft={setAckDraft} acknowledgments={safetyAcknowledgments} canManage={canManage} ackState={acknowledgmentState} busy={busy} onSubmit={onAcknowledge} />
+                ) : (
+                  <ToolboxPpePanelPolished ppeItems={activePpeItems} canManage={canManage} selectedPpeItem={selectedPpeItem} setSelectedPpeId={setSelectedPpeId} ppeDraft={ppeDraft} setPpeDraft={setPpeDraft} onPpeSubmit={onPpeSubmit} onArchivePpeItem={onArchivePpeItem} busy={busy} />
+                )}
+              </div>
+            </div>
+          ) : null}
           <details
             ref={toolsRef}
             className="co-toolbox-tools-drawer mt-3 w-full min-w-0"
@@ -10072,7 +10114,7 @@ function PpeChecklistTablePolished({ items, selectedId, onSelect, mobileMaxRows 
 
   return (
     <>
-      <div className="co-toolbox-mobile-list grid gap-3 p-3 md:hidden">
+      <div className="co-toolbox-mobile-list grid gap-3 p-3 lg:hidden">
         {mobileItems.map((item) => {
           const selected = item.id === selectedId;
 
@@ -10096,7 +10138,7 @@ function PpeChecklistTablePolished({ items, selectedId, onSelect, mobileMaxRows 
           );
         })}
       </div>
-      <div className="co-toolbox-list-scroll hidden min-w-0 overflow-auto md:block">
+      <div className="co-toolbox-list-scroll hidden min-w-0 overflow-auto lg:block">
         <table className="co-toolbox-command-table w-full min-w-[820px] text-left">
           <thead>
             <tr>
@@ -10317,7 +10359,7 @@ function PpeMobileFocusPanel({
   ];
 
   return (
-    <section className="co-prepour-mobile-focus co-toolbox-mobile-focus co-ppe-mobile-focus mx-4 mb-3 md:hidden" aria-label="PPE mobile focus">
+    <section className="co-prepour-mobile-focus co-toolbox-mobile-focus co-ppe-mobile-focus mx-4 mb-3 lg:hidden" aria-label="PPE mobile focus">
       <div className="co-prepour-mobile-focus-copy">
         <span>PPE Focus</span>
         <h2>{focusTitle}</h2>
@@ -10824,12 +10866,12 @@ function PpeChecklistPagePolished({
             )}
             <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
               <p className="text-sm font-bold text-slate-600">
-                <span className="hidden md:inline">Showing {filteredPpeItems.length} PPE item{filteredPpeItems.length === 1 ? "" : "s"} / {requiredCount} required / {optionalCount} as needed</span>
-                <span className="md:hidden">Showing {mobileVisiblePpeCount} of {filteredPpeItems.length} PPE item{filteredPpeItems.length === 1 ? "" : "s"} / {requiredCount} required / {optionalCount} as needed</span>
+                <span className="hidden lg:inline">Showing {filteredPpeItems.length} PPE item{filteredPpeItems.length === 1 ? "" : "s"} / {requiredCount} required / {optionalCount} as needed</span>
+                <span className="lg:hidden">Showing {mobileVisiblePpeCount} of {filteredPpeItems.length} PPE item{filteredPpeItems.length === 1 ? "" : "s"} / {requiredCount} required / {optionalCount} as needed</span>
               </p>
               <div className="flex flex-wrap gap-2">
                 {filteredPpeItems.length > mobilePpePreviewCap ? (
-                  <Button type="button" size="sm" variant="secondary" className="md:hidden" onClick={() => setShowAllMobilePpe((current) => !current)}>
+                  <Button type="button" size="sm" variant="secondary" className="lg:hidden" onClick={() => setShowAllMobilePpe((current) => !current)}>
                     {showAllMobilePpe ? "Show fewer" : `Show all ${filteredPpeItems.length}`}
                   </Button>
                 ) : null}
@@ -10838,7 +10880,7 @@ function PpeChecklistPagePolished({
             </div>
           </Card>
           {!canManage ? (
-            <div className="co-field-mobile-tool-surface co-ppe-mobile-tool-surface mt-3 md:hidden">
+            <div className="co-field-mobile-tool-surface co-ppe-mobile-tool-surface mt-3 lg:hidden">
               <div className="co-field-mobile-section-head">
                 <span>
                   <strong>PPE tools</strong>
@@ -14004,7 +14046,7 @@ function CommandCenterPage({
   });
 
   return (
-    <div className="co-command-page">
+    <div className="co-command-page co-command-center-shell-page co-apex-office-command-shell">
       <div className="co-command-hero px-5 pb-1.5 pt-3 sm:px-6 lg:px-7">
         <div className="co-command-hero-head flex w-full flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
           <div className="min-w-0">
@@ -18509,6 +18551,7 @@ function CommunicationCenterPage({
   const [selectedKey, setSelectedKey] = useState("");
   const [draft, setDraft] = useState(() => createContactHistoryDraft({}, "lead", "Call"));
   const [message, setMessage] = useState("");
+  const isDesktopCommandViewport = useDesktopCommandViewport(768);
   const centerState = useMemo(() => deriveCommunicationCenterState({
     leads,
     customers,
@@ -18518,6 +18561,59 @@ function CommunicationCenterPage({
   }, { entityType: entityTypeFilter, query }), [contactHistory, customers, entityTypeFilter, estimates, jobs, leads, query]);
   const optionKeys = useMemo(() => centerState.options.map((option) => option.key).join("|"), [centerState.options]);
   const selectedOption = useMemo(() => centerState.options.find((option) => option.key === selectedKey) || centerState.options[0] || null, [centerState.options, selectedKey]);
+  const todayKey = todayDateInputValue();
+  const communicationShellQueue = useMemo(() => {
+    const recordsByEntityKey = new Map();
+    centerState.records.forEach((record) => {
+      const key = `${record.entityType}:${record.entityId}`;
+      if (!recordsByEntityKey.has(key)) recordsByEntityKey.set(key, []);
+      recordsByEntityKey.get(key).push(record);
+    });
+
+    return centerState.options.map((option) => {
+      const relatedRecords = recordsByEntityKey.get(option.key) || [];
+      const latest = relatedRecords[0] || null;
+      const overdue = relatedRecords.some((record) => record.nextFollowUpDate && record.nextFollowUpDate < todayKey);
+      const dueToday = relatedRecords.some((record) => record.nextFollowUpDate === todayKey);
+      const waiting = relatedRecords.some((record) => record.outcome === "Waiting on Response");
+      const needsFirstTouch = relatedRecords.length === 0;
+      const priorityScore = overdue ? 50 : dueToday ? 40 : waiting ? 30 : needsFirstTouch ? 20 : 10;
+      const statusLabel = overdue ? "Overdue" : dueToday ? "Due Today" : waiting ? "Waiting" : needsFirstTouch ? "No Touch" : `${relatedRecords.length} Logged`;
+      const tone = overdue ? "red" : dueToday ? "amber" : waiting ? "orange" : needsFirstTouch ? "blue" : "slate";
+
+      return {
+        id: option.key,
+        option,
+        title: option.label,
+        meta: option.subtitle || `${option.type} communication context`,
+        sourceLabel: option.type,
+        status: statusLabel,
+        statusLabel,
+        tone,
+        actionLabel: canManage ? "Log" : "View",
+        priorityScore,
+        relatedRecords,
+        badges: [
+          { label: option.type, tone: "slate" },
+          latest ? { label: latest.method || "Logged", tone: contactHistoryBadgeTone(latest.method, "method") } : { label: "New", tone: "blue" },
+        ],
+      };
+    }).sort((left, right) => (
+      right.priorityScore - left.priorityScore ||
+      right.relatedRecords.length - left.relatedRecords.length ||
+      left.title.localeCompare(right.title)
+    ));
+  }, [canManage, centerState.options, centerState.records, todayKey]);
+  const selectedCommunicationShellItem = useMemo(() => (
+    communicationShellQueue.find((item) => item.id === selectedOption?.key) ||
+    communicationShellQueue[0] ||
+    null
+  ), [communicationShellQueue, selectedOption?.key]);
+  const selectedRelatedRecords = useMemo(() => (
+    selectedOption
+      ? centerState.records.filter((record) => record.entityType === selectedOption.type && record.entityId === selectedOption.id)
+      : []
+  ), [centerState.records, selectedOption]);
 
   useEffect(() => {
     if (!centerState.options.length) {
@@ -18543,10 +18639,10 @@ function CommunicationCenterPage({
   }
 
   const stats = [
-    { label: "Logged", value: centerState.stats.total, tone: "blue", helper: "Manual records" },
-    { label: "Due Today", value: centerState.stats.dueToday, tone: centerState.stats.dueToday ? "amber" : "green", helper: "Follow-ups" },
-    { label: "Overdue", value: centerState.stats.overdue, tone: centerState.stats.overdue ? "red" : "green", helper: "Needs action" },
-    { label: "Waiting", value: centerState.stats.waiting, tone: centerState.stats.waiting ? "amber" : "slate", helper: "Customer replies" },
+    { id: "logged", label: "Logged", value: centerState.stats.total, tone: "blue", helper: "Manual records", icon: "quote" },
+    { id: "due-today", label: "Due Today", value: centerState.stats.dueToday, tone: centerState.stats.dueToday ? "amber" : "green", helper: "Follow-ups", icon: "clock" },
+    { id: "overdue", label: "Overdue", value: centerState.stats.overdue, tone: centerState.stats.overdue ? "red" : "green", helper: "Needs action", icon: "alert" },
+    { id: "waiting", label: "Waiting", value: centerState.stats.waiting, tone: centerState.stats.waiting ? "amber" : "slate", helper: "Customer replies", icon: "inbox" },
   ];
 
   function openRecord(record) {
@@ -18581,168 +18677,333 @@ function CommunicationCenterPage({
     }
   }
 
+  function selectCommunicationShellItem(item) {
+    if (!item) return;
+    setSelectedKey(item.option?.key || item.id);
+  }
+
+  function openFirstCommunicationShellItem(predicate) {
+    const nextItem = communicationShellQueue.find(predicate);
+    if (nextItem) selectCommunicationShellItem(nextItem);
+  }
+
+  function renderCommunicationRecord(record, { compact = false } = {}) {
+    return (
+      <div key={record.id} className={`co-communications-log-row grid gap-3 ${compact ? "p-3" : "p-4"} lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start`}>
+        <div className="min-w-0">
+          <div className="flex flex-wrap gap-2">
+            <Badge tone={contactHistoryBadgeTone(record.method, "method")}>{record.method}</Badge>
+            <Badge tone={contactHistoryBadgeTone(record.outcome)}>{record.outcome}</Badge>
+            <Badge tone="slate">{record.entityType}</Badge>
+            {record.nextFollowUpDate ? <Badge tone={record.nextFollowUpDate <= todayKey ? "amber" : "blue"}>Next {record.nextFollowUpDate}</Badge> : null}
+          </div>
+          <p className="mt-2 break-words text-sm font-black text-slate-950">{record.subject || record.entity?.label || "Manual communication"}</p>
+          <p className="mt-1 text-xs font-bold text-slate-500">{record.entity?.label || record.contactName || "Unlinked context"} {record.entity?.subtitle ? `- ${record.entity.subtitle}` : ""}</p>
+          <p className="mt-1 text-xs font-bold text-slate-500">{formatDateTime(record.contactedAt || record.createdAt)} by {record.createdByName || "Office"}</p>
+          {record.messageDraft ? <p className="co-communications-log-draft mt-3 line-clamp-3 whitespace-pre-wrap rounded-2xl bg-blue-50/60 p-3 text-sm leading-6 text-slate-700">{record.messageDraft}</p> : null}
+          {record.notes ? <p className="co-communications-log-notes mt-3 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-slate-600">{record.notes}</p> : null}
+        </div>
+        <div className="co-communications-log-actions flex flex-wrap gap-2 lg:justify-end">
+          <Button type="button" size="sm" variant="secondary" onClick={() => openRecord(record)}>Open Context</Button>
+          {canManage && record.outcome !== "Waiting on Response" ? <Button type="button" size="sm" variant="ghost" onClick={() => onUpdateContactHistory(record.id, { outcome: "Waiting on Response" })} disabled={busy}>Mark waiting</Button> : null}
+          {canManage ? <Button type="button" size="sm" variant="ghost" onClick={() => onArchiveContactHistory(record.id)} disabled={busy}>Archive</Button> : null}
+        </div>
+      </div>
+    );
+  }
+
+  function renderCommunicationShellDetail(item) {
+    const option = item?.option || selectedOption;
+    const relatedRecords = item?.relatedRecords || selectedRelatedRecords;
+
+    if (!option) {
+      return <StateCard title="No communication context" description="Create a lead, customer, estimate, or job before logging communication." tone="slate" />;
+    }
+
+    return (
+      <div className="co-communications-shell-detail-scroll">
+        <div className="co-communications-selected-context">
+          <span>Selected context</span>
+          <strong>{option.label}</strong>
+          {option.subtitle ? <em>{option.subtitle}</em> : null}
+          <Badge tone="slate">{option.type}</Badge>
+        </div>
+
+        <form className="co-communications-form grid gap-3" onSubmit={submitCommunication}>
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+            <SelectField label="Link communication to" value={selectedOption?.key || ""} onChange={(event) => setSelectedKey(event.target.value)} disabled={busy || !canManage}>
+              {centerState.options.map((communicationOption) => (
+                <option key={communicationOption.key} value={communicationOption.key}>{communicationOption.label} - {communicationOption.type}</option>
+              ))}
+            </SelectField>
+            <Button type="button" variant="secondary" onClick={() => openRecord(option)}>Open Context</Button>
+          </div>
+          <div className="co-communications-method-row flex flex-wrap gap-2">
+            {["Call", "Email", "Text", "In Person", "Other"].map((method) => (
+              <Button key={method} type="button" size="sm" variant={draft.method === method ? "primary" : "secondary"} onClick={() => setQuickMethod(method)} disabled={busy || !canManage}>
+                {method}
+              </Button>
+            ))}
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            <InputField label="Contact name" value={draft.contactName} onChange={(event) => setDraft((current) => ({ ...current, contactName: event.target.value }))} disabled={busy || !canManage} />
+            <InputField label="Email" value={draft.contactEmail} onChange={(event) => setDraft((current) => ({ ...current, contactEmail: event.target.value }))} disabled={busy || !canManage} />
+            <InputField label="Phone" value={draft.contactPhone} onChange={(event) => setDraft((current) => ({ ...current, contactPhone: event.target.value }))} disabled={busy || !canManage} />
+          </div>
+          <div className="grid gap-3 md:grid-cols-4">
+            <SelectField label="Method" value={draft.method} onChange={(event) => setDraft((current) => ({ ...current, method: event.target.value }))} disabled={busy || !canManage}>
+              {CONTACT_HISTORY_METHODS.map((method) => <option key={method}>{method}</option>)}
+            </SelectField>
+            <SelectField label="Direction" value={draft.direction} onChange={(event) => setDraft((current) => ({ ...current, direction: event.target.value }))} disabled={busy || !canManage}>
+              {CONTACT_HISTORY_DIRECTIONS.map((direction) => <option key={direction} value={direction}>{direction === "outbound" ? "Outbound" : "Inbound"}</option>)}
+            </SelectField>
+            <SelectField label="Outcome" value={draft.outcome} onChange={(event) => setDraft((current) => ({ ...current, outcome: event.target.value }))} disabled={busy || !canManage}>
+              {CONTACT_HISTORY_OUTCOMES.map((outcome) => <option key={outcome}>{outcome}</option>)}
+            </SelectField>
+            <InputField label="Next follow-up" type="date" value={draft.nextFollowUpDate} onChange={(event) => setDraft((current) => ({ ...current, nextFollowUpDate: event.target.value }))} disabled={busy || !canManage} />
+          </div>
+          <InputField label="Subject / short title" value={draft.subject} onChange={(event) => setDraft((current) => ({ ...current, subject: event.target.value }))} disabled={busy || !canManage} placeholder="Estimate follow-up, site visit, approval call" />
+          <TextAreaField label="Draft message / script" value={draft.messageDraft} onChange={(event) => setDraft((current) => ({ ...current, messageDraft: event.target.value }))} disabled={busy || !canManage} placeholder="Manual email/SMS/call script. Stored only; Apex HQ does not send it." />
+          <TextAreaField label="Outcome notes" value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} disabled={busy || !canManage} placeholder="What happened, what the customer said, and what needs to happen next." />
+          <div className="co-communications-submit-row flex flex-wrap items-center gap-3">
+            <Button type="submit" disabled={busy || !canManage || !selectedOption}>Save communication</Button>
+            <p className="text-sm font-bold text-slate-500">{message || "Manual-only: no email, text, or phone call is sent."}</p>
+          </div>
+        </form>
+
+        <section className="co-communications-detail-section">
+          <SectionHeader
+            title="Selected timeline"
+            description="Manual outreach history for this selected lead, customer, estimate, or job."
+            action={<Badge tone={relatedRecords.length ? "blue" : "slate"}>{relatedRecords.length} logged</Badge>}
+          />
+          <div className="co-communications-log-stack divide-y divide-slate-100">
+            {relatedRecords.length ? relatedRecords.slice(0, 6).map((record) => renderCommunicationRecord(record, { compact: true })) : (
+              <StateCard title="No touches logged" description="Save the first manual communication note when the next call, text draft, or email draft is ready." tone="slate" />
+            )}
+          </div>
+        </section>
+
+        <section className="co-communications-detail-section">
+          <SectionHeader title="Full communication log" description="Search recent manual notes, drafts, follow-ups, and customer responses across office records." />
+          <div className="co-communications-log-filter mt-3 grid gap-3 md:grid-cols-[220px_minmax(0,1fr)]">
+            <SelectField label="Type" value={entityTypeFilter} onChange={(event) => setEntityTypeFilter(event.target.value)}>
+              <option value="all">All records</option>
+              <option value="lead">Leads</option>
+              <option value="customer">Customers</option>
+              <option value="estimate">Estimates</option>
+              <option value="job">Jobs</option>
+            </SelectField>
+            <InputField label="Search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Customer, project, subject, outcome, or notes" />
+          </div>
+          <div className="co-communications-log-stack mt-3 divide-y divide-slate-100">
+            {centerState.filteredRecords.length ? centerState.filteredRecords.slice(0, 12).map((record) => renderCommunicationRecord(record, { compact: true })) : (
+              <StateCard title="No communication matches" description="Clear the filter or log the next manual customer touch." tone="slate" />
+            )}
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  function renderCommunicationFallbackPage() {
+    return (
+      <div className="co-office-page co-communications-page">
+        <PageHeader
+          eyebrow="Office"
+          title="Communication Center"
+          description="Manual-first customer, lead, estimate, and job communication context. Nothing is emailed, texted, or called automatically."
+          actions={<Badge tone="blue">Manual Log</Badge>}
+        />
+
+        <div className="co-communications-shell grid min-w-0 gap-3 px-5 pb-6 sm:px-6 lg:px-8">
+          <div className="co-communications-kpi-grid grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {stats.map((stat) => (
+              <Card key={stat.label} className="co-communications-kpi-card p-4" data-tone={stat.tone}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{stat.label}</p>
+                    <p className="mt-2 text-3xl font-black text-slate-950">{stat.value}</p>
+                    <p className="mt-1 text-xs font-bold text-slate-500">{stat.helper}</p>
+                  </div>
+                  <Badge tone={stat.tone}>{stat.label}</Badge>
+                </div>
+              </Card>
+            ))}
+          </div>
+
+          <div className="co-communications-command-layout grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_380px]">
+            <div className="co-communications-left-stack grid min-w-0 gap-3">
+              <Card className="co-communications-main-board overflow-hidden">
+                <div className="co-communications-board-header border-b border-slate-200 bg-white p-4">
+                  <SectionHeader
+                    title="Manual Outreach Command"
+                    description="Log calls, copied email/text drafts, meeting notes, and next follow-up dates against the right record."
+                    action={<Badge tone={canManage ? "green" : "slate"}>{canManage ? "Can edit" : "Read only"}</Badge>}
+                  />
+                </div>
+                {!centerState.options.length ? (
+                  <div className="p-4"><StateCard title="No records available" description="Create a lead, customer, estimate, or job before logging communication." tone="slate" /></div>
+                ) : (
+                  <form className="co-communications-form grid gap-3 p-4" onSubmit={submitCommunication}>
+                    <SelectField label="Link communication to" value={selectedOption?.key || ""} onChange={(event) => setSelectedKey(event.target.value)} disabled={busy || !canManage}>
+                      {centerState.options.map((option) => (
+                        <option key={option.key} value={option.key}>{option.label} - {option.type}</option>
+                      ))}
+                    </SelectField>
+                    {selectedOption ? (
+                      <div className="co-communications-selected-context">
+                        <span>Selected context</span>
+                        <strong>{selectedOption.label}</strong>
+                        {selectedOption.subtitle ? <em>{selectedOption.subtitle}</em> : null}
+                        <Badge tone="slate">{selectedOption.type}</Badge>
+                      </div>
+                    ) : null}
+                    <div className="co-communications-method-row flex flex-wrap gap-2">
+                      {["Call", "Email", "Text", "In Person", "Other"].map((method) => (
+                        <Button key={method} type="button" size="sm" variant={draft.method === method ? "primary" : "secondary"} onClick={() => setQuickMethod(method)} disabled={busy || !canManage}>
+                          {method}
+                        </Button>
+                      ))}
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <InputField label="Contact name" value={draft.contactName} onChange={(event) => setDraft((current) => ({ ...current, contactName: event.target.value }))} disabled={busy || !canManage} />
+                      <InputField label="Email" value={draft.contactEmail} onChange={(event) => setDraft((current) => ({ ...current, contactEmail: event.target.value }))} disabled={busy || !canManage} />
+                      <InputField label="Phone" value={draft.contactPhone} onChange={(event) => setDraft((current) => ({ ...current, contactPhone: event.target.value }))} disabled={busy || !canManage} />
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-4">
+                      <SelectField label="Method" value={draft.method} onChange={(event) => setDraft((current) => ({ ...current, method: event.target.value }))} disabled={busy || !canManage}>
+                        {CONTACT_HISTORY_METHODS.map((method) => <option key={method}>{method}</option>)}
+                      </SelectField>
+                      <SelectField label="Direction" value={draft.direction} onChange={(event) => setDraft((current) => ({ ...current, direction: event.target.value }))} disabled={busy || !canManage}>
+                        {CONTACT_HISTORY_DIRECTIONS.map((direction) => <option key={direction} value={direction}>{direction === "outbound" ? "Outbound" : "Inbound"}</option>)}
+                      </SelectField>
+                      <SelectField label="Outcome" value={draft.outcome} onChange={(event) => setDraft((current) => ({ ...current, outcome: event.target.value }))} disabled={busy || !canManage}>
+                        {CONTACT_HISTORY_OUTCOMES.map((outcome) => <option key={outcome}>{outcome}</option>)}
+                      </SelectField>
+                      <InputField label="Next follow-up" type="date" value={draft.nextFollowUpDate} onChange={(event) => setDraft((current) => ({ ...current, nextFollowUpDate: event.target.value }))} disabled={busy || !canManage} />
+                    </div>
+                    <InputField label="Subject / short title" value={draft.subject} onChange={(event) => setDraft((current) => ({ ...current, subject: event.target.value }))} disabled={busy || !canManage} placeholder="Estimate follow-up, site visit, approval call" />
+                    <TextAreaField label="Draft message / script" value={draft.messageDraft} onChange={(event) => setDraft((current) => ({ ...current, messageDraft: event.target.value }))} disabled={busy || !canManage} placeholder="Manual email/SMS/call script. Stored only; Apex HQ does not send it." />
+                    <TextAreaField label="Outcome notes" value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} disabled={busy || !canManage} placeholder="What happened, what the customer said, and what needs to happen next." />
+                    <div className="co-communications-submit-row flex flex-wrap items-center gap-3">
+                      <Button type="submit" disabled={busy || !canManage || !selectedOption}>Save communication</Button>
+                      <p className="text-sm font-bold text-slate-500">{message || "Manual-only: no email, text, or phone call is sent."}</p>
+                    </div>
+                  </form>
+                )}
+              </Card>
+
+              <Card className="co-communications-log-card overflow-hidden">
+                <div className="co-communications-log-header border-b border-slate-200 p-4">
+                  <SectionHeader title="Communication log" description="Search recent manual notes, drafts, follow-ups, and customer responses across office records." />
+                  <div className="mt-3 grid gap-3 md:grid-cols-[220px_minmax(0,1fr)]">
+                    <SelectField label="Type" value={entityTypeFilter} onChange={(event) => setEntityTypeFilter(event.target.value)}>
+                      <option value="all">All records</option>
+                      <option value="lead">Leads</option>
+                      <option value="customer">Customers</option>
+                      <option value="estimate">Estimates</option>
+                      <option value="job">Jobs</option>
+                    </SelectField>
+                    <InputField label="Search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Customer, project, subject, outcome, or notes" />
+                  </div>
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {centerState.filteredRecords.slice(0, 18).map((record) => renderCommunicationRecord(record))}
+                  {!centerState.filteredRecords.length ? (
+                    <div className="p-5"><StateCard title="No communication matches" description="Clear the filter or log the next manual customer touch." tone="slate" /></div>
+                  ) : null}
+                </div>
+              </Card>
+            </div>
+
+            <aside className="co-communications-rail grid min-w-0 gap-3 content-start">
+              <FollowUpQueuePanel
+                leads={leads}
+                customers={customers}
+                estimates={estimates}
+                leadSources={leadSources}
+                contactHistory={contactHistory}
+                permissions={permissions}
+                companyName={companyName}
+                user={user}
+                disabled={busy}
+                onOpenLead={onSelectLead}
+                onOpenCustomer={onSelectCustomer}
+                onOpenEstimate={onOpenEstimate}
+                onOpenLeads={() => onSelectLead(leads[0]?.id || "")}
+                onCreateContactHistory={onCreateContactHistory}
+                compact
+                maxItems={8}
+              />
+              <Card className="co-communications-rules-card p-4">
+                <SectionHeader title="Manual communication rules" description="This phase is visibility and logging only." />
+                <div className="grid gap-2">
+                  <div className="co-ai-boundary-row" data-state="manual"><span>Email/SMS</span><strong>Manual only</strong></div>
+                  <div className="co-ai-boundary-row" data-state="safe"><span>Office data</span><strong>Role protected</strong></div>
+                  <div className="co-ai-boundary-row" data-state="safe"><span>Company data</span><strong>Scoped server-side</strong></div>
+                  <div className="co-ai-boundary-row" data-state="manual"><span>Automation</span><strong>Not included</strong></div>
+                </div>
+              </Card>
+            </aside>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isDesktopCommandViewport) {
+    return renderCommunicationFallbackPage();
+  }
+
   return (
-    <div className="co-office-page co-communications-page">
-      <PageHeader
+    <div className="co-office-page co-communications-page co-communications-shell-page">
+      <ApexOfficeCommandShell
         eyebrow="Office"
         title="Communication Center"
         description="Manual-first customer, lead, estimate, and job communication context. Nothing is emailed, texted, or called automatically."
-        actions={<Badge tone="blue">Manual Log</Badge>}
+        kpis={stats}
+        queue={{
+          title: "Communication queue",
+          description: `${communicationShellQueue.length} lead, customer, estimate, and job context${communicationShellQueue.length === 1 ? "" : "s"} ready for manual outreach.`,
+          items: communicationShellQueue,
+          selectedId: selectedCommunicationShellItem?.id,
+          onSelect: selectCommunicationShellItem,
+          emptyState: <StateCard title="No records available" description="Create a lead, customer, estimate, or job before logging communication." tone="slate" />,
+        }}
+        detail={{
+          title: "Manual outreach detail",
+          item: selectedCommunicationShellItem,
+          render: renderCommunicationShellDetail,
+          emptyState: <StateCard title="No communication selected" description="Select a lead, customer, estimate, or job to log the next safe manual touch." tone="slate" />,
+        }}
+        assistant={{
+          title: "Communications",
+          description: centerState.stats.overdue || centerState.stats.dueToday ? "Follow-up attention is needed. Keep outreach manual, logged, and tied to the right record." : "Manual communication queue is ready for the next customer touch.",
+          priorities: [
+            { label: "Due Today", value: centerState.stats.dueToday, tone: centerState.stats.dueToday ? "amber" : "green" },
+            { label: "Overdue", value: centerState.stats.overdue, tone: centerState.stats.overdue ? "red" : "green" },
+            { label: "Waiting", value: centerState.stats.waiting, tone: centerState.stats.waiting ? "orange" : "slate" },
+            { label: "Logged", value: centerState.stats.total, tone: "blue" },
+          ],
+          actions: [
+            { label: "Due Follow-Up", icon: "clock", onClick: () => openFirstCommunicationShellItem((item) => ["Overdue", "Due Today"].includes(item.statusLabel)), disabled: !communicationShellQueue.some((item) => ["Overdue", "Due Today"].includes(item.statusLabel)) },
+            { label: "Waiting Replies", icon: "inbox", onClick: () => openFirstCommunicationShellItem((item) => item.statusLabel === "Waiting"), disabled: !communicationShellQueue.some((item) => item.statusLabel === "Waiting") },
+            { label: "First Touch", icon: "plus", onClick: () => openFirstCommunicationShellItem((item) => item.statusLabel === "No Touch"), disabled: !communicationShellQueue.some((item) => item.statusLabel === "No Touch") },
+          ],
+          guardrails: [
+            "Manual log only",
+            "No automatic email, text, or call",
+            "Role and company scope unchanged",
+          ],
+        }}
+        quickActions={[
+          { id: "due-follow-up", label: "Due Follow-Up", icon: "clock", onClick: () => openFirstCommunicationShellItem((item) => ["Overdue", "Due Today"].includes(item.statusLabel)), disabled: !communicationShellQueue.some((item) => ["Overdue", "Due Today"].includes(item.statusLabel)) },
+          { id: "waiting-replies", label: "Waiting Replies", icon: "inbox", onClick: () => openFirstCommunicationShellItem((item) => item.statusLabel === "Waiting"), disabled: !communicationShellQueue.some((item) => item.statusLabel === "Waiting") },
+          { id: "first-touch", label: "First Touch", icon: "plus", onClick: () => openFirstCommunicationShellItem((item) => item.statusLabel === "No Touch"), disabled: !communicationShellQueue.some((item) => item.statusLabel === "No Touch") },
+        ]}
+        className="co-communications-command-shell"
       />
-
-      <div className="co-communications-shell grid min-w-0 gap-3 px-5 pb-6 sm:px-6 lg:px-8">
-        <div className="co-communications-kpi-grid grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {stats.map((stat) => (
-            <Card key={stat.label} className="co-communications-kpi-card p-4" data-tone={stat.tone}>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{stat.label}</p>
-                  <p className="mt-2 text-3xl font-black text-slate-950">{stat.value}</p>
-                  <p className="mt-1 text-xs font-bold text-slate-500">{stat.helper}</p>
-                </div>
-                <Badge tone={stat.tone}>{stat.label}</Badge>
-              </div>
-            </Card>
-          ))}
-        </div>
-
-        <div className="co-communications-command-layout grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_380px]">
-          <div className="co-communications-left-stack grid min-w-0 gap-3">
-            <Card className="co-communications-main-board overflow-hidden">
-              <div className="co-communications-board-header border-b border-slate-200 bg-white p-4">
-                <SectionHeader
-                  title="Manual Outreach Command"
-                  description="Log calls, copied email/text drafts, meeting notes, and next follow-up dates against the right record."
-                  action={<Badge tone={canManage ? "green" : "slate"}>{canManage ? "Can edit" : "Read only"}</Badge>}
-                />
-              </div>
-              {!centerState.options.length ? (
-                <div className="p-4"><StateCard title="No records available" description="Create a lead, customer, estimate, or job before logging communication." tone="slate" /></div>
-              ) : (
-                <form className="co-communications-form grid gap-3 p-4" onSubmit={submitCommunication}>
-                  <SelectField label="Link communication to" value={selectedOption?.key || ""} onChange={(event) => setSelectedKey(event.target.value)} disabled={busy || !canManage}>
-                    {centerState.options.map((option) => (
-                      <option key={option.key} value={option.key}>{option.label} - {option.type}</option>
-                    ))}
-                  </SelectField>
-                  {selectedOption ? (
-                    <div className="co-communications-selected-context">
-                      <span>Selected context</span>
-                      <strong>{selectedOption.label}</strong>
-                      {selectedOption.subtitle ? <em>{selectedOption.subtitle}</em> : null}
-                      <Badge tone="slate">{selectedOption.type}</Badge>
-                    </div>
-                  ) : null}
-                  <div className="co-communications-method-row flex flex-wrap gap-2">
-                    {["Call", "Email", "Text", "In Person", "Other"].map((method) => (
-                      <Button key={method} type="button" size="sm" variant={draft.method === method ? "primary" : "secondary"} onClick={() => setQuickMethod(method)} disabled={busy || !canManage}>
-                        {method}
-                      </Button>
-                    ))}
-                  </div>
-                  <div className="grid gap-3 md:grid-cols-3">
-                    <InputField label="Contact name" value={draft.contactName} onChange={(event) => setDraft((current) => ({ ...current, contactName: event.target.value }))} disabled={busy || !canManage} />
-                    <InputField label="Email" value={draft.contactEmail} onChange={(event) => setDraft((current) => ({ ...current, contactEmail: event.target.value }))} disabled={busy || !canManage} />
-                    <InputField label="Phone" value={draft.contactPhone} onChange={(event) => setDraft((current) => ({ ...current, contactPhone: event.target.value }))} disabled={busy || !canManage} />
-                  </div>
-                  <div className="grid gap-3 md:grid-cols-4">
-                    <SelectField label="Method" value={draft.method} onChange={(event) => setDraft((current) => ({ ...current, method: event.target.value }))} disabled={busy || !canManage}>
-                      {CONTACT_HISTORY_METHODS.map((method) => <option key={method}>{method}</option>)}
-                    </SelectField>
-                    <SelectField label="Direction" value={draft.direction} onChange={(event) => setDraft((current) => ({ ...current, direction: event.target.value }))} disabled={busy || !canManage}>
-                      {CONTACT_HISTORY_DIRECTIONS.map((direction) => <option key={direction} value={direction}>{direction === "outbound" ? "Outbound" : "Inbound"}</option>)}
-                    </SelectField>
-                    <SelectField label="Outcome" value={draft.outcome} onChange={(event) => setDraft((current) => ({ ...current, outcome: event.target.value }))} disabled={busy || !canManage}>
-                      {CONTACT_HISTORY_OUTCOMES.map((outcome) => <option key={outcome}>{outcome}</option>)}
-                    </SelectField>
-                    <InputField label="Next follow-up" type="date" value={draft.nextFollowUpDate} onChange={(event) => setDraft((current) => ({ ...current, nextFollowUpDate: event.target.value }))} disabled={busy || !canManage} />
-                  </div>
-                  <InputField label="Subject / short title" value={draft.subject} onChange={(event) => setDraft((current) => ({ ...current, subject: event.target.value }))} disabled={busy || !canManage} placeholder="Estimate follow-up, site visit, approval call" />
-                  <TextAreaField label="Draft message / script" value={draft.messageDraft} onChange={(event) => setDraft((current) => ({ ...current, messageDraft: event.target.value }))} disabled={busy || !canManage} placeholder="Manual email/SMS/call script. Stored only; Apex HQ does not send it." />
-                  <TextAreaField label="Outcome notes" value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} disabled={busy || !canManage} placeholder="What happened, what the customer said, and what needs to happen next." />
-                  <div className="co-communications-submit-row flex flex-wrap items-center gap-3">
-                    <Button type="submit" disabled={busy || !canManage || !selectedOption}>Save communication</Button>
-                    <p className="text-sm font-bold text-slate-500">{message || "Manual-only: no email, text, or phone call is sent."}</p>
-                  </div>
-                </form>
-              )}
-            </Card>
-
-            <Card className="co-communications-log-card overflow-hidden">
-              <div className="co-communications-log-header border-b border-slate-200 p-4">
-                <SectionHeader title="Communication log" description="Search recent manual notes, drafts, follow-ups, and customer responses across office records." />
-                <div className="mt-3 grid gap-3 md:grid-cols-[220px_minmax(0,1fr)]">
-                  <SelectField label="Type" value={entityTypeFilter} onChange={(event) => setEntityTypeFilter(event.target.value)}>
-                    <option value="all">All records</option>
-                    <option value="lead">Leads</option>
-                    <option value="customer">Customers</option>
-                    <option value="estimate">Estimates</option>
-                    <option value="job">Jobs</option>
-                  </SelectField>
-                  <InputField label="Search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Customer, project, subject, outcome, or notes" />
-                </div>
-              </div>
-              <div className="divide-y divide-slate-100">
-                {centerState.filteredRecords.slice(0, 18).map((record) => (
-                  <div key={record.id} className="co-communications-log-row grid gap-3 p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap gap-2">
-                        <Badge tone={contactHistoryBadgeTone(record.method, "method")}>{record.method}</Badge>
-                        <Badge tone={contactHistoryBadgeTone(record.outcome)}>{record.outcome}</Badge>
-                        <Badge tone="slate">{record.entityType}</Badge>
-                        {record.nextFollowUpDate ? <Badge tone={record.nextFollowUpDate <= todayDateInputValue() ? "amber" : "blue"}>Next {record.nextFollowUpDate}</Badge> : null}
-                      </div>
-                      <p className="mt-2 break-words text-sm font-black text-slate-950">{record.subject || record.entity?.label || "Manual communication"}</p>
-                      <p className="mt-1 text-xs font-bold text-slate-500">{record.entity?.label || record.contactName || "Unlinked context"} {record.entity?.subtitle ? `- ${record.entity.subtitle}` : ""}</p>
-                      <p className="mt-1 text-xs font-bold text-slate-500">{formatDateTime(record.contactedAt || record.createdAt)} by {record.createdByName || "Office"}</p>
-                      {record.messageDraft ? <p className="co-communications-log-draft mt-3 line-clamp-3 whitespace-pre-wrap rounded-2xl bg-blue-50/60 p-3 text-sm leading-6 text-slate-700">{record.messageDraft}</p> : null}
-                      {record.notes ? <p className="co-communications-log-notes mt-3 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-slate-600">{record.notes}</p> : null}
-                    </div>
-                    <div className="co-communications-log-actions flex flex-wrap gap-2 lg:justify-end">
-                      <Button type="button" size="sm" variant="secondary" onClick={() => openRecord(record)}>Open Context</Button>
-                      {canManage && record.outcome !== "Waiting on Response" ? <Button type="button" size="sm" variant="ghost" onClick={() => onUpdateContactHistory(record.id, { outcome: "Waiting on Response" })} disabled={busy}>Mark waiting</Button> : null}
-                      {canManage ? <Button type="button" size="sm" variant="ghost" onClick={() => onArchiveContactHistory(record.id)} disabled={busy}>Archive</Button> : null}
-                    </div>
-                  </div>
-                ))}
-                {!centerState.filteredRecords.length ? (
-                  <div className="p-5"><StateCard title="No communication matches" description="Clear the filter or log the next manual customer touch." tone="slate" /></div>
-                ) : null}
-              </div>
-            </Card>
-          </div>
-
-          <aside className="co-communications-rail grid min-w-0 gap-3 content-start">
-            <FollowUpQueuePanel
-              leads={leads}
-              customers={customers}
-              estimates={estimates}
-              leadSources={leadSources}
-              contactHistory={contactHistory}
-              permissions={permissions}
-              companyName={companyName}
-              user={user}
-              disabled={busy}
-              onOpenLead={onSelectLead}
-              onOpenCustomer={onSelectCustomer}
-              onOpenEstimate={onOpenEstimate}
-              onOpenLeads={() => onSelectLead(leads[0]?.id || "")}
-              onCreateContactHistory={onCreateContactHistory}
-              compact
-              maxItems={8}
-            />
-            <Card className="co-communications-rules-card p-4">
-              <SectionHeader title="Manual communication rules" description="This phase is visibility and logging only." />
-              <div className="grid gap-2">
-                <div className="co-ai-boundary-row" data-state="manual"><span>Email/SMS</span><strong>Manual only</strong></div>
-                <div className="co-ai-boundary-row" data-state="safe"><span>Office data</span><strong>Role protected</strong></div>
-                <div className="co-ai-boundary-row" data-state="safe"><span>Company data</span><strong>Scoped server-side</strong></div>
-                <div className="co-ai-boundary-row" data-state="manual"><span>Automation</span><strong>Not included</strong></div>
-              </div>
-            </Card>
-          </aside>
-        </div>
-      </div>
     </div>
   );
 }
@@ -21823,6 +22084,7 @@ function CustomersPagePolished({
 }) {
   const canView = permissions.customers.canView;
   const canManage = permissions.customers.canManage;
+  const canUseCustomersCommandShell = useDesktopCommandViewport(768);
   const [showCreateCustomer, setShowCreateCustomer] = useState(false);
   const debugState = useMemo(() => deriveCustomerListState(customers, {
     status: filter,
@@ -21838,6 +22100,196 @@ function CustomersPagePolished({
     { label: "Contact gaps", value: missingContactRows.length, helper: "Phone or email needs cleanup", icon: "alert", tone: missingContactRows.length ? "amber" : "green", actionLabel: "Review gaps", onAction: () => setFilter("All") },
     { label: "Linked workflow", value: leads.length + jobs.length + estimates.length, helper: "Leads, jobs, and estimates in context", icon: "layers", tone: "orange", actionLabel: "Scan board", onAction: () => setFilter("All") },
   ];
+  const customerShellKpis = customerWorkspaceKpis.map(({ onAction, actionLabel, ...item }) => ({
+    ...item,
+    onClick: onAction,
+  }));
+  const customerShellQueue = useMemo(() => {
+    const customerItems = visibleRows.map((customer) => {
+      const linked = relatedCustomerRecords(customer, leads, jobs, activity);
+      const hasContactGap = !customer.phone || !customer.email;
+      const hasActiveWork = linked.jobs.some((job) => !job.archivedAt && ["scheduled", "in_progress", "planned"].includes(normalizeJobStatus(job.status || job.stage)));
+      const hasPipeline = linked.leads.some((lead) => !lead.archivedAt);
+      const priorityScore = hasContactGap ? 50 : hasActiveWork ? 40 : hasPipeline ? 30 : customer.status === "Prospect" ? 20 : 10;
+      const statusLabel = customer.archivedAt ? "Archived" : hasContactGap ? "Contact Gap" : hasActiveWork ? "Active Work" : hasPipeline ? "Pipeline" : customer.status || "Customer";
+      const tone = customer.archivedAt ? "slate" : hasContactGap ? "amber" : hasActiveWork ? "orange" : hasPipeline ? "blue" : customer.status === "Active" ? "green" : "slate";
+
+      return {
+        id: `customer:${customer.id}`,
+        kind: "customer",
+        customer,
+        linked,
+        title: customer.name || "Unnamed customer",
+        meta: [customer.company, customer.city, customer.serviceArea].filter(Boolean).join(" / ") || customerContactText(customer),
+        sourceLabel: customer.status || "Customer",
+        status: statusLabel,
+        statusLabel,
+        tone,
+        actionLabel: canManage ? "Review" : "View",
+        priorityScore,
+        badges: [
+          { label: customer.status || "Customer", tone: customer.archivedAt ? "slate" : tone },
+          { label: `${linked.jobs.length} jobs`, tone: linked.jobs.length ? "orange" : "slate" },
+          { label: `${linked.leads.length} leads`, tone: linked.leads.length ? "blue" : "slate" },
+        ],
+      };
+    }).sort((left, right) => (
+      right.priorityScore - left.priorityScore ||
+      left.title.localeCompare(right.title)
+    ));
+
+    return [
+      canManage ? {
+        id: "create-customer",
+        kind: "create",
+        title: "New customer",
+        meta: "Create contact and service-area details",
+        sourceLabel: "Create",
+        status: "Manual Entry",
+        statusLabel: "Manual Entry",
+        tone: "blue",
+        actionLabel: "Create",
+      } : null,
+      ...customerItems,
+    ].filter(Boolean);
+  }, [activity, canManage, jobs, leads, visibleRows]);
+  const selectedCustomerShellItem = useMemo(() => {
+    if (showCreateCustomer) return customerShellQueue.find((item) => item.kind === "create") || null;
+    return customerShellQueue.find((item) => item.kind === "customer" && item.customer?.id === selectedCustomerId)
+      || customerShellQueue.find((item) => item.kind === "customer")
+      || customerShellQueue[0]
+      || null;
+  }, [customerShellQueue, selectedCustomerId, showCreateCustomer]);
+
+  useEffect(() => {
+    if (!canUseCustomersCommandShell || showCreateCustomer || !selectedCustomerId) return;
+    const selectedIsVisible = customerShellQueue.some((item) => item.kind === "customer" && item.customer?.id === selectedCustomerId);
+    if (selectedIsVisible) return;
+    const nextCustomerItem = customerShellQueue.find((item) => item.kind === "customer");
+    if (nextCustomerItem?.customer?.id) onSelectCustomer(nextCustomerItem.customer.id);
+  }, [canUseCustomersCommandShell, customerShellQueue, onSelectCustomer, selectedCustomerId, showCreateCustomer]);
+
+  function selectCustomerShellItem(item) {
+    if (!item) return;
+    if (item.kind === "create") {
+      setShowCreateCustomer(true);
+      return;
+    }
+    setShowCreateCustomer(false);
+    if (item.customer?.id) onSelectCustomer(item.customer.id);
+  }
+
+  function openFirstCustomerShellItem(predicate) {
+    const nextItem = customerShellQueue.find(predicate);
+    if (nextItem) selectCustomerShellItem(nextItem);
+  }
+
+  function renderCustomerShellDetail(item) {
+    if (item?.kind === "create") {
+      return (
+        <div className="co-customers-shell-detail-scroll">
+          <ExtractedCustomerIntakeCard draft={customerDraft} setDraft={setCustomerDraft} onCreateCustomer={onCreateCustomer} disabled={busy} canManage={canManage} />
+        </div>
+      );
+    }
+
+    const detailCustomer = item?.customer?.id === selectedCustomer?.id ? selectedCustomer : (item?.customer || selectedCustomer);
+    const detailRelated = detailCustomer?.id === selectedCustomer?.id ? relatedRecords : relatedCustomerRecords(detailCustomer, leads, jobs, activity);
+
+    return (
+      <div className="co-customers-shell-detail-scroll">
+        <CustomerDetailPanel
+          customer={detailCustomer}
+          canView={canView}
+          canManage={canManage}
+          notFound={canView && customerRouteRequested && !detailCustomer}
+          disabled={busy}
+          saveState={customerSaveState}
+          onFieldChange={onCustomerFieldChange}
+          onArchive={onArchiveCustomer}
+          onRestore={onRestoreCustomer}
+          related={detailRelated}
+          onSelectLead={onSelectLead}
+          onSelectJob={onSelectJob}
+          contactHistory={contactHistory}
+          contactHistoryPermissions={permissions.contactHistory}
+          onCreateContactHistory={onCreateContactHistory}
+          onUpdateContactHistory={onUpdateContactHistory}
+          onArchiveContactHistory={onArchiveContactHistory}
+          onRestoreContactHistory={onRestoreContactHistory}
+        />
+      </div>
+    );
+  }
+
+  if (canUseCustomersCommandShell) {
+    return (
+      <div className="co-office-page co-customers-page co-customers-shell-page">
+        <ApexOfficeCommandShell
+          eyebrow="Office"
+          title="Customers"
+          description="Track customer relationships, contact gaps, linked leads, jobs, and follow-up history from one contractor command view."
+          kpis={customerShellKpis}
+          queue={{
+            title: "Customer queue",
+            description: `${customerShellQueue.filter((item) => item.kind === "customer").length} visible customer account${customerShellQueue.filter((item) => item.kind === "customer").length === 1 ? "" : "s"} from the current filters.`,
+            items: customerShellQueue,
+            selectedId: selectedCustomerShellItem?.id,
+            onSelect: selectCustomerShellItem,
+            controls: canView ? (
+              <CustomerFilterHeader
+                filters={["All", "Prospect", "Active", "Inactive", "Archived"]}
+                active={filter}
+                setActive={(nextFilter) => {
+                  setShowCreateCustomer(false);
+                  setFilter(nextFilter);
+                }}
+                search={search}
+                setSearch={(nextSearch) => {
+                  setShowCreateCustomer(false);
+                  setSearch(nextSearch);
+                }}
+                placeholder="Search customers..."
+              />
+            ) : null,
+            emptyState: <StateCard title="No customers available" description="Create the first customer record to start linking leads and jobs." tone="slate" />,
+          }}
+          detail={{
+            title: selectedCustomerShellItem?.kind === "create" ? "New customer" : "Selected customer",
+            item: selectedCustomerShellItem,
+            render: renderCustomerShellDetail,
+            emptyState: <StateCard title="No customer selected" description="Select a customer from the queue to review contact details, linked work, and history." tone="slate" />,
+          }}
+          assistant={{
+            title: "Customers",
+            description: missingContactRows.length ? "Contact cleanup is the fastest way to make follow-up, estimates, and job handoff safer." : "Customer records are ready for linked leads, jobs, and follow-up history.",
+            priorities: [
+              { label: "Visible", value: canView ? visibleRows.length : 0, tone: "blue" },
+              { label: "Active", value: activeVisibleRows.length, tone: activeVisibleRows.length ? "green" : "slate" },
+              { label: "Contact gaps", value: missingContactRows.length, tone: missingContactRows.length ? "amber" : "green" },
+              { label: "Linked", value: leads.length + jobs.length + estimates.length, tone: "orange" },
+            ],
+            actions: [
+              canManage ? { label: "New Customer", icon: "plus", onClick: () => openFirstCustomerShellItem((item) => item.kind === "create") } : null,
+              { label: "Contact Gaps", icon: "alert", onClick: () => openFirstCustomerShellItem((item) => item.kind === "customer" && item.statusLabel === "Contact Gap"), disabled: !missingContactRows.length },
+              { label: "Active Work", icon: "briefcase", onClick: () => openFirstCustomerShellItem((item) => item.kind === "customer" && item.statusLabel === "Active Work"), disabled: !customerShellQueue.some((item) => item.statusLabel === "Active Work") },
+            ].filter(Boolean),
+            guardrails: [
+              "Manual customer edits only",
+              "No automatic contact or billing",
+              "Role and company scope unchanged",
+            ],
+          }}
+          quickActions={[
+            canManage ? { id: "new-customer", label: "New Customer", icon: "plus", onClick: () => openFirstCustomerShellItem((item) => item.kind === "create") } : null,
+            { id: "contact-gaps", label: "Contact Gaps", icon: "alert", onClick: () => openFirstCustomerShellItem((item) => item.kind === "customer" && item.statusLabel === "Contact Gap"), disabled: !missingContactRows.length },
+            { id: "active-customers", label: "Active", icon: "users", onClick: () => { setFilter("Active"); setSearch(""); } },
+          ].filter(Boolean)}
+          className="co-customers-command-shell"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="co-office-page co-customers-page">
@@ -22797,9 +23249,11 @@ function EmployeesPagePolished({
 }) {
   const canView = permissions.users.canView;
   const canManage = permissions.users.canManage;
+  const canUseEmployeesCommandShell = useDesktopCommandViewport(768);
   const [showTools, setShowTools] = useState(false);
   const [toolTab, setToolTab] = useState("details");
   const [showAllMobileRows, setShowAllMobileRows] = useState(false);
+  const [showCreateUserShell, setShowCreateUserShell] = useState(false);
   const toolsRef = useRef(null);
   const listState = useMemo(() => deriveUserListState(users, {
     query: search,
@@ -22827,6 +23281,10 @@ function EmployeesPagePolished({
     { label: "Office Roles", value: officeUsers.length, helper: "Admin and office access", icon: "settings", tone: "blue" },
     { label: "Inactive", value: inactiveUsers.length, helper: "Disabled logins", icon: "lock", tone: "slate", actionLabel: "Inactive", onAction: () => setStatusFilter("inactive") },
   ];
+  const employeeShellKpis = employeeKpis.slice(0, 4).map(({ onAction, actionLabel, ...item }) => ({
+    ...item,
+    onClick: onAction,
+  }));
 
   function clearFilters() {
     setFilter("All roles");
@@ -22916,6 +23374,81 @@ function EmployeesPagePolished({
     { label: "Inactive", action: () => { setFilter("All roles"); setStatusFilter("inactive"); setSearch(""); }, active: statusFilter === "inactive" },
     { label: "Needs setup", action: () => openPriorityUser((entry) => readinessGapUsers.some((candidate) => candidate.id === entry.id), { roleFilter: "All roles", statusFilter: "All statuses", search: "", toolTab: readinessGapUsers.length ? "details" : "" }), active: false },
   ];
+  const employeeShellQueue = useMemo(() => {
+    const userItems = visibleRows.map((entry) => {
+      const summary = employeeOperationsSummary(entry, { jobs, timeEntries, dailyReports, uploads, safetyIncidents, toolChecklists });
+      const hasReadinessGap = summary.readinessGaps.length > 0;
+      const statusLabel = summary.incidents.length
+        ? "Safety Flag"
+        : hasReadinessGap
+          ? "Needs Setup"
+          : summary.activeClock
+            ? "Clocked In"
+            : summary.activeJobs.length
+              ? "Assigned Work"
+              : entry.status === "active"
+                ? "Active"
+                : "Inactive";
+      const priorityScore = summary.incidents.length
+        ? 90
+        : hasReadinessGap
+          ? 70
+          : summary.activeClock
+            ? 60
+            : summary.activeJobs.length
+              ? 50
+              : FIELD_USER_ROLES.includes(entry.role)
+                ? 30
+                : entry.status === "active"
+                  ? 20
+                  : 10;
+
+      return {
+        id: `user:${entry.id}`,
+        kind: "user",
+        user: entry,
+        summary,
+        title: entry.name || entry.email || "Unnamed user",
+        meta: [entry.role, entry.phone || entry.email, userAccessGroup(entry)].filter(Boolean).join(" / "),
+        sourceLabel: userAccessGroup(entry),
+        status: statusLabel,
+        statusLabel,
+        tone: summary.tone,
+        actionLabel: canManage ? "Review" : "View",
+        priorityScore,
+        badges: [
+          { label: entry.role || "Employee", tone: userRoleTone(entry.role) },
+          { label: entry.status === "active" ? "Active" : "Inactive", tone: entry.status === "active" ? "green" : "slate" },
+          { label: `${summary.activeJobs.length || summary.assignedJobs.length} jobs`, tone: summary.activeJobs.length ? "green" : "slate" },
+        ],
+      };
+    }).sort((left, right) => (
+      right.priorityScore - left.priorityScore ||
+      left.title.localeCompare(right.title)
+    ));
+
+    return [
+      canManage ? {
+        id: "create-user",
+        kind: "create",
+        title: "New user",
+        meta: "Create office or field access",
+        sourceLabel: "Create",
+        status: "Manual Invite",
+        statusLabel: "Manual Invite",
+        tone: "blue",
+        actionLabel: "Create",
+      } : null,
+      ...userItems,
+    ].filter(Boolean);
+  }, [canManage, dailyReports, jobs, safetyIncidents, timeEntries, toolChecklists, uploads, visibleRows]);
+  const selectedEmployeeShellItem = useMemo(() => {
+    if (showCreateUserShell) return employeeShellQueue.find((item) => item.kind === "create") || null;
+    return employeeShellQueue.find((item) => item.kind === "user" && item.user?.id === selectedUserId)
+      || employeeShellQueue.find((item) => item.kind === "user")
+      || employeeShellQueue[0]
+      || null;
+  }, [employeeShellQueue, selectedUserId, showCreateUserShell]);
 
   useEffect(() => {
     if (!canView || visibleRows.length === 0) return;
@@ -22924,6 +23457,75 @@ function EmployeesPagePolished({
     }
   }, [canView, onSelectUser, selectedUserId, visibleRows]);
 
+  useEffect(() => {
+    if (!canUseEmployeesCommandShell || showCreateUserShell || !selectedUserId) return;
+    const selectedIsVisible = employeeShellQueue.some((item) => item.kind === "user" && item.user?.id === selectedUserId);
+    if (selectedIsVisible) return;
+    const nextUserItem = employeeShellQueue.find((item) => item.kind === "user");
+    if (nextUserItem?.user?.id) onSelectUser(nextUserItem.user.id);
+  }, [canUseEmployeesCommandShell, employeeShellQueue, onSelectUser, selectedUserId, showCreateUserShell]);
+
+  function selectEmployeeShellItem(item) {
+    if (!item) return;
+    if (item.kind === "create") {
+      setShowCreateUserShell(true);
+      onDismissProvisionNotice?.();
+      return;
+    }
+    setShowCreateUserShell(false);
+    if (item.user?.id) onSelectUser(item.user.id);
+  }
+
+  function openFirstEmployeeShellItem(predicate) {
+    const nextItem = employeeShellQueue.find(predicate);
+    if (nextItem) selectEmployeeShellItem(nextItem);
+  }
+
+  function renderEmployeeShellDetail(item) {
+    if (item?.kind === "create") {
+      return (
+        <div className="co-employees-shell-detail-scroll">
+          <UserCreatePanelPolished
+            draft={createDraft}
+            setDraft={setCreateDraft}
+            onCreateUser={onCreateUser}
+            disabled={busy || !canManage}
+            provisionedNotice={provisionedNotice}
+            roleOptions={roleOptionsForManager}
+            onDismissProvisionNotice={onDismissProvisionNotice}
+          />
+        </div>
+      );
+    }
+
+    return (
+      <div className="co-employees-shell-detail-scroll">
+        <UserDetailPanelPolished
+          user={selectedUser}
+          draft={userDraft}
+          setDraft={setUserDraft}
+          onSaveUser={onSaveUser}
+          onResendInvite={onResendUserInvite}
+          busy={busy}
+          canManage={canManage}
+          notFound={notFound}
+          roleOptions={editRoleOptions}
+          currentUserIsOwner={currentUserIsOwner}
+          provisionedNotice={provisionedNotice}
+          onDismissProvisionNotice={onDismissProvisionNotice}
+        />
+        <EmployeesCommandRailPolished user={selectedUser} canManage={canManage} busy={busy} onOpenTool={(nextTool) => {
+          if (nextTool === "create") {
+            setShowCreateUserShell(true);
+            onDismissProvisionNotice?.();
+          } else {
+            setShowCreateUserShell(false);
+          }
+        }} />
+      </div>
+    );
+  }
+
   if (!canView) {
     return (
       <div className="co-office-page co-employees-page">
@@ -22931,6 +23533,91 @@ function EmployeesPagePolished({
         <div className="px-5 sm:px-6 lg:px-8">
           <StateCard title="Employee access unavailable" description="Only office roles can manage workspace accounts." tone="slate" />
         </div>
+      </div>
+    );
+  }
+
+  if (canUseEmployeesCommandShell) {
+    return (
+      <div className="co-office-page co-employees-page co-employees-shell-page">
+        <ApexOfficeCommandShell
+          eyebrow="Office"
+          title="Employees"
+          description="Create and manage office, foreman, and employee logins while keeping role boundaries clean."
+          kpis={employeeShellKpis}
+          queue={{
+            title: "User queue",
+            description: `${employeeShellQueue.filter((item) => item.kind === "user").length} visible user${employeeShellQueue.filter((item) => item.kind === "user").length === 1 ? "" : "s"} from the current filters.`,
+            items: employeeShellQueue,
+            selectedId: selectedEmployeeShellItem?.id,
+            onSelect: selectEmployeeShellItem,
+            controls: (
+              <div className="co-employees-shell-filter-console">
+                <div className="co-employees-access-tabs">
+                  {accessFilters.map((item) => (
+                    <button
+                      key={item.label}
+                      type="button"
+                      className={item.active ? "is-active" : ""}
+                      onClick={() => {
+                        setShowCreateUserShell(false);
+                        if (item.label === "Needs setup") {
+                          openFirstEmployeeShellItem((queueItem) => queueItem.kind === "user" && queueItem.statusLabel === "Needs Setup");
+                          return;
+                        }
+                        item.action();
+                      }}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  className="field-input"
+                  value={search}
+                  onChange={(event) => {
+                    setShowCreateUserShell(false);
+                    setSearch(event.target.value);
+                  }}
+                  placeholder="Search users..."
+                />
+              </div>
+            ),
+            emptyState: <StateCard title="No users available" description="Clear filters or create the first workspace login." tone="slate" />,
+          }}
+          detail={{
+            title: selectedEmployeeShellItem?.kind === "create" ? "New user" : "Selected user",
+            item: selectedEmployeeShellItem,
+            render: renderEmployeeShellDetail,
+            emptyState: <StateCard title="No user selected" description="Select a user from the queue to review role, login, and readiness details." tone="slate" />,
+          }}
+          assistant={{
+            title: "Employees",
+            description: readinessGapUsers.length ? "Resolve setup gaps before crew assignment, field reporting, or office access review." : "Workspace users are ready for role-safe office and field workflows.",
+            priorities: [
+              { label: "Visible", value: visibleRows.length, tone: "blue" },
+              { label: "Active", value: activeUsers.length, tone: activeUsers.length ? "green" : "slate" },
+              { label: "Field crew", value: allFieldUsers.length, tone: allFieldUsers.length ? "orange" : "slate" },
+              { label: "Setup gaps", value: readinessGapUsers.length, tone: readinessGapUsers.length ? "amber" : "green" },
+            ],
+            actions: [
+              canManage ? { label: "New User", icon: "plus", onClick: () => openFirstEmployeeShellItem((item) => item.kind === "create") } : null,
+              { label: "Field Crew", icon: "hardhat", onClick: () => { setFilter("Field roles"); setStatusFilter("All statuses"); setSearch(""); setShowCreateUserShell(false); } },
+              { label: "Needs Setup", icon: "alert", onClick: () => openFirstEmployeeShellItem((item) => item.kind === "user" && item.statusLabel === "Needs Setup"), disabled: !readinessGapUsers.length },
+            ].filter(Boolean),
+            guardrails: [
+              "Manual invites and password changes only",
+              "Owner role protection unchanged",
+              "Field users stay blocked from office tools",
+            ],
+          }}
+          quickActions={[
+            canManage ? { id: "new-user", label: "New User", icon: "plus", onClick: () => openFirstEmployeeShellItem((item) => item.kind === "create") } : null,
+            { id: "field-users", label: "Field Crew", icon: "hardhat", onClick: () => { setFilter("Field roles"); setStatusFilter("All statuses"); setSearch(""); setShowCreateUserShell(false); } },
+            { id: "active-users", label: "Active", icon: "check", onClick: () => { setFilter("All roles"); setStatusFilter("active"); setSearch(""); setShowCreateUserShell(false); } },
+          ].filter(Boolean)}
+          className="co-employees-command-shell"
+        />
       </div>
     );
   }
@@ -23283,7 +23970,7 @@ function CalculatorInputPanelPolished({
           {calculatorMode === "multi_section" ? (
             <div className="mb-4 grid gap-3 md:grid-cols-2">
               <InputField label="Section label" placeholder={`e.g. ${defaultTakeoffSectionLabel(takeoffSections.length)}`} value={sectionForm.label} onChange={(event) => updateSectionForm("label", event.target.value)} />
-              <TextAreaField label="Section note" value={sectionForm.notes} onChange={(event) => updateSectionForm("notes", event.target.value)} placeholder="Optional note for this section." />
+              <TextAreaField label="Section note" value={sectionForm.notes} onChange={(event) => updateSectionForm("notes", event.target.value)} placeholder="Optional team-visible note for this section." />
             </div>
           ) : null}
           <div className="grid gap-3 md:grid-cols-2">
@@ -23520,11 +24207,11 @@ function CalculatorSavePanelPolished({ savePanelOpen, allowedJobs, saveDraft, se
           <StateCard title="No available job to save this calculation" description="Assigned or visible jobs will appear here when there is somewhere safe to store the result." tone="slate" />
         ) : (
           <div className="grid gap-3">
-            <SectionHeader title="Save to Job" description={isFieldTool ? "This stores the calculation on an allowed job for the team." : "This creates an internal-only company record. Customers do not see it."} />
+            <SectionHeader title="Save to Job" description={isFieldTool ? "This stores the calculation on an allowed job for the team." : "This stores a team-visible company record. Customers do not see it."} />
             <SelectField label="Job" value={saveDraft.jobId} onChange={(event) => setSaveDraft((current) => ({ ...current, jobId: event.target.value }))}>
               {allowedJobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
             </SelectField>
-            <TextAreaField label={isFieldTool ? "Job note" : "Internal note"} value={saveDraft.notes} onChange={(event) => setSaveDraft((current) => ({ ...current, notes: event.target.value }))} placeholder={isFieldTool ? "Optional note for this job calculation." : "Optional internal note for the crew or office."} />
+            <TextAreaField label={isFieldTool ? "Job note" : "Team note"} value={saveDraft.notes} onChange={(event) => setSaveDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Optional team-visible note for this job calculation." />
             <div className="flex flex-wrap gap-2">
               <Button type="button" onClick={handleSaveResult} disabled={busy || !saveDraft.jobId}>Save</Button>
               <Button type="button" variant="secondary" onClick={() => setSavePanelOpen(false)} disabled={busy}>Cancel</Button>
@@ -27338,8 +28025,40 @@ function prePourItemTone(status) {
 function PrePourChecklistTablePolished({ rows, selectedId, onSelect }) {
   function handleMobileListToggle(event) {
     const drawer = event.currentTarget;
-    if (!drawer.open || window.innerWidth >= 768) return;
+    if (!drawer.open || window.innerWidth >= 1024) return;
     window.setTimeout(() => drawer.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
+  function renderChecklistCards() {
+    return (
+      <div className="co-prepour-mobile-list grid gap-3 p-3">
+        {rows.map((checklist) => {
+          const selected = checklist.id === selectedId;
+
+          return (
+            <button
+              key={checklist.id}
+              type="button"
+              onClick={() => onSelect(checklist.id)}
+              className={`co-prepour-mobile-card co-mobile-record-card w-full rounded-[1.05rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/75" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/35"}`}
+            >
+              <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="break-words text-base font-black text-slate-950">{checklist.job?.title || "Assigned Pre-Pour checklist"}</p>
+                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{checklist.job?.customer || "Assigned site"} / {prePourChecklistOwner(checklist)}</p>
+                </div>
+                <StatusBadge status={prePourChecklistStatusLabel(checklist.status)} />
+              </div>
+              <div className="co-prepour-mobile-metrics">
+                <span>Open <strong>{checklist.incompleteItemCount || 0}</strong></span>
+                <span>Status <strong>{prePourChecklistStatusLabel(checklist.status)}</strong></span>
+                <span>Updated <strong>{formatDateTime(prePourChecklistUpdated(checklist))}</strong></span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    );
   }
 
   return (
@@ -27352,35 +28071,19 @@ function PrePourChecklistTablePolished({ rows, selectedId, onSelect }) {
           </span>
           <span>Open</span>
         </summary>
-        <div className="co-prepour-mobile-list grid gap-3 p-3">
-          {rows.map((checklist) => {
-            const selected = checklist.id === selectedId;
-
-            return (
-              <button
-                key={checklist.id}
-                type="button"
-                onClick={() => onSelect(checklist.id)}
-                className={`co-prepour-mobile-card co-mobile-record-card w-full rounded-[1.05rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/75" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/35"}`}
-              >
-                <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="break-words text-base font-black text-slate-950">{checklist.job?.title || "Assigned Pre-Pour checklist"}</p>
-                    <p className="mt-1 break-words text-xs font-bold text-slate-500">{checklist.job?.customer || "Assigned site"} / {prePourChecklistOwner(checklist)}</p>
-                  </div>
-                  <StatusBadge status={prePourChecklistStatusLabel(checklist.status)} />
-                </div>
-                <div className="co-prepour-mobile-metrics">
-                  <span>Open <strong>{checklist.incompleteItemCount || 0}</strong></span>
-                  <span>Status <strong>{prePourChecklistStatusLabel(checklist.status)}</strong></span>
-                  <span>Updated <strong>{formatDateTime(prePourChecklistUpdated(checklist))}</strong></span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+        {renderChecklistCards()}
       </details>
-      <div className="co-prepour-list-scroll hidden min-w-0 overflow-auto md:block">
+      <div className="co-prepour-tablet-list-surface hidden md:block lg:hidden">
+        <div className="co-field-mobile-section-head">
+          <span>
+            <strong>Visible checklists</strong>
+            <em>{rows.length} checklist{rows.length === 1 ? "" : "s"} shown</em>
+          </span>
+          <b>{rows.length}</b>
+        </div>
+        {renderChecklistCards()}
+      </div>
+      <div className="co-prepour-list-scroll hidden min-w-0 overflow-auto lg:block">
         <table className="co-prepour-command-table w-full min-w-[840px] text-left">
           <thead>
             <tr>
@@ -27448,7 +28151,7 @@ function PrePourReadinessItemsPolished({
 
   function handleExtraItemsToggle(event) {
     const drawer = event.currentTarget;
-    if (!drawer.open || window.innerWidth >= 768) return;
+    if (!drawer.open || window.innerWidth >= 1024) return;
     window.setTimeout(() => drawer.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
@@ -28878,8 +29581,40 @@ function postPourItemTone(status) {
 function PostPourChecklistTablePolished({ rows, selectedId, onSelect }) {
   function handleMobileListToggle(event) {
     const drawer = event.currentTarget;
-    if (!drawer.open || window.innerWidth >= 768) return;
+    if (!drawer.open || window.innerWidth >= 1024) return;
     window.setTimeout(() => drawer.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
+  function renderChecklistCards() {
+    return (
+      <div className="co-prepour-mobile-list grid gap-3 p-3">
+        {rows.map((checklist) => {
+          const selected = checklist.id === selectedId;
+
+          return (
+            <button
+              key={checklist.id}
+              type="button"
+              onClick={() => onSelect(checklist.id)}
+              className={`co-prepour-mobile-card co-mobile-record-card w-full rounded-[1.05rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/75" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/35"}`}
+            >
+              <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="break-words text-base font-black text-slate-950">{checklist.job?.title || "Assigned Post-Pour checklist"}</p>
+                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{checklist.job?.customer || "Assigned site"} / {postPourChecklistOwner(checklist)}</p>
+                </div>
+                <StatusBadge status={postPourChecklistStatusLabel(checklist.status)} />
+              </div>
+              <div className="co-prepour-mobile-metrics">
+                <span>Open <strong>{checklist.incompleteItemCount || 0}</strong></span>
+                <span>Status <strong>{postPourChecklistStatusLabel(checklist.status)}</strong></span>
+                <span>Updated <strong>{formatDateTime(postPourChecklistUpdated(checklist))}</strong></span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    );
   }
 
   return (
@@ -28892,35 +29627,19 @@ function PostPourChecklistTablePolished({ rows, selectedId, onSelect }) {
           </span>
           <span>Open</span>
         </summary>
-        <div className="co-prepour-mobile-list grid gap-3 p-3">
-          {rows.map((checklist) => {
-            const selected = checklist.id === selectedId;
-
-            return (
-              <button
-                key={checklist.id}
-                type="button"
-                onClick={() => onSelect(checklist.id)}
-                className={`co-prepour-mobile-card co-mobile-record-card w-full rounded-[1.05rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/75" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/35"}`}
-              >
-                <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="break-words text-base font-black text-slate-950">{checklist.job?.title || "Assigned Post-Pour checklist"}</p>
-                    <p className="mt-1 break-words text-xs font-bold text-slate-500">{checklist.job?.customer || "Assigned site"} / {postPourChecklistOwner(checklist)}</p>
-                  </div>
-                  <StatusBadge status={postPourChecklistStatusLabel(checklist.status)} />
-                </div>
-                <div className="co-prepour-mobile-metrics">
-                  <span>Open <strong>{checklist.incompleteItemCount || 0}</strong></span>
-                  <span>Status <strong>{postPourChecklistStatusLabel(checklist.status)}</strong></span>
-                  <span>Updated <strong>{formatDateTime(postPourChecklistUpdated(checklist))}</strong></span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+        {renderChecklistCards()}
       </details>
-      <div className="co-prepour-list-scroll hidden min-w-0 overflow-auto md:block">
+      <div className="co-prepour-tablet-list-surface co-postpour-tablet-list-surface hidden md:block lg:hidden">
+        <div className="co-field-mobile-section-head">
+          <span>
+            <strong>Visible closeouts</strong>
+            <em>{rows.length} checklist{rows.length === 1 ? "" : "s"} shown</em>
+          </span>
+          <b>{rows.length}</b>
+        </div>
+        {renderChecklistCards()}
+      </div>
+      <div className="co-prepour-list-scroll hidden min-w-0 overflow-auto lg:block">
         <table className="co-prepour-command-table w-full min-w-[840px] text-left">
           <thead>
             <tr>
@@ -29029,11 +29748,11 @@ function PostPourCloseoutItemsPolished({
 
   function handleExtraItemsToggle(event) {
     const drawer = event.currentTarget;
-    if (!drawer.open || window.innerWidth >= 768) return;
+    if (!drawer.open || window.innerWidth >= 1024) return;
     window.setTimeout(() => drawer.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
-  function renderItemsPanel(extraClass = "") {
+  function renderItemsPanel(extraClass = "", useExtraDrawer = true) {
     return (
       <div className={`co-postpour-items-panel ${extraClass}`}>
       <div className="co-postpour-items-header">
@@ -29045,7 +29764,7 @@ function PostPourCloseoutItemsPolished({
       </div>
       <div className="co-postpour-items-list">
         {visibleItems.map(renderCloseoutItem)}
-        {remainingItems.length ? (
+        {remainingItems.length && useExtraDrawer ? (
           <details className="co-postpour-extra-items-drawer" onToggle={handleExtraItemsToggle}>
             <summary>
               <span>{remainingItems.length} more closeout item{remainingItems.length === 1 ? "" : "s"}</span>
@@ -29055,6 +29774,10 @@ function PostPourCloseoutItemsPolished({
               {remainingItems.map(renderCloseoutItem)}
             </div>
           </details>
+        ) : remainingItems.length ? (
+          <div className="co-postpour-extra-items-list">
+            {remainingItems.map(renderCloseoutItem)}
+          </div>
         ) : null}
       </div>
       </div>
@@ -29063,8 +29786,18 @@ function PostPourCloseoutItemsPolished({
 
   return (
     <>
-      <div className="hidden md:block">
+      <div className="hidden lg:block">
         {renderItemsPanel()}
+      </div>
+      <div className="co-postpour-tablet-items-surface hidden md:block lg:hidden">
+        <div className="co-field-mobile-section-head">
+          <span>
+            <strong>Closeout items</strong>
+            <em>{selectedItems.length} checks / {checklistSummary.incompleteCount} open</em>
+          </span>
+          <b>{checklistSummary.incompleteCount}</b>
+        </div>
+        {renderItemsPanel("co-postpour-items-panel-mobile", false)}
       </div>
       <details className="co-postpour-mobile-items-drawer md:hidden" onToggle={handleMobileItemsToggle}>
         <summary>
@@ -34658,9 +35391,41 @@ function DeliveryTicketsTablePolished({ rows, selectedId, onSelect }) {
     }, 0);
   }
 
+  function renderTicketCards() {
+    return (
+      <div className="co-delivery-mobile-list grid gap-3 p-3">
+        {rows.map((ticket) => {
+          const selected = ticket.id === selectedId;
+
+          return (
+            <button
+              key={ticket.id}
+              type="button"
+              onClick={() => onSelect(ticket.id)}
+              className={`co-delivery-mobile-card co-mobile-record-card w-full rounded-[1.05rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/75" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/35"}`}
+            >
+              <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="break-words text-base font-black text-slate-950">{deliveryTicketTitle(ticket)}</p>
+                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{ticket.job?.title || "Assigned job"} / {ticket.supplier || "Supplier pending"}</p>
+                </div>
+                {ticket.archivedAt ? <Badge tone="slate">Archived</Badge> : <Badge tone={ticket.ticketUploadId ? "green" : "orange"}>{deliveryTicketYardsLabel(ticket)}</Badge>}
+              </div>
+              <div className="co-delivery-mobile-metrics">
+                <span>Truck <strong>{ticket.truckNumber || "Not set"}</strong></span>
+                <span>Arrival <strong>{formatDateTime(deliveryTicketPrimaryTime(ticket))}</strong></span>
+                <span>Links <strong>{ticket.ticketUploadId ? "Photo" : ticket.reportId ? "Report" : "Needed"}</strong></span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
     <>
-      <details className="co-delivery-mobile-list-drawer" onToggle={handleMobileListToggle}>
+      <details className="co-delivery-mobile-list-drawer md:hidden" onToggle={handleMobileListToggle}>
         <summary>
           <span>
             <strong>Tickets in view</strong>
@@ -34668,35 +35433,19 @@ function DeliveryTicketsTablePolished({ rows, selectedId, onSelect }) {
           </span>
           <span>{rows.length}</span>
         </summary>
-        <div className="co-delivery-mobile-list grid gap-3 p-3">
-          {rows.map((ticket) => {
-            const selected = ticket.id === selectedId;
-
-            return (
-              <button
-                key={ticket.id}
-                type="button"
-                onClick={() => onSelect(ticket.id)}
-                className={`co-delivery-mobile-card co-mobile-record-card w-full rounded-[1.05rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/75" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/35"}`}
-              >
-                <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="break-words text-base font-black text-slate-950">{deliveryTicketTitle(ticket)}</p>
-                    <p className="mt-1 break-words text-xs font-bold text-slate-500">{ticket.job?.title || "Assigned job"} / {ticket.supplier || "Supplier pending"}</p>
-                  </div>
-                  {ticket.archivedAt ? <Badge tone="slate">Archived</Badge> : <Badge tone={ticket.ticketUploadId ? "green" : "orange"}>{deliveryTicketYardsLabel(ticket)}</Badge>}
-                </div>
-                <div className="co-delivery-mobile-metrics">
-                  <span>Truck <strong>{ticket.truckNumber || "Not set"}</strong></span>
-                  <span>Arrival <strong>{formatDateTime(deliveryTicketPrimaryTime(ticket))}</strong></span>
-                  <span>Links <strong>{ticket.ticketUploadId ? "Photo" : ticket.reportId ? "Report" : "Needed"}</strong></span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+        {renderTicketCards()}
       </details>
-      <div className="co-delivery-list-scroll hidden min-w-0 overflow-auto md:block">
+      <div className="co-delivery-tablet-list-surface hidden md:block lg:hidden">
+        <div className="co-field-mobile-section-head">
+          <span>
+            <strong>Tickets in view</strong>
+            <em>{rows.length} delivery ticket{rows.length === 1 ? "" : "s"} ready for review</em>
+          </span>
+          <b>{rows.length}</b>
+        </div>
+        {renderTicketCards()}
+      </div>
+      <div className="co-delivery-list-scroll hidden min-w-0 overflow-auto lg:block">
         <table className="co-delivery-command-table w-full min-w-[900px] text-left">
           <thead>
             <tr>
@@ -36557,7 +37306,7 @@ function ToolChecklistTablePolished({ rows, selectedId, onSelect, onOpenChecklis
 
   return (
     <>
-      <div className="co-toolbox-mobile-list grid gap-3 p-3 md:hidden">
+      <div className="co-toolbox-mobile-list grid gap-3 p-3 lg:hidden">
         {mobileRows.map((checklist) => {
           const selected = checklist.id === selectedId;
 
@@ -36586,7 +37335,7 @@ function ToolChecklistTablePolished({ rows, selectedId, onSelect, onOpenChecklis
           );
         })}
       </div>
-      <div className="co-toolbox-list-scroll hidden min-w-0 overflow-auto md:block">
+      <div className="co-toolbox-list-scroll hidden min-w-0 overflow-auto lg:block">
         <table className="co-toolbox-command-table w-full min-w-[900px] text-left">
           <thead>
             <tr>
@@ -36865,7 +37614,7 @@ function ToolChecklistMobileFocusPanel({
   ];
 
   return (
-    <section className="co-prepour-mobile-focus co-toolbox-mobile-focus co-tool-checklist-mobile-focus mx-4 mb-3 md:hidden" aria-label="Tool checklist mobile focus">
+    <section className="co-prepour-mobile-focus co-toolbox-mobile-focus co-tool-checklist-mobile-focus mx-4 mb-3 lg:hidden" aria-label="Tool checklist mobile focus">
       <div className="co-prepour-mobile-focus-copy">
         <span>Tool Focus</span>
         <h2>{title}</h2>
@@ -37496,12 +38245,12 @@ function ToolChecklistPagePolished({
             )}
             <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
               <p className="text-sm font-bold text-slate-600">
-                <span className="hidden md:inline">Showing {filteredRows.length} checklist{filteredRows.length === 1 ? "" : "s"} / {openIssueCount} open tool issue{openIssueCount === 1 ? "" : "s"}</span>
-                <span className="md:hidden">Showing {mobileVisibleChecklistCount} of {filteredRows.length} checklist{filteredRows.length === 1 ? "" : "s"} / {openIssueCount} open tool issue{openIssueCount === 1 ? "" : "s"}</span>
+                <span className="hidden lg:inline">Showing {filteredRows.length} checklist{filteredRows.length === 1 ? "" : "s"} / {openIssueCount} open tool issue{openIssueCount === 1 ? "" : "s"}</span>
+                <span className="lg:hidden">Showing {mobileVisibleChecklistCount} of {filteredRows.length} checklist{filteredRows.length === 1 ? "" : "s"} / {openIssueCount} open tool issue{openIssueCount === 1 ? "" : "s"}</span>
               </p>
               <div className="flex flex-wrap gap-2">
                 {filteredRows.length > mobileChecklistPreviewCap ? (
-                  <Button type="button" size="sm" variant="secondary" className="md:hidden" onClick={() => setShowAllMobileChecklists((current) => !current)}>
+                  <Button type="button" size="sm" variant="secondary" className="lg:hidden" onClick={() => setShowAllMobileChecklists((current) => !current)}>
                     {showAllMobileChecklists ? "Show fewer" : `Show all ${filteredRows.length}`}
                   </Button>
                 ) : null}
@@ -37510,7 +38259,7 @@ function ToolChecklistPagePolished({
             </div>
           </Card>
           {isFieldToolChecklist ? (
-            <div className="co-field-mobile-tool-surface co-tool-checklist-mobile-tool-surface mt-3 md:hidden">
+            <div className="co-field-mobile-tool-surface co-tool-checklist-mobile-tool-surface mt-3 lg:hidden">
               <div className="co-field-mobile-section-head">
                 <span>
                   <strong>Checklist tools</strong>
@@ -38352,12 +39101,89 @@ function RateBookPage({
 }) {
   const [draft, setDraft] = useState(createRateBookDraft());
   const [showArchived, setShowArchived] = useState(false);
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [validationErrors, setValidationErrors] = useState([]);
+  const canUseRateBookShell = useDesktopCommandViewport(768);
   const canManage = Boolean(permissions?.rateBook?.canManage);
   const rateBookState = useMemo(() => deriveRateBookState(rateBookItems), [rateBookItems]);
-  const visibleItems = showArchived ? rateBookState.rows : rateBookState.activeItems;
+  const visibleItems = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const rows = showArchived ? rateBookState.rows : rateBookState.activeItems;
+    return rows.filter((item) => {
+      const matchesCategory = categoryFilter === "all" || normalizeRateBookCategory(item.category) === categoryFilter;
+      const haystack = [
+        item.title,
+        item.trade,
+        item.description,
+        item.unit,
+        RATE_BOOK_CATEGORY_LABELS[normalizeRateBookCategory(item.category)],
+      ].filter(Boolean).join(" ").toLowerCase();
+      return matchesCategory && (!query || haystack.includes(query));
+    });
+  }, [categoryFilter, rateBookState.activeItems, rateBookState.rows, search, showArchived]);
   const selectedExisting = draft.id ? rateBookItems.find((item) => item.id === draft.id) : null;
   const previewUnitPrice = calculateRateBookUnitPrice(draft);
+  const selectedRateBookShellItem = selectedExisting
+    ? {
+      id: selectedExisting.id,
+      kind: "existing",
+      item: selectedExisting,
+      title: selectedExisting.title,
+      statusLabel: selectedExisting.archivedAt || selectedExisting.status === "archived" ? "Archived" : "Active",
+    }
+    : {
+      id: "rate-book-new",
+      kind: "new",
+      title: "New default",
+      statusLabel: "Draft",
+    };
+  const rateBookShellQueue = [
+    {
+      id: "rate-book-new",
+      kind: "new",
+      eyebrow: "Create",
+      title: "New rate default",
+      meta: "Add labor, material, equipment, subcontractor, or other pricing basis.",
+      statusLabel: "Draft",
+      tone: "blue",
+      actionLabel: "Create",
+    },
+    ...visibleItems.map((item) => ({
+      id: item.id,
+      kind: "existing",
+      item,
+      eyebrow: RATE_BOOK_CATEGORY_LABELS[normalizeRateBookCategory(item.category)] || "Other",
+      title: item.title,
+      meta: `${item.trade || "General"} / ${item.unit || "ea"}`,
+      statusLabel: item.archivedAt || item.status === "archived" ? "Archived" : "Active",
+      status: item.archivedAt || item.status === "archived" ? "Archived" : "Active",
+      tone: item.archivedAt || item.status === "archived" ? "slate" : "green",
+      actionLabel: "Edit",
+      badges: [
+        { label: `${formatEstimateCurrency(calculateRateBookUnitPrice(item))}/${item.unit || "ea"}`, tone: "orange" },
+      ],
+    })),
+  ];
+  const rateBookCategoryTabs = [
+    { id: "all", label: "All" },
+    ...RATE_BOOK_CATEGORIES.map((category) => ({ id: category, label: RATE_BOOK_CATEGORY_LABELS[category] })),
+  ];
+  const rateBookShellKpis = [
+    { id: "active", label: "Active Defaults", value: rateBookState.counts.active, helper: "Usable in estimate pricing", icon: "check", tone: rateBookState.counts.active ? "green" : "slate" },
+    { id: "labor", label: "Labor", value: rateBookState.counts.labor, helper: "Crew and install basis", icon: "hardhat", tone: rateBookState.counts.labor ? "orange" : "slate", onClick: () => setCategoryFilter("labor") },
+    { id: "materials", label: "Materials", value: rateBookState.counts.material, helper: "Concrete and supplies", icon: "clipboard", tone: rateBookState.counts.material ? "blue" : "slate", onClick: () => setCategoryFilter("material") },
+    { id: "subs-equipment", label: "Subs / Equipment", value: rateBookState.counts.subcontractor + rateBookState.counts.equipment, helper: "Rental and partner defaults", icon: "briefcase", tone: rateBookState.counts.subcontractor + rateBookState.counts.equipment ? "amber" : "slate" },
+  ];
+
+  function selectRateBookShellItem(item) {
+    if (item?.kind === "new") {
+      setDraft(createRateBookDraft());
+      setValidationErrors([]);
+      return;
+    }
+    if (item?.item) editItem(item.item);
+  }
 
   function editItem(item) {
     setDraft(createRateBookDraft(item));
@@ -38381,8 +39207,127 @@ function RateBookPage({
     }
   }
 
+  function renderRateBookEditor() {
+    return (
+      <>
+        <SectionHeader
+          title={selectedExisting ? "Edit Default" : "New Default"}
+          description="Costs and markup stay internal. Estimate line items receive only the reviewed sell price."
+          action={selectedExisting ? <StatusBadge status={selectedExisting.archivedAt ? "Archived" : "Active"} /> : <Badge tone="blue">Draft</Badge>}
+        />
+        <form className="co-rate-book-form" onSubmit={handleSubmit}>
+          <div className="co-rate-book-form-grid">
+            <SelectField label="Category" value={draft.category} onChange={(event) => setDraft((current) => ({ ...current, category: event.target.value }))} disabled={!canManage || busy}>
+              {RATE_BOOK_CATEGORIES.map((category) => <option key={category} value={category}>{RATE_BOOK_CATEGORY_LABELS[category]}</option>)}
+            </SelectField>
+            <InputField label="Trade" value={draft.trade} onChange={(event) => setDraft((current) => ({ ...current, trade: event.target.value }))} placeholder="concrete, fencing, general" disabled={!canManage || busy} />
+            <InputField label="Title" value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} disabled={!canManage || busy} />
+            <InputField label="Unit" value={draft.unit} onChange={(event) => setDraft((current) => ({ ...current, unit: event.target.value }))} disabled={!canManage || busy} />
+            <InputField label="Unit cost" value={draft.unitCost} inputMode="decimal" onChange={(event) => setDraft((current) => ({ ...current, unitCost: event.target.value, unitPrice: "" }))} disabled={!canManage || busy} />
+            <InputField label="Markup %" value={draft.markupPercent} inputMode="decimal" onChange={(event) => setDraft((current) => ({ ...current, markupPercent: event.target.value, unitPrice: "" }))} disabled={!canManage || busy} />
+            <InputField label="Sell unit price" value={draft.unitPrice} inputMode="decimal" onChange={(event) => setDraft((current) => ({ ...current, unitPrice: event.target.value }))} disabled={!canManage || busy} />
+            <SelectField label="Taxable" value={draft.taxable ? "yes" : "no"} onChange={(event) => setDraft((current) => ({ ...current, taxable: event.target.value === "yes" }))} disabled={!canManage || busy}>
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
+            </SelectField>
+          </div>
+          <TextAreaField label="Estimate description" value={draft.description} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} disabled={!canManage || busy} />
+          <div className="co-rate-book-preview">
+            <span><em>Internal basis</em><strong>{formatEstimateCurrency(draft.unitCost)} + {Number(draft.markupPercent || 0)}%</strong></span>
+            <span><em>Estimate default</em><strong>{formatEstimateCurrency(previewUnitPrice)}/{draft.unit || "ea"}</strong></span>
+          </div>
+          {validationErrors.length ? (
+            <div className="co-rate-book-errors">
+              {validationErrors.map((error) => <span key={error}>{error}</span>)}
+            </div>
+          ) : null}
+          <div className="co-rate-book-actions">
+            <Button type="submit" disabled={!canManage || busy}>{selectedExisting ? "Save Default" : "Create Default"}</Button>
+            <Button type="button" variant="secondary" onClick={() => setDraft(createRateBookDraft())} disabled={busy}>Clear</Button>
+            {selectedExisting && !selectedExisting.archivedAt ? (
+              <Button type="button" variant="secondary" onClick={() => onArchiveRateBookItem?.(selectedExisting.id)} disabled={!canManage || busy}>Archive</Button>
+            ) : null}
+            {selectedExisting?.archivedAt ? (
+              <Button type="button" variant="secondary" onClick={() => onRestoreRateBookItem?.(selectedExisting.id)} disabled={!canManage || busy}>Restore</Button>
+            ) : null}
+          </div>
+        </form>
+      </>
+    );
+  }
+
+  if (canUseRateBookShell) {
+    return (
+      <div className="co-office-page co-rate-book-page co-rate-book-shell-page">
+        <ApexOfficeCommandShell
+          eyebrow="Pricing Control"
+          title="Rate Book"
+          description="Office-only defaults for reviewed estimate pricing. Raw cost, markup, and internal pricing basis stay out of field and customer surfaces."
+          className="co-rate-book-command-shell"
+          kpis={rateBookShellKpis}
+          queue={{
+            title: "Rate default queue",
+            description: `${visibleItems.length} visible default${visibleItems.length === 1 ? "" : "s"}. Search or filter before editing.`,
+            items: rateBookShellQueue,
+            selectedId: selectedRateBookShellItem.id,
+            onSelect: selectRateBookShellItem,
+            controls: (
+              <div className="co-rate-book-filter-console">
+                <div className="co-rate-book-category-tabs">
+                  {rateBookCategoryTabs.map((item) => (
+                    <button key={item.id} type="button" className={categoryFilter === item.id ? "is-active" : ""} onClick={() => setCategoryFilter(item.id)}>
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+                <input className="field-input" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search defaults..." />
+                <Button type="button" size="sm" variant="secondary" onClick={() => setShowArchived((value) => !value)}>{showArchived ? "Hide archived" : "Show archived"}</Button>
+              </div>
+            ),
+            emptyState: <StateCard title="No rate defaults match" description="Clear search or category filters to find another pricing default." tone="slate" />,
+          }}
+          detail={{
+            title: selectedExisting ? "Selected default" : "New default",
+            item: selectedRateBookShellItem,
+            emptyState: <StateCard title="No rate default selected" description="Choose a rate default or create a new one." tone="slate" />,
+          }}
+          assistant={{
+            title: "Rate Book Guardrails",
+            description: "Office pricing defaults only. Field roles, estimator-only users, and customer packets never receive cost or markup basis.",
+            priorities: [
+              { label: "Visible", value: visibleItems.length, tone: visibleItems.length ? "blue" : "slate" },
+              { label: "Archived", value: rateBookState.archivedItems.length, tone: rateBookState.archivedItems.length ? "amber" : "green" },
+              { label: "Taxable", value: rateBookState.activeItems.filter((item) => item.taxable !== false).length, tone: "orange" },
+            ],
+            actions: [
+              { label: "New Default", icon: "plus", onClick: () => selectRateBookShellItem({ kind: "new" }) },
+              { label: showArchived ? "Hide Archived" : "Show Archived", icon: "archive", onClick: () => setShowArchived((value) => !value) },
+              { label: "Open Estimates", icon: "quote", onClick: () => setActive?.("estimates") },
+            ],
+            guardrails: [
+              "Owner/admin/operations manager only",
+              "No customer or field exposure to cost or markup",
+              "No pricing automation or estimate mutation from browsing defaults",
+            ],
+          }}
+          quickActions={[
+            { id: "new-default", label: "New Default", icon: "plus", onClick: () => selectRateBookShellItem({ kind: "new" }) },
+            { id: "archive-toggle", label: showArchived ? "Hide Archived" : "Show Archived", icon: "archive", onClick: () => setShowArchived((value) => !value) },
+            { id: "open-estimates", label: "Estimates", icon: "quote", onClick: () => setActive?.("estimates") },
+          ]}
+        >
+          <div className="co-rate-book-shell-detail-scroll">
+            <Card className="co-rate-book-editor-card">
+              {renderRateBookEditor()}
+            </Card>
+          </div>
+        </ApexOfficeCommandShell>
+      </div>
+    );
+  }
+
   return (
-    <>
+    <div className="co-office-page co-rate-book-legacy-page">
       <PageHeader
         eyebrow="Build 3B"
         title="Rate Book"
@@ -38432,53 +39377,12 @@ function RateBookPage({
           </Card>
 
           <Card className="co-rate-book-editor-card">
-            <SectionHeader
-              title={selectedExisting ? "Edit Default" : "New Default"}
-              description="Costs and markup stay internal. Estimate line items receive only the reviewed sell price."
-              action={selectedExisting ? <StatusBadge status={selectedExisting.archivedAt ? "Archived" : "Active"} /> : <Badge tone="blue">Draft</Badge>}
-            />
-            <form className="co-rate-book-form" onSubmit={handleSubmit}>
-              <div className="co-rate-book-form-grid">
-                <SelectField label="Category" value={draft.category} onChange={(event) => setDraft((current) => ({ ...current, category: event.target.value }))} disabled={!canManage || busy}>
-                  {RATE_BOOK_CATEGORIES.map((category) => <option key={category} value={category}>{RATE_BOOK_CATEGORY_LABELS[category]}</option>)}
-                </SelectField>
-                <InputField label="Trade" value={draft.trade} onChange={(event) => setDraft((current) => ({ ...current, trade: event.target.value }))} placeholder="concrete, fencing, general" disabled={!canManage || busy} />
-                <InputField label="Title" value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} disabled={!canManage || busy} />
-                <InputField label="Unit" value={draft.unit} onChange={(event) => setDraft((current) => ({ ...current, unit: event.target.value }))} disabled={!canManage || busy} />
-                <InputField label="Unit cost" value={draft.unitCost} inputMode="decimal" onChange={(event) => setDraft((current) => ({ ...current, unitCost: event.target.value, unitPrice: "" }))} disabled={!canManage || busy} />
-                <InputField label="Markup %" value={draft.markupPercent} inputMode="decimal" onChange={(event) => setDraft((current) => ({ ...current, markupPercent: event.target.value, unitPrice: "" }))} disabled={!canManage || busy} />
-                <InputField label="Sell unit price" value={draft.unitPrice} inputMode="decimal" onChange={(event) => setDraft((current) => ({ ...current, unitPrice: event.target.value }))} disabled={!canManage || busy} />
-                <SelectField label="Taxable" value={draft.taxable ? "yes" : "no"} onChange={(event) => setDraft((current) => ({ ...current, taxable: event.target.value === "yes" }))} disabled={!canManage || busy}>
-                  <option value="yes">Yes</option>
-                  <option value="no">No</option>
-                </SelectField>
-              </div>
-              <TextAreaField label="Estimate description" value={draft.description} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} disabled={!canManage || busy} />
-              <div className="co-rate-book-preview">
-                <span><em>Internal basis</em><strong>{formatEstimateCurrency(draft.unitCost)} + {Number(draft.markupPercent || 0)}%</strong></span>
-                <span><em>Estimate default</em><strong>{formatEstimateCurrency(previewUnitPrice)}/{draft.unit || "ea"}</strong></span>
-              </div>
-              {validationErrors.length ? (
-                <div className="co-rate-book-errors">
-                  {validationErrors.map((error) => <span key={error}>{error}</span>)}
-                </div>
-              ) : null}
-              <div className="co-rate-book-actions">
-                <Button type="submit" disabled={!canManage || busy}>{selectedExisting ? "Save Default" : "Create Default"}</Button>
-                <Button type="button" variant="secondary" onClick={() => setDraft(createRateBookDraft())} disabled={busy}>Clear</Button>
-                {selectedExisting && !selectedExisting.archivedAt ? (
-                  <Button type="button" variant="secondary" onClick={() => onArchiveRateBookItem?.(selectedExisting.id)} disabled={!canManage || busy}>Archive</Button>
-                ) : null}
-                {selectedExisting?.archivedAt ? (
-                  <Button type="button" variant="secondary" onClick={() => onRestoreRateBookItem?.(selectedExisting.id)} disabled={!canManage || busy}>Restore</Button>
-                ) : null}
-              </div>
-            </form>
+            {renderRateBookEditor()}
           </Card>
         </div>
       </div>
       </CommandPageFrame>
-    </>
+    </div>
   );
 }
 

@@ -52,12 +52,12 @@ const DEFAULT_ADMIN_ROUTES = Object.entries(MODULE_PATHS)
   .map(([id, routePath]) => ({ id, path: routePath }));
 
 const DEFAULT_ROUTE_MATRIX = {
-  "admin:phone": ["/dashboard", "/leads", "/estimates"],
-  "foreman:phone": ["/jobs", "/time", "/uploads", "/reports", "/change-orders"],
-  "employee:phone": ["/jobs", "/time", "/uploads", "/reports", "/change-orders"],
-  "admin:tablet": ["/dashboard", "/jobs", "/leads", "/estimates", "/time", "/uploads", "/reports", "/change-orders"],
-  "foreman:tablet": ["/jobs", "/time", "/uploads", "/reports", "/change-orders"],
-  "employee:tablet": ["/jobs", "/time", "/uploads", "/reports", "/change-orders"],
+  "admin:phone": ["/dashboard", "/communications", "/leads", "/estimates", "/calculator", "/rate-book"],
+  "foreman:phone": ["/jobs", "/time", "/uploads", "/reports", "/change-orders", "/calculator", "/communications", "/rate-book"],
+  "employee:phone": ["/jobs", "/time", "/uploads", "/reports", "/change-orders", "/calculator", "/communications", "/rate-book"],
+  "admin:tablet": ["/dashboard", "/communications", "/jobs", "/leads", "/estimates", "/time", "/uploads", "/reports", "/change-orders", "/calculator", "/rate-book"],
+  "foreman:tablet": ["/jobs", "/time", "/uploads", "/reports", "/change-orders", "/calculator", "/communications", "/rate-book"],
+  "employee:tablet": ["/jobs", "/time", "/uploads", "/reports", "/change-orders", "/calculator", "/communications", "/rate-book"],
 };
 
 const FIELD_FORBIDDEN_TEXT = [

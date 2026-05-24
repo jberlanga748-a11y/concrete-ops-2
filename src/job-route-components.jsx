@@ -274,7 +274,7 @@ export function JobStartupChecklistCard({ job, onFieldChange, disabled }) {
   );
 }
 
-export function JobCalculationsCard({ calculations, title = "Internal calculations", description = "Internal-only concrete volume records saved by the company team." }) {
+export function JobCalculationsCard({ calculations, title = "Saved calculations", description = "Team-visible concrete volume records saved by the company team.", showInternalBadge = true }) {
   const safeCalculations = Array.isArray(calculations) ? calculations : [];
 
   return (
@@ -297,7 +297,7 @@ export function JobCalculationsCard({ calculations, title = "Internal calculatio
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {sectionCount > 0 ? <Badge tone="blue">{sectionCount} sections</Badge> : null}
-                    <Badge tone="slate">Internal only</Badge>
+                    {showInternalBadge ? <Badge tone="slate">Internal only</Badge> : null}
                   </div>
                 </div>
                 <div className={`mt-3 grid gap-3 ${sectionCount > 0 ? "sm:grid-cols-2 lg:grid-cols-5" : "sm:grid-cols-2 lg:grid-cols-4"}`}>

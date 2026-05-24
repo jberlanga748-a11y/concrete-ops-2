@@ -317,7 +317,7 @@ export function ApexCommandKpiStrip({ items = [] }) {
   );
 }
 
-export function ApexPrimaryQueuePanel({ title = "Priority queue", description = "", items = [], selectedId = "", onSelect, emptyState }) {
+export function ApexPrimaryQueuePanel({ title = "Priority queue", description = "", items = [], selectedId = "", onSelect, emptyState, controls = null }) {
   const visibleItems = Array.isArray(items) ? items.slice(0, 7) : [];
 
   return (
@@ -329,6 +329,7 @@ export function ApexPrimaryQueuePanel({ title = "Priority queue", description = 
         </span>
         <Badge tone={visibleItems.length ? "orange" : "green"}>{visibleItems.length}/7</Badge>
       </div>
+      {controls ? <div className="co-apex-primary-queue-controls">{controls}</div> : null}
       <div className="co-apex-primary-queue-list">
         {visibleItems.length ? visibleItems.map((item) => (
           <WorkQueueCard

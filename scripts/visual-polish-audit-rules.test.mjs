@@ -132,7 +132,7 @@ test("visual audit evidence rules pass a populated migrated desktop shell", () =
 test("visual audit expectations include all migrated shell routes", () => {
   const routes = ROUTE_EXPECTATIONS.flatMap((expectation) => expectation.routes);
 
-  for (const route of ["/", "/jobs", "/schedule", "/reports", "/uploads", "/change-orders", "/estimates"]) {
+  for (const route of ["/", "/communications", "/jobs", "/schedule", "/reports", "/uploads", "/change-orders", "/estimates", "/customers", "/employees", "/calculator", "/rate-book"]) {
     assert.ok(routes.includes(route), `${route} should have route evidence expectations`);
   }
 });

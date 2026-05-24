@@ -51,10 +51,12 @@ export function relatedCustomerRecords(customer, leads, jobs, activity) {
     };
   }
 
-  const normalizedName = String(customer.name || "").toLowerCase();
-  const relatedLeads = leads.filter((lead) => lead.customerId === customer.id || String(lead.customer || "").toLowerCase() === normalizedName);
-  const relatedJobs = jobs.filter((job) => job.customerId === customer.id || String(job.customer || "").toLowerCase() === normalizedName);
+  const normalizedName = String(customer.name || "").trim().toLowerCase();
+  const hasName = normalizedName.length > 0;
+  const relatedLeads = leads.filter((lead) => lead.customerId === customer.id || (hasName && String(lead.customer || "").trim().toLowerCase() === normalizedName));
+  const relatedJobs = jobs.filter((job) => job.customerId === customer.id || (hasName && String(job.customer || "").trim().toLowerCase() === normalizedName));
   const relatedActivity = activity.filter((entry) => {
+    if (!hasName) return false;
     const haystack = `${entry.title || ""} ${entry.detail || ""}`.toLowerCase();
     return haystack.includes(normalizedName);
   });

@@ -105,3 +105,24 @@ test("related customer records include linked leads, jobs, and activity mentions
   assert.deepEqual(related.jobs.map((job) => job.id), ["J-1"]);
   assert.deepEqual(related.activity.map((entry) => entry.id), ["A-1"]);
 });
+
+test("related customer records do not over-match blank customer names", () => {
+  const related = relatedCustomerRecords(
+    { id: "C-BLANK", name: "", archivedAt: null },
+    [
+      { id: "L-BLANK-NAME", customerId: "", customer: "", project: "Patio" },
+      { id: "L-LINKED", customerId: "C-BLANK", customer: "", project: "Driveway" },
+    ],
+    [
+      { id: "J-BLANK-NAME", customerId: "", customer: "", job: "Unknown" },
+      { id: "J-LINKED", customerId: "C-BLANK", customer: "", job: "Linked job" },
+    ],
+    [
+      { id: "A-ANY", title: "General update", detail: "No named customer." },
+    ],
+  );
+
+  assert.deepEqual(related.leads.map((lead) => lead.id), ["L-LINKED"]);
+  assert.deepEqual(related.jobs.map((job) => job.id), ["J-LINKED"]);
+  assert.deepEqual(related.activity, []);
+});

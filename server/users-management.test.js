@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -13,12 +14,20 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function createPort() {
-  return 7200 + Math.floor(Math.random() * 1000);
+async function createPort() {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.unref();
+    server.on("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      server.close(() => resolve(address.port));
+    });
+  });
 }
 
 async function waitForServer(baseUrl, serverOutput) {
-  for (let attempt = 0; attempt < 40; attempt += 1) {
+  for (let attempt = 0; attempt < 80; attempt += 1) {
     try {
       const response = await fetch(`${baseUrl}/api/ready`);
       if (response.ok) return;
@@ -34,7 +43,7 @@ async function waitForServer(baseUrl, serverOutput) {
 async function startServer() {
   const tempDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "concrete-ops-users-"));
   const sqliteFile = path.join(tempDataDir, "app-data.sqlite");
-  const port = createPort();
+  const port = await createPort();
   const baseUrl = `http://localhost:${port}`;
   let output = "";
   const server = spawn(process.execPath, ["server/index.js"], {
