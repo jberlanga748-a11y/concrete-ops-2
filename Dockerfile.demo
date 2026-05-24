@@ -28,9 +28,7 @@ COPY --from=build /app/shared ./shared
 
 RUN test -f /app/shared/permissions.js
 
-RUN mkdir -p /app/data && chown -R node:node /app
-
-USER node
+RUN mkdir -p /app/data
 
 EXPOSE 4000
 
