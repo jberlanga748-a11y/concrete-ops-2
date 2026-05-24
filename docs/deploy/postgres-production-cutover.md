@@ -29,7 +29,7 @@ Last updated: 2026-05-24
 - Fly machine `148e06e2b53d68` is started in `sjc`; Fly service check is passing.
 - Dedicated production smoke users were created/rotated in Postgres for `smoke.admin@apexhq.app` and `smoke.employee@apexhq.app`; the matching GitHub Actions secret was rotated without recording the value.
 - Local hosted production auth smoke passed against `https://app.apexhq.online/` with admin and employee login/bootstrap plus employee restricted-route `403` checks.
-- GitHub Actions production auth smoke run `26356110535` passed on 2026-05-24.
+- GitHub Actions production auth smoke run `26356203321` passed on 2026-05-24 against source commit `e1d86fb`.
 - Final cutover gate passed with `rehearsalReady=true` and `productionCutoverReady=true`.
 
 ## Safe Step 3 Rehearsal
