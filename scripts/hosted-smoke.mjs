@@ -183,6 +183,21 @@ async function requestJson(url, options = {}) {
   return { response, payload, durationMs };
 }
 
+function setCookiesFromResponse(response) {
+  if (typeof response.headers.getSetCookie === "function") {
+    return response.headers.getSetCookie();
+  }
+  const combined = response.headers.get("set-cookie") || "";
+  return combined.split(/,\s*(?=[^;,]+=)/).filter(Boolean);
+}
+
+function cookieHeaderFromResponse(response) {
+  return setCookiesFromResponse(response)
+    .map((cookie) => cookie.split(";")[0])
+    .filter(Boolean)
+    .join("; ");
+}
+
 function assertStatus(result, expectedStatus, label) {
   if (result.response.status !== expectedStatus) {
     throw new Error(`${label} expected HTTP ${expectedStatus}, received ${result.response.status}`);
@@ -247,18 +262,27 @@ async function loginRole(options, role) {
   });
   assertOk(login, `${role} login`);
   assertLatencyBudget(options, login.durationMs, options.maxLoginMs, `${role} login`);
-  if (!login.payload?.token) {
-    throw new Error(`${role} login did not return a token`);
+  const token = login.payload?.token || "";
+  const cookieHeader = cookieHeaderFromResponse(login.response);
+  if (!token && !cookieHeader) {
+    throw new Error(`${role} login did not return a usable session`);
+  }
+  const headers = {
+    "Content-Type": "application/json",
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  } else {
+    headers.Cookie = cookieHeader;
+    const csrfToken = login.payload?.csrfToken || login.response.headers.get("x-csrf-token") || "";
+    if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
   }
   return {
     email,
-    token: login.payload.token,
+    token,
     user: login.payload.user,
     loginDurationMs: login.durationMs,
-    headers: {
-      Authorization: `Bearer ${login.payload.token}`,
-      "Content-Type": "application/json",
-    },
+    headers,
   };
 }
 
