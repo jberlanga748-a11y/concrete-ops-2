@@ -1,8 +1,10 @@
 # Apex HQ Command Binder
 
-Last updated: 2026-05-19
+Last updated: 2026-05-26
 
 Purpose: this is the first file future Codex, Builder, QA, release, product, and business chats should read before making claims or changes. It keeps Apex HQ from drifting, looping, rebuilding completed systems, or overpromising before the product is ready.
+
+Current launch sequence, release blockers, pilot gates, and do-not-build-yet boundaries are captured in `docs/context/launch-memory.md`. Read it before choosing new launch work.
 
 ## 1. Current Product Status
 
@@ -165,25 +167,26 @@ Business claims to avoid:
 Read in this order for Apex HQ build work:
 
 1. `docs/apex-hq-command-binder.md` - this first-read binder.
-2. `AGENTS.md` - repo-level agent rules, source-of-truth order, phase report rules, and field role protection.
-3. `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` - current done/next/do-not-rebuild tracker.
-4. `docs/APEX_HQ_ROADMAP.md` - organized master coordinator roadmap.
-5. `APEX_HQ_MASTER_ROADMAP.md` - long-term historical/product roadmap.
-6. `APEX_HQ_MASTER_CHECKLIST.md` - historical/pilot checklist.
-7. `README.md` - runtime, deployment, env, health, storage, backup/export, CI overview.
-8. `DEPLOYMENT.md` - Fly production notes and release safety reminders.
-9. `CUSTOMER_PILOT_SETUP.md` - isolated customer pilot app/volume setup rules.
-10. `DEMO.md` - demo credentials, demo paths, demo safety.
-11. `docs/GUIDED_DEMO_LAUNCH_READINESS.md` - guided demo position and talk track.
-12. `docs/PUBLIC_CLAIMS_GUARDRAILS.md` - public claim limits.
-13. `docs/PRICING_PACKAGE_STRATEGY.md` - package/pricing assumptions.
-14. `docs/MARKETING_GROWTH_PLAN.md` - positioning, ICP, first customer approach.
-15. `docs/BUSINESS_PLAN_INDEX.md` - index for business planning docs.
-16. `docs/TRUST_COMPLIANCE_CHECKLIST.md` - trust, outreach, testimonial, data, SMS, AI, and launch gates.
-17. `docs/DO_NOT_BUILD_YET_LIST.md` - scope guardrails.
-18. `docs/ASSISTANT_COMMAND_EXPANSION_SCOPE.md` - assistant boundaries and command expansion scope.
-19. `docs/FIELD_OPS_AGENT_PLANNING_CHECKPOINT.md` - Field Ops Agent consent, GPS, role, and package boundaries.
-20. `.agents/APEX_WORKSTREAMS.md` and `.agents/APEX_STATUS.md` - older workstream/handoff material; verify against the build-status file before trusting.
+2. `docs/context/launch-memory.md` - current launch order, release blockers, pilot gates, and do-not-build-yet boundaries.
+3. `AGENTS.md` - repo-level agent rules, source-of-truth order, phase report rules, and field role protection.
+4. `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` - current done/next/do-not-rebuild tracker.
+5. `docs/APEX_HQ_ROADMAP.md` - organized master coordinator roadmap.
+6. `APEX_HQ_MASTER_ROADMAP.md` - long-term historical/product roadmap.
+7. `APEX_HQ_MASTER_CHECKLIST.md` - historical/pilot checklist.
+8. `README.md` - runtime, deployment, env, health, storage, backup/export, CI overview.
+9. `DEPLOYMENT.md` - Fly production notes and release safety reminders.
+10. `CUSTOMER_PILOT_SETUP.md` - isolated customer pilot app/volume setup rules.
+11. `DEMO.md` - demo credentials, demo paths, demo safety.
+12. `docs/GUIDED_DEMO_LAUNCH_READINESS.md` - guided demo position and talk track.
+13. `docs/PUBLIC_CLAIMS_GUARDRAILS.md` - public claim limits.
+14. `docs/PRICING_PACKAGE_STRATEGY.md` - package/pricing assumptions.
+15. `docs/MARKETING_GROWTH_PLAN.md` - positioning, ICP, first customer approach.
+16. `docs/BUSINESS_PLAN_INDEX.md` - index for business planning docs.
+17. `docs/TRUST_COMPLIANCE_CHECKLIST.md` - trust, outreach, testimonial, data, SMS, AI, and launch gates.
+18. `docs/DO_NOT_BUILD_YET_LIST.md` - scope guardrails.
+19. `docs/ASSISTANT_COMMAND_EXPANSION_SCOPE.md` - assistant boundaries and command expansion scope.
+20. `docs/FIELD_OPS_AGENT_PLANNING_CHECKPOINT.md` - Field Ops Agent consent, GPS, role, and package boundaries.
+21. `.agents/APEX_WORKSTREAMS.md` and `.agents/APEX_STATUS.md` - older workstream/handoff material; verify against the build-status file before trusting.
 
 Important business docs:
 

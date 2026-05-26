@@ -1,213 +1,178 @@
 # Apex HQ Daily GTM Brief
 
-Date: 2026-05-18
-Status: next-day founder-led GTM action brief (manual send only)
+Date: 2026-05-26
+Mode: business and marketing prep only (manual approval required before any send or post)
 
-## What Changed
+## Facts vs Assumptions
 
-- Verified public website contact details for the top 3 targets (M2 Mini, LME Concrete, Catt Hardscape) on 2026-05-17.
-- Outreach Tracker now has “ready” contact info placeholders for tomorrow (manual sends only).
-- Demo should still wait until builder confirms the clean guided path is ready.
+### Facts
 
-## Today's Best Use Of Time
+- Apex HQ positioning remains founder-led demos and controlled pilots, not a broad self-serve launch.
+- The 45-day business map centers on owner-led contractor closes, with the founder package direction at $999/month.
+- No overpromise language is allowed: no guaranteed leads, jobs, revenue, or growth.
+- AI must be described as review-first, with owner approval before key actions.
+- First workflow stays: Lead -> Estimate -> Job -> Schedule -> Field Proof -> Owner Review.
+- The first-30 prospect queue and outreach draft pack already contain approval-ready local prospect targets and message templates.
+- Verified prospect contact facts were refreshed on 2026-05-25 for M2 Mini LLC, LME Concrete, and Rosewood Concrete (website checks only).
 
-Do not start broad cold outreach yet.
+### Assumptions (John should confirm before outreach)
 
-Best use of time right now:
+- M2 MINI LLC is still the best near-term close candidate.
+- John can complete one focused outbound block today (minimum 10 calls).
+- Email-first is the lowest-risk first touch for cold prospects today.
+- The guided demo path is ready for a 15–20 minute founder walkthrough (confirm via manual smoke test before any scheduled demo).
 
-1. Confirm builder/demo cleanup status (clean guided path: yes/no).
-2. Get M2 Mini booked first (warm + already price-aware).
-3. Send 1 cold local touch (LME) + 1 cold local touch (Catt) only after John approves wording.
-4. Log every manual send + reply in `OUTREACH_TRACKER.md`.
-5. Capture objections and update the demo script questions after any reply/call.
+## Today's Top 5 Sales Actions
 
-## Top 3 Targets Tomorrow
+1. Lock and rehearse the no-hype package talk track before first outreach (price + boundaries + one workflow).
+2. Call M2 MINI LLC first and ask for a specific walkthrough slot this week (offer 2 time options).
+3. Send only John-approved email drafts to two highest-fit cold prospects (Rosewood Concrete and LME Concrete).
+4. Run one call block to 5 backup prospects after top 3 touches are complete (RT Concrete + Catt Hardscape + 3 others from `docs/OUTREACH_TRACKER.md`).
+5. End day by logging every outcome, top objection, and exact next follow-up date in `docs/OUTREACH_TRACKER.md`.
 
-### 1. M2 Mini LLC
+## Prospects To Call (Priority)
 
-Why:
-
-- warm relationship
-- already asked price
-- solo contractor using Wix
-- clear Basic founder pilot fit
-
-Verified facts (2026-05-17 website check):
-
-- Owner listed: Joseph Madesh
+1. M2 MINI LLC (warm)
 - Phone: 541-990-7365
-- Email: M2minicase@gmail.com
-- Licensed/bonded/insured; License #242728
-Source: https://www.m2mini.com/
+- Why first: warm relationship and strongest pilot-close path.
 
-Inference / angle:
+2. Rosewood Concrete
+- Phone: (971) 289-6488
+- Email: info@rosewoodconcrete.com
+- Why now: high fit for estimate-to-job-to-proof workflow.
 
-- Keep it “solo Basic”: leads + estimates/proposals + job info + follow-up + rough notes (review-first).
+3. LME Concrete LLC
+- Phones: (503) 270-1575 (Spanish), (503) 420-6286 (English)
+- Email: lopez@lmeconcrete.com
+- Why now: clear local service area and concrete workflow fit.
 
-Do tomorrow:
+4. RPB Fence
+- Phone: (541) 360-1468
+- Email: Golive@rpbfence.com
 
-- wait for clean demo confirmation
-- send the follow-up text once the demo is clean
-- propose 2 time slots immediately in the same thread
+5. Mid Valley Fence & Construction
+- Phone: 971-208-3360
+- Email: ian@midvalleyfence.com
 
-Draft (text):
+## Verified Prospect Facts (Sources: Public Websites Checked 2026-05-25)
+
+- M2 Mini LLC: lists owner name Joseph Madesh; phone 541-990-7365; email M2minicase@gmail.com; Albany, OR; license #242728.
+- LME Concrete: lists address 3959 Stanley Lane South, Salem, OR 97302; phone 503-270-1575; additional phone 503-420-6286; email lopez@lmeconcrete.com; CCB#235123.
+- Rosewood Concrete: lists phone (971) 289-6488; email info@rosewoodconcrete.com; CCB #253867; licensed & insured.
+
+## Emails/Texts Ready For Approval (Draft Only, Not Sent)
+
+### Warm Text (M2 MINI LLC)
 
 ```text
-I got the demo cleaned up so I can show it without wasting your time. For where you are at being solo, I would keep it simple: leads, estimates/proposals, job info, follow-up, and rough notes (with you reviewing everything).
+Hey Joe, it is John. I want to show you one clean workflow in Apex HQ: lead, estimate, job, schedule, field photos/proof, and owner review.
 
-If it looks useful, I’d keep you on the Basic founder pilot at $99/month. No long contract. Just a simple test to see if it actually helps.
-
-Would tomorrow morning or tomorrow afternoon work better for a quick 20-minute walkthrough?
+This is founder-led and practical, not hype. Can we lock a 20-minute walkthrough for today or tomorrow?
 ```
 
-### 2. LME Concrete
-
-Why:
-
-- Salem concrete contractor
-- residential/commercial flatwork fit
-- likely estimate and follow-up workflow pain
-
-Verified facts (2026-05-17 website check):
-
-- Phones: 503-270-1575 (Spanish) and 503-420-6286 (English)
-- Email: lopez@lmeconcrete.com
-- Address: 3959 Stanley Lane South, Salem, OR 97302
-- CCB#235123; founded 2021 (per website)
-Source: https://www.lmeconcretellc.com/
-
-Inference / angle:
-
-- Ask about “estimate-to-job handoff + photos/proof + follow-up on open bids” because they likely run a lot of residential jobs.
-
-Do tomorrow:
-
-- use email first (more compliant/less intrusive than cold text), then call only if John wants to
-- do not claim local familiarity; keep it simple and truthful
-
-Draft (short cold email):
+### Cold Email (Rosewood Concrete)
 
 ```text
-Subject: Quick contractor ops demo
+Subject: Quick concrete workflow walkthrough
 
-Hey — this is John with Apex HQ. I have 15 years in concrete and I’m building a contractor operations platform to keep leads, estimates, job info, photos/proof, and follow-ups organized in one place.
+Hi, this is John with Apex HQ.
 
-I saw LME does concrete work around Salem, and the estimate-to-job handoff + photos/proof + follow-up workflow is exactly what I’m showing a few contractors first.
+I have 15 years in concrete and built Apex HQ to help contractors keep leads, estimates, jobs, photos/proof, and follow-up organized in one place.
 
-Would a quick 15–20 minute guided walkthrough be worth looking at?
+I am opening a small founder-led demo group and keeping it controlled. Would a quick 15-20 minute walkthrough be worth it?
 
 John Berlanga
 Apex HQ
-541-971-2741
+john@apexhq.online
 ```
 
-### 3. Catt Hardscape Construction
-
-Why:
-
-- Albany/Corvallis/Lebanon/Salem hardscape service area
-- pavers, walls, and flagstone are visual, multi-step, photo-heavy jobs
-- good fit for estimate, project photo, and follow-up workflow
-
-Verified facts (2026-05-17 website check):
-
-- Phone: 541-908-7787
-- Email: info@catthardscape.com
-- Licensed/bonded/insured; CCB#234909
-- Service area listed: Albany, Corvallis, Lebanon, Philomath, Millersburg, Sweet Home, Salem
-Source: https://catthardscape.com/ and https://catthardscape.com/contact-us/
-
-Inference / angle:
-
-- Lead with “bid/estimate tracking + design changes + photos tied to job + follow-up” rather than generic “software”.
-
-Do tomorrow:
-
-- send email first; call only if John wants to
-- keep language “founder-led demo / controlled pilot” (no public self-serve)
-
-Draft (short cold email):
+### Cold Email (LME Concrete LLC)
 
 ```text
-Subject: Quick hardscape ops walkthrough
+Subject: Founder-led Apex HQ demo
 
-Hey — this is John with Apex HQ. I’m building a contractor operations platform to keep leads, estimates, job notes, photos/proof, and follow-ups organized in one place.
+Hi, this is John with Apex HQ.
 
-I saw you focus on pavers/walls/flagstone, and that “estimate -> job -> photos/proof -> follow-up” workflow is exactly what I’m showing a small group first (founder-led demos, controlled pilots).
+I built Apex HQ for contractors who are growing past texts, paper, and scattered apps. The first workflow I show is lead to estimate to job to field proof to owner review.
 
-Would a quick 15–20 minute walkthrough be worth looking at?
+Would a short 15-20 minute walkthrough be worth looking at?
 
 John Berlanga
-541-971-2741
+Apex HQ
+john@apexhq.online
 ```
 
-## Drafts Ready For John To Approve
-
-Ready after clean demo:
-
-1. M2 Mini text.
-2. LME first-touch email.
-3. Catt first-touch email.
-
-Hold until verified:
-
-1. Rosewood Concrete.
-2. River City Hardscapes.
-3. RT Concrete.
-4. C&A Concrete.
-
-## Claims/Risks To Watch
-
-Do not say:
-
-- Apex HQ guarantees jobs.
-- AI gets leads automatically.
-- Apex HQ is fully public self-serve.
-- Apex HQ replaces Wix, QuickBooks, Procore, ServiceTitan, accounting, or payroll.
-- Apex HQ has customers/testimonials unless real and approved.
-
-Safer language:
+### Same-Day Follow-Up (M2 MINI LLC) (Draft Only)
 
 ```text
-The goal is to help contractors organize opportunities, follow up faster, clean up job details, and win more of the work they already come across.
+If tomorrow is better, does [Tue 10:30am] or [Tue 3:30pm] work for a quick 20-minute walkthrough?
 ```
 
-## Manual Actions John Should Take
+### Cold Text Fallback (Use only if John approves)
 
-### If Builder Says Demo Is Clean (2026-05-18)
+```text
+Hey, this is John with Apex HQ. I built a contractor command center to keep leads, estimates, jobs, photos/proof, and follow-up from getting scattered. I am doing a few founder-led walkthroughs. Worth a quick look? Reply STOP and I will not text again.
+```
 
-1. Send M2 Mini text.
-2. Offer two walkthrough times in the same message thread.
-3. Log reply in `OUTREACH_TRACKER.md`.
-4. After M2 Mini is handled, send 1 LME email + 1 Catt email (only after approving the exact drafts).
+## Instagram Post Draft (Approval Required)
 
-### If Builder Is Not Done Yet (2026-05-18)
+```text
+Most contractors do not struggle because they cannot do the work.
 
-1. Do not send any invites yet.
-2. Build the warm list of 3 contractors John knows (Tier 1).
-3. Prepare “two time slots” text replies so booking is instant when demo is clean.
+They struggle because business details get scattered: lead in one place, estimate somewhere else, job notes in texts, photos on one phone, and follow-up in memory.
 
-## What The Builder/App Chat Must Handle
+Apex HQ is built to clean up one real workflow:
+Lead -> Estimate -> Job -> Schedule -> Field Proof -> Owner Review.
 
-- clean demo data
-- clean default selected records
-- hide junk/test records from demo-visible boards
-- normalize weird demo values
-- confirm guided demo path is ready
+Founder-led demos. Controlled pilots. Built for real trade businesses.
 
-## What To Measure
+#contractorlife #constructionbusiness #contractorsoftware #jobmanagement #fieldwork #smallbusinessowner
+```
 
-Tomorrow:
+## Follow-Ups Due Today
 
-- demo clean confirmation: yes/no
-- M2 Mini text sent: yes/no
-- M2 Mini reply: yes/no
-- LME email approved + sent: yes/no
-- Catt email approved + sent: yes/no
+1. M2 MINI LLC: if no reply after first touch, send one same-day follow-up with 2 time options.
+2. No-answer calls: leave one voicemail, then set follow-up for 2 business days.
+3. Prior "maybe later" prospects: send one short one-workflow follow-up.
+4. Any opt-out/no-thanks: stop immediately and log do-not-contact.
 
-This week:
+## Risks/Claims To Avoid
 
-- demos booked
+- Do not claim guaranteed leads, jobs, revenue, or growth.
+- Do not claim AI autopilot or automatic send/pricing/billing.
+- Do not imply payroll/accounting replacement.
+- Do not claim customer proof/testimonials that are not documented.
+- Do not position Apex HQ as broad public launch today.
+
+## Manual Approval Checklist (John)
+
+Approve or edit before sending anything:
+
+1. Approve the exact M2 text + follow-up time options (or rewrite them).
+2. Approve the exact Rosewood email subject/body.
+3. Approve the exact LME email subject/body.
+4. Confirm demo readiness before booking: quick manual smoke test of the guided demo path.
+
+## What John Should Measure Today
+
+- calls made
+- live conversations
+- voicemails left
+- emails sent (approved only)
+- texts sent (approved only)
 - replies
-- objections
-- first pilot candidate
+- opt-outs
+- demos booked
+- demos completed
+- offers made
+- invoices sent
+- payments collected
+- top objection heard
+- referrals requested
+- referrals received
+
+## End-Of-Day Call
+
+If today yields at least 1 booked walkthrough and 1 active follow-up thread, repeat the same founder-led controlled-pilot motion tomorrow.
+
+If not, narrow tomorrow to one trade and one message angle, then retest.

@@ -52,9 +52,9 @@ I am showing it to a small group first, not opening it wide yet. Would you be op
 ### M2 Mini Follow-Up Text
 
 ```text
-I am getting the demo cleaned up so I can show it without wasting your time. For where you are at being solo, I would focus on the simple version: leads, estimates/proposals, job info, website lead flow, and AI help with rough notes.
+I am getting the demo path cleaned up so I can show it without wasting your time. For where you are at being solo, I would focus on the simple version: leads, estimates/proposals, job info, website lead flow, and AI help with rough notes.
 
-The demo path is clean now, so I can show you what the $99/month founder pilot would include. No contract. Just a simple test to see if it actually helps.
+If you are open to it, I can show you what the $99/month founder pilot would include. No contract. Just a simple test to see if it actually helps.
 ```
 
 ### Cold Contractor Text

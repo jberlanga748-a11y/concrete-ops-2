@@ -609,6 +609,97 @@ Phase 11.0 approval gate: complete as the scope-control matrix for post-core exp
 
 These are not ignored. They are intentionally sequenced after the launch-critical workflow is done.
 
+## Founder, Autonomy, And Business Operating Backlog
+
+These are now explicit post-core priorities. They should be planned after the desktop command shell and role-specific mobile work are stable, unless a specific item is needed sooner for selling, support, or safety.
+
+1. Agent Policy Engine.
+   - Formalize agent action outcomes: auto-approve, human review, or block.
+   - Add a review-agent layer before risky agent actions.
+   - Auto-approval should be limited to low-risk internal actions such as reminders, draft notes, missing-info flags, owner review tasks, and non-customer-facing summaries.
+   - Human review remains required for customer sends, bid submission, pricing changes, estimate-to-job conversion, billing/payment, role/package changes, deletes, production deploys, public posts, legal/tax claims, and angry or ambiguous customer messages.
+   - Every action needs an audit trail with source agent, target record, proposed change, risk level, policy result, reviewer decision, and final status.
+
+2. Founder Finance Command.
+   - Track Apex HQ revenue, setup fees, MRR, expenses, tax reserve, owner pay, bills due, tools to buy, and CPA/bookkeeper export packets.
+   - This is for John running Apex HQ as a business, not customer contractor job accounting.
+   - It should calculate and organize money buckets, but not file taxes, run payroll, move money, or replace a CPA/bookkeeper.
+
+3. Founder Growth Command.
+   - Move the proven workbook workflow into Apex after it has been used manually.
+   - Track prospects, outreach drafts, approvals, demos, pilot offers, setup fees, MRR, social content, follow-ups, and do-not-contact.
+   - Keep founder prospects separate from customer contractor workspaces and customer data.
+   - No auto-send email/SMS/social posts without explicit approval.
+
+4. Customer Success And Support Command.
+   - Add onboarding status, customer health, support tickets, churn risk, training tasks, weekly success summaries, and pilot activation checks.
+   - This should help John know which contractor customers need help before they churn or stall.
+
+5. Billing And Subscription Operations.
+   - Add Stripe/subscription planning only after pilot pricing and support load are proven.
+   - Track packages, trials, setup fees, failed payments, cancellations, pauses, manual overrides, and billing support.
+   - Billing automation remains locked until separately approved.
+
+6. Customer Portal.
+   - Future customer-facing portal for proposal approval, change-order review, secure proof packet sharing, comments, and later payments.
+   - External customer access requires separate security review, token/session controls, audit logging, and privacy checks.
+
+7. Legal, Compliance, And Trust Pack.
+   - Terms of service, privacy policy, acceptable use, AI disclosure, SMS/email consent language, cancellation/refund policy, data retention, and support boundaries.
+   - No public legal/security/compliance claims without review.
+
+8. Observability, Backup, And Restore Console.
+   - Make app health owner-visible: login latency, API errors, failed uploads, failed sends, failed agent actions, database bloat, smoke checks, backup status, and restore drill confidence.
+   - Backups should show last backup time, size, export status, and restore readiness.
+
+9. Data Import And Better Role Admin.
+   - Add safe CSV/import flows for customers, jobs, leads, estimates, and contacts after schema and duplicate rules are approved.
+   - Improve user invites, deactivation, role templates, password reset, crew permissions, and audit visibility.
+
+10. Integrations.
+    - Gmail, Google Calendar, Google Drive, OpenPhone/Twilio, Meta/LinkedIn scheduling, QuickBooks export, Stripe, supplier/vendor systems, and monitoring providers remain future phases.
+    - Integrations must use official APIs or approved tools, avoid platform-rule bypasses, and fail closed when credentials are missing.
+
+## 100 Percent SaaS Build Execution Board
+
+This section turns the roadmap into buildable work. Builder should pull from this board one build or one narrow slice at a time. Do not jump ahead just because a later build sounds exciting.
+
+Build rules:
+
+- Each build must name exact scope, files likely touched, tests, browser QA, role impact, mobile impact, and rollback notes.
+- Each build must preserve field-user blocking, company scoping, package gates, and review-first boundaries.
+- Each build must ship in slices small enough to commit, push, deploy to demo if approved, and verify.
+- Production deploy, billing/payment, secrets, database migration, auto-send, public customer portal, and external integrations still need separate approval.
+
+| Build | Name | Goal | Depends On | Done Gate |
+| --- | --- | --- | --- | --- |
+| 0 | Production Blocker Build | Fix hard production gaps before calling the app real SaaS: dependency audit, Docker secret hygiene, container hardening, CSP/session plan, upload backup coverage, stronger rate limits, and monitoring plan. | Current demo stability | Security checks, backup/restore including uploads, auth/session review, demo smoke, rollback notes |
+| 1 | Paid Pilot Close Build | Make one contractor able to say yes: pilot close kit, order form outline, manual payment path, support terms, onboarding checklist, Day 0/3/10 success loop. | Build 0 where production-facing | Signed/approved pilot packet, support owner, success criteria, no legal/tax overclaim |
+| 2 | QA Evidence Hardening Build | Make audits fail on splash/loading false-passes, missing shell selectors, empty bodies, bad touch targets, contrast, and route-specific content absence. | Current mobile/tablet work | Reliable route matrix, screenshots, no false green proof |
+| 3 | Rate Book And Cost Library Build | Add company-standard labor, material, equipment, subcontractor, and markup defaults for estimates and job costing. | Estimate system stable | Owner/admin only, no field exposure, estimate math tests, package/role tests |
+| 4 | Material List And Purchasing Prep Build | Convert approved estimate/job scope into material lists, vendor notes, purchase prep, and field delivery needs without ordering or payment. | Build 3 | No vendor purchase, no payment, job/estimate linkage tests |
+| 5 | Change Order Money Build | Add priced change orders, customer/GC review status, approval packet, revenue tracking, and billing handoff. | Builds 3-4 | Customer-safe output, no auto-send, field request remains safe |
+| 6 | Job Costing Build | Track estimate vs actual labor, time, materials, equipment, subs, change orders, and closeout profit/loss prep. | Builds 3-5 | Owner/admin only, field redaction, cost math tests, closeout review |
+| 7 | Customer Portal Build | Add secure tokenized external portal for proposal approval, proof packet review, change-order approval, comments, and revocation. | Builds 3-6 plus security review | Expiring links, audit logs, no internal notes/margins/private URLs |
+| 8 | Communication Provider Build | Add approved email/SMS provider flows with consent, opt-out, do-not-contact, templates, delivery history, and outbound approval queue. | Build 7 for customer portal sends or manual mode first | No auto-send, opt-out tests, audit trail, provider failure handling |
+| 9 | Agent Operating System Build | Add durable agent task queue, policy engine, autonomy levels, second-check agent, approval tokens, run logs, retries, dead-letter state, and kill switches. | Builds 0 and 2 | Server-enforced policy, idempotency, audit export, field/package denial tests |
+| 10 | Integration Registry Build | Add per-company connector registry, OAuth/scopes/secrets storage, webhook signatures, sync logs, provider health, and disable switches. | Build 9 | No frontend secrets, fail-closed connectors, scoped integration tests |
+| 11 | Field Offline And PWA Build | Add offline field drafts, upload retry queue, conflict handling, push/in-app notifications, GPS consent settings, and required-proof capture. | Current mobile/tablet plus Build 2 | Offline QA, retry tests, field role safety, no hidden tracking |
+| 12 | SaaS Billing Build | Add Stripe/subscriptions, trials, seats, invoices/receipts, dunning, cancellation, pauses, plan changes, and billing audit. | Paid pilot proof, legal/tax/accounting review | Payment tests, entitlement tests, rollback plan, no field exposure |
+| 13 | SaaS Admin And Customer Success Build | Add support ticketing, customer health, usage analytics, onboarding status, churn risk, referral/testimonial tracking, help center, and admin audit exports. | Builds 1, 7, 9, 12 as applicable | CS dashboard, support SLA, audit export, role tests |
+| 14 | Scale Architecture Build | Move storage/DB/queues toward real SaaS scale: managed database plan, object storage, background jobs, cache/tenant limits, load tests, restore drills. | Real customer usage signals | Load evidence, restore proof, queue/idempotency tests, migration rollback |
+| 15 | Public Launch Build | Enable broader public launch only after production, legal, support, billing, portal, monitoring, and onboarding gates are green. | Builds 0-14 or explicit phased waiver | Launch gate GO, production auth smoke, backup-first release, support owner |
+
+Near-term builder order:
+
+1. Build 0A: production blocker audit and tiny fixes that do not change app behavior.
+2. Build 2A: audit evidence hardening so screenshots cannot false-pass.
+3. Build 1A: paid pilot close kit and onboarding packet.
+4. Build 3A: Rate Book / Cost Library audit.
+5. Build 3B: Rate Book / Cost Library implementation slice 1.
+
+Do not start Builds 7, 8, 10, 12, 14, or 15 without a separate approval because they touch external customers, providers, secrets, payments, data architecture, or public launch.
+
 ## What Is Already 100 Percent For Current Scope
 
 These areas should be treated as complete for the approved scope unless a bug appears:
