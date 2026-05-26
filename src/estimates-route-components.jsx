@@ -9,28 +9,11 @@ import { estimateRoughNotesHasSuggestions, estimateRoughNotesText } from "./esti
 import { deriveEstimateSentSnapshots, getEstimateVisibleInternalNotes, mergeEstimateGcPacketLite, mergeEstimateOfficeInternalNotes } from "./estimate-snapshot-utils";
 import { calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEstimateTotals, deriveEstimateJobHandoffReadiness, deriveEstimateProposalSections, estimateCustomerEmail, estimateStatusLabel, formatEstimateCurrency, mergeEstimateProposalSections } from "./estimate-utils";
 import { addEstimateLineItemStarter, applyEstimateTemplateStarter, buildEstimateLineItemsFromRoughNotes, getEstimateLineItemStartersForTrade, getEstimateStarterTradeSummary, getEstimateTemplateStartersForTrade } from "./estimate-template-utils";
+import { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
 import { buildFenceTakeoffBackupRows, buildFenceTakeoffDraftLineItems, buildFenceTakeoffFieldHandoff, buildFenceTakeoffProofPhotoChecklist, buildFenceTakeoffProposalSummary, deriveFenceTakeoffReadiness, mergeFenceTakeoffIntoDraft, normalizeFenceTakeoff, summarizeFenceTakeoffByAssembly } from "./fence-takeoff-utils";
 import { ESTIMATE_PACKET_PRESETS, ESTIMATE_PACKET_SECTION_DEFS, INTERNAL_REVIEW_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
 
-export function estimateDisplayTitle(estimate) {
-  return estimate?.title || "Estimate draft";
-}
-
-export function estimateDisplayCustomer(estimate) {
-  return estimate?.customer?.name || estimate?.customerName || estimate?.lead?.customer || "Customer pending";
-}
-
-export function estimateDisplayLead(estimate) {
-  return estimate?.lead?.project || estimate?.lead?.customer || "No linked lead";
-}
-
-export function estimateDisplayTotal(estimate) {
-  return Number(estimate?.grandTotal ?? estimate?.total ?? 0) || 0;
-}
-
-export function estimateRailProfileLine(...values) {
-  return values.map((value) => String(value ?? "").trim()).find(Boolean) || "";
-}
+export { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
 
 function formatEstimateUpdatedAt(value) {
   if (!value) return "Not recorded";

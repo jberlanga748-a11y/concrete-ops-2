@@ -1,25 +1,11 @@
 import { useEffect, useState } from "react";
 
-import { Badge, Button, Card, Icon, InputField, SectionHeader, SelectField, StateCard, TextAreaField } from "./app-shell-components";
+import { ApexOfficeCommandShell, Badge, Button, Card, Icon, InputField, SectionHeader, SelectField, StateCard, TextAreaField } from "./app-shell-components";
 import { jobTitle } from "./job-utils";
+import { workCategoryLabel } from "./time-category-utils";
 import { formatMinutes, timeStatusTone } from "./time-utils";
 
-export function workCategoryLabel(workCategory = "") {
-  const labels = {
-    job: "Job",
-    office_admin: "Office/Admin",
-    estimating: "Estimating",
-    lead_follow_up: "Lead Follow-up",
-    shop_yard: "Shop/Yard",
-    travel: "Travel",
-    training: "Training",
-    meeting: "Meeting",
-    maintenance: "Maintenance",
-    other: "Other",
-  };
-
-  return labels[workCategory] || "Other";
-}
+export { workCategoryLabel } from "./time-category-utils";
 
 export function TimeStatusBadge({ status }) {
   return <Badge tone={timeStatusTone(status)}>{status === "on_break" ? "On Break" : status === "completed" ? "Completed" : "Active"}</Badge>;
@@ -642,6 +628,367 @@ export function TimeJobCostingReadinessCard({ readiness }) {
         Review-only. No payroll rates, pricing, margin, invoices, or billing changes are exposed here.
       </p>
     </Card>
+  );
+}
+
+const TIME_CLOCK_COMMAND_ID = "time-clock-command";
+
+function timeEntryStatusLabel(status) {
+  if (status === "on_break") return "On break";
+  if (status === "completed") return "Completed";
+  return "Active";
+}
+
+function timeEntrySelectedBadgeStatus(status) {
+  if (status === "completed") return "complete";
+  if (status === "on_break") return "waiting";
+  return "in progress";
+}
+
+function timeEntryQueueTone(entry) {
+  if (entry?.status === "on_break") return "amber";
+  if (entry?.status === "completed") return "green";
+  return "blue";
+}
+
+function timeEntryTotalLabel(entry) {
+  if (!entry) return "";
+  return entry.status === "completed" ? formatMinutes(entry.totalMinutes) : "In progress";
+}
+
+function timeEntrySortWeight(entry) {
+  if (entry?.status === "on_break") return 0;
+  if (entry?.status && entry.status !== "completed") return 1;
+  return 2;
+}
+
+function buildTimeShellQueueItems({ rows, workspace, permissions, showUser }) {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const activeEntry = workspace?.activeEntry || null;
+  const queueItems = [];
+
+  if (permissions?.time?.canManageOwn) {
+    queueItems.push({
+      id: TIME_CLOCK_COMMAND_ID,
+      kind: "clock",
+      eyebrow: activeEntry ? "My active clock" : "My clock",
+      title: activeEntry ? (activeEntry.jobTitle || workCategoryLabel(activeEntry.workCategory)) : "Clock into assigned work",
+      meta: activeEntry
+        ? (activeEntry.address || activeEntry.notes || workCategoryLabel(activeEntry.workCategory))
+        : "Start clean job-linked time without leaving the board.",
+      status: activeEntry ? timeEntryStatusLabel(activeEntry.status) : "Ready",
+      statusLabel: activeEntry ? timeEntrySelectedBadgeStatus(activeEntry.status) : "ready",
+      tone: activeEntry ? timeEntryQueueTone(activeEntry) : "orange",
+      actionLabel: activeEntry ? "Manage clock" : "Clock in",
+      badges: [
+        { label: activeEntry ? workCategoryLabel(activeEntry.workCategory) : "Job-linked", tone: "slate" },
+        { label: activeEntry ? timeEntryTotalLabel(activeEntry) : "Ready", tone: activeEntry ? timeEntryQueueTone(activeEntry) : "orange" },
+      ],
+      entry: activeEntry,
+    });
+  }
+
+  safeRows
+    .filter((entry) => entry?.id && entry.id !== activeEntry?.id)
+    .slice()
+    .sort((a, b) => timeEntrySortWeight(a) - timeEntrySortWeight(b))
+    .forEach((entry) => {
+      const title = entry.jobTitle || workCategoryLabel(entry.workCategory);
+      queueItems.push({
+        id: entry.id,
+        kind: "entry",
+        eyebrow: showUser ? (entry.userName || "Field user") : workCategoryLabel(entry.workCategory),
+        title,
+        meta: showUser
+          ? `${entry.userRole || "Field user"} / ${workCategoryLabel(entry.workCategory)}`
+          : (entry.address || entry.notes || workCategoryLabel(entry.workCategory)),
+        status: timeEntryStatusLabel(entry.status),
+        statusLabel: timeEntrySelectedBadgeStatus(entry.status),
+        tone: timeEntryQueueTone(entry),
+        actionLabel: permissions?.time?.canCorrect ? "Review" : "Open",
+        badges: [
+          { label: timeEntryTotalLabel(entry), tone: timeEntryQueueTone(entry) },
+          { label: `Break ${formatMinutes(entry.breakMinutes)}`, tone: "slate" },
+          ...(showUser && entry.userName ? [{ label: entry.userName, tone: "blue" }] : []),
+        ],
+        entry,
+      });
+    });
+
+  return queueItems;
+}
+
+function TimeShellFact({ label, value }) {
+  return (
+    <span>
+      <em>{label}</em>
+      <strong>{value}</strong>
+    </span>
+  );
+}
+
+function TimeShellClockSummary({
+  workspace,
+  permissions,
+  onClockIn,
+  onClockOut,
+  onStartBreak,
+  onEndBreak,
+  busy,
+}) {
+  if (!permissions?.time?.canManageOwn) {
+    return (
+      <Card className="co-time-shell-card p-4">
+        <SectionHeader title="My clock" description="This role can review time but cannot start or stop a personal clock here." />
+        <StateCard title="Read-only clock" description="Clock controls stay limited by role." tone="slate" />
+      </Card>
+    );
+  }
+
+  return (
+    <div className="co-time-shell-clock">
+      <ActiveTimeCard
+        activeEntry={workspace.activeEntry}
+        availableJobs={workspace.availableJobs}
+        allowedCategories={workspace.allowedCategories}
+        onClockIn={onClockIn}
+        onClockOut={onClockOut}
+        onStartBreak={onStartBreak}
+        onEndBreak={onEndBreak}
+        disabled={busy}
+        description="Start or stop job-linked time from the same office command surface."
+      />
+    </div>
+  );
+}
+
+function TimeShellSelectedEntry({
+  entry,
+  showUser,
+  permissions,
+  timeEditDraft,
+  setTimeEditDraft,
+  onSaveTimeEntry,
+  busy,
+}) {
+  if (!entry) {
+    return (
+      <StateCard
+        title="No time entry selected"
+        description="Choose a visible entry or open your clock command to review status, breaks, and correction access."
+        tone="slate"
+      />
+    );
+  }
+
+  return (
+    <div className="co-time-shell-entry-stack">
+      <Card className="co-time-shell-selected-card p-4">
+        <div className="co-time-shell-selected-head">
+          <div className="min-w-0">
+            <p>{showUser ? entry.userName || "Field user" : workCategoryLabel(entry.workCategory)}</p>
+            <h2>{entry.jobTitle || workCategoryLabel(entry.workCategory)}</h2>
+            <span>{entry.address || entry.notes || entry.id}</span>
+          </div>
+          <TimeStatusBadge status={entry.status} />
+        </div>
+        <div className="co-time-shell-facts">
+          <TimeShellFact label="Clock in" value={timeEntryDateTimeLabel(entry.clockInAt)} />
+          <TimeShellFact label="Clock out" value={entry.clockOutAt ? timeEntryDateTimeLabel(entry.clockOutAt) : "Still active"} />
+          <TimeShellFact label="Break" value={formatMinutes(entry.breakMinutes)} />
+          <TimeShellFact label="Total" value={timeEntryTotalLabel(entry)} />
+        </div>
+        <div className="co-time-shell-badges">
+          <Badge tone="slate">{entry.id}</Badge>
+          <Badge tone="slate">{workCategoryLabel(entry.workCategory)}</Badge>
+          {showUser && entry.userRole ? <Badge tone="blue">{entry.userRole}</Badge> : null}
+        </div>
+        {entry.notes ? <p className="co-time-shell-note">{entry.notes}</p> : null}
+      </Card>
+
+      {permissions?.time?.canCorrect ? (
+        <details className="co-time-shell-correction-drawer">
+          <summary>
+            <span>
+              <strong>Correction tools</strong>
+              <em>Edit work category, timestamps, breaks, or notes when leadership approval is needed.</em>
+            </span>
+            <b>Open</b>
+          </summary>
+          <div className="co-time-shell-correction-body">
+            <TimeCorrectionPanel
+              entry={entry}
+              draft={timeEditDraft}
+              setDraft={setTimeEditDraft}
+              onSave={onSaveTimeEntry}
+              disabled={busy}
+              canCorrect={permissions.time.canCorrect}
+              compactMobile
+            />
+          </div>
+        </details>
+      ) : (
+        <Card className="co-time-shell-card p-4">
+          <SectionHeader title="Correction access" description="Only office leadership can change submitted time entries." />
+          <StateCard title="Read-only time view" description="No payroll rates, pricing, or margin data are shown here." tone="slate" />
+        </Card>
+      )}
+    </div>
+  );
+}
+
+export function TimeDesktopCommandShell({
+  eyebrow,
+  title,
+  description,
+  kpis,
+  rows,
+  boardSummary,
+  workspace,
+  jobCostingReadiness,
+  permissions,
+  selectedEntry,
+  selectedEntryId,
+  onSelectEntry,
+  timeEditDraft,
+  setTimeEditDraft,
+  onSaveTimeEntry,
+  onClockIn,
+  onClockOut,
+  onStartBreak,
+  onEndBreak,
+  busy,
+  showUser,
+  canOpenTimeSupport,
+  onOpenTimeSupport,
+}) {
+  const queueItems = buildTimeShellQueueItems({ rows, workspace, permissions, showUser });
+  const initialSelection = workspace?.activeEntry && permissions?.time?.canManageOwn
+    ? TIME_CLOCK_COMMAND_ID
+    : selectedEntryId || queueItems[0]?.id || "";
+  const [selectedShellItemId, setSelectedShellItemId] = useState(initialSelection);
+  const selectedQueueItem = queueItems.find((item) => item.id === selectedShellItemId)
+    || queueItems.find((item) => item.id === selectedEntryId)
+    || queueItems[0]
+    || null;
+  const selectedDetailEntry = selectedQueueItem?.kind === "clock"
+    ? selectedQueueItem.entry
+    : selectedQueueItem?.entry || selectedEntry || null;
+  const activeCount = Array.isArray(rows) ? rows.filter((entry) => entry.status !== "completed").length : 0;
+  const onBreakCount = Array.isArray(rows) ? rows.filter((entry) => entry.status === "on_break").length : 0;
+  const proofGapCount = Number(jobCostingReadiness?.jobsWithGaps || 0);
+
+  useEffect(() => {
+    if (!selectedEntryId) return;
+    if (selectedShellItemId === TIME_CLOCK_COMMAND_ID) return;
+    if (selectedShellItemId === selectedEntryId) return;
+    if (queueItems.some((item) => item.id === selectedEntryId)) {
+      setSelectedShellItemId(selectedEntryId);
+    }
+  }, [queueItems, selectedEntryId, selectedShellItemId]);
+
+  const quickActions = [
+    permissions?.time?.canManageOwn ? {
+      id: "clock",
+      label: workspace?.activeEntry ? "Manage Clock" : "Clock In",
+      icon: "clock",
+      onClick: () => setSelectedShellItemId(TIME_CLOCK_COMMAND_ID),
+    } : null,
+    onBreakCount ? {
+      id: "breaks",
+      label: "Review Breaks",
+      icon: "alert",
+      onClick: () => {
+        const breakEntry = queueItems.find((item) => item.entry?.status === "on_break");
+        if (breakEntry) {
+          setSelectedShellItemId(breakEntry.id);
+          onSelectEntry?.(breakEntry.entry.id);
+        }
+      },
+    } : null,
+    canOpenTimeSupport ? {
+      id: "support",
+      label: "Time Support",
+      icon: "help",
+      onClick: onOpenTimeSupport,
+    } : null,
+  ].filter(Boolean);
+
+  return (
+    <ApexOfficeCommandShell
+      className="co-time-shell-command"
+      eyebrow={eyebrow}
+      title={title}
+      description={description}
+      kpis={kpis}
+      quickActions={quickActions}
+      queue={{
+        title: "Time priority queue",
+        description: "Clock status, active breaks, and the latest visible entries.",
+        items: queueItems,
+        selectedId: selectedQueueItem?.id || "",
+        limit: 6,
+        badgeLabel: `${Math.min(queueItems.length, 6)}/${queueItems.length}`,
+        onSelect: (item) => {
+          setSelectedShellItemId(item.id);
+          if (item.kind === "entry" && item.entry?.id) {
+            onSelectEntry?.(item.entry.id);
+          }
+        },
+        emptyState: <StateCard title="No time work yet" description="Clock commands and visible entries appear here once time is available." tone="slate" />,
+      }}
+      detail={{
+        title: selectedQueueItem?.kind === "clock" ? "Clock command" : "Selected time entry",
+        item: selectedQueueItem,
+        emptyState: <StateCard title="Nothing selected" description="Choose a time item to review the field-safe details." tone="slate" />,
+        render: (item) => (
+          <div className="co-time-shell-detail-scroll">
+            {item?.kind === "clock" ? (
+              <TimeShellClockSummary
+                workspace={workspace}
+                permissions={permissions}
+                onClockIn={onClockIn}
+                onClockOut={onClockOut}
+                onStartBreak={onStartBreak}
+                onEndBreak={onEndBreak}
+                busy={busy}
+              />
+            ) : (
+              <TimeShellSelectedEntry
+                entry={selectedDetailEntry}
+                showUser={showUser}
+                permissions={permissions}
+                timeEditDraft={timeEditDraft}
+                setTimeEditDraft={setTimeEditDraft}
+                onSaveTimeEntry={onSaveTimeEntry}
+                busy={busy}
+              />
+            )}
+
+            <Card className="co-time-shell-card p-4">
+              <SectionHeader title="Visible week" description="Role-scoped totals with payroll, pricing, and margin removed." />
+              <div className="co-time-shell-facts">
+                <TimeShellFact label="Worked" value={formatMinutes(boardSummary.totalMinutes || 0)} />
+                <TimeShellFact label="Breaks" value={formatMinutes(boardSummary.breakMinutes || 0)} />
+                <TimeShellFact label="Active" value={activeCount} />
+                <TimeShellFact label="Proof gaps" value={proofGapCount} />
+              </div>
+            </Card>
+
+            {permissions?.time?.canViewAll ? <TimeJobCostingReadinessCard readiness={jobCostingReadiness} /> : null}
+
+            <Card className="co-time-shell-card p-4">
+              <SectionHeader title="Access guardrails" description="Time stays field-safe inside the desktop command shell." />
+              <div className="co-time-guardrail-list">
+                <span><Icon name="check" />No payroll rates shown</span>
+                <span><Icon name="check" />No pricing or margin data</span>
+                <span><Icon name="check" />Corrections limited by role</span>
+              </div>
+            </Card>
+          </div>
+        ),
+      }}
+    />
   );
 }
 

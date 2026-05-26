@@ -2,15 +2,63 @@ function backendUnavailableMessage() {
   return "Cannot reach the Apex HQ API. Start the app with `npm run dev` or `npm run serve`.";
 }
 
+const CSRF_COOKIE_NAME = "apex_hq_csrf";
+const SESSION_ACTIVE_MARKER = "cookie-session";
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+let csrfToken = "";
+
+function readCookie(name) {
+  if (typeof document === "undefined") return "";
+  const prefix = `${name}=`;
+  const match = document.cookie
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(prefix));
+  if (!match) return "";
+
+  try {
+    return decodeURIComponent(match.slice(prefix.length));
+  } catch {
+    return match.slice(prefix.length);
+  }
+}
+
+function bearerToken(token) {
+  const normalized = String(token || "").trim();
+  return normalized && normalized !== SESSION_ACTIVE_MARKER ? normalized : "";
+}
+
+function csrfHeader(method) {
+  if (SAFE_METHODS.has(method)) return {};
+  const token = csrfToken || readCookie(CSRF_COOKIE_NAME);
+  return token ? { "X-CSRF-Token": token } : {};
+}
+
+function rememberCsrfToken(response, payload) {
+  const nextToken = response.headers.get("x-csrf-token") || payload?.csrfToken || "";
+  if (nextToken) {
+    csrfToken = nextToken;
+  }
+}
+
+export function clearApiSessionState() {
+  csrfToken = "";
+}
+
 async function request(path, { method = "GET", token, body } = {}) {
   let response;
+  const normalizedBearerToken = bearerToken(token);
 
   try {
     response = await fetch(path, {
       method,
+      credentials: "include",
       headers: {
+        Accept: "application/json",
         ...(body ? { "Content-Type": "application/json" } : {}),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...csrfHeader(method),
+        ...(normalizedBearerToken ? { Authorization: `Bearer ${normalizedBearerToken}` } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
     });
@@ -27,6 +75,7 @@ async function request(path, { method = "GET", token, body } = {}) {
 
   const contentType = response.headers.get("content-type") || "";
   const payload = await response.json().catch(() => ({}));
+  rememberCsrfToken(response, payload);
 
   if (!response.ok) {
     const isApiPath = path.startsWith("/api");

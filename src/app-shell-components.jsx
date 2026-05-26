@@ -269,8 +269,10 @@ export function AssistantRail({ title = "Apex Assistant", eyebrow = "Assistant",
 }
 
 export function CommandPageFrame({ children, kpis, rail, footer, className = "" }) {
+  const hasRail = Boolean(rail);
+
   return (
-    <div className={`co-command-page-frame ${className}`}>
+    <div className={`co-command-page-frame ${hasRail ? "co-command-page-frame--has-rail" : "co-command-page-frame--no-rail"} ${className}`}>
       {kpis ? <div className="co-command-page-frame-kpis">{kpis}</div> : null}
       <div className="co-command-page-frame-grid">
         <div className="co-command-page-frame-main">{children}</div>
@@ -317,8 +319,10 @@ export function ApexCommandKpiStrip({ items = [] }) {
   );
 }
 
-export function ApexPrimaryQueuePanel({ title = "Priority queue", description = "", items = [], selectedId = "", onSelect, emptyState, controls = null }) {
-  const visibleItems = Array.isArray(items) ? items.slice(0, 7) : [];
+export function ApexPrimaryQueuePanel({ title = "Priority queue", description = "", items = [], selectedId = "", onSelect, emptyState, controls = null, limit = 7, badgeLabel = "" }) {
+  const safeItems = Array.isArray(items) ? items : [];
+  const safeLimit = Number.isFinite(Number(limit)) && Number(limit) > 0 ? Number(limit) : 7;
+  const visibleItems = safeItems.slice(0, safeLimit);
 
   return (
     <Card className="co-apex-primary-queue-panel">
@@ -327,7 +331,7 @@ export function ApexPrimaryQueuePanel({ title = "Priority queue", description = 
           <strong>{title}</strong>
           {description ? <em>{description}</em> : null}
         </span>
-        <Badge tone={visibleItems.length ? "orange" : "green"}>{visibleItems.length}/7</Badge>
+        <Badge tone={visibleItems.length ? "orange" : "green"}>{badgeLabel || `${visibleItems.length}/${safeItems.length || safeLimit}`}</Badge>
       </div>
       {controls ? <div className="co-apex-primary-queue-controls">{controls}</div> : null}
       <div className="co-apex-primary-queue-list">
@@ -417,6 +421,107 @@ export function ApexQuickActionBar({ actions = [] }) {
         </Button>
       ))}
     </div>
+  );
+}
+
+export function ApexWorkspaceToolLauncher({
+  title = "Workspace tools",
+  description = "",
+  tools = [],
+  selectedToolId = "",
+  onSelectTool,
+}) {
+  const visibleTools = Array.isArray(tools) ? tools.filter(Boolean) : [];
+
+  return (
+    <Card className="co-apex-workspace-tool-launcher">
+      <div className="co-apex-panel-head">
+        <span>
+          <strong>{title}</strong>
+          {description ? <em>{description}</em> : null}
+        </span>
+        <Badge tone="slate">{visibleTools.length} tools</Badge>
+      </div>
+      <div className="co-apex-workspace-tool-grid">
+        {visibleTools.length ? visibleTools.map((tool) => {
+          const isSelected = selectedToolId === tool.id;
+          return (
+            <button
+              key={tool.id || tool.label}
+              type="button"
+              className={`co-apex-workspace-tool-card ${isSelected ? "is-selected" : ""}`}
+              data-tone={tool.tone || "slate"}
+              onClick={() => onSelectTool?.(tool)}
+              disabled={tool.disabled}
+              aria-pressed={isSelected || undefined}
+            >
+              <span className="co-apex-workspace-tool-icon">
+                <Icon name={tool.icon || "grid"} />
+              </span>
+              <span className="co-apex-workspace-tool-copy">
+                <strong>{tool.label}</strong>
+                {tool.helper ? <em>{tool.helper}</em> : null}
+              </span>
+              {tool.count || tool.count === 0 ? <b>{tool.count}</b> : null}
+            </button>
+          );
+        }) : (
+          <StateCard title="No tools available" description="Workspace tools appear here when they are enabled for this role." tone="slate" />
+        )}
+      </div>
+    </Card>
+  );
+}
+
+export function ApexWorkspaceLeaderShell({
+  eyebrow = "Apex HQ",
+  title,
+  description,
+  kpis = [],
+  tools = [],
+  selectedToolId = "",
+  onSelectTool,
+  toolTitle = "Workspace tools",
+  toolDescription = "",
+  queue,
+  detail,
+  quickActions = [],
+  children,
+  className = "",
+}) {
+  const selectedItem = detail?.item || null;
+
+  return (
+    <section className={`co-apex-workspace-leader-shell ${className}`}>
+      <div className="co-apex-office-command-head co-apex-workspace-leader-head">
+        <div className="min-w-0">
+          <p>{eyebrow}</p>
+          <h1>{title}</h1>
+          {description ? <span>{description}</span> : null}
+        </div>
+        <ApexQuickActionBar actions={quickActions} />
+      </div>
+      <CommandPageFrame
+        className="co-apex-workspace-leader-frame"
+        kpis={<ApexCommandKpiStrip items={kpis} />}
+      >
+        <DesktopCommandWorkspaceFrame className="co-apex-workspace-leader-workspace">
+          <div className="co-apex-workspace-leader-stack">
+            <ApexWorkspaceToolLauncher
+              title={toolTitle}
+              description={toolDescription}
+              tools={tools}
+              selectedToolId={selectedToolId}
+              onSelectTool={onSelectTool}
+            />
+            <ApexPrimaryQueuePanel {...queue} />
+          </div>
+          <ApexSelectedDetailPanel title={detail?.title} item={selectedItem} emptyState={detail?.emptyState}>
+            {children || detail?.render?.(selectedItem)}
+          </ApexSelectedDetailPanel>
+        </DesktopCommandWorkspaceFrame>
+      </CommandPageFrame>
+    </section>
   );
 }
 
@@ -593,7 +698,6 @@ export function ApexOfficeCommandShell({
   kpis = [],
   queue,
   detail,
-  assistant,
   quickActions = [],
   children,
   className = "",
@@ -601,7 +705,7 @@ export function ApexOfficeCommandShell({
   const selectedItem = detail?.item || null;
 
   return (
-    <section className={`co-apex-office-command-shell ${className}`}>
+    <section className={`co-apex-office-command-shell co-desktop-office-command-standard ${className}`.trim()} data-desktop-standard="office-command">
       <div className="co-apex-office-command-head">
         <div className="min-w-0">
           <p>{eyebrow}</p>
@@ -613,7 +717,6 @@ export function ApexOfficeCommandShell({
       <CommandPageFrame
         className="co-apex-office-command-frame"
         kpis={<ApexCommandKpiStrip items={kpis} />}
-        rail={<ApexAssistantActionPanel {...assistant} />}
       >
         <DesktopCommandWorkspaceFrame className="co-apex-office-command-workspace">
           <ApexPrimaryQueuePanel {...queue} />

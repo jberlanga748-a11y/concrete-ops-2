@@ -1,9 +1,12 @@
+import { FIELD_JOBS_ROUTE_MODULES } from "./field-jobs-route-module.js";
+
 export const MODULE_PATHS = {
   dashboard: "/",
+  fieldWorkspace: FIELD_JOBS_ROUTE_MODULES.fieldWorkspace.path,
   commandCenter: "/command-center",
   communications: "/communications",
   leads: "/leads",
-  jobs: "/jobs",
+  jobs: FIELD_JOBS_ROUTE_MODULES.jobs.path,
   schedule: "/schedule",
   time: "/time",
   reports: "/reports",

@@ -1,4 +1,5 @@
-import { jobTitle } from "./job-utils.js";
+import { fieldChecklistNeedsAction, formatJobScheduleDetail } from "./field-format-utils.js";
+import { jobTitle, normalizeJobStatus } from "./job-utils.js";
 
 export function normalizeReportStatus(status = "draft") {
   return String(status || "").trim().toLowerCase() || "draft";
@@ -72,6 +73,318 @@ export function deriveDailyReportListState(reports) {
     creatorOptions,
     dateOptions,
   };
+}
+
+
+export function normalizeObjectArray(value, fallback = []) {
+  return Array.isArray(value) ? value : fallback;
+}
+
+export function todayDateInputValue() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+export function dailyReportNeedsAction(report) {
+  return ["draft", "reopened"].includes(String(report?.status || "").toLowerCase());
+}
+
+export function dailyReportNeedsReview(report) {
+  return String(report?.status || "").toLowerCase() === "submitted";
+}
+
+export function dailyReportConcreteSummary(report) {
+  if (!report?.concretePoured) return "No pour marked";
+  const yards = Number(report.yardsPoured || 0);
+  return `${yards || 0} yd${yards === 1 ? "" : "s"} poured`;
+}
+
+export function dailyReportPrimaryNote(report) {
+  return report?.workPerformed || report?.crewSummary || report?.delays || report?.safetyNotes || report?.weather || "No field notes yet.";
+}
+
+export function dailyReportDateKey(value) {
+  if (!value) return "";
+  const text = String(value);
+  if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10);
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().slice(0, 10);
+}
+
+export function dailyReportRecordJobId(record = {}) {
+  return record.jobId || record.linkedJobId || record.job?.id || "";
+}
+
+export function dailyReportRecordDate(record = {}) {
+  return dailyReportDateKey(
+    record.reportDate
+    || record.ticketDate
+    || record.deliveredAt
+    || record.takenAt
+    || record.uploadedAt
+    || record.createdAt
+    || record.updatedAt
+    || record.completedAt
+    || record.submittedAt,
+  );
+}
+
+export function dailyReportIsLiveJob(job = {}) {
+  if (!job || job.archivedAt) return false;
+  const status = normalizeJobStatus(job.status || job.stage);
+  return !["archived", "cancelled", "canceled", "complete", "completed", "closed"].includes(status);
+}
+
+export function dailyReportMatchesReport(record = {}, report = {}) {
+  const recordReportId = record.reportId || record.dailyReportId;
+  if (recordReportId && report.id) return recordReportId === report.id;
+  const recordJobId = dailyReportRecordJobId(record);
+  const reportJobId = report.jobId || report.job?.id;
+  if (!recordJobId || !reportJobId || recordJobId !== reportJobId) return false;
+  const recordDate = dailyReportRecordDate(record);
+  const reportDate = dailyReportDateKey(report.reportDate || report.createdAt);
+  return !recordDate || !reportDate || recordDate === reportDate;
+}
+
+export function dailyReportMatchesJobDate(record = {}, job = {}, dateKey = "") {
+  const recordJobId = dailyReportRecordJobId(record);
+  if (!recordJobId || !job?.id || recordJobId !== job.id) return false;
+  const recordDate = dailyReportRecordDate(record);
+  return !dateKey || !recordDate || recordDate === dateKey;
+}
+
+export function dailyReportCoreMissingItems(report = {}) {
+  if (!report) return ["Report"];
+  return [
+    !report.workPerformed ? "Work notes" : "",
+    !report.crewSummary ? "Crew summary" : "",
+    !report.weather ? "Weather" : "",
+  ].filter(Boolean);
+}
+
+export function dailyReportChecklistIsOpen(checklist) {
+  if (!checklist) return false;
+  return fieldChecklistNeedsAction(checklist);
+}
+
+export function deriveDailyReportProofState({
+  report,
+  job,
+  operatingDate,
+  uploads = [],
+  deliveryTickets = [],
+  prePourChecklists = [],
+  postPourChecklists = [],
+  toolChecklists = [],
+  safetyIncidents = [],
+}) {
+  const targetJob = job || report?.job || {};
+  const targetDate = operatingDate || dailyReportDateKey(report?.reportDate || report?.createdAt);
+  const photos = normalizeObjectArray(uploads).filter((upload) => (
+    report ? dailyReportMatchesReport(upload, report) : dailyReportMatchesJobDate(upload, targetJob, targetDate)
+  ));
+  const tickets = normalizeObjectArray(deliveryTickets).filter((ticket) => (
+    report ? dailyReportMatchesReport(ticket, report) : dailyReportMatchesJobDate(ticket, targetJob, targetDate)
+  ));
+  const prePour = [
+    targetJob?.prePourChecklist,
+    ...normalizeObjectArray(prePourChecklists).filter((checklist) => dailyReportMatchesJobDate(checklist, targetJob, "")),
+  ].filter(Boolean);
+  const postPour = [
+    targetJob?.postPourChecklist,
+    ...normalizeObjectArray(postPourChecklists).filter((checklist) => dailyReportMatchesJobDate(checklist, targetJob, "")),
+  ].filter(Boolean);
+  const tools = normalizeObjectArray(toolChecklists).filter((checklist) => dailyReportMatchesJobDate(checklist, targetJob, targetDate));
+  const incidents = normalizeObjectArray(safetyIncidents).filter((incident) => dailyReportMatchesJobDate(incident, targetJob, targetDate) && !incident.archivedAt);
+  const missingCore = report ? dailyReportCoreMissingItems(report) : ["Daily report"];
+  const openChecklistCount = [...prePour, ...postPour, ...tools].filter(dailyReportChecklistIsOpen).length;
+  const ticketExpected = Boolean(report?.concretePoured);
+  const photoMissing = photos.length === 0;
+  const ticketMissing = ticketExpected && tickets.length === 0;
+  const gapCount = missingCore.length + (photoMissing ? 1 : 0) + (ticketMissing ? 1 : 0) + openChecklistCount;
+
+  return {
+    photoCount: photos.length,
+    ticketCount: tickets.length,
+    incidentCount: incidents.length,
+    missingCore,
+    openChecklistCount,
+    ticketExpected,
+    photoMissing,
+    ticketMissing,
+    gapCount,
+  };
+}
+
+export function todayWorkDateKey(value = new Date()) {
+  return dailyReportDateKey(value) || todayDateInputValue();
+}
+
+export function todayWorkJobDate(job = {}) {
+  return dailyReportDateKey(job.scheduledStart || job.startDate || job.startDateTarget || job.dueDate || job.due || "");
+}
+
+export function todayWorkTimeValue(job = {}) {
+  const parsed = new Date(job.scheduledStart || job.startDate || job.dueDate || "");
+  return Number.isNaN(parsed.getTime()) ? Number.MAX_SAFE_INTEGER : parsed.getTime();
+}
+
+export function todayWorkCrewAssignments(job = {}) {
+  const directAssignments = normalizeObjectArray(job.assignments).filter((assignment) => !assignment.removedAt);
+  const crewAssignments = normalizeObjectArray(job.crewAssignments).filter((assignment) => !assignment.removedAt);
+  const synthesized = [];
+  if (job.assignedForemanId) synthesized.push({ userId: job.assignedForemanId, roleOnJob: "foreman" });
+  if (job.assignedUserId) synthesized.push({ userId: job.assignedUserId, roleOnJob: "crew" });
+  const byKey = new Map();
+  [...directAssignments, ...crewAssignments, ...synthesized].forEach((assignment, index) => {
+    const key = assignment.userId || assignment.id || `${assignment.roleOnJob || "crew"}-${index}`;
+    if (!byKey.has(key)) byKey.set(key, assignment);
+  });
+  return Array.from(byKey.values());
+}
+
+export function todayWorkCrewCount(job = {}) {
+  const assignmentCount = todayWorkCrewAssignments(job).length;
+  if (assignmentCount) return assignmentCount;
+  const textCrew = String(job.crew || "").trim();
+  if (textCrew) return 1;
+  return 0;
+}
+
+export function todayWorkForemanLabel(job = {}, users = []) {
+  if (job.foremanAssignment?.userName) return job.foremanAssignment.userName;
+  if (job.assignedForemanName) return job.assignedForemanName;
+  if (job.assignedForemanId) {
+    const matchedUser = normalizeObjectArray(users).find((user) => user.id === job.assignedForemanId);
+    return matchedUser?.name || job.assignedForemanId;
+  }
+  return "Unassigned";
+}
+
+export function todayWorkHasReport(report = {}) {
+  return Boolean(report?.id);
+}
+
+export function todayWorkChecklistRows(checklists = [], job = {}, dateKey = "", includeDate = true) {
+  return normalizeObjectArray(checklists).filter((checklist) => (
+    includeDate ? dailyReportMatchesJobDate(checklist, job, dateKey) : dailyReportMatchesJobDate(checklist, job, "")
+  ));
+}
+
+export function deriveTodayWorkCoordination({
+  jobs = [],
+  dailyReports = [],
+  uploads = [],
+  deliveryTickets = [],
+  prePourChecklists = [],
+  postPourChecklists = [],
+  toolChecklists = [],
+  safetyIncidents = [],
+  timeEntries = [],
+  users = [],
+  today = new Date(),
+} = {}) {
+  const dateKey = todayWorkDateKey(today);
+  const safeJobs = normalizeObjectArray(jobs).filter((job) => dailyReportIsLiveJob(job));
+  const safeReports = normalizeObjectArray(dailyReports).filter((report) => !report.archivedAt);
+  const safeUploads = normalizeObjectArray(uploads).filter((upload) => !upload.archivedAt);
+  const safeTickets = normalizeObjectArray(deliveryTickets).filter((ticket) => !ticket.archivedAt);
+  const safeTimeEntries = normalizeObjectArray(timeEntries).filter((entry) => !entry.archivedAt);
+
+  const jobsWithTodayActivity = new Set([
+    ...safeReports.filter((report) => dailyReportRecordDate(report) === dateKey).map(dailyReportRecordJobId),
+    ...safeUploads.filter((upload) => dailyReportRecordDate(upload) === dateKey).map(dailyReportRecordJobId),
+    ...safeTickets.filter((ticket) => dailyReportRecordDate(ticket) === dateKey).map(dailyReportRecordJobId),
+    ...safeTimeEntries.filter((entry) => dailyReportRecordDate(entry) === dateKey || (entry.clockInAt && !entry.clockOutAt)).map(dailyReportRecordJobId),
+  ].filter(Boolean));
+
+  const todayJobs = safeJobs
+    .filter((job) => todayWorkJobDate(job) === dateKey || normalizeJobStatus(job.status || job.stage) === "in_progress" || jobsWithTodayActivity.has(job.id))
+    .sort((left, right) => todayWorkTimeValue(left) - todayWorkTimeValue(right));
+
+  const upcomingJobs = safeJobs
+    .filter((job) => todayWorkJobDate(job) && todayWorkJobDate(job) > dateKey)
+    .sort((left, right) => todayWorkTimeValue(left) - todayWorkTimeValue(right))
+    .slice(0, 3);
+
+  const rows = todayJobs.map((job) => {
+    const report = safeReports.find((item) => dailyReportMatchesJobDate(item, job, dateKey));
+    const proofState = deriveDailyReportProofState({
+      report,
+      job,
+      operatingDate: dateKey,
+      uploads: safeUploads,
+      deliveryTickets: safeTickets,
+      prePourChecklists,
+      postPourChecklists,
+      toolChecklists,
+      safetyIncidents,
+    });
+    const prePourOpen = [
+      job.prePourChecklist,
+      ...todayWorkChecklistRows(prePourChecklists, job, dateKey, false),
+    ].filter(Boolean).filter(fieldChecklistNeedsAction).length;
+    const postPourOpen = [
+      job.postPourChecklist,
+      ...todayWorkChecklistRows(postPourChecklists, job, dateKey, false),
+    ].filter(Boolean).filter(fieldChecklistNeedsAction).length;
+    const toolOpen = todayWorkChecklistRows(toolChecklists, job, dateKey).filter(fieldChecklistNeedsAction).length;
+    const incidentsOpen = normalizeObjectArray(safetyIncidents).filter((incident) => (
+      dailyReportMatchesJobDate(incident, job, dateKey)
+      && !incident.archivedAt
+      && !/(resolved|closed|reviewed)/i.test(String(incident.status || ""))
+    )).length;
+    const crewCount = todayWorkCrewCount(job);
+    const missing = [
+      !job.scheduledStart ? "Schedule" : "",
+      !crewCount ? "Crew" : "",
+      !todayWorkHasReport(report) ? "Report" : "",
+      proofState.photoMissing ? "Photos" : "",
+      prePourOpen || postPourOpen || toolOpen ? "Checklist" : "",
+      incidentsOpen ? "Incident" : "",
+    ].filter(Boolean);
+
+    return {
+      job,
+      report,
+      proofState,
+      crewCount,
+      foreman: todayWorkForemanLabel(job, users),
+      scheduleLabel: formatJobScheduleDetail(job),
+      reportLabel: todayWorkHasReport(report) ? reportStatusLabel(report.status) : "Missing report",
+      photoCount: proofState.photoCount,
+      ticketCount: proofState.ticketCount,
+      openWorkflowCount: prePourOpen + postPourOpen + toolOpen + incidentsOpen,
+      missing,
+      tone: missing.length ? "amber" : "green",
+    };
+  });
+
+  return {
+    dateKey,
+    rows,
+    upcomingJobs,
+    stats: {
+      todayJobs: rows.length,
+      crewsAssigned: rows.filter((row) => row.crewCount > 0).length,
+      missingReports: rows.filter((row) => !todayWorkHasReport(row.report)).length,
+      missingPhotos: rows.filter((row) => row.proofState.photoMissing).length,
+      openWorkflows: rows.reduce((sum, row) => sum + row.openWorkflowCount, 0),
+      activeClocks: safeTimeEntries.filter((entry) => entry.clockInAt && !entry.clockOutAt).length,
+    },
+  };
+}
+
+export function dailyReportProofSummary(proofState) {
+  if (!proofState) return "Proof not checked";
+  const parts = [`${proofState.photoCount} photo${proofState.photoCount === 1 ? "" : "s"}`];
+  if (proofState.ticketExpected || proofState.ticketCount) {
+    parts.push(`${proofState.ticketCount} ticket${proofState.ticketCount === 1 ? "" : "s"}`);
+  }
+  if (proofState.openChecklistCount) {
+    parts.push(`${proofState.openChecklistCount} checklist open`);
+  }
+  return parts.join(" / ");
 }
 
 function incrementBreakdown(map, key, label) {

@@ -1798,6 +1798,103 @@ textarea {
     color: var(--color-shell-text) !important;
   }
 
+  .co-topbar-assistant-button {
+    display: inline-flex;
+    min-height: 2.45rem;
+    min-width: 2.45rem;
+    max-width: 13.5rem;
+    align-items: center;
+    gap: 0.48rem;
+    border: 1px solid rgba(249, 115, 22, 0.28);
+    border-radius: 0.92rem;
+    background:
+      linear-gradient(135deg, rgba(249, 115, 22, 0.2), rgba(15, 23, 42, 0.72));
+    padding: 0.32rem 0.58rem 0.32rem 0.36rem;
+    color: #ffffff;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.11),
+      0 16px 34px -30px rgba(249, 115, 22, 0.9);
+    transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+  }
+
+  .co-topbar-assistant-button:hover {
+    border-color: rgba(249, 115, 22, 0.58);
+    background:
+      linear-gradient(135deg, rgba(249, 115, 22, 0.28), rgba(15, 23, 42, 0.86));
+    transform: translateY(-1px);
+  }
+
+  .co-topbar-assistant-mark,
+  .co-mobile-assistant-mark {
+    display: grid;
+    flex: 0 0 auto;
+    place-items: center;
+    overflow: hidden;
+    border: 1px solid rgba(249, 115, 22, 0.28);
+    background: #020617;
+  }
+
+  .co-topbar-assistant-mark {
+    width: 1.9rem;
+    height: 1.9rem;
+    border-radius: 0.68rem;
+  }
+
+  .co-topbar-assistant-mark img,
+  .co-mobile-assistant-mark img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .co-topbar-assistant-copy {
+    display: grid;
+    min-width: 0;
+    gap: 0.04rem;
+  }
+
+  .co-topbar-assistant-copy strong,
+  .co-topbar-assistant-copy em {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .co-topbar-assistant-copy strong {
+    font-size: 0.78rem;
+    font-weight: 950;
+    line-height: 1;
+  }
+
+  .co-topbar-assistant-copy em {
+    max-width: 7rem;
+    color: rgba(226, 232, 240, 0.86);
+    font-size: 0.62rem;
+    font-style: normal;
+    font-weight: 850;
+    line-height: 1;
+  }
+
+  .co-topbar-assistant-count,
+  .co-mobile-assistant-count {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: #f4510b;
+    color: #ffffff;
+    font-weight: 950;
+    line-height: 1;
+  }
+
+  .co-topbar-assistant-count {
+    min-width: 1.15rem;
+    height: 1.15rem;
+    padding: 0 0.25rem;
+    font-size: 0.6rem;
+  }
+
   .field-label {
     @apply grid w-full min-w-0 gap-1 text-xs font-black tracking-[0.02em] text-slate-700;
   }
@@ -1884,8 +1981,7 @@ textarea {
     justify-content: flex-start;
     height: calc(100vh - 6.18rem) !important;
     padding: 0.48rem 0.56rem 0.62rem !important;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(148, 163, 184, 0.38) transparent;
+    overflow: hidden !important;
   }
 
   .co-sidebar-brand-logo {
@@ -2025,6 +2121,83 @@ textarea {
     background: rgba(255, 255, 255, 0.1);
     color: var(--color-shell-text);
     padding-inline: 0.44rem !important;
+  }
+
+  .co-sidebar-workspace-list {
+    display: grid;
+    min-width: 0;
+    gap: 0.42rem;
+  }
+
+  .co-sidebar-workspace-item {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: 2rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.52rem;
+    border: 1px solid rgba(148, 163, 184, 0.14);
+    border-radius: 0.78rem;
+    background: rgba(255, 255, 255, 0.035);
+    padding: 0.46rem 0.5rem;
+    color: var(--color-shell-text-muted);
+    text-align: left;
+    transition:
+      background 160ms ease,
+      border-color 160ms ease,
+      color 160ms ease,
+      transform 160ms ease;
+  }
+
+  .co-sidebar-workspace-item:hover,
+  .co-sidebar-workspace-item.is-active {
+    border-color: rgba(249, 115, 22, 0.42);
+    background: rgba(249, 115, 22, 0.14);
+    color: var(--color-brand-orange-soft);
+  }
+
+  .co-sidebar-workspace-item.is-active {
+    background: linear-gradient(135deg, var(--color-brand-orange-strong), var(--color-brand-orange));
+    color: var(--color-brand-orange-soft);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.18),
+      0 14px 28px -20px rgba(249, 115, 22, 0.9);
+  }
+
+  .co-sidebar-workspace-icon {
+    display: grid;
+    width: 2rem;
+    height: 2rem;
+    place-items: center;
+    border-radius: 0.62rem;
+    background: rgba(255, 255, 255, 0.08);
+    color: currentColor;
+  }
+
+  .co-sidebar-workspace-copy {
+    display: grid;
+    min-width: 0;
+    gap: 0.08rem;
+  }
+
+  .co-sidebar-workspace-copy strong,
+  .co-sidebar-workspace-copy em {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .co-sidebar-workspace-copy strong {
+    font-size: 0.78rem;
+    font-weight: 950;
+    line-height: 1.05;
+  }
+
+  .co-sidebar-workspace-copy em {
+    color: rgba(226, 232, 240, 0.68);
+    font-size: 0.62rem;
+    font-style: normal;
+    font-weight: 850;
+    line-height: 1.05;
   }
 
   .co-sidebar-status-card {
@@ -4837,9 +5010,91 @@ textarea {
     line-height: 1.18;
   }
 
-  .co-leads-summary-actions .btn {
+  .co-leads-summary-actions .btn,
+  .co-leads-primary-action-strip .btn,
+  .co-leads-primary-action-strip button,
+  .co-leads-secondary-action-row .btn,
+  .co-leads-secondary-action-row button {
     justify-content: center;
     min-width: 0;
+  }
+
+  .co-leads-action-pulse {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.42rem;
+    margin-top: 0.72rem;
+  }
+
+  .co-leads-action-pulse div {
+    min-width: 0;
+    border: 1px solid #dbe4ef;
+    border-radius: 0.62rem;
+    background: #f8fafc;
+    padding: 0.48rem 0.54rem;
+  }
+
+  .co-leads-action-pulse strong,
+  .co-leads-action-pulse span {
+    display: block;
+    overflow-wrap: anywhere;
+  }
+
+  .co-leads-action-pulse strong {
+    color: #0f172a;
+    font-size: 0.85rem;
+    font-weight: 950;
+    line-height: 1.05;
+  }
+
+  .co-leads-action-pulse span {
+    margin-top: 0.12rem;
+    color: #64748b;
+    font-size: 0.6rem;
+    font-weight: 900;
+    line-height: 1.15;
+    text-transform: uppercase;
+  }
+
+  .co-leads-action-pulse div[data-tone="green"] {
+    border-color: #bbf7d0;
+    background: #f0fdf4;
+  }
+
+  .co-leads-action-pulse div[data-tone="orange"],
+  .co-leads-action-pulse div[data-tone="amber"] {
+    border-color: #fed7aa;
+    background: #fff7ed;
+  }
+
+  .co-leads-primary-action-strip {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.42rem;
+    margin-top: 0.76rem;
+  }
+
+  .co-leads-primary-action-strip .btn,
+  .co-leads-primary-action-strip button {
+    min-height: 2.48rem !important;
+    white-space: normal;
+  }
+
+  .co-leads-secondary-action-row {
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.42rem;
+    margin-top: 0.46rem;
+  }
+
+  .co-leads-secondary-action-row .btn,
+  .co-leads-secondary-action-row button {
+    min-height: 2.12rem !important;
+    padding-inline: 0.74rem !important;
   }
 
   .co-leads-right-rail > * + * {
@@ -4924,6 +5179,17 @@ textarea {
     font-size: 0.88rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
+  }
+
+  .co-leads-tools-tray-body {
+    display: grid;
+    gap: 0.62rem;
+    padding: 0.62rem;
+    background: #f8fafc;
+  }
+
+  .co-leads-tools-tray .co-leads-rail-card {
+    border-color: rgba(203, 213, 225, 0.86) !important;
   }
 
   .co-leads-followup-card {
@@ -6812,7 +7078,9 @@ textarea {
     }
 
     .co-mobile-user-cluster {
+      position: relative;
       flex: 0 0 auto;
+      gap: 0.52rem;
     }
 
     .co-mobile-brand-mark,
@@ -6901,6 +7169,52 @@ textarea {
       text-align: left;
     }
 
+    .co-mobile-assistant-button {
+      position: relative;
+      display: inline-grid;
+      width: 2.55rem;
+      height: 2.55rem;
+      flex: 0 0 auto;
+      place-items: center;
+      border: 1px solid rgba(249, 115, 22, 0.3);
+      border-radius: 0.86rem;
+      background:
+        linear-gradient(145deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.98));
+      padding: 0.28rem;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 14px 30px -24px rgba(249, 115, 22, 0.9);
+    }
+
+    .co-mobile-assistant-mark {
+      width: 1.92rem;
+      height: 1.92rem;
+      border-radius: 0.62rem;
+    }
+
+    .co-mobile-assistant-count {
+      position: absolute;
+      top: -0.18rem;
+      right: -0.18rem;
+      min-width: 1.05rem;
+      height: 1.05rem;
+      padding: 0 0.22rem;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      font-size: 0.55rem;
+      box-shadow: 0 8px 18px -12px rgba(2, 6, 23, 0.9);
+    }
+
+    .co-mobile-account-word {
+      display: inline-flex;
+      color: #f8fafc;
+      font-size: 0.68rem;
+      font-weight: 950;
+      letter-spacing: 0.05em;
+      line-height: 1;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
     .co-mobile-user-copy {
       display: block;
       min-width: 0;
@@ -6915,6 +7229,103 @@ textarea {
       color: rgba(226, 232, 240, 0.9);
       font-size: 0.9rem;
       font-weight: 950;
+    }
+
+    .co-mobile-account-popover {
+      position: absolute;
+      top: calc(100% + 0.72rem);
+      right: 0;
+      z-index: 80;
+      width: min(19.5rem, calc(100vw - 1.5rem));
+    }
+
+    .co-mobile-account-card {
+      overflow: hidden;
+      border: 1px solid rgba(249, 115, 22, 0.26);
+      border-radius: 1.15rem;
+      background:
+        radial-gradient(circle at 12% 0%, rgba(249, 115, 22, 0.18), transparent 9rem),
+        linear-gradient(180deg, rgba(15, 23, 42, 0.99), #07111f);
+      box-shadow: 0 24px 64px -30px rgba(2, 6, 23, 0.92);
+      color: #f8fafc;
+    }
+
+    .co-mobile-account-head {
+      display: flex;
+      align-items: center;
+      gap: 0.72rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 0.85rem;
+    }
+
+    .co-mobile-account-head strong,
+    .co-mobile-account-head em {
+      display: block;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .co-mobile-account-head strong {
+      font-size: 0.88rem;
+      font-weight: 950;
+    }
+
+    .co-mobile-account-head em {
+      margin-top: 0.16rem;
+      color: rgba(203, 213, 225, 0.86);
+      font-size: 0.68rem;
+      font-style: normal;
+      font-weight: 850;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .co-mobile-account-meta {
+      display: grid;
+      gap: 0.36rem;
+      padding: 0.75rem 0.85rem 0;
+      color: rgba(226, 232, 240, 0.82);
+      font-size: 0.7rem;
+      font-weight: 850;
+      line-height: 1.25;
+    }
+
+    .co-mobile-account-actions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.5rem;
+      padding: 0.85rem;
+    }
+
+    .co-mobile-account-actions button {
+      display: inline-flex;
+      min-height: 2.75rem;
+      min-width: 0;
+      align-items: center;
+      justify-content: center;
+      gap: 0.45rem;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 0.78rem;
+      background: rgba(255, 255, 255, 0.06);
+      color: #f8fafc;
+      font-size: 0.76rem;
+      font-weight: 950;
+      text-align: center;
+    }
+
+    .co-mobile-account-actions button:hover,
+    .co-mobile-account-actions button:focus-visible {
+      border-color: rgba(249, 115, 22, 0.46);
+      background: rgba(249, 115, 22, 0.18);
+    }
+
+    .co-mobile-account-actions .co-mobile-account-logout {
+      grid-column: 1 / -1;
+      border-color: rgba(248, 113, 113, 0.3);
+      background: rgba(127, 29, 29, 0.34);
+      color: #fecaca;
     }
 
     .co-topbar .relative > button[aria-label^="Open notifications"] {
@@ -11481,16 +11892,18 @@ textarea {
   }
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1180px) {
   .co-rate-book-shell-page {
-    height: calc(100vh - 4.5rem);
-    min-height: 41rem;
+    height: calc(100vh - 69px) !important;
+    max-height: calc(100vh - 69px) !important;
+    flex: 0 0 auto;
+    min-height: 0 !important;
     overflow: hidden;
   }
 
   .co-rate-book-shell-page .co-apex-office-command-shell {
     height: 100%;
-    min-height: 0;
+    min-height: 0 !important;
   }
 
   .co-rate-book-shell-page .co-apex-office-command-frame {
@@ -11518,10 +11931,17 @@ textarea {
   }
 
   .co-rate-book-shell-page .co-apex-primary-queue-panel,
-  .co-rate-book-shell-page .co-apex-selected-detail-panel,
-  .co-rate-book-shell-page .co-apex-assistant-action-panel {
+  .co-rate-book-shell-page .co-apex-selected-detail-panel {
     height: 100%;
     min-height: 0;
+  }
+
+  .co-rate-book-shell-page .co-apex-primary-queue-list {
+    align-content: start;
+  }
+
+  .co-rate-book-shell-page .co-work-queue-action {
+    display: none;
   }
 
   .co-rate-book-shell-page .co-apex-selected-detail-body {
@@ -11529,6 +11949,37 @@ textarea {
     align-content: start;
     overflow-y: auto;
     overscroll-behavior: contain;
+  }
+
+  .co-rate-book-shell-page .co-rate-book-form {
+    gap: 0.58rem;
+    margin-top: 0.56rem;
+  }
+
+  .co-rate-book-shell-page .co-rate-book-form-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.56rem;
+  }
+
+  .co-rate-book-shell-page .co-rate-book-filter-console .field-input,
+  .co-rate-book-shell-page .co-rate-book-form-grid .field-input {
+    min-height: 2.55rem;
+  }
+
+  .co-rate-book-shell-page .co-rate-book-form textarea.field-input {
+    min-height: 4.4rem;
+  }
+
+  .co-rate-book-shell-page .co-rate-book-preview {
+    gap: 0.5rem;
+  }
+
+  .co-rate-book-shell-page .co-rate-book-preview span {
+    padding: 0.52rem;
+  }
+
+  .co-rate-book-shell-page .co-rate-book-actions {
+    gap: 0.5rem;
   }
 }
 
@@ -11621,7 +12072,6 @@ textarea {
     max-height: 55rem;
   }
 
-  .co-rate-book-shell-page .co-apex-assistant-action-panel,
   body:has(.co-rate-book-shell-page) .co-apex-assistant-shell.is-closed {
     display: none !important;
   }
@@ -11763,6 +12213,10 @@ textarea {
   }
 }
 
+.co-field-mobile-queue {
+  display: none;
+}
+
 @media (max-width: 767px) {
   .co-field-workspace-page {
     background:
@@ -11832,9 +12286,14 @@ textarea {
     padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1.25rem) !important;
   }
 
+  .co-field-workspace-page .co-field-command-layout {
+    display: none !important;
+  }
+
   .co-field-landing-stack {
     padding-left: 1rem !important;
     padding-right: 1rem !important;
+    padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1rem) !important;
   }
 
   .co-field-mobile-remote {
@@ -11987,6 +12446,153 @@ textarea {
     align-items: center;
     justify-content: space-between;
     gap: 0.7rem;
+  }
+
+  .co-field-mobile-queue {
+    display: grid;
+    gap: 0.55rem;
+  }
+
+  .co-field-mobile-queue-head {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding-inline: 0.15rem;
+  }
+
+  .co-field-mobile-queue-head span {
+    display: grid;
+    min-width: 0;
+    gap: 0.15rem;
+  }
+
+  .co-field-mobile-queue-head strong {
+    color: #0f172a;
+    font-size: 0.95rem;
+    font-weight: 950;
+    line-height: 1.12;
+  }
+
+  .co-field-mobile-queue-head em {
+    color: #64748b;
+    font-size: 0.72rem;
+    font-style: normal;
+    font-weight: 850;
+    line-height: 1.25;
+  }
+
+  .co-field-mobile-queue-list {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .co-field-mobile-queue-card {
+    display: grid;
+    grid-template-columns: 2.1rem minmax(0, 1fr) auto;
+    gap: 0.58rem;
+    align-items: center;
+    border: 1px solid rgba(226, 232, 240, 0.98);
+    border-left: 3px solid #64748b;
+    border-radius: 0.82rem;
+    background: rgba(255, 255, 255, 0.97);
+    padding: 0.62rem;
+    box-shadow: 0 16px 34px -32px rgba(15, 23, 42, 0.62);
+  }
+
+  .co-field-mobile-queue-card[data-tone="amber"] {
+    border-left-color: #f59e0b;
+  }
+
+  .co-field-mobile-queue-card[data-tone="orange"] {
+    border-left-color: #f97316;
+  }
+
+  .co-field-mobile-queue-icon {
+    display: inline-flex;
+    height: 2.1rem;
+    width: 2.1rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.62rem;
+    background: #f8fafc;
+    color: #334155;
+  }
+
+  .co-field-mobile-queue-card[data-tone="amber"] .co-field-mobile-queue-icon,
+  .co-field-mobile-queue-card[data-tone="orange"] .co-field-mobile-queue-icon {
+    background: #fff7ed;
+    color: #c2410c;
+  }
+
+  .co-field-mobile-queue-icon svg {
+    height: 1rem;
+    width: 1rem;
+  }
+
+  .co-field-mobile-queue-copy {
+    display: grid;
+    min-width: 0;
+    gap: 0.13rem;
+  }
+
+  .co-field-mobile-queue-copy p {
+    color: #c2410c;
+    font-size: 0.62rem;
+    font-weight: 950;
+    letter-spacing: 0.1em;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+
+  .co-field-mobile-queue-copy strong {
+    overflow-wrap: anywhere;
+    color: #0f172a;
+    font-size: 0.82rem;
+    font-weight: 950;
+    line-height: 1.14;
+  }
+
+  .co-field-mobile-queue-copy em,
+  .co-field-mobile-queue-copy span {
+    overflow-wrap: anywhere;
+    color: #64748b;
+    font-size: 0.67rem;
+    font-style: normal;
+    font-weight: 850;
+    line-height: 1.18;
+  }
+
+  .co-field-mobile-queue-copy span {
+    color: #475569;
+  }
+
+  .co-field-mobile-queue-actions {
+    display: grid;
+    min-width: 4.55rem;
+    gap: 0.34rem;
+  }
+
+  .co-field-mobile-queue-actions button {
+    min-height: 2.45rem;
+    border: 1px solid rgba(203, 213, 225, 0.95);
+    border-radius: 0.58rem;
+    background: #ffffff;
+    padding-inline: 0.52rem;
+    color: #0f172a;
+    font-size: 0.68rem;
+    font-weight: 950;
+  }
+
+  .co-field-mobile-queue-actions button:first-child {
+    border-color: rgba(249, 115, 22, 0.28);
+    background: #fff7ed;
+    color: #9a3412;
+  }
+
+  .co-field-mobile-queue-actions button:disabled {
+    opacity: 0.58;
   }
 
   .co-field-required-wrap {
@@ -12339,6 +12945,10 @@ textarea {
   .co-field-notice-actions > * {
     justify-content: center;
     width: 100%;
+  }
+
+  body:has(.co-field-workspace-page) .co-apex-assistant-shell.is-closed {
+    display: none !important;
   }
 }
 
@@ -13388,6 +13998,10 @@ textarea {
   white-space: nowrap;
 }
 
+.co-time-field-mobile-command {
+  display: none;
+}
+
 .co-time-tablet-only {
   display: none;
 }
@@ -14384,6 +14998,294 @@ textarea {
 
   .co-time-page .co-page-header h1 + p {
     display: none !important;
+  }
+
+  .co-time-page[data-field-workspace="true"] .co-page-header,
+  .co-time-page[data-field-workspace="true"] > .co-time-clock-hero,
+  .co-time-page[data-field-workspace="true"] > .co-time-mobile-snapshot {
+    display: none !important;
+  }
+
+  .co-time-page[data-field-workspace="true"] {
+    background:
+      linear-gradient(180deg, #ffffff 0%, #f8fafc 56%, #eef3f8 100%) !important;
+  }
+
+  .co-time-field-mobile-command {
+    display: grid;
+    min-width: 0;
+    gap: 0.78rem;
+    padding: 0.92rem 1rem 1.05rem;
+  }
+
+  .co-time-field-mobile-hero,
+  .co-time-field-mobile-adjust,
+  .co-time-field-mobile-queue {
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid #dbe4ef;
+    border-radius: 1rem;
+    background: #ffffff;
+    box-shadow: 0 18px 40px -34px rgba(15, 23, 42, 0.54);
+  }
+
+  .co-time-field-mobile-hero {
+    display: grid;
+    gap: 0.72rem;
+    padding: 0.86rem;
+  }
+
+  .co-time-field-mobile-hero-head,
+  .co-time-field-mobile-queue-head,
+  .co-time-field-mobile-row {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.78rem;
+  }
+
+  .co-time-field-mobile-hero-head > span,
+  .co-time-field-mobile-queue-head > span,
+  .co-time-field-mobile-row > span:first-child {
+    display: grid;
+    min-width: 0;
+    gap: 0.12rem;
+  }
+
+  .co-time-field-mobile-hero-head em,
+  .co-time-field-mobile-facts em,
+  .co-time-field-mobile-queue-head em,
+  .co-time-field-mobile-row em {
+    overflow: hidden;
+    color: #64748b;
+    font-size: 0.62rem;
+    font-style: normal;
+    font-weight: 950;
+    letter-spacing: 0.08em;
+    line-height: 1;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .co-time-field-mobile-hero-head strong,
+  .co-time-field-mobile-queue-head strong {
+    color: #0f172a;
+    font-size: 0.94rem;
+    font-weight: 950;
+    line-height: 1.15;
+  }
+
+  .co-time-field-mobile-job {
+    min-width: 0;
+    border: 1px solid #fed7aa;
+    border-left: 4px solid #f97316;
+    border-radius: 0.92rem;
+    background:
+      linear-gradient(135deg, rgba(255, 247, 237, 0.96), rgba(255, 255, 255, 0.9)),
+      #ffffff;
+    padding: 0.72rem 0.78rem;
+  }
+
+  .co-time-field-mobile-job p,
+  .co-time-field-mobile-job span,
+  .co-time-field-mobile-row strong,
+  .co-time-field-mobile-row b {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .co-time-field-mobile-job p {
+    color: #0f172a;
+    font-size: 1rem;
+    font-weight: 950;
+    line-height: 1.16;
+  }
+
+  .co-time-field-mobile-job span {
+    display: block;
+    margin-top: 0.22rem;
+    color: #64748b;
+    font-size: 0.74rem;
+    font-weight: 850;
+    line-height: 1.25;
+  }
+
+  .co-time-field-mobile-facts {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.42rem;
+  }
+
+  .co-time-field-mobile-facts span {
+    display: grid;
+    min-width: 0;
+    gap: 0.18rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.78rem;
+    background: #f8fafc;
+    padding: 0.52rem 0.46rem;
+  }
+
+  .co-time-field-mobile-facts strong {
+    overflow: hidden;
+    color: #0f172a;
+    font-size: 0.86rem;
+    font-weight: 950;
+    line-height: 1.05;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .co-time-field-mobile-actions {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.52rem;
+  }
+
+  .co-time-field-mobile-actions .btn {
+    width: 100%;
+    min-height: 3.15rem !important;
+    border-radius: 0.9rem !important;
+    font-size: 0.9rem !important;
+    font-weight: 950 !important;
+  }
+
+  .co-time-field-mobile-actions .co-time-field-mobile-primary:only-child {
+    grid-column: 1 / -1;
+  }
+
+  .co-time-field-mobile-adjust > summary {
+    display: flex;
+    min-height: 3rem;
+    cursor: pointer;
+    list-style: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.78rem;
+    padding: 0.76rem 0.86rem;
+  }
+
+  .co-time-field-mobile-adjust > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .co-time-field-mobile-adjust > summary span {
+    display: grid;
+    min-width: 0;
+    gap: 0.14rem;
+  }
+
+  .co-time-field-mobile-adjust > summary strong {
+    color: #0f172a;
+    font-size: 0.86rem;
+    font-weight: 950;
+    line-height: 1.18;
+  }
+
+  .co-time-field-mobile-adjust > summary em {
+    overflow: hidden;
+    color: #64748b;
+    font-size: 0.72rem;
+    font-style: normal;
+    font-weight: 850;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .co-time-field-mobile-adjust > summary b {
+    display: inline-flex;
+    min-height: 1.95rem;
+    min-width: 3.4rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: #fff7ed;
+    color: #c2410c;
+    font-size: 0.7rem;
+    font-weight: 950;
+    line-height: 1;
+  }
+
+  .co-time-field-mobile-adjust > summary b::before {
+    content: "Show";
+  }
+
+  .co-time-field-mobile-adjust[open] > summary b::before {
+    content: "Hide";
+  }
+
+  .co-time-field-mobile-adjust-body {
+    display: grid;
+    gap: 0.68rem;
+    border-top: 1px solid #e2e8f0;
+    background: #f8fafc;
+    padding: 0.72rem;
+  }
+
+  .co-time-field-mobile-adjust-body > .co-mobile-accordion {
+    box-shadow: none !important;
+  }
+
+  .co-time-field-mobile-queue-head {
+    border-bottom: 1px solid #e2e8f0;
+    padding: 0.76rem 0.86rem;
+  }
+
+  .co-time-field-mobile-queue-head b {
+    flex: 0 0 auto;
+    border-radius: 999px;
+    background: #f1f5f9;
+    color: #334155;
+    font-size: 0.74rem;
+    font-weight: 950;
+    line-height: 1;
+    padding: 0.42rem 0.58rem;
+  }
+
+  .co-time-field-mobile-rows {
+    display: grid;
+    min-width: 0;
+    gap: 0.5rem;
+    background: #f8fafc;
+    padding: 0.68rem;
+  }
+
+  .co-time-field-mobile-row {
+    border: 1px solid #e2e8f0;
+    border-left: 4px solid #cbd5e1;
+    border-radius: 0.86rem;
+    background: #ffffff;
+    padding: 0.62rem;
+  }
+
+  .co-time-field-mobile-row:first-child {
+    border-left-color: #f97316;
+  }
+
+  .co-time-field-mobile-row strong {
+    color: #0f172a;
+    font-size: 0.82rem;
+    font-weight: 950;
+    line-height: 1.18;
+  }
+
+  .co-time-field-mobile-row > span:last-child {
+    display: grid;
+    flex: 0 0 auto;
+    justify-items: end;
+    gap: 0.24rem;
+  }
+
+  .co-time-field-mobile-row b {
+    color: #334155;
+    font-size: 0.72rem;
+    font-weight: 950;
+    line-height: 1;
   }
 
   .co-time-header-status {
@@ -16024,6 +16926,141 @@ textarea {
 
   .co-calculator-priority-mobile {
     display: none;
+  }
+}
+
+@media (min-width: 1180px) {
+  .co-calculator-shell-page {
+    height: calc(100vh - 69px) !important;
+    max-height: calc(100vh - 69px) !important;
+    flex: 0 0 auto;
+    min-height: 0 !important;
+    overflow: hidden;
+  }
+
+  .co-calculator-shell-page .co-apex-office-command-shell {
+    height: 100%;
+    min-height: 0 !important;
+  }
+
+  .co-calculator-shell-page .co-apex-office-command-frame {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+  }
+
+  .co-calculator-shell-page .co-command-page-frame-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 21rem);
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  .co-calculator-shell-page .co-command-page-frame-main,
+  .co-calculator-shell-page .co-command-page-frame-rail {
+    min-height: 0;
+  }
+
+  .co-calculator-shell-page .co-apex-office-command-workspace {
+    height: 100%;
+    min-height: 0;
+    grid-template-columns: minmax(18rem, 0.74fr) minmax(0, 1.26fr);
+  }
+
+  .co-calculator-shell-page .co-apex-primary-queue-panel,
+  .co-calculator-shell-page .co-apex-selected-detail-panel {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .co-calculator-shell-page .co-apex-primary-queue-list {
+    align-content: start;
+  }
+
+  .co-calculator-shell-page .co-work-queue-action {
+    display: none;
+  }
+
+  .co-calculator-shell-page .co-apex-selected-detail-body {
+    min-height: 0;
+    align-content: start;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .co-calculator-shell-detail-scroll {
+    display: grid;
+    min-height: 0;
+    gap: 0.72rem;
+  }
+
+  .co-calculator-shell-page .co-calculator-shell-mode-control .co-toolbox-category-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.42rem;
+    overflow: visible;
+    padding-bottom: 0;
+  }
+
+  .co-calculator-shell-page .co-calculator-shell-mode-control .co-toolbox-category-tabs button {
+    min-width: 0;
+    min-height: 2.48rem;
+    width: 100%;
+    padding: 0.48rem 0.5rem;
+    font-size: 0.72rem;
+  }
+
+  .co-calculator-shell-page .co-toolbox-main-board,
+  .co-calculator-shell-page .co-toolbox-form-card {
+    box-shadow: 0 16px 38px -34px rgba(7, 17, 31, 0.52);
+  }
+
+  .co-calculator-shell-page .co-toolbox-board-header {
+    padding: 0.82rem 1rem !important;
+  }
+
+  .co-calculator-shell-page .co-toolbox-board-header .flex.flex-wrap.gap-2 {
+    display: none !important;
+  }
+
+  .co-calculator-shell-page .co-toolbox-main-board > div:nth-child(2),
+  .co-calculator-shell-page .co-toolbox-main-board > div:nth-child(3) {
+    padding: 0.9rem 1rem !important;
+  }
+
+  .co-calculator-shell-page .co-toolbox-main-board > .grid {
+    grid-template-columns: minmax(0, 1fr) minmax(14rem, 17rem);
+    gap: 0.82rem !important;
+  }
+
+  .co-calculator-shell-page .co-calculator-type-tabs {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 0.5rem;
+  }
+
+  .co-calculator-shell-page .co-calculator-type-tabs button {
+    min-width: 0;
+    min-height: 2.5rem;
+    padding: 0.48rem 0.5rem;
+    font-size: 0.76rem;
+    line-height: 1.08;
+  }
+
+  .co-calculator-shell-page .co-toolbox-main-board .field-input {
+    min-height: 2.55rem;
+  }
+
+  .co-calculator-shell-page .co-calculator-waste-panel {
+    padding: 0.86rem !important;
+  }
+
+  .co-calculator-shell-page .co-calculator-waste-actions {
+    gap: 0.5rem;
+    margin-top: 0.72rem !important;
+  }
+
+  .co-calculator-shell-page .co-calculator-summary-card {
+    padding: 0.9rem !important;
   }
 }
 
@@ -17763,7 +18800,12 @@ textarea {
   }
 
   .co-calculator-page.co-field-tool-page .co-toolbox-board-header {
-    padding: 0.82rem 1rem !important;
+    padding: 0.62rem 0.85rem !important;
+  }
+
+  .co-calculator-page.co-field-tool-page .co-toolbox-board-header h2 {
+    font-size: 0.82rem !important;
+    letter-spacing: 0.08em !important;
   }
 
   .co-calculator-page.co-field-tool-page .co-toolbox-main-board {
@@ -17773,10 +18815,13 @@ textarea {
 
   .co-calculator-page.co-field-tool-page .co-toolbox-main-board > div:nth-child(2) {
     order: 1;
+    padding: 0.7rem 0.85rem !important;
   }
 
   .co-calculator-page.co-field-tool-page .co-toolbox-main-board > div:nth-child(3) {
     order: 2;
+    gap: 0.72rem !important;
+    padding: 0.72rem 0.85rem !important;
   }
 
   .co-calculator-page.co-field-tool-page .co-toolbox-board-header p,
@@ -17800,6 +18845,27 @@ textarea {
     line-height: 1;
   }
 
+  .co-calculator-page.co-field-tool-page .co-calculator-mobile-focus {
+    margin: 0 0.85rem 0.55rem !important;
+    padding: 0.72rem !important;
+  }
+
+  .co-calculator-mobile-focus .co-prepour-mobile-focus-copy {
+    padding-left: 0.58rem;
+  }
+
+  .co-calculator-mobile-focus .co-prepour-mobile-focus-copy h2 {
+    margin-top: 0.25rem;
+    font-size: 1.05rem;
+    line-height: 1.04;
+  }
+
+  .co-calculator-mobile-focus .co-prepour-mobile-focus-copy em {
+    margin-top: 0.28rem;
+    padding: 0.28rem 0.46rem;
+    font-size: 0.58rem;
+  }
+
   .co-calculator-mobile-focus .co-prepour-mobile-focus-copy p {
     display: none;
   }
@@ -17807,6 +18873,27 @@ textarea {
   .co-calculator-mobile-focus .co-prepour-mobile-focus-actions,
   .co-calculator-mobile-focus .co-prepour-mobile-focus-metrics {
     margin-top: 0.48rem;
+  }
+
+  .co-calculator-mobile-focus .co-prepour-mobile-focus-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.38rem;
+  }
+
+  .co-calculator-mobile-focus .co-prepour-mobile-focus-actions button {
+    min-height: 2.72rem !important;
+    padding-left: 0.38rem !important;
+    padding-right: 0.38rem !important;
+    font-size: 0.72rem;
+  }
+
+  .co-calculator-mobile-focus .co-prepour-mobile-focus-actions button:nth-child(3) {
+    grid-column: auto;
+  }
+
+  .co-calculator-mobile-focus .co-prepour-mobile-focus-actions svg {
+    height: 0.98rem;
+    width: 0.98rem;
   }
 
   .co-calculator-mobile-focus .co-prepour-mobile-focus-metrics {
@@ -17822,8 +18909,24 @@ textarea {
     padding: 0.95rem 1.45rem 1rem !important;
   }
 
+  .co-calculator-page.co-field-tool-page .co-page-header {
+    margin-bottom: 0.45rem;
+    padding: 0.72rem 1rem 0.76rem !important;
+  }
+
+  .co-calculator-page.co-field-tool-page .co-page-header p:first-child {
+    font-size: 0.6rem !important;
+    line-height: 1 !important;
+  }
+
   .co-calculator-page .co-page-header h1 {
     font-size: clamp(1.72rem, 7vw, 2.08rem) !important;
+  }
+
+  .co-calculator-page.co-field-tool-page .co-page-header h1 {
+    margin-top: 0.32rem !important;
+    font-size: 1.58rem !important;
+    line-height: 1.04 !important;
   }
 
   .co-calculator-page .co-page-header h1 + p {
@@ -17861,6 +18964,15 @@ textarea {
     gap: 0.62rem !important;
   }
 
+  .co-calculator-page.co-field-tool-page .co-toolbox-main-board .co-section-accent h2 {
+    font-size: 0.94rem !important;
+    line-height: 1.12 !important;
+  }
+
+  .co-calculator-page.co-field-tool-page .co-toolbox-main-board .co-section-accent p {
+    display: none !important;
+  }
+
   .co-calculator-page .co-toolbox-board-header .flex.flex-wrap.gap-2,
   .co-calculator-page .co-calculator-waste-actions {
     display: grid;
@@ -17880,6 +18992,11 @@ textarea {
     margin-top: 0.85rem;
   }
 
+  .co-calculator-page.co-field-tool-page .co-toolbox-main-board > .grid > .min-w-0 > .grid {
+    gap: 0.62rem !important;
+    margin-top: 0.54rem !important;
+  }
+
   .co-calculator-page .co-calculator-type-tabs {
     display: grid !important;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -17896,6 +19013,31 @@ textarea {
     white-space: normal;
   }
 
+  .co-calculator-page.co-field-tool-page .co-calculator-type-tabs {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.38rem;
+  }
+
+  .co-calculator-page.co-field-tool-page .co-calculator-type-tabs button {
+    min-height: 3.25rem !important;
+    border-radius: 0.72rem;
+    padding: 0.42rem 0.24rem;
+    font-size: 0.61rem;
+    line-height: 1.08;
+  }
+
+  .co-calculator-page.co-field-tool-page .co-calculator-waste-panel {
+    padding: 0.76rem !important;
+  }
+
+  .co-calculator-page.co-field-tool-page .co-calculator-waste-panel .grid {
+    gap: 0.58rem !important;
+  }
+
+  .co-calculator-page.co-field-tool-page .co-calculator-waste-actions {
+    margin-top: 0.58rem;
+  }
+
   .co-ppe-field-panel .co-field-operator-strip {
     display: none;
   }
@@ -17906,6 +19048,10 @@ textarea {
 
   .co-calculator-page .co-toolbox-command-layout {
     padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1.25rem) !important;
+  }
+
+  .co-calculator-page.co-field-tool-page .co-toolbox-command-layout {
+    padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 0.5rem) !important;
   }
 
   .co-calculator-page .btn,
@@ -20829,6 +21975,251 @@ textarea {
   min-height: 5rem;
 }
 
+.co-checklist-workbench-panel {
+  display: flex;
+  min-width: 0;
+  overflow: hidden;
+  flex-direction: column;
+  border: 1px solid rgba(203, 213, 225, 0.96);
+  border-top: 4px solid rgba(249, 115, 22, 0.88);
+  border-radius: 0.95rem;
+  background: #ffffff;
+  box-shadow: 0 22px 48px -38px rgba(7, 17, 31, 0.62);
+}
+
+.co-checklist-workbench-head {
+  flex: 0 0 auto;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.96);
+  background:
+    linear-gradient(135deg, rgba(255, 247, 237, 0.94), rgba(255, 255, 255, 0.98)),
+    #ffffff;
+  padding: 0.9rem;
+}
+
+.co-checklist-workbench-head p {
+  color: #c2410c;
+  font-size: 0.62rem;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.co-checklist-workbench-head h3 {
+  margin-top: 0.34rem;
+  overflow-wrap: anywhere;
+  color: #07111f;
+  font-size: 1.05rem;
+  font-weight: 950;
+  line-height: 1.12;
+}
+
+.co-checklist-workbench-head span {
+  display: block;
+  margin-top: 0.32rem;
+  overflow-wrap: anywhere;
+  color: #64748b;
+  font-size: 0.74rem;
+  font-weight: 850;
+  line-height: 1.34;
+}
+
+.co-checklist-workbench-tabs {
+  display: grid;
+  flex: 0 0 auto;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.42rem;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.96);
+  background: #f8fafc;
+  padding: 0.62rem;
+}
+
+.co-checklist-workbench-tabs button {
+  display: inline-flex;
+  min-height: 2.45rem;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 0.42rem;
+  border: 1px solid rgba(203, 213, 225, 0.96);
+  border-radius: 0.72rem;
+  background: #ffffff;
+  color: #334155;
+  font-size: 0.72rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.co-checklist-workbench-tabs button.is-active {
+  border-color: rgba(249, 115, 22, 0.68);
+  background: var(--color-brand-orange-strong);
+  color: #ffffff;
+}
+
+.co-checklist-workbench-tabs button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.co-checklist-workbench-tabs svg {
+  height: 0.9rem;
+  width: 0.9rem;
+}
+
+.co-checklist-workbench-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.78rem;
+}
+
+.co-checklist-workbench-section {
+  min-width: 0;
+}
+
+.co-checklist-workbench-status {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.co-checklist-workbench-status p {
+  color: #64748b;
+  font-size: 0.6rem;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.co-checklist-workbench-status h4 {
+  margin-top: 0.34rem;
+  overflow-wrap: anywhere;
+  color: #07111f;
+  font-size: 1.04rem;
+  font-weight: 950;
+  line-height: 1.12;
+}
+
+.co-checklist-workbench-status span:not(.badge) {
+  display: block;
+  margin-top: 0.25rem;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 850;
+  line-height: 1.28;
+}
+
+.co-checklist-workbench-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.52rem;
+  margin-top: 0.78rem;
+}
+
+.co-checklist-workbench-metrics span,
+.co-checklist-workbench-note,
+.co-checklist-workbench-preview,
+.co-checklist-workbench-blocker {
+  min-width: 0;
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  border-radius: 0.72rem;
+  background: #f8fafc;
+}
+
+.co-checklist-workbench-metrics span {
+  display: grid;
+  gap: 0.22rem;
+  padding: 0.58rem;
+  color: #64748b;
+  font-size: 0.6rem;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.co-checklist-workbench-metrics strong {
+  overflow: visible;
+  color: #07111f;
+  font-size: 0.78rem;
+  line-height: 1.18;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.co-checklist-workbench-note,
+.co-checklist-workbench-preview,
+.co-checklist-workbench-blocker {
+  margin-top: 0.62rem;
+  padding: 0.68rem;
+}
+
+.co-checklist-workbench-note span {
+  color: #64748b;
+  font-size: 0.62rem;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.co-checklist-workbench-note p,
+.co-checklist-workbench-preview p {
+  margin-top: 0.34rem;
+  overflow-wrap: anywhere;
+  color: #334155;
+  font-size: 0.76rem;
+  font-weight: 850;
+  line-height: 1.38;
+}
+
+.co-checklist-workbench-preview {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.62rem;
+}
+
+.co-checklist-workbench-preview > span {
+  display: inline-flex;
+  height: 2rem;
+  width: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.68rem;
+  background: rgba(249, 115, 22, 0.12);
+  color: #c2410c;
+}
+
+.co-checklist-workbench-preview strong {
+  color: #07111f;
+  font-size: 0.86rem;
+  font-weight: 950;
+  line-height: 1.16;
+}
+
+.co-checklist-workbench-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.48rem;
+  margin-top: 0.78rem;
+}
+
+.co-checklist-workbench-actions button {
+  min-height: 2.45rem;
+}
+
+.co-checklist-workbench-blocker {
+  border-color: rgba(251, 191, 36, 0.42);
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 0.74rem;
+  font-weight: 900;
+  line-height: 1.34;
+}
+
 .co-prepour-right-rail {
   position: sticky;
   top: calc(var(--layout-topbar-height, 4.5rem) + 0.75rem);
@@ -21495,6 +22886,83 @@ textarea {
   border-radius: 0.72rem;
   background: #fff7ed;
   color: var(--color-brand-orange-dark);
+}
+
+@media (min-width: 1180px) {
+  .co-prepour-page:not([data-field-workspace="true"]) .co-prepour-command-layout {
+    grid-template-columns: minmax(0, 1fr) 390px !important;
+    align-items: stretch;
+  }
+
+  .co-prepour-page:not([data-field-workspace="true"]) .co-prepour-left-stack {
+    max-height: calc(100vh - var(--layout-topbar-height, 4.5rem) - 14.5rem);
+    min-height: 28rem;
+    overflow-y: auto;
+    padding-right: 0.15rem;
+    scrollbar-color: rgba(148, 163, 184, 0.42) transparent;
+  }
+
+  .co-prepour-page:not([data-field-workspace="true"]) .co-checklist-workbench-panel {
+    position: sticky;
+    top: calc(var(--layout-topbar-height, 4.5rem) + 0.75rem);
+    height: min(45rem, calc(100vh - var(--layout-topbar-height, 4.5rem) - 1.4rem));
+    max-height: calc(100vh - var(--layout-topbar-height, 4.5rem) - 1.4rem);
+  }
+
+  .co-prepour-page:not([data-field-workspace="true"]) .co-prepour-tools-drawer {
+    display: none !important;
+  }
+
+  .co-prepour-desktop-list-surface {
+    min-width: 0;
+    background: #ffffff;
+  }
+
+  .co-prepour-desktop-list-surface .co-prepour-mobile-list {
+    max-height: 18rem;
+    overflow-y: auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 0.82rem;
+    scrollbar-color: rgba(148, 163, 184, 0.42) transparent;
+  }
+
+  .co-prepour-desktop-list-surface .co-prepour-mobile-card {
+    min-height: 7.7rem;
+    border-radius: 0.86rem;
+    box-shadow: 0 16px 34px -34px rgba(7, 17, 31, 0.54);
+  }
+
+  .co-prepour-desktop-list-surface .co-prepour-mobile-metrics strong {
+    overflow: visible;
+    line-height: 1.16;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  .co-prepour-page:not([data-field-workspace="true"]) .co-prepour-inline-filters {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .co-prepour-page:not([data-field-workspace="true"]) .co-prepour-priority-card {
+    min-height: 5.75rem;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    padding: 0.68rem;
+  }
+
+  .co-prepour-page:not([data-field-workspace="true"]) .co-prepour-priority-value {
+    font-size: 1rem;
+  }
+
+  .co-prepour-page:not([data-field-workspace="true"]) .co-prepour-priority-helper {
+    overflow: visible;
+  }
+
+  .co-prepour-page:not([data-field-workspace="true"]) .co-prepour-priority-action {
+    grid-column: auto;
+    justify-self: end;
+    white-space: nowrap;
+  }
 }
 
 .co-prepour-mobile-focus {
@@ -26889,6 +28357,117 @@ textarea {
   .co-delivery-tools-drawer > summary {
     align-items: flex-start !important;
   }
+
+  .co-delivery-page[data-field-workspace="true"] > .co-page-header {
+    display: none !important;
+  }
+
+  .co-delivery-page[data-field-workspace="true"] .co-field-operator-panel {
+    margin-top: 0.86rem;
+  }
+
+  .co-delivery-page[data-field-workspace="true"] .co-field-operator-copy p {
+    display: -webkit-box !important;
+    margin-top: 0.36rem;
+    overflow: hidden;
+    color: #475569;
+    font-size: 0.72rem;
+    font-weight: 850;
+    line-height: 1.28;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .co-delivery-page[data-field-workspace="true"] .co-field-operator-actions > button:nth-child(3) {
+    display: inline-flex !important;
+  }
+
+  .co-delivery-page[data-field-workspace="true"] .co-field-operator-actions > button:first-child {
+    grid-column: auto !important;
+    min-height: 2.75rem !important;
+    border-radius: 0.72rem !important;
+    font-size: 0.72rem !important;
+  }
+
+  .co-delivery-page[data-field-workspace="true"] .co-field-operator-actions > button:nth-child(4) {
+    min-height: 2.75rem;
+    border-radius: 0.72rem !important;
+  }
+
+  .co-delivery-page[data-field-workspace="true"] .co-delivery-field-panel .co-field-operator-strip {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+
+  .co-delivery-page[data-field-workspace="true"] .co-delivery-field-panel .co-field-operator-strip > div {
+    min-height: 2.85rem;
+    padding: 0.48rem 0.5rem !important;
+  }
+
+  .co-delivery-page[data-field-workspace="true"] .co-delivery-field-panel .co-field-operator-strip span {
+    font-size: 0.48rem !important;
+    letter-spacing: 0.06em !important;
+  }
+
+  .co-delivery-page[data-field-workspace="true"] .co-delivery-field-panel .co-field-operator-strip strong {
+    margin-top: 0.2rem;
+    font-size: 0.92rem !important;
+  }
+
+  .co-delivery-page[data-field-workspace="true"] .co-filter-bar {
+    display: none !important;
+  }
+
+  .co-delivery-page[data-field-workspace="true"] .co-delivery-board-header {
+    padding: 0.82rem !important;
+  }
+
+  .co-delivery-page[data-field-workspace="true"] .co-delivery-board-header h2 {
+    font-size: 0.94rem !important;
+    line-height: 1.1 !important;
+  }
+
+  .co-delivery-field-mobile-queue {
+    display: grid;
+    overflow: hidden;
+    border-top: 1px solid rgba(226, 232, 240, 0.96);
+    background: #ffffff;
+  }
+
+  .co-delivery-field-mobile-queue .co-field-mobile-section-head {
+    padding: 0.78rem 0.9rem;
+  }
+
+  .co-delivery-field-mobile-queue .co-delivery-mobile-list {
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0.72rem !important;
+  }
+
+  .co-delivery-field-mobile-queue .co-delivery-mobile-list.is-field-queue {
+    gap: 0.58rem !important;
+  }
+
+  .co-delivery-field-mobile-queue .co-delivery-mobile-card {
+    min-height: 0 !important;
+    border-radius: 0.82rem !important;
+    padding: 0.72rem !important;
+    box-shadow: none !important;
+  }
+
+  .co-delivery-field-mobile-queue .co-delivery-mobile-card .badge {
+    align-self: flex-start;
+  }
+
+  .co-delivery-field-mobile-more {
+    margin: 0 0.72rem 0.72rem;
+    min-height: 2.65rem;
+    border-radius: 0.75rem;
+    border: 1px solid rgba(249, 115, 22, 0.28);
+    background: #fff7ed;
+    color: #9a3412;
+    font-size: 0.78rem;
+    font-weight: 950;
+  }
 }
 
 .co-imports-page {
@@ -29126,6 +30705,24 @@ textarea {
   box-shadow: 0 30px 90px -38px rgba(2, 6, 23, 0.96) !important;
 }
 
+.co-apex-assistant-logo-tile {
+  overflow: hidden;
+  border: 1px solid rgba(249, 115, 22, 0.46);
+  background:
+    radial-gradient(circle at 50% 20%, rgba(249, 115, 22, 0.22), transparent 58%),
+    #020617;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 12px 28px -22px rgba(249, 115, 22, 0.88);
+}
+
+.co-apex-assistant-logo-tile img {
+  display: block;
+  width: 78%;
+  height: 78%;
+  object-fit: contain;
+}
+
 .co-apex-assistant-head {
   background: #07111f !important;
 }
@@ -29199,15 +30796,38 @@ textarea {
 }
 
 .co-apex-assistant-trigger {
-  max-width: min(22rem, calc(100vw - 1.5rem));
+  min-width: 14.25rem;
+  max-width: min(23rem, calc(100vw - 1.5rem));
   border-color: rgba(15, 23, 42, 0.98) !important;
-  border-radius: 999px !important;
-  background: #07111f !important;
-  box-shadow: 0 20px 60px -30px rgba(2, 6, 23, 0.94) !important;
+  border-radius: 1.15rem !important;
+  background:
+    linear-gradient(135deg, rgba(249, 115, 22, 0.16) 0%, rgba(7, 17, 31, 0.98) 42%, #020617 100%) !important;
+  box-shadow:
+    0 24px 70px -32px rgba(2, 6, 23, 0.98),
+    0 0 0 1px rgba(255, 255, 255, 0.04) !important;
 }
 
 .co-apex-assistant-trigger:hover {
-  background: #0f172a !important;
+  border-color: rgba(249, 115, 22, 0.52) !important;
+  background:
+    linear-gradient(135deg, rgba(249, 115, 22, 0.24) 0%, rgba(15, 23, 42, 0.98) 44%, #020617 100%) !important;
+  transform: translateY(-1px);
+}
+
+.co-apex-assistant-launcher-count {
+  display: inline-flex;
+  min-width: 1.58rem;
+  height: 1.58rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: var(--co-assistant-orange);
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 950;
+  line-height: 1;
 }
 
 .co-toolbox-rail-actions {
@@ -29219,19 +30839,9 @@ textarea {
 }
 
 .co-apex-assistant-shell.is-closed .co-apex-assistant-trigger {
-  width: 3.65rem;
-  min-height: 3.65rem;
-  justify-content: center;
-  padding: 0.38rem !important;
-}
-
-.co-apex-assistant-shell.is-closed .co-apex-assistant-trigger > span:not(:first-child) {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
+  min-height: 4.05rem;
+  justify-content: flex-start;
+  padding: 0.58rem 0.72rem !important;
 }
 
 @media (min-width: 1024px) {
@@ -31207,7 +32817,14 @@ textarea {
   }
 
   .co-apex-assistant-shell.is-closed {
-    display: none !important;
+    display: block !important;
+    position: fixed !important;
+    left: auto !important;
+    right: 0.75rem !important;
+    bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 0.85rem) !important;
+    width: min(19.5rem, calc(100vw - 1.5rem)) !important;
+    margin: 0 !important;
+    z-index: 45;
   }
 
   .co-settings-mobile-rail-drawer > summary em {
@@ -33905,6 +35522,53 @@ textarea {
     min-height: 0;
     overflow-y: auto;
     overscroll-behavior: contain;
+  }
+
+  .co-app-health-shell-page.co-app-health-page {
+    display: block;
+    height: calc(100dvh - var(--layout-topbar-height, 4rem) - 1px);
+    min-height: 0 !important;
+    overflow: hidden;
+    padding-bottom: 0 !important;
+  }
+
+  .co-app-health-shell-page .co-app-health-command-shell {
+    height: 100%;
+  }
+
+  .co-app-health-shell-page .co-apex-office-command-head {
+    padding-top: 0.78rem;
+  }
+
+  .co-app-health-shell-page .co-apex-office-command-workspace {
+    grid-template-columns: minmax(18rem, 0.74fr) minmax(0, 1.26fr);
+  }
+
+  .co-app-health-shell-page .co-apex-primary-queue-list {
+    align-content: start;
+  }
+
+  .co-app-health-shell-page .co-work-queue-action {
+    display: none;
+  }
+
+  .co-app-health-shell-page .co-app-health-shell-detail-scroll {
+    display: grid;
+    min-width: 0;
+    align-content: start;
+    gap: 0.72rem;
+  }
+
+  .co-app-health-shell-page .co-app-health-shell-detail-scroll > .co-card {
+    box-shadow: none !important;
+  }
+
+  .co-app-health-shell-page .co-app-health-shell-detail-scroll .co-section-header {
+    gap: 0.58rem;
+  }
+
+  .co-app-health-shell-page .co-trust-readiness-hero {
+    gap: 0.7rem;
   }
 }
 
@@ -37107,6 +38771,21 @@ textarea {
     width: 0.78rem;
   }
 
+  .co-calculator-page.co-field-tool-page .co-calculator-mobile-focus .co-prepour-mobile-focus-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.36rem;
+  }
+
+  .co-calculator-page.co-field-tool-page .co-calculator-mobile-focus .co-prepour-mobile-focus-actions button:first-child,
+  .co-calculator-page.co-field-tool-page .co-calculator-mobile-focus .co-prepour-mobile-focus-actions button:nth-child(3) {
+    grid-column: auto;
+  }
+
+  .co-calculator-page.co-field-tool-page .co-calculator-mobile-focus .co-prepour-mobile-focus-actions button {
+    min-height: 2.75rem !important;
+    font-size: 0.64rem;
+  }
+
   .co-toolbox-mobile-focus .co-prepour-mobile-focus-metrics {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 0.36rem;
@@ -38383,12 +40062,6 @@ textarea {
     align-content: start;
   }
 
-  .co-support-desktop-workspace-frame .co-assistant-rail {
-    height: 100%;
-    min-height: 0;
-    overflow-y: auto;
-  }
-
   .co-support-tools-drawer .co-support-command-layout {
     grid-template-columns: minmax(0, 1.1fr) minmax(18rem, 0.9fr) !important;
     gap: 0.85rem !important;
@@ -39166,8 +40839,10 @@ textarea {
   }
 
   .co-communications-shell-page {
-    height: calc(100vh - 4.5rem);
-    min-height: 41rem;
+    height: calc(100vh - 69px) !important;
+    max-height: calc(100vh - 69px) !important;
+    flex: 0 0 auto;
+    min-height: 0 !important;
     overflow: hidden;
   }
 
@@ -39201,8 +40876,7 @@ textarea {
   }
 
   .co-communications-shell-page .co-apex-primary-queue-panel,
-  .co-communications-shell-page .co-apex-selected-detail-panel,
-  .co-communications-shell-page .co-apex-assistant-action-panel {
+  .co-communications-shell-page .co-apex-selected-detail-panel {
     height: 100%;
     min-height: 0;
   }
@@ -39224,6 +40898,10 @@ textarea {
   .co-communications-shell-page .co-work-queue-status,
   .co-communications-shell-page .co-work-queue-action {
     font-size: 0.66rem;
+  }
+
+  .co-communications-shell-page .co-work-queue-action {
+    display: none;
   }
 
   .co-communications-shell-page .co-apex-selected-detail-body {
@@ -39250,44 +40928,24 @@ textarea {
     padding: 0.78rem;
   }
 
+  .co-communications-shell-page .co-communications-form {
+    gap: 0.62rem;
+  }
+
+  .co-communications-shell-page .co-communications-note-grid .field-input {
+    min-height: 4.6rem;
+  }
+
+  .co-communications-shell-page .co-communications-log-row {
+    min-height: auto;
+  }
+
   .co-communications-log-stack {
     min-width: 0;
     overflow: hidden;
     border: 1px solid rgba(226, 232, 240, 0.76);
     border-radius: 0.72rem;
     background: #ffffff;
-  }
-
-  .co-communications-shell-page .co-assistant-rail-head {
-    padding: 0.68rem 0.82rem 0.5rem;
-  }
-
-  .co-communications-shell-page .co-assistant-rail-head h2 {
-    font-size: 0.88rem;
-  }
-
-  .co-communications-shell-page .co-assistant-rail-head p {
-    font-size: 0.7rem;
-    line-height: 1.28;
-  }
-
-  .co-communications-shell-page .co-assistant-rail-priorities,
-  .co-communications-shell-page .co-assistant-rail-actions {
-    gap: 0.36rem;
-    padding: 0 0.58rem 0.58rem;
-  }
-
-  .co-communications-shell-page .co-assistant-rail-priority {
-    padding: 0.4rem 0.52rem;
-  }
-
-  .co-communications-shell-page .co-assistant-rail-actions button {
-    min-height: 2.02rem;
-    padding: 0.42rem 0.54rem;
-  }
-
-  .co-communications-shell-page .co-apex-assistant-guardrails {
-    padding: 0.62rem;
   }
 }
 
@@ -39514,8 +41172,7 @@ textarea {
   .co-communications-log-actions button,
   .co-communications-shell-page .btn,
   .co-communications-shell-page button,
-  .co-communications-shell-page .co-apex-quick-action-bar button,
-  .co-communications-shell-page .co-assistant-rail-actions button {
+  .co-communications-shell-page .co-apex-quick-action-bar button {
     min-height: 2.75rem !important;
   }
 
@@ -39525,10 +41182,6 @@ textarea {
   .co-communications-shell-page textarea,
   .co-communications-shell-page .co-work-queue-card {
     min-height: 2.75rem !important;
-  }
-
-  .co-communications-shell-page .co-apex-assistant-action-panel {
-    display: none;
   }
 
   body:has(.co-communications-shell-page) .co-apex-assistant-shell.is-closed {
@@ -40150,6 +41803,21 @@ textarea {
   gap: 0.86rem;
 }
 
+.co-command-page-frame--no-rail .co-command-page-frame-grid {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+.co-command-page-frame-grid:has(> .co-command-page-frame-rail .co-assistant-rail),
+.co-command-page-frame-grid:has(> .co-command-page-frame-rail .co-apex-assistant-action-panel) {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+.co-command-page-frame-rail:has(.co-assistant-rail),
+.co-command-page-frame-rail:has(.co-apex-assistant-action-panel),
+.co-apex-assistant-action-panel {
+  display: none !important;
+}
+
 .co-command-page-frame-main,
 .co-command-page-frame-rail,
 .co-command-page-frame-footer {
@@ -40361,6 +42029,65 @@ button.co-work-queue-card:hover:not(:disabled) {
 .co-assistant-rail-actions button:disabled {
   cursor: not-allowed;
   opacity: 0.48;
+}
+
+@media (min-width: 1180px) {
+  .co-desktop-office-command-standard {
+    height: calc(100dvh - var(--layout-topbar-height, 4rem) - 1px);
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .co-desktop-office-command-standard .co-apex-office-command-head {
+    flex: 0 0 auto;
+  }
+
+  .co-desktop-office-command-standard .co-apex-office-command-frame {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .co-desktop-office-command-standard .co-command-page-frame-grid,
+  .co-desktop-office-command-standard .co-command-page-frame-main {
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+  }
+
+  .co-desktop-office-command-standard .co-apex-office-command-workspace {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .co-desktop-office-command-standard .co-apex-primary-queue-panel,
+  .co-desktop-office-command-standard .co-apex-selected-detail-panel {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .co-desktop-office-command-standard .co-apex-primary-queue-panel {
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+
+  .co-desktop-office-command-standard .co-apex-primary-queue-list,
+  .co-desktop-office-command-standard .co-apex-selected-detail-body {
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  }
+
+  .co-desktop-office-command-standard .co-apex-selected-detail-body > * {
+    max-width: 100%;
+    min-width: 0;
+  }
 }
 
 /* Apex no-drawer office shell primitives. */
@@ -40682,6 +42409,459 @@ button.co-apex-command-kpi:hover:not(:disabled) {
   line-height: 1.25;
 }
 
+.co-apex-workspace-leader-shell {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.78rem;
+}
+
+.co-apex-workspace-leader-frame {
+  max-width: none;
+  padding: 0 1.25rem 1rem;
+}
+
+.co-apex-workspace-leader-workspace {
+  display: grid;
+  min-width: 0;
+  gap: 0.86rem;
+}
+
+.co-apex-workspace-leader-stack {
+  display: grid;
+  min-width: 0;
+  gap: 0.86rem;
+}
+
+.co-apex-workspace-tool-launcher {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.co-apex-workspace-tool-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  padding: 0.72rem;
+}
+
+.co-apex-workspace-tool-card {
+  --co-tool-tone: #64748b;
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 2.2rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.55rem;
+  border: 1px solid rgba(203, 213, 225, 0.96);
+  border-left: 3px solid var(--co-tool-tone);
+  border-radius: 0.62rem;
+  background: #ffffff;
+  padding: 0.62rem;
+  text-align: left;
+  box-shadow: 0 14px 34px -32px rgba(7, 17, 31, 0.5);
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.co-apex-workspace-tool-card:hover:not(:disabled),
+.co-apex-workspace-tool-card.is-selected {
+  border-color: rgba(249, 115, 22, 0.46);
+  background: #fff7ed;
+  transform: translateY(-1px);
+}
+
+.co-apex-workspace-tool-card:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.co-apex-workspace-tool-card[data-tone="green"] {
+  --co-tool-tone: #16a34a;
+}
+
+.co-apex-workspace-tool-card[data-tone="blue"] {
+  --co-tool-tone: #2563eb;
+}
+
+.co-apex-workspace-tool-card[data-tone="orange"],
+.co-apex-workspace-tool-card[data-tone="amber"] {
+  --co-tool-tone: #f97316;
+}
+
+.co-apex-workspace-tool-icon {
+  display: grid;
+  width: 2.2rem;
+  height: 2.2rem;
+  place-items: center;
+  border-radius: 0.52rem;
+  background: #f8fafc;
+  color: var(--co-tool-tone);
+}
+
+.co-apex-workspace-tool-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.12rem;
+}
+
+.co-apex-workspace-tool-copy strong,
+.co-apex-workspace-tool-copy em {
+  overflow-wrap: anywhere;
+}
+
+.co-apex-workspace-tool-copy strong {
+  color: var(--color-text-main);
+  font-size: 0.78rem;
+  font-weight: 950;
+  line-height: 1.12;
+}
+
+.co-apex-workspace-tool-copy em {
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+  font-style: normal;
+  font-weight: 820;
+  line-height: 1.2;
+}
+
+.co-apex-workspace-tool-card b {
+  display: inline-flex;
+  min-width: 1.5rem;
+  justify-content: center;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: var(--co-tool-tone);
+  padding: 0.16rem 0.38rem;
+  font-size: 0.68rem;
+  font-weight: 950;
+  line-height: 1.2;
+}
+
+.co-field-leader-page {
+  min-width: 0;
+}
+
+.co-field-leader-page .co-apex-command-kpi-strip {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.co-field-leader-selected-facts {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (min-width: 1200px) {
+  .co-field-leader-page {
+    height: calc(100vh - 4.5rem);
+    min-height: 41rem;
+    overflow: hidden;
+  }
+
+  .co-field-leader-page .co-apex-workspace-leader-shell {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .co-field-leader-page .co-apex-workspace-leader-frame {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+  }
+
+  .co-field-leader-page .co-command-page-frame-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 21rem);
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  .co-field-leader-page .co-command-page-frame-main,
+  .co-field-leader-page .co-command-page-frame-rail {
+    min-height: 0;
+  }
+
+  .co-field-leader-page .co-apex-workspace-leader-workspace {
+    height: 100%;
+    min-height: 0;
+    grid-template-columns: minmax(24rem, 0.95fr) minmax(0, 1.05fr);
+  }
+
+  .co-field-leader-page .co-apex-workspace-leader-stack,
+  .co-field-leader-page .co-apex-workspace-tool-launcher,
+  .co-field-leader-page .co-apex-primary-queue-panel,
+  .co-field-leader-page .co-apex-selected-detail-panel,
+  .co-field-leader-page .co-apex-assistant-action-panel {
+    min-height: 0;
+  }
+
+  .co-field-leader-page .co-apex-workspace-leader-stack {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .co-field-leader-page .co-apex-primary-queue-panel {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .co-field-leader-page .co-apex-primary-queue-list,
+  .co-field-leader-page .co-apex-selected-detail-body,
+  .co-field-leader-page .co-assistant-rail {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  }
+
+  .co-field-leader-page .co-apex-primary-queue-list {
+    align-content: start;
+    grid-auto-rows: max-content;
+  }
+}
+
+@media (max-width: 1199px) {
+  .co-field-leader-page,
+  .co-apex-workspace-leader-shell {
+    overflow: visible;
+  }
+
+  .co-field-leader-page {
+    height: auto;
+    min-height: 0;
+  }
+
+  .co-apex-workspace-leader-head {
+    flex-direction: column;
+    padding-inline: 1rem;
+  }
+
+  .co-apex-workspace-leader-frame {
+    padding-inline: 1rem;
+  }
+
+  .co-apex-workspace-leader-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .co-field-leader-page .co-command-page-frame-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .co-field-leader-page .co-apex-workspace-leader-workspace {
+    display: flex;
+    flex-direction: column;
+    gap: 0.72rem;
+  }
+
+  .co-field-leader-page .co-apex-selected-detail-panel {
+    order: -1;
+  }
+
+  .co-field-leader-page .co-apex-command-kpi-strip {
+    gap: 0.5rem;
+    margin-bottom: 0.62rem;
+  }
+
+  .co-field-leader-page .co-apex-command-kpi {
+    min-height: 3.65rem;
+    padding: 0.55rem;
+  }
+
+  .co-field-leader-page .co-apex-command-kpi-icon {
+    width: 1.9rem;
+    height: 1.9rem;
+  }
+
+  .co-field-leader-page .co-apex-command-kpi-copy strong {
+    font-size: 1.16rem;
+  }
+
+  .co-field-leader-page .co-apex-workspace-tool-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .co-field-leader-page .co-apex-primary-queue-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .co-field-leader-page .co-apex-primary-queue-list,
+  .co-field-leader-page .co-apex-selected-detail-body,
+  .co-field-leader-page .co-assistant-rail {
+    overflow: visible;
+  }
+}
+
+@media (max-width: 767px) {
+  .co-field-leader-page .co-apex-workspace-leader-head {
+    gap: 0.6rem;
+    padding-top: 0.72rem;
+  }
+
+  .co-field-leader-page .co-apex-workspace-leader-head h1 {
+    font-size: 1.35rem;
+  }
+
+  .co-field-leader-page .co-apex-workspace-leader-head span {
+    font-size: 0.78rem;
+    line-height: 1.28;
+  }
+
+  .co-field-leader-page .co-apex-quick-action-bar {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.4rem;
+  }
+
+  .co-field-leader-page .co-apex-quick-action-bar .btn,
+  .co-field-leader-page .co-apex-quick-action-bar button {
+    width: 100%;
+    min-height: 2.55rem !important;
+    padding-inline: 0.52rem;
+  }
+
+  .co-field-leader-page .co-apex-workspace-leader-frame {
+    padding-inline: 0.75rem;
+  }
+
+  .co-field-leader-page .co-apex-command-kpi-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.38rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .co-field-leader-page .co-apex-command-kpi {
+    min-height: 4rem;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.28rem;
+    border-radius: 0.72rem;
+    padding: 0.45rem;
+  }
+
+  .co-field-leader-page .co-apex-command-kpi-icon {
+    width: 1.45rem;
+    height: 1.45rem;
+    border-radius: 0.42rem;
+  }
+
+  .co-field-leader-page .co-apex-command-kpi-copy {
+    gap: 0.08rem;
+  }
+
+  .co-field-leader-page .co-apex-command-kpi-copy strong {
+    font-size: 1.02rem;
+  }
+
+  .co-field-leader-page .co-apex-command-kpi-copy span {
+    font-size: 0.63rem;
+  }
+
+  .co-field-leader-page .co-apex-command-kpi-copy em {
+    display: none;
+  }
+
+  .co-field-leader-page .co-apex-panel-head {
+    padding: 0.66rem 0.72rem 0.58rem;
+  }
+
+  .co-field-leader-page .co-apex-workspace-tool-launcher .co-apex-panel-head em,
+  .co-field-leader-page .co-apex-primary-queue-panel .co-apex-panel-head em {
+    display: none;
+  }
+
+  .co-field-leader-page .co-apex-workspace-tool-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.42rem;
+    padding: 0.55rem;
+  }
+
+  .co-field-leader-page .co-apex-workspace-tool-launcher {
+    display: none;
+  }
+
+  .co-field-leader-page .co-apex-workspace-tool-card {
+    grid-template-columns: 1.8rem minmax(0, 1fr) auto;
+    gap: 0.42rem;
+    padding: 0.5rem;
+  }
+
+  .co-field-leader-page .co-apex-workspace-tool-icon {
+    width: 1.8rem;
+    height: 1.8rem;
+  }
+
+  .co-field-leader-page .co-apex-workspace-tool-copy strong {
+    font-size: 0.72rem;
+  }
+
+  .co-field-leader-page .co-apex-workspace-tool-copy em {
+    font-size: 0.62rem;
+  }
+
+  .co-field-leader-page .co-apex-primary-queue-list {
+    grid-template-columns: 1fr;
+    padding: 0.58rem;
+  }
+
+  .co-field-leader-page .co-apex-primary-queue-list .co-work-queue-card {
+    min-height: 0;
+    padding: 0.56rem;
+  }
+
+  .co-field-leader-page .co-apex-primary-queue-list .co-work-queue-meta {
+    display: none;
+  }
+
+  .co-field-leader-page .co-apex-primary-queue-list .co-work-queue-card h3 {
+    font-size: 0.82rem;
+    line-height: 1.1;
+  }
+
+  .co-field-leader-page .co-apex-primary-queue-list .co-work-queue-status,
+  .co-field-leader-page .co-apex-primary-queue-list .co-work-queue-action {
+    font-size: 0.62rem;
+  }
+
+  .co-field-leader-selected-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .co-field-leader-page .co-apex-selected-detail-body {
+    gap: 0.5rem;
+    padding: 0.62rem;
+  }
+
+  .co-field-leader-page .co-apex-selected-record h2 {
+    font-size: 1rem;
+  }
+
+  .co-field-leader-page .co-apex-selected-record p,
+  .co-field-leader-page .co-apex-selected-next p {
+    font-size: 0.74rem;
+    line-height: 1.3;
+  }
+
+  .co-field-leader-page .co-apex-selected-facts span,
+  .co-field-leader-page .co-apex-selected-next {
+    padding: 0.52rem;
+  }
+
+  .co-field-leader-page .co-apex-selected-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .co-field-leader-page .co-apex-selected-actions .btn,
+  .co-field-leader-page .co-apex-selected-actions button {
+    width: 100%;
+    min-height: 2.55rem !important;
+    padding-inline: 0.42rem;
+  }
+}
+
 @media (min-width: 1024px) {
   .co-today-page {
     height: calc(100vh - 4.5rem);
@@ -40707,6 +42887,10 @@ button.co-apex-command-kpi:hover:not(:disabled) {
     flex: 1 1 auto;
   }
 
+  .co-today-page .co-command-page-frame--no-rail .co-command-page-frame-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
   .co-today-page .co-command-page-frame-main,
   .co-today-page .co-command-page-frame-rail {
     min-height: 0;
@@ -40716,6 +42900,10 @@ button.co-apex-command-kpi:hover:not(:disabled) {
     height: 100%;
     min-height: 0;
     grid-template-columns: minmax(20rem, 0.86fr) minmax(0, 1.14fr);
+  }
+
+  .co-today-page .co-command-page-frame--no-rail .co-apex-office-command-workspace {
+    grid-template-columns: minmax(20rem, 0.92fr) minmax(0, 1.28fr);
   }
 
   .co-today-page .co-apex-primary-queue-panel,
@@ -40817,6 +43005,40 @@ button.co-apex-command-kpi:hover:not(:disabled) {
 
   .co-apex-office-command-workspace {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1023px) {
+  .co-field-leader-page .co-apex-command-kpi-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .co-field-leader-page .co-field-leader-selected-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .co-field-leader-page .co-apex-selected-detail-panel .co-apex-panel-head em {
+    display: none;
+  }
+
+  .co-field-leader-page .co-field-leader-selected-facts {
+    display: none;
+  }
+
+  .co-field-leader-page .co-apex-selected-facts {
+    gap: 0.4rem;
+  }
+
+  .co-field-leader-page .co-apex-selected-facts em,
+  .co-field-leader-page .co-apex-selected-next span {
+    font-size: 0.56rem;
+  }
+
+  .co-field-leader-page .co-apex-selected-facts strong,
+  .co-field-leader-page .co-apex-selected-next strong {
+    font-size: 0.74rem;
   }
 }
 
@@ -41598,8 +43820,7 @@ button.co-apex-command-kpi:hover:not(:disabled) {
   }
 
   .co-schedule-shell-page .co-apex-primary-queue-panel,
-  .co-schedule-shell-page .co-apex-selected-detail-panel,
-  .co-schedule-shell-page .co-apex-assistant-action-panel {
+  .co-schedule-shell-page .co-apex-selected-detail-panel {
     height: 100%;
     min-height: 0;
   }
@@ -41607,18 +43828,6 @@ button.co-apex-command-kpi:hover:not(:disabled) {
   .co-schedule-shell-page .co-apex-primary-queue-panel {
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
-  }
-
-  .co-schedule-shell-page .co-apex-assistant-action-panel {
-    grid-template-rows: minmax(0, 1fr) auto;
-  }
-
-  .co-schedule-shell-page .co-assistant-rail {
-    min-height: 0;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
   }
 
   .co-schedule-shell-page .co-apex-primary-queue-list {
@@ -41693,40 +43902,11 @@ button.co-apex-command-kpi:hover:not(:disabled) {
     color: var(--color-brand-orange-dark);
   }
 
-  .co-schedule-shell-page .co-assistant-rail-head {
-    padding: 0.58rem 0.76rem 0.42rem;
-  }
-
-  .co-schedule-shell-page .co-assistant-rail-head h2 {
-    font-size: 0.88rem;
-  }
-
-  .co-schedule-shell-page .co-assistant-rail-head p {
-    font-size: 0.7rem;
-    line-height: 1.28;
-  }
-
-  .co-schedule-shell-page .co-assistant-rail-priorities,
-  .co-schedule-shell-page .co-assistant-rail-actions {
-    gap: 0.3rem;
-    padding: 0 0.54rem 0.54rem;
-  }
-
-  .co-schedule-shell-page .co-assistant-rail-priority {
-    padding: 0.34rem 0.48rem;
-  }
-
-  .co-schedule-shell-page .co-assistant-rail-actions button {
-    min-height: 1.9rem;
-    padding: 0.36rem 0.5rem;
-  }
-
-  .co-schedule-shell-page .co-apex-assistant-guardrails {
-    padding: 0.52rem;
-    padding-right: 4.3rem;
-  }
-
   .co-schedule-shell-page .co-schedule-support-drawer {
+    display: none !important;
+  }
+
+  body:has(.co-schedule-shell-page) .co-apex-assistant-shell.is-closed {
     display: none !important;
   }
 }
@@ -43400,6 +45580,10 @@ button.co-apex-command-kpi:hover:not(:disabled) {
   font-size: 0.62rem;
   font-weight: 950;
   letter-spacing: 0.08em;
+}
+
+.co-admin-mobile-ops-shell {
+  display: none;
 }
 
 .co-schedule-command-workbench {
@@ -47554,6 +49738,8 @@ button.co-apex-command-kpi:hover:not(:disabled) {
   .co-time-page,
   .co-uploads-page[data-field-workspace="true"],
   .co-reports-page[data-field-workspace="true"],
+  .co-prepour-page[data-field-workspace="true"],
+  .co-postpour-page[data-field-workspace="true"],
   .co-ppe-page[data-field-workspace="true"],
   .co-tool-checklist-page.co-field-tool-page,
   .co-change-orders-page[data-field-workspace="true"] {
@@ -47602,6 +49788,25 @@ button.co-apex-command-kpi:hover:not(:disabled) {
     color: #9a3412;
     font-size: 0.84rem;
     font-weight: 950;
+  }
+
+  .co-field-mobile-tool-close {
+    display: inline-flex;
+    min-height: 2.75rem;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.82rem;
+    background: #ffffff;
+    padding: 0 0.86rem;
+    color: #334155;
+    font-size: 0.76rem;
+    font-weight: 950;
+  }
+
+  .co-field-mobile-tool-close:active {
+    transform: translateY(1px);
   }
 
   .co-time-mobile-list-surface,
@@ -47709,6 +49914,161 @@ button.co-apex-command-kpi:hover:not(:disabled) {
     border-radius: 0.95rem !important;
   }
 
+  .co-reports-mobile-closeout-card {
+    display: grid;
+    gap: 0.68rem;
+  }
+
+  .co-reports-page[data-field-workspace="true"] .co-reports-mobile-tool-surface .co-field-mobile-tool-body {
+    gap: 0.68rem;
+    padding: 0.68rem;
+  }
+
+  .co-reports-page[data-field-workspace="true"] .co-reports-mobile-closeout-card {
+    gap: 0.55rem;
+    padding: 0.76rem !important;
+  }
+
+  .co-reports-mobile-closeout-actions {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.45rem !important;
+  }
+
+  .co-reports-mobile-closeout-actions .btn {
+    width: 100%;
+    padding-inline: 0.5rem !important;
+  }
+
+  .co-reports-mobile-closeout-facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.45rem;
+  }
+
+  .co-reports-mobile-closeout-facts span {
+    display: grid;
+    min-width: 0;
+    gap: 0.14rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.78rem;
+    background: #f8fafc;
+    padding: 0.55rem 0.62rem;
+  }
+
+  .co-reports-mobile-closeout-facts em {
+    overflow: hidden;
+    color: #64748b;
+    font-size: 0.6rem;
+    font-style: normal;
+    font-weight: 950;
+    letter-spacing: 0.08em;
+    line-height: 1;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .co-reports-mobile-closeout-facts strong {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    color: #0f172a;
+    font-size: 0.8rem;
+    font-weight: 950;
+    line-height: 1.12;
+  }
+
+  .co-reports-mobile-closeout-card .co-reports-proof-checklist {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: 0;
+    padding: 0;
+  }
+
+  .co-reports-mobile-essentials-grid {
+    display: grid;
+    gap: 0.65rem;
+  }
+
+  .co-reports-mobile-advanced-details .co-field-mobile-optional-body {
+    gap: 0.55rem;
+  }
+
+  .co-field-mobile-optional-details {
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.9rem;
+    background: #ffffff;
+  }
+
+  .co-field-mobile-optional-details > summary {
+    display: flex;
+    min-height: 2.75rem;
+    cursor: pointer;
+    list-style: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.72rem;
+    padding: 0.72rem 0.85rem;
+  }
+
+  .co-field-mobile-optional-details > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .co-field-mobile-optional-details > summary span {
+    display: grid;
+    min-width: 0;
+    gap: 0.12rem;
+  }
+
+  .co-field-mobile-optional-details > summary strong {
+    color: #0f172a;
+    font-size: 0.86rem;
+    font-weight: 950;
+    line-height: 1.18;
+  }
+
+  .co-field-mobile-optional-details > summary em {
+    overflow: hidden;
+    color: #64748b;
+    font-size: 0.72rem;
+    font-style: normal;
+    font-weight: 850;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .co-field-mobile-optional-details > summary b {
+    display: inline-flex;
+    min-height: 1.95rem;
+    min-width: 3.4rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: #fff7ed;
+    color: #c2410c;
+    font-size: 0.7rem;
+    font-weight: 950;
+    line-height: 1;
+  }
+
+  .co-field-mobile-optional-details > summary b::before {
+    content: "Show";
+  }
+
+  .co-field-mobile-optional-details[open] > summary b::before {
+    content: "Hide";
+  }
+
+  .co-field-mobile-optional-body {
+    display: grid;
+    gap: 0.62rem;
+    border-top: 1px solid #e2e8f0;
+    background: #f8fafc;
+    padding: 0.72rem;
+  }
+
   .co-uploads-page[data-field-workspace="true"] .co-uploads-priority-card,
   .co-reports-page[data-field-workspace="true"] .co-reports-mobile-card,
   .co-ppe-page[data-field-workspace="true"] .co-toolbox-priority-card,
@@ -47730,13 +50090,32 @@ button.co-apex-command-kpi:hover:not(:disabled) {
   .co-uploads-mobile-focus button,
   .co-field-operator-actions button,
   .co-field-operator-strip div {
-    min-height: 2.75rem !important;
+    min-height: 3rem !important;
   }
 
   .co-prepour-mobile-focus-metrics button,
   .co-field-workspace-page .co-focus-ring {
     height: auto !important;
     min-height: 3rem !important;
+  }
+
+  .co-prepour-page:not(.co-postpour-page) .co-prepour-mobile-focus-metrics strong,
+  .co-incidents-page[data-field-workspace="true"] .co-prepour-mobile-focus-metrics strong,
+  :is(.co-toolbox-talks-page, .co-ppe-page, .co-tool-checklist-page).co-field-tool-page .co-prepour-mobile-focus-metrics strong {
+    overflow: visible !important;
+    line-height: 1.12 !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+  }
+
+  .co-prepour-page:not(.co-postpour-page) .co-prepour-item-note {
+    display: block !important;
+    overflow: visible !important;
+    -webkit-line-clamp: unset !important;
+  }
+
+  .co-change-orders-page .co-page-header h1 {
+    line-height: 1.16 !important;
   }
 
   .co-tool-checklist-page.co-field-tool-page .co-prepour-mobile-focus-metrics button,
@@ -47761,6 +50140,8 @@ button.co-apex-command-kpi:hover:not(:disabled) {
   .co-time-page .co-time-command-layout,
   .co-uploads-page[data-field-workspace="true"] .co-uploads-command-layout,
   .co-reports-page[data-field-workspace="true"] .co-reports-command-layout,
+  .co-prepour-page[data-field-workspace="true"]:not(.co-postpour-page) .co-prepour-command-layout,
+  .co-postpour-page[data-field-workspace="true"] .co-prepour-command-layout,
   .co-ppe-page[data-field-workspace="true"] .co-toolbox-command-layout,
   .co-tool-checklist-page.co-field-tool-page .co-toolbox-command-layout,
   .co-change-orders-page[data-field-workspace="true"] .co-change-orders-command-layout {
@@ -47768,9 +50149,27 @@ button.co-apex-command-kpi:hover:not(:disabled) {
     padding-right: 1rem !important;
   }
 
+  .co-time-page[data-field-workspace="true"] .co-time-command-layout,
+  .co-uploads-page[data-field-workspace="true"] .co-uploads-command-layout,
+  .co-reports-page[data-field-workspace="true"] .co-reports-command-layout,
+  .co-prepour-page[data-field-workspace="true"]:not(.co-postpour-page) .co-prepour-command-layout,
+  .co-postpour-page[data-field-workspace="true"] .co-prepour-command-layout,
+  .co-ppe-page[data-field-workspace="true"] .co-toolbox-command-layout,
+  .co-tool-checklist-page.co-field-tool-page .co-toolbox-command-layout,
+  .co-change-orders-page[data-field-workspace="true"] .co-change-orders-command-layout,
+  .co-uploads-page[data-field-workspace="true"] .co-uploads-priority-grid,
+  .co-reports-page[data-field-workspace="true"] .co-reports-priority-grid,
+  .co-prepour-page[data-field-workspace="true"] .co-prepour-priority-grid,
+  .co-ppe-page[data-field-workspace="true"] .co-toolbox-priority-grid,
+  .co-tool-checklist-page.co-field-tool-page .co-toolbox-priority-grid,
+  .co-change-orders-page[data-field-workspace="true"] .co-toolbox-priority-grid {
+    display: none !important;
+  }
+
   .co-time-page .co-time-kpi-grid,
   .co-uploads-page[data-field-workspace="true"] .co-uploads-kpi-grid,
   .co-reports-page[data-field-workspace="true"] .co-reports-kpi-grid,
+  .co-prepour-page[data-field-workspace="true"] .co-prepour-kpi-grid,
   .co-ppe-page[data-field-workspace="true"] .co-toolbox-kpi-grid,
   .co-tool-checklist-page.co-field-tool-page .co-toolbox-kpi-grid,
   .co-change-orders-page[data-field-workspace="true"] .co-change-orders-kpi-grid {
@@ -47781,6 +50180,547 @@ button.co-apex-command-kpi:hover:not(:disabled) {
   .co-uploads-page[data-field-workspace="true"] .co-uploads-board-header .flex.flex-wrap,
   .co-reports-page[data-field-workspace="true"] .co-reports-board-header .flex.flex-wrap {
     display: none !important;
+  }
+
+  .co-uploads-page[data-field-workspace="true"] .co-field-mobile-tool-surface .co-field-mobile-section-head,
+  .co-reports-page[data-field-workspace="true"] .co-field-mobile-tool-surface .co-field-mobile-section-head {
+    padding: 0.72rem 0.85rem;
+  }
+
+  .co-uploads-page[data-field-workspace="true"] .co-field-mobile-tool-surface .co-field-mobile-section-head em,
+  .co-reports-page[data-field-workspace="true"] .co-field-mobile-tool-surface .co-field-mobile-section-head em,
+  .co-reports-page[data-field-workspace="true"] .co-reports-quick-action-row {
+    display: none !important;
+  }
+
+  .co-reports-page[data-field-workspace="true"] .co-reports-proof-checklist span:nth-child(n+5) {
+    display: none !important;
+  }
+
+  .co-prepour-page[data-field-workspace="true"] > .co-page-header,
+  .co-postpour-page[data-field-workspace="true"] > .co-page-header {
+    display: none !important;
+  }
+
+  .co-prepour-page[data-field-workspace="true"],
+  .co-postpour-page[data-field-workspace="true"] {
+    background:
+      linear-gradient(180deg, #ffffff 0%, #f8fafc 58%, #eef3f8 100%) !important;
+  }
+
+  .co-checklist-field-mobile-command {
+    display: grid;
+    min-width: 0;
+    gap: 0.78rem;
+    padding: 0.92rem 1rem 1.05rem;
+  }
+
+  .co-checklist-field-mobile-hero,
+  .co-checklist-field-mobile-queue,
+  .co-checklist-field-mobile-more {
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid #dbe4ef;
+    border-radius: 1rem;
+    background: #ffffff;
+    box-shadow: 0 18px 40px -34px rgba(15, 23, 42, 0.54);
+  }
+
+  .co-checklist-field-mobile-hero {
+    display: grid;
+    gap: 0.72rem;
+    padding: 0.86rem;
+  }
+
+  .co-checklist-field-mobile-head,
+  .co-checklist-field-mobile-queue-head,
+  .co-checklist-field-mobile-item,
+  .co-checklist-field-mobile-card {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.78rem;
+  }
+
+  .co-checklist-field-mobile-head > span,
+  .co-checklist-field-mobile-queue-head > span,
+  .co-checklist-field-mobile-item > span:first-child,
+  .co-checklist-field-mobile-card > span:first-child {
+    display: grid;
+    min-width: 0;
+    gap: 0.12rem;
+  }
+
+  .co-checklist-field-mobile-head em,
+  .co-checklist-field-mobile-facts em,
+  .co-checklist-field-mobile-queue-head em,
+  .co-checklist-field-mobile-item em,
+  .co-checklist-field-mobile-card em {
+    overflow: hidden;
+    color: #64748b;
+    font-size: 0.62rem;
+    font-style: normal;
+    font-weight: 950;
+    letter-spacing: 0.08em;
+    line-height: 1;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .co-checklist-field-mobile-head strong,
+  .co-checklist-field-mobile-queue-head strong {
+    color: #0f172a;
+    font-size: 0.94rem;
+    font-weight: 950;
+    line-height: 1.15;
+  }
+
+  .co-checklist-field-mobile-job {
+    min-width: 0;
+    border: 1px solid #fed7aa;
+    border-left: 4px solid #f97316;
+    border-radius: 0.92rem;
+    background:
+      linear-gradient(135deg, rgba(255, 247, 237, 0.96), rgba(255, 255, 255, 0.9)),
+      #ffffff;
+    padding: 0.72rem 0.78rem;
+  }
+
+  .co-checklist-field-mobile-job p,
+  .co-checklist-field-mobile-job span,
+  .co-checklist-field-mobile-item strong,
+  .co-checklist-field-mobile-item em,
+  .co-checklist-field-mobile-card strong,
+  .co-checklist-field-mobile-card b {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .co-checklist-field-mobile-item em {
+    overflow: visible;
+    line-height: 1.15;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  .co-checklist-field-mobile-job p {
+    color: #0f172a;
+    font-size: 1rem;
+    font-weight: 950;
+    line-height: 1.16;
+  }
+
+  .co-checklist-field-mobile-job span {
+    display: block;
+    margin-top: 0.22rem;
+    color: #64748b;
+    font-size: 0.74rem;
+    font-weight: 850;
+    line-height: 1.25;
+  }
+
+  .co-checklist-field-mobile-facts {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.42rem;
+  }
+
+  .co-checklist-field-mobile-facts span {
+    display: grid;
+    min-width: 0;
+    gap: 0.18rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.78rem;
+    background: #f8fafc;
+    padding: 0.52rem 0.46rem;
+  }
+
+  .co-checklist-field-mobile-facts strong {
+    overflow: visible;
+    color: #0f172a;
+    font-size: 0.86rem;
+    font-weight: 950;
+    line-height: 1.05;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  .co-checklist-field-mobile-actions {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.52rem;
+  }
+
+  .co-checklist-field-mobile-actions .btn {
+    width: 100%;
+    min-height: 3.05rem !important;
+    border-radius: 0.9rem !important;
+    padding-inline: 0.58rem !important;
+    font-size: 0.84rem !important;
+    font-weight: 950 !important;
+  }
+
+  .co-checklist-field-mobile-actions .co-checklist-field-mobile-primary {
+    grid-column: 1 / -1;
+  }
+
+  .co-checklist-field-mobile-queue-head {
+    border-bottom: 1px solid #e2e8f0;
+    padding: 0.76rem 0.86rem;
+  }
+
+  .co-checklist-field-mobile-queue-head b,
+  .co-checklist-field-mobile-more > summary b {
+    flex: 0 0 auto;
+    border-radius: 999px;
+    background: #fff7ed;
+    color: #c2410c;
+    font-size: 0.7rem;
+    font-weight: 950;
+    line-height: 1;
+    padding: 0.42rem 0.58rem;
+  }
+
+  .co-checklist-field-mobile-rows,
+  .co-checklist-field-mobile-checklists {
+    display: grid;
+    min-width: 0;
+    gap: 0.5rem;
+    background: #f8fafc;
+    padding: 0.68rem;
+  }
+
+  .co-checklist-field-mobile-queue:has(> .co-checklist-field-mobile-more) > .co-checklist-field-mobile-rows {
+    padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 3rem);
+  }
+
+  .co-checklist-field-mobile-item,
+  .co-checklist-field-mobile-card {
+    width: 100%;
+    border: 1px solid #e2e8f0;
+    border-left: 4px solid #f97316;
+    border-radius: 0.86rem;
+    background: #ffffff;
+    padding: 0.62rem;
+    text-align: left;
+  }
+
+  .co-checklist-field-mobile-item {
+    min-height: 3.9rem;
+  }
+
+  .co-checklist-field-mobile-item[data-status="checked"] {
+    border-left-color: #16a34a;
+  }
+
+  .co-checklist-field-mobile-item[data-status="not_applicable"] {
+    border-left-color: #94a3b8;
+  }
+
+  .co-checklist-field-mobile-item strong,
+  .co-checklist-field-mobile-card strong {
+    color: #0f172a;
+    font-size: 0.82rem;
+    font-weight: 950;
+    line-height: 1.18;
+  }
+
+  .co-checklist-field-mobile-item > span:last-child,
+  .co-checklist-field-mobile-card > span:last-child {
+    display: grid;
+    flex: 0 0 auto;
+    justify-items: end;
+    gap: 0.28rem;
+  }
+
+  .co-checklist-field-mobile-item > span:last-child {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.38rem;
+  }
+
+  .co-checklist-field-mobile-item > span:last-child .badge {
+    display: none !important;
+  }
+
+  .co-checklist-field-mobile-item .btn {
+    min-height: 2.75rem !important;
+    border-radius: 0.78rem !important;
+    padding-inline: 0.62rem !important;
+  }
+
+  .co-checklist-field-mobile-card[data-selected="true"] {
+    border-color: #fb923c;
+    background: #fff7ed;
+  }
+
+  .co-checklist-field-mobile-card b {
+    color: #64748b;
+    font-size: 0.68rem;
+    font-weight: 900;
+    line-height: 1.1;
+    text-align: right;
+  }
+
+  .co-checklist-field-mobile-more > summary {
+    display: flex;
+    min-height: 3rem;
+    cursor: pointer;
+    list-style: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.78rem;
+    padding: 0.76rem 0.86rem;
+  }
+
+  .co-checklist-field-mobile-more > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .co-checklist-field-mobile-more > summary span {
+    display: grid;
+    min-width: 0;
+    gap: 0.14rem;
+  }
+
+  .co-checklist-field-mobile-more > summary strong {
+    color: #0f172a;
+    font-size: 0.86rem;
+    font-weight: 950;
+    line-height: 1.18;
+  }
+
+  .co-checklist-field-mobile-more > summary em {
+    overflow: hidden;
+    color: #64748b;
+    font-size: 0.72rem;
+    font-style: normal;
+    font-weight: 850;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .co-checklist-field-mobile-more > summary b::before {
+    content: "Show";
+  }
+
+  .co-checklist-field-mobile-more[open] > summary b::before {
+    content: "Hide";
+  }
+
+  .co-checklist-field-mobile-more[open] {
+    scroll-margin-top: calc(var(--layout-topbar-height, 4.5rem) + 0.6rem);
+  }
+
+  .co-prepour-page[data-field-workspace="true"] .co-prepour-tools-drawer:not([open]),
+  .co-postpour-page[data-field-workspace="true"] .co-prepour-tools-drawer:not([open]) {
+    display: none !important;
+  }
+
+  body:has(:is(.co-prepour-page[data-field-workspace="true"], .co-postpour-page[data-field-workspace="true"])) .co-apex-assistant-shell {
+    display: none !important;
+  }
+
+  body:has(:is(
+    .co-time-page[data-field-workspace="true"],
+    .co-uploads-page[data-field-workspace="true"],
+    .co-reports-page[data-field-workspace="true"],
+    .co-prepour-page[data-field-workspace="true"],
+    .co-postpour-page[data-field-workspace="true"],
+    .co-ppe-page[data-field-workspace="true"],
+    .co-tool-checklist-page.co-field-tool-page
+  )) .co-apex-assistant-shell.is-closed {
+    display: none !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .co-incidents-page[data-field-workspace="true"] > .co-page-header,
+  :is(.co-toolbox-talks-page, .co-ppe-page, .co-tool-checklist-page).co-field-tool-page > .co-page-header {
+    display: none !important;
+  }
+
+  .co-incidents-page[data-field-workspace="true"],
+  :is(.co-toolbox-talks-page, .co-ppe-page, .co-tool-checklist-page).co-field-tool-page {
+    padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + env(safe-area-inset-bottom, 0px) + 0.85rem) !important;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 58%, #eef3f8 100%) !important;
+  }
+
+  .co-incidents-page[data-field-workspace="true"] .co-prepour-mobile-focus,
+  :is(.co-toolbox-talks-page, .co-ppe-page, .co-tool-checklist-page).co-field-tool-page .co-prepour-mobile-focus {
+    margin: 0.9rem 0.9rem 0.65rem !important;
+    padding: 0.68rem !important;
+  }
+
+  .co-incidents-page[data-field-workspace="true"] .co-incidents-kpi-grid,
+  .co-incidents-page[data-field-workspace="true"] .co-incidents-priority-grid,
+  :is(.co-toolbox-talks-page, .co-ppe-page, .co-tool-checklist-page).co-field-tool-page .co-toolbox-kpi-grid,
+  :is(.co-toolbox-talks-page, .co-ppe-page, .co-tool-checklist-page).co-field-tool-page .co-toolbox-priority-grid,
+  .co-incidents-page[data-field-workspace="true"] .co-incidents-filter-strip,
+  .co-incidents-page[data-field-workspace="true"] .co-incidents-advanced-filters,
+  :is(.co-toolbox-talks-page, .co-ppe-page, .co-tool-checklist-page).co-field-tool-page .co-toolbox-filter-strip,
+  .co-tool-checklist-page.co-field-tool-page .co-incidents-advanced-filters,
+  .co-incidents-page[data-field-workspace="true"] .co-field-mobile-tool-surface,
+  :is(.co-toolbox-talks-page, .co-ppe-page, .co-tool-checklist-page).co-field-tool-page .co-field-mobile-tool-surface,
+  body:has(:is(
+    .co-incidents-page[data-field-workspace="true"],
+    .co-toolbox-talks-page.co-field-tool-page,
+    .co-ppe-page.co-field-tool-page,
+    .co-tool-checklist-page.co-field-tool-page
+  )) .co-apex-assistant-shell {
+    display: none !important;
+  }
+
+  .co-incidents-page[data-field-workspace="true"] .co-incidents-tools-drawer:not([open]),
+  :is(.co-toolbox-talks-page, .co-ppe-page, .co-tool-checklist-page).co-field-tool-page .co-toolbox-tools-drawer:not([open]) {
+    display: none !important;
+  }
+
+  .co-incidents-page[data-field-workspace="true"] .co-incidents-tools-drawer[open],
+  :is(.co-toolbox-talks-page, .co-ppe-page, .co-tool-checklist-page).co-field-tool-page .co-toolbox-tools-drawer[open] {
+    display: block !important;
+    margin-top: 0.7rem !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  .co-incidents-page[data-field-workspace="true"] .co-incidents-command-layout,
+  :is(.co-toolbox-talks-page, .co-ppe-page, .co-tool-checklist-page).co-field-tool-page .co-toolbox-command-layout {
+    display: grid !important;
+    margin-top: 0.55rem !important;
+    padding: 0 0.9rem calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 0.85rem) !important;
+  }
+
+  .co-incidents-page[data-field-workspace="true"] .co-incidents-main-board,
+  :is(.co-toolbox-talks-page, .co-ppe-page, .co-tool-checklist-page).co-field-tool-page .co-toolbox-main-board {
+    border-radius: 0.95rem !important;
+    box-shadow: 0 18px 42px -34px rgba(7, 17, 31, 0.46) !important;
+  }
+
+  .co-incidents-page[data-field-workspace="true"] .co-incidents-board-header,
+  :is(.co-toolbox-talks-page, .co-ppe-page, .co-tool-checklist-page).co-field-tool-page .co-toolbox-board-header {
+    padding: 0.72rem 0.85rem !important;
+  }
+
+  .co-incidents-page[data-field-workspace="true"] .co-incidents-board-header h2,
+  :is(.co-toolbox-talks-page, .co-ppe-page, .co-tool-checklist-page).co-field-tool-page .co-toolbox-board-header h2 {
+    font-size: 0.84rem !important;
+    letter-spacing: 0.08em !important;
+    line-height: 1.08 !important;
+  }
+
+  .co-incidents-page[data-field-workspace="true"] .co-incidents-board-header p,
+  :is(.co-toolbox-talks-page, .co-ppe-page, .co-tool-checklist-page).co-field-tool-page .co-toolbox-board-header p {
+    display: none !important;
+  }
+
+  .co-incidents-page[data-field-workspace="true"] .co-incidents-mobile-list,
+  :is(.co-toolbox-talks-page, .co-ppe-page, .co-tool-checklist-page).co-field-tool-page .co-toolbox-mobile-list {
+    gap: 0.58rem !important;
+    padding: 0.62rem !important;
+    background: #f8fafc;
+  }
+
+  .co-incidents-page[data-field-workspace="true"] .co-incidents-mobile-card,
+  :is(.co-toolbox-talks-page, .co-ppe-page, .co-tool-checklist-page).co-field-tool-page .co-toolbox-mobile-card {
+    min-height: 0 !important;
+    border-radius: 0.86rem !important;
+    padding: 0.72rem !important;
+    box-shadow: none !important;
+  }
+
+  .co-incidents-page[data-field-workspace="true"] .co-incidents-mobile-card p:first-child,
+  :is(.co-toolbox-talks-page, .co-ppe-page, .co-tool-checklist-page).co-field-tool-page .co-toolbox-mobile-card p:first-child {
+    font-size: 0.9rem !important;
+    line-height: 1.14 !important;
+  }
+
+  .co-incidents-page[data-field-workspace="true"] .co-incidents-mobile-card p:nth-child(2),
+  :is(.co-toolbox-talks-page, .co-ppe-page, .co-tool-checklist-page).co-field-tool-page .co-toolbox-mobile-card p:nth-child(2),
+  :is(.co-toolbox-talks-page, .co-ppe-page, .co-tool-checklist-page).co-field-tool-page .co-toolbox-mobile-summary {
+    font-size: 0.68rem !important;
+    line-height: 1.24 !important;
+  }
+
+  :is(.co-toolbox-talks-page, .co-ppe-page).co-field-tool-page .co-toolbox-mobile-summary {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .co-incidents-page[data-field-workspace="true"] .co-incidents-mobile-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.36rem !important;
+    margin-top: 0.62rem !important;
+  }
+
+  .co-incidents-page[data-field-workspace="true"] .co-incidents-mobile-metrics span:nth-child(3) {
+    grid-column: 1 / -1 !important;
+  }
+
+  .co-incidents-page[data-field-workspace="true"] .co-incidents-mobile-metrics strong {
+    overflow: visible !important;
+    line-height: 1.12 !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+  }
+
+  .co-tool-checklist-page.co-field-tool-page .co-toolbox-mobile-card .co-toolbox-selected-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.42rem !important;
+  }
+
+  .co-incidents-page[data-field-workspace="true"] .co-incidents-mobile-card-action,
+  :is(.co-toolbox-talks-page, .co-ppe-page, .co-tool-checklist-page).co-field-tool-page .co-toolbox-mobile-card-action {
+    min-height: 3rem !important;
+    margin-top: 0.55rem !important;
+    border-radius: 0.78rem !important;
+  }
+
+  .co-incidents-page[data-field-workspace="true"] .co-incidents-main-board > .flex:last-child,
+  :is(.co-toolbox-talks-page, .co-ppe-page, .co-tool-checklist-page).co-field-tool-page .co-toolbox-main-board > .flex:last-child {
+    align-items: stretch !important;
+    padding: 0.68rem !important;
+  }
+
+  .co-incidents-page[data-field-workspace="true"] .co-incidents-main-board > .flex:last-child p,
+  :is(.co-toolbox-talks-page, .co-ppe-page, .co-tool-checklist-page).co-field-tool-page .co-toolbox-main-board > .flex:last-child p {
+    font-size: 0.72rem !important;
+    line-height: 1.22 !important;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .co-incidents-page[data-field-workspace="true"] .co-incidents-kpi-grid,
+  .co-incidents-page[data-field-workspace="true"] .co-incidents-priority-grid,
+  :is(.co-toolbox-talks-page, .co-ppe-page, .co-tool-checklist-page).co-field-tool-page .co-toolbox-kpi-grid,
+  :is(.co-toolbox-talks-page, .co-ppe-page, .co-tool-checklist-page).co-field-tool-page .co-toolbox-priority-grid,
+  .co-incidents-page[data-field-workspace="true"] .co-field-mobile-tool-surface,
+  :is(.co-toolbox-talks-page, .co-ppe-page, .co-tool-checklist-page).co-field-tool-page .co-field-mobile-tool-surface {
+    display: none !important;
+  }
+
+  .co-incidents-page[data-field-workspace="true"] .co-incidents-tools-drawer:not([open]),
+  :is(.co-toolbox-talks-page, .co-ppe-page, .co-tool-checklist-page).co-field-tool-page .co-toolbox-tools-drawer:not([open]) {
+    display: none !important;
+  }
+
+  .co-incidents-page[data-field-workspace="true"] .co-incidents-tools-drawer[open],
+  :is(.co-toolbox-talks-page, .co-ppe-page, .co-tool-checklist-page).co-field-tool-page .co-toolbox-tools-drawer[open] {
+    display: block !important;
+  }
+
+  .co-incidents-page[data-field-workspace="true"] .co-incidents-command-layout,
+  :is(.co-toolbox-talks-page, .co-ppe-page, .co-tool-checklist-page).co-field-tool-page .co-toolbox-command-layout {
+    padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1rem) !important;
   }
 }
 
@@ -48027,6 +50967,15 @@ button.co-apex-command-kpi:hover:not(:disabled) {
     display: none !important;
   }
 
+  body:has(.co-customers-shell-page) nav.co-mobile-bottom-nav {
+    display: none !important;
+  }
+
+  .co-customers-shell-page {
+    height: calc(100dvh - 4.5rem);
+    min-height: 0;
+  }
+
   body:has(.co-customers-shell-page) nav.co-mobile-bottom-nav .co-apex-mobile-bottom-nav-row {
     display: grid !important;
     grid-template-columns: repeat(5, minmax(44px, 1fr)) !important;
@@ -48123,18 +51072,22 @@ button.co-apex-command-kpi:hover:not(:disabled) {
   }
 
   .co-customers-shell-page .co-apex-primary-queue-list {
-    max-height: 32rem;
+    max-height: none;
     overflow: hidden;
   }
 
   .co-customers-shell-page .co-apex-selected-detail-body {
-    max-height: 55rem;
+    max-height: none;
   }
 
   .co-customers-shell-page .co-apex-assistant-action-panel,
   body:has(.co-customers-shell-page) .co-apex-assistant-shell.is-closed {
     display: none !important;
   }
+}
+
+body:has(.co-customers-page) .co-apex-assistant-shell {
+  display: none !important;
 }
 
 @media (max-width: 767px) {
@@ -48170,6 +51123,262 @@ button.co-apex-command-kpi:hover:not(:disabled) {
   .co-customers-page .co-customer-filter-bar input,
   .co-customers-page .co-filter-bar input {
     min-height: 2.75rem !important;
+  }
+
+  .co-customers-mobile-compact {
+    gap: 0;
+  }
+
+  .co-customers-mobile-compact .co-apex-mobile-role-head {
+    padding-bottom: 0.72rem;
+  }
+
+  .co-customers-mobile-compact .co-apex-mobile-role-head h1 {
+    font-size: 1.6rem;
+  }
+
+  .co-customers-mobile-compact .co-apex-mobile-role-head span {
+    max-width: 22rem;
+    font-size: 0.78rem;
+    line-height: 1.32;
+  }
+
+  .co-customers-mobile-compact .co-apex-mobile-selected-card {
+    margin-top: 0;
+    padding: 0.72rem;
+  }
+
+  .co-customers-mobile-compact .co-apex-mobile-selected-card h2 {
+    margin-top: 0.48rem;
+    font-size: 1rem;
+  }
+
+  .co-customers-mobile-compact .co-apex-mobile-selected-card > p {
+    margin-top: 0.22rem;
+    font-size: 0.76rem;
+    line-height: 1.28;
+  }
+
+  .co-customers-mobile-compact .co-apex-mobile-selected-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.42rem;
+    margin-top: 0.56rem;
+  }
+
+  .co-customers-mobile-compact .co-apex-mobile-selected-summary span {
+    gap: 0.14rem;
+    border-radius: 0.72rem;
+    padding: 0.52rem 0.46rem;
+  }
+
+  .co-customers-mobile-compact .co-apex-mobile-selected-summary em {
+    overflow: hidden;
+    font-size: 0.58rem;
+    line-height: 1.05;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .co-customers-mobile-compact .co-apex-mobile-selected-summary strong {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 0.7rem;
+    line-height: 1.18;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .co-customers-mobile-compact .co-apex-mobile-contact-actions,
+  .co-customers-mobile-compact .co-apex-mobile-selected-actions {
+    gap: 0.42rem;
+    margin-top: 0.58rem;
+  }
+
+  .co-customers-mobile-compact .co-apex-mobile-contact-actions a,
+  .co-customers-mobile-compact .co-apex-mobile-contact-actions button,
+  .co-customers-mobile-compact .co-apex-mobile-selected-actions .btn,
+  .co-customers-mobile-compact .co-apex-mobile-selected-actions button {
+    min-height: 2.72rem !important;
+    border-radius: 0.72rem;
+    font-size: 0.7rem;
+  }
+
+  .co-customers-mobile-compact .co-apex-mobile-guardrail {
+    margin-top: 0.52rem !important;
+    padding: 0.48rem;
+    font-size: 0.68rem !important;
+  }
+
+  .co-customers-mobile-compact .co-apex-mobile-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+    margin-top: 0.64rem;
+  }
+
+  .co-customers-mobile-compact .co-apex-mobile-kpi-card {
+    min-height: 4.95rem;
+    gap: 0.14rem;
+    border-radius: 0.82rem;
+    padding: 0.58rem;
+  }
+
+  .co-customers-mobile-compact .co-apex-mobile-kpi-card > span {
+    height: 1.55rem;
+    width: 1.55rem;
+    border-radius: 0.55rem;
+  }
+
+  .co-customers-mobile-compact .co-apex-mobile-kpi-card strong {
+    font-size: 1.1rem;
+  }
+
+  .co-customers-mobile-compact .co-apex-mobile-kpi-card em {
+    font-size: 0.68rem;
+  }
+
+  .co-customers-mobile-compact .co-apex-mobile-kpi-card small {
+    display: none;
+  }
+
+  .co-customers-mobile-compact .co-apex-mobile-action-queue {
+    margin-top: 0.64rem;
+    padding: 0.68rem;
+  }
+
+  .co-customers-mobile-compact .co-apex-mobile-action-list {
+    gap: 0.42rem;
+    margin-top: 0.54rem;
+  }
+
+  .co-customers-mobile-compact .co-apex-mobile-action-row {
+    min-height: 3.45rem;
+    gap: 0.52rem;
+    border-radius: 0.76rem;
+    padding: 0.54rem;
+  }
+
+  .co-customers-mobile-compact .co-apex-mobile-action-row strong {
+    font-size: 0.78rem;
+  }
+
+  .co-customers-mobile-compact .co-apex-mobile-action-row small {
+    display: -webkit-box;
+    overflow: hidden;
+    margin-top: 0.12rem;
+    font-size: 0.66rem;
+    line-height: 1.2;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+  }
+
+  .co-customers-mobile-compact .co-apex-mobile-action-row em {
+    font-size: 0.64rem;
+  }
+
+  .co-customers-mobile-filter-strip {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.48rem;
+    margin-top: 0.64rem;
+  }
+
+  .co-customers-mobile-compact .co-customers-mobile-filter-strip {
+    margin-top: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 0.72rem);
+  }
+
+  .co-customers-mobile-filter-strip button {
+    border: 1px solid #dbe4ef;
+    border-radius: 0.78rem;
+    background: #ffffff;
+    color: #334155;
+    font-size: 0.76rem;
+    font-weight: 950;
+  }
+
+  .co-customers-mobile-filter-strip button.is-active {
+    border-color: #f97316;
+    background: #fff7ed;
+    color: #9a3412;
+    box-shadow: inset 0 0 0 1px rgba(249, 115, 22, 0.2);
+  }
+
+  .co-customers-mobile-filter-strip button.is-muted {
+    color: #94a3b8;
+  }
+
+  .co-customers-mobile-drawer {
+    min-width: 0;
+    margin-top: 0.62rem;
+    overflow: hidden;
+    border: 1px solid #dbe4ef;
+    border-radius: 0.9rem;
+    background: #ffffff;
+    box-shadow: 0 16px 38px -34px rgba(7, 17, 31, 0.62);
+  }
+
+  .co-customers-mobile-drawer > summary {
+    display: flex;
+    min-height: 2.75rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    padding: 0.68rem 0.78rem;
+    color: #0f172a;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .co-customers-mobile-drawer > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .co-customers-mobile-drawer > summary span,
+  .co-customers-mobile-drawer > summary strong {
+    min-width: 0;
+    font-size: 0.78rem;
+    font-weight: 950;
+    line-height: 1.1;
+  }
+
+  .co-customers-mobile-drawer > summary strong {
+    flex: 0 0 auto;
+    border-radius: 999px;
+    background: #f1f5f9;
+    color: #475569;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.64rem;
+  }
+
+  .co-customers-mobile-drawer[open] > summary {
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .co-customers-mobile-drawer > .co-card,
+  .co-customers-mobile-drawer .co-card {
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .co-customers-mobile-edit-panel {
+    display: grid;
+    gap: 0.62rem;
+    padding: 0.72rem;
+  }
+
+  .co-customers-mobile-edit-grid {
+    display: grid;
+    min-width: 0;
+    gap: 0.56rem;
+  }
+
+  .co-customers-mobile-edit-grid textarea,
+  .co-customers-mobile-edit-grid .field-input {
+    min-width: 0;
+  }
+
+  .co-customers-mobile-edit-grid textarea {
+    min-height: 5.4rem !important;
   }
 }
 
@@ -48498,8 +51707,29 @@ button.co-apex-command-kpi:hover:not(:disabled) {
     color: #0f172a !important;
   }
 
+  body:has(:is(.co-apex-office-command-shell, .co-sales-tablet-only .co-estimator-mobile-pipeline)) .co-topbar-assistant-button {
+    border-color: rgba(203, 213, 225, 0.98) !important;
+    background: rgba(255, 255, 255, 0.96) !important;
+    color: #0f172a !important;
+    box-shadow: 0 14px 30px -28px rgba(15, 23, 42, 0.46) !important;
+  }
+
+  body:has(:is(.co-apex-office-command-shell, .co-sales-tablet-only .co-estimator-mobile-pipeline)) .co-topbar-assistant-copy em {
+    color: #64748b !important;
+  }
+
   body:has(:is(.co-apex-office-command-shell, .co-sales-tablet-only .co-estimator-mobile-pipeline)) .co-apex-assistant-shell.is-closed {
     display: none !important;
+  }
+
+  body:has(.co-today-page):has(.co-apex-office-command-shell) .co-apex-assistant-shell.is-closed {
+    display: block !important;
+    position: fixed !important;
+    right: 1rem !important;
+    bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 0.9rem) !important;
+    width: auto !important;
+    margin: 0 !important;
+    z-index: 45;
   }
 
   body:has(:is(.co-apex-office-command-shell, .co-sales-tablet-only .co-estimator-mobile-pipeline)) nav.co-mobile-bottom-nav .co-apex-mobile-bottom-nav-row {
@@ -48548,6 +51778,85 @@ button.co-apex-command-kpi:hover:not(:disabled) {
   }
 }
 
+@media (max-width: 767px) {
+  .co-apex-assistant-shell.is-closed {
+    display: block !important;
+    position: fixed !important;
+    left: auto !important;
+    right: 0.42rem !important;
+    bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + env(safe-area-inset-bottom, 0px) + 0.42rem) !important;
+    width: 3.08rem !important;
+    max-width: 3.08rem !important;
+    margin: 0 !important;
+    z-index: 46;
+  }
+
+  .co-apex-assistant-shell.is-closed .co-apex-assistant-trigger {
+    position: relative;
+    width: 3.08rem !important;
+    min-width: 3.08rem !important;
+    max-width: 3.08rem !important;
+    height: 3.08rem !important;
+    min-height: 3.08rem !important;
+    justify-content: center !important;
+    gap: 0 !important;
+    overflow: visible;
+    border-color: rgba(15, 23, 42, 0.72) !important;
+    border-radius: 0.95rem !important;
+    padding: 0.38rem !important;
+    background:
+      linear-gradient(145deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.98)) !important;
+    box-shadow:
+      0 12px 30px -22px rgba(2, 6, 23, 0.88),
+      0 0 0 1px rgba(255, 255, 255, 0.06) !important;
+  }
+
+  .co-apex-assistant-shell.is-closed .co-apex-assistant-trigger::after {
+    content: "";
+    position: absolute;
+    inset: 0.24rem;
+    border: 1px solid rgba(249, 115, 22, 0.22);
+    border-radius: 0.68rem;
+    pointer-events: none;
+  }
+
+  .co-apex-assistant-shell.is-closed .co-apex-assistant-logo-tile--launcher {
+    width: 2.2rem;
+    height: 2.2rem;
+    border-color: rgba(249, 115, 22, 0.32);
+    border-radius: 0.68rem;
+    box-shadow: none;
+  }
+
+  .co-apex-assistant-shell.is-closed .co-apex-assistant-trigger > span:not(:first-child):not(.co-apex-assistant-launcher-count) {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    overflow: hidden !important;
+    clip: rect(0 0 0 0) !important;
+    white-space: nowrap !important;
+  }
+
+  .co-apex-assistant-shell.is-closed .co-apex-assistant-launcher-count {
+    position: absolute;
+    top: 0.08rem;
+    right: 0.08rem;
+    min-width: 1.08rem;
+    height: 1.08rem;
+    border-width: 0;
+    font-size: 0.58rem;
+    box-shadow: none;
+  }
+
+  body:has(.co-field-leader-page) .co-apex-assistant-shell.is-closed {
+    display: none !important;
+  }
+
+  body:has(.co-sales-mobile-only .co-estimator-mobile-pipeline) .co-apex-assistant-shell.is-closed {
+    display: none !important;
+  }
+}
+
 .co-command-center-shell-page.co-apex-office-command-shell {
   display: grid;
   gap: 0;
@@ -48565,7 +51874,8 @@ button.co-apex-command-kpi:hover:not(:disabled) {
 }
 
 @media (min-width: 1180px) {
-  body:has(.co-command-center-shell-page) .co-apex-assistant-shell.is-closed {
+  body:has(.co-command-center-shell-page) .co-apex-assistant-shell.is-closed,
+  body:has(.co-today-page) .co-apex-assistant-shell.is-closed {
     display: none !important;
   }
 
@@ -48638,4 +51948,1896 @@ button.co-apex-command-kpi:hover:not(:disabled) {
 .co-leads-command-table td:nth-child(8) {
   min-width: 4.35rem;
   width: 9%;
+}
+
+.co-leads-shell-page {
+  min-width: 0;
+}
+
+.co-leads-shell-page .co-apex-office-command-workspace {
+  align-items: start;
+}
+
+.co-leads-shell-page .co-leads-shell-controls {
+  display: grid;
+  min-width: 0;
+  gap: 0.56rem;
+}
+
+.co-leads-shell-page .co-leads-advanced-filters {
+  overflow: hidden;
+  border: 1px solid #dbe4ef;
+  border-radius: 0.68rem;
+  background: #ffffff;
+}
+
+.co-leads-shell-page .co-leads-advanced-filters > summary {
+  min-height: 2.65rem;
+  padding: 0.62rem 0.72rem;
+}
+
+.co-leads-shell-detail,
+.co-leads-shell-detail-scroll {
+  display: grid;
+  min-width: 0;
+  gap: 0.7rem;
+}
+
+.co-leads-shell-detail-primary,
+.co-leads-shell-detail-secondary {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 0.7rem;
+}
+
+.co-leads-shell-page .co-leads-rail-card {
+  border-radius: 0.72rem !important;
+  box-shadow: none !important;
+}
+
+.co-leads-shell-page .co-apex-command-kpi-strip {
+  gap: 0.52rem;
+  margin-bottom: 0.62rem;
+}
+
+.co-leads-shell-page .co-apex-command-kpi {
+  border-left-width: 2px;
+  padding: 0.56rem;
+  box-shadow: none;
+}
+
+.co-leads-shell-page button.co-apex-command-kpi:hover:not(:disabled) {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.co-leads-shell-page .co-apex-command-kpi-icon {
+  width: 1.82rem;
+  height: 1.82rem;
+  border-radius: 0.44rem;
+}
+
+.co-leads-shell-page .co-apex-command-kpi-copy strong {
+  font-size: 1.16rem;
+}
+
+.co-leads-shell-page .co-apex-command-kpi-copy span {
+  font-size: 0.72rem;
+}
+
+.co-leads-shell-page .co-apex-command-kpi-copy em {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 0.62rem;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.co-leads-shell-page .co-leads-summary-card,
+.co-leads-shell-page .co-leads-rail-card,
+.co-leads-shell-page .co-leads-rail-details {
+  border-color: #dbe4ef !important;
+}
+
+.co-leads-shell-page .co-leads-summary-facts {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.co-leads-shell-page .co-leads-rail-details {
+  border-left-color: #cbd5e1 !important;
+  border-left-width: 2px;
+  box-shadow: none;
+}
+
+.co-leads-safe-action-metrics {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.42rem;
+  margin-top: 0.72rem;
+}
+
+.co-leads-safe-action-metrics div {
+  min-width: 0;
+  border: 1px solid #dbe4ef;
+  border-radius: 0.62rem;
+  background: #f8fafc;
+  padding: 0.58rem;
+}
+
+.co-leads-safe-action-metrics strong,
+.co-leads-safe-action-metrics span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.co-leads-safe-action-metrics strong {
+  color: #0f172a;
+  font-size: 0.88rem;
+  font-weight: 950;
+  line-height: 1.05;
+}
+
+.co-leads-safe-action-metrics span {
+  margin-top: 0.14rem;
+  color: #64748b;
+  font-size: 0.62rem;
+  font-weight: 900;
+  line-height: 1.16;
+  text-transform: uppercase;
+}
+
+.co-leads-safe-action-metrics div[data-tone="green"] {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.co-leads-safe-action-metrics div[data-tone="orange"],
+.co-leads-safe-action-metrics div[data-tone="amber"] {
+  border-color: #fed7aa;
+  background: #fff7ed;
+}
+
+.co-leads-safe-action-buttons {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.42rem;
+  margin-top: 0.62rem;
+}
+
+.co-leads-safe-action-buttons .btn,
+.co-leads-safe-action-buttons button {
+  min-height: 2.55rem;
+  min-width: 0;
+  white-space: normal;
+}
+
+.co-leads-shell-followup {
+  min-width: 0;
+  margin: 0 1.25rem 0.9rem;
+  overflow: hidden;
+  border: 1px solid #dbe4ef;
+  border-radius: 0.72rem;
+  background: #ffffff;
+  box-shadow: 0 18px 40px -36px rgba(7, 17, 31, 0.5);
+}
+
+.co-leads-shell-followup > summary {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+  padding: 0.72rem 0.9rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.co-leads-shell-followup > summary::-webkit-details-marker {
+  display: none;
+}
+
+.co-leads-shell-followup > summary span:first-child {
+  display: grid;
+  min-width: 0;
+  gap: 0.16rem;
+}
+
+.co-leads-shell-followup > summary strong {
+  color: #0f172a;
+  font-size: 0.88rem;
+  font-weight: 950;
+  line-height: 1.1;
+}
+
+.co-leads-shell-followup > summary em {
+  color: #64748b;
+  font-size: 0.7rem;
+  font-style: normal;
+  font-weight: 820;
+  line-height: 1.22;
+}
+
+.co-leads-shell-followup > summary span:last-child {
+  flex: 0 0 auto;
+  border: 1px solid #fed7aa;
+  border-radius: 999px;
+  background: #fff7ed;
+  color: #c2410c;
+  padding: 0.36rem 0.55rem;
+  font-size: 0.66rem;
+  font-weight: 950;
+}
+
+.co-leads-shell-followup[open] > summary {
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.co-leads-shell-followup > .co-card {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+@media (min-width: 1180px) {
+  .co-module-leads .co-leads-shell-page {
+    height: calc(100dvh - var(--layout-topbar-height, 4rem));
+    min-height: 0 !important;
+    overflow: hidden;
+    padding-bottom: 0 !important;
+  }
+
+  .co-leads-shell-page .co-leads-desktop-workspace-frame {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    grid-template-rows: minmax(0, 1fr) auto auto;
+    padding-bottom: 0.75rem;
+  }
+
+  .co-leads-shell-page .co-apex-office-command-shell {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .co-leads-shell-page .co-apex-office-command-frame {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+    padding-bottom: 0;
+  }
+
+  .co-leads-shell-page .co-command-page-frame-grid {
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  .co-leads-shell-page .co-command-page-frame-main {
+    min-height: 0;
+  }
+
+  .co-leads-shell-page .co-apex-office-command-workspace {
+    height: 100%;
+    min-height: 0;
+    grid-template-columns: minmax(20rem, 0.42fr) minmax(0, 1fr);
+  }
+
+  .co-leads-shell-page .co-apex-primary-queue-panel,
+  .co-leads-shell-page .co-apex-selected-detail-panel {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .co-leads-shell-page .co-apex-primary-queue-panel {
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+
+  .co-leads-shell-page .co-apex-primary-queue-list {
+    max-height: none;
+    min-height: 0;
+    align-content: start;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  }
+
+  .co-leads-shell-page .co-apex-selected-detail-body {
+    max-height: none;
+    min-height: 0;
+    align-content: start;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  }
+
+  .co-leads-shell-detail {
+    grid-template-columns: minmax(0, 1.1fr) minmax(17rem, 0.7fr);
+    align-items: start;
+  }
+
+  body:has(.co-leads-shell-page) .co-apex-assistant-shell.is-closed {
+    display: none !important;
+  }
+}
+
+@media (max-width: 767px) {
+  body:has(.co-sales-mobile-only .co-estimator-mobile-pipeline) {
+    scroll-padding-bottom: calc(var(--co-mobile-bottom-nav-clearance, 7rem) + 1.75rem);
+  }
+
+  .co-sales-mobile-only .co-estimator-mobile-pipeline {
+    display: grid;
+    background: linear-gradient(180deg, #07111f 0, #111827 8rem, #e2e8f0 8rem, #e2e8f0 100%);
+    grid-template-areas:
+      "head"
+      "kpis"
+      "selected"
+      "queue";
+    gap: 0.58rem;
+    padding: 0.82rem 0.78rem calc(var(--co-mobile-bottom-nav-clearance, 7rem) + 1.75rem);
+  }
+
+  .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-role-head {
+    grid-area: head;
+    padding-bottom: 0.68rem;
+  }
+
+  .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-role-head h1 {
+    margin-top: 0.22rem;
+    font-size: 1.58rem;
+  }
+
+  .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-role-head span {
+    margin-top: 0.32rem;
+    font-size: 0.78rem;
+    line-height: 1.32;
+  }
+
+  .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-kpi-grid {
+    grid-area: kpis;
+    gap: 0.48rem;
+  }
+
+  .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-kpi-card {
+    min-height: 5.8rem;
+    border-radius: 0.86rem;
+    padding: 0.6rem;
+  }
+
+  .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-kpi-card > span {
+    height: 1.52rem;
+    width: 1.52rem;
+    border-radius: 0.56rem;
+  }
+
+  .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-kpi-card strong {
+    font-size: 1.28rem;
+  }
+
+  .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-kpi-card em {
+    font-size: 0.7rem;
+    line-height: 1.1;
+  }
+
+  .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-kpi-card small {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 0.62rem;
+    line-height: 1.16;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-action-queue,
+  .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-selected-card {
+    margin-top: 0;
+    border-radius: 0.9rem;
+    padding: 0.64rem;
+  }
+
+  .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-action-queue {
+    grid-area: queue;
+  }
+
+  .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-selected-card {
+    grid-area: selected;
+  }
+
+  .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-action-list {
+    gap: 0.42rem;
+    margin-top: 0.52rem;
+  }
+
+  .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-action-row {
+    min-height: 3.45rem;
+    gap: 0.5rem;
+    border-radius: 0.76rem;
+    padding: 0.52rem;
+  }
+
+  .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-action-row small {
+    margin-top: 0.12rem;
+    font-size: 0.66rem;
+    line-height: 1.2;
+  }
+
+  .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-action-row em {
+    font-size: 0.63rem;
+  }
+
+  .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-selected-card h2 {
+    margin-top: 0.48rem;
+    font-size: 1rem;
+  }
+
+  .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-selected-card > p {
+    font-size: 0.76rem;
+    line-height: 1.3;
+  }
+
+  .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-selected-summary {
+    gap: 0.42rem;
+    margin-top: 0.54rem;
+  }
+
+  .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-selected-summary span {
+    border-radius: 0.72rem;
+    padding: 0.52rem;
+  }
+
+  .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-selected-summary strong {
+    font-size: 0.74rem;
+    line-height: 1.26;
+  }
+
+  .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-contact-actions,
+  .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-selected-actions {
+    gap: 0.42rem;
+    margin-top: 0.54rem;
+  }
+
+  .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-selected-actions {
+    display: none;
+  }
+
+  .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-contact-actions a,
+  .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-contact-actions button,
+  .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-selected-actions .btn,
+  .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-selected-actions button {
+    min-height: 2.55rem;
+    border-radius: 0.72rem;
+    font-size: 0.7rem;
+  }
+
+  .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-guardrail {
+    display: none !important;
+  }
+}
+
+@media (min-width: 1180px) {
+  .co-reports-shell-page .co-reports-shell-detail-scroll,
+  .co-estimates-shell-page .co-estimates-shell-detail-scroll {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: hidden;
+  }
+
+  .co-estimates-shell-page .co-estimates-shell-detail-scroll {
+    align-items: stretch;
+  }
+
+  .co-reports-shell-page .co-reports-shell-detail-scroll > *,
+  .co-estimates-shell-page .co-estimates-shell-detail-scroll > * {
+    box-sizing: border-box;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .co-estimates-shell-page .co-estimates-shell-mode-tabs,
+  .co-estimates-shell-page .co-estimates-shell-readiness-grid {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .co-estimates-shell-page .co-estimates-shell-mode-tabs button,
+  .co-estimates-shell-page .co-estimates-shell-readiness-grid > div {
+    min-width: 0;
+  }
+
+  .co-reports-shell-page .co-reports-create-card,
+  .co-reports-shell-page .co-reports-create-header,
+  .co-reports-shell-page .co-reports-create-form,
+  .co-reports-shell-page .co-reports-create-fields,
+  .co-reports-shell-page .co-reports-create-target,
+  .co-reports-shell-page .co-reports-create-action-stack {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .co-reports-shell-page .co-reports-create-form {
+    grid-template-columns: minmax(12rem, 0.82fr) minmax(0, 1fr);
+  }
+
+  .co-reports-shell-page .co-reports-create-action-stack {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: minmax(10rem, 0.42fr) minmax(0, 1fr);
+    align-items: center;
+  }
+
+  .co-reports-shell-page .co-reports-create-cta {
+    min-height: 3.1rem;
+  }
+
+  .co-reports-shell-page .co-reports-create-action-stack p {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .co-estimates-shell-page .co-apex-selected-detail-body,
+  .co-reports-shell-page .co-apex-selected-detail-body,
+  .co-uploads-shell-page .co-apex-selected-detail-body,
+  .co-jobs-shell-page .co-apex-selected-detail-body,
+  .co-settings-page:not(.co-app-health-page) .co-settings-right-rail {
+    padding-bottom: 5.35rem;
+  }
+}
+
+@media (min-width: 1180px) {
+  body:has(.co-estimates-shell-page) .co-apex-assistant-shell.is-closed,
+  body:has(.co-reports-shell-page) .co-apex-assistant-shell.is-closed,
+  body:has(.co-uploads-shell-page) .co-apex-assistant-shell.is-closed,
+  body:has(.co-jobs-shell-page) .co-apex-assistant-shell.is-closed,
+  body:has(.co-settings-page) .co-apex-assistant-shell.is-closed {
+    display: block !important;
+    right: 0.9rem !important;
+    bottom: 0.9rem !important;
+    width: 3.35rem !important;
+    max-width: 3.35rem !important;
+  }
+
+  body:has(.co-estimates-shell-page) .co-apex-assistant-shell.is-closed .co-apex-assistant-trigger,
+  body:has(.co-reports-shell-page) .co-apex-assistant-shell.is-closed .co-apex-assistant-trigger,
+  body:has(.co-uploads-shell-page) .co-apex-assistant-shell.is-closed .co-apex-assistant-trigger,
+  body:has(.co-jobs-shell-page) .co-apex-assistant-shell.is-closed .co-apex-assistant-trigger,
+  body:has(.co-settings-page) .co-apex-assistant-shell.is-closed .co-apex-assistant-trigger {
+    width: 3.35rem !important;
+    min-width: 3.35rem !important;
+    max-width: 3.35rem !important;
+    height: 3.35rem !important;
+    min-height: 3.35rem !important;
+    justify-content: center !important;
+    gap: 0 !important;
+    border-radius: 1rem !important;
+    padding: 0.42rem !important;
+  }
+
+  body:has(.co-estimates-shell-page) .co-apex-assistant-shell.is-closed .co-apex-assistant-logo-tile--launcher,
+  body:has(.co-reports-shell-page) .co-apex-assistant-shell.is-closed .co-apex-assistant-logo-tile--launcher,
+  body:has(.co-uploads-shell-page) .co-apex-assistant-shell.is-closed .co-apex-assistant-logo-tile--launcher,
+  body:has(.co-jobs-shell-page) .co-apex-assistant-shell.is-closed .co-apex-assistant-logo-tile--launcher,
+  body:has(.co-settings-page) .co-apex-assistant-shell.is-closed .co-apex-assistant-logo-tile--launcher {
+    width: 2.35rem;
+    height: 2.35rem;
+    border-radius: 0.78rem;
+  }
+
+  body:has(.co-estimates-shell-page) .co-apex-assistant-shell.is-closed .co-apex-assistant-trigger > span:not(:first-child):not(.co-apex-assistant-launcher-count),
+  body:has(.co-reports-shell-page) .co-apex-assistant-shell.is-closed .co-apex-assistant-trigger > span:not(:first-child):not(.co-apex-assistant-launcher-count),
+  body:has(.co-uploads-shell-page) .co-apex-assistant-shell.is-closed .co-apex-assistant-trigger > span:not(:first-child):not(.co-apex-assistant-launcher-count),
+  body:has(.co-jobs-shell-page) .co-apex-assistant-shell.is-closed .co-apex-assistant-trigger > span:not(:first-child):not(.co-apex-assistant-launcher-count),
+  body:has(.co-settings-page) .co-apex-assistant-shell.is-closed .co-apex-assistant-trigger > span:not(:first-child):not(.co-apex-assistant-launcher-count) {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    overflow: hidden !important;
+    clip: rect(0 0 0 0) !important;
+    white-space: nowrap !important;
+  }
+
+  body:has(.co-estimates-shell-page) .co-apex-assistant-shell.is-closed .co-apex-assistant-launcher-count,
+  body:has(.co-reports-shell-page) .co-apex-assistant-shell.is-closed .co-apex-assistant-launcher-count,
+  body:has(.co-uploads-shell-page) .co-apex-assistant-shell.is-closed .co-apex-assistant-launcher-count,
+  body:has(.co-jobs-shell-page) .co-apex-assistant-shell.is-closed .co-apex-assistant-launcher-count,
+  body:has(.co-settings-page) .co-apex-assistant-shell.is-closed .co-apex-assistant-launcher-count {
+    position: absolute;
+    top: 0.08rem;
+    right: 0.08rem;
+    min-width: 1.1rem;
+    height: 1.1rem;
+    border-width: 0;
+    font-size: 0.58rem;
+  }
+}
+
+@media (min-width: 1180px) {
+  .co-time-shell-page {
+    height: calc(100dvh - var(--layout-topbar-height, 4rem));
+    min-height: 0 !important;
+    overflow: hidden;
+    padding-bottom: 0 !important;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 0.9)),
+      #f8fafc;
+  }
+
+  .co-time-shell-page .co-time-shell-command,
+  .co-time-shell-page .co-apex-office-command-shell {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .co-time-shell-page .co-apex-office-command-frame {
+    padding-bottom: 0;
+  }
+
+  .co-time-shell-page .co-apex-office-command-workspace {
+    height: 100%;
+    min-height: 0;
+    grid-template-columns: minmax(20rem, 0.42fr) minmax(0, 1fr);
+  }
+
+  .co-time-shell-page .co-apex-command-kpi-strip {
+    gap: 0.52rem;
+    margin-bottom: 0.62rem;
+  }
+
+  .co-time-shell-page .co-apex-command-kpi {
+    border-left-width: 2px;
+    padding: 0.56rem;
+    box-shadow: none;
+  }
+
+  .co-time-shell-page .co-apex-command-kpi-icon {
+    width: 1.82rem;
+    height: 1.82rem;
+    border-radius: 0.44rem;
+  }
+
+  .co-time-shell-page .co-apex-command-kpi-copy strong {
+    font-size: 1.16rem;
+  }
+
+  .co-time-shell-page .co-apex-command-kpi-copy span {
+    font-size: 0.72rem;
+  }
+
+  .co-time-shell-page .co-apex-command-kpi-copy em {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 0.62rem;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .co-time-shell-page .co-apex-primary-queue-list,
+  .co-time-shell-page .co-apex-selected-detail-body {
+    align-content: start;
+  }
+
+  .co-time-shell-page .co-apex-selected-detail-body {
+    padding-bottom: 5.35rem;
+  }
+
+  .co-time-shell-page .co-work-queue-card h3 {
+    font-size: 0.86rem;
+  }
+
+  .co-time-shell-page .co-work-queue-meta,
+  .co-time-shell-page .co-work-queue-status,
+  .co-time-shell-page .co-work-queue-action {
+    font-size: 0.66rem;
+  }
+
+  .co-time-shell-detail-scroll,
+  .co-time-shell-entry-stack {
+    display: grid;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    align-content: start;
+    gap: 0.7rem;
+  }
+
+  .co-time-shell-detail-scroll > *,
+  .co-time-shell-entry-stack > * {
+    box-sizing: border-box;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .co-time-shell-card,
+  .co-time-shell-selected-card,
+  .co-time-shell-clock > .co-card,
+  .co-time-shell-page .co-time-rail-card {
+    border-color: #dbe4ef !important;
+    border-radius: 0.72rem !important;
+    box-shadow: none !important;
+  }
+
+  .co-time-shell-selected-head {
+    display: flex;
+    min-width: 0;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.72rem;
+  }
+
+  .co-time-shell-selected-head p {
+    color: var(--color-brand-orange-dark);
+    font-size: 0.62rem;
+    font-weight: 950;
+    letter-spacing: 0.12em;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+
+  .co-time-shell-selected-head h2 {
+    margin-top: 0.32rem;
+    color: #07111f;
+    font-size: 1.12rem;
+    font-weight: 950;
+    line-height: 1.12;
+    overflow-wrap: anywhere;
+  }
+
+  .co-time-shell-selected-head span:not(.badge) {
+    display: block;
+    margin-top: 0.24rem;
+    color: #64748b;
+    font-size: 0.76rem;
+    font-weight: 850;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+  }
+
+  .co-time-shell-facts {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.44rem;
+    margin-top: 0.72rem;
+  }
+
+  .co-time-shell-facts span {
+    min-width: 0;
+    border: 1px solid #dbe4ef;
+    border-radius: 0.58rem;
+    background: #f8fafc;
+    padding: 0.58rem;
+  }
+
+  .co-time-shell-facts em,
+  .co-time-shell-facts strong {
+    display: block;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .co-time-shell-facts em {
+    color: #64748b;
+    font-size: 0.58rem;
+    font-style: normal;
+    font-weight: 950;
+    letter-spacing: 0.08em;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+
+  .co-time-shell-facts strong {
+    margin-top: 0.26rem;
+    color: #07111f;
+    font-size: 0.78rem;
+    font-weight: 950;
+    line-height: 1.18;
+  }
+
+  .co-time-shell-badges {
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    gap: 0.36rem;
+    margin-top: 0.7rem;
+  }
+
+  .co-time-shell-note {
+    margin-top: 0.7rem;
+    border: 1px solid #dbe4ef;
+    border-radius: 0.62rem;
+    background: #f8fafc;
+    padding: 0.68rem;
+    color: #475569;
+    font-size: 0.78rem;
+    font-weight: 800;
+    line-height: 1.38;
+  }
+
+  .co-time-shell-correction-drawer {
+    overflow: hidden;
+    border: 1px solid #dbe4ef;
+    border-radius: 0.72rem;
+    background: #ffffff;
+  }
+
+  .co-time-shell-correction-drawer > summary {
+    display: flex;
+    min-width: 0;
+    cursor: pointer;
+    list-style: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.72rem;
+    padding: 0.78rem 0.86rem;
+  }
+
+  .co-time-shell-correction-drawer > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .co-time-shell-correction-drawer > summary span {
+    display: grid;
+    min-width: 0;
+    gap: 0.16rem;
+  }
+
+  .co-time-shell-correction-drawer > summary strong,
+  .co-time-shell-correction-drawer > summary em {
+    display: block;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .co-time-shell-correction-drawer > summary strong {
+    color: #07111f;
+    font-size: 0.86rem;
+    font-weight: 950;
+    line-height: 1.12;
+  }
+
+  .co-time-shell-correction-drawer > summary em {
+    color: #64748b;
+    font-size: 0.7rem;
+    font-style: normal;
+    font-weight: 820;
+    line-height: 1.26;
+  }
+
+  .co-time-shell-correction-drawer > summary b {
+    display: inline-flex;
+    min-width: max-content;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #fed7aa;
+    border-radius: 999px;
+    background: #fff7ed;
+    color: #c2410c;
+    font-size: 0.66rem;
+    font-weight: 950;
+    line-height: 1;
+    padding: 0.38rem 0.62rem;
+  }
+
+  .co-time-shell-correction-drawer[open] > summary {
+    border-bottom: 1px solid #dbe4ef;
+  }
+
+  .co-time-shell-correction-drawer[open] > summary b {
+    color: #334155;
+    border-color: #dbe4ef;
+    background: #f8fafc;
+  }
+
+  .co-time-shell-correction-drawer[open] > summary b::before {
+    content: "Close";
+  }
+
+  .co-time-shell-correction-drawer[open] > summary b {
+    font-size: 0;
+  }
+
+  .co-time-shell-correction-drawer[open] > summary b::before {
+    font-size: 0.66rem;
+  }
+
+  .co-time-shell-correction-body {
+    display: grid;
+    min-width: 0;
+    gap: 0.7rem;
+    background: #f8fafc;
+    padding: 0.7rem;
+  }
+
+  .co-time-shell-correction-body > .co-card {
+    border-radius: 0.68rem !important;
+    box-shadow: none !important;
+  }
+
+  .co-time-shell-clock .co-section-accent {
+    margin-bottom: 0.72rem;
+  }
+
+  .co-time-shell-clock .co-section-accent h2 {
+    font-size: 1rem;
+  }
+
+  .co-time-shell-clock .co-section-accent p {
+    color: #64748b;
+    font-size: 0.74rem;
+    line-height: 1.35;
+  }
+
+  .co-time-shell-clock .co-time-clock-form {
+    grid-template-columns: minmax(0, 0.88fr) minmax(0, 1.05fr) minmax(9rem, 0.52fr);
+    align-items: end;
+    gap: 0.58rem;
+  }
+
+  .co-time-shell-clock .co-time-clock-fields {
+    gap: 0.58rem;
+  }
+
+  .co-time-shell-clock .co-time-clock-target {
+    min-height: 5.2rem;
+    border-radius: 0.62rem !important;
+  }
+
+  .co-time-shell-clock textarea.field-input {
+    min-height: 3.2rem !important;
+  }
+
+  .co-time-shell-clock .co-time-clock-primary,
+  .co-time-shell-clock .co-time-clock-secondary {
+    min-height: 3rem;
+    height: auto;
+    border-radius: 0.72rem !important;
+    font-size: 0.88rem !important;
+  }
+
+  .co-time-shell-page .co-time-selected-metrics {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .co-time-shell-page .co-time-guardrail-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  body:has(.co-time-shell-page) .co-apex-assistant-shell.is-closed {
+    display: none !important;
+    right: 0.9rem !important;
+    bottom: 0.9rem !important;
+    width: 3.35rem !important;
+    max-width: 3.35rem !important;
+  }
+
+  body:has(.co-time-shell-page) .co-apex-assistant-shell.is-closed .co-apex-assistant-trigger {
+    width: 3.35rem !important;
+    min-width: 3.35rem !important;
+    max-width: 3.35rem !important;
+    height: 3.35rem !important;
+    min-height: 3.35rem !important;
+    justify-content: center !important;
+    gap: 0 !important;
+    border-radius: 1rem !important;
+    padding: 0.42rem !important;
+  }
+
+  body:has(.co-time-shell-page) .co-apex-assistant-shell.is-closed .co-apex-assistant-logo-tile--launcher {
+    width: 2.35rem;
+    height: 2.35rem;
+    border-radius: 0.78rem;
+  }
+
+  body:has(.co-time-shell-page) .co-apex-assistant-shell.is-closed .co-apex-assistant-trigger > span:not(:first-child):not(.co-apex-assistant-launcher-count) {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    overflow: hidden !important;
+    clip: rect(0 0 0 0) !important;
+    white-space: nowrap !important;
+  }
+
+  body:has(.co-time-shell-page) .co-apex-assistant-shell.is-closed .co-apex-assistant-launcher-count {
+    position: absolute;
+    top: 0.08rem;
+    right: 0.08rem;
+    min-width: 1.1rem;
+    height: 1.1rem;
+    border-width: 0;
+    font-size: 0.58rem;
+  }
+}
+
+@media (min-width: 1180px) {
+  .co-settings-shell-page.co-settings-page:not(.co-app-health-page) {
+    display: block;
+    height: calc(100dvh - var(--layout-topbar-height, 4rem) - 1px);
+    min-height: 0 !important;
+    overflow: hidden;
+    padding-bottom: 0 !important;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 0.9)),
+      #f8fafc;
+  }
+
+  .co-settings-shell-page .co-settings-shell-command,
+  .co-settings-shell-page .co-apex-office-command-shell {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .co-settings-shell-page .co-apex-office-command-frame {
+    padding-bottom: 0;
+  }
+
+  .co-settings-shell-page .co-apex-office-command-workspace {
+    height: 100%;
+    min-height: 0;
+    grid-template-columns: minmax(20rem, 0.42fr) minmax(0, 1fr);
+  }
+
+  .co-settings-shell-page .co-apex-command-kpi-strip {
+    gap: 0.52rem;
+    margin-bottom: 0.62rem;
+  }
+
+  .co-settings-shell-page .co-apex-command-kpi {
+    border-left-width: 2px;
+    padding: 0.56rem;
+    box-shadow: none;
+  }
+
+  .co-settings-shell-page .co-apex-command-kpi-icon {
+    width: 1.82rem;
+    height: 1.82rem;
+    border-radius: 0.44rem;
+  }
+
+  .co-settings-shell-page .co-apex-command-kpi-copy strong {
+    font-size: 1.16rem;
+  }
+
+  .co-settings-shell-page .co-apex-command-kpi-copy span {
+    font-size: 0.72rem;
+  }
+
+  .co-settings-shell-page .co-apex-command-kpi-copy em {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 0.62rem;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .co-settings-shell-page .co-apex-primary-queue-panel,
+  .co-settings-shell-page .co-apex-selected-detail-panel {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .co-settings-shell-page .co-apex-primary-queue-panel {
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+
+  .co-settings-shell-page .co-apex-primary-queue-list,
+  .co-settings-shell-page .co-apex-selected-detail-body {
+    max-height: none;
+    min-height: 0;
+    align-content: start;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  }
+
+  .co-settings-shell-page .co-apex-selected-detail-body {
+    padding-bottom: 1rem;
+  }
+
+  .co-settings-shell-detail-scroll {
+    display: grid;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    align-content: start;
+    gap: 0.7rem;
+  }
+
+  .co-settings-shell-detail-scroll > *,
+  .co-settings-shell-page .co-settings-left-stack > * {
+    box-sizing: border-box;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .co-settings-shell-page .co-settings-left-stack {
+    height: auto !important;
+    min-height: 0;
+    overflow: visible !important;
+    padding-bottom: 0 !important;
+  }
+
+  .co-settings-shell-page .co-settings-tools-drawer,
+  .co-settings-shell-page .co-settings-console-card {
+    border-color: #dbe4ef !important;
+    border-radius: 0.72rem !important;
+    box-shadow: none !important;
+  }
+
+  .co-settings-shell-page .co-settings-tools-drawer > summary {
+    padding: 0.72rem 0.86rem;
+  }
+
+  .co-settings-shell-page .co-settings-tools-drawer > summary strong {
+    font-size: 0.88rem;
+  }
+
+  .co-settings-shell-page .co-settings-tools-drawer > summary em {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 0.7rem;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .co-settings-shell-page .co-settings-tools-panel {
+    padding: 0.7rem;
+  }
+
+  body:has(.co-settings-shell-page) .co-apex-assistant-shell.is-closed {
+    display: none !important;
+  }
+}
+
+@media (min-width: 1180px) {
+  .co-module-employees > .co-employees-page.co-employees-shell-page,
+  .co-employees-shell-page {
+    height: calc(100vh - var(--layout-topbar-height, 4rem) - 2px);
+    min-height: 0 !important;
+    overflow: hidden;
+    padding-bottom: 0 !important;
+  }
+
+  .co-employees-shell-page .co-employees-command-shell,
+  .co-employees-shell-page .co-apex-office-command-shell {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .co-employees-shell-page .co-apex-office-command-frame {
+    padding-bottom: 0;
+  }
+
+  .co-employees-shell-page .co-apex-office-command-workspace {
+    height: 100%;
+    min-height: 0;
+    grid-template-columns: minmax(20rem, 0.42fr) minmax(0, 1fr);
+  }
+
+  .co-employees-shell-page .co-apex-primary-queue-panel,
+  .co-employees-shell-page .co-apex-selected-detail-panel {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .co-employees-shell-page .co-apex-primary-queue-panel {
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+
+  .co-employees-shell-page .co-apex-primary-queue-list,
+  .co-employees-shell-page .co-apex-selected-detail-body {
+    max-height: none;
+    min-height: 0;
+    align-content: start;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  }
+
+  .co-employees-shell-page .co-apex-selected-detail-body {
+    padding-bottom: 1rem;
+  }
+
+  .co-employees-shell-page .co-employees-shell-detail-scroll {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    align-content: start;
+  }
+
+  .co-employees-shell-page .co-employees-shell-filter-console .co-employees-access-tabs {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    overflow: visible;
+    padding-bottom: 0;
+  }
+
+  .co-employees-shell-page .co-employees-shell-filter-console .co-employees-access-tabs button {
+    width: 100%;
+    min-width: 0;
+    padding: 0.42rem 0.28rem;
+    font-size: 0.6rem;
+    white-space: normal;
+  }
+
+  .co-employees-shell-page .co-employees-shell-detail-scroll .co-employees-right-rail {
+    display: none !important;
+  }
+
+  body:has(.co-employees-shell-page) .co-apex-assistant-shell.is-closed {
+    display: none !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .co-office-page:is(
+    .co-support-page,
+    .co-settings-page,
+    .co-employees-page,
+    .co-time-page:not([data-field-workspace="true"]),
+    .co-communications-page,
+    .co-ai-office-page
+  ) {
+    padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + env(safe-area-inset-bottom, 0px) + 0.9rem) !important;
+  }
+
+  .co-support-page .co-support-command-grid,
+  .co-settings-page:not(.co-app-health-page) .co-settings-left-stack > details,
+  .co-settings-page:not(.co-app-health-page) .co-settings-category-grid,
+  .co-settings-page:not(.co-app-health-page) .co-settings-checklist-stack,
+  .co-settings-page:not(.co-app-health-page) .co-settings-notes-panel,
+  .co-settings-page:not(.co-app-health-page) .co-settings-progress-wrap,
+  .co-settings-page:not(.co-app-health-page) .co-settings-right-rail,
+  .co-app-health-page #settings-managed-setup,
+  .co-app-health-page .co-settings-left-stack > details:not(.co-app-health-owner-drawer),
+  .co-app-health-page .co-app-health-owner-drawer .co-settings-tools-panel > :nth-child(n+2),
+  .co-employees-page .co-employees-priority-card,
+  .co-employees-page .co-employees-tools-drawer,
+  .co-employees-page .co-employees-desktop-workspace-frame,
+  .co-employees-page .co-people-workbench-grid,
+  .co-time-page:not([data-field-workspace="true"]) .co-time-mobile-snapshot,
+  .co-time-page:not([data-field-workspace="true"]) .co-time-command-band,
+  .co-time-page:not([data-field-workspace="true"]) .co-time-command-layout > aside,
+  .co-time-page:not([data-field-workspace="true"]) .co-time-command-layout > :nth-child(n+2),
+  .co-time-page:not([data-field-workspace="true"]) .co-time-left-stack > .co-time-tools-drawer,
+  .co-communications-page .co-communications-log-card,
+  .co-communications-page .co-communications-rail,
+  .co-communications-shell-page .co-communications-detail-section,
+  .co-ai-office-page .co-ai-command-layout > .space-y-3 > .co-ai-main-board:not(.co-ai-agent-command-board),
+  .co-ai-office-page .co-ai-command-layout > aside,
+  .co-ai-office-page .co-ai-agent-focus-panel,
+  .co-ai-office-page .co-ai-guardrail-strip {
+    display: none !important;
+  }
+
+  .co-support-page .co-support-command-workbench,
+  .co-employees-page .co-employees-command-deck,
+  .co-time-page:not([data-field-workspace="true"]) .co-time-clock-hero,
+  .co-time-page:not([data-field-workspace="true"]) .co-time-main-board,
+  .co-communications-page .co-communications-main-board,
+  .co-ai-office-page .co-ai-agent-command-board {
+    margin-inline: 1rem !important;
+    border-radius: 1rem !important;
+  }
+
+  .co-support-page .co-support-command-kpis,
+  .co-settings-page .co-settings-kpi-grid,
+  .co-employees-page .co-employees-kpi-grid,
+  .co-communications-page .co-communications-kpi-grid,
+  .co-ai-office-page .co-ai-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.55rem !important;
+    padding-inline: 1rem !important;
+  }
+
+  .co-support-page .co-support-command-kpi:nth-child(n+5),
+  .co-settings-page .co-settings-kpi-grid > :nth-child(n+5),
+  .co-employees-page .co-employees-kpi-grid > :nth-child(n+5),
+  .co-communications-page .co-communications-kpi-grid > :nth-child(n+5),
+  .co-ai-office-page .co-ai-kpi-grid > :nth-child(n+5) {
+    display: none !important;
+  }
+
+  .co-app-health-page .co-settings-kpi-grid > :nth-child(n+3),
+  .co-ai-office-page .co-ai-kpi-grid > :nth-child(n+3) {
+    display: none !important;
+  }
+
+  .co-support-page .co-support-command-head,
+  .co-employees-page .co-employees-hero-card,
+  .co-time-page:not([data-field-workspace="true"]) .co-time-board-header,
+  .co-communications-page .co-communications-board-header,
+  .co-ai-office-page .co-ai-board-header {
+    padding: 0.85rem !important;
+  }
+
+  .co-support-page .co-support-command-actions,
+  .co-employees-page .co-employees-command-actions,
+  .co-ai-office-page .co-ai-header-buttons,
+  .co-ai-agent-command-board .co-ai-board-header .flex.flex-wrap {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 0.55rem !important;
+  }
+
+  .co-support-page .co-support-command-actions button,
+  .co-employees-page .co-employees-command-actions button,
+  .co-time-page:not([data-field-workspace="true"]) .co-time-clock-cta,
+  .co-communications-page .co-communications-form button,
+  .co-ai-office-page .co-ai-header-buttons button,
+  .co-ai-agent-command-board .co-ai-board-header button {
+    min-height: 2.85rem !important;
+    width: 100% !important;
+  }
+
+  .co-settings-page:not(.co-app-health-page) .co-settings-readiness-grid,
+  .co-time-page:not([data-field-workspace="true"]) .co-time-mobile-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.5rem !important;
+  }
+
+  .co-settings-page:not(.co-app-health-page) .co-settings-readiness-grid > :nth-child(n+4),
+  .co-employees-page .co-employees-mobile-list > :nth-child(n+4),
+  .co-time-page:not([data-field-workspace="true"]) .co-time-mobile-list > :nth-child(n+3),
+  .co-ai-office-page .co-ai-workflow-grid > :nth-child(n+3) {
+    display: none !important;
+  }
+
+  .co-employees-page .co-employees-mobile-list-toggle {
+    display: none !important;
+  }
+
+  .co-time-page:not([data-field-workspace="true"]) .co-time-command-layout {
+    padding-inline: 1rem !important;
+  }
+
+  .co-time-page:not([data-field-workspace="true"]) .co-time-left-stack,
+  .co-ai-office-page .co-ai-agent-workbench,
+  .co-communications-page .co-communications-command-layout {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 0.75rem !important;
+  }
+
+  .co-time-page:not([data-field-workspace="true"]) .co-time-summary-grid,
+  .co-time-page:not([data-field-workspace="true"]) .co-time-board-header p,
+  .co-communications-page .co-communications-board-header p,
+  .co-ai-office-page .co-ai-board-header p,
+  .co-ai-office-page .co-ai-section-kicker p {
+    display: none !important;
+  }
+
+  .co-communications-page .co-communications-form,
+  .co-ai-office-page .co-ai-workflow-grid {
+    gap: 0.58rem !important;
+  }
+
+  .co-communications-page .co-communications-form > :nth-child(n+4):not(.co-communications-submit-row),
+  .co-time-page:not([data-field-workspace="true"]) .co-time-main-board > .flex:last-child,
+  .co-app-health-page .co-trust-stat-card,
+  .co-app-health-page .co-trust-check-card,
+  .co-app-health-page .co-trust-next-actions,
+  .co-app-health-page .co-settings-tools-panel > .mt-4,
+  .co-settings-page:not(.co-app-health-page) .co-settings-managed-board .co-settings-next-action + .mt-4 {
+    display: none !important;
+  }
+
+  .co-ai-office-page .co-ai-agent-workflow-panel,
+  .co-app-health-page .co-app-health-owner-drawer,
+  .co-settings-page:not(.co-app-health-page) .co-settings-managed-board {
+    overflow: hidden !important;
+    border-radius: 1rem !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .co-schedule-page {
+    padding-right: 0 !important;
+    padding-left: 0 !important;
+  }
+
+  .co-schedule-page .co-schedule-desktop-tablet-frame {
+    display: none !important;
+  }
+
+  .co-schedule-page .co-admin-mobile-ops-shell {
+    display: grid;
+    width: 100%;
+    max-width: 100%;
+    gap: 0.56rem;
+    padding: 0.72rem 1rem calc(5.85rem + env(safe-area-inset-bottom));
+  }
+
+  .co-delivery-page:not([data-field-workspace="true"]) {
+    padding-right: 0 !important;
+    padding-left: 0 !important;
+  }
+
+  .co-delivery-page:not([data-field-workspace="true"]) > .co-page-header,
+  .co-delivery-page:not([data-field-workspace="true"]) > .co-delivery-mobile-focus,
+  .co-delivery-page:not([data-field-workspace="true"]) > .co-delivery-ops-board,
+  .co-delivery-page:not([data-field-workspace="true"]) > .co-delivery-kpi-grid,
+  .co-delivery-page:not([data-field-workspace="true"]) > .co-delivery-command-layout,
+  .co-delivery-page:not([data-field-workspace="true"]) > .co-delivery-tools-drawer {
+    display: none !important;
+  }
+
+  .co-delivery-page:not([data-field-workspace="true"]) .co-admin-mobile-ops-shell {
+    display: grid;
+    width: 100%;
+    max-width: 100%;
+    gap: 0.56rem;
+    padding: 0.72rem 1rem calc(5.85rem + env(safe-area-inset-bottom));
+  }
+
+  .co-prepour-page:not(.co-postpour-page):not([data-field-workspace="true"]) {
+    padding-right: 0 !important;
+    padding-left: 0 !important;
+  }
+
+  .co-prepour-page:not(.co-postpour-page):not([data-field-workspace="true"]) > .co-page-header,
+  .co-prepour-page:not(.co-postpour-page):not([data-field-workspace="true"]) > .co-prepour-mobile-focus,
+  .co-prepour-page:not(.co-postpour-page):not([data-field-workspace="true"]) > .co-prepour-kpi-grid,
+  .co-prepour-page:not(.co-postpour-page):not([data-field-workspace="true"]) > .co-prepour-priority-grid,
+  .co-prepour-page:not(.co-postpour-page):not([data-field-workspace="true"]) > .co-prepour-command-layout,
+  .co-prepour-page:not(.co-postpour-page):not([data-field-workspace="true"]) > .co-prepour-tools-drawer {
+    display: none !important;
+  }
+
+  .co-prepour-page:not(.co-postpour-page):not([data-field-workspace="true"]) .co-admin-mobile-ops-shell {
+    display: grid;
+    width: 100%;
+    max-width: 100%;
+    gap: 0.56rem;
+    padding: 0.72rem 1rem calc(5.85rem + env(safe-area-inset-bottom));
+  }
+
+  .co-ppe-page:not(.co-field-tool-page) {
+    padding-right: 0 !important;
+    padding-left: 0 !important;
+  }
+
+  .co-ppe-page:not(.co-field-tool-page) > .co-page-header,
+  .co-ppe-page:not(.co-field-tool-page) > .co-prepour-mobile-focus,
+  .co-ppe-page:not(.co-field-tool-page) > .co-toolbox-kpi-grid,
+  .co-ppe-page:not(.co-field-tool-page) > .co-toolbox-priority-grid,
+  .co-ppe-page:not(.co-field-tool-page) > .co-toolbox-command-layout,
+  .co-ppe-page:not(.co-field-tool-page) > .co-toolbox-tools-drawer {
+    display: none !important;
+  }
+
+  .co-ppe-page:not(.co-field-tool-page) .co-admin-mobile-ops-shell {
+    display: grid;
+    width: 100%;
+    max-width: 100%;
+    gap: 0.56rem;
+    padding: 0.72rem 1rem calc(5.85rem + env(safe-area-inset-bottom));
+  }
+
+  .co-tool-checklist-page:not(.co-field-tool-page) {
+    padding-right: 0 !important;
+    padding-left: 0 !important;
+  }
+
+  .co-tool-checklist-page:not(.co-field-tool-page) > .co-page-header,
+  .co-tool-checklist-page:not(.co-field-tool-page) > .co-prepour-mobile-focus,
+  .co-tool-checklist-page:not(.co-field-tool-page) > .co-toolbox-kpi-grid,
+  .co-tool-checklist-page:not(.co-field-tool-page) > .co-toolbox-priority-grid,
+  .co-tool-checklist-page:not(.co-field-tool-page) > .co-toolbox-command-layout,
+  .co-tool-checklist-page:not(.co-field-tool-page) > .co-toolbox-tools-drawer {
+    display: none !important;
+  }
+
+  .co-tool-checklist-page:not(.co-field-tool-page) .co-admin-mobile-ops-shell {
+    display: grid;
+    width: 100%;
+    max-width: 100%;
+    gap: 0.56rem;
+    padding: 0.72rem 1rem calc(5.85rem + env(safe-area-inset-bottom));
+  }
+
+  .co-incidents-page:not([data-field-workspace="true"]) {
+    padding-right: 0 !important;
+    padding-left: 0 !important;
+  }
+
+  .co-incidents-page:not([data-field-workspace="true"]) > .co-page-header,
+  .co-incidents-page:not([data-field-workspace="true"]) > .co-prepour-mobile-focus,
+  .co-incidents-page:not([data-field-workspace="true"]) > .co-incidents-kpi-grid,
+  .co-incidents-page:not([data-field-workspace="true"]) > .co-incidents-priority-grid,
+  .co-incidents-page:not([data-field-workspace="true"]) > .co-incidents-command-layout,
+  .co-incidents-page:not([data-field-workspace="true"]) > .co-incidents-tools-drawer {
+    display: none !important;
+  }
+
+  .co-incidents-page:not([data-field-workspace="true"]) .co-admin-mobile-ops-shell {
+    display: grid;
+    width: 100%;
+    max-width: 100%;
+    gap: 0.56rem;
+    padding: 0.72rem 1rem calc(5.85rem + env(safe-area-inset-bottom));
+  }
+
+  body:has(.co-admin-mobile-schedule-shell) .co-apex-assistant-shell.is-closed,
+  body:has(.co-admin-mobile-delivery-shell) .co-apex-assistant-shell.is-closed,
+  body:has(.co-admin-mobile-prepour-shell) .co-apex-assistant-shell.is-closed,
+  body:has(.co-admin-mobile-ppe-shell) .co-apex-assistant-shell.is-closed,
+  body:has(.co-admin-mobile-tool-checklist-shell) .co-apex-assistant-shell.is-closed,
+  body:has(.co-admin-mobile-incidents-shell) .co-apex-assistant-shell.is-closed {
+    display: none !important;
+  }
+
+  body:has(.co-admin-mobile-ops-shell) .co-mobile-bottom-spacer {
+    display: none !important;
+    height: 0 !important;
+  }
+
+  body:has(.co-admin-mobile-ops-shell) .co-workspace-shell {
+    padding-bottom: 0 !important;
+  }
+
+  .co-admin-mobile-ops-head {
+    display: grid;
+    gap: 0.22rem;
+    min-width: 0;
+  }
+
+  .co-admin-mobile-ops-head span,
+  .co-admin-mobile-next-copy span,
+  .co-admin-mobile-status-tile span,
+  .co-admin-mobile-panel-head span,
+  .co-admin-mobile-more-drawer summary span,
+  .co-admin-mobile-more-grid span,
+  .co-admin-mobile-queue-card span {
+    color: #ea580c;
+    font-size: 0.67rem;
+    font-weight: 950;
+    letter-spacing: 0.08em;
+    line-height: 1.1;
+    text-transform: uppercase;
+  }
+
+  .co-admin-mobile-ops-head h1 {
+    margin: 0;
+    color: #0f172a;
+    font-size: 1.26rem;
+    font-weight: 950;
+    line-height: 1.05;
+  }
+
+  .co-admin-mobile-ops-head p,
+  .co-admin-mobile-next-copy p,
+  .co-admin-mobile-queue-card em,
+  .co-admin-mobile-panel-head em,
+  .co-admin-mobile-more-drawer summary em,
+  .co-admin-mobile-more-grid em {
+    color: #64748b;
+    font-size: 0.78rem;
+    font-style: normal;
+    font-weight: 750;
+    line-height: 1.25;
+  }
+
+  .co-admin-mobile-next-card,
+  .co-admin-mobile-queue-panel,
+  .co-admin-mobile-more-drawer {
+    min-width: 0;
+    border: 1px solid rgba(203, 213, 225, 0.94);
+    border-radius: 0.9rem;
+    background: #ffffff;
+    box-shadow: 0 18px 42px -36px rgba(15, 23, 42, 0.58);
+  }
+
+  .co-admin-mobile-next-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 0.58rem;
+    border-top: 4px solid #16a34a;
+    padding: 0.72rem;
+  }
+
+  .co-admin-mobile-next-card[data-tone="amber"] {
+    border-top-color: #f97316;
+  }
+
+  .co-admin-mobile-next-copy {
+    display: grid;
+    min-width: 0;
+    gap: 0.18rem;
+  }
+
+  .co-admin-mobile-next-copy strong,
+  .co-admin-mobile-panel-head strong,
+  .co-admin-mobile-queue-card strong,
+  .co-admin-mobile-more-drawer summary strong {
+    color: #0f172a;
+    font-size: 0.94rem;
+    font-weight: 950;
+    line-height: 1.1;
+  }
+
+  .co-admin-mobile-primary-actions {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem;
+  }
+
+  .co-admin-mobile-primary-actions .btn,
+  .co-admin-mobile-primary-actions button {
+    min-height: 2.72rem;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .co-admin-mobile-status-tiles {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.48rem;
+  }
+
+  .co-admin-mobile-status-tile {
+    display: grid;
+    min-width: 0;
+    gap: 0.08rem;
+    border: 1px solid rgba(203, 213, 225, 0.94);
+    border-radius: 0.74rem;
+    background: #f8fafc;
+    padding: 0.5rem 0.46rem;
+  }
+
+  .co-admin-mobile-status-tile[data-tone="orange"],
+  .co-admin-mobile-status-tile[data-tone="amber"] {
+    border-color: rgba(251, 146, 60, 0.44);
+    background: #fff7ed;
+  }
+
+  .co-admin-mobile-status-tile[data-tone="green"] {
+    border-color: rgba(34, 197, 94, 0.34);
+    background: #f0fdf4;
+  }
+
+  .co-admin-mobile-status-tile[data-tone="red"] {
+    border-color: rgba(248, 113, 113, 0.42);
+    background: #fef2f2;
+  }
+
+  .co-admin-mobile-status-tile strong {
+    color: #0f172a;
+    font-size: 1.18rem;
+    font-weight: 950;
+    line-height: 1;
+  }
+
+  .co-admin-mobile-status-tile em {
+    color: #475569;
+    font-size: 0.67rem;
+    font-style: normal;
+    font-weight: 850;
+    line-height: 1.1;
+  }
+
+  .co-admin-mobile-queue-panel {
+    display: grid;
+    gap: 0.48rem;
+    padding: 0.62rem;
+  }
+
+  .co-admin-mobile-panel-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 0.1rem 0.5rem;
+  }
+
+  .co-admin-mobile-panel-head span,
+  .co-admin-mobile-panel-head strong {
+    grid-column: 1;
+  }
+
+  .co-admin-mobile-panel-head em {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: center;
+    border-radius: 999px;
+    background: #f1f5f9;
+    padding: 0.28rem 0.52rem;
+    color: #334155;
+    white-space: nowrap;
+  }
+
+  .co-admin-mobile-schedule-queue-list,
+  .co-admin-mobile-delivery-queue-list,
+  .co-admin-mobile-prepour-queue-list,
+  .co-admin-mobile-ppe-queue-list,
+  .co-admin-mobile-tool-checklist-queue-list,
+  .co-admin-mobile-incidents-queue-list {
+    display: grid;
+    gap: 0.4rem;
+  }
+
+  .co-admin-mobile-schedule-queue-list > :nth-child(n + 4),
+  .co-admin-mobile-delivery-queue-list > :nth-child(n + 4),
+  .co-admin-mobile-prepour-queue-list > :nth-child(n + 4),
+  .co-admin-mobile-ppe-queue-list > :nth-child(n + 4),
+  .co-admin-mobile-tool-checklist-queue-list > :nth-child(n + 4),
+  .co-admin-mobile-incidents-queue-list > :nth-child(n + 4) {
+    display: none !important;
+  }
+
+  .co-admin-mobile-queue-card {
+    display: grid;
+    min-height: 4.05rem;
+    min-width: 0;
+    gap: 0.12rem;
+    border: 1px solid rgba(203, 213, 225, 0.96);
+    border-left: 4px solid #94a3b8;
+    border-radius: 0.78rem;
+    background: #ffffff;
+    padding: 0.52rem 0.62rem;
+    text-align: left;
+  }
+
+  .co-admin-mobile-queue-card.is-selected {
+    border-color: rgba(37, 99, 235, 0.34);
+    border-left-color: #2563eb;
+    background: #eff6ff;
+  }
+
+  .co-admin-mobile-queue-card[data-tone="amber"],
+  .co-admin-mobile-queue-card[data-tone="orange"] {
+    border-left-color: #f97316;
+  }
+
+  .co-admin-mobile-queue-card[data-tone="green"] {
+    border-left-color: #16a34a;
+  }
+
+  .co-admin-mobile-queue-card[data-tone="red"] {
+    border-left-color: #ef4444;
+  }
+
+  .co-admin-mobile-queue-card b {
+    justify-self: start;
+    border-radius: 999px;
+    background: #f1f5f9;
+    padding: 0.22rem 0.48rem;
+    color: #334155;
+    font-size: 0.68rem;
+    font-weight: 950;
+    line-height: 1.1;
+  }
+
+  .co-admin-mobile-ppe-shell .co-admin-mobile-queue-card {
+    min-height: 3.28rem;
+    gap: 0.06rem;
+    padding: 0.42rem 0.56rem;
+  }
+
+  .co-admin-mobile-ppe-shell .co-admin-mobile-queue-card b {
+    padding: 0.18rem 0.42rem;
+  }
+
+  .co-admin-mobile-tool-checklist-shell .co-admin-mobile-queue-card {
+    min-height: 3.58rem;
+    gap: 0.08rem;
+    padding: 0.46rem 0.58rem;
+  }
+
+  .co-admin-mobile-tool-checklist-shell .co-admin-mobile-queue-card b {
+    padding: 0.18rem 0.42rem;
+  }
+
+  .co-admin-mobile-incidents-shell .co-admin-mobile-queue-card {
+    min-height: 3.76rem;
+    gap: 0.08rem;
+    padding: 0.46rem 0.58rem;
+  }
+
+  .co-admin-mobile-incidents-shell .co-admin-mobile-queue-card b {
+    padding: 0.18rem 0.42rem;
+  }
+
+  .co-admin-mobile-more-drawer {
+    overflow: hidden;
+  }
+
+  .co-admin-mobile-more-drawer summary {
+    display: grid;
+    min-height: 3.1rem;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.12rem 0.6rem;
+    padding: 0.68rem 0.78rem;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .co-admin-mobile-more-drawer summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .co-admin-mobile-more-drawer summary::after {
+    content: "+";
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    display: inline-grid;
+    width: 2rem;
+    height: 2rem;
+    place-items: center;
+    border-radius: 999px;
+    background: #0f172a;
+    color: #ffffff;
+    font-size: 1rem;
+    font-weight: 900;
+  }
+
+  .co-admin-mobile-more-drawer[open] summary::after {
+    content: "-";
+  }
+
+  .co-admin-mobile-more-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.46rem;
+    border-top: 1px solid rgba(226, 232, 240, 0.94);
+    padding: 0.65rem;
+  }
+
+  .co-admin-mobile-more-grid button,
+  .co-admin-mobile-more-grid > span {
+    display: grid;
+    min-height: 3.8rem;
+    min-width: 0;
+    gap: 0.08rem;
+    border: 1px solid rgba(203, 213, 225, 0.94);
+    border-radius: 0.74rem;
+    background: #f8fafc;
+    padding: 0.55rem 0.42rem;
+    text-align: left;
+  }
+
+  .co-admin-mobile-more-grid button:disabled {
+    opacity: 0.56;
+  }
+
+  .co-admin-mobile-more-grid strong {
+    color: #0f172a;
+    font-size: 1rem;
+    font-weight: 950;
+    line-height: 1;
+  }
+
+  .co-admin-mobile-more-grid b {
+    color: #64748b;
+    font-size: 0.65rem;
+    font-weight: 900;
+    line-height: 1.1;
+    text-transform: uppercase;
+  }
+}
+
+@media (min-width: 768px) {
+  .co-schedule-page .co-admin-mobile-ops-shell,
+  .co-delivery-page .co-admin-mobile-ops-shell,
+  .co-prepour-page:not(.co-postpour-page) .co-admin-mobile-ops-shell,
+  .co-ppe-page .co-admin-mobile-ops-shell,
+  .co-tool-checklist-page .co-admin-mobile-ops-shell,
+  .co-incidents-page .co-admin-mobile-ops-shell {
+    display: none !important;
+  }
+
+  .co-schedule-page .co-schedule-desktop-tablet-frame {
+    display: block;
+  }
 }

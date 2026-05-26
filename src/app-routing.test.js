@@ -51,6 +51,18 @@ test("command center module route resolves directly", () => {
   });
 });
 
+test("field workspace module route resolves directly", () => {
+  assert.equal(getModulePath("fieldWorkspace"), "/field");
+  assert.deepEqual(parseAppPath("/field"), {
+    active: "fieldWorkspace",
+    leadId: "",
+    jobId: "",
+    customerId: "",
+    reportId: "",
+    importedDraftId: "",
+  });
+});
+
 test("communications module route resolves directly with legacy alias", () => {
   assert.equal(getModulePath("communications"), "/communications");
   assert.deepEqual(parseAppPath("/communications"), {

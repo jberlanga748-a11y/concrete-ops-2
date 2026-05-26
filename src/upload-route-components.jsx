@@ -1,69 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 
 import { AssistantRail, Badge, Button, Card, CommandPageFrame, Icon, InputField, SectionHeader, SelectField, StateCard, TextAreaField, WorkQueueCard } from "./app-shell-components";
+import { FieldOperatorPanelShell } from "./field-route-components";
 import { jobTitle } from "./job-utils";
+import { fetchAuthenticatedUploadPreviewUrl, getCachedUploadPreviewUrl, getUploadPreviewCacheKey } from "./upload-preview-utils";
 import { gpsStatusLabel, uploadCapturedAt, uploadCustomerLabel, uploadEvidenceDateKey, uploadJobLabel, uploadTitle, uploadUploaderLabel } from "./upload-utils";
 
-const UPLOAD_PREVIEW_CACHE_LIMIT = 24;
-const uploadPreviewCache = new Map();
-
-function getUploadPreviewCacheKey(upload) {
-  if (!upload?.id) return "";
-  return `${upload.id}:${upload.updatedAt || upload.uploadedAt || ""}`;
-}
-
-function getCachedUploadPreviewUrl(cacheKey) {
-  if (!cacheKey) return "";
-  const cachedEntry = uploadPreviewCache.get(cacheKey);
-  if (!cachedEntry?.url) return "";
-  uploadPreviewCache.delete(cacheKey);
-  uploadPreviewCache.set(cacheKey, cachedEntry);
-  return cachedEntry.url;
-}
-
-function storeUploadPreviewUrl(cacheKey, previewUrl) {
-  if (!cacheKey || !previewUrl) return;
-  const previousEntry = uploadPreviewCache.get(cacheKey);
-  if (previousEntry?.url && previousEntry.url !== previewUrl) {
-    URL.revokeObjectURL(previousEntry.url);
-  }
-  uploadPreviewCache.delete(cacheKey);
-  uploadPreviewCache.set(cacheKey, { url: previewUrl });
-
-  while (uploadPreviewCache.size > UPLOAD_PREVIEW_CACHE_LIMIT) {
-    const oldestKey = uploadPreviewCache.keys().next().value;
-    const oldestEntry = uploadPreviewCache.get(oldestKey);
-    if (oldestEntry?.url) {
-      URL.revokeObjectURL(oldestEntry.url);
-    }
-    uploadPreviewCache.delete(oldestKey);
-  }
-}
-
-export async function fetchAuthenticatedUploadPreviewUrl(upload, token) {
-  if (!upload?.contentUrl || !token) {
-    throw new Error("Could not load the upload preview.");
-  }
-
-  const cacheKey = getUploadPreviewCacheKey(upload);
-  const cachedPreviewUrl = getCachedUploadPreviewUrl(cacheKey);
-  if (cachedPreviewUrl) return cachedPreviewUrl;
-
-  const response = await fetch(upload.contentUrl, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error("Could not load the upload preview.");
-  }
-
-  const blob = await response.blob();
-  const previewUrl = URL.createObjectURL(blob);
-  storeUploadPreviewUrl(cacheKey, previewUrl);
-  return previewUrl;
-}
+export { fetchAuthenticatedUploadPreviewUrl } from "./upload-preview-utils";
 
 function uploadDateTimeLabel(value) {
   if (!value) return "Not recorded";
@@ -275,40 +218,12 @@ export function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLo
               Upload Existing
             </Button>
           </div>
-          <UploadMobileFieldGroup title="Job / report" summary={selectedJob ? jobTitle(selectedJob) : "Select assigned job"}>
-            <SelectField label="Job" value={draft.jobId} onChange={(event) => setDraft((current) => ({ ...current, jobId: event.target.value }))}>
-              {jobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
-            </SelectField>
-          </UploadMobileFieldGroup>
+          {draft.dataUrl || fileError ? (
           <UploadMobileFieldGroup title="Photo / file" summary={draft.fileName || "Choose a photo"} defaultOpen>
             {draft.dataUrl ? <img src={draft.dataUrl} alt="Selected upload preview" className="h-40 w-full rounded-2xl object-cover" /> : null}
             {fileError ? <StateCard title="Upload file issue" description={fileError} tone="red" /> : null}
-            {!draft.dataUrl && !fileError ? <StateCard title="Choose photo evidence" description="Take a jobsite photo or upload an existing image before submitting evidence." tone="slate" /> : null}
           </UploadMobileFieldGroup>
-          <UploadMobileFieldGroup title="Caption / notes" summary={[draft.caption, draft.notes].filter(Boolean).length ? "Notes added" : "Optional"}>
-            <InputField label="Caption" value={draft.caption} onChange={(event) => setDraft((current) => ({ ...current, caption: event.target.value }))} placeholder="Pour finish before washout" />
-            <TextAreaField label="Notes" value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Optional context for the office or report reviewer." />
-          </UploadMobileFieldGroup>
-          <UploadMobileFieldGroup title="Timestamp / GPS" summary={gpsStatusLabel(draft)}>
-            <InputField label="Taken at" type="datetime-local" value={draft.takenAt} onChange={(event) => setDraft((current) => ({ ...current, takenAt: event.target.value }))} />
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-              <p><span className="font-black text-slate-950">GPS status:</span> {gpsStatusLabel(draft)}</p>
-              {draft.locationUnavailableReason ? <p className="mt-1">{draft.locationUnavailableReason}</p> : null}
-              {draft.latitude != null && draft.longitude != null ? <p className="mt-1">{draft.latitude.toFixed(5)}, {draft.longitude.toFixed(5)} / accuracy {Math.round(draft.locationAccuracy || 0)} m</p> : null}
-            </div>
-            <Button type="button" variant="secondary" onClick={handleRequestLocationClick} disabled={loading}>Capture location</Button>
-          </UploadMobileFieldGroup>
-          <UploadMobileFieldGroup title="Extra details" summary={draft.fileName ? uploadFileSizeLabel(draft.fileSize) : "File details pending"}>
-            {draft.fileName ? (
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-                <p><span className="font-black text-slate-950">Selected photo:</span> {draft.fileName}</p>
-                <p className="mt-1"><span className="font-black text-slate-950">File type:</span> {draft.fileType || "Unknown"}</p>
-                <p className="mt-1"><span className="font-black text-slate-950">File size:</span> {uploadFileSizeLabel(draft.fileSize)}</p>
-              </div>
-            ) : (
-              <StateCard title="No file selected yet" description="Choose a photo before uploading evidence." tone="slate" />
-            )}
-          </UploadMobileFieldGroup>
+          ) : null}
           <div className="co-uploads-create-action-stack co-uploads-create-action-stack-mobile">
             <Button type="submit" className="co-uploads-upload-cta" disabled={loading || !draft.jobId || !draft.dataUrl}>
               <Icon name="upload" />
@@ -316,6 +231,44 @@ export function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLo
             </Button>
             <p>Submits the real job-linked photo record with the selected file and metadata.</p>
           </div>
+          <details className="co-field-mobile-optional-details co-uploads-mobile-optional-details">
+            <summary>
+              <span>
+                <strong>Optional details</strong>
+                <em>Job, caption, GPS, and file metadata.</em>
+              </span>
+              <b aria-hidden="true" />
+            </summary>
+            <div className="co-field-mobile-optional-body">
+              <UploadMobileFieldGroup title="Job / report" summary={selectedJob ? jobTitle(selectedJob) : "Select assigned job"}>
+                <SelectField label="Job" value={draft.jobId} onChange={(event) => setDraft((current) => ({ ...current, jobId: event.target.value }))}>
+                  {jobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
+                </SelectField>
+              </UploadMobileFieldGroup>
+              <UploadMobileFieldGroup title="Caption / notes" summary={[draft.caption, draft.notes].filter(Boolean).length ? "Notes added" : "Optional"}>
+                <InputField label="Caption" value={draft.caption} onChange={(event) => setDraft((current) => ({ ...current, caption: event.target.value }))} placeholder="Pour finish before washout" />
+                <TextAreaField label="Notes" value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Optional context for the office or report reviewer." />
+              </UploadMobileFieldGroup>
+              <UploadMobileFieldGroup title="Timestamp / GPS" summary={gpsStatusLabel(draft)}>
+                <InputField label="Taken at" type="datetime-local" value={draft.takenAt} onChange={(event) => setDraft((current) => ({ ...current, takenAt: event.target.value }))} />
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+                  <p><span className="font-black text-slate-950">GPS status:</span> {gpsStatusLabel(draft)}</p>
+                  {draft.locationUnavailableReason ? <p className="mt-1">{draft.locationUnavailableReason}</p> : null}
+                  {draft.latitude != null && draft.longitude != null ? <p className="mt-1">{draft.latitude.toFixed(5)}, {draft.longitude.toFixed(5)} / accuracy {Math.round(draft.locationAccuracy || 0)} m</p> : null}
+                </div>
+                <Button type="button" variant="secondary" onClick={handleRequestLocationClick} disabled={loading}>Capture location</Button>
+              </UploadMobileFieldGroup>
+              {draft.fileName ? (
+                <UploadMobileFieldGroup title="Extra details" summary={uploadFileSizeLabel(draft.fileSize)}>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+                    <p><span className="font-black text-slate-950">Selected photo:</span> {draft.fileName}</p>
+                    <p className="mt-1"><span className="font-black text-slate-950">File type:</span> {draft.fileType || "Unknown"}</p>
+                    <p className="mt-1"><span className="font-black text-slate-950">File size:</span> {uploadFileSizeLabel(draft.fileSize)}</p>
+                  </div>
+                </UploadMobileFieldGroup>
+              ) : null}
+            </div>
+          </details>
         </form>
       </UploadMobileAccordionCard>
 
@@ -637,57 +590,28 @@ export function UploadsFieldOperatorPanel({
 
   return (
     <div className="mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6">
-      <Card className="co-field-operator-panel co-uploads-field-panel overflow-hidden">
-        <div className="co-field-operator-shell">
-          <div className="co-field-operator-copy min-w-0">
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <Badge tone="orange">Field Photo Evidence</Badge>
-              <Badge tone={canCreate ? "green" : "slate"}>{canCreate ? "Upload ready" : "Read only"}</Badge>
-              {hasSelectedUpload ? <Badge tone={upload.hasGps ? "green" : "amber"}>{gpsStatusLabel(upload)}</Badge> : <Badge tone="slate">Select evidence</Badge>}
-            </div>
-            <h2>{hasSelectedUpload ? uploadTitle(upload) : "Photo Evidence ready"}</h2>
-            <p>
-              {hasSelectedUpload
-                ? `${uploadJobLabel(upload)} / ${upload.caption || upload.notes ? "Caption context added" : "Caption or note still helps the office."}`
-                : canCreate
-                  ? "Capture job-linked photos, add a quick caption, and keep timestamp or GPS context with the field record."
-                  : "Review assigned job evidence without office-only controls or company setup data."}
-            </p>
-            <div className="co-field-operator-address">
-              <Icon name="upload" />
-              <span>{hasSelectedUpload ? `${uploadJobLabel(upload)} / ${uploadUploaderLabel(upload)}` : `${allowedJobs.length} assigned job${allowedJobs.length === 1 ? "" : "s"}`}</span>
-            </div>
-          </div>
-
-          <div className="co-field-operator-actions">
-            {canCreate ? (
-              <Button type="button" onClick={() => onOpenTool("upload")}>
-                <Icon name="upload" />
-                Upload Photo
-              </Button>
-            ) : null}
-            {hasSelectedUpload ? (
-              <Button type="button" variant="secondary" onClick={() => onOpenTool("details")}>
-                <Icon name="clipboard" />
-                Details
-              </Button>
-            ) : null}
-            <Button type="button" variant={canCreate || hasSelectedUpload ? "secondary" : undefined} onClick={onJumpToBoard}>
-              <Icon name="layers" />
-              View Board
-            </Button>
-          </div>
-        </div>
-
-        <div className="co-field-operator-strip">
-          {summaryItems.map((item) => (
-            <div key={item.label} data-tone={item.tone}>
-              <span>{item.label}</span>
-              <strong>{item.value}</strong>
-            </div>
-          ))}
-        </div>
-      </Card>
+      <FieldOperatorPanelShell
+        className="co-uploads-field-panel"
+        badges={[
+          { label: "Field Photo Evidence", tone: "orange" },
+          { label: canCreate ? "Upload ready" : "Read only", tone: canCreate ? "green" : "slate" },
+          hasSelectedUpload ? { label: gpsStatusLabel(upload), tone: upload.hasGps ? "green" : "amber" } : { label: "Select evidence", tone: "slate" },
+        ]}
+        title={hasSelectedUpload ? uploadTitle(upload) : "Photo Evidence ready"}
+        description={hasSelectedUpload
+          ? `${uploadJobLabel(upload)} / ${upload.caption || upload.notes ? "Caption context added" : "Caption or note still helps the office."}`
+          : canCreate
+            ? "Capture job-linked photos, add a quick caption, and keep timestamp or GPS context with the field record."
+            : "Review assigned job evidence without office-only controls or company setup data."}
+        meta={hasSelectedUpload ? `${uploadJobLabel(upload)} / ${uploadUploaderLabel(upload)}` : `${allowedJobs.length} assigned job${allowedJobs.length === 1 ? "" : "s"}`}
+        metaIcon="upload"
+        actions={[
+          canCreate ? { id: "upload", label: "Upload Photo", icon: "upload", onClick: () => onOpenTool("upload") } : null,
+          hasSelectedUpload ? { id: "details", label: "Details", icon: "clipboard", variant: "secondary", onClick: () => onOpenTool("details") } : null,
+          { id: "board", label: "View Board", icon: "layers", variant: canCreate || hasSelectedUpload ? "secondary" : undefined, onClick: onJumpToBoard },
+        ]}
+        facts={summaryItems}
+      />
     </div>
   );
 }

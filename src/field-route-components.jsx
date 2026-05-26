@@ -36,6 +36,117 @@ export function FieldActionGrid({ actions, onOpen }) {
   );
 }
 
+export function FieldFactStrip({ items, className = "" }) {
+  const safeItems = Array.isArray(items) ? items.filter(Boolean) : [];
+  if (safeItems.length === 0) return null;
+
+  return (
+    <div className={`co-field-operator-strip ${className}`.trim()}>
+      {safeItems.map((item) => (
+        <div key={item.id || item.label} data-tone={item.tone || "slate"}>
+          <span>{item.label}</span>
+          <strong>{item.value ?? "-"}</strong>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function FieldMobileActionGrid({ actions, className = "" }) {
+  const safeActions = Array.isArray(actions) ? actions.filter(Boolean) : [];
+  if (safeActions.length === 0) return null;
+
+  return (
+    <div className={`co-field-mobile-action-grid ${className}`.trim()}>
+      {safeActions.map((action) => (
+        <button
+          key={action.id || action.label}
+          type="button"
+          data-tone={action.tone || "slate"}
+          onClick={action.onClick}
+          disabled={action.disabled}
+        >
+          {action.icon ? <Icon name={action.icon} /> : null}
+          <span>{action.label}</span>
+          {action.helper ? <em>{action.helper}</em> : null}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function FieldOperatorPanelShell({
+  className = "",
+  badges = [],
+  title,
+  description,
+  metaIcon = "briefcase",
+  meta,
+  actions = [],
+  facts = [],
+}) {
+  const safeBadges = Array.isArray(badges) ? badges.filter(Boolean) : [];
+  const safeActions = Array.isArray(actions) ? actions.filter(Boolean) : [];
+
+  return (
+    <Card className={`co-field-operator-panel ${className} overflow-hidden`.trim()}>
+      <div className="co-field-operator-shell">
+        <div className="co-field-operator-copy min-w-0">
+          {safeBadges.length ? (
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              {safeBadges.map((badge, index) => (
+                badge?.label
+                  ? <Badge key={badge.id || badge.label} tone={badge.tone || "slate"}>{badge.label}</Badge>
+                  : <span key={badge?.key || index} className="contents">{badge}</span>
+              ))}
+            </div>
+          ) : null}
+          <h2>{title}</h2>
+          {description ? <p>{description}</p> : null}
+          {meta ? (
+            <div className="co-field-operator-address">
+              <Icon name={metaIcon} />
+              <span>{meta}</span>
+            </div>
+          ) : null}
+        </div>
+
+        {safeActions.length ? (
+          <div className="co-field-operator-actions">
+            {safeActions.map((action) => (
+              action.href ? (
+                <a
+                  key={action.id || action.label}
+                  className="co-field-operator-link"
+                  href={action.href}
+                  target={action.target || "_blank"}
+                  rel={action.rel || "noreferrer"}
+                >
+                  {action.label}
+                  <Icon name={action.icon || "arrowUpRight"} />
+                </a>
+              ) : (
+                <Button
+                  key={action.id || action.label}
+                  type="button"
+                  variant={action.variant}
+                  disabled={action.disabled}
+                  onClick={action.onClick}
+                >
+                  {action.icon ? <Icon name={action.icon} /> : null}
+                  {action.label}
+                </Button>
+              )
+            ))}
+          </div>
+        ) : null}
+      </div>
+
+      <FieldFactStrip items={facts} />
+    </Card>
+  );
+}
+
 const FIELD_MOBILE_NAV_ORDER = [
   { id: "jobs", label: "Jobs", icon: "briefcase" },
   { id: "time", label: "Clock", icon: "clock" },

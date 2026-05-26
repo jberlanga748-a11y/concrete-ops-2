@@ -1,7 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildDailyReportsSupportContext, deriveAdvancedReportSummary, deriveDailyReportListState, filterDailyReports, reportStatusLabel } from "./report-utils.js";
+import {
+  buildDailyReportsSupportContext,
+  dailyReportConcreteSummary,
+  dailyReportDateKey,
+  deriveAdvancedReportSummary,
+  deriveDailyReportListState,
+  deriveDailyReportProofState,
+  deriveTodayWorkCoordination,
+  filterDailyReports,
+  reportStatusLabel,
+} from "./report-utils.js";
 
 const REPORTS = [
   {
@@ -68,6 +78,38 @@ test("derives report filter options from visible reports", () => {
 test("report status labels stay human friendly", () => {
   assert.equal(reportStatusLabel("reopened"), "Reopened");
   assert.equal(reportStatusLabel("submitted"), "Submitted");
+});
+
+test("shared daily report display helpers derive proof and concrete summaries", () => {
+  const report = { ...REPORTS[1], concretePoured: true, yardsPoured: 1 };
+  const proofState = deriveDailyReportProofState({
+    report,
+    uploads: [{ id: "U-1", reportId: "R-2", jobId: "J-2", takenAt: "2026-04-25T12:00:00.000Z" }],
+    deliveryTickets: [{ id: "D-1", reportId: "R-2", jobId: "J-2", deliveredAt: "2026-04-25T13:00:00.000Z" }],
+  });
+
+  assert.equal(dailyReportDateKey("2026-04-25T13:00:00.000Z"), "2026-04-25");
+  assert.equal(dailyReportConcreteSummary(report), "1 yd poured");
+  assert.equal(proofState.photoCount, 1);
+  assert.equal(proofState.ticketCount, 1);
+  assert.equal(proofState.gapCount, 0);
+});
+
+test("today work coordination summarizes field closeout gaps", () => {
+  const coordination = deriveTodayWorkCoordination({
+    today: "2026-04-25T09:00:00.000Z",
+    jobs: [{ id: "J-2", title: "Jenkins Patio", status: "in_progress", scheduledStart: "2026-04-25T08:00:00.000Z", assignedForemanName: "Foreman Two" }],
+    dailyReports: [REPORTS[1]],
+    uploads: [],
+    deliveryTickets: [],
+    users: [],
+  });
+
+  assert.equal(coordination.dateKey, "2026-04-25");
+  assert.equal(coordination.rows.length, 1);
+  assert.equal(coordination.rows[0].foreman, "Foreman Two");
+  assert.equal(coordination.stats.todayJobs, 1);
+  assert.equal(coordination.stats.missingPhotos, 1);
 });
 
 test("report helpers tolerate missing report arrays", () => {
