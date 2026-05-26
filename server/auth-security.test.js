@@ -121,6 +121,18 @@ async function requestJson(baseUrl, pathname, options = {}) {
   return { response, payload };
 }
 
+function setCookiesFromResponse(response) {
+  if (typeof response.headers.getSetCookie === "function") {
+    return response.headers.getSetCookie();
+  }
+  const combined = response.headers.get("set-cookie") || "";
+  return combined ? combined.split(/,\s*(?=[^;,]+=)/).filter(Boolean) : [];
+}
+
+function cookieHeaderFromResponse(response) {
+  return setCookiesFromResponse(response).map((cookie) => cookie.split(";")[0]).join("; ");
+}
+
 async function assertOk(baseUrl, pathname, options = {}) {
   const { response, payload } = await requestJson(baseUrl, pathname, options);
   assert.equal(response.ok, true, payload?.error || `Expected ${pathname} to succeed.`);
@@ -134,10 +146,18 @@ function authHeaders(token) {
   };
 }
 
+function bearerModeJsonHeaders(extraHeaders = {}) {
+  return {
+    "Content-Type": "application/json",
+    "X-Apex-Auth-Mode": "bearer",
+    ...extraHeaders,
+  };
+}
+
 async function login(baseUrl, body = {}, extraHeaders = {}) {
   return requestJson(baseUrl, "/api/auth/login", {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...extraHeaders },
+    headers: bearerModeJsonHeaders(extraHeaders),
     body: JSON.stringify({
       email: "demo.ops@apexhq.app",
       password: "apexdemo123",
@@ -281,6 +301,58 @@ test("successful login and logout are written to the audit trail", async () => {
   }
 });
 
+test("browser auth uses HttpOnly cookies and CSRF-protects unsafe requests", async () => {
+  const fixture = await startServer();
+
+  try {
+    const { response: loginResponse, payload: loginPayload } = await requestJson(fixture.baseUrl, "/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: "demo.ops@apexhq.app",
+        password: "apexdemo123",
+      }),
+    });
+    assert.equal(loginResponse.status, 200);
+    assert.equal(loginPayload.token, undefined);
+    assert.ok(loginPayload.csrfToken);
+
+    const setCookies = setCookiesFromResponse(loginResponse);
+    assert.equal(setCookies.some((cookie) => cookie.startsWith("apex_hq_session=") && cookie.includes("HttpOnly")), true);
+    assert.equal(setCookies.some((cookie) => cookie.startsWith("apex_hq_csrf=") && !cookie.includes("HttpOnly")), true);
+    const cookieHeader = cookieHeaderFromResponse(loginResponse);
+
+    const bootstrap = await requestJson(fixture.baseUrl, "/api/bootstrap", {
+      headers: { Cookie: cookieHeader },
+    });
+    assert.equal(bootstrap.response.status, 200);
+    assert.equal(bootstrap.payload.user.email, "demo.ops@apexhq.app");
+
+    const missingCsrf = await requestJson(fixture.baseUrl, "/api/auth/logout", {
+      method: "POST",
+      headers: { Cookie: cookieHeader },
+    });
+    assert.equal(missingCsrf.response.status, 403);
+    assert.match(missingCsrf.payload.error, /csrf/i);
+
+    const logout = await requestJson(fixture.baseUrl, "/api/auth/logout", {
+      method: "POST",
+      headers: {
+        Cookie: cookieHeader,
+        "X-CSRF-Token": loginPayload.csrfToken,
+      },
+    });
+    assert.equal(logout.response.status, 204);
+
+    const afterLogout = await requestJson(fixture.baseUrl, "/api/bootstrap", {
+      headers: { Cookie: cookieHeader },
+    });
+    assert.equal(afterLogout.response.status, 401);
+  } finally {
+    await fixture.stop();
+  }
+});
+
 test("successful login clears earlier failed attempts before the threshold", async () => {
   const fixture = await startServer();
 
@@ -343,7 +415,7 @@ test("password reset request is generic and reset completion is single-use", asy
 
     const completed = await assertOk(fixture.baseUrl, "/api/auth/password-reset/complete", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: bearerModeJsonHeaders(),
       body: JSON.stringify({
         token: requested.resetToken,
         password: "newpass123",

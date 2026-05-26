@@ -92,6 +92,13 @@ async function assertOk(baseUrl, pathname, options = {}) {
   return payload;
 }
 
+function cookieHeaderFromResponse(response) {
+  const setCookies = typeof response.headers.getSetCookie === "function"
+    ? response.headers.getSetCookie()
+    : (response.headers.get("set-cookie") || "").split(/,\s*(?=[^;,]+=)/).filter(Boolean);
+  return setCookies.map((cookie) => cookie.split(";")[0]).join("; ");
+}
+
 function authHeaders(token) {
   return {
     Authorization: `Bearer ${token}`,
@@ -99,10 +106,18 @@ function authHeaders(token) {
   };
 }
 
+function bearerModeJsonHeaders(extraHeaders = {}) {
+  return {
+    "Content-Type": "application/json",
+    "X-Apex-Auth-Mode": "bearer",
+    ...extraHeaders,
+  };
+}
+
 async function signup(baseUrl, body = {}) {
   return requestJson(baseUrl, "/api/signup/company", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: bearerModeJsonHeaders(),
     body: JSON.stringify({
       companyName: "ABC Builders",
       ownerName: "Alex Builder",
@@ -117,7 +132,7 @@ async function signup(baseUrl, body = {}) {
 async function login(baseUrl, body = {}) {
   return assertOk(baseUrl, "/api/auth/login", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: bearerModeJsonHeaders(),
     body: JSON.stringify(body),
   });
 }
@@ -125,7 +140,7 @@ async function login(baseUrl, body = {}) {
 async function activateInvite(baseUrl, body = {}) {
   return assertOk(baseUrl, "/api/auth/activate-invite", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: bearerModeJsonHeaders(),
     body: JSON.stringify(body),
   });
 }
@@ -141,7 +156,7 @@ async function requestPasswordReset(baseUrl, body = {}) {
 async function completePasswordReset(baseUrl, body = {}) {
   return assertOk(baseUrl, "/api/auth/password-reset/complete", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: bearerModeJsonHeaders(),
     body: JSON.stringify(body),
   });
 }
@@ -265,7 +280,7 @@ test("public signup support preserves first-run bootstrap admin setup", async ()
     assert.equal(setupStatus.demoMode, false);
     assert.equal(setupStatus.publicSignupEnabled, true);
 
-    const bootstrap = await assertOk(fixture.baseUrl, "/api/setup/bootstrap-admin", {
+    const { response: bootstrapResponse, payload: bootstrap } = await requestJson(fixture.baseUrl, "/api/setup/bootstrap-admin", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -275,14 +290,19 @@ test("public signup support preserves first-run bootstrap admin setup", async ()
         role: "Administrator",
       }),
     });
-    assert.ok(bootstrap.token);
+    assert.equal(bootstrapResponse.status, 201);
+    assert.equal(bootstrap.token, undefined);
+    assert.ok(bootstrap.csrfToken);
+    const bootstrapCookies = cookieHeaderFromResponse(bootstrapResponse);
+    assert.match(bootstrapCookies, /apex_hq_session=/);
+    assert.match(bootstrapCookies, /apex_hq_csrf=/);
     assert.equal(bootstrap.user.email, "admin@example.com");
     assert.equal(bootstrap.user.companyId, DEFAULT_COMPANY_ID);
     assert.equal(bootstrap.currentCompanyId, DEFAULT_COMPANY_ID);
     assert.equal(bootstrap.currentWorkspaceId, DEFAULT_COMPANY_ID);
 
     const bootstrapWorkspace = await assertOk(fixture.baseUrl, "/api/bootstrap", {
-      headers: authHeaders(bootstrap.token),
+      headers: { Cookie: bootstrapCookies },
     });
     assert.equal(bootstrapWorkspace.user.email, "admin@example.com");
     assert.equal(bootstrapWorkspace.currentCompanyId, DEFAULT_COMPANY_ID);
@@ -703,7 +723,7 @@ test("demo reset cannot wipe real signup workspaces when signup and demo coexist
 
     const demoLogin = await assertOk(fixture.baseUrl, "/api/auth/login", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: bearerModeJsonHeaders(),
       body: JSON.stringify({
         email: "demo.ops@apexhq.app",
         password: "apexdemo123",

@@ -82,8 +82,11 @@ async function assertOk(baseUrl, pathname, options = {}) {
 async function login(baseUrl, credentials) {
   return assertOk(baseUrl, "/api/auth/login", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(credentials),
+    headers: {
+      "Content-Type": "application/json",
+      "X-Apex-Auth-Mode": "bearer",
+    },
+    body: JSON.stringify({ ...credentials, returnToken: true }),
   });
 }
 

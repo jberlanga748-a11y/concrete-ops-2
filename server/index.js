@@ -335,6 +335,10 @@ const PASSWORD_RESET_REQUEST_RATE_LIMIT_MAX = 5;
 const AUTH_TOKEN_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const AUTH_TOKEN_RATE_LIMIT_MAX = 12;
 const SESSION_TOUCH_INTERVAL_MS = 60 * 1000;
+const SESSION_COOKIE_NAME = "apex_hq_session";
+const CSRF_COOKIE_NAME = "apex_hq_csrf";
+const AUTH_MODE_HEADER = "x-apex-auth-mode";
+const SAFE_HTTP_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 const serverStartedAt = Date.now();
 const publicEstimateRequestRateLimit = new Map();
 const publicDemoInterestRateLimit = new Map();
@@ -372,18 +376,19 @@ function securityHeaders(_req, res, next) {
   res.setHeader("Referrer-Policy", "no-referrer");
   res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
   res.setHeader("Permissions-Policy", "geolocation=(), microphone=(), payment=(), usb=()");
-  res.setHeader("Content-Security-Policy-Report-Only", [
+  res.setHeader("Content-Security-Policy", [
     "default-src 'self'",
     "base-uri 'self'",
     "object-src 'none'",
     "frame-ancestors 'none'",
     "script-src 'self'",
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
+    "img-src 'self' data: blob: https://api.mapbox.com https://*.tiles.mapbox.com",
     "font-src 'self' data:",
     "connect-src 'self' https://api.mapbox.com https://events.mapbox.com https://*.tiles.mapbox.com",
     "worker-src 'self' blob:",
     "form-action 'self'",
+    "manifest-src 'self'",
   ].join("; "));
 
   if (serverConfig.nodeEnv === "production") {
@@ -396,6 +401,8 @@ function securityHeaders(_req, res, next) {
 app.use(securityHeaders);
 app.use(cors({
   origin: corsOrigin,
+  credentials: true,
+  exposedHeaders: ["X-CSRF-Token", "X-Request-Id"],
   optionsSuccessStatus: 204,
 }));
 app.use(express.json({ limit: "16mb" }));
@@ -688,6 +695,121 @@ function bearerTokenFromRequest(req) {
   if (typeof header !== "string") return "";
   const match = header.match(/^Bearer\s+(.+)$/i);
   return match ? match[1].trim() : "";
+}
+
+function parseCookies(req) {
+  const cookieHeader = req.headers.cookie || "";
+  if (typeof cookieHeader !== "string" || !cookieHeader.trim()) return {};
+
+  return cookieHeader.split(";").reduce((cookies, part) => {
+    const [rawName, ...rawValueParts] = part.split("=");
+    const name = String(rawName || "").trim();
+    if (!name) return cookies;
+
+    const rawValue = rawValueParts.join("=").trim();
+    try {
+      cookies[name] = decodeURIComponent(rawValue);
+    } catch {
+      cookies[name] = rawValue;
+    }
+    return cookies;
+  }, {});
+}
+
+function cookieMaxAgeSeconds() {
+  return Math.max(1, Math.floor(serverConfig.sessionTtlMs / 1000));
+}
+
+function serializeCookie(name, value, { httpOnly = false, maxAge = cookieMaxAgeSeconds(), sameSite = "Lax" } = {}) {
+  const parts = [
+    `${name}=${encodeURIComponent(value)}`,
+    "Path=/",
+    `SameSite=${sameSite}`,
+    `Max-Age=${Math.max(0, Math.floor(maxAge))}`,
+  ];
+
+  if (httpOnly) parts.push("HttpOnly");
+  if (serverConfig.nodeEnv === "production") parts.push("Secure");
+
+  return parts.join("; ");
+}
+
+function appendSetCookie(res, cookie) {
+  const existing = res.getHeader("Set-Cookie");
+  if (!existing) {
+    res.setHeader("Set-Cookie", cookie);
+    return;
+  }
+  res.setHeader("Set-Cookie", Array.isArray(existing) ? [...existing, cookie] : [existing, cookie]);
+}
+
+function setAuthCookies(res, sessionToken) {
+  const csrfToken = generateToken();
+  appendSetCookie(res, serializeCookie(SESSION_COOKIE_NAME, sessionToken, { httpOnly: true }));
+  appendSetCookie(res, serializeCookie(CSRF_COOKIE_NAME, csrfToken, { httpOnly: false }));
+  res.setHeader("X-CSRF-Token", csrfToken);
+  return csrfToken;
+}
+
+function ensureCsrfCookie(req, res) {
+  const csrfCookie = parseCookies(req)[CSRF_COOKIE_NAME] || "";
+  const csrfToken = csrfCookie || generateToken();
+  if (!csrfCookie) {
+    appendSetCookie(res, serializeCookie(CSRF_COOKIE_NAME, csrfToken, { httpOnly: false }));
+  }
+  res.setHeader("X-CSRF-Token", csrfToken);
+  return csrfToken;
+}
+
+function clearAuthCookies(res) {
+  appendSetCookie(res, serializeCookie(SESSION_COOKIE_NAME, "", { httpOnly: true, maxAge: 0 }));
+  appendSetCookie(res, serializeCookie(CSRF_COOKIE_NAME, "", { httpOnly: false, maxAge: 0 }));
+}
+
+function authTokenFromRequest(req) {
+  const bearerToken = bearerTokenFromRequest(req);
+  if (bearerToken) {
+    return {
+      authMode: "bearer",
+      token: bearerToken,
+    };
+  }
+
+  const sessionToken = parseCookies(req)[SESSION_COOKIE_NAME] || "";
+  return {
+    authMode: sessionToken ? "cookie" : "",
+    token: sessionToken,
+  };
+}
+
+function requestWantsBearerToken(req) {
+  const requestedMode = String(req.headers[AUTH_MODE_HEADER] || "").trim().toLowerCase();
+  return serverConfig.nodeEnv !== "production" && (requestedMode === "bearer" || req.body?.returnToken === true);
+}
+
+function authSessionPayload(req, res, sessionToken, payload = {}) {
+  const csrfToken = setAuthCookies(res, sessionToken);
+  return {
+    ...(requestWantsBearerToken(req) ? { token: sessionToken } : {}),
+    csrfToken,
+    ...payload,
+  };
+}
+
+function validateCookieCsrf(req, res) {
+  if (req.auth?.authMode !== "cookie" || SAFE_HTTP_METHODS.has(req.method)) {
+    return true;
+  }
+
+  const csrfCookie = parseCookies(req)[CSRF_COOKIE_NAME] || "";
+  const headerValue = req.headers["x-csrf-token"];
+  const csrfHeader = Array.isArray(headerValue) ? headerValue[0] : headerValue;
+  if (!tokenMatches(csrfCookie, String(csrfHeader || "").trim())) {
+    jsonError(res, 403, "CSRF token missing or invalid.");
+    return false;
+  }
+
+  return true;
 }
 
 function tokenMatches(expected, provided) {
@@ -6405,8 +6527,7 @@ app.use((req, res, next) => {
 async function requireAuth(req, res, next) {
   const authProfiler = createRouteProfiler(`${req.method} ${req.path} auth`, res.locals.requestId);
   const now = new Date().toISOString();
-  const authHeader = req.headers.authorization || "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+  const { authMode, token } = authTokenFromRequest(req);
 
   if (!token) {
     return jsonError(res, 401, "Authentication required.");
@@ -6420,30 +6541,42 @@ async function requireAuth(req, res, next) {
   const session = authRecord?.session || null;
 
   if (!session) {
+    if (authMode === "cookie") clearAuthCookies(res);
     return jsonError(res, 401, "Session expired.");
   }
 
   if (session.expiresAt && session.expiresAt <= now) {
     await deleteSessionByTokenHash(tokenHash);
+    if (authMode === "cookie") clearAuthCookies(res);
     return jsonError(res, 401, "Session expired.");
   }
 
   const user = authRecord?.user || null;
   if (!user) {
+    if (authMode === "cookie") clearAuthCookies(res);
     return jsonError(res, 401, "Account missing.");
   }
 
   if (optionalUserStatus(user.status, "active") !== "active") {
     await deleteSessionByTokenHash(tokenHash);
+    if (authMode === "cookie") clearAuthCookies(res);
     return jsonError(res, 403, "Account inactive.");
   }
 
   req.auth = {
+    authMode,
     token,
     tokenHash,
     session,
     user,
   };
+
+  if (!validateCookieCsrf(req, res)) {
+    return;
+  }
+  if (authMode === "cookie") {
+    ensureCsrfCookie(req, res);
+  }
 
   const lastSeenAtMs = session.lastSeenAt ? new Date(session.lastSeenAt).getTime() : 0;
   const shouldTouchSession = Number.isNaN(lastSeenAtMs)
@@ -6917,10 +7050,7 @@ app.post("/api/setup/bootstrap-admin", asyncRoute(async (req, res) => {
     return draft;
   });
 
-  res.status(201).json({
-    token,
-    ...sanitizeBootstrap(nextState, createdUser),
-  });
+  res.status(201).json(authSessionPayload(req, res, token, sanitizeBootstrap(nextState, createdUser)));
 }));
 
 app.post("/api/signup/company", asyncRoute(async (req, res) => {
@@ -7008,10 +7138,7 @@ app.post("/api/signup/company", asyncRoute(async (req, res) => {
     return draft;
   });
 
-  res.status(201).json({
-    token,
-    ...sanitizeBootstrap(nextState, owner),
-  });
+  res.status(201).json(authSessionPayload(req, res, token, sanitizeBootstrap(nextState, owner)));
 }));
 
 app.post("/api/auth/activate-invite", asyncRoute(async (req, res) => {
@@ -7071,10 +7198,7 @@ app.post("/api/auth/activate-invite", asyncRoute(async (req, res) => {
     expiresAt: nextSessionExpiry(),
   });
 
-  return res.json({
-    token: sessionToken,
-    ...sanitizeBootstrap(nextState, activatedUser),
-  });
+  return res.json(authSessionPayload(req, res, sessionToken, sanitizeBootstrap(nextState, activatedUser)));
 }));
 
 app.post("/api/auth/password-reset/request", asyncRoute(async (req, res) => {
@@ -7180,10 +7304,7 @@ app.post("/api/auth/password-reset/complete", asyncRoute(async (req, res) => {
     expiresAt: nextSessionExpiry(),
   });
 
-  return res.json({
-    token: sessionToken,
-    ...sanitizeBootstrap(nextState, resetUser),
-  });
+  return res.json(authSessionPayload(req, res, sessionToken, sanitizeBootstrap(nextState, resetUser)));
 }));
 
 app.post("/api/auth/login", asyncRoute(async (req, res) => {
@@ -7232,10 +7353,9 @@ app.post("/api/auth/login", asyncRoute(async (req, res) => {
   routeProfiler.mark("auditWriteMs");
   clearLoginRateLimit(req, email);
 
-  const payload = {
-    token,
+  const payload = authSessionPayload(req, res, token, {
     user: publicUser(user, { includeNotificationState: true }),
-  };
+  });
   routeProfiler.mark("payloadBuildMs");
   routeProfiler.log({
     payloadBytes: measurePayloadBytes(payload),
@@ -7258,6 +7378,7 @@ app.post("/api/auth/logout", requireAuth, asyncRoute(async (req, res) => {
     changedFields: ["session"],
   });
   await deleteSessionByTokenHash(req.auth.tokenHash);
+  clearAuthCookies(res);
 
   res.status(204).end();
 }));

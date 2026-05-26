@@ -67,11 +67,14 @@ function assertSecurityHeaders(response, { production = false } = {}) {
     }
   }
 
-  const cspReportOnly = response.headers.get("content-security-policy-report-only") || "";
+  const csp = response.headers.get("content-security-policy") || "";
   for (const directive of ["default-src 'self'", "frame-ancestors 'none'", "object-src 'none'", "form-action 'self'"]) {
-    if (!cspReportOnly.includes(directive)) {
-      throw new Error(`Expected CSP report-only header to include ${directive}.`);
+    if (!csp.includes(directive)) {
+      throw new Error(`Expected CSP header to include ${directive}.`);
     }
+  }
+  if (response.headers.get("content-security-policy-report-only")) {
+    throw new Error("Expected CSP to be enforced instead of report-only.");
   }
 
   const hsts = response.headers.get("strict-transport-security");
@@ -87,6 +90,13 @@ function waitForExit(childProcess) {
   return new Promise((resolve) => {
     childProcess.once("exit", resolve);
   });
+}
+
+function cookieHeaderFromResponse(response) {
+  const setCookies = typeof response.headers.getSetCookie === "function"
+    ? response.headers.getSetCookie()
+    : (response.headers.get("set-cookie") || "").split(/,\s*(?=[^;,]+=)/).filter(Boolean);
+  return setCookies.map((cookie) => cookie.split(";")[0]).join("; ");
 }
 
 async function runProductionSetupBootstrapTest() {
@@ -163,7 +173,7 @@ async function runProductionSetupBootstrapTest() {
       throw new Error(`Expected demo login to fail in production setup mode, received ${demoLoginResponse.status}.`);
     }
 
-    const bootstrap = await setupRequest("/api/setup/bootstrap-admin", {
+    const bootstrapResponse = await fetch(`${setupBaseUrl}/api/setup/bootstrap-admin`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -173,13 +183,18 @@ async function runProductionSetupBootstrapTest() {
         role: "Administrator",
       }),
     });
+    const bootstrap = await bootstrapResponse.json();
+    if (!bootstrapResponse.ok) {
+      throw new Error(bootstrap?.error || "Production bootstrap-admin failed.");
+    }
 
-    if (!bootstrap.token || bootstrap.user?.email !== "admin@example.com") {
-      throw new Error("Expected bootstrap-admin to create and sign in the first admin.");
+    const bootstrapCookieHeader = cookieHeaderFromResponse(bootstrapResponse);
+    if (bootstrap.token || !bootstrap.csrfToken || !bootstrapCookieHeader.includes("apex_hq_session=") || bootstrap.user?.email !== "admin@example.com") {
+      throw new Error("Expected bootstrap-admin to create an HttpOnly cookie session for the first admin.");
     }
 
     const bootstrapHeaders = {
-      Authorization: `Bearer ${bootstrap.token}`,
+      Cookie: bootstrapCookieHeader,
     };
     const workspace = await setupRequest("/api/bootstrap", { headers: bootstrapHeaders });
     if (workspace.user?.email !== "admin@example.com") {
@@ -188,7 +203,10 @@ async function runProductionSetupBootstrapTest() {
 
     const resetResponse = await fetch(`${setupBaseUrl}/api/reset`, {
       method: "POST",
-      headers: bootstrapHeaders,
+      headers: {
+        ...bootstrapHeaders,
+        "X-CSRF-Token": bootstrap.csrfToken,
+      },
     });
     if (resetResponse.status !== 403) {
       throw new Error(`Expected reset to be disabled when demo data is off, received ${resetResponse.status}.`);
@@ -248,7 +266,7 @@ async function run() {
 
     const login = await request("/api/auth/login", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-Apex-Auth-Mode": "bearer" },
       body: JSON.stringify({
         email: "demo.ops@apexhq.app",
         password: "apexdemo123",
