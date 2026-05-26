@@ -31,5 +31,6 @@ test("Leads page route shell is extracted and lazy-loaded out of App", () => {
   }
 
   assert.match(appSource, /const CommunicationCenterPage = lazyRouteComponent\(\(\) => import\("\.\/communications-route-components"\), "CommunicationCenterPage"\);/);
-  assert.match(appSource, /function FollowUpQueuePanel\b/);
+  assert.match(appSource, /import \{ FollowUpQueuePanel \} from "\.\/follow-up-queue-panel-components"/);
+  assert.doesNotMatch(appSource, /function FollowUpQueuePanel\b/);
 });
