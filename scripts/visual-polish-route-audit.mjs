@@ -228,7 +228,7 @@ async function waitForAuthenticatedWorkspace(page, role) {
         ".co-apex-office-command-shell",
       ].join(",")));
       const hasWorkspaceText = /Log out|Team workspace|Today|Jobs Today|Operations Command|Field Mode/i.test(rootText);
-      return hasSessionToken && !stillOnLogin && (hasWorkspaceFrame || hasWorkspaceText);
+      return !stillOnLogin && (hasSessionToken || hasWorkspaceFrame || hasWorkspaceText);
     }, SESSION_TOKEN_KEY, { timeout: AUTH_WORKSPACE_READY_TIMEOUT_MS });
   } catch (error) {
     const snapshot = await page.evaluate(() => ({
@@ -256,7 +256,7 @@ async function waitForRouteAuditEvidence(page, role, viewportName, routePath) {
       ].join(",")));
       const hasVisibleRouteText = rootText.length > 120 && !/^Loading/i.test(rootText);
       const stillOnLogin = Boolean(document.querySelector("input[type='password']")) && /Enter workspace/i.test(rootText);
-      return hasSessionToken && !stillOnLogin && (hasWorkspaceFrame || hasVisibleRouteText);
+      return !stillOnLogin && (hasSessionToken || hasWorkspaceFrame || hasVisibleRouteText);
     }, SESSION_TOKEN_KEY, { timeout: ROUTE_RENDER_READY_TIMEOUT_MS });
   } catch (error) {
     const snapshot = await page.evaluate(() => ({

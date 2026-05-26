@@ -11,6 +11,8 @@ test("Reports page route shell is extracted and lazy-loaded out of App", () => {
   assert.match(reportsPageSource, /export function ReportsPagePolished\b/);
   assert.match(reportsPageSource, /export function ReportsPage\b/);
   assert.match(reportsPageSource, /function ReportsPageLegacy\b/);
+  assert.match(reportsPageSource, /function FieldMobileReportsLayout\b/);
+  assert.match(reportsPageSource, /co-field-mobile-reports-shell/);
   assert.match(reportsPageSource, /function DailyReportCreateCard\b/);
   assert.match(reportUtilsSource, /export function deriveDailyReportProofState\b/);
   assert.match(reportUtilsSource, /export function deriveTodayWorkCoordination\b/);
@@ -19,6 +21,7 @@ test("Reports page route shell is extracted and lazy-loaded out of App", () => {
     "ReportsPagePolished",
     "ReportsPage",
     "ReportsPageLegacy",
+    "FieldMobileReportsLayout",
     "ReportsCommandRailPolished",
     "DailyReportCreateCard",
     "DailyReportDetailPanel",

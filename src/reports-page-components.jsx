@@ -87,6 +87,20 @@ function DailyReportProofChecklist({ proofState }) {
   );
 }
 
+function FieldMobileReportsLayout({ isFieldReportWorkspace, children }) {
+  const className = [
+    "co-office-page",
+    "co-reports-page",
+    isFieldReportWorkspace ? "co-field-mobile-reports-shell" : "",
+  ].filter(Boolean).join(" ");
+
+  return (
+    <div className={className} data-field-workspace={isFieldReportWorkspace ? "true" : undefined}>
+      {children}
+    </div>
+  );
+}
+
 function DailyReportsOperationsBoard({
   isFieldReportWorkspace,
   canCreate,
@@ -1188,6 +1202,7 @@ export function ReportsPagePolished({
   const isFieldReportWorkspace = canCreate && !permissions.reports.canManageAll;
   const canViewAdvancedReporting = Boolean(permissions.reports.canManageAll && permissions.reports.canViewAdvanced);
   const [showReportTools, setShowReportTools] = useState(false);
+  const [mobileReportToolsOpen, setMobileReportToolsOpen] = useState(false);
   const [activeReportTool, setActiveReportTool] = useState("create");
   const [visibleReportCap, setVisibleReportCap] = useState(8);
   const [reportShellSelectionId, setReportShellSelectionId] = useState("");
@@ -1270,11 +1285,17 @@ export function ReportsPagePolished({
   function openReportTool(toolId = "details") {
     setActiveReportTool(toolId);
     setShowReportTools(true);
+    if (isFieldReportWorkspace && typeof window !== "undefined" && window.innerWidth < 768) {
+      setMobileReportToolsOpen(true);
+    }
     window.setTimeout(() => reportToolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
   function selectReportTool(toolId = "details") {
     setActiveReportTool(toolId);
+    if (isFieldReportWorkspace && typeof window !== "undefined" && window.innerWidth < 768) {
+      setMobileReportToolsOpen(true);
+    }
     window.setTimeout(() => reportToolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
@@ -1692,7 +1713,7 @@ export function ReportsPagePolished({
   }
 
   return (
-    <div className="co-office-page co-reports-page" data-field-workspace={isFieldReportWorkspace ? "true" : undefined}>
+    <FieldMobileReportsLayout isFieldReportWorkspace={isFieldReportWorkspace}>
       <PageHeader
         eyebrow={permissions.reports.canManageAll ? "Field Ops" : "Field Workspace"}
         title="Daily Reports"
@@ -1949,13 +1970,14 @@ export function ReportsPagePolished({
         />
       </div>
 
-      {isFieldReportWorkspace ? (
+      {isFieldReportWorkspace && mobileReportToolsOpen ? (
         <div className="co-field-mobile-tool-surface co-reports-mobile-tool-surface mx-4 mb-24 md:hidden">
           <div className="co-field-mobile-section-head">
             <span>
               <strong>Report tools</strong>
               <em>Start or finish the selected daily report without opening a drawer.</em>
             </span>
+            <button type="button" className="co-field-mobile-tool-close" onClick={() => setMobileReportToolsOpen(false)}>Done</button>
           </div>
           <div className="co-field-mobile-tool-tabs" role="tablist" aria-label="Daily report tools">
             {reportToolTabs.map((tab) => (
@@ -2046,7 +2068,7 @@ export function ReportsPagePolished({
           ) : null}
         </div>
       </details>
-    </div>
+    </FieldMobileReportsLayout>
   );
 }
 

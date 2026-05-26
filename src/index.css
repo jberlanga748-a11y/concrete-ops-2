@@ -1,5 +1,3 @@
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap");
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -53839,5 +53837,295 @@ body:has(.co-customers-page) .co-apex-assistant-shell {
 
   .co-schedule-page .co-schedule-desktop-tablet-frame {
     display: block;
+  }
+}
+
+@media (max-width: 767px) {
+  body:has(.co-field-workspace-page),
+  body:has(.co-uploads-page[data-field-workspace="true"]),
+  body:has(.co-reports-page[data-field-workspace="true"]) {
+    --co-mobile-bottom-nav-height: 4.92rem;
+    --co-mobile-bottom-nav-clearance: calc(var(--co-mobile-bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 0.82rem);
+  }
+
+  body:has(.co-field-workspace-page) .co-topbar > div,
+  body:has(.co-uploads-page[data-field-workspace="true"]) .co-topbar > div,
+  body:has(.co-reports-page[data-field-workspace="true"]) .co-topbar > div {
+    padding-top: 0.72rem !important;
+    padding-bottom: 0.72rem !important;
+  }
+
+  body:has(.co-field-workspace-page) .co-mobile-brand-logo,
+  body:has(.co-uploads-page[data-field-workspace="true"]) .co-mobile-brand-logo,
+  body:has(.co-reports-page[data-field-workspace="true"]) .co-mobile-brand-logo {
+    max-height: 2.55rem;
+    width: min(8.7rem, 42vw);
+  }
+
+  .co-field-workspace-page .co-page-header {
+    margin-bottom: 0.35rem !important;
+    padding: 0.62rem 1rem 0.58rem !important;
+  }
+
+  .co-field-workspace-page .co-page-header h1 {
+    font-size: clamp(1.34rem, 5.4vw, 1.64rem) !important;
+    line-height: 1.02 !important;
+  }
+
+  .co-field-workspace-page .co-page-header h1 + p {
+    display: none !important;
+  }
+
+  .co-field-workspace-page .co-page-header .mt-3,
+  .co-field-workspace-page .co-page-header .mt-4 {
+    margin-top: 0.52rem !important;
+  }
+
+  .co-field-workspace-page .co-field-landing-stack {
+    gap: 0.55rem !important;
+    padding-right: 0.78rem !important;
+    padding-bottom: calc(var(--co-mobile-bottom-nav-clearance) + 0.25rem) !important;
+    padding-left: 0.78rem !important;
+  }
+
+  .co-field-mobile-remote {
+    gap: 0.52rem !important;
+    border-radius: 0.82rem !important;
+    padding: 0.64rem !important;
+  }
+
+  .co-field-mobile-remote-head {
+    gap: 0.5rem !important;
+  }
+
+  .co-field-mobile-remote-head h2 {
+    margin-top: 0.16rem !important;
+    font-size: 1.18rem !important;
+    line-height: 1.02 !important;
+  }
+
+  .co-field-mobile-remote-head p {
+    margin-top: 0.16rem !important;
+    display: -webkit-box !important;
+    overflow: hidden !important;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+    font-size: 0.68rem !important;
+    line-height: 1.14 !important;
+  }
+
+  .co-field-mobile-remote-job {
+    gap: 0.16rem 0.45rem !important;
+    border-radius: 0.62rem !important;
+    padding: 0.56rem !important;
+  }
+
+  .co-field-mobile-remote-job span,
+  .co-field-mobile-remote-job strong {
+    font-size: 0.72rem !important;
+    line-height: 1.16 !important;
+  }
+
+  .co-field-mobile-remote-job button {
+    min-height: 2.4rem !important;
+    padding: 0 0.64rem !important;
+  }
+
+  .co-field-mobile-remote-actions {
+    gap: 0.42rem !important;
+  }
+
+  .co-field-mobile-remote-actions button {
+    min-height: 3.05rem !important;
+    align-content: center !important;
+    gap: 0.18rem !important;
+    border-radius: 0.62rem !important;
+    padding: 0.42rem 0.5rem !important;
+  }
+
+  .co-field-mobile-remote-actions button:first-child {
+    min-height: 3.05rem !important;
+  }
+
+  .co-field-mobile-remote-actions span {
+    font-size: 0.82rem !important;
+    line-height: 1.05 !important;
+  }
+
+  .co-field-mobile-remote-actions em {
+    display: none !important;
+  }
+
+  .co-field-mobile-remote-footer {
+    padding: 0.36rem 0.44rem !important;
+  }
+
+  .co-field-mobile-remote-footer button {
+    min-height: 2.18rem !important;
+    padding-inline: 0.56rem !important;
+  }
+
+  .co-field-mobile-queue {
+    gap: 0.42rem !important;
+  }
+
+  .co-field-mobile-jobs-shell .co-field-mobile-queue-list {
+    display: flex !important;
+    gap: 0.5rem !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0 0.08rem 0.12rem !important;
+    scroll-padding-inline: 0.08rem;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+
+  .co-field-mobile-jobs-shell .co-field-mobile-queue-list::-webkit-scrollbar {
+    display: none;
+  }
+
+  .co-field-mobile-queue-card {
+    border-radius: 0.68rem !important;
+    padding: 0.52rem !important;
+  }
+
+  .co-field-mobile-jobs-shell .co-field-mobile-queue-card {
+    flex: 0 0 min(19.5rem, 88vw);
+    grid-template-columns: 1.82rem minmax(0, 1fr) auto !important;
+    gap: 0.42rem !important;
+    min-height: 5.8rem;
+    scroll-snap-align: start;
+  }
+
+  .co-field-mobile-jobs-shell .co-field-mobile-queue-icon {
+    height: 1.82rem !important;
+    width: 1.82rem !important;
+  }
+
+  .co-field-mobile-jobs-shell .co-field-mobile-queue-copy {
+    gap: 0.08rem !important;
+  }
+
+  .co-field-mobile-jobs-shell .co-field-mobile-queue-copy strong {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    font-size: 0.76rem !important;
+    line-height: 1.08 !important;
+  }
+
+  .co-field-mobile-jobs-shell .co-field-mobile-queue-copy em,
+  .co-field-mobile-jobs-shell .co-field-mobile-queue-copy span {
+    font-size: 0.62rem !important;
+    line-height: 1.12 !important;
+  }
+
+  .co-field-mobile-jobs-shell .co-field-mobile-queue-actions {
+    min-width: 3.9rem !important;
+    gap: 0.28rem !important;
+  }
+
+  .co-field-mobile-jobs-shell .co-field-mobile-queue-actions button {
+    min-height: 2.18rem !important;
+    padding-inline: 0.44rem !important;
+  }
+
+  nav.co-mobile-bottom-nav {
+    right: max(0.58rem, env(safe-area-inset-right, 0px)) !important;
+    bottom: max(0.46rem, env(safe-area-inset-bottom, 0px)) !important;
+    left: max(0.58rem, env(safe-area-inset-left, 0px)) !important;
+    min-height: var(--co-mobile-bottom-nav-height) !important;
+    padding: 0.46rem !important;
+  }
+
+  nav.co-mobile-bottom-nav > div.scrollbar-none {
+    min-height: calc(var(--co-mobile-bottom-nav-height) - 0.92rem) !important;
+    gap: 0.34rem !important;
+    padding-bottom: 0 !important;
+  }
+
+  nav.co-mobile-bottom-nav .co-mobile-bottom-nav-button,
+  nav.co-mobile-bottom-nav .co-apex-mobile-bottom-nav-button {
+    min-height: 3.72rem !important;
+    min-width: 3.82rem !important;
+    padding: 0.44rem 0.32rem !important;
+  }
+
+  .co-module-frame.co-module-uploads,
+  .co-module-frame.co-module-reports,
+  .co-uploads-page[data-field-workspace="true"],
+  .co-reports-page[data-field-workspace="true"] {
+    min-height: auto !important;
+  }
+
+  .co-uploads-page[data-field-workspace="true"],
+  .co-reports-page[data-field-workspace="true"] {
+    padding-bottom: calc(var(--co-mobile-bottom-nav-clearance) + 0.2rem) !important;
+  }
+
+  .co-uploads-page.co-field-mobile-uploads-shell[data-field-workspace="true"] {
+    padding-bottom: 0.55rem !important;
+  }
+
+  .co-reports-page.co-field-mobile-reports-shell[data-field-workspace="true"] {
+    padding-bottom: 0.55rem !important;
+  }
+
+  .co-uploads-page[data-field-workspace="true"] > .co-page-header,
+  .co-reports-page[data-field-workspace="true"] > .co-page-header {
+    margin-bottom: 0.5rem !important;
+    padding: 0.78rem 1.2rem 0.72rem !important;
+  }
+
+  .co-reports-page.co-field-mobile-reports-shell[data-field-workspace="true"] > .co-page-header h1 + p,
+  .co-reports-page.co-field-mobile-reports-shell[data-field-workspace="true"] > .co-page-header .flex.flex-wrap.gap-2 {
+    display: none !important;
+  }
+
+  .co-uploads-page[data-field-workspace="true"] .co-uploads-field-panel,
+  .co-reports-page[data-field-workspace="true"] .co-reports-field-panel {
+    min-height: auto !important;
+    margin-bottom: 0 !important;
+  }
+
+  .co-uploads-page.co-field-mobile-uploads-shell[data-field-workspace="true"] .co-uploads-field-panel {
+    position: relative !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: clamp(21rem, calc(100dvh - 20.6rem), 32.1rem) !important;
+  }
+
+  .co-uploads-page.co-field-mobile-uploads-shell[data-field-workspace="true"] .co-uploads-field-panel .co-field-operator-strip {
+    margin-top: 5rem !important;
+  }
+
+  .co-reports-page.co-field-mobile-reports-shell[data-field-workspace="true"] .co-reports-ops-card {
+    position: relative !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: clamp(21rem, calc(100dvh - 20.6rem), 32.1rem) !important;
+  }
+
+  .co-reports-page.co-field-mobile-reports-shell[data-field-workspace="true"] .co-reports-proof-checklist {
+    margin-top: 6.5rem !important;
+  }
+
+  .co-uploads-page[data-field-workspace="true"] .co-mobile-bottom-spacer,
+  .co-reports-page[data-field-workspace="true"] .co-mobile-bottom-spacer,
+  body:has(.co-field-workspace-page) .co-mobile-bottom-spacer {
+    height: calc(var(--co-mobile-bottom-nav-clearance) + 0.2rem) !important;
+  }
+
+  body:has(.co-field-mobile-jobs-shell) .co-mobile-bottom-spacer {
+    height: 0 !important;
+  }
+
+  body:has(.co-field-mobile-uploads-shell) .co-mobile-bottom-spacer {
+    height: 0 !important;
+  }
+
+  body:has(.co-field-mobile-reports-shell) .co-mobile-bottom-spacer {
+    height: 0 !important;
   }
 }

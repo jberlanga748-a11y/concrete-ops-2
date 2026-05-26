@@ -13,6 +13,7 @@ test("Delivery Tickets page route shell is extracted and lazy-loaded out of App"
   assert.match(deliveryTicketsPageSource, /function DeliveryTicketCreatePanelPolished\b/);
   assert.match(deliveryTicketsPageSource, /function DeliveryTicketDetailPanelPolished\b/);
   assert.match(deliveryTicketsPageSource, /function DeliveryTicketsCommandRailPolished\b/);
+  assert.match(deliveryTicketsPageSource, /import \{ dailyReportDateKey, todayDateInputValue \} from "\.\/report-utils";/);
 
   for (const name of [
     "DeliveryTicketsPage",

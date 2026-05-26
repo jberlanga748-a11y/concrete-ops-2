@@ -86,6 +86,20 @@ function toDateTimeInputValue(value) {
   return new Date(parsed.getTime() - localOffsetMs).toISOString().slice(0, 16);
 }
 
+function FieldMobileUploadsLayout({ isFieldUploadWorkspace, children }) {
+  const className = [
+    "co-office-page",
+    "co-uploads-page",
+    isFieldUploadWorkspace ? "co-field-mobile-uploads-shell" : "",
+  ].filter(Boolean).join(" ");
+
+  return (
+    <div className={className} data-field-workspace={isFieldUploadWorkspace ? "true" : undefined}>
+      {children}
+    </div>
+  );
+}
+
 export function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, sessionToken, busy, errorMessage, onCreateUpload, onUpdateUpload, onArchiveUpload, onOpenSupport, assistantUploadReviewSeed = null, onAssistantUploadReviewSeedHandled = () => {} }) {
   const [filter, setFilter] = useState("Active only");
   const [search, setSearch] = useState("");
@@ -760,7 +774,7 @@ export function UploadsPagePolished({ user, permissions, uploads, jobs, selected
   }
 
   return (
-    <div className="co-office-page co-uploads-page" data-field-workspace={isFieldUploadWorkspace ? "true" : undefined}>
+    <FieldMobileUploadsLayout isFieldUploadWorkspace={isFieldUploadWorkspace}>
       <PageHeader
         eyebrow={permissions.uploads.canManageAll ? "Field Ops" : "Field Workspace"}
         title="Photo Evidence"
@@ -1139,7 +1153,7 @@ export function UploadsPagePolished({ user, permissions, uploads, jobs, selected
           ) : null}
         </div>
       </details>
-    </div>
+    </FieldMobileUploadsLayout>
   );
 }
 

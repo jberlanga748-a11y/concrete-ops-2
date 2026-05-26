@@ -20,6 +20,7 @@ import { CommandCenterKpiCard, ModuleKpiStrip } from "./command-center-route-com
 import { buildDeliveryTicketSupportContext, deliveryTicketTitle, deriveDeliveryTicketCloseoutReadiness, deriveDeliveryTicketListState, filterDeliveryTickets } from "./delivery-ticket-utils";
 import { FieldOperatorPanelShell } from "./field-route-components";
 import { jobTitle } from "./job-utils";
+import { dailyReportDateKey, todayDateInputValue } from "./report-utils";
 import { fetchAuthenticatedUploadPreviewUrl } from "./upload-preview-utils";
 
 function formatDateTime(value) {

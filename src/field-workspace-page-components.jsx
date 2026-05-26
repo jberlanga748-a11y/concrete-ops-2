@@ -489,6 +489,14 @@ function FieldMobileJobsQueue({
   );
 }
 
+function FieldMobileJobsLayout({ role = "employee", children }) {
+  return (
+    <div className="co-office-page co-jobs-page co-field-workspace-page co-field-mobile-jobs-shell" data-field-role={role}>
+      {children}
+    </div>
+  );
+}
+
 function FieldWorkspaceKpisPolished({ workspace, timeWorkspace, focusJob, role = "employee" }) {
   const assignedCount = workspace.assignedJobs.length;
   const noticeCount = workspace.assignmentNotices.length;
@@ -849,7 +857,7 @@ function FieldWorkspacePagePolished({
     : "Current field-safe job with schedule, address, directions, and quick actions.";
 
   return (
-    <div className="co-office-page co-jobs-page co-field-workspace-page">
+    <FieldMobileJobsLayout role={role}>
       <PageHeader
         eyebrow="Field Workspace"
         title="Field Mode"
@@ -987,7 +995,7 @@ function FieldWorkspacePagePolished({
           <FieldJobFocusCard job={focusJob} permissions={permissions} onFieldChange={onJobFieldChange} disabled={busy} />
         </div>
       </div>
-    </div>
+    </FieldMobileJobsLayout>
   );
 }
 

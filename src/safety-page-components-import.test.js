@@ -14,6 +14,10 @@ test("Safety route family is extracted and lazy-loaded from App", () => {
   assert.doesNotMatch(appSource, /function SafetyIncidentsPagePolished\b/);
 
   assert.match(pageSource, /export function SafetyPage\b/);
+  assert.match(pageSource, /import \{ useEffect, useMemo, useRef, useState \} from "react";/);
+  assert.match(pageSource, /import \{ CommandCenterKpiCard, ModuleKpiStrip \} from "\.\/command-center-route-components";/);
+  assert.match(pageSource, /import \{ FieldOperatorPanelShell \} from "\.\/field-route-components";/);
+  assert.match(pageSource, /import \{ canAccessWorkspaceModule \} from "\.\/navigation-utils";/);
   assert.match(pageSource, /function SafetyIncidentsPagePolished\b/);
   assert.match(pageSource, /function ToolboxTalksPagePolished\b/);
   assert.match(pageSource, /function PpeChecklistPagePolished\b/);

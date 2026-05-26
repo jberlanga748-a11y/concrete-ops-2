@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AssistantRail, Badge, Button, Card, Icon, InputField, PageHeader, SectionHeader, SelectField, StateCard, TextAreaField } from "./app-shell-components";
 import { SUPPORT_DRAFT_SESSION_KEY } from "./app-runtime-constants";
-import { ModuleKpiStrip } from "./command-center-route-components";
+import { CommandCenterKpiCard, ModuleKpiStrip } from "./command-center-route-components";
+import { FieldOperatorPanelShell } from "./field-route-components";
+import { canAccessWorkspaceModule } from "./navigation-utils";
 import { deriveAcknowledgmentState, deriveActivePpeItems, deriveSafetyIncidentListState, deriveSafetyJobCloseoutReadiness, deriveSafetyWorkspaceJobs, deriveVisibleSafetyPolicies, filterSafetyIncidents } from "./safety-utils";
 
 const INITIAL_SAFETY_POLICY_FORM = {
