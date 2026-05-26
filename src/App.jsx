@@ -37,6 +37,7 @@ import { agentContextPayloadToWorkflowContext } from "./agent-context-api-utils"
 import { deriveAgentWorkflowContext } from "./agent-workflow-context-utils";
 import { deriveAiOfficeAgentCommandCenter } from "./ai-office-utils";
 import { DEFAULT_APP_PERMISSIONS, mergePermissionScope, normalizeAppPermissions, shouldRenderCommandCenterForDashboard } from "./app-state-utils";
+import { ErrorBanner, SaveStateText, TimestampMeta } from "./app-status-components";
 import {
   activateInvite,
   acknowledgeJobAssignmentNotice,
@@ -861,52 +862,6 @@ function formatFileSize(bytes) {
   if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
   if (size >= 1024) return `${Math.round(size / 1024)} KB`;
   return `${size} B`;
-}
-
-
-function ErrorBanner({ message, onDismiss }) {
-  if (!message) return null;
-  return (
-    <div className="mx-5 mt-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700 sm:mx-6 lg:mx-8">
-      <div className="flex items-start justify-between gap-3">
-        <p>{message}</p>
-        <button type="button" className="font-black" onClick={onDismiss}>
-          Dismiss
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function SaveStateText({ saveState, align = "left" }) {
-  const palette = {
-    idle: "text-slate-400",
-    pending: "text-amber-600",
-    saving: "text-blue-700",
-    saved: "text-emerald-700",
-    error: "text-red-700",
-  };
-
-  return (
-    <p className={`text-xs font-black uppercase tracking-[0.14em] ${palette[saveState.status] || palette.idle} ${align === "right" ? "text-right" : ""}`}>
-      {saveState.message}
-    </p>
-  );
-}
-
-function TimestampMeta({ createdAt, updatedAt }) {
-  return (
-    <div className="grid gap-2 rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-xs text-slate-600 md:grid-cols-2">
-      <div>
-        <p className="font-black uppercase tracking-[0.14em] text-slate-400">Created</p>
-        <p className="mt-1 font-bold text-slate-700">{formatDateTime(createdAt)}</p>
-      </div>
-      <div>
-        <p className="font-black uppercase tracking-[0.14em] text-slate-400">Last updated</p>
-        <p className="mt-1 font-bold text-slate-700">{formatDateTime(updatedAt)}</p>
-      </div>
-    </div>
-  );
 }
 
 function Sidebar({ active, setActive, counts, navGroups, logoInitials }) {
