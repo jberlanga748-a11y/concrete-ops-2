@@ -10,9 +10,11 @@ test("admin jobs route workbench lives outside App", () => {
   assert.match(jobsPageSource, /export function JobsTablePolished\b/);
   assert.match(jobsPageSource, /export function StartupStatusBadge\b/);
   assert.match(jobsPageSource, /function JobsPagePolished\b/);
-  assert.match(appSource, /import \{[^}]*JobsPage[^}]*JobsTablePolished[^}]*StartupStatusBadge[^}]*\} from "\.\/jobs-page-components"/s);
+  assert.match(appSource, /import \{[^}]*JobsPage[^}]*JobsTablePolished[^}]*\} from "\.\/jobs-page-components"/s);
+  assert.doesNotMatch(appSource, /import \{[^}]*StartupStatusBadge[^}]*\} from "\.\/jobs-page-components"/s);
   assert.doesNotMatch(appSource, /function JobsPage\(/);
   assert.doesNotMatch(appSource, /function JobsPagePolished\(/);
+  assert.doesNotMatch(appSource, /function JobsTable\(/);
   assert.doesNotMatch(appSource, /function JobsTablePolished\(/);
   assert.doesNotMatch(appSource, /function JobCommandRailPolished\(/);
   assert.doesNotMatch(appSource, /function JobsCommandWorkbench\(/);

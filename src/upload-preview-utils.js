@@ -1,5 +1,6 @@
+import { SESSION_ACTIVE_MARKER } from "./app-runtime-constants.js";
+
 const UPLOAD_PREVIEW_CACHE_LIMIT = 24;
-const SESSION_ACTIVE_MARKER = "cookie-session";
 const uploadPreviewCache = new Map();
 
 export function getUploadPreviewCacheKey(upload) {

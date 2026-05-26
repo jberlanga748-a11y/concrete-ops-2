@@ -22,8 +22,9 @@ test("Uploads page lazy-loads extracted upload route UI and preview fetching sta
   const previewUtilsSource = fs.readFileSync(new URL("./upload-preview-utils.js", import.meta.url), "utf8");
 
   assert.match(previewUtilsSource, /export async function fetchAuthenticatedUploadPreviewUrl\b/);
+  assert.match(previewUtilsSource, /import \{ SESSION_ACTIVE_MARKER \} from "\.\/app-runtime-constants\.js"/);
   assert.match(routeComponentsSource, /export \{ fetchAuthenticatedUploadPreviewUrl \} from "\.\/upload-preview-utils"/);
-  assert.match(appSource, /import \{ fetchAuthenticatedUploadPreviewUrl \} from "\.\/upload-preview-utils"/);
+  assert.doesNotMatch(appSource, /import \{ fetchAuthenticatedUploadPreviewUrl \} from "\.\/upload-preview-utils"/);
   assert.doesNotMatch(appSource, /async function fetchAuthenticatedUploadPreviewUrl\(/);
 
   for (const componentName of ["AuthenticatedUploadPreview", ...LAZY_UPLOAD_COMPONENTS]) {

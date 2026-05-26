@@ -1,0 +1,10 @@
+export const SESSION_ACTIVE_MARKER = "cookie-session";
+export const LEGACY_SESSION_TOKEN_KEY = "apex-hq/session-token";
+export const SUPPORT_DRAFT_SESSION_KEY = "apex-hq/support-draft-seed";
+export const AUTOSAVE_DELAY_MS = 700;
+export const PUBLIC_WEBSITE_PATH = "/founder-pilot";
+export const INVITE_ACTIVATION_PATH = "/activate-invite";
+export const PASSWORD_RESET_PATH = "/reset-password";
+export const PUBLIC_ESTIMATE_REQUEST_PATH = "/request-estimate";
+export const APEX_PUBLIC_REQUEST_URL = `https://app.apexhq.online${PUBLIC_ESTIMATE_REQUEST_PATH}`;
+export const PRINT_VIEW_ERROR_MESSAGE = "Could not open the print view. Please try again or use your browser print command.";

@@ -1,9 +1,10 @@
+import { SESSION_ACTIVE_MARKER } from "./app-runtime-constants.js";
+
 function backendUnavailableMessage() {
   return "Cannot reach the Apex HQ API. Start the app with `npm run dev` or `npm run serve`.";
 }
 
 const CSRF_COOKIE_NAME = "apex_hq_csrf";
-const SESSION_ACTIVE_MARKER = "cookie-session";
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 let csrfToken = "";

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { AssistantRail, Badge, Button, Card, Icon, InputField, PageHeader, SectionHeader, SelectField, StateCard, TextAreaField } from "./app-shell-components";
+import { SUPPORT_DRAFT_SESSION_KEY } from "./app-runtime-constants";
 import { ModuleKpiStrip } from "./command-center-route-components";
 import { deriveAcknowledgmentState, deriveActivePpeItems, deriveSafetyIncidentListState, deriveSafetyJobCloseoutReadiness, deriveSafetyWorkspaceJobs, deriveVisibleSafetyPolicies, filterSafetyIncidents } from "./safety-utils";
 

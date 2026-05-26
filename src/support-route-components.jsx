@@ -26,9 +26,8 @@ import {
   SUPPORT_BLOCKER_OPTIONS,
   SUPPORT_PILOT_FEEDBACK_WORKFLOW,
 } from "./support-utils";
+import { SUPPORT_DRAFT_SESSION_KEY } from "./app-runtime-constants";
 import { canCapturePilotFeedback, canRequestPackageReview } from "../shared/permissions.js";
-
-const SUPPORT_DRAFT_SESSION_KEY = "apex-hq/support-draft-seed";
 
 function supportCommandSeverityTone(blockerLevel = "") {
   if (/blocking/i.test(blockerLevel) && /field/i.test(blockerLevel)) return "red";
