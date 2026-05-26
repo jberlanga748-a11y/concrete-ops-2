@@ -6,7 +6,10 @@ import {
   derivePostPourChecklistListState,
   derivePostPourItems,
   filterPostPourChecklists,
+  postPourChecklistOwner,
   postPourChecklistStatusLabel,
+  postPourChecklistUpdated,
+  postPourItemTone,
   postPourItemStatusLabel,
   summarizePostPourChecklist,
 } from "./post-pour-utils.js";
@@ -16,6 +19,16 @@ test("post-pour status helpers stay human friendly", () => {
   assert.equal(postPourChecklistStatusLabel("reopened"), "Reopened");
   assert.equal(postPourItemStatusLabel("not_applicable"), "Not Applicable");
   assert.equal(postPourItemStatusLabel("checked"), "Checked");
+});
+
+test("post-pour display helpers preserve App checklist labels", () => {
+  assert.equal(postPourChecklistOwner({ job: { foremanAssignment: { userName: "Field Lead" } }, assignedForemanName: "Assigned" }), "Field Lead");
+  assert.equal(postPourChecklistOwner({ completedByName: "Completed By", createdByName: "Created By" }), "Completed By");
+  assert.equal(postPourChecklistOwner({}), "Unassigned");
+  assert.equal(postPourChecklistUpdated({ completedAt: "2026-04-27", updatedAt: "2026-04-26", createdAt: "2026-04-25" }), "2026-04-27");
+  assert.equal(postPourItemTone("checked"), "green");
+  assert.equal(postPourItemTone("not_applicable"), "slate");
+  assert.equal(postPourItemTone("unchecked"), "amber");
 });
 
 test("post-pour filters support status job foreman date archive and search", () => {

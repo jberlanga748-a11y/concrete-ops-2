@@ -43,6 +43,20 @@ export function prePourItemStatusLabel(status = "unchecked") {
   return labels[String(status || "unchecked").trim().toLowerCase()] || "Unchecked";
 }
 
+export function prePourChecklistOwner(checklist) {
+  return checklist?.job?.foremanAssignment?.userName || checklist?.assignedForemanName || checklist?.completedByName || checklist?.createdByName || "Unassigned";
+}
+
+export function prePourChecklistUpdated(checklist) {
+  return checklist?.completedAt || checklist?.updatedAt || checklist?.createdAt;
+}
+
+export function prePourItemTone(status) {
+  if (status === "checked") return "green";
+  if (status === "not_applicable") return "slate";
+  return "amber";
+}
+
 export function derivePrePourItems(items = [], { includeArchived = false } = {}) {
   const visibleItems = [];
   for (const item of safeChecklistItems(items)) {

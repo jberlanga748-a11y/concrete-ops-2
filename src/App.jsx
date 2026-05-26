@@ -233,8 +233,8 @@ import { buildManagedSetupSupportContext, deriveFirstOwnerOnboardingState, deriv
 import { packageReadinessSummary } from "../shared/packages.js";
 import { canAccessWorkspaceModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, getWorkspaceModuleLock, resolveDashboardShortcut } from "./navigation-utils";
 import { ActivityPanel, AuditTrailPanel } from "./office-activity-route-components";
-import { buildPostPourSupportContext, derivePostPourChecklistListState, derivePostPourItems, filterPostPourChecklists, postPourChecklistStatusLabel, postPourItemStatusLabel, summarizePostPourChecklist } from "./post-pour-utils";
-import { buildPrePourSupportContext, derivePrePourChecklistListState, derivePrePourItems, filterPrePourChecklists, prePourChecklistStatusLabel, prePourItemStatusLabel, summarizePrePourChecklist } from "./pre-pour-utils";
+import { buildPostPourSupportContext, derivePostPourChecklistListState, derivePostPourItems, filterPostPourChecklists, postPourChecklistOwner, postPourChecklistStatusLabel, postPourChecklistUpdated, postPourItemStatusLabel, postPourItemTone, summarizePostPourChecklist } from "./post-pour-utils";
+import { buildPrePourSupportContext, derivePrePourChecklistListState, derivePrePourItems, filterPrePourChecklists, prePourChecklistOwner, prePourChecklistStatusLabel, prePourChecklistUpdated, prePourItemStatusLabel, prePourItemTone, summarizePrePourChecklist } from "./pre-pour-utils";
 import { deriveDailyReportPrintPacket, deriveEstimateForemanHandoffPacket, deriveEstimatePrintPacket, deriveJobPrintPacket, openPrintDocument } from "./print-packets";
 import { deriveTodayWorkCoordination, reportStatusLabel } from "./report-utils";
 import { deriveScheduleCoordinationState, scheduleDateLabel } from "./schedule-route-utils";
@@ -5000,20 +5000,6 @@ function PrePourMobileFieldGroup({ title, summary, defaultOpen = false, children
   );
 }
 
-function prePourChecklistOwner(checklist) {
-  return checklist?.job?.foremanAssignment?.userName || checklist?.assignedForemanName || checklist?.completedByName || checklist?.createdByName || "Unassigned";
-}
-
-function prePourChecklistUpdated(checklist) {
-  return checklist?.completedAt || checklist?.updatedAt || checklist?.createdAt;
-}
-
-function prePourItemTone(status) {
-  if (status === "checked") return "green";
-  if (status === "not_applicable") return "slate";
-  return "amber";
-}
-
 function PrePourChecklistTablePolished({ rows, selectedId, onSelect }) {
   function handleMobileListToggle(event) {
     const drawer = event.currentTarget;
@@ -7164,20 +7150,6 @@ function PrePourPageLegacy({
       </div>
     </div>
   );
-}
-
-function postPourChecklistOwner(checklist) {
-  return checklist?.job?.foremanAssignment?.userName || checklist?.assignedForemanName || checklist?.completedByName || checklist?.createdByName || "Unassigned";
-}
-
-function postPourChecklistUpdated(checklist) {
-  return checklist?.completedAt || checklist?.updatedAt || checklist?.createdAt;
-}
-
-function postPourItemTone(status) {
-  if (status === "checked") return "green";
-  if (status === "not_applicable") return "slate";
-  return "amber";
 }
 
 function PostPourChecklistTablePolished({ rows, selectedId, onSelect }) {

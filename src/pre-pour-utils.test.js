@@ -6,7 +6,10 @@ import {
   derivePrePourChecklistListState,
   derivePrePourItems,
   filterPrePourChecklists,
+  prePourChecklistOwner,
   prePourChecklistStatusLabel,
+  prePourChecklistUpdated,
+  prePourItemTone,
   prePourItemStatusLabel,
   summarizePrePourChecklist,
 } from "./pre-pour-utils.js";
@@ -14,6 +17,16 @@ import {
 test("pre-pour status helpers stay human friendly", () => {
   assert.equal(prePourChecklistStatusLabel("reopened"), "Reopened");
   assert.equal(prePourItemStatusLabel("not_applicable"), "Not Applicable");
+});
+
+test("pre-pour display helpers preserve App checklist labels", () => {
+  assert.equal(prePourChecklistOwner({ job: { foremanAssignment: { userName: "Field Lead" } }, assignedForemanName: "Assigned" }), "Field Lead");
+  assert.equal(prePourChecklistOwner({ completedByName: "Completed By", createdByName: "Created By" }), "Completed By");
+  assert.equal(prePourChecklistOwner({}), "Unassigned");
+  assert.equal(prePourChecklistUpdated({ completedAt: "2026-04-27", updatedAt: "2026-04-26", createdAt: "2026-04-25" }), "2026-04-27");
+  assert.equal(prePourItemTone("checked"), "green");
+  assert.equal(prePourItemTone("not_applicable"), "slate");
+  assert.equal(prePourItemTone("unchecked"), "amber");
 });
 
 test("pre-pour filters support status job foreman date archive and search", () => {
