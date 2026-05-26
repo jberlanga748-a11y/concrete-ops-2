@@ -18,4 +18,6 @@ test("dashboard cockpit and focus board components live outside App", () => {
   assert.doesNotMatch(appSource, /function DashboardCockpitMetric\b/);
   assert.doesNotMatch(appSource, /function DashboardNextActionTile\b/);
   assert.doesNotMatch(appSource, /function DashboardFocusRow\b/);
+  assert.doesNotMatch(appSource, /function DashboardPriorityCard\b/);
+  assert.doesNotMatch(appSource, /function DashboardOfficeQueueCard\b/);
 });
