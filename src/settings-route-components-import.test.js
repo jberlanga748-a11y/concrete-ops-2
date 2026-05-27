@@ -25,3 +25,17 @@ test("Settings desktop uses the shared office command shell without the legacy r
   assert.match(cssSource, /\.co-settings-shell-page \.co-apex-office-command-workspace/);
   assert.match(cssSource, /body:has\(\.co-settings-shell-page\) \.co-apex-assistant-shell\.is-closed/);
 });
+
+test("Settings exposes the Apex Agent email gate without enabling other external gates", () => {
+  const appSource = fs.readFileSync(new URL("./App.jsx", import.meta.url), "utf8");
+  const gateUtilsSource = fs.readFileSync(new URL("./agent-external-gate-settings-utils.js", import.meta.url), "utf8");
+
+  assert.match(appSource, /deriveAgentEmailGateSettingsState/);
+  assert.match(appSource, /buildAgentEmailGateSettingsPatch/);
+  assert.match(appSource, /Apex Agent estimate email gate/);
+  assert.match(appSource, /Human-confirmed/);
+  assert.match(appSource, /SMS, payments, bids, portal actions, scheduling, and integrations stay locked/);
+  assert.match(gateUtilsSource, /email_send/);
+  assert.match(gateUtilsSource, /estimate_send/);
+  assert.doesNotMatch(gateUtilsSource, /sms_send|payment_collection|customer_portal_action|bid_submission|integration_write/);
+});

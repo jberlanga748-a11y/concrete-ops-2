@@ -28,6 +28,7 @@ import {
 } from "./apex-assistant-shell-utils";
 import { buildAgentActionProposalReviewAuditPayload, deriveAgentActionInbox, deriveAgentActionProposalAuditHistory, deriveAgentActionProposalQueue, deriveAgentActionProposalReviewState } from "./agent-action-proposal-utils";
 import { agentContextPayloadToWorkflowContext } from "./agent-context-api-utils";
+import { buildAgentEmailGateSettingsPatch, deriveAgentEmailGateSettingsState } from "./agent-external-gate-settings-utils";
 import { deriveAgentWorkflowContext } from "./agent-workflow-context-utils";
 import { deriveAiOfficeAgentCommandCenter } from "./ai-office-utils";
 import { EMPTY_APP_STATE, deriveDashboardMetrics, deriveWorkspaceCounts, mergePermissionScope, normalizeAppState, normalizeObjectArray } from "./app-state-utils";
@@ -3915,6 +3916,7 @@ function SettingsPagePolished({
     printPacketDisclaimer: safeCompanySettings.printPacketDisclaimer || "",
   }));
   const [printPacketNotice, setPrintPacketNotice] = useState("");
+  const [agentGateNotice, setAgentGateNotice] = useState("");
   const [publicRequestLinkNotice, setPublicRequestLinkNotice] = useState("");
 
   useEffect(() => {
@@ -3973,6 +3975,7 @@ function SettingsPagePolished({
     || profileDraft.licenseText !== (safeCompanySettings.licenseText || "");
   const printPacketDirty = printPacketDraft.printPacketFooter !== (safeCompanySettings.printPacketFooter || "")
     || printPacketDraft.printPacketDisclaimer !== (safeCompanySettings.printPacketDisclaimer || "");
+  const agentEmailGateState = useMemo(() => deriveAgentEmailGateSettingsState(safeCompanySettings), [safeCompanySettings]);
   const settingsSetupState = useMemo(() => deriveManagedCompanySetupState({
     companySettings: safeCompanySettings,
     users,
@@ -4312,6 +4315,18 @@ function SettingsPagePolished({
       printPacketDisclaimer: printPacketDraft.printPacketDisclaimer.trim(),
     });
     setPrintPacketNotice(saved ? "Print packet settings saved." : "Could not save print packet settings. Please try again.");
+  }
+
+  async function handleAgentEmailGateToggle(event) {
+    const nextEnabled = Boolean(event.target.checked);
+    setAgentGateNotice("");
+    if (typeof onUpdateCompanySettings !== "function") return;
+    const saved = await onUpdateCompanySettings(buildAgentEmailGateSettingsPatch({ enabled: nextEnabled }));
+    setAgentGateNotice(saved
+      ? nextEnabled
+        ? "Apex Agent email gate enabled for human-confirmed estimate sends."
+        : "Apex Agent email gate locked."
+      : "Could not update the Apex Agent email gate. Please try again.");
   }
 
   async function handleExportWorkspaceData() {
@@ -4730,7 +4745,7 @@ function SettingsPagePolished({
             <summary>
               <span>
                 <strong>Admin Controls / Field Modules</strong>
-                <em>Field module visibility, packet text, and audit context stay separated from setup work.</em>
+                <em>Field modules, Apex Agent customer-contact gates, packet text, and audit context stay separated from setup work.</em>
               </span>
               <span>{printPacketDirty ? "Packet text unsaved" : "Controls available"}</span>
             </summary>
@@ -4777,6 +4792,25 @@ function SettingsPagePolished({
                       ) : null}
                     </div>
                   ) : null}
+                  <div className="co-settings-module-row">
+                    <div className="min-w-0">
+                      <p>Apex Agent estimate email gate</p>
+                      <span>{agentEmailGateState.detail}</span>
+                    </div>
+                    <label className="inline-flex items-center gap-2 text-sm font-black text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={agentEmailGateState.enabled}
+                        onChange={handleAgentEmailGateToggle}
+                        disabled={busy || !canViewSettings || typeof onUpdateCompanySettings !== "function"}
+                      />
+                      Human-confirmed
+                    </label>
+                    <Badge tone={agentEmailGateState.badgeTone}>{agentEmailGateState.statusLabel}</Badge>
+                    <p className="text-xs font-bold leading-5 text-slate-500">
+                      {agentGateNotice || "This only unlocks reviewed estimate email execution. SMS, payments, bids, portal actions, scheduling, and integrations stay locked."}
+                    </p>
+                  </div>
                 </div>
               </Card>
 
