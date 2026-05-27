@@ -96,7 +96,7 @@ async function login(baseUrl, credentials) {
   return assertOk(baseUrl, "/api/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(credentials),
+    body: JSON.stringify({ ...credentials, returnToken: true }),
   });
 }
 

@@ -56,6 +56,23 @@ test("buildHostedSmokeSummary renders auth smoke flows", () => {
   assert.match(summary, /\| CHECK \| restricted-routes \| \/estimates \| 403 \| n\/a \|/);
 });
 
+test("buildHostedSmokeSummary renders Agent OS hosted smoke checks", () => {
+  const summary = buildHostedSmokeSummary({
+    baseUrl: "https://concrete-ops-demo.fly.dev/",
+    authSideEffectsAllowed: true,
+    checks: [
+      { flow: "agent", role: "admin", endpoint: "/api/agent/os", status: 200, durationMs: 180 },
+      { flow: "agent", role: "employee", endpoint: "/api/agent/os", status: 403, durationMs: 90 },
+      { flow: "routes", route: "/ai-office", status: 200 },
+    ],
+  }, "Demo Agent hosted smoke");
+
+  assert.match(summary, /### Demo Agent hosted smoke/);
+  assert.match(summary, /\| PASS \| agent \| \/api\/agent\/os \| 200 \| 180ms \|/);
+  assert.match(summary, /\| CHECK \| agent \| \/api\/agent\/os \| 403 \| 90ms \|/);
+  assert.match(summary, /\| PASS \| routes \| \/ai-office \| 200 \| n\/a \|/);
+});
+
 test("extractHostedSmokeJson fails closed when no JSON exists", () => {
   assert.throws(
     () => extractHostedSmokeJson("no json here"),

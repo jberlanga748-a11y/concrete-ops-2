@@ -90,6 +90,7 @@ async function login(baseUrl) {
     body: JSON.stringify({
       email: "demo.ops@apexhq.app",
       password: "apexdemo123",
+      returnToken: true,
     }),
   });
 }
@@ -369,6 +370,7 @@ test("Elite package enables Lead Finder and inherits Premium entitlements", asyn
       body: JSON.stringify({
         email: ownerUser.email,
         password: "apexdemo123",
+        returnToken: true,
       }),
     });
     const headers = authHeaders(loginResult.token);
@@ -417,6 +419,7 @@ test("Elite package does not grant field users office-only premium tools", async
       body: JSON.stringify({
         email: fieldUser.email,
         password: "apexdemo123",
+        returnToken: true,
       }),
     });
     const headers = authHeaders(loginResult.token);
@@ -489,6 +492,7 @@ test("premium entitlements fail closed when user company context is missing", as
       body: JSON.stringify({
         email: orphanOwner.email,
         password: "apexdemo123",
+        returnToken: true,
       }),
     });
     const headers = authHeaders(loginResult.token);

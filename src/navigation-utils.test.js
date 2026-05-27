@@ -82,20 +82,20 @@ test("package-aware navigation hides premium import and AI Office surfaces", () 
   assert.equal(canAccessWorkspaceModule("jobDraftImports", owner, { toolChecklistEnabled: true }, basicPermissions), false);
   assert.equal(canAccessWorkspaceModule("appHealth", owner, { toolChecklistEnabled: true }, basicPermissions), false);
   assert.equal(canAccessWorkspaceModule("support", owner, { toolChecklistEnabled: true }, basicPermissions), true);
-  assert.equal(canAccessWorkspaceModule("copilot", owner, { toolChecklistEnabled: true }, premiumPermissions), false);
+  assert.equal(canAccessWorkspaceModule("copilot", owner, { toolChecklistEnabled: true }, premiumPermissions), true);
   assert.equal(canAccessWorkspaceModule("copilot", owner, { toolChecklistEnabled: true }, elitePermissions), true);
   assert.equal(canAccessWorkspaceModule("jobDraftImports", owner, { toolChecklistEnabled: true }, premiumPermissions), true);
   assert.equal(canAccessWorkspaceModule("appHealth", owner, { toolChecklistEnabled: true }, premiumPermissions), true);
-  assert.match(getWorkspaceModuleLock("copilot", owner, { toolChecklistEnabled: true }, basicPermissions)?.title || "", /Opportunity Scout/);
-  assert.match(getWorkspaceModuleLock("copilot", owner, { toolChecklistEnabled: true }, premiumPermissions)?.title || "", /Opportunity Scout/);
+  assert.match(getWorkspaceModuleLock("copilot", owner, { toolChecklistEnabled: true }, basicPermissions)?.title || "", /AI Office/);
+  assert.equal(getWorkspaceModuleLock("copilot", owner, { toolChecklistEnabled: true }, premiumPermissions), null);
   assert.match(getWorkspaceModuleLock("jobDraftImports", owner, { toolChecklistEnabled: true }, basicPermissions)?.title || "", /Imported Drafts/);
   assert.match(getWorkspaceModuleLock("appHealth", owner, { toolChecklistEnabled: true }, basicPermissions)?.title || "", /App Health/);
-  assert.match(getWorkspaceModuleLock("copilot", owner, { toolChecklistEnabled: true }, basicPermissions)?.badge || "", /Elite package/);
+  assert.match(getWorkspaceModuleLock("copilot", owner, { toolChecklistEnabled: true }, basicPermissions)?.badge || "", /AI Office/);
   const aiOfficeLock = getWorkspaceModuleLock("copilot", owner, { toolChecklistEnabled: true }, basicPermissions);
   assert.match(aiOfficeLock?.reviewActionLabel || "", /Review plan readiness/);
   assert.match(aiOfficeLock?.supportActionLabel || "", /Request upgrade review/);
-  assert.equal(aiOfficeLock?.requiredPackage, "Elite");
-  assert.equal(aiOfficeLock?.requestedFeature, "Opportunity Scout");
+  assert.equal(aiOfficeLock?.requiredPackage, "Premium");
+  assert.equal(aiOfficeLock?.requestedFeature, "AI Office");
   assert.match(aiOfficeLock?.manualUpgradeNote || "", /reviewed manually/i);
   assert.match(aiOfficeLock?.manualUpgradeNote || "", /checkout|billing collection/i);
   assert.equal(getWorkspaceModuleLock("copilot", owner, { toolChecklistEnabled: true }, elitePermissions), null);
@@ -108,7 +108,7 @@ test("package-aware navigation hides premium import and AI Office surfaces", () 
   );
   assert.equal(
     getVisibleNavGroups(NAV_GROUPS, owner, { toolChecklistEnabled: true }, premiumPermissions).flatMap((group) => group.items.map((item) => item.id)).includes("copilot"),
-    false,
+    true,
   );
   assert.equal(
     getVisibleNavGroups(NAV_GROUPS, owner, { toolChecklistEnabled: true }, elitePermissions).flatMap((group) => group.items.map((item) => item.id)).includes("copilot"),

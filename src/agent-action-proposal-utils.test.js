@@ -68,6 +68,9 @@ test("agent action proposal exposes estimate draft prep without saving a draft",
   assert.equal(proposal.draftPrep[0].prepType, "Estimate draft prep");
   assert.match(proposal.draftPrep[0].safeOutput, /Rough notes/i);
   assert.ok(proposal.draftPrep[0].fields.includes("Rough notes captured"));
+  assert.ok(proposal.draftPrep[0].fieldPreview.some((row) => row.field === "Customer" && /ABC Builders/i.test(row.proposedValue)));
+  assert.ok(proposal.draftPrep[0].fieldPreview.some((row) => row.field === "Rough notes" && /120 LF 6 ft cedar/i.test(row.proposedValue)));
+  assert.ok(proposal.draftPrep[0].fieldPreview.some((row) => row.field === "Draft status" && /human approval/i.test(row.proposedValue)));
   assert.match(proposal.draftPrep[0].reviewLabel, /No estimate is saved/i);
   assert.equal(validateAgentActionProposalSafety(proposal).ok, true);
 });
@@ -101,6 +104,7 @@ test("agent action proposal exposes workflow draft prep as review-only output", 
   assert.equal(proposal.draftPrep.length, 1);
   assert.equal(proposal.draftPrep[0].prepType, "Workflow draft prep");
   assert.match(proposal.draftPrep[0].safeOutput, /does not save/i);
+  assert.ok(proposal.draftPrep[0].fieldPreview.some((row) => row.field === "Human next step" && /Open reports/i.test(row.proposedValue)));
   assert.ok(proposal.draftPrep[0].warnings.some((item) => /No customer email/i.test(item)));
   assert.equal(validateAgentActionProposalSafety(proposal).ok, true);
 });
@@ -340,6 +344,11 @@ test("agent action inbox groups review packets and audit history into pilot stat
   assert.equal(inbox.counts.draft_created, 1);
   assert.equal(inbox.waitingCount, 3);
   assert.equal(inbox.completedCount, 1);
+  assert.equal(inbox.recordedCount, 2);
+  assert.equal(inbox.filters.find((filter) => filter.id === "waiting")?.count, 3);
+  assert.equal(inbox.filters.find((filter) => filter.id === "recorded")?.count, 2);
+  assert.equal(inbox.rowsByFilter.waiting.length, 3);
+  assert.equal(inbox.rowsByFilter.recorded.length, 2);
   assert.ok(inbox.rows.some((row) => row.status === "approved_for_draft" && row.source === "audit"));
   assert.match(inbox.safetyCopy, /does not create drafts, send messages/i);
 });
@@ -369,6 +378,24 @@ test("agent action inbox keeps field-user queue blocked", () => {
   assert.equal(inbox.blockedCount, 1);
   assert.equal(inbox.rows[0].isBlocked, true);
   assert.equal(inbox.rows[0].statusLabel, "Blocked");
+  assert.equal(inbox.rowsByFilter.blocked.length, 1);
+});
+
+test("agent action inbox explains paused policy empty state", () => {
+  const inbox = deriveAgentActionInbox({
+    queue: [],
+    reviewState: {},
+    auditHistory: [],
+    automationPolicy: { agentPaused: true, modeLabel: "Off" },
+  });
+
+  assert.equal(inbox.policyPaused, true);
+  assert.equal(inbox.waitingCount, 0);
+  assert.equal(inbox.recordedCount, 0);
+  assert.match(inbox.summary, /paused by policy/i);
+  assert.match(inbox.emptyStates.waiting.title, /paused by policy/i);
+  assert.match(inbox.emptyStates.waiting.copy, /No customer sends, scheduling, billing, or record changes/i);
+  assert.equal(inbox.filters.map((filter) => filter.id).join(","), "waiting,blocked,recorded");
 });
 
 test("agent action proposal review audit payload stays review-first and redacted", () => {
@@ -454,9 +481,12 @@ test("agent action proposal hydrates review packets with read-only server contex
           primaryTradeId: "fencing",
           primaryTradeLabel: "Fencing",
           visibleTrades: [{ tradeId: "fencing", tradeLabel: "Fencing", count: 2 }],
+          lineItemStarters: ["Fence line layout", "Post setting", "Gate hardware"],
+          proposalSections: ["Linear footage", "Fence height", "Gate count and hardware"],
           fieldHandoffChecklist: ["Confirm fence line", "Confirm gate swings"],
           proofPhotoChecklist: ["Post holes", "Gate hardware"],
           changeOrderWatchouts: ["Rocky digging"],
+          closeoutChecks: ["Installed LF vs estimate", "Gate count/hardware"],
           safetyBoundary: "Use this as review-only trade guidance. Do not invent pricing.",
         },
         records: [{ id: "REPORT-1", label: "Westview Daily Report", status: "Submitted" }],
@@ -473,7 +503,12 @@ test("agent action proposal hydrates review packets with read-only server contex
   assert.ok(proposal.reviewChecklist.some((item) => /synced server context/i.test(item)));
   assert.ok(proposal.draftPrep[0].fields.some((item) => /Context: server/i.test(item)));
   assert.ok(proposal.draftPrep[0].fields.some((item) => /Trade focus: Fencing/i.test(item)));
+  assert.ok(proposal.draftPrep[0].fields.some((item) => /Estimate starters: Fence line layout, Post setting, Gate hardware/i.test(item)));
+  assert.ok(proposal.draftPrep[0].fields.some((item) => /Proposal sections: Linear footage, Fence height, Gate count and hardware/i.test(item)));
   assert.ok(proposal.draftPrep[0].fields.some((item) => /Proof prompts: Post holes, Gate hardware/i.test(item)));
+  assert.ok(proposal.draftPrep[0].fieldPreview.some((row) => row.field === "Trade estimate starters" && /Fence line layout/i.test(row.proposedValue)));
+  assert.ok(proposal.draftPrep[0].fieldPreview.some((row) => row.field === "Trade proposal sections" && /Gate count/i.test(row.proposedValue)));
+  assert.ok(proposal.draftPrep[0].fieldPreview.some((row) => row.field === "Trade proof prompts" && /Post holes/i.test(row.proposedValue)));
   assert.equal(validateAgentActionProposalSafety(proposal).ok, true);
 });
 
@@ -551,6 +586,7 @@ test("agent action proposal exposes closeout billing review packet without invoi
   assert.match(proposal.draftPrep[0].safeOutput, /Office review packet only/i);
   assert.ok(proposal.draftPrep[0].fields.some((item) => /profit\/loss prep/i.test(item)));
   assert.ok(proposal.draftPrep[0].fields.some((item) => /Westview Warehouse: No reviewed daily report linked/i.test(item)));
+  assert.ok(proposal.draftPrep[0].fieldPreview.some((row) => row.field === "Billing action" && /Manual office review packet only/i.test(row.proposedValue)));
   assert.ok(proposal.draftPrep[0].warnings.some((item) => /No invoice is created/i.test(item)));
   assert.ok(proposal.blockedActions.some((item) => /No invoice, payment, package, or billing action/i.test(item)));
   assert.equal(validateAgentActionProposalSafety(proposal).ok, true);
@@ -664,6 +700,7 @@ test("agent proposal audit event normalizes review-first proposal metadata only"
   assert.ok(event.blockedReasons.some((reason) => /Unsafe automation/i.test(reason)));
   assert.ok(event.blockedReasons.some((reason) => /Secret-like/i.test(reason)));
   assert.equal(event.draftPrepSummary.length, 1);
+  assert.ok(event.draftPrepSummary[0].fieldPreview.some((row) => row.field === "Rough notes"));
   assert.equal(event.targetEntityType, "lead");
 });
 

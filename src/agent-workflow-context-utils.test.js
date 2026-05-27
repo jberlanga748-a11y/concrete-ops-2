@@ -58,6 +58,8 @@ test("agent workflow context summarizes visible office workflow areas", () => {
   assert.equal(context.modules.find((module) => module.id === "proof").needsAttention, 6);
   assert.equal(context.modules.find((module) => module.id === "leads").tradeSummary.primaryTradeLabel, "Fencing");
   assert.equal(context.modules.find((module) => module.id === "jobs").tradeSummary.primaryTradeLabel, "Fencing");
+  assert.ok(context.modules.find((module) => module.id === "estimates").tradeSummary.lineItemStarters.some((item) => /Fence line layout/i.test(item)));
+  assert.ok(context.modules.find((module) => module.id === "estimates").tradeSummary.proposalSections.some((item) => /Linear footage/i.test(item)));
   assert.ok(context.modules.find((module) => module.id === "jobs").tradeSummary.proofPhotoChecklist.some((item) => /post/i.test(item)));
   assert.equal(context.topActions[0].moduleId, "reports");
   assert.match(context.safetyBoundary, /No customer contact/i);
@@ -161,6 +163,8 @@ test("agent workflow draft prep creates a review-only packet for the top action"
   assert.equal(packet.target.moduleId, "reports");
   assert.ok(packet.items.some((item) => item.id === "safe-output"));
   assert.ok(packet.items.some((item) => item.id === "trade-guidance" && /Fencing guidance/.test(item.label)));
+  assert.ok(packet.items.some((item) => item.id === "trade-guidance" && /Estimate starters:/i.test(item.detail)));
+  assert.ok(packet.items.some((item) => item.id === "trade-guidance" && /Proposal sections:/i.test(item.detail)));
   assert.ok(packet.items.some((item) => item.id === "trade-guidance" && /Proof photos:/i.test(item.detail)));
   assert.ok(packet.blockedActions.some((item) => /No customer email/i.test(item)));
   assert.match(packet.safetyBoundary, /Nothing is saved/i);

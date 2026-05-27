@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { Badge, Button, Icon } from "./app-shell-components";
-import { buildAgentActionProposal, deriveAgentActionProposalAuditHistory, normalizeAgentActionProposalAuditEvent } from "./agent-action-proposal-utils";
+import { buildAgentActionProposal, buildAgentActionProposalReviewAuditPayload, deriveAgentActionInbox, deriveAgentActionProposalAuditHistory, deriveAgentActionProposalReviewState, normalizeAgentActionProposalAuditEvent } from "./agent-action-proposal-utils";
 import { formatDateTime } from "./app-format-utils";
 import { deriveApexAssistantShellState, resolveApexAssistantCommand } from "./apex-assistant-shell-utils";
 import { APEX_BRAND_ASSETS } from "./brand-utils";
 
-export function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, agentContextState = { status: "idle", workflowContext: null, message: "" }, assistantCommandSeed = null, assistantOpenRequest = 0, showLauncher = true, onAssistantCommandSeedHandled = () => {}, onRefreshAgentContext = async () => null, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onCreateAgentEstimateDraft = async () => null, onPrepareAgentEstimateSend = async () => null, onConvertAgentEstimateToJob = async () => null, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenUploadReview = () => {}, onOpenTimeReview = () => {}, onOpenChangeOrderReview = () => {}, onOpenLeadFollowUp = () => {}, onOpenCustomerAccount = () => {}, onOpenCrewReadiness = () => {}, onOpenScheduleDispatch = () => {}, onOpenImportedDraftReview = () => {}, onOpenSupportWorkflow = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenPrePourReview = () => {}, onOpenPostPourReview = () => {}, onOpenSafetyIncidentReview = () => {}, onOpenToolChecklistReview = () => {}, onRecordAgentProposalAudit = async () => null }) {
+export function ApexAssistantShell({ permissions = {}, commandCenter = {}, agentCommandCenter = {}, commandContext = {}, agentContextState = { status: "idle", workflowContext: null, message: "" }, agentActionQueue = [], assistantCommandSeed = null, assistantOpenRequest = 0, showLauncher = true, onAssistantCommandSeedHandled = () => {}, onRefreshAgentContext = async () => null, onAskContractorAdvisor = async () => null, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onCreateAgentEstimateDraft = async () => null, onPrepareAgentEstimateSend = async () => null, onConvertAgentEstimateToJob = async () => null, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenUploadReview = () => {}, onOpenTimeReview = () => {}, onOpenChangeOrderReview = () => {}, onOpenLeadFollowUp = () => {}, onOpenCustomerAccount = () => {}, onOpenCrewReadiness = () => {}, onOpenScheduleDispatch = () => {}, onOpenImportedDraftReview = () => {}, onOpenSupportWorkflow = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenPrePourReview = () => {}, onOpenPostPourReview = () => {}, onOpenSafetyIncidentReview = () => {}, onOpenToolChecklistReview = () => {}, onRecordAgentProposalAudit = async () => null }) {
   const assistantState = useMemo(() => deriveApexAssistantShellState({ permissions, commandCenter }), [commandCenter, permissions]);
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -15,9 +15,16 @@ export function ApexAssistantShell({ permissions = {}, commandCenter = {}, comma
   const [draftActionState, setDraftActionState] = useState({ leadId: "", status: "idle", message: "" });
   const [sendReviewState, setSendReviewState] = useState({ estimateId: "", status: "idle", message: "" });
   const [jobDraftState, setJobDraftState] = useState({ estimateId: "", status: "idle", message: "" });
+  const [selectedAgentProposalId, setSelectedAgentProposalId] = useState("");
+  const [agentActionInboxFilter, setAgentActionInboxFilter] = useState("waiting");
+  const [agentProposalReviewDecisions, setAgentProposalReviewDecisions] = useState({});
+  const [agentProposalAuditState, setAgentProposalAuditState] = useState({ proposalId: "", status: "idle", message: "" });
   const [handledCommandSeedNonce, setHandledCommandSeedNonce] = useState(null);
+  const agentAutomationPolicy = agentCommandCenter.automationPolicy || commandContext.agentCommandCenter?.automationPolicy || {};
   const actionProposal = useMemo(() => (
-    response ? buildAgentActionProposal(response, { permissions, workflowContext: commandContext.agentWorkflowContext }) : null
+    response && !["contractor-advisor-answer", "contractor-advisor-loading", "contractor-advisor-error"].includes(response.type)
+      ? buildAgentActionProposal(response, { permissions, workflowContext: commandContext.agentWorkflowContext })
+      : null
   ), [commandContext.agentWorkflowContext, permissions, response]);
   const proposalAuditHistory = useMemo(() => (
     deriveAgentActionProposalAuditHistory(commandContext.auditEvents, {
@@ -25,6 +32,20 @@ export function ApexAssistantShell({ permissions = {}, commandCenter = {}, comma
       limit: 4,
     })
   ), [commandContext.auditEvents, permissions.audit?.canView]);
+  const actionProposalReview = useMemo(() => deriveAgentActionProposalReviewState(agentActionQueue, {
+    selectedId: selectedAgentProposalId,
+    decisions: agentProposalReviewDecisions,
+  }), [agentActionQueue, agentProposalReviewDecisions, selectedAgentProposalId]);
+  const agentActionInbox = useMemo(() => deriveAgentActionInbox({
+    queue: agentActionQueue,
+    reviewState: actionProposalReview,
+    auditHistory: proposalAuditHistory,
+    automationPolicy: agentAutomationPolicy,
+    limit: 8,
+  }), [agentActionQueue, actionProposalReview, agentAutomationPolicy, proposalAuditHistory]);
+  const activeAgentActionFilter = agentActionInbox.filters.find((filter) => filter.id === agentActionInboxFilter) || agentActionInbox.filters[0];
+  const filteredAgentActionRows = agentActionInbox.rowsByFilter?.[agentActionInboxFilter] || agentActionInbox.rows;
+  const agentActionInboxEmpty = agentActionInbox.emptyStates?.[agentActionInboxFilter] || agentActionInbox.emptyStates?.waiting;
   const proposalAlreadyRecorded = Boolean(actionProposal?.id && (
     auditRecordState.proposalId === actionProposal.id && auditRecordState.status === "recorded"
     || proposalAuditHistory.some((event) => event.proposalId === actionProposal.id)
@@ -36,6 +57,10 @@ export function ApexAssistantShell({ permissions = {}, commandCenter = {}, comma
     && !proposalAlreadyRecorded
     && auditRecordState.status !== "saving",
   );
+  const selectedAgentProposalAuditRecorded = Boolean(actionProposalReview.selected?.id && (
+    agentProposalAuditState.proposalId === actionProposalReview.selected.id && agentProposalAuditState.status === "recorded"
+    || proposalAuditHistory.some((event) => event.proposalId === actionProposalReview.selected?.proposal?.id)
+  ));
   const usingServerAgentContext = Boolean(agentContextState.workflowContext?.source === "server");
 
   useEffect(() => {
@@ -77,8 +102,99 @@ export function ApexAssistantShell({ permissions = {}, commandCenter = {}, comma
     setOpen(false);
   }
 
-  function runPrompt(nextPrompt = prompt) {
+  function seedFromAgentTarget(target = {}) {
+    const record = target.record || {};
+    return {
+      id: record.id || target.recordId || target.id || "",
+      estimateId: record.id || target.recordId || "",
+      jobId: record.relatedJobId || record.jobId || record.id || "",
+      leadId: record.leadId || record.id || "",
+      reportId: record.reportId || record.id || "",
+      uploadId: record.uploadId || record.id || "",
+      timeEntryId: record.timeEntryId || record.id || "",
+      changeOrderRequestId: record.changeOrderRequestId || record.requestId || record.id || "",
+      requestId: record.changeOrderRequestId || record.requestId || record.id || "",
+      safetyIncidentId: record.safetyIncidentId || record.incidentId || record.id || "",
+      incidentId: record.safetyIncidentId || record.incidentId || record.id || "",
+      importedDraftId: record.importedDraftId || record.id || "",
+      label: target.title || record.title || record.customer || record.project || record.jobName || "Review item",
+      helper: target.description || target.helper || record.nextStep || "Open the normal Apex HQ workflow and review before acting.",
+      type: target.recordType || "",
+      commandText: target.title || "",
+    };
+  }
+
+  function openAgentActionTarget(target = {}) {
+    const seed = seedFromAgentTarget(target);
+    let opened = false;
+    if (target.recordType === "estimate") {
+      opened = target.actionMode === "jobHandoff" ? onOpenEstimateJobHandoff(seed) : onOpenEstimatePacket(seed);
+    } else if (target.recordType === "lead" || target.recordType === "growthFollowUpDraft" || target.recordType === "growthSourceInsight") {
+      opened = onOpenLeadFollowUp(seed);
+    } else if (target.recordType === "job" || target.recordType === "growthReviewRequestDraft") {
+      opened = onOpenJobHandoff(seed);
+    } else if (target.recordType === "report" || target.recordType === "dailyCloseout") {
+      opened = onOpenReportReview(seed);
+    } else if (target.recordType === "upload") {
+      opened = onOpenUploadReview(seed);
+    } else if (target.recordType === "timeEntry") {
+      opened = onOpenTimeReview(seed);
+    } else if (target.recordType === "changeOrder") {
+      opened = onOpenChangeOrderReview(seed);
+    } else if (target.recordType === "safetyIncident") {
+      opened = onOpenSafetyIncidentReview(seed);
+    } else if (target.recordType === "draft") {
+      opened = onOpenImportedDraftReview(seed);
+    } else if (target.recordType === "agentLearning") {
+      opened = onOpenSupportWorkflow({ ...seed, workflow: "Apex memory review" });
+    } else if (target.recordType === "fieldOps") {
+      openModule(target.moduleId || target.record?.moduleId || "commandCenter");
+      return;
+    }
+    if (opened !== false) {
+      setOpen(false);
+      return;
+    }
+    openModule(target.moduleId || "commandCenter");
+  }
+
+  async function runPrompt(nextPrompt = prompt) {
     const result = resolveApexAssistantCommand(nextPrompt, { ...assistantState, commandContext });
+    const question = String(nextPrompt || "").trim();
+    if (question && result?.type === "safe-fallback" && permissions.aiOffice?.canView) {
+      setResponse({
+        type: "contractor-advisor-loading",
+        moduleId: "commandCenter",
+        actionLabel: "Open Command Center",
+        message: "Apex Agent is reading the visible workspace context and thinking like a contractor operator...",
+      });
+      setPrompt("");
+      try {
+        const payload = await onAskContractorAdvisor({
+          question,
+          currentRoute: commandContext.currentRoute || "",
+        });
+        const advisor = payload?.contractorAdvisor || {};
+        setResponse({
+          type: "contractor-advisor-answer",
+          moduleId: advisor.recommendedActions?.[0]?.moduleId || "commandCenter",
+          actionLabel: advisor.recommendedActions?.[0]?.actionLabel || "Open workflow",
+          message: advisor.message || advisor.answer || "Apex Agent prepared a contractor operating answer.",
+          commandText: question,
+          requestId: payload?.requestId || "",
+          ...advisor,
+        });
+      } catch (error) {
+        setResponse({
+          type: "contractor-advisor-error",
+          moduleId: "commandCenter",
+          actionLabel: "Open Command Center",
+          message: error?.message || "Apex Agent could not answer that contractor question right now.",
+          commandText: question,
+        });
+      }
+      return;
+    }
     setResponse(result);
     setPrompt("");
   }
@@ -105,6 +221,66 @@ export function ApexAssistantShell({ permissions = {}, commandCenter = {}, comma
     } catch (error) {
       setAuditRecordState({
         proposalId: actionProposal.id,
+        status: "error",
+        message: error?.message || "Could not record this proposal audit.",
+      });
+    }
+  }
+
+  function toggleAgentProposalReviewCheck(checkId) {
+    const selectedId = actionProposalReview.selected?.id;
+    if (!selectedId || !checkId || actionProposalReview.isBlocked) return;
+    setAgentProposalReviewDecisions((current) => {
+      const existing = current[selectedId] || {};
+      const completed = new Set(Array.isArray(existing.completedChecklist) ? existing.completedChecklist : []);
+      if (completed.has(checkId)) {
+        completed.delete(checkId);
+      } else {
+        completed.add(checkId);
+      }
+      return {
+        ...current,
+        [selectedId]: {
+          ...existing,
+          completedChecklist: Array.from(completed),
+          reviewedAt: "",
+        },
+      };
+    });
+    setAgentProposalAuditState((current) => (
+      current.proposalId === selectedId ? { proposalId: selectedId, status: "idle", message: "" } : current
+    ));
+  }
+
+  function markAgentProposalReviewedLocally() {
+    const selectedId = actionProposalReview.selected?.id;
+    if (!selectedId || !actionProposalReview.canMarkReviewed) return;
+    setAgentProposalReviewDecisions((current) => ({
+      ...current,
+      [selectedId]: {
+        ...(current[selectedId] || {}),
+        completedChecklist: actionProposalReview.checklist.map((item) => item.id),
+        reviewedAt: new Date().toISOString(),
+      },
+    }));
+  }
+
+  async function recordSelectedAgentProposalAudit() {
+    const selected = actionProposalReview.selected;
+    if (!selected?.id || agentProposalAuditState.status === "saving") return;
+    if (!actionProposalReview.isBlocked && !actionProposalReview.isLocallyReviewed) return;
+    const payload = buildAgentActionProposalReviewAuditPayload(actionProposalReview, {
+      actor: commandContext.user,
+      sourceRoute: commandContext.currentRoute || "/assistant",
+    });
+    if (!payload) return;
+    setAgentProposalAuditState({ proposalId: selected.id, status: "saving", message: "Recording review-first audit..." });
+    try {
+      await onRecordAgentProposalAudit(payload);
+      setAgentProposalAuditState({ proposalId: selected.id, status: "recorded", message: "Recorded to the audit trail." });
+    } catch (error) {
+      setAgentProposalAuditState({
+        proposalId: selected.id,
         status: "error",
         message: error?.message || "Could not record this proposal audit.",
       });
@@ -425,7 +601,7 @@ export function ApexAssistantShell({ permissions = {}, commandCenter = {}, comma
             </div>
           </div>
 
-          <div className="co-apex-assistant-body max-h-[62vh] overflow-y-auto p-4">
+          <div className="co-apex-assistant-body flex max-h-[62vh] flex-col overflow-y-auto p-4">
             {assistantState.watchtowerQueue.length ? (
               <div className="grid gap-2">
                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Watchtower context</p>
@@ -451,6 +627,152 @@ export function ApexAssistantShell({ permissions = {}, commandCenter = {}, comma
                 Watchtower has no urgent owner actions right now.
               </div>
             )}
+
+            <div className="order-first mb-4 rounded-2xl border border-white/10 bg-white/[0.06] p-3">
+              <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-orange-200">Agent action inbox</p>
+                  <p className="mt-1 text-sm font-black text-white">{agentActionInbox.summary}</p>
+                  <p className="mt-1 text-xs font-bold leading-5 text-slate-300">{agentActionInbox.safetyCopy}</p>
+                </div>
+                <Badge tone={activeAgentActionFilter?.tone || "amber"}>{activeAgentActionFilter?.count || 0} {(activeAgentActionFilter?.label || "Waiting").toLowerCase()}</Badge>
+              </div>
+              {agentActionInbox.policyPaused ? (
+                <div className="mt-3 rounded-xl border border-amber-300/25 bg-amber-500/10 p-2">
+                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-amber-100">Policy paused</p>
+                  <p className="mt-1 text-[11px] font-bold leading-4 text-amber-50">Apex Agent review surfaces are off for this contractor. The Assistant can show saved history, but it will not surface new packets or start drafts.</p>
+                </div>
+              ) : null}
+              <div className="mt-3 grid grid-cols-3 gap-2" role="tablist" aria-label="Agent action inbox filters">
+                {agentActionInbox.filters.map((filter) => (
+                  <button
+                    key={filter.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={agentActionInboxFilter === filter.id}
+                    className={`co-focus-ring rounded-xl border p-2 text-left transition ${agentActionInboxFilter === filter.id ? "border-orange-300 bg-orange-500/15" : "border-white/10 bg-slate-950/40 hover:border-orange-400/50 hover:bg-orange-500/10"}`}
+                    onClick={() => setAgentActionInboxFilter(filter.id)}
+                  >
+                    <span className="block text-base font-black text-white">{filter.count}</span>
+                    <span className="mt-1 block text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">{filter.label}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="mt-3 grid gap-2">
+                {filteredAgentActionRows.length ? filteredAgentActionRows.slice(0, 4).map((row) => (
+                  row.source === "queue" ? (
+                    <button
+                      key={`${row.source}-${row.id}`}
+                      type="button"
+                      className={`co-focus-ring rounded-xl border p-2 text-left transition hover:border-orange-400/50 hover:bg-orange-500/10 ${row.isSelected ? "border-orange-300/70 bg-orange-500/15" : "border-white/10 bg-white/[0.05]"}`}
+                      onClick={() => setSelectedAgentProposalId(row.id)}
+                    >
+                      <span className="flex min-w-0 items-start justify-between gap-2">
+                        <span className="min-w-0">
+                          <span className="block break-words text-xs font-black text-white">{row.title}</span>
+                          <span className="mt-1 block break-words text-[11px] font-bold leading-4 text-slate-300">{row.helper}</span>
+                        </span>
+                        <span className="shrink-0 rounded-lg bg-white/10 px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-200">{row.statusLabel}</span>
+                      </span>
+                    </button>
+                  ) : (
+                    <div key={`${row.source}-${row.id}`} className="rounded-xl border border-white/10 bg-slate-950/40 p-2">
+                      <span className="flex min-w-0 items-start justify-between gap-2">
+                        <span className="min-w-0">
+                          <span className="block break-words text-xs font-black text-white">{row.title}</span>
+                          <span className="mt-1 block break-words text-[11px] font-bold leading-4 text-slate-300">{row.helper}</span>
+                        </span>
+                        <span className="shrink-0 rounded-lg bg-white/10 px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-200">{row.statusLabel}</span>
+                      </span>
+                    </div>
+                  )
+                )) : (
+                  <div className="rounded-xl border border-white/10 bg-slate-950/40 p-2">
+                    <p className="text-xs font-black text-white">{agentActionInboxEmpty?.title || "No agent action packets."}</p>
+                    <p className="mt-1 text-[11px] font-bold leading-4 text-slate-300">{agentActionInboxEmpty?.copy || "Review-first work will appear here in the Assistant."}</p>
+                  </div>
+                )}
+              </div>
+              {actionProposalReview.selected ? (
+                <div className="mt-3 rounded-2xl border border-orange-300/20 bg-orange-500/10 p-3">
+                  <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-orange-100">Review gate</p>
+                      <p className="mt-1 break-words text-sm font-black text-white">{actionProposalReview.selected.sourceTitle}</p>
+                    </div>
+                    <Badge tone={actionProposalReview.isBlocked ? "red" : actionProposalReview.isLocallyReviewed ? "green" : "amber"}>
+                      {actionProposalReview.statusLabel}
+                    </Badge>
+                  </div>
+                  <p className="mt-2 text-xs font-bold leading-5 text-slate-300">{actionProposalReview.safetyCopy}</p>
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    <span className="rounded-xl border border-white/10 bg-slate-950/40 p-2">
+                      <span className="block text-sm font-black text-white">{actionProposalReview.completedCount}/{actionProposalReview.totalCount}</span>
+                      <span className="mt-1 block text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">Checks</span>
+                    </span>
+                    <span className="rounded-xl border border-white/10 bg-slate-950/40 p-2">
+                      <span className="block text-sm font-black text-white">{actionProposalReview.draftPrep.length}</span>
+                      <span className="mt-1 block text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">Draft prep</span>
+                    </span>
+                    <span className="rounded-xl border border-white/10 bg-slate-950/40 p-2">
+                      <span className="block text-sm font-black text-white">{actionProposalReview.blockedActions.length}</span>
+                      <span className="mt-1 block text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">Locked</span>
+                    </span>
+                  </div>
+                  <details className="mt-3 rounded-xl border border-white/10 bg-slate-950/40 p-2">
+                    <summary className="co-focus-ring cursor-pointer rounded-lg px-1 py-1 text-xs font-black uppercase tracking-[0.08em] text-slate-100">
+                      Review checklist
+                    </summary>
+                    <div className="mt-2 grid gap-2">
+                      {actionProposalReview.checklist.slice(0, 6).map((check) => (
+                        <button
+                          key={check.id}
+                          type="button"
+                          className="co-focus-ring flex min-w-0 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] p-2 text-left text-xs font-bold leading-4 text-slate-200 transition hover:border-orange-400/50 hover:bg-orange-500/10 disabled:cursor-not-allowed disabled:opacity-70"
+                          onClick={() => toggleAgentProposalReviewCheck(check.id)}
+                          disabled={actionProposalReview.isBlocked}
+                        >
+                          <span className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[9px] font-black ${check.complete ? "border-emerald-300 bg-emerald-500/20 text-emerald-100" : "border-white/20 bg-slate-950/50 text-slate-500"}`}>{check.complete ? "OK" : ""}</span>
+                          <span className="min-w-0 break-words">{check.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </details>
+                  {actionProposalReview.draftPrep.length ? (
+                    <div className="mt-3 rounded-xl border border-blue-300/20 bg-blue-500/10 p-2">
+                      {actionProposalReview.draftPrep.slice(0, 1).map((item) => (
+                        <div key={item.id}>
+                          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-blue-100">{item.prepType}</p>
+                          <p className="mt-1 text-xs font-black text-white">{item.label}</p>
+                          <p className="mt-1 text-[11px] font-bold leading-4 text-blue-100">{item.safeOutput}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  <div className="mt-3 flex flex-wrap gap-1">
+                    {actionProposalReview.blockedActions.slice(0, 3).map((item) => (
+                      <span key={item} className="rounded-lg bg-red-500/15 px-2 py-1 text-[10px] font-black uppercase tracking-[0.06em] text-red-100">{item}</span>
+                    ))}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button type="button" size="sm" variant="secondary" onClick={markAgentProposalReviewedLocally} disabled={!actionProposalReview.canMarkReviewed || actionProposalReview.isLocallyReviewed}>
+                      {actionProposalReview.isLocallyReviewed ? "Reviewed" : `Review checks ${actionProposalReview.completedCount}/${actionProposalReview.totalCount}`}
+                    </Button>
+                    <Button type="button" size="sm" variant="secondary" onClick={recordSelectedAgentProposalAudit} disabled={agentProposalAuditState.status === "saving" || selectedAgentProposalAuditRecorded || (!actionProposalReview.isBlocked && !actionProposalReview.isLocallyReviewed)}>
+                      {agentProposalAuditState.status === "saving" ? "Recording..." : selectedAgentProposalAuditRecorded ? "Audit recorded" : "Record audit"}
+                    </Button>
+                    <Button type="button" size="sm" onClick={() => openAgentActionTarget(actionProposalReview.selected?.target)} disabled={!actionProposalReview.canOpenWorkflow}>
+                      Open workflow
+                    </Button>
+                  </div>
+                  {agentProposalAuditState.proposalId === actionProposalReview.selected.id && agentProposalAuditState.message ? (
+                    <p className={`mt-2 text-[11px] font-bold leading-4 ${agentProposalAuditState.status === "error" ? "text-red-100" : "text-blue-100"}`}>
+                      {agentProposalAuditState.message}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
 
             <div className="mt-4 grid grid-cols-2 gap-2">
               {assistantState.prompts.map((item) => (
@@ -564,6 +886,26 @@ export function ApexAssistantShell({ permissions = {}, commandCenter = {}, comma
                                   ))}
                                 </div>
                               ) : null}
+                              {item.fieldPreview?.length ? (
+                                <div className="mt-2 rounded-xl border border-white/10 bg-slate-950/50 p-2">
+                                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Payload preview</p>
+                                  <div className="mt-2 grid gap-2">
+                                    {item.fieldPreview.slice(0, 6).map((row) => (
+                                      <div key={row.id || row.field} className="rounded-lg border border-white/10 bg-white/[0.04] p-2">
+                                        <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+                                          <p className="break-words text-[11px] font-black uppercase tracking-[0.08em] text-blue-100">{row.field}</p>
+                                          {row.source ? <span className="rounded-md bg-white/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-300">{row.source}</span> : null}
+                                        </div>
+                                        <div className="mt-1 grid gap-1 text-[11px] font-bold leading-4 text-slate-300">
+                                          {row.currentValue ? <p><span className="text-slate-500">Current:</span> {row.currentValue}</p> : null}
+                                          {row.proposedValue ? <p><span className="text-blue-100">Proposed:</span> {row.proposedValue}</p> : null}
+                                          {row.note ? <p className="text-slate-400">{row.note}</p> : null}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ) : null}
                               {item.warnings?.length ? (
                                 <div className="mt-2 flex flex-wrap gap-1">
                                   {item.warnings.map((warning) => (
@@ -578,7 +920,69 @@ export function ApexAssistantShell({ permissions = {}, commandCenter = {}, comma
                     ) : null}
                   </div>
                 ) : null}
-                {response.type === "daily-ops-brief" ? (
+                {response.type === "contractor-advisor-loading" ? (
+                  <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.08] p-3">
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-orange-200">Contractor advisor</p>
+                    <p className="mt-2 text-xs font-bold leading-5 text-slate-300">Reading leads, estimates, jobs, proof, time, and change order signals that this role can see.</p>
+                  </div>
+                ) : response.type === "contractor-advisor-answer" ? (
+                  <div className="mt-3 grid gap-2">
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.08] p-3">
+                      <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-orange-200">Contractor ChatGPT</p>
+                          <p className="mt-1 text-sm font-black text-white">{response.category === "profit_leak" ? "Money leak readout" : response.category === "marketing" ? "Marketing readout" : "Operator answer"}</p>
+                        </div>
+                        <Badge tone={response.configured ? "blue" : "slate"}>{response.configured ? "AI" : "Local"}</Badge>
+                      </div>
+                      {response.sourceSummary?.length ? (
+                        <div className="mt-3 flex flex-wrap gap-1">
+                          {response.sourceSummary.slice(0, 3).map((item) => (
+                            <span key={item} className="rounded-lg border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-200">{item}</span>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                    {response.diagnosis?.length ? (
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">What I see</p>
+                        <div className="mt-2 grid gap-2">
+                          {response.diagnosis.slice(0, 4).map((item) => (
+                            <p key={item} className="rounded-xl border border-white/10 bg-white/[0.05] p-2 text-xs font-bold leading-5 text-slate-300">{item}</p>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                    {response.recommendedActions?.length ? (
+                      <div className="grid gap-2">
+                        {response.recommendedActions.slice(0, 5).map((action) => (
+                          <button
+                            key={action.id || action.label}
+                            type="button"
+                            onClick={() => openModule(action.moduleId || "commandCenter")}
+                            className="co-focus-ring rounded-2xl border border-white/10 bg-white/[0.06] p-3 text-left transition hover:border-orange-400/50 hover:bg-orange-500/10"
+                          >
+                            <span className="block text-sm font-black text-white">{action.label}</span>
+                            <span className="mt-1 block text-xs font-bold leading-5 text-slate-300">{action.reason}</span>
+                            <span className="mt-2 inline-flex rounded-lg bg-orange-500/20 px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-orange-100">{action.actionLabel || "Open workflow"}</span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                    {response.followUpQuestions?.length ? (
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Smart follow-ups</p>
+                        <div className="mt-2 grid gap-1">
+                          {response.followUpQuestions.slice(0, 3).map((item) => (
+                            <p key={item} className="text-xs font-bold leading-5 text-slate-300">{item}</p>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : response.type === "contractor-advisor-error" ? (
+                  <Button type="button" size="sm" className="mt-3" onClick={() => openModule("commandCenter")}>Open Command Center</Button>
+                ) : response.type === "daily-ops-brief" ? (
                   <div className="mt-3 grid gap-2">
                     <div className="rounded-2xl border border-white/10 bg-white/[0.08] p-3">
                       <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Daily operations brief</p>
@@ -1101,8 +1505,19 @@ export function ApexAssistantShell({ permissions = {}, commandCenter = {}, comma
                         {match.type === "lead" && match.leadId ? (
                           <div className="mt-3 rounded-xl border border-emerald-300/20 bg-emerald-500/10 p-2">
                             <p className="text-[11px] font-bold leading-4 text-emerald-100">
-                              Human approval creates a Draft estimate from this lead. No proposal is sent, no customer is contacted, and no job is created.
+                              {response.operatorMode === "internal_draft_action"
+                                ? "Apex Agent can do the internal draft step from this lead now. Customer sends, payments, schedule changes, and job creation stay in their own autonomy gates."
+                                : "Human approval creates a Draft estimate from this lead. No proposal is sent, no customer is contacted, and no job is created."}
                             </p>
+                            {response.blockedExternalActions?.length ? (
+                              <div className="mt-2 grid gap-1">
+                                {response.blockedExternalActions.map((action) => (
+                                  <span key={action.id} className="rounded-lg border border-white/10 bg-black/10 px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-emerald-50">
+                                    Next gate: {action.label}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : null}
                             <div className="mt-2 flex flex-wrap items-center gap-2">
                               <Button
                                 type="button"
@@ -1111,7 +1526,11 @@ export function ApexAssistantShell({ permissions = {}, commandCenter = {}, comma
                                 disabled={draftActionState.status === "saving"}
                                 onClick={() => approveAndCreateEstimateDraft(match)}
                               >
-                                {draftActionState.status === "saving" && draftActionState.leadId === match.leadId ? "Creating draft..." : "Approve & create draft"}
+                                {draftActionState.status === "saving" && draftActionState.leadId === match.leadId
+                                  ? "Creating draft..."
+                                  : response.operatorMode === "internal_draft_action"
+                                    ? "Do it: create draft"
+                                    : "Approve & create draft"}
                               </Button>
                               <Button type="button" size="sm" variant="secondary" onClick={() => startEstimateDraft(match)}>
                                 Open editor
@@ -1285,13 +1704,13 @@ export function ApexAssistantShell({ permissions = {}, commandCenter = {}, comma
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
                 className="co-apex-assistant-input min-h-11 min-w-0 flex-1 rounded-2xl border border-white/10 bg-white px-3 py-2 text-sm font-bold text-slate-950 outline-none focus:border-orange-300"
-                placeholder="Ask for the next review..."
+                placeholder="Ask Apex Agent anything..."
               />
               <button type="submit" className="co-focus-ring inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-orange-600 text-white shadow-sm shadow-orange-950/20 hover:bg-orange-700" aria-label="Ask Apex Assistant">
                 <Icon name="arrowUpRight" className="h-4 w-4" />
               </button>
             </form>
-            <p className="mt-3 text-[11px] font-bold leading-5 text-slate-400">Manual-first: no customer contact, approvals, estimate sends, job changes, or field updates happen from this shell.</p>
+            <p className="mt-3 text-[11px] font-bold leading-5 text-slate-400">Ask about marketing, money leaks, estimates, jobs, crews, proof, or follow-up. External sends, payments, schedule changes, and approvals still use their normal gates.</p>
           </div>
         </div>
       ) : showLauncher ? (

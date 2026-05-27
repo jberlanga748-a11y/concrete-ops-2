@@ -96,7 +96,7 @@ async function login(baseUrl, credentials) {
   return assertOk(baseUrl, "/api/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(credentials),
+    body: JSON.stringify({ ...credentials, returnToken: true }),
   });
 }
 
@@ -104,7 +104,7 @@ async function activateInvite(baseUrl, payload) {
   return assertOk(baseUrl, "/api/auth/activate-invite", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, returnToken: true }),
   });
 }
 
@@ -341,6 +341,7 @@ test("owner and admin can create role-based users and inactive users cannot log 
       body: JSON.stringify({
         email: "evan@lastyard.test",
         password: "crewlogin123",
+        returnToken: true,
       }),
     });
     assert.ok(employeeLogin.token);

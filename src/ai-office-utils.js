@@ -1,5 +1,10 @@
 import { deriveGrowthAgentState } from "./growth-agent-utils.js";
 import { deriveOwnerBusinessIntelligenceState } from "./owner-bi-utils.js";
+import {
+  agentAutomationCapabilityEnabled,
+  deriveApexAgentAutonomyReadiness,
+  deriveApexAgentAutomationPolicyControls,
+} from "../shared/apexAgentAutomationPolicy.js";
 
 function asArray(value) {
   return Array.isArray(value) ? value : [];
@@ -158,7 +163,9 @@ export function deriveAiOfficeAgentCommandCenter({
   agentLearningPreferences = [],
   fieldOpsAgent = null,
   agentWorkflowContext = null,
+  apexAgentAutomationPolicy = {},
 } = {}) {
+  const automationPolicy = deriveApexAgentAutomationPolicyControls(apexAgentAutomationPolicy);
   if (!canUseAiOfficeAgentCommand(permissions)) {
     return {
       canView: false,
@@ -168,9 +175,33 @@ export function deriveAiOfficeAgentCommandCenter({
       workflowCards: [],
       focusRows: [],
       tradeGuidance: [],
+      automationPolicy,
+      autonomyReadiness: deriveApexAgentAutonomyReadiness({
+        controls: automationPolicy,
+        fieldRoleBlocked: true,
+      }),
       guardrails: defaultAgentGuardrails(),
     };
   }
+  if (automationPolicy.agentPaused) {
+    return {
+      canView: true,
+      modeLabel: "Off",
+      headline: "Apex Agent Command Center",
+      summary: "Apex Agent review surfaces are paused by this contractor's automation policy. No customer sends, record changes, schedule changes, billing, or drafts can start from this surface.",
+      workflowCards: [],
+      focusRows: [],
+      tradeGuidance: [],
+      counts: {},
+      automationPolicy,
+      autonomyReadiness: deriveApexAgentAutonomyReadiness({
+        controls: automationPolicy,
+        fieldRoleBlocked: true,
+      }),
+      guardrails: defaultAgentGuardrails(automationPolicy),
+    };
+  }
+  const capabilityEnabled = (capabilityId) => agentAutomationCapabilityEnabled(automationPolicy.policy, capabilityId);
 
   const visibleLeads = activeRecords(leads);
   const visibleJobs = activeRecords(jobs);
@@ -261,9 +292,9 @@ export function deriveAiOfficeAgentCommandCenter({
   };
 
   const workflowCards = [
-    canViewOpportunityScout ? {
+    canViewOpportunityScout && capabilityEnabled("opportunityScoutReview") ? {
       id: "opportunity-scout",
-      title: "Opportunity Scout",
+      title: "Opportunity review",
       helper: "Run review-first source checks, inspect found work, and keep Create Lead behind office approval.",
       icon: "spark",
       badge: opportunityScout?.readiness?.label || `${countLabel(scoutStats.openFoundOpportunities || 0, "opportunity")} open`,
@@ -271,9 +302,9 @@ export function deriveAiOfficeAgentCommandCenter({
       actionLabel: "Open scout",
       moduleId: "copilot",
     } : null,
-    permissions?.leads?.canView ? {
+    permissions?.leads?.canView && capabilityEnabled("leadReview") ? {
       id: "lead-review",
-      title: "Lead Review Agent",
+      title: "Lead review",
       helper: "Prioritize new, high-fit, and approved leads before creating estimates or jobs.",
       icon: "inbox",
       badge: `${newLeads.length + highPriorityLeads.length} ready`,
@@ -281,9 +312,9 @@ export function deriveAiOfficeAgentCommandCenter({
       actionLabel: "Open leads",
       moduleId: "leads",
     } : null,
-    growthAgent.canView ? {
+    growthAgent.canView && capabilityEnabled("leadReview") ? {
       id: "growth-agent",
-      title: "Growth Follow-up Agent",
+      title: "Growth follow-up",
       helper: "Prepare copy-only stale estimate and lead follow-up drafts for human review. Nothing sends or changes records.",
       icon: "spark",
       badge: growthAgent.followUpDrafts.length ? `${growthAgent.followUpDrafts.length} drafts` : `${growthAgent.scorecard?.estimateCloseRate || 0}% close rate`,
@@ -292,9 +323,9 @@ export function deriveAiOfficeAgentCommandCenter({
       moduleId: "copilot",
       recordType: "growthAgent",
     } : null,
-    ownerBusinessIntelligence.canView ? {
+    ownerBusinessIntelligence.canView && capabilityEnabled("ownerBiReview") ? {
       id: "owner-bi",
-      title: "Owner BI Agent",
+      title: "Owner BI",
       helper: "Review lead source, close rate, labor/production, and profit/loss prep scorecards without accounting, payroll, billing, or record changes.",
       icon: "grid",
       badge: `${ownerBusinessIntelligence.metrics?.ownerScorecards || 0} scorecards`,
@@ -305,7 +336,7 @@ export function deriveAiOfficeAgentCommandCenter({
     } : null,
     permissions?.jobs?.canView || permissions?.jobs?.canManageAll ? {
       id: "job-startup",
-      title: "Job Startup Agent",
+      title: "Job startup",
       helper: "Review planned jobs, crew readiness, startup gaps, and imported draft handoffs.",
       icon: "briefcase",
       badge: `${startupWatchJobs.length} watching`,
@@ -313,9 +344,9 @@ export function deriveAiOfficeAgentCommandCenter({
       actionLabel: "Open jobs",
       moduleId: "jobs",
     } : null,
-    permissions?.estimates?.canView || permissions?.estimates?.canManage ? {
+    (permissions?.estimates?.canView || permissions?.estimates?.canManage) && capabilityEnabled("estimateDrafts") ? {
       id: "estimate-action-agent",
-      title: "Estimate Action Agent",
+      title: "Estimate actions",
       helper: "Review draft estimates, proposal packets, and approved estimate-to-job handoffs before any human-approved draft prep.",
       icon: "document",
       badge: `${draftEstimateReviews.length + jobHandoffEstimateReviews.length} estimate actions`,
@@ -323,9 +354,9 @@ export function deriveAiOfficeAgentCommandCenter({
       actionLabel: "Open estimates",
       moduleId: "estimates",
     } : null,
-    permissions?.reports?.canView || permissions?.uploads?.canView ? {
+    (permissions?.reports?.canView || permissions?.uploads?.canView) && capabilityEnabled("closeoutReview") ? {
       id: "proof-closeout",
-      title: "Proof Closeout Agent",
+      title: "Proof and closeout",
       helper: "Summarize submitted reports, photo gaps, unlinked uploads, active clocks, safety, change orders, and ready-to-bill blockers.",
       icon: "clipboard",
       badge: `${reportsNeedingReview.length + missingUploads + closeoutBlockers} closeout items`,
@@ -334,9 +365,9 @@ export function deriveAiOfficeAgentCommandCenter({
       moduleId: "reports",
       recordType: "dailyCloseout",
     } : null,
-    fieldOpsAgent?.canView ? {
+    fieldOpsAgent?.canView && capabilityEnabled("closeoutReview") ? {
       id: "field-ops-agent",
-      title: "Field Ops Agent",
+      title: "Field ops",
       helper: "Review company field risk across missing reports, proof, tickets, checklists, safety, and active clocks without writing records.",
       icon: "hardhat",
       badge: `${countLabel(fieldOpsReviewCount, "field item")} open`,
@@ -346,7 +377,7 @@ export function deriveAiOfficeAgentCommandCenter({
     } : null,
     permissions?.customers?.canView || permissions?.settings?.canView ? {
       id: "pilot-handoff",
-      title: "Pilot Handoff Agent",
+      title: "Pilot handoff",
       helper: "Check customer, job, setup, support, and manual handoff readiness without creating accounts or invites.",
       icon: "users",
       badge: permissions?.settings?.canView ? "Setup review" : "Customer review",
@@ -356,7 +387,7 @@ export function deriveAiOfficeAgentCommandCenter({
     } : null,
     permissions?.appHealth?.canView ? {
       id: "release-readiness",
-      title: "Release Readiness Agent",
+      title: "Release readiness",
       helper: "Review App Health, audit signals, backup posture, and rollout guardrails before any release decision.",
       icon: "lock",
       badge: "Owner gate",
@@ -366,7 +397,7 @@ export function deriveAiOfficeAgentCommandCenter({
     } : null,
     canManageLearning ? {
       id: "agent-learning",
-      title: "Apex Learning Queue",
+      title: "Apex memory",
       helper: "Review contractor preferences suggested from approved work before they become active AI memory.",
       icon: "spark",
       badge: suggestedLearning.length ? `${suggestedLearning.length} suggested` : `${approvedLearning.length} approved`,
@@ -402,7 +433,7 @@ export function deriveAiOfficeAgentCommandCenter({
       recordType: "queue",
       record: item,
     })),
-    ...asArray(growthAgent.followUpDrafts).slice(0, 3).map((draft) => ({
+    ...(capabilityEnabled("leadReview") ? asArray(growthAgent.followUpDrafts).slice(0, 3).map((draft) => ({
       id: draft.id,
       eyebrow: draft.type === "estimate_follow_up" ? "Stale estimate follow-up" : "Lead follow-up draft",
       title: draft.title,
@@ -413,8 +444,8 @@ export function deriveAiOfficeAgentCommandCenter({
       moduleId: draft.sourceModule,
       recordType: "growthFollowUpDraft",
       record: draft,
-    })),
-    ...asArray(growthAgent.reviewRequestDrafts).slice(0, 2).map((draft) => ({
+    })) : []),
+    ...(capabilityEnabled("leadReview") ? asArray(growthAgent.reviewRequestDrafts).slice(0, 2).map((draft) => ({
       id: draft.id,
       eyebrow: "Review request draft",
       title: draft.title,
@@ -425,8 +456,8 @@ export function deriveAiOfficeAgentCommandCenter({
       moduleId: "jobs",
       recordType: "growthReviewRequestDraft",
       record: draft,
-    })),
-    ...asArray(growthAgent.sourceInsights).slice(0, 2).map((insight) => ({
+    })) : []),
+    ...(capabilityEnabled("leadReview") ? asArray(growthAgent.sourceInsights).slice(0, 2).map((insight) => ({
       id: `growth-source-${insight.id}`,
       eyebrow: "Lead source intelligence",
       title: insight.title,
@@ -437,8 +468,8 @@ export function deriveAiOfficeAgentCommandCenter({
       moduleId: "leads",
       recordType: "growthSourceInsight",
       record: insight,
-    })),
-    ...jobHandoffEstimateReviews.slice(0, 2).map((estimate) => ({
+    })) : []),
+    ...(capabilityEnabled("estimateDrafts") ? jobHandoffEstimateReviews.slice(0, 2).map((estimate) => ({
       id: `estimate-handoff-${estimate.id}`,
       eyebrow: "Estimate to job handoff",
       title: estimateName(estimate),
@@ -450,8 +481,8 @@ export function deriveAiOfficeAgentCommandCenter({
       recordType: "estimate",
       actionMode: "jobHandoff",
       record: estimate,
-    })),
-    ...draftEstimateReviews.slice(0, 2).map((estimate) => ({
+    })) : []),
+    ...(capabilityEnabled("estimateDrafts") ? draftEstimateReviews.slice(0, 2).map((estimate) => ({
       id: `estimate-draft-${estimate.id}`,
       eyebrow: "Draft estimate review",
       title: estimateName(estimate),
@@ -463,8 +494,8 @@ export function deriveAiOfficeAgentCommandCenter({
       recordType: "estimate",
       actionMode: "packet",
       record: estimate,
-    })),
-    ...packetEstimateReviews.filter((estimate) => !draftEstimateReviews.some((draft) => draft.id === estimate.id)).slice(0, 1).map((estimate) => ({
+    })) : []),
+    ...(capabilityEnabled("estimateDrafts") ? packetEstimateReviews.filter((estimate) => !draftEstimateReviews.some((draft) => draft.id === estimate.id)).slice(0, 1).map((estimate) => ({
       id: `estimate-packet-${estimate.id}`,
       eyebrow: "Proposal packet review",
       title: estimateName(estimate),
@@ -476,8 +507,8 @@ export function deriveAiOfficeAgentCommandCenter({
       recordType: "estimate",
       actionMode: "packet",
       record: estimate,
-    })),
-    ...(canViewOpportunityScout ? asArray(opportunityScout.foundOpportunityQueue).slice(0, 3).map((opportunity) => ({
+    })) : []),
+    ...(canViewOpportunityScout && capabilityEnabled("opportunityScoutReview") ? asArray(opportunityScout.foundOpportunityQueue).slice(0, 3).map((opportunity) => ({
       id: `found-${opportunity.id || opportunity.opportunityId}`,
       eyebrow: opportunity.statusLabel || "Found work",
       title: opportunity.title || "Found opportunity",
@@ -489,7 +520,7 @@ export function deriveAiOfficeAgentCommandCenter({
       recordType: "opportunity",
       record: opportunity,
     })) : []),
-    ...reportsNeedingReview.slice(0, 2).map((report) => ({
+    ...(capabilityEnabled("closeoutReview") ? reportsNeedingReview.slice(0, 2).map((report) => ({
       id: `report-${report.id}`,
       eyebrow: "Report review",
       title: report.job?.title || report.jobTitle || "Submitted daily report",
@@ -500,8 +531,8 @@ export function deriveAiOfficeAgentCommandCenter({
       moduleId: "reports",
       recordType: "report",
       record: report,
-    })),
-    ...unlinkedUploads.slice(0, 2).map((upload) => ({
+    })) : []),
+    ...(capabilityEnabled("closeoutReview") ? unlinkedUploads.slice(0, 2).map((upload) => ({
       id: `upload-${upload.id}`,
       eyebrow: "Unlinked proof",
       title: uploadName(upload),
@@ -512,8 +543,8 @@ export function deriveAiOfficeAgentCommandCenter({
       moduleId: "uploads",
       recordType: "upload",
       record: upload,
-    })),
-    ...activeClocks.slice(0, 2).map((entry) => ({
+    })) : []),
+    ...(capabilityEnabled("closeoutReview") ? activeClocks.slice(0, 2).map((entry) => ({
       id: `time-${entry.id}`,
       eyebrow: "Active time clock",
       title: entry.userName || entry.employeeName || "Crew time entry",
@@ -524,8 +555,8 @@ export function deriveAiOfficeAgentCommandCenter({
       moduleId: "time",
       recordType: "timeEntry",
       record: entry,
-    })),
-    ...closeoutChangeOrders.slice(0, 2).map((changeOrder) => ({
+    })) : []),
+    ...(capabilityEnabled("closeoutReview") ? closeoutChangeOrders.slice(0, 2).map((changeOrder) => ({
       id: `change-order-${changeOrder.id}`,
       eyebrow: "Change order blocker",
       title: changeOrderName(changeOrder),
@@ -536,8 +567,8 @@ export function deriveAiOfficeAgentCommandCenter({
       moduleId: "changeOrders",
       recordType: "changeOrder",
       record: changeOrder,
-    })),
-    ...openSafetyIncidents.slice(0, 2).map((incident) => ({
+    })) : []),
+    ...(capabilityEnabled("closeoutReview") ? openSafetyIncidents.slice(0, 2).map((incident) => ({
       id: `safety-${incident.id}`,
       eyebrow: "Safety blocker",
       title: safetyName(incident),
@@ -548,10 +579,10 @@ export function deriveAiOfficeAgentCommandCenter({
       moduleId: "incidents",
       recordType: "safetyIncident",
       record: incident,
-    })),
-    ...fieldOpsItems.slice(0, 3).map((item) => ({
+    })) : []),
+    ...(capabilityEnabled("closeoutReview") ? fieldOpsItems.slice(0, 3).map((item) => ({
       id: `field-ops-${item.id}`,
-      eyebrow: item.contextLabel || fieldOpsAgent?.roleScope || "Field Ops Agent",
+      eyebrow: item.contextLabel || fieldOpsAgent?.roleScope || "Field ops",
       title: item.title || "Field item needs review",
       description: item.description || "Open the existing field workflow and review before taking action.",
       tone: item.severity === "critical" ? "red" : item.severity === "warning" ? "amber" : "blue",
@@ -560,8 +591,8 @@ export function deriveAiOfficeAgentCommandCenter({
       moduleId: item.moduleId || "jobs",
       recordType: "fieldOps",
       record: item,
-    })),
-    ...asArray(ownerBusinessIntelligence.reviewRows).slice(0, 3).map((row) => ({
+    })) : []),
+    ...(capabilityEnabled("ownerBiReview") ? asArray(ownerBusinessIntelligence.reviewRows).slice(0, 3).map((row) => ({
       id: row.id,
       eyebrow: row.source || "Owner BI",
       title: row.title,
@@ -572,8 +603,8 @@ export function deriveAiOfficeAgentCommandCenter({
       moduleId: row.moduleId || "copilot",
       recordType: "ownerBusinessIntelligence",
       record: row,
-    })),
-    ...newLeads.slice(0, 2).map((lead) => ({
+    })) : []),
+    ...(capabilityEnabled("leadReview") ? newLeads.slice(0, 2).map((lead) => ({
       id: `lead-${lead.id}`,
       eyebrow: lead.priority === "High" ? "High-priority lead" : "New lead",
       title: lead.customer || lead.project || "Unnamed lead",
@@ -584,8 +615,8 @@ export function deriveAiOfficeAgentCommandCenter({
       moduleId: "leads",
       recordType: "lead",
       record: lead,
-    })),
-    ...approvedLeads.slice(0, 2).map((lead) => ({
+    })) : []),
+    ...(capabilityEnabled("leadReview") ? approvedLeads.slice(0, 2).map((lead) => ({
       id: `approved-${lead.id}`,
       eyebrow: "Approved lead",
       title: lead.customer || lead.project || "Approved lead",
@@ -596,7 +627,7 @@ export function deriveAiOfficeAgentCommandCenter({
       moduleId: "leads",
       recordType: "lead",
       record: lead,
-    })),
+    })) : []),
     ...startupWatchJobs.slice(0, 2).map((job) => ({
       id: `job-${job.id}`,
       eyebrow: "Startup watch",
@@ -636,9 +667,9 @@ export function deriveAiOfficeAgentCommandCenter({
 
   return {
     canView: true,
-    modeLabel: "Review-first",
-    headline: "Agent Command Center",
-    summary: `${workflowCards.length} review lane${workflowCards.length === 1 ? "" : "s"} are available. Every lane routes into an existing Apex HQ workflow and keeps approval, messages, billing, and record changes manual.`,
+    modeLabel: automationPolicy.modeLabel,
+    headline: "Apex Agent Command Center",
+    summary: `${workflowCards.length} ${workflowCards.length === 1 ? "review capability is" : "review capabilities are"} available. Every capability routes into an existing Apex HQ workflow and keeps approval, messages, billing, and record changes manual.`,
     workflowCards,
     focusRows,
     tradeGuidance,
@@ -678,14 +709,25 @@ export function deriveAiOfficeAgentCommandCenter({
       openFoundOpportunities: scoutStats.openFoundOpportunities || 0,
       fieldOpsReview: fieldOpsReviewCount,
     },
-    guardrails: defaultAgentGuardrails(),
+    automationPolicy,
+    autonomyReadiness: deriveApexAgentAutonomyReadiness({
+      controls: automationPolicy,
+      visibleReviewCapabilities: workflowCards.length,
+      visibleReviewItems: focusRows.length,
+      tradeGuidanceCount: tradeGuidance.length,
+      hasLearningReview: canManageLearning,
+      hasAuditTrail: true,
+      fieldRoleBlocked: true,
+    }),
+    guardrails: defaultAgentGuardrails(automationPolicy),
   };
 }
 
-function defaultAgentGuardrails() {
+function defaultAgentGuardrails(automationPolicy = deriveApexAgentAutomationPolicyControls()) {
   return [
+    { id: "automation-policy", label: "Automation policy", detail: `${automationPolicy.modeLabel || "Review-first"} mode. ${automationPolicy.safetyCopy || "Human review remains required."}` },
     { id: "manual-actions", label: "Manual actions", detail: "No auto-send, approvals, invoice creation, package changes, or job status changes." },
     { id: "field-safety", label: "Field role boundary", detail: "Field users remain limited to assigned work and cannot open office agent command queues." },
-    { id: "existing-routes", label: "Existing workflows", detail: "Agent lanes route to saved Apex HQ modules instead of bypassing review screens." },
+    { id: "existing-routes", label: "Existing workflows", detail: "Apex Agent routes to saved Apex HQ modules instead of bypassing review screens." },
   ];
 }

@@ -85,7 +85,7 @@ async function login(baseUrl, credentials) {
   return assertOk(baseUrl, "/api/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(credentials),
+    body: JSON.stringify({ ...credentials, returnToken: true }),
   });
 }
 
@@ -274,6 +274,15 @@ function agentAuditPayload(overrides = {}) {
       prepType: "Estimate draft prep",
       label: "Newco Builders",
       reviewLabel: "No estimate is saved until a user reviews it.",
+      fieldPreview: [
+        {
+          field: "Rough notes",
+          currentValue: "No estimate created",
+          proposedValue: "Use api_key=secret123 for 120 LF cedar fence and contact bob@example.com",
+          source: "Assistant prompt",
+          note: "Human must review before save.",
+        },
+      ],
     }],
     targetEntityType: "lead",
     targetEntityId: "LEAD-1",
@@ -334,6 +343,7 @@ test("agent proposal audit is package gated, role gated, and append-only redacte
     assert.equal(payload.auditEvent.entityType, "agentActionProposal");
     assert.equal(payload.auditEvent.action, "agent.proposal.generated");
     assert.equal(payload.auditEvent.detail.approvalRequired, true);
+    assert.equal(payload.auditEvent.detail.draftPrepSummary[0].fieldPreview[0].field, "Rough notes");
     assert.doesNotMatch(JSON.stringify(payload.auditEvent), /secret123|bob@example\.com/i);
     assert.match(JSON.stringify(payload.auditEvent), /\[REDACTED\]/);
 
@@ -342,6 +352,7 @@ test("agent proposal audit is package gated, role gated, and append-only redacte
     assert.equal(records[0].entityId, "agent-proposal:estimate-draft-review:estimates");
     assert.equal(records[0].actorUserId, adminLogin.user.id);
     assert.doesNotMatch(records[0].detail, /secret123|bob@example\.com/i);
+    assert.match(records[0].detail, /Rough notes/);
     assert.match(records[0].detail, /Unsafe automation request remains review-only/);
   } finally {
     await fixture.stop();

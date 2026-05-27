@@ -20,6 +20,7 @@ import {
   resolveAssistantLeadFollowUpCommand,
   resolveAssistantMaterialPlanningCommand,
   resolveAssistantMissingProofCommand,
+  resolveAssistantOperatorCommand,
   resolveAssistantPilotHandoffReadinessCommand,
   resolveAssistantPostPourReviewCommand,
   resolveAssistantPrePourReviewCommand,
@@ -90,6 +91,15 @@ test("assistant commands route to existing modules without write actions", () =>
   assert.equal(estimateCommand.moduleId, "estimates");
   assert.equal(fallbackCommand.moduleId, "commandCenter");
   assert.match(fallbackCommand.message, /will not send customer messages automatically/i);
+});
+
+test("broad contractor business questions fall through to the advisor path", () => {
+  const moneyQuestion = resolveApexAssistantCommand("Where am I losing money?");
+  const marketingQuestion = resolveApexAssistantCommand("How do we market better?");
+
+  assert.equal(moneyQuestion.type, "safe-fallback");
+  assert.equal(marketingQuestion.type, "safe-fallback");
+  assert.notEqual(moneyQuestion.moduleId, "schedule");
 });
 
 test("assistant summarizes workflow context without mutating records", () => {
@@ -1452,6 +1462,54 @@ test("assistant classifies lead to estimate rough-note commands with a review ma
   assert.equal(command.matches[0].leadId, "LEAD-ABC");
   assert.match(command.roughNotes, /500 SF/);
   assert.match(command.message, /ABC Builders/);
+});
+
+test("assistant operator command turns a matched lead into an internal draft action plan", () => {
+  const command = resolveAssistantOperatorCommand(
+    "Turn ABC Builders lead into an estimate and send it",
+    {
+      permissions: {
+        estimates: { canManage: true, canUseAiRoughNotes: true },
+        leads: { canView: true },
+      },
+      leads: [
+        {
+          id: "LEAD-ABC",
+          customer: "ABC Builders",
+          project: "Salem warehouse slab",
+          city: "Salem",
+          status: "Needs Estimate",
+        },
+      ],
+      customers: [],
+    },
+  );
+
+  assert.equal(command.type, "estimate-draft-review");
+  assert.equal(command.operatorMode, "internal_draft_action");
+  assert.equal(command.operatorAutonomyLevel, "L3 internal draft");
+  assert.equal(command.matches.length, 1);
+  assert.equal(command.matches[0].leadId, "LEAD-ABC");
+  assert.equal(command.actionLabel, "Do it: create draft");
+  assert.match(command.message, /create the internal draft estimate/i);
+  assert.equal(command.blockedExternalActions.some((action) => action.id === "customer-send"), true);
+});
+
+test("assistant command routes lead-to-estimate operator intent before external-send blocking", () => {
+  const command = resolveApexAssistantCommand("Turn ABC Builders lead into an estimate and email it", {
+    commandContext: {
+      permissions: {
+        estimates: { canManage: true, canUseAiRoughNotes: true },
+        leads: { canView: true },
+      },
+      leads: [{ id: "LEAD-ABC", customer: "ABC Builders", project: "Warehouse" }],
+    },
+  });
+
+  assert.equal(command.type, "estimate-draft-review");
+  assert.equal(command.operatorMode, "internal_draft_action");
+  assert.equal(command.matches[0].leadId, "LEAD-ABC");
+  assert.equal(command.blockedExternalActions.some((action) => action.id === "customer-send"), true);
 });
 
 test("assistant estimate command shows choices for ambiguous records", () => {

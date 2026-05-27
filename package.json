@@ -91,6 +91,7 @@
     "pilot:sunday-readiness": "node scripts/sunday-pilot-readiness.mjs",
     "sandbox:fake-company": "node scripts/fake-company-sandbox.mjs",
     "smoke:hosted": "node scripts/hosted-smoke.mjs",
+    "smoke:hosted-agent": "node scripts/hosted-smoke.mjs --flows=health,routes,auth,restricted-routes,agent",
     "smoke:self-serve-local": "node scripts/self-serve-local-smoke.mjs",
     "monitor:readiness": "node scripts/readiness-timing.mjs",
     "verify:production-auth-smoke-readiness": "node scripts/production-auth-smoke-readiness.mjs",

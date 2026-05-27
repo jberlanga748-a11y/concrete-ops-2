@@ -141,6 +141,22 @@ export function getAgentContext(token) {
   return request("/api/agent/context", { token });
 }
 
+export function getAgentOperatingSystem(token) {
+  return request("/api/agent/os", { token });
+}
+
+export function queueAgentOperatingSystemTask(token, payload) {
+  return request("/api/agent/os/tasks", { method: "POST", token, body: payload });
+}
+
+export function updateAgentOperatingSystemRunStatus(token, id, payload) {
+  return request(`/api/agent/os/runs/${id}/status`, { method: "POST", token, body: payload });
+}
+
+export function executeAgentOperatingSystemRun(token, id, payload = {}) {
+  return request(`/api/agent/os/runs/${id}/execute`, { method: "POST", token, body: payload });
+}
+
 export function exportCompanyData(token) {
   return request("/api/export/company", { token });
 }
@@ -191,6 +207,22 @@ export function suggestAgentLearningFromCloseouts(token) {
 
 export function updateAgentLearningPreference(token, id, payload) {
   return request(`/api/agent/learning-preferences/${id}`, { method: "PATCH", token, body: payload });
+}
+
+export function getAgentConversationThreads(token) {
+  return request("/api/agent/conversations", { token });
+}
+
+export function askApexAgent(token, payload) {
+  return request("/api/agent/ask", { method: "POST", token, body: payload });
+}
+
+export function createAgentConversationThread(token, payload) {
+  return request("/api/agent/conversations", { method: "POST", token, body: payload });
+}
+
+export function updateAgentConversationThread(token, id, payload) {
+  return request(`/api/agent/conversations/${id}`, { method: "PATCH", token, body: payload });
 }
 
 export function updateCompanySettings(token, payload) {

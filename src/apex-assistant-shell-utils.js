@@ -43,7 +43,7 @@ const ROUTE_COMMANDS = [
     id: "schedule",
     moduleId: "schedule",
     actionLabel: "Open schedule",
-    keywords: ["schedule", "today", "tomorrow", "where"],
+    keywords: ["schedule", "today", "tomorrow"],
     message: "Open Schedule to see who is going where today and tomorrow.",
   },
   {
@@ -197,6 +197,9 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
   const text = normalizeText(input);
   const firstAction = asArray(state.watchtowerActions)[0] || asArray(state.watchtowerQueue)[0] || null;
 
+  const operatorCommand = resolveAssistantOperatorCommand(input, state.commandContext || {});
+  if (operatorCommand) return operatorCommand;
+
   const blocked = resolveBlockedActionCommand(input);
   if (blocked) return blocked;
 
@@ -316,6 +319,38 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
     moduleId: "commandCenter",
     actionLabel: "Open Command Center",
     message: "I can route you to Apex HQ workflows and summarize Watchtower items. I will not create, send, approve, or edit records automatically in this phase.",
+  };
+}
+
+export function resolveAssistantOperatorCommand(input = "", context = {}) {
+  const rawText = String(input || "").trim();
+  const normalized = normalizeText(rawText);
+  if (!hasLeadToEstimateOperatorIntent(normalized)) return null;
+
+  const estimateDraft = resolveAssistantEstimateDraftCommand(rawText, context);
+  if (!estimateDraft || estimateDraft.type === "blocked-command" || estimateDraft.type === "package-blocked") {
+    return estimateDraft;
+  }
+
+  const externalRequests = detectRequestedExternalActions(rawText);
+  const leadMatches = asArray(estimateDraft.matches).filter((match) => match.type === "lead" && match.leadId);
+
+  return {
+    ...estimateDraft,
+    operatorMode: "internal_draft_action",
+    operatorAutonomyLevel: "L3 internal draft",
+    actionLabel: leadMatches.length === 1 ? "Do it: create draft" : estimateDraft.actionLabel,
+    message: leadMatches.length === 1
+      ? `I can create the internal draft estimate for ${leadMatches[0].label} now.`
+      : leadMatches.length > 1
+        ? "I found multiple possible leads. Choose the right lead and I can create the internal draft estimate."
+        : "I can start the estimate workspace, but I need a matched lead before I can create the internal draft automatically.",
+    requestedExternalActions: externalRequests,
+    blockedExternalActions: externalRequests.map((action) => ({
+      id: action.id,
+      label: action.label,
+      reason: action.reason,
+    })),
   };
 }
 
@@ -1444,8 +1479,48 @@ function resolveBlockedActionCommand(input = "") {
 }
 
 function hasEstimateDraftIntent(text = "") {
-  return /\b(start|create|build|make|draft|prepare|open)\b/.test(text)
+  return /\b(start|create|build|make|draft|prepare|open|turn|convert|write|generate|do|handle)\b/.test(text)
     && /\b(estimate|proposal|quote|bid|gc packet)\b/.test(text);
+}
+
+function hasLeadToEstimateOperatorIntent(text = "") {
+  const asksAgentToAct = /\b(do|handle|run|turn|convert|create|make|write|build|generate|draft)\b/.test(text);
+  const mentionsLead = /\b(lead|customer|prospect|opportunity)\b/.test(text);
+  const mentionsEstimate = /\b(estimate|proposal|quote|bid)\b/.test(text);
+  const directConversion = /\b(turn|convert|move)\b[\s\S]*?\b(?:lead|customer|prospect|opportunity)\b[\s\S]*?\b(?:into|to)\b[\s\S]*?\b(?:estimate|proposal|quote|bid)\b/.test(text);
+  const createForLead = /\b(create|make|write|build|generate|draft)\b[\s\S]*?\b(?:estimate|proposal|quote|bid)\b[\s\S]*?\b(?:for|from)\b/.test(text);
+  return asksAgentToAct && mentionsLead && mentionsEstimate && (directConversion || createForLead);
+}
+
+function detectRequestedExternalActions(input = "") {
+  const source = normalizeText(input);
+  const requests = [
+    {
+      id: "customer-send",
+      label: "Customer send",
+      pattern: /\b(send|email|text|sms|message|notify|contact)\b/,
+      reason: "Customer communication needs the sender/integration autonomy gate before Apex Agent can execute it.",
+    },
+    {
+      id: "payment",
+      label: "Payment collection",
+      pattern: /\b(payment|collect|charge|invoice|deposit|checkout|stripe)\b/,
+      reason: "Payment and invoice actions need the billing/payment autonomy gate before Apex Agent can execute them.",
+    },
+    {
+      id: "schedule",
+      label: "Schedule or crew change",
+      pattern: /\b(schedule|assign|dispatch|crew|foreman)\b/,
+      reason: "Schedule and crew actions need the dispatch autonomy gate before Apex Agent can execute them.",
+    },
+    {
+      id: "bid-submit",
+      label: "Bid submission",
+      pattern: /\b(submit|upload)\b[\s\S]*?\b(bid|proposal|portal)\b|\b(bid|proposal)\b[\s\S]*?\b(submit|portal)\b/,
+      reason: "Bid submission needs the external portal autonomy gate before Apex Agent can execute it.",
+    },
+  ];
+  return requests.filter((request) => request.pattern.test(source));
 }
 
 function hasJobHandoffIntent(text = "") {
@@ -3274,6 +3349,12 @@ function roughNoteLooksLikeScope(value = "") {
 
 function extractEstimateTargetQuery(input = "") {
   const rawText = String(input || "").trim();
+  const conversionMatch = rawText.match(/\b(?:turn|convert|move)\b\s+(.+?)\s+\b(?:lead|customer|prospect|opportunity)\b\s+\b(?:into|to)\b\s+(?:an?\s+)?(?:estimate|proposal|quote|bid)\b/i);
+  if (conversionMatch?.[1]) return cleanTargetQuery(conversionMatch[1]);
+
+  const createForLeadMatch = rawText.match(/\b(?:create|make|write|build|generate|draft|do|handle)\b[\s\S]*?\b(?:estimate|proposal|quote|bid)\b\s+(?:for|from)\s+(.+?)(?:\s+\b(?:lead|customer|prospect|opportunity)\b)?(?:\s+\b(?:with|using|rough notes?|notes?|scope|details?|and)\b|$)/i);
+  if (createForLeadMatch?.[1]) return cleanTargetQuery(createForLeadMatch[1]);
+
   const beforeAction = rawText.split(/\b(?:and\s+)?(?:start|create|build|make|draft|prepare)\b.*\b(?:estimate|proposal|quote|bid|gc packet)\b/i)[0] || "";
   const cleanedBeforeAction = cleanTargetQuery(beforeAction.replace(/\b(open|pull up|find|lead|customer|company|for|from|this|the)\b/gi, " "));
   if (cleanedBeforeAction) return cleanedBeforeAction;

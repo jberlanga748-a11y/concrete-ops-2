@@ -17,6 +17,8 @@ import {
 import { PACKAGE_IDS, normalizePackageId } from "../shared/packages.js";
 import { normalizeManagedSetupSettings } from "../shared/managedCompanySetup.js";
 import { normalizeAgentLearningPreferences } from "../shared/agentLearningPreferences.js";
+import { normalizeAgentConversationThread } from "../shared/agentConversations.js";
+import { normalizeApexAgentAutomationPolicy } from "../shared/apexAgentAutomationPolicy.js";
 import { DEFAULT_COMPANY_SETTINGS } from "../shared/permissions.js";
 import { normalizeConstructionTradeId } from "../shared/constructionTrades.js";
 import { normalizeImportedJobDrafts } from "../shared/jobDraftImports.js";
@@ -688,6 +690,7 @@ export function createEmptyState() {
     foundOpportunities: [],
     leadStatusHistory: [],
     contactHistory: [],
+    agentConversationThreads: [],
     jobs: [],
     jobAssignments: [],
     jobDraftImports: [],
@@ -1882,6 +1885,7 @@ export function createSeedState() {
     foundOpportunities: [],
     leadStatusHistory,
     contactHistory: [],
+    agentConversationThreads: [],
     jobs,
     jobAssignments: includeDemoRecords ? jobAssignments : [],
     jobDraftImports: [],
@@ -3835,6 +3839,7 @@ function normalizeCompanySettings(settings = {}) {
     packageId: normalizePackageId(settings?.packageId),
     toolChecklistEnabled: settings?.toolChecklistEnabled !== false,
     agentLearningPreferences: normalizeAgentLearningPreferences(settings?.agentLearningPreferences),
+    apexAgentAutomationPolicy: normalizeApexAgentAutomationPolicy(settings?.apexAgentAutomationPolicy),
     ...managedSetup,
   };
 }
@@ -3862,6 +3867,7 @@ function companySettingsPairs(settings = {}) {
     ["managedSetupNotes", normalized.managedSetupNotes || ""],
     ["managedSetupUpdatedAt", normalized.managedSetupUpdatedAt || ""],
     ["agentLearningPreferences", JSON.stringify(normalized.agentLearningPreferences || [])],
+    ["apexAgentAutomationPolicy", JSON.stringify(normalized.apexAgentAutomationPolicy || normalizeApexAgentAutomationPolicy())],
   ];
 }
 
@@ -5939,6 +5945,41 @@ const MIGRATIONS = [
         `);
       },
     },
+    {
+      version: 52,
+      description: "Persist Apex Agent customer conversation inbox.",
+      up(database) {
+        database.exec(`
+          CREATE TABLE IF NOT EXISTS agent_conversation_threads (
+            id TEXT PRIMARY KEY,
+            sort_index INTEGER NOT NULL,
+            company_id TEXT NOT NULL,
+            entity_type TEXT NOT NULL DEFAULT 'customer',
+            entity_id TEXT NOT NULL DEFAULT '',
+            customer_name TEXT NOT NULL DEFAULT '',
+            project_title TEXT NOT NULL DEFAULT '',
+            source TEXT NOT NULL DEFAULT 'ai-office-customer-preview',
+            status TEXT NOT NULL DEFAULT 'needs_review',
+            title TEXT NOT NULL DEFAULT '',
+            summary TEXT NOT NULL DEFAULT '',
+            risk_level TEXT NOT NULL DEFAULT 'low',
+            messages_json TEXT NOT NULL DEFAULT '[]',
+            review_cards_json TEXT NOT NULL DEFAULT '[]',
+            blocked_actions_json TEXT NOT NULL DEFAULT '[]',
+            created_by TEXT NOT NULL DEFAULT '',
+            created_by_name TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            archived_at TEXT
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_agent_conversation_threads_company_id ON agent_conversation_threads(company_id);
+          CREATE INDEX IF NOT EXISTS idx_agent_conversation_threads_entity ON agent_conversation_threads(entity_type, entity_id);
+          CREATE INDEX IF NOT EXISTS idx_agent_conversation_threads_status ON agent_conversation_threads(status);
+          CREATE INDEX IF NOT EXISTS idx_agent_conversation_threads_updated_at ON agent_conversation_threads(updated_at);
+        `);
+      },
+    },
   ];
 
 function runInTransaction(database, work) {
@@ -6024,6 +6065,11 @@ function writeStateToDatabase(database, state) {
   const insertContactHistory = database.prepare(`
     INSERT INTO contact_history (id, sort_index, company_id, entity_type, entity_id, contact_name, contact_email, contact_phone, method, direction, outcome, subject, message_draft, notes, contacted_at, next_follow_up_date, created_by, created_by_name, created_at, updated_at, archived_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const insertAgentConversationThread = database.prepare(`
+    INSERT INTO agent_conversation_threads (id, sort_index, company_id, entity_type, entity_id, customer_name, project_title, source, status, title, summary, risk_level, messages_json, review_cards_json, blocked_actions_json, created_by, created_by_name, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertJob = database.prepare(`
@@ -6176,6 +6222,7 @@ function writeStateToDatabase(database, state) {
       DELETE FROM users;
       DELETE FROM customers;
       DELETE FROM contact_history;
+      DELETE FROM agent_conversation_threads;
       DELETE FROM lead_status_history;
       DELETE FROM found_opportunities;
       DELETE FROM opportunity_search_profiles;
@@ -6461,6 +6508,34 @@ function writeStateToDatabase(database, state) {
         entry.createdAt || isoNow(),
         entry.updatedAt || entry.createdAt || isoNow(),
         entry.archivedAt || null,
+      );
+    });
+
+    (state.agentConversationThreads || []).forEach((thread, index) => {
+      const normalized = normalizeAgentConversationThread(thread, {
+        now: thread.updatedAt || thread.createdAt || isoNow(),
+      });
+      insertAgentConversationThread.run(
+        normalized.id,
+        index,
+        normalizeCompanyId(normalized.companyId),
+        normalized.entityType || "customer",
+        normalized.entityId || "",
+        normalized.customerName || "",
+        normalized.projectTitle || "",
+        normalized.source || "ai-office-customer-preview",
+        normalized.status || "needs_review",
+        normalized.title || "",
+        normalized.summary || "",
+        normalized.riskLevel || "low",
+        JSON.stringify(normalized.messages || []),
+        JSON.stringify(normalized.reviewCards || []),
+        JSON.stringify(normalized.blockedActions || []),
+        normalized.createdBy || "",
+        normalized.createdByName || "",
+        normalized.createdAt || isoNow(),
+        normalized.updatedAt || normalized.createdAt || isoNow(),
+        normalized.archivedAt || null,
       );
     });
 
@@ -7185,6 +7260,22 @@ function readTableState(database = createDatabaseConnection()) {
     ORDER BY sort_index ASC
   `).all().map((entry) => withDefaultCompanyId(entry));
 
+  const agentConversationThreads = database.prepare(`
+    SELECT id, company_id AS companyId, entity_type AS entityType, entity_id AS entityId, customer_name AS customerName,
+           project_title AS projectTitle, source, status, title, summary, risk_level AS riskLevel, messages_json AS messages,
+           review_cards_json AS reviewCards, blocked_actions_json AS blockedActions, created_by AS createdBy,
+           created_by_name AS createdByName, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
+    FROM agent_conversation_threads
+    ORDER BY sort_index ASC
+  `).all().map((thread) => normalizeAgentConversationThread({
+    ...withDefaultCompanyId(thread),
+    messages: parseJsonValue(thread.messages, []),
+    reviewCards: parseJsonValue(thread.reviewCards, []),
+    blockedActions: parseJsonValue(thread.blockedActions, []),
+  }, {
+    now: thread.updatedAt || thread.createdAt || isoNow(),
+  }));
+
   const jobs = database.prepare(`
     SELECT id, company_id AS companyId, customer_id AS customerId, lead_id AS leadId, title, job, customer, address, site_contact AS siteContact, scope_summary AS scopeSummary, scheduled_start AS scheduledStart, scheduled_end AS scheduledEnd, estimated_duration AS estimatedDuration, crew_size_needed AS crewSizeNeeded, equipment_notes AS equipmentNotes, safety_notes AS safetyNotes, material_notes AS materialNotes, field_notes AS fieldNotes, assigned_foreman_id AS assignedForemanId, assigned_user_id AS assignedUserId, field_planning_visible AS fieldPlanningVisible, visible_to_foreman AS visibleToForeman, status, stage, crew, next_step_v2 AS nextStep, next_step AS next, due, progress, notes, startup_checklist AS startupChecklist, startup_status AS startupStatus, startup_completed_at AS startupCompletedAt, startup_completed_by AS startupCompletedBy, startup_notes AS startupNotes, source_imported_draft_id AS sourceImportedDraftId, startup_last_updated_at AS startupLastUpdatedAt, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
     FROM jobs
@@ -7436,6 +7527,7 @@ function readTableState(database = createDatabaseConnection()) {
     foundOpportunities,
     leadStatusHistory,
     contactHistory,
+    agentConversationThreads,
     jobs: derivedAssignmentState.jobs,
     jobAssignments: derivedAssignmentState.jobAssignments,
     jobDraftImports,
