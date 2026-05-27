@@ -98,6 +98,7 @@ import {
 } from "../shared/contractorAdvisorAi.js";
 import {
   buildAgentOsInternalDraftPacket,
+  buildAgentOsExternalGateDecisionPacket,
   buildAgentOsSummary,
   createAgentOsRunForTask,
   deriveAgentOsLedgerFromAuditEvents,
@@ -6025,7 +6026,7 @@ function assertCanQueueAgentOsAction(state, user, action) {
     throw new ApiError(400, "Unknown Apex Agent OS action.");
   }
   if (action.externalGate) {
-    throw new ApiError(403, "External Apex Agent actions are locked until the exact boundary is explicitly approved.");
+    throw new ApiError(403, "External Apex Agent gate boundaries are approved for implementation, but live execution requires the normal domain adapter, company opt-in, human confirmation, idempotency, audit, rollback, role/package, and tenant checks.");
   }
   const allowed = (() => {
     switch (action.actionId) {
@@ -6597,6 +6598,18 @@ function assertCanPrepareAgentProposalEstimateSend(state, user, proposal) {
   if (!entitlements.estimates.canUseGcPackets || !canManageEstimates(user)) {
     throw new ApiError(403, "You do not have permission to prepare estimate send review.");
   }
+}
+
+function assertAgentExternalGateEnabledForWorkflow(state, user, gateId, workflowId) {
+  const settings = companySettingsForState(state, user);
+  const gate = settings.apexAgentAutomationPolicy?.externalGateSettings?.[gateId] || {};
+  if (gate.enabled !== true || gate.mode !== "human_confirmed") {
+    throw new ApiError(403, "This Apex Agent external gate is not enabled for this company.");
+  }
+  if (gate.allowedWorkflow && gate.allowedWorkflow !== workflowId) {
+    throw new ApiError(403, "This Apex Agent external gate is not enabled for this workflow.");
+  }
+  return gate;
 }
 
 function firstPresentString(...values) {
@@ -7641,9 +7654,28 @@ app.get("/api/agent/os", requireAuth, asyncRoute(async (req, res) => {
   res.json({
     agentOs: buildAgentOsSummary({
       workflowSettings: settings.apexAgentAutomationPolicy?.workflowSettings,
+      externalGateSettings: settings.apexAgentAutomationPolicy?.externalGateSettings,
       workspace: bootstrapPayload,
       auditEvents,
     }),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/agent/os/external-gates/:gateId", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanUseAgentOperatingSystem(state, req.auth.user);
+  const packet = buildAgentOsExternalGateDecisionPacket(req.params.gateId, {
+    companyId: currentCompanyIdForRequestUser(state, req.auth.user),
+    actorUserId: req.auth.user.id,
+    externalGateSettings: companySettingsForState(state, req.auth.user).apexAgentAutomationPolicy?.externalGateSettings,
+    now: new Date().toISOString(),
+  });
+  if (!packet.ok) {
+    throw new ApiError(404, packet.error || "Apex Agent external gate not found.");
+  }
+  res.json({
+    externalGate: packet,
     requestId: res.locals.requestId,
   });
 }));
@@ -8306,6 +8338,105 @@ app.post("/api/agent-action-proposals/prepare-estimate-send", requireAuth, async
   });
 }));
 
+app.post("/api/agent-action-proposals/execute-estimate-send", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageEstimatesForRequest(req.auth.user);
+  if (req.body?.reviewConfirmed !== true || req.body?.customerContactConfirmed !== true || req.body?.externalGateConfirmed !== true) {
+    throw new ApiError(400, "Confirm human review, customer contact, and the Apex Agent external email gate before sending this estimate.");
+  }
+
+  const proposalPayload = req.body?.proposal && typeof req.body.proposal === "object" ? req.body.proposal : req.body || {};
+  const estimateId = optionalString(req.body?.estimateId || proposalPayload.targetEntityId, "");
+  const normalized = normalizeAgentProposalAuditPayload({
+    ...proposalPayload,
+    eventType: "agent.proposal.generated",
+    status: "needs_human_review",
+    proposalType: proposalPayload.proposalType || "estimate-packet-review",
+    targetEntityType: "estimate",
+    targetEntityId: estimateId,
+  });
+
+  if (!estimateId) {
+    throw new ApiError(400, "Estimate ID is required before Apex Assistant can execute an approved email send.");
+  }
+
+  const state = await readDb();
+  assertCanPrepareAgentProposalEstimateSend(state, req.auth.user, normalized);
+  assertAgentExternalGateEnabledForWorkflow(state, req.auth.user, "email_send", "estimate_send");
+  if (!hasAgentProposalAuditEvent(state, req.auth.user, normalized, "agent.proposal.generated")) {
+    throw new ApiError(409, "Record the generated agent estimate packet proposal before email execution.");
+  }
+  if (!hasAgentProposalAuditEvent(state, req.auth.user, normalized, "agent.proposal.send_ready_for_human")) {
+    throw new ApiError(409, "Prepare the agent send review before email execution.");
+  }
+  if (hasAgentProposalAuditEvent(state, req.auth.user, normalized, "agent.proposal.email_sent")) {
+    throw new ApiError(409, "This agent-approved estimate email send has already been executed.");
+  }
+  const estimateRecord = findEstimate(state, estimateId, req.auth.user);
+  if (estimateRecord.archivedAt) {
+    throw new ApiError(400, "Archived estimates cannot be sent from an agent-approved gate.");
+  }
+  if (estimateRecord.sentAt || estimateRecord.status === "sent") {
+    throw new ApiError(409, "This estimate is already marked sent.");
+  }
+
+  const result = await executeEstimateEmailSendWorkflow({
+    estimateId,
+    user: req.auth.user,
+    reviewConfirmed: true,
+    reviewAuditAction: "agent_send_review_confirmed",
+    reviewAuditSummary: "Agent-approved estimate send reviewed by human",
+    sentAuditAction: "agent_sent",
+    sentAuditSummary: "Agent-approved estimate email sent",
+    sentActivityTitle: "Agent-approved estimate emailed",
+    appendAgentEvents: (draft, { estimate, providerMessageId, emailSubject, attachmentFilename }) => {
+      if (!hasAgentProposalAuditEvent(draft, req.auth.user, normalized, "agent.proposal.email_sent")) {
+        appendAgentProposalAuditEvent(draft, req.auth.user, {
+          ...normalized,
+          blockedReasons: [
+            ...new Set([
+              ...(normalized.blockedReasons || []),
+              "Email was sent only after explicit human confirmation through the approved Apex Agent email gate.",
+              "No SMS, bid submission, invoice, payment collection, schedule mutation, portal write, integration write, job conversion, or field update was created.",
+            ]),
+          ],
+        }, {
+          eventType: "agent.proposal.email_sent",
+          status: "email_sent_by_human",
+          summary: "Estimate email sent from human-confirmed Agent gate",
+        });
+      }
+      appendAuditEvent(draft, {
+        entityType: "agentExternalGate",
+        entityId: `email_send:${estimate.id}`,
+        action: "agent.os.external.email_send.executed",
+        summary: "Human-confirmed Apex Agent email gate executed",
+        detail: JSON.stringify({
+          gateId: "email_send",
+          workflowId: "estimate_send",
+          estimateId: estimate.id,
+          proposalId: normalized.proposalId,
+          providerMessageId,
+          emailSubject,
+          attachmentFilename,
+          safetyBoundary: "Human-confirmed email send only. No SMS, payment, portal write, scheduling mutation, bid submission, integration write, production config, secret, or production data shortcut occurred.",
+        }),
+        actor: req.auth.user,
+        changedFields: ["status", "sentAt", "sentBy", "sentTo", "emailSubject", "providerMessageId", "updatedAt"],
+      });
+    },
+  });
+
+  res.status(201).json({
+    ...sanitizeBootstrap(result.nextState, req.auth.user),
+    agentEstimateEmailSend: {
+      ...result.emailSend,
+      gateId: "email_send",
+      workflowId: "estimate_send",
+      proposalId: normalized.proposalId,
+    },
+  });
+}));
+
 app.post("/api/agent-action-proposals/convert-estimate-to-job", requireAuth, asyncRoute(async (req, res) => {
   assertCanManageEstimatesForRequest(req.auth.user);
   const proposalPayload = req.body?.proposal && typeof req.body.proposal === "object" ? req.body.proposal : req.body || {};
@@ -8537,6 +8668,10 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
         workflowSettings: {
           ...(draft.companySettings.apexAgentAutomationPolicy?.workflowSettings || {}),
           ...(payload.apexAgentAutomationPolicy?.workflowSettings || {}),
+        },
+        externalGateSettings: {
+          ...(draft.companySettings.apexAgentAutomationPolicy?.externalGateSettings || {}),
+          ...(payload.apexAgentAutomationPolicy?.externalGateSettings || {}),
         },
         updatedAt: changedAt,
       })
@@ -8979,9 +9114,19 @@ function convertApprovedEstimateToJobInDraft(draft, estimateId, user, payload = 
   return job;
 }
 
-app.post("/api/estimates/:id/send", requireAuth, asyncRoute(async (req, res) => {
-  assertCanManageEstimatesForRequest(req.auth.user);
-  if (req.body?.reviewConfirmed !== true) {
+async function executeEstimateEmailSendWorkflow({
+  estimateId = "",
+  user,
+  reviewConfirmed = false,
+  reviewAuditAction = "send_review_confirmed",
+  reviewAuditSummary = "Estimate send reviewed by human",
+  sentAuditAction = "sent",
+  sentAuditSummary = "Estimate email sent",
+  sentActivityTitle = "Estimate emailed",
+  appendAgentEvents = null,
+} = {}) {
+  assertCanManageEstimatesForRequest(user);
+  if (reviewConfirmed !== true) {
     throw new ApiError(400, "Confirm human review of the recipient, scope, total, attachments, exclusions, and terms before sending this estimate.");
   }
   if (!isEstimateEmailConfigured()) {
@@ -8989,14 +9134,14 @@ app.post("/api/estimates/:id/send", requireAuth, asyncRoute(async (req, res) => 
   }
 
   const state = await readDb();
-  const estimateRecord = findEstimate(state, req.params.id, req.auth.user);
-  const estimate = sanitizeEstimateForUser(estimateRecord, state, req.auth.user);
+  const estimateRecord = findEstimate(state, estimateId, user);
+  const estimate = sanitizeEstimateForUser(estimateRecord, state, user);
   const sentTo = estimateCustomerEmail(estimate);
   if (!sentTo) {
     throw new ApiError(400, "Add a customer email before sending this estimate.");
   }
 
-  const settings = companySettingsForState(state, req.auth.user);
+  const settings = companySettingsForState(state, user);
   const companyName = settings.companyName || "Apex HQ Workspace";
   const emailSubject = buildEstimateEmailSubject({ estimate });
   const emailText = buildEstimateAttachmentEmailBody({
@@ -9012,14 +9157,14 @@ app.post("/api/estimates/:id/send", requireAuth, asyncRoute(async (req, res) => 
   });
 
   await updateDb((draft) => {
-    const estimateToReview = findEstimate(draft, req.params.id, req.auth.user);
+    const estimateToReview = findEstimate(draft, estimateId, user);
     appendAuditEvent(draft, {
       entityType: "estimate",
       entityId: estimateToReview.id,
-      action: "send_review_confirmed",
-      summary: "Estimate send reviewed by human",
-      detail: `${req.auth.user.name} confirmed recipient, scope, total, attachments, exclusions, and terms before email delivery. No email has been sent by this review event.`,
-      actor: req.auth.user,
+      action: reviewAuditAction,
+      summary: reviewAuditSummary,
+      detail: `${user.name} confirmed recipient, scope, total, attachments, exclusions, and terms before email delivery. No email has been sent by this review event.`,
+      actor: user,
       changedFields: [],
     });
     return draft;
@@ -9043,35 +9188,56 @@ app.post("/api/estimates/:id/send", requireAuth, asyncRoute(async (req, res) => 
 
   const changedAt = new Date().toISOString();
   const nextState = await updateDb((draft) => {
-    const estimateToUpdate = findEstimate(draft, req.params.id, req.auth.user);
+    const estimateToUpdate = findEstimate(draft, estimateId, user);
     estimateToUpdate.status = "sent";
     estimateToUpdate.sentAt = changedAt;
-    estimateToUpdate.sentBy = req.auth.user.id;
+    estimateToUpdate.sentBy = user.id;
     estimateToUpdate.sentTo = sentTo;
     estimateToUpdate.emailSubject = emailSubject;
     estimateToUpdate.providerMessageId = sendResult.providerMessageId || "";
     markUpdated(estimateToUpdate, changedAt);
-    appendActivity(draft, "Estimate emailed", `${req.auth.user.name} sent estimate ${estimateToUpdate.title} to ${sentTo}.`);
+    appendActivity(draft, sentActivityTitle, `${user.name} sent estimate ${estimateToUpdate.title} to ${sentTo}.`);
     appendAuditEvent(draft, {
       entityType: "estimate",
       entityId: estimateToUpdate.id,
-      action: "sent",
-      summary: "Estimate email sent",
-      detail: `${req.auth.user.name} sent estimate ${estimateToUpdate.title} to ${sentTo}.`,
-      actor: req.auth.user,
+      action: sentAuditAction,
+      summary: sentAuditSummary,
+      detail: `${user.name} sent estimate ${estimateToUpdate.title} to ${sentTo}.`,
+      actor: user,
       changedFields: ["status", "sentAt", "sentBy", "sentTo", "emailSubject", "providerMessageId", "updatedAt"],
     });
+    if (typeof appendAgentEvents === "function") {
+      appendAgentEvents(draft, {
+        estimate: estimateToUpdate,
+        providerMessageId: sendResult.providerMessageId || "",
+        emailSubject,
+        attachmentFilename: estimateAttachment.filename,
+      });
+    }
     return draft;
   });
 
-  res.json({
-    ...sanitizeBootstrap(nextState, req.auth.user),
+  return {
+    nextState,
     emailSend: {
       sentTo,
       emailSubject,
       providerMessageId: sendResult.providerMessageId || "",
       attachmentFilename: estimateAttachment.filename,
     },
+  };
+}
+
+app.post("/api/estimates/:id/send", requireAuth, asyncRoute(async (req, res) => {
+  const result = await executeEstimateEmailSendWorkflow({
+    estimateId: req.params.id,
+    user: req.auth.user,
+    reviewConfirmed: req.body?.reviewConfirmed === true,
+  });
+
+  res.json({
+    ...sanitizeBootstrap(result.nextState, req.auth.user),
+    emailSend: result.emailSend,
   });
 }));
 

@@ -75,6 +75,13 @@ const DEFAULT_POLICY = Object.freeze({
 const CUSTOMER_CONTACT_CLASSES = new Set(["send_customer_message", "submit_bid", "send_proposal"]);
 const FINANCIAL_CLASSES = new Set(["create_invoice", "collect_payment", "finalize_profit_loss"]);
 const MUTATING_CLASSES = new Set(["create_draft", "create_job", "assign_crew", "schedule_job", "change_status"]);
+const EXTERNAL_GATE_CLASSES = new Set([
+  ...CUSTOMER_CONTACT_CLASSES,
+  ...FINANCIAL_CLASSES,
+  "customer_portal_write",
+  "schedule_job",
+  "integration_write",
+]);
 
 function text(value = "") {
   return String(value ?? "").trim();
@@ -107,6 +114,7 @@ export function evaluateAgentActionPermission({
   hasHumanApproval = false,
   companyAllowsCustomerSend = false,
   companyAllowsFinancialActions = false,
+  externalGateExecutionEnabled = false,
 } = {}) {
   const policy = getAgentActionPolicy(commandType);
   const actionClass = text(requestedActionClass || policy.actionClass);
@@ -117,6 +125,9 @@ export function evaluateAgentActionPermission({
   }
   if (FINANCIAL_CLASSES.has(actionClass) && !companyAllowsFinancialActions) {
     failures.push("Financial actions require explicit billing approval and the normal billing workflow.");
+  }
+  if (EXTERNAL_GATE_CLASSES.has(actionClass) && !externalGateExecutionEnabled) {
+    failures.push("External gate execution is disabled until the normal domain adapter, per-company opt-in, human confirmation, idempotency, audit, rollback, role/package, and tenant checks are present.");
   }
   if ((MUTATING_CLASSES.has(actionClass) || policy.approvalLevel === "human_approval_required") && !hasHumanApproval) {
     failures.push("Human approval is required before the agent can move from review into an app action.");

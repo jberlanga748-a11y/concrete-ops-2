@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { spawn } from "node:child_process";
+import http from "node:http";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 
@@ -32,7 +33,7 @@ async function waitForServer(baseUrl, serverOutput) {
   throw new Error(`Agent OS test server did not become ready.\n${serverOutput()}`);
 }
 
-async function startServer() {
+async function startServer(envOverrides = {}) {
   const tempDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "apex-agent-os-"));
   const sqliteFile = path.join(tempDataDir, "app-data.sqlite");
   const port = createPort();
@@ -46,6 +47,12 @@ async function startServer() {
       DATA_DIR: tempDataDir,
       LOG_LEVEL: "warn",
       OPENAI_API_KEY: "",
+      EMAIL_PROVIDER: "",
+      EMAIL_FROM: "",
+      EMAIL_REPLY_TO_DEFAULT: "",
+      EMAIL_API_KEY: "",
+      EMAIL_API_URL: "",
+      ...envOverrides,
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -66,6 +73,36 @@ async function startServer() {
   }
 
   return { baseUrl, sqliteFile, stop };
+}
+
+async function startMockEmailApi({ status = 200, payload = { id: "msg_agent_gate_123" } } = {}) {
+  const requests = [];
+  const server = http.createServer((req, res) => {
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk;
+    });
+    req.on("end", () => {
+      requests.push({
+        method: req.method,
+        url: req.url,
+        authorization: req.headers.authorization || "",
+        body: body ? JSON.parse(body) : null,
+      });
+      res.writeHead(status, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(payload));
+    });
+  });
+
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  return {
+    url: `http://127.0.0.1:${address.port}/emails`,
+    requests,
+    async stop() {
+      await new Promise((resolve) => server.close(resolve));
+    },
+  };
 }
 
 async function requestJson(baseUrl, pathname, options = {}) {
@@ -95,6 +132,26 @@ function authHeaders(token) {
   return {
     Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
+  };
+}
+
+function buildEstimatePayload({ customerId, leadId = "", ...overrides } = {}) {
+  return {
+    customerId,
+    leadId,
+    title: "Agent Gate Email Proposal",
+    status: "draft",
+    customerEmail: "agent-gate-recipient@example.test",
+    scopeSummary: "Prepare a reviewed proposal for the agent email gate test.",
+    internalNotes: "Office-only agent gate test notes stay private.",
+    customerNotes: "Please review and reply with questions.",
+    taxRate: 8.5,
+    feesTotal: 125,
+    items: [
+      { description: "Concrete placement", quantity: 10, unit: "yd", unitPrice: 185 },
+      { description: "Prep and cleanup", quantity: 1, unit: "lot", unitPrice: 650 },
+    ],
+    ...overrides,
   };
 }
 
@@ -163,7 +220,20 @@ function agentProposalAuditEvents(sqliteFile) {
   }
 }
 
-test("Agent OS exposes registry and queues audit-backed internal runs while external gates stay locked", async () => {
+function auditEvents(sqliteFile) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    return database.prepare(`
+      SELECT entity_type AS entityType, entity_id AS entityId, action, summary, detail
+      FROM audit_events
+      ORDER BY sort_index DESC
+    `).all();
+  } finally {
+    database.close();
+  }
+}
+
+test("Agent OS exposes registry and queues audit-backed internal runs while external gate execution stays disabled", async () => {
   const fixture = await startServer();
 
   try {
@@ -183,7 +253,15 @@ test("Agent OS exposes registry and queues audit-backed internal runs while exte
     });
     assert.equal(agentOs.agentOs.version, "apex-agent-os-v1");
     assert.ok(agentOs.agentOs.actions.some((action) => action.actionId === "lead_follow_up_draft"));
-    assert.equal(agentOs.agentOs.externalGates.every((gate) => gate.status === "locked"), true);
+    assert.equal(agentOs.agentOs.externalGates.every((gate) => gate.status === "boundary_approved"), true);
+    assert.equal(agentOs.agentOs.externalGates.every((gate) => gate.executionEnabled === false), true);
+    const smsGate = await assertOk(fixture.baseUrl, "/api/agent/os/external-gates/sms_send", {
+      headers: authHeaders(adminLogin.token),
+    });
+    assert.equal(smsGate.externalGate.gate.status, "boundary_approved");
+    assert.equal(smsGate.externalGate.gate.executionEnabled, false);
+    assert.match(smsGate.externalGate.requiredBeforeExecution.join(" "), /Per-company opt-in/i);
+    assert.match(smsGate.externalGate.safetyBoundary, /No customer contact/i);
 
     const queued = await assertOk(fixture.baseUrl, "/api/agent/os/tasks", {
       method: "POST",
@@ -248,7 +326,7 @@ test("Agent OS exposes registry and queues audit-backed internal runs while exte
       }),
     });
     assert.equal(externalBlocked.response.status, 403);
-    assert.match(externalBlocked.payload.error, /External Apex Agent actions are locked/i);
+    assert.match(externalBlocked.payload.error, /live execution requires the normal domain adapter/i);
 
     const records = agentOsAuditEvents(fixture.sqliteFile);
     const recordedActions = records.map((record) => record.action);
@@ -386,5 +464,144 @@ test("Agent OS blocks field users from advisor recommendation task queueing", as
     assert.equal(agentOsAuditEvents(fixture.sqliteFile).length, 0);
   } finally {
     await fixture.stop();
+  }
+});
+
+test("Agent OS executes human-confirmed estimate email only after company email gate opt-in", async () => {
+  const emailApi = await startMockEmailApi();
+  const fixture = await startServer({
+    EMAIL_PROVIDER: "resend",
+    EMAIL_FROM: "Apex HQ <estimates@example.test>",
+    EMAIL_REPLY_TO_DEFAULT: "office@example.test",
+    EMAIL_API_KEY: "test-api-key",
+    EMAIL_API_URL: emailApi.url,
+  });
+
+  try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.PREMIUM);
+    const adminLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const headers = authHeaders(adminLogin.token);
+    const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers });
+    const createdState = await assertOk(fixture.baseUrl, "/api/estimates", {
+      method: "POST",
+      headers,
+      body: JSON.stringify(buildEstimatePayload({
+        customerId: bootstrap.customers[0].id,
+        leadId: bootstrap.leads[0].id,
+      })),
+    });
+    const estimate = createdState.estimates.find((entry) => entry.title === "Agent Gate Email Proposal");
+    assert.ok(estimate, "Expected a created estimate with a customer email.");
+    const proposal = {
+      proposalId: `agent-email-send:${estimate.id}`,
+      proposalType: "estimate-packet-review",
+      status: "needs_human_review",
+      summary: "Estimate email send gate test",
+      sourceModule: "estimates",
+      targetEntityType: "estimate",
+      targetEntityId: estimate.id,
+      requiredApprovals: ["Human review required."],
+      blockedReasons: ["No email before external gate confirmation."],
+    };
+
+    await assertOk(fixture.baseUrl, "/api/agent-action-proposals/prepare-estimate-send", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ proposal, estimateId: estimate.id }),
+    });
+
+    const blockedBeforeOptIn = await requestJson(fixture.baseUrl, "/api/agent-action-proposals/execute-estimate-send", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        proposal,
+        estimateId: estimate.id,
+        reviewConfirmed: true,
+        customerContactConfirmed: true,
+        externalGateConfirmed: true,
+      }),
+    });
+    assert.equal(blockedBeforeOptIn.response.status, 403);
+    assert.match(blockedBeforeOptIn.payload.error, /not enabled for this company/i);
+    assert.equal(emailApi.requests.length, 0);
+
+    await assertOk(fixture.baseUrl, "/api/settings/company", {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({
+        apexAgentAutomationPolicy: {
+          externalGateSettings: {
+            email_send: {
+              enabled: true,
+              mode: "human_confirmed",
+              allowedWorkflow: "estimate_send",
+              testOnly: true,
+            },
+          },
+        },
+      }),
+    });
+
+    const enabledGate = await assertOk(fixture.baseUrl, "/api/agent/os/external-gates/email_send", { headers });
+    assert.equal(enabledGate.externalGate.gate.executionEnabled, true);
+    assert.equal(enabledGate.externalGate.gate.allowedWorkflow, "estimate_send");
+
+    const missingConfirmation = await requestJson(fixture.baseUrl, "/api/agent-action-proposals/execute-estimate-send", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        proposal,
+        estimateId: estimate.id,
+        reviewConfirmed: true,
+      }),
+    });
+    assert.equal(missingConfirmation.response.status, 400);
+    assert.match(missingConfirmation.payload.error, /customer contact/i);
+    assert.equal(emailApi.requests.length, 0);
+
+    const sentState = await assertOk(fixture.baseUrl, "/api/agent-action-proposals/execute-estimate-send", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        proposal,
+        estimateId: estimate.id,
+        reviewConfirmed: true,
+        customerContactConfirmed: true,
+        externalGateConfirmed: true,
+      }),
+    });
+    assert.equal(emailApi.requests.length, 1);
+    assert.equal(sentState.agentEstimateEmailSend.gateId, "email_send");
+    assert.equal(sentState.agentEstimateEmailSend.workflowId, "estimate_send");
+    assert.equal(sentState.agentEstimateEmailSend.providerMessageId, "msg_agent_gate_123");
+    const sentEstimate = sentState.estimates.find((entry) => entry.id === estimate.id);
+    assert.equal(sentEstimate.status, "sent");
+    assert.ok(sentEstimate.sentAt);
+
+    const duplicate = await requestJson(fixture.baseUrl, "/api/agent-action-proposals/execute-estimate-send", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        proposal,
+        estimateId: estimate.id,
+        reviewConfirmed: true,
+        customerContactConfirmed: true,
+        externalGateConfirmed: true,
+      }),
+    });
+    assert.equal(duplicate.response.status, 409);
+    assert.equal(emailApi.requests.length, 1);
+
+    const records = auditEvents(fixture.sqliteFile);
+    assert.ok(records.some((record) => record.action === "agent.os.external.email_send.executed"));
+    assert.ok(records.some((record) => record.action === "agent.proposal.email_sent"));
+    assert.ok(records.some((record) => record.action === "agent_sent"));
+    assert.doesNotMatch(JSON.stringify(records), /test-api-key|apexdemo123/i);
+  } finally {
+    await fixture.stop();
+    await emailApi.stop();
   }
 });

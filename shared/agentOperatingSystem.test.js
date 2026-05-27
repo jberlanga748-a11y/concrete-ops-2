@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildAgentOsExternalGateDecisionPacket,
   buildAgentOsInternalDraftPacket,
   buildAgentOsSummary,
   createAgentOsRunForTask,
@@ -15,12 +16,13 @@ import {
   listAgentOsActionRegistry,
   listAgentOsExternalGates,
   listAgentOsExternalGateApprovalPlans,
+  normalizeAgentOsExternalGateSettings,
   normalizeAgentOsTask,
   normalizeAgentOsWorkflowSettings,
   transitionAgentOsRun,
 } from "./agentOperatingSystem.js";
 
-test("Agent OS registry defines safe internal actions and locked external gates", () => {
+test("Agent OS registry defines safe internal actions and approved-but-disabled external gates", () => {
   const registry = listAgentOsActionRegistry();
   const actionIds = registry.map((action) => action.actionId);
   const leadDraft = getAgentOsAction("lead_follow_up_draft");
@@ -36,7 +38,9 @@ test("Agent OS registry defines safe internal actions and locked external gates"
   assert.equal(leadDraft.auditEvent, "agent.os.internal.lead_follow_up_draft.prepared");
   assert.equal(payment.externalGate, "payment_collection");
   assert.match(payment.requiredInputs.join(" "), /approvedPaymentBoundary/);
-  assert.equal(listAgentOsExternalGates().every((gate) => gate.status === "locked"), true);
+  assert.equal(listAgentOsExternalGates().every((gate) => gate.status === "boundary_approved"), true);
+  assert.equal(listAgentOsExternalGates().every((gate) => gate.executionEnabled === false), true);
+  assert.match(listAgentOsExternalGates().find((gate) => gate.id === "payment_collection").executionLock, /billing provider/i);
 });
 
 test("Agent OS maps selected contractor advisor recommendations into visible safe internal task payloads", () => {
@@ -119,7 +123,7 @@ test("Agent OS workflow settings normalize per-workflow autonomy without opening
   assert.equal(plan.rows.find((row) => row.workflowId === "leadFollowUpDraft").externalLocked, false);
   assert.equal(plan.rows.find((row) => row.workflowId === "leadFollowUpDraft").externalActionsLocked, true);
   assert.equal(plan.rows.find((row) => row.workflowId === "leadFollowUpDraft").mayExecuteInternal, true);
-  assert.match(plan.safetyBoundary, /External\/customer-contact gates stay locked/i);
+  assert.match(plan.safetyBoundary, /boundaries are approved/i);
 });
 
 test("Agent OS task and run models include retries, cancellation, dead-letter, and log shape", () => {
@@ -206,10 +210,10 @@ test("Agent OS summary derives durable ledger rows from audit events", () => {
   assert.equal(ledger.queuedCount, 1);
   assert.equal(summary.version, "apex-agent-os-v1");
   assert.equal(summary.ledger.rows[0].runId, "RUN-1");
-  assert.match(summary.safetyBoundary, /External sends/);
+  assert.match(summary.safetyBoundary, /External gate boundaries/);
 });
 
-test("Agent OS builds executable internal draft packets while keeping external gate approval plans locked", () => {
+test("Agent OS builds executable internal draft packets while keeping external gate execution disabled", () => {
   const normalized = normalizeAgentOsTask({
     actionId: "change_order_draft",
     target: { entityType: "job", entityId: "JOB-1", title: "Driveway pour" },
@@ -230,6 +234,57 @@ test("Agent OS builds executable internal draft packets while keeping external g
   assert.match(packet.agentProposal.blockedReasons.join(" "), /No customer email/i);
   assert.match(packet.agentProposal.draftPrepSummary[0].fieldPreview[1].currentValue, /No pricing/);
   assert.equal(plans.length, listAgentOsExternalGates().length);
-  assert.equal(plans.every((plan) => plan.status === "locked" && plan.blockedUntilExplicitApproval), true);
-  assert.match(getAgentOsExternalGateApprovalPlan("payment_collection").approvalBoundary, /sandbox payment/i);
+  assert.equal(plans.every((plan) => plan.status === "boundary_approved" && plan.executionEnabled === false), true);
+  assert.match(getAgentOsExternalGateApprovalPlan("payment_collection").approvedBoundary, /sandbox strategy/i);
+});
+
+test("Agent OS external gate decision packets capture approved boundaries without enabling execution", () => {
+  const packet = buildAgentOsExternalGateDecisionPacket("bid_submission", {
+    companyId: "COMPANY-1",
+    actorUserId: "USER-1",
+    now: "2026-05-27T09:00:00.000Z",
+  });
+
+  assert.equal(packet.ok, true);
+  assert.equal(packet.gate.status, "boundary_approved");
+  assert.equal(packet.gate.executionEnabled, false);
+  assert.equal(packet.gate.companyId, "COMPANY-1");
+  assert.match(packet.gate.approvedBoundary, /destination verification/i);
+  assert.match(packet.gate.executionLock, /destination-specific adapter/i);
+  assert.match(packet.requiredBeforeExecution.join(" "), /Per-company opt-in/i);
+  assert.match(packet.safetyBoundary, /No customer contact, payment, portal write, schedule mutation, bid submission, or integration write occurs/i);
+
+  const unknown = buildAgentOsExternalGateDecisionPacket("unknown_gate");
+  assert.equal(unknown.ok, false);
+});
+
+test("Agent OS external gate settings require explicit human-confirmed company opt-in", () => {
+  const settings = normalizeAgentOsExternalGateSettings({
+    email_send: {
+      enabled: true,
+      mode: "human_confirmed",
+      allowedWorkflow: "estimate_send",
+      testOnly: false,
+      updatedAt: "2026-05-27T10:00:00.000Z",
+    },
+    sms_send: {
+      enabled: true,
+      mode: "disabled",
+    },
+  });
+  const gates = listAgentOsExternalGates({ externalGateSettings: settings });
+  const emailPacket = buildAgentOsExternalGateDecisionPacket("email_send", {
+    externalGateSettings: settings,
+    companyId: "COMPANY-1",
+  });
+
+  assert.equal(settings.email_send.enabled, true);
+  assert.equal(settings.email_send.mode, "human_confirmed");
+  assert.equal(settings.email_send.allowedWorkflow, "estimate_send");
+  assert.equal(settings.email_send.testOnly, false);
+  assert.equal(settings.sms_send.enabled, false);
+  assert.equal(gates.find((gate) => gate.id === "email_send").executionEnabled, true);
+  assert.equal(gates.find((gate) => gate.id === "sms_send").executionEnabled, false);
+  assert.equal(emailPacket.gate.executionEnabled, true);
+  assert.match(emailPacket.safetyBoundary, /does not execute by itself/i);
 });

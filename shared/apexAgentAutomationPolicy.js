@@ -1,5 +1,6 @@
 import {
   deriveAgentOsAutonomyPlan,
+  normalizeAgentOsExternalGateSettings,
   normalizeAgentOsWorkflowSettings,
 } from "./agentOperatingSystem.js";
 
@@ -28,6 +29,7 @@ export const DEFAULT_APEX_AGENT_AUTOMATION_POLICY = Object.freeze({
   capabilitySwitches: DEFAULT_CAPABILITY_SWITCHES,
   lockedAutonomousActions: LOCKED_AUTONOMOUS_ACTIONS,
   workflowSettings: normalizeAgentOsWorkflowSettings(),
+  externalGateSettings: normalizeAgentOsExternalGateSettings(),
   updatedAt: "",
 });
 
@@ -74,6 +76,7 @@ export function normalizeApexAgentAutomationPolicy(value = {}) {
     capabilitySwitches: normalizeCapabilitySwitches(source.capabilitySwitches),
     lockedAutonomousActions: { ...LOCKED_AUTONOMOUS_ACTIONS },
     workflowSettings: normalizeAgentOsWorkflowSettings(source.workflowSettings),
+    externalGateSettings: normalizeAgentOsExternalGateSettings(source.externalGateSettings),
     updatedAt: typeof source.updatedAt === "string" ? source.updatedAt.trim().slice(0, 40) : "",
   };
 }
@@ -113,7 +116,7 @@ export function deriveApexAgentAutomationPolicyControls(value = {}) {
       { id: "scheduling", label: "Scheduling", status: policy.lockedAutonomousActions.scheduling },
       { id: "billing", label: "Billing and payments", status: policy.lockedAutonomousActions.billing },
     ],
-    safetyCopy: "Apex Agent remains review-first. Autonomous customer contact, scheduling, billing, and record mutation are locked off.",
+    safetyCopy: "Apex Agent remains review-first. External boundaries are approved for human-confirmed gate implementation, but autonomous customer contact, scheduling, billing, and record mutation stay off.",
   };
   const autonomyPlan = deriveAgentOsAutonomyPlan(policy.workflowSettings);
   return {
@@ -221,7 +224,7 @@ export function deriveApexAgentAutonomyReadiness({
     knowledgeDomains,
     reviewCapabilityCount: activeReviewCapabilityCount || readyCapabilityCount,
     reviewItemCount,
-    lockedNextGate: "Phase 1 approval is required before customer contact, bid submission, schedule or crew changes, invoices, payments, package or role changes, production deploys, or production data mutation.",
+    lockedNextGate: "External gate boundaries are approved for human-confirmed implementation. Live customer contact, bid submission, schedule or crew changes, invoices, payments, package or role changes, production deploys, or production data mutation still require the normal domain adapter, per-company opt-in, confirmation UI, audit, rollback, and role/package/tenant checks.",
     lockedAutonomousActions: [
       ...resolvedControls.lockedRows.map((row) => ({
         id: row.id,
@@ -231,7 +234,7 @@ export function deriveApexAgentAutonomyReadiness({
       {
         id: "external-actions",
         label: "External sends and bids",
-        reason: "Requires explicit approval, compliance review, and the normal domain workflow.",
+        reason: "Boundary approved; live execution still requires configuration, compliance review, and the normal domain workflow.",
       },
       {
         id: "production-mutation",

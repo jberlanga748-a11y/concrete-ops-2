@@ -6,7 +6,7 @@ import { formatDateTime } from "./app-format-utils";
 import { deriveApexAssistantShellState, resolveApexAssistantCommand } from "./apex-assistant-shell-utils";
 import { APEX_BRAND_ASSETS } from "./brand-utils";
 
-export function ApexAssistantShell({ permissions = {}, commandCenter = {}, agentCommandCenter = {}, commandContext = {}, agentContextState = { status: "idle", workflowContext: null, message: "" }, agentActionQueue = [], assistantCommandSeed = null, assistantOpenRequest = 0, showLauncher = true, onAssistantCommandSeedHandled = () => {}, onRefreshAgentContext = async () => null, onAskContractorAdvisor = async () => null, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onCreateAgentEstimateDraft = async () => null, onPrepareAgentEstimateSend = async () => null, onConvertAgentEstimateToJob = async () => null, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenUploadReview = () => {}, onOpenTimeReview = () => {}, onOpenChangeOrderReview = () => {}, onOpenLeadFollowUp = () => {}, onOpenCustomerAccount = () => {}, onOpenCrewReadiness = () => {}, onOpenScheduleDispatch = () => {}, onOpenImportedDraftReview = () => {}, onOpenSupportWorkflow = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenPrePourReview = () => {}, onOpenPostPourReview = () => {}, onOpenSafetyIncidentReview = () => {}, onOpenToolChecklistReview = () => {}, onRecordAgentProposalAudit = async () => null }) {
+export function ApexAssistantShell({ permissions = {}, commandCenter = {}, agentCommandCenter = {}, commandContext = {}, agentContextState = { status: "idle", workflowContext: null, message: "" }, agentActionQueue = [], assistantCommandSeed = null, assistantOpenRequest = 0, showLauncher = true, onAssistantCommandSeedHandled = () => {}, onRefreshAgentContext = async () => null, onAskContractorAdvisor = async () => null, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onCreateAgentEstimateDraft = async () => null, onPrepareAgentEstimateSend = async () => null, onExecuteAgentEstimateSend = async () => null, onConvertAgentEstimateToJob = async () => null, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenUploadReview = () => {}, onOpenTimeReview = () => {}, onOpenChangeOrderReview = () => {}, onOpenLeadFollowUp = () => {}, onOpenCustomerAccount = () => {}, onOpenCrewReadiness = () => {}, onOpenScheduleDispatch = () => {}, onOpenImportedDraftReview = () => {}, onOpenSupportWorkflow = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenPrePourReview = () => {}, onOpenPostPourReview = () => {}, onOpenSafetyIncidentReview = () => {}, onOpenToolChecklistReview = () => {}, onRecordAgentProposalAudit = async () => null }) {
   const assistantState = useMemo(() => deriveApexAssistantShellState({ permissions, commandCenter }), [commandCenter, permissions]);
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -21,6 +21,8 @@ export function ApexAssistantShell({ permissions = {}, commandCenter = {}, agent
   const [agentProposalAuditState, setAgentProposalAuditState] = useState({ proposalId: "", status: "idle", message: "" });
   const [handledCommandSeedNonce, setHandledCommandSeedNonce] = useState(null);
   const agentAutomationPolicy = agentCommandCenter.automationPolicy || commandContext.agentCommandCenter?.automationPolicy || {};
+  const emailExternalGate = agentAutomationPolicy.policy?.externalGateSettings?.email_send || agentAutomationPolicy.externalGateSettings?.email_send || {};
+  const emailGateEnabled = emailExternalGate.enabled === true && emailExternalGate.mode === "human_confirmed";
   const actionProposal = useMemo(() => (
     response && !["contractor-advisor-answer", "contractor-advisor-loading", "contractor-advisor-error"].includes(response.type)
       ? buildAgentActionProposal(response, { permissions, workflowContext: commandContext.agentWorkflowContext })
@@ -341,6 +343,40 @@ export function ApexAssistantShell({ permissions = {}, commandCenter = {}, agent
         estimateId: match.estimateId,
         status: "error",
         message: error?.message || "Could not prepare send review.",
+      });
+    }
+  }
+
+  async function executeEstimateSendFromGate(match = {}) {
+    if (!actionProposal || actionProposal.proof?.commandType !== "estimate-packet-review" || match.type !== "estimate" || !match.estimateId) return;
+    if (!permissions.estimates?.canManage || !emailGateEnabled || sendReviewState.status === "sending") return;
+    const proposal = normalizeAgentActionProposalAuditEvent(actionProposal, {
+      actor: commandContext.user,
+      sourceRoute: commandContext.currentRoute,
+      sourceModule: actionProposal.targetModuleId,
+      prompt: actionProposal.proof?.commandText || "",
+      response: actionProposal.proof?.message || response?.message || "",
+      targetEntity: { type: "estimate", id: match.estimateId },
+    });
+    setSendReviewState({ estimateId: match.estimateId, status: "sending", message: "Sending customer email through the approved Agent gate..." });
+    try {
+      const sent = await onExecuteAgentEstimateSend({
+        proposal,
+        estimateId: match.estimateId,
+        reviewConfirmed: true,
+        customerContactConfirmed: true,
+        externalGateConfirmed: true,
+      });
+      setSendReviewState({
+        estimateId: match.estimateId,
+        status: "sent",
+        message: sent?.providerMessageId ? "Customer email sent from the human-confirmed Agent gate." : "Customer email sent from the human-confirmed Agent gate.",
+      });
+    } catch (error) {
+      setSendReviewState({
+        estimateId: match.estimateId,
+        status: "error",
+        message: error?.message || "Could not send from the approved Agent email gate.",
       });
     }
   }
@@ -1564,18 +1600,32 @@ export function ApexAssistantShell({ permissions = {}, commandCenter = {}, agent
                         {match.type === "estimate" && match.estimateId ? (
                           <div className="mt-3 rounded-xl border border-blue-300/20 bg-blue-500/10 p-2">
                             <p className="text-[11px] font-bold leading-4 text-blue-100">
-                              Prepares an audit-only send review. Apex Assistant will not email, submit, print, mark sent, or contact the customer.
+                              Prepares human send review first. If the company email gate is enabled, the final button sends a real customer email through the normal estimate email workflow.
+                            </p>
+                            <p className="mt-1 text-[11px] font-bold leading-4 text-slate-300">
+                              Email gate: {emailGateEnabled ? "enabled for human-confirmed estimate sends" : "not enabled for this company"}. SMS, bids, payments, portal writes, scheduling, and integrations stay locked.
                             </p>
                             <div className="mt-2 flex flex-wrap items-center gap-2">
                               <Button
                                 type="button"
                                 size="sm"
                                 variant="primary"
-                                disabled={sendReviewState.status === "saving"}
+                                disabled={sendReviewState.status === "saving" || sendReviewState.status === "sending"}
                                 onClick={() => prepareEstimateSendReview(match)}
                               >
                                 {sendReviewState.status === "saving" && sendReviewState.estimateId === match.estimateId ? "Preparing..." : "Prepare send review"}
                               </Button>
+                              {sendReviewState.status === "ready" && sendReviewState.estimateId === match.estimateId && emailGateEnabled ? (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="danger"
+                                  disabled={sendReviewState.status === "sending"}
+                                  onClick={() => executeEstimateSendFromGate(match)}
+                                >
+                                  Send customer email
+                                </Button>
+                              ) : null}
                               <Button type="button" size="sm" variant="secondary" onClick={() => openEstimatePacket(match)}>
                                 Open packet
                               </Button>
