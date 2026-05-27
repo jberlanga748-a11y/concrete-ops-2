@@ -93,6 +93,20 @@ import {
   generateEstimateRoughNotesDrafts,
 } from "../shared/estimateRoughNotesAi.js";
 import {
+  buildContractorAdvisorContext,
+  generateContractorAdvisorAnswer,
+} from "../shared/contractorAdvisorAi.js";
+import {
+  buildAgentOsInternalDraftPacket,
+  buildAgentOsSummary,
+  createAgentOsRunForTask,
+  deriveAgentOsLedgerFromAuditEvents,
+  deriveAgentOsTaskPayloadFromAdvisorRecommendation,
+  getAgentOsAction,
+  normalizeAgentOsTask,
+  transitionAgentOsRun,
+} from "../shared/agentOperatingSystem.js";
+import {
   buildOpportunityAssistantContext,
   buildOpportunitySearchPlanContext,
   generateOpportunityAssistantReview,
@@ -102,6 +116,11 @@ import {
   contactHistoryPayloadToRecord,
   validateContactHistoryPayload,
 } from "../shared/contactHistory.js";
+import {
+  AGENT_CONVERSATION_STATUSES,
+  normalizeAgentConversationThread,
+} from "../shared/agentConversations.js";
+import { normalizeApexAgentAutomationPolicy } from "../shared/apexAgentAutomationPolicy.js";
 import {
   DEFAULT_COMPANY_ID,
   companiesForUser,
@@ -4061,6 +4080,12 @@ function visibleContactHistoryForUser(state, user) {
     .sort((left, right) => new Date(right.contactedAt || right.createdAt || 0).getTime() - new Date(left.contactedAt || left.createdAt || 0).getTime());
 }
 
+function visibleAgentConversationThreadsForUser(state, user) {
+  if (!canViewAgentConversations(state, user)) return [];
+  return filterVisibleRecordsForUser(state, user, state.agentConversationThreads || [], "agentConversationThreads")
+    .sort((left, right) => new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime());
+}
+
 function customerPermissionsForUser(state, user) {
   if (!user) {
     return { canView: false, canManage: false };
@@ -4160,6 +4185,23 @@ function assertCanManageContactHistory(user) {
   if (!canManageContactHistory(user)) {
     throw new ApiError(403, "You do not have permission to manage contact history.");
   }
+}
+
+function canViewAgentConversations(state, user) {
+  const entitlements = resolvePackageEntitlements({
+    hasFeature: (featureKey) => companyHasFeature(state, user, featureKey),
+  });
+  return entitlements.aiOffice.canUse && canViewLeads(user);
+}
+
+function assertCanViewAgentConversations(state, user) {
+  if (!canViewAgentConversations(state, user)) {
+    throw new ApiError(403, "Apex Agent conversations require AI Office access for an office role.");
+  }
+}
+
+function assertCanManageAgentConversations(state, user) {
+  assertCanViewAgentConversations(state, user);
 }
 
 function normalizeLeadSourceForWrite(payload, { existing = null, changedAt = new Date().toISOString(), id = "" } = {}) {
@@ -5439,6 +5481,53 @@ function normalizeContactHistoryForWrite(state, payload, user, { id = makeId("CH
   return { record, linkedRecord };
 }
 
+const AGENT_CONVERSATION_ENTITY_TYPES = new Set(["lead", "customer", "estimate", "job"]);
+const AGENT_CONVERSATION_STATUS_SET = new Set(AGENT_CONVERSATION_STATUSES);
+
+function findAgentConversationLinkedRecord(state, entityType, entityId, user) {
+  const type = optionalString(entityType, "");
+  const id = optionalString(entityId, "");
+  if (!id) return null;
+  if (!type) {
+    throw new ApiError(400, "Provide both entityType and entityId when linking an Apex Agent conversation.");
+  }
+  if (!AGENT_CONVERSATION_ENTITY_TYPES.has(type)) {
+    throw new ApiError(400, "Choose a valid Apex Agent conversation record type.");
+  }
+  return findContactHistoryLinkedRecord(state, type, id, user);
+}
+
+function normalizeAgentConversationForWrite(state, payload, user, { id = makeId("AGCONV"), existing = null, changedAt = new Date().toISOString() } = {}) {
+  const nextStatus = payload?.status == null
+    ? existing?.status
+    : optionalEnum(payload.status, AGENT_CONVERSATION_STATUS_SET, "Conversation status", existing?.status || "needs_review");
+  const linkedRecord = findAgentConversationLinkedRecord(
+    state,
+    payload?.entityType ?? existing?.entityType,
+    payload?.entityId ?? existing?.entityId,
+    user,
+  );
+  const companyId = linkedRecord?.companyId || existing?.companyId || currentCompanyIdForRequestUser(state, user);
+  const record = normalizeAgentConversationThread({
+    ...(existing || {}),
+    ...(payload || {}),
+    ...(nextStatus ? { status: nextStatus } : {}),
+    entityType: payload?.entityType ?? existing?.entityType ?? (linkedRecord ? payload.entityType : "customer"),
+    entityId: payload?.entityId ?? existing?.entityId ?? "",
+  }, {
+    id: existing?.id || id,
+    companyId,
+    actor: user,
+    existing,
+    now: changedAt,
+  });
+  record.companyId = companyId;
+  if (!record.messages.length) {
+    throw new ApiError(400, "Apex Agent conversation requires at least one saved message.");
+  }
+  return { record, linkedRecord };
+}
+
 function syncLeadContactSummaryFromHistory(lead, contactRecord, changedAt = new Date().toISOString()) {
   if (!lead || !contactRecord) return [];
   const changedFields = [];
@@ -5745,6 +5834,7 @@ function sanitizeBootstrap(state, user) {
   const foundOpportunities = canUseOpportunityScout ? visibleFoundOpportunitiesForUser(state, user) : [];
   const leadStatusHistory = visibleLeadStatusHistoryForUser(state, user);
   const contactHistory = visibleContactHistoryForUser(state, user);
+  const agentConversationThreads = visibleAgentConversationThreadsForUser(state, user);
   const estimates = visibleEstimatesForUser(state, user);
   const rateBookItems = visibleRateBookItemsForUser(state, user);
   const jobDraftImports = packageEntitlements.jobDraftImports.canUse ? visibleImportedJobDraftsForUser(state, user) : [];
@@ -5798,6 +5888,7 @@ function sanitizeBootstrap(state, user) {
     foundOpportunities,
     leadStatusHistory,
     contactHistory,
+    agentConversationThreads,
     estimates,
     rateBookItems,
     jobDraftImports,
@@ -5857,6 +5948,7 @@ function sanitizeBootstrap(state, user) {
         canView: packageEntitlements.aiOffice.canUse && canViewLeads(user),
         canUseLeadAssistant: packageEntitlements.aiOffice.canUseLeadAssistant && canManageLeads(user),
         canManageLearning: packageEntitlements.aiOffice.canUse && (canManageLeads(user) || canManageEstimates(user)),
+        canManageConversations: packageEntitlements.aiOffice.canUse && canViewLeads(user),
       },
       jobs: {
         canView: Boolean(user),
@@ -5916,6 +6008,118 @@ function assertCanViewAgentContext(bootstrapPayload) {
   if (!bootstrapPayload?.permissions?.aiOffice?.canView) {
     throw new ApiError(403, "Agent context requires AI Office access for an office role.");
   }
+}
+
+function assertCanUseAgentOperatingSystem(state, user) {
+  const entitlements = resolvePackageEntitlements({
+    hasFeature: (featureKey) => companyHasFeature(state, user, featureKey),
+  });
+  if (!entitlements.aiOffice.canUse || (!canManageLeads(user) && !canManageEstimates(user) && !isOfficeManager(user))) {
+    throw new ApiError(403, "You do not have permission to use Apex Agent OS.");
+  }
+}
+
+function assertCanQueueAgentOsAction(state, user, action) {
+  assertCanUseAgentOperatingSystem(state, user);
+  if (!action) {
+    throw new ApiError(400, "Unknown Apex Agent OS action.");
+  }
+  if (action.externalGate) {
+    throw new ApiError(403, "External Apex Agent actions are locked until the exact boundary is explicitly approved.");
+  }
+  const allowed = (() => {
+    switch (action.actionId) {
+      case "lead_follow_up_draft":
+        return canManageLeads(user);
+      case "estimate_packet_draft":
+        return canManageEstimates(user);
+      case "change_order_draft":
+        return canManageChangeOrders(user);
+      case "invoice_payment_prep":
+      case "job_costing_review":
+        return canViewJobMoney(user);
+      case "material_list_prep":
+        return canManageMaterialPrep(user);
+      default:
+        return false;
+    }
+  })();
+  if (!allowed) {
+    throw new ApiError(403, "Your role cannot queue this Apex Agent OS action.");
+  }
+}
+
+function parseAgentOsAuditDetail(detail) {
+  if (detail && typeof detail === "object") return detail;
+  if (!detail || typeof detail !== "string") return {};
+  try {
+    const parsed = JSON.parse(detail);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function latestAgentOsRunFromAuditEvents(state, user, runId) {
+  return latestAgentOsRecordFromAuditEvents(state, user, runId)?.run || null;
+}
+
+function latestAgentOsRecordFromAuditEvents(state, user, runId) {
+  const companyId = currentCompanyIdForRequestUser(state, user);
+  const details = (Array.isArray(state.auditEvents) ? state.auditEvents : [])
+    .filter((event) => event?.companyId === companyId && String(event?.action || "").startsWith("agent.os."))
+    .map((event) => parseAgentOsAuditDetail(event.detail))
+    .filter((detail) => detail?.run?.id === runId || detail?.runId === runId);
+  const run = details.find((detail) => detail?.run)?.run || null;
+  const task = details.find((detail) => detail?.task)?.task || null;
+  return run ? { run, task } : null;
+}
+
+function assertAgentOsRunStatusTransition(currentRun = {}, nextStatus = "") {
+  const currentStatus = optionalString(currentRun.status, "queued");
+  const normalizedStatus = optionalString(nextStatus, "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (!["running", "retrying", "failed", "dead_lettered", "cancelled"].includes(normalizedStatus)) {
+    throw new ApiError(400, "Agent OS run status controls support running, retrying, failed, dead-lettered, and cancelled. Use execute to produce succeeded runs.");
+  }
+  if (["succeeded", "cancelled"].includes(currentStatus)) {
+    throw new ApiError(409, "This Apex Agent OS run is already closed.");
+  }
+  if (currentStatus === "dead_lettered" && normalizedStatus !== "retrying") {
+    throw new ApiError(409, "Dead-lettered Agent OS runs can only be retried.");
+  }
+  if (normalizedStatus === "retrying" && !["failed", "dead_lettered"].includes(currentStatus)) {
+    throw new ApiError(409, "Only failed or dead-lettered Agent OS runs can be retried.");
+  }
+  return normalizedStatus;
+}
+
+function appendAgentOsAuditEvent(state, user, {
+  entityId = "",
+  action = "",
+  summary = "",
+  task = null,
+  run = null,
+  status = "",
+} = {}) {
+  appendAuditEvent(state, {
+    entityType: "agentOsRun",
+    entityId: entityId || run?.id || task?.id || "",
+    action,
+    summary,
+    detail: JSON.stringify({
+      version: "apex-agent-os-v1",
+      companyId: currentCompanyIdForRequestUser(state, user),
+      actionId: task?.actionId || run?.actionId || "",
+      taskId: task?.id || run?.taskId || "",
+      runId: run?.id || "",
+      status: status || run?.status || task?.status || "",
+      task,
+      run,
+      safetyBoundary: "Audit-backed Agent OS run record only. No external send, payment, scheduling, bid submission, integration write, production config, secret, or production data mutation occurred.",
+    }),
+    actor: user,
+    changedFields: ["agentOsTask", "agentOsRun", "status"],
+  });
 }
 
 function sanitizeAgentContextModule(module = {}) {
@@ -6138,8 +6342,18 @@ function normalizeAgentProposalDraftPrepSummary(value) {
       prepType: redactAgentProposalAuditText(item?.prepType, { maxLength: 80 }),
       label: redactAgentProposalAuditText(item?.label, { maxLength: 120 }),
       reviewLabel: redactAgentProposalAuditText(item?.reviewLabel, { maxLength: 180 }),
+      fieldPreview: (Array.isArray(item?.fieldPreview) ? item.fieldPreview : [])
+        .slice(0, 6)
+        .map((row) => ({
+          field: redactAgentProposalAuditText(row?.field, { maxLength: 80 }),
+          currentValue: redactAgentProposalAuditText(row?.currentValue, { maxLength: 140 }),
+          proposedValue: redactAgentProposalAuditText(row?.proposedValue, { maxLength: 180 }),
+          source: redactAgentProposalAuditText(row?.source, { maxLength: 80 }),
+          note: redactAgentProposalAuditText(row?.note, { maxLength: 140 }),
+        }))
+        .filter((row) => row.field || row.currentValue || row.proposedValue || row.note),
     }))
-    .filter((item) => item.prepType || item.label || item.reviewLabel);
+    .filter((item) => item.prepType || item.label || item.reviewLabel || item.fieldPreview.length);
 }
 
 function normalizeAgentProposalAuditPayload(payload = {}) {
@@ -7418,6 +7632,229 @@ app.get("/api/agent/context", requireAuth, asyncRoute(async (req, res) => {
   res.json(payload);
 }));
 
+app.get("/api/agent/os", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanUseAgentOperatingSystem(state, req.auth.user);
+  const bootstrapPayload = sanitizeBootstrap(state, req.auth.user);
+  const settings = companySettingsForState(state, req.auth.user);
+  const auditEvents = visibleAuditEventsForUser(state, req.auth.user);
+  res.json({
+    agentOs: buildAgentOsSummary({
+      workflowSettings: settings.apexAgentAutomationPolicy?.workflowSettings,
+      workspace: bootstrapPayload,
+      auditEvents,
+    }),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/tasks", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction(req.body?.actionId);
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  const now = new Date().toISOString();
+  const normalized = normalizeAgentOsTask(req.body || {}, {
+    id: makeId("AGENT-TASK"),
+    companyId: currentCompanyIdForRequestUser(state, req.auth.user),
+    actorUserId: req.auth.user.id,
+    now,
+  });
+  if (!normalized.ok) {
+    throw new ApiError(400, normalized.error);
+  }
+  const task = normalized.task;
+  const run = createAgentOsRunForTask(task, {
+    id: makeId("AGENT-RUN"),
+    now,
+  });
+
+  const nextState = await updateDb((draft) => {
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: run.id,
+      action: "agent.os.task.queued",
+      summary: `${task.actionLabel} queued for Apex Agent OS review`,
+      task,
+      run,
+      status: "queued",
+    });
+    return draft;
+  });
+
+  res.status(201).json({
+    task,
+    run,
+    ledger: deriveAgentOsLedgerFromAuditEvents(visibleAuditEventsForUser(nextState, req.auth.user)),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/advisor-tasks", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanUseAgentOperatingSystem(state, req.auth.user);
+  const bootstrapPayload = sanitizeBootstrap(state, req.auth.user);
+  const derived = deriveAgentOsTaskPayloadFromAdvisorRecommendation(req.body || {}, {
+    workspace: bootstrapPayload,
+  });
+  if (!derived.ok) {
+    throw new ApiError(400, derived.error || "Apex Agent could not queue this advisor recommendation.");
+  }
+  const action = getAgentOsAction(derived.taskPayload.actionId);
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+
+  const now = new Date().toISOString();
+  const normalized = normalizeAgentOsTask(derived.taskPayload, {
+    id: makeId("AGENT-TASK"),
+    companyId: currentCompanyIdForRequestUser(state, req.auth.user),
+    actorUserId: req.auth.user.id,
+    now,
+  });
+  if (!normalized.ok) {
+    throw new ApiError(400, normalized.error || "Apex Agent OS task could not be queued.");
+  }
+  const task = {
+    ...normalized.task,
+    source: derived.source,
+    advisorRecommendation: derived.taskPayload.advisorRecommendation,
+  };
+  const run = createAgentOsRunForTask(task, {
+    id: makeId("AGENT-RUN"),
+    now,
+  });
+
+  const nextState = await updateDb((draft) => {
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: run.id,
+      action: "agent.os.advisor.task.queued",
+      summary: `${task.actionLabel} queued from contractor advisor recommendation`,
+      task,
+      run,
+      status: "queued",
+    });
+    return draft;
+  });
+  const auditEvents = visibleAuditEventsForUser(nextState, req.auth.user);
+  res.status(201).json({
+    advisorTask: {
+      recommendationId: derived.source.recommendationId,
+      actionId: task.actionId,
+      target: task.target,
+      safetyBoundary: derived.source.safetyBoundary,
+    },
+    task,
+    run,
+    ledger: deriveAgentOsLedgerFromAuditEvents(auditEvents),
+  });
+}));
+
+app.post("/api/agent/os/runs/:id/status", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanUseAgentOperatingSystem(state, req.auth.user);
+  const runId = optionalString(req.params.id, "");
+  const currentRun = latestAgentOsRunFromAuditEvents(state, req.auth.user, runId);
+  if (!currentRun) {
+    throw new ApiError(404, "Apex Agent OS run not found.");
+  }
+  const nextStatus = assertAgentOsRunStatusTransition(currentRun, req.body?.status);
+  const nextRun = transitionAgentOsRun(currentRun, nextStatus, {
+    message: optionalString(req.body?.message, ""),
+    now: new Date().toISOString(),
+  });
+  const nextState = await updateDb((draft) => {
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: nextRun.id,
+      action: `agent.os.run.${nextRun.status}`,
+      summary: `Apex Agent OS run ${nextRun.status}`,
+      run: nextRun,
+      status: nextRun.status,
+    });
+    return draft;
+  });
+  res.json({
+    run: nextRun,
+    ledger: deriveAgentOsLedgerFromAuditEvents(visibleAuditEventsForUser(nextState, req.auth.user)),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/runs/:id/execute", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanUseAgentOperatingSystem(state, req.auth.user);
+  const runId = optionalString(req.params.id, "");
+  const currentRecord = latestAgentOsRecordFromAuditEvents(state, req.auth.user, runId);
+  if (!currentRecord?.run) {
+    throw new ApiError(404, "Apex Agent OS run not found.");
+  }
+  if (!currentRecord.task) {
+    throw new ApiError(409, "Apex Agent OS run is missing its queued task record.");
+  }
+  const action = getAgentOsAction(currentRecord.task.actionId);
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (["succeeded", "dead_lettered", "cancelled"].includes(currentRecord.run.status)) {
+    throw new ApiError(409, "This Apex Agent OS run is already closed.");
+  }
+
+  const now = new Date().toISOString();
+  const bootstrapPayload = sanitizeBootstrap(state, req.auth.user);
+  const packet = buildAgentOsInternalDraftPacket(currentRecord.task, {
+    workspace: bootstrapPayload,
+    now,
+  });
+  if (!packet.ok) {
+    throw new ApiError(400, packet.error);
+  }
+  const normalizedProposal = normalizeAgentProposalAuditPayload(packet.agentProposal);
+  const runningRun = transitionAgentOsRun(currentRecord.run, "running", {
+    message: "Preparing internal review packet.",
+    now,
+  });
+  const completedRun = {
+    ...transitionAgentOsRun(runningRun, "succeeded", {
+      message: "Internal review packet prepared. No external action or domain mutation performed.",
+      now,
+    }),
+    output: packet.output,
+  };
+  const completedTask = {
+    ...currentRecord.task,
+    status: "succeeded",
+    updatedAt: now,
+  };
+
+  const nextState = await updateDb((draft) => {
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: runningRun.id,
+      action: "agent.os.run.running",
+      summary: "Apex Agent OS run preparing internal draft packet",
+      task: currentRecord.task,
+      run: runningRun,
+      status: "running",
+    });
+    if (!hasAgentProposalAuditEvent(draft, req.auth.user, normalizedProposal, "agent.proposal.generated")) {
+      appendAgentProposalAuditEvent(draft, req.auth.user, normalizedProposal, {
+        eventType: "agent.proposal.generated",
+        status: "needs_human_review",
+        summary: normalizedProposal.summary,
+      });
+    }
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: completedRun.id,
+      action: "agent.os.run.succeeded",
+      summary: "Apex Agent OS internal draft packet prepared",
+      task: completedTask,
+      run: completedRun,
+      status: "succeeded",
+    });
+    return draft;
+  });
+
+  res.status(201).json({
+    run: completedRun,
+    agentProposal: normalizedProposal,
+    ledger: deriveAgentOsLedgerFromAuditEvents(visibleAuditEventsForUser(nextState, req.auth.user)),
+    requestId: res.locals.requestId,
+  });
+}));
+
 app.get("/api/agent/learning-preferences", requireAuth, asyncRoute(async (req, res) => {
   const state = await readDb();
   assertCanManageAgentLearningPreferences(state, req.auth.user);
@@ -8042,9 +8479,12 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
     const printPacketChangedFields = [];
     const setupChanges = [];
     const setupChangedFields = [];
+    const policyChanges = [];
+    const policyChangedFields = [];
     const hasToolChecklistEnabledUpdate = Object.prototype.hasOwnProperty.call(payload, "toolChecklistEnabled");
     const hasManagedSetupUpdate = Object.prototype.hasOwnProperty.call(payload, "managedSetupChecklist")
       || Object.prototype.hasOwnProperty.call(payload, "managedSetupNotes");
+    const hasAgentAutomationPolicyUpdate = Object.prototype.hasOwnProperty.call(payload, "apexAgentAutomationPolicy");
     const nextToolChecklistEnabled = optionalBoolean(payload.toolChecklistEnabled, previousToolChecklistEnabled);
     const nextCompanyName = payload.companyName == null
       ? draft.companySettings.companyName
@@ -8086,6 +8526,21 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
       ? draft.companySettings.printPacketDisclaimer
       : optionalCompanySettingText(payload.printPacketDisclaimer, "", 320);
     let nextManagedSetup = null;
+    const nextAgentAutomationPolicy = hasAgentAutomationPolicyUpdate
+      ? normalizeApexAgentAutomationPolicy({
+        ...(draft.companySettings.apexAgentAutomationPolicy || {}),
+        ...(payload.apexAgentAutomationPolicy || {}),
+        capabilitySwitches: {
+          ...(draft.companySettings.apexAgentAutomationPolicy?.capabilitySwitches || {}),
+          ...(payload.apexAgentAutomationPolicy?.capabilitySwitches || {}),
+        },
+        workflowSettings: {
+          ...(draft.companySettings.apexAgentAutomationPolicy?.workflowSettings || {}),
+          ...(payload.apexAgentAutomationPolicy?.workflowSettings || {}),
+        },
+        updatedAt: changedAt,
+      })
+      : null;
 
     if (hasToolChecklistEnabledUpdate && previousToolChecklistEnabled !== nextToolChecklistEnabled) {
       draft.companySettings.toolChecklistEnabled = nextToolChecklistEnabled;
@@ -8194,6 +8649,14 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
         setupChangedFields.push("managedSetupUpdatedAt");
       }
     }
+    if (nextAgentAutomationPolicy) {
+      const previousPolicy = normalizeApexAgentAutomationPolicy(draft.companySettings.apexAgentAutomationPolicy);
+      if (JSON.stringify(previousPolicy) !== JSON.stringify(nextAgentAutomationPolicy)) {
+        draft.companySettings.apexAgentAutomationPolicy = nextAgentAutomationPolicy;
+        policyChangedFields.push("apexAgentAutomationPolicy");
+        policyChanges.push("Apex Agent automation policy");
+      }
+    }
 
     if (brandingChanges.length > 0) {
       const detail = `${req.auth.user.name} updated the workspace ${brandingChanges.join(", ")}.`;
@@ -8245,6 +8708,19 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
         detail,
         actor: req.auth.user,
         changedFields: [...setupChangedFields, "updatedAt"],
+      });
+    }
+    if (policyChanges.length > 0) {
+      const detail = `${req.auth.user.name} updated the Apex Agent automation policy. Review-first controls remain required before any autonomous behavior.`;
+      appendActivity(draft, "Apex Agent policy updated", detail);
+      appendAuditEvent(draft, {
+        entityType: "companySettings",
+        entityId: "apexAgentAutomationPolicy",
+        action: "updated",
+        summary: "Apex Agent automation policy updated",
+        detail,
+        actor: req.auth.user,
+        changedFields: [...policyChangedFields, "updatedAt"],
       });
     }
 
@@ -12518,6 +12994,96 @@ app.post("/api/customers/:id/restore", requireAuth, asyncRoute(async (req, res) 
       detail: `${customer.name} was restored.`,
       actor: req.auth.user,
       changedFields: ["archivedAt"],
+    });
+    return draft;
+  });
+
+  return res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.get("/api/agent/conversations", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanViewAgentConversations(state, req.auth.user);
+  return res.json({
+    agentConversationThreads: visibleAgentConversationThreadsForUser(state, req.auth.user),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/ask", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const bootstrapPayload = sanitizeBootstrap(state, req.auth.user);
+  assertCanViewAgentContext(bootstrapPayload);
+  const question = requiredString(req.body?.question, "Question");
+  const context = buildContractorAdvisorContext({
+    question,
+    workspace: bootstrapPayload,
+  });
+  const contractorAdvisor = await generateContractorAdvisorAnswer({
+    context,
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+
+  return res.json({
+    contractorAdvisor,
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/conversations", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageAgentConversations(state, req.auth.user);
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.agentConversationThreads ||= [];
+    const { record } = normalizeAgentConversationForWrite(draft, req.body || {}, req.auth.user, {
+      id: makeId("AGCONV"),
+      changedAt,
+    });
+    draft.agentConversationThreads.unshift(record);
+    appendActivity(draft, "Apex Agent conversation saved", `${req.auth.user.name} saved an internal Apex Agent conversation for review.`, { companyId: record.companyId });
+    appendAuditEvent(draft, {
+      entityType: "agentConversation",
+      entityId: record.id,
+      action: "created",
+      summary: "Apex Agent conversation saved",
+      detail: "Internal Apex Agent customer conversation preview saved. No customer email, SMS, call, portal approval, invoice, payment, or notification was created.",
+      actor: req.auth.user,
+      changedFields: ["messages", "reviewCards", "status", "riskLevel"],
+    });
+    return draft;
+  });
+
+  return res.status(201).json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.patch("/api/agent/conversations/:id", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageAgentConversations(state, req.auth.user);
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.agentConversationThreads ||= [];
+    const existing = findCompanyScopedRecord(draft.agentConversationThreads, id, req.auth.user, draft, "Apex Agent conversation");
+    const previous = { ...existing };
+    const { record } = normalizeAgentConversationForWrite(draft, req.body || {}, req.auth.user, {
+      existing,
+      changedAt,
+    });
+    Object.assign(existing, record);
+    const changedFields = ["status", "title", "summary", "riskLevel", "archivedAt"]
+      .filter((field) => (previous[field] || "") !== (existing[field] || ""));
+    appendActivity(draft, "Apex Agent conversation updated", `${req.auth.user.name} updated an internal Apex Agent conversation.`, { companyId: existing.companyId });
+    appendAuditEvent(draft, {
+      entityType: "agentConversation",
+      entityId: existing.id,
+      action: "updated",
+      summary: "Apex Agent conversation updated",
+      detail: "Internal Apex Agent conversation metadata updated. No customer-facing action was created.",
+      actor: req.auth.user,
+      changedFields: [...new Set([...changedFields, "updatedAt"])],
     });
     return draft;
   });

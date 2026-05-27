@@ -1,4 +1,5 @@
 import { normalizeJobStatus } from "./job-utils.js";
+import { normalizeApexAgentAutomationPolicy } from "../shared/apexAgentAutomationPolicy.js";
 
 export const DEFAULT_APP_PERMISSIONS = {
   users: {
@@ -46,6 +47,8 @@ export const DEFAULT_APP_PERMISSIONS = {
   aiOffice: {
     canView: false,
     canUseLeadAssistant: false,
+    canManageLearning: false,
+    canManageConversations: false,
   },
   jobs: {
     canView: false,
@@ -171,6 +174,7 @@ export const EMPTY_APP_STATE = {
     managedSetupChecklist: [],
     managedSetupNotes: "",
     managedSetupUpdatedAt: "",
+    apexAgentAutomationPolicy: normalizeApexAgentAutomationPolicy(),
   },
   firstOwnerOnboarding: null,
   users: [],
@@ -181,6 +185,7 @@ export const EMPTY_APP_STATE = {
   foundOpportunities: [],
   leadStatusHistory: [],
   contactHistory: [],
+  agentConversationThreads: [],
   estimates: [],
   rateBookItems: [],
   jobDraftImports: [],
@@ -309,6 +314,9 @@ export function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
       ...EMPTY_APP_STATE.companySettings,
       ...(fallback.companySettings || {}),
       ...(source.companySettings || {}),
+      apexAgentAutomationPolicy: normalizeApexAgentAutomationPolicy(
+        source.companySettings?.apexAgentAutomationPolicy || fallback.companySettings?.apexAgentAutomationPolicy,
+      ),
     },
     firstOwnerOnboarding: source.firstOwnerOnboarding || fallback.firstOwnerOnboarding || null,
     users: normalizeObjectArray(source.users, fallback.users),
@@ -319,6 +327,7 @@ export function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
     foundOpportunities: normalizeObjectArray(source.foundOpportunities, fallback.foundOpportunities),
     leadStatusHistory: normalizeObjectArray(source.leadStatusHistory, fallback.leadStatusHistory),
     contactHistory: normalizeObjectArray(source.contactHistory, fallback.contactHistory),
+    agentConversationThreads: normalizeObjectArray(source.agentConversationThreads, fallback.agentConversationThreads),
     estimates: normalizeEstimateArray(source.estimates, fallback.estimates),
     rateBookItems: normalizeObjectArray(source.rateBookItems, fallback.rateBookItems),
     jobDraftImports: normalizeObjectArray(source.jobDraftImports, fallback.jobDraftImports),

@@ -147,18 +147,169 @@ function prepRecordHelper(record = {}, fallback = "Open the existing workflow an
   return text(record.helper || record.description || record.detail || fallback);
 }
 
+function previewId(label = "", index = 0) {
+  const normalized = text(label)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+  return normalized || `preview-${index + 1}`;
+}
+
+function previewValue(value, fallback = "") {
+  return redactAgentProposalAuditText(value || fallback, { maxLength: 180 });
+}
+
+function previewRow(field, {
+  currentValue = "",
+  proposedValue = "",
+  source = "",
+  note = "",
+} = {}, index = 0) {
+  const row = {
+    id: previewId(field, index),
+    field: text(field),
+    currentValue: previewValue(currentValue),
+    proposedValue: previewValue(proposedValue),
+    source: text(source),
+    note: previewValue(note, ""),
+  };
+  return row.field && (row.currentValue || row.proposedValue || row.note) ? row : null;
+}
+
+function firstNonEmpty(...values) {
+  return values.map(text).find(Boolean) || "";
+}
+
+function buildDraftFieldPreview(response = {}, record = {}, item = {}) {
+  const type = text(response.type);
+  const label = prepRecordLabel(record);
+  const helper = prepRecordHelper(record, item.helper);
+  const query = text(response.query);
+  const roughNotes = text(response.roughNotes);
+  const rows = [];
+
+  if (type === "estimate-draft-review") {
+    rows.push(
+      previewRow("Customer", {
+        currentValue: firstNonEmpty(record.customerName, record.customer, record.name, label),
+        proposedValue: firstNonEmpty(record.customerName, record.customer, record.name, label, query),
+        source: record.leadId ? "Lead" : record.customerId ? "Customer" : "Assistant match",
+      }, rows.length),
+      previewRow("Project / scope label", {
+        currentValue: firstNonEmpty(record.projectName, record.project, helper),
+        proposedValue: firstNonEmpty(record.projectName, record.project, query, helper),
+        source: "Visible workspace data",
+      }, rows.length + 1),
+      previewRow("Rough notes", {
+        currentValue: "No estimate draft saved by preview",
+        proposedValue: roughNotes || "Blank draft for manual estimate entry",
+        source: roughNotes ? "Assistant prompt" : "Estimate Studio",
+        note: "User must review and save in Estimates.",
+      }, rows.length + 2),
+      previewRow("Draft status", {
+        currentValue: "No estimate created",
+        proposedValue: "Draft estimate only after human approval",
+        source: "Agent action gate",
+      }, rows.length + 3),
+    );
+  } else if (type === "estimate-packet-review") {
+    rows.push(
+      previewRow("Estimate", {
+        currentValue: firstNonEmpty(record.estimateId, label),
+        proposedValue: firstNonEmpty(record.estimateId, label),
+        source: "Existing estimate",
+      }, rows.length),
+      previewRow("Send review", {
+        currentValue: "Estimate send state unchanged",
+        proposedValue: "Ready for human send review packet",
+        source: "Agent action gate",
+        note: "No email, print, mark-sent, or customer contact.",
+      }, rows.length + 1),
+    );
+  } else if (type === "estimate-job-handoff-review") {
+    rows.push(
+      previewRow("Source estimate", {
+        currentValue: firstNonEmpty(record.estimateId, label),
+        proposedValue: firstNonEmpty(record.estimateId, label),
+        source: "Approved estimate review",
+      }, rows.length),
+      previewRow("Job draft status", {
+        currentValue: record.converted ? "Estimate already linked to a job" : "No job draft saved by preview",
+        proposedValue: record.readyForJobHandoff ? "Draft job only after human approval" : "Blocked until estimate approval is reviewed",
+        source: "Agent action gate",
+      }, rows.length + 1),
+      previewRow("Field visibility", {
+        currentValue: "Unchanged",
+        proposedValue: "Office review only; no schedule, crew assignment, or field update",
+        source: "Apex HQ permission boundary",
+      }, rows.length + 2),
+    );
+  } else if (type === "lead-follow-up") {
+    rows.push(
+      previewRow("Lead", {
+        currentValue: firstNonEmpty(record.leadId, label),
+        proposedValue: firstNonEmpty(record.leadId, label),
+        source: "Existing lead",
+      }, rows.length),
+      previewRow("Follow-up action", {
+        currentValue: "No status, note, or contact change",
+        proposedValue: "Manual follow-up review only",
+        source: "Agent action gate",
+        note: "No call, email, text, or notification.",
+      }, rows.length + 1),
+    );
+  } else if (type === "support-workflow-review") {
+    rows.push(previewRow("Support context", {
+      currentValue: "No support ticket or escalation created",
+      proposedValue: firstNonEmpty(response.workflow, item.label, "Copy-only support handoff"),
+      source: "Visible workflow context",
+      note: "No permission change, email, text, upload, or escalation.",
+    }, rows.length));
+  } else if (type === "workflow-draft-prep") {
+    const packet = response.draftPacket || {};
+    asArray(packet.items).slice(0, 4).forEach((packetItem, index) => {
+      rows.push(previewRow(text(packetItem.label) || `Packet item ${index + 1}`, {
+        currentValue: "No workflow record changed",
+        proposedValue: text(packetItem.detail),
+        source: "Review packet",
+      }, index));
+    });
+  } else if (type === "daily-closeout-readiness") {
+    const packet = response.billingReviewPacket || {};
+    asArray(packet.summaryItems).slice(0, 3).forEach((summaryItem, index) => {
+      rows.push(previewRow(text(summaryItem.label) || `Closeout item ${index + 1}`, {
+        currentValue: "Billing state unchanged",
+        proposedValue: text(summaryItem.detail),
+        source: "Closeout review packet",
+      }, index));
+    });
+    rows.push(previewRow("Billing action", {
+      currentValue: "No invoice, payment, customer send, or profit/loss finalization",
+      proposedValue: "Manual office review packet only",
+      source: "Agent action gate",
+    }, rows.length));
+  }
+
+  return rows.filter(Boolean).slice(0, 6);
+}
+
 function buildDraftPrepForMatches(response = {}, { prepType = "Workflow prep", safeOutput = "", reviewLabel = "" } = {}) {
   const matches = asArray(response.matches);
   const records = matches.length ? matches.slice(0, 3) : response.fallback ? [response.fallback] : [];
-  return records.map((record, index) => ({
-    id: text(record.id) || `${response.type || "proposal"}:${index}`,
-    prepType,
-    label: prepRecordLabel(record),
-    helper: prepRecordHelper(record),
-    safeOutput,
-    reviewLabel,
-    warnings: asArray(record.reviewWarnings).slice(0, 4),
-  }));
+  return records.map((record, index) => {
+    const item = {
+      id: text(record.id) || `${response.type || "proposal"}:${index}`,
+      prepType,
+      label: prepRecordLabel(record),
+      helper: prepRecordHelper(record),
+      safeOutput,
+      reviewLabel,
+      warnings: asArray(record.reviewWarnings).slice(0, 4),
+    };
+    const fieldPreview = buildDraftFieldPreview(response, record, item);
+    return fieldPreview.length ? { ...item, fieldPreview } : item;
+  });
 }
 
 function buildAgentDraftPrep(response = {}) {
@@ -211,6 +362,10 @@ function buildAgentDraftPrep(response = {}) {
       helper: text(response.blockerLevel || "Copy-only support context"),
       safeOutput: "Support context can be reviewed and copied manually.",
       reviewLabel: "No ticket, upload, permission change, escalation, email, or text is created automatically.",
+      fieldPreview: buildDraftFieldPreview(response, {}, {
+        label: text(response.workflow || "Support workflow"),
+        helper: text(response.blockerLevel || "Copy-only support context"),
+      }),
       warnings: [],
     }];
   }
@@ -226,6 +381,10 @@ function buildAgentDraftPrep(response = {}) {
       safeOutput: "Review note packet only. The assistant does not save records or send anything.",
       reviewLabel: text(packet.safetyBoundary || "No records are changed from this assistant packet."),
       fields: asArray(packet.items).map((item) => `${text(item.label)}: ${text(item.detail)}`).filter(Boolean).slice(0, 4),
+      fieldPreview: buildDraftFieldPreview(response, {}, {
+        label: text(packet.title || target.title || "Workflow draft packet"),
+        helper: text(packet.summary || "Review the next action packet before opening the workflow."),
+      }),
       warnings: asArray(packet.blockedActions).slice(0, 4),
     }];
   }
@@ -247,6 +406,10 @@ function buildAgentDraftPrep(response = {}) {
         ...profitLossItems.slice(0, 2).map((item) => `${text(item.title)} profit/loss prep: ${item.readyForManualReview ? "inputs look ready for manual review" : text(item.nextStep || "cost inputs need review")}`),
         ...rows.slice(0, 3).map((row) => `${text(row.title)}: ${row.readyForBillingReview ? "ready for manual billing review" : text(row.nextAction || "needs closeout review")}`),
       ].filter(Boolean).slice(0, 6),
+      fieldPreview: buildDraftFieldPreview(response, {}, {
+        label: text(packet.title || "Closeout billing review packet"),
+        helper: text(packet.summary || response.message || "Review closeout, proof, time, change orders, and billing readiness."),
+      }),
       warnings: [
         ...asArray(packet.blockedActions),
         "No invoice, payment, customer send, job status change, or profit/loss finalization",
@@ -303,9 +466,13 @@ function buildAgentActionContextProof(response = {}, workflowContext = null) {
           tradeLabel: text(trade.tradeLabel),
           count: Number(trade.count || 0),
         })),
+        optionFamilies: asArray(matchedModule.tradeSummary.optionFamilies).map(text).filter(Boolean).slice(0, 4),
+        lineItemStarters: asArray(matchedModule.tradeSummary.lineItemStarters).map(text).filter(Boolean).slice(0, 5),
+        proposalSections: asArray(matchedModule.tradeSummary.proposalSections).map(text).filter(Boolean).slice(0, 5),
         fieldHandoffChecklist: asArray(matchedModule.tradeSummary.fieldHandoffChecklist).map(text).filter(Boolean).slice(0, 4),
         proofPhotoChecklist: asArray(matchedModule.tradeSummary.proofPhotoChecklist).map(text).filter(Boolean).slice(0, 4),
         changeOrderWatchouts: asArray(matchedModule.tradeSummary.changeOrderWatchouts).map(text).filter(Boolean).slice(0, 4),
+        closeoutChecks: asArray(matchedModule.tradeSummary.closeoutChecks).map(text).filter(Boolean).slice(0, 4),
         safetyBoundary: text(matchedModule.tradeSummary.safetyBoundary),
       } : null,
       records: asArray(matchedModule.records).slice(0, 3).map((record) => ({
@@ -325,17 +492,41 @@ function buildAgentActionContextProof(response = {}, workflowContext = null) {
 
 function hydrateDraftPrepWithContext(draftPrep = [], contextProof = null) {
   if (!contextProof) return draftPrep;
+  const tradeSummary = contextProof.module?.tradeSummary || {};
   const contextFields = [
     contextProof.source ? `Context: ${contextProof.source}` : "",
     contextProof.visibleModuleCount ? `Visible areas: ${contextProof.visibleModuleCount}` : "",
     contextProof.attentionCount ? `Review signals: ${contextProof.attentionCount}` : "",
-    contextProof.module?.tradeSummary?.primaryTradeLabel ? `Trade focus: ${contextProof.module.tradeSummary.primaryTradeLabel}` : "",
-    contextProof.module?.tradeSummary?.proofPhotoChecklist?.length ? `Proof prompts: ${contextProof.module.tradeSummary.proofPhotoChecklist.slice(0, 3).join(", ")}` : "",
+    tradeSummary.primaryTradeLabel ? `Trade focus: ${tradeSummary.primaryTradeLabel}` : "",
+    tradeSummary.lineItemStarters?.length ? `Estimate starters: ${tradeSummary.lineItemStarters.slice(0, 3).join(", ")}` : "",
+    tradeSummary.proposalSections?.length ? `Proposal sections: ${tradeSummary.proposalSections.slice(0, 3).join(", ")}` : "",
+    tradeSummary.proofPhotoChecklist?.length ? `Proof prompts: ${tradeSummary.proofPhotoChecklist.slice(0, 3).join(", ")}` : "",
   ].filter(Boolean);
-  if (!contextFields.length) return draftPrep;
+  const tradePreviewRows = [
+    tradeSummary.lineItemStarters?.length ? previewRow("Trade estimate starters", {
+      currentValue: "No estimate line items are added by preview",
+      proposedValue: tradeSummary.lineItemStarters.slice(0, 4).join(", "),
+      source: `${tradeSummary.primaryTradeLabel || "Trade"} review profile`,
+      note: "Human chooses quantities, pricing, and scope in the normal estimate workflow.",
+    }, 0) : null,
+    tradeSummary.proposalSections?.length ? previewRow("Trade proposal sections", {
+      currentValue: "No proposal copy is saved by preview",
+      proposedValue: tradeSummary.proposalSections.slice(0, 4).join(", "),
+      source: `${tradeSummary.primaryTradeLabel || "Trade"} review profile`,
+      note: "Human reviews inclusions, exclusions, assumptions, and customer-facing language.",
+    }, 1) : null,
+    tradeSummary.proofPhotoChecklist?.length ? previewRow("Trade proof prompts", {
+      currentValue: "No field checklist is changed by preview",
+      proposedValue: tradeSummary.proofPhotoChecklist.slice(0, 4).join(", "),
+      source: `${tradeSummary.primaryTradeLabel || "Trade"} review profile`,
+      note: "Human confirms proof requirements before handoff or closeout.",
+    }, 2) : null,
+  ].filter(Boolean);
+  if (!contextFields.length && !tradePreviewRows.length) return draftPrep;
   return asArray(draftPrep).map((item) => ({
     ...item,
-    fields: [...asArray(item.fields), ...contextFields].slice(0, 6),
+    fields: [...asArray(item.fields), ...contextFields].slice(0, 8),
+    fieldPreview: [...asArray(item.fieldPreview), ...tradePreviewRows].slice(0, 8),
   }));
 }
 
@@ -505,7 +696,7 @@ export function deriveAgentActionProposalReviewState(queue = [], { selectedId = 
     totalCount,
     safetyCopy: isBlocked
       ? "This packet is blocked by role, package, or safety rules. Use an allowed Apex HQ workflow instead."
-      : "Session-only review gate. It does not save approval, change records, send messages, convert work, bill, schedule, or assign crews.",
+      : "Session-only review gate: no save, send, approval, conversion, billing, schedule, crew assignment, or record change.",
   };
 }
 
@@ -635,6 +826,13 @@ export function normalizeAgentActionProposalAuditEvent(proposal = {}, {
       prepType: text(item.prepType),
       label: redactAgentProposalAuditText(item.label, { maxLength: 120 }),
       reviewLabel: redactAgentProposalAuditText(item.reviewLabel, { maxLength: 180 }),
+      fieldPreview: asArray(item.fieldPreview).slice(0, 6).map((row) => ({
+        field: redactAgentProposalAuditText(row.field, { maxLength: 80 }),
+        currentValue: redactAgentProposalAuditText(row.currentValue, { maxLength: 140 }),
+        proposedValue: redactAgentProposalAuditText(row.proposedValue, { maxLength: 180 }),
+        source: redactAgentProposalAuditText(row.source, { maxLength: 80 }),
+        note: redactAgentProposalAuditText(row.note, { maxLength: 140 }),
+      })).filter((row) => row.field || row.currentValue || row.proposedValue || row.note),
     })),
     targetEntityType: text(targetEntity.type),
     targetEntityId: text(targetEntity.id),
@@ -713,6 +911,12 @@ const INBOX_STATUSES = Object.freeze([
   { id: "dismissed", label: "Dismissed", tone: "slate" },
 ]);
 
+const INBOX_FILTERS = Object.freeze([
+  { id: "waiting", label: "Waiting", tone: "amber" },
+  { id: "blocked", label: "Blocked", tone: "red" },
+  { id: "recorded", label: "Recorded", tone: "green" },
+]);
+
 function inboxStatusFromReviewState(item = {}, reviewState = {}) {
   if (item.proposal?.status === "blocked" || reviewState.status === "blocked") return "blocked";
   if (reviewState.selected?.id === item.id) {
@@ -735,6 +939,7 @@ export function deriveAgentActionInbox({
   queue = [],
   reviewState = {},
   auditHistory = [],
+  automationPolicy = {},
   limit = 8,
 } = {}) {
   const queueRows = asArray(queue).map((item) => {
@@ -784,19 +989,55 @@ export function deriveAgentActionInbox({
   const waitingCount = counts.suggested + counts.ready_for_review + counts.approved_for_draft;
   const blockedCount = counts.blocked;
   const completedCount = counts.draft_created + counts.dismissed;
+  const recordedCount = auditRows.length;
+  const policyPaused = Boolean(automationPolicy.agentPaused);
+  const rowsByFilter = {
+    waiting: rows.filter((row) => ["suggested", "ready_for_review", "approved_for_draft"].includes(row.status)),
+    blocked: rows.filter((row) => row.status === "blocked"),
+    recorded: rows.filter((row) => row.source === "audit" || ["draft_created", "dismissed"].includes(row.status)),
+  };
+  const emptyStates = {
+    waiting: policyPaused
+      ? {
+          title: "Apex Agent is paused by policy.",
+          copy: "Review packets are not being surfaced while the contractor policy is off. No customer sends, scheduling, billing, or record changes are running.",
+        }
+      : {
+          title: "No waiting packets.",
+          copy: "New review-first work will appear here when Apex HQ finds office actions that need human attention.",
+        },
+    blocked: {
+      title: "No blocked packets.",
+      copy: "Role, package, and safety blocks will appear here when a request cannot proceed.",
+    },
+    recorded: {
+      title: "No recorded action audits.",
+      copy: "Recorded proposal events will appear after a human completes the review gate or records a blocked packet.",
+    },
+  };
 
   return {
     statuses: INBOX_STATUSES.map((status) => ({
       ...status,
       count: counts[status.id] || 0,
     })),
+    filters: INBOX_FILTERS.map((filter) => ({
+      ...filter,
+      count: filter.id === "waiting" ? waitingCount : filter.id === "blocked" ? blockedCount : recordedCount,
+    })),
     counts,
     rows,
+    rowsByFilter,
+    emptyStates,
     waitingCount,
     blockedCount,
     completedCount,
+    recordedCount,
+    policyPaused,
     summary: rows.length
       ? `${waitingCount} waiting / ${blockedCount} blocked / ${completedCount} complete`
+      : policyPaused
+        ? "Apex Agent action review is paused by policy."
       : "No agent action packets are waiting.",
     safetyCopy: "Review-first inbox only. It does not create drafts, send messages, submit bids, convert records, schedule crews, bill, or change permissions.",
   };

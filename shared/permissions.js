@@ -19,6 +19,41 @@ export const DEFAULT_COMPANY_SETTINGS = {
   managedSetupNotes: "",
   managedSetupUpdatedAt: "",
   agentLearningPreferences: [],
+  apexAgentAutomationPolicy: {
+    enabled: true,
+    autonomyLevel: "review_first",
+    requireHumanApproval: true,
+    capabilitySwitches: {
+      leadReview: true,
+      estimateDrafts: true,
+      closeoutReview: true,
+      customerConversationPreview: true,
+      opportunityScoutReview: true,
+      ownerBiReview: true,
+    },
+    lockedAutonomousActions: {
+      customerContact: "off",
+      recordChanges: "off",
+      scheduling: "off",
+      billing: "off",
+    },
+    workflowSettings: {
+      leadFollowUpDraft: "draft_only",
+      estimatePacketDraft: "approval_required",
+      changeOrderDraft: "draft_only",
+      invoicePaymentPrep: "draft_only",
+      materialListPrep: "draft_only",
+      jobCostingReview: "draft_only",
+      emailSend: "locked",
+      smsSend: "locked",
+      paymentCollection: "locked",
+      customerPortalAction: "locked",
+      scheduling: "locked",
+      bidSubmission: "locked",
+      integrationWrite: "locked",
+    },
+    updatedAt: "",
+  },
 };
 
 export function normalizeRole(role) {

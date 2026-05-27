@@ -92,9 +92,13 @@ function summarizeTradeContext(records = [], companySettings = {}) {
     primaryTradeId: primary.tradeId,
     primaryTradeLabel: primary.tradeLabel,
     visibleTrades: ranked.map((entry) => ({ tradeId: entry.tradeId, tradeLabel: entry.tradeLabel, count: entry.count })).slice(0, 4),
+    optionFamilies: primary.optionFamilies.slice(0, 4),
+    lineItemStarters: primary.lineItemStarters.slice(0, 5),
+    proposalSections: primary.proposalSections.slice(0, 5),
     fieldHandoffChecklist: primary.fieldHandoffChecklist.slice(0, 4),
     proofPhotoChecklist: primary.proofPhotoChecklist.slice(0, 4),
     changeOrderWatchouts: primary.changeOrderWatchouts.slice(0, 4),
+    closeoutChecks: primary.closeoutChecks.slice(0, 4),
     safetyBoundary: primary.safetyBoundary,
   };
 }
@@ -303,6 +307,8 @@ export function deriveAgentWorkflowDraftPrep(context = {}, { actionId = "" } = {
         id: "trade-guidance",
         label: `${tradeSummary.primaryTradeLabel} guidance`,
         detail: [
+          tradeSummary.lineItemStarters?.length ? `Estimate starters: ${tradeSummary.lineItemStarters.slice(0, 3).join(", ")}` : "",
+          tradeSummary.proposalSections?.length ? `Proposal sections: ${tradeSummary.proposalSections.slice(0, 3).join(", ")}` : "",
           tradeSummary.fieldHandoffChecklist?.length ? `Handoff: ${tradeSummary.fieldHandoffChecklist.slice(0, 3).join(", ")}` : "",
           tradeSummary.proofPhotoChecklist?.length ? `Proof photos: ${tradeSummary.proofPhotoChecklist.slice(0, 3).join(", ")}` : "",
           tradeSummary.changeOrderWatchouts?.length ? `Watchouts: ${tradeSummary.changeOrderWatchouts.slice(0, 3).join(", ")}` : "",

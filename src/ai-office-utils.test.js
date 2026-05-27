@@ -91,8 +91,15 @@ test("AI Office agent command center builds role-safe review lanes from visible 
   assert.equal(state.counts.closeoutBlockers, 3);
   assert.equal(state.counts.proofCloseoutReview, 6);
   assert.equal(state.counts.unlinkedUploads, 1);
+  assert.equal(state.headline, "Apex Agent Command Center");
+  assert.equal(state.workflowCards.some((card) => /\bAgent\b/.test(card.title)), false);
   assert.match(state.summary, /routes into an existing Apex HQ workflow/i);
   assert.equal(state.guardrails.some((item) => /No auto-send/i.test(item.detail)), true);
+  assert.equal(state.autonomyReadiness.operationalStatus, "Autonomous prep only");
+  assert.equal(state.autonomyReadiness.readyForAutonomousMutation, false);
+  assert.equal(state.autonomyReadiness.reviewCapabilityCount, state.workflowCards.length);
+  assert.equal(state.autonomyReadiness.reviewItemCount, state.focusRows.length);
+  assert.match(state.autonomyReadiness.lockedNextGate, /customer contact/i);
 });
 
 test("AI Office agent command center surfaces review-only growth source intelligence", () => {
@@ -314,4 +321,68 @@ test("AI Office agent command center keeps Premium assistant useful without Oppo
   assert.equal(state.workflowCards.some((card) => card.id === "proof-closeout"), true);
   assert.equal(state.workflowCards.some((card) => card.id === "field-ops-agent"), true);
   assert.equal(state.focusRows.some((row) => row.recordType === "lead"), true);
+});
+
+test("AI Office agent command center obeys Apex Agent automation policy switches", () => {
+  const state = deriveAiOfficeAgentCommandCenter({
+    permissions: {
+      aiOffice: { canView: true },
+      opportunityScout: { canView: true },
+      leads: { canView: true },
+      jobs: { canView: true, canManageAll: true },
+      estimates: { canView: true, canManage: true },
+      reports: { canView: true },
+      uploads: { canView: true },
+    },
+    apexAgentAutomationPolicy: {
+      autonomyLevel: "draft_assist",
+      capabilitySwitches: {
+        leadReview: false,
+        estimateDrafts: false,
+        closeoutReview: true,
+        customerConversationPreview: true,
+        opportunityScoutReview: false,
+        ownerBiReview: true,
+      },
+    },
+    opportunityScout: {
+      stats: { openFoundOpportunities: 1 },
+      foundOpportunityQueue: [{ id: "FO-1", title: "Public bid" }],
+    },
+    leads: [{ id: "LEAD-1", customer: "Hidden lead", status: "New" }],
+    estimates: [{ id: "EST-1", title: "Hidden estimate", status: "draft" }],
+    dailyReports: [{ id: "REPORT-1", status: "Submitted", jobTitle: "Visible closeout" }],
+    uploads: [{ id: "UPLOAD-1", fileName: "visible.jpg" }],
+  });
+
+  assert.equal(state.modeLabel, "Draft assist");
+  assert.equal(state.workflowCards.some((card) => card.id === "lead-review"), false);
+  assert.equal(state.workflowCards.some((card) => card.id === "estimate-action-agent"), false);
+  assert.equal(state.workflowCards.some((card) => card.id === "opportunity-scout"), false);
+  assert.equal(state.workflowCards.some((card) => card.id === "proof-closeout"), true);
+  assert.equal(state.focusRows.some((row) => row.recordType === "lead"), false);
+  assert.equal(state.focusRows.some((row) => row.recordType === "estimate"), false);
+  assert.equal(state.focusRows.some((row) => row.recordType === "opportunity"), false);
+  assert.equal(state.focusRows.some((row) => row.recordType === "report"), true);
+  assert.equal(state.automationPolicy.lockedRows.every((row) => row.status === "off"), true);
+});
+
+test("AI Office agent command center pauses review surfaces when Apex Agent policy is off", () => {
+  const state = deriveAiOfficeAgentCommandCenter({
+    permissions: {
+      aiOffice: { canView: true },
+      leads: { canView: true },
+      jobs: { canView: true, canManageAll: true },
+    },
+    apexAgentAutomationPolicy: { enabled: false },
+    leads: [{ id: "LEAD-1", customer: "Paused lead", status: "New" }],
+  });
+
+  assert.equal(state.canView, true);
+  assert.equal(state.modeLabel, "Off");
+  assert.deepEqual(state.workflowCards, []);
+  assert.deepEqual(state.focusRows, []);
+  assert.match(state.summary, /paused/i);
+  assert.equal(state.autonomyReadiness.operationalStatus, "Paused");
+  assert.equal(state.autonomyReadiness.readyForAutonomousMutation, false);
 });

@@ -14,7 +14,7 @@ const ROLE_CONFIGS = {
   admin: {
     email: "demo.admin@apexhq.app",
     restrictedApiExpectations: [],
-    routes: ["/", "/command-center", "/jobs", "/reports", "/uploads", "/schedule", "/customers", "/employees", "/estimates", "/support"],
+    routes: ["/", "/command-center", "/ai-office", "/jobs", "/reports", "/uploads", "/schedule", "/customers", "/employees", "/estimates", "/support"],
   },
   employee: {
     email: "demo.employee@apexhq.app",
@@ -29,7 +29,7 @@ const ROLE_CONFIGS = {
   },
 };
 
-const OFFICE_ROUTES = ["/command-center", "/leads", "/customers", "/employees", "/estimates", "/settings", "/app-health", "/imported-drafts"];
+const OFFICE_ROUTES = ["/command-center", "/ai-office", "/leads", "/customers", "/employees", "/estimates", "/settings", "/app-health", "/imported-drafts"];
 
 function printHelp() {
   console.log(`Apex HQ hosted smoke check
@@ -41,13 +41,13 @@ Usage:
 Defaults:
   --base-url=${DEFAULT_BASE_URL}
   --roles=admin,employee
-  --flows=health,routes,auth,restricted-routes
+  --flows=health,routes,auth,restricted-routes,agent
   --password-env=${DEFAULT_PASSWORD_ENV}
 
 Flags:
   --base-url=<url>              Hosted app URL to check.
   --roles=admin,employee        Roles to check.
-  --flows=health,routes,auth,restricted-routes
+  --flows=health,routes,auth,restricted-routes,agent
   --admin-email=<email>         Admin login email.
   --employee-email=<email>      Employee login email.
   --password-env=<name>         Env var containing smoke password.
@@ -62,6 +62,7 @@ Flags:
   --help                        Print this message without network calls.
 
 Safety:
+  The optional agent flow performs GET-only Apex Agent OS checks after login.
   This script performs GET requests plus optional login/bootstrap checks only.
   It never calls reset, export download, invite, password reset, public intake, AI send, upload, POST/PATCH/DELETE workflow, or destructive endpoints.
 `);
@@ -138,7 +139,7 @@ function parseArgs(argv) {
     throw new Error(`Unknown roles: ${invalidRoles.join(", ")}`);
   }
 
-  const allowedFlows = new Set(["health", "routes", "auth", "restricted-routes"]);
+  const allowedFlows = new Set(["health", "routes", "auth", "restricted-routes", "agent"]);
   const invalidFlows = options.flows.filter((flow) => !allowedFlows.has(flow));
   if (invalidFlows.length > 0) {
     throw new Error(`Unknown flows: ${invalidFlows.join(", ")}`);
@@ -334,6 +335,39 @@ async function checkRestrictedRoutes(options, sessions, results) {
   }
 }
 
+async function checkAgentFlow(options, sessions, results) {
+  const adminSession = sessions.get("admin");
+  if (adminSession) {
+    const result = await requestJson(routeUrl(options.baseUrl, "/api/agent/os"), {
+      headers: adminSession.headers,
+    });
+    assertOk(result, "admin Agent OS summary");
+    results.checks.push({
+      flow: "agent",
+      role: "admin",
+      endpoint: "/api/agent/os",
+      status: result.response.status,
+      durationMs: result.durationMs,
+      safetyBoundary: result.payload?.agentOs?.safetyBoundary || "",
+    });
+  }
+
+  const employeeSession = sessions.get("employee");
+  if (employeeSession) {
+    const result = await requestJson(routeUrl(options.baseUrl, "/api/agent/os"), {
+      headers: employeeSession.headers,
+    });
+    assertStatus(result, 403, "employee Agent OS summary");
+    results.checks.push({
+      flow: "agent",
+      role: "employee",
+      endpoint: "/api/agent/os",
+      status: result.response.status,
+      durationMs: result.durationMs,
+    });
+  }
+}
+
 async function run() {
   const options = parseArgs(process.argv.slice(2));
   if (options.help) {
@@ -372,6 +406,12 @@ async function run() {
       throw new Error("restricted-routes flow requires auth flow.");
     }
     await checkRestrictedRoutes(options, sessions, results);
+  }
+  if (options.flows.includes("agent")) {
+    if (!options.flows.includes("auth")) {
+      throw new Error("agent flow requires auth flow.");
+    }
+    await checkAgentFlow(options, sessions, results);
   }
 
   if (options.json) {
