@@ -102,6 +102,7 @@ import {
   deleteQueueItem,
   endBreak,
   exportCompanyData,
+  executeAgentEstimateSend,
   getBootstrap,
   getAgentContext,
   getHealth,
@@ -12249,6 +12250,25 @@ export default function App() {
     }
   }
 
+  async function handleExecuteAgentEstimateSend(payload) {
+    if (!sessionToken || !appState.permissions.audit?.canView || !appState.permissions.estimates?.canManage) {
+      throw new Error("You do not have permission to execute agent estimate email sends.");
+    }
+    setBusy(true);
+    try {
+      const nextState = await executeAgentEstimateSend(sessionToken, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return nextState.agentEstimateEmailSend || true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      throw error;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleConvertAgentEstimateToJob(payload) {
     if (!sessionToken || !appState.permissions.audit?.canView || !appState.permissions.estimates?.canManage || !appState.permissions.jobs?.canCreate) {
       throw new Error("You do not have permission to create agent job drafts.");
@@ -12923,6 +12943,7 @@ export default function App() {
         onStartEstimateDraft={handleStartAssistantEstimateDraft}
         onCreateAgentEstimateDraft={handleCreateAgentEstimateDraft}
         onPrepareAgentEstimateSend={handlePrepareAgentEstimateSend}
+        onExecuteAgentEstimateSend={handleExecuteAgentEstimateSend}
         onConvertAgentEstimateToJob={handleConvertAgentEstimateToJob}
         onOpenEstimatePacket={handleOpenAssistantEstimatePacket}
         onOpenEstimateJobHandoff={handleOpenAssistantEstimateJobHandoff}

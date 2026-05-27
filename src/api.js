@@ -145,6 +145,10 @@ export function getAgentOperatingSystem(token) {
   return request("/api/agent/os", { token });
 }
 
+export function getAgentOperatingSystemExternalGate(token, gateId) {
+  return request(`/api/agent/os/external-gates/${encodeURIComponent(gateId)}`, { token });
+}
+
 export function queueAgentOperatingSystemTask(token, payload) {
   return request("/api/agent/os/tasks", { method: "POST", token, body: payload });
 }
@@ -183,6 +187,10 @@ export function createAgentEstimateDraft(token, payload) {
 
 export function prepareAgentEstimateSend(token, payload) {
   return request("/api/agent-action-proposals/prepare-estimate-send", { method: "POST", token, body: payload });
+}
+
+export function executeAgentEstimateSend(token, payload) {
+  return request("/api/agent-action-proposals/execute-estimate-send", { method: "POST", token, body: payload });
 }
 
 export function convertAgentEstimateToJob(token, payload) {

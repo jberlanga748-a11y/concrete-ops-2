@@ -20,7 +20,8 @@ test("Apex Agent automation policy defaults to review-first with autonomous acti
   assert.equal(controls.workflowRows.find((row) => row.workflowId === "emailSend").externalLocked, true);
   assert.equal(controls.workflowRows.find((row) => row.workflowId === "leadFollowUpDraft").externalLocked, false);
   assert.equal(controls.workflowRows.find((row) => row.workflowId === "estimatePacketDraft").modeId, "approval_required");
-  assert.match(controls.safetyCopy, /Autonomous customer contact/i);
+  assert.equal(controls.policy.externalGateSettings.email_send.enabled, false);
+  assert.match(controls.safetyCopy, /External boundaries are approved/i);
 });
 
 test("Apex Agent automation policy supports off switches without enabling autonomy", () => {
@@ -39,6 +40,17 @@ test("Apex Agent automation policy supports off switches without enabling autono
       leadFollowUpDraft: "approval_required",
       emailSend: "approval_required",
     },
+    externalGateSettings: {
+      email_send: {
+        enabled: true,
+        mode: "human_confirmed",
+        allowedWorkflow: "estimate_send",
+      },
+      sms_send: {
+        enabled: true,
+        mode: "disabled",
+      },
+    },
   });
 
   assert.equal(policy.autonomyLevel, "draft_assist");
@@ -49,6 +61,9 @@ test("Apex Agent automation policy supports off switches without enabling autono
   assert.equal(policy.lockedAutonomousActions.recordChanges, "off");
   assert.equal(policy.workflowSettings.leadFollowUpDraft, "approval_required");
   assert.equal(policy.workflowSettings.emailSend, "approval_required");
+  assert.equal(policy.externalGateSettings.email_send.enabled, true);
+  assert.equal(policy.externalGateSettings.email_send.allowedWorkflow, "estimate_send");
+  assert.equal(policy.externalGateSettings.sms_send.enabled, false);
   assert.equal(agentAutomationCapabilityEnabled(policy, "estimateDrafts"), false);
   assert.equal(agentAutomationCapabilityEnabled(policy, "leadReview"), true);
 });
@@ -81,5 +96,5 @@ test("Apex Agent autonomy readiness keeps mutation autonomy locked behind approv
   assert.match(readiness.coverageLabel, /knowledge domains ready/i);
   assert.equal(readiness.knowledgeDomains.every((domain) => domain.status !== "blocked"), true);
   assert.equal(readiness.lockedAutonomousActions.some((item) => item.id === "external-actions"), true);
-  assert.match(readiness.lockedNextGate, /Phase 1 approval/i);
+  assert.match(readiness.lockedNextGate, /External gate boundaries are approved/i);
 });

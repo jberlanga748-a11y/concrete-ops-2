@@ -33,6 +33,20 @@ export const AGENT_OS_EXTERNAL_GATE_IDS = Object.freeze([
   "integration_write",
 ]);
 
+export const AGENT_OS_EXTERNAL_GATE_STATUS = Object.freeze({
+  boundaryApproved: "boundary_approved",
+});
+
+export const DEFAULT_AGENT_OS_EXTERNAL_GATE_SETTINGS = Object.freeze(Object.fromEntries(
+  AGENT_OS_EXTERNAL_GATE_IDS.map((gateId) => [gateId, Object.freeze({
+    enabled: false,
+    mode: "disabled",
+    allowedWorkflow: "",
+    testOnly: true,
+    updatedAt: "",
+  })]),
+));
+
 export const AGENT_OS_WORKFLOW_MODES = Object.freeze({
   draft_only: {
     id: "draft_only",
@@ -317,50 +331,78 @@ const EXTERNAL_GATE_APPROVAL_PLANS = Object.freeze({
   email_send: {
     gateId: "email_send",
     label: "Email sending",
-    approvalBoundary: "Specific template, recipient class, sender identity, domain workflow, suppression behavior, and test recipient or sandbox path.",
+    approvalBoundary: "Human-confirmed email execution through an existing Apex HQ domain workflow only. Arbitrary Agent-composed emails remain blocked.",
+    approvedBoundary: "Operator may build an Agent gate that hands a reviewed draft to the normal email workflow after explicit human confirmation, recipient verification, suppression/opt-out checks, provider configuration, and a test-recipient or sandbox strategy.",
+    executionLock: "Disabled until an email adapter/domain endpoint is wired to this gate with per-company opt-in and idempotency.",
+    domainWorkflow: "Existing manual email/send workflow; no background auto-send.",
     requiredTests: ["server authorization", "tenant scoping", "recipient verification", "idempotency", "audit event", "negative field-role test"],
+    auditEvent: "agent.os.external.email_send.requested",
     rollback: "Disable the gate, stop worker execution, and continue using manual send workflow.",
   },
   sms_send: {
     gateId: "sms_send",
     label: "SMS sending",
-    approvalBoundary: "Specific SMS template, consent source, recipient class, sender number, opt-out behavior, and test recipient.",
+    approvalBoundary: "Human-confirmed SMS execution through an approved messaging provider only. Consent and opt-out checks are mandatory.",
+    approvedBoundary: "Operator may build an Agent gate that sends a reviewed SMS only after explicit human confirmation, verified consent source, sender number configuration, opt-out enforcement, and a test-recipient strategy.",
+    executionLock: "Disabled until an SMS provider adapter, consent model, per-company opt-in, and idempotency are present.",
+    domainWorkflow: "Approved customer messaging workflow; no arbitrary auto-texting.",
     requiredTests: ["consent enforcement", "server authorization", "tenant scoping", "idempotency", "audit event", "negative field-role test"],
+    auditEvent: "agent.os.external.sms_send.requested",
     rollback: "Disable SMS gate, keep manual contact workflow, and preserve opt-out state.",
   },
   payment_collection: {
     gateId: "payment_collection",
     label: "Payment collection",
-    approvalBoundary: "Specific invoice/payment-link provider, amount source, customer confirmation screen, sandbox payment strategy, and reconciliation path.",
+    approvalBoundary: "Human-confirmed payment-link or collection handoff through an approved billing provider only. The Agent must not charge or capture funds autonomously.",
+    approvedBoundary: "Operator may build an Agent gate that prepares or opens a reviewed payment collection step after explicit human confirmation, amount re-read from the server, sandbox strategy, provider/KYC configuration, and reconciliation path.",
+    executionLock: "Disabled until billing provider configuration, sandbox coverage, per-company opt-in, and amount-integrity checks are present.",
+    domainWorkflow: "Normal billing/payment workflow; no autonomous charge, capture, mark-paid, refund, or accounting mutation.",
     requiredTests: ["sandbox-only payment test", "server authorization", "amount integrity", "idempotency", "audit event", "negative role test"],
+    auditEvent: "agent.os.external.payment_collection.requested",
     rollback: "Disable collection gate and continue manual invoice/payment handling.",
   },
   customer_portal_action: {
     gateId: "customer_portal_action",
     label: "Customer portal writes",
-    approvalBoundary: "Specific portal action, customer-visible fields, preview/confirm UI, tenant scope, and audit copy.",
+    approvalBoundary: "Human-confirmed customer portal write for a named portal action and named customer-visible fields only.",
+    approvedBoundary: "Operator may build an Agent gate that writes to a customer portal only after preview, explicit human confirmation, tenant-scoped target validation, customer-visible diff review, and audit copy.",
+    executionLock: "Disabled until the portal action adapter, preview/diff UI, per-company opt-in, and rollback/compensation path are present.",
+    domainWorkflow: "Normal portal workflow; no hidden portal publish, approval, customer notification, or token lifecycle change.",
     requiredTests: ["preview before write", "server authorization", "tenant scoping", "audit event", "rollback or compensating action", "negative role test"],
+    auditEvent: "agent.os.external.customer_portal_action.requested",
     rollback: "Disable portal-write gate and manually correct customer-visible content.",
   },
   scheduling: {
     gateId: "scheduling",
     label: "Scheduling mutation",
-    approvalBoundary: "Specific schedule field, affected job state, crew visibility impact, notification policy, and conflict handling.",
+    approvalBoundary: "Human-confirmed scheduling mutation for a specific job, field, crew visibility impact, and notification policy only.",
+    approvedBoundary: "Operator may build an Agent gate that applies a schedule change only after server-side conflict detection, explicit human confirmation, current schedule re-read, crew/customer notification policy review, and audit capture.",
+    executionLock: "Disabled until schedule mutation adapter, conflict checks, per-company opt-in, idempotency, and restore-from-audit behavior are present.",
+    domainWorkflow: "Normal schedule workflow; no automatic crew assignment, customer notification, or field visibility change.",
     requiredTests: ["conflict detection", "server authorization", "tenant scoping", "idempotency", "audit event", "negative field-role test"],
+    auditEvent: "agent.os.external.scheduling.requested",
     rollback: "Disable schedule gate and restore previous schedule fields from audit/history.",
   },
   bid_submission: {
     gateId: "bid_submission",
     label: "Bid submission",
-    approvalBoundary: "Specific destination, packet contents, deadline workflow, customer/public recipient class, and pre-submit preview.",
+    approvalBoundary: "Human-confirmed bid submission for a named destination and reviewed packet contents only. Browser automation bypasses, credentials, CAPTCHA/MFA handling, and blind portal submission remain blocked.",
+    approvedBoundary: "Operator may build an Agent gate that submits a bid only after destination verification, pre-submit packet preview, explicit human confirmation, deadline review, and audit capture.",
+    executionLock: "Disabled until a destination-specific adapter or manual workflow boundary, per-company opt-in, idempotency, and withdrawal/correction plan are present.",
+    domainWorkflow: "Normal proposal/bid workflow; no autonomous portal submission or credential handling.",
     requiredTests: ["preview packet test", "server authorization", "destination verification", "idempotency", "audit event", "negative role test"],
+    auditEvent: "agent.os.external.bid_submission.requested",
     rollback: "Disable submission gate and document manual withdrawal/correction path for the destination.",
   },
   integration_write: {
     gateId: "integration_write",
     label: "Integration writes",
-    approvalBoundary: "Specific integration, object type, field map, sandbox or test account, retry/idempotency behavior, and reconciliation view.",
+    approvalBoundary: "Human-confirmed integration write for a named provider, object type, and field map only.",
+    approvedBoundary: "Operator may build an Agent gate that writes to an integration only after sandbox/test account verification, explicit human confirmation, tenant-scoped field mapping, retry/idempotency controls, and reconciliation view.",
+    executionLock: "Disabled until provider adapter configuration, sandbox coverage, per-company opt-in, idempotency, and reconciliation/rollback behavior are present.",
+    domainWorkflow: "Approved integration workflow; no hidden live sync or credential changes.",
     requiredTests: ["sandbox integration test", "server authorization", "tenant scoping", "idempotency", "audit event", "negative role test"],
+    auditEvent: "agent.os.external.integration_write.requested",
     rollback: "Disable integration write gate and use provider-specific rollback or manual reconciliation.",
   },
 });
@@ -420,6 +462,27 @@ function normalizeIso(value = "") {
   if (!normalized) return "";
   const time = new Date(normalized).getTime();
   return Number.isFinite(time) ? new Date(time).toISOString() : "";
+}
+
+function normalizeExternalGateMode(value = "") {
+  const normalized = text(value, 80).toLowerCase().replace(/[\s-]+/g, "_");
+  return new Set(["disabled", "human_confirmed"]).has(normalized) ? normalized : "disabled";
+}
+
+export function normalizeAgentOsExternalGateSettings(value = {}) {
+  const source = value && typeof value === "object" ? value : {};
+  return Object.fromEntries(AGENT_OS_EXTERNAL_GATE_IDS.map((gateId) => {
+    const gate = source[gateId] && typeof source[gateId] === "object" ? source[gateId] : {};
+    const mode = normalizeExternalGateMode(gate.mode);
+    const enabled = gate.enabled === true && mode === "human_confirmed";
+    return [gateId, {
+      enabled,
+      mode: enabled ? "human_confirmed" : "disabled",
+      allowedWorkflow: text(gate.allowedWorkflow, 120),
+      testOnly: gate.testOnly !== false,
+      updatedAt: normalizeIso(gate.updatedAt),
+    }];
+  }));
 }
 
 function normalizeActionStatus(value = "", allowed = AGENT_OS_TASK_STATUSES, fallback = "queued") {
@@ -544,6 +607,8 @@ export function listAgentOsActionRegistry({ includeExternal = true } = {}) {
     ...action,
     isExternal: Boolean(action.externalGate),
     externalLocked: Boolean(action.externalGate),
+    externalGateStatus: action.externalGate ? AGENT_OS_EXTERNAL_GATE_STATUS.boundaryApproved : "",
+    executionEnabled: false,
     actionPolicy: policyByType.get(action.commandType) || null,
     rollbackBehavior: action.rollbackBehavior || "No rollback exists because the gate is locked and no write is allowed.",
     idempotencyKeyFields: asArray(action.idempotencyKeyFields),
@@ -554,35 +619,110 @@ export function getAgentOsAction(actionId = "") {
   return allActionRecords()[text(actionId, 120)] || null;
 }
 
-export function listAgentOsExternalGates() {
+export function listAgentOsExternalGates({ externalGateSettings = {} } = {}) {
+  const settings = normalizeAgentOsExternalGateSettings(externalGateSettings);
   return AGENT_OS_EXTERNAL_GATE_IDS.map((gateId) => {
     const action = Object.values(LOCKED_EXTERNAL_ACTIONS).find((entry) => entry.externalGate === gateId) || {};
+    const plan = EXTERNAL_GATE_APPROVAL_PLANS[gateId] || {};
+    const gateSettings = settings[gateId] || DEFAULT_AGENT_OS_EXTERNAL_GATE_SETTINGS[gateId];
+    const executionEnabled = gateSettings.enabled === true;
     return {
       id: gateId,
       label: action.label || gateId,
-      status: "locked",
+      status: AGENT_OS_EXTERNAL_GATE_STATUS.boundaryApproved,
       actionId: action.actionId || gateId,
-      requiredApproval: "Explicit user approval of the exact boundary, test strategy, idempotency, audit event, rollback, and normal domain workflow.",
-      blockedUntilApproved: true,
+      requiredApproval: "Boundary approved for implementation as a human-confirmed gate. Live execution still requires the normal domain adapter, per-company opt-in, provider/test strategy, idempotency, audit, rollback, role/package, and tenant checks.",
+      approvedBoundary: plan.approvedBoundary || plan.approvalBoundary || "",
+      executionLock: plan.executionLock || "Disabled until the normal domain workflow is wired safely.",
+      domainWorkflow: plan.domainWorkflow || "",
+      auditEvent: plan.auditEvent || action.auditEvent || "",
+      blockedUntilApproved: false,
+      blockedUntilConfigured: !executionEnabled,
+      executionEnabled,
+      mode: gateSettings.mode,
+      allowedWorkflow: gateSettings.allowedWorkflow,
+      testOnly: gateSettings.testOnly,
+      normalHumanConfirmationRequired: true,
     };
   });
 }
 
-export function listAgentOsExternalGateApprovalPlans() {
+export function listAgentOsExternalGateApprovalPlans({ externalGateSettings = {} } = {}) {
+  const settings = normalizeAgentOsExternalGateSettings(externalGateSettings);
   return AGENT_OS_EXTERNAL_GATE_IDS.map((gateId) => ({
     ...EXTERNAL_GATE_APPROVAL_PLANS[gateId],
-    status: "locked",
-    blockedUntilExplicitApproval: true,
+    status: AGENT_OS_EXTERNAL_GATE_STATUS.boundaryApproved,
+    blockedUntilExplicitApproval: false,
+    blockedUntilConfigured: settings[gateId]?.enabled !== true,
+    executionEnabled: settings[gateId]?.enabled === true,
+    mode: settings[gateId]?.mode || "disabled",
+    allowedWorkflow: settings[gateId]?.allowedWorkflow || "",
+    testOnly: settings[gateId]?.testOnly !== false,
+    normalHumanConfirmationRequired: true,
   }));
 }
 
-export function getAgentOsExternalGateApprovalPlan(gateId = "") {
+export function getAgentOsExternalGateApprovalPlan(gateId = "", { externalGateSettings = {} } = {}) {
   const plan = EXTERNAL_GATE_APPROVAL_PLANS[text(gateId, 120)];
+  const settings = normalizeAgentOsExternalGateSettings(externalGateSettings);
+  const gateSettings = settings[text(gateId, 120)] || null;
   return plan ? {
     ...plan,
-    status: "locked",
-    blockedUntilExplicitApproval: true,
+    status: AGENT_OS_EXTERNAL_GATE_STATUS.boundaryApproved,
+    blockedUntilExplicitApproval: false,
+    blockedUntilConfigured: gateSettings?.enabled !== true,
+    executionEnabled: gateSettings?.enabled === true,
+    mode: gateSettings?.mode || "disabled",
+    allowedWorkflow: gateSettings?.allowedWorkflow || "",
+    testOnly: gateSettings?.testOnly !== false,
+    normalHumanConfirmationRequired: true,
   } : null;
+}
+
+export function buildAgentOsExternalGateDecisionPacket(gateId = "", {
+  companyId = "",
+  actorUserId = "",
+  externalGateSettings = {},
+  now = new Date().toISOString(),
+} = {}) {
+  const plan = getAgentOsExternalGateApprovalPlan(gateId, { externalGateSettings });
+  if (!plan) {
+    return {
+      ok: false,
+      error: "Unknown Apex Agent external gate.",
+    };
+  }
+  return {
+    ok: true,
+    gate: {
+      id: plan.gateId,
+      label: plan.label,
+      status: plan.status,
+      executionEnabled: plan.executionEnabled === true,
+      approvedBoundary: plan.approvedBoundary,
+      executionLock: plan.executionLock,
+      domainWorkflow: plan.domainWorkflow,
+      auditEvent: plan.auditEvent,
+      mode: plan.mode,
+      allowedWorkflow: plan.allowedWorkflow,
+      testOnly: plan.testOnly,
+      requestedAt: now,
+      requestedBy: text(actorUserId, 120),
+      companyId: text(companyId, 120),
+    },
+    requiredBeforeExecution: [
+      "Per-company opt-in for this exact gate.",
+      "Normal domain endpoint or provider adapter wired server-side.",
+      "Server-side role, package, and tenant authorization.",
+      "Human confirmation UI that names the customer-visible or financial effect.",
+      "Idempotency key and retry/dead-letter behavior.",
+      "Redacted audit event and rollback or compensating action.",
+      "Focused negative tests for field roles, wrong package, and wrong tenant.",
+    ],
+    safetyBoundary: plan.executionEnabled
+      ? "External gate boundary is company-enabled for human-confirmed execution through the normal domain workflow. This packet does not execute by itself."
+      : "External gate boundary is approved for implementation, but live execution is disabled until configuration and normal domain workflow checks are present. No customer contact, payment, portal write, schedule mutation, bid submission, or integration write occurs from this packet.",
+  };
 }
 
 export function listAgentOsAdvisorTaskMappings() {
@@ -689,6 +829,8 @@ export function deriveAgentOsAutonomyPlan(settings = {}) {
       requiresApproval: mode.requiresApproval,
       mayExecuteInternal: mode.mayExecuteInternal && !isExternalGate,
       externalLocked: isExternalGate,
+      externalGateStatus: isExternalGate ? AGENT_OS_EXTERNAL_GATE_STATUS.boundaryApproved : "",
+      executionEnabled: false,
       externalActionsLocked: mode.lockedExternal || isExternalGate,
     };
   });
@@ -699,7 +841,7 @@ export function deriveAgentOsAutonomyPlan(settings = {}) {
     approvalRequiredCount: rows.filter((row) => row.modeId === "approval_required").length,
     lockedCount: rows.filter((row) => row.modeId === "locked").length,
     lockedExternalGateCount: rows.filter((row) => row.externalLocked).length,
-    safetyBoundary: "Per-workflow autonomy only controls internal draft/prep behavior. External/customer-contact gates stay locked until explicitly approved.",
+    safetyBoundary: "Per-workflow autonomy only controls internal draft/prep behavior. External/customer-contact gate boundaries are approved for human-confirmed implementation, but live execution remains disabled until the normal domain workflow, provider/test strategy, company opt-in, audit, and rollback checks are present.",
   };
 }
 
@@ -959,13 +1101,15 @@ export function deriveAgentOsLedgerFromAuditEvents(auditEvents = []) {
 
 export function buildAgentOsSummary({
   workflowSettings = {},
+  externalGateSettings = {},
   workspace = {},
   auditEvents = [],
 } = {}) {
   const actions = listAgentOsActionRegistry();
   const autonomyPlan = deriveAgentOsAutonomyPlan(workflowSettings);
-  const externalGates = listAgentOsExternalGates();
-  const externalGateApprovalPlans = listAgentOsExternalGateApprovalPlans();
+  const normalizedExternalGateSettings = normalizeAgentOsExternalGateSettings(externalGateSettings);
+  const externalGates = listAgentOsExternalGates({ externalGateSettings: normalizedExternalGateSettings });
+  const externalGateApprovalPlans = listAgentOsExternalGateApprovalPlans({ externalGateSettings: normalizedExternalGateSettings });
   const learningSignals = deriveAgentOsLearningSignals(workspace);
   const ledger = deriveAgentOsLedgerFromAuditEvents(auditEvents);
   return {
@@ -973,12 +1117,13 @@ export function buildAgentOsSummary({
     productBoundary: "One product-facing Apex Agent. Internal build/coordinator agents are not customer-visible agents.",
     actions,
     autonomyPlan,
+    externalGateSettings: normalizedExternalGateSettings,
     externalGates,
     externalGateApprovalPlans,
     learningSignals,
     ledger,
     runStatuses: AGENT_OS_RUN_STATUSES,
     taskStatuses: AGENT_OS_TASK_STATUSES,
-    safetyBoundary: "Apex Agent OS v1 supports review-first internal draft/prep tasks and durable audit-backed run records. External sends, payment, portal, scheduling, bid submission, integrations, production config, secrets, and production data remain locked.",
+    safetyBoundary: "Apex Agent OS v1 supports review-first internal draft/prep tasks and durable audit-backed run records. External gate boundaries are approved for human-confirmed implementation, but live email/SMS sends, payment collection, portal writes, scheduling mutation, bid submission, integration writes, production config, secrets, and production data changes remain disabled until their normal domain gates and configuration are present.",
   };
 }

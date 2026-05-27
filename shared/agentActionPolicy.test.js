@@ -42,15 +42,24 @@ test("agent policy blocks customer sends and bid submission unless explicitly en
     requestedActionClass: "send_customer_message",
     hasHumanApproval: true,
   });
-  const allowedByPolicy = evaluateAgentActionPermission({
+  const blockedUntilConfigured = evaluateAgentActionPermission({
     commandType: "estimate-packet-review",
     requestedActionClass: "send_customer_message",
     hasHumanApproval: true,
     companyAllowsCustomerSend: true,
   });
+  const allowedByPolicy = evaluateAgentActionPermission({
+    commandType: "estimate-packet-review",
+    requestedActionClass: "send_customer_message",
+    hasHumanApproval: true,
+    companyAllowsCustomerSend: true,
+    externalGateExecutionEnabled: true,
+  });
 
   assert.equal(blockedSend.ok, false);
   assert.match(blockedSend.failures.join(" "), /Customer contact actions require explicit company send approval/i);
+  assert.equal(blockedUntilConfigured.ok, false);
+  assert.match(blockedUntilConfigured.failures.join(" "), /External gate execution is disabled/i);
   assert.equal(allowedByPolicy.ok, true);
 });
 

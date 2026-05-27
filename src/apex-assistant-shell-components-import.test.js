@@ -15,6 +15,13 @@ test("Apex Assistant shell is extracted from App with review-first dependencies"
   assert.match(shellSource, /export function ApexAssistantShell\b/);
   assert.match(shellSource, /deriveApexAssistantShellState/);
   assert.match(shellSource, /resolveApexAssistantCommand/);
+  assert.match(shellSource, /onAskContractorAdvisor/);
+  assert.match(shellSource, /onExecuteAgentEstimateSend/);
+  assert.match(shellSource, /Send customer email/);
+  assert.match(shellSource, /customerContactConfirmed/);
+  assert.match(shellSource, /Contractor ChatGPT/);
   assert.match(shellSource, /normalizeAgentActionProposalAuditEvent/);
-  assert.match(shellSource, /Manual-first: no customer contact/);
+  assert.match(shellSource, /Payload preview/);
+  assert.match(shellSource, /fieldPreview/);
+  assert.match(shellSource, /Ask about marketing, money leaks/);
 });

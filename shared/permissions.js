@@ -52,6 +52,15 @@ export const DEFAULT_COMPANY_SETTINGS = {
       bidSubmission: "locked",
       integrationWrite: "locked",
     },
+    externalGateSettings: {
+      email_send: { enabled: false, mode: "disabled", allowedWorkflow: "", testOnly: true, updatedAt: "" },
+      sms_send: { enabled: false, mode: "disabled", allowedWorkflow: "", testOnly: true, updatedAt: "" },
+      payment_collection: { enabled: false, mode: "disabled", allowedWorkflow: "", testOnly: true, updatedAt: "" },
+      customer_portal_action: { enabled: false, mode: "disabled", allowedWorkflow: "", testOnly: true, updatedAt: "" },
+      scheduling: { enabled: false, mode: "disabled", allowedWorkflow: "", testOnly: true, updatedAt: "" },
+      bid_submission: { enabled: false, mode: "disabled", allowedWorkflow: "", testOnly: true, updatedAt: "" },
+      integration_write: { enabled: false, mode: "disabled", allowedWorkflow: "", testOnly: true, updatedAt: "" },
+    },
     updatedAt: "",
   },
 };

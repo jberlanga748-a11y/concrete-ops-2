@@ -92,7 +92,8 @@ Latest Agent OS v1 foundation:
 
 - `shared/agentOperatingSystem.js` defines the one-Agent action registry, including required inputs, touched module, role/package gate labels, audit event name, rollback behavior, idempotency key fields, and external gate status.
 - Safe internal/draft task types are registered for lead follow-up draft, estimate packet draft, change order draft, invoice/payment prep, material list prep, and job costing review.
-- External/customer-contact actions remain locked for email, SMS, payment collection, customer portal action, scheduling, bid submission, and integration writes.
+- External/customer-contact gate boundaries are now approved for human-confirmed implementation for email, SMS, payment collection, customer portal action, scheduling, bid submission, and integration writes, but live execution remains disabled until the normal domain adapter, per-company opt-in, confirmation UI, idempotency, audit, rollback, role/package, and tenant checks are present.
+- The first live external gate is implemented for `email_send` only: a company can opt into human-confirmed estimate email sends, after generated proposal audit, send-ready audit, email provider configuration, and explicit customer-contact confirmation. It reuses the normal estimate email workflow and writes Agent-specific audit events.
 - Apex Agent automation policy now includes per-workflow settings: `draft_only`, `approval_required`, or `locked`. These settings do not unlock external gates.
 - Agent OS task/run records have queue, running, retry, dead-letter, cancellation, kill-switch, and log shapes. Server task/run endpoints persist those records as redacted `agentOsRun` audit events rather than adding schema churn.
 - Queued safe internal tasks can execute into review-first agent proposal packets through `POST /api/agent/os/runs/:id/execute`. This writes audit-backed run/proposal records only; it does not mutate normal domain records or perform external actions.
@@ -102,7 +103,7 @@ Latest Agent OS v1 foundation:
 - Visible Apex Agent recommendations can be queued into matching safe internal Agent OS tasks when they map to a visible lead, estimate, or job target.
 - Selected contractor advisor recommendations can be queued server-side into matching safe internal Agent OS tasks. This is not a generic "do anything" bridge: only known recommendation ids map to safe internal actions, and the target must be visible in the current company scope.
 - Premium AI Office access includes Agent OS controls without requiring Elite Opportunity Scout access; Opportunity Scout itself remains hidden unless entitled.
-- External gates now have documented approval packets and production operator gates, but they remain locked until explicitly approved by exact boundary.
+- External gates now have boundary-approved decision packets and production operator gates; they still do not execute live external actions until configured and verified through the normal domain workflow.
 - Learning signal coverage now explicitly spans accepted edits, rejected drafts, won/lost estimates, closeout outcomes, follow-up outcomes, and contractor preferences. Signals are company-scoped and review-first.
 
 Latest exit-item slice:
