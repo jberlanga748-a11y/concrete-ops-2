@@ -14,6 +14,14 @@ const SCOPE_SECTION_DEFS = [
 
 const NOTE_SECTION_DEFS = [
   ["customerNotes", "Customer Notes / Terms"],
+  ["paymentTerms", "Payment Terms"],
+  ["warrantyNotes", "Warranty / Workmanship Notes"],
+  ["acceptanceNextSteps", "Acceptance / Next Steps"],
+  ["concreteSpecifications", "Concrete Specifications"],
+  ["pricingOptions", "Pricing Options"],
+  ["optionPhotoPages", "Option Photo Pages"],
+  ["legalNotices", "Residential Legal Notices"],
+  ["customerApproval", "Customer Approval Record"],
   ["alternates", "Alternates"],
   ["addOns", "Optional Add-ons"],
 ];
@@ -33,6 +41,8 @@ const ESTIMATE_BACKUP_BLOCK_PATTERN = new RegExp(`\\n?\\[${PACKET_BRAND_PATTERN}
 const SENT_SNAPSHOT_BLOCK_PATTERN = new RegExp(`\\n?\\[${PACKET_BRAND_PATTERN} Sent Proposal History\\]\\n([\\s\\S]*?)\\n\\[\\/${PACKET_BRAND_PATTERN} Sent Proposal History\\]\\n?`, "g");
 const OPTION_STATUSES = new Set(["optional", "included", "excluded", "accepted", "selected"]);
 const SELECTED_OPTION_STATUSES = new Set(["included", "accepted", "selected"]);
+const PRINT_PLACEHOLDER_PATTERN = /^(?:new\s+(?:scope\s+)?item|untitled(?:\s+(?:item|row|section|option|scope))?|add\s+alternate\s+\d+|default not accepted)$/i;
+const RAW_PRINT_URL_PATTERN = /\b(?:(?:[a-z][a-z0-9+.-]*:\/\/)|www\.)[^\s)]+/gi;
 
 function roundCurrency(value) {
   return Math.round((Number(value) || 0) * 100) / 100;
@@ -44,6 +54,27 @@ function textBlock(value) {
 
 function textValue(value) {
   return String(value ?? "").trim();
+}
+
+function isPrintPlaceholder(value = "") {
+  return PRINT_PLACEHOLDER_PATTERN.test(textValue(value));
+}
+
+function cleanPrintableText(value = "") {
+  return textBlock(value)
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line && !isPrintPlaceholder(line))
+    .join("\n")
+    .trim();
+}
+
+function cleanPrintableDisplayText(value = "") {
+  return cleanPrintableText(value)
+    .split("\n")
+    .map((line) => line.replace(RAW_PRINT_URL_PATTERN, "Link tracked in Apex HQ."))
+    .join("\n")
+    .trim();
 }
 
 function safeArray(value) {
@@ -75,6 +106,14 @@ function buildHeadingLookup(defs, aliases = {}) {
 const SCOPE_HEADING_LOOKUP = buildHeadingLookup(SCOPE_SECTION_DEFS);
 const NOTE_HEADING_LOOKUP = buildHeadingLookup(NOTE_SECTION_DEFS, {
   customerNotes: ["Customer Notes", "Terms", "Notes"],
+  paymentTerms: ["Payment", "Billing Terms", "Deposit", "Deposit / Payment", "Payment Schedule"],
+  warrantyNotes: ["Warranty", "Warranty Note", "Workmanship Warranty", "Warranty Notes", "Concrete Warranty Notes"],
+  acceptanceNextSteps: ["Acceptance", "Next Steps", "Signature", "Approval", "Acceptance Notes"],
+  concreteSpecifications: ["Concrete Specs", "Concrete / Finish Details", "Specifications", "Finish Details", "Concrete Details"],
+  pricingOptions: ["Choose One Pricing", "Choose-one Pricing", "Proposal Options", "Customer Pricing Options", "Package Options"],
+  optionPhotoPages: ["Option Photos", "Photo Option Pages", "Option Images", "Visual References"],
+  legalNotices: ["Legal Notices", "Residential Terms", "Residential Legal Papers", "Owner Responsibilities", "Required Notices"],
+  customerApproval: ["Customer Approval", "Approval Record", "Customer Selection", "Customer Acceptance", "Portal Approval"],
   alternates: ["Alternate Options", "Alternate Pricing"],
   addOns: ["Optional Add Ons", "Add-ons", "Add Ons", "Addons"],
 });
@@ -99,12 +138,16 @@ function parseSectionedText(text, defs, headingLookup, defaultKey) {
   });
 
   if (!foundHeading) {
-    sections[defaultKey] = source;
+    sections[defaultKey] = ["pricingOptions", "optionPhotoPages"].includes(defaultKey)
+      ? cleanPrintableText(source)
+      : cleanPrintableDisplayText(source);
     return sections;
   }
 
   Object.keys(sections).forEach((key) => {
-    sections[key] = textBlock(buckets[key].join("\n"));
+    sections[key] = ["pricingOptions", "optionPhotoPages"].includes(key)
+      ? cleanPrintableText(buckets[key].join("\n"))
+      : cleanPrintableDisplayText(buckets[key].join("\n"));
   });
   return sections;
 }
@@ -121,6 +164,19 @@ function parseOptionAmount(value) {
   return roundCurrency(parsed);
 }
 
+function sanitizePrintableImageUrl(value) {
+  const normalized = textValue(value);
+  if (!normalized) return "";
+  if (/^data:image\/(?:png|jpe?g|gif|webp);base64,/i.test(normalized)) return normalized;
+  if (normalized.startsWith("/") && !normalized.startsWith("//")) return normalized;
+  try {
+    const parsed = new URL(normalized);
+    return ["http:", "https:"].includes(parsed.protocol) ? parsed.href : "";
+  } catch {
+    return "";
+  }
+}
+
 function optionAmountForTotals(value) {
   const parsed = parseOptionAmount(value);
   return parsed === "" ? 0 : parsed;
@@ -128,15 +184,23 @@ function optionAmountForTotals(value) {
 
 function normalizePrintOption(option = {}, fallbackStatus = "optional") {
   const status = normalizeOptionStatus(option.status || option.type, fallbackStatus);
-  const amount = parseOptionAmount(option.amount);
+  const amount = parseOptionAmount(option.amount ?? option.price);
+  const downPayment = parseOptionAmount(option.downPayment ?? option.deposit);
+  const finalPayment = parseOptionAmount(option.finalPayment ?? option.balance);
   return {
-    title: textValue(option.title || option.name || "Untitled option"),
-    description: textBlock(option.description),
+    title: cleanPrintableText(option.title || option.name),
+    description: cleanPrintableText(option.description),
     amount,
     amountLabel: amount === "" ? "" : formatEstimateCurrency(amount),
+    downPayment,
+    downPaymentLabel: downPayment === "" ? "" : formatEstimateCurrency(downPayment),
+    finalPayment,
+    finalPaymentLabel: finalPayment === "" ? "" : formatEstimateCurrency(finalPayment),
     status,
     statusLabel: status.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase()),
-    notes: textBlock(option.notes),
+    notes: cleanPrintableText(option.notes),
+    caption: cleanPrintableText(option.caption),
+    imageUrl: sanitizePrintableImageUrl(option.imageUrl || option.photoUrl || option.image || option.photo),
     affectsSelectedTotal: SELECTED_OPTION_STATUSES.has(status),
   };
 }
@@ -146,7 +210,11 @@ function optionHasContent(option = {}) {
     textBlock(option.title)
     || textBlock(option.description)
     || textBlock(option.notes)
+    || textBlock(option.caption)
+    || textBlock(option.imageUrl)
     || optionAmountForTotals(option.amount) > 0
+    || optionAmountForTotals(option.downPayment) > 0
+    || optionAmountForTotals(option.finalPayment) > 0
   );
 }
 
@@ -165,12 +233,23 @@ function parseEstimateOptionLine(line = "", fallbackStatus = "optional") {
   };
 
   parts.forEach((part) => {
-    if (/^amount:/i.test(part)) {
-      option.amount = part.replace(/^amount:\s*/i, "");
-    } else if (/^description:/i.test(part)) {
-      option.description = part.replace(/^description:\s*/i, "");
-    } else if (/^notes?:/i.test(part)) {
-      option.notes = part.replace(/^notes?:\s*/i, "");
+    const fieldMatch = part.match(/^([^:]+):\s*(.*)$/);
+    const fieldKey = fieldMatch ? normalizeHeading(fieldMatch[1]) : "";
+    const fieldValue = fieldMatch ? fieldMatch[2] : "";
+    if (["amount", "price", "total", "option price"].includes(fieldKey)) {
+      option.amount = fieldValue;
+    } else if (["down payment", "deposit", "deposit due"].includes(fieldKey)) {
+      option.downPayment = fieldValue;
+    } else if (["final payment", "balance", "balance due"].includes(fieldKey)) {
+      option.finalPayment = fieldValue;
+    } else if (["description", "scope"].includes(fieldKey)) {
+      option.description = fieldValue;
+    } else if (["note", "notes"].includes(fieldKey)) {
+      option.notes = fieldValue;
+    } else if (["image", "image url", "photo", "photo url"].includes(fieldKey)) {
+      option.imageUrl = fieldValue;
+    } else if (fieldKey === "caption") {
+      option.caption = fieldValue;
     } else if (!option.description) {
       option.description = part;
     } else {
@@ -189,6 +268,29 @@ function parseOptions(text = "", fallbackStatus = "optional") {
     .filter(Boolean);
 }
 
+function parseSpecRecords(text = "") {
+  return textBlock(text)
+    .split("\n")
+    .map((line) => cleanPrintableText(line).replace(/^\s*[-*]\s+/, "").trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [rawLabel, ...rest] = line.split(":");
+      const label = cleanPrintableText(rawLabel);
+      const value = cleanPrintableText(rest.join(":"));
+      if (label && value) {
+        return {
+          title: label,
+          body: [value],
+        };
+      }
+      return {
+        title: line,
+        body: [],
+      };
+    })
+    .filter((record) => record.title || record.body.length > 0);
+}
+
 function deriveProposalSections(scopeSummary = "") {
   const parsed = parseSectionedText(scopeSummary, SCOPE_SECTION_DEFS, SCOPE_HEADING_LOOKUP, "scopeOfWork");
   return SCOPE_SECTION_DEFS
@@ -200,6 +302,16 @@ function deriveCustomerSections(customerNotes = "") {
   const parsed = parseSectionedText(customerNotes, NOTE_SECTION_DEFS, NOTE_HEADING_LOOKUP, "customerNotes");
   return {
     customerNotes: parsed.customerNotes,
+    termSections: [
+      { key: "paymentTerms", title: "Payment Terms", text: parsed.paymentTerms },
+      { key: "warrantyNotes", title: "Warranty / Workmanship Notes", text: parsed.warrantyNotes },
+      { key: "acceptanceNextSteps", title: "Acceptance / Next Steps", text: parsed.acceptanceNextSteps },
+      { key: "legalNotices", title: "Residential Legal Notices", text: parsed.legalNotices },
+      { key: "customerApproval", title: "Customer Approval Record", text: parsed.customerApproval },
+    ].filter((section) => section.text),
+    concreteSpecRecords: parseSpecRecords(parsed.concreteSpecifications),
+    pricingOptions: parseOptions(parsed.pricingOptions, "optional"),
+    photoOptions: parseOptions(parsed.optionPhotoPages, "optional"),
     alternates: parseOptions(parsed.alternates, "optional"),
     addOns: parseOptions(parsed.addOns, "optional"),
   };
@@ -251,6 +363,11 @@ function rowHasCustomerSafeValue(row = {}, keys = []) {
   return keys.some((key) => textBlock(row?.[key]));
 }
 
+function rowLooksCustomerPrivate(row = {}, keys = []) {
+  const unsafePattern = /\b(private|internal|office-only|do not print|estimator only|office note)\b/i;
+  return keys.some((key) => unsafePattern.test(textBlock(row?.[key])));
+}
+
 function deriveCustomerEvidenceSections(internalNotes = "", includes = {}) {
   if (!includes.projectEvidence) return [];
 
@@ -258,6 +375,7 @@ function deriveCustomerEvidenceSections(internalNotes = "", includes = {}) {
   const sections = [];
   const takeoffRows = (Array.isArray(backup?.takeoffRows) ? backup.takeoffRows : [])
     .filter((row) => rowHasCustomerSafeValue(row, ["item", "quantity", "unit", "source"]))
+    .filter((row) => !rowLooksCustomerPrivate(row, ["item", "source"]))
     .map((row = {}) => ({
       title: textValue(row?.item || "Takeoff item"),
       meta: [
@@ -279,6 +397,7 @@ function deriveCustomerEvidenceSections(internalNotes = "", includes = {}) {
 
   const referenceRows = (Array.isArray(backup?.referenceRows) ? backup.referenceRows : [])
     .filter((row) => rowHasCustomerSafeValue(row, ["fileName", "name", "title", "referenceType", "source"]))
+    .filter((row) => !rowLooksCustomerPrivate(row, ["fileName", "name", "title", "referenceType", "source"]))
     .map((row = {}) => ({
       title: textValue(row?.fileName || row?.name || row?.title || "Reference attachment"),
       meta: [
@@ -312,7 +431,7 @@ function deriveEstimateBackupSections(internalNotes = "", includes = {}) {
         [row?.quantity, row?.unit].map((value) => textValue(value)).filter(Boolean).join(" "),
         row?.amount ? `Amount ${textValue(row.amount)}` : "",
       ].filter(Boolean),
-      body: [textBlock(row?.description), textBlock(row?.notes)].filter(Boolean),
+      body: [cleanPrintableDisplayText(row?.description), cleanPrintableDisplayText(row?.notes)].filter(Boolean),
     }));
     if (sovRows.length > 0) {
       sections.push({ key: "sovBackup", title: "Schedule of Values Backup", type: "records", records: sovRows });
@@ -326,7 +445,7 @@ function deriveEstimateBackupSections(internalNotes = "", includes = {}) {
         [row?.quantity, row?.unit].map((value) => textValue(value)).filter(Boolean).join(" "),
         row?.source ? `Source ${textValue(row.source)}` : "",
       ].filter(Boolean),
-      body: [textBlock(row?.estimatorNote || row?.notes)].filter(Boolean),
+      body: [cleanPrintableDisplayText(row?.estimatorNote || row?.notes)].filter(Boolean),
     }));
     if (takeoffRows.length > 0) {
       sections.push({ key: "takeoffBackup", title: "Takeoff Backup", type: "records", records: takeoffRows });
@@ -340,7 +459,7 @@ function deriveEstimateBackupSections(internalNotes = "", includes = {}) {
         row?.referenceType ? `Type ${textValue(row.referenceType)}` : "",
         row?.source ? `Source ${textValue(row.source)}` : "",
       ].filter(Boolean),
-      body: [textBlock(row?.url), textBlock(row?.notes || row?.estimatorNote)].filter(Boolean),
+      body: [row?.url ? "Reference link tracked in Apex HQ." : "", cleanPrintableDisplayText(row?.notes || row?.estimatorNote)].filter(Boolean),
     }));
     if (referenceRows.length > 0) {
       sections.push({ key: "referenceAttachments", title: "Reference Attachments", type: "records", records: referenceRows });
@@ -353,7 +472,7 @@ function deriveEstimateBackupSections(internalNotes = "", includes = {}) {
 function deriveGcPacketLiteSections(internalNotes = "") {
   const parsed = parseGcPacketLiteBlock(internalNotes);
   return GC_PACKET_LITE_SECTION_DEFS
-    .map(([key, title]) => ({ key, title, text: textBlock(parsed[key]) }))
+    .map(([key, title]) => ({ key, title, text: cleanPrintableDisplayText(parsed[key]) }))
     .filter((section) => section.text);
 }
 
@@ -362,7 +481,7 @@ function deriveInternalReviewSections(internalNotes = "", includes = {}) {
 
   const gcPacketLite = parseGcPacketLiteBlock(internalNotes);
   const backup = parseEstimateBackupBlock(internalNotes);
-  const visibleInternalNotes = textBlock(
+  const visibleInternalNotes = cleanPrintableDisplayText(
     String(internalNotes ?? "")
       .replace(GC_PACKET_LITE_BLOCK_PATTERN, "\n")
       .replace(ESTIMATE_BACKUP_BLOCK_PATTERN, "\n")
@@ -370,9 +489,9 @@ function deriveInternalReviewSections(internalNotes = "", includes = {}) {
   );
   const blocks = [
     visibleInternalNotes ? `Internal notes\n${visibleInternalNotes}` : "",
-    textBlock(backup?.notes) ? `Backup notes\n${textBlock(backup.notes)}` : "",
-    textBlock(gcPacketLite?.gcReviewNotes) ? `GC review notes\n${textBlock(gcPacketLite.gcReviewNotes)}` : "",
-    textBlock(gcPacketLite?.internalPacketNotes) ? `Internal packet notes\n${textBlock(gcPacketLite.internalPacketNotes)}` : "",
+    cleanPrintableDisplayText(backup?.notes) ? `Backup notes\n${cleanPrintableDisplayText(backup.notes)}` : "",
+    cleanPrintableDisplayText(gcPacketLite?.gcReviewNotes) ? `GC review notes\n${cleanPrintableDisplayText(gcPacketLite.gcReviewNotes)}` : "",
+    cleanPrintableDisplayText(gcPacketLite?.internalPacketNotes) ? `Internal packet notes\n${cleanPrintableDisplayText(gcPacketLite.internalPacketNotes)}` : "",
   ].filter(Boolean);
 
   return blocks.length > 0 ? [{
@@ -411,6 +530,152 @@ function deriveOptionsSummary(alternates = [], addOns = [], baseGrandTotal = 0) 
   };
 }
 
+function derivePricingOptionsSummary(pricingOptions = []) {
+  const selectedOption = pricingOptions.find((option) => option.affectsSelectedTotal) || pricingOptions[0] || null;
+  const selectedAmount = selectedOption ? optionAmountForTotals(selectedOption.amount) : 0;
+
+  return {
+    options: pricingOptions,
+    selectedOption,
+    selectedOptionTitle: selectedOption?.title || "",
+    selectedOptionAmount: selectedAmount,
+    selectedOptionAmountLabel: selectedAmount > 0 ? formatEstimateCurrency(selectedAmount) : "",
+    hasSelectedPricingOption: Boolean(selectedOption),
+  };
+}
+
+function pricingOptionRecord(option = {}) {
+  return {
+    title: option.title,
+    meta: [
+      option.statusLabel,
+      option.amountLabel ? `Option ${option.amountLabel}` : "",
+      option.downPaymentLabel ? `Down payment ${option.downPaymentLabel}` : "",
+      option.finalPaymentLabel ? `Final payment ${option.finalPaymentLabel}` : "",
+    ].filter(Boolean),
+    body: [option.caption, option.description, option.notes].filter(Boolean),
+    badges: option.affectsSelectedTotal ? ["Selected"] : [],
+    imageUrl: option.imageUrl,
+  };
+}
+
+function deriveOptionPhotoSections(pricingOptions = [], addOns = [], photoOptions = [], includes = {}) {
+  if (!includes.optionPhotoPages) return [];
+
+  const records = [...pricingOptions, ...addOns, ...photoOptions]
+    .filter((option) => option.imageUrl)
+    .map(pricingOptionRecord)
+    .filter((record) => record.title || record.body.length > 0 || record.imageUrl);
+
+  return records.length > 0 ? [{
+    key: "optionPhotoPages",
+    title: "Option / Finish References",
+    type: "records",
+    records,
+  }] : [];
+}
+
+function deriveConcreteSpecSections(records = [], includes = {}) {
+  if (!includes.concreteSpecifications || records.length === 0) return [];
+  return [{
+    key: "concreteSpecifications",
+    title: "Concrete Specifications",
+    type: "records",
+    records,
+  }];
+}
+
+function deriveProposalCover({
+  estimate = {},
+  totals = {},
+  pricingOptions = {},
+  packetSettings = {},
+} = {}) {
+  const customerName = textValue(estimate?.customer?.name || estimate?.lead?.customer || "Customer pending");
+  const projectName = textValue(estimate?.lead?.project || estimate?.title || "Project pending");
+  const selectedOption = pricingOptions?.selectedOption;
+  const presetLabel = textValue(packetSettings.presetLabel || "Professional Proposal");
+  const customization = packetSettings.customization || {};
+  const isEstimateSheet = /estimate sheet/i.test(presetLabel);
+  const isResidentialProposal = /residential/i.test(presetLabel);
+  const isGcPrimeProposal = /gc|prime/i.test(presetLabel);
+  const isCommercialSubcontractorProposal = /commercial subcontractor|subcontractor/i.test(presetLabel);
+  const isInternalReviewPacket = /internal review/i.test(presetLabel) || Boolean(packetSettings.allowInternalSections);
+  const coverTitle = (() => {
+    if (customization.coverTitle) return customization.coverTitle;
+    if (isCommercialSubcontractorProposal) return "Commercial Sub Bid";
+    if (isGcPrimeProposal) return "GC / Prime Proposal";
+    if (isInternalReviewPacket) return "Internal Bid Review";
+    if (isEstimateSheet) return "Estimate Sheet";
+    return presetLabel;
+  })();
+  return {
+    packetTitle: coverTitle,
+    coverKicker: customization.coverKicker || (isEstimateSheet ? "Concrete Estimate" : isResidentialProposal ? "Residential Concrete Proposal" : isGcPrimeProposal ? "Concrete Bid Package" : isCommercialSubcontractorProposal ? "Subcontractor Proposal" : isInternalReviewPacket ? "Office Review Packet" : "Concrete Proposal"),
+    tagline: customization.tagline || (isEstimateSheet ? "Clear scope. Clean pricing. Ready for review." : isResidentialProposal ? "Clear scope. Clean finish. Ready for homeowner review." : isGcPrimeProposal ? "Bid scope, addenda, terms, and schedule assumptions ready for GC review." : isCommercialSubcontractorProposal ? "Scope boundaries, coordination notes, and billing terms ready for review." : isInternalReviewPacket ? "Estimator backup, scope checks, risks, and handoff notes for office use." : "Solid work. Clear scope. Every detail counts."),
+    statementTitle: customization.statementTitle || (isEstimateSheet ? "Ready for customer review." : isResidentialProposal ? "Ready for homeowner review." : isGcPrimeProposal ? "Ready for award review." : isCommercialSubcontractorProposal ? "Ready for subcontract review." : isInternalReviewPacket ? "Ready for office review." : "Ready for approval."),
+    statementBody: customization.statementBody || (isEstimateSheet
+      ? "A customer-ready estimate with project scope, pricing, exclusions, payment terms, and next steps organized for review."
+      : isResidentialProposal
+        ? "A homeowner-ready proposal with project scope, pricing, exclusions, payment terms, warranty notes, residential notices, and approval steps organized for review."
+        : isGcPrimeProposal
+          ? "A GC-ready bid package with scope, pricing, exclusions, qualifications, addenda references, schedule assumptions, and subcontract next steps organized for award review."
+        : isCommercialSubcontractorProposal
+          ? "Qualifications, schedule coordination, alternates, exclusions, and billing terms are organized for the project team."
+        : isInternalReviewPacket
+          ? "Scope, pricing summary, SOV backup, takeoff references, internal notes, and review risks are organized for the office team before customer release."
+      : "A contractor proposal packet with project scope, pricing, exclusions, payment terms, approval records, and customer-safe backup organized for review."),
+    reviewNote: customization.reviewNote || (isEstimateSheet ? "Review scope, exclusions, and payment terms before scheduling." : isResidentialProposal ? "Confirm finish, access, payment terms, and approval before scheduling." : isGcPrimeProposal ? "Confirm addenda, inclusions, exclusions, access, and schedule assumptions before award." : isCommercialSubcontractorProposal ? "Confirm scope limits, addenda, access, and billing terms before award." : isInternalReviewPacket ? "Office-only packet. Do not send to customers or field crews." : "Review scope, exclusions, and terms before approval."),
+    isEstimateSheet,
+    trustCards: isEstimateSheet
+      ? [
+        { title: "Scope clarity", copy: "Work, exclusions, and assumptions are plainly listed." },
+        { title: "Pricing ready", copy: "Line items and customer totals are organized for review." },
+        { title: "Next steps", copy: "Payment terms and scheduling path are easy to follow." },
+        { title: "Protected notes", copy: "Internal notes stay out of customer output." },
+      ]
+      : isResidentialProposal
+        ? [
+          { title: "Home scope", copy: "Work area, inclusions, and exclusions are clear." },
+          { title: "Finish clarity", copy: "Options, warranty notes, and next steps are visible." },
+          { title: "Scheduling path", copy: "Deposit, access, and approval steps are organized." },
+          { title: "Protected notes", copy: "Private notes stay out of customer output." },
+        ]
+        : isGcPrimeProposal
+          ? [
+            { title: "Bid scope", copy: "Inclusions, exclusions, and qualifications are clear." },
+            { title: "Addenda / RFI", copy: "Plan references and addenda notes are called out." },
+            { title: "Award path", copy: "Schedule assumptions and subcontract next steps are visible." },
+            { title: "Protected notes", copy: "Private notes stay out of GC output." },
+          ]
+          : isCommercialSubcontractorProposal
+            ? [
+              { title: "Scope limits", copy: "Inclusions, exclusions, and qualifications are clear." },
+              { title: "Coordination", copy: "Schedule, access, and project-team notes are visible." },
+              { title: "Billing terms", copy: "Progress billing and retainage assumptions are organized." },
+              { title: "Protected notes", copy: "Private notes stay out of subcontract output." },
+            ]
+          : isInternalReviewPacket
+            ? [
+              { title: "SOV backup", copy: "Line backup and pricing review data stay organized." },
+              { title: "Takeoff evidence", copy: "Quantities, references, and screenshots are ready for review." },
+              { title: "Risk review", copy: "RFIs, exclusions, assumptions, and internal notes are visible." },
+              { title: "Office-only", copy: "Built for estimator and office review, not customer or field release." },
+            ]
+          : [],
+    theme: customization.theme,
+    proposalTitle: textValue(estimate?.title || projectName || "Customer Estimate"),
+    customerName,
+    projectName,
+    status: textValue(estimate?.status || "draft"),
+    createdAt: estimate?.createdAt || "",
+    baseTotalLabel: totals?.grandTotalLabel || "",
+    selectedOptionTitle: selectedOption?.title || "",
+    selectedOptionAmountLabel: pricingOptions?.selectedOptionAmountLabel || "",
+    isInternal: Boolean(packetSettings.allowInternalSections),
+  };
+}
+
 export function deriveEstimatePrintModel(estimate = {}, packetSettings = {}) {
   const resolvedPacketSettings = resolveEstimatePacketSettings(packetSettings);
   const includes = resolvedPacketSettings.includes;
@@ -424,6 +689,9 @@ export function deriveEstimatePrintModel(estimate = {}, packetSettings = {}) {
   const options = includes.alternatesAddOns
     ? deriveOptionsSummary(customerSections.alternates, customerSections.addOns, totals.grandTotal)
     : deriveOptionsSummary([], [], totals.grandTotal);
+  const pricingOptions = includes.pricingOptions
+    ? derivePricingOptionsSummary(customerSections.pricingOptions)
+    : derivePricingOptionsSummary([]);
   const internalSections = resolvedPacketSettings.allowInternalSections
     ? [
       ...deriveEstimateBackupSections(estimate?.internalNotes, includes),
@@ -437,7 +705,16 @@ export function deriveEstimatePrintModel(estimate = {}, packetSettings = {}) {
     gcPacketLiteSections: deriveGcPacketLiteSections(estimate?.internalNotes)
       .filter((section) => includes[section.key]),
     evidenceSections: deriveCustomerEvidenceSections(estimate?.internalNotes, includes),
+    concreteSpecSections: deriveConcreteSpecSections(customerSections.concreteSpecRecords, includes),
+    optionPhotoSections: deriveOptionPhotoSections(
+      customerSections.pricingOptions,
+      customerSections.addOns,
+      customerSections.photoOptions,
+      includes,
+    ),
     customerNotes: includes.customerNotesTerms ? customerSections.customerNotes : "",
+    customerTermSections: customerSections.termSections
+      .filter((section) => includes[section.key]),
     lineItems: normalizeLineItems(estimate?.items),
     totals: {
       ...totals,
@@ -446,7 +723,17 @@ export function deriveEstimatePrintModel(estimate = {}, packetSettings = {}) {
       feesTotalLabel: totals.feesTotal == null ? "" : formatEstimateCurrency(totals.feesTotal || 0),
       grandTotalLabel: formatEstimateCurrency(totals.grandTotal),
     },
+    cover: deriveProposalCover({
+      estimate,
+      totals: {
+        ...totals,
+        grandTotalLabel: formatEstimateCurrency(totals.grandTotal),
+      },
+      pricingOptions,
+      packetSettings: resolvedPacketSettings,
+    }),
     options,
+    pricingOptions,
     internalSections,
   };
 }

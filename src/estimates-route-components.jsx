@@ -11,7 +11,7 @@ import { calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEst
 import { addEstimateLineItemStarter, applyEstimateTemplateStarter, buildEstimateLineItemsFromRoughNotes, getEstimateLineItemStartersForTrade, getEstimateStarterTradeSummary, getEstimateTemplateStartersForTrade } from "./estimate-template-utils";
 import { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
 import { buildFenceTakeoffBackupRows, buildFenceTakeoffDraftLineItems, buildFenceTakeoffFieldHandoff, buildFenceTakeoffProofPhotoChecklist, buildFenceTakeoffProposalSummary, deriveFenceTakeoffReadiness, mergeFenceTakeoffIntoDraft, normalizeFenceTakeoff, summarizeFenceTakeoffByAssembly } from "./fence-takeoff-utils";
-import { ESTIMATE_PACKET_PRESETS, ESTIMATE_PACKET_SECTION_DEFS, INTERNAL_REVIEW_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
+import { CUSTOM_ESTIMATE_PACKET_THEME_ID, ESTIMATE_PACKET_COPY_TEMPLATE_OPTIONS, ESTIMATE_PACKET_PRESETS, ESTIMATE_PACKET_SECTION_DEFS, ESTIMATE_PACKET_THEME_OPTIONS, INTERNAL_REVIEW_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
 
 export { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
 
@@ -361,6 +361,16 @@ export function EstimateProposalWorkbench({
         </section>
       </div>
 
+      <div className="co-estimates-shell-packet-readiness-grid" aria-label="Professional packet preview">
+        <span><em>Estimate Sheet</em><strong>Branded / priced</strong></span>
+        <span><em>Proposal Packet</em><strong>Scope / options / terms</strong></span>
+        <span><em>Residential Packet</em><strong>Payment / warranty / approval</strong></span>
+        <span><em>Commercial Sub Packet</em><strong>Qualifications / billing</strong></span>
+        <span><em>GC Bid Packet</em><strong>Qualifications / schedule</strong></span>
+        <span><em>GC / Prime Packet</em><strong>Addenda / alternates</strong></span>
+        <span><em>Foreman Handoff</em><strong>Field-safe quantities</strong></span>
+      </div>
+
       <details className="co-estimate-proposal-browse">
         <summary>
           <span>Browse all estimates</span>
@@ -575,17 +585,34 @@ export function EstimatePacketSettingsPanel({
   sectionIds,
   setPresetId,
   setSectionIds,
+  customization = {},
+  setCustomization,
+  onApplyCompanyBrand,
+  onSaveCustomizationDefault,
+  onApplyCustomizationDefault,
+  customizationDefaultNotice = "",
   canIncludeInternalSections = false,
 }) {
   const resolvedSettings = resolveEstimatePacketSettings({
     presetId,
     sectionIds,
+    customization,
     allowInternalSections: canIncludeInternalSections,
   });
   const selectedPreset = getEstimatePacketPreset(resolvedSettings.presetId);
   const customerSectionDefs = ESTIMATE_PACKET_SECTION_DEFS.filter((section) => !section.internalOnly);
   const internalSectionDefs = ESTIMATE_PACKET_SECTION_DEFS.filter((section) => section.internalOnly);
   const showInternalSections = canIncludeInternalSections && resolvedSettings.presetId === INTERNAL_REVIEW_PACKET_PRESET_ID;
+  const customizationPresetIds = new Set(["customerProposalPacket", "residentialProposalPacket", "gcPrimeProposalPacket", "commercialSubcontractorPacket", INTERNAL_REVIEW_PACKET_PRESET_ID]);
+  const showCustomization = customizationPresetIds.has(resolvedSettings.presetId);
+  const normalizedCustomization = resolvedSettings.customization || {};
+  const activeTheme = normalizedCustomization.theme || {};
+  const selectedThemeId = customization.themeId || normalizedCustomization.themeId || "safety-orange";
+  const showCustomTheme = selectedThemeId === CUSTOM_ESTIMATE_PACKET_THEME_ID;
+  const customHeaderColor = customization.headerColor || normalizedCustomization.headerColor || activeTheme.headerColor || "#07111f";
+  const customHeaderTextColor = customization.headerTextColor || normalizedCustomization.headerTextColor || activeTheme.headerTextColor || "#ffffff";
+  const customAccentColor = customization.accentColor || normalizedCustomization.accentColor || activeTheme.accentColor || "#f97316";
+  const copyTemplates = ESTIMATE_PACKET_COPY_TEMPLATE_OPTIONS.filter((template) => template.presetIds.includes(resolvedSettings.presetId));
 
   function applyPreset(nextPresetId) {
     const nextPreset = getEstimatePacketPreset(nextPresetId);
@@ -605,12 +632,38 @@ export function EstimatePacketSettingsPanel({
     });
   }
 
+  function updateCustomization(field, value) {
+    if (typeof setCustomization !== "function") return;
+    setCustomization((current) => ({
+      ...(current || {}),
+      [field]: value,
+    }));
+  }
+
+  function updateCustomThemeColor(field, value) {
+    if (typeof setCustomization !== "function") return;
+    setCustomization((current) => ({
+      ...(current || {}),
+      themeId: CUSTOM_ESTIMATE_PACKET_THEME_ID,
+      [field]: value,
+    }));
+  }
+
+  function applyCopyTemplate(templateId) {
+    const template = ESTIMATE_PACKET_COPY_TEMPLATE_OPTIONS.find((candidate) => candidate.id === templateId);
+    if (!template || typeof setCustomization !== "function") return;
+    setCustomization((current) => ({
+      ...(current || {}),
+      ...template.customization,
+    }));
+  }
+
   return (
     <div className="rounded-3xl border border-indigo-100 bg-indigo-50/50 p-4 shadow-sm shadow-indigo-100/50">
       <SectionHeader
         title="Packet Preset"
-        description="Choose a simple packet preset, then toggle which existing estimate and GC Lite sections appear in the printed packet."
-        action={<Badge tone={showInternalSections ? "amber" : "violet"}>{showInternalSections ? "Office only" : "Customer facing"}</Badge>}
+        description="Choose the packet format and confirm which estimate, proposal, and bid sections appear in the printed document."
+        action={<Badge tone={showInternalSections ? "amber" : "violet"}>{showInternalSections ? "Office only" : "External packet"}</Badge>}
       />
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
         <div className="rounded-2xl border border-indigo-100 bg-white/85 p-3">
@@ -619,11 +672,67 @@ export function EstimatePacketSettingsPanel({
           </SelectField>
           <p className="mt-2 text-sm font-bold leading-5 text-slate-600">{selectedPreset.description}</p>
           <p className="mt-2 text-xs font-bold uppercase tracking-[0.14em] text-indigo-700">
-            This phase keeps packet settings as print-screen state only. It does not change the estimate record.
+            These settings prepare the current print packet preview; estimate pricing and scope stay unchanged.
           </p>
+          {showCustomization ? (
+            <div className="mt-3 rounded-2xl border border-indigo-100 bg-indigo-50/60 p-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-indigo-700">Packet customization</p>
+                  <p className="mt-1 text-xs font-bold leading-4 text-slate-500">Reusable contractor branding and packet copy for this document.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {typeof onApplyCompanyBrand === "function" ? (
+                    <Button type="button" variant="secondary" onClick={onApplyCompanyBrand}>Use company brand</Button>
+                  ) : null}
+                  {typeof onApplyCustomizationDefault === "function" ? (
+                    <Button type="button" variant="secondary" onClick={onApplyCustomizationDefault}>Use saved</Button>
+                  ) : null}
+                  {typeof onSaveCustomizationDefault === "function" ? (
+                    <Button type="button" onClick={onSaveCustomizationDefault}>Save default</Button>
+                  ) : null}
+                </div>
+              </div>
+              {customizationDefaultNotice ? <p className="mt-2 text-xs font-bold text-indigo-700">{customizationDefaultNotice}</p> : null}
+              <div className="mt-3 grid gap-3">
+                {copyTemplates.length > 0 ? (
+                  <SelectField label="Copy template" value="" onChange={(event) => applyCopyTemplate(event.target.value)}>
+                    <option value="">Choose a packet copy starter</option>
+                    {copyTemplates.map((template) => <option key={template.id} value={template.id}>{template.label}</option>)}
+                  </SelectField>
+                ) : null}
+                <SelectField label="Theme" value={selectedThemeId} onChange={(event) => updateCustomization("themeId", event.target.value)}>
+                  {ESTIMATE_PACKET_THEME_OPTIONS.map((theme) => <option key={theme.id} value={theme.id}>{theme.label}</option>)}
+                </SelectField>
+                {showCustomTheme ? (
+                  <div className="grid gap-3 rounded-2xl border border-indigo-100 bg-white/80 p-3 sm:grid-cols-2">
+                    <InputField label="Theme name" value={customization.customThemeName || ""} onChange={(event) => updateCustomization("customThemeName", event.target.value)} placeholder="Company brand" />
+                    <div className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-2">
+                      <InputField label="Header" type="color" value={customHeaderColor} onChange={(event) => updateCustomThemeColor("headerColor", event.target.value)} aria-label="Header color picker" />
+                      <InputField label="Header hex" value={customization.headerColor || normalizedCustomization.headerColor || ""} onChange={(event) => updateCustomThemeColor("headerColor", event.target.value)} placeholder="#07111f" />
+                    </div>
+                    <div className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-2">
+                      <InputField label="Accent" type="color" value={customAccentColor} onChange={(event) => updateCustomThemeColor("accentColor", event.target.value)} aria-label="Accent color picker" />
+                      <InputField label="Accent hex" value={customization.accentColor || normalizedCustomization.accentColor || ""} onChange={(event) => updateCustomThemeColor("accentColor", event.target.value)} placeholder="#f97316" />
+                    </div>
+                    <div className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-2">
+                      <InputField label="Text" type="color" value={customHeaderTextColor} onChange={(event) => updateCustomThemeColor("headerTextColor", event.target.value)} aria-label="Header text color picker" />
+                      <InputField label="Text hex" value={customization.headerTextColor || normalizedCustomization.headerTextColor || ""} onChange={(event) => updateCustomThemeColor("headerTextColor", event.target.value)} placeholder="#ffffff" />
+                    </div>
+                  </div>
+                ) : null}
+                <InputField label="Cover title" value={customization.coverTitle || ""} onChange={(event) => updateCustomization("coverTitle", event.target.value)} placeholder="GC / Prime Proposal" />
+                <InputField label="Cover kicker" value={customization.coverKicker || ""} onChange={(event) => updateCustomization("coverKicker", event.target.value)} placeholder="Concrete Proposal" />
+                <InputField label="Tagline" value={customization.tagline || ""} onChange={(event) => updateCustomization("tagline", event.target.value)} placeholder="Clear scope. Professional terms. Ready for review." />
+                <InputField label="Statement headline" value={customization.statementTitle || ""} onChange={(event) => updateCustomization("statementTitle", event.target.value)} placeholder="Ready for approval." />
+                <TextAreaField label="Statement body" value={customization.statementBody || ""} onChange={(event) => updateCustomization("statementBody", event.target.value)} className="field-input min-h-20 resize-y" placeholder="Describe what makes this packet ready for GC review." />
+                <InputField label="Review note" value={customization.reviewNote || ""} onChange={(event) => updateCustomization("reviewNote", event.target.value)} placeholder="Review scope, exclusions, and terms before approval." />
+              </div>
+            </div>
+          ) : null}
         </div>
         <div className="rounded-2xl border border-indigo-100 bg-white/85 p-3">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Included sections</p>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Packet sections</p>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             {customerSectionDefs.map((section) => (
               <label key={section.id} className="flex min-w-0 items-start gap-2 rounded-2xl border border-indigo-100 bg-indigo-50/40 p-3 text-sm font-bold text-slate-700">
@@ -665,7 +774,7 @@ export function EstimatePacketSettingsPanel({
             </div>
           ) : (
             <p className="mt-3 rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs font-bold leading-5 text-indigo-700">
-              Customer-facing presets automatically exclude SOV backup, takeoff backup, internal notes, and sent snapshot history.
+              External packet presets automatically exclude SOV backup, takeoff backup, internal notes, and sent proposal history.
             </p>
           )}
         </div>
@@ -1286,12 +1395,12 @@ export function EstimateGcPacketLiteEditor({ draft, setDraft, disabled = false }
   return (
     <div className="rounded-3xl border border-indigo-100 bg-indigo-50/50 p-4 shadow-sm shadow-indigo-100/50">
       <SectionHeader
-        title="GC Packet Lite"
-        description="Use this for commercial GC-facing proposal notes. Review customer-facing sections before sending."
-        action={<Badge tone="violet">GC Lite</Badge>}
+        title="GC Bid Packet Notes"
+        description="Use these notes for commercial GC-facing proposal details. Review external sections before sending."
+        action={<Badge tone="violet">Bid notes</Badge>}
       />
       <div className="rounded-2xl border border-indigo-100 bg-white/85 px-3 py-2 text-sm font-bold text-indigo-800">
-        Captured here for future GC packet output. Current estimate print/PDF stays unchanged in this phase.
+        Captured for the GC proposal packet. Current estimate pricing and scope stay unchanged until saved.
       </div>
       <div className="mt-3 grid gap-3">
         <div className="grid gap-3 lg:grid-cols-2">
