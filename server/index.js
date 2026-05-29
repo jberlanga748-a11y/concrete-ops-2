@@ -6452,28 +6452,83 @@ function appendAuditEvent(state, { entityType, entityId, action, summary, detail
   });
 }
 
-function customerPortalAccessRecordFromAuditEvent(event = {}) {
-  if (event.entityType !== "customer_portal_access" || event.action !== "prepared_locked") return null;
+function parseAuditEventDetail(event = {}) {
   let payload = {};
   try {
     payload = JSON.parse(event.detail || "{}");
   } catch {
     payload = {};
   }
-  const record = payload.accessRecord || {};
-  if (!record.id) return null;
-  return {
-    ...record,
-    auditEventId: event.id,
-    auditCreatedAt: event.createdAt,
-    actorName: event.actorName,
-  };
+  return payload && typeof payload === "object" ? payload : {};
+}
+
+function customerPortalAccessRecordStatus(record = {}, now = new Date()) {
+  if (record.revokedAt) return "revoked_locked";
+  const expiresAt = new Date(record.expiresAt || "");
+  if (!Number.isNaN(expiresAt.getTime()) && expiresAt.getTime() <= now.getTime()) return "expired_locked";
+  return "prepared_locked";
 }
 
 function visibleCustomerPortalAccessRecordsForUser(state, user) {
-  return visibleAuditEventsForUser(state, user)
-    .map(customerPortalAccessRecordFromAuditEvent)
-    .filter(Boolean);
+  const recordsById = new Map();
+  const events = visibleAuditEventsForUser(state, user)
+    .filter((event) => event.entityType === "customer_portal_access")
+    .slice()
+    .reverse();
+
+  for (const event of events) {
+    const payload = parseAuditEventDetail(event);
+    if (event.action === "prepared_locked") {
+      const record = payload.accessRecord || {};
+      if (!record.id) continue;
+      recordsById.set(record.id, {
+        ...record,
+        preparedAuditEventId: event.id,
+        auditEventId: event.id,
+        auditCreatedAt: event.createdAt,
+        actorName: event.actorName,
+        lifecycleEvents: [
+          {
+            id: event.id,
+            action: event.action,
+            actorName: event.actorName,
+            createdAt: event.createdAt,
+          },
+        ],
+      });
+    } else if (event.action === "revoked_locked") {
+      const recordId = payload.accessRecordId || event.entityId || payload.accessRecord?.id || "";
+      const existing = recordsById.get(recordId) || payload.accessRecord || null;
+      if (!existing?.id) continue;
+      recordsById.set(recordId, {
+        ...existing,
+        status: "revoked_locked",
+        revokedAt: payload.revokedAt || event.createdAt,
+        revokedByUserId: event.actorUserId || "",
+        revokedByName: event.actorName || "Unknown user",
+        revokeReason: payload.revokeReason || "",
+        lastAuditEventId: event.id,
+        lifecycleEvents: [
+          ...(existing.lifecycleEvents || []),
+          {
+            id: event.id,
+            action: event.action,
+            actorName: event.actorName,
+            createdAt: event.createdAt,
+            reason: payload.revokeReason || "",
+          },
+        ],
+      });
+    }
+  }
+
+  const now = new Date();
+  return Array.from(recordsById.values())
+    .map((record) => ({
+      ...record,
+      status: customerPortalAccessRecordStatus(record, now),
+    }))
+    .sort((left, right) => String(right.auditCreatedAt || "").localeCompare(String(left.auditCreatedAt || "")));
 }
 
 function buildCustomerPortalPreviewStateForAccessRecord(state, user, { estimateId = "" } = {}) {
@@ -6556,6 +6611,29 @@ function prepareCustomerPortalAccessRecord(state, user, payload = {}) {
     },
     accessPlan,
   };
+}
+
+function visibleCustomerPortalAccessRecordForUser(state, user, recordId, resourceName = "Customer portal access record") {
+  const targetId = requiredString(recordId, resourceName);
+  const record = visibleCustomerPortalAccessRecordsForUser(state, user)
+    .find((item) => String(item.id || "") === targetId);
+  if (!record) {
+    throw new ApiError(404, `${resourceName} not found.`);
+  }
+  return record;
+}
+
+function assertCustomerPortalAccessRecordCanBeRevoked(record = {}) {
+  if (record.status === "revoked_locked" || record.revokedAt) {
+    throw new ApiError(409, "Customer portal access record is already revoked.");
+  }
+}
+
+function rejectCustomerPortalExternalAccessPayload(payload = {}) {
+  const payloadText = JSON.stringify(payload || {});
+  if (/\b(rawToken|portalToken|publicUrl|shareLink|customerLogin|createExternalAccess|sendCustomerMessage|collectPayment|paymentLink|invoiceUrl)\b/i.test(payloadText)) {
+    throw new ApiError(400, "Customer portal access records cannot include external access, customer contact, token, payment, or public URL fields.");
+  }
 }
 
 async function appendAuthAuditEvent({ user, action, summary, detail, changedFields = [], createdAt = new Date().toISOString() }) {
@@ -7899,10 +7977,7 @@ app.get("/api/customer-portal/access-records", requireAuth, asyncRoute(async (re
 }));
 
 app.post("/api/customer-portal/access-records", requireAuth, asyncRoute(async (req, res) => {
-  const payloadText = JSON.stringify(req.body || {});
-  if (/\b(rawToken|portalToken|publicUrl|shareLink|customerLogin|createExternalAccess|sendCustomerMessage|collectPayment|paymentLink|invoiceUrl)\b/i.test(payloadText)) {
-    throw new ApiError(400, "Customer portal access records cannot include external access, customer contact, token, payment, or public URL fields.");
-  }
+  rejectCustomerPortalExternalAccessPayload(req.body || {});
 
   let prepared = null;
   const nextState = await updateDb((draft) => {
@@ -7929,6 +8004,59 @@ app.post("/api/customer-portal/access-records", requireAuth, asyncRoute(async (r
     accessPlan: prepared.accessPlan,
     accessRecords: visibleCustomerPortalAccessRecordsForUser(nextState, req.auth.user),
     boundary: "Internal locked readiness records only; no customer login, public URL, raw token, customer message, invoice, or payment action exists.",
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/customer-portal/access-records/:id/revoke", requireAuth, asyncRoute(async (req, res) => {
+  rejectCustomerPortalExternalAccessPayload(req.body || {});
+
+  let revokedAt = "";
+  let revokeReason = "";
+  let targetRecordId = "";
+  const nextState = await updateDb((draft) => {
+    assertCanPrepareCustomerPortalAccess(draft, req.auth.user);
+    const record = visibleCustomerPortalAccessRecordForUser(draft, req.auth.user, req.params.id);
+    assertCustomerPortalAccessRecordCanBeRevoked(record);
+    revokedAt = new Date().toISOString();
+    revokeReason = optionalString(req.body?.reason, "Owner/admin revoked the locked customer portal access record.");
+    targetRecordId = record.id;
+    appendAuditEvent(draft, {
+      entityType: "customer_portal_access",
+      entityId: record.id,
+      action: "revoked_locked",
+      summary: "Customer portal access record revoked as locked readiness evidence",
+      detail: JSON.stringify({
+        accessRecordId: record.id,
+        previousStatus: record.status,
+        revokedAt,
+        revokeReason,
+        accessRecord: {
+          ...record,
+          status: "revoked_locked",
+          revokedAt,
+          revokedByUserId: req.auth.user?.id || "",
+          revokedByName: req.auth.user?.name || "Unknown user",
+          revokeReason,
+        },
+      }),
+      actor: req.auth.user,
+      changedFields: ["customerPortalAccessRecord.status", "customerPortalAccessRecord.revokedAt"],
+    });
+    return draft;
+  });
+
+  const accessRecords = visibleCustomerPortalAccessRecordsForUser(nextState, req.auth.user);
+  const accessRecord = accessRecords.find((record) => record.id === targetRecordId);
+  res.json({
+    accessRecord,
+    accessRecords,
+    lifecycle: {
+      action: "revoked_locked",
+      revokedAt,
+      revokeReason,
+    },
+    boundary: "Internal locked readiness records only; revocation does not create customer access, public URLs, raw tokens, messages, invoices, or payments.",
     requestId: res.locals.requestId,
   });
 }));

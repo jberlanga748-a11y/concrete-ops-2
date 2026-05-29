@@ -32,6 +32,7 @@ Built and verified:
   - external customer portal ready
 - Build 7A tokenized-access readiness contract records company scope, approved proposal scope, customer scope, expiration, revocation, audit requirements, and external-action locks without creating a live token, login, or share link.
 - Build 7B server-side access records add authenticated, Elite-only, owner/admin-only preparation endpoints for locked internal readiness evidence. Records are audit backed, company scoped, non-redeemable, and reject external/public/customer-contact/payment payload fields.
+- Build 7C locked lifecycle adds audit-backed revoke, read-time expiration status, duplicate-revoke blocking, tenant-scoped denial, and field-role denial without creating a public portal route or redeemable token.
 
 ## Verification Evidence
 
@@ -55,6 +56,7 @@ Commands/checks run:
 - External customer portal: NO-GO until `TOKENIZED_CUSTOMER_PORTAL_SEPARATELY_APPROVED`
 - Tokenized access readiness contract: PASS locally, external access still LOCKED
 - Locked access-record preparation: PASS locally, no redeemable token or public route created
+- Locked access-record lifecycle: PASS locally, revoke/expire remain internal-only
 - Customer send workflow: NO-GO until `CUSTOMER_SEND_WORKFLOW_SEPARATELY_APPROVED`
 - Customer message sending: BLOCKED by default
 - Bid submission: BLOCKED by default
@@ -89,4 +91,4 @@ Phase 9 is 100% for safe internal customer portal preview and communication revi
 
 External customer portal access and customer sends remain locked unless separate implementation phases are approved.
 
-Build 7A and Build 7B local readiness evidence is tracked in `docs/APEX_HQ_CUSTOMER_PORTAL_TOKENIZED_READINESS_STATUS.md` and verified by `npm.cmd run verify:customer-portal-readiness`.
+Build 7A, Build 7B, and Build 7C local readiness evidence is tracked in `docs/APEX_HQ_CUSTOMER_PORTAL_TOKENIZED_READINESS_STATUS.md` and verified by `npm.cmd run verify:customer-portal-readiness`.
