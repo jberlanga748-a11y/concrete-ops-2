@@ -30,6 +30,7 @@ Built and verified:
 - Customer portal and communication readiness gate now separates:
   - internal customer preview ready
   - external customer portal ready
+- Build 7A tokenized-access readiness contract records company scope, approved proposal scope, customer scope, expiration, revocation, audit requirements, and external-action locks without creating a live token, login, or share link.
 
 ## Verification Evidence
 
@@ -51,6 +52,7 @@ Commands/checks run:
 - Internal customer preview readiness script result: `internalCustomerPreviewReady=true`
 - External customer portal readiness script result: `externalCustomerPortalReady=false`
 - External customer portal: NO-GO until `TOKENIZED_CUSTOMER_PORTAL_SEPARATELY_APPROVED`
+- Tokenized access readiness contract: PASS locally, external access still LOCKED
 - Customer send workflow: NO-GO until `CUSTOMER_SEND_WORKFLOW_SEPARATELY_APPROVED`
 - Customer message sending: BLOCKED by default
 - Bid submission: BLOCKED by default
@@ -84,3 +86,5 @@ These are future gates, not Phase 9 blockers:
 Phase 9 is 100% for safe internal customer portal preview and communication review gates.
 
 External customer portal access and customer sends remain locked unless separate implementation phases are approved.
+
+Build 7A local readiness evidence is tracked in `docs/APEX_HQ_CUSTOMER_PORTAL_TOKENIZED_READINESS_STATUS.md` and verified by `npm.cmd run verify:customer-portal-readiness`.

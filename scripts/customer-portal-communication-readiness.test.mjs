@@ -40,6 +40,11 @@ test("internal customer preview can be ready while external portal remains locke
   assert.equal(report.ok, false);
   assert.equal(report.portalAudit.hasApprovedProposal, true);
   assert.equal(report.portalAudit.excludesInternalData, true);
+  assert.equal(report.portalAudit.tokenizedAccessContract, true);
+  assert.equal(report.portalAudit.accessPlanExternalLocked, true);
+  assert.equal(report.portalAudit.accessPlanExpirationReady, true);
+  assert.equal(report.portalAudit.accessPlanRevocationReady, true);
+  assert.equal(report.portalAudit.accessPlanAuditReady, true);
   assert.equal(report.rolePackageAudit.eliteOnly, true);
   assert.equal(report.rolePackageAudit.blockedRoles, true);
   assert.equal(report.communicationAudit.customerMessageBlocked, true);

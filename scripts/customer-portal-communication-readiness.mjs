@@ -8,7 +8,9 @@ import { PACKAGE_IDS, packageIncludesFeature } from "../shared/packages.js";
 import { evaluateAgentActionPermission } from "../shared/agentActionPolicy.js";
 import { canPreviewCustomerPortal } from "../shared/permissions.js";
 import {
+  buildCustomerPortalTokenizedAccessApprovalPacket,
   buildCustomerPortalPreviewPacket,
+  deriveCustomerPortalTokenizedAccessPlan,
   deriveCustomerPortalPreviewState,
 } from "../src/customer-portal-preview-utils.js";
 
@@ -157,6 +159,18 @@ function buildPreviewFixture() {
 
 function customerPortalSafetyAudit() {
   const { state, packet } = buildPreviewFixture();
+  const accessPlan = deriveCustomerPortalTokenizedAccessPlan({
+    state,
+    companyId: "COMPANY-DEMO",
+    actor: { role: "Owner", token: "secret-session-token" },
+    issuedAt: "2026-05-23T00:00:00.000Z",
+    expiresAt: "2026-05-30T00:00:00.000Z",
+    approvalId: "AUDIT-CUSTOMER-PORTAL-PLAN",
+  });
+  const accessPacket = buildCustomerPortalTokenizedAccessApprovalPacket({
+    accessPlan,
+    generatedAt: "2026-05-23T00:05:00.000Z",
+  });
   const boundariesText = (state.boundaries || []).join(" ");
   const hasApprovedProposal = state.readiness.find((item) => item.id === "proposal")?.ready === true;
   const hasProofAndProgress = state.preview.proofPhotoCount > 0 && state.preview.progressUpdateCount > 0;
@@ -170,15 +184,29 @@ function customerPortalSafetyAudit() {
     "Do not leak margin",
   ].some((term) => packet.includes(term));
   const copyOnly = /does not send, publish, approve, or create a customer portal|No customer login, public share link/i.test(`${packet} ${boundariesText}`);
+  const tokenizedAccessContract = accessPlan.implementationReady
+    && accessPlan.canCreateExternalAccess === false
+    && accessPlan.tokenMaterialCreated === false
+    && accessPlan.expiration.ready
+    && accessPlan.revocation.ready
+    && accessPlan.audit.ready
+    && accessPlan.gates.find((gate) => gate.id === "external_lock")?.ready === false
+    && /No raw portal token is generated/i.test(accessPacket)
+    && !["secret-session-token", "Margin is 31%", "Assistant reasoning"].some((term) => accessPacket.includes(term));
 
   return {
-    ok: hasApprovedProposal && hasProofAndProgress && hasChangeOrderContext && blocksExternalPortal && excludesInternalData && copyOnly,
+    ok: hasApprovedProposal && hasProofAndProgress && hasChangeOrderContext && blocksExternalPortal && excludesInternalData && copyOnly && tokenizedAccessContract,
     hasApprovedProposal,
     hasProofAndProgress,
     hasChangeOrderContext,
     blocksExternalPortal,
     excludesInternalData,
     copyOnly,
+    tokenizedAccessContract,
+    accessPlanExternalLocked: accessPlan.canCreateExternalAccess === false,
+    accessPlanExpirationReady: accessPlan.expiration.ready,
+    accessPlanRevocationReady: accessPlan.revocation.ready,
+    accessPlanAuditReady: accessPlan.audit.ready,
   };
 }
 
@@ -273,6 +301,7 @@ export function buildCustomerPortalCommunicationReadinessReport({
       ...missing(evidence.tokenizedPortalPlanDocumented, "Document tokenized access, expiration, company scope, and revocation before any external portal."),
       ...missing(evidence.messageReviewPlanDocumented, "Document human-reviewed customer message flow before any send automation."),
       ...missing(evidence.approvalAuditPlanDocumented, "Document approval/audit trail requirements before external sharing or sends."),
+      ...missing(portalAudit.tokenizedAccessContract, "Tokenized access readiness contract must prove expiration, revocation, audit, and external lock behavior."),
     ], [
       "Tokenized customer portal and send workflow remain future approved phases; this gate does not create external access or send messages.",
     ]),

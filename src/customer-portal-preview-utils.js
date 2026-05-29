@@ -1,5 +1,16 @@
 const SHARE_READY_ESTIMATE_STATUSES = new Set(["approved"]);
 const REVIEWED_CHANGE_ORDER_STATUSES = new Set(["approved", "closed", "completed"]);
+const OWNER_ADMIN_ROLES = new Set(["owner", "administrator"]);
+const MAX_PORTAL_ACCESS_TTL_HOURS = 14 * 24;
+
+export const CUSTOMER_PORTAL_EXTERNAL_ACTION_LOCKS = Object.freeze([
+  "No customer login is created",
+  "No public share link is created",
+  "No raw portal token is generated or stored",
+  "No customer approval, signature, comment, or portal action is accepted",
+  "No customer email, SMS, bid submission, invoice, or payment action is sent",
+  "No production data, secrets, provider config, or deployment is changed",
+]);
 
 function text(value, fallback = "") {
   const normalized = String(value ?? "").trim();
@@ -17,6 +28,19 @@ function money(value) {
 
 function normalizeStatus(value) {
   return String(value || "").trim().toLowerCase();
+}
+
+function normalizeRole(value = "") {
+  return String(value || "").trim().toLowerCase();
+}
+
+function parseDate(value) {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function hoursBetween(start, end) {
+  return Math.round(((end.getTime() - start.getTime()) / (60 * 60 * 1000)) * 10) / 10;
 }
 
 function estimateTotal(estimate = {}) {
@@ -100,6 +124,16 @@ function readinessItem(id, label, ready, detail) {
   };
 }
 
+function accessGate(id, label, ready, detail) {
+  return {
+    id,
+    label,
+    ready: Boolean(ready),
+    status: ready ? "ready" : "blocked",
+    detail,
+  };
+}
+
 export function deriveCustomerPortalPreviewState({
   estimates = [],
   jobs = [],
@@ -172,6 +206,113 @@ export function deriveCustomerPortalPreviewState({
       "Internal notes, margin, AI reasoning, support, billing, and settings data are excluded.",
     ],
   };
+}
+
+export function deriveCustomerPortalTokenizedAccessPlan({
+  state = deriveCustomerPortalPreviewState(),
+  companyId = "",
+  actor = {},
+  issuedAt = new Date().toISOString(),
+  expiresAt = "",
+  approvalId = "",
+  revocationSupported = true,
+} = {}) {
+  const preview = state.preview || {};
+  const issuedDate = parseDate(issuedAt);
+  const expiryDate = parseDate(expiresAt);
+  const ttlHours = issuedDate && expiryDate ? hoursBetween(issuedDate, expiryDate) : 0;
+  const roleAllowed = OWNER_ADMIN_ROLES.has(normalizeRole(actor.role));
+  const hasCompanyScope = Boolean(text(companyId));
+  const hasApprovedProposal = Boolean(text(preview.estimateId));
+  const hasCustomer = Boolean(text(preview.customer));
+  const expirationReady = Boolean(issuedDate && expiryDate && ttlHours > 0 && ttlHours <= MAX_PORTAL_ACCESS_TTL_HOURS);
+  const auditReady = Boolean(text(approvalId));
+  const revocationReady = Boolean(revocationSupported);
+
+  const gates = [
+    accessGate("role", "Owner/admin actor", roleAllowed, roleAllowed ? "Owner/admin actor can prepare the internal access plan." : "Only owner/admin users may prepare customer portal access plans."),
+    accessGate("company_scope", "Company scope", hasCompanyScope, hasCompanyScope ? `Company scope is ${companyId}.` : "A company-scoped access plan is required."),
+    accessGate("approved_proposal", "Approved proposal", hasApprovedProposal, hasApprovedProposal ? `Approved proposal ${preview.estimateId} is selected.` : "An approved customer-facing proposal is required."),
+    accessGate("customer_scope", "Customer scope", hasCustomer, hasCustomer ? `Customer scope is ${preview.customer}.` : "Customer identity is required before external access can be designed."),
+    accessGate("expiration", "Expiration", expirationReady, expirationReady ? `Access would expire in ${ttlHours} hour(s).` : `Expiration must be valid, future-dated, and no more than ${MAX_PORTAL_ACCESS_TTL_HOURS} hours.`),
+    accessGate("revocation", "Revocation", revocationReady, revocationReady ? "Revocation is required before any external link can exist." : "Revocation support is required before any external link can exist."),
+    accessGate("approval_audit", "Approval audit", auditReady, auditReady ? `Approval reference ${approvalId} is attached.` : "Owner/admin approval audit reference is required."),
+    accessGate("external_lock", "External access lock", false, "External portal access remains locked until a separate implementation approval creates server endpoints and token storage."),
+  ];
+
+  const implementationReady = gates.filter((gate) => gate.id !== "external_lock").every((gate) => gate.ready);
+
+  return {
+    mode: "locked_tokenized_customer_portal_access_plan",
+    implementationReady,
+    canCreateExternalAccess: false,
+    tokenMaterialCreated: false,
+    tokenReference: "not-created",
+    scope: {
+      companyId: text(companyId),
+      customer: text(preview.customer, "Customer pending"),
+      estimateId: text(preview.estimateId),
+      jobId: text(preview.jobId),
+      allowedSections: ["proposal", "proof_summary", "progress_summary", "reviewed_change_orders"],
+    },
+    expiration: {
+      issuedAt: issuedDate ? issuedDate.toISOString() : "",
+      expiresAt: expiryDate ? expiryDate.toISOString() : "",
+      ttlHours,
+      maxTtlHours: MAX_PORTAL_ACCESS_TTL_HOURS,
+      ready: expirationReady,
+    },
+    audit: {
+      approvalId: text(approvalId),
+      requiredEvents: [
+        "customer_portal.access_plan_prepared",
+        "customer_portal.external_access_requested",
+        "customer_portal.external_access_revoked",
+      ],
+      ready: auditReady,
+    },
+    revocation: {
+      required: true,
+      supported: revocationReady,
+      ready: revocationReady,
+    },
+    gates,
+    blockedReasons: gates.filter((gate) => !gate.ready).map((gate) => gate.detail),
+    externalActionLocks: CUSTOMER_PORTAL_EXTERNAL_ACTION_LOCKS.slice(),
+    boundary: "Readiness contract only. Apex does not create customer logins, public links, raw portal tokens, approval mutations, customer messages, invoices, payments, deployments, secrets, config changes, or production data changes.",
+  };
+}
+
+export function buildCustomerPortalTokenizedAccessApprovalPacket({
+  accessPlan = deriveCustomerPortalTokenizedAccessPlan(),
+  generatedAt = new Date().toISOString(),
+} = {}) {
+  const scope = accessPlan.scope || {};
+  const expiration = accessPlan.expiration || {};
+  const lines = [
+    "Apex HQ Customer Portal Tokenized Access Readiness Packet",
+    "",
+    `Generated at: ${generatedAt}`,
+    `Mode: ${text(accessPlan.mode, "locked_tokenized_customer_portal_access_plan")}`,
+    `Company scope: ${text(scope.companyId, "Company scope required")}`,
+    `Customer: ${text(scope.customer, "Customer pending")}`,
+    `Approved proposal: ${text(scope.estimateId, "Approved proposal required")}`,
+    `Job: ${text(scope.jobId, "Job pending")}`,
+    `Expiration: ${text(expiration.expiresAt, "Expiration required")} (${Number(expiration.ttlHours || 0)} hour(s), max ${Number(expiration.maxTtlHours || MAX_PORTAL_ACCESS_TTL_HOURS)} hour(s))`,
+    `Implementation-ready inputs: ${accessPlan.implementationReady ? "yes" : "no"}`,
+    `External access allowed now: ${accessPlan.canCreateExternalAccess ? "yes" : "no"}`,
+    `Token material created: ${accessPlan.tokenMaterialCreated ? "yes" : "no"}`,
+    "",
+    "Readiness gates:",
+    ...(accessPlan.gates || []).map((gate) => `- ${gate.label}: ${gate.status} - ${gate.detail}`),
+    "",
+    "External action locks:",
+    ...(accessPlan.externalActionLocks || CUSTOMER_PORTAL_EXTERNAL_ACTION_LOCKS).map((lock) => `- ${lock}`),
+    "",
+    `Boundary: ${accessPlan.boundary || "External customer portal access remains locked."}`,
+  ];
+
+  return lines.join("\n");
 }
 
 export function buildCustomerPortalPreviewPacket({
