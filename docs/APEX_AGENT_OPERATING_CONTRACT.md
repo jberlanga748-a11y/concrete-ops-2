@@ -37,6 +37,9 @@ The Apex Agent must not:
 - Agent policy gates: `shared/agentActionPolicy.js`
 - Agent OS action registry, run/task model, learning signals, and external gates: `shared/agentOperatingSystem.js`
 - Contractor automation policy controls: `shared/apexAgentAutomationPolicy.js`
+- Agent OS v1 release packet: `docs/APEX_AGENT_OS_V1_RELEASE_PACKET.md`
+- Agent OS v1 preservation checklist: `docs/APEX_AGENT_OS_V1_PRESERVATION_CHECKLIST.md`
+- Agent OS v1 release notes: `docs/APEX_AGENT_OS_V1_RELEASE_NOTES.md`
 - Server audit and draft approval tests: `server/agent-action-proposals.test.js`
 - Contractor advisor brain and ask endpoint: `shared/contractorAdvisorAi.js`, `POST /api/agent/ask`
 - Agent OS summary/task/run endpoints: `GET /api/agent/os`, `POST /api/agent/os/tasks`, `POST /api/agent/os/runs/:id/status`
@@ -105,6 +108,12 @@ Latest Agent OS v1 foundation:
 - Premium AI Office access includes Agent OS controls without requiring Elite Opportunity Scout access; Opportunity Scout itself remains hidden unless entitled.
 - External gates now have boundary-approved decision packets and production operator gates; they still do not execute live external actions until configured and verified through the normal domain workflow.
 - Learning signal coverage now explicitly spans accepted edits, rejected drafts, won/lost estimates, closeout outcomes, follow-up outcomes, and contractor preferences. Signals are company-scoped and review-first.
+- The internal action registry now covers the next contractor operations batch: warranty follow-up draft, permit checklist prep, crew handoff prep, daily report review, photo evidence review, delivery ticket review, safety incident summary, pre-pour review, and post-pour review.
+- Each expanded action has explicit required inputs, module ownership, permission/package gate labels, audit event, rollback behavior, and idempotency key fields.
+- The Agent OS summary now includes an operator control panel with open-run status, retry/dead-letter/cancel review rows, rollback/idempotency rows, external gate locks, and redacted company-scoped learning signal visibility.
+- The AI Office console now hardens that panel with action filters, selected run details, learning review rows, production evidence rows, and an explicit `aiOffice.canView` render gate so field-style permissions cannot expose Agent OS controls.
+- `npm.cmd run verify:agent-os-console` now runs local-only console smoke coverage with temp demo data: admin must see Agent OS controls, employee must not see the console, employee API access must be denied, and the production gate includes this check as release evidence.
+- These additions are internal draft/review packets only. They do not complete checklists, approve reports, resolve safety incidents, assign crews, file permits, contact customers/agencies/vendors, change schedules, mutate costs, send messages, collect payment, submit bids, store credentials, deploy, or touch production data.
 
 Latest exit-item slice:
 

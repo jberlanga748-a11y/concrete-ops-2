@@ -15,8 +15,11 @@ import {
   normalizeFoundOpportunityPayload,
   normalizeOpportunitySearchProfilePayload,
   OPPORTUNITY_SCOUT_GUARDRAILS,
+  OPPORTUNITY_SCOUT_CONNECTOR_PRESETS,
   OPPORTUNITY_SCOUT_SOURCE_CHECK_RESULTS,
   OPPORTUNITY_SCOUT_SOURCE_ADAPTERS,
+  OPPORTUNITY_SOURCE_AUTHORIZATION_STATUSES,
+  OPPORTUNITY_SOURCE_POSTURES,
   buildOpportunityScoutSourceCheckNote,
   classifyOpportunityScoutSourceAccess,
   parseOpportunityScoutSourceCheckOutcomes,
@@ -34,6 +37,9 @@ test("search profiles normalize arrays, cadence, and status safely", () => {
     serviceAreas: ["Albany", " Corvallis "],
     radiusMiles: "35",
     sourceTypes: ["Public bid portal"],
+    projectTypes: "ADA ramp, commercial repair",
+    preferredSources: ["City bid page", " public procurement "],
+    minimumProjectValue: "2500",
     sourcePolicyNote: "Check robots.txt and public terms before recurring source checks. token=secret",
     keywords: "sidewalk, ada ramp",
     excludedKeywords: ["roofing"],
@@ -50,10 +56,15 @@ test("search profiles normalize arrays, cadence, and status safely", () => {
   assert.deepEqual(profile.trades, ["Concrete", "fencing"]);
   assert.deepEqual(profile.serviceAreas, ["Albany", "Corvallis"]);
   assert.equal(profile.radiusMiles, 35);
+  assert.deepEqual(profile.projectTypes, ["ADA ramp", "commercial repair"]);
+  assert.deepEqual(profile.preferredSources, ["City bid page", "public procurement"]);
+  assert.equal(profile.minimumProjectValue, 2500);
   assert.equal(profile.sourceAdapterId, "public_web");
   assert.equal(profile.sourceAccessStatus, "clear_for_review");
   assert.equal(profile.sourceTermsStatus, "unreviewed");
+  assert.equal(profile.sourcePosture, "public_no_login");
   assert.equal(profile.sourcePolicyNote.includes("secret"), false);
+  assert.equal(profile.sourceAuthorizationStatus, "not_required");
   assert.equal(profile.cadence, "daily");
   assert.equal(profile.status, "active");
   assert.equal(profile.createdBy, "U-1");
@@ -72,22 +83,89 @@ test("search profiles preserve explicit source adapter review posture", () => {
   assert.equal(profile.sourceAdapterId, "approved_browser_session");
   assert.equal(profile.sourceAccessStatus, "needs_human");
   assert.equal(profile.sourceTermsStatus, "human_review_required");
+  assert.equal(profile.sourceAuthorizationStatus, "needs_authorization");
+  assert.equal(profile.sourcePosture, "private_human_handoff");
   assert.equal(profile.sourcePolicyNote.includes("secret"), false);
 });
 
-test("search profile validation requires a name and rejects negative radius", () => {
-  assert.deepEqual(validateOpportunitySearchProfilePayload({ radiusMiles: -1 }), [
+test("search profile validation requires a name and rejects negative radius or minimum value", () => {
+  assert.deepEqual(validateOpportunitySearchProfilePayload({ radiusMiles: -1, minimumProjectValue: -50 }), [
     "Search profile name is required.",
     "Service radius must be zero or higher.",
+    "Minimum project value must be zero or higher.",
+  ]);
+  assert.equal(OPPORTUNITY_SOURCE_AUTHORIZATION_STATUSES.includes("authorized_for_human_session"), true);
+  assert.equal(OPPORTUNITY_SOURCE_POSTURES.includes("official_api_only"), true);
+  assert.deepEqual(validateOpportunitySearchProfilePayload({
+    name: "Unsafe portal",
+    password: "secret",
+  }), [
+    "Opportunity Scout search profiles cannot store credentials, tokens, cookies, or private portal secrets.",
+  ]);
+  assert.deepEqual(validateOpportunitySearchProfilePayload({
+    name: "Conflicting source",
+    sourcePosture: "public_no_login",
+    sourceAccessStatus: "needs_human",
+  }), [
+    "Public no-login sources cannot require human login, OAuth/API access, blocked terms, or private-source authorization.",
+  ]);
+  assert.deepEqual(validateOpportunitySearchProfilePayload({
+    name: "Blocked source",
+    sourcePosture: "blocked_terms_review",
+    status: "active",
+  }), [
+    "Blocked terms review sources must be paused or archived before saving.",
   ]);
 });
 
 test("search profile starters are safe editable daily scout presets", () => {
-  assert.equal(OPPORTUNITY_SEARCH_PROFILE_STARTERS.length >= 4, true);
+  assert.equal(OPPORTUNITY_SEARCH_PROFILE_STARTERS.length >= 5, true);
   assert.equal(OPPORTUNITY_SEARCH_PROFILE_STARTERS.every((starter) => starter.id && starter.label && starter.name), true);
   assert.equal(OPPORTUNITY_SEARCH_PROFILE_STARTERS.every((starter) => Array.isArray(starter.trades) && starter.trades.length > 0), true);
   assert.equal(OPPORTUNITY_SEARCH_PROFILE_STARTERS.some((starter) => starter.id === "public-bid-scan"), true);
+  assert.equal(OPPORTUNITY_SEARCH_PROFILE_STARTERS.some((starter) => starter.id === "social-community-handoff"), true);
   assert.equal(OPPORTUNITY_SEARCH_PROFILE_STARTERS.some((starter) => starter.id === "relationship-follow-up"), true);
+});
+
+test("opportunity scout connector presets cover public, private, portal, and intake setup", () => {
+  assert.equal(OPPORTUNITY_SCOUT_CONNECTOR_PRESETS.some((preset) => preset.id === "facebook-public-page"), true);
+  assert.equal(OPPORTUNITY_SCOUT_CONNECTOR_PRESETS.some((preset) => preset.id === "facebook-private-group"), true);
+  assert.equal(OPPORTUNITY_SCOUT_CONNECTOR_PRESETS.some((preset) => preset.id === "gc-portal"), true);
+  assert.equal(OPPORTUNITY_SCOUT_CONNECTOR_PRESETS.some((preset) => preset.id === "evidence-upload"), true);
+  assert.equal(OPPORTUNITY_SCOUT_CONNECTOR_PRESETS.every((preset) => preset.leadSource?.name && preset.searchProfile?.name), true);
+  assert.equal(JSON.stringify(OPPORTUNITY_SCOUT_CONNECTOR_PRESETS).includes("password:"), false);
+});
+
+test("social and private source adapters normalize into safe authorization postures", () => {
+  const privateGroup = normalizeOpportunitySearchProfilePayload({
+    name: "Facebook private group scan",
+    sourceTypes: ["Facebook private group"],
+    cadence: "daily",
+  });
+  const publicBoard = normalizeOpportunitySearchProfilePayload({
+    name: "Craigslist concrete jobs",
+    sourceTypes: ["Craigslist/local board"],
+    cadence: "daily",
+  });
+  const uploadedEvidence = normalizeOpportunitySearchProfilePayload({
+    name: "Screenshot intake",
+    sourceTypes: ["Evidence upload"],
+  });
+
+  assert.equal(OPPORTUNITY_SCOUT_SOURCE_ADAPTERS.some((adapter) => adapter.id === "facebook_private_group"), true);
+  assert.equal(OPPORTUNITY_SCOUT_SOURCE_ADAPTERS.some((adapter) => adapter.id === "facebook_public_page"), true);
+  assert.equal(OPPORTUNITY_SCOUT_SOURCE_ADAPTERS.some((adapter) => adapter.id === "gc_portal"), true);
+  assert.equal(privateGroup.sourceAdapterId, "facebook_private_group");
+  assert.equal(privateGroup.sourceAccessStatus, "needs_human");
+  assert.equal(privateGroup.sourceTermsStatus, "human_review_required");
+  assert.equal(privateGroup.sourceAuthorizationStatus, "needs_authorization");
+  assert.equal(privateGroup.sourcePosture, "private_human_handoff");
+  assert.equal(publicBoard.sourceAdapterId, "craigslist_local_board");
+  assert.equal(publicBoard.sourceAccessStatus, "clear_for_review");
+  assert.equal(publicBoard.sourceAuthorizationStatus, "not_required");
+  assert.equal(publicBoard.sourcePosture, "public_no_login");
+  assert.equal(uploadedEvidence.sourceAdapterId, "evidence_upload");
+  assert.equal(uploadedEvidence.sourceTermsStatus, "public_allowed");
 });
 
 test("opportunity scout agent run packet exposes source adapters and review-first stop rules", () => {

@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { spawn } from "node:child_process";
+import net from "node:net";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 
@@ -13,12 +14,20 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function createPort() {
-  return 9700 + Math.floor(Math.random() * 800);
+async function createPort() {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.on("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      const port = typeof address === "object" && address ? address.port : 0;
+      server.close(() => resolve(port));
+    });
+  });
 }
 
 async function waitForServer(baseUrl, serverOutput) {
-  for (let attempt = 0; attempt < 40; attempt += 1) {
+  for (let attempt = 0; attempt < 160; attempt += 1) {
     try {
       const response = await fetch(`${baseUrl}/api/ready`);
       if (response.ok) return;
@@ -74,9 +83,21 @@ async function stopServerProcess(child) {
 }
 
 async function startServer(extraEnv = {}) {
+  let lastError;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await startServerAttempt(extraEnv);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
+}
+
+async function startServerAttempt(extraEnv = {}) {
   const tempDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "apex-hq-auth-security-"));
-  const port = createPort();
-  const baseUrl = `http://localhost:${port}`;
+  const port = await createPort();
+  const baseUrl = `http://127.0.0.1:${port}`;
   let output = "";
   const server = spawn(process.execPath, ["server/index.js"], {
     cwd: process.cwd(),
@@ -98,7 +119,13 @@ async function startServer(extraEnv = {}) {
     output += String(chunk);
   });
 
-  await waitForServer(baseUrl, () => output);
+  try {
+    await waitForServer(baseUrl, () => output);
+  } catch (error) {
+    await stopServerProcess(server);
+    await fs.rm(tempDataDir, { recursive: true, force: true });
+    throw error;
+  }
 
   async function stop() {
     try {

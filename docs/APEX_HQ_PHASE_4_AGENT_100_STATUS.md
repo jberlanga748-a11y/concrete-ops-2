@@ -117,6 +117,7 @@ Completed after the original Phase 4 exit:
   - Manual `succeeded` status changes are blocked; successful completion must come from the safe internal execute endpoint.
 - Agent OS operational polish slice.
   - Run rows now expose detail visibility for target, output, blocked actions, safety boundary, attempts, and recent logs.
+  - AI Office Agent OS console now includes action filters, selected run details, learning review rows, production gate evidence rows, and an explicit `aiOffice.canView` render gate.
   - Visible Apex Agent recommendations can queue matching safe internal Agent OS tasks when the recommendation maps to a visible lead, estimate, or job target.
   - Premium AI Office access now reaches Agent OS controls without requiring Elite Opportunity Scout access; Scout-specific controls stay package-gated.
   - `docs/APEX_AGENT_WORKTREE_REVIEW_MAP.md` separates Agent OS review scope from route decomposition and estimate/proposal packet work.
@@ -128,9 +129,16 @@ Completed after the original Phase 4 exit:
   - Selected contractor advisor recommendations can queue existing safe internal Agent OS task/run records through `POST /api/agent/os/advisor-tasks` when the recommendation id is supported and the target is visible in the current company scope.
   - The advisor queue endpoint is role/package gated, rejects unsupported/external recommendations, and remains internal draft/prep only.
   - Hosted Agent smoke tooling now covers `/ai-office` route checks and an optional GET-only Agent OS API flow for admin access plus employee denial.
+  - `npm.cmd run verify:agent-os-console` now runs a local-only temp-demo Playwright smoke: admin sees Agent OS console controls, employee does not, employee API access is denied, and this check appears in the Agent Leads production evidence gate.
   - The worktree review map now separates Agent foundation, UI/access, contractor advisor queueing, smoke/docs, route decomposition, and Estimate/Proposal Professional Packet work.
 
-Still remaining:
+Agent OS v1 local/review-first completion status:
+
+- Complete for the current review-first product boundary: one product-facing Apex Agent, durable Agent OS registry/run/task/audit/learning/operator console surfaces, internal draft/prep execution, local console smoke, and production evidence requirements.
+- `docs/APEX_AGENT_OS_V1_RELEASE_PACKET.md` is the final local release packet for this boundary, and `npm.cmd run verify:agent-os` is the focused preservation command.
+- External/customer-contact actions remain locked unless a normal domain gate, per-company opt-in, explicit human confirmation, idempotency, audit, rollback, role/package, tenant checks, and verification evidence are present.
+
+Still remaining outside Agent OS v1:
 
 1. Production-safe autonomous operator execution gate implementation.
    - Separate approval required for customer sends, bid submissions, schedule mutations, invoices, payments, or production data mutation.

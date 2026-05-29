@@ -1,5 +1,6 @@
 import {
   deriveAgentOsAutonomyPlan,
+  normalizeAgentLeadsProviderSettings,
   normalizeAgentOsExternalGateSettings,
   normalizeAgentOsWorkflowSettings,
 } from "./agentOperatingSystem.js";
@@ -30,6 +31,7 @@ export const DEFAULT_APEX_AGENT_AUTOMATION_POLICY = Object.freeze({
   lockedAutonomousActions: LOCKED_AUTONOMOUS_ACTIONS,
   workflowSettings: normalizeAgentOsWorkflowSettings(),
   externalGateSettings: normalizeAgentOsExternalGateSettings(),
+  publicLeadProviderSettings: normalizeAgentLeadsProviderSettings(),
   updatedAt: "",
 });
 
@@ -77,6 +79,7 @@ export function normalizeApexAgentAutomationPolicy(value = {}) {
     lockedAutonomousActions: { ...LOCKED_AUTONOMOUS_ACTIONS },
     workflowSettings: normalizeAgentOsWorkflowSettings(source.workflowSettings),
     externalGateSettings: normalizeAgentOsExternalGateSettings(source.externalGateSettings),
+    publicLeadProviderSettings: normalizeAgentLeadsProviderSettings(source.publicLeadProviderSettings),
     updatedAt: typeof source.updatedAt === "string" ? source.updatedAt.trim().slice(0, 40) : "",
   };
 }

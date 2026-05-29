@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { applyOpportunityScoutAgentPreviewToDraft, applyOpportunityScoutSourceCheckToDraft, buildOpportunityScoutSearchPhrase, buildOpportunityScoutSourceBrief, deriveOpportunityScoutState } from "./opportunity-scout-utils.js";
+import { applyOpportunityScoutAgentPreviewToDraft, applyOpportunityScoutSourceCheckToDraft, buildFoundOpportunityDraftFromScoutExecutionCard, buildFoundOpportunityEvidenceIntakeFromScoutCard, buildOpportunityScoutConnectorSetupDraft, buildOpportunityScoutConnectorSetupDraftFromCoverageRecommendation, buildOpportunityScoutConnectorSetupPayload, buildOpportunityScoutSearchPhrase, buildOpportunityScoutSourceBrief, deriveFoundOpportunityDraftDuplicateWarnings, deriveOpportunityScoutState } from "./opportunity-scout-utils.js";
+import { OPPORTUNITY_SCOUT_CONNECTOR_PRESETS } from "../shared/opportunityScout.js";
 
 const TODAY = "2026-05-13";
 
@@ -21,6 +22,11 @@ test("opportunity scout builds a daily source queue from due and overdue lead so
   assert.equal(state.stats.activeSources, 2);
   assert.equal(state.stats.checksNeeded, 2);
   assert.equal(state.dailyJobFinder.label, "Daily Job Finder");
+  assert.equal(state.dailyResourcePlan.label, "Daily Lead Resource Plan");
+  assert.equal(state.dailyResourcePlan.stats.total, 2);
+  assert.equal(state.dailyResourcePlan.stats.public, 1);
+  assert.equal(state.dailyResourcePlan.stats.authorizedPrivate, 1);
+  assert.equal(state.dailyResourcePlan.guardrails.some((item) => /No cold calls/i.test(item)), true);
   assert.equal(state.agentRunPacket.mode, "review_first");
   assert.equal(state.agentRunPacket.adapters.some((adapter) => adapter.id === "public_web" || adapter.id === "approved_browser_session"), true);
   assert.equal(state.agentRunPacket.sourcePosture.reviewRequired, true);
@@ -51,6 +57,153 @@ test("opportunity scout builds a daily source queue from due and overdue lead so
   assert.equal(state.sourceQueue.some((source) => source.name === "Other company source"), false);
 });
 
+test("opportunity scout resource plan separates public social boards from private social handoffs", () => {
+  const state = deriveOpportunityScoutState({
+    currentCompanyId: "COMPANY-A",
+    companySettings: { serviceArea: "Albany Oregon" },
+    opportunitySearchProfiles: [
+      {
+        id: "OSP-FB-GROUP",
+        companyId: "COMPANY-A",
+        name: "Facebook private group scan",
+        status: "active",
+        cadence: "daily",
+        sourceAdapterId: "facebook_private_group",
+        sourceAuthorizationStatus: "needs_authorization",
+        sourceTypes: ["Facebook private group"],
+        nextRunAt: TODAY,
+      },
+      {
+        id: "OSP-CRAIGSLIST",
+        companyId: "COMPANY-A",
+        name: "Craigslist/local concrete board",
+        status: "active",
+        cadence: "daily",
+        sourceAdapterId: "craigslist_local_board",
+        sourceTermsStatus: "public_allowed",
+        sourceTypes: ["Craigslist/local board"],
+        nextRunAt: TODAY,
+      },
+    ],
+  }, { today: TODAY });
+
+  const privateRow = state.dailyResourcePlan.rows.find((row) => row.sourceId === "OSP-FB-GROUP");
+  const publicRow = state.dailyResourcePlan.rows.find((row) => row.sourceId === "OSP-CRAIGSLIST");
+  const privateCard = state.dailyScoutExecutionPlan.privateHandoffCards.find((card) => card.targetId === "OSP-FB-GROUP");
+  const publicCard = state.dailyScoutExecutionPlan.publicRunnerCards.find((card) => card.targetId === "OSP-CRAIGSLIST");
+
+  assert.equal(privateRow.laneId, "authorized_private");
+  assert.equal(privateRow.requiresHumanAccess, true);
+  assert.equal(privateRow.canAutonomousPrep, false);
+  assert.equal(publicRow.laneId, "public");
+  assert.equal(publicRow.canAutonomousPrep, true);
+  assert.equal(Boolean(privateCard), true);
+  assert.equal(privateCard.searchUrls.length, 0);
+  assert.equal(Boolean(publicCard), true);
+  assert.equal(publicCard.searchUrls.length > 0, true);
+});
+
+test("opportunity scout connector setup builds source and profile payloads without credentials", () => {
+  const preset = OPPORTUNITY_SCOUT_CONNECTOR_PRESETS.find((entry) => entry.id === "facebook-private-group");
+  const draft = buildOpportunityScoutConnectorSetupDraft(preset, {
+    name: "Albany homeowner group",
+    serviceArea: "Albany",
+  });
+  const payload = buildOpportunityScoutConnectorSetupPayload(draft);
+
+  assert.equal(payload.shouldCreateLeadSource, true);
+  assert.equal(payload.shouldCreateSearchProfile, true);
+  assert.equal(payload.leadSource.name, "Albany homeowner group");
+  assert.equal(payload.leadSource.type, "Social/community source");
+  assert.equal(payload.searchProfile.sourceAdapterId, "facebook_private_group");
+  assert.equal(payload.searchProfile.sourcePosture, "private_human_handoff");
+  assert.equal(payload.searchProfile.sourceAuthorizationStatus, "needs_authorization");
+  assert.equal(payload.searchProfile.projectTypes.includes("repair"), true);
+  assert.equal(payload.searchProfile.preferredSources.includes("public"), false);
+  assert.match(payload.safetyBoundary, /does not log in/i);
+  assert.equal(JSON.stringify(payload).includes("password="), false);
+});
+
+test("opportunity scout source coverage recommendations prepare safe editable connector drafts", () => {
+  const state = deriveOpportunityScoutState({
+    currentCompanyId: "COMPANY-A",
+    companySettings: { serviceArea: "Albany Oregon", primaryTrade: "concrete" },
+    opportunitySearchProfiles: [
+      {
+        id: "OSP-PUBLIC",
+        companyId: "COMPANY-A",
+        name: "City bid page",
+        sourceAdapterId: "public_procurement_feed",
+        sourcePosture: "public_no_login",
+        sourceTypes: ["City bid page"],
+        status: "active",
+      },
+    ],
+    leadSources: [],
+  }, { today: TODAY });
+  const recommendation = state.dailyScoutExecutionPlan.sourceCoveragePlanner.recommendations.find((entry) => entry.familyId === "private_social");
+  const draft = buildOpportunityScoutConnectorSetupDraftFromCoverageRecommendation(recommendation, { serviceArea: "Albany Oregon", primaryTrade: "concrete" });
+  const payload = buildOpportunityScoutConnectorSetupPayload(draft);
+
+  assert.equal(state.dailyScoutExecutionPlan.sourceCoveragePlanner.mode, "agent_leads_source_coverage_planner_v23");
+  assert.equal(state.dailyScoutExecutionPlan.sourceCoveragePlanner.externalActionsLocked, true);
+  assert.equal(state.dailyScoutExecutionPlan.liveSourceSetupReadiness.mode, "agent_leads_live_source_setup_readiness_v24");
+  assert.equal(state.dailyScoutExecutionPlan.liveSourceSetupReadiness.externalActionsLocked, true);
+  assert.equal(state.dailyScoutExecutionPlan.liveSourceSetupReadiness.leadAutoSaveEnabled, false);
+  assert.equal(state.dailyScoutExecutionPlan.pilotRunReadiness.mode, "agent_leads_pilot_run_readiness_v25");
+  assert.equal(state.dailyScoutExecutionPlan.pilotRunReadiness.externalActionsLocked, true);
+  assert.equal(state.dailyScoutExecutionPlan.pilotRunReadiness.tomorrowChecklist.some((item) => item.id === "save-approved-drafts"), true);
+  assert.equal(state.dailyScoutExecutionPlan.providerConnectionSetupPlan.mode, "agent_leads_provider_connection_setup_plan_v26");
+  assert.equal(state.dailyScoutExecutionPlan.providerConnectionSetupPlan.externalActionsLocked, true);
+  assert.equal(state.dailyScoutExecutionPlan.providerConnectionSetupPlan.rawCredentialStorageEnabled, false);
+  assert.equal(state.dailyScoutExecutionPlan.providerConnectionSetupPlan.liveProviderCallsEnabled, false);
+  assert.equal(state.dailyScoutExecutionPlan.providerConnectionSetupPlan.hostedPilotSmokePlan.blockedChecks.some((item) => /No raw credential/i.test(item)), true);
+  assert.equal(state.dailyScoutExecutionPlan.pilotActivationLayer.mode, "agent_leads_pilot_activation_layer_v27");
+  assert.equal(state.dailyScoutExecutionPlan.pilotActivationLayer.externalActionsLocked, true);
+  assert.equal(state.dailyScoutExecutionPlan.pilotActivationLayer.hostedPilotSmokePacket.canRunAutomatically, false);
+  assert.equal(state.dailyScoutExecutionPlan.pilotActivationLayer.liveProviderCallsEnabled, false);
+  assert.equal(state.dailyScoutExecutionPlan.pilotActivationLayer.tomorrowRunView.exactlyWhatApexWillNotDo.some((item) => /No OAuth token exchange/i.test(item)), true);
+  assert.equal(state.dailyScoutExecutionPlan.realPublicSourceConfigActivation.mode, "agent_leads_real_public_source_config_activation_v28");
+  assert.equal(state.dailyScoutExecutionPlan.realPublicSourceConfigActivation.externalActionsLocked, true);
+  assert.equal(state.dailyScoutExecutionPlan.realPublicSourceConfigActivation.liveProviderCallsEnabled, false);
+  assert.equal(state.dailyScoutExecutionPlan.realPublicSourceConfigActivation.operatorActivationDrafts.every((entry) => entry.canExecute === false), true);
+  assert.equal(state.dailyScoutExecutionPlan.realPublicSourceConfigActivation.safetyBoundary.includes("metadata and eligibility only"), true);
+  assert.equal(state.dailyScoutExecutionPlan.controlledHostedDemoSmokePacket.mode, "agent_leads_controlled_hosted_demo_smoke_packet_v29");
+  assert.equal(state.dailyScoutExecutionPlan.controlledHostedDemoSmokePacket.canRunAutomatically, false);
+  assert.equal(state.dailyScoutExecutionPlan.controlledHostedDemoSmokePacket.browserAutomationEnabled, false);
+  assert.equal(state.dailyScoutExecutionPlan.controlledHostedDemoSmokePacket.deployEnabled, false);
+  assert.equal(state.dailyScoutExecutionPlan.controlledHostedDemoSmokePacket.productionDataTouchEnabled, false);
+  assert.equal(state.dailyScoutExecutionPlan.controlledHostedDemoSmokePacket.smokeResultModel.status, "not_run");
+  assert.equal(state.dailyScoutExecutionPlan.smokeEvidenceRecorder.mode, "agent_leads_smoke_evidence_recorder_v30");
+  assert.equal(state.dailyScoutExecutionPlan.smokeEvidenceRecorder.canRecordAutomatically, false);
+  assert.equal(state.dailyScoutExecutionPlan.smokeEvidenceRecorder.serverWriteEnabled, false);
+  assert.equal(state.dailyScoutExecutionPlan.smokeEvidenceRecorder.externalActionsLocked, true);
+  assert.equal(state.dailyScoutExecutionPlan.smokeEvidenceRecorder.evidenceDraft.fields.sourceConfigId, state.dailyScoutExecutionPlan.controlledHostedDemoSmokePacket.smokeTargetSelector.selectedSourceConfigId || "");
+  assert.equal(state.dailyScoutExecutionPlan.controlledDailyPublicSourceRunEvidencePacket.mode, "agent_leads_controlled_daily_public_source_run_evidence_packet_v32");
+  assert.equal(state.dailyScoutExecutionPlan.controlledDailyPublicSourceRunEvidencePacket.externalActionsLocked, true);
+  assert.equal(state.dailyScoutExecutionPlan.controlledDailyPublicSourceRunEvidencePacket.safeForCron, false);
+  assert.equal(state.dailyScoutExecutionPlan.controlledDailyPublicSourceRunEvidencePacket.canRunAutomatically, false);
+  assert.equal(state.dailyScoutExecutionPlan.controlledDailyPublicSourceRunEvidencePacket.leadAutoSaveEnabled, false);
+  assert.equal(state.dailyScoutExecutionPlan.controlledDailyPublicRunPreflight.mode, "agent_leads_controlled_daily_public_run_preflight_v34");
+  assert.equal(state.dailyScoutExecutionPlan.controlledDailyPublicRunEvidencePrep.mode, "agent_leads_controlled_daily_public_run_evidence_prep_v35");
+  assert.equal(state.dailyScoutExecutionPlan.controlledDailyPublicRunOutcomeLoop.mode, "agent_leads_controlled_daily_public_run_outcome_loop_v36");
+  assert.equal(state.dailyScoutExecutionPlan.controlledDailyPublicRunPreflight.canRunProviderFetch, false);
+  assert.equal(state.dailyScoutExecutionPlan.controlledDailyPublicRunEvidencePrep.leadAutoSaveEnabled, false);
+  assert.equal(state.dailyScoutExecutionPlan.localCompletionReadiness.mode, "agent_leads_local_completion_readiness_v39");
+  assert.equal(state.dailyScoutExecutionPlan.localCompletionReadiness.localCompletionStatus, "complete_review_first_local");
+  assert.equal(state.dailyScoutExecutionPlan.localCompletionReadiness.readyForProductionAutonomy, false);
+  assert.equal(state.dailyScoutExecutionPlan.localCompletionReadiness.externalActionLocks.customerContactEnabled, false);
+  assert.equal(state.dailyScoutExecutionPlan.productionReadinessGate.mode, "agent_leads_production_readiness_gate_v40");
+  assert.equal(state.dailyScoutExecutionPlan.productionReadinessGate.productionLaunchStatus, "no_go");
+  assert.equal(state.dailyScoutExecutionPlan.productionReadinessGate.readyForProductionAutonomy, false);
+  assert.equal(draft.sourcePosture, "private_human_handoff");
+  assert.equal(draft.sourceAuthorizationStatus, "needs_authorization");
+  assert.equal(payload.searchProfile.sourcePosture, "private_human_handoff");
+  assert.equal(payload.searchProfile.sourceAuthorizationStatus, "needs_authorization");
+  assert.equal(payload.leadSource.url, "");
+  assert.match(payload.safetyBoundary, /does not log in/i);
+});
+
 test("opportunity scout does not invent opportunities when no lead sources exist", () => {
   const state = deriveOpportunityScoutState({
     leadSources: [],
@@ -64,6 +217,8 @@ test("opportunity scout does not invent opportunities when no lead sources exist
   assert.deepEqual(state.searchBriefs, []);
   assert.equal(state.guardrails.externalSearch, false);
   assert.equal(state.guardrails.autoCreateLeads, false);
+  assert.equal(state.dailyResourcePlan.stats.total, 0);
+  assert.match(state.dailyResourcePlan.summary, /Add public, private-authorized, inbound, or warm relationship sources/i);
   assert.equal(state.dailyJobFinder.focusLanes.find((lane) => lane.id === "find-work").targetId, "scout-search-profiles");
   assert.match(state.dailyJobFinder.operatorMode, /office verifies/i);
   assert.equal(state.dailyJobFinder.guardrails.some((item) => /No auto-created leads/i.test(item)), true);
@@ -95,7 +250,7 @@ test("opportunity scout includes saved search profiles and found opportunities",
     currentCompanyId: "COMPANY-A",
     companySettings: { serviceArea: "Albany Oregon" },
     opportunitySearchProfiles: [
-      { id: "OSP-1", companyId: "COMPANY-A", name: "Daily bid scan", status: "active", cadence: "daily", trades: ["concrete"], serviceAreas: ["Albany"], keywords: ["sidewalk"], sourceAdapterId: "public_web", sourceAccessStatus: "clear_for_review", sourceTermsStatus: "unreviewed", lastRunAt: "", nextRunAt: TODAY },
+      { id: "OSP-1", companyId: "COMPANY-A", name: "Daily bid scan", status: "active", cadence: "daily", trades: ["concrete"], serviceAreas: ["Albany"], keywords: ["sidewalk"], sourceAdapterId: "public_web", sourceAccessStatus: "clear_for_review", sourceTermsStatus: "unreviewed", sourceAuthorizationStatus: "authorized_for_human_session", sourceAuthorizedBy: "Owner", notes: "[2026-05-12 source check] Result: Found Work | Next: Save found opportunity | Source: Daily bid scan | Note: Public RFP found. | Review-first: no lead, contact, message, or bid was created from this check.", lastRunAt: "", nextRunAt: TODAY },
       { id: "OSP-2", companyId: "COMPANY-A", name: "Paused scan", status: "paused", cadence: "weekly", trades: ["siding"] },
       { id: "OSP-3", companyId: "COMPANY-B", name: "Other company scan", status: "active" },
     ],
@@ -107,6 +262,23 @@ test("opportunity scout includes saved search profiles and found opportunities",
       { id: "FO-3", companyId: "COMPANY-B", title: "Other company work", status: "new" },
       { id: "FO-4", companyId: "COMPANY-A", title: "No bid date job", status: "new", fitScore: 70 },
     ],
+    auditEvents: [{
+      id: "AUDIT-SCOUT",
+      companyId: "COMPANY-A",
+      action: "agent.os.opportunity_search_prep.daily.queued",
+      summary: "Opportunity search prep queued for daily Opportunity Scout review",
+      createdAt: "2026-05-13T08:00:00.000Z",
+      detail: JSON.stringify({
+        task: {
+          target: { title: "Daily bid scan" },
+        },
+        runId: "RUN-SCOUT",
+        reviewCardCount: 4,
+        publicRunnerCardCount: 2,
+        privateHandoffCardCount: 1,
+        foundDraftCardCount: 1,
+      }),
+    }],
   }, { today: TODAY });
 
   assert.equal(state.readiness.label, "Found work needs review");
@@ -116,6 +288,33 @@ test("opportunity scout includes saved search profiles and found opportunities",
   assert.equal(state.stats.openFoundOpportunities, 3);
   assert.equal(state.stats.dueBidOpportunities, 1);
   assert.equal(state.dailyJobFinder.headline, "Review Found Work");
+  assert.equal(state.dailyResourcePlan.stats.total, 1);
+  assert.equal(state.dailyResourcePlan.stats.public, 1);
+  assert.equal(state.dailyResourcePlan.stats.humanAccess, 1);
+  assert.equal(state.dailyResourcePlan.rows[0].sourceKind, "search_profile");
+  assert.equal(state.dailyResourcePlan.rows[0].canAutonomousPrep, false);
+  assert.equal(state.dailyResourcePlan.rows[0].requiresHumanAccess, true);
+  assert.equal(state.dailyResourcePlan.rows[0].privateSourceGate.authorizationStatus, "authorized_for_human_session");
+  assert.equal(state.recentSourceCheckOutcomes.some((outcome) => outcome.sourceName === "Daily bid scan"), true);
+  assert.equal(state.dailyAgentLeadsLedger.stats.queuedPrep, 1);
+  assert.equal(state.dailyAgentLeadsLedger.stats.reviewedSources, 1);
+  assert.equal(state.dailyAgentLeadsLedger.stats.blockedSources, 1);
+  assert.equal(state.dailyAgentLeadsLedger.stats.reviewCards, 4);
+  assert.equal(state.dailyAgentLeadsLedger.stats.publicRunnerCards, 2);
+  assert.equal(state.dailyAgentLeadsLedger.rows.some((row) => row.type === "queued_prep"), true);
+  assert.equal(state.dailyScoutExecutionPlan.mode, "daily_agent_leads_scout_execution_v6");
+  assert.equal(state.dailyScoutExecutionPlan.stats.publicRunnerCards >= 1, true);
+  assert.equal(state.dailyScoutExecutionPlan.stats.publicDiscoveryCards >= 1, true);
+  assert.equal(state.dailyScoutExecutionPlan.stats.foundDraftCards >= 1, true);
+  assert.match(state.dailyScoutExecutionPlan.safetyBoundary, /live-capable-but-locked provider plans/i);
+  assert.equal(state.dailyScoutExecutionPlan.publicProviderBoundary.liveSearchEnabled, false);
+  assert.equal(state.dailyScoutExecutionPlan.publicProviderBoundary.providerContract.id, "agent_leads_public_provider_contract_v6");
+  assert.equal(state.dailyScoutExecutionPlan.publicProviderBoundary.liveProviderPlan.executionEnabled, false);
+  assert.equal(state.dailyScoutExecutionPlan.dailyRunRecord.status, "prepared");
+  assert.equal(state.dailyScoutExecutionPlan.dailyRunRecord.providerAttemptCount >= 1, true);
+  assert.equal(state.dailyScoutExecutionPlan.dailyRunRecord.providerReviewImportCount, state.dailyScoutExecutionPlan.providerReviewImportQueue.length);
+  assert.equal(state.dailyScoutExecutionPlan.stats.providerAttempts >= 1, true);
+  assert.equal(state.dailyScoutExecutionPlan.stats.providerReviewImports, state.dailyScoutExecutionPlan.providerReviewImportQueue.length);
   assert.equal(state.agentRunPacket.safeNextAction, "Review saved opportunity and decide Approve For Lead or Skip.");
   assert.equal(state.agentRunPacket.sourcePosture.adapterId, "public_web");
   assert.equal(state.agentRunPacket.sourcePosture.termsStatus, "unreviewed");
@@ -410,4 +609,107 @@ test("source check results can prefill found opportunity drafts without saving l
   assert.equal(duplicateDraft.status, "watching");
   assert.equal(duplicateDraft.humanReviewStatus, "needs_info");
   assert.match(duplicateDraft.riskFlags, /possible duplicate/i);
+});
+
+test("daily scout execution cards prefill found opportunity drafts without saving private handoffs", () => {
+  const current = { title: "", intakeSourceType: "manual" };
+  const publicCard = {
+    id: "card-public",
+    type: "public_source_runner",
+    targetKind: "search_profile",
+    targetId: "OSP-1",
+    title: "City sidewalk bids",
+    query: "Albany concrete sidewalk RFP",
+    searchUrls: [{ label: "Google", url: "https://example.test/search?q=sidewalk" }],
+    checklist: ["Bid due date", "Plans/addenda"],
+    safetyBoundary: "Public-source review card only.",
+  };
+  const privateCard = {
+    id: "card-private",
+    type: "private_source_handoff",
+    title: "GC portal",
+  };
+  const draft = buildFoundOpportunityDraftFromScoutExecutionCard(current, publicCard);
+  const blocked = buildFoundOpportunityDraftFromScoutExecutionCard(current, privateCard);
+
+  assert.equal(draft.agentPreparedDraft, true);
+  assert.equal(draft.searchProfileId, "OSP-1");
+  assert.equal(draft.title, "City sidewalk bids opportunity");
+  assert.equal(draft.sourceUrl, "https://example.test/search?q=sidewalk");
+  assert.match(draft.humanReviewNote, /Human save and review required/i);
+  assert.match(draft.notes, /Search query: Albany concrete sidewalk RFP/i);
+  assert.deepEqual(blocked, current);
+});
+
+test("public discovery result cards prefill found opportunity drafts with source evidence", () => {
+  const draft = buildFoundOpportunityDraftFromScoutExecutionCard({}, {
+    id: "public-discovery-1",
+    type: "public_discovery_result",
+    targetKind: "search_profile",
+    targetId: "OSP-PUBLIC",
+    title: "City sidewalk bids - Google public search",
+    sourceName: "City sidewalk bids",
+    sourceUrl: "https://example.test/public-bid",
+    snippet: "Public review candidate for Albany concrete sidewalk RFP.",
+    fitScore: 82,
+    fitReason: "Strong public-source candidate based on trade and job-intent terms.",
+    draftPreview: {
+      humanReviewStatus: "needs_review",
+      missingInfoItems: "Confirm bid due date.",
+    },
+  });
+
+  assert.equal(draft.agentPreparedDraft, true);
+  assert.equal(draft.searchProfileId, "OSP-PUBLIC");
+  assert.equal(draft.sourceUrl, "https://example.test/public-bid");
+  assert.equal(draft.fitScore, 82);
+  assert.match(draft.scopeSummary, /Albany concrete sidewalk RFP/i);
+  assert.match(draft.reasonToBid, /Strong public-source candidate/i);
+});
+
+test("private source execution cards prepare evidence intake without creating a lead draft", () => {
+  const draft = buildFoundOpportunityEvidenceIntakeFromScoutCard({}, {
+    id: "card-private",
+    type: "private_source_handoff",
+    targetKind: "search_profile",
+    targetId: "OSP-FB",
+    title: "Facebook private group handoff",
+    query: "Albany concrete repair private group",
+    sourceConnector: { label: "Private social/community" },
+    safetyBoundary: "Private source handoff only.",
+  });
+
+  assert.equal(draft.searchProfileId, "OSP-FB");
+  assert.equal(draft.title || "", "");
+  assert.equal(draft.intakeSourceType, "pasted_text");
+  assert.equal(draft.humanReviewStatus, "needs_info");
+  assert.match(draft.notes, /Do not store passwords/i);
+  assert.equal(draft.agentPreparedDraft, true);
+});
+
+test("found opportunity draft duplicate warnings compare saved opportunities and leads before save", () => {
+  const warnings = deriveFoundOpportunityDraftDuplicateWarnings({
+    title: "Library ramp repair",
+    agency: "City of Albany",
+    city: "Albany",
+    sourceUrl: "https://example.test/rfp/1",
+  }, {
+    foundOpportunities: [{
+      id: "FO-1",
+      title: "Library ramp repair",
+      agency: "City of Albany",
+      city: "Albany",
+      sourceUrl: "https://example.test/rfp/1",
+    }],
+    leads: [{
+      id: "LEAD-1",
+      project: "Library ramp repair",
+      city: "Albany",
+      source: "City of Albany",
+    }],
+  });
+
+  assert.equal(warnings.some((warning) => warning.type === "found_opportunity"), true);
+  assert.equal(warnings.some((warning) => warning.type === "lead"), true);
+  assert.match(warnings.map((warning) => warning.helper).join(" "), /same source URL|possible lead match/i);
 });

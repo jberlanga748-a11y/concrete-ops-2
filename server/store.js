@@ -5673,10 +5673,18 @@ const MIGRATIONS = [
             service_areas TEXT NOT NULL,
             radius_miles INTEGER NOT NULL,
             source_types TEXT NOT NULL,
+            project_types TEXT NOT NULL DEFAULT '[]',
+            preferred_sources TEXT NOT NULL DEFAULT '[]',
+            minimum_project_value REAL NOT NULL DEFAULT 0,
             source_adapter_id TEXT NOT NULL DEFAULT 'manual',
             source_access_status TEXT NOT NULL DEFAULT 'clear_for_review',
             source_terms_status TEXT NOT NULL DEFAULT 'unreviewed',
             source_policy_note TEXT NOT NULL DEFAULT '',
+            source_authorization_status TEXT NOT NULL DEFAULT 'not_required',
+            source_authorized_by TEXT NOT NULL DEFAULT '',
+            source_authorized_at TEXT NOT NULL DEFAULT '',
+            source_authorization_note TEXT NOT NULL DEFAULT '',
+            source_blocked_reason TEXT NOT NULL DEFAULT '',
             keywords TEXT NOT NULL,
             excluded_keywords TEXT NOT NULL,
             cadence TEXT NOT NULL,
@@ -5980,6 +5988,48 @@ const MIGRATIONS = [
         `);
       },
     },
+    {
+      version: 53,
+      description: "Persist Opportunity Scout source authorization review metadata.",
+      up(database) {
+        const columns = [
+          ["source_authorization_status", "TEXT NOT NULL DEFAULT 'not_required'"],
+          ["source_authorized_by", "TEXT NOT NULL DEFAULT ''"],
+          ["source_authorized_at", "TEXT NOT NULL DEFAULT ''"],
+          ["source_authorization_note", "TEXT NOT NULL DEFAULT ''"],
+          ["source_blocked_reason", "TEXT NOT NULL DEFAULT ''"],
+        ];
+
+        for (const [column, definition] of columns) {
+          if (!columnExists(database, "opportunity_search_profiles", column)) {
+            database.exec(`
+              ALTER TABLE opportunity_search_profiles
+              ADD COLUMN ${column} ${definition};
+            `);
+          }
+        }
+      },
+    },
+    {
+      version: 54,
+      description: "Persist Opportunity Scout contractor discovery controls.",
+      up(database) {
+        const columns = [
+          ["project_types", "TEXT NOT NULL DEFAULT '[]'"],
+          ["preferred_sources", "TEXT NOT NULL DEFAULT '[]'"],
+          ["minimum_project_value", "REAL NOT NULL DEFAULT 0"],
+        ];
+
+        for (const [column, definition] of columns) {
+          if (!columnExists(database, "opportunity_search_profiles", column)) {
+            database.exec(`
+              ALTER TABLE opportunity_search_profiles
+              ADD COLUMN ${column} ${definition};
+            `);
+          }
+        }
+      },
+    },
   ];
 
 function runInTransaction(database, work) {
@@ -6048,8 +6098,8 @@ function writeStateToDatabase(database, state) {
   `);
 
   const insertOpportunitySearchProfile = database.prepare(`
-    INSERT INTO opportunity_search_profiles (id, sort_index, company_id, name, trades, service_areas, radius_miles, source_types, source_adapter_id, source_access_status, source_terms_status, source_policy_note, keywords, excluded_keywords, cadence, status, notes, last_run_at, next_run_at, created_by, created_at, updated_at, archived_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO opportunity_search_profiles (id, sort_index, company_id, name, trades, service_areas, radius_miles, source_types, project_types, preferred_sources, minimum_project_value, source_adapter_id, source_access_status, source_terms_status, source_policy_note, source_authorization_status, source_authorized_by, source_authorized_at, source_authorization_note, source_blocked_reason, keywords, excluded_keywords, cadence, status, notes, last_run_at, next_run_at, created_by, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertFoundOpportunity = database.prepare(`
@@ -6398,10 +6448,18 @@ function writeStateToDatabase(database, state) {
         JSON.stringify(Array.isArray(profile.serviceAreas) ? profile.serviceAreas : []),
         Number(profile.radiusMiles || 0),
         JSON.stringify(Array.isArray(profile.sourceTypes) ? profile.sourceTypes : []),
+        JSON.stringify(Array.isArray(profile.projectTypes) ? profile.projectTypes : []),
+        JSON.stringify(Array.isArray(profile.preferredSources) ? profile.preferredSources : []),
+        Number(profile.minimumProjectValue || 0),
         profile.sourceAdapterId || "manual",
         profile.sourceAccessStatus || "clear_for_review",
         profile.sourceTermsStatus || "unreviewed",
         profile.sourcePolicyNote || "",
+        profile.sourceAuthorizationStatus || "not_required",
+        profile.sourceAuthorizedBy || "",
+        profile.sourceAuthorizedAt || "",
+        profile.sourceAuthorizationNote || "",
+        profile.sourceBlockedReason || "",
         JSON.stringify(Array.isArray(profile.keywords) ? profile.keywords : []),
         JSON.stringify(Array.isArray(profile.excludedKeywords) ? profile.excludedKeywords : []),
         profile.cadence || "daily",
@@ -7201,7 +7259,10 @@ function readTableState(database = createDatabaseConnection()) {
 
   const opportunitySearchProfiles = database.prepare(`
     SELECT id, company_id AS companyId, name, trades, service_areas AS serviceAreas, radius_miles AS radiusMiles, source_types AS sourceTypes,
+           project_types AS projectTypes, preferred_sources AS preferredSources, minimum_project_value AS minimumProjectValue,
            source_adapter_id AS sourceAdapterId, source_access_status AS sourceAccessStatus, source_terms_status AS sourceTermsStatus, source_policy_note AS sourcePolicyNote,
+           source_authorization_status AS sourceAuthorizationStatus, source_authorized_by AS sourceAuthorizedBy, source_authorized_at AS sourceAuthorizedAt,
+           source_authorization_note AS sourceAuthorizationNote, source_blocked_reason AS sourceBlockedReason,
            keywords, excluded_keywords AS excludedKeywords, cadence, status, notes, last_run_at AS lastRunAt, next_run_at AS nextRunAt,
            created_by AS createdBy, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
     FROM opportunity_search_profiles
@@ -7212,6 +7273,9 @@ function readTableState(database = createDatabaseConnection()) {
     serviceAreas: parseJsonValue(profile.serviceAreas, []),
     radiusMiles: Number(profile.radiusMiles || 0),
     sourceTypes: parseJsonValue(profile.sourceTypes, []),
+    projectTypes: parseJsonValue(profile.projectTypes, []),
+    preferredSources: parseJsonValue(profile.preferredSources, []),
+    minimumProjectValue: Number(profile.minimumProjectValue || 0),
     keywords: parseJsonValue(profile.keywords, []),
     excludedKeywords: parseJsonValue(profile.excludedKeywords, []),
   }));

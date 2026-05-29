@@ -99,11 +99,60 @@ import {
 import {
   buildAgentOsInternalDraftPacket,
   buildAgentOsExternalGateDecisionPacket,
+  buildAgentLeadsAutonomousDailyScoutSchedule,
+  buildAgentLeadsProviderHealthCheck,
+  buildAgentLeadsLiveProviderReadiness,
+  buildAgentLeadsProviderCompliancePacket,
+  buildAgentLeadsProviderMonitoringSnapshot,
+  buildAgentLeadsAllSourceAdapterCoverage,
+  buildAgentLeadsOfficialProviderApiAdapterContract,
+  buildAgentLeadsProcurementFeedAdapterContract,
+  buildAgentLeadsLiveProcurementPublicAdapterContract,
+  buildAgentLeadsLiveAdapterApprovalPacket,
+  buildAgentLeadsProviderAdapterRunner,
+  buildAgentLeadsLivePublicProviderExecution,
+  runAgentLeadsPublicSourceProviderAdapters,
+  runAgentLeadsOfficialProviderApiAdapterHarness,
+  runAgentLeadsProcurementFeedAdapter,
+  runAgentLeadsLiveProcurementPublicAdapter,
+  runAgentLeadsDailyLiveProcurementPublicAdapter,
+  runAgentLeadsDailyJobFinderOrchestration,
+  runAgentLeadsDailyJobFinderAutopilot,
+  buildAgentLeadsProviderSandboxRun,
+  buildAgentLeadsSmokeEvidenceRecorder,
+  buildAgentLeadsControlledDailyPublicRunApprovalRecord,
+  buildAgentLeadsControlledDailyPublicRunEvidencePrep,
+  buildAgentOsOpportunityScoutExecutionPlan,
   buildAgentOsSummary,
   createAgentOsRunForTask,
+  deriveAgentOsOpportunitySearchPrepQueue,
+  deriveAgentLeadsPrivateSourceAuthorizations,
+  deriveAgentLeadsProviderConnections,
+  deriveAgentLeadsProviderDailySchedules,
+  deriveAgentLeadsProviderSourceConsents,
   deriveAgentOsLedgerFromAuditEvents,
   deriveAgentOsTaskPayloadFromAdvisorRecommendation,
   getAgentOsAction,
+  buildAgentLeadsPrivateSourceDailyChecklist,
+  buildAgentLeadsPrivateSourceLoginHandoff,
+  deriveAgentLeadsPlatformProviderBoundaries,
+  deriveAgentLeadsProcurementFeedAdapterConfigs,
+  normalizeAgentLeadsCredentialHandoff,
+  normalizeAgentLeadsProviderConnectionMetadata,
+  normalizeAgentLeadsProviderDailySchedule,
+  normalizeAgentLeadsProviderSourceConsent,
+  normalizeAgentLeadsPrivateEvidenceIntake,
+  normalizeAgentLeadsPlatformProviderBoundary,
+  normalizeAgentLeadsProcurementFeedAdapterConfig,
+  normalizeAgentLeadsPrivateSourceAuthorization,
+  normalizeAgentLeadsLiveAdapterApprovalDecision,
+  normalizeAgentLeadsProviderImportDecision,
+  normalizeAgentLeadsProviderReviewQueueDecision,
+  normalizeAgentLeadsProviderReviewLearningSignal,
+  normalizeAgentLeadsProductionReadinessEvidence,
+  deriveAgentLeadsProviderReviewLearningSnapshot,
+  buildAgentLeadsFoundOpportunityDraftFromProviderReviewRow,
+  buildAgentLeadsDailyReviewWorkflowSnapshot,
   normalizeAgentOsTask,
   transitionAgentOsRun,
 } from "../shared/agentOperatingSystem.js";
@@ -6030,6 +6079,8 @@ function assertCanQueueAgentOsAction(state, user, action) {
   }
   const allowed = (() => {
     switch (action.actionId) {
+      case "opportunity_search_prep":
+        return canManageLeads(user) && companyHasFeature(state, user, FEATURE_KEYS.LEAD_JOB_FINDER);
       case "lead_follow_up_draft":
         return canManageLeads(user);
       case "estimate_packet_draft":
@@ -6041,6 +6092,22 @@ function assertCanQueueAgentOsAction(state, user, action) {
         return canViewJobMoney(user);
       case "material_list_prep":
         return canManageMaterialPrep(user);
+      case "warranty_follow_up_draft":
+      case "permit_checklist_prep":
+      case "crew_handoff_prep":
+        return canCreateJobs(user) || isOfficeManager(user);
+      case "daily_report_review":
+        return canReviewReports(user) || canManageReports(user);
+      case "upload_photo_review":
+        return canManageUploads(user);
+      case "delivery_ticket_review":
+        return canManageDeliveryTickets(user);
+      case "safety_incident_summary":
+        return canReviewSafetyIncidents(user) || canManageSafety(user);
+      case "pre_pour_review":
+        return canReviewPrePour(user) || canManagePrePour(user);
+      case "post_pour_review":
+        return canReviewPostPour(user) || canManagePostPour(user);
       default:
         return false;
     }
@@ -6076,6 +6143,51 @@ function latestAgentOsRecordFromAuditEvents(state, user, runId) {
   return run ? { run, task } : null;
 }
 
+function agentOsTasksFromAuditEvents(state, user) {
+  const companyId = currentCompanyIdForRequestUser(state, user);
+  return (Array.isArray(state.auditEvents) ? state.auditEvents : [])
+    .filter((event) => event?.companyId === companyId && String(event?.action || "").startsWith("agent.os."))
+    .map((event) => parseAgentOsAuditDetail(event.detail)?.task)
+    .filter(Boolean);
+}
+
+function agentLeadsProviderReviewRowsFromAuditEvents(auditEvents = []) {
+  const rows = [];
+  (Array.isArray(auditEvents) ? auditEvents : []).forEach((event) => {
+    const detail = parseAgentOsAuditDetail(event.detail);
+    [
+      detail.providerLivePublicExecution?.reviewQueue?.rows,
+      detail.providerPublicSourceAdapterExecution?.reviewQueue?.rows,
+      detail.officialProviderApiAdapterExecution?.reviewQueue?.rows,
+      detail.procurementFeedAdapterExecution?.reviewQueue?.rows,
+      detail.liveProcurementPublicAdapterExecution?.reviewQueue?.rows,
+      detail.dailyLiveProcurementPublicAdapterExecution?.reviewQueue?.rows,
+      detail.dailyJobFinderOrchestrationExecution?.reviewQueue?.rows,
+      detail.dailyJobFinderAutopilotRun?.reviewInbox?.rows,
+      detail.providerAdapterRunner?.reviewQueue?.rows,
+    ].forEach((candidateRows) => {
+      if (Array.isArray(candidateRows)) rows.push(...candidateRows);
+    });
+    if (Array.isArray(detail.providerAdapterRunner?.resultDraftPreviews)) {
+      detail.providerAdapterRunner.resultDraftPreviews.forEach((draftPreview) => {
+        rows.push({
+          id: draftPreview.id,
+          providerResultId: draftPreview.providerResultId,
+          providerAttemptId: draftPreview.providerAttemptId,
+          connectorId: draftPreview.connectorId,
+          provider: draftPreview.provider,
+          title: draftPreview.title,
+          sourceUrl: draftPreview.sourceUrl,
+          sourceType: draftPreview.sourceType,
+          fitScore: draftPreview.fitScore,
+          draftPreview,
+        });
+      });
+    }
+  });
+  return rows.filter(Boolean);
+}
+
 function assertAgentOsRunStatusTransition(currentRun = {}, nextStatus = "") {
   const currentStatus = optionalString(currentRun.status, "queued");
   const normalizedStatus = optionalString(nextStatus, "").trim().toLowerCase().replace(/[\s-]+/g, "_");
@@ -6101,6 +6213,7 @@ function appendAgentOsAuditEvent(state, user, {
   task = null,
   run = null,
   status = "",
+  metadata = {},
 } = {}) {
   appendAuditEvent(state, {
     entityType: "agentOsRun",
@@ -6116,6 +6229,7 @@ function appendAgentOsAuditEvent(state, user, {
       status: status || run?.status || task?.status || "",
       task,
       run,
+      ...(metadata && typeof metadata === "object" && !Array.isArray(metadata) ? metadata : {}),
       safetyBoundary: "Audit-backed Agent OS run record only. No external send, payment, scheduling, bid submission, integration write, production config, secret, or production data mutation occurred.",
     }),
     actor: user,
@@ -7655,6 +7769,7 @@ app.get("/api/agent/os", requireAuth, asyncRoute(async (req, res) => {
     agentOs: buildAgentOsSummary({
       workflowSettings: settings.apexAgentAutomationPolicy?.workflowSettings,
       externalGateSettings: settings.apexAgentAutomationPolicy?.externalGateSettings,
+      publicLeadProviderSettings: settings.apexAgentAutomationPolicy?.publicLeadProviderSettings,
       workspace: bootstrapPayload,
       auditEvents,
     }),
@@ -7676,6 +7791,2143 @@ app.get("/api/agent/os/external-gates/:gateId", requireAuth, asyncRoute(async (r
   }
   res.json({
     externalGate: packet,
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/agent/os/provider/health", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  const settings = companySettingsForState(state, req.auth.user).apexAgentAutomationPolicy?.publicLeadProviderSettings || {};
+  const now = new Date().toISOString();
+  res.json({
+    providerHealth: buildAgentLeadsProviderHealthCheck(settings, {
+      auditEvents: visibleAuditEventsForUser(state, req.auth.user),
+      today: req.query?.today || now,
+      now,
+    }),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/agent/os/provider/live-readiness", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Provider live readiness requires an owner or administrator.");
+  }
+  const settings = companySettingsForState(state, req.auth.user).apexAgentAutomationPolicy?.publicLeadProviderSettings || {};
+  const auditEvents = visibleAuditEventsForUser(state, req.auth.user);
+  const now = new Date().toISOString();
+  res.json({
+    providerLiveReadiness: buildAgentLeadsLiveProviderReadiness({
+      settings,
+      auditEvents,
+      today: req.query?.today || now,
+      now,
+    }),
+    providerConnections: deriveAgentLeadsProviderConnections(auditEvents),
+    providerSourceConsents: deriveAgentLeadsProviderSourceConsents(auditEvents, { today: req.query?.today || now }),
+    providerDailySchedules: deriveAgentLeadsProviderDailySchedules(auditEvents),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/provider/connection-metadata", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Provider connection metadata requires an owner or administrator.");
+  }
+  const now = new Date().toISOString();
+  const companyId = currentCompanyIdForRequestUser(state, req.auth.user);
+  const normalized = normalizeAgentLeadsProviderConnectionMetadata(req.body || {}, {
+    id: makeId("PROVIDER-CONNECTION"),
+    companyId,
+    actorUserId: req.auth.user.id,
+    now,
+  });
+  if (!normalized.ok) {
+    throw new ApiError(400, normalized.error);
+  }
+  const connection = normalized.connection;
+  const nextState = await updateDb((draft) => {
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: connection.id,
+      action: connection.auditEvent,
+      summary: `Provider connection metadata recorded: ${connection.providerName}`,
+      status: connection.status,
+      metadata: {
+        providerConnectionMetadata: connection,
+        connectorId: connection.connectorId,
+        sourceCategory: connection.sourceCategory,
+        rawCredentialStorage: false,
+        passwordStorage: false,
+        executionEnabled: false,
+        liveNetworkRequestsEnabled: false,
+      },
+    });
+    return draft;
+  });
+  const auditEvents = visibleAuditEventsForUser(nextState, req.auth.user);
+  const settings = companySettingsForState(nextState, req.auth.user).apexAgentAutomationPolicy?.publicLeadProviderSettings || {};
+  res.status(201).json({
+    providerConnectionMetadata: connection,
+    providerLiveReadiness: buildAgentLeadsLiveProviderReadiness({ settings, auditEvents, today: req.body?.today || now, now }),
+    providerConnections: deriveAgentLeadsProviderConnections(auditEvents),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/provider/source-consents", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Provider source consent requires an owner or administrator.");
+  }
+  const now = new Date().toISOString();
+  const normalized = normalizeAgentLeadsProviderSourceConsent(req.body || {}, {
+    id: makeId("PROVIDER-SOURCE-CONSENT"),
+    companyId: currentCompanyIdForRequestUser(state, req.auth.user),
+    actorUserId: req.auth.user.id,
+    now,
+  });
+  if (!normalized.ok) {
+    throw new ApiError(400, normalized.error);
+  }
+  const consent = normalized.consent;
+  const nextState = await updateDb((draft) => {
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: consent.id,
+      action: consent.auditEvent,
+      summary: `Provider source consent recorded: ${consent.sourceName}`,
+      status: consent.status,
+      metadata: {
+        providerSourceConsent: consent,
+        sourceCategory: consent.sourceCategory,
+        externalContactApproved: false,
+        autoSaveApproved: false,
+        executionEnabled: false,
+        liveNetworkRequestsEnabled: false,
+      },
+    });
+    return draft;
+  });
+  const auditEvents = visibleAuditEventsForUser(nextState, req.auth.user);
+  const settings = companySettingsForState(nextState, req.auth.user).apexAgentAutomationPolicy?.publicLeadProviderSettings || {};
+  res.status(201).json({
+    providerSourceConsent: consent,
+    providerLiveReadiness: buildAgentLeadsLiveProviderReadiness({ settings, auditEvents, today: req.body?.today || now, now }),
+    providerSourceConsents: deriveAgentLeadsProviderSourceConsents(auditEvents, { today: req.body?.today || now }),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/provider/daily-schedule", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Provider daily schedule requires an owner or administrator.");
+  }
+  const now = new Date().toISOString();
+  const normalized = normalizeAgentLeadsProviderDailySchedule(req.body || {}, {
+    id: makeId("PROVIDER-DAILY-SCHEDULE"),
+    companyId: currentCompanyIdForRequestUser(state, req.auth.user),
+    actorUserId: req.auth.user.id,
+    now,
+  });
+  if (!normalized.ok) {
+    throw new ApiError(400, normalized.error);
+  }
+  const schedule = normalized.schedule;
+  const nextState = await updateDb((draft) => {
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: schedule.id,
+      action: schedule.auditEvent,
+      summary: "Provider daily review-only schedule recorded",
+      status: schedule.status,
+      metadata: {
+        providerDailySchedule: schedule,
+        sourceCategories: schedule.sourceCategories,
+        safeForCron: true,
+        providerExecutionEnabled: false,
+        executionEnabled: false,
+        liveNetworkRequestsEnabled: false,
+      },
+    });
+    return draft;
+  });
+  const auditEvents = visibleAuditEventsForUser(nextState, req.auth.user);
+  const settings = companySettingsForState(nextState, req.auth.user).apexAgentAutomationPolicy?.publicLeadProviderSettings || {};
+  res.status(201).json({
+    providerDailySchedule: schedule,
+    providerLiveReadiness: buildAgentLeadsLiveProviderReadiness({ settings, auditEvents, today: req.body?.today || now, now }),
+    providerDailySchedules: deriveAgentLeadsProviderDailySchedules(auditEvents),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/agent/os/provider/live-approval", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Provider live adapter approval requires an owner or administrator.");
+  }
+  const settings = companySettingsForState(state, req.auth.user).apexAgentAutomationPolicy?.publicLeadProviderSettings || {};
+  res.json({
+    providerApprovalPacket: buildAgentLeadsLiveAdapterApprovalPacket({
+      settings,
+      auditEvents: visibleAuditEventsForUser(state, req.auth.user),
+      companyId: currentCompanyIdForRequestUser(state, req.auth.user),
+      actorUserId: req.auth.user.id,
+      now: new Date().toISOString(),
+    }),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/provider/live-approval", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Provider live adapter approval requires an owner or administrator.");
+  }
+  const now = new Date().toISOString();
+  const settings = companySettingsForState(state, req.auth.user).apexAgentAutomationPolicy?.publicLeadProviderSettings || {};
+  const normalized = normalizeAgentLeadsLiveAdapterApprovalDecision(req.body || {}, {
+    settings,
+    id: makeId("PROVIDER-LIVE-APPROVAL"),
+    companyId: currentCompanyIdForRequestUser(state, req.auth.user),
+    actorUserId: req.auth.user.id,
+    now,
+  });
+  if (!normalized.ok) {
+    throw new ApiError(400, normalized.error);
+  }
+  const decision = normalized.decision;
+  const nextState = await updateDb((draft) => {
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: decision.id,
+      action: decision.auditEvent,
+      summary: `Provider live adapter boundary ${decision.status.replace(/_/g, " ")}`,
+      status: decision.status,
+      metadata: {
+        providerApprovalDecision: decision,
+        providerId: decision.providerId,
+        providerConnectorIds: decision.connectorIds,
+        executionEnabled: false,
+        liveSearchEnabled: false,
+      },
+    });
+    return draft;
+  });
+  res.status(201).json({
+    providerApprovalDecision: decision,
+    providerApprovalPacket: buildAgentLeadsLiveAdapterApprovalPacket({
+      settings,
+      auditEvents: visibleAuditEventsForUser(nextState, req.auth.user),
+      companyId: currentCompanyIdForRequestUser(nextState, req.auth.user),
+      actorUserId: req.auth.user.id,
+      now,
+    }),
+    ledger: deriveAgentOsLedgerFromAuditEvents(visibleAuditEventsForUser(nextState, req.auth.user)),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/provider/credential-handoffs", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Provider credential handoff requires an owner or administrator.");
+  }
+  const now = new Date().toISOString();
+  const normalized = normalizeAgentLeadsCredentialHandoff(req.body || {}, {
+    id: makeId("PROVIDER-CREDENTIAL-HANDOFF"),
+    companyId: currentCompanyIdForRequestUser(state, req.auth.user),
+    actorUserId: req.auth.user.id,
+    now,
+  });
+  if (!normalized.ok) {
+    throw new ApiError(400, normalized.error);
+  }
+  const credentialHandoff = normalized.credentialHandoff;
+  const nextState = await updateDb((draft) => {
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: credentialHandoff.id,
+      action: credentialHandoff.auditEvent,
+      summary: "Provider credential reference handoff recorded",
+      status: credentialHandoff.status,
+      metadata: {
+        providerCredentialHandoff: credentialHandoff,
+        sourceAdapterId: credentialHandoff.sourceAdapterId,
+        credentialMode: credentialHandoff.credentialMode,
+        rawCredentialStorage: false,
+        passwordStorage: false,
+      },
+    });
+    return draft;
+  });
+  res.status(201).json({
+    providerCredentialHandoff: credentialHandoff,
+    ledger: deriveAgentOsLedgerFromAuditEvents(visibleAuditEventsForUser(nextState, req.auth.user)),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/provider/private-source-authorizations", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Private-source authorization requires an owner or administrator.");
+  }
+  const now = new Date().toISOString();
+  const normalized = normalizeAgentLeadsPrivateSourceAuthorization(req.body || {}, {
+    id: makeId("PRIVATE-SOURCE-AUTH"),
+    companyId: currentCompanyIdForRequestUser(state, req.auth.user),
+    actorUserId: req.auth.user.id,
+    now,
+  });
+  if (!normalized.ok) {
+    throw new ApiError(400, normalized.error);
+  }
+  const authorization = normalized.authorization;
+  const handoff = buildAgentLeadsPrivateSourceLoginHandoff(authorization, {
+    id: makeId("PRIVATE-SOURCE-HANDOFF"),
+    companyId: currentCompanyIdForRequestUser(state, req.auth.user),
+    actorUserId: req.auth.user.id,
+    now,
+  });
+  const nextState = await updateDb((draft) => {
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: authorization.id,
+      action: authorization.auditEvent,
+      summary: `Private source authorized for human handoff: ${authorization.sourceName}`,
+      status: authorization.status,
+      metadata: {
+        privateSourceAuthorization: authorization,
+        privateSourceLoginHandoff: handoff.ok ? handoff.handoff : null,
+        sourceAdapterId: authorization.sourceAdapterId,
+        sourceType: authorization.sourceType,
+        rawCredentialStorage: false,
+        loginAutomationEnabled: false,
+      },
+    });
+    return draft;
+  });
+  const auditEvents = visibleAuditEventsForUser(nextState, req.auth.user);
+  res.status(201).json({
+    privateSourceAuthorization: authorization,
+    privateSourceLoginHandoff: handoff.ok ? handoff.handoff : null,
+    privateSourceChecklist: buildAgentLeadsPrivateSourceDailyChecklist({
+      privateSourceAuthorizations: deriveAgentLeadsPrivateSourceAuthorizations(auditEvents),
+      today: req.body?.today || now,
+      now,
+    }),
+    ledger: deriveAgentOsLedgerFromAuditEvents(auditEvents),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/provider/private-evidence-intake", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Private-source evidence intake requires an owner or administrator.");
+  }
+  if (req.body?.autoSave === true || req.body?.saveLead === true || req.body?.contactCustomer === true || req.body?.submitBid === true) {
+    throw new ApiError(400, "Private-source evidence intake cannot save leads, contact anyone, or submit bids.");
+  }
+  const now = new Date().toISOString();
+  const auditEvents = visibleAuditEventsForUser(state, req.auth.user);
+  const authorizations = deriveAgentLeadsPrivateSourceAuthorizations(auditEvents);
+  const requestedAuthorizationId = String(req.body?.authorizationId || req.body?.privateSourceAuthorizationId || "").trim();
+  if (requestedAuthorizationId && !authorizations.some((authorization) => authorization.id === requestedAuthorizationId)) {
+    throw new ApiError(400, "Private-source evidence intake requires a visible company-scoped authorization.");
+  }
+  const normalized = normalizeAgentLeadsPrivateEvidenceIntake(req.body || {}, {
+    id: makeId("PRIVATE-SOURCE-EVIDENCE"),
+    companyId: currentCompanyIdForRequestUser(state, req.auth.user),
+    actorUserId: req.auth.user.id,
+    now,
+  });
+  if (!normalized.ok) {
+    throw new ApiError(400, normalized.error);
+  }
+  const intake = normalized.intake;
+  const nextState = await updateDb((draft) => {
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: intake.id,
+      action: intake.auditEvent,
+      summary: `Private source evidence prepared review queue: ${intake.providerResult.title}`,
+      status: intake.status,
+      metadata: {
+        privateSourceEvidenceIntake: intake,
+        providerReviewImportCount: intake.reviewQueue.count,
+        providerResultId: intake.providerResult.providerResultId,
+        sourceAdapterId: intake.sourceAdapterId,
+        redactionApplied: true,
+        rawCredentialStorage: false,
+        loginAutomationEnabled: false,
+      },
+    });
+    return draft;
+  });
+  res.status(201).json({
+    privateSourceEvidenceIntake: intake,
+    ledger: deriveAgentOsLedgerFromAuditEvents(visibleAuditEventsForUser(nextState, req.auth.user)),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/agent/os/provider/private-source-checklist", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  const companySettings = companySettingsForState(state, req.auth.user);
+  const now = new Date().toISOString();
+  const dailyScoutExecutionPlan = buildAgentOsOpportunityScoutExecutionPlan({
+    opportunitySearchProfiles: visibleOpportunitySearchProfilesForUser(state, req.auth.user),
+    leadSources: visibleLeadSourcesForUser(state, req.auth.user),
+    foundOpportunities: visibleFoundOpportunitiesForUser(state, req.auth.user),
+    leads: visibleLeadsForUser(state, req.auth.user),
+    companySettings,
+    today: req.query?.today || now,
+  });
+  const auditEvents = visibleAuditEventsForUser(state, req.auth.user);
+  res.json({
+    privateSourceChecklist: buildAgentLeadsPrivateSourceDailyChecklist({
+      privateSourceAuthorizations: deriveAgentLeadsPrivateSourceAuthorizations(auditEvents),
+      privateHandoffCards: dailyScoutExecutionPlan.privateHandoffCards,
+      today: req.query?.today || now,
+      now,
+    }),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/provider/platform-boundaries", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Platform provider boundary requires an owner or administrator.");
+  }
+  if (req.body?.executionEnabled === true || req.body?.liveNetworkRequestsEnabled === true || req.body?.forceLive === true || req.body?.rawProviderRequest === true) {
+    throw new ApiError(400, "Platform provider boundary cannot enable live execution from a direct API request.");
+  }
+  const now = new Date().toISOString();
+  const companyId = currentCompanyIdForRequestUser(state, req.auth.user);
+  const settings = companySettingsForState(state, req.auth.user).apexAgentAutomationPolicy?.publicLeadProviderSettings || {};
+  const normalized = normalizeAgentLeadsPlatformProviderBoundary(req.body || {}, {
+    id: makeId("PROVIDER-PLATFORM-BOUNDARY"),
+    companyId,
+    actorUserId: req.auth.user.id,
+    now,
+  });
+  if (!normalized.ok) {
+    throw new ApiError(400, normalized.error);
+  }
+  const boundary = normalized.boundary;
+  const nextState = await updateDb((draft) => {
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: boundary.id,
+      action: boundary.auditEvent,
+      summary: `Platform provider boundary recorded: ${boundary.providerName}`,
+      status: boundary.status,
+      metadata: {
+        platformProviderBoundary: boundary,
+        providerName: boundary.providerName,
+        providerType: boundary.providerType,
+        connectorIds: boundary.connectorIds,
+        executionEnabled: false,
+        liveNetworkRequestsEnabled: false,
+        rawCredentialStorage: false,
+      },
+    });
+    return draft;
+  });
+  const auditEvents = visibleAuditEventsForUser(nextState, req.auth.user);
+  res.status(201).json({
+    platformProviderBoundary: boundary,
+    platformProviderBoundaries: deriveAgentLeadsPlatformProviderBoundaries(auditEvents, { today: req.body?.today || now }),
+    providerCompliancePacket: buildAgentLeadsProviderCompliancePacket({
+      settings,
+      auditEvents,
+      companyId,
+      actorUserId: req.auth.user.id,
+      now,
+    }),
+    providerMonitoringSnapshot: buildAgentLeadsProviderMonitoringSnapshot({
+      settings,
+      auditEvents,
+      today: req.body?.today || now,
+      now,
+    }),
+    ledger: deriveAgentOsLedgerFromAuditEvents(auditEvents),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/agent/os/provider/compliance-packet", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Provider compliance packet requires an owner or administrator.");
+  }
+  const now = new Date().toISOString();
+  const companyId = currentCompanyIdForRequestUser(state, req.auth.user);
+  const settings = companySettingsForState(state, req.auth.user).apexAgentAutomationPolicy?.publicLeadProviderSettings || {};
+  const auditEvents = visibleAuditEventsForUser(state, req.auth.user);
+  res.json({
+    providerCompliancePacket: buildAgentLeadsProviderCompliancePacket({
+      settings,
+      auditEvents,
+      companyId,
+      actorUserId: req.auth.user.id,
+      now,
+    }),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/agent/os/provider/monitoring-snapshot", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Provider monitoring snapshot requires an owner or administrator.");
+  }
+  const now = new Date().toISOString();
+  const settings = companySettingsForState(state, req.auth.user).apexAgentAutomationPolicy?.publicLeadProviderSettings || {};
+  res.json({
+    providerMonitoringSnapshot: buildAgentLeadsProviderMonitoringSnapshot({
+      settings,
+      auditEvents: visibleAuditEventsForUser(state, req.auth.user),
+      today: req.query?.today || now,
+      now,
+    }),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/agent/os/provider/official-api-adapters", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Official provider API adapters require an owner or administrator.");
+  }
+  const settings = companySettingsForState(state, req.auth.user).apexAgentAutomationPolicy?.publicLeadProviderSettings || {};
+  res.json({
+    officialProviderApiAdapterContract: buildAgentLeadsOfficialProviderApiAdapterContract({
+      settings,
+      auditEvents: visibleAuditEventsForUser(state, req.auth.user),
+      today: req.query?.today || new Date().toISOString(),
+    }),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/agent/os/provider/source-adapter-coverage", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Source adapter coverage requires an owner or administrator.");
+  }
+  const settings = companySettingsForState(state, req.auth.user).apexAgentAutomationPolicy?.publicLeadProviderSettings || {};
+  const now = new Date().toISOString();
+  res.json({
+    allSourceAdapterCoverage: buildAgentLeadsAllSourceAdapterCoverage({
+      settings,
+      auditEvents: visibleAuditEventsForUser(state, req.auth.user),
+      today: req.query?.today || now,
+      now,
+    }),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/agent/os/provider/daily-public-run-evidence", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Controlled daily public-source run evidence review requires an owner or administrator.");
+  }
+  const companySettings = companySettingsForState(state, req.auth.user);
+  const auditEvents = visibleAuditEventsForUser(state, req.auth.user);
+  const dailyScoutExecutionPlan = buildAgentOsOpportunityScoutExecutionPlan({
+    opportunitySearchProfiles: visibleOpportunitySearchProfilesForUser(state, req.auth.user),
+    leadSources: visibleLeadSourcesForUser(state, req.auth.user),
+    foundOpportunities: visibleFoundOpportunitiesForUser(state, req.auth.user),
+    leads: visibleLeadsForUser(state, req.auth.user),
+    auditEvents,
+    companySettings,
+    today: req.query?.today || new Date().toISOString(),
+  });
+  res.json({
+    controlledDailyPublicSourceRunEvidencePacket: dailyScoutExecutionPlan.controlledDailyPublicSourceRunEvidencePacket,
+    controlledDailyPublicRunPreflight: dailyScoutExecutionPlan.controlledDailyPublicRunPreflight,
+    controlledDailyPublicRunEvidencePrep: dailyScoutExecutionPlan.controlledDailyPublicRunEvidencePrep,
+    controlledDailyPublicRunOutcomeLoop: dailyScoutExecutionPlan.controlledDailyPublicRunOutcomeLoop,
+    dailyScoutExecutionPlan: {
+      mode: dailyScoutExecutionPlan.mode,
+      today: dailyScoutExecutionPlan.today,
+      stats: dailyScoutExecutionPlan.stats,
+      guardrails: dailyScoutExecutionPlan.guardrails,
+    },
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/agent/os/provider/local-completion-readiness", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Agent Leads local completion readiness requires an owner or administrator.");
+  }
+  const companySettings = companySettingsForState(state, req.auth.user);
+  const auditEvents = visibleAuditEventsForUser(state, req.auth.user);
+  const dailyScoutExecutionPlan = buildAgentOsOpportunityScoutExecutionPlan({
+    opportunitySearchProfiles: visibleOpportunitySearchProfilesForUser(state, req.auth.user),
+    leadSources: visibleLeadSourcesForUser(state, req.auth.user),
+    foundOpportunities: visibleFoundOpportunitiesForUser(state, req.auth.user),
+    leads: visibleLeadsForUser(state, req.auth.user),
+    auditEvents,
+    companySettings,
+    today: req.query?.today || new Date().toISOString(),
+  });
+  res.json({
+    localCompletionReadiness: dailyScoutExecutionPlan.localCompletionReadiness,
+    dailyScoutExecutionPlan: {
+      mode: dailyScoutExecutionPlan.mode,
+      today: dailyScoutExecutionPlan.today,
+      stats: dailyScoutExecutionPlan.stats,
+      guardrails: dailyScoutExecutionPlan.guardrails,
+    },
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/agent/os/provider/production-readiness", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Agent Leads production readiness requires an owner or administrator.");
+  }
+  const companySettings = companySettingsForState(state, req.auth.user);
+  const auditEvents = visibleAuditEventsForUser(state, req.auth.user);
+  const dailyScoutExecutionPlan = buildAgentOsOpportunityScoutExecutionPlan({
+    opportunitySearchProfiles: visibleOpportunitySearchProfilesForUser(state, req.auth.user),
+    leadSources: visibleLeadSourcesForUser(state, req.auth.user),
+    foundOpportunities: visibleFoundOpportunitiesForUser(state, req.auth.user),
+    leads: visibleLeadsForUser(state, req.auth.user),
+    auditEvents,
+    companySettings,
+    today: req.query?.today || new Date().toISOString(),
+  });
+  res.json({
+    productionReadinessGate: dailyScoutExecutionPlan.productionReadinessGate,
+    localCompletionReadiness: dailyScoutExecutionPlan.localCompletionReadiness,
+    dailyScoutExecutionPlan: {
+      mode: dailyScoutExecutionPlan.mode,
+      today: dailyScoutExecutionPlan.today,
+      stats: dailyScoutExecutionPlan.stats,
+      guardrails: dailyScoutExecutionPlan.guardrails,
+    },
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/provider/production-readiness-evidence", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Agent Leads production readiness evidence requires an owner or administrator.");
+  }
+  const now = new Date().toISOString();
+  const companyId = currentCompanyIdForRequestUser(state, req.auth.user);
+  const companySettings = companySettingsForState(state, req.auth.user);
+  const normalized = normalizeAgentLeadsProductionReadinessEvidence(req.body?.evidence || req.body || {}, {
+    companyId,
+    actorUserId: req.auth.user.id,
+    now,
+  });
+  if (!normalized.ok) {
+    const reason = normalized.errors.slice(0, 3).join(" ");
+    throw new ApiError(400, `Agent Leads production readiness evidence was rejected by the safety validator. ${reason}`);
+  }
+  const nextState = await updateDb((draft) => {
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: normalized.evidence.id,
+      action: normalized.evidence.auditEvent,
+      summary: "Agent Leads production readiness evidence recorded for release gate review",
+      status: "reviewed",
+      metadata: {
+        agentLeadsProductionReadinessEvidence: normalized.evidence,
+        productionReadinessEvidence: normalized.evidence,
+        requiredChecks: normalized.requiredChecks,
+        externalActionsLocked: true,
+        readyForProductionAutonomy: false,
+        deployEnabled: false,
+        productionDataTouchEnabled: false,
+        customerContactEnabled: false,
+        leadAutoSaveEnabled: false,
+      },
+    });
+    return draft;
+  });
+  const auditEvents = visibleAuditEventsForUser(nextState, req.auth.user);
+  const dailyScoutExecutionPlan = buildAgentOsOpportunityScoutExecutionPlan({
+    opportunitySearchProfiles: visibleOpportunitySearchProfilesForUser(nextState, req.auth.user),
+    leadSources: visibleLeadSourcesForUser(nextState, req.auth.user),
+    foundOpportunities: visibleFoundOpportunitiesForUser(nextState, req.auth.user),
+    leads: visibleLeadsForUser(nextState, req.auth.user),
+    auditEvents,
+    companySettings,
+    today: req.body?.today || now,
+  });
+  res.status(201).json({
+    productionReadinessEvidence: normalized.evidence,
+    productionReadinessGate: dailyScoutExecutionPlan.productionReadinessGate,
+    localCompletionReadiness: dailyScoutExecutionPlan.localCompletionReadiness,
+    ledger: deriveAgentOsLedgerFromAuditEvents(auditEvents),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/provider/daily-public-run-approval", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Controlled daily public-source run approval requires an owner or administrator.");
+  }
+  const now = new Date().toISOString();
+  const companyId = currentCompanyIdForRequestUser(state, req.auth.user);
+  const companySettings = companySettingsForState(state, req.auth.user);
+  const dailyScoutExecutionPlan = buildAgentOsOpportunityScoutExecutionPlan({
+    opportunitySearchProfiles: visibleOpportunitySearchProfilesForUser(state, req.auth.user),
+    leadSources: visibleLeadSourcesForUser(state, req.auth.user),
+    foundOpportunities: visibleFoundOpportunitiesForUser(state, req.auth.user),
+    leads: visibleLeadsForUser(state, req.auth.user),
+    auditEvents: visibleAuditEventsForUser(state, req.auth.user),
+    companySettings,
+    today: req.body?.today || now,
+  });
+  const approval = buildAgentLeadsControlledDailyPublicRunApprovalRecord({
+    controlledDailyPublicSourceRunEvidencePacket: dailyScoutExecutionPlan.controlledDailyPublicSourceRunEvidencePacket,
+    approvalPayload: req.body || {},
+    companySettings: { ...companySettings, companyId },
+    actorUserId: req.auth.user.id,
+    today: req.body?.today || now,
+    now,
+  });
+  if (!approval.ok) {
+    throw new ApiError(400, approval.errors.join(" "));
+  }
+  const nextState = await updateDb((draft) => {
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: approval.approvalRecord.id,
+      action: approval.approvalRecord.auditEvent,
+      summary: "Controlled daily public-source run packet approved for review-only evidence prep",
+      status: approval.approvalRecord.status,
+      metadata: {
+        controlledDailyPublicRunApproval: approval.approvalRecord,
+        selectedSourceConfigIds: approval.approvalRecord.selectedSourceConfigIds,
+        idempotencyKeys: approval.approvalRecord.idempotencyKeys,
+        externalActionsLocked: true,
+        safeForCron: false,
+        executionEnabled: false,
+        liveProviderCallsEnabled: false,
+        leadAutoSaveEnabled: false,
+        customerContactEnabled: false,
+        productionDataTouchEnabled: false,
+      },
+    });
+    return draft;
+  });
+  const auditEvents = visibleAuditEventsForUser(nextState, req.auth.user);
+  const refreshedPlan = buildAgentOsOpportunityScoutExecutionPlan({
+    opportunitySearchProfiles: visibleOpportunitySearchProfilesForUser(nextState, req.auth.user),
+    leadSources: visibleLeadSourcesForUser(nextState, req.auth.user),
+    foundOpportunities: visibleFoundOpportunitiesForUser(nextState, req.auth.user),
+    leads: visibleLeadsForUser(nextState, req.auth.user),
+    auditEvents,
+    companySettings: companySettingsForState(nextState, req.auth.user),
+    today: req.body?.today || now,
+  });
+  res.status(201).json({
+    controlledDailyPublicRunApproval: approval.approvalRecord,
+    controlledDailyPublicRunPreflight: refreshedPlan.controlledDailyPublicRunPreflight,
+    controlledDailyPublicRunEvidencePrep: refreshedPlan.controlledDailyPublicRunEvidencePrep,
+    ledger: deriveAgentOsLedgerFromAuditEvents(auditEvents),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/agent/os/provider/daily-public-run-preflight", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Controlled daily public-source run preflight requires an owner or administrator.");
+  }
+  const dailyScoutExecutionPlan = buildAgentOsOpportunityScoutExecutionPlan({
+    opportunitySearchProfiles: visibleOpportunitySearchProfilesForUser(state, req.auth.user),
+    leadSources: visibleLeadSourcesForUser(state, req.auth.user),
+    foundOpportunities: visibleFoundOpportunitiesForUser(state, req.auth.user),
+    leads: visibleLeadsForUser(state, req.auth.user),
+    auditEvents: visibleAuditEventsForUser(state, req.auth.user),
+    companySettings: companySettingsForState(state, req.auth.user),
+    today: req.query?.today || new Date().toISOString(),
+  });
+  res.json({
+    controlledDailyPublicRunPreflight: dailyScoutExecutionPlan.controlledDailyPublicRunPreflight,
+    controlledDailyPublicRunEvidencePrep: dailyScoutExecutionPlan.controlledDailyPublicRunEvidencePrep,
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/provider/daily-public-run-evidence", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Controlled daily public-source run evidence prep requires an owner or administrator.");
+  }
+  if (req.body?.execute === true || req.body?.runProvider === true || req.body?.fetchProvider === true || req.body?.autoSave === true || req.body?.contactCustomer === true || req.body?.submitBid === true || req.body?.collectPayment === true || req.body?.scheduleWork === true) {
+    throw new ApiError(400, "Controlled daily public-source run evidence prep cannot execute provider fetches or external/customer actions.");
+  }
+  if (req.body?.acknowledgement !== true) {
+    throw new ApiError(400, "Controlled daily public-source run evidence prep requires review-only acknowledgement.");
+  }
+  const now = new Date().toISOString();
+  const companyId = currentCompanyIdForRequestUser(state, req.auth.user);
+  const auditEvents = visibleAuditEventsForUser(state, req.auth.user);
+  const companySettings = companySettingsForState(state, req.auth.user);
+  const dailyScoutExecutionPlan = buildAgentOsOpportunityScoutExecutionPlan({
+    opportunitySearchProfiles: visibleOpportunitySearchProfilesForUser(state, req.auth.user),
+    leadSources: visibleLeadSourcesForUser(state, req.auth.user),
+    foundOpportunities: visibleFoundOpportunitiesForUser(state, req.auth.user),
+    leads: visibleLeadsForUser(state, req.auth.user),
+    auditEvents,
+    companySettings,
+    today: req.body?.today || now,
+  });
+  const evidencePrep = buildAgentLeadsControlledDailyPublicRunEvidencePrep({
+    controlledDailyPublicSourceRunEvidencePacket: dailyScoutExecutionPlan.controlledDailyPublicSourceRunEvidencePacket,
+    preflight: dailyScoutExecutionPlan.controlledDailyPublicRunPreflight,
+    companySettings: { ...companySettings, companyId },
+    actorUserId: req.auth.user.id,
+    today: req.body?.today || now,
+    now,
+  });
+  if (evidencePrep.status !== "review_evidence_prepared") {
+    res.status(409).json({
+      controlledDailyPublicRunEvidencePrep: evidencePrep,
+      controlledDailyPublicRunPreflight: dailyScoutExecutionPlan.controlledDailyPublicRunPreflight,
+      requestId: res.locals.requestId,
+    });
+    return;
+  }
+  const nextState = await updateDb((draft) => {
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: `${evidencePrep.runId}-evidence-${evidencePrep.nextRunDate}`,
+      action: evidencePrep.auditEvent,
+      summary: "Controlled daily public-source run evidence prepared for review",
+      status: evidencePrep.status,
+      metadata: {
+        controlledDailyPublicRunEvidencePrep: evidencePrep,
+        providerReviewImportCount: evidencePrep.providerReviewImportCount,
+        externalActionsLocked: true,
+        executionEnabled: false,
+        liveProviderCallsEnabled: false,
+        leadAutoSaveEnabled: false,
+        customerContactEnabled: false,
+        productionDataTouchEnabled: false,
+      },
+    });
+    return draft;
+  });
+  const visibleAuditEvents = visibleAuditEventsForUser(nextState, req.auth.user);
+  res.status(201).json({
+    controlledDailyPublicRunEvidencePrep: evidencePrep,
+    ledger: deriveAgentOsLedgerFromAuditEvents(visibleAuditEvents),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/provider/daily-public-run-outcomes", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Controlled daily public-source run outcomes require an owner or administrator.");
+  }
+  const outcomes = Array.isArray(req.body?.outcomes) ? req.body.outcomes : [];
+  if (!outcomes.length) {
+    throw new ApiError(400, "At least one controlled daily public-source run outcome is required.");
+  }
+  const now = new Date().toISOString();
+  const companyId = currentCompanyIdForRequestUser(state, req.auth.user);
+  const dailyScoutExecutionPlan = buildAgentOsOpportunityScoutExecutionPlan({
+    opportunitySearchProfiles: visibleOpportunitySearchProfilesForUser(state, req.auth.user),
+    leadSources: visibleLeadSourcesForUser(state, req.auth.user),
+    foundOpportunities: visibleFoundOpportunitiesForUser(state, req.auth.user),
+    leads: visibleLeadsForUser(state, req.auth.user),
+    auditEvents: visibleAuditEventsForUser(state, req.auth.user),
+    companySettings: companySettingsForState(state, req.auth.user),
+    today: req.body?.today || now,
+  });
+  const evidenceRows = Array.isArray(dailyScoutExecutionPlan.controlledDailyPublicRunEvidencePrep?.evidenceRows)
+    ? dailyScoutExecutionPlan.controlledDailyPublicRunEvidencePrep.evidenceRows
+    : [];
+  const allowedRows = new Map(evidenceRows.map((row) => [row.id, row]));
+  const outcomeRecords = [];
+  const learningSignals = [];
+  outcomes.slice(0, 25).forEach((outcome, index) => {
+    const evidenceRowId = String(outcome?.evidenceRowId || "").trim();
+    const baseRow = allowedRows.get(evidenceRowId);
+    if (!baseRow) return;
+    const decision = String(outcome?.decision || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+    if (!["draft_found_opportunity", "mark_duplicate", "dismiss", "no_fit"].includes(decision)) return;
+    const record = {
+      id: makeId("CONTROLLED-RUN-OUTCOME"),
+      companyId,
+      actorUserId: req.auth.user.id,
+      nextRunDate: dailyScoutExecutionPlan.controlledDailyPublicRunEvidencePrep.nextRunDate,
+      runId: dailyScoutExecutionPlan.controlledDailyPublicRunEvidencePrep.runId,
+      evidenceRowId,
+      providerResultId: baseRow.providerResultId,
+      connectorId: baseRow.connectorId,
+      sourceUrl: baseRow.sourceUrl,
+      sourceConfigId: baseRow.sourceConfigId,
+      title: baseRow.title,
+      decision,
+      note: String(outcome?.note || "").slice(0, 400),
+      createdAt: now,
+      externalActionsLocked: true,
+      canAutoSave: false,
+    };
+    const learning = normalizeAgentLeadsProviderReviewLearningSignal({
+      providerResultId: record.providerResultId,
+      connectorId: record.connectorId,
+      sourceUrl: record.sourceUrl,
+      title: record.title,
+      decision: record.decision,
+      note: record.note,
+    }, {
+      id: makeId("PROVIDER-REVIEW-LEARNING"),
+      companyId,
+      actorUserId: req.auth.user.id,
+      now,
+    });
+    if (learning.ok) {
+      outcomeRecords.push(record);
+      learningSignals.push(learning.signal);
+    }
+  });
+  if (!outcomeRecords.length) {
+    throw new ApiError(400, "No submitted outcomes matched controlled daily public-source evidence rows.");
+  }
+  const nextState = await updateDb((draft) => {
+    outcomeRecords.forEach((record, index) => {
+      appendAgentOsAuditEvent(draft, req.auth.user, {
+        entityId: record.id,
+        action: "agent.os.provider.daily_public_run.outcome_recorded",
+        summary: `Controlled daily public-source run outcome recorded: ${record.decision.replace(/_/g, " ")}`,
+        status: "reviewed",
+        metadata: {
+          controlledDailyPublicRunOutcomeRecords: [record],
+          providerReviewLearningSignal: learningSignals[index],
+          externalActionsLocked: true,
+          leadAutoSaveEnabled: false,
+          customerContactEnabled: false,
+          productionDataTouchEnabled: false,
+        },
+      });
+    });
+    return draft;
+  });
+  const visibleAuditEvents = visibleAuditEventsForUser(nextState, req.auth.user);
+  const providerReviewLearningSnapshot = deriveAgentLeadsProviderReviewLearningSnapshot(visibleAuditEvents, { companyId, today: req.body?.today || now });
+  res.status(201).json({
+    controlledDailyPublicRunOutcomeRecords: outcomeRecords,
+    providerReviewLearningSignals: learningSignals,
+    providerReviewLearningSnapshot,
+    controlledDailyPublicRunOutcomeLoop: buildAgentOsOpportunityScoutExecutionPlan({
+      opportunitySearchProfiles: visibleOpportunitySearchProfilesForUser(nextState, req.auth.user),
+      leadSources: visibleLeadSourcesForUser(nextState, req.auth.user),
+      foundOpportunities: visibleFoundOpportunitiesForUser(nextState, req.auth.user),
+      leads: visibleLeadsForUser(nextState, req.auth.user),
+      auditEvents: visibleAuditEvents,
+      companySettings: companySettingsForState(nextState, req.auth.user),
+      today: req.body?.today || now,
+    }).controlledDailyPublicRunOutcomeLoop,
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/provider/official-api-adapter-harness", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Official provider API adapter harness requires an owner or administrator.");
+  }
+  if (req.body?.executionEnabled === true || req.body?.liveNetworkRequestsEnabled === true || req.body?.forceLive === true || req.body?.rawProviderRequest === true || req.body?.directClientAttempt === true) {
+    throw new ApiError(400, "Direct API attempts cannot force official provider API adapter execution.");
+  }
+  if (req.body?.autoSave === true || req.body?.saveLead === true || req.body?.contactCustomer === true || req.body?.sendMessage === true || req.body?.submitBid === true || req.body?.collectPayment === true) {
+    throw new ApiError(400, "Official provider API adapter harness cannot save leads, contact anyone, submit bids, or collect payment.");
+  }
+  if (["password", "rawPassword", "token", "accessToken", "refreshToken", "cookie", "cookies", "mfaCode", "apiKey", "secret", "session"].some((field) => String(req.body?.[field] || "").trim())) {
+    throw new ApiError(400, "Official provider API adapter harness accepts credential references only. Do not send raw secrets.");
+  }
+  const now = new Date().toISOString();
+  const companyId = currentCompanyIdForRequestUser(state, req.auth.user);
+  const settings = companySettingsForState(state, req.auth.user).apexAgentAutomationPolicy?.publicLeadProviderSettings || {};
+  const execution = runAgentLeadsOfficialProviderApiAdapterHarness({
+    settings,
+    auditEvents: visibleAuditEventsForUser(state, req.auth.user),
+    companyId,
+    actorUserId: req.auth.user.id,
+    today: req.body?.today || now,
+    now,
+    adapterId: req.body?.adapterId || "",
+    query: req.body?.query || "",
+    connectorIds: req.body?.connectorIds || [],
+    mockProviderResponse: req.body?.mockProviderResponse || null,
+    directClientAttempt: false,
+    serverGates: {
+      packageEnabled: true,
+      roleAllowed: true,
+      ownerAdminApproved: true,
+    },
+  });
+  if (execution.status === "blocked") {
+    res.status(409).json({
+      officialProviderApiAdapterExecution: execution,
+      requestId: res.locals.requestId,
+    });
+    return;
+  }
+  const nextState = await updateDb((draft) => {
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: `official-provider-api-${companyId}-${execution.today}-${execution.adapterId}`,
+      action: "agent.os.provider.official_api_adapter.review_queue_prepared",
+      summary: "Apex Agent official provider API adapter harness prepared review queue",
+      status: execution.status,
+      metadata: {
+        officialProviderApiAdapterExecution: execution,
+        providerAttemptCount: execution.adapterInvocations.length,
+        providerResultCount: execution.results.length,
+        providerRejectedResultCount: execution.rejectedResults.length,
+        providerReviewImportCount: execution.reviewQueue.count,
+        executionEnabled: false,
+        liveNetworkRequestsEnabled: false,
+      },
+    });
+    return draft;
+  });
+  res.status(201).json({
+    officialProviderApiAdapterExecution: execution,
+    providerMonitoringSnapshot: buildAgentLeadsProviderMonitoringSnapshot({
+      settings,
+      auditEvents: visibleAuditEventsForUser(nextState, req.auth.user),
+      today: req.body?.today || now,
+      now,
+    }),
+    ledger: deriveAgentOsLedgerFromAuditEvents(visibleAuditEventsForUser(nextState, req.auth.user)),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/agent/os/provider/procurement-feed-adapter", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Procurement feed adapter requires an owner or administrator.");
+  }
+  const settings = companySettingsForState(state, req.auth.user).apexAgentAutomationPolicy?.publicLeadProviderSettings || {};
+  const auditEvents = visibleAuditEventsForUser(state, req.auth.user);
+  res.json({
+    procurementFeedAdapterContract: buildAgentLeadsProcurementFeedAdapterContract({
+      settings,
+      auditEvents,
+      today: req.query?.today || new Date().toISOString(),
+    }),
+    liveProcurementPublicAdapterContract: buildAgentLeadsLiveProcurementPublicAdapterContract({
+      settings,
+      auditEvents,
+      today: req.query?.today || new Date().toISOString(),
+    }),
+    procurementFeedAdapterConfigs: deriveAgentLeadsProcurementFeedAdapterConfigs(auditEvents),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/provider/procurement-feed-adapter/configs", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Procurement feed adapter config requires an owner or administrator.");
+  }
+  if (req.body?.executionEnabled === true || req.body?.liveNetworkRequestsEnabled === true || req.body?.forceLive === true || req.body?.rawProviderRequest === true) {
+    throw new ApiError(400, "Procurement feed adapter config cannot enable live execution from a direct API request.");
+  }
+  const now = new Date().toISOString();
+  const companyId = currentCompanyIdForRequestUser(state, req.auth.user);
+  const normalized = normalizeAgentLeadsProcurementFeedAdapterConfig(req.body || {}, {
+    id: makeId("PROCUREMENT-FEED-CONFIG"),
+    companyId,
+    actorUserId: req.auth.user.id,
+    now,
+  });
+  if (!normalized.ok) {
+    throw new ApiError(400, normalized.error);
+  }
+  const config = normalized.config;
+  const nextState = await updateDb((draft) => {
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: config.id,
+      action: config.auditEvent,
+      summary: `Procurement feed adapter config recorded: ${config.endpointName}`,
+      status: config.status,
+      metadata: {
+        procurementFeedAdapterConfig: config,
+        connectorId: config.connectorId,
+        officialAdapterId: config.officialAdapterId,
+        executionEnabled: false,
+        liveNetworkRequestsEnabled: false,
+        rawCredentialStorage: false,
+      },
+    });
+    return draft;
+  });
+  const auditEvents = visibleAuditEventsForUser(nextState, req.auth.user);
+  const settings = companySettingsForState(nextState, req.auth.user).apexAgentAutomationPolicy?.publicLeadProviderSettings || {};
+  res.status(201).json({
+    procurementFeedAdapterConfig: config,
+    procurementFeedAdapterContract: buildAgentLeadsProcurementFeedAdapterContract({
+      settings,
+      auditEvents,
+      today: req.body?.today || now,
+    }),
+    procurementFeedAdapterConfigs: deriveAgentLeadsProcurementFeedAdapterConfigs(auditEvents),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/provider/procurement-feed-adapter/run", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Procurement feed adapter run requires an owner or administrator.");
+  }
+  if (req.body?.executionEnabled === true || req.body?.liveNetworkRequestsEnabled === true || req.body?.forceLive === true || req.body?.rawProviderRequest === true || req.body?.directClientAttempt === true) {
+    throw new ApiError(400, "Direct API attempts cannot force procurement feed adapter execution.");
+  }
+  if (req.body?.autoSave === true || req.body?.saveLead === true || req.body?.contactCustomer === true || req.body?.sendMessage === true || req.body?.submitBid === true || req.body?.collectPayment === true) {
+    throw new ApiError(400, "Procurement feed adapter cannot save leads, contact anyone, submit bids, or collect payment.");
+  }
+  if (["password", "rawPassword", "token", "accessToken", "refreshToken", "cookie", "cookies", "mfaCode", "apiKey", "secret", "session"].some((field) => String(req.body?.[field] || "").trim())) {
+    throw new ApiError(400, "Procurement feed adapter accepts credential references only. Do not send raw secrets.");
+  }
+  const now = new Date().toISOString();
+  const companyId = currentCompanyIdForRequestUser(state, req.auth.user);
+  const settings = companySettingsForState(state, req.auth.user).apexAgentAutomationPolicy?.publicLeadProviderSettings || {};
+  const execution = runAgentLeadsProcurementFeedAdapter({
+    settings,
+    auditEvents: visibleAuditEventsForUser(state, req.auth.user),
+    companyId,
+    actorUserId: req.auth.user.id,
+    today: req.body?.today || now,
+    now,
+    configId: req.body?.configId || "",
+    query: req.body?.query || "",
+    fixtureResponse: req.body?.fixtureResponse || null,
+    directClientAttempt: false,
+    serverGates: {
+      packageEnabled: true,
+      roleAllowed: true,
+      ownerAdminApproved: true,
+    },
+  });
+  if (execution.status === "blocked") {
+    res.status(409).json({
+      procurementFeedAdapterExecution: execution,
+      requestId: res.locals.requestId,
+    });
+    return;
+  }
+  const nextState = await updateDb((draft) => {
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: `procurement-feed-adapter-${companyId}-${execution.today}-${execution.configId || "default"}`,
+      action: "agent.os.provider.procurement_feed_adapter.review_queue_prepared",
+      summary: "Apex Agent procurement feed adapter prepared review queue",
+      status: execution.status,
+      metadata: {
+        procurementFeedAdapterExecution: execution,
+        providerAttemptCount: execution.adapterInvocations.length,
+        providerResultCount: execution.results.length,
+        providerRejectedResultCount: execution.rejectedResults.length,
+        providerReviewImportCount: execution.reviewQueue.count,
+        executionEnabled: false,
+        liveNetworkRequestsEnabled: false,
+      },
+    });
+    return draft;
+  });
+  res.status(201).json({
+    procurementFeedAdapterExecution: execution,
+    providerMonitoringSnapshot: buildAgentLeadsProviderMonitoringSnapshot({
+      settings,
+      auditEvents: visibleAuditEventsForUser(nextState, req.auth.user),
+      today: req.body?.today || now,
+      now,
+    }),
+    ledger: deriveAgentOsLedgerFromAuditEvents(visibleAuditEventsForUser(nextState, req.auth.user)),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/provider/live-procurement-public-adapter/run", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Live procurement public adapter requires an owner or administrator.");
+  }
+  if (req.body?.executionEnabled === true || req.body?.forceLive === true || req.body?.rawProviderRequest === true || req.body?.directClientAttempt === true) {
+    throw new ApiError(400, "Direct API attempts cannot force live procurement public adapter execution.");
+  }
+  if (req.body?.autoSave === true || req.body?.saveLead === true || req.body?.contactCustomer === true || req.body?.sendMessage === true || req.body?.submitBid === true || req.body?.collectPayment === true || req.body?.integrationWrite === true) {
+    throw new ApiError(400, "Live procurement public adapter cannot save leads, contact anyone, submit bids, collect payment, or write integrations.");
+  }
+  if (["password", "rawPassword", "token", "accessToken", "refreshToken", "cookie", "cookies", "mfaCode", "apiKey", "secret", "session"].some((field) => String(req.body?.[field] || "").trim())) {
+    throw new ApiError(400, "Live procurement public adapter accepts public URL metadata only. Do not send raw secrets.");
+  }
+  const now = new Date().toISOString();
+  const companyId = currentCompanyIdForRequestUser(state, req.auth.user);
+  const settings = companySettingsForState(state, req.auth.user).apexAgentAutomationPolicy?.publicLeadProviderSettings || {};
+  const execution = await runAgentLeadsLiveProcurementPublicAdapter({
+    settings,
+    auditEvents: visibleAuditEventsForUser(state, req.auth.user),
+    companyId,
+    actorUserId: req.auth.user.id,
+    today: req.body?.today || now,
+    now,
+    configId: req.body?.configId || "",
+    sourceUrl: req.body?.sourceUrl || "",
+    query: req.body?.query || "",
+    directClientAttempt: false,
+    serverGates: {
+      packageEnabled: true,
+      roleAllowed: true,
+      ownerAdminApproved: true,
+    },
+    fetchImpl: globalThis.fetch,
+  });
+  if (execution.status === "blocked") {
+    res.status(409).json({
+      liveProcurementPublicAdapterExecution: execution,
+      requestId: res.locals.requestId,
+    });
+    return;
+  }
+  const nextState = await updateDb((draft) => {
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: `live-procurement-public-adapter-${companyId}-${execution.today}-${execution.configId || "default"}`,
+      action: "agent.os.provider.live_procurement_public_adapter.review_queue_prepared",
+      summary: "Apex Agent live procurement public adapter prepared review queue",
+      status: execution.status,
+      metadata: {
+        liveProcurementPublicAdapterExecution: execution,
+        providerAttemptCount: execution.adapterInvocations.length,
+        providerResultCount: execution.results.length,
+        providerRejectedResultCount: execution.rejectedResults.length,
+        providerReviewImportCount: execution.reviewQueue.count,
+        externalActionsLocked: true,
+        leadAutoSaveEnabled: false,
+      },
+    });
+    return draft;
+  });
+  res.status(201).json({
+    liveProcurementPublicAdapterExecution: execution,
+    providerMonitoringSnapshot: buildAgentLeadsProviderMonitoringSnapshot({
+      settings,
+      auditEvents: visibleAuditEventsForUser(nextState, req.auth.user),
+      today: req.body?.today || now,
+      now,
+    }),
+    ledger: deriveAgentOsLedgerFromAuditEvents(visibleAuditEventsForUser(nextState, req.auth.user)),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/provider/live-procurement-public-adapter/daily", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Daily live procurement adapter requires an owner or administrator.");
+  }
+  if (req.body?.executionEnabled === true || req.body?.liveNetworkRequestsEnabled === true || req.body?.forceLive === true || req.body?.rawProviderRequest === true || req.body?.directClientAttempt === true) {
+    throw new ApiError(400, "Direct API attempts cannot force daily live procurement adapter execution.");
+  }
+  if (req.body?.autoSave === true || req.body?.saveLead === true || req.body?.contactCustomer === true || req.body?.sendMessage === true || req.body?.submitBid === true || req.body?.collectPayment === true || req.body?.integrationWrite === true) {
+    throw new ApiError(400, "Daily live procurement adapter cannot save leads, contact anyone, submit bids, collect payment, or write integrations.");
+  }
+  if (["password", "rawPassword", "token", "accessToken", "refreshToken", "cookie", "cookies", "mfaCode", "apiKey", "secret", "session"].some((field) => String(req.body?.[field] || "").trim())) {
+    throw new ApiError(400, "Daily live procurement adapter accepts public URL metadata only. Do not send raw secrets.");
+  }
+  const now = new Date().toISOString();
+  const companyId = currentCompanyIdForRequestUser(state, req.auth.user);
+  const settings = companySettingsForState(state, req.auth.user).apexAgentAutomationPolicy?.publicLeadProviderSettings || {};
+  const execution = await runAgentLeadsDailyLiveProcurementPublicAdapter({
+    settings,
+    auditEvents: visibleAuditEventsForUser(state, req.auth.user),
+    companyId,
+    actorUserId: req.auth.user.id,
+    today: req.body?.today || now,
+    now,
+    configId: req.body?.configId || "",
+    query: req.body?.query || "",
+    directClientAttempt: false,
+    serverGates: {
+      packageEnabled: true,
+      roleAllowed: true,
+      ownerAdminApproved: true,
+    },
+    fetchImpl: globalThis.fetch,
+  });
+  if (execution.status === "blocked") {
+    res.status(409).json({
+      dailyLiveProcurementPublicAdapterExecution: execution,
+      requestId: res.locals.requestId,
+    });
+    return;
+  }
+  const nextState = await updateDb((draft) => {
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: `daily-live-procurement-public-adapter-${companyId}-${execution.today}-${execution.configId || "default"}`,
+      action: "agent.os.provider.live_procurement_public_adapter.daily_review_queue_prepared",
+      summary: "Apex Agent daily live procurement adapter prepared review queue",
+      status: execution.status,
+      metadata: {
+        dailyLiveProcurementPublicAdapterExecution: execution,
+        providerAttemptCount: execution.adapterInvocations.length,
+        providerResultCount: execution.results.length,
+        providerRejectedResultCount: execution.rejectedResults.length,
+        providerReviewImportCount: execution.reviewQueue.count,
+        safeForCron: true,
+        externalActionsLocked: true,
+        leadAutoSaveEnabled: false,
+      },
+    });
+    return draft;
+  });
+  res.status(201).json({
+    dailyLiveProcurementPublicAdapterExecution: execution,
+    providerMonitoringSnapshot: buildAgentLeadsProviderMonitoringSnapshot({
+      settings,
+      auditEvents: visibleAuditEventsForUser(nextState, req.auth.user),
+      today: req.body?.today || now,
+      now,
+    }),
+    ledger: deriveAgentOsLedgerFromAuditEvents(visibleAuditEventsForUser(nextState, req.auth.user)),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/provider/adapter-runner", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (req.body?.executeLive === true || req.body?.liveSearchEnabled === true || req.body?.executionEnabled === true) {
+    throw new ApiError(400, "Provider adapter runner cannot enable live execution from a direct API request.");
+  }
+  const now = new Date().toISOString();
+  const companyId = currentCompanyIdForRequestUser(state, req.auth.user);
+  const dailyScoutExecutionPlan = buildAgentOsOpportunityScoutExecutionPlan({
+    opportunitySearchProfiles: visibleOpportunitySearchProfilesForUser(state, req.auth.user),
+    leadSources: visibleLeadSourcesForUser(state, req.auth.user),
+    foundOpportunities: visibleFoundOpportunitiesForUser(state, req.auth.user),
+    leads: visibleLeadsForUser(state, req.auth.user),
+    companySettings: companySettingsForState(state, req.auth.user),
+    today: req.body?.today || now,
+  });
+  const settings = companySettingsForState(state, req.auth.user).apexAgentAutomationPolicy?.publicLeadProviderSettings || {};
+  const adapterRunner = buildAgentLeadsProviderAdapterRunner({
+    settings,
+    runnerCards: req.body?.runnerCards || dailyScoutExecutionPlan.publicRunnerCards,
+    auditEvents: visibleAuditEventsForUser(state, req.auth.user),
+    companyId,
+    actorUserId: req.auth.user.id,
+    today: req.body?.today || now,
+    now,
+    executeLive: false,
+    serverGates: { packageEnabled: true, roleAllowed: true },
+  });
+  const nextState = await updateDb((draft) => {
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: `provider-adapter-runner-${companyId}-${adapterRunner.requestedAt}`,
+      action: "agent.os.provider.adapter_runner.prepared",
+      summary: "Apex Agent provider adapter runner prepared review cards",
+      status: adapterRunner.status,
+      metadata: {
+        providerAdapterRunner: adapterRunner,
+        providerAttemptCount: adapterRunner.adapterInvocations.length,
+        providerResultCount: adapterRunner.results.length,
+        providerRejectedResultCount: adapterRunner.rejectedResults.length,
+        providerReviewImportCount: adapterRunner.resultDraftPreviews.length,
+      },
+    });
+    return draft;
+  });
+  res.status(201).json({
+    providerAdapterRunner: adapterRunner,
+    ledger: deriveAgentOsLedgerFromAuditEvents(visibleAuditEventsForUser(nextState, req.auth.user)),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/provider/live-public-execution", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Live-public provider execution requires an owner or administrator.");
+  }
+  if (req.body?.executionEnabled === true || req.body?.liveSearchEnabled === true || req.body?.forceLive === true || req.body?.rawProviderRequest === true) {
+    throw new ApiError(400, "Direct API attempts cannot force live-public provider execution.");
+  }
+  const now = new Date().toISOString();
+  const companyId = currentCompanyIdForRequestUser(state, req.auth.user);
+  const companySettings = companySettingsForState(state, req.auth.user);
+  const dailyScoutExecutionPlan = buildAgentOsOpportunityScoutExecutionPlan({
+    opportunitySearchProfiles: visibleOpportunitySearchProfilesForUser(state, req.auth.user),
+    leadSources: visibleLeadSourcesForUser(state, req.auth.user),
+    foundOpportunities: visibleFoundOpportunitiesForUser(state, req.auth.user),
+    leads: visibleLeadsForUser(state, req.auth.user),
+    companySettings,
+    today: req.body?.today || now,
+  });
+  const settings = companySettings.apexAgentAutomationPolicy?.publicLeadProviderSettings || {};
+  const execution = buildAgentLeadsLivePublicProviderExecution({
+    settings,
+    runnerCards: req.body?.runnerCards || dailyScoutExecutionPlan.publicRunnerCards,
+    auditEvents: visibleAuditEventsForUser(state, req.auth.user),
+    companyId,
+    actorUserId: req.auth.user.id,
+    today: req.body?.today || now,
+    now,
+    connectorIds: req.body?.connectorIds || [],
+    directClientAttempt: req.body?.directClientAttempt === true,
+    serverGates: {
+      packageEnabled: true,
+      roleAllowed: true,
+      ownerAdminApproved: true,
+    },
+  });
+  if (execution.status !== "review_queue_prepared") {
+    res.status(409).json({
+      providerLivePublicExecution: execution,
+      requestId: res.locals.requestId,
+    });
+    return;
+  }
+  const nextState = await updateDb((draft) => {
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: `provider-live-public-${companyId}-${execution.today}`,
+      action: "agent.os.provider.live_public_execution.review_queue_prepared",
+      summary: "Apex Agent live-public provider execution prepared review queue",
+      status: execution.status,
+      metadata: {
+        providerLivePublicExecution: execution,
+        providerAttemptCount: execution.adapterInvocations.length,
+        providerResultCount: execution.results.length,
+        providerRejectedResultCount: execution.rejectedResults.length,
+        providerReviewImportCount: execution.reviewQueue.count,
+      },
+    });
+    return draft;
+  });
+  res.status(201).json({
+    providerLivePublicExecution: execution,
+    ledger: deriveAgentOsLedgerFromAuditEvents(visibleAuditEventsForUser(nextState, req.auth.user)),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/provider/public-source-adapters", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Public source provider adapters require an owner or administrator.");
+  }
+  if (req.body?.executionEnabled === true || req.body?.forceLive === true || req.body?.rawProviderRequest === true || req.body?.directClientAttempt === true) {
+    throw new ApiError(400, "Direct API attempts cannot force public source provider adapter execution.");
+  }
+  const now = new Date().toISOString();
+  const companyId = currentCompanyIdForRequestUser(state, req.auth.user);
+  const companySettings = companySettingsForState(state, req.auth.user);
+  const dailyScoutExecutionPlan = buildAgentOsOpportunityScoutExecutionPlan({
+    opportunitySearchProfiles: visibleOpportunitySearchProfilesForUser(state, req.auth.user),
+    leadSources: visibleLeadSourcesForUser(state, req.auth.user),
+    foundOpportunities: visibleFoundOpportunitiesForUser(state, req.auth.user),
+    leads: visibleLeadsForUser(state, req.auth.user),
+    companySettings,
+    today: req.body?.today || now,
+  });
+  const settings = companySettings.apexAgentAutomationPolicy?.publicLeadProviderSettings || {};
+  const execution = await runAgentLeadsPublicSourceProviderAdapters({
+    settings,
+    runnerCards: req.body?.runnerCards || dailyScoutExecutionPlan.publicRunnerCards,
+    auditEvents: visibleAuditEventsForUser(state, req.auth.user),
+    companyId,
+    actorUserId: req.auth.user.id,
+    today: req.body?.today || now,
+    now,
+    connectorIds: req.body?.connectorIds || [],
+    directClientAttempt: false,
+    serverGates: {
+      packageEnabled: true,
+      roleAllowed: true,
+      ownerAdminApproved: true,
+    },
+    fetchImpl: globalThis.fetch,
+  });
+  if (execution.status === "blocked") {
+    res.status(409).json({
+      providerPublicSourceAdapterExecution: execution,
+      requestId: res.locals.requestId,
+    });
+    return;
+  }
+  const nextState = await updateDb((draft) => {
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: `provider-public-source-${companyId}-${execution.today}`,
+      action: "agent.os.provider.public_source_adapters.review_queue_prepared",
+      summary: "Apex Agent public source provider adapters prepared review queue",
+      status: execution.status,
+      metadata: {
+        providerPublicSourceAdapterExecution: execution,
+        providerAttemptCount: execution.adapterInvocations.length,
+        providerResultCount: execution.results.length,
+        providerRejectedResultCount: execution.rejectedResults.length,
+        providerReviewImportCount: execution.reviewQueue.count,
+      },
+    });
+    return draft;
+  });
+  res.status(201).json({
+    providerPublicSourceAdapterExecution: execution,
+    ledger: deriveAgentOsLedgerFromAuditEvents(visibleAuditEventsForUser(nextState, req.auth.user)),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/provider/daily-job-finder/run", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Daily job finder orchestration requires an owner or administrator.");
+  }
+  if (req.body?.executionEnabled === true || req.body?.liveNetworkRequestsEnabled === true || req.body?.forceLive === true || req.body?.rawProviderRequest === true || req.body?.directClientAttempt === true) {
+    throw new ApiError(400, "Direct API attempts cannot force daily job finder orchestration.");
+  }
+  if (req.body?.autoSave === true || req.body?.saveLead === true || req.body?.contactCustomer === true || req.body?.sendMessage === true || req.body?.submitBid === true || req.body?.collectPayment === true || req.body?.integrationWrite === true || req.body?.scheduleWork === true) {
+    throw new ApiError(400, "Daily job finder orchestration cannot save leads, contact anyone, submit bids, collect payment, schedule work, or write integrations.");
+  }
+  if (["password", "rawPassword", "token", "accessToken", "refreshToken", "cookie", "cookies", "mfaCode", "apiKey", "secret", "session"].some((field) => String(req.body?.[field] || "").trim())) {
+    throw new ApiError(400, "Daily job finder orchestration accepts public metadata and credential references only. Do not send raw secrets.");
+  }
+  const now = new Date().toISOString();
+  const companyId = currentCompanyIdForRequestUser(state, req.auth.user);
+  const companySettings = companySettingsForState(state, req.auth.user);
+  const dailyScoutExecutionPlan = buildAgentOsOpportunityScoutExecutionPlan({
+    opportunitySearchProfiles: visibleOpportunitySearchProfilesForUser(state, req.auth.user),
+    leadSources: visibleLeadSourcesForUser(state, req.auth.user),
+    foundOpportunities: visibleFoundOpportunitiesForUser(state, req.auth.user),
+    leads: visibleLeadsForUser(state, req.auth.user),
+    companySettings,
+    today: req.body?.today || now,
+  });
+  const settings = companySettings.apexAgentAutomationPolicy?.publicLeadProviderSettings || {};
+  const execution = await runAgentLeadsDailyJobFinderOrchestration({
+    settings,
+    auditEvents: visibleAuditEventsForUser(state, req.auth.user),
+    dailyScoutExecutionPlan,
+    runnerCards: req.body?.runnerCards || [],
+    privateHandoffCards: req.body?.privateHandoffCards || [],
+    companyId,
+    actorUserId: req.auth.user.id,
+    today: req.body?.today || now,
+    now,
+    connectorIds: req.body?.connectorIds || [],
+    directClientAttempt: false,
+    serverGates: {
+      packageEnabled: true,
+      roleAllowed: true,
+      ownerAdminApproved: true,
+    },
+    fetchImpl: globalThis.fetch,
+  });
+  if (execution.status === "blocked") {
+    res.status(409).json({
+      dailyJobFinderOrchestrationExecution: execution,
+      requestId: res.locals.requestId,
+    });
+    return;
+  }
+  const nextState = await updateDb((draft) => {
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: `daily-job-finder-orchestration-${companyId}-${execution.today}`,
+      action: "agent.os.provider.daily_job_finder.orchestration_prepared",
+      summary: "Apex Agent daily job finder orchestration prepared review queue and handoff checklist",
+      status: execution.status,
+      metadata: {
+        dailyJobFinderOrchestrationExecution: execution,
+        providerAttemptCount: execution.adapterInvocations.length,
+        providerResultCount: execution.results.length,
+        providerRejectedResultCount: execution.rejectedResults.length,
+        providerReviewImportCount: execution.reviewQueue.count,
+        privateHandoffCardCount: execution.counts.privateChecklistRows,
+        safeForCron: true,
+        externalActionsLocked: true,
+        leadAutoSaveEnabled: false,
+      },
+    });
+    return draft;
+  });
+  res.status(201).json({
+    dailyJobFinderOrchestrationExecution: execution,
+    providerMonitoringSnapshot: buildAgentLeadsProviderMonitoringSnapshot({
+      settings,
+      auditEvents: visibleAuditEventsForUser(nextState, req.auth.user),
+      today: req.body?.today || now,
+      now,
+    }),
+    ledger: deriveAgentOsLedgerFromAuditEvents(visibleAuditEventsForUser(nextState, req.auth.user)),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/provider/daily-job-finder/autopilot", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Daily job finder autopilot requires an owner or administrator.");
+  }
+  if (req.body?.executionEnabled === true || req.body?.liveNetworkRequestsEnabled === true || req.body?.forceLive === true || req.body?.rawProviderRequest === true || req.body?.directClientAttempt === true) {
+    throw new ApiError(400, "Direct API attempts cannot force daily job finder autopilot.");
+  }
+  if (req.body?.autoSave === true || req.body?.saveLead === true || req.body?.contactCustomer === true || req.body?.sendMessage === true || req.body?.submitBid === true || req.body?.collectPayment === true || req.body?.integrationWrite === true || req.body?.scheduleWork === true) {
+    throw new ApiError(400, "Daily job finder autopilot cannot save leads, contact anyone, submit bids, collect payment, schedule work, or write integrations.");
+  }
+  if (["password", "rawPassword", "token", "accessToken", "refreshToken", "cookie", "cookies", "mfaCode", "apiKey", "secret", "session"].some((field) => String(req.body?.[field] || "").trim())) {
+    throw new ApiError(400, "Daily job finder autopilot accepts settings and credential references only. Do not send raw secrets.");
+  }
+  const now = new Date().toISOString();
+  const companyId = currentCompanyIdForRequestUser(state, req.auth.user);
+  const companySettings = companySettingsForState(state, req.auth.user);
+  const settings = companySettings.apexAgentAutomationPolicy?.publicLeadProviderSettings || {};
+  const dailyScoutExecutionPlan = buildAgentOsOpportunityScoutExecutionPlan({
+    opportunitySearchProfiles: visibleOpportunitySearchProfilesForUser(state, req.auth.user),
+    leadSources: visibleLeadSourcesForUser(state, req.auth.user),
+    foundOpportunities: visibleFoundOpportunitiesForUser(state, req.auth.user),
+    leads: visibleLeadsForUser(state, req.auth.user),
+    companySettings,
+    today: req.body?.today || now,
+  });
+  const autopilotRun = await runAgentLeadsDailyJobFinderAutopilot({
+    settings,
+    auditEvents: visibleAuditEventsForUser(state, req.auth.user),
+    dailyScoutExecutionPlan,
+    companyId,
+    actorUserId: req.auth.user.id,
+    today: req.body?.today || now,
+    now,
+    directClientAttempt: false,
+    serverGates: {
+      packageEnabled: true,
+      roleAllowed: true,
+      ownerAdminApproved: true,
+    },
+    fetchImpl: globalThis.fetch,
+  });
+  if (autopilotRun.status === "blocked") {
+    res.status(409).json({
+      error: autopilotRun.blockedReasons.join(" ") || "Daily job finder autopilot is blocked.",
+      dailyJobFinderAutopilotRun: autopilotRun,
+      requestId: res.locals.requestId,
+    });
+    return;
+  }
+  const normalized = normalizeAgentOsTask(autopilotRun.queuedTaskPayload, {
+    id: makeId("AGENT-TASK"),
+    companyId,
+    actorUserId: req.auth.user.id,
+    now,
+  });
+  if (!normalized.ok) {
+    throw new ApiError(400, normalized.error || "Daily job finder autopilot task could not be queued.");
+  }
+  const task = normalized.task;
+  const queuedRun = createAgentOsRunForTask(task, {
+    id: makeId("AGENT-RUN"),
+    now,
+  });
+  const runningRun = transitionAgentOsRun(queuedRun, "running", {
+    message: "Daily job finder autopilot claimed the run.",
+    now,
+  });
+  const completedRun = {
+    ...transitionAgentOsRun(runningRun, "succeeded", {
+      message: "Daily job finder autopilot prepared review inbox. No external action or lead auto-save performed.",
+      now,
+    }),
+    output: {
+      mode: "agent_leads_daily_job_finder_autopilot_output_v19",
+      runHistoryRecord: autopilotRun.runHistoryRecord,
+      reviewInbox: autopilotRun.reviewInbox,
+      orchestration: autopilotRun.orchestration,
+    },
+  };
+  const completedTask = {
+    ...task,
+    status: "succeeded",
+    updatedAt: now,
+  };
+  const nextState = await updateDb((draft) => {
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: queuedRun.id,
+      action: "agent.os.provider.daily_job_finder.autopilot.queued",
+      summary: "Apex Agent daily job finder autopilot queued a review-only run",
+      task,
+      run: queuedRun,
+      status: "queued",
+      metadata: {
+        dailyJobFinderAutopilotRun: autopilotRun,
+        safeForCron: true,
+        externalActionsLocked: true,
+        leadAutoSaveEnabled: false,
+      },
+    });
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: completedRun.id,
+      action: "agent.os.provider.daily_job_finder.autopilot.succeeded",
+      summary: "Apex Agent daily job finder autopilot prepared review inbox and run history",
+      task: completedTask,
+      run: completedRun,
+      status: "succeeded",
+      metadata: {
+        dailyJobFinderAutopilotRun: autopilotRun,
+        dailyJobFinderOrchestrationExecution: autopilotRun.orchestration,
+        providerAttemptCount: autopilotRun.runHistoryRecord.providerAttemptCount,
+        providerResultCount: autopilotRun.runHistoryRecord.providerResultCount,
+        providerRejectedResultCount: autopilotRun.runHistoryRecord.providerRejectedResultCount,
+        providerReviewImportCount: autopilotRun.reviewInbox.count,
+        privateHandoffCardCount: autopilotRun.runHistoryRecord.privateChecklistRows,
+        safeForCron: true,
+        externalActionsLocked: true,
+        leadAutoSaveEnabled: false,
+      },
+    });
+    return draft;
+  });
+  const auditEvents = visibleAuditEventsForUser(nextState, req.auth.user);
+  res.status(201).json({
+    dailyJobFinderAutopilotRun: autopilotRun,
+    task: completedTask,
+    run: completedRun,
+    providerMonitoringSnapshot: buildAgentLeadsProviderMonitoringSnapshot({
+      settings,
+      auditEvents,
+      today: req.body?.today || now,
+      now,
+    }),
+    ledger: deriveAgentOsLedgerFromAuditEvents(auditEvents),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/provider/review-queue-decisions", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  const now = new Date().toISOString();
+  const normalized = normalizeAgentLeadsProviderReviewQueueDecision(req.body || {}, {
+    id: makeId("PROVIDER-REVIEW-DECISION"),
+    companyId: currentCompanyIdForRequestUser(state, req.auth.user),
+    actorUserId: req.auth.user.id,
+    now,
+  });
+  if (!normalized.ok) {
+    throw new ApiError(400, normalized.error);
+  }
+  const decision = normalized.decision;
+  const learning = normalizeAgentLeadsProviderReviewLearningSignal(decision, {
+    id: makeId("PROVIDER-REVIEW-LEARNING"),
+    companyId: decision.companyId,
+    actorUserId: decision.actorUserId,
+    now,
+  });
+  if (!learning.ok) {
+    throw new ApiError(400, learning.error);
+  }
+  const providerReviewLearningSignal = learning.signal;
+  const nextState = await updateDb((draft) => {
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: decision.id,
+      action: decision.auditEvent,
+      summary: `Provider review queue decision recorded: ${decision.decision.replace(/_/g, " ")}`,
+      status: "reviewed",
+      metadata: {
+        providerReviewQueueDecision: decision,
+        providerReviewLearningSignal,
+        providerResultId: decision.providerResultId,
+        providerAttemptId: decision.providerAttemptId,
+        providerReviewImportCount: 1,
+      },
+    });
+    return draft;
+  });
+  const visibleAuditEvents = visibleAuditEventsForUser(nextState, req.auth.user);
+  const providerReviewLearningSnapshot = deriveAgentLeadsProviderReviewLearningSnapshot(visibleAuditEvents, {
+    companyId: decision.companyId,
+    today: now,
+  });
+  const dailyReviewWorkflow = buildAgentLeadsDailyReviewWorkflowSnapshot({
+    learningSnapshot: providerReviewLearningSnapshot,
+    today: now,
+  });
+  res.status(201).json({
+    providerReviewQueueDecision: decision,
+    providerReviewLearningSignal,
+    providerReviewLearningSnapshot,
+    sourceQualitySnapshot: providerReviewLearningSnapshot.sourceQualitySnapshot,
+    dailyReviewWorkflow,
+    ledger: deriveAgentOsLedgerFromAuditEvents(visibleAuditEvents),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/provider/review-queue-draft-opportunity", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Provider review row drafting requires an owner or administrator.");
+  }
+  if (req.body?.autoSave === true || req.body?.saveLead === true || req.body?.contactCustomer === true || req.body?.sendMessage === true || req.body?.submitBid === true || req.body?.collectPayment === true || req.body?.integrationWrite === true || req.body?.scheduleWork === true) {
+    throw new ApiError(400, "Provider review row drafting cannot save leads, contact anyone, submit bids, collect payment, schedule work, or write integrations.");
+  }
+  if (["password", "rawPassword", "token", "accessToken", "refreshToken", "cookie", "cookies", "mfaCode", "apiKey", "secret", "session"].some((field) => String(req.body?.[field] || "").trim())) {
+    throw new ApiError(400, "Provider review row drafting cannot accept passwords, tokens, cookies, MFA codes, API keys, or session values.");
+  }
+  if (req.body?.acknowledgement !== true) {
+    throw new ApiError(400, "Provider review row drafting requires human review acknowledgement.");
+  }
+  const now = new Date().toISOString();
+  const companyId = currentCompanyIdForRequestUser(state, req.auth.user);
+  const companySettings = companySettingsForState(state, req.auth.user);
+  const auditEvents = visibleAuditEventsForUser(state, req.auth.user);
+  const dailyScoutExecutionPlan = buildAgentOsOpportunityScoutExecutionPlan({
+    opportunitySearchProfiles: visibleOpportunitySearchProfilesForUser(state, req.auth.user),
+    leadSources: visibleLeadSourcesForUser(state, req.auth.user),
+    foundOpportunities: visibleFoundOpportunitiesForUser(state, req.auth.user),
+    leads: visibleLeadsForUser(state, req.auth.user),
+    auditEvents,
+    companySettings,
+    today: req.body?.today || now,
+  });
+  const requestedProviderResultId = optionalString(req.body?.providerResultId || req.body?.reviewRowId || req.body?.id, "");
+  const reviewRows = [
+    ...(Array.isArray(dailyScoutExecutionPlan.publicDiscoveryQueue) ? dailyScoutExecutionPlan.publicDiscoveryQueue : []),
+    ...(Array.isArray(dailyScoutExecutionPlan.providerReviewImportQueue) ? dailyScoutExecutionPlan.providerReviewImportQueue : []),
+    ...agentLeadsProviderReviewRowsFromAuditEvents(auditEvents),
+  ];
+  const reviewRow = reviewRows.find((row) => [
+    row?.providerResultId,
+    row?.id,
+    row?.sourceCardId,
+    row?.draftPreview?.providerResultId,
+    row?.draftPreview?.id,
+  ].filter(Boolean).map(String).includes(requestedProviderResultId));
+  if (!reviewRow) {
+    throw new ApiError(404, "Provider review row was not found in the current company Agent Leads review queue.");
+  }
+  const draft = buildAgentLeadsFoundOpportunityDraftFromProviderReviewRow(reviewRow, {
+    companyId,
+    actorUserId: req.auth.user.id,
+    now,
+  });
+  if (!draft.ok) {
+    throw new ApiError(400, draft.error);
+  }
+  const payload = {
+    ...draft.draftPayload,
+    humanReviewStatus: "needs_review",
+  };
+  const errors = validateFoundOpportunityPayload(payload);
+  if (errors.length > 0) {
+    throw new ApiError(400, errors.join(" "));
+  }
+
+  let createdOpportunityId = "";
+  const nextState = await updateDb((dbDraft) => {
+    dbDraft.foundOpportunities ||= [];
+    const opportunity = normalizeFoundOpportunityPayload(payload, {
+      id: makeId("FO"),
+      changedAt: now,
+      createdBy: req.auth.user.id,
+    });
+    assignCompanyIdForCreate(opportunity, req.auth.user, dbDraft);
+    opportunity.duplicateHints = findDuplicateFoundOpportunities(opportunity, dbDraft.foundOpportunities);
+    dbDraft.foundOpportunities.unshift(opportunity);
+    createdOpportunityId = opportunity.id;
+    appendActivity(dbDraft, "Agent Leads draft saved", `${req.auth.user.name} saved ${opportunity.title} from Agent Leads review.`, { companyId: opportunity.companyId });
+    appendAuditEvent(dbDraft, {
+      entityType: "foundOpportunity",
+      entityId: opportunity.id,
+      action: "agent.prepared_found_opportunity.saved",
+      summary: "Human saved Agent Leads review row as found opportunity draft",
+      detail: redactAgentProposalAuditText([
+        opportunity.title,
+        `provider result ${draft.draftRecord.providerResultId}`,
+        "No lead, customer contact, source contact, bid submission, payment, schedule, or integration action was created by Agent.",
+      ].join(" | ")),
+      actor: req.auth.user,
+      changedFields: ["title", "status", "fitScore", "humanReviewStatus", "missingInfoItems", "duplicateHints", "agentPreparedDraft"],
+    });
+    appendAgentOsAuditEvent(dbDraft, req.auth.user, {
+      entityId: opportunity.id,
+      action: "agent.os.provider_review_queue.found_opportunity_drafted",
+      summary: "Agent Leads review row was saved as a Found Opportunity draft",
+      status: "draft_saved_for_review",
+      metadata: {
+        providerReviewFoundOpportunityDraft: {
+          ...draft.draftRecord,
+          foundOpportunityId: opportunity.id,
+          duplicateHintCount: opportunity.duplicateHints.length,
+        },
+        providerResultId: draft.draftRecord.providerResultId,
+        providerAttemptId: draft.draftRecord.providerAttemptId,
+        providerReviewImportCount: 1,
+        leadAutoSaveEnabled: false,
+        customerContactEnabled: false,
+        bidSubmissionEnabled: false,
+      },
+    });
+    return dbDraft;
+  });
+  const bootstrap = sanitizeBootstrap(nextState, req.auth.user);
+  res.status(201).json({
+    ...bootstrap,
+    providerReviewFoundOpportunityDraft: {
+      ...draft.draftRecord,
+      foundOpportunityId: createdOpportunityId,
+    },
+    createdOpportunityId,
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/provider/sandbox-test", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  const now = new Date().toISOString();
+  const settings = companySettingsForState(state, req.auth.user).apexAgentAutomationPolicy?.publicLeadProviderSettings || {};
+  const sandboxRun = buildAgentLeadsProviderSandboxRun({
+    settings,
+    request: req.body || {},
+    day: req.body?.today || now,
+    now,
+  });
+  const nextState = await updateDb((draft) => {
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: sandboxRun.providerAttempt?.attemptId || `provider-sandbox-${Date.now()}`,
+      action: "agent.os.provider.sandbox_test.prepared",
+      summary: "Apex Agent provider sandbox test prepared",
+      status: sandboxRun.status,
+      metadata: {
+        providerSandboxRun: sandboxRun,
+        providerAttemptCount: sandboxRun.providerAttempt ? 1 : 0,
+        providerResultCount: sandboxRun.results.length,
+        providerRejectedResultCount: sandboxRun.rejectedResults.length,
+      },
+    });
+    return draft;
+  });
+  res.status(201).json({
+    providerSandboxRun: sandboxRun,
+    ledger: deriveAgentOsLedgerFromAuditEvents(visibleAuditEventsForUser(nextState, req.auth.user)),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/provider/smoke-evidence", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Smoke evidence review intake requires an owner or administrator.");
+  }
+  const now = new Date().toISOString();
+  const companyId = currentCompanyIdForRequestUser(state, req.auth.user);
+  const companySettings = companySettingsForState(state, req.auth.user);
+  const auditEvents = visibleAuditEventsForUser(state, req.auth.user);
+  const today = req.body?.today || now;
+  const dailyScoutExecutionPlan = buildAgentOsOpportunityScoutExecutionPlan({
+    opportunitySearchProfiles: visibleOpportunitySearchProfilesForUser(state, req.auth.user),
+    leadSources: visibleLeadSourcesForUser(state, req.auth.user),
+    foundOpportunities: visibleFoundOpportunitiesForUser(state, req.auth.user),
+    leads: visibleLeadsForUser(state, req.auth.user),
+    auditEvents,
+    companySettings,
+    today,
+  });
+  const smokeEvidenceRecorder = buildAgentLeadsSmokeEvidenceRecorder({
+    controlledHostedDemoSmokePacket: dailyScoutExecutionPlan.controlledHostedDemoSmokePacket,
+    evidencePayload: req.body?.evidence || req.body || {},
+    companySettings: { ...companySettings, companyId },
+    actorUserId: req.auth.user.id,
+    today,
+    now,
+  });
+  if (!smokeEvidenceRecorder.validation?.ok || !smokeEvidenceRecorder.auditEventDraft) {
+    throw new ApiError(400, "Smoke evidence was rejected by the Agent Leads safety validator.", {
+      smokeEvidenceRecorder,
+      errors: smokeEvidenceRecorder.validation?.errors || [],
+    });
+  }
+  const smokeEvidenceReviewIntake = {
+    mode: "agent_leads_smoke_evidence_review_intake_v31",
+    status: "audit_record_prepared",
+    companyId,
+    actorUserId: req.auth.user.id,
+    today: dailyScoutExecutionPlan.today,
+    evidenceDraftId: smokeEvidenceRecorder.evidenceDraft.id,
+    selectedSourceConfigId: smokeEvidenceRecorder.validation.sanitizedPayload.sourceConfigId,
+    selectedSourceUrl: smokeEvidenceRecorder.validation.sanitizedPayload.sourceUrl,
+    resultStatus: smokeEvidenceRecorder.validation.sanitizedPayload.status,
+    externalActionsLocked: true,
+    canRunSmoke: false,
+    canWriteServerAutomatically: false,
+    customerContactEnabled: false,
+    leadAutoSaveEnabled: false,
+    bidSubmissionEnabled: false,
+    paymentCollectionEnabled: false,
+    schedulingMutationEnabled: false,
+    integrationWritesEnabled: false,
+    productionDataTouchEnabled: false,
+    safetyBoundary: "Human-approved smoke evidence review intake records a redacted audit event only. It cannot run smoke, open browsers, fetch providers, log in, contact anyone, save leads, submit bids, collect payments, schedule work, deploy, touch production data, store credentials, or write integrations.",
+  };
+  const nextState = await updateDb((draft) => {
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: smokeEvidenceRecorder.evidenceDraft.id,
+      action: "agent.os.leads.hosted_demo_smoke.evidence_recorded",
+      summary: `Agent Leads hosted/demo smoke evidence reviewed: ${smokeEvidenceReviewIntake.resultStatus}`,
+      status: "reviewed",
+      metadata: {
+        smokeEvidenceReviewIntake,
+        smokeEvidenceRecorder,
+        smokeEvidence: smokeEvidenceRecorder.validation.sanitizedEvidence || smokeEvidenceRecorder.validation.sanitizedPayload,
+        selectedSourceConfigId: smokeEvidenceReviewIntake.selectedSourceConfigId,
+        selectedSourceUrl: smokeEvidenceReviewIntake.selectedSourceUrl,
+        externalActionsLocked: true,
+        serverWriteEnabled: true,
+        serverWriteScope: "redacted Agent OS audit event only",
+        liveProviderCallsEnabled: false,
+        rawCredentialStorageEnabled: false,
+        customerContactEnabled: false,
+        leadAutoSaveEnabled: false,
+        bidSubmissionEnabled: false,
+        paymentCollectionEnabled: false,
+        schedulingMutationEnabled: false,
+        integrationWritesEnabled: false,
+        productionDataTouchEnabled: false,
+      },
+    });
+    return draft;
+  });
+  const visibleAuditEvents = visibleAuditEventsForUser(nextState, req.auth.user);
+  res.status(201).json({
+    smokeEvidenceReviewIntake,
+    smokeEvidenceRecorder,
+    dailyScoutExecutionPlan: {
+      mode: dailyScoutExecutionPlan.mode,
+      today: dailyScoutExecutionPlan.today,
+      controlledHostedDemoSmokePacket: dailyScoutExecutionPlan.controlledHostedDemoSmokePacket,
+      stats: dailyScoutExecutionPlan.stats,
+      guardrails: dailyScoutExecutionPlan.guardrails,
+    },
+    ledger: deriveAgentOsLedgerFromAuditEvents(visibleAuditEvents),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/provider/import-decisions", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  const now = new Date().toISOString();
+  const normalized = normalizeAgentLeadsProviderImportDecision(req.body || {}, {
+    id: makeId("PROVIDER-IMPORT-DECISION"),
+    companyId: currentCompanyIdForRequestUser(state, req.auth.user),
+    actorUserId: req.auth.user.id,
+    now,
+  });
+  if (!normalized.ok) {
+    throw new ApiError(400, normalized.error);
+  }
+  const decision = normalized.decision;
+  const nextState = await updateDb((draft) => {
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: decision.id,
+      action: decision.auditEvent,
+      summary: `Provider result marked ${decision.decision.replace(/_/g, " ")}`,
+      status: "reviewed",
+      metadata: {
+        providerImportDecision: decision,
+        providerResultId: decision.providerResultId,
+        providerAttemptId: decision.providerAttemptId,
+        providerReviewImportCount: 1,
+      },
+    });
+    return draft;
+  });
+  res.status(201).json({
+    providerImportDecision: decision,
+    ledger: deriveAgentOsLedgerFromAuditEvents(visibleAuditEventsForUser(nextState, req.auth.user)),
     requestId: res.locals.requestId,
   });
 }));
@@ -7716,6 +9968,213 @@ app.post("/api/agent/os/tasks", requireAuth, asyncRoute(async (req, res) => {
     task,
     run,
     ledger: deriveAgentOsLedgerFromAuditEvents(visibleAuditEventsForUser(nextState, req.auth.user)),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/opportunity-search-prep/daily", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  const now = new Date().toISOString();
+  const companyId = currentCompanyIdForRequestUser(state, req.auth.user);
+  const queuePlan = deriveAgentOsOpportunitySearchPrepQueue({
+    opportunitySearchProfiles: visibleOpportunitySearchProfilesForUser(state, req.auth.user),
+    existingTasks: agentOsTasksFromAuditEvents(state, req.auth.user),
+    companyId,
+    today: req.body?.today || now,
+  });
+  const dailyScoutExecutionPlan = buildAgentOsOpportunityScoutExecutionPlan({
+    opportunitySearchProfiles: visibleOpportunitySearchProfilesForUser(state, req.auth.user),
+    leadSources: visibleLeadSourcesForUser(state, req.auth.user),
+    foundOpportunities: visibleFoundOpportunitiesForUser(state, req.auth.user),
+    leads: visibleLeadsForUser(state, req.auth.user),
+    companySettings: companySettingsForState(state, req.auth.user),
+    today: queuePlan.today,
+  });
+  const queuedRecords = [];
+
+  const nextState = await updateDb((draft) => {
+    queuePlan.queued.forEach((entry) => {
+      const normalized = normalizeAgentOsTask(entry.payload, {
+        id: makeId("AGENT-TASK"),
+        companyId,
+        actorUserId: req.auth.user.id,
+        now,
+      });
+      if (!normalized.ok) return;
+      const task = normalized.task;
+      const run = createAgentOsRunForTask(task, {
+        id: makeId("AGENT-RUN"),
+        now,
+      });
+      appendAgentOsAuditEvent(draft, req.auth.user, {
+        entityId: run.id,
+        action: "agent.os.opportunity_search_prep.daily.queued",
+        summary: `${task.actionLabel} queued for daily Opportunity Scout review`,
+        task,
+        run,
+        status: "queued",
+        metadata: {
+          schedulerHook: queuePlan.schedulerHook,
+          reviewCardCount: dailyScoutExecutionPlan.stats.cards,
+          publicRunnerCardCount: dailyScoutExecutionPlan.stats.publicRunnerCards,
+          publicDiscoveryCardCount: dailyScoutExecutionPlan.stats.publicDiscoveryCards,
+          privateHandoffCardCount: dailyScoutExecutionPlan.stats.privateHandoffCards,
+          foundDraftCardCount: dailyScoutExecutionPlan.stats.foundDraftCards,
+          reviewedOutcomeSignalCount: dailyScoutExecutionPlan.stats.reviewedOutcomeSignals,
+          providerAttemptCount: dailyScoutExecutionPlan.stats.providerAttempts,
+          providerResultCount: dailyScoutExecutionPlan.stats.providerResults,
+          providerRejectedResultCount: dailyScoutExecutionPlan.stats.providerRejectedResults,
+          providerReviewImportCount: dailyScoutExecutionPlan.stats.providerReviewImports,
+          providerErrorCount: dailyScoutExecutionPlan.stats.providerErrors,
+          dailyRunRecord: dailyScoutExecutionPlan.dailyRunRecord,
+          publicProviderBoundary: dailyScoutExecutionPlan.publicProviderBoundary,
+        },
+      });
+      queuedRecords.push({
+        profileId: entry.profileId,
+        name: entry.name,
+        task,
+        run,
+      });
+    });
+    return draft;
+  });
+  const auditEvents = visibleAuditEventsForUser(nextState, req.auth.user);
+  res.status(queuePlan.queuedCount ? 201 : 200).json({
+    dailyOpportunitySearchPrep: {
+      ...queuePlan,
+      queued: queuedRecords.map((record) => ({
+        profileId: record.profileId,
+        name: record.name,
+        taskId: record.task.id,
+        runId: record.run.id,
+        actionId: record.task.actionId,
+      })),
+    },
+    dailyScoutExecutionPlan,
+    ledger: deriveAgentOsLedgerFromAuditEvents(auditEvents),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/opportunity-search-prep/autonomous-daily", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  const now = new Date().toISOString();
+  const companyId = currentCompanyIdForRequestUser(state, req.auth.user);
+  const companySettings = companySettingsForState(state, req.auth.user);
+  const profiles = visibleOpportunitySearchProfilesForUser(state, req.auth.user);
+  const existingTasks = agentOsTasksFromAuditEvents(state, req.auth.user);
+  const schedule = buildAgentLeadsAutonomousDailyScoutSchedule({
+    opportunitySearchProfiles: profiles,
+    existingTasks,
+    companyId,
+    settings: companySettings.apexAgentAutomationPolicy?.publicLeadProviderSettings || {},
+    auditEvents: visibleAuditEventsForUser(state, req.auth.user),
+    today: req.body?.today || now,
+    now,
+  });
+  const dailyScoutExecutionPlan = buildAgentOsOpportunityScoutExecutionPlan({
+    opportunitySearchProfiles: profiles,
+    leadSources: visibleLeadSourcesForUser(state, req.auth.user),
+    foundOpportunities: visibleFoundOpportunitiesForUser(state, req.auth.user),
+    leads: visibleLeadsForUser(state, req.auth.user),
+    companySettings,
+    today: schedule.today,
+  });
+  const adapterRunner = buildAgentLeadsProviderAdapterRunner({
+    settings: companySettings.apexAgentAutomationPolicy?.publicLeadProviderSettings || {},
+    runnerCards: dailyScoutExecutionPlan.publicRunnerCards,
+    auditEvents: visibleAuditEventsForUser(state, req.auth.user),
+    companyId,
+    actorUserId: req.auth.user.id,
+    today: schedule.today,
+    now,
+    executeLive: false,
+    serverGates: { packageEnabled: true, roleAllowed: true },
+  });
+  const queuedRecords = [];
+  const nextState = await updateDb((draft) => {
+    schedule.queuePlan.queued.forEach((entry) => {
+      const normalized = normalizeAgentOsTask(entry.payload, {
+        id: makeId("AGENT-TASK"),
+        companyId,
+        actorUserId: req.auth.user.id,
+        now,
+      });
+      if (!normalized.ok) return;
+      const task = normalized.task;
+      const run = createAgentOsRunForTask(task, {
+        id: makeId("AGENT-RUN"),
+        now,
+      });
+      appendAgentOsAuditEvent(draft, req.auth.user, {
+        entityId: run.id,
+        action: "agent.os.opportunity_search_prep.autonomous_daily.queued",
+        summary: `${task.actionLabel} queued by autonomous daily Agent Leads scheduler`,
+        task,
+        run,
+        status: "queued",
+        metadata: {
+          schedulerHook: schedule.schedulerHook,
+          autonomousSchedule: schedule,
+          reviewCardCount: dailyScoutExecutionPlan.stats.cards,
+          publicRunnerCardCount: dailyScoutExecutionPlan.stats.publicRunnerCards,
+          publicDiscoveryCardCount: dailyScoutExecutionPlan.stats.publicDiscoveryCards,
+          privateHandoffCardCount: dailyScoutExecutionPlan.stats.privateHandoffCards,
+          foundDraftCardCount: dailyScoutExecutionPlan.stats.foundDraftCards,
+          providerAttemptCount: adapterRunner.adapterInvocations.length,
+          providerResultCount: adapterRunner.results.length,
+          providerRejectedResultCount: adapterRunner.rejectedResults.length,
+          providerReviewImportCount: adapterRunner.resultDraftPreviews.length,
+          dailyRunRecord: dailyScoutExecutionPlan.dailyRunRecord,
+          publicProviderBoundary: dailyScoutExecutionPlan.publicProviderBoundary,
+        },
+      });
+      queuedRecords.push({
+        profileId: entry.profileId,
+        name: entry.name,
+        task,
+        run,
+      });
+    });
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: `agent-leads-autonomous-daily-${companyId}-${schedule.today}`,
+      action: "agent.os.provider.adapter_runner.autonomous_daily.prepared",
+      summary: "Apex Agent autonomous daily provider adapter runner prepared review cards",
+      status: adapterRunner.status,
+      metadata: {
+        autonomousSchedule: schedule,
+        providerAdapterRunner: adapterRunner,
+        providerAttemptCount: adapterRunner.adapterInvocations.length,
+        providerResultCount: adapterRunner.results.length,
+        providerRejectedResultCount: adapterRunner.rejectedResults.length,
+        providerReviewImportCount: adapterRunner.resultDraftPreviews.length,
+      },
+    });
+    return draft;
+  });
+  const auditEvents = visibleAuditEventsForUser(nextState, req.auth.user);
+  res.status(schedule.queuePlan.queuedCount ? 201 : 200).json({
+    autonomousDailyScout: {
+      ...schedule,
+      queuePlan: {
+        ...schedule.queuePlan,
+        queued: queuedRecords.map((record) => ({
+          profileId: record.profileId,
+          name: record.name,
+          taskId: record.task.id,
+          runId: record.run.id,
+          actionId: record.task.actionId,
+        })),
+      },
+    },
+    dailyScoutExecutionPlan,
+    providerAdapterRunner: adapterRunner,
+    ledger: deriveAgentOsLedgerFromAuditEvents(auditEvents),
     requestId: res.locals.requestId,
   });
 }));
@@ -7851,6 +10310,7 @@ app.post("/api/agent/os/runs/:id/execute", requireAuth, asyncRoute(async (req, r
     status: "succeeded",
     updatedAt: now,
   };
+  const executionPlanStats = packet.output?.executionPlan?.stats || {};
 
   const nextState = await updateDb((draft) => {
     appendAgentOsAuditEvent(draft, req.auth.user, {
@@ -7875,6 +10335,13 @@ app.post("/api/agent/os/runs/:id/execute", requireAuth, asyncRoute(async (req, r
       task: completedTask,
       run: completedRun,
       status: "succeeded",
+      metadata: {
+        schedulerHook: packet.output?.executionPlan?.schedulerHook,
+        reviewCardCount: Number(executionPlanStats.cards || 0),
+        publicRunnerCardCount: Number(executionPlanStats.publicRunnerCards || 0),
+        privateHandoffCardCount: Number(executionPlanStats.privateHandoffCards || 0),
+        foundDraftCardCount: Number(executionPlanStats.foundDraftCards || 0),
+      },
     });
     return draft;
   });
@@ -8672,6 +11139,30 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
         externalGateSettings: {
           ...(draft.companySettings.apexAgentAutomationPolicy?.externalGateSettings || {}),
           ...(payload.apexAgentAutomationPolicy?.externalGateSettings || {}),
+        },
+        publicLeadProviderSettings: {
+          ...(draft.companySettings.apexAgentAutomationPolicy?.publicLeadProviderSettings || {}),
+          ...(payload.apexAgentAutomationPolicy?.publicLeadProviderSettings || {}),
+          geographyControls: {
+            ...(draft.companySettings.apexAgentAutomationPolicy?.publicLeadProviderSettings?.geographyControls || {}),
+            ...(payload.apexAgentAutomationPolicy?.publicLeadProviderSettings?.geographyControls || {}),
+          },
+          tradeScope: {
+            ...(draft.companySettings.apexAgentAutomationPolicy?.publicLeadProviderSettings?.tradeScope || {}),
+            ...(payload.apexAgentAutomationPolicy?.publicLeadProviderSettings?.tradeScope || {}),
+          },
+          reviewRules: {
+            ...(draft.companySettings.apexAgentAutomationPolicy?.publicLeadProviderSettings?.reviewRules || {}),
+            ...(payload.apexAgentAutomationPolicy?.publicLeadProviderSettings?.reviewRules || {}),
+          },
+          credentialBoundary: {
+            ...(draft.companySettings.apexAgentAutomationPolicy?.publicLeadProviderSettings?.credentialBoundary || {}),
+            ...(payload.apexAgentAutomationPolicy?.publicLeadProviderSettings?.credentialBoundary || {}),
+          },
+          dailyJobFinderAutopilot: {
+            ...(draft.companySettings.apexAgentAutomationPolicy?.publicLeadProviderSettings?.dailyJobFinderAutopilot || {}),
+            ...(payload.apexAgentAutomationPolicy?.publicLeadProviderSettings?.dailyJobFinderAutopilot || {}),
+          },
         },
         updatedAt: changedAt,
       })
@@ -11170,7 +13661,7 @@ app.post("/api/opportunity-scout/search-profiles", requireAuth, asyncRoute(async
       summary: "Opportunity search profile added",
       detail: profile.name,
       actor: req.auth.user,
-      changedFields: ["name", "trades", "serviceAreas", "sourceTypes", "sourceAdapterId", "sourceAccessStatus", "sourceTermsStatus", "cadence", "status"],
+      changedFields: ["name", "trades", "serviceAreas", "radiusMiles", "sourceTypes", "projectTypes", "preferredSources", "minimumProjectValue", "sourceAdapterId", "sourcePosture", "sourceAccessStatus", "sourceTermsStatus", "cadence", "status"],
     });
     return draft;
   });
@@ -11212,7 +13703,7 @@ app.patch("/api/opportunity-scout/search-profiles/:id", requireAuth, asyncRoute(
       summary: "Opportunity search profile updated",
       detail: profile.name,
       actor: req.auth.user,
-      changedFields: changedOpportunityFields(previous, profile, ["name", "trades", "serviceAreas", "radiusMiles", "sourceTypes", "sourceAdapterId", "sourceAccessStatus", "sourceTermsStatus", "sourcePolicyNote", "keywords", "excludedKeywords", "cadence", "status", "notes", "lastRunAt", "nextRunAt"]),
+      changedFields: changedOpportunityFields(previous, profile, ["name", "trades", "serviceAreas", "radiusMiles", "sourceTypes", "projectTypes", "preferredSources", "minimumProjectValue", "sourceAdapterId", "sourcePosture", "sourceAccessStatus", "sourceTermsStatus", "sourcePolicyNote", "sourceAuthorizationStatus", "sourceAuthorizedBy", "sourceAuthorizedAt", "sourceAuthorizationNote", "sourceBlockedReason", "keywords", "excludedKeywords", "cadence", "status", "notes", "lastRunAt", "nextRunAt"]),
     });
     return draft;
   });
@@ -11273,6 +13764,7 @@ app.post("/api/opportunity-scout/found-opportunities", requireAuth, asyncRoute(a
   const nextState = await updateDb((draft) => {
     draft.foundOpportunities ||= [];
     const payload = { ...(req.body || {}) };
+    const agentPreparedDraft = payload.agentPreparedDraft === true || Boolean(optionalString(payload.agentPreparedCardId, ""));
     if (Object.hasOwn(payload, "humanReviewStatus") && !["", "needs_review", "needs_info"].includes(payload.humanReviewStatus || "")) {
       throw new ApiError(400, "Save Opportunity cannot approve, reject, or convert review status. Use Approve For Lead as a separate office action after saving.");
     }
@@ -11293,15 +13785,22 @@ app.post("/api/opportunity-scout/found-opportunities", requireAuth, asyncRoute(a
     validateOpportunityScoutLinks(draft, opportunity, req.auth.user);
     opportunity.duplicateHints = findDuplicateFoundOpportunities(opportunity, draft.foundOpportunities);
     draft.foundOpportunities.unshift(opportunity);
-    appendActivity(draft, "Opportunity found", `${req.auth.user.name} added ${opportunity.title}.`, { companyId: opportunity.companyId });
+    appendActivity(draft, agentPreparedDraft ? "Agent-prepared opportunity saved" : "Opportunity found", `${req.auth.user.name} added ${opportunity.title}.`, { companyId: opportunity.companyId });
     appendAuditEvent(draft, {
       entityType: "foundOpportunity",
       entityId: opportunity.id,
-      action: "created",
-      summary: "Opportunity found",
-      detail: opportunity.title,
+      action: agentPreparedDraft ? "agent.prepared_found_opportunity.saved" : "created",
+      summary: agentPreparedDraft ? "Human saved Agent-prepared found opportunity draft" : "Opportunity found",
+      detail: agentPreparedDraft
+        ? redactAgentProposalAuditText([
+            opportunity.title,
+            payload.agentPreparedSourceName ? `source ${payload.agentPreparedSourceName}` : "",
+            payload.agentPreparedCardType ? `card ${payload.agentPreparedCardType}` : "",
+            "No lead, customer contact, source contact, bid submission, payment, schedule, or integration action was created by Agent.",
+          ].filter(Boolean).join(" | "))
+        : opportunity.title,
       actor: req.auth.user,
-      changedFields: ["title", "status", "fitScore", "bidDueAt", "assignedEstimatorId", "humanReviewStatus", "missingInfoItems", "duplicateHints"],
+      changedFields: ["title", "status", "fitScore", "bidDueAt", "assignedEstimatorId", "humanReviewStatus", "missingInfoItems", "duplicateHints", ...(agentPreparedDraft ? ["agentPreparedDraft"] : [])],
     });
     return draft;
   });

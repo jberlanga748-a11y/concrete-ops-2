@@ -27,6 +27,16 @@ import {
   deriveApexAssistantShellState,
 } from "./apex-assistant-shell-utils";
 import { buildAgentActionProposalReviewAuditPayload, deriveAgentActionInbox, deriveAgentActionProposalAuditHistory, deriveAgentActionProposalQueue, deriveAgentActionProposalReviewState } from "./agent-action-proposal-utils";
+import {
+  canRenderAgentOsConsole,
+  deriveAgentOsActionFilterGroups,
+  deriveAgentOsInternalTaskOptions,
+  deriveAgentOsLearningReviewRows,
+  deriveAgentOsOperatorConsoleCards,
+  deriveAgentOsProductionEvidenceRows,
+  deriveAgentOsRunDetail,
+  filterAgentOsTaskOptions,
+} from "./agent-os-ui-utils";
 import { agentContextPayloadToWorkflowContext } from "./agent-context-api-utils";
 import { buildAgentEmailGateSettingsPatch, deriveAgentEmailGateSettingsState } from "./agent-external-gate-settings-utils";
 import { deriveAgentWorkflowContext } from "./agent-workflow-context-utils";
@@ -104,6 +114,19 @@ import {
   endBreak,
   exportCompanyData,
   executeAgentEstimateSend,
+  executeAgentOperatingSystemRun,
+  getAgentOperatingSystem,
+  getAgentLeadProviderHealth,
+  getAgentLeadProviderLiveReadiness,
+  getAgentLeadProviderCompliancePacket,
+  getAgentLeadOfficialProviderApiAdapters,
+  getAgentLeadAllSourceAdapterCoverage,
+  getAgentLeadProcurementFeedAdapter,
+  getAgentLeadLocalCompletionReadiness,
+  getAgentLeadProductionReadiness,
+  recordAgentLeadProductionReadinessEvidence,
+  getAgentLeadProviderLiveApproval,
+  getAgentLeadProviderMonitoringSnapshot,
   getBootstrap,
   getAgentContext,
   getHealth,
@@ -114,6 +137,28 @@ import {
   planOpportunitySearchWithAi,
   previewOpportunityScoutAgent,
   prepareAgentEstimateSend,
+  queueAgentOperatingSystemTask,
+  getAgentLeadPrivateSourceChecklist,
+  queueAutonomousDailyOpportunitySearchPrep,
+  queueDailyOpportunitySearchPrep,
+  recordAgentLeadPlatformProviderBoundary,
+  recordAgentLeadProviderConnectionMetadata,
+  recordAgentLeadProviderCredentialHandoff,
+  recordAgentLeadProviderDailySchedule,
+  recordAgentLeadProviderSourceConsent,
+  recordAgentLeadProcurementFeedAdapterConfig,
+  runAgentLeadOfficialProviderApiAdapterHarness,
+  runAgentLeadLiveProcurementPublicAdapter,
+  runAgentLeadDailyLiveProcurementPublicAdapter,
+  runAgentLeadDailyJobFinderOrchestration,
+  runAgentLeadDailyJobFinderAutopilot,
+  runAgentLeadProcurementFeedAdapter,
+  recordAgentLeadPrivateEvidenceIntake,
+  recordAgentLeadPrivateSourceAuthorization,
+  recordAgentLeadProviderImportDecision,
+  recordAgentLeadProviderLiveApprovalDecision,
+  recordAgentLeadProviderReviewQueueDecision,
+  draftAgentLeadProviderReviewOpportunity,
   recordAgentActionProposalAudit,
   resetWorkspace,
   requestPasswordReset,
@@ -128,6 +173,10 @@ import {
   reviewSafetyIncident,
   reviewPostPourChecklist,
   reviewPrePourChecklist,
+  runAgentLeadProviderSandboxTest,
+  runAgentLeadProviderAdapterRunner,
+  runAgentLeadProviderLivePublicExecution,
+  runAgentLeadPublicSourceProviderAdapters,
   restoreContactHistory,
   restoreCustomer,
   restoreJob,
@@ -168,6 +217,7 @@ import {
   updateSafetyPolicy,
   updateCompanySettings,
   updateAgentLearningPreference,
+  updateAgentOperatingSystemRunStatus,
   updateToolChecklist,
   updateToolChecklistItem,
   updateUpload,
@@ -222,14 +272,14 @@ import { deriveLeadInboxState, deriveLeadListState, relatedLeadActivity } from "
 import { FollowUpQueuePanel } from "./follow-up-queue-panel-components";
 import { ESTIMATOR_MOBILE_NAV_ROUTES, getEstimatorMobileNavItems, getOwnerAdminMobileNavItems } from "./mobile-nav-utils";
 import { isOwnerAdminMobileCommandUser } from "./owner-admin-mobile-command-utils";
-import { applyOpportunityScoutAgentPreviewToDraft, applyOpportunityScoutSourceCheckToDraft, buildOpportunityScoutSourceBrief, deriveOpportunityScoutState } from "./opportunity-scout-utils";
+import { applyOpportunityScoutAgentPreviewToDraft, applyOpportunityScoutSourceCheckToDraft, buildFoundOpportunityDraftFromScoutExecutionCard, buildFoundOpportunityEvidenceIntakeFromScoutCard, buildOpportunityScoutConnectorSetupDraft, buildOpportunityScoutConnectorSetupDraftFromCoverageRecommendation, buildOpportunityScoutConnectorSetupPayload, buildOpportunityScoutSourceBrief, deriveFoundOpportunityDraftDuplicateWarnings, deriveOpportunityScoutState } from "./opportunity-scout-utils";
 import { deriveAppHealthAuditState } from "./owner-health-utils";
 import { canRequestPackageReview } from "../shared/permissions.js";
 import { BrandIntroScreen, LoadingScreen, ModuleLoadingFallback, SplashScreen, StartupFallbackScreen } from "./startup-screen-components";
 import { DEMO_LOGIN_PRESETS } from "./demo-login-presets";
 import { LEAD_SCORE_LABELS } from "../shared/leadScoring.js";
 import { calculateNextLeadSourceCheckDate, createLeadSourceDraft, createLeadSourceDraftFromStarter, deriveDailySourceCheckState, deriveLeadSourceListState, leadSourceLocation, LEAD_SOURCE_CADENCE_OPTIONS, LEAD_SOURCE_STARTERS, LEAD_SOURCE_TYPE_OPTIONS, validateLeadSourcePayload } from "../shared/leadSources.js";
-import { OPPORTUNITY_INTAKE_SOURCE_TYPES, OPPORTUNITY_SCOUT_SOURCE_ADAPTERS, OPPORTUNITY_SCOUT_SOURCE_CHECK_RESULTS, OPPORTUNITY_SEARCH_PROFILE_STARTERS, OPPORTUNITY_SOURCE_ACCESS_STATUSES, OPPORTUNITY_SOURCE_TERMS_STATUSES, buildOpportunityScoutSourceCheckNote } from "../shared/opportunityScout.js";
+import { OPPORTUNITY_INTAKE_SOURCE_TYPES, OPPORTUNITY_SCOUT_CONNECTOR_PRESETS, OPPORTUNITY_SCOUT_SOURCE_ADAPTERS, OPPORTUNITY_SCOUT_SOURCE_CHECK_RESULTS, OPPORTUNITY_SEARCH_PROFILE_STARTERS, OPPORTUNITY_SOURCE_ACCESS_STATUSES, OPPORTUNITY_SOURCE_AUTHORIZATION_STATUSES, OPPORTUNITY_SOURCE_POSTURES, OPPORTUNITY_SOURCE_TERMS_STATUSES, buildOpportunityScoutSourceCheckNote } from "../shared/opportunityScout.js";
 import { CONSTRUCTION_TRADE_PROFILES } from "../shared/constructionTrades.js";
 import { buildManagedSetupSupportContext, deriveFirstOwnerOnboardingState, deriveManagedCompanySetupState } from "../shared/managedCompanySetup.js";
 import { packageReadinessSummary } from "../shared/packages.js";
@@ -375,10 +425,19 @@ const INITIAL_OPPORTUNITY_SEARCH_PROFILE_FORM = {
   serviceAreas: "",
   radiusMiles: "40",
   sourceTypes: "",
+  projectTypes: "",
+  preferredSources: "",
+  minimumProjectValue: "",
   sourceAdapterId: "",
+  sourcePosture: "",
   sourceAccessStatus: "",
   sourceTermsStatus: "",
   sourcePolicyNote: "",
+  sourceAuthorizationStatus: "not_required",
+  sourceAuthorizedBy: "",
+  sourceAuthorizedAt: "",
+  sourceAuthorizationNote: "",
+  sourceBlockedReason: "",
   keywords: "",
   excludedKeywords: "",
   cadence: "daily",
@@ -408,6 +467,13 @@ const INITIAL_FOUND_OPPORTUNITY_FORM = {
   reasonToBid: "",
   riskFlags: "",
   missingInfoItems: "",
+  humanReviewStatus: "needs_review",
+  humanReviewNote: "",
+  notes: "",
+  agentPreparedDraft: false,
+  agentPreparedCardId: "",
+  agentPreparedCardType: "",
+  agentPreparedSourceName: "",
 };
 
 const INITIAL_AGENT_LEARNING_FORM = {
@@ -1702,6 +1768,7 @@ function CopilotPagePolished({
   onOpenSafetyIncidentReview,
   onSelectImportedDraft,
   onSelectReport,
+  onCreateLeadSource,
   onCreateOpportunitySearchProfile,
   onUpdateOpportunitySearchProfile,
   onMarkLeadSourceChecked,
@@ -1711,6 +1778,47 @@ function CopilotPagePolished({
   onUpdateFoundOpportunity,
   onConvertFoundOpportunityToLead,
   onReviewFoundOpportunityWithAi,
+  onQueueDailyOpportunitySearchPrep,
+  onQueueAutonomousDailyOpportunitySearchPrep,
+  onGetAgentOperatingSystem,
+  onQueueAgentOperatingSystemTask,
+  onUpdateAgentOperatingSystemRunStatus,
+  onExecuteAgentOperatingSystemRun,
+  onUpdateCompanySettings,
+  onGetAgentLeadProviderHealth,
+  onGetAgentLeadProviderLiveReadiness,
+  onGetAgentLeadProviderCompliancePacket,
+  onGetAgentLeadOfficialProviderApiAdapters,
+  onGetAgentLeadAllSourceAdapterCoverage,
+  onGetAgentLeadProcurementFeedAdapter,
+  onGetAgentLeadLocalCompletionReadiness,
+  onGetAgentLeadProductionReadiness,
+  onRecordAgentLeadProductionReadinessEvidence,
+  onGetAgentLeadProviderLiveApproval,
+  onGetAgentLeadProviderMonitoringSnapshot,
+  onRunAgentLeadProviderAdapterRunner,
+  onRunAgentLeadProviderLivePublicExecution,
+  onRunAgentLeadPublicSourceProviderAdapters,
+  onRunAgentLeadProviderSandboxTest,
+  onRecordAgentLeadPlatformProviderBoundary,
+  onRecordAgentLeadProviderConnectionMetadata,
+  onRecordAgentLeadProviderCredentialHandoff,
+  onRecordAgentLeadProviderDailySchedule,
+  onRecordAgentLeadProviderSourceConsent,
+  onRunAgentLeadOfficialProviderApiAdapterHarness,
+  onRunAgentLeadLiveProcurementPublicAdapter,
+  onRunAgentLeadDailyLiveProcurementPublicAdapter,
+  onRunAgentLeadDailyJobFinderOrchestration,
+  onRunAgentLeadDailyJobFinderAutopilot,
+  onRecordAgentLeadProcurementFeedAdapterConfig,
+  onRunAgentLeadProcurementFeedAdapter,
+  onRecordAgentLeadPrivateSourceAuthorization,
+  onRecordAgentLeadPrivateEvidenceIntake,
+  onGetAgentLeadPrivateSourceChecklist,
+  onRecordAgentLeadProviderImportDecision,
+  onRecordAgentLeadProviderLiveApprovalDecision,
+  onRecordAgentLeadProviderReviewQueueDecision,
+  onDraftAgentLeadProviderReviewOpportunity,
   onCreateAgentLearningPreference,
   onSuggestAgentLearningFromEstimates,
   onSuggestAgentLearningFromCloseouts,
@@ -1726,10 +1834,17 @@ function CopilotPagePolished({
   const today = new Date().toISOString().slice(0, 10);
   const [profileDraft, setProfileDraft] = useState(INITIAL_OPPORTUNITY_SEARCH_PROFILE_FORM);
   const [foundDraft, setFoundDraft] = useState(INITIAL_FOUND_OPPORTUNITY_FORM);
+  const [connectorDraft, setConnectorDraft] = useState(() => buildOpportunityScoutConnectorSetupDraft(OPPORTUNITY_SCOUT_CONNECTOR_PRESETS[0]));
+  const [connectorSetupState, setConnectorSetupState] = useState({ status: "idle", message: "" });
   const [profileAiPlans, setProfileAiPlans] = useState({});
   const [opportunityAiReviews, setOpportunityAiReviews] = useState({});
   const [foundDraftAgentPreview, setFoundDraftAgentPreview] = useState({ status: "idle", result: null, message: "" });
   const [copiedScoutBriefId, setCopiedScoutBriefId] = useState("");
+  const [dailyScoutQueueState, setDailyScoutQueueState] = useState({ status: "idle", message: "", result: null });
+  const [agentOsConsoleState, setAgentOsConsoleState] = useState({ status: "idle", message: "", agentOs: null, actionId: "" });
+  const [agentOsTaskTargetSelections, setAgentOsTaskTargetSelections] = useState({});
+  const [agentOsActionFilter, setAgentOsActionFilter] = useState("all");
+  const [selectedAgentOsRunId, setSelectedAgentOsRunId] = useState("");
   const [learningDraft, setLearningDraft] = useState(INITIAL_AGENT_LEARNING_FORM);
   const [learningActionState, setLearningActionState] = useState({ status: "idle", id: "", message: "" });
   const [selectedAgentProposalId, setSelectedAgentProposalId] = useState("");
@@ -1737,6 +1852,7 @@ function CopilotPagePolished({
   const [agentProposalAuditState, setAgentProposalAuditState] = useState({ proposalId: "", status: "idle", message: "" });
   const canViewOpportunityScout = Boolean(permissions?.opportunityScout?.canView);
   const canManageOpportunityScout = Boolean(permissions?.opportunityScout?.canManage);
+  const canViewAgentOs = canRenderAgentOsConsole(permissions);
   const canManageAgentLearning = Boolean(permissions?.aiOffice?.canManageLearning);
   const agentLearningPreferences = normalizeObjectArray(companySettings.agentLearningPreferences);
   const leadSourceOptions = normalizeObjectArray(leadSources).filter((source) => !source.archivedAt && String(source.status || "active").toLowerCase() !== "inactive");
@@ -1750,8 +1866,120 @@ function CopilotPagePolished({
     foundOpportunities,
     leads,
     contactHistory,
-  }, { today }), [companySettings, contactHistory, currentCompanyId, foundOpportunities, leadSources, leads, opportunitySearchProfiles, today]);
+    auditEvents,
+  }, { today }), [auditEvents, companySettings, contactHistory, currentCompanyId, foundOpportunities, leadSources, leads, opportunitySearchProfiles, today]);
   const dailyJobFinder = opportunityScout.dailyJobFinder;
+  const agentOsConsole = deriveAgentOsOperatorConsoleCards(agentOsConsoleState.agentOs || {});
+  const agentOsTaskOptions = useMemo(() => deriveAgentOsInternalTaskOptions({
+    leads,
+    opportunitySearchProfiles,
+    estimates,
+    jobs,
+    dailyReports,
+    uploads,
+    deliveryTickets,
+    safetyIncidents,
+    prePourChecklists,
+    postPourChecklists,
+    workflowRows: agentOsConsoleState.agentOs?.autonomyPlan?.rows || [],
+  }), [agentOsConsoleState.agentOs, dailyReports, deliveryTickets, estimates, jobs, leads, opportunitySearchProfiles, postPourChecklists, prePourChecklists, safetyIncidents, uploads]);
+  const agentOsRunRows = normalizeObjectArray(agentOsConsoleState.agentOs?.ledger?.rows).slice(0, 8);
+  const agentOsFilterGroups = deriveAgentOsActionFilterGroups(agentOsTaskOptions);
+  const visibleAgentOsTaskOptions = filterAgentOsTaskOptions(agentOsTaskOptions, agentOsActionFilter);
+  const selectedAgentOsRunRow = agentOsRunRows.find((row) => [row.runId, row.id, row.taskId].filter(Boolean).includes(selectedAgentOsRunId)) || agentOsRunRows[0] || null;
+  const selectedAgentOsRunDetail = selectedAgentOsRunRow ? deriveAgentOsRunDetail(selectedAgentOsRunRow, agentOsConsoleState.agentOs || {}) : null;
+  const agentOsActionRows = normalizeObjectArray(agentOsConsoleState.agentOs?.operatorControlPanel?.actionRollbackRows).filter((row) => !row.externalLocked).slice(0, 9);
+  const agentOsLearningReviewRows = deriveAgentOsLearningReviewRows(agentOsConsoleState.agentOs || {});
+  const dailyResourcePlan = opportunityScout.dailyResourcePlan || { lanes: [], rows: [], stats: {}, guardrails: [] };
+  const dailyScoutExecutionPlan = opportunityScout.dailyScoutExecutionPlan || { cards: [], publicRunnerCards: [], privateHandoffCards: [], publicDiscoveryQueue: [], foundDraftQueue: [], providerAttempts: [], rejectedProviderResults: [], providerReviewImportQueue: [], stats: {}, guardrails: [], dailyRunRecord: null, publicProviderBoundary: null };
+  const sourceCoveragePlanner = dailyScoutExecutionPlan.sourceCoveragePlanner || { families: [], gaps: [], recommendations: [], setupDrafts: [], stats: {} };
+  const liveSourceSetupReadiness = dailyScoutExecutionPlan.liveSourceSetupReadiness || { sourceRows: [], sourceReadiness: {}, privateSourceReadiness: {}, officialApiReadiness: {}, dailyRunReadiness: {}, missingActions: [] };
+  const pilotRunReadiness = dailyScoutExecutionPlan.pilotRunReadiness || { verdict: "not_ready", tomorrowChecklist: [], blockedReasonGroups: {}, hardBlockers: [], warnings: [], pilotEvidencePacket: {}, readinessSignals: {} };
+  const providerConnectionSetupPlan = dailyScoutExecutionPlan.providerConnectionSetupPlan || { lanes: [], requiredOperatorApprovals: [], approvalRequiredBefore: [], providerCredentialBoundary: {}, sandboxSmokePlan: {}, hostedPilotSmokePlan: {}, pilotConnectionPacket: {} };
+  const pilotActivationLayer = dailyScoutExecutionPlan.pilotActivationLayer || { connectionStatusHistory: [], realSourceReadinessBoard: { rows: [] }, hostedPilotSmokePacket: {}, tomorrowRunView: { willCheck: [], operatorChecklist: [], blockers: [], warnings: [] } };
+  const realPublicSourceConfigActivation = dailyScoutExecutionPlan.realPublicSourceConfigActivation || { approvedPublicSourceConfigs: [], blockedPrivateOrLoginSources: [], operatorActivationDrafts: [], pilotSourceEvidenceChecklist: [], stats: {} };
+  const controlledHostedDemoSmokePacket = dailyScoutExecutionPlan.controlledHostedDemoSmokePacket || { smokeTargetSelector: {}, hostedDemoSmokeChecklist: [], smokeResultModel: {}, failureTriage: [], blockedSmokeActions: [] };
+  const smokeEvidenceRecorder = dailyScoutExecutionPlan.smokeEvidenceRecorder || { validation: {}, evidenceDraft: { fields: {} }, auditEventShape: {}, blockedEvidenceClaims: [] };
+  const controlledDailyPublicSourceRunEvidencePacket = dailyScoutExecutionPlan.controlledDailyPublicSourceRunEvidencePacket || { runEnvelope: {}, sourceRunRows: [], blockedSourceRows: [], reviewChecklist: [], stats: {} };
+  const controlledDailyPublicRunPreflight = dailyScoutExecutionPlan.controlledDailyPublicRunPreflight || { checks: [], blockers: [] };
+  const controlledDailyPublicRunEvidencePrep = dailyScoutExecutionPlan.controlledDailyPublicRunEvidencePrep || { evidenceRows: [], blockers: [] };
+  const controlledDailyPublicRunOutcomeLoop = dailyScoutExecutionPlan.controlledDailyPublicRunOutcomeLoop || { rows: [] };
+  const providerSettings = dailyScoutExecutionPlan.publicProviderBoundary?.providerSettings || companySettings.apexAgentAutomationPolicy?.publicLeadProviderSettings || {};
+  const dailyJobFinderAutopilotSettings = providerSettings.dailyJobFinderAutopilot || {};
+  const providerContract = dailyScoutExecutionPlan.publicProviderBoundary?.providerContract || {};
+  const providerActivationReadiness = dailyScoutExecutionPlan.publicProviderBoundary?.providerActivationReadiness || dailyScoutExecutionPlan.dailyRunRecord?.providerActivationReadiness || null;
+  const providerApprovalPacketFromPlan = dailyScoutExecutionPlan.publicProviderBoundary?.providerApprovalPacket || null;
+  const providerConnectorRows = providerContract.approvedConnectors || [];
+  const [providerSettingsDraft, setProviderSettingsDraft] = useState({
+    mode: providerSettings.mode || "dry_run",
+    dailyBudget: providerSettings.dailyBudget ?? 25,
+    maxResultsPerRun: providerSettings.maxResultsPerRun ?? 3,
+    enabledConnectorIds: (providerSettings.enabledConnectorIds || []).join(", "),
+    serviceAreas: (providerSettings.geographyControls?.serviceAreas || []).join(", "),
+    trades: (providerSettings.tradeScope?.trades || []).join(", "),
+    minFitScoreForReview: providerSettings.reviewRules?.minFitScoreForReview ?? 0,
+    dailyJobFinderAutopilotEnabled: Boolean(dailyJobFinderAutopilotSettings.enabled),
+    dailyJobFinderRunTimeLocal: dailyJobFinderAutopilotSettings.runTimeLocal || "06:00",
+  });
+  const [providerActivationState, setProviderActivationState] = useState({ status: "idle", message: "", result: null });
+  const [providerApprovalState, setProviderApprovalState] = useState({ status: "idle", message: "", packet: null });
+  const [providerAdapterState, setProviderAdapterState] = useState({ status: "idle", message: "", result: null });
+  const localCompletionReadiness = providerAdapterState.result?.mode === "agent_leads_local_completion_readiness_v39"
+    ? providerAdapterState.result
+    : dailyScoutExecutionPlan.localCompletionReadiness || { completionRows: [], workspaceWarnings: [], externalActionLocks: {}, localImplementationPercent: 0, localCompletionStatus: "needs_local_setup" };
+  const productionReadinessGate = providerAdapterState.result?.mode === "agent_leads_production_readiness_gate_v40"
+    ? providerAdapterState.result
+    : dailyScoutExecutionPlan.productionReadinessGate || { checkRows: [], blockers: [], status: "blocked_until_release_evidence", readyForFounderSupportedProduction: false };
+  const agentOsProductionEvidenceRows = deriveAgentOsProductionEvidenceRows(productionReadinessGate);
+  const [productionEvidenceDraft, setProductionEvidenceDraft] = useState({
+    operatorName: user?.name || "",
+    environmentLabel: "Founder-supported production review",
+    targetUrl: "",
+    completedCheckIds: "",
+    commandSummary: "",
+    notes: "",
+    acknowledgement: false,
+  });
+  const agentOsConsoleLoadedRef = useRef(false);
+  const [privateSourceDraft, setPrivateSourceDraft] = useState({
+    sourceName: "Private source",
+    sourceType: "facebook_private_group",
+    sourceAdapterId: "facebook_private_group",
+    authorizedBy: user?.name || "",
+    evidenceText: "",
+  });
+  const [platformBoundaryDraft, setPlatformBoundaryDraft] = useState({
+    providerName: "Approved lead provider",
+    providerType: "approved_search_api",
+    connectorIds: (providerSettings.enabledConnectorIds || []).join(", "),
+    reviewedBy: user?.name || "",
+    sourceTermsStatus: "approved",
+    robotsStatus: "allowed",
+  });
+  const [officialApiDraft, setOfficialApiDraft] = useState({
+    adapterId: "official_procurement_feed_api_sandbox",
+    query: "Salem concrete bid opportunity",
+  });
+  const [procurementFeedDraft, setProcurementFeedDraft] = useState({
+    endpointName: "Public procurement fixture",
+    endpointUrl: "",
+    responseFormat: "fixture_json",
+    reviewedBy: user?.name || "",
+    query: "Salem concrete public procurement",
+    liveSourceUrl: "",
+  });
+  const [providerReadinessDraft, setProviderReadinessDraft] = useState({
+    providerName: "Public procurement provider",
+    sourceCategory: "public_procurement",
+    connectorId: "public_procurement_search",
+    reviewedBy: user?.name || "",
+    sourceName: "Public procurement sources",
+    sourceUrl: "",
+    startTimeLocal: "06:00",
+    timezone: "America/Los_Angeles",
+  });
+  const providerApprovalPacket = providerApprovalState.packet || providerApprovalPacketFromPlan;
+  const dailyAgentLeadsLedger = opportunityScout.dailyAgentLeadsLedger || { rows: [], stats: {}, safetyBoundary: "" };
   const scoutAgent = opportunityScout.agentRunPacket || {};
   const fieldOpsAgent = useMemo(() => deriveFieldOpsAgentState({
     currentCompanyId,
@@ -1784,6 +2012,684 @@ function CopilotPagePolished({
     if (moduleId) setActive?.(moduleId);
   }
 
+  async function refreshAgentOsConsole({ silent = false } = {}) {
+    if (!canViewAgentOs || !onGetAgentOperatingSystem) return { ok: false, message: "Not allowed." };
+    if (!silent) {
+      setAgentOsConsoleState((current) => ({ ...current, status: "loading", message: "Loading Apex Agent OS console..." }));
+    }
+    const result = await onGetAgentOperatingSystem();
+    if (result?.agentOs) {
+      setAgentOsConsoleState({
+        status: "ready",
+        message: "Apex Agent OS console is current.",
+        agentOs: result.agentOs,
+        actionId: "",
+      });
+      return { ok: true, agentOs: result.agentOs };
+    }
+    setAgentOsConsoleState((current) => ({
+      ...current,
+      status: "error",
+      message: result?.message || "Apex Agent OS console could not load.",
+      actionId: "",
+    }));
+    return { ok: false, message: result?.message || "Apex Agent OS console could not load." };
+  }
+
+  function selectedAgentOsTarget(option = {}) {
+    const targets = normalizeObjectArray(option.targets);
+    if (!targets.length) return null;
+    const selectedId = agentOsTaskTargetSelections[option.actionId];
+    return targets.find((target) => target.id === selectedId) || targets[0];
+  }
+
+  function updateAgentOsTargetSelection(actionId, targetId) {
+    setAgentOsTaskTargetSelections((current) => ({ ...current, [actionId]: targetId }));
+  }
+
+  async function queueAgentOsInternalTask(option = {}) {
+    if (!canViewAgentOs || !onQueueAgentOperatingSystemTask || option.disabled) return;
+    const target = selectedAgentOsTarget(option);
+    if (!target) return;
+    setAgentOsConsoleState((current) => ({
+      ...current,
+      status: "loading",
+      actionId: option.actionId,
+      message: `Queueing ${option.label}...`,
+    }));
+    const result = await onQueueAgentOperatingSystemTask({
+      actionId: option.actionId,
+      target: {
+        entityType: target.entityType,
+        entityId: target.id,
+        title: target.label,
+      },
+    });
+    if (result?.run) {
+      setSelectedAgentOsRunId(result.run.id || result.run.runId || "");
+      await refreshAgentOsConsole({ silent: true });
+      setAgentOsConsoleState((current) => ({
+        ...current,
+        status: "ready",
+        actionId: "",
+        message: `${option.label} queued. No domain record or external action was changed.`,
+      }));
+    } else {
+      setAgentOsConsoleState((current) => ({
+        ...current,
+        status: "error",
+        actionId: "",
+        message: result?.message || `${option.label} could not be queued.`,
+      }));
+    }
+  }
+
+  async function updateAgentOsRun(row = {}, action = "") {
+    const runId = row.runId;
+    if (!canViewAgentOs || !runId) return;
+    const actionLabel = action === "execute"
+      ? "Executing"
+      : action === "retrying"
+        ? "Retrying"
+        : action === "cancelled"
+          ? "Cancelling"
+          : "Dead-lettering";
+    setAgentOsConsoleState((current) => ({
+      ...current,
+      status: "loading",
+      actionId: runId,
+      message: `${actionLabel} Agent OS run...`,
+    }));
+    const result = action === "execute"
+      ? await onExecuteAgentOperatingSystemRun?.(runId)
+      : await onUpdateAgentOperatingSystemRunStatus?.(runId, {
+          status: action,
+          message: action === "retrying"
+            ? "Office requested retry from Agent OS console."
+            : action === "cancelled"
+              ? "Office cancelled run from Agent OS console."
+              : "Office moved run to dead-letter from Agent OS console.",
+        });
+    if (result?.run) {
+      setSelectedAgentOsRunId(result.run.id || result.run.runId || runId);
+      await refreshAgentOsConsole({ silent: true });
+      setAgentOsConsoleState((current) => ({
+        ...current,
+        status: "ready",
+        actionId: "",
+        message: `Run ${result.run.status}. External gates and domain mutations remain locked.`,
+      }));
+    } else {
+      setAgentOsConsoleState((current) => ({
+        ...current,
+        status: "error",
+        actionId: "",
+        message: result?.message || "Agent OS run control failed.",
+      }));
+    }
+  }
+
+  useEffect(() => {
+    if (!canViewAgentOs || agentOsConsoleLoadedRef.current) return;
+    agentOsConsoleLoadedRef.current = true;
+    refreshAgentOsConsole({ silent: true });
+  }, [canViewAgentOs]);
+
+  useEffect(() => {
+    setProviderSettingsDraft({
+      mode: providerSettings.mode || "dry_run",
+      dailyBudget: providerSettings.dailyBudget ?? 25,
+      maxResultsPerRun: providerSettings.maxResultsPerRun ?? 3,
+      enabledConnectorIds: (providerSettings.enabledConnectorIds || []).join(", "),
+      serviceAreas: (providerSettings.geographyControls?.serviceAreas || []).join(", "),
+      trades: (providerSettings.tradeScope?.trades || []).join(", "),
+      minFitScoreForReview: providerSettings.reviewRules?.minFitScoreForReview ?? 0,
+      dailyJobFinderAutopilotEnabled: Boolean(dailyJobFinderAutopilotSettings.enabled),
+      dailyJobFinderRunTimeLocal: dailyJobFinderAutopilotSettings.runTimeLocal || "06:00",
+    });
+  }, [
+    providerSettings.mode,
+    providerSettings.dailyBudget,
+    providerSettings.maxResultsPerRun,
+    JSON.stringify(providerSettings.enabledConnectorIds || []),
+    JSON.stringify(providerSettings.geographyControls?.serviceAreas || []),
+    JSON.stringify(providerSettings.tradeScope?.trades || []),
+    providerSettings.reviewRules?.minFitScoreForReview,
+    dailyJobFinderAutopilotSettings.enabled,
+    dailyJobFinderAutopilotSettings.runTimeLocal,
+  ]);
+
+  useEffect(() => {
+    setPrivateSourceDraft((current) => ({
+      ...current,
+      authorizedBy: current.authorizedBy || user?.name || "",
+    }));
+  }, [user?.name]);
+
+  useEffect(() => {
+    setPlatformBoundaryDraft((current) => ({
+      ...current,
+      connectorIds: current.connectorIds || (providerSettings.enabledConnectorIds || []).join(", "),
+      reviewedBy: current.reviewedBy || user?.name || "",
+    }));
+  }, [JSON.stringify(providerSettings.enabledConnectorIds || []), user?.name]);
+
+  useEffect(() => {
+    setProcurementFeedDraft((current) => ({
+      ...current,
+      reviewedBy: current.reviewedBy || user?.name || "",
+    }));
+  }, [user?.name]);
+
+  useEffect(() => {
+    setProviderReadinessDraft((current) => ({
+      ...current,
+      reviewedBy: current.reviewedBy || user?.name || "",
+    }));
+  }, [user?.name]);
+
+  const listFromDraft = (value) => String(value || "").split(",").map((entry) => entry.trim()).filter(Boolean);
+
+  async function saveProviderSettingsDraft() {
+    if (!canManageOpportunityScout || !onUpdateCompanySettings) return;
+    setProviderActivationState({ status: "loading", message: "Saving provider controls...", result: null });
+    const payload = {
+      apexAgentAutomationPolicy: {
+        publicLeadProviderSettings: {
+          ...providerSettings,
+          mode: providerSettingsDraft.mode,
+          dailyBudget: Number(providerSettingsDraft.dailyBudget || 0),
+          maxResultsPerRun: Number(providerSettingsDraft.maxResultsPerRun || 0),
+          enabledConnectorIds: listFromDraft(providerSettingsDraft.enabledConnectorIds),
+          geographyControls: {
+            ...(providerSettings.geographyControls || {}),
+            serviceAreas: listFromDraft(providerSettingsDraft.serviceAreas),
+          },
+          tradeScope: {
+            ...(providerSettings.tradeScope || {}),
+            trades: listFromDraft(providerSettingsDraft.trades),
+          },
+          reviewRules: {
+            ...(providerSettings.reviewRules || {}),
+            requireHumanOpen: true,
+            dedupeBeforeImport: true,
+            minFitScoreForReview: Number(providerSettingsDraft.minFitScoreForReview || 0),
+          },
+          dailyJobFinderAutopilot: {
+            ...(providerSettings.dailyJobFinderAutopilot || {}),
+            enabled: Boolean(providerSettingsDraft.dailyJobFinderAutopilotEnabled),
+            runTimeLocal: providerSettingsDraft.dailyJobFinderRunTimeLocal || "06:00",
+            timezone: providerSettings.dailyJobFinderAutopilot?.timezone || "local",
+            markets: listFromDraft(providerSettingsDraft.serviceAreas),
+            trades: listFromDraft(providerSettingsDraft.trades),
+            publicSourceConnectorIds: listFromDraft(providerSettingsDraft.enabledConnectorIds),
+            includePrivateHandoffs: true,
+            reviewOnly: true,
+          },
+        },
+      },
+    };
+    const ok = await onUpdateCompanySettings(payload);
+    setProviderActivationState(ok
+      ? { status: "ready", message: "Provider controls saved. Live execution remains locked.", result: null }
+      : { status: "error", message: "Provider controls could not be saved.", result: null });
+  }
+
+  async function checkProviderHealth() {
+    if (!canManageOpportunityScout || !onGetAgentLeadProviderHealth) return;
+    setProviderActivationState({ status: "loading", message: "Checking provider activation readiness...", result: null });
+    const result = await onGetAgentLeadProviderHealth();
+    setProviderActivationState(result?.providerHealth
+      ? { status: "ready", message: `Provider health: ${result.providerHealth.status}.`, result: result.providerHealth }
+      : { status: "error", message: result?.message || "Provider health check failed.", result: null });
+  }
+
+  async function loadProviderLiveReadiness() {
+    if (!canManageOpportunityScout || !onGetAgentLeadProviderLiveReadiness) return;
+    setProviderAdapterState({ status: "loading", message: "Loading live provider readiness...", result: null });
+    const result = await onGetAgentLeadProviderLiveReadiness(today);
+    setProviderAdapterState(result?.providerLiveReadiness
+      ? { status: "ready", message: `Live readiness: ${result.providerLiveReadiness.status}.`, result: result.providerLiveReadiness }
+      : { status: "error", message: result?.message || "Live provider readiness failed.", result: null });
+  }
+
+  async function recordProviderConnectionMetadata() {
+    if (!canManageOpportunityScout || !onRecordAgentLeadProviderConnectionMetadata) return;
+    setProviderAdapterState({ status: "loading", message: "Recording provider connection metadata...", result: null });
+    const result = await onRecordAgentLeadProviderConnectionMetadata({
+      providerName: providerReadinessDraft.providerName,
+      connectionLabel: providerReadinessDraft.providerName,
+      sourceCategory: providerReadinessDraft.sourceCategory,
+      connectorId: providerReadinessDraft.connectorId,
+      sourceUrl: providerReadinessDraft.sourceUrl || procurementFeedDraft.endpointUrl || "",
+      credentialRef: providerSettings.credentialBoundary?.credentialRef || "",
+      reviewedBy: providerReadinessDraft.reviewedBy,
+      acknowledgement: true,
+      today,
+    });
+    setProviderAdapterState(result?.providerConnectionMetadata
+      ? { status: "ready", message: "Provider connection metadata recorded. Live execution remains locked.", result: result.providerLiveReadiness || result.providerConnectionMetadata }
+      : { status: "error", message: result?.message || "Provider connection metadata failed.", result: null });
+  }
+
+  async function recordProviderSourceConsent() {
+    if (!canManageOpportunityScout || !onRecordAgentLeadProviderSourceConsent) return;
+    setProviderAdapterState({ status: "loading", message: "Recording provider source consent...", result: null });
+    const result = await onRecordAgentLeadProviderSourceConsent({
+      sourceName: providerReadinessDraft.sourceName,
+      sourceCategory: providerReadinessDraft.sourceCategory,
+      connectorIds: [providerReadinessDraft.connectorId],
+      authorizedBy: providerReadinessDraft.reviewedBy,
+      acknowledgement: true,
+      today,
+    });
+    setProviderAdapterState(result?.providerSourceConsent
+      ? { status: "ready", message: "Provider source consent recorded. Contact and auto-save remain locked.", result: result.providerLiveReadiness || result.providerSourceConsent }
+      : { status: "error", message: result?.message || "Provider source consent failed.", result: null });
+  }
+
+  async function recordProviderDailySchedule() {
+    if (!canManageOpportunityScout || !onRecordAgentLeadProviderDailySchedule) return;
+    setProviderAdapterState({ status: "loading", message: "Recording provider daily schedule...", result: null });
+    const result = await onRecordAgentLeadProviderDailySchedule({
+      sourceCategories: [providerReadinessDraft.sourceCategory],
+      startTimeLocal: providerReadinessDraft.startTimeLocal,
+      timezone: providerReadinessDraft.timezone,
+      reviewer: providerReadinessDraft.reviewedBy,
+      acknowledgement: true,
+      today,
+    });
+    setProviderAdapterState(result?.providerDailySchedule
+      ? { status: "ready", message: "Daily provider schedule recorded for review-only work.", result: result.providerLiveReadiness || result.providerDailySchedule }
+      : { status: "error", message: result?.message || "Provider daily schedule failed.", result: null });
+  }
+
+  async function runProviderSandboxTest() {
+    if (!canManageOpportunityScout || !onRunAgentLeadProviderSandboxTest) return;
+    setProviderActivationState({ status: "loading", message: "Running sandbox provider test...", result: null });
+    const result = await onRunAgentLeadProviderSandboxTest({
+      today,
+      query: [providerSettingsDraft.serviceAreas, providerSettingsDraft.trades, "public bid opportunity"].filter(Boolean).join(" "),
+      connectorId: listFromDraft(providerSettingsDraft.enabledConnectorIds)[0] || "public_web_search",
+      title: "Sandbox provider activation test",
+    });
+    setProviderActivationState(result?.providerSandboxRun
+      ? { status: "ready", message: `Sandbox test prepared ${result.providerSandboxRun.results?.length || 0} review card(s).`, result: result.providerSandboxRun }
+      : { status: "error", message: result?.message || "Sandbox provider test failed.", result: null });
+  }
+
+  async function loadProviderApprovalPacket() {
+    if (!canManageOpportunityScout || !onGetAgentLeadProviderLiveApproval) return;
+    setProviderApprovalState({ status: "loading", message: "Loading provider approval packet...", packet: null });
+    const result = await onGetAgentLeadProviderLiveApproval();
+    setProviderApprovalState(result?.providerApprovalPacket
+      ? { status: "ready", message: `Approval packet: ${result.providerApprovalPacket.approvalStatus}.`, packet: result.providerApprovalPacket }
+      : { status: "error", message: result?.message || "Provider approval packet failed.", packet: null });
+  }
+
+  async function recordProviderApprovalDecision(decision) {
+    if (!canManageOpportunityScout || !onRecordAgentLeadProviderLiveApprovalDecision) return;
+    setProviderApprovalState({ status: "loading", message: "Recording provider boundary decision...", packet: providerApprovalPacket || null });
+    const result = await onRecordAgentLeadProviderLiveApprovalDecision({
+      decision,
+      providerId: providerSettings.providerId || providerSettingsDraft.providerId || "dry_run_simulator",
+      connectorIds: listFromDraft(providerSettingsDraft.enabledConnectorIds),
+      acknowledgement: true,
+      note: decision === "approve_boundary"
+        ? "Owner/admin acknowledged that this boundary does not enable live execution."
+        : "Owner/admin changed the live adapter boundary status.",
+    });
+    setProviderApprovalState(result?.providerApprovalPacket
+      ? { status: "ready", message: `Provider boundary ${result.providerApprovalDecision?.status || decision}. Live execution remains off.`, packet: result.providerApprovalPacket }
+      : { status: "error", message: result?.message || "Provider boundary decision failed.", packet: providerApprovalPacket || null });
+  }
+
+  async function runProviderAdapterRunner() {
+    if (!canManageOpportunityScout || !onRunAgentLeadProviderAdapterRunner) return;
+    setProviderAdapterState({ status: "loading", message: "Preparing provider adapter runner...", result: null });
+    const result = await onRunAgentLeadProviderAdapterRunner({ today });
+    setProviderAdapterState(result?.providerAdapterRunner
+      ? { status: "ready", message: `Adapter runner prepared ${result.providerAdapterRunner.results?.length || 0} review result(s).`, result: result.providerAdapterRunner }
+      : { status: "error", message: result?.message || "Provider adapter runner failed.", result: null });
+  }
+
+  async function runProviderLivePublicExecution() {
+    if (!canManageOpportunityScout || !onRunAgentLeadProviderLivePublicExecution) return;
+    setProviderAdapterState({ status: "loading", message: "Running live-public provider gate...", result: null });
+    const result = await onRunAgentLeadProviderLivePublicExecution({
+      today,
+      connectorIds: listFromDraft(providerSettingsDraft.enabledConnectorIds),
+    });
+    setProviderAdapterState(result?.providerLivePublicExecution
+      ? { status: "ready", message: `Live-public gate ${result.providerLivePublicExecution.status}.`, result: result.providerLivePublicExecution }
+      : { status: "error", message: result?.message || "Live-public provider gate failed.", result: null });
+  }
+
+  async function runPublicSourceProviderAdapters() {
+    if (!canManageOpportunityScout || !onRunAgentLeadPublicSourceProviderAdapters) return;
+    setProviderAdapterState({ status: "loading", message: "Running public-source provider adapters...", result: null });
+    const result = await onRunAgentLeadPublicSourceProviderAdapters({
+      today,
+      connectorIds: listFromDraft(providerSettingsDraft.enabledConnectorIds),
+    });
+    setProviderAdapterState(result?.providerPublicSourceAdapterExecution
+      ? { status: "ready", message: `Public-source adapters ${result.providerPublicSourceAdapterExecution.status}.`, result: result.providerPublicSourceAdapterExecution }
+      : { status: "error", message: result?.message || "Public-source provider adapters failed.", result: null });
+  }
+
+  async function loadAgentLeadLocalCompletionReadiness() {
+    if (!canManageOpportunityScout || !onGetAgentLeadLocalCompletionReadiness) return;
+    setProviderAdapterState({ status: "loading", message: "Checking Agent Leads local completion readiness...", result: providerAdapterState.result });
+    const result = await onGetAgentLeadLocalCompletionReadiness(today);
+    setProviderAdapterState(result?.localCompletionReadiness
+      ? { status: "ready", message: `Agent Leads local completion: ${result.localCompletionReadiness.localImplementationPercent || 0}%.`, result: result.localCompletionReadiness }
+      : { status: "error", message: result?.message || "Agent Leads local completion readiness failed.", result: providerAdapterState.result });
+  }
+
+  async function loadAgentLeadProductionReadiness() {
+    if (!canManageOpportunityScout || !onGetAgentLeadProductionReadiness) return;
+    setProviderAdapterState({ status: "loading", message: "Checking Agent Leads production readiness gate...", result: providerAdapterState.result });
+    const result = await onGetAgentLeadProductionReadiness(today);
+    setProviderAdapterState(result?.productionReadinessGate
+      ? { status: "ready", message: `Agent Leads production gate: ${(result.productionReadinessGate.status || "blocked").replace(/_/g, " ")}.`, result: result.productionReadinessGate }
+      : { status: "error", message: result?.message || "Agent Leads production readiness failed.", result: providerAdapterState.result });
+  }
+
+  function updateProductionEvidenceDraft(field, value) {
+    setProductionEvidenceDraft((current) => ({ ...current, [field]: value }));
+  }
+
+  async function submitAgentLeadProductionEvidence() {
+    if (!canManageOpportunityScout || !onRecordAgentLeadProductionReadinessEvidence) return;
+    setProviderAdapterState({ status: "loading", message: "Recording Agent Leads production readiness evidence...", result: productionReadinessGate });
+    const result = await onRecordAgentLeadProductionReadinessEvidence({
+      today,
+      operatorName: productionEvidenceDraft.operatorName,
+      environmentLabel: productionEvidenceDraft.environmentLabel,
+      targetUrl: productionEvidenceDraft.targetUrl,
+      completedCheckIds: listFromDraft(productionEvidenceDraft.completedCheckIds),
+      commandSummary: productionEvidenceDraft.commandSummary,
+      notes: productionEvidenceDraft.notes,
+      acknowledgement: Boolean(productionEvidenceDraft.acknowledgement),
+    });
+    setProviderAdapterState(result?.productionReadinessGate
+      ? { status: "ready", message: `Production evidence recorded: ${(result.productionReadinessGate.productionLaunchStatus || "no_go").replace(/_/g, " ")}.`, result: result.productionReadinessGate }
+      : { status: "error", message: result?.message || "Production readiness evidence was rejected.", result: productionReadinessGate });
+  }
+
+  async function recordProviderReviewQueueDecision(row, decision = "draft_found_opportunity") {
+    if (!canManageOpportunityScout || !onRecordAgentLeadProviderReviewQueueDecision || !(row?.providerResultId || row?.id)) return;
+    setProviderAdapterState({ status: "loading", message: "Recording provider review queue decision...", result: providerAdapterState.result });
+    const result = await onRecordAgentLeadProviderReviewQueueDecision({
+      providerResultId: row.providerResultId || row.id,
+      providerAttemptId: row.providerAttemptId,
+      connectorId: row.connectorId || row.providerConnectorId,
+      sourceType: row.sourceType || row.sourceCategory || row.type,
+      sourceUrl: row.sourceUrl || row.url,
+      title: row.title,
+      fitScore: row.fitScore,
+      duplicateRisk: row.duplicateRisk,
+      decision,
+      note: `Reviewed from ${row.title || "provider review row"}.`,
+    });
+    setProviderAdapterState(result?.providerReviewQueueDecision
+      ? { status: "ready", message: `Review queue decision recorded: ${decision.replace(/_/g, " ")}.`, result: providerAdapterState.result }
+      : { status: "error", message: result?.message || "Review queue decision failed.", result: providerAdapterState.result });
+  }
+
+  async function draftProviderReviewOpportunity(row) {
+    if (!canManageOpportunityScout || !onDraftAgentLeadProviderReviewOpportunity || !(row?.providerResultId || row?.id)) return;
+    setProviderAdapterState({ status: "loading", message: "Saving provider review row as a found opportunity draft...", result: providerAdapterState.result });
+    const result = await onDraftAgentLeadProviderReviewOpportunity({
+      today,
+      providerResultId: row.providerResultId || row.id,
+      reviewRowId: row.id,
+      acknowledgement: true,
+    });
+    setProviderAdapterState(result?.providerReviewFoundOpportunityDraft
+      ? { status: "ready", message: "Found Opportunity draft saved. Lead conversion still requires normal office approval.", result: providerAdapterState.result }
+      : { status: "error", message: result?.message || "Could not save provider review draft.", result: providerAdapterState.result });
+  }
+
+  async function queueAutonomousDailyScoutPrep() {
+    if (!canManageOpportunityScout || !onQueueAutonomousDailyOpportunitySearchPrep) return;
+    setProviderAdapterState({ status: "loading", message: "Queueing autonomous daily Agent Leads scout...", result: null });
+    const result = await onQueueAutonomousDailyOpportunitySearchPrep({ today });
+    setProviderAdapterState(result?.autonomousDailyScout
+      ? { status: "ready", message: `Autonomous daily scout ${result.autonomousDailyScout.status}.`, result }
+      : { status: "error", message: result?.message || "Autonomous daily scout failed.", result: null });
+  }
+
+  async function recordProviderCredentialReference() {
+    if (!canManageOpportunityScout || !onRecordAgentLeadProviderCredentialHandoff) return;
+    const credentialRef = providerSettings.credentialBoundary?.credentialRef || "";
+    if (!credentialRef) {
+      setProviderAdapterState({ status: "error", message: "Add a server-side credential reference in settings before recording a private-source handoff.", result: null });
+      return;
+    }
+    setProviderAdapterState({ status: "loading", message: "Recording credential reference handoff...", result: null });
+    const result = await onRecordAgentLeadProviderCredentialHandoff({
+      sourceAdapterId: listFromDraft(providerSettingsDraft.enabledConnectorIds)[0] || "public_plan_room_search",
+      sourceKind: "private_source",
+      credentialRef,
+    });
+    setProviderAdapterState(result?.providerCredentialHandoff
+      ? { status: "ready", message: "Credential reference recorded. Raw passwords remain blocked.", result: result.providerCredentialHandoff }
+      : { status: "error", message: result?.message || "Credential reference handoff failed.", result: null });
+  }
+
+  async function recordPrivateSourceAuthorization() {
+    if (!canManageOpportunityScout || !onRecordAgentLeadPrivateSourceAuthorization) return;
+    setProviderAdapterState({ status: "loading", message: "Recording private-source authorization...", result: null });
+    const result = await onRecordAgentLeadPrivateSourceAuthorization({
+      ...privateSourceDraft,
+      credentialRef: providerSettings.credentialBoundary?.credentialRef || "",
+      acknowledgement: true,
+      today,
+    });
+    setProviderAdapterState(result?.privateSourceAuthorization
+      ? { status: "ready", message: `Private source authorized: ${result.privateSourceAuthorization.sourceName}.`, result: result.privateSourceChecklist || result.privateSourceAuthorization }
+      : { status: "error", message: result?.message || "Private-source authorization failed.", result: null });
+  }
+
+  async function recordPrivateEvidenceIntake() {
+    if (!canManageOpportunityScout || !onRecordAgentLeadPrivateEvidenceIntake) return;
+    setProviderAdapterState({ status: "loading", message: "Preparing private-source evidence review queue...", result: null });
+    const result = await onRecordAgentLeadPrivateEvidenceIntake({
+      ...privateSourceDraft,
+      evidenceText: privateSourceDraft.evidenceText,
+    });
+    setProviderAdapterState(result?.privateSourceEvidenceIntake
+      ? { status: "ready", message: `Private evidence ${result.privateSourceEvidenceIntake.status}.`, result: result.privateSourceEvidenceIntake }
+      : { status: "error", message: result?.message || "Private evidence intake failed.", result: null });
+  }
+
+  async function loadPrivateSourceChecklist() {
+    if (!canManageOpportunityScout || !onGetAgentLeadPrivateSourceChecklist) return;
+    setProviderAdapterState({ status: "loading", message: "Loading private-source checklist...", result: null });
+    const result = await onGetAgentLeadPrivateSourceChecklist(today);
+    setProviderAdapterState(result?.privateSourceChecklist
+      ? { status: "ready", message: `Private-source checklist: ${result.privateSourceChecklist.count || 0} item(s).`, result: result.privateSourceChecklist }
+      : { status: "error", message: result?.message || "Private-source checklist failed.", result: null });
+  }
+
+  async function recordPlatformProviderBoundary() {
+    if (!canManageOpportunityScout || !onRecordAgentLeadPlatformProviderBoundary) return;
+    setProviderAdapterState({ status: "loading", message: "Recording provider API boundary...", result: null });
+    const result = await onRecordAgentLeadPlatformProviderBoundary({
+      ...platformBoundaryDraft,
+      connectorIds: listFromDraft(platformBoundaryDraft.connectorIds),
+      acknowledgement: true,
+      today,
+    });
+    setProviderAdapterState(result?.platformProviderBoundary
+      ? { status: "ready", message: `API boundary ${result.platformProviderBoundary.status}.`, result: result.providerCompliancePacket || result.platformProviderBoundary }
+      : { status: "error", message: result?.message || "Provider API boundary failed.", result: null });
+  }
+
+  async function loadProviderCompliancePacket() {
+    if (!canManageOpportunityScout || !onGetAgentLeadProviderCompliancePacket) return;
+    setProviderAdapterState({ status: "loading", message: "Loading provider compliance packet...", result: null });
+    const result = await onGetAgentLeadProviderCompliancePacket();
+    setProviderAdapterState(result?.providerCompliancePacket
+      ? { status: "ready", message: `Compliance: ${result.providerCompliancePacket.status}.`, result: result.providerCompliancePacket }
+      : { status: "error", message: result?.message || "Provider compliance packet failed.", result: null });
+  }
+
+  async function loadProviderMonitoringSnapshot() {
+    if (!canManageOpportunityScout || !onGetAgentLeadProviderMonitoringSnapshot) return;
+    setProviderAdapterState({ status: "loading", message: "Loading provider monitoring snapshot...", result: null });
+    const result = await onGetAgentLeadProviderMonitoringSnapshot(today);
+    setProviderAdapterState(result?.providerMonitoringSnapshot
+      ? { status: "ready", message: `Provider monitor: ${result.providerMonitoringSnapshot.status}.`, result: result.providerMonitoringSnapshot }
+      : { status: "error", message: result?.message || "Provider monitoring snapshot failed.", result: null });
+  }
+
+  async function loadOfficialProviderApiAdapters() {
+    if (!canManageOpportunityScout || !onGetAgentLeadOfficialProviderApiAdapters) return;
+    setProviderAdapterState({ status: "loading", message: "Loading official API adapters...", result: null });
+    const result = await onGetAgentLeadOfficialProviderApiAdapters(today);
+    setProviderAdapterState(result?.officialProviderApiAdapterContract
+      ? { status: "ready", message: `Official API adapters: ${result.officialProviderApiAdapterContract.adapters?.length || 0}.`, result: result.officialProviderApiAdapterContract }
+      : { status: "error", message: result?.message || "Official API adapters failed.", result: null });
+  }
+
+  async function loadAllSourceAdapterCoverage() {
+    if (!canManageOpportunityScout || !onGetAgentLeadAllSourceAdapterCoverage) return;
+    setProviderAdapterState({ status: "loading", message: "Loading all-source adapter coverage...", result: null });
+    const result = await onGetAgentLeadAllSourceAdapterCoverage(today);
+    setProviderAdapterState(result?.allSourceAdapterCoverage
+      ? { status: "ready", message: `Source coverage: ${result.allSourceAdapterCoverage.status}.`, result: result.allSourceAdapterCoverage }
+      : { status: "error", message: result?.message || "Source adapter coverage failed.", result: null });
+  }
+
+  async function runOfficialProviderApiHarness() {
+    if (!canManageOpportunityScout || !onRunAgentLeadOfficialProviderApiAdapterHarness) return;
+    setProviderAdapterState({ status: "loading", message: "Running official API sandbox harness...", result: null });
+    const result = await onRunAgentLeadOfficialProviderApiAdapterHarness({
+      today,
+      adapterId: officialApiDraft.adapterId,
+      query: officialApiDraft.query,
+      connectorIds: listFromDraft(providerSettingsDraft.enabledConnectorIds),
+      mockProviderResponse: {
+        results: [{
+          id: "ui-official-api-sandbox-result",
+          title: officialApiDraft.query || "Official API sandbox result",
+          snippet: "Sandbox provider API result prepared for human review.",
+          fitScore: 72,
+        }],
+      },
+    });
+    setProviderAdapterState(result?.officialProviderApiAdapterExecution
+      ? { status: "ready", message: `Official API harness ${result.officialProviderApiAdapterExecution.status}.`, result: result.officialProviderApiAdapterExecution }
+      : { status: "error", message: result?.message || "Official API harness failed.", result: null });
+  }
+
+  async function loadProcurementFeedAdapter() {
+    if (!canManageOpportunityScout || !onGetAgentLeadProcurementFeedAdapter) return;
+    setProviderAdapterState({ status: "loading", message: "Loading procurement feed adapter...", result: null });
+    const result = await onGetAgentLeadProcurementFeedAdapter(today);
+    setProviderAdapterState(result?.procurementFeedAdapterContract
+      ? { status: "ready", message: `Procurement adapter: ${result.procurementFeedAdapterContract.status}.`, result: result.procurementFeedAdapterContract }
+      : { status: "error", message: result?.message || "Procurement feed adapter failed.", result: null });
+  }
+
+  async function recordProcurementFeedAdapterConfig() {
+    if (!canManageOpportunityScout || !onRecordAgentLeadProcurementFeedAdapterConfig) return;
+    setProviderAdapterState({ status: "loading", message: "Recording procurement feed config...", result: null });
+    const result = await onRecordAgentLeadProcurementFeedAdapterConfig({
+      ...procurementFeedDraft,
+      connectorId: "public_procurement_search",
+      acknowledgement: true,
+      today,
+    });
+    setProviderAdapterState(result?.procurementFeedAdapterConfig
+      ? { status: "ready", message: `Procurement config ${result.procurementFeedAdapterConfig.status}.`, result: result.procurementFeedAdapterContract || result.procurementFeedAdapterConfig }
+      : { status: "error", message: result?.message || "Procurement feed config failed.", result: null });
+  }
+
+  async function runProcurementFeedAdapter() {
+    if (!canManageOpportunityScout || !onRunAgentLeadProcurementFeedAdapter) return;
+    setProviderAdapterState({ status: "loading", message: "Running procurement feed fixture...", result: null });
+    const result = await onRunAgentLeadProcurementFeedAdapter({
+      today,
+      query: procurementFeedDraft.query,
+      fixtureResponse: {
+        results: [{
+          id: "ui-procurement-feed-fixture-result",
+          title: procurementFeedDraft.query || "Procurement feed fixture result",
+          agency: procurementFeedDraft.endpointName || "Procurement fixture",
+          projectNumber: "UI-FIXTURE-001",
+          snippet: "Fixture-backed procurement feed result prepared for human review.",
+          fitScore: 76,
+        }],
+      },
+    });
+    setProviderAdapterState(result?.procurementFeedAdapterExecution
+      ? { status: "ready", message: `Procurement feed ${result.procurementFeedAdapterExecution.status}.`, result: result.procurementFeedAdapterExecution }
+      : { status: "error", message: result?.message || "Procurement feed run failed.", result: null });
+  }
+
+  async function runLiveProcurementPublicAdapter() {
+    if (!canManageOpportunityScout || !onRunAgentLeadLiveProcurementPublicAdapter) return;
+    setProviderAdapterState({ status: "loading", message: "Running live public procurement adapter...", result: null });
+    const result = await onRunAgentLeadLiveProcurementPublicAdapter({
+      today,
+      query: procurementFeedDraft.query,
+      sourceUrl: procurementFeedDraft.liveSourceUrl || procurementFeedDraft.endpointUrl || providerReadinessDraft.sourceUrl || "",
+    });
+    setProviderAdapterState(result?.liveProcurementPublicAdapterExecution
+      ? { status: "ready", message: `Live procurement adapter ${result.liveProcurementPublicAdapterExecution.status}.`, result: result.liveProcurementPublicAdapterExecution }
+      : { status: "error", message: result?.message || "Live procurement adapter failed.", result: null });
+  }
+
+  async function runDailyLiveProcurementPublicAdapter() {
+    if (!canManageOpportunityScout || !onRunAgentLeadDailyLiveProcurementPublicAdapter) return;
+    setProviderAdapterState({ status: "loading", message: "Running daily live procurement check...", result: null });
+    const result = await onRunAgentLeadDailyLiveProcurementPublicAdapter({
+      today,
+      query: procurementFeedDraft.query,
+    });
+    setProviderAdapterState(result?.dailyLiveProcurementPublicAdapterExecution
+      ? { status: "ready", message: `Daily procurement check ${result.dailyLiveProcurementPublicAdapterExecution.status}.`, result: result.dailyLiveProcurementPublicAdapterExecution }
+      : { status: "error", message: result?.message || "Daily procurement check failed.", result: null });
+  }
+
+  async function runDailyJobFinderOrchestration() {
+    if (!canManageOpportunityScout || !onRunAgentLeadDailyJobFinderOrchestration) return;
+    setProviderAdapterState({ status: "loading", message: "Running daily job finder orchestration...", result: null });
+    const result = await onRunAgentLeadDailyJobFinderOrchestration({
+      today,
+      connectorIds: listFromDraft(providerSettingsDraft.enabledConnectorIds),
+    });
+    setProviderAdapterState(result?.dailyJobFinderOrchestrationExecution
+      ? { status: "ready", message: `Daily job finder ${result.dailyJobFinderOrchestrationExecution.status}.`, result: result.dailyJobFinderOrchestrationExecution }
+      : { status: "error", message: result?.message || "Daily job finder orchestration failed.", result: null });
+  }
+
+  async function runDailyJobFinderAutopilot() {
+    if (!canManageOpportunityScout || !onRunAgentLeadDailyJobFinderAutopilot) return;
+    setProviderAdapterState({ status: "loading", message: "Preparing daily review-only job finder run...", result: null });
+    const result = await onRunAgentLeadDailyJobFinderAutopilot({ today });
+    setProviderAdapterState(result?.dailyJobFinderAutopilotRun
+      ? { status: "ready", message: `Daily review-only run ${result.dailyJobFinderAutopilotRun.status}.`, result: result.dailyJobFinderAutopilotRun }
+      : { status: "error", message: result?.message || "Daily review-only job finder run failed.", result: null });
+  }
+
+  async function recordProviderDecision(card, decision) {
+    if (!canManageOpportunityScout || !onRecordAgentLeadProviderImportDecision || !card?.providerResultId) return;
+    setProviderActivationState({ status: "loading", message: "Recording provider review decision...", result: null });
+    const result = await onRecordAgentLeadProviderImportDecision({
+      providerResultId: card.providerResultId,
+      providerAttemptId: card.providerAttemptId,
+      decision,
+      note: `Reviewed from ${card.title || "provider result"}.`,
+    });
+    setProviderActivationState(result?.providerImportDecision
+      ? { status: "ready", message: `Provider result marked ${decision.replace(/_/g, " ")}.`, result: result.providerImportDecision }
+      : { status: "error", message: result?.message || "Provider review decision failed.", result: null });
+  }
+
   function jumpToScoutTarget(targetId, moduleId = "copilot") {
     if (moduleId && moduleId !== "copilot") {
       openModule(moduleId);
@@ -1798,6 +2704,30 @@ function CopilotPagePolished({
     }
 
     openModule(moduleId || "copilot");
+  }
+
+  async function queueDailyScoutPrep() {
+    if (!canManageOpportunityScout || !onQueueDailyOpportunitySearchPrep) return;
+    setDailyScoutQueueState({ status: "loading", message: "Queueing review-only search prep...", result: null });
+    const result = await onQueueDailyOpportunitySearchPrep({ today });
+    if (result?.dailyOpportunitySearchPrep) {
+      const prep = result.dailyOpportunitySearchPrep;
+      setDailyScoutQueueState({
+        status: "ready",
+        message: prep.queuedCount
+          ? `${prep.queuedCount} daily search prep task${prep.queuedCount === 1 ? "" : "s"} queued.`
+          : prep.skippedCount
+            ? "Today's due search prep is already queued."
+            : "No due search profiles need Agent prep today.",
+        result: { ...prep, executionPlan: result.dailyScoutExecutionPlan || null },
+      });
+      return;
+    }
+    setDailyScoutQueueState({
+      status: "error",
+      message: result?.message || "Apex Agent could not queue daily search prep.",
+      result: null,
+    });
   }
 
   function openLead(lead) {
@@ -1848,6 +2778,24 @@ function CopilotPagePolished({
     setProfileDraft((current) => ({ ...current, [field]: value }));
   }
 
+  function applyConnectorPreset(preset) {
+    if (!preset) return;
+    setConnectorDraft(buildOpportunityScoutConnectorSetupDraft(preset));
+    setConnectorSetupState({ status: "idle", message: "" });
+  }
+
+  function prepareConnectorDraftFromCoverageRecommendation(recommendation) {
+    if (!recommendation) return;
+    setConnectorDraft(buildOpportunityScoutConnectorSetupDraftFromCoverageRecommendation(recommendation, companySettings));
+    setConnectorSetupState({ status: "ready", message: "Source coverage draft prepared. Review and edit it before saving." });
+    jumpToScoutTarget("scout-connector-setup", "copilot");
+  }
+
+  function updateConnectorDraft(field, value) {
+    setConnectorDraft((current) => ({ ...current, [field]: value }));
+    setConnectorSetupState((current) => (current.status === "idle" ? current : { status: "idle", message: "" }));
+  }
+
   function applyProfileStarter(starter) {
     if (!starter) return;
     setProfileDraft((current) => ({
@@ -1857,10 +2805,19 @@ function CopilotPagePolished({
       serviceAreas: (starter.serviceAreas || []).join(", "),
       radiusMiles: String(starter.radiusMiles || current.radiusMiles || "40"),
       sourceTypes: (starter.sourceTypes || []).join(", "),
+      projectTypes: (starter.projectTypes || []).join(", "),
+      preferredSources: (starter.preferredSources || []).join(", "),
+      minimumProjectValue: String(starter.minimumProjectValue || current.minimumProjectValue || ""),
       sourceAdapterId: "",
+      sourcePosture: "",
       sourceAccessStatus: "",
       sourceTermsStatus: "",
       sourcePolicyNote: "",
+      sourceAuthorizationStatus: "not_required",
+      sourceAuthorizedBy: "",
+      sourceAuthorizedAt: "",
+      sourceAuthorizationNote: "",
+      sourceBlockedReason: "",
       keywords: (starter.keywords || []).join(", "),
       excludedKeywords: (starter.excludedKeywords || []).join(", "),
       cadence: starter.cadence || current.cadence || "daily",
@@ -1879,6 +2836,35 @@ function CopilotPagePolished({
     if (!canManageOpportunityScout || !profileDraft.name.trim()) return;
     const ok = await onCreateOpportunitySearchProfile?.(profileDraft);
     if (ok) setProfileDraft(INITIAL_OPPORTUNITY_SEARCH_PROFILE_FORM);
+  }
+
+  async function submitConnectorDraft(event) {
+    event.preventDefault();
+    if (!canManageOpportunityScout) return;
+    const payload = buildOpportunityScoutConnectorSetupPayload(connectorDraft);
+    if (!payload.shouldCreateLeadSource && !payload.shouldCreateSearchProfile) return;
+    setConnectorSetupState({ status: "loading", message: "Saving connector setup..." });
+
+    let savedLeadSource = false;
+    let savedProfile = false;
+    if (payload.shouldCreateLeadSource) {
+      savedLeadSource = Boolean(await onCreateLeadSource?.(payload.leadSource));
+      if (!savedLeadSource) {
+        setConnectorSetupState({ status: "error", message: "Apex HQ could not save the lead source connector." });
+        return;
+      }
+    }
+    if (payload.shouldCreateSearchProfile) {
+      savedProfile = Boolean(await onCreateOpportunitySearchProfile?.(payload.searchProfile));
+      if (!savedProfile) {
+        setConnectorSetupState({ status: "error", message: "The lead source saved, but the search profile connector did not save." });
+        return;
+      }
+    }
+    setConnectorSetupState({
+      status: "ready",
+      message: `${savedLeadSource ? "Lead source" : "Source"}${savedProfile ? " and search profile" : ""} saved for review-only daily prep.`,
+    });
   }
 
   async function submitFoundDraft(event) {
@@ -1919,6 +2905,44 @@ function CopilotPagePolished({
     setFoundDraft((current) => applyOpportunityScoutAgentPreviewToDraft(current, foundDraftAgentPreview.result));
   }
 
+  function prefillFoundDraftFromExecutionCard(card) {
+    if (!canManageOpportunityScout || !card || card.type === "private_source_handoff") {
+      jumpToScoutTarget("scout-search-briefs", "copilot");
+      return;
+    }
+    setFoundDraft((current) => buildFoundOpportunityDraftFromScoutExecutionCard(current, card));
+    setFoundDraftAgentPreview({ status: "idle", result: null, message: "" });
+    jumpToScoutTarget("scout-found-opportunities", "copilot");
+  }
+
+  function prepareEvidenceIntakeFromExecutionCard(card) {
+    if (!canManageOpportunityScout || !card) return;
+    setFoundDraft((current) => buildFoundOpportunityEvidenceIntakeFromScoutCard(current, card));
+    setFoundDraftAgentPreview({ status: "idle", result: null, message: "" });
+    jumpToScoutTarget("scout-found-opportunities", "copilot");
+  }
+
+  async function markExecutionCardChecked(card, result = "no_fit") {
+    if (!card || !canManageOpportunityScout) return;
+    if (card.targetKind === "search_profile") {
+      await markProfileBriefChecked({
+        id: card.id,
+        profileId: card.targetId,
+        title: card.title,
+        query: card.query,
+      }, result);
+      return;
+    }
+    if (card.targetKind === "lead_source") {
+      await markSourceBriefChecked({
+        id: card.id,
+        sourceId: card.targetId,
+        title: card.title,
+        query: card.query,
+      }, result);
+    }
+  }
+
   function markProfileReviewed(profile) {
     if (!canManageOpportunityScout || !profile?.profileId) return;
     onUpdateOpportunitySearchProfile?.(profile.profileId, {
@@ -1931,6 +2955,30 @@ function CopilotPagePolished({
     if (!brief?.profileId) return;
     const profile = opportunityScout.profileQueue.find((entry) => entry.profileId === brief.profileId);
     markProfileReviewed(profile || { profileId: brief.profileId, cadence: "daily" });
+  }
+
+  async function markProfileBriefChecked(brief, result = "no_fit") {
+    if (!canManageOpportunityScout || !brief?.profileId) return;
+    const profile = opportunityScout.profileQueue.find((entry) => entry.profileId === brief.profileId);
+    const checkedAt = todayDateInputValue();
+    const resultOption = OPPORTUNITY_SCOUT_SOURCE_CHECK_RESULTS.find((entry) => entry.id === result) || OPPORTUNITY_SCOUT_SOURCE_CHECK_RESULTS[0];
+    const existingNotes = profile?.notes || "";
+    const checkNote = buildOpportunityScoutSourceCheckNote({
+      result,
+      sourceName: profile?.name || brief.title,
+      missingInfoItems: result === "missing_docs" ? ["plans/addenda/date/scope evidence"] : [],
+      note: `${brief.title} checked from Agent Leads daily prep. ${resultOption.description}`,
+    });
+    const didSave = await onUpdateOpportunitySearchProfile?.(brief.profileId, {
+      lastRunAt: new Date().toISOString(),
+      nextRunAt: nextProfileRunAt(profile?.cadence || "daily"),
+      notes: [existingNotes, `[${checkedAt} source check] ${checkNote}`].filter(Boolean).join("\n"),
+    });
+    if (didSave && ["found_work", "missing_docs", "needs_human", "duplicate"].includes(result)) {
+      setFoundDraft((current) => applyOpportunityScoutSourceCheckToDraft(current, { brief, source: {}, result }));
+      setFoundDraftAgentPreview({ status: "idle", result: null, message: "" });
+      jumpToScoutTarget("scout-found-opportunities", "copilot");
+    }
   }
 
   async function markSourceBriefChecked(brief, result = "no_fit") {
@@ -2443,6 +3491,10 @@ function CopilotPagePolished({
     },
   ];
   const foundDraftReadyCount = foundDraftReviewChecks.filter((check) => check.ready).length;
+  const foundDraftDuplicateWarnings = deriveFoundOpportunityDraftDuplicateWarnings(buildFoundDraftPayload(), {
+    foundOpportunities,
+    leads,
+  });
 
   return (
     <div className="co-office-page co-ai-office-page">
@@ -2543,6 +3595,194 @@ function CopilotPagePolished({
             </div>
           </Card>
 
+          {canViewAgentOs ? (
+          <Card className="co-ai-main-board co-ai-scout-board overflow-hidden">
+            <div className="co-ai-board-header border-b border-slate-200 bg-white p-4">
+              <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                <div className="min-w-0">
+                  <h2>Apex Agent OS Console</h2>
+                  <p>Internal task queue, run controls, rollback notes, learning signals, and external action locks for the one Apex Agent.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge tone={agentOsConsole.status === "needs_operator_review" ? "red" : agentOsConsole.status === "active_runs_need_review" ? "amber" : "green"}>
+                    {(agentOsConsole.status || "ready").replace(/_/g, " ")}
+                  </Badge>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => refreshAgentOsConsole()} disabled={busy || agentOsConsoleState.status === "loading"}>
+                    {agentOsConsoleState.status === "loading" && !agentOsConsoleState.actionId ? "Loading..." : "Refresh OS"}
+                  </Button>
+                </div>
+              </div>
+              {agentOsConsoleState.message ? <p className="mt-2 text-xs font-semibold uppercase tracking-[0.04em] text-slate-500">{agentOsConsoleState.message}</p> : null}
+            </div>
+
+            <div className="co-ai-job-finder-strip" data-tone={agentOsConsole.status === "needs_operator_review" ? "red" : "green"}>
+              <div className="co-ai-job-finder-summary">
+                <span>Operator view</span>
+                <h3>{agentOsConsoleState.agentOs?.version || "Apex Agent OS v1"}</h3>
+                <p>{agentOsConsole.safetyBoundary || "External gates remain locked unless the normal domain gate is configured and explicitly confirmed."}</p>
+                <em>{agentOsConsoleState.agentOs?.productBoundary || "One product-facing Apex Agent"}</em>
+              </div>
+              <div className="co-ai-job-finder-lanes">
+                {agentOsConsole.cards.map((card) => (
+                  <div key={card.id} className="co-ai-job-finder-lane" data-tone={card.tone}>
+                    <em>{card.value}</em>
+                    <strong>{card.label}</strong>
+                    <span>{card.helper}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="co-ai-scout-grid border-b border-slate-200 bg-white">
+              <div className="co-ai-scout-status" data-tone="green">
+                <span>Internal action queue</span>
+                <strong>{agentOsTaskOptions.filter((option) => !option.disabled).length} queue-ready action{agentOsTaskOptions.filter((option) => !option.disabled).length === 1 ? "" : "s"}</strong>
+                <p>Owner/admin users can prepare review packets from visible records. Customer contact, payments, schedule changes, bids, integrations, and domain writes stay outside this queue.</p>
+                <div className="co-ai-scout-metrics">
+                  <div><em>{agentOsTaskOptions.length}</em><span>actions</span></div>
+                  <div><em>{agentOsTaskOptions.filter((option) => !option.disabled).length}</em><span>ready</span></div>
+                  <div><em>{agentOsTaskOptions.filter((option) => option.disabled).length}</em><span>blocked</span></div>
+                </div>
+              </div>
+              <div className="co-ai-scout-briefs">
+                <SectionHeader title="Queue Internal Tasks" description="Every row creates an audit-backed run only; the normal workflow remains the place for actual saves, sends, approvals, and changes." />
+                <div className="mb-3 flex flex-wrap gap-2">
+                  {agentOsFilterGroups.map((group) => (
+                    <Button key={group.id} type="button" size="sm" variant={agentOsActionFilter === group.id ? "secondary" : "ghost"} onClick={() => setAgentOsActionFilter(group.id)}>
+                      {group.label} ({group.readyCount}/{group.count})
+                    </Button>
+                  ))}
+                </div>
+                <div className="co-ai-scout-brief-list">
+                  {visibleAgentOsTaskOptions.slice(0, 16).map((option) => {
+                    const selectedTarget = selectedAgentOsTarget(option);
+                    return (
+                      <div key={option.actionId} className="co-ai-scout-brief" data-tone={option.disabled ? "slate" : "green"}>
+                        <div className="min-w-0">
+                          <span>{option.label}</span>
+                          <strong>{option.modeLabel}</strong>
+                          <p>{option.helper}</p>
+                          <em>{option.disabledReason || `${option.targets.length} visible target${option.targets.length === 1 ? "" : "s"}`}</em>
+                        </div>
+                        <div className="co-ai-scout-brief-actions">
+                          <select value={selectedTarget?.id || ""} onChange={(event) => updateAgentOsTargetSelection(option.actionId, event.target.value)} disabled={option.disabled || agentOsConsoleState.status === "loading"}>
+                            {option.targets.length ? option.targets.map((target) => (
+                              <option key={target.id} value={target.id}>{target.label}</option>
+                            )) : <option value="">No targets</option>}
+                          </select>
+                          <Button type="button" size="sm" variant="secondary" onClick={() => queueAgentOsInternalTask(option)} disabled={busy || option.disabled || agentOsConsoleState.status === "loading"}>
+                            {agentOsConsoleState.status === "loading" && agentOsConsoleState.actionId === option.actionId ? "Queueing..." : "Queue"}
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {!visibleAgentOsTaskOptions.length ? (
+                    <StateCard title="No actions in this filter" description="Switch filters or load more visible records to queue Agent OS draft/prep work." tone="slate" />
+                  ) : null}
+                </div>
+              </div>
+            </div>
+
+            <div className="co-ai-scout-grid border-b border-slate-200 bg-slate-50/80">
+              <div className="co-ai-scout-status" data-tone={agentOsRunRows.some((row) => row.status === "dead_lettered") ? "red" : agentOsRunRows.length ? "amber" : "green"}>
+                <span>Run controls</span>
+                <strong>{agentOsRunRows.length} recent run event{agentOsRunRows.length === 1 ? "" : "s"}</strong>
+                <p>Runs keep queue, execute, retry, cancel, dead-letter, log, rollback, and idempotency evidence together.</p>
+                <div className="co-ai-scout-metrics">
+                  {(agentOsConsole.controlRows || []).slice(0, 4).map((row) => (
+                    <div key={row.id}><em>{row.count}</em><span>{row.label}</span></div>
+                  ))}
+                </div>
+              </div>
+              <div className="co-ai-scout-briefs">
+                <SectionHeader title="Recent Runs" description="Succeeding a run must go through internal packet execution; external gates are not run from this console." />
+                <div className="co-ai-scout-brief-list">
+                  {agentOsRunRows.length ? agentOsRunRows.map((row) => {
+                    const status = String(row.status || "queued");
+                    const isClosed = ["succeeded", "cancelled"].includes(status);
+                    const canExecute = Boolean(row.runId) && !["succeeded", "dead_lettered", "cancelled"].includes(status);
+                    const canRetry = Boolean(row.runId) && ["failed", "dead_lettered"].includes(status);
+                    const canDeadLetter = Boolean(row.runId) && !["succeeded", "dead_lettered", "cancelled"].includes(status);
+                    const isSelected = selectedAgentOsRunDetail?.runId === row.runId || (!selectedAgentOsRunDetail?.runId && selectedAgentOsRunDetail?.taskId === row.taskId);
+                    return (
+                      <div key={`${row.runId || row.id}-${row.createdAt}`} className="co-ai-scout-brief" data-tone={status === "dead_lettered" ? "red" : status === "succeeded" ? "green" : "amber"}>
+                        <div className="min-w-0">
+                          <span>{(row.actionId || "agent_os_run").replace(/_/g, " ")}</span>
+                          <strong>{status.replace(/_/g, " ")}</strong>
+                          <p>{row.summary || row.runId}</p>
+                          <em>{isSelected ? "Selected detail" : row.createdAt || "Audit-backed run"}</em>
+                        </div>
+                        <div className="co-ai-scout-brief-actions">
+                          <Button type="button" size="sm" variant="ghost" onClick={() => setSelectedAgentOsRunId(row.runId || row.id || row.taskId || "")}>Details</Button>
+                          <Button type="button" size="sm" variant="secondary" onClick={() => updateAgentOsRun(row, "execute")} disabled={busy || !canExecute || agentOsConsoleState.status === "loading"}>Execute</Button>
+                          <Button type="button" size="sm" variant="ghost" onClick={() => updateAgentOsRun(row, "retrying")} disabled={busy || !canRetry || agentOsConsoleState.status === "loading"}>Retry</Button>
+                          <Button type="button" size="sm" variant="ghost" onClick={() => updateAgentOsRun(row, "dead_lettered")} disabled={busy || !canDeadLetter || agentOsConsoleState.status === "loading"}>Dead-letter</Button>
+                          <Button type="button" size="sm" variant="ghost" onClick={() => updateAgentOsRun(row, "cancelled")} disabled={busy || isClosed || status === "dead_lettered" || agentOsConsoleState.status === "loading"}>Cancel</Button>
+                        </div>
+                      </div>
+                    );
+                  }) : (
+                    <StateCard title="No Agent OS runs yet" description="Queued internal tasks will appear here after owner/admin review." tone="slate" />
+                  )}
+                  {selectedAgentOsRunDetail ? (
+                    <div className="co-ai-scout-brief" data-tone={selectedAgentOsRunDetail.tone}>
+                      <div className="min-w-0">
+                        <span>Run detail</span>
+                        <strong>{selectedAgentOsRunDetail.actionLabel}</strong>
+                        <p>{selectedAgentOsRunDetail.summary}</p>
+                        <em>{selectedAgentOsRunDetail.runId || selectedAgentOsRunDetail.taskId} / {selectedAgentOsRunDetail.createdAt || "Audit-backed run"}</em>
+                        <div className="co-ai-scout-checks mt-3">
+                          <small>Status: {selectedAgentOsRunDetail.status.replace(/_/g, " ")} / Attempt {selectedAgentOsRunDetail.attempt}</small>
+                          <small>Target: {selectedAgentOsRunDetail.target.title || selectedAgentOsRunDetail.target.entityId || "No target loaded"} ({selectedAgentOsRunDetail.target.entityType || "record"})</small>
+                          <small>Module: {selectedAgentOsRunDetail.moduleId || "agent"} / Audit: {selectedAgentOsRunDetail.auditEvent || "audit event recorded on run"}</small>
+                          <small>Rollback: {selectedAgentOsRunDetail.rollbackBehavior || "Discard the review packet; no domain mutation occurs."}</small>
+                          <small>Idempotency: {selectedAgentOsRunDetail.idempotencyKeyFields.length ? selectedAgentOsRunDetail.idempotencyKeyFields.join(" + ") : "Run id and audit ledger"}</small>
+                          <small>Output: {selectedAgentOsRunDetail.output.mode || "internal draft/prep packet"} / {selectedAgentOsRunDetail.output.safetyBoundary || "External actions remain locked."}</small>
+                          {selectedAgentOsRunDetail.output.blockedActions.length ? selectedAgentOsRunDetail.output.blockedActions.map((item) => <small key={item}>Blocked: {item}</small>) : null}
+                          {selectedAgentOsRunDetail.logs.length ? selectedAgentOsRunDetail.logs.map((entry, index) => <small key={`${entry.level}-${index}`}>{entry.level}: {entry.message}</small>) : null}
+                        </div>
+                      </div>
+                      <div className="co-ai-scout-brief-actions">
+                        <Button type="button" size="sm" variant="secondary" onClick={() => updateAgentOsRun(selectedAgentOsRunDetail, "execute")} disabled={busy || !selectedAgentOsRunDetail.canExecute || agentOsConsoleState.status === "loading"}>Execute</Button>
+                        <Button type="button" size="sm" variant="ghost" onClick={() => updateAgentOsRun(selectedAgentOsRunDetail, "retrying")} disabled={busy || !selectedAgentOsRunDetail.canRetry || agentOsConsoleState.status === "loading"}>Retry</Button>
+                        <Button type="button" size="sm" variant="ghost" onClick={() => updateAgentOsRun(selectedAgentOsRunDetail, "dead_lettered")} disabled={busy || !selectedAgentOsRunDetail.canDeadLetter || agentOsConsoleState.status === "loading"}>Dead-letter</Button>
+                        <Button type="button" size="sm" variant="ghost" onClick={() => updateAgentOsRun(selectedAgentOsRunDetail, "cancelled")} disabled={busy || !selectedAgentOsRunDetail.canCancel || agentOsConsoleState.status === "loading"}>Cancel</Button>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+
+            <div className="co-ai-scout-grid bg-white">
+              <div className="co-ai-scout-briefs">
+                <SectionHeader title="Rollback / Idempotency" description="Each internal action explains what can be discarded and which fields form duplicate protection." />
+                <div className="co-ai-scout-checks">
+                  {agentOsActionRows.map((row) => (
+                    <small key={row.actionId}>{row.label}: {(row.idempotencyKeyFields || []).join(" + ")} / {row.rollbackBehavior}</small>
+                  ))}
+                </div>
+              </div>
+              <div className="co-ai-scout-briefs">
+                <SectionHeader title="Learning Review" description="Learning stays company-scoped and redacted before Apex Agent can reuse it." />
+                <div className="co-ai-scout-checks">
+                  {agentOsLearningReviewRows.length ? agentOsLearningReviewRows.map((row) => (
+                    <small key={row.id}>{row.label}: {row.count} signal{row.count === 1 ? "" : "s"} / {row.reviewState} / {row.redaction}</small>
+                  )) : <small>No active learning signals loaded yet.</small>}
+                </div>
+                <SectionHeader title="Production Gate Evidence" description="Production posture stays closed until release evidence is recorded and reviewed." />
+                <div className="co-ai-scout-checks">
+                  {agentOsProductionEvidenceRows.map((row) => (
+                    <small key={row.id}>{row.group}: {row.label} / {row.status.replace(/_/g, " ")} / {row.nextStep}</small>
+                  ))}
+                  <small>External action locks: {agentOsConsole.cards.find((card) => card.id === "external-locks")?.value || 0}</small>
+                </div>
+              </div>
+            </div>
+          </Card>
+          ) : null}
+
           {canViewOpportunityScout ? (
           <Card className="co-ai-main-board co-ai-scout-board overflow-hidden">
             <div className="co-ai-board-header border-b border-slate-200 bg-white p-4">
@@ -2574,6 +3814,1101 @@ function CopilotPagePolished({
                     <small>{lane.actionLabel}</small>
                   </button>
                 ))}
+              </div>
+            </div>
+
+            <div id="scout-connector-setup" className="co-ai-scout-grid border-b border-slate-200 bg-white" tabIndex={-1}>
+              <div className="co-ai-scout-status" data-tone={connectorSetupState.status === "error" ? "red" : connectorDraft.connectorCategory?.includes("private") ? "amber" : "green"}>
+                <span>Source connector setup</span>
+                <strong>Add the places Apex Agent should prepare for daily review.</strong>
+                <p>Public connectors become review cards. Private social groups, portals, and communities become handoff cards until an authorized human supplies safe evidence.</p>
+                <div className="co-ai-scout-metrics">
+                  <div><em>{OPPORTUNITY_SCOUT_CONNECTOR_PRESETS.filter((preset) => preset.category === "public_social").length}</em><span>public/local</span></div>
+                  <div><em>{OPPORTUNITY_SCOUT_CONNECTOR_PRESETS.filter((preset) => preset.category?.includes("private")).length}</em><span>handoff</span></div>
+                  <div><em>{OPPORTUNITY_SCOUT_CONNECTOR_PRESETS.filter((preset) => preset.category === "inbound_evidence").length}</em><span>intake</span></div>
+                </div>
+                {connectorSetupState.message ? <em>{connectorSetupState.message}</em> : null}
+              </div>
+              <div className="co-ai-scout-briefs">
+                <SectionHeader title="Connector Presets" description="Pick the source type, then save a Lead Source and matching daily search profile." />
+                <div className="co-ai-profile-starters" aria-label="Source connector presets">
+                  {OPPORTUNITY_SCOUT_CONNECTOR_PRESETS.map((preset) => (
+                    <button key={preset.id} type="button" className="co-ai-profile-starter co-focus-ring" onClick={() => applyConnectorPreset(preset)} disabled={!canManageOpportunityScout || busy}>
+                      <strong>{preset.label}</strong>
+                      <span>{preset.description}</span>
+                    </button>
+                  ))}
+                </div>
+                <form className="co-ai-scout-form" onSubmit={submitConnectorDraft}>
+                  <div className="co-ai-scout-form-grid">
+                    <label>
+                      <span>Source Name</span>
+                      <input value={connectorDraft.name} onChange={(event) => updateConnectorDraft("name", event.target.value)} placeholder="Facebook public page leads" />
+                    </label>
+                    <label>
+                      <span>Source URL</span>
+                      <input value={connectorDraft.url} onChange={(event) => updateConnectorDraft("url", event.target.value)} placeholder="https://..." />
+                    </label>
+                    <label>
+                      <span>Type</span>
+                      <select value={connectorDraft.type} onChange={(event) => updateConnectorDraft("type", event.target.value)}>
+                        {LEAD_SOURCE_TYPE_OPTIONS.map((type) => <option key={type} value={type}>{type}</option>)}
+                      </select>
+                    </label>
+                    <label>
+                      <span>Check Cadence</span>
+                      <select value={connectorDraft.checkCadence} onChange={(event) => updateConnectorDraft("checkCadence", event.target.value)}>
+                        {LEAD_SOURCE_CADENCE_OPTIONS.map((cadence) => <option key={cadence} value={cadence}>{cadence}</option>)}
+                      </select>
+                    </label>
+                    <label>
+                      <span>Service Area</span>
+                      <input value={connectorDraft.serviceArea} onChange={(event) => updateConnectorDraft("serviceArea", event.target.value)} placeholder="Albany, Salem, Corvallis" />
+                    </label>
+                    <label>
+                      <span>Trade Focus</span>
+                      <input value={connectorDraft.tradeFocus} onChange={(event) => updateConnectorDraft("tradeFocus", event.target.value)} placeholder="Concrete, fencing, decks" />
+                    </label>
+                    <label className="md:col-span-2">
+                      <span>Source Notes</span>
+                      <textarea value={connectorDraft.notes} onChange={(event) => updateConnectorDraft("notes", event.target.value)} rows={2} placeholder="Review rules, source details, and non-secret notes only." />
+                    </label>
+                    <label>
+                      <span>Profile Name</span>
+                      <input value={connectorDraft.profileName} onChange={(event) => updateConnectorDraft("profileName", event.target.value)} placeholder="Daily source scan" />
+                    </label>
+                    <label>
+                      <span>Source Adapter</span>
+                      <select value={connectorDraft.sourceAdapterId} onChange={(event) => updateConnectorDraft("sourceAdapterId", event.target.value)}>
+                        <option value="">Auto from source type</option>
+                        {OPPORTUNITY_SCOUT_SOURCE_ADAPTERS.map((adapter) => (
+                          <option key={adapter.id} value={adapter.id}>{adapter.label}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>Source Posture</span>
+                      <select value={connectorDraft.sourcePosture || ""} onChange={(event) => updateConnectorDraft("sourcePosture", event.target.value)}>
+                        <option value="">Auto from adapter</option>
+                        {OPPORTUNITY_SOURCE_POSTURES.map((posture) => (
+                          <option key={posture} value={posture}>{posture.replace(/_/g, " ")}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>Authorization</span>
+                      <select value={connectorDraft.sourceAuthorizationStatus} onChange={(event) => updateConnectorDraft("sourceAuthorizationStatus", event.target.value)}>
+                        {OPPORTUNITY_SOURCE_AUTHORIZATION_STATUSES.map((status) => <option key={status} value={status}>{status.replace(/_/g, " ")}</option>)}
+                      </select>
+                    </label>
+                    <label>
+                      <span>Profile Cadence</span>
+                      <select value={connectorDraft.cadence} onChange={(event) => updateConnectorDraft("cadence", event.target.value)}>
+                        <option value="daily">Daily</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="manual">Manual</option>
+                      </select>
+                    </label>
+                    <label className="md:col-span-2">
+                      <span>Keywords</span>
+                      <input value={connectorDraft.keywords} onChange={(event) => updateConnectorDraft("keywords", event.target.value)} placeholder="looking for contractor, need estimate, repair" />
+                    </label>
+                    <label>
+                      <span>Job Types</span>
+                      <input value={connectorDraft.projectTypes || ""} onChange={(event) => updateConnectorDraft("projectTypes", event.target.value)} placeholder="repair, replacement, commercial" />
+                    </label>
+                    <label>
+                      <span>Preferred Sources</span>
+                      <input value={connectorDraft.preferredSources || ""} onChange={(event) => updateConnectorDraft("preferredSources", event.target.value)} placeholder="public page, local board, city bids" />
+                    </label>
+                    <label>
+                      <span>Minimum Job Size</span>
+                      <input type="number" min="0" value={connectorDraft.minimumProjectValue || ""} onChange={(event) => updateConnectorDraft("minimumProjectValue", event.target.value)} placeholder="0" />
+                    </label>
+                  </div>
+                  <div className="co-ai-scout-form-footer">
+                    <span>No credentials, private account secrets, comments, DMs, bids, or customer contact are created from setup.</span>
+                    <Button type="submit" size="sm" disabled={!canManageOpportunityScout || busy || connectorSetupState.status === "loading" || (!connectorDraft.name.trim() && !connectorDraft.profileName.trim())}>
+                      {connectorSetupState.status === "loading" ? "Saving..." : "Save Connector"}
+                    </Button>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            <div className="co-ai-scout-grid border-b border-slate-200 bg-slate-50/80">
+              <div className="co-ai-scout-status" data-tone={dailyResourcePlan.stats?.blocked ? "red" : dailyResourcePlan.stats?.humanAccess ? "amber" : "green"}>
+                <span>{dailyResourcePlan.label || "Daily Lead Resource Plan"}</span>
+                <strong>{dailyResourcePlan.summary}</strong>
+                <p>Public-source prep can be queued for Apex Agent review. Private portals, inboxes, APIs, and browser sessions stay human-authorized.</p>
+                <div className="co-ai-scout-metrics">
+                  <div>
+                    <em>{dailyResourcePlan.stats?.autonomousPrep || 0}</em>
+                    <span>review-safe</span>
+                  </div>
+                  <div>
+                    <em>{dailyResourcePlan.stats?.humanAccess || 0}</em>
+                    <span>human-gated</span>
+                  </div>
+                  <div>
+                    <em>{dailyResourcePlan.stats?.blocked || 0}</em>
+                    <span>blocked</span>
+                  </div>
+                </div>
+                <div className="co-ai-scout-runbook">
+                  <span>Agent daily prep queue</span>
+                  <button type="button" className="co-ai-scout-run-step co-focus-ring" data-tone={dailyScoutQueueState.status === "error" ? "red" : dailyScoutQueueState.status === "ready" ? "green" : opportunityScout.stats.profilesDue ? "orange" : "slate"} onClick={queueDailyScoutPrep} disabled={!canManageOpportunityScout || busy || dailyScoutQueueState.status === "loading"}>
+                    <em>{opportunityScout.stats.profilesDue}</em>
+                    <strong>{dailyScoutQueueState.status === "loading" ? "Queueing prep" : "Queue today's search prep"}</strong>
+                    <p>{dailyScoutQueueState.message || "Create review-only Agent OS tasks for due search profiles. No browsing, contact, lead creation, or bid submission."}</p>
+                    <small>{canManageOpportunityScout ? "Run daily prep" : "Owner/admin required"}</small>
+                  </button>
+                  {dailyScoutQueueState.result ? (
+                    <div className="co-ai-scout-checks">
+                      <small>Queued: {dailyScoutQueueState.result.queuedCount}</small>
+                      <small>Skipped: {dailyScoutQueueState.result.skippedCount}</small>
+                      <small>Due: {dailyScoutQueueState.result.dueCount}</small>
+                      {dailyScoutQueueState.result.executionPlan ? <small>Cards: {dailyScoutQueueState.result.executionPlan.stats?.cards || 0}</small> : null}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+              <div className="co-ai-scout-briefs">
+                <SectionHeader title="Source Lanes" description="Apex Agent separates public research from private-authorized and locked sources before any daily prep is queued." />
+                <div className="co-ai-scout-brief-list">
+                  {dailyResourcePlan.lanes?.filter((lane) => lane.count || lane.dueToday).slice(0, 6).map((lane) => (
+                    <div key={lane.id} className="co-ai-scout-brief" data-tone={lane.tone}>
+                      <div className="min-w-0">
+                        <span>{lane.label}</span>
+                        <strong>{lane.count} source{lane.count === 1 ? "" : "s"} / {lane.dueToday} due</strong>
+                        <p>{lane.capability}</p>
+                        <em>{lane.boundary}</em>
+                      </div>
+                      <div className="co-ai-scout-brief-actions">
+                        <Badge tone={lane.tone}>{lane.actionLabel}</Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {dailyResourcePlan.rows?.length ? (
+                  <div className="co-ai-scout-checks">
+                    {dailyResourcePlan.rows.slice(0, 4).map((row) => (
+                      <small key={row.id}>{row.laneLabel}: {row.name} - {row.requiresHumanAccess ? `human review (${row.privateSourceGate?.authorizationStatus || "needed"})` : "prep allowed"}</small>
+                    ))}
+                  </div>
+                ) : null}
+                {canManageOpportunityScout ? (
+                  <div className="co-ai-scout-runbook co-ai-scout-form">
+                    <span>Provider activation controls</span>
+                    <div className="co-ai-scout-checks">
+                      <small>Contract: {providerContract.version || "v6"}</small>
+                      <small>Health: {providerActivationReadiness?.status || "not checked"}</small>
+                      <small>Live execution: off</small>
+                      <small>Connectors: {providerConnectorRows.filter((connector) => connector.enabled).length}/{providerConnectorRows.length}</small>
+                    </div>
+                    <div className="co-ai-scout-form-grid">
+                      <label>
+                        <span>Mode</span>
+                        <select value={providerSettingsDraft.mode} onChange={(event) => setProviderSettingsDraft((current) => ({ ...current, mode: event.target.value }))}>
+                          <option value="disabled">Disabled</option>
+                          <option value="dry_run">Dry run</option>
+                          <option value="test">Sandbox test</option>
+                          <option value="live_locked">Live locked</option>
+                        </select>
+                      </label>
+                      <label>
+                        <span>Daily budget</span>
+                        <input type="number" min="0" max="250" value={providerSettingsDraft.dailyBudget} onChange={(event) => setProviderSettingsDraft((current) => ({ ...current, dailyBudget: event.target.value }))} />
+                      </label>
+                      <label>
+                        <span>Per-run results</span>
+                        <input type="number" min="1" max="10" value={providerSettingsDraft.maxResultsPerRun} onChange={(event) => setProviderSettingsDraft((current) => ({ ...current, maxResultsPerRun: event.target.value }))} />
+                      </label>
+                      <label>
+                        <span>Review threshold</span>
+                        <input type="number" min="0" max="100" value={providerSettingsDraft.minFitScoreForReview} onChange={(event) => setProviderSettingsDraft((current) => ({ ...current, minFitScoreForReview: event.target.value }))} />
+                      </label>
+                      <label>
+                        <span>Daily review run</span>
+                        <select value={providerSettingsDraft.dailyJobFinderAutopilotEnabled ? "enabled" : "disabled"} onChange={(event) => setProviderSettingsDraft((current) => ({ ...current, dailyJobFinderAutopilotEnabled: event.target.value === "enabled" }))}>
+                          <option value="disabled">Disabled</option>
+                          <option value="enabled">Enabled</option>
+                        </select>
+                      </label>
+                      <label>
+                        <span>Daily run time</span>
+                        <input type="time" value={providerSettingsDraft.dailyJobFinderRunTimeLocal} onChange={(event) => setProviderSettingsDraft((current) => ({ ...current, dailyJobFinderRunTimeLocal: event.target.value }))} />
+                      </label>
+                      <label>
+                        <span>Connector ids</span>
+                        <input value={providerSettingsDraft.enabledConnectorIds} onChange={(event) => setProviderSettingsDraft((current) => ({ ...current, enabledConnectorIds: event.target.value }))} placeholder="public_web_search, public_procurement_search" />
+                      </label>
+                      <label>
+                        <span>Service areas</span>
+                        <input value={providerSettingsDraft.serviceAreas} onChange={(event) => setProviderSettingsDraft((current) => ({ ...current, serviceAreas: event.target.value }))} placeholder="Salem, Albany" />
+                      </label>
+                      <label>
+                        <span>Trades</span>
+                        <input value={providerSettingsDraft.trades} onChange={(event) => setProviderSettingsDraft((current) => ({ ...current, trades: event.target.value }))} placeholder="Concrete, fencing" />
+                      </label>
+                    </div>
+                    <div className="co-ai-scout-form-grid">
+                      <label>
+                        <span>Readiness provider</span>
+                        <input value={providerReadinessDraft.providerName} onChange={(event) => setProviderReadinessDraft((current) => ({ ...current, providerName: event.target.value }))} placeholder="Public procurement provider" />
+                      </label>
+                      <label>
+                        <span>Readiness source</span>
+                        <select value={providerReadinessDraft.sourceCategory} onChange={(event) => setProviderReadinessDraft((current) => ({ ...current, sourceCategory: event.target.value }))}>
+                          <option value="public_procurement">Public procurement</option>
+                          <option value="public_job_board">Public job board</option>
+                          <option value="marketplace_account">Marketplace account</option>
+                          <option value="social_private_group">Private social group</option>
+                          <option value="inbox_leads">Inbox leads</option>
+                          <option value="public_classifieds">Public classifieds</option>
+                        </select>
+                      </label>
+                      <label>
+                        <span>Readiness connector</span>
+                        <input value={providerReadinessDraft.connectorId} onChange={(event) => setProviderReadinessDraft((current) => ({ ...current, connectorId: event.target.value }))} placeholder="public_procurement_search" />
+                      </label>
+                      <label>
+                        <span>Consent source</span>
+                        <input value={providerReadinessDraft.sourceName} onChange={(event) => setProviderReadinessDraft((current) => ({ ...current, sourceName: event.target.value }))} placeholder="Public procurement sources" />
+                      </label>
+                      <label>
+                        <span>Public URL</span>
+                        <input value={providerReadinessDraft.sourceUrl} onChange={(event) => setProviderReadinessDraft((current) => ({ ...current, sourceUrl: event.target.value }))} placeholder="https://city.example/procurement/feed" />
+                      </label>
+                      <label>
+                        <span>Readiness reviewer</span>
+                        <input value={providerReadinessDraft.reviewedBy} onChange={(event) => setProviderReadinessDraft((current) => ({ ...current, reviewedBy: event.target.value }))} placeholder="Owner/admin name" />
+                      </label>
+                      <label>
+                        <span>Daily time</span>
+                        <input value={providerReadinessDraft.startTimeLocal} onChange={(event) => setProviderReadinessDraft((current) => ({ ...current, startTimeLocal: event.target.value }))} placeholder="06:00" />
+                      </label>
+                    </div>
+                    <div className="co-ai-scout-form-grid">
+                      <label>
+                        <span>Private source</span>
+                        <input value={privateSourceDraft.sourceName} onChange={(event) => setPrivateSourceDraft((current) => ({ ...current, sourceName: event.target.value }))} placeholder="Facebook group, Nextdoor, plan room" />
+                      </label>
+                      <label>
+                        <span>Private type</span>
+                        <select value={privateSourceDraft.sourceType} onChange={(event) => setPrivateSourceDraft((current) => ({ ...current, sourceType: event.target.value, sourceAdapterId: event.target.value }))}>
+                          <option value="facebook_private_group">Facebook private group</option>
+                          <option value="nextdoor_private_group">Nextdoor private group</option>
+                          <option value="customer_inbox">Customer inbox</option>
+                          <option value="private_plan_room">Private plan room</option>
+                          <option value="contractor_portal">Contractor portal</option>
+                          <option value="private_referral_network">Referral network</option>
+                        </select>
+                      </label>
+                      <label>
+                        <span>Authorized by</span>
+                        <input value={privateSourceDraft.authorizedBy} onChange={(event) => setPrivateSourceDraft((current) => ({ ...current, authorizedBy: event.target.value }))} placeholder="Owner/admin name" />
+                      </label>
+                      <label>
+                        <span>Safe evidence</span>
+                        <input value={privateSourceDraft.evidenceText} onChange={(event) => setPrivateSourceDraft((current) => ({ ...current, evidenceText: event.target.value }))} placeholder="Paste non-secret job evidence only" />
+                      </label>
+                    </div>
+                    <div className="co-ai-scout-form-grid">
+                      <label>
+                        <span>API provider</span>
+                        <input value={platformBoundaryDraft.providerName} onChange={(event) => setPlatformBoundaryDraft((current) => ({ ...current, providerName: event.target.value }))} placeholder="Approved search API" />
+                      </label>
+                      <label>
+                        <span>API type</span>
+                        <select value={platformBoundaryDraft.providerType} onChange={(event) => setPlatformBoundaryDraft((current) => ({ ...current, providerType: event.target.value }))}>
+                          <option value="approved_search_api">Search API</option>
+                          <option value="procurement_feed_api">Procurement feed</option>
+                          <option value="social_platform_api">Social platform API</option>
+                          <option value="plan_room_api">Plan room API</option>
+                          <option value="classifieds_feed_api">Classifieds feed</option>
+                          <option value="marketplace_api">Marketplace API</option>
+                          <option value="other_provider_api">Other provider API</option>
+                        </select>
+                      </label>
+                      <label>
+                        <span>Boundary connectors</span>
+                        <input value={platformBoundaryDraft.connectorIds} onChange={(event) => setPlatformBoundaryDraft((current) => ({ ...current, connectorIds: event.target.value }))} placeholder="public_procurement_search" />
+                      </label>
+                      <label>
+                        <span>Terms reviewer</span>
+                        <input value={platformBoundaryDraft.reviewedBy} onChange={(event) => setPlatformBoundaryDraft((current) => ({ ...current, reviewedBy: event.target.value }))} placeholder="Owner/admin name" />
+                      </label>
+                      <label>
+                        <span>Terms</span>
+                        <select value={platformBoundaryDraft.sourceTermsStatus} onChange={(event) => setPlatformBoundaryDraft((current) => ({ ...current, sourceTermsStatus: event.target.value }))}>
+                          <option value="approved">Approved</option>
+                          <option value="unreviewed">Unreviewed</option>
+                          <option value="needs_legal_review">Needs legal review</option>
+                          <option value="blocked">Blocked</option>
+                        </select>
+                      </label>
+                      <label>
+                        <span>Robots/API</span>
+                        <select value={platformBoundaryDraft.robotsStatus} onChange={(event) => setPlatformBoundaryDraft((current) => ({ ...current, robotsStatus: event.target.value }))}>
+                          <option value="allowed">Allowed</option>
+                          <option value="not_applicable">Not applicable</option>
+                          <option value="unreviewed">Unreviewed</option>
+                          <option value="blocked">Blocked</option>
+                        </select>
+                      </label>
+                    </div>
+                    <div className="co-ai-scout-form-grid">
+                      <label>
+                        <span>Official adapter</span>
+                        <select value={officialApiDraft.adapterId} onChange={(event) => setOfficialApiDraft((current) => ({ ...current, adapterId: event.target.value }))}>
+                          <option value="official_search_api_sandbox">Search API sandbox</option>
+                          <option value="official_procurement_feed_api_sandbox">Procurement API sandbox</option>
+                          <option value="official_plan_room_api_sandbox">Plan room API sandbox</option>
+                          <option value="official_classifieds_feed_api_sandbox">Classifieds API sandbox</option>
+                        </select>
+                      </label>
+                      <label>
+                        <span>API query</span>
+                        <input value={officialApiDraft.query} onChange={(event) => setOfficialApiDraft((current) => ({ ...current, query: event.target.value }))} placeholder="Salem concrete bid opportunity" />
+                      </label>
+                    </div>
+                    <div className="co-ai-scout-form-grid">
+                      <label>
+                        <span>Procurement feed</span>
+                        <input value={procurementFeedDraft.endpointName} onChange={(event) => setProcurementFeedDraft((current) => ({ ...current, endpointName: event.target.value }))} placeholder="City procurement fixture" />
+                      </label>
+                      <label>
+                        <span>Endpoint URL</span>
+                        <input value={procurementFeedDraft.endpointUrl} onChange={(event) => setProcurementFeedDraft((current) => ({ ...current, endpointUrl: event.target.value }))} placeholder="Optional metadata URL" />
+                      </label>
+                      <label>
+                        <span>Feed format</span>
+                        <select value={procurementFeedDraft.responseFormat} onChange={(event) => setProcurementFeedDraft((current) => ({ ...current, responseFormat: event.target.value }))}>
+                          <option value="fixture_json">Fixture JSON</option>
+                          <option value="json_feed">JSON feed</option>
+                          <option value="rss_feed">RSS feed</option>
+                          <option value="atom_feed">Atom feed</option>
+                          <option value="csv_feed">CSV feed</option>
+                        </select>
+                      </label>
+                      <label>
+                        <span>Feed reviewer</span>
+                        <input value={procurementFeedDraft.reviewedBy} onChange={(event) => setProcurementFeedDraft((current) => ({ ...current, reviewedBy: event.target.value }))} placeholder="Owner/admin name" />
+                      </label>
+                      <label>
+                        <span>Feed query</span>
+                        <input value={procurementFeedDraft.query} onChange={(event) => setProcurementFeedDraft((current) => ({ ...current, query: event.target.value }))} placeholder="Salem concrete public procurement" />
+                      </label>
+                      <label>
+                        <span>Live URL</span>
+                        <input value={procurementFeedDraft.liveSourceUrl} onChange={(event) => setProcurementFeedDraft((current) => ({ ...current, liveSourceUrl: event.target.value }))} placeholder="Optional, must match metadata" />
+                      </label>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <Button type="button" size="sm" variant="secondary" onClick={saveProviderSettingsDraft} disabled={busy || providerActivationState.status === "loading"}>
+                        Save Controls
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={checkProviderHealth} disabled={busy || providerActivationState.status === "loading"}>
+                        Health Check
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={loadProviderLiveReadiness} disabled={busy || providerAdapterState.status === "loading"}>
+                        Live Readiness
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={recordProviderConnectionMetadata} disabled={busy || providerAdapterState.status === "loading"}>
+                        Connection Meta
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={recordProviderSourceConsent} disabled={busy || providerAdapterState.status === "loading"}>
+                        Source Consent
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={recordProviderDailySchedule} disabled={busy || providerAdapterState.status === "loading"}>
+                        Daily Schedule
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={runProviderSandboxTest} disabled={busy || providerActivationState.status === "loading"}>
+                        Sandbox Test
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={loadProviderApprovalPacket} disabled={busy || providerApprovalState.status === "loading"}>
+                        Approval Packet
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={() => recordProviderApprovalDecision("approve_boundary")} disabled={busy || providerApprovalState.status === "loading"}>
+                        Approve Boundary
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={() => recordProviderApprovalDecision("revoke")} disabled={busy || providerApprovalState.status === "loading"}>
+                        Revoke Boundary
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={runProviderAdapterRunner} disabled={busy || providerAdapterState.status === "loading"}>
+                        Adapter Runner
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={runProviderLivePublicExecution} disabled={busy || providerAdapterState.status === "loading"}>
+                        Live Public Gate
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={runPublicSourceProviderAdapters} disabled={busy || providerAdapterState.status === "loading"}>
+                        Public Source Run
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={queueAutonomousDailyScoutPrep} disabled={busy || providerAdapterState.status === "loading"}>
+                        Autonomous Daily
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={recordProviderCredentialReference} disabled={busy || providerAdapterState.status === "loading"}>
+                        Credential Ref
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={recordPrivateSourceAuthorization} disabled={busy || providerAdapterState.status === "loading"}>
+                        Private Auth
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={recordPrivateEvidenceIntake} disabled={busy || providerAdapterState.status === "loading"}>
+                        Private Evidence
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={loadPrivateSourceChecklist} disabled={busy || providerAdapterState.status === "loading"}>
+                        Private Checklist
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={recordPlatformProviderBoundary} disabled={busy || providerAdapterState.status === "loading"}>
+                        API Boundary
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={loadProviderCompliancePacket} disabled={busy || providerAdapterState.status === "loading"}>
+                        Compliance
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={loadProviderMonitoringSnapshot} disabled={busy || providerAdapterState.status === "loading"}>
+                        Monitor
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={loadOfficialProviderApiAdapters} disabled={busy || providerAdapterState.status === "loading"}>
+                        API Adapters
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={loadAllSourceAdapterCoverage} disabled={busy || providerAdapterState.status === "loading"}>
+                        Coverage
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={runOfficialProviderApiHarness} disabled={busy || providerAdapterState.status === "loading"}>
+                        API Harness
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={loadProcurementFeedAdapter} disabled={busy || providerAdapterState.status === "loading"}>
+                        Procurement Adapter
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={recordProcurementFeedAdapterConfig} disabled={busy || providerAdapterState.status === "loading"}>
+                        Procurement Config
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={runProcurementFeedAdapter} disabled={busy || providerAdapterState.status === "loading"}>
+                        Procurement Run
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={runLiveProcurementPublicAdapter} disabled={busy || providerAdapterState.status === "loading"}>
+                        Live Procurement
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={runDailyLiveProcurementPublicAdapter} disabled={busy || providerAdapterState.status === "loading"}>
+                        Daily Procurement
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={runDailyJobFinderOrchestration} disabled={busy || providerAdapterState.status === "loading"}>
+                        Daily Run
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={runDailyJobFinderAutopilot} disabled={busy || providerAdapterState.status === "loading"}>
+                        Review Run
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={loadAgentLeadLocalCompletionReadiness} disabled={busy || providerAdapterState.status === "loading"}>
+                        Readiness
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={loadAgentLeadProductionReadiness} disabled={busy || providerAdapterState.status === "loading"}>
+                        Prod Gate
+                      </Button>
+                    </div>
+                    {providerActivationState.message ? <small>{providerActivationState.message}</small> : null}
+                    {providerApprovalState.message ? <small>{providerApprovalState.message}</small> : null}
+                    {providerAdapterState.message ? <small>{providerAdapterState.message}</small> : null}
+                    {localCompletionReadiness?.mode === "agent_leads_local_completion_readiness_v39" ? (
+                      <div className="co-ai-scout-checks">
+                        <small>Agent Leads local: {localCompletionReadiness.localImplementationPercent || 0}%</small>
+                        <small>Status: {(localCompletionReadiness.localCompletionStatus || "needs setup").replace(/_/g, " ")}</small>
+                        <small>Workspace: {(localCompletionReadiness.workspaceReadinessStatus || "needs evidence").replace(/_/g, " ")}</small>
+                        <small>Review-only run: {localCompletionReadiness.readyForDailyReviewOnlyRun ? "ready" : "needs approval/setup"}</small>
+                        <small>Production autonomy: off</small>
+                        <small>Auto-contact/lead create: off</small>
+                        {(localCompletionReadiness.completionRows || []).slice(0, 6).map((row) => (
+                          <small key={row.id}>{row.label}: {String(row.status || "").replace(/_/g, " ")}</small>
+                        ))}
+                      </div>
+                    ) : null}
+                    {productionReadinessGate?.mode === "agent_leads_production_readiness_gate_v40" ? (
+                      <div className="co-ai-scout-checks">
+                        <small>Production gate: {(productionReadinessGate.status || "blocked").replace(/_/g, " ")}</small>
+                        <small>Founder-supported production: {productionReadinessGate.readyForFounderSupportedProduction ? "ready for review" : "no-go"}</small>
+                        <small>Wider public launch: off</small>
+                        <small>Production autonomy: off</small>
+                        {(productionReadinessGate.checkRows || []).slice(0, 8).map((row) => (
+                          <small key={row.id}>{row.label}: {String(row.status || "").replace(/_/g, " ")}</small>
+                        ))}
+                        {(productionReadinessGate.blockers || []).slice(0, 3).map((blocker) => (
+                          <small key={blocker}>Blocker: {blocker}</small>
+                        ))}
+                        <label>
+                          <span>Reviewer</span>
+                          <input value={productionEvidenceDraft.operatorName} onChange={(event) => updateProductionEvidenceDraft("operatorName", event.target.value)} placeholder="Owner/admin reviewer" />
+                        </label>
+                        <label>
+                          <span>Environment</span>
+                          <input value={productionEvidenceDraft.environmentLabel} onChange={(event) => updateProductionEvidenceDraft("environmentLabel", event.target.value)} placeholder="Founder-supported production review" />
+                        </label>
+                        <label>
+                          <span>Target URL</span>
+                          <input value={productionEvidenceDraft.targetUrl} onChange={(event) => updateProductionEvidenceDraft("targetUrl", event.target.value)} placeholder="https://app.apexhq.online" />
+                        </label>
+                        <label>
+                          <span>Completed check IDs</span>
+                          <textarea value={productionEvidenceDraft.completedCheckIds} onChange={(event) => updateProductionEvidenceDraft("completedCheckIds", event.target.value)} placeholder={(productionReadinessGate.checkRows || []).map((row) => row.id).join(", ")} rows={3} />
+                        </label>
+                        <label>
+                          <span>Command summary</span>
+                          <textarea value={productionEvidenceDraft.commandSummary} onChange={(event) => updateProductionEvidenceDraft("commandSummary", event.target.value)} placeholder="Paste non-secret command summary. Do not paste passwords, tokens, cookies, MFA, or customer data." rows={3} />
+                        </label>
+                        <label>
+                          <span>Evidence note</span>
+                          <textarea value={productionEvidenceDraft.notes} onChange={(event) => updateProductionEvidenceDraft("notes", event.target.value)} placeholder="Non-secret release note, rollback owner, monitoring owner, and pilot/legal approvals." rows={3} />
+                        </label>
+                        <label>
+                          <span>Evidence only</span>
+                          <select value={productionEvidenceDraft.acknowledgement ? "yes" : "no"} onChange={(event) => updateProductionEvidenceDraft("acknowledgement", event.target.value === "yes")}>
+                            <option value="no">Not acknowledged</option>
+                            <option value="yes">I confirm this records evidence only</option>
+                          </select>
+                        </label>
+                        <Button type="button" size="sm" variant="secondary" onClick={submitAgentLeadProductionEvidence} disabled={busy || providerAdapterState.status === "loading" || !productionEvidenceDraft.acknowledgement}>
+                          Record Evidence
+                        </Button>
+                      </div>
+                    ) : null}
+                    {providerApprovalPacket ? (
+                      <div className="co-ai-scout-checks">
+                        <small>Approval: {providerApprovalPacket.approvalStatus || "not requested"}</small>
+                        <small>Execution contract: {providerApprovalPacket.executionContract?.version || "v6"}</small>
+                        <small>Sandbox evidence: {providerApprovalPacket.auditView?.sandboxTestCount || 0}</small>
+                        <small>Import reviews: {providerApprovalPacket.auditView?.importDecisionCount || 0}</small>
+                        <small>Rollback: {(providerApprovalPacket.rollbackPlan || [])[0] || "revoke boundary"}</small>
+                        <small>Live adapter: off</small>
+                      </div>
+                    ) : null}
+                    {providerAdapterState.result?.mode ? (
+                      <div className="co-ai-scout-checks">
+                        <small>Runner: {providerAdapterState.result.mode}</small>
+                        <small>Status: {providerAdapterState.result.status || providerAdapterState.result.autonomousDailyScout?.status || "ready"}</small>
+                        <small>Results: {providerAdapterState.result.results?.length || providerAdapterState.result.orchestration?.results?.length || providerAdapterState.result.providerAdapterRunner?.results?.length || 0}</small>
+                        <small>Review queue: {providerAdapterState.result.reviewQueue?.count || providerAdapterState.result.reviewInbox?.count || providerAdapterState.result.resultDraftPreviews?.length || providerAdapterState.result.providerAdapterRunner?.resultDraftPreviews?.length || 0}</small>
+                        <small>External network: {providerAdapterState.result.externalNetworkRequestAttempted ? "bounded GET" : "off"}</small>
+                      </div>
+                    ) : null}
+                    {providerAdapterState.result?.mode === "agent_leads_live_provider_readiness_v14" ? (
+                      <div className="co-ai-scout-checks">
+                        <small>Ready: {providerAdapterState.result.counts?.ready || 0}</small>
+                        <small>Missing consent: {providerAdapterState.result.counts?.missingConsent || 0}</small>
+                        <small>Missing credential: {providerAdapterState.result.counts?.missingCredential || 0}</small>
+                        <small>Manual review: {providerAdapterState.result.counts?.needsManualReview || 0}</small>
+                        <small>Live unlock: off</small>
+                      </div>
+                    ) : null}
+                    {providerAdapterState.result?.dailyReviewWorkflow?.counts ? (
+                      <div className="co-ai-scout-checks">
+                        <small>Accepted today: {providerAdapterState.result.dailyReviewWorkflow.counts.accepted || 0}</small>
+                        <small>Duplicates: {providerAdapterState.result.dailyReviewWorkflow.counts.duplicates || 0}</small>
+                        <small>No fit: {providerAdapterState.result.dailyReviewWorkflow.counts.noFit || 0}</small>
+                        <small>Dismissed: {providerAdapterState.result.dailyReviewWorkflow.counts.dismissed || 0}</small>
+                        <small>Private handoffs done: {providerAdapterState.result.dailyReviewWorkflow.counts.privateHandoffsCompleted || 0}</small>
+                      </div>
+                    ) : null}
+                    {providerAdapterState.result?.reviewInbox?.sourceTrendCards?.length ? (
+                      <div className="co-ai-scout-checks">
+                        {providerAdapterState.result.reviewInbox.sourceTrendCards.filter((card) => card.rows?.length).slice(0, 3).map((card) => (
+                          <small key={card.id}>{card.label}: {card.rows.map((row) => row.sourceHost || row.sourceType || row.connectorId).join(", ")}</small>
+                        ))}
+                      </div>
+                    ) : null}
+                    {providerAdapterState.result?.reviewInbox?.tomorrowAdjustments?.length ? (
+                      <div className="co-ai-scout-checks">
+                        {providerAdapterState.result.reviewInbox.tomorrowAdjustments.slice(0, 3).map((adjustment) => (
+                          <small key={adjustment.id}>Tomorrow: {adjustment.action.replace(/_/g, " ")} {adjustment.sourceHost || adjustment.sourceType || adjustment.connectorId}</small>
+                        ))}
+                      </div>
+                    ) : null}
+                    {providerAdapterState.result?.reviewQueue?.rows?.length ? (
+                      <div className="co-ai-scout-checks">
+                        {providerAdapterState.result.reviewQueue.rows.slice(0, 3).map((row) => (
+                          <small key={row.id}>
+                            {row.whyApexFoundThis?.summary || row.sourceQuality?.label ? <span>{row.whyApexFoundThis?.summary || row.sourceQuality?.label} - </span> : null}
+                            <button type="button" className="co-link-button" onClick={() => recordProviderReviewQueueDecision(row, "no_fit")}>No fit</button> -
+                            {row.title} - <button type="button" className="co-link-button" onClick={() => draftProviderReviewOpportunity(row)}>Save Draft</button> - <button type="button" className="co-link-button" onClick={() => recordProviderReviewQueueDecision(row, "draft_found_opportunity")}>Accept</button> - <button type="button" className="co-link-button" onClick={() => recordProviderReviewQueueDecision(row, "mark_duplicate")}>Duplicate</button> - <button type="button" className="co-link-button" onClick={() => recordProviderReviewQueueDecision(row, "dismiss")}>Dismiss</button>
+                          </small>
+                        ))}
+                      </div>
+                    ) : null}
+                    {providerAdapterState.result?.reviewInbox?.rows?.length ? (
+                      <div className="co-ai-scout-checks">
+                        {providerAdapterState.result.reviewInbox.rows.slice(0, 3).map((row) => (
+                          <small key={row.id}>
+                            {row.whyApexFoundThis?.summary || row.sourceQuality?.label ? <span>{row.whyApexFoundThis?.summary || row.sourceQuality?.label} - </span> : null}
+                            <button type="button" className="co-link-button" onClick={() => recordProviderReviewQueueDecision(row, "no_fit")}>No fit</button> -
+                            {row.title} - <button type="button" className="co-link-button" onClick={() => draftProviderReviewOpportunity(row)}>Save Draft</button> - <button type="button" className="co-link-button" onClick={() => recordProviderReviewQueueDecision(row, "draft_found_opportunity")}>Accept</button> - <button type="button" className="co-link-button" onClick={() => recordProviderReviewQueueDecision(row, "mark_duplicate")}>Duplicate</button> - <button type="button" className="co-link-button" onClick={() => recordProviderReviewQueueDecision(row, "dismiss")}>Dismiss</button>
+                          </small>
+                        ))}
+                      </div>
+                    ) : null}
+                    {providerAdapterState.result?.reviewInbox?.privateChecklistRows?.length ? (
+                      <div className="co-ai-scout-checks">
+                        {providerAdapterState.result.reviewInbox.privateChecklistRows.slice(0, 3).map((row) => (
+                          <small key={row.id || row.title}>
+                            {row.title || "Private source handoff"} - <button type="button" className="co-link-button" onClick={() => recordProviderReviewQueueDecision(row, "private_handoff_completed")}>Handoff done</button>
+                          </small>
+                        ))}
+                      </div>
+                    ) : null}
+                    {providerActivationReadiness?.checks?.length ? (
+                      <div className="co-ai-scout-checks">
+                        {providerActivationReadiness.checks.slice(0, 5).map((check) => (
+                          <small key={check.id}>{check.label}: {check.status}</small>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+                {dailyScoutExecutionPlan.cards?.length ? (
+                  <div className="co-ai-scout-runbook">
+                    <span>Daily Scout execution cards</span>
+                    <div className="co-ai-scout-checks">
+                      <small>{dailyScoutExecutionPlan.stats?.publicRunnerCards || 0} public runner</small>
+                      <small>{dailyScoutExecutionPlan.stats?.publicDiscoveryCards || 0} found leads</small>
+                      <small>{dailyScoutExecutionPlan.stats?.privateHandoffCards || 0} private handoff</small>
+                      <small>{dailyScoutExecutionPlan.stats?.foundDraftCards || 0} unsaved draft</small>
+                      <small>{dailyScoutExecutionPlan.stats?.reviewedOutcomeSignals || 0} learning signals</small>
+                      <small>{dailyScoutExecutionPlan.stats?.providerAttempts || 0} provider attempts</small>
+                      <small>{dailyScoutExecutionPlan.stats?.providerReviewImports || 0} import review</small>
+                      <small>{dailyScoutExecutionPlan.stats?.publicNoLoginSources || 0} public no-login</small>
+                      <small>{dailyScoutExecutionPlan.stats?.privateHandoffSources || 0} handoff source</small>
+                    </div>
+                    {dailyScoutExecutionPlan.sourceExpansionControls?.suggestions?.length ? (
+                      <div className="co-ai-scout-checks">
+                        {dailyScoutExecutionPlan.sourceExpansionControls.suggestions.slice(0, 3).map((suggestion) => (
+                          <small key={suggestion.id}>Source suggestion: {suggestion.action.replace(/_/g, " ")} {suggestion.sourceHost || suggestion.sourceType || suggestion.connectorId}</small>
+                        ))}
+                      </div>
+                    ) : null}
+                    {sourceCoveragePlanner?.families?.length ? (
+                      <div className="co-ai-scout-runbook">
+                        <span>Source coverage planner</span>
+                        <div className="co-ai-scout-checks">
+                          <small>Score: {sourceCoveragePlanner.coverageScore ?? 0}%</small>
+                          <small>{sourceCoveragePlanner.gaps?.length || 0} gap{sourceCoveragePlanner.gaps?.length === 1 ? "" : "s"}</small>
+                          <small>{sourceCoveragePlanner.recommendations?.length || 0} setup draft{sourceCoveragePlanner.recommendations?.length === 1 ? "" : "s"}</small>
+                          <small>Review-only</small>
+                        </div>
+                        {sourceCoveragePlanner.families.slice(0, 4).map((family) => (
+                          <div key={family.id} className="co-ai-scout-run-step" data-tone={family.tone}>
+                            <em>{String(family.posture || "review").replace(/_/g, " ")}</em>
+                            <strong>{family.label}</strong>
+                            <p>{family.configuredCount ? `${family.configuredCount} configured source${family.configuredCount === 1 ? "" : "s"} in this lane.` : "Missing from the daily lead finder source mix."}</p>
+                            <small>{String(family.status || "review").replace(/_/g, " ")} / {family.weight || 0} pts</small>
+                          </div>
+                        ))}
+                        {sourceCoveragePlanner.recommendations?.slice(0, 3).map((recommendation) => (
+                          <div key={recommendation.id} className="co-ai-scout-run-step" data-tone={recommendation.tone}>
+                            <em>{recommendation.action.replace(/_/g, " ")}</em>
+                            <strong>{recommendation.label}</strong>
+                            <p>{recommendation.reason}</p>
+                            <small>{recommendation.posture.replace(/_/g, " ")} / no auto-save, contact, login, bid, payment, schedule, or integration write</small>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <Button type="button" size="sm" variant="secondary" onClick={() => prepareConnectorDraftFromCoverageRecommendation(recommendation)} disabled={!canManageOpportunityScout || busy}>
+                                Prepare Source Draft
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    {liveSourceSetupReadiness?.sourceRows?.length ? (
+                      <div className="co-ai-scout-runbook">
+                        <span>Live source setup readiness</span>
+                        <div className="co-ai-scout-checks">
+                          <small>{liveSourceSetupReadiness.sourceReadiness?.ready || 0} ready</small>
+                          <small>{liveSourceSetupReadiness.sourceReadiness?.needsSetup || 0} needs setup</small>
+                          <small>{liveSourceSetupReadiness.dailyRunReadiness?.publicRunnerCards || 0} public run cards</small>
+                          <small>{liveSourceSetupReadiness.dailyRunReadiness?.privateHandoffCards || 0} private handoffs</small>
+                          <small>API: {String(liveSourceSetupReadiness.officialApiReadiness?.status || "not configured").replace(/_/g, " ")}</small>
+                        </div>
+                        {liveSourceSetupReadiness.sourceRows.slice(0, 4).map((row) => (
+                          <div key={row.id} className="co-ai-scout-run-step" data-tone={row.tone}>
+                            <em>{row.posture.replace(/_/g, " ")}</em>
+                            <strong>{row.sourceName}</strong>
+                            <p>{row.missing?.length ? row.missing[0] : "Ready for review-only daily prep."}</p>
+                            <small>{String(row.status || "review").replace(/_/g, " ")} / {String(row.ownerType || "source").replace(/_/g, " ")}</small>
+                          </div>
+                        ))}
+                        {liveSourceSetupReadiness.missingActions?.slice(0, 3).map((item, index) => (
+                          <div key={`${item.sourceId || "missing"}-${index}`} className="co-ai-scout-run-step" data-tone="amber">
+                            <em>setup needed</em>
+                            <strong>{item.sourceName}</strong>
+                            <p>{item.missing}</p>
+                            <small>No external actions unlock from this checklist.</small>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    {pilotRunReadiness?.mode ? (
+                      <div className="co-ai-scout-runbook">
+                        <span>Pilot run readiness</span>
+                        <div className="co-ai-scout-run-step" data-tone={pilotRunReadiness.tone || "amber"}>
+                          <em>{String(pilotRunReadiness.verdict || "not_ready").replace(/_/g, " ")}</em>
+                          <strong>{pilotRunReadiness.label || "Pilot readiness"}</strong>
+                          <p>{pilotRunReadiness.summary}</p>
+                          <small>{pilotRunReadiness.tomorrow || "Tomorrow"} / review-only operator checklist</small>
+                        </div>
+                        <div className="co-ai-scout-checks">
+                          <small>{pilotRunReadiness.readinessSignals?.readySources || 0} ready source{pilotRunReadiness.readinessSignals?.readySources === 1 ? "" : "s"}</small>
+                          <small>{pilotRunReadiness.readinessSignals?.sourceNeedsSetup || 0} setup warning{pilotRunReadiness.readinessSignals?.sourceNeedsSetup === 1 ? "" : "s"}</small>
+                          <small>{pilotRunReadiness.readinessSignals?.reviewQueueRows || 0} review row{pilotRunReadiness.readinessSignals?.reviewQueueRows === 1 ? "" : "s"}</small>
+                          <small>External gates locked</small>
+                        </div>
+                        {pilotRunReadiness.tomorrowChecklist?.slice(0, 5).map((item) => (
+                          <div key={item.id} className="co-ai-scout-run-step" data-tone={item.status === "ready" ? "green" : item.status === "needs_human" || item.status === "manual_required" ? "amber" : "slate"}>
+                            <em>{String(item.status || "manual").replace(/_/g, " ")}</em>
+                            <strong>{item.label}</strong>
+                            <p>{item.detail}</p>
+                            <small>Owner/admin review step</small>
+                          </div>
+                        ))}
+                        {pilotRunReadiness.hardBlockers?.slice(0, 3).map((blocker, index) => (
+                          <div key={`pilot-blocker-${index}`} className="co-ai-scout-run-step" data-tone="red">
+                            <em>blocker</em>
+                            <strong>Clear before pilot run</strong>
+                            <p>{blocker}</p>
+                            <small>No daily pilot run until resolved.</small>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    {providerConnectionSetupPlan?.mode ? (
+                      <div className="co-ai-scout-runbook">
+                        <span>Provider connection setup</span>
+                        <div className="co-ai-scout-checks">
+                          <small>Mode: {String(providerConnectionSetupPlan.providerMode || "dry_run").replace(/_/g, " ")}</small>
+                          <small>{providerConnectionSetupPlan.readyLaneCount || 0} ready lane{providerConnectionSetupPlan.readyLaneCount === 1 ? "" : "s"}</small>
+                          <small>{String(providerConnectionSetupPlan.providerCredentialBoundary?.storage || "credential refs only").replace(/_/g, " ")}</small>
+                          <small>{String(providerConnectionSetupPlan.hostedPilotSmokePlan?.status || "smoke locked").replace(/_/g, " ")}</small>
+                          <small>External actions locked</small>
+                        </div>
+                        {providerConnectionSetupPlan.lanes?.slice(0, 4).map((lane) => (
+                          <div key={lane.id} className="co-ai-scout-run-step" data-tone={lane.tone}>
+                            <em>{String(lane.status || "review").replace(/_/g, " ")}</em>
+                            <strong>{lane.label}</strong>
+                            <p>{lane.providerBoundary}</p>
+                            <small>{lane.credentialRequirement} / {lane.sandboxStep}</small>
+                          </div>
+                        ))}
+                        <div className="co-ai-scout-run-step" data-tone={providerConnectionSetupPlan.pilotConnectionPacket?.canRequestLiveProviderSetup ? "amber" : "slate"}>
+                          <em>human decision</em>
+                          <strong>{providerConnectionSetupPlan.pilotConnectionPacket?.canRequestLiveProviderSetup ? "Live setup can be reviewed" : "Keep setup in review"}</strong>
+                          <p>{providerConnectionSetupPlan.pilotConnectionPacket?.nextHumanDecision}</p>
+                          <small>No OAuth tokens, passwords, or provider calls are handled here.</small>
+                        </div>
+                        {providerConnectionSetupPlan.approvalRequiredBefore?.slice(0, 4).map((item, index) => (
+                          <div key={`provider-approval-${index}`} className="co-ai-scout-run-step" data-tone="amber">
+                            <em>approval required</em>
+                            <strong>Provider setup gate</strong>
+                            <p>{item}</p>
+                            <small>Required before any provider connection or hosted pilot smoke.</small>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    {pilotActivationLayer?.mode ? (
+                      <div className="co-ai-scout-runbook">
+                        <span>Pilot activation layer</span>
+                        <div className="co-ai-scout-run-step" data-tone={pilotActivationLayer.status === "ready_for_read_only_pilot_activation" ? "green" : "amber"}>
+                          <em>{String(pilotActivationLayer.status || "blocked").replace(/_/g, " ")}</em>
+                          <strong>{pilotActivationLayer.tomorrowRunView?.label || "Pilot activation"}</strong>
+                          <p>{pilotActivationLayer.safetyBoundary}</p>
+                          <small>{pilotActivationLayer.tomorrowRunView?.day || "Tomorrow"} / read-only activation packet</small>
+                        </div>
+                        <div className="co-ai-scout-checks">
+                          <small>Smoke: {String(pilotActivationLayer.hostedPilotSmokePacket?.status || "blocked").replace(/_/g, " ")}</small>
+                          <small>Sources: {pilotActivationLayer.realSourceReadinessBoard?.rows?.length || 0} readiness lane{pilotActivationLayer.realSourceReadinessBoard?.rows?.length === 1 ? "" : "s"}</small>
+                          <small>History: {pilotActivationLayer.connectionStatusHistory?.length || 0} setup event{pilotActivationLayer.connectionStatusHistory?.length === 1 ? "" : "s"}</small>
+                          <small>External gates locked</small>
+                        </div>
+                        {pilotActivationLayer.tomorrowRunView?.willCheck?.slice(0, 4).map((item, index) => (
+                          <div key={`pilot-will-check-${index}`} className="co-ai-scout-run-step" data-tone="green">
+                            <em>tomorrow</em>
+                            <strong>Run checklist</strong>
+                            <p>{item}</p>
+                            <small>Human review before save or conversion.</small>
+                          </div>
+                        ))}
+                        {pilotActivationLayer.realSourceReadinessBoard?.rows?.slice(0, 5).map((row) => (
+                          <div key={row.id} className="co-ai-scout-run-step" data-tone={row.tone || "amber"}>
+                            <em>{String(row.status || "review").replace(/_/g, " ")}</em>
+                            <strong>{row.label}</strong>
+                            <p>{row.allowedAccess}</p>
+                            <small>{row.count || 0} source{row.count === 1 ? "" : "s"} / no contact, login automation, bids, payments, or writes</small>
+                          </div>
+                        ))}
+                        {pilotActivationLayer.connectionStatusHistory?.slice(0, 3).map((row) => (
+                          <div key={row.id} className="co-ai-scout-run-step" data-tone={row.stillBlocked ? "amber" : "green"}>
+                            <em>{String(row.status || "recorded").replace(/_/g, " ")}</em>
+                            <strong>{row.laneLabel || "Provider setup event"}</strong>
+                            <p>{row.safeSummary}</p>
+                            <small>Secrets redacted / external actions locked</small>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    {realPublicSourceConfigActivation?.mode ? (
+                      <div className="co-ai-scout-runbook">
+                        <span>Public source activation</span>
+                        <div className="co-ai-scout-checks">
+                          <small>{realPublicSourceConfigActivation.stats?.eligiblePublicConfigs || 0} eligible</small>
+                          <small>{realPublicSourceConfigActivation.stats?.blockedPublicConfigs || 0} blocked public</small>
+                          <small>{realPublicSourceConfigActivation.stats?.blockedPrivateOrLoginSources || 0} private/login blocked</small>
+                          <small>Metadata only</small>
+                        </div>
+                        {realPublicSourceConfigActivation.approvedPublicSourceConfigs?.slice(0, 4).map((config) => (
+                          <div key={config.id} className="co-ai-scout-run-step" data-tone={config.eligibility?.eligible ? "green" : "amber"}>
+                            <em>{String(config.readiness || "review").replace(/_/g, " ")}</em>
+                            <strong>{config.sourceName}</strong>
+                            <p>{config.eligibility?.blockedReasons?.[0] || config.sourceUrl || "Safe public source metadata is ready for operator review."}</p>
+                            <small>{config.connectorLabel} / {config.termsStatus} / no contact, bid, payment, deploy, or credential storage</small>
+                          </div>
+                        ))}
+                        {realPublicSourceConfigActivation.operatorActivationDrafts?.slice(0, 3).map((draft) => (
+                          <div key={draft.id} className="co-ai-scout-run-step" data-tone={draft.status === "ready_for_operator_review" ? "green" : "amber"}>
+                            <em>{String(draft.status || "draft").replace(/_/g, " ")}</em>
+                            <strong>Operator activation draft</strong>
+                            <p>{draft.payload?.sourceUrl || "Add an approved public no-login URL before activation."}</p>
+                            <small>Can execute: {draft.canExecute ? "yes" : "no"} / source metadata only</small>
+                          </div>
+                        ))}
+                        {realPublicSourceConfigActivation.blockedPrivateOrLoginSources?.slice(0, 2).map((row) => (
+                          <div key={row.id} className="co-ai-scout-run-step" data-tone="amber">
+                            <em>{String(row.status || "blocked").replace(/_/g, " ")}</em>
+                            <strong>{row.sourceName}</strong>
+                            <p>{row.reason}</p>
+                            <small>{row.allowedNextStep}</small>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    {controlledHostedDemoSmokePacket?.mode ? (
+                      <div className="co-ai-scout-runbook">
+                        <span>Hosted/demo smoke packet</span>
+                        <div className="co-ai-scout-run-step" data-tone={controlledHostedDemoSmokePacket.status === "ready_for_human_approved_demo_smoke" ? "green" : "amber"}>
+                          <em>{String(controlledHostedDemoSmokePacket.status || "blocked").replace(/_/g, " ")}</em>
+                          <strong>{controlledHostedDemoSmokePacket.smokeTargetSelector?.selectedSourceName || "No smoke source selected"}</strong>
+                          <p>{controlledHostedDemoSmokePacket.smokeTargetSelector?.whySelected}</p>
+                          <small>{controlledHostedDemoSmokePacket.smokeTargetSelector?.selectedSourceUrl || "Add an eligible public source before smoke."}</small>
+                        </div>
+                        <div className="co-ai-scout-checks">
+                          <small>{controlledHostedDemoSmokePacket.smokeTargetSelector?.eligibleCount || 0} eligible source{controlledHostedDemoSmokePacket.smokeTargetSelector?.eligibleCount === 1 ? "" : "s"}</small>
+                          <small>{controlledHostedDemoSmokePacket.failureTriage?.length || 0} blocker{controlledHostedDemoSmokePacket.failureTriage?.length === 1 ? "" : "s"}</small>
+                          <small>Result: {controlledHostedDemoSmokePacket.smokeResultModel?.status || "not_run"}</small>
+                          <small>Human-run only</small>
+                        </div>
+                        {controlledHostedDemoSmokePacket.hostedDemoSmokeChecklist?.slice(0, 5).map((step) => (
+                          <div key={step.id} className="co-ai-scout-run-step" data-tone={step.status === "blocked" ? "amber" : "green"}>
+                            <em>{String(step.status || "manual").replace(/_/g, " ")}</em>
+                            <strong>{step.label}</strong>
+                            <p>{step.expectedEvidence}</p>
+                            <small>No automatic browser, deploy, provider fetch, or production data touch.</small>
+                          </div>
+                        ))}
+                        {controlledHostedDemoSmokePacket.failureTriage?.slice(0, 3).map((item) => (
+                          <div key={item.id} className="co-ai-scout-run-step" data-tone="amber">
+                            <em>{String(item.category || "blocker").replace(/_/g, " ")}</em>
+                            <strong>Smoke blocker</strong>
+                            <p>{item.reason}</p>
+                            <small>{item.safeNextStep}</small>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    {smokeEvidenceRecorder?.mode ? (
+                      <div className="co-ai-scout-runbook">
+                        <span>Smoke evidence recorder</span>
+                        <div className="co-ai-scout-run-step" data-tone={smokeEvidenceRecorder.status === "evidence_ready_for_audit_review" ? "green" : smokeEvidenceRecorder.status === "evidence_rejected" ? "red" : "amber"}>
+                          <em>{String(smokeEvidenceRecorder.status || "awaiting_human_smoke_evidence").replace(/_/g, " ")}</em>
+                          <strong>{smokeEvidenceRecorder.evidenceDraft?.fields?.sourceConfigId || "Evidence draft pending"}</strong>
+                          <p>{smokeEvidenceRecorder.evidenceDraft?.fields?.sourceUrl || "Human-observed smoke evidence can be reviewed after a manual hosted/demo smoke."}</p>
+                          <small>Server write off. Auto-record off. External actions locked.</small>
+                        </div>
+                        <div className="co-ai-scout-checks">
+                          <small>Draft: {smokeEvidenceRecorder.evidenceDraft?.status || "not_submitted"}</small>
+                          <small>Result: {smokeEvidenceRecorder.evidenceDraft?.fields?.resultStatus || "not_submitted"}</small>
+                          <small>Queue: {smokeEvidenceRecorder.evidenceDraft?.fields?.reviewQueueCount ?? 0}</small>
+                          <small>Audit persist: {smokeEvidenceRecorder.auditEventShape?.canPersistAutomatically ? "manual gate needed" : "off"}</small>
+                        </div>
+                        {smokeEvidenceRecorder.validation?.errors?.slice(0, 3).map((error) => (
+                          <div key={error} className="co-ai-scout-run-step" data-tone="red">
+                            <em>validation</em>
+                            <strong>Evidence blocked</strong>
+                            <p>{error}</p>
+                            <small>No smoke evidence is recorded automatically.</small>
+                          </div>
+                        ))}
+                        {smokeEvidenceRecorder.blockedEvidenceClaims?.slice(0, 3).map((claim) => (
+                          <div key={claim} className="co-ai-scout-run-step" data-tone="amber">
+                            <em>blocked claim</em>
+                            <strong>Recorder boundary</strong>
+                            <p>{claim}</p>
+                            <small>{smokeEvidenceRecorder.safetyBoundary}</small>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    {controlledDailyPublicSourceRunEvidencePacket?.mode ? (
+                      <div className="co-ai-scout-runbook">
+                        <span>Next public-source run packet</span>
+                        <div className="co-ai-scout-run-step" data-tone={controlledDailyPublicSourceRunEvidencePacket.status === "ready_for_owner_admin_review" ? "green" : "amber"}>
+                          <em>{String(controlledDailyPublicSourceRunEvidencePacket.status || "blocked").replace(/_/g, " ")}</em>
+                          <strong>{controlledDailyPublicSourceRunEvidencePacket.runEnvelope?.runId || "Controlled daily public-source run"}</strong>
+                          <p>{controlledDailyPublicSourceRunEvidencePacket.runEnvelope?.expectedOutput || "Review-only source evidence for the next daily public-source run."}</p>
+                          <small>{controlledDailyPublicSourceRunEvidencePacket.nextRunDate || "Next run date pending"} · {controlledDailyPublicSourceRunEvidencePacket.sourceRunRows?.length || 0} source{controlledDailyPublicSourceRunEvidencePacket.sourceRunRows?.length === 1 ? "" : "s"} · auto-run off</small>
+                        </div>
+                        <div className="co-ai-scout-checks">
+                          <small>Provider: {controlledDailyPublicSourceRunEvidencePacket.runEnvelope?.providerId || "dry_run_simulator"}</small>
+                          <small>Budget: {controlledDailyPublicSourceRunEvidencePacket.runEnvelope?.dailyBudget ?? 0}/day</small>
+                          <small>Max results: {controlledDailyPublicSourceRunEvidencePacket.runEnvelope?.maxResultsPerRun ?? 0}</small>
+                          <small>Smoke evidence: {String(controlledDailyPublicSourceRunEvidencePacket.smokeEvidenceStatus || "not_recorded").replace(/_/g, " ")}</small>
+                        </div>
+                        {controlledDailyPublicSourceRunEvidencePacket.sourceRunRows?.slice(0, 4).map((row) => (
+                          <div key={row.id} className="co-ai-scout-run-step" data-tone="green">
+                            <em>{row.connectorLabel || row.connectorId || "public source"}</em>
+                            <strong>{row.sourceName}</strong>
+                            <p>{row.whyAllowed}</p>
+                            <small>{row.sourceUrl}</small>
+                          </div>
+                        ))}
+                        {controlledDailyPublicSourceRunEvidencePacket.blockers?.slice(0, 3).map((blocker) => (
+                          <div key={blocker} className="co-ai-scout-run-step" data-tone="amber">
+                            <em>run blocker</em>
+                            <strong>Review before run</strong>
+                            <p>{blocker}</p>
+                            <small>No daily run is started from this packet.</small>
+                          </div>
+                        ))}
+                        <div className="co-ai-scout-run-step" data-tone={controlledDailyPublicRunPreflight.status === "ready_for_controlled_evidence_prep" ? "green" : "amber"}>
+                          <em>{String(controlledDailyPublicRunPreflight.status || "blocked").replace(/_/g, " ")}</em>
+                          <strong>Approval and preflight</strong>
+                          <p>{controlledDailyPublicRunPreflight.approvalStatus === "missing" ? "Owner/admin approval is still required for this exact packet." : "Approval and idempotency evidence are attached to this packet."}</p>
+                          <small>{controlledDailyPublicRunPreflight.selectedSourceCount || 0} approved source{controlledDailyPublicRunPreflight.selectedSourceCount === 1 ? "" : "s"} · provider fetch off</small>
+                        </div>
+                        <div className="co-ai-scout-checks">
+                          <small>Evidence prep: {String(controlledDailyPublicRunEvidencePrep.status || "blocked").replace(/_/g, " ")}</small>
+                          <small>Review rows: {controlledDailyPublicRunEvidencePrep.evidenceRows?.length || 0}</small>
+                          <small>Outcomes: {controlledDailyPublicRunOutcomeLoop.outcomeCount || 0}</small>
+                          <small>Auto-save: off</small>
+                        </div>
+                        {controlledDailyPublicRunEvidencePrep.evidenceRows?.slice(0, 3).map((row) => (
+                          <div key={row.id} className="co-ai-scout-run-step" data-tone="green">
+                            <em>review evidence</em>
+                            <strong>{row.title}</strong>
+                            <p>{row.reviewNote}</p>
+                            <small>{row.sourceUrl}</small>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    {dailyScoutExecutionPlan.dailyRunRecord ? (
+                      <div className="co-ai-scout-checks">
+                        <small>Run: {dailyScoutExecutionPlan.dailyRunRecord.status}</small>
+                        <small>Sources: {dailyScoutExecutionPlan.dailyRunRecord.sourceCount}</small>
+                        <small>Retries: {dailyScoutExecutionPlan.dailyRunRecord.retries}</small>
+                        <small>Provider: {dailyScoutExecutionPlan.publicProviderBoundary?.providerSettings?.providerId || "dry_run_simulator"}</small>
+                        <small>Mode: {dailyScoutExecutionPlan.publicProviderBoundary?.providerSettings?.mode || "dry_run"}</small>
+                        <small>Budget: {dailyScoutExecutionPlan.publicProviderBoundary?.providerSettings?.dailyBudget ?? 0}/day</small>
+                        <small>Results: {dailyScoutExecutionPlan.dailyRunRecord.providerResultCount || 0}</small>
+                        <small>Rejected: {dailyScoutExecutionPlan.dailyRunRecord.providerRejectedCount || 0}</small>
+                        <small>Review imports: {dailyScoutExecutionPlan.dailyRunRecord.providerReviewImportCount || 0}</small>
+                        <small>Errors: {dailyScoutExecutionPlan.dailyRunRecord.providerErrorCount || 0}</small>
+                      </div>
+                    ) : null}
+                    {dailyScoutExecutionPlan.publicProviderBoundary?.providerContract ? (
+                      <div className="co-ai-scout-checks">
+                        <small>Contract: {dailyScoutExecutionPlan.publicProviderBoundary.providerContract.version}</small>
+                        <small>Live plan: {dailyScoutExecutionPlan.publicProviderBoundary.liveProviderPlan?.status || "locked"}</small>
+                        <small>Import gate: review only</small>
+                        <small>Connectors: {dailyScoutExecutionPlan.publicProviderBoundary.liveProviderPlan?.approvedConnectorCount ?? 0} enabled</small>
+                      </div>
+                    ) : null}
+                    {dailyScoutExecutionPlan.cards.slice(0, 4).map((card) => (
+                      <div key={card.id} className="co-ai-scout-run-step" data-tone={card.tone}>
+                        <em>{String(card.type || "review").replace(/_/g, " ")}</em>
+                        <strong>{card.title}</strong>
+                        <p>{card.query || card.draftPreview?.humanReviewNote || card.safetyBoundary}</p>
+                        <small>{card.sourceConnector?.label ? `${card.sourceConnector.label} - ` : ""}{card.searchUrls?.length ? `${card.searchUrls.length} public link${card.searchUrls.length === 1 ? "" : "s"}` : "review card only"}</small>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <Button type="button" size="sm" variant={card.type === "private_source_handoff" ? "ghost" : "secondary"} onClick={() => prefillFoundDraftFromExecutionCard(card)} disabled={!canManageOpportunityScout || busy || card.type === "private_source_handoff"}>
+                            {card.type === "private_source_handoff" ? "Handoff Only" : "Prefill Draft"}
+                          </Button>
+                          <Button type="button" size="sm" variant="secondary" onClick={() => prepareEvidenceIntakeFromExecutionCard(card)} disabled={!canManageOpportunityScout || busy || card.type === "found_opportunity_review"}>
+                            Evidence Intake
+                          </Button>
+                          {OPPORTUNITY_SCOUT_SOURCE_CHECK_RESULTS.slice(0, 5).map((result) => {
+                            const privateFoundWorkBlocked = card.type === "private_source_handoff" && ["found_work", "missing_docs"].includes(result.id);
+                            return (
+                              <Button key={result.id} type="button" size="sm" variant={result.id === "found_work" ? "secondary" : "ghost"} onClick={() => markExecutionCardChecked(card, result.id)} disabled={!canManageOpportunityScout || busy || !card.targetKind || privateFoundWorkBlocked}>
+                                {privateFoundWorkBlocked && result.id === "found_work" ? "Paste Evidence First" : result.label}
+                              </Button>
+                            );
+                          })}
+                          <Button type="button" size="sm" variant="ghost" onClick={() => jumpToScoutTarget(card.type === "found_opportunity_draft" || card.type === "found_opportunity_review" ? "scout-found-opportunities" : "scout-search-briefs", "copilot")}>
+                            Review
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                {dailyScoutExecutionPlan.publicDiscoveryQueue?.length ? (
+                  <div className="co-ai-scout-runbook">
+                    <span>Agent Found Leads</span>
+                    <div className="co-ai-scout-checks">
+                      <small>{dailyScoutExecutionPlan.publicDiscoveryQueue.length} public discovery card{dailyScoutExecutionPlan.publicDiscoveryQueue.length === 1 ? "" : "s"}</small>
+                      <small>No auto-save</small>
+                      <small>No contact</small>
+                    </div>
+                    {dailyScoutExecutionPlan.publicDiscoveryQueue.slice(0, 6).map((card) => (
+                      <div key={card.id} className="co-ai-scout-run-step" data-tone={card.tone}>
+                        <em>{String(card.sourceType || "public result").replace(/_/g, " ")}</em>
+                        <strong>{card.title}</strong>
+                        <p>{card.snippet || card.fitReason || card.safetyBoundary}</p>
+                        <small>{card.fitScore || 0} fit / duplicate: {String(card.duplicateRisk || "none").replace(/_/g, " ")} / {card.reviewOutcomeSignal?.label || "no learning yet"}</small>
+                        <small>{card.providerConnectorLabel || card.adapterLabel || card.provider || "public adapter"} / {card.liveFetchStatus === "not_configured" ? "provider gate not configured" : card.liveFetchStatus}</small>
+                        <small>Gate: {card.providerImportGate?.status || "review_only"} / {card.providerAttemptId || "dry-run attempt"}</small>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {card.sourceUrl ? <a className="co-ai-scout-link" href={card.sourceUrl} target="_blank" rel="noreferrer">Open Public Source</a> : null}
+                          <Button type="button" size="sm" variant="secondary" onClick={() => prefillFoundDraftFromExecutionCard(card)} disabled={!canManageOpportunityScout || busy}>
+                            Save Draft
+                          </Button>
+                          {OPPORTUNITY_SCOUT_SOURCE_CHECK_RESULTS.slice(0, 5).map((result) => (
+                            <Button key={result.id} type="button" size="sm" variant={result.id === "found_work" ? "secondary" : "ghost"} onClick={() => markExecutionCardChecked(card, result.id)} disabled={!canManageOpportunityScout || busy || !card.targetKind}>
+                              {result.label}
+                            </Button>
+                          ))}
+                          <Button type="button" size="sm" variant="ghost" onClick={() => recordProviderDecision(card, "reviewed")} disabled={!canManageOpportunityScout || busy || !card.providerResultId}>
+                            Provider Reviewed
+                          </Button>
+                          <Button type="button" size="sm" variant="ghost" onClick={() => recordProviderDecision(card, "duplicate")} disabled={!canManageOpportunityScout || busy || !card.providerResultId}>
+                            Provider Duplicate
+                          </Button>
+                          <Button type="button" size="sm" variant="ghost" onClick={() => recordProviderDecision(card, "no_fit")} disabled={!canManageOpportunityScout || busy || !card.providerResultId}>
+                            Provider No Fit
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                {dailyAgentLeadsLedger.rows?.length ? (
+                  <div className="co-ai-scout-runbook">
+                    <span>Daily Agent Leads ledger</span>
+                    {dailyAgentLeadsLedger.rows.slice(0, 5).map((row) => (
+                      <button key={row.id} type="button" className="co-ai-scout-run-step co-focus-ring" data-tone={row.tone} onClick={() => jumpToScoutTarget(row.type === "found_opportunity" ? "scout-found-opportunities" : "scout-search-briefs", "copilot")}>
+                        <em>{row.label}</em>
+                        <strong>{row.title}</strong>
+                        <p>{row.helper}</p>
+                        <small>{row.type.replace(/_/g, " ")}</small>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             </div>
 
@@ -2697,9 +5032,16 @@ function CopilotPagePolished({
                             {copiedScoutBriefId === brief.id ? "Copied" : "Copy Search"}
                           </Button>
                           {brief.profileId ? (
-                            <Button type="button" size="sm" variant="secondary" onClick={() => markProfileBriefReviewed(brief)} disabled={!canManageOpportunityScout || busy}>
-                              Mark Reviewed
-                            </Button>
+                            <>
+                              <Button type="button" size="sm" variant="secondary" onClick={() => markProfileBriefReviewed(brief)} disabled={!canManageOpportunityScout || busy}>
+                                Mark Reviewed
+                              </Button>
+                              {OPPORTUNITY_SCOUT_SOURCE_CHECK_RESULTS.slice(0, 5).map((result) => (
+                                <Button key={result.id} type="button" size="sm" variant={result.id === "found_work" ? "secondary" : "ghost"} onClick={() => markProfileBriefChecked(brief, result.id)} disabled={!canManageOpportunityScout || busy}>
+                                  {result.label}
+                                </Button>
+                              ))}
+                            </>
                           ) : brief.sourceId ? (
                             OPPORTUNITY_SCOUT_SOURCE_CHECK_RESULTS.slice(0, 5).map((result) => (
                               <Button key={result.id} type="button" size="sm" variant={result.id === "found_work" ? "secondary" : "ghost"} onClick={() => markSourceBriefChecked(brief, result.id)} disabled={!canManageOpportunityScout || busy}>
@@ -2763,6 +5105,26 @@ function CopilotPagePolished({
                       <input value={profileDraft.keywords} onChange={(event) => updateProfileDraft("keywords", event.target.value)} placeholder="sidewalk, ADA, repair, bid invite" />
                     </label>
                     <label>
+                      <span>Job Types</span>
+                      <input value={profileDraft.projectTypes} onChange={(event) => updateProfileDraft("projectTypes", event.target.value)} placeholder="repair, replacement, commercial" />
+                    </label>
+                    <label>
+                      <span>Max Distance</span>
+                      <input type="number" min="0" value={profileDraft.radiusMiles} onChange={(event) => updateProfileDraft("radiusMiles", event.target.value)} placeholder="40" />
+                    </label>
+                    <label>
+                      <span>Minimum Job Size</span>
+                      <input type="number" min="0" value={profileDraft.minimumProjectValue} onChange={(event) => updateProfileDraft("minimumProjectValue", event.target.value)} placeholder="0" />
+                    </label>
+                    <label>
+                      <span>Excluded Keywords</span>
+                      <input value={profileDraft.excludedKeywords} onChange={(event) => updateProfileDraft("excludedKeywords", event.target.value)} placeholder="hiring, DIY, free" />
+                    </label>
+                    <label className="md:col-span-2">
+                      <span>Preferred Sources</span>
+                      <input value={profileDraft.preferredSources} onChange={(event) => updateProfileDraft("preferredSources", event.target.value)} placeholder="city bid page, public Facebook page, Craigslist" />
+                    </label>
+                    <label>
                       <span>Source Types</span>
                       <input value={profileDraft.sourceTypes} onChange={(event) => updateProfileDraft("sourceTypes", event.target.value)} placeholder="plan room, city bids, GC portals" />
                     </label>
@@ -2772,6 +5134,15 @@ function CopilotPagePolished({
                         <option value="">Auto from source type</option>
                         {OPPORTUNITY_SCOUT_SOURCE_ADAPTERS.map((adapter) => (
                           <option key={adapter.id} value={adapter.id}>{adapter.label}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>Source Posture</span>
+                      <select value={profileDraft.sourcePosture || ""} onChange={(event) => updateProfileDraft("sourcePosture", event.target.value)}>
+                        <option value="">Auto from adapter</option>
+                        {OPPORTUNITY_SOURCE_POSTURES.map((posture) => (
+                          <option key={posture} value={posture}>{posture.replace(/_/g, " ")}</option>
                         ))}
                       </select>
                     </label>
@@ -2797,6 +5168,26 @@ function CopilotPagePolished({
                       <span>Source Policy Note</span>
                       <textarea value={profileDraft.sourcePolicyNote} onChange={(event) => updateProfileDraft("sourcePolicyNote", event.target.value)} placeholder="Public terms, authorized access notes, or human review requirement. Do not paste passwords, tokens, cookies, or portal secrets." rows={2} />
                     </label>
+                    <label>
+                      <span>Authorization Status</span>
+                      <select value={profileDraft.sourceAuthorizationStatus} onChange={(event) => updateProfileDraft("sourceAuthorizationStatus", event.target.value)}>
+                        {OPPORTUNITY_SOURCE_AUTHORIZATION_STATUSES.map((status) => (
+                          <option key={status} value={status}>{status.replace(/_/g, " ")}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>Authorized By</span>
+                      <input value={profileDraft.sourceAuthorizedBy} onChange={(event) => updateProfileDraft("sourceAuthorizedBy", event.target.value)} placeholder="Owner/admin name" />
+                    </label>
+                    <label className="md:col-span-2">
+                      <span>Authorization Note</span>
+                      <textarea value={profileDraft.sourceAuthorizationNote} onChange={(event) => updateProfileDraft("sourceAuthorizationNote", event.target.value)} placeholder="Human-reviewed source access notes only. Never paste portal passwords, tokens, cookies, or MFA codes." rows={2} />
+                    </label>
+                    <label className="md:col-span-2">
+                      <span>Blocked Reason</span>
+                      <input value={profileDraft.sourceBlockedReason} onChange={(event) => updateProfileDraft("sourceBlockedReason", event.target.value)} placeholder="Why this source is blocked or needs legal/source-terms review" />
+                    </label>
                   </div>
                   <div className="co-ai-scout-form-footer">
                     <span>Profiles guide manual research. Apex HQ does not auto-bid or auto-contact customers.</span>
@@ -2814,12 +5205,19 @@ function CopilotPagePolished({
                           <strong>{profile.name}</strong>
                           <Badge tone={profile.tone}>{profile.statusLabel}</Badge>
                         </div>
-                        <p>{[profile.trades.slice(0, 3).join(", "), profile.serviceAreas.slice(0, 2).join(", "), `${profile.cadence} cadence`].filter(Boolean).join(" / ")}</p>
+                        <p>{[profile.trades.slice(0, 3).join(", "), profile.serviceAreas.slice(0, 2).join(", "), profile.projectTypes?.slice(0, 2).join(", "), `${profile.cadence} cadence`].filter(Boolean).join(" / ")}</p>
                         <div className="co-ai-scout-checks">
+                          <small>Radius: {profile.radiusMiles || 0} mi</small>
+                          {profile.minimumProjectValue ? <small>Min size: ${Number(profile.minimumProjectValue || 0).toLocaleString()}</small> : null}
+                          {profile.preferredSources?.length ? <small>Preferred: {profile.preferredSources.slice(0, 2).join(", ")}</small> : null}
                           <small>Adapter: {(profile.sourceAdapterId || "manual").replace(/_/g, " ")}</small>
+                          <small>Posture: {(profile.sourcePosture || "auto").replace(/_/g, " ")}</small>
                           <small>Access: {(profile.sourceAccessStatus || "clear_for_review").replace(/_/g, " ")}</small>
                           <small>Terms: {(profile.sourceTermsStatus || "unreviewed").replace(/_/g, " ")}</small>
+                          <small>Authorization: {(profile.sourceAuthorizationStatus || "not_required").replace(/_/g, " ")}</small>
                           {profile.sourceReviewRequired ? <small>Human source review required before recurring checks.</small> : null}
+                          {profile.sourceAuthorizedBy ? <small>Authorized by: {profile.sourceAuthorizedBy}</small> : null}
+                          {profile.sourceBlockedReason ? <small>Blocked: {profile.sourceBlockedReason}</small> : null}
                         </div>
                         <code>{profile.query}</code>
                       </div>
@@ -2983,6 +5381,24 @@ function CopilotPagePolished({
                       ))}
                     </div>
                   </div>
+                  {foundDraft.agentPreparedDraft ? (
+                    <div className="co-ai-scout-review" data-state="ready">
+                      <span>Agent-prepared draft</span>
+                      <strong>{foundDraft.agentPreparedSourceName || foundDraft.sourceName || "Source review card"}</strong>
+                      <p>This form was prefilled from a review card. It still requires a human save, AI/office review, and a separate lead conversion gate.</p>
+                    </div>
+                  ) : null}
+                  {foundDraftDuplicateWarnings.length ? (
+                    <div className="co-ai-scout-review" data-state="error">
+                      <span>Duplicate review before save</span>
+                      <strong>{foundDraftDuplicateWarnings.length} possible match{foundDraftDuplicateWarnings.length === 1 ? "" : "es"}</strong>
+                      <div className="co-ai-scout-review-grid">
+                        {foundDraftDuplicateWarnings.map((warning) => (
+                          <small key={warning.id}><b>{warning.type.replace(/_/g, " ")}</b>{warning.title} - {warning.helper}</small>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                   {foundDraftAgentPreview.status !== "idle" ? (
                     <div className="co-ai-scout-review" data-state={foundDraftAgentPreview.status === "error" ? "error" : "ready"}>
                       <div>
@@ -10574,6 +12990,653 @@ export default function App() {
     }
   }
 
+  async function handleQueueDailyOpportunitySearchPrep(payload = {}) {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await queueDailyOpportunitySearchPrep(sessionToken, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleQueueAutonomousDailyOpportunitySearchPrep(payload = {}) {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await queueAutonomousDailyOpportunitySearchPrep(sessionToken, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleGetAgentOperatingSystem() {
+    if (!sessionToken || !appState.permissions.aiOffice?.canView) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await getAgentOperatingSystem(sessionToken);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleQueueAgentOperatingSystemTask(payload = {}) {
+    if (!sessionToken || !appState.permissions.aiOffice?.canView) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await queueAgentOperatingSystemTask(sessionToken, payload);
+      const nextState = await getBootstrap(sessionToken);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleUpdateAgentOperatingSystemRunStatus(runId, payload = {}) {
+    if (!sessionToken || !appState.permissions.aiOffice?.canView) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await updateAgentOperatingSystemRunStatus(sessionToken, runId, payload);
+      const nextState = await getBootstrap(sessionToken);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleExecuteAgentOperatingSystemRun(runId, payload = {}) {
+    if (!sessionToken || !appState.permissions.aiOffice?.canView) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await executeAgentOperatingSystemRun(sessionToken, runId, payload);
+      const nextState = await getBootstrap(sessionToken);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleGetAgentLeadProviderHealth() {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await getAgentLeadProviderHealth(sessionToken);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleGetAgentLeadProviderLiveReadiness(today = "") {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await getAgentLeadProviderLiveReadiness(sessionToken, today);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleGetAgentLeadProviderCompliancePacket() {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await getAgentLeadProviderCompliancePacket(sessionToken);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleGetAgentLeadProviderMonitoringSnapshot(today = "") {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await getAgentLeadProviderMonitoringSnapshot(sessionToken, today);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleGetAgentLeadOfficialProviderApiAdapters(today = "") {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await getAgentLeadOfficialProviderApiAdapters(sessionToken, today);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleGetAgentLeadAllSourceAdapterCoverage(today = "") {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await getAgentLeadAllSourceAdapterCoverage(sessionToken, today);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleGetAgentLeadLocalCompletionReadiness(today = "") {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await getAgentLeadLocalCompletionReadiness(sessionToken, today);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleGetAgentLeadProductionReadiness(today = "") {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await getAgentLeadProductionReadiness(sessionToken, today);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRecordAgentLeadProductionReadinessEvidence(payload = {}) {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await recordAgentLeadProductionReadinessEvidence(sessionToken, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleGetAgentLeadProcurementFeedAdapter(today = "") {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await getAgentLeadProcurementFeedAdapter(sessionToken, today);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRunAgentLeadProviderSandboxTest(payload = {}) {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await runAgentLeadProviderSandboxTest(sessionToken, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRunAgentLeadProviderAdapterRunner(payload = {}) {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await runAgentLeadProviderAdapterRunner(sessionToken, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRunAgentLeadProviderLivePublicExecution(payload = {}) {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await runAgentLeadProviderLivePublicExecution(sessionToken, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRunAgentLeadPublicSourceProviderAdapters(payload = {}) {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await runAgentLeadPublicSourceProviderAdapters(sessionToken, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRecordAgentLeadPlatformProviderBoundary(payload = {}) {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await recordAgentLeadPlatformProviderBoundary(sessionToken, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRecordAgentLeadProviderConnectionMetadata(payload = {}) {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await recordAgentLeadProviderConnectionMetadata(sessionToken, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRecordAgentLeadProviderSourceConsent(payload = {}) {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await recordAgentLeadProviderSourceConsent(sessionToken, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRecordAgentLeadProviderDailySchedule(payload = {}) {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await recordAgentLeadProviderDailySchedule(sessionToken, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRunAgentLeadOfficialProviderApiAdapterHarness(payload = {}) {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await runAgentLeadOfficialProviderApiAdapterHarness(sessionToken, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRecordAgentLeadProcurementFeedAdapterConfig(payload = {}) {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await recordAgentLeadProcurementFeedAdapterConfig(sessionToken, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRunAgentLeadProcurementFeedAdapter(payload = {}) {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await runAgentLeadProcurementFeedAdapter(sessionToken, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRunAgentLeadLiveProcurementPublicAdapter(payload = {}) {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await runAgentLeadLiveProcurementPublicAdapter(sessionToken, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRunAgentLeadDailyLiveProcurementPublicAdapter(payload = {}) {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await runAgentLeadDailyLiveProcurementPublicAdapter(sessionToken, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRunAgentLeadDailyJobFinderOrchestration(payload = {}) {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await runAgentLeadDailyJobFinderOrchestration(sessionToken, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRunAgentLeadDailyJobFinderAutopilot(payload = {}) {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await runAgentLeadDailyJobFinderAutopilot(sessionToken, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRecordAgentLeadProviderCredentialHandoff(payload = {}) {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await recordAgentLeadProviderCredentialHandoff(sessionToken, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRecordAgentLeadPrivateSourceAuthorization(payload = {}) {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await recordAgentLeadPrivateSourceAuthorization(sessionToken, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRecordAgentLeadPrivateEvidenceIntake(payload = {}) {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await recordAgentLeadPrivateEvidenceIntake(sessionToken, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleGetAgentLeadPrivateSourceChecklist(today = "") {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await getAgentLeadPrivateSourceChecklist(sessionToken, today);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRecordAgentLeadProviderReviewQueueDecision(payload = {}) {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await recordAgentLeadProviderReviewQueueDecision(sessionToken, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDraftAgentLeadProviderReviewOpportunity(payload = {}) {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const nextState = await draftAgentLeadProviderReviewOpportunity(sessionToken, payload);
+      setAppState(normalizeAppState(nextState));
+      setErrorMessage("");
+      return nextState;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleGetAgentLeadProviderLiveApproval() {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await getAgentLeadProviderLiveApproval(sessionToken);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRecordAgentLeadProviderLiveApprovalDecision(payload = {}) {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await recordAgentLeadProviderLiveApprovalDecision(sessionToken, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRecordAgentLeadProviderImportDecision(payload = {}) {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await recordAgentLeadProviderImportDecision(sessionToken, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handlePreviewOpportunityScoutAgent(payload) {
     if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
     setBusy(true);
@@ -12765,6 +15828,46 @@ export default function App() {
                 onCreateOpportunitySearchProfile={handleCreateOpportunitySearchProfile}
                 onUpdateOpportunitySearchProfile={handleUpdateOpportunitySearchProfile}
                 onPlanOpportunitySearchWithAi={handlePlanOpportunitySearchWithAi}
+                onQueueDailyOpportunitySearchPrep={handleQueueDailyOpportunitySearchPrep}
+                onQueueAutonomousDailyOpportunitySearchPrep={handleQueueAutonomousDailyOpportunitySearchPrep}
+                onGetAgentOperatingSystem={handleGetAgentOperatingSystem}
+                onQueueAgentOperatingSystemTask={handleQueueAgentOperatingSystemTask}
+                onUpdateAgentOperatingSystemRunStatus={handleUpdateAgentOperatingSystemRunStatus}
+                onExecuteAgentOperatingSystemRun={handleExecuteAgentOperatingSystemRun}
+                onGetAgentLeadProviderHealth={handleGetAgentLeadProviderHealth}
+                onGetAgentLeadProviderLiveReadiness={handleGetAgentLeadProviderLiveReadiness}
+                onGetAgentLeadProviderCompliancePacket={handleGetAgentLeadProviderCompliancePacket}
+                onGetAgentLeadOfficialProviderApiAdapters={handleGetAgentLeadOfficialProviderApiAdapters}
+                onGetAgentLeadAllSourceAdapterCoverage={handleGetAgentLeadAllSourceAdapterCoverage}
+                onGetAgentLeadLocalCompletionReadiness={handleGetAgentLeadLocalCompletionReadiness}
+                onGetAgentLeadProductionReadiness={handleGetAgentLeadProductionReadiness}
+                onRecordAgentLeadProductionReadinessEvidence={handleRecordAgentLeadProductionReadinessEvidence}
+                onGetAgentLeadProcurementFeedAdapter={handleGetAgentLeadProcurementFeedAdapter}
+                onGetAgentLeadProviderLiveApproval={handleGetAgentLeadProviderLiveApproval}
+                onGetAgentLeadProviderMonitoringSnapshot={handleGetAgentLeadProviderMonitoringSnapshot}
+                onRunAgentLeadProviderAdapterRunner={handleRunAgentLeadProviderAdapterRunner}
+                onRunAgentLeadProviderLivePublicExecution={handleRunAgentLeadProviderLivePublicExecution}
+                onRunAgentLeadPublicSourceProviderAdapters={handleRunAgentLeadPublicSourceProviderAdapters}
+                onRunAgentLeadProviderSandboxTest={handleRunAgentLeadProviderSandboxTest}
+                onRecordAgentLeadPlatformProviderBoundary={handleRecordAgentLeadPlatformProviderBoundary}
+                onRecordAgentLeadProviderConnectionMetadata={handleRecordAgentLeadProviderConnectionMetadata}
+                onRecordAgentLeadProviderCredentialHandoff={handleRecordAgentLeadProviderCredentialHandoff}
+                onRecordAgentLeadProviderDailySchedule={handleRecordAgentLeadProviderDailySchedule}
+                onRecordAgentLeadProviderSourceConsent={handleRecordAgentLeadProviderSourceConsent}
+                onRunAgentLeadOfficialProviderApiAdapterHarness={handleRunAgentLeadOfficialProviderApiAdapterHarness}
+                onRunAgentLeadLiveProcurementPublicAdapter={handleRunAgentLeadLiveProcurementPublicAdapter}
+                onRunAgentLeadDailyLiveProcurementPublicAdapter={handleRunAgentLeadDailyLiveProcurementPublicAdapter}
+                onRunAgentLeadDailyJobFinderOrchestration={handleRunAgentLeadDailyJobFinderOrchestration}
+                onRunAgentLeadDailyJobFinderAutopilot={handleRunAgentLeadDailyJobFinderAutopilot}
+                onRecordAgentLeadProcurementFeedAdapterConfig={handleRecordAgentLeadProcurementFeedAdapterConfig}
+                onRunAgentLeadProcurementFeedAdapter={handleRunAgentLeadProcurementFeedAdapter}
+                onRecordAgentLeadPrivateSourceAuthorization={handleRecordAgentLeadPrivateSourceAuthorization}
+                onRecordAgentLeadPrivateEvidenceIntake={handleRecordAgentLeadPrivateEvidenceIntake}
+                onGetAgentLeadPrivateSourceChecklist={handleGetAgentLeadPrivateSourceChecklist}
+                onRecordAgentLeadProviderImportDecision={handleRecordAgentLeadProviderImportDecision}
+                onRecordAgentLeadProviderLiveApprovalDecision={handleRecordAgentLeadProviderLiveApprovalDecision}
+                onRecordAgentLeadProviderReviewQueueDecision={handleRecordAgentLeadProviderReviewQueueDecision}
+                onDraftAgentLeadProviderReviewOpportunity={handleDraftAgentLeadProviderReviewOpportunity}
                 onPreviewOpportunityScoutAgent={handlePreviewOpportunityScoutAgent}
                 onCreateFoundOpportunity={handleCreateFoundOpportunity}
                 onUpdateFoundOpportunity={handleUpdateFoundOpportunity}
@@ -12774,6 +15877,7 @@ export default function App() {
                 onSuggestAgentLearningFromEstimates={handleSuggestAgentLearningFromEstimates}
                 onSuggestAgentLearningFromCloseouts={handleSuggestAgentLearningFromCloseouts}
                 onUpdateAgentLearningPreference={handleUpdateAgentLearningPreference}
+                onUpdateCompanySettings={handleUpdateCompanySettings}
                 onRecordAgentProposalAudit={handleRecordAgentProposalAudit}
                 onOpenEstimatePacket={handleOpenAssistantEstimatePacket}
                 onOpenEstimateJobHandoff={handleOpenAssistantEstimateJobHandoff}
@@ -12832,7 +15936,6 @@ export default function App() {
                 onPrintJobPacket={handlePrintJobPacket}
                 onPrintDailyReport={handlePrintDailyReport}
                   onArchiveSafetyIncident={handleArchiveSafetyIncident}
-                  onUpdateCompanySettings={handleUpdateCompanySettings}
                   onCreateChecklist={handleCreateToolChecklist}
                   onSaveChecklist={handleSaveToolChecklist}
                   onAddChecklistItem={handleAddToolChecklistItem}
