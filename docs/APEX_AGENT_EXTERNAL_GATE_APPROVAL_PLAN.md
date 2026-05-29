@@ -17,6 +17,7 @@ Latest implementation status:
 - Company policy can opt into `email_send` only for the `estimate_send` workflow in `human_confirmed` mode.
 - `POST /api/agent-action-proposals/execute-estimate-send` reuses the normal estimate email workflow after generated proposal audit, send-ready audit, company opt-in, email provider configuration, and explicit human confirmations.
 - Email execution writes `agent.proposal.email_sent`, `agent.os.external.email_send.executed`, and estimate send audit events.
+- Build 8A adds locked communication provider readiness and outbound approval queue evidence for broader email/SMS workflows. It records consent source, opt-out, do-not-contact, template review, delivery-history readiness, idempotency, audit, rollback, and provider-readiness checks, but the new execution route is hard-denied and does not send email/SMS or store provider secrets.
 - SMS, payment collection, customer portal writes, scheduling mutation, bid submission, and integration writes remain planned only until their adapters and tests are built.
 
 ## Approved Boundary Packet

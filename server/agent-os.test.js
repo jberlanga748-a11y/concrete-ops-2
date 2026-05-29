@@ -2458,3 +2458,141 @@ test("Agent OS executes human-confirmed estimate email only after company email 
     await emailApi.stop();
   }
 });
+
+test("Communication provider readiness and outbound approval queue stay locked and audited", async () => {
+  const fixture = await startServer({
+    EMAIL_PROVIDER: "resend",
+    EMAIL_FROM: "Apex HQ <estimates@example.test>",
+    EMAIL_API_KEY: "test-api-key",
+  });
+
+  try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.PREMIUM);
+    const adminLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const headers = authHeaders(adminLogin.token);
+    const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers });
+
+    const readiness = await assertOk(fixture.baseUrl, "/api/communications/provider-readiness", { headers });
+    assert.equal(readiness.communicationProviderReadiness.mode, "communication_provider_readiness_v1");
+    assert.equal(readiness.communicationProviderReadiness.externalSendExecutionEnabled, false);
+    assert.equal(readiness.communicationProviderReadiness.rows.find((row) => row.channel === "email").providerConfigured, true);
+    assert.equal(readiness.communicationProviderReadiness.rows.every((row) => row.canSend === false), true);
+
+    const lead = bootstrap.leads[0];
+    const approval = await assertOk(fixture.baseUrl, "/api/communications/outbound-approvals", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        channel: "email",
+        targetEntityType: "lead",
+        targetEntityId: lead.id,
+        recipient: "customer@example.test",
+        consentSource: "Website estimate request opt-in",
+        consentConfirmed: true,
+        templateReviewed: true,
+        humanReviewConfirmed: true,
+        messagePreview: "Hello customer@example.test, here is the reviewed follow-up.",
+        idempotencyKey: "communication-approval-1",
+      }),
+    });
+    assert.equal(approval.outboundApproval.status, "queued_locked");
+    assert.equal(approval.outboundApproval.canSend, false);
+    assert.equal(approval.outboundApproval.externalSendEnabled, false);
+    assert.match(approval.outboundApproval.messagePreview, /\[REDACTED_EMAIL\]/);
+
+    const replay = await assertOk(fixture.baseUrl, "/api/communications/outbound-approvals", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        channel: "email",
+        targetEntityType: "lead",
+        targetEntityId: lead.id,
+        recipient: "customer@example.test",
+        consentSource: "Website estimate request opt-in",
+        consentConfirmed: true,
+        templateReviewed: true,
+        humanReviewConfirmed: true,
+        idempotencyKey: "communication-approval-1",
+      }),
+    });
+    assert.equal(replay.idempotentReplay, true);
+    assert.equal(replay.outboundApproval.id, approval.outboundApproval.id);
+
+    const executeDenied = await requestJson(fixture.baseUrl, `/api/communications/outbound-approvals/${approval.outboundApproval.id}/execute`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ humanReviewConfirmed: true }),
+    });
+    assert.equal(executeDenied.response.status, 423);
+    assert.match(executeDenied.payload.error, /execution is locked/i);
+
+    const records = auditEvents(fixture.sqliteFile).filter((record) => record.entityType === "communication_outbound_approval");
+    assert.equal(records.length, 1);
+    assert.doesNotMatch(JSON.stringify(records), /test-api-key|apexdemo123/i);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("Communication provider readiness denies unsafe payloads and field users", async () => {
+  const fixture = await startServer();
+
+  try {
+    const adminLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const headers = authHeaders(adminLogin.token);
+    const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers });
+    const lead = bootstrap.leads[0];
+
+    const unsafe = await requestJson(fixture.baseUrl, "/api/communications/outbound-approvals", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        channel: "email",
+        targetEntityType: "lead",
+        targetEntityId: lead.id,
+        recipient: "customer@example.test",
+        consentConfirmed: true,
+        templateReviewed: true,
+        humanReviewConfirmed: true,
+        apiKey: "do-not-store",
+      }),
+    });
+    assert.equal(unsafe.response.status, 400);
+
+    const fieldUser = createUserRecord({
+      id: "U-COMM-PROVIDER-FIELD",
+      email: "comm-provider-field@apexhq.test",
+      password: "apexdemo123",
+      name: "Communication Provider Field User",
+      role: "Employee",
+    });
+    insertUser(fixture.sqliteFile, fieldUser);
+    const fieldLogin = await login(fixture.baseUrl, {
+      email: fieldUser.email,
+      password: "apexdemo123",
+    });
+    const fieldReadiness = await requestJson(fixture.baseUrl, "/api/communications/provider-readiness", {
+      headers: authHeaders(fieldLogin.token),
+    });
+    assert.equal(fieldReadiness.response.status, 403);
+    const fieldQueue = await requestJson(fixture.baseUrl, "/api/communications/outbound-approvals", {
+      method: "POST",
+      headers: authHeaders(fieldLogin.token),
+      body: JSON.stringify({
+        channel: "email",
+        targetEntityType: "lead",
+        targetEntityId: lead.id,
+        recipient: "customer@example.test",
+      }),
+    });
+    assert.equal(fieldQueue.response.status, 403);
+  } finally {
+    await fixture.stop();
+  }
+});
