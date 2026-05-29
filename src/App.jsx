@@ -1934,6 +1934,16 @@ function CopilotPagePolished({
   const [providerApprovalState, setProviderApprovalState] = useState({ status: "idle", message: "", packet: null });
   const [providerAdapterState, setProviderAdapterState] = useState({ status: "idle", message: "", result: null });
   const [controlledInboxOutcomeState, setControlledInboxOutcomeState] = useState({ rows: {}, outcomeCount: 0, message: "" });
+  const controlledInboxPersistedDecisionRows = (controlledDailyRunReviewFlow.reviewInboxPreviewRows || []).filter((row) => row.outcomeDecision);
+  const controlledInboxVisibleDecisionCount = new Set([
+    ...Object.keys(controlledInboxOutcomeState.rows || {}),
+    ...controlledInboxPersistedDecisionRows.map((row) => row.id),
+  ]).size;
+  const controlledInboxOutcomeCount = Math.max(
+    Number(controlledDailyRunReviewFlow.stats?.outcomeRows || 0),
+    Number(controlledDailyPublicRunOutcomeLoop.outcomeCount || 0),
+    Number(controlledInboxOutcomeState.outcomeCount || 0),
+  );
   const localCompletionReadiness = providerAdapterState.result?.mode === "agent_leads_local_completion_readiness_v39"
     ? providerAdapterState.result
     : dailyScoutExecutionPlan.localCompletionReadiness || { completionRows: [], workspaceWarnings: [], externalActionLocks: {}, localImplementationPercent: 0, localCompletionStatus: "needs_local_setup" };
@@ -4951,16 +4961,16 @@ function CopilotPagePolished({
                         <div className="co-ai-scout-checks">
                           <small>Evidence prep: {String(controlledDailyPublicRunEvidencePrep.status || "blocked").replace(/_/g, " ")}</small>
                           <small>Review rows: {controlledDailyPublicRunEvidencePrep.evidenceRows?.length || 0}</small>
-                          <small>Outcomes: {controlledDailyPublicRunOutcomeLoop.outcomeCount || 0}</small>
+                          <small>Outcomes: {controlledInboxOutcomeCount}</small>
                           <small>Controlled inbox: {String(controlledDailyRunReviewFlow.status || "blocked").replace(/_/g, " ")}</small>
-                          <small>Visible decisions: {Object.keys(controlledInboxOutcomeState.rows).length}</small>
+                          <small>Visible decisions: {controlledInboxVisibleDecisionCount}</small>
                           <small>Auto-save: off</small>
                         </div>
-                        {controlledInboxOutcomeState.message ? (
+                        {controlledInboxOutcomeState.message || controlledInboxPersistedDecisionRows.length ? (
                           <div className="co-ai-scout-run-step" data-tone="green">
-                            <em>outcome recorded</em>
-                            <strong>{controlledInboxOutcomeState.message}</strong>
-                            <p>{controlledInboxOutcomeState.outcomeCount || 0} controlled outcome signal{controlledInboxOutcomeState.outcomeCount === 1 ? "" : "s"} recorded for this run.</p>
+                            <em>{controlledInboxOutcomeState.message ? "outcome recorded" : "outcomes loaded"}</em>
+                            <strong>{controlledInboxOutcomeState.message || "Controlled inbox decisions loaded from audit history."}</strong>
+                            <p>{controlledInboxOutcomeCount} controlled outcome signal{controlledInboxOutcomeCount === 1 ? "" : "s"} recorded for this run.</p>
                             <small>No lead, contact, bid, payment, schedule, or integration action was created.</small>
                           </div>
                         ) : null}
@@ -4988,13 +4998,18 @@ function CopilotPagePolished({
                           </div>
                         ))}
                         {controlledDailyRunReviewFlow.reviewInboxPreviewRows?.slice(0, 3).map((row) => {
-                          const rowDecision = controlledInboxOutcomeState.rows[row.id];
+                          const persistedDecision = row.outcomeDecision ? {
+                            decision: row.outcomeDecision,
+                            label: row.outcomeLabel || String(row.outcomeDecision).replace(/_/g, " "),
+                            recordedAt: row.outcomeRecordedAt || "",
+                          } : null;
+                          const rowDecision = controlledInboxOutcomeState.rows[row.id] || persistedDecision;
                           return (
                             <div key={`controlled-inbox-${row.id}`} className="co-ai-scout-run-step" data-tone={rowDecision ? "green" : row.tone || "amber"}>
                               <em>{rowDecision ? `decision: ${rowDecision.label}` : "controlled inbox"}</em>
                               <strong>{row.title}</strong>
                               <p>{rowDecision ? "Outcome recorded. The row remains review-only until an office user saves or converts it through the normal workflow." : row.fitReason || row.primaryAction || "Review before any lead draft is saved."}</p>
-                              <small>{row.sourceUrl || "No source URL attached"}</small>
+                              <small>{rowDecision?.recordedAt ? `Recorded: ${rowDecision.recordedAt}` : row.sourceUrl || "No source URL attached"}</small>
                               <div className="mt-2 flex flex-wrap gap-2">
                                 <Button type="button" size="sm" variant="secondary" onClick={() => draftProviderReviewOpportunity(row)} disabled={!canManageOpportunityScout || busy || providerAdapterState.status === "loading"}>
                                   Save Draft

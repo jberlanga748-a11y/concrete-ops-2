@@ -6026,8 +6026,43 @@ export function buildAgentLeadsControlledDailyRunReviewFlow({
     today: currentDay,
   });
   const existingRows = asArray(dailyReviewInbox.rows);
+  const controlledOutcomeRows = asArray(auditEvents)
+    .flatMap((event) => asArray(parseAgentOsAuditDetail(event).controlledDailyPublicRunOutcomeRecords)
+      .map((row) => ({ ...row, auditCreatedAt: event.createdAt || "" })))
+    .filter((row) => !controlledDailyPublicSourceRunEvidencePacket.nextRunDate || row.nextRunDate === controlledDailyPublicSourceRunEvidencePacket.nextRunDate);
+  const latestOutcomeByEvidenceRowId = new Map();
+  controlledOutcomeRows
+    .slice()
+    .sort((left, right) => new Date(left.createdAt || left.auditCreatedAt || 0).getTime() - new Date(right.createdAt || right.auditCreatedAt || 0).getTime())
+    .forEach((row) => {
+      const evidenceRowId = text(row.evidenceRowId, 180);
+      const providerResultId = text(row.providerResultId, 180);
+      if (evidenceRowId) latestOutcomeByEvidenceRowId.set(evidenceRowId, row);
+      if (providerResultId) latestOutcomeByEvidenceRowId.set(providerResultId, row);
+    });
   const reviewInboxPreviewRows = [...controlledInbox.rows, ...existingRows]
     .filter((row, index, rows) => rows.findIndex((candidate) => candidate.id === row.id) === index)
+    .map((row) => {
+      const outcome = latestOutcomeByEvidenceRowId.get(text(row.id, 180))
+        || latestOutcomeByEvidenceRowId.get(text(row.providerResultId, 180));
+      if (!outcome) return row;
+      return {
+        ...row,
+        status: "outcome_recorded",
+        tone: "green",
+        outcomeDecision: text(outcome.decision, 120),
+        outcomeLabel: text(outcome.decision, 120).replace(/_/g, " "),
+        outcomeStatus: "recorded",
+        outcomeRecordedAt: text(outcome.createdAt || outcome.auditCreatedAt, 80),
+        outcomeNote: text(outcome.note, 400),
+        primaryAction: "Outcome recorded",
+        externalActionsLocked: true,
+        canCreateLeadDirectly: false,
+        canAutoSave: false,
+        leadAutoSaveEnabled: false,
+        customerContactEnabled: false,
+      };
+    })
     .slice(0, 24);
   const latestEvidenceEvent = asArray(auditEvents)
     .filter((event) => text(event.action || parseAgentOsAuditDetail(event).controlledDailyPublicRunEvidencePrep?.auditEvent, 180) === "agent.os.provider.daily_public_run.evidence_prepared")
@@ -6088,7 +6123,7 @@ export function buildAgentLeadsControlledDailyRunReviewFlow({
       {
         id: "record-outcomes",
         label: "Record accepted, rejected, duplicate, or no-fit outcomes",
-        status: "manual_next_step",
+        status: controlledOutcomeRows.length ? "outcomes_recorded" : "manual_next_step",
         externalActionsLocked: true,
       },
     ],
@@ -6099,6 +6134,8 @@ export function buildAgentLeadsControlledDailyRunReviewFlow({
       selectedSourceRows: packetRows.length,
       evidenceRows: evidenceRows.length,
       reviewInboxRows: reviewInboxPreviewRows.length,
+      outcomeRows: controlledOutcomeRows.length,
+      decidedReviewRows: reviewInboxPreviewRows.filter((row) => row.outcomeDecision).length,
       existingInboxRows: existingRows.length,
       blockerCount: blockers.length,
     },
