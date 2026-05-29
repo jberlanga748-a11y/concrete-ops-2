@@ -7,6 +7,8 @@ import {
   buildAgentOsExternalGateReadinessDeck,
   buildAgentExternalGateExecutionContract,
   buildAgentOsExternalGateExecutionDeck,
+  buildAgentExternalGateSandboxAdapterRun,
+  buildAgentOsExternalGateSandboxAdapterDeck,
   buildAgentOsInternalDraftPacket,
   buildAgentSchedulingMutationGateReadinessPacket,
   buildAgentLeadsAutonomousDailyScoutSchedule,
@@ -4501,6 +4503,89 @@ test("Agent OS external gate execution deck exposes all locked contract and exec
   assert.equal(deck.rows.every((row) => row.canExecute === false), true);
   assert.ok(deck.rows.find((row) => row.gateId === "bid_submission").executionRoute.includes("/bid_submission/execute"));
   assert.match(deck.safetyBoundary, /locked/i);
+});
+
+test("Agent OS sandbox adapters run from locked contracts without external execution", () => {
+  const baseContract = buildAgentExternalGateExecutionContract("sms_send", {
+    companyId: "COMPANY-1",
+    actorUserId: "USER-1",
+    target: { entityType: "lead", entityId: "LEAD-1", label: "Driveway follow-up" },
+    review: {
+      consentConfirmed: true,
+      optOutReviewed: true,
+      senderConfigured: true,
+      testRecipientStrategy: true,
+      templateReviewed: true,
+      humanReviewConfirmed: true,
+      approvedBoundary: true,
+      idempotencyKey: "sms-contract-1",
+    },
+    externalGateSettings: {
+      sms_send: { enabled: true, mode: "human_confirmed", allowedWorkflow: "sms_customer_message", testOnly: true },
+    },
+    adapterEvidence: {
+      sms_send: {
+        domainAdapter: true,
+        companyOptIn: true,
+        humanConfirmation: true,
+        idempotency: true,
+        audit: true,
+        rollback: true,
+        tenantRolePackageTests: true,
+        providerSandboxOrTestStrategy: true,
+      },
+    },
+  });
+  const run = buildAgentExternalGateSandboxAdapterRun("sms_send", {
+    companyId: "COMPANY-1",
+    actorUserId: "USER-1",
+    executionContract: baseContract,
+    adapterInput: {
+      sandboxLabel: "Test recipient only",
+      operatorNote: "Review copy against consent record.",
+      idempotencyKey: "sms-sandbox-run-1",
+    },
+  });
+
+  assert.equal(run.ok, true);
+  assert.equal(run.status, "sandbox_test_recipient_ready_locked");
+  assert.equal(run.adapterId, "sms_test_recipient_adapter");
+  assert.equal(run.sandboxAdapterPrepared, true);
+  assert.equal(run.sandboxAdapterExecuted, false);
+  assert.equal(run.providerRequestPrepared, false);
+  assert.equal(run.providerRequestSent, false);
+  assert.equal(run.externalActionExecuted, false);
+  assert.equal(run.canExecute, false);
+  assert.ok(run.blockedActions.includes("No SMS send"));
+  assert.match(run.outputPreview.redaction, /Secrets|credentials/i);
+
+  const unsafe = buildAgentExternalGateSandboxAdapterRun("integration_write", {
+    executionContract: { ...baseContract, gateId: "integration_write", status: "prepared_locked" },
+    adapterInput: { apiKey: "secret", writeNow: true },
+  });
+  assert.equal(unsafe.status, "blocked_locked");
+  assert.match(unsafe.blockers.join(" "), /credentials|live execution|external-action/i);
+});
+
+test("Agent OS sandbox adapter deck covers portal, SMS, payment, integration, and bid adapters", () => {
+  const deck = buildAgentOsExternalGateSandboxAdapterDeck({
+    companyId: "COMPANY-1",
+    actorUserId: "USER-1",
+  });
+
+  assert.equal(deck.mode, "agent_os_external_gate_sandbox_adapter_deck_v1");
+  assert.deepEqual(deck.rows.map((row) => row.gateId), [
+    "customer_portal_action",
+    "sms_send",
+    "payment_collection",
+    "integration_write",
+    "bid_submission",
+  ]);
+  assert.equal(deck.stats.adapterCount, 5);
+  assert.equal(deck.stats.lockedCount, 5);
+  assert.equal(deck.rows.every((row) => row.canExecute === false), true);
+  assert.ok(deck.rows.find((row) => row.gateId === "payment_collection").runEndpoint.includes("/sandbox-adapter/run"));
+  assert.match(deck.safetyBoundary, /internal evidence/i);
 });
 
 test("Agent OS known external gates stay disabled unless explicitly configured", () => {

@@ -503,6 +503,24 @@ export function deriveAgentOsExternalGateExecutionRows(agentOs = {}) {
     .slice(0, 10);
 }
 
+export function deriveAgentOsExternalGateSandboxAdapterRows(agentOs = {}) {
+  return normalizeObjectArray(agentOs?.externalGateSandboxAdapterDeck?.rows)
+    .map((row) => ({
+      gateId: text(row.gateId, 120),
+      adapterId: text(row.adapterId, 140),
+      label: text(row.label || row.gateId || "Sandbox adapter", 160),
+      status: text(row.status || "available_locked", 120),
+      statusLabel: text(row.status || "available_locked", 120).replace(/_/g, " "),
+      tone: row.canExecute === true ? "green" : "amber",
+      runEndpoint: text(row.runEndpoint, 220),
+      executeEndpoint: text(row.executeEndpoint, 220),
+      canExecute: row.canExecute === true,
+      blockedActions: (Array.isArray(row.blockedActions) ? row.blockedActions : []).map((item) => text(item, 160)).filter(Boolean).slice(0, 5),
+      safetyBoundary: text(row.safetyBoundary || agentOs?.externalGateSandboxAdapterDeck?.safetyBoundary || "Sandbox adapter remains locked.", 280),
+    }))
+    .slice(0, 10);
+}
+
 export function deriveAgentOsConsoleSummary({
   taskOptions = [],
   runRows = [],

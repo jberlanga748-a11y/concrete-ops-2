@@ -7,6 +7,7 @@ import {
   deriveAgentOsConsoleSummary,
   deriveAgentOsExternalGateExecutionRows,
   deriveAgentOsExternalGateReadinessRows,
+  deriveAgentOsExternalGateSandboxAdapterRows,
   deriveAgentOsInternalTaskOptions,
   deriveAgentOsLearningReviewRows,
   deriveAgentOsOperatorConsoleCards,
@@ -351,6 +352,32 @@ test("Agent OS UI derives external gate execution rows as locked contracts", () 
   assert.match(rows[0].executionRoute, /execute/);
   assert.equal(rows[0].blockedActions[0], "No charge");
   assert.match(rows[0].futureAdapterBlockers[0], /adapter/i);
+});
+
+test("Agent OS UI derives sandbox adapter rows as internal locked runs", () => {
+  const rows = deriveAgentOsExternalGateSandboxAdapterRows({
+    externalGateSandboxAdapterDeck: {
+      rows: [{
+        gateId: "integration_write",
+        adapterId: "integration_sandbox_field_map_adapter",
+        label: "Integration writes",
+        status: "available_locked",
+        runEndpoint: "POST /api/agent/os/external-gates/integration_write/sandbox-adapter/run",
+        executeEndpoint: "POST /api/agent/os/external-gates/integration_write/execute",
+        canExecute: false,
+        blockedActions: ["No provider write", "No live sync"],
+        safetyBoundary: "Integration adapter is sandbox field-map only.",
+      }],
+    },
+  });
+
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].gateId, "integration_write");
+  assert.equal(rows[0].adapterId, "integration_sandbox_field_map_adapter");
+  assert.equal(rows[0].tone, "amber");
+  assert.equal(rows[0].canExecute, false);
+  assert.match(rows[0].runEndpoint, /sandbox-adapter\/run/);
+  assert.equal(rows[0].blockedActions[0], "No provider write");
 });
 
 test("Agent OS UI derives console summary counts and operator checklist rows", () => {

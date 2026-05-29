@@ -101,6 +101,7 @@ import {
   buildAgentOsExternalGateDecisionPacket,
   buildAgentExternalGateReadinessPacket,
   buildAgentExternalGateExecutionContract,
+  buildAgentExternalGateSandboxAdapterRun,
   buildAgentSchedulingMutationGateReadinessPacket,
   buildAgentLeadsAutonomousDailyScoutSchedule,
   buildAgentLeadsProviderHealthCheck,
@@ -6286,6 +6287,29 @@ function findAgentExternalGateExecutionContractAudit(state, user, gateId, idempo
   }) || null;
 }
 
+function findAgentExternalGateExecutionContractAuditById(state, user, gateId, contractId) {
+  const companyId = currentCompanyIdForRequestUser(state, user);
+  return (Array.isArray(state.auditEvents) ? state.auditEvents : []).find((event) => {
+    if (event.companyId !== companyId) return false;
+    if (event.entityType !== "agent_external_execution_contract") return false;
+    if (event.entityId !== contractId) return false;
+    const detail = parseAuditEventDetail(event);
+    const contract = detail.executionContract && typeof detail.executionContract === "object" ? detail.executionContract : {};
+    return contract.gateId === gateId;
+  }) || null;
+}
+
+function findAgentExternalGateSandboxAdapterAudit(state, user, adapterRun = {}) {
+  const companyId = currentCompanyIdForRequestUser(state, user);
+  return (Array.isArray(state.auditEvents) ? state.auditEvents : []).find((event) => {
+    if (event.companyId !== companyId) return false;
+    if (event.entityType !== "agent_external_sandbox_adapter_run") return false;
+    const detail = parseAuditEventDetail(event);
+    const run = detail.sandboxAdapterRun && typeof detail.sandboxAdapterRun === "object" ? detail.sandboxAdapterRun : {};
+    return run.gateId === adapterRun.gateId && run.idempotencyKey === adapterRun.idempotencyKey;
+  }) || null;
+}
+
 function parseAgentOsAuditDetail(detail) {
   if (detail && typeof detail === "object") return detail;
   if (!detail || typeof detail !== "string") return {};
@@ -8936,6 +8960,68 @@ app.post("/api/agent/os/external-gates/:gateId/execute", requireAuth, asyncRoute
   const gateId = optionalString(req.params.gateId, "");
   assertCanPrepareAgentExternalGateReadiness(state, req.auth.user, gateId);
   throw new ApiError(423, `Apex Agent ${gateId.replace(/_/g, " ")} execution is locked. Readiness and execution-contract evidence cannot execute external actions.`);
+}));
+
+app.post("/api/agent/os/external-gates/:gateId/sandbox-adapter/run", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const gateId = optionalString(req.params.gateId, "");
+  if (gateId === "scheduling" || gateId === "email_send") {
+    throw new ApiError(400, "This Apex Agent external gate does not use the generic sandbox adapter runner.");
+  }
+  assertCanPrepareAgentExternalGateReadiness(state, req.auth.user, gateId);
+  const executionContractId = optionalString(req.body?.executionContractId, "");
+  const contractEvent = findAgentExternalGateExecutionContractAuditById(state, req.auth.user, gateId, executionContractId);
+  if (!contractEvent) {
+    throw new ApiError(404, "Prepared locked execution contract not found for this Apex Agent external gate.");
+  }
+  const contractDetail = parseAuditEventDetail(contractEvent);
+  const executionContract = contractDetail.executionContract && typeof contractDetail.executionContract === "object" ? contractDetail.executionContract : {};
+  const candidate = buildAgentExternalGateSandboxAdapterRun(gateId, {
+    companyId: currentCompanyIdForRequestUser(state, req.auth.user),
+    actorUserId: req.auth.user.id,
+    executionContract,
+    adapterInput: req.body?.adapterInput && typeof req.body.adapterInput === "object" ? req.body.adapterInput : {},
+    now: new Date().toISOString(),
+  });
+  if (!candidate.ok) {
+    throw new ApiError(404, candidate.error || "Apex Agent external gate sandbox adapter not found.");
+  }
+  if (candidate.status === "blocked_locked") {
+    throw new ApiError(409, candidate.blockers.join(" ") || "Apex Agent external gate sandbox adapter is blocked.");
+  }
+  const existing = findAgentExternalGateSandboxAdapterAudit(state, req.auth.user, candidate);
+  if (existing) {
+    const detail = parseAuditEventDetail(existing);
+    res.json({
+      sandboxAdapterRun: detail.sandboxAdapterRun,
+      idempotentReplay: true,
+      requestId: res.locals.requestId,
+      boundary: "Sandbox adapter replay only; no external action was executed.",
+    });
+    return;
+  }
+  const nextState = await updateDb((draft) => {
+    appendAuditEvent(draft, {
+      entityType: "agent_external_sandbox_adapter_run",
+      entityId: candidate.id,
+      action: candidate.auditEvent,
+      summary: `${candidate.gateId.replace(/_/g, " ")} sandbox adapter run recorded as locked internal evidence`,
+      detail: JSON.stringify({
+        sandboxAdapterRun: candidate,
+        safetyBoundary: candidate.safetyBoundary,
+      }),
+      actor: req.auth.user,
+      changedFields: ["agentExternalGateSandboxAdapterRun"],
+    });
+    return draft;
+  });
+  const persisted = findAgentExternalGateSandboxAdapterAudit(nextState, req.auth.user, candidate);
+  res.status(201).json({
+    sandboxAdapterRun: parseAuditEventDetail(persisted || {}).sandboxAdapterRun || candidate,
+    idempotentReplay: false,
+    requestId: res.locals.requestId,
+    boundary: "Sandbox adapter run only; this did not prepare provider requests, send messages, collect payment, write portal/integration data, submit bids, deploy, change secrets/config, or touch production data.",
+  });
 }));
 
 app.get("/api/agent/os/provider/health", requireAuth, asyncRoute(async (req, res) => {

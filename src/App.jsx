@@ -33,6 +33,7 @@ import {
   deriveAgentOsConsoleSummary,
   deriveAgentOsExternalGateExecutionRows,
   deriveAgentOsExternalGateReadinessRows,
+  deriveAgentOsExternalGateSandboxAdapterRows,
   deriveAgentOsInternalTaskOptions,
   deriveAgentOsLearningReviewRows,
   deriveAgentOsOperatorConsoleCards,
@@ -1905,6 +1906,7 @@ function CopilotPagePolished({
   const agentOsLearningReviewRows = deriveAgentOsLearningReviewRows(agentOsConsoleState.agentOs || {});
   const agentOsExternalGateReadinessRows = deriveAgentOsExternalGateReadinessRows(agentOsConsoleState.agentOs || {});
   const agentOsExternalGateExecutionRows = deriveAgentOsExternalGateExecutionRows(agentOsConsoleState.agentOs || {});
+  const agentOsExternalGateSandboxAdapterRows = deriveAgentOsExternalGateSandboxAdapterRows(agentOsConsoleState.agentOs || {});
   const dailyResourcePlan = opportunityScout.dailyResourcePlan || { lanes: [], rows: [], stats: {}, guardrails: [] };
   const dailyScoutExecutionPlan = opportunityScout.dailyScoutExecutionPlan || { cards: [], publicRunnerCards: [], privateHandoffCards: [], publicDiscoveryQueue: [], foundDraftQueue: [], providerAttempts: [], rejectedProviderResults: [], providerReviewImportQueue: [], stats: {}, guardrails: [], dailyRunRecord: null, publicProviderBoundary: null };
   const sourceCoveragePlanner = dailyScoutExecutionPlan.sourceCoveragePlanner || { families: [], gaps: [], recommendations: [], setupDrafts: [], stats: {} };
@@ -3931,6 +3933,39 @@ function CopilotPagePolished({
                     </div>
                   )) : (
                     <StateCard title="No execution contracts loaded" description="Refresh Apex Agent OS to load the locked execution contract deck." tone="slate" />
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="co-ai-scout-grid border-b border-slate-200 bg-white">
+              <div className="co-ai-scout-status" data-tone="amber">
+                <span>Sandbox adapters</span>
+                <strong>{agentOsExternalGateSandboxAdapterRows.length} internal adapter{agentOsExternalGateSandboxAdapterRows.length === 1 ? "" : "s"}</strong>
+                <p>Sandbox adapters require a locked execution contract and record evidence only. Live provider routes remain closed.</p>
+                <div className="co-ai-scout-metrics">
+                  <div><em>{agentOsExternalGateSandboxAdapterRows.length}</em><span>adapters</span></div>
+                  <div><em>{agentOsExternalGateSandboxAdapterRows.filter((row) => !row.canExecute).length}</em><span>locked</span></div>
+                  <div><em>{agentOsExternalGateSandboxAdapterRows.filter((row) => row.runEndpoint).length}</em><span>runs</span></div>
+                </div>
+              </div>
+              <div className="co-ai-scout-briefs">
+                <SectionHeader title="Internal Adapter Runs" description="Portal, SMS, payment, integration, and bid adapters can record sandbox evidence without live execution." />
+                <div className="co-ai-scout-brief-list">
+                  {agentOsExternalGateSandboxAdapterRows.length ? agentOsExternalGateSandboxAdapterRows.map((row) => (
+                    <div key={row.adapterId || row.gateId} className="co-ai-scout-brief" data-tone={row.tone}>
+                      <div className="min-w-0">
+                        <span>{row.label}</span>
+                        <strong>{row.statusLabel}</strong>
+                        <p>{row.safetyBoundary}</p>
+                        <em>{row.runEndpoint} / {row.executeEndpoint}</em>
+                        <div className="co-ai-scout-checks mt-3">
+                          {row.blockedActions.slice(0, 3).map((action) => <small key={`${row.gateId}-adapter-${action}`}>{action}</small>)}
+                        </div>
+                      </div>
+                    </div>
+                  )) : (
+                    <StateCard title="No sandbox adapters loaded" description="Refresh Apex Agent OS to load the locked sandbox adapter deck." tone="slate" />
                   )}
                 </div>
               </div>

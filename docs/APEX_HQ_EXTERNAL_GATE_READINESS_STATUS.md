@@ -1,6 +1,6 @@
 # Apex HQ External Gate Readiness Status
 
-Status: complete for Build 9B locked Agent OS external-gate readiness deck, generic preflight endpoint scope, locked execution contract deck, and hard-deny execute route scope.
+Status: complete for Build 9B locked Agent OS external-gate readiness deck, Build 9C locked execution contract scope, and Build 9D sandbox/internal adapter scope.
 
 ## What Is Now Complete
 
@@ -16,10 +16,14 @@ Status: complete for Build 9B locked Agent OS external-gate readiness deck, gene
 - Generic execute routes exist at `POST /api/agent/os/external-gates/:gateId/execute` and return locked status instead of executing.
 - Locked execution contracts are idempotent by gate and idempotency key and write redacted audit evidence only.
 - Customer portal keeps its deeper domain-specific locked execution contract flow for reviewed share approvals, and communication workflows keep their locked outbound approval/delivery-attempt contracts.
+- Agent OS summary includes `externalGateSandboxAdapterDeck` for customer portal action, SMS send, payment collection, integration write, and bid submission.
+- Sandbox/internal adapter runs are available at `POST /api/agent/os/external-gates/:gateId/sandbox-adapter/run` for customer portal action, SMS send, payment collection, integration write, and bid submission.
+- Sandbox adapter runs require a prepared locked execution contract, are idempotent by gate/idempotency key, and write redacted audit evidence only.
+- The customer portal adapter records internal approval evidence only, the SMS adapter records test-recipient copy/consent evidence only, the payment adapter records sandbox amount/reconciliation evidence only, the integration adapter records sandbox field-map evidence only, and the bid adapter records packet-manifest evidence only.
 
 ## Safety Boundary
 
-Build 9B does not:
+Build 9B-9D does not:
 
 - send email or SMS
 - prepare provider requests
@@ -30,6 +34,7 @@ Build 9B does not:
 - write to integrations, webhooks, calendars, accounting systems, or external providers
 - store credentials or provider secrets
 - enable live execution from readiness or execution-contract evidence
+- enable live execution from sandbox/internal adapter evidence
 - change Fly, Supabase, Vercel, or production configuration
 - deploy
 - mutate production data

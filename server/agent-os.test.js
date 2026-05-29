@@ -2793,6 +2793,141 @@ test("Agent OS external gate execution contracts are idempotent, audited, and ha
   }
 });
 
+test("Agent OS sandbox adapters require locked contracts and never run live external actions", async () => {
+  const fixture = await startServer();
+
+  try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.ELITE);
+    const adminUser = createUserRecord({
+      id: "U-AGENT-SANDBOX-ADAPTER-ADMIN",
+      email: "agent-sandbox-adapter-admin@apexhq.test",
+      password: "apexdemo123",
+      name: "Agent Sandbox Adapter Admin",
+      role: "Administrator",
+    });
+    const fieldUser = createUserRecord({
+      id: "U-AGENT-SANDBOX-ADAPTER-FIELD",
+      email: "agent-sandbox-adapter-field@apexhq.test",
+      password: "apexdemo123",
+      name: "Agent Sandbox Adapter Field",
+      role: "Employee",
+    });
+    insertUser(fixture.sqliteFile, adminUser);
+    insertUser(fixture.sqliteFile, fieldUser);
+    const adminLogin = await login(fixture.baseUrl, {
+      email: adminUser.email,
+      password: "apexdemo123",
+    });
+    const fieldLogin = await login(fixture.baseUrl, {
+      email: fieldUser.email,
+      password: "apexdemo123",
+    });
+    const headers = authHeaders(adminLogin.token);
+    const baseReview = {
+      previewDiffReviewed: true,
+      customerScopeValidated: true,
+      tokenLifecycleReviewed: true,
+      compensatingActionReviewed: true,
+      consentConfirmed: true,
+      optOutReviewed: true,
+      senderConfigured: true,
+      testRecipientStrategy: true,
+      templateReviewed: true,
+      amountIntegrityReviewed: true,
+      sandboxProviderReviewed: true,
+      kycProviderStatusReviewed: true,
+      reconciliationReviewed: true,
+      sandboxVerified: true,
+      providerObjectScoped: true,
+      fieldMapReviewed: true,
+      destinationVerified: true,
+      packetPreviewReviewed: true,
+      deadlineReviewed: true,
+      withdrawalCorrectionReviewed: true,
+      humanReviewConfirmed: true,
+      approvedBoundary: true,
+    };
+
+    const gateIds = ["customer_portal_action", "sms_send", "payment_collection", "integration_write", "bid_submission"];
+    const contractIds = {};
+    for (const gateId of gateIds) {
+      const contract = await assertOk(fixture.baseUrl, `/api/agent/os/external-gates/${gateId}/execution-contract`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          target: { entityType: "record", entityId: `${gateId}-target`, label: `${gateId} sandbox target` },
+          review: { ...baseReview, idempotencyKey: `${gateId}-sandbox-contract` },
+        }),
+      });
+      contractIds[gateId] = contract.executionContract.id;
+    }
+
+    for (const gateId of gateIds) {
+      const run = await assertOk(fixture.baseUrl, `/api/agent/os/external-gates/${gateId}/sandbox-adapter/run`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          executionContractId: contractIds[gateId],
+          adapterInput: {
+            sandboxLabel: `${gateId} sandbox adapter`,
+            operatorNote: "Record sandbox evidence only.",
+            idempotencyKey: `${gateId}-sandbox-run`,
+          },
+        }),
+      });
+      assert.equal(run.sandboxAdapterRun.gateId, gateId);
+      assert.match(run.sandboxAdapterRun.status, /sandbox_|internal_approval/i);
+      assert.equal(run.sandboxAdapterRun.sandboxAdapterPrepared, true);
+      assert.equal(run.sandboxAdapterRun.sandboxAdapterExecuted, false);
+      assert.equal(run.sandboxAdapterRun.providerRequestPrepared, false);
+      assert.equal(run.sandboxAdapterRun.providerRequestSent, false);
+      assert.equal(run.sandboxAdapterRun.externalActionExecuted, false);
+      assert.equal(run.sandboxAdapterRun.canExecute, false);
+      assert.match(run.boundary, /Sandbox adapter run only/i);
+    }
+
+    const replay = await assertOk(fixture.baseUrl, "/api/agent/os/external-gates/payment_collection/sandbox-adapter/run", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        executionContractId: contractIds.payment_collection,
+        adapterInput: {
+          sandboxLabel: "payment_collection sandbox adapter",
+          operatorNote: "Record sandbox evidence only.",
+          idempotencyKey: "payment_collection-sandbox-run",
+        },
+      }),
+    });
+    assert.equal(replay.idempotentReplay, true);
+
+    const unsafe = await requestJson(fixture.baseUrl, "/api/agent/os/external-gates/integration_write/sandbox-adapter/run", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        executionContractId: contractIds.integration_write,
+        adapterInput: { apiKey: "do-not-store", writeNow: true, idempotencyKey: "unsafe-sandbox-run" },
+      }),
+    });
+    assert.equal(unsafe.response.status, 409);
+
+    const fieldDenied = await requestJson(fixture.baseUrl, "/api/agent/os/external-gates/payment_collection/sandbox-adapter/run", {
+      method: "POST",
+      headers: authHeaders(fieldLogin.token),
+      body: JSON.stringify({
+        executionContractId: contractIds.payment_collection,
+        adapterInput: { idempotencyKey: "field-sandbox-run" },
+      }),
+    });
+    assert.equal(fieldDenied.response.status, 403);
+
+    const records = auditEvents(fixture.sqliteFile).filter((event) => event.entityType === "agent_external_sandbox_adapter_run");
+    assert.equal(records.length, 5);
+    assert.doesNotMatch(JSON.stringify(records), /do-not-store|apexdemo123/i);
+  } finally {
+    await fixture.stop();
+  }
+});
+
 test("Communication provider readiness and outbound approval queue stay locked and audited", async () => {
   const fixture = await startServer({
     EMAIL_PROVIDER: "resend",
