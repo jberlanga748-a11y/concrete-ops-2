@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   buildAgentOsExternalGateDecisionPacket,
   buildAgentOsInternalDraftPacket,
+  buildAgentSchedulingMutationGateReadinessPacket,
   buildAgentLeadsAutonomousDailyScoutSchedule,
   buildAgentLeadsLiveAdapterApprovalPacket,
   buildAgentLeadsLiveAdapterExecutionContract,
@@ -4192,6 +4193,141 @@ test("Agent OS external gate adapter readiness records evidence without enabling
   assert.equal(payment.status, "needs_adapter_evidence");
   assert.match(payment.safetyBoundary, /never sends, collects payment, writes portal\/schedule\/integration data, submits bids/i);
   assert.equal(readiness.every((row) => row.requiredBeforeExecution.includes("Human confirmation that names the visible effect")), true);
+});
+
+test("Agent OS scheduling gate readiness detects conflicts and keeps schedule mutation locked", () => {
+  const packet = buildAgentSchedulingMutationGateReadinessPacket({
+    companyId: "COMPANY-1",
+    actorUserId: "USER-1",
+    job: {
+      id: "JOB-1",
+      companyId: "COMPANY-1",
+      title: "Driveway pour",
+      scheduledStart: "2026-06-01T08:00:00.000Z",
+      scheduledEnd: "2026-06-01T12:00:00.000Z",
+      crewId: "CREW-1",
+      crewName: "Crew A",
+      status: "scheduled",
+    },
+    proposedSchedule: {
+      scheduledStart: "2026-06-02T08:00:00.000Z",
+      scheduledEnd: "2026-06-02T12:00:00.000Z",
+      crewId: "CREW-1",
+      crewName: "Crew A",
+      humanReviewConfirmed: true,
+      approvedScheduleBoundary: true,
+      notificationPolicy: {
+        crewNotificationReviewed: true,
+        customerNotificationReviewed: true,
+        fieldVisibilityReviewed: true,
+        notifyCrew: false,
+        notifyCustomer: false,
+        fieldVisibleAfterSave: false,
+      },
+    },
+    existingJobs: [{
+      id: "JOB-2",
+      companyId: "COMPANY-1",
+      title: "Patio prep",
+      scheduledStart: "2026-06-02T09:00:00.000Z",
+      scheduledEnd: "2026-06-02T11:00:00.000Z",
+      crewId: "CREW-1",
+      crewName: "Crew A",
+    }],
+    externalGateSettings: {
+      scheduling: {
+        enabled: true,
+        mode: "human_confirmed",
+        allowedWorkflow: "schedule_job",
+        testOnly: false,
+      },
+    },
+    adapterEvidence: {
+      scheduling: {
+        domainAdapter: true,
+        companyOptIn: true,
+        humanConfirmation: true,
+        idempotency: true,
+        audit: true,
+        rollback: true,
+        tenantRolePackageTests: true,
+        providerSandboxOrTestStrategy: true,
+      },
+    },
+    now: "2026-05-29T12:00:00.000Z",
+  });
+
+  assert.equal(packet.mode, "agent_scheduling_mutation_gate_readiness_v1");
+  assert.equal(packet.status, "blocked_locked");
+  assert.equal(packet.conflictRows.length, 1);
+  assert.match(packet.blockers.join(" "), /conflict/i);
+  assert.equal(packet.notificationPolicyReview.status, "reviewed");
+  assert.equal(packet.adapterReadiness.status, "ready_for_human_confirmed_adapter_review");
+  assert.deepEqual(packet.restoreAuditPlan.restoreFields, ["scheduledStart", "scheduledEnd", "crewId", "crewName", "status"]);
+  assert.equal(packet.scheduleMutationPrepared, false);
+  assert.equal(packet.scheduleMutationApplied, false);
+  assert.equal(packet.canMutateSchedule, false);
+  assert.match(packet.safetyBoundary, /No schedule, crew assignment, field visibility, customer notification/i);
+});
+
+test("Agent OS scheduling gate readiness can be review-ready but still cannot mutate schedules", () => {
+  const packet = buildAgentSchedulingMutationGateReadinessPacket({
+    companyId: "COMPANY-1",
+    actorUserId: "USER-1",
+    job: { id: "JOB-1", companyId: "COMPANY-1", scheduledStart: "2026-06-01T08:00:00.000Z", scheduledEnd: "2026-06-01T12:00:00.000Z" },
+    proposedSchedule: {
+      scheduledStart: "2026-06-02T08:00:00.000Z",
+      scheduledEnd: "2026-06-02T12:00:00.000Z",
+      humanReviewConfirmed: true,
+      approvedScheduleBoundary: true,
+      conflictOverrideAcknowledged: true,
+      notificationPolicy: {
+        crewNotificationReviewed: true,
+        customerNotificationReviewed: true,
+        fieldVisibilityReviewed: true,
+      },
+    },
+    externalGateSettings: {
+      scheduling: {
+        enabled: true,
+        mode: "human_confirmed",
+        allowedWorkflow: "schedule_job",
+        testOnly: false,
+      },
+    },
+    adapterEvidence: {
+      scheduling: {
+        domainAdapter: true,
+        companyOptIn: true,
+        humanConfirmation: true,
+        idempotency: true,
+        audit: true,
+        rollback: true,
+        tenantRolePackageTests: true,
+        providerSandboxOrTestStrategy: true,
+      },
+    },
+  });
+
+  assert.equal(packet.status, "ready_for_human_confirmed_schedule_review_locked");
+  assert.equal(packet.blockers.length, 0);
+  assert.equal(packet.externalScheduleMutationEnabled, false);
+  assert.equal(packet.canMutateSchedule, false);
+  assert.equal(packet.auditEvent, "agent.os.external.scheduling.readiness_locked");
+
+  const unsafe = buildAgentSchedulingMutationGateReadinessPacket({
+    job: { id: "JOB-1" },
+    proposedSchedule: {
+      scheduledStart: "2026-06-02T08:00:00.000Z",
+      scheduledEnd: "2026-06-02T12:00:00.000Z",
+      humanReviewConfirmed: true,
+      approvedScheduleBoundary: true,
+      execute: true,
+      apiKey: "secret",
+    },
+  });
+  assert.match(unsafe.blockers.join(" "), /credentials|auto-execute/i);
+  assert.equal(unsafe.canMutateSchedule, false);
 });
 
 test("Agent OS known external gates stay disabled unless explicitly configured", () => {
