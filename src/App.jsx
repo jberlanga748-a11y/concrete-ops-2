@@ -1933,6 +1933,7 @@ function CopilotPagePolished({
   const [providerActivationState, setProviderActivationState] = useState({ status: "idle", message: "", result: null });
   const [providerApprovalState, setProviderApprovalState] = useState({ status: "idle", message: "", packet: null });
   const [providerAdapterState, setProviderAdapterState] = useState({ status: "idle", message: "", result: null });
+  const [controlledInboxOutcomeState, setControlledInboxOutcomeState] = useState({ rows: {}, outcomeCount: 0, message: "" });
   const localCompletionReadiness = providerAdapterState.result?.mode === "agent_leads_local_completion_readiness_v39"
     ? providerAdapterState.result
     : dailyScoutExecutionPlan.localCompletionReadiness || { completionRows: [], workspaceWarnings: [], externalActionLocks: {}, localImplementationPercent: 0, localCompletionStatus: "needs_local_setup" };
@@ -2695,6 +2696,7 @@ function CopilotPagePolished({
     if (!canManageOpportunityScout || !onRunAgentLeadControlledDailyPublicRunFlow) return;
     const sourceRows = controlledDailyPublicSourceRunEvidencePacket.sourceRunRows || [];
     setProviderAdapterState({ status: "loading", message: "Preparing controlled daily review inbox...", result: controlledDailyRunReviewFlow });
+    setControlledInboxOutcomeState({ rows: {}, outcomeCount: 0, message: "" });
     const result = await onRunAgentLeadControlledDailyPublicRunFlow({
       today,
       acknowledgement: true,
@@ -2718,6 +2720,20 @@ function CopilotPagePolished({
         note: `Controlled inbox reviewed from ${row.title || "review row"}.`,
       }],
     });
+    if (result?.controlledDailyPublicRunOutcomeLoop) {
+      setControlledInboxOutcomeState((current) => ({
+        rows: {
+          ...current.rows,
+          [row.id]: {
+            decision,
+            label: decision.replace(/_/g, " "),
+            recordedAt: new Date().toISOString(),
+          },
+        },
+        outcomeCount: result.controlledDailyPublicRunOutcomeLoop.outcomeCount || current.outcomeCount,
+        message: `Recorded ${decision.replace(/_/g, " ")} for ${row.title || "controlled inbox row"}.`,
+      }));
+    }
     setProviderAdapterState(result?.controlledDailyPublicRunOutcomeLoop
       ? { status: "ready", message: `Controlled inbox outcome recorded: ${decision.replace(/_/g, " ")}.`, result: result.controlledDailyPublicRunOutcomeLoop }
       : { status: "error", message: result?.message || "Controlled inbox outcome failed.", result: controlledDailyRunReviewFlow });
@@ -4937,8 +4953,17 @@ function CopilotPagePolished({
                           <small>Review rows: {controlledDailyPublicRunEvidencePrep.evidenceRows?.length || 0}</small>
                           <small>Outcomes: {controlledDailyPublicRunOutcomeLoop.outcomeCount || 0}</small>
                           <small>Controlled inbox: {String(controlledDailyRunReviewFlow.status || "blocked").replace(/_/g, " ")}</small>
+                          <small>Visible decisions: {Object.keys(controlledInboxOutcomeState.rows).length}</small>
                           <small>Auto-save: off</small>
                         </div>
+                        {controlledInboxOutcomeState.message ? (
+                          <div className="co-ai-scout-run-step" data-tone="green">
+                            <em>outcome recorded</em>
+                            <strong>{controlledInboxOutcomeState.message}</strong>
+                            <p>{controlledInboxOutcomeState.outcomeCount || 0} controlled outcome signal{controlledInboxOutcomeState.outcomeCount === 1 ? "" : "s"} recorded for this run.</p>
+                            <small>No lead, contact, bid, payment, schedule, or integration action was created.</small>
+                          </div>
+                        ) : null}
                         <div className="mt-2 flex flex-wrap gap-2">
                           <Button type="button" size="sm" variant="secondary" onClick={runControlledDailyPublicRunFlow} disabled={!canManageOpportunityScout || busy || providerAdapterState.status === "loading" || !(controlledDailyPublicSourceRunEvidencePacket.sourceRunRows || []).length}>
                             Prepare Controlled Inbox
@@ -4962,31 +4987,34 @@ function CopilotPagePolished({
                             <small>{row.sourceUrl}</small>
                           </div>
                         ))}
-                        {controlledDailyRunReviewFlow.reviewInboxPreviewRows?.slice(0, 3).map((row) => (
-                          <div key={`controlled-inbox-${row.id}`} className="co-ai-scout-run-step" data-tone={row.tone || "amber"}>
-                            <em>controlled inbox</em>
-                            <strong>{row.title}</strong>
-                            <p>{row.fitReason || row.primaryAction || "Review before any lead draft is saved."}</p>
-                            <small>{row.sourceUrl || "No source URL attached"}</small>
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              <Button type="button" size="sm" variant="secondary" onClick={() => draftProviderReviewOpportunity(row)} disabled={!canManageOpportunityScout || busy || providerAdapterState.status === "loading"}>
-                                Save Draft
-                              </Button>
-                              <Button type="button" size="sm" variant="secondary" onClick={() => recordControlledDailyRunOutcome(row, "draft_found_opportunity")} disabled={!canManageOpportunityScout || busy || providerAdapterState.status === "loading"}>
-                                Accept
-                              </Button>
-                              <Button type="button" size="sm" variant="ghost" onClick={() => recordControlledDailyRunOutcome(row, "mark_duplicate")} disabled={!canManageOpportunityScout || busy || providerAdapterState.status === "loading"}>
-                                Duplicate
-                              </Button>
-                              <Button type="button" size="sm" variant="ghost" onClick={() => recordControlledDailyRunOutcome(row, "no_fit")} disabled={!canManageOpportunityScout || busy || providerAdapterState.status === "loading"}>
-                                No Fit
-                              </Button>
-                              <Button type="button" size="sm" variant="ghost" onClick={() => recordControlledDailyRunOutcome(row, "dismiss")} disabled={!canManageOpportunityScout || busy || providerAdapterState.status === "loading"}>
-                                Reject
-                              </Button>
+                        {controlledDailyRunReviewFlow.reviewInboxPreviewRows?.slice(0, 3).map((row) => {
+                          const rowDecision = controlledInboxOutcomeState.rows[row.id];
+                          return (
+                            <div key={`controlled-inbox-${row.id}`} className="co-ai-scout-run-step" data-tone={rowDecision ? "green" : row.tone || "amber"}>
+                              <em>{rowDecision ? `decision: ${rowDecision.label}` : "controlled inbox"}</em>
+                              <strong>{row.title}</strong>
+                              <p>{rowDecision ? "Outcome recorded. The row remains review-only until an office user saves or converts it through the normal workflow." : row.fitReason || row.primaryAction || "Review before any lead draft is saved."}</p>
+                              <small>{row.sourceUrl || "No source URL attached"}</small>
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                <Button type="button" size="sm" variant="secondary" onClick={() => draftProviderReviewOpportunity(row)} disabled={!canManageOpportunityScout || busy || providerAdapterState.status === "loading"}>
+                                  Save Draft
+                                </Button>
+                                <Button type="button" size="sm" variant="secondary" onClick={() => recordControlledDailyRunOutcome(row, "draft_found_opportunity")} disabled={!canManageOpportunityScout || busy || providerAdapterState.status === "loading"}>
+                                  Accept
+                                </Button>
+                                <Button type="button" size="sm" variant="ghost" onClick={() => recordControlledDailyRunOutcome(row, "mark_duplicate")} disabled={!canManageOpportunityScout || busy || providerAdapterState.status === "loading"}>
+                                  Duplicate
+                                </Button>
+                                <Button type="button" size="sm" variant="ghost" onClick={() => recordControlledDailyRunOutcome(row, "no_fit")} disabled={!canManageOpportunityScout || busy || providerAdapterState.status === "loading"}>
+                                  No Fit
+                                </Button>
+                                <Button type="button" size="sm" variant="ghost" onClick={() => recordControlledDailyRunOutcome(row, "dismiss")} disabled={!canManageOpportunityScout || busy || providerAdapterState.status === "loading"}>
+                                  Reject
+                                </Button>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     ) : null}
                     {dailyScoutExecutionPlan.dailyRunRecord ? (
