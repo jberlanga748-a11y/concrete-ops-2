@@ -47,8 +47,10 @@ const validVercelJson = JSON.stringify({
 });
 
 const validDockerfile = `
+COPY --from=build /app/src/customer-portal-preview-utils.js ./src/customer-portal-preview-utils.js
 COPY --from=build /app/scripts/postgres-transfer.mjs ./scripts/postgres-transfer.mjs
 COPY --from=build /app/supabase/migrations ./supabase/migrations
+RUN test -f /app/src/customer-portal-preview-utils.js
 RUN test -f /app/scripts/postgres-transfer.mjs
 RUN test -f /app/supabase/migrations/202605240001_apex_hq_initial_schema.sql
 `;
@@ -173,8 +175,10 @@ test("docker runtime includes Postgres adapter dependencies", () => {
   const inspection = inspectDockerfile(validDockerfile);
 
   assert.equal(inspection.copiesPostgresTransfer, true);
+  assert.equal(inspection.copiesCustomerPortalPreviewUtils, true);
   assert.equal(inspection.copiesSupabaseMigrations, true);
   assert.equal(inspection.assertsPostgresTransfer, true);
+  assert.equal(inspection.assertsCustomerPortalPreviewUtils, true);
   assert.equal(inspection.assertsInitialMigration, true);
 });
 
