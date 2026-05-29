@@ -40,6 +40,8 @@ import {
   buildAgentLeadsControlledDailyPublicRunOutcomeLoop,
   buildAgentLeadsControlledDailyRunReviewFlow,
   buildAgentLeadsDailyReviewInbox,
+  buildAgentLeadsDailyRunAdminControls,
+  buildAgentLeadsDailyRunHistory,
   buildAgentLeadsDailySourceMonitoring,
   buildAgentLeadsLocalCompletionReadiness,
   buildAgentLeadsProductionReadinessGate,
@@ -2062,6 +2064,13 @@ test("Agent OS v41 builds production source setup, review inbox, and no-jobs mon
     dailyReviewInbox: inbox,
     providerAttempts: [{ attemptId: "ATTEMPT-1", provider: "Public procurement", status: "ok" }],
     dailyRunRecord: { id: "daily-agent-leads-2026-05-29" },
+    providerSettings: {
+      mode: "live_locked",
+      dailyJobFinderAutopilot: {
+        sourcePriorityIds: ["public-1"],
+        pausedSourceIds: ["private-1"],
+      },
+    },
     today: "2026-05-29",
   });
   const emptyMonitoring = buildAgentLeadsDailySourceMonitoring({
@@ -2091,7 +2100,107 @@ test("Agent OS v41 builds production source setup, review inbox, and no-jobs mon
   assert.equal(monitoring.status, "review_rows_ready");
   assert.match(monitoring.noJobsExplanation, /4 review inbox row/i);
   assert.equal(monitoring.externalActionsLocked, true);
+  assert.equal(monitoring.sourceHealthRows[0].healthScore >= 75, true);
+  assert.equal(monitoring.sourceHealthRows[0].priorityRank, 1);
+  assert.equal(monitoring.sourceHealthRows.some((row) => row.status === "paused"), true);
+  assert.equal(monitoring.stats.pausedSources, 1);
   assert.match(emptyMonitoring.noJobsExplanation, /No eligible public no-login source/i);
+});
+
+test("Agent OS v43 keeps Agent Leads run history, no-result learning, and admin controls review-only", () => {
+  const providerSettings = normalizeAgentLeadsProviderSettings({
+    mode: "live_locked",
+    enabledConnectorIds: ["public_procurement_search"],
+    geographyControls: { serviceAreas: ["Salem"] },
+    tradeScope: { trades: ["concrete"] },
+    reviewRules: { minFitScoreForReview: 40 },
+    dailyJobFinderAutopilot: {
+      enabled: true,
+      runTimeLocal: "05:30",
+      sourcePriorityIds: ["public-1"],
+      pausedSourceIds: ["private-1"],
+    },
+  });
+  const sourceSetup = {
+    rows: [
+      { id: "public-1", type: "public_source", label: "City procurement", connectorId: "public_procurement_search", eligibleForDailyRun: true, missing: [] },
+      { id: "private-1", type: "private_handoff", label: "Private group", eligibleForDailyRun: false, missing: ["Human handoff required"] },
+    ],
+    stats: { eligiblePublicSources: 1 },
+  };
+  const monitoring = buildAgentLeadsDailySourceMonitoring({
+    productionSourceSetupBoard: sourceSetup,
+    dailyReviewInbox: { stats: { totalRows: 0 } },
+    providerAttempts: [{ attemptId: "ATTEMPT-1", status: "empty_response", resultCount: 0 }],
+    dailyRunRecord: { id: "daily-agent-leads-2026-05-29", status: "prepared_no_results", sourceCount: 2, providerAttemptCount: 1 },
+    providerSettings,
+    auditEvents: [{
+      action: "agent.os.provider.daily_job_finder.autopilot",
+      createdAt: "2026-05-28T12:00:00.000Z",
+      detail: {
+        dailyJobFinderAutopilotRun: {
+          runHistoryRecord: {
+            id: "daily-job-finder-autopilot-ace-2026-05-28",
+            today: "2026-05-28",
+            status: "prepared_no_results",
+            sourceCount: 2,
+            publicReviewQueueRows: 0,
+            providerAttemptCount: 1,
+            providerResultCount: 0,
+            providerErrorCount: 0,
+            createdAt: "2026-05-28T12:00:00.000Z",
+          },
+        },
+      },
+    }],
+    today: "2026-05-29",
+  });
+  const history = buildAgentLeadsDailyRunHistory({
+    auditEvents: [{
+      action: "agent.os.provider.daily_job_finder.autopilot",
+      createdAt: "2026-05-28T12:00:00.000Z",
+      detail: {
+        dailyJobFinderAutopilotRun: {
+          runHistoryRecord: {
+            id: "daily-job-finder-autopilot-ace-2026-05-28",
+            today: "2026-05-28",
+            status: "prepared_no_results",
+            sourceCount: 2,
+            publicReviewQueueRows: 0,
+            providerAttemptCount: 1,
+            providerResultCount: 0,
+            providerErrorCount: 0,
+            createdAt: "2026-05-28T12:00:00.000Z",
+          },
+        },
+      },
+    }],
+    dailyRunRecord: { id: "daily-agent-leads-2026-05-29", status: "prepared_no_results", sourceCount: 2, providerAttemptCount: 1, providerResultCount: 0, providerErrorCount: 0 },
+    dailyReviewInbox: { stats: { totalRows: 0 } },
+    dailySourceMonitoring: monitoring,
+    providerSettings,
+    today: "2026-05-29",
+  });
+  const controls = buildAgentLeadsDailyRunAdminControls({
+    providerSettings,
+    productionSourceSetupBoard: sourceSetup,
+    today: "2026-05-29",
+  });
+
+  assert.equal(monitoring.mode, "agent_leads_daily_source_monitoring_v41");
+  assert.equal(monitoring.sourceHealthRows.find((row) => row.id === "public-1")?.priorityRank, 1);
+  assert.equal(monitoring.sourceHealthRows.find((row) => row.id === "private-1")?.paused, true);
+  assert.equal(history.mode, "agent_leads_daily_run_history_v43");
+  assert.equal(history.stats.noResultRuns, 2);
+  assert.equal(history.noResultLearning.status, "learning_from_no_result_runs");
+  assert.equal(history.noResultLearning.externalActionsLocked, true);
+  assert.match(history.noResultLearning.redaction, /No raw source pages/i);
+  assert.equal(controls.mode, "agent_leads_daily_run_admin_controls_v43");
+  assert.equal(controls.status, "daily_run_enabled");
+  assert.equal(controls.controlSummary.prioritySources, 1);
+  assert.equal(controls.controlSummary.pausedSources, 1);
+  assert.equal(controls.externalActionsLocked, true);
+  assert.equal(controls.customerContactEnabled, false);
 });
 
 test("Agent OS v42 builds a controlled daily run review flow from approved public-source evidence only", () => {

@@ -1912,6 +1912,8 @@ function CopilotPagePolished({
   const productionSourceSetupBoard = dailyScoutExecutionPlan.productionSourceSetupBoard || { rows: [], setupDrafts: [], operatorNextSteps: [], stats: {}, status: "needs_source_setup" };
   const dailyReviewInbox = dailyScoutExecutionPlan.dailyReviewInbox || { rows: [], stats: {}, status: "empty", emptyState: "" };
   const dailySourceMonitoring = dailyScoutExecutionPlan.dailySourceMonitoring || { sourceHealthRows: [], missedSourceAlerts: [], stats: {}, noJobsExplanation: "" };
+  const dailyRunHistory = dailyScoutExecutionPlan.dailyRunHistory || { rows: [], stats: {}, noResultLearning: { recommendations: [] }, status: "no_run_history_yet" };
+  const dailyRunAdminControls = dailyScoutExecutionPlan.dailyRunAdminControls || { sourceRows: [], controlSummary: {}, sourcePriorityIds: [], pausedSourceIds: [], status: "daily_run_paused" };
   const controlledDailyRunReviewFlow = dailyScoutExecutionPlan.controlledDailyRunReviewFlow || { selectedSourceRows: [], reviewInboxPreviewRows: [], commandSteps: [], stats: {}, status: "blocked" };
   const providerSettings = dailyScoutExecutionPlan.publicProviderBoundary?.providerSettings || companySettings.apexAgentAutomationPolicy?.publicLeadProviderSettings || {};
   const dailyJobFinderAutopilotSettings = providerSettings.dailyJobFinderAutopilot || {};
@@ -1929,6 +1931,8 @@ function CopilotPagePolished({
     minFitScoreForReview: providerSettings.reviewRules?.minFitScoreForReview ?? 0,
     dailyJobFinderAutopilotEnabled: Boolean(dailyJobFinderAutopilotSettings.enabled),
     dailyJobFinderRunTimeLocal: dailyJobFinderAutopilotSettings.runTimeLocal || "06:00",
+    sourcePriorityIds: (dailyJobFinderAutopilotSettings.sourcePriorityIds || []).join(", "),
+    pausedSourceIds: (dailyJobFinderAutopilotSettings.pausedSourceIds || []).join(", "),
   });
   const [providerActivationState, setProviderActivationState] = useState({ status: "idle", message: "", result: null });
   const [providerApprovalState, setProviderApprovalState] = useState({ status: "idle", message: "", packet: null });
@@ -2172,6 +2176,8 @@ function CopilotPagePolished({
       minFitScoreForReview: providerSettings.reviewRules?.minFitScoreForReview ?? 0,
       dailyJobFinderAutopilotEnabled: Boolean(dailyJobFinderAutopilotSettings.enabled),
       dailyJobFinderRunTimeLocal: dailyJobFinderAutopilotSettings.runTimeLocal || "06:00",
+      sourcePriorityIds: (dailyJobFinderAutopilotSettings.sourcePriorityIds || []).join(", "),
+      pausedSourceIds: (dailyJobFinderAutopilotSettings.pausedSourceIds || []).join(", "),
     });
   }, [
     providerSettings.mode,
@@ -2183,6 +2189,8 @@ function CopilotPagePolished({
     providerSettings.reviewRules?.minFitScoreForReview,
     dailyJobFinderAutopilotSettings.enabled,
     dailyJobFinderAutopilotSettings.runTimeLocal,
+    JSON.stringify(dailyJobFinderAutopilotSettings.sourcePriorityIds || []),
+    JSON.stringify(dailyJobFinderAutopilotSettings.pausedSourceIds || []),
   ]);
 
   useEffect(() => {
@@ -2249,6 +2257,8 @@ function CopilotPagePolished({
             markets: listFromDraft(providerSettingsDraft.serviceAreas),
             trades: listFromDraft(providerSettingsDraft.trades),
             publicSourceConnectorIds: listFromDraft(providerSettingsDraft.enabledConnectorIds),
+            sourcePriorityIds: listFromDraft(providerSettingsDraft.sourcePriorityIds),
+            pausedSourceIds: listFromDraft(providerSettingsDraft.pausedSourceIds),
             includePrivateHandoffs: true,
             reviewOnly: true,
           },
@@ -3950,10 +3960,11 @@ function CopilotPagePolished({
                 <div className="co-ai-scout-metrics">
                   <div><em>{productionSourceSetupBoard.stats?.publicSources || 0}</em><span>public</span></div>
                   <div><em>{productionSourceSetupBoard.stats?.privateHandoffSources || 0}</em><span>handoff</span></div>
-                  <div><em>{productionSourceSetupBoard.stats?.setupDrafts || 0}</em><span>drafts</span></div>
+                  <div><em>{dailySourceMonitoring.stats?.averageHealthScore || 0}</em><span>health</span></div>
                 </div>
                 <div className="co-ai-scout-checks">
                   {productionSourceSetupBoard.operatorNextSteps?.slice(0, 3).map((step) => <small key={step}>{step}</small>)}
+                  <small>{dailyRunAdminControls.controlSummary?.pausedSources || 0} paused source{dailyRunAdminControls.controlSummary?.pausedSources === 1 ? "" : "s"}</small>
                 </div>
               </div>
               <div className="co-ai-scout-briefs">
@@ -3965,7 +3976,7 @@ function CopilotPagePolished({
                         <span>{String(row.status || "review").replace(/_/g, " ")}</span>
                         <strong>{row.label}</strong>
                         <p>{row.detail}</p>
-                        <em>No cold calls, login automation, auto-save, bids, payments, schedules, or integrations.</em>
+                        <em>Health {row.healthScore ?? 0}{row.priorityRank ? ` / priority ${row.priorityRank}` : ""}{row.paused ? " / paused" : ""}</em>
                       </div>
                     </div>
                   ))}
@@ -3976,6 +3987,48 @@ function CopilotPagePolished({
                         <strong>{alert.label}</strong>
                         <p>{alert.reason}</p>
                         <em>{alert.nextStep}</em>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="co-ai-scout-grid border-b border-slate-200 bg-white">
+              <div className="co-ai-scout-status" data-tone={dailyRunHistory.stats?.noResultRuns ? "amber" : dailyRunHistory.rows.length ? "green" : "slate"}>
+                <span>Daily run history</span>
+                <strong>{dailyRunHistory.rows.length} recorded run{dailyRunHistory.rows.length === 1 ? "" : "s"}</strong>
+                <p>{dailyRunHistory.rows.length ? "Every daily Agent Leads run keeps review-only evidence: source count, outcomes, errors, and why no rows appeared." : "Daily run history will appear after the first review-only run is recorded."}</p>
+                <div className="co-ai-scout-metrics">
+                  <div><em>{dailyRunHistory.stats?.noResultRuns || 0}</em><span>no result</span></div>
+                  <div><em>{dailyRunHistory.stats?.reviewRows || 0}</em><span>review rows</span></div>
+                  <div><em>{dailyRunHistory.stats?.providerErrors || 0}</em><span>errors</span></div>
+                </div>
+                <div className="co-ai-scout-checks">
+                  <small>{dailyRunHistory.noResultLearning?.status ? String(dailyRunHistory.noResultLearning.status).replace(/_/g, " ") : "watching for no-result runs"}</small>
+                  <small>No auto-contact, auto-save, bids, payments, schedules, or integrations.</small>
+                </div>
+              </div>
+              <div className="co-ai-scout-briefs">
+                <SectionHeader title="Run Outcomes" description="No-result mornings become learning signals so tomorrow's review run can tune scope and source priority." />
+                <div className="co-ai-scout-brief-list">
+                  {dailyRunHistory.rows.slice(0, 4).map((row) => (
+                    <div key={row.id} className="co-ai-scout-brief" data-tone={row.noResult ? "amber" : row.providerErrorCount ? "orange" : "green"}>
+                      <div className="min-w-0">
+                        <span>{String(row.status || "run").replace(/_/g, " ")}</span>
+                        <strong>{row.day || row.createdAt || "Daily run"}</strong>
+                        <p>{row.noResult ? row.noJobsExplanation || row.noResultReason : `${row.reviewRows || 0} review row${row.reviewRows === 1 ? "" : "s"} prepared.`}</p>
+                        <em>{row.sourceCount || 0} source{row.sourceCount === 1 ? "" : "s"} / {row.providerAttemptCount || 0} attempt{row.providerAttemptCount === 1 ? "" : "s"}</em>
+                      </div>
+                    </div>
+                  ))}
+                  {dailyRunHistory.noResultLearning?.recommendations?.slice(0, 3).map((item) => (
+                    <div key={item.id} className="co-ai-scout-brief" data-tone={item.tone || "slate"}>
+                      <div className="min-w-0">
+                        <span>learning</span>
+                        <strong>{item.label}</strong>
+                        <p>{item.reason}</p>
+                        <em>{item.suggestedControl}</em>
                       </div>
                     </div>
                   ))}
@@ -4205,6 +4258,14 @@ function CopilotPagePolished({
                       <label>
                         <span>Daily run time</span>
                         <input type="time" value={providerSettingsDraft.dailyJobFinderRunTimeLocal} onChange={(event) => setProviderSettingsDraft((current) => ({ ...current, dailyJobFinderRunTimeLocal: event.target.value }))} />
+                      </label>
+                      <label>
+                        <span>Source priority</span>
+                        <input value={providerSettingsDraft.sourcePriorityIds} onChange={(event) => setProviderSettingsDraft((current) => ({ ...current, sourcePriorityIds: event.target.value }))} placeholder="source-city-bids, source-school-rfps" />
+                      </label>
+                      <label>
+                        <span>Paused sources</span>
+                        <input value={providerSettingsDraft.pausedSourceIds} onChange={(event) => setProviderSettingsDraft((current) => ({ ...current, pausedSourceIds: event.target.value }))} placeholder="source-old-board, source-low-fit" />
                       </label>
                       <label>
                         <span>Connector ids</span>

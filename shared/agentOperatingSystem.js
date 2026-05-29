@@ -359,6 +359,8 @@ export const DEFAULT_AGENT_LEADS_PROVIDER_SETTINGS = Object.freeze({
     projectTypes: Object.freeze([]),
     radiusMiles: 0,
     publicSourceConnectorIds: Object.freeze([]),
+    sourcePriorityIds: Object.freeze([]),
+    pausedSourceIds: Object.freeze([]),
     includePrivateHandoffs: true,
     reviewOnly: true,
     maxDailyRuns: 1,
@@ -1012,6 +1014,8 @@ export function normalizeAgentLeadsDailyJobFinderAutopilotSettings(value = {}, p
     projectTypes: normalizeListValue(source.projectTypes || provider.tradeScope?.projectTypes, { limit: 12, itemLimit: 80 }),
     radiusMiles: Math.max(0, Math.min(250, Number(source.radiusMiles ?? provider.geographyControls?.radiusMiles ?? 0) || 0)),
     publicSourceConnectorIds: rawConnectorIds.length ? rawConnectorIds : fallbackConnectorIds,
+    sourcePriorityIds: normalizeListValue(source.sourcePriorityIds || source.sourcePriority || [], { limit: 24, itemLimit: 120 }).map((entry) => normalizeLooseId(entry)).filter(Boolean),
+    pausedSourceIds: normalizeListValue(source.pausedSourceIds || source.pausedSources || [], { limit: 24, itemLimit: 120 }).map((entry) => normalizeLooseId(entry)).filter(Boolean),
     includePrivateHandoffs: source.includePrivateHandoffs !== false,
     reviewOnly: true,
     maxDailyRuns: 1,
@@ -3505,12 +3509,23 @@ export async function runAgentLeadsDailyJobFinderAutopilot({
   const blocked = gateChecks.filter((check) => check.status === "blocked");
   let orchestration = null;
   if (!blocked.length) {
+    const pausedSourceIds = new Set(asArray(autopilot.pausedSourceIds).map((entry) => normalizeLooseId(entry)));
+    const priorityIds = asArray(autopilot.sourcePriorityIds).map((entry) => normalizeLooseId(entry));
+    const cardSourceKey = (card = {}) => normalizeLooseId(card.sourceConfigId || card.targetId || card.id || card.title || card.connectorId);
+    const sortByPriority = (left, right) => {
+      const leftIndex = priorityIds.indexOf(cardSourceKey(left));
+      const rightIndex = priorityIds.indexOf(cardSourceKey(right));
+      if (leftIndex >= 0 && rightIndex >= 0) return leftIndex - rightIndex;
+      if (leftIndex >= 0) return -1;
+      if (rightIndex >= 0) return 1;
+      return 0;
+    };
     const safeDailyScoutExecutionPlan = {
       ...dailyScoutExecutionPlan,
       publicRunnerCards: asArray(dailyScoutExecutionPlan.publicRunnerCards).map((card) => ({
         ...card,
         searchUrls: asArray(card.searchUrls).filter((entry) => publicProviderUrlCompliance(entry?.url || "").status !== "blocked"),
-      })).filter((card) => asArray(card.searchUrls).length),
+      })).filter((card) => asArray(card.searchUrls).length && !pausedSourceIds.has(cardSourceKey(card))).sort(sortByPriority),
     };
     orchestration = await runAgentLeadsDailyJobFinderOrchestration({
       settings: providerSettings,
@@ -5915,21 +5930,83 @@ export function buildAgentLeadsDailySourceMonitoring({
   providerAttempts = [],
   rejectedProviderResults = [],
   dailyRunRecord = {},
+  providerSettings = {},
+  auditEvents = [],
   today = dateKey(new Date()),
 } = {}) {
   const currentDay = dateKey(today) || dateKey(new Date());
   const sourceRows = asArray(productionSourceSetupBoard.rows);
   const attemptRows = asArray(providerAttempts);
   const rejectedRows = asArray(rejectedProviderResults);
+  const settings = normalizeAgentLeadsProviderSettings(providerSettings);
+  const autopilot = settings.dailyJobFinderAutopilot || {};
+  const pausedSourceIds = new Set(asArray(autopilot.pausedSourceIds).map((entry) => normalizeLooseId(entry)));
+  const priorityIds = asArray(autopilot.sourcePriorityIds).map((entry) => normalizeLooseId(entry));
+  const historicalRunRows = collectAgentLeadsDailyRunHistoryRows(auditEvents, { today: currentDay });
+  const historicalNoResultRuns = historicalRunRows.filter((row) => Number(row.reviewRows || 0) === 0 && Number(row.sourceCount || 0) > 0).length;
+  const sourceKey = (row = {}) => normalizeLooseId(row.sourceConfigId || row.id || row.sourceName || row.label || row.connectorId);
+  const providerErrors = Number(dailyRunRecord.providerErrorCount || attemptRows.filter((attempt) => !["ok", "empty_response"].includes(text(attempt.status, 80))).length);
+  const reviewRows = Number(dailyReviewInbox.stats?.totalRows || 0);
   const sourceHealthRows = sourceRows.slice(0, 12).map((row) => ({
     id: text(row.id, 180),
     label: text(row.label || row.sourceName || "Source", 180),
-    status: row.eligibleForDailyRun ? "ready" : row.type === "private_handoff" ? "human_handoff" : "needs_setup",
-    tone: row.eligibleForDailyRun ? "green" : row.type === "private_handoff" ? "amber" : "slate",
-    detail: row.eligibleForDailyRun
-      ? "Eligible for review-only public daily run."
-      : asArray(row.missing)[0] || text(row.allowedNextStep || "Review source setup before daily run.", 220),
-  }));
+    row,
+  })).map(({ id, label, row }) => {
+    const key = sourceKey(row);
+    const paused = pausedSourceIds.has(key);
+    const priorityIndex = priorityIds.indexOf(key);
+    const baseScore = row.eligibleForDailyRun ? 86 : row.type === "private_handoff" ? 58 : 36;
+    const healthScore = Math.max(0, Math.min(100,
+      baseScore
+      + (priorityIndex >= 0 ? 6 : 0)
+      - (paused ? 70 : 0)
+      - (providerErrors ? 12 : 0)
+      - (!reviewRows && row.eligibleForDailyRun && attemptRows.length ? 8 : 0)
+      - (historicalNoResultRuns >= 2 && row.eligibleForDailyRun ? 6 : 0),
+    ));
+    const status = paused
+      ? "paused"
+      : providerErrors && row.eligibleForDailyRun
+        ? "needs_attention"
+        : row.eligibleForDailyRun
+          ? reviewRows ? "productive" : attemptRows.length ? "checked_no_results" : "ready"
+          : row.type === "private_handoff" ? "human_handoff" : "needs_setup";
+    const tone = paused
+      ? "slate"
+      : healthScore >= 75
+        ? "green"
+        : healthScore >= 50
+          ? "amber"
+          : "orange";
+    return {
+      id,
+      label,
+      status,
+      tone,
+      healthScore,
+      priorityRank: priorityIndex >= 0 ? priorityIndex + 1 : 0,
+      paused,
+      lastRunStatus: text(dailyRunRecord.status || "", 80),
+      detail: paused
+        ? "Paused by owner/admin controls; Apex will skip it until resumed."
+        : row.eligibleForDailyRun
+          ? reviewRows
+            ? "Produced or contributed to review rows for contractor review."
+            : attemptRows.length
+              ? "Checked in a review-only run but no in-scope work cleared fit/dedupe gates."
+              : "Eligible for review-only public daily run."
+          : asArray(row.missing)[0] || text(row.allowedNextStep || "Review source setup before daily run.", 220),
+      nextStep: paused
+        ? "Resume source when the contractor wants it included again."
+        : status === "checked_no_results"
+          ? "Keep source active, but tune scope/priority if no-result days repeat."
+          : status === "needs_attention"
+            ? "Review provider/source error evidence before tomorrow's run."
+            : row.type === "private_handoff"
+              ? "Have an authorized human provide redacted evidence."
+              : "Review source URL, terms, posture, and connector setup.",
+    };
+  });
   const missedSourceAlerts = [
     ...sourceRows.filter((row) => !row.eligibleForDailyRun).slice(0, 6).map((row) => ({
       id: `missed-${text(row.id, 160)}`,
@@ -5946,7 +6023,6 @@ export function buildAgentLeadsDailySourceMonitoring({
       nextStep: "Review provider/source health before retrying.",
     })),
   ].slice(0, 10);
-  const reviewRows = Number(dailyReviewInbox.stats?.totalRows || 0);
   const eligibleSources = Number(productionSourceSetupBoard.stats?.eligiblePublicSources || 0);
   const noJobsExplanation = reviewRows
     ? `${reviewRows} review inbox row${reviewRows === 1 ? "" : "s"} need contractor review.`
@@ -5967,12 +6043,236 @@ export function buildAgentLeadsDailySourceMonitoring({
       sourceHealthRows: sourceHealthRows.length,
       missedSourceAlerts: missedSourceAlerts.length,
       providerAttempts: attemptRows.length,
-      providerErrors: Number(dailyRunRecord.providerErrorCount || attemptRows.filter((attempt) => !["ok", "empty_response"].includes(text(attempt.status, 80))).length),
+      providerErrors,
       rejectedResults: rejectedRows.length,
+      averageHealthScore: sourceHealthRows.length ? Math.round(sourceHealthRows.reduce((sum, row) => sum + Number(row.healthScore || 0), 0) / sourceHealthRows.length) : 0,
+      pausedSources: sourceHealthRows.filter((row) => row.paused).length,
+      repeatedNoResultRuns: historicalNoResultRuns,
     },
     reviewOnlyExecution: true,
     externalActionsLocked: true,
     safetyBoundary: "Daily source monitoring explains source health and no-result days only. It cannot fetch private sources, log in, contact anyone, save leads, submit bids, collect payment, schedule work, or write integrations.",
+  };
+}
+
+function collectAgentLeadsDailyRunHistoryRows(auditEvents = [], {
+  dailyRunRecord = null,
+  today = dateKey(new Date()),
+} = {}) {
+  const currentDay = dateKey(today) || dateKey(new Date());
+  const eventRows = asArray(auditEvents).flatMap((event) => {
+    const detail = parseAgentOsAuditDetail(event);
+    const candidates = [
+      detail.dailyJobFinderAutopilotRun?.runHistoryRecord,
+      detail.dailyJobFinderAutopilotRun?.orchestration?.runHistoryRecord,
+      detail.dailyJobFinderAutopilotRun?.orchestration?.dailyRunRecord,
+      detail.dailyJobFinderOrchestrationExecution?.runHistoryRecord,
+      detail.dailyRunRecord,
+      detail.run?.output?.executionPlan?.dailyRunRecord,
+    ].filter(Boolean);
+    return candidates.map((record) => ({
+      ...record,
+      auditAction: text(event.action, 160),
+      auditCreatedAt: text(event.createdAt || detail.createdAt, 80),
+    }));
+  });
+  const hasCurrentRunRecord = dailyRunRecord
+    && typeof dailyRunRecord === "object"
+    && Boolean(dailyRunRecord.id || dailyRunRecord.mode || dailyRunRecord.status || dailyRunRecord.sourceCount);
+  const rows = [
+    ...eventRows,
+    ...(hasCurrentRunRecord ? [{ ...dailyRunRecord, auditAction: "current_plan", auditCreatedAt: dailyRunRecord.createdAt || "" }] : []),
+  ]
+    .map((record, index) => {
+      const day = dateKey(record.today || record.currentDay || record.createdAt || record.auditCreatedAt || currentDay) || currentDay;
+      const reviewRows = Number(record.publicReviewQueueRows ?? record.providerReviewImportCount ?? record.reviewInboxRows ?? 0);
+      const providerResults = Number(record.providerResultCount || 0);
+      const providerErrors = Number(record.providerErrorCount || 0);
+      const sourceCount = Number(record.sourceCount || record.dailyRunSourceCount || 0);
+      const status = text(record.status || (reviewRows ? "review_rows_ready" : sourceCount ? "prepared_no_results" : "prepared"), 80);
+      return {
+        id: text(record.id || record.runId || `agent-leads-run-${day}-${index + 1}`, 180),
+        day,
+        createdAt: text(record.createdAt || record.auditCreatedAt, 80),
+        status,
+        sourceCount,
+        reviewRows,
+        privateChecklistRows: Number(record.privateChecklistRows || record.privateHandoffCardCount || 0),
+        providerAttemptCount: Number(record.providerAttemptCount || 0),
+        providerResultCount: providerResults,
+        providerRejectedResultCount: Number(record.providerRejectedResultCount || record.providerRejectedCount || 0),
+        providerReviewImportCount: Number(record.providerReviewImportCount || reviewRows || 0),
+        providerErrorCount: providerErrors,
+        skippedReasonCount: Number(record.skippedReasonCount || 0),
+        noResult: reviewRows === 0 && sourceCount > 0,
+        noResultReason: reviewRows
+          ? "Review rows were prepared for contractor review."
+          : providerErrors
+            ? "Provider/source errors need review before assuming no available work."
+            : providerResults
+              ? "Provider returned candidates, but fit/dedupe/review gates rejected them."
+              : sourceCount
+                ? "Sources ran or were ready, but no in-scope work cleared review gates."
+                : "No eligible source coverage was available for this run.",
+        externalActionsLocked: true,
+      };
+    })
+    .filter((row) => row.id)
+    .sort((left, right) => new Date(right.createdAt || `${right.day}T00:00:00.000Z`).getTime() - new Date(left.createdAt || `${left.day}T00:00:00.000Z`).getTime());
+  const seen = new Set();
+  return rows.filter((row) => {
+    const key = `${row.id}::${row.day}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+export function buildAgentLeadsNoResultLearningLoop({
+  runHistory = { rows: [] },
+  dailySourceMonitoring = {},
+  providerSettings = {},
+  today = dateKey(new Date()),
+} = {}) {
+  const currentDay = dateKey(today) || dateKey(new Date());
+  const settings = normalizeAgentLeadsProviderSettings(providerSettings);
+  const rows = asArray(runHistory.rows);
+  const noResultRows = rows.filter((row) => row.noResult || (Number(row.reviewRows || 0) === 0 && Number(row.sourceCount || 0) > 0));
+  const latest = rows[0] || null;
+  const sourceHealthRows = asArray(dailySourceMonitoring.sourceHealthRows);
+  const weakSources = sourceHealthRows.filter((row) => Number(row.healthScore || 0) < 60 && !row.paused);
+  const productiveSources = sourceHealthRows.filter((row) => Number(row.healthScore || 0) >= 75 && !row.paused);
+  const recommendations = [
+    noResultRows.length ? {
+      id: "expand-or-tighten-scope",
+      tone: "amber",
+      label: "Tune tomorrow's scope",
+      reason: "A no-result run is not treated as failure; it becomes a company-scoped learning signal for the next review-only run.",
+      suggestedControl: "Adjust service areas, trades, excluded keywords, review threshold, or source priority before tomorrow.",
+    } : null,
+    weakSources.length ? {
+      id: "repair-weak-sources",
+      tone: "orange",
+      label: "Review weak sources",
+      reason: `${weakSources.length} source${weakSources.length === 1 ? "" : "s"} have low health or setup friction.`,
+      suggestedControl: "Pause broken/stale sources or fix terms, URL, connector, and human handoff evidence.",
+    } : null,
+    productiveSources.length ? {
+      id: "prioritize-productive-sources",
+      tone: "green",
+      label: "Prioritize healthy sources",
+      reason: `${productiveSources.length} source${productiveSources.length === 1 ? "" : "s"} look healthy enough for tomorrow's priority list.`,
+      suggestedControl: "Move high-health sources earlier in source priority controls.",
+    } : null,
+    settings.reviewRules.minFitScoreForReview > 0 && noResultRows.length ? {
+      id: "review-threshold",
+      tone: "slate",
+      label: "Check review threshold",
+      reason: `The current review threshold is ${settings.reviewRules.minFitScoreForReview}; high thresholds can hide early-market work.`,
+      suggestedControl: "Lower only if owner/admin accepts more review noise.",
+    } : null,
+  ].filter(Boolean);
+  return {
+    mode: "agent_leads_no_result_learning_loop_v43",
+    today: currentDay,
+    status: noResultRows.length ? "learning_from_no_result_runs" : "watching_for_no_result_runs",
+    latestRunId: text(latest?.id || "", 180),
+    noResultRunCount: noResultRows.length,
+    recommendations,
+    redaction: "No raw source pages, passwords, cookies, tokens, customer emails, or private portal content are stored in no-result learning.",
+    companyScoped: true,
+    reviewOnlyExecution: true,
+    externalActionsLocked: true,
+    safetyBoundary: "No-result learning only adjusts future review guidance and admin controls. It does not scrape, log in, contact anyone, save leads, submit bids, collect payment, schedule work, or write integrations.",
+  };
+}
+
+export function buildAgentLeadsDailyRunHistory({
+  auditEvents = [],
+  dailyRunRecord = {},
+  dailyReviewInbox = {},
+  dailySourceMonitoring = {},
+  providerSettings = {},
+  today = dateKey(new Date()),
+} = {}) {
+  const currentDay = dateKey(today) || dateKey(new Date());
+  const rows = collectAgentLeadsDailyRunHistoryRows(auditEvents, { dailyRunRecord, today: currentDay }).slice(0, 14);
+  const noResultLearning = buildAgentLeadsNoResultLearningLoop({
+    runHistory: { rows },
+    dailySourceMonitoring,
+    providerSettings,
+    today: currentDay,
+  });
+  return {
+    mode: "agent_leads_daily_run_history_v43",
+    today: currentDay,
+    status: rows.length ? "has_run_history" : "no_run_history_yet",
+    rows: rows.map((row) => ({
+      ...row,
+      noJobsExplanation: row.noResult ? dailySourceMonitoring.noJobsExplanation || row.noResultReason : "",
+      sourceHealthSummary: `${dailySourceMonitoring.stats?.averageHealthScore || 0} average source health / ${dailySourceMonitoring.stats?.pausedSources || 0} paused`,
+    })),
+    noResultLearning,
+    stats: {
+      runCount: rows.length,
+      noResultRuns: rows.filter((row) => row.noResult).length,
+      reviewRows: rows.reduce((sum, row) => sum + Number(row.reviewRows || 0), 0),
+      providerAttempts: rows.reduce((sum, row) => sum + Number(row.providerAttemptCount || 0), 0),
+      providerResults: rows.reduce((sum, row) => sum + Number(row.providerResultCount || 0), 0),
+      providerErrors: rows.reduce((sum, row) => sum + Number(row.providerErrorCount || 0), 0),
+    },
+    reviewOnlyExecution: true,
+    externalActionsLocked: true,
+    safetyBoundary: "Daily run history is audit/read-model evidence only. It does not execute searches, contact anyone, create leads, submit bids, collect payment, schedule work, or write integrations.",
+  };
+}
+
+export function buildAgentLeadsDailyRunAdminControls({
+  providerSettings = {},
+  productionSourceSetupBoard = {},
+  today = dateKey(new Date()),
+} = {}) {
+  const currentDay = dateKey(today) || dateKey(new Date());
+  const settings = normalizeAgentLeadsProviderSettings(providerSettings);
+  const autopilot = settings.dailyJobFinderAutopilot || {};
+  const sourceRows = asArray(productionSourceSetupBoard.rows).map((row) => {
+    const key = normalizeLooseId(row.sourceConfigId || row.id || row.label || row.sourceName || row.connectorId);
+    const priorityIndex = asArray(autopilot.sourcePriorityIds).indexOf(key);
+    const paused = asArray(autopilot.pausedSourceIds).includes(key);
+    return {
+      id: text(row.id, 180),
+      sourceKey: key,
+      label: text(row.label || row.sourceName || "Source", 180),
+      connectorId: text(row.connectorId, 120),
+      eligibleForDailyRun: row.eligibleForDailyRun === true,
+      priorityRank: priorityIndex >= 0 ? priorityIndex + 1 : 0,
+      paused,
+      allowedControl: row.eligibleForDailyRun ? "priority_or_pause" : row.type === "private_handoff" ? "handoff_only" : "setup_required",
+    };
+  });
+  return {
+    mode: "agent_leads_daily_run_admin_controls_v43",
+    today: currentDay,
+    status: autopilot.enabled ? "daily_run_enabled" : "daily_run_paused",
+    enabled: Boolean(autopilot.enabled),
+    runTimeLocal: autopilot.runTimeLocal,
+    timezone: autopilot.timezone,
+    maxDailyRuns: 1,
+    sourcePriorityIds: asArray(autopilot.sourcePriorityIds),
+    pausedSourceIds: asArray(autopilot.pausedSourceIds),
+    serviceAreas: settings.geographyControls.serviceAreas,
+    trades: settings.tradeScope.trades,
+    reviewThreshold: settings.reviewRules.minFitScoreForReview,
+    sourceRows,
+    controlSummary: {
+      prioritySources: sourceRows.filter((row) => row.priorityRank).length,
+      pausedSources: sourceRows.filter((row) => row.paused).length,
+      eligibleSources: sourceRows.filter((row) => row.eligibleForDailyRun).length,
+    },
+    externalActionsLocked: true,
+    leadAutoSaveEnabled: false,
+    customerContactEnabled: false,
+    safetyBoundary: "Admin controls can change future review-only daily run settings. They do not unlock unattended login, cold outreach, lead auto-save, bid submission, payment, scheduling, or integration writes.",
   };
 }
 
@@ -9575,6 +9875,21 @@ export function buildAgentOsOpportunityScoutExecutionPlan({
     providerAttempts,
     rejectedProviderResults,
     dailyRunRecord,
+    providerSettings,
+    auditEvents,
+    today: currentDay,
+  });
+  const dailyRunHistory = buildAgentLeadsDailyRunHistory({
+    auditEvents,
+    dailyRunRecord,
+    dailyReviewInbox,
+    dailySourceMonitoring,
+    providerSettings,
+    today: currentDay,
+  });
+  const dailyRunAdminControls = buildAgentLeadsDailyRunAdminControls({
+    providerSettings,
+    productionSourceSetupBoard,
     today: currentDay,
   });
   const controlledDailyRunReviewFlow = buildAgentLeadsControlledDailyRunReviewFlow({
@@ -9628,6 +9943,8 @@ export function buildAgentOsOpportunityScoutExecutionPlan({
     productionSourceSetupBoard,
     dailyReviewInbox,
     dailySourceMonitoring,
+    dailyRunHistory,
+    dailyRunAdminControls,
     controlledDailyRunReviewFlow,
     dailyRunRecord,
     schedulerHook,
@@ -9671,6 +9988,10 @@ export function buildAgentOsOpportunityScoutExecutionPlan({
       productionSourceSetupStatus: productionSourceSetupBoard.status,
       dailyReviewInboxRows: dailyReviewInbox.stats.totalRows,
       dailySourceMissedAlerts: dailySourceMonitoring.stats.missedSourceAlerts,
+      dailySourceAverageHealthScore: dailySourceMonitoring.stats.averageHealthScore,
+      dailyRunHistoryRows: dailyRunHistory.stats.runCount,
+      dailyRunNoResultRuns: dailyRunHistory.stats.noResultRuns,
+      dailyRunPausedSources: dailyRunAdminControls.controlSummary.pausedSources,
       priorFoundWorkSignals: Number(reviewOutcomeStats.found_work || 0),
       priorNoFitSignals: Number(reviewOutcomeStats.no_fit || 0),
       providerAttempts: providerAttempts.length,
