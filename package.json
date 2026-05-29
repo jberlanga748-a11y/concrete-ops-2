@@ -64,7 +64,7 @@
     "verify:founder-demo": "node scripts/founder-demo-readiness.mjs && node --test --test-concurrency=1 scripts/founder-demo-brief.test.mjs && node scripts/founder-demo-brief.mjs --limit=5",
     "verify:field-workspaces": "node --test --test-concurrency=1 src/field-workspace-utils.test.js",
     "verify:trade-setup": "node --test --test-concurrency=1 shared/constructionTrades.test.js shared/managedCompanySetup.test.js src/estimate-template-utils.test.js src/trade-setup-utils.test.js src/field-workspace-utils.test.js src/agent-workflow-context-utils.test.js",
-    "verify:time": "node --test --test-concurrency=1 server/time-tracking.test.js src/time-utils.test.js",
+    "verify:time": "node --test --test-concurrency=1 server/time-tracking.test.js src/time-utils.test.js shared/timeLocationPresence.test.js",
     "verify:daily-reports": "node --test --test-concurrency=1 server/daily-reports.test.js src/report-utils.test.js src/reports-page-components-import.test.js src/report-route-components-import.test.js src/app-routing.test.js src/field-mobile-layout-css.test.js",
     "verify:uploads": "node --test --test-concurrency=1 server/uploads.test.js src/upload-utils.test.js src/uploads-page-components-import.test.js src/upload-route-components-import.test.js src/field-mobile-layout-css.test.js",
     "verify:safety": "node --test --test-concurrency=1 server/safety.test.js src/safety-utils.test.js shared/permissions.test.js",

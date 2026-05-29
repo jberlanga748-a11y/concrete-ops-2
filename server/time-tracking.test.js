@@ -245,6 +245,37 @@ test("employees and foremen can track field time with proper visibility and brea
     });
     assert.equal(wrongCategory.response.status, 403);
 
+    const policyDisabledLocationClockIn = await requestJson(fixture.baseUrl, "/api/time-entries/clock-in", {
+      method: "POST",
+      headers: employeeHeaders,
+      body: JSON.stringify({
+        workCategory: "job",
+        jobId: "J-2201",
+        clockInLatitude: 44.95621,
+        clockInLongitude: -123.03481,
+      }),
+    });
+    assert.equal(policyDisabledLocationClockIn.response.status, 403);
+    assert.match(policyDisabledLocationClockIn.payload.error, /location evidence is disabled/i);
+
+    const settingsWithLocationPolicy = await assertOk(fixture.baseUrl, "/api/settings/company", {
+      method: "PATCH",
+      headers: officeHeaders,
+      body: JSON.stringify({
+        timeLocationEvidencePolicy: {
+          enabled: true,
+          presenceReviewEnabled: true,
+          presenceReviewRadiusMeters: 100,
+          workerNotice: "Crew can optionally capture GPS at clock-in or clock-out only.",
+        },
+      }),
+    });
+    assert.equal(settingsWithLocationPolicy.companySettings.timeLocationEvidencePolicy.enabled, true);
+    assert.equal(settingsWithLocationPolicy.companySettings.timeLocationEvidencePolicy.presenceReviewEnabled, true);
+    assert.equal(settingsWithLocationPolicy.companySettings.timeLocationEvidencePolicy.presenceReviewRadiusMeters, 100);
+    assert.match(settingsWithLocationPolicy.companySettings.timeLocationEvidencePolicy.workerNotice, /optionally capture GPS/);
+    assert.ok(settingsWithLocationPolicy.auditEvents.some((event) => event.entityId === "timeLocationEvidencePolicy" && event.action === "enabled"));
+
     const clockedInState = await assertOk(fixture.baseUrl, "/api/time-entries/clock-in", {
       method: "POST",
       headers: employeeHeaders,
@@ -306,16 +337,21 @@ test("employees and foremen can track field time with proper visibility and brea
       method: "POST",
       headers: employeeHeaders,
       body: JSON.stringify({
-        clockOutLocationUnavailableReason: "Location permission denied by user.",
+        clockOutLatitude: 44.9605,
+        clockOutLongitude: -123.03481,
+        clockOutLocationAccuracy: 11,
+        clockOutLocationCapturedAt: "2026-05-29T18:00:00.000Z",
       }),
     });
     const completedEntry = clockedOutState.timeEntries.find((entry) => entry.id === activeEntry.id);
     assert.equal(completedEntry.status, "completed");
     assert.ok(completedEntry.totalMinutes >= 0);
     assert.ok(completedEntry.breakMinutes >= 0);
-    assert.equal(completedEntry.clockOutLatitude, null);
-    assert.equal(completedEntry.clockOutLongitude, null);
-    assert.equal(completedEntry.clockOutLocationUnavailableReason, "Location permission denied by user.");
+    assert.equal(completedEntry.clockOutLatitude, 44.9605);
+    assert.equal(completedEntry.clockOutLongitude, -123.03481);
+    assert.equal(completedEntry.clockOutLocationUnavailableReason, "");
+    assert.equal(completedEntry.jobsitePresenceReview.status, "needs_review");
+    assert.match(completedEntry.jobsitePresenceReview.detail, /Review before using this for payroll, discipline, or job status decisions/);
 
     const employeeTime = await assertOk(fixture.baseUrl, "/api/time-entries", {
       headers: employeeHeaders,

@@ -35758,6 +35758,11 @@ textarea {
   justify-self: start;
 }
 
+.co-settings-module-wide {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
 .co-settings-trade-preview {
   display: grid;
   gap: 0.78rem;

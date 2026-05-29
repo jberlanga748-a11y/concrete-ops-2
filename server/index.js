@@ -254,6 +254,7 @@ import {
 } from "./store.js";
 import {
   DEFAULT_COMPANY_SETTINGS,
+  normalizeTimeLocationEvidencePolicy,
   canAcknowledgeSafety,
   canArchiveJobs,
   canCreateJobs,
@@ -323,6 +324,7 @@ import {
   isOperationsManager,
   isOwner,
 } from "../shared/permissions.js";
+import { deriveTimeEntryJobsitePresenceReview } from "../shared/timeLocationPresence.js";
 import { buildConstructionAgentTradeContext, normalizeConstructionTradeId } from "../shared/constructionTrades.js";
 import {
   buildCustomerPortalPreviewPacket,
@@ -469,7 +471,7 @@ function securityHeaders(_req, res, next) {
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("Referrer-Policy", "no-referrer");
   res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
-  res.setHeader("Permissions-Policy", "geolocation=(), microphone=(), payment=(), usb=()");
+  res.setHeader("Permissions-Policy", "geolocation=(self), microphone=(), payment=(), usb=()");
   res.setHeader("Content-Security-Policy", [
     "default-src 'self'",
     "base-uri 'self'",
@@ -4074,6 +4076,18 @@ function timeEntryLocationChangedFields(prefix, evidence = {}) {
   return hasCoordinates || hasUnavailableReason ? [`${prefix}Location`] : [];
 }
 
+function timeEntryLocationEvidenceWasRequested(prefix, evidence = {}) {
+  return timeEntryLocationChangedFields(prefix, evidence).length > 0;
+}
+
+function assertTimeLocationEvidencePolicyEnabled(state, user, prefix, evidence = {}) {
+  if (!timeEntryLocationEvidenceWasRequested(prefix, evidence)) return;
+  const policy = normalizeTimeLocationEvidencePolicy(companySettingsForState(state, user).timeLocationEvidencePolicy);
+  if (!policy.enabled) {
+    throw new ApiError(403, "Time clock location evidence is disabled for this company.");
+  }
+}
+
 function assertTimeEntryCategoryPayload(user, workCategory, job) {
   if (!canUseSelfTimeCategory(user, workCategory)) {
     throw new ApiError(403, "You do not have permission to clock time in that work category.");
@@ -4116,6 +4130,7 @@ function findRequiredTimeEntry(state, entryId, user = null) {
 }
 
 function sanitizeTimeEntry(entry, state, user) {
+  const settings = companySettingsForState(state, user);
   const job = findSameCompanyLinkedRecord(state.jobs || [], entry.jobId, entry);
   const entryUser = findUserById(state, entry.userId);
   const fieldSafeJob = job ? sanitizeJobForUser(job, user, state) : null;
@@ -4147,6 +4162,7 @@ function sanitizeTimeEntry(entry, state, user) {
     clockOutLocationAccuracy: entry.clockOutLocationAccuracy == null ? null : Number(entry.clockOutLocationAccuracy),
     clockOutLocationCapturedAt: entry.clockOutLocationCapturedAt || "",
     clockOutLocationUnavailableReason: entry.clockOutLocationUnavailableReason || "",
+    jobsitePresenceReview: deriveTimeEntryJobsitePresenceReview(entry, settings.timeLocationEvidencePolicy),
     breakStartAt: entry.breakStartAt || "",
     breakEndAt: entry.breakEndAt || "",
     totalMinutes,
@@ -12803,6 +12819,7 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
     draft.companySettingsByCompanyId ||= {};
     draft.companySettings = companySettingsForState(draft, req.auth.user);
     const previousToolChecklistEnabled = draft.companySettings.toolChecklistEnabled;
+    const previousTimeLocationEvidencePolicy = normalizeTimeLocationEvidencePolicy(draft.companySettings.timeLocationEvidencePolicy);
     const brandingChanges = [];
     const brandingChangedFields = [];
     const profileChanges = [];
@@ -12814,10 +12831,19 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
     const policyChanges = [];
     const policyChangedFields = [];
     const hasToolChecklistEnabledUpdate = Object.prototype.hasOwnProperty.call(payload, "toolChecklistEnabled");
+    const hasTimeLocationEvidencePolicyUpdate = Object.prototype.hasOwnProperty.call(payload, "timeLocationEvidencePolicy");
     const hasManagedSetupUpdate = Object.prototype.hasOwnProperty.call(payload, "managedSetupChecklist")
       || Object.prototype.hasOwnProperty.call(payload, "managedSetupNotes");
     const hasAgentAutomationPolicyUpdate = Object.prototype.hasOwnProperty.call(payload, "apexAgentAutomationPolicy");
     const nextToolChecklistEnabled = optionalBoolean(payload.toolChecklistEnabled, previousToolChecklistEnabled);
+    const nextTimeLocationEvidencePolicy = hasTimeLocationEvidencePolicyUpdate
+      ? normalizeTimeLocationEvidencePolicy({
+        ...previousTimeLocationEvidencePolicy,
+        ...(payload.timeLocationEvidencePolicy || {}),
+        updatedAt: previousTimeLocationEvidencePolicy.updatedAt,
+        updatedBy: previousTimeLocationEvidencePolicy.updatedBy,
+      })
+      : null;
     const nextCompanyName = payload.companyName == null
       ? draft.companySettings.companyName
       : optionalCompanyName(payload.companyName, "");
@@ -12913,6 +12939,31 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
         detail: `${req.auth.user.name} ${nextToolChecklistEnabled ? "enabled" : "disabled"} the Tool Checklist module.`,
         actor: req.auth.user,
         changedFields: ["toolChecklistEnabled", "updatedAt"],
+      });
+    }
+
+    if (nextTimeLocationEvidencePolicy && JSON.stringify(previousTimeLocationEvidencePolicy) !== JSON.stringify(nextTimeLocationEvidencePolicy)) {
+      const policyWithAuditMetadata = {
+        ...nextTimeLocationEvidencePolicy,
+        updatedAt: changedAt,
+        updatedBy: req.auth.user.id,
+      };
+      draft.companySettings.timeLocationEvidencePolicy = policyWithAuditMetadata;
+      const enabled = policyWithAuditMetadata.enabled;
+      const enabledChanged = previousTimeLocationEvidencePolicy.enabled !== policyWithAuditMetadata.enabled;
+      const summary = enabledChanged
+        ? enabled ? "Time GPS evidence policy enabled" : "Time GPS evidence policy disabled"
+        : "Time GPS evidence policy updated";
+      const detail = `${req.auth.user.name} updated optional time clock location evidence policy. Capture remains user-tapped only. Presence review is ${policyWithAuditMetadata.presenceReviewEnabled ? `review-only with a ${policyWithAuditMetadata.presenceReviewRadiusMeters} meter radius` : "off"}; no background GPS, live geofence alert, payroll correction, discipline, or jobsite departure automation was enabled.`;
+      appendActivity(draft, summary, detail);
+      appendAuditEvent(draft, {
+        entityType: "companySettings",
+        entityId: "timeLocationEvidencePolicy",
+        action: enabledChanged ? enabled ? "enabled" : "disabled" : "updated",
+        summary,
+        detail,
+        actor: req.auth.user,
+        changedFields: ["timeLocationEvidencePolicy", "updatedAt"],
       });
     }
 
@@ -16862,6 +16913,7 @@ app.post("/api/time-entries/clock-in", requireAuth, asyncRoute(async (req, res) 
     const job = jobId ? findCompanyScopedRecord(draft.jobs, jobId, req.auth.user, draft, "Job") : null;
     assertTimeEntryCategoryPayload(req.auth.user, workCategory, job);
     const clockInLocation = normalizeTimeEntryLocationEvidence(payload, "clockIn", "Clock-in", changedAt);
+    assertTimeLocationEvidencePolicyEnabled(draft, req.auth.user, "clockIn", clockInLocation);
 
     const entry = applyTimeEntryTotals({
       id: makeId("T"),
@@ -17000,6 +17052,7 @@ app.post("/api/time-entries/:id/clock-out", requireAuth, asyncRoute(async (req, 
     }
 
     const clockOutLocation = normalizeTimeEntryLocationEvidence(payload, "clockOut", "Clock-out", changedAt);
+    assertTimeLocationEvidencePolicyEnabled(draft, req.auth.user, "clockOut", clockOutLocation);
     entry.clockOutAt = changedAt;
     Object.assign(entry, clockOutLocation);
     entry.updatedAt = changedAt;

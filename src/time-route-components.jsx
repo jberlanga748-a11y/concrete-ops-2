@@ -4,6 +4,7 @@ import { ApexOfficeCommandShell, Badge, Button, Card, Icon, InputField, SectionH
 import { jobTitle } from "./job-utils";
 import { workCategoryLabel } from "./time-category-utils";
 import { formatMinutes, timeLocationEvidencePayload, timeLocationStatusLabel, timeStatusTone } from "./time-utils";
+import { normalizeTimeLocationEvidencePolicy } from "../shared/permissions";
 
 export { workCategoryLabel } from "./time-category-utils";
 
@@ -153,6 +154,9 @@ export function RecentTimeEntriesCard({ entries, title = "Recent entries", descr
 }
 
 export function TimeEntryCard({ entry, showUser = false, compact = false, compactMobile = false }) {
+  const presenceReview = entry.jobsitePresenceReview || {};
+  const showPresenceReview = shouldShowPresenceReview(presenceReview);
+
   return (
     <div className={compactMobile ? "co-mobile-record-card rounded-2xl border border-blue-100 bg-white p-3 md:p-4" : "rounded-2xl border border-blue-100 bg-white p-4"}>
       <div className={compactMobile ? "flex flex-wrap items-start justify-between gap-2.5" : "flex flex-wrap items-start justify-between gap-3"}>
@@ -182,8 +186,12 @@ export function TimeEntryCard({ entry, showUser = false, compact = false, compac
         <Badge tone="slate">Break {formatMinutes(entry.breakMinutes)}</Badge>
         <Badge tone={timeLocationTone(timeLocationStatusLabel(entry, "clockIn"))}>In GPS {timeLocationStatusLabel(entry, "clockIn")}</Badge>
         <Badge tone={timeLocationTone(timeLocationStatusLabel(entry, "clockOut"))}>Out GPS {timeLocationStatusLabel(entry, "clockOut")}</Badge>
+        {showPresenceReview ? <Badge tone={presenceReview.tone || "slate"}>{presenceReview.label}</Badge> : null}
         {entry.scheduledStart ? <Badge tone="blue">{timeEntryDateTimeLabel(entry.scheduledStart)}</Badge> : null}
       </div>
+      {showPresenceReview && presenceReview.detail ? (
+        <p className={compactMobile ? "mt-2.5 text-[13px] font-bold leading-5 text-slate-600 md:mt-3 md:text-sm md:leading-6" : "mt-3 text-sm font-bold leading-6 text-slate-600"}>{presenceReview.detail}</p>
+      ) : null}
       {entry.notes ? <p className={compactMobile ? "mt-2.5 text-[13px] leading-5 text-slate-600 md:mt-3 md:text-sm md:leading-6" : "mt-3 text-sm leading-6 text-slate-600"}>{entry.notes}</p> : null}
     </div>
   );
@@ -203,10 +211,17 @@ function timeLocationTone(label) {
   return "amber";
 }
 
-export function TimeLocationCaptureControl({ evidence, onChange, disabled, action = "clock action" }) {
+function shouldShowPresenceReview(review = {}) {
+  return Boolean(review?.status && !["off", "not_applicable"].includes(review.status));
+}
+
+export function TimeLocationCaptureControl({ evidence, onChange, disabled, action = "clock action", locationPolicy }) {
+  const policy = normalizeTimeLocationEvidencePolicy(locationPolicy);
+  const policyEnabled = policy.enabled === true;
   const statusLabel = timeLocationStatusLabel(evidence);
 
   function handleRequestLocation() {
+    if (!policyEnabled) return;
     if (typeof navigator === "undefined" || !navigator.geolocation) {
       onChange({
         ...EMPTY_TIME_LOCATION_EVIDENCE,
@@ -245,27 +260,29 @@ export function TimeLocationCaptureControl({ evidence, onChange, disabled, actio
   }
 
   return (
-    <div className="rounded-2xl border border-blue-100 bg-blue-50/45 p-3">
+    <div className={policyEnabled ? "rounded-2xl border border-blue-100 bg-blue-50/45 p-3" : "rounded-2xl border border-slate-200 bg-slate-50 p-3"}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Optional location evidence</p>
-          <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Added only when you tap capture for this {action}. It is not background tracking.</p>
+          <p className="mt-1 text-sm font-bold leading-5 text-slate-600">
+            {policyEnabled ? policy.workerNotice : "Location capture is off for this company. Time tracking still works without GPS evidence."}
+          </p>
         </div>
-        <Badge tone={timeLocationTone(statusLabel)}>{statusLabel}</Badge>
+        <Badge tone={policyEnabled ? timeLocationTone(statusLabel) : "slate"}>{policyEnabled ? statusLabel : "Policy off"}</Badge>
       </div>
       {evidence.latitude != null && evidence.longitude != null ? (
         <p className="mt-2 text-xs font-bold text-slate-600">{Number(evidence.latitude).toFixed(5)}, {Number(evidence.longitude).toFixed(5)} / accuracy {Math.round(Number(evidence.locationAccuracy || 0))} m</p>
       ) : evidence.locationUnavailableReason ? (
         <p className="mt-2 text-xs font-bold text-slate-600">{evidence.locationUnavailableReason}</p>
       ) : null}
-      <Button type="button" variant="secondary" size="sm" className="mt-3" onClick={handleRequestLocation} disabled={disabled}>
+      <Button type="button" variant="secondary" size="sm" className="mt-3" onClick={handleRequestLocation} disabled={disabled || !policyEnabled}>
         Capture location
       </Button>
     </div>
   );
 }
 
-export function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, onClockIn, onClockOut, onStartBreak, onEndBreak, disabled, description = "Start time on one of your allowed work categories.", compactMobile = false, mobileDefaultOpen = true, heroClock = false }) {
+export function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, onClockIn, onClockOut, onStartBreak, onEndBreak, disabled, description = "Start time on one of your allowed work categories.", compactMobile = false, mobileDefaultOpen = true, heroClock = false, locationPolicy }) {
   const safeAllowedCategories = Array.isArray(allowedCategories) ? allowedCategories : [];
   const safeAvailableJobs = Array.isArray(availableJobs) ? availableJobs : [];
   const defaultCategory = safeAllowedCategories[0] || "job";
@@ -326,7 +343,7 @@ export function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, 
         )
       ) : null}
       <TextAreaField label="Clock-in note" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Optional note for the office or foreman." />
-      <TimeLocationCaptureControl evidence={clockInLocation} onChange={setClockInLocation} disabled={disabled} action="clock-in" />
+      <TimeLocationCaptureControl evidence={clockInLocation} onChange={setClockInLocation} disabled={disabled} action="clock-in" locationPolicy={locationPolicy} />
     </>
   );
 
@@ -350,7 +367,7 @@ export function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, 
               <p className="mt-1 text-xs font-bold text-slate-500">Started {activeStartedLabel}</p>
             </div>
             <div className="mt-3">
-              <TimeLocationCaptureControl evidence={clockOutLocation} onChange={setClockOutLocation} disabled={disabled} action="clock-out" />
+              <TimeLocationCaptureControl evidence={clockOutLocation} onChange={setClockOutLocation} disabled={disabled} action="clock-out" locationPolicy={locationPolicy} />
             </div>
             {activeActions}
             <div className="mt-3">
@@ -377,7 +394,7 @@ export function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, 
                 <div className="co-time-active-control-card">
                   <p>{activeEntry.status === "on_break" ? "Break is running" : "Time is running"}</p>
                   <strong>{activeEntry.status === "on_break" ? "End break before returning to work." : "Start a break or clock out when the shift is done."}</strong>
-                  <TimeLocationCaptureControl evidence={clockOutLocation} onChange={setClockOutLocation} disabled={disabled} action="clock-out" />
+                  <TimeLocationCaptureControl evidence={clockOutLocation} onChange={setClockOutLocation} disabled={disabled} action="clock-out" locationPolicy={locationPolicy} />
                   {activeActions}
                 </div>
               </div>
@@ -385,7 +402,7 @@ export function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, 
               <>
                 <TimeEntryCard entry={activeEntry} compact compactMobile={compactMobile} />
                 <div className="mt-3">
-                  <TimeLocationCaptureControl evidence={clockOutLocation} onChange={setClockOutLocation} disabled={disabled} action="clock-out" />
+                  <TimeLocationCaptureControl evidence={clockOutLocation} onChange={setClockOutLocation} disabled={disabled} action="clock-out" locationPolicy={locationPolicy} />
                 </div>
                 {activeActions}
               </>
@@ -403,7 +420,7 @@ export function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, 
         <SectionHeader title="Active clock" description="Keep your current time entry accurate before heading back to the job." />
         <TimeEntryCard entry={activeEntry} compact compactMobile={compactMobile} />
         <div className="mt-3">
-          <TimeLocationCaptureControl evidence={clockOutLocation} onChange={setClockOutLocation} disabled={disabled} action="clock-out" />
+          <TimeLocationCaptureControl evidence={clockOutLocation} onChange={setClockOutLocation} disabled={disabled} action="clock-out" locationPolicy={locationPolicy} />
         </div>
         {activeActions}
         <p className={compactMobile ? "mt-2.5 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400 md:mt-3 md:text-xs" : "mt-3 text-xs font-bold uppercase tracking-[0.12em] text-slate-400"}>
@@ -503,6 +520,7 @@ export function TimeEntriesTable({ rows, selectedId, onSelect }) {
           <th className="px-4 py-3">Break</th>
           <th className="px-4 py-3">Total</th>
           <th className="px-4 py-3">Status</th>
+          <th className="px-4 py-3">Presence</th>
         </tr>
       </thead>
       <tbody className="divide-y divide-blue-50">
@@ -523,6 +541,7 @@ export function TimeEntriesTable({ rows, selectedId, onSelect }) {
               <td className="px-4 py-3 text-sm font-bold text-slate-700">{formatMinutes(entry.breakMinutes)}</td>
               <td className="px-4 py-3 text-sm font-bold text-slate-700">{entry.status === "completed" ? formatMinutes(entry.totalMinutes) : "In progress"}</td>
               <td className="px-4 py-3"><TimeStatusBadge status={entry.status} /></td>
+              <td className="px-4 py-3">{shouldShowPresenceReview(entry.jobsitePresenceReview) ? <Badge tone={entry.jobsitePresenceReview.tone || "slate"}>{entry.jobsitePresenceReview.label}</Badge> : <Badge tone="slate">No review</Badge>}</td>
             </tr>
           );
         })}
@@ -573,6 +592,7 @@ export function TimeEntriesTablePolished({ rows, selectedId, onSelect, maxRows =
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Badge tone="slate">{workCategoryLabel(entry.workCategory)}</Badge>
                   <Badge tone="slate">Break {formatMinutes(entry.breakMinutes)}</Badge>
+                  {shouldShowPresenceReview(entry.jobsitePresenceReview) ? <Badge tone={entry.jobsitePresenceReview.tone || "slate"}>{entry.jobsitePresenceReview.label}</Badge> : null}
                   {selected ? <Badge tone="blue">Selected</Badge> : null}
                 </div>
               </button>
@@ -591,6 +611,7 @@ export function TimeEntriesTablePolished({ rows, selectedId, onSelect, maxRows =
               <th>Break</th>
               <th>Total</th>
               <th>Status</th>
+              <th>Presence</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -616,6 +637,7 @@ export function TimeEntriesTablePolished({ rows, selectedId, onSelect, maxRows =
                   <td className="font-bold text-slate-700">{formatMinutes(entry.breakMinutes)}</td>
                   <td className="font-bold text-slate-700">{totalLabel}</td>
                   <td><TimeStatusBadge status={entry.status} /></td>
+                  <td>{shouldShowPresenceReview(entry.jobsitePresenceReview) ? <Badge tone={entry.jobsitePresenceReview.tone || "slate"}>{entry.jobsitePresenceReview.label}</Badge> : <Badge tone="slate">No review</Badge>}</td>
                   <td>
                     <div className="flex justify-end gap-1">
                       <button type="button" className="co-time-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(entry.id); }} aria-label={`Review time entry ${entry.id}`}>
@@ -837,6 +859,7 @@ function TimeShellClockSummary({
   onStartBreak,
   onEndBreak,
   busy,
+  locationPolicy,
 }) {
   if (!permissions?.time?.canManageOwn) {
     return (
@@ -859,6 +882,7 @@ function TimeShellClockSummary({
         onEndBreak={onEndBreak}
         disabled={busy}
         description="Start or stop job-linked time from the same office command surface."
+        locationPolicy={locationPolicy}
       />
     </div>
   );
@@ -963,6 +987,7 @@ export function TimeDesktopCommandShell({
   showUser,
   canOpenTimeSupport,
   onOpenTimeSupport,
+  locationPolicy,
 }) {
   const queueItems = buildTimeShellQueueItems({ rows, workspace, permissions, showUser });
   const initialSelection = workspace?.activeEntry && permissions?.time?.canManageOwn
@@ -1054,6 +1079,7 @@ export function TimeDesktopCommandShell({
                 onStartBreak={onStartBreak}
                 onEndBreak={onEndBreak}
                 busy={busy}
+                locationPolicy={locationPolicy}
               />
             ) : (
               <TimeShellSelectedEntry
@@ -1110,6 +1136,7 @@ export function TimeCommandRailPolished({
   onEndBreak,
   busy,
   showClockCard = true,
+  locationPolicy,
 }) {
   const clockedInCount = rows.filter((item) => item.status !== "completed").length;
   const completedCount = rows.filter((item) => item.status === "completed").length;
@@ -1129,6 +1156,7 @@ export function TimeCommandRailPolished({
           disabled={busy}
           description="Clock your own office or field work while keeping payroll data out of this workspace."
           compactMobile
+          locationPolicy={locationPolicy}
         />
       ) : null}
 

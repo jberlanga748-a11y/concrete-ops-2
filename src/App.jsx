@@ -286,7 +286,7 @@ import { ESTIMATOR_MOBILE_NAV_ROUTES, getEstimatorMobileNavItems, getOwnerAdminM
 import { isOwnerAdminMobileCommandUser } from "./owner-admin-mobile-command-utils";
 import { applyOpportunityScoutAgentPreviewToDraft, applyOpportunityScoutSourceCheckToDraft, buildFoundOpportunityDraftFromScoutExecutionCard, buildFoundOpportunityEvidenceIntakeFromScoutCard, buildOpportunityScoutConnectorSetupDraft, buildOpportunityScoutConnectorSetupDraftFromCoverageRecommendation, buildOpportunityScoutConnectorSetupPayload, buildOpportunityScoutSourceBrief, deriveFoundOpportunityDraftDuplicateWarnings, deriveOpportunityScoutState } from "./opportunity-scout-utils";
 import { deriveAppHealthAuditState } from "./owner-health-utils";
-import { canRequestPackageReview } from "../shared/permissions.js";
+import { canRequestPackageReview, normalizeTimeLocationEvidencePolicy } from "../shared/permissions.js";
 import { BrandIntroScreen, LoadingScreen, ModuleLoadingFallback, SplashScreen, StartupFallbackScreen } from "./startup-screen-components";
 import { DEMO_LOGIN_PRESETS } from "./demo-login-presets";
 import { LEAD_SCORE_LABELS } from "../shared/leadScoring.js";
@@ -6921,6 +6921,7 @@ function SettingsPagePolished({
   const canViewSupport = Boolean(safePermissions.support?.canView);
   const canViewCustomerPortalPreview = Boolean(safePermissions.customerPortal?.canPreview);
   const canToggleToolChecklist = Boolean(safePermissions.toolChecklist?.canToggle);
+  const timeLocationEvidencePolicy = normalizeTimeLocationEvidencePolicy(safeCompanySettings.timeLocationEvidencePolicy);
   const showPublicEstimateRequestStatus = typeof publicEstimateRequestEnabled === "boolean";
   const demoResetAllowed = demoMode && DEMO_LOGIN_PRESETS.some((preset) => preset.email === String(user?.email || "").trim().toLowerCase());
   const [brandingDraft, setBrandingDraft] = useState(() => ({
@@ -6948,6 +6949,8 @@ function SettingsPagePolished({
   const [printPacketNotice, setPrintPacketNotice] = useState("");
   const [agentGateNotice, setAgentGateNotice] = useState("");
   const [publicRequestLinkNotice, setPublicRequestLinkNotice] = useState("");
+  const [timeLocationNoticeDraft, setTimeLocationNoticeDraft] = useState(timeLocationEvidencePolicy.workerNotice);
+  const [timeLocationRadiusDraft, setTimeLocationRadiusDraft] = useState(String(timeLocationEvidencePolicy.presenceReviewRadiusMeters));
 
   useEffect(() => {
     setBrandingDraft({
@@ -6985,6 +6988,14 @@ function SettingsPagePolished({
     });
   }, [safeCompanySettings.printPacketDisclaimer, safeCompanySettings.printPacketFooter]);
 
+  useEffect(() => {
+    setTimeLocationNoticeDraft(timeLocationEvidencePolicy.workerNotice);
+  }, [timeLocationEvidencePolicy.workerNotice]);
+
+  useEffect(() => {
+    setTimeLocationRadiusDraft(String(timeLocationEvidencePolicy.presenceReviewRadiusMeters));
+  }, [timeLocationEvidencePolicy.presenceReviewRadiusMeters]);
+
   const previewCompanyName = brandingDraft.companyName.trim() || workspaceCompanyName;
   const previewAccentColor = normalizeAccentColor(brandingDraft.accentColor);
   const previewTheme = getAccentTheme(previewAccentColor);
@@ -7005,6 +7016,9 @@ function SettingsPagePolished({
     || profileDraft.licenseText !== (safeCompanySettings.licenseText || "");
   const printPacketDirty = printPacketDraft.printPacketFooter !== (safeCompanySettings.printPacketFooter || "")
     || printPacketDraft.printPacketDisclaimer !== (safeCompanySettings.printPacketDisclaimer || "");
+  const timeLocationNoticeDirty = timeLocationNoticeDraft.trim() !== timeLocationEvidencePolicy.workerNotice;
+  const normalizedTimeLocationRadiusDraft = Math.max(50, Math.min(5000, Math.round(Number(timeLocationRadiusDraft) || timeLocationEvidencePolicy.presenceReviewRadiusMeters)));
+  const timeLocationRadiusDirty = normalizedTimeLocationRadiusDraft !== timeLocationEvidencePolicy.presenceReviewRadiusMeters;
   const agentEmailGateState = useMemo(() => deriveAgentEmailGateSettingsState(safeCompanySettings), [safeCompanySettings]);
   const settingsSetupState = useMemo(() => deriveManagedCompanySetupState({
     companySettings: safeCompanySettings,
@@ -7048,6 +7062,14 @@ function SettingsPagePolished({
   const [selectedSettingsShellItemId, setSelectedSettingsShellItemId] = useState(appHealthRouteMode ? "settings-owner-health" : "settings-managed-setup");
   const [selectedAppHealthShellItemId, setSelectedAppHealthShellItemId] = useState("app-health-trust");
   const toolChecklistEnabled = safeCompanySettings.toolChecklistEnabled !== false;
+  const updateTimeLocationEvidencePolicy = (patch = {}) => onUpdateCompanySettings?.({
+    timeLocationEvidencePolicy: {
+      ...timeLocationEvidencePolicy,
+      workerNotice: timeLocationNoticeDraft.trim() || timeLocationEvidencePolicy.workerNotice,
+      presenceReviewRadiusMeters: normalizedTimeLocationRadiusDraft,
+      ...patch,
+    },
+  });
   const appHealthShellQueueItems = [
     {
       id: "app-health-trust",
@@ -7799,6 +7821,80 @@ function SettingsPagePolished({
                     <Badge tone={safeCompanySettings.toolChecklistEnabled ? "green" : "slate"}>
                       {safeCompanySettings.toolChecklistEnabled ? "Enabled for field roles" : "Disabled for field roles"}
                     </Badge>
+                  </div>
+                  <div className="co-settings-module-row">
+                    <div className="min-w-0">
+                      <p>Time GPS Evidence</p>
+                      <span>Optional worker-tapped clock-in/out evidence only. Review-only presence checks compare captured clock-out GPS to the captured clock-in anchor. No live tracking, automatic alerts, discipline, payroll correction, or jobsite-leave automation.</span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant={timeLocationEvidencePolicy.enabled ? "secondary" : "primary"}
+                      onClick={() => updateTimeLocationEvidencePolicy({ enabled: !timeLocationEvidencePolicy.enabled })}
+                      disabled={busy || !canToggleToolChecklist || typeof onUpdateCompanySettings !== "function"}
+                    >
+                      {timeLocationEvidencePolicy.enabled ? "Disable GPS evidence" : "Enable GPS evidence"}
+                    </Button>
+                    <Badge tone={timeLocationEvidencePolicy.enabled ? "green" : "slate"}>
+                      {timeLocationEvidencePolicy.enabled ? "Policy enabled" : "Policy off"}
+                    </Badge>
+                    <div className="co-settings-module-wide">
+                      <TextAreaField
+                        label="Worker notice"
+                        value={timeLocationNoticeDraft}
+                        onChange={(event) => setTimeLocationNoticeDraft(event.target.value)}
+                        disabled={busy || !canToggleToolChecklist}
+                      />
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => updateTimeLocationEvidencePolicy({ workerNotice: timeLocationNoticeDraft })}
+                          disabled={busy || !canToggleToolChecklist || !timeLocationNoticeDirty || typeof onUpdateCompanySettings !== "function"}
+                        >
+                          Save notice
+                        </Button>
+                        <span className="text-xs font-bold text-slate-500">{timeLocationNoticeDirty ? "Unsaved worker notice" : "Notice synced"}</span>
+                      </div>
+                      <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-end">
+                        <InputField
+                          label="Presence review radius (meters)"
+                          type="number"
+                          min="50"
+                          max="5000"
+                          value={timeLocationRadiusDraft}
+                          onChange={(event) => setTimeLocationRadiusDraft(event.target.value)}
+                          disabled={busy || !canToggleToolChecklist}
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={timeLocationEvidencePolicy.presenceReviewEnabled ? "secondary" : "primary"}
+                          onClick={() => updateTimeLocationEvidencePolicy({ presenceReviewEnabled: !timeLocationEvidencePolicy.presenceReviewEnabled })}
+                          disabled={busy || !canToggleToolChecklist || !timeLocationEvidencePolicy.enabled || typeof onUpdateCompanySettings !== "function"}
+                        >
+                          {timeLocationEvidencePolicy.presenceReviewEnabled ? "Disable review" : "Enable review"}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => updateTimeLocationEvidencePolicy({ presenceReviewRadiusMeters: normalizedTimeLocationRadiusDraft })}
+                          disabled={busy || !canToggleToolChecklist || !timeLocationRadiusDirty || typeof onUpdateCompanySettings !== "function"}
+                        >
+                          Save radius
+                        </Button>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Badge tone={timeLocationEvidencePolicy.presenceReviewEnabled ? "amber" : "slate"}>
+                          {timeLocationEvidencePolicy.presenceReviewEnabled ? "Review-only presence on" : "Presence review off"}
+                        </Badge>
+                        <span className="text-xs font-bold text-slate-500">
+                          {timeLocationEvidencePolicy.enabled ? "Requires captured clock-in and clock-out GPS evidence." : "Enable GPS evidence before turning on presence review."}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                   {showPublicEstimateRequestStatus ? (
                     <div className="co-settings-module-row">

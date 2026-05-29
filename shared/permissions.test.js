@@ -49,7 +49,30 @@ import {
   canViewUploads,
   canExportData,
   getAllowedModuleIds,
+  normalizeTimeLocationEvidencePolicy,
 } from "./permissions.js";
+
+test("time location evidence policy defaults to off with bounded worker notice", () => {
+  const defaultPolicy = normalizeTimeLocationEvidencePolicy();
+  assert.equal(defaultPolicy.enabled, false);
+  assert.match(defaultPolicy.workerNotice, /only runs when a worker taps Capture location/);
+
+  const customPolicy = normalizeTimeLocationEvidencePolicy({
+    enabled: true,
+    workerNotice: `${"a".repeat(430)} trailing`,
+    presenceReviewEnabled: true,
+    presenceReviewRadiusMeters: 25,
+    updatedAt: "2026-05-29T12:00:00.000Z",
+    updatedBy: "U-1",
+  });
+
+  assert.equal(customPolicy.enabled, true);
+  assert.equal(customPolicy.workerNotice.length, 420);
+  assert.equal(customPolicy.presenceReviewEnabled, true);
+  assert.equal(customPolicy.presenceReviewRadiusMeters, 50);
+  assert.equal(customPolicy.updatedBy, "U-1");
+  assert.equal(normalizeTimeLocationEvidencePolicy(JSON.stringify({ enabled: true })).enabled, true);
+});
 
 test("owner has full office access and export rights", () => {
   const owner = { role: "Owner" };

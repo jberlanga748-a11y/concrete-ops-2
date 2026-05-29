@@ -19,7 +19,7 @@ import { normalizeManagedSetupSettings } from "../shared/managedCompanySetup.js"
 import { normalizeAgentLearningPreferences } from "../shared/agentLearningPreferences.js";
 import { normalizeAgentConversationThread } from "../shared/agentConversations.js";
 import { normalizeApexAgentAutomationPolicy } from "../shared/apexAgentAutomationPolicy.js";
-import { DEFAULT_COMPANY_SETTINGS } from "../shared/permissions.js";
+import { DEFAULT_COMPANY_SETTINGS, normalizeTimeLocationEvidencePolicy } from "../shared/permissions.js";
 import { normalizeConstructionTradeId } from "../shared/constructionTrades.js";
 import { normalizeImportedJobDrafts } from "../shared/jobDraftImports.js";
 import { normalizeJobStartupFields } from "../shared/jobStartup.js";
@@ -759,6 +759,7 @@ export function createSeedState() {
     printPacketDisclaimer: "Internal job documentation. Review all details before sharing outside the company.",
     packageId: normalizePackageId(serverConfig.demoPackageId || PACKAGE_IDS.PREMIUM),
     toolChecklistEnabled: true,
+    timeLocationEvidencePolicy: normalizeTimeLocationEvidencePolicy(),
   };
   const users = includeDemoRecords ? [seedUser, ...demoUsers] : [seedUser];
   const toIsoMinutesAgo = (minutesAgo) => new Date(seededAt.getTime() - minutesAgo * 60 * 1000).toISOString();
@@ -3838,6 +3839,7 @@ function normalizeCompanySettings(settings = {}) {
     printPacketDisclaimer: normalizeText(settings?.printPacketDisclaimer, 320),
     packageId: normalizePackageId(settings?.packageId),
     toolChecklistEnabled: settings?.toolChecklistEnabled !== false,
+    timeLocationEvidencePolicy: normalizeTimeLocationEvidencePolicy(settings?.timeLocationEvidencePolicy),
     agentLearningPreferences: normalizeAgentLearningPreferences(settings?.agentLearningPreferences),
     apexAgentAutomationPolicy: normalizeApexAgentAutomationPolicy(settings?.apexAgentAutomationPolicy),
     ...managedSetup,
@@ -3862,6 +3864,7 @@ function companySettingsPairs(settings = {}) {
     ["printPacketDisclaimer", normalized.printPacketDisclaimer || ""],
     ["packageId", normalized.packageId],
     ["toolChecklistEnabled", normalized.toolChecklistEnabled ? "true" : "false"],
+    ["timeLocationEvidencePolicy", JSON.stringify(normalized.timeLocationEvidencePolicy || normalizeTimeLocationEvidencePolicy())],
     ["managedSetupStatus", normalized.managedSetupStatus || "Not Started"],
     ["managedSetupChecklist", JSON.stringify(normalized.managedSetupChecklist || [])],
     ["managedSetupNotes", normalized.managedSetupNotes || ""],
@@ -7288,7 +7291,17 @@ function readTableState(database = createDatabaseConnection()) {
   for (const row of companySettingsRows) {
     const companyId = normalizeCompanyId(row.companyId);
     companySettingsByCompanyId[companyId] ||= {};
-    companySettingsByCompanyId[companyId][row.key] = row.key === "toolChecklistEnabled" ? row.value === "true" : row.value;
+    if (row.key === "toolChecklistEnabled") {
+      companySettingsByCompanyId[companyId][row.key] = row.value === "true";
+    } else if (row.key === "timeLocationEvidencePolicy") {
+      try {
+        companySettingsByCompanyId[companyId][row.key] = JSON.parse(row.value || "{}");
+      } catch {
+        companySettingsByCompanyId[companyId][row.key] = {};
+      }
+    } else {
+      companySettingsByCompanyId[companyId][row.key] = row.value;
+    }
   }
   const normalizedCompanySettingsByCompanyId = normalizeCompanySettingsByCompanyId(companySettingsByCompanyId);
   const companySettings = normalizedCompanySettingsByCompanyId[DEFAULT_COMPANY_ID] || normalizeCompanySettings(DEFAULT_COMPANY_SETTINGS);

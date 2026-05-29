@@ -130,7 +130,7 @@ Before GPS distance flags or location-risk logic are built, Apex HQ needs:
 - Audit/activity trail for enabling/disabling location-related settings.
 - Browser permission handling that treats denied/unavailable location as acceptable evidence status, not misconduct.
 
-Until those exist, GPS/location may only be used as existing upload evidence metadata labels plus the approved first time-clock slice: explicit user-tapped clock-in/clock-out location evidence. That time-clock slice must stay optional, visible to the worker, denial-safe, company-scoped, and separate from background tracking, geofence alerts, payroll correction, or discipline.
+Until those exist, GPS/location may only be used as existing upload evidence metadata labels plus the approved time-clock slices: explicit user-tapped clock-in/clock-out location evidence after the company enables the Time GPS Evidence policy in Settings, and an optional review-only presence label that compares captured clock-out GPS to the captured clock-in GPS anchor for the same job-linked entry. That time-clock slice must stay optional, visible to the worker, denial-safe, company-scoped, audit-backed for policy changes, and separate from background tracking, live geofence alerts, payroll correction, or discipline.
 
 ## Later Phases
 
