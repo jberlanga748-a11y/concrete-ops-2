@@ -338,3 +338,33 @@ Demo deployment evidence:
 - hosted `/api/ready` passed after deploy with database `ok`
 - hosted skip-auth smoke passed against `https://concrete-ops-demo.fly.dev`
 - authenticated hosted smoke skipped because `APEX_SMOKE_PASSWORD` was not set locally
+
+## Completed Professional Packet Family Pass
+
+Completed locally on 2026-05-27:
+
+- standardized browser print packets around one Apex HQ professional packet letterhead, dark header band, orange accent, packet mode label, company identity, and metadata grid
+- added polished estimate sheet and customer proposal packet presets while preserving the existing GC bid packet default
+- aligned browser proposal packets with PDF behavior by including customer-safe takeoff/reference evidence without private notes or file URLs
+- strengthened the Estimate Studio packet preview language for estimate sheet, proposal packet, GC bid packet, and foreman handoff outputs
+- added professional packet summary sections for estimate/proposal, foreman handoff, daily report, job, internal review/closeout, proof evidence, and change-order packet coverage
+- kept estimate math, send behavior, role/package gates, field-user blocking, production config, secrets, Fly/Supabase config, and production data untouched
+
+Focused verification:
+
+- `node --test --test-concurrency=1 server/estimate-pdf.test.js shared/estimatePrint.test.js src/print-packets.test.js`
+
+## Completed Packet QA Tightening Pass
+
+Completed locally on 2026-05-27:
+
+- removed stale Apex watermark language from browser proposal covers so packets read as contractor-branded documents
+- made PDF option/finish reference rows render supported PNG/JPEG images and use a clean attachment marker when an image cannot be embedded
+- limited PDF signature blocks to presets that include the customer approval section
+- tightened Estimate Studio packet setup copy so visible packet controls use professional bid/packet language instead of build-phase or GC Lite labels
+- regenerated the five local packet preview PDFs and rendered visual check PNGs under `tmp/packet-previews/rendered`
+- verified external packets do not expose private file URLs, margin/profit wording, internal packet notes, or residential-only legal/approval sections outside the residential preset
+
+Focused verification:
+
+- `node --test --test-concurrency=1 src/estimates-page-components-import.test.js shared/estimatePrint.test.js src/print-packets.test.js server/estimate-pdf.test.js`

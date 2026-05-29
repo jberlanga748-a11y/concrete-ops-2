@@ -51,7 +51,7 @@ import { isEstimatorMobilePipelineUser } from "./estimator-mobile-utils";
 import { deriveFenceTakeoffReadiness } from "./fence-takeoff-utils";
 import { buildEstimateLineItemFromRateBookItem, calculateRateBookUnitPrice, deriveRateBookState } from "./rate-book-utils";
 import { normalizeObjectArray } from "./report-utils";
-import { DEFAULT_ESTIMATE_PACKET_PRESET_ID, ESTIMATE_PACKET_SECTION_DEFS, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
+import { CUSTOM_ESTIMATE_PACKET_THEME_ID, DEFAULT_ESTIMATE_PACKET_PRESET_ID, ESTIMATE_PACKET_SECTION_DEFS, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
 
 function lazyRouteComponent(importer, exportName) {
   return lazy(() => importer().then((module) => ({ default: module[exportName] })));
@@ -90,6 +90,82 @@ function useDesktopCommandViewport(minWidth = 1024) {
   }, [minWidth]);
 
   return matches;
+}
+
+const PACKET_CUSTOMIZATION_STORAGE_PREFIX = "apex-hq-estimate-packet-default";
+
+function packetCustomizationStorageKey(companyName = "") {
+  const workspaceKey = String(companyName || "workspace")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48) || "workspace";
+  return `${PACKET_CUSTOMIZATION_STORAGE_PREFIX}:${workspaceKey}`;
+}
+
+function basePacketCustomization() {
+  return {
+    themeId: "safety-orange",
+    customThemeName: "",
+    headerColor: "",
+    headerTextColor: "",
+    accentColor: "",
+    accentDarkColor: "",
+    accentSoftColor: "",
+    coverTitle: "",
+    coverKicker: "",
+    tagline: "",
+    statementTitle: "",
+    statementBody: "",
+    reviewNote: "",
+  };
+}
+
+function loadStoredPacketCustomization(companyName = "") {
+  if (typeof window === "undefined" || !window.localStorage) return null;
+  try {
+    const rawValue = window.localStorage.getItem(packetCustomizationStorageKey(companyName));
+    if (!rawValue) return null;
+    const parsed = JSON.parse(rawValue);
+    if (!parsed || typeof parsed !== "object") return null;
+    return {
+      presetId: parsed.presetId || "",
+      sectionIds: Array.isArray(parsed.sectionIds) ? parsed.sectionIds : [],
+      customization: {
+        ...basePacketCustomization(),
+        ...(parsed.customization || {}),
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
+function storePacketCustomizationDefault(companyName = "", payload = {}) {
+  if (typeof window === "undefined" || !window.localStorage) return false;
+  try {
+    window.localStorage.setItem(packetCustomizationStorageKey(companyName), JSON.stringify({
+      version: 1,
+      savedAt: new Date().toISOString(),
+      ...payload,
+    }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function companyBrandPacketCustomization(companyName = "", companyProfile = {}) {
+  return {
+    ...basePacketCustomization(),
+    themeId: CUSTOM_ESTIMATE_PACKET_THEME_ID,
+    customThemeName: companyName ? `${companyName} Brand` : "Company Brand",
+    headerColor: companyProfile?.printPacketHeaderColor || "#07111f",
+    headerTextColor: companyProfile?.printPacketHeaderTextColor || "#ffffff",
+    accentColor: companyProfile?.printPacketAccentColor || "#f97316",
+    accentDarkColor: companyProfile?.printPacketAccentDarkColor || "#9a3412",
+    accentSoftColor: companyProfile?.printPacketAccentSoftColor || "#fff7ed",
+  };
 }
 
 function normalizeEstimateArray(value, fallback = []) {
@@ -161,6 +237,8 @@ export function EstimatesPagePolished({
   const [copyFeedback, setCopyFeedback] = useState("");
   const [packetPresetId, setPacketPresetId] = useState(DEFAULT_ESTIMATE_PACKET_PRESET_ID);
   const [packetSectionIds, setPacketSectionIds] = useState(() => getEstimatePacketPreset(DEFAULT_ESTIMATE_PACKET_PRESET_ID).sectionIds);
+  const [packetCustomization, setPacketCustomization] = useState(() => loadStoredPacketCustomization(companyName)?.customization || companyBrandPacketCustomization(companyName, companyProfile));
+  const [packetCustomizationNotice, setPacketCustomizationNotice] = useState("");
   const [showEstimateTools, setShowEstimateTools] = useState(false);
   const [activeEstimateTool, setActiveEstimateTool] = useState("edit");
   const [visibleEstimateRowCap, setVisibleEstimateRowCap] = useState(6);
@@ -171,6 +249,20 @@ export function EstimatesPagePolished({
   const newEstimateRef = useRef(null);
   const copyFeedbackTimeoutRef = useRef(null);
   const isDesktopCommandViewport = useDesktopCommandViewport(1024);
+
+  useEffect(() => {
+    const storedDefault = loadStoredPacketCustomization(companyName);
+    if (!storedDefault) {
+      setPacketCustomization(companyBrandPacketCustomization(companyName, companyProfile));
+      setPacketCustomizationNotice("");
+      return;
+    }
+    const storedPreset = getEstimatePacketPreset(storedDefault.presetId || DEFAULT_ESTIMATE_PACKET_PRESET_ID);
+    setPacketPresetId(storedPreset.id);
+    setPacketSectionIds(storedDefault.sectionIds.length > 0 ? storedDefault.sectionIds : storedPreset.sectionIds);
+    setPacketCustomization(storedDefault.customization);
+    setPacketCustomizationNotice("Saved packet brand loaded.");
+  }, [companyName]);
 
   const visibleCustomers = normalizeObjectArray(customers).filter((customer) => !customer.archivedAt);
   const visibleLeads = normalizeObjectArray(leads).filter((lead) => !lead.archivedAt);
@@ -270,8 +362,9 @@ export function EstimatesPagePolished({
   const packetPrintSettings = useMemo(() => resolveEstimatePacketSettings({
     presetId: packetPresetId,
     sectionIds: packetSectionIds,
+    customization: packetCustomization,
     allowInternalSections: canManage && canUseGcPackets,
-  }), [canManage, canUseGcPackets, packetPresetId, packetSectionIds]);
+  }), [canManage, canUseGcPackets, packetCustomization, packetPresetId, packetSectionIds]);
   const estimateKpis = [
     { label: "Estimates", value: filteredRows.length, helper: "Matching current filters", icon: "quote", tone: "blue", actionLabel: "View estimates", onAction: () => setStatusFilter("All") },
     { label: "Drafts", value: filteredRows.filter((estimate) => estimate.status === "draft").length, helper: "Need pricing or review", icon: "document", tone: "orange", actionLabel: "View drafts", onAction: () => setStatusFilter("Draft") },
@@ -548,6 +641,36 @@ export function EstimatesPagePolished({
       showCopyFeedback("Clipboard unavailable on this browser.");
       return false;
     }
+  }
+
+  function handleApplyCompanyPacketBrand() {
+    setPacketCustomization((current) => ({
+      ...current,
+      ...companyBrandPacketCustomization(companyName, companyProfile),
+    }));
+    setPacketCustomizationNotice("Company brand applied to this packet.");
+  }
+
+  function handleSavePacketCustomizationDefault() {
+    const saved = storePacketCustomizationDefault(companyName, {
+      presetId: packetPresetId,
+      sectionIds: packetSectionIds,
+      customization: packetCustomization,
+    });
+    setPacketCustomizationNotice(saved ? "Packet brand default saved for this workspace." : "Could not save packet brand default in this browser.");
+  }
+
+  function handleApplyPacketCustomizationDefault() {
+    const storedDefault = loadStoredPacketCustomization(companyName);
+    if (!storedDefault) {
+      setPacketCustomizationNotice("No saved packet brand default found for this workspace.");
+      return;
+    }
+    const storedPreset = getEstimatePacketPreset(storedDefault.presetId || packetPresetId);
+    setPacketPresetId(storedPreset.id);
+    setPacketSectionIds(storedDefault.sectionIds.length > 0 ? storedDefault.sectionIds : storedPreset.sectionIds);
+    setPacketCustomization(storedDefault.customization);
+    setPacketCustomizationNotice("Saved packet brand default applied.");
   }
 
   function focusNewEstimate() {
@@ -957,7 +1080,7 @@ export function EstimatesPagePolished({
     { id: "pricing", label: "Pricing", title: "Pricing Mode", manages: "future line item pricing review, options totals, taxes, fees, and price readiness." },
     { id: "proposal", label: "Proposal", title: "Proposal Mode", manages: "future proposal sections, inclusions, exclusions, assumptions, alternates, and customer-facing scope." },
     { id: "backup", label: "Backup", title: "Backup / SOV Mode", manages: "future internal backup rows, SOV notes, takeoff references, and office-only estimate support." },
-    { id: "packet", label: "Packet", title: "Packet Mode", manages: "GC packet settings, print sections, branded customer packet readiness, and internal GC Lite review." },
+    { id: "packet", label: "Packet", title: "Packet Mode", manages: "GC packet settings, print sections, branded customer packet readiness, and internal bid review." },
     { id: "roughNotes", label: "Rough Notes", title: "Rough Notes Mode", manages: "future review-first AI rough notes drafting without automatic pricing, approval, or customer output." },
     { id: "takeoff", label: "Takeoff", title: "Takeoff Mode", manages: "fence takeoff, estimate-grade quantities, local draft quantity review, and office backup context." },
     { id: "visualPreview", label: "Visual Preview", title: "Visual Preview Mode", manages: "review-first customer concept prompt readiness without generation, sends, or estimate mutation." },
@@ -1447,12 +1570,12 @@ export function EstimatesPagePolished({
             <div className="co-estimates-shell-packet-readiness-grid">
               <span><em>Preset</em><strong>{packetPrintSettings.presetLabel}</strong></span>
               <span><em>Customer Sections</em><strong>{packetCustomerSections.length}</strong></span>
-              <span><em>GC Lite</em><strong>Locked</strong></span>
+              <span><em>Bid Notes</em><strong>Locked</strong></span>
               <span><em>Print Readiness</em><strong>{packetPrintReady ? "Ready context" : "Needs review"}</strong></span>
             </div>
             <div className="co-estimates-shell-packet-lock">
               <strong>Packet tools unavailable for this package.</strong>
-              <span>Customer proposal readiness remains visible, but GC Lite editing, office-only sections, and packet saves stay blocked.</span>
+              <span>Customer proposal readiness remains visible, but bid note editing, office-only sections, and packet saves stay blocked.</span>
             </div>
             <div className="co-estimates-shell-workflow-actions">
               <Button type="button" variant="secondary" onClick={() => setEstimateShellMode("overview")}>Return to overview</Button>
@@ -1466,8 +1589,8 @@ export function EstimatesPagePolished({
           <div className="co-estimates-shell-workflow-head">
             <div>
               <Badge tone={canManage ? "violet" : "slate"}>{canManage ? "Packet readiness" : "Read only"}</Badge>
-              <h3>Packet Settings / GC Readiness</h3>
-              <p>Packet preset, included sections, and GC Lite notes only. No send, convert, AI, takeoff, or handoff action runs here.</p>
+              <h3>Packet Settings / Bid Readiness</h3>
+              <p>Review the packet preset, included sections, and GC-facing bid notes. This screen does not send, convert, generate AI output, change takeoff, or hand off the job.</p>
             </div>
             <StatusBadge status={estimateStatusLabel(status)} />
           </div>
@@ -1479,7 +1602,7 @@ export function EstimatesPagePolished({
           <div className="co-estimates-shell-packet-readiness-grid">
             <span><em>Selected Preset</em><strong>{packetPrintSettings.presetLabel}</strong></span>
             <span><em>Selected Sections</em><strong>{packetPrintSettings.sectionIds.length}</strong></span>
-            <span><em>GC Lite Completeness</em><strong>{shellGcPacketReadyCount} / {shellGcPacketTotalCount}</strong></span>
+            <span><em>Bid Note Completeness</em><strong>{shellGcPacketReadyCount} / {shellGcPacketTotalCount}</strong></span>
             <span><em>Internal Exposure</em><strong>{packetPrintSettings.allowInternalSections ? `${packetInternalSections.length} office-only` : "Customer-safe"}</strong></span>
             <span><em>Print Readiness</em><strong>{packetPrintReady ? "Ready context" : "Needs review"}</strong></span>
           </div>
@@ -1494,6 +1617,12 @@ export function EstimatesPagePolished({
               sectionIds={packetSectionIds}
               setPresetId={setPacketPresetId}
               setSectionIds={setPacketSectionIds}
+              customization={packetCustomization}
+              setCustomization={setPacketCustomization}
+              onApplyCompanyBrand={handleApplyCompanyPacketBrand}
+              onSaveCustomizationDefault={handleSavePacketCustomizationDefault}
+              onApplyCustomizationDefault={handleApplyPacketCustomizationDefault}
+              customizationDefaultNotice={packetCustomizationNotice}
               canIncludeInternalSections={canManage && canUseGcPackets}
             />
             <EstimateGcPacketLiteEditor draft={detailDraft} setDraft={setDetailDraft} disabled={!canManage || busy} />
@@ -1971,7 +2100,7 @@ export function EstimatesPagePolished({
         : estimateShellMode === "packet"
           ? [
             { value: packetPrintSettings.sectionIds.length, label: "sections", tone: packetPrintSettings.sectionIds.length ? "violet" : "slate" },
-            { value: canUseGcPackets ? `${detailGcPacketReadyCount}/${detailGcPacketTotalCount}` : 0, label: "GC Lite ready", tone: canUseGcPackets && detailGcPacketReadyCount ? "violet" : "slate" },
+            { value: canUseGcPackets ? `${detailGcPacketReadyCount}/${detailGcPacketTotalCount}` : 0, label: "bid notes ready", tone: canUseGcPackets && detailGcPacketReadyCount ? "violet" : "slate" },
             { value: packetPrintSettings.allowInternalSections ? 1 : 0, label: packetPrintSettings.allowInternalSections ? "office packet" : "customer safe", tone: packetPrintSettings.allowInternalSections ? "amber" : "green" },
             { value: canUseGcPackets ? 1 : 0, label: canUseGcPackets ? "entitled" : "locked", tone: canUseGcPackets ? "green" : "slate" },
           ]
@@ -2761,13 +2890,19 @@ export function EstimatesPagePolished({
             <Card className="p-4">
               <SectionHeader title="Packet / Send / Print" description="Proposal copy, print, email, and packet settings use the existing estimate handlers." />
               {canUseGcPackets ? <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
-                <EstimatePacketSettingsPanel
-                  presetId={packetPresetId}
-                  sectionIds={packetSectionIds}
-                  setPresetId={setPacketPresetId}
-                  setSectionIds={setPacketSectionIds}
-                  canIncludeInternalSections={canManage}
-                />
+                  <EstimatePacketSettingsPanel
+                    presetId={packetPresetId}
+                    sectionIds={packetSectionIds}
+                    setPresetId={setPacketPresetId}
+                    setSectionIds={setPacketSectionIds}
+                    customization={packetCustomization}
+                    setCustomization={setPacketCustomization}
+                    onApplyCompanyBrand={handleApplyCompanyPacketBrand}
+                    onSaveCustomizationDefault={handleSavePacketCustomizationDefault}
+                    onApplyCustomizationDefault={handleApplyPacketCustomizationDefault}
+                    customizationDefaultNotice={packetCustomizationNotice}
+                    canIncludeInternalSections={canManage}
+                  />
                 <div className="rounded-2xl border border-slate-200 bg-white p-3">
                   <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Proposal actions</p>
                   <div className="mt-3 grid gap-2">
@@ -3026,6 +3161,12 @@ export function EstimatesPagePolished({
                         sectionIds={packetSectionIds}
                         setPresetId={setPacketPresetId}
                         setSectionIds={setPacketSectionIds}
+                        customization={packetCustomization}
+                        setCustomization={setPacketCustomization}
+                        onApplyCompanyBrand={handleApplyCompanyPacketBrand}
+                        onSaveCustomizationDefault={handleSavePacketCustomizationDefault}
+                        onApplyCustomizationDefault={handleApplyPacketCustomizationDefault}
+                        customizationDefaultNotice={packetCustomizationNotice}
                         canIncludeInternalSections={canManage}
                       />
                     </div>
