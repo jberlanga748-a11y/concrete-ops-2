@@ -698,6 +698,8 @@ Near-term builder order:
 4. Build 3A: Rate Book / Cost Library audit.
 5. Build 3B: Rate Book / Cost Library implementation slice 1.
 
+Build 4A local completion evidence is tracked in `docs/APEX_HQ_MATERIAL_PURCHASING_PREP_STATUS.md` and verified by `npm.cmd run verify:material-purchasing-prep`. It adds review-only material prep, vendor notes, manual checklist, and field delivery needs. It does not unlock supplier messaging, purchase orders, material ordering, payment, billing, integrations, production deploy, secrets/config changes, or production data work.
+
 Do not start Builds 7, 8, 10, 12, 14, or 15 without a separate approval because they touch external customers, providers, secrets, payments, data architecture, or public launch.
 
 ## What Is Already 100 Percent For Current Scope

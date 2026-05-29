@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 
 import { DEFAULT_APP_PERMISSIONS } from "./app-state-utils";
 import { ApexOfficeCommandShell, Card, CommandPageFrame, SectionHeader, StateCard } from "./app-shell-components";
-import { buildMaterialPrepCopyText, buildMaterialPrepPrintPacket, deriveMaterialPrepState } from "./material-prep-utils";
+import { buildMaterialPrepChecklist, buildMaterialPrepCopyText, buildMaterialPrepPrintPacket, deriveMaterialPrepState } from "./material-prep-utils";
 import { openPrintDocument } from "./print-packets";
 
 export function MaterialPrepPage({
@@ -23,6 +23,7 @@ export function MaterialPrepPage({
   const [copyNotice, setCopyNotice] = useState("");
   const selectedQueueItem = materialPrepState.queue.find((item) => item.id === selectedId) || materialPrepState.queue[0] || null;
   const selectedPacket = selectedQueueItem?.packet || null;
+  const selectedChecklist = selectedPacket ? buildMaterialPrepChecklist(selectedPacket) : [];
   const canView = Boolean(permissions?.materialPrep?.canView);
 
   if (!canView) {
@@ -160,6 +161,18 @@ export function MaterialPrepPage({
             <SectionHeader title="Field delivery needs" description="Copy-safe internal checklist for staging, delivery timing, and received quantity review. No external sends." />
             <ul className="co-material-prep-checklist">
               {selectedPacket.fieldNeeds.length ? selectedPacket.fieldNeeds.map((need) => <li key={need}>{need}</li>) : <li>No field delivery needs derived yet.</li>}
+            </ul>
+          </Card>
+
+          <Card className="co-material-prep-card">
+            <SectionHeader title="Manual prep checklist" description="Owner/admin review steps only. Vendor contact, orders, purchase orders, and payments stay outside Apex HQ." />
+            <ul className="co-material-prep-checklist">
+              {selectedChecklist.map((item) => (
+                <li key={item.id}>
+                  <strong>{item.label}</strong>
+                  <span>{item.detail}</span>
+                </li>
+              ))}
             </ul>
           </Card>
         </div>
