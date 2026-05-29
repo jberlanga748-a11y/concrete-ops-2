@@ -10,6 +10,7 @@ The first time-clock GPS slice is explicit evidence capture only:
 - Company admins must enable the Time GPS Evidence policy in Settings before any clock-in/out location payload is accepted.
 - The policy includes a worker-facing notice, is scoped to the company, and writes an audit event when enabled, disabled, or changed.
 - Company admins may also enable a review-only presence check. It compares captured clock-out GPS to the captured clock-in GPS anchor for the same job-linked time entry using the company radius.
+- Office leadership can mark a `Presence needs review` item as reviewed with a note. The note is stored on the time entry and written to audit/activity history without adding live GPS, customer contact, or automatic action.
 
 ## Boundaries
 
@@ -18,6 +19,7 @@ The first time-clock GPS slice is explicit evidence capture only:
 - No continuous employee tracking.
 - No live geofence monitoring or jobsite-leave alerts yet.
 - Presence review labels are not automatic conclusions. `Presence needs review` means a manager should review context before using the entry for payroll, discipline, or job status decisions.
+- Presence review closure requires a human note. It does not change payroll, job status, schedules, reports, SMS, email, or customer records.
 - No automatic payroll, discipline, HR, job-status, SMS, email, or push action.
 - Location evidence is company-scoped and role-scoped with the existing time-entry visibility rules.
 

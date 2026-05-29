@@ -174,6 +174,7 @@ import {
   recordAgentActionProposalAudit,
   resetWorkspace,
   requestPasswordReset,
+  reviewTimePresence,
   resendUserInvite,
   reviewDailyReport,
   reviewToolChecklist,
@@ -13546,6 +13547,11 @@ export default function App() {
     runMutation(() => correctTimeEntry(sessionToken, selectedTimeEntry.id, timeEditDraft));
   }
 
+  function handleReviewTimePresence(timeEntryId, note) {
+    if (!timeEntryId || !appState.permissions.time.canCorrect) return;
+    runMutation(() => reviewTimePresence(sessionToken, timeEntryId, { note }));
+  }
+
   function handleCreateLead(event) {
     event.preventDefault();
     if (!appState.permissions.leads.canManage) return;
@@ -16824,6 +16830,7 @@ export default function App() {
                 timeEditDraft={timeEditDraft}
                 setTimeEditDraft={setTimeEditDraft}
                 onSaveTimeEntry={handleSaveTimeEntry}
+                onReviewTimePresence={handleReviewTimePresence}
                 onClockIn={handleClockIn}
                 onClockOut={handleClockOut}
                 onStartBreak={handleStartBreak}

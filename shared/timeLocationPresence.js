@@ -38,6 +38,21 @@ export function formatPresenceDistance(meters) {
 }
 
 export function deriveTimeEntryJobsitePresenceReview(entry = {}, policy = {}) {
+  if (entry.jobsitePresenceReviewStatus === "reviewed" || entry.jobsitePresenceReviewedAt) {
+    const reviewedAt = String(entry.jobsitePresenceReviewedAt || "").trim();
+    const note = String(entry.jobsitePresenceReviewNote || "").trim();
+    return {
+      status: "reviewed",
+      label: "Presence reviewed",
+      tone: "green",
+      detail: note
+        ? `Presence review completed${reviewedAt ? ` at ${reviewedAt}` : ""}: ${note}`
+        : `Presence review completed${reviewedAt ? ` at ${reviewedAt}` : ""}.`,
+      distanceMeters: null,
+      radiusMeters: null,
+    };
+  }
+
   const normalizedPolicy = normalizeTimeLocationEvidencePolicy(policy);
   if (!normalizedPolicy.enabled || !normalizedPolicy.presenceReviewEnabled) {
     return {

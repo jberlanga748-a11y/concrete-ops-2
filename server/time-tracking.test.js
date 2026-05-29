@@ -353,6 +353,29 @@ test("employees and foremen can track field time with proper visibility and brea
     assert.equal(completedEntry.jobsitePresenceReview.status, "needs_review");
     assert.match(completedEntry.jobsitePresenceReview.detail, /Review before using this for payroll, discipline, or job status decisions/);
 
+    const employeePresenceReview = await requestJson(fixture.baseUrl, `/api/time-entries/${activeEntry.id}/presence-review`, {
+      method: "POST",
+      headers: employeeHeaders,
+      body: JSON.stringify({
+        note: "Employee should not be able to close this review.",
+      }),
+    });
+    assert.equal(employeePresenceReview.response.status, 403);
+
+    const presenceReviewedState = await assertOk(fixture.baseUrl, `/api/time-entries/${activeEntry.id}/presence-review`, {
+      method: "POST",
+      headers: officeHeaders,
+      body: JSON.stringify({
+        note: "Reviewed with foreman; clock-out was at the material gate after cleanup.",
+      }),
+    });
+    const reviewedEntry = presenceReviewedState.timeEntries.find((entry) => entry.id === activeEntry.id);
+    assert.equal(reviewedEntry.jobsitePresenceReviewStatus, "reviewed");
+    assert.ok(reviewedEntry.jobsitePresenceReviewedByName);
+    assert.match(reviewedEntry.jobsitePresenceReviewNote, /material gate/);
+    assert.equal(reviewedEntry.jobsitePresenceReview.status, "reviewed");
+    assert.ok(presenceReviewedState.auditEvents.some((event) => event.entityType === "timeEntry" && event.action === "presence_reviewed"));
+
     const employeeTime = await assertOk(fixture.baseUrl, "/api/time-entries", {
       headers: employeeHeaders,
     });

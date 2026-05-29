@@ -52,6 +52,20 @@ test("presence review fails soft without policy, job scope, or enough evidence",
   }, REVIEW_POLICY).status, "clock_in_only");
 });
 
+test("presence review keeps completed manager decisions visible", () => {
+  const reviewed = deriveTimeEntryJobsitePresenceReview({
+    jobId: "J-1",
+    workCategory: "job",
+    jobsitePresenceReviewStatus: "reviewed",
+    jobsitePresenceReviewNote: "Reviewed with foreman before approval.",
+    jobsitePresenceReviewedAt: "2026-05-29T18:10:00.000Z",
+  }, REVIEW_POLICY);
+
+  assert.equal(reviewed.status, "reviewed");
+  assert.equal(reviewed.tone, "green");
+  assert.match(reviewed.detail, /Reviewed with foreman/);
+});
+
 test("distance helpers format review values for field UI", () => {
   const distance = distanceMetersBetweenCoordinates(
     { latitude: 44.95621, longitude: -123.03481 },

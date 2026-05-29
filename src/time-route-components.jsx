@@ -658,7 +658,9 @@ export function TimeEntriesTablePolished({ rows, selectedId, onSelect, maxRows =
   );
 }
 
-export function TimeCorrectionPanel({ entry, draft, setDraft, onSave, disabled, canCorrect, compactMobile = false }) {
+export function TimeCorrectionPanel({ entry, draft, setDraft, onSave, onReviewPresence, disabled, canCorrect, compactMobile = false }) {
+  const [presenceReviewNote, setPresenceReviewNote] = useState("");
+
   if (!entry) {
     return (
       <Card className="p-5">
@@ -666,6 +668,19 @@ export function TimeCorrectionPanel({ entry, draft, setDraft, onSave, disabled, 
         <StateCard title="No time entry selected" description="Choose an entry from the table to inspect its timestamps and notes." tone="slate" />
       </Card>
     );
+  }
+
+  const presenceReview = entry.jobsitePresenceReview || {};
+  const canReviewPresence = canCorrect
+    && presenceReview.status === "needs_review"
+    && typeof onReviewPresence === "function"
+    && entry.jobsitePresenceReviewStatus !== "reviewed";
+  const presenceReviewNoteReady = presenceReviewNote.trim().length > 0;
+
+  function handlePresenceReview() {
+    if (!canReviewPresence || !presenceReviewNoteReady) return;
+    onReviewPresence(entry.id, presenceReviewNote.trim());
+    setPresenceReviewNote("");
   }
 
   return (
@@ -697,6 +712,30 @@ export function TimeCorrectionPanel({ entry, draft, setDraft, onSave, disabled, 
           <Badge tone="slate">Break {formatMinutes(entry.breakMinutes)}</Badge>
           <Badge tone="slate">Total {entry.status === "completed" ? formatMinutes(entry.totalMinutes) : "In progress"}</Badge>
         </div>
+        {shouldShowPresenceReview(presenceReview) ? (
+          <div className="rounded-2xl border border-amber-100 bg-amber-50/55 p-3">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs font-black uppercase tracking-[0.12em] text-amber-700">Presence review</p>
+                <p className="mt-1 text-sm font-bold leading-5 text-slate-700">{presenceReview.detail}</p>
+                {entry.jobsitePresenceReviewedByName ? <p className="mt-1 text-xs font-bold text-slate-500">Reviewed by {entry.jobsitePresenceReviewedByName}</p> : null}
+              </div>
+              <Badge tone={presenceReview.tone || "slate"}>{presenceReview.label}</Badge>
+            </div>
+            {canReviewPresence ? (
+              <div className="mt-3 grid gap-2">
+                <TextAreaField
+                  label="Review note"
+                  value={presenceReviewNote}
+                  onChange={(event) => setPresenceReviewNote(event.target.value)}
+                  disabled={disabled}
+                  placeholder="Add context before marking reviewed. Do not use this as automatic payroll or discipline evidence."
+                />
+                <Button size={compactMobile ? "sm" : "md"} variant="secondary" onClick={handlePresenceReview} disabled={disabled || !presenceReviewNoteReady}>Mark presence reviewed</Button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         {canCorrect ? <Button size={compactMobile ? "sm" : "md"} onClick={onSave} disabled={disabled}>Save correction</Button> : <StateCard title="Read-only" description="Only office leadership can correct time entries." tone="slate" />}
       </div>
     </Card>
@@ -895,6 +934,7 @@ function TimeShellSelectedEntry({
   timeEditDraft,
   setTimeEditDraft,
   onSaveTimeEntry,
+  onReviewTimePresence,
   busy,
 }) {
   if (!entry) {
@@ -947,6 +987,7 @@ function TimeShellSelectedEntry({
               draft={timeEditDraft}
               setDraft={setTimeEditDraft}
               onSave={onSaveTimeEntry}
+              onReviewPresence={onReviewTimePresence}
               disabled={busy}
               canCorrect={permissions.time.canCorrect}
               compactMobile
@@ -979,6 +1020,7 @@ export function TimeDesktopCommandShell({
   timeEditDraft,
   setTimeEditDraft,
   onSaveTimeEntry,
+  onReviewTimePresence,
   onClockIn,
   onClockOut,
   onStartBreak,
@@ -1089,6 +1131,7 @@ export function TimeDesktopCommandShell({
                 timeEditDraft={timeEditDraft}
                 setTimeEditDraft={setTimeEditDraft}
                 onSaveTimeEntry={onSaveTimeEntry}
+                onReviewTimePresence={onReviewTimePresence}
                 busy={busy}
               />
             )}
@@ -1130,6 +1173,7 @@ export function TimeCommandRailPolished({
   timeEditDraft,
   setTimeEditDraft,
   onSaveTimeEntry,
+  onReviewTimePresence,
   onClockIn,
   onClockOut,
   onStartBreak,
@@ -1193,7 +1237,7 @@ export function TimeCommandRailPolished({
       </Card>
 
       {permissions.time.canCorrect && entry ? (
-        <TimeCorrectionPanel entry={entry} draft={timeEditDraft} setDraft={setTimeEditDraft} onSave={onSaveTimeEntry} disabled={busy} canCorrect={permissions.time.canCorrect} compactMobile />
+        <TimeCorrectionPanel entry={entry} draft={timeEditDraft} setDraft={setTimeEditDraft} onSave={onSaveTimeEntry} onReviewPresence={onReviewTimePresence} disabled={busy} canCorrect={permissions.time.canCorrect} compactMobile />
       ) : null}
 
       {permissions.time.canViewAll ? <TimeJobCostingReadinessCard readiness={jobCostingReadiness} /> : null}

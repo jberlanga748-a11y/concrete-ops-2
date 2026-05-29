@@ -230,6 +230,7 @@ export function TimePage({
   timeEditDraft,
   setTimeEditDraft,
   onSaveTimeEntry,
+  onReviewTimePresence,
   onClockIn,
   onClockOut,
   onStartBreak,
@@ -387,6 +388,7 @@ export function TimePage({
           timeEditDraft={timeEditDraft}
           setTimeEditDraft={setTimeEditDraft}
           onSaveTimeEntry={onSaveTimeEntry}
+          onReviewTimePresence={onReviewTimePresence}
           onClockIn={onClockIn}
           onClockOut={onClockOut}
           onStartBreak={onStartBreak}
@@ -534,6 +536,7 @@ export function TimePage({
                       draft={timeEditDraft}
                       setDraft={setTimeEditDraft}
                       onSave={onSaveTimeEntry}
+                      onReviewPresence={onReviewTimePresence}
                       disabled={busy}
                       canCorrect={permissions.time.canCorrect}
                       compactMobile
@@ -741,6 +744,7 @@ export function TimePage({
           timeEditDraft={timeEditDraft}
           setTimeEditDraft={setTimeEditDraft}
           onSaveTimeEntry={onSaveTimeEntry}
+          onReviewTimePresence={onReviewTimePresence}
           onClockIn={onClockIn}
           onClockOut={onClockOut}
           onStartBreak={onStartBreak}
@@ -766,6 +770,7 @@ export function TimePageLegacy({
   timeEditDraft,
   setTimeEditDraft,
   onSaveTimeEntry,
+  onReviewTimePresence,
   onClockIn,
   onClockOut,
   onStartBreak,
@@ -826,7 +831,7 @@ export function TimePageLegacy({
                 {rows.length === 0 ? <div className="p-4"><StateCard title="No time entries yet" description="Field clock-ins will appear here once crews start using the time tools." tone="slate" /></div> : <div className="min-w-0 overflow-x-auto"><TimeEntriesTable rows={rows} selectedId={selectedTimeEntryId} onSelect={onSelectTimeEntry} /></div>}
               </Card>
             </div>
-            <TimeCorrectionPanel entry={selectedTimeEntry} draft={timeEditDraft} setDraft={setTimeEditDraft} onSave={onSaveTimeEntry} disabled={busy} canCorrect={permissions.time.canCorrect} compactMobile />
+            <TimeCorrectionPanel entry={selectedTimeEntry} draft={timeEditDraft} setDraft={setTimeEditDraft} onSave={onSaveTimeEntry} onReviewPresence={onReviewTimePresence} disabled={busy} canCorrect={permissions.time.canCorrect} compactMobile />
           </div>
         </div>
       </div>

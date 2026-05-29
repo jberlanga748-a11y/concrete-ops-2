@@ -4133,6 +4133,7 @@ function sanitizeTimeEntry(entry, state, user) {
   const settings = companySettingsForState(state, user);
   const job = findSameCompanyLinkedRecord(state.jobs || [], entry.jobId, entry);
   const entryUser = findUserById(state, entry.userId);
+  const presenceReviewer = findUserById(state, entry.jobsitePresenceReviewedBy);
   const fieldSafeJob = job ? sanitizeJobForUser(job, user, state) : null;
   const normalizedJob = job ? normalizeJobRecord(job) : null;
   const totalMinutes = Number(entry.totalMinutes || 0);
@@ -4162,6 +4163,11 @@ function sanitizeTimeEntry(entry, state, user) {
     clockOutLocationAccuracy: entry.clockOutLocationAccuracy == null ? null : Number(entry.clockOutLocationAccuracy),
     clockOutLocationCapturedAt: entry.clockOutLocationCapturedAt || "",
     clockOutLocationUnavailableReason: entry.clockOutLocationUnavailableReason || "",
+    jobsitePresenceReviewStatus: entry.jobsitePresenceReviewStatus || "",
+    jobsitePresenceReviewNote: entry.jobsitePresenceReviewNote || "",
+    jobsitePresenceReviewedBy: entry.jobsitePresenceReviewedBy || "",
+    jobsitePresenceReviewedByName: presenceReviewer?.name || "",
+    jobsitePresenceReviewedAt: entry.jobsitePresenceReviewedAt || "",
     jobsitePresenceReview: deriveTimeEntryJobsitePresenceReview(entry, settings.timeLocationEvidencePolicy),
     breakStartAt: entry.breakStartAt || "",
     breakEndAt: entry.breakEndAt || "",
@@ -17136,6 +17142,56 @@ app.patch("/api/time-entries/:id", requireAuth, asyncRoute(async (req, res) => {
       detail: `${req.auth.user.name} corrected a time entry.`,
       actor: req.auth.user,
       changedFields: [...new Set(changedFields)],
+    });
+    return draft;
+  });
+
+  return res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/time-entries/:id/presence-review", requireAuth, asyncRoute(async (req, res) => {
+  assertCanCorrectTimeEntries(req.auth.user);
+  const { id } = req.params;
+  const payload = req.body || {};
+  const changedAt = new Date().toISOString();
+  const reviewNote = requiredString(payload.note, "Review note").slice(0, 500);
+
+  const nextState = await updateDb((draft) => {
+    draft.timeEntries ||= [];
+    const entry = findRequiredTimeEntry(draft, id, req.auth.user);
+    if (entry.jobsitePresenceReviewStatus === "reviewed" || entry.jobsitePresenceReviewedAt) {
+      throw new ApiError(409, "This presence review has already been completed.");
+    }
+
+    const settings = companySettingsForState(draft, req.auth.user);
+    const currentReview = deriveTimeEntryJobsitePresenceReview({
+      ...entry,
+      jobsitePresenceReviewStatus: "",
+      jobsitePresenceReviewNote: "",
+      jobsitePresenceReviewedBy: "",
+      jobsitePresenceReviewedAt: "",
+    }, settings.timeLocationEvidencePolicy);
+    if (currentReview.status !== "needs_review") {
+      throw new ApiError(409, "This time entry does not currently need presence review.");
+    }
+
+    entry.jobsitePresenceReviewStatus = "reviewed";
+    entry.jobsitePresenceReviewNote = reviewNote;
+    entry.jobsitePresenceReviewedBy = req.auth.user.id;
+    entry.jobsitePresenceReviewedAt = changedAt;
+    entry.updatedAt = changedAt;
+
+    const entryUser = findUserById(draft, entry.userId);
+    const detail = `${req.auth.user.name} reviewed a time presence signal for ${entryUser?.name || "a field user"}. Review note: ${reviewNote}`;
+    appendActivity(draft, "Time presence reviewed", detail, { companyId: entry.companyId });
+    appendAuditEvent(draft, {
+      entityType: "timeEntry",
+      entityId: entry.id,
+      action: "presence_reviewed",
+      summary: "Time presence reviewed",
+      detail,
+      actor: req.auth.user,
+      changedFields: ["jobsitePresenceReviewStatus", "jobsitePresenceReviewNote", "jobsitePresenceReviewedBy", "jobsitePresenceReviewedAt", "updatedAt"],
     });
     return draft;
   });

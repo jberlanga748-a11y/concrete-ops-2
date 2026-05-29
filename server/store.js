@@ -6105,6 +6105,27 @@ const MIGRATIONS = [
         }
       },
     },
+    {
+      version: 57,
+      description: "Persist review-only time presence decisions.",
+      up(database) {
+        const columns = [
+          ["jobsite_presence_review_status", "TEXT NOT NULL DEFAULT ''"],
+          ["jobsite_presence_review_note", "TEXT NOT NULL DEFAULT ''"],
+          ["jobsite_presence_reviewed_by", "TEXT NOT NULL DEFAULT ''"],
+          ["jobsite_presence_reviewed_at", "TEXT NOT NULL DEFAULT ''"],
+        ];
+
+        for (const [column, definition] of columns) {
+          if (!columnExists(database, "time_entries", column)) {
+            database.exec(`
+              ALTER TABLE time_entries
+              ADD COLUMN ${column} ${definition};
+            `);
+          }
+        }
+      },
+    },
   ];
 
 function runInTransaction(database, work) {
@@ -6306,9 +6327,10 @@ function writeStateToDatabase(database, state) {
       id, sort_index, company_id, user_id, job_id, work_category, clock_in_at, clock_out_at,
       clock_in_latitude, clock_in_longitude, clock_in_location_accuracy, clock_in_location_captured_at, clock_in_location_unavailable_reason,
       clock_out_latitude, clock_out_longitude, clock_out_location_accuracy, clock_out_location_captured_at, clock_out_location_unavailable_reason,
+      jobsite_presence_review_status, jobsite_presence_review_note, jobsite_presence_reviewed_by, jobsite_presence_reviewed_at,
       break_start_at, break_end_at, total_minutes, break_minutes, status, notes, created_at, updated_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertDailyReport = database.prepare(`
@@ -7150,6 +7172,10 @@ function writeStateToDatabase(database, state) {
         entry.clockOutLocationAccuracy ?? null,
         entry.clockOutLocationCapturedAt || null,
         entry.clockOutLocationUnavailableReason || "",
+        entry.jobsitePresenceReviewStatus || "",
+        entry.jobsitePresenceReviewNote || "",
+        entry.jobsitePresenceReviewedBy || "",
+        entry.jobsitePresenceReviewedAt || "",
         entry.breakStartAt || null,
         entry.breakEndAt || null,
         Number(entry.totalMinutes || 0),
@@ -7639,6 +7665,10 @@ function readTableState(database = createDatabaseConnection()) {
            clock_out_latitude AS clockOutLatitude, clock_out_longitude AS clockOutLongitude,
            clock_out_location_accuracy AS clockOutLocationAccuracy, clock_out_location_captured_at AS clockOutLocationCapturedAt,
            clock_out_location_unavailable_reason AS clockOutLocationUnavailableReason,
+           jobsite_presence_review_status AS jobsitePresenceReviewStatus,
+           jobsite_presence_review_note AS jobsitePresenceReviewNote,
+           jobsite_presence_reviewed_by AS jobsitePresenceReviewedBy,
+           jobsite_presence_reviewed_at AS jobsitePresenceReviewedAt,
            break_start_at AS breakStartAt, break_end_at AS breakEndAt, total_minutes AS totalMinutes,
            break_minutes AS breakMinutes, status, notes, created_at AS createdAt, updated_at AS updatedAt
     FROM time_entries

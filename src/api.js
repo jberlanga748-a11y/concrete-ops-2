@@ -947,6 +947,10 @@ export function correctTimeEntry(token, id, payload) {
   return request(`/api/time-entries/${id}`, { method: "PATCH", token, body: payload });
 }
 
+export function reviewTimePresence(token, id, payload) {
+  return request(`/api/time-entries/${id}/presence-review`, { method: "POST", token, body: payload });
+}
+
 export function createQueueItem(token, task) {
   return request("/api/queue-items", { method: "POST", token, body: task });
 }
