@@ -9499,6 +9499,161 @@ export function buildAgentOsExternalGateExecutionDeck({
   };
 }
 
+const EXTERNAL_GATE_SANDBOX_ADAPTERS = Object.freeze({
+  customer_portal_action: Object.freeze({
+    adapterId: "customer_portal_internal_approval_adapter",
+    mode: "agent_customer_portal_internal_approval_adapter_v1",
+    readyStatus: "sandbox_internal_approval_ready_locked",
+    auditEvent: "agent.os.external.customer_portal_action.sandbox_adapter_run_recorded",
+    blockedActions: Object.freeze(["No public link", "No redeemable token", "No customer session", "No customer action", "No customer message"]),
+    outputLabel: "Internal customer portal approval packet",
+    safetyBoundary: "Customer portal internal approval adapter is sandbox/internal only. It records review evidence but does not create links, tokens, sessions, customer actions, messages, invoices, payments, deploys, secrets, or production data changes.",
+  }),
+  sms_send: Object.freeze({
+    adapterId: "sms_test_recipient_adapter",
+    mode: "agent_sms_test_recipient_adapter_v1",
+    readyStatus: "sandbox_test_recipient_ready_locked",
+    auditEvent: "agent.os.external.sms_send.sandbox_adapter_run_recorded",
+    blockedActions: Object.freeze(["No SMS send", "No MMS send", "No opt-out bypass", "No provider request", "No customer contact"]),
+    outputLabel: "SMS test-recipient payload preview",
+    safetyBoundary: "SMS adapter is sandbox/test-recipient only. It records consent and copy review evidence but does not send SMS/MMS, call providers, bypass opt-out, contact customers, deploy, store secrets, or touch production data.",
+  }),
+  payment_collection: Object.freeze({
+    adapterId: "payment_sandbox_collection_adapter",
+    mode: "agent_payment_sandbox_collection_adapter_v1",
+    readyStatus: "sandbox_payment_review_ready_locked",
+    auditEvent: "agent.os.external.payment_collection.sandbox_adapter_run_recorded",
+    blockedActions: Object.freeze(["No charge", "No capture", "No refund", "No mark-paid", "No payment link send", "No accounting mutation"]),
+    outputLabel: "Sandbox payment collection preview",
+    safetyBoundary: "Payment adapter is sandbox-preview only. It records amount and reconciliation evidence but does not create payment intents, charge, capture, refund, mark paid, send payment links, mutate accounting, deploy, store secrets, or touch production data.",
+  }),
+  integration_write: Object.freeze({
+    adapterId: "integration_sandbox_field_map_adapter",
+    mode: "agent_integration_sandbox_field_map_adapter_v1",
+    readyStatus: "sandbox_integration_field_map_ready_locked",
+    auditEvent: "agent.os.external.integration_write.sandbox_adapter_run_recorded",
+    blockedActions: Object.freeze(["No provider write", "No live sync", "No webhook mutation", "No credential change", "No hidden export"]),
+    outputLabel: "Integration sandbox field-map preview",
+    safetyBoundary: "Integration adapter is sandbox field-map only. It records provider/object/field-map evidence but does not write providers, sync data, mutate webhooks, change credentials, deploy, store secrets, or touch production data.",
+  }),
+  bid_submission: Object.freeze({
+    adapterId: "bid_submission_packet_sandbox_adapter",
+    mode: "agent_bid_submission_packet_sandbox_adapter_v1",
+    readyStatus: "sandbox_bid_packet_ready_locked",
+    auditEvent: "agent.os.external.bid_submission.sandbox_adapter_run_recorded",
+    blockedActions: Object.freeze(["No bid submission", "No portal automation", "No credential handling", "No CAPTCHA/MFA bypass", "No packet upload"]),
+    outputLabel: "Bid submission packet manifest preview",
+    safetyBoundary: "Bid submission adapter is packet-manifest only. It records destination/deadline/packet evidence but does not submit bids, automate portals, handle credentials/CAPTCHA/MFA, upload packets, deploy, store secrets, or touch production data.",
+  }),
+});
+
+export function buildAgentExternalGateSandboxAdapterRun(gateId = "", {
+  executionContract = {},
+  adapterInput = {},
+  companyId = "",
+  actorUserId = "",
+  now = new Date().toISOString(),
+} = {}) {
+  const normalizedGateId = text(gateId, 120);
+  const adapter = EXTERNAL_GATE_SANDBOX_ADAPTERS[normalizedGateId];
+  if (!adapter) {
+    return {
+      ok: false,
+      error: "Unknown Apex Agent external gate sandbox adapter.",
+    };
+  }
+  const unsafePayload = payloadHasUnsafeExternalGateIntent(adapterInput);
+  const contract = executionContract && typeof executionContract === "object" ? executionContract : {};
+  const contractMatches = contract.gateId === normalizedGateId && contract.status === "prepared_locked";
+  const blockers = [
+    !contractMatches ? "A prepared locked execution contract for this exact gate is required before sandbox adapter review." : "",
+    unsafePayload ? "Sandbox adapter input cannot include credentials, bypass flags, live execution, immediate external-action requests, or secret-shaped fields." : "",
+  ].filter(Boolean);
+  const target = contract.target && typeof contract.target === "object" ? contract.target : {};
+  const idempotencyKey = text(adapterInput.idempotencyKey || `${adapter.adapterId}:${contract.id || contract.idempotencyKey || target.entityId || "missing-contract"}`, 260);
+
+  return {
+    ok: true,
+    mode: adapter.mode,
+    status: blockers.length ? "blocked_locked" : adapter.readyStatus,
+    id: text(`AGENT-ADAPTER-${adapter.adapterId}-${idempotencyKey}`.replace(/[^a-z0-9:_-]+/gi, "-"), 260),
+    adapterId: adapter.adapterId,
+    gateId: normalizedGateId,
+    workflowId: text(contract.workflowId || normalizedGateId, 120),
+    companyId: text(companyId || contract.companyId, 120),
+    requestedBy: text(actorUserId || contract.requestedBy, 120),
+    requestedAt: now,
+    executionContractId: text(contract.id, 260),
+    target: {
+      entityType: text(target.entityType || adapterInput.targetEntityType || "record", 80),
+      entityId: text(target.entityId || adapterInput.targetEntityId || "", 160),
+      label: text(target.label || adapterInput.targetLabel || adapter.outputLabel, 180),
+    },
+    idempotencyKey,
+    blockers,
+    adapterInputSummary: {
+      operatorNote: text(adapterInput.operatorNote || adapterInput.note || "", 240),
+      sandboxLabel: text(adapterInput.sandboxLabel || adapter.outputLabel, 160),
+      evidenceReference: text(adapterInput.evidenceReference || contract.id || "", 180),
+    },
+    outputPreview: {
+      label: adapter.outputLabel,
+      status: "preview_only_locked",
+      reviewTarget: text(target.label || target.entityId || adapter.outputLabel, 180),
+      redaction: "Secrets, credentials, raw provider payloads, public URLs, tokens, customer contact details, and payment data are not stored in this adapter preview.",
+      nextHumanStep: "Review the sandbox adapter evidence. A separate approved live adapter is still required before any external execution can exist.",
+    },
+    auditEvent: adapter.auditEvent,
+    blockedActions: [...adapter.blockedActions],
+    sandboxAdapterPrepared: blockers.length === 0,
+    sandboxAdapterExecuted: false,
+    providerRequestPrepared: false,
+    providerRequestSent: false,
+    externalActionPrepared: false,
+    externalActionExecuted: false,
+    productionDataTouched: false,
+    liveExecutionEnabled: false,
+    canExecute: false,
+    safetyBoundary: adapter.safetyBoundary,
+  };
+}
+
+export function buildAgentOsExternalGateSandboxAdapterDeck({
+  companyId = "",
+  actorUserId = "",
+  now = new Date().toISOString(),
+} = {}) {
+  const rows = Object.keys(EXTERNAL_GATE_SANDBOX_ADAPTERS).map((gateId) => {
+    const adapter = EXTERNAL_GATE_SANDBOX_ADAPTERS[gateId];
+    return {
+      gateId,
+      adapterId: adapter.adapterId,
+      label: getAgentOsExternalGateApprovalPlan(gateId)?.label || gateId,
+      mode: adapter.mode,
+      status: "available_locked",
+      runEndpoint: `POST /api/agent/os/external-gates/${gateId}/sandbox-adapter/run`,
+      executeEndpoint: `POST /api/agent/os/external-gates/${gateId}/execute`,
+      companyId: text(companyId, 120),
+      requestedBy: text(actorUserId, 120),
+      requestedAt: now,
+      blockedActions: [...adapter.blockedActions],
+      canExecute: false,
+      safetyBoundary: adapter.safetyBoundary,
+    };
+  });
+  return {
+    mode: "agent_os_external_gate_sandbox_adapter_deck_v1",
+    status: "available_locked",
+    rows,
+    stats: {
+      adapterCount: rows.length,
+      lockedCount: rows.filter((row) => row.canExecute === false).length,
+      runEndpointCount: rows.filter((row) => row.runEndpoint).length,
+    },
+    safetyBoundary: "Sandbox adapter deck is internal evidence only. It cannot send, collect payment, write portal/schedule/integration data, submit bids, store secrets, deploy, or touch production data.",
+  };
+}
+
 function parseScheduleTime(value = "") {
   const parsed = Date.parse(text(value, 120));
   return Number.isFinite(parsed) ? parsed : null;
@@ -11568,6 +11723,10 @@ export function buildAgentOsSummary({
   const externalGateExecutionDeck = buildAgentOsExternalGateExecutionDeck({
     externalGateSettings: normalizedExternalGateSettings,
   });
+  const externalGateSandboxAdapterDeck = buildAgentOsExternalGateSandboxAdapterDeck({
+    companyId: workspace.companyId || "",
+    actorUserId: workspace.actorUserId || "",
+  });
   const learningSignals = deriveAgentOsLearningSignals(workspace);
   const ledger = deriveAgentOsLedgerFromAuditEvents(auditEvents);
   const operatorControlPanel = buildAgentOsOperatorControlPanel({
@@ -11586,6 +11745,7 @@ export function buildAgentOsSummary({
     externalGateApprovalPlans,
     externalGateReadinessDeck,
     externalGateExecutionDeck,
+    externalGateSandboxAdapterDeck,
     publicLeadProviderSettings: normalizedProviderSettings,
     dailyJobFinderAutopilotSettings: normalizedProviderSettings.dailyJobFinderAutopilot,
     publicLeadProviderContract: providerContract,

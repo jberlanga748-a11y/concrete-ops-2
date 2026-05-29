@@ -24,6 +24,7 @@ Latest implementation status:
 - Build 9A adds locked scheduling mutation readiness and a server-side preflight packet. It performs visible job validation, conflict checks, notification policy review, idempotency, adapter-readiness checks, and restore-from-audit planning, but it does not mutate schedules, assign crew, change field visibility, notify crew/customers, write calendars, or store provider secrets.
 - Build 9B adds the Agent OS external-gate readiness deck plus locked preflight endpoints for email, SMS, payment collection, customer portal action, bid submission, and integration write gates. These packets record target review, human-confirmation evidence, idempotency, adapter readiness, blockers, rollback notes, and exact blocked actions, but they do not prepare provider requests, send messages, collect payment, write portal data, submit bids, write integrations, deploy, change secrets/config, or touch production data.
 - Build 9C adds the Agent OS locked execution contract deck plus generic hard-deny execute routes for email, SMS, payment collection, customer portal action, bid submission, and integration write gates. Contract routes can record redacted, idempotent internal approval evidence after complete human review; execute routes stay locked and cannot call providers or mutate customer/financial/integration records.
+- Build 9D adds sandbox/internal adapter runs for customer portal action, SMS send, payment collection, integration write, and bid submission. These runs require a prepared locked execution contract and record audit evidence for internal approval, test-recipient, sandbox payment, sandbox field-map, and packet-manifest review only; they do not prepare provider requests or execute live external actions.
 - Live SMS, payment collection, customer portal writes, scheduling mutation, bid submission, and integration writes remain blocked until their normal domain adapters, per-company opt-in, execution routes, and production-safe tests are separately approved and built.
 
 ## Approved Boundary Packet
@@ -111,8 +112,9 @@ This approval does not unlock live execution. The next implementation may expose
 2. Scheduling mutation: Build 9A adds locked readiness/preflight with conflict checks, schedule restore audit shape, and notification policy review.
 3. External readiness deck: Build 9B exposes locked Agent OS preflight rows and generic readiness endpoints for customer portal action, integration write, SMS send, payment collection, bid submission, and email send.
 4. Locked execution contracts: Build 9C exposes generic contract routes plus hard-deny execute routes for the non-scheduling external gates while keeping live execution disabled.
-5. Customer portal action: future live adapter must add preview/diff, token lifecycle rules, and compensating correction path.
-6. Integration write: future live adapter must add provider sandbox, field map, retry/idempotency, and reconciliation.
-7. SMS send: future live adapter must add consent source, opt-out enforcement, sender configuration, and test recipient.
-8. Payment collection: future live adapter must add sandbox provider, amount integrity, KYC/provider status, and reconciliation.
-9. Bid submission: final live adapter should be destination-specific and must not use credential/CAPTCHA/MFA bypass automation.
+5. Sandbox/internal adapters: Build 9D records review-only adapter evidence for customer portal action, SMS send, payment collection, integration write, and bid submission.
+6. Customer portal action: future live adapter must add preview/diff, token lifecycle rules, and compensating correction path.
+7. Integration write: future live adapter must add provider sandbox, field map, retry/idempotency, and reconciliation.
+8. SMS send: future live adapter must add consent source, opt-out enforcement, sender configuration, and test recipient.
+9. Payment collection: future live adapter must add sandbox provider, amount integrity, KYC/provider status, and reconciliation.
+10. Bid submission: final live adapter should be destination-specific and must not use credential/CAPTCHA/MFA bypass automation.
