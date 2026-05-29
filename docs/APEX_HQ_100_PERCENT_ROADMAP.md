@@ -702,7 +702,9 @@ Build 4A local completion evidence is tracked in `docs/APEX_HQ_MATERIAL_PURCHASI
 
 Build 5A local completion evidence is tracked in `docs/APEX_HQ_CHANGE_ORDER_MONEY_STATUS.md` and verified by `npm.cmd run verify:change-order-money`. It adds manual change amount, customer/GC manual review status, manual billing handoff prep, server redaction for field users, and safe copy boundaries. It does not unlock automatic customer sends, GC submission, invoices, payment collection, job status changes, production deploy, secrets/config changes, or production data work.
 
-Current local completion evidence for these five near-term slices is tracked in `docs/APEX_HQ_ROADMAP_HARDENING_STATUS.md` and verified by `npm.cmd run verify:roadmap-hardening`, `npm.cmd run verify:paid-pilot-close`, and `npm.cmd run verify:rate-book`. This does not unlock production deploy, public launch, billing/payment, external sends, customer portal actions, secrets/config changes, or production data work.
+Build 6A local completion evidence is tracked in `docs/APEX_HQ_JOB_COSTING_READINESS_STATUS.md` and verified by `npm.cmd run verify:job-costing`. It adds review-only estimate-vs-actual job costing prep across approved estimate revenue, recognized change-order revenue, aggregate labor-cost basis, material ticket costs, equipment costs, subcontractor costs, closeout blockers, and owner/admin BI metrics. It does not unlock payroll, accounting, invoices, payment collection, external sends, job status changes, production deploy, secrets/config changes, or production data work.
+
+Current local completion evidence for the near-term hardening slices is tracked in `docs/APEX_HQ_ROADMAP_HARDENING_STATUS.md` and verified by `npm.cmd run verify:roadmap-hardening`, `npm.cmd run verify:paid-pilot-close`, and `npm.cmd run verify:rate-book`. This does not unlock production deploy, public launch, billing/payment, external sends, customer portal actions, secrets/config changes, or production data work.
 
 Do not start Builds 7, 8, 10, 12, 14, or 15 without a separate approval because they touch external customers, providers, secrets, payments, data architecture, or public launch.
 

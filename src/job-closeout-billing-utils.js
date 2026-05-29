@@ -23,6 +23,9 @@ const PROFIT_LOSS_REQUIRED_INPUTS = Object.freeze([
   "Closeout proof, safety, and change-order blockers cleared",
 ]);
 
+const JOB_COSTING_CATEGORIES = Object.freeze(["labor", "material", "equipment", "subcontractor", "other"]);
+const JOB_COSTING_REVIEWED_STATUSES = new Set(["approved", "accepted", "reviewed", "paid", "posted", "complete", "completed", "closed"]);
+
 function asArray(value) {
   return Array.isArray(value) ? value : [];
 }
@@ -52,6 +55,11 @@ function money(value) {
   return Math.round(numberValue(value) * 100) / 100;
 }
 
+function percent(value) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.round(value * 1000) / 10;
+}
+
 function formatMoney(value) {
   const amount = money(value);
   return amount.toLocaleString("en-US", {
@@ -68,6 +76,37 @@ function formatHours(minutes) {
   if (hours === 0) return `${remainder}m`;
   if (remainder === 0) return `${hours}h`;
   return `${hours}h ${remainder}m`;
+}
+
+function normalizeCostCategory(record = {}) {
+  const haystack = normalize([
+    record.costCategory,
+    record.category,
+    record.type,
+    record.source,
+    record.label,
+    record.description,
+    record.supplier,
+  ].filter(Boolean).join(" "));
+
+  if (haystack.includes("labor") || haystack.includes("crew") || haystack.includes("time")) return "labor";
+  if (haystack.includes("material") || haystack.includes("supplier") || haystack.includes("receipt") || haystack.includes("ticket")) return "material";
+  if (haystack.includes("equipment") || haystack.includes("rental") || haystack.includes("tool")) return "equipment";
+  if (haystack.includes("subcontract") || haystack.includes("sub ") || haystack.includes("vendor")) return "subcontractor";
+  return JOB_COSTING_CATEGORIES.includes(haystack) ? haystack : "other";
+}
+
+function reviewedCostStatus(record = {}) {
+  const status = normalize(record.reviewStatus || record.costStatus || record.status || "needs_review");
+  return JOB_COSTING_REVIEWED_STATUSES.has(status);
+}
+
+function costAmount(record = {}) {
+  const direct = money(record.actualCost ?? record.totalCost ?? record.costAmount ?? record.laborCost ?? record.materialCost ?? record.equipmentCost ?? record.subcontractorCost ?? record.grossPay ?? record.amount);
+  if (direct) return direct;
+  const quantity = numberValue(record.quantity ?? record.hours ?? record.units);
+  const unitCost = numberValue(record.unitCost ?? record.costPerUnit);
+  return money(quantity * unitCost);
 }
 
 function reportIsReviewed(report = {}) {
@@ -121,6 +160,125 @@ function estimateForJob(estimates = [], jobId = "") {
     .sort((left, right) => jobEstimateTotal(right) - jobEstimateTotal(left))[0] || null;
 }
 
+function buildEmptyCostTotals() {
+  return Object.fromEntries(JOB_COSTING_CATEGORIES.map((category) => [category, 0]));
+}
+
+function addCostInput(costRows, warnings, record = {}, {
+  jobId = "",
+  category = "",
+  source = "cost input",
+  title = "",
+  requireReviewedStatus = true,
+} = {}) {
+  const amount = costAmount(record);
+  const resolvedCategory = category || normalizeCostCategory(record);
+  const label = text(title || record.title || record.description || record.supplier || record.id || source);
+  const linkedJobId = recordJobId(record);
+
+  if (linkedJobId && linkedJobId !== jobId) return;
+  if (!amount) {
+    warnings.push(`${label || source} is missing reviewed cost amount`);
+    return;
+  }
+  if (requireReviewedStatus && !reviewedCostStatus(record)) {
+    warnings.push(`${label || source} cost is not reviewed`);
+    return;
+  }
+
+  costRows.push({
+    id: text(record.id || `${source}-${costRows.length + 1}`),
+    category: JOB_COSTING_CATEGORIES.includes(resolvedCategory) ? resolvedCategory : "other",
+    source,
+    title: label || source,
+    amount,
+    reviewed: true,
+  });
+}
+
+function buildJobCostingReview(job = {}, context = {}, row = {}) {
+  const jobId = text(job.id);
+  const warnings = [];
+  const costRows = [];
+  const timeEntries = relatedByJobId(context.timeEntries, jobId);
+  const deliveryTickets = relatedByJobId(context.deliveryTickets, jobId);
+  const jobCostInputs = [
+    ...asArray(context.jobCostEntries),
+    ...asArray(context.costInputs),
+    ...asArray(context.jobCosts),
+    ...asArray(context.expenses),
+    ...asArray(context.receipts),
+  ].filter((record) => !isArchived(record) && (!recordJobId(record) || recordJobId(record) === jobId));
+
+  timeEntries.forEach((entry) => {
+    if (timeIsActive(entry)) {
+      warnings.push(`${entry.title || entry.jobTitle || "Time entry"} is still active`);
+      return;
+    }
+    if (!Number(entry.totalMinutes || entry.minutes || 0)) {
+      warnings.push(`${entry.title || entry.jobTitle || "Time entry"} is missing completed minutes`);
+    }
+    addCostInput(costRows, warnings, entry, {
+      jobId,
+      category: "labor",
+      source: "time",
+      title: entry.workerName || entry.userName || entry.jobTitle || "Completed crew time",
+      requireReviewedStatus: false,
+    });
+  });
+
+  deliveryTickets.forEach((ticket) => {
+    addCostInput(costRows, warnings, ticket, {
+      jobId,
+      category: "material",
+      source: "delivery_ticket",
+      title: ticket.supplier || ticket.ticketNumber || "Delivery ticket",
+      requireReviewedStatus: Boolean(ticket.reviewStatus || ticket.costStatus || ticket.status),
+    });
+  });
+
+  jobCostInputs.forEach((record) => {
+    addCostInput(costRows, warnings, record, {
+      jobId,
+      source: record.source || "job_cost_input",
+      requireReviewedStatus: true,
+    });
+  });
+
+  const costByCategory = buildEmptyCostTotals();
+  costRows.forEach((record) => {
+    costByCategory[record.category] = money(costByCategory[record.category] + record.amount);
+  });
+
+  const requiredMissing = ["labor", "material", "equipment", "subcontractor"].filter((category) => costByCategory[category] <= 0);
+  requiredMissing.forEach((category) => warnings.push(`No reviewed ${category} cost input`));
+
+  const actualCostTotal = money(Object.values(costByCategory).reduce((sum, value) => sum + value, 0));
+  const revenue = money(row.reviewTotal || 0);
+  const grossReviewDelta = money(revenue - actualCostTotal);
+  const grossReviewPercent = revenue ? percent(grossReviewDelta / revenue) : 0;
+  const readyForManualReview = warnings.length === 0 && actualCostTotal > 0 && row.profitLossReview?.readyForManualReview === true;
+
+  return {
+    mode: "review_only_job_costing",
+    estimatedRevenue: revenue,
+    estimateRevenue: money(row.estimateTotal || 0),
+    recognizedChangeOrderRevenue: money(row.recognizedChangeOrderTotal || 0),
+    completedMinutes: row.time?.completedMinutes || 0,
+    completedHoursLabel: row.time?.completedHoursLabel || formatHours(0),
+    actualCostTotal,
+    costByCategory,
+    costInputCount: costRows.length,
+    grossReviewDelta,
+    grossReviewPercent,
+    readyForManualReview,
+    missingCostCategories: requiredMissing,
+    warnings,
+    nextStep: warnings[0] || "Owner/admin reviews estimate revenue, recognized change orders, labor, material, equipment, subcontractor, and overhead before finalizing job costing manually.",
+    boundary: "Apex prepares job costing review only. It does not finalize profit/loss, calculate payroll, create invoices, collect payment, send customer messages, post accounting entries, or change job status.",
+  };
+}
+
 function buildJobCloseoutRow(job = {}, context = {}) {
   const jobId = text(job.id);
   const status = normalizeJobStatus(job.status || job.stage);
@@ -170,8 +328,7 @@ function buildJobCloseoutRow(job = {}, context = {}) {
     changeOrdersNeedingReview.length ? "Change orders still need pricing/billing review" : "",
     blockers.length ? "Closeout blockers remain before profit/loss can be trusted" : "",
   ].filter(Boolean);
-
-  return {
+  const baseRow = {
     jobId,
     title: jobTitle(job),
     customer: text(job.customer || job.customerName),
@@ -214,6 +371,11 @@ function buildJobCloseoutRow(job = {}, context = {}) {
     },
     blockers,
     nextAction: blockers.length ? blockers[0] : "Manual billing review packet is clean",
+  };
+
+  return {
+    ...baseRow,
+    jobCostingReview: buildJobCostingReview(job, context, baseRow),
   };
 }
 
@@ -273,6 +435,21 @@ export function buildJobCloseoutBillingReviewPacket(context = {}, {
   const safetyOpen = rows.reduce((sum, row) => sum + row.safety.open, 0);
   const profitLossReadyRows = rows.filter((row) => row.profitLossReview.readyForManualReview);
   const profitLossWarnings = rows.reduce((sum, row) => sum + row.profitLossReview.warnings.length, 0);
+  const jobCostingReadyRows = rows.filter((row) => row.jobCostingReview.readyForManualReview);
+  const actualCostTotal = rows.reduce((sum, row) => sum + row.jobCostingReview.actualCostTotal, 0);
+  const jobCostingWarnings = rows.reduce((sum, row) => sum + row.jobCostingReview.warnings.length, 0);
+  const jobCostingReviewItems = rows.slice(0, 4).map((row) => ({
+    jobId: row.jobId,
+    title: row.title,
+    estimatedRevenue: row.jobCostingReview.estimatedRevenue,
+    actualCostTotal: row.jobCostingReview.actualCostTotal,
+    costByCategory: row.jobCostingReview.costByCategory,
+    grossReviewDelta: row.jobCostingReview.grossReviewDelta,
+    grossReviewPercent: row.jobCostingReview.grossReviewPercent,
+    readyForManualReview: row.jobCostingReview.readyForManualReview,
+    nextStep: row.jobCostingReview.nextStep,
+    boundary: row.jobCostingReview.boundary,
+  }));
   const profitLossReviewItems = rows.slice(0, 4).map((row) => ({
     jobId: row.jobId,
     title: row.title,
@@ -306,6 +483,11 @@ export function buildJobCloseoutBillingReviewPacket(context = {}, {
       detail: `${profitLossReadyRows.length} job${profitLossReadyRows.length === 1 ? "" : "s"} have clean review inputs and ${profitLossWarnings} profit/loss input warning${profitLossWarnings === 1 ? "" : "s"} remain. Apex prepares context only; the office finalizes cost and margin manually.`,
     },
     {
+      id: "job-costing-review",
+      label: "Job costing review",
+      detail: `${formatMoney(actualCostTotal)} in reviewed actual cost inputs are visible across ${jobCostingReadyRows.length} manually ready job${jobCostingReadyRows.length === 1 ? "" : "s"}. ${jobCostingWarnings} job-costing warning${jobCostingWarnings === 1 ? "" : "s"} remain before profit/loss can be trusted.`,
+    },
+    {
       id: "proof-safety-blockers",
       label: "Proof / safety blockers",
       detail: `${proofGaps} proof gap${proofGaps === 1 ? "" : "s"}, ${changeOrdersNeedingReview} change order${changeOrdersNeedingReview === 1 ? "" : "s"} needing review, and ${safetyOpen} unresolved safety item${safetyOpen === 1 ? "" : "s"} should be checked before billing is treated as clean.`,
@@ -336,11 +518,16 @@ export function buildJobCloseoutBillingReviewPacket(context = {}, {
       activeTimeEntries: openTimeEntries,
       profitLossReadyForManualReview: profitLossReadyRows.length,
       profitLossInputWarnings: profitLossWarnings,
+      jobCostingReadyForManualReview: jobCostingReadyRows.length,
+      jobCostingActualCostTotal: money(actualCostTotal),
+      jobCostingReviewDelta: money(estimateTotal + changeOrderTotal - actualCostTotal),
+      jobCostingInputWarnings: jobCostingWarnings,
       proofGaps,
       changeOrdersNeedingReview,
       safetyOpen,
     },
     rows,
+    jobCostingReviewItems,
     profitLossReviewItems,
     summaryItems,
     blockedActions: REVIEW_ONLY_BLOCKED_ACTIONS.slice(),
