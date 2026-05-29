@@ -2560,6 +2560,239 @@ test("Agent OS scheduling gate readiness is server-authorized and does not mutat
   }
 });
 
+test("Agent OS external gate readiness endpoints stay locked for portal, integration, SMS, payment, and bid preflights", async () => {
+  const fixture = await startServer();
+
+  try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.ELITE);
+    const adminUser = createUserRecord({
+      id: "U-AGENT-GATE-ADMIN",
+      email: "agent-gate-admin@apexhq.test",
+      password: "apexdemo123",
+      name: "Agent Gate Admin",
+      role: "Administrator",
+    });
+    const fieldUser = createUserRecord({
+      id: "U-AGENT-GATE-FIELD",
+      email: "agent-gate-field@apexhq.test",
+      password: "apexdemo123",
+      name: "Agent Gate Field",
+      role: "Employee",
+    });
+    insertUser(fixture.sqliteFile, adminUser);
+    insertUser(fixture.sqliteFile, fieldUser);
+    const adminLogin = await login(fixture.baseUrl, {
+      email: adminUser.email,
+      password: "apexdemo123",
+    });
+    const fieldLogin = await login(fixture.baseUrl, {
+      email: fieldUser.email,
+      password: "apexdemo123",
+    });
+    const headers = authHeaders(adminLogin.token);
+    const review = {
+      recipientVerified: true,
+      consentConfirmed: true,
+      suppressionReviewed: true,
+      providerConfigured: true,
+      optOutReviewed: true,
+      senderConfigured: true,
+      testRecipientStrategy: true,
+      templateReviewed: true,
+      amountIntegrityReviewed: true,
+      sandboxProviderReviewed: true,
+      kycProviderStatusReviewed: true,
+      reconciliationReviewed: true,
+      previewDiffReviewed: true,
+      customerScopeValidated: true,
+      tokenLifecycleReviewed: true,
+      compensatingActionReviewed: true,
+      sandboxVerified: true,
+      providerObjectScoped: true,
+      fieldMapReviewed: true,
+      destinationVerified: true,
+      packetPreviewReviewed: true,
+      deadlineReviewed: true,
+      withdrawalCorrectionReviewed: true,
+      humanReviewConfirmed: true,
+      approvedBoundary: true,
+    };
+
+    const gateIds = ["customer_portal_action", "integration_write", "sms_send", "payment_collection", "bid_submission", "email_send"];
+    for (const gateId of gateIds) {
+      const readiness = await assertOk(fixture.baseUrl, `/api/agent/os/external-gates/${gateId}/readiness`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          target: { entityType: "job", entityId: `JOB-${gateId}`, label: `${gateId} review target` },
+          review: { ...review, idempotencyKey: `gate-readiness-${gateId}` },
+        }),
+      });
+      const packet = readiness.externalGateReadiness;
+      assert.equal(packet.ok, true);
+      assert.equal(packet.gateId, gateId);
+      assert.equal(packet.status, "blocked_locked");
+      assert.equal(packet.externalActionPrepared, false);
+      assert.equal(packet.externalActionExecuted, false);
+      assert.equal(packet.providerRequestPrepared, false);
+      assert.equal(packet.providerRequestSent, false);
+      assert.equal(packet.canExecute, false);
+      assert.match(packet.blockers.join(" "), /Per-company|adapter/i);
+    }
+
+    const unsafe = await assertOk(fixture.baseUrl, "/api/agent/os/external-gates/integration_write/readiness", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        target: { entityType: "integration", entityId: "INT-1", label: "Accounting sync", syncNow: true },
+        review: { ...review, apiKey: "do-not-store", idempotencyKey: "unsafe-integration-readiness" },
+      }),
+    });
+    assert.match(unsafe.externalGateReadiness.blockers.join(" "), /credentials|auto-execute|external-action/i);
+    assert.equal(unsafe.externalGateReadiness.externalActionExecuted, false);
+
+    const fieldBlocked = await requestJson(fixture.baseUrl, "/api/agent/os/external-gates/sms_send/readiness", {
+      method: "POST",
+      headers: authHeaders(fieldLogin.token),
+      body: JSON.stringify({
+        target: { entityType: "lead", entityId: "LEAD-1", label: "Lead follow-up" },
+        review,
+      }),
+    });
+    assert.equal(fieldBlocked.response.status, 403);
+    assert.equal(auditEvents(fixture.sqliteFile).some((event) => String(event.action || "").includes(".readiness_locked")), false);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("Agent OS external gate execution contracts are idempotent, audited, and hard-locked", async () => {
+  const fixture = await startServer();
+
+  try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.ELITE);
+    const adminUser = createUserRecord({
+      id: "U-AGENT-GATE-CONTRACT-ADMIN",
+      email: "agent-gate-contract-admin@apexhq.test",
+      password: "apexdemo123",
+      name: "Agent Gate Contract Admin",
+      role: "Administrator",
+    });
+    const fieldUser = createUserRecord({
+      id: "U-AGENT-GATE-CONTRACT-FIELD",
+      email: "agent-gate-contract-field@apexhq.test",
+      password: "apexdemo123",
+      name: "Agent Gate Contract Field",
+      role: "Employee",
+    });
+    insertUser(fixture.sqliteFile, adminUser);
+    insertUser(fixture.sqliteFile, fieldUser);
+    const adminLogin = await login(fixture.baseUrl, {
+      email: adminUser.email,
+      password: "apexdemo123",
+    });
+    const fieldLogin = await login(fixture.baseUrl, {
+      email: fieldUser.email,
+      password: "apexdemo123",
+    });
+    const headers = authHeaders(adminLogin.token);
+    const review = {
+      amountIntegrityReviewed: true,
+      sandboxProviderReviewed: true,
+      kycProviderStatusReviewed: true,
+      reconciliationReviewed: true,
+      destinationVerified: true,
+      packetPreviewReviewed: true,
+      deadlineReviewed: true,
+      withdrawalCorrectionReviewed: true,
+      sandboxVerified: true,
+      providerObjectScoped: true,
+      fieldMapReviewed: true,
+      humanReviewConfirmed: true,
+      approvedBoundary: true,
+      idempotencyKey: "agent-gate-contract-1",
+    };
+
+    const contract = await assertOk(fixture.baseUrl, "/api/agent/os/external-gates/payment_collection/execution-contract", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        target: { entityType: "job", entityId: "JOB-PAYMENT-1", label: "Payment review target" },
+        review,
+      }),
+    });
+    assert.equal(contract.executionContract.mode, "agent_os_external_gate_execution_contract_v1");
+    assert.equal(contract.executionContract.status, "prepared_locked");
+    assert.equal(contract.executionContract.gateId, "payment_collection");
+    assert.equal(contract.executionContract.executionEnabled, false);
+    assert.equal(contract.executionContract.canExecute, false);
+    assert.equal(contract.executionContract.providerRequestPrepared, false);
+    assert.equal(contract.executionContract.providerRequestSent, false);
+    assert.equal(contract.executionContract.externalActionExecuted, false);
+    assert.match(contract.boundary, /Locked execution contract only/i);
+
+    const replay = await assertOk(fixture.baseUrl, "/api/agent/os/external-gates/payment_collection/execution-contract", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        target: { entityType: "job", entityId: "JOB-PAYMENT-1", label: "Payment review target" },
+        review,
+      }),
+    });
+    assert.equal(replay.idempotentReplay, true);
+    assert.equal(replay.executionContract.id, contract.executionContract.id);
+
+    for (const gateId of ["bid_submission", "integration_write"]) {
+      const prepared = await assertOk(fixture.baseUrl, `/api/agent/os/external-gates/${gateId}/execution-contract`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          target: { entityType: "record", entityId: `${gateId}-record`, label: `${gateId} target` },
+          review: { ...review, idempotencyKey: `agent-gate-contract-${gateId}` },
+        }),
+      });
+      assert.equal(prepared.executionContract.gateId, gateId);
+      assert.equal(prepared.executionContract.canExecute, false);
+      assert.equal(prepared.executionContract.externalActionPrepared, false);
+    }
+
+    const executeDenied = await requestJson(fixture.baseUrl, "/api/agent/os/external-gates/payment_collection/execute", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ executionContractId: contract.executionContract.id, humanReviewConfirmed: true }),
+    });
+    assert.equal(executeDenied.response.status, 423);
+    assert.match(executeDenied.payload.error, /execution is locked/i);
+
+    const unsafe = await requestJson(fixture.baseUrl, "/api/agent/os/external-gates/integration_write/execution-contract", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        target: { entityType: "integration", entityId: "INT-UNSAFE", writeNow: true },
+        review: { ...review, apiKey: "do-not-store", idempotencyKey: "unsafe-contract" },
+      }),
+    });
+    assert.equal(unsafe.response.status, 409);
+
+    const fieldDenied = await requestJson(fixture.baseUrl, "/api/agent/os/external-gates/payment_collection/execution-contract", {
+      method: "POST",
+      headers: authHeaders(fieldLogin.token),
+      body: JSON.stringify({
+        target: { entityType: "job", entityId: "JOB-PAYMENT-1" },
+        review,
+      }),
+    });
+    assert.equal(fieldDenied.response.status, 403);
+
+    const records = auditEvents(fixture.sqliteFile).filter((event) => event.entityType === "agent_external_execution_contract");
+    assert.equal(records.length, 3);
+    assert.equal(records.filter((record) => record.action.includes("execution_contract_prepared_locked")).length, 3);
+    assert.doesNotMatch(JSON.stringify(records), /do-not-store|apexdemo123/i);
+  } finally {
+    await fixture.stop();
+  }
+});
+
 test("Communication provider readiness and outbound approval queue stay locked and audited", async () => {
   const fixture = await startServer({
     EMAIL_PROVIDER: "resend",

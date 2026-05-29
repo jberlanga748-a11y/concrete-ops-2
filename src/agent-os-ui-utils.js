@@ -456,6 +456,53 @@ export function deriveAgentOsProductionEvidenceRows(productionReadinessGate = {}
   return [...blockers, ...evidenceRows].slice(0, 12);
 }
 
+export function deriveAgentOsExternalGateReadinessRows(agentOs = {}) {
+  const rows = normalizeObjectArray(agentOs?.externalGateReadinessDeck?.rows);
+  return rows.map((row) => {
+    const status = text(row.status || "blocked_locked", 120);
+    const blockerCount = Number(row.blockerCount || 0);
+    const evidenceCount = Number(row.evidenceCount || 0);
+    const ready = status !== "blocked_locked" && blockerCount === 0;
+    return {
+      gateId: text(row.gateId, 120),
+      label: text(row.label || row.gateId || "External gate", 160),
+      status,
+      statusLabel: status.replace(/_/g, " "),
+      tone: ready ? "green" : blockerCount > 0 ? "red" : "amber",
+      blockerCount,
+      evidenceCount,
+      preflightEndpoint: text(row.preflightEndpoint, 220),
+      missingEvidenceIds: (Array.isArray(row.missingEvidenceIds) ? row.missingEvidenceIds : []).map((id) => text(id, 120)).filter(Boolean).slice(0, 8),
+      blockedActions: (Array.isArray(row.blockedActions) ? row.blockedActions : []).map((item) => text(item, 160)).filter(Boolean).slice(0, 5),
+      safetyBoundary: text(row.safetyBoundary || agentOs?.externalGateReadinessDeck?.safetyBoundary || "External gate remains locked.", 280),
+    };
+  }).slice(0, 10);
+}
+
+export function deriveAgentOsExternalGateExecutionRows(agentOs = {}) {
+  return normalizeObjectArray(agentOs?.externalGateExecutionDeck?.rows)
+    .map((row) => {
+      const blockerCount = Number(row.blockerCount || 0);
+      const canExecute = row.canExecute === true;
+      return {
+        gateId: text(row.gateId, 120),
+        label: text(row.label || row.gateId || "External gate", 160),
+        status: text(row.status || "locked", 120),
+        statusLabel: text(row.status || "locked", 120).replace(/_/g, " "),
+        tone: canExecute ? "green" : "amber",
+        blockerCount,
+        contractRoute: text(row.contractRoute, 220),
+        executionRoute: text(row.executionRoute, 220),
+        configuredExecutionEnabled: row.configuredExecutionEnabled === true,
+        canExecute,
+        futureAdapterBlockers: (Array.isArray(row.futureAdapterBlockers) ? row.futureAdapterBlockers : []).map((item) => text(item, 180)).filter(Boolean).slice(0, 4),
+        blockedActions: (Array.isArray(row.blockedActions) ? row.blockedActions : []).map((item) => text(item, 160)).filter(Boolean).slice(0, 5),
+        safetyBoundary: text(row.safetyBoundary || agentOs?.externalGateExecutionDeck?.safetyBoundary || "External execution remains locked.", 280),
+      };
+    })
+    .slice(0, 10);
+}
+
 export function deriveAgentOsConsoleSummary({
   taskOptions = [],
   runRows = [],

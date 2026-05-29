@@ -1,6 +1,6 @@
 # Apex Agent External Gate Approval Plan
 
-Last updated: 2026-05-27
+Last updated: 2026-05-29
 
 Purpose: define the exact approval packet required before Apex Agent may perform any customer-facing, financial, scheduling, bid, portal, or integration write action.
 
@@ -22,7 +22,9 @@ Latest implementation status:
 - Build 8C exposes the locked readiness packet inside the Communications screen and lets office users record selected-record suppression evidence. The UI still does not prepare provider requests, call unsubscribe endpoints, send email/SMS, store raw provider responses, or store provider secrets.
 - Build 8D exposes locked outbound approval queueing and locked delivery-attempt contract preparation inside the Communications screen. These UI actions write review/audit evidence only and still do not prepare provider requests, call unsubscribe endpoints, send email/SMS, store raw provider responses, or store provider secrets.
 - Build 9A adds locked scheduling mutation readiness and a server-side preflight packet. It performs visible job validation, conflict checks, notification policy review, idempotency, adapter-readiness checks, and restore-from-audit planning, but it does not mutate schedules, assign crew, change field visibility, notify crew/customers, write calendars, or store provider secrets.
-- SMS, payment collection, customer portal writes, scheduling mutation, bid submission, and integration writes remain planned only until their adapters and tests are built.
+- Build 9B adds the Agent OS external-gate readiness deck plus locked preflight endpoints for email, SMS, payment collection, customer portal action, bid submission, and integration write gates. These packets record target review, human-confirmation evidence, idempotency, adapter readiness, blockers, rollback notes, and exact blocked actions, but they do not prepare provider requests, send messages, collect payment, write portal data, submit bids, write integrations, deploy, change secrets/config, or touch production data.
+- Build 9C adds the Agent OS locked execution contract deck plus generic hard-deny execute routes for email, SMS, payment collection, customer portal action, bid submission, and integration write gates. Contract routes can record redacted, idempotent internal approval evidence after complete human review; execute routes stay locked and cannot call providers or mutate customer/financial/integration records.
+- Live SMS, payment collection, customer portal writes, scheduling mutation, bid submission, and integration writes remain blocked until their normal domain adapters, per-company opt-in, execution routes, and production-safe tests are separately approved and built.
 
 ## Approved Boundary Packet
 
@@ -106,9 +108,11 @@ This approval does not unlock live execution. The next implementation may expose
 ## Implementation Order
 
 1. Email send: implemented for human-confirmed estimate email only.
-2. Scheduling mutation: Build 9A adds locked readiness/preflight with conflict checks, schedule restore audit shape, and notification policy review. Next adapter may add an internal UI review surface, still without schedule mutation.
-3. Customer portal action: next adapter should add preview/diff, token lifecycle rules, and compensating correction path.
-4. Integration write: next adapter should add provider sandbox, field map, retry/idempotency, and reconciliation.
-5. SMS send: next adapter should add consent source, opt-out enforcement, sender configuration, and test recipient.
-6. Payment collection: next adapter should add sandbox provider, amount integrity, KYC/provider status, and reconciliation.
-7. Bid submission: final adapter should be destination-specific and must not use credential/CAPTCHA/MFA bypass automation.
+2. Scheduling mutation: Build 9A adds locked readiness/preflight with conflict checks, schedule restore audit shape, and notification policy review.
+3. External readiness deck: Build 9B exposes locked Agent OS preflight rows and generic readiness endpoints for customer portal action, integration write, SMS send, payment collection, bid submission, and email send.
+4. Locked execution contracts: Build 9C exposes generic contract routes plus hard-deny execute routes for the non-scheduling external gates while keeping live execution disabled.
+5. Customer portal action: future live adapter must add preview/diff, token lifecycle rules, and compensating correction path.
+6. Integration write: future live adapter must add provider sandbox, field map, retry/idempotency, and reconciliation.
+7. SMS send: future live adapter must add consent source, opt-out enforcement, sender configuration, and test recipient.
+8. Payment collection: future live adapter must add sandbox provider, amount integrity, KYC/provider status, and reconciliation.
+9. Bid submission: final live adapter should be destination-specific and must not use credential/CAPTCHA/MFA bypass automation.

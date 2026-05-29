@@ -3,6 +3,10 @@ import test from "node:test";
 
 import {
   buildAgentOsExternalGateDecisionPacket,
+  buildAgentExternalGateReadinessPacket,
+  buildAgentOsExternalGateReadinessDeck,
+  buildAgentExternalGateExecutionContract,
+  buildAgentOsExternalGateExecutionDeck,
   buildAgentOsInternalDraftPacket,
   buildAgentSchedulingMutationGateReadinessPacket,
   buildAgentLeadsAutonomousDailyScoutSchedule,
@@ -4328,6 +4332,175 @@ test("Agent OS scheduling gate readiness can be review-ready but still cannot mu
   });
   assert.match(unsafe.blockers.join(" "), /credentials|auto-execute/i);
   assert.equal(unsafe.canMutateSchedule, false);
+});
+
+test("Agent OS external gate readiness packets cover portal, integration, SMS, payment, and bid gates without execution", () => {
+  const gateIds = ["customer_portal_action", "integration_write", "sms_send", "payment_collection", "bid_submission"];
+  const packets = gateIds.map((gateId) => buildAgentExternalGateReadinessPacket(gateId, {
+    companyId: "COMPANY-1",
+    actorUserId: "USER-1",
+    target: { entityType: "record", entityId: `${gateId}-target`, label: `${gateId} target` },
+    review: Object.fromEntries([
+      ["previewDiffReviewed", true],
+      ["customerScopeValidated", true],
+      ["tokenLifecycleReviewed", true],
+      ["compensatingActionReviewed", true],
+      ["sandboxVerified", true],
+      ["providerObjectScoped", true],
+      ["fieldMapReviewed", true],
+      ["reconciliationReviewed", true],
+      ["consentConfirmed", true],
+      ["optOutReviewed", true],
+      ["senderConfigured", true],
+      ["testRecipientStrategy", true],
+      ["templateReviewed", true],
+      ["amountIntegrityReviewed", true],
+      ["sandboxProviderReviewed", true],
+      ["kycProviderStatusReviewed", true],
+      ["destinationVerified", true],
+      ["packetPreviewReviewed", true],
+      ["deadlineReviewed", true],
+      ["withdrawalCorrectionReviewed", true],
+      ["humanReviewConfirmed", true],
+      ["approvedBoundary", true],
+    ]),
+    externalGateSettings: {
+      [gateId]: {
+        enabled: true,
+        mode: "human_confirmed",
+        allowedWorkflow: gateId,
+        testOnly: false,
+      },
+    },
+    adapterEvidence: {
+      [gateId]: {
+        domainAdapter: true,
+        companyOptIn: true,
+        humanConfirmation: true,
+        idempotency: true,
+        audit: true,
+        rollback: true,
+        tenantRolePackageTests: true,
+        providerSandboxOrTestStrategy: true,
+      },
+    },
+    now: "2026-05-29T13:00:00.000Z",
+  }));
+
+  assert.equal(packets.every((packet) => packet.ok === true), true);
+  assert.equal(packets.every((packet) => packet.status.includes("ready_for_human_confirmed")), true);
+  assert.equal(packets.every((packet) => packet.externalActionPrepared === false), true);
+  assert.equal(packets.every((packet) => packet.externalActionExecuted === false), true);
+  assert.equal(packets.every((packet) => packet.canExecute === false), true);
+  assert.ok(packets.find((packet) => packet.gateId === "sms_send").blockedActions.includes("No SMS send"));
+  assert.ok(packets.find((packet) => packet.gateId === "payment_collection").blockedActions.includes("No charge"));
+  assert.match(packets.find((packet) => packet.gateId === "bid_submission").safetyBoundary, /No bid submission/i);
+
+  const unsafe = buildAgentExternalGateReadinessPacket("integration_write", {
+    target: { entityType: "integration", entityId: "INT-1" },
+    review: { humanReviewConfirmed: true, approvedBoundary: true, apiKey: "secret", syncNow: true },
+  });
+  assert.equal(unsafe.status, "blocked_locked");
+  assert.match(unsafe.blockers.join(" "), /credentials|auto-execute|external-action/i);
+});
+
+test("Agent OS external gate readiness deck exposes all locked preflight endpoints", () => {
+  const deck = buildAgentOsExternalGateReadinessDeck({
+    companyId: "COMPANY-1",
+    actorUserId: "USER-1",
+  });
+
+  assert.equal(deck.mode, "agent_os_external_gate_readiness_deck_v1");
+  assert.deepEqual(deck.rows.map((row) => row.gateId), [
+    "email_send",
+    "sms_send",
+    "payment_collection",
+    "customer_portal_action",
+    "scheduling",
+    "bid_submission",
+    "integration_write",
+  ]);
+  assert.equal(deck.stats.gateCount, 7);
+  assert.equal(deck.stats.endpointCount, 7);
+  assert.ok(deck.rows.find((row) => row.gateId === "scheduling").preflightEndpoint.includes("/scheduling/readiness"));
+  assert.ok(deck.rows.find((row) => row.gateId === "sms_send").blockedActions.includes("No SMS send"));
+  assert.match(deck.safetyBoundary, /review-only/i);
+});
+
+test("Agent OS external gate execution contracts define locked routes without provider actions", () => {
+  const contract = buildAgentExternalGateExecutionContract("payment_collection", {
+    companyId: "COMPANY-1",
+    actorUserId: "USER-1",
+    target: { entityType: "job", entityId: "JOB-1", label: "Driveway invoice" },
+    review: {
+      amountIntegrityReviewed: true,
+      sandboxProviderReviewed: true,
+      kycProviderStatusReviewed: true,
+      reconciliationReviewed: true,
+      humanReviewConfirmed: true,
+      approvedBoundary: true,
+      idempotencyKey: "payment-contract-1",
+    },
+    externalGateSettings: {
+      payment_collection: { enabled: true, mode: "human_confirmed", allowedWorkflow: "payment_collection", testOnly: true },
+    },
+    adapterEvidence: {
+      payment_collection: {
+        domainAdapter: true,
+        companyOptIn: true,
+        humanConfirmation: true,
+        idempotency: true,
+        audit: true,
+        rollback: true,
+        tenantRolePackageTests: true,
+        providerSandboxOrTestStrategy: true,
+      },
+    },
+  });
+
+  assert.equal(contract.ok, true);
+  assert.equal(contract.mode, "agent_os_external_gate_execution_contract_v1");
+  assert.equal(contract.status, "prepared_locked");
+  assert.equal(contract.gateId, "payment_collection");
+  assert.match(contract.executionRoute, /payment_collection\/execute/);
+  assert.equal(contract.executionEnabled, false);
+  assert.equal(contract.canExecute, false);
+  assert.equal(contract.providerRequestPrepared, false);
+  assert.equal(contract.providerRequestSent, false);
+  assert.equal(contract.externalActionExecuted, false);
+  assert.ok(contract.blockedActions.includes("No charge"));
+  assert.match(contract.safetyBoundary, /No provider request|payment/i);
+
+  const unsafe = buildAgentExternalGateExecutionContract("integration_write", {
+    target: { entityType: "integration", entityId: "INT-1", writeNow: true },
+    review: { humanReviewConfirmed: true, approvedBoundary: true, apiKey: "secret" },
+  });
+  assert.equal(unsafe.status, "blocked_locked");
+  assert.match(unsafe.reviewBlockers.join(" "), /credentials|auto-execute|external-action/i);
+});
+
+test("Agent OS external gate execution deck exposes all locked contract and execute routes", () => {
+  const deck = buildAgentOsExternalGateExecutionDeck({
+    companyId: "COMPANY-1",
+    actorUserId: "USER-1",
+  });
+
+  assert.equal(deck.mode, "agent_os_external_gate_execution_deck_v1");
+  assert.deepEqual(deck.rows.map((row) => row.gateId), [
+    "email_send",
+    "sms_send",
+    "payment_collection",
+    "customer_portal_action",
+    "bid_submission",
+    "integration_write",
+  ]);
+  assert.equal(deck.stats.gateCount, 6);
+  assert.equal(deck.stats.lockedCount, 6);
+  assert.equal(deck.stats.contractEndpointCount, 6);
+  assert.equal(deck.stats.executionEndpointCount, 6);
+  assert.equal(deck.rows.every((row) => row.canExecute === false), true);
+  assert.ok(deck.rows.find((row) => row.gateId === "bid_submission").executionRoute.includes("/bid_submission/execute"));
+  assert.match(deck.safetyBoundary, /locked/i);
 });
 
 test("Agent OS known external gates stay disabled unless explicitly configured", () => {
