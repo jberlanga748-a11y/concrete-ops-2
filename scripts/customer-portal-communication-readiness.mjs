@@ -25,7 +25,7 @@ function printHelp() {
 Usage:
   npm run launch:customer-portal-readiness
   npm run launch:customer-portal-readiness -- --json
-  npm run launch:customer-portal-readiness -- --portal-preview-verified --print-packets-verified --estimate-output-verified --roles-verified --entitlements-verified --agent-policy-verified --claims-verified --build-verified --tokenized-portal-plan-documented --access-record-lifecycle-verified --public-route-contract-verified --access-record-packet-verified --share-approval-queue-verified --share-approval-review-verified --external-gate-preflight-verified --message-review-plan-documented --approval-audit-plan-documented --json
+  npm run launch:customer-portal-readiness -- --portal-preview-verified --print-packets-verified --estimate-output-verified --roles-verified --entitlements-verified --agent-policy-verified --claims-verified --build-verified --tokenized-portal-plan-documented --access-record-lifecycle-verified --public-route-contract-verified --access-record-packet-verified --share-approval-queue-verified --share-approval-review-verified --external-gate-preflight-verified --external-execution-contract-verified --message-review-plan-documented --approval-audit-plan-documented --json
 
 Future approval flags:
   --external-portal-approval-phrase=${EXTERNAL_PORTAL_APPROVAL_PHRASE}
@@ -56,6 +56,7 @@ function parseArgs(argv = []) {
       shareApprovalQueueVerified: false,
       shareApprovalReviewVerified: false,
       externalGatePreflightVerified: false,
+      externalExecutionContractVerified: false,
       messageReviewPlanDocumented: false,
       approvalAuditPlanDocumented: false,
     },
@@ -83,6 +84,7 @@ function parseArgs(argv = []) {
     else if (arg === "--share-approval-queue-verified") options.evidence.shareApprovalQueueVerified = true;
     else if (arg === "--share-approval-review-verified") options.evidence.shareApprovalReviewVerified = true;
     else if (arg === "--external-gate-preflight-verified") options.evidence.externalGatePreflightVerified = true;
+    else if (arg === "--external-execution-contract-verified") options.evidence.externalExecutionContractVerified = true;
     else if (arg === "--message-review-plan-documented") options.evidence.messageReviewPlanDocumented = true;
     else if (arg === "--approval-audit-plan-documented") options.evidence.approvalAuditPlanDocumented = true;
     else if (arg.startsWith("--external-portal-approval-phrase=")) options.approvals.externalPortalApprovalPhrase = valueAfterEquals(arg);
@@ -347,6 +349,11 @@ export function buildCustomerPortalCommunicationReadinessReport({
     ], [
       "External gate preflight verification covers read-only prerequisite reporting only; it does not create external portal implementation.",
     ]),
+    gate("Locked external execution contract", Boolean(evidence.externalExecutionContractVerified), [
+      ...missing(evidence.externalExecutionContractVerified, "Run and pass locked customer portal external execution contract tests."),
+    ], [
+      "Execution contract verification covers idempotency, audit, rollback, Agent OS gate mapping, and hard-deny execution only; it does not create customer portal implementation.",
+    ]),
     gate("External customer portal approval", externalPortalApproved, [
       `Do not create customer logins, public share links, or portal tokens until ${EXTERNAL_PORTAL_APPROVAL_PHRASE} is recorded in a separate approved task.`,
     ]),
@@ -369,6 +376,7 @@ export function buildCustomerPortalCommunicationReadinessReport({
     "Locked share approval queue",
     "Locked share approval review",
     "External gate preflight lock",
+    "Locked external execution contract",
   ].every((name) => gateByName.get(name)?.go);
   const externalCustomerPortalReady = gates.every((item) => item.go);
   const nextBlockedGate = gates.find((item) => !item.go) || null;

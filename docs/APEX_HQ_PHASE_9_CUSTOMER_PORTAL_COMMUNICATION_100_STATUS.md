@@ -38,6 +38,7 @@ Built and verified:
 - Build 7F locked share approval queue adds authenticated owner/admin queueing for internal external-share review evidence from an active locked access record. It is Elite-only, company scoped, audit backed, packet-ready, blocked for unsafe external payload fields, field users, wrong-company users, expired records, and revoked records, and still does not create links, tokens, sends, invoices, payments, or customer actions.
 - Build 7G locked share approval review adds authenticated owner/admin review decisions for queued share approvals. Decisions can mark the packet ready for a future separately approved external gate, request changes, or reject the packet while keeping external sharing, public routes, token redemption, customer actions, sends, invoices, and payments disabled.
 - Build 7H locked external-gate preflight adds an authenticated owner/admin read-only preflight for reviewed share approvals. It reports internal prerequisites and exact separate approval phrase evidence, but still keeps external implementation, public routes, links, tokens, customer actions, sends, invoices, and payments disabled.
+- Build 7I locked external execution contract adds authenticated owner/admin contract evidence for reviewed share approvals. It records Agent OS customer portal action mapping, per-company opt-in evidence, idempotency behavior, audit event, rollback behavior, and a hard-deny execution route while keeping external implementation, public routes, links, tokens, customer actions, sends, invoices, and payments disabled.
 
 ## Verification Evidence
 
@@ -49,7 +50,7 @@ Commands/checks run:
 - `npm.cmd run verify:roles`
 - `npm.cmd run verify:entitlements`
 - `npm.cmd run verify:claims`
-- `npm.cmd run launch:customer-portal-readiness -- --portal-preview-verified --print-packets-verified --estimate-output-verified --roles-verified --entitlements-verified --agent-policy-verified --claims-verified --build-verified --tokenized-portal-plan-documented --access-record-lifecycle-verified --public-route-contract-verified --access-record-packet-verified --share-approval-queue-verified --share-approval-review-verified --external-gate-preflight-verified --message-review-plan-documented --approval-audit-plan-documented --json`
+- `npm.cmd run launch:customer-portal-readiness -- --portal-preview-verified --print-packets-verified --estimate-output-verified --roles-verified --entitlements-verified --agent-policy-verified --claims-verified --build-verified --tokenized-portal-plan-documented --access-record-lifecycle-verified --public-route-contract-verified --access-record-packet-verified --share-approval-queue-verified --share-approval-review-verified --external-gate-preflight-verified --external-execution-contract-verified --message-review-plan-documented --approval-audit-plan-documented --json`
 - `npm.cmd run build`
 - `git diff --check`
 
@@ -67,6 +68,7 @@ Commands/checks run:
 - Locked share approval queue: PASS locally, owner/admin review evidence only and no external customer action is created
 - Locked share approval review: PASS locally, owner/admin decision evidence only and no external customer action is created
 - External gate preflight lock: PASS locally, owner/admin read-only prerequisite evidence only and no external customer action is created
+- Locked external execution contract: PASS locally, owner/admin idempotency/audit/rollback evidence only and no external customer action is created
 - Customer send workflow: NO-GO until `CUSTOMER_SEND_WORKFLOW_SEPARATELY_APPROVED`
 - Customer message sending: BLOCKED by default
 - Bid submission: BLOCKED by default
@@ -101,4 +103,4 @@ Phase 9 is 100% for safe internal customer portal preview and communication revi
 
 External customer portal access and customer sends remain locked unless separate implementation phases are approved.
 
-Build 7A, Build 7B, Build 7C, Build 7D, Build 7E, Build 7F, Build 7G, and Build 7H local readiness evidence is tracked in `docs/APEX_HQ_CUSTOMER_PORTAL_TOKENIZED_READINESS_STATUS.md` and verified by `npm.cmd run verify:customer-portal-readiness`.
+Build 7A, Build 7B, Build 7C, Build 7D, Build 7E, Build 7F, Build 7G, Build 7H, and Build 7I local readiness evidence is tracked in `docs/APEX_HQ_CUSTOMER_PORTAL_TOKENIZED_READINESS_STATUS.md` and verified by `npm.cmd run verify:customer-portal-readiness`.

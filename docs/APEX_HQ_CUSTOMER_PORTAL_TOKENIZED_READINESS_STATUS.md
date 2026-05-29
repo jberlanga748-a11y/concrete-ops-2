@@ -1,6 +1,6 @@
 # Apex HQ Customer Portal Tokenized Readiness Status
 
-Status: complete for Build 7A local readiness-contract scope, Build 7B locked access-record scope, Build 7C locked lifecycle scope, Build 7D locked public-route contract scope, Build 7E internal access-record packet scope, Build 7F locked share approval queue scope, Build 7G locked share approval review scope, and Build 7H locked external-gate preflight scope.
+Status: complete for Build 7A local readiness-contract scope, Build 7B locked access-record scope, Build 7C locked lifecycle scope, Build 7D locked public-route contract scope, Build 7E internal access-record packet scope, Build 7F locked share approval queue scope, Build 7G locked share approval review scope, Build 7H locked external-gate preflight scope, and Build 7I locked external execution contract scope.
 
 ## What Is Now Complete
 
@@ -28,6 +28,10 @@ Status: complete for Build 7A local readiness-contract scope, Build 7B locked ac
 - Owner/admin users can run a read-only external-gate preflight against a share approval to see whether internal prerequisites and the exact separate approval phrase are present.
 - The preflight always keeps external implementation locked in this build and reports that no customer login, public link, raw token, customer session, customer action, message, invoice, or payment action exists.
 - External-gate preflight tests cover ready review, missing review, expired access records, unsafe payload denial, field-role denial, wrong-company denial, no audit mutation, and no token/public-link leakage.
+- Owner/admin users can prepare a locked external execution contract from a ready share approval and active access record after supplying the exact separate approval phrase.
+- Execution contracts record Agent OS `customer_portal_action` mapping, per-company opt-in evidence, future adapter blockers, customer-visible field scope, idempotency behavior, audit event, and rollback behavior while keeping execution disabled.
+- A hard-deny execution endpoint now returns locked status for attempted customer portal execution so prepare/review/preflight/contract evidence cannot be mistaken for live customer access.
+- External execution contract tests cover idempotent replay, redaction, Agent OS gate mapping, no token/public-link leakage, missing preflight denial, locked execution denial, unsafe payload denial, field-role denial, and wrong-company denial.
 
 ## Safety Boundary
 
@@ -55,6 +59,8 @@ Build 7F also does not expose an approval queue to customers, publish a link, cr
 Build 7G also does not publish approval decisions to customers, create external access, generate tokens, create public routes, accept customer actions, send messages, create invoices, collect payment, or satisfy the separate external customer portal approval gate by itself.
 
 Build 7H also does not create external portal implementation, publish links, generate tokens, create public routes, accept customer actions, send messages, create invoices, collect payment, mutate production data, or satisfy the separate external customer portal approval gate by itself.
+
+Build 7I also does not create external portal implementation, publish links, generate tokens, create customer sessions, accept customer approvals/comments/signatures, send messages, create invoices, collect payment, mutate production data, or execute any customer portal write. It only records the locked execution contract, idempotency, audit, rollback, Agent OS mapping, and hard-deny execution boundary.
 
 ## Verification
 
