@@ -22,6 +22,23 @@ test("normalizes AI Office and Opportunity Scout permissions from bootstrap", ()
   assert.equal(permissions.opportunityScout.canManage, true);
 });
 
+test("normalizes time location evidence company policy from bootstrap", () => {
+  const state = normalizeAppState({
+    companySettings: {
+      timeLocationEvidencePolicy: {
+        enabled: true,
+        workerNotice: "Capture GPS only when you tap the time-clock button.",
+        updatedAt: "2026-05-29T12:00:00.000Z",
+        updatedBy: "U-1",
+      },
+    },
+  });
+
+  assert.equal(state.companySettings.timeLocationEvidencePolicy.enabled, true);
+  assert.equal(state.companySettings.timeLocationEvidencePolicy.workerNotice, "Capture GPS only when you tap the time-clock button.");
+  assert.equal(state.companySettings.timeLocationEvidencePolicy.updatedBy, "U-1");
+});
+
 test("keeps field users blocked when bootstrap omits office entitlements", () => {
   const permissions = normalizeAppPermissions({
     jobs: { canView: true },

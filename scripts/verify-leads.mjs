@@ -38,6 +38,7 @@ export const LEAD_VERIFY_GROUPS = Object.freeze([
       "src/manual-outreach-drafts.test.js",
       "src/notification-center-utils.test.js",
       "src/navigation-utils.test.js",
+      "src/agent-leads-inbox-ui.test.js",
     ]),
   }),
 ]);

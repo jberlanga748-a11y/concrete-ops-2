@@ -169,10 +169,12 @@ import {
   recordAgentLeadProviderImportDecision,
   recordAgentLeadProviderLiveApprovalDecision,
   recordAgentLeadProviderReviewQueueDecision,
+  recordAgentLeadDailyReviewInboxDecision,
   draftAgentLeadProviderReviewOpportunity,
   recordAgentActionProposalAudit,
   resetWorkspace,
   requestPasswordReset,
+  reviewTimePresence,
   resendUserInvite,
   reviewDailyReport,
   reviewToolChecklist,
@@ -285,7 +287,7 @@ import { ESTIMATOR_MOBILE_NAV_ROUTES, getEstimatorMobileNavItems, getOwnerAdminM
 import { isOwnerAdminMobileCommandUser } from "./owner-admin-mobile-command-utils";
 import { applyOpportunityScoutAgentPreviewToDraft, applyOpportunityScoutSourceCheckToDraft, buildFoundOpportunityDraftFromScoutExecutionCard, buildFoundOpportunityEvidenceIntakeFromScoutCard, buildOpportunityScoutConnectorSetupDraft, buildOpportunityScoutConnectorSetupDraftFromCoverageRecommendation, buildOpportunityScoutConnectorSetupPayload, buildOpportunityScoutSourceBrief, deriveFoundOpportunityDraftDuplicateWarnings, deriveOpportunityScoutState } from "./opportunity-scout-utils";
 import { deriveAppHealthAuditState } from "./owner-health-utils";
-import { canRequestPackageReview } from "../shared/permissions.js";
+import { canRequestPackageReview, normalizeTimeLocationEvidencePolicy } from "../shared/permissions.js";
 import { BrandIntroScreen, LoadingScreen, ModuleLoadingFallback, SplashScreen, StartupFallbackScreen } from "./startup-screen-components";
 import { DEMO_LOGIN_PRESETS } from "./demo-login-presets";
 import { LEAD_SCORE_LABELS } from "../shared/leadScoring.js";
@@ -1832,6 +1834,7 @@ function CopilotPagePolished({
   onRecordAgentLeadProviderImportDecision,
   onRecordAgentLeadProviderLiveApprovalDecision,
   onRecordAgentLeadProviderReviewQueueDecision,
+  onRecordAgentLeadDailyReviewInboxDecision,
   onDraftAgentLeadProviderReviewOpportunity,
   onCreateAgentLearningPreference,
   onSuggestAgentLearningFromEstimates,
@@ -3136,14 +3139,49 @@ function CopilotPagePolished({
     }));
   }
 
+  async function recordDailyReviewInboxDecisionForOpportunity(opportunity, decision, fallback = null) {
+    if (!canManageOpportunityScout || !opportunity?.opportunityId || !onRecordAgentLeadDailyReviewInboxDecision) {
+      if (typeof fallback === "function") return fallback();
+      return false;
+    }
+    const result = await onRecordAgentLeadDailyReviewInboxDecision({
+      today,
+      foundOpportunityId: opportunity.opportunityId,
+      providerResultId: opportunity.leadPreview?.providerResultId || opportunity.providerResultId || opportunity.opportunityId,
+      sourceUrl: opportunity.sourceUrl,
+      sourceType: opportunity.intakeSourceType || opportunity.type,
+      title: opportunity.title,
+      fitScore: opportunity.fitScore,
+      duplicateRisk: opportunity.duplicateHints?.length ? "possible_duplicate" : "none",
+      decision,
+      note: `Reviewed from Agent Leads daily inbox: ${opportunity.title || "found opportunity"}.`,
+    });
+    if (result?.dailyReviewInboxDecision) {
+      setProviderAdapterState({ status: "ready", message: `Daily review decision recorded: ${decision.replace(/_/g, " ")}.`, result: result.dailyReviewWorkflow || result.providerReviewLearningSnapshot || providerAdapterState.result });
+      return true;
+    }
+    setProviderAdapterState({ status: "error", message: result?.message || "Daily review decision failed.", result: providerAdapterState.result });
+    return false;
+  }
+
   function setOpportunityStatus(opportunity, status) {
     if (!canManageOpportunityScout || !opportunity?.opportunityId) return;
     onUpdateFoundOpportunity?.(opportunity.opportunityId, { status });
   }
 
-  function convertOpportunityToLead(opportunity) {
+  function rejectOpportunityFromDailyReview(opportunity) {
+    if (!canManageOpportunityScout || !opportunity?.opportunityId || opportunity.convertedLeadId) return;
+    recordDailyReviewInboxDecisionForOpportunity(opportunity, "reject", () => onUpdateFoundOpportunity?.(opportunity.opportunityId, {
+      status: "skipped",
+      humanReviewStatus: "rejected",
+      humanReviewNote: "Rejected from Agent Leads daily review inbox.",
+    }));
+  }
+
+  async function convertOpportunityToLead(opportunity) {
     if (!canManageOpportunityScout || !opportunity?.opportunityId || opportunity.convertedLeadId || !opportunity.canConvertToLead) return;
-    onConvertFoundOpportunityToLead?.(opportunity.opportunityId);
+    const recorded = await recordDailyReviewInboxDecisionForOpportunity(opportunity, "create_lead");
+    if (!recorded) onConvertFoundOpportunityToLead?.(opportunity.opportunityId);
   }
 
   function openConvertedOpportunityLead(opportunity) {
@@ -3151,8 +3189,10 @@ function CopilotPagePolished({
     openLead({ id: opportunity.convertedLeadId });
   }
 
-  function approveOpportunityForLead(opportunity) {
+  async function approveOpportunityForLead(opportunity) {
     if (!canManageOpportunityScout || !opportunity?.opportunityId || opportunity.convertedLeadId) return;
+    const recorded = await recordDailyReviewInboxDecisionForOpportunity(opportunity, "approve_for_lead");
+    if (recorded) return;
     onUpdateFoundOpportunity?.(opportunity.opportunityId, {
       humanReviewStatus: "approved_for_lead",
       humanReviewNote: "Approved by the office for lead draft conversion.",
@@ -4051,21 +4091,50 @@ function CopilotPagePolished({
               <div className="co-ai-scout-briefs">
                 <SectionHeader title="Review Rows" description="Rows can become Found Opportunity drafts only after a contractor reviews source proof, missing info, and duplicate warnings." />
                 <div className="co-ai-scout-brief-list">
-                  {dailyReviewInbox.rows.slice(0, 6).map((row) => (
-                    <div key={row.id} className="co-ai-scout-brief" data-tone={row.tone || "slate"}>
-                      <div className="min-w-0">
-                        <span>{String(row.type || "review").replace(/_/g, " ")}</span>
-                        <strong>{row.title}</strong>
-                        <p>{row.fitReason || row.sourceProof?.[0] || "Human review required."}</p>
-                        <em>{row.sourceName || "Source"} / fit {row.fitScore || 0}</em>
+                  {dailyReviewInbox.rows.slice(0, 6).map((row) => {
+                    const canActOnProviderReviewRow = row.type === "provider_review";
+                    return (
+                      <div key={row.id} className="co-ai-scout-brief" data-tone={row.tone || "slate"}>
+                        <div className="min-w-0">
+                          <span>{String(row.type || "review").replace(/_/g, " ")}</span>
+                          <strong>{row.title}</strong>
+                          <p>{row.fitReason || row.sourceProof?.[0] || "Human review required."}</p>
+                          <em>{row.sourceName || "Source"} / fit {row.fitScore || 0}</em>
+                          <div className="co-ai-scout-checks mt-2">
+                            {row.sourceProof?.slice(0, 2).map((proof) => <small key={`${row.id}-proof-${proof}`}>Proof: {proof}</small>)}
+                            {row.missingInfoItems?.slice(0, 2).map((item) => <small key={`${row.id}-missing-${item}`}>Missing: {item}</small>)}
+                            {row.duplicateWarnings?.slice(0, 2).map((warning) => <small key={`${row.id}-dupe-${warning}`}>{warning}</small>)}
+                            {row.blockedActions?.slice(0, 2).map((action) => <small key={`${row.id}-blocked-${action}`}>{action}</small>)}
+                          </div>
+                        </div>
+                        <div className="co-ai-scout-brief-actions">
+                          <Badge tone={row.duplicateWarnings?.length ? "amber" : row.missingInfoItems?.length ? "orange" : "green"}>
+                            {row.primaryAction || "Review"}
+                          </Badge>
+                          {row.sourceUrl ? <a className="co-ai-scout-link" href={row.sourceUrl} target="_blank" rel="noreferrer">Open Source</a> : null}
+                          {canActOnProviderReviewRow ? (
+                            <div className="mt-2 flex flex-wrap justify-end gap-2">
+                              <Button type="button" size="sm" variant="secondary" onClick={() => draftProviderReviewOpportunity(row)} disabled={!canManageOpportunityScout || busy || providerAdapterState.status === "loading"}>
+                                Save Draft
+                              </Button>
+                              <Button type="button" size="sm" variant="secondary" onClick={() => recordProviderReviewQueueDecision(row, "draft_found_opportunity")} disabled={!canManageOpportunityScout || busy || providerAdapterState.status === "loading"}>
+                                Accept
+                              </Button>
+                              <Button type="button" size="sm" variant="ghost" onClick={() => recordProviderReviewQueueDecision(row, "mark_duplicate")} disabled={!canManageOpportunityScout || busy || providerAdapterState.status === "loading"}>
+                                Duplicate
+                              </Button>
+                              <Button type="button" size="sm" variant="ghost" onClick={() => recordProviderReviewQueueDecision(row, "no_fit")} disabled={!canManageOpportunityScout || busy || providerAdapterState.status === "loading"}>
+                                No Fit
+                              </Button>
+                              <Button type="button" size="sm" variant="ghost" onClick={() => recordProviderReviewQueueDecision(row, "dismiss")} disabled={!canManageOpportunityScout || busy || providerAdapterState.status === "loading"}>
+                                Reject
+                              </Button>
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
-                      <div className="co-ai-scout-brief-actions">
-                        <Badge tone={row.duplicateWarnings?.length ? "amber" : row.missingInfoItems?.length ? "orange" : "green"}>
-                          {row.primaryAction || "Review"}
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {!dailyReviewInbox.rows.length ? (
                     <StateCard title="No review rows yet" description={dailySourceMonitoring.noJobsExplanation || "Finish source setup or run daily prep to populate the contractor review inbox."} tone="slate" />
                   ) : null}
@@ -6108,6 +6177,9 @@ function CopilotPagePolished({
                         <Button type="button" size="sm" variant={opportunity.canConvertToLead ? "secondary" : "ghost"} onClick={() => approveOpportunityForLead(opportunity)} disabled={!canManageOpportunityScout || busy || Boolean(opportunity.convertedLeadId) || opportunity.canConvertToLead}>
                           {opportunity.canConvertToLead ? "Approved" : "Approve For Lead"}
                         </Button>
+                        <Button type="button" size="sm" variant="ghost" onClick={() => rejectOpportunityFromDailyReview(opportunity)} disabled={!canManageOpportunityScout || busy || Boolean(opportunity.convertedLeadId) || opportunity.humanReviewStatus === "rejected"}>
+                          Reject
+                        </Button>
                         <Button type="button" size="sm" onClick={() => convertOpportunityToLead(opportunity)} disabled={!canManageOpportunityScout || busy || Boolean(opportunity.convertedLeadId) || !opportunity.canConvertToLead}>
                           {opportunity.convertedLeadId ? "Lead Created" : "Create Lead"}
                         </Button>
@@ -6879,6 +6951,7 @@ function SettingsPagePolished({
   const canViewSupport = Boolean(safePermissions.support?.canView);
   const canViewCustomerPortalPreview = Boolean(safePermissions.customerPortal?.canPreview);
   const canToggleToolChecklist = Boolean(safePermissions.toolChecklist?.canToggle);
+  const timeLocationEvidencePolicy = normalizeTimeLocationEvidencePolicy(safeCompanySettings.timeLocationEvidencePolicy);
   const showPublicEstimateRequestStatus = typeof publicEstimateRequestEnabled === "boolean";
   const demoResetAllowed = demoMode && DEMO_LOGIN_PRESETS.some((preset) => preset.email === String(user?.email || "").trim().toLowerCase());
   const [brandingDraft, setBrandingDraft] = useState(() => ({
@@ -6906,6 +6979,8 @@ function SettingsPagePolished({
   const [printPacketNotice, setPrintPacketNotice] = useState("");
   const [agentGateNotice, setAgentGateNotice] = useState("");
   const [publicRequestLinkNotice, setPublicRequestLinkNotice] = useState("");
+  const [timeLocationNoticeDraft, setTimeLocationNoticeDraft] = useState(timeLocationEvidencePolicy.workerNotice);
+  const [timeLocationRadiusDraft, setTimeLocationRadiusDraft] = useState(String(timeLocationEvidencePolicy.presenceReviewRadiusMeters));
 
   useEffect(() => {
     setBrandingDraft({
@@ -6943,6 +7018,14 @@ function SettingsPagePolished({
     });
   }, [safeCompanySettings.printPacketDisclaimer, safeCompanySettings.printPacketFooter]);
 
+  useEffect(() => {
+    setTimeLocationNoticeDraft(timeLocationEvidencePolicy.workerNotice);
+  }, [timeLocationEvidencePolicy.workerNotice]);
+
+  useEffect(() => {
+    setTimeLocationRadiusDraft(String(timeLocationEvidencePolicy.presenceReviewRadiusMeters));
+  }, [timeLocationEvidencePolicy.presenceReviewRadiusMeters]);
+
   const previewCompanyName = brandingDraft.companyName.trim() || workspaceCompanyName;
   const previewAccentColor = normalizeAccentColor(brandingDraft.accentColor);
   const previewTheme = getAccentTheme(previewAccentColor);
@@ -6963,6 +7046,9 @@ function SettingsPagePolished({
     || profileDraft.licenseText !== (safeCompanySettings.licenseText || "");
   const printPacketDirty = printPacketDraft.printPacketFooter !== (safeCompanySettings.printPacketFooter || "")
     || printPacketDraft.printPacketDisclaimer !== (safeCompanySettings.printPacketDisclaimer || "");
+  const timeLocationNoticeDirty = timeLocationNoticeDraft.trim() !== timeLocationEvidencePolicy.workerNotice;
+  const normalizedTimeLocationRadiusDraft = Math.max(50, Math.min(5000, Math.round(Number(timeLocationRadiusDraft) || timeLocationEvidencePolicy.presenceReviewRadiusMeters)));
+  const timeLocationRadiusDirty = normalizedTimeLocationRadiusDraft !== timeLocationEvidencePolicy.presenceReviewRadiusMeters;
   const agentEmailGateState = useMemo(() => deriveAgentEmailGateSettingsState(safeCompanySettings), [safeCompanySettings]);
   const settingsSetupState = useMemo(() => deriveManagedCompanySetupState({
     companySettings: safeCompanySettings,
@@ -7006,6 +7092,14 @@ function SettingsPagePolished({
   const [selectedSettingsShellItemId, setSelectedSettingsShellItemId] = useState(appHealthRouteMode ? "settings-owner-health" : "settings-managed-setup");
   const [selectedAppHealthShellItemId, setSelectedAppHealthShellItemId] = useState("app-health-trust");
   const toolChecklistEnabled = safeCompanySettings.toolChecklistEnabled !== false;
+  const updateTimeLocationEvidencePolicy = (patch = {}) => onUpdateCompanySettings?.({
+    timeLocationEvidencePolicy: {
+      ...timeLocationEvidencePolicy,
+      workerNotice: timeLocationNoticeDraft.trim() || timeLocationEvidencePolicy.workerNotice,
+      presenceReviewRadiusMeters: normalizedTimeLocationRadiusDraft,
+      ...patch,
+    },
+  });
   const appHealthShellQueueItems = [
     {
       id: "app-health-trust",
@@ -7757,6 +7851,80 @@ function SettingsPagePolished({
                     <Badge tone={safeCompanySettings.toolChecklistEnabled ? "green" : "slate"}>
                       {safeCompanySettings.toolChecklistEnabled ? "Enabled for field roles" : "Disabled for field roles"}
                     </Badge>
+                  </div>
+                  <div className="co-settings-module-row">
+                    <div className="min-w-0">
+                      <p>Time GPS Evidence</p>
+                      <span>Optional worker-tapped clock-in/out evidence only. Review-only presence checks compare captured clock-out GPS to the captured clock-in anchor. No live tracking, automatic alerts, discipline, payroll correction, or jobsite-leave automation.</span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant={timeLocationEvidencePolicy.enabled ? "secondary" : "primary"}
+                      onClick={() => updateTimeLocationEvidencePolicy({ enabled: !timeLocationEvidencePolicy.enabled })}
+                      disabled={busy || !canToggleToolChecklist || typeof onUpdateCompanySettings !== "function"}
+                    >
+                      {timeLocationEvidencePolicy.enabled ? "Disable GPS evidence" : "Enable GPS evidence"}
+                    </Button>
+                    <Badge tone={timeLocationEvidencePolicy.enabled ? "green" : "slate"}>
+                      {timeLocationEvidencePolicy.enabled ? "Policy enabled" : "Policy off"}
+                    </Badge>
+                    <div className="co-settings-module-wide">
+                      <TextAreaField
+                        label="Worker notice"
+                        value={timeLocationNoticeDraft}
+                        onChange={(event) => setTimeLocationNoticeDraft(event.target.value)}
+                        disabled={busy || !canToggleToolChecklist}
+                      />
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => updateTimeLocationEvidencePolicy({ workerNotice: timeLocationNoticeDraft })}
+                          disabled={busy || !canToggleToolChecklist || !timeLocationNoticeDirty || typeof onUpdateCompanySettings !== "function"}
+                        >
+                          Save notice
+                        </Button>
+                        <span className="text-xs font-bold text-slate-500">{timeLocationNoticeDirty ? "Unsaved worker notice" : "Notice synced"}</span>
+                      </div>
+                      <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-end">
+                        <InputField
+                          label="Presence review radius (meters)"
+                          type="number"
+                          min="50"
+                          max="5000"
+                          value={timeLocationRadiusDraft}
+                          onChange={(event) => setTimeLocationRadiusDraft(event.target.value)}
+                          disabled={busy || !canToggleToolChecklist}
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={timeLocationEvidencePolicy.presenceReviewEnabled ? "secondary" : "primary"}
+                          onClick={() => updateTimeLocationEvidencePolicy({ presenceReviewEnabled: !timeLocationEvidencePolicy.presenceReviewEnabled })}
+                          disabled={busy || !canToggleToolChecklist || !timeLocationEvidencePolicy.enabled || typeof onUpdateCompanySettings !== "function"}
+                        >
+                          {timeLocationEvidencePolicy.presenceReviewEnabled ? "Disable review" : "Enable review"}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => updateTimeLocationEvidencePolicy({ presenceReviewRadiusMeters: normalizedTimeLocationRadiusDraft })}
+                          disabled={busy || !canToggleToolChecklist || !timeLocationRadiusDirty || typeof onUpdateCompanySettings !== "function"}
+                        >
+                          Save radius
+                        </Button>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Badge tone={timeLocationEvidencePolicy.presenceReviewEnabled ? "amber" : "slate"}>
+                          {timeLocationEvidencePolicy.presenceReviewEnabled ? "Review-only presence on" : "Presence review off"}
+                        </Badge>
+                        <span className="text-xs font-bold text-slate-500">
+                          {timeLocationEvidencePolicy.enabled ? "Requires captured clock-in and clock-out GPS evidence." : "Enable GPS evidence before turning on presence review."}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                   {showPublicEstimateRequestStatus ? (
                     <div className="co-settings-module-row">
@@ -13398,14 +13566,19 @@ export default function App() {
     runMutation(() => endBreak(sessionToken, timeEntryId));
   }
 
-  function handleClockOut(timeEntryId) {
+  function handleClockOut(timeEntryId, payload = {}) {
     if (!appState.permissions.time.canManageOwn) return;
-    runMutation(() => clockOut(sessionToken, timeEntryId));
+    runMutation(() => clockOut(sessionToken, timeEntryId, payload));
   }
 
   function handleSaveTimeEntry() {
     if (!selectedTimeEntry || !appState.permissions.time.canCorrect) return;
     runMutation(() => correctTimeEntry(sessionToken, selectedTimeEntry.id, timeEditDraft));
+  }
+
+  function handleReviewTimePresence(timeEntryId, note) {
+    if (!timeEntryId || !appState.permissions.time.canCorrect) return;
+    runMutation(() => reviewTimePresence(sessionToken, timeEntryId, { note }));
   }
 
   function handleCreateLead(event) {
@@ -14103,6 +14276,23 @@ export default function App() {
       const result = await recordAgentLeadDailyPublicRunOutcomes(sessionToken, payload);
       setErrorMessage("");
       return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRecordAgentLeadDailyReviewInboxDecision(payload = {}) {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const nextState = await recordAgentLeadDailyReviewInboxDecision(sessionToken, payload);
+      setAppState(normalizeAppState(nextState));
+      setErrorMessage("");
+      return nextState;
     } catch (error) {
       if (error.status === 401) clearSession();
       else setErrorMessage(error.message);
@@ -16554,6 +16744,7 @@ export default function App() {
                 onRecordAgentLeadProviderImportDecision={handleRecordAgentLeadProviderImportDecision}
                 onRecordAgentLeadProviderLiveApprovalDecision={handleRecordAgentLeadProviderLiveApprovalDecision}
                 onRecordAgentLeadProviderReviewQueueDecision={handleRecordAgentLeadProviderReviewQueueDecision}
+                onRecordAgentLeadDailyReviewInboxDecision={handleRecordAgentLeadDailyReviewInboxDecision}
                 onDraftAgentLeadProviderReviewOpportunity={handleDraftAgentLeadProviderReviewOpportunity}
                 onPreviewOpportunityScoutAgent={handlePreviewOpportunityScoutAgent}
                 onCreateFoundOpportunity={handleCreateFoundOpportunity}
@@ -16668,6 +16859,7 @@ export default function App() {
                 timeEditDraft={timeEditDraft}
                 setTimeEditDraft={setTimeEditDraft}
                 onSaveTimeEntry={handleSaveTimeEntry}
+                onReviewTimePresence={handleReviewTimePresence}
                 onClockIn={handleClockIn}
                 onClockOut={handleClockOut}
                 onStartBreak={handleStartBreak}

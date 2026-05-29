@@ -38,6 +38,7 @@ test("lead verifier keeps focused groups with every expected test file once", ()
       "src/manual-outreach-drafts.test.js",
       "src/notification-center-utils.test.js",
       "src/navigation-utils.test.js",
+      "src/agent-leads-inbox-ui.test.js",
     ],
   );
 });

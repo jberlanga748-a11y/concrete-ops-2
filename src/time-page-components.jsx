@@ -4,8 +4,9 @@ import { Badge, Button, Card, Icon, PageHeader, SectionHeader, StateCard } from 
 import { ModuleKpiStrip } from "./command-center-route-components";
 import { jobTitle } from "./job-utils";
 import { workCategoryLabel } from "./time-category-utils";
-import { buildTimeTrackingSupportContext, deriveCrewWeeklySummary, deriveTimeJobCostingReadiness, deriveTimeWorkspace, formatMinutes } from "./time-utils";
-import { ActiveTimeCard, RecentTimeEntriesCard, TimeCommandRailPolished, TimeCorrectionPanel, TimeDesktopCommandShell, TimeEntriesTable, TimeEntriesTablePolished, TimeEntryCard, TimeKpiCardPolished, TimeMobileAccordionCard, TimeStatusBadge, TimeSummaryMetricsPolished, WeekSummaryCard } from "./time-route-components";
+import { buildTimeTrackingSupportContext, deriveCrewWeeklySummary, deriveTimeJobCostingReadiness, deriveTimeWorkspace, formatMinutes, timeLocationEvidencePayload } from "./time-utils";
+import { ActiveTimeCard, RecentTimeEntriesCard, TimeCommandRailPolished, TimeCorrectionPanel, TimeDesktopCommandShell, TimeEntriesTable, TimeEntriesTablePolished, TimeEntryCard, TimeKpiCardPolished, TimeLocationCaptureControl, TimeMobileAccordionCard, TimeStatusBadge, TimeSummaryMetricsPolished, WeekSummaryCard } from "./time-route-components";
+import { normalizeTimeLocationEvidencePolicy } from "../shared/permissions";
 
 function useDesktopCommandViewport(minWidth = 1024) {
   const [matches, setMatches] = useState(() => {
@@ -37,6 +38,14 @@ function isSameLocalDate(value, compareDate = new Date()) {
     && parsed.getDate() === compareDate.getDate();
 }
 
+const EMPTY_TIME_LOCATION_EVIDENCE = {
+  latitude: null,
+  longitude: null,
+  locationAccuracy: null,
+  locationCapturedAt: "",
+  locationUnavailableReason: "",
+};
+
 function TimeFieldMobileCommand({
   workspace,
   boardRows,
@@ -48,7 +57,11 @@ function TimeFieldMobileCommand({
   onClockOut,
   onStartBreak,
   onEndBreak,
+  locationPolicy,
 }) {
+  const timeLocationPolicy = normalizeTimeLocationEvidencePolicy(locationPolicy);
+  const [clockInLocation, setClockInLocation] = useState(EMPTY_TIME_LOCATION_EVIDENCE);
+  const [clockOutLocation, setClockOutLocation] = useState(EMPTY_TIME_LOCATION_EVIDENCE);
   const activeEntry = workspace.activeEntry;
   const todayEntries = workspace.ownEntries.filter((entry) => isSameLocalDate(entry.clockInAt));
   const todayMinutes = todayEntries.reduce((sum, entry) => sum + Number(entry.totalMinutes || 0), 0);
@@ -83,7 +96,14 @@ function TimeFieldMobileCommand({
       workCategory: quickCategory,
       jobId: quickCategory === "job" ? quickJob.id : "",
       notes: "",
+      ...timeLocationEvidencePayload("clockIn", clockInLocation),
     });
+    setClockInLocation(EMPTY_TIME_LOCATION_EVIDENCE);
+  }
+
+  function handleClockOut() {
+    if (!activeEntry?.id) return;
+    onClockOut(activeEntry.id, timeLocationEvidencePayload("clockOut", clockOutLocation));
   }
 
   return (
@@ -120,7 +140,7 @@ function TimeFieldMobileCommand({
                   Break
                 </Button>
               )}
-              <Button type="button" className="co-time-field-mobile-secondary" variant="secondary" onClick={() => onClockOut(activeEntry.id)} disabled={busy}>
+              <Button type="button" className="co-time-field-mobile-secondary" variant="secondary" onClick={handleClockOut} disabled={busy}>
                 <Icon name="check" />
                 Clock out
               </Button>
@@ -131,6 +151,15 @@ function TimeFieldMobileCommand({
               Clock in now
             </Button>
           )}
+        </div>
+        <div className="mt-3">
+          <TimeLocationCaptureControl
+            evidence={activeEntry ? clockOutLocation : clockInLocation}
+            onChange={activeEntry ? setClockOutLocation : setClockInLocation}
+            disabled={busy}
+            action={activeEntry ? "clock-out" : "clock-in"}
+            locationPolicy={timeLocationPolicy}
+          />
         </div>
       </div>
 
@@ -153,6 +182,7 @@ function TimeFieldMobileCommand({
             onEndBreak={onEndBreak}
             disabled={busy}
             compactMobile
+            locationPolicy={timeLocationPolicy}
           />
         </div>
       </details>
@@ -193,12 +223,14 @@ export function TimePage({
   dailyReports,
   uploads,
   deliveryTickets,
+  companySettings,
   selectedTimeEntryId,
   onSelectTimeEntry,
   selectedTimeEntry,
   timeEditDraft,
   setTimeEditDraft,
   onSaveTimeEntry,
+  onReviewTimePresence,
   onClockIn,
   onClockOut,
   onStartBreak,
@@ -207,6 +239,7 @@ export function TimePage({
   busy,
 }) {
   const safeRows = Array.isArray(rows) ? rows : [];
+  const timeLocationPolicy = normalizeTimeLocationEvidencePolicy(companySettings?.timeLocationEvidencePolicy);
   const workspace = useMemo(() => deriveTimeWorkspace(safeRows, jobs, user?.id, permissions.time.allowedCategories || []), [jobs, permissions.time.allowedCategories, safeRows, user?.id]);
   const clockedInCount = safeRows.filter((entry) => entry.status !== "completed").length;
   const completedCount = safeRows.filter((entry) => entry.status === "completed").length;
@@ -355,6 +388,7 @@ export function TimePage({
           timeEditDraft={timeEditDraft}
           setTimeEditDraft={setTimeEditDraft}
           onSaveTimeEntry={onSaveTimeEntry}
+          onReviewTimePresence={onReviewTimePresence}
           onClockIn={onClockIn}
           onClockOut={onClockOut}
           onStartBreak={onStartBreak}
@@ -363,6 +397,7 @@ export function TimePage({
           showUser={showUserColumn}
           canOpenTimeSupport={canOpenTimeSupport}
           onOpenTimeSupport={requestTimeSupportReview}
+          locationPolicy={timeLocationPolicy}
         />
       </div>
     );
@@ -400,6 +435,7 @@ export function TimePage({
           onClockOut={onClockOut}
           onStartBreak={onStartBreak}
           onEndBreak={onEndBreak}
+          locationPolicy={timeLocationPolicy}
         />
       ) : null}
 
@@ -438,6 +474,7 @@ export function TimePage({
                   disabled={busy}
                   description="Start or stop job-linked time from the top of the tablet."
                   heroClock
+                  locationPolicy={timeLocationPolicy}
                 />
               ) : (
                 <Card className="p-4">
@@ -499,6 +536,7 @@ export function TimePage({
                       draft={timeEditDraft}
                       setDraft={setTimeEditDraft}
                       onSave={onSaveTimeEntry}
+                      onReviewPresence={onReviewTimePresence}
                       disabled={busy}
                       canCorrect={permissions.time.canCorrect}
                       compactMobile
@@ -536,6 +574,7 @@ export function TimePage({
             description="Clock into the right job fast, add a short note when needed, and keep field time clean for the office."
             compactMobile
             heroClock
+            locationPolicy={timeLocationPolicy}
           />
         </div>
       ) : null}
@@ -705,12 +744,14 @@ export function TimePage({
           timeEditDraft={timeEditDraft}
           setTimeEditDraft={setTimeEditDraft}
           onSaveTimeEntry={onSaveTimeEntry}
+          onReviewTimePresence={onReviewTimePresence}
           onClockIn={onClockIn}
           onClockOut={onClockOut}
           onStartBreak={onStartBreak}
           onEndBreak={onEndBreak}
           busy={busy}
           showClockCard={false}
+          locationPolicy={timeLocationPolicy}
         />
       </div>
     </div>
@@ -722,18 +763,21 @@ export function TimePageLegacy({
   permissions,
   rows,
   jobs,
+  companySettings,
   selectedTimeEntryId,
   onSelectTimeEntry,
   selectedTimeEntry,
   timeEditDraft,
   setTimeEditDraft,
   onSaveTimeEntry,
+  onReviewTimePresence,
   onClockIn,
   onClockOut,
   onStartBreak,
   onEndBreak,
   busy,
 }) {
+  const timeLocationPolicy = normalizeTimeLocationEvidencePolicy(companySettings?.timeLocationEvidencePolicy);
   const workspace = useMemo(() => deriveTimeWorkspace(rows, jobs, user?.id, permissions.time.allowedCategories || []), [jobs, permissions.time.allowedCategories, rows, user?.id]);
   const activeEntry = workspace.activeEntry;
   const crewWeeklySummary = useMemo(() => deriveCrewWeeklySummary(rows, { excludeUserId: user?.id }), [rows, user?.id]);
@@ -765,6 +809,7 @@ export function TimePageLegacy({
                 disabled={busy}
                 description="Clock your own office or field work while keeping payroll data out of this workspace."
                 compactMobile
+                locationPolicy={timeLocationPolicy}
               />
               <WeekSummaryCard summary={workspace.weeklySummary} title="My Week" description="Your current-week hours only." compactMobile />
               <RecentTimeEntriesCard
@@ -786,7 +831,7 @@ export function TimePageLegacy({
                 {rows.length === 0 ? <div className="p-4"><StateCard title="No time entries yet" description="Field clock-ins will appear here once crews start using the time tools." tone="slate" /></div> : <div className="min-w-0 overflow-x-auto"><TimeEntriesTable rows={rows} selectedId={selectedTimeEntryId} onSelect={onSelectTimeEntry} /></div>}
               </Card>
             </div>
-            <TimeCorrectionPanel entry={selectedTimeEntry} draft={timeEditDraft} setDraft={setTimeEditDraft} onSave={onSaveTimeEntry} disabled={busy} canCorrect={permissions.time.canCorrect} compactMobile />
+            <TimeCorrectionPanel entry={selectedTimeEntry} draft={timeEditDraft} setDraft={setTimeEditDraft} onSave={onSaveTimeEntry} onReviewPresence={onReviewTimePresence} disabled={busy} canCorrect={permissions.time.canCorrect} compactMobile />
           </div>
         </div>
       </div>
@@ -810,6 +855,7 @@ export function TimePageLegacy({
             disabled={busy}
             description="Clock your own assigned or field-visible work, plus approved non-job categories."
             compactMobile
+            locationPolicy={timeLocationPolicy}
           />
           <WeekSummaryCard summary={workspace.weeklySummary} title="My Week" description="Your personal weekly hours and categories." compactMobile />
           <WeekSummaryCard summary={crewWeeklySummary} title="Crew This Week" description={`Assigned-job crew totals${crewWeeklySummary.activeUserCount ? ` Â· ${crewWeeklySummary.activeUserCount} active` : ""}.`} compactMobile />
@@ -847,6 +893,7 @@ export function TimePageLegacy({
           onEndBreak={onEndBreak}
           disabled={busy}
           compactMobile
+          locationPolicy={timeLocationPolicy}
         />
         <div className="min-w-0 space-y-4">
           <WeekSummaryCard summary={workspace.weeklySummary} description="Your current-week hours, breaks, and work breakdown." compactMobile />

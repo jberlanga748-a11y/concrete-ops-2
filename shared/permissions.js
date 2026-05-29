@@ -1,3 +1,41 @@
+export const DEFAULT_TIME_LOCATION_EVIDENCE_NOTICE = "Location capture is optional and only runs when a worker taps Capture location during clock-in or clock-out. Apex HQ does not run background GPS, create geofence alerts, or use location evidence for automatic discipline, payroll correction, or jobsite departure decisions.";
+
+export const DEFAULT_TIME_LOCATION_EVIDENCE_POLICY = {
+  enabled: false,
+  workerNotice: DEFAULT_TIME_LOCATION_EVIDENCE_NOTICE,
+  presenceReviewEnabled: false,
+  presenceReviewRadiusMeters: 250,
+  updatedAt: "",
+  updatedBy: "",
+};
+
+export function normalizeTimeLocationEvidencePolicy(policy = {}) {
+  let parsedPolicy = policy;
+  if (typeof parsedPolicy === "string") {
+    try {
+      parsedPolicy = JSON.parse(parsedPolicy || "{}");
+    } catch {
+      parsedPolicy = {};
+    }
+  }
+  const source = parsedPolicy && typeof parsedPolicy === "object" ? parsedPolicy : {};
+  const workerNotice = String(source.workerNotice ?? DEFAULT_TIME_LOCATION_EVIDENCE_NOTICE).trim().slice(0, 420)
+    || DEFAULT_TIME_LOCATION_EVIDENCE_NOTICE;
+  const requestedRadius = Number(source.presenceReviewRadiusMeters ?? DEFAULT_TIME_LOCATION_EVIDENCE_POLICY.presenceReviewRadiusMeters);
+  const presenceReviewRadiusMeters = Number.isFinite(requestedRadius)
+    ? Math.max(50, Math.min(5000, Math.round(requestedRadius)))
+    : DEFAULT_TIME_LOCATION_EVIDENCE_POLICY.presenceReviewRadiusMeters;
+
+  return {
+    enabled: source.enabled === true,
+    workerNotice,
+    presenceReviewEnabled: source.presenceReviewEnabled === true,
+    presenceReviewRadiusMeters,
+    updatedAt: String(source.updatedAt || "").trim(),
+    updatedBy: String(source.updatedBy || "").trim(),
+  };
+}
+
 export const DEFAULT_COMPANY_SETTINGS = {
   companyName: "",
   logoInitials: "",
@@ -14,6 +52,7 @@ export const DEFAULT_COMPANY_SETTINGS = {
   printPacketDisclaimer: "",
   packageId: "basic",
   toolChecklistEnabled: true,
+  timeLocationEvidencePolicy: DEFAULT_TIME_LOCATION_EVIDENCE_POLICY,
   managedSetupStatus: "Not Started",
   managedSetupChecklist: [],
   managedSetupNotes: "",

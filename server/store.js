@@ -19,7 +19,7 @@ import { normalizeManagedSetupSettings } from "../shared/managedCompanySetup.js"
 import { normalizeAgentLearningPreferences } from "../shared/agentLearningPreferences.js";
 import { normalizeAgentConversationThread } from "../shared/agentConversations.js";
 import { normalizeApexAgentAutomationPolicy } from "../shared/apexAgentAutomationPolicy.js";
-import { DEFAULT_COMPANY_SETTINGS } from "../shared/permissions.js";
+import { DEFAULT_COMPANY_SETTINGS, normalizeTimeLocationEvidencePolicy } from "../shared/permissions.js";
 import { normalizeConstructionTradeId } from "../shared/constructionTrades.js";
 import { normalizeImportedJobDrafts } from "../shared/jobDraftImports.js";
 import { normalizeJobStartupFields } from "../shared/jobStartup.js";
@@ -759,6 +759,7 @@ export function createSeedState() {
     printPacketDisclaimer: "Internal job documentation. Review all details before sharing outside the company.",
     packageId: normalizePackageId(serverConfig.demoPackageId || PACKAGE_IDS.PREMIUM),
     toolChecklistEnabled: true,
+    timeLocationEvidencePolicy: normalizeTimeLocationEvidencePolicy(),
   };
   const users = includeDemoRecords ? [seedUser, ...demoUsers] : [seedUser];
   const toIsoMinutesAgo = (minutesAgo) => new Date(seededAt.getTime() - minutesAgo * 60 * 1000).toISOString();
@@ -3838,6 +3839,7 @@ function normalizeCompanySettings(settings = {}) {
     printPacketDisclaimer: normalizeText(settings?.printPacketDisclaimer, 320),
     packageId: normalizePackageId(settings?.packageId),
     toolChecklistEnabled: settings?.toolChecklistEnabled !== false,
+    timeLocationEvidencePolicy: normalizeTimeLocationEvidencePolicy(settings?.timeLocationEvidencePolicy),
     agentLearningPreferences: normalizeAgentLearningPreferences(settings?.agentLearningPreferences),
     apexAgentAutomationPolicy: normalizeApexAgentAutomationPolicy(settings?.apexAgentAutomationPolicy),
     ...managedSetup,
@@ -3862,6 +3864,7 @@ function companySettingsPairs(settings = {}) {
     ["printPacketDisclaimer", normalized.printPacketDisclaimer || ""],
     ["packageId", normalized.packageId],
     ["toolChecklistEnabled", normalized.toolChecklistEnabled ? "true" : "false"],
+    ["timeLocationEvidencePolicy", JSON.stringify(normalized.timeLocationEvidencePolicy || normalizeTimeLocationEvidencePolicy())],
     ["managedSetupStatus", normalized.managedSetupStatus || "Not Started"],
     ["managedSetupChecklist", JSON.stringify(normalized.managedSetupChecklist || [])],
     ["managedSetupNotes", normalized.managedSetupNotes || ""],
@@ -4632,6 +4635,16 @@ const MIGRATIONS = [
           work_category TEXT NOT NULL DEFAULT 'job',
           clock_in_at TEXT NOT NULL,
           clock_out_at TEXT,
+          clock_in_latitude REAL,
+          clock_in_longitude REAL,
+          clock_in_location_accuracy REAL,
+          clock_in_location_captured_at TEXT,
+          clock_in_location_unavailable_reason TEXT NOT NULL DEFAULT '',
+          clock_out_latitude REAL,
+          clock_out_longitude REAL,
+          clock_out_location_accuracy REAL,
+          clock_out_location_captured_at TEXT,
+          clock_out_location_unavailable_reason TEXT NOT NULL DEFAULT '',
           break_start_at TEXT,
           break_end_at TEXT,
           total_minutes INTEGER NOT NULL DEFAULT 0,
@@ -4679,6 +4692,16 @@ const MIGRATIONS = [
           work_category TEXT NOT NULL DEFAULT 'job',
           clock_in_at TEXT NOT NULL,
           clock_out_at TEXT,
+          clock_in_latitude REAL,
+          clock_in_longitude REAL,
+          clock_in_location_accuracy REAL,
+          clock_in_location_captured_at TEXT,
+          clock_in_location_unavailable_reason TEXT NOT NULL DEFAULT '',
+          clock_out_latitude REAL,
+          clock_out_longitude REAL,
+          clock_out_location_accuracy REAL,
+          clock_out_location_captured_at TEXT,
+          clock_out_location_unavailable_reason TEXT NOT NULL DEFAULT '',
           break_start_at TEXT,
           break_end_at TEXT,
           total_minutes INTEGER NOT NULL DEFAULT 0,
@@ -6055,6 +6078,54 @@ const MIGRATIONS = [
         }
       },
     },
+    {
+      version: 56,
+      description: "Persist explicit time clock location evidence.",
+      up(database) {
+        const columns = [
+          ["clock_in_latitude", "REAL"],
+          ["clock_in_longitude", "REAL"],
+          ["clock_in_location_accuracy", "REAL"],
+          ["clock_in_location_captured_at", "TEXT"],
+          ["clock_in_location_unavailable_reason", "TEXT NOT NULL DEFAULT ''"],
+          ["clock_out_latitude", "REAL"],
+          ["clock_out_longitude", "REAL"],
+          ["clock_out_location_accuracy", "REAL"],
+          ["clock_out_location_captured_at", "TEXT"],
+          ["clock_out_location_unavailable_reason", "TEXT NOT NULL DEFAULT ''"],
+        ];
+
+        for (const [column, definition] of columns) {
+          if (!columnExists(database, "time_entries", column)) {
+            database.exec(`
+              ALTER TABLE time_entries
+              ADD COLUMN ${column} ${definition};
+            `);
+          }
+        }
+      },
+    },
+    {
+      version: 57,
+      description: "Persist review-only time presence decisions.",
+      up(database) {
+        const columns = [
+          ["jobsite_presence_review_status", "TEXT NOT NULL DEFAULT ''"],
+          ["jobsite_presence_review_note", "TEXT NOT NULL DEFAULT ''"],
+          ["jobsite_presence_reviewed_by", "TEXT NOT NULL DEFAULT ''"],
+          ["jobsite_presence_reviewed_at", "TEXT NOT NULL DEFAULT ''"],
+        ];
+
+        for (const [column, definition] of columns) {
+          if (!columnExists(database, "time_entries", column)) {
+            database.exec(`
+              ALTER TABLE time_entries
+              ADD COLUMN ${column} ${definition};
+            `);
+          }
+        }
+      },
+    },
   ];
 
 function runInTransaction(database, work) {
@@ -6252,8 +6323,14 @@ function writeStateToDatabase(database, state) {
   `);
 
   const insertTimeEntry = database.prepare(`
-    INSERT INTO time_entries (id, sort_index, company_id, user_id, job_id, work_category, clock_in_at, clock_out_at, break_start_at, break_end_at, total_minutes, break_minutes, status, notes, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO time_entries (
+      id, sort_index, company_id, user_id, job_id, work_category, clock_in_at, clock_out_at,
+      clock_in_latitude, clock_in_longitude, clock_in_location_accuracy, clock_in_location_captured_at, clock_in_location_unavailable_reason,
+      clock_out_latitude, clock_out_longitude, clock_out_location_accuracy, clock_out_location_captured_at, clock_out_location_unavailable_reason,
+      jobsite_presence_review_status, jobsite_presence_review_note, jobsite_presence_reviewed_by, jobsite_presence_reviewed_at,
+      break_start_at, break_end_at, total_minutes, break_minutes, status, notes, created_at, updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertDailyReport = database.prepare(`
@@ -7085,6 +7162,20 @@ function writeStateToDatabase(database, state) {
         entry.workCategory || "job",
         entry.clockInAt,
         entry.clockOutAt || null,
+        entry.clockInLatitude ?? null,
+        entry.clockInLongitude ?? null,
+        entry.clockInLocationAccuracy ?? null,
+        entry.clockInLocationCapturedAt || null,
+        entry.clockInLocationUnavailableReason || "",
+        entry.clockOutLatitude ?? null,
+        entry.clockOutLongitude ?? null,
+        entry.clockOutLocationAccuracy ?? null,
+        entry.clockOutLocationCapturedAt || null,
+        entry.clockOutLocationUnavailableReason || "",
+        entry.jobsitePresenceReviewStatus || "",
+        entry.jobsitePresenceReviewNote || "",
+        entry.jobsitePresenceReviewedBy || "",
+        entry.jobsitePresenceReviewedAt || "",
         entry.breakStartAt || null,
         entry.breakEndAt || null,
         Number(entry.totalMinutes || 0),
@@ -7226,7 +7317,17 @@ function readTableState(database = createDatabaseConnection()) {
   for (const row of companySettingsRows) {
     const companyId = normalizeCompanyId(row.companyId);
     companySettingsByCompanyId[companyId] ||= {};
-    companySettingsByCompanyId[companyId][row.key] = row.key === "toolChecklistEnabled" ? row.value === "true" : row.value;
+    if (row.key === "toolChecklistEnabled") {
+      companySettingsByCompanyId[companyId][row.key] = row.value === "true";
+    } else if (row.key === "timeLocationEvidencePolicy") {
+      try {
+        companySettingsByCompanyId[companyId][row.key] = JSON.parse(row.value || "{}");
+      } catch {
+        companySettingsByCompanyId[companyId][row.key] = {};
+      }
+    } else {
+      companySettingsByCompanyId[companyId][row.key] = row.value;
+    }
   }
   const normalizedCompanySettingsByCompanyId = normalizeCompanySettingsByCompanyId(companySettingsByCompanyId);
   const companySettings = normalizedCompanySettingsByCompanyId[DEFAULT_COMPANY_ID] || normalizeCompanySettings(DEFAULT_COMPANY_SETTINGS);
@@ -7558,6 +7659,16 @@ function readTableState(database = createDatabaseConnection()) {
 
   const timeEntries = database.prepare(`
     SELECT id, company_id AS companyId, user_id AS userId, job_id AS jobId, work_category AS workCategory, clock_in_at AS clockInAt, clock_out_at AS clockOutAt,
+           clock_in_latitude AS clockInLatitude, clock_in_longitude AS clockInLongitude,
+           clock_in_location_accuracy AS clockInLocationAccuracy, clock_in_location_captured_at AS clockInLocationCapturedAt,
+           clock_in_location_unavailable_reason AS clockInLocationUnavailableReason,
+           clock_out_latitude AS clockOutLatitude, clock_out_longitude AS clockOutLongitude,
+           clock_out_location_accuracy AS clockOutLocationAccuracy, clock_out_location_captured_at AS clockOutLocationCapturedAt,
+           clock_out_location_unavailable_reason AS clockOutLocationUnavailableReason,
+           jobsite_presence_review_status AS jobsitePresenceReviewStatus,
+           jobsite_presence_review_note AS jobsitePresenceReviewNote,
+           jobsite_presence_reviewed_by AS jobsitePresenceReviewedBy,
+           jobsite_presence_reviewed_at AS jobsitePresenceReviewedAt,
            break_start_at AS breakStartAt, break_end_at AS breakEndAt, total_minutes AS totalMinutes,
            break_minutes AS breakMinutes, status, notes, created_at AS createdAt, updated_at AS updatedAt
     FROM time_entries

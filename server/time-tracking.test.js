@@ -245,6 +245,37 @@ test("employees and foremen can track field time with proper visibility and brea
     });
     assert.equal(wrongCategory.response.status, 403);
 
+    const policyDisabledLocationClockIn = await requestJson(fixture.baseUrl, "/api/time-entries/clock-in", {
+      method: "POST",
+      headers: employeeHeaders,
+      body: JSON.stringify({
+        workCategory: "job",
+        jobId: "J-2201",
+        clockInLatitude: 44.95621,
+        clockInLongitude: -123.03481,
+      }),
+    });
+    assert.equal(policyDisabledLocationClockIn.response.status, 403);
+    assert.match(policyDisabledLocationClockIn.payload.error, /location evidence is disabled/i);
+
+    const settingsWithLocationPolicy = await assertOk(fixture.baseUrl, "/api/settings/company", {
+      method: "PATCH",
+      headers: officeHeaders,
+      body: JSON.stringify({
+        timeLocationEvidencePolicy: {
+          enabled: true,
+          presenceReviewEnabled: true,
+          presenceReviewRadiusMeters: 100,
+          workerNotice: "Crew can optionally capture GPS at clock-in or clock-out only.",
+        },
+      }),
+    });
+    assert.equal(settingsWithLocationPolicy.companySettings.timeLocationEvidencePolicy.enabled, true);
+    assert.equal(settingsWithLocationPolicy.companySettings.timeLocationEvidencePolicy.presenceReviewEnabled, true);
+    assert.equal(settingsWithLocationPolicy.companySettings.timeLocationEvidencePolicy.presenceReviewRadiusMeters, 100);
+    assert.match(settingsWithLocationPolicy.companySettings.timeLocationEvidencePolicy.workerNotice, /optionally capture GPS/);
+    assert.ok(settingsWithLocationPolicy.auditEvents.some((event) => event.entityId === "timeLocationEvidencePolicy" && event.action === "enabled"));
+
     const clockedInState = await assertOk(fixture.baseUrl, "/api/time-entries/clock-in", {
       method: "POST",
       headers: employeeHeaders,
@@ -252,6 +283,10 @@ test("employees and foremen can track field time with proper visibility and brea
         workCategory: "job",
         jobId: "J-2201",
         notes: "Started on site prep",
+        clockInLatitude: 44.95621,
+        clockInLongitude: -123.03481,
+        clockInLocationAccuracy: 8,
+        clockInLocationCapturedAt: "2026-05-29T15:00:00.000Z",
       }),
     });
     const activeEntry = clockedInState.timeEntries.find((entry) => entry.userId === employeeUser.id);
@@ -259,6 +294,20 @@ test("employees and foremen can track field time with proper visibility and brea
     assert.equal(activeEntry.status, "active");
     assert.equal(activeEntry.jobId, "J-2201");
     assert.equal(activeEntry.workCategory, "job");
+    assert.equal(activeEntry.clockInLatitude, 44.95621);
+    assert.equal(activeEntry.clockInLongitude, -123.03481);
+    assert.equal(activeEntry.clockInLocationAccuracy, 8);
+    assert.equal(activeEntry.clockInLocationCapturedAt, "2026-05-29T15:00:00.000Z");
+    assert.equal(activeEntry.clockInLocationUnavailableReason, "");
+
+    const invalidClockOutLocation = await requestJson(fixture.baseUrl, `/api/time-entries/${activeEntry.id}/clock-out`, {
+      method: "POST",
+      headers: employeeHeaders,
+      body: JSON.stringify({
+        clockOutLatitude: 44.95622,
+      }),
+    });
+    assert.equal(invalidClockOutLocation.response.status, 400);
 
     const duplicateClockIn = await requestJson(fixture.baseUrl, "/api/time-entries/clock-in", {
       method: "POST",
@@ -287,11 +336,45 @@ test("employees and foremen can track field time with proper visibility and brea
     const clockedOutState = await assertOk(fixture.baseUrl, `/api/time-entries/${activeEntry.id}/clock-out`, {
       method: "POST",
       headers: employeeHeaders,
+      body: JSON.stringify({
+        clockOutLatitude: 44.9605,
+        clockOutLongitude: -123.03481,
+        clockOutLocationAccuracy: 11,
+        clockOutLocationCapturedAt: "2026-05-29T18:00:00.000Z",
+      }),
     });
     const completedEntry = clockedOutState.timeEntries.find((entry) => entry.id === activeEntry.id);
     assert.equal(completedEntry.status, "completed");
     assert.ok(completedEntry.totalMinutes >= 0);
     assert.ok(completedEntry.breakMinutes >= 0);
+    assert.equal(completedEntry.clockOutLatitude, 44.9605);
+    assert.equal(completedEntry.clockOutLongitude, -123.03481);
+    assert.equal(completedEntry.clockOutLocationUnavailableReason, "");
+    assert.equal(completedEntry.jobsitePresenceReview.status, "needs_review");
+    assert.match(completedEntry.jobsitePresenceReview.detail, /Review before using this for payroll, discipline, or job status decisions/);
+
+    const employeePresenceReview = await requestJson(fixture.baseUrl, `/api/time-entries/${activeEntry.id}/presence-review`, {
+      method: "POST",
+      headers: employeeHeaders,
+      body: JSON.stringify({
+        note: "Employee should not be able to close this review.",
+      }),
+    });
+    assert.equal(employeePresenceReview.response.status, 403);
+
+    const presenceReviewedState = await assertOk(fixture.baseUrl, `/api/time-entries/${activeEntry.id}/presence-review`, {
+      method: "POST",
+      headers: officeHeaders,
+      body: JSON.stringify({
+        note: "Reviewed with foreman; clock-out was at the material gate after cleanup.",
+      }),
+    });
+    const reviewedEntry = presenceReviewedState.timeEntries.find((entry) => entry.id === activeEntry.id);
+    assert.equal(reviewedEntry.jobsitePresenceReviewStatus, "reviewed");
+    assert.ok(reviewedEntry.jobsitePresenceReviewedByName);
+    assert.match(reviewedEntry.jobsitePresenceReviewNote, /material gate/);
+    assert.equal(reviewedEntry.jobsitePresenceReview.status, "reviewed");
+    assert.ok(presenceReviewedState.auditEvents.some((event) => event.entityType === "timeEntry" && event.action === "presence_reviewed"));
 
     const employeeTime = await assertOk(fixture.baseUrl, "/api/time-entries", {
       headers: employeeHeaders,

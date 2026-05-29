@@ -315,6 +315,10 @@ export function draftAgentLeadProviderReviewOpportunity(token, payload = {}) {
   return request("/api/agent/os/provider/review-queue-draft-opportunity", { method: "POST", token, body: payload });
 }
 
+export function recordAgentLeadDailyReviewInboxDecision(token, payload = {}) {
+  return request("/api/agent/os/provider/daily-review-inbox-decisions", { method: "POST", token, body: payload });
+}
+
 export function runAgentLeadProviderSandboxTest(token, payload = {}) {
   return request("/api/agent/os/provider/sandbox-test", { method: "POST", token, body: payload });
 }
@@ -935,12 +939,16 @@ export function endBreak(token, id) {
   return request(`/api/time-entries/${id}/break-end`, { method: "POST", token });
 }
 
-export function clockOut(token, id) {
-  return request(`/api/time-entries/${id}/clock-out`, { method: "POST", token });
+export function clockOut(token, id, payload = {}) {
+  return request(`/api/time-entries/${id}/clock-out`, { method: "POST", token, body: payload });
 }
 
 export function correctTimeEntry(token, id, payload) {
   return request(`/api/time-entries/${id}`, { method: "PATCH", token, body: payload });
+}
+
+export function reviewTimePresence(token, id, payload) {
+  return request(`/api/time-entries/${id}/presence-review`, { method: "POST", token, body: payload });
 }
 
 export function createQueueItem(token, task) {

@@ -155,6 +155,7 @@ import {
   normalizeAgentLeadsProviderImportDecision,
   normalizeAgentLeadsProviderReviewQueueDecision,
   normalizeAgentLeadsProviderReviewLearningSignal,
+  normalizeAgentLeadsDailyReviewInboxDecision,
   normalizeAgentLeadsProductionReadinessEvidence,
   deriveAgentLeadsProviderReviewLearningSnapshot,
   buildAgentLeadsFoundOpportunityDraftFromProviderReviewRow,
@@ -253,6 +254,7 @@ import {
 } from "./store.js";
 import {
   DEFAULT_COMPANY_SETTINGS,
+  normalizeTimeLocationEvidencePolicy,
   canAcknowledgeSafety,
   canArchiveJobs,
   canCreateJobs,
@@ -322,6 +324,7 @@ import {
   isOperationsManager,
   isOwner,
 } from "../shared/permissions.js";
+import { deriveTimeEntryJobsitePresenceReview } from "../shared/timeLocationPresence.js";
 import { buildConstructionAgentTradeContext, normalizeConstructionTradeId } from "../shared/constructionTrades.js";
 import {
   buildCustomerPortalPreviewPacket,
@@ -468,7 +471,7 @@ function securityHeaders(_req, res, next) {
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("Referrer-Policy", "no-referrer");
   res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
-  res.setHeader("Permissions-Policy", "geolocation=(), microphone=(), payment=(), usb=()");
+  res.setHeader("Permissions-Policy", "geolocation=(self), microphone=(), payment=(), usb=()");
   res.setHeader("Content-Security-Policy", [
     "default-src 'self'",
     "base-uri 'self'",
@@ -4039,6 +4042,52 @@ function applyTimeEntryTotals(entry) {
   return entry;
 }
 
+function normalizeTimeEntryLocationEvidence(payload = {}, prefix, label, fallbackCapturedAt = "") {
+  const latitude = optionalNumberInRange(payload[`${prefix}Latitude`] ?? payload.latitude, `${label} latitude`, { min: -90, max: 90 });
+  const longitude = optionalNumberInRange(payload[`${prefix}Longitude`] ?? payload.longitude, `${label} longitude`, { min: -180, max: 180 });
+  const locationAccuracy = optionalNumberInRange(payload[`${prefix}LocationAccuracy`] ?? payload.locationAccuracy, `${label} location accuracy`, { min: 0, max: 100000 });
+  const locationUnavailableReason = optionalString(payload[`${prefix}LocationUnavailableReason`] ?? payload.locationUnavailableReason, "");
+  const hasLatitude = latitude != null;
+  const hasLongitude = longitude != null;
+  const hasCoordinates = hasLatitude && hasLongitude;
+
+  if (hasLatitude !== hasLongitude) {
+    throw new ApiError(400, `${label} location requires both latitude and longitude.`);
+  }
+  if (!hasCoordinates && locationAccuracy != null) {
+    throw new ApiError(400, `${label} location accuracy requires latitude and longitude.`);
+  }
+
+  const requestedCapturedAt = payload[`${prefix}LocationCapturedAt`] ?? payload.locationCapturedAt;
+  const locationCapturedAt = optionalDateTimeString(requestedCapturedAt, `${label} location captured at`, hasCoordinates ? fallbackCapturedAt : "");
+
+  return {
+    [`${prefix}Latitude`]: hasCoordinates ? latitude : null,
+    [`${prefix}Longitude`]: hasCoordinates ? longitude : null,
+    [`${prefix}LocationAccuracy`]: hasCoordinates ? locationAccuracy : null,
+    [`${prefix}LocationCapturedAt`]: hasCoordinates ? locationCapturedAt : "",
+    [`${prefix}LocationUnavailableReason`]: hasCoordinates ? "" : locationUnavailableReason,
+  };
+}
+
+function timeEntryLocationChangedFields(prefix, evidence = {}) {
+  const hasCoordinates = evidence[`${prefix}Latitude`] != null && evidence[`${prefix}Longitude`] != null;
+  const hasUnavailableReason = Boolean(evidence[`${prefix}LocationUnavailableReason`]);
+  return hasCoordinates || hasUnavailableReason ? [`${prefix}Location`] : [];
+}
+
+function timeEntryLocationEvidenceWasRequested(prefix, evidence = {}) {
+  return timeEntryLocationChangedFields(prefix, evidence).length > 0;
+}
+
+function assertTimeLocationEvidencePolicyEnabled(state, user, prefix, evidence = {}) {
+  if (!timeEntryLocationEvidenceWasRequested(prefix, evidence)) return;
+  const policy = normalizeTimeLocationEvidencePolicy(companySettingsForState(state, user).timeLocationEvidencePolicy);
+  if (!policy.enabled) {
+    throw new ApiError(403, "Time clock location evidence is disabled for this company.");
+  }
+}
+
 function assertTimeEntryCategoryPayload(user, workCategory, job) {
   if (!canUseSelfTimeCategory(user, workCategory)) {
     throw new ApiError(403, "You do not have permission to clock time in that work category.");
@@ -4081,8 +4130,10 @@ function findRequiredTimeEntry(state, entryId, user = null) {
 }
 
 function sanitizeTimeEntry(entry, state, user) {
+  const settings = companySettingsForState(state, user);
   const job = findSameCompanyLinkedRecord(state.jobs || [], entry.jobId, entry);
   const entryUser = findUserById(state, entry.userId);
+  const presenceReviewer = findUserById(state, entry.jobsitePresenceReviewedBy);
   const fieldSafeJob = job ? sanitizeJobForUser(job, user, state) : null;
   const normalizedJob = job ? normalizeJobRecord(job) : null;
   const totalMinutes = Number(entry.totalMinutes || 0);
@@ -4102,6 +4153,22 @@ function sanitizeTimeEntry(entry, state, user) {
     foremanAssignment: fieldSafeJob?.foremanAssignment || null,
     clockInAt: entry.clockInAt,
     clockOutAt: entry.clockOutAt || "",
+    clockInLatitude: entry.clockInLatitude == null ? null : Number(entry.clockInLatitude),
+    clockInLongitude: entry.clockInLongitude == null ? null : Number(entry.clockInLongitude),
+    clockInLocationAccuracy: entry.clockInLocationAccuracy == null ? null : Number(entry.clockInLocationAccuracy),
+    clockInLocationCapturedAt: entry.clockInLocationCapturedAt || "",
+    clockInLocationUnavailableReason: entry.clockInLocationUnavailableReason || "",
+    clockOutLatitude: entry.clockOutLatitude == null ? null : Number(entry.clockOutLatitude),
+    clockOutLongitude: entry.clockOutLongitude == null ? null : Number(entry.clockOutLongitude),
+    clockOutLocationAccuracy: entry.clockOutLocationAccuracy == null ? null : Number(entry.clockOutLocationAccuracy),
+    clockOutLocationCapturedAt: entry.clockOutLocationCapturedAt || "",
+    clockOutLocationUnavailableReason: entry.clockOutLocationUnavailableReason || "",
+    jobsitePresenceReviewStatus: entry.jobsitePresenceReviewStatus || "",
+    jobsitePresenceReviewNote: entry.jobsitePresenceReviewNote || "",
+    jobsitePresenceReviewedBy: entry.jobsitePresenceReviewedBy || "",
+    jobsitePresenceReviewedByName: presenceReviewer?.name || "",
+    jobsitePresenceReviewedAt: entry.jobsitePresenceReviewedAt || "",
+    jobsitePresenceReview: deriveTimeEntryJobsitePresenceReview(entry, settings.timeLocationEvidencePolicy),
     breakStartAt: entry.breakStartAt || "",
     breakEndAt: entry.breakEndAt || "",
     totalMinutes,
@@ -11309,6 +11376,146 @@ app.post("/api/agent/os/provider/review-queue-draft-opportunity", requireAuth, a
   });
 }));
 
+app.post("/api/agent/os/provider/daily-review-inbox-decisions", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageLeads(req.auth.user);
+  const state = await readFeatureScopedState(req, FEATURE_KEYS.LEAD_JOB_FINDER, "Opportunity Scout");
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  const now = new Date().toISOString();
+  const companyId = currentCompanyIdForRequestUser(state, req.auth.user);
+  const normalized = normalizeAgentLeadsDailyReviewInboxDecision(req.body || {}, {
+    id: makeId("AGENT-LEADS-REVIEW"),
+    companyId,
+    actorUserId: req.auth.user.id,
+    now,
+  });
+  if (!normalized.ok) {
+    throw new ApiError(400, normalized.error);
+  }
+  const decision = normalized.decision;
+  let createdLeadId = "";
+  let foundOpportunityId = decision.foundOpportunityId;
+
+  const learning = normalizeAgentLeadsProviderReviewLearningSignal(decision, {
+    id: makeId("PROVIDER-REVIEW-LEARNING"),
+    companyId,
+    actorUserId: req.auth.user.id,
+    now,
+  });
+  if (!learning.ok) {
+    throw new ApiError(400, learning.error);
+  }
+
+  const nextState = await updateDb((draft) => {
+    draft.foundOpportunities ||= [];
+    draft.leads ||= [];
+    draft.queueItems ||= [];
+    let opportunity = null;
+    if (decision.foundOpportunityId) {
+      opportunity = findCompanyScopedRecord(draft.foundOpportunities, decision.foundOpportunityId, req.auth.user, draft, "Found opportunity");
+      foundOpportunityId = opportunity.id;
+    }
+
+    if (decision.decision === "approve_for_lead") {
+      if (!opportunity) throw new ApiError(404, "Found opportunity is required before approval.");
+      opportunity.humanReviewStatus = "approved_for_lead";
+      opportunity.humanReviewNote = decision.note || "Approved from Agent Leads daily review inbox.";
+      opportunity.humanReviewedBy = req.auth.user.id;
+      opportunity.humanReviewedAt = now;
+      opportunity.updatedAt = now;
+      appendAuditEvent(draft, {
+        entityType: "foundOpportunity",
+        entityId: opportunity.id,
+        action: "agent.leads.daily_review.approved_for_lead",
+        summary: "Agent Leads daily review approved opportunity for lead creation",
+        detail: redactAgentProposalAuditText([opportunity.title, decision.note, "No customer contact, bid submission, payment, schedule, or integration action occurred."].filter(Boolean).join(" | ")),
+        actor: req.auth.user,
+        changedFields: ["humanReviewStatus", "humanReviewNote", "humanReviewedAt"],
+      });
+    } else if (["reject", "no_fit", "dismiss"].includes(decision.decision)) {
+      if (!opportunity) throw new ApiError(404, "Found opportunity is required before rejection.");
+      opportunity.humanReviewStatus = "rejected";
+      opportunity.humanReviewNote = decision.note || "Rejected from Agent Leads daily review inbox.";
+      opportunity.humanReviewedBy = req.auth.user.id;
+      opportunity.humanReviewedAt = now;
+      opportunity.status = "skipped";
+      opportunity.updatedAt = now;
+      appendAuditEvent(draft, {
+        entityType: "foundOpportunity",
+        entityId: opportunity.id,
+        action: "agent.leads.daily_review.rejected",
+        summary: "Agent Leads daily review rejected opportunity",
+        detail: redactAgentProposalAuditText([opportunity.title, decision.note, "No lead, customer contact, bid submission, payment, schedule, or integration action occurred."].filter(Boolean).join(" | ")),
+        actor: req.auth.user,
+        changedFields: ["status", "humanReviewStatus", "humanReviewNote", "humanReviewedAt"],
+      });
+    } else if (decision.decision === "create_lead") {
+      if (!opportunity) throw new ApiError(404, "Found opportunity is required before lead creation.");
+      const newLead = convertFoundOpportunityToLeadInDraft(draft, opportunity, req.auth.user, now);
+      createdLeadId = newLead.id;
+      decision.createdLeadId = newLead.id;
+    }
+
+    const learningSignal = {
+      ...learning.signal,
+      foundOpportunityId,
+      createdLeadId,
+      decision: decision.decision,
+    };
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: foundOpportunityId || decision.providerResultId || decision.id,
+      action: decision.auditEvent,
+      summary: `Agent Leads daily review decision recorded: ${decision.decision.replace(/_/g, " ")}`,
+      status: "reviewed",
+      metadata: {
+        dailyReviewInboxDecision: {
+          ...decision,
+          foundOpportunityId,
+          createdLeadId,
+        },
+        providerReviewLearningSignal: learningSignal,
+        providerResultId: decision.providerResultId,
+        foundOpportunityId,
+        createdLeadId,
+        leadAutoSaveEnabled: false,
+        customerContactEnabled: false,
+        bidSubmissionEnabled: false,
+      },
+    });
+    return draft;
+  });
+
+  const bootstrap = sanitizeBootstrap(nextState, req.auth.user);
+  const visibleAuditEvents = visibleAuditEventsForUser(nextState, req.auth.user);
+  const providerReviewLearningSnapshot = deriveAgentLeadsProviderReviewLearningSnapshot(visibleAuditEvents, {
+    companyId,
+    today: now,
+  });
+  const dailyReviewWorkflow = buildAgentLeadsDailyReviewWorkflowSnapshot({
+    reviewInboxRows: bootstrap.opportunityScout?.dailyScoutExecutionPlan?.dailyReviewInbox?.rows || [],
+    learningSnapshot: providerReviewLearningSnapshot,
+    today: now,
+  });
+  res.status(201).json({
+    ...bootstrap,
+    dailyReviewInboxDecision: {
+      ...decision,
+      foundOpportunityId,
+      createdLeadId,
+    },
+    providerReviewLearningSignal: {
+      ...learning.signal,
+      foundOpportunityId,
+      createdLeadId,
+      decision: decision.decision,
+    },
+    providerReviewLearningSnapshot,
+    dailyReviewWorkflow,
+    createdLeadId,
+    requestId: res.locals.requestId,
+  });
+}));
+
 app.post("/api/agent/os/provider/sandbox-test", requireAuth, asyncRoute(async (req, res) => {
   const state = await readDb();
   const action = getAgentOsAction("opportunity_search_prep");
@@ -12618,6 +12825,7 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
     draft.companySettingsByCompanyId ||= {};
     draft.companySettings = companySettingsForState(draft, req.auth.user);
     const previousToolChecklistEnabled = draft.companySettings.toolChecklistEnabled;
+    const previousTimeLocationEvidencePolicy = normalizeTimeLocationEvidencePolicy(draft.companySettings.timeLocationEvidencePolicy);
     const brandingChanges = [];
     const brandingChangedFields = [];
     const profileChanges = [];
@@ -12629,10 +12837,19 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
     const policyChanges = [];
     const policyChangedFields = [];
     const hasToolChecklistEnabledUpdate = Object.prototype.hasOwnProperty.call(payload, "toolChecklistEnabled");
+    const hasTimeLocationEvidencePolicyUpdate = Object.prototype.hasOwnProperty.call(payload, "timeLocationEvidencePolicy");
     const hasManagedSetupUpdate = Object.prototype.hasOwnProperty.call(payload, "managedSetupChecklist")
       || Object.prototype.hasOwnProperty.call(payload, "managedSetupNotes");
     const hasAgentAutomationPolicyUpdate = Object.prototype.hasOwnProperty.call(payload, "apexAgentAutomationPolicy");
     const nextToolChecklistEnabled = optionalBoolean(payload.toolChecklistEnabled, previousToolChecklistEnabled);
+    const nextTimeLocationEvidencePolicy = hasTimeLocationEvidencePolicyUpdate
+      ? normalizeTimeLocationEvidencePolicy({
+        ...previousTimeLocationEvidencePolicy,
+        ...(payload.timeLocationEvidencePolicy || {}),
+        updatedAt: previousTimeLocationEvidencePolicy.updatedAt,
+        updatedBy: previousTimeLocationEvidencePolicy.updatedBy,
+      })
+      : null;
     const nextCompanyName = payload.companyName == null
       ? draft.companySettings.companyName
       : optionalCompanyName(payload.companyName, "");
@@ -12728,6 +12945,31 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
         detail: `${req.auth.user.name} ${nextToolChecklistEnabled ? "enabled" : "disabled"} the Tool Checklist module.`,
         actor: req.auth.user,
         changedFields: ["toolChecklistEnabled", "updatedAt"],
+      });
+    }
+
+    if (nextTimeLocationEvidencePolicy && JSON.stringify(previousTimeLocationEvidencePolicy) !== JSON.stringify(nextTimeLocationEvidencePolicy)) {
+      const policyWithAuditMetadata = {
+        ...nextTimeLocationEvidencePolicy,
+        updatedAt: changedAt,
+        updatedBy: req.auth.user.id,
+      };
+      draft.companySettings.timeLocationEvidencePolicy = policyWithAuditMetadata;
+      const enabled = policyWithAuditMetadata.enabled;
+      const enabledChanged = previousTimeLocationEvidencePolicy.enabled !== policyWithAuditMetadata.enabled;
+      const summary = enabledChanged
+        ? enabled ? "Time GPS evidence policy enabled" : "Time GPS evidence policy disabled"
+        : "Time GPS evidence policy updated";
+      const detail = `${req.auth.user.name} updated optional time clock location evidence policy. Capture remains user-tapped only. Presence review is ${policyWithAuditMetadata.presenceReviewEnabled ? `review-only with a ${policyWithAuditMetadata.presenceReviewRadiusMeters} meter radius` : "off"}; no background GPS, live geofence alert, payroll correction, discipline, or jobsite departure automation was enabled.`;
+      appendActivity(draft, summary, detail);
+      appendAuditEvent(draft, {
+        entityType: "companySettings",
+        entityId: "timeLocationEvidencePolicy",
+        action: enabledChanged ? enabled ? "enabled" : "disabled" : "updated",
+        summary,
+        detail,
+        actor: req.auth.user,
+        changedFields: ["timeLocationEvidencePolicy", "updatedAt"],
       });
     }
 
@@ -15424,11 +15666,120 @@ app.patch("/api/opportunity-scout/found-opportunities/:id", requireAuth, asyncRo
   res.json(sanitizeBootstrap(nextState, req.auth.user));
 }));
 
+function convertFoundOpportunityToLeadInDraft(draft, opportunity, actor, changedAt = new Date().toISOString()) {
+  if (opportunity.convertedLeadId) {
+    throw new ApiError(409, "This found opportunity has already been converted to a lead.");
+  }
+  if (!canConvertFoundOpportunityToLead(opportunity)) {
+    throw new ApiError(409, "A human owner, admin, or estimator must approve this opportunity for lead conversion first.");
+  }
+  const searchProfile = assertOpportunitySourceAllowsLeadConversion(draft, opportunity, actor);
+  const followUpDueAt = new Date(changedAt).toISOString().slice(0, 10);
+  const bidDueDate = dateOnlyFromDateTime(opportunity.bidDueAt);
+  const shouldPrioritize = Number(opportunity.fitScore || 0) >= 75 || Boolean(bidDueDate && bidDueDate <= followUpDueAt);
+  const leadPayload = {
+    customer: opportunity.agency || opportunity.contactName || opportunity.sourceName || opportunity.title,
+    city: opportunity.city || "Location pending",
+    project: opportunity.title,
+    status: "New",
+    priority: shouldPrioritize ? "High" : "Normal",
+    value: opportunity.estimatedValue || 0,
+    ownerId: opportunity.assignedEstimatorId || actor.id,
+    source: "Opportunity Scout",
+    followUpDueAt,
+    nextStep: opportunity.bidDueAt ? "Review bid date, confirm fit, and qualify the opportunity." : "Qualify the found opportunity and confirm the next bid step.",
+    notes: buildOpportunityLeadNotes(opportunity, searchProfile),
+    phone: opportunity.contactPhone || "",
+    email: opportunity.contactEmail || "",
+    company: opportunity.agency || "",
+    serviceArea: opportunity.city || "",
+  };
+
+  const newLead = {
+    id: makeId("L"),
+    customerId: "",
+    customer: requiredString(leadPayload.customer, "Customer"),
+    city: requiredString(leadPayload.city, "City"),
+    project: requiredString(leadPayload.project, "Project"),
+    trade: normalizeLeadTradeValue(opportunity.trade || opportunity.projectType),
+    status: "New",
+    priority: optionalEnum(leadPayload.priority, LEAD_PRIORITIES, "Priority", "Normal"),
+    value: optionalNonNegativeNumber(leadPayload.value, "Value"),
+    owner: "",
+    ownerId: "",
+    source: "Opportunity Scout",
+    followUpDueAt,
+    age: "Just now",
+    nextStep: leadPayload.nextStep,
+    notes: leadPayload.notes || "Created from Opportunity Scout.",
+    fitScore: 0,
+    fitLabel: "",
+    fitReason: "",
+    fitRisks: [],
+    fitNextStep: "",
+    scoreSource: "",
+    scoredAt: "",
+    missingInfoStatus: "",
+    missingInfoCount: 0,
+    missingInfoItems: [],
+    missingInfoNextStep: "",
+    missingInfoCheckedAt: "",
+    createdAt: changedAt,
+    updatedAt: changedAt,
+  };
+
+  assignCompanyIdForCreate(newLead, actor, draft);
+  Object.assign(newLead, resolveLeadOwner(draft, leadPayload, actor));
+  relateLeadToCustomer(draft, newLead, actor, leadPayload);
+  draft.leads.unshift(newLead);
+  opportunity.status = "converted_to_lead";
+  opportunity.convertedLeadId = newLead.id;
+  opportunity.updatedAt = changedAt;
+  opportunity.archivedAt = null;
+
+  appendLeadStatusHistory(draft, {
+    leadId: newLead.id,
+    fromStatus: null,
+    toStatus: newLead.status,
+    actor,
+    note: "Lead created from Opportunity Scout found opportunity.",
+    createdAt: changedAt,
+  });
+  draft.queueItems.unshift(assignCompanyIdForCreate({
+    id: makeId("Q"),
+    title: `Follow up ${newLead.customer}`,
+    meta: `${newLead.project} - Opportunity Scout`,
+    status: "Due today",
+    done: false,
+    createdAt: changedAt,
+    updatedAt: changedAt,
+  }, actor, draft));
+  appendActivity(draft, "Opportunity converted to lead", `${opportunity.title} was converted into ${newLead.customer}.`, { companyId: newLead.companyId });
+  appendAuditEvent(draft, {
+    entityType: "foundOpportunity",
+    entityId: opportunity.id,
+    action: "converted",
+    summary: "Opportunity converted to lead",
+    detail: `${opportunity.title} was converted into lead ${newLead.id}.`,
+    actor,
+    changedFields: ["status", "convertedLeadId", "updatedAt"],
+  });
+  appendAuditEvent(draft, {
+    entityType: "lead",
+    entityId: newLead.id,
+    action: "created",
+    summary: "Lead created from Opportunity Scout",
+    detail: `${newLead.customer} entered for ${newLead.project}.`,
+    actor,
+    changedFields: ["status", "owner", "source", "followUpDueAt", "trade"],
+  });
+  return newLead;
+}
+
 app.post("/api/opportunity-scout/found-opportunities/:id/convert-to-lead", requireAuth, asyncRoute(async (req, res) => {
   assertCanManageLeads(req.auth.user);
   await readFeatureScopedState(req, FEATURE_KEYS.LEAD_JOB_FINDER, "Opportunity Scout");
   const changedAt = new Date().toISOString();
-  const followUpDueAt = new Date(changedAt).toISOString().slice(0, 10);
   let createdLeadId = "";
 
   const nextState = await updateDb((draft) => {
@@ -15436,113 +15787,8 @@ app.post("/api/opportunity-scout/found-opportunities/:id/convert-to-lead", requi
     draft.leads ||= [];
     draft.queueItems ||= [];
     const opportunity = findCompanyScopedRecord(draft.foundOpportunities, req.params.id, req.auth.user, draft, "Opportunity");
-    if (opportunity.convertedLeadId) {
-      throw new ApiError(409, "This found opportunity has already been converted to a lead.");
-    }
-    if (!canConvertFoundOpportunityToLead(opportunity)) {
-      throw new ApiError(409, "A human owner, admin, or estimator must approve this opportunity for lead conversion first.");
-    }
-    const searchProfile = assertOpportunitySourceAllowsLeadConversion(draft, opportunity, req.auth.user);
-
-    const bidDueDate = dateOnlyFromDateTime(opportunity.bidDueAt);
-    const shouldPrioritize = Number(opportunity.fitScore || 0) >= 75 || Boolean(bidDueDate && bidDueDate <= followUpDueAt);
-    const leadPayload = {
-      customer: opportunity.agency || opportunity.contactName || opportunity.sourceName || opportunity.title,
-      city: opportunity.city || "Location pending",
-      project: opportunity.title,
-      status: "New",
-      priority: shouldPrioritize ? "High" : "Normal",
-      value: opportunity.estimatedValue || 0,
-      ownerId: opportunity.assignedEstimatorId || req.auth.user.id,
-      source: "Opportunity Scout",
-      followUpDueAt,
-      nextStep: opportunity.bidDueAt ? "Review bid date, confirm fit, and qualify the opportunity." : "Qualify the found opportunity and confirm the next bid step.",
-      notes: buildOpportunityLeadNotes(opportunity, searchProfile),
-      phone: opportunity.contactPhone || "",
-      email: opportunity.contactEmail || "",
-      company: opportunity.agency || "",
-      serviceArea: opportunity.city || "",
-    };
-
-    const newLead = {
-      id: makeId("L"),
-      customerId: "",
-      customer: requiredString(leadPayload.customer, "Customer"),
-      city: requiredString(leadPayload.city, "City"),
-      project: requiredString(leadPayload.project, "Project"),
-      trade: normalizeLeadTradeValue(opportunity.trade || opportunity.projectType),
-      status: "New",
-      priority: optionalEnum(leadPayload.priority, LEAD_PRIORITIES, "Priority", "Normal"),
-      value: optionalNonNegativeNumber(leadPayload.value, "Value"),
-      owner: "",
-      ownerId: "",
-      source: "Opportunity Scout",
-      followUpDueAt,
-      age: "Just now",
-      nextStep: leadPayload.nextStep,
-      notes: leadPayload.notes || "Created from Opportunity Scout.",
-      fitScore: 0,
-      fitLabel: "",
-      fitReason: "",
-      fitRisks: [],
-      fitNextStep: "",
-      scoreSource: "",
-      scoredAt: "",
-      missingInfoStatus: "",
-      missingInfoCount: 0,
-      missingInfoItems: [],
-      missingInfoNextStep: "",
-      missingInfoCheckedAt: "",
-      createdAt: changedAt,
-      updatedAt: changedAt,
-    };
-
-    assignCompanyIdForCreate(newLead, req.auth.user, draft);
-    Object.assign(newLead, resolveLeadOwner(draft, leadPayload, req.auth.user));
-    relateLeadToCustomer(draft, newLead, req.auth.user, leadPayload);
-    draft.leads.unshift(newLead);
-    opportunity.status = "converted_to_lead";
-    opportunity.convertedLeadId = newLead.id;
-    opportunity.updatedAt = changedAt;
-    opportunity.archivedAt = null;
+    const newLead = convertFoundOpportunityToLeadInDraft(draft, opportunity, req.auth.user, changedAt);
     createdLeadId = newLead.id;
-
-    appendLeadStatusHistory(draft, {
-      leadId: newLead.id,
-      fromStatus: null,
-      toStatus: newLead.status,
-      actor: req.auth.user,
-      note: "Lead created from Opportunity Scout found opportunity.",
-      createdAt: changedAt,
-    });
-    draft.queueItems.unshift(assignCompanyIdForCreate({
-      id: makeId("Q"),
-      title: `Follow up ${newLead.customer}`,
-      meta: `${newLead.project} - Opportunity Scout`,
-      status: "Due today",
-      done: false,
-      createdAt: changedAt,
-      updatedAt: changedAt,
-    }, req.auth.user, draft));
-    appendActivity(draft, "Opportunity converted to lead", `${opportunity.title} was converted into ${newLead.customer}.`, { companyId: newLead.companyId });
-    appendAuditEvent(draft, {
-      entityType: "foundOpportunity",
-      entityId: opportunity.id,
-      action: "converted",
-      summary: "Opportunity converted to lead",
-      detail: `${opportunity.title} was converted into lead ${newLead.id}.`,
-      actor: req.auth.user,
-      changedFields: ["status", "convertedLeadId", "updatedAt"],
-    });
-    appendAuditEvent(draft, {
-      entityType: "lead",
-      entityId: newLead.id,
-      action: "created",
-      summary: "Lead created from Opportunity Scout",
-      detail: `${newLead.customer} entered for ${newLead.project}.`,
-      actor: req.auth.user,
-      changedFields: ["status", "owner", "source", "followUpDueAt", "trade"],
-    });
     return draft;
   });
 
@@ -16672,6 +16918,8 @@ app.post("/api/time-entries/clock-in", requireAuth, asyncRoute(async (req, res) 
     const jobId = workCategory === "job" ? requiredString(payload.jobId, "Job") : optionalString(payload.jobId, "");
     const job = jobId ? findCompanyScopedRecord(draft.jobs, jobId, req.auth.user, draft, "Job") : null;
     assertTimeEntryCategoryPayload(req.auth.user, workCategory, job);
+    const clockInLocation = normalizeTimeEntryLocationEvidence(payload, "clockIn", "Clock-in", changedAt);
+    assertTimeLocationEvidencePolicyEnabled(draft, req.auth.user, "clockIn", clockInLocation);
 
     const entry = applyTimeEntryTotals({
       id: makeId("T"),
@@ -16687,6 +16935,12 @@ app.post("/api/time-entries/clock-in", requireAuth, asyncRoute(async (req, res) 
       breakMinutes: 0,
       status: "active",
       notes: optionalString(payload.notes, ""),
+      ...clockInLocation,
+      clockOutLatitude: null,
+      clockOutLongitude: null,
+      clockOutLocationAccuracy: null,
+      clockOutLocationCapturedAt: "",
+      clockOutLocationUnavailableReason: "",
       createdAt: changedAt,
       updatedAt: changedAt,
     });
@@ -16700,7 +16954,7 @@ app.post("/api/time-entries/clock-in", requireAuth, asyncRoute(async (req, res) 
       summary: "Time clocked in",
       detail: `${req.auth.user.name} clocked in to ${job ? normalizeJobRecord(job).title : workCategory.replaceAll("_", " ")}.`,
       actor: req.auth.user,
-      changedFields: ["clockInAt", "status", "workCategory"],
+      changedFields: ["clockInAt", "status", "workCategory", ...timeEntryLocationChangedFields("clockIn", clockInLocation)],
     });
     return draft;
   });
@@ -16786,6 +17040,7 @@ app.post("/api/time-entries/:id/break-end", requireAuth, asyncRoute(async (req, 
 app.post("/api/time-entries/:id/clock-out", requireAuth, asyncRoute(async (req, res) => {
   assertCanManageOwnTime(req.auth.user);
   const { id } = req.params;
+  const payload = req.body || {};
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
@@ -16802,7 +17057,10 @@ app.post("/api/time-entries/:id/clock-out", requireAuth, asyncRoute(async (req, 
       entry.breakEndAt = changedAt;
     }
 
+    const clockOutLocation = normalizeTimeEntryLocationEvidence(payload, "clockOut", "Clock-out", changedAt);
+    assertTimeLocationEvidencePolicyEnabled(draft, req.auth.user, "clockOut", clockOutLocation);
     entry.clockOutAt = changedAt;
+    Object.assign(entry, clockOutLocation);
     entry.updatedAt = changedAt;
     applyTimeEntryTotals(entry);
 
@@ -16815,7 +17073,7 @@ app.post("/api/time-entries/:id/clock-out", requireAuth, asyncRoute(async (req, 
       summary: "Time clocked out",
       detail: `${req.auth.user.name} clocked out.`,
       actor: req.auth.user,
-      changedFields: ["clockOutAt", "totalMinutes", "status"],
+      changedFields: ["clockOutAt", "totalMinutes", "status", ...timeEntryLocationChangedFields("clockOut", clockOutLocation)],
     });
     return draft;
   });
@@ -16884,6 +17142,56 @@ app.patch("/api/time-entries/:id", requireAuth, asyncRoute(async (req, res) => {
       detail: `${req.auth.user.name} corrected a time entry.`,
       actor: req.auth.user,
       changedFields: [...new Set(changedFields)],
+    });
+    return draft;
+  });
+
+  return res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/time-entries/:id/presence-review", requireAuth, asyncRoute(async (req, res) => {
+  assertCanCorrectTimeEntries(req.auth.user);
+  const { id } = req.params;
+  const payload = req.body || {};
+  const changedAt = new Date().toISOString();
+  const reviewNote = requiredString(payload.note, "Review note").slice(0, 500);
+
+  const nextState = await updateDb((draft) => {
+    draft.timeEntries ||= [];
+    const entry = findRequiredTimeEntry(draft, id, req.auth.user);
+    if (entry.jobsitePresenceReviewStatus === "reviewed" || entry.jobsitePresenceReviewedAt) {
+      throw new ApiError(409, "This presence review has already been completed.");
+    }
+
+    const settings = companySettingsForState(draft, req.auth.user);
+    const currentReview = deriveTimeEntryJobsitePresenceReview({
+      ...entry,
+      jobsitePresenceReviewStatus: "",
+      jobsitePresenceReviewNote: "",
+      jobsitePresenceReviewedBy: "",
+      jobsitePresenceReviewedAt: "",
+    }, settings.timeLocationEvidencePolicy);
+    if (currentReview.status !== "needs_review") {
+      throw new ApiError(409, "This time entry does not currently need presence review.");
+    }
+
+    entry.jobsitePresenceReviewStatus = "reviewed";
+    entry.jobsitePresenceReviewNote = reviewNote;
+    entry.jobsitePresenceReviewedBy = req.auth.user.id;
+    entry.jobsitePresenceReviewedAt = changedAt;
+    entry.updatedAt = changedAt;
+
+    const entryUser = findUserById(draft, entry.userId);
+    const detail = `${req.auth.user.name} reviewed a time presence signal for ${entryUser?.name || "a field user"}. Review note: ${reviewNote}`;
+    appendActivity(draft, "Time presence reviewed", detail, { companyId: entry.companyId });
+    appendAuditEvent(draft, {
+      entityType: "timeEntry",
+      entityId: entry.id,
+      action: "presence_reviewed",
+      summary: "Time presence reviewed",
+      detail,
+      actor: req.auth.user,
+      changedFields: ["jobsitePresenceReviewStatus", "jobsitePresenceReviewNote", "jobsitePresenceReviewedBy", "jobsitePresenceReviewedAt", "updatedAt"],
     });
     return draft;
   });

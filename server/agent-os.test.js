@@ -732,6 +732,67 @@ test("Agent OS exposes registry and queues audit-backed internal runs while exte
     });
     assert.equal(controlledInboxDraft.providerReviewFoundOpportunityDraft.leadCreated, false);
     assert.equal(controlledInboxDraft.providerReviewFoundOpportunityDraft.customerContactEnabled, false);
+    const approvedInboxOpportunity = await assertOk(fixture.baseUrl, "/api/agent/os/provider/daily-review-inbox-decisions", {
+      method: "POST",
+      headers: authHeaders(approvalAdminLogin.token),
+      body: JSON.stringify({
+        today: "2026-05-27",
+        foundOpportunityId: controlledInboxDraft.createdOpportunityId,
+        providerResultId: controlledInboxRow.providerResultId,
+        title: controlledInboxRow.title,
+        sourceUrl: controlledInboxRow.sourceUrl,
+        fitScore: controlledInboxRow.fitScore,
+        decision: "approve_for_lead",
+        note: "Contractor approved this public-source row for lead creation.",
+      }),
+    });
+    assert.equal(approvedInboxOpportunity.dailyReviewInboxDecision.decision, "approve_for_lead");
+    assert.equal(approvedInboxOpportunity.providerReviewLearningSignal.learningSignalType, "accepted_found_opportunity");
+    assert.equal(approvedInboxOpportunity.providerReviewLearningSignal.scope, "company");
+    const createdLeadDecision = await assertOk(fixture.baseUrl, "/api/agent/os/provider/daily-review-inbox-decisions", {
+      method: "POST",
+      headers: authHeaders(approvalAdminLogin.token),
+      body: JSON.stringify({
+        today: "2026-05-27",
+        foundOpportunityId: controlledInboxDraft.createdOpportunityId,
+        providerResultId: controlledInboxRow.providerResultId,
+        title: controlledInboxRow.title,
+        sourceUrl: controlledInboxRow.sourceUrl,
+        fitScore: controlledInboxRow.fitScore,
+        decision: "create_lead",
+        note: "Contractor clicked Create Lead after review.",
+      }),
+    });
+    assert.equal(Boolean(createdLeadDecision.createdLeadId), true);
+    assert.equal(createdLeadDecision.providerReviewLearningSignal.learningSignalType, "created_lead_from_review");
+    assert.equal(createdLeadDecision.leads.some((lead) => lead.id === createdLeadDecision.createdLeadId), true);
+    const rejectedInboxDraft = await assertOk(fixture.baseUrl, "/api/agent/os/provider/review-queue-draft-opportunity", {
+      method: "POST",
+      headers: authHeaders(approvalAdminLogin.token),
+      body: JSON.stringify({
+        today: "2026-05-27",
+        acknowledgement: true,
+        providerResultId: controlledInboxRow.providerResultId,
+        reviewRowId: controlledInboxRow.id,
+      }),
+    });
+    const rejectedInboxOpportunity = await assertOk(fixture.baseUrl, "/api/agent/os/provider/daily-review-inbox-decisions", {
+      method: "POST",
+      headers: authHeaders(approvalAdminLogin.token),
+      body: JSON.stringify({
+        today: "2026-05-27",
+        foundOpportunityId: rejectedInboxDraft.createdOpportunityId,
+        providerResultId: controlledInboxRow.providerResultId,
+        title: controlledInboxRow.title,
+        sourceUrl: controlledInboxRow.sourceUrl,
+        fitScore: controlledInboxRow.fitScore,
+        decision: "reject",
+        note: "Contractor rejected this row as no fit.",
+      }),
+    });
+    assert.equal(rejectedInboxOpportunity.dailyReviewInboxDecision.decision, "reject");
+    assert.equal(rejectedInboxOpportunity.providerReviewLearningSignal.learningSignalType, "rejected_provider_result");
+    assert.equal(rejectedInboxOpportunity.foundOpportunities.find((entry) => entry.id === rejectedInboxDraft.createdOpportunityId).humanReviewStatus, "rejected");
     const evidenceRow = controlledRunEvidencePrep.controlledDailyPublicRunEvidencePrep.evidenceRows[0];
     const controlledRunOutcomes = await assertOk(fixture.baseUrl, "/api/agent/os/provider/daily-public-run-outcomes", {
       method: "POST",

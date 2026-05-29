@@ -1,5 +1,6 @@
 import { normalizeJobStatus } from "./job-utils.js";
 import { normalizeApexAgentAutomationPolicy } from "../shared/apexAgentAutomationPolicy.js";
+import { normalizeTimeLocationEvidencePolicy } from "../shared/permissions.js";
 
 export const DEFAULT_APP_PERMISSIONS = {
   users: {
@@ -170,6 +171,7 @@ export const EMPTY_APP_STATE = {
     printPacketDisclaimer: "",
     primaryTrade: "general-contractor",
     toolChecklistEnabled: true,
+    timeLocationEvidencePolicy: normalizeTimeLocationEvidencePolicy(),
     managedSetupStatus: "Not Started",
     managedSetupChecklist: [],
     managedSetupNotes: "",
@@ -316,6 +318,9 @@ export function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
       ...(source.companySettings || {}),
       apexAgentAutomationPolicy: normalizeApexAgentAutomationPolicy(
         source.companySettings?.apexAgentAutomationPolicy || fallback.companySettings?.apexAgentAutomationPolicy,
+      ),
+      timeLocationEvidencePolicy: normalizeTimeLocationEvidencePolicy(
+        source.companySettings?.timeLocationEvidencePolicy || fallback.companySettings?.timeLocationEvidencePolicy,
       ),
     },
     firstOwnerOnboarding: source.firstOwnerOnboarding || fallback.firstOwnerOnboarding || null,

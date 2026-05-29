@@ -4134,13 +4134,16 @@ export function normalizeAgentLeadsProviderReviewQueueDecision(payload = {}, {
 
 function providerReviewLearningType(decision = "") {
   const normalized = text(decision, 80).toLowerCase().replace(/[\s-]+/g, "_");
-  if (["draft_found_opportunity", "save_draft", "found_work"].includes(normalized)) {
+  if (["draft_found_opportunity", "save_draft", "found_work", "approve_for_lead", "approved_for_lead", "approve_found_opportunity"].includes(normalized)) {
     return { type: "accepted_found_opportunity", qualityVote: "good_source", scoreAdjustment: 8 };
+  }
+  if (["create_lead", "lead_created", "created_lead"].includes(normalized)) {
+    return { type: "created_lead_from_review", qualityVote: "good_source", scoreAdjustment: 10 };
   }
   if (["mark_duplicate", "duplicate"].includes(normalized)) {
     return { type: "duplicate_marked", qualityVote: "duplicate_heavy_source", scoreAdjustment: -4 };
   }
-  if (["dismiss", "no_fit"].includes(normalized)) {
+  if (["dismiss", "no_fit", "reject", "rejected", "reject_found_opportunity"].includes(normalized)) {
     return { type: "rejected_provider_result", qualityVote: "noisy_source", scoreAdjustment: -8 };
   }
   if (normalized === "private_handoff_completed") {
@@ -4160,9 +4163,9 @@ export function normalizeAgentLeadsProviderReviewLearningSignal(payload = {}, {
     return { ok: false, error: "Provider review learning signals cannot include raw credential or secret fields." };
   }
   const decision = text(source.decision || source.action, 80).toLowerCase().replace(/[\s-]+/g, "_");
-  const providerResultId = text(source.providerResultId || source.privateHandoffId || source.sourceId, 180);
+  const providerResultId = text(source.providerResultId || source.privateHandoffId || source.sourceId || source.foundOpportunityId || source.savedRecordId, 180);
   if (!providerResultId) {
-    return { ok: false, error: "Provider result id is required." };
+    return { ok: false, error: "Provider result id or found opportunity id is required." };
   }
   const sourceUrl = unsafeProviderUrlReason(source.sourceUrl || source.url) ? "" : text(source.sourceUrl || source.url, 300);
   const learning = providerReviewLearningType(decision);
@@ -4173,6 +4176,8 @@ export function normalizeAgentLeadsProviderReviewLearningSignal(payload = {}, {
       companyId: text(companyId || source.companyId, 120),
       actorUserId: text(actorUserId || source.actorUserId, 120),
       providerResultId,
+      foundOpportunityId: text(source.foundOpportunityId || "", 180),
+      createdLeadId: text(source.createdLeadId || "", 180),
       providerAttemptId: text(source.providerAttemptId, 180),
       connectorId: text(source.connectorId || source.providerConnectorId, 120),
       sourceType: text(source.sourceType, 120),
@@ -4191,6 +4196,62 @@ export function normalizeAgentLeadsProviderReviewLearningSignal(payload = {}, {
       canAutoSave: false,
       externalActionsLocked: true,
       safetyBoundary: "Provider review learning is company-scoped, redacted, and ranking-only. It cannot contact anyone, save leads, submit bids, collect payments, or write integrations.",
+    },
+  };
+}
+
+export function normalizeAgentLeadsDailyReviewInboxDecision(payload = {}, {
+  id = "",
+  companyId = "",
+  actorUserId = "",
+  now = new Date().toISOString(),
+} = {}) {
+  const source = payload && typeof payload === "object" ? payload : {};
+  if (hasRawSecretFields(source)) {
+    return { ok: false, error: "Daily review inbox decisions cannot include passwords, cookies, tokens, MFA codes, API keys, or session values." };
+  }
+  if (source.contactCustomer === true || source.sendMessage === true || source.submitBid === true || source.collectPayment === true || source.scheduleWork === true || source.integrationWrite === true || source.scrape === true || source.unattendedLogin === true) {
+    return { ok: false, error: "Daily review inbox decisions cannot contact anyone, submit bids, collect payment, schedule work, scrape, log in unattended, or write integrations." };
+  }
+  const decision = text(source.decision || source.action, 80).toLowerCase().replace(/[\s-]+/g, "_");
+  const allowed = ["approve_for_lead", "reject", "create_lead", "mark_duplicate", "dismiss", "no_fit", "draft_found_opportunity", "private_handoff_completed"];
+  if (!allowed.includes(decision)) {
+    return { ok: false, error: "Unsupported daily review inbox decision." };
+  }
+  const foundOpportunityId = text(source.foundOpportunityId || source.opportunityId || source.savedRecordId, 180);
+  const providerResultId = text(source.providerResultId || source.reviewRowId || source.rowId || foundOpportunityId, 180);
+  if (!foundOpportunityId && !providerResultId) {
+    return { ok: false, error: "Daily review inbox decision requires a found opportunity id or provider result id." };
+  }
+  const sourceUrl = unsafeProviderUrlReason(source.sourceUrl || source.url) ? "" : text(source.sourceUrl || source.url, 300);
+  return {
+    ok: true,
+    decision: {
+      id: text(id || `agent-leads-daily-review-decision-${providerResultId}-${normalizeIso(now) || new Date().toISOString()}`, 220),
+      companyId: text(companyId || source.companyId, 120),
+      actorUserId: text(actorUserId || source.actorUserId, 120),
+      foundOpportunityId,
+      providerResultId,
+      providerAttemptId: text(source.providerAttemptId, 180),
+      connectorId: text(source.connectorId || source.providerConnectorId, 120),
+      sourceType: text(source.sourceType, 120),
+      sourceUrl,
+      sourceHost: sourceHostFromUrl(sourceUrl),
+      title: text(source.title, 180),
+      fitScore: Math.max(0, Math.min(100, Number(source.fitScore || 0) || 0)),
+      duplicateRisk: text(source.duplicateRisk || "unknown", 120),
+      decision,
+      note: redactPrivateSourceEvidence(source.note || ""),
+      createdLeadId: "",
+      canAutoSave: false,
+      customerContactEnabled: false,
+      bidSubmissionEnabled: false,
+      paymentCollectionEnabled: false,
+      schedulingMutationEnabled: false,
+      integrationWritesEnabled: false,
+      auditEvent: "agent.os.daily_review_inbox.decision_recorded",
+      createdAt: normalizeIso(now) || new Date().toISOString(),
+      safetyBoundary: "Daily review inbox decisions are human office actions. Lead creation is allowed only through the normal Found Opportunity conversion gate; customer contact, bids, payments, scheduling, private login, scraping, and integrations stay locked.",
     },
   };
 }
