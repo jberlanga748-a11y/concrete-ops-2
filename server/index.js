@@ -6165,6 +6165,7 @@ function agentLeadsProviderReviewRowsFromAuditEvents(auditEvents = []) {
       detail.dailyLiveProcurementPublicAdapterExecution?.reviewQueue?.rows,
       detail.dailyJobFinderOrchestrationExecution?.reviewQueue?.rows,
       detail.dailyJobFinderAutopilotRun?.reviewInbox?.rows,
+      detail.controlledDailyRunReviewFlow?.reviewInboxPreviewRows,
       detail.providerAdapterRunner?.reviewQueue?.rows,
     ].forEach((candidateRows) => {
       if (Array.isArray(candidateRows)) rows.push(...candidateRows);

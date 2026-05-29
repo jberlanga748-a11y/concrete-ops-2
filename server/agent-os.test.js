@@ -683,6 +683,19 @@ test("Agent OS exposes registry and queues audit-backed internal runs while exte
     assert.equal(controlledReviewFlow.controlledDailyRunReviewFlow.customerContactEnabled, false);
     assert.equal(controlledReviewFlow.controlledDailyRunReviewFlow.leadAutoSaveEnabled, false);
     assert.equal(controlledReviewFlow.controlledDailyRunReviewFlow.liveProviderCallsEnabled, false);
+    const controlledInboxRow = controlledReviewFlow.controlledDailyRunReviewFlow.reviewInboxPreviewRows[0];
+    const controlledInboxDraft = await assertOk(fixture.baseUrl, "/api/agent/os/provider/review-queue-draft-opportunity", {
+      method: "POST",
+      headers: authHeaders(approvalAdminLogin.token),
+      body: JSON.stringify({
+        today: "2026-05-27",
+        acknowledgement: true,
+        providerResultId: controlledInboxRow.providerResultId,
+        reviewRowId: controlledInboxRow.id,
+      }),
+    });
+    assert.equal(controlledInboxDraft.providerReviewFoundOpportunityDraft.leadCreated, false);
+    assert.equal(controlledInboxDraft.providerReviewFoundOpportunityDraft.customerContactEnabled, false);
     const evidenceRow = controlledRunEvidencePrep.controlledDailyPublicRunEvidencePrep.evidenceRows[0];
     const controlledRunOutcomes = await assertOk(fixture.baseUrl, "/api/agent/os/provider/daily-public-run-outcomes", {
       method: "POST",
