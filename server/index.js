@@ -169,6 +169,12 @@ import {
   validateContactHistoryPayload,
 } from "../shared/contactHistory.js";
 import {
+  assertSafeCommunicationProviderPayload,
+  buildOutboundCommunicationApprovalRequest,
+  deriveCommunicationProviderReadiness,
+  deriveOutboundCommunicationApprovalQueue,
+} from "../shared/communicationProviderReadiness.js";
+import {
   AGENT_CONVERSATION_STATUSES,
   normalizeAgentConversationThread,
 } from "../shared/agentConversations.js";
@@ -4272,6 +4278,62 @@ function assertCanManageContactHistory(user) {
   if (!canManageContactHistory(user)) {
     throw new ApiError(403, "You do not have permission to manage contact history.");
   }
+}
+
+function assertSafeCommunicationPayload(payload = {}) {
+  try {
+    assertSafeCommunicationProviderPayload(payload);
+  } catch (error) {
+    throw new ApiError(400, error.message || "Communication provider payload is unsafe.");
+  }
+}
+
+function visibleOutboundCommunicationApprovalsForUser(state, user) {
+  return deriveOutboundCommunicationApprovalQueue(
+    visibleAuditEventsForUser(state, user)
+      .filter((event) => event.entityType === "communication_outbound_approval"),
+  );
+}
+
+function findOutboundCommunicationApproval(state, user, approvalId) {
+  const targetId = requiredString(approvalId, "Outbound communication approval");
+  const approval = visibleOutboundCommunicationApprovalsForUser(state, user)
+    .find((item) => item.id === targetId);
+  if (!approval) {
+    throw new ApiError(404, "Outbound communication approval not found.");
+  }
+  return approval;
+}
+
+function communicationProviderReadinessForState(state, user) {
+  const settings = companySettingsForState(state, user);
+  const outboundApprovalQueue = visibleOutboundCommunicationApprovalsForUser(state, user);
+  return deriveCommunicationProviderReadiness({
+    externalGateSettings: settings.apexAgentAutomationPolicy?.externalGateSettings,
+    providerConfig: {
+      emailConfigured: isEstimateEmailConfigured(),
+      smsConfigured: false,
+    },
+    evidence: {
+      email: {
+        consentModelReady: true,
+        optOutReady: true,
+        doNotContactReady: true,
+        templateReviewReady: true,
+        deliveryHistoryReady: true,
+        approvalQueueReady: true,
+      },
+      sms: {
+        consentModelReady: true,
+        optOutReady: false,
+        doNotContactReady: false,
+        templateReviewReady: false,
+        deliveryHistoryReady: false,
+        approvalQueueReady: true,
+      },
+    },
+    outboundApprovalQueue,
+  });
 }
 
 function canViewAgentConversations(state, user) {
@@ -16986,6 +17048,80 @@ app.patch("/api/agent/conversations/:id", requireAuth, asyncRoute(async (req, re
   });
 
   return res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.get("/api/communications/provider-readiness", requireAuth, asyncRoute(async (req, res) => {
+  assertCanViewContactHistory(req.auth.user);
+  const state = await readDb();
+  const outboundApprovals = visibleOutboundCommunicationApprovalsForUser(state, req.auth.user);
+  res.json({
+    communicationProviderReadiness: communicationProviderReadinessForState(state, req.auth.user),
+    outboundApprovals,
+    boundary: "Locked communication provider readiness only; no email, SMS, portal notification, bid, invoice, payment, provider secret, deploy, or production data action is executed.",
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/communications/outbound-approvals", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageContactHistory(req.auth.user);
+  assertSafeCommunicationPayload(req.body || {});
+
+  let outboundApproval = null;
+  let created = false;
+  const nextState = await updateDb((draft) => {
+    findContactHistoryLinkedRecord(draft, req.body?.targetEntityType, req.body?.targetEntityId, req.auth.user);
+    const candidate = (() => {
+      try {
+        return buildOutboundCommunicationApprovalRequest(req.body || {}, {
+          companyId: currentCompanyIdForRequestUser(draft, req.auth.user),
+          requestedByUserId: req.auth.user?.id || "",
+          requestedByName: req.auth.user?.name || "Unknown user",
+          now: new Date().toISOString(),
+        });
+      } catch (error) {
+        throw new ApiError(400, error.message || "Outbound communication approval is invalid.");
+      }
+    })();
+    const existing = visibleOutboundCommunicationApprovalsForUser(draft, req.auth.user)
+      .find((item) => item.idempotencyKey === candidate.idempotencyKey);
+    if (existing) {
+      outboundApproval = existing;
+      return draft;
+    }
+
+    outboundApproval = candidate;
+    created = true;
+    appendAuditEvent(draft, {
+      entityType: "communication_outbound_approval",
+      entityId: outboundApproval.id,
+      action: outboundApproval.status,
+      summary: `Outbound ${outboundApproval.channel.toUpperCase()} approval queued as locked evidence`,
+      detail: JSON.stringify({
+        outboundApproval,
+        externalSendEnabled: false,
+      }),
+      actor: req.auth.user,
+      changedFields: ["communicationOutboundApproval"],
+    });
+    return draft;
+  });
+
+  res.status(created ? 201 : 200).json({
+    outboundApproval,
+    outboundApprovals: visibleOutboundCommunicationApprovalsForUser(nextState, req.auth.user),
+    communicationProviderReadiness: communicationProviderReadinessForState(nextState, req.auth.user),
+    idempotentReplay: !created,
+    boundary: "Locked outbound approval only; this did not send email, SMS, portal notification, bid, invoice, payment, or provider data.",
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/communications/outbound-approvals/:id/execute", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageContactHistory(req.auth.user);
+  assertSafeCommunicationPayload(req.body || {});
+  const state = await readDb();
+  findOutboundCommunicationApproval(state, req.auth.user, req.params.id);
+  throw new ApiError(423, "Outbound communication execution is locked. Approval queue evidence cannot send email, SMS, portal notifications, bids, invoices, or payment links.");
 }));
 
 app.get("/api/contact-history", requireAuth, asyncRoute(async (req, res) => {
