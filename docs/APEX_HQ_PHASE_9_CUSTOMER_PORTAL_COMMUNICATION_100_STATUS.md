@@ -36,6 +36,7 @@ Built and verified:
 - Build 7D locked public-route contract adds `/portal/:accessId` as a locked, customer-data-free response shape plus contract tests for missing, malformed, wrong-company, expired, and revoked denial cases. It still does not redeem tokens or serve portal content.
 - Build 7E internal access-record packet adds an authenticated owner/admin packet endpoint from an active locked access record. It is Elite-only, company scoped, blocked for expired/revoked records, and redacts token hash references, audit internals, internal notes, raw-token fields, and public URLs.
 - Build 7F locked share approval queue adds authenticated owner/admin queueing for internal external-share review evidence from an active locked access record. It is Elite-only, company scoped, audit backed, packet-ready, blocked for unsafe external payload fields, field users, wrong-company users, expired records, and revoked records, and still does not create links, tokens, sends, invoices, payments, or customer actions.
+- Build 7G locked share approval review adds authenticated owner/admin review decisions for queued share approvals. Decisions can mark the packet ready for a future separately approved external gate, request changes, or reject the packet while keeping external sharing, public routes, token redemption, customer actions, sends, invoices, and payments disabled.
 
 ## Verification Evidence
 
@@ -47,7 +48,7 @@ Commands/checks run:
 - `npm.cmd run verify:roles`
 - `npm.cmd run verify:entitlements`
 - `npm.cmd run verify:claims`
-- `npm.cmd run launch:customer-portal-readiness -- --portal-preview-verified --print-packets-verified --estimate-output-verified --roles-verified --entitlements-verified --agent-policy-verified --claims-verified --build-verified --tokenized-portal-plan-documented --access-record-lifecycle-verified --public-route-contract-verified --access-record-packet-verified --share-approval-queue-verified --message-review-plan-documented --approval-audit-plan-documented --json`
+- `npm.cmd run launch:customer-portal-readiness -- --portal-preview-verified --print-packets-verified --estimate-output-verified --roles-verified --entitlements-verified --agent-policy-verified --claims-verified --build-verified --tokenized-portal-plan-documented --access-record-lifecycle-verified --public-route-contract-verified --access-record-packet-verified --share-approval-queue-verified --share-approval-review-verified --message-review-plan-documented --approval-audit-plan-documented --json`
 - `npm.cmd run build`
 - `git diff --check`
 
@@ -63,6 +64,7 @@ Commands/checks run:
 - Locked public route contract: PASS locally, browser route returns locked metadata only
 - Internal access-record packet: PASS locally, owner/admin review only and customer-data output is redacted
 - Locked share approval queue: PASS locally, owner/admin review evidence only and no external customer action is created
+- Locked share approval review: PASS locally, owner/admin decision evidence only and no external customer action is created
 - Customer send workflow: NO-GO until `CUSTOMER_SEND_WORKFLOW_SEPARATELY_APPROVED`
 - Customer message sending: BLOCKED by default
 - Bid submission: BLOCKED by default
@@ -97,4 +99,4 @@ Phase 9 is 100% for safe internal customer portal preview and communication revi
 
 External customer portal access and customer sends remain locked unless separate implementation phases are approved.
 
-Build 7A, Build 7B, Build 7C, Build 7D, Build 7E, and Build 7F local readiness evidence is tracked in `docs/APEX_HQ_CUSTOMER_PORTAL_TOKENIZED_READINESS_STATUS.md` and verified by `npm.cmd run verify:customer-portal-readiness`.
+Build 7A, Build 7B, Build 7C, Build 7D, Build 7E, Build 7F, and Build 7G local readiness evidence is tracked in `docs/APEX_HQ_CUSTOMER_PORTAL_TOKENIZED_READINESS_STATUS.md` and verified by `npm.cmd run verify:customer-portal-readiness`.

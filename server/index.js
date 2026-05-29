@@ -6725,22 +6725,92 @@ function buildCustomerPortalShareApprovalRequest(state, user, accessRecord = {},
   };
 }
 
+const CUSTOMER_PORTAL_SHARE_APPROVAL_REVIEW_DECISIONS = new Set([
+  "ready_for_external_gate_review_locked",
+  "changes_requested_locked",
+  "rejected_locked",
+]);
+
+function buildCustomerPortalShareApprovalReview(state, user, shareApprovalRequest = {}, payload = {}) {
+  if (shareApprovalRequest.status !== "requested_locked") {
+    throw new ApiError(409, "Customer portal share approval request has already been reviewed.");
+  }
+
+  const decision = optionalEnum(
+    payload.decision,
+    CUSTOMER_PORTAL_SHARE_APPROVAL_REVIEW_DECISIONS,
+    "Customer portal share approval review decision",
+    "changes_requested_locked",
+  );
+  const reviewedAt = new Date().toISOString();
+  const reviewNote = redactAgentProposalAuditText(
+    optionalString(payload.note || payload.reason, "Owner/admin reviewed the locked customer portal share approval request."),
+    { maxLength: 500 },
+  );
+
+  return {
+    ...shareApprovalRequest,
+    status: decision,
+    reviewedAt,
+    reviewedByUserId: user?.id || "",
+    reviewedByName: user?.name || "Unknown user",
+    reviewNote,
+    externalShareEnabled: false,
+    publicRouteEnabled: false,
+    canCreateExternalAccess: false,
+    canRedeemToken: false,
+    canAcceptCustomerAction: false,
+    tokenMaterialCreated: false,
+    customerMessageSent: false,
+    invoiceCreated: false,
+    paymentCollectionEnabled: false,
+    boundary: "Locked internal review decision only; external portal access still requires separate implementation approval.",
+  };
+}
+
 function visibleCustomerPortalShareApprovalRequestsForUser(state, user) {
-  return visibleAuditEventsForUser(state, user)
+  const requestsById = new Map();
+  const events = visibleAuditEventsForUser(state, user)
     .filter((event) => event.entityType === "customer_portal_share_approval")
-    .map((event) => {
-      const payload = parseAuditEventDetail(event);
-      const request = payload.shareApprovalRequest || {};
-      if (!request.id) return null;
-      return {
-        ...request,
-        status: "requested_locked",
-        auditCreatedAt: event.createdAt,
-        actorName: event.actorName,
-      };
-    })
-    .filter(Boolean)
+    .slice()
+    .reverse();
+
+  for (const event of events) {
+    const payload = parseAuditEventDetail(event);
+    const request = payload.shareApprovalRequest || {};
+    if (!request.id) continue;
+    const existing = requestsById.get(request.id) || {};
+    requestsById.set(request.id, {
+      ...existing,
+      ...request,
+      auditCreatedAt: existing.auditCreatedAt || event.createdAt,
+      lastAuditEventId: event.id,
+      actorName: event.actorName,
+      reviewEvents: [
+        ...(existing.reviewEvents || []),
+        {
+          id: event.id,
+          action: event.action,
+          actorName: event.actorName,
+          createdAt: event.createdAt,
+          status: request.status || event.action,
+        },
+      ],
+    });
+  }
+
+  return Array.from(requestsById.values())
     .sort((left, right) => String(right.auditCreatedAt || "").localeCompare(String(left.auditCreatedAt || "")));
+}
+
+function visibleCustomerPortalShareApprovalRequestForUser(state, user, requestId) {
+  const targetId = requiredString(requestId, "Customer portal share approval request");
+  const request = visibleCustomerPortalShareApprovalRequestsForUser(state, user)
+    .find((item) => String(item.id || "") === targetId);
+  if (!request) {
+    throw new ApiError(404, "Customer portal share approval request not found.");
+  }
+  return request;
 }
 
 function rejectCustomerPortalExternalAccessPayload(payload = {}) {
@@ -8226,6 +8296,40 @@ app.post("/api/customer-portal/access-records/:id/share-approvals", requireAuth,
     packet: prepared.packet,
     shareApprovalRequests: visibleCustomerPortalShareApprovalRequestsForUser(nextState, req.auth.user),
     boundary: "Locked internal sharing approval queue only; this did not create a customer login, public link, raw token, customer message, invoice, or payment action.",
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/customer-portal/share-approvals/:id/review", requireAuth, asyncRoute(async (req, res) => {
+  rejectCustomerPortalExternalAccessPayload(req.body || {});
+
+  let reviewed = null;
+  const nextState = await updateDb((draft) => {
+    assertCanPrepareCustomerPortalAccess(draft, req.auth.user);
+    const request = visibleCustomerPortalShareApprovalRequestForUser(draft, req.auth.user, req.params.id);
+    const accessRecord = visibleCustomerPortalAccessRecordForUser(draft, req.auth.user, request.accessRecordId);
+    assertCustomerPortalAccessRecordCanBuildPacket(accessRecord);
+    reviewed = buildCustomerPortalShareApprovalReview(draft, req.auth.user, request, req.body || {});
+    appendAuditEvent(draft, {
+      entityType: "customer_portal_share_approval",
+      entityId: reviewed.id,
+      action: reviewed.status,
+      summary: "Customer portal sharing approval reviewed as locked internal evidence",
+      detail: JSON.stringify({
+        shareApprovalRequest: reviewed,
+        previousStatus: request.status,
+        externalShareEnabled: false,
+      }),
+      actor: req.auth.user,
+      changedFields: ["customerPortalShareApproval.status", "customerPortalShareApproval.reviewedAt"],
+    });
+    return draft;
+  });
+
+  res.json({
+    shareApprovalRequest: reviewed,
+    shareApprovalRequests: visibleCustomerPortalShareApprovalRequestsForUser(nextState, req.auth.user),
+    boundary: "Locked internal share approval review only; this did not create a customer login, public link, raw token, customer message, invoice, payment, or portal action.",
     requestId: res.locals.requestId,
   });
 }));

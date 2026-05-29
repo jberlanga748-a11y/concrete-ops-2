@@ -1037,3 +1037,177 @@ test("Share approval requests are tenant scoped and fail closed for expired or r
     await fixture.stop();
   }
 });
+
+test("Elite owner can review a locked share approval without enabling external access", async () => {
+  const fixture = await startServer();
+
+  try {
+    const { created, headers } = await createLockedAccessRecord(fixture, {
+      approvalId: "PORTAL-ACCESS-REVIEW-SHARE-DECISION",
+    });
+    const approvalResult = await assertOk(fixture.baseUrl, `/api/customer-portal/access-records/${created.accessRecord.id}/share-approvals`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        note: "Review packet before the future external gate.",
+      }),
+    });
+
+    const reviewed = await assertOk(fixture.baseUrl, `/api/customer-portal/share-approvals/${approvalResult.shareApprovalRequest.id}/review`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        decision: "ready_for_external_gate_review_locked",
+        note: "Packet is ready for a separate future gate. password=do-not-store",
+      }),
+    });
+
+    assert.equal(reviewed.shareApprovalRequest.id, approvalResult.shareApprovalRequest.id);
+    assert.equal(reviewed.shareApprovalRequest.status, "ready_for_external_gate_review_locked");
+    assert.notEqual(reviewed.shareApprovalRequest.reviewedAt, "");
+    assert.equal(reviewed.shareApprovalRequest.externalShareEnabled, false);
+    assert.equal(reviewed.shareApprovalRequest.publicRouteEnabled, false);
+    assert.equal(reviewed.shareApprovalRequest.canCreateExternalAccess, false);
+    assert.equal(reviewed.shareApprovalRequest.canRedeemToken, false);
+    assert.equal(reviewed.shareApprovalRequest.canAcceptCustomerAction, false);
+    assert.equal(reviewed.shareApprovalRequest.customerMessageSent, false);
+    assert.equal(reviewed.shareApprovalRequest.invoiceCreated, false);
+    assert.equal(reviewed.shareApprovalRequest.paymentCollectionEnabled, false);
+    assert.match(reviewed.shareApprovalRequest.reviewNote, /\[REDACTED\]/);
+
+    const serialized = JSON.stringify(reviewed);
+    assert.equal(serialized.includes(created.accessRecord.tokenHashReference), false);
+    assert.equal(serialized.includes("tokenHashReference"), false);
+    assert.equal(serialized.includes("rawToken"), false);
+    assert.equal(serialized.includes("publicUrl"), false);
+    assert.equal(serialized.includes("shareLink"), false);
+    assert.equal(serialized.includes("do-not-store"), false);
+
+    const listed = await assertOk(fixture.baseUrl, "/api/customer-portal/share-approvals", { headers });
+    assert.equal(listed.shareApprovalRequests.length, 1);
+    assert.equal(listed.shareApprovalRequests[0].status, "ready_for_external_gate_review_locked");
+    assert.equal(listed.shareApprovalRequests[0].reviewEvents.some((event) => event.action === "ready_for_external_gate_review_locked"), true);
+
+    const duplicate = await requestJson(fixture.baseUrl, `/api/customer-portal/share-approvals/${approvalResult.shareApprovalRequest.id}/review`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        decision: "changes_requested_locked",
+        note: "Duplicate review should be blocked.",
+      }),
+    });
+    assert.equal(duplicate.response.status, 409);
+
+    const shareApprovalEvents = readAuditEvents(fixture.sqliteFile, "customer_portal_share_approval");
+    assert.deepEqual(new Set(shareApprovalEvents.map((event) => event.action)), new Set(["requested_locked", "ready_for_external_gate_review_locked"]));
+    assert.equal(shareApprovalEvents.some((event) => event.detail.includes("do-not-store")), false);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("Share approval review denies unsafe payloads, field users, and wrong-company users", async () => {
+  const fixture = await startServer();
+
+  try {
+    const { created, headers } = await createLockedAccessRecord(fixture, {
+      approvalId: "PORTAL-ACCESS-REVIEW-SHARE-DECISION-DENIAL",
+    });
+    const approvalResult = await assertOk(fixture.baseUrl, `/api/customer-portal/access-records/${created.accessRecord.id}/share-approvals`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ note: "Prepare a locked queue item for review denial tests." }),
+    });
+
+    const unsafe = await requestJson(fixture.baseUrl, `/api/customer-portal/share-approvals/${approvalResult.shareApprovalRequest.id}/review`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        decision: "changes_requested_locked",
+        publicUrl: "https://customer.example.test/portal/abc",
+      }),
+    });
+    assert.equal(unsafe.response.status, 400);
+
+    const fieldUser = createUserRecord({
+      id: "U-PORTAL-FIELD-SHARE-REVIEW",
+      email: "portal-field-share-review@apexhq.test",
+      password: "apexdemo123",
+      name: "Portal Field Share Review User",
+      role: "Employee",
+    });
+    insertUser(fixture.sqliteFile, fieldUser);
+    const fieldLogin = await login(fixture.baseUrl, { email: fieldUser.email });
+    const fieldDenied = await requestJson(fixture.baseUrl, `/api/customer-portal/share-approvals/${approvalResult.shareApprovalRequest.id}/review`, {
+      method: "POST",
+      headers: authHeaders(fieldLogin.token),
+      body: JSON.stringify({ decision: "rejected_locked", note: "Field users cannot review." }),
+    });
+    assert.equal(fieldDenied.response.status, 403);
+
+    const otherCompanyId = "COMPANY-PORTAL-SHARE-REVIEW-OTHER";
+    insertCompany(fixture.sqliteFile, otherCompanyId);
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.ELITE, otherCompanyId);
+    const otherOwner = insertPortalOwner(fixture.sqliteFile, {
+      email: "portal-share-review-other-owner@apexhq.test",
+      companyId: otherCompanyId,
+    });
+    const otherLogin = await login(fixture.baseUrl, { email: otherOwner.email });
+    const wrongCompanyDenied = await requestJson(fixture.baseUrl, `/api/customer-portal/share-approvals/${approvalResult.shareApprovalRequest.id}/review`, {
+      method: "POST",
+      headers: authHeaders(otherLogin.token),
+      body: JSON.stringify({ decision: "rejected_locked", note: "Cross-company review should not exist." }),
+    });
+    assert.equal(wrongCompanyDenied.response.status, 404);
+    assert.equal(readAuditEvents(fixture.sqliteFile, "customer_portal_share_approval").length, 1);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("Share approval review fails closed when the underlying access record expires or is revoked", async () => {
+  const fixture = await startServer();
+
+  try {
+    const expired = await createLockedAccessRecord(fixture, {
+      approvalId: "PORTAL-ACCESS-REVIEW-SHARE-DECISION-EXPIRED",
+    });
+    const expiredApproval = await assertOk(fixture.baseUrl, `/api/customer-portal/access-records/${expired.created.accessRecord.id}/share-approvals`, {
+      method: "POST",
+      headers: expired.headers,
+      body: JSON.stringify({ note: "Queue before expiration." }),
+    });
+    forceAccessRecordExpiration(fixture.sqliteFile, expired.created.accessRecord.id, new Date(Date.now() - 60_000).toISOString());
+    const expiredDenied = await requestJson(fixture.baseUrl, `/api/customer-portal/share-approvals/${expiredApproval.shareApprovalRequest.id}/review`, {
+      method: "POST",
+      headers: expired.headers,
+      body: JSON.stringify({ decision: "ready_for_external_gate_review_locked", note: "Expired access records cannot be readied." }),
+    });
+    assert.equal(expiredDenied.response.status, 409);
+    assert.match(expiredDenied.payload.error, /expired/i);
+
+    const revoked = await createLockedAccessRecord(fixture, {
+      approvalId: "PORTAL-ACCESS-REVIEW-SHARE-DECISION-REVOKED",
+    });
+    const revokedApproval = await assertOk(fixture.baseUrl, `/api/customer-portal/access-records/${revoked.created.accessRecord.id}/share-approvals`, {
+      method: "POST",
+      headers: revoked.headers,
+      body: JSON.stringify({ note: "Queue before revoke." }),
+    });
+    await assertOk(fixture.baseUrl, `/api/customer-portal/access-records/${revoked.created.accessRecord.id}/revoke`, {
+      method: "POST",
+      headers: revoked.headers,
+      body: JSON.stringify({ reason: "Cancel this share review." }),
+    });
+    const revokedDenied = await requestJson(fixture.baseUrl, `/api/customer-portal/share-approvals/${revokedApproval.shareApprovalRequest.id}/review`, {
+      method: "POST",
+      headers: revoked.headers,
+      body: JSON.stringify({ decision: "ready_for_external_gate_review_locked", note: "Revoked access records cannot be readied." }),
+    });
+    assert.equal(revokedDenied.response.status, 409);
+    assert.match(revokedDenied.payload.error, /revoked/i);
+    assert.equal(readAuditEvents(fixture.sqliteFile, "customer_portal_share_approval").length, 2);
+  } finally {
+    await fixture.stop();
+  }
+});
