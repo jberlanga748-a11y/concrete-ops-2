@@ -6730,6 +6730,7 @@ const CUSTOMER_PORTAL_SHARE_APPROVAL_REVIEW_DECISIONS = new Set([
   "changes_requested_locked",
   "rejected_locked",
 ]);
+const CUSTOMER_PORTAL_EXTERNAL_GATE_APPROVAL_PHRASE = "TOKENIZED_CUSTOMER_PORTAL_SEPARATELY_APPROVED";
 
 function buildCustomerPortalShareApprovalReview(state, user, shareApprovalRequest = {}, payload = {}) {
   if (shareApprovalRequest.status !== "requested_locked") {
@@ -6811,6 +6812,77 @@ function visibleCustomerPortalShareApprovalRequestForUser(state, user, requestId
     throw new ApiError(404, "Customer portal share approval request not found.");
   }
   return request;
+}
+
+function buildCustomerPortalExternalGatePreflight(shareApprovalRequest = {}, accessRecord = {}, payload = {}) {
+  const separateApprovalRecorded = optionalString(payload.approvalPhrase, "") === CUSTOMER_PORTAL_EXTERNAL_GATE_APPROVAL_PHRASE;
+  const shareApprovalReady = shareApprovalRequest.status === "ready_for_external_gate_review_locked";
+  const accessRecordActive = customerPortalAccessRecordStatus(accessRecord) === "prepared_locked";
+  const packetReady = shareApprovalRequest.packetReady === true;
+  const gates = [
+    {
+      id: "share_approval_review",
+      label: "Locked share approval review",
+      ready: shareApprovalReady,
+      detail: shareApprovalReady
+        ? "Owner/admin marked this packet ready for a future separately approved external gate."
+        : "A locked ready-for-external-gate review decision is required first.",
+    },
+    {
+      id: "active_access_record",
+      label: "Active locked access record",
+      ready: accessRecordActive,
+      detail: accessRecordActive
+        ? "The internal access record is active and still locked."
+        : "Expired or revoked access records cannot move toward an external gate.",
+    },
+    {
+      id: "packet_ready",
+      label: "Review packet ready",
+      ready: packetReady,
+      detail: packetReady
+        ? "The internal owner/admin packet evidence is attached."
+        : "A packet-ready share approval queue item is required.",
+    },
+    {
+      id: "separate_external_approval",
+      label: "Separate external portal approval",
+      ready: separateApprovalRecorded,
+      detail: separateApprovalRecorded
+        ? "The exact external portal approval phrase was supplied for preflight evidence."
+        : `External portal work still requires ${CUSTOMER_PORTAL_EXTERNAL_GATE_APPROVAL_PHRASE}.`,
+    },
+    {
+      id: "implementation_lock",
+      label: "External implementation lock",
+      ready: false,
+      detail: "This preflight does not create external portal implementation, public links, redeemable tokens, customer sessions, customer actions, messages, invoices, or payments.",
+    },
+  ];
+
+  return {
+    id: makeId("CPGP"),
+    status: "external_gate_preflight_locked",
+    shareApprovalRequestId: shareApprovalRequest.id || "",
+    accessRecordId: shareApprovalRequest.accessRecordId || accessRecord.id || "",
+    estimateId: shareApprovalRequest.estimateId || accessRecord.estimateId || "",
+    jobId: shareApprovalRequest.jobId || accessRecord.jobId || "",
+    checkedAt: new Date().toISOString(),
+    separateApprovalRecorded,
+    prerequisitesReady: gates.filter((gate) => gate.id !== "implementation_lock").every((gate) => gate.ready),
+    externalImplementationExists: false,
+    externalActionEnabled: false,
+    publicRouteEnabled: false,
+    canCreateExternalAccess: false,
+    canRedeemToken: false,
+    canAcceptCustomerAction: false,
+    tokenMaterialCreated: false,
+    customerMessageSent: false,
+    invoiceCreated: false,
+    paymentCollectionEnabled: false,
+    gates,
+    boundary: "Read-only external gate preflight only; no customer login, public link, raw token, customer session, customer action, message, invoice, or payment action exists.",
+  };
 }
 
 function rejectCustomerPortalExternalAccessPayload(payload = {}) {
@@ -8330,6 +8402,21 @@ app.post("/api/customer-portal/share-approvals/:id/review", requireAuth, asyncRo
     shareApprovalRequest: reviewed,
     shareApprovalRequests: visibleCustomerPortalShareApprovalRequestsForUser(nextState, req.auth.user),
     boundary: "Locked internal share approval review only; this did not create a customer login, public link, raw token, customer message, invoice, payment, or portal action.",
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/customer-portal/share-approvals/:id/external-gate-preflight", requireAuth, asyncRoute(async (req, res) => {
+  rejectCustomerPortalExternalAccessPayload(req.body || {});
+
+  const state = await readDb();
+  assertCanPrepareCustomerPortalAccess(state, req.auth.user);
+  const request = visibleCustomerPortalShareApprovalRequestForUser(state, req.auth.user, req.params.id);
+  const accessRecord = visibleCustomerPortalAccessRecordForUser(state, req.auth.user, request.accessRecordId);
+  const preflight = buildCustomerPortalExternalGatePreflight(request, accessRecord, req.body || {});
+  res.json({
+    preflight,
+    boundary: "Read-only external gate preflight only; this did not create a customer login, public link, raw token, customer message, invoice, payment, or portal action.",
     requestId: res.locals.requestId,
   });
 }));

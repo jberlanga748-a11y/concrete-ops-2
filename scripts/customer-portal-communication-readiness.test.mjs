@@ -35,6 +35,7 @@ test("internal customer preview can be ready while external portal remains locke
       accessRecordPacketVerified: true,
       shareApprovalQueueVerified: true,
       shareApprovalReviewVerified: true,
+      externalGatePreflightVerified: true,
       messageReviewPlanDocumented: true,
       approvalAuditPlanDocumented: true,
     },
@@ -74,6 +75,7 @@ test("external customer portal and sends require exact separate approval phrases
       accessRecordPacketVerified: true,
       shareApprovalQueueVerified: true,
       shareApprovalReviewVerified: true,
+      externalGatePreflightVerified: true,
       messageReviewPlanDocumented: true,
       approvalAuditPlanDocumented: true,
     },
@@ -115,6 +117,7 @@ test("customer portal readiness parser captures evidence without mutating anythi
     "--access-record-packet-verified",
     "--share-approval-queue-verified",
     "--share-approval-review-verified",
+    "--external-gate-preflight-verified",
     "--message-review-plan-documented",
     "--approval-audit-plan-documented",
   ]);
@@ -128,6 +131,7 @@ test("customer portal readiness parser captures evidence without mutating anythi
   assert.equal(options.evidence.accessRecordPacketVerified, true);
   assert.equal(options.evidence.shareApprovalQueueVerified, true);
   assert.equal(options.evidence.shareApprovalReviewVerified, true);
+  assert.equal(options.evidence.externalGatePreflightVerified, true);
   assert.equal(options.evidence.approvalAuditPlanDocumented, true);
   assert.equal(options.approvals.externalPortalApprovalPhrase, "");
 });
