@@ -254,6 +254,10 @@ export function runAgentLeadControlledDailyPublicRunFlow(token, payload = {}) {
   return request("/api/agent/os/provider/daily-public-run-controlled-flow", { method: "POST", token, body: payload });
 }
 
+export function runAgentLeadControlledPilotRun(token, payload = {}) {
+  return request("/api/agent/os/provider/controlled-pilot-run", { method: "POST", token, body: payload });
+}
+
 export function recordAgentLeadDailyPublicRunOutcomes(token, payload = {}) {
   return request("/api/agent/os/provider/daily-public-run-outcomes", { method: "POST", token, body: payload });
 }

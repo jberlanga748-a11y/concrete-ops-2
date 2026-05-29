@@ -6069,6 +6069,8 @@ function collectAgentLeadsDailyRunHistoryRows(auditEvents = [], {
       detail.dailyJobFinderOrchestrationExecution?.runHistoryRecord,
       detail.dailyRunRecord,
       detail.run?.output?.executionPlan?.dailyRunRecord,
+      detail.agentLeadsControlledPilotRunExecution?.runRecord,
+      detail.controlledPilotRunRecord,
     ].filter(Boolean);
     return candidates.map((record) => ({
       ...record,
@@ -6619,6 +6621,244 @@ export function buildAgentLeadsPilotExecutionRehearsal({
     unattendedLoginEnabled: false,
     productionDataTouchEnabled: false,
     safetyBoundary: "Pilot execution rehearsal is local/read-model proof only. It does not create a scheduler, execute browsing, log in, contact anyone, save leads, submit bids, collect payment, mutate schedules, write integrations, deploy, or touch production data.",
+  };
+}
+
+function collectAgentLeadsControlledPilotRunRows(auditEvents = [], {
+  companyId = "",
+  today = dateKey(new Date()),
+} = {}) {
+  const currentDay = dateKey(today) || dateKey(new Date());
+  return asArray(auditEvents)
+    .flatMap((event) => {
+      const detail = parseAgentOsAuditDetail(event);
+      const execution = detail.agentLeadsControlledPilotRunExecution || {};
+      const records = [
+        execution.runRecord,
+        detail.controlledPilotRunRecord,
+      ].filter(Boolean);
+      return records.map((record) => ({
+        ...record,
+        auditAction: text(event.action, 180),
+        auditCreatedAt: text(event.createdAt || detail.createdAt, 80),
+      }));
+    })
+    .filter((record) => {
+      const recordCompanyId = text(record.companyId, 120);
+      const recordDay = dateKey(record.day || record.today || record.targetDay || record.createdAt || record.auditCreatedAt || currentDay);
+      return (!companyId || !recordCompanyId || recordCompanyId === companyId) && recordDay === currentDay;
+    })
+    .sort((left, right) => new Date(right.createdAt || right.auditCreatedAt || 0).getTime() - new Date(left.createdAt || left.auditCreatedAt || 0).getTime());
+}
+
+export function buildAgentLeadsControlledPilotRunExecution({
+  scheduledRunReadiness = {},
+  pilotExecutionRehearsal = {},
+  controlledDailyRunReviewFlow = {},
+  dailyRunHistory = {},
+  dailyRunAdminControls = {},
+  dailySourceMonitoring = {},
+  providerSettings = {},
+  companySettings = {},
+  auditEvents = [],
+  companyId = "",
+  actorUserId = "",
+  today = dateKey(new Date()),
+  now = new Date().toISOString(),
+} = {}) {
+  const currentDay = dateKey(today) || dateKey(new Date());
+  const settings = normalizeAgentLeadsProviderSettings(providerSettings);
+  const targetDay = scheduledRunReadiness.tomorrow || pilotExecutionRehearsal.tomorrow || controlledDailyRunReviewFlow.nextRunDate || addDaysKey(currentDay, 1);
+  const selectedSourceRows = asArray(controlledDailyRunReviewFlow.selectedSourceRows);
+  const reviewRows = asArray(controlledDailyRunReviewFlow.reviewInboxPreviewRows);
+  const priorRunRows = collectAgentLeadsControlledPilotRunRows(auditEvents, { companyId, today: currentDay });
+  const alreadyRecordedToday = priorRunRows.length > 0;
+  const runId = [companyId || "company", "agent-leads-controlled-pilot-run", currentDay].filter(Boolean).join("::");
+  const idempotencyKey = [companyId || "company", "agent-leads-controlled-pilot-run", currentDay].filter(Boolean).join("::");
+  const blockers = [
+    controlledDailyRunReviewFlow.mode !== "agent_leads_controlled_daily_run_review_flow_v42" ? "Controlled daily run review flow is missing." : "",
+    controlledDailyRunReviewFlow.status !== "review_inbox_ready" ? "Controlled daily review inbox is not ready." : "",
+    !selectedSourceRows.length ? "No approved public no-login source rows are selected." : "",
+    !reviewRows.length ? "No review inbox rows are ready to persist." : "",
+  ].filter(Boolean);
+  const persistedReviewRows = reviewRows.map((row, index) => ({
+    id: text(row.id || `controlled-pilot-review-${index + 1}`, 180),
+    providerResultId: text(row.providerResultId || row.id, 180),
+    sourceName: text(row.sourceName || row.provider || "Controlled public source", 180),
+    sourceUrl: text(row.sourceUrl, 500),
+    title: text(row.title || "Controlled pilot review row", 180),
+    status: alreadyRecordedToday ? "persisted_for_review" : "ready_to_persist",
+    fitScore: Math.max(0, Math.min(100, Number(row.fitScore || 0) || 0)),
+    requiredHumanReview: ["Open source evidence", "Confirm scope and geography", "Run duplicate check", "Save only through normal office workflow"],
+    canAutoSave: false,
+    canCreateLeadDirectly: false,
+    customerContactEnabled: false,
+    externalActionsLocked: true,
+  }));
+  const status = blockers.length
+    ? "blocked"
+    : alreadyRecordedToday
+      ? "persisted"
+      : "ready_to_persist_review_inbox";
+  const runRecord = {
+    id: runId,
+    mode: "agent_leads_controlled_pilot_run_record_v46",
+    companyId: text(companyId, 120),
+    actorUserId: text(actorUserId, 120),
+    day: currentDay,
+    targetDay,
+    status,
+    idempotencyKey,
+    startedAt: status === "blocked" ? "" : now,
+    finishedAt: alreadyRecordedToday ? text(priorRunRows[0]?.finishedAt || priorRunRows[0]?.createdAt || priorRunRows[0]?.auditCreatedAt || now, 80) : "",
+    sourceCount: selectedSourceRows.length,
+    reviewRows: persistedReviewRows.length,
+    retries: 0,
+    retryState: "not_needed",
+    deadLetterState: blockers.length ? "not_started" : "none",
+    cancellationState: dailyRunAdminControls.enabled === false ? "paused_by_admin_controls" : "not_cancelled",
+    killSwitchAvailable: true,
+    errors: blockers.map((blocker) => ({ code: "controlled_pilot_blocker", message: blocker })),
+    externalActionsLocked: true,
+    leadAutoSaveEnabled: false,
+    customerContactEnabled: false,
+    bidSubmissionEnabled: false,
+    paymentCollectionEnabled: false,
+    schedulingMutationEnabled: false,
+    integrationWritesEnabled: false,
+    productionDataTouchEnabled: false,
+  };
+  const runControls = {
+    mode: "agent_leads_controlled_pilot_run_controls_v46",
+    runNow: {
+      enabled: status === "ready_to_persist_review_inbox",
+      label: "Run controlled review-only pilot now",
+      requiresAcknowledgement: true,
+      idempotencyKey,
+    },
+    pause: {
+      enabled: true,
+      effect: "Future daily review runs are paused through provider settings/admin controls only.",
+    },
+    cancel: {
+      enabled: status === "ready_to_persist_review_inbox",
+      effect: "Cancels the prepared internal run before review inbox evidence is persisted.",
+    },
+    retry: {
+      enabled: status === "persisted" && Number(runRecord.reviewRows || 0) === 0,
+      effect: "Queues a new review-only run after owner/admin review; it does not retry external actions automatically.",
+    },
+    disableSource: {
+      enabled: selectedSourceRows.length > 0,
+      effect: "Removes a source from future review-only run selection; no source account is modified.",
+    },
+    killSwitch: {
+      enabled: true,
+      label: "Pause Agent Leads daily runs",
+      externalActionsLocked: true,
+    },
+  };
+  const controlledPublicSourceExecutor = {
+    mode: "agent_leads_controlled_public_source_executor_v46",
+    status: blockers.length ? "blocked" : "ready",
+    executorKind: "approved_public_source_metadata_to_review_inbox",
+    selectedSourceRows: selectedSourceRows.map((row) => ({
+      sourceConfigId: text(row.sourceConfigId || row.id, 180),
+      sourceName: text(row.sourceName || "Public source", 180),
+      sourceUrl: text(row.sourceUrl, 500),
+      connectorId: text(row.connectorId, 120),
+      idempotencyKey: text(row.idempotencyKey, 500),
+      expectedOutput: text(row.expectedOutput || "Review inbox row or no-result explanation.", 280),
+      canRunWithoutLogin: true,
+      externalActionsLocked: true,
+    })),
+    networkRequestsEnabled: false,
+    browserAutomationEnabled: false,
+    scrapingEnabled: false,
+    unattendedLoginEnabled: false,
+    leadAutoSaveEnabled: false,
+    customerContactEnabled: false,
+  };
+  const persistedReviewInbox = {
+    mode: "agent_leads_persistent_review_inbox_v46",
+    status: blockers.length ? "blocked" : alreadyRecordedToday ? "persisted" : "ready_to_persist",
+    runId,
+    rows: persistedReviewRows,
+    storage: "audit_event_metadata",
+    auditAction: "agent.os.provider.controlled_pilot_run.review_inbox_persisted",
+    count: persistedReviewRows.length,
+    reviewOnlyExecution: true,
+    externalActionsLocked: true,
+    leadAutoSaveEnabled: false,
+    customerContactEnabled: false,
+  };
+  const productionSafetyReport = {
+    mode: "agent_leads_controlled_pilot_production_safety_report_v46",
+    status: blockers.length ? "blocked" : "ready",
+    companyName: text(companySettings.companyName || companySettings.name || "Current company", 160),
+    summary: blockers.length
+      ? "Controlled pilot run is blocked until readiness and review inbox evidence are complete."
+      : "Controlled pilot run can persist owner/admin review rows without any external/customer action.",
+    whatRan: [
+      `Prepared controlled pilot run record ${runId}.`,
+      `Selected ${selectedSourceRows.length} approved public no-login source${selectedSourceRows.length === 1 ? "" : "s"}.`,
+      `Prepared ${persistedReviewRows.length} persistent review inbox row${persistedReviewRows.length === 1 ? "" : "s"}.`,
+    ],
+    whatWasSkipped: [
+      "No live browser automation or broad web crawling.",
+      "No private/login source access.",
+      "No customer/source contact, bids, payments, scheduling writes, or integrations.",
+      "No lead or found opportunity is saved automatically.",
+    ],
+    contractorMustReview: [
+      "Open and verify each public source row.",
+      "Confirm scope, trade, geography, due date, and duplicate risk.",
+      "Save drafts or convert leads only through normal Apex HQ workflows.",
+      "Pause or disable weak sources before the next morning run.",
+    ],
+    blockedExternalActions: ["login", "scrape", "contact", "auto_save_lead", "submit_bid", "collect_payment", "mutate_schedule", "write_integration", "deploy", "touch_production_data"],
+    noResultExplanation: dailySourceMonitoring.noJobsExplanation || "",
+    latestRunHistoryStatus: dailyRunHistory.status || "",
+  };
+  return {
+    mode: "agent_leads_controlled_pilot_run_execution_v46",
+    today: currentDay,
+    targetDay,
+    companyId: text(companyId, 120),
+    providerMode: settings.mode,
+    status,
+    runRecord,
+    controlledPublicSourceExecutor,
+    persistedReviewInbox,
+    runControls,
+    productionSafetyReport,
+    previousRunRecord: priorRunRows[0] || null,
+    blockers,
+    stats: {
+      selectedSourceRows: selectedSourceRows.length,
+      persistedReviewRows: persistedReviewRows.length,
+      blockerCount: blockers.length,
+      alreadyRecordedToday: alreadyRecordedToday ? 1 : 0,
+      sourceHealthAlerts: Number(dailySourceMonitoring.stats?.missedSourceAlerts || 0),
+    },
+    reviewOnlyExecution: true,
+    externalActionsLocked: true,
+    safeForCron: false,
+    liveProviderCallsEnabled: false,
+    browserAutomationEnabled: false,
+    scrapingEnabled: false,
+    unattendedLoginEnabled: false,
+    rawCredentialStorageEnabled: false,
+    providerOAuthTokenStorageEnabled: false,
+    leadAutoSaveEnabled: false,
+    customerContactEnabled: false,
+    bidSubmissionEnabled: false,
+    paymentCollectionEnabled: false,
+    schedulingMutationEnabled: false,
+    integrationWritesEnabled: false,
+    deployEnabled: false,
+    productionDataTouchEnabled: false,
+    safetyBoundary: "Controlled pilot run execution v46 persists review-only Agent Leads run and inbox evidence in the audit ledger. It does not browse, scrape, log in, contact anyone, create or save leads, submit bids, collect payment, mutate schedules, deploy, touch production data, store credentials, or write integrations.",
   };
 }
 
@@ -10271,6 +10511,20 @@ export function buildAgentOsOpportunityScoutExecutionPlan({
     companySettings: settings,
     today: currentDay,
   });
+  const controlledPilotRunExecution = buildAgentLeadsControlledPilotRunExecution({
+    scheduledRunReadiness,
+    pilotExecutionRehearsal,
+    controlledDailyRunReviewFlow,
+    dailyRunHistory,
+    dailyRunAdminControls,
+    dailySourceMonitoring,
+    providerSettings,
+    companySettings: settings,
+    auditEvents,
+    companyId,
+    actorUserId: settings.actorUserId || settings.currentUserId || "",
+    today: currentDay,
+  });
   return {
     mode: "daily_agent_leads_scout_execution_v6",
     today: currentDay,
@@ -10316,6 +10570,7 @@ export function buildAgentOsOpportunityScoutExecutionPlan({
     scheduledRunReadiness,
     pilotExecutionRehearsal,
     controlledDailyRunReviewFlow,
+    controlledPilotRunExecution,
     dailyRunRecord,
     schedulerHook,
     stats: {
@@ -10367,6 +10622,8 @@ export function buildAgentOsOpportunityScoutExecutionPlan({
       scheduledRunStaleAlerts: scheduledRunReadiness.stats.staleAlerts,
       pilotExecutionRehearsalStatus: pilotExecutionRehearsal.status,
       pilotExecutionRehearsalRows: pilotExecutionRehearsal.stats.simulatedReviewRows,
+      controlledPilotRunStatus: controlledPilotRunExecution.status,
+      controlledPilotRunReviewRows: controlledPilotRunExecution.stats.persistedReviewRows,
       priorFoundWorkSignals: Number(reviewOutcomeStats.found_work || 0),
       priorNoFitSignals: Number(reviewOutcomeStats.no_fit || 0),
       providerAttempts: providerAttempts.length,

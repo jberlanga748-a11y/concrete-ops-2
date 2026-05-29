@@ -44,6 +44,7 @@ import {
   buildAgentLeadsDailyRunHistory,
   buildAgentLeadsScheduledRunReadiness,
   buildAgentLeadsPilotExecutionRehearsal,
+  buildAgentLeadsControlledPilotRunExecution,
   buildAgentLeadsDailySourceMonitoring,
   buildAgentLeadsLocalCompletionReadiness,
   buildAgentLeadsProductionReadinessGate,
@@ -2426,6 +2427,89 @@ test("Agent OS v45 rehearses Agent Leads pilot execution without external action
   assert.equal(rehearsal.unattendedLoginEnabled, false);
   assert.equal(rehearsal.productionDataTouchEnabled, false);
   assert.match(rehearsal.safetyBoundary, /does not create a scheduler/i);
+});
+
+test("Agent OS v46 persists controlled Agent Leads pilot run evidence without external actions", () => {
+  const scheduledRunReadiness = {
+    mode: "agent_leads_scheduled_run_readiness_v44",
+    today: "2026-05-28",
+    tomorrow: "2026-05-29",
+    status: "ready_for_tomorrow_review_only_run",
+    scheduledRunPacket: { id: "COMPANY-1::agent-leads-scheduled-run::2026-05-29", safeForCron: true },
+    runLock: { idempotencyKey: "COMPANY-1::agent-leads-daily-review-run::2026-05-28", status: "available_for_today", canRunToday: true },
+    tomorrowRunPreview: { rows: [{ id: "SRC-1", sourceKey: "src-1", label: "City bids", willCheck: true }] },
+    blockers: [],
+  };
+  const pilotExecutionRehearsal = {
+    mode: "agent_leads_pilot_execution_rehearsal_v45",
+    status: "ready_for_owner_admin_review",
+    tomorrow: "2026-05-29",
+  };
+  const controlledDailyRunReviewFlow = {
+    mode: "agent_leads_controlled_daily_run_review_flow_v42",
+    status: "review_inbox_ready",
+    nextRunDate: "2026-05-29",
+    selectedSourceRows: [{
+      sourceConfigId: "SRC-1",
+      sourceName: "City bids",
+      sourceUrl: "https://city.example.gov/bids",
+      connectorId: "public_procurement_search",
+      idempotencyKey: "COMPANY-1::SRC-1::2026-05-29",
+      expectedOutput: "Review inbox row or no-result explanation.",
+    }],
+    reviewInboxPreviewRows: [{
+      id: "ROW-1",
+      providerResultId: "RESULT-1",
+      title: "Sidewalk bid review",
+      sourceName: "City bids",
+      sourceUrl: "https://city.example.gov/bids",
+      fitScore: 78,
+      canAutoSave: false,
+    }],
+    stats: { reviewInboxRows: 1 },
+  };
+  const execution = buildAgentLeadsControlledPilotRunExecution({
+    scheduledRunReadiness,
+    pilotExecutionRehearsal,
+    controlledDailyRunReviewFlow,
+    dailyRunHistory: { status: "has_run_history", rows: [] },
+    dailyRunAdminControls: { enabled: true },
+    dailySourceMonitoring: { noJobsExplanation: "", stats: { missedSourceAlerts: 0 } },
+    providerSettings: { mode: "test" },
+    companySettings: { companyName: "Ace" },
+    companyId: "COMPANY-1",
+    actorUserId: "OWNER-1",
+    today: "2026-05-28",
+    now: "2026-05-28T10:00:00.000Z",
+  });
+  assert.equal(execution.mode, "agent_leads_controlled_pilot_run_execution_v46");
+  assert.equal(execution.status, "ready_to_persist_review_inbox");
+  assert.equal(execution.runRecord.mode, "agent_leads_controlled_pilot_run_record_v46");
+  assert.equal(execution.runRecord.sourceCount, 1);
+  assert.equal(execution.persistedReviewInbox.mode, "agent_leads_persistent_review_inbox_v46");
+  assert.equal(execution.persistedReviewInbox.rows[0].canAutoSave, false);
+  assert.equal(execution.controlledPublicSourceExecutor.networkRequestsEnabled, false);
+  assert.equal(execution.runControls.runNow.enabled, true);
+  assert.equal(execution.productionSafetyReport.blockedExternalActions.includes("contact"), true);
+  assert.equal(execution.leadAutoSaveEnabled, false);
+  assert.equal(execution.customerContactEnabled, false);
+  assert.equal(execution.productionDataTouchEnabled, false);
+
+  const persisted = buildAgentLeadsControlledPilotRunExecution({
+    scheduledRunReadiness,
+    pilotExecutionRehearsal,
+    controlledDailyRunReviewFlow,
+    auditEvents: [{
+      action: "agent.os.provider.controlled_pilot_run.review_inbox_persisted",
+      createdAt: "2026-05-28T10:00:00.000Z",
+      detail: { agentLeadsControlledPilotRunExecution: execution },
+    }],
+    companyId: "COMPANY-1",
+    today: "2026-05-28",
+  });
+  assert.equal(persisted.status, "persisted");
+  assert.equal(persisted.runControls.runNow.enabled, false);
+  assert.equal(persisted.persistedReviewInbox.rows[0].status, "persisted_for_review");
 });
 
 test("Agent OS v42 builds a controlled daily run review flow from approved public-source evidence only", () => {
