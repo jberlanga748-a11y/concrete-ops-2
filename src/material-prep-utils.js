@@ -33,6 +33,12 @@ const EQUIPMENT_TERMS = ["bucket", "compactor", "excavator", "loader", "pump", "
 const SUBCONTRACTOR_TERMS = ["sub", "subcontract", "hauler", "trucking", "delivery", "vendor"];
 const LABOR_TERMS = ["crew", "install", "labor", "place", "remove", "demo", "finish"];
 
+export const MATERIAL_PREP_REVIEW_ONLY_GUARDRAILS = [
+  "Review-only purchasing prep.",
+  "No vendor order, supplier message, purchase order, payment, or billing action.",
+  "No price, cost, markup, margin, private URLs, or office-only backup text included.",
+];
+
 function safeArray(value) {
   return Array.isArray(value) ? value : [];
 }
@@ -193,6 +199,7 @@ export function deriveMaterialPrepState({ estimates = [], jobs = [], customers =
 
 export function buildMaterialPrepCopyText(packet = {}, { companyName = "Apex HQ Workspace" } = {}) {
   if (!packet?.id) return "";
+  const checklist = buildMaterialPrepChecklist(packet);
   const lines = [
     `${companyName} Material Prep`,
     packet.title,
@@ -202,9 +209,7 @@ export function buildMaterialPrepCopyText(packet = {}, { companyName = "Apex HQ 
     `Status: ${packet.ready ? "Ready for manual prep review" : "Needs review"}`,
     "",
     "Guardrails:",
-    "- Review-only purchasing prep.",
-    "- No vendor order, supplier message, purchase order, payment, or billing action.",
-    "- No price, cost, markup, margin, private URLs, or office-only backup text included.",
+    ...MATERIAL_PREP_REVIEW_ONLY_GUARDRAILS.map((item) => `- ${item}`),
   ];
 
   if (safeArray(packet.blockers).length) {
@@ -228,10 +233,82 @@ export function buildMaterialPrepCopyText(packet = {}, { companyName = "Apex HQ 
     lines.push("- No field delivery needs derived yet.");
   }
 
+  lines.push("", "Manual prep checklist:");
+  checklist.forEach((item) => lines.push(`- ${item.label}: ${item.detail}`));
+
   return lines.filter((line, index) => line !== "" || lines[index - 1] !== "").join("\n").trim();
 }
 
+export function buildMaterialListSummary(packet = {}) {
+  const rows = safeArray(packet.rows);
+  const categories = ["material", "equipment", "subcontractor", "review"];
+
+  return categories
+    .map((category) => {
+      const items = rows.filter((row) => row.category === category).map((row) => ({
+        id: row.id,
+        description: row.description,
+        quantityLabel: row.quantityLabel,
+        unit: row.unit,
+        vendorNote: row.vendorNote,
+        fieldNeed: row.fieldNeed,
+      }));
+      return {
+        category,
+        count: items.length,
+        items,
+      };
+    })
+    .filter((section) => section.count > 0);
+}
+
+export function buildMaterialPrepChecklist(packet = {}) {
+  const summary = buildMaterialListSummary(packet);
+  const categories = new Set(summary.map((section) => section.category));
+  const checklist = [
+    {
+      id: "scope_review",
+      label: "Review approved scope",
+      detail: packet.ready
+        ? "Approved estimate is linked to a job and ready for manual purchasing review."
+        : "Resolve packet blockers before preparing vendor or delivery notes.",
+      status: packet.ready ? "ready" : "blocked",
+    },
+    {
+      id: "quantity_review",
+      label: "Confirm quantities",
+      detail: `${safeArray(packet.rows).length} prep row${safeArray(packet.rows).length === 1 ? "" : "s"} need manual quantity review before any outside conversation.`,
+      status: safeArray(packet.rows).length ? "ready" : "blocked",
+    },
+    {
+      id: "vendor_review",
+      label: "Review vendor notes",
+      detail: categories.has("material") || categories.has("equipment") || categories.has("subcontractor")
+        ? "Use notes for internal review only; contact a vendor manually outside Apex HQ if approved."
+        : "No vendor-ready material, equipment, or subcontractor rows were found.",
+      status: categories.has("material") || categories.has("equipment") || categories.has("subcontractor") ? "ready" : "review",
+    },
+    {
+      id: "field_delivery_review",
+      label: "Confirm field delivery needs",
+      detail: safeArray(packet.fieldNeeds).length
+        ? "Confirm staging, access, delivery timing, and received quantities with the field team."
+        : "No field delivery needs were derived yet.",
+      status: safeArray(packet.fieldNeeds).length ? "ready" : "review",
+    },
+    {
+      id: "external_action_lock",
+      label: "Keep external actions locked",
+      detail: "Do not send supplier messages, create purchase orders, place orders, authorize payments, or change billing from this packet.",
+      status: "locked",
+    },
+  ];
+
+  return checklist;
+}
+
 export function buildMaterialPrepPrintPacket(packet = {}, { companyName = "Apex HQ Workspace", companyProfile = {} } = {}) {
+  const checklist = buildMaterialPrepChecklist(packet);
   const profileRows = [
     { label: "Phone", value: companyProfile.businessPhone || "" },
     { label: "Email", value: companyProfile.businessEmail || "" },
@@ -259,11 +336,7 @@ export function buildMaterialPrepPrintPacket(packet = {}, { companyName = "Apex 
       {
         title: "Guardrails",
         type: "list",
-        items: [
-          "Review-only purchasing prep.",
-          "No vendor order, supplier message, purchase order, payment, or billing action.",
-          "No price, cost, markup, margin, private URLs, or office-only backup text included.",
-        ],
+        items: MATERIAL_PREP_REVIEW_ONLY_GUARDRAILS,
       },
       safeArray(packet.blockers).length ? {
         title: "Needs Review",
@@ -284,6 +357,15 @@ export function buildMaterialPrepPrintPacket(packet = {}, { companyName = "Apex 
         title: "Field Delivery Needs",
         type: "list",
         items: safeArray(packet.fieldNeeds).length ? packet.fieldNeeds : ["No field delivery needs derived yet."],
+      },
+      {
+        title: "Manual Prep Checklist",
+        type: "records",
+        records: checklist.map((item) => ({
+          title: item.label,
+          meta: [item.detail, item.status].filter(Boolean),
+          badges: [item.status],
+        })),
       },
     ].filter(Boolean),
     footerNote: "Generated by Apex HQ for internal purchasing prep review only. Review before contacting vendors or changing job records.",

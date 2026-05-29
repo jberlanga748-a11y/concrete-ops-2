@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  MATERIAL_PREP_REVIEW_ONLY_GUARDRAILS,
+  buildMaterialListSummary,
+  buildMaterialPrepChecklist,
   buildMaterialPrepCopyText,
   buildMaterialPrepPrintPacket,
   buildPurchasingPrepPacket,
@@ -128,4 +131,65 @@ test("print packet is internal review only and excludes prices", () => {
   assert.equal(JSON.stringify(printPacket).includes("unitPrice"), false);
   assert.equal(JSON.stringify(printPacket).includes("$"), false);
   assert.match(printPacket.disclaimerNote, /does not order materials/i);
+});
+
+test("material list summary groups material, equipment, subcontractor, and review rows without prices", () => {
+  const packet = buildPurchasingPrepPacket({
+    id: "EST-1",
+    title: "Summary packet",
+    status: "approved",
+    jobId: "J-1",
+    items: [
+      { id: "I-1", description: "Concrete material", quantity: 10, unit: "CY", unitPrice: 225 },
+      { id: "I-2", description: "Pump rental", quantity: 1, unit: "Day", unitPrice: 700 },
+      { id: "I-3", description: "Trucking subcontractor", quantity: 1, unit: "LS", unitPrice: 1200 },
+      { id: "I-4", description: "Special allowance", quantity: 1, unit: "EA", unitPrice: 300 },
+    ],
+  }, { jobs: [{ id: "J-1", title: "Job" }] });
+
+  const summary = buildMaterialListSummary(packet);
+  const summaryText = JSON.stringify(summary);
+
+  assert.deepEqual(summary.map((section) => section.category), ["material", "equipment", "subcontractor", "review"]);
+  assert.equal(summaryText.includes("unitPrice"), false);
+  assert.equal(summaryText.includes("lineTotal"), false);
+  assert.equal(summaryText.includes("$"), false);
+});
+
+test("material prep checklist stays manual and locks external actions", () => {
+  const packet = buildPurchasingPrepPacket({
+    id: "EST-1",
+    title: "Checklist packet",
+    status: "approved",
+    jobId: "J-1",
+    items: [{ id: "I-1", description: "Rebar material", quantity: 200, unit: "LF", unitPrice: 4 }],
+  }, { jobs: [{ id: "J-1", title: "Job" }] });
+
+  const checklist = buildMaterialPrepChecklist(packet);
+  const checklistText = JSON.stringify(checklist);
+
+  assert.equal(MATERIAL_PREP_REVIEW_ONLY_GUARDRAILS.length, 3);
+  assert.equal(checklist.some((item) => item.id === "external_action_lock" && item.status === "locked"), true);
+  assert.match(checklistText, /Do not send supplier messages/i);
+  assert.match(checklistText, /place orders/i);
+  assert.match(checklistText, /authorize payments/i);
+});
+
+test("material prep copy and print packets include manual checklist guardrails", () => {
+  const packet = buildPurchasingPrepPacket({
+    id: "EST-1",
+    title: "Checklist output",
+    status: "approved",
+    jobId: "J-1",
+    items: [{ id: "I-1", description: "Concrete material", quantity: 5, unit: "CY", unitPrice: 200 }],
+  }, { jobs: [{ id: "J-1", title: "Job" }] });
+
+  const copy = buildMaterialPrepCopyText(packet);
+  const printPacket = buildMaterialPrepPrintPacket(packet);
+  const printText = JSON.stringify(printPacket);
+
+  assert.match(copy, /Manual prep checklist/i);
+  assert.match(copy, /Keep external actions locked/i);
+  assert.equal(printPacket.sections.some((section) => section.title === "Manual Prep Checklist"), true);
+  assert.doesNotMatch(printText, /\$\s*\d|unitPrice|lineTotal|Unit price:|Line total:|Markup:|Margin:/i);
 });
