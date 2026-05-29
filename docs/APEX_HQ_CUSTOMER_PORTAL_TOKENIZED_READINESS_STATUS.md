@@ -1,6 +1,6 @@
 # Apex HQ Customer Portal Tokenized Readiness Status
 
-Status: complete for Build 7A local readiness-contract scope, Build 7B locked access-record scope, Build 7C locked lifecycle scope, Build 7D locked public-route contract scope, Build 7E internal access-record packet scope, Build 7F locked share approval queue scope, and Build 7G locked share approval review scope.
+Status: complete for Build 7A local readiness-contract scope, Build 7B locked access-record scope, Build 7C locked lifecycle scope, Build 7D locked public-route contract scope, Build 7E internal access-record packet scope, Build 7F locked share approval queue scope, Build 7G locked share approval review scope, and Build 7H locked external-gate preflight scope.
 
 ## What Is Now Complete
 
@@ -25,6 +25,9 @@ Status: complete for Build 7A local readiness-contract scope, Build 7B locked ac
 - Owner/admin users can now record a locked internal review decision for a queued share approval.
 - Review decisions can mark the packet ready for a future separately approved external gate, request changes, or reject the share review, while keeping external sharing, public routes, token redemption, customer actions, sends, invoices, and payments disabled.
 - Share approval review tests cover duplicate-review denial, unsafe payload denial, field-role denial, wrong-company denial, redacted review notes, and no token/public-link leakage.
+- Owner/admin users can run a read-only external-gate preflight against a share approval to see whether internal prerequisites and the exact separate approval phrase are present.
+- The preflight always keeps external implementation locked in this build and reports that no customer login, public link, raw token, customer session, customer action, message, invoice, or payment action exists.
+- External-gate preflight tests cover ready review, missing review, expired access records, unsafe payload denial, field-role denial, wrong-company denial, no audit mutation, and no token/public-link leakage.
 
 ## Safety Boundary
 
@@ -50,6 +53,8 @@ Build 7E also does not expose the packet to customers, publish a portal page, cr
 Build 7F also does not expose an approval queue to customers, publish a link, create a customer session, redeem a token, send messages, create invoices, collect payment, or approve external sharing by itself.
 
 Build 7G also does not publish approval decisions to customers, create external access, generate tokens, create public routes, accept customer actions, send messages, create invoices, collect payment, or satisfy the separate external customer portal approval gate by itself.
+
+Build 7H also does not create external portal implementation, publish links, generate tokens, create public routes, accept customer actions, send messages, create invoices, collect payment, mutate production data, or satisfy the separate external customer portal approval gate by itself.
 
 ## Verification
 

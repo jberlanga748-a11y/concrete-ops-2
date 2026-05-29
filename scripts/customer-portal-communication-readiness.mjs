@@ -25,7 +25,7 @@ function printHelp() {
 Usage:
   npm run launch:customer-portal-readiness
   npm run launch:customer-portal-readiness -- --json
-  npm run launch:customer-portal-readiness -- --portal-preview-verified --print-packets-verified --estimate-output-verified --roles-verified --entitlements-verified --agent-policy-verified --claims-verified --build-verified --tokenized-portal-plan-documented --access-record-lifecycle-verified --public-route-contract-verified --access-record-packet-verified --share-approval-queue-verified --share-approval-review-verified --message-review-plan-documented --approval-audit-plan-documented --json
+  npm run launch:customer-portal-readiness -- --portal-preview-verified --print-packets-verified --estimate-output-verified --roles-verified --entitlements-verified --agent-policy-verified --claims-verified --build-verified --tokenized-portal-plan-documented --access-record-lifecycle-verified --public-route-contract-verified --access-record-packet-verified --share-approval-queue-verified --share-approval-review-verified --external-gate-preflight-verified --message-review-plan-documented --approval-audit-plan-documented --json
 
 Future approval flags:
   --external-portal-approval-phrase=${EXTERNAL_PORTAL_APPROVAL_PHRASE}
@@ -55,6 +55,7 @@ function parseArgs(argv = []) {
       accessRecordPacketVerified: false,
       shareApprovalQueueVerified: false,
       shareApprovalReviewVerified: false,
+      externalGatePreflightVerified: false,
       messageReviewPlanDocumented: false,
       approvalAuditPlanDocumented: false,
     },
@@ -81,6 +82,7 @@ function parseArgs(argv = []) {
     else if (arg === "--access-record-packet-verified") options.evidence.accessRecordPacketVerified = true;
     else if (arg === "--share-approval-queue-verified") options.evidence.shareApprovalQueueVerified = true;
     else if (arg === "--share-approval-review-verified") options.evidence.shareApprovalReviewVerified = true;
+    else if (arg === "--external-gate-preflight-verified") options.evidence.externalGatePreflightVerified = true;
     else if (arg === "--message-review-plan-documented") options.evidence.messageReviewPlanDocumented = true;
     else if (arg === "--approval-audit-plan-documented") options.evidence.approvalAuditPlanDocumented = true;
     else if (arg.startsWith("--external-portal-approval-phrase=")) options.approvals.externalPortalApprovalPhrase = valueAfterEquals(arg);
@@ -340,6 +342,11 @@ export function buildCustomerPortalCommunicationReadinessReport({
     ], [
       "Share approval review verification covers internal owner/admin decisions only; a ready decision does not publish links, tokens, sends, invoices, or payments.",
     ]),
+    gate("External gate preflight lock", Boolean(evidence.externalGatePreflightVerified), [
+      ...missing(evidence.externalGatePreflightVerified, "Run and pass locked customer portal external gate preflight tests."),
+    ], [
+      "External gate preflight verification covers read-only prerequisite reporting only; it does not create external portal implementation.",
+    ]),
     gate("External customer portal approval", externalPortalApproved, [
       `Do not create customer logins, public share links, or portal tokens until ${EXTERNAL_PORTAL_APPROVAL_PHRASE} is recorded in a separate approved task.`,
     ]),
@@ -361,6 +368,7 @@ export function buildCustomerPortalCommunicationReadinessReport({
     "Internal access-record packet",
     "Locked share approval queue",
     "Locked share approval review",
+    "External gate preflight lock",
   ].every((name) => gateByName.get(name)?.go);
   const externalCustomerPortalReady = gates.every((item) => item.go);
   const nextBlockedGate = gates.find((item) => !item.go) || null;

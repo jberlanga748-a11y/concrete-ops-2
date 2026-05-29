@@ -1211,3 +1211,171 @@ test("Share approval review fails closed when the underlying access record expir
     await fixture.stop();
   }
 });
+
+test("External gate preflight reports readiness but does not enable customer portal access", async () => {
+  const fixture = await startServer();
+
+  try {
+    const { created, headers } = await createLockedAccessRecord(fixture, {
+      approvalId: "PORTAL-ACCESS-REVIEW-PREFLIGHT",
+    });
+    const approvalResult = await assertOk(fixture.baseUrl, `/api/customer-portal/access-records/${created.accessRecord.id}/share-approvals`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ note: "Prepare locked preflight packet." }),
+    });
+    const reviewed = await assertOk(fixture.baseUrl, `/api/customer-portal/share-approvals/${approvalResult.shareApprovalRequest.id}/review`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        decision: "ready_for_external_gate_review_locked",
+        note: "Internal packet is ready for locked external gate preflight.",
+      }),
+    });
+
+    const preflight = await assertOk(fixture.baseUrl, `/api/customer-portal/share-approvals/${reviewed.shareApprovalRequest.id}/external-gate-preflight`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        approvalPhrase: "TOKENIZED_CUSTOMER_PORTAL_SEPARATELY_APPROVED",
+      }),
+    });
+
+    assert.equal(preflight.preflight.status, "external_gate_preflight_locked");
+    assert.equal(preflight.preflight.shareApprovalRequestId, reviewed.shareApprovalRequest.id);
+    assert.equal(preflight.preflight.accessRecordId, created.accessRecord.id);
+    assert.equal(preflight.preflight.separateApprovalRecorded, true);
+    assert.equal(preflight.preflight.prerequisitesReady, true);
+    assert.equal(preflight.preflight.externalImplementationExists, false);
+    assert.equal(preflight.preflight.externalActionEnabled, false);
+    assert.equal(preflight.preflight.publicRouteEnabled, false);
+    assert.equal(preflight.preflight.canCreateExternalAccess, false);
+    assert.equal(preflight.preflight.canRedeemToken, false);
+    assert.equal(preflight.preflight.canAcceptCustomerAction, false);
+    assert.equal(preflight.preflight.tokenMaterialCreated, false);
+    assert.equal(preflight.preflight.customerMessageSent, false);
+    assert.equal(preflight.preflight.invoiceCreated, false);
+    assert.equal(preflight.preflight.paymentCollectionEnabled, false);
+    assert.equal(preflight.preflight.gates.find((gate) => gate.id === "implementation_lock").ready, false);
+    assert.match(preflight.boundary, /Read-only external gate preflight only/);
+
+    const serialized = JSON.stringify(preflight);
+    assert.equal(serialized.includes(created.accessRecord.tokenHashReference), false);
+    assert.equal(serialized.includes("tokenHashReference"), false);
+    assert.equal(serialized.includes("rawToken"), false);
+    assert.equal(serialized.includes("publicUrl"), false);
+    assert.equal(serialized.includes("shareLink"), false);
+    assert.equal(readAuditEvents(fixture.sqliteFile, "customer_portal_share_approval").length, 2);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("External gate preflight stays blocked without ready review or active access record", async () => {
+  const fixture = await startServer();
+
+  try {
+    const pending = await createLockedAccessRecord(fixture, {
+      approvalId: "PORTAL-ACCESS-REVIEW-PREFLIGHT-PENDING",
+    });
+    const pendingApproval = await assertOk(fixture.baseUrl, `/api/customer-portal/access-records/${pending.created.accessRecord.id}/share-approvals`, {
+      method: "POST",
+      headers: pending.headers,
+      body: JSON.stringify({ note: "Preflight should show missing review." }),
+    });
+    const pendingPreflight = await assertOk(fixture.baseUrl, `/api/customer-portal/share-approvals/${pendingApproval.shareApprovalRequest.id}/external-gate-preflight`, {
+      method: "POST",
+      headers: pending.headers,
+      body: JSON.stringify({ approvalPhrase: "not approved" }),
+    });
+    assert.equal(pendingPreflight.preflight.prerequisitesReady, false);
+    assert.equal(pendingPreflight.preflight.separateApprovalRecorded, false);
+    assert.equal(pendingPreflight.preflight.gates.find((gate) => gate.id === "share_approval_review").ready, false);
+    assert.equal(pendingPreflight.preflight.externalActionEnabled, false);
+
+    const expired = await createLockedAccessRecord(fixture, {
+      approvalId: "PORTAL-ACCESS-REVIEW-PREFLIGHT-EXPIRED",
+    });
+    const expiredApproval = await assertOk(fixture.baseUrl, `/api/customer-portal/access-records/${expired.created.accessRecord.id}/share-approvals`, {
+      method: "POST",
+      headers: expired.headers,
+      body: JSON.stringify({ note: "Queue before expiration." }),
+    });
+    const expiredReviewed = await assertOk(fixture.baseUrl, `/api/customer-portal/share-approvals/${expiredApproval.shareApprovalRequest.id}/review`, {
+      method: "POST",
+      headers: expired.headers,
+      body: JSON.stringify({
+        decision: "ready_for_external_gate_review_locked",
+        note: "Ready before expiration.",
+      }),
+    });
+    forceAccessRecordExpiration(fixture.sqliteFile, expired.created.accessRecord.id, new Date(Date.now() - 60_000).toISOString());
+    const expiredPreflight = await assertOk(fixture.baseUrl, `/api/customer-portal/share-approvals/${expiredReviewed.shareApprovalRequest.id}/external-gate-preflight`, {
+      method: "POST",
+      headers: expired.headers,
+      body: JSON.stringify({ approvalPhrase: "TOKENIZED_CUSTOMER_PORTAL_SEPARATELY_APPROVED" }),
+    });
+    assert.equal(expiredPreflight.preflight.prerequisitesReady, false);
+    assert.equal(expiredPreflight.preflight.gates.find((gate) => gate.id === "active_access_record").ready, false);
+    assert.equal(expiredPreflight.preflight.canCreateExternalAccess, false);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("External gate preflight denies unsafe payloads, field users, and wrong-company users", async () => {
+  const fixture = await startServer();
+
+  try {
+    const { created, headers } = await createLockedAccessRecord(fixture, {
+      approvalId: "PORTAL-ACCESS-REVIEW-PREFLIGHT-DENIAL",
+    });
+    const approvalResult = await assertOk(fixture.baseUrl, `/api/customer-portal/access-records/${created.accessRecord.id}/share-approvals`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ note: "Prepare preflight denial item." }),
+    });
+
+    const unsafe = await requestJson(fixture.baseUrl, `/api/customer-portal/share-approvals/${approvalResult.shareApprovalRequest.id}/external-gate-preflight`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        publicUrl: "https://customer.example.test/portal/abc",
+      }),
+    });
+    assert.equal(unsafe.response.status, 400);
+
+    const fieldUser = createUserRecord({
+      id: "U-PORTAL-FIELD-PREFLIGHT",
+      email: "portal-field-preflight@apexhq.test",
+      password: "apexdemo123",
+      name: "Portal Field Preflight User",
+      role: "Employee",
+    });
+    insertUser(fixture.sqliteFile, fieldUser);
+    const fieldLogin = await login(fixture.baseUrl, { email: fieldUser.email });
+    const fieldDenied = await requestJson(fixture.baseUrl, `/api/customer-portal/share-approvals/${approvalResult.shareApprovalRequest.id}/external-gate-preflight`, {
+      method: "POST",
+      headers: authHeaders(fieldLogin.token),
+      body: JSON.stringify({}),
+    });
+    assert.equal(fieldDenied.response.status, 403);
+
+    const otherCompanyId = "COMPANY-PORTAL-PREFLIGHT-OTHER";
+    insertCompany(fixture.sqliteFile, otherCompanyId);
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.ELITE, otherCompanyId);
+    const otherOwner = insertPortalOwner(fixture.sqliteFile, {
+      email: "portal-preflight-other-owner@apexhq.test",
+      companyId: otherCompanyId,
+    });
+    const otherLogin = await login(fixture.baseUrl, { email: otherOwner.email });
+    const wrongCompanyDenied = await requestJson(fixture.baseUrl, `/api/customer-portal/share-approvals/${approvalResult.shareApprovalRequest.id}/external-gate-preflight`, {
+      method: "POST",
+      headers: authHeaders(otherLogin.token),
+      body: JSON.stringify({}),
+    });
+    assert.equal(wrongCompanyDenied.response.status, 404);
+  } finally {
+    await fixture.stop();
+  }
+});
