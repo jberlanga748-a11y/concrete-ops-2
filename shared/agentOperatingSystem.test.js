@@ -42,6 +42,7 @@ import {
   buildAgentLeadsDailyReviewInbox,
   buildAgentLeadsDailyRunAdminControls,
   buildAgentLeadsDailyRunHistory,
+  buildAgentLeadsScheduledRunReadiness,
   buildAgentLeadsDailySourceMonitoring,
   buildAgentLeadsLocalCompletionReadiness,
   buildAgentLeadsProductionReadinessGate,
@@ -2201,6 +2202,114 @@ test("Agent OS v43 keeps Agent Leads run history, no-result learning, and admin 
   assert.equal(controls.controlSummary.pausedSources, 1);
   assert.equal(controls.externalActionsLocked, true);
   assert.equal(controls.customerContactEnabled, false);
+});
+
+test("Agent OS v44 builds scheduled Agent Leads readiness with run lock and tomorrow preview", () => {
+  const providerSettings = normalizeAgentLeadsProviderSettings({
+    mode: "live_locked",
+    enabledConnectorIds: ["public_procurement_search"],
+    geographyControls: { serviceAreas: ["Salem"] },
+    tradeScope: { trades: ["concrete"] },
+    dailyJobFinderAutopilot: {
+      enabled: true,
+      runTimeLocal: "05:45",
+      sourcePriorityIds: ["public-1"],
+      pausedSourceIds: ["private-1"],
+    },
+  });
+  const sourceSetup = {
+    rows: [
+      { id: "public-1", type: "public_source", label: "City procurement", connectorId: "public_procurement_search", eligibleForDailyRun: true },
+      { id: "private-1", type: "private_handoff", label: "Private group", connectorId: "private_social", eligibleForDailyRun: false },
+    ],
+    stats: { eligiblePublicSources: 1 },
+  };
+  const auditEvents = [{
+    action: "agent.os.provider.daily_job_finder.autopilot",
+    createdAt: "2026-05-29T12:00:00.000Z",
+    detail: {
+      dailyJobFinderAutopilotRun: {
+        runHistoryRecord: {
+          id: "daily-job-finder-autopilot-ace-2026-05-29",
+          today: "2026-05-29",
+          status: "prepared_no_results",
+          sourceCount: 2,
+          publicReviewQueueRows: 0,
+          providerAttemptCount: 1,
+          providerResultCount: 0,
+          providerErrorCount: 0,
+          createdAt: "2026-05-29T12:00:00.000Z",
+        },
+      },
+    },
+  }, {
+    action: "agent.os.provider.daily_job_finder.autopilot",
+    createdAt: "2026-05-27T12:00:00.000Z",
+    detail: {
+      dailyJobFinderAutopilotRun: {
+        runHistoryRecord: {
+          id: "daily-job-finder-autopilot-ace-2026-05-27",
+          today: "2026-05-27",
+          status: "prepared_no_results",
+          sourceCount: 2,
+          publicReviewQueueRows: 0,
+          providerAttemptCount: 1,
+          providerResultCount: 0,
+          providerErrorCount: 0,
+          createdAt: "2026-05-27T12:00:00.000Z",
+        },
+      },
+    },
+  }];
+  const monitoring = buildAgentLeadsDailySourceMonitoring({
+    productionSourceSetupBoard: sourceSetup,
+    dailyReviewInbox: { stats: { totalRows: 0 } },
+    providerAttempts: [{ attemptId: "ATTEMPT-1", status: "empty_response" }],
+    dailyRunRecord: { id: "daily-agent-leads-2026-05-29", status: "prepared_no_results", sourceCount: 2 },
+    providerSettings,
+    auditEvents,
+    today: "2026-05-29",
+  });
+  const history = buildAgentLeadsDailyRunHistory({
+    auditEvents,
+    dailySourceMonitoring: monitoring,
+    providerSettings,
+    today: "2026-05-29",
+  });
+  const controls = buildAgentLeadsDailyRunAdminControls({
+    providerSettings,
+    productionSourceSetupBoard: sourceSetup,
+    today: "2026-05-29",
+  });
+  const readiness = buildAgentLeadsScheduledRunReadiness({
+    auditEvents,
+    providerSettings,
+    productionSourceSetupBoard: sourceSetup,
+    dailyRunHistory: history,
+    dailyRunAdminControls: controls,
+    dailySourceMonitoring: monitoring,
+    schedulerHook: { endpoint: "POST /api/agent/os/provider/daily-job-finder/autopilot" },
+    companyId: "COMPANY-1",
+    today: "2026-05-29",
+  });
+
+  assert.equal(readiness.mode, "agent_leads_scheduled_run_readiness_v44");
+  assert.equal(readiness.status, "ready_for_tomorrow_locked_today");
+  assert.equal(readiness.tomorrow, "2026-05-30");
+  assert.equal(readiness.runLock.status, "locked_already_ran_today");
+  assert.equal(readiness.runLock.canRunToday, false);
+  assert.match(readiness.runLock.idempotencyKey, /COMPANY-1::agent-leads-daily-review-run::2026-05-29/);
+  assert.equal(readiness.tomorrowRunPreview.willCheckCount, 1);
+  assert.equal(readiness.tomorrowRunPreview.rows.find((row) => row.id === "public-1")?.status, "will_check");
+  assert.equal(readiness.tomorrowRunPreview.rows.find((row) => row.id === "private-1")?.status, "skipped_paused");
+  assert.equal(readiness.staleSourceAlerts.some((alert) => alert.id === "repeated-no-results"), true);
+  assert.equal(readiness.scheduledRunPacket.safeForCron, true);
+  assert.equal(readiness.scheduledRunPacket.reviewOnlyExecution, true);
+  assert.equal(readiness.externalActionsLocked, true);
+  assert.equal(readiness.unattendedLoginEnabled, false);
+  assert.equal(readiness.customerContactEnabled, false);
+  assert.equal(readiness.integrationWritesEnabled, false);
+  assert.match(readiness.safetyBoundary, /does not create a scheduler/i);
 });
 
 test("Agent OS v42 builds a controlled daily run review flow from approved public-source evidence only", () => {
