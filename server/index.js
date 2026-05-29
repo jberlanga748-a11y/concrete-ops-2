@@ -330,6 +330,8 @@ const ESTIMATE_STATUSES = new Set(["draft", "sent", "approved", "rejected", "arc
 const RATE_BOOK_CATEGORIES = new Set(["labor", "material", "equipment", "subcontractor", "other"]);
 const RATE_BOOK_STATUSES = new Set(["active", "archived"]);
 const CHANGE_ORDER_REQUEST_STATUSES = new Set(["requested", "under_review", "approved_for_pricing", "rejected", "archived"]);
+const CHANGE_ORDER_REVIEW_STATUSES = new Set(["not_ready", "ready_for_manual_review", "sent_manually", "accepted_manually", "rejected_manually"]);
+const CHANGE_ORDER_BILLING_HANDOFF_STATUSES = new Set(["locked", "ready_for_manual_billing_handoff", "handed_off_manually"]);
 const SAFETY_POLICY_STATUSES = new Set(["active", "archived"]);
 const SAFETY_INCIDENT_TYPES = new Set(["concern", "near_miss", "injury", "property_damage", "hazard", "other"]);
 const SAFETY_INCIDENT_SEVERITIES = new Set(["low", "medium", "high", "critical"]);
@@ -1034,6 +1036,22 @@ function optionalChangeOrderRequestStatus(value, fallback = "requested") {
   const normalized = value == null ? fallback : String(value).trim().toLowerCase();
   if (!CHANGE_ORDER_REQUEST_STATUSES.has(normalized)) {
     throw new ApiError(400, `Change order request status must be one of: ${Array.from(CHANGE_ORDER_REQUEST_STATUSES).join(", ")}.`);
+  }
+  return normalized;
+}
+
+function optionalChangeOrderReviewStatus(value, fallback = "not_ready") {
+  const normalized = value == null ? fallback : String(value).trim().toLowerCase();
+  if (!CHANGE_ORDER_REVIEW_STATUSES.has(normalized)) {
+    throw new ApiError(400, `Change order review status must be one of: ${Array.from(CHANGE_ORDER_REVIEW_STATUSES).join(", ")}.`);
+  }
+  return normalized;
+}
+
+function optionalChangeOrderBillingHandoffStatus(value, fallback = "locked") {
+  const normalized = value == null ? fallback : String(value).trim().toLowerCase();
+  if (!CHANGE_ORDER_BILLING_HANDOFF_STATUSES.has(normalized)) {
+    throw new ApiError(400, `Change order billing handoff status must be one of: ${Array.from(CHANGE_ORDER_BILLING_HANDOFF_STATUSES).join(", ")}.`);
   }
   return normalized;
 }
@@ -3213,6 +3231,10 @@ function sanitizeChangeOrderRequestForUser(request, state, user) {
     reviewedBy: canManage ? (request.reviewedBy || "") : "",
     reviewedByName: canManage ? (reviewedByUser?.name || request.reviewedBy || "") : fieldReviewLabel,
     reviewedAt: request.reviewedAt || "",
+    priceAmount: canManage ? Number(request.priceAmount || 0) : 0,
+    customerReviewStatus: canManage ? optionalChangeOrderReviewStatus(request.customerReviewStatus, "not_ready") : "not_ready",
+    gcReviewStatus: canManage ? optionalChangeOrderReviewStatus(request.gcReviewStatus, "not_ready") : "not_ready",
+    billingHandoffStatus: canManage ? optionalChangeOrderBillingHandoffStatus(request.billingHandoffStatus, "locked") : "locked",
     createdAt: request.createdAt,
     updatedAt: request.updatedAt,
     archivedAt: request.archivedAt || null,
@@ -5143,6 +5165,10 @@ function createChangeOrderRequestShape(payload, user, changedAt, job) {
     officeNotes: "",
     reviewedBy: "",
     reviewedAt: "",
+    priceAmount: 0,
+    customerReviewStatus: "not_ready",
+    gcReviewStatus: "not_ready",
+    billingHandoffStatus: "locked",
     createdAt: changedAt,
     updatedAt: changedAt,
     archivedAt: null,
@@ -12239,10 +12265,27 @@ app.patch("/api/change-order-requests/:id", requireAuth, asyncRoute(async (req, 
     if (canEditChangeOrderRequest(req.auth.user)) {
       const nextStatus = payload.status == null ? request.status : optionalChangeOrderRequestStatus(payload.status, request.status);
       const nextOfficeNotes = payload.officeNotes == null ? request.officeNotes || "" : optionalString(payload.officeNotes, "");
+      const nextPriceAmount = payload.priceAmount == null ? Number(request.priceAmount || 0) : optionalNonNegativeNumber(payload.priceAmount, "Price amount", 0);
+      const nextCustomerReviewStatus = payload.customerReviewStatus == null ? request.customerReviewStatus || "not_ready" : optionalChangeOrderReviewStatus(payload.customerReviewStatus, request.customerReviewStatus || "not_ready");
+      const nextGcReviewStatus = payload.gcReviewStatus == null ? request.gcReviewStatus || "not_ready" : optionalChangeOrderReviewStatus(payload.gcReviewStatus, request.gcReviewStatus || "not_ready");
+      const requestedBillingStatus = payload.billingHandoffStatus == null ? request.billingHandoffStatus || "locked" : optionalChangeOrderBillingHandoffStatus(payload.billingHandoffStatus, request.billingHandoffStatus || "locked");
+      const nextBillingHandoffStatus = nextStatus === "approved_for_pricing"
+        && nextPriceAmount > 0
+        && (nextCustomerReviewStatus === "accepted_manually" || nextGcReviewStatus === "accepted_manually")
+        ? requestedBillingStatus
+        : "locked";
       if (nextStatus !== request.status) changedFields.push("status");
       if (nextOfficeNotes !== (request.officeNotes || "")) changedFields.push("officeNotes");
+      if (nextPriceAmount !== Number(request.priceAmount || 0)) changedFields.push("priceAmount");
+      if (nextCustomerReviewStatus !== (request.customerReviewStatus || "not_ready")) changedFields.push("customerReviewStatus");
+      if (nextGcReviewStatus !== (request.gcReviewStatus || "not_ready")) changedFields.push("gcReviewStatus");
+      if (nextBillingHandoffStatus !== (request.billingHandoffStatus || "locked")) changedFields.push("billingHandoffStatus");
       request.status = nextStatus;
       request.officeNotes = nextOfficeNotes;
+      request.priceAmount = nextPriceAmount;
+      request.customerReviewStatus = nextCustomerReviewStatus;
+      request.gcReviewStatus = nextGcReviewStatus;
+      request.billingHandoffStatus = nextBillingHandoffStatus;
       request.reviewedBy = req.auth.user.id;
       request.reviewedAt = changedAt;
       changedFields.push("reviewedBy", "reviewedAt");
@@ -12280,6 +12323,7 @@ app.post("/api/change-order-requests/:id/archive", requireAuth, asyncRoute(async
     const job = findCompanyScopedRecord(draft.jobs, request.jobId, req.auth.user, draft, "Job");
     request.status = "archived";
     request.archivedAt = changedAt;
+    request.billingHandoffStatus = "locked";
     request.reviewedBy = req.auth.user.id;
     request.reviewedAt = changedAt;
     markUpdated(request, changedAt);
@@ -12291,7 +12335,7 @@ app.post("/api/change-order-requests/:id/archive", requireAuth, asyncRoute(async
       summary: "Change order request archived",
       detail: `${req.auth.user.name} archived the change order request for ${normalizeJobRecord(job).title}.`,
       actor: req.auth.user,
-      changedFields: ["status", "archivedAt", "reviewedBy", "reviewedAt", "updatedAt"],
+      changedFields: ["status", "archivedAt", "billingHandoffStatus", "reviewedBy", "reviewedAt", "updatedAt"],
     });
     return draft;
   });

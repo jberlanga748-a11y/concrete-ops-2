@@ -244,22 +244,31 @@ test("change order requests stay field-safe while office manages review", async 
       method: "PATCH",
       headers: officeHeaders,
       body: JSON.stringify({
-        status: "under_review",
+        status: "approved_for_pricing",
         officeNotes: "Reviewing scope before pricing handoff.",
+        priceAmount: 1850,
+        customerReviewStatus: "accepted_manually",
+        billingHandoffStatus: "ready_for_manual_billing_handoff",
       }),
     });
     const reviewedRequest = reviewedState.changeOrderRequests.find((entry) => entry.id === request.id);
-    assert.equal(reviewedRequest.status, "under_review");
+    assert.equal(reviewedRequest.status, "approved_for_pricing");
     assert.equal(reviewedRequest.officeNotes, "Reviewing scope before pricing handoff.");
+    assert.equal(reviewedRequest.priceAmount, 1850);
+    assert.equal(reviewedRequest.customerReviewStatus, "accepted_manually");
+    assert.equal(reviewedRequest.billingHandoffStatus, "ready_for_manual_billing_handoff");
 
     const foremanViewAfterReview = await assertOk(fixture.baseUrl, "/api/change-order-requests", { headers: foremanHeaders });
     const visibleRequest = foremanViewAfterReview.changeOrderRequests.find((entry) => entry.id === request.id);
     assert.ok(visibleRequest);
-    assert.equal(visibleRequest.status, "under_review");
+    assert.equal(visibleRequest.status, "approved_for_pricing");
     assert.equal(visibleRequest.officeNotes, "");
     assert.equal(visibleRequest.reviewedBy, "");
     assert.equal(visibleRequest.reviewedByName, "Office");
     assert.notEqual(visibleRequest.reviewedByName, "Demo Admin");
+    assert.equal(visibleRequest.priceAmount, 0);
+    assert.equal(visibleRequest.customerReviewStatus, "not_ready");
+    assert.equal(visibleRequest.billingHandoffStatus, "locked");
 
     const archivedState = await assertOk(fixture.baseUrl, `/api/change-order-requests/${request.id}/archive`, {
       method: "POST",

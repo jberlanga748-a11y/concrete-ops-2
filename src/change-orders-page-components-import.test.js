@@ -12,6 +12,9 @@ test("Change Orders page route shell is extracted and lazy-loaded out of App", (
   assert.match(changeOrdersPageSource, /function ChangeOrdersTablePolished\b/);
   assert.match(changeOrdersPageSource, /function ChangeOrderCreatePanelPolished\b/);
   assert.match(changeOrdersPageSource, /function ChangeOrderDetailPanelPolished\b/);
+  assert.match(changeOrdersPageSource, /Money review/);
+  assert.match(changeOrdersPageSource, /Manual change amount/);
+  assert.match(changeOrdersPageSource, /No invoice, payment, send, or job status change/);
   assert.match(changeOrdersPageSource, /className="co-change-orders-command-shell"/);
   assert.match(changeOrdersPageSource, /<ApexOfficeCommandShell/);
 

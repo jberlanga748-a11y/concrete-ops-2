@@ -5138,6 +5138,10 @@ const MIGRATIONS = [
           office_notes TEXT NOT NULL,
           reviewed_by TEXT,
           reviewed_at TEXT,
+          price_amount REAL NOT NULL DEFAULT 0,
+          customer_review_status TEXT NOT NULL DEFAULT 'not_ready',
+          gc_review_status TEXT NOT NULL DEFAULT 'not_ready',
+          billing_handoff_status TEXT NOT NULL DEFAULT 'locked',
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL,
           archived_at TEXT,
@@ -6030,6 +6034,27 @@ const MIGRATIONS = [
         }
       },
     },
+    {
+      version: 55,
+      description: "Persist review-first change order money handoff fields.",
+      up(database) {
+        const columns = [
+          ["price_amount", "REAL NOT NULL DEFAULT 0"],
+          ["customer_review_status", "TEXT NOT NULL DEFAULT 'not_ready'"],
+          ["gc_review_status", "TEXT NOT NULL DEFAULT 'not_ready'"],
+          ["billing_handoff_status", "TEXT NOT NULL DEFAULT 'locked'"],
+        ];
+
+        for (const [column, definition] of columns) {
+          if (!columnExists(database, "change_order_requests", column)) {
+            database.exec(`
+              ALTER TABLE change_order_requests
+              ADD COLUMN ${column} ${definition};
+            `);
+          }
+        }
+      },
+    },
   ];
 
 function runInTransaction(database, work) {
@@ -6182,8 +6207,8 @@ function writeStateToDatabase(database, state) {
   `);
 
   const insertChangeOrderRequest = database.prepare(`
-    INSERT INTO change_order_requests (id, sort_index, company_id, job_id, customer_id, requested_by, reason, scope_description, field_notes, status, office_notes, reviewed_by, reviewed_at, created_at, updated_at, archived_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO change_order_requests (id, sort_index, company_id, job_id, customer_id, requested_by, reason, scope_description, field_notes, status, office_notes, reviewed_by, reviewed_at, price_amount, customer_review_status, gc_review_status, billing_handoff_status, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertDeliveryTicket = database.prepare(`
@@ -6899,6 +6924,10 @@ function writeStateToDatabase(database, state) {
           request.officeNotes || "",
           request.reviewedBy || null,
           request.reviewedAt || null,
+          Number(request.priceAmount || 0),
+          request.customerReviewStatus || "not_ready",
+          request.gcReviewStatus || "not_ready",
+          request.billingHandoffStatus || "locked",
           request.createdAt || isoNow(),
           request.updatedAt || request.createdAt || isoNow(),
           request.archivedAt || null,
@@ -7454,6 +7483,8 @@ function readTableState(database = createDatabaseConnection()) {
     const changeOrderRequests = database.prepare(`
       SELECT id, company_id AS companyId, job_id AS jobId, customer_id AS customerId, requested_by AS requestedBy, reason, scope_description AS scopeDescription,
              field_notes AS fieldNotes, status, office_notes AS officeNotes, reviewed_by AS reviewedBy, reviewed_at AS reviewedAt,
+             price_amount AS priceAmount, customer_review_status AS customerReviewStatus, gc_review_status AS gcReviewStatus,
+             billing_handoff_status AS billingHandoffStatus,
              created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
       FROM change_order_requests
       ORDER BY sort_index ASC
