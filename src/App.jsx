@@ -147,6 +147,7 @@ import {
   recordAgentLeadProviderCredentialHandoff,
   recordAgentLeadProviderDailySchedule,
   recordAgentLeadProviderSourceConsent,
+  recordAgentLeadDailyPublicRunOutcomes,
   recordAgentLeadProcurementFeedAdapterConfig,
   runAgentLeadOfficialProviderApiAdapterHarness,
   runAgentLeadLiveProcurementPublicAdapter,
@@ -1813,6 +1814,7 @@ function CopilotPagePolished({
   onRunAgentLeadDailyJobFinderOrchestration,
   onRunAgentLeadDailyJobFinderAutopilot,
   onRunAgentLeadControlledDailyPublicRunFlow,
+  onRecordAgentLeadDailyPublicRunOutcomes,
   onRecordAgentLeadProcurementFeedAdapterConfig,
   onRunAgentLeadProcurementFeedAdapter,
   onRecordAgentLeadPrivateSourceAuthorization,
@@ -2703,6 +2705,22 @@ function CopilotPagePolished({
     setProviderAdapterState(result?.controlledDailyRunReviewFlow
       ? { status: "ready", message: `Controlled daily run ${(result.controlledDailyRunReviewFlow.status || "prepared").replace(/_/g, " ")}.`, result: result.controlledDailyRunReviewFlow }
       : { status: "error", message: result?.message || "Controlled daily run review flow failed.", result: controlledDailyRunReviewFlow });
+  }
+
+  async function recordControlledDailyRunOutcome(row, decision = "draft_found_opportunity") {
+    if (!canManageOpportunityScout || !onRecordAgentLeadDailyPublicRunOutcomes || !row?.id) return;
+    setProviderAdapterState({ status: "loading", message: `Recording controlled inbox ${decision.replace(/_/g, " ")}...`, result: controlledDailyRunReviewFlow });
+    const result = await onRecordAgentLeadDailyPublicRunOutcomes({
+      today,
+      outcomes: [{
+        evidenceRowId: row.id,
+        decision,
+        note: `Controlled inbox reviewed from ${row.title || "review row"}.`,
+      }],
+    });
+    setProviderAdapterState(result?.controlledDailyPublicRunOutcomeLoop
+      ? { status: "ready", message: `Controlled inbox outcome recorded: ${decision.replace(/_/g, " ")}.`, result: result.controlledDailyPublicRunOutcomeLoop }
+      : { status: "error", message: result?.message || "Controlled inbox outcome failed.", result: controlledDailyRunReviewFlow });
   }
 
   async function recordProviderDecision(card, decision) {
@@ -4950,6 +4968,23 @@ function CopilotPagePolished({
                             <strong>{row.title}</strong>
                             <p>{row.fitReason || row.primaryAction || "Review before any lead draft is saved."}</p>
                             <small>{row.sourceUrl || "No source URL attached"}</small>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <Button type="button" size="sm" variant="secondary" onClick={() => draftProviderReviewOpportunity(row)} disabled={!canManageOpportunityScout || busy || providerAdapterState.status === "loading"}>
+                                Save Draft
+                              </Button>
+                              <Button type="button" size="sm" variant="secondary" onClick={() => recordControlledDailyRunOutcome(row, "draft_found_opportunity")} disabled={!canManageOpportunityScout || busy || providerAdapterState.status === "loading"}>
+                                Accept
+                              </Button>
+                              <Button type="button" size="sm" variant="ghost" onClick={() => recordControlledDailyRunOutcome(row, "mark_duplicate")} disabled={!canManageOpportunityScout || busy || providerAdapterState.status === "loading"}>
+                                Duplicate
+                              </Button>
+                              <Button type="button" size="sm" variant="ghost" onClick={() => recordControlledDailyRunOutcome(row, "no_fit")} disabled={!canManageOpportunityScout || busy || providerAdapterState.status === "loading"}>
+                                No Fit
+                              </Button>
+                              <Button type="button" size="sm" variant="ghost" onClick={() => recordControlledDailyRunOutcome(row, "dismiss")} disabled={!canManageOpportunityScout || busy || providerAdapterState.status === "loading"}>
+                                Reject
+                              </Button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -13657,6 +13692,22 @@ export default function App() {
     }
   }
 
+  async function handleRecordAgentLeadDailyPublicRunOutcomes(payload = {}) {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await recordAgentLeadDailyPublicRunOutcomes(sessionToken, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleRecordAgentLeadProviderCredentialHandoff(payload = {}) {
     if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
     setBusy(true);
@@ -16025,6 +16076,7 @@ export default function App() {
                 onRunAgentLeadDailyJobFinderOrchestration={handleRunAgentLeadDailyJobFinderOrchestration}
                 onRunAgentLeadDailyJobFinderAutopilot={handleRunAgentLeadDailyJobFinderAutopilot}
                 onRunAgentLeadControlledDailyPublicRunFlow={handleRunAgentLeadControlledDailyPublicRunFlow}
+                onRecordAgentLeadDailyPublicRunOutcomes={handleRecordAgentLeadDailyPublicRunOutcomes}
                 onRecordAgentLeadProcurementFeedAdapterConfig={handleRecordAgentLeadProcurementFeedAdapterConfig}
                 onRunAgentLeadProcurementFeedAdapter={handleRunAgentLeadProcurementFeedAdapter}
                 onRecordAgentLeadPrivateSourceAuthorization={handleRecordAgentLeadPrivateSourceAuthorization}
