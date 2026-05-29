@@ -5,6 +5,7 @@ import {
   buildCustomerPortalPreviewPacket,
   buildCustomerPortalTokenizedAccessApprovalPacket,
   deriveCustomerPortalPreviewState,
+  deriveCustomerPortalPublicRouteContract,
   deriveCustomerPortalTokenizedAccessPlan,
 } from "./customer-portal-preview-utils.js";
 
@@ -224,4 +225,85 @@ test("tokenized access approval packet excludes raw secrets and states locked bo
   assert.match(packet, /External access lock: blocked/i);
   assert.equal(packet.includes("Office-only margin note"), false);
   assert.equal(packet.includes("secret-session-token"), false);
+});
+
+test("public customer portal route contract stays locked and customer-data free", () => {
+  const contract = deriveCustomerPortalPublicRouteContract({
+    accessId: "CPA-safe-access-123",
+    accessRecord: {
+      id: "CPA-safe-access-123",
+      companyId: "COMPANY-1",
+      status: "prepared_locked",
+      customer: "ABC Builders",
+      estimateId: "EST-APPROVED",
+      tokenHashReference: "sha256:secret-reference",
+      expiresAt: "2026-06-01T12:00:00.000Z",
+    },
+    requestCompanyId: "COMPANY-1",
+    checkedAt: "2026-05-29T12:00:00.000Z",
+  });
+
+  assert.equal(contract.routeTemplate, "/portal/:accessId");
+  assert.equal(contract.publicRouteEnabled, false);
+  assert.equal(contract.canServeCustomerData, false);
+  assert.equal(contract.canRedeemToken, false);
+  assert.equal(contract.canAcceptCustomerAction, false);
+  assert.equal(contract.responseShape.code, "customer_portal_public_route_locked");
+  assert.match(contract.denialReasons.join(" "), /TOKENIZED_CUSTOMER_PORTAL_SEPARATELY_APPROVED/);
+  assert.match(contract.denialReasons.join(" "), /No redeemable portal token exists/);
+  const serialized = JSON.stringify(contract);
+  assert.equal(serialized.includes("ABC Builders"), false);
+  assert.equal(serialized.includes("EST-APPROVED"), false);
+  assert.equal(serialized.includes("sha256:secret-reference"), false);
+});
+
+test("public customer portal route contract denies malformed, wrong-company, expired, and revoked cases", () => {
+  const malformed = deriveCustomerPortalPublicRouteContract({
+    accessId: "../bad access id",
+    checkedAt: "2026-05-29T12:00:00.000Z",
+  });
+  const wrongCompany = deriveCustomerPortalPublicRouteContract({
+    accessId: "CPA-safe-access-456",
+    requestCompanyId: "COMPANY-A",
+    accessRecord: {
+      id: "CPA-safe-access-456",
+      companyId: "COMPANY-B",
+      status: "prepared_locked",
+      expiresAt: "2026-06-01T12:00:00.000Z",
+    },
+    checkedAt: "2026-05-29T12:00:00.000Z",
+  });
+  const expired = deriveCustomerPortalPublicRouteContract({
+    accessId: "CPA-safe-access-789",
+    accessRecord: {
+      id: "CPA-safe-access-789",
+      companyId: "COMPANY-A",
+      status: "prepared_locked",
+      expiresAt: "2026-05-01T12:00:00.000Z",
+    },
+    checkedAt: "2026-05-29T12:00:00.000Z",
+  });
+  const revoked = deriveCustomerPortalPublicRouteContract({
+    accessId: "CPA-safe-access-999",
+    accessRecord: {
+      id: "CPA-safe-access-999",
+      companyId: "COMPANY-A",
+      status: "revoked_locked",
+      revokedAt: "2026-05-20T12:00:00.000Z",
+      expiresAt: "2026-06-01T12:00:00.000Z",
+    },
+    checkedAt: "2026-05-29T12:00:00.000Z",
+  });
+
+  assert.match(malformed.denialReasons.join(" "), /Malformed public portal access id/);
+  assert.equal(malformed.canServeCustomerData, false);
+  assert.match(wrongCompany.denialReasons.join(" "), /company scope does not match/i);
+  assert.equal(wrongCompany.companyScopeMatches, false);
+  assert.match(expired.denialReasons.join(" "), /expired/i);
+  assert.match(revoked.denialReasons.join(" "), /revoked/i);
+  for (const contract of [malformed, wrongCompany, expired, revoked]) {
+    assert.equal(contract.publicRouteEnabled, false);
+    assert.equal(contract.canRedeemToken, false);
+    assert.equal(contract.canAcceptCustomerAction, false);
+  }
 });
