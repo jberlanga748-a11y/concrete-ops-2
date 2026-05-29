@@ -102,6 +102,37 @@ async function collectUploadBackupManifest(rootDir, currentDir = rootDir) {
   return files.sort((left, right) => left.path.localeCompare(right.path));
 }
 
+async function createUploadBackupArtifacts({ backupDir, dataDir, stamp, exportedAt }) {
+  const uploadsDir = path.join(dataDir, "uploads");
+  const uploadBackupDir = path.join(backupDir, `uploads-${stamp}`);
+  const uploadManifestFile = path.join(backupDir, `uploads-${stamp}.manifest.json`);
+  const uploadFiles = await collectUploadBackupManifest(uploadsDir);
+  const totalBytes = uploadFiles.reduce((sum, file) => sum + file.size, 0);
+
+  await fs.rm(uploadBackupDir, { recursive: true, force: true });
+  await fs.rm(uploadManifestFile, { force: true });
+  await fs.mkdir(uploadBackupDir, { recursive: true });
+  if (uploadFiles.length > 0) {
+    await fs.cp(uploadsDir, uploadBackupDir, { recursive: true });
+  }
+  await fs.writeFile(uploadManifestFile, `${JSON.stringify({
+    exportedAt,
+    artifact: path.basename(uploadBackupDir),
+    fileCount: uploadFiles.length,
+    totalBytes,
+    files: uploadFiles,
+  }, null, 2)}\n`, "utf8");
+
+  return {
+    artifact: path.basename(uploadBackupDir),
+    manifest: path.basename(uploadManifestFile),
+    uploadBackupDir,
+    uploadManifestFile,
+    uploadFileCount: uploadFiles.length,
+    totalBytes,
+  };
+}
+
 export function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
   const derivedKey = crypto.scryptSync(password, salt, 64).toString("hex");
   return `${salt}:${derivedKey}`;
@@ -8389,16 +8420,24 @@ async function createPostgresBackupArtifacts() {
   await ensurePostgresDb();
   const exportedAt = new Date().toISOString();
   const stamp = backupTimestamp();
-  const { backupDir } = getDataPaths();
+  const { backupDir, dataDir } = getDataPaths();
   const jsonExportFile = path.join(backupDir, `postgres-app-data-${stamp}.json`);
   const state = await readPostgresDb();
 
   await fs.mkdir(backupDir, { recursive: true });
+  await fs.rm(jsonExportFile, { force: true });
+  const uploadBackup = await createUploadBackupArtifacts({ backupDir, dataDir, stamp, exportedAt });
   await fs.writeFile(jsonExportFile, `${JSON.stringify({
     exportedAt,
     source: {
       dataProvider: "postgres",
       project: "Supabase/Postgres",
+    },
+    uploadBackup: {
+      artifact: uploadBackup.artifact,
+      manifest: uploadBackup.manifest,
+      fileCount: uploadBackup.uploadFileCount,
+      totalBytes: uploadBackup.totalBytes,
     },
     state,
   }, null, 2)}\n`, "utf8");
@@ -8408,9 +8447,9 @@ async function createPostgresBackupArtifacts() {
     backupDir,
     sqliteBackupFile: null,
     jsonExportFile,
-    uploadBackupDir: null,
-    uploadManifestFile: null,
-    uploadFileCount: 0,
+    uploadBackupDir: uploadBackup.uploadBackupDir,
+    uploadManifestFile: uploadBackup.uploadManifestFile,
+    uploadFileCount: uploadBackup.uploadFileCount,
   };
 }
 
@@ -8867,51 +8906,36 @@ export async function createBackupArtifacts() {
   const exportedAt = new Date().toISOString();
   const stamp = backupTimestamp();
   const { backupDir, dataDir } = getDataPaths();
-  const uploadsDir = path.join(dataDir, "uploads");
   const sqliteBackupFile = path.join(backupDir, `app-data-${stamp}.sqlite`);
   const jsonExportFile = path.join(backupDir, `app-data-${stamp}.json`);
-  const uploadBackupDir = path.join(backupDir, `uploads-${stamp}`);
-  const uploadManifestFile = path.join(backupDir, `uploads-${stamp}.manifest.json`);
-  const uploadFiles = await collectUploadBackupManifest(uploadsDir);
-  const exportPayload = {
-    exportedAt,
-    source: getDataPaths(),
-    uploadBackup: {
-      artifact: path.basename(uploadBackupDir),
-      manifest: path.basename(uploadManifestFile),
-      fileCount: uploadFiles.length,
-      totalBytes: uploadFiles.reduce((sum, file) => sum + file.size, 0),
-    },
-    state: readTableState(),
-  };
 
   await fs.mkdir(backupDir, { recursive: true });
   await fs.rm(sqliteBackupFile, { force: true });
   await fs.rm(jsonExportFile, { force: true });
-  await fs.rm(uploadBackupDir, { recursive: true, force: true });
-  await fs.rm(uploadManifestFile, { force: true });
+  const uploadBackup = await createUploadBackupArtifacts({ backupDir, dataDir, stamp, exportedAt });
+
+  const exportPayload = {
+    exportedAt,
+    source: getDataPaths(),
+    uploadBackup: {
+      artifact: uploadBackup.artifact,
+      manifest: uploadBackup.manifest,
+      fileCount: uploadBackup.uploadFileCount,
+      totalBytes: uploadBackup.totalBytes,
+    },
+    state: readTableState(),
+  };
 
   database.exec(`VACUUM INTO '${sqliteStringLiteral(sqliteBackupFile)}'`);
   await fs.writeFile(jsonExportFile, `${JSON.stringify(exportPayload, null, 2)}\n`, "utf8");
-  await fs.mkdir(uploadBackupDir, { recursive: true });
-  if (uploadFiles.length > 0) {
-    await fs.cp(uploadsDir, uploadBackupDir, { recursive: true });
-  }
-  await fs.writeFile(uploadManifestFile, `${JSON.stringify({
-    exportedAt,
-    artifact: path.basename(uploadBackupDir),
-    fileCount: uploadFiles.length,
-    totalBytes: uploadFiles.reduce((sum, file) => sum + file.size, 0),
-    files: uploadFiles,
-  }, null, 2)}\n`, "utf8");
 
   return {
     exportedAt,
     backupDir,
     sqliteBackupFile,
     jsonExportFile,
-    uploadBackupDir,
-    uploadManifestFile,
-    uploadFileCount: uploadFiles.length,
+    uploadBackupDir: uploadBackup.uploadBackupDir,
+    uploadManifestFile: uploadBackup.uploadManifestFile,
+    uploadFileCount: uploadBackup.uploadFileCount,
   };
 }
