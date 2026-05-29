@@ -1915,6 +1915,7 @@ function CopilotPagePolished({
   const dailyRunHistory = dailyScoutExecutionPlan.dailyRunHistory || { rows: [], stats: {}, noResultLearning: { recommendations: [] }, status: "no_run_history_yet" };
   const dailyRunAdminControls = dailyScoutExecutionPlan.dailyRunAdminControls || { sourceRows: [], controlSummary: {}, sourcePriorityIds: [], pausedSourceIds: [], status: "daily_run_paused" };
   const scheduledRunReadiness = dailyScoutExecutionPlan.scheduledRunReadiness || { status: "needs_setup", scheduledRunPacket: {}, runLock: {}, tomorrowRunPreview: { rows: [], exactlyWhatApexWillNotDo: [] }, staleSourceAlerts: [], stats: {} };
+  const pilotExecutionRehearsal = dailyScoutExecutionPlan.pilotExecutionRehearsal || { status: "blocked", rehearsalSteps: [], simulatedReviewInbox: { rows: [], skippedRows: [] }, carriedLearning: { noResultRecommendations: [], staleSourceAlerts: [] }, ownerAdminPilotReadinessReport: { whatRan: [], whatWasSkipped: [], why: [], contractorMustReview: [] }, stats: {} };
   const controlledDailyRunReviewFlow = dailyScoutExecutionPlan.controlledDailyRunReviewFlow || { selectedSourceRows: [], reviewInboxPreviewRows: [], commandSteps: [], stats: {}, status: "blocked" };
   const providerSettings = dailyScoutExecutionPlan.publicProviderBoundary?.providerSettings || companySettings.apexAgentAutomationPolicy?.publicLeadProviderSettings || {};
   const dailyJobFinderAutopilotSettings = providerSettings.dailyJobFinderAutopilot || {};
@@ -4079,6 +4080,62 @@ function CopilotPagePolished({
                 </div>
                 <div className="co-ai-scout-checks">
                   {scheduledRunReadiness.tomorrowRunPreview?.exactlyWhatApexWillNotDo?.slice(0, 4).map((item) => <small key={item}>{item}</small>)}
+                </div>
+              </div>
+            </div>
+
+            <div className="co-ai-scout-grid border-b border-slate-200 bg-white">
+              <div className="co-ai-scout-status" data-tone={pilotExecutionRehearsal.status?.includes("ready") ? "green" : pilotExecutionRehearsal.stats?.staleAlerts ? "amber" : "slate"}>
+                <span>Pilot execution rehearsal</span>
+                <strong>{String(pilotExecutionRehearsal.status || "blocked").replace(/_/g, " ")}</strong>
+                <p>{pilotExecutionRehearsal.ownerAdminPilotReadinessReport?.summary || "Run the full Agent Leads daily loop as a local review-only rehearsal before any real contractor pilot automation."}</p>
+                <div className="co-ai-scout-metrics">
+                  <div><em>{pilotExecutionRehearsal.stats?.willCheckSources || 0}</em><span>sources</span></div>
+                  <div><em>{pilotExecutionRehearsal.stats?.simulatedReviewRows || 0}</em><span>review rows</span></div>
+                  <div><em>{pilotExecutionRehearsal.stats?.skippedSources || 0}</em><span>skipped</span></div>
+                </div>
+                <div className="co-ai-scout-checks">
+                  <small>{pilotExecutionRehearsal.tomorrow || scheduledRunReadiness.tomorrow || "Tomorrow"} / rehearsal only</small>
+                  <small>Idempotency: {pilotExecutionRehearsal.idempotencyRehearsal?.rehearsalPassed ? "passed" : "needs review"}</small>
+                  <small>No production data, browsing, login, contact, auto-save, bids, payments, schedules, or integrations.</small>
+                </div>
+              </div>
+              <div className="co-ai-scout-briefs">
+                <SectionHeader title="Pilot Readiness Report" description="Owner/admin sees what ran, what was skipped, why, and what must be reviewed before a real pilot." />
+                <div className="co-ai-scout-brief-list">
+                  {pilotExecutionRehearsal.rehearsalSteps?.slice(0, 5).map((step) => (
+                    <div key={step.id} className="co-ai-scout-brief" data-tone={step.status === "complete" ? "green" : step.status === "blocked" ? "orange" : "slate"}>
+                      <div className="min-w-0">
+                        <span>{String(step.status || "pending").replace(/_/g, " ")}</span>
+                        <strong>{step.label}</strong>
+                        <p>{step.detail}</p>
+                        <em>review-only rehearsal</em>
+                      </div>
+                    </div>
+                  ))}
+                  {pilotExecutionRehearsal.simulatedReviewInbox?.rows?.slice(0, 3).map((row) => (
+                    <div key={row.id} className="co-ai-scout-brief" data-tone="green">
+                      <div className="min-w-0">
+                        <span>simulated review</span>
+                        <strong>{row.title}</strong>
+                        <p>{row.reason}</p>
+                        <em>No lead saved automatically.</em>
+                      </div>
+                    </div>
+                  ))}
+                  {pilotExecutionRehearsal.carriedLearning?.staleSourceAlerts?.slice(0, 2).map((alert) => (
+                    <div key={alert.id} className="co-ai-scout-brief" data-tone={alert.tone || "amber"}>
+                      <div className="min-w-0">
+                        <span>learning carried</span>
+                        <strong>{alert.label}</strong>
+                        <p>{alert.reason}</p>
+                        <em>{alert.nextStep}</em>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="co-ai-scout-checks">
+                  {pilotExecutionRehearsal.ownerAdminPilotReadinessReport?.contractorMustReview?.slice(0, 4).map((item) => <small key={item}>{item}</small>)}
                 </div>
               </div>
             </div>
