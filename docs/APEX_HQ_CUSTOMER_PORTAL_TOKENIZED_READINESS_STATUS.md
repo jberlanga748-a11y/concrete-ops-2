@@ -1,6 +1,6 @@
 # Apex HQ Customer Portal Tokenized Readiness Status
 
-Status: complete for Build 7A local readiness-contract scope, Build 7B locked access-record scope, Build 7C locked lifecycle scope, and Build 7D locked public-route contract scope.
+Status: complete for Build 7A local readiness-contract scope, Build 7B locked access-record scope, Build 7C locked lifecycle scope, Build 7D locked public-route contract scope, and Build 7E internal access-record packet scope.
 
 ## What Is Now Complete
 
@@ -17,6 +17,8 @@ Status: complete for Build 7A local readiness-contract scope, Build 7B locked ac
 - Access records now have a locked lifecycle: revoke appends an internal audit event, expired status is derived at read time, duplicate revokes are blocked, and tenant/field-role denial is covered by tests.
 - The public route shape `/portal/:accessId` now exists only as a locked contract response. It returns no customer, estimate, token hash, internal note, approval, message, invoice, or payment data.
 - Public route contract tests cover missing, malformed, wrong-company, expired, and revoked denial cases without creating redeemable tokens.
+- Owner/admin users can generate an internal customer-facing review packet from an active locked access record. It is authenticated, Elite-only, owner/admin-only, company scoped, and blocked for expired or revoked records.
+- Access-record packet tests verify field-role denial, wrong-company denial, package denial, expired/revoked denial, and redaction of token hash references, audit internals, internal notes, and raw-token/public-url fields.
 
 ## Safety Boundary
 
@@ -36,6 +38,8 @@ It does not:
 - change secrets, provider config, Fly config, Supabase config, or deployment state
 
 Builds 7B, 7C, and 7D also do not create a live public portal, redeemable token table, customer session, customer action endpoint, customer login flow, message send flow, invoice flow, or payment flow.
+
+Build 7E also does not expose the packet to customers, publish a portal page, create a customer session, redeem a token, accept approvals/comments/signatures, send messages, create invoices, or collect payment.
 
 ## Verification
 
