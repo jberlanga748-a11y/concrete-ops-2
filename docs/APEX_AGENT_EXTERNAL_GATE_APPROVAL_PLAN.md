@@ -21,6 +21,7 @@ Latest implementation status:
 - Build 8B adds locked suppression evidence and delivery-attempt contracts for broader email/SMS workflows. It records suppression reasons, delivery-attempt failure classes, idempotency, audit, rollback, and provider-readiness references, but it still does not prepare provider requests, call unsubscribe endpoints, send email/SMS, store raw provider responses, or store provider secrets.
 - Build 8C exposes the locked readiness packet inside the Communications screen and lets office users record selected-record suppression evidence. The UI still does not prepare provider requests, call unsubscribe endpoints, send email/SMS, store raw provider responses, or store provider secrets.
 - Build 8D exposes locked outbound approval queueing and locked delivery-attempt contract preparation inside the Communications screen. These UI actions write review/audit evidence only and still do not prepare provider requests, call unsubscribe endpoints, send email/SMS, store raw provider responses, or store provider secrets.
+- Build 9A adds locked scheduling mutation readiness and a server-side preflight packet. It performs visible job validation, conflict checks, notification policy review, idempotency, adapter-readiness checks, and restore-from-audit planning, but it does not mutate schedules, assign crew, change field visibility, notify crew/customers, write calendars, or store provider secrets.
 - SMS, payment collection, customer portal writes, scheduling mutation, bid submission, and integration writes remain planned only until their adapters and tests are built.
 
 ## Approved Boundary Packet
@@ -105,7 +106,7 @@ This approval does not unlock live execution. The next implementation may expose
 ## Implementation Order
 
 1. Email send: implemented for human-confirmed estimate email only.
-2. Scheduling mutation: next adapter should add conflict checks, schedule restore audit, and notification policy review.
+2. Scheduling mutation: Build 9A adds locked readiness/preflight with conflict checks, schedule restore audit shape, and notification policy review. Next adapter may add an internal UI review surface, still without schedule mutation.
 3. Customer portal action: next adapter should add preview/diff, token lifecycle rules, and compensating correction path.
 4. Integration write: next adapter should add provider sandbox, field map, retry/idempotency, and reconciliation.
 5. SMS send: next adapter should add consent source, opt-out enforcement, sender configuration, and test recipient.

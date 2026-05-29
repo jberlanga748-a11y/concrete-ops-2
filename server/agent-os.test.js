@@ -2459,6 +2459,107 @@ test("Agent OS executes human-confirmed estimate email only after company email 
   }
 });
 
+test("Agent OS scheduling gate readiness is server-authorized and does not mutate schedules", async () => {
+  const fixture = await startServer();
+
+  try {
+    const adminLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const foremanUser = createUserRecord({
+      id: "U-AGENT-SCHEDULE-FOREMAN",
+      email: "agent-schedule-foreman@apexhq.test",
+      password: "apexdemo123",
+      name: "Agent Schedule Foreman",
+      role: "Foreman",
+    });
+    insertUser(fixture.sqliteFile, foremanUser);
+    const foremanLogin = await login(fixture.baseUrl, {
+      email: foremanUser.email,
+      password: "apexdemo123",
+    });
+
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.PREMIUM);
+    const fieldBlocked = await requestJson(fixture.baseUrl, "/api/agent/os/external-gates/scheduling/readiness", {
+      method: "POST",
+      headers: authHeaders(foremanLogin.token),
+      body: JSON.stringify({
+        jobId: "J-2201",
+        proposedSchedule: {
+          scheduledStart: "2026-04-24T15:00:00.000Z",
+          scheduledEnd: "2026-04-24T18:00:00.000Z",
+        },
+      }),
+    });
+    assert.equal(fieldBlocked.response.status, 403);
+
+    const createConflict = await assertOk(fixture.baseUrl, "/api/jobs", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({
+        title: "Agent schedule conflict job",
+        customer: "Schedule Test Customer",
+        address: "100 Conflict Way, Salem, OR",
+        siteContact: "Office - 503-555-0199",
+        scopeSummary: "Existing schedule item used to verify locked Agent scheduling conflict detection.",
+        scheduledStart: "2026-07-01T08:00:00.000Z",
+        scheduledEnd: "2026-07-01T12:00:00.000Z",
+        status: "scheduled",
+        fieldPlanningVisible: true,
+        visibleToForeman: false,
+        nextStep: "Keep this job scheduled.",
+      }),
+    });
+    const conflictJob = createConflict.jobs.find((job) => job.title === "Agent schedule conflict job");
+    assert.ok(conflictJob);
+
+    const before = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(adminLogin.token),
+    });
+    const originalJob = before.jobs.find((job) => job.id === "J-2201");
+    const readiness = await assertOk(fixture.baseUrl, "/api/agent/os/external-gates/scheduling/readiness", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({
+        jobId: "J-2201",
+        proposedSchedule: {
+          scheduledStart: "2026-07-01T09:00:00.000Z",
+          scheduledEnd: "2026-07-01T11:00:00.000Z",
+          humanReviewConfirmed: true,
+          approvedScheduleBoundary: true,
+          notificationPolicy: {
+            crewNotificationReviewed: true,
+            customerNotificationReviewed: true,
+            fieldVisibilityReviewed: true,
+            notifyCrew: false,
+            notifyCustomer: false,
+            fieldVisibleAfterSave: false,
+          },
+        },
+      }),
+    });
+    const packet = readiness.schedulingGateReadiness;
+    assert.equal(packet.mode, "agent_scheduling_mutation_gate_readiness_v1");
+    assert.equal(packet.status, "blocked_locked");
+    assert.ok(packet.conflictRows.some((row) => row.jobId === conflictJob.id));
+    assert.equal(packet.scheduleMutationApplied, false);
+    assert.equal(packet.externalScheduleMutationEnabled, false);
+    assert.equal(packet.canMutateSchedule, false);
+    assert.match(packet.blockers.join(" "), /Per-company scheduling external gate|adapter evidence|conflict/i);
+
+    const after = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(adminLogin.token),
+    });
+    const unchangedJob = after.jobs.find((job) => job.id === "J-2201");
+    assert.equal(unchangedJob.scheduledStart, originalJob.scheduledStart);
+    assert.equal(unchangedJob.scheduledEnd, originalJob.scheduledEnd);
+    assert.equal(auditEvents(fixture.sqliteFile).some((event) => event.action === "agent.os.external.scheduling.readiness_locked"), false);
+  } finally {
+    await fixture.stop();
+  }
+});
+
 test("Communication provider readiness and outbound approval queue stay locked and audited", async () => {
   const fixture = await startServer({
     EMAIL_PROVIDER: "resend",

@@ -9107,6 +9107,149 @@ export function buildAgentOsExternalGateDecisionPacket(gateId = "", {
   };
 }
 
+function parseScheduleTime(value = "") {
+  const parsed = Date.parse(text(value, 120));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function scheduleRangesOverlap(left = {}, right = {}) {
+  const leftStart = parseScheduleTime(left.scheduledStart);
+  const leftEnd = parseScheduleTime(left.scheduledEnd);
+  const rightStart = parseScheduleTime(right.scheduledStart);
+  const rightEnd = parseScheduleTime(right.scheduledEnd);
+  if (leftStart == null || leftEnd == null || rightStart == null || rightEnd == null) return false;
+  return leftStart < rightEnd && rightStart < leftEnd;
+}
+
+function buildScheduleNotificationPolicyReview(policy = {}) {
+  const crewNotificationReviewed = policy.crewNotificationReviewed === true;
+  const customerNotificationReviewed = policy.customerNotificationReviewed === true;
+  const fieldVisibilityReviewed = policy.fieldVisibilityReviewed === true;
+  return {
+    crewNotificationReviewed,
+    customerNotificationReviewed,
+    fieldVisibilityReviewed,
+    notifyCrew: policy.notifyCrew === true,
+    notifyCustomer: policy.notifyCustomer === true,
+    fieldVisibleAfterSave: policy.fieldVisibleAfterSave === true,
+    status: crewNotificationReviewed && customerNotificationReviewed && fieldVisibilityReviewed
+      ? "reviewed"
+      : "needs_review",
+  };
+}
+
+export function buildAgentSchedulingMutationGateReadinessPacket({
+  job = {},
+  proposedSchedule = {},
+  existingJobs = [],
+  externalGateSettings = {},
+  adapterEvidence = {},
+  companyId = "",
+  actorUserId = "",
+  now = new Date().toISOString(),
+} = {}) {
+  const targetJobId = text(proposedSchedule.jobId || job.id, 160);
+  const proposedStart = text(proposedSchedule.scheduledStart, 120);
+  const proposedEnd = text(proposedSchedule.scheduledEnd, 120);
+  const proposedCrewId = text(proposedSchedule.crewId || job.crewId, 120);
+  const proposedCrewName = text(proposedSchedule.crewName || job.crewName, 160);
+  const targetCompanyId = text(companyId || job.companyId, 120);
+  const currentScheduleSnapshot = {
+    jobId: targetJobId,
+    title: text(job.title || job.name || job.projectName || "Scheduled job", 180),
+    scheduledStart: text(job.scheduledStart, 120),
+    scheduledEnd: text(job.scheduledEnd, 120),
+    crewId: text(job.crewId, 120),
+    crewName: text(job.crewName, 160),
+    status: text(job.status || job.stage, 80),
+  };
+  const proposed = {
+    jobId: targetJobId,
+    scheduledStart: proposedStart,
+    scheduledEnd: proposedEnd,
+    crewId: proposedCrewId,
+    crewName: proposedCrewName,
+    fieldVisibilityImpact: text(proposedSchedule.fieldVisibilityImpact || "review_required", 120),
+  };
+  const notificationPolicyReview = buildScheduleNotificationPolicyReview(proposedSchedule.notificationPolicy || {});
+  const proposedStartMs = parseScheduleTime(proposedStart);
+  const proposedEndMs = parseScheduleTime(proposedEnd);
+  const conflictRows = asArray(existingJobs)
+    .filter((entry) => text(entry.id, 160) !== targetJobId)
+    .filter((entry) => !targetCompanyId || !entry.companyId || text(entry.companyId, 120) === targetCompanyId)
+    .filter((entry) => !proposedCrewId || !entry.crewId || text(entry.crewId, 120) === proposedCrewId)
+    .filter((entry) => scheduleRangesOverlap(proposed, entry))
+    .slice(0, 8)
+    .map((entry) => ({
+      jobId: text(entry.id, 160),
+      title: text(entry.title || entry.name || entry.projectName || "Scheduled job", 180),
+      scheduledStart: text(entry.scheduledStart, 120),
+      scheduledEnd: text(entry.scheduledEnd, 120),
+      crewId: text(entry.crewId, 120),
+      crewName: text(entry.crewName, 160),
+      conflictReason: "Proposed schedule overlaps another visible job for the selected crew or schedule window.",
+    }));
+  const gateDecision = buildAgentOsExternalGateDecisionPacket("scheduling", {
+    companyId: targetCompanyId,
+    actorUserId,
+    externalGateSettings,
+    adapterEvidence,
+    now,
+  });
+  const adapterReadiness = gateDecision.adapterReadiness || {};
+  const unsafePayload = hasRawSecretFields(proposedSchedule)
+    || proposedSchedule.execute === true
+    || proposedSchedule.applySchedule === true
+    || proposedSchedule.notifyNow === true
+    || proposedSchedule.contactCustomer === true;
+  const blockers = [
+    !targetJobId ? "Scheduling readiness requires a specific job." : "",
+    proposedStartMs == null ? "Scheduling readiness requires a proposed scheduled start." : "",
+    proposedEndMs == null ? "Scheduling readiness requires a proposed scheduled end." : "",
+    proposedStartMs != null && proposedEndMs != null && proposedEndMs <= proposedStartMs ? "Scheduled end must be after scheduled start." : "",
+    proposedSchedule.humanReviewConfirmed !== true ? "Human schedule review must be confirmed before any future mutation." : "",
+    proposedSchedule.approvedScheduleBoundary !== true ? "Approved scheduling boundary acknowledgement is required." : "",
+    notificationPolicyReview.status !== "reviewed" ? "Crew, customer, and field-visibility notification policy review is required." : "",
+    conflictRows.length && proposedSchedule.conflictOverrideAcknowledged !== true ? "Schedule conflict review or override acknowledgement is required." : "",
+    gateDecision.gate?.executionEnabled !== true ? "Per-company scheduling external gate is not enabled." : "",
+    adapterReadiness.status !== "ready_for_human_confirmed_adapter_review" ? "Scheduling adapter evidence is incomplete." : "",
+    unsafePayload ? "Scheduling readiness cannot include credentials, auto-execute flags, or immediate customer contact instructions." : "",
+  ].filter(Boolean);
+  const idempotencyKey = text(
+    proposedSchedule.idempotencyKey || `scheduling:${targetCompanyId}:${targetJobId}:${proposedStart}:${proposedEnd}`,
+    260,
+  );
+
+  return {
+    mode: "agent_scheduling_mutation_gate_readiness_v1",
+    status: blockers.length ? "blocked_locked" : "ready_for_human_confirmed_schedule_review_locked",
+    gateId: "scheduling",
+    workflowId: "schedule_job",
+    companyId: targetCompanyId,
+    requestedBy: text(actorUserId, 120),
+    requestedAt: now,
+    currentScheduleSnapshot,
+    proposedSchedule: proposed,
+    conflictRows,
+    notificationPolicyReview,
+    restoreAuditPlan: {
+      status: "prepared_locked",
+      restoreFields: ["scheduledStart", "scheduledEnd", "crewId", "crewName", "status"],
+      previousValues: currentScheduleSnapshot,
+      rollbackBehavior: "If a future human-confirmed scheduling adapter mutates the schedule, restore these prior schedule fields from the audit packet and preserve notification history.",
+    },
+    adapterReadiness,
+    blockers,
+    idempotencyKey,
+    auditEvent: "agent.os.external.scheduling.readiness_locked",
+    scheduleMutationPrepared: false,
+    scheduleMutationApplied: false,
+    externalScheduleMutationEnabled: false,
+    canMutateSchedule: false,
+    safetyBoundary: "Locked scheduling readiness only. No schedule, crew assignment, field visibility, customer notification, provider write, deploy, secret, or production data action is executed.",
+  };
+}
+
 export function listAgentOsAdvisorTaskMappings() {
   return Object.values(ADVISOR_RECOMMENDATION_TASK_MAPPINGS).map((mapping) => ({
     ...mapping,

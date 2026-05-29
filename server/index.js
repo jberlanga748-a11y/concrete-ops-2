@@ -99,6 +99,7 @@ import {
 import {
   buildAgentOsInternalDraftPacket,
   buildAgentOsExternalGateDecisionPacket,
+  buildAgentSchedulingMutationGateReadinessPacket,
   buildAgentLeadsAutonomousDailyScoutSchedule,
   buildAgentLeadsProviderHealthCheck,
   buildAgentLeadsLiveProviderReadiness,
@@ -8773,6 +8774,39 @@ app.get("/api/agent/os/external-gates/:gateId", requireAuth, asyncRoute(async (r
   }
   res.json({
     externalGate: packet,
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/external-gates/scheduling/readiness", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanUseAgentOperatingSystem(state, req.auth.user);
+  if (!canCreateJobs(req.auth.user) || !companyHasFeature(state, req.auth.user, FEATURE_KEYS.BASIC_SCHEDULE)) {
+    throw new ApiError(403, "Scheduling gate readiness requires office scheduling access.");
+  }
+  const companyId = currentCompanyIdForRequestUser(state, req.auth.user);
+  const visibleJobs = companyScopedRecordsForUser(state, req.auth.user, state.jobs || [])
+    .filter((entry) => canViewJob(entry, req.auth.user));
+  const proposedSchedule = req.body?.proposedSchedule && typeof req.body.proposedSchedule === "object"
+    ? req.body.proposedSchedule
+    : req.body || {};
+  const jobId = optionalString(req.body?.jobId || proposedSchedule.jobId, "");
+  const job = visibleJobs.find((entry) => entry.id === jobId);
+  if (!job) {
+    throw new ApiError(404, "Scheduling gate readiness requires a visible job.");
+  }
+  const readiness = buildAgentSchedulingMutationGateReadinessPacket({
+    job,
+    proposedSchedule: { ...proposedSchedule, jobId },
+    existingJobs: visibleJobs,
+    externalGateSettings: companySettingsForState(state, req.auth.user).apexAgentAutomationPolicy?.externalGateSettings,
+    adapterEvidence: req.body?.adapterEvidence && typeof req.body.adapterEvidence === "object" ? req.body.adapterEvidence : {},
+    companyId,
+    actorUserId: req.auth.user.id,
+    now: new Date().toISOString(),
+  });
+  res.json({
+    schedulingGateReadiness: readiness,
     requestId: res.locals.requestId,
   });
 }));
