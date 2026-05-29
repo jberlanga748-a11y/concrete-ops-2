@@ -12,6 +12,14 @@ function waitForExit(childProcess) {
 }
 
 async function run() {
+  const storeSource = await fs.readFile(path.join(process.cwd(), "server", "store.js"), "utf8");
+  if (!storeSource.includes("const uploadBackup = await createUploadBackupArtifacts({ backupDir, dataDir, stamp, exportedAt });")) {
+    throw new Error("Expected Postgres backups to create the same uploaded-file backup artifacts as SQLite backups.");
+  }
+  if (/uploadBackupDir:\s*null|uploadManifestFile:\s*null/.test(storeSource)) {
+    throw new Error("Expected backup results to expose uploaded-file artifact paths instead of null placeholders.");
+  }
+
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "concrete-ops-backup-"));
   const tempDataDir = path.join(tempRoot, "data");
   const tempBackupDir = path.join(tempRoot, "backups");
