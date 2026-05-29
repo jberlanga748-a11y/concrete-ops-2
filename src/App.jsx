@@ -153,6 +153,7 @@ import {
   runAgentLeadDailyLiveProcurementPublicAdapter,
   runAgentLeadDailyJobFinderOrchestration,
   runAgentLeadDailyJobFinderAutopilot,
+  runAgentLeadControlledDailyPublicRunFlow,
   runAgentLeadProcurementFeedAdapter,
   recordAgentLeadPrivateEvidenceIntake,
   recordAgentLeadPrivateSourceAuthorization,
@@ -1811,6 +1812,7 @@ function CopilotPagePolished({
   onRunAgentLeadDailyLiveProcurementPublicAdapter,
   onRunAgentLeadDailyJobFinderOrchestration,
   onRunAgentLeadDailyJobFinderAutopilot,
+  onRunAgentLeadControlledDailyPublicRunFlow,
   onRecordAgentLeadProcurementFeedAdapterConfig,
   onRunAgentLeadProcurementFeedAdapter,
   onRecordAgentLeadPrivateSourceAuthorization,
@@ -1908,6 +1910,7 @@ function CopilotPagePolished({
   const productionSourceSetupBoard = dailyScoutExecutionPlan.productionSourceSetupBoard || { rows: [], setupDrafts: [], operatorNextSteps: [], stats: {}, status: "needs_source_setup" };
   const dailyReviewInbox = dailyScoutExecutionPlan.dailyReviewInbox || { rows: [], stats: {}, status: "empty", emptyState: "" };
   const dailySourceMonitoring = dailyScoutExecutionPlan.dailySourceMonitoring || { sourceHealthRows: [], missedSourceAlerts: [], stats: {}, noJobsExplanation: "" };
+  const controlledDailyRunReviewFlow = dailyScoutExecutionPlan.controlledDailyRunReviewFlow || { selectedSourceRows: [], reviewInboxPreviewRows: [], commandSteps: [], stats: {}, status: "blocked" };
   const providerSettings = dailyScoutExecutionPlan.publicProviderBoundary?.providerSettings || companySettings.apexAgentAutomationPolicy?.publicLeadProviderSettings || {};
   const dailyJobFinderAutopilotSettings = providerSettings.dailyJobFinderAutopilot || {};
   const providerContract = dailyScoutExecutionPlan.publicProviderBoundary?.providerContract || {};
@@ -2684,6 +2687,22 @@ function CopilotPagePolished({
     setProviderAdapterState(result?.dailyJobFinderAutopilotRun
       ? { status: "ready", message: `Daily review-only run ${result.dailyJobFinderAutopilotRun.status}.`, result: result.dailyJobFinderAutopilotRun }
       : { status: "error", message: result?.message || "Daily review-only job finder run failed.", result: null });
+  }
+
+  async function runControlledDailyPublicRunFlow() {
+    if (!canManageOpportunityScout || !onRunAgentLeadControlledDailyPublicRunFlow) return;
+    const sourceRows = controlledDailyPublicSourceRunEvidencePacket.sourceRunRows || [];
+    setProviderAdapterState({ status: "loading", message: "Preparing controlled daily review inbox...", result: controlledDailyRunReviewFlow });
+    const result = await onRunAgentLeadControlledDailyPublicRunFlow({
+      today,
+      acknowledgement: true,
+      selectedSourceConfigIds: sourceRows.map((row) => row.sourceConfigId).filter(Boolean),
+      idempotencyKeys: sourceRows.map((row) => row.idempotencyKey).filter(Boolean),
+      reviewNote: "Prepared from Agent Leads controlled daily run UI.",
+    });
+    setProviderAdapterState(result?.controlledDailyRunReviewFlow
+      ? { status: "ready", message: `Controlled daily run ${(result.controlledDailyRunReviewFlow.status || "prepared").replace(/_/g, " ")}.`, result: result.controlledDailyRunReviewFlow }
+      : { status: "error", message: result?.message || "Controlled daily run review flow failed.", result: controlledDailyRunReviewFlow });
   }
 
   async function recordProviderDecision(card, decision) {
@@ -4403,6 +4422,9 @@ function CopilotPagePolished({
                       <Button type="button" size="sm" variant="ghost" onClick={runDailyJobFinderAutopilot} disabled={busy || providerAdapterState.status === "loading"}>
                         Review Run
                       </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={runControlledDailyPublicRunFlow} disabled={busy || providerAdapterState.status === "loading" || !(controlledDailyPublicSourceRunEvidencePacket.sourceRunRows || []).length}>
+                        Controlled Inbox
+                      </Button>
                       <Button type="button" size="sm" variant="ghost" onClick={loadAgentLeadLocalCompletionReadiness} disabled={busy || providerAdapterState.status === "loading"}>
                         Readiness
                       </Button>
@@ -4896,14 +4918,38 @@ function CopilotPagePolished({
                           <small>Evidence prep: {String(controlledDailyPublicRunEvidencePrep.status || "blocked").replace(/_/g, " ")}</small>
                           <small>Review rows: {controlledDailyPublicRunEvidencePrep.evidenceRows?.length || 0}</small>
                           <small>Outcomes: {controlledDailyPublicRunOutcomeLoop.outcomeCount || 0}</small>
+                          <small>Controlled inbox: {String(controlledDailyRunReviewFlow.status || "blocked").replace(/_/g, " ")}</small>
                           <small>Auto-save: off</small>
                         </div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <Button type="button" size="sm" variant="secondary" onClick={runControlledDailyPublicRunFlow} disabled={!canManageOpportunityScout || busy || providerAdapterState.status === "loading" || !(controlledDailyPublicSourceRunEvidencePacket.sourceRunRows || []).length}>
+                            Prepare Controlled Inbox
+                          </Button>
+                          <Button type="button" size="sm" variant="ghost" onClick={runDailyJobFinderAutopilot} disabled={!canManageOpportunityScout || busy || providerAdapterState.status === "loading"}>
+                            Refresh Review Run
+                          </Button>
+                        </div>
+                        {controlledDailyRunReviewFlow.commandSteps?.length ? (
+                          <div className="co-ai-scout-checks">
+                            {controlledDailyRunReviewFlow.commandSteps.slice(0, 5).map((step) => (
+                              <small key={step.id}>{step.label}: {String(step.status || "pending").replace(/_/g, " ")}</small>
+                            ))}
+                          </div>
+                        ) : null}
                         {controlledDailyPublicRunEvidencePrep.evidenceRows?.slice(0, 3).map((row) => (
                           <div key={row.id} className="co-ai-scout-run-step" data-tone="green">
                             <em>review evidence</em>
                             <strong>{row.title}</strong>
                             <p>{row.reviewNote}</p>
                             <small>{row.sourceUrl}</small>
+                          </div>
+                        ))}
+                        {controlledDailyRunReviewFlow.reviewInboxPreviewRows?.slice(0, 3).map((row) => (
+                          <div key={`controlled-inbox-${row.id}`} className="co-ai-scout-run-step" data-tone={row.tone || "amber"}>
+                            <em>controlled inbox</em>
+                            <strong>{row.title}</strong>
+                            <p>{row.fitReason || row.primaryAction || "Review before any lead draft is saved."}</p>
+                            <small>{row.sourceUrl || "No source URL attached"}</small>
                           </div>
                         ))}
                       </div>
@@ -13595,6 +13641,22 @@ export default function App() {
     }
   }
 
+  async function handleRunAgentLeadControlledDailyPublicRunFlow(payload = {}) {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await runAgentLeadControlledDailyPublicRunFlow(sessionToken, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleRecordAgentLeadProviderCredentialHandoff(payload = {}) {
     if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
     setBusy(true);
@@ -15962,6 +16024,7 @@ export default function App() {
                 onRunAgentLeadDailyLiveProcurementPublicAdapter={handleRunAgentLeadDailyLiveProcurementPublicAdapter}
                 onRunAgentLeadDailyJobFinderOrchestration={handleRunAgentLeadDailyJobFinderOrchestration}
                 onRunAgentLeadDailyJobFinderAutopilot={handleRunAgentLeadDailyJobFinderAutopilot}
+                onRunAgentLeadControlledDailyPublicRunFlow={handleRunAgentLeadControlledDailyPublicRunFlow}
                 onRecordAgentLeadProcurementFeedAdapterConfig={handleRecordAgentLeadProcurementFeedAdapterConfig}
                 onRunAgentLeadProcurementFeedAdapter={handleRunAgentLeadProcurementFeedAdapter}
                 onRecordAgentLeadPrivateSourceAuthorization={handleRecordAgentLeadPrivateSourceAuthorization}

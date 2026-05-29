@@ -250,6 +250,10 @@ export function prepareAgentLeadDailyPublicRunEvidence(token, payload = {}) {
   return request("/api/agent/os/provider/daily-public-run-evidence", { method: "POST", token, body: payload });
 }
 
+export function runAgentLeadControlledDailyPublicRunFlow(token, payload = {}) {
+  return request("/api/agent/os/provider/daily-public-run-controlled-flow", { method: "POST", token, body: payload });
+}
+
 export function recordAgentLeadDailyPublicRunOutcomes(token, payload = {}) {
   return request("/api/agent/os/provider/daily-public-run-outcomes", { method: "POST", token, body: payload });
 }
