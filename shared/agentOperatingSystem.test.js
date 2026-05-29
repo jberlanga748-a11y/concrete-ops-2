@@ -2139,6 +2139,22 @@ test("Agent OS v42 builds a controlled daily run review flow from approved publi
     dailyReviewInbox: { rows: [], stats: { totalRows: 0 } },
     dailySourceMonitoring: { noJobsExplanation: "1 eligible public source ran or is ready." },
     dailyRunRecord: { id: "daily-agent-leads-2026-05-29" },
+    auditEvents: [{
+      action: "agent.os.provider.daily_public_run.outcome_recorded",
+      createdAt: "2026-05-29T12:10:00.000Z",
+      detail: {
+        controlledDailyPublicRunOutcomeRecords: [{
+          nextRunDate: "2026-05-30",
+          evidenceRowId: "controlled-daily-public-run-evidence-1-source-city-bids",
+          providerResultId: "controlled-public-review-2026-05-30-source-city-bids",
+          decision: "draft_found_opportunity",
+          note: "Good public source fit.",
+          createdAt: "2026-05-29T12:10:00.000Z",
+          externalActionsLocked: true,
+          canAutoSave: false,
+        }],
+      },
+    }],
     companySettings: { companyName: "Ace Fence" },
     today: "2026-05-29",
   });
@@ -2163,6 +2179,12 @@ test("Agent OS v42 builds a controlled daily run review flow from approved publi
   assert.equal(flow.reviewInboxPreviewRows.length, 1);
   assert.equal(flow.reviewInboxPreviewRows[0].canAutoSave, false);
   assert.equal(flow.reviewInboxPreviewRows[0].canCreateLeadDirectly, false);
+  assert.equal(flow.reviewInboxPreviewRows[0].outcomeDecision, "draft_found_opportunity");
+  assert.equal(flow.reviewInboxPreviewRows[0].outcomeStatus, "recorded");
+  assert.equal(flow.reviewInboxPreviewRows[0].customerContactEnabled, false);
+  assert.equal(flow.stats.outcomeRows, 1);
+  assert.equal(flow.stats.decidedReviewRows, 1);
+  assert.equal(flow.commandSteps.find((step) => step.id === "record-outcomes")?.status, "outcomes_recorded");
   assert.equal(flow.commandSteps.every((step) => step.externalActionsLocked === true), true);
   assert.equal(flow.externalActionsLocked, true);
   assert.equal(flow.liveProviderCallsEnabled, false);
