@@ -315,6 +315,10 @@ export function draftAgentLeadProviderReviewOpportunity(token, payload = {}) {
   return request("/api/agent/os/provider/review-queue-draft-opportunity", { method: "POST", token, body: payload });
 }
 
+export function recordAgentLeadDailyReviewInboxDecision(token, payload = {}) {
+  return request("/api/agent/os/provider/daily-review-inbox-decisions", { method: "POST", token, body: payload });
+}
+
 export function runAgentLeadProviderSandboxTest(token, payload = {}) {
   return request("/api/agent/os/provider/sandbox-test", { method: "POST", token, body: payload });
 }

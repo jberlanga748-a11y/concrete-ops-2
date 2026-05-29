@@ -169,6 +169,7 @@ import {
   recordAgentLeadProviderImportDecision,
   recordAgentLeadProviderLiveApprovalDecision,
   recordAgentLeadProviderReviewQueueDecision,
+  recordAgentLeadDailyReviewInboxDecision,
   draftAgentLeadProviderReviewOpportunity,
   recordAgentActionProposalAudit,
   resetWorkspace,
@@ -1832,6 +1833,7 @@ function CopilotPagePolished({
   onRecordAgentLeadProviderImportDecision,
   onRecordAgentLeadProviderLiveApprovalDecision,
   onRecordAgentLeadProviderReviewQueueDecision,
+  onRecordAgentLeadDailyReviewInboxDecision,
   onDraftAgentLeadProviderReviewOpportunity,
   onCreateAgentLearningPreference,
   onSuggestAgentLearningFromEstimates,
@@ -3136,14 +3138,49 @@ function CopilotPagePolished({
     }));
   }
 
+  async function recordDailyReviewInboxDecisionForOpportunity(opportunity, decision, fallback = null) {
+    if (!canManageOpportunityScout || !opportunity?.opportunityId || !onRecordAgentLeadDailyReviewInboxDecision) {
+      if (typeof fallback === "function") return fallback();
+      return false;
+    }
+    const result = await onRecordAgentLeadDailyReviewInboxDecision({
+      today,
+      foundOpportunityId: opportunity.opportunityId,
+      providerResultId: opportunity.leadPreview?.providerResultId || opportunity.providerResultId || opportunity.opportunityId,
+      sourceUrl: opportunity.sourceUrl,
+      sourceType: opportunity.intakeSourceType || opportunity.type,
+      title: opportunity.title,
+      fitScore: opportunity.fitScore,
+      duplicateRisk: opportunity.duplicateHints?.length ? "possible_duplicate" : "none",
+      decision,
+      note: `Reviewed from Agent Leads daily inbox: ${opportunity.title || "found opportunity"}.`,
+    });
+    if (result?.dailyReviewInboxDecision) {
+      setProviderAdapterState({ status: "ready", message: `Daily review decision recorded: ${decision.replace(/_/g, " ")}.`, result: result.dailyReviewWorkflow || result.providerReviewLearningSnapshot || providerAdapterState.result });
+      return true;
+    }
+    setProviderAdapterState({ status: "error", message: result?.message || "Daily review decision failed.", result: providerAdapterState.result });
+    return false;
+  }
+
   function setOpportunityStatus(opportunity, status) {
     if (!canManageOpportunityScout || !opportunity?.opportunityId) return;
     onUpdateFoundOpportunity?.(opportunity.opportunityId, { status });
   }
 
-  function convertOpportunityToLead(opportunity) {
+  function rejectOpportunityFromDailyReview(opportunity) {
+    if (!canManageOpportunityScout || !opportunity?.opportunityId || opportunity.convertedLeadId) return;
+    recordDailyReviewInboxDecisionForOpportunity(opportunity, "reject", () => onUpdateFoundOpportunity?.(opportunity.opportunityId, {
+      status: "skipped",
+      humanReviewStatus: "rejected",
+      humanReviewNote: "Rejected from Agent Leads daily review inbox.",
+    }));
+  }
+
+  async function convertOpportunityToLead(opportunity) {
     if (!canManageOpportunityScout || !opportunity?.opportunityId || opportunity.convertedLeadId || !opportunity.canConvertToLead) return;
-    onConvertFoundOpportunityToLead?.(opportunity.opportunityId);
+    const recorded = await recordDailyReviewInboxDecisionForOpportunity(opportunity, "create_lead");
+    if (!recorded) onConvertFoundOpportunityToLead?.(opportunity.opportunityId);
   }
 
   function openConvertedOpportunityLead(opportunity) {
@@ -3151,8 +3188,10 @@ function CopilotPagePolished({
     openLead({ id: opportunity.convertedLeadId });
   }
 
-  function approveOpportunityForLead(opportunity) {
+  async function approveOpportunityForLead(opportunity) {
     if (!canManageOpportunityScout || !opportunity?.opportunityId || opportunity.convertedLeadId) return;
+    const recorded = await recordDailyReviewInboxDecisionForOpportunity(opportunity, "approve_for_lead");
+    if (recorded) return;
     onUpdateFoundOpportunity?.(opportunity.opportunityId, {
       humanReviewStatus: "approved_for_lead",
       humanReviewNote: "Approved by the office for lead draft conversion.",
@@ -6107,6 +6146,9 @@ function CopilotPagePolished({
                         </Button>
                         <Button type="button" size="sm" variant={opportunity.canConvertToLead ? "secondary" : "ghost"} onClick={() => approveOpportunityForLead(opportunity)} disabled={!canManageOpportunityScout || busy || Boolean(opportunity.convertedLeadId) || opportunity.canConvertToLead}>
                           {opportunity.canConvertToLead ? "Approved" : "Approve For Lead"}
+                        </Button>
+                        <Button type="button" size="sm" variant="ghost" onClick={() => rejectOpportunityFromDailyReview(opportunity)} disabled={!canManageOpportunityScout || busy || Boolean(opportunity.convertedLeadId) || opportunity.humanReviewStatus === "rejected"}>
+                          Reject
                         </Button>
                         <Button type="button" size="sm" onClick={() => convertOpportunityToLead(opportunity)} disabled={!canManageOpportunityScout || busy || Boolean(opportunity.convertedLeadId) || !opportunity.canConvertToLead}>
                           {opportunity.convertedLeadId ? "Lead Created" : "Create Lead"}
@@ -14112,6 +14154,23 @@ export default function App() {
     }
   }
 
+  async function handleRecordAgentLeadDailyReviewInboxDecision(payload = {}) {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const nextState = await recordAgentLeadDailyReviewInboxDecision(sessionToken, payload);
+      setAppState(normalizeAppState(nextState));
+      setErrorMessage("");
+      return nextState;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleRecordAgentLeadProviderCredentialHandoff(payload = {}) {
     if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
     setBusy(true);
@@ -16554,6 +16613,7 @@ export default function App() {
                 onRecordAgentLeadProviderImportDecision={handleRecordAgentLeadProviderImportDecision}
                 onRecordAgentLeadProviderLiveApprovalDecision={handleRecordAgentLeadProviderLiveApprovalDecision}
                 onRecordAgentLeadProviderReviewQueueDecision={handleRecordAgentLeadProviderReviewQueueDecision}
+                onRecordAgentLeadDailyReviewInboxDecision={handleRecordAgentLeadDailyReviewInboxDecision}
                 onDraftAgentLeadProviderReviewOpportunity={handleDraftAgentLeadProviderReviewOpportunity}
                 onPreviewOpportunityScoutAgent={handlePreviewOpportunityScoutAgent}
                 onCreateFoundOpportunity={handleCreateFoundOpportunity}

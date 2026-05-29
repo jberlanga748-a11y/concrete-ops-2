@@ -155,6 +155,7 @@ import {
   normalizeAgentLeadsProviderImportDecision,
   normalizeAgentLeadsProviderReviewQueueDecision,
   normalizeAgentLeadsProviderReviewLearningSignal,
+  normalizeAgentLeadsDailyReviewInboxDecision,
   normalizeAgentLeadsProductionReadinessEvidence,
   deriveAgentLeadsProviderReviewLearningSnapshot,
   buildAgentLeadsFoundOpportunityDraftFromProviderReviewRow,
@@ -11309,6 +11310,146 @@ app.post("/api/agent/os/provider/review-queue-draft-opportunity", requireAuth, a
   });
 }));
 
+app.post("/api/agent/os/provider/daily-review-inbox-decisions", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageLeads(req.auth.user);
+  const state = await readFeatureScopedState(req, FEATURE_KEYS.LEAD_JOB_FINDER, "Opportunity Scout");
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  const now = new Date().toISOString();
+  const companyId = currentCompanyIdForRequestUser(state, req.auth.user);
+  const normalized = normalizeAgentLeadsDailyReviewInboxDecision(req.body || {}, {
+    id: makeId("AGENT-LEADS-REVIEW"),
+    companyId,
+    actorUserId: req.auth.user.id,
+    now,
+  });
+  if (!normalized.ok) {
+    throw new ApiError(400, normalized.error);
+  }
+  const decision = normalized.decision;
+  let createdLeadId = "";
+  let foundOpportunityId = decision.foundOpportunityId;
+
+  const learning = normalizeAgentLeadsProviderReviewLearningSignal(decision, {
+    id: makeId("PROVIDER-REVIEW-LEARNING"),
+    companyId,
+    actorUserId: req.auth.user.id,
+    now,
+  });
+  if (!learning.ok) {
+    throw new ApiError(400, learning.error);
+  }
+
+  const nextState = await updateDb((draft) => {
+    draft.foundOpportunities ||= [];
+    draft.leads ||= [];
+    draft.queueItems ||= [];
+    let opportunity = null;
+    if (decision.foundOpportunityId) {
+      opportunity = findCompanyScopedRecord(draft.foundOpportunities, decision.foundOpportunityId, req.auth.user, draft, "Found opportunity");
+      foundOpportunityId = opportunity.id;
+    }
+
+    if (decision.decision === "approve_for_lead") {
+      if (!opportunity) throw new ApiError(404, "Found opportunity is required before approval.");
+      opportunity.humanReviewStatus = "approved_for_lead";
+      opportunity.humanReviewNote = decision.note || "Approved from Agent Leads daily review inbox.";
+      opportunity.humanReviewedBy = req.auth.user.id;
+      opportunity.humanReviewedAt = now;
+      opportunity.updatedAt = now;
+      appendAuditEvent(draft, {
+        entityType: "foundOpportunity",
+        entityId: opportunity.id,
+        action: "agent.leads.daily_review.approved_for_lead",
+        summary: "Agent Leads daily review approved opportunity for lead creation",
+        detail: redactAgentProposalAuditText([opportunity.title, decision.note, "No customer contact, bid submission, payment, schedule, or integration action occurred."].filter(Boolean).join(" | ")),
+        actor: req.auth.user,
+        changedFields: ["humanReviewStatus", "humanReviewNote", "humanReviewedAt"],
+      });
+    } else if (["reject", "no_fit", "dismiss"].includes(decision.decision)) {
+      if (!opportunity) throw new ApiError(404, "Found opportunity is required before rejection.");
+      opportunity.humanReviewStatus = "rejected";
+      opportunity.humanReviewNote = decision.note || "Rejected from Agent Leads daily review inbox.";
+      opportunity.humanReviewedBy = req.auth.user.id;
+      opportunity.humanReviewedAt = now;
+      opportunity.status = "skipped";
+      opportunity.updatedAt = now;
+      appendAuditEvent(draft, {
+        entityType: "foundOpportunity",
+        entityId: opportunity.id,
+        action: "agent.leads.daily_review.rejected",
+        summary: "Agent Leads daily review rejected opportunity",
+        detail: redactAgentProposalAuditText([opportunity.title, decision.note, "No lead, customer contact, bid submission, payment, schedule, or integration action occurred."].filter(Boolean).join(" | ")),
+        actor: req.auth.user,
+        changedFields: ["status", "humanReviewStatus", "humanReviewNote", "humanReviewedAt"],
+      });
+    } else if (decision.decision === "create_lead") {
+      if (!opportunity) throw new ApiError(404, "Found opportunity is required before lead creation.");
+      const newLead = convertFoundOpportunityToLeadInDraft(draft, opportunity, req.auth.user, now);
+      createdLeadId = newLead.id;
+      decision.createdLeadId = newLead.id;
+    }
+
+    const learningSignal = {
+      ...learning.signal,
+      foundOpportunityId,
+      createdLeadId,
+      decision: decision.decision,
+    };
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: foundOpportunityId || decision.providerResultId || decision.id,
+      action: decision.auditEvent,
+      summary: `Agent Leads daily review decision recorded: ${decision.decision.replace(/_/g, " ")}`,
+      status: "reviewed",
+      metadata: {
+        dailyReviewInboxDecision: {
+          ...decision,
+          foundOpportunityId,
+          createdLeadId,
+        },
+        providerReviewLearningSignal: learningSignal,
+        providerResultId: decision.providerResultId,
+        foundOpportunityId,
+        createdLeadId,
+        leadAutoSaveEnabled: false,
+        customerContactEnabled: false,
+        bidSubmissionEnabled: false,
+      },
+    });
+    return draft;
+  });
+
+  const bootstrap = sanitizeBootstrap(nextState, req.auth.user);
+  const visibleAuditEvents = visibleAuditEventsForUser(nextState, req.auth.user);
+  const providerReviewLearningSnapshot = deriveAgentLeadsProviderReviewLearningSnapshot(visibleAuditEvents, {
+    companyId,
+    today: now,
+  });
+  const dailyReviewWorkflow = buildAgentLeadsDailyReviewWorkflowSnapshot({
+    reviewInboxRows: bootstrap.opportunityScout?.dailyScoutExecutionPlan?.dailyReviewInbox?.rows || [],
+    learningSnapshot: providerReviewLearningSnapshot,
+    today: now,
+  });
+  res.status(201).json({
+    ...bootstrap,
+    dailyReviewInboxDecision: {
+      ...decision,
+      foundOpportunityId,
+      createdLeadId,
+    },
+    providerReviewLearningSignal: {
+      ...learning.signal,
+      foundOpportunityId,
+      createdLeadId,
+      decision: decision.decision,
+    },
+    providerReviewLearningSnapshot,
+    dailyReviewWorkflow,
+    createdLeadId,
+    requestId: res.locals.requestId,
+  });
+}));
+
 app.post("/api/agent/os/provider/sandbox-test", requireAuth, asyncRoute(async (req, res) => {
   const state = await readDb();
   const action = getAgentOsAction("opportunity_search_prep");
@@ -15424,11 +15565,120 @@ app.patch("/api/opportunity-scout/found-opportunities/:id", requireAuth, asyncRo
   res.json(sanitizeBootstrap(nextState, req.auth.user));
 }));
 
+function convertFoundOpportunityToLeadInDraft(draft, opportunity, actor, changedAt = new Date().toISOString()) {
+  if (opportunity.convertedLeadId) {
+    throw new ApiError(409, "This found opportunity has already been converted to a lead.");
+  }
+  if (!canConvertFoundOpportunityToLead(opportunity)) {
+    throw new ApiError(409, "A human owner, admin, or estimator must approve this opportunity for lead conversion first.");
+  }
+  const searchProfile = assertOpportunitySourceAllowsLeadConversion(draft, opportunity, actor);
+  const followUpDueAt = new Date(changedAt).toISOString().slice(0, 10);
+  const bidDueDate = dateOnlyFromDateTime(opportunity.bidDueAt);
+  const shouldPrioritize = Number(opportunity.fitScore || 0) >= 75 || Boolean(bidDueDate && bidDueDate <= followUpDueAt);
+  const leadPayload = {
+    customer: opportunity.agency || opportunity.contactName || opportunity.sourceName || opportunity.title,
+    city: opportunity.city || "Location pending",
+    project: opportunity.title,
+    status: "New",
+    priority: shouldPrioritize ? "High" : "Normal",
+    value: opportunity.estimatedValue || 0,
+    ownerId: opportunity.assignedEstimatorId || actor.id,
+    source: "Opportunity Scout",
+    followUpDueAt,
+    nextStep: opportunity.bidDueAt ? "Review bid date, confirm fit, and qualify the opportunity." : "Qualify the found opportunity and confirm the next bid step.",
+    notes: buildOpportunityLeadNotes(opportunity, searchProfile),
+    phone: opportunity.contactPhone || "",
+    email: opportunity.contactEmail || "",
+    company: opportunity.agency || "",
+    serviceArea: opportunity.city || "",
+  };
+
+  const newLead = {
+    id: makeId("L"),
+    customerId: "",
+    customer: requiredString(leadPayload.customer, "Customer"),
+    city: requiredString(leadPayload.city, "City"),
+    project: requiredString(leadPayload.project, "Project"),
+    trade: normalizeLeadTradeValue(opportunity.trade || opportunity.projectType),
+    status: "New",
+    priority: optionalEnum(leadPayload.priority, LEAD_PRIORITIES, "Priority", "Normal"),
+    value: optionalNonNegativeNumber(leadPayload.value, "Value"),
+    owner: "",
+    ownerId: "",
+    source: "Opportunity Scout",
+    followUpDueAt,
+    age: "Just now",
+    nextStep: leadPayload.nextStep,
+    notes: leadPayload.notes || "Created from Opportunity Scout.",
+    fitScore: 0,
+    fitLabel: "",
+    fitReason: "",
+    fitRisks: [],
+    fitNextStep: "",
+    scoreSource: "",
+    scoredAt: "",
+    missingInfoStatus: "",
+    missingInfoCount: 0,
+    missingInfoItems: [],
+    missingInfoNextStep: "",
+    missingInfoCheckedAt: "",
+    createdAt: changedAt,
+    updatedAt: changedAt,
+  };
+
+  assignCompanyIdForCreate(newLead, actor, draft);
+  Object.assign(newLead, resolveLeadOwner(draft, leadPayload, actor));
+  relateLeadToCustomer(draft, newLead, actor, leadPayload);
+  draft.leads.unshift(newLead);
+  opportunity.status = "converted_to_lead";
+  opportunity.convertedLeadId = newLead.id;
+  opportunity.updatedAt = changedAt;
+  opportunity.archivedAt = null;
+
+  appendLeadStatusHistory(draft, {
+    leadId: newLead.id,
+    fromStatus: null,
+    toStatus: newLead.status,
+    actor,
+    note: "Lead created from Opportunity Scout found opportunity.",
+    createdAt: changedAt,
+  });
+  draft.queueItems.unshift(assignCompanyIdForCreate({
+    id: makeId("Q"),
+    title: `Follow up ${newLead.customer}`,
+    meta: `${newLead.project} - Opportunity Scout`,
+    status: "Due today",
+    done: false,
+    createdAt: changedAt,
+    updatedAt: changedAt,
+  }, actor, draft));
+  appendActivity(draft, "Opportunity converted to lead", `${opportunity.title} was converted into ${newLead.customer}.`, { companyId: newLead.companyId });
+  appendAuditEvent(draft, {
+    entityType: "foundOpportunity",
+    entityId: opportunity.id,
+    action: "converted",
+    summary: "Opportunity converted to lead",
+    detail: `${opportunity.title} was converted into lead ${newLead.id}.`,
+    actor,
+    changedFields: ["status", "convertedLeadId", "updatedAt"],
+  });
+  appendAuditEvent(draft, {
+    entityType: "lead",
+    entityId: newLead.id,
+    action: "created",
+    summary: "Lead created from Opportunity Scout",
+    detail: `${newLead.customer} entered for ${newLead.project}.`,
+    actor,
+    changedFields: ["status", "owner", "source", "followUpDueAt", "trade"],
+  });
+  return newLead;
+}
+
 app.post("/api/opportunity-scout/found-opportunities/:id/convert-to-lead", requireAuth, asyncRoute(async (req, res) => {
   assertCanManageLeads(req.auth.user);
   await readFeatureScopedState(req, FEATURE_KEYS.LEAD_JOB_FINDER, "Opportunity Scout");
   const changedAt = new Date().toISOString();
-  const followUpDueAt = new Date(changedAt).toISOString().slice(0, 10);
   let createdLeadId = "";
 
   const nextState = await updateDb((draft) => {
@@ -15436,113 +15686,8 @@ app.post("/api/opportunity-scout/found-opportunities/:id/convert-to-lead", requi
     draft.leads ||= [];
     draft.queueItems ||= [];
     const opportunity = findCompanyScopedRecord(draft.foundOpportunities, req.params.id, req.auth.user, draft, "Opportunity");
-    if (opportunity.convertedLeadId) {
-      throw new ApiError(409, "This found opportunity has already been converted to a lead.");
-    }
-    if (!canConvertFoundOpportunityToLead(opportunity)) {
-      throw new ApiError(409, "A human owner, admin, or estimator must approve this opportunity for lead conversion first.");
-    }
-    const searchProfile = assertOpportunitySourceAllowsLeadConversion(draft, opportunity, req.auth.user);
-
-    const bidDueDate = dateOnlyFromDateTime(opportunity.bidDueAt);
-    const shouldPrioritize = Number(opportunity.fitScore || 0) >= 75 || Boolean(bidDueDate && bidDueDate <= followUpDueAt);
-    const leadPayload = {
-      customer: opportunity.agency || opportunity.contactName || opportunity.sourceName || opportunity.title,
-      city: opportunity.city || "Location pending",
-      project: opportunity.title,
-      status: "New",
-      priority: shouldPrioritize ? "High" : "Normal",
-      value: opportunity.estimatedValue || 0,
-      ownerId: opportunity.assignedEstimatorId || req.auth.user.id,
-      source: "Opportunity Scout",
-      followUpDueAt,
-      nextStep: opportunity.bidDueAt ? "Review bid date, confirm fit, and qualify the opportunity." : "Qualify the found opportunity and confirm the next bid step.",
-      notes: buildOpportunityLeadNotes(opportunity, searchProfile),
-      phone: opportunity.contactPhone || "",
-      email: opportunity.contactEmail || "",
-      company: opportunity.agency || "",
-      serviceArea: opportunity.city || "",
-    };
-
-    const newLead = {
-      id: makeId("L"),
-      customerId: "",
-      customer: requiredString(leadPayload.customer, "Customer"),
-      city: requiredString(leadPayload.city, "City"),
-      project: requiredString(leadPayload.project, "Project"),
-      trade: normalizeLeadTradeValue(opportunity.trade || opportunity.projectType),
-      status: "New",
-      priority: optionalEnum(leadPayload.priority, LEAD_PRIORITIES, "Priority", "Normal"),
-      value: optionalNonNegativeNumber(leadPayload.value, "Value"),
-      owner: "",
-      ownerId: "",
-      source: "Opportunity Scout",
-      followUpDueAt,
-      age: "Just now",
-      nextStep: leadPayload.nextStep,
-      notes: leadPayload.notes || "Created from Opportunity Scout.",
-      fitScore: 0,
-      fitLabel: "",
-      fitReason: "",
-      fitRisks: [],
-      fitNextStep: "",
-      scoreSource: "",
-      scoredAt: "",
-      missingInfoStatus: "",
-      missingInfoCount: 0,
-      missingInfoItems: [],
-      missingInfoNextStep: "",
-      missingInfoCheckedAt: "",
-      createdAt: changedAt,
-      updatedAt: changedAt,
-    };
-
-    assignCompanyIdForCreate(newLead, req.auth.user, draft);
-    Object.assign(newLead, resolveLeadOwner(draft, leadPayload, req.auth.user));
-    relateLeadToCustomer(draft, newLead, req.auth.user, leadPayload);
-    draft.leads.unshift(newLead);
-    opportunity.status = "converted_to_lead";
-    opportunity.convertedLeadId = newLead.id;
-    opportunity.updatedAt = changedAt;
-    opportunity.archivedAt = null;
+    const newLead = convertFoundOpportunityToLeadInDraft(draft, opportunity, req.auth.user, changedAt);
     createdLeadId = newLead.id;
-
-    appendLeadStatusHistory(draft, {
-      leadId: newLead.id,
-      fromStatus: null,
-      toStatus: newLead.status,
-      actor: req.auth.user,
-      note: "Lead created from Opportunity Scout found opportunity.",
-      createdAt: changedAt,
-    });
-    draft.queueItems.unshift(assignCompanyIdForCreate({
-      id: makeId("Q"),
-      title: `Follow up ${newLead.customer}`,
-      meta: `${newLead.project} - Opportunity Scout`,
-      status: "Due today",
-      done: false,
-      createdAt: changedAt,
-      updatedAt: changedAt,
-    }, req.auth.user, draft));
-    appendActivity(draft, "Opportunity converted to lead", `${opportunity.title} was converted into ${newLead.customer}.`, { companyId: newLead.companyId });
-    appendAuditEvent(draft, {
-      entityType: "foundOpportunity",
-      entityId: opportunity.id,
-      action: "converted",
-      summary: "Opportunity converted to lead",
-      detail: `${opportunity.title} was converted into lead ${newLead.id}.`,
-      actor: req.auth.user,
-      changedFields: ["status", "convertedLeadId", "updatedAt"],
-    });
-    appendAuditEvent(draft, {
-      entityType: "lead",
-      entityId: newLead.id,
-      action: "created",
-      summary: "Lead created from Opportunity Scout",
-      detail: `${newLead.customer} entered for ${newLead.project}.`,
-      actor: req.auth.user,
-      changedFields: ["status", "owner", "source", "followUpDueAt", "trade"],
-    });
     return draft;
   });
 

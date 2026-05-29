@@ -121,3 +121,11 @@ Latest exit-item slice:
 - Current supported advisor recommendation ids are `marketing-lead-sources`, `marketing-estimate-followup`, `estimate-draft-queue`, `money-change-orders`, `money-proof`, and `money-time`.
 - The endpoint rejects unsupported/external recommendations, invisible targets, wrong target types, wrong-package users, and field users.
 - Hosted Agent smoke coverage now includes `/ai-office` route checks and an optional GET-only Agent OS API flow. It does not queue tasks, execute runs, reset data, export data, send messages, or deploy.
+
+Latest Agent Leads daily review workflow:
+
+- `docs/APEX_AGENT_LEADS_DAILY_REVIEW_WORKFLOW.md` documents the product-facing daily review inbox loop.
+- `POST /api/agent/os/provider/daily-review-inbox-decisions` records owner/admin review decisions for saved Agent Leads Found Opportunity rows.
+- Decisions can approve a row for lead creation, reject it, or create a lead through the existing Opportunity Scout conversion gate after normal approval/source checks pass.
+- Approve, reject, and create-lead decisions write redacted, company-scoped learning signals for future source ranking.
+- This still does not contact customers or sources, submit bids, automate private logins, collect payments, mutate schedules, write integrations, deploy, change secrets/config, or touch production data.
