@@ -18,6 +18,7 @@ Latest implementation status:
 - `POST /api/agent-action-proposals/execute-estimate-send` reuses the normal estimate email workflow after generated proposal audit, send-ready audit, company opt-in, email provider configuration, and explicit human confirmations.
 - Email execution writes `agent.proposal.email_sent`, `agent.os.external.email_send.executed`, and estimate send audit events.
 - Build 8A adds locked communication provider readiness and outbound approval queue evidence for broader email/SMS workflows. It records consent source, opt-out, do-not-contact, template review, delivery-history readiness, idempotency, audit, rollback, and provider-readiness checks, but the new execution route is hard-denied and does not send email/SMS or store provider secrets.
+- Build 8B adds locked suppression evidence and delivery-attempt contracts for broader email/SMS workflows. It records suppression reasons, delivery-attempt failure classes, idempotency, audit, rollback, and provider-readiness references, but it still does not prepare provider requests, call unsubscribe endpoints, send email/SMS, store raw provider responses, or store provider secrets.
 - SMS, payment collection, customer portal writes, scheduling mutation, bid submission, and integration writes remain planned only until their adapters and tests are built.
 
 ## Approved Boundary Packet
