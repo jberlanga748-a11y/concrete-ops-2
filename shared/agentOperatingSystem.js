@@ -5685,6 +5685,297 @@ export function buildAgentLeadsControlledHostedDemoSmokePacket({
   };
 }
 
+export function buildAgentLeadsProductionSourceSetupBoard({
+  sourceCoveragePlanner = {},
+  liveSourceSetupReadiness = {},
+  realPublicSourceConfigActivation = {},
+  providerConnectionSetupPlan = {},
+  providerSettings = {},
+  companySettings = {},
+  today = dateKey(new Date()),
+} = {}) {
+  const currentDay = dateKey(today) || dateKey(new Date());
+  const settings = normalizeAgentLeadsProviderSettings(providerSettings);
+  const publicConfigs = asArray(realPublicSourceConfigActivation.approvedPublicSourceConfigs);
+  const blockedPrivateRows = asArray(realPublicSourceConfigActivation.blockedPrivateOrLoginSources);
+  const setupDrafts = asArray(sourceCoveragePlanner.setupDrafts).concat(asArray(sourceCoveragePlanner.recommendations))
+    .slice(0, 8)
+    .map((draft, index) => ({
+      id: text(draft.id || `source-setup-draft-${index + 1}`, 160),
+      type: "setup_draft",
+      label: text(draft.label || draft.sourceName || draft.action || "Source setup draft", 180),
+      posture: text(draft.posture || draft.sourcePosture || "public_no_login", 80),
+      tone: text(draft.tone || (draft.posture === "private_human_handoff" ? "amber" : "green"), 40),
+      reason: text(draft.reason || draft.description || "Add source coverage for the daily job finder.", 280),
+      canAutoSave: false,
+      blockedActions: ["No auto-save", "No login", "No contact", "No bid submission"],
+    }));
+  const publicRows = publicConfigs.map((config) => ({
+    id: text(config.id, 180),
+    type: "public_source",
+    label: text(config.sourceName || "Public source", 180),
+    sourceUrl: text(config.sourceUrl, 500),
+    connectorId: text(config.connectorId, 120),
+    connectorLabel: text(config.connectorLabel || "Public source", 160),
+    status: text(config.readiness || config.eligibility?.status || "needs_review", 120),
+    tone: config.eligibility?.eligible ? "green" : "amber",
+    eligibleForDailyRun: config.eligibility?.eligible === true,
+    missing: asArray(config.eligibility?.blockedReasons).map((item) => text(item, 220)).filter(Boolean),
+    termsStatus: text(config.termsStatus || "unreviewed", 80),
+    canRunWithoutLogin: config.eligibility?.eligible === true,
+    canAutoSave: false,
+    canContact: false,
+    canSubmitBid: false,
+    canCollectPayment: false,
+  }));
+  const privateRows = blockedPrivateRows.map((row) => ({
+    id: text(row.id, 180),
+    type: "private_handoff",
+    label: text(row.sourceName || "Private source", 180),
+    status: text(row.status || "blocked_from_public_run", 120),
+    tone: "amber",
+    eligibleForDailyRun: false,
+    missing: [text(row.reason || "Human-operated private source handoff is required.", 240)],
+    allowedNextStep: text(row.allowedNextStep || "Use private handoff and redacted evidence intake.", 240),
+    canRunWithoutLogin: false,
+    canAutoSave: false,
+    canContact: false,
+    canSubmitBid: false,
+    canCollectPayment: false,
+  }));
+  const readinessRows = asArray(liveSourceSetupReadiness.sourceRows).map((row) => ({
+    id: text(row.id || row.sourceId, 180),
+    type: "readiness",
+    label: text(row.sourceName || row.label || "Source readiness", 180),
+    status: text(row.status || "needs_review", 120),
+    posture: text(row.posture || "public_no_login", 80),
+    tone: text(row.tone || (row.status === "ready_for_review_only_daily_prep" ? "green" : "amber"), 40),
+    missing: asArray(row.missing).map((item) => text(item, 220)).filter(Boolean),
+    eligibleForDailyRun: row.status === "ready_for_review_only_daily_prep" && row.posture === "public_no_login",
+    canAutoSave: false,
+  }));
+  const eligiblePublicCount = publicRows.filter((row) => row.eligibleForDailyRun).length;
+  const needsSetupCount = publicRows.filter((row) => !row.eligibleForDailyRun).length + privateRows.length + setupDrafts.length;
+  return {
+    mode: "agent_leads_production_source_setup_board_v41",
+    today: currentDay,
+    companyName: text(companySettings.companyName || companySettings.name || "Current company", 160),
+    status: eligiblePublicCount ? "ready_for_daily_review_runs" : "needs_source_setup",
+    providerMode: settings.mode,
+    providerConnectionStatus: text(providerConnectionSetupPlan.status || "not_configured", 120),
+    coverageScore: Number(sourceCoveragePlanner.coverageScore || 0),
+    rows: [...publicRows, ...privateRows, ...readinessRows].slice(0, 16),
+    setupDrafts,
+    operatorNextSteps: [
+      eligiblePublicCount ? `Review ${eligiblePublicCount} eligible public no-login source${eligiblePublicCount === 1 ? "" : "s"} for tomorrow morning.` : "Add at least one approved public no-login source URL.",
+      privateRows.length ? "Keep private/Facebook/portal sources in human handoff with redacted evidence intake." : "Add private handoff sources only when a contractor authorizes human review.",
+      setupDrafts.length ? "Use setup drafts to fill missing source coverage lanes." : "Coverage planner has no setup draft recommendations right now.",
+    ],
+    stats: {
+      eligiblePublicSources: eligiblePublicCount,
+      publicSources: publicRows.length,
+      privateHandoffSources: privateRows.length,
+      readinessRows: readinessRows.length,
+      setupDrafts: setupDrafts.length,
+      needsSetup: needsSetupCount,
+    },
+    reviewOnlyExecution: true,
+    externalActionsLocked: true,
+    leadAutoSaveEnabled: false,
+    customerContactEnabled: false,
+    bidSubmissionEnabled: false,
+    paymentCollectionEnabled: false,
+    unattendedLoginEnabled: false,
+    rawCredentialStorageEnabled: false,
+    safetyBoundary: "Production source setup board is metadata and operator review only. It cannot fetch private sources, log in, store credentials, contact anyone, save leads, submit bids, collect payment, schedule work, deploy, touch production data, or write integrations.",
+  };
+}
+
+function reviewInboxMissingInfo(row = {}) {
+  const draft = row.draftPreview && typeof row.draftPreview === "object" ? row.draftPreview : {};
+  const missing = normalizeListValue(draft.missingInfoItems || row.missingInfoItems || [], { limit: 8, itemLimit: 120 });
+  return missing.length ? missing : ["Confirm scope", "Confirm location", "Confirm due date", "Confirm duplicate status"];
+}
+
+export function buildAgentLeadsDailyReviewInbox({
+  providerReviewImportQueue = [],
+  foundDraftQueue = [],
+  publicDiscoveryQueue = [],
+  privateHandoffCards = [],
+  rejectedProviderResults = [],
+  dailyRunRecord = {},
+  today = dateKey(new Date()),
+} = {}) {
+  const currentDay = dateKey(today) || dateKey(new Date());
+  const providerRows = asArray(providerReviewImportQueue).map((row) => ({
+    id: text(row.id || row.providerResultId, 180),
+    type: "provider_review",
+    status: text(row.status || "needs_human_review", 120),
+    tone: Number(row.fitScore || 0) >= 75 ? "green" : "amber",
+    title: text(row.title || "Agent-found opportunity", 180),
+    sourceName: text(row.provider || row.connectorId || "Public source", 160),
+    sourceUrl: text(row.sourceUrl, 500),
+    fitScore: Math.max(0, Math.min(100, Number(row.fitScore || 0) || 0)),
+    fitReason: text(row.fitReason || row.draftPreview?.fitExplanation || row.snippet || "Public-source review row needs human review.", 320),
+    sourceProof: [row.sourceUrl ? `Source URL: ${text(row.sourceUrl, 220)}` : "", row.snippet ? `Evidence: ${text(row.snippet, 220)}` : "", row.providerAttemptId ? `Attempt: ${text(row.providerAttemptId, 120)}` : ""].filter(Boolean),
+    missingInfoItems: reviewInboxMissingInfo(row),
+    duplicateWarnings: text(row.duplicateRisk || "none", 120) === "none" ? [] : [`Duplicate risk: ${text(row.duplicateRisk, 120)}`],
+    primaryAction: "Review and draft Found Opportunity",
+    canCreateLeadDirectly: false,
+    canAutoSave: false,
+    blockedActions: ["No lead auto-save", "No customer/source contact", "No bid submission", "No payment collection"],
+  }));
+  const draftRows = asArray(foundDraftQueue).map((row) => ({
+    id: text(row.id, 180),
+    type: "found_opportunity_draft",
+    status: text(row.draftPreview?.humanReviewStatus || "needs_review", 120),
+    tone: text(row.tone || "amber", 40),
+    title: text(row.draftPreview?.title || row.title || "Found opportunity draft", 180),
+    sourceName: text(row.sourceName || row.draftPreview?.sourceName || "Reviewed source", 160),
+    sourceUrl: text(row.sourceUrl || row.draftPreview?.sourceUrl, 500),
+    fitScore: Number(row.draftPreview?.fitScore || 0) || 0,
+    fitReason: text(row.draftPreview?.reasonToBid || row.safetyBoundary || "Human save is required before this becomes a lead.", 320),
+    sourceProof: [row.checkedAt ? `Checked: ${text(row.checkedAt, 80)}` : "", row.result ? `Outcome: ${text(row.result, 80)}` : ""].filter(Boolean),
+    missingInfoItems: reviewInboxMissingInfo(row),
+    duplicateWarnings: [],
+    primaryAction: "Open draft and save manually",
+    canCreateLeadDirectly: false,
+    canAutoSave: false,
+    blockedActions: asArray(row.blockedActions).length ? row.blockedActions : ["No auto-save", "No lead creation", "No contact", "No bid submission"],
+  }));
+  const privateRows = asArray(privateHandoffCards).map((row) => ({
+    id: text(row.id, 180),
+    type: "private_handoff",
+    status: "human_handoff_required",
+    tone: "amber",
+    title: text(row.title || "Private source handoff", 180),
+    sourceName: text(row.sourceConnector?.label || row.title || "Private source", 160),
+    sourceUrl: "",
+    fitScore: 0,
+    fitReason: "A contractor-authorized human must review this source and provide redacted evidence.",
+    sourceProof: asArray(row.checklist).slice(0, 3).map((item) => text(item, 180)),
+    missingInfoItems: ["Authorized human review", "Redacted copied/uploaded evidence", "Duplicate check"],
+    duplicateWarnings: [],
+    primaryAction: "Complete private handoff",
+    canCreateLeadDirectly: false,
+    canAutoSave: false,
+    blockedActions: ["No unattended login", "No credential storage", "No private browsing", "No contact", "No bid submission"],
+  }));
+  const rejectedRows = asArray(rejectedProviderResults).slice(0, 6).map((row, index) => ({
+    id: text(row.id || row.providerResultId || `rejected-${index + 1}`, 180),
+    type: "rejected_result",
+    status: "blocked_or_no_fit",
+    tone: "slate",
+    title: text(row.title || "Rejected provider result", 180),
+    sourceName: text(row.provider || row.connectorId || "Provider result", 160),
+    sourceUrl: text(row.sourceUrl || row.url, 500),
+    fitScore: Math.max(0, Math.min(100, Number(row.fitScore || 0) || 0)),
+    fitReason: text(row.rejectedReason || row.reason || row.redactedError || "Result did not pass review gates.", 320),
+    sourceProof: [row.sourceUrl ? `Source URL: ${text(row.sourceUrl, 220)}` : "", row.blockedReason ? `Blocked: ${text(row.blockedReason, 220)}` : ""].filter(Boolean),
+    missingInfoItems: [],
+    duplicateWarnings: [],
+    primaryAction: "Review rejection reason",
+    canCreateLeadDirectly: false,
+    canAutoSave: false,
+    blockedActions: ["No import", "No contact", "No bid submission"],
+  }));
+  const rows = [...providerRows, ...draftRows, ...privateRows, ...rejectedRows].slice(0, 24);
+  const publicDiscoveryCount = asArray(publicDiscoveryQueue).length;
+  return {
+    mode: "agent_leads_daily_review_inbox_v41",
+    today: currentDay,
+    status: rows.length ? "has_review_work" : "empty",
+    runId: text(dailyRunRecord.id, 180),
+    rows,
+    emptyState: rows.length ? "" : "No reviewable jobs were found yet. Check source coverage, source health, and private handoff evidence before assuming there is no work.",
+    stats: {
+      totalRows: rows.length,
+      providerReviewRows: providerRows.length,
+      foundDraftRows: draftRows.length,
+      privateHandoffRows: privateRows.length,
+      rejectedRows: rejectedRows.length,
+      publicDiscoveryRows: publicDiscoveryCount,
+      highFitRows: rows.filter((row) => row.fitScore >= 75).length,
+      missingInfoRows: rows.filter((row) => row.missingInfoItems.length).length,
+      duplicateWarningRows: rows.filter((row) => row.duplicateWarnings.length).length,
+    },
+    reviewOnlyExecution: true,
+    externalActionsLocked: true,
+    leadAutoSaveEnabled: false,
+    customerContactEnabled: false,
+    bidSubmissionEnabled: false,
+    paymentCollectionEnabled: false,
+    safetyBoundary: "Daily review inbox is human review only. It can prepare Found Opportunity drafts, but it cannot create leads, contact anyone, submit bids, collect payment, mutate schedules, log in unattended, or write integrations.",
+  };
+}
+
+export function buildAgentLeadsDailySourceMonitoring({
+  productionSourceSetupBoard = {},
+  dailyReviewInbox = {},
+  providerAttempts = [],
+  rejectedProviderResults = [],
+  dailyRunRecord = {},
+  today = dateKey(new Date()),
+} = {}) {
+  const currentDay = dateKey(today) || dateKey(new Date());
+  const sourceRows = asArray(productionSourceSetupBoard.rows);
+  const attemptRows = asArray(providerAttempts);
+  const rejectedRows = asArray(rejectedProviderResults);
+  const sourceHealthRows = sourceRows.slice(0, 12).map((row) => ({
+    id: text(row.id, 180),
+    label: text(row.label || row.sourceName || "Source", 180),
+    status: row.eligibleForDailyRun ? "ready" : row.type === "private_handoff" ? "human_handoff" : "needs_setup",
+    tone: row.eligibleForDailyRun ? "green" : row.type === "private_handoff" ? "amber" : "slate",
+    detail: row.eligibleForDailyRun
+      ? "Eligible for review-only public daily run."
+      : asArray(row.missing)[0] || text(row.allowedNextStep || "Review source setup before daily run.", 220),
+  }));
+  const missedSourceAlerts = [
+    ...sourceRows.filter((row) => !row.eligibleForDailyRun).slice(0, 6).map((row) => ({
+      id: `missed-${text(row.id, 160)}`,
+      tone: row.type === "private_handoff" ? "amber" : "slate",
+      label: text(row.label || "Source needs setup", 180),
+      reason: row.type === "private_handoff" ? "Private/login source needs human evidence." : asArray(row.missing)[0] || "Source is not ready for daily run.",
+      nextStep: row.type === "private_handoff" ? "Have an authorized human provide redacted evidence." : "Review source URL, terms, posture, and connector setup.",
+    })),
+    ...attemptRows.filter((attempt) => !["ok", "empty_response"].includes(text(attempt.status, 80))).slice(0, 4).map((attempt) => ({
+      id: `attempt-${text(attempt.attemptId || attempt.id, 160)}`,
+      tone: "red",
+      label: text(attempt.provider || attempt.connectorId || "Provider attempt", 180),
+      reason: text(attempt.redactedError || attempt.status || "Provider attempt failed.", 240),
+      nextStep: "Review provider/source health before retrying.",
+    })),
+  ].slice(0, 10);
+  const reviewRows = Number(dailyReviewInbox.stats?.totalRows || 0);
+  const eligibleSources = Number(productionSourceSetupBoard.stats?.eligiblePublicSources || 0);
+  const noJobsExplanation = reviewRows
+    ? `${reviewRows} review inbox row${reviewRows === 1 ? "" : "s"} need contractor review.`
+    : eligibleSources
+      ? `${eligibleSources} eligible public source${eligibleSources === 1 ? "" : "s"} ran or are ready, but no reviewable jobs cleared fit/dedupe gates today.`
+      : "No eligible public no-login source is ready yet; finish source setup or private handoff evidence before expecting daily jobs.";
+  return {
+    mode: "agent_leads_daily_source_monitoring_v41",
+    today: currentDay,
+    status: reviewRows ? "review_rows_ready" : missedSourceAlerts.length ? "needs_source_attention" : "no_review_rows",
+    runId: text(dailyRunRecord.id, 180),
+    noJobsExplanation,
+    sourceHealthRows,
+    missedSourceAlerts,
+    stats: {
+      reviewRows,
+      eligibleSources,
+      sourceHealthRows: sourceHealthRows.length,
+      missedSourceAlerts: missedSourceAlerts.length,
+      providerAttempts: attemptRows.length,
+      providerErrors: Number(dailyRunRecord.providerErrorCount || attemptRows.filter((attempt) => !["ok", "empty_response"].includes(text(attempt.status, 80))).length),
+      rejectedResults: rejectedRows.length,
+    },
+    reviewOnlyExecution: true,
+    externalActionsLocked: true,
+    safetyBoundary: "Daily source monitoring explains source health and no-result days only. It cannot fetch private sources, log in, contact anyone, save leads, submit bids, collect payment, schedule work, or write integrations.",
+  };
+}
+
 const AGENT_LEADS_SMOKE_EVIDENCE_STATUSES = Object.freeze(["passed", "passed_with_warnings", "failed", "blocked"]);
 
 function smokeEvidenceTextHasSecret(value = "") {
@@ -9075,6 +9366,32 @@ export function buildAgentOsOpportunityScoutExecutionPlan({
     companySettings: settings,
     today: currentDay,
   });
+  const productionSourceSetupBoard = buildAgentLeadsProductionSourceSetupBoard({
+    sourceCoveragePlanner,
+    liveSourceSetupReadiness,
+    realPublicSourceConfigActivation,
+    providerConnectionSetupPlan,
+    providerSettings,
+    companySettings: settings,
+    today: currentDay,
+  });
+  const dailyReviewInbox = buildAgentLeadsDailyReviewInbox({
+    providerReviewImportQueue,
+    foundDraftQueue,
+    publicDiscoveryQueue,
+    privateHandoffCards,
+    rejectedProviderResults,
+    dailyRunRecord,
+    today: currentDay,
+  });
+  const dailySourceMonitoring = buildAgentLeadsDailySourceMonitoring({
+    productionSourceSetupBoard,
+    dailyReviewInbox,
+    providerAttempts,
+    rejectedProviderResults,
+    dailyRunRecord,
+    today: currentDay,
+  });
   return {
     mode: "daily_agent_leads_scout_execution_v6",
     today: currentDay,
@@ -9112,6 +9429,9 @@ export function buildAgentOsOpportunityScoutExecutionPlan({
     controlledDailyPublicRunOutcomeLoop,
     localCompletionReadiness,
     productionReadinessGate,
+    productionSourceSetupBoard,
+    dailyReviewInbox,
+    dailySourceMonitoring,
     dailyRunRecord,
     schedulerHook,
     stats: {
@@ -9149,6 +9469,9 @@ export function buildAgentOsOpportunityScoutExecutionPlan({
       localCompletionStatus: localCompletionReadiness.localCompletionStatus,
       localImplementationPercent: localCompletionReadiness.localImplementationPercent,
       productionReadinessStatus: productionReadinessGate.status,
+      productionSourceSetupStatus: productionSourceSetupBoard.status,
+      dailyReviewInboxRows: dailyReviewInbox.stats.totalRows,
+      dailySourceMissedAlerts: dailySourceMonitoring.stats.missedSourceAlerts,
       priorFoundWorkSignals: Number(reviewOutcomeStats.found_work || 0),
       priorNoFitSignals: Number(reviewOutcomeStats.no_fit || 0),
       providerAttempts: providerAttempts.length,
