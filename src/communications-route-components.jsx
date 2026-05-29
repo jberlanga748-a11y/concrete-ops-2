@@ -13,6 +13,7 @@ import {
   StateCard,
   TextAreaField,
 } from "./app-shell-components";
+import { deriveCommunicationProviderReadinessUiState } from "./communication-provider-readiness-utils";
 import { contactHistoryBadgeTone, createContactHistoryDraft, deriveCommunicationCenterState } from "./contact-history-utils";
 import { CONTACT_HISTORY_DIRECTIONS, CONTACT_HISTORY_METHODS, CONTACT_HISTORY_OUTCOMES } from "../shared/contactHistory.js";
 
@@ -67,6 +68,8 @@ export function CommunicationCenterPage({
   onUpdateContactHistory = async () => false,
   onArchiveContactHistory = async () => false,
   onRestoreContactHistory = async () => false,
+  onGetCommunicationProviderReadiness = async () => null,
+  onCreateCommunicationSuppression = async () => null,
   onSelectLead = () => {},
   onSelectCustomer = () => {},
   onSelectJob = () => {},
@@ -80,7 +83,10 @@ export function CommunicationCenterPage({
   const [query, setQuery] = useState("");
   const [selectedKey, setSelectedKey] = useState("");
   const [draft, setDraft] = useState(() => createContactHistoryDraft({}, "lead", "Call"));
+  const [suppressionDraft, setSuppressionDraft] = useState({ channel: "all", reason: "do_not_contact", recipient: "", note: "" });
   const [message, setMessage] = useState("");
+  const [providerReadinessPayload, setProviderReadinessPayload] = useState(null);
+  const [providerReadinessStatus, setProviderReadinessStatus] = useState({ status: "idle", message: "" });
   const isDesktopCommandViewport = useDesktopCommandViewport(1180);
   const centerState = useMemo(() => deriveCommunicationCenterState({
     leads,
@@ -144,6 +150,7 @@ export function CommunicationCenterPage({
       ? centerState.records.filter((record) => record.entityType === selectedOption.type && record.entityId === selectedOption.id)
       : []
   ), [centerState.records, selectedOption]);
+  const providerReadinessState = useMemo(() => deriveCommunicationProviderReadinessUiState(providerReadinessPayload || {}), [providerReadinessPayload]);
 
   useEffect(() => {
     if (!centerState.options.length) {
@@ -160,9 +167,20 @@ export function CommunicationCenterPage({
       setDraft(createContactHistoryDraft({}, "lead", "Call"));
       return;
     }
-    setDraft(createContactHistoryDraft(selectedOption.record, selectedOption.type, "Call"));
+    const nextDraft = createContactHistoryDraft(selectedOption.record, selectedOption.type, "Call");
+    setDraft(nextDraft);
+    setSuppressionDraft((current) => ({
+      ...current,
+      recipient: nextDraft.contactEmail || nextDraft.contactPhone || current.recipient,
+      note: "",
+    }));
     setMessage("");
   }, [selectedOption?.key]);
+
+  useEffect(() => {
+    if (!canView) return;
+    loadCommunicationProviderReadiness();
+  }, [canView]);
 
   if (!canView) {
     return AccessRestrictedComponent ? <AccessRestrictedComponent active="communications" user={user} permissions={permissions} setActive={() => {}} /> : <CommandPageFrame><StateCard title="Communications unavailable" description="This route is protected for your role." tone="amber" /></CommandPageFrame>;
@@ -193,6 +211,19 @@ export function CommunicationCenterPage({
     }));
   }
 
+  async function loadCommunicationProviderReadiness() {
+    if (!canView || !onGetCommunicationProviderReadiness) return null;
+    setProviderReadinessStatus({ status: "loading", message: "Loading locked communication readiness..." });
+    const result = await onGetCommunicationProviderReadiness();
+    if (result?.communicationProviderReadiness) {
+      setProviderReadinessPayload(result);
+      setProviderReadinessStatus({ status: "ready", message: "Locked communication readiness loaded." });
+      return result;
+    }
+    setProviderReadinessStatus({ status: "error", message: "Communication readiness could not be loaded." });
+    return null;
+  }
+
   async function submitCommunication(event) {
     event.preventDefault();
     if (!canManage || !selectedOption) return;
@@ -204,6 +235,30 @@ export function CommunicationCenterPage({
     if (didSave) {
       setMessage(`Communication logged for ${selectedOption.label}. No email or text was sent.`);
       setDraft(createContactHistoryDraft(selectedOption.record, selectedOption.type, draft.method || "Call"));
+    }
+  }
+
+  async function submitSuppression(event) {
+    event.preventDefault();
+    if (!canManage || !selectedOption || !suppressionDraft.recipient) return;
+    const result = await onCreateCommunicationSuppression({
+      ...suppressionDraft,
+      targetEntityType: selectedOption.type,
+      targetEntityId: selectedOption.id,
+      source: "manual",
+    });
+    if (result?.suppressionRecord) {
+      setProviderReadinessPayload({
+        communicationProviderReadiness: result.communicationProviderReadiness,
+        suppressions: result.suppressions,
+        outboundApprovals: providerReadinessPayload?.outboundApprovals || [],
+        deliveryAttemptContracts: providerReadinessPayload?.deliveryAttemptContracts || [],
+        boundary: result.boundary,
+      });
+      setProviderReadinessStatus({ status: "ready", message: "Suppression recorded as locked evidence. No provider call or customer message was sent." });
+      setSuppressionDraft((current) => ({ ...current, note: "" }));
+    } else {
+      setProviderReadinessStatus({ status: "error", message: "Suppression could not be recorded." });
     }
   }
 
@@ -239,6 +294,84 @@ export function CommunicationCenterPage({
           {canManage ? <Button type="button" size="sm" variant="ghost" onClick={() => onArchiveContactHistory(record.id)} disabled={busy}>Archive</Button> : null}
         </div>
       </div>
+    );
+  }
+
+  function renderProviderReadinessCard({ compact = false } = {}) {
+    const readinessRows = providerReadinessState.rows;
+    return (
+      <Card className="co-communications-rules-card p-4">
+        <SectionHeader
+          title="Provider readiness"
+          description="Locked email/SMS evidence, suppression controls, and delivery-attempt contracts."
+          action={<Button type="button" size="sm" variant="secondary" onClick={loadCommunicationProviderReadiness} disabled={busy || providerReadinessStatus.status === "loading"}>Refresh</Button>}
+        />
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {providerReadinessState.summaryCards.map((card) => (
+            <div key={card.id} className="co-ai-boundary-row" data-state={card.tone === "green" ? "safe" : card.tone === "amber" ? "manual" : "locked"}>
+              <span>{card.label}</span>
+              <strong>{card.value}</strong>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 grid gap-2">
+          <div className="co-ai-boundary-row" data-state="locked"><span>Execution</span><strong>{providerReadinessState.lockedLabel}</strong></div>
+          <div className="co-ai-boundary-row" data-state={providerReadinessState.statusTone === "green" ? "safe" : "manual"}><span>Adapter evidence</span><strong>{providerReadinessState.statusLabel}</strong></div>
+        </div>
+        {providerReadinessStatus.message ? <p className="mt-3 text-xs font-bold text-slate-500">{providerReadinessStatus.message}</p> : null}
+        {readinessRows.length ? (
+          <div className={`mt-3 grid gap-2 ${compact ? "" : "lg:grid-cols-2"}`}>
+            {readinessRows.map((row) => (
+              <div key={row.channel} className="rounded-lg border border-slate-200 bg-white p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-black text-slate-950">{row.channelLabel}</p>
+                  <Badge tone={row.tone}>{row.statusLabel}</Badge>
+                </div>
+                <p className="mt-2 text-xs font-bold text-slate-500">Missing: {row.missingLabel}</p>
+                <p className="mt-1 text-xs font-bold text-slate-500">{row.queuedApprovalCount || 0} approvals / {row.activeSuppressionCount || 0} suppressions / {row.deliveryAttemptContractCount || 0} delivery contracts</p>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {canManage && selectedOption ? (
+          <form className="mt-3 grid gap-3" onSubmit={submitSuppression}>
+            <div className="grid gap-3 sm:grid-cols-[120px_160px_minmax(0,1fr)]">
+              <SelectField label="Channel" value={suppressionDraft.channel} onChange={(event) => setSuppressionDraft((current) => ({ ...current, channel: event.target.value }))} disabled={busy}>
+                <option value="all">All</option>
+                <option value="email">Email</option>
+                <option value="sms">SMS</option>
+              </SelectField>
+              <SelectField label="Reason" value={suppressionDraft.reason} onChange={(event) => setSuppressionDraft((current) => ({ ...current, reason: event.target.value }))} disabled={busy}>
+                <option value="do_not_contact">Do not contact</option>
+                <option value="opt_out">Opt out</option>
+                <option value="bounce">Bounce</option>
+                <option value="complaint">Complaint</option>
+                <option value="manual_hold">Manual hold</option>
+              </SelectField>
+              <InputField label="Recipient" value={suppressionDraft.recipient} onChange={(event) => setSuppressionDraft((current) => ({ ...current, recipient: event.target.value }))} disabled={busy} placeholder="Email or phone" />
+            </div>
+            <TextAreaField label="Suppression note" value={suppressionDraft.note} onChange={(event) => setSuppressionDraft((current) => ({ ...current, note: event.target.value }))} disabled={busy} placeholder="Internal evidence only. No provider unsubscribe or customer message is sent." />
+            <div className="co-communications-submit-row flex flex-wrap items-center gap-3">
+              <Button type="submit" size="sm" disabled={busy || !suppressionDraft.recipient}>Record suppression</Button>
+              <p className="text-xs font-bold text-slate-500">Locked evidence only; no email, SMS, provider request, or unsubscribe call is executed.</p>
+            </div>
+          </form>
+        ) : null}
+        {providerReadinessState.suppressions.length ? (
+          <div className="mt-3 grid gap-2">
+            {providerReadinessState.suppressions.slice(0, compact ? 2 : 4).map((item) => (
+              <div key={item.id} className="co-communications-log-row p-3">
+                <div className="flex flex-wrap gap-2">
+                  <Badge tone="amber">{item.reasonLabel}</Badge>
+                  <Badge tone="slate">{item.channelLabel}</Badge>
+                </div>
+                <p className="mt-2 break-words text-sm font-black text-slate-950">{item.recipient}</p>
+                <p className="mt-1 text-xs font-bold text-slate-500">{formatDateTime(item.recordedAt || item.auditCreatedAt)} by {item.requestedByName || item.actorName || "Office"}</p>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </Card>
     );
   }
 
@@ -306,6 +439,9 @@ export function CommunicationCenterPage({
               <StateCard title="No touches logged" description="Save the first manual communication note when the next call, text draft, or email draft is ready." tone="slate" />
             )}
           </div>
+        </section>
+        <section className="co-communications-detail-section">
+          {renderProviderReadinessCard({ compact: true })}
         </section>
       </div>
     );
@@ -441,6 +577,7 @@ export function CommunicationCenterPage({
                 compact
                 maxItems={8}
               /> : null}
+              {renderProviderReadinessCard()}
               <Card className="co-communications-rules-card p-4">
                 <SectionHeader title="Manual communication rules" description="This phase is visibility and logging only." />
                 <div className="grid gap-2">

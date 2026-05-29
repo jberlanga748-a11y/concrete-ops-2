@@ -36,10 +36,14 @@ test("Communications desktop shell is focused and avoids duplicate assistant rai
 
   assert.match(detailBlock, /co-communications-compact-fields/);
   assert.match(detailBlock, /co-communications-note-grid/);
+  assert.match(detailBlock, /renderProviderReadinessCard\(\{ compact: true \}\)/);
   assert.match(detailBlock, /relatedRecords\.slice\(0, 4\)/);
   assert.doesNotMatch(detailBlock, /Full communication log/);
   assert.doesNotMatch(detailBlock, /Contact name/);
   assert.doesNotMatch(detailBlock, /CONTACT_HISTORY_METHODS/);
+  assert.match(pageBlock, /deriveCommunicationProviderReadinessUiState/);
+  assert.match(pageBlock, /Record suppression/);
+  assert.match(pageBlock, /No provider unsubscribe or customer message is sent/);
 
   assert.match(desktopCss, /\.co-communications-shell-page \.co-communications-note-grid \.field-input/);
   assert.match(desktopCss, /\.co-communications-shell-page \.co-work-queue-action\s*\{\s*display: none;/);
