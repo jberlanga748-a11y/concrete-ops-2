@@ -4091,21 +4091,50 @@ function CopilotPagePolished({
               <div className="co-ai-scout-briefs">
                 <SectionHeader title="Review Rows" description="Rows can become Found Opportunity drafts only after a contractor reviews source proof, missing info, and duplicate warnings." />
                 <div className="co-ai-scout-brief-list">
-                  {dailyReviewInbox.rows.slice(0, 6).map((row) => (
-                    <div key={row.id} className="co-ai-scout-brief" data-tone={row.tone || "slate"}>
-                      <div className="min-w-0">
-                        <span>{String(row.type || "review").replace(/_/g, " ")}</span>
-                        <strong>{row.title}</strong>
-                        <p>{row.fitReason || row.sourceProof?.[0] || "Human review required."}</p>
-                        <em>{row.sourceName || "Source"} / fit {row.fitScore || 0}</em>
+                  {dailyReviewInbox.rows.slice(0, 6).map((row) => {
+                    const canActOnProviderReviewRow = row.type === "provider_review";
+                    return (
+                      <div key={row.id} className="co-ai-scout-brief" data-tone={row.tone || "slate"}>
+                        <div className="min-w-0">
+                          <span>{String(row.type || "review").replace(/_/g, " ")}</span>
+                          <strong>{row.title}</strong>
+                          <p>{row.fitReason || row.sourceProof?.[0] || "Human review required."}</p>
+                          <em>{row.sourceName || "Source"} / fit {row.fitScore || 0}</em>
+                          <div className="co-ai-scout-checks mt-2">
+                            {row.sourceProof?.slice(0, 2).map((proof) => <small key={`${row.id}-proof-${proof}`}>Proof: {proof}</small>)}
+                            {row.missingInfoItems?.slice(0, 2).map((item) => <small key={`${row.id}-missing-${item}`}>Missing: {item}</small>)}
+                            {row.duplicateWarnings?.slice(0, 2).map((warning) => <small key={`${row.id}-dupe-${warning}`}>{warning}</small>)}
+                            {row.blockedActions?.slice(0, 2).map((action) => <small key={`${row.id}-blocked-${action}`}>{action}</small>)}
+                          </div>
+                        </div>
+                        <div className="co-ai-scout-brief-actions">
+                          <Badge tone={row.duplicateWarnings?.length ? "amber" : row.missingInfoItems?.length ? "orange" : "green"}>
+                            {row.primaryAction || "Review"}
+                          </Badge>
+                          {row.sourceUrl ? <a className="co-ai-scout-link" href={row.sourceUrl} target="_blank" rel="noreferrer">Open Source</a> : null}
+                          {canActOnProviderReviewRow ? (
+                            <div className="mt-2 flex flex-wrap justify-end gap-2">
+                              <Button type="button" size="sm" variant="secondary" onClick={() => draftProviderReviewOpportunity(row)} disabled={!canManageOpportunityScout || busy || providerAdapterState.status === "loading"}>
+                                Save Draft
+                              </Button>
+                              <Button type="button" size="sm" variant="secondary" onClick={() => recordProviderReviewQueueDecision(row, "draft_found_opportunity")} disabled={!canManageOpportunityScout || busy || providerAdapterState.status === "loading"}>
+                                Accept
+                              </Button>
+                              <Button type="button" size="sm" variant="ghost" onClick={() => recordProviderReviewQueueDecision(row, "mark_duplicate")} disabled={!canManageOpportunityScout || busy || providerAdapterState.status === "loading"}>
+                                Duplicate
+                              </Button>
+                              <Button type="button" size="sm" variant="ghost" onClick={() => recordProviderReviewQueueDecision(row, "no_fit")} disabled={!canManageOpportunityScout || busy || providerAdapterState.status === "loading"}>
+                                No Fit
+                              </Button>
+                              <Button type="button" size="sm" variant="ghost" onClick={() => recordProviderReviewQueueDecision(row, "dismiss")} disabled={!canManageOpportunityScout || busy || providerAdapterState.status === "loading"}>
+                                Reject
+                              </Button>
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
-                      <div className="co-ai-scout-brief-actions">
-                        <Badge tone={row.duplicateWarnings?.length ? "amber" : row.missingInfoItems?.length ? "orange" : "green"}>
-                          {row.primaryAction || "Review"}
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {!dailyReviewInbox.rows.length ? (
                     <StateCard title="No review rows yet" description={dailySourceMonitoring.noJobsExplanation || "Finish source setup or run daily prep to populate the contractor review inbox."} tone="slate" />
                   ) : null}

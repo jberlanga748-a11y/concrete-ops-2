@@ -18,6 +18,7 @@ Allowed:
 
 - public no-login source review rows
 - contractor review inbox rows with match reasons, risks, missing info, duplicate warnings, and source evidence
+- direct inbox review actions for owner/admin users: open public source, save Found Opportunity draft, accept, mark duplicate, no-fit, or reject
 - Found Opportunity drafts saved only after human acknowledgement
 - lead creation only after the Found Opportunity is approved and passes existing source/terms gates
 - redacted company-scoped learning signals for approve, reject, and create-lead decisions
