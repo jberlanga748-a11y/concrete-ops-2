@@ -70,6 +70,8 @@ export function CommunicationCenterPage({
   onRestoreContactHistory = async () => false,
   onGetCommunicationProviderReadiness = async () => null,
   onCreateCommunicationSuppression = async () => null,
+  onCreateOutboundCommunicationApproval = async () => null,
+  onPrepareCommunicationDeliveryAttemptContract = async () => null,
   onSelectLead = () => {},
   onSelectCustomer = () => {},
   onSelectJob = () => {},
@@ -84,6 +86,14 @@ export function CommunicationCenterPage({
   const [selectedKey, setSelectedKey] = useState("");
   const [draft, setDraft] = useState(() => createContactHistoryDraft({}, "lead", "Call"));
   const [suppressionDraft, setSuppressionDraft] = useState({ channel: "all", reason: "do_not_contact", recipient: "", note: "" });
+  const [approvalDraft, setApprovalDraft] = useState({
+    channel: "email",
+    recipient: "",
+    consentConfirmed: "false",
+    templateReviewed: "false",
+    humanReviewConfirmed: "false",
+    messagePreview: "",
+  });
   const [message, setMessage] = useState("");
   const [providerReadinessPayload, setProviderReadinessPayload] = useState(null);
   const [providerReadinessStatus, setProviderReadinessStatus] = useState({ status: "idle", message: "" });
@@ -174,6 +184,11 @@ export function CommunicationCenterPage({
       recipient: nextDraft.contactEmail || nextDraft.contactPhone || current.recipient,
       note: "",
     }));
+    setApprovalDraft((current) => ({
+      ...current,
+      recipient: current.channel === "sms" ? (nextDraft.contactPhone || current.recipient) : (nextDraft.contactEmail || current.recipient),
+      messagePreview: nextDraft.messageDraft || current.messagePreview,
+    }));
     setMessage("");
   }, [selectedOption?.key]);
 
@@ -262,6 +277,53 @@ export function CommunicationCenterPage({
     }
   }
 
+  async function submitOutboundApproval(event) {
+    event.preventDefault();
+    if (!canManage || !selectedOption || !approvalDraft.recipient) return;
+    const result = await onCreateOutboundCommunicationApproval({
+      channel: approvalDraft.channel,
+      targetEntityType: selectedOption.type,
+      targetEntityId: selectedOption.id,
+      recipient: approvalDraft.recipient,
+      consentSource: `Manual ${approvalDraft.channel.toUpperCase()} review in Communications Center`,
+      consentConfirmed: approvalDraft.consentConfirmed === "true",
+      templateReviewed: approvalDraft.templateReviewed === "true",
+      humanReviewConfirmed: approvalDraft.humanReviewConfirmed === "true",
+      messagePreview: approvalDraft.messagePreview || draft.messageDraft || draft.subject,
+      templateId: `${approvalDraft.channel}-communications-review`,
+      idempotencyKey: `${approvalDraft.channel}:${selectedOption.type}:${selectedOption.id}:communications-review`,
+    });
+    if (result?.outboundApproval) {
+      setProviderReadinessPayload({
+        communicationProviderReadiness: result.communicationProviderReadiness,
+        suppressions: providerReadinessPayload?.suppressions || [],
+        outboundApprovals: result.outboundApprovals,
+        deliveryAttemptContracts: providerReadinessPayload?.deliveryAttemptContracts || [],
+        boundary: result.boundary,
+      });
+      setProviderReadinessStatus({ status: "ready", message: `${result.outboundApproval.status === "queued_locked" ? "Approval queued" : "Approval blocked"} as locked evidence. No customer message was sent.` });
+    } else {
+      setProviderReadinessStatus({ status: "error", message: "Outbound approval could not be queued." });
+    }
+  }
+
+  async function prepareDeliveryAttemptContract(approvalId) {
+    if (!canManage || !approvalId) return;
+    const result = await onPrepareCommunicationDeliveryAttemptContract(approvalId, { humanReviewConfirmed: true });
+    if (result?.deliveryAttemptContract) {
+      setProviderReadinessPayload({
+        communicationProviderReadiness: result.communicationProviderReadiness,
+        suppressions: result.suppressions || providerReadinessPayload?.suppressions || [],
+        outboundApprovals: providerReadinessPayload?.outboundApprovals || [],
+        deliveryAttemptContracts: result.deliveryAttemptContracts,
+        boundary: result.boundary,
+      });
+      setProviderReadinessStatus({ status: "ready", message: "Locked delivery-attempt contract prepared. No provider request was prepared or sent." });
+    } else {
+      setProviderReadinessStatus({ status: "error", message: "Delivery-attempt contract could not be prepared." });
+    }
+  }
+
   function selectCommunicationShellItem(item) {
     if (!item) return;
     setSelectedKey(item.option?.key || item.id);
@@ -299,6 +361,8 @@ export function CommunicationCenterPage({
 
   function renderProviderReadinessCard({ compact = false } = {}) {
     const readinessRows = providerReadinessState.rows;
+    const approvalRows = providerReadinessState.outboundApprovals;
+    const deliveryRows = providerReadinessState.deliveryAttemptContracts;
     return (
       <Card className="co-communications-rules-card p-4">
         <SectionHeader
@@ -334,28 +398,94 @@ export function CommunicationCenterPage({
           </div>
         ) : null}
         {canManage && selectedOption ? (
-          <form className="mt-3 grid gap-3" onSubmit={submitSuppression}>
-            <div className="grid gap-3 sm:grid-cols-[120px_160px_minmax(0,1fr)]">
-              <SelectField label="Channel" value={suppressionDraft.channel} onChange={(event) => setSuppressionDraft((current) => ({ ...current, channel: event.target.value }))} disabled={busy}>
-                <option value="all">All</option>
-                <option value="email">Email</option>
-                <option value="sms">SMS</option>
-              </SelectField>
-              <SelectField label="Reason" value={suppressionDraft.reason} onChange={(event) => setSuppressionDraft((current) => ({ ...current, reason: event.target.value }))} disabled={busy}>
-                <option value="do_not_contact">Do not contact</option>
-                <option value="opt_out">Opt out</option>
-                <option value="bounce">Bounce</option>
-                <option value="complaint">Complaint</option>
-                <option value="manual_hold">Manual hold</option>
-              </SelectField>
-              <InputField label="Recipient" value={suppressionDraft.recipient} onChange={(event) => setSuppressionDraft((current) => ({ ...current, recipient: event.target.value }))} disabled={busy} placeholder="Email or phone" />
-            </div>
-            <TextAreaField label="Suppression note" value={suppressionDraft.note} onChange={(event) => setSuppressionDraft((current) => ({ ...current, note: event.target.value }))} disabled={busy} placeholder="Internal evidence only. No provider unsubscribe or customer message is sent." />
-            <div className="co-communications-submit-row flex flex-wrap items-center gap-3">
-              <Button type="submit" size="sm" disabled={busy || !suppressionDraft.recipient}>Record suppression</Button>
-              <p className="text-xs font-bold text-slate-500">Locked evidence only; no email, SMS, provider request, or unsubscribe call is executed.</p>
-            </div>
-          </form>
+          <div className="mt-3 grid gap-3">
+            <form className="grid gap-3 border-t border-slate-200 pt-3" onSubmit={submitOutboundApproval}>
+              <p className="text-xs font-black uppercase text-slate-500">Locked outbound approval</p>
+              <div className="grid gap-3 sm:grid-cols-[120px_minmax(0,1fr)]">
+                <SelectField label="Channel" value={approvalDraft.channel} onChange={(event) => setApprovalDraft((current) => ({ ...current, channel: event.target.value, recipient: event.target.value === "sms" ? draft.contactPhone : draft.contactEmail }))} disabled={busy}>
+                  <option value="email">Email</option>
+                  <option value="sms">SMS</option>
+                </SelectField>
+                <InputField label="Recipient" value={approvalDraft.recipient} onChange={(event) => setApprovalDraft((current) => ({ ...current, recipient: event.target.value }))} disabled={busy} placeholder="Reviewed email or phone" />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <SelectField label="Consent" value={approvalDraft.consentConfirmed} onChange={(event) => setApprovalDraft((current) => ({ ...current, consentConfirmed: event.target.value }))} disabled={busy}>
+                  <option value="false">Not confirmed</option>
+                  <option value="true">Confirmed</option>
+                </SelectField>
+                <SelectField label="Template" value={approvalDraft.templateReviewed} onChange={(event) => setApprovalDraft((current) => ({ ...current, templateReviewed: event.target.value }))} disabled={busy}>
+                  <option value="false">Needs review</option>
+                  <option value="true">Reviewed</option>
+                </SelectField>
+                <SelectField label="Human review" value={approvalDraft.humanReviewConfirmed} onChange={(event) => setApprovalDraft((current) => ({ ...current, humanReviewConfirmed: event.target.value }))} disabled={busy}>
+                  <option value="false">Required</option>
+                  <option value="true">Confirmed</option>
+                </SelectField>
+              </div>
+              <TextAreaField label="Message preview" value={approvalDraft.messagePreview} onChange={(event) => setApprovalDraft((current) => ({ ...current, messagePreview: event.target.value }))} disabled={busy} placeholder="Customer-visible copy for review. This is not sent." />
+              <div className="co-communications-submit-row flex flex-wrap items-center gap-3">
+                <Button type="submit" size="sm" disabled={busy || !approvalDraft.recipient}>Queue locked approval</Button>
+                <p className="text-xs font-bold text-slate-500">Approval queue only; no email, SMS, provider request, or portal notification is sent.</p>
+              </div>
+            </form>
+            <form className="grid gap-3 border-t border-slate-200 pt-3" onSubmit={submitSuppression}>
+              <p className="text-xs font-black uppercase text-slate-500">Locked suppression evidence</p>
+              <div className="grid gap-3 sm:grid-cols-[120px_160px_minmax(0,1fr)]">
+                <SelectField label="Channel" value={suppressionDraft.channel} onChange={(event) => setSuppressionDraft((current) => ({ ...current, channel: event.target.value }))} disabled={busy}>
+                  <option value="all">All</option>
+                  <option value="email">Email</option>
+                  <option value="sms">SMS</option>
+                </SelectField>
+                <SelectField label="Reason" value={suppressionDraft.reason} onChange={(event) => setSuppressionDraft((current) => ({ ...current, reason: event.target.value }))} disabled={busy}>
+                  <option value="do_not_contact">Do not contact</option>
+                  <option value="opt_out">Opt out</option>
+                  <option value="bounce">Bounce</option>
+                  <option value="complaint">Complaint</option>
+                  <option value="manual_hold">Manual hold</option>
+                </SelectField>
+                <InputField label="Recipient" value={suppressionDraft.recipient} onChange={(event) => setSuppressionDraft((current) => ({ ...current, recipient: event.target.value }))} disabled={busy} placeholder="Email or phone" />
+              </div>
+              <TextAreaField label="Suppression note" value={suppressionDraft.note} onChange={(event) => setSuppressionDraft((current) => ({ ...current, note: event.target.value }))} disabled={busy} placeholder="Internal evidence only. No provider unsubscribe or customer message is sent." />
+              <div className="co-communications-submit-row flex flex-wrap items-center gap-3">
+                <Button type="submit" size="sm" disabled={busy || !suppressionDraft.recipient}>Record suppression</Button>
+                <p className="text-xs font-bold text-slate-500">Locked evidence only; no email, SMS, provider request, or unsubscribe call is executed.</p>
+              </div>
+            </form>
+          </div>
+        ) : null}
+        {approvalRows.length ? (
+          <div className="mt-3 grid gap-2">
+            <p className="text-xs font-black uppercase text-slate-500">Locked approval queue</p>
+            {approvalRows.slice(0, compact ? 2 : 4).map((item) => (
+              <div key={item.id} className="co-communications-log-row grid gap-3 p-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap gap-2">
+                    <Badge tone={item.statusTone}>{item.statusLabel}</Badge>
+                    <Badge tone="slate">{item.channelLabel}</Badge>
+                  </div>
+                  <p className="mt-2 break-words text-sm font-black text-slate-950">{item.recipient}</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">{item.blockerLabel}</p>
+                </div>
+                {canManage ? <Button type="button" size="sm" variant="secondary" onClick={() => prepareDeliveryAttemptContract(item.id)} disabled={busy}>Prepare contract</Button> : null}
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {deliveryRows.length ? (
+          <div className="mt-3 grid gap-2">
+            <p className="text-xs font-black uppercase text-slate-500">Locked delivery contracts</p>
+            {deliveryRows.slice(0, compact ? 2 : 4).map((item) => (
+              <div key={item.id} className="co-communications-log-row p-3">
+                <div className="flex flex-wrap gap-2">
+                  <Badge tone={item.statusTone}>{item.statusLabel}</Badge>
+                  <Badge tone="slate">{item.channelLabel}</Badge>
+                </div>
+                <p className="mt-2 break-words text-sm font-black text-slate-950">{item.recipient}</p>
+                <p className="mt-1 text-xs font-bold text-slate-500">Failures: {item.failureLabel}</p>
+                <p className="mt-1 text-xs font-bold text-slate-500">Provider request prepared: No / sent: No</p>
+              </div>
+            ))}
+          </div>
         ) : null}
         {providerReadinessState.suppressions.length ? (
           <div className="mt-3 grid gap-2">
