@@ -302,15 +302,15 @@ function insertApprovedEstimateFixture(sqliteFile) {
   }
 }
 
-function readAuditEvents(sqliteFile) {
+function readAuditEvents(sqliteFile, entityType = "customer_portal_access") {
   const database = new DatabaseSync(sqliteFile);
   try {
     return database.prepare(`
       SELECT entity_type AS entityType, entity_id AS entityId, action, summary, detail
       FROM audit_events
-      WHERE entity_type = 'customer_portal_access'
+      WHERE entity_type = ?
       ORDER BY sort_index ASC
-    `).all();
+    `).all(entityType);
   } finally {
     database.close();
   }
@@ -842,6 +842,197 @@ test("Access-record packets fail closed for revoked and expired records", async 
     });
     assert.equal(revokedDenied.response.status, 409);
     assert.match(revokedDenied.payload.error, /revoked/i);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("Elite owner can request locked customer portal share approval without external sharing", async () => {
+  const fixture = await startServer();
+
+  try {
+    const { created, headers } = await createLockedAccessRecord(fixture, {
+      approvalId: "PORTAL-ACCESS-REVIEW-SHARE-APPROVAL",
+    });
+
+    const approvalResult = await assertOk(fixture.baseUrl, `/api/customer-portal/access-records/${created.accessRecord.id}/share-approvals`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        note: "Owner wants this packet reviewed before any future customer portal share.",
+      }),
+    });
+
+    assert.equal(approvalResult.shareApprovalRequest.status, "requested_locked");
+    assert.equal(approvalResult.shareApprovalRequest.accessRecordId, created.accessRecord.id);
+    assert.equal(approvalResult.shareApprovalRequest.estimateId, created.accessRecord.estimateId);
+    assert.equal(approvalResult.shareApprovalRequest.packetReady, true);
+    assert.equal(approvalResult.shareApprovalRequest.approvalRequired, true);
+    assert.equal(approvalResult.shareApprovalRequest.externalShareEnabled, false);
+    assert.equal(approvalResult.shareApprovalRequest.publicRouteEnabled, false);
+    assert.equal(approvalResult.shareApprovalRequest.canCreateExternalAccess, false);
+    assert.equal(approvalResult.shareApprovalRequest.canRedeemToken, false);
+    assert.equal(approvalResult.shareApprovalRequest.canAcceptCustomerAction, false);
+    assert.equal(approvalResult.shareApprovalRequest.tokenMaterialCreated, false);
+    assert.equal(approvalResult.shareApprovalRequest.customerMessageSent, false);
+    assert.equal(approvalResult.shareApprovalRequest.invoiceCreated, false);
+    assert.equal(approvalResult.shareApprovalRequest.paymentCollectionEnabled, false);
+    assert.match(approvalResult.packet.packet, /Apex HQ Customer Portal Manual Approval Preview/);
+    assert.match(approvalResult.boundary, /Locked internal sharing approval queue only/);
+
+    const serialized = JSON.stringify(approvalResult);
+    assert.equal(serialized.includes(created.accessRecord.tokenHashReference), false);
+    assert.equal(serialized.includes("tokenHashReference"), false);
+    assert.equal(serialized.includes("rawToken"), false);
+    assert.equal(serialized.includes("publicUrl"), false);
+    assert.equal(serialized.includes("shareLink"), false);
+    assert.equal(serialized.includes("paymentLink"), false);
+    assert.equal(serialized.includes("invoiceUrl"), false);
+    assert.equal(serialized.includes("Internal margin and crew notes"), false);
+
+    const listed = await assertOk(fixture.baseUrl, "/api/customer-portal/share-approvals", { headers });
+    assert.equal(listed.shareApprovalRequests.length, 1);
+    assert.equal(listed.shareApprovalRequests[0].id, approvalResult.shareApprovalRequest.id);
+    assert.equal(listed.shareApprovalRequests[0].accessRecordId, created.accessRecord.id);
+    assert.equal(listed.shareApprovalRequests[0].externalShareEnabled, false);
+
+    const shareApprovalEvents = readAuditEvents(fixture.sqliteFile, "customer_portal_share_approval");
+    assert.equal(shareApprovalEvents.length, 1);
+    assert.equal(shareApprovalEvents[0].action, "requested_locked");
+    assert.equal(shareApprovalEvents[0].entityId, approvalResult.shareApprovalRequest.id);
+    assert.equal(shareApprovalEvents[0].detail.includes("tokenHashReference"), false);
+    assert.equal(shareApprovalEvents[0].detail.includes("rawToken"), false);
+    assert.equal(shareApprovalEvents[0].detail.includes("publicUrl"), false);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("Share approval queue rejects unsafe external payload fields", async () => {
+  const fixture = await startServer();
+
+  try {
+    const { created, headers } = await createLockedAccessRecord(fixture, {
+      approvalId: "PORTAL-ACCESS-REVIEW-SHARE-UNSAFE",
+    });
+
+    const denied = await requestJson(fixture.baseUrl, `/api/customer-portal/access-records/${created.accessRecord.id}/share-approvals`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        note: "Unsafe request should fail.",
+        shareLink: "https://customer.example.test/portal/abc",
+      }),
+    });
+
+    assert.equal(denied.response.status, 400);
+    assert.match(denied.payload.error, /cannot include external access/i);
+    assert.equal(readAuditEvents(fixture.sqliteFile, "customer_portal_share_approval").length, 0);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("Share approval queue requires Elite owner/admin access", async () => {
+  const fixture = await startServer();
+
+  try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.PREMIUM);
+    const owner = insertPortalOwner(fixture.sqliteFile);
+    const ownerLogin = await login(fixture.baseUrl, { email: owner.email });
+    const ownerHeaders = authHeaders(ownerLogin.token);
+
+    const deniedList = await requestJson(fixture.baseUrl, "/api/customer-portal/share-approvals", { headers: ownerHeaders });
+    assert.equal(deniedList.response.status, 403);
+
+    const deniedCreate = await requestJson(fixture.baseUrl, "/api/customer-portal/access-records/CPA-NOT-AVAILABLE/share-approvals", {
+      method: "POST",
+      headers: ownerHeaders,
+      body: JSON.stringify({ note: "Premium packages cannot queue share approvals." }),
+    });
+    assert.equal(deniedCreate.response.status, 403);
+
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.ELITE);
+    const estimateId = insertApprovedEstimateFixture(fixture.sqliteFile);
+    const fieldUser = createUserRecord({
+      id: "U-PORTAL-FIELD-SHARE-APPROVAL",
+      email: "portal-field-share-approval@apexhq.test",
+      password: "apexdemo123",
+      name: "Portal Field Share Approval User",
+      role: "Employee",
+    });
+    insertUser(fixture.sqliteFile, fieldUser);
+    const fieldLogin = await login(fixture.baseUrl, { email: fieldUser.email });
+    const fieldHeaders = authHeaders(fieldLogin.token);
+
+    const fieldDeniedCreate = await requestJson(fixture.baseUrl, "/api/customer-portal/access-records", {
+      method: "POST",
+      headers: fieldHeaders,
+      body: JSON.stringify({
+        estimateId,
+        expiresAt: expiresIn(2),
+        approvalId: "PORTAL-ACCESS-REVIEW-SHARE-FIELD",
+      }),
+    });
+    assert.equal(fieldDeniedCreate.response.status, 403);
+
+    const fieldDeniedList = await requestJson(fixture.baseUrl, "/api/customer-portal/share-approvals", { headers: fieldHeaders });
+    assert.equal(fieldDeniedList.response.status, 403);
+    assert.equal(readAuditEvents(fixture.sqliteFile, "customer_portal_share_approval").length, 0);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("Share approval requests are tenant scoped and fail closed for expired or revoked records", async () => {
+  const fixture = await startServer();
+
+  try {
+    const active = await createLockedAccessRecord(fixture, {
+      approvalId: "PORTAL-ACCESS-REVIEW-SHARE-TENANT",
+    });
+    const otherCompanyId = "COMPANY-PORTAL-SHARE-OTHER";
+    insertCompany(fixture.sqliteFile, otherCompanyId);
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.ELITE, otherCompanyId);
+    const otherOwner = insertPortalOwner(fixture.sqliteFile, {
+      email: "portal-share-other-owner@apexhq.test",
+      companyId: otherCompanyId,
+    });
+    const otherLogin = await login(fixture.baseUrl, { email: otherOwner.email });
+    const otherHeaders = authHeaders(otherLogin.token);
+
+    const wrongCompanyDenied = await requestJson(fixture.baseUrl, `/api/customer-portal/access-records/${active.created.accessRecord.id}/share-approvals`, {
+      method: "POST",
+      headers: otherHeaders,
+      body: JSON.stringify({ note: "Cross-company share approval should not exist." }),
+    });
+    assert.equal(wrongCompanyDenied.response.status, 404);
+
+    forceAccessRecordExpiration(fixture.sqliteFile, active.created.accessRecord.id, new Date(Date.now() - 60_000).toISOString());
+    const expiredDenied = await requestJson(fixture.baseUrl, `/api/customer-portal/access-records/${active.created.accessRecord.id}/share-approvals`, {
+      method: "POST",
+      headers: active.headers,
+      body: JSON.stringify({ note: "Expired records cannot be queued." }),
+    });
+    assert.equal(expiredDenied.response.status, 409);
+    assert.match(expiredDenied.payload.error, /expired/i);
+
+    const revoked = await createLockedAccessRecord(fixture, {
+      approvalId: "PORTAL-ACCESS-REVIEW-SHARE-REVOKED",
+    });
+    await assertOk(fixture.baseUrl, `/api/customer-portal/access-records/${revoked.created.accessRecord.id}/revoke`, {
+      method: "POST",
+      headers: revoked.headers,
+      body: JSON.stringify({ reason: "No share approval review." }),
+    });
+    const revokedDenied = await requestJson(fixture.baseUrl, `/api/customer-portal/access-records/${revoked.created.accessRecord.id}/share-approvals`, {
+      method: "POST",
+      headers: revoked.headers,
+      body: JSON.stringify({ note: "Revoked records cannot be queued." }),
+    });
+    assert.equal(revokedDenied.response.status, 409);
+    assert.match(revokedDenied.payload.error, /revoked/i);
+    assert.equal(readAuditEvents(fixture.sqliteFile, "customer_portal_share_approval").length, 0);
   } finally {
     await fixture.stop();
   }
