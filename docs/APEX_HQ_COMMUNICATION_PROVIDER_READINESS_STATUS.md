@@ -1,6 +1,6 @@
 # Apex HQ Communication Provider Readiness Status
 
-Status: complete for Build 8C locked communication provider readiness, outbound approval queue, suppression, delivery-attempt contract, and Communications UI visibility scope.
+Status: complete for Build 8D locked communication provider readiness, outbound approval queue, suppression, delivery-attempt contract, and Communications UI action scope.
 
 ## What Is Now Complete
 
@@ -21,10 +21,12 @@ Status: complete for Build 8C locked communication provider readiness, outbound 
 - The Communications screen now loads the locked provider-readiness packet for office users with contact-history access.
 - The Communications screen summarizes channel readiness, locked approvals, suppressions, delivery-attempt contracts, missing evidence, and the locked execution boundary.
 - Office users with contact-history manage permission can record locked suppression evidence for the selected lead, customer, estimate, or job without sending a message or calling a provider unsubscribe endpoint.
+- Office users with contact-history manage permission can queue selected-record outbound approval evidence from the Communications screen after marking consent, template review, and human review state.
+- Office users can prepare locked delivery-attempt contracts from visible outbound approval queue items in the Communications screen; the UI shows provider request prepared/sent as `No`.
 
 ## Safety Boundary
 
-Build 8C does not:
+Build 8D does not:
 
 - send email
 - send SMS
@@ -40,7 +42,7 @@ Build 8C does not:
 - deploy
 - mutate production data
 
-Existing human-confirmed estimate email execution remains governed by the already-approved `email_send` gate and normal estimate send workflow. Build 8C only adds readiness, approval queue, suppression, locked delivery-attempt evidence, and office UI visibility for broader communication provider workflows.
+Existing human-confirmed estimate email execution remains governed by the already-approved `email_send` gate and normal estimate send workflow. Build 8D only adds readiness, approval queue, suppression, locked delivery-attempt evidence, and office UI review actions for broader communication provider workflows.
 
 ## Verification
 

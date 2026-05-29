@@ -42,8 +42,20 @@ export function deriveCommunicationProviderReadinessUiState(payload = {}) {
       channelLabel: titleCase(item.channel || "all"),
       reasonLabel: titleCase(item.reason || "manual_hold"),
     })),
-    outboundApprovals,
-    deliveryAttemptContracts,
+    outboundApprovals: outboundApprovals.map((item) => ({
+      ...item,
+      channelLabel: titleCase(item.channel),
+      statusLabel: titleCase(item.status || "queued_locked"),
+      statusTone: item.status === "queued_locked" ? "blue" : "amber",
+      blockerLabel: asArray(item.blockers).join(" ") || "No readiness blockers recorded.",
+    })),
+    deliveryAttemptContracts: deliveryAttemptContracts.map((item) => ({
+      ...item,
+      channelLabel: titleCase(item.channel),
+      statusLabel: titleCase(item.status || "delivery_attempt_locked"),
+      statusTone: item.status === "blocked_by_suppression_locked" ? "amber" : "blue",
+      failureLabel: asArray(item.failureClasses).map(titleCase).join(", ") || "Lock Active",
+    })),
     summaryCards: [
       { id: "channels", label: "Channels Ready", value: `${readyChannelCount}/${rows.length || 0}`, tone: readyChannelCount === rows.length && rows.length ? "green" : "amber" },
       { id: "approvals", label: "Locked Approvals", value: outboundApprovals.length, tone: outboundApprovals.length ? "blue" : "slate" },

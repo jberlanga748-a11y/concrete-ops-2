@@ -44,6 +44,9 @@ test("Communications desktop shell is focused and avoids duplicate assistant rai
   assert.match(pageBlock, /deriveCommunicationProviderReadinessUiState/);
   assert.match(pageBlock, /Record suppression/);
   assert.match(pageBlock, /No provider unsubscribe or customer message is sent/);
+  assert.match(pageBlock, /Queue locked approval/);
+  assert.match(pageBlock, /Prepare contract/);
+  assert.match(pageBlock, /Provider request prepared: No \/ sent: No/);
 
   assert.match(desktopCss, /\.co-communications-shell-page \.co-communications-note-grid \.field-input/);
   assert.match(desktopCss, /\.co-communications-shell-page \.co-work-queue-action\s*\{\s*display: none;/);

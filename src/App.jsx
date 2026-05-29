@@ -84,6 +84,7 @@ import {
   createChangeOrderRequest,
   createContactHistory,
   createCommunicationSuppression,
+  createOutboundCommunicationApproval,
   createEstimate,
   createCustomer,
   createDailyReport,
@@ -139,6 +140,7 @@ import {
   markLeadSourceChecked,
   planOpportunitySearchWithAi,
   previewOpportunityScoutAgent,
+  prepareCommunicationDeliveryAttemptContract,
   prepareAgentEstimateSend,
   queueAgentOperatingSystemTask,
   getAgentLeadPrivateSourceChecklist,
@@ -14406,6 +14408,38 @@ export default function App() {
     }
   }
 
+  async function handleCreateOutboundCommunicationApproval(payload) {
+    if (!sessionToken || !appState.permissions.contactHistory?.canManage) return null;
+    setBusy(true);
+    try {
+      const result = await createOutboundCommunicationApproval(sessionToken, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handlePrepareCommunicationDeliveryAttemptContract(approvalId, payload = {}) {
+    if (!sessionToken || !appState.permissions.contactHistory?.canManage) return null;
+    setBusy(true);
+    try {
+      const result = await prepareCommunicationDeliveryAttemptContract(sessionToken, approvalId, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleScoreLead(lead = selectedLead) {
     if (!sessionToken || !lead?.id || !appState.permissions.leads.canManage) return false;
     setBusy(true);
@@ -16438,6 +16472,8 @@ export default function App() {
                 onRestoreContactHistory={handleRestoreContactHistory}
                 onGetCommunicationProviderReadiness={handleGetCommunicationProviderReadiness}
                 onCreateCommunicationSuppression={handleCreateCommunicationSuppression}
+                onCreateOutboundCommunicationApproval={handleCreateOutboundCommunicationApproval}
+                onPrepareCommunicationDeliveryAttemptContract={handlePrepareCommunicationDeliveryAttemptContract}
                 onOpenEstimate={navigateToEstimate}
                 onCreateJobFromLead={handleCreateJobFromLead}
                 rateBookItems={appState.rateBookItems}
