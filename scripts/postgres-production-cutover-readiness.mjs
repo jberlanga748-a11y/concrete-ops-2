@@ -224,8 +224,10 @@ export function inspectDockerfile(text = "") {
   const source = String(text || "");
   return {
     copiesPostgresTransfer: /COPY\s+--from=build\s+\/app\/scripts\/postgres-transfer\.mjs\s+\.\/scripts\/postgres-transfer\.mjs/.test(source),
+    copiesCustomerPortalPreviewUtils: /COPY\s+--from=build\s+\/app\/src\/customer-portal-preview-utils\.js\s+\.\/src\/customer-portal-preview-utils\.js/.test(source),
     copiesSupabaseMigrations: /COPY\s+--from=build\s+\/app\/supabase\/migrations\s+\.\/supabase\/migrations/.test(source),
     assertsPostgresTransfer: /test\s+-f\s+\/app\/scripts\/postgres-transfer\.mjs/.test(source),
+    assertsCustomerPortalPreviewUtils: /test\s+-f\s+\/app\/src\/customer-portal-preview-utils\.js/.test(source),
     assertsInitialMigration: /test\s+-f\s+\/app\/supabase\/migrations\/202605240001_apex_hq_initial_schema\.sql/.test(source),
   };
 }
