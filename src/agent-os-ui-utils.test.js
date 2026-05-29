@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   canRenderAgentOsConsole,
   deriveAgentOsActionFilterGroups,
+  deriveAgentOsConsoleSummary,
   deriveAgentOsInternalTaskOptions,
   deriveAgentOsLearningReviewRows,
   deriveAgentOsOperatorConsoleCards,
@@ -277,6 +278,38 @@ test("Agent OS UI derives production evidence rows and blockers", () => {
   assert.equal(rows[1].tone, "green");
   assert.equal(rows[2].tone, "amber");
   assert.match(rows[2].nextStep, /Evidence required/i);
+});
+
+test("Agent OS UI derives console summary counts and operator checklist rows", () => {
+  const summary = deriveAgentOsConsoleSummary({
+    taskOptions: [
+      { actionId: "lead_follow_up_draft", disabled: false },
+      { actionId: "job_costing_review", disabled: true },
+    ],
+    runRows: [
+      { runId: "RUN-1", status: "succeeded" },
+      { runId: "RUN-2", status: "dead_lettered" },
+    ],
+    consoleCards: {
+      cards: [{ id: "external-locks", value: 7 }],
+    },
+    productionEvidenceRows: [
+      { id: "verify", tone: "green", status: "passed" },
+      { id: "blocker", tone: "red", status: "blocked" },
+    ],
+  });
+
+  assert.equal(summary.totalActionCount, 2);
+  assert.equal(summary.readyActionCount, 1);
+  assert.equal(summary.blockedActionCount, 1);
+  assert.equal(summary.recentRunCount, 2);
+  assert.equal(summary.deadLetterCount, 1);
+  assert.equal(summary.runTone, "red");
+  assert.equal(summary.externalLockCount, 7);
+  assert.equal(summary.productionEvidenceCount, 2);
+  assert.deepEqual(summary.checklistRows.map((row) => row.id), ["queue-ready", "run-review", "external-locks", "production-evidence"]);
+  assert.match(summary.checklistRows.find((row) => row.id === "run-review").detail, /dead-lettered/i);
+  assert.equal(summary.checklistRows.find((row) => row.id === "production-evidence").tone, "red");
 });
 
 test("Agent OS console render gate requires AI Office view permission", () => {

@@ -859,6 +859,17 @@ const EXTERNAL_GATE_APPROVAL_PLANS = Object.freeze({
   },
 });
 
+const EXTERNAL_GATE_ADAPTER_EVIDENCE = Object.freeze([
+  { id: "domainAdapter", label: "Normal domain adapter or endpoint" },
+  { id: "companyOptIn", label: "Per-company opt-in for this exact gate" },
+  { id: "humanConfirmation", label: "Human confirmation that names the visible effect" },
+  { id: "idempotency", label: "Idempotency key and retry/dead-letter behavior" },
+  { id: "audit", label: "Redacted audit event" },
+  { id: "rollback", label: "Rollback or compensating action" },
+  { id: "tenantRolePackageTests", label: "Tenant, role, and package negative tests" },
+  { id: "providerSandboxOrTestStrategy", label: "Provider sandbox or test-recipient strategy" },
+]);
+
 const ADVISOR_RECOMMENDATION_TASK_MAPPINGS = Object.freeze({
   "marketing-lead-sources": {
     recommendationId: "marketing-lead-sources",
@@ -7629,6 +7640,43 @@ export function listAgentOsExternalGateApprovalPlans({ externalGateSettings = {}
   }));
 }
 
+export function deriveAgentOsExternalGateAdapterReadiness({
+  externalGateSettings = {},
+  evidence = {},
+} = {}) {
+  const settings = normalizeAgentOsExternalGateSettings(externalGateSettings);
+  const evidenceByGate = evidence && typeof evidence === "object" ? evidence : {};
+  return AGENT_OS_EXTERNAL_GATE_IDS.map((gateId) => {
+    const plan = EXTERNAL_GATE_APPROVAL_PLANS[gateId] || {};
+    const gateSettings = settings[gateId] || DEFAULT_AGENT_OS_EXTERNAL_GATE_SETTINGS[gateId] || {};
+    const gateEvidence = evidenceByGate[gateId] && typeof evidenceByGate[gateId] === "object" ? evidenceByGate[gateId] : {};
+    const evidenceRows = EXTERNAL_GATE_ADAPTER_EVIDENCE.map((row) => ({
+      ...row,
+      status: gateEvidence[row.id] === true ? "recorded" : "missing",
+    }));
+    const missingEvidenceIds = evidenceRows.filter((row) => row.status !== "recorded").map((row) => row.id);
+    const companyGateConfigured = gateSettings.enabled === true;
+    return {
+      gateId,
+      label: plan.label || gateId,
+      status: companyGateConfigured && !missingEvidenceIds.length
+        ? "ready_for_human_confirmed_adapter_review"
+        : "needs_adapter_evidence",
+      companyGateConfigured,
+      blockedUntilConfigured: !companyGateConfigured,
+      executionEnabled: false,
+      normalHumanConfirmationRequired: true,
+      approvedBoundary: plan.approvedBoundary || plan.approvalBoundary || "",
+      auditEvent: plan.auditEvent || "",
+      domainWorkflow: plan.domainWorkflow || "",
+      evidenceRows,
+      missingEvidenceIds,
+      requiredBeforeExecution: evidenceRows.map((row) => row.label),
+      safetyBoundary: "Adapter readiness is planning evidence only. It never sends, collects payment, writes portal/schedule/integration data, submits bids, stores credentials, or enables autonomous execution.",
+    };
+  });
+}
+
 export function getAgentOsExternalGateApprovalPlan(gateId = "", { externalGateSettings = {} } = {}) {
   const plan = EXTERNAL_GATE_APPROVAL_PLANS[text(gateId, 120)];
   const settings = normalizeAgentOsExternalGateSettings(externalGateSettings);
@@ -7650,6 +7698,7 @@ export function buildAgentOsExternalGateDecisionPacket(gateId = "", {
   companyId = "",
   actorUserId = "",
   externalGateSettings = {},
+  adapterEvidence = {},
   now = new Date().toISOString(),
 } = {}) {
   const plan = getAgentOsExternalGateApprovalPlan(gateId, { externalGateSettings });
@@ -7677,6 +7726,10 @@ export function buildAgentOsExternalGateDecisionPacket(gateId = "", {
       requestedBy: text(actorUserId, 120),
       companyId: text(companyId, 120),
     },
+    adapterReadiness: deriveAgentOsExternalGateAdapterReadiness({
+      externalGateSettings,
+      evidence: adapterEvidence,
+    }).find((row) => row.gateId === plan.gateId) || null,
     requiredBeforeExecution: [
       "Per-company opt-in for this exact gate.",
       "Normal domain endpoint or provider adapter wired server-side.",

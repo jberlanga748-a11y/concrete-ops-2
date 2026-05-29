@@ -30,6 +30,7 @@ import { buildAgentActionProposalReviewAuditPayload, deriveAgentActionInbox, der
 import {
   canRenderAgentOsConsole,
   deriveAgentOsActionFilterGroups,
+  deriveAgentOsConsoleSummary,
   deriveAgentOsInternalTaskOptions,
   deriveAgentOsLearningReviewRows,
   deriveAgentOsOperatorConsoleCards,
@@ -1931,6 +1932,12 @@ function CopilotPagePolished({
     ? providerAdapterState.result
     : dailyScoutExecutionPlan.productionReadinessGate || { checkRows: [], blockers: [], status: "blocked_until_release_evidence", readyForFounderSupportedProduction: false };
   const agentOsProductionEvidenceRows = deriveAgentOsProductionEvidenceRows(productionReadinessGate);
+  const agentOsConsoleSummary = deriveAgentOsConsoleSummary({
+    taskOptions: agentOsTaskOptions,
+    runRows: agentOsRunRows,
+    consoleCards: agentOsConsole,
+    productionEvidenceRows: agentOsProductionEvidenceRows,
+  });
   const [productionEvidenceDraft, setProductionEvidenceDraft] = useState({
     operatorName: user?.name || "",
     environmentLabel: "Founder-supported production review",
@@ -3631,17 +3638,22 @@ function CopilotPagePolished({
                   </div>
                 ))}
               </div>
+              <div className="co-ai-scout-checks">
+                {agentOsConsoleSummary.checklistRows.map((row) => (
+                  <small key={row.id}>{row.label}: {row.detail}</small>
+                ))}
+              </div>
             </div>
 
             <div className="co-ai-scout-grid border-b border-slate-200 bg-white">
               <div className="co-ai-scout-status" data-tone="green">
                 <span>Internal action queue</span>
-                <strong>{agentOsTaskOptions.filter((option) => !option.disabled).length} queue-ready action{agentOsTaskOptions.filter((option) => !option.disabled).length === 1 ? "" : "s"}</strong>
+                <strong>{agentOsConsoleSummary.readyActionCount} queue-ready action{agentOsConsoleSummary.readyActionCount === 1 ? "" : "s"}</strong>
                 <p>Owner/admin users can prepare review packets from visible records. Customer contact, payments, schedule changes, bids, integrations, and domain writes stay outside this queue.</p>
                 <div className="co-ai-scout-metrics">
-                  <div><em>{agentOsTaskOptions.length}</em><span>actions</span></div>
-                  <div><em>{agentOsTaskOptions.filter((option) => !option.disabled).length}</em><span>ready</span></div>
-                  <div><em>{agentOsTaskOptions.filter((option) => option.disabled).length}</em><span>blocked</span></div>
+                  <div><em>{agentOsConsoleSummary.totalActionCount}</em><span>actions</span></div>
+                  <div><em>{agentOsConsoleSummary.readyActionCount}</em><span>ready</span></div>
+                  <div><em>{agentOsConsoleSummary.blockedActionCount}</em><span>blocked</span></div>
                 </div>
               </div>
               <div className="co-ai-scout-briefs">
@@ -3685,9 +3697,9 @@ function CopilotPagePolished({
             </div>
 
             <div className="co-ai-scout-grid border-b border-slate-200 bg-slate-50/80">
-              <div className="co-ai-scout-status" data-tone={agentOsRunRows.some((row) => row.status === "dead_lettered") ? "red" : agentOsRunRows.length ? "amber" : "green"}>
+              <div className="co-ai-scout-status" data-tone={agentOsConsoleSummary.runTone}>
                 <span>Run controls</span>
-                <strong>{agentOsRunRows.length} recent run event{agentOsRunRows.length === 1 ? "" : "s"}</strong>
+                <strong>{agentOsConsoleSummary.recentRunCount} recent run event{agentOsConsoleSummary.recentRunCount === 1 ? "" : "s"}</strong>
                 <p>Runs keep queue, execute, retry, cancel, dead-letter, log, rollback, and idempotency evidence together.</p>
                 <div className="co-ai-scout-metrics">
                   {(agentOsConsole.controlRows || []).slice(0, 4).map((row) => (
@@ -3776,7 +3788,7 @@ function CopilotPagePolished({
                   {agentOsProductionEvidenceRows.map((row) => (
                     <small key={row.id}>{row.group}: {row.label} / {row.status.replace(/_/g, " ")} / {row.nextStep}</small>
                   ))}
-                  <small>External action locks: {agentOsConsole.cards.find((card) => card.id === "external-locks")?.value || 0}</small>
+                  <small>External action locks: {agentOsConsoleSummary.externalLockCount}</small>
                 </div>
               </div>
             </div>

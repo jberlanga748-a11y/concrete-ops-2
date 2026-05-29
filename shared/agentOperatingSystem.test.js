@@ -47,6 +47,7 @@ import {
   buildAgentOsSummary,
   createAgentOsRunForTask,
   deriveAgentOsAutonomyPlan,
+  deriveAgentOsExternalGateAdapterReadiness,
   deriveAgentLeadsProviderActivationReadiness,
   deriveAgentOsOpportunitySearchPrepQueue,
   deriveAgentOsLearningSignals,
@@ -3514,7 +3515,54 @@ test("Agent OS external gate settings require explicit human-confirmed company o
   assert.equal(gates.find((gate) => gate.id === "email_send").executionEnabled, true);
   assert.equal(gates.find((gate) => gate.id === "sms_send").executionEnabled, false);
   assert.equal(emailPacket.gate.executionEnabled, true);
+  assert.equal(emailPacket.adapterReadiness.executionEnabled, false);
   assert.match(emailPacket.safetyBoundary, /does not execute by itself/i);
+});
+
+test("Agent OS external gate adapter readiness records evidence without enabling execution", () => {
+  const readiness = deriveAgentOsExternalGateAdapterReadiness({
+    externalGateSettings: {
+      email_send: {
+        enabled: true,
+        mode: "human_confirmed",
+        allowedWorkflow: "estimate_send",
+        testOnly: false,
+      },
+    },
+    evidence: {
+      email_send: {
+        domainAdapter: true,
+        companyOptIn: true,
+        humanConfirmation: true,
+        idempotency: true,
+        audit: true,
+        rollback: true,
+        tenantRolePackageTests: true,
+        providerSandboxOrTestStrategy: true,
+      },
+    },
+  });
+  const email = readiness.find((row) => row.gateId === "email_send");
+  const payment = readiness.find((row) => row.gateId === "payment_collection");
+
+  assert.deepEqual(readiness.map((row) => row.gateId), [
+    "email_send",
+    "sms_send",
+    "payment_collection",
+    "customer_portal_action",
+    "scheduling",
+    "bid_submission",
+    "integration_write",
+  ]);
+  assert.equal(readiness.every((row) => row.executionEnabled === false), true);
+  assert.equal(readiness.every((row) => row.normalHumanConfirmationRequired === true), true);
+  assert.equal(email.companyGateConfigured, true);
+  assert.equal(email.status, "ready_for_human_confirmed_adapter_review");
+  assert.equal(email.missingEvidenceIds.length, 0);
+  assert.equal(payment.companyGateConfigured, false);
+  assert.equal(payment.status, "needs_adapter_evidence");
+  assert.match(payment.safetyBoundary, /never sends, collects payment, writes portal\/schedule\/integration data, submits bids/i);
+  assert.equal(readiness.every((row) => row.requiredBeforeExecution.includes("Human confirmation that names the visible effect")), true);
 });
 
 test("Agent OS known external gates stay disabled unless explicitly configured", () => {

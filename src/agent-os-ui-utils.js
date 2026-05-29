@@ -456,6 +456,67 @@ export function deriveAgentOsProductionEvidenceRows(productionReadinessGate = {}
   return [...blockers, ...evidenceRows].slice(0, 12);
 }
 
+export function deriveAgentOsConsoleSummary({
+  taskOptions = [],
+  runRows = [],
+  consoleCards = {},
+  productionEvidenceRows = [],
+} = {}) {
+  const options = normalizeObjectArray(taskOptions);
+  const runs = normalizeObjectArray(runRows);
+  const cards = normalizeObjectArray(consoleCards?.cards);
+  const evidenceRows = normalizeObjectArray(productionEvidenceRows);
+  const readyActionCount = options.filter((option) => !option.disabled).length;
+  const blockedActionCount = options.filter((option) => option.disabled).length;
+  const deadLetterCount = runs.filter((row) => row.status === "dead_lettered").length;
+  const externalLockCard = cards.find((card) => card.id === "external-locks") || {};
+  const externalLockCount = Number(externalLockCard.value || 0) || 0;
+  const evidenceHasBlocker = evidenceRows.some((row) => row.tone === "red" || row.status === "blocked");
+  return {
+    totalActionCount: options.length,
+    readyActionCount,
+    blockedActionCount,
+    recentRunCount: runs.length,
+    deadLetterCount,
+    hasDeadLetteredRun: deadLetterCount > 0,
+    runTone: deadLetterCount ? "red" : runs.length ? "amber" : "green",
+    externalLockCount,
+    productionEvidenceCount: evidenceRows.length,
+    checklistRows: [
+      {
+        id: "queue-ready",
+        label: "Queue-ready actions",
+        tone: readyActionCount ? "green" : "amber",
+        detail: `${readyActionCount} internal draft/prep action${readyActionCount === 1 ? "" : "s"} ready.`,
+      },
+      {
+        id: "run-review",
+        label: "Run review",
+        tone: deadLetterCount ? "red" : runs.length ? "green" : "amber",
+        detail: deadLetterCount
+          ? `${deadLetterCount} dead-lettered run${deadLetterCount === 1 ? "" : "s"} need review.`
+          : runs.length
+            ? `${runs.length} recent run event${runs.length === 1 ? "" : "s"} visible.`
+            : "No run events yet.",
+      },
+      {
+        id: "external-locks",
+        label: "External locks",
+        tone: "slate",
+        detail: `${externalLockCount} external gate${externalLockCount === 1 ? "" : "s"} require normal confirmation.`,
+      },
+      {
+        id: "production-evidence",
+        label: "Production evidence",
+        tone: evidenceHasBlocker ? "red" : evidenceRows.length ? "blue" : "amber",
+        detail: evidenceRows.length
+          ? `${evidenceRows.length} evidence row${evidenceRows.length === 1 ? "" : "s"} loaded.`
+          : "No production evidence rows loaded.",
+      },
+    ],
+  };
+}
+
 export function canRenderAgentOsConsole(permissions = {}) {
   return permissions?.aiOffice?.canView === true;
 }
