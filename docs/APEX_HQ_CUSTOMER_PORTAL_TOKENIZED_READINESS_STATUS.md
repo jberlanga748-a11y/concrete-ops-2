@@ -1,6 +1,6 @@
 # Apex HQ Customer Portal Tokenized Readiness Status
 
-Status: complete for Build 7A local readiness-contract scope, Build 7B locked access-record scope, Build 7C locked lifecycle scope, Build 7D locked public-route contract scope, and Build 7E internal access-record packet scope.
+Status: complete for Build 7A local readiness-contract scope, Build 7B locked access-record scope, Build 7C locked lifecycle scope, Build 7D locked public-route contract scope, Build 7E internal access-record packet scope, and Build 7F locked share approval queue scope.
 
 ## What Is Now Complete
 
@@ -19,6 +19,9 @@ Status: complete for Build 7A local readiness-contract scope, Build 7B locked ac
 - Public route contract tests cover missing, malformed, wrong-company, expired, and revoked denial cases without creating redeemable tokens.
 - Owner/admin users can generate an internal customer-facing review packet from an active locked access record. It is authenticated, Elite-only, owner/admin-only, company scoped, and blocked for expired or revoked records.
 - Access-record packet tests verify field-role denial, wrong-company denial, package denial, expired/revoked denial, and redaction of token hash references, audit internals, internal notes, and raw-token/public-url fields.
+- Owner/admin users can request a locked internal share approval queue item from an active locked access record.
+- Share approval queue items are authenticated, Elite-only, owner/admin-only, company scoped, audit backed, packet-ready, and blocked for unsafe external payload fields, field users, wrong-company users, expired records, and revoked records.
+- Share approval queue responses keep external sharing disabled and explicitly record that no customer login, public link, raw token, customer session, message, invoice, or payment action was created.
 
 ## Safety Boundary
 
@@ -40,6 +43,8 @@ It does not:
 Builds 7B, 7C, and 7D also do not create a live public portal, redeemable token table, customer session, customer action endpoint, customer login flow, message send flow, invoice flow, or payment flow.
 
 Build 7E also does not expose the packet to customers, publish a portal page, create a customer session, redeem a token, accept approvals/comments/signatures, send messages, create invoices, or collect payment.
+
+Build 7F also does not expose an approval queue to customers, publish a link, create a customer session, redeem a token, send messages, create invoices, collect payment, or approve external sharing by itself.
 
 ## Verification
 
