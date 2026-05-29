@@ -1905,6 +1905,9 @@ function CopilotPagePolished({
   const controlledDailyPublicRunPreflight = dailyScoutExecutionPlan.controlledDailyPublicRunPreflight || { checks: [], blockers: [] };
   const controlledDailyPublicRunEvidencePrep = dailyScoutExecutionPlan.controlledDailyPublicRunEvidencePrep || { evidenceRows: [], blockers: [] };
   const controlledDailyPublicRunOutcomeLoop = dailyScoutExecutionPlan.controlledDailyPublicRunOutcomeLoop || { rows: [] };
+  const productionSourceSetupBoard = dailyScoutExecutionPlan.productionSourceSetupBoard || { rows: [], setupDrafts: [], operatorNextSteps: [], stats: {}, status: "needs_source_setup" };
+  const dailyReviewInbox = dailyScoutExecutionPlan.dailyReviewInbox || { rows: [], stats: {}, status: "empty", emptyState: "" };
+  const dailySourceMonitoring = dailyScoutExecutionPlan.dailySourceMonitoring || { sourceHealthRows: [], missedSourceAlerts: [], stats: {}, noJobsExplanation: "" };
   const providerSettings = dailyScoutExecutionPlan.publicProviderBoundary?.providerSettings || companySettings.apexAgentAutomationPolicy?.publicLeadProviderSettings || {};
   const dailyJobFinderAutopilotSettings = providerSettings.dailyJobFinderAutopilot || {};
   const providerContract = dailyScoutExecutionPlan.publicProviderBoundary?.providerContract || {};
@@ -3826,6 +3829,94 @@ function CopilotPagePolished({
                     <small>{lane.actionLabel}</small>
                   </button>
                 ))}
+              </div>
+            </div>
+
+            <div className="co-ai-scout-grid border-b border-slate-200 bg-white">
+              <div className="co-ai-scout-status" data-tone={dailyReviewInbox.rows.length ? "green" : dailySourceMonitoring.missedSourceAlerts?.length ? "amber" : "slate"}>
+                <span>Morning review inbox</span>
+                <strong>{dailyReviewInbox.rows.length} contractor review row{dailyReviewInbox.rows.length === 1 ? "" : "s"}</strong>
+                <p>{dailyReviewInbox.rows.length ? "Apex Agent found or prepared rows that still need human review before any lead, contact, or bid action." : dailyReviewInbox.emptyState || dailySourceMonitoring.noJobsExplanation || "No review rows yet."}</p>
+                <div className="co-ai-scout-metrics">
+                  <div><em>{dailyReviewInbox.stats?.highFitRows || 0}</em><span>high fit</span></div>
+                  <div><em>{dailyReviewInbox.stats?.missingInfoRows || 0}</em><span>needs info</span></div>
+                  <div><em>{dailyReviewInbox.stats?.duplicateWarningRows || 0}</em><span>dupe risk</span></div>
+                </div>
+                <div className="co-ai-scout-checks">
+                  <small>{dailySourceMonitoring.noJobsExplanation || "Source monitoring will explain empty mornings after daily runs."}</small>
+                  <small>External actions locked: {dailyReviewInbox.externalActionsLocked === false ? "review required" : "yes"}</small>
+                </div>
+              </div>
+              <div className="co-ai-scout-briefs">
+                <SectionHeader title="Review Rows" description="Rows can become Found Opportunity drafts only after a contractor reviews source proof, missing info, and duplicate warnings." />
+                <div className="co-ai-scout-brief-list">
+                  {dailyReviewInbox.rows.slice(0, 6).map((row) => (
+                    <div key={row.id} className="co-ai-scout-brief" data-tone={row.tone || "slate"}>
+                      <div className="min-w-0">
+                        <span>{String(row.type || "review").replace(/_/g, " ")}</span>
+                        <strong>{row.title}</strong>
+                        <p>{row.fitReason || row.sourceProof?.[0] || "Human review required."}</p>
+                        <em>{row.sourceName || "Source"} / fit {row.fitScore || 0}</em>
+                      </div>
+                      <div className="co-ai-scout-brief-actions">
+                        <Badge tone={row.duplicateWarnings?.length ? "amber" : row.missingInfoItems?.length ? "orange" : "green"}>
+                          {row.primaryAction || "Review"}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                  {!dailyReviewInbox.rows.length ? (
+                    <StateCard title="No review rows yet" description={dailySourceMonitoring.noJobsExplanation || "Finish source setup or run daily prep to populate the contractor review inbox."} tone="slate" />
+                  ) : null}
+                </div>
+                <div className="co-ai-scout-checks">
+                  {dailyReviewInbox.rows.slice(0, 4).flatMap((row) => [
+                    ...(row.sourceProof?.slice(0, 1) || []).map((proof) => <small key={`${row.id}-proof-${proof}`}>Proof: {proof}</small>),
+                    ...(row.missingInfoItems?.slice(0, 1) || []).map((item) => <small key={`${row.id}-missing-${item}`}>Missing: {item}</small>),
+                    ...(row.duplicateWarnings?.slice(0, 1) || []).map((item) => <small key={`${row.id}-dupe-${item}`}>{item}</small>),
+                  ])}
+                </div>
+              </div>
+            </div>
+
+            <div className="co-ai-scout-grid border-b border-slate-200 bg-slate-50/80">
+              <div className="co-ai-scout-status" data-tone={productionSourceSetupBoard.stats?.eligiblePublicSources ? "green" : "amber"}>
+                <span>Production source setup</span>
+                <strong>{productionSourceSetupBoard.stats?.eligiblePublicSources || 0} eligible public source{productionSourceSetupBoard.stats?.eligiblePublicSources === 1 ? "" : "s"}</strong>
+                <p>Approved public no-login sources can feed the morning review inbox. Private or login sources stay as contractor-operated handoffs.</p>
+                <div className="co-ai-scout-metrics">
+                  <div><em>{productionSourceSetupBoard.stats?.publicSources || 0}</em><span>public</span></div>
+                  <div><em>{productionSourceSetupBoard.stats?.privateHandoffSources || 0}</em><span>handoff</span></div>
+                  <div><em>{productionSourceSetupBoard.stats?.setupDrafts || 0}</em><span>drafts</span></div>
+                </div>
+                <div className="co-ai-scout-checks">
+                  {productionSourceSetupBoard.operatorNextSteps?.slice(0, 3).map((step) => <small key={step}>{step}</small>)}
+                </div>
+              </div>
+              <div className="co-ai-scout-briefs">
+                <SectionHeader title="Source Health" description="Apex explains why a source can run, needs setup, or must stay in private handoff." />
+                <div className="co-ai-scout-brief-list">
+                  {dailySourceMonitoring.sourceHealthRows.slice(0, 6).map((row) => (
+                    <div key={row.id} className="co-ai-scout-brief" data-tone={row.tone || "slate"}>
+                      <div className="min-w-0">
+                        <span>{String(row.status || "review").replace(/_/g, " ")}</span>
+                        <strong>{row.label}</strong>
+                        <p>{row.detail}</p>
+                        <em>No cold calls, login automation, auto-save, bids, payments, schedules, or integrations.</em>
+                      </div>
+                    </div>
+                  ))}
+                  {dailySourceMonitoring.missedSourceAlerts.slice(0, 4).map((alert) => (
+                    <div key={alert.id} className="co-ai-scout-brief" data-tone={alert.tone || "amber"}>
+                      <div className="min-w-0">
+                        <span>missed source</span>
+                        <strong>{alert.label}</strong>
+                        <p>{alert.reason}</p>
+                        <em>{alert.nextStep}</em>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 

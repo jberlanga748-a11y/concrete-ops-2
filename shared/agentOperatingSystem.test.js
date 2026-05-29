@@ -38,8 +38,11 @@ import {
   buildAgentLeadsControlledDailyPublicRunPreflight,
   buildAgentLeadsControlledDailyPublicRunEvidencePrep,
   buildAgentLeadsControlledDailyPublicRunOutcomeLoop,
+  buildAgentLeadsDailyReviewInbox,
+  buildAgentLeadsDailySourceMonitoring,
   buildAgentLeadsLocalCompletionReadiness,
   buildAgentLeadsProductionReadinessGate,
+  buildAgentLeadsProductionSourceSetupBoard,
   buildAgentOsOperatorControlPanel,
   buildAgentLeadsSourceCoveragePlanner,
   buildAgentLeadsSourceExpansionControls,
@@ -1988,6 +1991,106 @@ test("Agent OS v40 production readiness gate requires release evidence and keeps
   assert.equal(readyGate.readyForProductionAutonomy, false);
   assert.equal(readyGate.externalActionLocks.customerContactEnabled, false);
   assert.match(readyGate.safetyBoundary, /never enables production autonomy/i);
+});
+
+test("Agent OS v41 builds production source setup, review inbox, and no-jobs monitoring without external actions", () => {
+  const sourceSetup = buildAgentLeadsProductionSourceSetupBoard({
+    sourceCoveragePlanner: {
+      coverageScore: 72,
+      recommendations: [{ id: "rec-private", label: "Add private group handoff", posture: "private_human_handoff", reason: "Local groups still need human evidence." }],
+    },
+    liveSourceSetupReadiness: {
+      sourceRows: [{ id: "ready-1", sourceName: "City bids", posture: "public_no_login", status: "ready_for_review_only_daily_prep", tone: "green" }],
+    },
+    realPublicSourceConfigActivation: {
+      approvedPublicSourceConfigs: [{
+        id: "public-1",
+        sourceName: "City procurement",
+        sourceUrl: "https://city.example/bids",
+        connectorId: "public_procurement_search",
+        connectorLabel: "Public procurement",
+        readiness: "eligible_for_tomorrow_read_only_public_run",
+        termsStatus: "approved",
+        eligibility: { eligible: true, blockedReasons: [] },
+      }],
+      blockedPrivateOrLoginSources: [{
+        id: "private-1",
+        sourceName: "Facebook private group",
+        status: "blocked_from_public_run",
+        reason: "Private group requires human review.",
+        allowedNextStep: "Use private handoff.",
+      }],
+    },
+    providerSettings: { mode: "live_locked", dailyBudget: 3, enabledConnectorIds: ["public_procurement_search"] },
+    today: "2026-05-29",
+  });
+  const inbox = buildAgentLeadsDailyReviewInbox({
+    providerReviewImportQueue: [{
+      id: "provider-review-1",
+      providerResultId: "RESULT-1",
+      providerAttemptId: "ATTEMPT-1",
+      provider: "Public procurement",
+      connectorId: "public_procurement_search",
+      title: "Sidewalk repair bid",
+      snippet: "Public bid notice for concrete repair.",
+      fitScore: 84,
+      duplicateRisk: "possible",
+      sourceUrl: "https://city.example/bids/sidewalk",
+      draftPreview: { missingInfoItems: ["Confirm bid due date"], fitExplanation: "Concrete repair in service area." },
+    }],
+    foundDraftQueue: [{
+      id: "found-draft-1",
+      title: "Plan room docs needed",
+      sourceName: "Forwarded invite",
+      result: "missing_docs",
+      checkedAt: "2026-05-29",
+      draftPreview: { title: "Plan room docs needed", humanReviewStatus: "needs_info", missingInfoItems: ["Plans"] },
+    }],
+    privateHandoffCards: [{
+      id: "private-card-1",
+      title: "Facebook private group",
+      sourceConnector: { label: "Facebook private group" },
+      checklist: ["Authorized human opens group", "Paste safe evidence only"],
+    }],
+    rejectedProviderResults: [{ id: "reject-1", title: "Out of area job", reason: "Outside service area." }],
+    dailyRunRecord: { id: "daily-agent-leads-2026-05-29" },
+    today: "2026-05-29",
+  });
+  const monitoring = buildAgentLeadsDailySourceMonitoring({
+    productionSourceSetupBoard: sourceSetup,
+    dailyReviewInbox: inbox,
+    providerAttempts: [{ attemptId: "ATTEMPT-1", provider: "Public procurement", status: "ok" }],
+    dailyRunRecord: { id: "daily-agent-leads-2026-05-29" },
+    today: "2026-05-29",
+  });
+  const emptyMonitoring = buildAgentLeadsDailySourceMonitoring({
+    productionSourceSetupBoard: { stats: { eligiblePublicSources: 0 }, rows: [] },
+    dailyReviewInbox: { stats: { totalRows: 0 } },
+    today: "2026-05-29",
+  });
+
+  assert.equal(sourceSetup.mode, "agent_leads_production_source_setup_board_v41");
+  assert.equal(sourceSetup.status, "ready_for_daily_review_runs");
+  assert.equal(sourceSetup.stats.eligiblePublicSources, 1);
+  assert.equal(sourceSetup.stats.privateHandoffSources, 1);
+  assert.equal(sourceSetup.externalActionsLocked, true);
+  assert.equal(sourceSetup.leadAutoSaveEnabled, false);
+  assert.equal(sourceSetup.customerContactEnabled, false);
+  assert.equal(sourceSetup.bidSubmissionEnabled, false);
+
+  assert.equal(inbox.mode, "agent_leads_daily_review_inbox_v41");
+  assert.equal(inbox.status, "has_review_work");
+  assert.equal(inbox.stats.totalRows, 4);
+  assert.equal(inbox.stats.highFitRows, 1);
+  assert.equal(inbox.stats.duplicateWarningRows, 1);
+  assert.equal(inbox.rows.every((row) => row.canAutoSave === false && row.canCreateLeadDirectly === false), true);
+  assert.match(inbox.safetyBoundary, /cannot create leads, contact anyone, submit bids/i);
+
+  assert.equal(monitoring.mode, "agent_leads_daily_source_monitoring_v41");
+  assert.equal(monitoring.status, "review_rows_ready");
+  assert.match(monitoring.noJobsExplanation, /4 review inbox row/i);
+  assert.equal(monitoring.externalActionsLocked, true);
+  assert.match(emptyMonitoring.noJobsExplanation, /No eligible public no-login source/i);
 });
 
 test("Agent OS v9 public-source provider adapters fetch safe public URLs into review queue only", async () => {
