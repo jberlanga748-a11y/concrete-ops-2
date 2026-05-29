@@ -13440,9 +13440,9 @@ export default function App() {
     runMutation(() => endBreak(sessionToken, timeEntryId));
   }
 
-  function handleClockOut(timeEntryId) {
+  function handleClockOut(timeEntryId, payload = {}) {
     if (!appState.permissions.time.canManageOwn) return;
-    runMutation(() => clockOut(sessionToken, timeEntryId));
+    runMutation(() => clockOut(sessionToken, timeEntryId, payload));
   }
 
   function handleSaveTimeEntry() {

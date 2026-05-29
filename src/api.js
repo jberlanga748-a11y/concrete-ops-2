@@ -939,8 +939,8 @@ export function endBreak(token, id) {
   return request(`/api/time-entries/${id}/break-end`, { method: "POST", token });
 }
 
-export function clockOut(token, id) {
-  return request(`/api/time-entries/${id}/clock-out`, { method: "POST", token });
+export function clockOut(token, id, payload = {}) {
+  return request(`/api/time-entries/${id}/clock-out`, { method: "POST", token, body: payload });
 }
 
 export function correctTimeEntry(token, id, payload) {

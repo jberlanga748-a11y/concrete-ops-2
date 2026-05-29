@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildTimeTrackingSupportContext, deriveCrewWeeklySummary, deriveTimeJobCostingReadiness, deriveTimeWorkspace, deriveWeeklySummary, findActiveTimeEntry, formatMinutes, sortTimeEntries, timeStatusTone } from "./time-utils.js";
+import { buildTimeTrackingSupportContext, deriveCrewWeeklySummary, deriveTimeJobCostingReadiness, deriveTimeWorkspace, deriveWeeklySummary, findActiveTimeEntry, formatMinutes, sortTimeEntries, timeLocationEvidencePayload, timeLocationStatusLabel, timeStatusTone } from "./time-utils.js";
 
 const SAMPLE_ENTRIES = [
   {
@@ -202,4 +202,34 @@ test("formatMinutes and timeStatusTone provide compact field-friendly labels", (
   assert.equal(timeStatusTone("active"), "blue");
   assert.equal(timeStatusTone("on_break"), "amber");
   assert.equal(timeStatusTone("completed"), "green");
+});
+
+test("time location helpers label captured, denied, unavailable, and payload evidence", () => {
+  assert.equal(timeLocationStatusLabel({
+    clockInLatitude: 44.94,
+    clockInLongitude: -123.03,
+  }, "clockIn"), "Location captured");
+  assert.equal(timeLocationStatusLabel({
+    clockOutLocationUnavailableReason: "Location permission denied by user.",
+  }, "clockOut"), "Location denied");
+  assert.equal(timeLocationStatusLabel({
+    clockOutLocationUnavailableReason: "Location request timed out.",
+  }, "clockOut"), "Location timed out");
+  assert.equal(timeLocationStatusLabel({
+    clockInLocationUnavailableReason: "Location unavailable on this device.",
+  }, "clockIn"), "Location unavailable");
+  assert.equal(timeLocationStatusLabel({}, "clockIn"), "Not requested");
+
+  assert.deepEqual(timeLocationEvidencePayload("clockIn", {
+    latitude: 44.94,
+    longitude: -123.03,
+    locationAccuracy: 9,
+    locationCapturedAt: "2026-05-29T15:00:00.000Z",
+  }), {
+    clockInLatitude: 44.94,
+    clockInLongitude: -123.03,
+    clockInLocationAccuracy: 9,
+    clockInLocationCapturedAt: "2026-05-29T15:00:00.000Z",
+    clockInLocationUnavailableReason: "",
+  });
 });

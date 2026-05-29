@@ -4040,6 +4040,40 @@ function applyTimeEntryTotals(entry) {
   return entry;
 }
 
+function normalizeTimeEntryLocationEvidence(payload = {}, prefix, label, fallbackCapturedAt = "") {
+  const latitude = optionalNumberInRange(payload[`${prefix}Latitude`] ?? payload.latitude, `${label} latitude`, { min: -90, max: 90 });
+  const longitude = optionalNumberInRange(payload[`${prefix}Longitude`] ?? payload.longitude, `${label} longitude`, { min: -180, max: 180 });
+  const locationAccuracy = optionalNumberInRange(payload[`${prefix}LocationAccuracy`] ?? payload.locationAccuracy, `${label} location accuracy`, { min: 0, max: 100000 });
+  const locationUnavailableReason = optionalString(payload[`${prefix}LocationUnavailableReason`] ?? payload.locationUnavailableReason, "");
+  const hasLatitude = latitude != null;
+  const hasLongitude = longitude != null;
+  const hasCoordinates = hasLatitude && hasLongitude;
+
+  if (hasLatitude !== hasLongitude) {
+    throw new ApiError(400, `${label} location requires both latitude and longitude.`);
+  }
+  if (!hasCoordinates && locationAccuracy != null) {
+    throw new ApiError(400, `${label} location accuracy requires latitude and longitude.`);
+  }
+
+  const requestedCapturedAt = payload[`${prefix}LocationCapturedAt`] ?? payload.locationCapturedAt;
+  const locationCapturedAt = optionalDateTimeString(requestedCapturedAt, `${label} location captured at`, hasCoordinates ? fallbackCapturedAt : "");
+
+  return {
+    [`${prefix}Latitude`]: hasCoordinates ? latitude : null,
+    [`${prefix}Longitude`]: hasCoordinates ? longitude : null,
+    [`${prefix}LocationAccuracy`]: hasCoordinates ? locationAccuracy : null,
+    [`${prefix}LocationCapturedAt`]: hasCoordinates ? locationCapturedAt : "",
+    [`${prefix}LocationUnavailableReason`]: hasCoordinates ? "" : locationUnavailableReason,
+  };
+}
+
+function timeEntryLocationChangedFields(prefix, evidence = {}) {
+  const hasCoordinates = evidence[`${prefix}Latitude`] != null && evidence[`${prefix}Longitude`] != null;
+  const hasUnavailableReason = Boolean(evidence[`${prefix}LocationUnavailableReason`]);
+  return hasCoordinates || hasUnavailableReason ? [`${prefix}Location`] : [];
+}
+
 function assertTimeEntryCategoryPayload(user, workCategory, job) {
   if (!canUseSelfTimeCategory(user, workCategory)) {
     throw new ApiError(403, "You do not have permission to clock time in that work category.");
@@ -4103,6 +4137,16 @@ function sanitizeTimeEntry(entry, state, user) {
     foremanAssignment: fieldSafeJob?.foremanAssignment || null,
     clockInAt: entry.clockInAt,
     clockOutAt: entry.clockOutAt || "",
+    clockInLatitude: entry.clockInLatitude == null ? null : Number(entry.clockInLatitude),
+    clockInLongitude: entry.clockInLongitude == null ? null : Number(entry.clockInLongitude),
+    clockInLocationAccuracy: entry.clockInLocationAccuracy == null ? null : Number(entry.clockInLocationAccuracy),
+    clockInLocationCapturedAt: entry.clockInLocationCapturedAt || "",
+    clockInLocationUnavailableReason: entry.clockInLocationUnavailableReason || "",
+    clockOutLatitude: entry.clockOutLatitude == null ? null : Number(entry.clockOutLatitude),
+    clockOutLongitude: entry.clockOutLongitude == null ? null : Number(entry.clockOutLongitude),
+    clockOutLocationAccuracy: entry.clockOutLocationAccuracy == null ? null : Number(entry.clockOutLocationAccuracy),
+    clockOutLocationCapturedAt: entry.clockOutLocationCapturedAt || "",
+    clockOutLocationUnavailableReason: entry.clockOutLocationUnavailableReason || "",
     breakStartAt: entry.breakStartAt || "",
     breakEndAt: entry.breakEndAt || "",
     totalMinutes,
@@ -16817,6 +16861,7 @@ app.post("/api/time-entries/clock-in", requireAuth, asyncRoute(async (req, res) 
     const jobId = workCategory === "job" ? requiredString(payload.jobId, "Job") : optionalString(payload.jobId, "");
     const job = jobId ? findCompanyScopedRecord(draft.jobs, jobId, req.auth.user, draft, "Job") : null;
     assertTimeEntryCategoryPayload(req.auth.user, workCategory, job);
+    const clockInLocation = normalizeTimeEntryLocationEvidence(payload, "clockIn", "Clock-in", changedAt);
 
     const entry = applyTimeEntryTotals({
       id: makeId("T"),
@@ -16832,6 +16877,12 @@ app.post("/api/time-entries/clock-in", requireAuth, asyncRoute(async (req, res) 
       breakMinutes: 0,
       status: "active",
       notes: optionalString(payload.notes, ""),
+      ...clockInLocation,
+      clockOutLatitude: null,
+      clockOutLongitude: null,
+      clockOutLocationAccuracy: null,
+      clockOutLocationCapturedAt: "",
+      clockOutLocationUnavailableReason: "",
       createdAt: changedAt,
       updatedAt: changedAt,
     });
@@ -16845,7 +16896,7 @@ app.post("/api/time-entries/clock-in", requireAuth, asyncRoute(async (req, res) 
       summary: "Time clocked in",
       detail: `${req.auth.user.name} clocked in to ${job ? normalizeJobRecord(job).title : workCategory.replaceAll("_", " ")}.`,
       actor: req.auth.user,
-      changedFields: ["clockInAt", "status", "workCategory"],
+      changedFields: ["clockInAt", "status", "workCategory", ...timeEntryLocationChangedFields("clockIn", clockInLocation)],
     });
     return draft;
   });
@@ -16931,6 +16982,7 @@ app.post("/api/time-entries/:id/break-end", requireAuth, asyncRoute(async (req, 
 app.post("/api/time-entries/:id/clock-out", requireAuth, asyncRoute(async (req, res) => {
   assertCanManageOwnTime(req.auth.user);
   const { id } = req.params;
+  const payload = req.body || {};
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
@@ -16947,7 +16999,9 @@ app.post("/api/time-entries/:id/clock-out", requireAuth, asyncRoute(async (req, 
       entry.breakEndAt = changedAt;
     }
 
+    const clockOutLocation = normalizeTimeEntryLocationEvidence(payload, "clockOut", "Clock-out", changedAt);
     entry.clockOutAt = changedAt;
+    Object.assign(entry, clockOutLocation);
     entry.updatedAt = changedAt;
     applyTimeEntryTotals(entry);
 
@@ -16960,7 +17014,7 @@ app.post("/api/time-entries/:id/clock-out", requireAuth, asyncRoute(async (req, 
       summary: "Time clocked out",
       detail: `${req.auth.user.name} clocked out.`,
       actor: req.auth.user,
-      changedFields: ["clockOutAt", "totalMinutes", "status"],
+      changedFields: ["clockOutAt", "totalMinutes", "status", ...timeEntryLocationChangedFields("clockOut", clockOutLocation)],
     });
     return draft;
   });

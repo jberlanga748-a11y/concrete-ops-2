@@ -252,6 +252,10 @@ test("employees and foremen can track field time with proper visibility and brea
         workCategory: "job",
         jobId: "J-2201",
         notes: "Started on site prep",
+        clockInLatitude: 44.95621,
+        clockInLongitude: -123.03481,
+        clockInLocationAccuracy: 8,
+        clockInLocationCapturedAt: "2026-05-29T15:00:00.000Z",
       }),
     });
     const activeEntry = clockedInState.timeEntries.find((entry) => entry.userId === employeeUser.id);
@@ -259,6 +263,20 @@ test("employees and foremen can track field time with proper visibility and brea
     assert.equal(activeEntry.status, "active");
     assert.equal(activeEntry.jobId, "J-2201");
     assert.equal(activeEntry.workCategory, "job");
+    assert.equal(activeEntry.clockInLatitude, 44.95621);
+    assert.equal(activeEntry.clockInLongitude, -123.03481);
+    assert.equal(activeEntry.clockInLocationAccuracy, 8);
+    assert.equal(activeEntry.clockInLocationCapturedAt, "2026-05-29T15:00:00.000Z");
+    assert.equal(activeEntry.clockInLocationUnavailableReason, "");
+
+    const invalidClockOutLocation = await requestJson(fixture.baseUrl, `/api/time-entries/${activeEntry.id}/clock-out`, {
+      method: "POST",
+      headers: employeeHeaders,
+      body: JSON.stringify({
+        clockOutLatitude: 44.95622,
+      }),
+    });
+    assert.equal(invalidClockOutLocation.response.status, 400);
 
     const duplicateClockIn = await requestJson(fixture.baseUrl, "/api/time-entries/clock-in", {
       method: "POST",
@@ -287,11 +305,17 @@ test("employees and foremen can track field time with proper visibility and brea
     const clockedOutState = await assertOk(fixture.baseUrl, `/api/time-entries/${activeEntry.id}/clock-out`, {
       method: "POST",
       headers: employeeHeaders,
+      body: JSON.stringify({
+        clockOutLocationUnavailableReason: "Location permission denied by user.",
+      }),
     });
     const completedEntry = clockedOutState.timeEntries.find((entry) => entry.id === activeEntry.id);
     assert.equal(completedEntry.status, "completed");
     assert.ok(completedEntry.totalMinutes >= 0);
     assert.ok(completedEntry.breakMinutes >= 0);
+    assert.equal(completedEntry.clockOutLatitude, null);
+    assert.equal(completedEntry.clockOutLongitude, null);
+    assert.equal(completedEntry.clockOutLocationUnavailableReason, "Location permission denied by user.");
 
     const employeeTime = await assertOk(fixture.baseUrl, "/api/time-entries", {
       headers: employeeHeaders,

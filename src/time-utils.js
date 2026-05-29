@@ -40,6 +40,33 @@ function timeWorkCategoryLabel(category) {
     .replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
+function prefixedLocationValue(item = {}, prefix = "", field = "") {
+  const prefixedKey = prefix ? `${prefix}${field}` : field.charAt(0).toLowerCase() + field.slice(1);
+  return item?.[prefixedKey];
+}
+
+export function timeLocationStatusLabel(item = {}, prefix = "") {
+  const latitude = prefixedLocationValue(item, prefix, "Latitude");
+  const longitude = prefixedLocationValue(item, prefix, "Longitude");
+  if (latitude != null && longitude != null) return "Location captured";
+
+  const reason = String(prefixedLocationValue(item, prefix, "LocationUnavailableReason") || "").trim().toLowerCase();
+  if (!reason) return "Not requested";
+  if (reason.includes("denied")) return "Location denied";
+  if (reason.includes("timeout") || reason.includes("timed out")) return "Location timed out";
+  return "Location unavailable";
+}
+
+export function timeLocationEvidencePayload(prefix, evidence = {}) {
+  return {
+    [`${prefix}Latitude`]: evidence.latitude ?? null,
+    [`${prefix}Longitude`]: evidence.longitude ?? null,
+    [`${prefix}LocationAccuracy`]: evidence.locationAccuracy ?? null,
+    [`${prefix}LocationCapturedAt`]: evidence.locationCapturedAt || "",
+    [`${prefix}LocationUnavailableReason`]: evidence.locationUnavailableReason || "",
+  };
+}
+
 export function sortTimeEntries(entries) {
   return [...(entries || [])].sort((left, right) => new Date(right.clockInAt).getTime() - new Date(left.clockInAt).getTime());
 }

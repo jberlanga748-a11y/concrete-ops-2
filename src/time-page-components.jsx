@@ -4,8 +4,8 @@ import { Badge, Button, Card, Icon, PageHeader, SectionHeader, StateCard } from 
 import { ModuleKpiStrip } from "./command-center-route-components";
 import { jobTitle } from "./job-utils";
 import { workCategoryLabel } from "./time-category-utils";
-import { buildTimeTrackingSupportContext, deriveCrewWeeklySummary, deriveTimeJobCostingReadiness, deriveTimeWorkspace, formatMinutes } from "./time-utils";
-import { ActiveTimeCard, RecentTimeEntriesCard, TimeCommandRailPolished, TimeCorrectionPanel, TimeDesktopCommandShell, TimeEntriesTable, TimeEntriesTablePolished, TimeEntryCard, TimeKpiCardPolished, TimeMobileAccordionCard, TimeStatusBadge, TimeSummaryMetricsPolished, WeekSummaryCard } from "./time-route-components";
+import { buildTimeTrackingSupportContext, deriveCrewWeeklySummary, deriveTimeJobCostingReadiness, deriveTimeWorkspace, formatMinutes, timeLocationEvidencePayload } from "./time-utils";
+import { ActiveTimeCard, RecentTimeEntriesCard, TimeCommandRailPolished, TimeCorrectionPanel, TimeDesktopCommandShell, TimeEntriesTable, TimeEntriesTablePolished, TimeEntryCard, TimeKpiCardPolished, TimeLocationCaptureControl, TimeMobileAccordionCard, TimeStatusBadge, TimeSummaryMetricsPolished, WeekSummaryCard } from "./time-route-components";
 
 function useDesktopCommandViewport(minWidth = 1024) {
   const [matches, setMatches] = useState(() => {
@@ -37,6 +37,14 @@ function isSameLocalDate(value, compareDate = new Date()) {
     && parsed.getDate() === compareDate.getDate();
 }
 
+const EMPTY_TIME_LOCATION_EVIDENCE = {
+  latitude: null,
+  longitude: null,
+  locationAccuracy: null,
+  locationCapturedAt: "",
+  locationUnavailableReason: "",
+};
+
 function TimeFieldMobileCommand({
   workspace,
   boardRows,
@@ -49,6 +57,8 @@ function TimeFieldMobileCommand({
   onStartBreak,
   onEndBreak,
 }) {
+  const [clockInLocation, setClockInLocation] = useState(EMPTY_TIME_LOCATION_EVIDENCE);
+  const [clockOutLocation, setClockOutLocation] = useState(EMPTY_TIME_LOCATION_EVIDENCE);
   const activeEntry = workspace.activeEntry;
   const todayEntries = workspace.ownEntries.filter((entry) => isSameLocalDate(entry.clockInAt));
   const todayMinutes = todayEntries.reduce((sum, entry) => sum + Number(entry.totalMinutes || 0), 0);
@@ -83,7 +93,14 @@ function TimeFieldMobileCommand({
       workCategory: quickCategory,
       jobId: quickCategory === "job" ? quickJob.id : "",
       notes: "",
+      ...timeLocationEvidencePayload("clockIn", clockInLocation),
     });
+    setClockInLocation(EMPTY_TIME_LOCATION_EVIDENCE);
+  }
+
+  function handleClockOut() {
+    if (!activeEntry?.id) return;
+    onClockOut(activeEntry.id, timeLocationEvidencePayload("clockOut", clockOutLocation));
   }
 
   return (
@@ -120,7 +137,7 @@ function TimeFieldMobileCommand({
                   Break
                 </Button>
               )}
-              <Button type="button" className="co-time-field-mobile-secondary" variant="secondary" onClick={() => onClockOut(activeEntry.id)} disabled={busy}>
+              <Button type="button" className="co-time-field-mobile-secondary" variant="secondary" onClick={handleClockOut} disabled={busy}>
                 <Icon name="check" />
                 Clock out
               </Button>
@@ -131,6 +148,14 @@ function TimeFieldMobileCommand({
               Clock in now
             </Button>
           )}
+        </div>
+        <div className="mt-3">
+          <TimeLocationCaptureControl
+            evidence={activeEntry ? clockOutLocation : clockInLocation}
+            onChange={activeEntry ? setClockOutLocation : setClockInLocation}
+            disabled={busy}
+            action={activeEntry ? "clock-out" : "clock-in"}
+          />
         </div>
       </div>
 
