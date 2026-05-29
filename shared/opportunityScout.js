@@ -6,6 +6,10 @@ export const OPPORTUNITY_SOURCE_ACCESS_STATUSES = ["clear_for_review", "needs_hu
 
 export const OPPORTUNITY_SOURCE_TERMS_STATUSES = ["unreviewed", "public_allowed", "human_review_required", "blocked"];
 
+export const OPPORTUNITY_SOURCE_AUTHORIZATION_STATUSES = ["not_required", "needs_authorization", "authorized_for_human_session", "oauth_or_api_required", "blocked"];
+
+export const OPPORTUNITY_SOURCE_POSTURES = ["public_no_login", "official_api_only", "private_human_handoff", "blocked_terms_review"];
+
 export const OPPORTUNITY_SEARCH_PROFILE_STARTERS = [
   {
     id: "public-bid-scan",
@@ -15,10 +19,13 @@ export const OPPORTUNITY_SEARCH_PROFILE_STARTERS = [
     trades: ["concrete", "fencing", "decking", "siding", "sitework"],
     serviceAreas: ["Primary service area"],
     sourceTypes: ["Public bid portal", "City/county/school bid page", "Plan room"],
+    projectTypes: ["public sidewalk", "ADA repair", "commercial concrete"],
+    preferredSources: ["city bid page", "county procurement", "school district bids"],
     keywords: ["sidewalk", "repair", "RFP", "bid invite", "addenda"],
     excludedKeywords: ["roofing", "asbestos", "hazmat"],
     cadence: "daily",
     radiusMiles: 40,
+    minimumProjectValue: 0,
     notes: "Check saved public sources, confirm bid date and plan access, then save only real opportunities.",
   },
   {
@@ -29,10 +36,13 @@ export const OPPORTUNITY_SEARCH_PROFILE_STARTERS = [
     trades: ["concrete", "fencing", "decking", "siding", "exterior repair"],
     serviceAreas: ["Primary service area"],
     sourceTypes: ["GC portal", "Builder/developer", "Plan room"],
+    projectTypes: ["subcontractor scope", "commercial repair", "builder invite"],
+    preferredSources: ["builder invite", "plan room", "GC portal"],
     keywords: ["bid invite", "scope", "walk-through", "subcontractor", "proposal due"],
     excludedKeywords: ["labor only", "outside service area"],
     cadence: "daily",
     radiusMiles: 50,
+    minimumProjectValue: 0,
     notes: "Review GC portals and inbox leads for scope fit, due date, required forms, and estimator owner.",
   },
   {
@@ -42,12 +52,32 @@ export const OPPORTUNITY_SEARCH_PROFILE_STARTERS = [
     name: "Private job signal scan",
     trades: ["concrete", "fencing", "decking", "siding", "landscaping"],
     serviceAreas: ["Primary service area"],
-    sourceTypes: ["Website lead", "Referral source", "Maps/reviews", "Community group"],
+    sourceTypes: ["Website lead", "Referral source", "Maps/reviews", "Public social page", "Community classifieds"],
+    projectTypes: ["repair", "replacement", "estimate request"],
+    preferredSources: ["website lead", "referral source", "public local board"],
     keywords: ["estimate request", "repair", "replacement", "near me", "contractor"],
     excludedKeywords: ["free", "DIY", "employment"],
     cadence: "daily",
     radiusMiles: 30,
+    minimumProjectValue: 0,
     notes: "Review inbound and local signals manually. Create leads only after confirming a real project and safe follow-up path.",
+  },
+  {
+    id: "social-community-handoff",
+    label: "Social/Community",
+    description: "Facebook, neighborhood, classifieds, and private group job signals with strict handoff gates.",
+    name: "Social and community job scan",
+    trades: ["concrete", "fencing", "decking", "siding", "handyman"],
+    serviceAreas: ["Primary service area"],
+    sourceTypes: ["Facebook public page", "Facebook private group", "Facebook Marketplace", "Craigslist/local board", "Nextdoor/private community"],
+    projectTypes: ["repair", "replacement", "recommendation request"],
+    preferredSources: ["public Facebook page", "Craigslist/local board", "community classifieds"],
+    keywords: ["looking for contractor", "need estimate", "recommendation", "repair", "replace"],
+    excludedKeywords: ["job opening", "hiring", "DIY", "free quote spam"],
+    cadence: "daily",
+    radiusMiles: 25,
+    minimumProjectValue: 0,
+    notes: "Public pages and classifieds can be reviewed from public links. Private groups, Nextdoor, and login-required communities stay human handoff only.",
   },
   {
     id: "relationship-follow-up",
@@ -57,10 +87,13 @@ export const OPPORTUNITY_SEARCH_PROFILE_STARTERS = [
     trades: ["concrete", "fencing", "decking", "siding", "exterior repair"],
     serviceAreas: ["Primary service area"],
     sourceTypes: ["Referral source", "Property manager", "Builder/developer", "Supplier relationship"],
+    projectTypes: ["maintenance", "repair", "upcoming project"],
+    preferredSources: ["property manager", "builder", "supplier relationship"],
     keywords: ["follow up", "upcoming work", "maintenance", "repair", "project timing"],
     excludedKeywords: ["no fit"],
     cadence: "weekly",
     radiusMiles: 40,
+    minimumProjectValue: 0,
     notes: "Check warm relationships for real timing, scope, decision maker, and next human follow-up.",
   },
 ];
@@ -128,6 +161,86 @@ export const OPPORTUNITY_SCOUT_SOURCE_ADAPTERS = [
     allowedActions: ["prepare search brief", "open source for human review", "save public evidence"],
   },
   {
+    id: "facebook_public_page",
+    label: "Facebook public page",
+    sourceType: "Public social source",
+    authMode: "public_only",
+    status: "manual_review",
+    allowedActions: ["prepare public search brief", "open public page for human review", "save public evidence"],
+  },
+  {
+    id: "facebook_marketplace",
+    label: "Facebook Marketplace",
+    sourceType: "Public or login-gated marketplace listing",
+    authMode: "public_or_human_session",
+    status: "manual_review",
+    allowedActions: ["prepare public listing search", "stop if login is required", "save non-secret evidence"],
+  },
+  {
+    id: "craigslist_local_board",
+    label: "Craigslist/local board",
+    sourceType: "Local public classifieds",
+    authMode: "public_only",
+    status: "manual_review",
+    allowedActions: ["prepare public search brief", "review local listings", "save public evidence"],
+  },
+  {
+    id: "community_classifieds",
+    label: "Community classifieds",
+    sourceType: "Public local community board",
+    authMode: "public_only",
+    status: "manual_review",
+    allowedActions: ["prepare public community-board search", "review public postings", "save public evidence"],
+  },
+  {
+    id: "facebook_private_group",
+    label: "Facebook private group",
+    sourceType: "Private social community",
+    authMode: "authorized_human_session",
+    status: "human_required",
+    allowedActions: ["create human source handoff", "store non-secret review notes", "stop at login or group access controls"],
+  },
+  {
+    id: "nextdoor_private",
+    label: "Nextdoor/private community",
+    sourceType: "Private neighborhood community",
+    authMode: "authorized_human_session",
+    status: "human_required",
+    allowedActions: ["create human source handoff", "store non-secret review notes", "stop at login or community access controls"],
+  },
+  {
+    id: "gc_portal",
+    label: "GC portal",
+    sourceType: "General contractor portal",
+    authMode: "authorized_human_session",
+    status: "human_required",
+    allowedActions: ["create human source handoff", "store non-secret review notes", "stop at login, MFA, CAPTCHA, or unclear terms"],
+  },
+  {
+    id: "private_plan_room",
+    label: "Private plan room",
+    sourceType: "Restricted plan room",
+    authMode: "authorized_human_session",
+    status: "human_required",
+    allowedActions: ["create human source handoff", "store non-secret review notes", "stop at restricted documents or unclear terms"],
+  },
+  {
+    id: "forwarded_bid_invite",
+    label: "Forwarded bid invite",
+    sourceType: "User-forwarded invite",
+    authMode: "user_provided",
+    status: "enabled",
+    allowedActions: ["redact credentials", "extract fields", "score fit", "flag missing docs"],
+  },
+  {
+    id: "evidence_upload",
+    label: "Evidence upload",
+    sourceType: "User-uploaded evidence",
+    authMode: "user_provided",
+    status: "enabled",
+    allowedActions: ["redact credentials", "extract fields", "score fit", "flag missing info"],
+  },
+  {
     id: "official_api",
     label: "Official API",
     sourceType: "Official API",
@@ -150,6 +263,209 @@ export const OPPORTUNITY_SCOUT_SOURCE_ADAPTERS = [
     authMode: "user_session",
     status: "human_required",
     allowedActions: ["assist inside authorized session", "stop at access controls"],
+  },
+];
+
+export const OPPORTUNITY_SCOUT_CONNECTOR_PRESETS = [
+  {
+    id: "facebook-public-page",
+    label: "Facebook public page",
+    category: "public_social",
+    description: "Public Facebook pages and public posts that can be reviewed without logging in.",
+    leadSource: {
+      name: "Facebook public page leads",
+      type: "Social/community source",
+      checkCadence: "Daily",
+      tradeFocus: "Public local posts asking for contractor estimates",
+      serviceArea: "Primary service area",
+      notes: "Public review only. Do not comment, DM, scrape, or store account credentials.",
+    },
+    searchProfile: {
+      name: "Facebook public page scan",
+      sourceTypes: ["Facebook public page", "Public social page"],
+      sourceAdapterId: "facebook_public_page",
+      sourceAccessStatus: "clear_for_review",
+      sourceTermsStatus: "unreviewed",
+      sourceAuthorizationStatus: "not_required",
+      cadence: "daily",
+      keywords: ["looking for contractor", "need estimate", "repair", "replace"],
+      notes: "Review public posts only. No DMs, comments, cold outreach, or login automation.",
+    },
+  },
+  {
+    id: "facebook-private-group",
+    label: "Facebook private group",
+    category: "private_social",
+    description: "Private groups stay handoff-only until an authorized human reviews and pastes safe evidence.",
+    leadSource: {
+      name: "Facebook private group handoff",
+      type: "Social/community source",
+      checkCadence: "Daily",
+      tradeFocus: "Private group posts that mention contractor work",
+      serviceArea: "Primary service area",
+      notes: "Human handoff only. Do not store passwords, cookies, MFA codes, screenshots with secrets, or group-only private data beyond safe job evidence.",
+    },
+    searchProfile: {
+      name: "Facebook private group handoff",
+      sourceTypes: ["Facebook private group"],
+      sourceAdapterId: "facebook_private_group",
+      sourceAccessStatus: "needs_human",
+      sourceTermsStatus: "human_review_required",
+      sourceAuthorizationStatus: "needs_authorization",
+      cadence: "daily",
+      keywords: ["looking for contractor", "need estimate", "recommendation", "repair"],
+      notes: "Create a handoff card only. Authorized office user must review source access and paste non-secret evidence.",
+    },
+  },
+  {
+    id: "craigslist-local-board",
+    label: "Craigslist/local board",
+    category: "public_social",
+    description: "Public local boards and classifieds that can be checked through public links.",
+    leadSource: {
+      name: "Craigslist/local board leads",
+      type: "Social/community source",
+      checkCadence: "Daily",
+      tradeFocus: "Local public classified posts for contractor work",
+      serviceArea: "Primary service area",
+      notes: "Review public listings only. No scraping, spam replies, or cold outreach.",
+    },
+    searchProfile: {
+      name: "Craigslist/local board scan",
+      sourceTypes: ["Craigslist/local board", "Community classifieds"],
+      sourceAdapterId: "craigslist_local_board",
+      sourceAccessStatus: "clear_for_review",
+      sourceTermsStatus: "public_allowed",
+      sourceAuthorizationStatus: "not_required",
+      cadence: "daily",
+      keywords: ["contractor needed", "estimate", "repair", "concrete", "fence"],
+      notes: "Public review card only. Human saves real jobs before lead conversion.",
+    },
+  },
+  {
+    id: "nextdoor-private",
+    label: "Nextdoor/private community",
+    category: "private_social",
+    description: "Neighborhood communities and login-required local feeds stay human handoff-only.",
+    leadSource: {
+      name: "Nextdoor/private community handoff",
+      type: "Social/community source",
+      checkCadence: "Daily",
+      tradeFocus: "Neighborhood posts requesting contractor recommendations",
+      serviceArea: "Primary service area",
+      notes: "Human handoff only. No login automation, credential storage, posting, comments, DMs, or cold contact.",
+    },
+    searchProfile: {
+      name: "Nextdoor/private community handoff",
+      sourceTypes: ["Nextdoor/private community"],
+      sourceAdapterId: "nextdoor_private",
+      sourceAccessStatus: "needs_human",
+      sourceTermsStatus: "human_review_required",
+      sourceAuthorizationStatus: "needs_authorization",
+      cadence: "daily",
+      keywords: ["recommend contractor", "need estimate", "repair", "replace"],
+      notes: "Authorized human reviews private community access and pastes safe evidence only.",
+    },
+  },
+  {
+    id: "gc-portal",
+    label: "GC portal",
+    category: "private_portal",
+    description: "GC portals and builder bid boards create handoff cards unless a reviewed integration exists.",
+    leadSource: {
+      name: "GC portal handoff",
+      type: "GC bid invites",
+      checkCadence: "Daily",
+      tradeFocus: "GC bid invites, subcontractor scopes, addenda, and proposal due dates",
+      serviceArea: "Primary service area",
+      notes: "Human handoff only. Do not store portal passwords, tokens, cookies, MFA codes, or private portal secrets.",
+    },
+    searchProfile: {
+      name: "GC portal handoff",
+      sourceTypes: ["GC portal", "Builder/developer", "Plan room"],
+      sourceAdapterId: "gc_portal",
+      sourceAccessStatus: "needs_human",
+      sourceTermsStatus: "human_review_required",
+      sourceAuthorizationStatus: "needs_authorization",
+      cadence: "daily",
+      keywords: ["bid invite", "scope", "proposal due", "addenda"],
+      notes: "Create a handoff card for an authorized office user. Stop at login, MFA, CAPTCHA, paywall, or unclear terms.",
+    },
+  },
+  {
+    id: "private-plan-room",
+    label: "Private plan room",
+    category: "private_portal",
+    description: "Restricted plan rooms stay human handoff-only with source-terms review.",
+    leadSource: {
+      name: "Private plan room handoff",
+      type: "Plan room",
+      checkCadence: "Weekly",
+      tradeFocus: "Restricted plans, specs, addenda, and bid calendars",
+      serviceArea: "Primary service area",
+      notes: "Human handoff only. Do not store passwords, signed URLs, tokens, or restricted documents with secrets.",
+    },
+    searchProfile: {
+      name: "Private plan room handoff",
+      sourceTypes: ["Private plan room", "Plan room"],
+      sourceAdapterId: "private_plan_room",
+      sourceAccessStatus: "needs_human",
+      sourceTermsStatus: "human_review_required",
+      sourceAuthorizationStatus: "needs_authorization",
+      cadence: "weekly",
+      keywords: ["plans", "addenda", "bid due", "scope"],
+      notes: "Authorized human reviews source terms and uploads only safe evidence.",
+    },
+  },
+  {
+    id: "forwarded-bid-invite",
+    label: "Forwarded bid invite",
+    category: "inbound_evidence",
+    description: "Forwarded emails or invite excerpts become review-only intake evidence.",
+    leadSource: {
+      name: "Forwarded bid invite inbox",
+      type: "Website/contact form",
+      checkCadence: "Daily",
+      tradeFocus: "Forwarded GC, builder, customer, or agency bid invites",
+      serviceArea: "Primary service area",
+      notes: "Forwarded invite text only. Redact tokens, links with signatures, and account secrets before saving.",
+    },
+    searchProfile: {
+      name: "Forwarded bid invite intake",
+      sourceTypes: ["Forwarded bid invite", "Email invite"],
+      sourceAdapterId: "forwarded_bid_invite",
+      sourceAccessStatus: "clear_for_review",
+      sourceTermsStatus: "public_allowed",
+      sourceAuthorizationStatus: "not_required",
+      cadence: "daily",
+      keywords: ["bid invite", "scope", "walk-through", "proposal due"],
+      notes: "Use pasted forwarded evidence to prepare Found Opportunity drafts. No inbox scraping or auto-replies.",
+    },
+  },
+  {
+    id: "evidence-upload",
+    label: "Evidence upload",
+    category: "inbound_evidence",
+    description: "Screenshots, PDFs, and manual notes are parsed only after the user provides them.",
+    leadSource: {
+      name: "Evidence upload intake",
+      type: "Manual source",
+      checkCadence: "As needed",
+      tradeFocus: "Screenshots, PDFs, source notes, and manually captured job evidence",
+      serviceArea: "Primary service area",
+      notes: "User-provided evidence only. Redact credentials, private account details, and signed links before saving.",
+    },
+    searchProfile: {
+      name: "Evidence upload intake",
+      sourceTypes: ["Evidence upload", "Screenshot", "File metadata"],
+      sourceAdapterId: "evidence_upload",
+      sourceAccessStatus: "clear_for_review",
+      sourceTermsStatus: "public_allowed",
+      sourceAuthorizationStatus: "not_required",
+      cadence: "manual",
+      keywords: ["estimate request", "bid invite", "scope", "repair"],
+      notes: "Use uploaded or pasted evidence to prepare a review-only Found Opportunity draft.",
+    },
   },
 ];
 
@@ -640,11 +956,20 @@ function adapterForSourceText(value) {
   const exactAdapter = OPPORTUNITY_SCOUT_SOURCE_ADAPTERS.find((adapter) => adapter.id === normalized);
   if (exactAdapter) return exactAdapter.id;
   if (/pasted|paste|email excerpt|text/.test(normalized)) return "pasted_text";
-  if (/file|pdf|screenshot|attachment|upload/.test(normalized)) return "file_metadata";
+  if (/file|pdf|screenshot|attachment|upload|evidence/.test(normalized)) return /evidence|screenshot|upload/.test(normalized) ? "evidence_upload" : "file_metadata";
   if (/api/.test(normalized)) return "official_api";
+  if (/forwarded bid|forwarded invite|email invite|bid invite email/.test(normalized)) return "forwarded_bid_invite";
   if (/gmail|outlook|email|inbox/.test(normalized)) return "email_ingestion";
+  if (/(facebook|fb).*(private|group|member|login|sign in)|private.*(facebook|fb)|group.*(facebook|fb)/.test(normalized)) return "facebook_private_group";
+  if (/nextdoor|neighborhood app|private community/.test(normalized)) return "nextdoor_private";
+  if (/(gc|general contractor|builder|contractor).*(portal|bid board|invite)|buildingconnected|buildertrend|procore|constructconnect/.test(normalized)) return "gc_portal";
+  if (/private plan room|plan room login|restricted plan room|restricted documents|builders exchange/.test(normalized)) return "private_plan_room";
+  if (/(facebook|fb).*(marketplace)|marketplace.*(facebook|fb)/.test(normalized)) return "facebook_marketplace";
+  if (/facebook|fb page|public social|social page/.test(normalized)) return "facebook_public_page";
+  if (/craigslist|classifieds|classified ad|local board/.test(normalized)) return "craigslist_local_board";
+  if (/community board|community classifieds|neighborhood board|bulletin board/.test(normalized)) return "community_classifieds";
   if (/public|city|county|school|procurement|bid page|rfp|website|web/.test(normalized)) return "public_web";
-  if (/browser|portal|plan room|gc portal|approved session/.test(normalized)) return "approved_browser_session";
+  if (/browser|portal|plan room|approved session/.test(normalized)) return "approved_browser_session";
   return "manual";
 }
 
@@ -676,9 +1001,34 @@ function inferSourceTermsStatus(adapterId = "", supplied = "") {
   const suppliedStatus = normalizeOption(supplied, OPPORTUNITY_SOURCE_TERMS_STATUSES, "");
   if (suppliedStatus) return suppliedStatus;
   const adapter = adapterById(adapterId);
-  if (["official_api", "email_ingestion", "approved_browser_session"].includes(adapter.id)) return "human_review_required";
-  if (adapter.id === "public_web") return "unreviewed";
+  if (["official_api", "email_ingestion", "approved_browser_session", "facebook_private_group", "nextdoor_private", "gc_portal", "private_plan_room"].includes(adapter.id)) return "human_review_required";
+  if (["public_web", "facebook_public_page", "facebook_marketplace", "craigslist_local_board", "community_classifieds"].includes(adapter.id)) return "unreviewed";
   return "public_allowed";
+}
+
+function defaultSourceAuthorizationStatus(adapterId = "") {
+  const adapter = adapterById(adapterId);
+  if (adapter.status === "human_required") return "needs_authorization";
+  if (adapter.status === "future_review") return "oauth_or_api_required";
+  return "not_required";
+}
+
+function inferSourcePosture(adapterId = "", {
+  accessStatus = "",
+  termsStatus = "",
+  authorizationStatus = "",
+  supplied = "",
+} = {}) {
+  const suppliedPosture = normalizeOption(supplied, OPPORTUNITY_SOURCE_POSTURES, "");
+  if (suppliedPosture) return suppliedPosture;
+  const adapter = adapterById(adapterId);
+  const access = normalizeOption(accessStatus, OPPORTUNITY_SOURCE_ACCESS_STATUSES, "");
+  const terms = normalizeOption(termsStatus, OPPORTUNITY_SOURCE_TERMS_STATUSES, "");
+  const authorization = normalizeOption(authorizationStatus, OPPORTUNITY_SOURCE_AUTHORIZATION_STATUSES, "");
+  if (terms === "blocked" || authorization === "blocked") return "blocked_terms_review";
+  if (adapter.status === "future_review" || access === "future_review" || authorization === "oauth_or_api_required") return "official_api_only";
+  if (adapter.status === "human_required" || access === "needs_human" || authorization === "needs_authorization" || authorization === "authorized_for_human_session" || terms === "human_review_required") return "private_human_handoff";
+  return "public_no_login";
 }
 
 export function buildOpportunityScoutAgentRunPacket({
@@ -707,6 +1057,13 @@ export function buildOpportunityScoutAgentRunPacket({
   const postureAdapterId = normalizeOption(profile.sourceAdapterId, OPPORTUNITY_SCOUT_SOURCE_ADAPTERS.map((adapter) => adapter.id), "") || primaryAdapter.id;
   const sourceAccessStatus = inferSourceAccessStatus(postureAdapterId, profile.sourceAccessStatus);
   const sourceTermsStatus = inferSourceTermsStatus(postureAdapterId, profile.sourceTermsStatus);
+  const sourceAuthorizationStatus = normalizeOption(profile.sourceAuthorizationStatus, OPPORTUNITY_SOURCE_AUTHORIZATION_STATUSES, defaultSourceAuthorizationStatus(postureAdapterId));
+  const sourcePosture = inferSourcePosture(postureAdapterId, {
+    accessStatus: sourceAccessStatus,
+    termsStatus: sourceTermsStatus,
+    authorizationStatus: sourceAuthorizationStatus,
+    supplied: profile.sourcePosture,
+  });
   const sourceReviewRequired = ["needs_human", "future_review"].includes(sourceAccessStatus)
     || ["unreviewed", "human_review_required", "blocked"].includes(sourceTermsStatus);
   const sourceBlocked = sourceTermsStatus === "blocked";
@@ -774,8 +1131,10 @@ export function buildOpportunityScoutAgentRunPacket({
     primaryAdapterLabel: primaryAdapter.label,
     sourcePosture: {
       adapterId: postureAdapterId,
+      posture: sourcePosture,
       accessStatus: sourceAccessStatus,
       termsStatus: sourceTermsStatus,
+      authorizationStatus: sourceAuthorizationStatus,
       reviewRequired: sourceReviewRequired,
       blocked: sourceBlocked,
       policyNote: sourcePolicyNote,
@@ -1091,6 +1450,7 @@ export function buildFoundOpportunityLeadHandoffPacket(opportunity = {}, { today
     notesIncluded,
     sourcePosture: sourcePosture ? {
       adapterId: sourcePosture.adapterId || "manual",
+      posture: sourcePosture.posture || "public_no_login",
       accessStatus: sourcePosture.accessStatus || "clear_for_review",
       termsStatus: sourcePosture.termsStatus || "unreviewed",
       reviewRequired: Boolean(sourcePosture.reviewRequired),
@@ -1138,6 +1498,31 @@ export function validateOpportunitySearchProfilePayload(payload = {}, { existing
   if (radiusProvided && Number(payload.radiusMiles) < 0) {
     errors.push("Service radius must be zero or higher.");
   }
+  const minimumProjectValueProvided = Object.hasOwn(payload || {}, "minimumProjectValue") || Object.hasOwn(payload || {}, "minimumJobValue");
+  if (minimumProjectValueProvided && Number(payload.minimumProjectValue ?? payload.minimumJobValue) < 0) {
+    errors.push("Minimum project value must be zero or higher.");
+  }
+  for (const key of BLOCKED_CREDENTIAL_KEYS) {
+    if (Object.hasOwn(payload || {}, key) && text(payload[key])) {
+      errors.push("Opportunity Scout search profiles cannot store credentials, tokens, cookies, or private portal secrets.");
+      break;
+    }
+  }
+  const explicitSourcePosture = Object.hasOwn(payload || {}, "sourcePosture") ? normalizeOption(payload.sourcePosture, OPPORTUNITY_SOURCE_POSTURES, "") : "";
+  if (Object.hasOwn(payload || {}, "sourcePosture") && text(payload.sourcePosture) && !explicitSourcePosture) {
+    errors.push("Source posture is not supported.");
+  }
+  if (explicitSourcePosture === "public_no_login") {
+    const requestedAccess = normalizeOption(payload.sourceAccessStatus, OPPORTUNITY_SOURCE_ACCESS_STATUSES, existing?.sourceAccessStatus || "");
+    const requestedTerms = normalizeOption(payload.sourceTermsStatus, OPPORTUNITY_SOURCE_TERMS_STATUSES, existing?.sourceTermsStatus || "");
+    const requestedAuthorization = normalizeOption(payload.sourceAuthorizationStatus, OPPORTUNITY_SOURCE_AUTHORIZATION_STATUSES, existing?.sourceAuthorizationStatus || "");
+    if (["needs_human", "future_review"].includes(requestedAccess) || ["human_review_required", "blocked"].includes(requestedTerms) || ["needs_authorization", "authorized_for_human_session", "oauth_or_api_required", "blocked"].includes(requestedAuthorization)) {
+      errors.push("Public no-login sources cannot require human login, OAuth/API access, blocked terms, or private-source authorization.");
+    }
+  }
+  if (explicitSourcePosture === "blocked_terms_review" && normalizeOption(payload.status, OPPORTUNITY_SEARCH_PROFILE_STATUSES, existing?.status || "active") === "active") {
+    errors.push("Blocked terms review sources must be paused or archived before saving.");
+  }
 
   return errors;
 }
@@ -1152,6 +1537,9 @@ export function normalizeOpportunitySearchProfilePayload(payload = {}, {
   const pick = (key, fallback = "") => (Object.hasOwn(payload || {}, key) ? payload[key] : source[key] ?? fallback);
   const status = normalizeOption(pick("status", "active"), OPPORTUNITY_SEARCH_PROFILE_STATUSES, "active");
   const sourceAdapterId = inferSourceAdapterId({ ...source, ...payload });
+  const sourceAccessStatus = inferSourceAccessStatus(sourceAdapterId, pick("sourceAccessStatus", source.sourceAccessStatus || ""));
+  const sourceTermsStatus = inferSourceTermsStatus(sourceAdapterId, pick("sourceTermsStatus", source.sourceTermsStatus || ""));
+  const sourceAuthorizationStatus = normalizeOption(pick("sourceAuthorizationStatus", source.sourceAuthorizationStatus || ""), OPPORTUNITY_SOURCE_AUTHORIZATION_STATUSES, defaultSourceAuthorizationStatus(sourceAdapterId));
 
   return {
     id: source.id || id,
@@ -1161,12 +1549,26 @@ export function normalizeOpportunitySearchProfilePayload(payload = {}, {
     serviceAreas: normalizeList(pick("serviceAreas", source.serviceAreas || [])),
     radiusMiles: normalizeNonNegativeNumber(pick("radiusMiles", source.radiusMiles || 0)),
     sourceTypes: normalizeList(pick("sourceTypes", source.sourceTypes || [])),
+    projectTypes: normalizeList(pick("projectTypes", source.projectTypes || [])),
+    preferredSources: normalizeList(pick("preferredSources", source.preferredSources || [])),
     sourceAdapterId,
-    sourceAccessStatus: inferSourceAccessStatus(sourceAdapterId, pick("sourceAccessStatus", source.sourceAccessStatus || "")),
-    sourceTermsStatus: inferSourceTermsStatus(sourceAdapterId, pick("sourceTermsStatus", source.sourceTermsStatus || "")),
+    sourcePosture: inferSourcePosture(sourceAdapterId, {
+      accessStatus: sourceAccessStatus,
+      termsStatus: sourceTermsStatus,
+      authorizationStatus: sourceAuthorizationStatus,
+      supplied: pick("sourcePosture", source.sourcePosture || ""),
+    }),
+    sourceAccessStatus,
+    sourceTermsStatus,
     sourcePolicyNote: redactOpportunityScoutText(pick("sourcePolicyNote", source.sourcePolicyNote || "")),
+    sourceAuthorizationStatus,
+    sourceAuthorizedBy: collapseSpaces(pick("sourceAuthorizedBy", source.sourceAuthorizedBy || "")),
+    sourceAuthorizedAt: normalizeOpportunityScoutDate(pick("sourceAuthorizedAt", source.sourceAuthorizedAt || "")),
+    sourceAuthorizationNote: redactOpportunityScoutText(pick("sourceAuthorizationNote", source.sourceAuthorizationNote || "")),
+    sourceBlockedReason: redactOpportunityScoutText(pick("sourceBlockedReason", source.sourceBlockedReason || "")),
     keywords: normalizeList(pick("keywords", source.keywords || [])),
     excludedKeywords: normalizeList(pick("excludedKeywords", source.excludedKeywords || [])),
+    minimumProjectValue: normalizeNonNegativeNumber(pick("minimumProjectValue", source.minimumProjectValue || source.minimumJobValue || 0)),
     cadence: normalizeOption(pick("cadence", "daily"), OPPORTUNITY_SEARCH_CADENCES, "daily"),
     status,
     notes: text(pick("notes")),

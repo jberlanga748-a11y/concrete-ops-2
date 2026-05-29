@@ -231,10 +231,16 @@ test("office users can manage Opportunity Scout profiles and found opportunities
         serviceAreas: ["Albany", "Corvallis"],
         radiusMiles: 40,
         sourceTypes: ["Public bid portal"],
+        projectTypes: ["Sidewalk repair", "ADA ramp"],
+        preferredSources: ["City bid page", "School district bids"],
+        minimumProjectValue: 2500,
         sourceAdapterId: "public_web",
         sourceAccessStatus: "clear_for_review",
         sourceTermsStatus: "unreviewed",
         sourcePolicyNote: "Public source terms need office review. token=secret",
+        sourceAuthorizationStatus: "authorized_for_human_session",
+        sourceAuthorizedBy: "Demo Owner",
+        sourceAuthorizationNote: "Owner confirms this source can be checked manually. password=secret",
         keywords: ["sidewalk", "ADA"],
         cadence: "daily",
       }),
@@ -243,9 +249,26 @@ test("office users can manage Opportunity Scout profiles and found opportunities
     assert.equal(profile.name, "Daily public work");
     assert.equal(profile.companyId, adminLogin.user.companyId);
     assert.equal(profile.sourceAdapterId, "public_web");
+    assert.deepEqual(profile.projectTypes, ["Sidewalk repair", "ADA ramp"]);
+    assert.deepEqual(profile.preferredSources, ["City bid page", "School district bids"]);
+    assert.equal(profile.minimumProjectValue, 2500);
     assert.equal(profile.sourceAccessStatus, "clear_for_review");
     assert.equal(profile.sourceTermsStatus, "unreviewed");
     assert.equal(profile.sourcePolicyNote.includes("secret"), false);
+    assert.equal(profile.sourceAuthorizationStatus, "authorized_for_human_session");
+    assert.equal(profile.sourceAuthorizedBy, "Demo Owner");
+    assert.equal(profile.sourceAuthorizationNote.includes("secret"), false);
+
+    const unsafeProfile = await requestJson(fixture.baseUrl, "/api/opportunity-scout/search-profiles", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({
+        name: "Unsafe portal",
+        password: "do-not-store",
+      }),
+    });
+    assert.equal(unsafeProfile.response.status, 400);
+    assert.match(unsafeProfile.payload.error, /cannot store credentials/i);
 
     const searchPlan = await assertOk(fixture.baseUrl, `/api/ai/opportunity-scout/search-profiles/${profile.id}/search-plan`, {
       method: "POST",
@@ -279,15 +302,32 @@ test("office users can manage Opportunity Scout profiles and found opportunities
         fitScore: 84,
         bidDueAt: "2026-06-01",
         assignedEstimatorId: adminLogin.user.id,
+        sourceUrl: "https://example.test/search?q=school-sidewalk",
+        scopeSummary: "Agent card query: Albany concrete school sidewalk RFP.",
+        missingInfoItems: ["plans"],
+        humanReviewStatus: "needs_review",
+        humanReviewNote: "Agent-prepared review card prefilled this draft. Human save required.",
+        notes: "Search query: Albany concrete school sidewalk RFP.",
         reasonToBid: "Local public work inside service area.",
         riskFlags: ["prevailing wage"],
+        agentPreparedDraft: true,
+        agentPreparedCardId: "card-public-school-sidewalk",
+        agentPreparedCardType: "public_source_runner",
+        agentPreparedSourceName: "Public bid portals",
       }),
     });
     const opportunity = opportunityBootstrap.foundOpportunities[0];
     assert.equal(opportunity.title, "School sidewalk repair");
     assert.equal(opportunity.status, "reviewing");
     assert.equal(opportunity.fitScore, 84);
+    assert.equal(opportunity.humanReviewStatus, "needs_review");
+    assert.match(opportunity.humanReviewNote, /Agent-prepared review card/i);
+    assert.match(opportunity.scopeSummary, /Agent card query/i);
+    assert.equal(opportunity.missingInfoItems.includes("plans"), true);
     assert.deepEqual(opportunity.riskFlags, ["prevailing wage"]);
+    const agentPreparedSaveAudit = opportunityBootstrap.auditEvents.find((event) => event.entityId === opportunity.id && event.action === "agent.prepared_found_opportunity.saved");
+    assert.equal(agentPreparedSaveAudit.summary, "Human saved Agent-prepared found opportunity draft");
+    assert.match(agentPreparedSaveAudit.detail, /No lead, customer contact, source contact, bid submission/i);
 
     const createApprovedResponse = await requestJson(fixture.baseUrl, "/api/opportunity-scout/found-opportunities", {
       method: "POST",

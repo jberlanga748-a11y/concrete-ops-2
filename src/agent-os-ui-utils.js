@@ -2,6 +2,13 @@ import { normalizeObjectArray } from "./app-state-utils.js";
 
 export const AGENT_OS_INTERNAL_DRAFT_ACTIONS = Object.freeze([
   {
+    actionId: "opportunity_search_prep",
+    label: "Opportunity search prep",
+    helper: "Prepare today's public/private source checklist. No browsing, contact, lead creation, or bid submission.",
+    targetEntityType: "opportunitySearchProfile",
+    targetCollection: "opportunitySearchProfiles",
+  },
+  {
     actionId: "lead_follow_up_draft",
     label: "Lead follow-up draft",
     helper: "Prepare follow-up talking points. No email, SMS, call, note, or status change.",
@@ -42,6 +49,69 @@ export const AGENT_OS_INTERNAL_DRAFT_ACTIONS = Object.freeze([
     helper: "Prepare costing review. No profit/loss finalization, billing state, or accounting export.",
     targetEntityType: "job",
     targetCollection: "jobs",
+  },
+  {
+    actionId: "warranty_follow_up_draft",
+    label: "Warranty follow-up draft",
+    helper: "Prepare warranty talking points. No customer message, service appointment, warranty status, or contact history entry.",
+    targetEntityType: "job",
+    targetCollection: "jobs",
+  },
+  {
+    actionId: "permit_checklist_prep",
+    label: "Permit checklist prep",
+    helper: "Prepare permit readiness. No permit filing, inspection request, schedule change, or jurisdiction contact.",
+    targetEntityType: "job",
+    targetCollection: "jobs",
+  },
+  {
+    actionId: "crew_handoff_prep",
+    label: "Crew handoff prep",
+    helper: "Prepare scope, access, material, and hazard handoff notes. No crew assignment or notification.",
+    targetEntityType: "job",
+    targetCollection: "jobs",
+  },
+  {
+    actionId: "daily_report_review",
+    label: "Daily report review",
+    helper: "Prepare report completeness review. No approval, rejection, reopen, or billing change.",
+    targetEntityType: "dailyReport",
+    targetCollection: "dailyReports",
+  },
+  {
+    actionId: "upload_photo_review",
+    label: "Photo evidence review",
+    helper: "Prepare proof review prompts. No archive, restore, customer share, or proof approval.",
+    targetEntityType: "upload",
+    targetCollection: "uploads",
+  },
+  {
+    actionId: "delivery_ticket_review",
+    label: "Delivery ticket review",
+    helper: "Prepare reconciliation prompts. No material cost posting, vendor contact, or job cost mutation.",
+    targetEntityType: "deliveryTicket",
+    targetCollection: "deliveryTickets",
+  },
+  {
+    actionId: "safety_incident_summary",
+    label: "Safety incident summary",
+    helper: "Prepare internal incident facts. No resolution, claim, compliance filing, or customer notice.",
+    targetEntityType: "safetyIncident",
+    targetCollection: "safetyIncidents",
+  },
+  {
+    actionId: "pre_pour_review",
+    label: "Pre-pour review",
+    helper: "Prepare pour readiness prompts. No checklist completion, pour approval, schedule mutation, or crew notification.",
+    targetEntityType: "prePourChecklist",
+    targetCollection: "prePourChecklists",
+  },
+  {
+    actionId: "post_pour_review",
+    label: "Post-pour review",
+    helper: "Prepare closeout and punch-list prompts. No job closeout, warranty note, customer message, or billing change.",
+    targetEntityType: "postPourChecklist",
+    targetCollection: "postPourChecklists",
   },
 ]);
 
@@ -125,14 +195,28 @@ function recordLabel(record = {}, fallback = "Untitled record") {
 
 export function deriveAgentOsInternalTaskOptions({
   leads = [],
+  opportunitySearchProfiles = [],
   estimates = [],
   jobs = [],
+  dailyReports = [],
+  uploads = [],
+  deliveryTickets = [],
+  safetyIncidents = [],
+  prePourChecklists = [],
+  postPourChecklists = [],
   workflowRows = [],
 } = {}) {
   const collections = {
     leads: normalizeObjectArray(leads).filter((record) => !record.archivedAt),
+    opportunitySearchProfiles: normalizeObjectArray(opportunitySearchProfiles).filter((record) => !record.archivedAt),
     estimates: normalizeObjectArray(estimates).filter((record) => !record.archivedAt),
     jobs: normalizeObjectArray(jobs).filter((record) => !record.archivedAt),
+    dailyReports: normalizeObjectArray(dailyReports).filter((record) => !record.archivedAt),
+    uploads: normalizeObjectArray(uploads).filter((record) => !record.archivedAt),
+    deliveryTickets: normalizeObjectArray(deliveryTickets).filter((record) => !record.archivedAt),
+    safetyIncidents: normalizeObjectArray(safetyIncidents).filter((record) => !record.archivedAt),
+    prePourChecklists: normalizeObjectArray(prePourChecklists).filter((record) => !record.archivedAt),
+    postPourChecklists: normalizeObjectArray(postPourChecklists).filter((record) => !record.archivedAt),
   };
   const workflowByActionId = new Map(normalizeObjectArray(workflowRows).map((row) => [row.actionId, row]));
   return AGENT_OS_INTERNAL_DRAFT_ACTIONS.map((action) => {
@@ -157,6 +241,284 @@ export function deriveAgentOsInternalTaskOptions({
       targets,
     };
   });
+}
+
+export function deriveAgentOsOperatorConsoleCards(agentOs = {}) {
+  const panel = agentOs.operatorControlPanel && typeof agentOs.operatorControlPanel === "object"
+    ? agentOs.operatorControlPanel
+    : {};
+  const stats = panel.stats && typeof panel.stats === "object" ? panel.stats : {};
+  const cards = [
+    {
+      id: "internal-actions",
+      label: "Internal actions",
+      value: Number(stats.internalActionCount || 0),
+      tone: Number(stats.internalActionCount || 0) ? "green" : "slate",
+      helper: "Review-only draft/prep actions available to Apex Agent.",
+    },
+    {
+      id: "open-runs",
+      label: "Open runs",
+      value: Number(stats.openRunCount || 0),
+      tone: Number(stats.deadLetterCount || 0) ? "red" : Number(stats.openRunCount || 0) ? "amber" : "green",
+      helper: Number(stats.deadLetterCount || 0) ? "Dead-letter review needed." : "Queue, retry, cancel, and run logs stay audit-backed.",
+    },
+    {
+      id: "external-locks",
+      label: "External locks",
+      value: Number(stats.externalLockedCount || 0),
+      tone: "slate",
+      helper: "Customer contact, payment, portal, schedule, bid, and integration gates remain explicit.",
+    },
+    {
+      id: "learning-signals",
+      label: "Learning signals",
+      value: Number(stats.learningSignalCount || 0),
+      tone: Number(stats.learningSignalCount || 0) ? "blue" : "slate",
+      helper: "Company-scoped, redacted signals only.",
+    },
+  ];
+  return {
+    status: text(panel.status || "ready", 120),
+    cards,
+    rollbackRows: normalizeObjectArray(panel.actionRollbackRows).slice(0, 12).map((row) => ({
+      actionId: text(row.actionId, 120),
+      label: text(row.label, 160),
+      moduleId: text(row.moduleId, 120),
+      auditEvent: text(row.auditEvent, 180),
+      rollbackBehavior: text(row.rollbackBehavior, 260),
+      idempotencyKeyFields: Array.isArray(row.idempotencyKeyFields) ? row.idempotencyKeyFields.map((field) => text(field, 80)).filter(Boolean) : [],
+      externalLocked: Boolean(row.externalLocked),
+    })),
+    controlRows: normalizeObjectArray(panel.controlRows).slice(0, 6).map((row) => ({
+      id: text(row.id, 120),
+      label: text(row.label, 160),
+      count: Number(row.count || 0),
+      operatorAction: text(row.operatorAction, 220),
+      risk: text(row.risk, 120),
+    })),
+    safetyBoundary: text(panel.safetyBoundary, 320),
+  };
+}
+
+const AGENT_OS_ACTION_FILTERS = Object.freeze([
+  { id: "all", label: "All" },
+  { id: "lead_growth", label: "Leads", targetCollections: ["leads", "opportunitySearchProfiles"] },
+  { id: "estimates", label: "Estimates", targetCollections: ["estimates"] },
+  { id: "jobs", label: "Jobs", targetCollections: ["jobs"] },
+  { id: "reports", label: "Reports", targetCollections: ["dailyReports"] },
+  { id: "uploads", label: "Uploads", targetCollections: ["uploads"] },
+  { id: "tickets", label: "Tickets", targetCollections: ["deliveryTickets"] },
+  { id: "safety", label: "Safety", targetCollections: ["safetyIncidents"] },
+  { id: "pour", label: "Pour", targetCollections: ["prePourChecklists", "postPourChecklists"] },
+]);
+
+function filterIdForTaskOption(option = {}) {
+  const collection = text(option.targetCollection, 120);
+  const match = AGENT_OS_ACTION_FILTERS.find((group) => (group.targetCollections || []).includes(collection));
+  return match?.id || "all";
+}
+
+export function deriveAgentOsActionFilterGroups(taskOptions = []) {
+  const options = normalizeObjectArray(taskOptions);
+  return AGENT_OS_ACTION_FILTERS.map((group) => {
+    const groupOptions = group.id === "all"
+      ? options
+      : options.filter((option) => filterIdForTaskOption(option) === group.id);
+    return {
+      id: group.id,
+      label: group.label,
+      count: groupOptions.length,
+      readyCount: groupOptions.filter((option) => !option.disabled).length,
+      blockedCount: groupOptions.filter((option) => option.disabled).length,
+    };
+  }).filter((group) => group.id === "all" || group.count > 0);
+}
+
+export function filterAgentOsTaskOptions(taskOptions = [], filterId = "all") {
+  const options = normalizeObjectArray(taskOptions);
+  const normalizedFilterId = text(filterId || "all", 80);
+  if (!normalizedFilterId || normalizedFilterId === "all") return options;
+  return options.filter((option) => filterIdForTaskOption(option) === normalizedFilterId);
+}
+
+function detailToneForStatus(status = "") {
+  const value = text(status || "queued", 80);
+  if (value === "succeeded") return "green";
+  if (["dead_lettered", "failed", "cancelled"].includes(value)) return "red";
+  if (["running", "retrying", "queued"].includes(value)) return "amber";
+  return "slate";
+}
+
+export function deriveAgentOsRunDetail(row = {}, agentOs = {}) {
+  const runRow = row && typeof row === "object" ? row : {};
+  const actionId = text(runRow.actionId, 120);
+  const actionRows = normalizeObjectArray(agentOs?.operatorControlPanel?.actionRollbackRows);
+  const registryActionRows = normalizeObjectArray(agentOs?.actions);
+  const actionRow = actionRows.find((entry) => entry.actionId === actionId)
+    || registryActionRows.find((entry) => entry.actionId === actionId)
+    || {};
+  const status = text(runRow.status || "queued", 80);
+  const isClosed = ["succeeded", "cancelled"].includes(status);
+  const blockedActions = Array.isArray(runRow.output?.blockedActions)
+    ? runRow.output.blockedActions
+    : Array.isArray(runRow.blockedActions)
+      ? runRow.blockedActions
+      : [];
+  const target = runRow.target && typeof runRow.target === "object" ? runRow.target : {};
+  return {
+    runId: text(runRow.runId || runRow.id, 120),
+    taskId: text(runRow.taskId, 120),
+    actionId,
+    actionLabel: text(runRow.actionLabel || actionRow.label || actionId.replace(/_/g, " ") || "Agent OS run", 160),
+    status,
+    tone: detailToneForStatus(status),
+    summary: text(runRow.summary || "Agent OS run event", 240),
+    createdAt: text(runRow.createdAt || runRow.updatedAt, 80),
+    attempt: Number(runRow.attempt || 0) || 0,
+    moduleId: text(actionRow.moduleId, 120),
+    permissionGate: text(actionRow.permissionGate, 160),
+    packageGate: text(actionRow.packageGate, 160),
+    auditEvent: text(actionRow.auditEvent, 180),
+    rollbackBehavior: text(actionRow.rollbackBehavior, 320),
+    idempotencyKeyFields: Array.isArray(actionRow.idempotencyKeyFields) ? actionRow.idempotencyKeyFields.map((field) => text(field, 80)).filter(Boolean) : [],
+    externalLocked: Boolean(actionRow.externalLocked || actionRow.externalGate),
+    target: {
+      entityType: text(target.entityType, 80),
+      entityId: text(target.entityId || target.id, 160),
+      title: text(target.title || target.label, 180),
+    },
+    output: {
+      mode: text(runRow.output?.mode || runRow.outputMode, 120),
+      safetyBoundary: text(runRow.output?.safetyBoundary || runRow.safetyBoundary || agentOs?.safetyBoundary, 320),
+      blockedActions: blockedActions.slice(0, 6).map((item) => text(item, 220)).filter(Boolean),
+    },
+    logs: normalizeObjectArray(runRow.logs).slice(-5).map((entry) => ({
+      at: text(entry.at, 80),
+      level: text(entry.level || "info", 40),
+      message: text(entry.message, 260),
+    })).filter((entry) => entry.message),
+    canExecute: Boolean(runRow.runId || runRow.id) && !["succeeded", "dead_lettered", "cancelled"].includes(status),
+    canRetry: Boolean(runRow.runId || runRow.id) && ["failed", "dead_lettered"].includes(status),
+    canDeadLetter: Boolean(runRow.runId || runRow.id) && !["succeeded", "dead_lettered", "cancelled"].includes(status),
+    canCancel: Boolean(runRow.runId || runRow.id) && !isClosed && status !== "dead_lettered",
+  };
+}
+
+export function deriveAgentOsLearningReviewRows(agentOs = {}) {
+  return normalizeObjectArray(agentOs?.operatorControlPanel?.learningRows)
+    .filter((row) => Number(row.count || 0) > 0)
+    .map((row) => ({
+      id: text(row.id, 120),
+      label: text(row.label, 160),
+      count: Number(row.count || 0),
+      latestAt: text(row.latestAt, 80),
+      redaction: text(row.redaction || "Redacted before memory use.", 260),
+      companyScoped: row.companyScoped !== false,
+      tone: row.companyScoped === false ? "red" : "blue",
+      reviewState: row.companyScoped === false ? "scope review required" : "company scoped",
+    }))
+    .slice(0, 8);
+}
+
+export function deriveAgentOsProductionEvidenceRows(productionReadinessGate = {}) {
+  const gate = productionReadinessGate && typeof productionReadinessGate === "object" ? productionReadinessGate : {};
+  const checkRows = normalizeObjectArray(gate.checkRows);
+  const blockers = (Array.isArray(gate.blockers) ? gate.blockers : []).map((blocker, index) => ({
+    id: `blocker-${index + 1}`,
+    label: text(typeof blocker === "object" ? blocker.label || blocker.message || blocker.id : blocker, 240),
+    status: "blocked",
+    group: "blocker",
+    tone: "red",
+    nextStep: "Record evidence or keep the production gate closed.",
+  }));
+  const evidenceRows = checkRows.map((row) => {
+    const status = text(row.status || "missing_evidence", 80);
+    return {
+      id: text(row.id || row.label, 120),
+      label: text(row.label || row.id, 180),
+      status,
+      group: text(row.group || "release", 80),
+      tone: status === "passed" ? "green" : "amber",
+      nextStep: status === "passed" ? "Evidence recorded." : "Evidence required before production release.",
+    };
+  });
+  if (!evidenceRows.length && !blockers.length) {
+    return [{
+      id: "production-gate",
+      label: "Production gate",
+      status: text(gate.status || "blocked_until_release_evidence", 120),
+      group: "release",
+      tone: gate.readyForFounderSupportedProduction ? "green" : "amber",
+      nextStep: "Load or record release evidence before changing production posture.",
+    }];
+  }
+  return [...blockers, ...evidenceRows].slice(0, 12);
+}
+
+export function deriveAgentOsConsoleSummary({
+  taskOptions = [],
+  runRows = [],
+  consoleCards = {},
+  productionEvidenceRows = [],
+} = {}) {
+  const options = normalizeObjectArray(taskOptions);
+  const runs = normalizeObjectArray(runRows);
+  const cards = normalizeObjectArray(consoleCards?.cards);
+  const evidenceRows = normalizeObjectArray(productionEvidenceRows);
+  const readyActionCount = options.filter((option) => !option.disabled).length;
+  const blockedActionCount = options.filter((option) => option.disabled).length;
+  const deadLetterCount = runs.filter((row) => row.status === "dead_lettered").length;
+  const externalLockCard = cards.find((card) => card.id === "external-locks") || {};
+  const externalLockCount = Number(externalLockCard.value || 0) || 0;
+  const evidenceHasBlocker = evidenceRows.some((row) => row.tone === "red" || row.status === "blocked");
+  return {
+    totalActionCount: options.length,
+    readyActionCount,
+    blockedActionCount,
+    recentRunCount: runs.length,
+    deadLetterCount,
+    hasDeadLetteredRun: deadLetterCount > 0,
+    runTone: deadLetterCount ? "red" : runs.length ? "amber" : "green",
+    externalLockCount,
+    productionEvidenceCount: evidenceRows.length,
+    checklistRows: [
+      {
+        id: "queue-ready",
+        label: "Queue-ready actions",
+        tone: readyActionCount ? "green" : "amber",
+        detail: `${readyActionCount} internal draft/prep action${readyActionCount === 1 ? "" : "s"} ready.`,
+      },
+      {
+        id: "run-review",
+        label: "Run review",
+        tone: deadLetterCount ? "red" : runs.length ? "green" : "amber",
+        detail: deadLetterCount
+          ? `${deadLetterCount} dead-lettered run${deadLetterCount === 1 ? "" : "s"} need review.`
+          : runs.length
+            ? `${runs.length} recent run event${runs.length === 1 ? "" : "s"} visible.`
+            : "No run events yet.",
+      },
+      {
+        id: "external-locks",
+        label: "External locks",
+        tone: "slate",
+        detail: `${externalLockCount} external gate${externalLockCount === 1 ? "" : "s"} require normal confirmation.`,
+      },
+      {
+        id: "production-evidence",
+        label: "Production evidence",
+        tone: evidenceHasBlocker ? "red" : evidenceRows.length ? "blue" : "amber",
+        detail: evidenceRows.length
+          ? `${evidenceRows.length} evidence row${evidenceRows.length === 1 ? "" : "s"} loaded.`
+          : "No production evidence rows loaded.",
+      },
+    ],
+  };
+}
+
+export function canRenderAgentOsConsole(permissions = {}) {
+  return permissions?.aiOffice?.canView === true;
 }
 
 function actionIdForRecommendation(recommendation = {}) {

@@ -1,5 +1,6 @@
 import { deriveDailySourceCheckState, leadSourceLocation } from "../shared/leadSources.js";
-import { buildFoundOpportunityLeadHandoffPacket, buildOpportunityScoutAgentRunPacket, buildOpportunityScoutIngestionReadiness, canConvertFoundOpportunityToLead, isConvertedFoundOpportunityToLead, parseOpportunityScoutSourceCheckOutcomes } from "../shared/opportunityScout.js";
+import { buildAgentOsOpportunityScoutExecutionPlan } from "../shared/agentOperatingSystem.js";
+import { buildFoundOpportunityLeadHandoffPacket, buildOpportunityScoutAgentRunPacket, buildOpportunityScoutIngestionReadiness, canConvertFoundOpportunityToLead, findDuplicateFoundOpportunities, isConvertedFoundOpportunityToLead, parseOpportunityScoutSourceCheckOutcomes } from "../shared/opportunityScout.js";
 
 const CLOSED_LEAD_STATUSES = new Set([
   "approved",
@@ -34,6 +35,17 @@ function dateKey(value) {
   const parsed = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(parsed.getTime())) return "";
   return parsed.toISOString().slice(0, 10);
+}
+
+function parseAuditDetail(detail) {
+  if (detail && typeof detail === "object") return detail;
+  if (!detail || typeof detail !== "string") return {};
+  try {
+    const parsed = JSON.parse(detail);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
 }
 
 function sameCompany(record = {}, companyId = "") {
@@ -288,13 +300,17 @@ function buildOpportunityScoutProfileBrief(profile = {}, companySettings = {}) {
   const trades = uniqueTexts(Array.isArray(profile.trades) ? profile.trades : []);
   const keywords = uniqueTexts(Array.isArray(profile.keywords) ? profile.keywords : []);
   const sourceTypes = uniqueTexts(Array.isArray(profile.sourceTypes) ? profile.sourceTypes : []);
+  const projectTypes = uniqueTexts(Array.isArray(profile.projectTypes) ? profile.projectTypes : []);
+  const preferredSources = uniqueTexts(Array.isArray(profile.preferredSources) ? profile.preferredSources : []);
   const area = areas[0] || "local";
   const trade = trades[0] || "contractor";
+  const projectType = projectTypes[0] || "";
+  const preferredSource = preferredSources[0] || "";
   const sourceType = sourceTypes[0] || "public bid portals";
   const keyword = keywords[0] || "project opportunities";
 
   return {
-    query: uniqueTexts([area, trade, sourceType, keyword, "RFP bid invite"]).join(" "),
+    query: uniqueTexts([area, trade, projectType, preferredSource, sourceType, keyword, "RFP bid invite"]).join(" "),
     headline: "Run this saved profile manually across the approved sources, then save only real found opportunities for review.",
     checkFor: [
       "Bid due date, walk-through, addenda, and plan access",
@@ -313,6 +329,15 @@ function buildSearchProfileQueue(profile = {}, companySettings = {}, today = dat
   const tone = statusTone(profile.status || "active");
   const sourceAccessStatus = profile.sourceAccessStatus || "clear_for_review";
   const sourceTermsStatus = profile.sourceTermsStatus || "unreviewed";
+  const sourcePosture = profile.sourcePosture || (
+    sourceTermsStatus === "blocked"
+      ? "blocked_terms_review"
+      : sourceAccessStatus === "future_review" || profile.sourceAuthorizationStatus === "oauth_or_api_required"
+        ? "official_api_only"
+        : sourceAccessStatus === "needs_human" || sourceTermsStatus === "human_review_required" || ["needs_authorization", "authorized_for_human_session"].includes(profile.sourceAuthorizationStatus)
+          ? "private_human_handoff"
+          : "public_no_login"
+  );
   return {
     id: profile.id || profile.name,
     profileId: profile.id || "",
@@ -323,11 +348,22 @@ function buildSearchProfileQueue(profile = {}, companySettings = {}, today = dat
     trades: Array.isArray(profile.trades) ? profile.trades : [],
     serviceAreas: Array.isArray(profile.serviceAreas) ? profile.serviceAreas : [],
     sourceTypes: Array.isArray(profile.sourceTypes) ? profile.sourceTypes : [],
+    projectTypes: Array.isArray(profile.projectTypes) ? profile.projectTypes : [],
+    preferredSources: Array.isArray(profile.preferredSources) ? profile.preferredSources : [],
+    minimumProjectValue: Number(profile.minimumProjectValue || 0),
+    radiusMiles: Number(profile.radiusMiles || 0),
     keywords: Array.isArray(profile.keywords) ? profile.keywords : [],
+    sourcePosture,
     sourceAdapterId: profile.sourceAdapterId || "manual",
     sourceAccessStatus,
     sourceTermsStatus,
     sourcePolicyNote: profile.sourcePolicyNote || "",
+    sourceAuthorizationStatus: profile.sourceAuthorizationStatus || "not_required",
+    sourceAuthorizedBy: profile.sourceAuthorizedBy || "",
+    sourceAuthorizedAt: profile.sourceAuthorizedAt || "",
+    sourceAuthorizationNote: profile.sourceAuthorizationNote || "",
+    sourceBlockedReason: profile.sourceBlockedReason || "",
+    notes: profile.notes || "",
     sourceReviewRequired: ["needs_human", "future_review"].includes(sourceAccessStatus) || ["human_review_required", "blocked", "unreviewed"].includes(sourceTermsStatus),
     nextRunAt: profile.nextRunAt || "",
     lastRunAt: profile.lastRunAt || "",
@@ -346,11 +382,13 @@ function buildSourcePostureSummary(profile = null) {
   if (!profile) return null;
   const sourceAccessStatus = profile.sourceAccessStatus || "clear_for_review";
   const sourceTermsStatus = profile.sourceTermsStatus || "unreviewed";
+  const sourcePosture = profile.sourcePosture || "public_no_login";
   const blocked = sourceTermsStatus === "blocked";
   const reviewRequired = ["needs_human", "future_review"].includes(sourceAccessStatus)
     || ["unreviewed", "human_review_required", "blocked"].includes(sourceTermsStatus);
   return {
     adapterId: profile.sourceAdapterId || "manual",
+    posture: sourcePosture,
     accessStatus: sourceAccessStatus,
     termsStatus: sourceTermsStatus,
     reviewRequired,
@@ -823,6 +861,530 @@ function buildDailyScoutQualityChecks({
   ];
 }
 
+export function buildFoundOpportunityDraftFromScoutExecutionCard(currentDraft = {}, card = {}) {
+  if (!card || ["private_source_handoff", "blocked_source"].includes(card.type)) return currentDraft;
+  const nextDraft = { ...currentDraft };
+  const setIfEmpty = (key, value) => {
+    const candidate = typeof value === "string" ? value.trim() : value;
+    if (!candidate || collapseSpaces(nextDraft[key])) return;
+    nextDraft[key] = candidate;
+  };
+  const firstUrl = card.sourceUrl || (Array.isArray(card.searchUrls) ? card.searchUrls.find((entry) => entry?.url)?.url : "");
+  const draftPreview = card.draftPreview && typeof card.draftPreview === "object" ? card.draftPreview : {};
+  const sourceName = card.sourceName || draftPreview.sourceName || card.title || "";
+  const missingInfoItems = draftPreview.missingInfoItems || (Array.isArray(card.checklist) ? card.checklist.join(", ") : "");
+  const evidenceLines = [
+    card.query ? `Search query: ${card.query}` : "",
+    sourceName ? `Source: ${sourceName}` : "",
+    card.adapterLabel ? `Public adapter: ${card.adapterLabel}` : "",
+    card.provider ? `Provider boundary: ${card.provider}` : "",
+    card.reviewOutcomeSignal?.label ? `Learning signal: ${card.reviewOutcomeSignal.label}` : "",
+    card.safetyBoundary ? `Agent boundary: ${card.safetyBoundary}` : "",
+  ].filter(Boolean);
+
+  setIfEmpty("intakeSourceType", "manual");
+  setIfEmpty("searchProfileId", card.targetKind === "search_profile" ? card.targetId : "");
+  setIfEmpty("leadSourceId", card.targetKind === "lead_source" ? card.targetId : card.sourceId);
+  setIfEmpty("title", draftPreview.title || (card.type === "public_source_runner" ? `${card.title || "Source"} opportunity` : card.title));
+  setIfEmpty("sourceName", sourceName);
+  setIfEmpty("agency", draftPreview.sourceName || sourceName);
+  setIfEmpty("sourceUrl", firstUrl);
+  setIfEmpty("fitScore", draftPreview.fitScore || card.fitScore || "");
+  setIfEmpty("trade", draftPreview.trade || "");
+  setIfEmpty("status", draftPreview.status || "reviewing");
+  setIfEmpty("humanReviewStatus", draftPreview.humanReviewStatus || "needs_review");
+  setIfEmpty("humanReviewNote", draftPreview.humanReviewNote || "Agent-prepared review card prefilled this draft. Human save and review required before lead creation.");
+  setIfEmpty("scopeSummary", draftPreview.scopeSummary || card.snippet || card.query || card.checklist?.join("; "));
+  setIfEmpty("reasonToBid", draftPreview.reasonToBid || card.fitReason || (["public_source_runner", "public_discovery_result"].includes(card.type) ? "Public/source runner card found possible work for office review." : ""));
+  setIfEmpty("missingInfoItems", missingInfoItems);
+  setIfEmpty("notes", evidenceLines.join("\n"));
+  nextDraft.agentPreparedDraft = true;
+  nextDraft.agentPreparedCardId = card.id || "";
+  nextDraft.agentPreparedCardType = card.type || "";
+  nextDraft.agentPreparedSourceName = sourceName;
+  return nextDraft;
+}
+
+export function buildFoundOpportunityEvidenceIntakeFromScoutCard(currentDraft = {}, card = {}) {
+  if (!card) return currentDraft;
+  const nextDraft = { ...currentDraft };
+  const connectorLabel = card.sourceConnector?.label || (card.type === "private_source_handoff" ? "Private source handoff" : "Source review card");
+  const sourceName = card.sourceName || card.title || connectorLabel;
+  const evidenceLines = [
+    `${connectorLabel}: ${sourceName}`,
+    card.query ? `Search/query context: ${card.query}` : "",
+    card.safetyBoundary ? `Agent boundary: ${card.safetyBoundary}` : "",
+    "Paste or upload only non-secret job evidence. Do not store passwords, cookies, MFA codes, tokens, signed URLs, private messages unrelated to the job, or account screenshots.",
+  ].filter(Boolean);
+  const setIfEmpty = (key, value) => {
+    const candidate = typeof value === "string" ? value.trim() : value;
+    if (!candidate || collapseSpaces(nextDraft[key])) return;
+    nextDraft[key] = candidate;
+  };
+
+  setIfEmpty("intakeSourceType", card.type === "private_source_handoff" ? "pasted_text" : "manual");
+  setIfEmpty("searchProfileId", card.targetKind === "search_profile" ? card.targetId : "");
+  setIfEmpty("leadSourceId", card.targetKind === "lead_source" ? card.targetId : card.sourceId);
+  setIfEmpty("sourceName", sourceName);
+  setIfEmpty("agency", sourceName);
+  setIfEmpty("title", card.type === "private_source_handoff" ? "" : `${sourceName} opportunity`);
+  setIfEmpty("humanReviewStatus", "needs_info");
+  setIfEmpty("humanReviewNote", "Evidence intake prepared from an Agent source card. Human must paste safe evidence, save, review, and approve before lead conversion.");
+  setIfEmpty("missingInfoItems", "Paste safe source evidence, scope, location, timing, and contact path.");
+  setIfEmpty("notes", evidenceLines.join("\n"));
+  nextDraft.agentPreparedDraft = true;
+  nextDraft.agentPreparedCardId = card.id || "";
+  nextDraft.agentPreparedCardType = card.type || "";
+  nextDraft.agentPreparedSourceName = sourceName;
+  return nextDraft;
+}
+
+export function buildOpportunityScoutConnectorSetupDraft(preset = {}, overrides = {}) {
+  const leadSource = preset.leadSource || {};
+  const searchProfile = preset.searchProfile || {};
+  const sourceAdapterId = overrides.sourceAdapterId ?? searchProfile.sourceAdapterId ?? "";
+  const defaultPosture = /private|nextdoor|gc_portal|plan_room|approved_browser_session/.test(sourceAdapterId)
+    ? "private_human_handoff"
+    : /official_api|email_ingestion/.test(sourceAdapterId)
+      ? "official_api_only"
+      : "public_no_login";
+  return {
+    connectorPresetId: preset.id || "",
+    connectorCategory: preset.category || "public",
+    name: overrides.name ?? leadSource.name ?? "",
+    url: overrides.url ?? leadSource.url ?? "",
+    type: overrides.type ?? leadSource.type ?? "Manual source",
+    serviceArea: overrides.serviceArea ?? leadSource.serviceArea ?? "Primary service area",
+    tradeFocus: overrides.tradeFocus ?? leadSource.tradeFocus ?? "",
+    checkCadence: overrides.checkCadence ?? leadSource.checkCadence ?? "Manual",
+    notes: overrides.notes ?? leadSource.notes ?? "",
+    profileName: overrides.profileName ?? searchProfile.name ?? leadSource.name ?? "",
+    sourceTypes: overrides.sourceTypes ?? asArray(searchProfile.sourceTypes).join(", "),
+    projectTypes: overrides.projectTypes ?? (asArray(searchProfile.projectTypes).join(", ") || "repair, replacement"),
+    preferredSources: overrides.preferredSources ?? (asArray(searchProfile.preferredSources).join(", ") || asArray(searchProfile.sourceTypes).join(", ")),
+    minimumProjectValue: overrides.minimumProjectValue ?? searchProfile.minimumProjectValue ?? "",
+    sourceAdapterId,
+    sourcePosture: overrides.sourcePosture ?? searchProfile.sourcePosture ?? defaultPosture,
+    sourceAccessStatus: overrides.sourceAccessStatus ?? searchProfile.sourceAccessStatus ?? "",
+    sourceTermsStatus: overrides.sourceTermsStatus ?? searchProfile.sourceTermsStatus ?? "",
+    sourceAuthorizationStatus: overrides.sourceAuthorizationStatus ?? searchProfile.sourceAuthorizationStatus ?? "not_required",
+    sourceAuthorizationNote: overrides.sourceAuthorizationNote ?? searchProfile.sourceAuthorizationNote ?? "",
+    cadence: overrides.cadence ?? searchProfile.cadence ?? "daily",
+    keywords: overrides.keywords ?? asArray(searchProfile.keywords).join(", "),
+    profileNotes: overrides.profileNotes ?? searchProfile.notes ?? "",
+  };
+}
+
+export function buildOpportunityScoutConnectorSetupPayload(draft = {}) {
+  const name = collapseSpaces(draft.name);
+  const profileName = collapseSpaces(draft.profileName);
+  const leadSource = {
+    name,
+    type: collapseSpaces(draft.type) || "Manual source",
+    url: collapseSpaces(draft.url),
+    serviceArea: collapseSpaces(draft.serviceArea),
+    tradeFocus: collapseSpaces(draft.tradeFocus),
+    checkCadence: collapseSpaces(draft.checkCadence) || "Manual",
+    notes: collapseSpaces(draft.notes),
+    status: "Active",
+  };
+  const searchProfile = {
+    name: profileName,
+    trades: collapseSpaces(draft.tradeFocus),
+    serviceAreas: collapseSpaces(draft.serviceArea),
+    radiusMiles: "40",
+    sourceTypes: collapseSpaces(draft.sourceTypes),
+    projectTypes: collapseSpaces(draft.projectTypes),
+    preferredSources: collapseSpaces(draft.preferredSources),
+    minimumProjectValue: collapseSpaces(draft.minimumProjectValue),
+    sourceAdapterId: collapseSpaces(draft.sourceAdapterId),
+    sourcePosture: collapseSpaces(draft.sourcePosture),
+    sourceAccessStatus: collapseSpaces(draft.sourceAccessStatus),
+    sourceTermsStatus: collapseSpaces(draft.sourceTermsStatus),
+    sourceAuthorizationStatus: collapseSpaces(draft.sourceAuthorizationStatus) || "not_required",
+    sourceAuthorizationNote: collapseSpaces(draft.sourceAuthorizationNote),
+    keywords: collapseSpaces(draft.keywords),
+    cadence: collapseSpaces(draft.cadence) || "daily",
+    status: "active",
+    notes: collapseSpaces(draft.profileNotes),
+  };
+  return {
+    leadSource,
+    searchProfile,
+    shouldCreateLeadSource: Boolean(name),
+    shouldCreateSearchProfile: Boolean(profileName),
+    connectorCategory: draft.connectorCategory || "public",
+    safetyBoundary: "Connector setup saves review sources and search profiles only. It does not log in, scrape, contact customers, submit bids, or store credentials.",
+  };
+}
+
+export function buildOpportunityScoutConnectorSetupDraftFromCoverageRecommendation(recommendation = {}, companySettings = {}) {
+  const setupDraft = recommendation.setupDraft || recommendation;
+  const leadSourceDraft = setupDraft.leadSourceDraft || {};
+  const searchProfileDraft = setupDraft.searchProfileDraft || {};
+  const serviceArea = collapseSpaces(leadSourceDraft.serviceArea || searchProfileDraft.serviceAreas || companySettings.serviceArea || "Primary service area");
+  const tradeFocus = collapseSpaces(leadSourceDraft.tradeFocus || searchProfileDraft.trades || companySettings.primaryTrade || "contractor scope");
+  const preset = {
+    id: setupDraft.familyId || recommendation.familyId || "agent-coverage-draft",
+    category: setupDraft.sourcePosture === "private_human_handoff" ? "private" : setupDraft.sourcePosture === "official_api_only" ? "official" : "public",
+    leadSource: {
+      name: leadSourceDraft.name || recommendation.label || "Agent source coverage draft",
+      type: leadSourceDraft.type || searchProfileDraft.sourceTypes || "Manual source",
+      url: "",
+      serviceArea,
+      tradeFocus,
+      checkCadence: leadSourceDraft.checkCadence || (setupDraft.sourcePosture === "public_no_login" ? "Daily" : "Manual"),
+      notes: leadSourceDraft.notes || "Prepared from Apex Agent source coverage planning. Review before saving. Do not add credentials or outreach instructions.",
+    },
+    searchProfile: {
+      name: searchProfileDraft.name || leadSourceDraft.name || recommendation.label || "Agent source coverage draft",
+      sourceTypes: searchProfileDraft.sourceTypes ? [searchProfileDraft.sourceTypes] : [leadSourceDraft.type || "Manual source"],
+      projectTypes: String(searchProfileDraft.projectTypes || "repair, replacement, commercial, bid invite").split(",").map((value) => value.trim()).filter(Boolean),
+      preferredSources: String(searchProfileDraft.preferredSources || recommendation.label || "").split(",").map((value) => value.trim()).filter(Boolean),
+      minimumProjectValue: searchProfileDraft.minimumProjectValue || "",
+      sourceAdapterId: searchProfileDraft.sourceAdapterId || setupDraft.sourceAdapterId || "",
+      sourcePosture: searchProfileDraft.sourcePosture || setupDraft.sourcePosture || recommendation.posture || "",
+      sourceAccessStatus: searchProfileDraft.sourceAccessStatus || "",
+      sourceTermsStatus: searchProfileDraft.sourceTermsStatus || "",
+      sourceAuthorizationStatus: searchProfileDraft.sourceAuthorizationStatus || "not_required",
+      sourceAuthorizationNote: searchProfileDraft.sourceAuthorizationNote || "",
+      cadence: searchProfileDraft.cadence || "daily",
+      keywords: String(searchProfileDraft.keywords || "").split(",").map((value) => value.trim()).filter(Boolean),
+      notes: searchProfileDraft.notes || "",
+    },
+  };
+  return buildOpportunityScoutConnectorSetupDraft(preset, {
+    serviceArea,
+    tradeFocus,
+    sourcePosture: searchProfileDraft.sourcePosture || setupDraft.sourcePosture || recommendation.posture || "",
+    sourceAdapterId: searchProfileDraft.sourceAdapterId || setupDraft.sourceAdapterId || "",
+    sourceAccessStatus: searchProfileDraft.sourceAccessStatus || "",
+    sourceTermsStatus: searchProfileDraft.sourceTermsStatus || "",
+    sourceAuthorizationStatus: searchProfileDraft.sourceAuthorizationStatus || "not_required",
+    sourceAuthorizationNote: searchProfileDraft.sourceAuthorizationNote || "",
+    profileNotes: searchProfileDraft.notes || "",
+    keywords: searchProfileDraft.keywords || "",
+  });
+}
+
+export function deriveFoundOpportunityDraftDuplicateWarnings(draft = {}, { foundOpportunities = [], leads = [] } = {}) {
+  const opportunityHints = findDuplicateFoundOpportunities(draft, foundOpportunities).map((hint) => ({
+    id: `opportunity-${hint.opportunityId}`,
+    type: "found_opportunity",
+    tone: hint.confidence === "high" ? "red" : "amber",
+    title: hint.title || "Existing found opportunity",
+    helper: `${hint.confidence || "possible"} match: ${hint.reasons.join(", ")}`,
+  }));
+  const draftTitle = collapseSpaces(draft.title).toLowerCase();
+  const draftCity = collapseSpaces(draft.city).toLowerCase();
+  const draftSource = collapseSpaces(draft.sourceName || draft.agency).toLowerCase();
+  const leadHints = asArray(leads)
+    .filter((lead) => !lead?.archivedAt)
+    .map((lead) => {
+      const reasons = [];
+      const leadProject = collapseSpaces(lead.project || lead.title).toLowerCase();
+      const leadCity = collapseSpaces(lead.city).toLowerCase();
+      const leadSource = collapseSpaces(lead.source).toLowerCase();
+      if (draftTitle && leadProject && (draftTitle === leadProject || draftTitle.includes(leadProject) || leadProject.includes(draftTitle))) reasons.push("similar project");
+      if (draftCity && leadCity && draftCity === leadCity) reasons.push("same city");
+      if (draftSource && leadSource && draftSource === leadSource) reasons.push("same source");
+      return reasons.length >= 2 ? {
+        id: `lead-${lead.id || lead.project}`,
+        type: "lead",
+        tone: "amber",
+        title: lead.project || lead.title || "Existing lead",
+        helper: `possible lead match: ${reasons.join(", ")}`,
+      } : null;
+    })
+    .filter(Boolean)
+    .slice(0, 5);
+  return [...opportunityHints, ...leadHints].slice(0, 6);
+}
+
+function opportunityResourceLaneForProfile(profile = {}) {
+  const adapterId = normalizeStatus(profile.sourceAdapterId || "manual");
+  const terms = normalizeStatus(profile.sourceTermsStatus || "unreviewed");
+  const access = normalizeStatus(profile.sourceAccessStatus || "clear_for_review");
+  const auth = normalizeStatus(profile.sourceAuthorizationStatus || "not_required");
+  const haystack = [
+    profile.name,
+    ...(Array.isArray(profile.sourceTypes) ? profile.sourceTypes : []),
+    ...(Array.isArray(profile.keywords) ? profile.keywords : []),
+  ].map(collapseSpaces).join(" ").toLowerCase();
+
+  if (terms === "blocked") return "blocked";
+  if (["official api", "email ingestion"].includes(adapterId) || access === "future review" || auth === "oauth or api required") return "future_integration";
+  if (["approved browser session", "facebook private group", "nextdoor private", "gc portal", "private plan room"].includes(adapterId) || access === "needs human" || ["needs authorization", "blocked"].includes(auth) || /private group|private community|private|login|portal|gc portal|restricted|plan room|nextdoor/.test(haystack)) return "authorized_private";
+  if (["public web", "facebook public page", "facebook marketplace", "craigslist local board", "community classifieds"].includes(adapterId) || /public|facebook public|facebook marketplace|craigslist|classifieds|community board|local board|city|county|school|procurement|rfp|bid page|public bid/.test(haystack)) return "public";
+  if (/referral|repeat|property manager|builder|developer|supplier|association|chamber|relationship/.test(haystack)) return "relationship";
+  return "inbound_owned";
+}
+
+function opportunityResourceLaneForSource(source = {}) {
+  const adapterId = normalizeStatus(source.sourceAdapterId || source.adapterId || "");
+  const haystack = [
+    source.name,
+    source.type,
+    source.tradeFocus,
+    source.serviceArea,
+    source.notes,
+    source.url ? "public web" : "",
+  ].map(collapseSpaces).join(" ").toLowerCase();
+
+  if (/blocked|do not use|terms prohibit/.test(haystack)) return "blocked";
+  if (["official api", "email ingestion"].includes(adapterId) || /api|oauth|email ingestion|inbox sync/.test(haystack)) return "future_integration";
+  if (["approved browser session", "facebook private group", "nextdoor private", "gc portal", "private plan room"].includes(adapterId) || /private group|private community|private|login|portal|gc portal|restricted|plan room|nextdoor/.test(haystack)) return "authorized_private";
+  if (["public web", "facebook public page", "facebook marketplace", "craigslist local board", "community classifieds"].includes(adapterId) || /public|facebook public|facebook marketplace|craigslist|classifieds|community board|local board|city|county|school|procurement|rfp|bid page|public bid|website/.test(haystack)) return "public";
+  if (/referral|repeat|property manager|builder|developer|supplier|association|chamber|relationship/.test(haystack)) return "relationship";
+  return "inbound_owned";
+}
+
+const OPPORTUNITY_RESOURCE_LANES = Object.freeze({
+  public: {
+    label: "Public Sources",
+    tone: "green",
+    capability: "Prepare search phrases and review public bid pages, agency notices, public plan-room listings, permits, public social pages, Craigslist/local boards, and public project postings.",
+    boundary: "No server-side browsing, scraping, contact, bid submission, or source write occurs from this plan.",
+  },
+  authorized_private: {
+    label: "Authorized Private Sources",
+    tone: "amber",
+    capability: "Prepare a checklist for GC portals, private plan rooms, builder invites, Facebook private groups, Nextdoor/private communities, and user-authorized sessions.",
+    boundary: "Human authorization is required before use; Apex HQ does not store credentials, bypass access controls, or operate private sessions alone.",
+  },
+  inbound_owned: {
+    label: "Inbound And Owned Sources",
+    tone: "blue",
+    capability: "Normalize website leads, pasted text, file notes, referrals, and user-provided evidence into found-opportunity review drafts.",
+    boundary: "Evidence is review-only until an office user approves conversion to a lead.",
+  },
+  relationship: {
+    label: "Warm Relationship Sources",
+    tone: "orange",
+    capability: "Plan follow-up review for property managers, builders, suppliers, repeat customers, and referral partners.",
+    boundary: "No cold calls, cold texts, cold emails, or auto-contact. Human follow-up stays in the normal Leads workflow.",
+  },
+  future_integration: {
+    label: "Approved Integration Candidates",
+    tone: "slate",
+    capability: "Identify API, OAuth, inbox, or integration candidates for a future security-reviewed adapter.",
+    boundary: "Locked until an approved integration, test strategy, tenant opt-in, audit, and rollback path exist.",
+  },
+  blocked: {
+    label: "Blocked Sources",
+    tone: "red",
+    capability: "Keep unsafe or disallowed sources out of daily search execution.",
+    boundary: "Do not use blocked terms, disallowed automation, credentials, paywalls, CAPTCHA/MFA bypass, or private data.",
+  },
+});
+
+function buildDailyOpportunityResourcePlan({
+  activeProfiles = [],
+  activeSources = [],
+  companySettings = {},
+  today = dateKey(new Date()),
+} = {}) {
+  const rows = [
+    ...activeProfiles.map((profile) => ({
+      id: `profile-${profile.id || profile.name}`,
+      sourceKind: "search_profile",
+      sourceId: profile.id || "",
+      name: profile.name || "Search profile",
+      laneId: opportunityResourceLaneForProfile(profile),
+      cadence: profile.cadence || "daily",
+      dueToday: profileNeedsRun(profile, today),
+      query: buildOpportunityScoutProfileBrief(profile, companySettings).query,
+      reviewRequired: Boolean(profile.sourceReviewRequired || ["needs_human", "future_review"].includes(profile.sourceAccessStatus) || ["unreviewed", "human_review_required", "blocked"].includes(profile.sourceTermsStatus)),
+      sourceAccessStatus: profile.sourceAccessStatus || "clear_for_review",
+      sourceTermsStatus: profile.sourceTermsStatus || "unreviewed",
+      sourceAuthorizationStatus: profile.sourceAuthorizationStatus || "not_required",
+      sourceAuthorizedBy: profile.sourceAuthorizedBy || "",
+      sourceAuthorizedAt: profile.sourceAuthorizedAt || "",
+      sourceAuthorizationNote: profile.sourceAuthorizationNote || "",
+      sourceBlockedReason: profile.sourceBlockedReason || "",
+      nextRunAt: profile.nextRunAt || "",
+    })),
+    ...activeSources.map((source) => {
+      const brief = buildOpportunityScoutSourceBrief(source, companySettings);
+      return {
+        id: `source-${source.id || source.name}`,
+        sourceKind: "lead_source",
+        sourceId: source.id || "",
+        name: source.name || "Lead source",
+        laneId: opportunityResourceLaneForSource(source),
+        cadence: source.cadence || source.checkCadence || "manual",
+        dueToday: ["overdue", "dueToday", "today"].includes(source.checkBucket) || ["overdue", "today"].includes(dateBucket(source.nextCheckAt, today)),
+        query: brief.query,
+        reviewRequired: false,
+        sourceAccessStatus: "clear_for_review",
+        sourceTermsStatus: "public_allowed",
+        nextRunAt: source.nextCheckAt || "",
+      };
+    }),
+  ].map((row) => {
+    const lane = OPPORTUNITY_RESOURCE_LANES[row.laneId] || OPPORTUNITY_RESOURCE_LANES.inbound_owned;
+    return {
+      ...row,
+      laneLabel: lane.label,
+      tone: row.laneId === "blocked" ? "red" : row.reviewRequired ? "amber" : lane.tone,
+      capability: lane.capability,
+      boundary: lane.boundary,
+      canAutonomousPrep: ["public", "inbound_owned", "relationship"].includes(row.laneId) && !row.reviewRequired,
+      requiresHumanAccess: ["authorized_private", "future_integration", "blocked"].includes(row.laneId) || row.reviewRequired || ["needs_authorization", "oauth_or_api_required", "blocked"].includes(row.sourceAuthorizationStatus),
+      privateSourceGate: {
+        authorizationStatus: row.sourceAuthorizationStatus || "not_required",
+        authorizedBy: row.sourceAuthorizedBy || "",
+        authorizedAt: row.sourceAuthorizedAt || "",
+        authorizationNote: row.sourceAuthorizationNote || "",
+        blockedReason: row.sourceBlockedReason || "",
+      },
+    };
+  }).sort((left, right) => Number(right.dueToday) - Number(left.dueToday) || left.laneLabel.localeCompare(right.laneLabel) || left.name.localeCompare(right.name));
+
+  const lanes = Object.entries(OPPORTUNITY_RESOURCE_LANES).map(([laneId, lane]) => {
+    const laneRows = rows.filter((row) => row.laneId === laneId);
+    const due = laneRows.filter((row) => row.dueToday).length;
+    return {
+      id: laneId,
+      label: lane.label,
+      tone: laneId === "blocked" && laneRows.length ? "red" : due ? "orange" : lane.tone,
+      count: laneRows.length,
+      dueToday: due,
+      capability: lane.capability,
+      boundary: lane.boundary,
+      actionLabel: laneRows.length ? "Review lane" : "No sources",
+    };
+  });
+
+  const humanAccessCount = rows.filter((row) => row.requiresHumanAccess).length;
+  const autonomousPrepCount = rows.filter((row) => row.canAutonomousPrep).length;
+  const blockedCount = rows.filter((row) => row.laneId === "blocked").length;
+
+  return {
+    mode: "daily_opportunity_resource_plan",
+    label: "Daily Lead Resource Plan",
+    summary: rows.length
+      ? `${countLabel(autonomousPrepCount, "review-safe source")} ready for daily prep; ${countLabel(humanAccessCount, "source")} need human access or terms review.`
+      : "Add public, private-authorized, inbound, or warm relationship sources before daily lead discovery can run.",
+    rows: rows.slice(0, 12),
+    lanes,
+    stats: {
+      total: rows.length,
+      autonomousPrep: autonomousPrepCount,
+      humanAccess: humanAccessCount,
+      blocked: blockedCount,
+      public: rows.filter((row) => row.laneId === "public").length,
+      authorizedPrivate: rows.filter((row) => row.laneId === "authorized_private").length,
+      inboundOwned: rows.filter((row) => row.laneId === "inbound_owned").length,
+      relationship: rows.filter((row) => row.laneId === "relationship").length,
+      futureIntegration: rows.filter((row) => row.laneId === "future_integration").length,
+    },
+    guardrails: [
+      "Apex Agent may prepare daily public-source search phrases and review checklists.",
+      "Private portals, inboxes, APIs, browser sessions, and integrations require explicit authorized setup and human review.",
+      "No cold calls, cold texts, cold emails, auto-contact, auto-created leads, bid submission, credential storage, or access-control bypass.",
+    ],
+  };
+}
+
+function buildDailyAgentLeadsLedger({
+  auditEvents = [],
+  recentSourceCheckOutcomes = [],
+  foundOpportunityQueue = [],
+  dailyResourcePlan = {},
+} = {}) {
+  const queuedRows = asArray(auditEvents)
+    .filter((event) => text(event.action).startsWith("agent.os.opportunity_search_prep"))
+    .map((event) => {
+      const detail = parseAuditDetail(event.detail);
+      const reviewCardCount = Number(detail.reviewCardCount || detail.run?.output?.executionPlan?.stats?.cards || 0);
+      const publicRunnerCardCount = Number(detail.publicRunnerCardCount || detail.run?.output?.executionPlan?.stats?.publicRunnerCards || 0);
+      const publicDiscoveryCardCount = Number(detail.publicDiscoveryCardCount || detail.run?.output?.executionPlan?.stats?.publicDiscoveryCards || 0);
+      const privateHandoffCardCount = Number(detail.privateHandoffCardCount || detail.run?.output?.executionPlan?.stats?.privateHandoffCards || 0);
+      const foundDraftCardCount = Number(detail.foundDraftCardCount || detail.run?.output?.executionPlan?.stats?.foundDraftCards || 0);
+      const dailyRunRecord = detail.dailyRunRecord || detail.run?.output?.executionPlan?.dailyRunRecord || null;
+      return {
+        id: event.id || detail.runId || detail.taskId || `${event.createdAt || ""}-opportunity-search-prep`,
+        type: "queued_prep",
+        label: "Prep queued",
+        title: detail.task?.target?.title || "Opportunity search prep",
+        helper: reviewCardCount
+          ? `${event.summary || "Apex Agent queued a review-only search prep task."} ${reviewCardCount} review card${reviewCardCount === 1 ? "" : "s"} prepared (${publicRunnerCardCount} public, ${publicDiscoveryCardCount} found, ${privateHandoffCardCount} private, ${foundDraftCardCount} draft).`
+          : event.summary || "Apex Agent queued a review-only search prep task.",
+        tone: "blue",
+        reviewCardCount,
+        publicRunnerCardCount,
+        publicDiscoveryCardCount,
+        privateHandoffCardCount,
+        foundDraftCardCount,
+        dailyRunStatus: dailyRunRecord?.status || "",
+        dailyRunSourceCount: Number(dailyRunRecord?.sourceCount || 0),
+        reviewedOutcomeSignalCount: Number(detail.reviewedOutcomeSignalCount || dailyRunRecord?.reviewOutcomeStats?.found_work || 0),
+        providerAttemptCount: Number(detail.providerAttemptCount || dailyRunRecord?.providerAttemptCount || 0),
+        providerResultCount: Number(detail.providerResultCount || dailyRunRecord?.providerResultCount || 0),
+        providerRejectedResultCount: Number(detail.providerRejectedResultCount || dailyRunRecord?.providerRejectedCount || 0),
+        providerReviewImportCount: Number(detail.providerReviewImportCount || dailyRunRecord?.providerReviewImportCount || 0),
+        providerErrorCount: Number(detail.providerErrorCount || dailyRunRecord?.providerErrorCount || 0),
+        createdAt: event.createdAt || "",
+      };
+    });
+  const reviewedRows = asArray(recentSourceCheckOutcomes).map((outcome) => ({
+    id: `reviewed-${outcome.id}`,
+    type: "source_checked",
+    label: outcome.label,
+    title: outcome.sourceName,
+    helper: outcome.note || outcome.nextAction,
+    tone: outcome.tone,
+    createdAt: outcome.checkedAt || "",
+  }));
+  const foundRows = asArray(foundOpportunityQueue).filter((opportunity) => opportunity.leadHandoffState !== "converted_to_lead").slice(0, 4).map((opportunity) => ({
+    id: `found-${opportunity.opportunityId || opportunity.id}`,
+    type: "found_opportunity",
+    label: "Found work",
+    title: opportunity.title,
+    helper: opportunity.leadHandoffHelper || "Needs office review before lead conversion.",
+    tone: opportunity.tone,
+    createdAt: opportunity.bidDueAt || "",
+  }));
+  const blockedRows = asArray(dailyResourcePlan.rows).filter((row) => row.requiresHumanAccess || row.laneId === "blocked").slice(0, 4).map((row) => ({
+    id: `blocked-${row.id}`,
+    type: "blocked_source",
+    label: row.laneId === "blocked" ? "Blocked source" : "Human-gated source",
+    title: row.name,
+    helper: row.privateSourceGate?.blockedReason || row.boundary,
+    tone: row.laneId === "blocked" ? "red" : "amber",
+    createdAt: row.nextRunAt || "",
+  }));
+  const rows = [...queuedRows, ...reviewedRows, ...foundRows, ...blockedRows]
+    .sort((left, right) => dateSortValue(right.createdAt).localeCompare(dateSortValue(left.createdAt)) || left.title.localeCompare(right.title))
+    .slice(0, 10);
+
+  return {
+    mode: "daily_agent_leads_ledger",
+    rows,
+    stats: {
+      queuedPrep: queuedRows.length,
+      reviewedSources: reviewedRows.length,
+      foundOpportunities: foundRows.length,
+      blockedSources: blockedRows.length,
+      reviewCards: queuedRows.reduce((sum, row) => sum + Number(row.reviewCardCount || 0), 0),
+      publicRunnerCards: queuedRows.reduce((sum, row) => sum + Number(row.publicRunnerCardCount || 0), 0),
+      publicDiscoveryCards: queuedRows.reduce((sum, row) => sum + Number(row.publicDiscoveryCardCount || 0), 0),
+      privateHandoffCards: queuedRows.reduce((sum, row) => sum + Number(row.privateHandoffCardCount || 0), 0),
+      foundDraftCards: queuedRows.reduce((sum, row) => sum + Number(row.foundDraftCardCount || 0), 0),
+      runRecords: queuedRows.filter((row) => row.dailyRunStatus).length,
+      runRecordSources: queuedRows.reduce((sum, row) => sum + Number(row.dailyRunSourceCount || 0), 0),
+      reviewOutcomeSignals: queuedRows.reduce((sum, row) => sum + Number(row.reviewedOutcomeSignalCount || 0), 0),
+      providerAttempts: queuedRows.reduce((sum, row) => sum + Number(row.providerAttemptCount || 0), 0),
+      providerResults: queuedRows.reduce((sum, row) => sum + Number(row.providerResultCount || 0), 0),
+      providerRejectedResults: queuedRows.reduce((sum, row) => sum + Number(row.providerRejectedResultCount || 0), 0),
+      providerReviewImports: queuedRows.reduce((sum, row) => sum + Number(row.providerReviewImportCount || 0), 0),
+      providerErrors: queuedRows.reduce((sum, row) => sum + Number(row.providerErrorCount || 0), 0),
+    },
+    safetyBoundary: "Ledger summarizes review-only Agent Leads work. It is not proof of contact, bid submission, payment, portal action, or lead creation.",
+  };
+}
+
 function buildDailyJobFinderPlan({
   readiness = {},
   activeSources = [],
@@ -896,7 +1458,9 @@ function buildDailyJobFinderPlan({
     ],
     guardrails: [
       "Review-only search planning",
-      "No web browsing from the server yet",
+      "Public-source search prep only; no server-side scraping or unattended browsing",
+      "Private sources require authorized human review or an approved integration",
+      "No cold calls, cold texts, or cold emails",
       "No auto-created leads",
       "No customer contact without office approval",
     ],
@@ -938,7 +1502,10 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
     .map((entry) => buildSourceQueue(entry, companySettings));
   const sourceQueue = (checkQueue.length ? checkQueue : fallbackSources)
     .sort((left, right) => left.priority - right.priority || left.name.localeCompare(right.name));
-  const recentSourceCheckOutcomes = activeSources
+  const recentSourceCheckOutcomes = [
+    ...activeSources,
+    ...profileQueue.filter((profile) => normalizeStatus(profile.status) === "active").map((profile) => ({ id: profile.profileId, name: profile.name, notes: profile.notes })),
+  ]
     .flatMap((source) => parseOpportunityScoutSourceCheckOutcomes(source))
     .sort((left, right) => dateSortValue(right.checkedAt).localeCompare(dateSortValue(left.checkedAt)) || left.sourceName.localeCompare(right.sourceName))
     .slice(0, 6);
@@ -953,10 +1520,16 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
     checkFor: entry.checkFor,
     resultPrompt: entry.resultPrompt,
     addLeadPrompt: entry.addLeadPrompt,
+    sourcePosture: entry.sourcePosture,
     sourceAdapterId: entry.sourceAdapterId,
     sourceAccessStatus: entry.sourceAccessStatus,
     sourceTermsStatus: entry.sourceTermsStatus,
     sourceReviewRequired: entry.sourceReviewRequired,
+    sourceAuthorizationStatus: entry.sourceAuthorizationStatus,
+    sourceAuthorizedBy: entry.sourceAuthorizedBy,
+    sourceAuthorizedAt: entry.sourceAuthorizedAt,
+    sourceAuthorizationNote: entry.sourceAuthorizationNote,
+    sourceBlockedReason: entry.sourceBlockedReason,
     url: "",
     tone: entry.tone,
   }));
@@ -1088,6 +1661,21 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
     missingInfoLeads,
     highFitLeads,
   });
+  const dailyResourcePlan = buildDailyOpportunityResourcePlan({
+    activeProfiles: profileQueue.filter((profile) => normalizeStatus(profile.status) === "active"),
+    activeSources,
+    companySettings,
+    today,
+  });
+  const dailyScoutExecutionPlan = buildAgentOsOpportunityScoutExecutionPlan({
+    opportunitySearchProfiles: activeProfiles,
+    leadSources: activeSources,
+    foundOpportunities: openFoundOpportunities,
+    leads: openLeads,
+    auditEvents: source.auditEvents,
+    companySettings,
+    today,
+  });
   const agentRunPacket = buildOpportunityScoutAgentRunPacket({
     searchProfile: dueProfiles[0] || profileQueue[0] || activeProfiles[0] || {},
     leadSource: sourceQueue[0] || activeSources[0] || {},
@@ -1108,6 +1696,12 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
     dueLeads,
     missingInfoLeads,
   });
+  const dailyAgentLeadsLedger = buildDailyAgentLeadsLedger({
+    auditEvents: source.auditEvents,
+    recentSourceCheckOutcomes,
+    foundOpportunityQueue: openFoundOpportunityQueue,
+    dailyResourcePlan,
+  });
 
   return {
     today,
@@ -1115,6 +1709,9 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
     agentRunPacket,
     humanTaskQueue,
     ingestionReadiness,
+    dailyResourcePlan,
+    dailyScoutExecutionPlan,
+    dailyAgentLeadsLedger,
     dailyJobFinder,
     dailyRunSteps,
     qualityChecks,
@@ -1144,6 +1741,10 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
       dueSourceChecks: dailyCheck.stats.dueToday,
       recentSourceCheckOutcomes: recentSourceCheckOutcomes.length,
       foundWorkSourceCheckOutcomes: recentSourceCheckOutcomes.filter((outcome) => outcome.result === "found_work").length,
+      dailyResourceTargets: dailyResourcePlan.stats.total,
+      dailyResourceAutonomousPrep: dailyResourcePlan.stats.autonomousPrep,
+      dailyResourceHumanAccess: dailyResourcePlan.stats.humanAccess,
+      dailyResourceBlocked: dailyResourcePlan.stats.blocked,
       intakePackets: ingestionReadiness.stats.total,
       intakePacketsReady: ingestionReadiness.stats.ready,
       intakePacketsNeedInfo: ingestionReadiness.stats.needsInfo,

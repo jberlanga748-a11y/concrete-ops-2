@@ -149,8 +149,186 @@ export function getAgentOperatingSystemExternalGate(token, gateId) {
   return request(`/api/agent/os/external-gates/${encodeURIComponent(gateId)}`, { token });
 }
 
+export function getAgentLeadProviderHealth(token) {
+  return request("/api/agent/os/provider/health", { token });
+}
+
+export function getAgentLeadProviderLiveReadiness(token, today = "") {
+  const query = today ? `?today=${encodeURIComponent(today)}` : "";
+  return request(`/api/agent/os/provider/live-readiness${query}`, { token });
+}
+
+export function getAgentLeadProviderLiveApproval(token) {
+  return request("/api/agent/os/provider/live-approval", { token });
+}
+
+export function recordAgentLeadProviderLiveApprovalDecision(token, payload = {}) {
+  return request("/api/agent/os/provider/live-approval", { method: "POST", token, body: payload });
+}
+
+export function recordAgentLeadProviderCredentialHandoff(token, payload = {}) {
+  return request("/api/agent/os/provider/credential-handoffs", { method: "POST", token, body: payload });
+}
+
+export function recordAgentLeadProviderConnectionMetadata(token, payload = {}) {
+  return request("/api/agent/os/provider/connection-metadata", { method: "POST", token, body: payload });
+}
+
+export function recordAgentLeadProviderSourceConsent(token, payload = {}) {
+  return request("/api/agent/os/provider/source-consents", { method: "POST", token, body: payload });
+}
+
+export function recordAgentLeadProviderDailySchedule(token, payload = {}) {
+  return request("/api/agent/os/provider/daily-schedule", { method: "POST", token, body: payload });
+}
+
+export function recordAgentLeadPrivateSourceAuthorization(token, payload = {}) {
+  return request("/api/agent/os/provider/private-source-authorizations", { method: "POST", token, body: payload });
+}
+
+export function recordAgentLeadPrivateEvidenceIntake(token, payload = {}) {
+  return request("/api/agent/os/provider/private-evidence-intake", { method: "POST", token, body: payload });
+}
+
+export function getAgentLeadPrivateSourceChecklist(token, today = "") {
+  const query = today ? `?today=${encodeURIComponent(today)}` : "";
+  return request(`/api/agent/os/provider/private-source-checklist${query}`, { token });
+}
+
+export function recordAgentLeadPlatformProviderBoundary(token, payload = {}) {
+  return request("/api/agent/os/provider/platform-boundaries", { method: "POST", token, body: payload });
+}
+
+export function getAgentLeadProviderCompliancePacket(token) {
+  return request("/api/agent/os/provider/compliance-packet", { token });
+}
+
+export function getAgentLeadProviderMonitoringSnapshot(token, today = "") {
+  const query = today ? `?today=${encodeURIComponent(today)}` : "";
+  return request(`/api/agent/os/provider/monitoring-snapshot${query}`, { token });
+}
+
+export function getAgentLeadOfficialProviderApiAdapters(token, today = "") {
+  const query = today ? `?today=${encodeURIComponent(today)}` : "";
+  return request(`/api/agent/os/provider/official-api-adapters${query}`, { token });
+}
+
+export function getAgentLeadAllSourceAdapterCoverage(token, today = "") {
+  const query = today ? `?today=${encodeURIComponent(today)}` : "";
+  return request(`/api/agent/os/provider/source-adapter-coverage${query}`, { token });
+}
+
+export function getAgentLeadDailyPublicRunEvidence(token, today = "") {
+  const query = today ? `?today=${encodeURIComponent(today)}` : "";
+  return request(`/api/agent/os/provider/daily-public-run-evidence${query}`, { token });
+}
+
+export function getAgentLeadLocalCompletionReadiness(token, today = "") {
+  const query = today ? `?today=${encodeURIComponent(today)}` : "";
+  return request(`/api/agent/os/provider/local-completion-readiness${query}`, { token });
+}
+
+export function getAgentLeadProductionReadiness(token, today = "") {
+  const query = today ? `?today=${encodeURIComponent(today)}` : "";
+  return request(`/api/agent/os/provider/production-readiness${query}`, { token });
+}
+
+export function recordAgentLeadProductionReadinessEvidence(token, payload = {}) {
+  return request("/api/agent/os/provider/production-readiness-evidence", { method: "POST", token, body: payload });
+}
+
+export function approveAgentLeadDailyPublicRun(token, payload = {}) {
+  return request("/api/agent/os/provider/daily-public-run-approval", { method: "POST", token, body: payload });
+}
+
+export function getAgentLeadDailyPublicRunPreflight(token, today = "") {
+  const query = today ? `?today=${encodeURIComponent(today)}` : "";
+  return request(`/api/agent/os/provider/daily-public-run-preflight${query}`, { token });
+}
+
+export function prepareAgentLeadDailyPublicRunEvidence(token, payload = {}) {
+  return request("/api/agent/os/provider/daily-public-run-evidence", { method: "POST", token, body: payload });
+}
+
+export function recordAgentLeadDailyPublicRunOutcomes(token, payload = {}) {
+  return request("/api/agent/os/provider/daily-public-run-outcomes", { method: "POST", token, body: payload });
+}
+
+export function runAgentLeadOfficialProviderApiAdapterHarness(token, payload = {}) {
+  return request("/api/agent/os/provider/official-api-adapter-harness", { method: "POST", token, body: payload });
+}
+
+export function getAgentLeadProcurementFeedAdapter(token, today = "") {
+  const query = today ? `?today=${encodeURIComponent(today)}` : "";
+  return request(`/api/agent/os/provider/procurement-feed-adapter${query}`, { token });
+}
+
+export function recordAgentLeadProcurementFeedAdapterConfig(token, payload = {}) {
+  return request("/api/agent/os/provider/procurement-feed-adapter/configs", { method: "POST", token, body: payload });
+}
+
+export function runAgentLeadProcurementFeedAdapter(token, payload = {}) {
+  return request("/api/agent/os/provider/procurement-feed-adapter/run", { method: "POST", token, body: payload });
+}
+
+export function runAgentLeadLiveProcurementPublicAdapter(token, payload = {}) {
+  return request("/api/agent/os/provider/live-procurement-public-adapter/run", { method: "POST", token, body: payload });
+}
+
+export function runAgentLeadDailyLiveProcurementPublicAdapter(token, payload = {}) {
+  return request("/api/agent/os/provider/live-procurement-public-adapter/daily", { method: "POST", token, body: payload });
+}
+
+export function runAgentLeadProviderAdapterRunner(token, payload = {}) {
+  return request("/api/agent/os/provider/adapter-runner", { method: "POST", token, body: payload });
+}
+
+export function runAgentLeadProviderLivePublicExecution(token, payload = {}) {
+  return request("/api/agent/os/provider/live-public-execution", { method: "POST", token, body: payload });
+}
+
+export function runAgentLeadPublicSourceProviderAdapters(token, payload = {}) {
+  return request("/api/agent/os/provider/public-source-adapters", { method: "POST", token, body: payload });
+}
+
+export function runAgentLeadDailyJobFinderOrchestration(token, payload = {}) {
+  return request("/api/agent/os/provider/daily-job-finder/run", { method: "POST", token, body: payload });
+}
+
+export function runAgentLeadDailyJobFinderAutopilot(token, payload = {}) {
+  return request("/api/agent/os/provider/daily-job-finder/autopilot", { method: "POST", token, body: payload });
+}
+
+export function recordAgentLeadProviderReviewQueueDecision(token, payload = {}) {
+  return request("/api/agent/os/provider/review-queue-decisions", { method: "POST", token, body: payload });
+}
+
+export function draftAgentLeadProviderReviewOpportunity(token, payload = {}) {
+  return request("/api/agent/os/provider/review-queue-draft-opportunity", { method: "POST", token, body: payload });
+}
+
+export function runAgentLeadProviderSandboxTest(token, payload = {}) {
+  return request("/api/agent/os/provider/sandbox-test", { method: "POST", token, body: payload });
+}
+
+export function recordAgentLeadSmokeEvidence(token, payload = {}) {
+  return request("/api/agent/os/provider/smoke-evidence", { method: "POST", token, body: payload });
+}
+
+export function recordAgentLeadProviderImportDecision(token, payload = {}) {
+  return request("/api/agent/os/provider/import-decisions", { method: "POST", token, body: payload });
+}
+
 export function queueAgentOperatingSystemTask(token, payload) {
   return request("/api/agent/os/tasks", { method: "POST", token, body: payload });
+}
+
+export function queueDailyOpportunitySearchPrep(token, payload = {}) {
+  return request("/api/agent/os/opportunity-search-prep/daily", { method: "POST", token, body: payload });
+}
+
+export function queueAutonomousDailyOpportunitySearchPrep(token, payload = {}) {
+  return request("/api/agent/os/opportunity-search-prep/autonomous-daily", { method: "POST", token, body: payload });
 }
 
 export function updateAgentOperatingSystemRunStatus(token, id, payload) {
@@ -235,6 +413,14 @@ export function updateAgentConversationThread(token, id, payload) {
 
 export function updateCompanySettings(token, payload) {
   return request("/api/settings/company", { method: "PATCH", token, body: payload });
+}
+
+export function updateAgentLeadProviderSettings(token, publicLeadProviderSettings = {}) {
+  return updateCompanySettings(token, {
+    apexAgentAutomationPolicy: {
+      publicLeadProviderSettings,
+    },
+  });
 }
 
 export function createCustomer(token, customer) {
