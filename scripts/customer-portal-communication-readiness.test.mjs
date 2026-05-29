@@ -32,6 +32,7 @@ test("internal customer preview can be ready while external portal remains locke
       tokenizedPortalPlanDocumented: true,
       accessRecordLifecycleVerified: true,
       publicRouteContractVerified: true,
+      accessRecordPacketVerified: true,
       messageReviewPlanDocumented: true,
       approvalAuditPlanDocumented: true,
     },
@@ -68,6 +69,7 @@ test("external customer portal and sends require exact separate approval phrases
       tokenizedPortalPlanDocumented: true,
       accessRecordLifecycleVerified: true,
       publicRouteContractVerified: true,
+      accessRecordPacketVerified: true,
       messageReviewPlanDocumented: true,
       approvalAuditPlanDocumented: true,
     },
@@ -106,6 +108,7 @@ test("customer portal readiness parser captures evidence without mutating anythi
     "--tokenized-portal-plan-documented",
     "--access-record-lifecycle-verified",
     "--public-route-contract-verified",
+    "--access-record-packet-verified",
     "--message-review-plan-documented",
     "--approval-audit-plan-documented",
   ]);
@@ -116,6 +119,7 @@ test("customer portal readiness parser captures evidence without mutating anythi
   assert.equal(options.evidence.agentPolicyVerified, true);
   assert.equal(options.evidence.accessRecordLifecycleVerified, true);
   assert.equal(options.evidence.publicRouteContractVerified, true);
+  assert.equal(options.evidence.accessRecordPacketVerified, true);
   assert.equal(options.evidence.approvalAuditPlanDocumented, true);
   assert.equal(options.approvals.externalPortalApprovalPhrase, "");
 });

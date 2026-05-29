@@ -711,3 +711,138 @@ test("Public customer portal route denies missing and malformed access ids witho
     await fixture.stop();
   }
 });
+
+test("Elite owner can build an internal packet from an active locked access record", async () => {
+  const fixture = await startServer();
+
+  try {
+    const { created, headers } = await createLockedAccessRecord(fixture, {
+      approvalId: "PORTAL-ACCESS-REVIEW-PACKET",
+    });
+
+    const packetResult = await assertOk(fixture.baseUrl, `/api/customer-portal/access-records/${created.accessRecord.id}/packet`, {
+      headers,
+    });
+
+    assert.equal(packetResult.packet.accessRecordId, created.accessRecord.id);
+    assert.equal(packetResult.packet.status, "prepared_locked");
+    assert.equal(packetResult.packet.estimateId, created.accessRecord.estimateId);
+    assert.match(packetResult.packet.packet, /Apex HQ Customer Portal Manual Approval Preview/);
+    assert.match(packetResult.packet.packet, /Portal Review Customer/);
+    assert.match(packetResult.packet.packet, /Portal Review Patio/);
+    assert.match(packetResult.boundary, /Internal owner\/admin review packet only/);
+
+    const serialized = JSON.stringify(packetResult);
+    assert.equal(serialized.includes(created.accessRecord.tokenHashReference), false);
+    assert.equal(serialized.includes("tokenHashReference"), false);
+    assert.equal(serialized.includes("auditEventId"), false);
+    assert.equal(serialized.includes("preparedAuditEventId"), false);
+    assert.equal(serialized.includes("Internal margin and crew notes"), false);
+    assert.equal(serialized.includes("secret-session-token"), false);
+    assert.equal(serialized.includes("publicUrl"), false);
+    assert.equal(serialized.includes("rawToken"), false);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("Access-record packets require the Elite package", async () => {
+  const fixture = await startServer();
+
+  try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.PREMIUM);
+    const estimateId = insertApprovedEstimateFixture(fixture.sqliteFile);
+    const owner = insertPortalOwner(fixture.sqliteFile);
+    const loginResult = await login(fixture.baseUrl, { email: owner.email });
+    const headers = authHeaders(loginResult.token);
+
+    const deniedCreate = await requestJson(fixture.baseUrl, "/api/customer-portal/access-records", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        estimateId,
+        expiresAt: expiresIn(2),
+        approvalId: "PORTAL-ACCESS-REVIEW-PACKET-PREMIUM",
+      }),
+    });
+    assert.equal(deniedCreate.response.status, 403);
+
+    const deniedPacket = await requestJson(fixture.baseUrl, "/api/customer-portal/access-records/CPA-NOT-AVAILABLE/packet", { headers });
+    assert.equal(deniedPacket.response.status, 403);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("Access-record packets deny field users and wrong-company users", async () => {
+  const fixture = await startServer();
+
+  try {
+    const { created } = await createLockedAccessRecord(fixture, {
+      approvalId: "PORTAL-ACCESS-REVIEW-PACKET-DENIAL",
+    });
+    const fieldUser = createUserRecord({
+      id: "U-PORTAL-FIELD-PACKET",
+      email: "portal-field-packet@apexhq.test",
+      password: "apexdemo123",
+      name: "Portal Field Packet User",
+      role: "Employee",
+    });
+    insertUser(fixture.sqliteFile, fieldUser);
+    const fieldLogin = await login(fixture.baseUrl, { email: fieldUser.email });
+    const fieldHeaders = authHeaders(fieldLogin.token);
+
+    const fieldDenied = await requestJson(fixture.baseUrl, `/api/customer-portal/access-records/${created.accessRecord.id}/packet`, {
+      headers: fieldHeaders,
+    });
+    assert.equal(fieldDenied.response.status, 403);
+
+    const otherCompanyId = "COMPANY-PORTAL-PACKET-OTHER";
+    insertCompany(fixture.sqliteFile, otherCompanyId);
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.ELITE, otherCompanyId);
+    const otherOwner = insertPortalOwner(fixture.sqliteFile, {
+      email: "portal-packet-other-owner@apexhq.test",
+      companyId: otherCompanyId,
+    });
+    const otherLogin = await login(fixture.baseUrl, { email: otherOwner.email });
+    const otherHeaders = authHeaders(otherLogin.token);
+    const wrongCompanyDenied = await requestJson(fixture.baseUrl, `/api/customer-portal/access-records/${created.accessRecord.id}/packet`, {
+      headers: otherHeaders,
+    });
+    assert.equal(wrongCompanyDenied.response.status, 404);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("Access-record packets fail closed for revoked and expired records", async () => {
+  const fixture = await startServer();
+
+  try {
+    const active = await createLockedAccessRecord(fixture, {
+      approvalId: "PORTAL-ACCESS-REVIEW-PACKET-EXPIRED",
+    });
+    forceAccessRecordExpiration(fixture.sqliteFile, active.created.accessRecord.id, new Date(Date.now() - 60_000).toISOString());
+    const expiredDenied = await requestJson(fixture.baseUrl, `/api/customer-portal/access-records/${active.created.accessRecord.id}/packet`, {
+      headers: active.headers,
+    });
+    assert.equal(expiredDenied.response.status, 409);
+    assert.match(expiredDenied.payload.error, /expired/i);
+
+    const revoked = await createLockedAccessRecord(fixture, {
+      approvalId: "PORTAL-ACCESS-REVIEW-PACKET-REVOKED",
+    });
+    await assertOk(fixture.baseUrl, `/api/customer-portal/access-records/${revoked.created.accessRecord.id}/revoke`, {
+      method: "POST",
+      headers: revoked.headers,
+      body: JSON.stringify({ reason: "No longer approved for packet review." }),
+    });
+    const revokedDenied = await requestJson(fixture.baseUrl, `/api/customer-portal/access-records/${revoked.created.accessRecord.id}/packet`, {
+      headers: revoked.headers,
+    });
+    assert.equal(revokedDenied.response.status, 409);
+    assert.match(revokedDenied.payload.error, /revoked/i);
+  } finally {
+    await fixture.stop();
+  }
+});

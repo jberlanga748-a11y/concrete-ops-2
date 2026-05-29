@@ -25,7 +25,7 @@ function printHelp() {
 Usage:
   npm run launch:customer-portal-readiness
   npm run launch:customer-portal-readiness -- --json
-  npm run launch:customer-portal-readiness -- --portal-preview-verified --print-packets-verified --estimate-output-verified --roles-verified --entitlements-verified --agent-policy-verified --claims-verified --build-verified --tokenized-portal-plan-documented --access-record-lifecycle-verified --public-route-contract-verified --message-review-plan-documented --approval-audit-plan-documented --json
+  npm run launch:customer-portal-readiness -- --portal-preview-verified --print-packets-verified --estimate-output-verified --roles-verified --entitlements-verified --agent-policy-verified --claims-verified --build-verified --tokenized-portal-plan-documented --access-record-lifecycle-verified --public-route-contract-verified --access-record-packet-verified --message-review-plan-documented --approval-audit-plan-documented --json
 
 Future approval flags:
   --external-portal-approval-phrase=${EXTERNAL_PORTAL_APPROVAL_PHRASE}
@@ -52,6 +52,7 @@ function parseArgs(argv = []) {
       tokenizedPortalPlanDocumented: false,
       accessRecordLifecycleVerified: false,
       publicRouteContractVerified: false,
+      accessRecordPacketVerified: false,
       messageReviewPlanDocumented: false,
       approvalAuditPlanDocumented: false,
     },
@@ -75,6 +76,7 @@ function parseArgs(argv = []) {
     else if (arg === "--tokenized-portal-plan-documented") options.evidence.tokenizedPortalPlanDocumented = true;
     else if (arg === "--access-record-lifecycle-verified") options.evidence.accessRecordLifecycleVerified = true;
     else if (arg === "--public-route-contract-verified") options.evidence.publicRouteContractVerified = true;
+    else if (arg === "--access-record-packet-verified") options.evidence.accessRecordPacketVerified = true;
     else if (arg === "--message-review-plan-documented") options.evidence.messageReviewPlanDocumented = true;
     else if (arg === "--approval-audit-plan-documented") options.evidence.approvalAuditPlanDocumented = true;
     else if (arg.startsWith("--external-portal-approval-phrase=")) options.approvals.externalPortalApprovalPhrase = valueAfterEquals(arg);
@@ -319,6 +321,11 @@ export function buildCustomerPortalCommunicationReadinessReport({
     ], [
       "Public route contract verification proves browser hits remain locked and customer-data free; it does not enable external portal access.",
     ]),
+    gate("Internal access-record packet", Boolean(evidence.accessRecordPacketVerified), [
+      ...missing(evidence.accessRecordPacketVerified, "Run and pass internal customer portal access-record packet tests."),
+    ], [
+      "Internal packet verification covers owner/admin review output only; it does not serve content to customers.",
+    ]),
     gate("External customer portal approval", externalPortalApproved, [
       `Do not create customer logins, public share links, or portal tokens until ${EXTERNAL_PORTAL_APPROVAL_PHRASE} is recorded in a separate approved task.`,
     ]),
@@ -337,6 +344,7 @@ export function buildCustomerPortalCommunicationReadinessReport({
     "Tokenized portal and external sharing plan",
     "Locked access-record lifecycle",
     "Locked public route contract",
+    "Internal access-record packet",
   ].every((name) => gateByName.get(name)?.go);
   const externalCustomerPortalReady = gates.every((item) => item.go);
   const nextBlockedGate = gates.find((item) => !item.go) || null;

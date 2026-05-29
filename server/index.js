@@ -310,6 +310,7 @@ import {
 } from "../shared/permissions.js";
 import { buildConstructionAgentTradeContext, normalizeConstructionTradeId } from "../shared/constructionTrades.js";
 import {
+  buildCustomerPortalPreviewPacket,
   deriveCustomerPortalPreviewState,
   deriveCustomerPortalPublicRouteContract,
   deriveCustomerPortalTokenizedAccessPlan,
@@ -6533,8 +6534,19 @@ function visibleCustomerPortalAccessRecordsForUser(state, user) {
 }
 
 function buildCustomerPortalPreviewStateForAccessRecord(state, user, { estimateId = "" } = {}) {
-  const estimate = findCompanyScopedRecord(state.estimates || [], estimateId, user, state, "Estimate");
+  const scopedEstimate = findCompanyScopedRecord(state.estimates || [], estimateId, user, state, "Estimate");
   const companyId = currentCompanyIdForRequestUser(state, user);
+  const visibleCustomers = companyScopedRecordsForUser(state, user, state.customers || []);
+  const scopedCustomer = scopedEstimate.customerId
+    ? visibleCustomers.find((customer) => String(customer?.id || "") === String(scopedEstimate.customerId || ""))
+    : null;
+  const estimate = scopedCustomer
+    ? {
+      ...scopedEstimate,
+      customer: { name: scopedCustomer.name || scopedCustomer.company || "" },
+      customerName: scopedCustomer.name || scopedCustomer.company || "",
+    }
+    : scopedEstimate;
   const visibleJobs = companyScopedRecordsForUser(state, user, state.jobs || []);
   const explicitJob = estimate.jobId
     ? visibleJobs.find((job) => String(job?.id || "") === String(estimate.jobId || ""))
@@ -6628,6 +6640,42 @@ function assertCustomerPortalAccessRecordCanBeRevoked(record = {}) {
   if (record.status === "revoked_locked" || record.revokedAt) {
     throw new ApiError(409, "Customer portal access record is already revoked.");
   }
+}
+
+function assertCustomerPortalAccessRecordCanBuildPacket(record = {}) {
+  if (record.status === "revoked_locked" || record.revokedAt) {
+    throw new ApiError(409, "Customer portal access record is revoked.");
+  }
+  if (record.status === "expired_locked") {
+    throw new ApiError(409, "Customer portal access record is expired.");
+  }
+}
+
+function buildCustomerPortalAccessRecordPacket(state, user, accessRecord = {}) {
+  assertCustomerPortalAccessRecordCanBuildPacket(accessRecord);
+  const { previewState } = buildCustomerPortalPreviewStateForAccessRecord(state, user, {
+    estimateId: accessRecord.estimateId,
+  });
+  const packet = buildCustomerPortalPreviewPacket({
+    state: previewState,
+    user,
+    generatedAt: new Date().toISOString(),
+  });
+
+  return {
+    accessRecordId: accessRecord.id,
+    status: accessRecord.status,
+    estimateId: accessRecord.estimateId,
+    jobId: accessRecord.jobId,
+    allowedSections: Array.isArray(accessRecord.allowedSections) ? accessRecord.allowedSections : [],
+    packet,
+    preview: previewState.preview,
+    boundaries: [
+      ...(previewState.boundaries || []),
+      "Generated from an internal locked access record for owner/admin review only.",
+      "No customer-facing portal route, redeemable token, customer session, approval, message, invoice, or payment action is enabled.",
+    ],
+  };
 }
 
 function rejectCustomerPortalExternalAccessPayload(payload = {}) {
@@ -8058,6 +8106,18 @@ app.post("/api/customer-portal/access-records/:id/revoke", requireAuth, asyncRou
       revokeReason,
     },
     boundary: "Internal locked readiness records only; revocation does not create customer access, public URLs, raw tokens, messages, invoices, or payments.",
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/customer-portal/access-records/:id/packet", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanPrepareCustomerPortalAccess(state, req.auth.user);
+  const accessRecord = visibleCustomerPortalAccessRecordForUser(state, req.auth.user, req.params.id);
+  const packet = buildCustomerPortalAccessRecordPacket(state, req.auth.user, accessRecord);
+  res.json({
+    packet,
+    boundary: "Internal owner/admin review packet only; no customer portal route, redeemable token, customer session, message, invoice, or payment action is enabled.",
     requestId: res.locals.requestId,
   });
 }));
