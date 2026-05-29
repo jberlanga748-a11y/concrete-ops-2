@@ -10,6 +10,7 @@ export const REQUIRED_PILOT_CLOSE_FILES = [
   "docs/PILOT_TERMS_AND_SUPPORT_POLICY.md",
   "docs/PILOT_KICKOFF_AND_CHECKIN_TEMPLATES.md",
   "docs/CUSTOMER_DATA_POLICY_DRAFT.md",
+  "docs/PILOT_AGREEMENT_OUTLINE.md",
 ];
 
 export const REQUIRED_CLOSE_PACKET_PATTERNS = [
@@ -25,6 +26,11 @@ export const REQUIRED_CLOSE_PACKET_PATTERNS = [
   { label: "no automatic billing", pattern: /No automatic billing/i },
   { label: "no automatic sends", pattern: /automatic emails, texts, bid submissions/i },
   { label: "no legal overclaim", pattern: /not an enterprise SLA|not legal advice|separate approval/i },
+  { label: "quote/logo permission boundary", pattern: /Permission required before public quote\/logo\/screenshot/i },
+  { label: "customer data acknowledgement", pattern: /Customer data boundary acknowledged/i },
+  { label: "contractor approval record", pattern: /Contractor approval:/i },
+  { label: "Apex HQ approval record", pattern: /Apex HQ approval:/i },
+  { label: "founder price after pilot", pattern: /Founder price after pilot/i },
 ];
 
 export const BANNED_OVERCLAIM_PATTERNS = [
