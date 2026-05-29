@@ -31,6 +31,8 @@ import {
   canRenderAgentOsConsole,
   deriveAgentOsActionFilterGroups,
   deriveAgentOsConsoleSummary,
+  deriveAgentOsExternalGateExecutionRows,
+  deriveAgentOsExternalGateReadinessRows,
   deriveAgentOsInternalTaskOptions,
   deriveAgentOsLearningReviewRows,
   deriveAgentOsOperatorConsoleCards,
@@ -1901,6 +1903,8 @@ function CopilotPagePolished({
   const selectedAgentOsRunDetail = selectedAgentOsRunRow ? deriveAgentOsRunDetail(selectedAgentOsRunRow, agentOsConsoleState.agentOs || {}) : null;
   const agentOsActionRows = normalizeObjectArray(agentOsConsoleState.agentOs?.operatorControlPanel?.actionRollbackRows).filter((row) => !row.externalLocked).slice(0, 9);
   const agentOsLearningReviewRows = deriveAgentOsLearningReviewRows(agentOsConsoleState.agentOs || {});
+  const agentOsExternalGateReadinessRows = deriveAgentOsExternalGateReadinessRows(agentOsConsoleState.agentOs || {});
+  const agentOsExternalGateExecutionRows = deriveAgentOsExternalGateExecutionRows(agentOsConsoleState.agentOs || {});
   const dailyResourcePlan = opportunityScout.dailyResourcePlan || { lanes: [], rows: [], stats: {}, guardrails: [] };
   const dailyScoutExecutionPlan = opportunityScout.dailyScoutExecutionPlan || { cards: [], publicRunnerCards: [], privateHandoffCards: [], publicDiscoveryQueue: [], foundDraftQueue: [], providerAttempts: [], rejectedProviderResults: [], providerReviewImportQueue: [], stats: {}, guardrails: [], dailyRunRecord: null, publicProviderBoundary: null };
   const sourceCoveragePlanner = dailyScoutExecutionPlan.sourceCoveragePlanner || { families: [], gaps: [], recommendations: [], setupDrafts: [], stats: {} };
@@ -3860,6 +3864,74 @@ function CopilotPagePolished({
                       </div>
                     </div>
                   ) : null}
+                </div>
+              </div>
+            </div>
+
+            <div className="co-ai-scout-grid border-b border-slate-200 bg-white">
+              <div className="co-ai-scout-status" data-tone={agentOsExternalGateReadinessRows.some((row) => row.tone === "red") ? "red" : "amber"}>
+                <span>External gate readiness</span>
+                <strong>{agentOsExternalGateReadinessRows.length} locked preflight gate{agentOsExternalGateReadinessRows.length === 1 ? "" : "s"}</strong>
+                <p>These packets prepare human review evidence only. They cannot send, charge, write portals, mutate schedules, submit bids, or call integrations.</p>
+                <div className="co-ai-scout-metrics">
+                  <div><em>{agentOsExternalGateReadinessRows.length}</em><span>gates</span></div>
+                  <div><em>{agentOsExternalGateReadinessRows.filter((row) => row.blockerCount > 0).length}</em><span>blocked</span></div>
+                  <div><em>{agentOsExternalGateReadinessRows.reduce((total, row) => total + row.evidenceCount, 0)}</em><span>evidence</span></div>
+                </div>
+              </div>
+              <div className="co-ai-scout-briefs">
+                <SectionHeader title="Locked Preflight Gates" description="Scheduling, customer portal, SMS, payment, bid, email, and integration gates expose review packets while live execution remains disabled." />
+                <div className="co-ai-scout-brief-list">
+                  {agentOsExternalGateReadinessRows.length ? agentOsExternalGateReadinessRows.map((row) => (
+                    <div key={row.gateId} className="co-ai-scout-brief" data-tone={row.tone}>
+                      <div className="min-w-0">
+                        <span>{row.label}</span>
+                        <strong>{row.statusLabel}</strong>
+                        <p>{row.safetyBoundary}</p>
+                        <em>{row.preflightEndpoint || "Readiness packet only"} / blockers {row.blockerCount} / evidence {row.evidenceCount}</em>
+                        <div className="co-ai-scout-checks mt-3">
+                          {row.blockedActions.slice(0, 3).map((action) => <small key={`${row.gateId}-${action}`}>{action}</small>)}
+                          {row.missingEvidenceIds.length ? <small>Missing evidence: {row.missingEvidenceIds.slice(0, 4).join(", ")}</small> : null}
+                        </div>
+                      </div>
+                    </div>
+                  )) : (
+                    <StateCard title="No external gate readiness loaded" description="Refresh Apex Agent OS to load the locked preflight deck." tone="slate" />
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="co-ai-scout-grid border-b border-slate-200 bg-slate-50/80">
+              <div className="co-ai-scout-status" data-tone="amber">
+                <span>Execution contracts</span>
+                <strong>{agentOsExternalGateExecutionRows.length} hard-locked route{agentOsExternalGateExecutionRows.length === 1 ? "" : "s"}</strong>
+                <p>Contract routes can record internal approval evidence. Execute routes remain locked until a separately approved adapter exists.</p>
+                <div className="co-ai-scout-metrics">
+                  <div><em>{agentOsExternalGateExecutionRows.length}</em><span>contracts</span></div>
+                  <div><em>{agentOsExternalGateExecutionRows.filter((row) => !row.canExecute).length}</em><span>locked</span></div>
+                  <div><em>{agentOsExternalGateExecutionRows.filter((row) => row.configuredExecutionEnabled).length}</em><span>opt-ins</span></div>
+                </div>
+              </div>
+              <div className="co-ai-scout-briefs">
+                <SectionHeader title="Locked Execution Routes" description="These are contract and hard-deny execute boundaries, not live provider/customer actions." />
+                <div className="co-ai-scout-brief-list">
+                  {agentOsExternalGateExecutionRows.length ? agentOsExternalGateExecutionRows.map((row) => (
+                    <div key={row.gateId} className="co-ai-scout-brief" data-tone={row.tone}>
+                      <div className="min-w-0">
+                        <span>{row.label}</span>
+                        <strong>{row.statusLabel}</strong>
+                        <p>{row.safetyBoundary}</p>
+                        <em>{row.contractRoute} / {row.executionRoute}</em>
+                        <div className="co-ai-scout-checks mt-3">
+                          {row.blockedActions.slice(0, 3).map((action) => <small key={`${row.gateId}-execution-${action}`}>{action}</small>)}
+                          {row.futureAdapterBlockers.slice(0, 2).map((blocker) => <small key={`${row.gateId}-blocker-${blocker}`}>{blocker}</small>)}
+                        </div>
+                      </div>
+                    </div>
+                  )) : (
+                    <StateCard title="No execution contracts loaded" description="Refresh Apex Agent OS to load the locked execution contract deck." tone="slate" />
+                  )}
                 </div>
               </div>
             </div>

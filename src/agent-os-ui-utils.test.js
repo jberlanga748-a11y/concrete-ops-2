@@ -5,6 +5,8 @@ import {
   canRenderAgentOsConsole,
   deriveAgentOsActionFilterGroups,
   deriveAgentOsConsoleSummary,
+  deriveAgentOsExternalGateExecutionRows,
+  deriveAgentOsExternalGateReadinessRows,
   deriveAgentOsInternalTaskOptions,
   deriveAgentOsLearningReviewRows,
   deriveAgentOsOperatorConsoleCards,
@@ -278,6 +280,77 @@ test("Agent OS UI derives production evidence rows and blockers", () => {
   assert.equal(rows[1].tone, "green");
   assert.equal(rows[2].tone, "amber");
   assert.match(rows[2].nextStep, /Evidence required/i);
+});
+
+test("Agent OS UI derives external gate readiness rows without execution affordances", () => {
+  const rows = deriveAgentOsExternalGateReadinessRows({
+    externalGateReadinessDeck: {
+      rows: [
+        {
+          gateId: "sms_send",
+          label: "SMS send",
+          status: "blocked_locked",
+          blockerCount: 2,
+          evidenceCount: 3,
+          missingEvidenceIds: ["optOutReviewed"],
+          blockedActions: ["No SMS send", "No provider request"],
+          preflightEndpoint: "POST /api/agent/os/external-gates/sms_send/readiness",
+          safetyBoundary: "Locked SMS send readiness only.",
+        },
+        {
+          gateId: "scheduling",
+          label: "Scheduling mutation",
+          status: "ready_for_human_confirmed_schedule_review_locked",
+          blockerCount: 0,
+          evidenceCount: 1,
+          blockedActions: ["No schedule mutation"],
+          preflightEndpoint: "POST /api/agent/os/external-gates/scheduling/readiness",
+        },
+      ],
+      safetyBoundary: "External gate readiness deck is review-only.",
+    },
+  });
+
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].gateId, "sms_send");
+  assert.equal(rows[0].tone, "red");
+  assert.equal(rows[0].statusLabel, "blocked locked");
+  assert.equal(rows[0].blockedActions[0], "No SMS send");
+  assert.equal(rows[0].missingEvidenceIds[0], "optOutReviewed");
+  assert.match(rows[0].preflightEndpoint, /sms_send\/readiness/);
+  assert.equal(rows[1].tone, "green");
+  assert.match(rows[1].safetyBoundary, /review-only|External gate remains locked|Locked/i);
+});
+
+test("Agent OS UI derives external gate execution rows as locked contracts", () => {
+  const rows = deriveAgentOsExternalGateExecutionRows({
+    externalGateExecutionDeck: {
+      rows: [
+        {
+          gateId: "payment_collection",
+          label: "Payment collection",
+          status: "prepared_locked",
+          blockerCount: 2,
+          contractRoute: "POST /api/agent/os/external-gates/payment_collection/execution-contract",
+          executionRoute: "POST /api/agent/os/external-gates/payment_collection/execute",
+          canExecute: false,
+          configuredExecutionEnabled: false,
+          futureAdapterBlockers: ["Provider adapter is incomplete."],
+          blockedActions: ["No charge", "No payment link send"],
+          safetyBoundary: "Locked payment collection execution contract only.",
+        },
+      ],
+    },
+  });
+
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].gateId, "payment_collection");
+  assert.equal(rows[0].tone, "amber");
+  assert.equal(rows[0].canExecute, false);
+  assert.match(rows[0].contractRoute, /execution-contract/);
+  assert.match(rows[0].executionRoute, /execute/);
+  assert.equal(rows[0].blockedActions[0], "No charge");
+  assert.match(rows[0].futureAdapterBlockers[0], /adapter/i);
 });
 
 test("Agent OS UI derives console summary counts and operator checklist rows", () => {

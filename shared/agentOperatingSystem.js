@@ -9107,6 +9107,398 @@ export function buildAgentOsExternalGateDecisionPacket(gateId = "", {
   };
 }
 
+const EXTERNAL_GATE_READINESS_REQUIREMENTS = Object.freeze({
+  email_send: Object.freeze({
+    mode: "agent_email_send_gate_readiness_v1",
+    workflowId: "customer_email_message",
+    targetLabel: "Email recipient review target",
+    auditEvent: "agent.os.external.email_send.readiness_locked",
+    readyStatus: "ready_for_human_confirmed_email_review_locked",
+    reviewChecks: Object.freeze([
+      ["recipientVerified", "Recipient and target record verified"],
+      ["consentConfirmed", "Consent or business-context source confirmed"],
+      ["suppressionReviewed", "Suppression and do-not-contact state reviewed"],
+      ["providerConfigured", "Email provider and sender reviewed"],
+      ["templateReviewed", "Email template and copy reviewed"],
+      ["humanReviewConfirmed", "Human confirmation names the email effect"],
+      ["approvedBoundary", "Approved email boundary acknowledged"],
+    ]),
+    blockedActions: Object.freeze(["No email send", "No attachment send", "No auto-emailing", "No suppression bypass", "No provider request"]),
+    safetyBoundary: "Locked email send readiness only. No email, attachment send, provider request, suppression bypass, customer contact, deploy, secret, or production data action is executed.",
+  }),
+  customer_portal_action: Object.freeze({
+    mode: "agent_customer_portal_action_gate_readiness_v1",
+    workflowId: "customer_portal_write",
+    targetLabel: "Customer portal review target",
+    auditEvent: "agent.os.external.customer_portal_action.readiness_locked",
+    readyStatus: "ready_for_human_confirmed_portal_action_review_locked",
+    reviewChecks: Object.freeze([
+      ["previewDiffReviewed", "Customer-visible preview/diff reviewed"],
+      ["customerScopeValidated", "Tenant-scoped customer target validated"],
+      ["tokenLifecycleReviewed", "Token lifecycle rules reviewed"],
+      ["compensatingActionReviewed", "Correction or rollback path reviewed"],
+      ["humanReviewConfirmed", "Human confirmation names the portal effect"],
+      ["approvedBoundary", "Approved customer portal boundary acknowledged"],
+    ]),
+    blockedActions: Object.freeze(["No customer login", "No public link", "No redeemable token", "No customer action", "No customer message", "No invoice/payment action"]),
+    safetyBoundary: "Locked customer portal action readiness only. No customer portal write, public link, token redemption, customer session, customer message, invoice, payment, deploy, secret, or production data action is executed.",
+  }),
+  integration_write: Object.freeze({
+    mode: "agent_integration_write_gate_readiness_v1",
+    workflowId: "integration_write",
+    targetLabel: "Integration write target",
+    auditEvent: "agent.os.external.integration_write.readiness_locked",
+    readyStatus: "ready_for_human_confirmed_integration_write_review_locked",
+    reviewChecks: Object.freeze([
+      ["sandboxVerified", "Sandbox or test account verified"],
+      ["providerObjectScoped", "Provider and object type scoped"],
+      ["fieldMapReviewed", "Tenant-scoped field map reviewed"],
+      ["reconciliationReviewed", "Reconciliation and retry review complete"],
+      ["humanReviewConfirmed", "Human confirmation names the integration effect"],
+      ["approvedBoundary", "Approved integration boundary acknowledged"],
+    ]),
+    blockedActions: Object.freeze(["No provider write", "No live sync", "No credential change", "No hidden export", "No webhook mutation"]),
+    safetyBoundary: "Locked integration write readiness only. No provider write, live sync, credential change, webhook mutation, deploy, secret, or production data action is executed.",
+  }),
+  sms_send: Object.freeze({
+    mode: "agent_sms_send_gate_readiness_v1",
+    workflowId: "sms_customer_message",
+    targetLabel: "SMS recipient review target",
+    auditEvent: "agent.os.external.sms_send.readiness_locked",
+    readyStatus: "ready_for_human_confirmed_sms_review_locked",
+    reviewChecks: Object.freeze([
+      ["consentConfirmed", "Consent source confirmed"],
+      ["optOutReviewed", "Opt-out and do-not-contact state reviewed"],
+      ["senderConfigured", "Sender number/configuration reviewed"],
+      ["testRecipientStrategy", "Test recipient or sandbox strategy reviewed"],
+      ["templateReviewed", "SMS template and copy reviewed"],
+      ["humanReviewConfirmed", "Human confirmation names the SMS effect"],
+      ["approvedBoundary", "Approved SMS boundary acknowledged"],
+    ]),
+    blockedActions: Object.freeze(["No SMS send", "No MMS send", "No auto-texting", "No opt-out bypass", "No provider request"]),
+    safetyBoundary: "Locked SMS send readiness only. No SMS, MMS, provider request, opt-out bypass, customer contact, deploy, secret, or production data action is executed.",
+  }),
+  payment_collection: Object.freeze({
+    mode: "agent_payment_collection_gate_readiness_v1",
+    workflowId: "payment_collection",
+    targetLabel: "Payment collection review target",
+    auditEvent: "agent.os.external.payment_collection.readiness_locked",
+    readyStatus: "ready_for_human_confirmed_payment_review_locked",
+    reviewChecks: Object.freeze([
+      ["amountIntegrityReviewed", "Server-read amount integrity reviewed"],
+      ["sandboxProviderReviewed", "Sandbox provider path reviewed"],
+      ["kycProviderStatusReviewed", "Provider/KYC status reviewed"],
+      ["reconciliationReviewed", "Reconciliation path reviewed"],
+      ["humanReviewConfirmed", "Human confirmation names the payment effect"],
+      ["approvedBoundary", "Approved payment boundary acknowledged"],
+    ]),
+    blockedActions: Object.freeze(["No charge", "No capture", "No refund", "No mark-paid", "No payment link send", "No accounting mutation"]),
+    safetyBoundary: "Locked payment collection readiness only. No charge, capture, refund, mark-paid, payment-link send, accounting mutation, deploy, secret, or production data action is executed.",
+  }),
+  bid_submission: Object.freeze({
+    mode: "agent_bid_submission_gate_readiness_v1",
+    workflowId: "bid_submission",
+    targetLabel: "Bid submission review target",
+    auditEvent: "agent.os.external.bid_submission.readiness_locked",
+    readyStatus: "ready_for_human_confirmed_bid_submission_review_locked",
+    reviewChecks: Object.freeze([
+      ["destinationVerified", "Destination verified"],
+      ["packetPreviewReviewed", "Pre-submit packet preview reviewed"],
+      ["deadlineReviewed", "Deadline and submission timing reviewed"],
+      ["withdrawalCorrectionReviewed", "Withdrawal or correction path reviewed"],
+      ["humanReviewConfirmed", "Human confirmation names the bid submission effect"],
+      ["approvedBoundary", "Approved bid submission boundary acknowledged"],
+    ]),
+    blockedActions: Object.freeze(["No bid submission", "No portal automation", "No credential handling", "No CAPTCHA/MFA bypass", "No blind packet upload"]),
+    safetyBoundary: "Locked bid submission readiness only. No bid submission, portal automation, credential handling, CAPTCHA/MFA bypass, packet upload, deploy, secret, or production data action is executed.",
+  }),
+});
+
+function payloadHasUnsafeExternalGateIntent(value = {}) {
+  const serialized = JSON.stringify(value || {});
+  return hasRawSecretFields(value)
+    || /\b(password|token|cookie|session|secret|api[_\s-]?key|mfa|otp|execute|sendNow|autoSend|submitNow|chargeNow|captureNow|refundNow|syncNow|writeNow|notifyNow|contactCustomer|applySchedule|storeCredentials|bypass|ignoreConsent)\b/i.test(serialized);
+}
+
+export function buildAgentExternalGateReadinessPacket(gateId = "", {
+  companyId = "",
+  actorUserId = "",
+  target = {},
+  review = {},
+  externalGateSettings = {},
+  adapterEvidence = {},
+  now = new Date().toISOString(),
+} = {}) {
+  const normalizedGateId = text(gateId, 120);
+  const requirements = EXTERNAL_GATE_READINESS_REQUIREMENTS[normalizedGateId];
+  if (!requirements) {
+    return {
+      ok: false,
+      error: "Unknown Apex Agent external gate readiness packet.",
+    };
+  }
+  const gateDecision = buildAgentOsExternalGateDecisionPacket(normalizedGateId, {
+    companyId,
+    actorUserId,
+    externalGateSettings,
+    adapterEvidence,
+    now,
+  });
+  if (!gateDecision.ok) {
+    return {
+      ok: false,
+      error: gateDecision.error || "Unknown Apex Agent external gate.",
+    };
+  }
+  const evidenceRows = requirements.reviewChecks.map(([id, label]) => ({
+    id,
+    label,
+    status: review?.[id] === true ? "recorded" : "missing",
+  }));
+  const missingEvidenceIds = evidenceRows.filter((row) => row.status !== "recorded").map((row) => row.id);
+  const targetId = text(target.id || target.entityId || target.targetEntityId || target.recordId, 160);
+  const targetEntityType = text(target.entityType || target.targetEntityType || "record", 80);
+  const unsafePayload = payloadHasUnsafeExternalGateIntent(target) || payloadHasUnsafeExternalGateIntent(review);
+  const adapterReadiness = gateDecision.adapterReadiness || {};
+  const blockers = [
+    !targetId ? `${requirements.targetLabel} requires a visible target id.` : "",
+    missingEvidenceIds.length ? `Missing gate review evidence: ${missingEvidenceIds.join(", ")}.` : "",
+    gateDecision.gate?.executionEnabled !== true ? `Per-company ${normalizedGateId} external gate is not enabled.` : "",
+    adapterReadiness.status !== "ready_for_human_confirmed_adapter_review" ? `${gateDecision.gate?.label || normalizedGateId} adapter evidence is incomplete.` : "",
+    unsafePayload ? "Gate readiness cannot include credentials, bypass flags, auto-execute instructions, or immediate external-action requests." : "",
+  ].filter(Boolean);
+  const idempotencyKey = text(
+    review.idempotencyKey || `${normalizedGateId}:${text(companyId, 120)}:${targetEntityType}:${targetId}`,
+    260,
+  );
+
+  return {
+    ok: true,
+    mode: requirements.mode,
+    status: blockers.length ? "blocked_locked" : requirements.readyStatus,
+    gateId: normalizedGateId,
+    workflowId: requirements.workflowId,
+    companyId: text(companyId, 120),
+    requestedBy: text(actorUserId, 120),
+    requestedAt: now,
+    target: {
+      entityType: targetEntityType,
+      entityId: targetId,
+      label: text(target.label || target.title || target.name || requirements.targetLabel, 180),
+    },
+    evidenceRows,
+    missingEvidenceIds,
+    adapterReadiness,
+    blockers,
+    idempotencyKey,
+    auditEvent: requirements.auditEvent,
+    rollbackPlan: {
+      status: "prepared_locked",
+      rollbackBehavior: gateDecision.gate?.executionEnabled === true
+        ? "If a future human-confirmed adapter executes this gate, disable the gate and use the normal domain rollback or compensating action path recorded in the audit packet."
+        : gateDecision.gate?.executionLock || "No execution occurred; discard this readiness packet.",
+    },
+    blockedActions: [...requirements.blockedActions],
+    externalActionPrepared: false,
+    externalActionExecuted: false,
+    providerRequestPrepared: false,
+    providerRequestSent: false,
+    externalGateExecutionEnabled: false,
+    canExecute: false,
+    safetyBoundary: requirements.safetyBoundary,
+  };
+}
+
+export function buildAgentOsExternalGateReadinessDeck({
+  externalGateSettings = {},
+  adapterEvidence = {},
+  companyId = "",
+  actorUserId = "",
+  now = new Date().toISOString(),
+} = {}) {
+  const rows = AGENT_OS_EXTERNAL_GATE_IDS.map((gateId) => {
+    if (gateId === "scheduling") {
+      const packet = buildAgentSchedulingMutationGateReadinessPacket({
+        companyId,
+        actorUserId,
+        externalGateSettings,
+        adapterEvidence,
+        now,
+      });
+      return {
+        gateId,
+        label: "Scheduling mutation",
+        status: packet.status,
+        blockerCount: packet.blockers.length,
+        evidenceCount: packet.notificationPolicyReview.status === "reviewed" ? 1 : 0,
+        blockedActions: ["No schedule mutation", "No crew assignment", "No field visibility change", "No customer notification"],
+        safetyBoundary: packet.safetyBoundary,
+        preflightEndpoint: "POST /api/agent/os/external-gates/scheduling/readiness",
+      };
+    }
+    const packet = buildAgentExternalGateReadinessPacket(gateId, {
+      companyId,
+      actorUserId,
+      target: { entityType: "readiness", entityId: `${gateId}-review-target`, label: `${gateId.replace(/_/g, " ")} review target` },
+      externalGateSettings,
+      adapterEvidence,
+      now,
+    });
+    return {
+      gateId,
+      label: getAgentOsExternalGateApprovalPlan(gateId, { externalGateSettings })?.label || gateId,
+      status: packet.status || "blocked_locked",
+      blockerCount: asArray(packet.blockers).length,
+      evidenceCount: asArray(packet.evidenceRows).filter((row) => row.status === "recorded").length,
+      missingEvidenceIds: asArray(packet.missingEvidenceIds),
+      blockedActions: asArray(packet.blockedActions),
+      safetyBoundary: packet.safetyBoundary || "External gate remains locked.",
+      preflightEndpoint: `POST /api/agent/os/external-gates/${gateId}/readiness`,
+    };
+  });
+  return {
+    mode: "agent_os_external_gate_readiness_deck_v1",
+    status: rows.every((row) => row.status && row.status !== "blocked_locked") ? "ready_for_review_locked" : "blocked_locked",
+    rows,
+    stats: {
+      gateCount: rows.length,
+      blockedCount: rows.filter((row) => row.status === "blocked_locked").length,
+      endpointCount: rows.filter((row) => row.preflightEndpoint).length,
+    },
+    safetyBoundary: "External gate readiness deck is review-only. It cannot send, collect payment, write portal/schedule/integration data, submit bids, store secrets, deploy, or touch production data.",
+  };
+}
+
+export function buildAgentExternalGateExecutionContract(gateId = "", {
+  companyId = "",
+  actorUserId = "",
+  target = {},
+  review = {},
+  externalGateSettings = {},
+  adapterEvidence = {},
+  now = new Date().toISOString(),
+} = {}) {
+  const normalizedGateId = text(gateId, 120);
+  const readiness = normalizedGateId === "scheduling"
+    ? null
+    : buildAgentExternalGateReadinessPacket(normalizedGateId, {
+        companyId,
+        actorUserId,
+        target,
+        review,
+        externalGateSettings,
+        adapterEvidence,
+        now,
+      });
+  if (!readiness?.ok) {
+    return {
+      ok: false,
+      error: readiness?.error || "Unknown Apex Agent external gate execution contract.",
+    };
+  }
+  const gateDecision = buildAgentOsExternalGateDecisionPacket(normalizedGateId, {
+    companyId,
+    actorUserId,
+    externalGateSettings,
+    adapterEvidence,
+    now,
+  });
+  const reviewBlockers = asArray(readiness.blockers).filter((blocker) => !/^Per-company /i.test(blocker) && !/adapter evidence is incomplete/i.test(blocker));
+  const futureAdapterBlockers = [
+    gateDecision.gate?.executionEnabled === true ? "" : `Per-company ${normalizedGateId} opt-in is not enabled for live execution.`,
+    readiness.adapterReadiness?.status === "ready_for_human_confirmed_adapter_review" ? "" : `${gateDecision.gate?.label || normalizedGateId} adapter evidence remains incomplete.`,
+    "Live execution route is hard-locked until a separately approved provider/domain adapter is built and verified.",
+  ].filter(Boolean);
+  const status = reviewBlockers.length ? "blocked_locked" : "prepared_locked";
+  const idempotencyKey = text(review.idempotencyKey || readiness.idempotencyKey || `${normalizedGateId}:${text(companyId, 120)}:${readiness.target?.entityType || "record"}:${readiness.target?.entityId || ""}`, 260);
+  const executionContractId = text(`AGENT-EXT-${normalizedGateId}-${idempotencyKey}`.replace(/[^a-z0-9:_-]+/gi, "-"), 260);
+
+  return {
+    ok: true,
+    mode: "agent_os_external_gate_execution_contract_v1",
+    status,
+    id: executionContractId,
+    gateId: normalizedGateId,
+    workflowId: readiness.workflowId,
+    companyId: text(companyId, 120),
+    requestedBy: text(actorUserId, 120),
+    requestedAt: now,
+    target: readiness.target,
+    readinessStatus: readiness.status,
+    readinessBlockers: asArray(readiness.blockers),
+    reviewBlockers,
+    futureAdapterBlockers,
+    evidenceRows: asArray(readiness.evidenceRows),
+    missingEvidenceIds: asArray(readiness.missingEvidenceIds),
+    idempotencyKey,
+    executionRoute: `POST /api/agent/os/external-gates/${normalizedGateId}/execute`,
+    contractRoute: `POST /api/agent/os/external-gates/${normalizedGateId}/execution-contract`,
+    auditEvent: `agent.os.external.${normalizedGateId}.execution_contract_prepared_locked`,
+    downstreamAuditEvent: gateDecision.gate?.auditEvent || readiness.auditEvent,
+    rollbackPlan: {
+      status: "documented_locked",
+      rollbackBehavior: gateDecision.gate?.rollback || readiness.rollbackPlan?.rollbackBehavior || "No execution occurred; discard this locked contract.",
+    },
+    blockedActions: asArray(readiness.blockedActions),
+    adapterReadiness: readiness.adapterReadiness,
+    executionEnabled: false,
+    configuredExecutionEnabled: gateDecision.gate?.executionEnabled === true,
+    canExecute: false,
+    externalActionPrepared: false,
+    externalActionExecuted: false,
+    providerRequestPrepared: false,
+    providerRequestSent: false,
+    liveAdapterBuilt: false,
+    safetyBoundary: `Locked ${gateDecision.gate?.label || normalizedGateId} execution contract only. No provider request, customer contact, payment, portal action, schedule mutation, bid submission, integration write, deploy, secret, or production data action is executed.`,
+  };
+}
+
+export function buildAgentOsExternalGateExecutionDeck({
+  externalGateSettings = {},
+  adapterEvidence = {},
+  companyId = "",
+  actorUserId = "",
+  now = new Date().toISOString(),
+} = {}) {
+  const rows = AGENT_OS_EXTERNAL_GATE_IDS
+    .filter((gateId) => gateId !== "scheduling")
+    .map((gateId) => {
+      const contract = buildAgentExternalGateExecutionContract(gateId, {
+        companyId,
+        actorUserId,
+        target: { entityType: "executionReadiness", entityId: `${gateId}-execution-target`, label: `${gateId.replace(/_/g, " ")} execution target` },
+        externalGateSettings,
+        adapterEvidence,
+        now,
+      });
+      return {
+        gateId,
+        label: getAgentOsExternalGateApprovalPlan(gateId, { externalGateSettings })?.label || gateId,
+        status: contract.status || "blocked_locked",
+        contractRoute: `POST /api/agent/os/external-gates/${gateId}/execution-contract`,
+        executionRoute: `POST /api/agent/os/external-gates/${gateId}/execute`,
+        blockerCount: asArray(contract.reviewBlockers).length + asArray(contract.futureAdapterBlockers).length,
+        futureAdapterBlockers: asArray(contract.futureAdapterBlockers),
+        blockedActions: asArray(contract.blockedActions),
+        configuredExecutionEnabled: contract.configuredExecutionEnabled === true,
+        canExecute: false,
+        safetyBoundary: contract.safetyBoundary || "External execution contract remains locked.",
+      };
+    });
+  return {
+    mode: "agent_os_external_gate_execution_deck_v1",
+    status: "locked",
+    rows,
+    stats: {
+      gateCount: rows.length,
+      lockedCount: rows.filter((row) => row.canExecute === false).length,
+      contractEndpointCount: rows.filter((row) => row.contractRoute).length,
+      executionEndpointCount: rows.filter((row) => row.executionRoute).length,
+    },
+    safetyBoundary: "External execution deck is locked. It cannot send, collect payment, write portal/schedule/integration data, submit bids, store secrets, deploy, or touch production data.",
+  };
+}
+
 function parseScheduleTime(value = "") {
   const parsed = Date.parse(text(value, 120));
   return Number.isFinite(parsed) ? parsed : null;
@@ -11170,6 +11562,12 @@ export function buildAgentOsSummary({
   });
   const externalGates = listAgentOsExternalGates({ externalGateSettings: normalizedExternalGateSettings });
   const externalGateApprovalPlans = listAgentOsExternalGateApprovalPlans({ externalGateSettings: normalizedExternalGateSettings });
+  const externalGateReadinessDeck = buildAgentOsExternalGateReadinessDeck({
+    externalGateSettings: normalizedExternalGateSettings,
+  });
+  const externalGateExecutionDeck = buildAgentOsExternalGateExecutionDeck({
+    externalGateSettings: normalizedExternalGateSettings,
+  });
   const learningSignals = deriveAgentOsLearningSignals(workspace);
   const ledger = deriveAgentOsLedgerFromAuditEvents(auditEvents);
   const operatorControlPanel = buildAgentOsOperatorControlPanel({
@@ -11186,6 +11584,8 @@ export function buildAgentOsSummary({
     externalGateSettings: normalizedExternalGateSettings,
     externalGates,
     externalGateApprovalPlans,
+    externalGateReadinessDeck,
+    externalGateExecutionDeck,
     publicLeadProviderSettings: normalizedProviderSettings,
     dailyJobFinderAutopilotSettings: normalizedProviderSettings.dailyJobFinderAutopilot,
     publicLeadProviderContract: providerContract,

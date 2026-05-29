@@ -99,6 +99,8 @@ import {
 import {
   buildAgentOsInternalDraftPacket,
   buildAgentOsExternalGateDecisionPacket,
+  buildAgentExternalGateReadinessPacket,
+  buildAgentExternalGateExecutionContract,
   buildAgentSchedulingMutationGateReadinessPacket,
   buildAgentLeadsAutonomousDailyScoutSchedule,
   buildAgentLeadsProviderHealthCheck,
@@ -6247,6 +6249,43 @@ function assertCanQueueAgentOsAction(state, user, action) {
   }
 }
 
+function assertCanPrepareAgentExternalGateReadiness(state, user, gateId) {
+  assertCanUseAgentOperatingSystem(state, user);
+  const allowed = (() => {
+    switch (gateId) {
+      case "sms_send":
+      case "email_send":
+        return canManageContactHistory(user);
+      case "payment_collection":
+        return canViewJobMoney(user);
+      case "customer_portal_action":
+        return canPreviewCustomerPortal(user) && companyHasFeature(state, user, FEATURE_KEYS.CUSTOMER_PORTAL);
+      case "scheduling":
+        return canCreateJobs(user) && companyHasFeature(state, user, FEATURE_KEYS.BASIC_SCHEDULE);
+      case "bid_submission":
+        return canManageEstimates(user);
+      case "integration_write":
+        return isOfficeManager(user) && companyHasFeature(state, user, FEATURE_KEYS.INTEGRATIONS);
+      default:
+        return false;
+    }
+  })();
+  if (!allowed) {
+    throw new ApiError(403, "Your role or package cannot prepare this Apex Agent external gate readiness packet.");
+  }
+}
+
+function findAgentExternalGateExecutionContractAudit(state, user, gateId, idempotencyKey) {
+  const companyId = currentCompanyIdForRequestUser(state, user);
+  return (Array.isArray(state.auditEvents) ? state.auditEvents : []).find((event) => {
+    if (event.companyId !== companyId) return false;
+    if (event.entityType !== "agent_external_execution_contract") return false;
+    const detail = parseAuditEventDetail(event);
+    const contract = detail.executionContract && typeof detail.executionContract === "object" ? detail.executionContract : {};
+    return contract.gateId === gateId && contract.idempotencyKey === idempotencyKey;
+  }) || null;
+}
+
 function parseAgentOsAuditDetail(detail) {
   if (detail && typeof detail === "object") return detail;
   if (!detail || typeof detail !== "string") return {};
@@ -8780,10 +8819,7 @@ app.get("/api/agent/os/external-gates/:gateId", requireAuth, asyncRoute(async (r
 
 app.post("/api/agent/os/external-gates/scheduling/readiness", requireAuth, asyncRoute(async (req, res) => {
   const state = await readDb();
-  assertCanUseAgentOperatingSystem(state, req.auth.user);
-  if (!canCreateJobs(req.auth.user) || !companyHasFeature(state, req.auth.user, FEATURE_KEYS.BASIC_SCHEDULE)) {
-    throw new ApiError(403, "Scheduling gate readiness requires office scheduling access.");
-  }
+  assertCanPrepareAgentExternalGateReadiness(state, req.auth.user, "scheduling");
   const companyId = currentCompanyIdForRequestUser(state, req.auth.user);
   const visibleJobs = companyScopedRecordsForUser(state, req.auth.user, state.jobs || [])
     .filter((entry) => canViewJob(entry, req.auth.user));
@@ -8809,6 +8845,97 @@ app.post("/api/agent/os/external-gates/scheduling/readiness", requireAuth, async
     schedulingGateReadiness: readiness,
     requestId: res.locals.requestId,
   });
+}));
+
+app.post("/api/agent/os/external-gates/:gateId/readiness", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const gateId = optionalString(req.params.gateId, "");
+  if (gateId === "scheduling") {
+    throw new ApiError(400, "Use the scheduling readiness endpoint with a visible job target.");
+  }
+  assertCanPrepareAgentExternalGateReadiness(state, req.auth.user, gateId);
+  const packet = buildAgentExternalGateReadinessPacket(gateId, {
+    companyId: currentCompanyIdForRequestUser(state, req.auth.user),
+    actorUserId: req.auth.user.id,
+    target: req.body?.target && typeof req.body.target === "object" ? req.body.target : {},
+    review: req.body?.review && typeof req.body.review === "object" ? req.body.review : {},
+    externalGateSettings: companySettingsForState(state, req.auth.user).apexAgentAutomationPolicy?.externalGateSettings,
+    adapterEvidence: req.body?.adapterEvidence && typeof req.body.adapterEvidence === "object" ? req.body.adapterEvidence : {},
+    now: new Date().toISOString(),
+  });
+  if (!packet.ok) {
+    throw new ApiError(404, packet.error || "Apex Agent external gate readiness packet not found.");
+  }
+  res.json({
+    externalGateReadiness: packet,
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/external-gates/:gateId/execution-contract", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const gateId = optionalString(req.params.gateId, "");
+  if (gateId === "scheduling") {
+    throw new ApiError(400, "Scheduling uses the scheduling readiness endpoint until a separate schedule mutation adapter is approved.");
+  }
+  assertCanPrepareAgentExternalGateReadiness(state, req.auth.user, gateId);
+  const candidate = buildAgentExternalGateExecutionContract(gateId, {
+    companyId: currentCompanyIdForRequestUser(state, req.auth.user),
+    actorUserId: req.auth.user.id,
+    target: req.body?.target && typeof req.body.target === "object" ? req.body.target : {},
+    review: req.body?.review && typeof req.body.review === "object" ? req.body.review : {},
+    externalGateSettings: companySettingsForState(state, req.auth.user).apexAgentAutomationPolicy?.externalGateSettings,
+    adapterEvidence: req.body?.adapterEvidence && typeof req.body.adapterEvidence === "object" ? req.body.adapterEvidence : {},
+    now: new Date().toISOString(),
+  });
+  if (!candidate.ok) {
+    throw new ApiError(404, candidate.error || "Apex Agent external gate execution contract not found.");
+  }
+  if (candidate.status !== "prepared_locked") {
+    throw new ApiError(409, "Apex Agent external gate execution contract requires complete human review evidence and a visible target.");
+  }
+
+  const existing = findAgentExternalGateExecutionContractAudit(state, req.auth.user, candidate.gateId, candidate.idempotencyKey);
+  if (existing) {
+    const detail = parseAuditEventDetail(existing);
+    res.json({
+      executionContract: detail.executionContract,
+      idempotentReplay: true,
+      requestId: res.locals.requestId,
+      boundary: "Locked execution contract replay only; no external action was executed.",
+    });
+    return;
+  }
+
+  const nextState = await updateDb((draft) => {
+    appendAuditEvent(draft, {
+      entityType: "agent_external_execution_contract",
+      entityId: candidate.id,
+      action: candidate.auditEvent,
+      summary: `${candidate.gateId.replace(/_/g, " ")} execution contract prepared as locked internal evidence`,
+      detail: JSON.stringify({
+        executionContract: candidate,
+        safetyBoundary: candidate.safetyBoundary,
+      }),
+      actor: req.auth.user,
+      changedFields: ["agentExternalGateExecutionContract"],
+    });
+    return draft;
+  });
+  const persisted = findAgentExternalGateExecutionContractAudit(nextState, req.auth.user, candidate.gateId, candidate.idempotencyKey);
+  res.status(201).json({
+    executionContract: parseAuditEventDetail(persisted || {}).executionContract || candidate,
+    idempotentReplay: false,
+    requestId: res.locals.requestId,
+    boundary: "Locked execution contract only; this did not prepare provider requests, send messages, collect payment, write portal/integration data, submit bids, deploy, change secrets/config, or touch production data.",
+  });
+}));
+
+app.post("/api/agent/os/external-gates/:gateId/execute", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const gateId = optionalString(req.params.gateId, "");
+  assertCanPrepareAgentExternalGateReadiness(state, req.auth.user, gateId);
+  throw new ApiError(423, `Apex Agent ${gateId.replace(/_/g, " ")} execution is locked. Readiness and execution-contract evidence cannot execute external actions.`);
 }));
 
 app.get("/api/agent/os/provider/health", requireAuth, asyncRoute(async (req, res) => {
