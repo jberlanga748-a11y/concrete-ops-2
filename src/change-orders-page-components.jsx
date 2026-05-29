@@ -17,7 +17,13 @@ import {
   TextAreaField,
 } from "./app-shell-components";
 import { CommandCenterKpiCard, ModuleKpiStrip } from "./command-center-route-components";
-import { changeOrderStatusLabel, deriveChangeOrderListState, filterChangeOrderRequests } from "./change-order-utils";
+import {
+  buildChangeOrderMoneyPacket,
+  changeOrderReviewStatusLabel,
+  changeOrderStatusLabel,
+  deriveChangeOrderListState,
+  filterChangeOrderRequests,
+} from "./change-order-utils";
 import { jobTitle } from "./job-utils";
 
 function formatDateTime(value) {
@@ -231,6 +237,7 @@ function ChangeOrdersCommandRailPolished({ request, canCreate, canManage, busy, 
   }
 
   const statusLabel = changeOrderDisplayStatusLabel(request.status, canManage);
+  const moneyPacket = canManage ? buildChangeOrderMoneyPacket({ ...request, ...detailDraft }) : null;
   const needsOfficeReview = request.status === "requested" || request.status === "under_review";
 
   return (
@@ -384,11 +391,51 @@ function ChangeOrderDetailPanelPolished({
 
       {canManage ? (
         <div className="mt-4 space-y-3">
+          <Card className="co-change-orders-form-card p-4">
+            <SectionHeader
+              title="Money review"
+              description="Manual change-order pricing, customer/GC review, and billing handoff prep. No invoice, payment, send, or job status change happens here."
+              action={<Badge tone={moneyPacket?.readyForBillingHandoff ? "green" : "amber"}>{moneyPacket?.readyForBillingHandoff ? "Manual handoff ready" : "Locked"}</Badge>}
+            />
+            <div className="co-change-orders-readonly-grid">
+              <div><span>Amount</span><strong>{moneyPacket?.priceLabel || "Manual pricing required"}</strong></div>
+              <div><span>Customer review</span><strong>{changeOrderReviewStatusLabel(detailDraft.customerReviewStatus)}</strong></div>
+              <div><span>GC review</span><strong>{changeOrderReviewStatusLabel(detailDraft.gcReviewStatus)}</strong></div>
+              <div><span>Billing handoff</span><strong>{moneyPacket?.readyForBillingHandoff ? "Ready for manual prep" : "Locked"}</strong></div>
+            </div>
+            {moneyPacket?.blockers?.length ? (
+              <ul className="co-change-orders-readiness-list mt-3">
+                {moneyPacket.blockers.map((blocker) => (
+                  <li key={blocker} data-state="needs">{blocker}</li>
+                ))}
+              </ul>
+            ) : null}
+          </Card>
           <SelectField label="Status" value={detailDraft.status} onChange={(event) => setDetailDraft((current) => ({ ...current, status: event.target.value }))}>
             <option value="requested">Requested</option>
             <option value="under_review">Under Review</option>
             <option value="approved_for_pricing">Approved for Pricing</option>
             <option value="rejected">Rejected</option>
+          </SelectField>
+          <InputField label="Manual change amount" type="number" min="0" step="0.01" value={detailDraft.priceAmount} onChange={(event) => setDetailDraft((current) => ({ ...current, priceAmount: event.target.value }))} placeholder="0.00" />
+          <SelectField label="Customer review status" value={detailDraft.customerReviewStatus} onChange={(event) => setDetailDraft((current) => ({ ...current, customerReviewStatus: event.target.value }))}>
+            <option value="not_ready">Not Ready</option>
+            <option value="ready_for_manual_review">Ready For Manual Review</option>
+            <option value="sent_manually">Sent Manually</option>
+            <option value="accepted_manually">Accepted Manually</option>
+            <option value="rejected_manually">Rejected Manually</option>
+          </SelectField>
+          <SelectField label="GC review status" value={detailDraft.gcReviewStatus} onChange={(event) => setDetailDraft((current) => ({ ...current, gcReviewStatus: event.target.value }))}>
+            <option value="not_ready">Not Ready</option>
+            <option value="ready_for_manual_review">Ready For Manual Review</option>
+            <option value="sent_manually">Sent Manually</option>
+            <option value="accepted_manually">Accepted Manually</option>
+            <option value="rejected_manually">Rejected Manually</option>
+          </SelectField>
+          <SelectField label="Billing handoff" value={detailDraft.billingHandoffStatus} onChange={(event) => setDetailDraft((current) => ({ ...current, billingHandoffStatus: event.target.value }))}>
+            <option value="locked">Locked</option>
+            <option value="ready_for_manual_billing_handoff">Ready For Manual Billing Handoff</option>
+            <option value="handed_off_manually">Handed Off Manually</option>
           </SelectField>
           <TextAreaField label="Office notes" value={detailDraft.officeNotes} onChange={(event) => setDetailDraft((current) => ({ ...current, officeNotes: event.target.value }))} placeholder="Internal office notes only." />
           <div className="flex flex-wrap gap-2">
@@ -421,7 +468,7 @@ function ChangeOrdersPagePolished({
   const [search, setSearch] = useState("");
   const [selectedRequestId, setSelectedRequestId] = useState("");
   const [createDraft, setCreateDraft] = useState(INITIAL_CHANGE_ORDER_REQUEST_FORM);
-  const [detailDraft, setDetailDraft] = useState({ status: "requested", officeNotes: "" });
+  const [detailDraft, setDetailDraft] = useState({ status: "requested", officeNotes: "", priceAmount: "", customerReviewStatus: "not_ready", gcReviewStatus: "not_ready", billingHandoffStatus: "locked" });
   const [showTools, setShowTools] = useState(false);
   const [toolTab, setToolTab] = useState("create");
   const [changeOrderShellSelectionId, setChangeOrderShellSelectionId] = useState("");
@@ -491,8 +538,12 @@ function ChangeOrdersPagePolished({
     setDetailDraft({
       status: selectedRequest?.status || "requested",
       officeNotes: selectedRequest?.officeNotes || "",
+      priceAmount: selectedRequest?.priceAmount || "",
+      customerReviewStatus: selectedRequest?.customerReviewStatus || "not_ready",
+      gcReviewStatus: selectedRequest?.gcReviewStatus || "not_ready",
+      billingHandoffStatus: selectedRequest?.billingHandoffStatus || "locked",
     });
-  }, [selectedRequest?.id, selectedRequest?.status, selectedRequest?.officeNotes]);
+  }, [selectedRequest?.id, selectedRequest?.status, selectedRequest?.officeNotes, selectedRequest?.priceAmount, selectedRequest?.customerReviewStatus, selectedRequest?.gcReviewStatus, selectedRequest?.billingHandoffStatus]);
 
   function clearFilters() {
     setStatusFilter("All");
