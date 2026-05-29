@@ -14,6 +14,13 @@ export const RATE_BOOK_CATEGORY_LABELS = {
   other: "Other",
 };
 
+export const RATE_BOOK_COST_LIBRARY_REQUIRED_CATEGORIES = [
+  "labor",
+  "material",
+  "equipment",
+  "subcontractor",
+];
+
 function roundCurrency(value) {
   return Math.round((Number(value) || 0) * 100) / 100;
 }
@@ -116,5 +123,50 @@ export function buildEstimateLineItemFromRateBookItem(item = {}) {
     quantity: 1,
     unit: textValue(item.unit) || "ea",
     unitPrice: calculateRateBookUnitPrice(item),
+  };
+}
+
+export function buildJobCostingReviewLineFromRateBookItem(item = {}, quantity = 1) {
+  const normalizedQuantity = numberValue(quantity, 1) || 1;
+  const unitCost = numberValue(item.unitCost, 0);
+  const markupPercent = numberValue(item.markupPercent, 0);
+  const unitPrice = calculateRateBookUnitPrice(item);
+
+  return {
+    sourceRateBookItemId: textValue(item.id),
+    category: normalizeRateBookCategory(item.category),
+    trade: textValue(item.trade),
+    description: textValue(item.description) || textValue(item.title),
+    quantity: normalizedQuantity,
+    unit: textValue(item.unit) || "ea",
+    unitCost,
+    markupPercent,
+    unitPrice,
+    estimatedCost: roundCurrency(unitCost * normalizedQuantity),
+    estimatedSell: roundCurrency(unitPrice * normalizedQuantity),
+    internalOnly: true,
+  };
+}
+
+export function deriveRateBookCostLibraryCoverage(items = []) {
+  const state = deriveRateBookState(items);
+  const categoryCoverage = Object.fromEntries(RATE_BOOK_COST_LIBRARY_REQUIRED_CATEGORIES.map((category) => {
+    const rows = state.byCategory[category] || [];
+    return [category, {
+      count: rows.length,
+      hasCost: rows.some((item) => numberValue(item.unitCost, 0) > 0),
+      hasMarkup: rows.some((item) => numberValue(item.markupPercent, 0) > 0 || numberValue(item.unitPrice, 0) > numberValue(item.unitCost, 0)),
+    }];
+  }));
+  const missingCategories = RATE_BOOK_COST_LIBRARY_REQUIRED_CATEGORIES.filter((category) => categoryCoverage[category].count === 0);
+  const missingCostDefaults = RATE_BOOK_COST_LIBRARY_REQUIRED_CATEGORIES.filter((category) => !categoryCoverage[category].hasCost);
+
+  return {
+    ready: missingCategories.length === 0 && missingCostDefaults.length === 0,
+    requiredCategories: RATE_BOOK_COST_LIBRARY_REQUIRED_CATEGORIES,
+    missingCategories,
+    missingCostDefaults,
+    categoryCoverage,
+    activeCount: state.counts.active,
   };
 }

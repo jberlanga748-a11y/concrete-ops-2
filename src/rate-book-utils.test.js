@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  RATE_BOOK_COST_LIBRARY_REQUIRED_CATEGORIES,
   buildEstimateLineItemFromRateBookItem,
+  buildJobCostingReviewLineFromRateBookItem,
   calculateRateBookUnitPrice,
+  deriveRateBookCostLibraryCoverage,
   deriveRateBookState,
   normalizeRateBookDraft,
   validateRateBookDraft,
@@ -76,4 +79,59 @@ test("estimate line defaults copy customer-safe fields only", () => {
   });
   assert.equal("unitCost" in line, false);
   assert.equal("markupPercent" in line, false);
+});
+
+test("job costing review line keeps internal cost and markup fields out of customer line shape", () => {
+  const line = buildJobCostingReviewLineFromRateBookItem({
+    id: "RBI-1",
+    category: "labor",
+    trade: "concrete",
+    title: "Crew labor",
+    description: "Two-person crew labor",
+    unit: "hr",
+    unitCost: 80,
+    markupPercent: 35,
+  }, 3);
+
+  assert.deepEqual(line, {
+    sourceRateBookItemId: "RBI-1",
+    category: "labor",
+    trade: "concrete",
+    description: "Two-person crew labor",
+    quantity: 3,
+    unit: "hr",
+    unitCost: 80,
+    markupPercent: 35,
+    unitPrice: 108,
+    estimatedCost: 240,
+    estimatedSell: 324,
+    internalOnly: true,
+  });
+});
+
+test("cost library coverage requires labor, material, equipment, and subcontractor defaults", () => {
+  const coverage = deriveRateBookCostLibraryCoverage([
+    { id: "L-1", category: "labor", title: "Crew", unitCost: 80, markupPercent: 35, status: "active" },
+    { id: "M-1", category: "material", title: "Concrete", unitCost: 150, markupPercent: 20, status: "active" },
+    { id: "E-1", category: "equipment", title: "Pump", unitCost: 650, markupPercent: 15, status: "active" },
+    { id: "S-1", category: "subcontractor", title: "Saw cut", unitCost: 400, markupPercent: 10, status: "active" },
+    { id: "A-1", category: "labor", title: "Archived crew", unitCost: 75, markupPercent: 30, status: "archived" },
+  ]);
+
+  assert.equal(coverage.ready, true);
+  assert.deepEqual(coverage.requiredCategories, RATE_BOOK_COST_LIBRARY_REQUIRED_CATEGORIES);
+  assert.deepEqual(coverage.missingCategories, []);
+  assert.deepEqual(coverage.missingCostDefaults, []);
+  assert.equal(coverage.activeCount, 4);
+});
+
+test("cost library coverage fails closed when category or cost defaults are missing", () => {
+  const coverage = deriveRateBookCostLibraryCoverage([
+    { id: "L-1", category: "labor", title: "Crew", unitCost: 0, markupPercent: 35, status: "active" },
+    { id: "M-1", category: "material", title: "Concrete", unitCost: 150, markupPercent: 20, status: "active" },
+  ]);
+
+  assert.equal(coverage.ready, false);
+  assert.deepEqual(coverage.missingCategories, ["equipment", "subcontractor"]);
+  assert.deepEqual(coverage.missingCostDefaults, ["labor", "equipment", "subcontractor"]);
 });
