@@ -6731,6 +6731,14 @@ const CUSTOMER_PORTAL_SHARE_APPROVAL_REVIEW_DECISIONS = new Set([
   "rejected_locked",
 ]);
 const CUSTOMER_PORTAL_EXTERNAL_GATE_APPROVAL_PHRASE = "TOKENIZED_CUSTOMER_PORTAL_SEPARATELY_APPROVED";
+const CUSTOMER_PORTAL_EXTERNAL_GATE_ID = "customer_portal_action";
+const CUSTOMER_PORTAL_EXTERNAL_GATE_WORKFLOW_ID = "customer_portal_share";
+const CUSTOMER_PORTAL_EXTERNAL_CONTRACT_ACTIONS = new Set([
+  "proposal_review",
+  "proof_packet_review",
+  "change_order_review",
+  "comment_review",
+]);
 
 function buildCustomerPortalShareApprovalReview(state, user, shareApprovalRequest = {}, payload = {}) {
   if (shareApprovalRequest.status !== "requested_locked") {
@@ -6885,9 +6893,161 @@ function buildCustomerPortalExternalGatePreflight(shareApprovalRequest = {}, acc
   };
 }
 
+function visibleCustomerPortalExternalExecutionContractsForUser(state, user) {
+  const contractsByKey = new Map();
+  const events = visibleAuditEventsForUser(state, user)
+    .filter((event) => event.entityType === "customer_portal_external_execution_contract")
+    .slice()
+    .reverse();
+
+  for (const event of events) {
+    const payload = parseAuditEventDetail(event);
+    const contract = payload.executionContract || {};
+    if (!contract.id) continue;
+    const key = `${contract.shareApprovalRequestId || event.entityId}:${contract.idempotencyKey || contract.id}`;
+    if (!contractsByKey.has(key)) {
+      contractsByKey.set(key, {
+        ...contract,
+        auditCreatedAt: event.createdAt,
+        auditEventId: event.id,
+        actorName: event.actorName,
+      });
+    }
+  }
+
+  return Array.from(contractsByKey.values())
+    .sort((left, right) => String(right.auditCreatedAt || "").localeCompare(String(left.auditCreatedAt || "")));
+}
+
+function normalizeCustomerPortalVisibleFields(value) {
+  return (Array.isArray(value) ? value : [])
+    .map((item) => redactAgentProposalAuditText(item, { maxLength: 80 }))
+    .filter(Boolean)
+    .slice(0, 12);
+}
+
+function buildCustomerPortalExternalExecutionContract(state, user, shareApprovalRequest = {}, accessRecord = {}, payload = {}) {
+  const preflight = buildCustomerPortalExternalGatePreflight(shareApprovalRequest, accessRecord, payload);
+  if (!preflight.prerequisitesReady || !preflight.separateApprovalRecorded) {
+    throw new ApiError(409, "Customer portal external execution contract requires a ready review, active access record, packet evidence, and exact separate approval phrase.");
+  }
+
+  const companySettings = companySettingsForState(state, user);
+  const companyId = currentCompanyIdForRequestUser(state, user);
+  const agentGate = buildAgentOsExternalGateDecisionPacket(CUSTOMER_PORTAL_EXTERNAL_GATE_ID, {
+    companyId,
+    actorUserId: user?.id || "",
+    externalGateSettings: companySettings.apexAgentAutomationPolicy?.externalGateSettings,
+  });
+  const portalAction = optionalEnum(
+    payload.portalAction,
+    CUSTOMER_PORTAL_EXTERNAL_CONTRACT_ACTIONS,
+    "Customer portal action",
+    "proposal_review",
+  );
+  const idempotencyKey = redactAgentProposalAuditText(
+    optionalString(payload.idempotencyKey, `${shareApprovalRequest.id || "share-approval"}:${portalAction}`),
+    { maxLength: 160 },
+  );
+  const customerVisibleFields = normalizeCustomerPortalVisibleFields(payload.customerVisibleFields);
+  const gates = [
+    {
+      id: "preflight_ready",
+      label: "External gate preflight ready",
+      ready: true,
+      detail: "Internal share approval, active locked access record, packet evidence, and exact approval phrase are present.",
+    },
+    {
+      id: "agent_os_gate_boundary",
+      label: "Agent OS customer portal action boundary",
+      ready: agentGate.ok === true,
+      detail: agentGate.ok
+        ? "Agent OS recognizes customer_portal_action as an approved external gate boundary."
+        : "Agent OS external gate boundary is missing.",
+    },
+    {
+      id: "company_opt_in",
+      label: "Per-company external gate opt-in",
+      ready: agentGate.gate?.executionEnabled === true && agentGate.gate?.allowedWorkflow === CUSTOMER_PORTAL_EXTERNAL_GATE_WORKFLOW_ID,
+      detail: agentGate.gate?.executionEnabled === true
+        ? "Company opt-in is recorded, but no customer portal implementation adapter is wired in this build."
+        : "Company opt-in is not recorded for customer portal external execution.",
+    },
+    {
+      id: "domain_adapter",
+      label: "Customer portal domain adapter",
+      ready: false,
+      detail: "No external customer portal adapter, token redemption, customer session, customer action endpoint, or public route implementation exists in this build.",
+    },
+    {
+      id: "execution_kill_switch",
+      label: "Execution kill switch",
+      ready: true,
+      detail: "Execution remains blocked server-side until the locked adapter gate is replaced by an approved implementation.",
+    },
+  ];
+
+  return {
+    id: makeId("CPEC"),
+    status: "external_execution_contract_locked",
+    gateId: CUSTOMER_PORTAL_EXTERNAL_GATE_ID,
+    workflowId: CUSTOMER_PORTAL_EXTERNAL_GATE_WORKFLOW_ID,
+    shareApprovalRequestId: shareApprovalRequest.id || "",
+    accessRecordId: shareApprovalRequest.accessRecordId || accessRecord.id || "",
+    estimateId: shareApprovalRequest.estimateId || accessRecord.estimateId || "",
+    jobId: shareApprovalRequest.jobId || accessRecord.jobId || "",
+    companyId,
+    requestedByUserId: user?.id || "",
+    requestedByName: user?.name || "Unknown user",
+    requestedAt: new Date().toISOString(),
+    portalAction,
+    approvedPortalBoundary: redactAgentProposalAuditText(
+      optionalString(payload.approvedPortalBoundary, "Human-confirmed customer portal execution contract for reviewed customer-visible packet only."),
+      { maxLength: 360 },
+    ),
+    customerVisibleFields,
+    idempotencyKey,
+    preflightId: preflight.id,
+    preflightStatus: preflight.status,
+    agentGate: agentGate.ok ? {
+      executionEnabled: false,
+      configuredExecutionEnabled: agentGate.gate?.executionEnabled === true,
+      allowedWorkflow: agentGate.gate?.allowedWorkflow || "",
+      testOnly: agentGate.gate?.testOnly !== false,
+      approvedBoundary: agentGate.gate?.approvedBoundary || "",
+      auditEvent: agentGate.gate?.auditEvent || "agent.os.external.customer_portal_action.requested",
+      requiredBeforeExecution: agentGate.requiredBeforeExecution || [],
+    } : {
+      executionEnabled: false,
+      configuredExecutionEnabled: false,
+      allowedWorkflow: "",
+      testOnly: true,
+      approvedBoundary: "",
+      auditEvent: "agent.os.external.customer_portal_action.requested",
+      requiredBeforeExecution: [],
+    },
+    gates,
+    contractReadyForFutureAdapter: gates.filter((gate) => !["company_opt_in", "domain_adapter"].includes(gate.id)).every((gate) => gate.ready),
+    externalImplementationExists: false,
+    externalActionEnabled: false,
+    publicRouteEnabled: false,
+    canCreateExternalAccess: false,
+    canRedeemToken: false,
+    canAcceptCustomerAction: false,
+    tokenMaterialCreated: false,
+    customerMessageSent: false,
+    invoiceCreated: false,
+    paymentCollectionEnabled: false,
+    idempotencyBehavior: "The same share approval, portal action, and idempotency key returns the existing locked contract instead of creating a second execution contract.",
+    rollbackBehavior: "No external write occurs in this build. Future rollback must revoke the access record, disable the gate, preserve the audit trail, and manually correct customer-visible content.",
+    auditEvent: "customer_portal.external_execution_contract.prepared_locked",
+    boundary: "Locked execution contract only; no customer login, public link, raw token, customer session, customer approval/comment/signature, message, invoice, payment, or portal write is executed.",
+  };
+}
+
 function rejectCustomerPortalExternalAccessPayload(payload = {}) {
   const payloadText = JSON.stringify(payload || {});
-  if (/\b(rawToken|portalToken|publicUrl|shareLink|customerLogin|createExternalAccess|sendCustomerMessage|collectPayment|paymentLink|invoiceUrl)\b/i.test(payloadText)) {
+  if (/\b(rawToken|portalToken|customerSession|publicUrl|shareLink|customerLogin|createExternalAccess|executeExternalAccess|sendCustomerMessage|collectPayment|paymentLink|invoiceUrl|customerApprovalUrl|signatureUrl)\b/i.test(payloadText)) {
     throw new ApiError(400, "Customer portal access records cannot include external access, customer contact, token, payment, or public URL fields.");
   }
 }
@@ -8419,6 +8579,61 @@ app.post("/api/customer-portal/share-approvals/:id/external-gate-preflight", req
     boundary: "Read-only external gate preflight only; this did not create a customer login, public link, raw token, customer message, invoice, payment, or portal action.",
     requestId: res.locals.requestId,
   });
+}));
+
+app.post("/api/customer-portal/share-approvals/:id/external-execution-contract", requireAuth, asyncRoute(async (req, res) => {
+  rejectCustomerPortalExternalAccessPayload(req.body || {});
+
+  let executionContract = null;
+  let created = false;
+  const nextState = await updateDb((draft) => {
+    assertCanPrepareCustomerPortalAccess(draft, req.auth.user);
+    const request = visibleCustomerPortalShareApprovalRequestForUser(draft, req.auth.user, req.params.id);
+    const accessRecord = visibleCustomerPortalAccessRecordForUser(draft, req.auth.user, request.accessRecordId);
+    const candidate = buildCustomerPortalExternalExecutionContract(draft, req.auth.user, request, accessRecord, req.body || {});
+    const existing = visibleCustomerPortalExternalExecutionContractsForUser(draft, req.auth.user)
+      .find((contract) => contract.shareApprovalRequestId === request.id && contract.idempotencyKey === candidate.idempotencyKey);
+    if (existing) {
+      executionContract = existing;
+      return draft;
+    }
+
+    executionContract = candidate;
+    created = true;
+    appendAuditEvent(draft, {
+      entityType: "customer_portal_external_execution_contract",
+      entityId: request.id,
+      action: "prepared_locked",
+      summary: "Customer portal external execution contract prepared as locked internal evidence",
+      detail: JSON.stringify({
+        executionContract,
+        shareApprovalRequestId: request.id,
+        accessRecordId: accessRecord.id,
+        externalActionEnabled: false,
+      }),
+      actor: req.auth.user,
+      changedFields: ["customerPortalExternalExecutionContract"],
+    });
+    return draft;
+  });
+
+  res.status(created ? 201 : 200).json({
+    executionContract,
+    executionContracts: visibleCustomerPortalExternalExecutionContractsForUser(nextState, req.auth.user),
+    idempotentReplay: !created,
+    boundary: "Locked execution contract only; this did not create customer login, public link, raw token, customer session, customer action, customer message, invoice, or payment execution.",
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/customer-portal/share-approvals/:id/external-gate-execute", requireAuth, asyncRoute(async (req, res) => {
+  rejectCustomerPortalExternalAccessPayload(req.body || {});
+
+  const state = await readDb();
+  assertCanPrepareCustomerPortalAccess(state, req.auth.user);
+  const request = visibleCustomerPortalShareApprovalRequestForUser(state, req.auth.user, req.params.id);
+  visibleCustomerPortalAccessRecordForUser(state, req.auth.user, request.accessRecordId);
+  throw new ApiError(423, "Customer portal external execution is locked. Prepare/review/preflight/contract evidence does not execute customer-facing portal actions.");
 }));
 
 app.get("/api/agent/context", requireAuth, asyncRoute(async (req, res) => {

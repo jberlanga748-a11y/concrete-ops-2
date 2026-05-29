@@ -1379,3 +1379,207 @@ test("External gate preflight denies unsafe payloads, field users, and wrong-com
     await fixture.stop();
   }
 });
+
+test("External execution contract records idempotent locked evidence without enabling customer portal actions", async () => {
+  const fixture = await startServer();
+
+  try {
+    const { created, headers } = await createLockedAccessRecord(fixture, {
+      approvalId: "PORTAL-ACCESS-EXECUTION-CONTRACT",
+    });
+    const approvalResult = await assertOk(fixture.baseUrl, `/api/customer-portal/access-records/${created.accessRecord.id}/share-approvals`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ note: "Prepare locked execution contract packet." }),
+    });
+    const reviewed = await assertOk(fixture.baseUrl, `/api/customer-portal/share-approvals/${approvalResult.shareApprovalRequest.id}/review`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        decision: "ready_for_external_gate_review_locked",
+        note: "Internal packet can move to locked execution contract.",
+      }),
+    });
+
+    await assertOk(fixture.baseUrl, "/api/settings/company", {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({
+        apexAgentAutomationPolicy: {
+          externalGateSettings: {
+            customer_portal_action: {
+              enabled: true,
+              mode: "human_confirmed",
+              allowedWorkflow: "customer_portal_share",
+              testOnly: true,
+            },
+          },
+        },
+      }),
+    });
+
+    const body = {
+      approvalPhrase: "TOKENIZED_CUSTOMER_PORTAL_SEPARATELY_APPROVED",
+      portalAction: "proposal_review",
+      approvedPortalBoundary: "Reviewed customer-visible proposal packet only.",
+      customerVisibleFields: ["scope", "total", "proof summary", "password: should redact"],
+      idempotencyKey: "portal-contract-idempotency-1",
+    };
+    const contract = await assertOk(fixture.baseUrl, `/api/customer-portal/share-approvals/${reviewed.shareApprovalRequest.id}/external-execution-contract`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+
+    assert.equal(contract.executionContract.status, "external_execution_contract_locked");
+    assert.equal(contract.executionContract.gateId, "customer_portal_action");
+    assert.equal(contract.executionContract.workflowId, "customer_portal_share");
+    assert.equal(contract.executionContract.shareApprovalRequestId, reviewed.shareApprovalRequest.id);
+    assert.equal(contract.executionContract.accessRecordId, created.accessRecord.id);
+    assert.equal(contract.executionContract.agentGate.configuredExecutionEnabled, true);
+    assert.equal(contract.executionContract.agentGate.executionEnabled, false);
+    assert.equal(contract.executionContract.externalImplementationExists, false);
+    assert.equal(contract.executionContract.externalActionEnabled, false);
+    assert.equal(contract.executionContract.publicRouteEnabled, false);
+    assert.equal(contract.executionContract.canCreateExternalAccess, false);
+    assert.equal(contract.executionContract.canRedeemToken, false);
+    assert.equal(contract.executionContract.canAcceptCustomerAction, false);
+    assert.equal(contract.executionContract.tokenMaterialCreated, false);
+    assert.equal(contract.executionContract.customerMessageSent, false);
+    assert.equal(contract.executionContract.invoiceCreated, false);
+    assert.equal(contract.executionContract.paymentCollectionEnabled, false);
+    assert.equal(contract.executionContract.gates.find((gate) => gate.id === "domain_adapter").ready, false);
+    assert.match(contract.executionContract.customerVisibleFields.join(" "), /\[REDACTED\]/);
+    assert.match(contract.boundary, /Locked execution contract only/);
+
+    const replay = await assertOk(fixture.baseUrl, `/api/customer-portal/share-approvals/${reviewed.shareApprovalRequest.id}/external-execution-contract`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+    assert.equal(replay.idempotentReplay, true);
+    assert.equal(replay.executionContract.id, contract.executionContract.id);
+    assert.equal(readAuditEvents(fixture.sqliteFile, "customer_portal_external_execution_contract").length, 1);
+
+    const serialized = JSON.stringify(contract);
+    assert.equal(serialized.includes(created.accessRecord.tokenHashReference), false);
+    assert.equal(serialized.includes("tokenHashReference"), false);
+    assert.equal(serialized.includes("rawToken"), false);
+    assert.equal(serialized.includes("publicUrl"), false);
+    assert.equal(serialized.includes("shareLink"), false);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("External execution contract fails closed without ready preflight evidence and execution route stays locked", async () => {
+  const fixture = await startServer();
+
+  try {
+    const pending = await createLockedAccessRecord(fixture, {
+      approvalId: "PORTAL-ACCESS-EXECUTION-CONTRACT-PENDING",
+    });
+    const pendingApproval = await assertOk(fixture.baseUrl, `/api/customer-portal/access-records/${pending.created.accessRecord.id}/share-approvals`, {
+      method: "POST",
+      headers: pending.headers,
+      body: JSON.stringify({ note: "Contract should stay blocked before review." }),
+    });
+    const missingReview = await requestJson(fixture.baseUrl, `/api/customer-portal/share-approvals/${pendingApproval.shareApprovalRequest.id}/external-execution-contract`, {
+      method: "POST",
+      headers: pending.headers,
+      body: JSON.stringify({
+        approvalPhrase: "TOKENIZED_CUSTOMER_PORTAL_SEPARATELY_APPROVED",
+        idempotencyKey: "missing-review-contract",
+      }),
+    });
+    assert.equal(missingReview.response.status, 409);
+
+    const ready = await createLockedAccessRecord(fixture, {
+      approvalId: "PORTAL-ACCESS-EXECUTION-ROUTE-LOCKED",
+    });
+    const approvalResult = await assertOk(fixture.baseUrl, `/api/customer-portal/access-records/${ready.created.accessRecord.id}/share-approvals`, {
+      method: "POST",
+      headers: ready.headers,
+      body: JSON.stringify({ note: "Execution endpoint should still lock." }),
+    });
+    const reviewed = await assertOk(fixture.baseUrl, `/api/customer-portal/share-approvals/${approvalResult.shareApprovalRequest.id}/review`, {
+      method: "POST",
+      headers: ready.headers,
+      body: JSON.stringify({
+        decision: "ready_for_external_gate_review_locked",
+        note: "Ready review is not execution approval.",
+      }),
+    });
+    const executeDenied = await requestJson(fixture.baseUrl, `/api/customer-portal/share-approvals/${reviewed.shareApprovalRequest.id}/external-gate-execute`, {
+      method: "POST",
+      headers: ready.headers,
+      body: JSON.stringify({
+        approvalPhrase: "TOKENIZED_CUSTOMER_PORTAL_SEPARATELY_APPROVED",
+      }),
+    });
+    assert.equal(executeDenied.response.status, 423);
+    assert.match(executeDenied.payload.error, /external execution is locked/i);
+    assert.equal(readAuditEvents(fixture.sqliteFile, "customer_portal_external_execution_contract").length, 0);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("External execution contract denies unsafe payloads, field users, and wrong-company users", async () => {
+  const fixture = await startServer();
+
+  try {
+    const { created, headers } = await createLockedAccessRecord(fixture, {
+      approvalId: "PORTAL-ACCESS-EXECUTION-CONTRACT-DENIAL",
+    });
+    const approvalResult = await assertOk(fixture.baseUrl, `/api/customer-portal/access-records/${created.accessRecord.id}/share-approvals`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ note: "Prepare contract denial item." }),
+    });
+
+    const unsafe = await requestJson(fixture.baseUrl, `/api/customer-portal/share-approvals/${approvalResult.shareApprovalRequest.id}/external-execution-contract`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        customerSession: "create-session",
+        approvalPhrase: "TOKENIZED_CUSTOMER_PORTAL_SEPARATELY_APPROVED",
+      }),
+    });
+    assert.equal(unsafe.response.status, 400);
+
+    const fieldUser = createUserRecord({
+      id: "U-PORTAL-FIELD-EXECUTION-CONTRACT",
+      email: "portal-field-execution-contract@apexhq.test",
+      password: "apexdemo123",
+      name: "Portal Field Execution Contract User",
+      role: "Employee",
+    });
+    insertUser(fixture.sqliteFile, fieldUser);
+    const fieldLogin = await login(fixture.baseUrl, { email: fieldUser.email });
+    const fieldDenied = await requestJson(fixture.baseUrl, `/api/customer-portal/share-approvals/${approvalResult.shareApprovalRequest.id}/external-execution-contract`, {
+      method: "POST",
+      headers: authHeaders(fieldLogin.token),
+      body: JSON.stringify({ approvalPhrase: "TOKENIZED_CUSTOMER_PORTAL_SEPARATELY_APPROVED" }),
+    });
+    assert.equal(fieldDenied.response.status, 403);
+
+    const otherCompanyId = "COMPANY-PORTAL-EXECUTION-CONTRACT-OTHER";
+    insertCompany(fixture.sqliteFile, otherCompanyId);
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.ELITE, otherCompanyId);
+    const otherOwner = insertPortalOwner(fixture.sqliteFile, {
+      email: "portal-execution-contract-other-owner@apexhq.test",
+      companyId: otherCompanyId,
+    });
+    const otherLogin = await login(fixture.baseUrl, { email: otherOwner.email });
+    const wrongCompanyDenied = await requestJson(fixture.baseUrl, `/api/customer-portal/share-approvals/${approvalResult.shareApprovalRequest.id}/external-execution-contract`, {
+      method: "POST",
+      headers: authHeaders(otherLogin.token),
+      body: JSON.stringify({ approvalPhrase: "TOKENIZED_CUSTOMER_PORTAL_SEPARATELY_APPROVED" }),
+    });
+    assert.equal(wrongCompanyDenied.response.status, 404);
+    assert.equal(readAuditEvents(fixture.sqliteFile, "customer_portal_external_execution_contract").length, 0);
+  } finally {
+    await fixture.stop();
+  }
+});
