@@ -698,6 +698,8 @@ Near-term builder order:
 4. Build 3A: Rate Book / Cost Library audit.
 5. Build 3B: Rate Book / Cost Library implementation slice 1.
 
+Current local completion evidence for these five near-term slices is tracked in `docs/APEX_HQ_ROADMAP_HARDENING_STATUS.md` and verified by `npm.cmd run verify:roadmap-hardening`, `npm.cmd run verify:paid-pilot-close`, and `npm.cmd run verify:rate-book`. This does not unlock production deploy, public launch, billing/payment, external sends, customer portal actions, secrets/config changes, or production data work.
+
 Do not start Builds 7, 8, 10, 12, 14, or 15 without a separate approval because they touch external customers, providers, secrets, payments, data architecture, or public launch.
 
 ## What Is Already 100 Percent For Current Scope
