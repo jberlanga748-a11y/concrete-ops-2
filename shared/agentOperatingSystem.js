@@ -5976,6 +5976,154 @@ export function buildAgentLeadsDailySourceMonitoring({
   };
 }
 
+function buildReviewInboxRowsFromControlledEvidence(evidenceRows = []) {
+  return asArray(evidenceRows).map((row) => ({
+    id: text(row.id || row.providerResultId, 180),
+    providerResultId: text(row.providerResultId || row.id, 180),
+    providerAttemptId: text(row.idempotencyKey, 500),
+    provider: "Controlled public-source run",
+    connectorId: text(row.connectorId, 120),
+    title: text(row.title || row.sourceName || "Controlled public-source review row", 180),
+    snippet: text(row.reviewNote || "Controlled public-source evidence row prepared for owner/admin review only.", 320),
+    fitScore: Math.max(0, Math.min(100, Number(row.fitScore || 0) || 0)),
+    duplicateRisk: text(row.duplicateRisk || "needs_human_review", 120),
+    sourceUrl: text(row.sourceUrl, 500),
+    sourceType: "controlled_public_source",
+    status: text(row.status || "review_card_prepared", 120),
+    draftPreview: {
+      title: text(row.title || row.sourceName || "Controlled public-source review row", 180),
+      sourceName: text(row.sourceName || "Public source", 160),
+      sourceUrl: text(row.sourceUrl, 500),
+      humanReviewStatus: "needs_review",
+      missingInfoItems: ["Open public source manually", "Confirm work is in scope", "Confirm due date", "Run duplicate check"],
+      fitExplanation: "Prepared from an approved public no-login source packet; no provider fetch or lead save occurred.",
+    },
+    externalActionsLocked: true,
+    canAutoSave: false,
+    canCreateLeadDirectly: false,
+  }));
+}
+
+export function buildAgentLeadsControlledDailyRunReviewFlow({
+  controlledDailyPublicSourceRunEvidencePacket = {},
+  controlledDailyPublicRunPreflight = {},
+  controlledDailyPublicRunEvidencePrep = {},
+  dailyReviewInbox = {},
+  dailySourceMonitoring = {},
+  dailyRunRecord = {},
+  auditEvents = [],
+  companySettings = {},
+  today = dateKey(new Date()),
+} = {}) {
+  const currentDay = dateKey(today) || dateKey(new Date());
+  const packetRows = asArray(controlledDailyPublicSourceRunEvidencePacket.sourceRunRows);
+  const evidenceRows = asArray(controlledDailyPublicRunEvidencePrep.evidenceRows);
+  const controlledInbox = buildAgentLeadsDailyReviewInbox({
+    providerReviewImportQueue: buildReviewInboxRowsFromControlledEvidence(evidenceRows),
+    privateHandoffCards: [],
+    rejectedProviderResults: [],
+    dailyRunRecord,
+    today: currentDay,
+  });
+  const existingRows = asArray(dailyReviewInbox.rows);
+  const reviewInboxPreviewRows = [...controlledInbox.rows, ...existingRows]
+    .filter((row, index, rows) => rows.findIndex((candidate) => candidate.id === row.id) === index)
+    .slice(0, 24);
+  const latestEvidenceEvent = asArray(auditEvents)
+    .filter((event) => text(event.action || parseAgentOsAuditDetail(event).controlledDailyPublicRunEvidencePrep?.auditEvent, 180) === "agent.os.provider.daily_public_run.evidence_prepared")
+    .sort((left, right) => new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime())[0] || null;
+  const blockers = [
+    controlledDailyPublicSourceRunEvidencePacket.mode !== "agent_leads_controlled_daily_public_source_run_evidence_packet_v32" ? "Controlled daily public-source packet is missing." : "",
+    controlledDailyPublicSourceRunEvidencePacket.status !== "ready_for_owner_admin_review" ? "Controlled daily public-source packet is not ready for owner/admin review." : "",
+    !packetRows.length ? "No eligible public no-login source rows are selected." : "",
+    controlledDailyPublicRunPreflight.status !== "ready_for_controlled_evidence_prep" ? "Owner/admin approval and preflight must be ready before the review inbox can be prepared." : "",
+    controlledDailyPublicRunEvidencePrep.status !== "review_evidence_prepared" ? "Controlled daily public-source evidence prep has not produced review rows." : "",
+  ].filter(Boolean);
+  let status = "blocked";
+  if (!blockers.length && reviewInboxPreviewRows.length) status = "review_inbox_ready";
+  else if (controlledDailyPublicSourceRunEvidencePacket.status === "ready_for_owner_admin_review" && controlledDailyPublicRunPreflight.approvalStatus === "missing") status = "ready_for_owner_approval";
+  else if (controlledDailyPublicRunPreflight.status === "ready_for_controlled_evidence_prep") status = "ready_for_evidence_prep";
+  return {
+    mode: "agent_leads_controlled_daily_run_review_flow_v42",
+    today: currentDay,
+    companyName: text(companySettings.companyName || companySettings.name || "Current company", 160),
+    status,
+    runId: text(controlledDailyPublicSourceRunEvidencePacket.runEnvelope?.runId || controlledDailyPublicRunEvidencePrep.runId || dailyRunRecord.id, 180),
+    nextRunDate: text(controlledDailyPublicSourceRunEvidencePacket.nextRunDate || controlledDailyPublicRunEvidencePrep.nextRunDate, 40),
+    selectedSourceRows: packetRows.map((row) => ({
+      sourceConfigId: text(row.sourceConfigId, 180),
+      sourceName: text(row.sourceName, 180),
+      sourceUrl: text(row.sourceUrl, 500),
+      connectorId: text(row.connectorId, 120),
+      idempotencyKey: text(row.idempotencyKey, 500),
+      expectedOutput: text(row.expectedOutput, 280),
+      externalActionsLocked: true,
+    })),
+    reviewInboxPreviewRows,
+    commandSteps: [
+      {
+        id: "approve-exact-public-source-packet",
+        label: "Approve exact public-source packet",
+        status: controlledDailyPublicRunPreflight.approvalStatus === "missing" ? "needs_owner_admin" : "complete",
+        externalActionsLocked: true,
+      },
+      {
+        id: "run-preflight",
+        label: "Run review-only preflight",
+        status: controlledDailyPublicRunPreflight.status === "ready_for_controlled_evidence_prep" ? "complete" : "blocked",
+        externalActionsLocked: true,
+      },
+      {
+        id: "prepare-review-evidence",
+        label: "Prepare review inbox rows",
+        status: controlledDailyPublicRunEvidencePrep.status === "review_evidence_prepared" ? "complete" : "blocked",
+        externalActionsLocked: true,
+      },
+      {
+        id: "contractor-review",
+        label: "Contractor reviews rows before drafting/saving work",
+        status: reviewInboxPreviewRows.length ? "ready" : "empty",
+        externalActionsLocked: true,
+      },
+      {
+        id: "record-outcomes",
+        label: "Record accepted, rejected, duplicate, or no-fit outcomes",
+        status: "manual_next_step",
+        externalActionsLocked: true,
+      },
+    ],
+    sourceHealthSummary: dailySourceMonitoring.noJobsExplanation || (reviewInboxPreviewRows.length ? `${reviewInboxPreviewRows.length} controlled review row(s) are ready.` : "No controlled review rows are ready yet."),
+    latestEvidencePreparedAt: text(latestEvidenceEvent?.createdAt || controlledDailyPublicRunEvidencePrep.createdAt || "", 80),
+    blockers,
+    stats: {
+      selectedSourceRows: packetRows.length,
+      evidenceRows: evidenceRows.length,
+      reviewInboxRows: reviewInboxPreviewRows.length,
+      existingInboxRows: existingRows.length,
+      blockerCount: blockers.length,
+    },
+    reviewOnlyExecution: true,
+    externalActionsLocked: true,
+    safeForCron: false,
+    canRunAutomatically: false,
+    liveProviderCallsEnabled: false,
+    browserAutomationEnabled: false,
+    scrapingEnabled: false,
+    unattendedLoginEnabled: false,
+    rawCredentialStorageEnabled: false,
+    providerOAuthTokenStorageEnabled: false,
+    leadAutoSaveEnabled: false,
+    customerContactEnabled: false,
+    bidSubmissionEnabled: false,
+    paymentCollectionEnabled: false,
+    schedulingMutationEnabled: false,
+    integrationWritesEnabled: false,
+    deployEnabled: false,
+    productionDataTouchEnabled: false,
+    safetyBoundary: "Controlled daily run review flow v42 turns approved public-source metadata into a morning review inbox only. It does not browse, scrape, log in, contact anyone, create or save leads, submit bids, collect payment, mutate schedules, deploy, touch production data, store credentials, or write integrations.",
+  };
+}
+
 const AGENT_LEADS_SMOKE_EVIDENCE_STATUSES = Object.freeze(["passed", "passed_with_warnings", "failed", "blocked"]);
 
 function smokeEvidenceTextHasSecret(value = "") {
@@ -9392,6 +9540,17 @@ export function buildAgentOsOpportunityScoutExecutionPlan({
     dailyRunRecord,
     today: currentDay,
   });
+  const controlledDailyRunReviewFlow = buildAgentLeadsControlledDailyRunReviewFlow({
+    controlledDailyPublicSourceRunEvidencePacket,
+    controlledDailyPublicRunPreflight,
+    controlledDailyPublicRunEvidencePrep,
+    dailyReviewInbox,
+    dailySourceMonitoring,
+    dailyRunRecord,
+    auditEvents,
+    companySettings: settings,
+    today: currentDay,
+  });
   return {
     mode: "daily_agent_leads_scout_execution_v6",
     today: currentDay,
@@ -9432,6 +9591,7 @@ export function buildAgentOsOpportunityScoutExecutionPlan({
     productionSourceSetupBoard,
     dailyReviewInbox,
     dailySourceMonitoring,
+    controlledDailyRunReviewFlow,
     dailyRunRecord,
     schedulerHook,
     stats: {
@@ -9466,6 +9626,8 @@ export function buildAgentOsOpportunityScoutExecutionPlan({
       controlledDailyPublicRunPreflightStatus: controlledDailyPublicRunPreflight.status,
       controlledDailyPublicRunEvidencePrepStatus: controlledDailyPublicRunEvidencePrep.status,
       controlledDailyPublicRunOutcomeCount: controlledDailyPublicRunOutcomeLoop.outcomeCount,
+      controlledDailyRunReviewFlowStatus: controlledDailyRunReviewFlow.status,
+      controlledDailyRunReviewInboxRows: controlledDailyRunReviewFlow.stats.reviewInboxRows,
       localCompletionStatus: localCompletionReadiness.localCompletionStatus,
       localImplementationPercent: localCompletionReadiness.localImplementationPercent,
       productionReadinessStatus: productionReadinessGate.status,

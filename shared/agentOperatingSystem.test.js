@@ -38,6 +38,7 @@ import {
   buildAgentLeadsControlledDailyPublicRunPreflight,
   buildAgentLeadsControlledDailyPublicRunEvidencePrep,
   buildAgentLeadsControlledDailyPublicRunOutcomeLoop,
+  buildAgentLeadsControlledDailyRunReviewFlow,
   buildAgentLeadsDailyReviewInbox,
   buildAgentLeadsDailySourceMonitoring,
   buildAgentLeadsLocalCompletionReadiness,
@@ -2091,6 +2092,91 @@ test("Agent OS v41 builds production source setup, review inbox, and no-jobs mon
   assert.match(monitoring.noJobsExplanation, /4 review inbox row/i);
   assert.equal(monitoring.externalActionsLocked, true);
   assert.match(emptyMonitoring.noJobsExplanation, /No eligible public no-login source/i);
+});
+
+test("Agent OS v42 builds a controlled daily run review flow from approved public-source evidence only", () => {
+  const packet = {
+    mode: "agent_leads_controlled_daily_public_source_run_evidence_packet_v32",
+    status: "ready_for_owner_admin_review",
+    nextRunDate: "2026-05-30",
+    runEnvelope: { runId: "agent-leads-controlled-public-source-run-2026-05-30" },
+    sourceRunRows: [{
+      sourceConfigId: "source-city-bids",
+      sourceName: "City bid page",
+      sourceUrl: "https://city.example.gov/procurement/open-bids",
+      connectorId: "public_procurement_search",
+      idempotencyKey: "agent-leads-controlled-daily-public-source-run::approved_public_search::source-city-bids::2026-05-30::https://city.example.gov/procurement/open-bids",
+      expectedOutput: "Provider-shaped review card or no-result/error evidence; no Found Opportunity or Lead is saved automatically.",
+    }],
+  };
+  const flow = buildAgentLeadsControlledDailyRunReviewFlow({
+    controlledDailyPublicSourceRunEvidencePacket: packet,
+    controlledDailyPublicRunPreflight: {
+      mode: "agent_leads_controlled_daily_public_run_preflight_v34",
+      status: "ready_for_controlled_evidence_prep",
+      approvalStatus: "approved_for_controlled_evidence_prep",
+    },
+    controlledDailyPublicRunEvidencePrep: {
+      mode: "agent_leads_controlled_daily_public_run_evidence_prep_v35",
+      status: "review_evidence_prepared",
+      runId: "agent-leads-controlled-public-source-run-2026-05-30",
+      createdAt: "2026-05-29T12:00:00.000Z",
+      evidenceRows: [{
+        id: "controlled-daily-public-run-evidence-1-source-city-bids",
+        providerResultId: "controlled-public-review-2026-05-30-source-city-bids",
+        sourceConfigId: "source-city-bids",
+        sourceName: "City bid page",
+        sourceUrl: "https://city.example.gov/procurement/open-bids",
+        connectorId: "public_procurement_search",
+        idempotencyKey: packet.sourceRunRows[0].idempotencyKey,
+        status: "review_card_prepared",
+        title: "City bid page review card",
+        fitScore: 0,
+        duplicateRisk: "needs_human_review",
+        reviewNote: "Controlled public-source evidence row prepared for owner/admin review only.",
+      }],
+    },
+    dailyReviewInbox: { rows: [], stats: { totalRows: 0 } },
+    dailySourceMonitoring: { noJobsExplanation: "1 eligible public source ran or is ready." },
+    dailyRunRecord: { id: "daily-agent-leads-2026-05-29" },
+    companySettings: { companyName: "Ace Fence" },
+    today: "2026-05-29",
+  });
+  const blocked = buildAgentLeadsControlledDailyRunReviewFlow({
+    controlledDailyPublicSourceRunEvidencePacket: packet,
+    controlledDailyPublicRunPreflight: {
+      mode: "agent_leads_controlled_daily_public_run_preflight_v34",
+      status: "blocked",
+      approvalStatus: "missing",
+    },
+    controlledDailyPublicRunEvidencePrep: {
+      mode: "agent_leads_controlled_daily_public_run_evidence_prep_v35",
+      status: "blocked",
+      evidenceRows: [],
+    },
+    today: "2026-05-29",
+  });
+
+  assert.equal(flow.mode, "agent_leads_controlled_daily_run_review_flow_v42");
+  assert.equal(flow.status, "review_inbox_ready");
+  assert.equal(flow.selectedSourceRows.length, 1);
+  assert.equal(flow.reviewInboxPreviewRows.length, 1);
+  assert.equal(flow.reviewInboxPreviewRows[0].canAutoSave, false);
+  assert.equal(flow.reviewInboxPreviewRows[0].canCreateLeadDirectly, false);
+  assert.equal(flow.commandSteps.every((step) => step.externalActionsLocked === true), true);
+  assert.equal(flow.externalActionsLocked, true);
+  assert.equal(flow.liveProviderCallsEnabled, false);
+  assert.equal(flow.browserAutomationEnabled, false);
+  assert.equal(flow.scrapingEnabled, false);
+  assert.equal(flow.leadAutoSaveEnabled, false);
+  assert.equal(flow.customerContactEnabled, false);
+  assert.equal(flow.bidSubmissionEnabled, false);
+  assert.equal(flow.paymentCollectionEnabled, false);
+  assert.equal(flow.schedulingMutationEnabled, false);
+  assert.equal(flow.integrationWritesEnabled, false);
+  assert.match(flow.safetyBoundary, /does not browse, scrape, log in, contact anyone/i);
+  assert.equal(blocked.status, "ready_for_owner_approval");
+  assert.match(blocked.blockers.join(" "), /approval and preflight/i);
 });
 
 test("Agent OS v9 public-source provider adapters fetch safe public URLs into review queue only", async () => {

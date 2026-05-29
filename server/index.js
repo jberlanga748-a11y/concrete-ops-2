@@ -122,6 +122,7 @@ import {
   buildAgentLeadsSmokeEvidenceRecorder,
   buildAgentLeadsControlledDailyPublicRunApprovalRecord,
   buildAgentLeadsControlledDailyPublicRunEvidencePrep,
+  buildAgentLeadsControlledDailyRunReviewFlow,
   buildAgentOsOpportunityScoutExecutionPlan,
   buildAgentOsSummary,
   createAgentOsRunForTask,
@@ -8669,6 +8670,167 @@ app.post("/api/agent/os/provider/daily-public-run-evidence", requireAuth, asyncR
   const visibleAuditEvents = visibleAuditEventsForUser(nextState, req.auth.user);
   res.status(201).json({
     controlledDailyPublicRunEvidencePrep: evidencePrep,
+    ledger: deriveAgentOsLedgerFromAuditEvents(visibleAuditEvents),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/provider/daily-public-run-controlled-flow", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Controlled daily public-source run review flow requires an owner or administrator.");
+  }
+  if (req.body?.execute === true || req.body?.runProvider === true || req.body?.fetchProvider === true || req.body?.autoSave === true || req.body?.contactCustomer === true || req.body?.submitBid === true || req.body?.collectPayment === true || req.body?.scheduleWork === true || req.body?.browserAutomation === true || req.body?.scrape === true || req.body?.login === true || req.body?.storeCredentials === true) {
+    throw new ApiError(400, "Controlled daily public-source run review flow cannot execute provider fetches, browser/login/scraping, credential storage, or external/customer actions.");
+  }
+  if (req.body?.acknowledgement !== true) {
+    throw new ApiError(400, "Controlled daily public-source run review flow requires review-only acknowledgement.");
+  }
+  const now = new Date().toISOString();
+  const companyId = currentCompanyIdForRequestUser(state, req.auth.user);
+  const companySettings = companySettingsForState(state, req.auth.user);
+  const auditEvents = visibleAuditEventsForUser(state, req.auth.user);
+  const today = req.body?.today || now;
+  const basePlan = buildAgentOsOpportunityScoutExecutionPlan({
+    opportunitySearchProfiles: visibleOpportunitySearchProfilesForUser(state, req.auth.user),
+    leadSources: visibleLeadSourcesForUser(state, req.auth.user),
+    foundOpportunities: visibleFoundOpportunitiesForUser(state, req.auth.user),
+    leads: visibleLeadsForUser(state, req.auth.user),
+    auditEvents,
+    companySettings,
+    today,
+  });
+  const approval = buildAgentLeadsControlledDailyPublicRunApprovalRecord({
+    controlledDailyPublicSourceRunEvidencePacket: basePlan.controlledDailyPublicSourceRunEvidencePacket,
+    approvalPayload: req.body || {},
+    companySettings: { ...companySettings, companyId },
+    actorUserId: req.auth.user.id,
+    today,
+    now,
+  });
+  if (!approval.ok) {
+    throw new ApiError(400, approval.errors.join(" "));
+  }
+  const syntheticApprovalEvent = {
+    action: approval.approvalRecord.auditEvent,
+    createdAt: now,
+    detail: { controlledDailyPublicRunApproval: approval.approvalRecord },
+  };
+  const syntheticPlan = buildAgentOsOpportunityScoutExecutionPlan({
+    opportunitySearchProfiles: visibleOpportunitySearchProfilesForUser(state, req.auth.user),
+    leadSources: visibleLeadSourcesForUser(state, req.auth.user),
+    foundOpportunities: visibleFoundOpportunitiesForUser(state, req.auth.user),
+    leads: visibleLeadsForUser(state, req.auth.user),
+    auditEvents: [...auditEvents, syntheticApprovalEvent],
+    companySettings,
+    today,
+  });
+  const evidencePrep = buildAgentLeadsControlledDailyPublicRunEvidencePrep({
+    controlledDailyPublicSourceRunEvidencePacket: syntheticPlan.controlledDailyPublicSourceRunEvidencePacket,
+    preflight: syntheticPlan.controlledDailyPublicRunPreflight,
+    companySettings: { ...companySettings, companyId },
+    actorUserId: req.auth.user.id,
+    today,
+    now,
+  });
+  const flow = buildAgentLeadsControlledDailyRunReviewFlow({
+    controlledDailyPublicSourceRunEvidencePacket: syntheticPlan.controlledDailyPublicSourceRunEvidencePacket,
+    controlledDailyPublicRunPreflight: syntheticPlan.controlledDailyPublicRunPreflight,
+    controlledDailyPublicRunEvidencePrep: evidencePrep,
+    dailyReviewInbox: syntheticPlan.dailyReviewInbox,
+    dailySourceMonitoring: syntheticPlan.dailySourceMonitoring,
+    dailyRunRecord: syntheticPlan.dailyRunRecord,
+    auditEvents: [...auditEvents, syntheticApprovalEvent],
+    companySettings,
+    today,
+  });
+  if (evidencePrep.status !== "review_evidence_prepared") {
+    res.status(409).json({
+      controlledDailyRunReviewFlow: flow,
+      controlledDailyPublicRunApproval: approval.approvalRecord,
+      controlledDailyPublicRunPreflight: syntheticPlan.controlledDailyPublicRunPreflight,
+      controlledDailyPublicRunEvidencePrep: evidencePrep,
+      requestId: res.locals.requestId,
+    });
+    return;
+  }
+  const nextState = await updateDb((draft) => {
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: approval.approvalRecord.id,
+      action: approval.approvalRecord.auditEvent,
+      summary: "Controlled daily public-source run packet approved for review-only inbox prep",
+      status: approval.approvalRecord.status,
+      metadata: {
+        controlledDailyPublicRunApproval: approval.approvalRecord,
+        selectedSourceConfigIds: approval.approvalRecord.selectedSourceConfigIds,
+        idempotencyKeys: approval.approvalRecord.idempotencyKeys,
+        externalActionsLocked: true,
+        safeForCron: false,
+        executionEnabled: false,
+        liveProviderCallsEnabled: false,
+        leadAutoSaveEnabled: false,
+        customerContactEnabled: false,
+        productionDataTouchEnabled: false,
+      },
+    });
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: `${evidencePrep.runId}-controlled-flow-evidence-${evidencePrep.nextRunDate}`,
+      action: evidencePrep.auditEvent,
+      summary: "Controlled daily public-source run review inbox evidence prepared",
+      status: evidencePrep.status,
+      metadata: {
+        controlledDailyPublicRunEvidencePrep: evidencePrep,
+        providerReviewImportCount: evidencePrep.providerReviewImportCount,
+        externalActionsLocked: true,
+        executionEnabled: false,
+        liveProviderCallsEnabled: false,
+        leadAutoSaveEnabled: false,
+        customerContactEnabled: false,
+        productionDataTouchEnabled: false,
+      },
+    });
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: `${flow.runId || "controlled-daily-run-review-flow"}-${flow.nextRunDate || String(today || now).slice(0, 10)}`,
+      action: "agent.os.provider.daily_public_run.review_flow_prepared",
+      summary: "Controlled daily public-source run review flow prepared for morning inbox",
+      status: flow.status,
+      metadata: {
+        controlledDailyRunReviewFlow: flow,
+        reviewInboxRows: flow.stats.reviewInboxRows,
+        selectedSourceRows: flow.stats.selectedSourceRows,
+        externalActionsLocked: true,
+        executionEnabled: false,
+        liveProviderCallsEnabled: false,
+        browserAutomationEnabled: false,
+        scrapingEnabled: false,
+        leadAutoSaveEnabled: false,
+        customerContactEnabled: false,
+        productionDataTouchEnabled: false,
+      },
+    });
+    return draft;
+  });
+  const visibleAuditEvents = visibleAuditEventsForUser(nextState, req.auth.user);
+  const refreshedPlan = buildAgentOsOpportunityScoutExecutionPlan({
+    opportunitySearchProfiles: visibleOpportunitySearchProfilesForUser(nextState, req.auth.user),
+    leadSources: visibleLeadSourcesForUser(nextState, req.auth.user),
+    foundOpportunities: visibleFoundOpportunitiesForUser(nextState, req.auth.user),
+    leads: visibleLeadsForUser(nextState, req.auth.user),
+    auditEvents: visibleAuditEvents,
+    companySettings: companySettingsForState(nextState, req.auth.user),
+    today,
+  });
+  res.status(201).json({
+    controlledDailyRunReviewFlow: refreshedPlan.controlledDailyRunReviewFlow,
+    controlledDailyPublicRunApproval: approval.approvalRecord,
+    controlledDailyPublicRunPreflight: refreshedPlan.controlledDailyPublicRunPreflight,
+    controlledDailyPublicRunEvidencePrep: refreshedPlan.controlledDailyPublicRunEvidencePrep,
+    dailyReviewInbox: refreshedPlan.controlledDailyRunReviewFlow?.reviewInboxPreviewRows?.length
+      ? { ...refreshedPlan.dailyReviewInbox, rows: refreshedPlan.controlledDailyRunReviewFlow.reviewInboxPreviewRows, stats: { ...refreshedPlan.dailyReviewInbox.stats, totalRows: refreshedPlan.controlledDailyRunReviewFlow.reviewInboxPreviewRows.length } }
+      : refreshedPlan.dailyReviewInbox,
+    dailySourceMonitoring: refreshedPlan.dailySourceMonitoring,
     ledger: deriveAgentOsLedgerFromAuditEvents(visibleAuditEvents),
     requestId: res.locals.requestId,
   });

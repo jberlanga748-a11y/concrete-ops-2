@@ -659,6 +659,30 @@ test("Agent OS exposes registry and queues audit-backed internal runs while exte
     assert.equal(controlledRunEvidencePrep.controlledDailyPublicRunEvidencePrep.status, "review_evidence_prepared");
     assert.equal(controlledRunEvidencePrep.controlledDailyPublicRunEvidencePrep.liveProviderCallsEnabled, false);
     assert.equal(controlledRunEvidencePrep.controlledDailyPublicRunEvidencePrep.leadAutoSaveEnabled, false);
+    const forcedControlledFlowBlocked = await requestJson(fixture.baseUrl, "/api/agent/os/provider/daily-public-run-controlled-flow", {
+      method: "POST",
+      headers: authHeaders(approvalAdminLogin.token),
+      body: JSON.stringify({ today: "2026-05-27", acknowledgement: true, fetchProvider: true }),
+    });
+    assert.equal(forcedControlledFlowBlocked.response.status, 400);
+    const controlledReviewFlow = await assertOk(fixture.baseUrl, "/api/agent/os/provider/daily-public-run-controlled-flow", {
+      method: "POST",
+      headers: authHeaders(approvalAdminLogin.token),
+      body: JSON.stringify({
+        today: "2026-05-27",
+        acknowledgement: true,
+        approvedBy: "Agent OS Provider Admin",
+        selectedSourceConfigIds: dailyPublicRunEvidence.controlledDailyPublicSourceRunEvidencePacket.sourceRunRows.map((row) => row.sourceConfigId),
+        idempotencyKeys: dailyPublicRunEvidence.controlledDailyPublicSourceRunEvidencePacket.sourceRunRows.map((row) => row.idempotencyKey),
+      }),
+    });
+    assert.equal(controlledReviewFlow.controlledDailyRunReviewFlow.mode, "agent_leads_controlled_daily_run_review_flow_v42");
+    assert.equal(controlledReviewFlow.controlledDailyRunReviewFlow.status, "review_inbox_ready");
+    assert.equal(controlledReviewFlow.controlledDailyRunReviewFlow.reviewInboxPreviewRows.length >= 1, true);
+    assert.equal(controlledReviewFlow.controlledDailyRunReviewFlow.reviewInboxPreviewRows[0].canAutoSave, false);
+    assert.equal(controlledReviewFlow.controlledDailyRunReviewFlow.customerContactEnabled, false);
+    assert.equal(controlledReviewFlow.controlledDailyRunReviewFlow.leadAutoSaveEnabled, false);
+    assert.equal(controlledReviewFlow.controlledDailyRunReviewFlow.liveProviderCallsEnabled, false);
     const evidenceRow = controlledRunEvidencePrep.controlledDailyPublicRunEvidencePrep.evidenceRows[0];
     const controlledRunOutcomes = await assertOk(fixture.baseUrl, "/api/agent/os/provider/daily-public-run-outcomes", {
       method: "POST",
