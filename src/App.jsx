@@ -155,6 +155,7 @@ import {
   runAgentLeadDailyJobFinderOrchestration,
   runAgentLeadDailyJobFinderAutopilot,
   runAgentLeadControlledDailyPublicRunFlow,
+  runAgentLeadControlledPilotRun,
   runAgentLeadProcurementFeedAdapter,
   recordAgentLeadPrivateEvidenceIntake,
   recordAgentLeadPrivateSourceAuthorization,
@@ -1814,6 +1815,7 @@ function CopilotPagePolished({
   onRunAgentLeadDailyJobFinderOrchestration,
   onRunAgentLeadDailyJobFinderAutopilot,
   onRunAgentLeadControlledDailyPublicRunFlow,
+  onRunAgentLeadControlledPilotRun,
   onRecordAgentLeadDailyPublicRunOutcomes,
   onRecordAgentLeadProcurementFeedAdapterConfig,
   onRunAgentLeadProcurementFeedAdapter,
@@ -1917,6 +1919,7 @@ function CopilotPagePolished({
   const scheduledRunReadiness = dailyScoutExecutionPlan.scheduledRunReadiness || { status: "needs_setup", scheduledRunPacket: {}, runLock: {}, tomorrowRunPreview: { rows: [], exactlyWhatApexWillNotDo: [] }, staleSourceAlerts: [], stats: {} };
   const pilotExecutionRehearsal = dailyScoutExecutionPlan.pilotExecutionRehearsal || { status: "blocked", rehearsalSteps: [], simulatedReviewInbox: { rows: [], skippedRows: [] }, carriedLearning: { noResultRecommendations: [], staleSourceAlerts: [] }, ownerAdminPilotReadinessReport: { whatRan: [], whatWasSkipped: [], why: [], contractorMustReview: [] }, stats: {} };
   const controlledDailyRunReviewFlow = dailyScoutExecutionPlan.controlledDailyRunReviewFlow || { selectedSourceRows: [], reviewInboxPreviewRows: [], commandSteps: [], stats: {}, status: "blocked" };
+  const controlledPilotRunExecution = dailyScoutExecutionPlan.controlledPilotRunExecution || { status: "blocked", runRecord: {}, controlledPublicSourceExecutor: { selectedSourceRows: [] }, persistedReviewInbox: { rows: [], count: 0 }, runControls: { runNow: {}, pause: {}, cancel: {}, retry: {}, disableSource: {}, killSwitch: {} }, productionSafetyReport: { whatRan: [], whatWasSkipped: [], contractorMustReview: [], blockedExternalActions: [] }, stats: {} };
   const providerSettings = dailyScoutExecutionPlan.publicProviderBoundary?.providerSettings || companySettings.apexAgentAutomationPolicy?.publicLeadProviderSettings || {};
   const dailyJobFinderAutopilotSettings = providerSettings.dailyJobFinderAutopilot || {};
   const providerContract = dailyScoutExecutionPlan.publicProviderBoundary?.providerContract || {};
@@ -2729,6 +2732,18 @@ function CopilotPagePolished({
     setProviderAdapterState(result?.controlledDailyRunReviewFlow
       ? { status: "ready", message: `Controlled daily run ${(result.controlledDailyRunReviewFlow.status || "prepared").replace(/_/g, " ")}.`, result: result.controlledDailyRunReviewFlow }
       : { status: "error", message: result?.message || "Controlled daily run review flow failed.", result: controlledDailyRunReviewFlow });
+  }
+
+  async function runControlledPilotRun() {
+    if (!canManageOpportunityScout || !onRunAgentLeadControlledPilotRun) return;
+    setProviderAdapterState({ status: "loading", message: "Persisting controlled Agent Leads pilot run...", result: controlledPilotRunExecution });
+    const result = await onRunAgentLeadControlledPilotRun({
+      today,
+      acknowledgement: true,
+    });
+    setProviderAdapterState(result?.controlledPilotRunExecution
+      ? { status: "ready", message: `Controlled pilot run ${(result.controlledPilotRunExecution.status || "prepared").replace(/_/g, " ")}.`, result: result.controlledPilotRunExecution }
+      : { status: "error", message: result?.message || "Controlled pilot run failed.", result: controlledPilotRunExecution });
   }
 
   async function recordControlledDailyRunOutcome(row, decision = "draft_found_opportunity") {
@@ -4136,6 +4151,60 @@ function CopilotPagePolished({
                 </div>
                 <div className="co-ai-scout-checks">
                   {pilotExecutionRehearsal.ownerAdminPilotReadinessReport?.contractorMustReview?.slice(0, 4).map((item) => <small key={item}>{item}</small>)}
+                </div>
+              </div>
+            </div>
+
+            <div className="co-ai-scout-grid border-b border-slate-200 bg-slate-50/80">
+              <div className="co-ai-scout-status" data-tone={controlledPilotRunExecution.status === "persisted" || controlledPilotRunExecution.status?.includes("ready") ? "green" : controlledPilotRunExecution.stats?.blockerCount ? "amber" : "slate"}>
+                <span>Controlled pilot run</span>
+                <strong>{String(controlledPilotRunExecution.status || "blocked").replace(/_/g, " ")}</strong>
+                <p>{controlledPilotRunExecution.productionSafetyReport?.summary || "Persist the first real Agent Leads pilot run as review-only audit evidence before any production automation is trusted."}</p>
+                <div className="co-ai-scout-metrics">
+                  <div><em>{controlledPilotRunExecution.stats?.selectedSourceRows || 0}</em><span>sources</span></div>
+                  <div><em>{controlledPilotRunExecution.stats?.persistedReviewRows || 0}</em><span>inbox rows</span></div>
+                  <div><em>{controlledPilotRunExecution.stats?.alreadyRecordedToday || 0}</em><span>today lock</span></div>
+                </div>
+                <div className="co-ai-scout-checks">
+                  <small>{controlledPilotRunExecution.runRecord?.id || "Run record pending"}</small>
+                  <small>Run now: {controlledPilotRunExecution.runControls?.runNow?.enabled ? "available" : "locked"}</small>
+                  <small>Public executor only; browser, login, contact, auto-save, bids, payments, schedules, integrations, deploys, and production data remain off.</small>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="secondary" onClick={runControlledPilotRun} disabled={!canManageOpportunityScout || busy || providerAdapterState.status === "loading" || controlledPilotRunExecution.runControls?.runNow?.enabled !== true}>
+                    Persist Pilot Run
+                  </Button>
+                  <Button type="button" size="sm" variant="ghost" onClick={runControlledDailyPublicRunFlow} disabled={!canManageOpportunityScout || busy || providerAdapterState.status === "loading" || !(controlledDailyPublicSourceRunEvidencePacket.sourceRunRows || []).length}>
+                    Prepare Inbox First
+                  </Button>
+                </div>
+              </div>
+              <div className="co-ai-scout-briefs">
+                <SectionHeader title="Persistent Run Evidence" description="This is the review-only owner/admin record for what Agent Leads ran, skipped, and saved for human review." />
+                <div className="co-ai-scout-brief-list">
+                  {controlledPilotRunExecution.persistedReviewInbox?.rows?.slice(0, 3).map((row) => (
+                    <div key={row.id} className="co-ai-scout-brief" data-tone={row.status === "persisted_for_review" ? "green" : "amber"}>
+                      <div className="min-w-0">
+                        <span>{String(row.status || "review").replace(/_/g, " ")}</span>
+                        <strong>{row.title}</strong>
+                        <p>{row.requiredHumanReview?.slice(0, 2).join(" / ") || "Human review required before any save or conversion."}</p>
+                        <em>{row.sourceName || row.sourceUrl || "public source"}</em>
+                      </div>
+                    </div>
+                  ))}
+                  {controlledPilotRunExecution.productionSafetyReport?.whatWasSkipped?.slice(0, 4).map((item) => (
+                    <div key={item} className="co-ai-scout-brief" data-tone="slate">
+                      <div className="min-w-0">
+                        <span>safety lock</span>
+                        <strong>{item}</strong>
+                        <p>No external or customer-impacting action is enabled from this pilot run.</p>
+                        <em>review-only</em>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="co-ai-scout-checks">
+                  {controlledPilotRunExecution.productionSafetyReport?.contractorMustReview?.slice(0, 4).map((item) => <small key={item}>{item}</small>)}
                 </div>
               </div>
             </div>
@@ -13900,6 +13969,22 @@ export default function App() {
     }
   }
 
+  async function handleRunAgentLeadControlledPilotRun(payload = {}) {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await runAgentLeadControlledPilotRun(sessionToken, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleRecordAgentLeadDailyPublicRunOutcomes(payload = {}) {
     if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
     setBusy(true);
@@ -16284,6 +16369,7 @@ export default function App() {
                 onRunAgentLeadDailyJobFinderOrchestration={handleRunAgentLeadDailyJobFinderOrchestration}
                 onRunAgentLeadDailyJobFinderAutopilot={handleRunAgentLeadDailyJobFinderAutopilot}
                 onRunAgentLeadControlledDailyPublicRunFlow={handleRunAgentLeadControlledDailyPublicRunFlow}
+                onRunAgentLeadControlledPilotRun={handleRunAgentLeadControlledPilotRun}
                 onRecordAgentLeadDailyPublicRunOutcomes={handleRecordAgentLeadDailyPublicRunOutcomes}
                 onRecordAgentLeadProcurementFeedAdapterConfig={handleRecordAgentLeadProcurementFeedAdapterConfig}
                 onRunAgentLeadProcurementFeedAdapter={handleRunAgentLeadProcurementFeedAdapter}

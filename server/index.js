@@ -123,6 +123,7 @@ import {
   buildAgentLeadsControlledDailyPublicRunApprovalRecord,
   buildAgentLeadsControlledDailyPublicRunEvidencePrep,
   buildAgentLeadsControlledDailyRunReviewFlow,
+  buildAgentLeadsControlledPilotRunExecution,
   buildAgentOsOpportunityScoutExecutionPlan,
   buildAgentOsSummary,
   createAgentOsRunForTask,
@@ -8832,6 +8833,165 @@ app.post("/api/agent/os/provider/daily-public-run-controlled-flow", requireAuth,
       ? { ...refreshedPlan.dailyReviewInbox, rows: refreshedPlan.controlledDailyRunReviewFlow.reviewInboxPreviewRows, stats: { ...refreshedPlan.dailyReviewInbox.stats, totalRows: refreshedPlan.controlledDailyRunReviewFlow.reviewInboxPreviewRows.length } }
       : refreshedPlan.dailyReviewInbox,
     dailySourceMonitoring: refreshedPlan.dailySourceMonitoring,
+    ledger: deriveAgentOsLedgerFromAuditEvents(visibleAuditEvents),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/agent/os/provider/controlled-pilot-run", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const action = getAgentOsAction("opportunity_search_prep");
+  assertCanQueueAgentOsAction(state, req.auth.user, action);
+  if (!isOwner(req.auth.user) && !isAdministrator(req.auth.user)) {
+    throw new ApiError(403, "Controlled Agent Leads pilot run requires an owner or administrator.");
+  }
+  if (req.body?.fetchProvider === true || req.body?.runProvider === true || req.body?.liveNetworkRequestsEnabled === true || req.body?.forceLive === true || req.body?.browserAutomation === true || req.body?.scrape === true || req.body?.login === true || req.body?.storeCredentials === true) {
+    throw new ApiError(400, "Controlled Agent Leads pilot run cannot fetch providers, browse, scrape, log in, or store credentials.");
+  }
+  if (req.body?.autoSave === true || req.body?.saveLead === true || req.body?.contactCustomer === true || req.body?.sendMessage === true || req.body?.submitBid === true || req.body?.collectPayment === true || req.body?.integrationWrite === true || req.body?.scheduleWork === true || req.body?.productionDataTouch === true || req.body?.deploy === true) {
+    throw new ApiError(400, "Controlled Agent Leads pilot run cannot save leads, contact anyone, submit bids, collect payment, schedule work, write integrations, deploy, or touch production data.");
+  }
+  if (["password", "rawPassword", "token", "accessToken", "refreshToken", "cookie", "cookies", "mfaCode", "apiKey", "secret", "session"].some((field) => String(req.body?.[field] || "").trim())) {
+    throw new ApiError(400, "Controlled Agent Leads pilot run accepts no raw credentials or secrets.");
+  }
+  if (req.body?.acknowledgement !== true) {
+    throw new ApiError(400, "Controlled Agent Leads pilot run requires review-only acknowledgement.");
+  }
+  const now = new Date().toISOString();
+  const today = req.body?.today || now;
+  const companyId = currentCompanyIdForRequestUser(state, req.auth.user);
+  const companySettings = companySettingsForState(state, req.auth.user);
+  const auditEvents = visibleAuditEventsForUser(state, req.auth.user);
+  const basePlan = buildAgentOsOpportunityScoutExecutionPlan({
+    opportunitySearchProfiles: visibleOpportunitySearchProfilesForUser(state, req.auth.user),
+    leadSources: visibleLeadSourcesForUser(state, req.auth.user),
+    foundOpportunities: visibleFoundOpportunitiesForUser(state, req.auth.user),
+    leads: visibleLeadsForUser(state, req.auth.user),
+    auditEvents,
+    companySettings,
+    today,
+  });
+  const execution = buildAgentLeadsControlledPilotRunExecution({
+    scheduledRunReadiness: basePlan.scheduledRunReadiness,
+    pilotExecutionRehearsal: basePlan.pilotExecutionRehearsal,
+    controlledDailyRunReviewFlow: basePlan.controlledDailyRunReviewFlow,
+    dailyRunHistory: basePlan.dailyRunHistory,
+    dailyRunAdminControls: basePlan.dailyRunAdminControls,
+    dailySourceMonitoring: basePlan.dailySourceMonitoring,
+    providerSettings: companySettings.apexAgentAutomationPolicy?.publicLeadProviderSettings || {},
+    companySettings: { ...companySettings, companyId },
+    auditEvents,
+    companyId,
+    actorUserId: req.auth.user.id,
+    today,
+    now,
+  });
+  if (execution.status === "blocked") {
+    res.status(409).json({
+      controlledPilotRunExecution: execution,
+      requestId: res.locals.requestId,
+    });
+    return;
+  }
+  if (execution.status === "persisted") {
+    res.json({
+      controlledPilotRunExecution: execution,
+      dailyReviewInbox: {
+        ...basePlan.dailyReviewInbox,
+        rows: execution.persistedReviewInbox.rows,
+        stats: { ...basePlan.dailyReviewInbox.stats, totalRows: execution.persistedReviewInbox.count },
+      },
+      dailyRunHistory: basePlan.dailyRunHistory,
+      ledger: deriveAgentOsLedgerFromAuditEvents(auditEvents),
+      requestId: res.locals.requestId,
+    });
+    return;
+  }
+  const nextState = await updateDb((draft) => {
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: execution.runRecord.id,
+      action: "agent.os.provider.controlled_pilot_run.started",
+      summary: "Controlled Agent Leads pilot run started as review-only audit evidence",
+      status: "running",
+      metadata: {
+        controlledPilotRunRecord: { ...execution.runRecord, status: "running", startedAt: now },
+        agentLeadsControlledPilotRunExecution: { ...execution, status: "running", runRecord: { ...execution.runRecord, status: "running", startedAt: now } },
+        idempotencyKey: execution.runRecord.idempotencyKey,
+        externalActionsLocked: true,
+        liveProviderCallsEnabled: false,
+        leadAutoSaveEnabled: false,
+        customerContactEnabled: false,
+        productionDataTouchEnabled: false,
+      },
+    });
+    appendAgentOsAuditEvent(draft, req.auth.user, {
+      entityId: `${execution.runRecord.id}::review-inbox`,
+      action: execution.persistedReviewInbox.auditAction,
+      summary: "Controlled Agent Leads pilot run persisted review inbox evidence",
+      status: "succeeded",
+      metadata: {
+        agentLeadsControlledPilotRunExecution: {
+          ...execution,
+          status: "persisted",
+          runRecord: { ...execution.runRecord, status: "persisted", finishedAt: now },
+          persistedReviewInbox: { ...execution.persistedReviewInbox, status: "persisted" },
+        },
+        controlledPilotRunRecord: { ...execution.runRecord, status: "persisted", finishedAt: now },
+        persistedReviewInbox: { ...execution.persistedReviewInbox, status: "persisted" },
+        reviewInboxRows: execution.persistedReviewInbox.count,
+        selectedSourceRows: execution.stats.selectedSourceRows,
+        idempotencyKey: execution.runRecord.idempotencyKey,
+        externalActionsLocked: true,
+        safeForCron: false,
+        executionEnabled: false,
+        liveProviderCallsEnabled: false,
+        browserAutomationEnabled: false,
+        scrapingEnabled: false,
+        leadAutoSaveEnabled: false,
+        customerContactEnabled: false,
+        bidSubmissionEnabled: false,
+        paymentCollectionEnabled: false,
+        schedulingMutationEnabled: false,
+        integrationWritesEnabled: false,
+        productionDataTouchEnabled: false,
+      },
+    });
+    return draft;
+  });
+  const visibleAuditEvents = visibleAuditEventsForUser(nextState, req.auth.user);
+  const refreshedPlan = buildAgentOsOpportunityScoutExecutionPlan({
+    opportunitySearchProfiles: visibleOpportunitySearchProfilesForUser(nextState, req.auth.user),
+    leadSources: visibleLeadSourcesForUser(nextState, req.auth.user),
+    foundOpportunities: visibleFoundOpportunitiesForUser(nextState, req.auth.user),
+    leads: visibleLeadsForUser(nextState, req.auth.user),
+    auditEvents: visibleAuditEvents,
+    companySettings: companySettingsForState(nextState, req.auth.user),
+    today,
+  });
+  const refreshedExecution = buildAgentLeadsControlledPilotRunExecution({
+    scheduledRunReadiness: refreshedPlan.scheduledRunReadiness,
+    pilotExecutionRehearsal: refreshedPlan.pilotExecutionRehearsal,
+    controlledDailyRunReviewFlow: refreshedPlan.controlledDailyRunReviewFlow,
+    dailyRunHistory: refreshedPlan.dailyRunHistory,
+    dailyRunAdminControls: refreshedPlan.dailyRunAdminControls,
+    dailySourceMonitoring: refreshedPlan.dailySourceMonitoring,
+    providerSettings: companySettingsForState(nextState, req.auth.user).apexAgentAutomationPolicy?.publicLeadProviderSettings || {},
+    companySettings: { ...companySettingsForState(nextState, req.auth.user), companyId },
+    auditEvents: visibleAuditEvents,
+    companyId,
+    actorUserId: req.auth.user.id,
+    today,
+    now,
+  });
+  res.status(201).json({
+    controlledPilotRunExecution: refreshedExecution,
+    dailyReviewInbox: {
+      ...refreshedPlan.dailyReviewInbox,
+      rows: refreshedExecution.persistedReviewInbox.rows,
+      stats: { ...refreshedPlan.dailyReviewInbox.stats, totalRows: refreshedExecution.persistedReviewInbox.count },
+    },
+    dailyRunHistory: refreshedPlan.dailyRunHistory,
+    productionSafetyReport: refreshedExecution.productionSafetyReport,
     ledger: deriveAgentOsLedgerFromAuditEvents(visibleAuditEvents),
     requestId: res.locals.requestId,
   });

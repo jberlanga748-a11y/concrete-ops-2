@@ -484,6 +484,12 @@ test("Agent OS exposes registry and queues audit-backed internal runs while exte
       body: JSON.stringify({ operatorName: "Admin", acknowledgement: true }),
     });
     assert.equal(premiumProductionEvidenceBlocked.response.status, 403);
+    const premiumControlledPilotRunBlocked = await requestJson(fixture.baseUrl, "/api/agent/os/provider/controlled-pilot-run", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({ today: "2026-05-27", acknowledgement: true }),
+    });
+    assert.equal(premiumControlledPilotRunBlocked.response.status, 403);
 
     setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.ELITE);
     const approvalAdminUser = createUserRecord({
@@ -683,6 +689,36 @@ test("Agent OS exposes registry and queues audit-backed internal runs while exte
     assert.equal(controlledReviewFlow.controlledDailyRunReviewFlow.customerContactEnabled, false);
     assert.equal(controlledReviewFlow.controlledDailyRunReviewFlow.leadAutoSaveEnabled, false);
     assert.equal(controlledReviewFlow.controlledDailyRunReviewFlow.liveProviderCallsEnabled, false);
+    const forcedControlledPilotRunBlocked = await requestJson(fixture.baseUrl, "/api/agent/os/provider/controlled-pilot-run", {
+      method: "POST",
+      headers: authHeaders(approvalAdminLogin.token),
+      body: JSON.stringify({ today: "2026-05-27", acknowledgement: true, fetchProvider: true }),
+    });
+    assert.equal(forcedControlledPilotRunBlocked.response.status, 400);
+    const controlledPilotRun = await assertOk(fixture.baseUrl, "/api/agent/os/provider/controlled-pilot-run", {
+      method: "POST",
+      headers: authHeaders(approvalAdminLogin.token),
+      body: JSON.stringify({ today: "2026-05-27", acknowledgement: true }),
+    });
+    assert.equal(controlledPilotRun.controlledPilotRunExecution.mode, "agent_leads_controlled_pilot_run_execution_v46");
+    assert.equal(controlledPilotRun.controlledPilotRunExecution.status, "persisted");
+    assert.equal(controlledPilotRun.controlledPilotRunExecution.runRecord.mode, "agent_leads_controlled_pilot_run_record_v46");
+    assert.equal(controlledPilotRun.controlledPilotRunExecution.persistedReviewInbox.mode, "agent_leads_persistent_review_inbox_v46");
+    assert.equal(controlledPilotRun.controlledPilotRunExecution.persistedReviewInbox.count >= 1, true);
+    assert.equal(controlledPilotRun.controlledPilotRunExecution.controlledPublicSourceExecutor.networkRequestsEnabled, false);
+    assert.equal(controlledPilotRun.controlledPilotRunExecution.leadAutoSaveEnabled, false);
+    assert.equal(controlledPilotRun.controlledPilotRunExecution.customerContactEnabled, false);
+    assert.equal(controlledPilotRun.controlledPilotRunExecution.productionDataTouchEnabled, false);
+    assert.equal(controlledPilotRun.dailyReviewInbox.rows[0].canAutoSave, false);
+    assert.equal(controlledPilotRun.ledger.rows.some((row) => row.action === "agent.os.provider.controlled_pilot_run.review_inbox_persisted"), true);
+    const controlledPilotRunAgain = await assertOk(fixture.baseUrl, "/api/agent/os/provider/controlled-pilot-run", {
+      method: "POST",
+      headers: authHeaders(approvalAdminLogin.token),
+      body: JSON.stringify({ today: "2026-05-27", acknowledgement: true }),
+    });
+    assert.equal(controlledPilotRunAgain.controlledPilotRunExecution.status, "persisted");
+    const controlledPilotAuditRows = auditEvents(fixture.sqliteFile).filter((event) => event.action === "agent.os.provider.controlled_pilot_run.review_inbox_persisted");
+    assert.equal(controlledPilotAuditRows.length, 1);
     const controlledInboxRow = controlledReviewFlow.controlledDailyRunReviewFlow.reviewInboxPreviewRows[0];
     const controlledInboxDraft = await assertOk(fixture.baseUrl, "/api/agent/os/provider/review-queue-draft-opportunity", {
       method: "POST",
