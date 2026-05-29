@@ -175,6 +175,19 @@ function setCompanyPackage(sqliteFile, packageId, companyId = DEFAULT_COMPANY_ID
   }
 }
 
+function insertCompany(sqliteFile, companyId, name = "Portal Other Company") {
+  const database = new DatabaseSync(sqliteFile);
+  const now = new Date().toISOString();
+  try {
+    database.prepare(`
+      INSERT OR IGNORE INTO companies (id, workspace_id, name, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(companyId, companyId, name, "active", now, now);
+  } finally {
+    database.close();
+  }
+}
+
 function insertUser(sqliteFile, user) {
   const database = new DatabaseSync(sqliteFile);
   try {
@@ -200,13 +213,17 @@ function insertUser(sqliteFile, user) {
   }
 }
 
-function insertPortalOwner(sqliteFile, email = `portal-owner-${Date.now()}@apexhq.test`) {
+function insertPortalOwner(sqliteFile, {
+  email = `portal-owner-${Date.now()}-${Math.random().toString(16).slice(2)}@apexhq.test`,
+  companyId = DEFAULT_COMPANY_ID,
+} = {}) {
   const owner = createUserRecord({
-    id: `U-PORTAL-OWNER-${Date.now()}`,
+    id: `U-PORTAL-OWNER-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     email,
     password: "apexdemo123",
     name: "Portal Owner",
     role: "Owner",
+    companyId,
   });
   insertUser(sqliteFile, owner);
   return owner;
@@ -299,8 +316,47 @@ function readAuditEvents(sqliteFile) {
   }
 }
 
+function forceAccessRecordExpiration(sqliteFile, recordId, expiresAt) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    const auditEvent = database.prepare(`
+      SELECT id, detail
+      FROM audit_events
+      WHERE entity_type = 'customer_portal_access'
+        AND entity_id = ?
+        AND action = 'prepared_locked'
+      ORDER BY sort_index DESC
+      LIMIT 1
+    `).get(recordId);
+    assert.ok(auditEvent?.id, "Expected prepared access record audit event to exist.");
+    const detail = JSON.parse(auditEvent.detail);
+    detail.accessRecord.expiresAt = expiresAt;
+    database.prepare("UPDATE audit_events SET detail = ? WHERE id = ?").run(JSON.stringify(detail), auditEvent.id);
+  } finally {
+    database.close();
+  }
+}
+
 function expiresIn(days) {
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+}
+
+async function createLockedAccessRecord(fixture, { expiresAt = expiresIn(2), approvalId = "PORTAL-ACCESS-REVIEW-HELPER" } = {}) {
+  setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.ELITE);
+  const estimateId = insertApprovedEstimateFixture(fixture.sqliteFile);
+  const owner = insertPortalOwner(fixture.sqliteFile);
+  const loginResult = await login(fixture.baseUrl, { email: owner.email });
+  const headers = authHeaders(loginResult.token);
+  const created = await assertOk(fixture.baseUrl, "/api/customer-portal/access-records", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      estimateId,
+      expiresAt,
+      approvalId,
+    }),
+  });
+  return { created, estimateId, headers, owner };
 }
 
 test("Elite owner can prepare locked customer portal access records without token material", async () => {
@@ -472,6 +528,136 @@ test("Customer portal access records enforce bounded expiration readiness", asyn
     assert.equal(denied.response.status, 400);
     assert.match(denied.payload.error, /Expiration must be valid/i);
     assert.equal(readAuditEvents(fixture.sqliteFile).length, 0);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("Elite owner can revoke locked customer portal access records without creating external access", async () => {
+  const fixture = await startServer();
+
+  try {
+    const { created, headers } = await createLockedAccessRecord(fixture, {
+      approvalId: "PORTAL-ACCESS-REVIEW-REVOKE",
+    });
+
+    const revoked = await assertOk(fixture.baseUrl, `/api/customer-portal/access-records/${created.accessRecord.id}/revoke`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        reason: "Customer asked us to pause the review packet.",
+      }),
+    });
+
+    assert.equal(revoked.accessRecord.id, created.accessRecord.id);
+    assert.equal(revoked.accessRecord.status, "revoked_locked");
+    assert.notEqual(revoked.accessRecord.revokedAt, "");
+    assert.equal(revoked.accessRecord.canCreateExternalAccess, false);
+    assert.equal(revoked.accessRecord.tokenMaterialCreated, false);
+    assert.equal(revoked.lifecycle.action, "revoked_locked");
+    assert.equal(JSON.stringify(revoked).includes("rawToken"), false);
+    assert.equal(JSON.stringify(revoked).includes("publicUrl"), false);
+
+    const listed = await assertOk(fixture.baseUrl, "/api/customer-portal/access-records", { headers });
+    assert.equal(listed.accessRecords.length, 1);
+    assert.equal(listed.accessRecords[0].status, "revoked_locked");
+    assert.equal(listed.accessRecords[0].lifecycleEvents.some((event) => event.action === "revoked_locked"), true);
+
+    const deniedSecondRevoke = await requestJson(fixture.baseUrl, `/api/customer-portal/access-records/${created.accessRecord.id}/revoke`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ reason: "Duplicate revoke should be blocked." }),
+    });
+    assert.equal(deniedSecondRevoke.response.status, 409);
+
+    const auditEvents = readAuditEvents(fixture.sqliteFile);
+    assert.deepEqual(new Set(auditEvents.map((event) => event.action)), new Set(["prepared_locked", "revoked_locked"]));
+    const revokeAuditEvent = auditEvents.find((event) => event.action === "revoked_locked");
+    assert.equal(revokeAuditEvent.detail.includes("Customer asked us to pause"), true);
+    assert.equal(revokeAuditEvent.detail.includes("rawToken"), false);
+    assert.equal(revokeAuditEvent.detail.includes("publicUrl"), false);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("Customer portal access records derive expired status without background mutation", async () => {
+  const fixture = await startServer();
+
+  try {
+    const { created, headers } = await createLockedAccessRecord(fixture, {
+      approvalId: "PORTAL-ACCESS-REVIEW-EXPIRED",
+    });
+    forceAccessRecordExpiration(fixture.sqliteFile, created.accessRecord.id, new Date(Date.now() - 60_000).toISOString());
+
+    const listed = await assertOk(fixture.baseUrl, "/api/customer-portal/access-records", { headers });
+    assert.equal(listed.accessRecords.length, 1);
+    assert.equal(listed.accessRecords[0].id, created.accessRecord.id);
+    assert.equal(listed.accessRecords[0].status, "expired_locked");
+    assert.equal(listed.accessRecords[0].revokedAt, "");
+    assert.equal(readAuditEvents(fixture.sqliteFile).length, 1);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("Customer portal access record revocation is tenant scoped", async () => {
+  const fixture = await startServer();
+
+  try {
+    const { created } = await createLockedAccessRecord(fixture, {
+      approvalId: "PORTAL-ACCESS-REVIEW-TENANT-A",
+    });
+    const otherCompanyId = "COMPANY-PORTAL-OTHER";
+    insertCompany(fixture.sqliteFile, otherCompanyId);
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.ELITE, otherCompanyId);
+    const otherOwner = insertPortalOwner(fixture.sqliteFile, {
+      email: "portal-other-owner@apexhq.test",
+      companyId: otherCompanyId,
+    });
+    const otherLogin = await login(fixture.baseUrl, { email: otherOwner.email });
+    const otherHeaders = authHeaders(otherLogin.token);
+
+    const otherList = await assertOk(fixture.baseUrl, "/api/customer-portal/access-records", { headers: otherHeaders });
+    assert.deepEqual(otherList.accessRecords, []);
+
+    const denied = await requestJson(fixture.baseUrl, `/api/customer-portal/access-records/${created.accessRecord.id}/revoke`, {
+      method: "POST",
+      headers: otherHeaders,
+      body: JSON.stringify({ reason: "Cross-company revoke attempt." }),
+    });
+    assert.equal(denied.response.status, 404);
+    assert.equal(readAuditEvents(fixture.sqliteFile).length, 1);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("Field users cannot revoke customer portal access records by direct API call", async () => {
+  const fixture = await startServer();
+
+  try {
+    const { created } = await createLockedAccessRecord(fixture, {
+      approvalId: "PORTAL-ACCESS-REVIEW-FIELD-REVOKE",
+    });
+    const fieldUser = createUserRecord({
+      id: "U-PORTAL-FIELD-REVOKE",
+      email: "portal-field-revoke@apexhq.test",
+      password: "apexdemo123",
+      name: "Portal Field Revoke User",
+      role: "Employee",
+    });
+    insertUser(fixture.sqliteFile, fieldUser);
+    const fieldLogin = await login(fixture.baseUrl, { email: fieldUser.email });
+    const fieldHeaders = authHeaders(fieldLogin.token);
+
+    const denied = await requestJson(fixture.baseUrl, `/api/customer-portal/access-records/${created.accessRecord.id}/revoke`, {
+      method: "POST",
+      headers: fieldHeaders,
+      body: JSON.stringify({ reason: "Field users cannot revoke." }),
+    });
+    assert.equal(denied.response.status, 403);
+    assert.equal(readAuditEvents(fixture.sqliteFile).length, 1);
   } finally {
     await fixture.stop();
   }
