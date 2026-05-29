@@ -1,6 +1,6 @@
 # Apex HQ Communication Provider Readiness Status
 
-Status: complete for Build 8B locked communication provider readiness, outbound approval queue, suppression, and delivery-attempt contract scope.
+Status: complete for Build 8C locked communication provider readiness, outbound approval queue, suppression, delivery-attempt contract, and Communications UI visibility scope.
 
 ## What Is Now Complete
 
@@ -18,10 +18,13 @@ Status: complete for Build 8B locked communication provider readiness, outbound 
 - Owner/admin office users can prepare a locked delivery-attempt contract from a queued outbound approval.
 - Delivery-attempt contracts check suppression evidence and provider readiness, classify provider/suppression/lock failures, and explicitly keep provider request preparation, provider sends, provider responses, and customer contact disabled.
 - Suppression and delivery-attempt contract replays are idempotent and audit backed.
+- The Communications screen now loads the locked provider-readiness packet for office users with contact-history access.
+- The Communications screen summarizes channel readiness, locked approvals, suppressions, delivery-attempt contracts, missing evidence, and the locked execution boundary.
+- Office users with contact-history manage permission can record locked suppression evidence for the selected lead, customer, estimate, or job without sending a message or calling a provider unsubscribe endpoint.
 
 ## Safety Boundary
 
-Build 8B does not:
+Build 8C does not:
 
 - send email
 - send SMS
@@ -37,7 +40,7 @@ Build 8B does not:
 - deploy
 - mutate production data
 
-Existing human-confirmed estimate email execution remains governed by the already-approved `email_send` gate and normal estimate send workflow. Build 8B only adds readiness, approval queue, suppression, and locked delivery-attempt evidence for broader communication provider workflows.
+Existing human-confirmed estimate email execution remains governed by the already-approved `email_send` gate and normal estimate send workflow. Build 8C only adds readiness, approval queue, suppression, locked delivery-attempt evidence, and office UI visibility for broader communication provider workflows.
 
 ## Verification
 

@@ -83,6 +83,7 @@ import {
   createAgentLearningPreference,
   createChangeOrderRequest,
   createContactHistory,
+  createCommunicationSuppression,
   createEstimate,
   createCustomer,
   createDailyReport,
@@ -130,6 +131,7 @@ import {
   getAgentLeadProviderMonitoringSnapshot,
   getBootstrap,
   getAgentContext,
+  getCommunicationProviderReadiness,
   getHealth,
   getSetupStatus,
   login,
@@ -14372,6 +14374,38 @@ export default function App() {
     }
   }
 
+  async function handleGetCommunicationProviderReadiness() {
+    if (!sessionToken || !appState.permissions.contactHistory?.canView) return null;
+    setBusy(true);
+    try {
+      const payload = await getCommunicationProviderReadiness(sessionToken);
+      setErrorMessage("");
+      return payload;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleCreateCommunicationSuppression(payload) {
+    if (!sessionToken || !appState.permissions.contactHistory?.canManage) return null;
+    setBusy(true);
+    try {
+      const result = await createCommunicationSuppression(sessionToken, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleScoreLead(lead = selectedLead) {
     if (!sessionToken || !lead?.id || !appState.permissions.leads.canManage) return false;
     setBusy(true);
@@ -16402,6 +16436,8 @@ export default function App() {
                 onUpdateContactHistory={handleUpdateContactHistory}
                 onArchiveContactHistory={handleArchiveContactHistory}
                 onRestoreContactHistory={handleRestoreContactHistory}
+                onGetCommunicationProviderReadiness={handleGetCommunicationProviderReadiness}
+                onCreateCommunicationSuppression={handleCreateCommunicationSuppression}
                 onOpenEstimate={navigateToEstimate}
                 onCreateJobFromLead={handleCreateJobFromLead}
                 rateBookItems={appState.rateBookItems}

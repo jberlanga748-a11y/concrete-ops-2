@@ -487,6 +487,26 @@ export function restoreContactHistory(token, id) {
   return request(`/api/contact-history/${id}/restore`, { method: "POST", token });
 }
 
+export function getCommunicationProviderReadiness(token) {
+  return request("/api/communications/provider-readiness", { token });
+}
+
+export function createOutboundCommunicationApproval(token, payload = {}) {
+  return request("/api/communications/outbound-approvals", { method: "POST", token, body: payload });
+}
+
+export function createCommunicationSuppression(token, payload = {}) {
+  return request("/api/communications/suppressions", { method: "POST", token, body: payload });
+}
+
+export function getCommunicationSuppressions(token) {
+  return request("/api/communications/suppressions", { token });
+}
+
+export function prepareCommunicationDeliveryAttemptContract(token, approvalId, payload = {}) {
+  return request(`/api/communications/outbound-approvals/${encodeURIComponent(approvalId)}/delivery-attempt-contract`, { method: "POST", token, body: payload });
+}
+
 export function createLead(token, lead) {
   return request("/api/leads", { method: "POST", token, body: lead });
 }
