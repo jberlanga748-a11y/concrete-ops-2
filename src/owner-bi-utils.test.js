@@ -58,8 +58,12 @@ test("owner BI composes growth, production, and profit/loss prep without automat
       { id: "TIME-1", jobId: "JOB-1", totalMinutes: 480, status: "completed", payRate: 120, grossPay: 960 },
       { id: "TIME-2", jobId: "JOB-1", clockInAt: "2026-05-22T15:00:00.000Z", clockOutAt: "", status: "active" },
     ],
-    deliveryTickets: [{ id: "DT-1", jobId: "JOB-1", reportId: "REPORT-1", ticketUploadId: "UPLOAD-1", supplier: "Ready Mix", ticketNumber: "RM-44", yardsDelivered: 14 }],
+    deliveryTickets: [{ id: "DT-1", jobId: "JOB-1", reportId: "REPORT-1", ticketUploadId: "UPLOAD-1", supplier: "Ready Mix", ticketNumber: "RM-44", yardsDelivered: 14, materialCost: 4200 }],
     changeOrderRequests: [{ id: "CO-1", jobId: "JOB-1", status: "approved", amount: 1200 }],
+    jobCostEntries: [
+      { id: "EQ-1", jobId: "JOB-1", category: "equipment", status: "reviewed", amount: 600 },
+      { id: "SUB-1", jobId: "JOB-1", category: "subcontractor", status: "approved", amount: 1800 },
+    ],
     safetyIncidents: [],
     proofStateByReportId: new Map([
       ["REPORT-1", { gapCount: 0 }],
@@ -78,6 +82,9 @@ test("owner BI composes growth, production, and profit/loss prep without automat
   assert.equal(state.metrics.activeCrewEntries, 1);
   assert.equal(state.metrics.concreteYards, 14);
   assert.equal(state.metrics.closeoutCandidates, 1);
+  assert.equal(state.metrics.jobCostingActualCostTotal, 7560);
+  assert.equal(state.metrics.jobCostingInputWarnings > 0, true);
+  assert.equal(state.scorecards.some((card) => card.title === "Job costing review prep"), true);
   assert.equal(state.reviewRows.some((row) => row.type === "lead_source_reporting"), true);
   assert.equal(state.reviewRows.some((row) => row.type === "profit_loss_review_prep"), true);
   assert.equal(state.reviewRows.some((row) => row.type === "report_review"), true);

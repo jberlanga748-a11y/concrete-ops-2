@@ -25,10 +25,14 @@ test("closeout billing review packet connects estimate, proof, time, and safety 
     estimates: [{ id: "EST-1", jobId: "JOB-1", grandTotal: 12400 }],
     dailyReports: [{ id: "DR-1", jobId: "JOB-1", status: "reviewed" }],
     uploads: [{ id: "UP-1", jobId: "JOB-1", caption: "Final gate proof" }],
-    timeEntries: [{ id: "TE-1", jobId: "JOB-1", totalMinutes: 480, status: "completed" }],
-    deliveryTickets: [{ id: "DT-1", jobId: "JOB-1", reportId: "DR-1", ticketUploadId: "UP-1", supplier: "Fence Supply", ticketNumber: "18842", yardsDelivered: 1 }],
+    timeEntries: [{ id: "TE-1", jobId: "JOB-1", totalMinutes: 480, status: "completed", grossPay: 1440, payRate: 180 }],
+    deliveryTickets: [{ id: "DT-1", jobId: "JOB-1", reportId: "DR-1", ticketUploadId: "UP-1", supplier: "Fence Supply", ticketNumber: "18842", yardsDelivered: 1, totalCost: 2100 }],
     changeOrderRequests: [{ id: "CO-1", jobId: "JOB-1", status: "rejected", amount: 500 }],
     safetyIncidents: [],
+    jobCostEntries: [
+      { id: "EQ-1", jobId: "JOB-1", category: "equipment", status: "reviewed", amount: 450, description: "Mini skid rental" },
+      { id: "SUB-1", jobId: "JOB-1", category: "subcontractor", status: "approved", amount: 1600, description: "Gate automation sub" },
+    ],
   });
 
   assert.equal(packet.canView, true);
@@ -37,18 +41,31 @@ test("closeout billing review packet connects estimate, proof, time, and safety 
   assert.equal(packet.metrics.estimateTotal, 12400);
   assert.equal(packet.metrics.profitLossReadyForManualReview, 1);
   assert.equal(packet.metrics.profitLossInputWarnings, 0);
+  assert.equal(packet.metrics.jobCostingReadyForManualReview, 1);
+  assert.equal(packet.metrics.jobCostingActualCostTotal, 5590);
+  assert.equal(packet.metrics.jobCostingReviewDelta, 6810);
   assert.equal(packet.rows[0].readyForBillingReview, true);
   assert.equal(packet.rows[0].profitLossReview.readyForManualReview, true);
+  assert.equal(packet.rows[0].jobCostingReview.readyForManualReview, true);
+  assert.equal(packet.rows[0].jobCostingReview.costByCategory.labor, 1440);
+  assert.equal(packet.rows[0].jobCostingReview.costByCategory.material, 2100);
+  assert.equal(packet.rows[0].jobCostingReview.costByCategory.equipment, 450);
+  assert.equal(packet.rows[0].jobCostingReview.costByCategory.subcontractor, 1600);
+  assert.equal(packet.rows[0].jobCostingReview.grossReviewDelta, 6810);
+  assert.match(packet.rows[0].jobCostingReview.boundary, /does not finalize profit\/loss/i);
+  assert.equal(packet.jobCostingReviewItems[0].title, "Cedar Fence");
   assert.equal(packet.rows[0].profitLossReview.requiredInputs.some((input) => /material receipts/i.test(input)), true);
   assert.match(packet.rows[0].profitLossReview.boundary, /does not finalize margin/i);
   assert.equal(packet.profitLossReviewItems[0].title, "Cedar Fence");
   assert.equal(packet.rows[0].time.completedHoursLabel, "8h");
   assert.match(packet.summaryItems.find((item) => item.id === "time-profit-loss-inputs").detail, /Profit\/loss is not finalized/i);
   assert.match(packet.summaryItems.find((item) => item.id === "profit-loss-review-prep").detail, /office finalizes cost and margin manually/i);
+  assert.match(packet.summaryItems.find((item) => item.id === "job-costing-review").detail, /reviewed actual cost inputs/i);
   assert.match(packet.safetyBoundary, /does not invoice/i);
   assert.equal(packet.blockedActions.some((action) => /No invoice is created/i.test(action)), true);
   assert.equal(packet.blockedActions.some((action) => /No payment is collected/i.test(action)), true);
   assert.equal(packet.blockedActions.some((action) => /No customer email/i.test(action)), true);
+  assert.equal(JSON.stringify(packet).includes("payRate"), false);
 });
 
 test("closeout billing review packet blocks active time, missing proof, safety, and pending change orders", () => {
@@ -72,6 +89,9 @@ test("closeout billing review packet blocks active time, missing proof, safety, 
   assert.equal(packet.metrics.safetyOpen, 1);
   assert.equal(packet.metrics.profitLossReadyForManualReview, 0);
   assert.ok(packet.metrics.profitLossInputWarnings >= 4);
+  assert.equal(packet.metrics.jobCostingReadyForManualReview, 0);
+  assert.ok(packet.metrics.jobCostingInputWarnings >= 4);
+  assert.match(packet.rows[0].jobCostingReview.nextStep, /active|missing|reviewed/i);
   assert.match(packet.rows[0].profitLossReview.nextStep, /No completed crew time|Active time|Change orders|Closeout blockers/i);
   assert.deepEqual(packet.rows[0].blockers, [
     "Job is not marked billing ready or closed",
@@ -83,6 +103,29 @@ test("closeout billing review packet blocks active time, missing proof, safety, 
     "1 change order need manual pricing/billing review",
     "1 unresolved safety item should be closed or documented",
   ]);
+});
+
+test("job costing review requires reviewed equipment and subcontractor cost inputs before manual ready state", () => {
+  const packet = buildJobCloseoutBillingReviewPacket({
+    permissions: OFFICE_PERMISSIONS,
+    jobs: [{ id: "JOB-1", title: "Shop Slab", status: "billing_ready" }],
+    estimates: [{ id: "EST-1", jobId: "JOB-1", grandTotal: 20000 }],
+    dailyReports: [{ id: "DR-1", jobId: "JOB-1", status: "reviewed" }],
+    uploads: [{ id: "UP-1", jobId: "JOB-1" }],
+    timeEntries: [{ id: "TE-1", jobId: "JOB-1", totalMinutes: 420, status: "completed", laborCost: 1250 }],
+    deliveryTickets: [{ id: "DT-1", jobId: "JOB-1", reportId: "DR-1", ticketUploadId: "UP-1", supplier: "Ready Mix", ticketNumber: "RM-22", yardsDelivered: 12, materialCost: 3800 }],
+    jobCostEntries: [
+      { id: "EQ-1", jobId: "JOB-1", category: "equipment", status: "needs_review", amount: 900, description: "Pump rental" },
+    ],
+  });
+
+  assert.equal(packet.rows[0].readyForBillingReview, true);
+  assert.equal(packet.rows[0].profitLossReview.readyForManualReview, true);
+  assert.equal(packet.rows[0].jobCostingReview.readyForManualReview, false);
+  assert.equal(packet.rows[0].jobCostingReview.costByCategory.equipment, 0);
+  assert.equal(packet.rows[0].jobCostingReview.missingCostCategories.includes("equipment"), true);
+  assert.equal(packet.rows[0].jobCostingReview.missingCostCategories.includes("subcontractor"), true);
+  assert.match(packet.rows[0].jobCostingReview.warnings.join(" "), /Pump rental cost is not reviewed|No reviewed subcontractor cost input/i);
 });
 
 test("closeout billing review is blocked for field-only permissions", () => {
