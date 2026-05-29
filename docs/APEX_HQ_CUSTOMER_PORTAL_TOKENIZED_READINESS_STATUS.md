@@ -1,6 +1,6 @@
 # Apex HQ Customer Portal Tokenized Readiness Status
 
-Status: complete for Build 7A local readiness-contract scope, Build 7B locked access-record scope, and Build 7C locked lifecycle scope.
+Status: complete for Build 7A local readiness-contract scope, Build 7B locked access-record scope, Build 7C locked lifecycle scope, and Build 7D locked public-route contract scope.
 
 ## What Is Now Complete
 
@@ -15,6 +15,8 @@ Status: complete for Build 7A local readiness-contract scope, Build 7B locked ac
 - Access records store only a deterministic `sha256:` token hash reference. They do not generate, store, print, or return raw token material.
 - Unsafe external fields such as public URLs, share links, customer logins, sends, invoices, and payment links are rejected.
 - Access records now have a locked lifecycle: revoke appends an internal audit event, expired status is derived at read time, duplicate revokes are blocked, and tenant/field-role denial is covered by tests.
+- The public route shape `/portal/:accessId` now exists only as a locked contract response. It returns no customer, estimate, token hash, internal note, approval, message, invoice, or payment data.
+- Public route contract tests cover missing, malformed, wrong-company, expired, and revoked denial cases without creating redeemable tokens.
 
 ## Safety Boundary
 
@@ -26,13 +28,14 @@ It does not:
 - create public share links
 - generate, store, or print raw portal tokens
 - expose customer-facing routes
+- serve customer-facing data from `/portal/:accessId`
 - accept customer approvals, signatures, comments, or portal actions
 - send email, SMS, bids, proposals, invoices, or notifications
 - collect payment
 - mutate production data
 - change secrets, provider config, Fly config, Supabase config, or deployment state
 
-Builds 7B and 7C also do not create a public route, redeemable token table, customer session, customer action endpoint, customer login flow, message send flow, invoice flow, or payment flow.
+Builds 7B, 7C, and 7D also do not create a live public portal, redeemable token table, customer session, customer action endpoint, customer login flow, message send flow, invoice flow, or payment flow.
 
 ## Verification
 

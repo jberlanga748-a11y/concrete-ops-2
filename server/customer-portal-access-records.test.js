@@ -662,3 +662,52 @@ test("Field users cannot revoke customer portal access records by direct API cal
     await fixture.stop();
   }
 });
+
+test("Public customer portal route is locked and does not serve access-record data", async () => {
+  const fixture = await startServer();
+
+  try {
+    const { created } = await createLockedAccessRecord(fixture, {
+      approvalId: "PORTAL-ACCESS-REVIEW-PUBLIC-LOCK",
+    });
+
+    const publicRoute = await requestJson(fixture.baseUrl, `/portal/${created.accessRecord.id}`);
+    assert.equal(publicRoute.response.status, 423);
+    assert.equal(publicRoute.payload.status, "locked");
+    assert.equal(publicRoute.payload.code, "customer_portal_public_route_locked");
+    assert.equal(publicRoute.payload.publicRouteEnabled, false);
+    assert.equal(publicRoute.payload.canServeCustomerData, false);
+    assert.equal(publicRoute.payload.canRedeemToken, false);
+    assert.equal(publicRoute.payload.canAcceptCustomerAction, false);
+    assert.match(publicRoute.payload.denialReasons.join(" "), /TOKENIZED_CUSTOMER_PORTAL_SEPARATELY_APPROVED/);
+
+    const serialized = JSON.stringify(publicRoute.payload);
+    assert.equal(serialized.includes("Portal Review Customer"), false);
+    assert.equal(serialized.includes("Portal Review Patio"), false);
+    assert.equal(serialized.includes("tokenHashReference"), false);
+    assert.equal(serialized.includes(created.accessRecord.tokenHashReference), false);
+    assert.equal(serialized.includes("Internal margin"), false);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("Public customer portal route denies missing and malformed access ids without customer data", async () => {
+  const fixture = await startServer();
+
+  try {
+    const missing = await requestJson(fixture.baseUrl, "/portal");
+    assert.equal(missing.response.status, 423);
+    assert.match(missing.payload.denialReasons.join(" "), /Missing public portal access id/);
+    assert.equal(missing.payload.canServeCustomerData, false);
+    assert.equal(missing.payload.canRedeemToken, false);
+
+    const malformed = await requestJson(fixture.baseUrl, "/portal/bad%20access%20id");
+    assert.equal(malformed.response.status, 423);
+    assert.match(malformed.payload.denialReasons.join(" "), /Malformed public portal access id/);
+    assert.equal(malformed.payload.canServeCustomerData, false);
+    assert.equal(malformed.payload.canAcceptCustomerAction, false);
+  } finally {
+    await fixture.stop();
+  }
+});

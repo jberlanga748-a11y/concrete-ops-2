@@ -2,6 +2,8 @@ const SHARE_READY_ESTIMATE_STATUSES = new Set(["approved"]);
 const REVIEWED_CHANGE_ORDER_STATUSES = new Set(["approved", "closed", "completed"]);
 const OWNER_ADMIN_ROLES = new Set(["owner", "administrator"]);
 const MAX_PORTAL_ACCESS_TTL_HOURS = 14 * 24;
+const CUSTOMER_PORTAL_PUBLIC_ROUTE_APPROVAL_PHRASE = "TOKENIZED_CUSTOMER_PORTAL_SEPARATELY_APPROVED";
+const CUSTOMER_PORTAL_PUBLIC_ACCESS_ID_PATTERN = /^[A-Za-z0-9_-]{8,120}$/;
 
 export const CUSTOMER_PORTAL_EXTERNAL_ACTION_LOCKS = Object.freeze([
   "No customer login is created",
@@ -10,6 +12,16 @@ export const CUSTOMER_PORTAL_EXTERNAL_ACTION_LOCKS = Object.freeze([
   "No customer approval, signature, comment, or portal action is accepted",
   "No customer email, SMS, bid submission, invoice, or payment action is sent",
   "No production data, secrets, provider config, or deployment is changed",
+]);
+
+export const CUSTOMER_PORTAL_PUBLIC_ROUTE_TEMPLATE = "/portal/:accessId";
+
+export const CUSTOMER_PORTAL_PUBLIC_ROUTE_LOCKS = Object.freeze([
+  "Public customer portal route is locked",
+  "No customer data is served from the public route",
+  "No access token is redeemable",
+  "No customer login, approval, signature, comment, invoice, or payment action is accepted",
+  "No email, SMS, bid submission, portal notification, or integration action is sent",
 ]);
 
 function text(value, fallback = "") {
@@ -131,6 +143,88 @@ function accessGate(id, label, ready, detail) {
     ready: Boolean(ready),
     status: ready ? "ready" : "blocked",
     detail,
+  };
+}
+
+function accessRecordIsExpired(accessRecord = {}, checkedAt = new Date().toISOString()) {
+  const expiryDate = parseDate(accessRecord.expiresAt);
+  const checkedDate = parseDate(checkedAt);
+  return Boolean(expiryDate && checkedDate && expiryDate.getTime() <= checkedDate.getTime());
+}
+
+export function deriveCustomerPortalPublicRouteContract({
+  accessId = "",
+  accessRecord = null,
+  requestCompanyId = "",
+  tokenMaterial = "",
+  externalPortalApproved = false,
+  checkedAt = new Date().toISOString(),
+} = {}) {
+  const normalizedAccessId = text(accessId);
+  const safeAccessId = Boolean(normalizedAccessId && CUSTOMER_PORTAL_PUBLIC_ACCESS_ID_PATTERN.test(normalizedAccessId));
+  const record = accessRecord && typeof accessRecord === "object" ? accessRecord : null;
+  const recordStatus = normalizeStatus(record?.status);
+  const requestScope = text(requestCompanyId);
+  const recordScope = text(record?.companyId);
+  const companyScopeMatches = Boolean(!requestScope || !recordScope || requestScope === recordScope);
+  const denialReasons = [];
+
+  if (!externalPortalApproved) {
+    denialReasons.push(`External customer portal requires ${CUSTOMER_PORTAL_PUBLIC_ROUTE_APPROVAL_PHRASE}.`);
+  }
+  if (!normalizedAccessId) {
+    denialReasons.push("Missing public portal access id.");
+  } else if (!safeAccessId) {
+    denialReasons.push("Malformed public portal access id.");
+  }
+  if (tokenMaterial) {
+    denialReasons.push("Raw token material is not accepted by the locked public route contract.");
+  } else {
+    denialReasons.push("No redeemable portal token exists.");
+  }
+  if (!record) {
+    denialReasons.push("No public redemption record exists.");
+  }
+  if (record && !companyScopeMatches) {
+    denialReasons.push("Access record company scope does not match the request scope.");
+  }
+  if (record && (recordStatus === "revoked_locked" || record.revokedAt)) {
+    denialReasons.push("Access record is revoked.");
+  }
+  if (record && accessRecordIsExpired(record, checkedAt)) {
+    denialReasons.push("Access record is expired.");
+  }
+
+  return {
+    mode: "locked_public_customer_portal_route_contract",
+    routeTemplate: CUSTOMER_PORTAL_PUBLIC_ROUTE_TEMPLATE,
+    checkedAt,
+    status: "locked",
+    code: "customer_portal_public_route_locked",
+    publicRouteEnabled: false,
+    canServeCustomerData: false,
+    canRedeemToken: false,
+    canAcceptCustomerAction: false,
+    canSendCustomerMessage: false,
+    canCollectPayment: false,
+    accessIdPresent: Boolean(normalizedAccessId),
+    accessIdSafe: safeAccessId,
+    accessRecordStatus: record ? text(record.status, "prepared_locked") : "not_found",
+    companyScopeMatches,
+    requiredApprovalPhrase: CUSTOMER_PORTAL_PUBLIC_ROUTE_APPROVAL_PHRASE,
+    denialReasons,
+    locks: CUSTOMER_PORTAL_PUBLIC_ROUTE_LOCKS.slice(),
+    responseShape: {
+      status: "locked",
+      code: "customer_portal_public_route_locked",
+      message: "Customer portal access is not enabled.",
+      routeTemplate: CUSTOMER_PORTAL_PUBLIC_ROUTE_TEMPLATE,
+      publicRouteEnabled: false,
+      canServeCustomerData: false,
+      canRedeemToken: false,
+      canAcceptCustomerAction: false,
+    },
+    boundary: "Public route contract only. Apex HQ does not serve customer data, redeem tokens, create customer sessions, accept approvals/comments/signatures, send messages, collect payment, change provider config, deploy, or touch production data.",
   };
 }
 

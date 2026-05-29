@@ -311,6 +311,7 @@ import {
 import { buildConstructionAgentTradeContext, normalizeConstructionTradeId } from "../shared/constructionTrades.js";
 import {
   deriveCustomerPortalPreviewState,
+  deriveCustomerPortalPublicRouteContract,
   deriveCustomerPortalTokenizedAccessPlan,
 } from "../src/customer-portal-preview-utils.js";
 
@@ -17734,6 +17735,19 @@ app.post("/api/reset", requireAuth, asyncRoute(async (req, res) => {
   });
   const user = nextState.users.find((entry) => entry.id === req.auth.user.id) || nextState.users.find((entry) => entry.email === DEMO_CREDENTIALS.email);
   res.json(sanitizeBootstrap(nextState, user));
+}));
+
+app.get(["/portal", "/portal/:accessId"], asyncRoute(async (req, res) => {
+  const contract = deriveCustomerPortalPublicRouteContract({
+    accessId: req.params.accessId || "",
+  });
+  return res.status(423).json({
+    ...contract.responseShape,
+    denialReasons: contract.denialReasons,
+    locks: contract.locks,
+    boundary: contract.boundary,
+    requestId: res.locals.requestId,
+  });
 }));
 
 app.use("/assets", express.static(path.join(distDir, "assets")));
