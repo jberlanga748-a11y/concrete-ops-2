@@ -2529,8 +2529,63 @@ test("Communication provider readiness and outbound approval queue stay locked a
     assert.equal(executeDenied.response.status, 423);
     assert.match(executeDenied.payload.error, /execution is locked/i);
 
-    const records = auditEvents(fixture.sqliteFile).filter((record) => record.entityType === "communication_outbound_approval");
-    assert.equal(records.length, 1);
+    const suppression = await assertOk(fixture.baseUrl, "/api/communications/suppressions", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        channel: "all",
+        targetEntityType: "lead",
+        targetEntityId: lead.id,
+        recipient: "customer@example.test",
+        reason: "do_not_contact",
+        source: "manual",
+        note: "Customer asked customer@example.test for no more outreach.",
+        idempotencyKey: "communication-suppression-1",
+      }),
+    });
+    assert.equal(suppression.suppressionRecord.status, "active_locked");
+    assert.equal(suppression.suppressionRecord.sendBlocked, true);
+    assert.equal(suppression.suppressionRecord.externalSendEnabled, false);
+    assert.match(suppression.suppressionRecord.note, /\[REDACTED_EMAIL\]/);
+    assert.equal(suppression.communicationProviderReadiness.activeSuppressionCount, 1);
+
+    const suppressionReplay = await assertOk(fixture.baseUrl, "/api/communications/suppressions", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        channel: "all",
+        recipient: "customer@example.test",
+        reason: "do_not_contact",
+        idempotencyKey: "communication-suppression-1",
+      }),
+    });
+    assert.equal(suppressionReplay.idempotentReplay, true);
+    assert.equal(suppressionReplay.suppressionRecord.id, suppression.suppressionRecord.id);
+
+    const deliveryContract = await assertOk(fixture.baseUrl, `/api/communications/outbound-approvals/${approval.outboundApproval.id}/delivery-attempt-contract`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ humanReviewConfirmed: true }),
+    });
+    assert.equal(deliveryContract.deliveryAttemptContract.status, "blocked_by_suppression_locked");
+    assert.equal(deliveryContract.deliveryAttemptContract.providerRequestPrepared, false);
+    assert.equal(deliveryContract.deliveryAttemptContract.providerRequestSent, false);
+    assert.equal(deliveryContract.deliveryAttemptContract.canSend, false);
+    assert.ok(deliveryContract.deliveryAttemptContract.failureClasses.includes("suppressed"));
+    assert.ok(deliveryContract.deliveryAttemptContract.failureClasses.includes("missing_adapter"));
+
+    const deliveryContractReplay = await assertOk(fixture.baseUrl, `/api/communications/outbound-approvals/${approval.outboundApproval.id}/delivery-attempt-contract`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ humanReviewConfirmed: true }),
+    });
+    assert.equal(deliveryContractReplay.idempotentReplay, true);
+    assert.equal(deliveryContractReplay.deliveryAttemptContract.id, deliveryContract.deliveryAttemptContract.id);
+
+    const records = auditEvents(fixture.sqliteFile);
+    assert.equal(records.filter((record) => record.entityType === "communication_outbound_approval").length, 1);
+    assert.equal(records.filter((record) => record.entityType === "communication_suppression").length, 1);
+    assert.equal(records.filter((record) => record.entityType === "communication_delivery_attempt_contract").length, 1);
     assert.doesNotMatch(JSON.stringify(records), /test-api-key|apexdemo123/i);
   } finally {
     await fixture.stop();
@@ -2592,6 +2647,22 @@ test("Communication provider readiness denies unsafe payloads and field users", 
       }),
     });
     assert.equal(fieldQueue.response.status, 403);
+    const fieldSuppression = await requestJson(fixture.baseUrl, "/api/communications/suppressions", {
+      method: "POST",
+      headers: authHeaders(fieldLogin.token),
+      body: JSON.stringify({
+        channel: "email",
+        recipient: "customer@example.test",
+        reason: "manual_hold",
+      }),
+    });
+    assert.equal(fieldSuppression.response.status, 403);
+    const fieldDeliveryContract = await requestJson(fixture.baseUrl, "/api/communications/outbound-approvals/fake-approval/delivery-attempt-contract", {
+      method: "POST",
+      headers: authHeaders(fieldLogin.token),
+      body: JSON.stringify({ humanReviewConfirmed: true }),
+    });
+    assert.equal(fieldDeliveryContract.response.status, 403);
   } finally {
     await fixture.stop();
   }

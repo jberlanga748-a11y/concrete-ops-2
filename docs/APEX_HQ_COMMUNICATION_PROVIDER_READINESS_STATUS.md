@@ -1,6 +1,6 @@
 # Apex HQ Communication Provider Readiness Status
 
-Status: complete for Build 8A locked communication provider readiness and outbound approval queue scope.
+Status: complete for Build 8B locked communication provider readiness, outbound approval queue, suppression, and delivery-attempt contract scope.
 
 ## What Is Now Complete
 
@@ -12,14 +12,22 @@ Status: complete for Build 8A locked communication provider readiness and outbou
 - Idempotent replay returns the existing locked approval instead of creating duplicate approval records.
 - A hard-deny execution route returns locked status so approval queue evidence cannot send email, SMS, portal notifications, bids, invoices, payment links, or provider writes.
 - Unsafe payloads containing secrets, provider tokens, bypass flags, payment links, or auto-send instructions are rejected.
+- Owner/admin office users can record locked communication suppression evidence for email, SMS, or all communication channels.
+- Suppression records capture recipient, normalized recipient key, reason, optional visible target record, source, redacted note, idempotency key, audit event, rollback behavior, and locked send state.
+- Provider readiness now reports active suppression counts and locked delivery-attempt contract counts by channel.
+- Owner/admin office users can prepare a locked delivery-attempt contract from a queued outbound approval.
+- Delivery-attempt contracts check suppression evidence and provider readiness, classify provider/suppression/lock failures, and explicitly keep provider request preparation, provider sends, provider responses, and customer contact disabled.
+- Suppression and delivery-attempt contract replays are idempotent and audit backed.
 
 ## Safety Boundary
 
-Build 8A does not:
+Build 8B does not:
 
 - send email
 - send SMS
 - send portal notifications
+- prepare provider requests
+- call provider unsubscribe endpoints
 - submit bids
 - create invoices
 - collect payment
@@ -29,7 +37,7 @@ Build 8A does not:
 - deploy
 - mutate production data
 
-Existing human-confirmed estimate email execution remains governed by the already-approved `email_send` gate and normal estimate send workflow. Build 8A only adds readiness and approval queue evidence for broader communication provider workflows.
+Existing human-confirmed estimate email execution remains governed by the already-approved `email_send` gate and normal estimate send workflow. Build 8B only adds readiness, approval queue, suppression, and locked delivery-attempt evidence for broader communication provider workflows.
 
 ## Verification
 

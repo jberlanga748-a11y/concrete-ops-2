@@ -3,9 +3,14 @@ import test from "node:test";
 
 import {
   assertSafeCommunicationProviderPayload,
+  buildCommunicationDeliveryAttemptContract,
+  buildCommunicationSuppressionRecord,
   buildOutboundCommunicationApprovalRequest,
+  deriveCommunicationDeliveryAttemptContracts,
   deriveCommunicationProviderReadiness,
   deriveOutboundCommunicationApprovalQueue,
+  deriveCommunicationSuppressionList,
+  isRecipientSuppressed,
 } from "./communicationProviderReadiness.js";
 
 test("communication provider readiness stays locked while reporting missing evidence", () => {
@@ -20,8 +25,10 @@ test("communication provider readiness stays locked while reporting missing evid
         consentModelReady: true,
         optOutReady: true,
         doNotContactReady: true,
+        suppressionListReady: true,
         templateReviewReady: true,
         deliveryHistoryReady: true,
+        deliveryAttemptContractReady: true,
         approvalQueueReady: true,
       },
     },
@@ -98,4 +105,93 @@ test("outbound approval queue dedupes by idempotency key", () => {
 
   assert.equal(queue.length, 1);
   assert.equal(queue[0].id, approval.id);
+});
+
+test("communication suppression records stay locked, scoped, and idempotent", () => {
+  const suppressionRecord = buildCommunicationSuppressionRecord({
+    channel: "all",
+    recipient: "Customer@Example.Test",
+    reason: "do_not_contact",
+    targetEntityType: "lead",
+    targetEntityId: "L-1",
+    note: "Customer asked at customer@example.test to stop outreach.",
+    idempotencyKey: "suppression-1",
+  }, {
+    companyId: "COMPANY-1",
+    requestedByUserId: "U-1",
+    requestedByName: "Owner",
+    now: "2026-05-29T00:00:00.000Z",
+  });
+
+  assert.equal(suppressionRecord.status, "active_locked");
+  assert.equal(suppressionRecord.sendBlocked, true);
+  assert.equal(suppressionRecord.externalSendEnabled, false);
+  assert.equal(suppressionRecord.recipientKey, "customer@example.test");
+  assert.match(suppressionRecord.note, /\[REDACTED_EMAIL\]/);
+  assert.equal(isRecipientSuppressed("customer@example.test", "email", [suppressionRecord]), true);
+  assert.equal(isRecipientSuppressed("customer@example.test", "sms", [suppressionRecord]), true);
+
+  const suppressions = deriveCommunicationSuppressionList([
+    { id: "S1", createdAt: "2026-05-29T00:00:00.000Z", detail: JSON.stringify({ suppressionRecord }) },
+    { id: "S2", createdAt: "2026-05-29T00:01:00.000Z", detail: JSON.stringify({ suppressionRecord: { ...suppressionRecord, id: "OTHER" } }) },
+  ]);
+  assert.equal(suppressions.length, 1);
+  assert.equal(suppressions[0].id, "OTHER");
+});
+
+test("delivery-attempt contracts capture lock, suppression, and provider failure classes without sending", () => {
+  const approval = buildOutboundCommunicationApprovalRequest({
+    channel: "email",
+    targetEntityType: "lead",
+    targetEntityId: "L-1",
+    recipient: "customer@example.test",
+    consentConfirmed: true,
+    templateReviewed: true,
+    humanReviewConfirmed: true,
+    idempotencyKey: "approval-1",
+  });
+  const suppressionRecord = buildCommunicationSuppressionRecord({
+    channel: "email",
+    recipient: "customer@example.test",
+    reason: "opt_out",
+  });
+  const readiness = deriveCommunicationProviderReadiness({
+    providerConfig: { emailConfigured: false },
+    evidence: {
+      email: {
+        consentModelReady: true,
+        optOutReady: true,
+        doNotContactReady: true,
+        suppressionListReady: true,
+        templateReviewReady: true,
+        deliveryHistoryReady: true,
+        deliveryAttemptContractReady: true,
+        approvalQueueReady: true,
+      },
+    },
+    outboundApprovalQueue: [approval],
+    suppressionList: [suppressionRecord],
+  });
+  const deliveryAttemptContract = buildCommunicationDeliveryAttemptContract(approval, {
+    suppressionList: [suppressionRecord],
+    providerReadiness: readiness,
+    requestedByUserId: "U-1",
+    requestedByName: "Owner",
+    now: "2026-05-29T00:02:00.000Z",
+  });
+
+  assert.equal(deliveryAttemptContract.status, "blocked_by_suppression_locked");
+  assert.equal(deliveryAttemptContract.providerRequestPrepared, false);
+  assert.equal(deliveryAttemptContract.providerRequestSent, false);
+  assert.equal(deliveryAttemptContract.canSend, false);
+  assert.ok(deliveryAttemptContract.failureClasses.includes("suppressed"));
+  assert.ok(deliveryAttemptContract.failureClasses.includes("provider_unconfigured"));
+  assert.ok(deliveryAttemptContract.failureClasses.includes("missing_adapter"));
+
+  const contracts = deriveCommunicationDeliveryAttemptContracts([
+    { id: "D1", createdAt: "2026-05-29T00:02:00.000Z", detail: JSON.stringify({ deliveryAttemptContract }) },
+    { id: "D2", createdAt: "2026-05-29T00:03:00.000Z", detail: JSON.stringify({ deliveryAttemptContract: { ...deliveryAttemptContract, id: "OTHER" } }) },
+  ]);
+  assert.equal(contracts.length, 1);
+  assert.equal(contracts[0].id, "OTHER");
 });

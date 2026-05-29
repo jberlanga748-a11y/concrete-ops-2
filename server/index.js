@@ -170,9 +170,13 @@ import {
 } from "../shared/contactHistory.js";
 import {
   assertSafeCommunicationProviderPayload,
+  buildCommunicationDeliveryAttemptContract,
+  buildCommunicationSuppressionRecord,
   buildOutboundCommunicationApprovalRequest,
+  deriveCommunicationDeliveryAttemptContracts,
   deriveCommunicationProviderReadiness,
   deriveOutboundCommunicationApprovalQueue,
+  deriveCommunicationSuppressionList,
 } from "../shared/communicationProviderReadiness.js";
 import {
   AGENT_CONVERSATION_STATUSES,
@@ -4295,6 +4299,20 @@ function visibleOutboundCommunicationApprovalsForUser(state, user) {
   );
 }
 
+function visibleCommunicationSuppressionsForUser(state, user) {
+  return deriveCommunicationSuppressionList(
+    visibleAuditEventsForUser(state, user)
+      .filter((event) => event.entityType === "communication_suppression"),
+  );
+}
+
+function visibleCommunicationDeliveryAttemptContractsForUser(state, user) {
+  return deriveCommunicationDeliveryAttemptContracts(
+    visibleAuditEventsForUser(state, user)
+      .filter((event) => event.entityType === "communication_delivery_attempt_contract"),
+  );
+}
+
 function findOutboundCommunicationApproval(state, user, approvalId) {
   const targetId = requiredString(approvalId, "Outbound communication approval");
   const approval = visibleOutboundCommunicationApprovalsForUser(state, user)
@@ -4308,6 +4326,8 @@ function findOutboundCommunicationApproval(state, user, approvalId) {
 function communicationProviderReadinessForState(state, user) {
   const settings = companySettingsForState(state, user);
   const outboundApprovalQueue = visibleOutboundCommunicationApprovalsForUser(state, user);
+  const suppressionList = visibleCommunicationSuppressionsForUser(state, user);
+  const deliveryAttemptContracts = visibleCommunicationDeliveryAttemptContractsForUser(state, user);
   return deriveCommunicationProviderReadiness({
     externalGateSettings: settings.apexAgentAutomationPolicy?.externalGateSettings,
     providerConfig: {
@@ -4319,20 +4339,26 @@ function communicationProviderReadinessForState(state, user) {
         consentModelReady: true,
         optOutReady: true,
         doNotContactReady: true,
+        suppressionListReady: true,
         templateReviewReady: true,
         deliveryHistoryReady: true,
+        deliveryAttemptContractReady: true,
         approvalQueueReady: true,
       },
       sms: {
         consentModelReady: true,
         optOutReady: false,
         doNotContactReady: false,
+        suppressionListReady: true,
         templateReviewReady: false,
         deliveryHistoryReady: false,
+        deliveryAttemptContractReady: true,
         approvalQueueReady: true,
       },
     },
     outboundApprovalQueue,
+    suppressionList,
+    deliveryAttemptContracts,
   });
 }
 
@@ -17054,10 +17080,25 @@ app.get("/api/communications/provider-readiness", requireAuth, asyncRoute(async 
   assertCanViewContactHistory(req.auth.user);
   const state = await readDb();
   const outboundApprovals = visibleOutboundCommunicationApprovalsForUser(state, req.auth.user);
+  const suppressions = visibleCommunicationSuppressionsForUser(state, req.auth.user);
+  const deliveryAttemptContracts = visibleCommunicationDeliveryAttemptContractsForUser(state, req.auth.user);
   res.json({
     communicationProviderReadiness: communicationProviderReadinessForState(state, req.auth.user),
     outboundApprovals,
+    suppressions,
+    deliveryAttemptContracts,
     boundary: "Locked communication provider readiness only; no email, SMS, portal notification, bid, invoice, payment, provider secret, deploy, or production data action is executed.",
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/communications/suppressions", requireAuth, asyncRoute(async (req, res) => {
+  assertCanViewContactHistory(req.auth.user);
+  const state = await readDb();
+  res.json({
+    suppressions: visibleCommunicationSuppressionsForUser(state, req.auth.user),
+    communicationProviderReadiness: communicationProviderReadinessForState(state, req.auth.user),
+    boundary: "Locked suppression evidence only; no provider unsubscribe call, email, SMS, portal notification, bid, invoice, payment, provider secret, deploy, or production data action is executed.",
     requestId: res.locals.requestId,
   });
 }));
@@ -17112,6 +17153,120 @@ app.post("/api/communications/outbound-approvals", requireAuth, asyncRoute(async
     communicationProviderReadiness: communicationProviderReadinessForState(nextState, req.auth.user),
     idempotentReplay: !created,
     boundary: "Locked outbound approval only; this did not send email, SMS, portal notification, bid, invoice, payment, or provider data.",
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/communications/suppressions", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageContactHistory(req.auth.user);
+  assertSafeCommunicationPayload(req.body || {});
+
+  let suppressionRecord = null;
+  let created = false;
+  const nextState = await updateDb((draft) => {
+    if (req.body?.targetEntityType || req.body?.targetEntityId) {
+      findContactHistoryLinkedRecord(draft, req.body?.targetEntityType, req.body?.targetEntityId, req.auth.user);
+    }
+    const candidate = (() => {
+      try {
+        return buildCommunicationSuppressionRecord(req.body || {}, {
+          companyId: currentCompanyIdForRequestUser(draft, req.auth.user),
+          requestedByUserId: req.auth.user?.id || "",
+          requestedByName: req.auth.user?.name || "Unknown user",
+          now: new Date().toISOString(),
+        });
+      } catch (error) {
+        throw new ApiError(400, error.message || "Communication suppression is invalid.");
+      }
+    })();
+    const existing = visibleCommunicationSuppressionsForUser(draft, req.auth.user)
+      .find((item) => item.idempotencyKey === candidate.idempotencyKey);
+    if (existing) {
+      suppressionRecord = existing;
+      return draft;
+    }
+
+    suppressionRecord = candidate;
+    created = true;
+    appendAuditEvent(draft, {
+      entityType: "communication_suppression",
+      entityId: suppressionRecord.id,
+      action: suppressionRecord.status,
+      summary: `Communication ${suppressionRecord.channel.toUpperCase()} suppression recorded as locked evidence`,
+      detail: JSON.stringify({
+        suppressionRecord,
+        externalSendEnabled: false,
+      }),
+      actor: req.auth.user,
+      changedFields: ["communicationSuppression"],
+    });
+    return draft;
+  });
+
+  res.status(created ? 201 : 200).json({
+    suppressionRecord,
+    suppressions: visibleCommunicationSuppressionsForUser(nextState, req.auth.user),
+    communicationProviderReadiness: communicationProviderReadinessForState(nextState, req.auth.user),
+    idempotentReplay: !created,
+    boundary: "Locked suppression evidence only; this did not call a provider, send email, send SMS, create payment links, or change provider configuration.",
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/communications/outbound-approvals/:id/delivery-attempt-contract", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageContactHistory(req.auth.user);
+  assertSafeCommunicationPayload(req.body || {});
+
+  let deliveryAttemptContract = null;
+  let created = false;
+  const nextState = await updateDb((draft) => {
+    const outboundApproval = findOutboundCommunicationApproval(draft, req.auth.user, req.params.id);
+    const candidate = (() => {
+      try {
+        return buildCommunicationDeliveryAttemptContract(outboundApproval, {
+          suppressionList: visibleCommunicationSuppressionsForUser(draft, req.auth.user),
+          providerReadiness: communicationProviderReadinessForState(draft, req.auth.user),
+          requestedByUserId: req.auth.user?.id || "",
+          requestedByName: req.auth.user?.name || "Unknown user",
+          now: new Date().toISOString(),
+        });
+      } catch (error) {
+        throw new ApiError(400, error.message || "Communication delivery-attempt contract is invalid.");
+      }
+    })();
+    const existing = visibleCommunicationDeliveryAttemptContractsForUser(draft, req.auth.user)
+      .find((item) => item.idempotencyKey === candidate.idempotencyKey);
+    if (existing) {
+      deliveryAttemptContract = existing;
+      return draft;
+    }
+
+    deliveryAttemptContract = candidate;
+    created = true;
+    appendAuditEvent(draft, {
+      entityType: "communication_delivery_attempt_contract",
+      entityId: deliveryAttemptContract.id,
+      action: deliveryAttemptContract.status,
+      summary: `Outbound ${deliveryAttemptContract.channel.toUpperCase()} delivery-attempt contract prepared as locked evidence`,
+      detail: JSON.stringify({
+        deliveryAttemptContract,
+        providerRequestPrepared: false,
+        providerRequestSent: false,
+        externalSendEnabled: false,
+      }),
+      actor: req.auth.user,
+      changedFields: ["communicationDeliveryAttemptContract"],
+    });
+    return draft;
+  });
+
+  res.status(created ? 201 : 200).json({
+    deliveryAttemptContract,
+    deliveryAttemptContracts: visibleCommunicationDeliveryAttemptContractsForUser(nextState, req.auth.user),
+    suppressions: visibleCommunicationSuppressionsForUser(nextState, req.auth.user),
+    communicationProviderReadiness: communicationProviderReadinessForState(nextState, req.auth.user),
+    idempotentReplay: !created,
+    boundary: "Locked delivery-attempt contract only; this did not prepare a provider request, send email, send SMS, create payment links, or store provider responses.",
     requestId: res.locals.requestId,
   });
 }));
