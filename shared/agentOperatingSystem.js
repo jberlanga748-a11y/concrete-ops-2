@@ -6457,6 +6457,171 @@ export function buildAgentLeadsScheduledRunReadiness({
   };
 }
 
+export function buildAgentLeadsPilotExecutionRehearsal({
+  scheduledRunReadiness = {},
+  dailyReviewInbox = {},
+  dailyRunHistory = {},
+  dailySourceMonitoring = {},
+  providerSettings = {},
+  companySettings = {},
+  auditEvents = [],
+  companyId = "",
+  today = dateKey(new Date()),
+} = {}) {
+  const currentDay = dateKey(today) || dateKey(new Date());
+  const tomorrow = scheduledRunReadiness.tomorrow || addDaysKey(currentDay, 1);
+  const settings = normalizeAgentLeadsProviderSettings(providerSettings);
+  const previewRows = asArray(scheduledRunReadiness.tomorrowRunPreview?.rows);
+  const willCheckRows = previewRows.filter((row) => row.willCheck);
+  const reviewRows = asArray(dailyReviewInbox.rows);
+  const noResultRecommendations = asArray(dailyRunHistory.noResultLearning?.recommendations);
+  const staleAlerts = asArray(scheduledRunReadiness.staleSourceAlerts);
+  const sameDayLockOk = scheduledRunReadiness.runLock?.todayRunRecorded === true
+    ? scheduledRunReadiness.runLock?.canRunToday === false
+    : scheduledRunReadiness.runLock?.status === "available_for_today";
+  const simulatedReviewRows = willCheckRows.slice(0, 6).map((row, index) => ({
+    id: `rehearsal-review-${index + 1}-${text(row.id || row.sourceKey, 120)}`,
+    sourceId: text(row.id || row.sourceKey, 180),
+    title: text(`${row.label || "Source"} rehearsal review card`, 180),
+    status: "simulated_review_card",
+    fitScore: 0,
+    sourceUrl: "",
+    reason: "Rehearsal confirms this source would create a human review card or a no-result explanation, not a saved lead.",
+    requiredHumanReview: ["Open source manually if approved", "Confirm in-scope work", "Run duplicate check", "Save draft only through normal office workflow"],
+    canAutoSave: false,
+    canCreateLeadDirectly: false,
+    externalActionsLocked: true,
+  }));
+  const skippedRows = previewRows.filter((row) => !row.willCheck).map((row) => ({
+    id: text(row.id || row.sourceKey, 180),
+    label: text(row.label || "Skipped source", 180),
+    status: text(row.status || "skipped", 120),
+    reason: text(row.reason || "Not included in tomorrow's review-only run.", 260),
+  }));
+  const rehearsalSteps = [
+    {
+      id: "simulate-scheduled-packet",
+      label: "Simulate tomorrow's scheduled run packet",
+      status: scheduledRunReadiness.scheduledRunPacket?.safeForCron ? "complete" : "blocked",
+      detail: scheduledRunReadiness.scheduledRunPacket?.id || "No scheduled run packet is ready.",
+    },
+    {
+      id: "confirm-idempotency-lock",
+      label: "Confirm same-day idempotency and run lock",
+      status: sameDayLockOk ? "complete" : "blocked",
+      detail: scheduledRunReadiness.runLock?.detail || "Run lock evidence missing.",
+    },
+    {
+      id: "generate-review-inbox",
+      label: "Generate review inbox rehearsal rows",
+      status: simulatedReviewRows.length || reviewRows.length ? "complete" : "blocked",
+      detail: `${simulatedReviewRows.length || reviewRows.length} review-only row${(simulatedReviewRows.length || reviewRows.length) === 1 ? "" : "s"} available for rehearsal.`,
+    },
+    {
+      id: "carry-learning-forward",
+      label: "Carry no-result and stale-source learning into next preview",
+      status: noResultRecommendations.length || staleAlerts.length ? "complete" : "watching",
+      detail: `${noResultRecommendations.length} no-result recommendation${noResultRecommendations.length === 1 ? "" : "s"} / ${staleAlerts.length} stale alert${staleAlerts.length === 1 ? "" : "s"}.`,
+    },
+    {
+      id: "owner-admin-report",
+      label: "Produce owner/admin pilot readiness report",
+      status: "complete",
+      detail: "Report explains what ran, what was skipped, why, and what must be reviewed.",
+    },
+  ];
+  const blockers = [
+    ...asArray(scheduledRunReadiness.blockers),
+    !willCheckRows.length ? "No eligible source is ready for tomorrow's rehearsal." : "",
+    !sameDayLockOk ? "Same-day run lock evidence is not safe." : "",
+  ].filter(Boolean);
+  const status = blockers.length
+    ? "blocked"
+    : staleAlerts.length || noResultRecommendations.length
+      ? "ready_with_review_notes"
+      : "ready_for_owner_admin_review";
+  const report = {
+    title: "Agent Leads pilot execution rehearsal",
+    companyName: text(companySettings.companyName || companySettings.name || "Current company", 160),
+    targetDay: tomorrow,
+    summary: blockers.length
+      ? "Pilot rehearsal is blocked until setup, lock, or source readiness issues are cleared."
+      : "Pilot rehearsal proves the daily Agent Leads loop can run as a review-only contractor workflow.",
+    whatRan: [
+      `Simulated scheduled packet ${scheduledRunReadiness.scheduledRunPacket?.id || "not available"}.`,
+      `Confirmed run lock ${scheduledRunReadiness.runLock?.status || "unknown"}.`,
+      `Prepared ${simulatedReviewRows.length} simulated review card${simulatedReviewRows.length === 1 ? "" : "s"}.`,
+    ],
+    whatWasSkipped: skippedRows.map((row) => `${row.label}: ${row.reason}`).slice(0, 6),
+    why: [
+      ...staleAlerts.map((alert) => `${alert.label}: ${alert.reason}`),
+      ...noResultRecommendations.map((item) => `${item.label}: ${item.reason}`),
+    ].slice(0, 8),
+    contractorMustReview: [
+      "Open any public source manually before saving work.",
+      "Confirm trade, geography, due date, source proof, and duplicate risk.",
+      "Use normal Found Opportunity or Lead workflow for any save/conversion.",
+      "Keep private/login sources in authorized human handoff only.",
+    ],
+  };
+  return {
+    mode: "agent_leads_pilot_execution_rehearsal_v45",
+    today: currentDay,
+    tomorrow,
+    companyId: text(companyId, 120),
+    providerMode: settings.mode,
+    status,
+    rehearsalSteps,
+    simulatedScheduledRunPacket: {
+      ...scheduledRunReadiness.scheduledRunPacket,
+      targetDay: tomorrow,
+      rehearsalOnly: true,
+      safeForCron: false,
+      reviewOnlyExecution: true,
+      externalActionsLocked: true,
+    },
+    idempotencyRehearsal: {
+      ...scheduledRunReadiness.runLock,
+      rehearsalPassed: sameDayLockOk,
+    },
+    simulatedReviewInbox: {
+      mode: "agent_leads_pilot_rehearsal_review_inbox_v45",
+      rows: simulatedReviewRows,
+      existingReviewRows: reviewRows.length,
+      skippedRows,
+      count: simulatedReviewRows.length,
+      reviewOnlyExecution: true,
+      externalActionsLocked: true,
+    },
+    carriedLearning: {
+      noResultRecommendations,
+      staleSourceAlerts: staleAlerts,
+      sourceHealthSummary: dailySourceMonitoring.noJobsExplanation || "",
+    },
+    ownerAdminPilotReadinessReport: report,
+    blockers,
+    stats: {
+      willCheckSources: willCheckRows.length,
+      simulatedReviewRows: simulatedReviewRows.length,
+      skippedSources: skippedRows.length,
+      staleAlerts: staleAlerts.length,
+      noResultRecommendations: noResultRecommendations.length,
+      rehearsalSteps: rehearsalSteps.length,
+    },
+    reviewOnlyExecution: true,
+    externalActionsLocked: true,
+    leadAutoSaveEnabled: false,
+    customerContactEnabled: false,
+    bidSubmissionEnabled: false,
+    paymentCollectionEnabled: false,
+    schedulingMutationEnabled: false,
+    integrationWritesEnabled: false,
+    unattendedLoginEnabled: false,
+    productionDataTouchEnabled: false,
+    safetyBoundary: "Pilot execution rehearsal is local/read-model proof only. It does not create a scheduler, execute browsing, log in, contact anyone, save leads, submit bids, collect payment, mutate schedules, write integrations, deploy, or touch production data.",
+  };
+}
+
 function buildReviewInboxRowsFromControlledEvidence(evidenceRows = []) {
   return asArray(evidenceRows).map((row) => ({
     id: text(row.id || row.providerResultId, 180),
@@ -10084,6 +10249,17 @@ export function buildAgentOsOpportunityScoutExecutionPlan({
     companyId,
     today: currentDay,
   });
+  const pilotExecutionRehearsal = buildAgentLeadsPilotExecutionRehearsal({
+    scheduledRunReadiness,
+    dailyReviewInbox,
+    dailyRunHistory,
+    dailySourceMonitoring,
+    providerSettings,
+    companySettings: settings,
+    auditEvents,
+    companyId,
+    today: currentDay,
+  });
   const controlledDailyRunReviewFlow = buildAgentLeadsControlledDailyRunReviewFlow({
     controlledDailyPublicSourceRunEvidencePacket,
     controlledDailyPublicRunPreflight,
@@ -10138,6 +10314,7 @@ export function buildAgentOsOpportunityScoutExecutionPlan({
     dailyRunHistory,
     dailyRunAdminControls,
     scheduledRunReadiness,
+    pilotExecutionRehearsal,
     controlledDailyRunReviewFlow,
     dailyRunRecord,
     schedulerHook,
@@ -10188,6 +10365,8 @@ export function buildAgentOsOpportunityScoutExecutionPlan({
       scheduledRunReadinessStatus: scheduledRunReadiness.status,
       scheduledRunPreviewSources: scheduledRunReadiness.stats.willCheckSources,
       scheduledRunStaleAlerts: scheduledRunReadiness.stats.staleAlerts,
+      pilotExecutionRehearsalStatus: pilotExecutionRehearsal.status,
+      pilotExecutionRehearsalRows: pilotExecutionRehearsal.stats.simulatedReviewRows,
       priorFoundWorkSignals: Number(reviewOutcomeStats.found_work || 0),
       priorNoFitSignals: Number(reviewOutcomeStats.no_fit || 0),
       providerAttempts: providerAttempts.length,

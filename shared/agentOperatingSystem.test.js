@@ -43,6 +43,7 @@ import {
   buildAgentLeadsDailyRunAdminControls,
   buildAgentLeadsDailyRunHistory,
   buildAgentLeadsScheduledRunReadiness,
+  buildAgentLeadsPilotExecutionRehearsal,
   buildAgentLeadsDailySourceMonitoring,
   buildAgentLeadsLocalCompletionReadiness,
   buildAgentLeadsProductionReadinessGate,
@@ -2310,6 +2311,121 @@ test("Agent OS v44 builds scheduled Agent Leads readiness with run lock and tomo
   assert.equal(readiness.customerContactEnabled, false);
   assert.equal(readiness.integrationWritesEnabled, false);
   assert.match(readiness.safetyBoundary, /does not create a scheduler/i);
+});
+
+test("Agent OS v45 rehearses Agent Leads pilot execution without external actions", () => {
+  const providerSettings = normalizeAgentLeadsProviderSettings({
+    mode: "live_locked",
+    enabledConnectorIds: ["public_procurement_search"],
+    dailyJobFinderAutopilot: {
+      enabled: true,
+      runTimeLocal: "05:45",
+      sourcePriorityIds: ["public-1"],
+      pausedSourceIds: ["private-1"],
+    },
+  });
+  const dailyReviewInbox = {
+    rows: [],
+    stats: { totalRows: 0 },
+    externalActionsLocked: true,
+  };
+  const dailyRunHistory = {
+    rows: [{
+      id: "daily-job-finder-autopilot-ace-2026-05-29",
+      day: "2026-05-29",
+      status: "prepared_no_results",
+      sourceCount: 2,
+      reviewRows: 0,
+      providerAttemptCount: 1,
+      noResult: true,
+    }],
+    stats: { runCount: 1, noResultRuns: 1 },
+    noResultLearning: {
+      recommendations: [{
+        id: "expand-or-tighten-scope",
+        label: "Tune tomorrow's scope",
+        reason: "No-result run should tune source priority.",
+        suggestedControl: "Adjust source priority.",
+      }],
+    },
+  };
+  const scheduledRunReadiness = {
+    mode: "agent_leads_scheduled_run_readiness_v44",
+    today: "2026-05-29",
+    tomorrow: "2026-05-30",
+    status: "ready_for_tomorrow_locked_today",
+    scheduledRunPacket: {
+      id: "COMPANY-1::agent-leads-scheduled-run::2026-05-30",
+      endpoint: "POST /api/agent/os/provider/daily-job-finder/autopilot",
+      runTimeLocal: "05:45",
+      timezone: "local",
+      targetDay: "2026-05-30",
+      safeForCron: true,
+      reviewOnlyExecution: true,
+      externalActionsLocked: true,
+    },
+    runLock: {
+      idempotencyKey: "COMPANY-1::agent-leads-daily-review-run::2026-05-29",
+      todayRunRecorded: true,
+      todayRunCount: 1,
+      status: "locked_already_ran_today",
+      canRunToday: false,
+      detail: "A daily Agent Leads run is already recorded today for this company.",
+    },
+    tomorrowRunPreview: {
+      rows: [{
+        id: "public-1",
+        label: "City procurement",
+        connectorId: "public_procurement_search",
+        status: "will_check",
+        willCheck: true,
+        reason: "Included in tomorrow's review-only Agent Leads run.",
+      }, {
+        id: "private-1",
+        label: "Private group",
+        status: "skipped_paused",
+        willCheck: false,
+        paused: true,
+        reason: "Paused by owner/admin controls.",
+      }],
+      willCheckCount: 1,
+      exactlyWhatApexWillNotDo: ["No lead auto-save or customer/source contact."],
+    },
+    staleSourceAlerts: [{
+      id: "repeated-no-results",
+      label: "Repeated no-result mornings",
+      reason: "1 recorded run had no review rows.",
+      nextStep: "Tune source priority.",
+    }],
+    blockers: [],
+  };
+  const rehearsal = buildAgentLeadsPilotExecutionRehearsal({
+    scheduledRunReadiness,
+    dailyReviewInbox,
+    dailyRunHistory,
+    dailySourceMonitoring: { noJobsExplanation: "No review rows cleared fit gates today." },
+    providerSettings,
+    companySettings: { companyName: "Ace Fence" },
+    companyId: "COMPANY-1",
+    today: "2026-05-29",
+  });
+
+  assert.equal(rehearsal.mode, "agent_leads_pilot_execution_rehearsal_v45");
+  assert.equal(rehearsal.status, "ready_with_review_notes");
+  assert.equal(rehearsal.simulatedScheduledRunPacket.rehearsalOnly, true);
+  assert.equal(rehearsal.simulatedScheduledRunPacket.safeForCron, false);
+  assert.equal(rehearsal.idempotencyRehearsal.rehearsalPassed, true);
+  assert.equal(rehearsal.simulatedReviewInbox.count, 1);
+  assert.equal(rehearsal.simulatedReviewInbox.rows[0].canAutoSave, false);
+  assert.equal(rehearsal.simulatedReviewInbox.skippedRows[0].status, "skipped_paused");
+  assert.equal(rehearsal.carriedLearning.noResultRecommendations.length, 1);
+  assert.equal(rehearsal.carriedLearning.staleSourceAlerts.length, 1);
+  assert.match(rehearsal.ownerAdminPilotReadinessReport.summary, /review-only contractor workflow/i);
+  assert.equal(rehearsal.externalActionsLocked, true);
+  assert.equal(rehearsal.customerContactEnabled, false);
+  assert.equal(rehearsal.unattendedLoginEnabled, false);
+  assert.equal(rehearsal.productionDataTouchEnabled, false);
+  assert.match(rehearsal.safetyBoundary, /does not create a scheduler/i);
 });
 
 test("Agent OS v42 builds a controlled daily run review flow from approved public-source evidence only", () => {
