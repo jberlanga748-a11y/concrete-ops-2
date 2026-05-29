@@ -1914,6 +1914,7 @@ function CopilotPagePolished({
   const dailySourceMonitoring = dailyScoutExecutionPlan.dailySourceMonitoring || { sourceHealthRows: [], missedSourceAlerts: [], stats: {}, noJobsExplanation: "" };
   const dailyRunHistory = dailyScoutExecutionPlan.dailyRunHistory || { rows: [], stats: {}, noResultLearning: { recommendations: [] }, status: "no_run_history_yet" };
   const dailyRunAdminControls = dailyScoutExecutionPlan.dailyRunAdminControls || { sourceRows: [], controlSummary: {}, sourcePriorityIds: [], pausedSourceIds: [], status: "daily_run_paused" };
+  const scheduledRunReadiness = dailyScoutExecutionPlan.scheduledRunReadiness || { status: "needs_setup", scheduledRunPacket: {}, runLock: {}, tomorrowRunPreview: { rows: [], exactlyWhatApexWillNotDo: [] }, staleSourceAlerts: [], stats: {} };
   const controlledDailyRunReviewFlow = dailyScoutExecutionPlan.controlledDailyRunReviewFlow || { selectedSourceRows: [], reviewInboxPreviewRows: [], commandSteps: [], stats: {}, status: "blocked" };
   const providerSettings = dailyScoutExecutionPlan.publicProviderBoundary?.providerSettings || companySettings.apexAgentAutomationPolicy?.publicLeadProviderSettings || {};
   const dailyJobFinderAutopilotSettings = providerSettings.dailyJobFinderAutopilot || {};
@@ -4032,6 +4033,52 @@ function CopilotPagePolished({
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="co-ai-scout-grid border-b border-slate-200 bg-slate-50/80">
+              <div className="co-ai-scout-status" data-tone={scheduledRunReadiness.status?.includes("ready") ? "green" : scheduledRunReadiness.staleSourceAlerts?.length ? "amber" : "slate"}>
+                <span>Scheduled run readiness</span>
+                <strong>{String(scheduledRunReadiness.status || "needs_setup").replace(/_/g, " ")}</strong>
+                <p>Apex shows the exact review-only run packet and same-day lock before any morning job finder run is allowed.</p>
+                <div className="co-ai-scout-metrics">
+                  <div><em>{scheduledRunReadiness.tomorrowRunPreview?.willCheckCount || 0}</em><span>will check</span></div>
+                  <div><em>{scheduledRunReadiness.staleSourceAlerts?.length || 0}</em><span>alerts</span></div>
+                  <div><em>{scheduledRunReadiness.runLock?.todayRunCount || 0}</em><span>today runs</span></div>
+                </div>
+                <div className="co-ai-scout-checks">
+                  <small>{scheduledRunReadiness.scheduledRunPacket?.targetDay || scheduledRunReadiness.tomorrow || "Tomorrow"} / {scheduledRunReadiness.scheduledRunPacket?.runTimeLocal || "06:00"} {scheduledRunReadiness.scheduledRunPacket?.timezone || "local"}</small>
+                  <small>Run lock: {String(scheduledRunReadiness.runLock?.status || "available").replace(/_/g, " ")}</small>
+                  <small>Auto-save and customer contact remain off.</small>
+                </div>
+              </div>
+              <div className="co-ai-scout-briefs">
+                <SectionHeader title="Tomorrow Preview" description="Owner/admin can inspect what Apex Agent will check, what it will skip, and stale source alerts before the next run." />
+                <div className="co-ai-scout-brief-list">
+                  {scheduledRunReadiness.tomorrowRunPreview?.rows?.slice(0, 5).map((row) => (
+                    <div key={row.id} className="co-ai-scout-brief" data-tone={row.tone || "slate"}>
+                      <div className="min-w-0">
+                        <span>{String(row.status || "preview").replace(/_/g, " ")}</span>
+                        <strong>{row.label}</strong>
+                        <p>{row.reason}</p>
+                        <em>{row.priorityRank ? `Priority ${row.priorityRank}` : row.connectorId || "source"}{row.paused ? " / paused" : ""}</em>
+                      </div>
+                    </div>
+                  ))}
+                  {scheduledRunReadiness.staleSourceAlerts?.slice(0, 4).map((alert) => (
+                    <div key={alert.id} className="co-ai-scout-brief" data-tone={alert.tone || "amber"}>
+                      <div className="min-w-0">
+                        <span>stale source</span>
+                        <strong>{alert.label}</strong>
+                        <p>{alert.reason}</p>
+                        <em>{alert.nextStep}</em>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="co-ai-scout-checks">
+                  {scheduledRunReadiness.tomorrowRunPreview?.exactlyWhatApexWillNotDo?.slice(0, 4).map((item) => <small key={item}>{item}</small>)}
                 </div>
               </div>
             </div>

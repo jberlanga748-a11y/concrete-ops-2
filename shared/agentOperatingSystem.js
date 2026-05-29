@@ -6276,6 +6276,187 @@ export function buildAgentLeadsDailyRunAdminControls({
   };
 }
 
+export function buildAgentLeadsScheduledRunReadiness({
+  auditEvents = [],
+  providerSettings = {},
+  productionSourceSetupBoard = {},
+  dailyRunHistory = {},
+  dailyRunAdminControls = {},
+  dailySourceMonitoring = {},
+  schedulerHook = {},
+  companyId = "",
+  today = dateKey(new Date()),
+} = {}) {
+  const currentDay = dateKey(today) || dateKey(new Date());
+  const tomorrow = addDaysKey(currentDay, 1);
+  const settings = normalizeAgentLeadsProviderSettings(providerSettings);
+  const autopilot = settings.dailyJobFinderAutopilot || {};
+  const actualRunRows = collectAgentLeadsDailyRunHistoryRows(auditEvents, { today: currentDay });
+  const todayRunRows = actualRunRows.filter((row) => row.day === currentDay);
+  const historyRows = asArray(dailyRunHistory.rows).length ? asArray(dailyRunHistory.rows) : actualRunRows;
+  const sourceRows = asArray(dailyRunAdminControls.sourceRows).length
+    ? asArray(dailyRunAdminControls.sourceRows)
+    : asArray(productionSourceSetupBoard.rows).map((row) => ({
+        id: text(row.id, 180),
+        sourceKey: normalizeLooseId(row.sourceConfigId || row.id || row.label || row.sourceName || row.connectorId),
+        label: text(row.label || row.sourceName || "Source", 180),
+        connectorId: text(row.connectorId, 120),
+        eligibleForDailyRun: row.eligibleForDailyRun === true,
+        paused: false,
+        priorityRank: 0,
+        allowedControl: row.eligibleForDailyRun ? "priority_or_pause" : row.type === "private_handoff" ? "handoff_only" : "setup_required",
+      }));
+  const sortedSourceRows = sourceRows.slice().sort((left, right) => {
+    if (left.paused !== right.paused) return left.paused ? 1 : -1;
+    if (left.priorityRank && right.priorityRank) return left.priorityRank - right.priorityRank;
+    if (left.priorityRank) return -1;
+    if (right.priorityRank) return 1;
+    return 0;
+  });
+  const tomorrowRunPreviewRows = sortedSourceRows.slice(0, 12).map((row) => {
+    const willCheck = autopilot.enabled && row.eligibleForDailyRun && !row.paused;
+    const status = row.paused
+      ? "skipped_paused"
+      : row.eligibleForDailyRun
+        ? willCheck ? "will_check" : "eligible_but_daily_run_paused"
+        : row.allowedControl === "handoff_only" ? "human_handoff_only" : "needs_setup";
+    return {
+      id: text(row.id || row.sourceKey, 180),
+      sourceKey: text(row.sourceKey || row.id, 180),
+      label: text(row.label || "Source", 180),
+      connectorId: text(row.connectorId, 120),
+      status,
+      tone: status === "will_check" ? "green" : status === "skipped_paused" ? "slate" : status === "human_handoff_only" ? "amber" : "orange",
+      priorityRank: Number(row.priorityRank || 0),
+      paused: row.paused === true,
+      willCheck,
+      reason: willCheck
+        ? "Included in tomorrow's review-only Agent Leads run."
+        : row.paused
+          ? "Paused by owner/admin controls."
+          : row.allowedControl === "handoff_only"
+            ? "Private or login source remains human-operated handoff only."
+            : autopilot.enabled ? "Source needs setup before it can run." : "Daily review run is disabled.",
+      externalActionsLocked: true,
+    };
+  });
+  const willCheckRows = tomorrowRunPreviewRows.filter((row) => row.willCheck);
+  const latestRun = historyRows[0] || null;
+  const latestRunDay = dateKey(latestRun?.day || latestRun?.createdAt || "");
+  const daysSinceLatestRun = latestRunDay
+    ? Math.max(0, Math.round((new Date(`${currentDay}T00:00:00.000Z`).getTime() - new Date(`${latestRunDay}T00:00:00.000Z`).getTime()) / (24 * 60 * 60 * 1000)))
+    : null;
+  const repeatedNoResultRuns = Number(dailyRunHistory.stats?.noResultRuns || dailySourceMonitoring.stats?.repeatedNoResultRuns || 0);
+  const staleSourceAlerts = [
+    ...(!historyRows.length && willCheckRows.length ? [{
+      id: "never-checked",
+      tone: "amber",
+      label: "No recorded daily run yet",
+      reason: "Eligible sources exist, but no Agent Leads daily run history is recorded.",
+      nextStep: "Run or schedule one review-only morning run before judging source quality.",
+    }] : []),
+    ...(daysSinceLatestRun !== null && daysSinceLatestRun >= 3 && willCheckRows.length ? [{
+      id: "not-checked-recently",
+      tone: "orange",
+      label: "Sources not checked recently",
+      reason: `Last recorded Agent Leads run was ${daysSinceLatestRun} day${daysSinceLatestRun === 1 ? "" : "s"} ago.`,
+      nextStep: "Confirm the daily review run is enabled and source URLs are still valid.",
+    }] : []),
+    ...(repeatedNoResultRuns >= 2 ? [{
+      id: "repeated-no-results",
+      tone: "amber",
+      label: "Repeated no-result mornings",
+      reason: `${repeatedNoResultRuns} recorded run${repeatedNoResultRuns === 1 ? "" : "s"} had no review rows.`,
+      nextStep: "Tune service area, trade filters, review threshold, or source priority before tomorrow.",
+    }] : []),
+    ...asArray(dailySourceMonitoring.sourceHealthRows)
+      .filter((row) => !row.paused && Number(row.healthScore || 0) < 50)
+      .slice(0, 4)
+      .map((row) => ({
+        id: `weak-${text(row.id, 140)}`,
+        tone: "orange",
+        label: text(row.label || "Weak source", 180),
+        reason: `Source health is ${Number(row.healthScore || 0)}.`,
+        nextStep: text(row.nextStep || "Pause, repair, or deprioritize this source before tomorrow.", 220),
+      })),
+  ].slice(0, 8);
+  const runLock = {
+    idempotencyKey: [companyId || "company", "agent-leads-daily-review-run", currentDay].filter(Boolean).join("::"),
+    tomorrowIdempotencyKey: [companyId || "company", "agent-leads-daily-review-run", tomorrow].filter(Boolean).join("::"),
+    todayRunRecorded: todayRunRows.length > 0,
+    todayRunCount: todayRunRows.length,
+    status: todayRunRows.length ? "locked_already_ran_today" : "available_for_today",
+    canRunToday: todayRunRows.length === 0 && autopilot.enabled === true,
+    maxDailyRuns: 1,
+    detail: todayRunRows.length ? "A daily Agent Leads run is already recorded today for this company." : "No same-day Agent Leads run is recorded for this company.",
+  };
+  const blockers = [
+    !autopilot.enabled ? "Daily review run is disabled in Agent Leads settings." : "",
+    !willCheckRows.length ? "No eligible, unpaused public source is ready for tomorrow." : "",
+    settings.mode === "disabled" ? "Provider mode is disabled." : "",
+  ].filter(Boolean);
+  const status = blockers.length
+    ? "needs_setup"
+    : runLock.todayRunRecorded
+      ? "ready_for_tomorrow_locked_today"
+      : "ready_for_tomorrow_review_only_run";
+  return {
+    mode: "agent_leads_scheduled_run_readiness_v44",
+    today: currentDay,
+    tomorrow,
+    status,
+    companyId: text(companyId, 120),
+    scheduledRunPacket: {
+      id: [companyId || "company", "agent-leads-scheduled-run", tomorrow].filter(Boolean).join("::"),
+      endpoint: schedulerHook.endpoint || "POST /api/agent/os/provider/daily-job-finder/autopilot",
+      cadence: "daily",
+      runTimeLocal: autopilot.runTimeLocal,
+      timezone: autopilot.timezone,
+      targetDay: tomorrow,
+      sourceCount: willCheckRows.length,
+      publicSourceConnectorIds: asArray(autopilot.publicSourceConnectorIds),
+      idempotencyScope: runLock.tomorrowIdempotencyKey,
+      safeForCron: true,
+      reviewOnlyExecution: true,
+      externalActionsLocked: true,
+    },
+    runLock,
+    tomorrowRunPreview: {
+      day: tomorrow,
+      runTimeLocal: autopilot.runTimeLocal,
+      timezone: autopilot.timezone,
+      rows: tomorrowRunPreviewRows,
+      willCheckCount: willCheckRows.length,
+      skippedCount: tomorrowRunPreviewRows.filter((row) => !row.willCheck).length,
+      exactlyWhatApexWillNotDo: [
+        "No unattended private-source login.",
+        "No cold calls, cold texts, cold emails, DMs, comments, or posts.",
+        "No lead auto-save or customer/source contact.",
+        "No bid submission, payment collection, scheduling mutation, or integration write.",
+      ],
+    },
+    staleSourceAlerts,
+    blockers,
+    stats: {
+      previewRows: tomorrowRunPreviewRows.length,
+      willCheckSources: willCheckRows.length,
+      staleAlerts: staleSourceAlerts.length,
+      todayRunCount: todayRunRows.length,
+      repeatedNoResultRuns,
+    },
+    reviewOnlyExecution: true,
+    externalActionsLocked: true,
+    leadAutoSaveEnabled: false,
+    customerContactEnabled: false,
+    bidSubmissionEnabled: false,
+    paymentCollectionEnabled: false,
+    schedulingMutationEnabled: false,
+    integrationWritesEnabled: false,
+    unattendedLoginEnabled: false,
+    safetyBoundary: "Scheduled run readiness is a review-only plan and lock preview. It does not create a scheduler, execute browsing, log in, contact anyone, save leads, submit bids, collect payment, mutate schedules, write integrations, deploy, or touch production data.",
+  };
+}
+
 function buildReviewInboxRowsFromControlledEvidence(evidenceRows = []) {
   return asArray(evidenceRows).map((row) => ({
     id: text(row.id || row.providerResultId, 180),
@@ -9892,6 +10073,17 @@ export function buildAgentOsOpportunityScoutExecutionPlan({
     productionSourceSetupBoard,
     today: currentDay,
   });
+  const scheduledRunReadiness = buildAgentLeadsScheduledRunReadiness({
+    auditEvents,
+    providerSettings,
+    productionSourceSetupBoard,
+    dailyRunHistory,
+    dailyRunAdminControls,
+    dailySourceMonitoring,
+    schedulerHook,
+    companyId,
+    today: currentDay,
+  });
   const controlledDailyRunReviewFlow = buildAgentLeadsControlledDailyRunReviewFlow({
     controlledDailyPublicSourceRunEvidencePacket,
     controlledDailyPublicRunPreflight,
@@ -9945,6 +10137,7 @@ export function buildAgentOsOpportunityScoutExecutionPlan({
     dailySourceMonitoring,
     dailyRunHistory,
     dailyRunAdminControls,
+    scheduledRunReadiness,
     controlledDailyRunReviewFlow,
     dailyRunRecord,
     schedulerHook,
@@ -9992,6 +10185,9 @@ export function buildAgentOsOpportunityScoutExecutionPlan({
       dailyRunHistoryRows: dailyRunHistory.stats.runCount,
       dailyRunNoResultRuns: dailyRunHistory.stats.noResultRuns,
       dailyRunPausedSources: dailyRunAdminControls.controlSummary.pausedSources,
+      scheduledRunReadinessStatus: scheduledRunReadiness.status,
+      scheduledRunPreviewSources: scheduledRunReadiness.stats.willCheckSources,
+      scheduledRunStaleAlerts: scheduledRunReadiness.stats.staleAlerts,
       priorFoundWorkSignals: Number(reviewOutcomeStats.found_work || 0),
       priorNoFitSignals: Number(reviewOutcomeStats.no_fit || 0),
       providerAttempts: providerAttempts.length,
