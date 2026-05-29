@@ -486,7 +486,7 @@ Phase 9 status tracker:
 - Manual customer portal preview: complete for Elite owner/admin internal preview. Proposal, proof, progress, and reviewed change-order context are shown only as copy-only/manual review content.
 - Customer-facing packet safety: complete for current print/PDF packet tests proving customer-facing output excludes internal notes and backup.
 - Customer message review: complete as a review-first safety gate. Agent policy blocks customer messages, proposal sends, and bid submissions by default.
-- Portal security plan: complete as a future gate. Tokenized access, expiration, revocation, company scope, and approval audit are documented as required before external sharing.
+- Portal security plan: complete as a future gate plus local readiness contract. Tokenized access, expiration, revocation, company scope, and approval audit are documented and verified without creating live customer access.
 - Role/package safety: complete. Customer portal preview remains Elite-gated and owner/admin-only. Field users remain blocked.
 - External sharing: locked. No customer login, public share link, portal token, customer approval, email/SMS, bid submission, or portal notification exists.
 
@@ -703,6 +703,8 @@ Build 4A local completion evidence is tracked in `docs/APEX_HQ_MATERIAL_PURCHASI
 Build 5A local completion evidence is tracked in `docs/APEX_HQ_CHANGE_ORDER_MONEY_STATUS.md` and verified by `npm.cmd run verify:change-order-money`. It adds manual change amount, customer/GC manual review status, manual billing handoff prep, server redaction for field users, and safe copy boundaries. It does not unlock automatic customer sends, GC submission, invoices, payment collection, job status changes, production deploy, secrets/config changes, or production data work.
 
 Build 6A local completion evidence is tracked in `docs/APEX_HQ_JOB_COSTING_READINESS_STATUS.md` and verified by `npm.cmd run verify:job-costing`. It adds review-only estimate-vs-actual job costing prep across approved estimate revenue, recognized change-order revenue, aggregate labor-cost basis, material ticket costs, equipment costs, subcontractor costs, closeout blockers, and owner/admin BI metrics. It does not unlock payroll, accounting, invoices, payment collection, external sends, job status changes, production deploy, secrets/config changes, or production data work.
+
+Build 7A local completion evidence is tracked in `docs/APEX_HQ_CUSTOMER_PORTAL_TOKENIZED_READINESS_STATUS.md` and verified by `npm.cmd run verify:customer-portal-readiness`. It adds a locked tokenized-access readiness contract for company scope, customer scope, approved proposal scope, expiration, revocation, audit requirements, allowed customer-facing sections, and external-action locks. It does not create customer logins, share links, portal tokens, customer approvals, messages, invoices, payment collection, production deploy, secrets/config changes, or production data work.
 
 Current local completion evidence for the near-term hardening slices is tracked in `docs/APEX_HQ_ROADMAP_HARDENING_STATUS.md` and verified by `npm.cmd run verify:roadmap-hardening`, `npm.cmd run verify:paid-pilot-close`, and `npm.cmd run verify:rate-book`. This does not unlock production deploy, public launch, billing/payment, external sends, customer portal actions, secrets/config changes, or production data work.
 

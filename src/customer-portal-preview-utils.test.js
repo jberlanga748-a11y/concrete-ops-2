@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildCustomerPortalPreviewPacket, deriveCustomerPortalPreviewState } from "./customer-portal-preview-utils.js";
+import {
+  buildCustomerPortalPreviewPacket,
+  buildCustomerPortalTokenizedAccessApprovalPacket,
+  deriveCustomerPortalPreviewState,
+  deriveCustomerPortalTokenizedAccessPlan,
+} from "./customer-portal-preview-utils.js";
 
 test("derives a customer portal manual preview from approved customer-facing records only", () => {
   const state = deriveCustomerPortalPreviewState({
@@ -123,5 +128,100 @@ test("customer portal preview packet excludes internal notes and share automatio
   assert.match(packet, /automatic notification/);
   assert.equal(packet.includes("Secret margin note"), false);
   assert.equal(packet.includes("Assistant reasoning"), false);
+  assert.equal(packet.includes("secret-session-token"), false);
+});
+
+test("tokenized customer portal access plan is implementation-ready but externally locked", () => {
+  const state = deriveCustomerPortalPreviewState({
+    estimates: [
+      {
+        id: "EST-APPROVED",
+        customerId: "C1",
+        customer: "ABC Builders",
+        status: "approved",
+        title: "Approved proposal",
+        scopeSummary: "Customer-safe scope.",
+        grandTotal: 5000,
+      },
+    ],
+    jobs: [{ id: "JOB-1", customerId: "C1", customer: "ABC Builders", status: "scheduled" }],
+  });
+  const accessPlan = deriveCustomerPortalTokenizedAccessPlan({
+    state,
+    companyId: "COMPANY-1",
+    actor: { role: "Owner", token: "secret-session-token" },
+    issuedAt: "2026-05-29T12:00:00.000Z",
+    expiresAt: "2026-06-05T12:00:00.000Z",
+    approvalId: "AUDIT-123",
+  });
+
+  assert.equal(accessPlan.implementationReady, true);
+  assert.equal(accessPlan.canCreateExternalAccess, false);
+  assert.equal(accessPlan.tokenMaterialCreated, false);
+  assert.equal(accessPlan.tokenReference, "not-created");
+  assert.equal(accessPlan.scope.companyId, "COMPANY-1");
+  assert.deepEqual(accessPlan.scope.allowedSections, ["proposal", "proof_summary", "progress_summary", "reviewed_change_orders"]);
+  assert.equal(accessPlan.expiration.ttlHours, 168);
+  assert.equal(accessPlan.audit.requiredEvents.includes("customer_portal.external_access_revoked"), true);
+  assert.equal(accessPlan.externalActionLocks.some((lock) => /No raw portal token/i.test(lock)), true);
+  assert.match(accessPlan.boundary, /Readiness contract only/i);
+  assert.equal(JSON.stringify(accessPlan).includes("secret-session-token"), false);
+});
+
+test("tokenized portal access plan fails closed without role, scope, approval, or safe expiration", () => {
+  const state = deriveCustomerPortalPreviewState({
+    estimates: [{ id: "EST-DRAFT", customer: "ABC Builders", status: "draft" }],
+  });
+  const accessPlan = deriveCustomerPortalTokenizedAccessPlan({
+    state,
+    actor: { role: "Foreman" },
+    issuedAt: "2026-05-29T12:00:00.000Z",
+    expiresAt: "2026-06-20T12:00:00.000Z",
+    revocationSupported: false,
+  });
+
+  assert.equal(accessPlan.implementationReady, false);
+  assert.equal(accessPlan.canCreateExternalAccess, false);
+  assert.equal(accessPlan.gates.find((gate) => gate.id === "role")?.ready, false);
+  assert.equal(accessPlan.gates.find((gate) => gate.id === "company_scope")?.ready, false);
+  assert.equal(accessPlan.gates.find((gate) => gate.id === "approved_proposal")?.ready, false);
+  assert.equal(accessPlan.gates.find((gate) => gate.id === "expiration")?.ready, false);
+  assert.equal(accessPlan.gates.find((gate) => gate.id === "revocation")?.ready, false);
+  assert.equal(accessPlan.gates.find((gate) => gate.id === "approval_audit")?.ready, false);
+  assert.equal(accessPlan.gates.find((gate) => gate.id === "external_lock")?.ready, false);
+});
+
+test("tokenized access approval packet excludes raw secrets and states locked boundary", () => {
+  const state = deriveCustomerPortalPreviewState({
+    estimates: [
+      {
+        id: "EST-APPROVED",
+        customer: "ABC Builders",
+        status: "approved",
+        title: "Approved proposal",
+        scopeSummary: "Customer-safe scope.",
+        internalNotes: "Office-only margin note.",
+      },
+    ],
+  });
+  const accessPlan = deriveCustomerPortalTokenizedAccessPlan({
+    state,
+    companyId: "COMPANY-1",
+    actor: { role: "Administrator", token: "secret-session-token" },
+    issuedAt: "2026-05-29T12:00:00.000Z",
+    expiresAt: "2026-06-01T12:00:00.000Z",
+    approvalId: "AUDIT-456",
+  });
+  const packet = buildCustomerPortalTokenizedAccessApprovalPacket({
+    accessPlan,
+    generatedAt: "2026-05-29T12:05:00.000Z",
+  });
+
+  assert.match(packet, /Tokenized Access Readiness Packet/);
+  assert.match(packet, /External access allowed now: no/);
+  assert.match(packet, /Token material created: no/);
+  assert.match(packet, /No customer login is created/);
+  assert.match(packet, /External access lock: blocked/i);
+  assert.equal(packet.includes("Office-only margin note"), false);
   assert.equal(packet.includes("secret-session-token"), false);
 });
