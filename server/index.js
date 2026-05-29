@@ -309,6 +309,10 @@ import {
   isOwner,
 } from "../shared/permissions.js";
 import { buildConstructionAgentTradeContext, normalizeConstructionTradeId } from "../shared/constructionTrades.js";
+import {
+  deriveCustomerPortalPreviewState,
+  deriveCustomerPortalTokenizedAccessPlan,
+} from "../src/customer-portal-preview-utils.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.join(__dirname, "..");
@@ -4236,6 +4240,13 @@ function assertCanViewOwnerHealth(user) {
   }
 }
 
+function assertCanPrepareCustomerPortalAccess(state, user) {
+  assertCompanyFeature(state, user, FEATURE_KEYS.CUSTOMER_PORTAL, "Customer Portal");
+  if (!canPreviewCustomerPortal(user)) {
+    throw new ApiError(403, "Customer portal access records are restricted to owner/admin users.");
+  }
+}
+
 function assertCanViewLeads(user) {
   if (!canViewLeads(user)) {
     throw new ApiError(403, "You do not have permission to view leads.");
@@ -6441,6 +6452,112 @@ function appendAuditEvent(state, { entityType, entityId, action, summary, detail
   });
 }
 
+function customerPortalAccessRecordFromAuditEvent(event = {}) {
+  if (event.entityType !== "customer_portal_access" || event.action !== "prepared_locked") return null;
+  let payload = {};
+  try {
+    payload = JSON.parse(event.detail || "{}");
+  } catch {
+    payload = {};
+  }
+  const record = payload.accessRecord || {};
+  if (!record.id) return null;
+  return {
+    ...record,
+    auditEventId: event.id,
+    auditCreatedAt: event.createdAt,
+    actorName: event.actorName,
+  };
+}
+
+function visibleCustomerPortalAccessRecordsForUser(state, user) {
+  return visibleAuditEventsForUser(state, user)
+    .map(customerPortalAccessRecordFromAuditEvent)
+    .filter(Boolean);
+}
+
+function buildCustomerPortalPreviewStateForAccessRecord(state, user, { estimateId = "" } = {}) {
+  const estimate = findCompanyScopedRecord(state.estimates || [], estimateId, user, state, "Estimate");
+  const companyId = currentCompanyIdForRequestUser(state, user);
+  const visibleJobs = companyScopedRecordsForUser(state, user, state.jobs || []);
+  const explicitJob = estimate.jobId
+    ? visibleJobs.find((job) => String(job?.id || "") === String(estimate.jobId || ""))
+    : null;
+  const orderedJobs = explicitJob ? [explicitJob, ...visibleJobs.filter((job) => job.id !== explicitJob.id)] : visibleJobs;
+
+  return {
+    estimate,
+    companyId,
+    previewState: deriveCustomerPortalPreviewState({
+      estimates: [estimate],
+      jobs: orderedJobs,
+      uploads: companyScopedRecordsForUser(state, user, state.uploads || []),
+      dailyReports: companyScopedRecordsForUser(state, user, state.dailyReports || []),
+      changeOrderRequests: companyScopedRecordsForUser(state, user, state.changeOrderRequests || []),
+      companySettings: companySettingsForState(state, user),
+    }),
+  };
+}
+
+function nonRedeemablePortalTokenHashReference({ recordId = "", companyId = "", estimateId = "", approvalId = "", expiresAt = "" } = {}) {
+  const digest = crypto
+    .createHash("sha256")
+    .update(["customer-portal-access-record", recordId, companyId, estimateId, approvalId, expiresAt].join("|"))
+    .digest("hex");
+  return `sha256:${digest}`;
+}
+
+function prepareCustomerPortalAccessRecord(state, user, payload = {}) {
+  const recordId = makeId("CPA");
+  const approvalId = optionalString(payload.approvalId, recordId);
+  const { companyId, estimate, previewState } = buildCustomerPortalPreviewStateForAccessRecord(state, user, {
+    estimateId: optionalString(payload.estimateId, ""),
+  });
+  const accessPlan = deriveCustomerPortalTokenizedAccessPlan({
+    state: previewState,
+    companyId,
+    actor: user,
+    issuedAt: new Date().toISOString(),
+    expiresAt: optionalString(payload.expiresAt, ""),
+    approvalId,
+    revocationSupported: true,
+  });
+
+  if (!accessPlan.implementationReady) {
+    throw new ApiError(400, accessPlan.blockedReasons[0] || "Customer portal access record is not ready.");
+  }
+
+  return {
+    accessRecord: {
+      id: recordId,
+      companyId,
+      status: "prepared_locked",
+      estimateId: estimate.id,
+      jobId: accessPlan.scope.jobId,
+      customer: accessPlan.scope.customer,
+      allowedSections: accessPlan.scope.allowedSections,
+      tokenHashReference: nonRedeemablePortalTokenHashReference({
+        recordId,
+        companyId,
+        estimateId: estimate.id,
+        approvalId,
+        expiresAt: accessPlan.expiration.expiresAt,
+      }),
+      tokenMaterialCreated: false,
+      canCreateExternalAccess: false,
+      issuedAt: accessPlan.expiration.issuedAt,
+      expiresAt: accessPlan.expiration.expiresAt,
+      revokedAt: "",
+      revocationSupported: accessPlan.revocation.supported,
+      approvalId,
+      auditEvent: "customer_portal.access_record_prepared_locked",
+      externalActionLocks: accessPlan.externalActionLocks,
+      boundary: accessPlan.boundary,
+    },
+    accessPlan,
+  };
+}
+
 async function appendAuthAuditEvent({ user, action, summary, detail, changedFields = [], createdAt = new Date().toISOString() }) {
   return insertAuditEventRecord({
     id: makeAuditId(),
@@ -7769,6 +7886,51 @@ app.get("/api/bootstrap", requireAuth, asyncRoute(async (req, res) => {
     postPourCount: Array.isArray(payload.postPourChecklists) ? payload.postPourChecklists.length : 0,
   });
   res.json(payload);
+}));
+
+app.get("/api/customer-portal/access-records", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanPrepareCustomerPortalAccess(state, req.auth.user);
+  res.json({
+    accessRecords: visibleCustomerPortalAccessRecordsForUser(state, req.auth.user),
+    boundary: "Internal locked readiness records only; no customer login, public URL, raw token, customer message, invoice, or payment action exists.",
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/customer-portal/access-records", requireAuth, asyncRoute(async (req, res) => {
+  const payloadText = JSON.stringify(req.body || {});
+  if (/\b(rawToken|portalToken|publicUrl|shareLink|customerLogin|createExternalAccess|sendCustomerMessage|collectPayment|paymentLink|invoiceUrl)\b/i.test(payloadText)) {
+    throw new ApiError(400, "Customer portal access records cannot include external access, customer contact, token, payment, or public URL fields.");
+  }
+
+  let prepared = null;
+  const nextState = await updateDb((draft) => {
+    assertCanPrepareCustomerPortalAccess(draft, req.auth.user);
+    prepared = prepareCustomerPortalAccessRecord(draft, req.auth.user, req.body || {});
+    appendAuditEvent(draft, {
+      entityType: "customer_portal_access",
+      entityId: prepared.accessRecord.id,
+      action: "prepared_locked",
+      summary: "Customer portal access record prepared as locked readiness evidence",
+      detail: JSON.stringify({
+        accessRecord: prepared.accessRecord,
+        gates: prepared.accessPlan.gates,
+        blockedReasons: prepared.accessPlan.blockedReasons,
+      }),
+      actor: req.auth.user,
+      changedFields: ["customerPortalAccessRecord"],
+    });
+    return draft;
+  });
+
+  res.status(201).json({
+    accessRecord: prepared.accessRecord,
+    accessPlan: prepared.accessPlan,
+    accessRecords: visibleCustomerPortalAccessRecordsForUser(nextState, req.auth.user),
+    boundary: "Internal locked readiness records only; no customer login, public URL, raw token, customer message, invoice, or payment action exists.",
+    requestId: res.locals.requestId,
+  });
 }));
 
 app.get("/api/agent/context", requireAuth, asyncRoute(async (req, res) => {

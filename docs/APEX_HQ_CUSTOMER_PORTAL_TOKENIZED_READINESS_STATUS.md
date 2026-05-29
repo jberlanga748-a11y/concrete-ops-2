@@ -1,6 +1,6 @@
 # Apex HQ Customer Portal Tokenized Readiness Status
 
-Status: complete for Build 7A local readiness-contract scope.
+Status: complete for Build 7A local readiness-contract scope and Build 7B locked access-record scope.
 
 ## What Is Now Complete
 
@@ -10,6 +10,10 @@ Status: complete for Build 7A local readiness-contract scope.
 - Owner/admin actor checks are part of the contract.
 - The approval packet explicitly shows that no customer login, public share link, raw token, customer approval, message send, invoice, payment, deployment, secret, config change, or production data change was created.
 - The customer portal readiness gate now verifies the tokenized-access contract, not only documentation flags.
+- The server now exposes authenticated, Elite-only, owner/admin-only customer portal access-record preparation endpoints.
+- Access records are company scoped, audit backed, non-redeemable, and locked as internal readiness evidence.
+- Access records store only a deterministic `sha256:` token hash reference. They do not generate, store, print, or return raw token material.
+- Unsafe external fields such as public URLs, share links, customer logins, sends, invoices, and payment links are rejected.
 
 ## Safety Boundary
 
@@ -26,6 +30,8 @@ It does not:
 - collect payment
 - mutate production data
 - change secrets, provider config, Fly config, Supabase config, or deployment state
+
+Build 7B also does not create a public route, redeemable token table, customer session, customer action endpoint, customer login flow, message send flow, invoice flow, or payment flow.
 
 ## Verification
 

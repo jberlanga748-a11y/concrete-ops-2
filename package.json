@@ -46,7 +46,7 @@
     "verify:billing-readiness": "node --test --test-concurrency=1 scripts/package-billing-readiness.test.mjs shared/packages.test.js shared/packageEntitlements.test.js src/support-utils.test.js",
     "verify:support": "node --test --test-concurrency=1 src/support-utils.test.js src/support-page-shell.test.js src/app-shell-components.test.js src/app-routing.test.js shared/permissions.test.js src/navigation-utils.test.js",
     "verify:app-health": "node --test --test-concurrency=1 src/app-health-route-components-import.test.js src/app-health-page-shell.test.js src/app-shell-components.test.js src/app-routing.test.js src/owner-health-utils.test.js src/release-safety-utils.test.js src/pwa-config.test.js src/design-tokens.test.js shared/permissions.test.js src/navigation-utils.test.js",
-    "verify:customer-portal-readiness": "node --test --test-concurrency=1 scripts/customer-portal-communication-readiness.test.mjs src/customer-portal-preview-utils.test.js shared/agentActionPolicy.test.js shared/permissions.test.js shared/packageEntitlements.test.js",
+    "verify:customer-portal-readiness": "node --test --test-concurrency=1 scripts/customer-portal-communication-readiness.test.mjs server/customer-portal-access-records.test.js src/customer-portal-preview-utils.test.js shared/agentActionPolicy.test.js shared/permissions.test.js shared/packageEntitlements.test.js",
     "verify:public-launch-readiness": "node --test --test-concurrency=1 scripts/public-launch-readiness.test.mjs",
     "verify:data-platform": "node --test --test-concurrency=1 scripts/data-platform-readiness.test.mjs",
     "verify:postgres-transfer": "node --test --test-concurrency=1 scripts/postgres-transfer.test.mjs",
