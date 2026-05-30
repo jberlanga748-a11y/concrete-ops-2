@@ -8,7 +8,7 @@ Integrations is completed, pushed, and deployed to production under the standing
 
 Phase 1 is ready to implement but not ready to freeze. Blocking findings: `/imported-drafts` crashes for owner/admin users with `useEffect is not defined`, `npm.cmd run verify:job-draft-imports` is red because its login helper uses an undefined bearer token, and owner/admin setup needs one finish board instead of scattered setup surfaces.
 
-Slice 1 status: Admin Foundation state utility and tests are built locally. `npm.cmd run verify:admin-foundation` passes with the new utility coverage.
+Slice 1 status: Admin Foundation state utility and tests are built, pushed, deployed to production, and health-checked. `npm.cmd run verify:admin-foundation` passes with the new utility coverage.
 
 ## Product North Star
 
@@ -233,6 +233,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - [x] Fix `verify:job-draft-imports`.
 - [x] Add Admin Foundation state utility and focused tests.
 - [x] Add `verify:admin-foundation`.
+- [x] Commit, push, deploy, and health-check Slice 1.
 - [ ] Add Admin Foundation Finish Board.
 - [ ] Browser QA final Phase 1 routes.
 - [ ] Commit, push, deploy, health-check, and record Phase 1 report.
@@ -314,6 +315,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | 2026-05-30 | Integrations | `c10a273` pushed to `main` | Local QA at `http://127.0.0.1:4168` | Admin desktop `/settings` passed Integrations Command, provider board, QuickBooks/Gmail/Calendar/Twilio readiness, no frontend secrets, locked writes, built inbound contracts, and no overflow/errors; employee mobile `/settings` redirected to `/jobs` with integration/provider text hidden. |
 | 2026-05-30 | Integrations | `c10a273` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `604` started in `sjc`; service check passing; `/api/ready` OK on both domains with database OK. |
 | 2026-05-30 | Phase 1 Admin Foundation Pre-Build Audit | Docs-only audit pending commit | Local QA at `http://127.0.0.1:4174` | `/api/ready` OK. Owner desktop Settings, Employees, App Health, Support passed. Owner desktop Imported Drafts failed with `useEffect is not defined`. Employee mobile admin/setup direct routes redirected to Field Mode and Support stayed role-safe. |
+| 2026-05-30 | Phase 1 Admin Foundation Slice 1: state utility | `2bbbf3f` pushed to `main` and deployed | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `605` started in `sjc`; service check passing; `/api/ready` OK on both domains with database OK. |
 
 ## Roadmap Queue
 
