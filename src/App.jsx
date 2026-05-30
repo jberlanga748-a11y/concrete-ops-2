@@ -27,6 +27,7 @@ import {
   deriveApexAssistantShellState,
 } from "./apex-assistant-shell-utils";
 import { deriveApexAgentOperatorState } from "./apex-agent-operator-utils";
+import { deriveAdminFoundationFinishState } from "./admin-foundation-finish-utils";
 import { deriveBillingPaymentsCommandState } from "./billing-payments-command-utils";
 import { deriveIntegrationsCommandState } from "./integrations-command-utils";
 import { buildAgentActionProposalReviewAuditPayload, deriveAgentActionInbox, deriveAgentActionProposalAuditHistory, deriveAgentActionProposalQueue, deriveAgentActionProposalReviewState } from "./agent-action-proposal-utils";
@@ -368,6 +369,7 @@ const SchedulePage = lazyRouteComponent(() => import("./schedule-page-components
 const SafetyPage = lazyRouteComponent(() => import("./safety-page-components"), "SafetyPage");
 const FieldWorkspaceLeaderPage = lazyRouteComponent(() => import("./field-workspace-leader-page-components"), "FieldWorkspaceLeaderPage");
 
+const AdminFoundationFinishPanel = lazyRouteComponent(() => import("./settings-route-components"), "AdminFoundationFinishPanel");
 const PlanReadinessPanel = lazyRouteComponent(() => import("./settings-route-components"), "PlanReadinessPanel");
 const SettingsCommandRailPolished = lazyRouteComponent(() => import("./settings-route-components"), "SettingsCommandRailPolished");
 const IntegrationsCommandPanel = lazyRouteComponent(() => import("./settings-route-components"), "IntegrationsCommandPanel");
@@ -7229,6 +7231,8 @@ function SettingsPagePolished({
   leadSources,
   jobs,
   estimates,
+  firstOwnerOnboarding,
+  jobDraftImports = [],
   uploads,
   dailyReports,
   changeOrderRequests,
@@ -7403,6 +7407,36 @@ function SettingsPagePolished({
     companySettings: safeCompanySettings,
   }), [changeOrderRequests, dailyReports, estimates, jobs, safeCompanySettings, uploads]);
   const appHealthAuditState = useMemo(() => deriveAppHealthAuditState({ auditEvents, activity }), [activity, auditEvents]);
+  const adminFoundationFinishState = useMemo(() => deriveAdminFoundationFinishState({
+    companySettings: safeCompanySettings,
+    users,
+    leadSources,
+    jobs,
+    importedDrafts: jobDraftImports,
+    permissions: safePermissions,
+    user,
+    managedSetupState: settingsSetupState,
+    firstOwnerOnboarding,
+    packageReadiness,
+    integrationsCommandState,
+    billingCommandState: billingPaymentsCommandState,
+    appHealthAuditState,
+    importedDraftsRouteReady: true,
+  }), [
+    appHealthAuditState,
+    billingPaymentsCommandState,
+    firstOwnerOnboarding,
+    integrationsCommandState,
+    jobDraftImports,
+    jobs,
+    leadSources,
+    packageReadiness,
+    safeCompanySettings,
+    safePermissions,
+    settingsSetupState,
+    user,
+    users,
+  ]);
   const settingsKpis = [
     { label: "Readiness", value: settingsSetupState.percentComplete, helper: `${settingsSetupState.status} status`, icon: "settings", tone: setupStatusTone(settingsSetupState.status), actionLabel: "Review setup", onAction: () => jumpToSettingsSection("settings-managed-setup") },
     { label: "Checklist", value: settingsSetupState.completedCount, helper: `of ${settingsSetupState.totalCount} setup items`, icon: "clipboard", tone: "blue", actionLabel: "Open checklist", onAction: () => jumpToSettingsSection("settings-managed-setup") },
@@ -7421,7 +7455,7 @@ function SettingsPagePolished({
   ];
 
   const isDesktopSettingsCommandViewport = useDesktopCommandViewport(1180);
-  const [selectedSettingsShellItemId, setSelectedSettingsShellItemId] = useState(appHealthRouteMode ? "settings-owner-health" : "settings-managed-setup");
+  const [selectedSettingsShellItemId, setSelectedSettingsShellItemId] = useState(appHealthRouteMode ? "settings-owner-health" : "settings-admin-foundation");
   const [selectedAppHealthShellItemId, setSelectedAppHealthShellItemId] = useState("app-health-trust");
   const toolChecklistEnabled = safeCompanySettings.toolChecklistEnabled !== false;
   const updateTimeLocationEvidencePolicy = (patch = {}) => onUpdateCompanySettings?.({
@@ -7524,12 +7558,28 @@ function SettingsPagePolished({
     { id: "support", label: "Support", value: canViewSupport ? "Ready" : "Limited", helper: "Copy-safe diagnostics", icon: "help", tone: canViewSupport ? "green" : "slate", onClick: () => (canViewSupport ? setActive?.("support") : selectAppHealthShellItem(appHealthShellQueueItems[0])) },
   ];
   const settingsShellKpis = [
+    { id: "phase1", label: "Phase 1", value: `${adminFoundationFinishState.metrics?.readyRows || 0}/${adminFoundationFinishState.metrics?.totalRows || 0}`, helper: adminFoundationFinishState.status, icon: "clipboard", tone: adminFoundationFinishState.tone || "slate", onClick: () => selectSettingsShellItem(settingsShellQueueItems.find((item) => item.id === "settings-admin-foundation")) },
     { id: "readiness", label: "Readiness", value: `${settingsSetupState.percentComplete}%`, helper: settingsSetupState.status, icon: "settings", tone: setupStatusTone(settingsSetupState.status), onClick: () => selectSettingsShellItem(settingsShellQueueItems.find((item) => item.id === "settings-managed-setup")) },
     { id: "checklist", label: "Checklist", value: `${settingsSetupState.completedCount}/${settingsSetupState.totalCount}`, helper: "Setup items ready", icon: "clipboard", tone: "blue", onClick: () => selectSettingsShellItem(settingsShellQueueItems.find((item) => item.id === "settings-managed-setup")) },
     { id: "package", label: "Package", value: packageReadiness.currentPackage.label, helper: packageReadiness.billingStatus, icon: "dollar", tone: "orange", onClick: () => selectSettingsShellItem(settingsShellQueueItems.find((item) => item.id === "settings-plan-readiness")) },
     { id: "blockers", label: "Critical", value: settingsSetupState.blockerCount, helper: "Rollout blockers", icon: "alert", tone: settingsSetupState.blockerCount ? "amber" : "green", onClick: () => selectSettingsShellItem(settingsShellQueueItems.find((item) => item.id === "settings-managed-setup")) },
   ];
   const settingsShellQueueItems = [
+    !appHealthRouteMode ? {
+      id: "settings-admin-foundation",
+      sectionId: "settings-admin-foundation",
+      eyebrow: "Phase 1",
+      title: "Admin Foundation Finish",
+      meta: `${adminFoundationFinishState.metrics?.readyRows || 0}/${adminFoundationFinishState.metrics?.totalRows || 0} areas ready / ${adminFoundationFinishState.metrics?.blockerCount || 0} blockers`,
+      status: adminFoundationFinishState.status,
+      statusLabel: adminFoundationFinishState.metrics?.blockerCount ? "Waiting" : "Ready",
+      tone: adminFoundationFinishState.tone || "slate",
+      actionLabel: "Review",
+      badges: [
+        { label: `${adminFoundationFinishState.metrics?.readyRows || 0}/${adminFoundationFinishState.metrics?.totalRows || 0} ready`, tone: adminFoundationFinishState.tone || "slate" },
+        { label: adminFoundationFinishState.metrics?.fieldLockoutReady ? "Field locked" : "Field risk", tone: adminFoundationFinishState.metrics?.fieldLockoutReady ? "green" : "red" },
+      ],
+    } : null,
     {
       id: "settings-managed-setup",
       sectionId: "settings-managed-setup",
@@ -7857,6 +7907,16 @@ function SettingsPagePolished({
   const settingsMainContent = (
     <div className="co-settings-left-stack min-w-0 space-y-3">
           {appHealthRouteMode ? ownerHealthDrawer : null}
+
+          {!appHealthRouteMode ? (
+            <section id="settings-admin-foundation">
+              <AdminFoundationFinishPanel
+                state={adminFoundationFinishState}
+                onJump={jumpToSettingsSection}
+                onNavigate={setActive}
+              />
+            </section>
+          ) : null}
 
           <section id="settings-managed-setup">
             <ManagedCompanySetupPanel

@@ -4,6 +4,7 @@ import {
   Card,
   Icon,
   SectionHeader,
+  StateCard,
 } from "./app-shell-components";
 
 function normalizeSettingsObjectArray(value, fallback = []) {
@@ -25,6 +26,144 @@ function formatBillingMoney(value = 0) {
     currency: "USD",
     maximumFractionDigits: amount % 1 === 0 ? 0 : 2,
   });
+}
+
+function adminFoundationTone(tone = "") {
+  if (["green", "blue", "amber", "orange", "red", "slate"].includes(tone)) return tone;
+  return "slate";
+}
+
+export function AdminFoundationFinishPanel({ state, onJump, onNavigate }) {
+  if (!state?.canView) {
+    return (
+      <StateCard
+        title="Admin Foundation unavailable"
+        description={state?.summary || "Admin setup is owner/admin-only."}
+        tone="slate"
+      />
+    );
+  }
+
+  const readinessRows = normalizeSettingsObjectArray(state.readinessRows);
+  const providerRows = normalizeSettingsObjectArray(state.providerReadinessRows);
+  const accessRows = normalizeSettingsObjectArray(state.accessReviewRows);
+  const metrics = state.metrics || {};
+
+  function handleRowAction(row) {
+    if (row.id === "users-roles" || row.moduleId === "employees") {
+      onNavigate?.("employees");
+      return;
+    }
+    if (row.moduleId === "jobDraftImports") {
+      onNavigate?.("jobDraftImports");
+      return;
+    }
+    if (row.moduleId === "appHealth") {
+      onNavigate?.("appHealth");
+      return;
+    }
+    if (row.moduleId === "support") {
+      onNavigate?.("support");
+      return;
+    }
+    if (row.id === "billing-provider" || row.id === "package-plan") {
+      onJump?.("settings-plan-readiness");
+      return;
+    }
+    if (row.id === "integration-providers") {
+      onJump?.("settings-integrations-command");
+      return;
+    }
+    onJump?.("settings-managed-setup");
+  }
+
+  return (
+    <Card className="co-settings-console-card p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <SectionHeader title={state.title || "Admin Foundation Finish"} description={state.summary || "Review Phase 1 setup, access, providers, and support readiness."} />
+        <div className="flex flex-wrap gap-2">
+          <Badge tone={adminFoundationTone(state.tone)}>{state.status || "Review"}</Badge>
+          <Badge tone={metrics.fieldLockoutReady ? "green" : "red"}>{metrics.fieldLockoutReady ? "Field locked" : "Field risk"}</Badge>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <p className="text-xs font-black uppercase text-slate-500">Ready Areas</p>
+          <strong className="mt-1 block text-2xl font-black text-slate-950">{metrics.readyRows || 0}/{metrics.totalRows || 0}</strong>
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <p className="text-xs font-black uppercase text-slate-500">Blockers</p>
+          <strong className="mt-1 block text-2xl font-black text-slate-950">{metrics.blockerCount || 0}</strong>
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <p className="text-xs font-black uppercase text-slate-500">Users</p>
+          <strong className="mt-1 block text-2xl font-black text-slate-950">{metrics.activeUsers || 0}</strong>
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <p className="text-xs font-black uppercase text-slate-500">Imports</p>
+          <strong className="mt-1 block text-2xl font-black text-slate-950">{metrics.importedDrafts || 0}</strong>
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+        <div className="min-w-0">
+          <SectionHeader title="Phase 1 Readiness" description="The owner/admin finish line before this setup system freezes." />
+          <div className="mt-3 grid gap-2">
+            {readinessRows.map((item) => (
+              <button key={item.id} type="button" className="co-settings-action-row text-left" onClick={() => handleRowAction(item)}>
+                <span className="min-w-0">
+                  <strong className="block break-words text-sm text-slate-950">{item.label}</strong>
+                  <em className="mt-1 block break-words text-xs not-italic text-slate-500">{item.helper}</em>
+                </span>
+                <span className="flex shrink-0 items-center gap-2">
+                  <Badge tone={adminFoundationTone(item.tone)}>{item.status}</Badge>
+                  <Icon name="arrowUpRight" />
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="min-w-0">
+          <SectionHeader title="Provider / Package Readiness" description="Visible setup states without live provider actions." />
+          <div className="mt-3 grid gap-2">
+            {providerRows.map((item) => (
+              <button key={item.id} type="button" className="co-settings-action-row text-left" onClick={() => handleRowAction(item)}>
+                <span className="min-w-0">
+                  <strong className="block break-words text-sm text-slate-950">{item.label}</strong>
+                  <em className="mt-1 block break-words text-xs not-italic text-slate-500">{item.helper}</em>
+                </span>
+                <Badge tone={adminFoundationTone(item.tone)}>{item.status}</Badge>
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-4">
+            <SectionHeader title="Access Review" description="Field users stay out of office/admin tools." />
+            <div className="mt-3 grid gap-2">
+              {accessRows.map((item) => (
+                <div key={item.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <strong className="text-sm text-slate-950">{item.label}</strong>
+                    <Badge tone={adminFoundationTone(item.tone)}>{item.status}</Badge>
+                  </div>
+                  <p className="mt-1 break-words text-xs font-bold leading-5 text-slate-500">{item.helper}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
+        <p className="text-xs font-black uppercase text-amber-700">Locked Actions</p>
+        <ul className="mt-2 grid gap-1 text-xs font-bold leading-5 text-amber-900">
+          {normalizeSettingsObjectArray(state.blockedActions).map((item) => <li key={item}>{item}</li>)}
+        </ul>
+      </div>
+    </Card>
+  );
 }
 
 export function SettingsCommandRailPolished({

@@ -4,11 +4,13 @@ Last updated: 2026-05-30
 
 ## Current Phase
 
-Integrations is completed, pushed, and deployed to production under the standing release approval. Phase 1 Admin Foundation Finish is in pre-build audit, using the tool-by-tool completion blueprint as the active source. Audit evidence lives in `docs/APEX_HQ_PHASE_1_ADMIN_FOUNDATION_PREBUILD_AUDIT.md`.
+Integrations is completed, pushed, and deployed to production under the standing release approval. Phase 1 Admin Foundation Finish is in final implementation, using the tool-by-tool completion blueprint as the active source. Audit evidence lives in `docs/APEX_HQ_PHASE_1_ADMIN_FOUNDATION_PREBUILD_AUDIT.md`.
 
-Phase 1 is ready to implement but not ready to freeze. Blocking findings: `/imported-drafts` crashes for owner/admin users with `useEffect is not defined`, `npm.cmd run verify:job-draft-imports` is red because its login helper uses an undefined bearer token, and owner/admin setup needs one finish board instead of scattered setup surfaces.
+Phase 1 blockers are fixed locally: `/imported-drafts` renders for owner/admin users, `npm.cmd run verify:job-draft-imports` is green, and owner/admin setup now has a single Admin Foundation Finish board in Settings.
 
 Slice 1 status: Admin Foundation state utility and tests are built, pushed, deployed to production, and health-checked. `npm.cmd run verify:admin-foundation` passes with the new utility coverage.
+
+Slice 2 status: Admin Foundation Finish Board is built and locally verified. Owner/admin Settings now summarizes setup, users/roles, field lockout, app health, support, imported drafts, provider readiness, and package/billing readiness from one board. Final local browser QA passed for owner/admin Settings, Employees, App Health, Support, and Imported Drafts; employee mobile direct routes to Settings, Employees, App Health, and Imported Drafts redirected to Jobs, while Support stayed role-safe. Pending production deploy and health-check.
 
 ## Product North Star
 
@@ -70,8 +72,8 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ### Next
 
-- Implement Phase 1: Admin Foundation Finish from `docs/APEX_HQ_PHASE_1_ADMIN_FOUNDATION_PREBUILD_AUDIT.md`.
-- Fix Imported Drafts route/runtime and job-draft verification first, then build the Admin Foundation Finish Board and verification command.
+- Finish Phase 1 production deploy, hosted health-check, phase report, and freeze note.
+- Next tool-finish phase after Phase 1: Phase 2 Command Center Finish from `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md`.
 
 ### Later
 
@@ -234,8 +236,8 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - [x] Add Admin Foundation state utility and focused tests.
 - [x] Add `verify:admin-foundation`.
 - [x] Commit, push, deploy, and health-check Slice 1.
-- [ ] Add Admin Foundation Finish Board.
-- [ ] Browser QA final Phase 1 routes.
+- [x] Add Admin Foundation Finish Board.
+- [x] Browser QA final Phase 1 routes.
 - [ ] Commit, push, deploy, health-check, and record Phase 1 report.
 
 ## Completed / Frozen Systems
@@ -361,6 +363,7 @@ Use `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` as the active blueprint. Next bu
 | 2026-05-30 | Imported Drafts crash and job-draft verification failure block Phase 1 freeze. | `/imported-drafts` is a Phase 1 owner/admin tool and cannot render; `verify:job-draft-imports` is red. | Phase 1 implementation starts by fixing the route crash and the stale auth test helper before adding the finish board. |
 | 2026-05-30 | Owner/admin setup should stay visible unless an unpaid provider/live action is actually required. | The owner wants no locks except unpaid providers and safety boundaries. | Package/provider readiness can label limits, but Phase 1 setup visibility should not disappear behind package gates. Field/security/live-money locks remain hard. |
 | 2026-05-30 | Slice 1 creates a pure Admin Foundation state utility before UI. | The finish board needs one tested source of readiness truth before rendering. | `src/admin-foundation-finish-utils.js` now derives setup, user, field lockout, app health, support, imported draft, provider, and package readiness for the upcoming board. |
+| 2026-05-30 | Slice 2 wires the Admin Foundation Finish Board into Settings as the owner/admin Phase 1 control point. | Phase 1 needed one visible finish line instead of scattered setup surfaces. | Settings now defaults to `settings-admin-foundation`, renders `AdminFoundationFinishPanel`, and keeps app-health mode separate. Browser QA proved owner/admin access across Settings, Employees, App Health, Support, and Imported Drafts, with employee mobile direct-route safety. |
 
 ## Billing / Payments / Packages Phase Report
 
