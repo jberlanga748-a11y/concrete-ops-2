@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { ApexOfficeCommandShell, Badge, Button } from "./app-shell-components";
 import { deriveCommandCenterState } from "./command-center-utils";
+import { deriveCoreOperationsLoopState } from "./core-operations-loop-utils";
 import { estimateDisplayCustomer, estimateDisplayTitle, estimateDisplayTotal } from "./estimate-display-utils";
 import { estimateStatusLabel } from "./estimate-utils";
 import { jobScheduleLabel, jobStatusLabel, jobTitle } from "./job-utils";
@@ -157,6 +158,7 @@ export function TodayCommandPage({
   toolChecklists,
   timeEntries,
   changeOrderRequests,
+  rateBookItems,
   permissions,
   setActive,
   onSelectJob,
@@ -183,6 +185,28 @@ export function TodayCommandPage({
     changeOrderRequests,
     currentCompanyId,
   }, { companyId: currentCompanyId }), [changeOrderRequests, contactHistory, currentCompanyId, customers, dailyReports, deliveryTickets, estimates, jobDraftImports, jobs, leadSources, leads, postPourChecklists, prePourChecklists, safetyIncidents, timeEntries, toolChecklists, uploads]);
+  const coreOperationsLoop = useMemo(() => deriveCoreOperationsLoopState({
+    commandCenter,
+    leads,
+    customers,
+    estimates,
+    contactHistory,
+    jobs,
+    leadSources,
+    jobDraftImports,
+    dailyReports,
+    uploads,
+    prePourChecklists,
+    postPourChecklists,
+    deliveryTickets,
+    safetyIncidents,
+    toolChecklists,
+    timeEntries,
+    changeOrderRequests,
+    rateBookItems,
+    permissions,
+    currentCompanyId,
+  }, { companyId: currentCompanyId }), [changeOrderRequests, commandCenter, contactHistory, currentCompanyId, customers, dailyReports, deliveryTickets, estimates, jobDraftImports, jobs, leadSources, leads, permissions, postPourChecklists, prePourChecklists, rateBookItems, safetyIncidents, timeEntries, toolChecklists, uploads]);
   const todayQueue = useMemo(() => buildTodayCommandQueue(commandCenter, { jobs, estimates, permissions }), [commandCenter, estimates, jobs, permissions]);
   const [selectedTodayId, setSelectedTodayId] = useState("");
   const selectedTodayItem = todayQueue.find((item) => item.id === selectedTodayId) || todayQueue[0] || null;
@@ -240,6 +264,15 @@ export function TodayCommandPage({
       : { id: "open-estimates", label: "Open Estimates", icon: "quote", onClick: () => openModule("estimates"), disabled: !canViewEstimates },
     { id: "open-reports", label: "Open Reports", icon: "document", onClick: () => openModule("reports"), disabled: !permissions?.reports?.canView },
   ];
+  const coreLoopMetrics = [
+    { label: "Stages clear", value: `${coreOperationsLoop.metrics?.stagesReady || 0} / ${coreOperationsLoop.metrics?.totalStages || 0}` },
+    { label: "Blockers", value: coreOperationsLoop.metrics?.blockerCount || 0 },
+    { label: "Money ready", value: coreOperationsLoop.metrics?.readyMoneyItems || 0 },
+    { label: "Closeout jobs", value: coreOperationsLoop.metrics?.closeoutCandidates || 0 },
+    { label: "Material prep", value: coreOperationsLoop.metrics?.materialReadyPackets || 0 },
+    { label: "Job costing warnings", value: coreOperationsLoop.metrics?.jobCostingWarnings || 0 },
+  ];
+  const visibleCoreLoopStages = coreOperationsLoop.canView ? coreOperationsLoop.stages : [];
 
   return (
     <div className={`co-office-page co-today-page${commandRouteMode ? " co-command-route-page co-command-center-shell-page" : ""}`}>
@@ -281,6 +314,57 @@ export function TodayCommandPage({
                 <Button type="button" onClick={() => openTodayItem(item)}>{item.actionLabel || "Open module"}</Button>
                 <Button type="button" variant="secondary" onClick={() => openModule(item.moduleId || "jobs")}>Full module</Button>
               </div>
+              {coreOperationsLoop.canView ? (
+                <div className="co-estimates-shell-workflow-panel co-core-operations-loop-panel" role="region" aria-label="Core Operations Loop">
+                  <div className="co-estimates-shell-workflow-head">
+                    <div>
+                      <Badge tone={coreOperationsLoop.tone || "blue"}>{coreOperationsLoop.status}</Badge>
+                      <h3>Core Operations Loop</h3>
+                      <p>{coreOperationsLoop.summary}</p>
+                    </div>
+                    <Badge tone="slate">Review-first</Badge>
+                  </div>
+                  <div className="co-estimates-shell-packet-lock">
+                    <strong>{coreOperationsLoop.coreLoopLabel}</strong>
+                    <span>{coreOperationsLoop.safetyBoundary}</span>
+                  </div>
+                  <div className="co-estimates-shell-packet-readiness-grid">
+                    {coreLoopMetrics.map((metric) => (
+                      <span key={metric.label}><em>{metric.label}</em><strong>{metric.value}</strong></span>
+                    ))}
+                  </div>
+                  <div className="co-estimates-shell-readiness-grid">
+                    {visibleCoreLoopStages.map((stage) => (
+                      <div key={stage.id} data-state={stage.ready ? "ready" : "needs"}>
+                        <span>{stage.label}</span>
+                        <strong>{stage.status}</strong>
+                        <p>{stage.helper}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="co-estimates-shell-packet-section-list" aria-label="Core operations connected workflows">
+                    <span>Lead -&gt; estimate</span>
+                    <span>Proposal -&gt; approved job</span>
+                    <span>Schedule / crew</span>
+                    <span>Field proof</span>
+                    <span>Tickets / reports</span>
+                    <span>Change orders</span>
+                    <span>Closeout / billing readiness</span>
+                    <span data-internal="true">No auto actions</span>
+                  </div>
+                  <div className="co-apex-selected-next">
+                    <span>Core loop next action</span>
+                    <strong>{coreOperationsLoop.nextAction?.label || "Review operations"}</strong>
+                    <p>{coreOperationsLoop.nextAction?.helper || "Open the full module for the selected workflow before changing records."}</p>
+                  </div>
+                  <div className="co-apex-selected-actions">
+                    <Button type="button" onClick={() => openModule(coreOperationsLoop.nextAction?.moduleId || "jobs")}>{coreOperationsLoop.nextAction?.actionLabel || "Open next module"}</Button>
+                    <Button type="button" variant="secondary" onClick={() => openModule("schedule")}>Schedule</Button>
+                    <Button type="button" variant="secondary" onClick={() => openModule("changeOrders")}>Change Orders</Button>
+                    <Button type="button" variant="secondary" onClick={() => openModule("materialPrep")} disabled={!permissions?.materialPrep?.canView}>Material Prep</Button>
+                  </div>
+                </div>
+              ) : null}
             </>
           ) : null,
         }}

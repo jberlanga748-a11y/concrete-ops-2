@@ -4,7 +4,7 @@ Last updated: 2026-05-30
 
 ## Current Phase
 
-Estimate Studio + Proposal Packets is completed, pushed, and deployed to production under the standing release approval. Next phase is Core Operations Loop.
+Core Operations Loop is completed locally and ready for production deploy under the standing release approval. Next phase is Field Mode Finish.
 
 ## Product North Star
 
@@ -38,7 +38,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | Ads / Marketing Spend Advisor | Partial | Growth Command Center now exposes provider-ready spend guardrails, channel recommendations, stop-loss rules, and draft planning. Live ad publishing/spend is locked. |
 | Reputation + Portfolio Engine | Built | Owner/admin Growth Command Center now turns existing jobs, reports, uploads, and estimates into project story candidates, before/after selection guidance, review/referral drafts, proposal proof blocks, social/website drafts, and proof blockers. Sends and publishing remain manual/provider-ready only. |
 | Estimate Studio / proposals | Built | Estimate Studio, packets, PDF, options, customer-safe/internal packet separation, GC packet pieces, send-review gate, field-safe handoff, and final proposal packet review are built. Live email send still depends on configured provider and human confirmation. |
-| Core operations loop | Partial | Leads, jobs, schedules, field proof, tickets, reports, change orders, and closeout readiness exist. Dead-end removal remains. |
+| Core operations loop | Built | Owner/admin Operations Command now ties lead follow-up, estimates/proposals, approved-job handoff, schedule/crew setup, field proof, material prep, change orders, closeout, job costing, and billing readiness into one review-first next-action loop. |
 | Field Mode | Built / Partial | Field-safe mobile workflows exist. Offline drafts/PWA polish remain. |
 | Apex Agent Operator | Partial | Agent OS/action inbox/readiness packets exist. Unified command center and provider boundaries need continued polish. |
 | Customer portal + communications | Provider-ready | Readiness contracts, access records, share approval, outbound approval, suppression, and delivery-attempt models exist. Real tokenized portal and live sends remain. |
@@ -60,7 +60,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ### Next
 
-- Finish Core Operations Loop dead-end removal and next-action flow.
+- Finish Field Mode so crews can run the day from mobile with today job, clock/time, photos/proof, daily reports, tickets, checklists, safety, change-order requests, PWA install polish, and offline draft planning.
 
 ### Later
 
@@ -140,6 +140,16 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - [x] Verify phase tests, build, browser QA, and field safety locally.
 - [x] Commit, push, deploy, hosted health-check, and record production deploy.
 
+## Completed Phase Checklist: Core Operations Loop
+
+- [x] Reuse existing command center, leads, estimates, jobs, schedule, daily reports, uploads, delivery tickets, safety, tool checklist, time, change orders, material prep, and closeout billing review systems.
+- [x] Add owner/admin Core Operations Loop state layer for lead intake, estimate/proposal, approved job handoff, schedule/crew, field proof, material prep, change orders, and closeout/billing readiness.
+- [x] Add Operations Command panel with stage readiness, next action, workflow shortcuts, and money/closeout/material/costing metrics.
+- [x] Keep the loop review-first only: no record mutation, sends, ordering, invoicing, billing, payments, purchasing, customer/GC/vendor/provider actions, job status changes, or field visibility changes from the panel.
+- [x] Block field-only users from the loop and keep them out of leads, estimates, pricing, billing, margins, profit, payroll, office notes, AI office controls, and company setup.
+- [x] Verify focused tests, jobs verification, role verification, build, diff check, and browser QA.
+- [ ] Commit, push, deploy, hosted health-check, and record production deploy.
+
 ## Completed / Frozen Systems
 
 - Demo auth and role permissions.
@@ -153,6 +163,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - Sales Follow-Up System command layer and manual outreach/won-lost learning.
 - Reputation + Portfolio Engine project-story, review/referral, proposal proof, and manual social/website draft command layer.
 - Estimate Studio final proposal packet review, customer/internal packet separation, option comparison readiness, provider-ready send review, and field-safe handoff readiness.
+- Core Operations Loop review-first command layer tying lead-to-closeout workflows together without mutating records or exposing field users to office/money data.
 
 ## Do-Not-Rebuild List
 
@@ -160,6 +171,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - Do not rebuild Agent Leads provider readiness layers.
 - Do not rebuild existing lead/source/found opportunity models.
 - Do not rebuild Estimate Studio or PDF packets.
+- Do not rebuild Core Operations Loop orchestration; extend the existing command center, jobs, proof, material prep, change order, and closeout review systems.
 - Do not rebuild role/permission models.
 - Do not replace existing AI Office; extend it.
 
@@ -187,6 +199,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | 2026-05-30 | Reputation + Portfolio Engine | `bc7aff2` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `595` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
 | 2026-05-30 | Estimate Studio + Proposal Packets | `3ff622b` pushed to `main` | Local QA at `http://127.0.0.1:4130` | Owner desktop `/estimates` passed Final Proposal Packet Review; employee mobile `/estimates` redirected to `/jobs`; local browser errors `[]`. |
 | 2026-05-30 | Estimate Studio + Proposal Packets | `bb1a796` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `597` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
+| 2026-05-30 | Core Operations Loop | pending commit | Local QA at `http://127.0.0.1:4135` | Owner desktop `/command-center` passed Core Operations Loop; employee mobile `/command-center` redirected to `/jobs`; local browser errors `[]`. |
 
 ## Roadmap Queue
 
@@ -205,7 +218,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ## Next Phase
 
-Core Operations Loop after Estimate Studio + Proposal Packets production deploy is recorded.
+Field Mode Finish after Core Operations Loop production deploy is recorded.
 
 ## Decision Log
 
@@ -221,6 +234,7 @@ Core Operations Loop after Estimate Studio + Proposal Packets production deploy 
 | 2026-05-30 | Sales follow-up stays manual-first but becomes a finished command system. | Contractors need to win existing leads, not only collect them. | Apex HQ now shows due work, stale estimates, source quality, scripts, won/lost learning, and review/referral asks while keeping sends and spend locked. |
 | 2026-05-30 | Reputation and portfolio reuse starts from real job proof only. | Reviews, referrals, and public proof are powerful only when they are true, permissioned, and tied to completed or proof-backed work. | Apex HQ now drafts stories, review/referral asks, proposal proof blocks, and social/website copy while blocking live sends, publishing, fake proof, GPS exposure, and field access. |
 | 2026-05-30 | Estimate Studio finish work extends the existing packet and print system instead of rebuilding it. | Estimate math, PDF packets, GC packet lite, backup/SOV, sent snapshots, and handoff readiness already exist. | Apex HQ now gives owner/admin users a final proposal packet review that ties customer packet readiness, options, proof, GC notes, send mode, and field-safe handoff together without exposing office-only content or triggering external actions. |
+| 2026-05-30 | Core Operations Loop composes existing modules instead of creating a new workflow engine. | Leads, estimates, jobs, schedule, proof, tickets, reports, change orders, material prep, and closeout review already existed. | Apex HQ now gives owner/admin users one next-action operations loop while preserving module ownership, tests, permissions, and review-first boundaries. |
 
 ## Growth Foundation Phase Report
 
@@ -560,3 +574,68 @@ Rollback note:
 Next recommended phase:
 
 - Core Operations Loop.
+
+## Core Operations Loop Phase Report
+
+Goal: make the contractor operating workflow obvious from one owner/admin command surface: lead -> estimate -> proposal -> approved job -> schedule -> field proof -> change orders -> closeout -> billing readiness.
+
+What was already built:
+
+- Leads, follow-up, lead sources, estimates/proposals, approved estimate handoff readiness, jobs, schedule, startup checklist, daily reports, uploads, delivery tickets, safety, tool checklists, time, change orders, material prep, job costing review, and closeout billing review.
+- Operations Command already surfaced today work, money-ready signals, proof gaps, field blockers, and office review queues.
+
+What was completed now:
+
+- Added a Core Operations Loop utility that composes existing modules into eight stage statuses and a single next action.
+- Added owner/admin Operations Command panel with workflow stages, core loop label, metrics, shortcuts, and the next module to open.
+- Added metrics for stages clear, blockers, money-ready items, closeout jobs, material prep packets, and job costing warnings.
+- Added review-first blocked actions so the loop cannot mutate records, send customers, order materials, invoice, collect payment, submit bills, change schedules, change crews, or expose field users to office-only data.
+- Added focused tests and included the new test in `verify:jobs`.
+
+Provider/account-dependent remaining:
+
+- Live customer/GC/vendor/accounting/payment/provider actions remain outside this panel and depend on configured providers, human review, and the dedicated future phases.
+
+Affected files:
+
+- `docs/APEX_HQ_LIVING_FINISH_PLAN.md`
+- `package.json`
+- `src/core-operations-loop-utils.js`
+- `src/core-operations-loop-utils.test.js`
+- `src/today-command-page-components.jsx`
+
+Validation results:
+
+- `node --test --test-concurrency=1 src/core-operations-loop-utils.test.js src/today-command-page-components-import.test.js src/command-today-page-shell.test.js src/command-center-utils.test.js src/job-closeout-billing-utils.test.js src/material-prep-utils.test.js src/change-order-utils.test.js` passed.
+- `npm.cmd run verify:jobs` passed.
+- `npm.cmd run verify:roles` passed.
+- `npm.cmd run build` passed with existing large chunk warnings.
+- `git diff --check` passed with CRLF warnings only.
+
+Browser QA:
+
+- Owner/admin desktop `/command-center`: Core Operations Loop, stage label, field proof, closeout/billing readiness, and no-auto-actions boundary visible.
+- Employee mobile `/command-center`: redirected to `/jobs`; Core Operations Loop, lead/estimate, and closeout/billing readiness text hidden.
+- Browser errors: none.
+
+Permissions impact:
+
+- No permission loosening.
+- Core Operations Loop is office-only and uses existing module permissions.
+- Field users remain blocked from leads, estimates, pricing, billing, margins, profit, payroll, office-only notes, AI office controls, company setup, and cross-company data.
+
+Field-user impact:
+
+- No new field exposure. Employee mobile remains in assigned field work.
+
+Mobile impact:
+
+- Employee mobile restricted-route behavior verified. Owner/admin desktop command surface verified; field mobile finish is the next phase.
+
+Rollback note:
+
+- Revert the affected files listed above to remove the Core Operations Loop panel and state utility without schema changes or data migration.
+
+Next recommended phase:
+
+- Field Mode Finish.
