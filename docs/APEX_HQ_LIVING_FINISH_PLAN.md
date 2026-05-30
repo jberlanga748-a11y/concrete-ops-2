@@ -186,7 +186,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | 2026-05-30 | Reputation + Portfolio Engine | `bc7aff2` pushed to `main` | Local QA at `http://127.0.0.1:4127` | Owner desktop `/ai-office` passed; employee mobile `/ai-office` redirected to `/jobs`; local browser errors `[]`. |
 | 2026-05-30 | Reputation + Portfolio Engine | `bc7aff2` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `595` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
 | 2026-05-30 | Estimate Studio + Proposal Packets | `3ff622b` pushed to `main` | Local QA at `http://127.0.0.1:4130` | Owner desktop `/estimates` passed Final Proposal Packet Review; employee mobile `/estimates` redirected to `/jobs`; local browser errors `[]`. |
-| 2026-05-30 | Estimate Studio + Proposal Packets | `3ff622b` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `596` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
+| 2026-05-30 | Estimate Studio + Proposal Packets | `bb1a796` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `597` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
 
 ## Roadmap Queue
 
