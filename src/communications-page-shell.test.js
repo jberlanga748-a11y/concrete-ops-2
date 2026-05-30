@@ -50,6 +50,8 @@ test("Communications desktop shell is focused and avoids duplicate assistant rai
   assert.match(pageBlock, /Preflight/);
   assert.match(pageBlock, /Contract/);
   assert.match(pageBlock, /Customer comment \/ approval review/);
+  assert.match(pageBlock, /Customer decision/);
+  assert.match(pageBlock, /Record review/);
   assert.match(pageBlock, /Stored as internal contact history/);
   assert.match(pageBlock, /Record suppression/);
   assert.match(pageBlock, /No provider unsubscribe or customer message is sent/);

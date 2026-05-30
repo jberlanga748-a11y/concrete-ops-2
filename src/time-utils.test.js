@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildTimeTrackingSupportContext, deriveCrewWeeklySummary, deriveTimeJobCostingReadiness, deriveTimeWorkspace, deriveWeeklySummary, findActiveTimeEntry, formatMinutes, sortTimeEntries, timeLocationEvidencePayload, timeLocationStatusLabel, timeStatusTone } from "./time-utils.js";
+import { buildPayrollPrepCsv, buildTimeTrackingSupportContext, deriveCrewWeeklySummary, derivePayrollPrepState, deriveTimeJobCostingReadiness, deriveTimeWorkspace, deriveWeeklySummary, findActiveTimeEntry, formatMinutes, payrollPrepPeriodEntityId, sortTimeEntries, timeLocationEvidencePayload, timeLocationStatusLabel, timeStatusTone } from "./time-utils.js";
 
 const SAMPLE_ENTRIES = [
   {
@@ -148,6 +148,88 @@ test("deriveTimeJobCostingReadiness keeps active and unlinked time out of ready 
   assert.equal(readiness.unlinkedEntries, 1);
   assert.equal(readiness.activeEntries, 1);
   assert.match(readiness.topJobs[0].gaps.join(" "), /Active time still running/);
+});
+
+test("derivePayrollPrepState requires exception-free completed hours before export", () => {
+  const prep = derivePayrollPrepState([
+    {
+      id: "T-READY",
+      userId: "U-1",
+      userName: "Sam Field",
+      userRole: "Employee",
+      jobId: "J-1",
+      jobTitle: "North Patio",
+      workCategory: "job",
+      clockInAt: "2026-05-18T15:00:00.000Z",
+      clockOutAt: "2026-05-18T23:30:00.000Z",
+      totalMinutes: 480,
+      breakMinutes: 30,
+      status: "completed",
+      updatedAt: "2026-05-18T23:35:00.000Z",
+    },
+    {
+      id: "T-ACTIVE",
+      userId: "U-2",
+      userName: "Riley Crew",
+      workCategory: "job",
+      jobId: "J-1",
+      clockInAt: "2026-05-19T15:00:00.000Z",
+      totalMinutes: 0,
+      breakMinutes: 0,
+      status: "active",
+      updatedAt: "2026-05-19T15:00:00.000Z",
+    },
+  ], [], {
+    periodStart: "2026-05-18",
+    periodEnd: "2026-05-31",
+  });
+
+  assert.equal(prep.readyEntries.length, 1);
+  assert.equal(prep.readyMinutes, 480);
+  assert.equal(prep.exceptions.length, 1);
+  assert.equal(prep.canApprove, false);
+  assert.equal(prep.canExport, false);
+  assert.match(prep.exceptions[0].reason, /Clock still active/);
+});
+
+test("payroll prep approval is audit-backed and CSV stays hours-only", () => {
+  const periodStart = "2026-05-18";
+  const periodEnd = "2026-05-31";
+  const prep = derivePayrollPrepState([
+    {
+      id: "T-READY",
+      userId: "U-1",
+      userName: "Sam Field",
+      userRole: "Employee",
+      jobId: "J-1",
+      jobTitle: "North Patio",
+      workCategory: "job",
+      clockInAt: "2026-05-18T15:00:00.000Z",
+      clockOutAt: "2026-05-18T23:30:00.000Z",
+      totalMinutes: 480,
+      breakMinutes: 30,
+      status: "completed",
+      updatedAt: "2026-05-18T23:35:00.000Z",
+    },
+  ], [{
+    entityType: "payrollPrep",
+    entityId: payrollPrepPeriodEntityId(periodStart, periodEnd),
+    action: "payroll_ready_approved",
+    createdAt: "2026-05-19T12:00:00.000Z",
+  }], { periodStart, periodEnd });
+
+  assert.equal(prep.approved, true);
+  assert.equal(prep.canExport, true);
+  assert.equal(prep.employeeSummaries[0].totalMinutes, 480);
+
+  const csv = buildPayrollPrepCsv(prep);
+  assert.match(csv, /pay_period_start,pay_period_end,employee_name/);
+  assert.match(csv, /Sam Field/);
+  assert.match(csv, /8.00/);
+  assert.equal(csv.includes("pay_rate"), false);
+  assert.equal(csv.includes("gross_pay"), false);
+  assert.equal(csv.includes("payroll_cost"), false);
+  assert.equal(csv.includes("billing"), false);
 });
 
 test("time tracking support context uses role-scoped visible time without pay data", () => {

@@ -23,6 +23,12 @@ export const CHANGE_ORDER_REVIEW_STATUSES = [
   "rejected_manually",
 ];
 
+export const CHANGE_ORDER_BILLING_HANDOFF_STATUSES = [
+  "locked",
+  "ready_for_manual_billing_handoff",
+  "handed_off_manually",
+];
+
 function text(value) {
   return String(value ?? "").trim();
 }
@@ -41,6 +47,11 @@ function formatMoney(value) {
 export function normalizeChangeOrderReviewStatus(value) {
   const normalized = text(value).toLowerCase();
   return CHANGE_ORDER_REVIEW_STATUSES.includes(normalized) ? normalized : "not_ready";
+}
+
+export function normalizeChangeOrderBillingHandoffStatus(value) {
+  const normalized = text(value).toLowerCase();
+  return CHANGE_ORDER_BILLING_HANDOFF_STATUSES.includes(normalized) ? normalized : "locked";
 }
 
 export function changeOrderReviewStatusLabel(status = "not_ready") {
@@ -191,5 +202,78 @@ export function deriveChangeOrderMoneyState(requests = []) {
       { label: "Billing Handoff", value: readyForBillingHandoff.length, helper: "Ready for manual billing prep only." },
       { label: "Locked", value: lockedPackets.length, helper: "Missing price, approval, or manual acceptance." },
     ],
+  };
+}
+
+export function deriveChangeOrderFinishState(requests = [], { canManage = false } = {}) {
+  const visibleRequests = (Array.isArray(requests) ? requests : []).filter(Boolean);
+  const activeRequests = visibleRequests.filter((request) => !request.archivedAt && text(request.status).toLowerCase() !== "archived");
+  const packets = activeRequests.map((request) => buildChangeOrderMoneyPacket(request));
+  const needsOfficeReview = activeRequests.filter((request) => ["requested", "under_review", ""].includes(text(request.status).toLowerCase()));
+  const approvedForPricing = activeRequests.filter((request) => text(request.status).toLowerCase() === "approved_for_pricing");
+  const manualReviewTracked = activeRequests.filter((request) => {
+    const customerStatus = normalizeChangeOrderReviewStatus(request.customerReviewStatus);
+    const gcStatus = normalizeChangeOrderReviewStatus(request.gcReviewStatus);
+    return customerStatus !== "not_ready" || gcStatus !== "not_ready";
+  });
+  const acceptedManually = activeRequests.filter((request) => {
+    const customerStatus = normalizeChangeOrderReviewStatus(request.customerReviewStatus);
+    const gcStatus = normalizeChangeOrderReviewStatus(request.gcReviewStatus);
+    return customerStatus === "accepted_manually" || gcStatus === "accepted_manually";
+  });
+  const rejectedManually = activeRequests.filter((request) => {
+    const customerStatus = normalizeChangeOrderReviewStatus(request.customerReviewStatus);
+    const gcStatus = normalizeChangeOrderReviewStatus(request.gcReviewStatus);
+    return customerStatus === "rejected_manually" || gcStatus === "rejected_manually" || text(request.status).toLowerCase() === "rejected";
+  });
+  const billingReadyPackets = packets.filter((packet) => packet.readyForBillingHandoff);
+  const jobScopeStatusUpdateReady = billingReadyPackets.filter((packet) => packet.readyForBillingHandoff);
+  const blockedPackets = packets.filter((packet) => packet.blockers.length);
+  const pricedPackets = packets.filter((packet) => packet.priced);
+  const revenuePendingManualReview = pricedPackets.reduce((sum, packet) => sum + packet.priceAmount, 0);
+
+  const fieldSafeSummaries = activeRequests.map((request) => ({
+    id: text(request.id),
+    jobTitle: text(request.job?.title || request.jobTitle || "Assigned job"),
+    reason: text(request.reason || "Reason pending"),
+    statusLabel: changeOrderStatusLabel(request.status),
+    nextStep: request.scopeDescription
+      ? "Office review is tracked without field pricing or billing details."
+      : "Scope context is needed before office review can finish.",
+  }));
+
+  return {
+    mode: canManage ? "office_change_order_finish" : "field_safe_change_order_finish",
+    canManage,
+    activeRequests: canManage ? activeRequests : fieldSafeSummaries,
+    packets: canManage ? packets : [],
+    fieldSafeSummaries,
+    counts: {
+      visible: visibleRequests.length,
+      active: activeRequests.length,
+      needsOfficeReview: needsOfficeReview.length,
+      approvedForPricing: approvedForPricing.length,
+      manualReviewTracked: manualReviewTracked.length,
+      acceptedManually: acceptedManually.length,
+      rejectedManually: rejectedManually.length,
+      readyForBillingHandoff: billingReadyPackets.length,
+      jobScopeStatusUpdateReady: jobScopeStatusUpdateReady.length,
+      blocked: blockedPackets.length,
+    },
+    revenuePendingManualReview: canManage ? revenuePendingManualReview : 0,
+    readyForBillingHandoff: canManage ? billingReadyPackets : [],
+    blockedPackets: canManage ? blockedPackets : [],
+    kpis: canManage ? [
+      { label: "Office Review", value: needsOfficeReview.length, helper: "Field requests needing triage." },
+      { label: "Pricing Review", value: approvedForPricing.length, helper: "Approved for manual office pricing." },
+      { label: "Customer/GC Review", value: manualReviewTracked.length, helper: "Manual review status recorded." },
+      { label: "Billing Ready", value: billingReadyPackets.length, helper: "Manual billing handoff only." },
+    ] : [
+      { label: "Visible Requests", value: activeRequests.length, helper: "Assigned-job context only." },
+      { label: "Office Review", value: needsOfficeReview.length, helper: "Office owns pricing and approval." },
+      { label: "Approved", value: approvedForPricing.length, helper: "Field-safe office status." },
+      { label: "Needs Context", value: activeRequests.filter((request) => !request.scopeDescription || !request.reason).length, helper: "Reason or scope still needed." },
+    ],
+    guardrails: CHANGE_ORDER_MONEY_GUARDRAILS,
   };
 }

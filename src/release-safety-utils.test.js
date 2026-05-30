@@ -19,7 +19,7 @@ function allCommandText() {
 
 test("release safety targets point to the correct Apex HQ app", () => {
   assert.equal(RELEASE_SAFETY_TARGETS.repo, "jberlanga748-a11y/concrete-ops-2");
-  assert.equal(RELEASE_SAFETY_TARGETS.localFolder, "C:\\Users\\jberl\\Documents\\Codex\\concrete-ops-2-clean");
+  assert.equal(RELEASE_SAFETY_TARGETS.localFolder, "C:\\Users\\jberl\\Documents\\New project");
   assert.equal(RELEASE_SAFETY_TARGETS.flyApp, "concrete-ops-2");
   assert.equal(RELEASE_SAFETY_TARGETS.liveApp, "https://app.apexhq.online/");
   assert.equal(RELEASE_SAFETY_TARGETS.healthCheck, "https://app.apexhq.online/api/ready");
@@ -44,7 +44,7 @@ test("pre and post deploy checklists include folder, repo, build, diff, and heal
 test("safe command groups include deploy, health, machine, and volume references", () => {
   const commands = allCommandText();
 
-  assert.match(commands, /cd "C:\\Users\\jberl\\Documents\\Codex\\concrete-ops-2-clean"/);
+  assert.match(commands, /cd "C:\\Users\\jberl\\Documents\\New project"/);
   assert.match(commands, /git remote -v/);
   assert.match(commands, /git status --short/);
   assert.match(commands, /git branch --show-current/);

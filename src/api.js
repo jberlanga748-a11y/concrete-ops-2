@@ -995,6 +995,14 @@ export function reviewTimePresence(token, id, payload) {
   return request(`/api/time-entries/${id}/presence-review`, { method: "POST", token, body: payload });
 }
 
+export function approvePayrollPrep(token, payload) {
+  return request("/api/time-entries/payroll-prep/approve", { method: "POST", token, body: payload });
+}
+
+export function exportPayrollPrepCsv(token, payload) {
+  return request("/api/time-entries/payroll-prep/export", { method: "POST", token, body: payload });
+}
+
 export function createQueueItem(token, task) {
   return request("/api/queue-items", { method: "POST", token, body: task });
 }

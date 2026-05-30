@@ -333,6 +333,12 @@ import {
   deriveCustomerPortalPublicRouteContract,
   deriveCustomerPortalTokenizedAccessPlan,
 } from "../src/customer-portal-preview-utils.js";
+import {
+  buildPayrollPrepCsv,
+  derivePayrollPrepState,
+  normalizePayrollPrepPeriod,
+  payrollPrepCsvFileName,
+} from "../src/time-utils.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.join(__dirname, "..");
@@ -3747,6 +3753,12 @@ function assertCanManageOwnTime(user) {
 function assertCanCorrectTimeEntries(user) {
   if (!canCorrectTimeEntries(user)) {
     throw new ApiError(403, "You do not have permission to correct time entries.");
+  }
+}
+
+function assertCanUsePayrollPrep(user) {
+  if (!isOwner(user) && !isAdministrator(user)) {
+    throw new ApiError(403, "Payroll prep is limited to owners and administrators.");
   }
 }
 
@@ -16571,6 +16583,108 @@ app.get("/api/time-entries", requireAuth, asyncRoute(async (req, res) => {
   const state = await readDb();
   res.json({
     timeEntries: visibleTimeEntriesForUser(state, req.auth.user),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/time-entries/payroll-prep/approve", requireAuth, asyncRoute(async (req, res) => {
+  assertCanUsePayrollPrep(req.auth.user);
+  const period = normalizePayrollPrepPeriod(req.body || {});
+  if (!period.ok) {
+    throw new ApiError(400, period.errors.join(" "));
+  }
+
+  const nextState = await updateDb((draft) => {
+    const prep = derivePayrollPrepState(
+      visibleTimeEntriesForUser(draft, req.auth.user),
+      visibleAuditEventsForUser(draft, req.auth.user),
+      period,
+    );
+    if (!prep.canApprove) {
+      throw new ApiError(409, prep.exceptions.length
+        ? "Resolve payroll prep exceptions before approving payroll-ready hours."
+        : "No payroll-ready hours are available for this pay period.");
+    }
+
+    appendActivity(
+      draft,
+      "Payroll prep approved",
+      `${req.auth.user.name} approved ${prep.readyEntries.length} payroll-ready time entries for ${period.periodStart} to ${period.periodEnd}. No payroll was processed.`,
+      { companyId: currentCompanyIdForRequestUser(draft, req.auth.user) },
+    );
+    appendAuditEvent(draft, {
+      entityType: "payrollPrep",
+      entityId: period.entityId,
+      action: "payroll_ready_approved",
+      summary: "Payroll-ready hours approved",
+      detail: `${req.auth.user.name} approved ${prep.readyEntries.length} time entries (${prep.readyMinutes} minutes) for payroll prep export review. No paycheck, provider write, tax withholding, direct deposit, billing, or payroll processing was performed.`,
+      actor: req.auth.user,
+      changedFields: ["periodStart", "periodEnd", "entryCount", "readyMinutes"],
+    });
+    return draft;
+  });
+
+  const responsePayload = sanitizeBootstrap(nextState, req.auth.user);
+  res.json({
+    ...responsePayload,
+    payrollPrep: derivePayrollPrepState(responsePayload.timeEntries, responsePayload.auditEvents, period),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/time-entries/payroll-prep/export", requireAuth, asyncRoute(async (req, res) => {
+  assertCanUsePayrollPrep(req.auth.user);
+  const period = normalizePayrollPrepPeriod(req.body || {});
+  if (!period.ok) {
+    throw new ApiError(400, period.errors.join(" "));
+  }
+
+  let exportPayload = null;
+  const nextState = await updateDb((draft) => {
+    const prep = derivePayrollPrepState(
+      visibleTimeEntriesForUser(draft, req.auth.user),
+      visibleAuditEventsForUser(draft, req.auth.user),
+      period,
+    );
+    if (prep.exceptions.length) {
+      throw new ApiError(409, "Resolve payroll prep exceptions before exporting payroll-ready hours.");
+    }
+    if (!prep.canExport) {
+      throw new ApiError(409, "Approve payroll-ready hours before exporting this pay period.");
+    }
+
+    const csv = buildPayrollPrepCsv(prep);
+    const fileName = payrollPrepCsvFileName(prep);
+    exportPayload = {
+      csv,
+      fileName,
+      exportedAt: new Date().toISOString(),
+      payrollPrep: prep,
+    };
+
+    appendActivity(
+      draft,
+      "Payroll prep CSV exported",
+      `${req.auth.user.name} exported a payroll-ready time CSV for ${period.periodStart} to ${period.periodEnd}. No payroll was processed.`,
+      { companyId: currentCompanyIdForRequestUser(draft, req.auth.user) },
+    );
+    appendAuditEvent(draft, {
+      entityType: "payrollPrep",
+      entityId: period.entityId,
+      action: "payroll_ready_csv_exported",
+      summary: "Payroll prep CSV exported",
+      detail: `${req.auth.user.name} exported ${prep.readyEntries.length} payroll-ready time entries (${prep.readyMinutes} minutes) as CSV. The export contains hours only and does not include rates, gross pay, payroll costs, billing, pricing, margin, provider writes, tax withholding, direct deposit, or paycheck processing.`,
+      actor: req.auth.user,
+      changedFields: ["periodStart", "periodEnd", "entryCount", "readyMinutes", "exportedAt"],
+    });
+    return draft;
+  });
+
+  const responsePayload = sanitizeBootstrap(nextState, req.auth.user);
+  res.json({
+    ...responsePayload,
+    ...exportPayload,
+    payrollPrep: derivePayrollPrepState(responsePayload.timeEntries, responsePayload.auditEvents, period),
     requestId: res.locals.requestId,
   });
 }));

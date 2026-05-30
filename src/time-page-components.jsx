@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { Badge, Button, Card, Icon, PageHeader, SectionHeader, StateCard } from "./app-shell-components";
+import { Badge, Button, Card, Icon, InputField, PageHeader, SectionHeader, StateCard } from "./app-shell-components";
 import { ModuleKpiStrip } from "./command-center-route-components";
 import { jobTitle } from "./job-utils";
 import { workCategoryLabel } from "./time-category-utils";
-import { buildTimeTrackingSupportContext, deriveCrewWeeklySummary, deriveTimeJobCostingReadiness, deriveTimeWorkspace, formatMinutes, timeLocationEvidencePayload } from "./time-utils";
+import { buildTimeTrackingSupportContext, defaultPayrollPrepPeriod, deriveCrewWeeklySummary, derivePayrollPrepState, deriveTimeJobCostingReadiness, deriveTimeWorkspace, formatMinutes, timeLocationEvidencePayload } from "./time-utils";
 import { ActiveTimeCard, RecentTimeEntriesCard, TimeCommandRailPolished, TimeCorrectionPanel, TimeDesktopCommandShell, TimeEntriesTable, TimeEntriesTablePolished, TimeEntryCard, TimeKpiCardPolished, TimeLocationCaptureControl, TimeMobileAccordionCard, TimeStatusBadge, TimeSummaryMetricsPolished, WeekSummaryCard } from "./time-route-components";
 import { normalizeTimeLocationEvidencePolicy } from "../shared/permissions";
 
@@ -45,6 +45,109 @@ const EMPTY_TIME_LOCATION_EVIDENCE = {
   locationCapturedAt: "",
   locationUnavailableReason: "",
 };
+
+function PayrollPrepPanel({
+  prep,
+  period,
+  setPeriod,
+  busy,
+  onApprove,
+  onExport,
+}) {
+  if (!prep) return null;
+
+  const approvalCopy = prep.approved
+    ? "Approved for CSV export"
+    : prep.approvalStatus === "stale_after_changes"
+      ? "Approval needs refresh"
+      : prep.exceptions.length
+        ? "Exceptions need review"
+        : prep.readyEntries.length
+          ? "Ready for approval"
+          : "No ready hours";
+  const approvalTone = prep.approved ? "green" : prep.exceptions.length ? "amber" : prep.readyEntries.length ? "blue" : "slate";
+
+  return (
+    <Card className="co-time-rail-card p-4">
+      <SectionHeader
+        title="Payroll Prep"
+        description="Review hours for a pay period, approve the ready rows, then export a CSV. This does not process payroll."
+        action={<Badge tone={approvalTone}>{approvalCopy}</Badge>}
+      />
+      <div className="grid gap-3">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <InputField
+            label="Pay period start"
+            type="date"
+            value={period.periodStart}
+            onChange={(event) => setPeriod((current) => ({ ...current, periodStart: event.target.value }))}
+            disabled={busy}
+          />
+          <InputField
+            label="Pay period end"
+            type="date"
+            value={period.periodEnd}
+            onChange={(event) => setPeriod((current) => ({ ...current, periodEnd: event.target.value }))}
+            disabled={busy}
+          />
+        </div>
+        <div className="grid gap-2 sm:grid-cols-3">
+          <div className="rounded-xl border border-slate-200 bg-white p-3">
+            <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Ready hours</span>
+            <strong className="mt-1 block text-sm font-black text-slate-950">{formatMinutes(prep.readyMinutes)}</strong>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-3">
+            <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Entries</span>
+            <strong className="mt-1 block text-sm font-black text-slate-950">{prep.readyEntries.length}/{prep.entries.length}</strong>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-3">
+            <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Exceptions</span>
+            <strong className="mt-1 block text-sm font-black text-slate-950">{prep.exceptions.length}</strong>
+          </div>
+        </div>
+        {prep.period.errors?.length ? (
+          <StateCard title="Pay period needs a valid date range" description={prep.period.errors.join(" ")} tone="amber" />
+        ) : prep.exceptions.length ? (
+          <div className="grid gap-2 rounded-2xl border border-amber-100 bg-amber-50/60 p-3">
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-amber-700">Review exceptions before approval</p>
+            {prep.exceptions.slice(0, 4).map((item) => (
+              <button key={item.id} type="button" className="rounded-xl border border-amber-100 bg-white p-2 text-left" disabled>
+                <span className="block text-xs font-black text-slate-950">{item.userName} / {item.jobTitle}</span>
+                <span className="mt-0.5 block text-xs font-bold text-slate-600">{item.reason}</span>
+              </button>
+            ))}
+            {prep.exceptions.length > 4 ? <p className="text-xs font-bold text-amber-800">{prep.exceptions.length - 4} more exception{prep.exceptions.length - 4 === 1 ? "" : "s"} in this period.</p> : null}
+          </div>
+        ) : prep.employeeSummaries.length ? (
+          <div className="grid gap-2">
+            {prep.employeeSummaries.slice(0, 4).map((item) => (
+              <div key={item.userId || item.userName} className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-2.5">
+                <span className="min-w-0">
+                  <strong className="block truncate text-xs font-black text-slate-950">{item.userName}</strong>
+                  <em className="block text-[11px] font-bold not-italic text-slate-500">{item.entries} entr{item.entries === 1 ? "y" : "ies"} / break {formatMinutes(item.breakMinutes)}</em>
+                </span>
+                <Badge tone="green">{formatMinutes(item.totalMinutes)}</Badge>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <StateCard title="No payroll-ready hours" description="Choose a pay period with completed, exception-free time entries." tone="slate" />
+        )}
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" size="sm" variant="secondary" onClick={() => onApprove?.(period)} disabled={busy || !prep.canApprove}>
+            <Icon name="check" />Approve hours
+          </Button>
+          <Button type="button" size="sm" onClick={() => onExport?.(period)} disabled={busy || !prep.canExport}>
+            <Icon name="download" />Export CSV
+          </Button>
+        </div>
+        <p className="text-[11px] font-bold leading-5 text-slate-500">
+          CSV columns are hours-only. No pay rates, gross pay, payroll costs, billing, pricing, margin, provider writes, tax withholding, direct deposit, or paycheck processing are included.
+        </p>
+      </div>
+    </Card>
+  );
+}
 
 function TimeFieldMobileCommand({
   workspace,
@@ -223,6 +326,7 @@ export function TimePage({
   dailyReports,
   uploads,
   deliveryTickets,
+  auditEvents,
   companySettings,
   selectedTimeEntryId,
   onSelectTimeEntry,
@@ -231,6 +335,8 @@ export function TimePage({
   setTimeEditDraft,
   onSaveTimeEntry,
   onReviewTimePresence,
+  onApprovePayrollPrep,
+  onExportPayrollPrep,
   onClockIn,
   onClockOut,
   onStartBreak,
@@ -258,6 +364,21 @@ export function TimePage({
   const boardRows = isOwnOnly ? workspace.sortedEntries : safeRows;
   const visibleRowCap = canViewAll ? 8 : 6;
   const showUserColumn = !isOwnOnly;
+  const canUsePayrollPrep = canViewAll && ["Owner", "Administrator"].includes(user?.role || "");
+  const [payrollPeriod, setPayrollPeriod] = useState(() => defaultPayrollPrepPeriod());
+  const payrollPrep = useMemo(() => canUsePayrollPrep
+    ? derivePayrollPrepState(safeRows, auditEvents, payrollPeriod)
+    : null, [auditEvents, canUsePayrollPrep, payrollPeriod, safeRows]);
+  const payrollPrepPanel = canUsePayrollPrep ? (
+    <PayrollPrepPanel
+      prep={payrollPrep}
+      period={payrollPeriod}
+      setPeriod={setPayrollPeriod}
+      busy={busy}
+      onApprove={onApprovePayrollPrep}
+      onExport={onExportPayrollPrep}
+    />
+  ) : null;
   const pageEyebrow = canViewAll ? "Time" : canViewCrew ? "Field Time" : "My Time";
   const pageTitle = canViewAll ? "Time Entries" : canViewCrew ? "Crew Time" : "My Time";
   const pageDescription = canViewAll
@@ -398,6 +519,7 @@ export function TimePage({
           canOpenTimeSupport={canOpenTimeSupport}
           onOpenTimeSupport={requestTimeSupportReview}
           locationPolicy={timeLocationPolicy}
+          payrollPrepPanel={payrollPrepPanel}
         />
       </div>
     );
@@ -710,6 +832,8 @@ export function TimePage({
             </div>
           </Card>
           </div>
+
+          {payrollPrepPanel}
 
           <details className="co-time-tools-drawer">
             <summary>

@@ -33594,6 +33594,10 @@ textarea {
   padding: 0.72rem 0.8rem;
 }
 
+.co-ai-boundary-row {
+  align-items: flex-start;
+}
+
 .co-ai-boundary-row span,
 .co-ai-action-row span,
 .co-ai-proposal-row em,
@@ -33606,6 +33610,13 @@ textarea {
   font-size: 0.75rem;
   font-style: normal;
   font-weight: 800;
+}
+
+.co-ai-boundary-row span {
+  min-width: 0;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .co-ai-proposal-row {
@@ -34199,6 +34210,12 @@ textarea {
   color: #f8fafc;
   font-size: 0.95rem;
   font-weight: 900;
+}
+
+.co-ai-boundary-row strong {
+  flex: 0 0 auto;
+  max-width: 36%;
+  text-align: right;
 }
 
 .co-ai-boundary-row[data-state="safe"] strong {
@@ -54316,7 +54333,6 @@ body:has(.co-customers-page) .co-apex-assistant-shell {
   .co-communications-page .co-communications-rail,
   .co-communications-shell-page .co-communications-detail-section,
   .co-ai-office-page .co-ai-command-layout > .space-y-3 > .co-ai-main-board:not(.co-ai-agent-command-board),
-  .co-ai-office-page .co-ai-command-layout > aside,
   .co-ai-office-page .co-ai-agent-focus-panel,
   .co-ai-office-page .co-ai-guardrail-strip {
     display: none !important;
@@ -54378,8 +54394,7 @@ body:has(.co-customers-page) .co-apex-assistant-shell {
     scroll-snap-align: start;
   }
 
-  .co-ai-office-page .co-ai-operator-command-card:nth-child(n+5),
-  .co-ai-office-page .co-ai-operator-boundaries {
+  .co-ai-office-page .co-ai-operator-command-card:nth-child(n+5) {
     display: none !important;
   }
 
@@ -54456,8 +54471,7 @@ body:has(.co-customers-page) .co-apex-assistant-shell {
 
   .co-settings-page:not(.co-app-health-page) .co-settings-readiness-grid > :nth-child(n+4),
   .co-employees-page .co-employees-mobile-list > :nth-child(n+4),
-  .co-time-page:not([data-field-workspace="true"]) .co-time-mobile-list > :nth-child(n+3),
-  .co-ai-office-page .co-ai-workflow-grid > :nth-child(n+3) {
+  .co-time-page:not([data-field-workspace="true"]) .co-time-mobile-list > :nth-child(n+3) {
     display: none !important;
   }
 

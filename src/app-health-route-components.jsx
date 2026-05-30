@@ -27,6 +27,10 @@ import {
   getReleaseSafetySections,
   releaseSafetyStatusTone,
 } from "./release-safety-utils";
+import {
+  buildLaunchReadinessEvidencePacket,
+  deriveLaunchReadinessEvidenceState,
+} from "./launch-readiness-utils";
 import { DESIGN_COLORS } from "./design-tokens";
 
 function formatDateTime(value) {
@@ -715,6 +719,130 @@ export function EnterpriseTrustReadinessPanel({
           />
         </div>
       ) : null}
+    </Card>
+  );
+}
+
+export function LaunchReadinessEvidencePanel({
+  canView = false,
+  user = null,
+  companyName = "",
+}) {
+  const [copyMessage, setCopyMessage] = useState("");
+  const launchState = useMemo(() => deriveLaunchReadinessEvidenceState({
+    launchGate: { guidedDemoReady: true },
+    backup: { backupVerified: true, restoreVerified: true },
+    productionRelease: { releaseProcessReady: false },
+    productionAuth: { workflowGuarded: true, enabled: false },
+    monitoring: { baselineReady: true },
+    support: { processReady: true },
+    legal: { claimsVerified: true, legalApproved: false },
+    publicLaunch: { selfServeReady: false, publicLaunchApproved: false },
+  }), []);
+  const packet = useMemo(() => buildLaunchReadinessEvidencePacket(launchState, {
+    companyName,
+    userName: user?.name || user?.email || "Owner/admin",
+  }), [companyName, launchState, user?.email, user?.name]);
+
+  async function copyLaunchPacket() {
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(packet);
+      } else if (typeof document !== "undefined") {
+        const textArea = document.createElement("textarea");
+        textArea.value = packet;
+        textArea.setAttribute("readonly", "");
+        textArea.style.position = "fixed";
+        textArea.style.opacity = "0";
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textArea);
+      } else {
+        throw new Error("Clipboard unavailable");
+      }
+      setCopyMessage("Launch evidence packet copied for manual review.");
+    } catch {
+      setCopyMessage("Could not copy automatically. Review the visible launch evidence instead.");
+    }
+  }
+
+  if (!canView) return null;
+
+  return (
+    <Card id="app-health-launch-readiness" className="p-5">
+      <SectionHeader
+        title="Launch Readiness Evidence"
+        description="Owner/admin launch gate view for pilot readiness, backup/restore, release process, production auth smoke, monitoring, support, legal claims, and public launch locks."
+        action={<Badge tone={launchState.tone}>{launchState.status}</Badge>}
+      />
+      <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge tone="amber">{launchState.readyCount}/{launchState.totalCount} gates ready</Badge>
+          <Badge tone="slate">Evidence only</Badge>
+          <Badge tone="slate">No production action</Badge>
+        </div>
+        <p className="mt-3 text-sm leading-6 text-amber-900">
+          Phase 14 keeps launch review honest: guided demos and controlled pilots can use reviewed evidence, while public launch, production auth smoke, monitoring provider changes, billing, and deploy actions remain approval-gated.
+        </p>
+        <p className="mt-2 text-sm font-black text-amber-900">
+          Next gate: {launchState.highestPriority?.label || "Review launch evidence"}
+        </p>
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        {launchState.gates.map((item) => (
+          <div key={item.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-sm font-black text-slate-950">{item.label}</p>
+                <p className="mt-1 text-sm leading-6 text-slate-600">{item.detail}</p>
+              </div>
+              <Badge tone={item.tone}>{item.status}</Badge>
+            </div>
+            {item.evidence.length ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {item.evidence.map((evidence) => <Badge key={`${item.id}-${evidence}`} tone="slate">{evidence}</Badge>)}
+              </div>
+            ) : null}
+            {item.blockers.length ? (
+              <div className="mt-3 grid gap-2">
+                {item.blockers.slice(0, 3).map((blocker) => (
+                  <div key={`${item.id}-${blocker}`} className="co-ai-boundary-row" data-state="manual">
+                    <span>{blocker}</span>
+                    <strong>Locked</strong>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-black text-slate-950">Hard launch locks</p>
+            <p className="mt-1 text-sm leading-6 text-slate-600">These boundaries stay closed from App Health. Use the linked scripts/docs for review evidence only.</p>
+          </div>
+          <Button type="button" size="sm" variant="secondary" onClick={copyLaunchPacket}>
+            <Icon name="clipboard" />Copy launch packet
+          </Button>
+        </div>
+        {copyMessage ? <p className="mt-3 text-sm font-bold text-emerald-700">{copyMessage}</p> : null}
+        <div className="mt-3 grid gap-2">
+          {launchState.hardLocks.map((lock) => (
+            <div key={lock} className="co-ai-boundary-row" data-state="manual">
+              <span>{lock}</span>
+              <strong>Hard lock</strong>
+            </div>
+          ))}
+        </div>
+        <details className="mt-3">
+          <summary className="cursor-pointer text-sm font-black text-slate-700">Preview packet</summary>
+          <pre className="mt-3 max-h-72 overflow-auto rounded-2xl border border-slate-200 bg-white p-3 text-xs leading-5 text-slate-700">{packet}</pre>
+        </details>
+      </div>
     </Card>
   );
 }

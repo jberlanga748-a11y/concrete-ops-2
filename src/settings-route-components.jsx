@@ -497,7 +497,7 @@ export function PlanReadinessPanel({ packageReadiness, billingCommand, onOpenSup
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
               <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Billing candidates</p>
               <strong className="mt-2 block text-lg font-black text-slate-950">{billingCommand.metrics?.billingReviewCandidates || 0}</strong>
-              <span className="mt-1 block text-sm font-bold leading-6 text-slate-600">Jobs ready for manual review</span>
+              <span className="mt-1 block text-sm font-bold leading-6 text-slate-600">{billingCommand.metrics?.closeoutReady || 0} closeout ready / {billingCommand.metrics?.closeoutBlocked || 0} blocked</span>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
               <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Review total</p>
@@ -505,9 +505,9 @@ export function PlanReadinessPanel({ packageReadiness, billingCommand, onOpenSup
               <span className="mt-1 block text-sm font-bold leading-6 text-slate-600">Estimate plus recognized changes</span>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Audit events</p>
-              <strong className="mt-2 block text-lg font-black text-slate-950">{billingCommand.metrics?.packageAuditEvents || 0}</strong>
-              <span className="mt-1 block text-sm font-bold leading-6 text-slate-600">Package/billing history visible</span>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Invoice prep</p>
+              <strong className="mt-2 block text-lg font-black text-slate-950">{billingCommand.metrics?.manualInvoicePrepReady || 0}</strong>
+              <span className="mt-1 block text-sm font-bold leading-6 text-slate-600">{billingCommand.metrics?.proofMissingItems || 0} proof/checklist blockers</span>
             </div>
           </div>
 
@@ -551,6 +551,15 @@ export function PlanReadinessPanel({ packageReadiness, billingCommand, onOpenSup
                       <strong className="shrink-0 text-sm font-black text-slate-950">{formatBillingMoney(job.reviewTotal)}</strong>
                     </div>
                     <p className="mt-2 text-sm font-bold leading-5 text-slate-600">{job.nextAction}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Badge tone={job.readyForBillingReview ? "green" : "amber"}>{job.readyForBillingReview ? "Closeout ready" : "Closeout blocked"}</Badge>
+                      <Badge tone={job.proofMissing?.length ? "amber" : "green"}>{job.proofMissing?.length || 0} proof gaps</Badge>
+                      <Badge tone={job.approvedChangeOrdersIncluded?.count ? "blue" : "slate"}>{job.approvedChangeOrdersIncluded?.count || 0} approved changes</Badge>
+                      <Badge tone={job.manualInvoicePrepStatus === "ready_for_manual_invoice_prep" ? "green" : "amber"}>{job.manualInvoicePrepStatus === "ready_for_manual_invoice_prep" ? "Invoice prep ready" : "Invoice prep blocked"}</Badge>
+                    </div>
+                    <p className="mt-2 text-xs font-bold leading-5 text-slate-500">
+                      Approved changes: {formatBillingMoney(job.approvedChangeOrdersIncluded?.total || 0)}. Manual payment prep: {job.manualPaymentPrepStatus === "ready_for_manual_payment_prep" ? "ready for planning" : "blocked until closeout clears"}.
+                    </p>
                   </div>
                 )) : (
                   <p className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold leading-6 text-slate-600">No billing-ready or closed jobs are visible yet. Jobs appear here after closeout proof, estimate revenue, and office review make them candidates.</p>

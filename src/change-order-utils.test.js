@@ -6,9 +6,11 @@ import {
   buildChangeOrderMoneyCopyText,
   buildChangeOrderMoneyPacket,
   changeOrderStatusLabel,
+  deriveChangeOrderFinishState,
   deriveChangeOrderListState,
   deriveChangeOrderMoneyState,
   filterChangeOrderRequests,
+  normalizeChangeOrderBillingHandoffStatus,
   normalizeChangeOrderReviewStatus,
 } from "./change-order-utils.js";
 
@@ -153,7 +155,51 @@ test("change order money state summarizes priced revenue and locked handoffs", (
   assert.equal(state.revenuePendingManualReview, 1500);
 });
 
+test("change order finish state tracks manual approval to billing readiness without exposing field money", () => {
+  const rows = [
+    {
+      id: "COR-1",
+      status: "approved_for_pricing",
+      reason: "Extra slab",
+      scopeDescription: "Add one slab.",
+      priceAmount: 1200,
+      customerReviewStatus: "accepted_manually",
+      gcReviewStatus: "not_ready",
+      billingHandoffStatus: "ready_for_manual_billing_handoff",
+      jobId: "J-1",
+      job: { title: "Garage slab", customer: "Martinez" },
+    },
+    {
+      id: "COR-2",
+      status: "under_review",
+      reason: "Drainage change",
+      scopeDescription: "",
+      priceAmount: 800,
+      customerReviewStatus: "not_ready",
+      jobId: "J-2",
+      job: { title: "Patio", customer: "Carter" },
+    },
+  ];
+
+  const officeState = deriveChangeOrderFinishState(rows, { canManage: true });
+  assert.equal(officeState.counts.needsOfficeReview, 1);
+  assert.equal(officeState.counts.approvedForPricing, 1);
+  assert.equal(officeState.counts.acceptedManually, 1);
+  assert.equal(officeState.counts.readyForBillingHandoff, 1);
+  assert.equal(officeState.counts.jobScopeStatusUpdateReady, 1);
+  assert.equal(officeState.revenuePendingManualReview, 2000);
+  assert.equal(officeState.readyForBillingHandoff[0].priceAmount, 1200);
+
+  const fieldState = deriveChangeOrderFinishState(rows, { canManage: false });
+  assert.equal(fieldState.mode, "field_safe_change_order_finish");
+  assert.equal(fieldState.revenuePendingManualReview, 0);
+  assert.deepEqual(fieldState.readyForBillingHandoff, []);
+  assert.doesNotMatch(JSON.stringify(fieldState), /1200|\$1,200|Martinez/);
+});
+
 test("change order review statuses fail closed", () => {
   assert.equal(normalizeChangeOrderReviewStatus("accepted_manually"), "accepted_manually");
   assert.equal(normalizeChangeOrderReviewStatus("auto_sent"), "not_ready");
+  assert.equal(normalizeChangeOrderBillingHandoffStatus("handed_off_manually"), "handed_off_manually");
+  assert.equal(normalizeChangeOrderBillingHandoffStatus("auto_billed"), "locked");
 });

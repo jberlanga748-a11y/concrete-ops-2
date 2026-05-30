@@ -20,6 +20,7 @@ import {
 } from "./app-shell-components";
 import { CommandCenterKpiCard } from "./command-center-route-components";
 import { formatJobScheduleDetail } from "./field-format-utils";
+import { buildJobCloseoutBillingReviewPacket } from "./job-closeout-billing-utils.js";
 import { EmployeeWorkspacePage, ForemanWorkspacePage } from "./field-workspace-page-components";
 import { deriveJobOperationsFinishState } from "./job-operations-finish-utils";
 import { JobCalculationsCard, JobPilotHandoffReadinessCard, JobPlannerCard, JobStartupChecklistCard } from "./job-route-components";
@@ -48,6 +49,15 @@ function formatDateTime(value) {
     hour: "numeric",
     minute: "2-digit",
   }).format(parsed);
+}
+
+function formatReviewMoney(value = 0) {
+  const amount = Number(value || 0);
+  return amount.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: amount % 1 === 0 ? 0 : 2,
+  });
 }
 
 function todayDateInputValue() {
@@ -576,6 +586,7 @@ function JobCommandRailPolished({
   job,
   permissions,
   billingMode = false,
+  closeoutBillingRow = null,
   toolChecklistBlockerCount = 0,
   disabled,
   saveState,
@@ -607,6 +618,9 @@ function JobCommandRailPolished({
   const startupNeedsReview = jobStartupNeedsReview(job);
   const isBillingReadyJob = normalizeJobStatus(job.status || job.stage) === "billing_ready";
   const hasToolBlockers = Number(toolChecklistBlockerCount || 0) > 0;
+  const billingPrep = closeoutBillingRow?.billingPrep || null;
+  const proofMissingCount = billingPrep?.proofStatus?.missing?.length || 0;
+  const approvedChangeCount = billingPrep?.approvedChangesIncluded?.count || 0;
 
   return (
     <div className="co-jobs-right-rail space-y-4">
@@ -648,8 +662,16 @@ function JobCommandRailPolished({
         {billingMode || isBillingReadyJob ? (
           <div className="co-jobs-money-panel">
             <span>Ready-to-bill review</span>
-            <strong>{isBillingReadyJob ? "Manual closeout queue" : "Closeout context"}</strong>
-            <p>Confirm reports, photo evidence, delivery tickets, and office notes before finance takes the next step outside Apex HQ. This panel is readiness context only.</p>
+            <strong>{billingPrep?.whatCanBeBilled?.label || (isBillingReadyJob ? "Manual closeout queue" : "Closeout context")}</strong>
+            <p>{billingPrep?.nextAction || "Confirm reports, photo evidence, delivery tickets, and office notes before finance takes the next step outside Apex HQ. This panel is readiness context only."}</p>
+            {billingPrep ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Badge tone={closeoutBillingRow.readyForBillingReview ? "green" : "amber"}>{closeoutBillingRow.readyForBillingReview ? "Closeout ready" : "Blocked"}</Badge>
+                <Badge tone={proofMissingCount ? "amber" : "green"}>{proofMissingCount} proof gaps</Badge>
+                <Badge tone={approvedChangeCount ? "blue" : "slate"}>{approvedChangeCount} approved changes</Badge>
+                <Badge tone={billingPrep.canPrepareManualInvoice ? "green" : "amber"}>{billingPrep.canPrepareManualInvoice ? "Invoice prep ready" : "Invoice prep blocked"}</Badge>
+              </div>
+            ) : null}
           </div>
         ) : null}
         <div className="co-jobs-release-pills">
@@ -959,6 +981,7 @@ function JobsPagePolished({
   setStartupFilter,
   users,
   estimates = [],
+  changeOrderRequests = [],
   customers = [],
   rateBookItems = [],
   selectedJobId,
@@ -1079,6 +1102,34 @@ function JobsPagePolished({
   const isReadyToBillView = filter === "Billing Ready";
   const liveJobRows = normalizeObjectArray(rows).filter((job) => !job.archivedAt);
   const readyToBillRows = liveJobRows.filter((job) => normalizeJobStatus(job.status || job.stage) === "billing_ready");
+  const closeoutBillingPacket = useMemo(() => buildJobCloseoutBillingReviewPacket({
+    jobs: liveJobRows,
+    estimates,
+    dailyReports,
+    uploads,
+    timeEntries,
+    deliveryTickets,
+    changeOrderRequests,
+    safetyIncidents,
+    prePourChecklists,
+    postPourChecklists,
+    toolChecklists,
+    permissions,
+  }, { maxJobs: liveJobRows.length + 1 }), [
+    changeOrderRequests,
+    dailyReports,
+    deliveryTickets,
+    estimates,
+    liveJobRows,
+    permissions,
+    postPourChecklists,
+    prePourChecklists,
+    safetyIncidents,
+    timeEntries,
+    toolChecklists,
+    uploads,
+  ]);
+  const closeoutRowByJobId = useMemo(() => new Map((closeoutBillingPacket.rows || []).map((row) => [row.jobId, row])), [closeoutBillingPacket.rows]);
   const visibleJobIds = new Set(visibleRows.map((job) => job.id).filter(Boolean));
   const visibleReports = normalizeObjectArray(dailyReports).filter((report) => !report.archivedAt && visibleJobIds.has(dailyReportRecordJobId(report)));
   const visibleUploads = normalizeObjectArray(uploads).filter((upload) => !upload.archivedAt && visibleJobIds.has(dailyReportRecordJobId(upload)));
@@ -1109,11 +1160,11 @@ function JobsPagePolished({
     || !visibleTicketJobIds.has(job.id)
   ));
   const readyToBillSummaryCards = [
-    { label: "Ready jobs", value: visibleRows.length, helper: "Filtered manual closeout queue", icon: "briefcase", tone: "green" },
-    { label: "Daily reports", value: visibleReports.length, helper: `${visibleReportJobIds.size} job${visibleReportJobIds.size === 1 ? "" : "s"} with report evidence`, icon: "document", tone: visibleReports.length ? "blue" : "amber" },
-    { label: "Photo evidence", value: visibleUploads.length, helper: `${visibleUploadJobIds.size} job${visibleUploadJobIds.size === 1 ? "" : "s"} with uploaded proof`, icon: "upload", tone: visibleUploads.length ? "green" : "amber" },
-    { label: "Delivery tickets", value: visibleTickets.length, helper: `${visibleTicketJobIds.size} job${visibleTicketJobIds.size === 1 ? "" : "s"} with ticket records`, icon: "clipboard", tone: visibleTickets.length ? "blue" : "amber" },
-    { label: "Proof blockers", value: visibleProofBlockers.length, helper: visibleProofBlockers.length ? "Missing at least one closeout record" : "No proof gaps in this filtered view", icon: visibleProofBlockers.length ? "alert" : "check", tone: visibleProofBlockers.length ? "orange" : "green" },
+    { label: "Closeout ready", value: closeoutBillingPacket.metrics?.readyForBillingReview || 0, helper: "Office-clean manual billing reviews", icon: "briefcase", tone: closeoutBillingPacket.metrics?.readyForBillingReview ? "green" : "slate" },
+    { label: "Manual invoice prep", value: closeoutBillingPacket.metrics?.manualInvoicePrepReady || 0, helper: "Ready for external manual prep only", icon: "document", tone: closeoutBillingPacket.metrics?.manualInvoicePrepReady ? "green" : "amber" },
+    { label: "Approved changes", value: formatReviewMoney(closeoutBillingPacket.metrics?.approvedChangeOrderTotal || 0), helper: `${closeoutBillingPacket.metrics?.approvedChangeOrdersIncluded || 0} included change order${(closeoutBillingPacket.metrics?.approvedChangeOrdersIncluded || 0) === 1 ? "" : "s"}`, icon: "refresh", tone: closeoutBillingPacket.metrics?.approvedChangeOrdersIncluded ? "blue" : "slate" },
+    { label: "Proof missing", value: closeoutBillingPacket.metrics?.proofMissingItems || 0, helper: "Reports, photos, tickets, safety, or checklist gaps", icon: "clipboard", tone: closeoutBillingPacket.metrics?.proofMissingItems ? "orange" : "green" },
+    { label: "Payment prep", value: closeoutBillingPacket.metrics?.manualPaymentPrepReady || 0, helper: "Planning only; no links or charges", icon: "check", tone: closeoutBillingPacket.metrics?.manualPaymentPrepReady ? "green" : "slate" },
   ];
   const visibleJobRowCap = 8;
   const mobileJobPreviewCap = 3;
@@ -1516,6 +1567,8 @@ function JobsPagePolished({
     const operationsRow = jobOperationsFinishState.selectedRowForJobId?.(job.id);
     const operationsCheckpoints = operationsRow?.checkpoints || [];
     const operationsVisibleCheckpoints = operationsCheckpoints.slice(0, 8);
+    const closeoutBillingRow = closeoutRowByJobId.get(job.id);
+    const billingPrep = closeoutBillingRow?.billingPrep || null;
     const progressValue = Math.max(0, Math.min(100, Number(job.progress || 0)));
     const isBillingReadyJob = normalizeJobStatus(job.status || job.stage) === "billing_ready";
     const overviewActions = [
@@ -1583,8 +1636,28 @@ function JobsPagePolished({
         {isBillingReadyJob ? (
           <div className="co-jobs-shell-money-note">
             <span>Ready-to-bill review</span>
-            <strong>Manual closeout only</strong>
-            <p>Confirm reports, photos, tickets, and office notes before finance acts outside Apex HQ.</p>
+            <strong>{billingPrep?.whatCanBeBilled?.label || "Manual closeout only"}</strong>
+            <p>{billingPrep?.nextAction || "Confirm reports, photos, tickets, and office notes before finance acts outside Apex HQ."}</p>
+            {billingPrep ? (
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <span className="rounded-2xl border border-white bg-white/80 p-3 text-xs font-bold text-slate-600">
+                  <strong className="block text-sm font-black text-slate-950">{formatReviewMoney(billingPrep.approvedChangesIncluded.total)}</strong>
+                  Approved changes included
+                </span>
+                <span className="rounded-2xl border border-white bg-white/80 p-3 text-xs font-bold text-slate-600">
+                  <strong className="block text-sm font-black text-slate-950">{billingPrep.proofStatus.missing.length}</strong>
+                  Missing proof items
+                </span>
+                <span className="rounded-2xl border border-white bg-white/80 p-3 text-xs font-bold text-slate-600">
+                  <strong className="block text-sm font-black text-slate-950">{billingPrep.invoicePrepStatus === "ready_for_manual_invoice_prep" ? "Ready" : "Blocked"}</strong>
+                  Manual invoice prep
+                </span>
+                <span className="rounded-2xl border border-white bg-white/80 p-3 text-xs font-bold text-slate-600">
+                  <strong className="block text-sm font-black text-slate-950">{billingPrep.paymentPrepStatus === "ready_for_manual_payment_prep" ? "Ready" : "Blocked"}</strong>
+                  Manual payment prep
+                </span>
+              </div>
+            ) : null}
           </div>
         ) : null}
         <div className="co-apex-selected-actions">
@@ -1845,6 +1918,7 @@ function JobsPagePolished({
           job={selectedJob}
           permissions={permissions}
           billingMode={isReadyToBillView}
+          closeoutBillingRow={selectedJob?.id ? closeoutRowByJobId.get(selectedJob.id) : null}
           toolChecklistBlockerCount={selectedJob?.id && toolChecklistBlockedJobIds.has(selectedJob.id) ? 1 : 0}
           disabled={busy}
           saveState={jobSaveState}

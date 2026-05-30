@@ -21,6 +21,7 @@ import {
   buildChangeOrderMoneyPacket,
   changeOrderReviewStatusLabel,
   changeOrderStatusLabel,
+  deriveChangeOrderFinishState,
   deriveChangeOrderListState,
   filterChangeOrderRequests,
 } from "./change-order-utils";
@@ -219,7 +220,7 @@ function ChangeOrdersMobileFocusPanel({
   );
 }
 
-function ChangeOrdersCommandRailPolished({ request, canCreate, canManage, busy, onOpenTool, onArchive }) {
+function ChangeOrdersCommandRailPolished({ request, detailDraft = {}, canCreate, canManage, busy, onOpenTool, onArchive }) {
   if (!request) {
     return (
       <div className="co-change-orders-right-rail co-change-orders-command-assistant space-y-4">
@@ -290,6 +291,8 @@ function ChangeOrdersCommandRailPolished({ request, canCreate, canManage, busy, 
           <span data-state={request.reason ? "ready" : "needs"}>Reason <strong>{request.reason ? "Set" : "Needed"}</strong></span>
           <span data-state={request.scopeDescription ? "ready" : "needs"}>Scope <strong>{request.scopeDescription ? "Written" : "Needed"}</strong></span>
           <span data-state={needsOfficeReview ? "needs" : "ready"}>Office <strong>{needsOfficeReview ? "Review" : statusLabel}</strong></span>
+          {canManage ? <span data-state={moneyPacket?.priced ? "ready" : "needs"}>Pricing <strong>{moneyPacket?.priced ? "Set" : "Needed"}</strong></span> : null}
+          {canManage ? <span data-state={moneyPacket?.readyForBillingHandoff ? "ready" : "needs"}>Billing prep <strong>{moneyPacket?.readyForBillingHandoff ? "Manual ready" : "Locked"}</strong></span> : null}
         </div>
       </div>
     </div>
@@ -507,10 +510,11 @@ function ChangeOrdersPagePolished({
   const requestedRows = activeChangeRows.filter((request) => request.status === "requested");
   const underReviewRows = activeChangeRows.filter((request) => request.status === "under_review");
   const missingDetailRows = activeChangeRows.filter((request) => !request.jobId || !request.reason || !request.scopeDescription);
+  const finishState = useMemo(() => deriveChangeOrderFinishState(rows, { canManage }), [canManage, rows]);
   const changeOrderKpis = [
     { label: "Needs Review", value: filteredRows.filter((request) => request.status === "requested").length, helper: "Waiting for office review", icon: "alert", tone: "amber", actionLabel: "Review", onAction: () => setStatusFilter("Requested") },
     { label: "Under Review", value: filteredRows.filter((request) => request.status === "under_review").length, helper: "Being reviewed now", icon: "clock", tone: "blue", actionLabel: "Open", onAction: () => setStatusFilter("Under Review") },
-    { label: "Approved", value: filteredRows.filter((request) => request.status === "approved_for_pricing").length, helper: canManage ? "Ready for office costing" : "Accepted by the office", icon: "check", tone: "green", actionLabel: "Approved", onAction: () => setStatusFilter("Approved for Pricing") },
+    { label: "Approved", value: finishState.counts.approvedForPricing, helper: canManage ? "Manual pricing or review tracked" : "Accepted by the office", icon: "check", tone: "green", actionLabel: "Approved", onAction: () => setStatusFilter("Approved for Pricing") },
     { label: "Needs Details", value: missingDetailRows.length, helper: "Missing job, reason, or scope context", icon: "clipboard", tone: missingDetailRows.length ? "orange" : "green", actionLabel: missingDetailRows.length ? "Fix details" : "Ready", onAction: () => openPriorityRequest((request) => missingDetailRows.some((entry) => entry.id === request.id), { statusFilter: "All", archiveFilter: "Active", search: "", toolTab: missingDetailRows.length ? "review" : "" }) },
   ];
   const statusFilterOptions = ["All", "Requested", "Under Review", "Approved for Pricing", "Rejected"].map((filter) => ({
@@ -714,11 +718,20 @@ function ChangeOrdersPagePolished({
     {
       id: "approved",
       label: "Approved",
-      value: filteredRows.filter((request) => request.status === "approved_for_pricing").length,
-      helper: "Ready for office costing",
+      value: finishState.counts.approvedForPricing,
+      helper: "Pricing and manual review lane",
       icon: "check",
       tone: filteredRows.some((request) => request.status === "approved_for_pricing") ? "green" : "slate",
       onClick: () => openFirstChangeOrderShellItem((request) => request.status === "approved_for_pricing" && !request.archivedAt),
+    },
+    {
+      id: "billing-ready",
+      label: "Billing Ready",
+      value: finishState.counts.readyForBillingHandoff,
+      helper: "Manual billing handoff only",
+      icon: "clipboard",
+      tone: finishState.counts.readyForBillingHandoff ? "green" : "slate",
+      onClick: () => openFirstChangeOrderShellItem((request) => finishState.readyForBillingHandoff.some((packet) => packet.id === request.id)),
     },
     {
       id: "needs-details",
@@ -800,7 +813,9 @@ function ChangeOrdersPagePolished({
     ? `${requestedRows.length} change order request${requestedRows.length === 1 ? "" : "s"} need first office review.`
     : underReviewRows.length
       ? `${underReviewRows.length} request${underReviewRows.length === 1 ? "" : "s"} are already in office review.`
-      : "Change-order review is clear in the current office queue.";
+      : finishState.counts.readyForBillingHandoff
+        ? `${finishState.counts.readyForBillingHandoff} change order${finishState.counts.readyForBillingHandoff === 1 ? "" : "s"} are ready for manual billing handoff.`
+        : "Change-order review is clear in the current office queue.";
 
   useEffect(() => {
     if (!canUseChangeOrdersCommandShell) return;
@@ -912,7 +927,8 @@ function ChangeOrdersPagePolished({
             priorities: [
               { value: requestedRows.length, label: "Needs review", tone: requestedRows.length ? "amber" : "green" },
               { value: underReviewRows.length, label: "Office review", tone: underReviewRows.length ? "blue" : "slate" },
-              { value: filteredRows.filter((request) => request.status === "approved_for_pricing").length, label: "Approved", tone: "green" },
+              { value: finishState.counts.manualReviewTracked, label: "Customer/GC", tone: finishState.counts.manualReviewTracked ? "blue" : "slate" },
+              { value: finishState.counts.readyForBillingHandoff, label: "Billing ready", tone: finishState.counts.readyForBillingHandoff ? "green" : "slate" },
               { value: missingDetailRows.length, label: "Needs details", tone: missingDetailRows.length ? "orange" : "green" },
             ],
             actions: [
@@ -923,6 +939,7 @@ function ChangeOrdersPagePolished({
             guardrails: [
               "Manual review only",
               "No automatic billing or external sends",
+              "No job status mutation",
               "Role and company scope unchanged",
             ],
           }}
@@ -1144,7 +1161,7 @@ function ChangeOrdersPagePolished({
             </Card>
           </div>
 
-          <ChangeOrdersCommandRailPolished request={selectedRequest} canCreate={canCreate} canManage={canManage} busy={busy} onOpenTool={openTools} onArchive={onArchiveRequest} />
+          <ChangeOrdersCommandRailPolished request={selectedRequest} detailDraft={detailDraft} canCreate={canCreate} canManage={canManage} busy={busy} onOpenTool={openTools} onArchive={onArchiveRequest} />
         </div>
 
         <DesktopCommandDrawer

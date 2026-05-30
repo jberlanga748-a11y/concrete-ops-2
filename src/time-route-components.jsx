@@ -1030,6 +1030,7 @@ export function TimeDesktopCommandShell({
   canOpenTimeSupport,
   onOpenTimeSupport,
   locationPolicy,
+  payrollPrepPanel = null,
 }) {
   const queueItems = buildTimeShellQueueItems({ rows, workspace, permissions, showUser });
   const initialSelection = workspace?.activeEntry && permissions?.time?.canManageOwn
@@ -1145,6 +1146,8 @@ export function TimeDesktopCommandShell({
                 <TimeShellFact label="Proof gaps" value={proofGapCount} />
               </div>
             </Card>
+
+            {payrollPrepPanel}
 
             {permissions?.time?.canViewAll ? <TimeJobCostingReadinessCard readiness={jobCostingReadiness} /> : null}
 

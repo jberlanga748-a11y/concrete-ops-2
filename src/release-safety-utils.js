@@ -1,6 +1,6 @@
 export const RELEASE_SAFETY_TARGETS = {
   repo: "jberlanga748-a11y/concrete-ops-2",
-  localFolder: "C:\\Users\\jberl\\Documents\\Codex\\concrete-ops-2-clean",
+  localFolder: "C:\\Users\\jberl\\Documents\\New project",
   flyApp: "concrete-ops-2",
   liveApp: "https://app.apexhq.online/",
   healthCheck: "https://app.apexhq.online/api/ready",

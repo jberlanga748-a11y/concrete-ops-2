@@ -78,6 +78,7 @@ import {
   archiveLead,
   archiveLeadSource,
   archiveQueueItem,
+  approvePayrollPrep,
   assistEstimateRoughNotes as assistEstimateRoughNotesRequest,
   assistLead as assistLeadRequest,
   bootstrapAdminAccount,
@@ -125,6 +126,7 @@ import {
   deleteQueueItem,
   endBreak,
   exportCompanyData,
+  exportPayrollPrepCsv,
   executeAgentEstimateSend,
   executeAgentOperatingSystemRun,
   getAgentOperatingSystem,
@@ -331,6 +333,7 @@ function lazyRouteComponent(importer, exportName) {
 const AppHealthAuditActivityPanel = lazyRouteComponent(() => import("./app-health-route-components"), "AppHealthAuditActivityPanel");
 const CustomerPortalManualPreviewPanel = lazyRouteComponent(() => import("./app-health-route-components"), "CustomerPortalManualPreviewPanel");
 const EnterpriseTrustReadinessPanel = lazyRouteComponent(() => import("./app-health-route-components"), "EnterpriseTrustReadinessPanel");
+const LaunchReadinessEvidencePanel = lazyRouteComponent(() => import("./app-health-route-components"), "LaunchReadinessEvidencePanel");
 const OwnerHealthStatusPanel = lazyRouteComponent(() => import("./app-health-route-components"), "OwnerHealthStatusPanel");
 const PwaInstallGuidancePanel = lazyRouteComponent(() => import("./app-health-route-components"), "PwaInstallGuidancePanel");
 const ReleaseSafetyRollbackPanel = lazyRouteComponent(() => import("./app-health-route-components"), "ReleaseSafetyRollbackPanel");
@@ -3828,6 +3831,45 @@ function CopilotPagePolished({
               </div>
             ) : null}
 
+            {reputationPortfolioEngine.canView ? (
+              <section id="reputation-portfolio-engine-mobile-summary" className="co-ai-agent-workflow-panel">
+                <div className="co-ai-section-kicker">
+                  <span>Reputation + Portfolio Engine</span>
+                  <strong>Reputation + Portfolio owner/admin review before any proof leaves Apex HQ</strong>
+                </div>
+                <div className="co-ai-workflow-grid grid gap-3 md:grid-cols-2">
+                  {reputationPortfolioEngine.ownerReviewPackets.slice(0, 2).map((packet) => (
+                    <div key={packet.id} className="co-ai-workflow-card" data-tone={packet.riskLevel === "high" ? "amber" : "blue"}>
+                      <span className="co-ai-workflow-icon"><Icon name="spark" className="h-5 w-5" /></span>
+                      <span className="min-w-0">
+                        <span className="co-ai-workflow-title">{packet.title}</span>
+                        <span className="co-ai-workflow-helper">{packet.customerIdentityStatus}. {packet.boundary}</span>
+                      </span>
+                      <Badge tone={packet.riskLevel === "high" ? "amber" : "blue"}>{packet.riskLevel} claim risk</Badge>
+                    </div>
+                  ))}
+                  {!reputationPortfolioEngine.ownerReviewPackets.length ? (
+                    <div className="co-ai-workflow-card" data-tone="slate">
+                      <span className="co-ai-workflow-icon"><Icon name="clipboard" className="h-5 w-5" /></span>
+                      <span className="min-w-0">
+                        <span className="co-ai-workflow-title">No owner packets yet</span>
+                        <span className="co-ai-workflow-helper">Completed work needs reviewed reports and proof uploads before reputation proof is drafted.</span>
+                      </span>
+                      <Badge tone="slate">Review only</Badge>
+                    </div>
+                  ) : null}
+                  <div className="co-ai-workflow-card" data-tone="green">
+                    <span className="co-ai-workflow-icon"><Icon name="lock" className="h-5 w-5" /></span>
+                    <span className="min-w-0">
+                      <span className="co-ai-workflow-title">Manual proof boundary</span>
+                      <span className="co-ai-workflow-helper">Review asks, referral asks, project stories, portfolio proof, and proposal proof blocks stay copy-only. Nothing sends or publishes here.</span>
+                    </span>
+                    <Badge tone="green">{reputationPortfolioEngine.stats.ownerReviewPackets || 0} packets</Badge>
+                  </div>
+                </div>
+              </section>
+            ) : null}
+
             <div className="co-ai-agent-workbench">
               <section className="co-ai-agent-workflow-panel">
                 <div className="co-ai-section-kicker">
@@ -3835,7 +3877,7 @@ function CopilotPagePolished({
                   <strong>What the assistant can help with right now</strong>
                 </div>
                 <div className="co-ai-workflow-grid grid gap-3 md:grid-cols-2">
-                  {workflowCards.slice(0, 6).map((card) => (
+                  {workflowCards.map((card) => (
                     <button key={card.title} type="button" className="co-ai-workflow-card co-focus-ring" data-tone={card.tone} onClick={card.onAction}>
                       <span className="co-ai-workflow-icon"><Icon name={card.icon} className="h-5 w-5" /></span>
                       <span className="min-w-0">
@@ -3993,6 +4035,7 @@ function CopilotPagePolished({
                 <p>{reputationPortfolioEngine.summary}</p>
                 <div className="co-ai-scout-metrics">
                   <div><em>{reputationPortfolioEngine.stats.proofReady}</em><span>proof ready</span></div>
+                  <div><em>{reputationPortfolioEngine.stats.ownerReviewPackets || 0}</em><span>owner review</span></div>
                   <div><em>{reputationPortfolioEngine.stats.reviewAskDrafts}</em><span>review asks</span></div>
                   <div><em>{reputationPortfolioEngine.stats.referralAskDrafts}</em><span>referrals</span></div>
                 </div>
@@ -4010,12 +4053,15 @@ function CopilotPagePolished({
                         <strong>{story.title}</strong>
                         <p>{story.storyBody}</p>
                         <em>{story.beforeAfterStatus}</em>
+                        <em>{story.customerIdentityStatus}</em>
                         <div className="co-ai-scout-checks mt-2">
                           {story.proofLines.slice(0, 3).map((line) => <small key={`${story.id}-${line}`}>{line}</small>)}
+                          {(story.claimReview?.requiredApprovals || []).slice(0, 2).map((line) => <small key={`${story.id}-approval-${line}`}>{line}</small>)}
                         </div>
                       </div>
                       <div className="co-ai-scout-brief-actions">
                         <Badge tone={story.tone || "blue"}>{story.proofReady ? "Proof ready" : "Needs proof"}</Badge>
+                        <Badge tone={story.claimRiskLevel === "high" ? "amber" : "blue"}>{story.claimRiskLevel || "review"} risk</Badge>
                       </div>
                     </div>
                   ))}
@@ -4026,6 +4072,30 @@ function CopilotPagePolished({
 
                 <div className="co-ai-scout-grid mt-4 border border-slate-200 bg-white">
                   <div className="co-ai-scout-briefs">
+                    <SectionHeader title="Owner Review Packets" description="Approve proof selection, customer permission, identity use, and claim safety before any copy leaves Apex HQ." />
+                    <div className="co-ai-scout-brief-list">
+                      {reputationPortfolioEngine.ownerReviewPackets.slice(0, 2).map((packet) => (
+                        <div key={packet.id} className="co-ai-scout-brief" data-tone={packet.riskLevel === "high" ? "amber" : "blue"}>
+                          <div className="min-w-0">
+                            <span>{packet.status}</span>
+                            <strong>{packet.title}</strong>
+                            <p>{packet.customerIdentityStatus}</p>
+                            <em>{packet.boundary}</em>
+                            <div className="co-ai-scout-checks mt-2">
+                              {packet.requiredApprovals.slice(0, 3).map((line) => <small key={`${packet.id}-${line}`}>{line}</small>)}
+                            </div>
+                          </div>
+                          <div className="co-ai-scout-brief-actions">
+                            <Badge tone={packet.riskLevel === "high" ? "amber" : "blue"}>{packet.riskLevel} claim risk</Badge>
+                          </div>
+                        </div>
+                      ))}
+                      {!reputationPortfolioEngine.ownerReviewPackets.length ? (
+                        <StateCard title="No owner packets yet" description="Completed jobs need reviewed reports and proof uploads before owner/admin can approve reputation proof." tone="slate" />
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="co-ai-scout-briefs">
                     <SectionHeader title="Review / Referral Queue" description="Manual copy only; no review request, referral ask, email, text, or DM is sent from this panel." />
                     <div className="co-ai-scout-brief-list">
                       {reputationPortfolioEngine.reviewReferralQueue.slice(0, 2).map((row) => (
@@ -4035,6 +4105,7 @@ function CopilotPagePolished({
                             <strong>{row.title}</strong>
                             <p>{row.reviewRequestDraft}</p>
                             <em>{row.referralAskDraft}</em>
+                            <em>{row.customerIdentityStatus}</em>
                           </div>
                         </div>
                       ))}
@@ -7280,6 +7351,12 @@ function SettingsPagePolished({
   jobDraftImports = [],
   uploads,
   dailyReports,
+  deliveryTickets,
+  timeEntries,
+  safetyIncidents,
+  prePourChecklists,
+  postPourChecklists,
+  toolChecklists,
   changeOrderRequests,
   permissions,
   onUpdateCompanySettings,
@@ -7427,10 +7504,18 @@ function SettingsPagePolished({
     auditEvents,
     jobs,
     estimates,
+    dailyReports,
+    uploads,
+    deliveryTickets,
+    timeEntries,
     changeOrderRequests,
+    safetyIncidents,
+    prePourChecklists,
+    postPourChecklists,
+    toolChecklists,
     permissions: safePermissions,
     user,
-  }), [auditEvents, changeOrderRequests, estimates, jobs, packageReadiness, safeCompanySettings, safePermissions, user]);
+  }), [auditEvents, changeOrderRequests, dailyReports, deliveryTickets, estimates, jobs, packageReadiness, postPourChecklists, prePourChecklists, safeCompanySettings, safePermissions, safetyIncidents, timeEntries, toolChecklists, uploads, user]);
   const integrationsCommandState = useMemo(() => deriveIntegrationsCommandState({
     companySettings: safeCompanySettings,
     packageReadiness,
@@ -7491,6 +7576,7 @@ function SettingsPagePolished({
     { label: "Field Tools", value: safeCompanySettings.toolChecklistEnabled !== false ? 1 : 0, helper: safeCompanySettings.toolChecklistEnabled !== false ? "Tool checklist enabled" : "Tool checklist disabled", icon: "briefcase", tone: safeCompanySettings.toolChecklistEnabled !== false ? "green" : "slate", actionLabel: "Manage module", onAction: () => jumpToSettingsSection("settings-admin-controls") },
   ];
   const appHealthKpis = [
+    { label: "Launch", value: 0, displayValue: "Locked", helper: "Evidence gates", icon: "lock", tone: "amber", actionLabel: "Review launch", onAction: () => jumpToSettingsSection("app-health-launch-readiness") },
     { label: "Owner Health", value: 1, displayValue: "Open", helper: "Backup, app, storage, release", icon: "database", tone: "blue", actionLabel: "Review health", onAction: () => jumpToSettingsSection("settings-owner-health") },
     { label: "Audit Events", value: appHealthAuditState.stats.auditEvents, helper: "Workspace change history", icon: "document", tone: appHealthAuditState.stats.auditEvents ? "blue" : "amber", actionLabel: "Open audit", onAction: () => jumpToSettingsSection("settings-owner-health") },
     { label: "Sensitive", value: appHealthAuditState.stats.sensitiveAuditEvents, helper: "Users, roles, exports", icon: "alert", tone: appHealthAuditState.stats.sensitiveAuditEvents ? "amber" : "green", actionLabel: "Review sensitive", onAction: () => jumpToSettingsSection("settings-owner-health") },
@@ -7524,6 +7610,20 @@ function SettingsPagePolished({
       badges: [
         { label: "Manual", tone: "slate" },
         { label: packageReadiness.currentPackage.label, tone: "blue" },
+      ],
+    },
+    {
+      id: "app-health-launch",
+      eyebrow: "Launch",
+      title: "Launch readiness evidence",
+      meta: "Pilot gates, production smoke locks, monitoring, support, legal, and public launch boundaries.",
+      status: "Locked",
+      statusLabel: "Locked",
+      tone: "amber",
+      actionLabel: "Review",
+      badges: [
+        { label: "Evidence only", tone: "slate" },
+        { label: "No launch action", tone: "amber" },
       ],
     },
     {
@@ -7597,6 +7697,7 @@ function SettingsPagePolished({
   ];
   const selectedAppHealthShellItem = appHealthShellQueueItems.find((item) => item.id === selectedAppHealthShellItemId) || appHealthShellQueueItems[0] || null;
   const appHealthShellKpis = [
+    { id: "launch", label: "Launch", value: "Locked", helper: "Evidence gates", icon: "lock", tone: "amber", onClick: () => selectAppHealthShellItem(appHealthShellQueueItems.find((item) => item.id === "app-health-launch")) },
     { id: "health", label: "Owner Health", value: "Open", helper: "App, backup, storage", icon: "database", tone: "blue", onClick: () => selectAppHealthShellItem(appHealthShellQueueItems.find((item) => item.id === "app-health-owner")) },
     { id: "audit", label: "Audit Events", value: appHealthAuditState.stats.auditEvents, helper: "Workspace history", icon: "document", tone: appHealthAuditState.stats.auditEvents ? "blue" : "amber", onClick: () => selectAppHealthShellItem(appHealthShellQueueItems.find((item) => item.id === "app-health-audit")) },
     { id: "sensitive", label: "Sensitive", value: appHealthAuditState.stats.sensitiveAuditEvents, helper: "Users, roles, exports", icon: "alert", tone: appHealthAuditState.stats.sensitiveAuditEvents ? "amber" : "green", onClick: () => selectAppHealthShellItem(appHealthShellQueueItems.find((item) => item.id === "app-health-audit")) },
@@ -7761,6 +7862,8 @@ function SettingsPagePolished({
       <div className="co-app-health-shell-detail-scroll">
         {selectedId === "app-health-owner" ? (
           <OwnerHealthStatusPanel sessionToken={sessionToken} canView={canViewAppHealth} user={user} companyName={workspaceCompanyName} />
+        ) : selectedId === "app-health-launch" ? (
+          <LaunchReadinessEvidencePanel canView={canViewAppHealth} user={user} companyName={workspaceCompanyName} />
         ) : selectedId === "app-health-audit" ? (
           <AppHealthAuditActivityPanel auditEvents={auditEvents} activity={activity} canView={canViewAppHealth} />
         ) : selectedId === "app-health-release" ? (
@@ -7926,6 +8029,7 @@ function SettingsPagePolished({
         <span>{appHealthRouteMode ? "Owner/admin only" : "Owner tools"}</span>
       </summary>
       <div className="co-settings-tools-panel grid gap-3">
+        {appHealthRouteMode ? <LaunchReadinessEvidencePanel canView={canViewAppHealth} user={user} companyName={workspaceCompanyName} /> : null}
         <EnterpriseTrustReadinessPanel
           auditEvents={auditEvents}
           activity={activity}
@@ -7940,6 +8044,7 @@ function SettingsPagePolished({
           user={user}
           companyName={workspaceCompanyName}
         />
+        {!appHealthRouteMode ? <LaunchReadinessEvidencePanel canView={canViewAppHealth} user={user} companyName={workspaceCompanyName} /> : null}
         <OwnerHealthStatusPanel sessionToken={sessionToken} canView={canViewAppHealth} user={user} companyName={workspaceCompanyName} />
         <AppHealthAuditActivityPanel auditEvents={auditEvents} activity={activity} canView={canViewAppHealth} />
         <ReleaseSafetyRollbackPanel canView={canViewAppHealth} />
@@ -8492,16 +8597,17 @@ function SettingsPagePolished({
           kpis={appHealthShellKpis}
           quickActions={[
             { id: "trust", label: "Trust Review", icon: "check", onClick: () => selectAppHealthShellItem(appHealthShellQueueItems.find((item) => item.id === "app-health-trust")) },
+            { id: "launch", label: "Launch Gates", icon: "lock", onClick: () => selectAppHealthShellItem(appHealthShellQueueItems.find((item) => item.id === "app-health-launch")) },
             { id: "owner-health", label: "Owner Health", icon: "database", onClick: () => selectAppHealthShellItem(appHealthShellQueueItems.find((item) => item.id === "app-health-owner")) },
             { id: "settings", label: "Settings", icon: "settings", onClick: () => setActive?.("settings") },
           ]}
           queue={{
             title: "App Health queue",
-            description: "Review trust, health, audit, release, install, and UI guidance without the old settings rail.",
+            description: "Review launch gates, trust, health, audit, release, install, and UI guidance without the old settings rail.",
             items: appHealthShellQueueItems,
             selectedId: selectedAppHealthShellItem?.id || "",
             onSelect: selectAppHealthShellItem,
-            limit: 6,
+            limit: appHealthShellQueueItems.length,
             badgeLabel: `${appHealthShellQueueItems.length}/${appHealthShellQueueItems.length}`,
             emptyState: <StateCard title="No health panels available" description="Owner health panels appear here for roles with App Health access." tone="slate" />,
           }}
@@ -14092,6 +14198,42 @@ export default function App() {
     runMutation(() => reviewTimePresence(sessionToken, timeEntryId, { note }));
   }
 
+  function handleApprovePayrollPrep(period) {
+    const canUsePayrollPrep = ["Owner", "Administrator"].includes(appState.user?.role || "");
+    if (!canUsePayrollPrep) return;
+    runMutation(() => approvePayrollPrep(sessionToken, period));
+  }
+
+  async function handleExportPayrollPrep(period) {
+    const canUsePayrollPrep = ["Owner", "Administrator"].includes(appState.user?.role || "");
+    if (!sessionToken || !canUsePayrollPrep) return;
+    setBusy(true);
+    try {
+      const payload = await exportPayrollPrepCsv(sessionToken, period);
+      if (payload) applyBootstrap(payload);
+      if (payload?.csv && typeof document !== "undefined") {
+        const blob = new Blob([payload.csv], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = payload.fileName || "apex-hq-payroll-prep.csv";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      }
+      setErrorMessage("");
+    } catch (error) {
+      if (error.status === 401) {
+        clearSession();
+      } else {
+        setErrorMessage(error.message || "Payroll prep export could not be prepared.");
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function handleCreateLead(event) {
     event.preventDefault();
     if (!appState.permissions.leads.canManage) return;
@@ -17565,6 +17707,8 @@ export default function App() {
                 setTimeEditDraft={setTimeEditDraft}
                 onSaveTimeEntry={handleSaveTimeEntry}
                 onReviewTimePresence={handleReviewTimePresence}
+                onApprovePayrollPrep={handleApprovePayrollPrep}
+                onExportPayrollPrep={handleExportPayrollPrep}
                 onClockIn={handleClockIn}
                 onClockOut={handleClockOut}
                 onStartBreak={handleStartBreak}

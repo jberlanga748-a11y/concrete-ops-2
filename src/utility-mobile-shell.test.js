@@ -54,9 +54,13 @@ test("support, settings, employees, communications, and AI office keep mobile co
   );
   assert.match(
     cssSource,
-    /\.co-ai-office-page \.co-ai-command-layout > \.space-y-3 > \.co-ai-main-board:not\(\.co-ai-agent-command-board\),[\s\S]*\.co-ai-office-page \.co-ai-agent-focus-panel,[\s\S]*display: none !important;/,
+    /\.co-ai-office-page \.co-ai-command-layout > \.space-y-3 > \.co-ai-main-board:not\(\.co-ai-agent-command-board\),[\s\S]*\.co-ai-office-page \.co-ai-agent-focus-panel,[\s\S]*\.co-ai-office-page \.co-ai-guardrail-strip \{[\s\S]*display: none !important;/,
   );
-  assert.match(
+  assert.doesNotMatch(
+    cssSource,
+    /\.co-ai-office-page \.co-ai-command-layout > aside,[\s\S]*display: none !important;/,
+  );
+  assert.doesNotMatch(
     cssSource,
     /\.co-ai-office-page \.co-ai-workflow-grid > :nth-child\(n\+3\)[\s\S]*display: none !important;/,
   );
@@ -66,7 +70,11 @@ test("support, settings, employees, communications, and AI office keep mobile co
   );
   assert.match(
     cssSource,
-    /\.co-ai-office-page \.co-ai-operator-command-card:nth-child\(n\+5\),[\s\S]*\.co-ai-office-page \.co-ai-operator-boundaries \{[\s\S]*display: none !important;/,
+    /\.co-ai-office-page \.co-ai-operator-command-card:nth-child\(n\+5\) \{[\s\S]*display: none !important;/,
+  );
+  assert.doesNotMatch(
+    cssSource,
+    /\.co-ai-office-page \.co-ai-operator-boundaries \{[\s\S]*display: none !important;/,
   );
   assert.match(
     cssSource,

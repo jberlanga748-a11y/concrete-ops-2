@@ -5,6 +5,7 @@ const FINAL_JOB_STATUSES = new Set(["billing_ready", "closed"]);
 const CHANGE_ORDER_OPEN_STATUSES = new Set(["requested", "under_review", "approved_for_pricing", "pending", "submitted", "draft", "new"]);
 const CHANGE_ORDER_REJECTED_STATUSES = new Set(["rejected", "archived", "cancelled", "canceled"]);
 const CHANGE_ORDER_RECOGNIZED_STATUSES = new Set(["approved", "accepted", "closed", "billing_ready", "billable"]);
+const CHANGE_ORDER_READY_HANDOFF_STATUSES = new Set(["ready_for_manual_billing_handoff", "handed_off_manually"]);
 
 const REVIEW_ONLY_BLOCKED_ACTIONS = Object.freeze([
   "No invoice is created",
@@ -124,14 +125,28 @@ function safetyIsOpen(incident = {}) {
   return !["resolved", "closed", "complete", "completed", "archived"].includes(normalize(incident.status || "open"));
 }
 
+function changeOrderHasManualAcceptance(changeOrder = {}) {
+  return normalize(changeOrder.customerReviewStatus) === "accepted_manually"
+    || normalize(changeOrder.gcReviewStatus) === "accepted_manually";
+}
+
+function changeOrderReadyForManualBillingHandoff(changeOrder = {}) {
+  return normalize(changeOrder.status) === "approved_for_pricing"
+    && money(changeOrder.priceAmount ?? changeOrder.pricedAmount ?? changeOrder.revenueAmount ?? changeOrder.customerPrice) > 0
+    && changeOrderHasManualAcceptance(changeOrder)
+    && CHANGE_ORDER_READY_HANDOFF_STATUSES.has(normalize(changeOrder.billingHandoffStatus));
+}
+
 function changeOrderNeedsBillingReview(changeOrder = {}) {
   const status = normalize(changeOrder.status || "requested");
   if (CHANGE_ORDER_REJECTED_STATUSES.has(status)) return false;
+  if (changeOrderReadyForManualBillingHandoff(changeOrder)) return false;
   return CHANGE_ORDER_OPEN_STATUSES.has(status) || !status;
 }
 
 function changeOrderIsRecognizedForReviewTotal(changeOrder = {}) {
-  return CHANGE_ORDER_RECOGNIZED_STATUSES.has(normalize(changeOrder.status));
+  return CHANGE_ORDER_RECOGNIZED_STATUSES.has(normalize(changeOrder.status))
+    || changeOrderReadyForManualBillingHandoff(changeOrder);
 }
 
 function ticketNeedsProofReview(ticket = {}) {
@@ -147,7 +162,13 @@ function jobEstimateTotal(estimate = {}) {
 }
 
 function changeOrderReviewAmount(changeOrder = {}) {
-  return money(changeOrder.approvedAmount ?? changeOrder.total ?? changeOrder.amount ?? changeOrder.estimatedAmount);
+  return money(changeOrder.approvedAmount ?? changeOrder.priceAmount ?? changeOrder.pricedAmount ?? changeOrder.revenueAmount ?? changeOrder.customerPrice ?? changeOrder.total ?? changeOrder.amount ?? changeOrder.estimatedAmount);
+}
+
+function changeOrderReviewStatus(changeOrder = {}) {
+  if (changeOrderReadyForManualBillingHandoff(changeOrder)) return "manual_acceptance_ready";
+  if (CHANGE_ORDER_RECOGNIZED_STATUSES.has(normalize(changeOrder.status))) return normalize(changeOrder.status);
+  return "not_included";
 }
 
 function relatedByJobId(records = [], jobId = "") {
@@ -279,6 +300,88 @@ function buildJobCostingReview(job = {}, context = {}, row = {}) {
   };
 }
 
+function buildApprovedChangeOrderRows(changeOrders = []) {
+  return asArray(changeOrders)
+    .filter(changeOrderIsRecognizedForReviewTotal)
+    .map((changeOrder) => ({
+      id: text(changeOrder.id || changeOrder.changeOrderId || "change-order"),
+      title: text(changeOrder.title || changeOrder.summary || changeOrder.description || "Approved change order"),
+      status: changeOrderReviewStatus(changeOrder),
+      amount: changeOrderReviewAmount(changeOrder),
+      customerReviewStatus: text(changeOrder.customerReviewStatus || ""),
+      gcReviewStatus: text(changeOrder.gcReviewStatus || ""),
+      billingHandoffStatus: text(changeOrder.billingHandoffStatus || ""),
+    }));
+}
+
+function buildManualBillingPrep(row = {}, {
+  reviewedReports = [],
+  uploads = [],
+  deliveryTickets = [],
+  ticketProofGaps = [],
+  submittedReports = [],
+  activeTimeEntries = [],
+  changeOrders = [],
+  changeOrdersNeedingReview = [],
+  openSafety = [],
+  openChecklistCount = 0,
+} = {}) {
+  const approvedChangeOrders = buildApprovedChangeOrderRows(changeOrders);
+  const approvedChangeOrderTotal = approvedChangeOrders.reduce((sum, changeOrder) => sum + changeOrder.amount, 0);
+  const missingProof = [
+    reviewedReports.length ? "" : "Reviewed daily report",
+    uploads.length ? "" : "Photo/proof upload",
+    submittedReports.length ? `${submittedReports.length} daily report${submittedReports.length === 1 ? "" : "s"} still need office review` : "",
+    ticketProofGaps.length ? `${ticketProofGaps.length} delivery ticket${ticketProofGaps.length === 1 ? "" : "s"} need proof/report/basics review` : "",
+    activeTimeEntries.length ? `${activeTimeEntries.length} active time entr${activeTimeEntries.length === 1 ? "y" : "ies"} still open` : "",
+    changeOrdersNeedingReview.length ? `${changeOrdersNeedingReview.length} change order${changeOrdersNeedingReview.length === 1 ? "" : "s"} need manual pricing/billing review` : "",
+    openSafety.length ? `${openSafety.length} unresolved safety item${openSafety.length === 1 ? "" : "s"} need office disposition` : "",
+    openChecklistCount ? `${openChecklistCount} checklist/loadout item${openChecklistCount === 1 ? "" : "s"} need review` : "",
+  ].filter(Boolean);
+  const canPrepareManualInvoice = row.readyForBillingReview && row.reviewTotal > 0 && row.estimateTotal > 0;
+  const manualSteps = canPrepareManualInvoice
+    ? [
+        "Confirm customer, job, estimate, proof, delivery tickets, and payment terms",
+        "Verify approved change orders included in the review total",
+        "Prepare any invoice or payment-link work manually outside Apex HQ",
+      ]
+    : [
+        row.nextAction || "Clear closeout blockers before manual invoice prep",
+        "Recheck proof, time, tickets, safety, and change-order review before any external billing work",
+      ];
+
+  return {
+    mode: "manual_billing_prep_only",
+    canPrepareManualInvoice,
+    canPrepareManualPaymentFollowUp: canPrepareManualInvoice,
+    invoicePrepStatus: canPrepareManualInvoice ? "ready_for_manual_invoice_prep" : "blocked_by_closeout_review",
+    paymentPrepStatus: canPrepareManualInvoice ? "ready_for_manual_payment_prep" : "blocked_by_closeout_review",
+    whatCanBeBilled: {
+      estimateTotal: money(row.estimateTotal || 0),
+      approvedChangeOrderTotal: money(approvedChangeOrderTotal),
+      reviewTotal: money(row.reviewTotal || 0),
+      label: row.reviewTotal > 0
+        ? `${formatMoney(row.reviewTotal)} review total from linked estimate and approved/manual-accepted changes`
+        : "No billable review total is available yet",
+    },
+    approvedChangesIncluded: {
+      count: approvedChangeOrders.length,
+      total: money(approvedChangeOrderTotal),
+      rows: approvedChangeOrders,
+    },
+    proofStatus: {
+      reviewedReports: reviewedReports.length,
+      uploads: uploads.length,
+      deliveryTickets: deliveryTickets.length,
+      deliveryTicketProofGaps: ticketProofGaps.length,
+      missing: missingProof,
+    },
+    manualSteps,
+    nextAction: canPrepareManualInvoice ? "Owner/admin can prepare a manual invoice/payment packet outside Apex HQ after final review." : row.nextAction,
+    boundary: "Prep only. Apex does not create invoices, send invoices, create payment links, collect payment, post accounting entries, or contact customers from this packet.",
+  };
+}
+
 function buildJobCloseoutRow(job = {}, context = {}) {
   const jobId = text(job.id);
   const status = normalizeJobStatus(job.status || job.stage);
@@ -373,8 +476,22 @@ function buildJobCloseoutRow(job = {}, context = {}) {
     nextAction: blockers.length ? blockers[0] : "Manual billing review packet is clean",
   };
 
+  const billingPrep = buildManualBillingPrep(baseRow, {
+    reviewedReports,
+    uploads,
+    deliveryTickets,
+    ticketProofGaps,
+    submittedReports,
+    activeTimeEntries,
+    changeOrders,
+    changeOrdersNeedingReview,
+    openSafety,
+    openChecklistCount,
+  });
+
   return {
     ...baseRow,
+    billingPrep,
     jobCostingReview: buildJobCostingReview(job, context, baseRow),
   };
 }
@@ -438,6 +555,11 @@ export function buildJobCloseoutBillingReviewPacket(context = {}, {
   const jobCostingReadyRows = rows.filter((row) => row.jobCostingReview.readyForManualReview);
   const actualCostTotal = rows.reduce((sum, row) => sum + row.jobCostingReview.actualCostTotal, 0);
   const jobCostingWarnings = rows.reduce((sum, row) => sum + row.jobCostingReview.warnings.length, 0);
+  const manualInvoicePrepReadyRows = rows.filter((row) => row.billingPrep?.canPrepareManualInvoice);
+  const manualPaymentPrepReadyRows = rows.filter((row) => row.billingPrep?.canPrepareManualPaymentFollowUp);
+  const approvedChangesIncluded = rows.reduce((sum, row) => sum + (row.billingPrep?.approvedChangesIncluded?.count || 0), 0);
+  const approvedChangesIncludedTotal = rows.reduce((sum, row) => sum + (row.billingPrep?.approvedChangesIncluded?.total || 0), 0);
+  const proofMissingItems = rows.reduce((sum, row) => sum + (row.billingPrep?.proofStatus?.missing?.length || 0), 0);
   const jobCostingReviewItems = rows.slice(0, 4).map((row) => ({
     jobId: row.jobId,
     title: row.title,
@@ -488,6 +610,16 @@ export function buildJobCloseoutBillingReviewPacket(context = {}, {
       detail: `${formatMoney(actualCostTotal)} in reviewed actual cost inputs are visible across ${jobCostingReadyRows.length} manually ready job${jobCostingReadyRows.length === 1 ? "" : "s"}. ${jobCostingWarnings} job-costing warning${jobCostingWarnings === 1 ? "" : "s"} remain before profit/loss can be trusted.`,
     },
     {
+      id: "manual-invoice-payment-prep",
+      label: "Manual invoice / payment prep",
+      detail: `${manualInvoicePrepReadyRows.length} job${manualInvoicePrepReadyRows.length === 1 ? "" : "s"} are ready for manual invoice prep and ${manualPaymentPrepReadyRows.length} are ready for manual payment follow-up planning. No invoice, payment link, charge, receipt, or customer message is created.`,
+    },
+    {
+      id: "approved-change-proof",
+      label: "Approved changes / missing proof",
+      detail: `${approvedChangesIncluded} approved or manually accepted change order${approvedChangesIncluded === 1 ? "" : "s"} totaling ${formatMoney(approvedChangesIncludedTotal)} are included. ${proofMissingItems} proof/checklist/safety item${proofMissingItems === 1 ? "" : "s"} still need review across visible candidates.`,
+    },
+    {
       id: "proof-safety-blockers",
       label: "Proof / safety blockers",
       detail: `${proofGaps} proof gap${proofGaps === 1 ? "" : "s"}, ${changeOrdersNeedingReview} change order${changeOrdersNeedingReview === 1 ? "" : "s"} needing review, and ${safetyOpen} unresolved safety item${safetyOpen === 1 ? "" : "s"} should be checked before billing is treated as clean.`,
@@ -522,6 +654,11 @@ export function buildJobCloseoutBillingReviewPacket(context = {}, {
       jobCostingActualCostTotal: money(actualCostTotal),
       jobCostingReviewDelta: money(estimateTotal + changeOrderTotal - actualCostTotal),
       jobCostingInputWarnings: jobCostingWarnings,
+      manualInvoicePrepReady: manualInvoicePrepReadyRows.length,
+      manualPaymentPrepReady: manualPaymentPrepReadyRows.length,
+      approvedChangeOrdersIncluded: approvedChangesIncluded,
+      approvedChangeOrderTotal: money(approvedChangesIncludedTotal),
+      proofMissingItems,
       proofGaps,
       changeOrdersNeedingReview,
       safetyOpen,

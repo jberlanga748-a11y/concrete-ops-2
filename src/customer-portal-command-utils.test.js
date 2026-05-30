@@ -55,4 +55,25 @@ test("builds a customer portal comment draft as internal contact history", () =>
   assert.match(draft.subject, /ABC Builders/);
   assert.match(draft.notes, /Owner Ops/);
   assert.match(draft.notes, /change order/);
+  assert.match(draft.notes, /Internal customer decision: Comment \/ question/);
+  assert.match(draft.notes, /no portal approval, rejection, customer session, message, invoice, payment, token, or public action/i);
+});
+
+test("builds approval and rejection notes as internal-only review decisions", () => {
+  const approval = buildCustomerPortalCommentDraft({
+    decision: "approval_noted",
+    comment: "Customer said the packet looks good.",
+    preview: { customer: "ABC Builders" },
+  });
+  const rejection = buildCustomerPortalCommentDraft({
+    decision: "rejection_noted",
+    comment: "Customer declined the change order.",
+    preview: { customer: "ABC Builders" },
+  });
+
+  assert.equal(approval.outcome, "Replied");
+  assert.match(approval.notes, /Internal customer decision: Approval noted/);
+  assert.equal(rejection.outcome, "Follow-Up Needed");
+  assert.match(rejection.notes, /Internal customer decision: Rejection noted/);
+  assert.doesNotMatch(`${approval.notes}\n${rejection.notes}`, /tokenized link|session created|message sent|invoice created/i);
 });

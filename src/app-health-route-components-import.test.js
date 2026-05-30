@@ -5,6 +5,7 @@ import test from "node:test";
 const EXTRACTED_APP_HEALTH_COMPONENTS = [
   "AppHealthAuditActivityPanel",
   "EnterpriseTrustReadinessPanel",
+  "LaunchReadinessEvidencePanel",
   "ReleaseSafetyRollbackPanel",
   "PwaInstallGuidancePanel",
   "UiStyleFoundationPanel",

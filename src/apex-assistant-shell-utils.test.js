@@ -93,6 +93,41 @@ test("assistant commands route to existing modules without write actions", () =>
   assert.match(fallbackCommand.message, /will not send customer messages automatically/i);
 });
 
+test("assistant routes newly finished manual-safe workflows without execution", () => {
+  const communicationsCommand = resolveApexAssistantCommand("review customer portal share approval");
+  const billingCommand = resolveApexAssistantCommand("open billing prep for ready to bill jobs");
+  const reputationCommand = resolveApexAssistantCommand("review reputation project story and referral ask");
+  const actionInboxCommand = resolveApexAssistantCommand("open Agent OS action inbox external gate review packets");
+
+  assert.equal(communicationsCommand.moduleId, "communications");
+  assert.match(communicationsCommand.message, /No email, SMS, portal link, token, or customer action/i);
+  assert.equal(billingCommand.moduleId, "settings");
+  assert.match(billingCommand.message, /No invoice, payment link, charge, receipt/i);
+  assert.equal(reputationCommand.moduleId, "copilot");
+  assert.match(reputationCommand.message, /Nothing is sent, published, invented, or approved/i);
+  assert.equal(actionInboxCommand.moduleId, "copilot");
+  assert.match(actionInboxCommand.message, /cannot execute provider actions automatically/i);
+});
+
+test("assistant explicitly blocks risky money payroll portal provider and scheduling asks", () => {
+  const invoiceCommand = resolveApexAssistantCommand("create an invoice and payment link for JOB-1");
+  const payrollCommand = resolveApexAssistantCommand("process payroll and run direct deposit");
+  const portalCommand = resolveApexAssistantCommand("generate a customer portal token");
+  const providerCommand = resolveApexAssistantCommand("sync this to QuickBooks");
+  const scheduleCommand = resolveApexAssistantCommand("schedule the job for tomorrow");
+
+  assert.equal(invoiceCommand.type, "blocked-command");
+  assert.match(invoiceCommand.message, /will not create invoices, payment links/i);
+  assert.equal(payrollCommand.type, "blocked-command");
+  assert.match(payrollCommand.message, /will not process payroll/i);
+  assert.equal(portalCommand.type, "blocked-command");
+  assert.match(portalCommand.message, /will not create, generate, send, share, or redeem customer portal/i);
+  assert.equal(providerCommand.type, "blocked-command");
+  assert.match(providerCommand.message, /will not write to providers/i);
+  assert.equal(scheduleCommand.type, "blocked-command");
+  assert.match(scheduleCommand.message, /will not schedule or reschedule work automatically/i);
+});
+
 test("broad contractor business questions fall through to the advisor path", () => {
   const moneyQuestion = resolveApexAssistantCommand("Where am I losing money?");
   const marketingQuestion = resolveApexAssistantCommand("How do we market better?");
@@ -355,9 +390,11 @@ test("assistant opens daily closeout readiness without approving or billing", ()
   assert.equal(command.type, "daily-closeout-readiness");
   assert.equal(command.moduleId, "reports");
   assert.equal(command.actions.map((action) => action.moduleId).join(","), "reports,uploads,jobs,time,deliveryTickets");
-  assert.equal(command.closeoutSummary.length, 7);
+  assert.equal(command.closeoutSummary.length, 9);
   assert.equal(command.closeoutSummary.some((item) => /Profit\/loss review prep/i.test(item.label)), true);
   assert.equal(command.closeoutSummary.some((item) => /Job costing review/i.test(item.label)), true);
+  assert.equal(command.closeoutSummary.some((item) => /Manual invoice \/ payment prep/i.test(item.label)), true);
+  assert.equal(command.closeoutSummary.some((item) => /Approved changes \/ missing proof/i.test(item.label)), true);
   assert.equal(command.closeoutSummary.some((item) => /Billing review candidates/i.test(item.label)), true);
   assert.equal(command.closeoutSummary.some((item) => /does not create invoices, collect payment, send customer messages/i.test(item.detail)), true);
   assert.equal(command.billingReviewPacket.metrics.estimateTotal, 48750);

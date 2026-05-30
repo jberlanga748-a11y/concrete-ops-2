@@ -44,7 +44,15 @@ test("closeout billing review packet connects estimate, proof, time, and safety 
   assert.equal(packet.metrics.jobCostingReadyForManualReview, 1);
   assert.equal(packet.metrics.jobCostingActualCostTotal, 5590);
   assert.equal(packet.metrics.jobCostingReviewDelta, 6810);
+  assert.equal(packet.metrics.manualInvoicePrepReady, 1);
+  assert.equal(packet.metrics.manualPaymentPrepReady, 1);
+  assert.equal(packet.metrics.proofMissingItems, 0);
   assert.equal(packet.rows[0].readyForBillingReview, true);
+  assert.equal(packet.rows[0].billingPrep.canPrepareManualInvoice, true);
+  assert.equal(packet.rows[0].billingPrep.invoicePrepStatus, "ready_for_manual_invoice_prep");
+  assert.equal(packet.rows[0].billingPrep.paymentPrepStatus, "ready_for_manual_payment_prep");
+  assert.equal(packet.rows[0].billingPrep.whatCanBeBilled.reviewTotal, 12400);
+  assert.equal(packet.rows[0].billingPrep.proofStatus.missing.length, 0);
   assert.equal(packet.rows[0].profitLossReview.readyForManualReview, true);
   assert.equal(packet.rows[0].jobCostingReview.readyForManualReview, true);
   assert.equal(packet.rows[0].jobCostingReview.costByCategory.labor, 1440);
@@ -61,6 +69,7 @@ test("closeout billing review packet connects estimate, proof, time, and safety 
   assert.match(packet.summaryItems.find((item) => item.id === "time-profit-loss-inputs").detail, /Profit\/loss is not finalized/i);
   assert.match(packet.summaryItems.find((item) => item.id === "profit-loss-review-prep").detail, /office finalizes cost and margin manually/i);
   assert.match(packet.summaryItems.find((item) => item.id === "job-costing-review").detail, /reviewed actual cost inputs/i);
+  assert.match(packet.summaryItems.find((item) => item.id === "manual-invoice-payment-prep").detail, /No invoice, payment link, charge, receipt, or customer message is created/i);
   assert.match(packet.safetyBoundary, /does not invoice/i);
   assert.equal(packet.blockedActions.some((action) => /No invoice is created/i.test(action)), true);
   assert.equal(packet.blockedActions.some((action) => /No payment is collected/i.test(action)), true);
@@ -87,6 +96,9 @@ test("closeout billing review packet blocks active time, missing proof, safety, 
   assert.equal(packet.metrics.proofGaps, 2);
   assert.equal(packet.metrics.changeOrdersNeedingReview, 1);
   assert.equal(packet.metrics.safetyOpen, 1);
+  assert.equal(packet.metrics.manualInvoicePrepReady, 0);
+  assert.equal(packet.rows[0].billingPrep.invoicePrepStatus, "blocked_by_closeout_review");
+  assert.match(packet.rows[0].billingPrep.proofStatus.missing.join(" "), /Reviewed daily report|Photo\/proof upload|delivery ticket/i);
   assert.equal(packet.metrics.profitLossReadyForManualReview, 0);
   assert.ok(packet.metrics.profitLossInputWarnings >= 4);
   assert.equal(packet.metrics.jobCostingReadyForManualReview, 0);
@@ -166,6 +178,65 @@ test("closeout packet does not treat pending change order amounts as billable to
 
   assert.equal(packet.rows[0].recognizedChangeOrderTotal, 500);
   assert.equal(packet.metrics.reviewTotal, 15500);
+  assert.equal(packet.rows[0].changeOrders.needsReview, 1);
+  assert.match(packet.rows[0].blockers.join(" "), /change order need manual pricing\/billing review/i);
+});
+
+test("closeout billing review recognizes manually accepted change orders ready for handoff", () => {
+  const packet = buildJobCloseoutBillingReviewPacket({
+    permissions: OFFICE_PERMISSIONS,
+    jobs: [{ id: "JOB-1", title: "Kitchen Patio", status: "billing_ready" }],
+    estimates: [{ id: "EST-1", jobId: "JOB-1", grandTotal: 9000 }],
+    dailyReports: [{ id: "DR-1", jobId: "JOB-1", status: "reviewed" }],
+    uploads: [{ id: "UP-1", jobId: "JOB-1", caption: "Final walk" }],
+    timeEntries: [{ id: "TE-1", jobId: "JOB-1", totalMinutes: 300, status: "completed" }],
+    changeOrderRequests: [
+      {
+        id: "CO-READY",
+        jobId: "JOB-1",
+        status: "approved_for_pricing",
+        priceAmount: 1200,
+        customerReviewStatus: "accepted_manually",
+        gcReviewStatus: "not_ready",
+        billingHandoffStatus: "ready_for_manual_billing_handoff",
+      },
+    ],
+  });
+
+  assert.equal(packet.rows[0].recognizedChangeOrderTotal, 1200);
+  assert.equal(packet.metrics.reviewTotal, 10200);
+  assert.equal(packet.metrics.approvedChangeOrdersIncluded, 1);
+  assert.equal(packet.metrics.approvedChangeOrderTotal, 1200);
+  assert.equal(packet.rows[0].billingPrep.approvedChangesIncluded.count, 1);
+  assert.equal(packet.rows[0].billingPrep.approvedChangesIncluded.total, 1200);
+  assert.equal(packet.rows[0].billingPrep.approvedChangesIncluded.rows[0].status, "manual_acceptance_ready");
+  assert.equal(packet.rows[0].billingPrep.canPrepareManualInvoice, true);
+  assert.equal(packet.rows[0].changeOrders.needsReview, 0);
+  assert.doesNotMatch(packet.rows[0].blockers.join(" "), /change order need manual pricing\/billing review/i);
+});
+
+test("closeout billing review keeps priced change orders blocked until manual acceptance", () => {
+  const packet = buildJobCloseoutBillingReviewPacket({
+    permissions: OFFICE_PERMISSIONS,
+    jobs: [{ id: "JOB-1", title: "Sidewalk", status: "billing_ready" }],
+    estimates: [{ id: "EST-1", jobId: "JOB-1", grandTotal: 6000 }],
+    dailyReports: [{ id: "DR-1", jobId: "JOB-1", status: "reviewed" }],
+    uploads: [{ id: "UP-1", jobId: "JOB-1", caption: "Final walk" }],
+    timeEntries: [{ id: "TE-1", jobId: "JOB-1", totalMinutes: 240, status: "completed" }],
+    changeOrderRequests: [
+      {
+        id: "CO-SENT",
+        jobId: "JOB-1",
+        status: "approved_for_pricing",
+        priceAmount: 775,
+        customerReviewStatus: "sent_manually",
+        billingHandoffStatus: "ready_for_manual_billing_handoff",
+      },
+    ],
+  });
+
+  assert.equal(packet.rows[0].recognizedChangeOrderTotal, 0);
+  assert.equal(packet.metrics.reviewTotal, 6000);
   assert.equal(packet.rows[0].changeOrders.needsReview, 1);
   assert.match(packet.rows[0].blockers.join(" "), /change order need manual pricing\/billing review/i);
 });

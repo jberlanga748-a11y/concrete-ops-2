@@ -14,6 +14,8 @@ test("AI Office agent command center builds role-safe review lanes from visible 
       reports: { canView: true, canReview: true },
       uploads: { canView: true, canManageAll: true },
       customers: { canView: true },
+      contactHistory: { canView: true },
+      customerPortal: { canPreview: true },
       settings: { canView: true },
       appHealth: { canView: true },
     },
@@ -70,6 +72,8 @@ test("AI Office agent command center builds role-safe review lanes from visible 
   assert.equal(state.workflowCards.some((card) => card.id === "proof-closeout"), true);
   assert.equal(state.workflowCards.some((card) => card.id === "proof-closeout" && card.recordType === "dailyCloseout" && card.actionLabel === "Review closeout"), true);
   assert.equal(state.workflowCards.some((card) => card.id === "estimate-action-agent"), true);
+  assert.equal(state.workflowCards.some((card) => card.id === "communications-review" && card.moduleId === "communications"), true);
+  assert.equal(state.workflowCards.some((card) => card.id === "billing-prep" && card.moduleId === "settings"), true);
   assert.equal(state.workflowCards.some((card) => card.id === "field-ops-agent"), true);
   assert.equal(state.workflowCards.some((card) => card.id === "release-readiness"), true);
   assert.equal(state.workflowCards.some((card) => card.id === "agent-learning"), true);
@@ -95,6 +99,8 @@ test("AI Office agent command center builds role-safe review lanes from visible 
   assert.equal(state.workflowCards.some((card) => /\bAgent\b/.test(card.title)), false);
   assert.match(state.summary, /routes into an existing Apex HQ workflow/i);
   assert.equal(state.guardrails.some((item) => /No auto-send/i.test(item.detail)), true);
+  assert.match(state.workflowCards.find((card) => card.id === "communications-review").helper, /without sending messages or creating portal access/i);
+  assert.match(state.workflowCards.find((card) => card.id === "billing-prep").helper, /without live billing or provider writes/i);
   assert.equal(state.autonomyReadiness.operationalStatus, "Autonomous prep only");
   assert.equal(state.autonomyReadiness.readyForAutonomousMutation, false);
   assert.equal(state.autonomyReadiness.reviewCapabilityCount, state.workflowCards.length);

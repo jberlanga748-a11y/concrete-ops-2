@@ -21,6 +21,21 @@ function isWithinRange(value, start, end) {
   return parsed.getTime() >= start.getTime() && parsed.getTime() <= end.getTime();
 }
 
+function dateInputValue(date) {
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().slice(0, 10);
+}
+
+function parseDateKey(value) {
+  const normalized = String(value || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return null;
+  const parsed = new Date(`${normalized}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime())) return null;
+  if (parsed.toISOString().slice(0, 10) !== normalized) return null;
+  return { key: normalized, date: parsed };
+}
+
 function labelForEntry(entry) {
   if (entry.jobTitle) return entry.jobTitle;
   return timeWorkCategoryLabel(entry.workCategory);
@@ -251,6 +266,255 @@ export function deriveTimeJobCostingReadiness(entries = [], jobs = [], {
           ? "Ready for office review"
           : "Clock into a job",
   };
+}
+
+export function defaultPayrollPrepPeriod(now = new Date()) {
+  const end = new Date(now);
+  if (Number.isNaN(end.getTime())) {
+    return defaultPayrollPrepPeriod(new Date());
+  }
+  end.setUTCHours(0, 0, 0, 0);
+  const start = new Date(end);
+  start.setUTCDate(start.getUTCDate() - 13);
+  return {
+    periodStart: dateInputValue(start),
+    periodEnd: dateInputValue(end),
+  };
+}
+
+export function payrollPrepPeriodEntityId(periodStart, periodEnd) {
+  return `payroll-prep:${periodStart}:${periodEnd}`;
+}
+
+export function normalizePayrollPrepPeriod(input = {}, { now = new Date() } = {}) {
+  const defaults = defaultPayrollPrepPeriod(now);
+  const startDate = parseDateKey(input.periodStart || defaults.periodStart);
+  const endDate = parseDateKey(input.periodEnd || defaults.periodEnd);
+  const errors = [];
+
+  if (!startDate) errors.push("Pay period start must be a valid YYYY-MM-DD date.");
+  if (!endDate) errors.push("Pay period end must be a valid YYYY-MM-DD date.");
+  if (startDate && endDate && startDate.date.getTime() > endDate.date.getTime()) {
+    errors.push("Pay period start cannot be after pay period end.");
+  }
+
+  if (errors.length) {
+    return {
+      ok: false,
+      errors,
+      periodStart: startDate?.key || "",
+      periodEnd: endDate?.key || "",
+      startAt: "",
+      endAt: "",
+      entityId: "",
+    };
+  }
+
+  const endAt = new Date(endDate.date);
+  endAt.setUTCHours(23, 59, 59, 999);
+
+  return {
+    ok: true,
+    errors: [],
+    periodStart: startDate.key,
+    periodEnd: endDate.key,
+    startAt: startDate.date.toISOString(),
+    endAt: endAt.toISOString(),
+    entityId: payrollPrepPeriodEntityId(startDate.key, endDate.key),
+  };
+}
+
+function payrollPrepExceptionForEntry(entry = {}) {
+  const status = entry.status || "";
+  const presenceStatus = entry.jobsitePresenceReview?.status || entry.jobsitePresenceReviewStatus || "";
+
+  if (status !== "completed") {
+    return "Clock still active or on break";
+  }
+  if (!entry.clockOutAt) {
+    return "Missing clock-out";
+  }
+  if (Number(entry.totalMinutes || 0) <= 0) {
+    return "Zero-hour entry";
+  }
+  if ((entry.workCategory || "job") === "job" && !recordJobId(entry)) {
+    return "Job time is not linked to a job";
+  }
+  if (presenceStatus === "needs_review" && entry.jobsitePresenceReviewStatus !== "reviewed") {
+    return "Presence review still open";
+  }
+  return "";
+}
+
+function latestPayrollPrepApproval(auditEvents = [], entityId = "") {
+  return (auditEvents || [])
+    .filter((event) => event?.entityType === "payrollPrep" && event?.entityId === entityId && event?.action === "payroll_ready_approved")
+    .sort((left, right) => new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime())[0] || null;
+}
+
+export function derivePayrollPrepState(entries = [], auditEvents = [], input = {}) {
+  const period = normalizePayrollPrepPeriod(input);
+  if (!period.ok) {
+    return {
+      period,
+      entries: [],
+      readyEntries: [],
+      exceptions: [],
+      employeeSummaries: [],
+      readyMinutes: 0,
+      breakMinutes: 0,
+      approved: false,
+      approvalStatus: "invalid_period",
+      approvalEvent: null,
+      canApprove: false,
+      canExport: false,
+    };
+  }
+
+  const start = new Date(period.startAt);
+  const end = new Date(period.endAt);
+  const periodEntries = sortTimeEntries(entries)
+    .filter((entry) => isWithinRange(entry.clockInAt, start, end))
+    .sort((left, right) => {
+      const userCompare = String(left.userName || left.userId || "").localeCompare(String(right.userName || right.userId || ""));
+      if (userCompare !== 0) return userCompare;
+      return new Date(left.clockInAt || 0).getTime() - new Date(right.clockInAt || 0).getTime();
+    });
+
+  const exceptions = [];
+  const readyEntries = [];
+  periodEntries.forEach((entry) => {
+    const reason = payrollPrepExceptionForEntry(entry);
+    if (reason) {
+      exceptions.push({
+        id: entry.id,
+        userId: entry.userId || "",
+        userName: entry.userName || entry.userId || "Field user",
+        jobTitle: entry.jobTitle || timeWorkCategoryLabel(entry.workCategory),
+        reason,
+        clockInAt: entry.clockInAt || "",
+        status: entry.status || "",
+      });
+    } else {
+      readyEntries.push(entry);
+    }
+  });
+
+  const employeeMap = new Map();
+  readyEntries.forEach((entry) => {
+    const key = entry.userId || entry.userName || "unknown";
+    const summary = employeeMap.get(key) || {
+      userId: entry.userId || "",
+      userName: entry.userName || entry.userId || "Field user",
+      userRole: entry.userRole || "",
+      entries: 0,
+      totalMinutes: 0,
+      breakMinutes: 0,
+    };
+    summary.entries += 1;
+    summary.totalMinutes += Number(entry.totalMinutes || 0);
+    summary.breakMinutes += Number(entry.breakMinutes || 0);
+    employeeMap.set(key, summary);
+  });
+
+  const latestApproval = latestPayrollPrepApproval(auditEvents, period.entityId);
+  const lastEntryUpdate = periodEntries.reduce((latest, entry) => {
+    const updatedAt = new Date(entry.updatedAt || entry.createdAt || entry.clockInAt || 0).getTime();
+    return Number.isFinite(updatedAt) ? Math.max(latest, updatedAt) : latest;
+  }, 0);
+  const approvalTime = latestApproval ? new Date(latestApproval.createdAt || 0).getTime() : 0;
+  const approvalFresh = Boolean(latestApproval && approvalTime >= lastEntryUpdate);
+  const approved = Boolean(approvalFresh && exceptions.length === 0 && readyEntries.length > 0);
+  const readyMinutes = readyEntries.reduce((sum, entry) => sum + Number(entry.totalMinutes || 0), 0);
+  const breakMinutes = readyEntries.reduce((sum, entry) => sum + Number(entry.breakMinutes || 0), 0);
+  const canApprove = readyEntries.length > 0 && readyMinutes > 0 && exceptions.length === 0;
+
+  return {
+    period,
+    entries: periodEntries,
+    readyEntries,
+    exceptions,
+    employeeSummaries: Array.from(employeeMap.values()).sort((left, right) => left.userName.localeCompare(right.userName)),
+    readyMinutes,
+    breakMinutes,
+    approved,
+    approvalStatus: approved
+      ? "approved"
+      : exceptions.length
+        ? "exceptions"
+        : latestApproval && !approvalFresh
+          ? "stale_after_changes"
+          : readyEntries.length
+            ? "ready_for_approval"
+            : "no_ready_hours",
+    approvalEvent: latestApproval,
+    canApprove,
+    canExport: approved,
+  };
+}
+
+function csvValue(value) {
+  const text = String(value ?? "");
+  if (/[",\n\r]/.test(text)) {
+    return `"${text.replaceAll('"', '""')}"`;
+  }
+  return text;
+}
+
+function hoursDecimal(minutes) {
+  return (Math.round((Number(minutes || 0) / 60) * 100) / 100).toFixed(2);
+}
+
+export function buildPayrollPrepCsv(prepState = {}) {
+  const period = prepState.period || {};
+  const rows = Array.isArray(prepState.readyEntries) ? prepState.readyEntries : [];
+  const headers = [
+    "pay_period_start",
+    "pay_period_end",
+    "employee_name",
+    "employee_id",
+    "employee_role",
+    "work_date",
+    "work_category",
+    "job_id",
+    "job_title",
+    "clock_in_at",
+    "clock_out_at",
+    "break_minutes",
+    "total_hours",
+    "review_status",
+    "time_entry_id",
+  ];
+  const lines = [headers.join(",")];
+
+  rows.forEach((entry) => {
+    lines.push([
+      period.periodStart || "",
+      period.periodEnd || "",
+      entry.userName || "",
+      entry.userId || "",
+      entry.userRole || "",
+      dateInputValue(entry.clockInAt),
+      timeWorkCategoryLabel(entry.workCategory),
+      entry.jobId || "",
+      entry.jobTitle || "",
+      entry.clockInAt || "",
+      entry.clockOutAt || "",
+      Number(entry.breakMinutes || 0),
+      hoursDecimal(entry.totalMinutes),
+      "payroll_ready_reviewed",
+      entry.id || "",
+    ].map(csvValue).join(","));
+  });
+
+  return `${lines.join("\n")}\n`;
+}
+
+export function payrollPrepCsvFileName(prepState = {}) {
+  const period = prepState.period || {};
+  const start = period.periodStart || "period-start";
+  const end = period.periodEnd || "period-end";
+  return `apex-hq-payroll-prep-${start}-to-${end}.csv`;
 }
 
 export function buildTimeTrackingSupportContext({

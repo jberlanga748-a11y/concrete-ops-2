@@ -71,6 +71,8 @@ test("Apex Agent Operator exposes the full contractor command loop for owner/adm
   assert.equal(state.commands.find((command) => command.id === "plan_ads").providerState, "Needs account/API key");
   assert.match(state.commands.find((command) => command.id === "plan_ads").externalBoundary, /No autonomous ad publishing/i);
   assert.match(state.commands.find((command) => command.id === "billing_readiness").externalBoundary, /No invoice, payment link, charge/i);
+  assert.equal(state.commands.find((command) => command.id === "billing_readiness").moduleId, "settings");
+  assert.equal(state.commands.find((command) => command.id === "billing_readiness").actionLabel, "Open billing prep");
   assert.match(state.commands.find((command) => command.id === "reviews_referrals").externalBoundary, /No review request/i);
   assert.equal(state.commands.find((command) => command.id === "follow_up").moduleId, "leads");
   assert.equal(state.commands.find((command) => command.id === "prepare_proposals").moduleId, "estimates");

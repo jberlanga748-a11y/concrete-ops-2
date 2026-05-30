@@ -66,6 +66,50 @@ function locationForJob(job = {}) {
   return address.split(",").slice(0, 2).join(",").trim() || "Service area";
 }
 
+function publicLocationForJob(job = {}) {
+  const city = text(job.city || job.serviceCity || job.marketCity);
+  const state = text(job.state || job.serviceState || job.marketState);
+  if (city && state) return `${city}, ${state}`;
+  if (city) return city;
+
+  const address = text(job.address || job.siteAddress || job.location);
+  if (!address) return "Service area";
+  const parts = address.split(",").map((part) => text(part)).filter(Boolean);
+  const firstPartLooksLikeStreet = /^\d+\s+/.test(parts[0] || "");
+  const publicParts = firstPartLooksLikeStreet ? parts.slice(1) : parts;
+  return publicParts.slice(0, 2).join(", ").trim() || "Service area";
+}
+
+function permissionApproved(value) {
+  if (value === true) return true;
+  return ["approved", "permissioned", "granted", "yes", "true", "released"].includes(normalize(value));
+}
+
+function hasPublicCustomerPermission(job = {}, customer = {}) {
+  return [
+    job.customerPublicUseApproved,
+    job.customerProofPermission,
+    job.portfolioPermissionStatus,
+    job.marketingConsent,
+    job.photoRelease,
+    customer.customerPublicUseApproved,
+    customer.customerProofPermission,
+    customer.portfolioPermissionStatus,
+    customer.marketingConsent,
+    customer.photoRelease,
+  ].some(permissionApproved);
+}
+
+function proofOption(upload = {}) {
+  return {
+    id: text(upload.id || upload.uploadId || upload.fileId || proofCaption(upload)),
+    classification: classifyPhoto(upload),
+    caption: proofCaption(upload),
+    reviewStatus: "Owner/admin selection required",
+    publicUseStatus: "Permission required before public use",
+  };
+}
+
 function firstSentence(value = "") {
   const clean = text(value).replace(/\s+/g, " ");
   if (!clean) return "";
@@ -94,9 +138,13 @@ function estimateForJob(estimates = [], job = {}) {
 
 function buildStoryRow(job = {}, context = {}) {
   const jobId = text(job.id);
+  const customerRecord = context.customerById?.get(job.customerId) || {};
   const customer = customerForJob(job, context.customerById);
   const title = titleForJob(job);
   const location = locationForJob(job);
+  const publicLocation = publicLocationForJob(job);
+  const customerIdentityApproved = hasPublicCustomerPermission(job, customerRecord);
+  const publicCustomerLabel = customerIdentityApproved ? customer : "Customer permission pending";
   const uploads = context.uploadsByJob.get(jobId) || [];
   const reports = context.reportsByJob.get(jobId) || [];
   const reviewedReports = reports.filter(reportIsReviewed);
@@ -109,6 +157,28 @@ function buildStoryRow(job = {}, context = {}) {
   const permissionRequired = "Permission required before using customer name, quote, logo, face, address, or photo publicly.";
   const completed = isCompletedJob(job);
   const proofReady = uploads.length > 0 && reviewedReports.length > 0;
+  const approvalStatus = proofReady && completed ? "Owner/admin review required" : "Proof not ready";
+  const claimRiskLevel = proofReady && completed && customerIdentityApproved && beforePhotos.length && afterPhotos.length ? "medium" : "high";
+  const proofSelection = {
+    before: beforePhotos.map(proofOption),
+    after: afterPhotos.map(proofOption),
+    supporting: uploads.filter((upload) => !["before", "after"].includes(classifyPhoto(upload))).map(proofOption),
+  };
+  const privateFieldsBlocked = [
+    "exact address",
+    "GPS coordinates",
+    "private upload metadata",
+    "office notes",
+    "pricing, margin, payroll, billing, or costs",
+    "customer name, quote, logo, face, or photo without permission",
+  ];
+  const requiredApprovals = [
+    "Owner/admin approves the proof packet",
+    "Customer permission is confirmed before using identity, quote, logo, face, address, or photos publicly",
+    "Before/after photo selection is reviewed by owner/admin",
+    "Any result claim is backed by reviewed job records",
+    "Manual human send or publish happens outside Apex HQ",
+  ];
   const proofLines = [
     uploads.length ? `${uploads.length} photo/proof upload${uploads.length === 1 ? "" : "s"}` : "",
     reviewedReports.length ? `${reviewedReports.length} reviewed daily report${reviewedReports.length === 1 ? "" : "s"}` : "",
@@ -126,6 +196,10 @@ function buildStoryRow(job = {}, context = {}) {
     tone: completed && proofReady ? "green" : proofReady ? "blue" : "amber",
     completed,
     proofReady,
+    approvalStatus,
+    claimRiskLevel,
+    publicCustomerLabel,
+    customerIdentityStatus: customerIdentityApproved ? "Customer identity approved for public proof" : "Customer identity withheld until permission is confirmed",
     proofCounts: {
       uploads: uploads.length,
       reports: reports.length,
@@ -139,10 +213,18 @@ function buildStoryRow(job = {}, context = {}) {
         ? "Manual before/after selection needed"
         : "Photos needed before public proof",
     storyHeadline: `${title} project story draft`,
-    storyBody: `${context.companyName} can turn this job into a customer-safe project story after owner review. ${primaryWork || "Add reviewed field notes before using this publicly."} Proof to consider: ${primaryPhoto}.`,
-    proposalProofBlock: `${title}: ${proofLines.join(", ") || "proof still needs to be linked"}. ${permissionRequired}`,
-    socialDraft: `Recent ${text(context.primaryTrade || "contractor")} project in ${location}: ${primaryWork || "field proof and closeout notes are ready for owner review"}. Manual publish only after permission and photo selection.`,
+    storyBody: `${context.companyName} can turn this completed work into a customer-safe project story after owner review. ${primaryWork || "Add reviewed field notes before using this publicly."} Proof to consider: ${primaryPhoto ? "selected reviewed photo proof" : "reviewed proof uploads"}.`,
+    proposalProofBlock: `${title}: ${proofLines.join(", ") || "proof still needs to be linked"}. Owner/admin review required. ${permissionRequired}`,
+    socialDraft: `Recent ${text(context.primaryTrade || "contractor")} project in ${publicLocation}: ${primaryWork || "field proof and closeout notes are ready for owner review"}. Manual publish only after permission, claim review, and photo selection.`,
     websiteDraft: `${title} can become a portfolio/gallery item after the office confirms customer permission, removes private details, and selects approved before/after proof.`,
+    projectStoryDraft: {
+      headline: `${title} project proof review`,
+      summary: `${text(context.primaryTrade || "Contractor")} work in ${publicLocation} with reviewed field notes and selected proof pending owner/admin approval.`,
+      body: `${primaryWork || "Reviewed job notes are needed before public use."} Public copy must stay de-identified until customer permission is confirmed.`,
+      customerLabel: publicCustomerLabel,
+      location: publicLocation,
+      reviewStatus: approvalStatus,
+    },
     reviewRequestDraft: completed
       ? `Thanks again for trusting us with ${title}. If the work matched what we promised, would you be willing to leave a short honest review?`
       : "Wait until closeout is confirmed before asking for a review.",
@@ -156,6 +238,21 @@ function buildStoryRow(job = {}, context = {}) {
       "Photo selection reviewed by owner/admin",
       "Any quote/testimonial is exact and permissioned",
     ],
+    claimReview: {
+      status: approvalStatus,
+      riskLevel: claimRiskLevel,
+      requiredApprovals,
+      blockedPrivateFields: privateFieldsBlocked,
+      forbiddenClaims: [
+        "fake testimonial",
+        "invented customer quote",
+        "unverified project result",
+        "guaranteed lead or outcome claim",
+        "customer identity without permission",
+      ],
+    },
+    proofSelection,
+    privateFieldsBlocked,
     proofLines,
     permissionRequired,
   };
@@ -213,9 +310,11 @@ export function deriveReputationPortfolioEngineState({
         referralAskDrafts: 0,
         socialDrafts: 0,
         proposalProofBlocks: 0,
+        ownerReviewPackets: 0,
       },
       storyCandidates: [],
       reviewReferralQueue: [],
+      ownerReviewPackets: [],
       portfolioGallery: [],
       proposalProofBlocks: [],
       socialWebsiteDrafts: [],
@@ -261,7 +360,9 @@ export function deriveReputationPortfolioEngineState({
       id: `review-referral-${row.jobId}`,
       jobId: row.jobId,
       title: row.title,
-      customer: row.customer,
+      customer: row.publicCustomerLabel,
+      customerIdentityStatus: row.customerIdentityStatus,
+      reviewStatus: row.approvalStatus,
       reviewRequestDraft: row.reviewRequestDraft,
       referralAskDraft: row.referralAskDraft,
       boundary: "Manual copy only. No review request, referral ask, email, text, or DM is sent from this panel.",
@@ -282,12 +383,37 @@ export function deriveReputationPortfolioEngineState({
       nextAction: "Link field proof and review daily report before asking for reviews, referrals, or public proof.",
     }));
 
+  const ownerReviewPackets = storyCandidates.filter((row) => row.completed || row.proofReady).map((row) => ({
+    id: `owner-review-${row.jobId}`,
+    jobId: row.jobId,
+    title: row.title,
+    status: row.approvalStatus,
+    riskLevel: row.claimRiskLevel,
+    customer: row.publicCustomerLabel,
+    customerIdentityStatus: row.customerIdentityStatus,
+    publicLocation: row.projectStoryDraft.location,
+    requiredApprovals: row.claimReview.requiredApprovals,
+    blockedPrivateFields: row.claimReview.blockedPrivateFields,
+    proofSelection: row.proofSelection,
+    outputs: {
+      reviewRequestDraft: row.reviewRequestDraft,
+      referralAskDraft: row.referralAskDraft,
+      projectStoryDraft: row.projectStoryDraft,
+      portfolioDraft: row.websiteDraft,
+      proposalProofBlock: row.proposalProofBlock,
+    },
+    boundary: "Owner/admin review packet only. Apex HQ does not send, publish, approve, or modify records from this engine.",
+  }));
+
   const portfolioGallery = storyCandidates.filter((row) => row.proofReady).map((row) => ({
     id: `portfolio-${row.jobId}`,
     title: row.title,
-    location: row.location,
+    location: row.projectStoryDraft.location,
+    customer: row.publicCustomerLabel,
     beforeAfterStatus: row.beforeAfterStatus,
     websiteDraft: row.websiteDraft,
+    projectStoryDraft: row.projectStoryDraft,
+    proofSelection: row.proofSelection,
     permissionRequired: row.permissionRequired,
   }));
 
@@ -295,11 +421,14 @@ export function deriveReputationPortfolioEngineState({
     id: `proposal-proof-${row.jobId}`,
     title: row.title,
     proofBlock: row.proposalProofBlock,
+    reviewStatus: row.approvalStatus,
+    riskLevel: row.claimRiskLevel,
   }));
 
   const socialWebsiteDrafts = storyCandidates.filter((row) => row.proofReady).map((row) => ({
     id: `social-website-${row.jobId}`,
     title: row.title,
+    customer: row.publicCustomerLabel,
     socialDraft: row.socialDraft,
     websiteDraft: row.websiteDraft,
     boundary: "Manual publish only after customer permission and owner/admin photo review.",
@@ -319,9 +448,11 @@ export function deriveReputationPortfolioEngineState({
       referralAskDrafts: reviewReferralQueue.length,
       socialDrafts: socialWebsiteDrafts.length,
       proposalProofBlocks: proposalProofBlocks.length,
+      ownerReviewPackets: ownerReviewPackets.length,
     },
     storyCandidates,
     reviewReferralQueue,
+    ownerReviewPackets,
     portfolioGallery,
     proposalProofBlocks,
     socialWebsiteDrafts,

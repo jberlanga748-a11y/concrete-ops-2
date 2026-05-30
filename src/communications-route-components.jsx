@@ -14,7 +14,7 @@ import {
   TextAreaField,
 } from "./app-shell-components";
 import { deriveCommunicationProviderReadinessUiState } from "./communication-provider-readiness-utils";
-import { buildCustomerPortalCommentDraft, deriveCustomerPortalCommandState } from "./customer-portal-command-utils";
+import { buildCustomerPortalCommentDraft, CUSTOMER_PORTAL_REVIEW_DECISIONS, deriveCustomerPortalCommandState } from "./customer-portal-command-utils";
 import { contactHistoryBadgeTone, createContactHistoryDraft, deriveCommunicationCenterState } from "./contact-history-utils";
 import { CONTACT_HISTORY_DIRECTIONS, CONTACT_HISTORY_METHODS, CONTACT_HISTORY_OUTCOMES } from "../shared/contactHistory.js";
 
@@ -117,6 +117,7 @@ export function CommunicationCenterPage({
     approvalId: "OWNER-PORTAL-REVIEW",
   }));
   const [portalReviewNote, setPortalReviewNote] = useState("Customer portal packet reviewed for proposal, proof, progress, and change order visibility.");
+  const [portalDecision, setPortalDecision] = useState("comment");
   const [portalComment, setPortalComment] = useState("");
   const [portalPacketPreview, setPortalPacketPreview] = useState("");
   const isDesktopCommandViewport = useDesktopCommandViewport(1180);
@@ -431,6 +432,7 @@ export function CommunicationCenterPage({
     }
     const draftComment = buildCustomerPortalCommentDraft({
       comment: portalComment,
+      decision: portalDecision,
       preview: portalCommandState.preview,
       user,
     });
@@ -441,6 +443,7 @@ export function CommunicationCenterPage({
     });
     if (didSave) {
       setPortalComment("");
+      setPortalDecision("comment");
       setPortalStatus({ status: "ready", message: "Customer portal comment recorded internally for owner/admin follow-up. Nothing was sent." });
     }
   }
@@ -716,10 +719,15 @@ export function CommunicationCenterPage({
       return (
         <Card className="co-communications-rules-card p-4">
           <SectionHeader
-            title="Customer portal"
+            title="Customer Portal Command"
             description="Provider-ready portal workflow is available for owner/admin Elite workspaces."
             action={<Badge tone="amber">Needs package</Badge>}
           />
+          <div className="mb-3 grid gap-2">
+            <div className="co-ai-boundary-row" data-state="locked"><span>Preview/share workflow</span><strong>Package gated</strong></div>
+            <div className="co-ai-boundary-row" data-state="manual"><span>Customer decisions</span><strong>Internal review only</strong></div>
+            <div className="co-ai-boundary-row" data-state="locked"><span>External portal execution</span><strong>Locked</strong></div>
+          </div>
           <StateCard
             title="Customer portal is package-gated"
             description="Proposal packets, proof, comments, approvals, and send evidence stay internal until the workspace has the required package/provider setup."
@@ -843,9 +851,14 @@ export function CommunicationCenterPage({
 
         <form className="mt-3 grid gap-3 border-t border-slate-200 pt-3" onSubmit={recordPortalCustomerComment}>
           <p className="text-xs font-black uppercase text-slate-500">Customer comment / approval review</p>
+          <SelectField label="Customer decision" value={portalDecision} onChange={(event) => setPortalDecision(event.target.value)} disabled={busy || !canManage}>
+            {CUSTOMER_PORTAL_REVIEW_DECISIONS.map((decision) => (
+              <option key={decision.id} value={decision.id}>{decision.label}</option>
+            ))}
+          </SelectField>
           <TextAreaField label="Customer comment" value={portalComment} onChange={(event) => setPortalComment(event.target.value)} disabled={busy || !canManage} placeholder="Paste a customer comment, approval note, rejection reason, or change-order question for internal follow-up." />
           <div className="co-communications-submit-row flex flex-wrap items-center gap-3">
-            <Button type="submit" size="sm" disabled={busy || !canManage || !portalComment.trim()}>Record comment</Button>
+            <Button type="submit" size="sm" disabled={busy || !canManage || !portalComment.trim()}>Record review</Button>
             <p className="text-xs font-bold text-slate-500">Stored as internal contact history on the proposal/job; no portal action or message is sent.</p>
           </div>
         </form>

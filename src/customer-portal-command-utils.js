@@ -15,6 +15,18 @@ function titleCase(value = "") {
     .join(" ");
 }
 
+export const CUSTOMER_PORTAL_REVIEW_DECISIONS = Object.freeze([
+  { id: "comment", label: "Comment / question", outcome: "Replied" },
+  { id: "approval_noted", label: "Approval noted", outcome: "Replied" },
+  { id: "changes_requested", label: "Changes requested", outcome: "Follow-Up Needed" },
+  { id: "rejection_noted", label: "Rejection noted", outcome: "Follow-Up Needed" },
+]);
+
+function normalizePortalReviewDecision(decision = "comment") {
+  const normalized = text(decision, "comment").toLowerCase();
+  return CUSTOMER_PORTAL_REVIEW_DECISIONS.find((item) => item.id === normalized) || CUSTOMER_PORTAL_REVIEW_DECISIONS[0];
+}
+
 function statusTone(status = "") {
   const normalized = text(status).toLowerCase();
   if (normalized.includes("ready")) return "green";
@@ -92,22 +104,26 @@ export function deriveCustomerPortalCommandState({
 
 export function buildCustomerPortalCommentDraft({
   comment = "",
+  decision = "comment",
   preview = {},
   user = {},
   now = new Date().toISOString(),
 } = {}) {
   const customer = text(preview.customer, "Customer");
+  const reviewDecision = normalizePortalReviewDecision(decision);
   const subject = `Customer portal comment review - ${customer}`.slice(0, 200);
   return {
     method: "Other",
     direction: "inbound",
-    outcome: "Replied",
+    outcome: reviewDecision.outcome,
     subject,
     messageDraft: "",
     notes: [
       `Customer-safe portal comment captured for owner/admin review at ${now}.`,
+      `Internal customer decision: ${reviewDecision.label}.`,
       `Reviewer: ${text(user?.name || user?.email, "Workspace user")}.`,
       `Comment: ${text(comment, "No comment entered.").slice(0, 2000)}`,
+      "Boundary: internal contact history only; no portal approval, rejection, customer session, message, invoice, payment, token, or public action was created.",
     ].join("\n"),
   };
 }

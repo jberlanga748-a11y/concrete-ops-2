@@ -92,8 +92,36 @@ const ROUTE_COMMANDS = [
     id: "time",
     moduleId: "time",
     actionLabel: "Open time",
-    keywords: ["time", "clock", "timesheet", "timesheets"],
+    keywords: ["time", "clock", "timesheet", "timesheets", "payroll prep", "pay period", "payroll export"],
     message: "Open Time to review active clocks, breaks, and role-scoped time entries.",
+  },
+  {
+    id: "communications",
+    moduleId: "communications",
+    actionLabel: "Open communications",
+    keywords: ["communication", "communications", "contact history", "message draft", "call log", "customer portal", "portal share", "share approval", "customer comment"],
+    message: "Open Communications to review contact history, manual drafts, customer portal share approvals, and customer comments. No email, SMS, portal link, token, or customer action is created automatically.",
+  },
+  {
+    id: "billingPrep",
+    moduleId: "settings",
+    actionLabel: "Open billing prep",
+    keywords: ["billing prep", "billing readiness", "invoice prep", "payment prep", "package readiness", "plan readiness", "manual invoice"],
+    message: "Open Settings billing prep to review package state, manual invoice prep, payment readiness, and closeout billing candidates. No invoice, payment link, charge, receipt, package change, or provider write happens automatically.",
+  },
+  {
+    id: "reputationPortfolio",
+    moduleId: "copilot",
+    actionLabel: "Open proof engine",
+    keywords: ["reputation", "portfolio", "review ask", "review request", "referral ask", "project story", "project stories", "proof block", "testimonial", "social draft", "website draft"],
+    message: "Open the AI Office proof engine to review project stories, portfolio proof, review asks, referral asks, and proposal proof blocks. Nothing is sent, published, invented, or approved automatically.",
+  },
+  {
+    id: "agentOsActionInbox",
+    moduleId: "copilot",
+    actionLabel: "Open Action Inbox",
+    keywords: ["agent os", "action inbox", "agent action", "agent run", "external gate", "preflight", "execution contract"],
+    message: "Open AI Office for Agent OS and the Action Inbox. Review packets, preflights, locked external gates, and audit-backed runs stay review-first and cannot execute provider actions automatically.",
   },
   {
     id: "incidents",
@@ -140,6 +168,10 @@ const DEFAULT_PROMPTS = [
   "Summarize workflow context",
   "Summarize missing proof",
   "Review daily closeout",
+  "Open Action Inbox",
+  "Review billing prep",
+  "Review customer portal approvals",
+  "Review reputation proof",
   "Start estimate from rough notes",
   "Review material plan",
   "Review pilot handoff",
@@ -161,12 +193,32 @@ const BLOCKED_ACTIONS = [
     message: "I will not assign crews automatically. Open Jobs or Schedule and confirm assignments manually.",
   },
   {
+    pattern: /\b(schedule|reschedule|move)\b.*\b(job|work|pour|crew|foreman|employee|team|date|time|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i,
+    message: "I will not schedule or reschedule work automatically. Open Jobs or Schedule and confirm dates, crews, and field visibility manually.",
+  },
+  {
     pattern: /\b(order|buy|purchase)\b.*\b(material|concrete|supplies|rock|rebar)\b/i,
     message: "I will not order materials. I can help organize notes and calculations in a later reviewed phase.",
   },
   {
-    pattern: /\b(publish|launch|run)\b.*\b(ad|campaign|website)\b/i,
-    message: "I will not publish ads, campaigns, or websites automatically. Those actions require a separate review workflow.",
+    pattern: /\b(create|make|send|issue|generate|void|approve)\b.*\b(invoice|payment link|checkout|receipt|charge|refund)\b|\b(collect|charge|refund)\b.*\b(payment|customer|card)\b/i,
+    message: "I will not create invoices, payment links, checkout sessions, receipts, charges, refunds, or accounting entries. Open billing prep for manual review.",
+  },
+  {
+    pattern: /\b(process|run|submit|correct|auto[- ]?correct)\b.*\b(payroll|paycheck|paychecks|direct deposit|tax|withholding)\b/i,
+    message: "I will not process payroll, create paychecks, run direct deposit, calculate withholding, or auto-correct payroll. Open Time for payroll-prep review only.",
+  },
+  {
+    pattern: /\b(publish|launch|run|post)\b.*\b(ad|campaign|website|social|gbp|google business profile|portfolio)\b/i,
+    message: "I will not publish ads, campaigns, websites, social posts, GBP content, or portfolio content automatically. Those actions require a separate review workflow.",
+  },
+  {
+    pattern: /\b(create|generate|redeem|send|share)\b.*\b(portal link|portal token|customer portal|raw token|access link|magic link)\b/i,
+    message: "I will not create, generate, send, share, or redeem customer portal links or tokens. Open Communications for manual portal-share review.",
+  },
+  {
+    pattern: /\b(write|sync|push|connect|disconnect|update)\b.*\b(quickbooks|gusto|adp|stripe|twilio|gmail|google calendar|google drive|companycam|docusign|provider|integration)\b/i,
+    message: "I will not write to providers, connect accounts, sync integrations, change secrets, or update external systems. Open Settings for provider readiness review.",
   },
 ];
 
@@ -202,6 +254,9 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
 
   const blocked = resolveBlockedActionCommand(input);
   if (blocked) return blocked;
+
+  const staticRouteCommand = resolveAssistantStaticRouteCommand(input);
+  if (staticRouteCommand) return staticRouteCommand;
 
   const workflowDraftPrepCommand = resolveAssistantWorkflowDraftPrepCommand(input, state.commandContext || {});
   if (workflowDraftPrepCommand) return workflowDraftPrepCommand;
@@ -319,6 +374,22 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
     moduleId: "commandCenter",
     actionLabel: "Open Command Center",
     message: "I can route you to Apex HQ workflows and summarize Watchtower items. I will not create, send, approve, or edit records automatically in this phase.",
+  };
+}
+
+function resolveAssistantStaticRouteCommand(input = "") {
+  const normalized = normalizeText(input);
+  if (!normalized) return null;
+  const staticRouteIds = new Set(["communications", "billingPrep", "reputationPortfolio", "agentOsActionInbox"]);
+  const match = ROUTE_COMMANDS.find((command) => (
+    staticRouteIds.has(command.id) && command.keywords.some((keyword) => normalized.includes(keyword))
+  ));
+  if (!match) return null;
+  return {
+    type: "route",
+    moduleId: match.moduleId,
+    actionLabel: match.actionLabel,
+    message: match.message,
   };
 }
 

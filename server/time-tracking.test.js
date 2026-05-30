@@ -636,3 +636,131 @@ test("estimators, operations, administrators, and owners get the expected role-s
     await fixture.stop();
   }
 });
+
+test("payroll prep approval and CSV export stay owner-admin only and hours-only", async () => {
+  const fixture = await startServer();
+
+  try {
+    const adminUser = createUserRecord({
+      id: "U-PAYROLL-ADMIN",
+      email: "payroll-admin@lastyard.test",
+      password: "apexdemo123",
+      name: "Payroll Admin",
+      role: "Administrator",
+    });
+    const employeeUser = createUserRecord({
+      id: "U-PAYROLL-EMPLOYEE",
+      email: "payroll-employee@lastyard.test",
+      password: "apexdemo123",
+      name: "Payroll Employee",
+      role: "Employee",
+    });
+
+    insertUsers(fixture.sqliteFile, [adminUser, employeeUser]);
+    configureJobs(fixture.sqliteFile);
+
+    const opsLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    await assertOk(fixture.baseUrl, "/api/jobs/J-2201/assignments", {
+      method: "POST",
+      headers: authHeaders(opsLogin.token),
+      body: JSON.stringify({
+        userId: employeeUser.id,
+        roleOnJob: "crew",
+      }),
+    });
+
+    const employeeLogin = await login(fixture.baseUrl, {
+      email: "payroll-employee@lastyard.test",
+      password: "apexdemo123",
+    });
+    const employeeHeaders = authHeaders(employeeLogin.token);
+    const clockedInState = await assertOk(fixture.baseUrl, "/api/time-entries/clock-in", {
+      method: "POST",
+      headers: employeeHeaders,
+      body: JSON.stringify({
+        workCategory: "job",
+        jobId: "J-2201",
+      }),
+    });
+    const employeeEntry = clockedInState.timeEntries.find((entry) => entry.userId === employeeUser.id);
+    assert.ok(employeeEntry);
+    await assertOk(fixture.baseUrl, `/api/time-entries/${employeeEntry.id}/clock-out`, {
+      method: "POST",
+      headers: employeeHeaders,
+    });
+
+    const adminLogin = await login(fixture.baseUrl, {
+      email: "payroll-admin@lastyard.test",
+      password: "apexdemo123",
+    });
+    const adminHeaders = authHeaders(adminLogin.token);
+    await assertOk(fixture.baseUrl, `/api/time-entries/${employeeEntry.id}`, {
+      method: "PATCH",
+      headers: adminHeaders,
+      body: JSON.stringify({
+        workCategory: "job",
+        jobId: "J-2201",
+        clockInAt: "2026-05-18T15:00:00.000Z",
+        clockOutAt: "2026-05-18T23:30:00.000Z",
+        breakStartAt: "2026-05-18T19:00:00.000Z",
+        breakEndAt: "2026-05-18T19:30:00.000Z",
+        notes: "Reviewed for payroll prep export.",
+      }),
+    });
+
+    const period = {
+      periodStart: "2026-05-18",
+      periodEnd: "2026-05-31",
+    };
+
+    const opsApprove = await requestJson(fixture.baseUrl, "/api/time-entries/payroll-prep/approve", {
+      method: "POST",
+      headers: authHeaders(opsLogin.token),
+      body: JSON.stringify(period),
+    });
+    assert.equal(opsApprove.response.status, 403);
+
+    const employeeApprove = await requestJson(fixture.baseUrl, "/api/time-entries/payroll-prep/approve", {
+      method: "POST",
+      headers: employeeHeaders,
+      body: JSON.stringify(period),
+    });
+    assert.equal(employeeApprove.response.status, 403);
+
+    const exportBeforeApproval = await requestJson(fixture.baseUrl, "/api/time-entries/payroll-prep/export", {
+      method: "POST",
+      headers: adminHeaders,
+      body: JSON.stringify(period),
+    });
+    assert.equal(exportBeforeApproval.response.status, 409);
+    assert.match(exportBeforeApproval.payload.error, /Approve payroll-ready hours/i);
+
+    const approvedState = await assertOk(fixture.baseUrl, "/api/time-entries/payroll-prep/approve", {
+      method: "POST",
+      headers: adminHeaders,
+      body: JSON.stringify(period),
+    });
+    assert.equal(approvedState.payrollPrep.approved, true);
+    assert.equal(approvedState.payrollPrep.readyMinutes, 480);
+    assert.ok(approvedState.auditEvents.some((event) => event.entityType === "payrollPrep" && event.action === "payroll_ready_approved"));
+
+    const exportedState = await assertOk(fixture.baseUrl, "/api/time-entries/payroll-prep/export", {
+      method: "POST",
+      headers: adminHeaders,
+      body: JSON.stringify(period),
+    });
+    assert.match(exportedState.fileName, /apex-hq-payroll-prep-2026-05-18-to-2026-05-31\.csv/);
+    assert.match(exportedState.csv, /Payroll Employee/);
+    assert.match(exportedState.csv, /8.00/);
+    assert.equal(exportedState.csv.includes("pay_rate"), false);
+    assert.equal(exportedState.csv.includes("gross_pay"), false);
+    assert.equal(exportedState.csv.includes("payroll_cost"), false);
+    assert.equal(exportedState.csv.includes("billing"), false);
+    assert.ok(exportedState.auditEvents.some((event) => event.entityType === "payrollPrep" && event.action === "payroll_ready_csv_exported"));
+  } finally {
+    await fixture.stop();
+  }
+});

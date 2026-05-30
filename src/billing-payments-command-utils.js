@@ -1,4 +1,5 @@
 import { packageReadinessSummary } from "../shared/packages.js";
+import { buildJobCloseoutBillingReviewPacket } from "./job-closeout-billing-utils.js";
 
 const OWNER_ADMIN_ROLES = new Set(["owner", "administrator", "admin"]);
 const BILLING_READY_STATUSES = new Set(["billing_ready", "ready_for_billing", "ready to bill", "closed", "completed", "complete", "field_complete"]);
@@ -44,13 +45,19 @@ function estimateTotal(estimate = {}) {
 
 function changeOrderTotal(changeOrder = {}) {
   const status = normalize(changeOrder.status);
-  if (!["approved", "accepted", "closed", "billing_ready", "billable"].includes(status)) return 0;
-  return moneyValue(changeOrder.approvedAmount ?? changeOrder.total ?? changeOrder.amount ?? changeOrder.estimatedAmount);
+  const manualAccepted = normalize(changeOrder.customerReviewStatus) === "accepted_manually"
+    || normalize(changeOrder.gcReviewStatus) === "accepted_manually";
+  const readyManualHandoff = status === "approved_for_pricing"
+    && manualAccepted
+    && ["ready_for_manual_billing_handoff", "handed_off_manually"].includes(normalize(changeOrder.billingHandoffStatus));
+  if (!["approved", "accepted", "closed", "billing_ready", "billable"].includes(status) && !readyManualHandoff) return 0;
+  return moneyValue(changeOrder.approvedAmount ?? changeOrder.priceAmount ?? changeOrder.pricedAmount ?? changeOrder.revenueAmount ?? changeOrder.customerPrice ?? changeOrder.total ?? changeOrder.amount ?? changeOrder.estimatedAmount);
 }
 
 function hasBillingCommandAccess({ user = {}, permissions = {} } = {}) {
   const role = normalize(user?.role);
-  return OWNER_ADMIN_ROLES.has(role) && Boolean(permissions?.settings?.canView);
+  const isOwnerAdminRole = OWNER_ADMIN_ROLES.has(role) || role.includes("owner");
+  return isOwnerAdminRole && Boolean(permissions?.settings?.canView);
 }
 
 function billingProviderSettings(companySettings = {}) {
@@ -94,7 +101,37 @@ function deriveProviderState(companySettings = {}) {
   };
 }
 
-function deriveBillingJobs({ jobs = [], estimates = [], changeOrderRequests = [] } = {}) {
+function billingJobFromCloseoutRow(row = {}) {
+  const billingPrep = row.billingPrep || {};
+  return {
+    jobId: text(row.jobId),
+    title: text(row.title || "Billing review job"),
+    customer: text(row.customer || ""),
+    status: normalize(row.status),
+    estimateId: row.estimateId || "",
+    reviewTotal: moneyValue(row.reviewTotal),
+    estimateTotal: moneyValue(row.estimateTotal),
+    recognizedChangeOrderTotal: moneyValue(row.recognizedChangeOrderTotal),
+    readyForBillingReview: Boolean(row.readyForBillingReview),
+    blockers: asArray(row.blockers).map((blocker) => text(blocker)).filter(Boolean),
+    proofMissing: asArray(billingPrep.proofStatus?.missing).map((item) => text(item)).filter(Boolean),
+    proofStatus: billingPrep.proofStatus || {},
+    approvedChangeOrdersIncluded: billingPrep.approvedChangesIncluded || { count: 0, total: 0, rows: [] },
+    manualInvoicePrepStatus: text(billingPrep.invoicePrepStatus || "blocked_by_closeout_review"),
+    manualPaymentPrepStatus: text(billingPrep.paymentPrepStatus || "blocked_by_closeout_review"),
+    nextAction: text(billingPrep.nextAction || row.nextAction || "Prepare the manual billing packet after closeout review."),
+  };
+}
+
+function deriveBillingJobs({ jobs = [], estimates = [], changeOrderRequests = [], closeoutPacket = null } = {}) {
+  const closeoutRows = asArray(closeoutPacket?.rows);
+  if (closeoutRows.length) {
+    return closeoutRows
+      .map(billingJobFromCloseoutRow)
+      .sort((left, right) => right.reviewTotal - left.reviewTotal || left.title.localeCompare(right.title))
+      .slice(0, 6);
+  }
+
   return asArray(jobs)
     .filter((job) => {
       if (job?.archivedAt || job?.deletedAt) return false;
@@ -119,6 +156,13 @@ function deriveBillingJobs({ jobs = [], estimates = [], changeOrderRequests = []
         reviewTotal: moneyValue(estimateAmount + recognizedChangeOrders),
         estimateTotal: estimateAmount,
         recognizedChangeOrderTotal: moneyValue(recognizedChangeOrders),
+        readyForBillingReview: false,
+        blockers: [],
+        proofMissing: [],
+        proofStatus: {},
+        approvedChangeOrdersIncluded: { count: recognizedChangeOrders ? 1 : 0, total: moneyValue(recognizedChangeOrders), rows: [] },
+        manualInvoicePrepStatus: "needs_closeout_packet",
+        manualPaymentPrepStatus: "needs_closeout_packet",
         nextAction: estimate
           ? "Prepare the manual billing packet, confirm payment terms, and choose whether the future provider should create an invoice or payment link."
           : "Link or confirm estimate revenue before preparing a customer invoice/payment workflow.",
@@ -201,7 +245,20 @@ export function deriveBillingPaymentsCommandState({
   auditEvents = [],
   jobs = [],
   estimates = [],
+  dailyReports = [],
+  uploads = [],
+  deliveryTickets = [],
+  timeEntries = [],
   changeOrderRequests = [],
+  safetyIncidents = [],
+  prePourChecklists = [],
+  postPourChecklists = [],
+  toolChecklists = [],
+  jobCostEntries = [],
+  costInputs = [],
+  jobCosts = [],
+  expenses = [],
+  receipts = [],
   permissions = {},
   user = {},
 } = {}) {
@@ -222,7 +279,26 @@ export function deriveBillingPaymentsCommandState({
 
   const readiness = packageReadiness || packageReadinessSummary(companySettings.packageId);
   const providerState = deriveProviderState(companySettings);
-  const billingJobs = deriveBillingJobs({ jobs, estimates, changeOrderRequests });
+  const closeoutPacket = buildJobCloseoutBillingReviewPacket({
+    jobs,
+    estimates,
+    dailyReports,
+    uploads,
+    deliveryTickets,
+    timeEntries,
+    changeOrderRequests,
+    safetyIncidents,
+    prePourChecklists,
+    postPourChecklists,
+    toolChecklists,
+    jobCostEntries,
+    costInputs,
+    jobCosts,
+    expenses,
+    receipts,
+    permissions,
+  }, { maxJobs: 6 });
+  const billingJobs = deriveBillingJobs({ jobs, estimates, changeOrderRequests, closeoutPacket });
   const packageAuditTrail = deriveAuditTrail(auditEvents);
   const reviewTotal = billingJobs.reduce((sum, row) => sum + row.reviewTotal, 0);
 
@@ -242,9 +318,17 @@ export function deriveBillingPaymentsCommandState({
       billingReviewTotal: moneyValue(reviewTotal),
       packageAuditEvents: packageAuditTrail.length,
       providerConfigured: providerState.configured ? 1 : 0,
+      closeoutReady: closeoutPacket.metrics?.readyForBillingReview || 0,
+      closeoutBlocked: closeoutPacket.metrics?.blocked || 0,
+      proofMissingItems: closeoutPacket.metrics?.proofMissingItems || 0,
+      approvedChangeOrdersIncluded: closeoutPacket.metrics?.approvedChangeOrdersIncluded || 0,
+      approvedChangeOrderTotal: closeoutPacket.metrics?.approvedChangeOrderTotal || 0,
+      manualInvoicePrepReady: closeoutPacket.metrics?.manualInvoicePrepReady || 0,
+      manualPaymentPrepReady: closeoutPacket.metrics?.manualPaymentPrepReady || 0,
     },
     workflowLanes: buildWorkflowLanes(providerState, readiness),
     billingJobs,
+    closeoutPacket,
     packageAuditTrail,
     receiptFailureStates: [
       "Draft invoice prepared",

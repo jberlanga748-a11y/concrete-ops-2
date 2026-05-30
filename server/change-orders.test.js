@@ -240,6 +240,21 @@ test("change order requests stay field-safe while office manages review", async 
     const employeeList = await requestJson(fixture.baseUrl, "/api/change-order-requests", { headers: employeeHeaders });
     assert.equal(employeeList.response.status, 403);
 
+    const forcedHandoffState = await assertOk(fixture.baseUrl, `/api/change-order-requests/${request.id}`, {
+      method: "PATCH",
+      headers: officeHeaders,
+      body: JSON.stringify({
+        status: "approved_for_pricing",
+        priceAmount: 1850,
+        customerReviewStatus: "sent_manually",
+        billingHandoffStatus: "ready_for_manual_billing_handoff",
+      }),
+    });
+    const forcedHandoffRequest = forcedHandoffState.changeOrderRequests.find((entry) => entry.id === request.id);
+    assert.equal(forcedHandoffRequest.priceAmount, 1850);
+    assert.equal(forcedHandoffRequest.customerReviewStatus, "sent_manually");
+    assert.equal(forcedHandoffRequest.billingHandoffStatus, "locked");
+
     const reviewedState = await assertOk(fixture.baseUrl, `/api/change-order-requests/${request.id}`, {
       method: "PATCH",
       headers: officeHeaders,
