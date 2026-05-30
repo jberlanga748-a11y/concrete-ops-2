@@ -4,7 +4,7 @@ Last updated: 2026-05-30
 
 ## Current Phase
 
-Integrations is completed, pushed, and deployed to production under the standing release approval. Next phase is Scale + Public Launch.
+Integrations is completed, pushed, and deployed to production under the standing release approval. The phase model has been corrected: future phases must finish complete contractor workflows start-to-finish, then freeze them. Current source for the corrected vertical plan is `docs/APEX_HQ_VERTICAL_FINISH_PHASE_PLAN.md`.
 
 ## Product North Star
 
@@ -17,6 +17,8 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 ## Operating Rules
 
 - Finish one whole phase, then stop and review it.
+- A phase means one complete business workflow, not a small slice or readiness panel.
+- After a phase is finished, freeze it and do not revisit it except for bugs, security/permission issues, mobile blockers, provider hookups, or approved versioned upgrades.
 - Do not rebuild working systems.
 - Use existing code first.
 - Build provider-ready states when paid accounts or API keys are not configured yet.
@@ -52,6 +54,8 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 - Keep building the finished roadmap, not only pilot slices.
 - No looped rebuilds.
+- Use `docs/APEX_HQ_VERTICAL_FINISH_PHASE_PLAN.md` as the corrected workflow-first phase plan.
+- Break every tool into complete start-to-finish phases, finish one workflow, then freeze it.
 - Owner/admin must be able to see how Apex HQ helps find new clients.
 - Add ads planning so Apex Agent helps contractors decide where to spend and what limits to use.
 - Keep provider/account-dependent systems visible and buildable, but do not allow real spend/sends/payments without provider setup and explicit owner action inside that workflow.
@@ -60,7 +64,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ### Next
 
-- Start Scale + Public Launch after Integrations production deploy evidence is recorded.
+- Phase 1: Time To Payroll Prep from `docs/APEX_HQ_VERTICAL_FINISH_PHASE_PLAN.md`.
 
 ### Later
 
@@ -304,7 +308,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ## Next Phase
 
-Scale + Public Launch after Integrations production deploy is recorded.
+Phase 1: Time To Payroll Prep. Time tracking exists, but payroll prep/export is not finished and live payroll processing must stay out of scope.
 
 ## Decision Log
 
@@ -326,6 +330,7 @@ Scale + Public Launch after Integrations production deploy is recorded.
 | 2026-05-30 | Customer Portal + Communications lives in Communication Center instead of a separate app. | Contact history, provider readiness, suppressions, delivery-attempt contracts, and portal access/share approvals already existed there or adjacent to it. | Owner/admin users can review portal packets, approval decisions, comments, and send-readiness from one workflow while field users remain blocked and live portal/customer sends stay provider-dependent. |
 | 2026-05-30 | Billing / Payments / Packages lives in Settings Plan Readiness instead of a separate billing route. | Package readiness, support upgrade review, audit activity, and owner/admin setup already lived in Settings. | Owner/admin users get one billing command surface while field users remain blocked and live payment processing stays provider-dependent. |
 | 2026-05-30 | Integrations lives in Settings with the Agent OS integration write gate still locked. | Provider/account setup, API keys, OAuth, health, disabled states, audit, and disconnect controls are owner/admin setup work; existing inbound contracts and Agent OS already provide the safe boundaries. | Owner/admin users get a provider-ready Integrations Command while live provider writes, secrets, sends, ads, payments, calendar/file mutations, hidden GPS, and field-user exposure remain blocked. |
+| 2026-05-30 | Replace slice-based roadmap execution with vertical finish phases. | The owner wants each phase to finish a whole contractor workflow start-to-finish and then freeze it, not spread small readiness slices across every tool. | `docs/APEX_HQ_VERTICAL_FINISH_PHASE_PLAN.md` is the corrected plan. Next recommended phase is Time To Payroll Prep, not generic public launch hardening. |
 
 ## Billing / Payments / Packages Phase Report
 
