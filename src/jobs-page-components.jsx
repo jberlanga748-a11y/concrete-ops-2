@@ -21,6 +21,7 @@ import {
 import { CommandCenterKpiCard } from "./command-center-route-components";
 import { formatJobScheduleDetail } from "./field-format-utils";
 import { EmployeeWorkspacePage, ForemanWorkspacePage } from "./field-workspace-page-components";
+import { deriveJobOperationsFinishState } from "./job-operations-finish-utils";
 import { JobCalculationsCard, JobPilotHandoffReadinessCard, JobPlannerCard, JobStartupChecklistCard } from "./job-route-components";
 import { deriveJobListState, jobNextStep, jobStatusLabel, jobTitle, normalizeJobStatus } from "./job-utils";
 import { deriveToolChecklistJobReadiness } from "./tool-checklist-utils";
@@ -957,6 +958,9 @@ function JobsPagePolished({
   startupFilter,
   setStartupFilter,
   users,
+  estimates = [],
+  customers = [],
+  rateBookItems = [],
   selectedJobId,
   onSelectJob,
   selectedJob,
@@ -1087,6 +1091,18 @@ function JobsPagePolished({
   const toolChecklistReadiness = useMemo(() => deriveToolChecklistJobReadiness(normalizeObjectArray(toolChecklists), liveJobRows, { maxJobs: liveJobRows.length + 1 }), [liveJobRows, toolChecklists]);
   const toolChecklistBlockedJobIds = new Set(toolChecklistReadiness.topJobs.filter((job) => job.blockers.length > 0).map((job) => job.jobId));
   const visibleToolChecklistBlockedJobIds = new Set([...toolChecklistBlockedJobIds].filter((jobId) => visibleJobIds.has(jobId)));
+  const jobOperationsFinishState = useMemo(() => deriveJobOperationsFinishState({
+    jobs: liveJobRows,
+    estimates,
+    customers,
+    rateBookItems,
+    dailyReports,
+    uploads,
+    deliveryTickets,
+    safetyIncidents,
+    toolChecklists,
+    permissions,
+  }), [customers, dailyReports, deliveryTickets, estimates, liveJobRows, permissions, rateBookItems, safetyIncidents, toolChecklists, uploads]);
   const visibleProofBlockers = visibleRows.filter((job) => (
     !visibleReportJobIds.has(job.id)
     || !visibleUploadJobIds.has(job.id)
@@ -1475,6 +1491,19 @@ function JobsPagePolished({
     if (item.job?.id) onSelectJob(item.job.id);
   }
 
+  function openJobOperationsAction(action = {}, fallbackJobId = "") {
+    const targetJobId = action.jobId || fallbackJobId;
+    if (targetJobId) {
+      onSelectJob(targetJobId);
+      setJobShellSelectionId(`job-${targetJobId}`);
+    }
+    if (!action.route || action.route === "jobs") {
+      setJobShellMode(action.mode === "crew" || action.mode === "startup" || action.mode === "create" ? action.mode : "details");
+      return;
+    }
+    setActive?.(action.route);
+  }
+
   function renderJobShellOverview(item) {
     const job = item?.job || selectedJob;
     if (!job) {
@@ -1484,6 +1513,9 @@ function JobsPagePolished({
     const safetyCount = visibleSafetyJobIds.has(job.id) ? 1 : 0;
     const toolCount = visibleToolChecklistBlockedJobIds.has(job.id) ? 1 : 0;
     const startupWarnings = getStartupCriticalWarnings(normalizeStartupChecklist(job.startupChecklist));
+    const operationsRow = jobOperationsFinishState.selectedRowForJobId?.(job.id);
+    const operationsCheckpoints = operationsRow?.checkpoints || [];
+    const operationsVisibleCheckpoints = operationsCheckpoints.slice(0, 8);
     const progressValue = Math.max(0, Math.min(100, Number(job.progress || 0)));
     const isBillingReadyJob = normalizeJobStatus(job.status || job.stage) === "billing_ready";
     const overviewActions = [
@@ -1514,6 +1546,40 @@ function JobsPagePolished({
           <strong>{jobNorthStarNextAction(job, proofState, safetyCount, toolCount)}</strong>
           <p>{jobNextStep(job)} No external send, bid submission, billing action, or package change happens from this shell.</p>
         </div>
+        {operationsRow ? (
+          <div className="rounded-3xl border border-orange-100 bg-orange-50/60 p-4">
+            <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone={operationsRow.blockerCount ? "amber" : "green"}>Job Operations Finish</Badge>
+                  <Badge tone={operationsRow.fieldVisible ? "green" : "slate"}>{operationsRow.phaseStatus}</Badge>
+                </div>
+                <h3 className="mt-2 break-words text-base font-black text-slate-950">Schedule, startup, crew, materials, proof, and field handoff</h3>
+                <p className="mt-1 text-sm font-bold leading-6 text-slate-600">{operationsRow.nextAction.detail}</p>
+              </div>
+              <Button type="button" size="sm" onClick={() => openJobOperationsAction(operationsRow.nextAction, job.id)}>
+                {operationsRow.nextAction.label}
+              </Button>
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {operationsVisibleCheckpoints.map((checkpoint) => (
+                <button
+                  key={checkpoint.id}
+                  type="button"
+                  className="rounded-2xl border border-white bg-white p-3 text-left shadow-sm"
+                  onClick={() => openJobOperationsAction(checkpoint, job.id)}
+                >
+                  <span className="flex items-center justify-between gap-2">
+                    <strong className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{checkpoint.label}</strong>
+                    <Badge tone={checkpoint.ready ? "green" : "amber"}>{checkpoint.ready ? "Ready" : "Review"}</Badge>
+                  </span>
+                  <em className="mt-2 block text-xs font-bold not-italic leading-5 text-slate-600">{checkpoint.helper}</em>
+                </button>
+              ))}
+            </div>
+            <p className="mt-3 text-xs font-bold leading-5 text-slate-500">Field-safe boundary: no pricing, margin, payroll, billing, estimate packet, office note, customer send, vendor order, or provider write is exposed from this review.</p>
+          </div>
+        ) : null}
         {isBillingReadyJob ? (
           <div className="co-jobs-shell-money-note">
             <span>Ready-to-bill review</span>
