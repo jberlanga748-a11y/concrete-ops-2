@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildCustomerPath, buildImportedJobDraftPath, buildJobPath, buildReportPath, getModulePath, normalizePathname, parseAppPath } from "./app-routing.js";
+import { buildCustomerPath, buildImportedJobDraftPath, buildJobPath, buildProposalPath, buildProposalPrintPath, buildReportPath, getModulePath, normalizePathname, parseAppPath } from "./app-routing.js";
 
 test("customer routes build and parse durable detail paths", () => {
   assert.equal(buildCustomerPath("C-1001"), "/customers/C-1001");
@@ -226,6 +226,40 @@ test("estimates module route resolves directly", () => {
     customerId: "",
     reportId: "",
     importedDraftId: "",
+  });
+});
+
+test("proposal routes build and parse list, new, detail, and print paths", () => {
+  assert.equal(getModulePath("proposals"), "/proposals");
+  assert.equal(buildProposalPath("LYC/42"), "/proposals/LYC%2F42");
+  assert.equal(buildProposalPrintPath("LYC/42"), "/proposals/LYC%2F42/print");
+  assert.deepEqual(parseAppPath("/proposals"), {
+    active: "proposals",
+    leadId: "",
+    jobId: "",
+    customerId: "",
+    reportId: "",
+    importedDraftId: "",
+  });
+  assert.deepEqual(parseAppPath("/proposals/new"), {
+    active: "proposals",
+    leadId: "",
+    jobId: "",
+    customerId: "",
+    reportId: "",
+    importedDraftId: "",
+    proposalId: "",
+    proposalMode: "new",
+  });
+  assert.deepEqual(parseAppPath("/proposals/LYC%2F42/print"), {
+    active: "proposals",
+    leadId: "",
+    jobId: "",
+    customerId: "",
+    reportId: "",
+    importedDraftId: "",
+    proposalId: "LYC/42",
+    proposalMode: "print",
   });
 });
 

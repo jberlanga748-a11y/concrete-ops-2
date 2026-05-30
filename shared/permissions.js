@@ -438,9 +438,9 @@ export function getAllowedModuleIds(user, companySettings = DEFAULT_COMPANY_SETT
   const modules = new Set();
 
   if (isOwner(user) || isAdministrator(user) || isOperationsManager(user)) {
-    ["dashboard", "fieldWorkspace", "commandCenter", "communications", "leads", "customers", "estimates", "rateBook", "materialPrep", "jobDraftImports", "jobs", "schedule", "time", "reports", "uploads", "deliveryTickets", "changeOrders", "employees", "incidents", "toolbox", "ppe", "prePour", "postPour", "calculator", "appHealth", "settings", "copilot", "support"].forEach((moduleId) => modules.add(moduleId));
+    ["dashboard", "fieldWorkspace", "commandCenter", "communications", "leads", "customers", "proposals", "estimates", "rateBook", "materialPrep", "jobDraftImports", "jobs", "schedule", "time", "reports", "uploads", "deliveryTickets", "changeOrders", "employees", "incidents", "toolbox", "ppe", "prePour", "postPour", "calculator", "appHealth", "settings", "copilot", "support"].forEach((moduleId) => modules.add(moduleId));
   } else if (isEstimator(user)) {
-    ["dashboard", "communications", "leads", "customers", "estimates", "jobs", "time", "calculator", "support"].forEach((moduleId) => modules.add(moduleId));
+    ["dashboard", "communications", "leads", "customers", "proposals", "estimates", "jobs", "time", "calculator", "support"].forEach((moduleId) => modules.add(moduleId));
   } else if (isForeman(user)) {
     ["fieldWorkspace", "jobs", "time", "reports", "uploads", "deliveryTickets", "changeOrders", "incidents", "toolbox", "ppe", "prePour", "postPour", "calculator", "support"].forEach((moduleId) => modules.add(moduleId));
   } else if (isEmployee(user)) {
