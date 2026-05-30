@@ -8,7 +8,7 @@ This living plan tracks active phase memory, deploy evidence, user requests, and
 
 ## Current Phase
 
-Phase 4 Estimate & Proposal Finish is completed locally, validated, and ready for release under the standing phase release approval. Phase 1 Admin Foundation, Phase 2 Command Center, and Phase 3 Growth & Sales remain complete/frozen. After Phase 4 deploy/health check, the next true tool-completion phase is Phase 5 Job Operations Finish.
+Phase 4 Estimate & Proposal Finish is completed, pushed, deployed to production, health-checked, and frozen under the standing phase release approval. Phase 1 Admin Foundation, Phase 2 Command Center, and Phase 3 Growth & Sales remain complete/frozen. The next true tool-completion phase is Phase 5 Job Operations Finish.
 
 Phase 1 blockers are fixed in production: `/imported-drafts` renders for owner/admin users, `npm.cmd run verify:job-draft-imports` is green, and owner/admin setup now has a single Admin Foundation Finish board in Settings.
 
@@ -20,7 +20,7 @@ Phase 2 status: Command Center Finish is built and validated locally. Owner/admi
 
 Phase 3 status: Growth & Sales Finish is built, validated, and deployed. Owner/admin Growth Command lanes now route directly to existing AI Office, Opportunity Scout, Sales Follow-Up, Ads Spend Advisor, and Reputation/Portfolio surfaces or clear setup states. Leads now support Won, Lost, and Not Interested outcomes so closed opportunities leave the active review queue while source quality and conversion health remain visible. Field users remain redirected to assigned field work and cannot access growth, lead, estimate, pricing, ads, reputation, or AI Office controls.
 
-Phase 4 status: Estimate & Proposal Finish is built and validated locally. Owner/admin Estimate Studio now covers create-from-lead/customer/rough-notes flow, final proposal packet readiness, customer-safe/internal packet separation, GC Packet Lite review, PDF/print/manual send readiness, rate book defaults, calculator/takeoff adjacency, and estimate-to-job handoff readiness. The legacy Last Yard proposal generator surface has been rebranded to Apex HQ-neutral proposal defaults and guarded by tests so estimate/proposal surfaces do not expose retired pilot brand copy. Field users remain redirected to assigned field work and cannot access estimates, proposals, pricing, customer packet controls, internal notes, margin/profit/payroll, or office-only proposal data.
+Phase 4 status: Estimate & Proposal Finish is built, validated, deployed, and health-checked. Owner/admin Estimate Studio now covers create-from-lead/customer/rough-notes flow, final proposal packet readiness, customer-safe/internal packet separation, GC Packet Lite review, PDF/print/manual send readiness, rate book defaults, calculator/takeoff adjacency, and estimate-to-job handoff readiness. The legacy Last Yard proposal generator surface has been rebranded to Apex HQ-neutral proposal defaults and guarded by tests so estimate/proposal surfaces do not expose retired pilot brand copy. Field users remain redirected to assigned field work and cannot access estimates, proposals, pricing, customer packet controls, internal notes, margin/profit/payroll, or office-only proposal data.
 
 ## Product North Star
 
@@ -162,7 +162,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - [x] Remove retired Last Yard pilot branding from active estimate/proposal surfaces and add a proposal brand guard test.
 - [x] Keep field users blocked from estimates, packets, pricing, customer send controls, and office-only proposal work.
 - [x] Verify phase tests, build, browser QA, and field safety locally.
-- [ ] Commit, push, deploy, hosted health-check, and record production deploy.
+- [x] Commit, push, deploy, hosted health-check, and record production deploy.
 
 ## Completed Phase Checklist: Core Operations Loop
 
@@ -334,14 +334,14 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | 2026-05-30 | Phase 1 Admin Foundation Finish | `9ccc1ac` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `606` started in `sjc`; image `concrete-ops-2:deployment-01KSVWJYBKFP2HCVY40J69FEJE`; service check passing; `/api/ready` OK on both domains with database OK. |
 | 2026-05-30 | Phase 2 Command Center Finish | `7529739` pushed to `main` and deployed | Local QA at `http://127.0.0.1:4186`; production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Owner desktop `/command-center` passed Daily Command Plan first-screen visibility, routed next action to `/leads`, provider setup locks, no overflow/errors; employee mobile `/command-center` redirected to `/jobs` with office/growth/billing/setup text hidden. Fly machine `148e06e2b53d68` version `607`; image `concrete-ops-2:deployment-01KSW0DXH4NAM1D3R8RT57D8X1`; `/api/ready` OK on both domains with database OK. |
 | 2026-05-30 | Phase 3 Growth & Sales Finish | `5b73ef1` pushed to `main` and deployed | Local QA at `http://127.0.0.1:4103`; production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Owner desktop `/ai-office` passed Growth Command routes to setup/source, follow-up, ads, and proof surfaces; owner desktop `/leads` passed Sales Follow-Up System, stale estimates, Won/Lost/Not Interested outcomes, and no overflow/errors; employee mobile `/ai-office` and `/leads` redirected to `/jobs` with growth/sales/estimate/ads/reputation text hidden. Fly machine `148e06e2b53d68` version `608`; image `concrete-ops-2:deployment-01KSW1RN44SHA22WYXKDGB53NA`; `/api/ready` OK on both domains with database OK. |
-| 2026-05-30 | Phase 4 Estimate & Proposal Finish | Pending release commit | Local QA at `http://127.0.0.1:4134` with isolated demo data | Admin desktop `/estimates` passed Estimate Studio, Final Proposal Packet Review, Customer Packet, GC Packet, Foreman Handoff, Send Review, no overflow/errors, and no Last Yard/LYC proposal copy. Admin desktop `/proposals` passed Apex HQ Proposal Workspace, Proposal Generator, AHQ proposal numbering, no overflow/errors, and no Last Yard/LYC copy. Employee mobile `/estimates` and `/proposals` redirected to `/jobs` with estimate/proposal/pricing text hidden. |
+| 2026-05-30 | Phase 4 Estimate & Proposal Finish | `8868452` pushed to `main` and deployed | Local QA at `http://127.0.0.1:4134` with isolated demo data; production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Admin desktop `/estimates` passed Estimate Studio, Final Proposal Packet Review, Customer Packet, GC Packet, Foreman Handoff, Send Review, no overflow/errors, and no Last Yard/LYC proposal copy. Admin desktop `/proposals` passed Apex HQ Proposal Workspace, Proposal Generator, AHQ proposal numbering, no overflow/errors, and no Last Yard/LYC copy. Employee mobile `/estimates` and `/proposals` redirected to `/jobs` with estimate/proposal/pricing text hidden. Fly machine `148e06e2b53d68` version `609`; image `concrete-ops-2:deployment-01KSW2V5SJQREE2HRVCEGZDXBY`; `/api/ready` OK on both domains with database OK. |
 
 ## Roadmap Queue
 
 1. Phase 1 Admin Foundation Finish - completed/frozen.
 2. Phase 2 Command Center Finish - completed/frozen after production health check.
 3. Phase 3 Growth & Sales Finish - completed/frozen after production health check.
-4. Phase 4 Estimate & Proposal Finish - completed locally; release/health check pending.
+4. Phase 4 Estimate & Proposal Finish - completed/frozen after production health check.
 5. Phase 5 Job Operations Finish.
 6. Phase 6 Field Execution Finish.
 7. Phase 7 Safety & Compliance Finish.
@@ -355,7 +355,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ## Next Phase
 
-Use `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` as the active blueprint. Next build phase is Phase 5 Job Operations Finish after Phase 4 release evidence is recorded. Payroll Prep remains a later complete phase unless the owner explicitly reorders it, and live payroll processing stays out of scope.
+Use `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` as the active blueprint. Next build phase is Phase 5 Job Operations Finish. Payroll Prep remains a later complete phase unless the owner explicitly reorders it, and live payroll processing stays out of scope.
 
 ## Decision Log
 

@@ -12,9 +12,9 @@ This is the first file to read before any Apex HQ work. It is the one-file conso
 - Production domain: `https://app.apexhq.online/`.
 - Fly app: `concrete-ops-2`.
 - Fly technical URL: `https://concrete-ops-2.fly.dev/`.
-- Current production app commit at Phase 3 audit time: `5b73ef1`.
-- Current production evidence from living plan before Phase 4 release: Fly version `608`, image `concrete-ops-2:deployment-01KSW1RN44SHA22WYXKDGB53NA`, `/api/ready` healthy on `https://app.apexhq.online/api/ready`.
-- Phase baseline: Phase 1 Admin Foundation Finish, Phase 2 Command Center Finish, and Phase 3 Growth & Sales Finish are complete/frozen. Phase 4 Estimate & Proposal Finish is completed locally and pending release evidence; next true tool-completion phase after release is Phase 5 Job Operations Finish.
+- Current production app commit after Phase 4 release: `8868452`.
+- Current production evidence from living plan: Fly version `609`, image `concrete-ops-2:deployment-01KSW2V5SJQREE2HRVCEGZDXBY`, `/api/ready` healthy on `https://app.apexhq.online/api/ready`.
+- Phase baseline: Phase 1 Admin Foundation Finish, Phase 2 Command Center Finish, Phase 3 Growth & Sales Finish, and Phase 4 Estimate & Proposal Finish are complete/frozen. The next true tool-completion phase is Phase 5 Job Operations Finish.
 
 Use **Apex HQ** everywhere users see the product. `Concrete Ops`, `concrete-ops`, and `concrete-ops-2` are legacy technical names only until a dedicated infrastructure rename phase is planned.
 
@@ -529,7 +529,7 @@ Use `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` for the real finish order:
 1. Admin Foundation Finish - complete/frozen.
 2. Command Center Finish - complete/frozen after production health check.
 3. Growth & Sales Finish - complete/frozen after production health check.
-4. Estimate & Proposal Finish - completed locally; release evidence pending.
+4. Estimate & Proposal Finish - complete/frozen after production health check.
 5. Job Operations Finish.
 6. Field Execution Finish.
 7. Safety & Compliance Finish.
