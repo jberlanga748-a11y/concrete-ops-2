@@ -45,6 +45,7 @@ export function SettingsCommandRailPolished({
   onJump,
   canViewAppHealth = false,
   canViewCustomerPortalPreview = false,
+  canViewIntegrationsCommand = false,
 }) {
   const activeUsers = normalizeSettingsObjectArray(users).filter((entry) => (entry.status || "active") !== "inactive");
   const activeLeadSources = normalizeSettingsObjectArray(leadSources).filter((source) => !source.archivedAt && (source.status || "active") !== "inactive");
@@ -97,6 +98,10 @@ export function SettingsCommandRailPolished({
               <span>Plan readiness</span>
               <Icon name="dollar" />
             </button>
+            {canViewIntegrationsCommand ? <button type="button" className="co-settings-action-row" onClick={() => onJump?.("settings-integrations-command")}>
+              <span>Integrations</span>
+              <Icon name="layers" />
+            </button> : null}
             <button type="button" className="co-settings-action-row" onClick={() => onJump?.("settings-admin-controls")}>
               <span>Field modules / packet text</span>
               <Icon name="document" />
@@ -190,6 +195,10 @@ export function SettingsCommandRailPolished({
             <span>Plan readiness</span>
             <Icon name="dollar" />
           </button>
+          {canViewIntegrationsCommand ? <button type="button" className="co-settings-action-row" onClick={() => onJump?.("settings-integrations-command")}>
+            <span>Integrations</span>
+            <Icon name="layers" />
+          </button> : null}
           <button type="button" className="co-settings-action-row" onClick={() => onJump?.("settings-admin-controls")}>
             <span>Field modules / packet text</span>
             <Icon name="document" />
@@ -478,6 +487,170 @@ export function PlanReadinessPanel({ packageReadiness, billingCommand, onOpenSup
               <Icon name="clipboard" />Copy request context
             </Button>
           ) : null}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+export function IntegrationsCommandPanel({ state, onOpenSupport }) {
+  const command = state || {};
+  const providerRows = normalizeSettingsObjectArray(command.providerRows);
+  const builtAdapters = normalizeSettingsObjectArray(command.builtAdapters);
+  const readinessControls = normalizeSettingsObjectArray(command.readinessControls);
+  const auditTrail = normalizeSettingsObjectArray(command.integrationAuditTrail);
+  const blockedActions = normalizeSettingsObjectArray(command.blockedActions);
+  const canOpenSupport = typeof onOpenSupport === "function";
+
+  function requestIntegrationReview(provider = null) {
+    if (!canOpenSupport) return;
+    onOpenSupport({
+      workflow: "Integration provider setup",
+      blockerLevel: "Provider-dependent",
+      requestedFeature: provider?.label || "Platform integrations",
+      summary: provider
+        ? `Please review provider setup for ${provider.label}.`
+        : "Please review provider-ready integrations setup for this workspace.",
+      expected: "Founder/operator confirms provider account, secrets path, sandbox verification, audit trail, disabled state, disconnect control, and owner/admin execution before any live integration write.",
+      workaround: "Keep existing manual import, public intake, and review-first workflows active while provider setup is reviewed.",
+    });
+  }
+
+  if (!command.canView) {
+    return (
+      <Card className="co-settings-console-card p-5">
+        <SectionHeader title="Integrations Command unavailable" description={command.summary || "Only owner/admin users can review integration provider setup."} />
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold leading-6 text-slate-600">
+          {command.safetyBoundary || "Field users cannot access integration provider context."}
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="co-settings-console-card p-5">
+      <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone={command.integrationsEntitled ? "blue" : "slate"}>{command.currentPackage?.label || "Package"}</Badge>
+            <Badge tone={command.integrationsEntitled ? "blue" : "amber"}>{command.integrationsEntitled ? "Provider-ready" : "Package-dependent"}</Badge>
+            <Badge tone="amber">Live writes locked</Badge>
+          </div>
+          <h2 className="mt-3 break-words text-base font-black uppercase tracking-[0.04em] text-slate-950">Integrations Command</h2>
+          <p className="mt-1 max-w-3xl break-words text-sm font-bold leading-6 text-slate-600">
+            {command.summary || "Provider-ready integrations are organized for owner/admin review without live external writes."}
+          </p>
+        </div>
+        {canOpenSupport ? (
+          <Button type="button" size="sm" variant="secondary" onClick={() => requestIntegrationReview()}>
+            <Icon name="help" />Request setup review
+          </Button>
+        ) : null}
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Providers tracked</p>
+          <strong className="mt-2 block text-lg font-black text-slate-950">{command.metrics?.providersTracked || 0}</strong>
+          <span className="mt-1 block text-sm font-bold leading-6 text-slate-600">Core contractor tools mapped</span>
+        </div>
+        <div className="rounded-2xl border border-blue-100 bg-blue-50/80 p-4">
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-700">Provider-ready</p>
+          <strong className="mt-2 block text-lg font-black text-slate-950">{command.metrics?.providerReady || 0}</strong>
+          <span className="mt-1 block text-sm font-bold leading-6 text-slate-700">Configured metadata only</span>
+        </div>
+        <div className="rounded-2xl border border-orange-100 bg-orange-50/80 p-4">
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-orange-700">Needs setup</p>
+          <strong className="mt-2 block text-lg font-black text-slate-950">{command.metrics?.needsSetup || 0}</strong>
+          <span className="mt-1 block text-sm font-bold leading-6 text-slate-700">Account/API key dependent</span>
+        </div>
+        <div className="rounded-2xl border border-amber-100 bg-amber-50/80 p-4">
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-amber-700">External writes</p>
+          <strong className="mt-2 block text-lg font-black text-slate-950">Locked</strong>
+          <span className="mt-1 block text-sm font-bold leading-6 text-slate-700">No live provider actions</span>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+        <SectionHeader title="Provider readiness board" description="Each integration has visible setup, health, disabled state, audit, disconnect, and server-side secret boundaries." />
+        <div className="grid gap-3 xl:grid-cols-3">
+          {providerRows.map((provider) => (
+            <div key={provider.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <strong className="block break-words text-sm font-black text-slate-950">{provider.label}</strong>
+                  <span className="mt-1 block break-words text-xs font-bold text-slate-500">{provider.category} / {provider.direction}</span>
+                </div>
+                <Badge tone={provider.tone || "slate"}>{provider.status}</Badge>
+              </div>
+              <p className="mt-3 text-sm font-bold leading-6 text-slate-700">{provider.summary}</p>
+              <div className="mt-3 grid gap-2 text-xs font-bold text-slate-600">
+                <span>Health: {provider.providerHealth}</span>
+                <span>Server adapter: {provider.serverAdapter}</span>
+                <span>Credential: {provider.credentialReference || "Server-side setup required"}</span>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Badge tone={provider.noFrontendSecrets ? "green" : "red"}>No frontend secrets</Badge>
+                <Badge tone={provider.liveWriteLocked ? "amber" : "red"}>Writes locked</Badge>
+                <Badge tone={provider.disconnectControl ? "blue" : "slate"}>Disconnect planned</Badge>
+              </div>
+              <p className="mt-3 text-sm font-bold leading-6 text-slate-700">{provider.nextAction}</p>
+              {canOpenSupport ? (
+                <Button type="button" size="sm" variant="secondary" className="mt-3" onClick={() => requestIntegrationReview(provider)}>
+                  <Icon name="clipboard" />Review provider
+                </Button>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <SectionHeader title="Built inbound contracts" description="Existing systems that should be reused rather than rebuilt." />
+          <div className="grid gap-2">
+            {builtAdapters.map((adapter) => (
+              <div key={adapter.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <strong className="break-words text-sm font-black text-slate-950">{adapter.label}</strong>
+                  <Badge tone={adapter.tone || "slate"}>{adapter.status}</Badge>
+                </div>
+                <p className="mt-2 text-sm font-bold leading-6 text-slate-600">{adapter.detail}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <SectionHeader title="Required controls" description="Every provider must keep the same safety shape before live use." />
+          <div className="co-ai-scout-checks">
+            {readinessControls.map((control) => <small key={control.label}>{control.label}</small>)}
+          </div>
+          <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50/80 p-3">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-amber-700">Integration write boundary</p>
+            <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{command.safetyBoundary}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <SectionHeader title="Integration audit" description="Provider, OAuth, health, disconnect, and integration-write events safe for owner/admin review." />
+          <div className="grid gap-2">
+            {auditTrail.length ? auditTrail.map((event) => (
+              <div key={event.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <strong className="block break-words text-sm font-black text-slate-950">{event.label}</strong>
+                <span className="mt-1 block break-words text-xs font-bold text-slate-500">{event.actor || "Workspace audit"}{event.at ? ` / ${event.at}` : ""}</span>
+              </div>
+            )) : (
+              <p className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold leading-6 text-slate-600">No integration audit events are visible yet. Future provider setup, health checks, disables, reconnects, OAuth reviews, and sandbox checks should land here.</p>
+            )}
+          </div>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <SectionHeader title="Blocked integration actions" description="These stay blocked until provider accounts, secrets, sandbox tests, audit, disconnect, and owner/admin execution controls are finished." />
+          <div className="co-ai-scout-checks">
+            {blockedActions.map((action) => <small key={action}>{action}</small>)}
+          </div>
         </div>
       </div>
     </Card>

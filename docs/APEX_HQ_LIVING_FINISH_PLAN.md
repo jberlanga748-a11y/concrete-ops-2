@@ -4,7 +4,7 @@ Last updated: 2026-05-30
 
 ## Current Phase
 
-Billing / Payments / Packages is completed, pushed, and deployed to production under the standing release approval. Next phase is Integrations.
+Integrations is in verification/release. Next phase is Scale + Public Launch after production deploy evidence is recorded.
 
 ## Product North Star
 
@@ -43,7 +43,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | Apex Agent Operator | Built | Owner/admin AI Office now has one Apex Agent Operator command layer across new work, ads, follow-up, estimates, proposals, handoffs, closeout, billing readiness, reviews/referrals, Agent OS, action inbox, audit-backed review packets, learning, and external-action locks. |
 | Customer portal + communications | Built / Provider-ready | Owner/admin Communication Center now includes Customer Portal Command for customer-safe proposal/proof/change-order packet review, expiring/revocable access records, share approval decisions, customer comment capture, locked preflight/execution contracts, and human-reviewed email/SMS readiness. Live customer portal serving, token redemption, and provider sends remain provider/account-dependent. |
 | Billing/payments/packages | Built / Provider-ready | Owner/admin Billing / Payments / Packages Command now covers package state, payment provider readiness, checkout/manual invoice lanes, billing candidates, package/billing audit, receipts, failed-payment states, and blocked live-money actions. Stripe or chosen provider remains unconfigured for live processing. |
-| Integrations | Provider-dependent | Integration contracts should be built one provider at a time with settings, health, disabled states, tests, and audit trail. |
+| Integrations | Built / Provider-ready | Owner/admin Integrations Command now maps QuickBooks, Gmail, Google Calendar, Google Drive, Twilio, Maps/weather, CompanyCam, DocuSign/e-signature, and Google/Meta Ads with settings UI, server-adapter readiness, provider health, disabled/not-configured states, no frontend secrets, audit trail, disconnect/disable controls, package gate, and locked integration writes. Live provider accounts/API keys remain provider-dependent. |
 | Scale/public launch | Partial | Demo/pilot gates exist. Public launch requires production auth, monitoring, backup/restore, managed data plan, support, legal/claims review, onboarding, pricing, and incident process. |
 
 ## User Request Inbox
@@ -60,7 +60,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ### Next
 
-- Build provider-ready Integrations one at a time with settings UI, server adapter, provider health, disabled/not-configured state, tests, no frontend secrets, audit trail, and disconnect/disable controls.
+- Start Scale + Public Launch after Integrations production deploy evidence is recorded.
 
 ### Later
 
@@ -199,6 +199,17 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - [x] Keep field and non-owner/admin users blocked from billing, package, payment, invoice, receipt, margin, profit, payroll, and provider context.
 - [x] Verify focused billing tests, billing readiness, role verification, build, diff check, and browser QA.
 
+## Completed Phase Checklist: Integrations
+
+- [x] Reuse existing inbound integration contracts, imported job drafts, public lead intake, package entitlements, Settings, audit events, and Agent OS external gate boundaries.
+- [x] Add owner/admin Integrations Command inside Settings.
+- [x] Track QuickBooks, Gmail, Google Calendar, Google Drive, Twilio, Maps/weather, CompanyCam, DocuSign/e-signature, and Google/Meta Ads readiness.
+- [x] Show settings UI, server adapter readiness, provider health, disabled/not-configured state, tests, no frontend secrets, audit trail, and disconnect/disable control for every provider.
+- [x] Add built inbound contract review for website lead intake, imported job drafts, proposal app handoff, and the locked Agent integration write gate.
+- [x] Add package-gated `integrations` entitlement and server/client permission shape with `canWrite: false`.
+- [x] Keep live provider writes, OAuth exchange, customer sends, invoices/payments, ad publishing/spend, calendar/file mutations, hidden GPS, secrets, and field-user integration context blocked.
+- [x] Verify focused integration tests, role verification, build, diff check, and browser QA.
+
 ## Completed / Frozen Systems
 
 - Demo auth and role permissions.
@@ -217,6 +228,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - Apex Agent Operator command layer that unifies the one product-facing Apex Agent across growth, sales, estimating, proposals, handoffs, closeout, billing readiness, reputation, Agent OS, and external-action locks.
 - Customer Portal + Communications command layer that ties customer-safe packet review, expiring/revocable access evidence, share approval decisions, comments, and human-reviewed email/SMS readiness into the existing Communication Center.
 - Billing / Payments / Packages command layer that ties package state, provider readiness, checkout/manual invoice lanes, billing candidates, receipts/failures, payment-link prep, and blocked money actions into Settings without live payment processing.
+- Integrations Command layer that ties provider setup, health, disabled states, audit, disconnect planning, built inbound contracts, package gates, and locked integration-write boundaries into Settings without live provider writes or frontend secrets.
 
 ## Do-Not-Rebuild List
 
@@ -229,6 +241,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - Do not rebuild Apex Agent/AI Office/Agent OS; extend the existing operator command layer, action inbox, assistant shell, and locked external gates.
 - Do not rebuild Customer Portal + Communications; extend the existing Communication Center, customer portal preview/access/share approval contracts, public route lock, outbound approval, suppression, and delivery-attempt systems.
 - Do not rebuild package/entitlement readiness, support upgrade review, or Billing / Payments / Packages Command; extend the existing Settings command layer and server-side provider adapters when payment accounts are configured.
+- Do not rebuild Integrations Command; extend the existing Settings command layer, inbound integration contracts, package entitlement, server adapter, and Agent OS locked external gate when provider accounts/API keys are configured.
 - Do not rebuild role/permission models.
 - Do not replace existing AI Office; extend it.
 
@@ -242,6 +255,11 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | Email/SMS provider | Needs account/API key | Drafts and approval queues only. No autonomous sends. |
 | Stripe/payment provider | Needs account/API key | Billing / Payments / Packages Command is built provider-ready. No live checkout, payment links, invoices, receipts, failed-payment notices, self-serve package changes, or payment processing until provider setup, secrets, webhooks, tax/legal review, audit controls, and owner-controlled execution are finished. |
 | Customer portal live serving/link delivery | Needs tokenized route/provider | Internal command, packet preview, access records, share approvals, comments, preflight, and execution contracts are built. Public data serving, token redemption, customer actions, link delivery, and live email/SMS remain locked/provider-dependent. |
+| QuickBooks | Needs account/API key | Integrations Command is built provider-ready. No accounting/customer/invoice/job-costing write until OAuth/secrets, sandbox, mapping, audit, disconnect, and owner/admin execution controls are finished. |
+| Gmail / Google Calendar / Google Drive | Needs account/API key | Provider rows, readiness controls, and no-frontend-secret boundaries are built. No email send/read sync, calendar write, or Drive file mutation until OAuth scopes, sandbox, tenant mapping, audit, and disconnect controls are configured. |
+| Twilio | Needs account/API key/compliance | Provider row is built. No SMS/voice send until sender compliance, suppression/opt-out, delivery audit, provider health, and human-reviewed communication workflow are finished. |
+| Maps/weather | Needs account/API key | Provider row is built. No hidden GPS or worker tracking; any location use must be visible, consent-based, and server-key protected. |
+| CompanyCam / DocuSign or e-signature | Needs account/API key | Provider rows are built. No photo sync, envelope send, signature request, or public share until provider sandbox, mapping, audit, and disconnect controls are finished. |
 
 ## Deploy Log
 
@@ -266,6 +284,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | 2026-05-30 | Customer Portal + Communications | `9b9ea0c` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `601` started in `sjc`; service check passing; `/api/ready` OK on both domains with database OK. |
 | 2026-05-30 | Billing / Payments / Packages | `5169b4d` pushed to `main` | Local QA at `http://127.0.0.1:4162` | Admin desktop `/settings` passed Billing / Payments / Packages Command, provider readiness, blocked money actions, receipt/failure states, and no overflow/errors; employee mobile `/settings` redirected to `/jobs` with billing/payment/package command text hidden. |
 | 2026-05-30 | Billing / Payments / Packages | `5169b4d` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `603` started in `sjc`; service check passing; `/api/ready` OK on both domains with database OK. |
+| 2026-05-30 | Integrations | Pending commit | Local QA at `http://127.0.0.1:4168` | Admin desktop `/settings` passed Integrations Command, provider board, QuickBooks/Gmail/Calendar/Twilio readiness, no frontend secrets, locked writes, built inbound contracts, and no overflow/errors; employee mobile `/settings` redirected to `/jobs` with integration/provider text hidden. |
 
 ## Roadmap Queue
 
@@ -284,7 +303,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ## Next Phase
 
-Integrations after Billing / Payments / Packages production deploy is recorded.
+Scale + Public Launch after Integrations production deploy is recorded.
 
 ## Decision Log
 
@@ -305,6 +324,7 @@ Integrations after Billing / Payments / Packages production deploy is recorded.
 | 2026-05-30 | Apex Agent Operator is one command layer over existing AI Office and Agent OS, not a second assistant product. | Agent OS, Action Inbox, Growth Command Center, Estimate Studio, Operations Loop, closeout review, and Reputation Engine already existed. | Owner/admin users now see the finished Apex Agent loop while external actions remain locked/provider-ready and field users remain blocked. |
 | 2026-05-30 | Customer Portal + Communications lives in Communication Center instead of a separate app. | Contact history, provider readiness, suppressions, delivery-attempt contracts, and portal access/share approvals already existed there or adjacent to it. | Owner/admin users can review portal packets, approval decisions, comments, and send-readiness from one workflow while field users remain blocked and live portal/customer sends stay provider-dependent. |
 | 2026-05-30 | Billing / Payments / Packages lives in Settings Plan Readiness instead of a separate billing route. | Package readiness, support upgrade review, audit activity, and owner/admin setup already lived in Settings. | Owner/admin users get one billing command surface while field users remain blocked and live payment processing stays provider-dependent. |
+| 2026-05-30 | Integrations lives in Settings with the Agent OS integration write gate still locked. | Provider/account setup, API keys, OAuth, health, disabled states, audit, and disconnect controls are owner/admin setup work; existing inbound contracts and Agent OS already provide the safe boundaries. | Owner/admin users get a provider-ready Integrations Command while live provider writes, secrets, sends, ads, payments, calendar/file mutations, hidden GPS, and field-user exposure remain blocked. |
 
 ## Billing / Payments / Packages Phase Report
 
@@ -382,6 +402,84 @@ Rollback note:
 Next recommended phase:
 
 - Integrations.
+
+## Integrations Phase Report
+
+Goal: give owner/admin users a finished provider-ready Integrations Command that shows exactly what needs to be configured for contractor tools without exposing secrets, enabling live provider writes, or showing field users integration context.
+
+What was already built:
+
+- Imported job draft review queue, website lead intake, proposal app handoff contracts, package entitlements for platform integrations, audit activity, Settings setup shell, and Agent OS locked `integration_write` external gate.
+
+What was completed now:
+
+- Added `deriveIntegrationsCommandState` for owner/admin provider readiness.
+- Added Integrations Command inside Settings.
+- Added provider rows for QuickBooks, Gmail, Google Calendar, Google Drive, Twilio, Maps/weather, CompanyCam, DocuSign/e-signature, and Google/Meta Ads.
+- Added readiness controls for settings UI, server adapter, provider health, disabled/not-configured state, focused tests, no frontend secrets, audit trail, and disconnect/disable control.
+- Added built inbound contract review for website lead intake, imported job drafts, proposal app handoff, and the locked Agent integration write gate.
+- Added top-level `integrations` package entitlement and server/client permission scope with live writes locked as `canWrite: false`.
+
+Provider/account-dependent remaining:
+
+- QuickBooks, Gmail, Google Calendar, Google Drive, Twilio, Maps/weather, CompanyCam, DocuSign/e-signature, and Google/Meta Ads accounts/API keys/OAuth scopes/secrets/sandbox verification/mapping/audit/disconnect controls remain provider-dependent.
+- Live provider writes, live sends, ad publishing/spend, accounting writes, calendar/file mutations, signature requests, payment/billing actions, and hidden GPS remain blocked.
+
+Affected files:
+
+- `docs/APEX_HQ_LIVING_FINISH_PLAN.md`
+- `server/index.js`
+- `shared/packageEntitlements.js`
+- `shared/packageEntitlements.test.js`
+- `src/App.jsx`
+- `src/app-state-utils.js`
+- `src/integrations-command-utils.js`
+- `src/integrations-command-utils.test.js`
+- `src/settings-route-components.jsx`
+- `src/settings-route-components-import.test.js`
+
+Validation results:
+
+- `node --test --test-concurrency=1 src/integrations-command-utils.test.js src/settings-route-components-import.test.js shared/packageEntitlements.test.js` passed.
+- `npm.cmd run verify:roles` passed.
+- `npm.cmd run build` passed with existing large chunk warnings.
+- `git diff --check` passed with CRLF warnings only.
+
+Browser QA:
+
+- Admin desktop `/settings`: Integrations Command, provider readiness board, QuickBooks, Gmail, Google Calendar, Twilio, no frontend secrets, writes locked, built inbound contracts, and no-overflow/no-error checks passed.
+- Employee mobile `/settings`: redirected to `/jobs`; Integrations Command, QuickBooks, Gmail, Twilio, no frontend secrets, and writes locked text hidden; no overflow/errors.
+
+Permissions impact:
+
+- No permission loosening.
+- Added package-gated `integrations` permission scope for owner/admin visibility and explicit `canWrite: false`.
+- Agent OS integration write gate remains locked.
+- No frontend secrets, OAuth token exchange, provider calls, external writes, ads, sends, payments, calendar/file mutations, or hidden GPS were added.
+
+Field-user impact:
+
+- Field users remain blocked from integrations, provider setup, API/OAuth context, leads, estimates, pricing, billing, margins, profit, payroll, admin settings, and AI office tools.
+
+Mobile impact:
+
+- Employee mobile restricted-route behavior verified. Owner/admin desktop command layer verified.
+
+Deploy version:
+
+- Pending production deploy.
+
+Health check:
+
+- Pending production deploy.
+
+Rollback note:
+
+- Revert the affected files above to remove the Integrations Command and top-level integrations permission/entitlement scope without schema changes, provider changes, secret changes, or production data rollback.
+
+Next recommended phase:
+
+- Scale + Public Launch.
 
 ## Growth Foundation Phase Report
 

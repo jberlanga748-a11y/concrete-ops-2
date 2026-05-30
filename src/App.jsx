@@ -28,6 +28,7 @@ import {
 } from "./apex-assistant-shell-utils";
 import { deriveApexAgentOperatorState } from "./apex-agent-operator-utils";
 import { deriveBillingPaymentsCommandState } from "./billing-payments-command-utils";
+import { deriveIntegrationsCommandState } from "./integrations-command-utils";
 import { buildAgentActionProposalReviewAuditPayload, deriveAgentActionInbox, deriveAgentActionProposalAuditHistory, deriveAgentActionProposalQueue, deriveAgentActionProposalReviewState } from "./agent-action-proposal-utils";
 import {
   canRenderAgentOsConsole,
@@ -369,6 +370,7 @@ const FieldWorkspaceLeaderPage = lazyRouteComponent(() => import("./field-worksp
 
 const PlanReadinessPanel = lazyRouteComponent(() => import("./settings-route-components"), "PlanReadinessPanel");
 const SettingsCommandRailPolished = lazyRouteComponent(() => import("./settings-route-components"), "SettingsCommandRailPolished");
+const IntegrationsCommandPanel = lazyRouteComponent(() => import("./settings-route-components"), "IntegrationsCommandPanel");
 
 const FIELD_JOBS_ROUTE_COMPONENTS = {
   FieldWorkspaceLeaderPage,
@@ -7256,6 +7258,7 @@ function SettingsPagePolished({
     appHealth: mergePermissionScope(EMPTY_APP_STATE.permissions.appHealth, permissions?.appHealth),
     support: mergePermissionScope(EMPTY_APP_STATE.permissions.support, permissions?.support),
     customerPortal: mergePermissionScope(EMPTY_APP_STATE.permissions.customerPortal, permissions?.customerPortal),
+    integrations: mergePermissionScope(EMPTY_APP_STATE.permissions.integrations, permissions?.integrations),
   };
   const canViewSettings = Boolean(safePermissions.settings?.canView);
   const canExportData = Boolean(safePermissions.settings?.canExport);
@@ -7379,6 +7382,13 @@ function SettingsPagePolished({
     permissions: safePermissions,
     user,
   }), [auditEvents, changeOrderRequests, estimates, jobs, packageReadiness, safeCompanySettings, safePermissions, user]);
+  const integrationsCommandState = useMemo(() => deriveIntegrationsCommandState({
+    companySettings: safeCompanySettings,
+    packageReadiness,
+    auditEvents,
+    permissions: safePermissions,
+    user,
+  }), [auditEvents, packageReadiness, safeCompanySettings, safePermissions, user]);
   const tradeSetupState = useMemo(() => deriveConstructionTradeSetupState({
     ...safeCompanySettings,
     primaryTrade: profileDraft.primaryTrade || safeCompanySettings.primaryTrade,
@@ -7565,6 +7575,21 @@ function SettingsPagePolished({
         { label: billingPaymentsCommandState.providerState?.status || "Provider-ready", tone: billingPaymentsCommandState.providerState?.tone || "amber" },
       ],
     },
+    integrationsCommandState.canView ? {
+      id: "settings-integrations-command",
+      sectionId: "settings-integrations-command",
+      eyebrow: "Platform",
+      title: "Integrations command",
+      meta: `${integrationsCommandState.metrics?.providersTracked || 0} providers / ${integrationsCommandState.metrics?.needsSetup || 0} need setup`,
+      status: integrationsCommandState.integrationsEntitled ? "Provider-ready" : "Package-dependent",
+      statusLabel: integrationsCommandState.integrationsEntitled ? "Ready" : "Waiting",
+      tone: integrationsCommandState.integrationsEntitled ? "blue" : "slate",
+      actionLabel: "Review",
+      badges: [
+        { label: `${integrationsCommandState.metrics?.providersTracked || 0} providers`, tone: "blue" },
+        { label: "Writes locked", tone: "amber" },
+      ],
+    } : null,
     {
       id: "settings-admin-controls",
       sectionId: "settings-admin-controls",
@@ -7858,6 +7883,21 @@ function SettingsPagePolished({
               <PlanReadinessPanel packageReadiness={packageReadiness} billingCommand={billingPaymentsCommandState} onOpenSupport={canViewSupport && canRequestPackageReview(user) ? onOpenSupport : null} />
             </div>
           </details>
+
+          {integrationsCommandState.canView ? (
+            <details id="settings-integrations-command" className="co-settings-tools-drawer">
+              <summary>
+                <span>
+                  <strong>Integrations Command</strong>
+                  <em>Review QuickBooks, Gmail, Calendar, Drive, Twilio, Maps/weather, CompanyCam, e-signature, and ad-provider readiness without live provider writes.</em>
+                </span>
+                <span>{integrationsCommandState.integrationsEntitled ? "Provider-ready" : "Package-dependent"} / writes locked</span>
+              </summary>
+              <div className="co-settings-tools-panel grid gap-3">
+                <IntegrationsCommandPanel state={integrationsCommandState} onOpenSupport={canViewSupport && canRequestPackageReview(user) ? onOpenSupport : null} />
+              </div>
+            </details>
+          ) : null}
 
           {canRequestPackageReview(user) ? (
             <details id="settings-customer-portal-preview" className="co-settings-tools-drawer">
@@ -8450,6 +8490,7 @@ function SettingsPagePolished({
           onJump={jumpToSettingsSection}
           canViewAppHealth={canViewAppHealth}
           canViewCustomerPortalPreview={canRequestPackageReview(user)}
+          canViewIntegrationsCommand={integrationsCommandState.canView}
         />
       </div>
     </div>

@@ -45,6 +45,12 @@ export const DEFAULT_APP_PERMISSIONS = {
     canManage: false,
     canCreateJob: false,
   },
+  integrations: {
+    canUse: false,
+    canView: false,
+    canManage: false,
+    canWrite: false,
+  },
   aiOffice: {
     canView: false,
     canUseLeadAssistant: false,

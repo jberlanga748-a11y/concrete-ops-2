@@ -6223,6 +6223,12 @@ function sanitizeBootstrap(state, user) {
         canManage: packageEntitlements.jobDraftImports.canUse && canCreateJobs(user),
         canCreateJob: packageEntitlements.jobDraftImports.canUse && canCreateJobs(user),
       },
+      integrations: {
+        canUse: packageEntitlements.integrations.canUse,
+        canView: packageEntitlements.integrations.canUse && (isOwner(user) || isAdministrator(user)),
+        canManage: packageEntitlements.integrations.canUse && (isOwner(user) || isAdministrator(user)),
+        canWrite: false,
+      },
       aiOffice: {
         canView: packageEntitlements.aiOffice.canUse && canViewLeads(user),
         canUseLeadAssistant: packageEntitlements.aiOffice.canUseLeadAssistant && canManageLeads(user),

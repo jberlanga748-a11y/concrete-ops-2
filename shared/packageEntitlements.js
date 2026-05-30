@@ -15,6 +15,9 @@ export function resolvePackageEntitlements({ hasFeature } = {}) {
     jobDraftImports: {
       canUse: canUseFeature(FEATURE_KEYS.INTEGRATIONS),
     },
+    integrations: {
+      canUse: canUseFeature(FEATURE_KEYS.INTEGRATIONS),
+    },
     aiOffice: {
       canUse: canUseGrowthAgent || canUseWatchtower || canUseMarketingAgent,
       canUseLeadAssistant: canUseGrowthAgent || canUseWatchtower || canUseMarketingAgent,
