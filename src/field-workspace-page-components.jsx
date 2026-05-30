@@ -2,6 +2,7 @@ import { lazy, useMemo } from "react";
 
 import { Badge, Button, Card, Icon, InputField, PageHeader, SectionHeader, SelectField, StateCard, StatusBadge, TextAreaField } from "./app-shell-components";
 import { CommandCenterKpiCard, FieldOpsAgentSummaryCard } from "./command-center-route-components";
+import { deriveFieldModeFinishState } from "./field-mode-finish-utils";
 import {
   FieldAssignmentNoticePanel,
   FieldDetailDisclosure,
@@ -828,6 +829,54 @@ function FieldRequiredItemsPanel({
   );
 }
 
+function FieldModeFinishPanel({ state, setActive }) {
+  if (!state?.canView || !Array.isArray(state.items) || state.items.length === 0) return null;
+  const canRoute = typeof setActive === "function";
+  const openFieldTool = (toolId) => {
+    if (!canRoute || !toolId) return;
+    setActive(toolId);
+    if (typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches) {
+      window.setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 0);
+    }
+  };
+
+  return (
+    <Card className="co-field-mode-finish-panel p-4">
+      <div className="co-field-mode-finish-head">
+        <SectionHeader
+          title={state.title}
+          description={state.summary}
+          action={<Badge tone={state.tone || "slate"}>{state.status}</Badge>}
+        />
+        <div className="co-field-mode-finish-next">
+          <span>Next action</span>
+          <strong>{state.nextAction?.label || "Open field work"}</strong>
+          <button type="button" onClick={() => openFieldTool(state.nextAction?.moduleId || "jobs")} disabled={!canRoute || !state.nextAction?.moduleId}>
+            {state.nextAction?.actionLabel || "Open"}
+          </button>
+        </div>
+      </div>
+      <div className="co-field-mode-finish-grid">
+        {state.items.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            data-tone={item.tone || "slate"}
+            data-ready={item.ready ? "true" : "false"}
+            onClick={() => openFieldTool(item.moduleId)}
+            disabled={!item.enabled || !canRoute || !item.moduleId}
+          >
+            <span>{item.label}</span>
+            <strong>{item.status}</strong>
+            <em>{item.helper}</em>
+          </button>
+        ))}
+      </div>
+      <p className="co-field-mode-finish-boundary">{state.safetyBoundary}</p>
+    </Card>
+  );
+}
+
 function FieldWorkspacePagePolished({
   role = "employee",
   workspace,
@@ -844,6 +893,11 @@ function FieldWorkspacePagePolished({
   onClockOut,
   onStartBreak,
   onEndBreak,
+  dailyReports,
+  uploads,
+  deliveryTickets,
+  safetyIncidents,
+  toolChecklists,
 }) {
   const isForeman = role === "foreman";
   const assignedTitle = isForeman ? "Assigned Jobs" : "Assigned Work";
@@ -855,6 +909,19 @@ function FieldWorkspacePagePolished({
   const priorityJobDescription = workspace.nextAssignedJob
     ? "Primary field assignment with the fastest safe actions for this role."
     : "Current field-safe job with schedule, address, directions, and quick actions.";
+  const fieldModeFinish = useMemo(() => deriveFieldModeFinishState({
+    role,
+    workspace,
+    focusJob: priorityJob,
+    permissions,
+    timeWorkspace,
+    dailyReports,
+    uploads,
+    deliveryTickets,
+    safetyIncidents,
+    toolChecklists,
+    pwaInstallReady: true,
+  }), [dailyReports, deliveryTickets, focusJob, permissions, priorityJob, role, safetyIncidents, timeWorkspace, toolChecklists, uploads, workspace]);
 
   return (
     <FieldMobileJobsLayout role={role}>
@@ -892,6 +959,7 @@ function FieldWorkspacePagePolished({
           onAcknowledgeAssignmentNotice={onAcknowledgeAssignmentNotice}
           disabled={busy}
         />
+        <FieldModeFinishPanel state={fieldModeFinish} setActive={setActive} />
         <div className="co-field-operator-wrap">
           <FieldJobOperatorPanel role={role} workspace={workspace} focusJob={focusJob} permissions={permissions} setActive={setActive} onSelectJob={onSelectJob} activeEntry={timeWorkspace.activeEntry} />
         </div>
@@ -1061,6 +1129,11 @@ export function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, s
       onClockOut={onClockOut}
       onStartBreak={onStartBreak}
       onEndBreak={onEndBreak}
+      dailyReports={dailyReports}
+      uploads={uploads}
+      deliveryTickets={deliveryTickets}
+      safetyIncidents={safetyIncidents}
+      toolChecklists={toolChecklists}
     />
   );
 }
@@ -1104,6 +1177,11 @@ export function EmployeeWorkspacePage({ rows, user, selectedJobId, onSelectJob, 
       onClockOut={onClockOut}
       onStartBreak={onStartBreak}
       onEndBreak={onEndBreak}
+      dailyReports={dailyReports}
+      uploads={uploads}
+      deliveryTickets={deliveryTickets}
+      safetyIncidents={safetyIncidents}
+      toolChecklists={toolChecklists}
     />
   );
 }

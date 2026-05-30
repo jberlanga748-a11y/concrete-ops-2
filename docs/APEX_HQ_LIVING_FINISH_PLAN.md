@@ -4,7 +4,7 @@ Last updated: 2026-05-30
 
 ## Current Phase
 
-Core Operations Loop is completed, pushed, and deployed to production under the standing release approval. Next phase is Field Mode Finish.
+Field Mode Finish is completed locally and ready for production deploy under the standing release approval. Next phase is Apex Agent Operator after deploy and health-check are recorded.
 
 ## Product North Star
 
@@ -39,7 +39,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | Reputation + Portfolio Engine | Built | Owner/admin Growth Command Center now turns existing jobs, reports, uploads, and estimates into project story candidates, before/after selection guidance, review/referral drafts, proposal proof blocks, social/website drafts, and proof blockers. Sends and publishing remain manual/provider-ready only. |
 | Estimate Studio / proposals | Built | Estimate Studio, packets, PDF, options, customer-safe/internal packet separation, GC packet pieces, send-review gate, field-safe handoff, and final proposal packet review are built. Live email send still depends on configured provider and human confirmation. |
 | Core operations loop | Built | Owner/admin Operations Command now ties lead follow-up, estimates/proposals, approved-job handoff, schedule/crew setup, field proof, material prep, change orders, closeout, job costing, and billing readiness into one review-first next-action loop. |
-| Field Mode | Built / Partial | Field-safe mobile workflows exist. Offline drafts/PWA polish remain. |
+| Field Mode | Built | Field-safe mobile workflows now include the Field Day Finish command layer for today's job, clock/time, photos/proof, daily reports, delivery tickets, checklists, safety/PPE, change requests, PWA install readiness, and offline-draft planning. |
 | Apex Agent Operator | Partial | Agent OS/action inbox/readiness packets exist. Unified command center and provider boundaries need continued polish. |
 | Customer portal + communications | Provider-ready | Readiness contracts, access records, share approval, outbound approval, suppression, and delivery-attempt models exist. Real tokenized portal and live sends remain. |
 | Billing/payments/packages | Provider-ready | Packages/entitlements/manual readiness exist. Stripe or chosen provider remains unconfigured. |
@@ -60,7 +60,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ### Next
 
-- Finish Field Mode so crews can run the day from mobile with today job, clock/time, photos/proof, daily reports, tickets, checklists, safety, change-order requests, PWA install polish, and offline draft planning.
+- Finish Apex Agent Operator so one command center helps owner/admin users find new work, plan ads, follow up, draft estimates, prepare proposals, prep handoffs, review closeout, prepare billing readiness, and request reviews/referrals with provider-ready external-action boundaries.
 
 ### Later
 
@@ -150,6 +150,18 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - [x] Verify focused tests, jobs verification, role verification, build, diff check, and browser QA.
 - [x] Commit, push, deploy, hosted health-check, and record production deploy.
 
+## Completed Phase Checklist: Field Mode Finish
+
+- [x] Reuse existing Field Mode, mobile jobs, time, uploads, daily reports, delivery tickets, tool checklists, safety, change request, assignment notice, and PWA foundations.
+- [x] Add a field-safe Field Day Finish state layer.
+- [x] Add a mobile-first Field Day Finish panel for today's job, clock/time, assignment notice, photos/proof, daily report, delivery tickets, checklists, safety/PPE, change request, and install/offline readiness.
+- [x] Keep employee users out of foreman-only daily report and change request controls.
+- [x] Keep field users blocked from leads, estimates, pricing, billing, margins, profit, payroll, office notes, AI office controls, company setup, and other company data.
+- [x] Keep GPS optional and user-tapped only; no hidden location tracking.
+- [x] Keep PWA install-ready without claiming offline editing or hidden API caching. Offline drafts remain a later item.
+- [x] Verify focused field/mobile tests, jobs verification, role verification, PWA guardrail test, build, diff check, and browser QA.
+- [ ] Commit, push, deploy, hosted health-check, and record production deploy.
+
 ## Completed / Frozen Systems
 
 - Demo auth and role permissions.
@@ -164,6 +176,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - Reputation + Portfolio Engine project-story, review/referral, proposal proof, and manual social/website draft command layer.
 - Estimate Studio final proposal packet review, customer/internal packet separation, option comparison readiness, provider-ready send review, and field-safe handoff readiness.
 - Core Operations Loop review-first command layer tying lead-to-closeout workflows together without mutating records or exposing field users to office/money data.
+- Field Mode Finish mobile command layer that helps crews run the day from existing field tools without exposing office/money/growth data or hidden GPS.
 
 ## Do-Not-Rebuild List
 
@@ -172,6 +185,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - Do not rebuild existing lead/source/found opportunity models.
 - Do not rebuild Estimate Studio or PDF packets.
 - Do not rebuild Core Operations Loop orchestration; extend the existing command center, jobs, proof, material prep, change order, and closeout review systems.
+- Do not rebuild Field Mode; extend the existing field workspace, jobs, time, proof, report, ticket, checklist, safety, change request, and PWA surfaces.
 - Do not rebuild role/permission models.
 - Do not replace existing AI Office; extend it.
 
@@ -201,6 +215,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | 2026-05-30 | Estimate Studio + Proposal Packets | `bb1a796` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `597` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
 | 2026-05-30 | Core Operations Loop | `08a4864` pushed to `main` | Local QA at `http://127.0.0.1:4135` | Owner desktop `/command-center` passed Core Operations Loop; employee mobile `/command-center` redirected to `/jobs`; local browser errors `[]`. |
 | 2026-05-30 | Core Operations Loop | `08a4864` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `598` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
+| 2026-05-30 | Field Mode Finish | Pending commit | Local QA at `http://127.0.0.1:4142` | Employee mobile `/field` passed Field Day Finish with no office/money/growth terms; foreman mobile `/field` passed daily report/change request; employee direct `/command-center` redirected to `/jobs`; local browser errors `[]`. |
 
 ## Roadmap Queue
 
@@ -219,7 +234,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ## Next Phase
 
-Field Mode Finish after Core Operations Loop production deploy is recorded.
+Apex Agent Operator after Field Mode Finish production deploy is recorded.
 
 ## Decision Log
 
@@ -236,6 +251,7 @@ Field Mode Finish after Core Operations Loop production deploy is recorded.
 | 2026-05-30 | Reputation and portfolio reuse starts from real job proof only. | Reviews, referrals, and public proof are powerful only when they are true, permissioned, and tied to completed or proof-backed work. | Apex HQ now drafts stories, review/referral asks, proposal proof blocks, and social/website copy while blocking live sends, publishing, fake proof, GPS exposure, and field access. |
 | 2026-05-30 | Estimate Studio finish work extends the existing packet and print system instead of rebuilding it. | Estimate math, PDF packets, GC packet lite, backup/SOV, sent snapshots, and handoff readiness already exist. | Apex HQ now gives owner/admin users a final proposal packet review that ties customer packet readiness, options, proof, GC notes, send mode, and field-safe handoff together without exposing office-only content or triggering external actions. |
 | 2026-05-30 | Core Operations Loop composes existing modules instead of creating a new workflow engine. | Leads, estimates, jobs, schedule, proof, tickets, reports, change orders, material prep, and closeout review already existed. | Apex HQ now gives owner/admin users one next-action operations loop while preserving module ownership, tests, permissions, and review-first boundaries. |
+| 2026-05-30 | Field Mode Finish is a command/checklist layer over existing field tools, not a new field app or offline cache. | Field jobs, time, uploads, reports, tickets, checklists, safety, change requests, and PWA foundations already existed. | Crews now get a mobile Field Day Finish panel without exposing office/money/growth data, hidden GPS, or pretending offline drafts are done. |
 
 ## Growth Foundation Phase Report
 
@@ -640,3 +656,77 @@ Rollback note:
 Next recommended phase:
 
 - Field Mode Finish.
+
+## Field Mode Finish Phase Report
+
+Goal: finish the crew-facing mobile day workflow so foremen and employees can open Apex HQ on a phone and clearly run today's assigned field work without seeing office, money, growth, or private company data.
+
+What was already built:
+
+- Field workspace role pages, mobile job queue, assigned job cards, time/clock workspace, uploads/photos, daily reports, delivery tickets, tool checklists, safety incidents, change request foundations, assignment notices, route guards, and PWA install foundations.
+
+What was completed now:
+
+- Added a field-safe Field Day Finish utility that derives crew-ready status from existing field records.
+- Added a mobile-first Field Day Finish panel to the field workspace.
+- Covered today's job, clock/time, assignment notice, photos/proof, daily reports for foremen, delivery tickets, checklists, safety/PPE, change request for foremen, PWA install readiness, and offline-draft planning.
+- Added field-safe next actions that route to existing field tools instead of creating a second field app.
+- Kept PWA language install-ready only; offline editing and offline draft sync remain later.
+- Added focused tests and included the new field-mode finish test in `verify:jobs`.
+
+Provider/account-dependent remaining:
+
+- No provider is required for this phase. Offline field drafts remain a later build item and must not claim hidden sync/API caching until implemented.
+
+Affected files:
+
+- `docs/APEX_HQ_LIVING_FINISH_PLAN.md`
+- `package.json`
+- `src/field-mode-finish-utils.js`
+- `src/field-mode-finish-utils.test.js`
+- `src/field-workspace-page-components.jsx`
+- `src/field-workspace-page-components-import.test.js`
+- `src/field-mobile-layout-css.test.js`
+- `src/index.css`
+
+Validation results:
+
+- `node --test --test-concurrency=1 src/field-mode-finish-utils.test.js src/field-workspace-utils.test.js src/field-workspace-page-components-import.test.js src/field-mobile-layout-css.test.js src/field-jobs-route-module.test.js src/mobile-nav-utils.test.js src/app-routing.test.js` passed.
+- `npm.cmd run verify:jobs` passed.
+- `npm.cmd run verify:roles` passed.
+- `node --test --test-concurrency=1 src/pwa-config.test.js` passed.
+- `npm.cmd run build` passed with existing large chunk warnings.
+- `git diff --check` passed with CRLF warnings only.
+- After browser QA caught field-safety wording, `src/field-mode-finish-utils.test.js`, `npm.cmd run verify:jobs`, and `npm.cmd run build` passed again.
+
+Browser QA:
+
+- Employee mobile `/field`: Field Day Finish, Clock / time, Photos / proof, Install / offline, and visible optional GPS boundary passed; leads, estimates, pricing, billing, margins, payroll, and AI Office text hidden.
+- Foreman mobile `/field`: Field Day Finish, Daily report, Change request, Delivery tickets, and Install / offline passed; office/money/growth terms hidden.
+- Employee direct `/command-center`: redirected to `/jobs`; Core Operations Loop, Lead -> estimate, and closeout/billing readiness text hidden.
+- Browser errors and failed requests: none.
+- Mobile overflow: none detected.
+
+Permissions impact:
+
+- No permission loosening.
+- Field Mode Finish uses existing field route/role context and existing field tool boundaries.
+- Daily report and change request actions stay foreman-only.
+- No hidden GPS tracking was added; GPS remains optional and user-tapped.
+
+Field-user impact:
+
+- Field users get a clearer day checklist and next action surface.
+- Field users still do not see leads, estimates, pricing, billing, margins, profit, payroll, office notes, AI office controls, company setup, growth controls, or other company data.
+
+Mobile impact:
+
+- Mobile field workflow is the primary target. The panel uses compact header text, fixed card sizing, horizontal scrolling, touch-friendly actions, and verified no-overflow behavior.
+
+Rollback note:
+
+- Revert the affected files listed above to remove the Field Day Finish panel and utility without schema changes, data migration, provider changes, or production data rollback.
+
+Next recommended phase:
+
+- Apex Agent Operator.

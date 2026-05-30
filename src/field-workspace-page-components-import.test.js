@@ -11,7 +11,9 @@ test("field workspace role pages live outside App", () => {
   assert.match(fieldWorkspaceSource, /export function ForemanWorkspacePage\b/);
   assert.match(fieldWorkspaceSource, /export function EmployeeWorkspacePage\b/);
   assert.match(fieldWorkspaceSource, /function FieldMobileJobsLayout\b/);
+  assert.match(fieldWorkspaceSource, /function FieldModeFinishPanel\b/);
   assert.match(fieldWorkspaceSource, /co-field-mobile-jobs-shell/);
+  assert.match(fieldWorkspaceSource, /deriveFieldModeFinishState/);
   assert.match(fieldWorkspaceSource, /const ActiveTimeCard = lazy\(\(\) => import\("\.\/time-route-components"\)/);
   assert.doesNotMatch(fieldWorkspaceSource, /from "\.\/time-route-components"/);
   assert.match(fieldWorkspaceSource, /from "\.\/field-format-utils"/);
