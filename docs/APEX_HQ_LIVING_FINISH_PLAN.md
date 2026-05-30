@@ -40,7 +40,7 @@ Next recommended phase:
 
 ## Current Phase
 
-Phase 7 Safety & Compliance Finish is built and validated locally. Owner/admin Safety, Toolbox Talks, PPE, and Tool Checklist workflows now keep office review control, field-safe submission/acknowledgment, job readiness blockers, reopen lifecycle paths, and audit/activity evidence aligned without schema, auth/session, billing, provider, GPS, or production-data changes. Phase 1 Admin Foundation, Phase 2 Command Center, Phase 3 Growth & Sales, Phase 4 Estimate & Proposal, Phase 5 Job Operations, and Phase 6 Field Execution remain complete/frozen.
+Phase 7 Safety & Compliance Finish is built, validated, pushed, deployed, and health-checked. Owner/admin Safety, Toolbox Talks, PPE, and Tool Checklist workflows now keep office review control, field-safe submission/acknowledgment, job readiness blockers, reopen lifecycle paths, and audit/activity evidence aligned without schema, auth/session, billing, provider, GPS, or production-data changes. Phase 1 Admin Foundation, Phase 2 Command Center, Phase 3 Growth & Sales, Phase 4 Estimate & Proposal, Phase 5 Job Operations, and Phase 6 Field Execution remain complete/frozen.
 
 Phase 1 blockers are fixed in production: `/imported-drafts` renders for owner/admin users, `npm.cmd run verify:job-draft-imports` is green, and owner/admin setup now has a single Admin Foundation Finish board in Settings.
 
@@ -59,6 +59,15 @@ Phase 5 status: Job Operations Finish is built, validated, deployed, and health-
 Phase 6 status: Field Execution Finish is built, validated, deployed, and health-checked. Employee and foreman field workspaces now have one field-safe command layer from assigned work through arrival/start, proof capture, daily reports, delivery tickets, checklists, safety, change request handoff, end-of-day closeout, and honest install/offline readiness. Field users remain assigned-job scoped and cannot access leads, estimates, pricing, profit/margins, payroll, office notes, admin setup, AI office tools, billing, provider context, estimate packet context, hidden GPS, automatic sends, vendor orders, or production data mutations.
 
 Phase 7 status: Safety & Compliance Finish is built and validated. Owner/admin users can manage safety incidents, toolbox guidance, PPE requirements, acknowledgments, and tool checklist review from the existing safety/tool surfaces. Office users can reopen reviewed/resolved incidents and submitted/reviewed tool checklists for correction, with audit/activity events and lifecycle guards. Field users remain assigned-scope only: they can submit visible safety concerns, acknowledge field-safe PPE/toolbox guidance, update assigned tool loadouts, and submit allowed field checklists without seeing leads, estimates, pricing, profit/margins, payroll, office-only notes, admin settings, AI office tools, billing, or other company data.
+
+Phase 7 release evidence:
+
+- Commit `02992d9` pushed to `main`.
+- Fly app `concrete-ops-2` deployed as machine version `613`.
+- Image: `concrete-ops-2:deployment-01KSWDKJYGJGAG3Q5EVV9Z7VF8`.
+- `https://app.apexhq.online/api/ready` returned `ok: true`, `status: ready`, database `ok`.
+- `https://concrete-ops-2.fly.dev/api/ready` returned `ok: true`, `status: ready`, database `ok`.
+- `fly status --app concrete-ops-2` showed machine `148e06e2b53d68` started with `1 passing` check.
 
 Phase 7 validation:
 
