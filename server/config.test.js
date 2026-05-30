@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import test from "node:test";
 
 import { createServerConfig } from "./config.js";
@@ -128,4 +129,30 @@ test("data provider config defaults to SQLite and validates Postgres runtime set
     () => createServerConfig(baseEnv({ DATA_PROVIDER: "mongo" })),
     /DATA_PROVIDER must be one of/i,
   );
+});
+
+test("Docker runtime image copies server-side src utility imports", () => {
+  const dockerfile = fs.readFileSync(new URL("../Dockerfile", import.meta.url), "utf8");
+  const serverIndex = fs.readFileSync(new URL("./index.js", import.meta.url), "utf8");
+  const runtimeSrcImports = Array.from(serverIndex.matchAll(/from "\.\.\/src\/([^"]+)"/g))
+    .map((match) => match[1])
+    .sort();
+
+  assert.deepEqual(runtimeSrcImports, [
+    "customer-portal-preview-utils.js",
+    "time-utils.js",
+  ]);
+
+  for (const fileName of runtimeSrcImports) {
+    assert.match(
+      dockerfile,
+      new RegExp(`COPY --from=build /app/src/${fileName.replace(".", "\\.")} ./src/${fileName.replace(".", "\\.")}`),
+      `${fileName} must be copied into the runtime image`,
+    );
+    assert.match(
+      dockerfile,
+      new RegExp(`RUN test -f /app/src/${fileName.replace(".", "\\.")}`),
+      `${fileName} must be asserted in the runtime image`,
+    );
+  }
 });

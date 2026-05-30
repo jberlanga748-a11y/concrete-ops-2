@@ -23,11 +23,13 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/server ./server
 COPY --from=build /app/shared ./shared
 COPY --from=build /app/src/customer-portal-preview-utils.js ./src/customer-portal-preview-utils.js
+COPY --from=build /app/src/time-utils.js ./src/time-utils.js
 COPY --from=build /app/scripts/postgres-transfer.mjs ./scripts/postgres-transfer.mjs
 COPY --from=build /app/supabase/migrations ./supabase/migrations
 
 RUN test -f /app/shared/permissions.js
 RUN test -f /app/src/customer-portal-preview-utils.js
+RUN test -f /app/src/time-utils.js
 RUN test -f /app/scripts/postgres-transfer.mjs
 RUN test -f /app/supabase/migrations/202605240001_apex_hq_initial_schema.sql
 
