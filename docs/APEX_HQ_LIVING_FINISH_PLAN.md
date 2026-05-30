@@ -8,7 +8,7 @@ This living plan tracks active phase memory, deploy evidence, user requests, and
 
 ## Current Phase
 
-Phase 5 Job Operations Finish is completed, pushed, deployed to production, health-checked, and frozen under the standing phase release approval. Phase 1 Admin Foundation, Phase 2 Command Center, Phase 3 Growth & Sales, and Phase 4 Estimate & Proposal remain complete/frozen. The next true tool-completion phase is Phase 6 Field Execution Finish.
+Phase 6 Field Execution Finish is completed, pushed, deployed to production, health-checked, and frozen under the standing phase release approval. Phase 1 Admin Foundation, Phase 2 Command Center, Phase 3 Growth & Sales, Phase 4 Estimate & Proposal, and Phase 5 Job Operations remain complete/frozen. The next true tool-completion phase is Phase 7 Safety & Compliance Finish.
 
 Phase 1 blockers are fixed in production: `/imported-drafts` renders for owner/admin users, `npm.cmd run verify:job-draft-imports` is green, and owner/admin setup now has a single Admin Foundation Finish board in Settings.
 
@@ -23,6 +23,8 @@ Phase 3 status: Growth & Sales Finish is built, validated, and deployed. Owner/a
 Phase 4 status: Estimate & Proposal Finish is built, validated, deployed, and health-checked. Owner/admin Estimate Studio now covers create-from-lead/customer/rough-notes flow, final proposal packet readiness, customer-safe/internal packet separation, GC Packet Lite review, PDF/print/manual send readiness, rate book defaults, calculator/takeoff adjacency, and estimate-to-job handoff readiness. The legacy Last Yard proposal generator surface has been rebranded to Apex HQ-neutral proposal defaults and guarded by tests so estimate/proposal surfaces do not expose retired pilot brand copy. Field users remain redirected to assigned field work and cannot access estimates, proposals, pricing, customer packet controls, internal notes, margin/profit/payroll, or office-only proposal data.
 
 Phase 5 status: Job Operations Finish is built, validated, deployed, and health-checked. Owner/admin Jobs now has a Job Operations Finish panel that composes approved handoff/source state, schedule, crew assignment, startup checklist, field visibility, material prep, tool readiness, safety/proof, and completion readiness into one routed review layer. Field users remain redirected to assigned field work and cannot access job operations finish, pricing, margins, payroll, billing, estimate packet context, office notes, customer sends, vendor orders, provider writes, or other company data.
+
+Phase 6 status: Field Execution Finish is built, validated, deployed, and health-checked. Employee and foreman field workspaces now have one field-safe command layer from assigned work through arrival/start, proof capture, daily reports, delivery tickets, checklists, safety, change request handoff, end-of-day closeout, and honest install/offline readiness. Field users remain assigned-job scoped and cannot access leads, estimates, pricing, profit/margins, payroll, office notes, admin setup, AI office tools, billing, provider context, estimate packet context, hidden GPS, automatic sends, vendor orders, or production data mutations.
 
 ## Product North Star
 
@@ -61,7 +63,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | Core operations loop | Built | Owner/admin Operations Command now ties lead follow-up, estimates/proposals, approved-job handoff, schedule/crew setup, field proof, material prep, change orders, closeout, job costing, and billing readiness into one review-first next-action loop. |
 | Job operations | Built / Frozen after Phase 5 release | Owner/admin Jobs now ties approved source/handoff, scheduling, crew assignment, startup readiness, field visibility, material prep, tools, safety/proof, and completion readiness into one review-first finish layer. Field users remain assigned-work only. |
 | Command Center Finish | Built | Owner/admin Command Center now opens with a Daily Command Plan that routes today's attention, jobs/crew, proof gaps, sales follow-up, billing-ready work, growth/client-finder work, blockers, and provider setup to real existing tools or locked setup states. |
-| Field Mode | Built | Field-safe mobile workflows now include the Field Day Finish command layer for today's job, clock/time, photos/proof, daily reports, delivery tickets, checklists, safety/PPE, change requests, PWA install readiness, and offline-draft planning. |
+| Field Mode | Built / Frozen after Phase 6 release | Field-safe mobile workflows now include the Field Execution Finish command layer for today's assigned job, arrival/start readiness, clock/time, photos/proof, daily reports, delivery tickets, checklists, safety/PPE, change requests, end-of-day handoff, PWA install readiness, and honest offline-draft planning. |
 | Apex Agent Operator | Built | Owner/admin AI Office now has one Apex Agent Operator command layer across new work, ads, follow-up, estimates, proposals, handoffs, closeout, billing readiness, reviews/referrals, Agent OS, action inbox, audit-backed review packets, learning, and external-action locks. |
 | Customer portal + communications | Built / Provider-ready | Owner/admin Communication Center now includes Customer Portal Command for customer-safe proposal/proof/change-order packet review, expiring/revocable access records, share approval decisions, customer comment capture, locked preflight/execution contracts, and human-reviewed email/SMS readiness. Live customer portal serving, token redemption, and provider sends remain provider/account-dependent. |
 | Billing/payments/packages | Built / Provider-ready | Owner/admin Billing / Payments / Packages Command now covers package state, payment provider readiness, checkout/manual invoice lanes, billing candidates, package/billing audit, receipts, failed-payment states, and blocked live-money actions. Stripe or chosen provider remains unconfigured for live processing. |
@@ -86,7 +88,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ### Next
 
-- Start Phase 6 Field Execution Finish from `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` after Phase 5 deploy/health check.
+- Start Phase 7 Safety & Compliance Finish from `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` after Phase 6 deploy/health check.
 
 ### Later
 
@@ -246,6 +248,15 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - [x] Keep field users blocked from Job Operations Finish and any pricing, margin, payroll, billing, estimate packet, office note, provider, or other-company context.
 - [x] Verify focused job operations tests, `verify:jobs`, `verify:roles`, build, diff check, desktop owner/admin browser QA, and mobile field-route browser QA.
 
+## Completed Phase Checklist: Field Execution Finish
+
+- [x] Reuse existing field workspace, assigned jobs, time, uploads/proof, daily reports, delivery tickets, pre-pour/post-pour/tool checklists, safety, toolbox/PPE, change orders, PWA, and role permission boundaries.
+- [x] Add a field-safe Field Execution Finish command layer for employee and foreman mobile workflows.
+- [x] Tie assigned work, arrival/start readiness, proof reminders, daily report completion, delivery tickets, checklists, safety capture, change request handoff, end-of-day closeout, and install/offline readiness into one routed workflow.
+- [x] Keep all actions review-first or field-local: no schema/auth/session/billing/GPS changes, hidden GPS, live sends, invoices, payments, vendor orders, provider writes, customer sends, or production data mutations.
+- [x] Keep field users blocked from leads, estimates, pricing, profit/margins, payroll, office notes, admin setup, AI office tools, billing, provider context, estimate packet context, and other company data.
+- [x] Verify focused field execution tests, `verify:jobs`, `verify:roles`, daily reports, uploads, time, delivery tickets, tool checklist, safety, pre-pour, post-pour, change orders, build, diff check, mobile field browser QA, and restricted route browser QA.
+
 ## Active Phase Checklist: Phase 1 Admin Foundation Finish
 
 - [x] Read repo memory, roadmaps, operating model, and active blueprint.
@@ -277,13 +288,14 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - Reputation + Portfolio Engine project-story, review/referral, proposal proof, and manual social/website draft command layer.
 - Estimate Studio final proposal packet review, customer/internal packet separation, option comparison readiness, provider-ready send review, and field-safe handoff readiness.
 - Core Operations Loop review-first command layer tying lead-to-closeout workflows together without mutating records or exposing field users to office/money data.
-- Field Mode Finish mobile command layer that helps crews run the day from existing field tools without exposing office/money/growth data or hidden GPS.
+- Field Execution Finish mobile command layer that helps crews run the day from assigned work through end-of-day handoff using existing field tools without exposing office/money/growth/provider data or hidden GPS.
 - Apex Agent Operator command layer that unifies the one product-facing Apex Agent across growth, sales, estimating, proposals, handoffs, closeout, billing readiness, reputation, Agent OS, and external-action locks.
 - Customer Portal + Communications command layer that ties customer-safe packet review, expiring/revocable access evidence, share approval decisions, comments, and human-reviewed email/SMS readiness into the existing Communication Center.
 - Billing / Payments / Packages command layer that ties package state, provider readiness, checkout/manual invoice lanes, billing candidates, receipts/failures, payment-link prep, and blocked money actions into Settings without live payment processing.
 - Integrations Command layer that ties provider setup, health, disabled states, audit, disconnect planning, built inbound contracts, package gates, and locked integration-write boundaries into Settings without live provider writes or frontend secrets.
 - Admin Foundation Finish: signup/first-owner setup evidence, invite/password readiness, Employees/users/roles, Settings finish board, App Health, Support, Imported Drafts, Integrations setup board, and package/billing readiness are frozen except for bugs, security/permission fixes, provider hookups, or approved versioned upgrades.
 - Job Operations Finish: owner/admin Jobs finish layer for schedule, crew, startup, field visibility, material prep, tool readiness, safety/proof, and completion readiness is frozen except for bugs, security/permission fixes, provider hookups, or approved versioned upgrades.
+- Field Execution Finish: employee/foreman assigned-work command layer for arrival/start, time, proof, daily reports, delivery tickets, checklists, safety, change request handoff, end-of-day closeout, and install/offline readiness is frozen except for bugs, security/permission fixes, approved offline/provider hookups, or approved versioned upgrades.
 
 ## Do-Not-Rebuild List
 
@@ -292,7 +304,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - Do not rebuild existing lead/source/found opportunity models.
 - Do not rebuild Estimate Studio or PDF packets.
 - Do not rebuild Core Operations Loop orchestration; extend the existing command center, jobs, proof, material prep, change order, and closeout review systems.
-- Do not rebuild Field Mode; extend the existing field workspace, jobs, time, proof, report, ticket, checklist, safety, change request, and PWA surfaces.
+- Do not rebuild Field Mode or Field Execution Finish; extend the existing field workspace, jobs, time, proof, report, ticket, checklist, safety, change request, and PWA surfaces.
 - Do not rebuild Apex Agent/AI Office/Agent OS; extend the existing operator command layer, action inbox, assistant shell, and locked external gates.
 - Do not rebuild Customer Portal + Communications; extend the existing Communication Center, customer portal preview/access/share approval contracts, public route lock, outbound approval, suppression, and delivery-attempt systems.
 - Do not rebuild package/entitlement readiness, support upgrade review, or Billing / Payments / Packages Command; extend the existing Settings command layer and server-side provider adapters when payment accounts are configured.
@@ -350,6 +362,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | 2026-05-30 | Phase 3 Growth & Sales Finish | `5b73ef1` pushed to `main` and deployed | Local QA at `http://127.0.0.1:4103`; production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Owner desktop `/ai-office` passed Growth Command routes to setup/source, follow-up, ads, and proof surfaces; owner desktop `/leads` passed Sales Follow-Up System, stale estimates, Won/Lost/Not Interested outcomes, and no overflow/errors; employee mobile `/ai-office` and `/leads` redirected to `/jobs` with growth/sales/estimate/ads/reputation text hidden. Fly machine `148e06e2b53d68` version `608`; image `concrete-ops-2:deployment-01KSW1RN44SHA22WYXKDGB53NA`; `/api/ready` OK on both domains with database OK. |
 | 2026-05-30 | Phase 4 Estimate & Proposal Finish | `8868452` pushed to `main` and deployed | Local QA at `http://127.0.0.1:4134` with isolated demo data; production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Admin desktop `/estimates` passed Estimate Studio, Final Proposal Packet Review, Customer Packet, GC Packet, Foreman Handoff, Send Review, no overflow/errors, and no Last Yard/LYC proposal copy. Admin desktop `/proposals` passed Apex HQ Proposal Workspace, Proposal Generator, AHQ proposal numbering, no overflow/errors, and no Last Yard/LYC copy. Employee mobile `/estimates` and `/proposals` redirected to `/jobs` with estimate/proposal/pricing text hidden. Fly machine `148e06e2b53d68` version `609`; image `concrete-ops-2:deployment-01KSW2V5SJQREE2HRVCEGZDXBY`; `/api/ready` OK on both domains with database OK. |
 | 2026-05-30 | Phase 5 Job Operations Finish | `72e1c99` pushed to `main` and deployed | Local QA at `http://127.0.0.1:4000` with isolated demo data; production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Owner/admin desktop `/jobs` passed Job Operations Finish visibility, schedule/startup/crew/material/proof/completion checkpoints, no overflow/errors, and no failed requests. Employee mobile `/jobs` kept Job Operations Finish and office/money/provider text hidden. Employee mobile direct `/estimates` redirected to `/jobs` with estimate/pricing text hidden. Fly machine `148e06e2b53d68` version `610`; image `concrete-ops-2:deployment-01KSW4378XPSFE5AZ5NKRAKE94`; service check passing; `/api/ready` OK on both domains with database OK. |
+| 2026-05-30 | Phase 6 Field Execution Finish | `8a250af` pushed to `main` and deployed | Local QA at `http://127.0.0.1:4147` with isolated demo data; production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Employee mobile `/field` passed Field Execution Finish clicks for Arrival/start, Photos/proof, End-of-day handoff, and Install/offline; foreman mobile `/field` passed clicks for Arrival/start, Daily report, Delivery tickets, Change request, and End-of-day handoff. Employee/foreman direct `/command-center` redirected to `/jobs` with office/money/provider text hidden. Owner/admin desktop `/field` passed field leader view. No horizontal overflow, console errors, or failed requests in final browser QA. Fly machine `148e06e2b53d68` version `611`; image `concrete-ops-2:deployment-01KSW5YE7BC4BDDGKJV3ZR6V6C`; service check passing; `/api/ready` OK on both domains with database OK. |
 
 ## Roadmap Queue
 
@@ -358,7 +371,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 3. Phase 3 Growth & Sales Finish - completed/frozen after production health check.
 4. Phase 4 Estimate & Proposal Finish - completed/frozen after production health check.
 5. Phase 5 Job Operations Finish - completed/frozen after production health check.
-6. Phase 6 Field Execution Finish.
+6. Phase 6 Field Execution Finish - completed/frozen after production health check.
 7. Phase 7 Safety & Compliance Finish.
 8. Phase 8 Change Order Finish.
 9. Phase 9 Payroll Prep Finish.
@@ -394,6 +407,7 @@ Use `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` as the active blueprint. Next bu
 | 2026-05-30 | Billing / Payments / Packages lives in Settings Plan Readiness instead of a separate billing route. | Package readiness, support upgrade review, audit activity, and owner/admin setup already lived in Settings. | Owner/admin users get one billing command surface while field users remain blocked and live payment processing stays provider-dependent. |
 | 2026-05-30 | Integrations lives in Settings with the Agent OS integration write gate still locked. | Provider/account setup, API keys, OAuth, health, disabled states, audit, and disconnect controls are owner/admin setup work; existing inbound contracts and Agent OS already provide the safe boundaries. | Owner/admin users get a provider-ready Integrations Command while live provider writes, secrets, sends, ads, payments, calendar/file mutations, hidden GPS, and field-user exposure remain blocked. |
 | 2026-05-30 | Job Operations Finish composes existing job modules instead of creating a new workflow engine. | Jobs, Schedule, Material Prep, Startup Checklist, proof, reports, tickets, safety, tools, and role-scoped field work already existed. | Owner/admin users get one routed job operations finish layer while field users remain assigned-work only and no sends, orders, provider writes, payroll, billing, schema, or production data changes are introduced. |
+| 2026-05-30 | Field Execution Finish extends the existing field workspace instead of building a second field app. | Assigned jobs, field workspace, time, uploads/proof, daily reports, delivery tickets, pre-pour/post-pour/tool checklists, safety, change requests, and PWA install surfaces already existed. | Employee and foreman users now get one field-safe routed execution layer from arrival through end-of-day handoff while office/money/provider data, hidden GPS, external sends, vendor orders, billing, schema/auth/session changes, and production mutations stay blocked. |
 | 2026-05-30 | Replace slice-based roadmap execution with tool-by-tool completion blueprint. | The owner wants employee-owned product completion: every app tool inventoried, finish line defined, assigned to a phase, then frozen. The prior vertical plan was still too phase-order-first. | `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` is the active plan. `docs/APEX_HQ_VERTICAL_FINISH_PHASE_PLAN.md` is superseded/historical. |
 | 2026-05-30 | Phase 1 starts with a pre-build audit before implementation. | The owner explicitly required skills, browser review, code review, memory/roadmap review, and a direct plan before starting Phase 1. | `docs/APEX_HQ_PHASE_1_ADMIN_FOUNDATION_PREBUILD_AUDIT.md` records what is built, what is broken, what must be added, and the exact implementation package. |
 | 2026-05-30 | Imported Drafts crash and job-draft verification failure block Phase 1 freeze. | `/imported-drafts` is a Phase 1 owner/admin tool and cannot render; `verify:job-draft-imports` is red. | Phase 1 implementation starts by fixing the route crash and the stale auth test helper before adding the finish board. |
@@ -1078,6 +1092,81 @@ Rollback note:
 Next recommended phase:
 
 - Estimate Studio + Proposal Packets.
+
+## Phase 6 Field Execution Finish Report
+
+Goal: finish the field execution workflow for crews and foremen from assigned-job arrival through daily execution, proof capture, daily reports, delivery tickets, checklists, safety notes, change request capture, and end-of-day handoff without creating a second field app or exposing office-only data.
+
+What was already built:
+
+- Field workspace, assigned jobs, foreman/employee mobile shells, time/PWA surfaces, uploads/proof, daily reports, delivery tickets, pre-pour/post-pour/tool checklists, safety/PPE/toolbox surfaces, change orders, and server-side field job redaction.
+
+What was completed now:
+
+- Upgraded `deriveFieldModeFinishState` into the Field Execution Finish command layer with arrival/start readiness, proof reminders, daily report submitted-vs-draft state, tickets/checklists/safety capture, change request handoff status, end-of-day closeout readiness, and honest install/offline wording.
+- Passed field change request context into the existing foreman and employee field workspace pages.
+- Added focused tests for employee field-only visibility, foreman field-safe workflow, end-of-day handoff readiness, no office/money/provider leakage, no hidden GPS claims, and no automatic external actions.
+
+Provider/account-dependent remaining:
+
+- True offline draft/sync, external messaging, provider integrations, customer sends, vendor ordering, invoices, payment actions, and live GPS/location policies remain unbuilt or locked until a dedicated approved phase.
+
+Affected files:
+
+- `docs/APEX_HQ_CANONICAL_SOURCE_OF_TRUTH.md`
+- `docs/APEX_HQ_LIVING_FINISH_PLAN.md`
+- `src/field-mode-finish-utils.js`
+- `src/field-mode-finish-utils.test.js`
+- `src/field-workspace-page-components.jsx`
+- `src/field-workspace-leader-page-components.jsx`
+
+Validation results:
+
+- `node --test --test-concurrency=1 src/field-mode-finish-utils.test.js src/field-workspace-page-components-import.test.js src/field-workspace-utils.test.js src/field-jobs-route-module.test.js src/field-mobile-layout-css.test.js` passed with 17 tests.
+- `npm.cmd run verify:jobs` passed with 231 tests.
+- `npm.cmd run verify:roles` passed with 13 tests.
+- `npm.cmd run verify:daily-reports`, `verify:uploads`, `verify:time`, `verify:delivery-tickets`, `verify:tool-checklist`, `verify:safety`, `verify:pre-pour`, `verify:post-pour`, and `verify:change-orders` passed.
+- `npm.cmd run build` passed with existing large chunk warnings only.
+- `git diff --check` passed with CRLF warnings only.
+
+Browser QA:
+
+- Employee mobile `/field`: Field Execution Finish was visible; clicked Arrival/start -> `/jobs`, Photos/proof -> `/uploads`, End-of-day handoff -> `/pre-pour`, and Install/offline -> `/support`; no horizontal overflow, console errors, failed requests, or office/money/provider text.
+- Foreman mobile `/field`: Field Execution Finish was visible; clicked Arrival/start -> `/jobs`, Daily report -> `/reports`, Delivery tickets -> `/delivery-tickets`, Change request -> `/change-orders`, and End-of-day handoff -> `/time`; no horizontal overflow, console errors, failed requests, or office/money/provider text.
+- Employee and foreman mobile direct `/command-center`: redirected to `/jobs`; command/growth/billing/office text stayed hidden.
+- Owner/admin desktop `/field`: field leader view loaded with no horizontal overflow, console errors, or failed requests.
+
+Permissions impact:
+
+- No permission loosening.
+- Employee users remain field-only with assigned job, proof, time, checklist/safety, and support routes only.
+- Foremen get field-safe daily report and change request handoff routing only where existing permissions allow it.
+- Leads, estimates, pricing, profit/margins, payroll, office notes, admin setup, AI office tools, billing, provider context, estimate packet context, and other company data remain hidden from field users.
+
+Field-user impact:
+
+- Crews get a clearer next-action sequence for arrival/start, proof, reports, tickets/checklists/safety, change requests, and closeout without new exposed business data or automatic external actions.
+
+Mobile impact:
+
+- Employee and foreman mobile click-through QA passed with no page-level horizontal overflow. Offline/PWA status is explicit: install-ready, but live records still need connection and offline drafts remain planned.
+
+Deploy version:
+
+- `8a250af` deployed to Fly machine `148e06e2b53d68` version `611`, image `concrete-ops-2:deployment-01KSW5YE7BC4BDDGKJV3ZR6V6C`.
+
+Health check:
+
+- `https://app.apexhq.online/api/ready` OK with database OK.
+- `https://concrete-ops-2.fly.dev/api/ready` OK with database OK.
+
+Rollback note:
+
+- Revert `8a250af` to remove the Field Execution Finish utility updates, field workspace change-request prop flow, and focused tests. No schema changes, auth/session changes, billing/payment processing, provider writes, live sends, vendor orders, payroll actions, hidden GPS, destructive data changes, or production data migrations were introduced.
+
+Next recommended phase:
+
+- Phase 7 Safety & Compliance Finish.
 
 ## Phase 5 Job Operations Finish Report
 
