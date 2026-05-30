@@ -12,9 +12,9 @@ This is the first file to read before any Apex HQ work. It is the one-file conso
 - Production domain: `https://app.apexhq.online/`.
 - Fly app: `concrete-ops-2`.
 - Fly technical URL: `https://concrete-ops-2.fly.dev/`.
-- Current local branch/head at audit time: `main` at `c7e1328`.
-- Current production evidence from living plan: Fly version `607`, image `concrete-ops-2:deployment-01KSW0DXH4NAM1D3R8RT57D8X1`, `/api/ready` healthy on `https://app.apexhq.online/api/ready`.
-- Phase baseline: Phase 1 Admin Foundation Finish and Phase 2 Command Center Finish are complete/frozen. The next true tool-completion phase is Phase 3 Growth & Sales Finish.
+- Current production app commit at Phase 3 audit time: `5b73ef1`.
+- Current production evidence from living plan: Fly version `608`, image `concrete-ops-2:deployment-01KSW1RN44SHA22WYXKDGB53NA`, `/api/ready` healthy on `https://app.apexhq.online/api/ready`.
+- Phase baseline: Phase 1 Admin Foundation Finish, Phase 2 Command Center Finish, and Phase 3 Growth & Sales Finish are complete/frozen. The next true tool-completion phase is Phase 4 Estimate & Proposal Finish.
 
 Use **Apex HQ** everywhere users see the product. `Concrete Ops`, `concrete-ops`, and `concrete-ops-2` are legacy technical names only until a dedicated infrastructure rename phase is planned.
 
@@ -60,7 +60,7 @@ Secret hygiene:
 `C:\Users\jberl\Documents\New project`
 
 - Branch: `main`
-- Head at audit time: `c7e1328`
+- Production app commit at Phase 3 audit time: `5b73ef1`
 - Remote: `https://github.com/jberlanga748-a11y/concrete-ops-2.git`
 - Role: current source of truth and production worktree.
 
@@ -497,6 +497,7 @@ Active repo `server` compared to old clean:
 - `verify:admin-foundation`.
 - Settings Admin Foundation Finish Board.
 - Phase 2 Command Center Finish.
+- Phase 3 Growth & Sales Finish.
 - Role-safety baseline.
 - Brand normalization from Concrete Ops to Apex HQ.
 
@@ -525,8 +526,8 @@ Use `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` for the real finish order:
 
 1. Admin Foundation Finish - complete/frozen.
 2. Command Center Finish - complete/frozen after production health check.
-3. Growth & Sales Finish - next true phase.
-4. Estimate & Proposal Finish.
+3. Growth & Sales Finish - complete/frozen after production health check.
+4. Estimate & Proposal Finish - next true phase.
 5. Job Operations Finish.
 6. Field Execution Finish.
 7. Safety & Compliance Finish.

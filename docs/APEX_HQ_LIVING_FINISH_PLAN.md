@@ -8,7 +8,7 @@ This living plan tracks active phase memory, deploy evidence, user requests, and
 
 ## Current Phase
 
-Phase 2 Command Center Finish is completed, pushed, deployed to production, health-checked, and frozen under the standing release approval. Use the tool-by-tool completion blueprint as the active source for the next phase.
+Phase 3 Growth & Sales Finish is completed, pushed, deployed to production, health-checked, and frozen under the standing release approval. Use the tool-by-tool completion blueprint as the active source for the next phase.
 
 Phase 1 blockers are fixed in production: `/imported-drafts` renders for owner/admin users, `npm.cmd run verify:job-draft-imports` is green, and owner/admin setup now has a single Admin Foundation Finish board in Settings.
 
@@ -17,6 +17,8 @@ Slice 1 status: Admin Foundation state utility and tests are built, pushed, depl
 Slice 2 status: Admin Foundation Finish Board is built, pushed, deployed to Fly version `606`, and health-checked. Owner/admin Settings now summarizes setup, users/roles, field lockout, app health, support, imported drafts, provider readiness, and package/billing readiness from one board. Final local browser QA passed for owner/admin Settings, Employees, App Health, Support, and Imported Drafts; employee mobile direct routes to Settings, Employees, App Health, and Imported Drafts redirected to Jobs, while Support stayed role-safe.
 
 Phase 2 status: Command Center Finish is built and validated locally. Owner/admin Command Center now opens with a Daily Command Plan covering today attention, job/crew status, proof/report gaps, sales follow-up, billing-ready work, growth/client-finder actions, blockers, provider setup, and exact next actions routed to existing tools or locked setup states. Field users remain redirected to assigned field work.
+
+Phase 3 status: Growth & Sales Finish is built, validated, and deployed. Owner/admin Growth Command lanes now route directly to existing AI Office, Opportunity Scout, Sales Follow-Up, Ads Spend Advisor, and Reputation/Portfolio surfaces or clear setup states. Leads now support Won, Lost, and Not Interested outcomes so closed opportunities leave the active review queue while source quality and conversion health remain visible. Field users remain redirected to assigned field work and cannot access growth, lead, estimate, pricing, ads, reputation, or AI Office controls.
 
 ## Product North Star
 
@@ -79,7 +81,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ### Next
 
-- Start Phase 3 Growth & Sales Finish from `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md`.
+- Start Phase 4 Estimate & Proposal Finish from `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md`.
 
 ### Later
 
@@ -328,13 +330,14 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | 2026-05-30 | Phase 1 Admin Foundation Finish Board | `9ccc1ac` pushed to `main` | Local QA at `http://127.0.0.1:4179` | Owner/admin Settings, Employees, App Health, Support, and Imported Drafts passed with no overflow/errors. Employee mobile direct routes to Settings, Employees, App Health, and Imported Drafts redirected to Jobs; Support stayed role-safe; no admin foundation text leaked. |
 | 2026-05-30 | Phase 1 Admin Foundation Finish | `9ccc1ac` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `606` started in `sjc`; image `concrete-ops-2:deployment-01KSVWJYBKFP2HCVY40J69FEJE`; service check passing; `/api/ready` OK on both domains with database OK. |
 | 2026-05-30 | Phase 2 Command Center Finish | `7529739` pushed to `main` and deployed | Local QA at `http://127.0.0.1:4186`; production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Owner desktop `/command-center` passed Daily Command Plan first-screen visibility, routed next action to `/leads`, provider setup locks, no overflow/errors; employee mobile `/command-center` redirected to `/jobs` with office/growth/billing/setup text hidden. Fly machine `148e06e2b53d68` version `607`; image `concrete-ops-2:deployment-01KSW0DXH4NAM1D3R8RT57D8X1`; `/api/ready` OK on both domains with database OK. |
+| 2026-05-30 | Phase 3 Growth & Sales Finish | `5b73ef1` pushed to `main` and deployed | Local QA at `http://127.0.0.1:4103`; production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Owner desktop `/ai-office` passed Growth Command routes to setup/source, follow-up, ads, and proof surfaces; owner desktop `/leads` passed Sales Follow-Up System, stale estimates, Won/Lost/Not Interested outcomes, and no overflow/errors; employee mobile `/ai-office` and `/leads` redirected to `/jobs` with growth/sales/estimate/ads/reputation text hidden. Fly machine `148e06e2b53d68` version `608`; image `concrete-ops-2:deployment-01KSW1RN44SHA22WYXKDGB53NA`; `/api/ready` OK on both domains with database OK. |
 
 ## Roadmap Queue
 
 1. Phase 1 Admin Foundation Finish - completed/frozen.
 2. Phase 2 Command Center Finish - completed/frozen after production health check.
-3. Phase 3 Growth & Sales Finish - next.
-4. Phase 4 Estimate & Proposal Finish.
+3. Phase 3 Growth & Sales Finish - completed/frozen after production health check.
+4. Phase 4 Estimate & Proposal Finish - next.
 5. Phase 5 Job Operations Finish.
 6. Phase 6 Field Execution Finish.
 7. Phase 7 Safety & Compliance Finish.
@@ -348,7 +351,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ## Next Phase
 
-Use `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` as the active blueprint. Next build phase is Phase 3 Growth & Sales Finish. Payroll Prep remains a later complete phase unless the owner explicitly reorders it, and live payroll processing stays out of scope.
+Use `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` as the active blueprint. Next build phase is Phase 4 Estimate & Proposal Finish. Payroll Prep remains a later complete phase unless the owner explicitly reorders it, and live payroll processing stays out of scope.
 
 ## Decision Log
 
@@ -378,6 +381,91 @@ Use `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` as the active blueprint. Next bu
 | 2026-05-30 | Slice 2 wires the Admin Foundation Finish Board into Settings as the owner/admin Phase 1 control point. | Phase 1 needed one visible finish line instead of scattered setup surfaces. | Settings now defaults to `settings-admin-foundation`, renders `AdminFoundationFinishPanel`, and keeps app-health mode separate. Browser QA proved owner/admin access across Settings, Employees, App Health, Support, and Imported Drafts, with employee mobile direct-route safety. |
 | 2026-05-30 | Phase 1 Admin Foundation is frozen after Fly version `606`. | The focused verifier, final browser QA, production deploy, hosted readiness checks, and Fly service check all passed. | Future changes to signup/setup, users/roles, Settings admin foundation, App Health, Support, Imported Drafts, package/provider setup, and admin permission boundaries should be bug, security/permission, provider hookup, or approved versioned upgrades only. |
 | 2026-05-30 | Phase 2 Command Center composes existing command/workflow surfaces instead of rebuilding them. | The active app already had Today Command, Operations Command, Core Operations Loop, Growth Command, billing readiness, provider setup, queue, dashboard, and mobile command surfaces. | Owner/admin users now get one daily Command Plan with exact routes to real modules or setup locks; field users stay assigned-work only. |
+| 2026-05-30 | Phase 3 Growth & Sales Finish closes the loop through existing Growth Command, Leads, Sales Follow-Up, Ads Advisor, and Reputation/Portfolio systems. | The active app already had the right surfaces; the missing finish work was routed actions, closed lead outcomes, source-quality clarity, and proof that field users stay locked out. | Owner/admin users can move from growth lanes to real tools/setup states, review won/lost outcomes and stale estimates, and plan ads/reputation actions without live spend or sends. |
+
+## Phase 3 Growth & Sales Finish Report
+
+Goal: finish the Growth & Sales workflow end to end so an owner/admin can find and review opportunities, manage lead sources/client-finder actions, follow up on leads and customers, review stale estimates and sales next steps, use manual scripts/templates, understand source quality/conversion health, plan ad spend without live spend, create review/referral/portfolio actions from completed work, and route every action to a real existing tool or setup state.
+
+What was already built:
+
+- Growth Command Center, AI Office, Opportunity Scout / Client Finder, lead sources, found opportunities, Sales Follow-Up System, Leads, Customers, Estimates, Reputation + Portfolio Engine, Ads Spend Advisor, Command Center routing, provider readiness, and role gates.
+
+What was completed now:
+
+- Added explicit module/target/action metadata to Growth Command lanes so client finder, ad planning, follow-up, and reputation/proof actions open existing Apex HQ tools or setup states.
+- Wired Growth Command lane buttons in AI Office to those real routes.
+- Added Won, Lost, and Not Interested lead outcomes in owner/admin lead intake, detail, rail, filters, and server validation.
+- Closed won/lost/not-interested leads now leave the active review inbox, while won leads still count as ready for the job/proof path and lost leads stay out of estimate/job-proof readiness.
+- Expanded `verify:leads` to include server lead workflow, lead utility, growth command, and sales follow-up coverage.
+
+Provider/account-dependent remaining:
+
+- Live lead-source provider runs, private-source credentials, ad publishing/spend, customer email/SMS sends, review/referral sends, website/social publishing, bid submission, and external provider writes remain provider/account-dependent and locked.
+
+Affected files:
+
+- `docs/APEX_HQ_CANONICAL_SOURCE_OF_TRUTH.md`
+- `docs/APEX_HQ_LIVING_FINISH_PLAN.md`
+- `package.json`
+- `server/index.js`
+- `src/App.jsx`
+- `src/growth-command-utils.js`
+- `src/growth-command-utils.test.js`
+- `src/lead-detail-panel-components.jsx`
+- `src/lead-route-components.jsx`
+- `src/lead-utils.js`
+- `src/lead-utils.test.js`
+- `src/leads-page-components.jsx`
+
+Validation results:
+
+- Focused Phase 3 tests passed: `src/growth-command-utils.test.js`, `src/lead-utils.test.js`, `src/sales-follow-up-system.test.js`, lead component import tests.
+- Opportunity/reputation focused tests passed: `src/opportunity-scout-utils.test.js`, `src/reputation-portfolio-utils.test.js`.
+- `npm.cmd run verify:leads` passed.
+- `npm.cmd run verify:opportunity-scout` passed.
+- `npm.cmd run verify:roles` passed.
+- `npm.cmd run build` passed with existing large chunk warnings only.
+- `git diff --check` passed with CRLF warnings only.
+
+Browser QA:
+
+- Owner/admin desktop `/ai-office`: Growth Command Center was visible; growth lanes opened real setup/source, follow-up, ads, and proof surfaces; no live send/spend/payment commands; no horizontal overflow; no console or failed-request errors in authenticated-context QA.
+- Owner/admin desktop `/leads`: Sales Follow-Up System, Stale Estimates, Won, Lost, and Not Interested outcomes were present; no horizontal overflow; no console or failed-request errors.
+- Employee mobile `/ai-office` and `/leads`: both redirected to `/jobs`; Growth Command Center, Sales Follow-Up System, Ads Spend Advisor, Reputation + Portfolio Engine, Estimate Sent, and Plan Ad Spend text stayed hidden; no horizontal overflow; no console or failed-request errors.
+
+Permissions impact:
+
+- No permission loosening.
+- Owner/admin users get growth and sales routing through existing office permissions.
+- Field users remain blocked from leads, estimates, pricing, profit/margins, payroll costs, office notes, admin settings, company setup, AI office tools, billing, ads, source management, reputation/portfolio controls, provider setup, and other company data.
+
+Field-user impact:
+
+- No field workflow changes. Field direct-route safety to `/ai-office` and `/leads` was verified on mobile and redirects to assigned job work.
+
+Mobile impact:
+
+- Owner/admin desktop was the primary growth/sales finish surface.
+- Field mobile route safety and no-overflow checks passed for restricted growth/sales routes.
+
+Deploy version:
+
+- `5b73ef1` deployed to Fly machine `148e06e2b53d68` version `608`, image `concrete-ops-2:deployment-01KSW1RN44SHA22WYXKDGB53NA`.
+
+Health check:
+
+- Local `/api/ready` passed at `http://127.0.0.1:4103/api/ready`.
+- `https://app.apexhq.online/api/ready` OK with database OK.
+- `https://concrete-ops-2.fly.dev/api/ready` OK with database OK.
+
+Rollback note:
+
+- Revert `5b73ef1` to remove Growth Command lane routing, Won/Lost/Not Interested lead outcomes, closed-lead review filtering, lead verifier expansion, and tests. No schema changes, auth/session changes, billing/payment processing, provider writes, live sends, ad spend, hidden GPS, destructive data changes, or production data migrations were introduced.
+
+Next recommended phase:
+
+- Phase 4 Estimate & Proposal Finish.
 
 ## Phase 2 Command Center Finish Report
 
