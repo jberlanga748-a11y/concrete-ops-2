@@ -4,7 +4,7 @@ Last updated: 2026-05-30
 
 ## Current Phase
 
-Reputation + Portfolio Engine is completed locally and ready for standing-approved production release. Next phase is Estimate Studio + Proposal Packets.
+Reputation + Portfolio Engine is completed, pushed, and deployed to production under the standing release approval. Next phase is Estimate Studio + Proposal Packets.
 
 ## Product North Star
 
@@ -127,7 +127,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - [x] Add proof blockers for completed jobs that lack uploads or reviewed reports.
 - [x] Keep field users blocked from reputation, referral, review, social, website proof, lead, estimate, pricing, and AI office growth controls.
 - [x] Verify phase tests, build, browser QA, and field safety.
-- [ ] Commit, push, deploy, hosted health-check, and record production deploy.
+- [x] Commit, push, deploy, hosted health-check, and record production deploy.
 
 ## Completed / Frozen Systems
 
@@ -171,7 +171,8 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | 2026-05-30 | Website + Lead Intake Funnel + standing release approval | `1ac46a6` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
 | 2026-05-30 | Sales Follow-Up System | `46a5a30` pushed to `main` | Local QA at `http://127.0.0.1:4115` | Owner desktop `/leads` passed; employee mobile `/leads` stayed sales-hidden; local browser errors `[]`. |
 | 2026-05-30 | Sales Follow-Up System | `46a5a30` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `594` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
-| 2026-05-30 | Reputation + Portfolio Engine | Pending commit | Local QA at `http://127.0.0.1:4127` | Owner desktop `/ai-office` passed; employee mobile `/ai-office` redirected to `/jobs`; local browser errors `[]`. |
+| 2026-05-30 | Reputation + Portfolio Engine | `bc7aff2` pushed to `main` | Local QA at `http://127.0.0.1:4127` | Owner desktop `/ai-office` passed; employee mobile `/ai-office` redirected to `/jobs`; local browser errors `[]`. |
+| 2026-05-30 | Reputation + Portfolio Engine | `bc7aff2` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `595` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
 
 ## Roadmap Queue
 
