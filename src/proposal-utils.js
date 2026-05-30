@@ -1,5 +1,5 @@
-export const PROPOSAL_STORAGE_KEY = "last-yard-concrete/proposals-v1";
-export const PROPOSAL_COMPANY_STORAGE_KEY = "last-yard-concrete/proposal-company-defaults-v1";
+export const PROPOSAL_STORAGE_KEY = "apex-hq/proposals-v1";
+export const PROPOSAL_COMPANY_STORAGE_KEY = "apex-hq/proposal-company-defaults-v1";
 
 export const PROPOSAL_STATUSES = ["draft", "sent", "approved", "rejected", "expired"];
 export const PROPOSAL_STATUS_LABELS = {
@@ -33,15 +33,15 @@ export const PROJECT_CATEGORIES = [
 
 export const LINE_ITEM_UNITS = ["LS", "SF", "SY", "LF", "CY", "EA", "HR", "DAY", "TON"];
 
-export const LAST_YARD_COMPANY_DEFAULTS = {
-  companyName: "Last Yard Concrete LLC",
-  phone: "(541) 285-1060",
-  email: "jacobbrown@ly-cs.com",
-  location: "Albany, Oregon",
-  serviceArea: "Linn, Marion, and Benton County, OR",
-  licenseText: "Licensed, Bonded & Insured",
-  ccb: "CCB #247389",
-  tagline: "Solid Work. Stunning Results. Every Yard Counts.",
+export const APEX_HQ_PROPOSAL_COMPANY_DEFAULTS = {
+  companyName: "Apex HQ Contractor",
+  phone: "(555) 010-0199",
+  email: "office@example.test",
+  location: "Your market",
+  serviceArea: "Your service area",
+  licenseText: "Licensed, bonded, and insured where required",
+  ccb: "License / CCB shown here",
+  tagline: "Clear scopes. Clean handoffs. Work won with confidence.",
   logoDataUrl: "",
   badgeDataUrl: "",
   defaultExpirationDays: 30,
@@ -54,7 +54,7 @@ export const LAST_YARD_COMPANY_DEFAULTS = {
     "Additional excavation/export unless listed.",
     "Work outside listed scope.",
   ],
-  defaultWarrantyNote: "Warranty terms are project-specific and subject to normal concrete industry limitations, weather, site conditions, owner maintenance, and work outside Last Yard Concrete LLC control.",
+  defaultWarrantyNote: "Warranty terms are project-specific and subject to normal concrete industry limitations, weather, site conditions, owner maintenance, and work outside the contractor's control.",
   defaultSignatureBlock: "Accepted by the authorized owner, client, GC, or representative listed below.",
 };
 
@@ -63,7 +63,7 @@ export const DEFAULT_TERMS = [
   "Schedule subject to weather, site readiness, material availability, and coordination with other trades.",
   "Changes to scope, quantities, grades, access, site conditions, or specifications may require written change order approval.",
   "Owner/GC is responsible for marking/identifying private utilities unless otherwise stated.",
-  "Last Yard Concrete LLC is licensed, bonded, and insured.",
+  "Contractor is licensed, bonded, and insured where required.",
   "Payment terms to be defined per project.",
 ].join("\n");
 
@@ -158,7 +158,7 @@ export function addDaysInputDate(dateString, days) {
   return toInputDate(source);
 }
 
-export function createProposalId(prefix = "lyc-proposal") {
+export function createProposalId(prefix = "apex-proposal") {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
     return `${prefix}-${crypto.randomUUID()}`;
   }
@@ -172,7 +172,7 @@ export function getProposalYear(dateString = todayInputDate()) {
 
 export function getNextProposalNumber(proposals = [], dateString = todayInputDate()) {
   const year = getProposalYear(dateString);
-  const prefix = `LYC-${year}-`;
+  const prefix = `AHQ-${year}-`;
   const maxSequence = (Array.isArray(proposals) ? proposals : []).reduce((max, proposal) => {
     const value = String(proposal?.proposalNumber || "");
     if (!value.startsWith(prefix)) return max;
@@ -256,7 +256,7 @@ export function calculateProposalTotals(lineItems = [], options = {}) {
 
 export function createLineItem(overrides = {}, index = 0) {
   return {
-    id: overrides.id || createProposalId("lyc-line"),
+    id: overrides.id || createProposalId("apex-line"),
     itemNumber: overrides.itemNumber || String(index + 1),
     description: overrides.description || "",
     quantity: overrides.quantity ?? 1,
@@ -270,7 +270,7 @@ export function createLineItem(overrides = {}, index = 0) {
 
 export function createScopeSection(overrides = {}) {
   return {
-    id: overrides.id || createProposalId("lyc-scope"),
+    id: overrides.id || createProposalId("apex-scope"),
     title: overrides.title || "",
     body: overrides.body || "",
     bullets: Array.isArray(overrides.bullets) ? overrides.bullets.filter(Boolean) : [],
@@ -279,7 +279,7 @@ export function createScopeSection(overrides = {}) {
 
 export function createPhotoSlot(overrides = {}, index = 0) {
   return {
-    id: overrides.id || createProposalId("lyc-photo"),
+    id: overrides.id || createProposalId("apex-photo"),
     label: overrides.label || `Project photo ${index + 1}`,
     dataUrl: overrides.dataUrl || "",
   };
@@ -305,11 +305,11 @@ function normalizeScopeSections(value) {
   return sections.map((section) => createScopeSection(section));
 }
 
-export function normalizeProposal(source = {}, companyDefaults = LAST_YARD_COMPANY_DEFAULTS) {
+export function normalizeProposal(source = {}, companyDefaults = APEX_HQ_PROPOSAL_COMPANY_DEFAULTS) {
   const now = new Date().toISOString();
   const proposalDate = source.proposalDate || todayInputDate();
   const company = {
-    ...LAST_YARD_COMPANY_DEFAULTS,
+    ...APEX_HQ_PROPOSAL_COMPANY_DEFAULTS,
     ...(isRecord(companyDefaults) ? companyDefaults : {}),
     ...(isRecord(source.company) ? source.company : {}),
   };
@@ -322,7 +322,7 @@ export function normalizeProposal(source = {}, companyDefaults = LAST_YARD_COMPA
 
   return {
     id: source.id || createProposalId(),
-    proposalNumber: source.proposalNumber || "LYC-2026-0001",
+    proposalNumber: source.proposalNumber || "AHQ-2026-0001",
     status: PROPOSAL_STATUSES.includes(source.status) ? source.status : "draft",
     proposalType: PROPOSAL_TYPES.some((option) => option.value === source.proposalType) ? source.proposalType : "residential",
     proposalDate,
@@ -409,7 +409,7 @@ export function normalizeProposal(source = {}, companyDefaults = LAST_YARD_COMPA
   };
 }
 
-export function createBlankProposal(existingProposals = [], companyDefaults = LAST_YARD_COMPANY_DEFAULTS) {
+export function createBlankProposal(existingProposals = [], companyDefaults = APEX_HQ_PROPOSAL_COMPANY_DEFAULTS) {
   const proposalDate = todayInputDate();
   return normalizeProposal({
     proposalNumber: getNextProposalNumber(existingProposals, proposalDate),
@@ -426,10 +426,10 @@ export function createBlankProposal(existingProposals = [], companyDefaults = LA
   }, companyDefaults);
 }
 
-export function createSeedProposal(companyDefaults = LAST_YARD_COMPANY_DEFAULTS) {
+export function createSeedProposal(companyDefaults = APEX_HQ_PROPOSAL_COMPANY_DEFAULTS) {
   return normalizeProposal({
-    id: "lyc-proposal-seed-gc-sidewalk",
-    proposalNumber: "LYC-2026-0001",
+    id: "apex-proposal-seed-gc-sidewalk",
+    proposalNumber: "AHQ-2026-0001",
     status: "draft",
     proposalType: "gc_prime",
     proposalDate: "2026-05-02",
@@ -537,13 +537,13 @@ export function createSeedProposal(companyDefaults = LAST_YARD_COMPANY_DEFAULTS)
       "Schedule is subject to weather, site readiness, material availability, and coordination with other trades.",
       "Changes to scope, quantities, grades, access, site conditions, or specifications may require written change order approval.",
       "Owner/GC is responsible for marking/identifying private utilities unless otherwise stated.",
-      "Last Yard Concrete LLC is licensed, bonded, and insured.",
+      "Contractor is licensed, bonded, and insured where required.",
       "Payment terms to be defined per project or GC contract requirements.",
     ].join("\n"),
   }, companyDefaults);
 }
 
-export function duplicateProposal(proposal, existingProposals = [], companyDefaults = LAST_YARD_COMPANY_DEFAULTS) {
+export function duplicateProposal(proposal, existingProposals = [], companyDefaults = APEX_HQ_PROPOSAL_COMPANY_DEFAULTS) {
   const proposalDate = todayInputDate();
   return normalizeProposal({
     ...proposal,
@@ -622,12 +622,12 @@ export function hasConcreteSpecs(concreteSpecs = {}) {
 
 export function proposalIntroCopy(type = "residential") {
   if (type === "gc_prime") {
-    return "Last Yard Concrete LLC is pleased to submit this proposal for the concrete scope identified below. This proposal is based on the listed scope, assumptions, exclusions, drawings, specifications, and addenda acknowledged herein. Any work outside this scope shall be handled by written change order.";
+    return "The contractor is pleased to submit this proposal for the concrete scope identified below. This proposal is based on the listed scope, assumptions, exclusions, drawings, specifications, and addenda acknowledged herein. Any work outside this scope shall be handled by written change order.";
   }
   if (type === "commercial" || type === "public_municipal") {
-    return "Last Yard Concrete LLC is prepared to provide professional concrete services for the project listed below, with clear scope, schedule coordination, durable workmanship, and clean closeout.";
+    return "The contractor is prepared to provide professional concrete services for the project listed below, with clear scope, schedule coordination, durable workmanship, and clean closeout.";
   }
-  return "Last Yard Concrete LLC is prepared to provide professional concrete services for the project listed below. Our team focuses on durable workmanship, clean finishes, and clear communication from layout through final cleanup.";
+  return "The contractor is prepared to provide professional concrete services for the project listed below. The team focuses on durable workmanship, clean finishes, and clear communication from layout through final cleanup.";
 }
 
 export function validateProposal(proposal = {}) {

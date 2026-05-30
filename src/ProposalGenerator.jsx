@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import {
   DEFAULT_SCOPE_TEMPLATES,
-  LAST_YARD_COMPANY_DEFAULTS,
+  APEX_HQ_PROPOSAL_COMPANY_DEFAULTS,
   LINE_ITEM_UNITS,
   PROJECT_CATEGORIES,
   PROPOSAL_COMPANY_STORAGE_KEY,
@@ -38,10 +38,10 @@ function safeJsonParse(value, fallback) {
 }
 
 function loadCompanyDefaults() {
-  if (typeof window === "undefined") return LAST_YARD_COMPANY_DEFAULTS;
+  if (typeof window === "undefined") return APEX_HQ_PROPOSAL_COMPANY_DEFAULTS;
   const saved = safeJsonParse(window.localStorage.getItem(PROPOSAL_COMPANY_STORAGE_KEY), null);
   return {
-    ...LAST_YARD_COMPANY_DEFAULTS,
+    ...APEX_HQ_PROPOSAL_COMPANY_DEFAULTS,
     ...(saved && typeof saved === "object" ? saved : {}),
   };
 }
@@ -310,7 +310,7 @@ function CompanyDefaultsEditor({ companyDefaults, onChange }) {
 
   return (
     <ProposalCard className="p-4">
-      <SectionTitle eyebrow="Brand defaults" title="Last Yard Concrete Profile" />
+      <SectionTitle eyebrow="Brand defaults" title="Company Proposal Profile" />
       <div className="grid gap-4 lg:grid-cols-[1fr_220px]">
         <div className="grid gap-3 md:grid-cols-2">
           <Field label="Company name" value={companyDefaults.companyName} onChange={(event) => update({ companyName: event.target.value })} />
@@ -748,7 +748,7 @@ function ProposalForm({ draft, setDraft, companyDefaults, setCompanyDefaults, on
 }
 
 function ProposalHeader({ proposal }) {
-  const company = proposal.company || LAST_YARD_COMPANY_DEFAULTS;
+  const company = proposal.company || APEX_HQ_PROPOSAL_COMPANY_DEFAULTS;
   return (
     <header className="proposal-section grid gap-5 border-b border-[#D9DEE5] pb-5 md:grid-cols-[1fr_auto] md:items-start">
       <div className="flex min-w-0 gap-4">
@@ -783,7 +783,7 @@ function ProposalHero({ proposal }) {
           <p className="mt-1 text-sm text-white/75">{proposal.project.location || proposal.client.projectAddress || "Project location pending"}</p>
         </div>
         <div className="rounded-lg border border-white/15 bg-white/10 px-4 py-3 text-sm font-black text-white">
-          {proposal.company?.tagline || LAST_YARD_COMPANY_DEFAULTS.tagline}
+          {proposal.company?.tagline || APEX_HQ_PROPOSAL_COMPANY_DEFAULTS.tagline}
         </div>
       </div>
     </section>
@@ -827,7 +827,7 @@ function TrustCards() {
   ];
   return (
     <section className="proposal-section mt-6">
-      <h2 className="text-sm font-black uppercase tracking-[0.18em] text-[#062B45]">Why Last Yard Concrete</h2>
+      <h2 className="text-sm font-black uppercase tracking-[0.18em] text-[#062B45]">Why This Contractor</h2>
       <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         {cards.map((card) => (
           <div key={card} className="rounded-lg border border-[#D9DEE5] bg-[#F4F5F6] p-3">
@@ -1033,7 +1033,7 @@ function SignatureBlock({ proposal }) {
 }
 
 function ProposalFooter({ proposal }) {
-  const company = proposal.company || LAST_YARD_COMPANY_DEFAULTS;
+  const company = proposal.company || APEX_HQ_PROPOSAL_COMPANY_DEFAULTS;
   return (
     <footer className="proposal-section mt-8 border-t border-[#D9DEE5] pt-4 text-center text-xs font-bold text-[#5B6470]">
       <p>{company.companyName} | {company.phone} | {company.email} | {company.ccb}</p>
@@ -1333,7 +1333,7 @@ export default function ProposalsWorkspace({ routeState = {}, navigateTo }) {
       <div className="proposal-no-print border-b border-[#D9DEE5] bg-white px-5 py-5 sm:px-6 lg:px-8">
         <div className="mx-auto flex max-w-[1600px] flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
-            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#C9A64A]">Last Yard Concrete LLC</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#C9A64A]">Apex HQ Proposal Workspace</p>
             <h1 className="mt-1 text-3xl font-black tracking-tight text-[#062B45]">Proposal Generator</h1>
             <p className="mt-2 max-w-4xl text-sm leading-6 text-[#5B6470]">
               Professional concrete proposals for GCs, prime contractors, builders, property managers, commercial clients, and homeowners.

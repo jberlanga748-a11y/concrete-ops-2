@@ -13,8 +13,8 @@ This is the first file to read before any Apex HQ work. It is the one-file conso
 - Fly app: `concrete-ops-2`.
 - Fly technical URL: `https://concrete-ops-2.fly.dev/`.
 - Current production app commit at Phase 3 audit time: `5b73ef1`.
-- Current production evidence from living plan: Fly version `608`, image `concrete-ops-2:deployment-01KSW1RN44SHA22WYXKDGB53NA`, `/api/ready` healthy on `https://app.apexhq.online/api/ready`.
-- Phase baseline: Phase 1 Admin Foundation Finish, Phase 2 Command Center Finish, and Phase 3 Growth & Sales Finish are complete/frozen. The next true tool-completion phase is Phase 4 Estimate & Proposal Finish.
+- Current production evidence from living plan before Phase 4 release: Fly version `608`, image `concrete-ops-2:deployment-01KSW1RN44SHA22WYXKDGB53NA`, `/api/ready` healthy on `https://app.apexhq.online/api/ready`.
+- Phase baseline: Phase 1 Admin Foundation Finish, Phase 2 Command Center Finish, and Phase 3 Growth & Sales Finish are complete/frozen. Phase 4 Estimate & Proposal Finish is completed locally and pending release evidence; next true tool-completion phase after release is Phase 5 Job Operations Finish.
 
 Use **Apex HQ** everywhere users see the product. `Concrete Ops`, `concrete-ops`, and `concrete-ops-2` are legacy technical names only until a dedicated infrastructure rename phase is planned.
 
@@ -428,7 +428,7 @@ Active-only docs include:
 
 Active repo `src` compared to `concrete-ops-2-clean`:
 
-- Active `src`: 305 files.
+- Active `src`: 306 files.
 - Old clean `src`: 310 files.
 - Active-only `src`: 31 files.
 - Old-only `src`: 36 files.
@@ -448,6 +448,7 @@ Active-only source files show the production app has newer work that old clean d
 - `growth-command-utils.js`
 - `integrations-command-utils.js`
 - `public-estimate-request-form.test.js`
+- `proposal-brand-guard.test.js`
 - `reputation-portfolio-utils.js`
 - `sales-follow-up-system.js`
 - related focused tests
@@ -498,6 +499,7 @@ Active repo `server` compared to old clean:
 - Settings Admin Foundation Finish Board.
 - Phase 2 Command Center Finish.
 - Phase 3 Growth & Sales Finish.
+- Phase 4 Estimate & Proposal Finish local validation, including Apex HQ-neutral proposal generator defaults and estimate/proposal brand guard.
 - Role-safety baseline.
 - Brand normalization from Concrete Ops to Apex HQ.
 
@@ -509,7 +511,7 @@ These exist in active source and living-plan reports. Treat them as built comman
 - Website/public estimate request intake.
 - Sales Follow-Up System.
 - Reputation + Portfolio Engine.
-- Estimate Studio proposal finish layer.
+- Estimate Studio proposal finish layer, including Final Proposal Packet Review, GC Packet Lite, customer/internal packet separation, provider-ready send review, field-safe handoff readiness, and retired pilot brand guard.
 - Core Operations Loop.
 - Field Mode Finish layer.
 - Apex Agent Operator.
@@ -527,7 +529,7 @@ Use `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` for the real finish order:
 1. Admin Foundation Finish - complete/frozen.
 2. Command Center Finish - complete/frozen after production health check.
 3. Growth & Sales Finish - complete/frozen after production health check.
-4. Estimate & Proposal Finish - next true phase.
+4. Estimate & Proposal Finish - completed locally; release evidence pending.
 5. Job Operations Finish.
 6. Field Execution Finish.
 7. Safety & Compliance Finish.

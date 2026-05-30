@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  LAST_YARD_COMPANY_DEFAULTS,
+  APEX_HQ_PROPOSAL_COMPANY_DEFAULTS,
   calculateProposalLineTotal,
   calculateProposalTotals,
   concreteSpecRows,
@@ -16,14 +16,14 @@ import {
 } from "./proposal-utils.js";
 
 test("proposal numbers increment within the proposal year", () => {
-  assert.equal(getNextProposalNumber([], "2026-05-02"), "LYC-2026-0001");
+  assert.equal(getNextProposalNumber([], "2026-05-02"), "AHQ-2026-0001");
   assert.equal(
     getNextProposalNumber([
-      { proposalNumber: "LYC-2026-0001" },
-      { proposalNumber: "LYC-2026-0007" },
-      { proposalNumber: "LYC-2025-0099" },
+      { proposalNumber: "AHQ-2026-0001" },
+      { proposalNumber: "AHQ-2026-0007" },
+      { proposalNumber: "AHQ-2025-0099" },
     ], "2026-05-02"),
-    "LYC-2026-0008",
+    "AHQ-2026-0008",
   );
 });
 
@@ -46,18 +46,18 @@ test("proposal totals include taxable subtotal, discount, deposit, and balance d
   });
 });
 
-test("seed proposal carries Last Yard GC sidewalk details", () => {
-  const proposal = createSeedProposal(LAST_YARD_COMPANY_DEFAULTS);
+test("seed proposal carries Apex HQ GC sidewalk details", () => {
+  const proposal = createSeedProposal(APEX_HQ_PROPOSAL_COMPANY_DEFAULTS);
 
   assert.equal(proposal.proposalType, "gc_prime");
   assert.equal(proposal.project.name, "Albany Commercial Sidewalk Replacement");
   assert.equal(proposal.client.companyName, "Example Prime Contractors LLC");
   assert.equal(proposal.lineItems.length, 5);
-  assert.equal(proposal.company.ccb, "CCB #247389");
+  assert.equal(proposal.company.ccb, "License / CCB shown here");
 });
 
 test("proposal validation blocks missing required fields and warns on optional gaps", () => {
-  const proposal = createBlankProposal([], LAST_YARD_COMPANY_DEFAULTS);
+  const proposal = createBlankProposal([], APEX_HQ_PROPOSAL_COMPANY_DEFAULTS);
   proposal.client.companyName = "";
   proposal.client.contactName = "";
   proposal.project.name = "";
@@ -73,8 +73,8 @@ test("proposal validation blocks missing required fields and warns on optional g
 });
 
 test("proposal filtering searches client, project, GC, and status fields", () => {
-  const seed = createSeedProposal(LAST_YARD_COMPANY_DEFAULTS);
-  const copy = duplicateProposal(seed, [seed], LAST_YARD_COMPANY_DEFAULTS);
+  const seed = createSeedProposal(APEX_HQ_PROPOSAL_COMPANY_DEFAULTS);
+  const copy = duplicateProposal(seed, [seed], APEX_HQ_PROPOSAL_COMPANY_DEFAULTS);
   copy.status = "approved";
   copy.client.companyName = "Residential Client";
   copy.gcPrime.contractorName = "";

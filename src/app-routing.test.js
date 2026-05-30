@@ -231,8 +231,8 @@ test("estimates module route resolves directly", () => {
 
 test("proposal routes build and parse list, new, detail, and print paths", () => {
   assert.equal(getModulePath("proposals"), "/proposals");
-  assert.equal(buildProposalPath("LYC/42"), "/proposals/LYC%2F42");
-  assert.equal(buildProposalPrintPath("LYC/42"), "/proposals/LYC%2F42/print");
+  assert.equal(buildProposalPath("AHQ/42"), "/proposals/AHQ%2F42");
+  assert.equal(buildProposalPrintPath("AHQ/42"), "/proposals/AHQ%2F42/print");
   assert.deepEqual(parseAppPath("/proposals"), {
     active: "proposals",
     leadId: "",
@@ -251,14 +251,14 @@ test("proposal routes build and parse list, new, detail, and print paths", () =>
     proposalId: "",
     proposalMode: "new",
   });
-  assert.deepEqual(parseAppPath("/proposals/LYC%2F42/print"), {
+  assert.deepEqual(parseAppPath("/proposals/AHQ%2F42/print"), {
     active: "proposals",
     leadId: "",
     jobId: "",
     customerId: "",
     reportId: "",
     importedDraftId: "",
-    proposalId: "LYC/42",
+    proposalId: "AHQ/42",
     proposalMode: "print",
   });
 });
