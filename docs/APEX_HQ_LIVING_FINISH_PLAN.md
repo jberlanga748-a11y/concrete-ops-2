@@ -227,10 +227,10 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - [x] Run focused verification for auth, users, support, app health, roles, entitlements, billing readiness, job-draft imports, and build.
 - [x] Browser QA owner/admin desktop and employee mobile admin/setup routes.
 - [x] Record pre-build audit and exact implementation package.
-- [ ] Fix Imported Drafts route crash.
-- [ ] Fix `verify:job-draft-imports`.
+- [x] Fix Imported Drafts route crash.
+- [x] Fix `verify:job-draft-imports`.
 - [ ] Add Admin Foundation Finish Board.
-- [ ] Add `verify:admin-foundation`.
+- [x] Add `verify:admin-foundation`.
 - [ ] Browser QA final Phase 1 routes.
 - [ ] Commit, push, deploy, health-check, and record Phase 1 report.
 
