@@ -354,12 +354,40 @@ test("tool checklist toggle and role-scoped checklist workflows work without lea
     });
     assert.equal(reviewedState.toolChecklists.find((checklist) => checklist.id === createdChecklist.id).status, "reviewed");
 
+    const reopenedState = await assertOk(fixture.baseUrl, `/api/tool-checklists/${createdChecklist.id}/reopen`, {
+      method: "POST",
+      headers: officeHeaders,
+    });
+    const reopenedChecklist = reopenedState.toolChecklists.find((checklist) => checklist.id === createdChecklist.id);
+    assert.equal(reopenedChecklist.status, "active");
+    assert.equal(reopenedChecklist.reviewedBy, "");
+    assert.equal(reopenedChecklist.reviewedAt, "");
+    assert.equal(reopenedState.auditEvents.some((event) => event.entityType === "toolChecklist" && event.action === "reopened"), true);
+
+    const fieldReopenAttempt = await requestJson(fixture.baseUrl, `/api/tool-checklists/${createdChecklist.id}/reopen`, {
+      method: "POST",
+      headers: foremanHeaders,
+    });
+    assert.equal(fieldReopenAttempt.response.status, 403);
+
+    const activeReopenAttempt = await requestJson(fixture.baseUrl, `/api/tool-checklists/${createdChecklist.id}/reopen`, {
+      method: "POST",
+      headers: officeHeaders,
+    });
+    assert.equal(activeReopenAttempt.response.status, 409);
+
     const archivedState = await assertOk(fixture.baseUrl, `/api/tool-checklists/${createdChecklist.id}/archive`, {
       method: "POST",
       headers: officeHeaders,
     });
     const archivedChecklist = archivedState.toolChecklists.find((checklist) => checklist.id === createdChecklist.id);
     assert.equal(archivedChecklist.status, "archived");
+
+    const archivedReopenAttempt = await requestJson(fixture.baseUrl, `/api/tool-checklists/${createdChecklist.id}/reopen`, {
+      method: "POST",
+      headers: officeHeaders,
+    });
+    assert.equal(archivedReopenAttempt.response.status, 409);
 
     const disabledAgain = await assertOk(fixture.baseUrl, "/api/settings/company", {
       method: "PATCH",

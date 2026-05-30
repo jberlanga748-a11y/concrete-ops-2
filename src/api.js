@@ -827,6 +827,10 @@ export function resolveSafetyIncident(token, id) {
   return request(`/api/safety/incidents/${id}/resolve`, { method: "POST", token });
 }
 
+export function reopenSafetyIncident(token, id) {
+  return request(`/api/safety/incidents/${id}/reopen`, { method: "POST", token });
+}
+
 export function archiveSafetyIncident(token, id) {
   return request(`/api/safety/incidents/${id}/archive`, { method: "POST", token });
 }
@@ -857,6 +861,10 @@ export function submitToolChecklist(token, id) {
 
 export function reviewToolChecklist(token, id) {
   return request(`/api/tool-checklists/${id}/review`, { method: "POST", token });
+}
+
+export function reopenToolChecklist(token, id) {
+  return request(`/api/tool-checklists/${id}/reopen`, { method: "POST", token });
 }
 
 export function archiveToolChecklist(token, id) {

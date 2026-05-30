@@ -206,10 +206,11 @@ function ToolChecklistJobReadinessCard({ readiness }) {
   );
 }
 
-function ToolChecklistCommandRailPolished({ checklist, selectedItems, jobReadiness, permissions, busy, onOpenTool, onSubmitChecklist, onReviewChecklist, onArchiveChecklist, isOfficeWorkspace = false }) {
+function ToolChecklistCommandRailPolished({ checklist, selectedItems, jobReadiness, permissions, busy, onOpenTool, onSubmitChecklist, onReviewChecklist, onReopenChecklist = () => {}, onArchiveChecklist, isOfficeWorkspace = false }) {
   const missingCount = Number(checklist?.missingItemCount || 0);
   const damagedCount = Number(checklist?.damagedItemCount || 0);
   const hasIssues = missingCount > 0 || damagedCount > 0;
+  const canReopenChecklist = Boolean(checklist && permissions.toolChecklist.canReview && ["submitted", "reviewed"].includes(String(checklist.status || "").toLowerCase()) && !checklist.archivedAt);
   const railClassName = `co-toolbox-right-rail space-y-4${isOfficeWorkspace ? " co-tool-checklist-office-assistant" : ""}`;
   const assistantPriorities = checklist ? [
     {
@@ -235,6 +236,7 @@ function ToolChecklistCommandRailPolished({ checklist, selectedItems, jobReadine
     { label: checklist ? "Review checklist items" : "Prepare loadout", icon: checklist ? "layers" : "plus", onClick: () => onOpenTool(checklist ? "items" : "create"), show: Boolean(checklist || permissions.toolChecklist.canManage) },
     { label: "Edit loadout notes", icon: "clipboard", onClick: () => onOpenTool("detail"), show: Boolean(checklist && (permissions.toolChecklist.canManageAll || permissions.toolChecklist.canManageJob)) },
     { label: "Review submission", icon: "check", onClick: () => onReviewChecklist(checklist.id), show: Boolean(checklist && permissions.toolChecklist.canReview) },
+    { label: "Reopen for correction", icon: "refresh", onClick: () => onReopenChecklist(checklist.id), show: canReopenChecklist },
   ].filter((item) => item.show);
 
   if (!checklist) {
@@ -338,6 +340,7 @@ function ToolChecklistCommandRailPolished({ checklist, selectedItems, jobReadine
           {(permissions.toolChecklist.canManageAll || permissions.toolChecklist.canManageJob) ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("detail")}>Edit Notes</Button> : null}
           {permissions.toolChecklist.canManageJob ? <Button type="button" size="sm" variant="secondary" onClick={() => onSubmitChecklist(checklist.id)} disabled={busy || checklist.status === "submitted" || checklist.status === "reviewed" || checklist.status === "archived"}>Submit</Button> : null}
           {permissions.toolChecklist.canReview ? <Button type="button" size="sm" onClick={() => onReviewChecklist(checklist.id)} disabled={busy || checklist.status === "reviewed" || checklist.status === "archived"}>Review</Button> : null}
+          {permissions.toolChecklist.canReview ? <Button type="button" size="sm" variant="secondary" onClick={() => onReopenChecklist(checklist.id)} disabled={busy || !canReopenChecklist}>Reopen</Button> : null}
           {permissions.toolChecklist.canManageAll ? <Button type="button" size="sm" variant="danger" onClick={() => onArchiveChecklist(checklist.id)} disabled={busy || checklist.status === "archived"}>Archive</Button> : null}
         </div>
       </Card>
@@ -535,7 +538,7 @@ function ToolChecklistCreatePanelPolished({ canCreate, visibleJobs, checklistDra
   );
 }
 
-function ToolChecklistDetailPanelPolished({ checklist, permissions, busy, onSaveChecklist, onSubmitChecklist, onReviewChecklist, onArchiveChecklist }) {
+function ToolChecklistDetailPanelPolished({ checklist, permissions, busy, onSaveChecklist, onSubmitChecklist, onReviewChecklist, onReopenChecklist = () => {}, onArchiveChecklist }) {
   if (!checklist) {
     return (
       <Card className="co-toolbox-form-card p-4">
@@ -565,6 +568,7 @@ function ToolChecklistDetailPanelPolished({ checklist, permissions, busy, onSave
       <div className="mt-4 flex flex-wrap gap-2">
         {permissions.toolChecklist.canManageJob ? <Button type="button" variant="secondary" onClick={() => onSubmitChecklist(checklist.id)} disabled={busy || checklist.status === "submitted" || checklist.status === "reviewed" || checklist.status === "archived"}>Submit checklist</Button> : null}
         {permissions.toolChecklist.canReview ? <Button type="button" variant="secondary" onClick={() => onReviewChecklist(checklist.id)} disabled={busy || checklist.status === "reviewed" || checklist.status === "archived"}>Review checklist</Button> : null}
+        {permissions.toolChecklist.canReview ? <Button type="button" variant="secondary" onClick={() => onReopenChecklist(checklist.id)} disabled={busy || !["submitted", "reviewed"].includes(String(checklist.status || "").toLowerCase()) || Boolean(checklist.archivedAt)}>Reopen checklist</Button> : null}
         {permissions.toolChecklist.canManageAll ? <Button type="button" variant="danger" onClick={() => onArchiveChecklist(checklist.id)} disabled={busy || checklist.status === "archived"}>Archive checklist</Button> : null}
       </div>
     </Card>
@@ -715,6 +719,7 @@ function ToolChecklistPagePolished({
   onUpdateChecklistItem,
   onSubmitChecklist,
   onReviewChecklist,
+  onReopenChecklist = () => {},
   onArchiveChecklist,
   assistantToolChecklistReviewSeed = null,
   onAssistantToolChecklistReviewSeedHandled = () => {},
@@ -1222,7 +1227,7 @@ function ToolChecklistPagePolished({
                 {toolTab === "add" ? (
                   <ToolChecklistAddItemPanelPolished canAddItems={canAddItems} checklist={selectedChecklist} itemDraft={itemDraft} setItemDraft={setItemDraft} busy={busy} onAddChecklistItem={onAddChecklistItem} />
                 ) : toolTab === "detail" ? (
-                  <ToolChecklistDetailPanelPolished checklist={selectedChecklist} permissions={permissions} busy={busy} onSaveChecklist={onSaveChecklist} onSubmitChecklist={onSubmitChecklist} onReviewChecklist={onReviewChecklist} onArchiveChecklist={onArchiveChecklist} />
+                  <ToolChecklistDetailPanelPolished checklist={selectedChecklist} permissions={permissions} busy={busy} onSaveChecklist={onSaveChecklist} onSubmitChecklist={onSubmitChecklist} onReviewChecklist={onReviewChecklist} onReopenChecklist={onReopenChecklist} onArchiveChecklist={onArchiveChecklist} />
                 ) : (
                   <ToolChecklistItemsPanelPolished checklist={selectedChecklist} items={selectedItems} permissions={permissions} busy={busy} onUpdateChecklistItem={onUpdateChecklistItem} />
                 )}
@@ -1254,7 +1259,7 @@ function ToolChecklistPagePolished({
               ) : toolTab === "add" ? (
                 <ToolChecklistAddItemPanelPolished canAddItems={canAddItems} checklist={selectedChecklist} itemDraft={itemDraft} setItemDraft={setItemDraft} busy={busy} onAddChecklistItem={onAddChecklistItem} />
               ) : toolTab === "detail" ? (
-                <ToolChecklistDetailPanelPolished checklist={selectedChecklist} permissions={permissions} busy={busy} onSaveChecklist={onSaveChecklist} onSubmitChecklist={onSubmitChecklist} onReviewChecklist={onReviewChecklist} onArchiveChecklist={onArchiveChecklist} />
+                <ToolChecklistDetailPanelPolished checklist={selectedChecklist} permissions={permissions} busy={busy} onSaveChecklist={onSaveChecklist} onSubmitChecklist={onSubmitChecklist} onReviewChecklist={onReviewChecklist} onReopenChecklist={onReopenChecklist} onArchiveChecklist={onArchiveChecklist} />
               ) : (
                 <ToolChecklistItemsPanelPolished checklist={selectedChecklist} items={selectedItems} permissions={permissions} busy={busy} onUpdateChecklistItem={onUpdateChecklistItem} />
               )}
@@ -1263,7 +1268,7 @@ function ToolChecklistPagePolished({
         </div>
 
         {!isFieldToolChecklist ? (
-          <ToolChecklistCommandRailPolished checklist={selectedChecklist} selectedItems={selectedItems} jobReadiness={toolJobReadiness} permissions={permissions} busy={busy} onOpenTool={openTools} onSubmitChecklist={onSubmitChecklist} onReviewChecklist={onReviewChecklist} onArchiveChecklist={onArchiveChecklist} />
+          <ToolChecklistCommandRailPolished checklist={selectedChecklist} selectedItems={selectedItems} jobReadiness={toolJobReadiness} permissions={permissions} busy={busy} onOpenTool={openTools} onSubmitChecklist={onSubmitChecklist} onReviewChecklist={onReviewChecklist} onReopenChecklist={onReopenChecklist} onArchiveChecklist={onArchiveChecklist} />
         ) : null}
       </div>
     </div>
@@ -1282,6 +1287,7 @@ export function ToolChecklistPage({
   onUpdateChecklistItem,
   onSubmitChecklist,
   onReviewChecklist,
+  onReopenChecklist = () => {},
   onArchiveChecklist,
   assistantToolChecklistReviewSeed = null,
   onAssistantToolChecklistReviewSeedHandled = () => {},
@@ -1383,6 +1389,7 @@ export function ToolChecklistPage({
       onUpdateChecklistItem={onUpdateChecklistItem}
       onSubmitChecklist={onSubmitChecklist}
       onReviewChecklist={onReviewChecklist}
+      onReopenChecklist={onReopenChecklist}
       onArchiveChecklist={onArchiveChecklist}
       assistantToolChecklistReviewSeed={assistantToolChecklistReviewSeed}
       onAssistantToolChecklistReviewSeedHandled={onAssistantToolChecklistReviewSeedHandled}
@@ -1506,6 +1513,7 @@ export function ToolChecklistPage({
               <div className="mt-4 flex flex-wrap gap-2">
                 {permissions.toolChecklist.canManageJob ? <Button type="button" variant="secondary" onClick={() => onSubmitChecklist(selectedChecklist.id)} disabled={busy || selectedChecklist.status === "submitted" || selectedChecklist.status === "reviewed" || selectedChecklist.status === "archived"}>Submit checklist</Button> : null}
                 {permissions.toolChecklist.canReview ? <Button type="button" variant="secondary" onClick={() => onReviewChecklist(selectedChecklist.id)} disabled={busy || selectedChecklist.status === "reviewed" || selectedChecklist.status === "archived"}>Review checklist</Button> : null}
+                {permissions.toolChecklist.canReview ? <Button type="button" variant="secondary" onClick={() => onReopenChecklist(selectedChecklist.id)} disabled={busy || !["submitted", "reviewed"].includes(String(selectedChecklist.status || "").toLowerCase()) || Boolean(selectedChecklist.archivedAt)}>Reopen checklist</Button> : null}
                 {permissions.toolChecklist.canManageAll ? <Button type="button" variant="danger" onClick={() => onArchiveChecklist(selectedChecklist.id)} disabled={busy || selectedChecklist.status === "archived"}>Archive checklist</Button> : null}
               </div>
             </Card>

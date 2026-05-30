@@ -202,7 +202,7 @@ function SafetyCloseoutReadinessCard({ readiness }) {
   );
 }
 
-function SafetyIncidentCommandRailPolished({ incident, closeoutReadiness, canSubmit, canReview, isOfficeWorkspace, busy, onOpenTool, onReview, onResolve, onArchive }) {
+function SafetyIncidentCommandRailPolished({ incident, closeoutReadiness, canSubmit, canReview, isOfficeWorkspace, busy, onOpenTool, onReview, onResolve, onReopen = () => {}, onArchive }) {
   const railClassName = `co-incidents-right-rail space-y-4${isOfficeWorkspace ? " co-incidents-office-assistant" : ""}`;
   const assistantPriorities = incident ? [
     {
@@ -276,6 +276,7 @@ function SafetyIncidentCommandRailPolished({ incident, closeoutReadiness, canSub
 
   const canMarkReview = canReview && !["reviewed", "resolved", "archived"].includes(String(incident.status || ""));
   const canResolve = canReview && !["resolved", "archived"].includes(String(incident.status || ""));
+  const canReopen = canReview && ["reviewed", "resolved"].includes(String(incident.status || "").toLowerCase()) && !incident.archivedAt;
 
   return (
     <div className={railClassName}>
@@ -344,6 +345,7 @@ function SafetyIncidentCommandRailPolished({ incident, closeoutReadiness, canSub
           {canSubmit ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("submit")}>Submit New</Button> : null}
           {canReview ? <Button type="button" size="sm" variant="secondary" onClick={() => onReview(incident.id)} disabled={busy || !canMarkReview}>Mark reviewed</Button> : null}
           {canReview ? <Button type="button" size="sm" onClick={() => onResolve(incident.id)} disabled={busy || !canResolve}>Resolve</Button> : null}
+          {canReview ? <Button type="button" size="sm" variant="secondary" onClick={() => onReopen(incident.id)} disabled={busy || !canReopen}>Reopen</Button> : null}
         </div>
       </Card>
 
@@ -406,7 +408,7 @@ function SafetyIncidentSubmitPanelPolished({ canSubmit, allowedJobs, incidentDra
   );
 }
 
-function SafetyIncidentDetailPanelPolished({ incident, canReview, busy, onReview, onResolve, onArchive }) {
+function SafetyIncidentDetailPanelPolished({ incident, canReview, busy, onReview, onResolve, onReopen = () => {}, onArchive }) {
   if (!incident) {
     return (
       <Card className="co-incidents-form-card p-4">
@@ -436,6 +438,7 @@ function SafetyIncidentDetailPanelPolished({ incident, canReview, busy, onReview
         <div className="mt-4 flex flex-wrap gap-2">
           <Button type="button" variant="secondary" onClick={() => onReview(incident.id)} disabled={busy || incident.status === "reviewed" || incident.status === "resolved" || incident.status === "archived"}>Review</Button>
           <Button type="button" onClick={() => onResolve(incident.id)} disabled={busy || incident.status === "resolved" || incident.status === "archived"}>Resolve</Button>
+          <Button type="button" variant="secondary" onClick={() => onReopen(incident.id)} disabled={busy || !["reviewed", "resolved"].includes(String(incident.status || "").toLowerCase()) || Boolean(incident.archivedAt)}>Reopen</Button>
           <Button type="button" variant="danger" onClick={() => onArchive(incident.id)} disabled={busy || Boolean(incident.archivedAt)}>Archive</Button>
         </div>
       ) : null}
@@ -549,6 +552,7 @@ function SafetyIncidentsPagePolished({
   onSubmitIncident,
   onReviewSafetyIncident,
   onResolveSafetyIncident,
+  onReopenSafetyIncident = () => {},
   onArchiveSafetyIncident,
   assistantSafetyIncidentReviewSeed = null,
   onAssistantSafetyIncidentReviewSeedHandled = () => {},
@@ -1067,7 +1071,7 @@ function SafetyIncidentsPagePolished({
               {toolTab === "submit" ? (
                 <SafetyIncidentSubmitPanelPolished canSubmit={canSubmitIncidents} allowedJobs={allowedJobs} incidentDraft={incidentDraft} setIncidentDraft={setIncidentDraft} busy={busy} onSubmit={onSubmitIncident} />
               ) : (
-                <SafetyIncidentDetailPanelPolished incident={selectedIncident} canReview={canReview} busy={busy} onReview={onReviewSafetyIncident} onResolve={onResolveSafetyIncident} onArchive={onArchiveSafetyIncident} />
+                <SafetyIncidentDetailPanelPolished incident={selectedIncident} canReview={canReview} busy={busy} onReview={onReviewSafetyIncident} onResolve={onResolveSafetyIncident} onReopen={onReopenSafetyIncident} onArchive={onArchiveSafetyIncident} />
               )}
             </div>
           </div>
@@ -1093,14 +1097,14 @@ function SafetyIncidentsPagePolished({
             {toolTab === "submit" ? (
               <SafetyIncidentSubmitPanelPolished canSubmit={canSubmitIncidents} allowedJobs={allowedJobs} incidentDraft={incidentDraft} setIncidentDraft={setIncidentDraft} busy={busy} onSubmit={onSubmitIncident} />
             ) : (
-              <SafetyIncidentDetailPanelPolished incident={selectedIncident} canReview={canReview} busy={busy} onReview={onReviewSafetyIncident} onResolve={onResolveSafetyIncident} onArchive={onArchiveSafetyIncident} />
+              <SafetyIncidentDetailPanelPolished incident={selectedIncident} canReview={canReview} busy={busy} onReview={onReviewSafetyIncident} onResolve={onResolveSafetyIncident} onReopen={onReopenSafetyIncident} onArchive={onArchiveSafetyIncident} />
             )}
           </div>
         </details>
         </div>
 
         {canManage ? (
-          <SafetyIncidentCommandRailPolished incident={selectedIncident} closeoutReadiness={safetyCloseoutReadiness} canSubmit={canSubmitIncidents} canReview={canReview} busy={busy} onOpenTool={openTools} onReview={onReviewSafetyIncident} onResolve={onResolveSafetyIncident} onArchive={onArchiveSafetyIncident} />
+          <SafetyIncidentCommandRailPolished incident={selectedIncident} closeoutReadiness={safetyCloseoutReadiness} canSubmit={canSubmitIncidents} canReview={canReview} busy={busy} onOpenTool={openTools} onReview={onReviewSafetyIncident} onResolve={onResolveSafetyIncident} onReopen={onReopenSafetyIncident} onArchive={onArchiveSafetyIncident} />
         ) : null}
       </div>
     </div>
@@ -2290,6 +2294,7 @@ function PpeIncidentToolsPanelPolished({
   onSubmitIncident,
   onReviewSafetyIncident,
   onResolveSafetyIncident,
+  onReopenSafetyIncident = () => {},
   onArchiveSafetyIncident,
 }) {
   return (
@@ -2314,7 +2319,7 @@ function PpeIncidentToolsPanelPolished({
         )}
       </Card>
       <div className="xl:col-span-2">
-        <SafetyIncidentDetailPanelPolished incident={selectedIncident} canReview={canReview} busy={busy} onReview={onReviewSafetyIncident} onResolve={onResolveSafetyIncident} onArchive={onArchiveSafetyIncident} />
+        <SafetyIncidentDetailPanelPolished incident={selectedIncident} canReview={canReview} busy={busy} onReview={onReviewSafetyIncident} onResolve={onResolveSafetyIncident} onReopen={onReopenSafetyIncident} onArchive={onArchiveSafetyIncident} />
       </div>
     </div>
   );
@@ -2355,6 +2360,7 @@ function PpeChecklistPagePolished({
   onSubmitIncident,
   onReviewSafetyIncident,
   onResolveSafetyIncident,
+  onReopenSafetyIncident = () => {},
   onArchiveSafetyIncident,
 }) {
   const [requirementFilter, setRequirementFilter] = useState("All");
@@ -2745,7 +2751,7 @@ function PpeChecklistPagePolished({
                 {toolTab === "ack" ? (
                   <PpeAcknowledgePanelPolished canAcknowledge={canAcknowledge} allowedJobs={allowedJobs} visiblePolicies={visiblePolicies} ackDraft={ackDraft} setAckDraft={setAckDraft} acknowledgments={safetyAcknowledgments} canManage={canManage} ackState={acknowledgmentState} busy={busy} onSubmit={onAcknowledge} />
                 ) : toolTab === "incident" ? (
-                  <PpeIncidentToolsPanelPolished canSubmitIncidents={canSubmitIncidents} canReview={canReview} allowedJobs={allowedJobs} incidentDraft={incidentDraft} setIncidentDraft={setIncidentDraft} visibleIncidents={visibleIncidents} selectedIncident={selectedIncident} setSelectedIncidentId={setSelectedIncidentId} busy={busy} onSubmitIncident={onSubmitIncident} onReviewSafetyIncident={onReviewSafetyIncident} onResolveSafetyIncident={onResolveSafetyIncident} onArchiveSafetyIncident={onArchiveSafetyIncident} />
+                  <PpeIncidentToolsPanelPolished canSubmitIncidents={canSubmitIncidents} canReview={canReview} allowedJobs={allowedJobs} incidentDraft={incidentDraft} setIncidentDraft={setIncidentDraft} visibleIncidents={visibleIncidents} selectedIncident={selectedIncident} setSelectedIncidentId={setSelectedIncidentId} busy={busy} onSubmitIncident={onSubmitIncident} onReviewSafetyIncident={onReviewSafetyIncident} onResolveSafetyIncident={onResolveSafetyIncident} onReopenSafetyIncident={onReopenSafetyIncident} onArchiveSafetyIncident={onArchiveSafetyIncident} />
                 ) : (
                   <PpePolicyPanelPolished canManage={canManage} visiblePolicies={visiblePolicies} selectedPolicy={selectedPolicy} setSelectedPolicyId={setSelectedPolicyId} policyDraft={policyDraft} setPolicyDraft={setPolicyDraft} onPolicySubmit={onPolicySubmit} onArchiveSafetyPolicy={onArchiveSafetyPolicy} busy={busy} />
                 )}
@@ -2777,7 +2783,7 @@ function PpeChecklistPagePolished({
               ) : toolTab === "ppe" ? (
                 <PpeManagePanelPolished canManage={canManage} selectedPpeItem={selectedPpeItem} setSelectedPpeId={setSelectedPpeId} ppeDraft={ppeDraft} setPpeDraft={setPpeDraft} onPpeSubmit={onPpeSubmit} onArchivePpeItem={onArchivePpeItem} busy={busy} />
               ) : toolTab === "incident" ? (
-                <PpeIncidentToolsPanelPolished canSubmitIncidents={canSubmitIncidents} canReview={canReview} allowedJobs={allowedJobs} incidentDraft={incidentDraft} setIncidentDraft={setIncidentDraft} visibleIncidents={visibleIncidents} selectedIncident={selectedIncident} setSelectedIncidentId={setSelectedIncidentId} busy={busy} onSubmitIncident={onSubmitIncident} onReviewSafetyIncident={onReviewSafetyIncident} onResolveSafetyIncident={onResolveSafetyIncident} onArchiveSafetyIncident={onArchiveSafetyIncident} />
+                <PpeIncidentToolsPanelPolished canSubmitIncidents={canSubmitIncidents} canReview={canReview} allowedJobs={allowedJobs} incidentDraft={incidentDraft} setIncidentDraft={setIncidentDraft} visibleIncidents={visibleIncidents} selectedIncident={selectedIncident} setSelectedIncidentId={setSelectedIncidentId} busy={busy} onSubmitIncident={onSubmitIncident} onReviewSafetyIncident={onReviewSafetyIncident} onResolveSafetyIncident={onResolveSafetyIncident} onReopenSafetyIncident={onReopenSafetyIncident} onArchiveSafetyIncident={onArchiveSafetyIncident} />
               ) : (
                 <PpePolicyPanelPolished canManage={canManage} visiblePolicies={visiblePolicies} selectedPolicy={selectedPolicy} setSelectedPolicyId={setSelectedPolicyId} policyDraft={policyDraft} setPolicyDraft={setPolicyDraft} onPolicySubmit={onPolicySubmit} onArchiveSafetyPolicy={onArchiveSafetyPolicy} busy={busy} />
               )}
@@ -2826,6 +2832,7 @@ export function SafetyPage({
   onCreateSafetyIncident,
   onReviewSafetyIncident,
   onResolveSafetyIncident,
+  onReopenSafetyIncident = () => {},
   onArchiveSafetyIncident,
   onOpenSupport,
   assistantSafetyIncidentReviewSeed = null,
@@ -3038,6 +3045,7 @@ export function SafetyPage({
         onSubmitIncident={handleIncidentSubmit}
         onReviewSafetyIncident={onReviewSafetyIncident}
         onResolveSafetyIncident={onResolveSafetyIncident}
+        onReopenSafetyIncident={onReopenSafetyIncident}
         onArchiveSafetyIncident={onArchiveSafetyIncident}
         onOpenSupport={onOpenSupport}
         assistantSafetyIncidentReviewSeed={assistantSafetyIncidentReviewSeed}
@@ -3113,6 +3121,7 @@ export function SafetyPage({
         onSubmitIncident={handleIncidentSubmit}
         onReviewSafetyIncident={onReviewSafetyIncident}
         onResolveSafetyIncident={onResolveSafetyIncident}
+        onReopenSafetyIncident={onReopenSafetyIncident}
         onArchiveSafetyIncident={onArchiveSafetyIncident}
       />
     );
@@ -3444,6 +3453,7 @@ export function SafetyPage({
                 <div className="mt-4 flex flex-wrap gap-2">
                   <Button type="button" variant="secondary" onClick={() => onReviewSafetyIncident(selectedIncident.id)} disabled={busy || selectedIncident.status === "reviewed" || selectedIncident.status === "resolved" || selectedIncident.status === "archived"}>Review</Button>
                   <Button type="button" onClick={() => onResolveSafetyIncident(selectedIncident.id)} disabled={busy || selectedIncident.status === "resolved" || selectedIncident.status === "archived"}>Resolve</Button>
+                  <Button type="button" variant="secondary" onClick={() => onReopenSafetyIncident(selectedIncident.id)} disabled={busy || !["reviewed", "resolved"].includes(String(selectedIncident.status || "").toLowerCase()) || Boolean(selectedIncident.archivedAt)}>Reopen</Button>
                   <Button type="button" variant="danger" onClick={() => onArchiveSafetyIncident(selectedIncident.id)} disabled={busy || Boolean(selectedIncident.archivedAt)}>Archive</Button>
                 </div>
               ) : null}

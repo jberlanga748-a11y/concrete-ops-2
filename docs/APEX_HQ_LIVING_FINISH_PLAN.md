@@ -40,7 +40,7 @@ Next recommended phase:
 
 ## Current Phase
 
-Phase 6 Field Execution Finish is completed, pushed, deployed to production, health-checked, and frozen under the standing phase release approval. Phase 1 Admin Foundation, Phase 2 Command Center, Phase 3 Growth & Sales, Phase 4 Estimate & Proposal, and Phase 5 Job Operations remain complete/frozen. The next true tool-completion phase is Phase 7 Safety & Compliance Finish.
+Phase 7 Safety & Compliance Finish is built and validated locally. Owner/admin Safety, Toolbox Talks, PPE, and Tool Checklist workflows now keep office review control, field-safe submission/acknowledgment, job readiness blockers, reopen lifecycle paths, and audit/activity evidence aligned without schema, auth/session, billing, provider, GPS, or production-data changes. Phase 1 Admin Foundation, Phase 2 Command Center, Phase 3 Growth & Sales, Phase 4 Estimate & Proposal, Phase 5 Job Operations, and Phase 6 Field Execution remain complete/frozen.
 
 Phase 1 blockers are fixed in production: `/imported-drafts` renders for owner/admin users, `npm.cmd run verify:job-draft-imports` is green, and owner/admin setup now has a single Admin Foundation Finish board in Settings.
 
@@ -57,6 +57,39 @@ Phase 4 status: Estimate & Proposal Finish is built, validated, deployed, and he
 Phase 5 status: Job Operations Finish is built, validated, deployed, and health-checked. Owner/admin Jobs now has a Job Operations Finish panel that composes approved handoff/source state, schedule, crew assignment, startup checklist, field visibility, material prep, tool readiness, safety/proof, and completion readiness into one routed review layer. Field users remain redirected to assigned field work and cannot access job operations finish, pricing, margins, payroll, billing, estimate packet context, office notes, customer sends, vendor orders, provider writes, or other company data.
 
 Phase 6 status: Field Execution Finish is built, validated, deployed, and health-checked. Employee and foreman field workspaces now have one field-safe command layer from assigned work through arrival/start, proof capture, daily reports, delivery tickets, checklists, safety, change request handoff, end-of-day closeout, and honest install/offline readiness. Field users remain assigned-job scoped and cannot access leads, estimates, pricing, profit/margins, payroll, office notes, admin setup, AI office tools, billing, provider context, estimate packet context, hidden GPS, automatic sends, vendor orders, or production data mutations.
+
+Phase 7 status: Safety & Compliance Finish is built and validated. Owner/admin users can manage safety incidents, toolbox guidance, PPE requirements, acknowledgments, and tool checklist review from the existing safety/tool surfaces. Office users can reopen reviewed/resolved incidents and submitted/reviewed tool checklists for correction, with audit/activity events and lifecycle guards. Field users remain assigned-scope only: they can submit visible safety concerns, acknowledge field-safe PPE/toolbox guidance, update assigned tool loadouts, and submit allowed field checklists without seeing leads, estimates, pricing, profit/margins, payroll, office-only notes, admin settings, AI office tools, billing, or other company data.
+
+Phase 7 validation:
+
+- `npm.cmd run verify:safety` passed.
+- `npm.cmd run verify:tool-checklist` passed.
+- `npm.cmd run verify:jobs` passed.
+- `npm.cmd run verify:roles` passed.
+- `npm.cmd run build` passed with existing large-chunk warnings only.
+- `git diff --check` passed with CRLF warnings only.
+- Safety/compliance visual audit passed for admin, foreman, and employee across desktop/phone on `/incidents`, `/toolbox-talks`, `/ppe`, and `/tool-checklist`: `ui-audit/phase7-safety-compliance/2026-05-30T12-19-17-864Z-31568-ahrqqz/manifest.json`.
+- Field restricted-route visual audit passed for foreman and employee phone on `/leads`, `/estimates`, `/settings`, `/app-health`, and `/billing`: `ui-audit/phase7-field-restricted-checks/2026-05-30T12-23-02-600Z-28976-iw5goa/manifest.json`.
+- Manual screenshot review covered owner/admin desktop incidents and tool checklist plus foreman/employee phone PPE/tool checklist views under `ui-audit/phase7-safety-compliance/manual-screens/`.
+
+Phase 7 permissions impact:
+
+- No permission loosening.
+- Field safety/tool access remains scoped to visible jobs and existing field permissions.
+- Reopen endpoints require office review permissions and reject archived or already-open/active records.
+
+Phase 7 mobile impact:
+
+- Admin, foreman, and employee phone route audits passed for the safety/tool cluster.
+- Field phone restricted-route checks passed for office-only routes.
+
+Phase 7 rollback:
+
+- Revert the Phase 7 commit to remove the safety incident/tool checklist reopen API methods, UI buttons, and tests. Existing incident, PPE, toolbox, and tool checklist records remain compatible because no schema migration was added.
+
+Next recommended phase:
+
+- Phase 8 Change Order Finish from the tool-completion blueprint, unless release smoke exposes a narrow Phase 7 bug.
 
 ## Product North Star
 

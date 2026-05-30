@@ -356,12 +356,39 @@ test("safety permissions keep office management while scoping field visibility",
     const resolvedIncident = resolvedState.safetyIncidents.find((incident) => incident.id === employeeIncident.id);
     assert.equal(resolvedIncident.status, "resolved");
 
+    const reopenedState = await assertOk(fixture.baseUrl, `/api/safety/incidents/${employeeIncident.id}/reopen`, {
+      method: "POST",
+      headers: officeHeaders,
+    });
+    const reopenedIncident = reopenedState.safetyIncidents.find((incident) => incident.id === employeeIncident.id);
+    assert.equal(reopenedIncident.status, "open");
+    assert.equal(reopenedIncident.resolvedAt, "");
+    assert.equal(reopenedState.auditEvents.some((event) => event.entityType === "safetyIncident" && event.action === "reopened"), true);
+
+    const fieldReopenAttempt = await requestJson(fixture.baseUrl, `/api/safety/incidents/${employeeIncident.id}/reopen`, {
+      method: "POST",
+      headers: employeeHeaders,
+    });
+    assert.equal(fieldReopenAttempt.response.status, 403);
+
+    const openReopenAttempt = await requestJson(fixture.baseUrl, `/api/safety/incidents/${employeeIncident.id}/reopen`, {
+      method: "POST",
+      headers: officeHeaders,
+    });
+    assert.equal(openReopenAttempt.response.status, 409);
+
     const archivedState = await assertOk(fixture.baseUrl, `/api/safety/incidents/${employeeIncident.id}/archive`, {
       method: "POST",
       headers: officeHeaders,
     });
     assert.equal(archivedState.safetyIncidents.some((incident) => incident.id === employeeIncident.id && incident.archivedAt), true);
     assert.equal(archivedState.auditEvents.some((event) => event.entityType === "safetyIncident"), true);
+
+    const archivedReopenAttempt = await requestJson(fixture.baseUrl, `/api/safety/incidents/${employeeIncident.id}/reopen`, {
+      method: "POST",
+      headers: officeHeaders,
+    });
+    assert.equal(archivedReopenAttempt.response.status, 409);
   } finally {
     await fixture.stop();
   }

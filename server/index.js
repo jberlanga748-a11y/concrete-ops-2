@@ -14856,6 +14856,46 @@ app.post("/api/tool-checklists/:id/review", requireAuth, asyncRoute(async (req, 
   res.json(sanitizeBootstrap(nextState, req.auth.user));
 }));
 
+app.post("/api/tool-checklists/:id/reopen", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const settings = companySettingsForState(state, req.auth.user);
+  assertCanReviewToolChecklists(req.auth.user);
+  assertCanViewToolChecklist(req.auth.user, settings);
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.toolChecklists ||= [];
+    const checklist = findCompanyScopedToolChecklist(draft, req.params.id, req.auth.user);
+    if (checklist.jobId) {
+      findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job");
+    }
+    const currentStatus = String(checklist.status || "").toLowerCase();
+    if (currentStatus === "archived" || checklist.archivedAt) {
+      throw new ApiError(409, "Archived tool checklists cannot be reopened.");
+    }
+    if (!["submitted", "reviewed"].includes(currentStatus)) {
+      throw new ApiError(409, "Only submitted or reviewed tool checklists can be reopened.");
+    }
+    checklist.status = "active";
+    checklist.reviewedBy = "";
+    checklist.reviewedAt = "";
+    checklist.updatedAt = changedAt;
+    appendActivity(draft, "Tool checklist reopened", `${req.auth.user.name} reopened ${checklist.title} for field correction.`);
+    appendAuditEvent(draft, {
+      entityType: "toolChecklist",
+      entityId: checklist.id,
+      action: "reopened",
+      summary: "Tool checklist reopened",
+      detail: `${req.auth.user.name} reopened ${checklist.title} for field correction.`,
+      actor: req.auth.user,
+      changedFields: ["status", "reviewedBy", "reviewedAt", "updatedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
 app.post("/api/tool-checklists/:id/archive", requireAuth, asyncRoute(async (req, res) => {
   const state = await readDb();
   const settings = companySettingsForState(state, req.auth.user);
@@ -15220,6 +15260,43 @@ app.post("/api/safety/incidents/:id/resolve", requireAuth, asyncRoute(async (req
       detail: incident.title,
       actor: req.auth.user,
       changedFields: ["status", "reviewedBy", "reviewedAt", "resolvedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/safety/incidents/:id/reopen", requireAuth, asyncRoute(async (req, res) => {
+  assertCanReviewSafetyIncidents(req.auth.user);
+  const changedAt = new Date().toISOString();
+  const nextState = await updateDb((draft) => {
+    draft.safetyIncidents ||= [];
+    const incident = findCompanyScopedSafetyIncident(draft, req.params.id, req.auth.user);
+    if (incident.jobId) {
+      findCompanyScopedRecord(draft.jobs, incident.jobId, req.auth.user, draft, "Job");
+    }
+    const currentStatus = String(incident.status || "").toLowerCase();
+    if (currentStatus === "archived" || incident.archivedAt) {
+      throw new ApiError(409, "Archived safety incidents cannot be reopened.");
+    }
+    if (!["reviewed", "resolved"].includes(currentStatus)) {
+      throw new ApiError(409, "Only reviewed or resolved safety incidents can be reopened.");
+    }
+    incident.status = "open";
+    incident.reviewedBy = req.auth.user.id;
+    incident.reviewedAt = changedAt;
+    incident.resolvedAt = "";
+    incident.updatedAt = changedAt;
+    appendActivity(draft, "Safety incident reopened", `${req.auth.user.name} reopened ${incident.title}.`);
+    appendAuditEvent(draft, {
+      entityType: "safetyIncident",
+      entityId: incident.id,
+      action: "reopened",
+      summary: "Safety incident reopened",
+      detail: incident.title,
+      actor: req.auth.user,
+      changedFields: ["status", "reviewedBy", "reviewedAt", "resolvedAt", "updatedAt"],
     });
     return draft;
   });

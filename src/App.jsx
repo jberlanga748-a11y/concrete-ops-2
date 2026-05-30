@@ -194,6 +194,8 @@ import {
   reopenDailyReport,
   reopenPostPourChecklist,
   reopenPrePourChecklist,
+  reopenSafetyIncident,
+  reopenToolChecklist,
   resolveSafetyIncident,
   reviewFoundOpportunityWithAi,
   reviewSafetyIncident,
@@ -15897,6 +15899,23 @@ export default function App() {
     }
   }
 
+  async function handleReopenSafetyIncident(incidentId) {
+    if (!sessionToken || !appState.permissions.safety.canReviewIncidents) return false;
+    setBusy(true);
+    try {
+      const nextState = await reopenSafetyIncident(sessionToken, incidentId);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleArchiveSafetyIncident(incidentId) {
     if (!sessionToken || !appState.permissions.safety.canReviewIncidents) return false;
     setBusy(true);
@@ -16699,6 +16718,23 @@ export default function App() {
     }
   }
 
+  async function handleReopenToolChecklist(checklistId) {
+    if (!sessionToken || !appState.permissions.toolChecklist.canReview) return false;
+    setBusy(true);
+    try {
+      const nextState = await reopenToolChecklist(sessionToken, checklistId);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleArchiveToolChecklist(checklistId) {
     if (!sessionToken || !appState.permissions.toolChecklist.canManageAll) return false;
     setBusy(true);
@@ -17476,6 +17512,7 @@ export default function App() {
                 onCreateSafetyIncident={handleCreateSafetyIncident}
                 onReviewSafetyIncident={handleReviewSafetyIncident}
                 onResolveSafetyIncident={handleResolveSafetyIncident}
+                onReopenSafetyIncident={handleReopenSafetyIncident}
                 onCreateChangeOrderRequest={handleCreateChangeOrderRequest}
                 onUpdateChangeOrderRequest={handleUpdateChangeOrderRequest}
                 onArchiveChangeOrderRequest={handleArchiveChangeOrderRequest}
@@ -17491,6 +17528,7 @@ export default function App() {
                   onUpdateChecklistItem={handleUpdateToolChecklistItem}
                   onSubmitChecklist={handleSubmitToolChecklist}
                   onReviewChecklist={handleReviewToolChecklist}
+                  onReopenChecklist={handleReopenToolChecklist}
                   onArchiveChecklist={handleArchiveToolChecklist}
                   onCreatePrePourChecklist={handleCreatePrePourChecklist}
                   onSavePrePourChecklist={handleSavePrePourChecklist}
