@@ -8,7 +8,7 @@ This living plan tracks active phase memory, deploy evidence, user requests, and
 
 ## Current Phase
 
-Phase 2 Command Center Finish is completed, verified locally, ready for push/deploy under the standing release approval, and should be frozen after the production health check. Use the tool-by-tool completion blueprint as the active source for the next phase.
+Phase 2 Command Center Finish is completed, pushed, deployed to production, health-checked, and frozen under the standing release approval. Use the tool-by-tool completion blueprint as the active source for the next phase.
 
 Phase 1 blockers are fixed in production: `/imported-drafts` renders for owner/admin users, `npm.cmd run verify:job-draft-imports` is green, and owner/admin setup now has a single Admin Foundation Finish board in Settings.
 
@@ -79,7 +79,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ### Next
 
-- Start Phase 2 Command Center Finish from `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md`.
+- Start Phase 3 Growth & Sales Finish from `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md`.
 
 ### Later
 
@@ -327,7 +327,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | 2026-05-30 | Phase 1 Admin Foundation Slice 1: state utility | `2bbbf3f` pushed to `main` and deployed | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `605` started in `sjc`; service check passing; `/api/ready` OK on both domains with database OK. |
 | 2026-05-30 | Phase 1 Admin Foundation Finish Board | `9ccc1ac` pushed to `main` | Local QA at `http://127.0.0.1:4179` | Owner/admin Settings, Employees, App Health, Support, and Imported Drafts passed with no overflow/errors. Employee mobile direct routes to Settings, Employees, App Health, and Imported Drafts redirected to Jobs; Support stayed role-safe; no admin foundation text leaked. |
 | 2026-05-30 | Phase 1 Admin Foundation Finish | `9ccc1ac` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `606` started in `sjc`; image `concrete-ops-2:deployment-01KSVWJYBKFP2HCVY40J69FEJE`; service check passing; `/api/ready` OK on both domains with database OK. |
-| 2026-05-30 | Phase 2 Command Center Finish | Phase commit pushed/deployed from `main` | Local QA at `http://127.0.0.1:4186` | Owner desktop `/command-center` passed Daily Command Plan first-screen visibility, routed next action to `/leads`, provider setup locks, no overflow/errors; employee mobile `/command-center` redirected to `/jobs` with office/growth/billing/setup text hidden. Production deploy and hosted `/api/ready` evidence recorded in final phase report. |
+| 2026-05-30 | Phase 2 Command Center Finish | `7529739` pushed to `main` and deployed | Local QA at `http://127.0.0.1:4186`; production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Owner desktop `/command-center` passed Daily Command Plan first-screen visibility, routed next action to `/leads`, provider setup locks, no overflow/errors; employee mobile `/command-center` redirected to `/jobs` with office/growth/billing/setup text hidden. Fly machine `148e06e2b53d68` version `607`; image `concrete-ops-2:deployment-01KSW0DXH4NAM1D3R8RT57D8X1`; `/api/ready` OK on both domains with database OK. |
 
 ## Roadmap Queue
 
@@ -445,12 +445,13 @@ Mobile impact:
 
 Deploy version:
 
-- To be recorded from the production Fly deploy for this phase.
+- `7529739` deployed to Fly machine `148e06e2b53d68` version `607`, image `concrete-ops-2:deployment-01KSW0DXH4NAM1D3R8RT57D8X1`.
 
 Health check:
 
 - Local `/api/ready` passed at `http://127.0.0.1:4186/api/ready`.
-- Hosted `/api/ready` to be recorded after deployment.
+- `https://app.apexhq.online/api/ready` OK with database OK.
+- `https://concrete-ops-2.fly.dev/api/ready` OK with database OK.
 
 Rollback note:
 

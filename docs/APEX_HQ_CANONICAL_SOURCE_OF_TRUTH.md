@@ -13,8 +13,8 @@ This is the first file to read before any Apex HQ work. It is the one-file conso
 - Fly app: `concrete-ops-2`.
 - Fly technical URL: `https://concrete-ops-2.fly.dev/`.
 - Current local branch/head at audit time: `main` at `c7e1328`.
-- Current production evidence from living plan: Fly version `606`, `/api/ready` healthy on `https://app.apexhq.online/api/ready`; Phase 2 production evidence is recorded in the living plan after deploy.
-- Phase baseline: Phase 1 Admin Foundation Finish is complete/frozen. Phase 2 Command Center Finish is built and entering production release under standing approval. The next true tool-completion phase is Phase 3 Growth & Sales Finish.
+- Current production evidence from living plan: Fly version `607`, image `concrete-ops-2:deployment-01KSW0DXH4NAM1D3R8RT57D8X1`, `/api/ready` healthy on `https://app.apexhq.online/api/ready`.
+- Phase baseline: Phase 1 Admin Foundation Finish and Phase 2 Command Center Finish are complete/frozen. The next true tool-completion phase is Phase 3 Growth & Sales Finish.
 
 Use **Apex HQ** everywhere users see the product. `Concrete Ops`, `concrete-ops`, and `concrete-ops-2` are legacy technical names only until a dedicated infrastructure rename phase is planned.
 
