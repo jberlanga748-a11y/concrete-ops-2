@@ -88,6 +88,8 @@ import {
   createChangeOrderRequest,
   createContactHistory,
   createCommunicationSuppression,
+  createCustomerPortalAccessRecord,
+  createCustomerPortalShareApproval,
   createOutboundCommunicationApproval,
   createEstimate,
   createCustomer,
@@ -137,6 +139,9 @@ import {
   getBootstrap,
   getAgentContext,
   getCommunicationProviderReadiness,
+  getCustomerPortalAccessRecordPacket,
+  getCustomerPortalAccessRecords,
+  getCustomerPortalShareApprovals,
   getHealth,
   getSetupStatus,
   login,
@@ -144,7 +149,9 @@ import {
   markLeadSourceChecked,
   planOpportunitySearchWithAi,
   previewOpportunityScoutAgent,
+  preflightCustomerPortalShareApproval,
   prepareCommunicationDeliveryAttemptContract,
+  prepareCustomerPortalExecutionContract,
   prepareAgentEstimateSend,
   queueAgentOperatingSystemTask,
   getAgentLeadPrivateSourceChecklist,
@@ -169,6 +176,8 @@ import {
   recordAgentLeadPrivateSourceAuthorization,
   recordAgentLeadProviderImportDecision,
   recordAgentLeadProviderLiveApprovalDecision,
+  reviewCustomerPortalShareApproval,
+  revokeCustomerPortalAccessRecord,
   recordAgentLeadProviderReviewQueueDecision,
   recordAgentLeadDailyReviewInboxDecision,
   draftAgentLeadProviderReviewOpportunity,
@@ -12503,6 +12512,22 @@ export default function App() {
   const selectedReport = appState.dailyReports.find((report) => report.id === selectedReportId) || null;
   const selectedImportedDraft = appState.jobDraftImports.find((draft) => draft.id === selectedImportedDraftId) || null;
   const selectedTimeEntry = appState.timeEntries.find((entry) => entry.id === selectedTimeEntryId) || null;
+  const canViewCustomerPortalPreview = Boolean(appState.permissions.customerPortal?.canPreview);
+  const customerPortalPreviewState = useMemo(() => deriveCustomerPortalPreviewState({
+    estimates: appState.estimates,
+    jobs: appState.jobs,
+    uploads: appState.uploads,
+    dailyReports: appState.dailyReports,
+    changeOrderRequests: appState.changeOrderRequests,
+    companySettings: appState.companySettings,
+  }), [
+    appState.changeOrderRequests,
+    appState.companySettings,
+    appState.dailyReports,
+    appState.estimates,
+    appState.jobs,
+    appState.uploads,
+  ]);
 
   useEffect(() => {
     const timerId = window.setTimeout(() => setSplashVisible(false), 900);
@@ -15066,6 +15091,150 @@ export default function App() {
     }
   }
 
+  async function handleGetCustomerPortalAccessRecords() {
+    if (!sessionToken || !appState.permissions.customerPortal?.canPreview) return null;
+    setBusy(true);
+    try {
+      const result = await getCustomerPortalAccessRecords(sessionToken);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleCreateCustomerPortalAccessRecord(payload) {
+    if (!sessionToken || !appState.permissions.customerPortal?.canPreview) return null;
+    setBusy(true);
+    try {
+      const result = await createCustomerPortalAccessRecord(sessionToken, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRevokeCustomerPortalAccessRecord(accessRecordId, payload = {}) {
+    if (!sessionToken || !appState.permissions.customerPortal?.canPreview) return null;
+    setBusy(true);
+    try {
+      const result = await revokeCustomerPortalAccessRecord(sessionToken, accessRecordId, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleGetCustomerPortalAccessPacket(accessRecordId) {
+    if (!sessionToken || !appState.permissions.customerPortal?.canPreview) return null;
+    setBusy(true);
+    try {
+      const result = await getCustomerPortalAccessRecordPacket(sessionToken, accessRecordId);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleGetCustomerPortalShareApprovals() {
+    if (!sessionToken || !appState.permissions.customerPortal?.canPreview) return null;
+    setBusy(true);
+    try {
+      const result = await getCustomerPortalShareApprovals(sessionToken);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleCreateCustomerPortalShareApproval(accessRecordId, payload = {}) {
+    if (!sessionToken || !appState.permissions.customerPortal?.canPreview) return null;
+    setBusy(true);
+    try {
+      const result = await createCustomerPortalShareApproval(sessionToken, accessRecordId, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleReviewCustomerPortalShareApproval(shareApprovalId, payload = {}) {
+    if (!sessionToken || !appState.permissions.customerPortal?.canPreview) return null;
+    setBusy(true);
+    try {
+      const result = await reviewCustomerPortalShareApproval(sessionToken, shareApprovalId, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handlePreflightCustomerPortalShareApproval(shareApprovalId, payload = {}) {
+    if (!sessionToken || !appState.permissions.customerPortal?.canPreview) return null;
+    setBusy(true);
+    try {
+      const result = await preflightCustomerPortalShareApproval(sessionToken, shareApprovalId, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handlePrepareCustomerPortalExecutionContract(shareApprovalId, payload = {}) {
+    if (!sessionToken || !appState.permissions.customerPortal?.canPreview) return null;
+    setBusy(true);
+    try {
+      const result = await prepareCustomerPortalExecutionContract(sessionToken, shareApprovalId, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleScoreLead(lead = selectedLead) {
     if (!sessionToken || !lead?.id || !appState.permissions.leads.canManage) return false;
     setBusy(true);
@@ -17104,6 +17273,17 @@ export default function App() {
                 onCreateCommunicationSuppression={handleCreateCommunicationSuppression}
                 onCreateOutboundCommunicationApproval={handleCreateOutboundCommunicationApproval}
                 onPrepareCommunicationDeliveryAttemptContract={handlePrepareCommunicationDeliveryAttemptContract}
+                canViewCustomerPortalPreview={canViewCustomerPortalPreview}
+                customerPortalPreviewState={customerPortalPreviewState}
+                onGetCustomerPortalAccessRecords={handleGetCustomerPortalAccessRecords}
+                onCreateCustomerPortalAccessRecord={handleCreateCustomerPortalAccessRecord}
+                onRevokeCustomerPortalAccessRecord={handleRevokeCustomerPortalAccessRecord}
+                onGetCustomerPortalAccessPacket={handleGetCustomerPortalAccessPacket}
+                onGetCustomerPortalShareApprovals={handleGetCustomerPortalShareApprovals}
+                onCreateCustomerPortalShareApproval={handleCreateCustomerPortalShareApproval}
+                onReviewCustomerPortalShareApproval={handleReviewCustomerPortalShareApproval}
+                onPreflightCustomerPortalShareApproval={handlePreflightCustomerPortalShareApproval}
+                onPrepareCustomerPortalExecutionContract={handlePrepareCustomerPortalExecutionContract}
                 onOpenEstimate={navigateToEstimate}
                 onCreateJobFromLead={handleCreateJobFromLead}
                 rateBookItems={appState.rateBookItems}

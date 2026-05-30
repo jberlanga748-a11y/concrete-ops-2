@@ -495,6 +495,42 @@ export function getCommunicationProviderReadiness(token) {
   return request("/api/communications/provider-readiness", { token });
 }
 
+export function getCustomerPortalAccessRecords(token) {
+  return request("/api/customer-portal/access-records", { token });
+}
+
+export function createCustomerPortalAccessRecord(token, payload = {}) {
+  return request("/api/customer-portal/access-records", { method: "POST", token, body: payload });
+}
+
+export function revokeCustomerPortalAccessRecord(token, accessRecordId, payload = {}) {
+  return request(`/api/customer-portal/access-records/${encodeURIComponent(accessRecordId)}/revoke`, { method: "POST", token, body: payload });
+}
+
+export function getCustomerPortalAccessRecordPacket(token, accessRecordId) {
+  return request(`/api/customer-portal/access-records/${encodeURIComponent(accessRecordId)}/packet`, { token });
+}
+
+export function getCustomerPortalShareApprovals(token) {
+  return request("/api/customer-portal/share-approvals", { token });
+}
+
+export function createCustomerPortalShareApproval(token, accessRecordId, payload = {}) {
+  return request(`/api/customer-portal/access-records/${encodeURIComponent(accessRecordId)}/share-approvals`, { method: "POST", token, body: payload });
+}
+
+export function reviewCustomerPortalShareApproval(token, shareApprovalId, payload = {}) {
+  return request(`/api/customer-portal/share-approvals/${encodeURIComponent(shareApprovalId)}/review`, { method: "POST", token, body: payload });
+}
+
+export function preflightCustomerPortalShareApproval(token, shareApprovalId, payload = {}) {
+  return request(`/api/customer-portal/share-approvals/${encodeURIComponent(shareApprovalId)}/external-gate-preflight`, { method: "POST", token, body: payload });
+}
+
+export function prepareCustomerPortalExecutionContract(token, shareApprovalId, payload = {}) {
+  return request(`/api/customer-portal/share-approvals/${encodeURIComponent(shareApprovalId)}/external-execution-contract`, { method: "POST", token, body: payload });
+}
+
 export function createOutboundCommunicationApproval(token, payload = {}) {
   return request("/api/communications/outbound-approvals", { method: "POST", token, body: payload });
 }

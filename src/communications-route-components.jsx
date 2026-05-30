@@ -14,6 +14,7 @@ import {
   TextAreaField,
 } from "./app-shell-components";
 import { deriveCommunicationProviderReadinessUiState } from "./communication-provider-readiness-utils";
+import { buildCustomerPortalCommentDraft, deriveCustomerPortalCommandState } from "./customer-portal-command-utils";
 import { contactHistoryBadgeTone, createContactHistoryDraft, deriveCommunicationCenterState } from "./contact-history-utils";
 import { CONTACT_HISTORY_DIRECTIONS, CONTACT_HISTORY_METHODS, CONTACT_HISTORY_OUTCOMES } from "../shared/contactHistory.js";
 
@@ -63,6 +64,8 @@ export function CommunicationCenterPage({
   permissions,
   companyName,
   user,
+  canViewCustomerPortalPreview = false,
+  customerPortalPreviewState = {},
   busy = false,
   onCreateContactHistory = async () => false,
   onUpdateContactHistory = async () => false,
@@ -72,6 +75,15 @@ export function CommunicationCenterPage({
   onCreateCommunicationSuppression = async () => null,
   onCreateOutboundCommunicationApproval = async () => null,
   onPrepareCommunicationDeliveryAttemptContract = async () => null,
+  onGetCustomerPortalAccessRecords = async () => null,
+  onCreateCustomerPortalAccessRecord = async () => null,
+  onRevokeCustomerPortalAccessRecord = async () => null,
+  onGetCustomerPortalAccessPacket = async () => null,
+  onGetCustomerPortalShareApprovals = async () => null,
+  onCreateCustomerPortalShareApproval = async () => null,
+  onReviewCustomerPortalShareApproval = async () => null,
+  onPreflightCustomerPortalShareApproval = async () => null,
+  onPrepareCustomerPortalExecutionContract = async () => null,
   onSelectLead = () => {},
   onSelectCustomer = () => {},
   onSelectJob = () => {},
@@ -97,6 +109,16 @@ export function CommunicationCenterPage({
   const [message, setMessage] = useState("");
   const [providerReadinessPayload, setProviderReadinessPayload] = useState(null);
   const [providerReadinessStatus, setProviderReadinessStatus] = useState({ status: "idle", message: "" });
+  const [portalPayload, setPortalPayload] = useState({ accessRecords: [], shareApprovalRequests: [], executionContracts: [] });
+  const [portalStatus, setPortalStatus] = useState({ status: "idle", message: "" });
+  const [portalAccessDraft, setPortalAccessDraft] = useState(() => ({
+    estimateId: "",
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    approvalId: "OWNER-PORTAL-REVIEW",
+  }));
+  const [portalReviewNote, setPortalReviewNote] = useState("Customer portal packet reviewed for proposal, proof, progress, and change order visibility.");
+  const [portalComment, setPortalComment] = useState("");
+  const [portalPacketPreview, setPortalPacketPreview] = useState("");
   const isDesktopCommandViewport = useDesktopCommandViewport(1180);
   const centerState = useMemo(() => deriveCommunicationCenterState({
     leads,
@@ -161,6 +183,23 @@ export function CommunicationCenterPage({
       : []
   ), [centerState.records, selectedOption]);
   const providerReadinessState = useMemo(() => deriveCommunicationProviderReadinessUiState(providerReadinessPayload || {}), [providerReadinessPayload]);
+  const approvedEstimateOptions = useMemo(() => (
+    (Array.isArray(estimates) ? estimates : [])
+      .filter((estimate) => String(estimate?.status || "").toLowerCase() === "approved")
+      .map((estimate) => ({
+        id: estimate.id,
+        label: estimate.title || estimate.projectName || estimate.id,
+        customer: estimate.customer?.name || estimate.customerName || estimate.customer || "",
+      }))
+  ), [estimates]);
+  const portalCommandState = useMemo(() => deriveCustomerPortalCommandState({
+    previewState: customerPortalPreviewState,
+    accessRecords: portalPayload.accessRecords,
+    shareApprovalRequests: portalPayload.shareApprovalRequests,
+    executionContracts: portalPayload.executionContracts,
+    providerReadiness: providerReadinessPayload || {},
+    canPreview: canViewCustomerPortalPreview,
+  }), [canViewCustomerPortalPreview, customerPortalPreviewState, portalPayload, providerReadinessPayload]);
 
   useEffect(() => {
     if (!centerState.options.length) {
@@ -196,6 +235,17 @@ export function CommunicationCenterPage({
     if (!canView) return;
     loadCommunicationProviderReadiness();
   }, [canView]);
+
+  useEffect(() => {
+    if (!canView || !canViewCustomerPortalPreview) return;
+    loadCustomerPortalCommandCenter();
+  }, [canView, canViewCustomerPortalPreview]);
+
+  useEffect(() => {
+    const defaultEstimateId = customerPortalPreviewState?.preview?.estimateId || approvedEstimateOptions[0]?.id || "";
+    if (!defaultEstimateId) return;
+    setPortalAccessDraft((current) => current.estimateId ? current : { ...current, estimateId: defaultEstimateId });
+  }, [approvedEstimateOptions, customerPortalPreviewState?.preview?.estimateId]);
 
   if (!canView) {
     return AccessRestrictedComponent ? <AccessRestrictedComponent active="communications" user={user} permissions={permissions} setActive={() => {}} /> : <CommandPageFrame><StateCard title="Communications unavailable" description="This route is protected for your role." tone="amber" /></CommandPageFrame>;
@@ -237,6 +287,162 @@ export function CommunicationCenterPage({
     }
     setProviderReadinessStatus({ status: "error", message: "Communication readiness could not be loaded." });
     return null;
+  }
+
+  async function loadCustomerPortalCommandCenter() {
+    if (!canView || !canViewCustomerPortalPreview) return null;
+    setPortalStatus({ status: "loading", message: "Loading customer portal review workflow..." });
+    const [accessResult, shareResult] = await Promise.all([
+      onGetCustomerPortalAccessRecords(),
+      onGetCustomerPortalShareApprovals(),
+    ]);
+    if (accessResult?.accessRecords || shareResult?.shareApprovalRequests) {
+      setPortalPayload((current) => ({
+        ...current,
+        accessRecords: accessResult?.accessRecords || [],
+        shareApprovalRequests: shareResult?.shareApprovalRequests || [],
+      }));
+      setPortalStatus({ status: "ready", message: "Customer portal review workflow loaded." });
+      return { accessResult, shareResult };
+    }
+    setPortalStatus({ status: "error", message: "Customer portal workflow is locked or unavailable for this package/role." });
+    return null;
+  }
+
+  async function preparePortalAccessRecord(event) {
+    event.preventDefault();
+    if (!canManage || !canViewCustomerPortalPreview || !portalAccessDraft.estimateId) return;
+    const result = await onCreateCustomerPortalAccessRecord({
+      estimateId: portalAccessDraft.estimateId,
+      expiresAt: portalAccessDraft.expiresAt,
+      approvalId: portalAccessDraft.approvalId || "OWNER-PORTAL-REVIEW",
+    });
+    if (result?.accessRecord) {
+      setPortalPayload((current) => ({
+        ...current,
+        accessRecords: result.accessRecords || [result.accessRecord, ...(current.accessRecords || [])],
+      }));
+      setPortalStatus({ status: "ready", message: "Locked customer portal access record prepared. No public link, token, message, invoice, or payment was created." });
+    } else {
+      setPortalStatus({ status: "error", message: "Customer portal access record could not be prepared." });
+    }
+  }
+
+  async function revokePortalAccessRecord(accessRecordId) {
+    if (!canManage || !accessRecordId) return;
+    const result = await onRevokeCustomerPortalAccessRecord(accessRecordId, {
+      reason: "Owner/admin revoked this locked customer portal access record from Communication Center.",
+    });
+    if (result?.accessRecord) {
+      setPortalPayload((current) => ({
+        ...current,
+        accessRecords: result.accessRecords || current.accessRecords,
+      }));
+      setPortalStatus({ status: "ready", message: "Locked access record revoked. No customer-facing action was created." });
+    } else {
+      setPortalStatus({ status: "error", message: "Access record could not be revoked." });
+    }
+  }
+
+  async function previewPortalPacket(accessRecordId) {
+    if (!accessRecordId) return;
+    const result = await onGetCustomerPortalAccessPacket(accessRecordId);
+    if (result?.packet) {
+      setPortalPacketPreview(result.packet.packet || "");
+      setPortalStatus({ status: "ready", message: "Internal customer-safe packet loaded for owner/admin review." });
+    } else {
+      setPortalStatus({ status: "error", message: "Packet could not be loaded." });
+    }
+  }
+
+  async function requestPortalShareApproval(accessRecordId) {
+    if (!canManage || !accessRecordId) return;
+    const result = await onCreateCustomerPortalShareApproval(accessRecordId, {
+      note: portalReviewNote || "Owner/admin requested customer portal share review.",
+    });
+    if (result?.shareApprovalRequest) {
+      setPortalPayload((current) => ({
+        ...current,
+        shareApprovalRequests: result.shareApprovalRequests || [result.shareApprovalRequest, ...(current.shareApprovalRequests || [])],
+      }));
+      setPortalPacketPreview(result.packet?.packet || portalPacketPreview);
+      setPortalStatus({ status: "ready", message: "Share approval queued as locked evidence. No public link or customer message was sent." });
+    } else {
+      setPortalStatus({ status: "error", message: "Share approval could not be queued." });
+    }
+  }
+
+  async function reviewPortalShareApproval(shareApprovalId, decision) {
+    if (!canManage || !shareApprovalId) return;
+    const result = await onReviewCustomerPortalShareApproval(shareApprovalId, {
+      decision,
+      note: portalReviewNote || "Owner/admin reviewed the customer portal packet.",
+    });
+    if (result?.shareApprovalRequest) {
+      setPortalPayload((current) => ({
+        ...current,
+        shareApprovalRequests: result.shareApprovalRequests || current.shareApprovalRequests,
+      }));
+      setPortalStatus({ status: "ready", message: "Share approval decision recorded. External portal execution remains provider-ready and locked." });
+    } else {
+      setPortalStatus({ status: "error", message: "Share approval decision could not be recorded." });
+    }
+  }
+
+  async function preflightPortalShareApproval(shareApprovalId) {
+    if (!canManage || !shareApprovalId) return;
+    const result = await onPreflightCustomerPortalShareApproval(shareApprovalId, {
+      approvalPhrase: "TOKENIZED_CUSTOMER_PORTAL_SEPARATELY_APPROVED",
+    });
+    if (result?.preflight) {
+      setPortalStatus({ status: "ready", message: `${result.preflight.prerequisitesReady ? "Preflight evidence ready" : "Preflight still blocked"}. No customer portal action was enabled.` });
+    } else {
+      setPortalStatus({ status: "error", message: "External gate preflight could not be prepared." });
+    }
+  }
+
+  async function preparePortalExecutionContract(shareApprovalId) {
+    if (!canManage || !shareApprovalId) return;
+    const result = await onPrepareCustomerPortalExecutionContract(shareApprovalId, {
+      approvalPhrase: "TOKENIZED_CUSTOMER_PORTAL_SEPARATELY_APPROVED",
+      portalAction: "proposal_review",
+      approvedPortalBoundary: "Reviewed customer-visible proposal, proof, progress, and change-order packet only.",
+      customerVisibleFields: ["scope", "total", "proof summary", "progress summary", "reviewed change orders"],
+      idempotencyKey: `portal-contract:${shareApprovalId}:proposal_review`,
+    });
+    if (result?.executionContract) {
+      setPortalPayload((current) => ({
+        ...current,
+        executionContracts: result.executionContracts || [result.executionContract, ...(current.executionContracts || [])],
+      }));
+      setPortalStatus({ status: "ready", message: "Locked external execution contract recorded. No public route, token redemption, customer action, message, invoice, or payment was enabled." });
+    } else {
+      setPortalStatus({ status: "error", message: "Execution contract could not be prepared." });
+    }
+  }
+
+  async function recordPortalCustomerComment(event) {
+    event.preventDefault();
+    if (!canManage || !portalComment.trim()) return;
+    const target = portalCommandState.customerCommentTarget;
+    if (!target.entityType || !target.entityId) {
+      setPortalStatus({ status: "error", message: "Create or approve a proposal before recording portal customer comments." });
+      return;
+    }
+    const draftComment = buildCustomerPortalCommentDraft({
+      comment: portalComment,
+      preview: portalCommandState.preview,
+      user,
+    });
+    const didSave = await onCreateContactHistory({
+      ...draftComment,
+      entityType: target.entityType,
+      entityId: target.entityId,
+    });
+    if (didSave) {
+      setPortalComment("");
+      setPortalStatus({ status: "ready", message: "Customer portal comment recorded internally for owner/admin follow-up. Nothing was sent." });
+    }
   }
 
   async function submitCommunication(event) {
@@ -505,6 +711,155 @@ export function CommunicationCenterPage({
     );
   }
 
+  function renderCustomerPortalCommandCard({ compact = false } = {}) {
+    if (!canViewCustomerPortalPreview) {
+      return (
+        <Card className="co-communications-rules-card p-4">
+          <SectionHeader
+            title="Customer portal"
+            description="Provider-ready portal workflow is available for owner/admin Elite workspaces."
+            action={<Badge tone="amber">Needs package</Badge>}
+          />
+          <StateCard
+            title="Customer portal is package-gated"
+            description="Proposal packets, proof, comments, approvals, and send evidence stay internal until the workspace has the required package/provider setup."
+            tone="slate"
+          />
+        </Card>
+      );
+    }
+
+    return (
+      <Card className="co-communications-rules-card p-4">
+        <SectionHeader
+          title="Customer Portal Command"
+          description="Owner/admin workflow for proposal proof packets, expiring access records, share review, comments, and locked communication handoff."
+          action={<Button type="button" size="sm" variant="secondary" onClick={loadCustomerPortalCommandCenter} disabled={busy || portalStatus.status === "loading"}>Refresh</Button>}
+        />
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {portalCommandState.summaryCards.slice(0, compact ? 4 : 5).map((card) => (
+            <div key={card.id} className="co-ai-boundary-row" data-state={card.tone === "green" ? "safe" : card.tone === "amber" ? "manual" : "locked"}>
+              <span>{card.label}</span>
+              <strong>{card.value}</strong>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 grid gap-2">
+          {portalCommandState.boundaryRows.map((row) => (
+            <div key={row.label} className="co-ai-boundary-row" data-state={row.state}>
+              <span>{row.label}</span>
+              <strong>{row.value}</strong>
+            </div>
+          ))}
+        </div>
+        {portalStatus.message ? <p className="mt-3 text-xs font-bold text-slate-500">{portalStatus.message}</p> : null}
+
+        <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
+          <p className="text-xs font-black uppercase text-slate-500">Customer-safe packet candidate</p>
+          <p className="mt-2 break-words text-sm font-black text-slate-950">{portalCommandState.preview.estimateTitle || "Approved proposal pending"}</p>
+          <p className="mt-1 text-xs font-bold text-slate-500">{portalCommandState.preview.customer || "Customer pending"} / {portalCommandState.preview.estimateTotal || "$0"} / {portalCommandState.preview.jobStatus || "Job pending"}</p>
+          <div className="mt-3 grid gap-2">
+            {portalCommandState.readiness.slice(0, compact ? 3 : 4).map((item) => (
+              <div key={item.id} className="co-ai-boundary-row" data-state={item.ready ? "safe" : "manual"}>
+                <span>{item.label}</span>
+                <strong>{item.ready ? "Ready" : "Review"}</strong>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {canManage ? (
+          <form className="mt-3 grid gap-3 border-t border-slate-200 pt-3" onSubmit={preparePortalAccessRecord}>
+            <p className="text-xs font-black uppercase text-slate-500">Prepare expiring access record</p>
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+              <SelectField label="Approved proposal" value={portalAccessDraft.estimateId} onChange={(event) => setPortalAccessDraft((current) => ({ ...current, estimateId: event.target.value }))} disabled={busy || !approvedEstimateOptions.length}>
+                <option value="">Choose approved estimate</option>
+                {approvedEstimateOptions.map((estimate) => (
+                  <option key={estimate.id} value={estimate.id}>{estimate.label}{estimate.customer ? ` - ${estimate.customer}` : ""}</option>
+                ))}
+              </SelectField>
+              <InputField label="Expires at" value={portalAccessDraft.expiresAt} onChange={(event) => setPortalAccessDraft((current) => ({ ...current, expiresAt: event.target.value }))} disabled={busy} />
+            </div>
+            <InputField label="Approval reference" value={portalAccessDraft.approvalId} onChange={(event) => setPortalAccessDraft((current) => ({ ...current, approvalId: event.target.value }))} disabled={busy} />
+            <div className="co-communications-submit-row flex flex-wrap items-center gap-3">
+              <Button type="submit" size="sm" disabled={busy || !portalAccessDraft.estimateId || !portalAccessDraft.expiresAt}>Prepare access record</Button>
+              <p className="text-xs font-bold text-slate-500">Creates locked audit evidence only; no customer link, token, login, approval, message, invoice, or payment.</p>
+            </div>
+          </form>
+        ) : null}
+
+        {portalCommandState.accessRecords.length ? (
+          <div className="mt-3 grid gap-2">
+            <p className="text-xs font-black uppercase text-slate-500">Expiring access records</p>
+            {portalCommandState.accessRecords.slice(0, compact ? 2 : 4).map((record) => (
+              <div key={record.id} className="co-communications-log-row grid gap-3 p-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap gap-2">
+                    <Badge tone={record.tone}>{record.statusLabel}</Badge>
+                    <Badge tone="slate">{record.id}</Badge>
+                  </div>
+                  <p className="mt-2 break-words text-sm font-black text-slate-950">{record.customer || "Customer pending"}</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">Estimate {record.estimateId || "pending"} / expires {record.expiresLabel}</p>
+                </div>
+                <div className="co-communications-log-actions flex flex-wrap gap-2 lg:justify-end">
+                  <Button type="button" size="sm" variant="secondary" onClick={() => previewPortalPacket(record.id)} disabled={busy}>Packet</Button>
+                  {record.status === "prepared_locked" && canManage ? <Button type="button" size="sm" variant="secondary" onClick={() => requestPortalShareApproval(record.id)} disabled={busy}>Queue review</Button> : null}
+                  {record.status === "prepared_locked" && canManage ? <Button type="button" size="sm" variant="ghost" onClick={() => revokePortalAccessRecord(record.id)} disabled={busy}>Revoke</Button> : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        <div className="mt-3 grid gap-3 border-t border-slate-200 pt-3">
+          <TextAreaField label="Owner/admin review note" value={portalReviewNote} onChange={(event) => setPortalReviewNote(event.target.value)} disabled={busy || !canManage} />
+          {portalCommandState.shareApprovalRequests.length ? (
+            <div className="grid gap-2">
+              <p className="text-xs font-black uppercase text-slate-500">Share approval queue</p>
+              {portalCommandState.shareApprovalRequests.slice(0, compact ? 2 : 4).map((request) => (
+                <div key={request.id} className="co-communications-log-row grid gap-3 p-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap gap-2">
+                      <Badge tone={request.tone}>{request.statusLabel}</Badge>
+                      <Badge tone="slate">{request.id}</Badge>
+                    </div>
+                    <p className="mt-2 break-words text-sm font-black text-slate-950">{request.customerLabel}</p>
+                    <p className="mt-1 text-xs font-bold text-slate-500">{request.requestNote || "Portal packet review requested."}</p>
+                  </div>
+                  {canManage ? (
+                    <div className="co-communications-log-actions flex flex-wrap gap-2 lg:justify-end">
+                      {request.status === "requested_locked" ? <Button type="button" size="sm" variant="secondary" onClick={() => reviewPortalShareApproval(request.id, "ready_for_external_gate_review_locked")} disabled={busy}>Ready</Button> : null}
+                      {request.status === "requested_locked" ? <Button type="button" size="sm" variant="ghost" onClick={() => reviewPortalShareApproval(request.id, "changes_requested_locked")} disabled={busy}>Changes</Button> : null}
+                      {request.status === "requested_locked" ? <Button type="button" size="sm" variant="ghost" onClick={() => reviewPortalShareApproval(request.id, "rejected_locked")} disabled={busy}>Reject</Button> : null}
+                      {request.status === "ready_for_external_gate_review_locked" ? <Button type="button" size="sm" variant="secondary" onClick={() => preflightPortalShareApproval(request.id)} disabled={busy}>Preflight</Button> : null}
+                      {request.status === "ready_for_external_gate_review_locked" ? <Button type="button" size="sm" variant="secondary" onClick={() => preparePortalExecutionContract(request.id)} disabled={busy}>Contract</Button> : null}
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+
+        <form className="mt-3 grid gap-3 border-t border-slate-200 pt-3" onSubmit={recordPortalCustomerComment}>
+          <p className="text-xs font-black uppercase text-slate-500">Customer comment / approval review</p>
+          <TextAreaField label="Customer comment" value={portalComment} onChange={(event) => setPortalComment(event.target.value)} disabled={busy || !canManage} placeholder="Paste a customer comment, approval note, rejection reason, or change-order question for internal follow-up." />
+          <div className="co-communications-submit-row flex flex-wrap items-center gap-3">
+            <Button type="submit" size="sm" disabled={busy || !canManage || !portalComment.trim()}>Record comment</Button>
+            <p className="text-xs font-bold text-slate-500">Stored as internal contact history on the proposal/job; no portal action or message is sent.</p>
+          </div>
+        </form>
+
+        {portalPacketPreview ? (
+          <details className="mt-3">
+            <summary className="cursor-pointer text-sm font-black text-slate-700">Internal packet preview</summary>
+            <pre className="mt-3 max-h-72 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-700">{portalPacketPreview}</pre>
+          </details>
+        ) : null}
+      </Card>
+    );
+  }
+
   function renderCommunicationShellDetail(item) {
     const option = item?.option || selectedOption;
     const relatedRecords = item?.relatedRecords || selectedRelatedRecords;
@@ -569,6 +924,9 @@ export function CommunicationCenterPage({
               <StateCard title="No touches logged" description="Save the first manual communication note when the next call, text draft, or email draft is ready." tone="slate" />
             )}
           </div>
+        </section>
+        <section className="co-communications-detail-section">
+          {renderCustomerPortalCommandCard({ compact: true })}
         </section>
         <section className="co-communications-detail-section">
           {renderProviderReadinessCard({ compact: true })}
@@ -707,6 +1065,7 @@ export function CommunicationCenterPage({
                 compact
                 maxItems={8}
               /> : null}
+              {renderCustomerPortalCommandCard()}
               {renderProviderReadinessCard()}
               <Card className="co-communications-rules-card p-4">
                 <SectionHeader title="Manual communication rules" description="This phase is visibility and logging only." />

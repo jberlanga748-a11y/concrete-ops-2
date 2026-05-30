@@ -4,7 +4,7 @@ Last updated: 2026-05-30
 
 ## Current Phase
 
-Apex Agent Operator is completed, pushed, and deployed to production under the standing release approval. Next phase is Customer Portal + Communications.
+Customer Portal + Communications is implemented and locally verified. Commit, push, production deploy, hosted health check, and deploy-log update are in progress under the standing release approval. Next phase is Billing / Payments / Packages.
 
 ## Product North Star
 
@@ -41,7 +41,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | Core operations loop | Built | Owner/admin Operations Command now ties lead follow-up, estimates/proposals, approved-job handoff, schedule/crew setup, field proof, material prep, change orders, closeout, job costing, and billing readiness into one review-first next-action loop. |
 | Field Mode | Built | Field-safe mobile workflows now include the Field Day Finish command layer for today's job, clock/time, photos/proof, daily reports, delivery tickets, checklists, safety/PPE, change requests, PWA install readiness, and offline-draft planning. |
 | Apex Agent Operator | Built | Owner/admin AI Office now has one Apex Agent Operator command layer across new work, ads, follow-up, estimates, proposals, handoffs, closeout, billing readiness, reviews/referrals, Agent OS, action inbox, audit-backed review packets, learning, and external-action locks. |
-| Customer portal + communications | Provider-ready | Readiness contracts, access records, share approval, outbound approval, suppression, and delivery-attempt models exist. Real tokenized portal and live sends remain. |
+| Customer portal + communications | Built / Provider-ready | Owner/admin Communication Center now includes Customer Portal Command for customer-safe proposal/proof/change-order packet review, expiring/revocable access records, share approval decisions, customer comment capture, locked preflight/execution contracts, and human-reviewed email/SMS readiness. Live customer portal serving, token redemption, and provider sends remain provider/account-dependent. |
 | Billing/payments/packages | Provider-ready | Packages/entitlements/manual readiness exist. Stripe or chosen provider remains unconfigured. |
 | Integrations | Provider-dependent | Integration contracts should be built one provider at a time with settings, health, disabled states, tests, and audit trail. |
 | Scale/public launch | Partial | Demo/pilot gates exist. Public launch requires production auth, monitoring, backup/restore, managed data plan, support, legal/claims review, onboarding, pricing, and incident process. |
@@ -60,7 +60,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ### Next
 
-- Finish Customer Portal + Communications with tokenized customer-safe proposal/proof/change-order views, expiring/revocable links, comments, approval/rejection, human-reviewed email/SMS flow, and provider-not-configured states.
+- Finish Billing / Payments / Packages with Stripe or chosen-provider readiness, owner/admin billing settings, checkout/manual invoice flow, package-change audit, receipts/invoices, failure states, and field-user billing/margin protection.
 
 ### Later
 
@@ -174,6 +174,19 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - [x] Verify focused operator tests, Agent OS console smoke, jobs verification, role verification, build, diff check, and browser QA.
 - [x] Commit, push, deploy, hosted health-check, and record production deploy.
 
+## Completed Phase Checklist: Customer Portal + Communications
+
+- [x] Reuse existing customer portal preview, access record, share approval, public route contract, outbound approval, suppression, delivery-attempt, and communication center systems.
+- [x] Add owner/admin Customer Portal Command inside Communication Center.
+- [x] Show customer-safe proposal/proof/progress/change-order packet candidate and readiness.
+- [x] Prepare expiring/revocable internal access records without public links, raw tokens, customer sessions, messages, invoices, or payments.
+- [x] Queue and review customer portal share approval decisions.
+- [x] Prepare locked external gate preflight and execution-contract evidence without enabling customer-facing execution.
+- [x] Capture customer portal comments/approval/rejection notes as internal contact history.
+- [x] Keep human-reviewed email/SMS approval, suppression, and delivery-attempt contracts visible in the same workflow.
+- [x] Keep field users blocked from communications, portal command, estimates, pricing, and office/customer-send controls.
+- [x] Verify focused portal/communications tests, customer portal readiness, role verification, build, diff check, and browser QA.
+
 ## Completed / Frozen Systems
 
 - Demo auth and role permissions.
@@ -190,6 +203,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - Core Operations Loop review-first command layer tying lead-to-closeout workflows together without mutating records or exposing field users to office/money data.
 - Field Mode Finish mobile command layer that helps crews run the day from existing field tools without exposing office/money/growth data or hidden GPS.
 - Apex Agent Operator command layer that unifies the one product-facing Apex Agent across growth, sales, estimating, proposals, handoffs, closeout, billing readiness, reputation, Agent OS, and external-action locks.
+- Customer Portal + Communications command layer that ties customer-safe packet review, expiring/revocable access evidence, share approval decisions, comments, and human-reviewed email/SMS readiness into the existing Communication Center.
 
 ## Do-Not-Rebuild List
 
@@ -200,6 +214,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - Do not rebuild Core Operations Loop orchestration; extend the existing command center, jobs, proof, material prep, change order, and closeout review systems.
 - Do not rebuild Field Mode; extend the existing field workspace, jobs, time, proof, report, ticket, checklist, safety, change request, and PWA surfaces.
 - Do not rebuild Apex Agent/AI Office/Agent OS; extend the existing operator command layer, action inbox, assistant shell, and locked external gates.
+- Do not rebuild Customer Portal + Communications; extend the existing Communication Center, customer portal preview/access/share approval contracts, public route lock, outbound approval, suppression, and delivery-attempt systems.
 - Do not rebuild role/permission models.
 - Do not replace existing AI Office; extend it.
 
@@ -212,7 +227,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | Nextdoor/Yelp/Angi/HomeAdvisor-style marketplaces | Needs account/provider agreement | Track lead quality and marketplace fit manually until configured. |
 | Email/SMS provider | Needs account/API key | Drafts and approval queues only. No autonomous sends. |
 | Stripe/payment provider | Needs account/API key | Package readiness and payment prep only. No live payments. |
-| Customer portal link delivery | Needs tokenized route/provider | Internal preview and approval only. |
+| Customer portal live serving/link delivery | Needs tokenized route/provider | Internal command, packet preview, access records, share approvals, comments, preflight, and execution contracts are built. Public data serving, token redemption, customer actions, link delivery, and live email/SMS remain locked/provider-dependent. |
 
 ## Deploy Log
 
@@ -251,7 +266,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ## Next Phase
 
-Customer Portal + Communications after Apex Agent Operator production deploy is recorded.
+Billing / Payments / Packages after Customer Portal + Communications production deploy is recorded.
 
 ## Decision Log
 
@@ -270,6 +285,7 @@ Customer Portal + Communications after Apex Agent Operator production deploy is 
 | 2026-05-30 | Core Operations Loop composes existing modules instead of creating a new workflow engine. | Leads, estimates, jobs, schedule, proof, tickets, reports, change orders, material prep, and closeout review already existed. | Apex HQ now gives owner/admin users one next-action operations loop while preserving module ownership, tests, permissions, and review-first boundaries. |
 | 2026-05-30 | Field Mode Finish is a command/checklist layer over existing field tools, not a new field app or offline cache. | Field jobs, time, uploads, reports, tickets, checklists, safety, change requests, and PWA foundations already existed. | Crews now get a mobile Field Day Finish panel without exposing office/money/growth data, hidden GPS, or pretending offline drafts are done. |
 | 2026-05-30 | Apex Agent Operator is one command layer over existing AI Office and Agent OS, not a second assistant product. | Agent OS, Action Inbox, Growth Command Center, Estimate Studio, Operations Loop, closeout review, and Reputation Engine already existed. | Owner/admin users now see the finished Apex Agent loop while external actions remain locked/provider-ready and field users remain blocked. |
+| 2026-05-30 | Customer Portal + Communications lives in Communication Center instead of a separate app. | Contact history, provider readiness, suppressions, delivery-attempt contracts, and portal access/share approvals already existed there or adjacent to it. | Owner/admin users can review portal packets, approval decisions, comments, and send-readiness from one workflow while field users remain blocked and live portal/customer sends stay provider-dependent. |
 
 ## Growth Foundation Phase Report
 
@@ -815,3 +831,82 @@ Rollback note:
 Next recommended phase:
 
 - Customer Portal + Communications.
+
+## Customer Portal + Communications Phase Report
+
+Goal: finish the owner/admin customer portal and communications workflow so reviewed proposal/proof/progress/change-order packets, comments, approval decisions, and human-reviewed email/SMS readiness are usable from one safe command surface.
+
+What was already built:
+
+- Customer portal manual preview utilities, locked public route contract, internal access records, expiring/revocable lifecycle, packet builder, share approval queue/review, external gate preflight, external execution contracts, communication provider readiness, outbound approval queue, suppression records, and delivery-attempt contracts.
+- Communication Center, contact history, role-gated office route access, package entitlements, and field-user restrictions.
+
+What was completed now:
+
+- Added owner/admin Customer Portal Command inside Communication Center.
+- Added customer-safe packet summary and readiness for proposal, proof photos, progress updates, and reviewed change orders.
+- Added UI flow to prepare expiring access records, load internal packets, queue share review, record ready/changes/rejected decisions, revoke access records, run locked preflight, and prepare locked execution-contract evidence.
+- Added customer comment/approval/rejection capture as internal contact history on the proposal/job.
+- Added customer portal command state utility and focused tests.
+- Connected App API clients/handlers for the existing portal access, packet, share approval, preflight, and execution contract endpoints.
+- Kept human-reviewed email/SMS approval, suppression, provider-readiness, and delivery-attempt contracts visible in the same Communications workflow.
+
+Provider/account-dependent remaining:
+
+- Live public portal data serving, token redemption, customer sessions, customer comments from a public route, customer approvals/rejections from a public route, customer portal link delivery, live email/SMS sends, invoices, payment links, and payment collection remain provider/account-dependent and locked until dedicated provider setup and implementation are done.
+
+Affected files:
+
+- `docs/APEX_HQ_LIVING_FINISH_PLAN.md`
+- `src/App.jsx`
+- `src/api.js`
+- `src/communications-route-components.jsx`
+- `src/communications-page-shell.test.js`
+- `src/customer-portal-command-utils.js`
+- `src/customer-portal-command-utils.test.js`
+
+Validation results:
+
+- `node --test --test-concurrency=1 src/customer-portal-command-utils.test.js src/communications-page-shell.test.js src/customer-portal-preview-utils.test.js shared/communicationProviderReadiness.test.js` passed.
+- `node --test --test-concurrency=1 server/customer-portal-access-records.test.js src/customer-portal-command-utils.test.js src/communications-page-shell.test.js src/customer-portal-preview-utils.test.js shared/communicationProviderReadiness.test.js` passed.
+- `npm.cmd run verify:customer-portal-readiness` passed.
+- `npm.cmd run verify:roles` passed.
+- `npm.cmd run build` passed with existing large chunk warnings.
+- `git diff --check` passed with CRLF warnings only.
+
+Browser QA:
+
+- Admin desktop `/communications`: Communication Center, Customer Portal Command, Prepare access record, Provider readiness, Locked outbound approval, customer-safe packet candidate, and no horizontal overflow passed with no console errors or failed requests.
+- Employee mobile direct `/communications`: redirected to `/jobs`; Customer Portal Command, Communication Center, and pricing text hidden; no horizontal overflow.
+- Browser QA initially caught an app-level missing `customerPortalPreviewState` definition; fixed and re-ran successfully.
+
+Permissions impact:
+
+- No permission loosening.
+- Customer Portal Command uses existing `customerPortal.canPreview`, Elite/package gates, and owner/admin portal API restrictions.
+- Communication provider controls stay under contact-history permissions.
+- Field users remain blocked from communications, portal command, estimates, pricing, customer-send controls, office notes, billing, margins, profit, AI office controls, settings, and cross-company data.
+
+Field-user impact:
+
+- No field workflow changes. Field users stay in field-safe job workflows and cannot access portal/communications office controls.
+
+Mobile impact:
+
+- Employee mobile restricted-route behavior verified. Admin desktop command workflow verified; owner/admin mobile remains protected by the existing compact Communications fallback.
+
+Deploy version:
+
+- Pending production deploy.
+
+Health check:
+
+- Pending production `/api/ready` after deploy.
+
+Rollback note:
+
+- Revert the affected files listed above to remove the Communication Center Customer Portal Command and API client wiring without schema changes, data migration, provider changes, public route changes, or production data rollback.
+
+Next recommended phase:
+
+- Billing / Payments / Packages.

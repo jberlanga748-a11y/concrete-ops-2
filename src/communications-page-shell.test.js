@@ -42,6 +42,15 @@ test("Communications desktop shell is focused and avoids duplicate assistant rai
   assert.doesNotMatch(detailBlock, /Contact name/);
   assert.doesNotMatch(detailBlock, /CONTACT_HISTORY_METHODS/);
   assert.match(pageBlock, /deriveCommunicationProviderReadinessUiState/);
+  assert.match(pageBlock, /deriveCustomerPortalCommandState/);
+  assert.match(pageBlock, /Customer Portal Command/);
+  assert.match(pageBlock, /Prepare access record/);
+  assert.match(pageBlock, /Queue review/);
+  assert.match(pageBlock, /Ready/);
+  assert.match(pageBlock, /Preflight/);
+  assert.match(pageBlock, /Contract/);
+  assert.match(pageBlock, /Customer comment \/ approval review/);
+  assert.match(pageBlock, /Stored as internal contact history/);
   assert.match(pageBlock, /Record suppression/);
   assert.match(pageBlock, /No provider unsubscribe or customer message is sent/);
   assert.match(pageBlock, /Queue locked approval/);
