@@ -4,7 +4,7 @@ Last updated: 2026-05-30
 
 ## Current Phase
 
-Estimate Studio + Proposal Packets is completed locally and ready for production deploy under the standing release approval. Next phase is Core Operations Loop.
+Estimate Studio + Proposal Packets is completed, pushed, and deployed to production under the standing release approval. Next phase is Core Operations Loop.
 
 ## Product North Star
 
@@ -129,7 +129,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - [x] Verify phase tests, build, browser QA, and field safety.
 - [x] Commit, push, deploy, hosted health-check, and record production deploy.
 
-## Active Phase Checklist: Estimate Studio + Proposal Packets
+## Completed Phase Checklist: Estimate Studio + Proposal Packets
 
 - [x] Reuse existing Estimate Studio, estimate math, packet presets, PDF print model, GC packet lite, backup/SOV, sent snapshots, and handoff readiness.
 - [x] Add final proposal packet readiness state for customer packet, option comparison, terms/exclusions/assumptions, proof/takeoff backup, GC packet, send mode, and foreman handoff.
@@ -138,7 +138,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - [x] Add packet-mode final review summary without sending, converting, scheduling, billing, or changing field visibility.
 - [x] Keep field users blocked from estimates, packets, pricing, customer send controls, and office-only proposal work.
 - [x] Verify phase tests, build, browser QA, and field safety locally.
-- [ ] Commit, push, deploy, hosted health-check, and record production deploy.
+- [x] Commit, push, deploy, hosted health-check, and record production deploy.
 
 ## Completed / Frozen Systems
 
@@ -185,7 +185,8 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | 2026-05-30 | Sales Follow-Up System | `46a5a30` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `594` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
 | 2026-05-30 | Reputation + Portfolio Engine | `bc7aff2` pushed to `main` | Local QA at `http://127.0.0.1:4127` | Owner desktop `/ai-office` passed; employee mobile `/ai-office` redirected to `/jobs`; local browser errors `[]`. |
 | 2026-05-30 | Reputation + Portfolio Engine | `bc7aff2` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `595` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
-| 2026-05-30 | Estimate Studio + Proposal Packets | Pending commit | Local QA at `http://127.0.0.1:4130` | Owner desktop `/estimates` passed Final Proposal Packet Review; employee mobile `/estimates` redirected to `/jobs`; local browser errors `[]`. |
+| 2026-05-30 | Estimate Studio + Proposal Packets | `3ff622b` pushed to `main` | Local QA at `http://127.0.0.1:4130` | Owner desktop `/estimates` passed Final Proposal Packet Review; employee mobile `/estimates` redirected to `/jobs`; local browser errors `[]`. |
+| 2026-05-30 | Estimate Studio + Proposal Packets | `3ff622b` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `596` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
 
 ## Roadmap Queue
 
