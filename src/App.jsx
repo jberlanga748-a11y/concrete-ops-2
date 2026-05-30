@@ -26,6 +26,7 @@ import {
 import {
   deriveApexAssistantShellState,
 } from "./apex-assistant-shell-utils";
+import { deriveApexAgentOperatorState } from "./apex-agent-operator-utils";
 import { buildAgentActionProposalReviewAuditPayload, deriveAgentActionInbox, deriveAgentActionProposalAuditHistory, deriveAgentActionProposalQueue, deriveAgentActionProposalReviewState } from "./agent-action-proposal-utils";
 import {
   canRenderAgentOsConsole,
@@ -3350,6 +3351,14 @@ function CopilotPagePolished({
     agentWorkflowContext: aiOfficeWorkflowContext,
   }), [permissions, stats, opportunityScout, liveLeads, liveJobs, estimates, openQueueItems, liveDrafts, visibleReports, visibleUploads, timeEntries, changeOrderRequests, safetyIncidents, agentLearningPreferences, fieldOpsAgent, aiOfficeWorkflowContext]);
 
+  const agentOperatorCommandCenter = useMemo(() => deriveApexAgentOperatorState({
+    permissions,
+    agentCommandCenter,
+    growthCommandCenter,
+    reputationPortfolioEngine,
+    stats,
+  }), [agentCommandCenter, growthCommandCenter, permissions, reputationPortfolioEngine, stats]);
+
   function openAgentCommandTarget(target = {}) {
     if (target.recordType === "agentLearning") {
       document.getElementById("agent-learning-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -3464,6 +3473,14 @@ function CopilotPagePolished({
       return;
     }
     openModule(target.moduleId || "commandCenter");
+  }
+
+  function openAgentOperatorCommandTarget(command = {}) {
+    if (command.anchorId && command.moduleId === "copilot") {
+      document.getElementById(command.anchorId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    openModule(command.moduleId || "copilot");
   }
 
   const aiKpis = [
@@ -3718,6 +3735,43 @@ function CopilotPagePolished({
               </div>
             </div>
 
+            {agentOperatorCommandCenter.canView ? (
+              <div className="co-ai-operator-command-panel">
+                <div className="co-ai-operator-command-head">
+                  <div className="min-w-0">
+                    <span>Apex Agent Operator</span>
+                    <strong>{agentOperatorCommandCenter.summary}</strong>
+                  </div>
+                  {agentOperatorCommandCenter.nextCommand ? (
+                    <button type="button" className="co-ai-operator-next co-focus-ring" data-tone={agentOperatorCommandCenter.nextCommand.tone} onClick={() => openAgentOperatorCommandTarget(agentOperatorCommandCenter.nextCommand)}>
+                      <span>Next command</span>
+                      <strong>{agentOperatorCommandCenter.nextCommand.label}</strong>
+                      <em>{agentOperatorCommandCenter.nextCommand.actionLabel}</em>
+                    </button>
+                  ) : null}
+                </div>
+                <div className="co-ai-operator-command-grid">
+                  {agentOperatorCommandCenter.commands.map((command) => (
+                    <button key={command.id} type="button" className="co-ai-operator-command-card co-focus-ring" data-tone={command.tone} onClick={() => openAgentOperatorCommandTarget(command)}>
+                      <span>{command.label}</span>
+                      <strong>{command.status}</strong>
+                      <p>{command.helper}</p>
+                      <em>{command.providerState}</em>
+                    </button>
+                  ))}
+                </div>
+                <div className="co-ai-operator-boundaries">
+                  {agentOperatorCommandCenter.boundaryRows.map((row) => (
+                    <div key={row.id}>
+                      <span>{row.label}</span>
+                      <strong>{row.detail}</strong>
+                    </div>
+                  ))}
+                </div>
+                <p className="co-ai-operator-safety">{agentOperatorCommandCenter.blockedActions[0]}</p>
+              </div>
+            ) : null}
+
             <div className="co-ai-agent-workbench">
               <section className="co-ai-agent-workflow-panel">
                 <div className="co-ai-section-kicker">
@@ -3775,7 +3829,7 @@ function CopilotPagePolished({
           </Card>
 
           {growthCommandCenter.lanes.length ? (
-          <Card className="co-ai-main-board co-ai-scout-board overflow-hidden">
+          <Card id="growth-command-center" className="co-ai-main-board co-ai-scout-board overflow-hidden">
             <div className="co-ai-board-header border-b border-slate-200 bg-white p-4">
               <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                 <div className="min-w-0">
@@ -3827,7 +3881,7 @@ function CopilotPagePolished({
               </div>
             </div>
 
-            <div className="co-ai-scout-grid border-b border-slate-200 bg-slate-50/80">
+            <div id="growth-ads-advisor" className="co-ai-scout-grid border-b border-slate-200 bg-slate-50/80">
               <div className="co-ai-scout-status" data-tone={growthCommandCenter.ads.tone}>
                 <span>Ads spend advisor</span>
                 <strong>{growthCommandCenter.ads.recommendedDailyBudgetRange} daily test range</strong>
@@ -3873,7 +3927,7 @@ function CopilotPagePolished({
             </div>
 
             {reputationPortfolioEngine.canView ? (
-            <div className="co-ai-scout-grid bg-slate-50/80">
+            <div id="reputation-portfolio-engine" className="co-ai-scout-grid bg-slate-50/80">
               <div className="co-ai-scout-status" data-tone={reputationPortfolioEngine.stats.proofBlockers ? "amber" : "green"}>
                 <span>Reputation + Portfolio Engine</span>
                 <strong>{reputationPortfolioEngine.stats.storyCandidates} story candidate{reputationPortfolioEngine.stats.storyCandidates === 1 ? "" : "s"}</strong>

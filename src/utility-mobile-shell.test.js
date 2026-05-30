@@ -62,6 +62,14 @@ test("support, settings, employees, communications, and AI office keep mobile co
   );
   assert.match(
     cssSource,
+    /\.co-ai-office-page \.co-ai-operator-command-grid \{[\s\S]*display: flex;[\s\S]*overflow-x: auto;[\s\S]*scroll-snap-type: x proximity;/,
+  );
+  assert.match(
+    cssSource,
+    /\.co-ai-office-page \.co-ai-operator-command-card:nth-child\(n\+5\),[\s\S]*\.co-ai-office-page \.co-ai-operator-boundaries \{[\s\S]*display: none !important;/,
+  );
+  assert.match(
+    cssSource,
     /\.co-ai-office-page \.co-ai-kpi-grid > :nth-child\(n\+3\)[\s\S]*display: none !important;/,
   );
 });

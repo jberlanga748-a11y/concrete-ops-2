@@ -58,7 +58,7 @@
     "launch:postgres-cutover-readiness": "node scripts/postgres-production-cutover-readiness.mjs",
     "verify:opportunity-scout": "node --test --test-concurrency=1 server/opportunity-scout.test.js shared/opportunityScout.test.js shared/opportunityScoutAi.test.js src/opportunity-scout-utils.test.js src/navigation-utils.test.js",
     "verify:agent-learning": "node --test --test-concurrency=1 shared/agentLearningPreferences.test.js shared/leadAiAssistant.test.js shared/estimateRoughNotesAi.test.js server/agent-learning-preferences.test.js",
-    "verify:agent-os-console": "node --test --test-concurrency=1 scripts/agent-os-console-smoke.test.mjs src/agent-os-ui-utils.test.js && node scripts/agent-os-console-smoke.mjs --start-local --json",
+    "verify:agent-os-console": "node --test --test-concurrency=1 scripts/agent-os-console-smoke.test.mjs src/agent-os-ui-utils.test.js src/apex-agent-operator-utils.test.js && node scripts/agent-os-console-smoke.mjs --start-local --json",
     "verify:agent-os": "node --test --test-concurrency=1 shared/agentOperatingSystem.test.js server/agent-os.test.js && npm run verify:agent-os-console && npm run verify:agent-learning && npm run verify:roles && npm run verify:auth",
     "brief:founder-demo": "node scripts/founder-demo-brief.mjs",
     "verify:founder-demo": "node scripts/founder-demo-readiness.mjs && node --test --test-concurrency=1 scripts/founder-demo-brief.test.mjs && node scripts/founder-demo-brief.mjs --limit=5",

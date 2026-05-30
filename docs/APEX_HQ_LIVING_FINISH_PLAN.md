@@ -4,7 +4,7 @@ Last updated: 2026-05-30
 
 ## Current Phase
 
-Field Mode Finish is completed, pushed, and deployed to production under the standing release approval. Next phase is Apex Agent Operator.
+Apex Agent Operator is completed locally and ready for production deploy under the standing release approval. Next phase is Customer Portal + Communications after deploy and health-check are recorded.
 
 ## Product North Star
 
@@ -40,7 +40,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | Estimate Studio / proposals | Built | Estimate Studio, packets, PDF, options, customer-safe/internal packet separation, GC packet pieces, send-review gate, field-safe handoff, and final proposal packet review are built. Live email send still depends on configured provider and human confirmation. |
 | Core operations loop | Built | Owner/admin Operations Command now ties lead follow-up, estimates/proposals, approved-job handoff, schedule/crew setup, field proof, material prep, change orders, closeout, job costing, and billing readiness into one review-first next-action loop. |
 | Field Mode | Built | Field-safe mobile workflows now include the Field Day Finish command layer for today's job, clock/time, photos/proof, daily reports, delivery tickets, checklists, safety/PPE, change requests, PWA install readiness, and offline-draft planning. |
-| Apex Agent Operator | Partial | Agent OS/action inbox/readiness packets exist. Unified command center and provider boundaries need continued polish. |
+| Apex Agent Operator | Built | Owner/admin AI Office now has one Apex Agent Operator command layer across new work, ads, follow-up, estimates, proposals, handoffs, closeout, billing readiness, reviews/referrals, Agent OS, action inbox, audit-backed review packets, learning, and external-action locks. |
 | Customer portal + communications | Provider-ready | Readiness contracts, access records, share approval, outbound approval, suppression, and delivery-attempt models exist. Real tokenized portal and live sends remain. |
 | Billing/payments/packages | Provider-ready | Packages/entitlements/manual readiness exist. Stripe or chosen provider remains unconfigured. |
 | Integrations | Provider-dependent | Integration contracts should be built one provider at a time with settings, health, disabled states, tests, and audit trail. |
@@ -60,7 +60,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ### Next
 
-- Finish Apex Agent Operator so one command center helps owner/admin users find new work, plan ads, follow up, draft estimates, prepare proposals, prep handoffs, review closeout, prepare billing readiness, and request reviews/referrals with provider-ready external-action boundaries.
+- Finish Customer Portal + Communications with tokenized customer-safe proposal/proof/change-order views, expiring/revocable links, comments, approval/rejection, human-reviewed email/SMS flow, and provider-not-configured states.
 
 ### Later
 
@@ -162,6 +162,18 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - [x] Verify focused field/mobile tests, jobs verification, role verification, PWA guardrail test, build, diff check, and browser QA.
 - [x] Commit, push, deploy, hosted health-check, and record production deploy.
 
+## Completed Phase Checklist: Apex Agent Operator
+
+- [x] Reuse existing AI Office, Apex Assistant shell, Agent OS console, Agent Action Inbox, Growth Command Center, Estimate Studio, Core Operations Loop, Field Ops Agent, closeout billing review, and Reputation + Portfolio Engine.
+- [x] Add one owner/admin Apex Agent Operator command layer across find new work, plan ads, follow up, draft estimates, prepare proposals, prep job handoffs, review closeout, prepare billing readiness, and request reviews/referrals.
+- [x] Route every command into existing Apex HQ workflows instead of bypassing review screens.
+- [x] Keep provider-ready boundaries visible for ads, customer sends, billing/payments, portal shares, bids, schedules, integrations, and other external actions.
+- [x] Keep no autonomous ad spend, customer contact, bid submission, invoice/payment, provider write, schedule mutation, crew notification, production data, secret, package, billing provider, hidden GPS, or field visibility action from this operator layer.
+- [x] Keep field users blocked from Apex Agent Operator, AI Office, office commands, growth, estimates, money, settings, and other private office controls.
+- [x] Add mobile-safe command layout for admin/owner AI Office without overflow.
+- [x] Verify focused operator tests, Agent OS console smoke, jobs verification, role verification, build, diff check, and browser QA.
+- [ ] Commit, push, deploy, hosted health-check, and record production deploy.
+
 ## Completed / Frozen Systems
 
 - Demo auth and role permissions.
@@ -177,6 +189,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - Estimate Studio final proposal packet review, customer/internal packet separation, option comparison readiness, provider-ready send review, and field-safe handoff readiness.
 - Core Operations Loop review-first command layer tying lead-to-closeout workflows together without mutating records or exposing field users to office/money data.
 - Field Mode Finish mobile command layer that helps crews run the day from existing field tools without exposing office/money/growth data or hidden GPS.
+- Apex Agent Operator command layer that unifies the one product-facing Apex Agent across growth, sales, estimating, proposals, handoffs, closeout, billing readiness, reputation, Agent OS, and external-action locks.
 
 ## Do-Not-Rebuild List
 
@@ -186,6 +199,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - Do not rebuild Estimate Studio or PDF packets.
 - Do not rebuild Core Operations Loop orchestration; extend the existing command center, jobs, proof, material prep, change order, and closeout review systems.
 - Do not rebuild Field Mode; extend the existing field workspace, jobs, time, proof, report, ticket, checklist, safety, change request, and PWA surfaces.
+- Do not rebuild Apex Agent/AI Office/Agent OS; extend the existing operator command layer, action inbox, assistant shell, and locked external gates.
 - Do not rebuild role/permission models.
 - Do not replace existing AI Office; extend it.
 
@@ -217,6 +231,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | 2026-05-30 | Core Operations Loop | `08a4864` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `598` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
 | 2026-05-30 | Field Mode Finish | `27a2725` pushed to `main` | Local QA at `http://127.0.0.1:4142` | Employee mobile `/field` passed Field Day Finish with no office/money/growth terms; foreman mobile `/field` passed daily report/change request; employee direct `/command-center` redirected to `/jobs`; local browser errors `[]`. |
 | 2026-05-30 | Field Mode Finish | `27a2725` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `599` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
+| 2026-05-30 | Apex Agent Operator | Pending commit | Local QA at `http://127.0.0.1:4148` | Owner/admin desktop `/ai-office` passed all 9 Apex Agent Operator commands; admin mobile `/ai-office` passed compact operator layout with no overflow; employee mobile `/ai-office` redirected to `/jobs` with operator/ads/billing text hidden; local browser errors `[]`. |
 
 ## Roadmap Queue
 
@@ -235,7 +250,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ## Next Phase
 
-Apex Agent Operator after Field Mode Finish production deploy is recorded.
+Customer Portal + Communications after Apex Agent Operator production deploy is recorded.
 
 ## Decision Log
 
@@ -253,6 +268,7 @@ Apex Agent Operator after Field Mode Finish production deploy is recorded.
 | 2026-05-30 | Estimate Studio finish work extends the existing packet and print system instead of rebuilding it. | Estimate math, PDF packets, GC packet lite, backup/SOV, sent snapshots, and handoff readiness already exist. | Apex HQ now gives owner/admin users a final proposal packet review that ties customer packet readiness, options, proof, GC notes, send mode, and field-safe handoff together without exposing office-only content or triggering external actions. |
 | 2026-05-30 | Core Operations Loop composes existing modules instead of creating a new workflow engine. | Leads, estimates, jobs, schedule, proof, tickets, reports, change orders, material prep, and closeout review already existed. | Apex HQ now gives owner/admin users one next-action operations loop while preserving module ownership, tests, permissions, and review-first boundaries. |
 | 2026-05-30 | Field Mode Finish is a command/checklist layer over existing field tools, not a new field app or offline cache. | Field jobs, time, uploads, reports, tickets, checklists, safety, change requests, and PWA foundations already existed. | Crews now get a mobile Field Day Finish panel without exposing office/money/growth data, hidden GPS, or pretending offline drafts are done. |
+| 2026-05-30 | Apex Agent Operator is one command layer over existing AI Office and Agent OS, not a second assistant product. | Agent OS, Action Inbox, Growth Command Center, Estimate Studio, Operations Loop, closeout review, and Reputation Engine already existed. | Owner/admin users now see the finished Apex Agent loop while external actions remain locked/provider-ready and field users remain blocked. |
 
 ## Growth Foundation Phase Report
 
@@ -731,3 +747,70 @@ Rollback note:
 Next recommended phase:
 
 - Apex Agent Operator.
+
+## Apex Agent Operator Phase Report
+
+Goal: make the one product-facing Apex Agent feel finished for owner/admin users by coordinating the full contractor loop from AI Office without bypassing existing workflows or unlocking external actions.
+
+What was already built:
+
+- Apex Assistant shell, AI Office, Agent OS console, Agent Action Inbox, audit-backed proposal/action packets, contractor advisor, Agent Leads/Daily Job Finder readiness, Growth Command Center, Estimate Studio packet prep, Core Operations Loop, closeout billing review, Field Ops Agent, and Reputation + Portfolio Engine.
+
+What was completed now:
+
+- Added an Apex Agent Operator state layer with nine fixed contractor commands: find new work, plan ads, follow up, draft estimates, prepare proposals, prep job handoffs, review closeout, prepare billing readiness, and request reviews/referrals.
+- Added owner/admin AI Office operator panel that shows the next command, all nine commands, provider-ready states, and external-action boundaries.
+- Added mobile-safe admin/owner AI Office operator layout with compact visible commands and horizontal-safe cards.
+- Added focused tests for owner/admin command coverage, field-role blocking, quiet-day provider-ready behavior, and mobile CSS guardrails.
+- Added the new operator utility test to `verify:agent-os-console`.
+
+Provider/account-dependent remaining:
+
+- Live ad account reporting/publishing, email/SMS sends, customer portal link delivery, payment processing, bid submission, schedule/crew external sends, and integration writes remain locked/provider-ready until their dedicated phases and configured providers exist.
+
+Affected files:
+
+- `docs/APEX_HQ_LIVING_FINISH_PLAN.md`
+- `package.json`
+- `src/App.jsx`
+- `src/apex-agent-operator-utils.js`
+- `src/apex-agent-operator-utils.test.js`
+- `src/index.css`
+- `src/utility-mobile-shell.test.js`
+
+Validation results:
+
+- `node --test --test-concurrency=1 src/apex-agent-operator-utils.test.js src/ai-office-utils.test.js src/utility-mobile-shell.test.js src/apex-assistant-shell-utils.test.js src/agent-action-proposal-utils.test.js` passed.
+- `npm.cmd run verify:agent-os-console` passed, including local Agent OS console smoke and employee denial.
+- `npm.cmd run verify:jobs` passed.
+- `npm.cmd run verify:roles` passed.
+- `npm.cmd run build` passed with existing large chunk warnings.
+- `git diff --check` passed with CRLF warnings only.
+
+Browser QA:
+
+- Owner/admin desktop `/ai-office`: Apex Agent Operator, all nine operator commands, next command, external-action boundary, Agent Command Center, 9 operator cards, 4 boundary rows, no horizontal overflow, no console errors, and no failed requests.
+- Admin mobile `/ai-office`: Apex Agent Operator visible with compact first 4 commands, hidden after fourth for short mobile surface, no horizontal overflow, no console errors, and no failed requests.
+- Employee mobile `/ai-office`: redirected to `/jobs`; Apex Agent Operator, Plan ads, Prepare billing readiness, and AI Office text hidden; no horizontal overflow.
+
+Permissions impact:
+
+- No permission loosening.
+- Operator layer is office-only and uses existing AI Office/office module route boundaries.
+- Field users remain blocked from operator commands, growth, estimates, money, settings, AI Office, and private office controls.
+
+Field-user impact:
+
+- No field workflow changes. Employee direct-route behavior remains field-safe.
+
+Mobile impact:
+
+- Admin/owner AI Office gets a compact operator command surface. Field mobile remains restricted to field work.
+
+Rollback note:
+
+- Revert the affected files listed above to remove the Apex Agent Operator panel and state utility without schema changes, data migration, provider changes, or production data rollback.
+
+Next recommended phase:
+
+- Customer Portal + Communications.
