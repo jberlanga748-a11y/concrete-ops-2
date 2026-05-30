@@ -4,7 +4,7 @@ Last updated: 2026-05-30
 
 ## Current Phase
 
-Integrations is in verification/release. Next phase is Scale + Public Launch after production deploy evidence is recorded.
+Integrations is completed, pushed, and deployed to production under the standing release approval. Next phase is Scale + Public Launch.
 
 ## Product North Star
 
@@ -284,7 +284,8 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | 2026-05-30 | Customer Portal + Communications | `9b9ea0c` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `601` started in `sjc`; service check passing; `/api/ready` OK on both domains with database OK. |
 | 2026-05-30 | Billing / Payments / Packages | `5169b4d` pushed to `main` | Local QA at `http://127.0.0.1:4162` | Admin desktop `/settings` passed Billing / Payments / Packages Command, provider readiness, blocked money actions, receipt/failure states, and no overflow/errors; employee mobile `/settings` redirected to `/jobs` with billing/payment/package command text hidden. |
 | 2026-05-30 | Billing / Payments / Packages | `5169b4d` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `603` started in `sjc`; service check passing; `/api/ready` OK on both domains with database OK. |
-| 2026-05-30 | Integrations | Pending commit | Local QA at `http://127.0.0.1:4168` | Admin desktop `/settings` passed Integrations Command, provider board, QuickBooks/Gmail/Calendar/Twilio readiness, no frontend secrets, locked writes, built inbound contracts, and no overflow/errors; employee mobile `/settings` redirected to `/jobs` with integration/provider text hidden. |
+| 2026-05-30 | Integrations | `c10a273` pushed to `main` | Local QA at `http://127.0.0.1:4168` | Admin desktop `/settings` passed Integrations Command, provider board, QuickBooks/Gmail/Calendar/Twilio readiness, no frontend secrets, locked writes, built inbound contracts, and no overflow/errors; employee mobile `/settings` redirected to `/jobs` with integration/provider text hidden. |
+| 2026-05-30 | Integrations | `c10a273` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `604` started in `sjc`; service check passing; `/api/ready` OK on both domains with database OK. |
 
 ## Roadmap Queue
 
@@ -467,11 +468,13 @@ Mobile impact:
 
 Deploy version:
 
-- Pending production deploy.
+- `c10a273` deployed to Fly machine `148e06e2b53d68` version `604`.
 
 Health check:
 
-- Pending production deploy.
+- `https://app.apexhq.online/api/ready` OK.
+- `https://concrete-ops-2.fly.dev/api/ready` OK.
+- Fly service check `servicecheck-00-http-4000` passing.
 
 Rollback note:
 
