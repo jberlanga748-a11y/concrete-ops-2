@@ -4,6 +4,14 @@ import process from "node:process";
 const DEFAULT_PASSWORD_ENV = "APEX_SMOKE_PASSWORD";
 const DEFAULT_BASE_URL = "https://concrete-ops-demo.fly.dev/";
 const PRODUCTION_HOSTS = new Set(["app.apexhq.online", "concrete-ops-2.fly.dev"]);
+const FIELD_RESTRICTED_API_EXPECTATIONS = [
+  { path: "/api/customers", expectedStatus: 403 },
+  { path: "/api/users", expectedStatus: 403 },
+  { path: "/api/estimates", expectedStatus: 403 },
+  { path: "/api/export/company", expectedStatus: 403 },
+  { path: "/api/owner-health", expectedStatus: 403 },
+];
+
 const SAFE_DEFAULT_ROLES = ["admin", "employee"];
 const SAFE_DEFAULT_FLOWS = ["health", "routes", "auth", "restricted-routes"];
 const DEFAULT_MAX_READY_MS = 10_000;
@@ -16,15 +24,14 @@ const ROLE_CONFIGS = {
     restrictedApiExpectations: [],
     routes: ["/", "/command-center", "/ai-office", "/jobs", "/reports", "/uploads", "/schedule", "/customers", "/employees", "/estimates", "/support"],
   },
+  foreman: {
+    email: "demo.foreman@apexhq.app",
+    restrictedApiExpectations: FIELD_RESTRICTED_API_EXPECTATIONS,
+    routes: ["/", "/jobs", "/field", "/time", "/reports", "/uploads", "/ppe", "/pre-pour", "/post-pour", "/support"],
+  },
   employee: {
     email: "demo.employee@apexhq.app",
-    restrictedApiExpectations: [
-      { path: "/api/customers", expectedStatus: 403 },
-      { path: "/api/users", expectedStatus: 403 },
-      { path: "/api/estimates", expectedStatus: 403 },
-      { path: "/api/export/company", expectedStatus: 403 },
-      { path: "/api/owner-health", expectedStatus: 403 },
-    ],
+    restrictedApiExpectations: FIELD_RESTRICTED_API_EXPECTATIONS,
     routes: ["/", "/jobs", "/time", "/reports", "/uploads", "/ppe", "/pre-pour", "/post-pour", "/support"],
   },
 };
@@ -40,15 +47,16 @@ Usage:
 
 Defaults:
   --base-url=${DEFAULT_BASE_URL}
-  --roles=admin,employee
+  --roles=admin,foreman,employee
   --flows=health,routes,auth,restricted-routes,agent
   --password-env=${DEFAULT_PASSWORD_ENV}
 
 Flags:
   --base-url=<url>              Hosted app URL to check.
-  --roles=admin,employee        Roles to check.
+  --roles=admin,foreman,employee Roles to check.
   --flows=health,routes,auth,restricted-routes,agent
   --admin-email=<email>         Admin login email.
+  --foreman-email=<email>       Foreman login email.
   --employee-email=<email>      Employee login email.
   --password-env=<name>         Env var containing smoke password.
   --allow-auth                  Permit login/bootstrap checks. Login creates a session/audit side effect.
@@ -83,6 +91,7 @@ function parseArgs(argv) {
     passwordEnv: DEFAULT_PASSWORD_ENV,
     roleEmails: {
       admin: ROLE_CONFIGS.admin.email,
+      foreman: ROLE_CONFIGS.foreman.email,
       employee: ROLE_CONFIGS.employee.email,
     },
     allowAuth: false,
@@ -119,6 +128,8 @@ function parseArgs(argv) {
       options.passwordEnv = arg.slice("--password-env=".length).trim();
     } else if (arg.startsWith("--admin-email=")) {
       options.roleEmails.admin = arg.slice("--admin-email=".length).trim();
+    } else if (arg.startsWith("--foreman-email=")) {
+      options.roleEmails.foreman = arg.slice("--foreman-email=".length).trim();
     } else if (arg.startsWith("--employee-email=")) {
       options.roleEmails.employee = arg.slice("--employee-email=".length).trim();
     } else if (arg.startsWith("--max-ready-ms=")) {
@@ -236,7 +247,7 @@ async function checkRoutes(options, results) {
   for (const role of options.roles) {
     ROLE_CONFIGS[role].routes.forEach((routePath) => routeSet.add(routePath));
   }
-  if (options.roles.includes("employee")) {
+  if (options.roles.some((role) => ROLE_CONFIGS[role].restrictedApiExpectations.length > 0)) {
     OFFICE_ROUTES.forEach((routePath) => routeSet.add(routePath));
   }
 
@@ -318,20 +329,21 @@ async function checkAuth(options, results) {
 }
 
 async function checkRestrictedRoutes(options, sessions, results) {
-  const employeeSession = sessions.get("employee");
-  if (!employeeSession) return;
-
-  for (const expectation of ROLE_CONFIGS.employee.restrictedApiExpectations) {
-    const result = await requestJson(routeUrl(options.baseUrl, expectation.path), {
-      headers: employeeSession.headers,
-    });
-    assertStatus(result, expectation.expectedStatus, `employee ${expectation.path}`);
-    results.checks.push({
-      flow: "restricted-routes",
-      role: "employee",
-      endpoint: expectation.path,
-      status: result.response.status,
-    });
+  for (const role of options.roles) {
+    const session = sessions.get(role);
+    if (!session) continue;
+    for (const expectation of ROLE_CONFIGS[role].restrictedApiExpectations) {
+      const result = await requestJson(routeUrl(options.baseUrl, expectation.path), {
+        headers: session.headers,
+      });
+      assertStatus(result, expectation.expectedStatus, `${role} ${expectation.path}`);
+      results.checks.push({
+        flow: "restricted-routes",
+        role,
+        endpoint: expectation.path,
+        status: result.response.status,
+      });
+    }
   }
 }
 

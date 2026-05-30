@@ -24,7 +24,9 @@ test("production auth smoke workflow uses approved production URLs and productio
   assert.match(text, /https:\/\/app\.apexhq\.online/);
   assert.match(text, /https:\/\/concrete-ops-2\.fly\.dev/);
   assert.match(text, /--allow-production-auth/);
+  assert.match(text, /--roles=admin,foreman,employee/);
   assert.match(text, /smoke\.admin@apexhq\.app/);
+  assert.match(text, /smoke\.foreman@apexhq\.app/);
   assert.match(text, /smoke\.employee@apexhq\.app/);
 });
 

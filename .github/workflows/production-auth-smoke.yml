@@ -103,7 +103,7 @@ jobs:
           APEX_PRODUCTION_SMOKE_PASSWORD: ${{ secrets.APEX_PRODUCTION_SMOKE_PASSWORD }}
         run: |
           set -o pipefail
-          npm run smoke:hosted -- --base-url="$BASE_URL" --allow-auth --allow-production-auth --password-env=APEX_PRODUCTION_SMOKE_PASSWORD --admin-email=smoke.admin@apexhq.app --employee-email=smoke.employee@apexhq.app --json | tee production-auth-smoke-output.txt
+          npm run smoke:hosted -- --base-url="$BASE_URL" --allow-auth --allow-production-auth --password-env=APEX_PRODUCTION_SMOKE_PASSWORD --roles=admin,foreman,employee --admin-email=smoke.admin@apexhq.app --foreman-email=smoke.foreman@apexhq.app --employee-email=smoke.employee@apexhq.app --json | tee production-auth-smoke-output.txt
           node scripts/hosted-smoke-summary.mjs production-auth-smoke-output.txt "Production auth hosted smoke"
 
       - name: Report production auth smoke failure
