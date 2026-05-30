@@ -12,18 +12,57 @@ Use **Apex HQ** for all user-facing product language. Legacy technical names may
 
 Read these before starting major work:
 
-1. `docs/APEX_HQ_CANONICAL_SOURCE_OF_TRUTH.md` - first-read workspace, transition, archive, and no-loop file.
-2. `README.md` - current app/deploy/runtime overview.
-3. `docs/APEX_HQ_LIVING_FINISH_PLAN.md` - current user-request memory, deploy log, and phase memory.
-4. `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` - active tool-by-tool finish plan.
-5. `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` - historical done/next/do-not-rebuild inventory; verify against the living plan.
-6. `APEX_HQ_MASTER_ROADMAP.md` - detailed technical/product backlog.
-7. `APEX_HQ_MASTER_CHECKLIST.md` - historical pilot status and day-one checklist.
-8. `.agents/APEX_WORKSTREAMS.md` - existing workstream split.
-9. `.agents/APEX_STATUS.md` - legacy handoff board; stale until refreshed against the canonical file.
-10. `docs/APEX_HQ_ROADMAP.md` - organized master coordinator roadmap.
-11. `docs/AGENT_OPERATING_MODEL.md` - agent roles and rules.
-12. Codex skills under `C:\Users\jberl\.codex\skills`, especially `apex-finished-vision`.
+1. `AGENTS.md` - mandatory repo operating contract for every Apex HQ chat.
+2. `.agents/skills/apex-codex-operator/SKILL.md` - Codex behavior contract for how to work with Josh on this project.
+3. `docs/APEX_HQ_CANONICAL_SOURCE_OF_TRUTH.md` - first-read workspace, transition, archive, and no-loop file.
+4. `README.md` - current app/deploy/runtime overview.
+5. `docs/APEX_HQ_LIVING_FINISH_PLAN.md` - current user-request memory, deploy log, and phase memory.
+6. `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` - active tool-by-tool finish plan.
+7. `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` - historical done/next/do-not-rebuild inventory; verify against the living plan.
+8. `APEX_HQ_MASTER_ROADMAP.md` - detailed technical/product backlog.
+9. `APEX_HQ_MASTER_CHECKLIST.md` - historical pilot status and day-one checklist.
+10. `.agents/APEX_WORKSTREAMS.md` - existing workstream split.
+11. `.agents/APEX_STATUS.md` - legacy handoff board; stale until refreshed against the canonical file.
+12. `docs/APEX_HQ_ROADMAP.md` - organized master coordinator roadmap.
+13. `docs/AGENT_OPERATING_MODEL.md` - agent roles and rules.
+14. Codex skills under `C:\Users\jberl\.codex\skills`, especially `apex-finished-vision`.
+
+## Codex Working Contract
+
+Every Apex HQ chat must start from this contract without Josh having to restate it. Apex HQ is one active project in `C:\Users\jberl\Documents\New project`; archive/reference folders are not active build targets unless explicitly named.
+
+Codex must:
+
+- read this `AGENTS.md` before acting in the repo
+- use `.agents/skills/apex-codex-operator` first for work style, then route to the Apex skill that matches the task
+- treat Apex skills as working roles, not decorative labels
+- answer direct questions directly before taking action
+- do no file, browser, test, git, deploy, or production work when Josh only asks a question
+- act decisively when Josh clearly asks for work: inspect the real app/files, implement the needed fix, validate it, and report
+- stay on the requested workflow, phase, or page; do not broaden into unrelated checklists
+- preserve frozen phases and avoid rebuilding working systems
+- inspect the real UI visually when asked about UI/UX, not only import tests or text assertions
+- inspect generated PDFs visually when asked about PDF quality, not only PDF text tests
+- distinguish clearly between what was actually verified and what was not
+- keep company separation, auth/account safety, field-private data boundaries, and no accidental live irreversible external actions
+- remove unnecessary friction only inside those baseline protections
+- never touch another active phase/thread's files unless Josh explicitly asks
+- stop and ask only when the next step is impossible or risky without approval
+
+Interpret Josh's wording this way:
+
+- "Can you..." or "why..." is a question unless it clearly asks for action.
+- "Go through", "fix", "build", "audit", "click around", "make sure", or "do what needs to be done" is action.
+- "Next" means continue the current documented Apex HQ phase from the canonical/living plan using the proper Apex skills.
+- If Josh says a previous response missed the point, acknowledge it, correct course, and do the exact requested thing without defending the old path.
+
+When acting, Codex should follow this execution loop:
+
+1. Load the required repo instructions and relevant Apex skills.
+2. Inspect the current active code/app state first.
+3. Make the smallest complete change that solves the real issue.
+4. Validate with focused tests, role checks, build, browser/mobile/PDF visual checks as relevant.
+5. Report affected files, results, risks, permissions impact, rollback path, and next recommended phase when phase work was requested.
 
 ## Master Coordinator Rule
 

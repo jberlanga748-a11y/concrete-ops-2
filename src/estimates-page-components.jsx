@@ -20,9 +20,12 @@ import { DEFAULT_COMPANY_NAME } from "./brand-utils";
 import { CommandCenterKpiCard, ModuleKpiStrip } from "./command-center-route-components";
 import { createEmptySovRow, deriveEstimateBackup, mergeEstimateBackup } from "./estimate-backup-utils";
 import {
+  ESTIMATE_PROPOSAL_TYPE_OPTIONS,
   INITIAL_ESTIMATE_FORM,
+  applyEstimateProposalTypeToDraft,
   createEstimateDraft,
   createEstimateLineItemDraft,
+  getEstimateProposalTypeOption,
   mergeEstimateRoughNotesIntoDraft,
 } from "./estimate-draft-utils";
 import { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
@@ -308,7 +311,27 @@ export function EstimatesPagePolished({
     () => visibleLeads.find((lead) => lead.id === detailDraft.leadId) || selectedEstimate?.lead || null,
     [detailDraft.leadId, selectedEstimate?.lead, visibleLeads],
   );
+  const createCustomer = useMemo(
+    () => visibleCustomers.find((customer) => customer.id === createDraft.customerId) || null,
+    [createDraft.customerId, visibleCustomers],
+  );
+  const createLead = useMemo(
+    () => visibleLeads.find((lead) => lead.id === createDraft.leadId) || null,
+    [createDraft.leadId, visibleLeads],
+  );
   const estimatePrimaryTrade = detailDraft.trade || detailLead?.trade || selectedEstimate?.lead?.trade || createDraft.trade || companyPrimaryTrade;
+  const createEstimatePreview = useMemo(() => ({
+    ...createDraft,
+    id: "draft-preview",
+    createdAt: "",
+    updatedAt: "",
+    createdByName: user?.name || "Estimator",
+    items: Array.isArray(createDraft.items) ? createDraft.items : [],
+    customer: createCustomer || (createDraft.customerName ? { name: createDraft.customerName, email: createDraft.customerEmail } : null),
+    lead: createLead,
+  }), [createCustomer, createDraft, createLead, user?.name]);
+  const createProposalType = getEstimateProposalTypeOption(createDraft.proposalPacketType);
+  const canPreviewCreateEstimate = Boolean(createEstimatePreview.title && (createEstimatePreview.customer?.name || createEstimatePreview.leadId));
   const detailEstimatePreview = useMemo(() => {
     if (!selectedEstimate) return null;
     return {
@@ -674,16 +697,130 @@ export function EstimatesPagePolished({
     setPacketCustomizationNotice("Saved packet brand default applied.");
   }
 
+  function applyCreateProposalType(typeId) {
+    const selectedType = getEstimateProposalTypeOption(typeId);
+    const preset = getEstimatePacketPreset(selectedType.packetPresetId);
+    setCreateDraft((current) => applyEstimateProposalTypeToDraft(current, selectedType.id, {
+      includeGcPacket: canUseGcPackets,
+    }));
+    setPacketPresetId(preset.id);
+    setPacketSectionIds(preset.sectionIds);
+    setPacketCustomizationNotice(`${selectedType.label} packet selected for preview and print.`);
+  }
+
+  function renderCreateProposalTypeChooser() {
+    const previewSections = deriveEstimateProposalSections(createEstimatePreview);
+    const readyPreviewSections = [
+      previewSections.scopeOfWork ? "Scope" : "",
+      previewSections.inclusions ? "Inclusions" : "",
+      previewSections.exclusions ? "Exclusions" : "",
+      previewSections.assumptions ? "Assumptions" : "",
+      previewSections.customerNotes ? "Terms" : "",
+    ].filter(Boolean);
+    return (
+      <div className="rounded-3xl border border-blue-100 bg-blue-50/60 p-3">
+        <SectionHeader
+          title="Proposal / Estimate Type"
+          description="Choose the packet you are building before pricing: residential, commercial, or GC."
+          action={<Badge tone="blue">{createProposalType.label}</Badge>}
+        />
+        <div className="mt-3 grid gap-3 md:grid-cols-3">
+          {ESTIMATE_PROPOSAL_TYPE_OPTIONS.map((option) => {
+            const active = createProposalType.id === option.id;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => applyCreateProposalType(option.id)}
+                className={`min-w-0 rounded-2xl border p-3 text-left transition ${active ? "border-orange-300 bg-orange-50 shadow-panel" : "border-blue-100 bg-white hover:border-blue-200 hover:bg-blue-50/50"}`}
+                aria-pressed={active}
+              >
+                <span className={`text-xs font-black uppercase tracking-[0.16em] ${active ? "text-orange-700" : "text-slate-500"}`}>
+                  {active ? "Selected" : "Start with"}
+                </span>
+                <span className="mt-1 block text-base font-black text-slate-950">{option.label}</span>
+                <span className="mt-1 block text-sm font-semibold leading-5 text-slate-600">{option.description}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => onPrintEstimate?.(createEstimatePreview, {
+              ...packetPrintSettings,
+              allowInternalSections: false,
+            })}
+            disabled={!canPreviewCreateEstimate}
+          >
+            Print / save PDF
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => copyEstimateText(
+              () => buildEstimateCustomerMessage({
+                companyName,
+                companyProfile,
+                estimate: createEstimatePreview,
+              }),
+              "Draft proposal message copied.",
+            )}
+            disabled={!canPreviewCreateEstimate}
+          >
+            Copy proposal message
+          </Button>
+        </div>
+        {!canPreviewCreateEstimate ? (
+          <p className="mt-2 text-xs font-bold text-slate-500">Add a customer/company and title to preview or print the proposal packet.</p>
+        ) : null}
+        {canPreviewCreateEstimate ? (
+          <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">PDF / print preview</p>
+                <h3 className="mt-1 text-lg font-black text-slate-950">{createEstimatePreview.title}</h3>
+                <p className="mt-1 text-sm font-semibold text-slate-600">
+                  {createEstimatePreview.customer?.name || "Customer pending"} / {getEstimatePacketPreset(createProposalType.packetPresetId).label}
+                </p>
+              </div>
+              <Badge tone="green">{formatEstimateCurrency(createOptionTotals.totalWithSelectedOptions)}</Badge>
+            </div>
+            <div className="mt-3 grid gap-2 md:grid-cols-3">
+              <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Packet</p>
+                <p className="mt-1 text-sm font-bold text-slate-800">{createProposalType.description}</p>
+              </div>
+              <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Visible sections</p>
+                <p className="mt-1 text-sm font-bold text-slate-800">{readyPreviewSections.join(", ") || "Add scope sections"}</p>
+              </div>
+              <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Safe output</p>
+                <p className="mt-1 text-sm font-bold text-slate-800">Customer packet excludes internal notes, margin, payroll, and private backup.</p>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
   function focusNewEstimate() {
     setEstimateViewMode("create");
     setSelectedEstimateId("");
-    setCreateDraft(createEstimateDraft({
+    setCreateDraft(applyEstimateProposalTypeToDraft(createEstimateDraft({
       ...INITIAL_ESTIMATE_FORM,
       customerId: singleCustomerId,
       customerName: singleCustomerName,
       customerEmail: singleCustomerEmail,
-    }));
+    }), INITIAL_ESTIMATE_FORM.proposalPacketType, { includeGcPacket: canUseGcPackets }));
+    const preset = getEstimatePacketPreset(getEstimateProposalTypeOption(INITIAL_ESTIMATE_FORM.proposalPacketType).packetPresetId);
+    setPacketPresetId(preset.id);
+    setPacketSectionIds(preset.sectionIds);
     setActiveEstimateTool("create");
+    setEstimateShellMode("create");
     setShowEstimateTools(true);
     window.setTimeout(() => newEstimateRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
@@ -938,9 +1075,14 @@ export function EstimatesPagePolished({
     setEstimateShellMode(nextMode);
   }
 
-  function openFullEstimateToolsPlaceholder(toolLabel = "full estimate tools") {
-    setShowEstimateTools(false);
-    showCopyFeedback(`The ${toolLabel} shell mode is read-only in Slice 2A. Use the existing full estimate tools path for real edits; no estimate was changed, sent, priced, or converted.`, 7000);
+  function openEstimateShellMode(mode = "overview") {
+    setEstimateShellMode(mode);
+    if (mode === "create") {
+      setEstimateViewMode("create");
+      setSelectedEstimateId("");
+    } else {
+      setEstimateViewMode("browse");
+    }
   }
 
   const estimateShellKpis = [
@@ -1056,7 +1198,19 @@ export function EstimatesPagePolished({
     || estimateShellQueue.find((item) => item.estimate?.id === selectedEstimate?.id)
     || estimateShellQueue[0]
     || null;
-  const selectedEstimateShellItem = estimateShellFallbackItem
+  const createEstimateShellItem = estimateShellMode === "create"
+    ? {
+      id: "new-estimate-workspace",
+      title: "New Estimate",
+      description: "Create a new owner/admin estimate.",
+      eyebrow: "Owner/admin workspace",
+      status: "Ready",
+      statusLabel: "Ready",
+      tone: "orange",
+    }
+    : null;
+  const selectedEstimateShellItem = createEstimateShellItem
+    || estimateShellFallbackItem
     || (selectedEstimate ? buildEstimateShellItem(selectedEstimate, "estimate", 120) : null);
   const estimateShellSelectedId = selectedEstimateShellItem?.id || "";
   const estimateShellAssistantDescription = approvedHandoffRows.length
@@ -1072,19 +1226,20 @@ export function EstimatesPagePolished({
     { label: "Review Handoff", icon: "check", onClick: () => selectEstimateShellEstimate(approvedHandoffRows[0], "handoff"), disabled: !approvedHandoffRows.length },
   ];
   const estimateShellQuickActions = [
-    { id: "new-estimate", label: "New Estimate", icon: "plus", onClick: () => openFullEstimateToolsPlaceholder("New Estimate"), disabled: !canManage },
+    { id: "new-estimate", label: "New Estimate", icon: "plus", onClick: () => openEstimateShellMode("create"), disabled: !canManage },
     { id: "ready-send", label: "Ready Send", icon: "arrowUpRight", onClick: () => selectEstimateShellEstimate(readyToSendRows[0], "sendReview"), disabled: !readyToSendRows.length },
     { id: "handoff", label: "Handoff", icon: "check", onClick: () => selectEstimateShellEstimate(approvedHandoffRows[0], "handoff"), disabled: !approvedHandoffRows.length },
   ];
   const estimateShellModes = [
     { id: "overview", label: "Overview", title: "Overview", manages: "proposal readiness, current totals, contact status, packet readiness, and handoff context." },
-    { id: "pricing", label: "Pricing", title: "Pricing Mode", manages: "future line item pricing review, options totals, taxes, fees, and price readiness." },
-    { id: "proposal", label: "Proposal", title: "Proposal Mode", manages: "future proposal sections, inclusions, exclusions, assumptions, alternates, and customer-facing scope." },
-    { id: "backup", label: "Backup", title: "Backup / SOV Mode", manages: "future internal backup rows, SOV notes, takeoff references, and office-only estimate support." },
+    { id: "create", label: "New Estimate", title: "New Estimate", manages: "new estimate creation from customer, lead, notes, pricing, proposal sections, and packet backup." },
+    { id: "pricing", label: "Pricing", title: "Pricing Mode", manages: "line item pricing review, options totals, taxes, fees, and price readiness." },
+    { id: "proposal", label: "Proposal", title: "Proposal Mode", manages: "proposal sections, inclusions, exclusions, assumptions, alternates, and customer-facing scope." },
+    { id: "backup", label: "Backup", title: "Backup / SOV Mode", manages: "internal backup rows, SOV notes, takeoff references, and office-only estimate support." },
     { id: "packet", label: "Packet", title: "Packet Mode", manages: "GC packet settings, print sections, branded customer packet readiness, and internal bid review." },
-    { id: "roughNotes", label: "Rough Notes", title: "Rough Notes Mode", manages: "future review-first AI rough notes drafting without automatic pricing, approval, or customer output." },
+    { id: "roughNotes", label: "Rough Notes", title: "Rough Notes Mode", manages: "AI rough notes drafting for proposal language and packet setup." },
     { id: "takeoff", label: "Takeoff", title: "Takeoff Mode", manages: "fence takeoff, estimate-grade quantities, local draft quantity review, and office backup context." },
-    { id: "visualPreview", label: "Visual Preview", title: "Visual Preview Mode", manages: "review-first customer concept prompt readiness without generation, sends, or estimate mutation." },
+    { id: "visualPreview", label: "Visual Preview", title: "Visual Preview Mode", manages: "customer concept prompt readiness from estimate scope and proof backup." },
     { id: "sendReview", label: "Send Review", title: "Send Review Mode", manages: "explicit human-confirmed customer proposal send review, manual copy fallback, customer-facing print readiness, and sent status." },
     { id: "handoff", label: "Handoff", title: "Handoff Mode", manages: "approved estimate-to-job handoff checks, field-safe print review, and explicit human-confirmed conversion." },
   ];
@@ -1121,6 +1276,11 @@ export function EstimatesPagePolished({
   }
 
   function renderEstimateShellDetail(item) {
+    const activeShellMode = estimateShellModes.find((mode) => mode.id === estimateShellMode) || estimateShellModes[0];
+    if (activeShellMode.id === "create") {
+      return renderEstimateShellCreateMode();
+    }
+
     const estimate = item?.estimate || selectedEstimate;
     if (!estimate) {
       return <StateCard title="No estimate selected" description="Select a proposal from the priority queue to review readiness, total, contact, packet, and handoff context." tone="slate" />;
@@ -1136,8 +1296,9 @@ export function EstimatesPagePolished({
       canUseGcPackets,
     });
     const status = String(estimate?.status || "draft").trim().toLowerCase();
+    const workspaceMode = readiness.approvedHandoff ? "handoff" : readiness.readyToSend ? "sendReview" : readiness.hasPricing ? "proposal" : "pricing";
     const safeActions = [
-      { id: "full-tools", label: "Open Full Tools", onClick: () => openFullEstimateToolsPlaceholder("Full estimate tools") },
+      { id: "open-workspace", label: "Open Workspace", onClick: () => openEstimateShellMode(workspaceMode) },
       { id: "select-send", label: "Review Send Ready", variant: "secondary", onClick: () => selectEstimateShellEstimate(readyToSendRows[0]), disabled: !readyToSendRows.length },
       { id: "select-handoff", label: "Review Handoff", variant: "secondary", onClick: () => selectEstimateShellEstimate(approvedHandoffRows[0]), disabled: !approvedHandoffRows.length },
     ];
@@ -1147,15 +1308,14 @@ export function EstimatesPagePolished({
       readiness.hasScope,
       readiness.hasPricing,
     ].filter(Boolean).length;
-    const nextSafeAction = readiness.approvedHandoff
-      ? "Review approved estimate-to-job handoff in the full workflow before creating any job."
+    const nextAction = readiness.approvedHandoff
+      ? "Open handoff and create the draft job when the owner/admin review is ready."
       : readiness.readyToSend
-        ? "Open the full send review workflow before any customer email or manual send."
+        ? "Open send review for copy, print, or configured email confirmation."
         : readiness.missing.length
-          ? `Resolve ${readiness.missing.slice(0, 3).join(", ")} before sending or converting.`
-          : "Keep reviewing proposal context before any external action.";
-    const activeShellMode = estimateShellModes.find((mode) => mode.id === estimateShellMode) || estimateShellModes[0];
-    const isFocusedShellEditMode = ["pricing", "proposal", "backup", "packet", "roughNotes", "takeoff", "visualPreview", "sendReview", "handoff"].includes(activeShellMode.id);
+          ? `Finish ${readiness.missing.slice(0, 3).join(", ")}.`
+          : "Open the workspace mode you need next.";
+    const isFocusedShellEditMode = ["create", "pricing", "proposal", "backup", "packet", "roughNotes", "takeoff", "visualPreview", "sendReview", "handoff"].includes(activeShellMode.id);
     const visibleEstimateShellModes = isFocusedShellEditMode
       ? estimateShellModes.filter((mode) => mode.id === "overview" || mode.id === activeShellMode.id)
       : estimateShellModes;
@@ -1219,6 +1379,117 @@ export function EstimatesPagePolished({
     const handoffPermissionNote = permissions?.estimates?.canManage && !canCreateJobsFromShell
       ? "You can manage estimates, but creating jobs requires job-create permission."
       : "";
+
+    function renderEstimateShellCreateMode() {
+      return (
+        <div className="co-estimates-shell-detail-scroll">
+          <div className="co-apex-selected-record">
+            <Badge tone="orange">Owner/admin workspace</Badge>
+            <h2>New Estimate</h2>
+            <p>Create the estimate here from a customer, lead, rough scope, pricing, proposal sections, and packet backup.</p>
+          </div>
+          <div className="co-estimates-shell-workflow-panel co-estimates-shell-create-panel" role="region" aria-label="New estimate workspace">
+            <div className="co-estimates-shell-workflow-head">
+              <div>
+                <Badge tone="green">Ready to create</Badge>
+                <h3>Estimate Details</h3>
+                <p>Owner/admin estimate creation is active in this workspace. Required fields are customer/company name or linked record plus a title.</p>
+              </div>
+              <StatusBadge status={estimateStatusLabel(createDraft.status || "draft")} />
+            </div>
+            {canManage ? (
+              <>
+                {renderCreateProposalTypeChooser()}
+                <div className="grid gap-3 md:grid-cols-2">
+                  <InputField label="Customer / company name" value={createDraft.customerName} onChange={(event) => setCreateDraft((current) => updateDraftLinkFields(current, { customerName: event.target.value }))} placeholder="Martinez Concrete LLC" />
+                  <SelectField label="Customer" value={createDraft.customerId} onChange={(event) => setCreateDraft((current) => updateDraftLinkFields(current, { customerId: event.target.value }))}>
+                    <option value="">Select a customer</option>
+                    {visibleCustomers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
+                  </SelectField>
+                  <SelectField label="Lead" value={createDraft.leadId} onChange={(event) => setCreateDraft((current) => updateDraftLinkFields(current, { leadId: event.target.value }))}>
+                    <option value="">Optional linked lead</option>
+                    {visibleLeads.map((lead) => <option key={lead.id} value={lead.id}>{`${lead.customer} - ${lead.project}`}</option>)}
+                  </SelectField>
+                  <InputField label="Customer email / Send estimate to" value={createDraft.customerEmail} onChange={(event) => setCreateDraft((current) => ({ ...current, customerEmail: event.target.value }))} placeholder="customer@example.com" />
+                  <InputField label="Title" value={createDraft.title} onChange={(event) => setCreateDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Martinez driveway proposal" />
+                  <SelectField label="Starting status" value={createDraft.status} onChange={(event) => setCreateDraft((current) => ({ ...current, status: event.target.value }))}>
+                    {["draft", "sent", "approved", "rejected"].map((option) => <option key={option} value={option}>{estimateStatusLabel(option)}</option>)}
+                  </SelectField>
+                  <InputField label="Tax rate (%)" value={createDraft.taxRate} onChange={(event) => setCreateDraft((current) => ({ ...current, taxRate: event.target.value }))} placeholder="Optional" inputMode="decimal" />
+                  <InputField label="Fees total" value={createDraft.feesTotal} onChange={(event) => setCreateDraft((current) => ({ ...current, feesTotal: event.target.value }))} placeholder="Optional" inputMode="decimal" />
+                </div>
+                <div className="mt-3 grid gap-3">
+                  <EstimateStarterPanel setDraft={setCreateDraft} normalizeDraft={createEstimateDraft} disabled={busy} tradeId={estimatePrimaryTrade} />
+                  <EstimateProposalSectionsEditor draft={createDraft} setDraft={setCreateDraft} disabled={busy} />
+                  <EstimateBackupEditor draft={createDraft} setDraft={setCreateDraft} disabled={busy} />
+                  {canUseGcPackets ? <EstimateGcPacketLiteEditor draft={createDraft} setDraft={setCreateDraft} disabled={busy} /> : null}
+                </div>
+                <div className="mt-4 space-y-3">
+                  <SectionHeader title="Line items" description="Add the pricing rows the proposal should use." />
+                  {createDraft.items.map((lineItem, index) => (
+                    <div key={lineItem.id} className="co-estimates-line-card rounded-2xl border p-3">
+                      <div className="grid gap-3 md:grid-cols-[minmax(0,1.6fr)_110px_110px_130px]">
+                        <InputField label={`Description ${index + 1}`} value={lineItem.description} onChange={(event) => updateDraftItem(setCreateDraft, index, "description", event.target.value)} placeholder="Scope, prep, cleanup, or finish work" />
+                        <InputField label="Qty" value={lineItem.quantity} onChange={(event) => updateDraftItem(setCreateDraft, index, "quantity", event.target.value)} inputMode="decimal" />
+                        <InputField label="Unit" value={lineItem.unit} onChange={(event) => updateDraftItem(setCreateDraft, index, "unit", event.target.value)} />
+                        <InputField label="Unit price" value={lineItem.unitPrice} onChange={(event) => updateDraftItem(setCreateDraft, index, "unitPrice", event.target.value)} inputMode="decimal" />
+                      </div>
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                        <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Line total: {formatEstimateCurrency(calculateEstimateLineTotal(lineItem))}</p>
+                        <button type="button" className="text-xs font-black uppercase tracking-[0.16em] text-slate-500 hover:text-slate-950" onClick={() => removeDraftItem(setCreateDraft, index)}>Remove item</button>
+                      </div>
+                    </div>
+                  ))}
+                  <Button type="button" variant="secondary" onClick={() => appendDraftItem(setCreateDraft)}>Add line item</Button>
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                  <StatCard title="Subtotal" value={formatEstimateCurrency(createTotals.subtotal)} />
+                  <StatCard title="Tax" value={formatEstimateCurrency(createTotals.taxTotal || 0)} />
+                  <StatCard title="Fees" value={formatEstimateCurrency(createTotals.feesTotal || 0)} />
+                  <StatCard title="Selected options" value={formatEstimateCurrency(createOptionTotals.selectedOptionsTotal)} />
+                  <StatCard title="Total" value={formatEstimateCurrency(createOptionTotals.totalWithSelectedOptions)} />
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    onClick={async () => {
+                      const created = await onCreateEstimate(createDraft);
+                      if (created) {
+                        const createdId = typeof created === "object" ? created.id : "";
+                        const createdTitle = typeof created === "object" ? (created.title || createDraft.title) : createDraft.title;
+                        setEstimateViewMode("browse");
+                        setEstimateShellMode("overview");
+                        setStatusFilter("Draft");
+                        setCustomerFilter("All customers");
+                        setLeadFilter("All leads");
+                        setCreatorFilter("All creators");
+                        setArchiveFilter("Active");
+                        setSearch("");
+                        if (createdId) setSelectedEstimateId(createdId);
+                        setCreateDraft(createEstimateDraft({
+                          ...INITIAL_ESTIMATE_FORM,
+                          customerId: singleCustomerId,
+                          customerName: singleCustomerName,
+                          customerEmail: singleCustomerEmail,
+                        }));
+                        showCopyFeedback(`Draft created: ${createdTitle}. It is selected in the Estimates list.`, 7000);
+                      }
+                    }}
+                    disabled={busy || (!createDraft.customerId && !createDraft.leadId && !createDraft.customerName) || !createDraft.title}
+                  >
+                    Create New Estimate
+                  </Button>
+                  <Button type="button" variant="secondary" onClick={() => openEstimateShellMode("overview")}>Back to Overview</Button>
+                </div>
+              </>
+            ) : (
+              <StateCard title="Estimate creation unavailable" description="This role can review estimates but cannot create new pricing records." tone="slate" />
+            )}
+          </div>
+          {copyFeedback ? <p className="co-estimates-shell-feedback">{copyFeedback}</p> : null}
+        </div>
+      );
+    }
 
     async function handleSaveEstimateShellPricing() {
       if (!selectedEstimate?.id || !canManage || typeof onSaveEstimate !== "function") return false;
@@ -1578,22 +1849,22 @@ export function EstimatesPagePolished({
           <div className="co-estimates-shell-workflow-panel co-estimates-shell-packet-panel" role="region" aria-label="Estimate packet readiness">
             <div className="co-estimates-shell-workflow-head">
               <div>
-                <Badge tone="slate">Locked</Badge>
+                <Badge tone="slate">Setup needed</Badge>
                 <h3>Packet Readiness</h3>
-                <p>GC packet settings require the proper estimate packet entitlement. This shell keeps packet readiness read-only for this package.</p>
+                <p>GC packet settings require the proper estimate packet entitlement. Customer proposal packet work remains available.</p>
               </div>
               <StatusBadge status={estimateStatusLabel(status)} />
             </div>
             <div className="co-estimates-shell-packet-readiness-grid">
               <span><em>Preset</em><strong>{packetPrintSettings.presetLabel}</strong></span>
               <span><em>Customer Sections</em><strong>{packetCustomerSections.length}</strong></span>
-              <span><em>Bid Notes</em><strong>Locked</strong></span>
+              <span><em>Bid Notes</em><strong>Setup needed</strong></span>
               <span><em>Print Readiness</em><strong>{packetPrintReady ? "Ready context" : "Needs review"}</strong></span>
               <span><em>Final Review</em><strong>{proposalFinishState.stats.readyRows} / {proposalFinishState.stats.totalRows}</strong></span>
             </div>
             <div className="co-estimates-shell-packet-lock">
-              <strong>Packet tools unavailable for this package.</strong>
-              <span>Customer proposal readiness remains visible, but bid note editing, office-only sections, and packet saves stay blocked.</span>
+              <strong>Packet tools need setup.</strong>
+              <span>Upgrade or enable the estimate packet entitlement to edit GC bid notes and office packet sections.</span>
             </div>
             <div className="co-estimates-shell-workflow-actions">
               <Button type="button" variant="secondary" onClick={() => setEstimateShellMode("overview")}>Return to overview</Button>
@@ -1608,7 +1879,7 @@ export function EstimatesPagePolished({
             <div>
               <Badge tone={canManage ? "violet" : "slate"}>{canManage ? "Packet readiness" : "Read only"}</Badge>
               <h3>Packet Settings / Bid Readiness</h3>
-              <p>Review the packet preset, included sections, and GC-facing bid notes. This screen does not send, convert, generate AI output, change takeoff, or hand off the job.</p>
+              <p>Review the packet preset, included sections, and GC-facing bid notes.</p>
             </div>
             <StatusBadge status={estimateStatusLabel(status)} />
           </div>
@@ -1664,15 +1935,15 @@ export function EstimatesPagePolished({
           <div className="co-estimates-shell-workflow-panel co-estimates-shell-rough-notes-panel" role="region" aria-label="Estimate rough notes AI readiness">
             <div className="co-estimates-shell-workflow-head">
               <div>
-                <Badge tone="slate">Locked</Badge>
+                <Badge tone="slate">Setup needed</Badge>
                 <h3>Rough Notes AI</h3>
                 <p>AI Rough Notes requires proposal tools entitlement and an office role that can manage estimates.</p>
               </div>
               <StatusBadge status={estimateStatusLabel(status)} />
             </div>
             <div className="co-estimates-shell-packet-lock">
-              <strong>Review-first AI unavailable.</strong>
-              <span>Field users remain blocked from estimates and pricing. No rough notes generation, send, convert, takeoff, handoff, or pricing save runs here.</span>
+              <strong>AI notes need setup.</strong>
+              <span>Enable proposal tools for this workspace to generate rough-note suggestions.</span>
             </div>
             <div className="co-estimates-shell-workflow-actions">
               <Button type="button" variant="secondary" onClick={() => setEstimateShellMode("overview")}>Return to overview</Button>
@@ -1685,9 +1956,9 @@ export function EstimatesPagePolished({
         <div className="co-estimates-shell-workflow-panel co-estimates-shell-rough-notes-panel" role="region" aria-label="Estimate rough notes AI suggestions">
           <div className="co-estimates-shell-workflow-head">
             <div>
-              <Badge tone="orange">Review-first AI</Badge>
+              <Badge tone="orange">AI Notes</Badge>
               <h3>Rough Notes AI</h3>
-              <p>Generate review-only proposal and GC packet suggestions. Applying suggestions fills the selected draft locally; it does not save, send, price, convert, takeoff, or hand off work.</p>
+              <p>Generate proposal and GC packet suggestions, then apply them to the selected estimate draft.</p>
             </div>
             <StatusBadge status={estimateStatusLabel(status)} />
           </div>
@@ -1714,15 +1985,15 @@ export function EstimatesPagePolished({
           <div className="co-estimates-shell-workflow-panel co-estimates-shell-takeoff-panel" role="region" aria-label="Estimate takeoff readiness">
             <div className="co-estimates-shell-workflow-head">
               <div>
-                <Badge tone="slate">Locked</Badge>
+                <Badge tone="slate">Owner/admin needed</Badge>
                 <h3>Takeoff</h3>
                 <p>Takeoff tools require an office role that can manage estimates.</p>
               </div>
               <StatusBadge status={estimateStatusLabel(status)} />
             </div>
             <div className="co-estimates-shell-packet-lock">
-              <strong>Estimate takeoff unavailable.</strong>
-              <span>Field users remain blocked from estimates and pricing. No takeoff, pricing, send, convert, or handoff action runs here.</span>
+              <strong>Estimate takeoff needs office access.</strong>
+              <span>Use an owner/admin or estimator account to edit takeoff quantities.</span>
             </div>
             <div className="co-estimates-shell-workflow-actions">
               <Button type="button" variant="secondary" onClick={() => setEstimateShellMode("overview")}>Return to overview</Button>
@@ -1735,7 +2006,7 @@ export function EstimatesPagePolished({
         <div className="co-estimates-shell-workflow-panel co-estimates-shell-takeoff-panel" role="region" aria-label="Estimate takeoff editor">
           <div className="co-estimates-shell-workflow-head">
             <div>
-              <Badge tone="green">Review-first takeoff</Badge>
+              <Badge tone="green">Takeoff editor</Badge>
               <h3>Takeoff</h3>
               <p>Draw or manually add estimate-grade quantities. Apply Quantities updates the local draft only; Save persists reviewed draft fields through the existing estimate save path.</p>
             </div>
@@ -1769,7 +2040,7 @@ export function EstimatesPagePolished({
                 {canRequestEstimateVisualPreview(visualPreviewPacket) ? "Ready context" : "Needs review"}
               </Badge>
               <h3>Visual Preview</h3>
-              <p>Review and copy a concept-image prompt only. This mode does not generate images, call an image API, save estimates, send proposals, convert jobs, or change pricing.</p>
+              <p>Prepare a concept-image prompt from scope, options, and proof backup.</p>
             </div>
             <StatusBadge status={estimateStatusLabel(status)} />
           </div>
@@ -1792,12 +2063,14 @@ export function EstimatesPagePolished({
                   </ul>
                 </div>
               ) : (
-                <div className="co-estimates-shell-visual-ready">Ready for a human-approved image generation step outside this shell. Nothing generates automatically.</div>
+                <div className="co-estimates-shell-visual-ready">Ready to copy into the image workflow configured for this workspace.</div>
               )}
               <div className="co-estimates-shell-visual-safety">
-                <strong>Safety boundaries</strong>
+                <strong>Protected basics</strong>
                 <ul>
-                  {visualPreviewPacket.blockedActions.map((item) => <li key={item}>{item}</li>)}
+                  <li>Company data stays in this workspace.</li>
+                  <li>Private/internal proof stays out of customer prompts.</li>
+                  <li>External image generation uses its own configured provider step.</li>
                 </ul>
                 <p>{visualPreviewPacket.disclaimer}</p>
               </div>
@@ -2010,13 +2283,11 @@ export function EstimatesPagePolished({
       if (activeShellMode.id === "handoff") return renderEstimateShellHandoffMode();
       return (
         <div className="co-estimates-shell-mode-placeholder" role="region" aria-label={`${activeShellMode.title} placeholder`}>
-          <Badge tone="slate">Full tool migration pending</Badge>
+          <Badge tone="slate">Mode unavailable</Badge>
           <h3>{activeShellMode.title}</h3>
-          <p>This no-drawer shell mode will manage {activeShellMode.manages}</p>
+          <p>This mode manages {activeShellMode.manages}</p>
           <ul>
-            <li>No writes or pricing mutations run from this placeholder.</li>
-            <li>No customer send, job conversion, or AI generation is triggered.</li>
-            <li>Existing full estimate tools remain the safe path for actual work.</li>
+            <li>Choose another Estimate Studio mode to keep working.</li>
           </ul>
           <Button type="button" variant="secondary" onClick={() => setEstimateShellMode("overview")}>Return to overview</Button>
         </div>
@@ -2107,7 +2378,7 @@ export function EstimatesPagePolished({
                 <span>GC Packet</span>
                 <span>Foreman Handoff</span>
                 <span>Send Review</span>
-                <span data-internal="true">Manual/provider-ready only</span>
+                <span data-internal="true">Provider setup respected</span>
               </div>
               <div className="co-estimates-shell-workflow-actions">
                 <Button type="button" variant="secondary" onClick={() => setEstimateShellMode("proposal")}>Proposal</Button>
@@ -2116,15 +2387,15 @@ export function EstimatesPagePolished({
                 <Button type="button" variant="secondary" onClick={() => setEstimateShellMode("handoff")}>Handoff</Button>
               </div>
               <div className="co-estimates-shell-packet-lock">
-                <strong>Manual/provider-ready only.</strong>
-                <span>No customer send, job convert, pricing approval, schedule, crew assignment, billing, or field visibility change happens here.</span>
+                <strong>Owner/admin control.</strong>
+                <span>Use Send Review or Handoff when you are ready for those explicit actions.</span>
               </div>
             </div>
             <EstimateJobHandoffReadinessCard readiness={handoffReadiness} />
             <div className="co-apex-selected-next">
-              <span>Next safe action</span>
-              <strong>{nextSafeAction}</strong>
-              <p>Use dedicated Send Review and Handoff modes for those actions; this overview does not send, convert, schedule, assign crew, bill, or change field visibility.</p>
+              <span>Next action</span>
+              <strong>{nextAction}</strong>
+              <p>Open the matching mode and complete the work directly from Estimate Studio.</p>
             </div>
           </>
         )}
@@ -2182,28 +2453,28 @@ export function EstimatesPagePolished({
                 { value: detailEstimateBackup.fenceTakeoff?.segments?.length || 0, label: "segments", tone: detailEstimateBackup.fenceTakeoff?.segments?.length ? "green" : "orange" },
                 { value: detailEstimateBackup.fenceTakeoff?.totalLinearFeet || 0, label: "LF", tone: detailEstimateBackup.fenceTakeoff?.totalLinearFeet ? "green" : "slate" },
                 { value: detailFenceTakeoffReadiness.manualSegmentCount || 0, label: "manual", tone: detailFenceTakeoffReadiness.manualSegmentCount ? "amber" : "slate" },
-                { value: canManage ? 1 : 0, label: canManage ? "editable" : "locked", tone: canManage ? "green" : "slate" },
+                { value: canManage ? 1 : 0, label: canManage ? "editable" : "office access", tone: canManage ? "green" : "slate" },
               ]
               : estimateShellMode === "visualPreview"
                 ? [
                   { value: visualPreviewPacket.referenceCount || 0, label: "references", tone: visualPreviewPacket.referenceCount ? "blue" : "orange" },
                   { value: visualPreviewPacket.missingReviewItems.length, label: "review gaps", tone: visualPreviewPacket.missingReviewItems.length ? "amber" : "green" },
                   { value: canRequestEstimateVisualPreview(visualPreviewPacket) ? 1 : 0, label: "ready", tone: canRequestEstimateVisualPreview(visualPreviewPacket) ? "green" : "slate" },
-                  { value: 0, label: "writes", tone: "green" },
+                  { value: visualPreviewPacket.referenceCount || 0, label: "prompt refs", tone: visualPreviewPacket.referenceCount ? "blue" : "slate" },
                 ]
                 : estimateShellMode === "sendReview"
                   ? [
                     { value: detailEstimateCustomerEmail ? 1 : 0, label: detailEstimateCustomerEmail ? "recipient" : "no recipient", tone: detailEstimateCustomerEmail ? "green" : "orange" },
                     { value: emailSendingConfigured ? 1 : 0, label: emailSendingConfigured ? "email ready" : "manual copy", tone: emailSendingConfigured ? "blue" : "amber" },
                     { value: formatEstimateCurrency(detailOptionTotals.totalWithSelectedOptions), label: "review total", tone: detailOptionTotals.totalWithSelectedOptions ? "green" : "slate" },
-                    { value: 0, label: "auto sends", tone: "green" },
+                    { value: emailSendingConfigured ? 1 : 0, label: emailSendingConfigured ? "provider ready" : "copy mode", tone: emailSendingConfigured ? "blue" : "amber" },
                   ]
                   : estimateShellMode === "handoff"
                     ? [
                       { value: detailEstimateHandoffReadiness.readyCount, label: "ready checks", tone: detailEstimateHandoffReadiness.readyForJob || detailEstimateHandoffReadiness.converted ? "green" : "amber" },
                       { value: selectedEstimate?.jobId ? 1 : 0, label: selectedEstimate?.jobId ? "job linked" : "not linked", tone: selectedEstimate?.jobId ? "green" : "slate" },
                       { value: permissions?.jobs?.canCreate ? 1 : 0, label: permissions?.jobs?.canCreate ? "job create" : "read only", tone: permissions?.jobs?.canCreate ? "blue" : "amber" },
-                      { value: 0, label: "auto setup", tone: "green" },
+                      { value: detailEstimateHandoffReadiness.readyForJob && !selectedEstimate?.jobId ? 1 : 0, label: detailEstimateHandoffReadiness.readyForJob && !selectedEstimate?.jobId ? "convert ready" : "review", tone: detailEstimateHandoffReadiness.readyForJob && !selectedEstimate?.jobId ? "green" : "amber" },
                     ]
     : [
       { value: draftToPriceRows.length, label: "drafts to price", tone: draftToPriceRows.length ? "orange" : "green" },
@@ -2311,65 +2582,11 @@ export function EstimatesPagePolished({
                       { id: "handoff-overview", label: "Overview", icon: "briefcase", onClick: () => setEstimateShellMode("overview") },
                     ]
     : estimateShellQuickActions;
-  const estimateShellGuardrailsForMode = estimateShellMode === "pricing"
-    ? [
-      "Pricing fields only",
-      "Minimal estimate save payload",
-      "Field roles stay blocked from estimates",
-    ]
-    : estimateShellMode === "proposal"
-      ? [
-        "Proposal fields only",
-        "No send or conversion actions",
-        "Field roles stay blocked from estimates",
-      ]
-      : estimateShellMode === "backup"
-        ? [
-          "Internal backup only",
-          "No customer packet settings",
-          "Field roles stay blocked from estimates",
-        ]
-        : estimateShellMode === "packet"
-          ? [
-            "Packet readiness only",
-            "No send, convert, AI, takeoff, or handoff actions",
-            "Field roles stay blocked from estimates",
-          ]
-          : estimateShellMode === "roughNotes"
-            ? [
-              "Review-first AI only",
-              "No save, send, convert, takeoff, or handoff actions",
-              "Field roles stay blocked from estimates",
-            ]
-            : estimateShellMode === "takeoff"
-              ? [
-                "Apply Quantities is local only",
-                "Save uses reviewed draft payload",
-                "Field roles stay blocked from estimates",
-              ]
-              : estimateShellMode === "visualPreview"
-                ? [
-                  "Copy prompt only",
-                  "No image generation or estimate writes",
-                  "Private URLs stay out of prompts",
-                ]
-                : estimateShellMode === "sendReview"
-                  ? [
-                    "Explicit human confirmation required for configured sends",
-                    "Manual mode copies only and never calls send endpoint",
-                    "No convert or handoff controls",
-                  ]
-                  : estimateShellMode === "handoff"
-                    ? [
-                      "Approved unconverted estimates only",
-                      "Requires estimate manage plus job create permission",
-                      "No schedule, crew, billing, customer contact, or field visibility automation",
-                    ]
-    : [
-      "Overview/readiness only",
-      "No automatic sends or job conversion",
-      "Field roles stay blocked from estimates",
-    ];
+  const estimateShellGuardrailsForMode = [
+    "Company data stays separated",
+    "Field roles stay out of estimates and pricing",
+    "Live external sends require configured provider confirmation",
+  ];
 
   if (!permissions?.estimates?.canView) {
     return (
@@ -2653,6 +2870,7 @@ export function EstimatesPagePolished({
               <SectionHeader title="New Estimate" description="Create a customer-ready proposal with scope, terms, line items, and a clear total." />
               {canManage ? (
                 <>
+                  {renderCreateProposalTypeChooser()}
                   <div className="grid gap-3 md:grid-cols-2">
                     <InputField label="Customer / company name" value={createDraft.customerName} onChange={(event) => setCreateDraft((current) => updateDraftLinkFields(current, { customerName: event.target.value }))} placeholder="Martinez Concrete LLC" />
                     <SelectField label="Customer" value={createDraft.customerId} onChange={(event) => setCreateDraft((current) => updateDraftLinkFields(current, { customerId: event.target.value }))}>
@@ -2864,7 +3082,7 @@ export function EstimatesPagePolished({
             <Card className="p-4">
               <SectionHeader
                 title="AI Visual Preview Prep"
-                description={selectedEstimate ? "Prepare a review-first concept-image prompt from estimate scope, trade, options, and photo/takeoff evidence." : "Select an estimate before preparing a visual preview packet."}
+                description={selectedEstimate ? "Prepare a concept-image prompt from estimate scope, trade, options, and photo/takeoff evidence." : "Select an estimate before preparing a visual preview packet."}
                 action={selectedEstimate ? <Badge tone={canRequestEstimateVisualPreview(visualPreviewPacket) ? "green" : "amber"}>{canRequestEstimateVisualPreview(visualPreviewPacket) ? "Ready" : "Needs review"}</Badge> : null}
               />
               {selectedEstimate && canManage ? (
@@ -2883,13 +3101,15 @@ export function EstimatesPagePolished({
                       </div>
                     ) : (
                       <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3 text-sm font-bold leading-6 text-emerald-800">
-                        Ready for a human-approved image generation step. This does not create an image or send anything automatically.
+                        Ready to copy into the image workflow configured for this workspace.
                       </div>
                     )}
                     <div className="rounded-2xl border border-slate-200 bg-white p-3">
-                      <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Safety boundaries</p>
+                      <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Protected basics</p>
                       <ul className="mt-2 grid gap-1 text-sm font-bold leading-6 text-slate-600">
-                        {visualPreviewPacket.blockedActions.map((item) => <li key={item}>- {item}</li>)}
+                        <li>Company data stays in this workspace.</li>
+                        <li>Private/internal proof stays out of customer prompts.</li>
+                        <li>External image generation uses its own configured provider step.</li>
                       </ul>
                       <p className="mt-2 text-xs font-bold leading-5 text-slate-500">{visualPreviewPacket.disclaimer}</p>
                     </div>
@@ -3065,6 +3285,7 @@ export function EstimatesPagePolished({
                 description="Create a customer-ready proposal with scope, terms, line items, and a clear total."
                 action={estimateViewMode === "create" ? <Badge tone="orange">New draft mode</Badge> : null}
               />
+              {renderCreateProposalTypeChooser()}
               <div className="grid gap-3 md:grid-cols-2">
                 <InputField label="Customer / company name" value={createDraft.customerName} onChange={(event) => setCreateDraft((current) => updateDraftLinkFields(current, { customerName: event.target.value }))} placeholder="Martinez Concrete LLC" />
                 <SelectField label="Customer" value={createDraft.customerId} onChange={(event) => setCreateDraft((current) => updateDraftLinkFields(current, { customerId: event.target.value }))}>

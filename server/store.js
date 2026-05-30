@@ -2752,6 +2752,7 @@ function refreshDemoWalkthroughDatesInDatabase(database, demoSeed) {
         lead_id = ?,
         job_id = ?,
         title = ?,
+        proposal_packet_type = ?,
         status = ?,
         scope_summary = ?,
         internal_notes = ?,
@@ -2935,6 +2936,7 @@ function refreshDemoWalkthroughDatesInDatabase(database, demoSeed) {
       estimate.leadId || null,
       estimate.jobId || null,
       estimate.title || "",
+      estimate.proposalPacketType || "residential",
       estimate.status || "draft",
       estimate.scopeSummary || "",
       estimate.internalNotes || "",
@@ -3239,7 +3241,7 @@ function ensureDemoSeedDataInDatabase(database, actualUserIdsByEmail) {
   inserted += insertRecordsIfMissing(
     database,
     "estimates",
-    ["id", "sort_index", "customer_id", "lead_id", "job_id", "title", "status", "scope_summary", "internal_notes", "customer_notes", "subtotal", "tax_rate", "tax_total", "fees_total", "grand_total", "created_by", "sent_at", "approved_at", "rejected_at", "archived_at", "created_at", "updated_at"],
+    ["id", "sort_index", "customer_id", "lead_id", "job_id", "title", "proposal_packet_type", "status", "scope_summary", "internal_notes", "customer_notes", "subtotal", "tax_rate", "tax_total", "fees_total", "grand_total", "created_by", "sent_at", "approved_at", "rejected_at", "archived_at", "created_at", "updated_at"],
     demoSeed.estimates,
     (estimate) => [
       estimate.id,
@@ -3248,6 +3250,7 @@ function ensureDemoSeedDataInDatabase(database, actualUserIdsByEmail) {
       estimate.leadId || null,
       estimate.jobId || null,
       estimate.title,
+      estimate.proposalPacketType || "residential",
       estimate.status,
       estimate.scopeSummary || "",
       estimate.internalNotes || "",
@@ -5262,6 +5265,7 @@ const MIGRATIONS = [
             lead_id TEXT,
             job_id TEXT,
             title TEXT NOT NULL,
+            proposal_packet_type TEXT NOT NULL DEFAULT 'residential',
             status TEXT NOT NULL,
             scope_summary TEXT NOT NULL,
             internal_notes TEXT NOT NULL,
@@ -6157,6 +6161,15 @@ const MIGRATIONS = [
         }
       },
     },
+    {
+      version: 58,
+      description: "Persist estimate proposal packet type.",
+      up(database) {
+        if (!columnExists(database, "estimates", "proposal_packet_type")) {
+          database.exec("ALTER TABLE estimates ADD COLUMN proposal_packet_type TEXT NOT NULL DEFAULT 'residential';");
+        }
+      },
+    },
   ];
 
 function runInTransaction(database, work) {
@@ -6274,8 +6287,8 @@ function writeStateToDatabase(database, state) {
   `);
 
   const insertEstimate = database.prepare(`
-    INSERT INTO estimates (id, sort_index, company_id, customer_id, lead_id, job_id, customer_email, title, status, scope_summary, internal_notes, customer_notes, subtotal, tax_rate, tax_total, fees_total, grand_total, created_by, sent_at, sent_by, sent_to, email_subject, provider_message_id, approved_at, rejected_at, archived_at, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO estimates (id, sort_index, company_id, customer_id, lead_id, job_id, customer_email, title, proposal_packet_type, status, scope_summary, internal_notes, customer_notes, subtotal, tax_rate, tax_total, fees_total, grand_total, created_by, sent_at, sent_by, sent_to, email_subject, provider_message_id, approved_at, rejected_at, archived_at, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertEstimateItem = database.prepare(`
@@ -6869,6 +6882,7 @@ function writeStateToDatabase(database, state) {
         estimate.jobId || null,
         estimate.customerEmail || "",
         estimate.title || "",
+        estimate.proposalPacketType || "residential",
         estimate.status || "draft",
         estimate.scopeSummary || "",
         estimate.internalNotes || "",
@@ -7556,7 +7570,7 @@ function readTableState(database = createDatabaseConnection()) {
     })));
 
   const estimates = database.prepare(`
-      SELECT id, company_id AS companyId, customer_id AS customerId, lead_id AS leadId, job_id AS jobId, customer_email AS customerEmail, title, status, scope_summary AS scopeSummary,
+      SELECT id, company_id AS companyId, customer_id AS customerId, lead_id AS leadId, job_id AS jobId, customer_email AS customerEmail, title, proposal_packet_type AS proposalPacketType, status, scope_summary AS scopeSummary,
              internal_notes AS internalNotes, customer_notes AS customerNotes, subtotal, tax_rate AS taxRate,
              tax_total AS taxTotal, fees_total AS feesTotal, grand_total AS grandTotal, created_by AS createdBy,
              sent_at AS sentAt, sent_by AS sentBy, sent_to AS sentTo, email_subject AS emailSubject,

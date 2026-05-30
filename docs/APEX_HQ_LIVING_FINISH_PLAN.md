@@ -6,6 +6,38 @@ Canonical first-read file: `docs/APEX_HQ_CANONICAL_SOURCE_OF_TRUTH.md`.
 
 This living plan tracks active phase memory, deploy evidence, user requests, and phase reports. The canonical file owns workspace truth, Concrete Ops to Apex HQ transition rules, stale archive rules, and source-of-truth order.
 
+## Production Patch: Estimate Proposal Type + Print Preview
+
+Goal: make Estimate Studio let owner/admin users start the right proposal/estimate packet up front and immediately see/print a customer-safe packet preview.
+
+What changed:
+
+- Added New Estimate choices for Residential, Commercial, and GC / Prime proposal estimates.
+- Residential, Commercial, and GC choices prefill customer-facing scope, inclusions, exclusions, assumptions, terms, and packet defaults.
+- GC / Prime can also prefill GC Packet Lite sections when GC packet tools are available.
+- Added a visible PDF / print preview card in New Estimate before save, with a Print / save PDF action.
+- Persisted the selected proposal packet type through the estimate API/store as `proposal_packet_type`.
+- Kept customer packet output separate from internal notes, margin, payroll, profit, and private backup.
+- Kept field users redirected away from Estimates.
+
+Validation:
+
+- `npm.cmd run verify:estimates` passed.
+- `npm.cmd run verify:roles` passed.
+- `npm.cmd run build` passed.
+- Desktop `/estimates` visual audit passed.
+- Admin phone visual audit passed.
+- Browser QA confirmed Residential/Commercial/GC chooser, GC selection, visible PDF/print preview, enabled print action, and employee restricted-route safety.
+- `git diff --check` passed with CRLF warnings only.
+
+Rollback note:
+
+- Revert the production patch commit to remove proposal type selection, print preview wiring, and the `proposal_packet_type` store column. The migration adds a defaulted metadata column and does not mutate existing estimate pricing, customer data, field work, sends, payments, or provider state.
+
+Next recommended phase:
+
+- Continue Phase 7 Safety & Compliance Finish after this production patch is confirmed healthy.
+
 ## Current Phase
 
 Phase 6 Field Execution Finish is completed, pushed, deployed to production, health-checked, and frozen under the standing phase release approval. Phase 1 Admin Foundation, Phase 2 Command Center, Phase 3 Growth & Sales, Phase 4 Estimate & Proposal, and Phase 5 Job Operations remain complete/frozen. The next true tool-completion phase is Phase 7 Safety & Compliance Finish.

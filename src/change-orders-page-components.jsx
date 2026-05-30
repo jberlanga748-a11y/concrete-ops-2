@@ -366,6 +366,7 @@ function ChangeOrderDetailPanelPolished({
   }
 
   const statusLabel = changeOrderDisplayStatusLabel(request.status, canManage);
+  const moneyPacket = canManage ? buildChangeOrderMoneyPacket({ ...request, ...detailDraft }) : null;
 
   return (
     <Card className="co-change-orders-form-card p-4">

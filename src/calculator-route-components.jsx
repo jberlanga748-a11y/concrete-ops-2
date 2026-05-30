@@ -14,6 +14,7 @@ import {
 } from "./app-shell-components";
 import { buildCalculatorCopyText, calculateConcreteResult, calculateTakeoffResult, calculatorTypeLabel, CALCULATOR_MODE_OPTIONS, CALCULATOR_TYPES, createTakeoffSection, formatCubicFeet, formatCubicYards, summarizeTakeoffSection, WASTE_OPTIONS } from "./calculator-utils";
 import { CommandCenterKpiCard } from "./command-center-route-components";
+import { FieldOperatorPanelShell } from "./field-route-components";
 import { deriveAllowedUploadJobs } from "./upload-utils";
 import { jobTitle } from "./job-utils";
 import { canViewJob } from "../shared/permissions.js";

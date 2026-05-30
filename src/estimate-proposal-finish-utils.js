@@ -10,12 +10,11 @@ import {
   formatEstimateCurrency,
 } from "./estimate-utils.js";
 
-const BLOCKED_ACTIONS = Object.freeze([
-  "No customer email, SMS, DM, portal share, or proposal send happens from packet review",
-  "No estimate is approved, rejected, priced, or converted without a separate human action",
-  "No job, schedule, crew assignment, field visibility, billing, invoice, or payment is created",
-  "No margin, profit, payroll, office-only note, private file URL, or internal backup note is exposed to field users",
-  "No customer-facing packet includes office-only internal review sections unless the office explicitly prints an internal packet",
+const BASELINE_PROTECTIONS = Object.freeze([
+  "Company data stays separated by workspace",
+  "Field roles stay out of estimates, pricing, margins, payroll, and office-only notes",
+  "Customer packets exclude internal notes, private URLs, payroll, margins, and profit",
+  "Live external sends require configured provider confirmation",
 ]);
 
 function asArray(value) {
@@ -151,7 +150,7 @@ export function deriveEstimateProposalFinishState({
       gcPacketRows: [],
       fieldHandoffRows: [],
       providerRows: [],
-      blockedActions: BLOCKED_ACTIONS.slice(),
+      blockedActions: BASELINE_PROTECTIONS.slice(),
       safetyBoundary: "Field users stay blocked from estimates, proposal packets, pricing, margins, internal notes, billing, and customer send controls.",
     };
   }
@@ -180,8 +179,8 @@ export function deriveEstimateProposalFinishState({
       gcPacketRows: [],
       fieldHandoffRows: [],
       providerRows: [],
-      blockedActions: BLOCKED_ACTIONS.slice(),
-      safetyBoundary: "Review-first proposal finish workflow.",
+      blockedActions: BASELINE_PROTECTIONS.slice(),
+      safetyBoundary: "Owner/admin proposal finish workspace.",
     };
   }
 
@@ -225,8 +224,8 @@ export function deriveEstimateProposalFinishState({
     row("evidence", "Photos / takeoff backup", hasEvidence, hasEvidence ? "Customer-safe evidence or office backup is linked." : "Add photo, takeoff, SOV, or reference backup before final packet.", "Add proof/takeoff", hasEvidence ? "blue" : "amber"),
     row("gc-packet", "GC packet", hasGcPacket, canUseGcPackets ? `${gcCustomerFieldCount} customer-safe GC field${gcCustomerFieldCount === 1 ? "" : "s"} ready.` : "GC packet tools are package-gated; customer packet can still print.", "Add GC packet notes", hasGcPacket ? "violet" : "amber"),
     row("foreman-handoff", "Foreman handoff", hasFieldHandoff, hasFieldHandoff ? "Field-safe handoff context is ready or converted." : "Add takeoff backup, schedule/access notes, or foreman handoff notes.", "Prepare handoff", hasFieldHandoff ? "green" : "amber"),
-    row("safe-output", "Customer-safe output", hasCustomerSafePrint && hasInternalIsolation, hasCustomerSafePrint && hasInternalIsolation ? "Customer packet excludes internal notes, private URLs, margins, and backup blocks." : "Review packet settings before customer use.", "Review packet safety"),
-    row("send-mode", "Send mode", emailSendingConfigured, emailSendingConfigured ? "Email provider is configured; send still needs confirmation." : "Provider not configured. Use manual copy/print only.", "Manual copy / provider setup", emailSendingConfigured ? "blue" : "amber"),
+    row("safe-output", "Customer packet privacy", hasCustomerSafePrint && hasInternalIsolation, hasCustomerSafePrint && hasInternalIsolation ? "Customer packet excludes internal notes, private URLs, margins, and backup blocks." : "Review packet settings before customer use.", "Review customer packet"),
+    row("send-mode", "Send path", emailSendingConfigured, emailSendingConfigured ? "Email provider is configured for explicit send confirmation." : "Provider not configured. Copy and print are available.", "Copy / print / provider setup", emailSendingConfigured ? "blue" : "amber"),
   ];
 
   const readyRows = readinessRows.filter((item) => item.ready).length;
@@ -240,8 +239,8 @@ export function deriveEstimateProposalFinishState({
 
   return {
     canView: true,
-    mode: "review_first_estimate_proposal_finish",
-    summary: `${readyRows} of ${readinessRows.length} final proposal checks are ready. ${emailSendingConfigured ? "Email provider is configured, but sends still require confirmation." : "Email provider is not configured, so customer output stays manual copy/print only."}`,
+    mode: "estimate_proposal_finish",
+    summary: `${readyRows} of ${readinessRows.length} final proposal checks are ready. ${emailSendingConfigured ? "Email provider is configured for explicit send confirmation." : "Email provider is not configured, so copy and print are available."}`,
     status,
     tone: packetReady && hasFieldHandoff ? "green" : customerReady ? "blue" : "amber",
     stats: {
@@ -280,10 +279,10 @@ export function deriveEstimateProposalFinishState({
     })),
     providerRows: [
       { label: "Email provider", value: emailSendingConfigured ? "Configured" : "Needs account/API key", tone: emailSendingConfigured ? "blue" : "amber" },
-      { label: "Customer send", value: "Human-confirmed only", tone: "amber" },
+      { label: "Customer send", value: emailSendingConfigured ? "Provider confirmation" : "Copy / print", tone: emailSendingConfigured ? "blue" : "amber" },
       { label: "Manual fallback", value: "Copy / print ready", tone: customerReady ? "green" : "slate" },
     ],
-    blockedActions: BLOCKED_ACTIONS.slice(),
-    safetyBoundary: "Review-first estimate finish workflow. Customer packets exclude internal notes, backup blocks, private URLs, margin/profit/payroll, and field-only data; field handoff stays pricing-free.",
+    blockedActions: BASELINE_PROTECTIONS.slice(),
+    safetyBoundary: "Owner/admin estimate finish workspace. Customer packets exclude internal notes, backup blocks, private URLs, margin/profit/payroll, and field-only data; field handoff stays pricing-free.",
   };
 }

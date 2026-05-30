@@ -185,6 +185,7 @@ function buildEstimatePayload({ customerId, leadId = "", ...overrides } = {}) {
     title: "Martinez Driveway Proposal",
     status: "draft",
     customerEmail: "martinez@example.test",
+    proposalPacketType: "commercial",
     scopeSummary: "Replace cracked driveway panels and restore broom-finish apron.",
     internalNotes: "Office-only pricing assumptions stay inside estimates.",
     customerNotes: "Two-day window once approved.",
@@ -255,6 +256,7 @@ test("office and estimator users can manage estimates while field roles are bloc
     assert.equal(officeEstimate.taxTotal, 212.5);
     assert.equal(officeEstimate.grandTotal, 2837.5);
     assert.equal(officeEstimate.customerEmail, "martinez@example.test");
+    assert.equal(officeEstimate.proposalPacketType, "commercial");
     assert.equal(officeEstimate.items.length, 2);
 
     const blankStarterState = await assertOk(fixture.baseUrl, "/api/estimates", {
@@ -313,12 +315,14 @@ test("office and estimator users can manage estimates while field roles are bloc
       body: JSON.stringify({
         ...buildEstimatePayload({ customerId, leadId }),
         title: officeEstimate.title,
+        proposalPacketType: "gc",
         status: "sent",
         items: officeEstimate.items,
       }),
     });
     const sentEstimate = sentState.estimates.find((estimate) => estimate.id === officeEstimate.id);
     assert.equal(sentEstimate.status, "sent");
+    assert.equal(sentEstimate.proposalPacketType, "gc");
     assert.ok(sentEstimate.sentAt);
 
     const approvedState = await assertOk(fixture.baseUrl, `/api/estimates/${officeEstimate.id}`, {

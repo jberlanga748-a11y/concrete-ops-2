@@ -16,11 +16,16 @@ test("estimate and proposal surfaces do not expose retired pilot brand copy", as
   const retiredPilotName = ["Last", "Yard"].join(" ");
   const retiredStorageKey = ["last", "yard"].join("-");
   const retiredProposalPrefix = ["L", "Y", "C"].join("");
+  const retiredProposalTaglines = ["Love Your Concrete", "Crafting Concrete"];
 
   for (const filePath of PROPOSAL_SURFACE_FILES) {
     const source = await readFile(filePath, "utf8");
     assert.equal(source.includes(retiredPilotName), false, `${filePath} includes retired pilot name`);
     assert.equal(source.toLowerCase().includes(retiredStorageKey), false, `${filePath} includes retired pilot storage key`);
+    assert.equal(source.includes(retiredProposalPrefix), false, `${filePath} includes retired pilot initials`);
     assert.equal(source.includes(`${retiredProposalPrefix}-`), false, `${filePath} includes retired pilot proposal prefix`);
+    for (const tagline of retiredProposalTaglines) {
+      assert.equal(source.includes(tagline), false, `${filePath} includes retired pilot tagline`);
+    }
   }
 });

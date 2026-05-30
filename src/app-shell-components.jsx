@@ -367,7 +367,7 @@ export function ApexSelectedDetailPanel({ title = "Selected detail", item, child
       <div className="co-apex-panel-head">
         <span>
           <strong>{title}</strong>
-          <em>{item ? "Review context and choose a safe next step." : "Choose a queue item to inspect it."}</em>
+          <em>{item ? "Review context and choose the next action." : "Choose a queue item to inspect it."}</em>
         </span>
         {item?.statusLabel || item?.status ? <StatusBadge status={item.statusLabel || item.status} /> : null}
       </div>
@@ -398,7 +398,7 @@ export function ApexAssistantActionPanel({ title = "Today Assistant", descriptio
       />
       {safeGuardrails.length ? (
         <Card className="co-apex-assistant-guardrails">
-          <strong>Manual guardrails</strong>
+          <strong>Protected basics</strong>
           <ul>
             {safeGuardrails.map((item) => <li key={item}>{item}</li>)}
           </ul>

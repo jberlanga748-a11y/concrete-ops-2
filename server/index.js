@@ -351,6 +351,7 @@ const TIME_ENTRY_STATUSES = new Set(["active", "on_break", "completed"]);
 const TIME_WORK_CATEGORIES = new Set(["job", "office_admin", "estimating", "lead_follow_up", "shop_yard", "travel", "training", "meeting", "maintenance", "other"]);
 const DAILY_REPORT_STATUSES = new Set(["draft", "submitted", "reviewed", "reopened", "archived"]);
 const ESTIMATE_STATUSES = new Set(["draft", "sent", "approved", "rejected", "archived"]);
+const ESTIMATE_PROPOSAL_PACKET_TYPES = new Set(["residential", "commercial", "gc"]);
 const RATE_BOOK_CATEGORIES = new Set(["labor", "material", "equipment", "subcontractor", "other"]);
 const RATE_BOOK_STATUSES = new Set(["active", "archived"]);
 const CHANGE_ORDER_REQUEST_STATUSES = new Set(["requested", "under_review", "approved_for_pricing", "rejected", "archived"]);
@@ -1052,6 +1053,14 @@ function optionalEstimateStatus(value, fallback = "draft") {
   const normalized = value == null ? fallback : String(value).trim().toLowerCase();
   if (!ESTIMATE_STATUSES.has(normalized)) {
     throw new ApiError(400, `Estimate status must be one of: ${Array.from(ESTIMATE_STATUSES).join(", ")}.`);
+  }
+  return normalized;
+}
+
+function optionalEstimateProposalPacketType(value, fallback = "residential") {
+  const normalized = value == null || value === "" ? fallback : String(value).trim().toLowerCase();
+  if (!ESTIMATE_PROPOSAL_PACKET_TYPES.has(normalized)) {
+    throw new ApiError(400, `Estimate proposal type must be one of: ${Array.from(ESTIMATE_PROPOSAL_PACKET_TYPES).join(", ")}.`);
   }
   return normalized;
 }
@@ -2929,6 +2938,7 @@ function sanitizeEstimateForUser(estimate, state, user) {
     jobId: estimate.jobId || "",
     customerEmail: estimate.customerEmail || "",
     title: estimate.title || "",
+    proposalPacketType: optionalEstimateProposalPacketType(estimate.proposalPacketType, "residential"),
     status: optionalEstimateStatus(estimate.status, "draft"),
     statusLabel: estimateStatusLabel(estimate.status),
     scopeSummary: estimate.scopeSummary || "",
@@ -3176,6 +3186,7 @@ function createEstimateShape(payload, user, changedAt, customer, lead, totals) {
     jobId: "",
     title: requiredString(payload.title, "Estimate title"),
     customerEmail: optionalString(payload.customerEmail, ""),
+    proposalPacketType: optionalEstimateProposalPacketType(payload.proposalPacketType, "residential"),
     status: optionalEstimateStatus(payload.status, "draft"),
     scopeSummary: optionalString(payload.scopeSummary, ""),
     internalNotes: optionalString(payload.internalNotes, ""),
@@ -13256,7 +13267,7 @@ app.post("/api/estimates", requireAuth, asyncRoute(async (req, res) => {
       summary: "Estimate created",
       detail: `${req.auth.user.name} created estimate ${estimate.title} for ${customer.name}.`,
       actor: req.auth.user,
-      changedFields: ["customerId", "leadId", "customerEmail", "title", "status", "items", "grandTotal"],
+      changedFields: ["customerId", "leadId", "customerEmail", "title", "proposalPacketType", "status", "items", "grandTotal"],
     });
     return draft;
   });
@@ -13295,6 +13306,7 @@ app.patch("/api/estimates/:id", requireAuth, asyncRoute(async (req, res) => {
       leadId: lead?.id || "",
       customerEmail: payload.customerEmail == null ? (estimate.customerEmail || "") : optionalString(payload.customerEmail, ""),
       title: payload.title == null ? estimate.title : requiredString(payload.title, "Estimate title"),
+      proposalPacketType: payload.proposalPacketType == null ? optionalEstimateProposalPacketType(estimate.proposalPacketType, "residential") : optionalEstimateProposalPacketType(payload.proposalPacketType, "residential"),
       scopeSummary: payload.scopeSummary == null ? (estimate.scopeSummary || "") : optionalString(payload.scopeSummary, ""),
       internalNotes: payload.internalNotes == null ? (estimate.internalNotes || "") : optionalString(payload.internalNotes, ""),
       customerNotes: payload.customerNotes == null ? (estimate.customerNotes || "") : optionalString(payload.customerNotes, ""),

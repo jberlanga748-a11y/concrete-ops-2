@@ -26589,14 +26589,13 @@ textarea {
 
 .co-delivery-ops-metrics em,
 .co-delivery-ops-queues em {
-  overflow: hidden;
   color: #475569;
   font-size: 0.72rem;
   font-style: normal;
   font-weight: 850;
   line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .co-delivery-ops-queues {
@@ -26750,14 +26749,13 @@ textarea {
 }
 
 .co-delivery-ops-rail-list em {
-  overflow: hidden;
   color: rgba(226, 232, 240, 0.82);
   font-size: 0.68rem;
   font-style: normal;
   font-weight: 800;
   line-height: 1.22;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .co-delivery-ops-rail-list b {
@@ -28420,12 +28418,19 @@ textarea {
   }
 }
 
+.co-delivery-command-table td:first-child,
 .co-delivery-command-table td:nth-child(2),
 .co-delivery-command-table td:nth-child(3),
 .co-delivery-command-table td:nth-child(5),
 .co-delivery-command-table td:nth-child(6) {
   overflow-wrap: anywhere;
   text-overflow: clip;
+  white-space: normal;
+}
+
+.co-delivery-command-table td:first-child p {
+  max-width: 100%;
+  overflow-wrap: anywhere;
   white-space: normal;
 }
 
@@ -36036,6 +36041,17 @@ textarea {
   min-width: 0;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.co-settings-console-card .co-settings-action-row span:first-child {
+  overflow: visible;
+  white-space: normal;
+}
+
+.co-settings-console-card .co-settings-action-row strong,
+.co-settings-console-card .co-settings-action-row em {
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .co-settings-action-row {
@@ -49799,12 +49815,12 @@ button.co-apex-command-kpi:hover:not(:disabled) {
   }
 
   .co-apex-mobile-kpi-card strong {
-    overflow: hidden;
+    overflow: visible;
     color: #07111f;
     font-size: 1.45rem;
     font-weight: 950;
-    line-height: 1;
-    text-overflow: ellipsis;
+    line-height: 1.18;
+    text-overflow: clip;
   }
 
   .co-apex-mobile-kpi-card em {
@@ -55053,6 +55069,10 @@ body:has(.co-customers-page) .co-apex-assistant-shell {
     gap: 0.5rem !important;
   }
 
+  .co-field-mobile-remote-head > div {
+    min-width: 0;
+  }
+
   .co-field-mobile-remote-head h2 {
     margin-top: 0.16rem !important;
     font-size: 1.18rem !important;
@@ -55063,10 +55083,11 @@ body:has(.co-customers-page) .co-apex-assistant-shell {
     margin-top: 0.16rem !important;
     display: -webkit-box !important;
     overflow: hidden !important;
+    overflow-wrap: anywhere;
     -webkit-box-orient: vertical;
-    -webkit-line-clamp: 1;
+    -webkit-line-clamp: 2;
     font-size: 0.68rem !important;
-    line-height: 1.14 !important;
+    line-height: 1.25 !important;
   }
 
   .co-field-mobile-remote-job {
@@ -55167,7 +55188,8 @@ body:has(.co-customers-page) .co-apex-assistant-shell {
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
     font-size: 0.76rem !important;
-    line-height: 1.08 !important;
+    line-height: 1.22 !important;
+    min-height: 1.86rem;
   }
 
   .co-field-mobile-jobs-shell .co-field-mobile-queue-copy em,

@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 
 import {
+  APEX_BRAND_ASSETS,
+  deriveLogoInitialsFromCompanyName,
+  sanitizeLogoInitials,
+} from "./brand-utils";
+import {
   DEFAULT_SCOPE_TEMPLATES,
   APEX_HQ_PROPOSAL_COMPANY_DEFAULTS,
   LINE_ITEM_UNITS,
@@ -62,6 +67,27 @@ function saveJson(key, value) {
 
 function classNames(...parts) {
   return parts.filter(Boolean).join(" ");
+}
+
+function proposalCompanyInitials(company = {}) {
+  return sanitizeLogoInitials(company.logoInitials)
+    || sanitizeLogoInitials(deriveLogoInitialsFromCompanyName(company.companyName))
+    || "CO";
+}
+
+function isApexProposalCompany(company = {}) {
+  return /\bapex\s*hq\b/i.test(String(company.companyName || ""));
+}
+
+function ProposalBrandMark({ company = {}, className = "" }) {
+  const imageSource = company.logoDataUrl || company.logoImageUrl || "";
+  if (imageSource) {
+    return <img src={imageSource} alt={`${company.companyName || "Company"} logo`} className={classNames("h-full w-full object-contain", className)} />;
+  }
+  if (isApexProposalCompany(company)) {
+    return <img src={APEX_BRAND_ASSETS.appMark} alt="Apex HQ" className={classNames("h-full w-full object-contain", className)} />;
+  }
+  return <span className="text-center text-sm font-black tracking-[0.08em]">{proposalCompanyInitials(company)}</span>;
 }
 
 function splitLines(value) {
@@ -322,9 +348,9 @@ function CompanyDefaultsEditor({ companyDefaults, onChange }) {
           <Field label="Service area" value={companyDefaults.serviceArea} onChange={(event) => update({ serviceArea: event.target.value })} className="md:col-span-2" />
           <Select label="Tagline" value={companyDefaults.tagline} onChange={(event) => update({ tagline: event.target.value })}>
             {[
-              "Crafting Concrete, Building Dreams.",
-              "Solid Work. Stunning Results. Every Yard Counts.",
-              "Love Your Concrete.",
+              "Clear scopes. Clean handoffs. Work won with confidence.",
+              "Professional concrete scopes, pricing, and proof-ready closeout.",
+              "Built for clean bids, organized crews, and accountable delivery.",
             ].map((tagline) => <option key={tagline}>{tagline}</option>)}
           </Select>
           <Field
@@ -452,7 +478,7 @@ function GcPrimeEditor({ draft, setDraft }) {
       </div>
       <div className="mt-4 grid gap-2 md:grid-cols-2 lg:grid-cols-3">
         <ToggleField label="Prevailing wage required" checked={gc.prevailingWageRequired} onChange={(value) => update({ prevailingWageRequired: value })} />
-        <ToggleField label="Certified payroll required" checked={gc.certifiedPayrollRequired} onChange={(value) => update({ certifiedPayrollRequired: value })} />
+        <ToggleField label="Certified wage reporting required" checked={gc.certifiedPayrollRequired} onChange={(value) => update({ certifiedPayrollRequired: value })} />
         <ToggleField label="Insurance certificate required" checked={gc.insuranceCertificateRequired} onChange={(value) => update({ insuranceCertificateRequired: value })} />
         <ToggleField label="W-9 required" checked={gc.w9Required} onChange={(value) => update({ w9Required: value })} />
         <ToggleField label="Safety orientation required" checked={gc.safetyOrientationRequired} onChange={(value) => update({ safetyOrientationRequired: value })} />
@@ -698,14 +724,64 @@ function ProposalForm({ draft, setDraft, companyDefaults, setCompanyDefaults, on
   return (
     <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(380px,0.78fr)]">
       <div className="min-w-0 space-y-5">
-        <CompanyDefaultsEditor companyDefaults={companyDefaults} onChange={handleCompanyDefaultsChange} />
-        <ClientProjectEditor draft={draft} setDraft={setDraft} />
-        <ConcreteSpecsEditor draft={draft} setDraft={setDraft} />
-        <GcPrimeEditor draft={draft} setDraft={setDraft} />
-        <ScopeSectionEditor draft={draft} setDraft={setDraft} />
-        <LineItemsTable draft={draft} setDraft={setDraft} />
-        <TermsEditor draft={draft} setDraft={setDraft} />
-        <PhotoUploads draft={draft} setDraft={setDraft} />
+        <ProposalCard className="overflow-hidden">
+          <div className="grid gap-3 border-b border-[#D9DEE5] bg-white p-4 lg:grid-cols-[1fr_auto] lg:items-center">
+            <div className="min-w-0">
+              <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[#C9A64A]">{mode === "new" ? "New proposal" : "Edit proposal"}</p>
+              <h2 className="mt-1 text-2xl font-black text-[#062B45]">{normalizedDraft.project.name || "Customer proposal draft"}</h2>
+              <p className="mt-1 text-sm font-bold leading-5 text-[#5B6470]">
+                {normalizedDraft.client.companyName || normalizedDraft.client.contactName || "Client pending"} / {formatCurrency(normalizedDraft.total)}
+              </p>
+            </div>
+            <div className="grid grid-cols-3 overflow-hidden rounded-lg border border-[#D9DEE5] text-center text-xs font-black">
+              <span className="bg-[#F4F5F6] px-3 py-2 text-[#5B6470]">Brand</span>
+              <span className="bg-white px-3 py-2 text-[#5B6470]">Scope</span>
+              <span className="bg-[#062B45] px-3 py-2 text-white">Preview</span>
+            </div>
+          </div>
+        </ProposalCard>
+        <details className="group rounded-lg border border-[#D9DEE5] bg-white shadow-sm" open>
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-black text-[#111827] marker:hidden">
+            <span>Client, project, and proposal dates</span>
+            <span className="text-xs uppercase tracking-[0.16em] text-[#C9A64A]">Open</span>
+          </summary>
+          <div className="border-t border-[#D9DEE5] p-4"><ClientProjectEditor draft={draft} setDraft={setDraft} /></div>
+        </details>
+        <details className="group rounded-lg border border-[#D9DEE5] bg-white shadow-sm" open>
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-black text-[#111827] marker:hidden">
+            <span>Pricing and line items</span>
+            <span className="text-xs uppercase tracking-[0.16em] text-[#C9A64A]">Open</span>
+          </summary>
+          <div className="border-t border-[#D9DEE5] p-4"><LineItemsTable draft={draft} setDraft={setDraft} /></div>
+        </details>
+        <details className="group rounded-lg border border-[#D9DEE5] bg-white shadow-sm">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-black text-[#111827] marker:hidden">
+            <span>Company branding and defaults</span>
+            <span className="text-xs uppercase tracking-[0.16em] text-[#C9A64A]">Open</span>
+          </summary>
+          <div className="border-t border-[#D9DEE5] p-4"><CompanyDefaultsEditor companyDefaults={companyDefaults} onChange={handleCompanyDefaultsChange} /></div>
+        </details>
+        <details className="group rounded-lg border border-[#D9DEE5] bg-white shadow-sm">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-black text-[#111827] marker:hidden">
+            <span>Scope sections and GC addendum</span>
+            <span className="text-xs uppercase tracking-[0.16em] text-[#C9A64A]">Open</span>
+          </summary>
+          <div className="space-y-4 border-t border-[#D9DEE5] p-4">
+            <ScopeSectionEditor draft={draft} setDraft={setDraft} />
+            <GcPrimeEditor draft={draft} setDraft={setDraft} />
+          </div>
+        </details>
+        <details className="group rounded-lg border border-[#D9DEE5] bg-white shadow-sm">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-black text-[#111827] marker:hidden">
+            <span>Concrete specs, terms, and approved visuals</span>
+            <span className="text-xs uppercase tracking-[0.16em] text-[#C9A64A]">Open</span>
+          </summary>
+          <div className="space-y-4 border-t border-[#D9DEE5] p-4">
+            <ConcreteSpecsEditor draft={draft} setDraft={setDraft} />
+            <TermsEditor draft={draft} setDraft={setDraft} />
+            <PhotoUploads draft={draft} setDraft={setDraft} />
+          </div>
+        </details>
         {validation?.errors?.length || validation?.warnings?.length ? (
           <ProposalCard className="border-amber-200 bg-amber-50 p-4">
             {validation.errors.length ? (
@@ -747,16 +823,25 @@ function ProposalForm({ draft, setDraft, companyDefaults, setCompanyDefaults, on
   );
 }
 
-function ProposalHeader({ proposal }) {
+function ProposalHeader({ proposal, compact = false }) {
   const company = proposal.company || APEX_HQ_PROPOSAL_COMPANY_DEFAULTS;
   return (
-    <header className="proposal-section grid gap-5 border-b border-[#D9DEE5] pb-5 md:grid-cols-[1fr_auto] md:items-start">
+    <header className={classNames(
+      "proposal-section grid gap-5 border-b border-[#D9DEE5] pb-5",
+      compact ? "" : "md:grid-cols-[1fr_auto] md:items-start",
+    )}>
       <div className="flex min-w-0 gap-4">
-        <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[#D9DEE5] bg-[#F4F5F6] text-center text-sm font-black text-[#062B45]">
-          {company.logoDataUrl ? <img src={company.logoDataUrl} alt={`${company.companyName} logo`} className="h-full w-full object-contain p-2" /> : "LYC"}
+        <div className={classNames(
+          "flex shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[#D9DEE5] bg-[#F4F5F6] text-center text-sm font-black text-[#062B45]",
+          compact ? "h-16 w-16" : "h-20 w-20",
+        )}>
+          <ProposalBrandMark company={company} className="p-2" />
         </div>
         <div className="min-w-0">
-          <p className="text-2xl font-black uppercase tracking-[0.08em] text-[#062B45]">{company.companyName}</p>
+          <p className={classNames(
+            "font-black uppercase tracking-[0.08em] text-[#062B45]",
+            compact ? "text-xl leading-6" : "text-2xl",
+          )}>{company.companyName}</p>
           <p className="mt-1 text-sm font-bold text-[#5B6470]">{company.phone} | {company.email}</p>
           <p className="mt-1 text-sm font-bold text-[#5B6470]">{company.licenseText} | {company.ccb}</p>
           <p className="mt-1 text-sm text-[#5B6470]">{company.serviceArea}</p>
@@ -772,17 +857,20 @@ function ProposalHeader({ proposal }) {
   );
 }
 
-function ProposalHero({ proposal }) {
+function ProposalHero({ proposal, compact = false }) {
   return (
     <section className="proposal-section mt-6 overflow-hidden rounded-lg bg-[#062B45] text-white">
-      <div className="grid gap-6 p-6 md:grid-cols-[1fr_auto] md:items-end">
+      <div className={classNames(
+        "grid gap-5 p-6 md:items-end",
+        compact ? "md:grid-cols-1" : "md:grid-cols-[minmax(0,1fr)_minmax(220px,0.52fr)]",
+      )}>
         <div className="min-w-0">
           <p className="text-xs font-black uppercase tracking-[0.22em] text-[#C9A64A]">{proposalTypeLabel(proposal.proposalType)}</p>
-          <h1 className="mt-2 text-4xl font-black uppercase tracking-[0.06em]">Concrete Proposal</h1>
+          <h1 className={classNames("mt-2 font-black uppercase tracking-[0.06em]", compact ? "text-3xl" : "text-4xl")}>Concrete Proposal</h1>
           <p className="mt-3 text-lg font-bold text-white/90">{proposal.project.name || "Project name pending"}</p>
           <p className="mt-1 text-sm text-white/75">{proposal.project.location || proposal.client.projectAddress || "Project location pending"}</p>
         </div>
-        <div className="rounded-lg border border-white/15 bg-white/10 px-4 py-3 text-sm font-black text-white">
+        <div className="min-w-0 rounded-lg border border-white/15 bg-white/10 px-4 py-3 text-sm font-black leading-5 text-white">
           {proposal.company?.tagline || APEX_HQ_PROPOSAL_COMPANY_DEFAULTS.tagline}
         </div>
       </div>
@@ -954,7 +1042,7 @@ function GcPrimeAddendum({ proposal }) {
     ["Addenda acknowledged", gc.addendaAcknowledged?.join(", ")],
     ["Retainage", gc.retainagePercent !== "" ? `${gc.retainagePercent}%` : ""],
     ["Prevailing wage", gc.prevailingWageRequired ? "Yes" : "No"],
-    ["Certified payroll", gc.certifiedPayrollRequired ? "Yes" : "No"],
+    ["Certified wage reporting", gc.certifiedPayrollRequired ? "Yes" : "No"],
     ["Insurance certificate", gc.insuranceCertificateRequired ? "Yes" : "No"],
     ["W-9", gc.w9Required ? "Yes" : "No"],
     ["Safety orientation", gc.safetyOrientationRequired ? "Yes" : "No"],
@@ -1037,7 +1125,7 @@ function ProposalFooter({ proposal }) {
   return (
     <footer className="proposal-section mt-8 border-t border-[#D9DEE5] pt-4 text-center text-xs font-bold text-[#5B6470]">
       <p>{company.companyName} | {company.phone} | {company.email} | {company.ccb}</p>
-      <p className="mt-1 text-[#062B45]">{company.tagline || "Crafting Concrete, Building Dreams."}</p>
+      <p className="mt-1 text-[#062B45]">{company.tagline || "Clear scopes. Clean handoffs. Work won with confidence."}</p>
     </footer>
   );
 }
@@ -1049,8 +1137,8 @@ function ProposalPrintView({ proposal, compact = false }) {
       "proposal-document mx-auto bg-white text-[#111827]",
       compact ? "max-w-[760px] rounded-lg border border-[#D9DEE5] p-5 text-[12px] shadow-sm" : "max-w-[8.5in] rounded-lg border border-[#D9DEE5] p-8 shadow-lg",
     )}>
-      <ProposalHeader proposal={normalized} />
-      <ProposalHero proposal={normalized} />
+      <ProposalHeader proposal={normalized} compact={compact} />
+      <ProposalHero proposal={normalized} compact={compact} />
       <PreparedForCard proposal={normalized} />
       <TrustCards />
       <PhotoStrip proposal={normalized} />
@@ -1332,12 +1420,17 @@ export default function ProposalsWorkspace({ routeState = {}, navigateTo }) {
     <div className="min-w-0 bg-[#F4F5F6] text-[#111827]">
       <div className="proposal-no-print border-b border-[#D9DEE5] bg-white px-5 py-5 sm:px-6 lg:px-8">
         <div className="mx-auto flex max-w-[1600px] flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="min-w-0">
-            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#C9A64A]">Apex HQ Proposal Workspace</p>
-            <h1 className="mt-1 text-3xl font-black tracking-tight text-[#062B45]">Proposal Generator</h1>
+          <div className="flex min-w-0 items-start gap-4">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#D9DEE5] bg-[#041D2F] p-2 shadow-sm">
+              <img src={APEX_BRAND_ASSETS.appMark} alt="Apex HQ" className="h-full w-full object-contain" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#C9A64A]">Apex HQ Proposal Workspace</p>
+              <h1 className="mt-1 text-3xl font-black tracking-tight text-[#062B45]">Proposal Generator</h1>
             <p className="mt-2 max-w-4xl text-sm leading-6 text-[#5B6470]">
               Professional concrete proposals for GCs, prime contractors, builders, property managers, commercial clients, and homeowners.
             </p>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
             <ProposalButton variant="secondary" icon="file" onClick={() => go("/proposals")}>Proposal list</ProposalButton>

@@ -70,7 +70,7 @@ test("proposal finish state marks customer, GC, options, evidence, and field han
   });
 
   assert.equal(state.canView, true);
-  assert.equal(state.mode, "review_first_estimate_proposal_finish");
+  assert.equal(state.mode, "estimate_proposal_finish");
   assert.equal(state.status, "Finished packet ready");
   assert.equal(state.stats.optionChoices > 0, true);
   assert.equal(state.stats.evidenceSections > 0, true);
@@ -82,7 +82,7 @@ test("proposal finish state marks customer, GC, options, evidence, and field han
   assert.match(state.safetyBoundary, /pricing-free/);
 });
 
-test("proposal finish state exposes email configured without bypassing human send", () => {
+test("proposal finish state exposes email configured through provider confirmation", () => {
   const state = deriveEstimateProposalFinishState({
     estimate: fullEstimate(),
     permissions: OFFICE_PERMISSIONS,
@@ -93,8 +93,8 @@ test("proposal finish state exposes email configured without bypassing human sen
 
   assert.equal(state.readinessRows.find((row) => row.id === "send-mode").ready, true);
   assert.equal(state.providerRows.find((row) => row.label === "Email provider").value, "Configured");
-  assert.equal(state.providerRows.find((row) => row.label === "Customer send").value, "Human-confirmed only");
-  assert.equal(state.blockedActions.some((action) => /No customer email/i.test(action)), true);
+  assert.equal(state.providerRows.find((row) => row.label === "Customer send").value, "Provider confirmation");
+  assert.equal(state.blockedActions.some((action) => /Live external sends require configured provider confirmation/i.test(action)), true);
 });
 
 test("proposal finish state flags missing terms, exclusions, evidence, and packet backup", () => {
@@ -152,6 +152,6 @@ test("customer-safe output does not expose internal notes or private backup bloc
   });
 
   assert.equal(state.customerPacketRows.find((row) => row.label === "Customer-safe print").value, "Clean");
-  assert.equal(state.blockedActions.some((action) => /margin, profit, payroll/i.test(action)), true);
+  assert.equal(state.blockedActions.some((action) => /payroll, margins, and profit/i.test(action)), true);
   assert.equal(state.stats.internalSections > 0, true);
 });
