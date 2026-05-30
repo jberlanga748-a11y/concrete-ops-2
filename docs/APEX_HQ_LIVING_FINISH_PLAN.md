@@ -4,13 +4,13 @@ Last updated: 2026-05-30
 
 ## Current Phase
 
-Integrations is completed, pushed, and deployed to production under the standing release approval. Phase 1 Admin Foundation Finish is in final implementation, using the tool-by-tool completion blueprint as the active source. Audit evidence lives in `docs/APEX_HQ_PHASE_1_ADMIN_FOUNDATION_PREBUILD_AUDIT.md`.
+Phase 1 Admin Foundation Finish is completed, pushed, deployed to production, health-checked, and frozen under the standing release approval. Use the tool-by-tool completion blueprint as the active source for the next phase.
 
-Phase 1 blockers are fixed locally: `/imported-drafts` renders for owner/admin users, `npm.cmd run verify:job-draft-imports` is green, and owner/admin setup now has a single Admin Foundation Finish board in Settings.
+Phase 1 blockers are fixed in production: `/imported-drafts` renders for owner/admin users, `npm.cmd run verify:job-draft-imports` is green, and owner/admin setup now has a single Admin Foundation Finish board in Settings.
 
 Slice 1 status: Admin Foundation state utility and tests are built, pushed, deployed to production, and health-checked. `npm.cmd run verify:admin-foundation` passes with the new utility coverage.
 
-Slice 2 status: Admin Foundation Finish Board is built and locally verified. Owner/admin Settings now summarizes setup, users/roles, field lockout, app health, support, imported drafts, provider readiness, and package/billing readiness from one board. Final local browser QA passed for owner/admin Settings, Employees, App Health, Support, and Imported Drafts; employee mobile direct routes to Settings, Employees, App Health, and Imported Drafts redirected to Jobs, while Support stayed role-safe. Pending production deploy and health-check.
+Slice 2 status: Admin Foundation Finish Board is built, pushed, deployed to Fly version `606`, and health-checked. Owner/admin Settings now summarizes setup, users/roles, field lockout, app health, support, imported drafts, provider readiness, and package/billing readiness from one board. Final local browser QA passed for owner/admin Settings, Employees, App Health, Support, and Imported Drafts; employee mobile direct routes to Settings, Employees, App Health, and Imported Drafts redirected to Jobs, while Support stayed role-safe.
 
 ## Product North Star
 
@@ -72,8 +72,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ### Next
 
-- Finish Phase 1 production deploy, hosted health-check, phase report, and freeze note.
-- Next tool-finish phase after Phase 1: Phase 2 Command Center Finish from `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md`.
+- Start Phase 2 Command Center Finish from `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md`.
 
 ### Later
 
@@ -238,7 +237,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - [x] Commit, push, deploy, and health-check Slice 1.
 - [x] Add Admin Foundation Finish Board.
 - [x] Browser QA final Phase 1 routes.
-- [ ] Commit, push, deploy, health-check, and record Phase 1 report.
+- [x] Commit, push, deploy, health-check, and record Phase 1 report.
 
 ## Completed / Frozen Systems
 
@@ -259,6 +258,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - Customer Portal + Communications command layer that ties customer-safe packet review, expiring/revocable access evidence, share approval decisions, comments, and human-reviewed email/SMS readiness into the existing Communication Center.
 - Billing / Payments / Packages command layer that ties package state, provider readiness, checkout/manual invoice lanes, billing candidates, receipts/failures, payment-link prep, and blocked money actions into Settings without live payment processing.
 - Integrations Command layer that ties provider setup, health, disabled states, audit, disconnect planning, built inbound contracts, package gates, and locked integration-write boundaries into Settings without live provider writes or frontend secrets.
+- Admin Foundation Finish: signup/first-owner setup evidence, invite/password readiness, Employees/users/roles, Settings finish board, App Health, Support, Imported Drafts, Integrations setup board, and package/billing readiness are frozen except for bugs, security/permission fixes, provider hookups, or approved versioned upgrades.
 
 ## Do-Not-Rebuild List
 
@@ -318,25 +318,29 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | 2026-05-30 | Integrations | `c10a273` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `604` started in `sjc`; service check passing; `/api/ready` OK on both domains with database OK. |
 | 2026-05-30 | Phase 1 Admin Foundation Pre-Build Audit | Docs-only audit pending commit | Local QA at `http://127.0.0.1:4174` | `/api/ready` OK. Owner desktop Settings, Employees, App Health, Support passed. Owner desktop Imported Drafts failed with `useEffect is not defined`. Employee mobile admin/setup direct routes redirected to Field Mode and Support stayed role-safe. |
 | 2026-05-30 | Phase 1 Admin Foundation Slice 1: state utility | `2bbbf3f` pushed to `main` and deployed | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `605` started in `sjc`; service check passing; `/api/ready` OK on both domains with database OK. |
+| 2026-05-30 | Phase 1 Admin Foundation Finish Board | `9ccc1ac` pushed to `main` | Local QA at `http://127.0.0.1:4179` | Owner/admin Settings, Employees, App Health, Support, and Imported Drafts passed with no overflow/errors. Employee mobile direct routes to Settings, Employees, App Health, and Imported Drafts redirected to Jobs; Support stayed role-safe; no admin foundation text leaked. |
+| 2026-05-30 | Phase 1 Admin Foundation Finish | `9ccc1ac` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `606` started in `sjc`; image `concrete-ops-2:deployment-01KSVWJYBKFP2HCVY40J69FEJE`; service check passing; `/api/ready` OK on both domains with database OK. |
 
 ## Roadmap Queue
 
-1. Growth Foundation.
-2. Website + Lead Intake Funnel.
-3. Sales Follow-Up System.
-4. Reputation + Portfolio Engine.
-5. Estimate Studio + Proposal Packets.
-6. Core Operations Loop.
-7. Field Mode Finish.
-8. Apex Agent Operator.
-9. Customer Portal + Communications.
-10. Billing / Payments / Packages.
-11. Integrations.
-12. Scale + Public Launch.
+1. Phase 1 Admin Foundation Finish - completed/frozen.
+2. Phase 2 Command Center Finish - next.
+3. Phase 3 Growth & Sales Finish.
+4. Phase 4 Estimate & Proposal Finish.
+5. Phase 5 Job Operations Finish.
+6. Phase 6 Field Execution Finish.
+7. Phase 7 Safety & Compliance Finish.
+8. Phase 8 Change Order Finish.
+9. Phase 9 Payroll Prep Finish.
+10. Phase 10 Closeout & Billing Prep Finish.
+11. Phase 11 Reputation & Portfolio Finish.
+12. Phase 12 Communications & Customer Portal Finish.
+13. Phase 13 Assistant Finish.
+14. Phase 14 Launch Finish.
 
 ## Next Phase
 
-Use `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` as the active blueprint. Next build phase is Admin Foundation Finish from `docs/APEX_HQ_PHASE_1_ADMIN_FOUNDATION_PREBUILD_AUDIT.md`. Payroll Prep remains a later complete phase unless the owner explicitly reorders it, and live payroll processing stays out of scope.
+Use `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` as the active blueprint. Next build phase is Phase 2 Command Center Finish. Payroll Prep remains a later complete phase unless the owner explicitly reorders it, and live payroll processing stays out of scope.
 
 ## Decision Log
 
@@ -364,6 +368,85 @@ Use `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` as the active blueprint. Next bu
 | 2026-05-30 | Owner/admin setup should stay visible unless an unpaid provider/live action is actually required. | The owner wants no locks except unpaid providers and safety boundaries. | Package/provider readiness can label limits, but Phase 1 setup visibility should not disappear behind package gates. Field/security/live-money locks remain hard. |
 | 2026-05-30 | Slice 1 creates a pure Admin Foundation state utility before UI. | The finish board needs one tested source of readiness truth before rendering. | `src/admin-foundation-finish-utils.js` now derives setup, user, field lockout, app health, support, imported draft, provider, and package readiness for the upcoming board. |
 | 2026-05-30 | Slice 2 wires the Admin Foundation Finish Board into Settings as the owner/admin Phase 1 control point. | Phase 1 needed one visible finish line instead of scattered setup surfaces. | Settings now defaults to `settings-admin-foundation`, renders `AdminFoundationFinishPanel`, and keeps app-health mode separate. Browser QA proved owner/admin access across Settings, Employees, App Health, Support, and Imported Drafts, with employee mobile direct-route safety. |
+| 2026-05-30 | Phase 1 Admin Foundation is frozen after Fly version `606`. | The focused verifier, final browser QA, production deploy, hosted readiness checks, and Fly service check all passed. | Future changes to signup/setup, users/roles, Settings admin foundation, App Health, Support, Imported Drafts, package/provider setup, and admin permission boundaries should be bug, security/permission, provider hookup, or approved versioned upgrades only. |
+
+## Phase 1 Admin Foundation Finish Report
+
+Goal: finish and freeze the owner/admin base for company setup, users/roles, provider/package status, app health, support context, imported drafts, and field/admin boundaries.
+
+What was already built:
+
+- Signup/first-owner setup, invite activation, password reset, Employees, Settings, App Health, Support, Imported Drafts, Integrations Command, and package/billing readiness foundations.
+
+What was completed now:
+
+- Fixed the owner/admin Imported Drafts route crash by restoring the missing `useEffect` import.
+- Fixed the stale `verify:job-draft-imports` auth helper so it matches the cookie-first/bearer-mode pattern used by passing auth tests.
+- Added `deriveAdminFoundationFinishState` as the single readiness model for setup, users/roles, field lockout, app health, support, imported drafts, providers, and package/billing readiness.
+- Added the Admin Foundation Finish Board to Settings and made it the default owner/admin Settings command item.
+- Added Settings import coverage to `verify:admin-foundation`.
+- Updated the living plan, deploy log, freeze note, and next-phase pointer.
+
+Provider/account-dependent remaining:
+
+- Email invite/password reset provider sends, live billing/payment provider, live integration providers, monitoring/log provider, and any future live customer send/provider write remain provider/account-dependent and locked.
+
+Affected files:
+
+- `docs/APEX_HQ_LIVING_FINISH_PLAN.md`
+- `package.json`
+- `src/App.jsx`
+- `src/admin-foundation-finish-utils.js`
+- `src/admin-foundation-finish-utils.test.js`
+- `src/imported-job-drafts-page-components.jsx`
+- `src/settings-route-components.jsx`
+- `src/settings-route-components-import.test.js`
+- `server/job-draft-imports.test.js`
+
+Validation results:
+
+- `node --test --test-concurrency=1 src/admin-foundation-finish-utils.test.js src/settings-route-components-import.test.js` passed.
+- `npm.cmd run verify:admin-foundation` passed, including `verify:auth`, `verify:users`, `verify:support`, `verify:app-health`, `verify:job-draft-imports`, `verify:entitlements`, `verify:billing-readiness`, `verify:roles`, and `npm run build`.
+- `git diff --check` passed with CRLF warnings only.
+
+Browser QA:
+
+- Owner/admin desktop `/settings`: Admin Foundation Finish, Phase 1 Readiness, Provider / Package Readiness, and Access Review passed with no overflow, console errors, or failed requests.
+- Owner/admin desktop `/employees`, `/app-health`, `/support`, and `/imported-drafts` passed with no overflow, console errors, or failed requests.
+- Employee mobile direct `/settings`, `/employees`, `/app-health`, and `/imported-drafts` redirected to `/jobs` with no admin foundation text leaked.
+- Employee mobile `/support` stayed role-safe with no admin foundation text leaked.
+
+Permissions impact:
+
+- No permission loosening.
+- Field users remain blocked from admin setup, provider setup, package/billing, imported drafts, leads, estimates, pricing, margins, profit, payroll, AI office, company setup, and other company data.
+- Provider-ready states are visible to owner/admin users only and do not execute live provider writes.
+
+Field-user impact:
+
+- No field workflow changes. Field direct-route protection was verified on mobile.
+
+Mobile impact:
+
+- Employee mobile admin/setup direct-route safety passed with no horizontal overflow.
+
+Deploy version:
+
+- `9ccc1ac` deployed to Fly machine `148e06e2b53d68` version `606`.
+
+Health check:
+
+- `https://app.apexhq.online/api/ready` OK with database OK.
+- `https://concrete-ops-2.fly.dev/api/ready` OK with database OK.
+- Fly service check passing.
+
+Rollback note:
+
+- Revert `9ccc1ac` to remove the Settings Admin Foundation Finish Board and verifier update. Keep earlier blocker fixes unless the rollback explicitly targets Phase 1 Slice 1. No schema changes, migrations, provider changes, secrets, live sends, live payments, ad spend, hidden GPS, or production data changes were introduced.
+
+Next recommended phase:
+
+- Phase 2 Command Center Finish.
 
 ## Billing / Payments / Packages Phase Report
 
