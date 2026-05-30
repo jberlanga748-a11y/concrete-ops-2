@@ -1,6 +1,6 @@
 import { Badge, Button, Card, Icon, InputField, SelectField, StateCard, TextAreaField } from "./app-shell-components";
 import { APP_NAME } from "./brand-utils";
-import { PUBLIC_REQUEST_PROJECT_TYPES } from "./public-estimate-request-form";
+import { PUBLIC_REQUEST_BUDGET_RANGES, PUBLIC_REQUEST_PROJECT_TYPES, PUBLIC_REQUEST_SERVICE_TYPES, PUBLIC_REQUEST_TIMELINES } from "./public-estimate-request-form";
 
 export function PublicEstimateRequestPage({
   ...props
@@ -16,6 +16,7 @@ function PublicEstimateRequestPagePolished({
   loading,
   error,
   successMessage,
+  onStartAnother,
   backendStatus,
   enabled,
   demoMode,
@@ -102,7 +103,7 @@ function PublicEstimateRequestPagePolished({
             </div>
             <div>
               <span>Scope</span>
-              <strong>Type, notes, timing</strong>
+              <strong>Trade, timing, fit</strong>
             </div>
           </div>
 
@@ -121,6 +122,30 @@ function PublicEstimateRequestPagePolished({
           ) : setupStatus.needsSetup ? (
             <div className="co-public-request-status-panel mt-6">
               <StateCard title="Workspace setup required" description="Public requests stay off until the office workspace has an initial admin and lead owner." tone="amber" />
+            </div>
+          ) : successMessage ? (
+            <div className="co-public-request-status-panel mt-6">
+              <StateCard title="Request received" description={successMessage} tone="green" />
+              <div className="co-public-request-steps mt-4" aria-label="Next steps">
+                <div>
+                  <span>01</span>
+                  <strong>Office review</strong>
+                  <p>The contractor reviews the request before creating estimates, jobs, or messages.</p>
+                </div>
+                <div>
+                  <span>02</span>
+                  <strong>Manual follow-up</strong>
+                  <p>Any call, text, or email still happens through the contractor's normal review process.</p>
+                </div>
+                <div>
+                  <span>03</span>
+                  <strong>Project fit</strong>
+                  <p>The office confirms service area, scope, timing, and next appointment details.</p>
+                </div>
+              </div>
+              <Button type="button" size="lg" className="co-public-request-submit mt-4" onClick={onStartAnother}>
+                Send another request
+              </Button>
             </div>
           ) : (
             <form className="co-public-request-form" onSubmit={onSubmit}>
@@ -148,6 +173,9 @@ function PublicEstimateRequestPagePolished({
               <div className="co-public-request-fieldset">
                 <p>Project</p>
                 <InputField label="Project address" value={draft.projectAddress} onChange={(event) => setDraft((current) => ({ ...current, projectAddress: event.target.value }))} placeholder="843 Creekside Ave NE, Salem, OR" disabled={loading} />
+                <SelectField label="Service type" value={draft.serviceType} onChange={(event) => setDraft((current) => ({ ...current, serviceType: event.target.value }))} disabled={loading}>
+                  {PUBLIC_REQUEST_SERVICE_TYPES.map((option) => <option key={option}>{option}</option>)}
+                </SelectField>
                 <SelectField label="Project type" value={draft.projectType} onChange={(event) => setDraft((current) => ({ ...current, projectType: event.target.value }))} disabled={loading}>
                   {PUBLIC_REQUEST_PROJECT_TYPES.map((option) => <option key={option}>{option}</option>)}
                 </SelectField>
@@ -157,11 +185,29 @@ function PublicEstimateRequestPagePolished({
               <div className="co-public-request-fieldset">
                 <p>Follow-up</p>
                 <div className="grid gap-3 sm:grid-cols-2">
+                  <SelectField label="Timeline" value={draft.timeline} onChange={(event) => setDraft((current) => ({ ...current, timeline: event.target.value }))} disabled={loading}>
+                    {PUBLIC_REQUEST_TIMELINES.map((option) => <option key={option}>{option}</option>)}
+                  </SelectField>
+                  <SelectField label="Budget range" value={draft.budgetRange} onChange={(event) => setDraft((current) => ({ ...current, budgetRange: event.target.value }))} disabled={loading}>
+                    {PUBLIC_REQUEST_BUDGET_RANGES.map((option) => <option key={option}>{option}</option>)}
+                  </SelectField>
                   <SelectField label="Preferred contact method" value={draft.preferredContactMethod} onChange={(event) => setDraft((current) => ({ ...current, preferredContactMethod: event.target.value }))} disabled={loading}>
                     {["Phone", "Text", "Email"].map((option) => <option key={option}>{option}</option>)}
                   </SelectField>
                   <InputField label="Preferred contact time" value={draft.preferredContactTime} onChange={(event) => setDraft((current) => ({ ...current, preferredContactTime: event.target.value }))} placeholder="Weekday afternoons" disabled={loading} />
                 </div>
+                <InputField label="How did you hear about us?" value={draft.referralSource} onChange={(event) => setDraft((current) => ({ ...current, referralSource: event.target.value }))} placeholder="Google, referral, Facebook, yard sign" disabled={loading} />
+                <TextAreaField label="Photos or documents note" value={draft.photosNote} onChange={(event) => setDraft((current) => ({ ...current, photosNote: event.target.value }))} placeholder="Photos, plans, HOA notes, gate measurements, or inspection details you can share during follow-up." disabled={loading} />
+                <label className="inline-flex items-start gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={draft.consentToContact}
+                    onChange={(event) => setDraft((current) => ({ ...current, consentToContact: event.target.checked }))}
+                    disabled={loading}
+                    required
+                  />
+                  <span>I agree the contractor can contact me about this request. This form does not send automated texts, emails, estimates, invoices, or payment links.</span>
+                </label>
               </div>
 
               {error ? <p className="rounded-2xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}

@@ -249,7 +249,7 @@ import {
   createPublicDemoInterestDraft,
   validatePublicDemoInterestDraft,
 } from "./public-website-utils";
-import { INITIAL_PUBLIC_ESTIMATE_REQUEST_FORM } from "./public-estimate-request-form";
+import { INITIAL_PUBLIC_ESTIMATE_REQUEST_FORM, buildPublicEstimateRequestPayload } from "./public-estimate-request-form";
 import { buildCustomerPath, buildImportedJobDraftPath, buildJobPath, buildLeadPath, buildReportPath, getModulePath, normalizePathname, parseAppPath } from "./app-routing";
 import { APEX_PUBLIC_REQUEST_URL, AUTOSAVE_DELAY_MS, INVITE_ACTIVATION_PATH, LEGACY_SESSION_TOKEN_KEY, PASSWORD_RESET_PATH, PRINT_VIEW_ERROR_MESSAGE, PUBLIC_ESTIMATE_REQUEST_PATH, PUBLIC_WEBSITE_PATH, SESSION_ACTIVE_MARKER } from "./app-runtime-constants";
 import { APEX_BRAND_ASSETS, APP_NAME, BRANDING_ACCENT_OPTIONS, DEFAULT_COMPANY_NAME, getAccentTheme, normalizeAccentColor, resolveWorkspaceCompanyName, resolveWorkspaceLogoInitials, sanitizeLogoInitials } from "./brand-utils";
@@ -607,6 +607,7 @@ const INITIAL_SETUP_STATUS = {
   demoUserExists: false,
   environmentBootstrap: false,
   publicEstimateRequestEnabled: false,
+  publicEstimateRequestTargetCompanyId: "",
   publicSignupEnabled: false,
 };
 
@@ -8060,6 +8061,11 @@ function SettingsPagePolished({
                             <a className="co-settings-public-link-open co-focus-ring" href={APEX_PUBLIC_REQUEST_URL} target="_blank" rel="noreferrer">Open</a>
                           </div>
                           {publicRequestLinkNotice ? <em>{publicRequestLinkNotice}</em> : null}
+                          <div className="co-ai-scout-checks mt-3">
+                            <small>Captures service type, project type, timeline, budget range, referral source, and source attribution.</small>
+                            <small>Creates a manual office lead and due-today review task only; no estimate, job, customer message, invoice, payment, or portal access is created.</small>
+                            <small>Spam controls: honeypot, rate limit, required contact channel, explicit target company, and secret redaction.</small>
+                          </div>
                         </div>
                       ) : null}
                     </div>
@@ -12859,6 +12865,7 @@ export default function App() {
           demoUserExists: nextSetupStatus.demoUserExists,
           environmentBootstrap: nextSetupStatus.environmentBootstrap,
           publicEstimateRequestEnabled: nextSetupStatus.publicEstimateRequestEnabled,
+          publicEstimateRequestTargetCompanyId: nextSetupStatus.publicEstimateRequestTargetCompanyId,
           publicSignupEnabled: nextSetupStatus.publicSignupEnabled,
         });
       } catch {
@@ -13290,6 +13297,7 @@ export default function App() {
         demoUserExists: false,
         environmentBootstrap: false,
         publicEstimateRequestEnabled: setupStatus.publicEstimateRequestEnabled,
+        publicEstimateRequestTargetCompanyId: setupStatus.publicEstimateRequestTargetCompanyId,
         publicSignupEnabled: setupStatus.publicSignupEnabled,
       });
       applyBootstrap(result);
@@ -13324,6 +13332,7 @@ export default function App() {
         demoUserExists: setupStatus.demoUserExists,
         environmentBootstrap: setupStatus.environmentBootstrap,
         publicEstimateRequestEnabled: setupStatus.publicEstimateRequestEnabled,
+        publicEstimateRequestTargetCompanyId: setupStatus.publicEstimateRequestTargetCompanyId,
         publicSignupEnabled: setupStatus.publicSignupEnabled,
       });
       applyBootstrap(result);
@@ -13441,7 +13450,12 @@ export default function App() {
     setPublicEstimateRequestSuccess("");
 
     try {
-      const result = await submitPublicEstimateRequest(publicEstimateRequestDraft);
+      const result = await submitPublicEstimateRequest(buildPublicEstimateRequestPayload(publicEstimateRequestDraft, {
+        setupStatus,
+        locationHref: window.location.href,
+        referrer: document.referrer,
+        sourceSubmissionId: `public-request-${Date.now()}`,
+      }));
       setBackendStatus("online");
       setPublicEstimateRequestDraft(INITIAL_PUBLIC_ESTIMATE_REQUEST_FORM);
       setPublicEstimateRequestSuccess(result?.message || "Request received. Our team will follow up shortly.");
@@ -13453,6 +13467,12 @@ export default function App() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function resetPublicEstimateRequestForm() {
+    setPublicEstimateRequestDraft(INITIAL_PUBLIC_ESTIMATE_REQUEST_FORM);
+    setPublicEstimateRequestError("");
+    setPublicEstimateRequestSuccess("");
   }
 
   async function handlePublicDemoInterest(event) {
@@ -16513,6 +16533,7 @@ export default function App() {
           loading={busy}
           error={publicEstimateRequestError}
           successMessage={publicEstimateRequestSuccess}
+          onStartAnother={resetPublicEstimateRequestForm}
           backendStatus={backendStatus}
           enabled={setupStatus.publicEstimateRequestEnabled}
           demoMode={setupStatus.demoMode}

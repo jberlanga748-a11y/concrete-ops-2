@@ -1,10 +1,10 @@
 # Apex HQ Living Finish Plan
 
-Last updated: 2026-05-29
+Last updated: 2026-05-30
 
 ## Current Phase
 
-Growth Foundation: finish the owner-facing growth command layer around Client Finder, source review, ads planning, follow-up, and reputation/referral preparation.
+Website + Lead Intake Funnel is completed for the current manual-first phase. Next phase is Sales Follow-Up System.
 
 ## Product North Star
 
@@ -31,7 +31,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | Opportunity Scout / Client Finder | Built | Search profiles, lead sources, found opportunities, source checks, review-first conversion to leads, Agent Leads readiness layers. |
 | Daily Job Finder / Agent Leads | Partial | Review-first infrastructure and source readiness are built. Live provider accounts, real source credentials, and production runs remain provider/account-dependent. |
 | Source adapters and source health | Partial | Public/private source posture, provider setup, evidence packets, and source health exist. Live external connectors depend on approved providers/accounts. |
-| Website/public request intake | Partial | Public estimate/demo request foundations exist. Trade-specific funnel polish remains later. |
+| Website/public request intake | Built / Partial | Public estimate/demo request foundations exist. Public estimate request now captures service type, project type, timing, budget, referral source, attribution, consent, thank-you state, and creates a manual office lead/review task. Website builder and SEO/service-page drafts remain later. |
 | Sales follow-up | Partial | Lead states, contact history, follow-up queues, and scripts/readiness exist. Provider sends stay locked until configured and reviewed. |
 | Ads / Marketing Spend Advisor | Partial | Growth Command Center now exposes provider-ready spend guardrails, channel recommendations, stop-loss rules, and draft planning. Live ad publishing/spend is locked. |
 | Reputation + Portfolio Engine | Partial | Jobs, reports, uploads, closeout proof, and proposal proof blocks exist. Dedicated review/referral/portfolio workflow remains a later phase. |
@@ -75,7 +75,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - Tokenized customer portal sends.
 - Twilio/SMS, email provider, Gmail/Calendar, QuickBooks, Google Drive, CompanyCam, DocuSign/e-signature, Maps/weather, Google/Meta Ads APIs.
 
-## Active Phase Checklist: Growth Foundation
+## Completed Phase Checklist: Growth Foundation
 
 - [x] Create living finish plan.
 - [x] Inventory Client Finder / Opportunity Scout / Agent Leads.
@@ -88,6 +88,21 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - [ ] Deploy only after release approval and health-check if provider/runtime access is available.
 - [x] Update this file with final phase report.
 
+## Active Phase Checklist: Website + Lead Intake Funnel
+
+- [x] Keep existing public estimate request route and review-first lead workflow.
+- [x] Add trade/service-specific intake fields.
+- [x] Capture timeline, budget range, referral source, photo/document notes, and consent.
+- [x] Capture source attribution from page URL, referrer, and UTM values.
+- [x] Ensure public form can safely target the single active workspace without exposing field data.
+- [x] Keep honeypot, rate limiting, required contact channel, explicit target company, and secret redaction.
+- [x] Create only manual office lead and due-today review task; no estimate, job, message, invoice, payment, or portal access.
+- [x] Add thank-you/next-step state.
+- [x] Add owner/admin setup checklist notes in Settings.
+- [x] Verify phase tests, build, browser QA, and field safety.
+- [ ] Commit and push phase.
+- [ ] Deploy only after release approval and health-check if provider/runtime access is available.
+
 ## Completed / Frozen Systems
 
 - Demo auth and role permissions.
@@ -97,6 +112,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - Customer portal/communication readiness contracts.
 - Estimate PDF and branded packet foundations.
 - Field-safe mobile workflow boundaries.
+- Public estimate request manual lead intake funnel.
 
 ## Do-Not-Rebuild List
 
@@ -123,6 +139,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | Date | Phase | Version/Commit | Environment | Health |
 | --- | --- | --- | --- | --- |
 | 2026-05-29 | Growth Foundation | `692b474` pushed to `main` | Local QA at `http://127.0.0.1:4100` | `/api/ready` OK; launch gate says guided demo GO and production/pilot/public launch NO-GO. |
+| 2026-05-30 | Website + Lead Intake Funnel | Pending commit | Local QA at `http://127.0.0.1:4102` | `/api/ready` OK; launch gate says guided demo GO and production/pilot/public launch NO-GO. |
 
 ## Roadmap Queue
 
@@ -141,7 +158,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ## Next Phase
 
-Website + Lead Intake Funnel after Growth Foundation passes verification and review.
+Sales Follow-Up System after Website + Lead Intake Funnel passes final review.
 
 ## Decision Log
 
@@ -151,6 +168,8 @@ Website + Lead Intake Funnel after Growth Foundation passes verification and rev
 | 2026-05-29 | Ads are provider-ready planning only. | No pilot/provider/account or ad-spend approval exists. | Contractors can plan budgets, channels, copy, and guardrails without risk of live spend. |
 | 2026-05-29 | Reputation/portfolio starts from existing jobs, uploads, reports, and closeout proof. | Proof assets already exist in operations workflows. | Avoids duplicating media/work history while making proof reuse part of growth. |
 | 2026-05-29 | Growth Command Center is visible to owner/admin AI Office users even when the deeper Lead Finder package gate is off. | Owners still need to see how Apex HQ helps find clients. | The high-level growth plan is visible; deeper Opportunity Scout management remains behind existing package/permission gates. |
+| 2026-05-30 | Public estimate requests stay manual-first. | Public website demand should become owner/admin review work, not automated sends or jobs. | The funnel creates a lead and review task only; estimates, jobs, messages, invoices, payments, and portal links remain locked. |
+| 2026-05-30 | Public setup status exposes a target company id only when exactly one active company exists. | The API requires an explicit target company for external writes, and the public form needs a safe way to submit to the right workspace. | Single-company public form works; multi-company public target remains explicit and guarded. |
 
 ## Growth Foundation Phase Report
 
@@ -219,3 +238,74 @@ Rollback note:
 Next recommended phase:
 
 - Website + Lead Intake Funnel, then Sales Follow-Up System.
+
+## Website + Lead Intake Funnel Phase Report
+
+Goal: make the public request flow capture real contractor demand and route it safely into owner/admin lead review.
+
+What was already built:
+
+- Public estimate request route, public demo interest route, honeypot/rate limiting, required contact channel, lead/customer creation, queue cue, audit activity, field-role denial tests, and website lead integration package contracts.
+
+What was completed now:
+
+- Added service type, timeline, budget range, referral source, photos/documents note, and contact consent to the public estimate request form.
+- Added source attribution capture for page URL, referrer, UTM source, UTM medium, UTM campaign, source app, and source submission id.
+- Added a thank-you/next-step state that explains office review, manual follow-up, and project fit confirmation.
+- Updated the server route to store enriched safe notes, mark urgent timelines high priority, set follow-up due today, and create a manual "Review website request" queue task.
+- Exposed a public estimate request target company id only when one active company exists so the browser form can satisfy the explicit-target API gate.
+- Added owner/admin Settings setup checklist notes for public intake.
+- Expanded `verify:public-request` to include the new public form tests.
+
+Provider/account-dependent remaining:
+
+- Website embed on an external contractor site, branded service pages, SEO/service page drafts, file/photo upload provider, and any automated email/SMS follow-up.
+
+Affected files:
+
+- `docs/APEX_HQ_LIVING_FINISH_PLAN.md`
+- `package.json`
+- `server/index.js`
+- `server/public-request.test.js`
+- `src/App.jsx`
+- `src/public-estimate-request-form.js`
+- `src/public-estimate-request-form.test.js`
+- `src/public-estimate-request-page-components.jsx`
+- `src/public-estimate-request-page-components-import.test.js`
+
+Validation results:
+
+- `npm.cmd run verify:public-request` passed.
+- `npm.cmd run verify:leads` passed.
+- `npm.cmd run verify:roles` passed.
+- `npm.cmd run build` passed with existing large chunk warnings.
+- `git diff --check` passed.
+- `npm.cmd run launch:gate-status -- --json` reported guided demo GO, but customer pilot handoff, production auth smoke, monitoring upgrade, and wider paid launch NO-GO.
+
+Browser QA:
+
+- Public mobile `/request-estimate`: submitted a request and reached the thank-you state with manual follow-up and project-fit next steps.
+- Owner desktop `/leads`: created website request lead visible with review task.
+- Employee mobile `/leads`: redirected to `/jobs`; website lead and lead workspace text not visible.
+
+Permissions impact:
+
+- No field permissions were loosened.
+- Public requests create owner/admin review work only.
+- External write target remains explicit; browser target is exposed only for single active company public intake.
+
+Field-user impact:
+
+- Field users still cannot see public leads, lead pipeline, estimates, pricing, AI office, billing, or settings.
+
+Mobile impact:
+
+- Public mobile request flow and employee mobile restricted-route behavior were browser-tested.
+
+Rollback note:
+
+- Revert the listed files to return to the prior basic public estimate request form and server notes without schema changes or data migration.
+
+Next recommended phase:
+
+- Sales Follow-Up System.

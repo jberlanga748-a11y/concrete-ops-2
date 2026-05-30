@@ -46,6 +46,7 @@ import {
   findMatchingWebsiteLeadSource,
   findWebsiteLeadDuplicate,
   sanitizeFreeformTextForNotes,
+  sanitizeWebsiteUrlForNotes,
 } from "../shared/websiteLeadIntake.js";
 import {
   buildLeadSourceCheckedPatch,
@@ -4539,17 +4540,45 @@ function resolveIntegrationLeadOwnerForCompany(state, companyId) {
 }
 
 function buildPublicRequestLeadNotes({
+  serviceType,
   projectAddress,
   projectType,
   projectDetails,
+  timeline,
+  budgetRange,
+  photosNote,
+  referralSource,
   preferredContactMethod,
   preferredContactTime,
+  consentToContact,
+  sourceSubmissionId,
+  sourceApp,
+  pageUrl,
+  referrer,
+  utmSource,
+  utmMedium,
+  utmCampaign,
 }) {
   const lines = [
     `Source: public estimate request form`,
+    sourceSubmissionId ? `Source submission ID: ${sanitizeFreeformTextForNotes(sourceSubmissionId)}` : "",
+    sourceApp ? `Source app: ${sanitizeFreeformTextForNotes(sourceApp)}` : "",
+    pageUrl ? `Page URL: ${sanitizeWebsiteUrlForNotes(pageUrl)}` : "",
+    referrer ? `Referrer: ${sanitizeWebsiteUrlForNotes(referrer)}` : "",
+    utmSource ? `UTM source: ${sanitizeFreeformTextForNotes(utmSource)}` : "",
+    utmMedium ? `UTM medium: ${sanitizeFreeformTextForNotes(utmMedium)}` : "",
+    utmCampaign ? `UTM campaign: ${sanitizeFreeformTextForNotes(utmCampaign)}` : "",
+    serviceType ? `Service type: ${sanitizeFreeformTextForNotes(serviceType)}` : "",
     `Project type: ${sanitizeFreeformTextForNotes(projectType)}`,
     `Project address: ${sanitizeFreeformTextForNotes(projectAddress)}`,
     `Project details: ${sanitizeFreeformTextForNotes(projectDetails)}`,
+    timeline ? `Timeline: ${sanitizeFreeformTextForNotes(timeline)}` : "",
+    budgetRange ? `Budget range: ${sanitizeFreeformTextForNotes(budgetRange)}` : "",
+    photosNote ? `Photos/documents note: ${sanitizeFreeformTextForNotes(photosNote)}` : "",
+    referralSource ? `How they heard about us: ${sanitizeFreeformTextForNotes(referralSource)}` : "",
+    `Manual review required: yes`,
+    `Automation boundary: no customer message, estimate, job, invoice, payment, or portal access was created from this public form.`,
+    `Consent to contact: ${consentToContact === true ? "Yes" : "Needs office review"}`,
   ];
   if (preferredContactMethod) {
     lines.push(`Preferred contact method: ${sanitizeFreeformTextForNotes(preferredContactMethod)}`);
@@ -4557,7 +4586,7 @@ function buildPublicRequestLeadNotes({
   if (preferredContactTime) {
     lines.push(`Preferred contact time: ${sanitizeFreeformTextForNotes(preferredContactTime)}`);
   }
-  return lines.join("\n");
+  return lines.filter(Boolean).join("\n");
 }
 
 const PUBLIC_DEMO_INTEREST_WORKFLOWS = new Set([
@@ -6623,6 +6652,7 @@ function buildAgentContextPayload(bootstrapPayload, requestId) {
 function sanitizeSetupStatus(state) {
   const demoUserExists = serverConfig.demoMode
     && state.users.some((user) => DEMO_USER_EMAILS.includes(user.email.toLowerCase()));
+  const activeCompanies = companiesForState(state).filter((company) => String(company.status || "active").toLowerCase() !== "inactive");
   return {
     needsSetup: state.users.length === 0,
     hasUsers: state.users.length > 0,
@@ -6630,6 +6660,7 @@ function sanitizeSetupStatus(state) {
     demoUserExists,
     environmentBootstrap: Boolean(serverConfig.bootstrapAdmin),
     publicEstimateRequestEnabled: serverConfig.publicEstimateRequestEnabled,
+    publicEstimateRequestTargetCompanyId: serverConfig.publicEstimateRequestEnabled && activeCompanies.length === 1 ? activeCompanies[0].id : "",
     publicSignupEnabled: serverConfig.publicSignupEnabled,
   };
 }
@@ -7902,13 +7933,26 @@ app.post("/api/public/estimate-request", asyncRoute(async (req, res) => {
   const name = requiredString(payload.name, "Name");
   const { phone, email } = requiredContactChannel(payload.phone, payload.email);
   const projectAddress = requiredString(payload.projectAddress, "Project address");
+  const serviceType = optionalString(payload.serviceType, "");
   const projectType = requiredString(payload.projectType, "Project type");
   const projectDetails = requiredString(payload.projectDetails, "Project details");
+  const timeline = optionalString(payload.timeline, "");
+  const budgetRange = optionalString(payload.budgetRange, "");
+  const photosNote = optionalString(payload.photosNote, "");
+  const referralSource = optionalString(payload.referralSource, "");
   const preferredContactMethod = optionalString(payload.preferredContactMethod, "");
   const preferredContactTime = optionalString(payload.preferredContactTime, "");
+  const consentToContact = payload.consentToContact === true;
+  const sourceSubmissionId = optionalString(payload.sourceSubmissionId, "");
+  const sourceApp = optionalString(payload.sourceApp, "");
+  const pageUrl = optionalString(payload.pageUrl, "");
+  const referrer = optionalString(payload.referrer, "");
+  const utmSource = optionalString(payload.utmSource, "");
+  const utmMedium = optionalString(payload.utmMedium, "");
+  const utmCampaign = optionalString(payload.utmCampaign, "");
   const city = extractCityFromProjectAddress(projectAddress);
   const createdAt = new Date().toISOString();
-  const projectLabel = `${projectType} estimate request`;
+  const projectLabel = `${[serviceType, projectType].filter(Boolean).join(" - ") || projectType} estimate request`;
 
   await updateDb((draft) => {
     if (!Array.isArray(draft.users) || draft.users.length === 0) {
@@ -7940,20 +7984,33 @@ app.post("/api/public/estimate-request", asyncRoute(async (req, res) => {
       project: projectLabel,
       trade: normalizeLeadTradeValue(projectType),
       status: "New",
-      priority: "Normal",
+      priority: /\b(asap|urgent|emergency|this week|today|tomorrow)\b/i.test(timeline) ? "High" : "Normal",
       value: 0,
       owner: owner.name,
       ownerId: owner.id,
       source: "public_request_form",
-      followUpDueAt: "",
+      followUpDueAt: createdAt.slice(0, 10),
       age: "Just now",
-      nextStep: "Contact new public estimate request",
+      nextStep: consentToContact ? "Review website request and follow up manually" : "Review contact consent before follow-up",
       notes: buildPublicRequestLeadNotes({
+        serviceType,
         projectAddress,
         projectType,
         projectDetails,
+        timeline,
+        budgetRange,
+        photosNote,
+        referralSource,
         preferredContactMethod,
         preferredContactTime,
+        consentToContact,
+        sourceSubmissionId,
+        sourceApp,
+        pageUrl,
+        referrer,
+        utmSource,
+        utmMedium,
+        utmCampaign,
       }),
       createdAt,
       updatedAt: createdAt,
@@ -7966,13 +8023,13 @@ app.post("/api/public/estimate-request", asyncRoute(async (req, res) => {
       fromStatus: null,
       toStatus: lead.status,
       actor: owner,
-      note: "Lead created from the public estimate request form.",
+      note: "Lead created from the public estimate request form for manual office review.",
       createdAt,
     });
     draft.queueItems.unshift({
       id: makeId("Q"),
       companyId: targetCompany.id,
-      title: `Follow up ${lead.customer}`,
+      title: `Review website request: ${lead.customer}`,
       meta: `${projectType} - ${projectAddress}`,
       status: "Due today",
       done: false,

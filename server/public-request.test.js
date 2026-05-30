@@ -165,10 +165,23 @@ function buildPublicRequestPayload(overrides = {}) {
     phone: "503-555-0199",
     email: "alex.rivera@example.test",
     projectAddress: "412 Market Street NE, Salem, OR",
+    serviceType: "Commercial service",
     projectType: "ADA ramp",
     projectDetails: "Need a small ADA ramp poured at the storefront entry and want a quick estimate visit.",
+    timeline: "ASAP",
+    budgetRange: "$5,000-$10,000",
+    photosNote: "Can share storefront photos during follow-up.",
+    referralSource: "Google Search",
     preferredContactMethod: "Phone",
     preferredContactTime: "Weekday afternoons",
+    consentToContact: true,
+    sourceSubmissionId: "public-test-submission-1",
+    sourceApp: "Apex HQ public estimate request",
+    pageUrl: "https://app.apexhq.online/request-estimate?utm_source=google&utm_medium=cpc&utm_campaign=ada&token=secret",
+    referrer: "https://example.test/services?session=secret",
+    utmSource: "google",
+    utmMedium: "cpc",
+    utmCampaign: "ada ramp",
     targetCompanyId: DEFAULT_COMPANY_ID,
     honeypot: "",
     ...overrides,
@@ -188,6 +201,10 @@ test("public estimate request creates a lead, links a customer, and keeps field 
     });
     insertUsers(fixture.sqliteFile, [employeeUser]);
 
+    const setupStatus = await assertOk(fixture.baseUrl, "/api/setup/status");
+    assert.equal(setupStatus.publicEstimateRequestEnabled, true);
+    assert.equal(setupStatus.publicEstimateRequestTargetCompanyId, DEFAULT_COMPANY_ID);
+
     const submission = await assertOk(fixture.baseUrl, "/api/public/estimate-request", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -206,9 +223,22 @@ test("public estimate request creates a lead, links a customer, and keeps field 
     assert.ok(createdLead);
     assert.equal(createdLead.companyId, DEFAULT_COMPANY_ID);
     assert.equal(createdLead.status, "New");
+    assert.equal(createdLead.priority, "High");
+    assert.equal(createdLead.followUpDueAt.length, 10);
+    assert.equal(createdLead.nextStep, "Review website request and follow up manually");
+    assert.match(createdLead.project, /Commercial service - ADA ramp estimate request/);
     assert.match(createdLead.notes, /Project address: 412 Market Street NE, Salem, OR/);
+    assert.match(createdLead.notes, /Service type: Commercial service/);
+    assert.match(createdLead.notes, /Timeline: ASAP/);
+    assert.match(createdLead.notes, /Budget range: \$5,000-\$10,000/);
+    assert.match(createdLead.notes, /How they heard about us: Google Search/);
+    assert.match(createdLead.notes, /Source submission ID: public-test-submission-1/);
+    assert.match(createdLead.notes, /Page URL: https:\/\/app.apexhq.online\/request-estimate\?utm_source=google&utm_medium=cpc&utm_campaign=ada/);
+    assert.match(createdLead.notes, /Manual review required: yes/);
+    assert.match(createdLead.notes, /Automation boundary: no customer message, estimate, job, invoice, payment, or portal access was created/);
+    assert.match(createdLead.notes, /Consent to contact: Yes/);
     assert.match(createdLead.notes, /Preferred contact method: Phone/);
-    assert.doesNotMatch(createdLead.notes, /token=|apiKey=|password=/i);
+    assert.doesNotMatch(createdLead.notes, /token=secret|apiKey=|password=|session=secret/i);
 
     const linkedCustomer = officeBootstrap.customers.find((customer) => customer.id === createdLead.customerId);
     assert.ok(linkedCustomer);
@@ -216,6 +246,7 @@ test("public estimate request creates a lead, links a customer, and keeps field 
     assert.equal(linkedCustomer.email, "alex.rivera@example.test");
     assert.ok(officeBootstrap.activity.some((item) => item.title === "Public estimate request received"));
     assert.ok(officeBootstrap.auditEvents.some((event) => event.entityId === createdLead.id && event.action === "public_request_created"));
+    assert.ok(officeBootstrap.queueItems.some((item) => item.title === "Review website request: Alex Rivera"));
 
     const employeeLogin = await login(fixture.baseUrl, {
       email: "public-employee@lastyard.test",
@@ -354,6 +385,9 @@ test("public estimate request requires a valid target company in multi-company m
       companyId: "COMPANY-LYF",
     }));
 
+    const setupStatus = await assertOk(fixture.baseUrl, "/api/setup/status");
+    assert.equal(setupStatus.publicEstimateRequestTargetCompanyId, "");
+
     const missingTarget = await requestJson(fixture.baseUrl, "/api/public/estimate-request", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -408,7 +442,7 @@ test("public estimate request requires a valid target company in multi-company m
     const lyfLead = lyfBootstrap.leads.find((lead) => lead.customer === "LYF Targeted Lead");
     assert.ok(lyfLead);
     assert.equal(lyfLead.companyId, "COMPANY-LYF");
-    assert.ok(lyfBootstrap.queueItems.some((item) => item.title === "Follow up LYF Targeted Lead"));
+    assert.ok(lyfBootstrap.queueItems.some((item) => item.title === "Review website request: LYF Targeted Lead"));
 
     const defaultLogin = await login(fixture.baseUrl, {
       email: "demo.ops@apexhq.app",
