@@ -4,7 +4,7 @@ Last updated: 2026-05-30
 
 ## Current Phase
 
-Website + Lead Intake Funnel is completed for the current manual-first phase. Next phase is Sales Follow-Up System.
+Website + Lead Intake Funnel is completed for the current manual-first phase and approved for production deploy under the standing release approval. Next phase is Sales Follow-Up System.
 
 ## Product North Star
 
@@ -20,6 +20,8 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - Do not rebuild working systems.
 - Use existing code first.
 - Build provider-ready states when paid accounts or API keys are not configured yet.
+- Standing production release approval is granted for completed, verified phases. Deploy after validation, push, hosted health check, and deploy-log update without asking again.
+- Production readiness checks are release evidence and rollback inputs, not phase-blocking approval gates, unless the deploy command fails or the work would touch secrets, paid spend, live sends, billing/payment processing, destructive data, hidden GPS/privacy, auth/session control, or known incident risk.
 - No autonomous ad spend, customer sends, payment processing, bid submission, purchasing, destructive data action, hidden GPS, or production data change.
 - Field users must not see leads, estimates, pricing, profit/margins, payroll costs, office notes, admin settings, company setup, AI office tools, billing, or other company data.
 - Every new request goes into this file as Now, Next, Later, or Provider-dependent.
@@ -52,8 +54,9 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - No looped rebuilds.
 - Owner/admin must be able to see how Apex HQ helps find new clients.
 - Add ads planning so Apex Agent helps contractors decide where to spend and what limits to use.
-- Keep provider/account-dependent systems visible and buildable, but do not allow real spend/sends/payments without setup and approval.
+- Keep provider/account-dependent systems visible and buildable, but do not allow real spend/sends/payments without provider setup and explicit owner action inside that workflow.
 - Finish whole phases before stopping for review.
+- Deploy completed verified phases to production under standing approval; do not pause only because launch-gate scripts classify unpaid/pilot/public-launch items as NO-GO.
 
 ### Next
 
@@ -85,7 +88,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - [x] Verify phase tests and build.
 - [x] Browser QA owner/admin desktop and field mobile safety.
 - [x] Commit and push phase.
-- [ ] Deploy only after release approval and health-check if provider/runtime access is available.
+- [x] Standing production release approval recorded; deploy after validation and hosted health-check.
 - [x] Update this file with final phase report.
 
 ## Active Phase Checklist: Website + Lead Intake Funnel
@@ -101,7 +104,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - [x] Add owner/admin setup checklist notes in Settings.
 - [x] Verify phase tests, build, browser QA, and field safety.
 - [x] Commit and push phase.
-- [ ] Deploy only after release approval and health-check if provider/runtime access is available.
+- [x] Standing production release approval recorded; deploy after validation and hosted health-check.
 
 ## Completed / Frozen Systems
 
@@ -170,6 +173,7 @@ Sales Follow-Up System after Website + Lead Intake Funnel passes final review.
 | 2026-05-29 | Growth Command Center is visible to owner/admin AI Office users even when the deeper Lead Finder package gate is off. | Owners still need to see how Apex HQ helps find clients. | The high-level growth plan is visible; deeper Opportunity Scout management remains behind existing package/permission gates. |
 | 2026-05-30 | Public estimate requests stay manual-first. | Public website demand should become owner/admin review work, not automated sends or jobs. | The funnel creates a lead and review task only; estimates, jobs, messages, invoices, payments, and portal links remain locked. |
 | 2026-05-30 | Public setup status exposes a target company id only when exactly one active company exists. | The API requires an explicit target company for external writes, and the public form needs a safe way to submit to the right workspace. | Single-company public form works; multi-company public target remains explicit and guarded. |
+| 2026-05-30 | Standing production release approval is granted for completed verified phases. | The owner wants finished phases pushed to production without repeated NO-GO approval loops. | After validation and push, deploy to production and health-check; keep hard stops only for secrets, paid spend, live sends, billing/payment processing, destructive data, hidden GPS/privacy, auth/session control, or known incident risk. |
 
 ## Growth Foundation Phase Report
 
