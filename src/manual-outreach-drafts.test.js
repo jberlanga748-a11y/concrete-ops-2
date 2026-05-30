@@ -117,6 +117,22 @@ test("manual outreach queue actions create waiting and follow-up payloads withou
   assert.match(twoDays.notes, /No message was sent/);
 });
 
+test("manual outreach can log won and lost outcomes for source learning", () => {
+  const won = buildManualOutreachContactPayload(QUEUE_ITEM, "mark-won", {
+    now: "2026-05-11T15:30:00.000Z",
+    today: "2026-05-11",
+  });
+  const lost = buildManualOutreachContactPayload(QUEUE_ITEM, "mark-lost", {
+    now: "2026-05-11T15:30:00.000Z",
+    today: "2026-05-11",
+  });
+
+  assert.equal(won.outcome, "Won");
+  assert.match(won.notes, /real reason/i);
+  assert.equal(lost.outcome, "Lost");
+  assert.match(lost.notes, /objection|reason/i);
+});
+
 test("manual outreach payloads ignore unsupported lead-source draft actions", () => {
   assert.equal(buildManualOutreachContactPayload({ type: "leadSource", recordId: "LS-1" }, "mark-email-sent"), null);
 });

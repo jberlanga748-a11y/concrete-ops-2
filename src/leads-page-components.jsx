@@ -10,6 +10,7 @@ import { isEstimatorMobilePipelineUser } from "./estimator-mobile-utils";
 import { deriveLeadInboxState } from "./lead-utils";
 import { LEAD_SOURCE_OPTIONS, LeadIntakeCard, LeadMissingInfoBadge, LeadScoreBadge, formatLeadFollowUpDate, isLeadFollowUpDue, isLeadReadyForEstimate, leadContactEmail, leadContactPhone, leadHasMissingInfoCheck, leadHasScore, leadSourceLabel } from "./lead-route-components";
 import { normalizeObjectArray, todayDateInputValue } from "./report-utils";
+import { deriveSalesFollowUpSystemState } from "./sales-follow-up-system";
 
 function currency(value) {
   return new Intl.NumberFormat("en-US", {
@@ -333,6 +334,152 @@ function DailySourceCheckPanel({
           tone="green"
           helperForSource={(source) => `Checked ${source.lastCheckedAt}`}
         />
+      </div>
+    </Card>
+  );
+}
+
+function SalesFollowUpCommandCenter({
+  state,
+  onOpenFollowUpQueue = () => {},
+  onOpenLead = () => {},
+  onOpenEstimate = () => {},
+}) {
+  const stats = [
+    { label: "Due Today", value: state.stats.dueToday, tone: state.stats.dueToday ? "amber" : "green" },
+    { label: "Overdue", value: state.stats.overdue, tone: state.stats.overdue ? "red" : "green" },
+    { label: "Not Contacted", value: state.stats.notContacted, tone: state.stats.notContacted ? "blue" : "slate" },
+    { label: "Stale Estimates", value: state.stats.staleEstimates, tone: state.stats.staleEstimates ? "amber" : "green" },
+  ];
+  const dailyRows = state.dailyQueue.slice(0, 5);
+  const staleRows = state.staleEstimates.slice(0, 4);
+  const sourceRows = state.sourcePerformance.slice(0, 5);
+  const learningRows = state.wonLostLearning.rows.slice(0, 4);
+
+  return (
+    <Card className="co-sales-followup-command overflow-hidden">
+      <div className="border-b border-slate-200 bg-white p-4">
+        <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0">
+            <Badge tone="orange">Sales Follow-Up System</Badge>
+            <h3 className="mt-2 text-base font-black text-slate-950">Win more of the leads already in the shop</h3>
+            <p className="mt-1 text-sm font-bold leading-6 text-slate-600">
+              Daily calls, stale estimate reminders, scripts, won/lost learning, referrals, and source quality stay review-first. No email, text, DM, or ad spend happens from this panel.
+            </p>
+          </div>
+          <div className="grid min-w-0 gap-2 sm:grid-cols-4 xl:min-w-[560px]">
+            {stats.map((stat) => (
+              <button key={stat.label} type="button" className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-left transition hover:border-orange-200 hover:bg-orange-50" onClick={onOpenFollowUpQueue}>
+                <p className="text-xl font-black text-slate-950">{stat.value}</p>
+                <Badge tone={stat.tone}>{stat.label}</Badge>
+              </button>
+            ))}
+          </div>
+        </div>
+        {state.nextActions.length ? (
+          <div className="mt-3 grid gap-2 lg:grid-cols-3">
+            {state.nextActions.slice(0, 3).map((action) => (
+              <div key={action} className="rounded-xl border border-orange-100 bg-orange-50 px-3 py-2 text-xs font-black leading-5 text-orange-900">{action}</div>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-800">Sales follow-up queue is clear for today.</p>
+        )}
+      </div>
+
+      <div className="grid gap-4 p-4 xl:grid-cols-2">
+        <div className="min-w-0">
+          <SectionHeader title="Daily Follow-Up Queue" description="Work the calls and manual touches that move leads toward estimates." action={<Button type="button" size="sm" onClick={onOpenFollowUpQueue}>Open Queue</Button>} />
+          <div className="mt-3 grid gap-2">
+            {dailyRows.length ? dailyRows.map((item) => (
+              <button key={item.id} type="button" className="rounded-xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-orange-200" onClick={() => item.type === "lead" ? onOpenLead(item.recordId) : onOpenFollowUpQueue()}>
+                <div className="flex min-w-0 items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="break-words text-sm font-black text-slate-950">{item.title}</p>
+                    <p className="mt-1 break-words text-xs font-bold text-slate-500">{item.subtitle || item.reason}</p>
+                  </div>
+                  <Badge tone={item.bucket === "overdue" ? "red" : item.bucket === "dueToday" ? "amber" : "blue"}>{String(item.bucket || "follow-up").replace(/([A-Z])/g, " $1")}</Badge>
+                </div>
+                <p className="mt-2 line-clamp-2 text-xs font-bold leading-5 text-slate-600">{item.reason}</p>
+              </button>
+            )) : <StateCard title="No follow-up rows due" description="New, due, waiting, and unscheduled follow-ups will appear here." tone="slate" />}
+          </div>
+        </div>
+
+        <div className="min-w-0">
+          <SectionHeader title="Stale Estimate Reminders" description="Sent estimates should never disappear after the proposal goes out." action={<Badge tone={staleRows.length ? "amber" : "green"}>{staleRows.length}</Badge>} />
+          <div className="mt-3 grid gap-2">
+            {staleRows.length ? staleRows.map((row) => (
+              <button key={row.id} type="button" className="rounded-xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-orange-200" onClick={() => onOpenEstimate(row.id)}>
+                <div className="flex min-w-0 items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="break-words text-sm font-black text-slate-950">{row.title}</p>
+                    <p className="mt-1 break-words text-xs font-bold text-slate-500">{[row.customer, row.status].filter(Boolean).join(" / ") || "Estimate follow-up"}</p>
+                  </div>
+                  <Badge tone={row.tone}>{row.followUpDate || "No date"}</Badge>
+                </div>
+                <p className="mt-2 text-xs font-bold leading-5 text-slate-600">{row.reason}</p>
+              </button>
+            )) : <StateCard title="No stale estimates" description="Sent estimates with overdue, missing, or stale follow-up will appear here." tone="slate" />}
+          </div>
+        </div>
+
+        <div className="min-w-0">
+          <SectionHeader title="Lead Quality By Source" description="Use real follow-up outcomes before spending more money on a channel." action={<Badge tone={sourceRows.length ? "blue" : "slate"}>{sourceRows.length}</Badge>} />
+          <div className="mt-3 grid gap-2">
+            {sourceRows.length ? sourceRows.map((row) => (
+              <div key={row.source} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                <div className="flex min-w-0 items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="break-words text-sm font-black text-slate-950">{row.source}</p>
+                    <p className="mt-1 text-xs font-bold text-slate-500">{row.total} lead{row.total === 1 ? "" : "s"} / {row.winRate}% won</p>
+                  </div>
+                  <Badge tone={row.tone}>{row.quality}</Badge>
+                </div>
+                <div className="mt-3 grid grid-cols-5 gap-2 text-center text-xs font-black text-slate-600">
+                  <span>Open <b className="block text-slate-950">{row.open}</b></span>
+                  <span>Due <b className="block text-slate-950">{row.due}</b></span>
+                  <span>Wait <b className="block text-slate-950">{row.waiting}</b></span>
+                  <span>Won <b className="block text-slate-950">{row.won}</b></span>
+                  <span>Lost <b className="block text-slate-950">{row.lost}</b></span>
+                </div>
+              </div>
+            )) : <StateCard title="No source performance yet" description="Lead sources will build quality signals as follow-up outcomes are logged." tone="slate" />}
+          </div>
+        </div>
+
+        <div className="min-w-0">
+          <SectionHeader title="Scripts, Reviews, Referrals" description="Copy-safe scripts for call, voicemail, email, text, review ask, and referral ask." action={<Badge tone="amber">Manual only</Badge>} />
+          <div className="mt-3 grid gap-2">
+            {state.scripts.slice(0, 6).map((script) => (
+              <details key={script.id} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                <summary className="cursor-pointer text-sm font-black text-slate-950">
+                  {script.label}
+                  <span className="ml-2 text-xs font-bold text-slate-500">{script.helper}</span>
+                </summary>
+                <textarea className="field-input mt-3 min-h-[104px] whitespace-pre-wrap font-mono text-xs leading-5" readOnly value={script.body || ""} onFocus={(event) => event.currentTarget.select()} />
+              </details>
+            ))}
+          </div>
+        </div>
+
+        <div className="min-w-0 xl:col-span-2">
+          <SectionHeader title="Won / Lost Reasons" description="Apex HQ learns which sources, objections, and follow-up moves are actually producing work." action={<Badge tone={learningRows.length ? "green" : "slate"}>{state.wonLostLearning.stats.withReason} with reason</Badge>} />
+          <div className="mt-3 grid gap-2 lg:grid-cols-2">
+            {learningRows.length ? learningRows.map((row) => (
+              <div key={row.id} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                <div className="flex min-w-0 items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="break-words text-sm font-black text-slate-950">{row.customer}</p>
+                    <p className="mt-1 break-words text-xs font-bold text-slate-500">{[row.project, row.source].filter(Boolean).join(" / ")}</p>
+                  </div>
+                  <Badge tone={row.tone}>{row.outcome}</Badge>
+                </div>
+                <p className="mt-2 line-clamp-2 text-xs font-bold leading-5 text-slate-600">{row.reason}</p>
+              </div>
+            )) : <StateCard title="No won/lost reasons logged" description="Use contact history outcomes to mark won/lost and write the reason before changing sources or ad spend." tone="slate" />}
+          </div>
+        </div>
       </div>
     </Card>
   );
@@ -842,6 +989,7 @@ function LeadCommandRail({
 export function LeadsPage({
   user,
   companyName,
+  currentCompanyId = "",
   leads = [],
   leadSources = [],
   contactHistory = [],
@@ -901,6 +1049,18 @@ export function LeadsPage({
 }) {
   const leadInboxState = useMemo(() => deriveLeadInboxState(leads), [leads]);
   const today = todayDateInputValue();
+  const salesFollowUpState = useMemo(() => deriveSalesFollowUpSystemState({
+    leads,
+    customers,
+    estimates,
+    leadSources,
+    contactHistory,
+  }, {
+    today,
+    companyId: currentCompanyId,
+    companyName,
+    senderName: user?.name || companyName,
+  }), [companyName, contactHistory, currentCompanyId, customers, estimates, leadSources, leads, today, user?.name]);
   const [activeLeadTool, setActiveLeadTool] = useState("intake");
   const [showCreateLead, setShowCreateLead] = useState(false);
   const canManageSources = permissions?.leads?.canManageSources ?? permissions?.leads?.canManage;
@@ -1214,6 +1374,13 @@ export function LeadsPage({
             { id: "estimate-ready", label: "Estimate Ready", icon: "check", onClick: () => { setShowCreateLead(false); setScoreFilter("All scores"); }, disabled: leadEstimateReadyCount === 0 },
           ].filter(Boolean)}
           className="co-leads-command-shell"
+        />
+
+        <SalesFollowUpCommandCenter
+          state={salesFollowUpState}
+          onOpenFollowUpQueue={openFollowUpQueue}
+          onOpenLead={onSelectLead}
+          onOpenEstimate={onOpenEstimate}
         />
 
         <details id="lead-followup-board" className="co-leads-shell-followup">

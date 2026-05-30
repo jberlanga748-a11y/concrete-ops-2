@@ -14,8 +14,10 @@ test("Leads page route shell is extracted and lazy-loaded out of App", () => {
   assert.match(leadsPageSource, /co-leads-shell-page/);
   assert.match(leadsPageSource, /function LeadCommandRail\b/);
   assert.match(leadsPageSource, /function LeadInboxReviewQueue\b/);
+  assert.match(leadsPageSource, /function SalesFollowUpCommandCenter\b/);
   assert.match(leadsPageSource, /function DailySourceCheckPanel\b/);
   assert.match(leadsPageSource, /function LeadSourcesPanel\b/);
+  assert.match(leadsPageSource, /deriveSalesFollowUpSystemState/);
   assert.match(leadsPageSource, /const canUseEstimatorMobilePipeline = Boolean\(MobilePipelinePage\) && isEstimatorMobilePipelineUser\(user, permissions\);/);
   assert.doesNotMatch(leadsPageSource, /AssistantRail/);
 
@@ -23,6 +25,7 @@ test("Leads page route shell is extracted and lazy-loaded out of App", () => {
     "LeadsPage",
     "LeadCommandRail",
     "LeadInboxReviewQueue",
+    "SalesFollowUpCommandCenter",
     "DailySourceCheckPanel",
     "LeadSourcesPanel",
     "isLeadWaitingOnResponse",

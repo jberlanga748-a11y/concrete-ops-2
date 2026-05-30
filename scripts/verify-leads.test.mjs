@@ -35,6 +35,7 @@ test("lead verifier keeps focused groups with every expected test file once", ()
       "src/opportunity-scout-utils.test.js",
       "src/contact-history-utils.test.js",
       "src/follow-up-queue-utils.test.js",
+      "src/sales-follow-up-system.test.js",
       "src/manual-outreach-drafts.test.js",
       "src/notification-center-utils.test.js",
       "src/navigation-utils.test.js",

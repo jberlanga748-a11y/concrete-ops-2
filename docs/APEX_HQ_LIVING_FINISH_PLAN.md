@@ -4,7 +4,7 @@ Last updated: 2026-05-30
 
 ## Current Phase
 
-Website + Lead Intake Funnel is completed, pushed, and deployed to production under the standing release approval. Next phase is Sales Follow-Up System.
+Sales Follow-Up System is completed locally and ready for production deploy under the standing release approval. Next phase is Reputation + Portfolio Engine.
 
 ## Product North Star
 
@@ -34,7 +34,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | Daily Job Finder / Agent Leads | Partial | Review-first infrastructure and source readiness are built. Live provider accounts, real source credentials, and production runs remain provider/account-dependent. |
 | Source adapters and source health | Partial | Public/private source posture, provider setup, evidence packets, and source health exist. Live external connectors depend on approved providers/accounts. |
 | Website/public request intake | Built / Partial | Public estimate/demo request foundations exist. Public estimate request now captures service type, project type, timing, budget, referral source, attribution, consent, thank-you state, and creates a manual office lead/review task. Website builder and SEO/service-page drafts remain later. |
-| Sales follow-up | Partial | Lead states, contact history, follow-up queues, and scripts/readiness exist. Provider sends stay locked until configured and reviewed. |
+| Sales follow-up | Built | Owner/admin Sales Follow-Up System now combines daily queue, stale estimate reminders, manual scripts, won/lost learning, source quality, referral/review asks, and manual won/lost logging. Provider sends stay locked until configured and reviewed. |
 | Ads / Marketing Spend Advisor | Partial | Growth Command Center now exposes provider-ready spend guardrails, channel recommendations, stop-loss rules, and draft planning. Live ad publishing/spend is locked. |
 | Reputation + Portfolio Engine | Partial | Jobs, reports, uploads, closeout proof, and proposal proof blocks exist. Dedicated review/referral/portfolio workflow remains a later phase. |
 | Estimate Studio / proposals | Built / Partial | Estimate Studio, packets, PDF, options, GC pieces, handoff, and email gate foundations exist. Final packet polish remains. |
@@ -60,8 +60,6 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ### Next
 
-- Build a stronger website and lead intake funnel.
-- Finish follow-up workflow polish.
 - Finish reputation, reviews, referrals, portfolio, and proof reuse.
 - Finish Estimate Studio proposal packet polish.
 
@@ -91,7 +89,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - [x] Standing production release approval recorded; deploy after validation and hosted health-check.
 - [x] Update this file with final phase report.
 
-## Active Phase Checklist: Website + Lead Intake Funnel
+## Completed Phase Checklist: Website + Lead Intake Funnel
 
 - [x] Keep existing public estimate request route and review-first lead workflow.
 - [x] Add trade/service-specific intake fields.
@@ -106,6 +104,19 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - [x] Commit and push phase.
 - [x] Standing production release approval recorded; deploy after validation and hosted health-check.
 
+## Active Phase Checklist: Sales Follow-Up System
+
+- [x] Keep existing lead, contact history, and follow-up queue systems.
+- [x] Add owner/admin Sales Follow-Up System command layer.
+- [x] Show daily follow-up work, due/overdue/not-contacted/waiting leads, and manual action prompts.
+- [x] Add stale estimate reminders for sent proposals with overdue, missing, or stale follow-up.
+- [x] Add call, voicemail, email, text, referral ask, and review ask scripts as manual copy only.
+- [x] Add won/lost learning and source-quality summaries.
+- [x] Add manual won/lost logging hooks without sending messages or changing ad spend.
+- [x] Keep field users blocked from lead, estimate, source, script, and sales command surfaces.
+- [x] Verify phase tests, build, browser QA, and field safety.
+- [ ] Commit, push, deploy, hosted health-check, and record production deploy.
+
 ## Completed / Frozen Systems
 
 - Demo auth and role permissions.
@@ -116,6 +127,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - Estimate PDF and branded packet foundations.
 - Field-safe mobile workflow boundaries.
 - Public estimate request manual lead intake funnel.
+- Sales Follow-Up System command layer and manual outreach/won-lost learning.
 
 ## Do-Not-Rebuild List
 
@@ -144,6 +156,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | 2026-05-29 | Growth Foundation | `692b474` pushed to `main` | Local QA at `http://127.0.0.1:4100` | `/api/ready` OK; launch gate says guided demo GO and production/pilot/public launch NO-GO. |
 | 2026-05-30 | Website + Lead Intake Funnel | `efb5d4a` and `dda3a36` pushed to `main` | Local QA at `http://127.0.0.1:4102` | `/api/ready` OK; launch gate says guided demo GO and production/pilot/public launch NO-GO. |
 | 2026-05-30 | Website + Lead Intake Funnel + standing release approval | `1ac46a6` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
+| 2026-05-30 | Sales Follow-Up System | pending commit | Local QA at `http://127.0.0.1:4115` | Owner desktop `/leads` passed; employee mobile `/leads` stayed sales-hidden; local browser errors `[]`. |
 
 ## Roadmap Queue
 
@@ -162,7 +175,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ## Next Phase
 
-Sales Follow-Up System after Website + Lead Intake Funnel passes final review.
+Reputation + Portfolio Engine after Sales Follow-Up System production deploy is recorded.
 
 ## Decision Log
 
@@ -175,6 +188,7 @@ Sales Follow-Up System after Website + Lead Intake Funnel passes final review.
 | 2026-05-30 | Public estimate requests stay manual-first. | Public website demand should become owner/admin review work, not automated sends or jobs. | The funnel creates a lead and review task only; estimates, jobs, messages, invoices, payments, and portal links remain locked. |
 | 2026-05-30 | Public setup status exposes a target company id only when exactly one active company exists. | The API requires an explicit target company for external writes, and the public form needs a safe way to submit to the right workspace. | Single-company public form works; multi-company public target remains explicit and guarded. |
 | 2026-05-30 | Standing production release approval is granted for completed verified phases. | The owner wants finished phases pushed to production without repeated NO-GO approval loops. | After validation and push, deploy to production and health-check; keep hard stops only for secrets, paid spend, live sends, billing/payment processing, destructive data, hidden GPS/privacy, auth/session control, or known incident risk. |
+| 2026-05-30 | Sales follow-up stays manual-first but becomes a finished command system. | Contractors need to win existing leads, not only collect them. | Apex HQ now shows due work, stale estimates, source quality, scripts, won/lost learning, and review/referral asks while keeping sends and spend locked. |
 
 ## Growth Foundation Phase Report
 
@@ -314,3 +328,74 @@ Rollback note:
 Next recommended phase:
 
 - Sales Follow-Up System.
+
+## Sales Follow-Up System Phase Report
+
+Goal: help contractors win more of the leads and estimates they already have before buying more leads or ads.
+
+What was already built:
+
+- Lead states, lead filtering, contact history, manual follow-up queue, communication center, copy-only outreach drafts, lead source checks, estimate follow-up notifications, role-gated Leads route, and field-user denial.
+
+What was completed now:
+
+- Added a Sales Follow-Up System command layer on the owner/admin Leads page.
+- Added daily follow-up queue summary for due, overdue, not-contacted, waiting, follow-up-needed, and unscheduled work.
+- Added stale estimate reminders for sent/proposal/pending estimates with overdue, missing, or stale follow-up.
+- Added source-quality rows by lead source with open, due, waiting, won, lost, and win-rate signals.
+- Added won/lost learning rows from lead status and contact-history outcomes.
+- Added call, voicemail, email, text, referral ask, and review ask script library as manual copy only.
+- Added manual Log Won and Log Lost actions to the draft/copy panel so outcomes can feed source learning.
+
+Provider/account-dependent remaining:
+
+- Live email/SMS/DM sending, communication provider delivery, CRM sync, ad-platform reporting, and automatic review/referral sends remain provider-dependent and locked.
+
+Affected files:
+
+- `docs/APEX_HQ_LIVING_FINISH_PLAN.md`
+- `scripts/verify-leads.mjs`
+- `scripts/verify-leads.test.mjs`
+- `src/leads-page-components.jsx`
+- `src/leads-page-components-import.test.js`
+- `src/manual-outreach-drafts.js`
+- `src/manual-outreach-drafts.test.js`
+- `src/manual-outreach-panel-components.jsx`
+- `src/sales-follow-up-system.js`
+- `src/sales-follow-up-system.test.js`
+
+Validation results:
+
+- `node --test --test-concurrency=1 src/sales-follow-up-system.test.js src/manual-outreach-drafts.test.js src/leads-page-components-import.test.js` passed.
+- `npm.cmd run verify:leads` passed.
+- `npm.cmd run verify:roles` passed.
+- `npm.cmd run build` passed with existing large chunk warnings.
+- `git diff --check` passed.
+
+Browser QA:
+
+- Owner desktop `/leads`: Sales Follow-Up System, Stale Estimate Reminders, Lead Quality By Source, Scripts/Reviews/Referrals, Won/Lost Reasons, and manual boundary visible.
+- Employee mobile `/leads`: Sales Follow-Up System, Lead Quality By Source, and lead workspace text hidden.
+- Browser errors after ignoring expected unauthenticated bootstrap probe: none.
+
+Permissions impact:
+
+- No permission loosening.
+- Sales follow-up command layer is under the existing Leads route and contact-history permissions.
+- Field users remain blocked from leads, estimates, source quality, scripts, won/lost learning, and office sales controls.
+
+Field-user impact:
+
+- No field workflow changes. Employee mobile route remains sales-hidden.
+
+Mobile impact:
+
+- Employee mobile restricted-route behavior verified. Owner/admin desktop command layer verified; owner/admin mobile polish can be handled in a later UI pass if needed.
+
+Rollback note:
+
+- Revert the affected files listed above to remove the Sales Follow-Up System command layer and won/lost quick actions without schema changes or data migration.
+
+Next recommended phase:
+
+- Reputation + Portfolio Engine.

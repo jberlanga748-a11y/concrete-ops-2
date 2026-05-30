@@ -168,6 +168,18 @@ export function buildManualOutreachContactPayload(queueItem = {}, action = "log-
       notes: "Follow-up moved out two days from the manual draft/copy workflow. No message was sent from Apex HQ.",
       nextFollowUpDate: addDays(today, 2),
     },
+    "mark-won": {
+      method: "Other",
+      outcome: "Won",
+      subject: "Won reason logged",
+      notes: "Marked won from the manual follow-up workflow. Add the real reason in contact history notes before changing source or ad spend.",
+    },
+    "mark-lost": {
+      method: "Other",
+      outcome: "Lost",
+      subject: "Lost reason logged",
+      notes: "Marked lost from the manual follow-up workflow. Add the real objection or reason in contact history notes before changing source or ad spend.",
+    },
   };
 
   const patch = payloads[action];

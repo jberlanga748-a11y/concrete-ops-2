@@ -90,6 +90,8 @@ export function ManualOutreachDraftPanel({
         <Button type="button" size="sm" variant="secondary" onClick={() => onAction(item, "mark-waiting", drafts)} disabled={disabled}>Mark Waiting on Response</Button>
         <Button type="button" size="sm" variant="ghost" onClick={() => onAction(item, "follow-up-tomorrow", drafts)} disabled={disabled}>Follow-Up Tomorrow</Button>
         <Button type="button" size="sm" variant="ghost" onClick={() => onAction(item, "follow-up-two-days", drafts)} disabled={disabled}>Follow-Up in 2 Days</Button>
+        <Button type="button" size="sm" variant="ghost" onClick={() => onAction(item, "mark-won", drafts)} disabled={disabled}>Log Won</Button>
+        <Button type="button" size="sm" variant="ghost" onClick={() => onAction(item, "mark-lost", drafts)} disabled={disabled}>Log Lost</Button>
       </div>
     </div>
   );
