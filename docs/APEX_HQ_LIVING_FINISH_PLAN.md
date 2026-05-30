@@ -4,7 +4,7 @@ Last updated: 2026-05-30
 
 ## Current Phase
 
-Website + Lead Intake Funnel is completed for the current manual-first phase and approved for production deploy under the standing release approval. Next phase is Sales Follow-Up System.
+Website + Lead Intake Funnel is completed, pushed, and deployed to production under the standing release approval. Next phase is Sales Follow-Up System.
 
 ## Product North Star
 
@@ -143,6 +143,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | --- | --- | --- | --- | --- |
 | 2026-05-29 | Growth Foundation | `692b474` pushed to `main` | Local QA at `http://127.0.0.1:4100` | `/api/ready` OK; launch gate says guided demo GO and production/pilot/public launch NO-GO. |
 | 2026-05-30 | Website + Lead Intake Funnel | `efb5d4a` and `dda3a36` pushed to `main` | Local QA at `http://127.0.0.1:4102` | `/api/ready` OK; launch gate says guided demo GO and production/pilot/public launch NO-GO. |
+| 2026-05-30 | Website + Lead Intake Funnel + standing release approval | `1ac46a6` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
 
 ## Roadmap Queue
 
