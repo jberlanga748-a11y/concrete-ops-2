@@ -33,6 +33,8 @@ function normalizeLeadStatus(value) {
   return toText(value).toLowerCase().replace(/[_-]/g, " ");
 }
 
+const CLOSED_LEAD_STATUSES = new Set(["approved", "converted", "won", "lost", "no thanks", "not interested", "closed", "archived"]);
+
 function followUpDateValue(lead = {}) {
   return toText(lead.followUpDueAt || lead.followUpDate || lead.nextFollowUpAt || lead.dueDate);
 }
@@ -54,6 +56,7 @@ function leadScoreLabel(lead = {}) {
 export function deriveLeadReviewReasons(lead = {}, { today = new Date().toISOString().slice(0, 10) } = {}) {
   if (!lead || lead.archivedAt) return [];
   const status = normalizeLeadStatus(lead.status);
+  if (CLOSED_LEAD_STATUSES.has(status)) return [];
   const dueBucket = dueDateBucket(followUpDateValue(lead), today);
   const reasons = [];
 
@@ -116,8 +119,10 @@ export function deriveLeadPilotWorkflowReadiness(lead = {}, { customers = [] } =
   const hasLocation = Boolean(toText(lead.city) || toText(lead.address) || toText(lead.location));
   const hasNextStep = Boolean(toText(lead.nextStep));
   const hasFollowUp = Boolean(followUpDateValue(lead));
-  const estimateReady = ["site visit", "estimate sent", "approved"].includes(status) || hasEstimateIntent(lead);
-  const jobProofReady = status === "approved" || hasJobProofIntent(lead);
+  const closedWon = ["approved", "converted", "won"].includes(status);
+  const closedLost = ["lost", "no thanks", "not interested", "closed", "archived"].includes(status);
+  const estimateReady = !closedLost && (["site visit", "estimate sent", "approved", "won"].includes(status) || hasEstimateIntent(lead));
+  const jobProofReady = closedWon || (!closedLost && hasJobProofIntent(lead));
 
   const steps = [
     {

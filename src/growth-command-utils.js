@@ -148,6 +148,9 @@ function buildClientFinderLane({ opportunityScout = {}, dailyReviewInbox = {}, d
     summary: reviewRows
       ? "Morning review rows are ready for owner/admin action."
       : "Use source setup, search profiles, and daily review prep to keep new-work discovery moving.",
+    moduleId: "copilot",
+    targetId: reviewRows || openFound ? "scout-found-opportunities" : activeSources || activeProfiles ? "scout-search-briefs" : "scout-search-profiles",
+    actionLabel: reviewRows || openFound ? "Review Found Work" : activeSources || activeProfiles ? "Run Source Checks" : "Set Up Sources",
     actions: [
       openFound ? `${openFound} found opportunities need review` : "",
       checksNeeded ? `${checksNeeded} source checks are due` : "",
@@ -175,6 +178,9 @@ function buildFollowUpLane({ leads = [], estimates = [], today }) {
     value: dueLeads.length + staleEstimates.length,
     helper: `${dueLeads.length} lead follow-ups / ${staleEstimates.length} estimate nudges`,
     summary: "Keep prospects warm with call notes, scripts, stale-estimate reminders, and won/lost learning.",
+    moduleId: "leads",
+    targetId: "lead-followup-board",
+    actionLabel: dueLeads.length || staleEstimates.length ? "Open Follow-Up" : "Open Leads",
     actions: [
       dueLeads.length ? `${dueLeads.length} lead follow-up item${dueLeads.length === 1 ? "" : "s"} due` : "Follow-up queue is clear",
       staleEstimates.length ? `${staleEstimates.length} estimate${staleEstimates.length === 1 ? "" : "s"} need a nudge` : "No stale estimate reminder detected",
@@ -196,6 +202,9 @@ function buildReputationLane({ jobs = [], uploads = [], dailyReports = [] }) {
     value: readyStories,
     helper: `${completedJobs.length} completed jobs / ${proofAssets} proof records`,
     summary: "Turn completed work into before/after stories, testimonials, portfolio proof, review requests, referrals, and social drafts.",
+    moduleId: "copilot",
+    targetId: readyStories ? "reputation-portfolio-engine" : "reputation-portfolio-engine",
+    actionLabel: readyStories ? "Review Proof" : "Review Proof Setup",
     actions: [
       readyStories ? `${readyStories} job story candidate${readyStories === 1 ? "" : "s"} ready` : "Close out jobs with proof before building job stories",
       "Prepare review request drafts and referral ask drafts for human send",
@@ -244,6 +253,10 @@ export function deriveGrowthCommandCenterState({
       value: ads.recommendedDailyBudgetRange,
       helper: `${ads.recommendedMonthlyLimit} monthly planning limit`,
       summary: ads.summary,
+      moduleId: "copilot",
+      targetId: "growth-ads-advisor",
+      actionLabel: ads.status === "Provider-ready" ? "Review Ad Plan" : "Review Setup State",
+      setupState: ads.status !== "Provider-ready",
       actions: ads.guardrails.slice(0, 3),
     },
     followUp,

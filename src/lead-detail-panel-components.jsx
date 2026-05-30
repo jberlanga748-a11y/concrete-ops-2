@@ -142,6 +142,9 @@ export function LeadDetailPanel({
             <option>Site Visit</option>
             <option>Estimate Sent</option>
             <option>Approved</option>
+            <option>Won</option>
+            <option>Lost</option>
+            <option>Not Interested</option>
           </SelectField>
           <SelectField label="Priority" value={lead.priority} onChange={(event) => onFieldChange("priority", event.target.value)} disabled={!canManage || disabled}>
             <option>Low</option>

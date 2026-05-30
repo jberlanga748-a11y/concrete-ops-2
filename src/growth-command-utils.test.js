@@ -38,9 +38,17 @@ test("growth command center combines client finder, ads, follow-up, and reputati
   assert.equal(state.status, "Active");
   assert.deepEqual(state.lanes.map((lane) => lane.id), ["client-finder", "ads", "follow-up", "reputation"]);
   assert.equal(state.lanes.find((lane) => lane.id === "client-finder").status, "Built");
+  assert.equal(state.lanes.find((lane) => lane.id === "client-finder").moduleId, "copilot");
+  assert.equal(state.lanes.find((lane) => lane.id === "client-finder").targetId, "scout-found-opportunities");
+  assert.equal(state.lanes.find((lane) => lane.id === "client-finder").actionLabel, "Review Found Work");
   assert.equal(state.lanes.find((lane) => lane.id === "ads").status, "Needs account/API key");
+  assert.equal(state.lanes.find((lane) => lane.id === "ads").setupState, true);
+  assert.equal(state.lanes.find((lane) => lane.id === "ads").targetId, "growth-ads-advisor");
   assert.equal(state.lanes.find((lane) => lane.id === "follow-up").value, 2);
+  assert.equal(state.lanes.find((lane) => lane.id === "follow-up").moduleId, "leads");
+  assert.equal(state.lanes.find((lane) => lane.id === "follow-up").targetId, "lead-followup-board");
   assert.equal(state.lanes.find((lane) => lane.id === "reputation").value, 1);
+  assert.equal(state.lanes.find((lane) => lane.id === "reputation").targetId, "reputation-portfolio-engine");
   assert.equal(state.sourceCoverage.includes("Plan rooms"), true);
 });
 

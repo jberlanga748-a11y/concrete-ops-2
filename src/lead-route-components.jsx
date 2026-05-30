@@ -123,6 +123,9 @@ export function LeadIntakeCard({ draft, setDraft, onCreateLead, disabled, canMan
             <option>Site Visit</option>
             <option>Estimate Sent</option>
             <option>Approved</option>
+            <option>Won</option>
+            <option>Lost</option>
+            <option>Not Interested</option>
           </SelectField>
           <SelectField label="Priority" value={draft.priority} onChange={(event) => setDraft((current) => ({ ...current, priority: event.target.value }))}>
             <option>Low</option>

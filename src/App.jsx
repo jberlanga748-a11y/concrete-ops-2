@@ -3928,6 +3928,9 @@ function CopilotPagePolished({
                       </div>
                       <div className="co-ai-scout-brief-actions">
                         <Badge tone={lane.tone || "slate"}>{lane.value || "Ready"}</Badge>
+                        <Button type="button" size="sm" variant="secondary" onClick={() => jumpToScoutTarget(lane.targetId, lane.moduleId)}>
+                          {lane.actionLabel || "Open"}
+                        </Button>
                       </div>
                     </div>
                   ))}

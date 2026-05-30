@@ -902,6 +902,9 @@ function LeadCommandRail({
                     <option>Site Visit</option>
                     <option>Estimate Sent</option>
                     <option>Approved</option>
+                    <option>Won</option>
+                    <option>Lost</option>
+                    <option>Not Interested</option>
                   </SelectField>
                   <SelectField label="Priority" value={lead.priority || "Normal"} onChange={(event) => onFieldChange("priority", event.target.value)} disabled={!canManage || disabled}>
                     <option>Low</option>
@@ -1314,7 +1317,7 @@ export function LeadsPage({
             controls: (
               <div className="co-leads-shell-controls">
                 <FilterBar
-                  filters={["All", "New", "Contacted", "Site Visit", "Estimate Sent", "Approved", "Archived"]}
+                  filters={["All", "New", "Contacted", "Site Visit", "Estimate Sent", "Approved", "Won", "Lost", "Not Interested", "Archived"]}
                   active={filter}
                   setActive={(nextFilter) => {
                     setShowCreateLead(false);

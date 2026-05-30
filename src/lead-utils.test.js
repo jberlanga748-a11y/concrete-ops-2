@@ -42,6 +42,19 @@ test("lead review reasons flag inbox, due, missing next step, and ready estimate
   assert.deepEqual(reasons.map((reason) => reason.label), ["Follow-Up Due", "Missing Next Step", "Ready for Estimate"]);
 });
 
+test("closed won and lost leads do not stay in the active review inbox", () => {
+  assert.deepEqual(deriveLeadReviewReasons({ status: "Won", followUpDueAt: "2026-04-25", nextStep: "" }, { today: "2026-04-25" }), []);
+  assert.deepEqual(deriveLeadReviewReasons({ status: "Lost", followUpDueAt: "2026-04-25", nextStep: "" }, { today: "2026-04-25" }), []);
+
+  const inbox = deriveLeadInboxState([
+    { id: "L-WON", customer: "Won Lead", status: "Won", followUpDueAt: "2026-04-25", nextStep: "" },
+    { id: "L-LOST", customer: "Lost Lead", status: "Lost", followUpDueAt: "2026-04-25", nextStep: "" },
+    { id: "L-OPEN", customer: "Open Lead", status: "New", followUpDueAt: "2026-04-25", nextStep: "" },
+  ], { today: "2026-04-25" });
+
+  assert.deepEqual(inbox.items.map((lead) => lead.id), ["L-OPEN"]);
+});
+
 test("lead inbox state groups current office review work without archived leads", () => {
   const inbox = deriveLeadInboxState([
     ...LEADS,
@@ -94,6 +107,30 @@ test("lead pilot workflow readiness marks approved proof path ready", () => {
   assert.equal(readiness.readyCount, readiness.totalCount);
   assert.equal(readiness.nextAction, "Start workflow");
   assert.match(readiness.summary, /enough context/i);
+});
+
+test("lead pilot workflow treats won work as ready and lost work as closed", () => {
+  const won = deriveLeadPilotWorkflowReadiness({
+    customer: "Won Customer",
+    project: "Driveway",
+    city: "Salem",
+    status: "Won",
+    nextStep: "Create estimate/job handoff review",
+    followUpDueAt: "2026-05-30",
+  });
+  const lost = deriveLeadPilotWorkflowReadiness({
+    customer: "Lost Customer",
+    project: "Patio",
+    city: "Salem",
+    status: "Lost",
+    nextStep: "Record lost reason",
+    followUpDueAt: "2026-05-30",
+    notes: "Too expensive.",
+  });
+
+  assert.equal(won.steps.find((step) => step.id === "job-proof").complete, true);
+  assert.equal(lost.steps.find((step) => step.id === "estimate").complete, false);
+  assert.equal(lost.steps.find((step) => step.id === "job-proof").complete, false);
 });
 
 test("related lead data returns customer, activity, and status history", () => {
