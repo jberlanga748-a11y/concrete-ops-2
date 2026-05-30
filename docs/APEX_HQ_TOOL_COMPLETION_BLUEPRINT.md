@@ -99,6 +99,13 @@ Why first:
 - If admin/setup is messy, every other workflow feels unfinished.
 - This phase gives the app a stable owner/admin base before finishing operating tools.
 
+Pre-build audit:
+
+- Audit file: `docs/APEX_HQ_PHASE_1_ADMIN_FOUNDATION_PREBUILD_AUDIT.md`
+- Verdict: Phase 1 has strong foundations but is not ready to freeze.
+- Blocking findings: owner/admin `/imported-drafts` crashes with `useEffect is not defined`; `npm.cmd run verify:job-draft-imports` is red because the test helper uses an undefined bearer token after cookie-first login; setup is scattered instead of one Admin Foundation Finish workflow.
+- Browser finding: employee mobile direct routes to Settings, Employees, App Health, and Imported Drafts redirect to Field Mode; Support stays role-safe.
+
 Done when:
 
 - A contractor can create/setup a company, manage users/roles, understand package/provider status, see app health, prepare support context, and know what is configured.

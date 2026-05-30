@@ -4,7 +4,9 @@ Last updated: 2026-05-30
 
 ## Current Phase
 
-Integrations is completed, pushed, and deployed to production under the standing release approval. The phase model has been corrected again: future work must start from the tool-by-tool completion blueprint, not a guessed phase order. Active source: `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md`.
+Integrations is completed, pushed, and deployed to production under the standing release approval. Phase 1 Admin Foundation Finish is in pre-build audit, using the tool-by-tool completion blueprint as the active source. Audit evidence lives in `docs/APEX_HQ_PHASE_1_ADMIN_FOUNDATION_PREBUILD_AUDIT.md`.
+
+Phase 1 is ready to implement but not ready to freeze. Blocking findings: `/imported-drafts` crashes for owner/admin users with `useEffect is not defined`, `npm.cmd run verify:job-draft-imports` is red because its login helper uses an undefined bearer token, and owner/admin setup needs one finish board instead of scattered setup surfaces.
 
 ## Product North Star
 
@@ -61,10 +63,13 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - Keep provider/account-dependent systems visible and buildable, but do not allow real spend/sends/payments without provider setup and explicit owner action inside that workflow.
 - Finish whole phases before stopping for review.
 - Deploy completed verified phases to production under standing approval; do not pause only because launch-gate scripts classify unpaid/pilot/public-launch items as NO-GO.
+- Start Phase 1 with skills, code review, browser review, roadmap/memory review, and an exact work package before implementation.
+- Do not freeze any phase while a route crashes, a focused verification command is red, or field/admin boundaries are unproven.
 
 ### Next
 
-- Confirm/use `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md`, then finish Phase 1: Admin Foundation Finish unless payroll urgency overrides order.
+- Implement Phase 1: Admin Foundation Finish from `docs/APEX_HQ_PHASE_1_ADMIN_FOUNDATION_PREBUILD_AUDIT.md`.
+- Fix Imported Drafts route/runtime and job-draft verification first, then build the Admin Foundation Finish Board and verification command.
 
 ### Later
 
@@ -214,6 +219,21 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - [x] Keep live provider writes, OAuth exchange, customer sends, invoices/payments, ad publishing/spend, calendar/file mutations, hidden GPS, secrets, and field-user integration context blocked.
 - [x] Verify focused integration tests, role verification, build, diff check, and browser QA.
 
+## Active Phase Checklist: Phase 1 Admin Foundation Finish
+
+- [x] Read repo memory, roadmaps, operating model, and active blueprint.
+- [x] Use Apex skills for coordinator, product, build, permissions, QA, and finished-vision review.
+- [x] Code review existing signup/setup, users, settings, app health, support, imported drafts, integrations, package/billing readiness, and field permission boundaries.
+- [x] Run focused verification for auth, users, support, app health, roles, entitlements, billing readiness, job-draft imports, and build.
+- [x] Browser QA owner/admin desktop and employee mobile admin/setup routes.
+- [x] Record pre-build audit and exact implementation package.
+- [ ] Fix Imported Drafts route crash.
+- [ ] Fix `verify:job-draft-imports`.
+- [ ] Add Admin Foundation Finish Board.
+- [ ] Add `verify:admin-foundation`.
+- [ ] Browser QA final Phase 1 routes.
+- [ ] Commit, push, deploy, health-check, and record Phase 1 report.
+
 ## Completed / Frozen Systems
 
 - Demo auth and role permissions.
@@ -290,6 +310,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | 2026-05-30 | Billing / Payments / Packages | `5169b4d` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `603` started in `sjc`; service check passing; `/api/ready` OK on both domains with database OK. |
 | 2026-05-30 | Integrations | `c10a273` pushed to `main` | Local QA at `http://127.0.0.1:4168` | Admin desktop `/settings` passed Integrations Command, provider board, QuickBooks/Gmail/Calendar/Twilio readiness, no frontend secrets, locked writes, built inbound contracts, and no overflow/errors; employee mobile `/settings` redirected to `/jobs` with integration/provider text hidden. |
 | 2026-05-30 | Integrations | `c10a273` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `604` started in `sjc`; service check passing; `/api/ready` OK on both domains with database OK. |
+| 2026-05-30 | Phase 1 Admin Foundation Pre-Build Audit | Docs-only audit pending commit | Local QA at `http://127.0.0.1:4174` | `/api/ready` OK. Owner desktop Settings, Employees, App Health, Support passed. Owner desktop Imported Drafts failed with `useEffect is not defined`. Employee mobile admin/setup direct routes redirected to Field Mode and Support stayed role-safe. |
 
 ## Roadmap Queue
 
@@ -308,7 +329,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ## Next Phase
 
-Use `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` as the active blueprint. Recommended next build phase is Admin Foundation Finish; if payroll urgency overrides order, move Payroll Prep Finish earlier while keeping live payroll processing out of scope.
+Use `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` as the active blueprint. Next build phase is Admin Foundation Finish from `docs/APEX_HQ_PHASE_1_ADMIN_FOUNDATION_PREBUILD_AUDIT.md`. Payroll Prep remains a later complete phase unless the owner explicitly reorders it, and live payroll processing stays out of scope.
 
 ## Decision Log
 
@@ -331,6 +352,9 @@ Use `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` as the active blueprint. Recomme
 | 2026-05-30 | Billing / Payments / Packages lives in Settings Plan Readiness instead of a separate billing route. | Package readiness, support upgrade review, audit activity, and owner/admin setup already lived in Settings. | Owner/admin users get one billing command surface while field users remain blocked and live payment processing stays provider-dependent. |
 | 2026-05-30 | Integrations lives in Settings with the Agent OS integration write gate still locked. | Provider/account setup, API keys, OAuth, health, disabled states, audit, and disconnect controls are owner/admin setup work; existing inbound contracts and Agent OS already provide the safe boundaries. | Owner/admin users get a provider-ready Integrations Command while live provider writes, secrets, sends, ads, payments, calendar/file mutations, hidden GPS, and field-user exposure remain blocked. |
 | 2026-05-30 | Replace slice-based roadmap execution with tool-by-tool completion blueprint. | The owner wants employee-owned product completion: every app tool inventoried, finish line defined, assigned to a phase, then frozen. The prior vertical plan was still too phase-order-first. | `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` is the active plan. `docs/APEX_HQ_VERTICAL_FINISH_PHASE_PLAN.md` is superseded/historical. |
+| 2026-05-30 | Phase 1 starts with a pre-build audit before implementation. | The owner explicitly required skills, browser review, code review, memory/roadmap review, and a direct plan before starting Phase 1. | `docs/APEX_HQ_PHASE_1_ADMIN_FOUNDATION_PREBUILD_AUDIT.md` records what is built, what is broken, what must be added, and the exact implementation package. |
+| 2026-05-30 | Imported Drafts crash and job-draft verification failure block Phase 1 freeze. | `/imported-drafts` is a Phase 1 owner/admin tool and cannot render; `verify:job-draft-imports` is red. | Phase 1 implementation starts by fixing the route crash and the stale auth test helper before adding the finish board. |
+| 2026-05-30 | Owner/admin setup should stay visible unless an unpaid provider/live action is actually required. | The owner wants no locks except unpaid providers and safety boundaries. | Package/provider readiness can label limits, but Phase 1 setup visibility should not disappear behind package gates. Field/security/live-money locks remain hard. |
 
 ## Billing / Payments / Packages Phase Report
 
