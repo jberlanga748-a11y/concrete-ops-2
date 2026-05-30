@@ -4,7 +4,7 @@ Last updated: 2026-05-30
 
 ## Current Phase
 
-Field Mode Finish is completed locally and ready for production deploy under the standing release approval. Next phase is Apex Agent Operator after deploy and health-check are recorded.
+Field Mode Finish is completed, pushed, and deployed to production under the standing release approval. Next phase is Apex Agent Operator.
 
 ## Product North Star
 
@@ -160,7 +160,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - [x] Keep GPS optional and user-tapped only; no hidden location tracking.
 - [x] Keep PWA install-ready without claiming offline editing or hidden API caching. Offline drafts remain a later item.
 - [x] Verify focused field/mobile tests, jobs verification, role verification, PWA guardrail test, build, diff check, and browser QA.
-- [ ] Commit, push, deploy, hosted health-check, and record production deploy.
+- [x] Commit, push, deploy, hosted health-check, and record production deploy.
 
 ## Completed / Frozen Systems
 
@@ -215,7 +215,8 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | 2026-05-30 | Estimate Studio + Proposal Packets | `bb1a796` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `597` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
 | 2026-05-30 | Core Operations Loop | `08a4864` pushed to `main` | Local QA at `http://127.0.0.1:4135` | Owner desktop `/command-center` passed Core Operations Loop; employee mobile `/command-center` redirected to `/jobs`; local browser errors `[]`. |
 | 2026-05-30 | Core Operations Loop | `08a4864` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `598` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
-| 2026-05-30 | Field Mode Finish | Pending commit | Local QA at `http://127.0.0.1:4142` | Employee mobile `/field` passed Field Day Finish with no office/money/growth terms; foreman mobile `/field` passed daily report/change request; employee direct `/command-center` redirected to `/jobs`; local browser errors `[]`. |
+| 2026-05-30 | Field Mode Finish | `27a2725` pushed to `main` | Local QA at `http://127.0.0.1:4142` | Employee mobile `/field` passed Field Day Finish with no office/money/growth terms; foreman mobile `/field` passed daily report/change request; employee direct `/command-center` redirected to `/jobs`; local browser errors `[]`. |
+| 2026-05-30 | Field Mode Finish | `27a2725` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `599` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
 
 ## Roadmap Queue
 
