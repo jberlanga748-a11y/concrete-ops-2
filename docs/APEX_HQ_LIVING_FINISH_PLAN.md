@@ -4,7 +4,7 @@ Last updated: 2026-05-30
 
 ## Current Phase
 
-Sales Follow-Up System is completed, pushed, and deployed to production under the standing release approval. Next phase is Reputation + Portfolio Engine.
+Reputation + Portfolio Engine is completed locally and ready for standing-approved production release. Next phase is Estimate Studio + Proposal Packets.
 
 ## Product North Star
 
@@ -36,7 +36,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | Website/public request intake | Built / Partial | Public estimate/demo request foundations exist. Public estimate request now captures service type, project type, timing, budget, referral source, attribution, consent, thank-you state, and creates a manual office lead/review task. Website builder and SEO/service-page drafts remain later. |
 | Sales follow-up | Built | Owner/admin Sales Follow-Up System now combines daily queue, stale estimate reminders, manual scripts, won/lost learning, source quality, referral/review asks, and manual won/lost logging. Provider sends stay locked until configured and reviewed. |
 | Ads / Marketing Spend Advisor | Partial | Growth Command Center now exposes provider-ready spend guardrails, channel recommendations, stop-loss rules, and draft planning. Live ad publishing/spend is locked. |
-| Reputation + Portfolio Engine | Partial | Jobs, reports, uploads, closeout proof, and proposal proof blocks exist. Dedicated review/referral/portfolio workflow remains a later phase. |
+| Reputation + Portfolio Engine | Built | Owner/admin Growth Command Center now turns existing jobs, reports, uploads, and estimates into project story candidates, before/after selection guidance, review/referral drafts, proposal proof blocks, social/website drafts, and proof blockers. Sends and publishing remain manual/provider-ready only. |
 | Estimate Studio / proposals | Built / Partial | Estimate Studio, packets, PDF, options, GC pieces, handoff, and email gate foundations exist. Final packet polish remains. |
 | Core operations loop | Partial | Leads, jobs, schedules, field proof, tickets, reports, change orders, and closeout readiness exist. Dead-end removal remains. |
 | Field Mode | Built / Partial | Field-safe mobile workflows exist. Offline drafts/PWA polish remain. |
@@ -60,7 +60,6 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ### Next
 
-- Finish reputation, reviews, referrals, portfolio, and proof reuse.
 - Finish Estimate Studio proposal packet polish.
 
 ### Later
@@ -104,7 +103,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - [x] Commit and push phase.
 - [x] Standing production release approval recorded; deploy after validation and hosted health-check.
 
-## Active Phase Checklist: Sales Follow-Up System
+## Completed Phase Checklist: Sales Follow-Up System
 
 - [x] Keep existing lead, contact history, and follow-up queue systems.
 - [x] Add owner/admin Sales Follow-Up System command layer.
@@ -117,6 +116,19 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - [x] Verify phase tests, build, browser QA, and field safety.
 - [x] Commit, push, deploy, hosted health-check, and record production deploy.
 
+## Active Phase Checklist: Reputation + Portfolio Engine
+
+- [x] Reuse existing jobs, reports, uploads, estimates, and Growth Command Center.
+- [x] Add owner/admin project story candidates from real field proof.
+- [x] Add before/after photo selection guidance without exposing GPS coordinates or private details.
+- [x] Add manual review request and referral ask drafts.
+- [x] Add proposal proof blocks for future customer/GC packets.
+- [x] Add social and website draft copy with manual publish boundaries.
+- [x] Add proof blockers for completed jobs that lack uploads or reviewed reports.
+- [x] Keep field users blocked from reputation, referral, review, social, website proof, lead, estimate, pricing, and AI office growth controls.
+- [x] Verify phase tests, build, browser QA, and field safety.
+- [ ] Commit, push, deploy, hosted health-check, and record production deploy.
+
 ## Completed / Frozen Systems
 
 - Demo auth and role permissions.
@@ -128,6 +140,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - Field-safe mobile workflow boundaries.
 - Public estimate request manual lead intake funnel.
 - Sales Follow-Up System command layer and manual outreach/won-lost learning.
+- Reputation + Portfolio Engine project-story, review/referral, proposal proof, and manual social/website draft command layer.
 
 ## Do-Not-Rebuild List
 
@@ -158,6 +171,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | 2026-05-30 | Website + Lead Intake Funnel + standing release approval | `1ac46a6` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
 | 2026-05-30 | Sales Follow-Up System | `46a5a30` pushed to `main` | Local QA at `http://127.0.0.1:4115` | Owner desktop `/leads` passed; employee mobile `/leads` stayed sales-hidden; local browser errors `[]`. |
 | 2026-05-30 | Sales Follow-Up System | `46a5a30` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `594` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
+| 2026-05-30 | Reputation + Portfolio Engine | Pending commit | Local QA at `http://127.0.0.1:4127` | Owner desktop `/ai-office` passed; employee mobile `/ai-office` redirected to `/jobs`; local browser errors `[]`. |
 
 ## Roadmap Queue
 
@@ -176,7 +190,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ## Next Phase
 
-Reputation + Portfolio Engine after Sales Follow-Up System production deploy is recorded.
+Estimate Studio + Proposal Packets after Reputation + Portfolio Engine production deploy is recorded.
 
 ## Decision Log
 
@@ -190,6 +204,7 @@ Reputation + Portfolio Engine after Sales Follow-Up System production deploy is 
 | 2026-05-30 | Public setup status exposes a target company id only when exactly one active company exists. | The API requires an explicit target company for external writes, and the public form needs a safe way to submit to the right workspace. | Single-company public form works; multi-company public target remains explicit and guarded. |
 | 2026-05-30 | Standing production release approval is granted for completed verified phases. | The owner wants finished phases pushed to production without repeated NO-GO approval loops. | After validation and push, deploy to production and health-check; keep hard stops only for secrets, paid spend, live sends, billing/payment processing, destructive data, hidden GPS/privacy, auth/session control, or known incident risk. |
 | 2026-05-30 | Sales follow-up stays manual-first but becomes a finished command system. | Contractors need to win existing leads, not only collect them. | Apex HQ now shows due work, stale estimates, source quality, scripts, won/lost learning, and review/referral asks while keeping sends and spend locked. |
+| 2026-05-30 | Reputation and portfolio reuse starts from real job proof only. | Reviews, referrals, and public proof are powerful only when they are true, permissioned, and tied to completed or proof-backed work. | Apex HQ now drafts stories, review/referral asks, proposal proof blocks, and social/website copy while blocking live sends, publishing, fake proof, GPS exposure, and field access. |
 
 ## Growth Foundation Phase Report
 
@@ -400,3 +415,67 @@ Rollback note:
 Next recommended phase:
 
 - Reputation + Portfolio Engine.
+
+## Reputation + Portfolio Engine Phase Report
+
+Goal: turn completed and proof-backed contractor work into trust assets that help win future work without inventing proof, sending messages, publishing posts, or exposing field-private data.
+
+What was already built:
+
+- Jobs, uploads, daily reports, closeout proof, proposal proof foundations, Growth Command Center, owner/admin AI Office, and role-gated field boundaries.
+
+What was completed now:
+
+- Added a review-first Reputation + Portfolio Engine state layer.
+- Added owner/admin Growth Command Center panel for project story candidates, before/after guidance, review/referral drafts, proposal proof blocks, social/website drafts, and proof blockers.
+- Added manual-only safety boundaries for review requests, referral asks, social posts, website gallery items, customer names/logos/quotes/photos, GPS coordinates, and fake proof.
+- Added focused tests for proof-ready stories, proof blockers, field-role blocking, and anti-fake-proof boundaries.
+- Added the new reputation utility test to `verify:jobs`.
+
+Provider/account-dependent remaining:
+
+- Live review requests, referral emails/texts/DMs, Google Business Profile prompts, social publishing, website gallery publishing, and any external customer communication remain provider/account-dependent and manual-send locked.
+
+Affected files:
+
+- `docs/APEX_HQ_LIVING_FINISH_PLAN.md`
+- `package.json`
+- `src/App.jsx`
+- `src/reputation-portfolio-utils.js`
+- `src/reputation-portfolio-utils.test.js`
+
+Validation results:
+
+- `node --test --test-concurrency=1 src/reputation-portfolio-utils.test.js src/growth-command-utils.test.js` passed.
+- `npm.cmd run verify:jobs` passed.
+- `npm.cmd run verify:roles` passed.
+- `npm.cmd run build` passed with existing large chunk warnings.
+- `git diff --check` passed.
+
+Browser QA:
+
+- Owner desktop `/ai-office`: Growth Command Center, Reputation + Portfolio Engine, Project Story Builder, Review / Referral Queue, Proposal Proof Blocks, and Manual publish only boundary visible.
+- Employee mobile `/ai-office`: redirected to `/jobs`; Growth Command Center, Reputation + Portfolio Engine, and Project Story Builder hidden.
+- Browser errors: none after ignoring expected unauthenticated bootstrap probe.
+
+Permissions impact:
+
+- No permission loosening.
+- Reputation/portfolio proof is owner/admin/office review context only.
+- Field users stay blocked from reputation, referral, review, social, website proof, lead, estimate, pricing, AI office growth controls, and GPS/private proof details.
+
+Field-user impact:
+
+- No field workflow changes. Employee mobile restricted-route behavior remains field-safe.
+
+Mobile impact:
+
+- Employee mobile restricted-route behavior verified. Owner/admin desktop command layer verified.
+
+Rollback note:
+
+- Revert the affected files listed above to remove the Reputation + Portfolio Engine panel and utility without schema changes or data migration.
+
+Next recommended phase:
+
+- Estimate Studio + Proposal Packets.

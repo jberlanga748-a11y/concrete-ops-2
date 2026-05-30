@@ -286,6 +286,7 @@ import { FollowUpQueuePanel } from "./follow-up-queue-panel-components";
 import { ESTIMATOR_MOBILE_NAV_ROUTES, getEstimatorMobileNavItems, getOwnerAdminMobileNavItems } from "./mobile-nav-utils";
 import { isOwnerAdminMobileCommandUser } from "./owner-admin-mobile-command-utils";
 import { deriveGrowthCommandCenterState } from "./growth-command-utils";
+import { deriveReputationPortfolioEngineState } from "./reputation-portfolio-utils";
 import { applyOpportunityScoutAgentPreviewToDraft, applyOpportunityScoutSourceCheckToDraft, buildFoundOpportunityDraftFromScoutExecutionCard, buildFoundOpportunityEvidenceIntakeFromScoutCard, buildOpportunityScoutConnectorSetupDraft, buildOpportunityScoutConnectorSetupDraftFromCoverageRecommendation, buildOpportunityScoutConnectorSetupPayload, buildOpportunityScoutSourceBrief, deriveFoundOpportunityDraftDuplicateWarnings, deriveOpportunityScoutState } from "./opportunity-scout-utils";
 import { deriveAppHealthAuditState } from "./owner-health-utils";
 import { canRequestPackageReview, normalizeTimeLocationEvidencePolicy } from "../shared/permissions.js";
@@ -2046,6 +2047,17 @@ function CopilotPagePolished({
     permissions,
     today,
   }), [companySettings, dailyReports, dailyReviewInbox, dailySourceMonitoring, estimates, jobs, leads, opportunityScout, permissions, today, uploads]);
+  const reputationPortfolioEngine = useMemo(() => deriveReputationPortfolioEngineState({
+    permissions,
+    jobs,
+    uploads,
+    dailyReports,
+    estimates,
+    customers,
+    companyName: companySettings.companyName || DEFAULT_COMPANY_NAME,
+    currentCompanyId,
+    primaryTrade: companySettings.primaryTrade || "contractor",
+  }), [companySettings.companyName, companySettings.primaryTrade, currentCompanyId, customers, dailyReports, estimates, jobs, permissions, uploads]);
   const fieldOpsAgent = useMemo(() => deriveFieldOpsAgentState({
     currentCompanyId,
     jobs,
@@ -3859,6 +3871,125 @@ function CopilotPagePolished({
                 </div>
               </div>
             </div>
+
+            {reputationPortfolioEngine.canView ? (
+            <div className="co-ai-scout-grid bg-slate-50/80">
+              <div className="co-ai-scout-status" data-tone={reputationPortfolioEngine.stats.proofBlockers ? "amber" : "green"}>
+                <span>Reputation + Portfolio Engine</span>
+                <strong>{reputationPortfolioEngine.stats.storyCandidates} story candidate{reputationPortfolioEngine.stats.storyCandidates === 1 ? "" : "s"}</strong>
+                <p>{reputationPortfolioEngine.summary}</p>
+                <div className="co-ai-scout-metrics">
+                  <div><em>{reputationPortfolioEngine.stats.proofReady}</em><span>proof ready</span></div>
+                  <div><em>{reputationPortfolioEngine.stats.reviewAskDrafts}</em><span>review asks</span></div>
+                  <div><em>{reputationPortfolioEngine.stats.referralAskDrafts}</em><span>referrals</span></div>
+                </div>
+                <div className="co-ai-scout-checks">
+                  {reputationPortfolioEngine.blockedActions.slice(0, 4).map((action) => <small key={action}>{action}</small>)}
+                </div>
+              </div>
+              <div className="co-ai-scout-briefs">
+                <SectionHeader title="Project Story Builder" description="Owner/admin turns reviewed job proof into customer-safe stories, review/referral asks, proposal proof blocks, and social or website drafts." />
+                <div className="co-ai-scout-brief-list">
+                  {reputationPortfolioEngine.storyCandidates.slice(0, 3).map((story) => (
+                    <div key={story.id} className="co-ai-scout-brief" data-tone={story.tone || "blue"}>
+                      <div className="min-w-0">
+                        <span>{story.status}</span>
+                        <strong>{story.title}</strong>
+                        <p>{story.storyBody}</p>
+                        <em>{story.beforeAfterStatus}</em>
+                        <div className="co-ai-scout-checks mt-2">
+                          {story.proofLines.slice(0, 3).map((line) => <small key={`${story.id}-${line}`}>{line}</small>)}
+                        </div>
+                      </div>
+                      <div className="co-ai-scout-brief-actions">
+                        <Badge tone={story.tone || "blue"}>{story.proofReady ? "Proof ready" : "Needs proof"}</Badge>
+                      </div>
+                    </div>
+                  ))}
+                  {!reputationPortfolioEngine.storyCandidates.length ? (
+                    <StateCard title="No job stories yet" description="Reviewed reports and proof uploads will appear here when a job is ready for owner/admin proof review." tone="slate" />
+                  ) : null}
+                </div>
+
+                <div className="co-ai-scout-grid mt-4 border border-slate-200 bg-white">
+                  <div className="co-ai-scout-briefs">
+                    <SectionHeader title="Review / Referral Queue" description="Manual copy only; no review request, referral ask, email, text, or DM is sent from this panel." />
+                    <div className="co-ai-scout-brief-list">
+                      {reputationPortfolioEngine.reviewReferralQueue.slice(0, 2).map((row) => (
+                        <div key={row.id} className="co-ai-scout-brief" data-tone="green">
+                          <div className="min-w-0">
+                            <span>manual send only</span>
+                            <strong>{row.title}</strong>
+                            <p>{row.reviewRequestDraft}</p>
+                            <em>{row.referralAskDraft}</em>
+                          </div>
+                        </div>
+                      ))}
+                      {!reputationPortfolioEngine.reviewReferralQueue.length ? (
+                        <StateCard title="No review asks ready" description="Completed jobs need reviewed proof before Apex drafts review and referral asks." tone="slate" />
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="co-ai-scout-briefs">
+                    <SectionHeader title="Proposal Proof Blocks" description="Reusable proof for proposals and GC/customer packets after owner/admin review." />
+                    <div className="co-ai-scout-brief-list">
+                      {reputationPortfolioEngine.proposalProofBlocks.slice(0, 2).map((row) => (
+                        <div key={row.id} className="co-ai-scout-brief" data-tone="blue">
+                          <div className="min-w-0">
+                            <span>proof block draft</span>
+                            <strong>{row.title}</strong>
+                            <p>{row.proofBlock}</p>
+                          </div>
+                        </div>
+                      ))}
+                      {!reputationPortfolioEngine.proposalProofBlocks.length ? (
+                        <StateCard title="No proof blocks yet" description="Add reviewed proof to completed jobs before reusing them in proposals." tone="slate" />
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="co-ai-scout-grid mt-4 border border-slate-200 bg-white">
+                  <div className="co-ai-scout-briefs">
+                    <SectionHeader title="Social / Website Drafts" description="Manual publish only after customer permission, photo selection, and owner/admin review." />
+                    <div className="co-ai-scout-brief-list">
+                      {reputationPortfolioEngine.socialWebsiteDrafts.slice(0, 2).map((row) => (
+                        <div key={row.id} className="co-ai-scout-brief" data-tone="slate">
+                          <div className="min-w-0">
+                            <span>Manual publish only</span>
+                            <strong>{row.title}</strong>
+                            <p>{row.socialDraft}</p>
+                            <em>{row.websiteDraft}</em>
+                          </div>
+                        </div>
+                      ))}
+                      {!reputationPortfolioEngine.socialWebsiteDrafts.length ? (
+                        <StateCard title="No public drafts yet" description="Public-facing drafts stay empty until proof is ready and permission can be reviewed." tone="slate" />
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="co-ai-scout-briefs">
+                    <SectionHeader title="Proof Blockers" description="Apex shows why a finished job should not become public proof yet." />
+                    <div className="co-ai-scout-brief-list">
+                      {reputationPortfolioEngine.proofBlockers.slice(0, 3).map((row) => (
+                        <div key={row.id} className="co-ai-scout-brief" data-tone="amber">
+                          <div className="min-w-0">
+                            <span>needs proof</span>
+                            <strong>{row.title}</strong>
+                            <p>{row.nextAction}</p>
+                            <em>Missing: {row.missing.join(", ") || "owner/admin proof review"}</em>
+                          </div>
+                        </div>
+                      ))}
+                      {!reputationPortfolioEngine.proofBlockers.length ? (
+                        <StateCard title="No proof blockers" description="Completed proof-ready jobs can move through owner/admin review before public use." tone="green" />
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            ) : null}
           </Card>
           ) : null}
 
