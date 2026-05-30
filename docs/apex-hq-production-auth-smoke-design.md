@@ -1,22 +1,23 @@
 # Apex HQ Production Auth Smoke Design
 
-Status: manual workflow added, not scheduled, not enabled until production smoke users and secret are approved
+Status: manual workflow added, not scheduled, approved for manual production smoke with dedicated admin, foreman, and employee smoke users
 
 Purpose: define how Apex HQ can add production login/bootstrap smoke safely when the business is ready, without weakening auth, roles, package gates, tenant isolation, or production data boundaries.
 
 ## Current Boundary
 
-Production auth smoke is not enabled.
+Production auth smoke is enabled only as an approval-gated manual GitHub Actions workflow. It is not scheduled and must keep using dedicated smoke users plus the separate `APEX_PRODUCTION_SMOKE_PASSWORD` secret.
 
 Current safe coverage:
 
 - GitHub Actions readiness monitor checks production `/api/ready`.
 - Fly service checks hit production `/api/ready`.
 - Hosted smoke can check production health and routes with `--skip-auth`.
+- The approved manual production auth smoke checks admin, foreman, and employee login/bootstrap plus field-role restricted API denials.
 - Demo hosted smoke runs auth/bootstrap checks against `https://concrete-ops-demo.fly.dev` using the GitHub Actions `APEX_SMOKE_PASSWORD` secret.
 - `scripts/hosted-smoke.mjs` refuses production auth unless `--allow-production-auth` is passed.
 
-This design does not authorize a production deploy, production secret, production smoke user, scheduled workflow, or monitoring vendor.
+This design does not authorize a production deploy, scheduled workflow, monitoring vendor, customer data mutation, or non-smoke user access.
 
 ## Why Production Auth Smoke Is Risky
 
@@ -45,6 +46,7 @@ Recommended users:
 | User | Role | Purpose | Required restrictions |
 | --- | --- | --- | --- |
 | `smoke.admin@apexhq.app` | admin | prove production login/bootstrap and office shell load | no real customer ownership, no destructive workflow use |
+| `smoke.foreman@apexhq.app` | foreman | prove field-lead login/bootstrap and restricted API denial | assigned only to safe synthetic work, no office/admin access |
 | `smoke.employee@apexhq.app` | employee | prove field login/bootstrap and restricted API denial | assigned only to safe synthetic work, no office/admin access |
 
 Recommended workspace:
@@ -82,7 +84,7 @@ Manual, approval-only production auth smoke:
 
 ```powershell
 $env:APEX_PRODUCTION_SMOKE_PASSWORD="<production smoke password>"
-npm.cmd run smoke:hosted -- --base-url=https://app.apexhq.online --allow-auth --allow-production-auth --password-env=APEX_PRODUCTION_SMOKE_PASSWORD --admin-email=smoke.admin@apexhq.app --employee-email=smoke.employee@apexhq.app --json
+npm.cmd run smoke:hosted -- --base-url=https://app.apexhq.online --allow-auth --allow-production-auth --password-env=APEX_PRODUCTION_SMOKE_PASSWORD --roles=admin,foreman,employee --admin-email=smoke.admin@apexhq.app --foreman-email=smoke.foreman@apexhq.app --employee-email=smoke.employee@apexhq.app --json
 ```
 
 Production health/route-only smoke remains allowed without auth:
@@ -99,6 +101,9 @@ Production auth smoke passes only when:
 - `/api/ready` returns `200` and database `ok`
 - admin smoke login succeeds
 - admin bootstrap succeeds within the hosted smoke budget
+- foreman smoke login succeeds
+- foreman bootstrap succeeds within the hosted smoke budget
+- foreman restricted API checks return `403`
 - employee smoke login succeeds
 - employee bootstrap succeeds within the hosted smoke budget
 - employee restricted API checks return `403`
@@ -140,7 +145,7 @@ Current behavior:
 - closes the issue after recovery
 - does not deploy, mutate app data, toggle packages, or clean records
 
-The workflow is fail-closed. It stops before auth smoke when the confirmation phrase, approved production URL, or production-only secret is missing. As of May 20, 2026, the repository has the demo `APEX_SMOKE_PASSWORD` secret configured but does not have `APEX_PRODUCTION_SMOKE_PASSWORD` configured.
+The workflow is fail-closed. It stops before auth smoke when the confirmation phrase, approved production URL, or production-only secret is missing. As of May 30, 2026, `APEX_PRODUCTION_SMOKE_PASSWORD` is configured for this repository and the dedicated production smoke users are approved.
 
 Do not run mutation-capable Opportunity Scout, package toggles, cleanup, public intake, upload, invite, password reset, or export scripts against production from this workflow.
 
@@ -171,7 +176,7 @@ The approval flags only record that the operator has completed those external ga
 Do not use `--skip-gh` for the final approval gate. Production auth readiness must verify that `APEX_PRODUCTION_SMOKE_PASSWORD` exists by name before the manual workflow is dispatched.
 
 - production smoke workspace/company approved
-- admin and employee smoke users approved
+- admin, foreman, and employee smoke users approved
 - role restrictions verified locally or in a one-time manual production check
 - `APEX_PRODUCTION_SMOKE_PASSWORD` stored as a GitHub Actions secret
 - incident owner named

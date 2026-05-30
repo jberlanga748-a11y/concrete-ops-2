@@ -49,6 +49,17 @@ Result: health/route smoke passed, but the auth step failed at foreman login wit
 
 No production users, passwords, roles, secrets, or app data were created or changed during this follow-up. Creating or rotating a dedicated production foreman smoke user remains an explicit production-data/secret approval step.
 
+2026-05-30 recovery: Josh approved the narrow production smoke-user/secret setup step. The `APEX_PRODUCTION_SMOKE_PASSWORD` GitHub Actions secret was rotated, the dedicated production smoke users were rotated, and `smoke.foreman@apexhq.app` was created as an active `Foreman` smoke user in the existing production smoke company context.
+
+Recovered production auth smoke run `26691164527` passed against commit `5120461`. Evidence:
+
+- `smoke.admin@apexhq.app`: `Administrator`, login 222 ms, bootstrap 734 ms.
+- `smoke.foreman@apexhq.app`: `Foreman`, login 174 ms, bootstrap 414 ms.
+- `smoke.employee@apexhq.app`: `Employee`, login 230 ms, bootstrap 433 ms.
+- Foreman restricted APIs returned `403` for `/api/customers`, `/api/users`, `/api/estimates`, `/api/export/company`, and `/api/owner-health`.
+- Employee restricted APIs returned `403` for `/api/customers`, `/api/users`, `/api/estimates`, `/api/export/company`, and `/api/owner-health`.
+- GitHub issue `#111` was auto-closed by the recovered workflow.
+
 ## Issues Found
 
 No P0/P1 production blockers were found in this pass.
