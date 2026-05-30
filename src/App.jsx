@@ -285,6 +285,7 @@ import { deriveLeadInboxState, deriveLeadListState, relatedLeadActivity } from "
 import { FollowUpQueuePanel } from "./follow-up-queue-panel-components";
 import { ESTIMATOR_MOBILE_NAV_ROUTES, getEstimatorMobileNavItems, getOwnerAdminMobileNavItems } from "./mobile-nav-utils";
 import { isOwnerAdminMobileCommandUser } from "./owner-admin-mobile-command-utils";
+import { deriveGrowthCommandCenterState } from "./growth-command-utils";
 import { applyOpportunityScoutAgentPreviewToDraft, applyOpportunityScoutSourceCheckToDraft, buildFoundOpportunityDraftFromScoutExecutionCard, buildFoundOpportunityEvidenceIntakeFromScoutCard, buildOpportunityScoutConnectorSetupDraft, buildOpportunityScoutConnectorSetupDraftFromCoverageRecommendation, buildOpportunityScoutConnectorSetupPayload, buildOpportunityScoutSourceBrief, deriveFoundOpportunityDraftDuplicateWarnings, deriveOpportunityScoutState } from "./opportunity-scout-utils";
 import { deriveAppHealthAuditState } from "./owner-health-utils";
 import { canRequestPackageReview, normalizeTimeLocationEvidencePolicy } from "../shared/permissions.js";
@@ -2031,6 +2032,19 @@ function CopilotPagePolished({
   const providerApprovalPacket = providerApprovalState.packet || providerApprovalPacketFromPlan;
   const dailyAgentLeadsLedger = opportunityScout.dailyAgentLeadsLedger || { rows: [], stats: {}, safetyBoundary: "" };
   const scoutAgent = opportunityScout.agentRunPacket || {};
+  const growthCommandCenter = useMemo(() => deriveGrowthCommandCenterState({
+    opportunityScout,
+    dailyReviewInbox,
+    dailySourceMonitoring,
+    companySettings,
+    leads,
+    estimates,
+    jobs,
+    uploads,
+    dailyReports,
+    permissions,
+    today,
+  }), [companySettings, dailyReports, dailyReviewInbox, dailySourceMonitoring, estimates, jobs, leads, opportunityScout, permissions, today, uploads]);
   const fieldOpsAgent = useMemo(() => deriveFieldOpsAgentState({
     currentCompanyId,
     jobs,
@@ -3746,6 +3760,106 @@ function CopilotPagePolished({
               ))}
             </div>
           </Card>
+
+          {growthCommandCenter.lanes.length ? (
+          <Card className="co-ai-main-board co-ai-scout-board overflow-hidden">
+            <div className="co-ai-board-header border-b border-slate-200 bg-white p-4">
+              <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                <div className="min-w-0">
+                  <h2>Growth Command Center</h2>
+                  <p>{growthCommandCenter.summary}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge tone={growthCommandCenter.tone}>{growthCommandCenter.status}</Badge>
+                  <Badge tone={growthCommandCenter.ads.tone}>{growthCommandCenter.ads.status}</Badge>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => openModule("leads")}>Review Leads</Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="co-ai-scout-grid border-b border-slate-200 bg-white">
+              <div className="co-ai-scout-status" data-tone={growthCommandCenter.tone}>
+                <span>Owner growth loop</span>
+                <strong>{growthCommandCenter.lanes.length} active growth lane{growthCommandCenter.lanes.length === 1 ? "" : "s"}</strong>
+                <p>Find work, advertise smart, capture leads, follow up, win jobs, and turn completed work into proof without live spend or sends.</p>
+                <div className="co-ai-scout-metrics">
+                  <div><em>{opportunityScout.stats?.openFoundOpportunities || 0}</em><span>found</span></div>
+                  <div><em>{dailyReviewInbox.rows?.length || 0}</em><span>review</span></div>
+                  <div><em>{growthCommandCenter.ads.recommendedDailyBudgetRange}</em><span>ad range</span></div>
+                </div>
+                <div className="co-ai-scout-checks">
+                  {growthCommandCenter.guardrails.map((guardrail) => <small key={guardrail}>{guardrail}</small>)}
+                </div>
+              </div>
+              <div className="co-ai-scout-briefs">
+                <SectionHeader title="Growth Lanes" description="Owner/admin command cards show what is built, what needs attention, and what stays provider-ready." />
+                <div className="co-ai-scout-brief-list">
+                  {growthCommandCenter.lanes.map((lane) => (
+                    <div key={lane.id} className="co-ai-scout-brief" data-tone={lane.tone || "slate"}>
+                      <div className="min-w-0">
+                        <span>{lane.status}</span>
+                        <strong>{lane.label}</strong>
+                        <p>{lane.summary}</p>
+                        <em>{lane.helper}</em>
+                        <div className="co-ai-scout-checks mt-2">
+                          {lane.actions.slice(0, 4).map((action) => <small key={`${lane.id}-${action}`}>{action}</small>)}
+                        </div>
+                      </div>
+                      <div className="co-ai-scout-brief-actions">
+                        <Badge tone={lane.tone || "slate"}>{lane.value || "Ready"}</Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="co-ai-scout-grid border-b border-slate-200 bg-slate-50/80">
+              <div className="co-ai-scout-status" data-tone={growthCommandCenter.ads.tone}>
+                <span>Ads spend advisor</span>
+                <strong>{growthCommandCenter.ads.recommendedDailyBudgetRange} daily test range</strong>
+                <p>Contractors get budget guardrails, channel recommendations, copy prep, and pause rules before any paid account is connected.</p>
+                <div className="co-ai-scout-metrics">
+                  <div><em>{growthCommandCenter.ads.recommendedMonthlyLimit}</em><span>monthly</span></div>
+                  <div><em>{growthCommandCenter.ads.targetCostPerLead}</em><span>target CPL</span></div>
+                  <div><em>{growthCommandCenter.ads.ownerMaxSpendLabel}</em><span>owner cap</span></div>
+                </div>
+                <div className="co-ai-scout-checks">
+                  {growthCommandCenter.ads.guardrails.map((guardrail) => <small key={guardrail}>{guardrail}</small>)}
+                </div>
+              </div>
+              <div className="co-ai-scout-briefs">
+                <SectionHeader title="Best Places To Spend" description="Apex Agent recommends channels from job value, close rate, source quality, service area, and capacity. Publishing stays locked." />
+                <div className="co-ai-scout-brief-list">
+                  {growthCommandCenter.ads.channels.map((channel) => (
+                    <div key={channel.id} className="co-ai-scout-brief" data-tone={channel.tone}>
+                      <div className="min-w-0">
+                        <span>provider-ready</span>
+                        <strong>{channel.label}</strong>
+                        <p>{channel.fit}</p>
+                        <em>No account spend or ad publishing from this card.</em>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="co-ai-scout-grid border-b border-slate-200 bg-white">
+              <div className="co-ai-scout-status" data-tone="blue">
+                <span>Source coverage board</span>
+                <strong>{growthCommandCenter.sourceCoverage.length} source type{growthCommandCenter.sourceCoverage.length === 1 ? "" : "s"}</strong>
+                <p>Client Finder should cover public bids, relationship sources, website intake, referrals, and manual/social sources without private-source automation.</p>
+              </div>
+              <div className="co-ai-scout-briefs">
+                <SectionHeader title="Coverage Targets" description="Use these as the setup checklist for finding new client demand." />
+                <div className="co-ai-scout-checks">
+                  {growthCommandCenter.sourceCoverage.map((source) => <small key={source}>{source}</small>)}
+                </div>
+              </div>
+            </div>
+          </Card>
+          ) : null}
 
           {canViewAgentOs ? (
           <Card className="co-ai-main-board co-ai-scout-board overflow-hidden">
