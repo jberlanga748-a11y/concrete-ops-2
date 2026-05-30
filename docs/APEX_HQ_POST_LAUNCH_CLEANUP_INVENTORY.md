@@ -11,6 +11,10 @@ Purpose: record post-launch workspace cleanup candidates after the Phase 8-14 re
 - Do not remove artifacts that may be needed as QA evidence, demo assets, security-support evidence, or rollback context until they are reviewed.
 - Do not commit local data files, browser profiles, screenshots, media exports, admin scripts, logs, or SQLite databases unless a specific artifact is intentionally promoted into docs.
 
+## Cleanup Execution Log
+
+2026-05-30: Josh approved the post-launch cleanup pass. Untracked temp/demo/security-support artifacts were moved, not deleted, from `C:\Users\jberl\Documents\New project` to `C:\Users\jberl\Documents\Apex HQ cleanup archive\2026-05-30-post-launch-ce7a0f3`. The archive includes `MANIFEST.txt` listing each top-level artifact group that was moved. `git status --short --untracked-files=all` was clean after the move.
+
 ## Cleanup Candidate Groups
 
 | Group | Current examples | Recommended handling |
