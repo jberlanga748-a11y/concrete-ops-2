@@ -5,7 +5,10 @@ This file is historical. Do not use it as the active build, pilot, release, or d
 
 The current source of truth is:
 
-- build status and next phase: `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md`
+- canonical workspace/product truth: `docs/APEX_HQ_CANONICAL_SOURCE_OF_TRUTH.md`
+- living phase/deploy memory: `docs/APEX_HQ_LIVING_FINISH_PLAN.md`
+- tool finish plan: `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md`
+- historical build status and next phase inventory: `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md`
 - launch readiness: `docs/LAUNCH_READINESS.md`
 - customer pilot setup infrastructure: `CUSTOMER_PILOT_SETUP.md`
 - Day 0 / Day 3 / Day 10 pilot readiness: `docs/apex-hq-pilot-readiness-checklist.md`

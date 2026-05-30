@@ -18,7 +18,7 @@ Runs daily at 6:00 AM.
 ## Workspace
 
 ```text
-C:\Users\jberl\Documents\Codex\concrete-ops-2-clean
+C:\Users\jberl\Documents\New project
 ```
 
 ## What The Agent Does

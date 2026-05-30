@@ -1,8 +1,14 @@
 # Apex HQ Command Binder
 
-Last updated: 2026-05-26
+Last updated: 2026-05-30
 
-Purpose: this is the first file future Codex, Builder, QA, release, product, and business chats should read before making claims or changes. It keeps Apex HQ from drifting, looping, rebuilding completed systems, or overpromising before the product is ready.
+Status: historical binder, now superseded as the first-read file by `docs/APEX_HQ_CANONICAL_SOURCE_OF_TRUTH.md`.
+
+Purpose: this binder preserves launch, product, and business context, but future Codex, Builder, QA, release, product, and business chats must read `docs/APEX_HQ_CANONICAL_SOURCE_OF_TRUTH.md` first. That file owns the active workspace truth, Concrete Ops to Apex HQ transition, stale archive rules, and no-loop source order.
+
+Active workspace: `C:\Users\jberl\Documents\New project`.
+
+Archive/reference only: `C:\Users\jberl\Documents\Codex\concrete-ops-2-clean`.
 
 Current launch sequence, release blockers, pilot gates, and do-not-build-yet boundaries are captured in `docs/context/launch-memory.md`. Read it before choosing new launch work.
 
@@ -166,27 +172,30 @@ Business claims to avoid:
 
 Read in this order for Apex HQ build work:
 
-1. `docs/apex-hq-command-binder.md` - this first-read binder.
-2. `docs/context/launch-memory.md` - current launch order, release blockers, pilot gates, and do-not-build-yet boundaries.
-3. `AGENTS.md` - repo-level agent rules, source-of-truth order, phase report rules, and field role protection.
-4. `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` - current done/next/do-not-rebuild tracker.
-5. `docs/APEX_HQ_ROADMAP.md` - organized master coordinator roadmap.
-6. `APEX_HQ_MASTER_ROADMAP.md` - long-term historical/product roadmap.
-7. `APEX_HQ_MASTER_CHECKLIST.md` - historical/pilot checklist.
-8. `README.md` - runtime, deployment, env, health, storage, backup/export, CI overview.
-9. `DEPLOYMENT.md` - Fly production notes and release safety reminders.
-10. `CUSTOMER_PILOT_SETUP.md` - isolated customer pilot app/volume setup rules.
-11. `DEMO.md` - demo credentials, demo paths, demo safety.
-12. `docs/GUIDED_DEMO_LAUNCH_READINESS.md` - guided demo position and talk track.
-13. `docs/PUBLIC_CLAIMS_GUARDRAILS.md` - public claim limits.
-14. `docs/PRICING_PACKAGE_STRATEGY.md` - package/pricing assumptions.
-15. `docs/MARKETING_GROWTH_PLAN.md` - positioning, ICP, first customer approach.
-16. `docs/BUSINESS_PLAN_INDEX.md` - index for business planning docs.
-17. `docs/TRUST_COMPLIANCE_CHECKLIST.md` - trust, outreach, testimonial, data, SMS, AI, and launch gates.
-18. `docs/DO_NOT_BUILD_YET_LIST.md` - scope guardrails.
-19. `docs/ASSISTANT_COMMAND_EXPANSION_SCOPE.md` - assistant boundaries and command expansion scope.
-20. `docs/FIELD_OPS_AGENT_PLANNING_CHECKPOINT.md` - Field Ops Agent consent, GPS, role, and package boundaries.
-21. `.agents/APEX_WORKSTREAMS.md` and `.agents/APEX_STATUS.md` - older workstream/handoff material; verify against the build-status file before trusting.
+1. `docs/APEX_HQ_CANONICAL_SOURCE_OF_TRUTH.md` - active workspace, transition, archive, and no-loop truth.
+2. `docs/APEX_HQ_LIVING_FINISH_PLAN.md` - current phase memory, deploy log, and user request inbox.
+3. `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` - active tool-by-tool finish plan.
+4. `docs/apex-hq-command-binder.md` - historical binder and launch/business context.
+5. `docs/context/launch-memory.md` - current launch order, release blockers, pilot gates, and do-not-build-yet boundaries.
+6. `AGENTS.md` - repo-level agent rules, source-of-truth order, phase report rules, and field role protection.
+7. `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` - historical done/next/do-not-rebuild tracker.
+8. `docs/APEX_HQ_ROADMAP.md` - organized master coordinator roadmap.
+9. `APEX_HQ_MASTER_ROADMAP.md` - long-term historical/product roadmap.
+10. `APEX_HQ_MASTER_CHECKLIST.md` - historical/pilot checklist.
+11. `README.md` - runtime, deployment, env, health, storage, backup/export, CI overview.
+12. `DEPLOYMENT.md` - Fly production notes and release safety reminders.
+13. `CUSTOMER_PILOT_SETUP.md` - isolated customer pilot app/volume setup rules.
+14. `DEMO.md` - demo credentials, demo paths, demo safety.
+15. `docs/GUIDED_DEMO_LAUNCH_READINESS.md` - guided demo position and talk track.
+16. `docs/PUBLIC_CLAIMS_GUARDRAILS.md` - public claim limits.
+17. `docs/PRICING_PACKAGE_STRATEGY.md` - package/pricing assumptions.
+18. `docs/MARKETING_GROWTH_PLAN.md` - positioning, ICP, first customer approach.
+19. `docs/BUSINESS_PLAN_INDEX.md` - index for business planning docs.
+20. `docs/TRUST_COMPLIANCE_CHECKLIST.md` - trust, outreach, testimonial, data, SMS, AI, and launch gates.
+21. `docs/DO_NOT_BUILD_YET_LIST.md` - scope guardrails.
+22. `docs/ASSISTANT_COMMAND_EXPANSION_SCOPE.md` - assistant boundaries and command expansion scope.
+23. `docs/FIELD_OPS_AGENT_PLANNING_CHECKPOINT.md` - Field Ops Agent consent, GPS, role, and package boundaries.
+24. `.agents/APEX_WORKSTREAMS.md` and `.agents/APEX_STATUS.md` - older workstream/handoff material; verify against the canonical file and living plan before trusting.
 
 Important business docs:
 
@@ -578,16 +587,18 @@ Copy/paste this at the start of future Builder chats:
 Use $apex-build-router as the operating system for this Apex HQ task.
 
 Repo:
-C:\Users\jberl\Documents\Codex\concrete-ops-2-clean
+C:\Users\jberl\Documents\New project
 
 Do NOT use:
+C:\Users\jberl\Documents\Codex\concrete-ops-2-clean
 C:\Users\jberl\Documents\Codex\concrete-ops-rebuild\concrete-ops-ai-starter
 
 First read:
-1. docs/apex-hq-command-binder.md
-2. AGENTS.md
-3. docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md
-4. docs/APEX_HQ_ROADMAP.md
+1. docs/APEX_HQ_CANONICAL_SOURCE_OF_TRUTH.md
+2. docs/APEX_HQ_LIVING_FINISH_PLAN.md
+3. docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md
+4. AGENTS.md
+5. docs/apex-hq-command-binder.md
 
 Route skills automatically:
 - build/general engineering -> $apex-build-router + $codex-mastery-system

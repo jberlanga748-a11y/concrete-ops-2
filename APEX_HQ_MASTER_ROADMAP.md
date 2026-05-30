@@ -1,7 +1,7 @@
 # Apex HQ Master Roadmap
 
 Status note, 2026-05-17:
-This file is historical/reference strategy. Current completed phases, latest release, do-not-rebuild list, and next build phase now live in `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md`. Use that tracker before acting on any "current priority" text below.
+This file is historical/reference strategy. Current workspace truth, completed phases, latest release, do-not-rebuild list, and next build phase now start in `docs/APEX_HQ_CANONICAL_SOURCE_OF_TRUTH.md`, then `docs/APEX_HQ_LIVING_FINISH_PLAN.md`, then `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md`. Use those files before acting on any "current priority" text below.
 
 This roadmap describes the long-term direction for building Apex HQ into a premium contractor growth and operations platform.
 

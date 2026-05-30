@@ -227,7 +227,7 @@ Use skills:
 - apex-qa-engineer
 
 Repo:
-C:\Users\jberl\Documents\Codex\concrete-ops-2-clean
+C:\Users\jberl\Documents\New project
 
 Do NOT redesign the app.
 Do NOT rebuild Apex Assistant, Leads, Estimates, AI Rough Notes, Jobs, permissions, packages, or navigation.

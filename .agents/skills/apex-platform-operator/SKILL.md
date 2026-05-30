@@ -13,7 +13,8 @@ Use this skill as the always-on Apex HQ coordinator. It keeps work safe, phased,
 - Do not add legacy product branding to visible UI, docs meant for users, page titles, PWA metadata, emails, or reports.
 - Technical identifiers may still exist until a dedicated infrastructure rename: repo, package, Fly app, env vars, storage/session keys, import package types, and tests.
 - Current repo target: `jberlanga748-a11y/concrete-ops-2`.
-- Current local folder: `C:\Users\jberl\Documents\Codex\concrete-ops-2-clean`.
+- Current local folder: `C:\Users\jberl\Documents\New project`.
+- `C:\Users\jberl\Documents\Codex\concrete-ops-2-clean` is a stale archive/reference worktree only.
 - Current Fly app: `concrete-ops-2`.
 - Current live app: `https://app.apexhq.online/`.
 - Health check: `https://app.apexhq.online/api/ready`.

@@ -12,15 +12,18 @@ Use **Apex HQ** for all user-facing product language. Legacy technical names may
 
 Read these before starting major work:
 
-1. `README.md` - current app/deploy/runtime overview.
-2. `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` - current done/next/do-not-rebuild source of truth.
-3. `APEX_HQ_MASTER_ROADMAP.md` - detailed technical/product backlog.
-4. `APEX_HQ_MASTER_CHECKLIST.md` - pilot status and day-one checklist.
-5. `.agents/APEX_WORKSTREAMS.md` - existing workstream split.
-6. `.agents/APEX_STATUS.md` - legacy handoff board; may be stale, verify against the build-status file.
-7. `docs/APEX_HQ_ROADMAP.md` - organized master coordinator roadmap.
-8. `docs/AGENT_OPERATING_MODEL.md` - agent roles and rules.
-9. Codex skills under `C:\Users\jberl\.codex\skills`, especially `apex-finished-vision`.
+1. `docs/APEX_HQ_CANONICAL_SOURCE_OF_TRUTH.md` - first-read workspace, transition, archive, and no-loop file.
+2. `README.md` - current app/deploy/runtime overview.
+3. `docs/APEX_HQ_LIVING_FINISH_PLAN.md` - current user-request memory, deploy log, and phase memory.
+4. `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` - active tool-by-tool finish plan.
+5. `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` - historical done/next/do-not-rebuild inventory; verify against the living plan.
+6. `APEX_HQ_MASTER_ROADMAP.md` - detailed technical/product backlog.
+7. `APEX_HQ_MASTER_CHECKLIST.md` - historical pilot status and day-one checklist.
+8. `.agents/APEX_WORKSTREAMS.md` - existing workstream split.
+9. `.agents/APEX_STATUS.md` - legacy handoff board; stale until refreshed against the canonical file.
+10. `docs/APEX_HQ_ROADMAP.md` - organized master coordinator roadmap.
+11. `docs/AGENT_OPERATING_MODEL.md` - agent roles and rules.
+12. Codex skills under `C:\Users\jberl\.codex\skills`, especially `apex-finished-vision`.
 
 ## Master Coordinator Rule
 

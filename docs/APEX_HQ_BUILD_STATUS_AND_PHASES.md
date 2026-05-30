@@ -1,8 +1,10 @@
 # Apex HQ Build Status And Phase Tracker
 
-Last updated: 2026-05-21
+Last updated: 2026-05-30
 
-Purpose: this is the master build-status file for Apex HQ. Use it to prevent loops, avoid rebuilding completed systems, and choose the next phase.
+Status: historical build-status tracker. Read `docs/APEX_HQ_CANONICAL_SOURCE_OF_TRUTH.md`, `docs/APEX_HQ_LIVING_FINISH_PLAN.md`, and `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` before using this file.
+
+Purpose: this file preserves historical build status for Apex HQ. Use it to prevent loops and avoid rebuilding completed systems, but do not let older phase text override the canonical file or living finish plan.
 
 ## Current Verdict
 

@@ -1,13 +1,15 @@
 # Apex HQ Status
 
-Last updated: 2026-05-17
+Last updated: 2026-05-30
 
-This is the short agent handoff board. The full phase source of truth is `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md`.
+Status: legacy handoff board. Read `docs/APEX_HQ_CANONICAL_SOURCE_OF_TRUTH.md`, `docs/APEX_HQ_LIVING_FINISH_PLAN.md`, and `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` before using anything below.
+
+Active workspace is now `C:\Users\jberl\Documents\New project`. The old `C:\Users\jberl\Documents\Codex\concrete-ops-2-clean` path below is retained as historical context only and must not be used as the active repo.
 
 ## Current Baseline
 
 - Current repo: `jberlanga748-a11y/concrete-ops-2`
-- Current local folder: `C:\Users\jberl\Documents\Codex\concrete-ops-2-clean`
+- Current local folder at the time of this old baseline: `C:\Users\jberl\Documents\Codex\concrete-ops-2-clean`
 - Branch: `main`
 - Latest shipped app commit: `cfc73232403fdfb4f1f5685a295417e826ed20a3`
 - Latest shipped message: `Add Apex HQ advanced reporting prep`

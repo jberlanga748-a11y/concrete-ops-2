@@ -41,7 +41,7 @@ Vercel:
 
 Before any production deploy:
 
-- Confirm the repo path is `C:\Users\jberl\Documents\Codex\concrete-ops-2-clean`.
+- Confirm the repo path is `C:\Users\jberl\Documents\New project`.
 - Confirm the current branch.
 - Confirm the latest commit.
 - Confirm `git status --short`.

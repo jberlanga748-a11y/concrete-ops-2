@@ -2,6 +2,10 @@
 
 Last updated: 2026-05-30
 
+Canonical first-read file: `docs/APEX_HQ_CANONICAL_SOURCE_OF_TRUTH.md`.
+
+This living plan tracks active phase memory, deploy evidence, user requests, and phase reports. The canonical file owns workspace truth, Concrete Ops to Apex HQ transition rules, stale archive rules, and source-of-truth order.
+
 ## Current Phase
 
 Phase 1 Admin Foundation Finish is completed, pushed, deployed to production, health-checked, and frozen under the standing release approval. Use the tool-by-tool completion blueprint as the active source for the next phase.
