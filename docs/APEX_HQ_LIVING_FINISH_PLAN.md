@@ -4,7 +4,7 @@ Last updated: 2026-05-30
 
 ## Current Phase
 
-Core Operations Loop is completed locally and ready for production deploy under the standing release approval. Next phase is Field Mode Finish.
+Core Operations Loop is completed, pushed, and deployed to production under the standing release approval. Next phase is Field Mode Finish.
 
 ## Product North Star
 
@@ -148,7 +148,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - [x] Keep the loop review-first only: no record mutation, sends, ordering, invoicing, billing, payments, purchasing, customer/GC/vendor/provider actions, job status changes, or field visibility changes from the panel.
 - [x] Block field-only users from the loop and keep them out of leads, estimates, pricing, billing, margins, profit, payroll, office notes, AI office controls, and company setup.
 - [x] Verify focused tests, jobs verification, role verification, build, diff check, and browser QA.
-- [ ] Commit, push, deploy, hosted health-check, and record production deploy.
+- [x] Commit, push, deploy, hosted health-check, and record production deploy.
 
 ## Completed / Frozen Systems
 
@@ -199,7 +199,8 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | 2026-05-30 | Reputation + Portfolio Engine | `bc7aff2` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `595` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
 | 2026-05-30 | Estimate Studio + Proposal Packets | `3ff622b` pushed to `main` | Local QA at `http://127.0.0.1:4130` | Owner desktop `/estimates` passed Final Proposal Packet Review; employee mobile `/estimates` redirected to `/jobs`; local browser errors `[]`. |
 | 2026-05-30 | Estimate Studio + Proposal Packets | `bb1a796` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `597` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
-| 2026-05-30 | Core Operations Loop | pending commit | Local QA at `http://127.0.0.1:4135` | Owner desktop `/command-center` passed Core Operations Loop; employee mobile `/command-center` redirected to `/jobs`; local browser errors `[]`. |
+| 2026-05-30 | Core Operations Loop | `08a4864` pushed to `main` | Local QA at `http://127.0.0.1:4135` | Owner desktop `/command-center` passed Core Operations Loop; employee mobile `/command-center` redirected to `/jobs`; local browser errors `[]`. |
+| 2026-05-30 | Core Operations Loop | `08a4864` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `598` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
 
 ## Roadmap Queue
 
