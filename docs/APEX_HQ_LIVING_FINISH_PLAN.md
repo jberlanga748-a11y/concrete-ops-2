@@ -4,7 +4,7 @@ Last updated: 2026-05-30
 
 ## Current Phase
 
-Billing / Payments / Packages is completed and in release verification under the standing production approval. Next phase is Integrations.
+Billing / Payments / Packages is completed, pushed, and deployed to production under the standing release approval. Next phase is Integrations.
 
 ## Product North Star
 
@@ -264,7 +264,8 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | 2026-05-30 | Apex Agent Operator | `cd38676` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `600` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
 | 2026-05-30 | Customer Portal + Communications | `9b9ea0c` pushed to `main` | Local QA at `http://127.0.0.1:4156` | Admin desktop `/communications` passed Customer Portal Command, Prepare access record, Provider readiness, and Locked outbound approval; employee mobile `/communications` redirected to `/jobs` with portal/communications/pricing hidden; local browser errors `[]`. |
 | 2026-05-30 | Customer Portal + Communications | `9b9ea0c` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `601` started in `sjc`; service check passing; `/api/ready` OK on both domains with database OK. |
-| 2026-05-30 | Billing / Payments / Packages | Pending commit | Local QA at `http://127.0.0.1:4162` | Admin desktop `/settings` passed Billing / Payments / Packages Command, provider readiness, blocked money actions, receipt/failure states, and no overflow/errors; employee mobile `/settings` redirected to `/jobs` with billing/payment/package command text hidden. |
+| 2026-05-30 | Billing / Payments / Packages | `5169b4d` pushed to `main` | Local QA at `http://127.0.0.1:4162` | Admin desktop `/settings` passed Billing / Payments / Packages Command, provider readiness, blocked money actions, receipt/failure states, and no overflow/errors; employee mobile `/settings` redirected to `/jobs` with billing/payment/package command text hidden. |
+| 2026-05-30 | Billing / Payments / Packages | `5169b4d` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `603` started in `sjc`; service check passing; `/api/ready` OK on both domains with database OK. |
 
 ## Roadmap Queue
 
@@ -366,11 +367,13 @@ Mobile impact:
 
 Deploy version:
 
-- Pending production deploy.
+- `5169b4d` deployed to Fly machine `148e06e2b53d68` version `603`.
 
 Health check:
 
-- Pending production health check.
+- `https://app.apexhq.online/api/ready` OK.
+- `https://concrete-ops-2.fly.dev/api/ready` OK.
+- Fly service check `servicecheck-00-http-4000` passing.
 
 Rollback note:
 
