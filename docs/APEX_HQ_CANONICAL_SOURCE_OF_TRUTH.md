@@ -86,25 +86,190 @@ This folder is not current. It is missing current Phase 1 completion files such 
 
 It does contain useful older extraction work. Inspect it before related phases, but do not build from it and do not copy it wholesale.
 
-Old-only source files worth comparing before Command Center/workspace work:
+Old-only source files that are useful for the app are classified in the one-file app memory below.
 
-- `src/command-center-page.jsx`
-- `src/dashboard-page-polished-components.jsx`
-- `src/workspace-route-dispatcher.jsx`
-- `src/workspace-derived-state.js`
-- `src/workspace-assistant-state.js`
-- `src/workspace-intent-handlers.js`
-- `src/workspace-navigation-config.js`
-- `src/workspace-print-handlers.js`
-- `src/settings-page-components.jsx`
-- `src/settings-route-utils.js`
-- `src/copilot-page-components.jsx`
-- `src/app-autosave-handlers.js`
-- `src/app-initial-forms.js`
-- `src/app-job-time-handlers.js`
-- `src/app-record-field-handlers.js`
-- `src/app-route-navigation-handlers.js`
-- `src/app-route-selection-sync.js`
+## One-File App Memory: Do Not Build Twice
+
+This section exists so future work starts from what already exists somewhere on this computer, not from guessing.
+
+### Active App Has Newer Work Than The Archive
+
+Do not replace active app files with old archive files. The active repo has newer source files that the old `concrete-ops-2-clean` worktree does not have:
+
+- `src/admin-foundation-finish-utils.js`
+- `src/agent-external-gate-settings-utils.js`
+- `src/apex-agent-operator-utils.js`
+- `src/billing-payments-command-utils.js`
+- `src/communication-provider-readiness-utils.js`
+- `src/core-operations-loop-utils.js`
+- `src/customer-portal-command-utils.js`
+- `src/estimate-proposal-finish-utils.js`
+- `src/field-mode-finish-utils.js`
+- `src/growth-command-utils.js`
+- `src/integrations-command-utils.js`
+- `src/reputation-portfolio-utils.js`
+- `src/sales-follow-up-system.js`
+- related focused tests
+- newer `shared/communicationProviderReadiness.js`
+- newer `shared/timeLocationPresence.js`
+- newer `server/customer-portal-access-records.test.js`
+
+These are active production-era systems. Treat them as current app truth and extend them only through the assigned finish phase.
+
+### Archive Files That Are Actually Useful
+
+These old-only archive files are useful because they solve app-architecture or workflow organization problems. They should be inspected before building similar work so Apex HQ does not redo the same thinking.
+
+| Archive file | Useful for | How to use it |
+| --- | --- | --- |
+| `src/workspace-route-dispatcher.jsx` | Extracting route rendering out of giant `App.jsx`. | Use as a reference for a future App.jsx decomposition, route-level lazy loading, and role-safe route dispatch. Do not copy wholesale because active routes are newer. |
+| `src/workspace-derived-state.js` | Centralizing dashboard, lead, job, customer, notification, and command-center derived state. | Reuse the pattern when App state starts duplicating calculations. Compare against active `app-state-utils`, `command-center-utils`, lead/job/customer utilities, and newer command layers. |
+| `src/workspace-assistant-state.js` | Centralizing Apex Assistant / Agent state with permission-aware context. | Useful before touching Apex Agent, AI Office, Agent OS, action inbox, or assistant context. Preserve current newer operator/growth/portal/billing/integration command layers. |
+| `src/workspace-intent-handlers.js` | Turning dashboard/agent/action buttons into real routed workflows with permission checks. | Useful before adding command buttons so new actions open records/tools instead of becoming dead-end cards. |
+| `src/workspace-navigation-config.js` | App-wide route/tool inventory. | Use as a checklist so no tool gets forgotten. Reconcile with current navigation, package gates, and field-role restrictions. |
+| `src/workspace-print-handlers.js` | Centralizing print packet handlers. | Useful when print actions are duplicated across reports, estimates, jobs, change orders, and proof closeout. Keep field-safe packet boundaries. |
+| `src/app-autosave-handlers.js` | Customer/lead/job autosave extraction. | Useful if autosave behavior is duplicated, buggy, or hard to reason about. Verify against current API/state shape before porting. |
+| `src/app-route-navigation-handlers.js` | Deep-link navigation and selected record routing. | Useful before changing route paths, selected records, support seeds, public routes, password reset, or imported draft links. |
+| `src/app-route-selection-sync.js` | Keeping URL route state and selected records in sync. | Useful for direct links to customers/leads/jobs/reports/imported drafts/users/time entries. |
+| `src/app-job-time-handlers.js` | Job assignment, foreman assignment, clock-in/out, breaks, and time correction handlers. | Useful before finishing payroll prep, job assignment, or field time. Preserve current permission checks and no payroll-cost exposure. |
+| `src/app-record-field-handlers.js` | Inline lead/customer/job edit handlers with autosave. | Useful if field/edit handlers are duplicated inside App.jsx. Preserve role checks. |
+| `src/app-initial-forms.js` | Consolidating initial form/draft objects. | Useful if form defaults drift between pages. Verify against current public request, lead source, setup, and newer app state. |
+| `src/command-center-page.jsx` | Older owner/admin command center layout and routing ideas. | Use as design/workflow reference only. Current app has newer command layers. |
+| `src/dashboard-page-polished-components.jsx` | Older dashboard composition: focus board, command rail, today coordination, queue, lead detail, jobs table. | Useful for dashboard/workflow clarity, not as a replacement. |
+| `src/settings-page-components.jsx` | Older Settings decomposition and app-health/settings focus structure. | Useful if Settings needs decomposition. Active Settings now has newer Admin Foundation, Billing, and Integrations commands. |
+| `src/pre-pour-route-components.jsx` | Mobile accordion/workbench structure for pre-pour. | Useful if active pre-pour needs mobile UX or workflow finish work. |
+| `src/post-pour-route-components.jsx` | Mobile/workbench structure for post-pour. | Useful if active post-pour needs mobile UX or closeout linkage work. |
+| `src/public-route-components.jsx` | Lazy public route components. | Useful if public routes get decomposed. Active public intake is newer. |
+| `src/copilot-page-components.jsx` | Older Apex Assistant page component split. | Reference only. Active app has newer Apex Agent Operator and AI Office work. |
+
+### Archive Files That Are Not App-Reusable
+
+The archive does not contain newer hidden backend or data work:
+
+- No unique `server` files missing from active repo.
+- No unique `shared` files missing from active repo.
+- No unique `scripts` missing from active repo.
+- No unique Supabase migrations missing from active repo.
+
+Therefore, do not go looking in `concrete-ops-2-clean` for a finished backend feature to copy. Its value is mostly old frontend decomposition, routing, state, handler, and workflow organization.
+
+### App-Wide Product Ideas Already Captured In Old Notes
+
+These ideas appeared in old Concrete Ops/Apex notes. They are not finished app features unless active code proves otherwise. Keep them in this one file so they do not get forgotten or rediscovered later.
+
+| Idea | Current classification | Build rule |
+| --- | --- | --- |
+| Warranty / callback tracking | Later | Build after jobs/closeout/proof are stable. |
+| Punch list | Later | Likely belongs with job closeout, customer portal, and field proof. |
+| Inspection tracking | Later | Could connect to jobs, permits, daily reports, proof, and closeout. |
+| Permit tracking | Later | Do not overbuild; provider/city integration is later. |
+| Subcontractor/vendor tracking | Later | Keep separate from employee/payroll and supplier/material workflows. |
+| Supplier management | Later | Useful for delivery tickets/material prep; no automatic purchasing. |
+| Material provider map | Later / provider-dependent | Maps/provider hookup later; no hidden GPS. |
+| Job route/map planning | Provider-dependent | Needs maps/location provider and visible consent boundaries. |
+| Customer approvals/signatures | Provider-dependent | Tie to proposals, change orders, customer portal, and e-signature provider. |
+| Internal vs customer-visible notes | Important | Must be enforced before customer portal/public sharing expands. |
+| Production metrics | Later | Needs job lifecycle, time, proof, estimates, and closeout data quality. |
+| CSV import/export | Later | Must preserve tenant/role safety and secret redaction. |
+| Terms/contract templates | Later | Owner/admin only; no legal overclaiming. |
+| Pre-existing damage log | Later | Belongs with proof/photos, job startup, and customer-safe packets. |
+| Job closeout packet | Important | Connect proof, reports, tickets, change orders, billing readiness, and customer-safe summaries. |
+| Voice-to-text field notes | Provider-dependent | Useful, but requires provider/privacy review and field-visible consent. |
+| AI photo tagging | Provider-dependent | Useful, but no fake proof and no hidden metadata exposure. |
+| QuickBooks export | Provider-dependent | Provider setup only until account/API/secrets are configured. |
+| Certified payroll / payroll prep | Missing as workflow | Time exists; payroll-ready review/export is not payroll processing. Field users never see payroll costs. |
+| Device/session management | Later / security | Useful launch hardening; owner/admin only. |
+| Required photo rules by job stage | Later | Connect to field proof, pre/post-pour, closeout, and job readiness. |
+| Material over/under tracking | Later | Connect estimate, material prep, delivery tickets, and closeout. |
+| Crew productivity reports | Later | Needs careful field/payroll/margin safety. |
+| Employee certifications/license tracking | Later | Employee/admin workflow; field privacy matters. |
+| PWA/offline/app packaging | Later | Offline drafts are later; do not claim offline editing until built. |
+
+### App Tools Already Present Somewhere In Active Apex HQ
+
+These areas exist in the active app or active repo memory. Before building any of them, search active code first and extend existing systems:
+
+- Customers
+- Leads
+- Lead sources
+- Opportunity Scout / Client Finder
+- Agent Leads / Daily Job Finder readiness
+- Public estimate request / website lead intake
+- Sales follow-up
+- Communications
+- Contact history
+- Estimates
+- Proposals
+- PDF/print packets
+- GC packet pieces
+- Foreman handoff packets
+- Jobs
+- Schedule
+- Crew/job assignments
+- Field Mode
+- Time tracking
+- Daily reports
+- Uploads/photo evidence
+- Delivery tickets
+- Pre-pour
+- Post-pour
+- Change orders
+- Safety incidents
+- Toolbox talks
+- PPE
+- Tool checklist
+- Calculator
+- Rate book
+- Material prep
+- Imported drafts
+- Employees/users/roles
+- Settings
+- App Health
+- Support
+- Package/entitlement readiness
+- Billing/payment provider readiness
+- Customer portal preview/share approval readiness
+- Integration readiness
+- Apex Assistant / AI Office
+- Agent OS / action inbox
+- Growth Command Center
+- Ads spend advisor readiness
+- Reputation and portfolio readiness
+
+Build rule: if the tool is on this list, assume it already exists and must be audited in active code before adding a new surface.
+
+### App Areas That Are Not Finished Workflows Yet
+
+These should not be sold or treated as complete just because panels/readiness layers exist:
+
+- live ad publishing or spend
+- live SMS/email sending
+- live customer portal token redemption/customer sessions
+- live payment processing
+- live QuickBooks/accounting writes
+- live calendar/file/provider writes
+- payroll processing
+- certified payroll
+- automatic purchasing
+- automatic bid submission
+- hidden GPS or passive location tracking
+- public self-serve SaaS launch
+- accounting replacement
+- guaranteed lead generation
+
+Build rule: create provider-ready states and review packets, but keep live execution locked until provider setup and safe workflow implementation exist.
+
+### Before Building Any Tool
+
+Use this no-duplicate sequence:
+
+1. Search active repo for the tool name, route, utility, server API, shared module, and tests.
+2. Check this one-file app memory for whether old archive work exists.
+3. If an archive file exists, inspect it for patterns only.
+4. Compare against current active code.
+5. Port only what still fits.
+6. Add/update focused tests.
+7. Update this file only if the app truth changes.
 
 ### Older Git Worktrees / Historical
 
