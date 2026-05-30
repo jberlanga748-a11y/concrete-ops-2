@@ -14,6 +14,7 @@ export const MODULE_PATHS = {
   deliveryTickets: "/delivery-tickets",
   customers: "/customers",
   employees: "/employees",
+  proposals: "/proposals",
   estimates: "/estimates",
   rateBook: "/rate-book",
   materialPrep: "/material-prep",
@@ -70,6 +71,14 @@ export function buildReportPath(id) {
   return `/reports/${encodeURIComponent(id)}`;
 }
 
+export function buildProposalPath(id) {
+  return `/proposals/${encodeURIComponent(id)}`;
+}
+
+export function buildProposalPrintPath(id) {
+  return `/proposals/${encodeURIComponent(id)}/print`;
+}
+
 export function buildImportedJobDraftPath(id) {
   return `/imported-drafts/${encodeURIComponent(id)}`;
 }
@@ -92,6 +101,23 @@ export function parseAppPath(pathname) {
 
   if (segments[0] === "reports" && segments[1]) {
     return { active: "reports", leadId: "", jobId: "", customerId: "", reportId: decodeURIComponent(segments[1]), importedDraftId: "" };
+  }
+
+  if (segments[0] === "proposals" && segments[1] === "new") {
+    return { active: "proposals", leadId: "", jobId: "", customerId: "", reportId: "", importedDraftId: "", proposalId: "", proposalMode: "new" };
+  }
+
+  if (segments[0] === "proposals" && segments[1]) {
+    return {
+      active: "proposals",
+      leadId: "",
+      jobId: "",
+      customerId: "",
+      reportId: "",
+      importedDraftId: "",
+      proposalId: decodeURIComponent(segments[1]),
+      proposalMode: segments[2] === "print" ? "print" : "detail",
+    };
   }
 
   if ((segments[0] === "imported-drafts" || segments[0] === "job-draft-imports") && segments[1]) {

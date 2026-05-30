@@ -335,6 +335,7 @@ const SupportPage = lazyRouteComponent(() => import("./support-route-components"
 const MaterialPrepPage = lazyRouteComponent(() => import("./material-prep-route-components"), "MaterialPrepPage");
 const RateBookPage = lazyRouteComponent(() => import("./rate-book-route-components"), "RateBookPage");
 const CommunicationCenterPage = lazyRouteComponent(() => import("./communications-route-components"), "CommunicationCenterPage");
+const ProposalsWorkspace = lazy(() => import("./ProposalGenerator"));
 const DashboardPage = lazyRouteComponent(() => import("./dashboard-route-wrapper-components"), "DashboardPage");
 const CommandCenterRoutePage = lazyRouteComponent(() => import("./dashboard-route-wrapper-components"), "CommandCenterRoutePage");
 const TodayCommandPage = lazyRouteComponent(() => import("./today-command-page-components"), "TodayCommandPage");
@@ -384,6 +385,7 @@ const NAV_GROUPS = [
       { id: "communications", label: "Communications", icon: "quote" },
       { id: "leads", label: "Leads", icon: "inbox" },
       { id: "customers", label: "Customers", icon: "users" },
+      { id: "proposals", label: "Proposals", icon: "document" },
       { id: "estimates", label: "Estimates", icon: "quote" },
       { id: "rateBook", label: "Rate Book", icon: "calculator" },
       { id: "materialPrep", label: "Material Prep", icon: "clipboard" },
@@ -11872,6 +11874,14 @@ function MainContent(props) {
          />
       );
     }
+    if (active === "proposals") {
+      return (
+        <ProposalsWorkspace
+          routeState={props.routeState}
+          navigateTo={props.navigateTo}
+        />
+      );
+    }
     if (active === "rateBook") {
       return (
         <RateBookPage
@@ -16446,7 +16456,7 @@ export default function App() {
   const leadRelated = relatedLeadActivity(selectedLead, appState.customers, appState.activity, appState.leadStatusHistory);
 
   return (
-    <div className="co-app-shell min-h-screen overflow-x-hidden text-slate-950">
+    <div className="co-app-shell min-h-screen overflow-x-hidden text-slate-950" data-print-route={active === "proposals" && routeState.proposalMode === "print" ? "proposal" : undefined}>
       <div className="flex min-w-0 max-w-full">
         <Sidebar active={active} setActive={setActive} counts={counts} navGroups={visibleNavGroups} logoInitials={workspaceLogoInitials} brandAssets={APEX_BRAND_ASSETS} appName={APP_NAME} />
         <div className="co-workspace-shell mobile-content-safe min-w-0 flex-1 overflow-x-hidden lg:pb-0">
@@ -16479,6 +16489,8 @@ export default function App() {
               <Suspense fallback={<ModuleLoadingFallback active={active} />}>
               <MainContent
                 active={active}
+                routeState={routeState}
+                navigateTo={navigateTo}
                 setActive={setActive}
                 sessionToken={sessionToken}
                 user={appState.user}

@@ -54826,3 +54826,59 @@ body:has(.co-field-mobile-reports-shell) .co-mobile-bottom-spacer {
 .co-ai-office-page .co-ai-command-layout {
   grid-template-columns: minmax(0, 1fr) !important;
 }
+
+@media print {
+  @page {
+    margin: 0.35in;
+    size: letter;
+  }
+
+  .co-app-shell[data-print-route="proposal"] > .flex > :first-child,
+  .co-app-shell[data-print-route="proposal"] .co-workspace-shell > :not(main),
+  .co-app-shell[data-print-route="proposal"] .co-mobile-bottom-spacer,
+  .co-app-shell[data-print-route="proposal"] + nav,
+  .proposal-no-print {
+    display: none !important;
+  }
+
+  .co-app-shell[data-print-route="proposal"],
+  .co-app-shell[data-print-route="proposal"] .co-workspace-shell,
+  .co-app-shell[data-print-route="proposal"] main,
+  .co-app-shell[data-print-route="proposal"] .co-module-frame,
+  .proposal-print-shell {
+    background: #ffffff !important;
+    color: #111827 !important;
+    margin: 0 !important;
+    max-width: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+
+  .proposal-document {
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    max-width: none !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+
+  .proposal-document,
+  .proposal-document * {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .proposal-section,
+  .proposal-section > *,
+  .proposal-pricing,
+  table {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .proposal-pricing thead {
+    display: table-header-group;
+  }
+}
