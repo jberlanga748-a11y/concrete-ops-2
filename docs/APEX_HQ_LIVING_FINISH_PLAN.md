@@ -4,7 +4,7 @@ Last updated: 2026-05-30
 
 ## Current Phase
 
-Reputation + Portfolio Engine is completed, pushed, and deployed to production under the standing release approval. Next phase is Estimate Studio + Proposal Packets.
+Estimate Studio + Proposal Packets is completed locally and ready for production deploy under the standing release approval. Next phase is Core Operations Loop.
 
 ## Product North Star
 
@@ -37,7 +37,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | Sales follow-up | Built | Owner/admin Sales Follow-Up System now combines daily queue, stale estimate reminders, manual scripts, won/lost learning, source quality, referral/review asks, and manual won/lost logging. Provider sends stay locked until configured and reviewed. |
 | Ads / Marketing Spend Advisor | Partial | Growth Command Center now exposes provider-ready spend guardrails, channel recommendations, stop-loss rules, and draft planning. Live ad publishing/spend is locked. |
 | Reputation + Portfolio Engine | Built | Owner/admin Growth Command Center now turns existing jobs, reports, uploads, and estimates into project story candidates, before/after selection guidance, review/referral drafts, proposal proof blocks, social/website drafts, and proof blockers. Sends and publishing remain manual/provider-ready only. |
-| Estimate Studio / proposals | Built / Partial | Estimate Studio, packets, PDF, options, GC pieces, handoff, and email gate foundations exist. Final packet polish remains. |
+| Estimate Studio / proposals | Built | Estimate Studio, packets, PDF, options, customer-safe/internal packet separation, GC packet pieces, send-review gate, field-safe handoff, and final proposal packet review are built. Live email send still depends on configured provider and human confirmation. |
 | Core operations loop | Partial | Leads, jobs, schedules, field proof, tickets, reports, change orders, and closeout readiness exist. Dead-end removal remains. |
 | Field Mode | Built / Partial | Field-safe mobile workflows exist. Offline drafts/PWA polish remain. |
 | Apex Agent Operator | Partial | Agent OS/action inbox/readiness packets exist. Unified command center and provider boundaries need continued polish. |
@@ -60,7 +60,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ### Next
 
-- Finish Estimate Studio proposal packet polish.
+- Finish Core Operations Loop dead-end removal and next-action flow.
 
 ### Later
 
@@ -116,7 +116,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - [x] Verify phase tests, build, browser QA, and field safety.
 - [x] Commit, push, deploy, hosted health-check, and record production deploy.
 
-## Active Phase Checklist: Reputation + Portfolio Engine
+## Completed Phase Checklist: Reputation + Portfolio Engine
 
 - [x] Reuse existing jobs, reports, uploads, estimates, and Growth Command Center.
 - [x] Add owner/admin project story candidates from real field proof.
@@ -128,6 +128,17 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - [x] Keep field users blocked from reputation, referral, review, social, website proof, lead, estimate, pricing, and AI office growth controls.
 - [x] Verify phase tests, build, browser QA, and field safety.
 - [x] Commit, push, deploy, hosted health-check, and record production deploy.
+
+## Active Phase Checklist: Estimate Studio + Proposal Packets
+
+- [x] Reuse existing Estimate Studio, estimate math, packet presets, PDF print model, GC packet lite, backup/SOV, sent snapshots, and handoff readiness.
+- [x] Add final proposal packet readiness state for customer packet, option comparison, terms/exclusions/assumptions, proof/takeoff backup, GC packet, send mode, and foreman handoff.
+- [x] Keep customer-facing packet review separate from internal review packet content, private URLs, margins, profit, payroll, and office-only notes.
+- [x] Add owner/admin Estimate Studio command panel for Final Proposal Packet Review.
+- [x] Add packet-mode final review summary without sending, converting, scheduling, billing, or changing field visibility.
+- [x] Keep field users blocked from estimates, packets, pricing, customer send controls, and office-only proposal work.
+- [x] Verify phase tests, build, browser QA, and field safety locally.
+- [ ] Commit, push, deploy, hosted health-check, and record production deploy.
 
 ## Completed / Frozen Systems
 
@@ -141,6 +152,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - Public estimate request manual lead intake funnel.
 - Sales Follow-Up System command layer and manual outreach/won-lost learning.
 - Reputation + Portfolio Engine project-story, review/referral, proposal proof, and manual social/website draft command layer.
+- Estimate Studio final proposal packet review, customer/internal packet separation, option comparison readiness, provider-ready send review, and field-safe handoff readiness.
 
 ## Do-Not-Rebuild List
 
@@ -173,6 +185,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | 2026-05-30 | Sales Follow-Up System | `46a5a30` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `594` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
 | 2026-05-30 | Reputation + Portfolio Engine | `bc7aff2` pushed to `main` | Local QA at `http://127.0.0.1:4127` | Owner desktop `/ai-office` passed; employee mobile `/ai-office` redirected to `/jobs`; local browser errors `[]`. |
 | 2026-05-30 | Reputation + Portfolio Engine | `bc7aff2` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `595` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
+| 2026-05-30 | Estimate Studio + Proposal Packets | Pending commit | Local QA at `http://127.0.0.1:4130` | Owner desktop `/estimates` passed Final Proposal Packet Review; employee mobile `/estimates` redirected to `/jobs`; local browser errors `[]`. |
 
 ## Roadmap Queue
 
@@ -191,7 +204,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ## Next Phase
 
-Estimate Studio + Proposal Packets after Reputation + Portfolio Engine production deploy is recorded.
+Core Operations Loop after Estimate Studio + Proposal Packets production deploy is recorded.
 
 ## Decision Log
 
@@ -206,6 +219,7 @@ Estimate Studio + Proposal Packets after Reputation + Portfolio Engine productio
 | 2026-05-30 | Standing production release approval is granted for completed verified phases. | The owner wants finished phases pushed to production without repeated NO-GO approval loops. | After validation and push, deploy to production and health-check; keep hard stops only for secrets, paid spend, live sends, billing/payment processing, destructive data, hidden GPS/privacy, auth/session control, or known incident risk. |
 | 2026-05-30 | Sales follow-up stays manual-first but becomes a finished command system. | Contractors need to win existing leads, not only collect them. | Apex HQ now shows due work, stale estimates, source quality, scripts, won/lost learning, and review/referral asks while keeping sends and spend locked. |
 | 2026-05-30 | Reputation and portfolio reuse starts from real job proof only. | Reviews, referrals, and public proof are powerful only when they are true, permissioned, and tied to completed or proof-backed work. | Apex HQ now drafts stories, review/referral asks, proposal proof blocks, and social/website copy while blocking live sends, publishing, fake proof, GPS exposure, and field access. |
+| 2026-05-30 | Estimate Studio finish work extends the existing packet and print system instead of rebuilding it. | Estimate math, PDF packets, GC packet lite, backup/SOV, sent snapshots, and handoff readiness already exist. | Apex HQ now gives owner/admin users a final proposal packet review that ties customer packet readiness, options, proof, GC notes, send mode, and field-safe handoff together without exposing office-only content or triggering external actions. |
 
 ## Growth Foundation Phase Report
 
@@ -480,3 +494,68 @@ Rollback note:
 Next recommended phase:
 
 - Estimate Studio + Proposal Packets.
+
+## Estimate Studio + Proposal Packets Phase Report
+
+Goal: finish the contractor proposal workflow so owner/admin users can see whether an estimate is customer-ready, GC-ready, send-review-ready, and field-handoff-ready from one Estimate Studio command view.
+
+What was already built:
+
+- Estimate math, line items, branded PDF packets, packet presets, customer/internal packet separation, proposal sections, options/add-ons, GC Packet Lite, backup/SOV/takeoff references, sent snapshots, provider-not-configured send states, and estimate-to-job handoff readiness.
+
+What was completed now:
+
+- Added a final proposal packet readiness utility across customer/contact, scope, pricing, option comparison, terms/exclusions/assumptions, proof/takeoff backup, GC packet, customer-safe output, send mode, and foreman handoff.
+- Added an owner/admin Final Proposal Packet Review panel inside Estimate Studio.
+- Added packet-mode final review summary while keeping packet editing on the existing GC packet/settings path.
+- Updated Estimate Studio command language so this phase is visible as the proposal finish workflow.
+- Added focused tests for finished packet readiness, email-provider boundaries, missing polish blockers, field-role blocking, and customer/internal isolation.
+- Added the new estimate finish test to `verify:estimates`.
+
+Provider/account-dependent remaining:
+
+- Live estimate email delivery remains provider-dependent and still requires human confirmation. No customer portal send, SMS, payment, billing, schedule, crew assignment, or field visibility automation was added.
+
+Affected files:
+
+- `docs/APEX_HQ_LIVING_FINISH_PLAN.md`
+- `package.json`
+- `src/estimate-proposal-finish-utils.js`
+- `src/estimate-proposal-finish-utils.test.js`
+- `src/estimates-page-components.jsx`
+
+Validation results:
+
+- `node --test --test-concurrency=1 src/estimate-proposal-finish-utils.test.js src/estimate-utils.test.js shared/estimatePrint.test.js` passed.
+- `npm.cmd run verify:estimates` passed.
+- `npm.cmd run verify:roles` passed.
+- `npm.cmd run build` passed with existing large chunk warnings.
+- `git diff --check` passed with existing CRLF warnings only.
+
+Browser QA:
+
+- Owner/admin desktop `/estimates`: Estimate Studio, Final Proposal Packet Review, Customer Packet, Option Comparison, Proof / Takeoff Backup, GC Packet, Foreman Handoff, Send Review, and Manual/provider-ready only boundary visible.
+- Employee mobile `/estimates`: redirected to `/jobs`; estimate/proposal packet/send review text hidden.
+- Browser errors: none after ignoring expected unauthenticated bootstrap probe.
+
+Permissions impact:
+
+- No permission loosening.
+- Final packet review is under the existing Estimates route and office estimate permissions.
+- Field users remain blocked from estimates, proposal packets, pricing, customer sends, office-only notes, margins, profit, payroll, billing, and AI office controls.
+
+Field-user impact:
+
+- No field workflow changes. Field handoff readiness stays pricing-free and review-first.
+
+Mobile impact:
+
+- Employee mobile restricted-route behavior verified. Owner/admin desktop command layer verified.
+
+Rollback note:
+
+- Revert the affected files listed above to remove the Final Proposal Packet Review layer without schema changes, estimate data migration, or PDF packet rollback.
+
+Next recommended phase:
+
+- Core Operations Loop.

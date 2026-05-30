@@ -27,6 +27,7 @@ import {
 } from "./estimate-draft-utils";
 import { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
 import { deriveEstimateGcPacketLite } from "./estimate-gc-packet-utils";
+import { deriveEstimateProposalFinishState } from "./estimate-proposal-finish-utils";
 import { estimateRoughNotesHasSuggestions, estimateRoughNotesText } from "./estimate-rough-notes-utils";
 import { addEstimateSentSnapshot } from "./estimate-snapshot-utils";
 import {
@@ -1127,6 +1128,13 @@ export function EstimatesPagePolished({
 
     const readiness = estimateShellStateById.get(estimate.id) || estimateShellReadiness(estimate);
     const handoffReadiness = deriveEstimateJobHandoffReadiness(detailEstimatePreview || estimate);
+    const proposalFinishState = deriveEstimateProposalFinishState({
+      estimate: detailEstimatePreview || estimate,
+      permissions,
+      packetSettings: packetPrintSettings,
+      emailSendingConfigured,
+      canUseGcPackets,
+    });
     const status = String(estimate?.status || "draft").trim().toLowerCase();
     const safeActions = [
       { id: "full-tools", label: "Open Full Tools", onClick: () => openFullEstimateToolsPlaceholder("Full estimate tools") },
@@ -1174,6 +1182,15 @@ export function EstimatesPagePolished({
     const shellGcPacketReadyCount = shellGcPacketFields.filter((value) => String(value || "").trim()).length;
     const shellGcPacketTotalCount = shellGcPacketFields.length;
     const packetPrintReady = readiness.hasCustomer && readiness.hasScope && readiness.hasPricing && packetCustomerSections.length > 0;
+    const proposalFinishReviewRows = proposalFinishState.readinessRows.filter((row) => ["customer", "scope", "pricing", "options", "terms", "evidence", "gc-packet", "foreman-handoff", "safe-output", "send-mode"].includes(row.id));
+    const proposalFinishStats = [
+      { label: "Checks", value: `${proposalFinishState.stats.readyRows} / ${proposalFinishState.stats.totalRows}` },
+      { label: "Customer Sections", value: proposalFinishState.stats.customerSections },
+      { label: "Option Choices", value: proposalFinishState.stats.optionChoices },
+      { label: "Proof Sections", value: proposalFinishState.stats.evidenceSections },
+      { label: "GC Sections", value: proposalFinishState.stats.gcSections },
+      { label: "Send Mode", value: emailSendingConfigured ? "Provider ready" : "Manual copy" },
+    ];
     const shellFenceTakeoffReadiness = deriveFenceTakeoffReadiness(detailEstimateBackup.fenceTakeoff);
     const takeoffSaveDisabled = busy || !canManage || !selectedEstimate?.id;
     const customerSafePacketSettings = {
@@ -1572,6 +1589,7 @@ export function EstimatesPagePolished({
               <span><em>Customer Sections</em><strong>{packetCustomerSections.length}</strong></span>
               <span><em>Bid Notes</em><strong>Locked</strong></span>
               <span><em>Print Readiness</em><strong>{packetPrintReady ? "Ready context" : "Needs review"}</strong></span>
+              <span><em>Final Review</em><strong>{proposalFinishState.stats.readyRows} / {proposalFinishState.stats.totalRows}</strong></span>
             </div>
             <div className="co-estimates-shell-packet-lock">
               <strong>Packet tools unavailable for this package.</strong>
@@ -1599,12 +1617,17 @@ export function EstimatesPagePolished({
             <span><em>Customer</em><strong>{estimateDisplayCustomer(estimate) || "Customer pending"}</strong></span>
             <span><em>Packet</em><strong>{packetPrintSettings.presetLabel}</strong></span>
           </div>
+          <div className="co-estimates-shell-packet-lock">
+            <strong>Final packet review: {proposalFinishState.status}</strong>
+            <span>{proposalFinishState.summary}</span>
+          </div>
           <div className="co-estimates-shell-packet-readiness-grid">
             <span><em>Selected Preset</em><strong>{packetPrintSettings.presetLabel}</strong></span>
             <span><em>Selected Sections</em><strong>{packetPrintSettings.sectionIds.length}</strong></span>
             <span><em>Bid Note Completeness</em><strong>{shellGcPacketReadyCount} / {shellGcPacketTotalCount}</strong></span>
             <span><em>Internal Exposure</em><strong>{packetPrintSettings.allowInternalSections ? `${packetInternalSections.length} office-only` : "Customer-safe"}</strong></span>
             <span><em>Print Readiness</em><strong>{packetPrintReady ? "Ready context" : "Needs review"}</strong></span>
+            <span><em>Final Review</em><strong>{proposalFinishState.stats.readyRows} / {proposalFinishState.stats.totalRows}</strong></span>
           </div>
           <div className="co-estimates-shell-packet-section-list" aria-label="Selected packet sections">
             {packetSelectedSections.map((section) => (
@@ -2054,11 +2077,54 @@ export function EstimatesPagePolished({
                 <p>{handoffReadiness.status}</p>
               </div>
             </div>
+            <div className="co-estimates-shell-workflow-panel co-estimates-shell-proposal-finish-panel" role="region" aria-label="Final proposal packet review">
+              <div className="co-estimates-shell-workflow-head">
+                <div>
+                  <Badge tone={proposalFinishState.tone || "blue"}>{proposalFinishState.status}</Badge>
+                  <h3>Final Proposal Packet Review</h3>
+                  <p>{proposalFinishState.summary}</p>
+                </div>
+                <StatusBadge status={emailSendingConfigured ? "Provider ready" : "Manual mode"} />
+              </div>
+              <div className="co-estimates-shell-packet-readiness-grid">
+                {proposalFinishStats.map((stat) => (
+                  <span key={stat.label}><em>{stat.label}</em><strong>{stat.value}</strong></span>
+                ))}
+              </div>
+              <div className="co-estimates-shell-readiness-grid">
+                {proposalFinishReviewRows.map((row) => (
+                  <div key={row.id} data-state={row.ready ? "ready" : "needs"}>
+                    <span>{row.label}</span>
+                    <strong>{row.status}</strong>
+                    <p>{row.helper}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="co-estimates-shell-packet-section-list" aria-label="Final proposal packet review boundaries">
+                <span>Customer Packet</span>
+                <span>Option Comparison</span>
+                <span>Proof / Takeoff Backup</span>
+                <span>GC Packet</span>
+                <span>Foreman Handoff</span>
+                <span>Send Review</span>
+                <span data-internal="true">Manual/provider-ready only</span>
+              </div>
+              <div className="co-estimates-shell-workflow-actions">
+                <Button type="button" variant="secondary" onClick={() => setEstimateShellMode("proposal")}>Proposal</Button>
+                <Button type="button" variant="secondary" onClick={() => setEstimateShellMode("packet")}>Packet</Button>
+                <Button type="button" variant="secondary" onClick={() => setEstimateShellMode("sendReview")}>Send Review</Button>
+                <Button type="button" variant="secondary" onClick={() => setEstimateShellMode("handoff")}>Handoff</Button>
+              </div>
+              <div className="co-estimates-shell-packet-lock">
+                <strong>Manual/provider-ready only.</strong>
+                <span>No customer send, job convert, pricing approval, schedule, crew assignment, billing, or field visibility change happens here.</span>
+              </div>
+            </div>
             <EstimateJobHandoffReadinessCard readiness={handoffReadiness} />
             <div className="co-apex-selected-next">
               <span>Next safe action</span>
               <strong>{nextSafeAction}</strong>
-              <p>The shell keeps estimate work review-first. Send review and convert-to-job remain outside this screen until their dedicated slices.</p>
+              <p>Use dedicated Send Review and Handoff modes for those actions; this overview does not send, convert, schedule, assign crew, bill, or change field visibility.</p>
             </div>
           </>
         )}
@@ -2367,7 +2433,7 @@ export function EstimatesPagePolished({
       <div className="co-office-page co-estimates-page co-estimates-shell-page">
         <ApexOfficeCommandShell
           eyebrow="Office Sales"
-          title="Estimates"
+          title="Estimate Studio"
           description="Review pricing readiness, send-ready proposals, sent follow-up, and approved handoffs from one no-drawer command view."
           kpis={estimateShellKpis}
           queue={{
@@ -2385,7 +2451,7 @@ export function EstimatesPagePolished({
             emptyState: <StateCard title="No estimate selected" description="Select an estimate from the queue to review proposal readiness." tone="slate" />,
           }}
           assistant={{
-            title: "Estimates",
+            title: "Estimate Studio",
             description: estimateShellAssistantDescription,
             priorities: estimateShellAssistantPrioritiesForMode,
             actions: estimateShellAssistantActionsForMode,
