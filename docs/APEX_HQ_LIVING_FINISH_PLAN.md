@@ -8,6 +8,8 @@ Integrations is completed, pushed, and deployed to production under the standing
 
 Phase 1 is ready to implement but not ready to freeze. Blocking findings: `/imported-drafts` crashes for owner/admin users with `useEffect is not defined`, `npm.cmd run verify:job-draft-imports` is red because its login helper uses an undefined bearer token, and owner/admin setup needs one finish board instead of scattered setup surfaces.
 
+Slice 1 status: Admin Foundation state utility and tests are built locally. `npm.cmd run verify:admin-foundation` passes with the new utility coverage.
+
 ## Product North Star
 
 Apex HQ is a finished contractor growth and operations platform. It helps contractors find work, advertise wisely, capture and follow up with leads, estimate and win work, schedule and run jobs, guide crews, prove work, handle changes, prepare billing, collect reviews/referrals, and know what to do next every day.
@@ -229,8 +231,9 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - [x] Record pre-build audit and exact implementation package.
 - [x] Fix Imported Drafts route crash.
 - [x] Fix `verify:job-draft-imports`.
-- [ ] Add Admin Foundation Finish Board.
+- [x] Add Admin Foundation state utility and focused tests.
 - [x] Add `verify:admin-foundation`.
+- [ ] Add Admin Foundation Finish Board.
 - [ ] Browser QA final Phase 1 routes.
 - [ ] Commit, push, deploy, health-check, and record Phase 1 report.
 
@@ -355,6 +358,7 @@ Use `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` as the active blueprint. Next bu
 | 2026-05-30 | Phase 1 starts with a pre-build audit before implementation. | The owner explicitly required skills, browser review, code review, memory/roadmap review, and a direct plan before starting Phase 1. | `docs/APEX_HQ_PHASE_1_ADMIN_FOUNDATION_PREBUILD_AUDIT.md` records what is built, what is broken, what must be added, and the exact implementation package. |
 | 2026-05-30 | Imported Drafts crash and job-draft verification failure block Phase 1 freeze. | `/imported-drafts` is a Phase 1 owner/admin tool and cannot render; `verify:job-draft-imports` is red. | Phase 1 implementation starts by fixing the route crash and the stale auth test helper before adding the finish board. |
 | 2026-05-30 | Owner/admin setup should stay visible unless an unpaid provider/live action is actually required. | The owner wants no locks except unpaid providers and safety boundaries. | Package/provider readiness can label limits, but Phase 1 setup visibility should not disappear behind package gates. Field/security/live-money locks remain hard. |
+| 2026-05-30 | Slice 1 creates a pure Admin Foundation state utility before UI. | The finish board needs one tested source of readiness truth before rendering. | `src/admin-foundation-finish-utils.js` now derives setup, user, field lockout, app health, support, imported draft, provider, and package readiness for the upcoming board. |
 
 ## Billing / Payments / Packages Phase Report
 
