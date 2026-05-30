@@ -100,7 +100,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - [x] Add thank-you/next-step state.
 - [x] Add owner/admin setup checklist notes in Settings.
 - [x] Verify phase tests, build, browser QA, and field safety.
-- [ ] Commit and push phase.
+- [x] Commit and push phase.
 - [ ] Deploy only after release approval and health-check if provider/runtime access is available.
 
 ## Completed / Frozen Systems
@@ -139,7 +139,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | Date | Phase | Version/Commit | Environment | Health |
 | --- | --- | --- | --- | --- |
 | 2026-05-29 | Growth Foundation | `692b474` pushed to `main` | Local QA at `http://127.0.0.1:4100` | `/api/ready` OK; launch gate says guided demo GO and production/pilot/public launch NO-GO. |
-| 2026-05-30 | Website + Lead Intake Funnel | Pending commit | Local QA at `http://127.0.0.1:4102` | `/api/ready` OK; launch gate says guided demo GO and production/pilot/public launch NO-GO. |
+| 2026-05-30 | Website + Lead Intake Funnel | `efb5d4a` pending push | Local QA at `http://127.0.0.1:4102` | `/api/ready` OK; launch gate says guided demo GO and production/pilot/public launch NO-GO. |
 
 ## Roadmap Queue
 
