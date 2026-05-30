@@ -699,6 +699,7 @@ export function ApexOfficeCommandShell({
   queue,
   detail,
   quickActions = [],
+  overview = null,
   children,
   className = "",
 }) {
@@ -718,6 +719,7 @@ export function ApexOfficeCommandShell({
         className="co-apex-office-command-frame"
         kpis={<ApexCommandKpiStrip items={kpis} />}
       >
+        {overview ? <div className="co-apex-office-command-overview">{overview}</div> : null}
         <DesktopCommandWorkspaceFrame className="co-apex-office-command-workspace">
           <ApexPrimaryQueuePanel {...queue} />
           <ApexSelectedDetailPanel title={detail?.title} item={selectedItem} emptyState={detail?.emptyState}>

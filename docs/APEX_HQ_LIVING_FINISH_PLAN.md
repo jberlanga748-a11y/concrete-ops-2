@@ -8,13 +8,15 @@ This living plan tracks active phase memory, deploy evidence, user requests, and
 
 ## Current Phase
 
-Phase 1 Admin Foundation Finish is completed, pushed, deployed to production, health-checked, and frozen under the standing release approval. Use the tool-by-tool completion blueprint as the active source for the next phase.
+Phase 2 Command Center Finish is completed, verified locally, ready for push/deploy under the standing release approval, and should be frozen after the production health check. Use the tool-by-tool completion blueprint as the active source for the next phase.
 
 Phase 1 blockers are fixed in production: `/imported-drafts` renders for owner/admin users, `npm.cmd run verify:job-draft-imports` is green, and owner/admin setup now has a single Admin Foundation Finish board in Settings.
 
 Slice 1 status: Admin Foundation state utility and tests are built, pushed, deployed to production, and health-checked. `npm.cmd run verify:admin-foundation` passes with the new utility coverage.
 
 Slice 2 status: Admin Foundation Finish Board is built, pushed, deployed to Fly version `606`, and health-checked. Owner/admin Settings now summarizes setup, users/roles, field lockout, app health, support, imported drafts, provider readiness, and package/billing readiness from one board. Final local browser QA passed for owner/admin Settings, Employees, App Health, Support, and Imported Drafts; employee mobile direct routes to Settings, Employees, App Health, and Imported Drafts redirected to Jobs, while Support stayed role-safe.
+
+Phase 2 status: Command Center Finish is built and validated locally. Owner/admin Command Center now opens with a Daily Command Plan covering today attention, job/crew status, proof/report gaps, sales follow-up, billing-ready work, growth/client-finder actions, blockers, provider setup, and exact next actions routed to existing tools or locked setup states. Field users remain redirected to assigned field work.
 
 ## Product North Star
 
@@ -51,6 +53,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | Reputation + Portfolio Engine | Built | Owner/admin Growth Command Center now turns existing jobs, reports, uploads, and estimates into project story candidates, before/after selection guidance, review/referral drafts, proposal proof blocks, social/website drafts, and proof blockers. Sends and publishing remain manual/provider-ready only. |
 | Estimate Studio / proposals | Built | Estimate Studio, packets, PDF, options, customer-safe/internal packet separation, GC packet pieces, send-review gate, field-safe handoff, and final proposal packet review are built. Live email send still depends on configured provider and human confirmation. |
 | Core operations loop | Built | Owner/admin Operations Command now ties lead follow-up, estimates/proposals, approved-job handoff, schedule/crew setup, field proof, material prep, change orders, closeout, job costing, and billing readiness into one review-first next-action loop. |
+| Command Center Finish | Built | Owner/admin Command Center now opens with a Daily Command Plan that routes today's attention, jobs/crew, proof gaps, sales follow-up, billing-ready work, growth/client-finder work, blockers, and provider setup to real existing tools or locked setup states. |
 | Field Mode | Built | Field-safe mobile workflows now include the Field Day Finish command layer for today's job, clock/time, photos/proof, daily reports, delivery tickets, checklists, safety/PPE, change requests, PWA install readiness, and offline-draft planning. |
 | Apex Agent Operator | Built | Owner/admin AI Office now has one Apex Agent Operator command layer across new work, ads, follow-up, estimates, proposals, handoffs, closeout, billing readiness, reviews/referrals, Agent OS, action inbox, audit-backed review packets, learning, and external-action locks. |
 | Customer portal + communications | Built / Provider-ready | Owner/admin Communication Center now includes Customer Portal Command for customer-safe proposal/proof/change-order packet review, expiring/revocable access records, share approval decisions, customer comment capture, locked preflight/execution contracts, and human-reviewed email/SMS readiness. Live customer portal serving, token redemption, and provider sends remain provider/account-dependent. |
@@ -324,12 +327,13 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | 2026-05-30 | Phase 1 Admin Foundation Slice 1: state utility | `2bbbf3f` pushed to `main` and deployed | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `605` started in `sjc`; service check passing; `/api/ready` OK on both domains with database OK. |
 | 2026-05-30 | Phase 1 Admin Foundation Finish Board | `9ccc1ac` pushed to `main` | Local QA at `http://127.0.0.1:4179` | Owner/admin Settings, Employees, App Health, Support, and Imported Drafts passed with no overflow/errors. Employee mobile direct routes to Settings, Employees, App Health, and Imported Drafts redirected to Jobs; Support stayed role-safe; no admin foundation text leaked. |
 | 2026-05-30 | Phase 1 Admin Foundation Finish | `9ccc1ac` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `606` started in `sjc`; image `concrete-ops-2:deployment-01KSVWJYBKFP2HCVY40J69FEJE`; service check passing; `/api/ready` OK on both domains with database OK. |
+| 2026-05-30 | Phase 2 Command Center Finish | Phase commit pushed/deployed from `main` | Local QA at `http://127.0.0.1:4186` | Owner desktop `/command-center` passed Daily Command Plan first-screen visibility, routed next action to `/leads`, provider setup locks, no overflow/errors; employee mobile `/command-center` redirected to `/jobs` with office/growth/billing/setup text hidden. Production deploy and hosted `/api/ready` evidence recorded in final phase report. |
 
 ## Roadmap Queue
 
 1. Phase 1 Admin Foundation Finish - completed/frozen.
-2. Phase 2 Command Center Finish - next.
-3. Phase 3 Growth & Sales Finish.
+2. Phase 2 Command Center Finish - completed/frozen after production health check.
+3. Phase 3 Growth & Sales Finish - next.
 4. Phase 4 Estimate & Proposal Finish.
 5. Phase 5 Job Operations Finish.
 6. Phase 6 Field Execution Finish.
@@ -344,7 +348,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ## Next Phase
 
-Use `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` as the active blueprint. Next build phase is Phase 2 Command Center Finish. Payroll Prep remains a later complete phase unless the owner explicitly reorders it, and live payroll processing stays out of scope.
+Use `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` as the active blueprint. Next build phase is Phase 3 Growth & Sales Finish. Payroll Prep remains a later complete phase unless the owner explicitly reorders it, and live payroll processing stays out of scope.
 
 ## Decision Log
 
@@ -373,6 +377,88 @@ Use `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` as the active blueprint. Next bu
 | 2026-05-30 | Slice 1 creates a pure Admin Foundation state utility before UI. | The finish board needs one tested source of readiness truth before rendering. | `src/admin-foundation-finish-utils.js` now derives setup, user, field lockout, app health, support, imported draft, provider, and package readiness for the upcoming board. |
 | 2026-05-30 | Slice 2 wires the Admin Foundation Finish Board into Settings as the owner/admin Phase 1 control point. | Phase 1 needed one visible finish line instead of scattered setup surfaces. | Settings now defaults to `settings-admin-foundation`, renders `AdminFoundationFinishPanel`, and keeps app-health mode separate. Browser QA proved owner/admin access across Settings, Employees, App Health, Support, and Imported Drafts, with employee mobile direct-route safety. |
 | 2026-05-30 | Phase 1 Admin Foundation is frozen after Fly version `606`. | The focused verifier, final browser QA, production deploy, hosted readiness checks, and Fly service check all passed. | Future changes to signup/setup, users/roles, Settings admin foundation, App Health, Support, Imported Drafts, package/provider setup, and admin permission boundaries should be bug, security/permission, provider hookup, or approved versioned upgrades only. |
+| 2026-05-30 | Phase 2 Command Center composes existing command/workflow surfaces instead of rebuilding them. | The active app already had Today Command, Operations Command, Core Operations Loop, Growth Command, billing readiness, provider setup, queue, dashboard, and mobile command surfaces. | Owner/admin users now get one daily Command Plan with exact routes to real modules or setup locks; field users stay assigned-work only. |
+
+## Phase 2 Command Center Finish Report
+
+Goal: finish the owner/admin daily Command Center so a contractor opens Apex HQ and immediately knows what needs attention today, job and crew status, proof/report gaps, sales/follow-up work, billing-ready work, growth/client-finder actions, blockers, provider setup needs, and exact next actions that route to real tools.
+
+What was already built:
+
+- Today Command, Operations Command, Core Operations Loop, Growth Command, Billing / Payments / Packages Command, Integrations Command, queue/notification surfaces, dashboard command rail/focus boards, owner/admin mobile command, Field Mode, and role gates.
+
+What was completed now:
+
+- Added `deriveCommandCenterFinishState` as the shared owner/admin daily command truth for attention today, jobs/crew, proof/report gaps, sales follow-up, billing-ready work, growth/client-finder, blockers, provider setup, routed next actions, and manual/provider guardrails.
+- Added `CommandCenterDailyPlanCard` and surfaced it first-screen on desktop Command Center, inside Today command context, and in owner/admin mobile command.
+- Routed Command Center actions to existing modules only, including Leads, Jobs, Estimates, Reports, Uploads, Schedule, Change Orders, Communications, and Settings setup sections.
+- Kept provider-dependent actions locked to setup/review states for communications, billing/payment, ad/source, and integration providers.
+- Added field-only fail-closed state and focused coverage proving field users do not receive office command actions.
+
+Provider/account-dependent remaining:
+
+- Live email/SMS sends, ad publishing/spend, billing/payment processing, provider writes, external integration mutations, and customer portal sends remain provider/account-dependent and locked.
+
+Affected files:
+
+- `docs/APEX_HQ_CANONICAL_SOURCE_OF_TRUTH.md`
+- `docs/APEX_HQ_LIVING_FINISH_PLAN.md`
+- `src/App.jsx`
+- `src/app-shell-components.jsx`
+- `src/command-center-route-components.jsx`
+- `src/command-center-utils.js`
+- `src/command-center-utils.test.js`
+- `src/command-today-page-shell.test.js`
+- `src/index.css`
+- `src/owner-admin-mobile-command-components.jsx`
+- `src/owner-admin-mobile-command-components-import.test.js`
+- `src/today-command-page-components.jsx`
+- `src/today-command-page-components-import.test.js`
+
+Validation results:
+
+- Focused Phase 2 tests passed.
+- `npm.cmd run verify:jobs` passed after one local server-readiness rerun; the isolated failing server test passed immediately and the full suite passed on rerun.
+- `npm.cmd run verify:roles` passed.
+- `npm.cmd run build` passed with existing large chunk warnings only.
+- `git diff --check` passed with CRLF warnings only.
+
+Browser QA:
+
+- Owner/admin desktop `/command-center`: Daily Command Plan visible at the top of the first screen; Today, Jobs / crew, Proof gaps, Sales follow-up, Billing-ready, Growth / client finder, Blockers, and Provider setup lanes visible; first routed action opened `/leads`; no horizontal overflow, console errors, page errors, or failed requests.
+- Employee mobile `/command-center`: redirected to `/jobs`; Daily Command Plan, growth/client-finder, billing-ready, provider setup, sales follow-up, leads, estimates, pricing, profit, margins, payroll, AI office tools, and company setup text stayed hidden; no horizontal overflow, console errors, page errors, or failed requests.
+
+Permissions impact:
+
+- No permission loosening.
+- Owner/admin users receive office command visibility based on existing job/lead/estimate/settings permissions.
+- Field users remain blocked from leads, estimates, pricing, profit/margins, payroll costs, office notes, admin settings, company setup, AI office tools, billing, provider setup, and other company data.
+
+Field-user impact:
+
+- No field workflow changes. Field direct-route safety to `/command-center` was verified on mobile and redirects to assigned job work.
+
+Mobile impact:
+
+- Owner/admin mobile command now includes the daily command plan and routed next actions.
+- Employee mobile route safety and no-overflow checks passed.
+
+Deploy version:
+
+- To be recorded from the production Fly deploy for this phase.
+
+Health check:
+
+- Local `/api/ready` passed at `http://127.0.0.1:4186/api/ready`.
+- Hosted `/api/ready` to be recorded after deployment.
+
+Rollback note:
+
+- Revert the affected Phase 2 files listed above to remove the Daily Command Plan, shared finish-state utility, Command Center route wiring, owner/admin mobile command plan, shell overview slot, and tests. No schema changes, auth/session changes, billing/payment processing, provider writes, live sends, ad spend, hidden GPS, destructive data changes, or production data migrations were introduced.
+
+Next recommended phase:
+
+- Phase 3 Growth & Sales Finish.
 
 ## Phase 1 Admin Foundation Finish Report
 

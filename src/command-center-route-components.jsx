@@ -416,6 +416,96 @@ export function CommandCenterProofChainCard({ summary, onOpenModule }) {
   );
 }
 
+export function CommandCenterDailyPlanCard({ state, onOpenAction, compact = false }) {
+  if (!state?.canView) return null;
+  const lanes = Array.isArray(state.lanes) ? state.lanes : [];
+  const actions = Array.isArray(state.nextActions) ? state.nextActions.slice(0, compact ? 4 : 6) : [];
+  const providerNeeds = Array.isArray(state.providerSetupNeeds) ? state.providerSetupNeeds.slice(0, compact ? 2 : 4) : [];
+  const Shell = compact ? "section" : Card;
+
+  return (
+    <Shell className={`co-command-card ${compact ? "rounded-2xl border border-slate-200 bg-slate-50/80 p-3" : "p-3.5"}`}>
+      <SectionHeader
+        title="Daily Command Plan"
+        description={state.summary}
+        action={<Badge tone={state.tone || "slate"}>{state.status || "Command"}</Badge>}
+      />
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        {lanes.map((lane) => (
+          <button
+            key={lane.id}
+            type="button"
+            onClick={() => onOpenAction?.(lane)}
+            className="co-command-ops-card co-focus-ring text-left"
+            data-tone={lane.tone || "slate"}
+          >
+            <span className="co-command-ops-card-head">
+              <span className="co-command-ops-card-icon" aria-hidden="true">
+                <Icon name={lane.id === "provider-setup" ? "settings" : lane.id === "growth-client-finder" ? "users" : lane.id === "billing-ready" ? "check" : lane.id === "proof-report-gaps" ? "upload" : lane.id === "jobs-crew" ? "briefcase" : lane.id === "blockers" ? "alert" : "grid"} className="h-4 w-4" />
+              </span>
+              <span className="min-w-0">
+                <span className="co-command-ops-card-title">{lane.label}</span>
+                <span className="co-command-ops-card-helper">{lane.helper}</span>
+              </span>
+              <strong>{lane.value}</strong>
+            </span>
+            <span className="co-command-ops-card-link">
+              {lane.actionLabel || "Open"}
+              <span aria-hidden="true">-&gt;</span>
+            </span>
+          </button>
+        ))}
+      </div>
+      <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,0.45fr)]">
+        <div className="grid gap-1.5">
+          {actions.length ? actions.map((action) => (
+            <button
+              key={action.id}
+              type="button"
+              onClick={() => onOpenAction?.(action)}
+              className="co-command-rail-row co-focus-ring grid w-full grid-cols-[0.55rem_minmax(0,1fr)_auto] items-start gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-left transition hover:border-orange-200 hover:bg-orange-50"
+            >
+              <span className="co-command-alert-dot mt-1.5" data-tone={action.tone || "amber"} aria-hidden="true" />
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-black text-slate-950">{action.title}</span>
+                <span className="mt-0.5 block text-xs font-bold leading-5 text-slate-600">{action.description}</span>
+                <span className="mt-1 block text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">{action.routeLabel}</span>
+              </span>
+              <span className="flex shrink-0 flex-col items-end gap-1">
+                <Badge tone={action.tone || "slate"}>{action.group || "Next"}</Badge>
+                <span className="text-[10px] font-black uppercase tracking-[0.12em] text-orange-700">{action.actionLabel}</span>
+              </span>
+            </button>
+          )) : (
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-3 text-sm font-bold leading-6 text-emerald-800">
+              Daily command is clear. New follow-ups, crew blockers, proof gaps, billing-ready work, growth actions, or setup needs will appear here.
+            </div>
+          )}
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3">
+          <div className="flex min-w-0 items-center justify-between gap-2">
+            <strong className="text-sm font-black text-slate-950">Provider setup</strong>
+            <Badge tone={providerNeeds.length ? "amber" : "green"}>{providerNeeds.length ? `${providerNeeds.length} locked` : "Clear"}</Badge>
+          </div>
+          <div className="mt-2 grid gap-1.5">
+            {providerNeeds.length ? providerNeeds.map((need) => (
+              <button key={need.id} type="button" onClick={() => onOpenAction?.(need)} className="co-focus-ring rounded-xl border border-white bg-white px-2.5 py-2 text-left transition hover:border-orange-200 hover:bg-orange-50">
+                <span className="block text-xs font-black text-slate-950">{need.title}</span>
+                <span className="mt-0.5 block text-[11px] font-bold leading-4 text-slate-600">{need.routeLabel} / {need.actionLabel}</span>
+              </button>
+            )) : (
+              <p className="text-xs font-bold leading-5 text-slate-600">Provider-dependent actions remain locked and routed to setup when needed.</p>
+            )}
+          </div>
+          <p className="mt-3 border-t border-slate-200 pt-2 text-xs font-bold leading-5 text-slate-600">
+            No sends, spend, payments, provider writes, record mutations, or hidden GPS run from this plan.
+          </p>
+        </div>
+      </div>
+    </Shell>
+  );
+}
+
 export function FieldOpsAgentSummaryCard({ state, onOpenModule, onOpenItem, compact = false }) {
   if (!state?.canView) return null;
   const items = Array.isArray(state.items) ? state.items.slice(0, compact ? 3 : 5) : [];

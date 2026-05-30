@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { deriveCommandCenterState, deriveProofChainSummary, deriveWatchtowerActions, deriveWatchtowerQueue, isLiveJob } from "./command-center-utils.js";
+import { deriveCommandCenterFinishState, deriveCommandCenterState, deriveProofChainSummary, deriveWatchtowerActions, deriveWatchtowerQueue, isLiveJob } from "./command-center-utils.js";
 
 const READY_STARTUP_CHECKLIST = [
   { key: "customerContactConfirmed", checked: true },
@@ -260,4 +260,72 @@ test("watchtower queue turns missing work into read-only operational review rows
     "safety:S-1:open",
   ]);
   assert.equal(queue.every((item) => item.actionLabel && item.moduleId), true);
+});
+
+test("command center finish state covers daily plan, growth, provider setup, and routed next actions", () => {
+  const commandCenter = deriveCommandCenterState({
+    leadSources: [
+      { id: "LS-1", name: "GC bids", status: "Active", nextCheckAt: "2026-05-09", checkCadence: "Daily" },
+    ],
+    leads: [
+      { id: "L-1", customer: "Overdue lead", status: "Contacted", followUpDueAt: "2026-05-09" },
+    ],
+    estimates: [
+      { id: "E-1", title: "Approved patio", status: "approved" },
+    ],
+    jobs: [
+      { id: "J-1", title: "Shop slab", status: "scheduled", startupStatus: "Needs Review" },
+      { id: "J-2", title: "Ready driveway", status: "billing_ready", startupStatus: "Ready for Field", assignments: [{ userId: "U-1", roleOnJob: "foreman" }] },
+    ],
+    dailyReports: [
+      { id: "R-1", jobId: "J-1", status: "submitted", reportDate: "2026-05-10" },
+    ],
+    uploads: [],
+    changeOrderRequests: [
+      { id: "CO-1", jobId: "J-1", status: "pending" },
+    ],
+  }, { today: "2026-05-10T18:00:00.000Z" });
+
+  const finish = deriveCommandCenterFinishState({
+    commandCenter,
+    permissions: {
+      jobs: { canManageAll: true },
+      leads: { canView: true },
+      estimates: { canView: true },
+      contactHistory: { canView: true },
+      opportunityScout: { canView: true },
+      settings: { canView: true },
+      integrations: { canUse: true },
+    },
+    companySettings: {},
+    foundOpportunities: [{ id: "FO-1", status: "review" }],
+    opportunitySearchProfiles: [],
+    leadSources: [{ id: "LS-1", status: "Active" }],
+    emailSendingConfigured: false,
+  });
+
+  assert.equal(finish.canView, true);
+  assert.equal(finish.mode, "command_center_finish_v1");
+  assert.ok(finish.lanes.find((lane) => lane.id === "growth-client-finder" && lane.moduleId === "leads"));
+  assert.ok(finish.lanes.find((lane) => lane.id === "provider-setup" && lane.value >= 1));
+  assert.ok(finish.providerSetupNeeds.some((need) => need.id === "communications" && need.moduleId === "communications"));
+  assert.ok(finish.providerSetupNeeds.some((need) => need.id === "billing" && need.moduleId === "settings" && need.settingsSectionId === "settings-plan-readiness"));
+  assert.ok(finish.nextActions.some((action) => action.id === "review-billing-ready-work" && ["jobs", "estimates"].includes(action.moduleId)));
+  assert.ok(finish.nextActions.every((action) => action.moduleId && action.actionLabel && action.routeLabel));
+  assert.ok(finish.guardrails.join(" ").includes("Provider-dependent work stays locked"));
+});
+
+test("command center finish state blocks field-only users from office command context", () => {
+  const finish = deriveCommandCenterFinishState({
+    permissions: {
+      jobs: { canManageField: true, canManageAll: false },
+      leads: { canView: false },
+      estimates: { canView: false },
+      settings: { canView: false },
+    },
+  });
+
+  assert.equal(finish.canView, false);
+  assert.match(finish.summary, /Field users stay in assigned field workflows/i);
+  assert.deepEqual(finish.nextActions, []);
 });

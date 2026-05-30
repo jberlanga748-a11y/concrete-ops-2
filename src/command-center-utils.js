@@ -10,6 +10,27 @@ const CLOSED_CHECKLIST_STATUSES = new Set(["archived", "complete", "completed", 
 const CLOSED_CHANGE_ORDER_STATUSES = new Set(["approved", "rejected", "declined", "cancelled", "canceled", "closed", "completed", "archived"]);
 const CUSTOMER_MATCH_REVIEW_STATUSES = new Set(["not checked", "possible match", "review required", "new customer needed"]);
 const CLOSED_SAFETY_STATUSES = new Set(["resolved", "closed", "reviewed", "archived"]);
+const CLOSED_FOUND_OPPORTUNITY_STATUSES = new Set(["converted", "converted to lead", "dismissed", "rejected", "no fit", "archived"]);
+const ROUTEABLE_COMMAND_MODULES = new Set([
+  "appHealth",
+  "changeOrders",
+  "communications",
+  "deliveryTickets",
+  "estimates",
+  "incidents",
+  "jobDraftImports",
+  "jobs",
+  "leads",
+  "materialPrep",
+  "postPour",
+  "prePour",
+  "reports",
+  "schedule",
+  "settings",
+  "time",
+  "toolChecklist",
+  "uploads",
+]);
 
 export function deriveCommandCenterState(source = {}, options = {}) {
   const todayKey = dateKey(options.today || new Date());
@@ -561,6 +582,444 @@ export function deriveWatchtowerQueue(commandCenter = {}) {
   }
 
   return rows.sort((left, right) => left.priority - right.priority || left.title.localeCompare(right.title) || left.id.localeCompare(right.id));
+}
+
+export function deriveCommandCenterFinishState(source = {}, options = {}) {
+  const permissions = source.permissions || {};
+  const hasOfficeCommandAccess = Boolean(
+    permissions?.jobs?.canManageAll
+      || permissions?.leads?.canView
+      || permissions?.estimates?.canView
+      || permissions?.settings?.canView,
+  );
+  const isFieldOnly = Boolean(
+    permissions?.jobs?.canManageField
+      && !permissions?.jobs?.canManageAll
+      && !permissions?.leads?.canView
+      && !permissions?.estimates?.canView
+      && !permissions?.settings?.canView,
+  );
+
+  if (!hasOfficeCommandAccess || isFieldOnly) {
+    return {
+      mode: "command_center_finish_locked",
+      canView: false,
+      status: "Locked",
+      tone: "slate",
+      headline: "Command Center is owner/admin only",
+      summary: "Field users stay in assigned field workflows and cannot access leads, estimates, pricing, billing, provider setup, AI office tools, or company setup.",
+      lanes: [],
+      nextActions: [],
+      providerSetupNeeds: [],
+      guardrails: commandCenterFinishGuardrails(),
+    };
+  }
+
+  const commandCenter = source.commandCenter || deriveCommandCenterState(source, options);
+  const stats = commandCenter.stats || {};
+  const canViewEstimates = Boolean(permissions?.estimates?.canView);
+  const canViewSettings = Boolean(permissions?.settings?.canView);
+  const providerSetupNeeds = deriveProviderSetupNeeds(source, { canViewSettings });
+  const liveFoundOpportunities = asArray(source.foundOpportunities)
+    .filter((opportunity) => !isArchived(opportunity) && !CLOSED_FOUND_OPPORTUNITY_STATUSES.has(normalizeStatus(opportunity.status || opportunity.reviewStatus)));
+  const activeSearchProfiles = asArray(source.opportunitySearchProfiles)
+    .filter((profile) => !isArchived(profile) && !["inactive", "paused", "archived"].includes(normalizeStatus(profile.status)));
+  const activeLeadSources = asArray(source.leadSources)
+    .filter((sourceRecord) => !isArchived(sourceRecord) && !["inactive", "paused", "archived"].includes(normalizeStatus(sourceRecord.status)));
+
+  const salesCount = safeCount(stats.followUpsDueToday)
+    + safeCount(stats.overdueFollowUps)
+    + safeCount(stats.leadsNotContacted)
+    + safeCount(stats.sourceChecksNeeded);
+  const operatingCount = safeCount(stats.scheduledTodayJobs)
+    + safeCount(stats.scheduledTomorrowJobs)
+    + safeCount(stats.jobsMissingCrew)
+    + safeCount(stats.jobsMissingStartDate)
+    + safeCount(stats.jobsNeedingStartupReview);
+  const proofCount = safeCount(stats.fieldProofGaps);
+  const billingReadyCount = safeCount(stats.jobsReadyToBill)
+    + (canViewEstimates ? safeCount(stats.approvedEstimatesReadyToConvert) : 0);
+  const growthCount = safeCount(stats.sourceChecksNeeded)
+    + liveFoundOpportunities.length
+    + (activeLeadSources.length || activeSearchProfiles.length ? 0 : 1);
+  const blockerCount = safeCount(commandCenter.proofChainSummary?.blockerCount)
+    + safeCount(stats.openChangeOrders)
+    + safeCount(stats.timeIssues);
+  const providerSetupCount = providerSetupNeeds.length;
+  const totalAttention = salesCount
+    + operatingCount
+    + proofCount
+    + safeCount(stats.reviewQueueItems)
+    + billingReadyCount
+    + growthCount
+    + providerSetupCount;
+
+  const lanes = [
+    commandLane({
+      id: "attention-today",
+      label: "Today",
+      value: totalAttention,
+      helper: totalAttention ? "Owner/admin decisions to move the day" : "No command blockers waiting",
+      moduleId: firstRouteableModule([
+        stats.overdueFollowUps || stats.followUpsDueToday || stats.sourceChecksNeeded ? "leads" : "",
+        operatingCount ? "schedule" : "",
+        proofCount ? commandCenter.proofChainSummary?.nextModuleId : "",
+        billingReadyCount ? (stats.jobsReadyToBill ? "jobs" : "estimates") : "",
+        providerSetupCount ? providerSetupNeeds[0]?.moduleId : "",
+      ], "commandCenter"),
+      actionLabel: "Open next",
+      tone: totalAttention ? "orange" : "green",
+    }),
+    commandLane({
+      id: "jobs-crew",
+      label: "Jobs / crew",
+      value: operatingCount,
+      helper: `${safeCount(stats.scheduledTodayJobs)} today / ${safeCount(stats.jobsMissingCrew)} crew gaps`,
+      moduleId: stats.jobsMissingCrew || stats.jobsMissingStartDate ? "jobs" : "schedule",
+      actionLabel: stats.jobsMissingCrew || stats.jobsMissingStartDate ? "Open jobs" : "Open schedule",
+      tone: operatingCount ? "blue" : "slate",
+    }),
+    commandLane({
+      id: "proof-report-gaps",
+      label: "Proof gaps",
+      value: proofCount,
+      helper: `${safeCount(stats.dailyReportsNeedingReview)} reports / ${safeCount(stats.jobsMissingPhotos)} photo gaps`,
+      moduleId: commandCenter.proofChainSummary?.nextModuleId || "reports",
+      actionLabel: "Open proof",
+      tone: proofCount ? "amber" : "green",
+    }),
+    commandLane({
+      id: "sales-follow-up",
+      label: "Sales follow-up",
+      value: salesCount,
+      helper: `${safeCount(stats.overdueFollowUps)} overdue / ${safeCount(stats.leadsNotContacted)} not contacted`,
+      moduleId: "leads",
+      actionLabel: "Open follow-up",
+      tone: salesCount ? "orange" : "green",
+    }),
+    commandLane({
+      id: "billing-ready",
+      label: "Billing-ready",
+      value: billingReadyCount,
+      helper: `${safeCount(stats.jobsReadyToBill)} jobs / ${canViewEstimates ? safeCount(stats.approvedEstimatesReadyToConvert) : 0} approved estimates`,
+      moduleId: stats.jobsReadyToBill || !canViewEstimates ? "jobs" : "estimates",
+      actionLabel: stats.jobsReadyToBill || !canViewEstimates ? "Review jobs" : "Review estimates",
+      tone: billingReadyCount ? "green" : "slate",
+    }),
+    commandLane({
+      id: "growth-client-finder",
+      label: "Growth / client finder",
+      value: growthCount,
+      helper: `${liveFoundOpportunities.length} opportunities / ${safeCount(stats.sourceChecksNeeded)} source checks`,
+      moduleId: "leads",
+      actionLabel: "Open growth work",
+      tone: growthCount ? "blue" : "slate",
+    }),
+    commandLane({
+      id: "blockers",
+      label: "Blockers",
+      value: blockerCount,
+      helper: `${safeCount(stats.openChangeOrders)} changes / ${safeCount(stats.timeIssues)} time issues`,
+      moduleId: stats.openChangeOrders ? "changeOrders" : commandCenter.proofChainSummary?.nextModuleId || "jobs",
+      actionLabel: "Review blockers",
+      tone: blockerCount ? "red" : "green",
+    }),
+    commandLane({
+      id: "provider-setup",
+      label: "Provider setup",
+      value: providerSetupCount,
+      helper: providerSetupCount ? providerSetupNeeds[0].title : "Provider-dependent actions are locked",
+      moduleId: providerSetupNeeds[0]?.moduleId || "settings",
+      actionLabel: providerSetupCount ? providerSetupNeeds[0].actionLabel : "Review setup",
+      tone: providerSetupCount ? "amber" : "green",
+      setupState: true,
+    }),
+  ];
+
+  const nextActions = [
+    stats.overdueFollowUps || stats.overdueLeadSources ? commandAction({
+      id: "clear-overdue-followups",
+      priority: 10,
+      title: "Clear overdue sales follow-ups",
+      description: `${safeCount(stats.overdueFollowUps) + safeCount(stats.overdueLeadSources)} lead, customer, estimate, or source follow-up item${safeCount(stats.overdueFollowUps) + safeCount(stats.overdueLeadSources) === 1 ? "" : "s"} are overdue.`,
+      moduleId: "leads",
+      actionLabel: "Open Leads",
+      tone: "red",
+      group: "Sales",
+    }) : null,
+    stats.sourceChecksNeeded ? commandAction({
+      id: "review-client-finder-sources",
+      priority: 15,
+      title: "Review growth source checks",
+      description: `${safeCount(stats.sourceChecksNeeded)} Client Finder source check${safeCount(stats.sourceChecksNeeded) === 1 ? "" : "s"} due or overdue.`,
+      moduleId: "leads",
+      actionLabel: "Open Client Finder",
+      tone: "amber",
+      group: "Growth",
+    }) : null,
+    stats.importedDraftsNeedingReview ? commandAction({
+      id: "review-imported-drafts",
+      priority: 20,
+      title: "Review imported drafts",
+      description: `${safeCount(stats.importedDraftsNeedingReview)} imported draft${safeCount(stats.importedDraftsNeedingReview) === 1 ? "" : "s"} need owner/admin review before becoming jobs.`,
+      moduleId: "jobDraftImports",
+      actionLabel: "Open Drafts",
+      tone: "blue",
+      group: "Office review",
+    }) : null,
+    stats.jobsNeedingStartupReview || stats.jobsMissingCrew || stats.jobsMissingStartDate ? commandAction({
+      id: "unblock-jobs-and-crew",
+      priority: 30,
+      title: "Unblock jobs and crew status",
+      description: `${safeCount(stats.jobsNeedingStartupReview) + safeCount(stats.jobsMissingCrew) + safeCount(stats.jobsMissingStartDate)} startup, crew, or schedule blocker${safeCount(stats.jobsNeedingStartupReview) + safeCount(stats.jobsMissingCrew) + safeCount(stats.jobsMissingStartDate) === 1 ? "" : "s"} need review.`,
+      moduleId: "jobs",
+      actionLabel: "Open Jobs",
+      tone: "amber",
+      group: "Operations",
+    }) : null,
+    proofCount ? commandAction({
+      id: "close-proof-report-gaps",
+      priority: 40,
+      title: "Close proof and report gaps",
+      description: `${proofCount} report, photo, ticket, checklist, safety, or time proof item${proofCount === 1 ? "" : "s"} need attention.`,
+      moduleId: commandCenter.proofChainSummary?.nextModuleId || "reports",
+      actionLabel: "Open Proof",
+      tone: "amber",
+      group: "Field proof",
+    }) : null,
+    stats.openChangeOrders ? commandAction({
+      id: "review-change-orders",
+      priority: 50,
+      title: "Review change orders",
+      description: `${safeCount(stats.openChangeOrders)} change order${safeCount(stats.openChangeOrders) === 1 ? "" : "s"} need approval, rejection, pricing, or follow-up review.`,
+      moduleId: "changeOrders",
+      actionLabel: "Open Changes",
+      tone: "orange",
+      group: "Blockers",
+    }) : null,
+    billingReadyCount ? commandAction({
+      id: "review-billing-ready-work",
+      priority: 60,
+      title: "Review billing-ready work",
+      description: `${billingReadyCount} job or approved estimate item${billingReadyCount === 1 ? "" : "s"} can move toward manual closeout or job handoff review.`,
+      moduleId: stats.jobsReadyToBill || !canViewEstimates ? "jobs" : "estimates",
+      actionLabel: stats.jobsReadyToBill || !canViewEstimates ? "Open Jobs" : "Open Estimates",
+      tone: "green",
+      group: "Money",
+    }) : null,
+    growthCount && !stats.sourceChecksNeeded ? commandAction({
+      id: "review-growth-actions",
+      priority: 70,
+      title: liveFoundOpportunities.length ? "Review found opportunities" : "Set up client-finder coverage",
+      description: liveFoundOpportunities.length
+        ? `${liveFoundOpportunities.length} found opportunit${liveFoundOpportunities.length === 1 ? "y" : "ies"} need review-first lead decisions.`
+        : "Add lead sources or search profiles so the daily command has client-finder work to review.",
+      moduleId: "leads",
+      actionLabel: "Open Growth Work",
+      tone: liveFoundOpportunities.length ? "blue" : "amber",
+      group: "Growth",
+    }) : null,
+    providerSetupNeeds[0] ? commandAction({
+      id: `provider-${providerSetupNeeds[0].id}`,
+      priority: 80,
+      title: providerSetupNeeds[0].title,
+      description: providerSetupNeeds[0].description,
+      moduleId: providerSetupNeeds[0].moduleId,
+      settingsSectionId: providerSetupNeeds[0].settingsSectionId,
+      actionLabel: providerSetupNeeds[0].actionLabel,
+      tone: providerSetupNeeds[0].tone,
+      group: "Provider setup",
+      setupState: true,
+    }) : null,
+  ].filter(Boolean).sort((left, right) => left.priority - right.priority || left.title.localeCompare(right.title));
+
+  return {
+    mode: "command_center_finish_v1",
+    canView: true,
+    status: totalAttention ? "Needs action" : "Command clear",
+    tone: nextActions.some((action) => action.tone === "red") ? "red" : totalAttention ? "amber" : "green",
+    headline: nextActions[0]?.title || "Command Center is clear",
+    summary: nextActions[0]?.description || "Today, crews, proof, follow-up, billing readiness, growth, blockers, and provider setup are all represented by routed actions.",
+    lanes,
+    nextActions,
+    providerSetupNeeds,
+    guardrails: commandCenterFinishGuardrails(),
+    metrics: {
+      totalAttention,
+      salesCount,
+      operatingCount,
+      proofCount,
+      billingReadyCount,
+      growthCount,
+      blockerCount,
+      providerSetupCount,
+      routeableActionCount: nextActions.filter((action) => ROUTEABLE_COMMAND_MODULES.has(action.moduleId)).length,
+    },
+  };
+}
+
+function deriveProviderSetupNeeds(source = {}, { canViewSettings = false } = {}) {
+  const permissions = source.permissions || {};
+  const settings = source.companySettings || {};
+  const needs = [];
+  const billingProvider = settings.billingProvider || settings.billingProviderSettings || settings.stripeBilling || settings.stripe || settings.paymentProvider || {};
+  const billingConfigured = Boolean(billingProvider.configured || billingProvider.connected || billingProvider.accountConnected || billingProvider.accountReference || billingProvider.accountId || billingProvider.connectedAccountId);
+  const marketing = settings.marketingProviders || settings.adProviders || settings.ads || settings.advertising || {};
+  const adsConfigured = Boolean(marketing.googleAds?.connected || marketing.googleLocalServices?.connected || marketing.metaAds?.connected || marketing.providerConnected || marketing.reportingConnected);
+  const communicationProvider = settings.communicationProvider || settings.communicationProviders || settings.emailProvider || {};
+  const emailConfigured = Boolean(source.emailSendingConfigured || communicationProvider.emailConfigured || communicationProvider.email?.configured || settings.emailSendingConfigured);
+  const integrationsEnabled = Boolean(permissions?.integrations?.canUse);
+  const integrations = settings.integrations || settings.integrationProviderSettings || settings.providerIntegrations || {};
+  const integrationConfigured = Object.values(integrations || {}).some((value) => value && typeof value === "object" && (value.configured || value.connected || value.enabled || value.accountReference || value.credentialRef));
+
+  function addNeed(need) {
+    if (!canViewSettings && need.moduleId === "settings") return;
+    needs.push(commandAction({
+      priority: need.priority,
+      id: need.id,
+      title: need.title,
+      description: need.description,
+      moduleId: need.moduleId,
+      settingsSectionId: need.settingsSectionId,
+      actionLabel: need.actionLabel,
+      tone: need.tone || "amber",
+      group: "Provider setup",
+      setupState: true,
+    }));
+  }
+
+  if (!emailConfigured && (permissions?.contactHistory?.canView || permissions?.leads?.canView)) {
+    addNeed({
+      id: "communications",
+      priority: 10,
+      title: "Email/SMS provider needs setup",
+      description: "Customer messages stay draft/manual until provider, consent, suppression, and human-review gates are configured.",
+      moduleId: "communications",
+      actionLabel: "Open Communications",
+    });
+  }
+
+  if (!billingConfigured && canViewSettings) {
+    addNeed({
+      id: "billing",
+      priority: 20,
+      title: "Payment provider needs setup",
+      description: "Billing-ready work routes to manual review until Stripe or the chosen provider is configured server-side.",
+      moduleId: "settings",
+      settingsSectionId: "settings-plan-readiness",
+      actionLabel: "Open Billing Setup",
+    });
+  }
+
+  if (!adsConfigured && (permissions?.opportunityScout?.canView || permissions?.leads?.canView)) {
+    addNeed({
+      id: "ads",
+      priority: 30,
+      title: "Ad/source provider setup is locked",
+      description: "Client Finder can plan sources and budgets, but live ad reporting, publishing, and spend need provider setup.",
+      moduleId: "leads",
+      actionLabel: "Open Growth Setup",
+      tone: "blue",
+    });
+  }
+
+  if (integrationsEnabled && !integrationConfigured && canViewSettings) {
+    addNeed({
+      id: "integrations",
+      priority: 40,
+      title: "Integration providers need setup",
+      description: "QuickBooks, Gmail, Calendar, Drive, SMS, maps/weather, e-signature, and ads writes stay locked until configured.",
+      moduleId: "settings",
+      settingsSectionId: "settings-integrations-command",
+      actionLabel: "Open Integrations",
+      tone: "slate",
+    });
+  }
+
+  return needs.sort((left, right) => left.priority - right.priority || left.title.localeCompare(right.title));
+}
+
+function commandCenterFinishGuardrails() {
+  return [
+    "Every action opens an existing Apex HQ tool or a setup state.",
+    "Provider-dependent work stays locked until setup and human approval are complete.",
+    "No sends, spend, billing, payments, provider writes, job mutation, or hidden GPS runs from Command Center.",
+    "Field users remain blocked from office, growth, pricing, billing, settings, provider, and AI office context.",
+  ];
+}
+
+function commandLane(lane = {}) {
+  const action = commandAction({
+    id: lane.id,
+    title: lane.label,
+    description: lane.helper,
+    moduleId: lane.moduleId,
+    actionLabel: lane.actionLabel,
+    tone: lane.tone,
+    setupState: lane.setupState,
+  });
+
+  return {
+    ...lane,
+    value: safeCount(lane.value),
+    status: safeCount(lane.value) > 0 ? "Needs review" : lane.setupState ? "Locked until setup" : "Clear",
+    moduleId: action.moduleId,
+    actionLabel: action.actionLabel,
+    routeLabel: action.routeLabel,
+  };
+}
+
+function commandAction(action = {}) {
+  const moduleId = ROUTEABLE_COMMAND_MODULES.has(action.moduleId) ? action.moduleId : "jobs";
+  return {
+    priority: safeCount(action.priority),
+    id: action.id || `${moduleId}-${action.title || "action"}`,
+    title: action.title || "Open command action",
+    description: action.description || "Open the full Apex HQ tool to continue.",
+    moduleId,
+    settingsSectionId: action.settingsSectionId || "",
+    actionLabel: action.actionLabel || "Open",
+    routeLabel: routeLabel(moduleId, action.settingsSectionId),
+    tone: action.tone || "slate",
+    group: action.group || "Command",
+    setupState: action.setupState === true,
+  };
+}
+
+function firstRouteableModule(moduleIds = [], fallback = "jobs") {
+  const moduleId = moduleIds.find((candidate) => ROUTEABLE_COMMAND_MODULES.has(candidate));
+  return moduleId || (ROUTEABLE_COMMAND_MODULES.has(fallback) ? fallback : "jobs");
+}
+
+function routeLabel(moduleId = "", settingsSectionId = "") {
+  if (moduleId === "settings" && settingsSectionId === "settings-plan-readiness") return "Settings / Plan Readiness";
+  if (moduleId === "settings" && settingsSectionId === "settings-integrations-command") return "Settings / Integrations";
+  const labels = {
+    appHealth: "App Health",
+    changeOrders: "Change Orders",
+    communications: "Communications",
+    deliveryTickets: "Delivery Tickets",
+    estimates: "Estimates",
+    incidents: "Safety Incidents",
+    jobDraftImports: "Imported Drafts",
+    jobs: "Jobs",
+    leads: "Leads / Client Finder",
+    materialPrep: "Material Prep",
+    postPour: "Post-Pour",
+    prePour: "Pre-Pour",
+    reports: "Reports",
+    schedule: "Schedule",
+    settings: "Settings",
+    time: "Time",
+    toolChecklist: "Tool Checklist",
+    uploads: "Photo Evidence",
+  };
+  return labels[moduleId] || "Apex HQ";
+}
+
+function safeCount(value) {
+  const parsed = Number(value || 0);
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
 }
 
 export function isLiveJob(job = {}) {

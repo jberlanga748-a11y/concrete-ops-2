@@ -14,6 +14,8 @@ test("owner admin mobile command page is extracted and lazy-loaded from App", ()
 
   assert.match(commandSource, /export function OwnerAdminMobileCommandPage\b/);
   assert.match(commandSource, /export function buildOwnerAdminMobileCommandQueue\b/);
+  assert.match(commandSource, /deriveCommandCenterFinishState/);
+  assert.match(commandSource, /Owner daily command plan/);
   assert.match(commandSource, /import \{ buildOwnerMobileContactDirectory, ownerMobileRecordContact, ownerMobileSafeContactDraft \} from "\.\/owner-mobile-contact-utils";/);
   assert.match(guardSource, /export function isOwnerAdminMobileCommandUser\b/);
 

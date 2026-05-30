@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { ApexOfficeCommandShell, Badge, Button } from "./app-shell-components";
-import { deriveCommandCenterState } from "./command-center-utils";
+import { deriveCommandCenterFinishState, deriveCommandCenterState } from "./command-center-utils";
+import { CommandCenterDailyPlanCard } from "./command-center-route-components";
 import { deriveCoreOperationsLoopState } from "./core-operations-loop-utils";
 import { estimateDisplayCustomer, estimateDisplayTitle, estimateDisplayTotal } from "./estimate-display-utils";
 import { estimateStatusLabel } from "./estimate-utils";
@@ -141,10 +142,15 @@ export function buildTodayCommandQueue(commandCenter = {}, { jobs = [], estimate
 }
 
 export function TodayCommandPage({
+  user,
   currentCompanyId,
+  companySettings,
+  emailSendingConfigured,
   leads,
   customers,
   estimates,
+  foundOpportunities,
+  opportunitySearchProfiles,
   contactHistory,
   jobs,
   leadSources,
@@ -161,6 +167,7 @@ export function TodayCommandPage({
   rateBookItems,
   permissions,
   setActive,
+  onOpenSettingsSection,
   onSelectJob,
   onOpenEstimate,
   onSelectReport,
@@ -185,6 +192,32 @@ export function TodayCommandPage({
     changeOrderRequests,
     currentCompanyId,
   }, { companyId: currentCompanyId }), [changeOrderRequests, contactHistory, currentCompanyId, customers, dailyReports, deliveryTickets, estimates, jobDraftImports, jobs, leadSources, leads, postPourChecklists, prePourChecklists, safetyIncidents, timeEntries, toolChecklists, uploads]);
+  const commandFinish = useMemo(() => deriveCommandCenterFinishState({
+    commandCenter,
+    user,
+    permissions,
+    companySettings,
+    emailSendingConfigured,
+    leads,
+    customers,
+    estimates,
+    foundOpportunities,
+    opportunitySearchProfiles,
+    contactHistory,
+    jobs,
+    leadSources,
+    jobDraftImports,
+    dailyReports,
+    uploads,
+    prePourChecklists,
+    postPourChecklists,
+    deliveryTickets,
+    safetyIncidents,
+    toolChecklists,
+    timeEntries,
+    changeOrderRequests,
+    currentCompanyId,
+  }, { companyId: currentCompanyId }), [changeOrderRequests, commandCenter, companySettings, contactHistory, currentCompanyId, customers, dailyReports, deliveryTickets, emailSendingConfigured, estimates, foundOpportunities, jobDraftImports, jobs, leadSources, leads, opportunitySearchProfiles, permissions, postPourChecklists, prePourChecklists, safetyIncidents, timeEntries, toolChecklists, uploads, user]);
   const coreOperationsLoop = useMemo(() => deriveCoreOperationsLoopState({
     commandCenter,
     leads,
@@ -220,6 +253,14 @@ export function TodayCommandPage({
 
   function openModule(moduleId) {
     if (moduleId) setActive?.(moduleId);
+  }
+
+  function openCommandAction(action = {}) {
+    if (action.moduleId === "settings" && action.settingsSectionId && typeof onOpenSettingsSection === "function") {
+      onOpenSettingsSection(action.settingsSectionId);
+      return;
+    }
+    openModule(action.moduleId || "jobs");
   }
 
   function openTodayItem(item = selectedTodayItem) {
@@ -258,12 +299,13 @@ export function TodayCommandPage({
     { id: "problems", label: "Problems", value: problemsCount, helper: `${commandCenter.proofChainSummary?.blockerCount || 0} blockers / ${commandCenter.stats.openChangeOrders || 0} changes`, icon: "alert", tone: problemsCount ? "amber" : "green", onClick: () => openModule(commandCenter.proofChainSummary?.nextModuleId || "reports") },
   ];
   const quickActions = [
+    commandFinish.nextActions?.[0] ? { id: "command-next", label: commandFinish.nextActions[0].actionLabel || "Open next", icon: "grid", onClick: () => openCommandAction(commandFinish.nextActions[0]) } : null,
     { id: "open-jobs", label: "Open Jobs", icon: "briefcase", onClick: () => openModule("jobs") },
     commandRouteMode
       ? { id: "open-leads", label: "Open Leads", icon: "users", onClick: () => openModule("leads"), disabled: !permissions?.leads?.canView }
       : { id: "open-estimates", label: "Open Estimates", icon: "quote", onClick: () => openModule("estimates"), disabled: !canViewEstimates },
     { id: "open-reports", label: "Open Reports", icon: "document", onClick: () => openModule("reports"), disabled: !permissions?.reports?.canView },
-  ];
+  ].filter(Boolean);
   const coreLoopMetrics = [
     { label: "Stages clear", value: `${coreOperationsLoop.metrics?.stagesReady || 0} / ${coreOperationsLoop.metrics?.totalStages || 0}` },
     { label: "Blockers", value: coreOperationsLoop.metrics?.blockerCount || 0 },
@@ -369,6 +411,7 @@ export function TodayCommandPage({
           ) : null,
         }}
         quickActions={quickActions}
+        overview={commandRouteMode ? <CommandCenterDailyPlanCard state={commandFinish} onOpenAction={openCommandAction} /> : null}
       />
     </div>
   );

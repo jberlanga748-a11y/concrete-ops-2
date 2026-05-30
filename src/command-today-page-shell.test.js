@@ -31,6 +31,8 @@ test("Command Center desktop route uses the shared Today command shell", () => {
   assert.match(todaySource, /commandRouteMode = false/);
   assert.match(todaySource, /co-command-route-page co-command-center-shell-page/);
   assert.match(todaySource, /title=\{commandRouteMode \? "Operations Command" : "Today"\}/);
+  assert.match(todaySource, /deriveCommandCenterFinishState/);
+  assert.match(todaySource, /CommandCenterDailyPlanCard/);
   assert.doesNotMatch(todaySource, /assistant\s*=/);
 
   assert.match(cssSource, /body:has\(\.co-command-center-shell-page\) \.co-apex-assistant-shell\.is-closed,\s*body:has\(\.co-today-page\) \.co-apex-assistant-shell\.is-closed\s*\{\s*display: none !important;/);

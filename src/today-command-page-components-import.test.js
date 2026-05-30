@@ -13,7 +13,8 @@ test("Today command page shell is extracted and lazy-loaded from App", () => {
 
   assert.match(todaySource, /export function TodayCommandPage\b/);
   assert.match(todaySource, /export function buildTodayCommandQueue\b/);
-  assert.match(todaySource, /import \{ deriveCommandCenterState \} from "\.\/command-center-utils";/);
+  assert.match(todaySource, /import \{ deriveCommandCenterFinishState, deriveCommandCenterState \} from "\.\/command-center-utils";/);
+  assert.match(todaySource, /import \{ CommandCenterDailyPlanCard \} from "\.\/command-center-route-components";/);
   assert.match(todaySource, /import \{ ApexOfficeCommandShell, Badge, Button \} from "\.\/app-shell-components";/);
 
   for (const name of [

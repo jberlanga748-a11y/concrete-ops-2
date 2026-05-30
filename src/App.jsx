@@ -266,8 +266,8 @@ import { INITIAL_PUBLIC_ESTIMATE_REQUEST_FORM, buildPublicEstimateRequestPayload
 import { buildCustomerPath, buildImportedJobDraftPath, buildJobPath, buildLeadPath, buildReportPath, getModulePath, normalizePathname, parseAppPath } from "./app-routing";
 import { APEX_PUBLIC_REQUEST_URL, AUTOSAVE_DELAY_MS, INVITE_ACTIVATION_PATH, LEGACY_SESSION_TOKEN_KEY, PASSWORD_RESET_PATH, PRINT_VIEW_ERROR_MESSAGE, PUBLIC_ESTIMATE_REQUEST_PATH, PUBLIC_WEBSITE_PATH, SESSION_ACTIVE_MARKER } from "./app-runtime-constants";
 import { APEX_BRAND_ASSETS, APP_NAME, BRANDING_ACCENT_OPTIONS, DEFAULT_COMPANY_NAME, getAccentTheme, normalizeAccentColor, resolveWorkspaceCompanyName, resolveWorkspaceLogoInitials, sanitizeLogoInitials } from "./brand-utils";
-import { deriveCommandCenterState } from "./command-center-utils";
-import { CommandCenterItem, CommandCenterKpiCard, CommandCenterMorningFlowCard, CommandCenterOpsPulseCard, CommandCenterOwnerHealthCard, CommandCenterProofChainCard, CommandCenterQuickAction, CommandCenterSection, CommandCenterSummaryCard, CommandCenterTableCard, CommandCenterWatchtowerCard, FieldOpsAgentSummaryCard, ModuleKpiStrip } from "./command-center-route-components";
+import { deriveCommandCenterFinishState, deriveCommandCenterState } from "./command-center-utils";
+import { CommandCenterDailyPlanCard, CommandCenterItem, CommandCenterKpiCard, CommandCenterMorningFlowCard, CommandCenterOpsPulseCard, CommandCenterOwnerHealthCard, CommandCenterProofChainCard, CommandCenterQuickAction, CommandCenterSection, CommandCenterSummaryCard, CommandCenterTableCard, CommandCenterWatchtowerCard, FieldOpsAgentSummaryCard, ModuleKpiStrip } from "./command-center-route-components";
 import { JobsPage, JobsTablePolished } from "./jobs-page-components";
 import { contactHistoryTimeline } from "./contact-history-utils";
 import { deriveCustomerListState, filterCustomers, relatedCustomerRecords } from "./customer-utils";
@@ -673,10 +673,14 @@ function CommandCenterPage({
   user,
   currentCompanyId,
   companyName,
+  companySettings,
+  emailSendingConfigured,
   demoMode,
   leads,
   customers,
   estimates,
+  foundOpportunities,
+  opportunitySearchProfiles,
   contactHistory,
   jobs,
   leadSources,
@@ -692,6 +696,7 @@ function CommandCenterPage({
   changeOrderRequests,
   permissions,
   setActive,
+  onOpenSettingsSection,
   onSelectJob,
   onSelectImportedDraft,
   onSelectReport,
@@ -715,6 +720,32 @@ function CommandCenterPage({
     timeEntries,
     changeOrderRequests,
   }), [changeOrderRequests, contactHistory, customers, dailyReports, deliveryTickets, estimates, jobDraftImports, jobs, leadSources, leads, postPourChecklists, prePourChecklists, safetyIncidents, timeEntries, toolChecklists, uploads]);
+  const commandFinish = useMemo(() => deriveCommandCenterFinishState({
+    commandCenter,
+    user,
+    permissions,
+    companySettings,
+    emailSendingConfigured,
+    leads,
+    customers,
+    estimates,
+    foundOpportunities,
+    opportunitySearchProfiles,
+    contactHistory,
+    jobs,
+    leadSources,
+    jobDraftImports,
+    dailyReports,
+    uploads,
+    prePourChecklists,
+    postPourChecklists,
+    deliveryTickets,
+    safetyIncidents,
+    toolChecklists,
+    timeEntries,
+    changeOrderRequests,
+    currentCompanyId,
+  }, { companyId: currentCompanyId }), [changeOrderRequests, commandCenter, companySettings, contactHistory, currentCompanyId, customers, dailyReports, deliveryTickets, emailSendingConfigured, estimates, foundOpportunities, jobDraftImports, jobs, leadSources, leads, opportunitySearchProfiles, permissions, postPourChecklists, prePourChecklists, safetyIncidents, timeEntries, toolChecklists, uploads, user]);
   const fieldOpsAgent = useMemo(() => deriveFieldOpsAgentState({
     currentCompanyId,
     jobs,
@@ -734,6 +765,14 @@ function CommandCenterPage({
 
   function openModule(moduleId) {
     setActive?.(moduleId);
+  }
+
+  function openCommandAction(action = {}) {
+    if (action.moduleId === "settings" && action.settingsSectionId && typeof onOpenSettingsSection === "function") {
+      onOpenSettingsSection(action.settingsSectionId);
+      return;
+    }
+    openModule(action.moduleId || "jobs");
   }
 
   function openOwnerHealth() {
@@ -1093,6 +1132,7 @@ function CommandCenterPage({
         ) : null}
       </div>
       <div className="co-command-workspace-grid grid w-full gap-2.5 px-5 pb-8 sm:px-6 lg:px-7">
+        <CommandCenterDailyPlanCard state={commandFinish} onOpenAction={openCommandAction} />
         <CommandCenterMorningFlowCard
           onOpenLeads={() => openModule("leads")}
           onOpenDrafts={canViewJobDraftImports ? () => openModule("jobDraftImports") : null}

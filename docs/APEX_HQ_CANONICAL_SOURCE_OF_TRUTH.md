@@ -13,8 +13,8 @@ This is the first file to read before any Apex HQ work. It is the one-file conso
 - Fly app: `concrete-ops-2`.
 - Fly technical URL: `https://concrete-ops-2.fly.dev/`.
 - Current local branch/head at audit time: `main` at `c7e1328`.
-- Current production evidence from living plan: Fly version `606`, `/api/ready` healthy on `https://app.apexhq.online/api/ready`.
-- Phase baseline: Phase 1 Admin Foundation Finish is complete/frozen. The next true tool-completion phase is Phase 2 Command Center Finish.
+- Current production evidence from living plan: Fly version `606`, `/api/ready` healthy on `https://app.apexhq.online/api/ready`; Phase 2 production evidence is recorded in the living plan after deploy.
+- Phase baseline: Phase 1 Admin Foundation Finish is complete/frozen. Phase 2 Command Center Finish is built and entering production release under standing approval. The next true tool-completion phase is Phase 3 Growth & Sales Finish.
 
 Use **Apex HQ** everywhere users see the product. `Concrete Ops`, `concrete-ops`, and `concrete-ops-2` are legacy technical names only until a dedicated infrastructure rename phase is planned.
 
@@ -496,6 +496,7 @@ Active repo `server` compared to old clean:
 - Job draft imports auth helper fix.
 - `verify:admin-foundation`.
 - Settings Admin Foundation Finish Board.
+- Phase 2 Command Center Finish.
 - Role-safety baseline.
 - Brand normalization from Concrete Ops to Apex HQ.
 
@@ -514,6 +515,7 @@ These exist in active source and living-plan reports. Treat them as built comman
 - Customer Portal Command and Communications provider readiness.
 - Billing / Payments / Packages Command.
 - Integrations Command.
+- Daily Command Plan for owner/admin Command Center, including routed next actions and provider setup locks.
 
 Important: the user rejected "little slices of everything." Do not treat these command/readiness layers as proof that the whole vertical workflow is permanently finished. The active finish standard is the tool-by-tool blueprint.
 
@@ -522,8 +524,8 @@ Important: the user rejected "little slices of everything." Do not treat these c
 Use `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` for the real finish order:
 
 1. Admin Foundation Finish - complete/frozen.
-2. Command Center Finish - next true phase.
-3. Growth & Sales Finish.
+2. Command Center Finish - complete/frozen after production health check.
+3. Growth & Sales Finish - next true phase.
 4. Estimate & Proposal Finish.
 5. Job Operations Finish.
 6. Field Execution Finish.
@@ -667,7 +669,9 @@ This prevents the user from having to discover already-built or previously-attem
 
 ## Command Center Phase 2 Pre-Start Notes
 
-Before building Phase 2 Command Center Finish:
+Phase 2 Command Center Finish was built from the active files below, using the archive files only as reference and without rebuilding the app from scratch.
+
+Before future Command Center changes:
 
 - Inspect current active files:
   - `src/command-center-route-components.jsx`
@@ -690,7 +694,9 @@ Before building Phase 2 Command Center Finish:
   - `concrete-ops-2-clean\src\workspace-intent-handlers.js`
   - `concrete-ops-2-clean\src\workspace-navigation-config.js`
 - Do not rebuild the command center from scratch.
-- Finish the daily owner/admin command workflow so it gives one clear operating answer and routes to real tools.
+- Preserve the Daily Command Plan as the owner/admin first-screen answer.
+- Every command action must continue routing to existing tools or locked provider/setup states.
+- Field users must remain assigned-work only and must not see office, growth, billing, provider setup, pricing, margin, payroll, or company setup data.
 
 ## Phase Completion Standard
 

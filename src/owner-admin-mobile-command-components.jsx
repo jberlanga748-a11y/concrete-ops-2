@@ -11,7 +11,7 @@ import {
   StatusBadge,
 } from "./app-shell-components";
 import { DEFAULT_COMPANY_NAME } from "./brand-utils";
-import { deriveCommandCenterState } from "./command-center-utils";
+import { deriveCommandCenterFinishState, deriveCommandCenterState } from "./command-center-utils";
 import { estimateDisplayCustomer, estimateDisplayTitle } from "./estimate-display-utils";
 import { estimateStatusLabel } from "./estimate-utils";
 import { jobStatusLabel, jobTitle } from "./job-utils";
@@ -176,9 +176,13 @@ export function OwnerAdminMobileCommandPage({
   user,
   currentCompanyId,
   companyName = DEFAULT_COMPANY_NAME,
+  companySettings,
+  emailSendingConfigured,
   leads,
   customers,
   estimates,
+  foundOpportunities,
+  opportunitySearchProfiles,
   contactHistory,
   jobs,
   leadSources,
@@ -194,6 +198,7 @@ export function OwnerAdminMobileCommandPage({
   changeOrderRequests,
   permissions,
   setActive,
+  onOpenSettingsSection,
   onSelectJob,
   onSelectLead,
   onSelectCustomer,
@@ -217,6 +222,32 @@ export function OwnerAdminMobileCommandPage({
     changeOrderRequests,
     currentCompanyId,
   }, { companyId: currentCompanyId }), [changeOrderRequests, contactHistory, currentCompanyId, customers, dailyReports, deliveryTickets, estimates, jobDraftImports, jobs, leadSources, leads, postPourChecklists, prePourChecklists, safetyIncidents, timeEntries, toolChecklists, uploads]);
+  const commandFinish = useMemo(() => deriveCommandCenterFinishState({
+    commandCenter,
+    user,
+    permissions,
+    companySettings,
+    emailSendingConfigured,
+    leads,
+    customers,
+    estimates,
+    foundOpportunities,
+    opportunitySearchProfiles,
+    contactHistory,
+    jobs,
+    leadSources,
+    jobDraftImports,
+    dailyReports,
+    uploads,
+    prePourChecklists,
+    postPourChecklists,
+    deliveryTickets,
+    safetyIncidents,
+    toolChecklists,
+    timeEntries,
+    changeOrderRequests,
+    currentCompanyId,
+  }, { companyId: currentCompanyId }), [changeOrderRequests, commandCenter, companySettings, contactHistory, currentCompanyId, customers, dailyReports, deliveryTickets, emailSendingConfigured, estimates, foundOpportunities, jobDraftImports, jobs, leadSources, leads, opportunitySearchProfiles, permissions, postPourChecklists, prePourChecklists, safetyIncidents, timeEntries, toolChecklists, uploads, user]);
   const canViewEstimates = Boolean(permissions?.estimates?.canView);
   const moneyReadyCount = Number(commandCenter.stats.moneyReadyItems || 0);
   const jobsTodayCount = Number(commandCenter.stats.scheduledTodayJobs || 0);
@@ -246,6 +277,14 @@ export function OwnerAdminMobileCommandPage({
 
   function openModule(moduleId) {
     if (moduleId) setActive?.(moduleId);
+  }
+
+  function openCommandAction(action = {}) {
+    if (action.moduleId === "settings" && action.settingsSectionId && typeof onOpenSettingsSection === "function") {
+      onOpenSettingsSection(action.settingsSectionId);
+      return;
+    }
+    openModule(action.moduleId || "jobs");
   }
 
   function openMobileCommandItem(item = selectedItem) {
@@ -330,6 +369,30 @@ export function OwnerAdminMobileCommandPage({
         ) : (
           <StateCard title="No mobile command actions" description="Money, job, estimate, and problem items will appear here when owner review is needed." tone="green" />
         )}
+      </section>
+      <section className="co-apex-mobile-selected-card" data-tone={commandFinish.tone || "slate"} aria-label="Owner daily command plan">
+        <div className="co-apex-mobile-selected-head">
+          <Badge tone={commandFinish.tone || "slate"}>{commandFinish.status || "Command"}</Badge>
+          <StatusBadge status={`${commandFinish.metrics?.routeableActionCount || 0} routed`} />
+        </div>
+        <h2>{commandFinish.headline || "Daily command plan"}</h2>
+        <p>{commandFinish.summary || "Open the next routed tool to keep the day moving."}</p>
+        <div className="co-apex-mobile-selected-summary">
+          {(commandFinish.lanes || []).slice(0, 4).map((lane) => (
+            <button key={lane.id} type="button" onClick={() => openCommandAction(lane)}>
+              <em>{lane.label}</em>
+              <strong>{lane.value}</strong>
+            </button>
+          ))}
+        </div>
+        <div className="co-apex-mobile-selected-actions">
+          {(commandFinish.nextActions || []).slice(0, 2).map((action, index) => (
+            <Button key={action.id} type="button" variant={index === 0 ? "primary" : "secondary"} onClick={() => openCommandAction(action)}>
+              {action.actionLabel}
+            </Button>
+          ))}
+        </div>
+        <p className="co-apex-mobile-guardrail">Provider setup opens locked setup/review states only. No sends, spend, payments, provider writes, or record changes run from mobile command.</p>
       </section>
     </ApexMobileRoleShell>
   );

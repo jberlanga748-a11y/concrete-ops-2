@@ -43118,7 +43118,17 @@ button.co-work-queue-card:hover:not(:disabled) {
     overflow: hidden;
   }
 
+  .co-desktop-office-command-standard .co-command-page-frame-main {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .co-desktop-office-command-standard .co-apex-office-command-overview {
+    flex: 0 0 auto;
+  }
+
   .co-desktop-office-command-standard .co-apex-office-command-workspace {
+    flex: 1 1 auto;
     height: 100%;
     min-height: 0;
     overflow: hidden;
@@ -43214,6 +43224,11 @@ button.co-work-queue-card:hover:not(:disabled) {
   min-width: 0;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.72rem;
+  margin-bottom: 0.78rem;
+}
+
+.co-apex-office-command-overview {
+  min-width: 0;
   margin-bottom: 0.78rem;
 }
 
@@ -49920,7 +49935,8 @@ button.co-apex-command-kpi:hover:not(:disabled) {
     margin-top: 0.72rem;
   }
 
-  .co-apex-mobile-selected-summary span {
+  .co-apex-mobile-selected-summary span,
+  .co-apex-mobile-selected-summary button {
     display: grid;
     min-width: 0;
     gap: 0.2rem;
@@ -49928,6 +49944,16 @@ button.co-apex-command-kpi:hover:not(:disabled) {
     border-radius: 0.82rem;
     background: #f8fafc;
     padding: 0.65rem;
+    text-align: left;
+  }
+
+  .co-apex-mobile-selected-summary button {
+    transition: border-color 0.16s ease, background 0.16s ease;
+  }
+
+  .co-apex-mobile-selected-summary button:hover {
+    border-color: #fed7aa;
+    background: #fff7ed;
   }
 
   .co-apex-mobile-selected-summary em {
