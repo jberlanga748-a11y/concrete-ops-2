@@ -40,6 +40,34 @@ Next recommended phase:
 
 ## Current Phase
 
+Post-launch verification and cleanup are current after the Phase 8-14 finish batch. Phases 1-14 are built, validated, pushed, deployed, and health-checked on production release `v616` for Fly app `concrete-ops-2`. The active production commit is `e904e5a`; the completed feature batch landed in `583b4a1`, and `e904e5a` fixed the production runtime packaging gap by copying/asserting `src/time-utils.js` in the Docker image.
+
+The `v614` deploy from the finish batch failed at runtime because `/app/src/time-utils.js` was missing from the production image. Production was immediately rolled back to prior healthy release `v615`, the Docker packaging regression was fixed and tested, and production was redeployed successfully as `v616` with image `registry.fly.io/concrete-ops-2:deployment-01KSWP2150N1VYY9JMW6VDC3J6`.
+
+Current production evidence:
+
+- `https://app.apexhq.online/api/ready` returned `ok: true`, `status: ready`, database `ok`.
+- Hosted smoke with `--skip-auth` passed `/api/health`, `/api/ready`, and the protected route shell checks.
+- Production auth smoke GitHub Actions run `26686917811` completed successfully against `e904e5a`.
+- Public unauthenticated visual QA passed for the production login shell on desktop and mobile, unauthenticated `/app-health` desktop, and unauthenticated `/jobs` mobile with no app-shell leak, no error text, and no horizontal overflow.
+- Local production smoke password was not present in the shell, so interactive authenticated browser QA was not rerun locally; the GitHub production auth smoke is the authenticated production evidence for this pass.
+
+Phase 8-14 status:
+
+- Phase 8 Change Order Finish: built, verified, and deployed. Change requests, office review/pricing, approval/rejection tracking, job scope/status updates, and billing-readiness linkage remain manual/review-first with field-safe assigned-job context.
+- Phase 9 Payroll Prep Finish: built, verified, and deployed. Owner/admin users can review pay periods, time exceptions, payroll-ready hours, and CSV export over the existing Time system. This is payroll prep only, not payroll processing.
+- Phase 10 Closeout & Billing Prep Finish: built, verified, and deployed. Closeout composes jobs, reports, uploads/photos, tickets, checklists, time summaries, approved changes, and billing/package readiness without creating invoices or payment links.
+- Phase 11 Reputation & Portfolio Finish: built, verified, and deployed. Completed work can become review asks, referral asks, project stories, portfolio proof, and proposal proof blocks without fake claims, live sends, or publishing.
+- Phase 12 Communications & Customer Portal Finish: built, verified, and deployed. Manual-safe Communication Center and Customer Portal review workflows remain locked against email/SMS sends, portal token redemption, public customer actions, invoices, payments, and production-provider changes.
+- Phase 13 Assistant Finish: built, verified, and deployed. Apex Assistant / AI Office / Agent OS / Action Inbox remains a review-first helper layer over existing workflows and does not execute risky external actions.
+- Phase 14 Launch Finish: built, verified, and deployed. Launch-readiness gates and evidence surfaces are in place while public signup, pricing/package changes, billing/payment collection, production auth/secrets/DNS/monitoring/backups/deploy config, and production data changes remain approval-gated.
+
+Next recommended phase:
+
+- Post-launch route/workflow QA refresh and cleanup triage only. Do not start another broad product build unless live QA, demo, pilot, or customer evidence identifies a specific blocker.
+
+Completed historical phase note:
+
 Phase 7 Safety & Compliance Finish is built, validated, pushed, deployed, and health-checked. Owner/admin Safety, Toolbox Talks, PPE, and Tool Checklist workflows now keep office review control, field-safe submission/acknowledgment, job readiness blockers, reopen lifecycle paths, and audit/activity evidence aligned without schema, auth/session, billing, provider, GPS, or production-data changes. Phase 1 Admin Foundation, Phase 2 Command Center, Phase 3 Growth & Sales, Phase 4 Estimate & Proposal, Phase 5 Job Operations, and Phase 6 Field Execution remain complete/frozen.
 
 Phase 1 blockers are fixed in production: `/imported-drafts` renders for owner/admin users, `npm.cmd run verify:job-draft-imports` is green, and owner/admin setup now has a single Admin Foundation Finish board in Settings.
@@ -96,9 +124,9 @@ Phase 7 rollback:
 
 - Revert the Phase 7 commit to remove the safety incident/tool checklist reopen API methods, UI buttons, and tests. Existing incident, PPE, toolbox, and tool checklist records remain compatible because no schema migration was added.
 
-Next recommended phase:
+Historical next recommendation:
 
-- Phase 8 Change Order Finish from the tool-completion blueprint, unless release smoke exposes a narrow Phase 7 bug.
+- Phase 8 Change Order Finish was the next phase after Phase 7 and is now complete, verified, and deployed.
 
 ## Product North Star
 
@@ -132,17 +160,20 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | Website/public request intake | Built / Partial | Public estimate/demo request foundations exist. Public estimate request now captures service type, project type, timing, budget, referral source, attribution, consent, thank-you state, and creates a manual office lead/review task. Website builder and SEO/service-page drafts remain later. |
 | Sales follow-up | Built | Owner/admin Sales Follow-Up System now combines daily queue, stale estimate reminders, manual scripts, won/lost learning, source quality, referral/review asks, and manual won/lost logging. Provider sends stay locked until configured and reviewed. |
 | Ads / Marketing Spend Advisor | Partial | Growth Command Center now exposes provider-ready spend guardrails, channel recommendations, stop-loss rules, and draft planning. Live ad publishing/spend is locked. |
-| Reputation + Portfolio Engine | Built | Owner/admin Growth Command Center now turns existing jobs, reports, uploads, and estimates into project story candidates, before/after selection guidance, review/referral drafts, proposal proof blocks, social/website drafts, and proof blockers. Sends and publishing remain manual/provider-ready only. |
+| Reputation + Portfolio Engine | Built / Frozen after Phase 11 release | Owner/admin Growth Command Center now turns existing jobs, reports, uploads, and estimates into project story candidates, before/after selection guidance, review/referral drafts, proposal proof blocks, social/website drafts, and proof blockers. Sends and publishing remain manual/provider-ready only. |
 | Estimate Studio / proposals | Built / Frozen after Phase 4 release | Estimate Studio, packets, PDF, options, customer-safe/internal packet separation, GC Packet Lite, send-review gate, field-safe handoff, final proposal packet review, and Apex HQ-neutral proposal generator defaults are built. Live email send still depends on configured provider and human confirmation. |
 | Core operations loop | Built | Owner/admin Operations Command now ties lead follow-up, estimates/proposals, approved-job handoff, schedule/crew setup, field proof, material prep, change orders, closeout, job costing, and billing readiness into one review-first next-action loop. |
 | Job operations | Built / Frozen after Phase 5 release | Owner/admin Jobs now ties approved source/handoff, scheduling, crew assignment, startup readiness, field visibility, material prep, tools, safety/proof, and completion readiness into one review-first finish layer. Field users remain assigned-work only. |
 | Command Center Finish | Built | Owner/admin Command Center now opens with a Daily Command Plan that routes today's attention, jobs/crew, proof gaps, sales follow-up, billing-ready work, growth/client-finder work, blockers, and provider setup to real existing tools or locked setup states. |
 | Field Mode | Built / Frozen after Phase 6 release | Field-safe mobile workflows now include the Field Execution Finish command layer for today's assigned job, arrival/start readiness, clock/time, photos/proof, daily reports, delivery tickets, checklists, safety/PPE, change requests, end-of-day handoff, PWA install readiness, and honest offline-draft planning. |
-| Apex Agent Operator | Built | Owner/admin AI Office now has one Apex Agent Operator command layer across new work, ads, follow-up, estimates, proposals, handoffs, closeout, billing readiness, reviews/referrals, Agent OS, action inbox, audit-backed review packets, learning, and external-action locks. |
-| Customer portal + communications | Built / Provider-ready | Owner/admin Communication Center now includes Customer Portal Command for customer-safe proposal/proof/change-order packet review, expiring/revocable access records, share approval decisions, customer comment capture, locked preflight/execution contracts, and human-reviewed email/SMS readiness. Live customer portal serving, token redemption, and provider sends remain provider/account-dependent. |
+| Change orders | Built / Frozen after Phase 8 release | Existing Change Orders workflow now covers field request, office review/pricing, manual customer/GC approval tracking, job scope/status update, and billing-readiness linkage. No public approval links, sends, e-sign, payment, or accounting writes were added. |
+| Time / Payroll prep | Built / Frozen after Phase 9 release | Existing Time workflow now supports owner/admin pay-period review, exception review, payroll-ready hour approval, and payroll-ready CSV export. Live payroll processing, paychecks, direct deposit, tax withholding, provider writes, and payroll costs remain locked out of scope. |
+| Closeout / Billing prep | Built / Frozen after Phase 10 release | Owner/admin closeout/billing-prep readiness composes existing job proof, reports, uploads/photos, delivery tickets, checklists, time summaries, approved change orders, and package/billing readiness. It does not create invoices, payment links, receipts, taxes, provider writes, or payment collection. |
+| Apex Agent Operator | Built / Frozen after Phase 13 release | Owner/admin AI Office now has one Apex Agent Operator command layer across new work, ads, follow-up, estimates, proposals, handoffs, closeout, billing readiness, reviews/referrals, Agent OS, action inbox, audit-backed review packets, learning, and external-action locks. |
+| Customer portal + communications | Built / Provider-ready / Frozen after Phase 12 release | Owner/admin Communication Center now includes Customer Portal Command for customer-safe proposal/proof/change-order packet review, expiring/revocable access records, share approval decisions, customer comment capture, locked preflight/execution contracts, and human-reviewed email/SMS readiness. Live customer portal serving, token redemption, and provider sends remain provider/account-dependent. |
 | Billing/payments/packages | Built / Provider-ready | Owner/admin Billing / Payments / Packages Command now covers package state, payment provider readiness, checkout/manual invoice lanes, billing candidates, package/billing audit, receipts, failed-payment states, and blocked live-money actions. Stripe or chosen provider remains unconfigured for live processing. |
 | Integrations | Built / Provider-ready | Owner/admin Integrations Command now maps QuickBooks, Gmail, Google Calendar, Google Drive, Twilio, Maps/weather, CompanyCam, DocuSign/e-signature, and Google/Meta Ads with settings UI, server-adapter readiness, provider health, disabled/not-configured states, no frontend secrets, audit trail, disconnect/disable controls, package gate, and locked integration writes. Live provider accounts/API keys remain provider-dependent. |
-| Scale/public launch | Partial | Demo/pilot gates exist. Public launch requires production auth, monitoring, backup/restore, managed data plan, support, legal/claims review, onboarding, pricing, and incident process. |
+| Scale/public launch | Launch-readiness gates built / public self-serve locked | Phase 14 launch-readiness gates and evidence surfaces are built and deployed. Wide public self-serve launch, public signup, pricing/package behavior changes, billing/payment collection, production auth/secrets/DNS/monitoring/backups/deploy config changes, and production data actions remain approval-gated. |
 
 ## User Request Inbox
 
@@ -162,7 +193,9 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ### Next
 
-- Start Phase 7 Safety & Compliance Finish from `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` after Phase 6 deploy/health check.
+- Run post-launch route/workflow QA refresh and cleanup triage.
+- Archive or delete untracked temp/demo/security-support artifacts only after explicit cleanup approval.
+- Keep future build work narrow and evidence-driven: fix confirmed live/demo/pilot blockers, not broad new phases.
 
 ### Later
 
@@ -407,6 +440,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 | Date | Phase | Version/Commit | Environment | Health |
 | --- | --- | --- | --- | --- |
+| 2026-05-30 | Phase 8-14 finish batch + runtime packaging fix | `583b4a1` feature batch, `e904e5a` active production commit | Production Fly app `concrete-ops-2`; release `v616`; image `registry.fly.io/concrete-ops-2:deployment-01KSWP2150N1VYY9JMW6VDC3J6`; `https://app.apexhq.online/` | `v614` initially failed because `/app/src/time-utils.js` was missing from the runtime image; production rolled back to healthy `v615`, Docker packaging was fixed/tested in `e904e5a`, and `v616` passed Fly health, `/api/ready` database OK, hosted skip-auth smoke, production auth smoke run `26686917811`, and unauthenticated desktop/mobile visual shell checks. |
 | 2026-05-29 | Growth Foundation | `692b474` pushed to `main` | Local QA at `http://127.0.0.1:4100` | `/api/ready` OK; launch gate says guided demo GO and production/pilot/public launch NO-GO. |
 | 2026-05-30 | Website + Lead Intake Funnel | `efb5d4a` and `dda3a36` pushed to `main` | Local QA at `http://127.0.0.1:4102` | `/api/ready` OK; launch gate says guided demo GO and production/pilot/public launch NO-GO. |
 | 2026-05-30 | Website + Lead Intake Funnel + standing release approval | `1ac46a6` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
@@ -446,18 +480,18 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 4. Phase 4 Estimate & Proposal Finish - completed/frozen after production health check.
 5. Phase 5 Job Operations Finish - completed/frozen after production health check.
 6. Phase 6 Field Execution Finish - completed/frozen after production health check.
-7. Phase 7 Safety & Compliance Finish.
-8. Phase 8 Change Order Finish.
-9. Phase 9 Payroll Prep Finish.
-10. Phase 10 Closeout & Billing Prep Finish.
-11. Phase 11 Reputation & Portfolio Finish.
-12. Phase 12 Communications & Customer Portal Finish.
-13. Phase 13 Assistant Finish.
-14. Phase 14 Launch Finish.
+7. Phase 7 Safety & Compliance Finish - completed/frozen after production health check.
+8. Phase 8 Change Order Finish - completed/frozen after production health check.
+9. Phase 9 Payroll Prep Finish - completed/frozen after production health check; payroll processing remains out of scope.
+10. Phase 10 Closeout & Billing Prep Finish - completed/frozen after production health check; live billing remains out of scope.
+11. Phase 11 Reputation & Portfolio Finish - completed/frozen after production health check; live sends/publishing remain out of scope.
+12. Phase 12 Communications & Customer Portal Finish - completed/frozen after production health check; public portal/customer sends remain locked.
+13. Phase 13 Assistant Finish - completed/frozen after production health check; risky external actions remain locked.
+14. Phase 14 Launch Finish - completed/frozen after production health check; public self-serve launch remains approval-gated.
 
 ## Next Phase
 
-Use `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` as the active blueprint. Next build phase is Phase 6 Field Execution Finish. Payroll Prep remains a later complete phase unless the owner explicitly reorders it, and live payroll processing stays out of scope.
+Use `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` as historical phase evidence, not an instruction to restart completed phases. The next phase is post-launch route/workflow QA refresh and cleanup triage. Build work should stay narrow and evidence-driven unless Josh explicitly approves a new roadmap phase. Live payroll processing, live billing/payment collection, public customer portal access, public self-serve signup, and risky external provider actions remain out of scope.
 
 ## Decision Log
 

@@ -12,6 +12,8 @@ Apex HQ is a strong guided-pilot contractor operations platform. It is not yet r
 
 Current state:
 
+- Phase 8-14 finish batch: built, verified, pushed, deployed, and health-checked on production release `v616` with active commit `e904e5a`. This includes Change Orders, Payroll Prep, Closeout & Billing Prep, Reputation & Portfolio, Communications & Customer Portal, Assistant, and Launch readiness gates.
+- Production release evidence: `v614` failed because the runtime image missed `/app/src/time-utils.js`, production was rolled back to healthy `v615`, the Docker packaging gap was fixed in `e904e5a`, and `v616` passed `/api/ready`, hosted smoke, production auth smoke run `26686917811`, and unauthenticated desktop/mobile visual shell checks.
 - Pilot/demo readiness: good for guided demos and founder-led pilots.
 - Public signup foundation: built and tested.
 - Multi-company safety: built and heavily tested, but still needs periodic route sweeps as new workflows are added.
@@ -502,6 +504,7 @@ Why this is current:
 
 - Premium Finished SaaS Polish Phases 1-4 are built, verified, released, and health-checked for the canonical Operations Command, Field Mode, Estimate Studio, and Apex Assistant surfaces.
 - The current support-handoff set is complete through Safety / Incidents and should not be restarted as missing.
+- The Phase 8-14 finish batch is complete and should not be restarted as missing. Future work should target confirmed live/demo/pilot blockers only.
 - Founder-Led Demo Execution Support is already built and released; real outreach/demo decisions need user/customer input before more demo-support code is justified.
 - The next buildable product work should be a narrow visual or workflow polish item only when it fixes a visible demo blocker, an unfinished non-frozen route, or a role-safe usability issue found in browser QA.
 
@@ -570,10 +573,10 @@ Suggested verification:
 
 Do not build these until the above phases are stronger:
 
-- Payroll.
+- Live payroll processing, paychecks, direct deposit, tax withholding, certified payroll processing, and payroll provider writes. Payroll prep/export is already built and frozen.
 - Offline mode.
-- Full customer portal.
-- Stripe billing.
+- Public customer portal token redemption, customer sessions, public customer actions, and share-link serving. Manual-safe customer portal review workflow is already built and frozen.
+- Stripe billing, live invoices, payment links, checkout, payment collection, receipts, taxes, and accounting sync. Billing prep/readiness is already built and frozen.
 - Google Calendar/Gmail/QuickBooks/Twilio integrations.
 - Automatic AI sending.
 - AI ad publishing or spend.

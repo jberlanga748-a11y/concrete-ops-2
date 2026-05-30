@@ -106,10 +106,12 @@ Successful production deploy:
 
 - Production URL: [https://app.apexhq.online/](https://app.apexhq.online/)
 - Fly app: use the configured production app in `fly.toml`
+- Current release evidence: Fly release `v616`, active commit `e904e5a`, image `registry.fly.io/concrete-ops-2:deployment-01KSWP2150N1VYY9JMW6VDC3J6`
 - Active region: `sjc`
 - Mounted volume: the configured production data volume
 - SQLite path: `/app/data/app-data.sqlite`
 - Readiness endpoint: `GET /api/ready`
+- Latest post-deploy checks: `/api/ready` database OK, hosted skip-auth smoke passed, production auth smoke GitHub Actions run `26686917811` passed.
 
 Important notes:
 
