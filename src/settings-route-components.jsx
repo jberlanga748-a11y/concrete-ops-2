@@ -17,6 +17,16 @@ function settingsSetupStatusTone(status) {
   return "slate";
 }
 
+function formatBillingMoney(value = 0) {
+  const amount = Number(value || 0);
+  if (!Number.isFinite(amount)) return "$0";
+  return amount.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: amount % 1 === 0 ? 0 : 2,
+  });
+}
+
 export function SettingsCommandRailPolished({
   workspaceCompanyName,
   user,
@@ -233,13 +243,19 @@ export function SettingsCommandRailPolished({
   );
 }
 
-export function PlanReadinessPanel({ packageReadiness, onOpenSupport }) {
+export function PlanReadinessPanel({ packageReadiness, billingCommand, onOpenSupport }) {
   const currentPackage = packageReadiness?.currentPackage || {};
   const nextPackage = packageReadiness?.nextPackage || null;
   const includedHighlights = (packageReadiness?.includedFeatures || []).filter((feature) => !feature.security).slice(0, 8);
   const securityFeatures = (packageReadiness?.securityFeatures || []).slice(0, 6);
   const upgradeHighlights = (packageReadiness?.upgradeFeatures || []).slice(0, 8);
   const lockedHighlights = (packageReadiness?.lockedFutureFeatures || []).slice(0, 8);
+  const providerState = billingCommand?.providerState || {};
+  const billingLanes = billingCommand?.workflowLanes || [];
+  const billingJobs = billingCommand?.billingJobs || [];
+  const billingAudit = billingCommand?.packageAuditTrail || [];
+  const receiptStates = billingCommand?.receiptFailureStates || [];
+  const blockedActions = billingCommand?.blockedActions || [];
   const canOpenSupport = typeof onOpenSupport === "function";
   const upgradeFeatureLabels = upgradeHighlights.map((feature) => feature.label).join(", ");
 
@@ -282,11 +298,12 @@ export function PlanReadinessPanel({ packageReadiness, onOpenSupport }) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone="blue">{currentPackage.label || "Basic"}</Badge>
-            <Badge tone="amber">{packageReadiness?.billingStatus || "Manual billing only"}</Badge>
+            <Badge tone={providerState.configured ? "blue" : "amber"}>{packageReadiness?.billingStatus || "Provider-ready billing"}</Badge>
+            {providerState.status ? <Badge tone={providerState.tone || "amber"}>{providerState.status}</Badge> : null}
           </div>
-          <h2 className="mt-3 break-words text-base font-black uppercase tracking-[0.04em] text-slate-950">Plan Readiness</h2>
+          <h2 className="mt-3 break-words text-base font-black uppercase tracking-[0.04em] text-slate-950">Billing / Payments / Packages Command</h2>
           <p className="mt-1 max-w-3xl break-words text-sm font-bold leading-6 text-slate-600">
-            {packageReadiness?.billingDescription || "Plan controls are read-only until billing and self-serve upgrades are intentionally built."}
+            {billingCommand?.summary || packageReadiness?.billingDescription || "Package and billing controls are provider-ready, but live payments and self-serve upgrades remain disabled until the provider is configured."}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -316,10 +333,118 @@ export function PlanReadinessPanel({ packageReadiness, onOpenSupport }) {
         </div>
         <div className="rounded-2xl border border-blue-100 bg-blue-50/80 p-4">
           <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-700">Billing state</p>
-          <strong className="mt-2 block text-lg font-black text-slate-950">Manual review</strong>
-          <span className="mt-1 block text-sm font-bold leading-6 text-slate-700">No self-serve plan changes, invoices, payment collection, checkout, or Stripe billing are active in this workspace.</span>
+          <strong className="mt-2 block text-lg font-black text-slate-950">{providerState.status || "Provider-ready"}</strong>
+          <span className="mt-1 block text-sm font-bold leading-6 text-slate-700">Checkout, invoices, payment links, receipts, failed-payment notices, and package changes stay owner/admin reviewed with no live processing from this panel.</span>
         </div>
       </div>
+
+      {billingCommand?.canView ? (
+        <>
+          <div className="mt-4 grid gap-3 md:grid-cols-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Package rank</p>
+              <strong className="mt-2 block text-lg font-black text-slate-950">{billingCommand.metrics?.packageRank || 1}/{billingCommand.metrics?.packageCount || 3}</strong>
+              <span className="mt-1 block text-sm font-bold leading-6 text-slate-600">Current workspace plan</span>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Billing candidates</p>
+              <strong className="mt-2 block text-lg font-black text-slate-950">{billingCommand.metrics?.billingReviewCandidates || 0}</strong>
+              <span className="mt-1 block text-sm font-bold leading-6 text-slate-600">Jobs ready for manual review</span>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Review total</p>
+              <strong className="mt-2 block text-lg font-black text-slate-950">{formatBillingMoney(billingCommand.metrics?.billingReviewTotal)}</strong>
+              <span className="mt-1 block text-sm font-bold leading-6 text-slate-600">Estimate plus recognized changes</span>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Audit events</p>
+              <strong className="mt-2 block text-lg font-black text-slate-950">{billingCommand.metrics?.packageAuditEvents || 0}</strong>
+              <span className="mt-1 block text-sm font-bold leading-6 text-slate-600">Package/billing history visible</span>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+            <SectionHeader title="Payment provider readiness" description={providerState.boundary || "Provider-ready only. No secrets, checkout sessions, or live charges are created here."} />
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,0.72fr)_minmax(0,1.28fr)]">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone={providerState.tone || "amber"}>{providerState.label || "Payment provider"}</Badge>
+                  <Badge tone={providerState.configured ? "blue" : "amber"}>{providerState.status || "Needs account/API key"}</Badge>
+                  {providerState.testMode ? <Badge tone="green">Sandbox</Badge> : null}
+                </div>
+                <p className="mt-3 text-sm font-bold leading-6 text-slate-700">{providerState.nextAction || "Configure the provider account before any live billing workflow is enabled."}</p>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {billingLanes.map((lane) => (
+                  <div key={lane.id} className="rounded-2xl border border-slate-200 bg-white p-3">
+                    <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+                      <strong className="min-w-0 break-words text-sm font-black text-slate-950">{lane.title}</strong>
+                      <Badge tone={lane.tone}>{lane.status}</Badge>
+                    </div>
+                    <p className="mt-2 text-sm font-bold leading-5 text-slate-600">{lane.detail}</p>
+                    <p className="mt-2 text-xs font-black uppercase tracking-[0.12em] text-slate-500">{lane.nextAction}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <SectionHeader title="Contractor billing workflow prep" description="Review jobs that are ready for manual billing decisions before a future provider creates invoices, payment links, receipts, or failed-payment follow-up." />
+              <div className="grid gap-2">
+                {billingJobs.length ? billingJobs.map((job) => (
+                  <div key={job.jobId || job.title} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+                      <span className="min-w-0">
+                        <strong className="block break-words text-sm font-black text-slate-950">{job.title}</strong>
+                        <em className="mt-1 block break-words text-xs font-bold not-italic text-slate-500">{job.customer || "Customer pending"} / {job.status}</em>
+                      </span>
+                      <strong className="shrink-0 text-sm font-black text-slate-950">{formatBillingMoney(job.reviewTotal)}</strong>
+                    </div>
+                    <p className="mt-2 text-sm font-bold leading-5 text-slate-600">{job.nextAction}</p>
+                  </div>
+                )) : (
+                  <p className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold leading-6 text-slate-600">No billing-ready or closed jobs are visible yet. Jobs appear here after closeout proof, estimate revenue, and office review make them candidates.</p>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <SectionHeader title="Receipts / failure states" description="Provider webhook states Apex HQ is ready to model later." />
+              <div className="co-ai-scout-checks">
+                {receiptStates.map((item) => <small key={item}>{item}</small>)}
+              </div>
+              <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50/80 p-3">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-amber-700">Live money boundary</p>
+                <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{billingCommand.safetyBoundary}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <SectionHeader title="Package / billing audit" description="Recent package, billing, invoice, checkout, receipt, and payment events that are safe for owner/admin review." />
+              <div className="grid gap-2">
+                {billingAudit.length ? billingAudit.map((event) => (
+                  <div key={event.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <strong className="block break-words text-sm font-black text-slate-950">{event.label}</strong>
+                    <span className="mt-1 block break-words text-xs font-bold text-slate-500">{event.actor || "Workspace audit"}{event.at ? ` / ${event.at}` : ""}</span>
+                  </div>
+                )) : (
+                  <p className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold leading-6 text-slate-600">No package or billing audit events are visible yet. Future provider changes, package reviews, invoices, receipts, and failed-payment events should land here.</p>
+                )}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <SectionHeader title="Blocked money actions" description="These stay blocked until a separate provider implementation is configured, tested, audited, and owner-controlled." />
+              <div className="co-ai-scout-checks">
+                {blockedActions.map((action) => <small key={action}>{action}</small>)}
+              </div>
+            </div>
+          </div>
+        </>
+      ) : null}
 
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
         <div className="rounded-2xl border border-slate-200 bg-white p-4">

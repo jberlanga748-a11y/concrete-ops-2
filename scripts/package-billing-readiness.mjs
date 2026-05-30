@@ -29,7 +29,7 @@ Future payment approval flag:
   --payment-approval-phrase=${PAYMENT_APPROVAL_PHRASE}
 
 Boundary:
-  This command is read-only. It does not add Stripe, checkout, payment collection, invoices, self-serve package changes, package mutation, billing emails, customer messages, secrets, deploys, or production data changes.
+  This command is read-only. It does not connect live Stripe/provider accounts, create checkout sessions, process payment collection, create invoices, make self-serve package changes, mutate packages, send billing emails, send customer messages, expose secrets, deploy, or touch production data.
 `);
 }
 
@@ -97,18 +97,19 @@ function packageModelAudit() {
       && summary.securityFeatures.every((feature) => feature.security)
       && summary.includedFeatures.some((feature) => SECURITY_FEATURES.includes(feature.key))
   ));
-  const manualOnly = summaries.every((summary) => (
-    summary.billingMode === "manual"
-      && /Stripe billing and self-serve plan changes are not enabled/i.test(summary.billingDescription)
+  const providerReadyOnly = summaries.every((summary) => (
+    summary.billingMode === "provider_ready"
+      && /live payment processing and self-serve plan changes are not enabled/i.test(summary.billingDescription)
   ));
   const upgradePath = summaries.find((summary) => summary.currentPackage.id === PACKAGE_IDS.BASIC)?.nextPackage?.id === PACKAGE_IDS.PREMIUM
     && summaries.find((summary) => summary.currentPackage.id === PACKAGE_IDS.PREMIUM)?.nextPackage?.id === PACKAGE_IDS.ELITE
     && summaries.find((summary) => summary.currentPackage.id === PACKAGE_IDS.ELITE)?.nextPackage === null;
 
   return {
-    ok: securityIncluded && manualOnly && upgradePath,
+    ok: securityIncluded && providerReadyOnly && upgradePath,
     securityIncluded,
-    manualOnly,
+    manualOnly: providerReadyOnly,
+    providerReadyOnly,
     upgradePath,
     summaries: summaries.map((summary) => ({
       packageId: summary.currentPackage.id,
@@ -171,7 +172,7 @@ export function buildPackageBillingReadinessReport({
       ...missing(evidence.upgradeAuditTrailPlanned, "Document that future package changes require server-side owner/operator approval and audit trail."),
       ...missing(evidence.paymentPlanDocumented, "Document Stripe/provider/legal/tax/accounting review as a separate future implementation phase."),
     ], [
-      "Payment implementation remains a future approved phase; this gate does not authorize Stripe, checkout, invoices, or payment collection.",
+      "Payment implementation remains a future provider-configured phase; this gate does not authorize live Stripe/provider execution, checkout sessions, invoices, or payment collection.",
     ]),
     gate("Build verification", Boolean(evidence.buildVerified), [
       ...missing(evidence.buildVerified, "Run and pass npm.cmd run build."),
@@ -204,7 +205,7 @@ export function buildPackageBillingReadinessReport({
     nextHighestLeverage: nextBlockedGate
       ? `${nextBlockedGate.name}: ${nextBlockedGate.blockers[0] || "clear remaining blockers"}`
       : "All package and payment gates are green; payment work still needs a separately scoped implementation.",
-    boundary: "read-only: no Stripe, checkout, invoices, payment collection, self-serve plan changes, package mutation, secrets, deploy, or production data change",
+    boundary: "read-only: no live Stripe/provider connection, checkout session, invoice creation, payment collection, self-serve plan change, package mutation, secret exposure, deploy, or production data change",
   };
 }
 

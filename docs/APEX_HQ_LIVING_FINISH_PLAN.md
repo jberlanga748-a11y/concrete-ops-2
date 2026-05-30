@@ -4,7 +4,7 @@ Last updated: 2026-05-30
 
 ## Current Phase
 
-Customer Portal + Communications is completed, pushed, and deployed to production under the standing release approval. Next phase is Billing / Payments / Packages.
+Billing / Payments / Packages is completed and in release verification under the standing production approval. Next phase is Integrations.
 
 ## Product North Star
 
@@ -42,7 +42,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | Field Mode | Built | Field-safe mobile workflows now include the Field Day Finish command layer for today's job, clock/time, photos/proof, daily reports, delivery tickets, checklists, safety/PPE, change requests, PWA install readiness, and offline-draft planning. |
 | Apex Agent Operator | Built | Owner/admin AI Office now has one Apex Agent Operator command layer across new work, ads, follow-up, estimates, proposals, handoffs, closeout, billing readiness, reviews/referrals, Agent OS, action inbox, audit-backed review packets, learning, and external-action locks. |
 | Customer portal + communications | Built / Provider-ready | Owner/admin Communication Center now includes Customer Portal Command for customer-safe proposal/proof/change-order packet review, expiring/revocable access records, share approval decisions, customer comment capture, locked preflight/execution contracts, and human-reviewed email/SMS readiness. Live customer portal serving, token redemption, and provider sends remain provider/account-dependent. |
-| Billing/payments/packages | Provider-ready | Packages/entitlements/manual readiness exist. Stripe or chosen provider remains unconfigured. |
+| Billing/payments/packages | Built / Provider-ready | Owner/admin Billing / Payments / Packages Command now covers package state, payment provider readiness, checkout/manual invoice lanes, billing candidates, package/billing audit, receipts, failed-payment states, and blocked live-money actions. Stripe or chosen provider remains unconfigured for live processing. |
 | Integrations | Provider-dependent | Integration contracts should be built one provider at a time with settings, health, disabled states, tests, and audit trail. |
 | Scale/public launch | Partial | Demo/pilot gates exist. Public launch requires production auth, monitoring, backup/restore, managed data plan, support, legal/claims review, onboarding, pricing, and incident process. |
 
@@ -60,7 +60,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ### Next
 
-- Finish Billing / Payments / Packages with Stripe or chosen-provider readiness, owner/admin billing settings, checkout/manual invoice flow, package-change audit, receipts/invoices, failure states, and field-user billing/margin protection.
+- Build provider-ready Integrations one at a time with settings UI, server adapter, provider health, disabled/not-configured state, tests, no frontend secrets, audit trail, and disconnect/disable controls.
 
 ### Later
 
@@ -187,6 +187,18 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - [x] Keep field users blocked from communications, portal command, estimates, pricing, and office/customer-send controls.
 - [x] Verify focused portal/communications tests, customer portal readiness, role verification, build, diff check, and browser QA.
 
+## Completed Phase Checklist: Billing / Payments / Packages
+
+- [x] Reuse existing package definitions, entitlements, Plan Readiness, support upgrade review, audit events, and closeout billing review foundations.
+- [x] Add owner/admin Billing / Payments / Packages Command inside Settings.
+- [x] Show package/subscription state, current/next package, provider readiness, checkout lane, manual invoice lane, receipts, failed-payment states, and payment-link prep.
+- [x] Show billing-ready job candidates and estimate/change-order review totals without creating invoices, checkout sessions, payment links, charges, receipts, or package mutations.
+- [x] Show package/billing audit history when available.
+- [x] Keep Stripe/chosen provider provider-ready until account/API keys/webhooks/tax/legal/audit controls are configured.
+- [x] Keep no frontend secrets and no live payment processing.
+- [x] Keep field and non-owner/admin users blocked from billing, package, payment, invoice, receipt, margin, profit, payroll, and provider context.
+- [x] Verify focused billing tests, billing readiness, role verification, build, diff check, and browser QA.
+
 ## Completed / Frozen Systems
 
 - Demo auth and role permissions.
@@ -204,6 +216,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - Field Mode Finish mobile command layer that helps crews run the day from existing field tools without exposing office/money/growth data or hidden GPS.
 - Apex Agent Operator command layer that unifies the one product-facing Apex Agent across growth, sales, estimating, proposals, handoffs, closeout, billing readiness, reputation, Agent OS, and external-action locks.
 - Customer Portal + Communications command layer that ties customer-safe packet review, expiring/revocable access evidence, share approval decisions, comments, and human-reviewed email/SMS readiness into the existing Communication Center.
+- Billing / Payments / Packages command layer that ties package state, provider readiness, checkout/manual invoice lanes, billing candidates, receipts/failures, payment-link prep, and blocked money actions into Settings without live payment processing.
 
 ## Do-Not-Rebuild List
 
@@ -215,6 +228,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - Do not rebuild Field Mode; extend the existing field workspace, jobs, time, proof, report, ticket, checklist, safety, change request, and PWA surfaces.
 - Do not rebuild Apex Agent/AI Office/Agent OS; extend the existing operator command layer, action inbox, assistant shell, and locked external gates.
 - Do not rebuild Customer Portal + Communications; extend the existing Communication Center, customer portal preview/access/share approval contracts, public route lock, outbound approval, suppression, and delivery-attempt systems.
+- Do not rebuild package/entitlement readiness, support upgrade review, or Billing / Payments / Packages Command; extend the existing Settings command layer and server-side provider adapters when payment accounts are configured.
 - Do not rebuild role/permission models.
 - Do not replace existing AI Office; extend it.
 
@@ -226,7 +240,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | Meta Ads | Needs account/API key | Draft creative and channel recommendations only. |
 | Nextdoor/Yelp/Angi/HomeAdvisor-style marketplaces | Needs account/provider agreement | Track lead quality and marketplace fit manually until configured. |
 | Email/SMS provider | Needs account/API key | Drafts and approval queues only. No autonomous sends. |
-| Stripe/payment provider | Needs account/API key | Package readiness and payment prep only. No live payments. |
+| Stripe/payment provider | Needs account/API key | Billing / Payments / Packages Command is built provider-ready. No live checkout, payment links, invoices, receipts, failed-payment notices, self-serve package changes, or payment processing until provider setup, secrets, webhooks, tax/legal review, audit controls, and owner-controlled execution are finished. |
 | Customer portal live serving/link delivery | Needs tokenized route/provider | Internal command, packet preview, access records, share approvals, comments, preflight, and execution contracts are built. Public data serving, token redemption, customer actions, link delivery, and live email/SMS remain locked/provider-dependent. |
 
 ## Deploy Log
@@ -250,6 +264,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | 2026-05-30 | Apex Agent Operator | `cd38676` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `600` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
 | 2026-05-30 | Customer Portal + Communications | `9b9ea0c` pushed to `main` | Local QA at `http://127.0.0.1:4156` | Admin desktop `/communications` passed Customer Portal Command, Prepare access record, Provider readiness, and Locked outbound approval; employee mobile `/communications` redirected to `/jobs` with portal/communications/pricing hidden; local browser errors `[]`. |
 | 2026-05-30 | Customer Portal + Communications | `9b9ea0c` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `601` started in `sjc`; service check passing; `/api/ready` OK on both domains with database OK. |
+| 2026-05-30 | Billing / Payments / Packages | Pending commit | Local QA at `http://127.0.0.1:4162` | Admin desktop `/settings` passed Billing / Payments / Packages Command, provider readiness, blocked money actions, receipt/failure states, and no overflow/errors; employee mobile `/settings` redirected to `/jobs` with billing/payment/package command text hidden. |
 
 ## Roadmap Queue
 
@@ -268,7 +283,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ## Next Phase
 
-Billing / Payments / Packages after Customer Portal + Communications production deploy is recorded.
+Integrations after Billing / Payments / Packages production deploy is recorded.
 
 ## Decision Log
 
@@ -288,6 +303,82 @@ Billing / Payments / Packages after Customer Portal + Communications production 
 | 2026-05-30 | Field Mode Finish is a command/checklist layer over existing field tools, not a new field app or offline cache. | Field jobs, time, uploads, reports, tickets, checklists, safety, change requests, and PWA foundations already existed. | Crews now get a mobile Field Day Finish panel without exposing office/money/growth data, hidden GPS, or pretending offline drafts are done. |
 | 2026-05-30 | Apex Agent Operator is one command layer over existing AI Office and Agent OS, not a second assistant product. | Agent OS, Action Inbox, Growth Command Center, Estimate Studio, Operations Loop, closeout review, and Reputation Engine already existed. | Owner/admin users now see the finished Apex Agent loop while external actions remain locked/provider-ready and field users remain blocked. |
 | 2026-05-30 | Customer Portal + Communications lives in Communication Center instead of a separate app. | Contact history, provider readiness, suppressions, delivery-attempt contracts, and portal access/share approvals already existed there or adjacent to it. | Owner/admin users can review portal packets, approval decisions, comments, and send-readiness from one workflow while field users remain blocked and live portal/customer sends stay provider-dependent. |
+| 2026-05-30 | Billing / Payments / Packages lives in Settings Plan Readiness instead of a separate billing route. | Package readiness, support upgrade review, audit activity, and owner/admin setup already lived in Settings. | Owner/admin users get one billing command surface while field users remain blocked and live payment processing stays provider-dependent. |
+
+## Billing / Payments / Packages Phase Report
+
+Goal: make packages, billing readiness, payment provider setup, checkout/manual invoice prep, receipts, failed-payment states, and contractor payment workflows visible to owner/admin users without enabling live money movement.
+
+What was already built:
+
+- Package definitions, package hierarchy, package entitlements, Plan Readiness panel, support upgrade review packet, audit events, and closeout billing review/job costing prep.
+
+What was completed now:
+
+- Added `deriveBillingPaymentsCommandState` for owner/admin billing command state.
+- Added Billing / Payments / Packages Command to Settings Plan Readiness.
+- Added provider-ready lanes for package/subscription, payment provider health, checkout, manual invoice workflow, receipts, and failed payments.
+- Added billing-ready job candidate review with estimate plus recognized change-order totals.
+- Added package/billing audit review, receipt/failure states, and blocked money action list.
+- Updated package readiness to provider-ready language while keeping live processing and self-serve package changes disabled.
+
+Provider/account-dependent remaining:
+
+- Stripe or chosen payment provider account/API keys, webhook signing secret, tax/legal/accounting review, live checkout, customer/subscription model, real invoices/receipts, payment links, payment failure handling, and self-serve package changes.
+
+Affected files:
+
+- `docs/APEX_HQ_LIVING_FINISH_PLAN.md`
+- `scripts/package-billing-readiness.mjs`
+- `shared/packages.js`
+- `shared/packages.test.js`
+- `src/App.jsx`
+- `src/billing-payments-command-utils.js`
+- `src/billing-payments-command-utils.test.js`
+- `src/settings-route-components.jsx`
+
+Validation results:
+
+- `node --test --test-concurrency=1 src/billing-payments-command-utils.test.js shared/packages.test.js scripts/package-billing-readiness.test.mjs src/settings-route-components-import.test.js` passed.
+- `npm.cmd run verify:billing-readiness` passed.
+- `npm.cmd run verify:roles` passed.
+- `npm.cmd run build` passed with existing large chunk warnings.
+- `git diff --check` passed.
+
+Browser QA:
+
+- Admin desktop `/settings`: Billing / Payments / Packages Command, provider readiness, blocked money actions, receipt/failure states, and no-overflow/no-error checks passed.
+- Employee mobile `/settings`: redirected to `/jobs`; billing/payment/package command text hidden; no overflow/errors.
+
+Permissions impact:
+
+- No permission loosening.
+- Billing command requires owner/admin role plus Settings visibility.
+- No frontend secrets, package mutations, checkout sessions, invoices, payment links, charges, receipts, failed-payment notices, or self-serve plan changes were added.
+
+Field-user impact:
+
+- Field users remain blocked from billing, packages, payment providers, invoices, payment links, receipts, failed payments, margins, profit, payroll, and admin settings.
+
+Mobile impact:
+
+- Employee mobile restricted-route behavior verified. Owner/admin desktop command layer verified.
+
+Deploy version:
+
+- Pending production deploy.
+
+Health check:
+
+- Pending production health check.
+
+Rollback note:
+
+- Revert the affected files above to remove the Billing / Payments / Packages Command and restore prior manual package readiness language without schema changes or payment-provider data changes.
+
+Next recommended phase:
+
+- Integrations.
 
 ## Growth Foundation Phase Report
 

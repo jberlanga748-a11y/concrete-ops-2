@@ -27,6 +27,7 @@ import {
   deriveApexAssistantShellState,
 } from "./apex-assistant-shell-utils";
 import { deriveApexAgentOperatorState } from "./apex-agent-operator-utils";
+import { deriveBillingPaymentsCommandState } from "./billing-payments-command-utils";
 import { buildAgentActionProposalReviewAuditPayload, deriveAgentActionInbox, deriveAgentActionProposalAuditHistory, deriveAgentActionProposalQueue, deriveAgentActionProposalReviewState } from "./agent-action-proposal-utils";
 import {
   canRenderAgentOsConsole,
@@ -7368,6 +7369,16 @@ function SettingsPagePolished({
     jobs,
   }), [jobs, leadSources, safeCompanySettings, users]);
   const packageReadiness = useMemo(() => packageReadinessSummary(safeCompanySettings.packageId), [safeCompanySettings.packageId]);
+  const billingPaymentsCommandState = useMemo(() => deriveBillingPaymentsCommandState({
+    companySettings: safeCompanySettings,
+    packageReadiness,
+    auditEvents,
+    jobs,
+    estimates,
+    changeOrderRequests,
+    permissions: safePermissions,
+    user,
+  }), [auditEvents, changeOrderRequests, estimates, jobs, packageReadiness, safeCompanySettings, safePermissions, user]);
   const tradeSetupState = useMemo(() => deriveConstructionTradeSetupState({
     ...safeCompanySettings,
     primaryTrade: profileDraft.primaryTrade || safeCompanySettings.primaryTrade,
@@ -7543,15 +7554,15 @@ function SettingsPagePolished({
       id: "settings-plan-readiness",
       sectionId: "settings-plan-readiness",
       eyebrow: "Package",
-      title: "Plan and package readiness",
+      title: "Billing, payments, and packages",
       meta: `${packageReadiness.currentPackage.label} / ${packageReadiness.billingStatus}`,
-      status: "Manual review",
-      statusLabel: "Waiting",
-      tone: "orange",
+      status: billingPaymentsCommandState.providerState?.status || "Provider-ready",
+      statusLabel: billingPaymentsCommandState.providerState?.configured ? "Ready" : "Waiting",
+      tone: billingPaymentsCommandState.providerState?.configured ? "blue" : "orange",
       actionLabel: "Review",
       badges: [
         { label: packageReadiness.currentPackage.label, tone: "blue" },
-        { label: "Manual billing", tone: "amber" },
+        { label: billingPaymentsCommandState.providerState?.status || "Provider-ready", tone: billingPaymentsCommandState.providerState?.tone || "amber" },
       ],
     },
     {
@@ -7838,13 +7849,13 @@ function SettingsPagePolished({
           <details id="settings-plan-readiness" className="co-settings-tools-drawer">
             <summary>
               <span>
-                <strong>Plan / Package Readiness</strong>
-                <em>Review the current package, gated surfaces, and manual billing state before Stripe or self-serve upgrades are built.</em>
+                <strong>Billing / Payments / Packages</strong>
+                <em>Review packages, provider readiness, checkout, invoices, receipts, failed payments, and payment-link prep without live money movement.</em>
               </span>
-              <span>{packageReadiness.currentPackage.label} / Manual</span>
+              <span>{packageReadiness.currentPackage.label} / {billingPaymentsCommandState.providerState?.status || "Provider-ready"}</span>
             </summary>
             <div className="co-settings-tools-panel grid gap-3">
-              <PlanReadinessPanel packageReadiness={packageReadiness} onOpenSupport={canViewSupport && canRequestPackageReview(user) ? onOpenSupport : null} />
+              <PlanReadinessPanel packageReadiness={packageReadiness} billingCommand={billingPaymentsCommandState} onOpenSupport={canViewSupport && canRequestPackageReview(user) ? onOpenSupport : null} />
             </div>
           </details>
 

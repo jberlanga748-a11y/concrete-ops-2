@@ -87,8 +87,8 @@ test("package readiness summary supports manual billing prep without hiding secu
 
   assert.equal(basicReadiness.currentPackage.id, PACKAGE_IDS.BASIC);
   assert.equal(basicReadiness.nextPackage.id, PACKAGE_IDS.PREMIUM);
-  assert.equal(basicReadiness.billingMode, "manual");
-  assert.match(basicReadiness.billingDescription, /Stripe billing/i);
+  assert.equal(basicReadiness.billingMode, "provider_ready");
+  assert.match(basicReadiness.billingDescription, /live payment processing/i);
   assert.equal(basicReadiness.securityFeatures.length, SECURITY_FEATURES.length);
   assert.equal(basicReadiness.securityFeatures.every((feature) => feature.security), true);
   assert.equal(basicReadiness.includedFeatures.some((feature) => feature.key === FEATURE_KEYS.COMPANY_ISOLATION), true);

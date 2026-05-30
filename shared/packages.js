@@ -232,8 +232,8 @@ export function packageReadinessSummary(packageId = DEFAULT_PACKAGE_ID) {
     includedFeatures: currentFeatures.map(featureDetail),
     upgradeFeatures: upgradeFeatures.map(featureDetail),
     lockedFutureFeatures: lockedFutureFeatures.map(featureDetail),
-    billingMode: "manual",
-    billingStatus: "Manual billing only",
-    billingDescription: "Stripe billing and self-serve plan changes are not enabled yet. Package changes should stay founder/operator-approved until billing is built.",
+    billingMode: "provider_ready",
+    billingStatus: "Provider-ready billing",
+    billingDescription: "Stripe or a chosen payment provider can be connected through owner/admin billing readiness, but live payment processing and self-serve plan changes are not enabled until provider setup, secrets, webhooks, tax/legal review, and audit controls are complete.",
   };
 }
