@@ -4,7 +4,7 @@ Last updated: 2026-05-30
 
 ## Current Phase
 
-Apex Agent Operator is completed locally and ready for production deploy under the standing release approval. Next phase is Customer Portal + Communications after deploy and health-check are recorded.
+Apex Agent Operator is completed, pushed, and deployed to production under the standing release approval. Next phase is Customer Portal + Communications.
 
 ## Product North Star
 
@@ -172,7 +172,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 - [x] Keep field users blocked from Apex Agent Operator, AI Office, office commands, growth, estimates, money, settings, and other private office controls.
 - [x] Add mobile-safe command layout for admin/owner AI Office without overflow.
 - [x] Verify focused operator tests, Agent OS console smoke, jobs verification, role verification, build, diff check, and browser QA.
-- [ ] Commit, push, deploy, hosted health-check, and record production deploy.
+- [x] Commit, push, deploy, hosted health-check, and record production deploy.
 
 ## Completed / Frozen Systems
 
@@ -231,7 +231,8 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | 2026-05-30 | Core Operations Loop | `08a4864` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `598` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
 | 2026-05-30 | Field Mode Finish | `27a2725` pushed to `main` | Local QA at `http://127.0.0.1:4142` | Employee mobile `/field` passed Field Day Finish with no office/money/growth terms; foreman mobile `/field` passed daily report/change request; employee direct `/command-center` redirected to `/jobs`; local browser errors `[]`. |
 | 2026-05-30 | Field Mode Finish | `27a2725` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `599` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
-| 2026-05-30 | Apex Agent Operator | Pending commit | Local QA at `http://127.0.0.1:4148` | Owner/admin desktop `/ai-office` passed all 9 Apex Agent Operator commands; admin mobile `/ai-office` passed compact operator layout with no overflow; employee mobile `/ai-office` redirected to `/jobs` with operator/ads/billing text hidden; local browser errors `[]`. |
+| 2026-05-30 | Apex Agent Operator | `cd38676` pushed to `main` | Local QA at `http://127.0.0.1:4148` | Owner/admin desktop `/ai-office` passed all 9 Apex Agent Operator commands; admin mobile `/ai-office` passed compact operator layout with no overflow; employee mobile `/ai-office` redirected to `/jobs` with operator/ads/billing text hidden; local browser errors `[]`. |
+| 2026-05-30 | Apex Agent Operator | `cd38676` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `600` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
 
 ## Roadmap Queue
 
