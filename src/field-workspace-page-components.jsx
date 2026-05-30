@@ -896,6 +896,7 @@ function FieldWorkspacePagePolished({
   dailyReports,
   uploads,
   deliveryTickets,
+  changeOrderRequests,
   safetyIncidents,
   toolChecklists,
 }) {
@@ -918,10 +919,11 @@ function FieldWorkspacePagePolished({
     dailyReports,
     uploads,
     deliveryTickets,
+    changeOrderRequests,
     safetyIncidents,
     toolChecklists,
     pwaInstallReady: true,
-  }), [dailyReports, deliveryTickets, focusJob, permissions, priorityJob, role, safetyIncidents, timeWorkspace, toolChecklists, uploads, workspace]);
+  }), [changeOrderRequests, dailyReports, deliveryTickets, focusJob, permissions, priorityJob, role, safetyIncidents, timeWorkspace, toolChecklists, uploads, workspace]);
 
   return (
     <FieldMobileJobsLayout role={role}>
@@ -1089,7 +1091,7 @@ function deriveFieldWorkspaceFocusJob(workspace, selectedJobId, selectedJob, { i
   return workspace?.nextAssignedJob || workspace?.primaryJob || allowedJobs[0] || null;
 }
 
-export function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selectedJob, onJobFieldChange, onAcknowledgeAssignmentNotice, busy, permissions, setActive, timeEntries, dailyReports, uploads, deliveryTickets, prePourChecklists, postPourChecklists, safetyIncidents, toolChecklists, currentCompanyId, onClockIn, onClockOut, onStartBreak, onEndBreak }) {
+export function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selectedJob, onJobFieldChange, onAcknowledgeAssignmentNotice, busy, permissions, setActive, timeEntries, dailyReports, uploads, deliveryTickets, changeOrderRequests, prePourChecklists, postPourChecklists, safetyIncidents, toolChecklists, currentCompanyId, onClockIn, onClockOut, onStartBreak, onEndBreak }) {
   const safeRows = Array.isArray(rows) ? rows : [];
   const workspace = useMemo(() => deriveForemanWorkspace(safeRows, user?.id), [safeRows, user?.id]);
   const fieldJobs = useMemo(() => fieldWorkspaceJobList(workspace, { includeUpcoming: true }), [workspace]);
@@ -1132,13 +1134,14 @@ export function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, s
       dailyReports={dailyReports}
       uploads={uploads}
       deliveryTickets={deliveryTickets}
+      changeOrderRequests={changeOrderRequests}
       safetyIncidents={safetyIncidents}
       toolChecklists={toolChecklists}
     />
   );
 }
 
-export function EmployeeWorkspacePage({ rows, user, selectedJobId, onSelectJob, selectedJob, permissions, setActive, timeEntries, dailyReports, uploads, deliveryTickets, prePourChecklists, postPourChecklists, safetyIncidents, toolChecklists, currentCompanyId, onClockIn, onClockOut, onStartBreak, onEndBreak, onAcknowledgeAssignmentNotice, busy }) {
+export function EmployeeWorkspacePage({ rows, user, selectedJobId, onSelectJob, selectedJob, permissions, setActive, timeEntries, dailyReports, uploads, deliveryTickets, changeOrderRequests, prePourChecklists, postPourChecklists, safetyIncidents, toolChecklists, currentCompanyId, onClockIn, onClockOut, onStartBreak, onEndBreak, onAcknowledgeAssignmentNotice, busy }) {
   const safeRows = Array.isArray(rows) ? rows : [];
   const workspace = useMemo(() => deriveEmployeeWorkspace(safeRows, user?.id), [safeRows, user?.id]);
   const fallbackJob = useMemo(() => deriveFieldWorkspaceFocusJob(workspace, selectedJobId, selectedJob), [selectedJob, selectedJobId, workspace]);
@@ -1180,6 +1183,7 @@ export function EmployeeWorkspacePage({ rows, user, selectedJobId, onSelectJob, 
       dailyReports={dailyReports}
       uploads={uploads}
       deliveryTickets={deliveryTickets}
+      changeOrderRequests={changeOrderRequests}
       safetyIncidents={safetyIncidents}
       toolChecklists={toolChecklists}
     />

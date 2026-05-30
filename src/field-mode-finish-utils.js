@@ -25,7 +25,21 @@ function isOpenSafetyIncident(incident = {}) {
   return !/(closed|resolved|reviewed|archived)/.test(status);
 }
 
-function buildItem({ id, label, status, helper, moduleId, actionLabel, ready = false, enabled = true, tone = "" }) {
+function isSubmittedDailyReport(report = {}) {
+  return /^(submitted|reviewed)$/i.test(text(report.status || "draft"));
+}
+
+function isOpenChangeRequest(request = {}) {
+  const status = text(request.status || "requested").toLowerCase();
+  return !request.archivedAt && !/(rejected|archived)/.test(status);
+}
+
+function timeEntryMatchesJob(entry = {}, jobId = "") {
+  if (!entry || !jobId) return false;
+  return text(entry.jobId || entry.linkedJobId || entry.job?.id) === jobId;
+}
+
+function buildItem({ id, label, status, helper, moduleId, actionLabel, ready = false, enabled = true, tone = "", phase = "" }) {
   return {
     id,
     label,
@@ -36,6 +50,7 @@ function buildItem({ id, label, status, helper, moduleId, actionLabel, ready = f
     ready: Boolean(ready),
     enabled: Boolean(enabled),
     tone: tone || (ready ? "green" : "amber"),
+    phase: phase || "execution",
   };
 }
 
@@ -51,16 +66,27 @@ export function deriveFieldModeFinishState(source = {}, options = {}) {
   const activeEntry = timeWorkspace.activeEntry || null;
   const jobReports = asArray(source.dailyReports).filter((report) => sameJob(report, jobId));
   const todayReports = jobReports.filter((report) => dateKey(report.reportDate || report.createdAt || report.updatedAt) === today);
+  const submittedTodayReports = todayReports.filter(isSubmittedDailyReport);
   const jobUploads = asArray(source.uploads).filter((upload) => sameJob(upload, jobId));
   const todayUploads = jobUploads.filter((upload) => dateKey(upload.takenAt || upload.uploadedAt || upload.createdAt) === today);
   const jobTickets = asArray(source.deliveryTickets).filter((ticket) => sameJob(ticket, jobId));
   const todayTickets = jobTickets.filter((ticket) => dateKey(ticket.deliveredAt || ticket.ticketDate || ticket.createdAt) === today);
   const jobSafetyIncidents = asArray(source.safetyIncidents).filter((incident) => sameJob(incident, jobId) && isOpenSafetyIncident(incident));
   const jobToolChecklists = asArray(source.toolChecklists).filter((checklist) => sameJob(checklist, jobId));
+  const openToolChecklists = jobToolChecklists.filter(fieldChecklistNeedsAction);
+  const jobChangeRequests = asArray(source.changeOrderRequests).filter((request) => sameJob(request, jobId));
+  const openChangeRequests = jobChangeRequests.filter(isOpenChangeRequest);
   const notices = asArray(workspace.assignmentNotices);
   const prePourPending = permissions?.prePour?.canView && fieldChecklistNeedsAction(primaryJob?.prePourChecklist);
   const postPourPending = permissions?.postPour?.canView && fieldChecklistNeedsAction(primaryJob?.postPourChecklist);
   const toolChecklistReady = permissions?.toolChecklist?.canUse && jobToolChecklists.length > 0;
+  const hasActiveJobClock = timeEntryMatchesJob(activeEntry, jobId);
+  const reportReadyForHandoff = !isForeman || submittedTodayReports.length > 0;
+  const proofReadyForHandoff = todayUploads.length > 0 || jobUploads.length > 0;
+  const checklistsReadyForHandoff = !prePourPending && !postPourPending && openToolChecklists.length === 0;
+  const checklistHandoffModule = prePourPending ? "prePour" : postPourPending ? "postPour" : "toolChecklist";
+  const safetyReadyForHandoff = jobSafetyIncidents.length === 0;
+  const endOfDayReady = Boolean(primaryJob && !activeEntry && proofReadyForHandoff && reportReadyForHandoff && checklistsReadyForHandoff && safetyReadyForHandoff);
   const hasPwaInstallPath = source.pwaInstallReady !== false;
   const pwaInstallHelper = hasPwaInstallPath
     ? "Install from the browser menu for faster field access. Live records still need connection."
@@ -76,6 +102,25 @@ export function deriveFieldModeFinishState(source = {}, options = {}) {
       actionLabel: primaryJob ? "Open job" : "Check jobs",
       ready: Boolean(primaryJob),
       tone: primaryJob ? "green" : "amber",
+      phase: "assignment",
+    }),
+    buildItem({
+      id: "arrival_start",
+      label: "Arrival / start",
+      status: !primaryJob ? "Needs assignment" : notices.length ? "Notice first" : hasActiveJobClock ? "Started" : "Ready to start",
+      helper: !primaryJob
+        ? "Open assigned jobs or contact office if work is missing."
+        : notices.length
+          ? "Acknowledge the assignment before starting field work."
+          : hasActiveJobClock
+            ? "Clock is running for the selected job."
+            : "Confirm address, then start job time when work begins.",
+      moduleId: notices.length ? "jobs" : "time",
+      actionLabel: notices.length ? "Review notice" : hasActiveJobClock ? "Open time" : "Start time",
+      ready: Boolean(primaryJob && !notices.length && hasActiveJobClock),
+      enabled: Boolean(permissions?.time?.canView || primaryJob),
+      tone: primaryJob && !notices.length && hasActiveJobClock ? "green" : "orange",
+      phase: "arrival",
     }),
     buildItem({
       id: "clock_time",
@@ -87,6 +132,7 @@ export function deriveFieldModeFinishState(source = {}, options = {}) {
       ready: Boolean(activeEntry),
       enabled: Boolean(permissions?.time?.canView),
       tone: activeEntry ? "green" : "orange",
+      phase: "execution",
     }),
     notices.length ? buildItem({
       id: "assignment_notice",
@@ -97,6 +143,7 @@ export function deriveFieldModeFinishState(source = {}, options = {}) {
       actionLabel: "Review notice",
       ready: false,
       tone: "amber",
+      phase: "arrival",
     }) : null,
     permissions?.uploads?.canView ? buildItem({
       id: "photos_proof",
@@ -107,16 +154,18 @@ export function deriveFieldModeFinishState(source = {}, options = {}) {
       actionLabel: "Upload photos",
       ready: todayUploads.length > 0 || jobUploads.length > 0,
       tone: todayUploads.length || jobUploads.length ? "green" : "amber",
+      phase: "proof",
     }) : null,
     isForeman && permissions?.reports?.canView ? buildItem({
       id: "daily_report",
       label: "Daily report",
-      status: todayReports.length ? "Started today" : "Needs report",
-      helper: todayReports.length ? "A daily report exists for this job today." : "Open reports for labor, weather, progress, and blockers.",
+      status: submittedTodayReports.length ? "Submitted today" : todayReports.length ? "Draft today" : "Needs report",
+      helper: submittedTodayReports.length ? "Daily report is ready for office review." : todayReports.length ? "Finish and submit the daily report before handoff." : "Open reports for labor, weather, progress, and blockers.",
       moduleId: "reports",
       actionLabel: "Open report",
-      ready: todayReports.length > 0,
-      tone: todayReports.length ? "green" : "amber",
+      ready: submittedTodayReports.length > 0,
+      tone: submittedTodayReports.length ? "green" : "amber",
+      phase: "report",
     }) : null,
     permissions?.deliveryTickets?.canView ? buildItem({
       id: "delivery_tickets",
@@ -127,16 +176,18 @@ export function deriveFieldModeFinishState(source = {}, options = {}) {
       actionLabel: "Open tickets",
       ready: todayTickets.length > 0 || jobTickets.length > 0,
       tone: todayTickets.length || jobTickets.length ? "green" : "slate",
+      phase: "proof",
     }) : null,
     prePourPending || postPourPending || permissions?.toolChecklist?.canUse ? buildItem({
       id: "checklists",
-      label: "Checklists",
-      status: prePourPending ? fieldChecklistSummary(primaryJob?.prePourChecklist) : postPourPending ? fieldChecklistSummary(primaryJob?.postPourChecklist) : toolChecklistReady ? "Tool list ready" : "Ready",
-      helper: prePourPending ? "Pre-pour still needs field action." : postPourPending ? "Post-pour still needs field action." : "Use tool/PPE/checklist workflows for safe closeout.",
+      label: "Tickets / checklists",
+      status: prePourPending ? fieldChecklistSummary(primaryJob?.prePourChecklist) : postPourPending ? fieldChecklistSummary(primaryJob?.postPourChecklist) : openToolChecklists.length ? `${openToolChecklists.length} tool list open` : toolChecklistReady ? "Tool list ready" : "Ready",
+      helper: prePourPending ? "Pre-pour still needs field action." : postPourPending ? "Post-pour still needs field action." : openToolChecklists.length ? "Finish open tool checklist items before handoff." : "Use ticket, pour, and tool workflows for clean handoff.",
       moduleId: prePourPending ? "prePour" : postPourPending ? "postPour" : "toolChecklist",
       actionLabel: "Open checklist",
-      ready: !prePourPending && !postPourPending,
-      tone: prePourPending || postPourPending ? "amber" : "green",
+      ready: !prePourPending && !postPourPending && openToolChecklists.length === 0,
+      tone: prePourPending || postPourPending || openToolChecklists.length ? "amber" : "green",
+      phase: "checklist",
     }) : null,
     permissions?.safety?.canView ? buildItem({
       id: "safety",
@@ -147,17 +198,43 @@ export function deriveFieldModeFinishState(source = {}, options = {}) {
       actionLabel: jobSafetyIncidents.length ? "Open incidents" : "Open PPE",
       ready: jobSafetyIncidents.length === 0,
       tone: jobSafetyIncidents.length ? "amber" : "green",
+      phase: "safety",
     }) : null,
     isForeman && (permissions?.changeOrders?.canRequest || permissions?.changeOrders?.canManage) ? buildItem({
       id: "change_request",
       label: "Change request",
-      status: "Available",
-      helper: "Request scope changes from the field for office review before any outside action.",
+      status: openChangeRequests.length ? `${openChangeRequests.length} in review` : "Available",
+      helper: openChangeRequests.length ? "Field change request is documented for office review." : "Capture extra work from the field for office review before outside action.",
       moduleId: "changeOrders",
       actionLabel: "Open changes",
       ready: true,
       tone: "slate",
+      phase: "handoff",
     }) : null,
+    buildItem({
+      id: "end_of_day_handoff",
+      label: "End-of-day handoff",
+      status: endOfDayReady ? "Ready" : "Needs wrap-up",
+      helper: endOfDayReady
+        ? "Proof, reports, safety, checklists, and time are clear for review."
+        : activeEntry
+          ? "Clock out when the field day is done."
+          : !proofReadyForHandoff
+            ? "Add job proof before leaving the day open."
+            : !reportReadyForHandoff
+              ? "Submit the daily report for review."
+              : !checklistsReadyForHandoff
+                ? "Finish open checklist items."
+                : !safetyReadyForHandoff
+                  ? "Document safety follow-up before handoff."
+                  : "Review the assigned job before handoff.",
+      moduleId: activeEntry ? "time" : !proofReadyForHandoff ? "uploads" : !reportReadyForHandoff ? "reports" : !checklistsReadyForHandoff ? checklistHandoffModule : !safetyReadyForHandoff ? "incidents" : "jobs",
+      actionLabel: endOfDayReady ? "Review job" : "Finish item",
+      ready: endOfDayReady,
+      enabled: Boolean(primaryJob),
+      tone: endOfDayReady ? "green" : "amber",
+      phase: "handoff",
+    }),
     buildItem({
       id: "pwa_install",
       label: "Install / offline",
@@ -167,6 +244,7 @@ export function deriveFieldModeFinishState(source = {}, options = {}) {
       actionLabel: "Open help",
       ready: hasPwaInstallPath,
       tone: hasPwaInstallPath ? "blue" : "amber",
+      phase: "access",
     }),
   ].filter(Boolean);
 
@@ -179,7 +257,7 @@ export function deriveFieldModeFinishState(source = {}, options = {}) {
     mode: "field_mode_finish",
     role,
     canView: true,
-    title: "Field Day Finish",
+    title: "Field Execution Finish",
     status: blockerCount ? "Needs field action" : "Field-ready",
     tone: blockerCount ? "amber" : "green",
     summary: primaryJob
@@ -197,7 +275,9 @@ export function deriveFieldModeFinishState(source = {}, options = {}) {
       todayReports: todayReports.length,
       todayTickets: todayTickets.length,
       openSafetyIncidents: jobSafetyIncidents.length,
+      openChangeRequests: openChangeRequests.length,
+      endOfDayReady: endOfDayReady ? 1 : 0,
     },
-    safetyBoundary: "Field Mode only shows assigned field-safe job context. Office money, growth, setup, automation, and private notes stay out of the crew workspace. GPS is optional and user-tapped only.",
+    safetyBoundary: "Field Mode only shows assigned field-safe job context. Private business context, automation controls, and confidential notes stay out of the crew workspace. GPS is optional and user-tapped only.",
   };
 }

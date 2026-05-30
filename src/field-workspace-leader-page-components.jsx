@@ -33,6 +33,7 @@ export function FieldWorkspaceLeaderPage({
   dailyReports,
   uploads,
   deliveryTickets,
+  changeOrderRequests,
   prePourChecklists,
   postPourChecklists,
   safetyIncidents,
@@ -64,6 +65,7 @@ export function FieldWorkspaceLeaderPage({
         dailyReports={dailyReports}
         uploads={uploads}
         deliveryTickets={deliveryTickets}
+        changeOrderRequests={changeOrderRequests}
         prePourChecklists={prePourChecklists}
         postPourChecklists={postPourChecklists}
         safetyIncidents={safetyIncidents}
@@ -92,6 +94,7 @@ export function FieldWorkspaceLeaderPage({
         dailyReports={dailyReports}
         uploads={uploads}
         deliveryTickets={deliveryTickets}
+        changeOrderRequests={changeOrderRequests}
         prePourChecklists={prePourChecklists}
         postPourChecklists={postPourChecklists}
         safetyIncidents={safetyIncidents}
