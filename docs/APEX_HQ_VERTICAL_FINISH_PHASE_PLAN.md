@@ -2,6 +2,10 @@
 
 Last updated: 2026-05-30
 
+Status: superseded by `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md`.
+
+Use the tool completion blueprint first. This file is kept as a historical correction note, but it was still too workflow-order-first. The active plan must inventory every tool, define its finish line, assign a finish phase, and freeze it after completion.
+
 Purpose: replace slice-based roadmap work with complete contractor workflow phases. A phase is not finished because a readiness panel exists. A phase is finished only when a contractor can complete that whole workflow start to finish in Apex HQ, role-safe, tested, deployed, and frozen.
 
 ## New Phase Rule

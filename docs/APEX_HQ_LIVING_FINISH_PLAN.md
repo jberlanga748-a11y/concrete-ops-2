@@ -4,7 +4,7 @@ Last updated: 2026-05-30
 
 ## Current Phase
 
-Integrations is completed, pushed, and deployed to production under the standing release approval. The phase model has been corrected: future phases must finish complete contractor workflows start-to-finish, then freeze them. Current source for the corrected vertical plan is `docs/APEX_HQ_VERTICAL_FINISH_PHASE_PLAN.md`.
+Integrations is completed, pushed, and deployed to production under the standing release approval. The phase model has been corrected again: future work must start from the tool-by-tool completion blueprint, not a guessed phase order. Active source: `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md`.
 
 ## Product North Star
 
@@ -54,8 +54,8 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 - Keep building the finished roadmap, not only pilot slices.
 - No looped rebuilds.
-- Use `docs/APEX_HQ_VERTICAL_FINISH_PHASE_PLAN.md` as the corrected workflow-first phase plan.
-- Break every tool into complete start-to-finish phases, finish one workflow, then freeze it.
+- Use `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` as the active tool-by-tool finish source of truth.
+- Break every tool into complete start-to-finish phases, finish the assigned tool cluster, then freeze those tools.
 - Owner/admin must be able to see how Apex HQ helps find new clients.
 - Add ads planning so Apex Agent helps contractors decide where to spend and what limits to use.
 - Keep provider/account-dependent systems visible and buildable, but do not allow real spend/sends/payments without provider setup and explicit owner action inside that workflow.
@@ -64,7 +64,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ### Next
 
-- Phase 1: Time To Payroll Prep from `docs/APEX_HQ_VERTICAL_FINISH_PHASE_PLAN.md`.
+- Confirm/use `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md`, then finish Phase 1: Admin Foundation Finish unless payroll urgency overrides order.
 
 ### Later
 
@@ -308,7 +308,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ## Next Phase
 
-Phase 1: Time To Payroll Prep. Time tracking exists, but payroll prep/export is not finished and live payroll processing must stay out of scope.
+Use `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` as the active blueprint. Recommended next build phase is Admin Foundation Finish; if payroll urgency overrides order, move Payroll Prep Finish earlier while keeping live payroll processing out of scope.
 
 ## Decision Log
 
@@ -330,7 +330,7 @@ Phase 1: Time To Payroll Prep. Time tracking exists, but payroll prep/export is 
 | 2026-05-30 | Customer Portal + Communications lives in Communication Center instead of a separate app. | Contact history, provider readiness, suppressions, delivery-attempt contracts, and portal access/share approvals already existed there or adjacent to it. | Owner/admin users can review portal packets, approval decisions, comments, and send-readiness from one workflow while field users remain blocked and live portal/customer sends stay provider-dependent. |
 | 2026-05-30 | Billing / Payments / Packages lives in Settings Plan Readiness instead of a separate billing route. | Package readiness, support upgrade review, audit activity, and owner/admin setup already lived in Settings. | Owner/admin users get one billing command surface while field users remain blocked and live payment processing stays provider-dependent. |
 | 2026-05-30 | Integrations lives in Settings with the Agent OS integration write gate still locked. | Provider/account setup, API keys, OAuth, health, disabled states, audit, and disconnect controls are owner/admin setup work; existing inbound contracts and Agent OS already provide the safe boundaries. | Owner/admin users get a provider-ready Integrations Command while live provider writes, secrets, sends, ads, payments, calendar/file mutations, hidden GPS, and field-user exposure remain blocked. |
-| 2026-05-30 | Replace slice-based roadmap execution with vertical finish phases. | The owner wants each phase to finish a whole contractor workflow start-to-finish and then freeze it, not spread small readiness slices across every tool. | `docs/APEX_HQ_VERTICAL_FINISH_PHASE_PLAN.md` is the corrected plan. Next recommended phase is Time To Payroll Prep, not generic public launch hardening. |
+| 2026-05-30 | Replace slice-based roadmap execution with tool-by-tool completion blueprint. | The owner wants employee-owned product completion: every app tool inventoried, finish line defined, assigned to a phase, then frozen. The prior vertical plan was still too phase-order-first. | `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` is the active plan. `docs/APEX_HQ_VERTICAL_FINISH_PHASE_PLAN.md` is superseded/historical. |
 
 ## Billing / Payments / Packages Phase Report
 
