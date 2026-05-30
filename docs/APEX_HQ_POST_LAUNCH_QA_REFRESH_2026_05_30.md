@@ -41,6 +41,14 @@ The expected unauthenticated `/api/bootstrap` 401 was seen on each public shell 
 
 Authenticated foreman production browser QA was not completed in this local pass. The current shell does not have `APEX_PRODUCTION_SMOKE_PASSWORD`, and the existing GitHub production auth smoke workflow covers admin and employee smoke users only. Foreman-specific authenticated production visual QA should be added to the production smoke path or run locally once an approved foreman smoke credential path exists.
 
+## Foreman Smoke Follow-Up
+
+2026-05-30 follow-up: foreman coverage was added to the hosted smoke script and the approved production auth smoke workflow in commit `cfa5554`. The workflow was dispatched once as GitHub Actions run `26690964233`.
+
+Result: health/route smoke passed, but the auth step failed at foreman login with `foreman login expected 2xx, received HTTP 401`. This confirms the smoke path is wired, but production does not currently have a usable `smoke.foreman@apexhq.app` login with the configured production smoke secret.
+
+No production users, passwords, roles, secrets, or app data were created or changed during this follow-up. Creating or rotating a dedicated production foreman smoke user remains an explicit production-data/secret approval step.
+
 ## Issues Found
 
 No P0/P1 production blockers were found in this pass.
