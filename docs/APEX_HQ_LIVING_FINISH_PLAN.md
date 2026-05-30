@@ -4,7 +4,7 @@ Last updated: 2026-05-30
 
 ## Current Phase
 
-Customer Portal + Communications is implemented and locally verified. Commit, push, production deploy, hosted health check, and deploy-log update are in progress under the standing release approval. Next phase is Billing / Payments / Packages.
+Customer Portal + Communications is completed, pushed, and deployed to production under the standing release approval. Next phase is Billing / Payments / Packages.
 
 ## Product North Star
 
@@ -248,6 +248,8 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 | 2026-05-30 | Field Mode Finish | `27a2725` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `599` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
 | 2026-05-30 | Apex Agent Operator | `cd38676` pushed to `main` | Local QA at `http://127.0.0.1:4148` | Owner/admin desktop `/ai-office` passed all 9 Apex Agent Operator commands; admin mobile `/ai-office` passed compact operator layout with no overflow; employee mobile `/ai-office` redirected to `/jobs` with operator/ads/billing text hidden; local browser errors `[]`. |
 | 2026-05-30 | Apex Agent Operator | `cd38676` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `600` started in `sjc`; 1 check passing; `/api/ready` OK on both domains with database OK. |
+| 2026-05-30 | Customer Portal + Communications | `9b9ea0c` pushed to `main` | Local QA at `http://127.0.0.1:4156` | Admin desktop `/communications` passed Customer Portal Command, Prepare access record, Provider readiness, and Locked outbound approval; employee mobile `/communications` redirected to `/jobs` with portal/communications/pricing hidden; local browser errors `[]`. |
+| 2026-05-30 | Customer Portal + Communications | `9b9ea0c` deployed from `main` | Production Fly app `concrete-ops-2`; `https://app.apexhq.online/` and `https://concrete-ops-2.fly.dev/` | Fly machine `148e06e2b53d68` version `601` started in `sjc`; service check passing; `/api/ready` OK on both domains with database OK. |
 
 ## Roadmap Queue
 
@@ -897,11 +899,13 @@ Mobile impact:
 
 Deploy version:
 
-- Pending production deploy.
+- `9b9ea0c` deployed to Fly machine `148e06e2b53d68` version `601`.
 
 Health check:
 
-- Pending production `/api/ready` after deploy.
+- `https://app.apexhq.online/api/ready` OK.
+- `https://concrete-ops-2.fly.dev/api/ready` OK.
+- Fly service check `servicecheck-00-http-4000` passing.
 
 Rollback note:
 
