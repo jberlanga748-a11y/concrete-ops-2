@@ -11,7 +11,7 @@ import { calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEst
 import { addEstimateLineItemStarter, applyEstimateTemplateStarter, buildEstimateLineItemsFromRoughNotes, getEstimateLineItemStartersForTrade, getEstimateStarterTradeSummary, getEstimateTemplateStartersForTrade } from "./estimate-template-utils";
 import { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
 import { buildFenceTakeoffBackupRows, buildFenceTakeoffDraftLineItems, buildFenceTakeoffFieldHandoff, buildFenceTakeoffProofPhotoChecklist, buildFenceTakeoffProposalSummary, deriveFenceTakeoffReadiness, mergeFenceTakeoffIntoDraft, normalizeFenceTakeoff, summarizeFenceTakeoffByAssembly } from "./fence-takeoff-utils";
-import { applyTakeoffStudioAssistantSuggestion, applyTakeoffStudioSheetCalibrationToItems, attachTakeoffStudioPlanFileToSheet, buildTakeoffStudioAiPlanAssist, buildTakeoffStudioAssistantQueue, buildTakeoffStudioAutoMeasureBeta, buildTakeoffStudioBackupRows, buildTakeoffStudioCsvExport, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioFieldHandoff, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioMeasurementLegend, buildTakeoffStudioPackageExport, buildTakeoffStudioPdfPageRenderState, buildTakeoffStudioPlanFileCandidates, buildTakeoffStudioPlanFileReadiness, buildTakeoffStudioPlanReviewLayer, buildTakeoffStudioPlanTextExtractionState, buildTakeoffStudioProductionHardening, buildTakeoffStudioProposalProofRows, buildTakeoffStudioProofSnapshot, buildTakeoffStudioRevisionComparison, buildTakeoffStudioRevisionRegister, buildTakeoffStudioSheetWorkspace, buildTakeoffStudioSnapTargets, buildTakeoffStudioTradeAutoTakeoffPacks, buildTakeoffStudioVisionAutoMeasureBeta, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioMarkupComment, createEmptyTakeoffStudioSheet, createTakeoffStudioItemFromAutoMeasureSuggestion, createTakeoffStudioMarkupFromPoint, createTakeoffStudioMeasurementFromDrawing, createTakeoffStudioPlanTextSourceDraft, createTakeoffStudioSheetFromPlanFilePage, deriveTakeoffStudioCalibrationState, deriveTakeoffStudioDrawingState, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, getTakeoffStudioToolSetOptions, mergeTakeoffStudioAssistantSuggestionState, mergeTakeoffStudioCsvImport, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText, snapTakeoffStudioDraftPoint } from "./takeoff-studio-utils";
+import { applyTakeoffStudioAssistantSuggestion, applyTakeoffStudioSheetCalibrationToItems, attachTakeoffStudioPlanFileToSheet, buildTakeoffStudioAiPlanAssist, buildTakeoffStudioAssistantQueue, buildTakeoffStudioAutoMeasureBeta, buildTakeoffStudioBackupRows, buildTakeoffStudioCsvExport, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioFieldHandoff, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioMeasurementLegend, buildTakeoffStudioPackageExport, buildTakeoffStudioPdfPageRenderState, buildTakeoffStudioPilotHardeningGate, buildTakeoffStudioPlanFileCandidates, buildTakeoffStudioPlanFileReadiness, buildTakeoffStudioPlanReviewLayer, buildTakeoffStudioPlanTextExtractionState, buildTakeoffStudioProductionHardening, buildTakeoffStudioProposalProofRows, buildTakeoffStudioProofSnapshot, buildTakeoffStudioRevisionComparison, buildTakeoffStudioRevisionRegister, buildTakeoffStudioSheetWorkspace, buildTakeoffStudioSnapTargets, buildTakeoffStudioTradeAutoTakeoffPacks, buildTakeoffStudioVisionAutoMeasureBeta, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioMarkupComment, createEmptyTakeoffStudioSheet, createTakeoffStudioItemFromAutoMeasureSuggestion, createTakeoffStudioMarkupFromPoint, createTakeoffStudioMeasurementFromDrawing, createTakeoffStudioPlanTextSourceDraft, createTakeoffStudioSheetFromPlanFilePage, deriveTakeoffStudioCalibrationState, deriveTakeoffStudioDrawingState, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, getTakeoffStudioToolSetOptions, mergeTakeoffStudioAssistantSuggestionState, mergeTakeoffStudioCsvImport, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText, snapTakeoffStudioDraftPoint } from "./takeoff-studio-utils";
 import { CUSTOM_ESTIMATE_PACKET_THEME_ID, ESTIMATE_PACKET_COPY_TEMPLATE_OPTIONS, ESTIMATE_PACKET_PRESETS, ESTIMATE_PACKET_SECTION_DEFS, ESTIMATE_PACKET_THEME_OPTIONS, INTERNAL_REVIEW_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
 
 export { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
@@ -987,6 +987,7 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
   const visionAutoMeasureBeta = buildTakeoffStudioVisionAutoMeasureBeta({ ...editingTakeoff, planFiles: planFileCandidates });
   const tradeAutoTakeoffPacks = buildTakeoffStudioTradeAutoTakeoffPacks({ ...editingTakeoff, planFiles: planFileCandidates });
   const hardeningState = buildTakeoffStudioProductionHardening(editingTakeoff);
+  const pilotHardeningGate = buildTakeoffStudioPilotHardeningGate({ ...editingTakeoff, planFiles: planFileCandidates });
   const selectedSheetPreviewUrl = pdfRenderState.canRender ? pdfRenderState.pagePreviewUrl : selectedSheet?.sourcePreviewUrl;
 
   function commitTakeoff(nextTakeoff) {
@@ -1614,6 +1615,32 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
                 </div>
               ) : null}
               <p className="mt-2 text-xs font-bold leading-5 text-slate-500">{hardeningState.safetyBoundary}</p>
+            </div>
+            <div className="rounded-2xl border border-emerald-100 bg-white p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-800">Pilot Hardening Gate</p>
+                  <p className="mt-1 text-sm font-bold leading-6 text-slate-700">{pilotHardeningGate.summary}</p>
+                </div>
+                <Badge tone={pilotHardeningGate.ready ? "green" : "amber"}>{pilotHardeningGate.blockerCount} blocked</Badge>
+              </div>
+              <div className="mt-3 grid gap-2 md:grid-cols-2">
+                {pilotHardeningGate.gates.slice(0, 6).map((gate) => (
+                  <div key={gate.id} className={`rounded-xl border px-3 py-2 ${gate.ok ? "border-emerald-100 bg-emerald-50/70" : "border-amber-100 bg-amber-50/70"}`}>
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <p className="text-sm font-black text-slate-950">{gate.label}</p>
+                      <Badge tone={gate.ok ? "green" : "amber"}>{gate.ok ? "Clear" : "Review"}</Badge>
+                    </div>
+                    <p className="mt-1 text-xs font-bold leading-5 text-slate-600">{gate.detail}</p>
+                  </div>
+                ))}
+              </div>
+              {pilotHardeningGate.warnings.length ? (
+                <div className="mt-3 grid gap-2">
+                  {pilotHardeningGate.warnings.slice(0, 3).map((warning) => <p key={warning} className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900">{warning}</p>)}
+                </div>
+              ) : null}
+              <p className="mt-2 text-xs font-bold leading-5 text-slate-500">{pilotHardeningGate.safetyBoundary}</p>
             </div>
           </div>
         </div>

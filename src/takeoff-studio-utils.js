@@ -1386,6 +1386,98 @@ export function buildTakeoffStudioProductionHardening(takeoff = {}) {
   };
 }
 
+export function buildTakeoffStudioPilotHardeningGate(takeoff = {}) {
+  const normalized = normalizeTakeoffStudio(takeoff);
+  const productionHardening = buildTakeoffStudioProductionHardening(normalized);
+  const textState = buildTakeoffStudioPlanTextExtractionState(normalized);
+  const visionBeta = buildTakeoffStudioVisionAutoMeasureBeta(normalized);
+  const tradePacks = buildTakeoffStudioTradeAutoTakeoffPacks(normalized);
+  const calibratedSheets = normalized.sheets.filter((sheet) => sheet.scale.calibrated);
+  const sourceReadyFiles = normalized.planFiles.filter((file) => file.status === "ready");
+  const sourceLinkedSheets = normalized.sheets.filter((sheet) => sheet.sourceFileName || sheet.sourcePreviewUrl);
+  const unsafeCustomerRows = normalized.items.filter((item) => item.customerVisible && item.reviewStatus !== "reviewed");
+  const unsafeFieldRows = normalized.items.filter((item) => item.fieldVisible && item.reviewStatus !== "reviewed");
+  const pointCount = normalized.items.reduce((sum, item) => sum + item.points.length, 0)
+    + normalized.markupComments.reduce((sum, comment) => sum + comment.points.length, 0);
+  const privateDataText = JSON.stringify(normalized).toLowerCase();
+  const privateDataPattern = /unitprice|unit price|margin|profit|payroll|billing|direct deposit|tax withholding/;
+  const gates = [
+    {
+      id: "source-register",
+      label: "Plan source register",
+      ok: sourceReadyFiles.length > 0 && sourceLinkedSheets.length > 0,
+      detail: sourceReadyFiles.length > 0
+        ? `${sourceReadyFiles.length} ready source${sourceReadyFiles.length === 1 ? "" : "s"} / ${sourceLinkedSheets.length} linked sheet${sourceLinkedSheets.length === 1 ? "" : "s"}.`
+        : "Register at least one reviewed PDF/image source before pilot use.",
+    },
+    {
+      id: "reviewed-text",
+      label: "Reviewed text context",
+      ok: textState.reviewedSourceCount > 0 || Boolean(normalized.planText),
+      detail: textState.reviewedSourceCount > 0
+        ? `${textState.reviewedSourceCount} reviewed extracted source${textState.reviewedSourceCount === 1 ? "" : "s"} ready.`
+        : "Paste and review plan text before relying on assistant or beta drafting.",
+    },
+    {
+      id: "calibration",
+      label: "Scale calibration",
+      ok: calibratedSheets.length > 0,
+      detail: calibratedSheets.length
+        ? `${calibratedSheets.length} calibrated sheet${calibratedSheets.length === 1 ? "" : "s"} available.`
+        : "Calibrate at least one sheet before scaled pilot measurements.",
+    },
+    {
+      id: "draft-isolation",
+      label: "Draft isolation",
+      ok: unsafeCustomerRows.length === 0 && unsafeFieldRows.length === 0,
+      detail: unsafeCustomerRows.length || unsafeFieldRows.length
+        ? `${unsafeCustomerRows.length + unsafeFieldRows.length} unreviewed row${unsafeCustomerRows.length + unsafeFieldRows.length === 1 ? "" : "s"} have customer/field visibility.`
+        : "Draft rows remain office-only until reviewed.",
+    },
+    {
+      id: "beta-safety",
+      label: "Beta safety boundaries",
+      ok: /does not inspect pixels/i.test(visionBeta.safetyBoundary) && /do not create pricing/i.test(tradePacks.safetyBoundary),
+      detail: "Vision and trade-pack beta helpers remain draft-only and local.",
+    },
+    {
+      id: "private-data",
+      label: "Private data scan",
+      ok: !privateDataPattern.test(privateDataText),
+      detail: privateDataPattern.test(privateDataText)
+        ? "Private money/payroll/billing terms detected in takeoff backup."
+        : "No private money, workforce cost, or payment terms detected in takeoff backup.",
+    },
+    {
+      id: "browser-performance",
+      label: "Browser performance",
+      ok: pointCount <= 5000 && normalized.planFiles.length <= 25,
+      detail: `${pointCount} geometry point${pointCount === 1 ? "" : "s"} / ${normalized.planFiles.length} source file${normalized.planFiles.length === 1 ? "" : "s"}.`,
+    },
+  ];
+  const blockers = gates.filter((gate) => !gate.ok);
+  const warnings = [
+    ...productionHardening.warnings,
+    visionBeta.warnings.length ? `Vision beta: ${visionBeta.warnings[0]}` : "",
+    tradePacks.warnings.length ? `Trade packs: ${tradePacks.warnings[0]}` : "",
+  ].filter(Boolean);
+
+  return {
+    ready: blockers.length === 0 && warnings.length === 0,
+    gates,
+    blockerCount: blockers.length,
+    warningCount: warnings.length,
+    blockers,
+    warnings,
+    summary: blockers.length
+      ? `${blockers.length} pilot hardening gate${blockers.length === 1 ? "" : "s"} blocked.`
+      : warnings.length
+        ? `${warnings.length} pilot warning${warnings.length === 1 ? "" : "s"} need review.`
+        : "Takeoff Studio pilot hardening gate is clear for controlled local demo use.",
+    safetyBoundary: "Pilot hardening is local readiness evidence only. It does not deploy, mutate production data, approve estimates, certify quantities, expose field users, send customer data, change auth, write providers, or create payment actions.",
+  };
+}
+
 export function deriveTakeoffStudioCalibrationState(takeoff = {}) {
   const normalized = normalizeTakeoffStudio(takeoff);
   const uncalibratedSheets = normalized.sheets.filter((sheet) => !sheet.scale.calibrated);

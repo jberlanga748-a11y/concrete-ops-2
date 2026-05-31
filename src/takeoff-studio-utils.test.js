@@ -15,6 +15,7 @@ import {
   buildTakeoffStudioPackageExport,
   buildTakeoffStudioAiPlanAssist,
   buildTakeoffStudioAutoMeasureBeta,
+  buildTakeoffStudioPilotHardeningGate,
   buildTakeoffStudioPlanFileCandidates,
   buildTakeoffStudioPlanFileReadiness,
   buildTakeoffStudioPdfPageRenderState,
@@ -586,6 +587,57 @@ test("builds trade-specific auto-takeoff packs as draft-only assembly helpers", 
   assert.equal(draftItem.customerVisible, false);
   assert.match(pack.safetyBoundary, /do not create pricing/i);
   assert.doesNotMatch(JSON.stringify(pack), /unitPrice|margin|profit|payroll|billing|send proposal|bid submission|external api/i);
+});
+
+test("builds production pilot hardening gates without mutating or exposing private data", () => {
+  const pilotGate = buildTakeoffStudioPilotHardeningGate({
+    toolSetId: "concrete-flatwork",
+    selectedSheetId: "s1",
+    planFiles: [{
+      id: "reference:plans",
+      sourceType: "reference",
+      fileName: "flatwork.pdf",
+      previewUrl: "https://files.example.test/flatwork.pdf",
+      linkedSheetIds: ["s1"],
+    }],
+    sheets: [{
+      id: "s1",
+      name: "C2.1 Flatwork",
+      sourceFileName: "flatwork.pdf",
+      sourcePreviewUrl: "https://files.example.test/flatwork.pdf",
+      scale: { calibrated: true, pixels: 100, realWorldLength: 10, realWorldUnit: "FT" },
+    }],
+    planTextSources: [{
+      planFileId: "reference:plans",
+      sourceFileName: "flatwork.pdf",
+      text: "Concrete driveway 20 x 30 with 120 LF sawcut and 4 drains.",
+      reviewStatus: "reviewed",
+    }],
+    items: [{
+      id: "area-1",
+      label: "Driveway",
+      measurementType: "area",
+      quantity: 600,
+      unit: "SF",
+      scale: { calibrated: true, pixels: 100, realWorldLength: 10, realWorldUnit: "FT" },
+      reviewStatus: "reviewed",
+      customerVisible: false,
+      fieldVisible: false,
+    }],
+  });
+  const blocked = buildTakeoffStudioPilotHardeningGate({
+    sheets: [{ id: "s1", name: "Unlinked sheet" }],
+    items: [{ label: "Draft", measurementType: "area", quantity: 10, customerVisible: true }],
+  });
+
+  assert.equal(pilotGate.ready, true);
+  assert.equal(pilotGate.blockerCount, 0);
+  assert.ok(pilotGate.gates.every((gate) => gate.ok));
+  assert.equal(blocked.ready, false);
+  assert.ok(blocked.blockers.some((gate) => gate.id === "source-register"));
+  assert.ok(blocked.blockers.some((gate) => gate.id === "draft-isolation"));
+  assert.match(pilotGate.safetyBoundary, /does not deploy/i);
+  assert.doesNotMatch(JSON.stringify(pilotGate), /unitPrice|margin|profit|payroll|billing|send proposal|bid submission|external api/i);
 });
 
 test("normalizes reviewed takeoff items with safe defaults", () => {

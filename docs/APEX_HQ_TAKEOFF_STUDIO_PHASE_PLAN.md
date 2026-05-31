@@ -1,7 +1,7 @@
 # Apex HQ Takeoff Studio Phase Plan
 
 Date: 2026-05-31
-Status: Phase 1-18 takeoff plan implemented locally; pilot hardening upgrades remain versioned later work
+Status: Phase 1-19 takeoff plan implemented locally; final validation and freeze remain
 
 ## Goal
 
@@ -326,7 +326,7 @@ Phase 13 first checkpoint:
 1. Add Takeoff Studio production-hardening readiness checks for source gaps, calibration gaps, draft rows, unsafe customer/field review gates, and large geometry risk. Complete.
 2. Surface hardening status, item/point/markup counts, warnings, and safety boundary in the owner/admin plan workspace. Complete.
 3. Keep checks local and read-only: no permission changes, estimate approvals, customer sends, provider writes, production data mutations, or schema changes. Complete.
-4. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint.
+4. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint. Complete.
 
 Phase 14 first checkpoint:
 
@@ -366,7 +366,14 @@ Phase 18 first checkpoint:
 2. Map reviewed source-aware beta suggestions into draft-only pack suggestions with safe measurement types and assembly IDs. Complete.
 3. Let owner/admin add pack suggestions as normal needs-review takeoff rows with blank pricing and office-only visibility. Complete.
 4. Keep packs as local mapping helpers: no pricing, assembly approval, certified quantities, bids, sends, field exposure, pixel inspection, external AI, provider writes, or schema changes. Complete.
-5. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint.
+5. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint. Complete.
+
+Phase 19 first checkpoint:
+
+1. Add a production pilot hardening gate over sources, reviewed text, calibration, draft isolation, beta safety, private-data scan, and browser performance risk. Complete.
+2. Surface pass/review gate rows in the owner/admin takeoff workspace without changing permissions, production data, or providers. Complete.
+3. Keep the gate local/read-only and approval-safe: no deploy, production mutation, estimate approval, certified quantities, field exposure, customer sends, auth changes, provider writes, or payment actions. Complete.
+4. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint.
 
 ## Phase 1 Checkpoint: Manual Editor
 
@@ -629,3 +636,17 @@ Completed locally on 2026-05-31:
 Deferred Phase 18 enhancements:
 
 - Deeper trade libraries, contractor-configurable assemblies, package-specific defaults, and provider-backed quantity detection remain later approved phases.
+
+## Phase 19 Checkpoint: Production Pilot Hardening Gate
+
+Completed locally on 2026-05-31:
+
+- Takeoff Studio now has a local pilot hardening gate for controlled demo/pilot readiness.
+- The gate checks plan source registration, reviewed extracted text, scale calibration, draft/customer/field isolation, beta safety boundaries, private-data terms, and browser geometry/source volume.
+- Owner/admin users can see clear/review gate rows inside the takeoff workspace.
+- The gate composes existing hardening, text extraction, vision beta, and trade-pack readiness without changing storage schema or permissions.
+- This checkpoint does not deploy, mutate production data, approve estimates, certify quantities, expose field users, send customer data, change auth, write providers, or create payment actions.
+
+Deferred Phase 19 enhancements:
+
+- Real production telemetry, persistent audit trails, pilot usage analytics, and automated PDF/image load testing remain later approved phases.
