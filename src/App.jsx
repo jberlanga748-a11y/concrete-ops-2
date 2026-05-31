@@ -12425,6 +12425,7 @@ function MainContent(props) {
           customers={props.customers}
           leads={props.leads}
           estimates={props.estimates}
+          jobs={props.jobs}
           uploads={props.uploads}
           sessionToken={props.sessionToken}
           rateBookItems={props.rateBookItems}
@@ -12440,6 +12441,7 @@ function MainContent(props) {
           onPrintEstimate={props.onPrintEstimate}
           onPrintEstimateForemanHandoff={props.onPrintEstimateForemanHandoff}
           onSendEstimate={props.onSendEstimate}
+          onCreateUpload={props.onCreateUpload}
           onGenerateEstimateRoughNotes={props.onGenerateEstimateRoughNotes}
           onSelectLead={props.onSelectLead}
           onSelectCustomer={props.onSelectCustomer}

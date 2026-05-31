@@ -204,6 +204,7 @@ export function EstimatesPagePolished({
   customers,
   leads,
   estimates,
+  jobs = [],
   uploads = [],
   sessionToken = "",
   rateBookItems = [],
@@ -215,6 +216,7 @@ export function EstimatesPagePolished({
   onPrintEstimate,
   onPrintEstimateForemanHandoff,
   onSendEstimate,
+  onCreateUpload,
   onGenerateEstimateRoughNotes,
   onSelectLead,
   onSelectCustomer,
@@ -2031,8 +2033,10 @@ export function EstimatesPagePolished({
             draft={detailDraft}
             setDraft={setDetailDraft}
             disabled={busy || !canManage}
+            jobs={jobs}
             uploads={uploads}
             sessionToken={sessionToken}
+            onCreateUpload={onCreateUpload}
           />
           <FenceTakeoffLiteEditor
             draft={detailDraft}
@@ -3088,8 +3092,10 @@ export function EstimatesPagePolished({
                     draft={detailDraft}
                     setDraft={setDetailDraft}
                     disabled={busy || !canManage}
+                    jobs={jobs}
                     uploads={uploads}
                     sessionToken={sessionToken}
+                    onCreateUpload={onCreateUpload}
                   />
                   <FenceTakeoffLiteEditor
                     draft={detailDraft}

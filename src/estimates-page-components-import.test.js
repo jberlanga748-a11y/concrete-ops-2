@@ -24,6 +24,12 @@ test("Estimates page route shell is extracted and lazy-loaded out of App", () =>
   assert.match(estimatesRouteSource, /pdfjs-dist/);
   assert.match(estimatesRouteSource, /TakeoffStudioPdfCanvasPreview/);
   assert.match(estimatesRouteSource, /data-pdf-canvas-status/);
+  assert.match(estimatesRouteSource, /Upload plan in Takeoff/);
+  assert.match(estimatesRouteSource, /validateUploadFile/);
+  assert.match(estimatesPageSource, /jobs=\{jobs\}/);
+  assert.match(estimatesPageSource, /onCreateUpload=\{onCreateUpload\}/);
+  assert.match(appSource, /jobs=\{props\.jobs\}/);
+  assert.match(appSource, /onCreateUpload=\{props\.onCreateUpload\}/);
   assert.match(cssSource, /\.co-estimates-shell-page--takeoff \.co-apex-office-command-workspace\s*\{\s*grid-template-columns: minmax\(0, 1fr\);/);
   assert.match(cssSource, /\.co-estimates-shell-page--takeoff \.co-apex-primary-queue-panel\s*\{\s*display: none;/);
   assert.match(cssSource, /\.co-estimates-shell-page--takeoff \.co-takeoff-studio-plan-workspace-grid\s*\{[\s\S]*minmax\(34rem, 1fr\)/);

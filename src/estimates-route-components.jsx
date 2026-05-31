@@ -15,6 +15,7 @@ import { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, est
 import { buildFenceTakeoffBackupRows, buildFenceTakeoffDraftLineItems, buildFenceTakeoffFieldHandoff, buildFenceTakeoffProofPhotoChecklist, buildFenceTakeoffProposalSummary, deriveFenceTakeoffReadiness, mergeFenceTakeoffIntoDraft, normalizeFenceTakeoff, summarizeFenceTakeoffByAssembly } from "./fence-takeoff-utils";
 import { applyTakeoffStudioAssistantSuggestion, applyTakeoffStudioSheetCalibrationToItems, attachTakeoffStudioPlanFileToSheet, buildTakeoffStudioAiPlanAssist, buildTakeoffStudioAssistantQueue, buildTakeoffStudioAutoMeasureBeta, buildTakeoffStudioBackupRows, buildTakeoffStudioCsvExport, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioFieldHandoff, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioMeasurementLegend, buildTakeoffStudioPackageExport, buildTakeoffStudioPdfPageRenderState, buildTakeoffStudioPilotHardeningGate, buildTakeoffStudioPlanFileCandidates, buildTakeoffStudioPlanFileReadiness, buildTakeoffStudioPlanReviewLayer, buildTakeoffStudioPlanTextExtractionState, buildTakeoffStudioProductionHardening, buildTakeoffStudioProposalProofRows, buildTakeoffStudioProofSnapshot, buildTakeoffStudioRevisionComparison, buildTakeoffStudioRevisionRegister, buildTakeoffStudioSheetWorkspace, buildTakeoffStudioSnapTargets, buildTakeoffStudioTradeAutoTakeoffPacks, buildTakeoffStudioVisionAutoMeasureBeta, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioMarkupComment, createEmptyTakeoffStudioSheet, createTakeoffStudioItemFromAutoMeasureSuggestion, createTakeoffStudioMarkupFromPoint, createTakeoffStudioMeasurementFromDrawing, createTakeoffStudioPlanTextSourceDraft, createTakeoffStudioSheetFromPlanFilePage, deriveTakeoffStudioCalibrationState, deriveTakeoffStudioDrawingState, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, getTakeoffStudioToolSetOptions, mergeTakeoffStudioAssistantSuggestionState, mergeTakeoffStudioCsvImport, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText, snapTakeoffStudioDraftPoint } from "./takeoff-studio-utils";
 import { fetchAuthenticatedUploadPreviewUrl } from "./upload-preview-utils";
+import { validateUploadFile } from "./upload-utils";
 import { CUSTOM_ESTIMATE_PACKET_THEME_ID, ESTIMATE_PACKET_COPY_TEMPLATE_OPTIONS, ESTIMATE_PACKET_PRESETS, ESTIMATE_PACKET_SECTION_DEFS, ESTIMATE_PACKET_THEME_OPTIONS, INTERNAL_REVIEW_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
 
 export { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
@@ -138,6 +139,37 @@ function estimateStudioListItems(value, fallback = []) {
     .map((item) => String(item || "").replace(/^[-*]\s*/, "").trim())
     .filter(Boolean);
   return items.length > 0 ? items : fallback;
+}
+
+function readTakeoffPlanUploadFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Plan file could not be read."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function takeoffPlanUploadJobLabel(job) {
+  const title = job?.title || job?.job || job?.name || job?.id || "Untitled job";
+  const customer = job?.customerName || job?.customer || "";
+  return [title, customer].filter(Boolean).join(" / ");
+}
+
+function buildTakeoffPlanUploadJobOptions(jobs = [], draft = {}) {
+  const safeJobs = Array.isArray(jobs) ? jobs : [];
+  const selectedJobId = String(draft?.jobId || "");
+  const selectedCustomerId = String(draft?.customerId || "");
+  const activeJobs = safeJobs.filter((job) => job?.id && !job?.archivedAt && String(job?.status || "").toLowerCase() !== "archived");
+  return activeJobs
+    .slice()
+    .sort((left, right) => {
+      const leftPreferred = left.id === selectedJobId ? 0 : left.customerId && left.customerId === selectedCustomerId ? 1 : 2;
+      const rightPreferred = right.id === selectedJobId ? 0 : right.customerId && right.customerId === selectedCustomerId ? 1 : 2;
+      if (leftPreferred !== rightPreferred) return leftPreferred - rightPreferred;
+      return takeoffPlanUploadJobLabel(left).localeCompare(takeoffPlanUploadJobLabel(right));
+    })
+    .map((job) => ({ id: job.id, label: takeoffPlanUploadJobLabel(job) }));
 }
 
 function estimateStudioTakeoffCards(backup = {}, estimate = {}) {
@@ -1024,7 +1056,7 @@ function TakeoffStudioPdfCanvasPreview({ src = "", pageNumber = 1, sheetName = "
   );
 }
 
-export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, uploads = [], sessionToken = "" }) {
+export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, uploads = [], sessionToken = "", jobs = [], onCreateUpload = null }) {
   const [csvImportText, setCsvImportText] = useState("");
   const [drawingTool, setDrawingTool] = useState("area");
   const [drawingLabel, setDrawingLabel] = useState("");
@@ -1033,6 +1065,20 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
   const [interactionMode, setInteractionMode] = useState("draw");
   const [markupType, setMarkupType] = useState("note");
   const [markupText, setMarkupText] = useState("");
+  const planUploadInputRef = useRef(null);
+  const [pendingPlanUploadAttach, setPendingPlanUploadAttach] = useState(null);
+  const [planUploadDraft, setPlanUploadDraft] = useState({
+    jobId: "",
+    fileName: "",
+    fileType: "",
+    fileSize: 0,
+    dataUrl: "",
+    caption: "",
+    notes: "",
+    status: "idle",
+    message: "",
+    error: "",
+  });
   const backup = deriveEstimateBackup(draft);
   const takeoff = normalizeTakeoffStudio(backup.takeoffStudio);
   const readiness = deriveTakeoffStudioReadiness(takeoff);
@@ -1081,6 +1127,8 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
     .filter((file) => file.sourceType === "upload" && file.previewKind === "pdf" && (file.contentUrl || file.previewUrl))
     .map((file) => `${file.id}:${file.contentUrl || file.previewUrl}:${file.uploadedAt || ""}`)
     .join("|");
+  const planUploadJobOptions = useMemo(() => buildTakeoffPlanUploadJobOptions(jobs, draft), [jobs, draft?.jobId, draft?.customerId]);
+  const selectedPlanUploadJobId = planUploadDraft.jobId || planUploadJobOptions[0]?.id || "";
 
   useEffect(() => {
     if (!sessionToken || !uploadPlanPreviewSignature) return undefined;
@@ -1107,6 +1155,12 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
       cancelled = true;
     };
   }, [sessionToken, uploadPlanPreviewSignature]);
+
+  useEffect(() => {
+    if (!planUploadDraft.jobId && planUploadJobOptions[0]?.id) {
+      setPlanUploadDraft((current) => ({ ...current, jobId: planUploadJobOptions[0].id }));
+    }
+  }, [planUploadDraft.jobId, planUploadJobOptions]);
 
   function resolvePlanPreviewUrl(value = "") {
     const rawUrl = String(value || "");
@@ -1253,6 +1307,116 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
       markupComments,
       planFiles: planFileCandidates,
     }, planFileId, selectedSheet.id));
+  }
+
+  useEffect(() => {
+    if (!pendingPlanUploadAttach?.fileName || !selectedSheet?.id) return;
+    const uploadedPlanFile = planFileCandidates.find((file) => (
+      file.sourceType === "upload"
+      && file.fileName === pendingPlanUploadAttach.fileName
+      && file.status === "ready"
+      && !file.linkedSheetIds.includes(selectedSheet.id)
+    ));
+    if (!uploadedPlanFile) return;
+    attachPlanFile(uploadedPlanFile.id);
+    setPendingPlanUploadAttach(null);
+    setPlanUploadDraft((current) => ({
+      ...current,
+      status: "uploaded",
+      message: "Plan uploaded and attached to the selected sheet.",
+      error: "",
+    }));
+  }, [pendingPlanUploadAttach, selectedSheet?.id, planFileCandidates]);
+
+  async function handleTakeoffPlanFileChange(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const file = event.target.files?.[0] || null;
+    event.target.value = "";
+    const nextError = validateUploadFile(file);
+    if (nextError || !file) {
+      setPlanUploadDraft((current) => ({
+        ...current,
+        fileName: "",
+        fileType: "",
+        fileSize: 0,
+        dataUrl: "",
+        status: "idle",
+        message: "",
+        error: nextError,
+      }));
+      return;
+    }
+
+    setPlanUploadDraft((current) => ({ ...current, status: "reading", message: "Reading plan file...", error: "" }));
+    try {
+      const dataUrl = await readTakeoffPlanUploadFile(file);
+      setPlanUploadDraft((current) => ({
+        ...current,
+        fileName: file.name || "takeoff-plan",
+        fileType: file.type || "",
+        fileSize: Number(file.size || 0),
+        dataUrl,
+        caption: current.caption || `${file.name || "Plan"} takeoff plan`,
+        notes: current.notes || "Uploaded from Takeoff Studio for reviewed plan measurement.",
+        status: "ready",
+        message: "Plan ready to upload inside Takeoff.",
+        error: "",
+      }));
+    } catch (error) {
+      setPlanUploadDraft((current) => ({
+        ...current,
+        status: "idle",
+        message: "",
+        error: error?.message || "Plan file could not be read.",
+      }));
+    }
+  }
+
+  async function uploadTakeoffPlanFile() {
+    const nextError = validateUploadFile({
+      type: planUploadDraft.fileType,
+      size: planUploadDraft.fileSize,
+    });
+    if (nextError) {
+      setPlanUploadDraft((current) => ({ ...current, error: nextError, message: "" }));
+      return;
+    }
+    if (!selectedPlanUploadJobId) {
+      setPlanUploadDraft((current) => ({ ...current, error: "Choose the job this plan belongs to before uploading.", message: "" }));
+      return;
+    }
+    if (!planUploadDraft.dataUrl || !planUploadDraft.fileName) {
+      setPlanUploadDraft((current) => ({ ...current, error: "Choose a PDF or image plan first.", message: "" }));
+      return;
+    }
+    if (typeof onCreateUpload !== "function") {
+      setPlanUploadDraft((current) => ({ ...current, error: "Plan upload is not available in this view.", message: "" }));
+      return;
+    }
+
+    setPlanUploadDraft((current) => ({ ...current, status: "uploading", error: "", message: "Uploading plan to Takeoff..." }));
+    const success = await onCreateUpload({
+      jobId: selectedPlanUploadJobId,
+      fileName: planUploadDraft.fileName,
+      fileType: planUploadDraft.fileType,
+      fileSize: planUploadDraft.fileSize,
+      dataUrl: planUploadDraft.dataUrl,
+      caption: planUploadDraft.caption || `${planUploadDraft.fileName} takeoff plan`,
+      notes: planUploadDraft.notes || "Uploaded from Takeoff Studio for reviewed plan measurement.",
+      takenAt: new Date().toISOString(),
+      locationUnavailableReason: "No GPS requested; uploaded from Takeoff Studio.",
+    });
+
+    if (success) {
+      setPendingPlanUploadAttach({ fileName: planUploadDraft.fileName, requestedAt: new Date().toISOString() });
+    }
+    setPlanUploadDraft((current) => ({
+      ...current,
+      status: success ? "uploaded" : "ready",
+      message: success ? "Plan uploaded. Attaching it to the selected sheet..." : "",
+      error: success ? "" : "Plan upload failed. Check the selected job and try again.",
+    }));
   }
 
   function addPdfPageSheet() {
@@ -1493,6 +1657,41 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
           <Badge tone={planFileReadiness.ready ? "green" : planFileReadiness.fileCount ? "amber" : "slate"}>
             {planFileReadiness.readyFileCount}/{planFileReadiness.fileCount} ready
           </Badge>
+        </div>
+        <div className="mt-3 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-indigo-700">Upload plan in Takeoff</p>
+              <p className="mt-1 text-sm font-bold leading-6 text-slate-600">Choose a PDF or image plan, tie it to the job for access control, then attach it to the selected sheet below.</p>
+            </div>
+            <Button type="button" size="sm" variant="secondary" onClick={() => planUploadInputRef.current?.click()} disabled={disabled || planUploadDraft.status === "reading" || planUploadDraft.status === "uploading"}>
+              Choose plan
+            </Button>
+          </div>
+          <input
+            ref={planUploadInputRef}
+            type="file"
+            accept="application/pdf,image/*,.pdf"
+            className="hidden"
+            onChange={handleTakeoffPlanFileChange}
+            disabled={disabled || planUploadDraft.status === "reading" || planUploadDraft.status === "uploading"}
+          />
+          <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
+            <SelectField label="Plan job" value={selectedPlanUploadJobId} onChange={(event) => setPlanUploadDraft((current) => ({ ...current, jobId: event.target.value, error: "", message: "" }))} disabled={disabled || planUploadDraft.status === "uploading" || planUploadJobOptions.length === 0}>
+              {planUploadJobOptions.length ? planUploadJobOptions.map((job) => <option key={job.id} value={job.id}>{job.label}</option>) : <option value="">No job available</option>}
+            </SelectField>
+            <InputField label="Plan caption" value={planUploadDraft.caption} onChange={(event) => setPlanUploadDraft((current) => ({ ...current, caption: event.target.value }))} disabled={disabled || planUploadDraft.status === "uploading"} placeholder="A1 slab plan" />
+            <Button type="button" size="sm" onClick={uploadTakeoffPlanFile} disabled={disabled || !selectedPlanUploadJobId || !planUploadDraft.dataUrl || planUploadDraft.status === "reading" || planUploadDraft.status === "uploading"}>
+              {planUploadDraft.status === "uploading" ? "Uploading" : "Upload"}
+            </Button>
+          </div>
+          {planUploadDraft.fileName ? (
+            <p className="mt-2 break-words text-xs font-bold leading-5 text-slate-600">
+              Selected: {planUploadDraft.fileName} / {planUploadDraft.fileType || "file"} / {Math.max(1, Math.round(Number(planUploadDraft.fileSize || 0) / 1024))} KB
+            </p>
+          ) : null}
+          {planUploadDraft.message ? <p className="mt-2 rounded-xl border border-green-100 bg-green-50 px-3 py-2 text-xs font-bold leading-5 text-green-800">{planUploadDraft.message}</p> : null}
+          {planUploadDraft.error ? <p className="mt-2 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-bold leading-5 text-amber-800">{planUploadDraft.error}</p> : null}
         </div>
         <div className="mt-3 grid gap-2">
           {planFileCandidates.length ? planFileCandidates.slice(0, 6).map((file) => {
