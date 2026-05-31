@@ -1,7 +1,7 @@
 # Apex HQ Takeoff Studio Phase Plan
 
 Date: 2026-05-31
-Status: Phase 1-16 takeoff plan implemented locally; vision, trade packs, and pilot hardening upgrades remain versioned later work
+Status: Phase 1-17 takeoff plan implemented locally; trade packs and pilot hardening upgrades remain versioned later work
 
 ## Goal
 
@@ -287,7 +287,7 @@ Phase 8 first checkpoint:
 2. Add draft drawing point state, undo point, clear, and finish measurement controls. Complete.
 3. Save finished drawing output as normal Takeoff Studio measurement rows with selected sheet, revision, points, unit, sheet scale when available, and needs-review status. Complete.
 4. Keep drawn measurements office-only by default and exclude pricing, customer proof, field handoff, bids, sends, and provider writes until explicit review. Complete.
-5. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint.
+5. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint. Complete.
 
 Phase 9 first checkpoint:
 
@@ -350,6 +350,14 @@ Phase 16 first checkpoint:
 2. Track source file, method, pasted extracted text, and estimator review status in the existing Takeoff Studio backup structure. Complete.
 3. Surface extraction readiness, reviewed source counts, warnings, and safety boundaries beside AI Plan Assist. Complete.
 4. Let reviewed source text feed local Plan Assist and Auto-Measure Beta without reading/OCRing files, calling external AI, approving quantities, sending customer data, exposing field users, writing providers, or changing schema. Complete.
+5. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint. Complete.
+
+Phase 17 first checkpoint:
+
+1. Add source-aware Vision Auto-Measure Beta readiness over registered plan files, reviewed extracted text, and calibrated sheet context. Complete.
+2. De-dupe plan source rows so sheet metadata does not over-count the same PDF/image file. Complete.
+3. Prepare draft-only source-aware suggestions from reviewed text dimensions/counts with file context and estimator review controls. Complete.
+4. Keep the beta local and review-first: no pixel inspection, OCR, external AI, certified quantities, pricing approval, bids, sends, field exposure, provider writes, or schema changes. Complete.
 5. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint.
 
 ## Phase 1 Checkpoint: Manual Editor
@@ -585,3 +593,17 @@ Completed locally on 2026-05-31:
 Deferred Phase 16 enhancements:
 
 - Real OCR workers, server-side PDF text extraction, page-linked OCR overlays, and vision-based measurement confidence remain later approved phases.
+
+## Phase 17 Checkpoint: Vision Auto-Measure Beta
+
+Completed locally on 2026-05-31:
+
+- Takeoff Studio now has a source-aware Vision Auto-Measure Beta layer over registered plan files, reviewed extracted text, and sheet calibration.
+- The beta summarizes each source file's readiness, linked sheet count, reviewed text coverage, and calibration state.
+- Draft suggestions inherit reviewed source-file context and remain normal needs-review takeoff draft rows when added.
+- Duplicate sheet-source metadata is collapsed by file name so readiness counts do not overstate plan coverage.
+- This checkpoint does not inspect pixels, OCR files, call external AI, certify quantities, approve pricing, submit bids, send messages, expose field users, write providers, mutate production data, or require schema changes.
+
+Deferred Phase 17 enhancements:
+
+- Real computer-vision measurement detection, image/raster analysis, provider-backed AI, confidence heatmaps, and automatic geometry extraction remain later approved phases.

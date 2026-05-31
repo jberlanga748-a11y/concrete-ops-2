@@ -27,6 +27,7 @@ import {
   buildTakeoffStudioRevisionRegister,
   buildTakeoffStudioSheetWorkspace,
   buildTakeoffStudioSnapTargets,
+  buildTakeoffStudioVisionAutoMeasureBeta,
   calculateTakeoffQuantity,
   attachTakeoffStudioPlanFileToSheet,
   createEmptyTakeoffStudioItem,
@@ -505,6 +506,48 @@ test("builds review-first plan text extraction readiness without OCR claims", ()
   assert.match(normalized.planText, /Reviewed OCR paste/);
   assert.match(ready.safetyBoundary, /does not OCR files/i);
   assert.doesNotMatch(JSON.stringify(ready), /unitPrice|margin|profit|payroll|billing|send proposal|bid submission|external api/i);
+});
+
+test("builds source-aware vision auto-measure beta without inspecting files", () => {
+  const planFile = normalizeTakeoffStudioPlanFile({
+    id: "reference:plans",
+    sourceType: "reference",
+    fileName: "civil-set.pdf",
+    mimeType: "application/pdf",
+    previewUrl: "https://files.example.test/civil-set.pdf",
+    linkedSheetIds: ["s1"],
+  });
+  const beta = buildTakeoffStudioVisionAutoMeasureBeta({
+    selectedSheetId: "s1",
+    planFiles: [planFile],
+    sheets: [{
+      id: "s1",
+      name: "C2.1 Site Plan",
+      sourceFileName: "civil-set.pdf",
+      scale: { calibrated: true, pixels: 100, realWorldLength: 10, realWorldUnit: "FT" },
+    }],
+    planTextSources: [{
+      id: "source-1",
+      planFileId: "reference:plans",
+      sourceFileName: "civil-set.pdf",
+      text: "Reviewed OCR says driveway 20 x 30 and 4 drains.",
+      reviewStatus: "reviewed",
+    }],
+  });
+  const needsReview = buildTakeoffStudioVisionAutoMeasureBeta({
+    planFiles: [planFile],
+    planTextSources: [{ sourceFileName: "civil-set.pdf", text: "20 x 30", reviewStatus: "draft" }],
+  });
+
+  assert.equal(beta.ready, true);
+  assert.equal(beta.readySourceCount, 1);
+  assert.equal(beta.suggestionCount, 2);
+  assert.match(beta.suggestions[0].source, /civil-set\.pdf/);
+  assert.match(beta.suggestions[0].rationale, /not pixel\/image recognition/i);
+  assert.equal(needsReview.ready, false);
+  assert.match(needsReview.summary, /reviewed extracted text/i);
+  assert.match(beta.safetyBoundary, /does not inspect pixels/i);
+  assert.doesNotMatch(JSON.stringify(beta), /unitPrice|margin|profit|payroll|billing|send proposal|bid submission|external api/i);
 });
 
 test("normalizes reviewed takeoff items with safe defaults", () => {

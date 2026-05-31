@@ -11,7 +11,7 @@ import { calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEst
 import { addEstimateLineItemStarter, applyEstimateTemplateStarter, buildEstimateLineItemsFromRoughNotes, getEstimateLineItemStartersForTrade, getEstimateStarterTradeSummary, getEstimateTemplateStartersForTrade } from "./estimate-template-utils";
 import { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
 import { buildFenceTakeoffBackupRows, buildFenceTakeoffDraftLineItems, buildFenceTakeoffFieldHandoff, buildFenceTakeoffProofPhotoChecklist, buildFenceTakeoffProposalSummary, deriveFenceTakeoffReadiness, mergeFenceTakeoffIntoDraft, normalizeFenceTakeoff, summarizeFenceTakeoffByAssembly } from "./fence-takeoff-utils";
-import { applyTakeoffStudioAssistantSuggestion, applyTakeoffStudioSheetCalibrationToItems, attachTakeoffStudioPlanFileToSheet, buildTakeoffStudioAiPlanAssist, buildTakeoffStudioAssistantQueue, buildTakeoffStudioAutoMeasureBeta, buildTakeoffStudioBackupRows, buildTakeoffStudioCsvExport, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioFieldHandoff, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioMeasurementLegend, buildTakeoffStudioPackageExport, buildTakeoffStudioPdfPageRenderState, buildTakeoffStudioPlanFileCandidates, buildTakeoffStudioPlanFileReadiness, buildTakeoffStudioPlanReviewLayer, buildTakeoffStudioPlanTextExtractionState, buildTakeoffStudioProductionHardening, buildTakeoffStudioProposalProofRows, buildTakeoffStudioProofSnapshot, buildTakeoffStudioRevisionComparison, buildTakeoffStudioRevisionRegister, buildTakeoffStudioSheetWorkspace, buildTakeoffStudioSnapTargets, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioMarkupComment, createEmptyTakeoffStudioSheet, createTakeoffStudioItemFromAutoMeasureSuggestion, createTakeoffStudioMarkupFromPoint, createTakeoffStudioMeasurementFromDrawing, createTakeoffStudioPlanTextSourceDraft, createTakeoffStudioSheetFromPlanFilePage, deriveTakeoffStudioCalibrationState, deriveTakeoffStudioDrawingState, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, getTakeoffStudioToolSetOptions, mergeTakeoffStudioAssistantSuggestionState, mergeTakeoffStudioCsvImport, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText, snapTakeoffStudioDraftPoint } from "./takeoff-studio-utils";
+import { applyTakeoffStudioAssistantSuggestion, applyTakeoffStudioSheetCalibrationToItems, attachTakeoffStudioPlanFileToSheet, buildTakeoffStudioAiPlanAssist, buildTakeoffStudioAssistantQueue, buildTakeoffStudioAutoMeasureBeta, buildTakeoffStudioBackupRows, buildTakeoffStudioCsvExport, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioFieldHandoff, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioMeasurementLegend, buildTakeoffStudioPackageExport, buildTakeoffStudioPdfPageRenderState, buildTakeoffStudioPlanFileCandidates, buildTakeoffStudioPlanFileReadiness, buildTakeoffStudioPlanReviewLayer, buildTakeoffStudioPlanTextExtractionState, buildTakeoffStudioProductionHardening, buildTakeoffStudioProposalProofRows, buildTakeoffStudioProofSnapshot, buildTakeoffStudioRevisionComparison, buildTakeoffStudioRevisionRegister, buildTakeoffStudioSheetWorkspace, buildTakeoffStudioSnapTargets, buildTakeoffStudioVisionAutoMeasureBeta, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioMarkupComment, createEmptyTakeoffStudioSheet, createTakeoffStudioItemFromAutoMeasureSuggestion, createTakeoffStudioMarkupFromPoint, createTakeoffStudioMeasurementFromDrawing, createTakeoffStudioPlanTextSourceDraft, createTakeoffStudioSheetFromPlanFilePage, deriveTakeoffStudioCalibrationState, deriveTakeoffStudioDrawingState, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, getTakeoffStudioToolSetOptions, mergeTakeoffStudioAssistantSuggestionState, mergeTakeoffStudioCsvImport, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText, snapTakeoffStudioDraftPoint } from "./takeoff-studio-utils";
 import { CUSTOM_ESTIMATE_PACKET_THEME_ID, ESTIMATE_PACKET_COPY_TEMPLATE_OPTIONS, ESTIMATE_PACKET_PRESETS, ESTIMATE_PACKET_SECTION_DEFS, ESTIMATE_PACKET_THEME_OPTIONS, INTERNAL_REVIEW_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
 
 export { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
@@ -984,6 +984,7 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
   const planTextExtractionState = buildTakeoffStudioPlanTextExtractionState({ ...editingTakeoff, planFiles: planFileCandidates });
   const planAssist = buildTakeoffStudioAiPlanAssist(editingTakeoff);
   const autoMeasureBeta = buildTakeoffStudioAutoMeasureBeta(editingTakeoff);
+  const visionAutoMeasureBeta = buildTakeoffStudioVisionAutoMeasureBeta({ ...editingTakeoff, planFiles: planFileCandidates });
   const hardeningState = buildTakeoffStudioProductionHardening(editingTakeoff);
   const selectedSheetPreviewUrl = pdfRenderState.canRender ? pdfRenderState.pagePreviewUrl : selectedSheet?.sourcePreviewUrl;
 
@@ -1756,6 +1757,52 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
             )) : <p className="rounded-xl border border-slate-100 bg-white px-3 py-2 text-sm font-bold text-slate-600">Add reviewed plan text with dimensions like 20 x 30, 120 LF, or 4 drains to prepare beta suggestions.</p>}
           </div>
           <p className="mt-2 text-xs font-bold text-slate-500">{autoMeasureBeta.safetyBoundary}</p>
+          <div className="mt-3 rounded-2xl border border-orange-100 bg-white p-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-orange-700">Vision Auto-Measure Beta</p>
+                <p className="mt-1 text-sm font-bold leading-6 text-slate-700">{visionAutoMeasureBeta.summary}</p>
+              </div>
+              <Badge tone={visionAutoMeasureBeta.ready ? "green" : "amber"}>{visionAutoMeasureBeta.readySourceCount}/{visionAutoMeasureBeta.sourceCount} sources ready</Badge>
+            </div>
+            <div className="mt-3 grid gap-2 lg:grid-cols-2">
+              {visionAutoMeasureBeta.sourceRows.length ? visionAutoMeasureBeta.sourceRows.slice(0, 4).map((source) => (
+                <div key={source.id} className="rounded-xl border border-orange-100 bg-orange-50/50 px-3 py-2">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-black text-slate-950">{source.fileName}</p>
+                      <p className="mt-1 text-xs font-bold leading-5 text-slate-600">{source.note}</p>
+                    </div>
+                    <Badge tone={source.status === "ready" ? "green" : "amber"}>{source.status.replace(/_/g, " ")}</Badge>
+                  </div>
+                </div>
+              )) : <p className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-600">Register reviewed plan files before preparing source-aware beta drafts.</p>}
+            </div>
+            {visionAutoMeasureBeta.suggestions.length ? (
+              <div className="mt-3 grid gap-2">
+                {visionAutoMeasureBeta.suggestions.slice(0, 4).map((suggestion) => (
+                  <div key={suggestion.id} className="rounded-xl border border-orange-100 bg-slate-50 px-3 py-2">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.14em] text-orange-700">{suggestion.source}</p>
+                        <p className="mt-1 text-sm font-black text-slate-950">{suggestion.label}: {suggestion.quantity} {suggestion.unit}</p>
+                        <p className="mt-1 text-xs font-bold leading-5 text-slate-600">{suggestion.rationale}</p>
+                      </div>
+                      <Button type="button" size="sm" onClick={() => addAutoMeasureDraft(suggestion)} disabled={disabled}>Add Draft</Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {visionAutoMeasureBeta.warnings.length ? (
+              <div className="mt-3 grid gap-2">
+                {visionAutoMeasureBeta.warnings.slice(0, 3).map((warning) => (
+                  <p key={warning} className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900">{warning}</p>
+                ))}
+              </div>
+            ) : null}
+            <p className="mt-2 text-xs font-bold leading-5 text-slate-500">{visionAutoMeasureBeta.safetyBoundary}</p>
+          </div>
         </div>
       </div>
       <div className="mt-3 rounded-2xl border border-slate-200 bg-white/95 p-3">

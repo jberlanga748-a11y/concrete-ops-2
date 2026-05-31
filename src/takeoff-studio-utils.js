@@ -1159,6 +1159,79 @@ export function buildTakeoffStudioAutoMeasureBeta(takeoff = {}) {
   };
 }
 
+export function buildTakeoffStudioVisionAutoMeasureBeta(takeoff = {}) {
+  const normalized = normalizeTakeoffStudio(takeoff);
+  const textState = buildTakeoffStudioPlanTextExtractionState(normalized);
+  const autoMeasure = buildTakeoffStudioAutoMeasureBeta(normalized);
+  const reviewedSources = normalized.planTextSources.filter((source) => source.reviewStatus === "reviewed" && source.text);
+  const calibratedSheets = normalized.sheets.filter((sheet) => sheet.scale.calibrated);
+  const planFilesByName = new Map();
+  for (const file of normalized.planFiles) {
+    const key = file.fileName || file.id;
+    if (!planFilesByName.has(key)) planFilesByName.set(key, file);
+  }
+  const sheetIdsByFileName = new Map();
+  for (const sheet of normalized.sheets) {
+    const key = sheet.sourceFileName || sheet.name;
+    if (!key) continue;
+    const current = sheetIdsByFileName.get(key) || [];
+    sheetIdsByFileName.set(key, [...current, sheet.id]);
+  }
+  const sourceRows = [...planFilesByName.values()].map((file) => {
+    const source = reviewedSources.find((candidate) => candidate.planFileId === file.id || candidate.sourceFileName === file.fileName);
+    const linkedSheetIds = file.linkedSheetIds.length ? file.linkedSheetIds : sheetIdsByFileName.get(file.fileName) || [];
+    const linkedSheets = normalized.sheets.filter((sheet) => linkedSheetIds.includes(sheet.id) || sheet.sourceFileName === file.fileName);
+    const calibrated = linkedSheets.some((sheet) => sheet.scale.calibrated);
+    return {
+      id: file.id,
+      fileName: file.fileName,
+      kind: file.previewKind || file.statusKind || "unknown",
+      reviewedTextReady: Boolean(source?.text),
+      linkedSheetCount: linkedSheets.length,
+      calibrated,
+      status: source?.text ? calibrated ? "ready" : "needs_calibration" : "needs_reviewed_text",
+      note: source?.text
+        ? calibrated ? "Reviewed text and calibrated sheet context are ready for beta drafting." : "Reviewed text is ready; calibrate a linked sheet before trusting scaled geometry."
+        : "Paste and review extracted text before preparing vision beta drafts.",
+    };
+  });
+  const defaultSource = sourceRows.find((row) => row.reviewedTextReady) || sourceRows[0] || {};
+  const suggestions = autoMeasure.suggestions.map((suggestion, index) => ({
+    ...suggestion,
+    id: suggestionIdFromParts("vision-beta", defaultSource.fileName || "source", suggestion.id || index + 1),
+    source: defaultSource.fileName ? `reviewed source: ${defaultSource.fileName}` : suggestion.source,
+    sourceFileName: defaultSource.fileName || "",
+    confidence: defaultSource.calibrated && suggestion.confidence === "medium" ? "medium" : "low",
+    rationale: [
+      suggestion.rationale,
+      defaultSource.fileName ? `Source row: ${defaultSource.fileName}.` : "",
+      "This is a source-aware beta draft from reviewed text, not pixel/image recognition.",
+    ].filter(Boolean).join(" "),
+  }));
+  const warnings = [
+    !normalized.planFiles.length ? "Register PDF/image plan files before running vision beta readiness." : "",
+    !reviewedSources.length ? "Add reviewed extracted text for at least one plan source before vision beta drafting." : "",
+    !calibratedSheets.length ? "Calibrate at least one sheet before relying on scaled area or length suggestions." : "",
+    !autoMeasure.suggestions.length ? "No dimension/count hints were found in reviewed plan text for beta drafting." : "",
+  ].filter(Boolean);
+
+  return {
+    beta: true,
+    ready: reviewedSources.length > 0 && autoMeasure.suggestions.length > 0 && warnings.length === 0,
+    sourceRows,
+    sourceCount: sourceRows.length,
+    readySourceCount: sourceRows.filter((row) => row.status === "ready").length,
+    suggestionCount: suggestions.length,
+    suggestions: suggestions.slice(0, 12),
+    warnings,
+    summary: warnings.length
+      ? warnings[0]
+      : `${suggestions.length} source-aware vision beta draft${suggestions.length === 1 ? "" : "s"} ready for estimator review.`,
+    textExtractionReady: textState.ready,
+    safetyBoundary: "Vision Auto-Measure Beta is source-aware and review-first. It does not inspect pixels, OCR files, call external AI, certify quantities, finalize measurements, approve pricing, submit bids, send messages, expose field users, or write providers.",
+  };
+}
+
 export function createTakeoffStudioItemFromAutoMeasureSuggestion(suggestion = {}, index = 0) {
   return normalizeTakeoffStudioItem({
     id: `takeoff-item-${index + 1}`,
