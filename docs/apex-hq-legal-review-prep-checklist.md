@@ -6,6 +6,7 @@ Purpose: organize the open legal, claims, privacy, support, and pilot-contract q
 
 Use with:
 
+- `docs/APEX_HQ_PUBLIC_LAUNCH_LEGAL_REVIEW_PACKET.md`
 - `docs/PILOT_TERMS_AND_SUPPORT_POLICY.md`
 - `docs/CUSTOMER_DATA_POLICY_DRAFT.md`
 - `docs/PUBLIC_CLAIMS_GUARDRAILS.md`
@@ -18,14 +19,28 @@ This checklist does not approve legal language, create terms, create a privacy p
 
 Before using formal customer-facing terms, privacy language, testimonials, public AI claims, billing terms, or uptime/security commitments, have the final language reviewed by a qualified professional.
 
+## Current Packet
+
+The current public-launch legal review packet is `docs/APEX_HQ_PUBLIC_LAUNCH_LEGAL_REVIEW_PACKET.md`.
+
+Current status:
+
+- public signup is contained in production
+- broad public launch is not approved
+- terms/privacy/public-claims review is not approved
+- this checklist and packet are preparation material only
+
 ## Source References For Review
 
 Use official business guidance as review inputs, not as a substitute for legal advice:
 
-- FTC business privacy/security guidance: `https://www.ftc.gov/business-guidance/privacy-security`
+- FTC business privacy/security guidance: `https://www.ftc.gov/business-guidance/privacy-security/data-security`
 - FTC small business protection resources: `https://www.ftc.gov/business-guidance/small-businesses`
-- FTC endorsement/testimonial guidance: `https://www.ftc.gov/business-guidance/resources/ftcs-endorsement-guides`
-- FTC endorsements, influencers, and reviews topic page: `https://www.ftc.gov/consumer-protection/endorsements-influencers-reviews`
+- FTC endorsements, influencers, and reviews guidance: `https://www.ftc.gov/business-guidance/advertising-marketing/endorsements-influencers-reviews`
+- FTC CAN-SPAM compliance guide: `https://www.ftc.gov/business-guidance/resources/can-spam-act-compliance-guide-business`
+- FTC artificial intelligence topic page: `https://www.ftc.gov/industry/technology/artificial-intelligence`
+- FTC AI privacy/confidentiality guidance: `https://www.ftc.gov/policy/advocacy-research/tech-at-ftc/2024/01/ai-companies-uphold-your-privacy-confidentiality-commitments`
+- FCC TCPA consent revocation order: `https://docs.fcc.gov/public/attachments/FCC-24-24A1_Rcd.pdf`
 
 ## Minimum Review Packet
 

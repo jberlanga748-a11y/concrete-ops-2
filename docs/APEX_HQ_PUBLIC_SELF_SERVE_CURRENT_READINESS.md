@@ -108,8 +108,10 @@ If public signup stays live:
 
 Prepare the public-launch approval packet:
 
-1. Legal/privacy/terms/public-claims review.
+1. Legal/privacy/terms/public-claims review using `docs/APEX_HQ_PUBLIC_LAUNCH_LEGAL_REVIEW_PACKET.md`.
 2. Guided pilot completion or explicit launch waiver.
 3. Public launch approval phrase.
 4. Approval to re-enable `PUBLIC_SIGNUP_ENABLED`.
 5. Hosted self-serve smoke on an approved non-production or launch target before production signup is opened again.
+
+Current legal status: packet prepared for review; qualified legal/privacy/claims approval has not been recorded.
