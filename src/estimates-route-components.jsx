@@ -11,7 +11,7 @@ import { calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEst
 import { addEstimateLineItemStarter, applyEstimateTemplateStarter, buildEstimateLineItemsFromRoughNotes, getEstimateLineItemStartersForTrade, getEstimateStarterTradeSummary, getEstimateTemplateStartersForTrade } from "./estimate-template-utils";
 import { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
 import { buildFenceTakeoffBackupRows, buildFenceTakeoffDraftLineItems, buildFenceTakeoffFieldHandoff, buildFenceTakeoffProofPhotoChecklist, buildFenceTakeoffProposalSummary, deriveFenceTakeoffReadiness, mergeFenceTakeoffIntoDraft, normalizeFenceTakeoff, summarizeFenceTakeoffByAssembly } from "./fence-takeoff-utils";
-import { applyTakeoffStudioAssistantSuggestion, applyTakeoffStudioSheetCalibrationToItems, buildTakeoffStudioAssistantQueue, buildTakeoffStudioBackupRows, buildTakeoffStudioCsvExport, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioFieldHandoff, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioMeasurementLegend, buildTakeoffStudioPackageExport, buildTakeoffStudioProposalProofRows, buildTakeoffStudioProofSnapshot, buildTakeoffStudioRevisionComparison, buildTakeoffStudioRevisionRegister, buildTakeoffStudioSheetWorkspace, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioMarkupComment, createEmptyTakeoffStudioSheet, createTakeoffStudioMeasurementFromDrawing, deriveTakeoffStudioCalibrationState, deriveTakeoffStudioDrawingState, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, getTakeoffStudioToolSetOptions, mergeTakeoffStudioAssistantSuggestionState, mergeTakeoffStudioCsvImport, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText } from "./takeoff-studio-utils";
+import { applyTakeoffStudioAssistantSuggestion, applyTakeoffStudioSheetCalibrationToItems, buildTakeoffStudioAssistantQueue, buildTakeoffStudioBackupRows, buildTakeoffStudioCsvExport, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioFieldHandoff, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioMeasurementLegend, buildTakeoffStudioPackageExport, buildTakeoffStudioProposalProofRows, buildTakeoffStudioProofSnapshot, buildTakeoffStudioRevisionComparison, buildTakeoffStudioRevisionRegister, buildTakeoffStudioSheetWorkspace, buildTakeoffStudioSnapTargets, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioMarkupComment, createEmptyTakeoffStudioSheet, createTakeoffStudioMeasurementFromDrawing, deriveTakeoffStudioCalibrationState, deriveTakeoffStudioDrawingState, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, getTakeoffStudioToolSetOptions, mergeTakeoffStudioAssistantSuggestionState, mergeTakeoffStudioCsvImport, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText, snapTakeoffStudioDraftPoint } from "./takeoff-studio-utils";
 import { CUSTOM_ESTIMATE_PACKET_THEME_ID, ESTIMATE_PACKET_COPY_TEMPLATE_OPTIONS, ESTIMATE_PACKET_PRESETS, ESTIMATE_PACKET_SECTION_DEFS, ESTIMATE_PACKET_THEME_OPTIONS, INTERNAL_REVIEW_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
 
 export { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
@@ -942,6 +942,7 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
   const [drawingTool, setDrawingTool] = useState("area");
   const [drawingLabel, setDrawingLabel] = useState("");
   const [draftDrawingPoints, setDraftDrawingPoints] = useState([]);
+  const [lastSnapLabel, setLastSnapLabel] = useState("");
   const backup = deriveEstimateBackup(draft);
   const takeoff = normalizeTakeoffStudio(backup.takeoffStudio);
   const readiness = deriveTakeoffStudioReadiness(takeoff);
@@ -967,6 +968,7 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
   const calibrationState = deriveTakeoffStudioCalibrationState(editingTakeoff);
   const selectedSheet = sheetWorkspace.selectedSheet || sheets[0];
   const drawingState = deriveTakeoffStudioDrawingState({ measurementType: drawingTool, points: draftDrawingPoints, selectedSheet });
+  const snapTargets = buildTakeoffStudioSnapTargets(editingTakeoff, selectedSheet);
 
   function commitTakeoff(nextTakeoff) {
     const normalized = normalizeTakeoffStudio({
@@ -993,6 +995,18 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
       ? { ...sheet, scale: { ...sheet.scale, [field]: value } }
       : sheet);
     commitTakeoff({ ...takeoff, sheets: nextSheets, items });
+  }
+
+  function updateSnapSetting(field, value) {
+    commitTakeoff({
+      ...takeoff,
+      sheets,
+      items,
+      snapSettings: {
+        ...takeoff.snapSettings,
+        [field]: value,
+      },
+    });
   }
 
   function addSheet() {
@@ -1085,9 +1099,18 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
     if (disabled || !selectedSheet?.id) return;
     const rect = event.currentTarget.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
-    const x = Math.round(((event.clientX - rect.left) / rect.width) * sheetWorkspace.bounds.width);
-    const y = Math.round(((event.clientY - rect.top) / rect.height) * sheetWorkspace.bounds.height);
-    setDraftDrawingPoints((current) => [...current, { x, y }]);
+    const rawPoint = {
+      x: Math.round(((event.clientX - rect.left) / rect.width) * sheetWorkspace.bounds.width),
+      y: Math.round(((event.clientY - rect.top) / rect.height) * sheetWorkspace.bounds.height),
+    };
+    const snapped = snapTakeoffStudioDraftPoint({
+      point: rawPoint,
+      draftPoints: draftDrawingPoints,
+      snapTargets,
+      snapSettings: takeoff.snapSettings,
+    });
+    setLastSnapLabel(snapped.snapped ? `Snapped to ${snapped.label || snapped.type}` : "Free point");
+    setDraftDrawingPoints((current) => [...current, snapped.point]);
   }
 
   function undoDrawingPoint() {
@@ -1255,6 +1278,21 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
                   {TAKEOFF_MEASUREMENT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </SelectField>
               </div>
+              <div className="mt-2 grid gap-2 md:grid-cols-[120px_120px_120px_minmax(0,1fr)]">
+                <SelectField label="Snapping" value={takeoff.snapSettings?.enabled ? "true" : "false"} onChange={(event) => updateSnapSetting("enabled", event.target.value === "true")} disabled={disabled}>
+                  <option value="true">On</option>
+                  <option value="false">Off</option>
+                </SelectField>
+                <InputField label="Tolerance" value={takeoff.snapSettings?.tolerance || 18} onChange={(event) => updateSnapSetting("tolerance", event.target.value)} disabled={disabled} inputMode="numeric" placeholder="18" />
+                <SelectField label="Angle snap" value={takeoff.snapSettings?.angleSnap ? "true" : "false"} onChange={(event) => updateSnapSetting("angleSnap", event.target.value === "true")} disabled={disabled}>
+                  <option value="true">45 / 90</option>
+                  <option value="false">Off</option>
+                </SelectField>
+                <div className="rounded-xl border border-slate-700 bg-slate-800 px-3 py-2">
+                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Snap status</p>
+                  <p className="mt-1 text-xs font-bold text-slate-200">{lastSnapLabel || snapTargets.summary}</p>
+                </div>
+              </div>
               <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs font-bold leading-5 text-slate-300">{drawingState.summary}</p>
                 <div className="flex flex-wrap gap-2">
@@ -1286,6 +1324,9 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
                 </svg>
               )}
               <svg viewBox={`0 0 ${sheetWorkspace.bounds.width} ${sheetWorkspace.bounds.height}`} className="absolute inset-0 h-full w-full cursor-crosshair" onClick={addDrawingPoint} role="img" aria-label="Clickable takeoff drawing overlay">
+                {takeoff.snapSettings?.enabled ? snapTargets.targets.slice(0, 80).map((target, targetIndex) => (
+                  <circle key={`snap-target-${target.type}-${targetIndex}`} cx={target.point.x} cy={target.point.y} r="5" fill="#0ea5e9" opacity="0.75" />
+                )) : null}
                 {sheetWorkspace.overlays.map((overlay, overlayIndex) => {
                   const pointList = overlay.points.map((point) => `${point.x},${point.y}`).join(" ");
                   const color = overlay.reviewStatus === "reviewed" ? "#059669" : "#f59e0b";

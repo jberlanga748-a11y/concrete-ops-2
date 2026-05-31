@@ -13,6 +13,7 @@ const ITEM_SUPERSEDED_REVISION_STATUS = "superseded";
 const DEFAULT_TOOL_SET_ID = "concrete-flatwork";
 const DEFAULT_SHEET_WIDTH = 1100;
 const DEFAULT_SHEET_HEIGHT = 850;
+const DEFAULT_SNAP_TOLERANCE = 18;
 
 export const TAKEOFF_STUDIO_TOOL_SET_OPTIONS = [
   {
@@ -295,6 +296,17 @@ function distance(pointA = {}, pointB = {}) {
   return Math.hypot(numberValue(pointB.x) - numberValue(pointA.x), numberValue(pointB.y) - numberValue(pointA.y));
 }
 
+function normalizeSnapSettings(settings = {}) {
+  return {
+    enabled: settings?.enabled !== false,
+    tolerance: Math.min(80, Math.max(4, numberValue(settings?.tolerance, DEFAULT_SNAP_TOLERANCE))),
+    endpoints: settings?.endpoints !== false,
+    segments: settings?.segments !== false,
+    intersections: settings?.intersections !== false,
+    angleSnap: settings?.angleSnap !== false,
+  };
+}
+
 function polylinePixelLength(points = []) {
   return points.reduce((sum, point, index) => {
     if (index === 0) return sum;
@@ -309,6 +321,54 @@ function polygonPixelArea(points = []) {
     return sum + (numberValue(point.x) * numberValue(next.y)) - (numberValue(next.x) * numberValue(point.y));
   }, 0);
   return Math.abs(area) / 2;
+}
+
+function itemSegments(item = {}) {
+  const points = normalizePoints(item.points);
+  if (points.length < 2) return [];
+  const segments = [];
+  for (let index = 1; index < points.length; index += 1) {
+    segments.push([points[index - 1], points[index]]);
+  }
+  if ((item.measurementType === "area" || item.measurementType === "volume") && points.length > 2) {
+    segments.push([points.at(-1), points[0]]);
+  }
+  return segments;
+}
+
+function segmentProjection(point = {}, segment = []) {
+  const [start, end] = segment;
+  const dx = numberValue(end.x) - numberValue(start.x);
+  const dy = numberValue(end.y) - numberValue(start.y);
+  const lengthSquared = (dx ** 2) + (dy ** 2);
+  if (!lengthSquared) return start;
+  const t = Math.max(0, Math.min(1, (((numberValue(point.x) - numberValue(start.x)) * dx) + ((numberValue(point.y) - numberValue(start.y)) * dy)) / lengthSquared));
+  return {
+    x: roundQuantity(numberValue(start.x) + (t * dx), 2),
+    y: roundQuantity(numberValue(start.y) + (t * dy), 2),
+  };
+}
+
+function segmentIntersection(segmentA = [], segmentB = []) {
+  const [a, b] = segmentA;
+  const [c, d] = segmentB;
+  const denominator = ((numberValue(a.x) - numberValue(b.x)) * (numberValue(c.y) - numberValue(d.y)))
+    - ((numberValue(a.y) - numberValue(b.y)) * (numberValue(c.x) - numberValue(d.x)));
+  if (!denominator) return null;
+  const pre = (numberValue(a.x) * numberValue(b.y)) - (numberValue(a.y) * numberValue(b.x));
+  const post = (numberValue(c.x) * numberValue(d.y)) - (numberValue(c.y) * numberValue(d.x));
+  const x = ((pre * (numberValue(c.x) - numberValue(d.x))) - ((numberValue(a.x) - numberValue(b.x)) * post)) / denominator;
+  const y = ((pre * (numberValue(c.y) - numberValue(d.y))) - ((numberValue(a.y) - numberValue(b.y)) * post)) / denominator;
+  const within = (point, start, end) => point >= Math.min(start, end) - 0.01 && point <= Math.max(start, end) + 0.01;
+  if (
+    within(x, numberValue(a.x), numberValue(b.x))
+    && within(y, numberValue(a.y), numberValue(b.y))
+    && within(x, numberValue(c.x), numberValue(d.x))
+    && within(y, numberValue(c.y), numberValue(d.y))
+  ) {
+    return { x: roundQuantity(x, 2), y: roundQuantity(y, 2) };
+  }
+  return null;
 }
 
 export function normalizeTakeoffScale(scale = {}) {
@@ -465,6 +525,7 @@ export function normalizeTakeoffStudio(takeoff = {}) {
     toolSetId: TAKEOFF_STUDIO_TOOL_SET_OPTIONS.some((option) => option.id === textValue(takeoff?.toolSetId))
       ? textValue(takeoff?.toolSetId)
       : DEFAULT_TOOL_SET_ID,
+    snapSettings: normalizeSnapSettings(takeoff?.snapSettings),
     selectedSheetId: selectedSheet?.id || "",
     sheets,
     items,
@@ -640,6 +701,140 @@ export function createTakeoffStudioMeasurementFromDrawing({ measurementType = "a
       ? `Drawn on ${sheet.name}; sheet scale applied for estimator review.`
       : `Drawn on ${sheet.name || "selected sheet"}; calibrate sheet scale before review.`,
   }, index);
+}
+
+export function buildTakeoffStudioSnapTargets(takeoff = {}, selectedSheet = null) {
+  const normalized = normalizeTakeoffStudio(takeoff);
+  const sheet = selectedSheet || normalized.sheets.find((candidate) => candidate.id === normalized.selectedSheetId) || normalized.sheets[0] || null;
+  const sheetItems = sheet
+    ? normalized.items.filter((item) => itemBelongsToSheet(item, sheet) && item.points.length)
+    : [];
+  const targets = [];
+  const segments = [];
+
+  sheetItems.forEach((item) => {
+    item.points.forEach((point, pointIndex) => {
+      targets.push({
+        type: "endpoint",
+        label: `${item.label} point ${pointIndex + 1}`,
+        point,
+        itemId: item.id,
+      });
+    });
+    itemSegments(item).forEach((segment, segmentIndex) => {
+      segments.push({ item, segment, segmentIndex });
+      const midpoint = {
+        x: roundQuantity((numberValue(segment[0].x) + numberValue(segment[1].x)) / 2, 2),
+        y: roundQuantity((numberValue(segment[0].y) + numberValue(segment[1].y)) / 2, 2),
+      };
+      targets.push({
+        type: "segment-midpoint",
+        label: `${item.label} midpoint ${segmentIndex + 1}`,
+        point: midpoint,
+        itemId: item.id,
+      });
+    });
+  });
+
+  for (let outer = 0; outer < segments.length; outer += 1) {
+    for (let inner = outer + 1; inner < segments.length; inner += 1) {
+      const intersection = segmentIntersection(segments[outer].segment, segments[inner].segment);
+      if (!intersection) continue;
+      targets.push({
+        type: "intersection",
+        label: `${segments[outer].item.label} / ${segments[inner].item.label}`,
+        point: intersection,
+        itemId: segments[outer].item.id,
+      });
+    }
+  }
+
+  return {
+    selectedSheetId: sheet?.id || "",
+    targets,
+    segments,
+    summary: `${targets.length} snap target${targets.length === 1 ? "" : "s"} available on ${sheet?.name || "the selected sheet"}.`,
+    safetyBoundary: "Snapping helps draft geometry only. It does not auto-measure final quantities, approve pricing, perform customer sends, trigger external bid actions, or expose field data.",
+  };
+}
+
+export function snapTakeoffStudioPoint(point = {}, { targets = [], segments = [], snapSettings = {} } = {}) {
+  const settings = normalizeSnapSettings(snapSettings);
+  const rawPoint = normalizePoint(point);
+  if (!settings.enabled || !rawPoint) {
+    return { point: rawPoint || { x: 0, y: 0 }, snapped: false, type: "none", label: "", distance: 0 };
+  }
+
+  const candidates = [];
+  if (settings.endpoints || settings.intersections) {
+    targets.forEach((target) => {
+      if (target.type === "endpoint" && !settings.endpoints) return;
+      if (target.type === "intersection" && !settings.intersections) return;
+      if (target.type === "segment-midpoint" && !settings.segments) return;
+      candidates.push({
+        ...target,
+        priority: target.type === "endpoint" ? 0 : target.type === "intersection" ? 1 : 2,
+        distance: distance(rawPoint, target.point),
+      });
+    });
+  }
+  if (settings.segments) {
+    segments.forEach(({ item, segment, segmentIndex }) => {
+      const projected = segmentProjection(rawPoint, segment);
+      candidates.push({
+        type: "segment",
+        label: `${item.label} segment ${segmentIndex + 1}`,
+        point: projected,
+        itemId: item.id,
+        priority: 3,
+        distance: distance(rawPoint, projected),
+      });
+    });
+  }
+
+  const nearest = candidates
+    .filter((candidate) => candidate.distance <= settings.tolerance)
+    .sort((a, b) => (a.priority - b.priority) || (a.distance - b.distance))[0];
+
+  if (!nearest) {
+    return { point: rawPoint, snapped: false, type: "none", label: "", distance: 0 };
+  }
+
+  return {
+    point: nearest.point,
+    snapped: true,
+    type: nearest.type,
+    label: nearest.label,
+    distance: roundQuantity(nearest.distance, 2),
+  };
+}
+
+export function snapTakeoffStudioDraftPoint({ point = {}, draftPoints = [], snapTargets = {}, snapSettings = {} } = {}) {
+  const snappedToGeometry = snapTakeoffStudioPoint(point, { ...snapTargets, snapSettings });
+  if (snappedToGeometry.snapped) return snappedToGeometry;
+
+  const settings = normalizeSnapSettings(snapSettings);
+  const rawPoint = normalizePoint(point) || { x: 0, y: 0 };
+  const lastPoint = normalizePoints(draftPoints).at(-1);
+  if (!settings.enabled || !settings.angleSnap || !lastPoint) return snappedToGeometry;
+
+  const dx = rawPoint.x - lastPoint.x;
+  const dy = rawPoint.y - lastPoint.y;
+  const length = Math.hypot(dx, dy);
+  if (!length) return snappedToGeometry;
+  const angle = Math.atan2(dy, dx);
+  const increment = Math.PI / 4;
+  const snappedAngle = Math.round(angle / increment) * increment;
+  return {
+    point: {
+      x: roundQuantity(lastPoint.x + (Math.cos(snappedAngle) * length), 2),
+      y: roundQuantity(lastPoint.y + (Math.sin(snappedAngle) * length), 2),
+    },
+    snapped: true,
+    type: "angle",
+    label: "45/90 angle",
+    distance: 0,
+  };
 }
 
 export function buildTakeoffStudioRevisionRegister(takeoff = {}) {

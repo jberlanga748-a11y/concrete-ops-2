@@ -18,6 +18,7 @@ import {
   buildTakeoffStudioRevisionComparison,
   buildTakeoffStudioRevisionRegister,
   buildTakeoffStudioSheetWorkspace,
+  buildTakeoffStudioSnapTargets,
   calculateTakeoffQuantity,
   createEmptyTakeoffStudioItem,
   createEmptyTakeoffStudioMarkupComment,
@@ -36,6 +37,8 @@ import {
   normalizeTakeoffStudio,
   normalizeTakeoffStudioItem,
   parseTakeoffPointsText,
+  snapTakeoffStudioDraftPoint,
+  snapTakeoffStudioPoint,
 } from "./takeoff-studio-utils.js";
 
 const tenFeetScale = { pixels: 100, realWorldLength: 10, realWorldUnit: "FT" };
@@ -212,6 +215,51 @@ test("creates draft measurements from plan drawing tools without auto-finalizing
   assert.equal(draftItem.fieldVisible, false);
   assert.match(draftItem.estimatorNote, /estimator review/i);
   assert.doesNotMatch(JSON.stringify(draftItem), /unitPrice|margin|profit|payroll|billing|send proposal|bid submission/i);
+});
+
+test("snaps draft points to existing geometry and angle increments", () => {
+  const takeoff = normalizeTakeoffStudio({
+    selectedSheetId: "s1",
+    sheets: [{ id: "s1", name: "C2.1", scale: tenFeetScale }],
+    items: [
+      {
+        id: "slab-1",
+        label: "Slab",
+        sheetId: "s1",
+        measurementType: "area",
+        points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }],
+        reviewStatus: "reviewed",
+      },
+      {
+        id: "walk-1",
+        label: "Walk",
+        sheetId: "s1",
+        measurementType: "length",
+        points: [{ x: 50, y: -20 }, { x: 50, y: 120 }],
+        reviewStatus: "reviewed",
+      },
+    ],
+  });
+  const snapTargets = buildTakeoffStudioSnapTargets(takeoff, takeoff.sheets[0]);
+  const endpoint = snapTakeoffStudioPoint({ x: 103, y: 2 }, { ...snapTargets, snapSettings: takeoff.snapSettings });
+  const segment = snapTakeoffStudioPoint({ x: 48, y: 70 }, { ...snapTargets, snapSettings: { enabled: true, tolerance: 10, endpoints: false, intersections: false, segments: true } });
+  const angle = snapTakeoffStudioDraftPoint({
+    point: { x: 80, y: 30 },
+    draftPoints: [{ x: 0, y: 0 }],
+    snapTargets: { targets: [], segments: [] },
+    snapSettings: { enabled: true, angleSnap: true, tolerance: 4 },
+  });
+
+  assert.ok(snapTargets.targets.some((target) => target.type === "intersection"));
+  assert.equal(endpoint.snapped, true);
+  assert.equal(endpoint.type, "endpoint");
+  assert.deepEqual(endpoint.point, { x: 100, y: 0 });
+  assert.equal(segment.type, "segment");
+  assert.equal(segment.point.x, 50);
+  assert.equal(angle.type, "angle");
+  assert.notDeepEqual(angle.point, { x: 80, y: 30 });
+  assert.match(snapTargets.safetyBoundary, /does not auto-measure final quantities/i);
+  assert.doesNotMatch(JSON.stringify(snapTargets), /unitPrice|margin|profit|payroll|billing|send proposal|bid submission/i);
 });
 
 test("normalizes reviewed takeoff items with safe defaults", () => {

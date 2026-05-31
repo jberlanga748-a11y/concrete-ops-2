@@ -1,7 +1,7 @@
 # Apex HQ Takeoff Studio Phase Plan
 
 Date: 2026-05-31
-Status: Phase 1-8 takeoff plan implemented locally; snapping, AI plan assist, auto-measure beta, and hardening remain active follow-on phases
+Status: Phase 1-9 takeoff plan implemented locally; AI plan assist, auto-measure beta, and hardening remain active follow-on phases
 
 ## Goal
 
@@ -289,6 +289,14 @@ Phase 8 first checkpoint:
 4. Keep drawn measurements office-only by default and exclude pricing, customer proof, field handoff, bids, sends, and provider writes until explicit review. Complete.
 5. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint.
 
+Phase 9 first checkpoint:
+
+1. Add deterministic snap targets from existing selected-sheet geometry: endpoints, segment midpoints, projected segments, and intersections. Complete.
+2. Add drawing-time snapping with configurable enabled state, tolerance, and angle snap. Complete.
+3. Add visual snap target indicators and snap status in the drawing workspace. Complete.
+4. Keep snapping as a drafting aid only; it must not finalize quantities, pricing, bids, sends, provider writes, customer proof, or field handoff. Complete.
+5. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint.
+
 ## Phase 1 Checkpoint: Manual Editor
 
 Completed on 2026-05-31:
@@ -411,3 +419,16 @@ Completed locally on 2026-05-31:
 Deferred Phase 8 enhancements:
 
 - Keyboard shortcuts, grip editing, drag handles, touch-specialized drawing gestures, and snapping are handled in later phases.
+
+## Phase 9 Checkpoint: Snapping System
+
+Completed locally on 2026-05-31:
+
+- Takeoff Studio now builds snap targets from existing geometry on the selected sheet, including endpoints, segment midpoints, segment projections, and intersections.
+- Drawing clicks snap to nearby geometry based on configurable tolerance, with a toggle for snapping and 45/90-degree angle snap.
+- The plan overlay shows snap target dots and a snap status readout while drafting.
+- Snapping only improves draft geometry. Measurements still save as needs-review and do not affect pricing, proposal proof, field handoff, bids, sends, provider writes, or customer-facing claims without explicit estimator action.
+
+Deferred Phase 9 enhancements:
+
+- Drag-to-edit handles, keyboard modifier keys, snap layers, and high-volume geometry performance tuning remain later polish/hardening work.
