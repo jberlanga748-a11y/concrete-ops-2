@@ -11,7 +11,7 @@ import { calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEst
 import { addEstimateLineItemStarter, applyEstimateTemplateStarter, buildEstimateLineItemsFromRoughNotes, getEstimateLineItemStartersForTrade, getEstimateStarterTradeSummary, getEstimateTemplateStartersForTrade } from "./estimate-template-utils";
 import { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
 import { buildFenceTakeoffBackupRows, buildFenceTakeoffDraftLineItems, buildFenceTakeoffFieldHandoff, buildFenceTakeoffProofPhotoChecklist, buildFenceTakeoffProposalSummary, deriveFenceTakeoffReadiness, mergeFenceTakeoffIntoDraft, normalizeFenceTakeoff, summarizeFenceTakeoffByAssembly } from "./fence-takeoff-utils";
-import { applyTakeoffStudioAssistantSuggestion, applyTakeoffStudioSheetCalibrationToItems, attachTakeoffStudioPlanFileToSheet, buildTakeoffStudioAiPlanAssist, buildTakeoffStudioAssistantQueue, buildTakeoffStudioAutoMeasureBeta, buildTakeoffStudioBackupRows, buildTakeoffStudioCsvExport, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioFieldHandoff, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioMeasurementLegend, buildTakeoffStudioPackageExport, buildTakeoffStudioPdfPageRenderState, buildTakeoffStudioPlanFileCandidates, buildTakeoffStudioPlanFileReadiness, buildTakeoffStudioPlanReviewLayer, buildTakeoffStudioProductionHardening, buildTakeoffStudioProposalProofRows, buildTakeoffStudioProofSnapshot, buildTakeoffStudioRevisionComparison, buildTakeoffStudioRevisionRegister, buildTakeoffStudioSheetWorkspace, buildTakeoffStudioSnapTargets, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioMarkupComment, createEmptyTakeoffStudioSheet, createTakeoffStudioItemFromAutoMeasureSuggestion, createTakeoffStudioMarkupFromPoint, createTakeoffStudioMeasurementFromDrawing, createTakeoffStudioSheetFromPlanFilePage, deriveTakeoffStudioCalibrationState, deriveTakeoffStudioDrawingState, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, getTakeoffStudioToolSetOptions, mergeTakeoffStudioAssistantSuggestionState, mergeTakeoffStudioCsvImport, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText, snapTakeoffStudioDraftPoint } from "./takeoff-studio-utils";
+import { applyTakeoffStudioAssistantSuggestion, applyTakeoffStudioSheetCalibrationToItems, attachTakeoffStudioPlanFileToSheet, buildTakeoffStudioAiPlanAssist, buildTakeoffStudioAssistantQueue, buildTakeoffStudioAutoMeasureBeta, buildTakeoffStudioBackupRows, buildTakeoffStudioCsvExport, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioFieldHandoff, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioMeasurementLegend, buildTakeoffStudioPackageExport, buildTakeoffStudioPdfPageRenderState, buildTakeoffStudioPlanFileCandidates, buildTakeoffStudioPlanFileReadiness, buildTakeoffStudioPlanReviewLayer, buildTakeoffStudioPlanTextExtractionState, buildTakeoffStudioProductionHardening, buildTakeoffStudioProposalProofRows, buildTakeoffStudioProofSnapshot, buildTakeoffStudioRevisionComparison, buildTakeoffStudioRevisionRegister, buildTakeoffStudioSheetWorkspace, buildTakeoffStudioSnapTargets, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioMarkupComment, createEmptyTakeoffStudioSheet, createTakeoffStudioItemFromAutoMeasureSuggestion, createTakeoffStudioMarkupFromPoint, createTakeoffStudioMeasurementFromDrawing, createTakeoffStudioPlanTextSourceDraft, createTakeoffStudioSheetFromPlanFilePage, deriveTakeoffStudioCalibrationState, deriveTakeoffStudioDrawingState, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, getTakeoffStudioToolSetOptions, mergeTakeoffStudioAssistantSuggestionState, mergeTakeoffStudioCsvImport, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText, snapTakeoffStudioDraftPoint } from "./takeoff-studio-utils";
 import { CUSTOM_ESTIMATE_PACKET_THEME_ID, ESTIMATE_PACKET_COPY_TEMPLATE_OPTIONS, ESTIMATE_PACKET_PRESETS, ESTIMATE_PACKET_SECTION_DEFS, ESTIMATE_PACKET_THEME_OPTIONS, INTERNAL_REVIEW_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
 
 export { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
@@ -952,7 +952,8 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
   const sheets = takeoff.sheets.length ? takeoff.sheets : [createEmptyTakeoffStudioSheet(0)];
   const items = takeoff.items.length ? takeoff.items : [createEmptyTakeoffStudioItem(0)];
   const markupComments = takeoff.markupComments.length ? takeoff.markupComments : [createEmptyTakeoffStudioMarkupComment(0)];
-  const editingTakeoff = { ...takeoff, sheets, items, markupComments };
+  const planTextSources = takeoff.planTextSources || [];
+  const editingTakeoff = { ...takeoff, sheets, items, markupComments, planTextSources };
   const planFileCandidates = buildTakeoffStudioPlanFileCandidates({
     takeoff: editingTakeoff,
     uploads,
@@ -980,6 +981,7 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
   const snapTargets = buildTakeoffStudioSnapTargets(editingTakeoff, selectedSheet);
   const planReviewLayer = buildTakeoffStudioPlanReviewLayer(editingTakeoff, selectedSheet);
   const pdfRenderState = buildTakeoffStudioPdfPageRenderState({ ...editingTakeoff, planFiles: planFileCandidates }, selectedSheet);
+  const planTextExtractionState = buildTakeoffStudioPlanTextExtractionState({ ...editingTakeoff, planFiles: planFileCandidates });
   const planAssist = buildTakeoffStudioAiPlanAssist(editingTakeoff);
   const autoMeasureBeta = buildTakeoffStudioAutoMeasureBeta(editingTakeoff);
   const hardeningState = buildTakeoffStudioProductionHardening(editingTakeoff);
@@ -1133,6 +1135,51 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
       items,
       markupComments,
       planFiles: planFileCandidates,
+    });
+  }
+
+  function addPlanTextSource() {
+    const sheetFileName = selectedSheet?.sourceFileName || "";
+    const sheetPreviewUrl = selectedSheet?.sourcePreviewUrl || "";
+    const sourcePlanFile = planFileCandidates.find((file) => (
+      (sheetFileName && file.fileName === sheetFileName)
+      || (sheetPreviewUrl && (file.previewUrl === sheetPreviewUrl || file.contentUrl === sheetPreviewUrl))
+    )) || planFileCandidates.find((file) => file.status === "ready") || planFileCandidates[0] || null;
+    const nextSource = createTakeoffStudioPlanTextSourceDraft({
+      planFile: sourcePlanFile,
+      selectedSheet,
+      index: planTextSources.length,
+    });
+    commitTakeoff({
+      ...takeoff,
+      sheets,
+      items,
+      markupComments,
+      planFiles: planFileCandidates,
+      planTextSources: [...planTextSources, nextSource],
+    });
+  }
+
+  function updatePlanTextSource(index, field, value) {
+    const nextSources = planTextSources.map((source, sourceIndex) => sourceIndex === index ? { ...source, [field]: value } : source);
+    commitTakeoff({
+      ...takeoff,
+      sheets,
+      items,
+      markupComments,
+      planFiles: planFileCandidates,
+      planTextSources: nextSources,
+    });
+  }
+
+  function removePlanTextSource(index) {
+    commitTakeoff({
+      ...takeoff,
+      sheets,
+      items,
+      markupComments,
+      planFiles: planFileCandidates,
+      planTextSources: planTextSources.filter((_, sourceIndex) => sourceIndex !== index),
     });
   }
 
@@ -1611,6 +1658,65 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
             className="field-input mt-3 min-h-24 resize-y"
             placeholder="Paste reviewed plan notes, OCR text, addenda notes, dimensions, or scope terms here. No files are read automatically."
           />
+          <div className="mt-3 rounded-2xl border border-violet-100 bg-violet-50/60 p-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-violet-700">Plan text extraction readiness</p>
+                <p className="mt-1 text-sm font-bold leading-6 text-slate-700">{planTextExtractionState.summary}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge tone={planTextExtractionState.ready ? "green" : "amber"}>{planTextExtractionState.reviewedSourceCount}/{planTextExtractionState.sourceCount} reviewed</Badge>
+                <Button type="button" size="sm" variant="secondary" onClick={addPlanTextSource} disabled={disabled}>Add Text Source</Button>
+              </div>
+            </div>
+            {planTextSources.length ? (
+              <div className="mt-3 grid gap-3">
+                {planTextSources.map((source, index) => (
+                  <div key={source.id || `plan-text-source-${index}`} className="rounded-xl border border-violet-100 bg-white p-3">
+                    <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px_170px_auto]">
+                      <InputField
+                        label="Source file"
+                        value={source.sourceFileName || ""}
+                        onChange={(event) => updatePlanTextSource(index, "sourceFileName", event.target.value)}
+                        disabled={disabled}
+                      />
+                      <SelectField label="Method" value={source.method || "manual_paste"} onChange={(event) => updatePlanTextSource(index, "method", event.target.value)} disabled={disabled}>
+                        <option value="manual_paste">Manual paste</option>
+                        <option value="reviewed_ocr">Reviewed OCR</option>
+                        <option value="reviewed_plan_notes">Reviewed notes</option>
+                      </SelectField>
+                      <SelectField label="Review" value={source.reviewStatus || "draft"} onChange={(event) => updatePlanTextSource(index, "reviewStatus", event.target.value)} disabled={disabled}>
+                        <option value="draft">Draft</option>
+                        <option value="needs_review">Needs review</option>
+                        <option value="reviewed">Reviewed</option>
+                      </SelectField>
+                      <div className="flex items-end">
+                        <Button type="button" size="sm" variant="secondary" onClick={() => removePlanTextSource(index)} disabled={disabled}>Remove</Button>
+                      </div>
+                    </div>
+                    <TextAreaField
+                      label="Reviewed extracted text"
+                      value={source.text || ""}
+                      onChange={(event) => updatePlanTextSource(index, "text", event.target.value)}
+                      disabled={disabled}
+                      className="field-input mt-3 min-h-20 resize-y"
+                      placeholder="Paste only estimator-reviewed OCR/text for this plan source."
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-3 rounded-xl border border-violet-100 bg-white px-3 py-2 text-sm font-bold text-slate-600">Add a text source when plan files have been reviewed and OCR/text has been pasted by the office.</p>
+            )}
+            {planTextExtractionState.warnings.length ? (
+              <div className="mt-3 grid gap-2">
+                {planTextExtractionState.warnings.slice(0, 3).map((warning) => (
+                  <p key={warning} className="rounded-xl border border-amber-100 bg-white px-3 py-2 text-xs font-bold text-amber-900">{warning}</p>
+                ))}
+              </div>
+            ) : null}
+            <p className="mt-2 text-xs font-bold leading-5 text-slate-500">{planTextExtractionState.safetyBoundary}</p>
+          </div>
           <div className="mt-3 grid gap-2">
             {planAssist.suggestions.length ? planAssist.suggestions.slice(0, 5).map((suggestion) => (
               <div key={suggestion.id} className="rounded-xl border border-violet-100 bg-violet-50/60 px-3 py-2">

@@ -53,13 +53,14 @@ Current status:
 - Phase 13 Production Hardening first checkpoint is implemented locally: Takeoff Studio now flags source gaps, calibration gaps, draft rows, unsafe customer/field review gates, large geometry risk, and local readiness counts in the owner/admin workspace.
 - Phase 14 Real Plan File Handling first checkpoint is implemented locally: Takeoff Studio now registers safe PDF/image plan file candidates from existing upload records, reviewed estimate reference rows, and sheet source metadata, then attaches reviewed sources to selected sheets without schema, provider, OCR, auto-measure, send, or field-permission changes.
 - Phase 15 PDF Page Rendering first checkpoint is implemented locally: Takeoff Studio now creates page-specific native PDF viewer URLs, shows selected-sheet PDF render readiness, and can add page-specific sheet records from reviewed PDF plan files without parsing, OCR, provider writes, schema changes, or field exposure.
+- Phase 16 OCR / Plan Text Extraction Readiness first checkpoint is implemented locally: Takeoff Studio now tracks manual/review-first plan text source rows tied to registered files/sheets, folds reviewed pasted text into local Plan Assist and Auto-Measure Beta context, and keeps OCR/file parsing/external AI/provider writes/schema changes out of scope.
 - Estimate Studio, Proposals, Jobs, Uploads, AI Office, and field workflows must be extended, not rebuilt.
 - AI must stay review-first and must not auto-measure as final truth, approve pricing, submit bids, send proposals, or mutate risky customer-facing records.
 - Field users remain blocked from Estimate Studio, Takeoff Studio, pricing, margin, profit, payroll, billing, office notes, and AI Office controls.
 
 Current next action:
 
-- Freeze Phase 15, then continue with Phase 16 OCR/plan text extraction readiness over registered PDF/image sources.
+- Freeze Phase 16, then continue with Phase 17 Vision Auto-Measure Beta over reviewed plan text/source context.
 
 ## Production Patch: Estimate Proposal Type + Print Preview
 

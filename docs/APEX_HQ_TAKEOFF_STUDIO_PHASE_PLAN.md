@@ -1,7 +1,7 @@
 # Apex HQ Takeoff Studio Phase Plan
 
 Date: 2026-05-31
-Status: Phase 1-15 takeoff plan implemented locally; OCR/vision, trade packs, and pilot hardening upgrades remain versioned later work
+Status: Phase 1-16 takeoff plan implemented locally; vision, trade packs, and pilot hardening upgrades remain versioned later work
 
 ## Goal
 
@@ -261,7 +261,7 @@ Phase 4 first checkpoint:
 2. Add item revision state and explicit field-safe handoff approval separate from customer proposal proof. Complete.
 3. Build revision register, proof snapshot, and field handoff helpers that exclude pricing, margins, payroll, billing, office notes, and office-only takeoff backup. Complete.
 4. Extend the foreman handoff packet to prefer explicitly approved Takeoff Studio field rows and filter office-only Takeoff Studio rows. Complete.
-5. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint.
+5. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint. Complete.
 
 Phase 5 first checkpoint:
 
@@ -343,6 +343,14 @@ Phase 15 first checkpoint:
 3. Let owner/admin add page-specific sheet records from a reviewed PDF plan file without parsing, OCR, provider writes, or schema changes. Complete.
 4. Render the selected PDF page URL inside the existing plan viewer iframe while preserving the measurement overlay and review-first workflow. Complete.
 5. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint. Complete.
+
+Phase 16 first checkpoint:
+
+1. Add manual/review-first plan text extraction source rows over registered PDF/image plan files. Complete.
+2. Track source file, method, pasted extracted text, and estimator review status in the existing Takeoff Studio backup structure. Complete.
+3. Surface extraction readiness, reviewed source counts, warnings, and safety boundaries beside AI Plan Assist. Complete.
+4. Let reviewed source text feed local Plan Assist and Auto-Measure Beta without reading/OCRing files, calling external AI, approving quantities, sending customer data, exposing field users, writing providers, or changing schema. Complete.
+5. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint.
 
 ## Phase 1 Checkpoint: Manual Editor
 
@@ -563,3 +571,17 @@ Completed locally on 2026-05-31:
 Deferred Phase 15 enhancements:
 
 - Durable PDF raster tiles, thumbnail extraction, OCR, vision assistance, and large-PDF performance telemetry remain later phases.
+
+## Phase 16 Checkpoint: OCR / Plan Text Extraction Readiness
+
+Completed locally on 2026-05-31:
+
+- Takeoff Studio now stores reviewed plan text source rows tied to registered plan files and selected sheets.
+- Owner/admin users can add manual paste/reviewed OCR/reviewed notes source rows, paste extracted plan text, and mark each source draft, needs-review, or reviewed.
+- Extraction readiness tracks registered plan file coverage, draft source rows, reviewed source counts, and whether Plan Assist / Auto-Measure Beta has reviewed text available.
+- Reviewed source text is folded into the normalized Takeoff Studio plan text context so existing local assistant and beta measurement suggestions can use it after estimator review.
+- This checkpoint remains manual-safe: it does not OCR files, read uploads automatically, call external AI, certify quantities, approve pricing, send customer data, expose field users, write providers, mutate production data, or require schema changes.
+
+Deferred Phase 16 enhancements:
+
+- Real OCR workers, server-side PDF text extraction, page-linked OCR overlays, and vision-based measurement confidence remain later approved phases.

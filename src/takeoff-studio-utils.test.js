@@ -18,6 +18,7 @@ import {
   buildTakeoffStudioPlanFileCandidates,
   buildTakeoffStudioPlanFileReadiness,
   buildTakeoffStudioPdfPageRenderState,
+  buildTakeoffStudioPlanTextExtractionState,
   buildTakeoffStudioPlanReviewLayer,
   buildTakeoffStudioProductionHardening,
   buildTakeoffStudioProposalProofRows,
@@ -35,6 +36,7 @@ import {
   createTakeoffStudioMarkupFromPoint,
   createTakeoffStudioItemFromAutoMeasureSuggestion,
   createTakeoffStudioSheetFromPlanFilePage,
+  createTakeoffStudioPlanTextSourceDraft,
   deriveTakeoffStudioCalibrationState,
   deriveTakeoffStudioDrawingState,
   deriveTakeoffStudioReadiness,
@@ -472,6 +474,37 @@ test("builds native PDF page render state over registered plan files", () => {
   assert.equal(state.canAddPageSheet, true);
   assert.match(state.safetyBoundary, /does not parse files/i);
   assert.doesNotMatch(JSON.stringify(state), /unitPrice|margin|profit|payroll|billing|send proposal|bid submission/i);
+});
+
+test("builds review-first plan text extraction readiness without OCR claims", () => {
+  const planFile = normalizeTakeoffStudioPlanFile({
+    id: "reference:plans",
+    sourceType: "reference",
+    fileName: "civil-set.pdf",
+    mimeType: "application/pdf",
+    previewUrl: "https://files.example.test/civil-set.pdf",
+  });
+  const draftSource = createTakeoffStudioPlanTextSourceDraft({ planFile, selectedSheet: { id: "s1" }, index: 0 });
+  const needsText = buildTakeoffStudioPlanTextExtractionState({
+    planFiles: [planFile],
+    planTextSources: [draftSource],
+  });
+  const ready = buildTakeoffStudioPlanTextExtractionState({
+    planFiles: [planFile],
+    planTextSources: [{ ...draftSource, text: "Addendum 1 calls for 120 LF sawcut and 4 drains.", reviewStatus: "reviewed" }],
+  });
+  const normalized = normalizeTakeoffStudio({
+    planTextSources: [{ ...draftSource, text: "Reviewed OCR paste", reviewStatus: "reviewed" }],
+  });
+
+  assert.equal(needsText.ready, false);
+  assert.match(needsText.summary, /pasted text/i);
+  assert.equal(ready.ready, true);
+  assert.equal(ready.reviewedSourceCount, 1);
+  assert.match(ready.reviewedText, /120 LF/);
+  assert.match(normalized.planText, /Reviewed OCR paste/);
+  assert.match(ready.safetyBoundary, /does not OCR files/i);
+  assert.doesNotMatch(JSON.stringify(ready), /unitPrice|margin|profit|payroll|billing|send proposal|bid submission|external api/i);
 });
 
 test("normalizes reviewed takeoff items with safe defaults", () => {

@@ -200,6 +200,21 @@ function normalizeMarkupComment(comment = {}, index = 0) {
   };
 }
 
+function normalizePlanTextSource(source = {}, index = 0) {
+  const reviewStatus = textValue(source?.reviewStatus || source?.status).toLowerCase();
+  return {
+    id: textValue(source?.id) || `plan-text-source-${index + 1}`,
+    planFileId: textValue(source?.planFileId),
+    sheetId: textValue(source?.sheetId),
+    sourceFileName: textValue(source?.sourceFileName || source?.fileName || source?.name),
+    method: textValue(source?.method) || "manual_paste",
+    text: textValue(source?.text || source?.planText || source?.ocrText),
+    reviewStatus: reviewStatus === "reviewed" ? "reviewed" : DEFAULT_REVIEW_STATUS,
+    reviewedAt: textValue(source?.reviewedAt),
+    warnings: (Array.isArray(source?.warnings) ? source.warnings : []).map((warning) => textValue(warning)).filter(Boolean),
+  };
+}
+
 function positiveInteger(value, fallback = 0) {
   const parsed = Math.round(numberValue(value, fallback));
   return parsed > 0 ? parsed : fallback;
@@ -344,6 +359,48 @@ export function buildTakeoffStudioPdfPageRenderState(takeoff = {}, selectedSheet
       ? `PDF page ${pageNumber}${pageCount ? ` of ${pageCount}` : ""} is ready for native browser rendering.`
       : "Attach a reviewed PDF plan file to render page-specific sheet views.",
     safetyBoundary: "PDF page rendering uses the browser's local PDF viewer over safe source URLs. It does not parse files, OCR plans, auto-measure, approve quantities, send customer data, expose field users, or write providers.",
+  };
+}
+
+export function createTakeoffStudioPlanTextSourceDraft({ planFile = null, selectedSheet = null, index = 0 } = {}) {
+  const normalizedFile = planFile ? normalizeTakeoffStudioPlanFile(planFile, index) : null;
+  return normalizePlanTextSource({
+    id: `plan-text-source-${index + 1}`,
+    planFileId: normalizedFile?.id || "",
+    sheetId: textValue(selectedSheet?.id),
+    sourceFileName: normalizedFile?.fileName || textValue(selectedSheet?.sourceFileName) || textValue(selectedSheet?.name),
+    method: "manual_paste",
+    text: "",
+    reviewStatus: DEFAULT_REVIEW_STATUS,
+  }, index);
+}
+
+export function buildTakeoffStudioPlanTextExtractionState(takeoff = {}) {
+  const normalized = normalizeTakeoffStudio(takeoff);
+  const reviewedSources = normalized.planTextSources.filter((source) => source.reviewStatus === "reviewed" && source.text);
+  const draftSources = normalized.planTextSources.filter((source) => source.reviewStatus !== "reviewed" || !source.text);
+  const sourceFileNames = new Set(normalized.planTextSources.map((source) => source.sourceFileName).filter(Boolean));
+  const uncoveredFiles = normalized.planFiles.filter((file) => file.status === "ready" && !sourceFileNames.has(file.fileName));
+  const hasWorkspaceText = Boolean(textValue(takeoff?.planText || takeoff?.ocrText || takeoff?.planNotes));
+  const warnings = [
+    !normalized.planFiles.length ? "Register plan files before building extraction readiness." : "",
+    uncoveredFiles.length ? `${uncoveredFiles.length} ready plan file${uncoveredFiles.length === 1 ? "" : "s"} need a reviewed text/OCR source row.` : "",
+    draftSources.length ? `${draftSources.length} plan text source${draftSources.length === 1 ? "" : "s"} need pasted text and estimator review.` : "",
+    !reviewedSources.length && !hasWorkspaceText ? "Paste reviewed plan text before using Plan Assist or Auto-Measure Beta." : "",
+  ].filter(Boolean);
+
+  return {
+    ready: (reviewedSources.length > 0 || hasWorkspaceText) && warnings.length === 0,
+    sourceCount: normalized.planTextSources.length,
+    reviewedSourceCount: reviewedSources.length,
+    draftSourceCount: draftSources.length,
+    uncoveredFileCount: uncoveredFiles.length,
+    reviewedText: reviewedSources.map((source) => source.text).join("\n\n"),
+    warnings,
+    summary: warnings.length
+      ? warnings[0]
+      : `${reviewedSources.length} reviewed plan text source${reviewedSources.length === 1 ? "" : "s"} ready for local Plan Assist.`,
+    safetyBoundary: "Plan text extraction readiness is manual/review-first. It does not OCR files, read uploads automatically, call external AI, certify quantities, approve pricing, send customer data, expose field users, or write providers.",
   };
 }
 
@@ -771,6 +828,13 @@ export function normalizeTakeoffStudio(takeoff = {}) {
     ...(Array.isArray(takeoff?.planFiles) ? takeoff.planFiles : []).map((file, index) => normalizeTakeoffStudioPlanFile(file, index)),
     ...sheetSourceLinks,
   ]);
+  const planTextSources = (Array.isArray(takeoff?.planTextSources) ? takeoff.planTextSources : [])
+    .map((source, index) => normalizePlanTextSource(source, index))
+    .filter((source) => source.sourceFileName || source.text);
+  const reviewedPlanText = planTextSources
+    .filter((source) => source.reviewStatus === "reviewed" && source.text)
+    .map((source) => source.text)
+    .join("\n\n");
   const selectedSheetId = textValue(takeoff?.selectedSheetId);
   const selectedSheet = sheets.find((sheet) => sheet.id === selectedSheetId) || sheets[0];
 
@@ -790,14 +854,15 @@ export function normalizeTakeoffStudio(takeoff = {}) {
     markupComments: (Array.isArray(takeoff?.markupComments) ? takeoff.markupComments : [])
       .map((comment, index) => normalizeMarkupComment(comment, index))
       .filter((comment) => comment.text),
-    planText: textValue(takeoff?.planText || takeoff?.ocrText || takeoff?.planNotes),
+    planTextSources,
+    planText: textValue(takeoff?.planText || takeoff?.ocrText || takeoff?.planNotes) || reviewedPlanText,
     updatedAt: textValue(takeoff?.updatedAt),
   };
 }
 
 export function takeoffStudioHasContent(takeoff = {}) {
   const normalized = normalizeTakeoffStudio(takeoff);
-  return Boolean(normalized.sheets.length || normalized.planFiles.length || normalized.items.length || normalized.notes || normalized.markupComments.length);
+  return Boolean(normalized.sheets.length || normalized.planFiles.length || normalized.planTextSources.length || normalized.items.length || normalized.notes || normalized.markupComments.length);
 }
 
 export function attachTakeoffStudioPlanFileToSheet(takeoff = {}, planFileId = "", sheetId = "") {
