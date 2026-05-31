@@ -1,7 +1,7 @@
 # Apex HQ Takeoff Studio Phase Plan
 
 Date: 2026-05-31
-Status: Phase 1-14 takeoff plan implemented locally; PDF rendering, OCR/vision, trade packs, and pilot hardening upgrades remain versioned later work
+Status: Phase 1-15 takeoff plan implemented locally; OCR/vision, trade packs, and pilot hardening upgrades remain versioned later work
 
 ## Goal
 
@@ -336,6 +336,14 @@ Phase 14 first checkpoint:
 4. Keep field users blocked from Estimate Studio, Takeoff Studio, plan file candidates, pricing, margins, billing, payroll, office notes, and AI Office controls. Complete.
 5. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint. Complete.
 
+Phase 15 first checkpoint:
+
+1. Add native browser PDF page-render URLs for registered PDF plan files. Complete.
+2. Add PDF page render readiness over the selected sheet, recorded page number, page count, and source file. Complete.
+3. Let owner/admin add page-specific sheet records from a reviewed PDF plan file without parsing, OCR, provider writes, or schema changes. Complete.
+4. Render the selected PDF page URL inside the existing plan viewer iframe while preserving the measurement overlay and review-first workflow. Complete.
+5. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint. Complete.
+
 ## Phase 1 Checkpoint: Manual Editor
 
 Completed on 2026-05-31:
@@ -539,3 +547,19 @@ Completed locally on 2026-05-31:
 Deferred Phase 14 enhancements:
 
 - Direct office PDF upload to Takeoff Studio, durable PDF page rasterization, OCR extraction, and image/vision auto-measure remain later phases.
+
+## Phase 15 Checkpoint: PDF Page Rendering
+
+Completed locally on 2026-05-31:
+
+- Takeoff Studio now builds page-specific PDF viewer URLs for registered PDF plan files.
+- The owner/admin workspace shows a PDF Page Rendering card for the selected sheet.
+- PDF rendering state tracks selected page, recorded page count, matched plan file, page preview URL, existing sheets for that PDF, and the next page sheet number.
+- Owner/admin users can add a page-specific sheet from a reviewed PDF plan file, keeping the source file and page URL in the existing estimate backup structure.
+- The plan viewer iframe uses the page-specific PDF URL while keeping the drawing/markup overlay review-first.
+- This checkpoint uses the browser's native PDF viewer only; it does not parse files, OCR plans, rasterize pages, auto-measure, approve quantities, send customer data, expose field users, write providers, mutate production data, or require schema changes.
+- Validation passed for focused Takeoff Studio tests, estimates, roles, build, diff, and browser QA.
+
+Deferred Phase 15 enhancements:
+
+- Durable PDF raster tiles, thumbnail extraction, OCR, vision assistance, and large-PDF performance telemetry remain later phases.

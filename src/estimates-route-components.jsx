@@ -11,7 +11,7 @@ import { calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEst
 import { addEstimateLineItemStarter, applyEstimateTemplateStarter, buildEstimateLineItemsFromRoughNotes, getEstimateLineItemStartersForTrade, getEstimateStarterTradeSummary, getEstimateTemplateStartersForTrade } from "./estimate-template-utils";
 import { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
 import { buildFenceTakeoffBackupRows, buildFenceTakeoffDraftLineItems, buildFenceTakeoffFieldHandoff, buildFenceTakeoffProofPhotoChecklist, buildFenceTakeoffProposalSummary, deriveFenceTakeoffReadiness, mergeFenceTakeoffIntoDraft, normalizeFenceTakeoff, summarizeFenceTakeoffByAssembly } from "./fence-takeoff-utils";
-import { applyTakeoffStudioAssistantSuggestion, applyTakeoffStudioSheetCalibrationToItems, attachTakeoffStudioPlanFileToSheet, buildTakeoffStudioAiPlanAssist, buildTakeoffStudioAssistantQueue, buildTakeoffStudioAutoMeasureBeta, buildTakeoffStudioBackupRows, buildTakeoffStudioCsvExport, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioFieldHandoff, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioMeasurementLegend, buildTakeoffStudioPackageExport, buildTakeoffStudioPlanFileCandidates, buildTakeoffStudioPlanFileReadiness, buildTakeoffStudioPlanReviewLayer, buildTakeoffStudioProductionHardening, buildTakeoffStudioProposalProofRows, buildTakeoffStudioProofSnapshot, buildTakeoffStudioRevisionComparison, buildTakeoffStudioRevisionRegister, buildTakeoffStudioSheetWorkspace, buildTakeoffStudioSnapTargets, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioMarkupComment, createEmptyTakeoffStudioSheet, createTakeoffStudioItemFromAutoMeasureSuggestion, createTakeoffStudioMarkupFromPoint, createTakeoffStudioMeasurementFromDrawing, deriveTakeoffStudioCalibrationState, deriveTakeoffStudioDrawingState, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, getTakeoffStudioToolSetOptions, mergeTakeoffStudioAssistantSuggestionState, mergeTakeoffStudioCsvImport, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText, snapTakeoffStudioDraftPoint } from "./takeoff-studio-utils";
+import { applyTakeoffStudioAssistantSuggestion, applyTakeoffStudioSheetCalibrationToItems, attachTakeoffStudioPlanFileToSheet, buildTakeoffStudioAiPlanAssist, buildTakeoffStudioAssistantQueue, buildTakeoffStudioAutoMeasureBeta, buildTakeoffStudioBackupRows, buildTakeoffStudioCsvExport, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioFieldHandoff, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioMeasurementLegend, buildTakeoffStudioPackageExport, buildTakeoffStudioPdfPageRenderState, buildTakeoffStudioPlanFileCandidates, buildTakeoffStudioPlanFileReadiness, buildTakeoffStudioPlanReviewLayer, buildTakeoffStudioProductionHardening, buildTakeoffStudioProposalProofRows, buildTakeoffStudioProofSnapshot, buildTakeoffStudioRevisionComparison, buildTakeoffStudioRevisionRegister, buildTakeoffStudioSheetWorkspace, buildTakeoffStudioSnapTargets, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioMarkupComment, createEmptyTakeoffStudioSheet, createTakeoffStudioItemFromAutoMeasureSuggestion, createTakeoffStudioMarkupFromPoint, createTakeoffStudioMeasurementFromDrawing, createTakeoffStudioSheetFromPlanFilePage, deriveTakeoffStudioCalibrationState, deriveTakeoffStudioDrawingState, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, getTakeoffStudioToolSetOptions, mergeTakeoffStudioAssistantSuggestionState, mergeTakeoffStudioCsvImport, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText, snapTakeoffStudioDraftPoint } from "./takeoff-studio-utils";
 import { CUSTOM_ESTIMATE_PACKET_THEME_ID, ESTIMATE_PACKET_COPY_TEMPLATE_OPTIONS, ESTIMATE_PACKET_PRESETS, ESTIMATE_PACKET_SECTION_DEFS, ESTIMATE_PACKET_THEME_OPTIONS, INTERNAL_REVIEW_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
 
 export { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
@@ -979,9 +979,11 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
   const drawingState = deriveTakeoffStudioDrawingState({ measurementType: drawingTool, points: draftDrawingPoints, selectedSheet });
   const snapTargets = buildTakeoffStudioSnapTargets(editingTakeoff, selectedSheet);
   const planReviewLayer = buildTakeoffStudioPlanReviewLayer(editingTakeoff, selectedSheet);
+  const pdfRenderState = buildTakeoffStudioPdfPageRenderState({ ...editingTakeoff, planFiles: planFileCandidates }, selectedSheet);
   const planAssist = buildTakeoffStudioAiPlanAssist(editingTakeoff);
   const autoMeasureBeta = buildTakeoffStudioAutoMeasureBeta(editingTakeoff);
   const hardeningState = buildTakeoffStudioProductionHardening(editingTakeoff);
+  const selectedSheetPreviewUrl = pdfRenderState.canRender ? pdfRenderState.pagePreviewUrl : selectedSheet?.sourcePreviewUrl;
 
   function commitTakeoff(nextTakeoff) {
     const normalized = normalizeTakeoffStudio({
@@ -1117,6 +1119,21 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
       markupComments,
       planFiles: planFileCandidates,
     }, planFileId, selectedSheet.id));
+  }
+
+  function addPdfPageSheet() {
+    if (!pdfRenderState.planFileId || !pdfRenderState.canAddPageSheet) return;
+    const planFile = planFileCandidates.find((file) => file.id === pdfRenderState.planFileId);
+    if (!planFile) return;
+    const nextSheet = createTakeoffStudioSheetFromPlanFilePage(planFile, pdfRenderState.nextPageNumber, sheets.length);
+    commitTakeoff({
+      ...takeoff,
+      selectedSheetId: nextSheet.id,
+      sheets: [...sheets, nextSheet],
+      items,
+      markupComments,
+      planFiles: planFileCandidates,
+    });
   }
 
   function addDrawingPoint(event) {
@@ -1333,6 +1350,31 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
         ) : null}
         <p className="mt-2 text-xs font-bold leading-5 text-slate-500">{planFileReadiness.safetyBoundary}</p>
       </div>
+      <div className="mt-3 rounded-2xl border border-cyan-100 bg-cyan-50/60 p-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-700">PDF page rendering</p>
+            <p className="mt-1 text-sm font-bold leading-6 text-slate-700">{pdfRenderState.summary}</p>
+          </div>
+          <Badge tone={pdfRenderState.canRender ? "green" : "slate"}>{pdfRenderState.canRender ? `Page ${pdfRenderState.pageNumber}` : "No PDF"}</Badge>
+        </div>
+        <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+          <div className="min-w-0 break-words rounded-xl border border-cyan-100 bg-white px-3 py-2 text-xs font-bold leading-5 text-slate-600">
+            {pdfRenderState.canRender ? (
+              <>
+                <p><span className="font-black text-slate-950">File:</span> {pdfRenderState.fileName}</p>
+                <p className="mt-1"><span className="font-black text-slate-950">Rendered URL:</span> {pdfRenderState.pagePreviewUrl}</p>
+              </>
+            ) : (
+              <p>{pdfRenderState.warnings[0] || "Attach a reviewed PDF file to the selected sheet to render page-specific previews."}</p>
+            )}
+          </div>
+          <Button type="button" size="sm" variant="secondary" onClick={addPdfPageSheet} disabled={disabled || !pdfRenderState.canAddPageSheet}>
+            Add PDF Page Sheet
+          </Button>
+        </div>
+        <p className="mt-2 text-xs font-bold leading-5 text-slate-500">{pdfRenderState.safetyBoundary}</p>
+      </div>
       <div className="mt-3 rounded-2xl border border-sky-100 bg-white/95 p-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -1366,7 +1408,7 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-sky-200">{selectedSheet?.name || "No sheet"}</p>
-                <p className="mt-1 text-xs font-bold text-slate-300">{selectedSheet?.sourceFileName || selectedSheet?.sourcePreviewUrl || "Recorded plan preview appears here after a source is added."}</p>
+                <p className="mt-1 text-xs font-bold text-slate-300">{selectedSheet?.sourceFileName || selectedSheetPreviewUrl || "Recorded plan preview appears here after a source is added."}</p>
               </div>
               <Badge tone={selectedSheet?.status === "superseded" ? "amber" : "blue"}>{selectedSheet?.previewKind || "placeholder"}</Badge>
             </div>
@@ -1415,10 +1457,10 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
               </div>
             </div>
             <div className="relative mt-3 aspect-[11/8.5] overflow-hidden rounded-xl border border-slate-700 bg-slate-900">
-              {selectedSheet?.sourcePreviewUrl && selectedSheet.previewKind === "image" ? (
-                <img src={selectedSheet.sourcePreviewUrl} alt={`${selectedSheet.name} plan preview`} className="h-full w-full object-contain" />
-              ) : selectedSheet?.sourcePreviewUrl ? (
-                <iframe title={`${selectedSheet.name} plan preview`} src={selectedSheet.sourcePreviewUrl} className="h-full w-full bg-white" />
+              {selectedSheetPreviewUrl && selectedSheet.previewKind === "image" ? (
+                <img src={selectedSheetPreviewUrl} alt={`${selectedSheet.name} plan preview`} className="h-full w-full object-contain" />
+              ) : selectedSheetPreviewUrl ? (
+                <iframe title={`${selectedSheet.name} plan preview`} src={selectedSheetPreviewUrl} className="h-full w-full bg-white" />
               ) : (
                 <svg viewBox={`0 0 ${sheetWorkspace.bounds.width} ${sheetWorkspace.bounds.height}`} className="h-full w-full" role="img" aria-label="Plan sheet measurement workspace">
                   <rect x="0" y="0" width={sheetWorkspace.bounds.width} height={sheetWorkspace.bounds.height} fill="#f8fafc" />

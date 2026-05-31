@@ -52,13 +52,14 @@ Current status:
 - Phase 12 Auto-Measure Beta first checkpoint is implemented, validated, pushed, and frozen: reviewed plan text can create draft-only area, length, and count suggestions with confidence/rationale and owner/admin add-to-draft review controls.
 - Phase 13 Production Hardening first checkpoint is implemented locally: Takeoff Studio now flags source gaps, calibration gaps, draft rows, unsafe customer/field review gates, large geometry risk, and local readiness counts in the owner/admin workspace.
 - Phase 14 Real Plan File Handling first checkpoint is implemented locally: Takeoff Studio now registers safe PDF/image plan file candidates from existing upload records, reviewed estimate reference rows, and sheet source metadata, then attaches reviewed sources to selected sheets without schema, provider, OCR, auto-measure, send, or field-permission changes.
+- Phase 15 PDF Page Rendering first checkpoint is implemented locally: Takeoff Studio now creates page-specific native PDF viewer URLs, shows selected-sheet PDF render readiness, and can add page-specific sheet records from reviewed PDF plan files without parsing, OCR, provider writes, schema changes, or field exposure.
 - Estimate Studio, Proposals, Jobs, Uploads, AI Office, and field workflows must be extended, not rebuilt.
 - AI must stay review-first and must not auto-measure as final truth, approve pricing, submit bids, send proposals, or mutate risky customer-facing records.
 - Field users remain blocked from Estimate Studio, Takeoff Studio, pricing, margin, profit, payroll, billing, office notes, and AI Office controls.
 
 Current next action:
 
-- Freeze Phase 14, then continue with Phase 15 PDF page rendering over the registered plan-file structure.
+- Freeze Phase 15, then continue with Phase 16 OCR/plan text extraction readiness over registered PDF/image sources.
 
 ## Production Patch: Estimate Proposal Type + Print Preview
 

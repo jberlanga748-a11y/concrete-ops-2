@@ -17,6 +17,7 @@ import {
   buildTakeoffStudioAutoMeasureBeta,
   buildTakeoffStudioPlanFileCandidates,
   buildTakeoffStudioPlanFileReadiness,
+  buildTakeoffStudioPdfPageRenderState,
   buildTakeoffStudioPlanReviewLayer,
   buildTakeoffStudioProductionHardening,
   buildTakeoffStudioProposalProofRows,
@@ -33,6 +34,7 @@ import {
   createTakeoffStudioMeasurementFromDrawing,
   createTakeoffStudioMarkupFromPoint,
   createTakeoffStudioItemFromAutoMeasureSuggestion,
+  createTakeoffStudioSheetFromPlanFilePage,
   deriveTakeoffStudioCalibrationState,
   deriveTakeoffStudioDrawingState,
   deriveTakeoffStudioReadiness,
@@ -49,6 +51,7 @@ import {
   parseTakeoffPointsText,
   snapTakeoffStudioDraftPoint,
   snapTakeoffStudioPoint,
+  takeoffStudioPdfPageUrl,
 } from "./takeoff-studio-utils.js";
 
 const tenFeetScale = { pixels: 100, realWorldLength: 10, realWorldUnit: "FT" };
@@ -440,6 +443,35 @@ test("attaches reviewed plan files to sheets without approving quantities", () =
   assert.equal(readiness.ready, true);
   assert.match(readiness.safetyBoundary, /does not upload new files/i);
   assert.doesNotMatch(JSON.stringify(attached), /unitPrice|margin|profit|payroll|billing|send proposal|bid submission/i);
+});
+
+test("builds native PDF page render state over registered plan files", () => {
+  const planFile = normalizeTakeoffStudioPlanFile({
+    id: "reference:plans",
+    sourceType: "reference",
+    fileName: "civil-set.pdf",
+    mimeType: "application/pdf",
+    previewUrl: "https://files.example.test/civil-set.pdf",
+    pageCount: 12,
+    linkedSheetIds: ["s1"],
+  });
+  const pageSheet = createTakeoffStudioSheetFromPlanFilePage(planFile, 3, 0);
+  const state = buildTakeoffStudioPdfPageRenderState({
+    selectedSheetId: "s1",
+    planFiles: [planFile],
+    sheets: [{ ...pageSheet, id: "s1", pageNumber: 3 }],
+  });
+
+  assert.equal(takeoffStudioPdfPageUrl("https://files.example.test/civil-set.pdf#page=1", 4), "https://files.example.test/civil-set.pdf#toolbar=0&zoom=page-fit&page=4");
+  assert.equal(pageSheet.previewKind, "pdf");
+  assert.match(pageSheet.sourcePreviewUrl, /page=3/);
+  assert.equal(state.canRender, true);
+  assert.equal(state.pageNumber, 3);
+  assert.equal(state.pageCount, 12);
+  assert.match(state.pagePreviewUrl, /toolbar=0&zoom=page-fit&page=3/);
+  assert.equal(state.canAddPageSheet, true);
+  assert.match(state.safetyBoundary, /does not parse files/i);
+  assert.doesNotMatch(JSON.stringify(state), /unitPrice|margin|profit|payroll|billing|send proposal|bid submission/i);
 });
 
 test("normalizes reviewed takeoff items with safe defaults", () => {

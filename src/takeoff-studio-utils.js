@@ -271,6 +271,82 @@ function planFileStatusFor(file = {}) {
   };
 }
 
+export function takeoffStudioPdfPageUrl(value = "", pageNumber = 1) {
+  const url = safePreviewUrl(value);
+  if (!url) return "";
+  const page = positiveInteger(pageNumber, 1);
+  const [base, rawHash = ""] = url.split("#");
+  const hashParts = rawHash
+    .split("&")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .filter((part) => !/^page=/i.test(part) && !/^zoom=/i.test(part) && !/^toolbar=/i.test(part));
+  return `${base}#${["toolbar=0", "zoom=page-fit", `page=${page}`, ...hashParts].join("&")}`;
+}
+
+export function createTakeoffStudioSheetFromPlanFilePage(planFile = {}, pageNumber = 1, index = 0) {
+  const normalizedFile = normalizeTakeoffStudioPlanFile(planFile, index);
+  const page = positiveInteger(pageNumber, 1);
+  return normalizeTakeoffStudioSheet({
+    id: `sheet-${index + 1}`,
+    name: `${normalizedFile.fileName.replace(/\.pdf$/i, "")} p${page}`,
+    revision: "",
+    sourceFileName: normalizedFile.fileName,
+    sourcePreviewUrl: normalizedFile.previewKind === "pdf"
+      ? takeoffStudioPdfPageUrl(normalizedFile.previewUrl || normalizedFile.contentUrl, page)
+      : normalizedFile.previewUrl || normalizedFile.contentUrl,
+    pageNumber: page,
+    pageWidth: DEFAULT_SHEET_WIDTH,
+    pageHeight: DEFAULT_SHEET_HEIGHT,
+    rotation: 0,
+    status: SHEET_ACTIVE_STATUS,
+  }, index);
+}
+
+export function buildTakeoffStudioPdfPageRenderState(takeoff = {}, selectedSheet = null) {
+  const normalized = normalizeTakeoffStudio(takeoff);
+  const sheet = selectedSheet || normalized.sheets.find((candidate) => candidate.id === normalized.selectedSheetId) || normalized.sheets[0] || null;
+  const sheetPreviewUrl = sheet?.sourcePreviewUrl || "";
+  const sheetFileName = sheet?.sourceFileName || "";
+  const matchedFile = normalized.planFiles.find((file) => file.previewKind === "pdf" && (
+    (sheetPreviewUrl && (
+      (file.previewUrl && (file.previewUrl === sheetPreviewUrl || sheetPreviewUrl.startsWith(file.previewUrl)))
+      || (file.contentUrl && (file.contentUrl === sheetPreviewUrl || sheetPreviewUrl.startsWith(file.contentUrl)))
+    ))
+    || (sheetFileName && file.fileName === sheetFileName)
+  ));
+  const pdfUrl = matchedFile?.previewUrl || matchedFile?.contentUrl || (previewKindForUrl(sheetPreviewUrl) === "pdf" ? sheetPreviewUrl : "");
+  const pageNumber = positiveInteger(sheet?.pageNumber, 1);
+  const pagePreviewUrl = pdfUrl ? takeoffStudioPdfPageUrl(pdfUrl, pageNumber) : "";
+  const sheetsForFile = pdfUrl
+    ? normalized.sheets.filter((candidate) => candidate.sourceFileName === (matchedFile?.fileName || sheetFileName) || candidate.sourcePreviewUrl.startsWith(pdfUrl))
+    : [];
+  const pageCount = positiveInteger(matchedFile?.pageCount, 0);
+  const nextPageNumber = pageCount ? Math.min(pageCount, sheetsForFile.length + 1) : sheetsForFile.length + 1;
+  const warnings = [
+    !sheet ? "Select or add a sheet before rendering PDF pages." : "",
+    sheet && !pdfUrl ? "Selected sheet is not attached to a reviewed PDF source." : "",
+    pageCount && pageNumber > pageCount ? `Selected page ${pageNumber} is beyond the recorded ${pageCount}-page PDF.` : "",
+  ].filter(Boolean);
+
+  return {
+    canRender: Boolean(pdfUrl) && warnings.length === 0,
+    planFileId: matchedFile?.id || "",
+    fileName: matchedFile?.fileName || sheetFileName,
+    pageNumber,
+    pageCount,
+    pagePreviewUrl,
+    sheetsForFile,
+    nextPageNumber,
+    canAddPageSheet: Boolean(pdfUrl) && (!pageCount || sheetsForFile.length < pageCount),
+    warnings,
+    summary: pdfUrl
+      ? `PDF page ${pageNumber}${pageCount ? ` of ${pageCount}` : ""} is ready for native browser rendering.`
+      : "Attach a reviewed PDF plan file to render page-specific sheet views.",
+    safetyBoundary: "PDF page rendering uses the browser's local PDF viewer over safe source URLs. It does not parse files, OCR plans, auto-measure, approve quantities, send customer data, expose field users, or write providers.",
+  };
+}
+
 export function normalizeTakeoffStudioPlanFile(file = {}, index = 0) {
   const sourceType = planFileSourceType(file?.sourceType || (file?.uploadId ? "upload" : file?.referenceId ? "reference" : "registered"));
   const uploadId = textValue(file?.uploadId || (sourceType === "upload" ? file?.id : ""));
