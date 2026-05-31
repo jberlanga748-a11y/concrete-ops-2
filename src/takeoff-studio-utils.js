@@ -5,6 +5,11 @@ const GENERATED_LINE_ITEM_DESCRIPTION_PREFIX = "Apex Takeoff -";
 const ASSISTANT_REVIEW_STATUS = "needs_review";
 const ASSISTANT_APPLIED_STATUS = "applied";
 const ASSISTANT_DISMISSED_STATUS = "dismissed";
+const SHEET_ACTIVE_STATUS = "active";
+const SHEET_SUPERSEDED_STATUS = "superseded";
+const ITEM_ACTIVE_REVISION_STATUS = "active";
+const ITEM_REVISED_STATUS = "revised";
+const ITEM_SUPERSEDED_REVISION_STATUS = "superseded";
 
 export const TAKEOFF_STUDIO_ASSEMBLY_OPTIONS = [
   {
@@ -62,6 +67,19 @@ function areaToCubicYards(areaSquareFeet, depthInches = 4) {
 
 function itemSourceLabel(item = {}) {
   return [item.sheetName, item.revision].filter(Boolean).join(" / ");
+}
+
+function sheetStatusValue(value = "") {
+  const normalized = textValue(value).toLowerCase();
+  if (["superseded", "void", "old", "inactive"].includes(normalized)) return SHEET_SUPERSEDED_STATUS;
+  return SHEET_ACTIVE_STATUS;
+}
+
+function itemRevisionStatusValue(value = "") {
+  const normalized = textValue(value).toLowerCase();
+  if (["superseded", "void", "old", "inactive"].includes(normalized)) return ITEM_SUPERSEDED_REVISION_STATUS;
+  if (["revised", "changed", "delta"].includes(normalized)) return ITEM_REVISED_STATUS;
+  return ITEM_ACTIVE_REVISION_STATUS;
 }
 
 function takeoffStudioSourceLabel(item = {}) {
@@ -272,6 +290,8 @@ export function normalizeTakeoffStudioItem(item = {}, index = 0) {
     assemblyId: textValue(item?.assemblyId) || "direct",
     linkedEstimateItemId: textValue(item?.linkedEstimateItemId),
     customerVisible: Boolean(item?.customerVisible),
+    fieldVisible: Boolean(item?.fieldVisible),
+    revisionStatus: itemRevisionStatusValue(item?.revisionStatus || item?.revisionState),
     estimatorNote: textValue(item?.estimatorNote || item?.notes),
   };
 }
@@ -282,6 +302,7 @@ export function createEmptyTakeoffStudioSheet(index = 0) {
     name: "",
     revision: "",
     sourceFileName: "",
+    status: SHEET_ACTIVE_STATUS,
   };
 }
 
@@ -306,6 +327,7 @@ export function normalizeTakeoffStudio(takeoff = {}) {
       name: textValue(sheet?.name || sheet?.sheetName) || `Sheet ${index + 1}`,
       revision: textValue(sheet?.revision),
       sourceFileName: textValue(sheet?.sourceFileName || sheet?.fileName),
+      status: sheetStatusValue(sheet?.status || (sheet?.superseded ? SHEET_SUPERSEDED_STATUS : SHEET_ACTIVE_STATUS)),
     })),
     items,
     notes: textValue(takeoff?.notes),
@@ -319,6 +341,159 @@ export function normalizeTakeoffStudio(takeoff = {}) {
 export function takeoffStudioHasContent(takeoff = {}) {
   const normalized = normalizeTakeoffStudio(takeoff);
   return Boolean(normalized.sheets.length || normalized.items.length || normalized.notes);
+}
+
+export function buildTakeoffStudioRevisionRegister(takeoff = {}) {
+  const normalized = normalizeTakeoffStudio(takeoff);
+  const sheetById = new Map(normalized.sheets.map((sheet) => [sheet.id, sheet]));
+  const sheetStatusByLabel = new Map(normalized.sheets.map((sheet) => [sheet.name, sheet.status]));
+  const activeSheets = normalized.sheets.filter((sheet) => sheet.status !== SHEET_SUPERSEDED_STATUS);
+  const supersededSheets = normalized.sheets.filter((sheet) => sheet.status === SHEET_SUPERSEDED_STATUS);
+  const reviewedItems = normalized.items.filter((item) => item.reviewStatus === "reviewed" && item.quantity > 0);
+  const groups = new Map();
+
+  reviewedItems.forEach((item) => {
+    const key = `${item.label.toLowerCase()}|${item.unit.toLowerCase()}`;
+    const current = groups.get(key) || [];
+    current.push(item);
+    groups.set(key, current);
+  });
+
+  const changedQuantityRows = [...groups.values()]
+    .filter((items) => items.length > 1)
+    .map((items) => {
+      const sortedItems = [...items].sort((a, b) => [a.revision, a.sheetName, a.id].join("|").localeCompare([b.revision, b.sheetName, b.id].join("|")));
+      const first = sortedItems[0];
+      const latest = sortedItems.at(-1);
+      const quantities = new Set(sortedItems.map((item) => `${item.quantity} ${item.unit}`));
+      if (quantities.size < 2) return null;
+      return {
+        title: latest.label,
+        from: `${first.quantity} ${first.unit}`.trim(),
+        to: `${latest.quantity} ${latest.unit}`.trim(),
+        source: [latest.sheetName, latest.revision].filter(Boolean).join(" / "),
+        status: latest.revisionStatus,
+      };
+    })
+    .filter(Boolean);
+
+  const itemRows = reviewedItems.map((item) => {
+    const sheet = sheetById.get(item.sheetId);
+    const sheetStatus = sheet?.status || sheetStatusByLabel.get(item.sheetName) || SHEET_ACTIVE_STATUS;
+    return {
+      id: item.id,
+      title: item.label,
+      quantity: item.quantity,
+      unit: item.unit,
+      sheetName: item.sheetName || sheet?.name || "",
+      revision: item.revision || sheet?.revision || "",
+      sheetStatus,
+      revisionStatus: item.revisionStatus,
+      fieldVisible: Boolean(item.fieldVisible),
+      customerVisible: Boolean(item.customerVisible),
+    };
+  });
+
+  const warnings = [
+    ...supersededSheets.map((sheet) => `${sheet.name}${sheet.revision ? ` ${sheet.revision}` : ""} is marked superseded.`),
+    ...changedQuantityRows.map((row) => `${row.title} changed from ${row.from} to ${row.to}${row.source ? ` on ${row.source}` : ""}.`),
+    ...itemRows
+      .filter((row) => row.revisionStatus === ITEM_REVISED_STATUS)
+      .map((row) => `${row.title} is marked revised and should be checked for change-order impact.`),
+  ];
+
+  return {
+    activeSheets,
+    supersededSheets,
+    itemRows,
+    changedQuantityRows,
+    warnings,
+    summary: [
+      `${activeSheets.length} active sheet${activeSheets.length === 1 ? "" : "s"}`,
+      supersededSheets.length ? `${supersededSheets.length} superseded` : "",
+      changedQuantityRows.length ? `${changedQuantityRows.length} quantity change${changedQuantityRows.length === 1 ? "" : "s"}` : "",
+    ].filter(Boolean).join(" / ") || "No plan revision context yet.",
+  };
+}
+
+export function buildTakeoffStudioFieldHandoff(takeoff = {}) {
+  const normalized = normalizeTakeoffStudio(takeoff);
+  const revisionRegister = buildTakeoffStudioRevisionRegister(normalized);
+  const rowByItemId = new Map(revisionRegister.itemRows.map((row) => [row.id, row]));
+  const fieldRows = normalized.items
+    .filter((item) => item.reviewStatus === "reviewed" && item.quantity > 0 && item.fieldVisible)
+    .map((item) => {
+      const revisionRow = rowByItemId.get(item.id) || {};
+      return {
+        id: item.id,
+        title: item.label,
+        quantity: item.quantity,
+        unit: item.unit,
+        source: [revisionRow.sheetName || item.sheetName, revisionRow.revision || item.revision].filter(Boolean).join(" / "),
+        revisionStatus: item.revisionStatus,
+        sheetStatus: revisionRow.sheetStatus || SHEET_ACTIVE_STATUS,
+        measurementType: item.measurementType,
+      };
+    })
+    .filter((row) => row.sheetStatus !== SHEET_SUPERSEDED_STATUS && row.revisionStatus !== ITEM_SUPERSEDED_REVISION_STATUS);
+
+  const blockedRows = revisionRegister.itemRows
+    .filter((row) => !fieldRows.some((fieldRow) => fieldRow.id === row.id))
+    .map((row) => ({
+      ...row,
+      reason: row.sheetStatus === SHEET_SUPERSEDED_STATUS
+        ? "Superseded sheet"
+        : row.revisionStatus === ITEM_SUPERSEDED_REVISION_STATUS
+          ? "Superseded quantity"
+          : row.fieldVisible
+            ? "Needs active reviewed sheet"
+            : "Not approved for field handoff",
+    }));
+
+  const sheetReferences = [...new Set(fieldRows.map((row) => row.source).filter(Boolean))];
+  const changeOrderWarnings = [
+    ...revisionRegister.changedQuantityRows.map((row) => `${row.title}: ${row.from} revised to ${row.to}${row.source ? ` (${row.source})` : ""}. Verify approved scope before field work.`),
+    ...revisionRegister.supersededSheets.map((sheet) => `${sheet.name}${sheet.revision ? ` ${sheet.revision}` : ""} is superseded. Do not build from it without office confirmation.`),
+  ];
+
+  return {
+    ready: fieldRows.length > 0,
+    rows: fieldRows,
+    blockedRows,
+    sheetReferences,
+    changeOrderWarnings,
+    summary: fieldRows.length
+      ? `${fieldRows.length} field-safe takeoff quantit${fieldRows.length === 1 ? "y" : "ies"} ready for approved handoff.`
+      : "No reviewed takeoff quantities are approved for field handoff yet.",
+    safetyBoundary: "Field handoff excludes pricing, margins, payroll, billing, office notes, internal backup, and customer-send controls.",
+  };
+}
+
+export function buildTakeoffStudioProofSnapshot(takeoff = {}) {
+  const normalized = normalizeTakeoffStudio(takeoff);
+  const revisionRegister = buildTakeoffStudioRevisionRegister(normalized);
+  const fieldHandoff = buildTakeoffStudioFieldHandoff(normalized);
+  const proposalProofRows = buildTakeoffStudioProposalProofRows(normalized);
+  const internalReviewRows = normalized.items
+    .filter((item) => item.reviewStatus === "reviewed" && item.quantity > 0)
+    .map((item) => ({
+      title: item.label,
+      quantity: item.quantity,
+      unit: item.unit,
+      source: itemSourceLabel(item),
+      revisionStatus: item.revisionStatus,
+      customerVisible: item.customerVisible,
+      fieldVisible: item.fieldVisible,
+    }));
+
+  return {
+    proposalProofRows,
+    internalReviewRows,
+    fieldHandoffRows: fieldHandoff.rows,
+    revisionSummary: revisionRegister.summary,
+    revisionWarnings: revisionRegister.warnings,
+    fieldSafetyBoundary: fieldHandoff.safetyBoundary,
+  };
 }
 
 export function buildTakeoffStudioBackupRows(takeoff = {}) {

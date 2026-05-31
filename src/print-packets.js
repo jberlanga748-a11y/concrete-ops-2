@@ -9,6 +9,7 @@ import { reportStatusLabel } from "./report-utils.js";
 import { toolChecklistItemStatusLabel, toolChecklistStatusLabel } from "./tool-checklist-utils.js";
 import { gpsStatusLabel, uploadTitle } from "./upload-utils.js";
 import { deriveEstimateBackup } from "./estimate-backup-utils.js";
+import { buildTakeoffStudioFieldHandoff, takeoffStudioHasContent } from "./takeoff-studio-utils.js";
 import { deriveEstimatePrintModel } from "../shared/estimatePrint.js";
 import { CUSTOM_ESTIMATE_PACKET_THEME_ID } from "../shared/estimatePacketPresets.js";
 import { buildConstructionAgentTradeContext } from "../shared/constructionTrades.js";
@@ -424,7 +425,22 @@ function fieldQuantityRecordsFromEstimate(printModel = {}) {
 }
 
 function fieldTakeoffReferenceRecords(backup = {}) {
-  const takeoffRecords = safeArray(backup.takeoffRows).map((row) => {
+  const structuredTakeoffHandoff = buildTakeoffStudioFieldHandoff(backup.takeoffStudio);
+  const structuredTakeoffRecords = structuredTakeoffHandoff.rows.map((row) => ({
+    title: cleanFieldHandoffText(row.title) || "Takeoff item",
+    meta: [
+      row.quantity ? `Qty ${cleanFieldHandoffText(row.quantity)}` : "",
+      cleanFieldHandoffText(row.unit),
+      row.source ? `Source ${cleanFieldHandoffText(row.source)}` : "",
+      row.revisionStatus && row.revisionStatus !== "active" ? cleanFieldHandoffText(row.revisionStatus) : "",
+    ].filter(Boolean),
+  }));
+  const hasStructuredTakeoff = takeoffStudioHasContent(backup.takeoffStudio);
+  const takeoffRecords = safeArray(backup.takeoffRows).filter((row) => {
+    const sourceAndNote = `${row?.source || ""} ${row?.estimatorNote || ""}`;
+    if (/Apex Takeoff Studio/i.test(sourceAndNote) && hasStructuredTakeoff) return false;
+    return !/\b(?:office[-\s]?only|do not print|private|internal|margin|profit|payroll|billing)\b/i.test(sourceAndNote);
+  }).map((row) => {
     const quantity = cleanFieldHandoffText(row.quantity);
     const unit = cleanFieldHandoffText(row.unit);
     const source = cleanFieldHandoffText(row.source);
@@ -448,7 +464,7 @@ function fieldTakeoffReferenceRecords(backup = {}) {
     };
   });
 
-  return [...takeoffRecords, ...referenceRecords].filter((record) => record.title || record.meta.length);
+  return [...structuredTakeoffRecords, ...takeoffRecords, ...referenceRecords].filter((record) => record.title || record.meta.length);
 }
 
 function fieldTradeGuidanceRecords(items = []) {

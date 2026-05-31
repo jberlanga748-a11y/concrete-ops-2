@@ -11,7 +11,7 @@ import { calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEst
 import { addEstimateLineItemStarter, applyEstimateTemplateStarter, buildEstimateLineItemsFromRoughNotes, getEstimateLineItemStartersForTrade, getEstimateStarterTradeSummary, getEstimateTemplateStartersForTrade } from "./estimate-template-utils";
 import { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
 import { buildFenceTakeoffBackupRows, buildFenceTakeoffDraftLineItems, buildFenceTakeoffFieldHandoff, buildFenceTakeoffProofPhotoChecklist, buildFenceTakeoffProposalSummary, deriveFenceTakeoffReadiness, mergeFenceTakeoffIntoDraft, normalizeFenceTakeoff, summarizeFenceTakeoffByAssembly } from "./fence-takeoff-utils";
-import { applyTakeoffStudioAssistantSuggestion, buildTakeoffStudioAssistantQueue, buildTakeoffStudioBackupRows, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioProposalProofRows, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioSheet, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, mergeTakeoffStudioAssistantSuggestionState, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText } from "./takeoff-studio-utils";
+import { applyTakeoffStudioAssistantSuggestion, buildTakeoffStudioAssistantQueue, buildTakeoffStudioBackupRows, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioFieldHandoff, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioProposalProofRows, buildTakeoffStudioProofSnapshot, buildTakeoffStudioRevisionRegister, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioSheet, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, mergeTakeoffStudioAssistantSuggestionState, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText } from "./takeoff-studio-utils";
 import { CUSTOM_ESTIMATE_PACKET_THEME_ID, ESTIMATE_PACKET_COPY_TEMPLATE_OPTIONS, ESTIMATE_PACKET_PRESETS, ESTIMATE_PACKET_SECTION_DEFS, ESTIMATE_PACKET_THEME_OPTIONS, INTERNAL_REVIEW_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
 
 export { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
@@ -949,6 +949,9 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
   const proposalProofRows = buildTakeoffStudioProposalProofRows(takeoff);
   const gcPacketProof = buildTakeoffStudioGcPacketProofSummary(takeoff);
   const assistantQueue = buildTakeoffStudioAssistantQueue(takeoff);
+  const revisionRegister = buildTakeoffStudioRevisionRegister(takeoff);
+  const fieldHandoff = buildTakeoffStudioFieldHandoff(takeoff);
+  const proofSnapshot = buildTakeoffStudioProofSnapshot(takeoff);
 
   function commitTakeoff(nextTakeoff) {
     const normalized = normalizeTakeoffStudio({
@@ -983,6 +986,9 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
       }
       if (field === "customerVisible") {
         nextItem.customerVisible = value === true || value === "true";
+      }
+      if (field === "fieldVisible") {
+        nextItem.fieldVisible = value === true || value === "true";
       }
       if (field === "sheetId") {
         const selectedSheet = sheets.find((sheet) => sheet.id === value);
@@ -1157,9 +1163,13 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
           <div className="grid gap-3">
             {sheets.map((sheet, index) => (
               <div key={`takeoff-sheet-${sheet.id}-${index}`} className="rounded-2xl border border-blue-100 bg-white p-3">
-                <div className="grid gap-3 md:grid-cols-[minmax(0,1.2fr)_120px_minmax(0,1fr)]">
+                <div className="grid gap-3 md:grid-cols-[minmax(0,1.2fr)_120px_150px_minmax(0,1fr)]">
                   <InputField label={`Sheet ${index + 1}`} value={sheet.name || ""} onChange={(event) => updateSheet(index, "name", event.target.value)} disabled={disabled} placeholder="C2.1 Site Plan" />
                   <InputField label="Revision" value={sheet.revision || ""} onChange={(event) => updateSheet(index, "revision", event.target.value)} disabled={disabled} placeholder="Rev A" />
+                  <SelectField label="Status" value={sheet.status || "active"} onChange={(event) => updateSheet(index, "status", event.target.value)} disabled={disabled}>
+                    <option value="active">Active</option>
+                    <option value="superseded">Superseded</option>
+                  </SelectField>
                   <InputField label="Source file" value={sheet.sourceFileName || ""} onChange={(event) => updateSheet(index, "sourceFileName", event.target.value)} disabled={disabled} placeholder="plan-set.pdf" />
                 </div>
                 <div className="mt-3 flex justify-end">
@@ -1199,8 +1209,19 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
                     <option value="reviewed">Reviewed</option>
                   </SelectField>
                 </div>
-                <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_120px_120px_120px_120px]">
+                <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_160px_160px]">
+                  <SelectField label="Field handoff" value={item.fieldVisible ? "true" : "false"} onChange={(event) => updateItem(index, "fieldVisible", event.target.value)} disabled={disabled}>
+                    <option value="false">Office only</option>
+                    <option value="true">Field safe</option>
+                  </SelectField>
+                  <SelectField label="Revision state" value={item.revisionStatus || "active"} onChange={(event) => updateItem(index, "revisionStatus", event.target.value)} disabled={disabled}>
+                    <option value="active">Active</option>
+                    <option value="revised">Revised</option>
+                    <option value="superseded">Superseded</option>
+                  </SelectField>
                   <InputField label="Manual quantity fallback" value={item.quantity || ""} onChange={(event) => updateItem(index, "quantity", event.target.value)} disabled={disabled} inputMode="decimal" placeholder="Used if no points" />
+                </div>
+                <div className="mt-3 grid gap-3 xl:grid-cols-[120px_120px_120px_120px]">
                   <InputField label="Unit" value={item.unit || ""} onChange={(event) => updateItem(index, "unit", event.target.value)} disabled={disabled} placeholder={takeoffUnitForType(item.measurementType)} />
                   <InputField label="Scale pixels" value={item.scale.pixels || ""} onChange={(event) => updateItemScale(index, "pixels", event.target.value)} disabled={disabled} inputMode="decimal" placeholder="100" />
                   <InputField label="Real length" value={item.scale.realWorldLength || ""} onChange={(event) => updateItemScale(index, "realWorldLength", event.target.value)} disabled={disabled} inputMode="decimal" placeholder="10" />
@@ -1253,6 +1274,27 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
                 </div>
               )) : <p className="text-sm font-bold text-slate-500">Set reviewed measurements to Customer safe before they can appear as proposal proof.</p>}
               {proposalProofRows.length > 5 ? <p className="text-xs font-bold text-slate-500">+{proposalProofRows.length - 5} more proof item{proposalProofRows.length - 5 === 1 ? "" : "s"}.</p> : null}
+            </div>
+          </div>
+          <div className="mt-3 rounded-2xl border border-cyan-100 bg-cyan-50/70 p-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-800">Revision + field handoff</p>
+                <p className="mt-1 text-sm font-bold leading-6 text-slate-600">{fieldHandoff.summary}</p>
+              </div>
+              <Badge tone={fieldHandoff.ready ? "green" : "amber"}>{proofSnapshot.revisionSummary}</Badge>
+            </div>
+            <div className="mt-3 grid gap-2">
+              {fieldHandoff.rows.length ? fieldHandoff.rows.slice(0, 5).map((row) => (
+                <div key={`field-handoff-${row.id}`} className="rounded-xl border border-cyan-100 bg-white px-3 py-2 text-sm font-bold text-slate-700">
+                  <span>{row.title}</span>
+                  <p className="mt-1 text-xs text-slate-500">{row.quantity} {row.unit}{row.source ? ` / ${row.source}` : ""}</p>
+                </div>
+              )) : <p className="rounded-xl border border-amber-100 bg-amber-50/80 px-3 py-2 text-sm font-bold text-amber-900">Mark reviewed quantities as Field safe before they can appear in foreman handoff context.</p>}
+              {revisionRegister.warnings.slice(0, 4).map((warning) => (
+                <p key={warning} className="rounded-xl border border-orange-100 bg-white px-3 py-2 text-xs font-bold text-orange-800">{warning}</p>
+              ))}
+              <p className="text-xs font-bold text-slate-500">{fieldHandoff.safetyBoundary}</p>
             </div>
           </div>
         </div>

@@ -7,8 +7,11 @@ import {
   buildTakeoffStudioAssistantSuggestions,
   buildTakeoffStudioEstimateLineItems,
   buildTakeoffStudioBackupRows,
+  buildTakeoffStudioFieldHandoff,
   buildTakeoffStudioGcPacketProofSummary,
   buildTakeoffStudioProposalProofRows,
+  buildTakeoffStudioProofSnapshot,
+  buildTakeoffStudioRevisionRegister,
   calculateTakeoffQuantity,
   createEmptyTakeoffStudioItem,
   createEmptyTakeoffStudioSheet,
@@ -53,6 +56,7 @@ test("creates empty sheet and item drafts for the manual editor", () => {
     name: "",
     revision: "",
     sourceFileName: "",
+    status: "active",
   });
   assert.equal(createEmptyTakeoffStudioItem(2).id, "takeoff-item-3");
   assert.equal(createEmptyTakeoffStudioItem(2).measurementType, "area");
@@ -288,6 +292,74 @@ test("builds GC packet proof summary without pricing or office-only customer cla
   assert.match(summary.addendaRfiReferences, /C2\.1 Site Plan Rev A/);
   assert.match(summary.internalPacketNotes, /kept office-only/i);
   assert.doesNotMatch(JSON.stringify(summary), /unitPrice|margin|profit|payroll|send/i);
+});
+
+test("builds revision register and field-safe handoff rows without office data", () => {
+  const takeoff = {
+    sheets: [
+      { id: "s-old", name: "C2.1 Site Plan", revision: "Rev A", status: "superseded" },
+      { id: "s-new", name: "C2.1 Site Plan", revision: "Rev B", status: "active" },
+    ],
+    items: [
+      {
+        id: "slab-old",
+        label: "Driveway slab",
+        sheetId: "s-old",
+        sheetName: "C2.1 Site Plan",
+        revision: "Rev A",
+        measurementType: "area",
+        quantity: 500,
+        unit: "SF",
+        reviewStatus: "reviewed",
+        fieldVisible: true,
+        revisionStatus: "superseded",
+        estimatorNote: "Office-only waste factor and margin note.",
+      },
+      {
+        id: "slab-new",
+        label: "Driveway slab",
+        sheetId: "s-new",
+        sheetName: "C2.1 Site Plan",
+        revision: "Rev B",
+        measurementType: "area",
+        quantity: 540,
+        unit: "SF",
+        reviewStatus: "reviewed",
+        customerVisible: true,
+        fieldVisible: true,
+        revisionStatus: "revised",
+      },
+      {
+        id: "yield-note",
+        label: "Estimator yield note",
+        sheetId: "s-new",
+        sheetName: "C2.1 Site Plan",
+        revision: "Rev B",
+        measurementType: "volume",
+        quantity: 8,
+        unit: "CY",
+        reviewStatus: "reviewed",
+        fieldVisible: false,
+      },
+    ],
+  };
+
+  const register = buildTakeoffStudioRevisionRegister(takeoff);
+  const handoff = buildTakeoffStudioFieldHandoff(takeoff);
+  const snapshot = buildTakeoffStudioProofSnapshot(takeoff);
+
+  assert.equal(register.supersededSheets.length, 1);
+  assert.equal(register.changedQuantityRows.length, 1);
+  assert.match(register.warnings.join(" "), /changed from 500 SF to 540 SF/);
+  assert.equal(handoff.ready, true);
+  assert.equal(handoff.rows.length, 1);
+  assert.equal(handoff.rows[0].title, "Driveway slab");
+  assert.equal(handoff.blockedRows.some((row) => row.title === "Estimator yield note"), true);
+  assert.match(handoff.changeOrderWarnings.join(" "), /Verify approved scope/);
+  assert.equal(snapshot.fieldHandoffRows.length, 1);
+  assert.equal(snapshot.internalReviewRows.length, 3);
+  assert.match(handoff.safetyBoundary, /excludes pricing/i);
+  assert.doesNotMatch(JSON.stringify(handoff.rows), /margin|profit|payroll|billing|Office-only/i);
 });
 
 test("builds review-first takeoff assistant suggestions without risky actions", () => {

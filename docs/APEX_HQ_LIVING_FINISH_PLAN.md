@@ -41,14 +41,15 @@ Current status:
 - The full takeoff/AI estimating system is approved as a product goal.
 - Phase 1 Manual Takeoff Foundation is implemented and validated as a manual editor checkpoint.
 - Phase 2 Estimate Integration checkpoints are implemented locally: reviewed takeoff quantities can create blank-priced estimate line drafts through safe assembly choices, selected reviewed rows can become customer-safe proposal proof, and GC/internal takeoff proof summaries can be prepared for review.
-- Phase 3 Takeoff Assistant first checkpoint is implemented locally: deterministic review-first suggestions can flag calibration, depth, review, proof, assembly, line-prep, and GC-summary needs with apply/dismiss state.
+- Phase 3 Takeoff Assistant first checkpoint is implemented, validated, pushed, and frozen: deterministic review-first suggestions can flag calibration, depth, review, proof, assembly, line-prep, and GC-summary needs with apply/dismiss state.
+- Phase 4 Proof/Revisions/Field Handoff first checkpoint is implemented and validated locally: active/superseded sheet state, item revision state, explicit field-safe handoff approval, revision warnings, proof snapshots, and foreman packet filtering now keep Takeoff Studio handoff context separate from office-only backup.
 - Estimate Studio, Proposals, Jobs, Uploads, AI Office, and field workflows must be extended, not rebuilt.
 - AI must stay review-first and must not auto-measure as final truth, approve pricing, submit bids, send proposals, or mutate risky customer-facing records.
 - Field users remain blocked from Estimate Studio, Takeoff Studio, pricing, margin, profit, payroll, billing, office notes, and AI Office controls.
 
 Current next action:
 
-- Finish Phase 3 validation and freeze the local review-first Takeoff Assistant checkpoint. Next work after validation is optional provider-backed AI drafting or Phase 4 proof/revisions/field handoff.
+- Freeze Phase 4 with a commit/push, then continue into Phase 5 Advanced Takeoff Power. Keep any direct Job/Field Mode takeoff display as a separate approved enhancement unless pilot use proves the foreman handoff packet is not enough.
 
 ## Production Patch: Estimate Proposal Type + Print Preview
 

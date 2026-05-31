@@ -770,8 +770,21 @@ test("estimate foreman handoff packet includes field scope and quantities withou
         "[Apex HQ Estimate Backup]",
         JSON.stringify({
           sovRows: [{ section: "Concrete", description: "Slab placement", quantity: "500", unit: "SF", amount: "$7,250", notes: "Office SOV amount." }],
-          takeoffRows: [{ item: "Warehouse slab", quantity: "500", unit: "SF", source: "S2.1 https://takeoff.example.test/private", estimatorNote: "Verify edge thickening allowance." }],
+          takeoffRows: [
+            { item: "Warehouse slab", quantity: "500", unit: "SF", source: "S2.1 https://takeoff.example.test/private", estimatorNote: "Verify edge thickening allowance." },
+            { item: "Office-only studio yield", quantity: "10", unit: "CY", source: "Apex Takeoff Studio office-only / S2.1", estimatorNote: "Private yield and margin note." },
+          ],
           referenceRows: [{ fileName: "Bluebeam slab takeoff.png", referenceType: "Takeoff screenshot", url: "https://files.example.test/private/slab.png", source: "S2.1 file:///C:/secret/takeoff.png", notes: "Private marked-up file." }],
+          takeoffStudio: {
+            sheets: [
+              { id: "s-old", name: "S2.1", revision: "Rev A", status: "superseded" },
+              { id: "s-new", name: "S2.1", revision: "Rev B", status: "active" },
+            ],
+            items: [
+              { id: "field-safe-slab", label: "Field-safe revised slab", sheetId: "s-new", sheetName: "S2.1", revision: "Rev B", measurementType: "area", quantity: 540, unit: "SF", reviewStatus: "reviewed", fieldVisible: true, customerVisible: true, revisionStatus: "revised" },
+              { id: "office-only-slab", label: "Office-only studio yield", sheetId: "s-new", sheetName: "S2.1", revision: "Rev B", measurementType: "volume", quantity: 10, unit: "CY", reviewStatus: "reviewed", fieldVisible: false, customerVisible: false, estimatorNote: "Private yield and margin note." },
+            ],
+          },
           notes: "Private backup note.",
         }),
         "[/Apex HQ Estimate Backup]",
@@ -822,7 +835,8 @@ test("estimate foreman handoff packet includes field scope and quantities withou
   assert.match(html, /Qty 500/);
   assert.match(html, /SF/);
   assert.match(html, /Takeoff \/ Reference Attachments/);
-  assert.match(html, /Warehouse slab/);
+  assert.match(html, /Field-safe revised slab/);
+  assert.match(html, /Source S2\.1 \/ Rev B/);
   assert.match(html, /Bluebeam slab takeoff\.png/);
   assert.match(html, /Source S2\.1/);
   assert.match(html, /Link tracked in Apex HQ\./);
@@ -857,6 +871,7 @@ test("estimate foreman handoff packet includes field scope and quantities withou
   assert.doesNotMatch(html, /Private packet assembly note/);
   assert.doesNotMatch(html, /Private backup note/);
   assert.doesNotMatch(html, /Office SOV amount/);
+  assert.doesNotMatch(html, /Office-only studio yield/);
   assert.doesNotMatch(html, /Verify edge thickening allowance/);
   assert.doesNotMatch(html, /files\.example\.test\/private/);
   assert.doesNotMatch(html, /plans\.example\.test\/private/);

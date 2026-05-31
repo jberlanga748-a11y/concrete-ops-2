@@ -1,7 +1,7 @@
 # Apex HQ Takeoff Studio Phase Plan
 
 Date: 2026-05-31
-Status: Phase 3 review-first assistant checkpoint in progress
+Status: Phase 4 proof/revisions/field-handoff checkpoint validated; Phase 5 advanced takeoff power next
 
 ## Goal
 
@@ -253,6 +253,14 @@ Phase 3 first checkpoint:
 2. Flag missing calibration, missing depth, unreviewed quantities, proposal-proof decisions, direct-area assembly review, and packet/line-prep opportunities. Complete.
 3. Allow safe local apply/dismiss for review-state and proof-state suggestions while keeping global line/GC actions review-first. Complete.
 4. Keep assistant output deterministic/local for this checkpoint; no external AI calls, sends, pricing approvals, bid submissions, provider writes, or customer actions. Complete.
+5. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint. Complete.
+
+Phase 4 first checkpoint:
+
+1. Add active/superseded sheet revision state inside the existing structured takeoff backup. Complete.
+2. Add item revision state and explicit field-safe handoff approval separate from customer proposal proof. Complete.
+3. Build revision register, proof snapshot, and field handoff helpers that exclude pricing, margins, payroll, billing, office notes, and office-only takeoff backup. Complete.
+4. Extend the foreman handoff packet to prefer explicitly approved Takeoff Studio field rows and filter office-only Takeoff Studio rows. Complete.
 5. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint.
 
 ## Phase 1 Checkpoint: Manual Editor
@@ -312,7 +320,23 @@ Completed on 2026-05-31:
 - Assistant line/GC prep still routes through the existing reviewed quantity and GC proof-summary handlers.
 - This checkpoint does not use external AI, auto-measure plans, approve pricing, submit bids, send proposals, write providers, or expose field data.
 
-Remaining Phase 3 work:
+Deferred Phase 3 enhancements:
 
 - Add optional provider-backed AI drafting later only behind existing AI/provider readiness and role/package gates.
 - Add richer plan-note/RFI/assumption drafting once there is a safe source for plan text or uploaded plan metadata.
+
+## Phase 4 Checkpoint: Revisions, Proof, And Field Handoff
+
+Completed on 2026-05-31:
+
+- Takeoff Studio sheets now carry active/superseded state without a schema change.
+- Takeoff measurements now carry active/revised/superseded revision state and explicit `Field safe` handoff approval.
+- Revision helpers identify superseded sheets, changed reviewed quantities, and change-order watchouts.
+- Proof snapshot helpers separate customer-safe proposal proof, internal review rows, and field-safe handoff rows.
+- Foreman handoff packets now use explicitly approved structured Takeoff Studio field rows and filter office-only Takeoff Studio backup rows.
+- Field handoff output remains quantity/reference context only; no pricing, margin, payroll, billing, office notes, customer send, provider write, or approval automation was added.
+- Validation passed for focused utility/print tests, estimates, roles, build, diff, and browser QA.
+
+Deferred Phase 4 enhancements:
+
+- Decide whether job detail/Field Mode should show the same approved field-safe takeoff context directly after estimate conversion, or whether the current foreman handoff packet is enough for this checkpoint.
