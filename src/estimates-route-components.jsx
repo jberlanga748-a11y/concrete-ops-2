@@ -11,7 +11,7 @@ import { calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEst
 import { addEstimateLineItemStarter, applyEstimateTemplateStarter, buildEstimateLineItemsFromRoughNotes, getEstimateLineItemStartersForTrade, getEstimateStarterTradeSummary, getEstimateTemplateStartersForTrade } from "./estimate-template-utils";
 import { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
 import { buildFenceTakeoffBackupRows, buildFenceTakeoffDraftLineItems, buildFenceTakeoffFieldHandoff, buildFenceTakeoffProofPhotoChecklist, buildFenceTakeoffProposalSummary, deriveFenceTakeoffReadiness, mergeFenceTakeoffIntoDraft, normalizeFenceTakeoff, summarizeFenceTakeoffByAssembly } from "./fence-takeoff-utils";
-import { buildTakeoffStudioBackupRows, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioSheet, deriveTakeoffStudioReadiness, formatTakeoffPointsText, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText } from "./takeoff-studio-utils";
+import { buildTakeoffStudioBackupRows, buildTakeoffStudioEstimateLineItems, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioSheet, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText } from "./takeoff-studio-utils";
 import { CUSTOM_ESTIMATE_PACKET_THEME_ID, ESTIMATE_PACKET_COPY_TEMPLATE_OPTIONS, ESTIMATE_PACKET_PRESETS, ESTIMATE_PACKET_SECTION_DEFS, ESTIMATE_PACKET_THEME_OPTIONS, INTERNAL_REVIEW_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
 
 export { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
@@ -937,6 +937,8 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
   const sheets = takeoff.sheets.length ? takeoff.sheets : [createEmptyTakeoffStudioSheet(0)];
   const items = takeoff.items.length ? takeoff.items : [createEmptyTakeoffStudioItem(0)];
   const reviewedRows = buildTakeoffStudioBackupRows({ ...takeoff, items: takeoff.items.filter((item) => item.reviewStatus === "reviewed") });
+  const assemblyOptions = getTakeoffStudioAssemblyOptions();
+  const reviewedLineItems = buildTakeoffStudioEstimateLineItems(takeoff);
 
   function commitTakeoff(nextTakeoff) {
     const normalized = normalizeTakeoffStudio({
@@ -1022,6 +1024,19 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
     });
   }
 
+  function applyReviewedRowsToEstimateLines() {
+    setDraft((current) => {
+      const currentBackup = deriveEstimateBackup(current);
+      const nonStudioRows = (currentBackup.takeoffRows || []).filter((row) => !String(row?.source || "").includes("Apex Takeoff Studio"));
+      const withDraftItems = mergeTakeoffStudioIntoDraft(current, takeoff);
+      return mergeEstimateBackup(withDraftItems, {
+        ...currentBackup,
+        takeoffStudio: takeoff,
+        takeoffRows: [...nonStudioRows, ...reviewedRows],
+      });
+    });
+  }
+
   return (
     <div className="rounded-3xl border border-blue-100 bg-blue-50/50 p-4 shadow-sm shadow-blue-100/50">
       <SectionHeader
@@ -1032,7 +1047,7 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
       <div className="grid gap-3 md:grid-cols-3">
         <StatCard title="Items" value={`${readiness.itemCount}`} />
         <StatCard title="Reviewed" value={`${readiness.reviewedItems}`} />
-        <StatCard title="Backup Rows" value={`${reviewedRows.length}`} />
+        <StatCard title="Draft Lines" value={`${reviewedLineItems.length}`} />
       </div>
       <div className="mt-3 rounded-2xl border border-blue-100 bg-white/85 px-3 py-2 text-sm font-bold leading-6 text-blue-900">
         {readiness.summary}
@@ -1065,7 +1080,7 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
           <div className="grid gap-3">
             {items.map((item, index) => (
               <div key={`takeoff-studio-item-${item.id}-${index}`} className="rounded-2xl border border-blue-100 bg-white p-3">
-                <div className="grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_160px_160px_110px]">
+                <div className="grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_160px_160px_160px_110px]">
                   <InputField label={`Item ${index + 1}`} value={item.label || ""} onChange={(event) => updateItem(index, "label", event.target.value)} disabled={disabled} placeholder="Driveway slab" />
                   <SelectField label="Type" value={item.measurementType || "area"} onChange={(event) => updateItem(index, "measurementType", event.target.value)} disabled={disabled}>
                     {TAKEOFF_MEASUREMENT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -1073,6 +1088,9 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
                   <SelectField label="Sheet" value={item.sheetId || ""} onChange={(event) => updateItem(index, "sheetId", event.target.value)} disabled={disabled}>
                     <option value="">Manual / no sheet</option>
                     {sheets.filter((sheet) => sheet.name).map((sheet) => <option key={sheet.id} value={sheet.id}>{sheet.name}</option>)}
+                  </SelectField>
+                  <SelectField label="Assembly" value={item.assemblyId || "direct"} onChange={(event) => updateItem(index, "assemblyId", event.target.value)} disabled={disabled}>
+                    {assemblyOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
                   </SelectField>
                   <SelectField label="Review" value={item.reviewStatus || "needs_review"} onChange={(event) => updateItem(index, "reviewStatus", event.target.value)} disabled={disabled}>
                     <option value="needs_review">Needs review</option>
@@ -1108,6 +1126,19 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
           <div className="mt-3 flex flex-wrap gap-2">
             <Button type="button" variant="secondary" size="sm" onClick={addItem} disabled={disabled}>Add Measurement</Button>
             <Button type="button" size="sm" onClick={syncReviewedRowsToBackup} disabled={disabled || reviewedRows.length === 0}>Sync Reviewed Rows To Backup</Button>
+            <Button type="button" size="sm" onClick={applyReviewedRowsToEstimateLines} disabled={disabled || reviewedLineItems.length === 0}>Apply Reviewed To Estimate Lines</Button>
+          </div>
+          <div className="mt-3 rounded-2xl border border-blue-100 bg-white/85 p-3">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-700">Estimate line preview</p>
+            <div className="mt-2 grid gap-2">
+              {reviewedLineItems.length ? reviewedLineItems.slice(0, 5).map((lineItem) => (
+                <div key={lineItem.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700">
+                  <span>{lineItem.description}</span>
+                  <span>{lineItem.quantity} {lineItem.unit} - pricing blank</span>
+                </div>
+              )) : <p className="text-sm font-bold text-slate-500">Review measurements to preview estimate line quantities. Prices stay blank for office review.</p>}
+              {reviewedLineItems.length > 5 ? <p className="text-xs font-bold text-slate-500">+{reviewedLineItems.length - 5} more draft line item{reviewedLineItems.length - 5 === 1 ? "" : "s"}.</p> : null}
+            </div>
           </div>
         </div>
 

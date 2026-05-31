@@ -379,6 +379,10 @@ export function EstimatesPagePolished({
     () => deriveFenceTakeoffReadiness(detailEstimateBackup.fenceTakeoff),
     [detailEstimateBackup.fenceTakeoff],
   );
+  const detailTakeoffStudioReadiness = useMemo(
+    () => deriveTakeoffStudioReadiness(detailEstimateBackup.takeoffStudio),
+    [detailEstimateBackup.takeoffStudio],
+  );
   const detailEstimateHandoffReadiness = useMemo(
     () => deriveEstimateJobHandoffReadiness(detailEstimatePreview || detailDraft),
     [detailDraft, detailEstimatePreview],
@@ -402,7 +406,7 @@ export function EstimatesPagePolished({
     { id: "create", label: "New Estimate", count: canManage ? 1 : 0 },
     canUseAiRoughNotes ? { id: "roughNotes", label: "AI Notes", count: estimateRoughNotesHasSuggestions(roughNotesState.result) ? 1 : 0 } : null,
     { id: "edit", label: "Edit / Pricing", count: selectedEstimate ? 1 : 0 },
-    canManage ? { id: "fenceTakeoff", label: "Fence Takeoff", count: detailEstimateBackup.fenceTakeoff?.segments?.length || 0 } : null,
+    canManage ? { id: "fenceTakeoff", label: "Takeoff", count: (detailTakeoffStudioReadiness.itemCount || 0) + (detailEstimateBackup.fenceTakeoff?.segments?.length || 0) } : null,
     canManage ? { id: "visual", label: "Visual Preview", count: canRequestEstimateVisualPreview(visualPreviewPacket) ? 1 : 0 } : null,
     { id: "sections", label: "Sections", count: detailDraft.items?.length || 0 },
     { id: "backup", label: "SOV / Backup", count: 1 },
@@ -423,7 +427,7 @@ export function EstimatesPagePolished({
     { label: "Branded Cover", icon: "document", onClick: () => openEstimateTool("packet"), disabled: !selectedEstimate },
     { label: "Scope", icon: "clipboard", onClick: () => openEstimateTool("sections"), disabled: !selectedEstimate },
     { label: "Line Items", icon: "document", onClick: () => openEstimateTool("edit"), disabled: !selectedEstimate },
-    { label: "Fence Takeoff", icon: "layers", onClick: () => openEstimateTool("fenceTakeoff"), disabled: !selectedEstimate || !canManage },
+    { label: "Takeoff", icon: "layers", onClick: () => openEstimateTool("fenceTakeoff"), disabled: !selectedEstimate || !canManage },
     { label: "Visual Preview", icon: "photo", onClick: () => openEstimateTool("visual"), disabled: !selectedEstimate || !canManage },
     { label: "Exclusions", icon: "alert", onClick: () => openEstimateTool("sections"), disabled: !selectedEstimate },
     { label: "Photo Backup", icon: "clipboard", onClick: () => openEstimateTool("backup"), disabled: !selectedEstimate },
@@ -432,7 +436,7 @@ export function EstimatesPagePolished({
   ];
   const estimateAssistantActions = [
     canUseAiRoughNotes ? { label: "Turn rough notes into packet", icon: "spark", onClick: () => openEstimateTool("roughNotes") } : null,
-    { label: "Build fence takeoff", icon: "layers", onClick: () => openEstimateTool("fenceTakeoff"), disabled: !selectedEstimate || !canManage },
+    { label: "Build takeoff", icon: "layers", onClick: () => openEstimateTool("fenceTakeoff"), disabled: !selectedEstimate || !canManage },
     { label: "Prepare visual preview", icon: "photo", onClick: () => openEstimateTool("visual"), disabled: !selectedEstimate || !canManage },
     { label: "Review missing scope", icon: "clipboard", onClick: () => openEstimateTool("sections"), disabled: !selectedEstimate },
     { label: "Create foreman handoff", icon: "users", onClick: () => openEstimateTool("packet"), disabled: !selectedEstimate || !canUseGcPackets },
@@ -3073,16 +3077,27 @@ export function EstimatesPagePolished({
 
           {activeEstimateTool === "fenceTakeoff" ? (
             <Card className="p-4">
-              <SectionHeader title="Fence Takeoff Studio" description={selectedEstimate ? "Draw satellite fence runs, create draft quantities, and prepare proposal-safe handoff notes." : "Select an estimate before building a fence takeoff."} />
+              <SectionHeader title="Takeoff Studio" description={selectedEstimate ? "Measure plan quantities, apply reviewed blank-priced estimate lines, and keep fence-specific takeoff available when needed." : "Select an estimate before building takeoff quantities."} />
               {selectedEstimate && canManage ? (
-                <FenceTakeoffLiteEditor
-                  draft={detailDraft}
-                  setDraft={setDetailDraft}
-                  disabled={busy || !canManage}
-                  jobsiteAddress={estimateRailProfileLine(detailLead?.location, detailCustomer?.address, companyProfile.serviceArea)}
-                />
+                <div className="grid gap-3">
+                  <TakeoffStudioManualEditor
+                    draft={detailDraft}
+                    setDraft={setDetailDraft}
+                    disabled={busy || !canManage}
+                  />
+                  <FenceTakeoffLiteEditor
+                    draft={detailDraft}
+                    setDraft={setDetailDraft}
+                    disabled={busy || !canManage}
+                    jobsiteAddress={estimateRailProfileLine(detailLead?.location, detailCustomer?.address, companyProfile.serviceArea)}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" onClick={() => onSaveEstimate(selectedEstimate.id, detailDraft)} disabled={detailSaveDisabled || !canManage}>Save Reviewed Takeoff Draft</Button>
+                    <Button type="button" variant="secondary" onClick={() => setActiveEstimateTool("backup")}>Open backup</Button>
+                  </div>
+                </div>
               ) : (
-                <StateCard title="Fence takeoff unavailable" description="Fence takeoff tools are office-only and hidden from field users." tone="slate" />
+                <StateCard title="Takeoff unavailable" description="Takeoff tools are office-only and hidden from field users." tone="slate" />
               )}
             </Card>
           ) : null}

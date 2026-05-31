@@ -2,11 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildTakeoffStudioEstimateLineItems,
   buildTakeoffStudioBackupRows,
   calculateTakeoffQuantity,
   createEmptyTakeoffStudioItem,
   createEmptyTakeoffStudioSheet,
   deriveTakeoffStudioReadiness,
+  getTakeoffStudioAssemblyOptions,
+  mergeTakeoffStudioIntoDraft,
   formatTakeoffPointsText,
   normalizeTakeoffScale,
   normalizeTakeoffStudio,
@@ -149,4 +152,83 @@ test("builds office backup rows without pricing or customer-send claims", () => 
   assert.match(rows[0].source, /Apex Takeoff Studio \/ C2\.1 Site Plan/);
   assert.match(rows[0].estimatorNote, /Reviewed quantity/);
   assert.doesNotMatch(JSON.stringify(rows), /unitPrice|margin|profit|send/i);
+});
+
+test("exposes safe assembly options for reviewed takeoff quantities", () => {
+  const options = getTakeoffStudioAssemblyOptions();
+
+  assert.ok(options.find((option) => option.id === "direct"));
+  assert.ok(options.find((option) => option.id === "concrete-flatwork-4in"));
+  assert.doesNotMatch(JSON.stringify(options), /margin|profit|payroll|send/i);
+});
+
+test("builds reviewed takeoff estimate line items with blank pricing", () => {
+  const lineItems = buildTakeoffStudioEstimateLineItems({
+    items: [
+      {
+        id: "slab-1",
+        label: "Driveway slab",
+        measurementType: "area",
+        quantity: 810,
+        unit: "SF",
+        reviewStatus: "reviewed",
+        assemblyId: "concrete-flatwork-4in",
+        sheetName: "C2.1",
+        revision: "Rev A",
+      },
+      {
+        id: "walk-1",
+        label: "Walkway",
+        measurementType: "length",
+        quantity: 45,
+        unit: "LF",
+        reviewStatus: "needs_review",
+      },
+    ],
+  });
+
+  assert.equal(lineItems.length, 3);
+  assert.equal(lineItems[0].unitPrice, "");
+  assert.equal(lineItems[1].quantity, 10);
+  assert.equal(lineItems[1].unit, "CY");
+  assert.match(lineItems[1].description, /concrete placement 4 in/);
+  assert.doesNotMatch(JSON.stringify(lineItems), /margin|profit|payroll|send/i);
+});
+
+test("can include unreviewed takeoff line items only when explicitly requested", () => {
+  const lineItems = buildTakeoffStudioEstimateLineItems({
+    items: [
+      { label: "Reviewed slab", measurementType: "area", quantity: 100, unit: "SF", reviewStatus: "reviewed" },
+      { label: "Draft sidewalk", measurementType: "area", quantity: 50, unit: "SF", reviewStatus: "needs_review" },
+    ],
+  }, { onlyReviewed: false });
+
+  assert.equal(lineItems.length, 2);
+  assert.match(lineItems[1].description, /Draft sidewalk/);
+});
+
+test("merges takeoff studio line items without duplicating previous generated lines", () => {
+  const draft = {
+    items: [
+      { id: "manual-1", description: "Mobilization", quantity: 1, unit: "LS", unitPrice: "500" },
+      { id: "takeoff-studio-line-old-direct", description: "Apex Takeoff - Old slab", quantity: 10, unit: "SF", unitPrice: "" },
+    ],
+  };
+
+  const merged = mergeTakeoffStudioIntoDraft(draft, {
+    items: [{
+      id: "slab-2",
+      label: "New slab",
+      measurementType: "area",
+      quantity: 120,
+      unit: "SF",
+      reviewStatus: "reviewed",
+    }],
+  });
+
+  assert.equal(merged.items.length, 2);
+  assert.equal(merged.items[0].description, "Mobilization");
+  assert.equal(merged.items[0].unitPrice, "500");
+  assert.match(merged.items[1].description, /Apex Takeoff - New slab/);
+  assert.equal(merged.items[1].unitPrice, "");
 });

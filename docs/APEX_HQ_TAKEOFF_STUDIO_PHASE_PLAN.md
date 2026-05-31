@@ -1,7 +1,7 @@
 # Apex HQ Takeoff Studio Phase Plan
 
 Date: 2026-05-31
-Status: Phase 1 foundation in progress; manual editor checkpoint complete
+Status: Phase 2 estimate integration checkpoint complete
 
 ## Goal
 
@@ -229,7 +229,7 @@ AI:
 
 ## Current Implementation Order
 
-Start with Phase 1 only:
+Phase 1 foundation is validated and frozen enough to proceed into Phase 2:
 
 1. Audit current Estimate Studio, PDF/print packet, uploads, calculator, and estimate backup files. Complete.
 2. Create a small takeoff utility with measurement normalization and quantity calculations. Complete.
@@ -237,7 +237,13 @@ Start with Phase 1 only:
 4. Add an owner/admin Takeoff Studio panel inside the existing Estimate Studio. Complete for manual sheet/items, calibration inputs, point text, reviewed quantity rows, and office backup sync.
 5. Validate with estimates, roles, build, and browser QA. Complete for this checkpoint.
 
-Do not begin Phase 2 until Phase 1 is validated and frozen.
+Phase 2 first checkpoint:
+
+1. Add reviewed takeoff-to-estimate draft line helpers with blank pricing. Complete.
+2. Add safe assembly options for direct quantity, concrete flatwork, base rock, demo/haul-off, and forming/sawcut. Complete.
+3. Add owner/admin UI controls to choose an assembly and apply reviewed measurements into editable estimate line items. Complete.
+4. Keep generated lines review-first and replace prior generated takeoff lines instead of duplicating them. Complete.
+5. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint.
 
 ## Phase 1 Checkpoint: Manual Editor
 
@@ -254,3 +260,20 @@ Remaining Phase 1 work before freeze:
 - Visual polish pass after real use if the manual editor feels too dense on owner mobile.
 - Decide whether Phase 1 needs a simple PDF/page preview placeholder or whether that belongs in Phase 5 advanced PDF tooling.
 - Add proposal/print proof selection only in Phase 2, after estimate-line integration is designed.
+
+## Phase 2 Checkpoint: Reviewed Quantity To Estimate Lines
+
+Completed on 2026-05-31:
+
+- Reviewed Takeoff Studio items can now generate editable estimate line item drafts.
+- Assembly choices stay quantity-only and leave `unitPrice` blank for office review.
+- Concrete flatwork can suggest prep SF, concrete CY, and finish/sawcut SF from a reviewed area.
+- Base rock, demo/haul-off, forming/sawcut, and direct quantity rows are supported as safe starter assemblies.
+- Applying reviewed quantities also refreshes Apex Takeoff Studio backup rows and replaces previous generated takeoff lines to avoid duplicate estimate rows.
+- Field users remain blocked from Estimate Studio and Takeoff Studio.
+
+Remaining Phase 2 work:
+
+- Add customer-safe proposal proof selection from reviewed takeoff rows.
+- Add GC/internal packet summary helpers for plan-sheet quantity assumptions.
+- Decide whether assembly templates need trade/package-specific defaults before Phase 2 freeze.

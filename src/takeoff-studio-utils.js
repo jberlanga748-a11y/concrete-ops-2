@@ -1,5 +1,35 @@
 const DEFAULT_SCALE_UNIT = "FT";
 const DEFAULT_REVIEW_STATUS = "needs_review";
+const GENERATED_LINE_ITEM_ID_PREFIX = "takeoff-studio-line";
+const GENERATED_LINE_ITEM_DESCRIPTION_PREFIX = "Apex Takeoff -";
+
+export const TAKEOFF_STUDIO_ASSEMBLY_OPTIONS = [
+  {
+    id: "direct",
+    label: "Direct quantity",
+    description: "Create one reviewed quantity line with blank pricing.",
+  },
+  {
+    id: "concrete-flatwork-4in",
+    label: "Concrete flatwork - 4 in",
+    description: "Suggest prep SF, concrete CY, and finish/sawcut SF from a reviewed area.",
+  },
+  {
+    id: "base-rock-4in",
+    label: "Base rock - 4 in",
+    description: "Suggest compacted base quantity in CY from a reviewed area.",
+  },
+  {
+    id: "demo-haul-off",
+    label: "Demo / haul-off",
+    description: "Suggest removal quantity from a reviewed area or length.",
+  },
+  {
+    id: "forming-sawcut",
+    label: "Forms / sawcut",
+    description: "Suggest linear forming or sawcut quantity from a reviewed length.",
+  },
+];
 
 function textValue(value) {
   return String(value ?? "").replace(/\r\n/g, "\n").trim();
@@ -14,6 +44,35 @@ function roundQuantity(value, precision = 2) {
   const parsed = numberValue(value);
   const multiplier = 10 ** precision;
   return Math.round(parsed * multiplier) / multiplier;
+}
+
+function quantityLabel(value, unit = "") {
+  const quantity = numberValue(value);
+  return quantity > 0 ? `${quantity} ${textValue(unit)}`.trim() : "";
+}
+
+function areaToCubicYards(areaSquareFeet, depthInches = 4) {
+  const area = numberValue(areaSquareFeet);
+  const depthFeet = numberValue(depthInches) / 12;
+  return roundQuantity((area * depthFeet) / 27);
+}
+
+function itemSourceLabel(item = {}) {
+  return [item.sheetName, item.revision].filter(Boolean).join(" / ");
+}
+
+function takeoffLineId(item = {}, suffix = "direct") {
+  return `${GENERATED_LINE_ITEM_ID_PREFIX}-${textValue(item?.id) || "item"}-${suffix}`;
+}
+
+function estimateLine(description = "", quantity = 0, unit = "ea", id = "") {
+  return {
+    id: textValue(id) || takeoffLineId({}, "direct"),
+    description: textValue(description),
+    quantity: roundQuantity(quantity),
+    unit: textValue(unit) || "ea",
+    unitPrice: "",
+  };
 }
 
 function unitToFeetMultiplier(unit = DEFAULT_SCALE_UNIT) {
@@ -176,6 +235,7 @@ export function normalizeTakeoffStudioItem(item = {}, index = 0) {
     depth,
     quantity,
     reviewStatus,
+    assemblyId: textValue(item?.assemblyId) || "direct",
     linkedEstimateItemId: textValue(item?.linkedEstimateItemId),
     customerVisible: Boolean(item?.customerVisible),
     estimatorNote: textValue(item?.estimatorNote || item?.notes),
@@ -233,11 +293,93 @@ export function buildTakeoffStudioBackupRows(takeoff = {}) {
     estimatorNote: [
       item.reviewStatus === "reviewed" ? "Reviewed quantity." : "Needs estimator review.",
       item.measurementType ? `Type: ${item.measurementType}` : "",
+      item.assemblyId && item.assemblyId !== "direct" ? `Assembly: ${item.assemblyId}` : "",
       item.scale.calibrated ? `Scale: ${item.scale.realWorldLength} ${item.scale.realWorldUnit} = ${item.scale.pixels} px` : "Scale not calibrated.",
       item.measurementType === "volume" && item.depth.value ? `Depth: ${item.depth.value} ${item.depth.unit}` : "",
       item.estimatorNote,
     ].filter(Boolean).join(" | "),
   }));
+}
+
+export function getTakeoffStudioAssemblyOptions() {
+  return TAKEOFF_STUDIO_ASSEMBLY_OPTIONS.map((option) => ({ ...option }));
+}
+
+export function buildTakeoffStudioEstimateLineItems(takeoff = {}, options = {}) {
+  const {
+    onlyReviewed = true,
+  } = options;
+
+  return normalizeTakeoffStudio(takeoff).items
+    .filter((item) => item.quantity > 0)
+    .filter((item) => !onlyReviewed || item.reviewStatus === "reviewed")
+    .flatMap((item) => {
+      const assemblyId = item.assemblyId || "direct";
+      const source = itemSourceLabel(item);
+      const sourceNote = source ? ` (${source})` : "";
+      const baseDescription = `${GENERATED_LINE_ITEM_DESCRIPTION_PREFIX} ${item.label}${sourceNote}`;
+      const areaQuantity = item.measurementType === "area" ? item.quantity : 0;
+      const lengthQuantity = item.measurementType === "length" ? item.quantity : 0;
+      const depthInches = item.depth.feet > 0 ? item.depth.feet * 12 : 4;
+      const volumeQuantity = item.measurementType === "volume"
+        ? item.quantity
+        : areaToCubicYards(areaQuantity, depthInches);
+
+      if (assemblyId === "concrete-flatwork-4in" && areaQuantity > 0) {
+        const areaOrVolumeLabel = quantityLabel(areaQuantity, "SF");
+        return [
+          estimateLine(`${baseDescription}: subgrade prep${areaOrVolumeLabel ? ` (${areaOrVolumeLabel})` : ""}`, areaQuantity, "SF", takeoffLineId(item, "prep")),
+          estimateLine(`${baseDescription}: concrete placement ${roundQuantity(depthInches)} in`, volumeQuantity, "CY", takeoffLineId(item, "concrete")),
+          estimateLine(`${baseDescription}: finish / cure / sawcut`, areaQuantity, "SF", takeoffLineId(item, "finish")),
+        ];
+      }
+
+      if (assemblyId === "concrete-flatwork-4in" && item.measurementType === "volume") {
+        return [
+          estimateLine(`${baseDescription}: concrete placement`, volumeQuantity, "CY", takeoffLineId(item, "concrete")),
+        ];
+      }
+
+      if (assemblyId === "base-rock-4in" && areaQuantity > 0) {
+        return [
+          estimateLine(`${baseDescription}: compacted base rock 4 in`, areaToCubicYards(areaQuantity, 4), "CY", takeoffLineId(item, "base-rock")),
+        ];
+      }
+
+      if (assemblyId === "demo-haul-off") {
+        return [
+          estimateLine(`${baseDescription}: demo / removal / haul-off`, item.quantity, item.unit, takeoffLineId(item, "demo-haul-off")),
+        ];
+      }
+
+      if (assemblyId === "forming-sawcut" && lengthQuantity > 0) {
+        return [
+          estimateLine(`${baseDescription}: forms / sawcut layout`, lengthQuantity, "LF", takeoffLineId(item, "forming-sawcut")),
+        ];
+      }
+
+      return [
+        estimateLine(baseDescription, item.quantity, item.unit, takeoffLineId(item, "direct")),
+      ];
+    })
+    .filter((item) => item.description && item.quantity > 0);
+}
+
+function isGeneratedTakeoffStudioLineItem(item = {}) {
+  const id = textValue(item?.id);
+  const description = textValue(item?.description);
+  return id.startsWith(`${GENERATED_LINE_ITEM_ID_PREFIX}-`)
+    || description.startsWith(GENERATED_LINE_ITEM_DESCRIPTION_PREFIX);
+}
+
+export function mergeTakeoffStudioIntoDraft(draft = {}, takeoff = {}, options = {}) {
+  const generatedItems = buildTakeoffStudioEstimateLineItems(takeoff, options);
+  const existingItems = Array.isArray(draft?.items) ? draft.items : [];
+  const keptItems = existingItems.filter((item) => !isGeneratedTakeoffStudioLineItem(item));
+  return {
+    ...draft,
+    items: [...keptItems, ...generatedItems],
+  };
 }
 
 export function deriveTakeoffStudioReadiness(takeoff = {}) {
