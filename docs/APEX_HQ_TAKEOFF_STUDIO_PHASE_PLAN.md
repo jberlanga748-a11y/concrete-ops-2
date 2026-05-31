@@ -1,7 +1,7 @@
 # Apex HQ Takeoff Studio Phase Plan
 
 Date: 2026-05-31
-Status: Phase 4 proof/revisions/field-handoff checkpoint validated; Phase 5 advanced takeoff power next
+Status: Phase 1-5 takeoff plan implemented and validated; advanced provider/PDF parsing remains versioned later work
 
 ## Goal
 
@@ -263,6 +263,15 @@ Phase 4 first checkpoint:
 4. Extend the foreman handoff packet to prefer explicitly approved Takeoff Studio field rows and filter office-only Takeoff Studio rows. Complete.
 5. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint.
 
+Phase 5 first checkpoint:
+
+1. Add reviewed tool sets for concrete flatwork, sitework/demo, fence/linear, and general takeoff. Complete.
+2. Add measurement legend and revision comparison summaries over reviewed takeoff rows. Complete.
+3. Add CSV import/export for quantity rows without pricing or provider writes. Complete.
+4. Add reviewed markup comments with office/proposal/field visibility boundaries. Complete.
+5. Add a takeoff package export for proposal backup and office review that excludes pricing, margin, payroll, billing, provider writes, bid submission, customer approval, and automatic sends. Complete.
+6. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint. Complete.
+
 ## Phase 1 Checkpoint: Manual Editor
 
 Completed on 2026-05-31:
@@ -340,3 +349,20 @@ Completed on 2026-05-31:
 Deferred Phase 4 enhancements:
 
 - Decide whether job detail/Field Mode should show the same approved field-safe takeoff context directly after estimate conversion, or whether the current foreman handoff packet is enough for this checkpoint.
+
+## Phase 5 Checkpoint: Advanced Takeoff Power
+
+Completed on 2026-05-31:
+
+- Takeoff Studio now has tool-set selection for concrete flatwork, sitework/demo, fence/linear, and general takeoff.
+- Measurement legends summarize takeoff quantities by type, unit, review state, and revision state.
+- Revision comparison rows identify changed reviewed quantities across revisions.
+- CSV import/export lets owner/admin or estimator exchange quantity rows without pricing, provider writes, or schema changes.
+- Markup comments support office/proposal/field visibility and open/resolved review state.
+- Takeoff package export combines legend rows, revision comparisons, proposal proof, field handoff rows, non-office markup comments, and CSV output for reviewed proposal/office backup.
+- This checkpoint does not add automatic plan detection, guaranteed blueprint takeoff, public customer plan approval, e-sign, provider writes, live purchasing, accounting, payroll automation, bid submission, or customer sends.
+- Validation passed for focused takeoff tests, estimates, roles, build, diff, and browser QA.
+
+Deferred Phase 5 enhancements:
+
+- Real PDF page thumbnails, OCR/plan text extraction, plan overlay rendering, provider-backed AI plan assistance, and richer multi-user collaboration are versioned later work that need provider/file parsing and product approval before expansion.

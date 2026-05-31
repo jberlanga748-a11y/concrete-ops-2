@@ -11,7 +11,7 @@ import { calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEst
 import { addEstimateLineItemStarter, applyEstimateTemplateStarter, buildEstimateLineItemsFromRoughNotes, getEstimateLineItemStartersForTrade, getEstimateStarterTradeSummary, getEstimateTemplateStartersForTrade } from "./estimate-template-utils";
 import { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
 import { buildFenceTakeoffBackupRows, buildFenceTakeoffDraftLineItems, buildFenceTakeoffFieldHandoff, buildFenceTakeoffProofPhotoChecklist, buildFenceTakeoffProposalSummary, deriveFenceTakeoffReadiness, mergeFenceTakeoffIntoDraft, normalizeFenceTakeoff, summarizeFenceTakeoffByAssembly } from "./fence-takeoff-utils";
-import { applyTakeoffStudioAssistantSuggestion, buildTakeoffStudioAssistantQueue, buildTakeoffStudioBackupRows, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioFieldHandoff, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioProposalProofRows, buildTakeoffStudioProofSnapshot, buildTakeoffStudioRevisionRegister, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioSheet, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, mergeTakeoffStudioAssistantSuggestionState, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText } from "./takeoff-studio-utils";
+import { applyTakeoffStudioAssistantSuggestion, buildTakeoffStudioAssistantQueue, buildTakeoffStudioBackupRows, buildTakeoffStudioCsvExport, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioFieldHandoff, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioMeasurementLegend, buildTakeoffStudioPackageExport, buildTakeoffStudioProposalProofRows, buildTakeoffStudioProofSnapshot, buildTakeoffStudioRevisionComparison, buildTakeoffStudioRevisionRegister, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioMarkupComment, createEmptyTakeoffStudioSheet, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, getTakeoffStudioToolSetOptions, mergeTakeoffStudioAssistantSuggestionState, mergeTakeoffStudioCsvImport, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText } from "./takeoff-studio-utils";
 import { CUSTOM_ESTIMATE_PACKET_THEME_ID, ESTIMATE_PACKET_COPY_TEMPLATE_OPTIONS, ESTIMATE_PACKET_PRESETS, ESTIMATE_PACKET_SECTION_DEFS, ESTIMATE_PACKET_THEME_OPTIONS, INTERNAL_REVIEW_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
 
 export { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
@@ -938,13 +938,16 @@ function appendUniqueTextBlock(existing = "", next = "") {
 }
 
 export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false }) {
+  const [csvImportText, setCsvImportText] = useState("");
   const backup = deriveEstimateBackup(draft);
   const takeoff = normalizeTakeoffStudio(backup.takeoffStudio);
   const readiness = deriveTakeoffStudioReadiness(takeoff);
   const sheets = takeoff.sheets.length ? takeoff.sheets : [createEmptyTakeoffStudioSheet(0)];
   const items = takeoff.items.length ? takeoff.items : [createEmptyTakeoffStudioItem(0)];
+  const markupComments = takeoff.markupComments.length ? takeoff.markupComments : [createEmptyTakeoffStudioMarkupComment(0)];
   const reviewedRows = buildTakeoffStudioBackupRows({ ...takeoff, items: takeoff.items.filter((item) => item.reviewStatus === "reviewed") });
   const assemblyOptions = getTakeoffStudioAssemblyOptions();
+  const toolSetOptions = getTakeoffStudioToolSetOptions();
   const reviewedLineItems = buildTakeoffStudioEstimateLineItems(takeoff);
   const proposalProofRows = buildTakeoffStudioProposalProofRows(takeoff);
   const gcPacketProof = buildTakeoffStudioGcPacketProofSummary(takeoff);
@@ -952,6 +955,10 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
   const revisionRegister = buildTakeoffStudioRevisionRegister(takeoff);
   const fieldHandoff = buildTakeoffStudioFieldHandoff(takeoff);
   const proofSnapshot = buildTakeoffStudioProofSnapshot(takeoff);
+  const measurementLegend = buildTakeoffStudioMeasurementLegend(takeoff);
+  const revisionComparison = buildTakeoffStudioRevisionComparison(takeoff);
+  const csvExport = buildTakeoffStudioCsvExport(takeoff);
+  const packageExport = buildTakeoffStudioPackageExport(takeoff);
 
   function commitTakeoff(nextTakeoff) {
     const normalized = normalizeTakeoffStudio({
@@ -1029,6 +1036,25 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
 
   function removeItem(index) {
     commitTakeoff({ ...takeoff, sheets, items: items.filter((_, itemIndex) => itemIndex !== index) });
+  }
+
+  function updateMarkupComment(index, field, value) {
+    const nextComments = markupComments.map((comment, commentIndex) => commentIndex === index ? { ...comment, [field]: value } : comment);
+    commitTakeoff({ ...takeoff, sheets, items, markupComments: nextComments });
+  }
+
+  function addMarkupComment() {
+    commitTakeoff({ ...takeoff, sheets, items, markupComments: [...markupComments, createEmptyTakeoffStudioMarkupComment(markupComments.length)] });
+  }
+
+  function removeMarkupComment(index) {
+    commitTakeoff({ ...takeoff, sheets, items, markupComments: markupComments.filter((_, commentIndex) => commentIndex !== index) });
+  }
+
+  function importCsvRows() {
+    if (!csvImportText.trim()) return;
+    commitTakeoff(mergeTakeoffStudioCsvImport({ ...takeoff, sheets, items }, csvImportText));
+    setCsvImportText("");
   }
 
   function syncReviewedRowsToBackup() {
@@ -1154,6 +1180,94 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
               </div>
             </div>
           )) : <p className="rounded-xl border border-emerald-100 bg-emerald-50/70 px-3 py-2 text-sm font-bold text-emerald-800">No active assistant suggestions. Reviewed quantities and proof choices look ready for estimator review.</p>}
+        </div>
+      </div>
+      <div className="mt-3 rounded-2xl border border-slate-200 bg-white/95 p-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-700">Advanced takeoff package</p>
+            <p className="mt-1 text-sm font-bold leading-6 text-slate-600">Tool sets, measurement legend, CSV exchange, revision comparison, and markup comments stay inside office review.</p>
+          </div>
+          <Badge tone="blue">{measurementLegend.toolSet.label}</Badge>
+        </div>
+        <div className="mt-3 grid gap-3 xl:grid-cols-[220px_minmax(0,1fr)]">
+          <SelectField label="Tool set" value={takeoff.toolSetId || "concrete-flatwork"} onChange={(event) => commitTakeoff({ ...takeoff, sheets, items, toolSetId: event.target.value })} disabled={disabled}>
+            {toolSetOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+          </SelectField>
+          <div className="grid gap-2 md:grid-cols-3">
+            <StatCard title="Legend groups" value={`${measurementLegend.rows.length}`} />
+            <StatCard title="Revision comparisons" value={`${revisionComparison.rows.length}`} />
+            <StatCard title="Package rows" value={`${packageExport.itemCount}`} />
+          </div>
+        </div>
+        <div className="mt-3 grid gap-3 xl:grid-cols-2">
+          <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-600">Measurement legend</p>
+            <div className="mt-2 grid gap-2">
+              {measurementLegend.rows.length ? measurementLegend.rows.slice(0, 6).map((row) => (
+                <div key={`${row.measurementType}-${row.unit}-${row.reviewStatus}-${row.revisionStatus}`} className="rounded-xl border border-slate-100 bg-white px-3 py-2 text-sm font-bold text-slate-700">
+                  <span>{row.measurementType} / {row.unit}</span>
+                  <p className="mt-1 text-xs text-slate-500">{row.quantity} total / {row.count} item{row.count === 1 ? "" : "s"} / {row.reviewStatus} / {row.revisionStatus}</p>
+                </div>
+              )) : <p className="text-sm font-bold text-slate-500">{measurementLegend.summary}</p>}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-600">Revision comparison</p>
+            <div className="mt-2 grid gap-2">
+              {revisionComparison.rows.length ? revisionComparison.rows.slice(0, 6).map((row) => (
+                <div key={`${row.title}-${row.previousQuantity}-${row.revisedQuantity}`} className="rounded-xl border border-slate-100 bg-white px-3 py-2 text-sm font-bold text-slate-700">
+                  <span>{row.title}</span>
+                  <p className="mt-1 text-xs text-slate-500">{row.previousQuantity} to {row.revisedQuantity}{row.source ? ` / ${row.source}` : ""}</p>
+                </div>
+              )) : <p className="text-sm font-bold text-slate-500">{revisionComparison.summary}</p>}
+            </div>
+          </div>
+        </div>
+        <div className="mt-3 rounded-2xl border border-slate-100 bg-slate-50 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-600">Markup comments</p>
+            <Button type="button" variant="secondary" size="sm" onClick={addMarkupComment} disabled={disabled}>Add Comment</Button>
+          </div>
+          <div className="mt-2 grid gap-2">
+            {markupComments.map((comment, index) => (
+              <div key={`takeoff-comment-${comment.id}-${index}`} className="rounded-xl border border-slate-100 bg-white p-3">
+                <div className="grid gap-3 md:grid-cols-[140px_140px_140px_minmax(0,1fr)]">
+                  <SelectField label="Type" value={comment.type || "note"} onChange={(event) => updateMarkupComment(index, "type", event.target.value)} disabled={disabled}>
+                    <option value="note">Note</option>
+                    <option value="rfi">RFI</option>
+                    <option value="scope">Scope</option>
+                    <option value="risk">Risk</option>
+                  </SelectField>
+                  <SelectField label="Status" value={comment.status || "open"} onChange={(event) => updateMarkupComment(index, "status", event.target.value)} disabled={disabled}>
+                    <option value="open">Open</option>
+                    <option value="resolved">Resolved</option>
+                  </SelectField>
+                  <SelectField label="Visibility" value={comment.visibility || "office"} onChange={(event) => updateMarkupComment(index, "visibility", event.target.value)} disabled={disabled}>
+                    <option value="office">Office</option>
+                    <option value="proposal">Proposal</option>
+                    <option value="field">Field</option>
+                  </SelectField>
+                  <InputField label="Comment" value={comment.text || ""} onChange={(event) => updateMarkupComment(index, "text", event.target.value)} disabled={disabled} placeholder="Add reviewed markup note" />
+                </div>
+                <div className="mt-2 flex justify-end">
+                  <button type="button" onClick={() => removeMarkupComment(index)} disabled={disabled} className="text-xs font-black uppercase tracking-[0.16em] text-slate-500 hover:text-slate-950 disabled:cursor-not-allowed disabled:text-slate-300">Remove comment</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="mt-3 grid gap-3 xl:grid-cols-2">
+          <div>
+            <TextAreaField label="CSV import" value={csvImportText} onChange={(event) => setCsvImportText(event.target.value)} disabled={disabled} className="field-input min-h-28 resize-y font-mono text-xs" placeholder="label,measurementType,quantity,unit,sheetName,revision" />
+            <div className="mt-2">
+              <Button type="button" size="sm" onClick={importCsvRows} disabled={disabled || !csvImportText.trim()}>Import CSV Rows</Button>
+            </div>
+          </div>
+          <TextAreaField label="CSV export" value={csvExport} onChange={() => {}} disabled className="field-input min-h-28 resize-y font-mono text-xs" />
+        </div>
+        <div className="mt-3">
+          <TextAreaField label="Takeoff package export" value={JSON.stringify(packageExport, null, 2)} onChange={() => {}} disabled className="field-input min-h-36 resize-y font-mono text-xs" />
         </div>
       </div>
 

@@ -10,6 +10,34 @@ const SHEET_SUPERSEDED_STATUS = "superseded";
 const ITEM_ACTIVE_REVISION_STATUS = "active";
 const ITEM_REVISED_STATUS = "revised";
 const ITEM_SUPERSEDED_REVISION_STATUS = "superseded";
+const DEFAULT_TOOL_SET_ID = "concrete-flatwork";
+
+export const TAKEOFF_STUDIO_TOOL_SET_OPTIONS = [
+  {
+    id: "concrete-flatwork",
+    label: "Concrete flatwork",
+    measurementTypes: ["area", "volume", "length", "count"],
+    assemblies: ["concrete-flatwork-4in", "base-rock-4in", "forming-sawcut", "demo-haul-off"],
+  },
+  {
+    id: "sitework",
+    label: "Sitework / demo",
+    measurementTypes: ["area", "length", "volume", "count"],
+    assemblies: ["direct", "base-rock-4in", "demo-haul-off"],
+  },
+  {
+    id: "fence",
+    label: "Fence / linear",
+    measurementTypes: ["length", "count", "area"],
+    assemblies: ["direct", "demo-haul-off"],
+  },
+  {
+    id: "general",
+    label: "General takeoff",
+    measurementTypes: ["area", "length", "count", "volume"],
+    assemblies: ["direct"],
+  },
+];
 
 export const TAKEOFF_STUDIO_ASSEMBLY_OPTIONS = [
   {
@@ -110,6 +138,54 @@ function estimateLine(description = "", quantity = 0, unit = "ea", id = "") {
     quantity: roundQuantity(quantity),
     unit: textValue(unit) || "ea",
     unitPrice: "",
+  };
+}
+
+function escapeCsvValue(value = "") {
+  const text = String(value ?? "");
+  if (!/[",\n\r]/.test(text)) return text;
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function parseCsvLine(line = "") {
+  const cells = [];
+  let current = "";
+  let quoted = false;
+  const text = String(line ?? "");
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const next = text[index + 1];
+    if (char === '"' && quoted && next === '"') {
+      current += '"';
+      index += 1;
+      continue;
+    }
+    if (char === '"') {
+      quoted = !quoted;
+      continue;
+    }
+    if (char === "," && !quoted) {
+      cells.push(current);
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+
+  cells.push(current);
+  return cells.map((cell) => textValue(cell));
+}
+
+function normalizeMarkupComment(comment = {}, index = 0) {
+  return {
+    id: textValue(comment?.id) || `takeoff-comment-${index + 1}`,
+    sheetId: textValue(comment?.sheetId),
+    itemId: textValue(comment?.itemId),
+    type: textValue(comment?.type) || "note",
+    text: textValue(comment?.text || comment?.note),
+    status: ["open", "resolved"].includes(textValue(comment?.status).toLowerCase()) ? textValue(comment?.status).toLowerCase() : "open",
+    visibility: ["office", "proposal", "field"].includes(textValue(comment?.visibility).toLowerCase()) ? textValue(comment?.visibility).toLowerCase() : "office",
   };
 }
 
@@ -316,12 +392,24 @@ export function createEmptyTakeoffStudioItem(index = 0) {
   }, index);
 }
 
+export function createEmptyTakeoffStudioMarkupComment(index = 0) {
+  return normalizeMarkupComment({
+    id: `takeoff-comment-${index + 1}`,
+    type: "note",
+    status: "open",
+    visibility: "office",
+  }, index);
+}
+
 export function normalizeTakeoffStudio(takeoff = {}) {
   const items = (Array.isArray(takeoff?.items) ? takeoff.items : [])
     .map((item, index) => normalizeTakeoffStudioItem(item, index))
     .filter((item) => item.label || item.quantity || item.points.length || item.estimatorNote);
 
   return {
+    toolSetId: TAKEOFF_STUDIO_TOOL_SET_OPTIONS.some((option) => option.id === textValue(takeoff?.toolSetId))
+      ? textValue(takeoff?.toolSetId)
+      : DEFAULT_TOOL_SET_ID,
     sheets: (Array.isArray(takeoff?.sheets) ? takeoff.sheets : []).map((sheet, index) => ({
       id: textValue(sheet?.id) || `sheet-${index + 1}`,
       name: textValue(sheet?.name || sheet?.sheetName) || `Sheet ${index + 1}`,
@@ -334,13 +422,16 @@ export function normalizeTakeoffStudio(takeoff = {}) {
     assistantSuggestions: (Array.isArray(takeoff?.assistantSuggestions) ? takeoff.assistantSuggestions : [])
       .map((suggestion, index) => normalizeAssistantSuggestion(suggestion, index))
       .filter((suggestion) => suggestion.id),
+    markupComments: (Array.isArray(takeoff?.markupComments) ? takeoff.markupComments : [])
+      .map((comment, index) => normalizeMarkupComment(comment, index))
+      .filter((comment) => comment.text),
     updatedAt: textValue(takeoff?.updatedAt),
   };
 }
 
 export function takeoffStudioHasContent(takeoff = {}) {
   const normalized = normalizeTakeoffStudio(takeoff);
-  return Boolean(normalized.sheets.length || normalized.items.length || normalized.notes);
+  return Boolean(normalized.sheets.length || normalized.items.length || normalized.notes || normalized.markupComments.length);
 }
 
 export function buildTakeoffStudioRevisionRegister(takeoff = {}) {
@@ -493,6 +584,133 @@ export function buildTakeoffStudioProofSnapshot(takeoff = {}) {
     revisionSummary: revisionRegister.summary,
     revisionWarnings: revisionRegister.warnings,
     fieldSafetyBoundary: fieldHandoff.safetyBoundary,
+  };
+}
+
+export function getTakeoffStudioToolSetOptions() {
+  return TAKEOFF_STUDIO_TOOL_SET_OPTIONS.map((option) => ({ ...option, measurementTypes: [...option.measurementTypes], assemblies: [...option.assemblies] }));
+}
+
+export function buildTakeoffStudioMeasurementLegend(takeoff = {}) {
+  const normalized = normalizeTakeoffStudio(takeoff);
+  const toolSet = TAKEOFF_STUDIO_TOOL_SET_OPTIONS.find((option) => option.id === normalized.toolSetId) || TAKEOFF_STUDIO_TOOL_SET_OPTIONS[0];
+  const totals = new Map();
+
+  normalized.items.forEach((item) => {
+    if (item.quantity <= 0) return;
+    const key = `${item.measurementType}|${item.unit}|${item.reviewStatus}|${item.revisionStatus}`;
+    const current = totals.get(key) || {
+      measurementType: item.measurementType,
+      unit: item.unit,
+      reviewStatus: item.reviewStatus,
+      revisionStatus: item.revisionStatus,
+      quantity: 0,
+      count: 0,
+    };
+    current.quantity = roundQuantity(current.quantity + item.quantity);
+    current.count += 1;
+    totals.set(key, current);
+  });
+
+  const rows = [...totals.values()].sort((a, b) => [a.measurementType, a.unit, a.reviewStatus].join("|").localeCompare([b.measurementType, b.unit, b.reviewStatus].join("|")));
+  return {
+    toolSet,
+    rows,
+    reviewedRows: rows.filter((row) => row.reviewStatus === "reviewed"),
+    summary: rows.length
+      ? `${rows.length} legend group${rows.length === 1 ? "" : "s"} across ${normalized.items.length} takeoff item${normalized.items.length === 1 ? "" : "s"}.`
+      : "No measurement legend rows yet.",
+  };
+}
+
+export function buildTakeoffStudioRevisionComparison(takeoff = {}) {
+  const register = buildTakeoffStudioRevisionRegister(takeoff);
+  return {
+    rows: register.changedQuantityRows.map((row) => ({
+      title: row.title,
+      previousQuantity: row.from,
+      revisedQuantity: row.to,
+      source: row.source,
+      status: row.status,
+    })),
+    warnings: register.warnings,
+    summary: register.changedQuantityRows.length
+      ? `${register.changedQuantityRows.length} revised quantity comparison${register.changedQuantityRows.length === 1 ? "" : "s"} ready.`
+      : "No revised quantity comparisons yet.",
+  };
+}
+
+export function buildTakeoffStudioCsvExport(takeoff = {}) {
+  const normalized = normalizeTakeoffStudio(takeoff);
+  const headers = ["label", "measurementType", "quantity", "unit", "sheetName", "revision", "reviewStatus", "customerVisible", "fieldVisible", "revisionStatus", "assemblyId"];
+  const lines = [
+    headers.join(","),
+    ...normalized.items.map((item) => headers.map((header) => escapeCsvValue(item[header])).join(",")),
+  ];
+  return lines.join("\n");
+}
+
+export function parseTakeoffStudioCsvImport(csvText = "") {
+  const lines = String(csvText ?? "").replace(/\r\n/g, "\n").split("\n").map((line) => line.trim()).filter(Boolean);
+  if (!lines.length) return [];
+  const headers = parseCsvLine(lines[0]).map((header) => header.toLowerCase());
+  return lines.slice(1).map((line, index) => {
+    const cells = parseCsvLine(line);
+    const row = Object.fromEntries(headers.map((header, cellIndex) => [header, cells[cellIndex] || ""]));
+    return normalizeTakeoffStudioItem({
+      id: row.id || `csv-takeoff-${index + 1}`,
+      label: row.label || row.item || row.title,
+      measurementType: row.measurementtype || row.type,
+      quantity: row.quantity || row.qty,
+      unit: row.unit,
+      sheetName: row.sheetname || row.sheet || row.source,
+      revision: row.revision,
+      reviewStatus: row.reviewstatus || "needs_review",
+      customerVisible: /^(true|yes|1|customer)$/i.test(row.customervisible || ""),
+      fieldVisible: /^(true|yes|1|field)$/i.test(row.fieldvisible || ""),
+      revisionStatus: row.revisionstatus,
+      assemblyId: row.assemblyid,
+    }, index);
+  }).filter((item) => item.label && item.quantity > 0);
+}
+
+export function mergeTakeoffStudioCsvImport(takeoff = {}, csvText = "") {
+  const normalized = normalizeTakeoffStudio(takeoff);
+  const importedItems = parseTakeoffStudioCsvImport(csvText);
+  if (!importedItems.length) return normalized;
+  const existingIds = new Set(normalized.items.map((item) => item.id));
+  const nextItems = [
+    ...normalized.items,
+    ...importedItems.map((item, index) => normalizeTakeoffStudioItem({
+      ...item,
+      id: existingIds.has(item.id) ? `csv-takeoff-${normalized.items.length + index + 1}` : item.id,
+    }, normalized.items.length + index)),
+  ];
+  return normalizeTakeoffStudio({
+    ...normalized,
+    items: nextItems,
+  });
+}
+
+export function buildTakeoffStudioPackageExport(takeoff = {}) {
+  const normalized = normalizeTakeoffStudio(takeoff);
+  const legend = buildTakeoffStudioMeasurementLegend(normalized);
+  const revisionComparison = buildTakeoffStudioRevisionComparison(normalized);
+  const proofSnapshot = buildTakeoffStudioProofSnapshot(normalized);
+  const csv = buildTakeoffStudioCsvExport(normalized);
+  return {
+    generatedAt: new Date(0).toISOString(),
+    toolSet: legend.toolSet.label,
+    sheetCount: normalized.sheets.length,
+    itemCount: normalized.items.length,
+    reviewedItemCount: normalized.items.filter((item) => item.reviewStatus === "reviewed").length,
+    legendRows: legend.rows,
+    revisionComparisons: revisionComparison.rows,
+    proposalProofRows: proofSnapshot.proposalProofRows,
+    fieldHandoffRows: proofSnapshot.fieldHandoffRows,
+    markupComments: normalized.markupComments.filter((comment) => comment.visibility !== "office"),
+    csv,
+    safetyBoundary: "Takeoff package export excludes pricing, margin, payroll, billing, provider writes, bid submission, customer approval, and automatic sends.",
   };
 }
 

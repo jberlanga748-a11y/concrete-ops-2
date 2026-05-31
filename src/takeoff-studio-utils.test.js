@@ -5,19 +5,26 @@ import {
   applyTakeoffStudioAssistantSuggestion,
   buildTakeoffStudioAssistantQueue,
   buildTakeoffStudioAssistantSuggestions,
+  buildTakeoffStudioCsvExport,
   buildTakeoffStudioEstimateLineItems,
   buildTakeoffStudioBackupRows,
   buildTakeoffStudioFieldHandoff,
   buildTakeoffStudioGcPacketProofSummary,
+  buildTakeoffStudioMeasurementLegend,
+  buildTakeoffStudioPackageExport,
   buildTakeoffStudioProposalProofRows,
   buildTakeoffStudioProofSnapshot,
+  buildTakeoffStudioRevisionComparison,
   buildTakeoffStudioRevisionRegister,
   calculateTakeoffQuantity,
   createEmptyTakeoffStudioItem,
+  createEmptyTakeoffStudioMarkupComment,
   createEmptyTakeoffStudioSheet,
   deriveTakeoffStudioReadiness,
   getTakeoffStudioAssemblyOptions,
+  getTakeoffStudioToolSetOptions,
   mergeTakeoffStudioAssistantSuggestionState,
+  mergeTakeoffStudioCsvImport,
   mergeTakeoffStudioIntoDraft,
   formatTakeoffPointsText,
   normalizeTakeoffScale,
@@ -61,6 +68,7 @@ test("creates empty sheet and item drafts for the manual editor", () => {
   assert.equal(createEmptyTakeoffStudioItem(2).id, "takeoff-item-3");
   assert.equal(createEmptyTakeoffStudioItem(2).measurementType, "area");
   assert.equal(createEmptyTakeoffStudioItem(2).reviewStatus, "needs_review");
+  assert.equal(createEmptyTakeoffStudioMarkupComment(0).visibility, "office");
 });
 
 test("calculates length, area, count, and volume quantities", () => {
@@ -360,6 +368,45 @@ test("builds revision register and field-safe handoff rows without office data",
   assert.equal(snapshot.internalReviewRows.length, 3);
   assert.match(handoff.safetyBoundary, /excludes pricing/i);
   assert.doesNotMatch(JSON.stringify(handoff.rows), /margin|profit|payroll|billing|Office-only/i);
+});
+
+test("builds advanced takeoff legend, CSV exchange, and safe package export", () => {
+  const takeoff = {
+    toolSetId: "sitework",
+    sheets: [{ id: "s1", name: "C3.0", revision: "Rev 1" }],
+    markupComments: [
+      { id: "c1", type: "rfi", text: "Confirm sawcut limit", visibility: "proposal", status: "open" },
+      { id: "c2", type: "note", text: "Office margin note", visibility: "office", status: "open" },
+    ],
+    items: [
+      { id: "area-1", label: "Demo area", sheetId: "s1", sheetName: "C3.0", revision: "Rev 1", measurementType: "area", quantity: 250, unit: "SF", reviewStatus: "reviewed", customerVisible: true, fieldVisible: true },
+      { id: "area-2", label: "Demo area", sheetId: "s1", sheetName: "C3.0", revision: "Rev 2", measurementType: "area", quantity: 300, unit: "SF", reviewStatus: "reviewed", revisionStatus: "revised" },
+      { id: "length-1", label: "Sawcut", sheetId: "s1", sheetName: "C3.0", revision: "Rev 1", measurementType: "length", quantity: 80, unit: "LF", reviewStatus: "needs_review" },
+    ],
+  };
+
+  const toolSets = getTakeoffStudioToolSetOptions();
+  const legend = buildTakeoffStudioMeasurementLegend(takeoff);
+  const comparison = buildTakeoffStudioRevisionComparison(takeoff);
+  const csv = buildTakeoffStudioCsvExport(takeoff);
+  const imported = mergeTakeoffStudioCsvImport(takeoff, [
+    "label,measurementType,quantity,unit,sheetName,revision,reviewStatus,fieldVisible",
+    "Imported curb,length,42,LF,C4.0,Rev A,reviewed,true",
+  ].join("\n"));
+  const pack = buildTakeoffStudioPackageExport(takeoff);
+
+  assert.ok(toolSets.some((option) => option.id === "sitework"));
+  assert.equal(legend.toolSet.id, "sitework");
+  assert.equal(legend.rows.filter((row) => row.measurementType === "area").reduce((sum, row) => sum + row.quantity, 0), 550);
+  assert.equal(comparison.rows.length, 1);
+  assert.match(csv, /Demo area/);
+  assert.match(csv, /customerVisible/);
+  assert.equal(imported.items.some((item) => item.label === "Imported curb" && item.fieldVisible), true);
+  assert.equal(pack.markupComments.length, 1);
+  assert.equal(pack.markupComments[0].text, "Confirm sawcut limit");
+  assert.match(pack.safetyBoundary, /excludes pricing/i);
+  assert.doesNotMatch(JSON.stringify(pack.markupComments), /margin|profit|payroll|billing|Office/i);
+  assert.doesNotMatch(pack.csv, /unitPrice|margin|profit|payroll|billing|send proposal|bid submission/i);
 });
 
 test("builds review-first takeoff assistant suggestions without risky actions", () => {
