@@ -1,7 +1,7 @@
 # Apex HQ Takeoff Studio Phase Plan
 
 Date: 2026-05-31
-Status: Phase 2 estimate integration checkpoint complete
+Status: Phase 2 proof/packet checkpoint in progress
 
 ## Goal
 
@@ -243,7 +243,9 @@ Phase 2 first checkpoint:
 2. Add safe assembly options for direct quantity, concrete flatwork, base rock, demo/haul-off, and forming/sawcut. Complete.
 3. Add owner/admin UI controls to choose an assembly and apply reviewed measurements into editable estimate line items. Complete.
 4. Keep generated lines review-first and replace prior generated takeoff lines instead of duplicating them. Complete.
-5. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint.
+5. Add customer-safe proposal proof selection from reviewed takeoff rows. Complete.
+6. Add GC/internal packet summary helpers for plan-sheet quantity assumptions. Complete.
+7. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint.
 
 ## Phase 1 Checkpoint: Manual Editor
 
@@ -274,6 +276,19 @@ Completed on 2026-05-31:
 
 Remaining Phase 2 work:
 
-- Add customer-safe proposal proof selection from reviewed takeoff rows.
-- Add GC/internal packet summary helpers for plan-sheet quantity assumptions.
+- Decide whether assembly templates need trade/package-specific defaults before Phase 2 freeze.
+
+## Phase 2 Checkpoint: Proposal Proof And GC Review Summary
+
+Completed on 2026-05-31:
+
+- Reviewed Takeoff Studio measurements can be marked `Office only` or `Customer safe` before proposal proof use.
+- Customer-safe proof rows are generated only from reviewed measurements explicitly selected for proposal proof.
+- Reviewed measurements not selected for proposal proof are marked `Apex Takeoff Studio office-only` in backup rows so customer proposal evidence filters them out while internal packets can still show the backup.
+- GC packet proof summary helpers prepare reviewed takeoff summary, field-verification qualification language, sheet references, and internal office-only review notes without changing pricing or sending anything.
+- Estimate Studio now shows proposal proof preview and can prepare a local GC proof summary for review/save.
+
+Remaining Phase 2 work before freeze:
+
+- Validate the proof/packet checkpoint with full estimates, roles, build, diff, and browser QA.
 - Decide whether assembly templates need trade/package-specific defaults before Phase 2 freeze.

@@ -491,6 +491,30 @@ test("internal review packet can include SOV, takeoff, and internal notes only w
   assert.doesNotMatch(defaultInternalText, /Private sent history|Apex HQ Sent Proposal History/);
 });
 
+test("customer evidence includes selected Takeoff Studio proof and hides office-only takeoff rows", () => {
+  const internalNotes = [
+    "[Apex HQ Estimate Backup]",
+    JSON.stringify({
+      takeoffRows: [
+        { item: "Customer selected slab", quantity: "640", unit: "SF", source: "Apex Takeoff Studio / C2.1" },
+        { item: "Estimator-only yield backup", quantity: "8", unit: "CY", source: "Apex Takeoff Studio office-only / C2.1", estimatorNote: "Do not print in customer packet." },
+      ],
+    }),
+    "[/Apex HQ Estimate Backup]",
+  ].join("\n");
+
+  const model = deriveEstimatePrintModel({ internalNotes }, {
+    presetId: "customerProposalPacket",
+  });
+  const printedText = JSON.stringify(model);
+
+  assert.equal(model.evidenceSections.some((section) => section.key === "projectTakeoffSummary"), true);
+  assert.match(printedText, /Customer selected slab/);
+  assert.match(printedText, /640 SF/);
+  assert.doesNotMatch(printedText, /Estimator-only yield backup/);
+  assert.doesNotMatch(printedText, /Do not print/);
+});
+
 test("estimate print model parses alternates and add-ons with conservative selected totals", () => {
   const model = deriveEstimatePrintModel({
     items: [{ description: "Base slab", quantity: 1, unit: "LS", unitPrice: 10000 }],

@@ -40,14 +40,14 @@ Current status:
 
 - The full takeoff/AI estimating system is approved as a product goal.
 - Phase 1 Manual Takeoff Foundation is implemented and validated as a manual editor checkpoint.
-- Phase 2 Estimate Integration first checkpoint is implemented locally: reviewed takeoff quantities can create blank-priced estimate line drafts through safe assembly choices.
+- Phase 2 Estimate Integration checkpoints are implemented locally: reviewed takeoff quantities can create blank-priced estimate line drafts through safe assembly choices, selected reviewed rows can become customer-safe proposal proof, and GC/internal takeoff proof summaries can be prepared for review.
 - Estimate Studio, Proposals, Jobs, Uploads, AI Office, and field workflows must be extended, not rebuilt.
 - AI must stay review-first and must not auto-measure as final truth, approve pricing, submit bids, send proposals, or mutate risky customer-facing records.
 - Field users remain blocked from Estimate Studio, Takeoff Studio, pricing, margin, profit, payroll, billing, office notes, and AI Office controls.
 
 Current next action:
 
-- Finish Phase 2 validation and freeze the reviewed quantity-to-estimate-line checkpoint. Next Phase 2 work is customer-safe proposal proof/GC packet takeoff summary only after this checkpoint is validated.
+- Finish Phase 2 validation and freeze the reviewed quantity-to-estimate-line plus proposal-proof/GC-summary checkpoint. Next work after validation is either assembly default refinement or Phase 3 AI Takeoff Assistant.
 
 ## Production Patch: Estimate Proposal Type + Print Preview
 

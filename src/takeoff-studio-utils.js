@@ -61,6 +61,23 @@ function itemSourceLabel(item = {}) {
   return [item.sheetName, item.revision].filter(Boolean).join(" / ");
 }
 
+function takeoffStudioSourceLabel(item = {}) {
+  return [
+    item.customerVisible ? "Apex Takeoff Studio" : "Apex Takeoff Studio office-only",
+    item.sheetName,
+    item.revision,
+  ].filter(Boolean).join(" / ");
+}
+
+function readableMeasurementType(type = "") {
+  const normalized = textValue(type).toLowerCase();
+  if (normalized === "area") return "area";
+  if (normalized === "length") return "linear";
+  if (normalized === "volume") return "volume";
+  if (normalized === "count") return "count";
+  return normalized || "quantity";
+}
+
 function takeoffLineId(item = {}, suffix = "direct") {
   return `${GENERATED_LINE_ITEM_ID_PREFIX}-${textValue(item?.id) || "item"}-${suffix}`;
 }
@@ -289,9 +306,10 @@ export function buildTakeoffStudioBackupRows(takeoff = {}) {
     item: item.label,
     quantity: item.quantity ? String(item.quantity) : "",
     unit: item.unit,
-    source: ["Apex Takeoff Studio", item.sheetName, item.revision].filter(Boolean).join(" / "),
+    source: takeoffStudioSourceLabel(item),
     estimatorNote: [
       item.reviewStatus === "reviewed" ? "Reviewed quantity." : "Needs estimator review.",
+      item.customerVisible ? "Selected for customer-safe proposal proof." : "Office-only takeoff proof; do not print in customer packet.",
       item.measurementType ? `Type: ${item.measurementType}` : "",
       item.assemblyId && item.assemblyId !== "direct" ? `Assembly: ${item.assemblyId}` : "",
       item.scale.calibrated ? `Scale: ${item.scale.realWorldLength} ${item.scale.realWorldUnit} = ${item.scale.pixels} px` : "Scale not calibrated.",
@@ -299,6 +317,53 @@ export function buildTakeoffStudioBackupRows(takeoff = {}) {
       item.estimatorNote,
     ].filter(Boolean).join(" | "),
   }));
+}
+
+export function buildTakeoffStudioProposalProofRows(takeoff = {}) {
+  return normalizeTakeoffStudio(takeoff).items
+    .filter((item) => item.reviewStatus === "reviewed" && item.customerVisible && item.quantity > 0)
+    .map((item) => ({
+      title: item.label,
+      quantity: item.quantity,
+      unit: item.unit,
+      source: itemSourceLabel(item),
+      summary: [
+        `${item.quantity} ${item.unit}`.trim(),
+        itemSourceLabel(item),
+        `Reviewed ${readableMeasurementType(item.measurementType)} takeoff quantity`,
+      ].filter(Boolean).join(" / "),
+    }));
+}
+
+export function buildTakeoffStudioGcPacketProofSummary(takeoff = {}) {
+  const normalized = normalizeTakeoffStudio(takeoff);
+  const reviewedItems = normalized.items.filter((item) => item.reviewStatus === "reviewed" && item.quantity > 0);
+  const proofRows = buildTakeoffStudioProposalProofRows(normalized);
+  const proofLines = proofRows.map((row) => `${row.title}: ${row.quantity} ${row.unit}${row.source ? ` (${row.source})` : ""}`);
+  const sheetLabels = [...new Set(normalized.sheets
+    .map((sheet) => [sheet.name, sheet.revision].filter(Boolean).join(" "))
+    .filter(Boolean))];
+  const officeOnlyCount = reviewedItems.filter((item) => !item.customerVisible).length;
+
+  return {
+    proofRows,
+    proposalSummary: proofLines.length
+      ? `Reviewed takeoff proof: ${proofLines.join("; ")}.`
+      : "",
+    qualifications: proofLines.length
+      ? "Takeoff quantities shown are estimate-grade reviewed plan quantities and remain subject to final field verification, exclusions, and approved scope."
+      : "",
+    addendaRfiReferences: sheetLabels.length
+      ? `Takeoff sheets reviewed: ${sheetLabels.join("; ")}.`
+      : "",
+    internalPacketNotes: reviewedItems.length
+      ? [
+        `Apex Takeoff Studio review includes ${reviewedItems.length} reviewed item${reviewedItems.length === 1 ? "" : "s"}.`,
+        proofRows.length ? `${proofRows.length} item${proofRows.length === 1 ? "" : "s"} selected for customer-safe proposal proof.` : "No takeoff items are selected for customer-safe proposal proof yet.",
+        officeOnlyCount ? `${officeOnlyCount} reviewed item${officeOnlyCount === 1 ? "" : "s"} kept office-only.` : "",
+      ].filter(Boolean).join(" ")
+      : "",
+  };
 }
 
 export function getTakeoffStudioAssemblyOptions() {

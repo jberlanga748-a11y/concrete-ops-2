@@ -11,7 +11,7 @@ import { calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEst
 import { addEstimateLineItemStarter, applyEstimateTemplateStarter, buildEstimateLineItemsFromRoughNotes, getEstimateLineItemStartersForTrade, getEstimateStarterTradeSummary, getEstimateTemplateStartersForTrade } from "./estimate-template-utils";
 import { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
 import { buildFenceTakeoffBackupRows, buildFenceTakeoffDraftLineItems, buildFenceTakeoffFieldHandoff, buildFenceTakeoffProofPhotoChecklist, buildFenceTakeoffProposalSummary, deriveFenceTakeoffReadiness, mergeFenceTakeoffIntoDraft, normalizeFenceTakeoff, summarizeFenceTakeoffByAssembly } from "./fence-takeoff-utils";
-import { buildTakeoffStudioBackupRows, buildTakeoffStudioEstimateLineItems, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioSheet, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText } from "./takeoff-studio-utils";
+import { buildTakeoffStudioBackupRows, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioProposalProofRows, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioSheet, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText } from "./takeoff-studio-utils";
 import { CUSTOM_ESTIMATE_PACKET_THEME_ID, ESTIMATE_PACKET_COPY_TEMPLATE_OPTIONS, ESTIMATE_PACKET_PRESETS, ESTIMATE_PACKET_SECTION_DEFS, ESTIMATE_PACKET_THEME_OPTIONS, INTERNAL_REVIEW_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
 
 export { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
@@ -930,6 +930,13 @@ function takeoffUnitForType(type = "area") {
   return "SF";
 }
 
+function appendUniqueTextBlock(existing = "", next = "") {
+  const currentText = String(existing ?? "").trim();
+  const nextText = String(next ?? "").trim();
+  if (!nextText || currentText.includes(nextText)) return currentText;
+  return [currentText, nextText].filter(Boolean).join("\n\n");
+}
+
 export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false }) {
   const backup = deriveEstimateBackup(draft);
   const takeoff = normalizeTakeoffStudio(backup.takeoffStudio);
@@ -939,6 +946,8 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
   const reviewedRows = buildTakeoffStudioBackupRows({ ...takeoff, items: takeoff.items.filter((item) => item.reviewStatus === "reviewed") });
   const assemblyOptions = getTakeoffStudioAssemblyOptions();
   const reviewedLineItems = buildTakeoffStudioEstimateLineItems(takeoff);
+  const proposalProofRows = buildTakeoffStudioProposalProofRows(takeoff);
+  const gcPacketProof = buildTakeoffStudioGcPacketProofSummary(takeoff);
 
   function commitTakeoff(nextTakeoff) {
     const normalized = normalizeTakeoffStudio({
@@ -970,6 +979,9 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
       const nextItem = { ...item, [field]: value };
       if (field === "measurementType") {
         nextItem.unit = takeoffUnitForType(value);
+      }
+      if (field === "customerVisible") {
+        nextItem.customerVisible = value === true || value === "true";
       }
       if (field === "sheetId") {
         const selectedSheet = sheets.find((sheet) => sheet.id === value);
@@ -1037,6 +1049,19 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
     });
   }
 
+  function prepareGcPacketTakeoffProof() {
+    setDraft((current) => {
+      const currentPacket = deriveEstimateGcPacketLite(current);
+      return mergeEstimateGcPacketLite(current, {
+        ...currentPacket,
+        proposalSummary: appendUniqueTextBlock(currentPacket.proposalSummary, gcPacketProof.proposalSummary),
+        qualifications: appendUniqueTextBlock(currentPacket.qualifications, gcPacketProof.qualifications),
+        addendaRfiReferences: appendUniqueTextBlock(currentPacket.addendaRfiReferences, gcPacketProof.addendaRfiReferences),
+        internalPacketNotes: appendUniqueTextBlock(currentPacket.internalPacketNotes, gcPacketProof.internalPacketNotes),
+      });
+    });
+  }
+
   return (
     <div className="rounded-3xl border border-blue-100 bg-blue-50/50 p-4 shadow-sm shadow-blue-100/50">
       <SectionHeader
@@ -1092,6 +1117,10 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
                   <SelectField label="Assembly" value={item.assemblyId || "direct"} onChange={(event) => updateItem(index, "assemblyId", event.target.value)} disabled={disabled}>
                     {assemblyOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
                   </SelectField>
+                  <SelectField label="Proposal proof" value={item.customerVisible ? "true" : "false"} onChange={(event) => updateItem(index, "customerVisible", event.target.value)} disabled={disabled}>
+                    <option value="false">Office only</option>
+                    <option value="true">Customer safe</option>
+                  </SelectField>
                   <SelectField label="Review" value={item.reviewStatus || "needs_review"} onChange={(event) => updateItem(index, "reviewStatus", event.target.value)} disabled={disabled}>
                     <option value="needs_review">Needs review</option>
                     <option value="reviewed">Reviewed</option>
@@ -1127,6 +1156,7 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
             <Button type="button" variant="secondary" size="sm" onClick={addItem} disabled={disabled}>Add Measurement</Button>
             <Button type="button" size="sm" onClick={syncReviewedRowsToBackup} disabled={disabled || reviewedRows.length === 0}>Sync Reviewed Rows To Backup</Button>
             <Button type="button" size="sm" onClick={applyReviewedRowsToEstimateLines} disabled={disabled || reviewedLineItems.length === 0}>Apply Reviewed To Estimate Lines</Button>
+            <Button type="button" variant="secondary" size="sm" onClick={prepareGcPacketTakeoffProof} disabled={disabled || (!gcPacketProof.proposalSummary && !gcPacketProof.internalPacketNotes)}>Prepare GC Proof Summary</Button>
           </div>
           <div className="mt-3 rounded-2xl border border-blue-100 bg-white/85 p-3">
             <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-700">Estimate line preview</p>
@@ -1138,6 +1168,18 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
                 </div>
               )) : <p className="text-sm font-bold text-slate-500">Review measurements to preview estimate line quantities. Prices stay blank for office review.</p>}
               {reviewedLineItems.length > 5 ? <p className="text-xs font-bold text-slate-500">+{reviewedLineItems.length - 5} more draft line item{reviewedLineItems.length - 5 === 1 ? "" : "s"}.</p> : null}
+            </div>
+          </div>
+          <div className="mt-3 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-700">Proposal proof preview</p>
+            <div className="mt-2 grid gap-2">
+              {proposalProofRows.length ? proposalProofRows.slice(0, 5).map((row) => (
+                <div key={`${row.title}-${row.summary}`} className="rounded-xl border border-emerald-100 bg-white px-3 py-2 text-sm font-bold text-slate-700">
+                  <span>{row.title}</span>
+                  <p className="mt-1 text-xs text-slate-500">{row.summary}</p>
+                </div>
+              )) : <p className="text-sm font-bold text-slate-500">Set reviewed measurements to Customer safe before they can appear as proposal proof.</p>}
+              {proposalProofRows.length > 5 ? <p className="text-xs font-bold text-slate-500">+{proposalProofRows.length - 5} more proof item{proposalProofRows.length - 5 === 1 ? "" : "s"}.</p> : null}
             </div>
           </div>
         </div>

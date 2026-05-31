@@ -4,6 +4,8 @@ import test from "node:test";
 import {
   buildTakeoffStudioEstimateLineItems,
   buildTakeoffStudioBackupRows,
+  buildTakeoffStudioGcPacketProofSummary,
+  buildTakeoffStudioProposalProofRows,
   calculateTakeoffQuantity,
   createEmptyTakeoffStudioItem,
   createEmptyTakeoffStudioSheet,
@@ -140,6 +142,7 @@ test("builds office backup rows without pricing or customer-send claims", () => 
       depth: { value: 4, unit: "IN" },
       reviewStatus: "reviewed",
       estimatorNote: "Round up after waste review.",
+      customerVisible: true,
     }],
   });
 
@@ -152,6 +155,23 @@ test("builds office backup rows without pricing or customer-send claims", () => 
   assert.match(rows[0].source, /Apex Takeoff Studio \/ C2\.1 Site Plan/);
   assert.match(rows[0].estimatorNote, /Reviewed quantity/);
   assert.doesNotMatch(JSON.stringify(rows), /unitPrice|margin|profit|send/i);
+});
+
+test("marks unselected takeoff studio backup rows office-only for customer packet safety", () => {
+  const rows = buildTakeoffStudioBackupRows({
+    items: [{
+      label: "Estimator-only slab backup",
+      measurementType: "area",
+      quantity: 125,
+      unit: "SF",
+      sheetName: "C2.1",
+      reviewStatus: "reviewed",
+      customerVisible: false,
+    }],
+  });
+
+  assert.match(rows[0].source, /office-only/i);
+  assert.match(rows[0].estimatorNote, /do not print in customer packet/i);
 });
 
 test("exposes safe assembly options for reviewed takeoff quantities", () => {
@@ -193,6 +213,77 @@ test("builds reviewed takeoff estimate line items with blank pricing", () => {
   assert.equal(lineItems[1].unit, "CY");
   assert.match(lineItems[1].description, /concrete placement 4 in/);
   assert.doesNotMatch(JSON.stringify(lineItems), /margin|profit|payroll|send/i);
+});
+
+test("builds customer-safe proposal proof rows only from reviewed selected items", () => {
+  const proofRows = buildTakeoffStudioProposalProofRows({
+    items: [
+      {
+        label: "Customer slab proof",
+        measurementType: "area",
+        quantity: 500,
+        unit: "SF",
+        sheetName: "C2.1",
+        revision: "Rev A",
+        reviewStatus: "reviewed",
+        customerVisible: true,
+      },
+      {
+        label: "Office-only curb backup",
+        measurementType: "length",
+        quantity: 80,
+        unit: "LF",
+        reviewStatus: "reviewed",
+        customerVisible: false,
+      },
+      {
+        label: "Draft driveway",
+        measurementType: "area",
+        quantity: 200,
+        unit: "SF",
+        reviewStatus: "needs_review",
+        customerVisible: true,
+      },
+    ],
+  });
+
+  assert.equal(proofRows.length, 1);
+  assert.equal(proofRows[0].title, "Customer slab proof");
+  assert.match(proofRows[0].summary, /500 SF/);
+  assert.doesNotMatch(JSON.stringify(proofRows), /Office-only|Draft driveway|margin|profit|payroll|send/i);
+});
+
+test("builds GC packet proof summary without pricing or office-only customer claims", () => {
+  const summary = buildTakeoffStudioGcPacketProofSummary({
+    sheets: [{ name: "C2.1 Site Plan", revision: "Rev A" }],
+    items: [
+      {
+        label: "Proposal slab proof",
+        measurementType: "area",
+        quantity: 640,
+        unit: "SF",
+        sheetName: "C2.1 Site Plan",
+        revision: "Rev A",
+        reviewStatus: "reviewed",
+        customerVisible: true,
+      },
+      {
+        label: "Office-only yield note",
+        measurementType: "volume",
+        quantity: 8,
+        unit: "CY",
+        reviewStatus: "reviewed",
+        customerVisible: false,
+      },
+    ],
+  });
+
+  assert.match(summary.proposalSummary, /Proposal slab proof: 640 SF/);
+  assert.doesNotMatch(summary.proposalSummary, /Office-only yield note/);
+  assert.match(summary.qualifications, /field verification/i);
+  assert.match(summary.addendaRfiReferences, /C2\.1 Site Plan Rev A/);
+  assert.match(summary.internalPacketNotes, /kept office-only/i);
+  assert.doesNotMatch(JSON.stringify(summary), /unitPrice|margin|profit|payroll|send/i);
 });
 
 test("can include unreviewed takeoff line items only when explicitly requested", () => {
