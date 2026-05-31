@@ -19,8 +19,10 @@ import {
 } from "./estimate-backup-utils.js";
 import { buildPrintDocumentHtml, deriveEstimatePrintPacket } from "./print-packets.js";
 import { normalizeFenceTakeoff } from "./fence-takeoff-utils.js";
+import { normalizeTakeoffStudio } from "./takeoff-studio-utils.js";
 
 const EMPTY_FENCE_TAKEOFF = normalizeFenceTakeoff();
+const EMPTY_TAKEOFF_STUDIO = normalizeTakeoffStudio();
 
 test("old estimates without backup fields normalize safely", () => {
   assert.deepEqual(deriveEstimateBackup({ internalNotes: "Office-only note." }), {
@@ -28,6 +30,7 @@ test("old estimates without backup fields normalize safely", () => {
     takeoffRows: [],
     referenceRows: [],
     fenceTakeoff: EMPTY_FENCE_TAKEOFF,
+    takeoffStudio: EMPTY_TAKEOFF_STUDIO,
     notes: "",
   });
   assert.equal(getEstimateInternalNotesWithoutBackup("Office-only note."), "Office-only note.");
@@ -84,6 +87,7 @@ test("SOV rows and backup notes normalize safely", () => {
     takeoffRows: [],
     referenceRows: [],
     fenceTakeoff: EMPTY_FENCE_TAKEOFF,
+    takeoffStudio: EMPTY_TAKEOFF_STUDIO,
     notes: "estimator backup note",
   });
 });
@@ -143,6 +147,7 @@ test("backup data stores in internal notes without overwriting line items or vis
     takeoffRows: [{ item: "Concrete volume", quantity: "8", unit: "CY", source: "Takeoff sheet", estimatorNote: "Round up after waste review" }],
     referenceRows: [{ fileName: "Bluebeam takeoff.png", referenceType: "Screenshot", url: "https://files.example.test/takeoff.png", source: "A2.0", notes: "Office proof only" }],
     fenceTakeoff: EMPTY_FENCE_TAKEOFF,
+    takeoffStudio: EMPTY_TAKEOFF_STUDIO,
     notes: "Backup rows do not change line items.",
   });
 });
@@ -183,6 +188,30 @@ test("satellite fence takeoff stores inside office-only backup block", () => {
   assert.equal(backup.fenceTakeoff.totalLinearFeet, 125);
   assert.equal(backup.fenceTakeoff.gateCount, 2);
   assert.match(serializeEstimateBackup(backup), /Fence Ave|fenceTakeoff/);
+});
+
+test("generic takeoff studio stores inside office-only backup block", () => {
+  const estimate = mergeEstimateBackup({ internalNotes: "Concrete estimate." }, {
+    takeoffStudio: {
+      sheets: [{ name: "C2.1 Site Plan", revision: "Rev A" }],
+      items: [{
+        label: "Driveway slab",
+        sheetName: "C2.1 Site Plan",
+        revision: "Rev A",
+        measurementType: "area",
+        points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }],
+        scale: { pixels: 100, realWorldLength: 10, realWorldUnit: "FT" },
+        reviewStatus: "reviewed",
+      }],
+    },
+  });
+  const backup = deriveEstimateBackup(estimate);
+
+  assert.equal(getEstimateInternalNotesWithoutBackup(estimate.internalNotes), "Concrete estimate.");
+  assert.equal(backup.takeoffStudio.sheets[0].name, "C2.1 Site Plan");
+  assert.equal(backup.takeoffStudio.items[0].quantity, 100);
+  assert.equal(backup.takeoffStudio.items[0].reviewStatus, "reviewed");
+  assert.match(serializeEstimateBackup(backup), /takeoffStudio|Driveway slab/);
 });
 
 test("internal note edits preserve existing backup block", () => {

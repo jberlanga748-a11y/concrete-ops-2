@@ -30,6 +30,24 @@ Immediate next recommendation:
 
 - Prepare the public-launch approval packet: legal/privacy/terms/public-claims review, guided pilot completion or launch waiver, explicit public launch approval, and explicit approval to re-enable production public signup.
 
+## Active Product Goal: Apex Takeoff Studio
+
+Goal recorded on 2026-05-31: build all planned Apex Takeoff Studio phases for Bluebeam-like takeoffs and AI-assisted estimating inside Apex HQ.
+
+Plan file: `docs/APEX_HQ_TAKEOFF_STUDIO_PHASE_PLAN.md`.
+
+Current status:
+
+- The full takeoff/AI estimating system is approved as a product goal.
+- Implementation must start with Phase 1 Manual Takeoff Foundation only.
+- Estimate Studio, Proposals, Jobs, Uploads, AI Office, and field workflows must be extended, not rebuilt.
+- AI must stay review-first and must not auto-measure as final truth, approve pricing, submit bids, send proposals, or mutate risky customer-facing records.
+- Field users remain blocked from Estimate Studio, Takeoff Studio, pricing, margin, profit, payroll, billing, office notes, and AI Office controls.
+
+Current next action:
+
+- Audit the active Estimate Studio, PDF/print packet, upload, calculator, and estimate backup surfaces, then implement Phase 1 as a small, role-safe manual takeoff foundation.
+
 ## Production Patch: Estimate Proposal Type + Print Preview
 
 Goal: make Estimate Studio let owner/admin users start the right proposal/estimate packet up front and immediately see/print a customer-safe packet preview.
