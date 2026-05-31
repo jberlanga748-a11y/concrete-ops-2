@@ -24,6 +24,7 @@ import {
   uploadCapturedAt,
   uploadEvidenceDateKey,
   uploadEvidenceJobId,
+  uploadFileIsImage,
   uploadJobLabel,
   uploadTitle,
   uploadUploaderLabel,
@@ -135,7 +136,7 @@ export function UploadsPagePolished({ user, permissions, uploads, jobs, selected
   const canCreate = permissions.uploads.canCreate;
   const canManage = permissions.uploads.canManageAll;
   const canOpenUploadSupport = Boolean(permissions?.support?.canView && typeof onOpenSupport === "function");
-  const imageCount = visibleRows.filter((upload) => String(upload.fileType || "").startsWith("image/")).length;
+  const imageCount = visibleRows.filter((upload) => uploadFileIsImage(upload.fileType)).length;
   const gpsCount = visibleRows.filter((upload) => Number.isFinite(Number(upload.latitude)) && Number.isFinite(Number(upload.longitude))).length;
   const missingGpsCount = visibleRows.filter((upload) => !upload.hasGps).length;
   const missingNotesCount = visibleRows.filter((upload) => !String(upload.caption || upload.notes || "").trim()).length;
@@ -160,7 +161,7 @@ export function UploadsPagePolished({ user, permissions, uploads, jobs, selected
   }, visibleRows[0] || null);
   const uploadKpis = [
     { label: "Evidence", value: visibleRows.length, helper: "Matching current filters", icon: "upload", tone: "orange", actionLabel: "View active", onAction: () => setFilter("Active only") },
-    { label: "Photos", value: imageCount, helper: "Image evidence in view", icon: "document", tone: "orange" },
+    { label: "Photos", value: imageCount, helper: "Image proof in view", icon: "document", tone: "orange" },
     { label: "GPS Captured", value: gpsCount, helper: "Location metadata present", icon: "check", tone: gpsCount ? "green" : "slate", actionLabel: "View GPS", onAction: () => setGpsFilter("Has GPS") },
     { label: "Missing GPS", value: missingGpsCount, helper: "Still valid if denied", icon: "alert", tone: missingGpsCount ? "amber" : "slate", actionLabel: "Review missing", onAction: () => setGpsFilter("Missing GPS") },
     { label: "Archived", value: archivedCount, helper: "Archived in this view", icon: "box", tone: archivedCount ? "slate" : "green", actionLabel: "View archive", onAction: () => setFilter("Archived only") },
@@ -276,7 +277,7 @@ export function UploadsPagePolished({ user, permissions, uploads, jobs, selected
     setSuccessMessage("");
     const nextError = validateUploadFile({ type: draft.fileType, size: draft.fileSize });
     if (nextError || !draft.dataUrl) {
-      setFileError(nextError || "Choose a photo to upload.");
+      setFileError(nextError || "Choose a photo or PDF plan to upload.");
       return;
     }
 
@@ -296,7 +297,7 @@ export function UploadsPagePolished({ user, permissions, uploads, jobs, selected
     });
 
     if (success) {
-      setSuccessMessage("Photo evidence uploaded.");
+      setSuccessMessage("Upload saved.");
       setDraft({
         ...INITIAL_UPLOAD_FORM,
         jobId: allowedJobs.some((job) => job.id === draft.jobId) ? draft.jobId : (allowedJobs[0]?.id || ""),
@@ -1199,7 +1200,7 @@ function UploadsPageLegacy({ user, permissions, uploads, jobs, selectedJob, sess
   const uploadListSummary = `${visibleRows.length} uploads${latestVisibleUpload ? ` / Latest ${uploadJobLabel(latestVisibleUpload)}` : ""}`;
   const uploadKpis = [
     { label: "Visible Uploads", value: visibleRows.length, helper: "Current photo/document log", icon: "upload" },
-    { label: "Photo Evidence", value: visibleRows.filter((upload) => String(upload.fileType || "").startsWith("image/")).length, helper: "Images in this view", icon: "document" },
+    { label: "Photo Evidence", value: visibleRows.filter((upload) => uploadFileIsImage(upload.fileType)).length, helper: "Images in this view", icon: "document" },
     { label: "GPS Captured", value: visibleRows.filter((upload) => Number.isFinite(Number(upload.latitude)) && Number.isFinite(Number(upload.longitude))).length, helper: "Location metadata present", icon: "check" },
     { label: "Needs Link", value: visibleRows.filter((upload) => !upload.jobId && !upload.reportId).length, helper: "Not tied to a job/report", icon: "alert" },
   ];
@@ -1310,7 +1311,7 @@ function UploadsPageLegacy({ user, permissions, uploads, jobs, selectedJob, sess
     setSuccessMessage("");
     const nextError = validateUploadFile({ type: draft.fileType, size: draft.fileSize });
     if (nextError || !draft.dataUrl) {
-      setFileError(nextError || "Choose a photo to upload.");
+      setFileError(nextError || "Choose a photo or PDF plan to upload.");
       return;
     }
 
@@ -1330,7 +1331,7 @@ function UploadsPageLegacy({ user, permissions, uploads, jobs, selectedJob, sess
     });
 
     if (success) {
-      setSuccessMessage("Photo evidence uploaded.");
+      setSuccessMessage("Upload saved.");
       setDraft({
         ...INITIAL_UPLOAD_FORM,
         jobId: allowedJobs.some((job) => job.id === draft.jobId) ? draft.jobId : (allowedJobs[0]?.id || ""),

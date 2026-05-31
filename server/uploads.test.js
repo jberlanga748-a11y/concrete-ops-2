@@ -10,6 +10,7 @@ import { DatabaseSync } from "node:sqlite";
 import { createUserRecord } from "./store.js";
 
 const PNG_DATA_URL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WnV1n0AAAAASUVORK5CYII=";
+const PDF_DATA_URL = "data:application/pdf;base64,JVBERi0xLjEKMSAwIG9iago8PD4+CmVuZG9iagp0cmFpbGVyCjw8Pj4KJSVFT0YK";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -288,8 +289,25 @@ test("uploads respect job-scoped field permissions, GPS-optional metadata, and p
     assert.equal(foremanUpload.job.canViewMoney, false);
     assert.equal("notes" in foremanUpload.job, false);
 
+    const pdfPlanUploadState = await assertOk(fixture.baseUrl, "/api/uploads", {
+      method: "POST",
+      headers: officeHeaders,
+      body: JSON.stringify({
+        jobId: "J-2201",
+        fileName: "site-plan.pdf",
+        fileType: "application/pdf",
+        dataUrl: PDF_DATA_URL,
+        caption: "Site plan PDF for takeoff",
+      }),
+    });
+    const pdfPlanUpload = pdfPlanUploadState.uploads.find((upload) => upload.caption === "Site plan PDF for takeoff");
+    assert.ok(pdfPlanUpload);
+    assert.equal(pdfPlanUpload.fileType, "application/pdf");
+    assert.match(pdfPlanUpload.contentUrl, /^\/api\/uploads\/UPL-/);
+
     const uploadFiles = await fs.readdir(path.join(fixture.tempDataDir, "uploads"));
-    assert.equal(uploadFiles.length >= 2, true);
+    assert.equal(uploadFiles.some((fileName) => fileName.endsWith(".pdf")), true);
+    assert.equal(uploadFiles.length >= 3, true);
 
     const employeeUploadState = await assertOk(fixture.baseUrl, "/api/uploads", {
       method: "POST",
@@ -399,7 +417,7 @@ test("uploads reject unsafe types and oversized payloads", async () => {
     });
     assert.equal(unsafeUpload.response.status, 400);
 
-    const oversizedData = Buffer.alloc(8 * 1024 * 1024 + 1, 1).toString("base64");
+    const oversizedData = Buffer.alloc(10 * 1024 * 1024 + 1, 1).toString("base64");
     const oversizedUpload = await requestJson(fixture.baseUrl, "/api/uploads", {
       method: "POST",
       headers: officeHeaders,

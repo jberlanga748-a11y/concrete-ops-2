@@ -4,7 +4,7 @@ import { AssistantRail, Badge, Button, Card, CommandPageFrame, Icon, InputField,
 import { FieldOperatorPanelShell } from "./field-route-components";
 import { jobTitle } from "./job-utils";
 import { fetchAuthenticatedUploadPreviewUrl, getCachedUploadPreviewUrl, getUploadPreviewCacheKey } from "./upload-preview-utils";
-import { gpsStatusLabel, uploadCapturedAt, uploadCustomerLabel, uploadEvidenceDateKey, uploadJobLabel, uploadTitle, uploadUploaderLabel } from "./upload-utils";
+import { gpsStatusLabel, uploadCapturedAt, uploadCustomerLabel, uploadEvidenceDateKey, uploadFileIsImage, uploadFileIsPdf, uploadJobLabel, uploadTitle, uploadUploaderLabel } from "./upload-utils";
 
 export { fetchAuthenticatedUploadPreviewUrl } from "./upload-preview-utils";
 
@@ -129,6 +129,9 @@ export function AuthenticatedUploadPreview({ upload, token, className = "h-64 w-
   }, [cacheKey, token, upload?.contentUrl]);
 
   if (status === "ready" && previewUrl) {
+    if (uploadFileIsPdf(upload?.fileType)) {
+      return <iframe title={upload.fileName || "Uploaded PDF plan"} src={previewUrl} className={className} />;
+    }
     return <img src={previewUrl} alt={upload.fileName || "Uploaded evidence"} className={className} />;
   }
 
@@ -185,6 +188,8 @@ export function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLo
     : `${selectedJob ? jobTitle(selectedJob) : "select job"} and add photo`;
   const selectedJobLabel = selectedJob ? jobTitle(selectedJob) : "Select assigned job";
   const fileLabel = draft.fileName || "No photo selected";
+  const selectedFileIsImage = uploadFileIsImage(draft.fileType);
+  const selectedFileIsPdf = uploadFileIsPdf(draft.fileType);
   const gpsLabel = gpsStatusLabel(draft);
   const canUploadEvidence = Boolean(draft.jobId && draft.dataUrl) && !loading;
   const uploadReadyCount = [draft.jobId, draft.dataUrl].filter(Boolean).length;
@@ -194,7 +199,7 @@ export function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLo
   return (
     <>
       <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileInputChange} className="hidden" tabIndex={-1} />
-      <input ref={libraryInputRef} type="file" accept="image/*" onChange={handleFileInputChange} className="hidden" tabIndex={-1} />
+      <input ref={libraryInputRef} type="file" accept="image/*,application/pdf,.pdf" onChange={handleFileInputChange} className="hidden" tabIndex={-1} />
 
       <UploadMobileAccordionCard title="Upload photo evidence" summary={uploadSummary} badge={<Badge tone="orange">New</Badge>} defaultOpen>
         <form className="co-uploads-create-mobile-form grid gap-3" onSubmit={onSubmit} noValidate>
@@ -219,8 +224,9 @@ export function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLo
             </Button>
           </div>
           {draft.dataUrl || fileError ? (
-          <UploadMobileFieldGroup title="Photo / file" summary={draft.fileName || "Choose a photo"} defaultOpen>
-            {draft.dataUrl ? <img src={draft.dataUrl} alt="Selected upload preview" className="h-40 w-full rounded-2xl object-cover" /> : null}
+          <UploadMobileFieldGroup title="Photo / file" summary={draft.fileName || "Choose a photo or PDF plan"} defaultOpen>
+            {draft.dataUrl && selectedFileIsImage ? <img src={draft.dataUrl} alt="Selected upload preview" className="h-40 w-full rounded-2xl object-cover" /> : null}
+            {draft.dataUrl && selectedFileIsPdf ? <iframe title="Selected PDF plan preview" src={draft.dataUrl} className="h-40 w-full rounded-2xl border border-slate-200 bg-white" /> : null}
             {fileError ? <StateCard title="Upload file issue" description={fileError} tone="red" /> : null}
           </UploadMobileFieldGroup>
           ) : null}
@@ -261,7 +267,7 @@ export function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLo
               {draft.fileName ? (
                 <UploadMobileFieldGroup title="Extra details" summary={uploadFileSizeLabel(draft.fileSize)}>
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-                    <p><span className="font-black text-slate-950">Selected photo:</span> {draft.fileName}</p>
+                    <p><span className="font-black text-slate-950">Selected file:</span> {draft.fileName}</p>
                     <p className="mt-1"><span className="font-black text-slate-950">File type:</span> {draft.fileType || "Unknown"}</p>
                     <p className="mt-1"><span className="font-black text-slate-950">File size:</span> {uploadFileSizeLabel(draft.fileSize)}</p>
                   </div>
@@ -322,7 +328,7 @@ export function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLo
                 ) : (
                   <>
                     <strong>No file selected</strong>
-                    <p>Choose a photo before uploading evidence.</p>
+                    <p>Choose a photo or PDF plan before uploading evidence.</p>
                   </>
                 )}
               </div>
@@ -334,7 +340,8 @@ export function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLo
                 <Button type="button" variant="secondary" size="sm" onClick={handleRequestLocationClick} disabled={loading}>Capture location</Button>
               </div>
             </div>
-            {draft.dataUrl ? <img src={draft.dataUrl} alt="Selected upload preview" className="co-uploads-selected-preview h-48 w-full rounded-2xl object-cover" /> : null}
+            {draft.dataUrl && selectedFileIsImage ? <img src={draft.dataUrl} alt="Selected upload preview" className="co-uploads-selected-preview h-48 w-full rounded-2xl object-cover" /> : null}
+            {draft.dataUrl && selectedFileIsPdf ? <iframe title="Selected PDF plan preview" src={draft.dataUrl} className="co-uploads-selected-preview h-48 w-full rounded-2xl border border-slate-200 bg-white" /> : null}
             {fileError ? <StateCard title="Upload file issue" description={fileError} tone="red" /> : null}
           </div>
           <div className="co-uploads-create-action-stack">
@@ -345,7 +352,7 @@ export function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLo
             <p>Submits the real job-linked photo record with the selected file, timestamp, optional GPS, caption, and notes.</p>
             <div className="co-uploads-create-checks">
               <span data-state={draft.jobId ? "ready" : "needs"}>Job</span>
-              <span data-state={draft.dataUrl ? "ready" : "needs"}>Photo</span>
+              <span data-state={draft.dataUrl ? "ready" : "needs"}>File</span>
               <span data-state={draft.latitude != null && draft.longitude != null ? "ready" : "needs"}>GPS</span>
             </div>
           </div>
@@ -365,7 +372,7 @@ export function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLo
           </Button>
           <Button type="button" variant="secondary" className="w-full" onClick={(event) => handleOpenPicker(event, libraryInputRef)} disabled={loading}>
             <Icon name="document" />
-            Upload Existing Photo
+            Upload Existing Photo / PDF
           </Button>
         </div>
         <div className="grid gap-3 md:grid-cols-2">
@@ -375,12 +382,13 @@ export function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLo
         <TextAreaField label="Notes" value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Optional context for the office or report reviewer." />
         {draft.fileName ? (
           <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4 text-sm text-slate-600">
-            <p><span className="font-black text-slate-950">Selected photo:</span> {draft.fileName}</p>
+            <p><span className="font-black text-slate-950">Selected file:</span> {draft.fileName}</p>
             <p className="mt-1"><span className="font-black text-slate-950">Taken at:</span> {draft.takenAt ? uploadDateTimeLabel(new Date(draft.takenAt).toISOString()) : "Will be recorded when selected"}</p>
             <p className="mt-1"><span className="font-black text-slate-950">Uploaded at:</span> Recorded when you submit</p>
           </div>
         ) : null}
-        {draft.dataUrl ? <img src={draft.dataUrl} alt="Selected upload preview" className="h-48 w-full rounded-2xl object-cover" /> : null}
+        {draft.dataUrl && selectedFileIsImage ? <img src={draft.dataUrl} alt="Selected upload preview" className="h-48 w-full rounded-2xl object-cover" /> : null}
+        {draft.dataUrl && selectedFileIsPdf ? <iframe title="Selected PDF plan preview" src={draft.dataUrl} className="h-48 w-full rounded-2xl border border-slate-200 bg-white" /> : null}
         {fileError ? <StateCard title="Upload file issue" description={fileError} tone="red" /> : null}
         <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4 text-sm text-slate-600">
           <p><span className="font-black text-slate-950">GPS status:</span> {gpsStatusLabel(draft)}</p>

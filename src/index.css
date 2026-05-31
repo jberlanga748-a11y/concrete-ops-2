@@ -45490,6 +45490,10 @@ button.co-apex-command-kpi:hover:not(:disabled) {
     grid-template-columns: minmax(9.5rem, 0.28fr) minmax(34rem, 1fr) minmax(13rem, 0.28fr);
   }
 
+  .co-takeoff-pdf-canvas-preview canvas {
+    display: block;
+  }
+
   .co-estimates-shell-page .co-apex-assistant-action-panel {
     grid-template-rows: minmax(0, 1fr) auto;
   }

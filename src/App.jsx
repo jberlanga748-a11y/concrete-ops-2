@@ -12426,6 +12426,7 @@ function MainContent(props) {
           leads={props.leads}
           estimates={props.estimates}
           uploads={props.uploads}
+          sessionToken={props.sessionToken}
           rateBookItems={props.rateBookItems}
           user={props.user}
           permissions={props.permissions}

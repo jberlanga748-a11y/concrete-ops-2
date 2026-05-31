@@ -450,6 +450,28 @@ test("attaches reviewed plan files to sheets without approving quantities", () =
   assert.doesNotMatch(JSON.stringify(attached), /unitPrice|margin|profit|payroll|billing|send proposal|bid submission/i);
 });
 
+test("preserves PDF upload kind for authenticated content URLs", () => {
+  const planFile = normalizeTakeoffStudioPlanFile({
+    id: "upload:UPL-PDF-1",
+    sourceType: "upload",
+    uploadId: "UPL-PDF-1",
+    fileName: "site-plan.pdf",
+    mimeType: "application/pdf",
+    previewUrl: "/api/uploads/UPL-PDF-1/content",
+  });
+  const attached = attachTakeoffStudioPlanFileToSheet({
+    sheets: [{ id: "s1", name: "C2.1" }],
+    planFiles: [planFile],
+  }, "upload:UPL-PDF-1", "s1");
+  const readiness = buildTakeoffStudioPlanFileReadiness(attached);
+
+  assert.equal(attached.sheets[0].previewKind, "pdf");
+  assert.equal(attached.planFiles[0].previewKind, "pdf");
+  assert.equal(readiness.attachedFileCount, 1);
+  assert.equal(readiness.attachedSheetCount, 1);
+  assert.match(readiness.summary, /1 of 1 ready plan file attached to 1 Takeoff Studio sheet/);
+});
+
 test("builds native PDF page render state over registered plan files", () => {
   const planFile = normalizeTakeoffStudioPlanFile({
     id: "reference:plans",

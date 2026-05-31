@@ -73,11 +73,12 @@ test("deriveUploadDraftFromSelection preserves draft state and sets file metadat
   assert.equal(nextDraft.takenAtIso, "2026-04-25T19:15:00.000Z");
 });
 
-test("validateUploadFile enforces image types and size", () => {
-  assert.equal(validateUploadFile(null), "Choose a photo to upload.");
-  assert.equal(validateUploadFile({ type: "application/javascript", size: 100 }), "Only image uploads are supported right now.");
-  assert.match(validateUploadFile({ type: "image/png", size: 9 * 1024 * 1024 }), /8MB or smaller/);
+test("validateUploadFile enforces supported image/PDF types and size", () => {
+  assert.equal(validateUploadFile(null), "Choose a photo or PDF plan to upload.");
+  assert.equal(validateUploadFile({ type: "application/javascript", size: 100 }), "Only image uploads and PDF plans are supported right now.");
+  assert.match(validateUploadFile({ type: "image/png", size: 11 * 1024 * 1024 }), /10MB or smaller/);
   assert.equal(validateUploadFile({ type: "image/png", size: 1024 }), "");
+  assert.equal(validateUploadFile({ type: "application/pdf", size: 2048 }), "");
 });
 
 test("filterUploads supports gps, archived, job, uploader, and query filters", () => {

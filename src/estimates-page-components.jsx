@@ -205,6 +205,7 @@ export function EstimatesPagePolished({
   leads,
   estimates,
   uploads = [],
+  sessionToken = "",
   rateBookItems = [],
   permissions,
   busy,
@@ -2031,6 +2032,7 @@ export function EstimatesPagePolished({
             setDraft={setDetailDraft}
             disabled={busy || !canManage}
             uploads={uploads}
+            sessionToken={sessionToken}
           />
           <FenceTakeoffLiteEditor
             draft={detailDraft}
@@ -3087,6 +3089,7 @@ export function EstimatesPagePolished({
                     setDraft={setDetailDraft}
                     disabled={busy || !canManage}
                     uploads={uploads}
+                    sessionToken={sessionToken}
                   />
                   <FenceTakeoffLiteEditor
                     draft={detailDraft}

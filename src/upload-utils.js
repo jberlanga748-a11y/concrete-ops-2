@@ -1,5 +1,13 @@
-export const ALLOWED_UPLOAD_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "image/gif"];
-export const MAX_UPLOAD_SIZE_BYTES = 8 * 1024 * 1024;
+export const ALLOWED_UPLOAD_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "image/gif", "application/pdf"];
+export const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
+
+export function uploadFileIsImage(fileType = "") {
+  return String(fileType || "").toLowerCase().startsWith("image/");
+}
+
+export function uploadFileIsPdf(fileType = "") {
+  return String(fileType || "").toLowerCase() === "application/pdf";
+}
 
 export function deriveAllowedUploadJobs(jobs) {
   return (Array.isArray(jobs) ? jobs : []).filter((job) => !job?.archivedAt);
@@ -76,12 +84,12 @@ export function deriveUploadDraftFromSelection(currentDraft, file, dataUrl, sele
 }
 
 export function validateUploadFile(file) {
-  if (!file) return "Choose a photo to upload.";
+  if (!file) return "Choose a photo or PDF plan to upload.";
   if (!ALLOWED_UPLOAD_TYPES.includes(String(file.type || "").toLowerCase())) {
-    return "Only image uploads are supported right now.";
+    return "Only image uploads and PDF plans are supported right now.";
   }
   if (Number(file.size || 0) > MAX_UPLOAD_SIZE_BYTES) {
-    return `Images must be ${Math.round(MAX_UPLOAD_SIZE_BYTES / (1024 * 1024))}MB or smaller.`;
+    return `Files must be ${Math.round(MAX_UPLOAD_SIZE_BYTES / (1024 * 1024))}MB or smaller.`;
   }
   return "";
 }
@@ -196,7 +204,7 @@ export function buildUploadSupportContext({
 } = {}) {
   const safeRows = Array.isArray(visibleRows) ? visibleRows : [];
   const activeRows = safeRows.filter((upload) => !upload?.archivedAt);
-  const imageCount = safeRows.filter((upload) => String(upload?.fileType || "").startsWith("image/")).length;
+  const imageCount = safeRows.filter((upload) => uploadFileIsImage(upload?.fileType)).length;
   const gpsCount = safeRows.filter(hasGps).length;
   const missingGpsCount = safeRows.filter((upload) => !hasGps(upload)).length;
   const missingCaptionCount = safeRows.filter((upload) => !String(upload?.caption || upload?.notes || "").trim()).length;

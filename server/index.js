@@ -408,8 +408,8 @@ const PRE_POUR_CHECKLIST_STATUSES = new Set(["draft", "completed", "reviewed", "
 const PRE_POUR_ITEM_STATUSES = new Set(["unchecked", "checked", "not_applicable"]);
 const POST_POUR_CHECKLIST_STATUSES = new Set(["draft", "completed", "reviewed", "reopened", "archived"]);
 const POST_POUR_ITEM_STATUSES = new Set(["unchecked", "checked", "not_applicable"]);
-const ALLOWED_UPLOAD_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "image/gif"]);
-const MAX_UPLOAD_SIZE_BYTES = 8 * 1024 * 1024;
+const ALLOWED_UPLOAD_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "image/gif", "application/pdf"]);
+const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 const CALCULATOR_RESULT_TYPES = new Set(["slab", "footing", "wall", "round_column", "roundColumn", "multi_section"]);
 const PUBLIC_REQUEST_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const AGENT_PROPOSAL_AUDIT_EVENT_TYPES = new Set([
@@ -3935,6 +3935,7 @@ function uploadExtensionForType(fileType) {
     "image/heic": ".heic",
     "image/heif": ".heif",
     "image/gif": ".gif",
+    "application/pdf": ".pdf",
   };
   return extensions[fileType] || ".bin";
 }
@@ -16750,13 +16751,14 @@ app.post("/api/uploads", requireAuth, asyncRoute(async (req, res) => {
       updatedAt: changedAt,
       archivedAt: null,
     });
-    appendActivity(draft, "Photo uploaded", `${req.auth.user.name} added photo evidence to ${normalizeJobRecord(job).title}.`);
+    const uploadKindLabel = decodedFile.fileType === "application/pdf" ? "PDF plan" : "photo evidence";
+    appendActivity(draft, "Upload created", `${req.auth.user.name} added ${uploadKindLabel} to ${normalizeJobRecord(job).title}.`);
     appendAuditEvent(draft, {
       entityType: "upload",
       entityId: uploadId,
       action: "created",
       summary: "Upload created",
-      detail: `${req.auth.user.name} uploaded photo evidence for ${normalizeJobRecord(job).title}.`,
+      detail: `${req.auth.user.name} uploaded ${uploadKindLabel} for ${normalizeJobRecord(job).title}.`,
       actor: req.auth.user,
       changedFields: ["jobId", "fileName", "takenAt", ...(latitude != null && longitude != null ? ["location"] : [])],
     });

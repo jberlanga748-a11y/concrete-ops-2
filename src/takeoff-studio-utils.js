@@ -287,6 +287,12 @@ function previewKindForUrl(value = "") {
   return "embedded";
 }
 
+function normalizePreviewKind(value = "") {
+  const normalized = textValue(value).toLowerCase();
+  if (["image", "pdf", "embedded", "placeholder"].includes(normalized)) return normalized;
+  return "";
+}
+
 function fileExtension(value = "") {
   const name = textValue(value).split(/[?#]/)[0].toLowerCase();
   const match = name.match(/\.([a-z0-9]+)$/i);
@@ -480,7 +486,8 @@ export function normalizeTakeoffStudioPlanFile(file = {}, index = 0) {
 function dedupePlanFiles(files = []) {
   const seen = new Set();
   return files.filter((file) => {
-    const key = [file.id, file.uploadId, file.referenceId, file.previewUrl, file.fileName].filter(Boolean).join("|").toLowerCase();
+    const previewKey = [file.previewUrl || file.contentUrl || "", file.fileName || ""].filter(Boolean).join("|").toLowerCase();
+    const key = previewKey || [file.uploadId || file.referenceId || file.id || "", file.fileName || ""].filter(Boolean).join("|").toLowerCase();
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -541,20 +548,23 @@ export function buildTakeoffStudioPlanFileReadiness(takeoff = {}, planFiles = nu
     warnings,
     summary: warnings.length
       ? warnings[0]
-      : `${readyFiles.length} reviewed plan file${readyFiles.length === 1 ? "" : "s"} attached to Takeoff Studio sheets.`,
+      : attachedFiles.length
+        ? `${attachedFiles.length} of ${readyFiles.length} ready plan file${readyFiles.length === 1 ? "" : "s"} attached to ${attachedSheetIds.size} Takeoff Studio sheet${attachedSheetIds.size === 1 ? "" : "s"}.`
+        : `${readyFiles.length} ready plan file${readyFiles.length === 1 ? "" : "s"} available; attach a source to the selected sheet before measuring.`,
     safetyBoundary: "Plan file handling records PDF/image source evidence only. It does not upload new files, read files automatically, OCR plans, approve quantities, expose field users, send customer data, or write providers.",
   };
 }
 
 function normalizeTakeoffStudioSheet(sheet = {}, index = 0) {
   const sourcePreviewUrl = safePreviewUrl(sheet?.sourcePreviewUrl || sheet?.previewUrl || sheet?.url);
+  const previewKind = normalizePreviewKind(sheet?.previewKind) || previewKindForUrl(sourcePreviewUrl);
   return {
     id: textValue(sheet?.id) || `sheet-${index + 1}`,
     name: textValue(sheet?.name || sheet?.sheetName) || `Sheet ${index + 1}`,
     revision: textValue(sheet?.revision),
     sourceFileName: textValue(sheet?.sourceFileName || sheet?.fileName),
     sourcePreviewUrl,
-    previewKind: previewKindForUrl(sourcePreviewUrl),
+    previewKind,
     pageNumber: positiveInteger(sheet?.pageNumber || sheet?.page, index + 1),
     pageWidth: positiveInteger(sheet?.pageWidth || sheet?.width, DEFAULT_SHEET_WIDTH),
     pageHeight: positiveInteger(sheet?.pageHeight || sheet?.height, DEFAULT_SHEET_HEIGHT),

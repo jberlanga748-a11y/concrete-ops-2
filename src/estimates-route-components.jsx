@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import * as pdfjsLib from "pdfjs-dist";
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
 import "mapbox-gl/dist/mapbox-gl.css";
 
 import { Badge, Button, Card, FilterBar, Icon, InputField, SectionHeader, SelectField, StatCard, StateCard, StatusBadge, TextAreaField } from "./app-shell-components";
@@ -12,9 +14,12 @@ import { addEstimateLineItemStarter, applyEstimateTemplateStarter, buildEstimate
 import { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
 import { buildFenceTakeoffBackupRows, buildFenceTakeoffDraftLineItems, buildFenceTakeoffFieldHandoff, buildFenceTakeoffProofPhotoChecklist, buildFenceTakeoffProposalSummary, deriveFenceTakeoffReadiness, mergeFenceTakeoffIntoDraft, normalizeFenceTakeoff, summarizeFenceTakeoffByAssembly } from "./fence-takeoff-utils";
 import { applyTakeoffStudioAssistantSuggestion, applyTakeoffStudioSheetCalibrationToItems, attachTakeoffStudioPlanFileToSheet, buildTakeoffStudioAiPlanAssist, buildTakeoffStudioAssistantQueue, buildTakeoffStudioAutoMeasureBeta, buildTakeoffStudioBackupRows, buildTakeoffStudioCsvExport, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioFieldHandoff, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioMeasurementLegend, buildTakeoffStudioPackageExport, buildTakeoffStudioPdfPageRenderState, buildTakeoffStudioPilotHardeningGate, buildTakeoffStudioPlanFileCandidates, buildTakeoffStudioPlanFileReadiness, buildTakeoffStudioPlanReviewLayer, buildTakeoffStudioPlanTextExtractionState, buildTakeoffStudioProductionHardening, buildTakeoffStudioProposalProofRows, buildTakeoffStudioProofSnapshot, buildTakeoffStudioRevisionComparison, buildTakeoffStudioRevisionRegister, buildTakeoffStudioSheetWorkspace, buildTakeoffStudioSnapTargets, buildTakeoffStudioTradeAutoTakeoffPacks, buildTakeoffStudioVisionAutoMeasureBeta, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioMarkupComment, createEmptyTakeoffStudioSheet, createTakeoffStudioItemFromAutoMeasureSuggestion, createTakeoffStudioMarkupFromPoint, createTakeoffStudioMeasurementFromDrawing, createTakeoffStudioPlanTextSourceDraft, createTakeoffStudioSheetFromPlanFilePage, deriveTakeoffStudioCalibrationState, deriveTakeoffStudioDrawingState, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, getTakeoffStudioToolSetOptions, mergeTakeoffStudioAssistantSuggestionState, mergeTakeoffStudioCsvImport, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText, snapTakeoffStudioDraftPoint } from "./takeoff-studio-utils";
+import { fetchAuthenticatedUploadPreviewUrl } from "./upload-preview-utils";
 import { CUSTOM_ESTIMATE_PACKET_THEME_ID, ESTIMATE_PACKET_COPY_TEMPLATE_OPTIONS, ESTIMATE_PACKET_PRESETS, ESTIMATE_PACKET_SECTION_DEFS, ESTIMATE_PACKET_THEME_OPTIONS, INTERNAL_REVIEW_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
 
 export { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 function formatEstimateUpdatedAt(value) {
   if (!value) return "Not recorded";
@@ -937,7 +942,89 @@ function appendUniqueTextBlock(existing = "", next = "") {
   return [currentText, nextText].filter(Boolean).join("\n\n");
 }
 
-export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, uploads = [] }) {
+function TakeoffStudioPdfCanvasPreview({ src = "", pageNumber = 1, sheetName = "" }) {
+  const canvasRef = useRef(null);
+  const [renderState, setRenderState] = useState({ status: "idle", message: "" });
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const sourceUrl = String(src || "").split("#")[0];
+    if (!canvas || !sourceUrl) {
+      setRenderState({ status: "idle", message: "" });
+      return undefined;
+    }
+
+    let cancelled = false;
+    let loadingTask = null;
+    let renderTask = null;
+
+    async function renderPdfPage() {
+      setRenderState({ status: "loading", message: "Rendering PDF plan page..." });
+      let renderStage = "loading document";
+      try {
+        renderStage = "fetching document";
+        const response = await fetch(sourceUrl, { credentials: "include" });
+        if (!response.ok) throw new Error(`PDF source returned ${response.status}.`);
+        const documentData = new Uint8Array(await response.arrayBuffer());
+        if (!documentData.length) throw new Error("PDF source was empty.");
+        renderStage = "opening document";
+        loadingTask = pdfjsLib.getDocument({ data: documentData, disableWorker: true });
+        const pdf = await loadingTask.promise;
+        renderStage = "loading page";
+        const safePageNumber = Math.min(Math.max(Number(pageNumber) || 1, 1), pdf.numPages || 1);
+        const page = await pdf.getPage(safePageNumber);
+        renderStage = "preparing canvas";
+        const viewport = page.getViewport({ scale: 2 });
+        const context = canvas.getContext("2d", { alpha: false });
+        if (!context) throw new Error("Canvas rendering is unavailable.");
+
+        canvas.width = Math.max(1, Math.floor(viewport.width));
+        canvas.height = Math.max(1, Math.floor(viewport.height));
+        context.fillStyle = "#ffffff";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        renderStage = "rendering page";
+        renderTask = page.render({ canvasContext: context, viewport });
+        await renderTask.promise;
+        if (!cancelled) {
+          setRenderState({ status: "ready", message: `Rendered PDF page ${safePageNumber} of ${pdf.numPages || 1}.` });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setRenderState({
+            status: "error",
+            message: error?.name === "RenderingCancelledException"
+              ? "PDF render was cancelled."
+              : `PDF page could not render while ${renderStage}. Reattach the file or split the plan into smaller pages.`,
+          });
+        }
+      }
+    }
+
+    renderPdfPage();
+
+    return () => {
+      cancelled = true;
+      renderTask?.cancel?.();
+      loadingTask?.destroy?.();
+    };
+  }, [src, pageNumber]);
+
+  return (
+    <div className="co-takeoff-pdf-canvas-preview absolute inset-0 bg-white" data-pdf-canvas-status={renderState.status}>
+      <canvas ref={canvasRef} className="h-full w-full" aria-label={`${sheetName || "PDF plan"} rendered page`} />
+      {renderState.status !== "ready" ? (
+        <div className="absolute inset-0 flex items-center justify-center bg-white/90 px-4 text-center text-sm font-black text-slate-600">
+          {renderState.message || "Preparing PDF plan preview..."}
+        </div>
+      ) : null}
+      <div className="pointer-events-none absolute left-3 top-3 rounded-full border border-slate-200 bg-white/90 px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-slate-700 shadow-sm">
+        {renderState.status === "ready" ? "PDF rendered" : "PDF preview"}
+      </div>
+    </div>
+  );
+}
+
+export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, uploads = [], sessionToken = "" }) {
   const [csvImportText, setCsvImportText] = useState("");
   const [drawingTool, setDrawingTool] = useState("area");
   const [drawingLabel, setDrawingLabel] = useState("");
@@ -989,6 +1076,48 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
   const hardeningState = buildTakeoffStudioProductionHardening(editingTakeoff);
   const pilotHardeningGate = buildTakeoffStudioPilotHardeningGate({ ...editingTakeoff, planFiles: planFileCandidates });
   const selectedSheetPreviewUrl = pdfRenderState.canRender ? pdfRenderState.pagePreviewUrl : selectedSheet?.sourcePreviewUrl;
+  const [authenticatedPlanPreviewUrls, setAuthenticatedPlanPreviewUrls] = useState({});
+  const uploadPlanPreviewSignature = planFileCandidates
+    .filter((file) => file.sourceType === "upload" && file.previewKind === "pdf" && (file.contentUrl || file.previewUrl))
+    .map((file) => `${file.id}:${file.contentUrl || file.previewUrl}:${file.uploadedAt || ""}`)
+    .join("|");
+
+  useEffect(() => {
+    if (!sessionToken || !uploadPlanPreviewSignature) return undefined;
+    let cancelled = false;
+    const pdfUploadFiles = planFileCandidates.filter((file) => file.sourceType === "upload" && file.previewKind === "pdf" && (file.contentUrl || file.previewUrl));
+
+    Promise.all(pdfUploadFiles.map(async (file) => {
+      const contentUrl = file.contentUrl || file.previewUrl;
+      const previewUrl = await fetchAuthenticatedUploadPreviewUrl({
+        id: file.uploadId || file.id,
+        contentUrl,
+        uploadedAt: file.uploadedAt,
+      }, sessionToken);
+      return [contentUrl, previewUrl];
+    })).then((entries) => {
+      if (cancelled) return;
+      setAuthenticatedPlanPreviewUrls((current) => ({
+        ...current,
+        ...Object.fromEntries(entries),
+      }));
+    }).catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionToken, uploadPlanPreviewSignature]);
+
+  function resolvePlanPreviewUrl(value = "") {
+    const rawUrl = String(value || "");
+    if (!rawUrl) return "";
+    const [baseUrl, hash = ""] = rawUrl.split("#");
+    const authenticatedUrl = authenticatedPlanPreviewUrls[baseUrl] || authenticatedPlanPreviewUrls[rawUrl] || "";
+    if (!authenticatedUrl) return rawUrl;
+    return hash ? `${authenticatedUrl}#${hash}` : authenticatedUrl;
+  }
+
+  const displaySelectedSheetPreviewUrl = resolvePlanPreviewUrl(selectedSheetPreviewUrl);
 
   function commitTakeoff(nextTakeoff) {
     const normalized = normalizeTakeoffStudio({
@@ -1507,10 +1636,12 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
               </div>
             </div>
             <div className="relative mt-3 aspect-[11/8.5] overflow-hidden rounded-xl border border-slate-700 bg-slate-900">
-              {selectedSheetPreviewUrl && selectedSheet.previewKind === "image" ? (
-                <img src={selectedSheetPreviewUrl} alt={`${selectedSheet.name} plan preview`} className="h-full w-full object-contain" />
-              ) : selectedSheetPreviewUrl ? (
-                <iframe title={`${selectedSheet.name} plan preview`} src={selectedSheetPreviewUrl} className="h-full w-full bg-white" />
+              {pdfRenderState.canRender && selectedSheetPreviewUrl ? (
+                <TakeoffStudioPdfCanvasPreview src={selectedSheetPreviewUrl} pageNumber={pdfRenderState.pageNumber} sheetName={selectedSheet?.name} />
+              ) : displaySelectedSheetPreviewUrl && selectedSheet.previewKind === "image" ? (
+                <img src={displaySelectedSheetPreviewUrl} alt={`${selectedSheet.name} plan preview`} className="h-full w-full object-contain" />
+              ) : displaySelectedSheetPreviewUrl ? (
+                <iframe title={`${selectedSheet.name} plan preview`} src={displaySelectedSheetPreviewUrl} className="h-full w-full bg-white" />
               ) : (
                 <svg viewBox={`0 0 ${sheetWorkspace.bounds.width} ${sheetWorkspace.bounds.height}`} className="h-full w-full" role="img" aria-label="Plan sheet measurement workspace">
                   <rect x="0" y="0" width={sheetWorkspace.bounds.width} height={sheetWorkspace.bounds.height} fill="#f8fafc" />

@@ -21,6 +21,9 @@ test("Estimates page route shell is extracted and lazy-loaded out of App", () =>
   assert.match(estimatesPageSource, /const canUseEstimatorMobilePipeline = Boolean\(MobilePipelinePage\) && isEstimatorMobilePipelineUser\(user, permissions\);/);
   assert.match(estimatesPageSource, /estimateShellMode === "takeoff" \? " co-estimates-shell-page--takeoff" : ""/);
   assert.match(estimatesRouteSource, /co-takeoff-studio-plan-workspace-grid/);
+  assert.match(estimatesRouteSource, /pdfjs-dist/);
+  assert.match(estimatesRouteSource, /TakeoffStudioPdfCanvasPreview/);
+  assert.match(estimatesRouteSource, /data-pdf-canvas-status/);
   assert.match(cssSource, /\.co-estimates-shell-page--takeoff \.co-apex-office-command-workspace\s*\{\s*grid-template-columns: minmax\(0, 1fr\);/);
   assert.match(cssSource, /\.co-estimates-shell-page--takeoff \.co-apex-primary-queue-panel\s*\{\s*display: none;/);
   assert.match(cssSource, /\.co-estimates-shell-page--takeoff \.co-takeoff-studio-plan-workspace-grid\s*\{[\s\S]*minmax\(34rem, 1fr\)/);
