@@ -14,6 +14,12 @@ const DEFAULT_TOOL_SET_ID = "concrete-flatwork";
 const DEFAULT_SHEET_WIDTH = 1100;
 const DEFAULT_SHEET_HEIGHT = 850;
 const DEFAULT_SNAP_TOLERANCE = 18;
+const DEFAULT_PLAN_FILE_MAX_BYTES = 150 * 1024 * 1024;
+
+const PLAN_FILE_IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "webp", "gif", "heic", "heif"];
+const PLAN_FILE_PDF_EXTENSIONS = ["pdf"];
+const PLAN_FILE_IMAGE_MIME_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif", "image/heic", "image/heif"];
+const PLAN_FILE_PDF_MIME_TYPES = ["application/pdf"];
 
 export const TAKEOFF_STUDIO_TOOL_SET_OPTIONS = [
   {
@@ -219,6 +225,147 @@ function previewKindForUrl(value = "") {
   if (/\.(png|jpg|jpeg|webp|gif)(\?|#|$)/i.test(url) || url.startsWith("data:image/")) return "image";
   if (/\.pdf(\?|#|$)/i.test(url)) return "pdf";
   return "embedded";
+}
+
+function fileExtension(value = "") {
+  const name = textValue(value).split(/[?#]/)[0].toLowerCase();
+  const match = name.match(/\.([a-z0-9]+)$/i);
+  return match ? match[1] : "";
+}
+
+function planFileKindFor(file = {}) {
+  const mimeType = textValue(file?.mimeType || file?.fileType || file?.type).toLowerCase();
+  const extension = fileExtension(file?.fileName || file?.name || file?.title || file?.url || file?.contentUrl || file?.previewUrl);
+  if (PLAN_FILE_PDF_MIME_TYPES.includes(mimeType) || PLAN_FILE_PDF_EXTENSIONS.includes(extension)) return "pdf";
+  if (PLAN_FILE_IMAGE_MIME_TYPES.includes(mimeType) || PLAN_FILE_IMAGE_EXTENSIONS.includes(extension)) return "image";
+  return "";
+}
+
+function planFileSourceType(value = "") {
+  const normalized = textValue(value).toLowerCase();
+  if (["upload", "reference", "manual", "registered"].includes(normalized)) return normalized;
+  return "registered";
+}
+
+function normalizeLinkedSheetIds(value = []) {
+  return [...new Set((Array.isArray(value) ? value : [value]).map((entry) => textValue(entry)).filter(Boolean))];
+}
+
+function planFileStatusFor(file = {}) {
+  const warnings = [];
+  const kind = planFileKindFor(file);
+  const fileName = textValue(file?.fileName || file?.name || file?.title);
+  const previewUrl = safePreviewUrl(file?.previewUrl || file?.contentUrl || file?.url);
+  const sizeBytes = numberValue(file?.sizeBytes ?? file?.fileSize ?? file?.size);
+  const maxBytes = numberValue(file?.maxBytes, DEFAULT_PLAN_FILE_MAX_BYTES);
+
+  if (!fileName) warnings.push("File name is required before attaching this plan source.");
+  if (!kind) warnings.push("Only PDF and image plan files are supported for Takeoff Studio source handling.");
+  if (sizeBytes > maxBytes) warnings.push(`Plan file is larger than ${Math.round(maxBytes / (1024 * 1024))}MB; split or compress before pilot use.`);
+  if (!previewUrl && planFileSourceType(file?.sourceType) !== "manual") warnings.push("No safe preview/content URL is recorded for this plan file.");
+
+  return {
+    kind,
+    status: warnings.length ? "needs_review" : "ready",
+    warnings,
+  };
+}
+
+export function normalizeTakeoffStudioPlanFile(file = {}, index = 0) {
+  const sourceType = planFileSourceType(file?.sourceType || (file?.uploadId ? "upload" : file?.referenceId ? "reference" : "registered"));
+  const uploadId = textValue(file?.uploadId || (sourceType === "upload" ? file?.id : ""));
+  const referenceId = textValue(file?.referenceId);
+  const id = textValue(file?.id) || (uploadId ? `upload:${uploadId}` : referenceId ? `reference:${referenceId}` : `plan-file-${index + 1}`);
+  const previewUrl = safePreviewUrl(file?.previewUrl || file?.contentUrl || file?.url);
+  const fileName = textValue(file?.fileName || file?.name || file?.title) || `Plan file ${index + 1}`;
+  const status = planFileStatusFor({ ...file, sourceType, fileName, previewUrl });
+
+  return {
+    id,
+    sourceType,
+    uploadId,
+    referenceId,
+    fileName,
+    mimeType: textValue(file?.mimeType || file?.fileType || file?.type),
+    fileSize: numberValue(file?.fileSize ?? file?.sizeBytes ?? file?.size),
+    pageCount: positiveInteger(file?.pageCount || file?.pages, 0),
+    contentUrl: safePreviewUrl(file?.contentUrl || file?.url),
+    previewUrl,
+    previewKind: status.kind || previewKindForUrl(previewUrl),
+    uploadedAt: textValue(file?.uploadedAt || file?.createdAt),
+    linkedSheetIds: normalizeLinkedSheetIds(file?.linkedSheetIds || file?.sheetIds || file?.sheetId),
+    status: textValue(file?.status) || status.status,
+    warnings: Array.isArray(file?.warnings) && file.warnings.length ? file.warnings.map((warning) => textValue(warning)).filter(Boolean) : status.warnings,
+  };
+}
+
+function dedupePlanFiles(files = []) {
+  const seen = new Set();
+  return files.filter((file) => {
+    const key = [file.id, file.uploadId, file.referenceId, file.previewUrl, file.fileName].filter(Boolean).join("|").toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+export function buildTakeoffStudioPlanFileCandidates({ takeoff = {}, uploads = [], referenceRows = [] } = {}) {
+  const normalized = normalizeTakeoffStudio(takeoff);
+  const fromTakeoff = normalized.planFiles;
+  const fromUploads = (Array.isArray(uploads) ? uploads : []).map((upload, index) => normalizeTakeoffStudioPlanFile({
+    id: `upload:${upload?.id || index + 1}`,
+    sourceType: "upload",
+    uploadId: upload?.id,
+    fileName: upload?.fileName,
+    mimeType: upload?.fileType,
+    fileSize: upload?.fileSize,
+    contentUrl: upload?.contentUrl,
+    previewUrl: upload?.contentUrl,
+    uploadedAt: upload?.uploadedAt || upload?.createdAt,
+  }, index));
+  const fromReferences = (Array.isArray(referenceRows) ? referenceRows : []).map((row, index) => normalizeTakeoffStudioPlanFile({
+    id: `reference:${index + 1}:${textValue(row?.fileName || row?.url || "plan")}`,
+    sourceType: "reference",
+    referenceId: `reference-${index + 1}`,
+    fileName: row?.fileName,
+    mimeType: row?.mimeType || row?.fileType || row?.referenceType,
+    previewUrl: row?.url,
+    contentUrl: row?.url,
+    pageCount: row?.pageCount,
+  }, index));
+
+  return dedupePlanFiles([...fromTakeoff, ...fromUploads, ...fromReferences])
+    .filter((file) => file.fileName || file.previewUrl)
+    .map((file, index) => normalizeTakeoffStudioPlanFile(file, index));
+}
+
+export function buildTakeoffStudioPlanFileReadiness(takeoff = {}, planFiles = null) {
+  const normalized = normalizeTakeoffStudio(takeoff);
+  const files = Array.isArray(planFiles) ? planFiles.map((file, index) => normalizeTakeoffStudioPlanFile(file, index)) : normalized.planFiles;
+  const attachedSheetIds = new Set(normalized.sheets.filter((sheet) => sheet.sourceFileName || sheet.sourcePreviewUrl).map((sheet) => sheet.id));
+  const attachedFiles = files.filter((file) => file.linkedSheetIds.some((sheetId) => attachedSheetIds.has(sheetId)));
+  const readyFiles = files.filter((file) => file.status === "ready" && file.previewKind !== "placeholder");
+  const reviewFiles = files.filter((file) => file.status !== "ready" || file.warnings.length);
+  const unattachedSheets = normalized.sheets.filter((sheet) => !sheet.sourceFileName && !sheet.sourcePreviewUrl);
+  const warnings = [
+    !files.length ? "Register at least one PDF or image plan file before pilot takeoff use." : "",
+    reviewFiles.length ? `${reviewFiles.length} plan file${reviewFiles.length === 1 ? "" : "s"} need source review.` : "",
+    unattachedSheets.length ? `${unattachedSheets.length} sheet${unattachedSheets.length === 1 ? "" : "s"} are not attached to a plan file yet.` : "",
+  ].filter(Boolean);
+
+  return {
+    ready: files.length > 0 && readyFiles.length > 0 && warnings.length === 0,
+    fileCount: files.length,
+    readyFileCount: readyFiles.length,
+    attachedFileCount: attachedFiles.length,
+    attachedSheetCount: attachedSheetIds.size,
+    reviewFileCount: reviewFiles.length,
+    warnings,
+    summary: warnings.length
+      ? warnings[0]
+      : `${readyFiles.length} reviewed plan file${readyFiles.length === 1 ? "" : "s"} attached to Takeoff Studio sheets.`,
+    safetyBoundary: "Plan file handling records PDF/image source evidence only. It does not upload new files, read files automatically, OCR plans, approve quantities, expose field users, send customer data, or write providers.",
+  };
 }
 
 function normalizeTakeoffStudioSheet(sheet = {}, index = 0) {
@@ -533,6 +680,21 @@ export function normalizeTakeoffStudio(takeoff = {}) {
     .map((item, index) => normalizeTakeoffStudioItem(item, index))
     .filter((item) => item.label || item.quantity || item.points.length || item.estimatorNote);
   const sheets = (Array.isArray(takeoff?.sheets) ? takeoff.sheets : []).map((sheet, index) => normalizeTakeoffStudioSheet(sheet, index));
+  const sheetSourceLinks = sheets
+    .filter((sheet) => sheet.sourceFileName || sheet.sourcePreviewUrl)
+    .map((sheet, index) => normalizeTakeoffStudioPlanFile({
+      id: `sheet-source:${sheet.id || index + 1}`,
+      sourceType: "registered",
+      fileName: sheet.sourceFileName || sheet.name,
+      previewUrl: sheet.sourcePreviewUrl,
+      contentUrl: sheet.sourcePreviewUrl,
+      pageCount: sheet.pageNumber,
+      linkedSheetIds: [sheet.id],
+    }, index));
+  const planFiles = dedupePlanFiles([
+    ...(Array.isArray(takeoff?.planFiles) ? takeoff.planFiles : []).map((file, index) => normalizeTakeoffStudioPlanFile(file, index)),
+    ...sheetSourceLinks,
+  ]);
   const selectedSheetId = textValue(takeoff?.selectedSheetId);
   const selectedSheet = sheets.find((sheet) => sheet.id === selectedSheetId) || sheets[0];
 
@@ -543,6 +705,7 @@ export function normalizeTakeoffStudio(takeoff = {}) {
     snapSettings: normalizeSnapSettings(takeoff?.snapSettings),
     selectedSheetId: selectedSheet?.id || "",
     sheets,
+    planFiles,
     items,
     notes: textValue(takeoff?.notes),
     assistantSuggestions: (Array.isArray(takeoff?.assistantSuggestions) ? takeoff.assistantSuggestions : [])
@@ -558,7 +721,35 @@ export function normalizeTakeoffStudio(takeoff = {}) {
 
 export function takeoffStudioHasContent(takeoff = {}) {
   const normalized = normalizeTakeoffStudio(takeoff);
-  return Boolean(normalized.sheets.length || normalized.items.length || normalized.notes || normalized.markupComments.length);
+  return Boolean(normalized.sheets.length || normalized.planFiles.length || normalized.items.length || normalized.notes || normalized.markupComments.length);
+}
+
+export function attachTakeoffStudioPlanFileToSheet(takeoff = {}, planFileId = "", sheetId = "") {
+  const normalized = normalizeTakeoffStudio(takeoff);
+  const targetPlanFileId = textValue(planFileId);
+  const targetSheetId = textValue(sheetId);
+  const planFile = normalized.planFiles.find((file) => file.id === targetPlanFileId);
+  if (!planFile || !targetSheetId) return normalized;
+
+  return normalizeTakeoffStudio({
+    ...normalized,
+    selectedSheetId: targetSheetId,
+    planFiles: normalized.planFiles.map((file) => file.id === planFile.id
+      ? normalizeTakeoffStudioPlanFile({
+        ...file,
+        linkedSheetIds: [...file.linkedSheetIds, targetSheetId],
+      })
+      : file),
+    sheets: normalized.sheets.map((sheet) => sheet.id === targetSheetId
+      ? normalizeTakeoffStudioSheet({
+        ...sheet,
+        sourceFileName: planFile.fileName,
+        sourcePreviewUrl: planFile.previewUrl || planFile.contentUrl,
+        previewKind: planFile.previewKind,
+        pageNumber: sheet.pageNumber || 1,
+      })
+      : sheet),
+  });
 }
 
 function itemBelongsToSheet(item = {}, sheet = {}) {

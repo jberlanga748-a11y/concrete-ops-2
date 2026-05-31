@@ -11,7 +11,7 @@ import { calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEst
 import { addEstimateLineItemStarter, applyEstimateTemplateStarter, buildEstimateLineItemsFromRoughNotes, getEstimateLineItemStartersForTrade, getEstimateStarterTradeSummary, getEstimateTemplateStartersForTrade } from "./estimate-template-utils";
 import { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
 import { buildFenceTakeoffBackupRows, buildFenceTakeoffDraftLineItems, buildFenceTakeoffFieldHandoff, buildFenceTakeoffProofPhotoChecklist, buildFenceTakeoffProposalSummary, deriveFenceTakeoffReadiness, mergeFenceTakeoffIntoDraft, normalizeFenceTakeoff, summarizeFenceTakeoffByAssembly } from "./fence-takeoff-utils";
-import { applyTakeoffStudioAssistantSuggestion, applyTakeoffStudioSheetCalibrationToItems, buildTakeoffStudioAiPlanAssist, buildTakeoffStudioAssistantQueue, buildTakeoffStudioAutoMeasureBeta, buildTakeoffStudioBackupRows, buildTakeoffStudioCsvExport, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioFieldHandoff, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioMeasurementLegend, buildTakeoffStudioPackageExport, buildTakeoffStudioPlanReviewLayer, buildTakeoffStudioProductionHardening, buildTakeoffStudioProposalProofRows, buildTakeoffStudioProofSnapshot, buildTakeoffStudioRevisionComparison, buildTakeoffStudioRevisionRegister, buildTakeoffStudioSheetWorkspace, buildTakeoffStudioSnapTargets, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioMarkupComment, createEmptyTakeoffStudioSheet, createTakeoffStudioItemFromAutoMeasureSuggestion, createTakeoffStudioMarkupFromPoint, createTakeoffStudioMeasurementFromDrawing, deriveTakeoffStudioCalibrationState, deriveTakeoffStudioDrawingState, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, getTakeoffStudioToolSetOptions, mergeTakeoffStudioAssistantSuggestionState, mergeTakeoffStudioCsvImport, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText, snapTakeoffStudioDraftPoint } from "./takeoff-studio-utils";
+import { applyTakeoffStudioAssistantSuggestion, applyTakeoffStudioSheetCalibrationToItems, attachTakeoffStudioPlanFileToSheet, buildTakeoffStudioAiPlanAssist, buildTakeoffStudioAssistantQueue, buildTakeoffStudioAutoMeasureBeta, buildTakeoffStudioBackupRows, buildTakeoffStudioCsvExport, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioFieldHandoff, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioMeasurementLegend, buildTakeoffStudioPackageExport, buildTakeoffStudioPlanFileCandidates, buildTakeoffStudioPlanFileReadiness, buildTakeoffStudioPlanReviewLayer, buildTakeoffStudioProductionHardening, buildTakeoffStudioProposalProofRows, buildTakeoffStudioProofSnapshot, buildTakeoffStudioRevisionComparison, buildTakeoffStudioRevisionRegister, buildTakeoffStudioSheetWorkspace, buildTakeoffStudioSnapTargets, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioMarkupComment, createEmptyTakeoffStudioSheet, createTakeoffStudioItemFromAutoMeasureSuggestion, createTakeoffStudioMarkupFromPoint, createTakeoffStudioMeasurementFromDrawing, deriveTakeoffStudioCalibrationState, deriveTakeoffStudioDrawingState, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, getTakeoffStudioToolSetOptions, mergeTakeoffStudioAssistantSuggestionState, mergeTakeoffStudioCsvImport, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText, snapTakeoffStudioDraftPoint } from "./takeoff-studio-utils";
 import { CUSTOM_ESTIMATE_PACKET_THEME_ID, ESTIMATE_PACKET_COPY_TEMPLATE_OPTIONS, ESTIMATE_PACKET_PRESETS, ESTIMATE_PACKET_SECTION_DEFS, ESTIMATE_PACKET_THEME_OPTIONS, INTERNAL_REVIEW_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
 
 export { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
@@ -937,7 +937,7 @@ function appendUniqueTextBlock(existing = "", next = "") {
   return [currentText, nextText].filter(Boolean).join("\n\n");
 }
 
-export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false }) {
+export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, uploads = [] }) {
   const [csvImportText, setCsvImportText] = useState("");
   const [drawingTool, setDrawingTool] = useState("area");
   const [drawingLabel, setDrawingLabel] = useState("");
@@ -953,6 +953,12 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
   const items = takeoff.items.length ? takeoff.items : [createEmptyTakeoffStudioItem(0)];
   const markupComments = takeoff.markupComments.length ? takeoff.markupComments : [createEmptyTakeoffStudioMarkupComment(0)];
   const editingTakeoff = { ...takeoff, sheets, items, markupComments };
+  const planFileCandidates = buildTakeoffStudioPlanFileCandidates({
+    takeoff: editingTakeoff,
+    uploads,
+    referenceRows: backup.referenceRows,
+  });
+  const planFileReadiness = buildTakeoffStudioPlanFileReadiness(editingTakeoff, planFileCandidates);
   const reviewedRows = buildTakeoffStudioBackupRows({ ...takeoff, items: takeoff.items.filter((item) => item.reviewStatus === "reviewed") });
   const assemblyOptions = getTakeoffStudioAssemblyOptions();
   const toolSetOptions = getTakeoffStudioToolSetOptions();
@@ -1100,6 +1106,17 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
   function applySelectedSheetScale() {
     if (!selectedSheet?.id) return;
     commitTakeoff(applyTakeoffStudioSheetCalibrationToItems({ ...takeoff, sheets, items }, selectedSheet.id));
+  }
+
+  function attachPlanFile(planFileId) {
+    if (!selectedSheet?.id || !planFileId) return;
+    commitTakeoff(attachTakeoffStudioPlanFileToSheet({
+      ...takeoff,
+      sheets,
+      items,
+      markupComments,
+      planFiles: planFileCandidates,
+    }, planFileId, selectedSheet.id));
   }
 
   function addDrawingPoint(event) {
@@ -1270,6 +1287,51 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
       </div>
       <div className="mt-3 rounded-2xl border border-blue-100 bg-white/85 px-3 py-2 text-sm font-bold leading-6 text-blue-900">
         {readiness.summary}
+      </div>
+      <div className="mt-3 rounded-2xl border border-indigo-100 bg-white/95 p-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-indigo-700">Plan file register</p>
+            <p className="mt-1 text-sm font-bold leading-6 text-slate-600">{planFileReadiness.summary}</p>
+          </div>
+          <Badge tone={planFileReadiness.ready ? "green" : planFileReadiness.fileCount ? "amber" : "slate"}>
+            {planFileReadiness.readyFileCount}/{planFileReadiness.fileCount} ready
+          </Badge>
+        </div>
+        <div className="mt-3 grid gap-2">
+          {planFileCandidates.length ? planFileCandidates.slice(0, 6).map((file) => {
+            const attachedToSelected = selectedSheet?.id && file.linkedSheetIds.includes(selectedSheet.id);
+            return (
+              <div key={file.id} className="rounded-xl border border-indigo-100 bg-indigo-50/45 px-3 py-2">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="break-words text-sm font-black text-slate-950">{file.fileName}</p>
+                    <p className="mt-1 text-xs font-bold leading-5 text-slate-500">
+                      {[file.sourceType, file.previewKind, file.mimeType, file.fileSize ? `${Math.round(file.fileSize / 1024)} KB` : "", file.pageCount ? `${file.pageCount} page${file.pageCount === 1 ? "" : "s"}` : ""].filter(Boolean).join(" / ") || "Plan file metadata"}
+                    </p>
+                    {file.warnings.length ? <p className="mt-1 text-xs font-bold leading-5 text-amber-700">{file.warnings[0]}</p> : null}
+                  </div>
+                  <div className="flex shrink-0 flex-wrap items-center gap-2">
+                    <Badge tone={file.status === "ready" ? "green" : "amber"}>{file.status === "ready" ? "Ready" : "Review"}</Badge>
+                    <Button type="button" size="sm" variant={attachedToSelected ? "secondary" : undefined} onClick={() => attachPlanFile(file.id)} disabled={disabled || !selectedSheet?.id || file.status !== "ready" || attachedToSelected}>
+                      {attachedToSelected ? "Attached" : "Attach"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            );
+          }) : (
+            <StateCard title="No plan files registered yet" description="Add an image upload or a reviewed PDF/image reference in SOV / Backup, then attach it to the selected sheet." tone="slate" />
+          )}
+        </div>
+        {planFileReadiness.warnings.length ? (
+          <div className="mt-3 grid gap-1.5">
+            {planFileReadiness.warnings.slice(0, 3).map((warning) => (
+              <p key={warning} className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-bold leading-5 text-amber-800">{warning}</p>
+            ))}
+          </div>
+        ) : null}
+        <p className="mt-2 text-xs font-bold leading-5 text-slate-500">{planFileReadiness.safetyBoundary}</p>
       </div>
       <div className="mt-3 rounded-2xl border border-sky-100 bg-white/95 p-3">
         <div className="flex flex-wrap items-start justify-between gap-3">

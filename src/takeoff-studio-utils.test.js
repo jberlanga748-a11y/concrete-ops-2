@@ -15,6 +15,8 @@ import {
   buildTakeoffStudioPackageExport,
   buildTakeoffStudioAiPlanAssist,
   buildTakeoffStudioAutoMeasureBeta,
+  buildTakeoffStudioPlanFileCandidates,
+  buildTakeoffStudioPlanFileReadiness,
   buildTakeoffStudioPlanReviewLayer,
   buildTakeoffStudioProductionHardening,
   buildTakeoffStudioProposalProofRows,
@@ -24,6 +26,7 @@ import {
   buildTakeoffStudioSheetWorkspace,
   buildTakeoffStudioSnapTargets,
   calculateTakeoffQuantity,
+  attachTakeoffStudioPlanFileToSheet,
   createEmptyTakeoffStudioItem,
   createEmptyTakeoffStudioMarkupComment,
   createEmptyTakeoffStudioSheet,
@@ -41,6 +44,7 @@ import {
   formatTakeoffPointsText,
   normalizeTakeoffScale,
   normalizeTakeoffStudio,
+  normalizeTakeoffStudioPlanFile,
   normalizeTakeoffStudioItem,
   parseTakeoffPointsText,
   snapTakeoffStudioDraftPoint,
@@ -372,6 +376,70 @@ test("builds production hardening readiness without mutating takeoff data", () =
   assert.equal(ready.warnings.length, 0);
   assert.match(ready.safetyBoundary, /do not change permissions/i);
   assert.doesNotMatch(JSON.stringify(ready), /unitPrice|margin|profit|payroll|billing|send proposal|bid submission/i);
+});
+
+test("registers real plan file candidates from uploads and references", () => {
+  const candidates = buildTakeoffStudioPlanFileCandidates({
+    takeoff: {
+      sheets: [{ id: "s1", name: "C2.1", sourceFileName: "legacy-plan.pdf", sourcePreviewUrl: "/api/uploads/UPL-OLD/content" }],
+    },
+    uploads: [{
+      id: "UPL-PLAN-1",
+      fileName: "site-plan.png",
+      fileType: "image/png",
+      fileSize: 2048,
+      contentUrl: "/api/uploads/UPL-PLAN-1/content",
+      uploadedAt: "2026-05-31T10:00:00.000Z",
+    }],
+    referenceRows: [{
+      fileName: "civil-set.pdf",
+      referenceType: "application/pdf",
+      url: "https://files.example.test/civil-set.pdf",
+    }],
+  });
+  const uploadFile = candidates.find((file) => file.uploadId === "UPL-PLAN-1");
+  const pdfFile = candidates.find((file) => file.fileName === "civil-set.pdf");
+
+  assert.ok(uploadFile);
+  assert.equal(uploadFile.previewKind, "image");
+  assert.equal(uploadFile.status, "ready");
+  assert.ok(pdfFile);
+  assert.equal(pdfFile.previewKind, "pdf");
+  assert.equal(pdfFile.status, "ready");
+  assert.doesNotMatch(JSON.stringify(candidates), /unitPrice|margin|profit|payroll|billing|send proposal|bid submission/i);
+});
+
+test("attaches reviewed plan files to sheets without approving quantities", () => {
+  const planFile = normalizeTakeoffStudioPlanFile({
+    id: "upload:UPL-PLAN-1",
+    sourceType: "upload",
+    uploadId: "UPL-PLAN-1",
+    fileName: "site-plan.png",
+    mimeType: "image/png",
+    previewUrl: "/api/uploads/UPL-PLAN-1/content",
+  });
+  const attached = attachTakeoffStudioPlanFileToSheet({
+    sheets: [{ id: "s1", name: "C2.1" }],
+    planFiles: [planFile],
+    items: [{
+      id: "draft-1",
+      label: "Draft slab",
+      sheetId: "s1",
+      measurementType: "area",
+      quantity: 200,
+      unit: "SF",
+      reviewStatus: "needs_review",
+    }],
+  }, "upload:UPL-PLAN-1", "s1");
+  const readiness = buildTakeoffStudioPlanFileReadiness(attached);
+
+  assert.equal(attached.sheets[0].sourceFileName, "site-plan.png");
+  assert.equal(attached.sheets[0].sourcePreviewUrl, "/api/uploads/UPL-PLAN-1/content");
+  assert.equal(attached.planFiles.find((file) => file.id === "upload:UPL-PLAN-1").linkedSheetIds.includes("s1"), true);
+  assert.equal(attached.items[0].reviewStatus, "needs_review");
+  assert.equal(readiness.ready, true);
+  assert.match(readiness.safetyBoundary, /does not upload new files/i);
+  assert.doesNotMatch(JSON.stringify(attached), /unitPrice|margin|profit|payroll|billing|send proposal|bid submission/i);
 });
 
 test("normalizes reviewed takeoff items with safe defaults", () => {

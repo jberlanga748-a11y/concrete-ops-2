@@ -204,6 +204,7 @@ export function EstimatesPagePolished({
   customers,
   leads,
   estimates,
+  uploads = [],
   rateBookItems = [],
   permissions,
   busy,
@@ -2029,6 +2030,7 @@ export function EstimatesPagePolished({
             draft={detailDraft}
             setDraft={setDetailDraft}
             disabled={busy || !canManage}
+            uploads={uploads}
           />
           <FenceTakeoffLiteEditor
             draft={detailDraft}
@@ -3084,6 +3086,7 @@ export function EstimatesPagePolished({
                     draft={detailDraft}
                     setDraft={setDetailDraft}
                     disabled={busy || !canManage}
+                    uploads={uploads}
                   />
                   <FenceTakeoffLiteEditor
                     draft={detailDraft}

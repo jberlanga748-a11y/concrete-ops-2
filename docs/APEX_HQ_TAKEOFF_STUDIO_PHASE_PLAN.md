@@ -1,7 +1,7 @@
 # Apex HQ Takeoff Studio Phase Plan
 
 Date: 2026-05-31
-Status: Phase 1-13 takeoff plan implemented locally; provider/PDF vision upgrades remain versioned later work
+Status: Phase 1-14 takeoff plan implemented locally; PDF rendering, OCR/vision, trade packs, and pilot hardening upgrades remain versioned later work
 
 ## Goal
 
@@ -328,6 +328,14 @@ Phase 13 first checkpoint:
 3. Keep checks local and read-only: no permission changes, estimate approvals, customer sends, provider writes, production data mutations, or schema changes. Complete.
 4. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint.
 
+Phase 14 first checkpoint:
+
+1. Add a safe plan-file register over existing upload records, reviewed reference attachments, and sheet source metadata. Complete.
+2. Support PDF/image plan file metadata, source status, size/page hints, safe preview/content URLs, and linked sheet IDs in the existing Takeoff Studio backup structure. Complete.
+3. Let owner/admin or estimator attach a reviewed plan file candidate to the selected sheet without approving quantities, running OCR, sending customer data, or changing provider/storage/schema behavior. Complete.
+4. Keep field users blocked from Estimate Studio, Takeoff Studio, plan file candidates, pricing, margins, billing, payroll, office notes, and AI Office controls. Complete.
+5. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint. Complete.
+
 ## Phase 1 Checkpoint: Manual Editor
 
 Completed on 2026-05-31:
@@ -516,3 +524,18 @@ Completed locally on 2026-05-31:
 Deferred Phase 13 enhancements:
 
 - Real file storage/load testing, large PDF rendering performance, tablet stylus tuning, provider-backed OCR/vision, and production telemetry remain versioned upgrades.
+
+## Phase 14 Checkpoint: Real Plan File Handling
+
+Completed locally on 2026-05-31:
+
+- Takeoff Studio now has a Plan file register in the owner/admin takeoff workspace.
+- Plan candidates can come from existing permission-scoped upload records, reviewed estimate reference rows, and current sheet source metadata.
+- Registered plan files normalize source type, upload/reference ID, file name, MIME/type hints, file size, page count, safe preview/content URL, preview kind, review status, warnings, and linked sheet IDs.
+- Owner/admin users can attach a ready PDF/image plan source to the selected sheet, which updates the sheet source file and preview URL inside the existing estimate backup block.
+- Attaching a plan file does not approve quantities, change estimate pricing, run OCR, auto-measure, send customer data, expose field users, write providers, mutate production data, or require schema changes.
+- Validation passed for focused Takeoff Studio tests, estimates, roles, build, diff, and browser QA.
+
+Deferred Phase 14 enhancements:
+
+- Direct office PDF upload to Takeoff Studio, durable PDF page rasterization, OCR extraction, and image/vision auto-measure remain later phases.
