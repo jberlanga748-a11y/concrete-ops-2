@@ -13,6 +13,8 @@ test("Estimates page route shell is extracted and lazy-loaded out of App", () =>
   assert.match(estimatesPageSource, /export function EstimatesPage\b/);
   assert.match(estimatesPageSource, /export function EstimatesPagePolished\b/);
   assert.match(estimatesPageSource, /const EstimateBackupEditor = lazyRouteComponent\(\(\) => import\("\.\/estimates-route-components"\), "EstimateBackupEditor"\);/);
+  assert.match(estimatesPageSource, /const TakeoffStudioManualEditor = lazyRouteComponent\(\(\) => import\("\.\/estimates-route-components"\), "TakeoffStudioManualEditor"\);/);
+  assert.match(estimatesPageSource, /import \{ deriveTakeoffStudioReadiness \} from "\.\/takeoff-studio-utils";/);
   assert.match(estimatesPageSource, /const EstimatesTablePolished = lazyRouteComponent\(\(\) => import\("\.\/estimates-route-components"\), "EstimatesTablePolished"\);/);
   assert.match(estimatesPageSource, /const canUseEstimatorMobilePipeline = Boolean\(MobilePipelinePage\) && isEstimatorMobilePipelineUser\(user, permissions\);/);
   assert.match(estimateDraftUtilsSource, /export function createEstimateDraft\b/);
@@ -34,6 +36,7 @@ test("Estimates page route shell is extracted and lazy-loaded out of App", () =>
     "EstimateProposalWorkbench",
     "EstimateStarterPanel",
     "EstimatesTablePolished",
+    "TakeoffStudioManualEditor",
   ]) {
     assert.doesNotMatch(appSource, new RegExp(`function ${name}\\s*\\(`));
   }

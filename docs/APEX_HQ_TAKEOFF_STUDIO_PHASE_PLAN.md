@@ -1,7 +1,7 @@
 # Apex HQ Takeoff Studio Phase Plan
 
 Date: 2026-05-31
-Status: approved product goal; implementation starts with Phase 1 only
+Status: Phase 1 foundation in progress; manual editor checkpoint complete
 
 ## Goal
 
@@ -231,10 +231,26 @@ AI:
 
 Start with Phase 1 only:
 
-1. Audit current Estimate Studio, PDF/print packet, uploads, calculator, and estimate backup files.
-2. Create a small takeoff utility with measurement normalization and quantity calculations.
-3. Add focused tests for area, length, count, volume, review state, and field blocking assumptions.
-4. Add an owner/admin Takeoff Studio panel inside the existing Estimate Studio.
-5. Validate with estimates, roles, build, and browser QA.
+1. Audit current Estimate Studio, PDF/print packet, uploads, calculator, and estimate backup files. Complete.
+2. Create a small takeoff utility with measurement normalization and quantity calculations. Complete.
+3. Add focused tests for area, length, count, volume, review state, and field blocking assumptions. Complete.
+4. Add an owner/admin Takeoff Studio panel inside the existing Estimate Studio. Complete for manual sheet/items, calibration inputs, point text, reviewed quantity rows, and office backup sync.
+5. Validate with estimates, roles, build, and browser QA. Complete for this checkpoint.
 
 Do not begin Phase 2 until Phase 1 is validated and frozen.
+
+## Phase 1 Checkpoint: Manual Editor
+
+Completed on 2026-05-31:
+
+- Generic Takeoff Studio utility calculates area, length, count, and volume quantities from manual point geometry and reviewed scale inputs.
+- Estimate backup now stores structured `takeoffStudio` data through the existing internal notes backup block, avoiding schema changes.
+- Estimate Studio Takeoff mode now includes a manual Apex Takeoff Studio editor alongside the existing fence-specific takeoff tool.
+- The manual editor supports plan sheets, revisions, source files, measurement rows, point text, scale calibration, depth for CY, review state, estimator notes, and syncing reviewed rows into office-only takeoff backup.
+- Field users remain blocked from Estimate Studio and Takeoff Studio.
+
+Remaining Phase 1 work before freeze:
+
+- Visual polish pass after real use if the manual editor feels too dense on owner mobile.
+- Decide whether Phase 1 needs a simple PDF/page preview placeholder or whether that belongs in Phase 5 advanced PDF tooling.
+- Add proposal/print proof selection only in Phase 2, after estimate-line integration is designed.

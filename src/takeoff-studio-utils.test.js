@@ -4,10 +4,14 @@ import test from "node:test";
 import {
   buildTakeoffStudioBackupRows,
   calculateTakeoffQuantity,
+  createEmptyTakeoffStudioItem,
+  createEmptyTakeoffStudioSheet,
   deriveTakeoffStudioReadiness,
+  formatTakeoffPointsText,
   normalizeTakeoffScale,
   normalizeTakeoffStudio,
   normalizeTakeoffStudioItem,
+  parseTakeoffPointsText,
 } from "./takeoff-studio-utils.js";
 
 const tenFeetScale = { pixels: 100, realWorldLength: 10, realWorldUnit: "FT" };
@@ -21,6 +25,29 @@ test("normalizes scale calibration into feet per pixel", () => {
     realWorldUnit: "FT",
     feetPerPixel: 0.1,
   });
+});
+
+test("parses and formats point text for manual plan geometry", () => {
+  const points = parseTakeoffPointsText("0, 0\n100 0; 100,100\nbad row\n0, 100");
+  assert.deepEqual(points, [
+    { x: 0, y: 0 },
+    { x: 100, y: 0 },
+    { x: 100, y: 100 },
+    { x: 0, y: 100 },
+  ]);
+  assert.equal(formatTakeoffPointsText(points), "0, 0\n100, 0\n100, 100\n0, 100");
+});
+
+test("creates empty sheet and item drafts for the manual editor", () => {
+  assert.deepEqual(createEmptyTakeoffStudioSheet(1), {
+    id: "sheet-2",
+    name: "",
+    revision: "",
+    sourceFileName: "",
+  });
+  assert.equal(createEmptyTakeoffStudioItem(2).id, "takeoff-item-3");
+  assert.equal(createEmptyTakeoffStudioItem(2).measurementType, "area");
+  assert.equal(createEmptyTakeoffStudioItem(2).reviewStatus, "needs_review");
 });
 
 test("calculates length, area, count, and volume quantities", () => {
@@ -47,6 +74,12 @@ test("calculates length, area, count, and volume quantities", () => {
     measurementType: "count",
     points: [{ x: 1, y: 1 }, { x: 2, y: 2 }, { x: 3, y: 3 }],
   }), 3);
+
+  assert.equal(calculateTakeoffQuantity({
+    measurementType: "area",
+    manualQuantity: 144,
+    scale: tenFeetScale,
+  }), 144);
 });
 
 test("normalizes reviewed takeoff items with safe defaults", () => {
@@ -113,7 +146,7 @@ test("builds office backup rows without pricing or customer-send claims", () => 
   assert.equal(rows[0].item, "Driveway slab");
   assert.equal(rows[0].quantity, "1.23");
   assert.equal(rows[0].unit, "CY");
-  assert.match(rows[0].source, /C2\.1 Site Plan/);
+  assert.match(rows[0].source, /Apex Takeoff Studio \/ C2\.1 Site Plan/);
   assert.match(rows[0].estimatorNote, /Reviewed quantity/);
   assert.doesNotMatch(JSON.stringify(rows), /unitPrice|margin|profit|send/i);
 });

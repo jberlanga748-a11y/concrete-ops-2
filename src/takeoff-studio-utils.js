@@ -37,6 +37,26 @@ function normalizePoints(points = []) {
     .filter(Boolean);
 }
 
+export function parseTakeoffPointsText(value = "") {
+  return String(value ?? "")
+    .split(/\r?\n|;/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const parts = line.includes(",")
+        ? line.split(",").map((part) => part.trim()).filter(Boolean)
+        : line.split(/\s+/).map((part) => part.trim()).filter(Boolean);
+      const [x, y] = parts.map((part) => numberValue(part, Number.NaN));
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+      return { x, y };
+    })
+    .filter(Boolean);
+}
+
+export function formatTakeoffPointsText(points = []) {
+  return normalizePoints(points).map((point) => `${point.x}, ${point.y}`).join("\n");
+}
+
 function distance(pointA = {}, pointB = {}) {
   return Math.hypot(numberValue(pointB.x) - numberValue(pointA.x), numberValue(pointB.y) - numberValue(pointA.y));
 }
@@ -104,10 +124,12 @@ export function calculateTakeoffQuantity({ measurementType = "", points = [], sc
   }
 
   if (type === "length") {
+    if (normalizedPoints.length < 2) return roundQuantity(fallbackQuantity);
     return roundQuantity(polylinePixelLength(normalizedPoints) * normalizedScale.feetPerPixel);
   }
 
   if (type === "area" || type === "volume") {
+    if (normalizedPoints.length < 3) return roundQuantity(fallbackQuantity);
     const areaSquareFeet = polygonPixelArea(normalizedPoints) * (normalizedScale.feetPerPixel ** 2);
     if (type === "area") return roundQuantity(areaSquareFeet);
 
@@ -160,6 +182,25 @@ export function normalizeTakeoffStudioItem(item = {}, index = 0) {
   };
 }
 
+export function createEmptyTakeoffStudioSheet(index = 0) {
+  return {
+    id: `sheet-${index + 1}`,
+    name: "",
+    revision: "",
+    sourceFileName: "",
+  };
+}
+
+export function createEmptyTakeoffStudioItem(index = 0) {
+  return normalizeTakeoffStudioItem({
+    id: `takeoff-item-${index + 1}`,
+    label: "",
+    measurementType: "area",
+    unit: "SF",
+    reviewStatus: DEFAULT_REVIEW_STATUS,
+  }, index);
+}
+
 export function normalizeTakeoffStudio(takeoff = {}) {
   const items = (Array.isArray(takeoff?.items) ? takeoff.items : [])
     .map((item, index) => normalizeTakeoffStudioItem(item, index))
@@ -188,7 +229,7 @@ export function buildTakeoffStudioBackupRows(takeoff = {}) {
     item: item.label,
     quantity: item.quantity ? String(item.quantity) : "",
     unit: item.unit,
-    source: [item.sheetName, item.revision].filter(Boolean).join(" / "),
+    source: ["Apex Takeoff Studio", item.sheetName, item.revision].filter(Boolean).join(" / "),
     estimatorNote: [
       item.reviewStatus === "reviewed" ? "Reviewed quantity." : "Needs estimator review.",
       item.measurementType ? `Type: ${item.measurementType}` : "",

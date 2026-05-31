@@ -46,7 +46,7 @@ Current status:
 
 Current next action:
 
-- Audit the active Estimate Studio, PDF/print packet, upload, calculator, and estimate backup surfaces, then implement Phase 1 as a small, role-safe manual takeoff foundation.
+- Continue Phase 1 from the completed manual editor checkpoint: generic takeoff utility, structured estimate backup persistence, and owner/admin Estimate Studio manual takeoff editor are in place. Next is Phase 1 freeze/polish or Phase 2 estimate-line integration only after review.
 
 ## Production Patch: Estimate Proposal Type + Print Preview
 

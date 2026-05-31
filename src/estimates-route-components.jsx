@@ -11,6 +11,7 @@ import { calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEst
 import { addEstimateLineItemStarter, applyEstimateTemplateStarter, buildEstimateLineItemsFromRoughNotes, getEstimateLineItemStartersForTrade, getEstimateStarterTradeSummary, getEstimateTemplateStartersForTrade } from "./estimate-template-utils";
 import { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
 import { buildFenceTakeoffBackupRows, buildFenceTakeoffDraftLineItems, buildFenceTakeoffFieldHandoff, buildFenceTakeoffProofPhotoChecklist, buildFenceTakeoffProposalSummary, deriveFenceTakeoffReadiness, mergeFenceTakeoffIntoDraft, normalizeFenceTakeoff, summarizeFenceTakeoffByAssembly } from "./fence-takeoff-utils";
+import { buildTakeoffStudioBackupRows, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioSheet, deriveTakeoffStudioReadiness, formatTakeoffPointsText, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText } from "./takeoff-studio-utils";
 import { CUSTOM_ESTIMATE_PACKET_THEME_ID, ESTIMATE_PACKET_COPY_TEMPLATE_OPTIONS, ESTIMATE_PACKET_PRESETS, ESTIMATE_PACKET_SECTION_DEFS, ESTIMATE_PACKET_THEME_OPTIONS, INTERNAL_REVIEW_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
 
 export { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
@@ -909,6 +910,214 @@ export function EstimateBackupEditor({ draft, setDraft, disabled = false }) {
           onChange={(event) => commitBackup({ notes: event.target.value })}
           disabled={disabled}
           placeholder="Estimator backup notes, quantity assumptions, SOV review notes, or pricing reminders."
+        />
+      </div>
+    </div>
+  );
+}
+
+const TAKEOFF_MEASUREMENT_OPTIONS = [
+  { value: "area", label: "Area (SF)" },
+  { value: "length", label: "Length (LF)" },
+  { value: "count", label: "Count (EA)" },
+  { value: "volume", label: "Volume (CY)" },
+];
+
+function takeoffUnitForType(type = "area") {
+  if (type === "length") return "LF";
+  if (type === "count") return "EA";
+  if (type === "volume") return "CY";
+  return "SF";
+}
+
+export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false }) {
+  const backup = deriveEstimateBackup(draft);
+  const takeoff = normalizeTakeoffStudio(backup.takeoffStudio);
+  const readiness = deriveTakeoffStudioReadiness(takeoff);
+  const sheets = takeoff.sheets.length ? takeoff.sheets : [createEmptyTakeoffStudioSheet(0)];
+  const items = takeoff.items.length ? takeoff.items : [createEmptyTakeoffStudioItem(0)];
+  const reviewedRows = buildTakeoffStudioBackupRows({ ...takeoff, items: takeoff.items.filter((item) => item.reviewStatus === "reviewed") });
+
+  function commitTakeoff(nextTakeoff) {
+    const normalized = normalizeTakeoffStudio({
+      ...nextTakeoff,
+      updatedAt: new Date().toISOString(),
+    });
+    setDraft((current) => mergeEstimateBackup(current, {
+      ...deriveEstimateBackup(current),
+      takeoffStudio: normalized,
+    }));
+  }
+
+  function updateSheet(index, field, value) {
+    const nextSheets = sheets.map((sheet, sheetIndex) => sheetIndex === index ? { ...sheet, [field]: value } : sheet);
+    commitTakeoff({ ...takeoff, sheets: nextSheets, items });
+  }
+
+  function addSheet() {
+    commitTakeoff({ ...takeoff, sheets: [...sheets, createEmptyTakeoffStudioSheet(sheets.length)], items });
+  }
+
+  function removeSheet(index) {
+    commitTakeoff({ ...takeoff, sheets: sheets.filter((_, sheetIndex) => sheetIndex !== index), items });
+  }
+
+  function updateItem(index, field, value) {
+    const nextItems = items.map((item, itemIndex) => {
+      if (itemIndex !== index) return item;
+      const nextItem = { ...item, [field]: value };
+      if (field === "measurementType") {
+        nextItem.unit = takeoffUnitForType(value);
+      }
+      if (field === "sheetId") {
+        const selectedSheet = sheets.find((sheet) => sheet.id === value);
+        nextItem.sheetId = selectedSheet?.id || "";
+        nextItem.sheetName = selectedSheet?.name || "";
+        nextItem.revision = selectedSheet?.revision || "";
+      }
+      return normalizeTakeoffStudioItem(nextItem, index);
+    });
+    commitTakeoff({ ...takeoff, sheets, items: nextItems });
+  }
+
+  function updateItemScale(index, field, value) {
+    const nextItems = items.map((item, itemIndex) => itemIndex === index
+      ? normalizeTakeoffStudioItem({ ...item, scale: { ...item.scale, [field]: value } }, index)
+      : item);
+    commitTakeoff({ ...takeoff, sheets, items: nextItems });
+  }
+
+  function updateItemDepth(index, field, value) {
+    const nextItems = items.map((item, itemIndex) => itemIndex === index
+      ? normalizeTakeoffStudioItem({ ...item, depth: { ...item.depth, [field]: value } }, index)
+      : item);
+    commitTakeoff({ ...takeoff, sheets, items: nextItems });
+  }
+
+  function updateItemPoints(index, value) {
+    const points = parseTakeoffPointsText(value);
+    const nextItems = items.map((item, itemIndex) => itemIndex === index
+      ? normalizeTakeoffStudioItem({ ...item, points }, index)
+      : item);
+    commitTakeoff({ ...takeoff, sheets, items: nextItems });
+  }
+
+  function addItem() {
+    commitTakeoff({ ...takeoff, sheets, items: [...items, createEmptyTakeoffStudioItem(items.length)] });
+  }
+
+  function removeItem(index) {
+    commitTakeoff({ ...takeoff, sheets, items: items.filter((_, itemIndex) => itemIndex !== index) });
+  }
+
+  function syncReviewedRowsToBackup() {
+    setDraft((current) => {
+      const currentBackup = deriveEstimateBackup(current);
+      const nonStudioRows = (currentBackup.takeoffRows || []).filter((row) => !String(row?.source || "").includes("Apex Takeoff Studio"));
+      return mergeEstimateBackup(current, {
+        ...currentBackup,
+        takeoffStudio: takeoff,
+        takeoffRows: [...nonStudioRows, ...reviewedRows],
+      });
+    });
+  }
+
+  return (
+    <div className="rounded-3xl border border-blue-100 bg-blue-50/50 p-4 shadow-sm shadow-blue-100/50">
+      <SectionHeader
+        title="Apex Takeoff Studio"
+        description="Manual plan-sheet quantities for estimate backup. Review quantities before they are used in estimate lines or proposal proof."
+        action={<Badge tone={readiness.tone}>{readiness.label}</Badge>}
+      />
+      <div className="grid gap-3 md:grid-cols-3">
+        <StatCard title="Items" value={`${readiness.itemCount}`} />
+        <StatCard title="Reviewed" value={`${readiness.reviewedItems}`} />
+        <StatCard title="Backup Rows" value={`${reviewedRows.length}`} />
+      </div>
+      <div className="mt-3 rounded-2xl border border-blue-100 bg-white/85 px-3 py-2 text-sm font-bold leading-6 text-blue-900">
+        {readiness.summary}
+      </div>
+
+      <div className="mt-4 grid gap-4">
+        <div>
+          <SectionHeader title="Plan sheets" description="Track sheet names, revisions, and source files before measuring." />
+          <div className="grid gap-3">
+            {sheets.map((sheet, index) => (
+              <div key={`takeoff-sheet-${sheet.id}-${index}`} className="rounded-2xl border border-blue-100 bg-white p-3">
+                <div className="grid gap-3 md:grid-cols-[minmax(0,1.2fr)_120px_minmax(0,1fr)]">
+                  <InputField label={`Sheet ${index + 1}`} value={sheet.name || ""} onChange={(event) => updateSheet(index, "name", event.target.value)} disabled={disabled} placeholder="C2.1 Site Plan" />
+                  <InputField label="Revision" value={sheet.revision || ""} onChange={(event) => updateSheet(index, "revision", event.target.value)} disabled={disabled} placeholder="Rev A" />
+                  <InputField label="Source file" value={sheet.sourceFileName || ""} onChange={(event) => updateSheet(index, "sourceFileName", event.target.value)} disabled={disabled} placeholder="plan-set.pdf" />
+                </div>
+                <div className="mt-3 flex justify-end">
+                  <button type="button" onClick={() => removeSheet(index)} disabled={disabled} className="text-xs font-black uppercase tracking-[0.16em] text-slate-500 hover:text-slate-950 disabled:cursor-not-allowed disabled:text-slate-300">Remove sheet</button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3">
+            <Button type="button" variant="secondary" size="sm" onClick={addSheet} disabled={disabled}>Add Sheet</Button>
+          </div>
+        </div>
+
+        <div>
+          <SectionHeader title="Manual measurements" description="Enter points as x,y pairs from a plan screenshot or PDF canvas. Scale converts those pixels into reviewed quantities." />
+          <div className="grid gap-3">
+            {items.map((item, index) => (
+              <div key={`takeoff-studio-item-${item.id}-${index}`} className="rounded-2xl border border-blue-100 bg-white p-3">
+                <div className="grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_160px_160px_110px]">
+                  <InputField label={`Item ${index + 1}`} value={item.label || ""} onChange={(event) => updateItem(index, "label", event.target.value)} disabled={disabled} placeholder="Driveway slab" />
+                  <SelectField label="Type" value={item.measurementType || "area"} onChange={(event) => updateItem(index, "measurementType", event.target.value)} disabled={disabled}>
+                    {TAKEOFF_MEASUREMENT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </SelectField>
+                  <SelectField label="Sheet" value={item.sheetId || ""} onChange={(event) => updateItem(index, "sheetId", event.target.value)} disabled={disabled}>
+                    <option value="">Manual / no sheet</option>
+                    {sheets.filter((sheet) => sheet.name).map((sheet) => <option key={sheet.id} value={sheet.id}>{sheet.name}</option>)}
+                  </SelectField>
+                  <SelectField label="Review" value={item.reviewStatus || "needs_review"} onChange={(event) => updateItem(index, "reviewStatus", event.target.value)} disabled={disabled}>
+                    <option value="needs_review">Needs review</option>
+                    <option value="reviewed">Reviewed</option>
+                  </SelectField>
+                </div>
+                <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_120px_120px_120px_120px]">
+                  <InputField label="Manual quantity fallback" value={item.quantity || ""} onChange={(event) => updateItem(index, "quantity", event.target.value)} disabled={disabled} inputMode="decimal" placeholder="Used if no points" />
+                  <InputField label="Unit" value={item.unit || ""} onChange={(event) => updateItem(index, "unit", event.target.value)} disabled={disabled} placeholder={takeoffUnitForType(item.measurementType)} />
+                  <InputField label="Scale pixels" value={item.scale.pixels || ""} onChange={(event) => updateItemScale(index, "pixels", event.target.value)} disabled={disabled} inputMode="decimal" placeholder="100" />
+                  <InputField label="Real length" value={item.scale.realWorldLength || ""} onChange={(event) => updateItemScale(index, "realWorldLength", event.target.value)} disabled={disabled} inputMode="decimal" placeholder="10" />
+                  <InputField label="Scale unit" value={item.scale.realWorldUnit || "FT"} onChange={(event) => updateItemScale(index, "realWorldUnit", event.target.value)} disabled={disabled} placeholder="FT" />
+                </div>
+                {item.measurementType === "volume" ? (
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <InputField label="Depth" value={item.depth.value || ""} onChange={(event) => updateItemDepth(index, "value", event.target.value)} disabled={disabled} inputMode="decimal" placeholder="4" />
+                    <InputField label="Depth unit" value={item.depth.unit || "IN"} onChange={(event) => updateItemDepth(index, "unit", event.target.value)} disabled={disabled} placeholder="IN" />
+                  </div>
+                ) : null}
+                <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+                  <TextAreaField label="Geometry points" value={formatTakeoffPointsText(item.points)} onChange={(event) => updateItemPoints(index, event.target.value)} disabled={disabled} className="field-input min-h-28 resize-y" placeholder={"0, 0\n100, 0\n100, 100\n0, 100"} />
+                  <TextAreaField label="Estimator note" value={item.estimatorNote || ""} onChange={(event) => updateItem(index, "estimatorNote", event.target.value)} disabled={disabled} className="field-input min-h-28 resize-y" placeholder="Waste, phase, addenda, or field verification note." />
+                </div>
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-100 bg-blue-50/70 px-3 py-2">
+                  <div className="text-sm font-black text-blue-950">
+                    Reviewed quantity: {item.quantity || 0} {item.unit || takeoffUnitForType(item.measurementType)}
+                  </div>
+                  <button type="button" onClick={() => removeItem(index)} disabled={disabled} className="text-xs font-black uppercase tracking-[0.16em] text-slate-500 hover:text-slate-950 disabled:cursor-not-allowed disabled:text-slate-300">Remove item</button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" size="sm" onClick={addItem} disabled={disabled}>Add Measurement</Button>
+            <Button type="button" size="sm" onClick={syncReviewedRowsToBackup} disabled={disabled || reviewedRows.length === 0}>Sync Reviewed Rows To Backup</Button>
+          </div>
+        </div>
+
+        <TextAreaField
+          label="Takeoff notes"
+          value={takeoff.notes || ""}
+          onChange={(event) => commitTakeoff({ ...takeoff, sheets, items, notes: event.target.value })}
+          disabled={disabled}
+          className="field-input min-h-24 resize-y"
+          placeholder="Plan set assumptions, calibration notes, or review reminders."
         />
       </div>
     </div>

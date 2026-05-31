@@ -55,6 +55,7 @@ import { isEstimatorMobilePipelineUser } from "./estimator-mobile-utils";
 import { deriveFenceTakeoffReadiness } from "./fence-takeoff-utils";
 import { buildEstimateLineItemFromRateBookItem, calculateRateBookUnitPrice, deriveRateBookState } from "./rate-book-utils";
 import { normalizeObjectArray } from "./report-utils";
+import { deriveTakeoffStudioReadiness } from "./takeoff-studio-utils";
 import { CUSTOM_ESTIMATE_PACKET_THEME_ID, DEFAULT_ESTIMATE_PACKET_PRESET_ID, ESTIMATE_PACKET_SECTION_DEFS, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
 
 function lazyRouteComponent(importer, exportName) {
@@ -73,6 +74,7 @@ const EstimateProposalSectionsEditor = lazyRouteComponent(() => import("./estima
 const EstimateProposalWorkbench = lazyRouteComponent(() => import("./estimates-route-components"), "EstimateProposalWorkbench");
 const EstimateStarterPanel = lazyRouteComponent(() => import("./estimates-route-components"), "EstimateStarterPanel");
 const EstimatesTablePolished = lazyRouteComponent(() => import("./estimates-route-components"), "EstimatesTablePolished");
+const TakeoffStudioManualEditor = lazyRouteComponent(() => import("./estimates-route-components"), "TakeoffStudioManualEditor");
 
 function useDesktopCommandViewport(minWidth = 1024) {
   const [matches, setMatches] = useState(() => {
@@ -1352,6 +1354,7 @@ export function EstimatesPagePolished({
       { label: "Send Mode", value: emailSendingConfigured ? "Provider ready" : "Manual copy" },
     ];
     const shellFenceTakeoffReadiness = deriveFenceTakeoffReadiness(detailEstimateBackup.fenceTakeoff);
+    const shellTakeoffStudioReadiness = deriveTakeoffStudioReadiness(detailEstimateBackup.takeoffStudio);
     const takeoffSaveDisabled = busy || !canManage || !selectedEstimate?.id;
     const customerSafePacketSettings = {
       ...packetPrintSettings,
@@ -2015,8 +2018,14 @@ export function EstimatesPagePolished({
           <div className="co-estimates-shell-workflow-context">
             <span><em>Estimate</em><strong>{estimateDisplayTitle(estimate)}</strong></span>
             <span><em>Customer</em><strong>{estimateDisplayCustomer(estimate) || "Customer pending"}</strong></span>
-            <span><em>Confidence</em><strong>{shellFenceTakeoffReadiness.label}</strong></span>
+            <span><em>Plan takeoff</em><strong>{shellTakeoffStudioReadiness.label}</strong></span>
+            <span><em>Fence takeoff</em><strong>{shellFenceTakeoffReadiness.label}</strong></span>
           </div>
+          <TakeoffStudioManualEditor
+            draft={detailDraft}
+            setDraft={setDetailDraft}
+            disabled={busy || !canManage}
+          />
           <FenceTakeoffLiteEditor
             draft={detailDraft}
             setDraft={setDetailDraft}
