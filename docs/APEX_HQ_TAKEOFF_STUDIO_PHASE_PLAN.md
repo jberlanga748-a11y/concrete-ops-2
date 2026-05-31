@@ -1,7 +1,7 @@
 # Apex HQ Takeoff Studio Phase Plan
 
 Date: 2026-05-31
-Status: Phase 1-17 takeoff plan implemented locally; trade packs and pilot hardening upgrades remain versioned later work
+Status: Phase 1-18 takeoff plan implemented locally; pilot hardening upgrades remain versioned later work
 
 ## Goal
 
@@ -295,7 +295,7 @@ Phase 9 first checkpoint:
 2. Add drawing-time snapping with configurable enabled state, tolerance, and angle snap. Complete.
 3. Add visual snap target indicators and snap status in the drawing workspace. Complete.
 4. Keep snapping as a drafting aid only; it must not finalize quantities, pricing, bids, sends, provider writes, customer proof, or field handoff. Complete.
-5. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint.
+5. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint. Complete.
 
 Phase 10 first checkpoint:
 
@@ -358,6 +358,14 @@ Phase 17 first checkpoint:
 2. De-dupe plan source rows so sheet metadata does not over-count the same PDF/image file. Complete.
 3. Prepare draft-only source-aware suggestions from reviewed text dimensions/counts with file context and estimator review controls. Complete.
 4. Keep the beta local and review-first: no pixel inspection, OCR, external AI, certified quantities, pricing approval, bids, sends, field exposure, provider writes, or schema changes. Complete.
+5. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint. Complete.
+
+Phase 18 first checkpoint:
+
+1. Add trade-specific auto-takeoff packs for concrete flatwork, sitework/demo, fence/linear, and general takeoff. Complete.
+2. Map reviewed source-aware beta suggestions into draft-only pack suggestions with safe measurement types and assembly IDs. Complete.
+3. Let owner/admin add pack suggestions as normal needs-review takeoff rows with blank pricing and office-only visibility. Complete.
+4. Keep packs as local mapping helpers: no pricing, assembly approval, certified quantities, bids, sends, field exposure, pixel inspection, external AI, provider writes, or schema changes. Complete.
 5. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint.
 
 ## Phase 1 Checkpoint: Manual Editor
@@ -607,3 +615,17 @@ Completed locally on 2026-05-31:
 Deferred Phase 17 enhancements:
 
 - Real computer-vision measurement detection, image/raster analysis, provider-backed AI, confidence heatmaps, and automatic geometry extraction remain later approved phases.
+
+## Phase 18 Checkpoint: Trade-Specific Auto-Takeoff Packs
+
+Completed locally on 2026-05-31:
+
+- Takeoff Studio now has draft-only trade packs for concrete flatwork, sitework/demo, fence/linear, and general takeoff.
+- The active pack follows the selected Takeoff Studio tool set and summarizes reviewed plan-text keyword hits.
+- Source-aware beta suggestions can be mapped into safe trade-pack draft rows with assembly IDs such as concrete flatwork, forming/sawcut, base rock, demo/haul-off, or direct quantity.
+- Added pack suggestions still become normal `needs_review` office-only takeoff rows with blank pricing until the estimator reviews them.
+- This checkpoint does not create pricing, approve assemblies, certify quantities, submit bids, send messages, expose field users, inspect pixels, call external AI, write providers, mutate production data, or require schema changes.
+
+Deferred Phase 18 enhancements:
+
+- Deeper trade libraries, contractor-configurable assemblies, package-specific defaults, and provider-backed quantity detection remain later approved phases.

@@ -76,6 +76,37 @@ export const TAKEOFF_STUDIO_ASSEMBLY_OPTIONS = [
   },
 ];
 
+export const TAKEOFF_STUDIO_TRADE_PACK_OPTIONS = [
+  {
+    id: "concrete-flatwork",
+    label: "Concrete flatwork pack",
+    toolSetId: "concrete-flatwork",
+    measurementTypes: ["area", "length", "count", "volume"],
+    keywords: ["concrete", "flatwork", "driveway", "sidewalk", "slab", "curb", "sawcut", "base rock", "drain"],
+  },
+  {
+    id: "sitework",
+    label: "Sitework / demo pack",
+    toolSetId: "sitework",
+    measurementTypes: ["area", "length", "volume", "count"],
+    keywords: ["demo", "remove", "excavate", "base rock", "aggregate", "trench", "utility", "haul off"],
+  },
+  {
+    id: "fence",
+    label: "Fence / linear pack",
+    toolSetId: "fence",
+    measurementTypes: ["length", "count", "area"],
+    keywords: ["fence", "gate", "post", "panel", "linear feet", "lf", "perimeter"],
+  },
+  {
+    id: "general",
+    label: "General takeoff pack",
+    toolSetId: "general",
+    measurementTypes: ["area", "length", "count", "volume"],
+    keywords: ["scope", "quantity", "allowance", "alternate", "verify"],
+  },
+];
+
 function textValue(value) {
   return String(value ?? "").replace(/\r\n/g, "\n").trim();
 }
@@ -148,6 +179,20 @@ function estimateLine(description = "", quantity = 0, unit = "ea", id = "") {
     unit: textValue(unit) || "ea",
     unitPrice: "",
   };
+}
+
+function tradePackAssemblyForSuggestion(packId = "", suggestion = {}, planText = "") {
+  const type = textValue(suggestion?.measurementType);
+  const text = `${planText} ${suggestion?.label || ""} ${suggestion?.rationale || ""}`.toLowerCase();
+  if (packId === "concrete-flatwork") {
+    if (type === "area" || type === "volume") return /base rock|aggregate/.test(text) ? "base-rock-4in" : "concrete-flatwork-4in";
+    if (type === "length") return "forming-sawcut";
+  }
+  if (packId === "sitework") {
+    if (/demo|remove|haul/.test(text)) return "demo-haul-off";
+    if (/base rock|aggregate/.test(text) && (type === "area" || type === "volume")) return "base-rock-4in";
+  }
+  return "direct";
 }
 
 function escapeCsvValue(value = "") {
@@ -1232,6 +1277,63 @@ export function buildTakeoffStudioVisionAutoMeasureBeta(takeoff = {}) {
   };
 }
 
+export function buildTakeoffStudioTradeAutoTakeoffPacks(takeoff = {}) {
+  const normalized = normalizeTakeoffStudio(takeoff);
+  const activePack = TAKEOFF_STUDIO_TRADE_PACK_OPTIONS.find((pack) => pack.toolSetId === normalized.toolSetId)
+    || TAKEOFF_STUDIO_TRADE_PACK_OPTIONS.find((pack) => pack.id === "general");
+  const planText = normalized.planText.toLowerCase();
+  const visionBeta = buildTakeoffStudioVisionAutoMeasureBeta(normalized);
+  const packRows = TAKEOFF_STUDIO_TRADE_PACK_OPTIONS.map((pack) => {
+    const keywordHits = pack.keywords.filter((keyword) => planText.includes(keyword));
+    return {
+      id: pack.id,
+      label: pack.label,
+      active: pack.id === activePack.id,
+      keywordHits,
+      measurementTypes: [...pack.measurementTypes],
+      summary: keywordHits.length
+        ? `${keywordHits.slice(0, 4).join(", ")} found in reviewed plan text.`
+        : "No reviewed plan text keyword hits yet.",
+    };
+  });
+  const suggestions = visionBeta.suggestions
+    .filter((suggestion) => activePack.measurementTypes.includes(suggestion.measurementType))
+    .map((suggestion, index) => {
+      const assemblyId = tradePackAssemblyForSuggestion(activePack.id, suggestion, planText);
+      return {
+        ...suggestion,
+        id: suggestionIdFromParts("trade-pack", activePack.id, suggestion.id || index + 1),
+        packId: activePack.id,
+        packLabel: activePack.label,
+        assemblyId,
+        label: `${activePack.label}: ${suggestion.label}`,
+        rationale: [
+          suggestion.rationale,
+          `Mapped by ${activePack.label} to ${assemblyId === "direct" ? "direct quantity" : assemblyId}.`,
+          "Estimator must review assembly and quantity before estimate-line prep.",
+        ].filter(Boolean).join(" "),
+      };
+    });
+  const warnings = [
+    !visionBeta.sourceCount ? "Register plan files before preparing trade-specific beta packs." : "",
+    !visionBeta.readySourceCount ? "Trade packs need at least one source with reviewed text and calibrated sheet context." : "",
+    !suggestions.length ? `${activePack.label} has no draft quantity suggestions from reviewed plan text yet.` : "",
+  ].filter(Boolean);
+
+  return {
+    ready: suggestions.length > 0 && warnings.length === 0,
+    activePack,
+    packRows,
+    suggestionCount: suggestions.length,
+    suggestions: suggestions.slice(0, 12),
+    warnings,
+    summary: warnings.length
+      ? warnings[0]
+      : `${suggestions.length} ${activePack.label} draft${suggestions.length === 1 ? "" : "s"} ready for estimator review.`,
+    safetyBoundary: "Trade auto-takeoff packs are draft-only mapping helpers. They do not create pricing, approve assemblies, certify quantities, submit bids, send messages, expose field users, inspect pixels, call external AI, or write providers.",
+  };
+}
+
 export function createTakeoffStudioItemFromAutoMeasureSuggestion(suggestion = {}, index = 0) {
   return normalizeTakeoffStudioItem({
     id: `takeoff-item-${index + 1}`,
@@ -1244,7 +1346,7 @@ export function createTakeoffStudioItemFromAutoMeasureSuggestion(suggestion = {}
     reviewStatus: DEFAULT_REVIEW_STATUS,
     customerVisible: false,
     fieldVisible: false,
-    assemblyId: "direct",
+    assemblyId: textValue(suggestion?.assemblyId) || "direct",
     estimatorNote: [
       "Auto-Measure Beta suggestion; estimator must verify before use.",
       textValue(suggestion?.rationale),

@@ -11,7 +11,7 @@ import { calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEst
 import { addEstimateLineItemStarter, applyEstimateTemplateStarter, buildEstimateLineItemsFromRoughNotes, getEstimateLineItemStartersForTrade, getEstimateStarterTradeSummary, getEstimateTemplateStartersForTrade } from "./estimate-template-utils";
 import { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
 import { buildFenceTakeoffBackupRows, buildFenceTakeoffDraftLineItems, buildFenceTakeoffFieldHandoff, buildFenceTakeoffProofPhotoChecklist, buildFenceTakeoffProposalSummary, deriveFenceTakeoffReadiness, mergeFenceTakeoffIntoDraft, normalizeFenceTakeoff, summarizeFenceTakeoffByAssembly } from "./fence-takeoff-utils";
-import { applyTakeoffStudioAssistantSuggestion, applyTakeoffStudioSheetCalibrationToItems, attachTakeoffStudioPlanFileToSheet, buildTakeoffStudioAiPlanAssist, buildTakeoffStudioAssistantQueue, buildTakeoffStudioAutoMeasureBeta, buildTakeoffStudioBackupRows, buildTakeoffStudioCsvExport, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioFieldHandoff, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioMeasurementLegend, buildTakeoffStudioPackageExport, buildTakeoffStudioPdfPageRenderState, buildTakeoffStudioPlanFileCandidates, buildTakeoffStudioPlanFileReadiness, buildTakeoffStudioPlanReviewLayer, buildTakeoffStudioPlanTextExtractionState, buildTakeoffStudioProductionHardening, buildTakeoffStudioProposalProofRows, buildTakeoffStudioProofSnapshot, buildTakeoffStudioRevisionComparison, buildTakeoffStudioRevisionRegister, buildTakeoffStudioSheetWorkspace, buildTakeoffStudioSnapTargets, buildTakeoffStudioVisionAutoMeasureBeta, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioMarkupComment, createEmptyTakeoffStudioSheet, createTakeoffStudioItemFromAutoMeasureSuggestion, createTakeoffStudioMarkupFromPoint, createTakeoffStudioMeasurementFromDrawing, createTakeoffStudioPlanTextSourceDraft, createTakeoffStudioSheetFromPlanFilePage, deriveTakeoffStudioCalibrationState, deriveTakeoffStudioDrawingState, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, getTakeoffStudioToolSetOptions, mergeTakeoffStudioAssistantSuggestionState, mergeTakeoffStudioCsvImport, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText, snapTakeoffStudioDraftPoint } from "./takeoff-studio-utils";
+import { applyTakeoffStudioAssistantSuggestion, applyTakeoffStudioSheetCalibrationToItems, attachTakeoffStudioPlanFileToSheet, buildTakeoffStudioAiPlanAssist, buildTakeoffStudioAssistantQueue, buildTakeoffStudioAutoMeasureBeta, buildTakeoffStudioBackupRows, buildTakeoffStudioCsvExport, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioFieldHandoff, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioMeasurementLegend, buildTakeoffStudioPackageExport, buildTakeoffStudioPdfPageRenderState, buildTakeoffStudioPlanFileCandidates, buildTakeoffStudioPlanFileReadiness, buildTakeoffStudioPlanReviewLayer, buildTakeoffStudioPlanTextExtractionState, buildTakeoffStudioProductionHardening, buildTakeoffStudioProposalProofRows, buildTakeoffStudioProofSnapshot, buildTakeoffStudioRevisionComparison, buildTakeoffStudioRevisionRegister, buildTakeoffStudioSheetWorkspace, buildTakeoffStudioSnapTargets, buildTakeoffStudioTradeAutoTakeoffPacks, buildTakeoffStudioVisionAutoMeasureBeta, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioMarkupComment, createEmptyTakeoffStudioSheet, createTakeoffStudioItemFromAutoMeasureSuggestion, createTakeoffStudioMarkupFromPoint, createTakeoffStudioMeasurementFromDrawing, createTakeoffStudioPlanTextSourceDraft, createTakeoffStudioSheetFromPlanFilePage, deriveTakeoffStudioCalibrationState, deriveTakeoffStudioDrawingState, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, getTakeoffStudioToolSetOptions, mergeTakeoffStudioAssistantSuggestionState, mergeTakeoffStudioCsvImport, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText, snapTakeoffStudioDraftPoint } from "./takeoff-studio-utils";
 import { CUSTOM_ESTIMATE_PACKET_THEME_ID, ESTIMATE_PACKET_COPY_TEMPLATE_OPTIONS, ESTIMATE_PACKET_PRESETS, ESTIMATE_PACKET_SECTION_DEFS, ESTIMATE_PACKET_THEME_OPTIONS, INTERNAL_REVIEW_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
 
 export { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
@@ -985,6 +985,7 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
   const planAssist = buildTakeoffStudioAiPlanAssist(editingTakeoff);
   const autoMeasureBeta = buildTakeoffStudioAutoMeasureBeta(editingTakeoff);
   const visionAutoMeasureBeta = buildTakeoffStudioVisionAutoMeasureBeta({ ...editingTakeoff, planFiles: planFileCandidates });
+  const tradeAutoTakeoffPacks = buildTakeoffStudioTradeAutoTakeoffPacks({ ...editingTakeoff, planFiles: planFileCandidates });
   const hardeningState = buildTakeoffStudioProductionHardening(editingTakeoff);
   const selectedSheetPreviewUrl = pdfRenderState.canRender ? pdfRenderState.pagePreviewUrl : selectedSheet?.sourcePreviewUrl;
 
@@ -1802,6 +1803,52 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
               </div>
             ) : null}
             <p className="mt-2 text-xs font-bold leading-5 text-slate-500">{visionAutoMeasureBeta.safetyBoundary}</p>
+          </div>
+          <div className="mt-3 rounded-2xl border border-orange-100 bg-white p-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-orange-700">Trade Auto-Takeoff Packs</p>
+                <p className="mt-1 text-sm font-bold leading-6 text-slate-700">{tradeAutoTakeoffPacks.summary}</p>
+              </div>
+              <Badge tone={tradeAutoTakeoffPacks.ready ? "green" : "amber"}>{tradeAutoTakeoffPacks.activePack.label}</Badge>
+            </div>
+            <div className="mt-3 grid gap-2 lg:grid-cols-2">
+              {tradeAutoTakeoffPacks.packRows.map((pack) => (
+                <div key={pack.id} className={`rounded-xl border px-3 py-2 ${pack.active ? "border-orange-200 bg-orange-50" : "border-slate-100 bg-slate-50"}`}>
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-black text-slate-950">{pack.label}</p>
+                      <p className="mt-1 text-xs font-bold leading-5 text-slate-600">{pack.summary}</p>
+                    </div>
+                    <Badge tone={pack.active ? "orange" : "blue"}>{pack.measurementTypes.join("/")}</Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {tradeAutoTakeoffPacks.suggestions.length ? (
+              <div className="mt-3 grid gap-2">
+                {tradeAutoTakeoffPacks.suggestions.slice(0, 4).map((suggestion) => (
+                  <div key={suggestion.id} className="rounded-xl border border-orange-100 bg-slate-50 px-3 py-2">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.14em] text-orange-700">{suggestion.packLabel} / {suggestion.assemblyId}</p>
+                        <p className="mt-1 text-sm font-black text-slate-950">{suggestion.label}: {suggestion.quantity} {suggestion.unit}</p>
+                        <p className="mt-1 text-xs font-bold leading-5 text-slate-600">{suggestion.rationale}</p>
+                      </div>
+                      <Button type="button" size="sm" onClick={() => addAutoMeasureDraft(suggestion)} disabled={disabled}>Add Draft</Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {tradeAutoTakeoffPacks.warnings.length ? (
+              <div className="mt-3 grid gap-2">
+                {tradeAutoTakeoffPacks.warnings.slice(0, 3).map((warning) => (
+                  <p key={warning} className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900">{warning}</p>
+                ))}
+              </div>
+            ) : null}
+            <p className="mt-2 text-xs font-bold leading-5 text-slate-500">{tradeAutoTakeoffPacks.safetyBoundary}</p>
           </div>
         </div>
       </div>

@@ -27,6 +27,7 @@ import {
   buildTakeoffStudioRevisionRegister,
   buildTakeoffStudioSheetWorkspace,
   buildTakeoffStudioSnapTargets,
+  buildTakeoffStudioTradeAutoTakeoffPacks,
   buildTakeoffStudioVisionAutoMeasureBeta,
   calculateTakeoffQuantity,
   attachTakeoffStudioPlanFileToSheet,
@@ -548,6 +549,43 @@ test("builds source-aware vision auto-measure beta without inspecting files", ()
   assert.match(needsReview.summary, /reviewed extracted text/i);
   assert.match(beta.safetyBoundary, /does not inspect pixels/i);
   assert.doesNotMatch(JSON.stringify(beta), /unitPrice|margin|profit|payroll|billing|send proposal|bid submission|external api/i);
+});
+
+test("builds trade-specific auto-takeoff packs as draft-only assembly helpers", () => {
+  const pack = buildTakeoffStudioTradeAutoTakeoffPacks({
+    toolSetId: "concrete-flatwork",
+    selectedSheetId: "s1",
+    planFiles: [{
+      id: "reference:plans",
+      sourceType: "reference",
+      fileName: "flatwork.pdf",
+      previewUrl: "https://files.example.test/flatwork.pdf",
+      linkedSheetIds: ["s1"],
+    }],
+    sheets: [{
+      id: "s1",
+      name: "C2.1 Flatwork",
+      sourceFileName: "flatwork.pdf",
+      scale: { calibrated: true, pixels: 100, realWorldLength: 10, realWorldUnit: "FT" },
+    }],
+    planTextSources: [{
+      planFileId: "reference:plans",
+      sourceFileName: "flatwork.pdf",
+      text: "Concrete driveway 20 x 30 with 120 LF sawcut and 4 drains.",
+      reviewStatus: "reviewed",
+    }],
+  });
+  const draftItem = createTakeoffStudioItemFromAutoMeasureSuggestion(pack.suggestions[0], 0);
+
+  assert.equal(pack.ready, true);
+  assert.equal(pack.activePack.id, "concrete-flatwork");
+  assert.ok(pack.packRows.some((row) => row.id === "concrete-flatwork" && row.keywordHits.includes("concrete")));
+  assert.ok(pack.suggestions.some((suggestion) => suggestion.assemblyId === "concrete-flatwork-4in"));
+  assert.ok(pack.suggestions.some((suggestion) => suggestion.assemblyId === "forming-sawcut"));
+  assert.equal(draftItem.reviewStatus, "needs_review");
+  assert.equal(draftItem.customerVisible, false);
+  assert.match(pack.safetyBoundary, /do not create pricing/i);
+  assert.doesNotMatch(JSON.stringify(pack), /unitPrice|margin|profit|payroll|billing|send proposal|bid submission|external api/i);
 });
 
 test("normalizes reviewed takeoff items with safe defaults", () => {

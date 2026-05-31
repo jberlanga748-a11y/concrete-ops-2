@@ -55,13 +55,14 @@ Current status:
 - Phase 15 PDF Page Rendering first checkpoint is implemented locally: Takeoff Studio now creates page-specific native PDF viewer URLs, shows selected-sheet PDF render readiness, and can add page-specific sheet records from reviewed PDF plan files without parsing, OCR, provider writes, schema changes, or field exposure.
 - Phase 16 OCR / Plan Text Extraction Readiness first checkpoint is implemented locally: Takeoff Studio now tracks manual/review-first plan text source rows tied to registered files/sheets, folds reviewed pasted text into local Plan Assist and Auto-Measure Beta context, and keeps OCR/file parsing/external AI/provider writes/schema changes out of scope.
 - Phase 17 Vision Auto-Measure Beta first checkpoint is implemented locally: Takeoff Studio now prepares source-aware draft measurement suggestions from reviewed extracted text plus registered plan-file and calibrated sheet context, without pixel inspection, OCR, external AI, certified quantities, provider writes, schema changes, or field exposure.
+- Phase 18 Trade-Specific Auto-Takeoff Packs first checkpoint is implemented locally: Takeoff Studio now maps source-aware beta suggestions into concrete flatwork, sitework/demo, fence/linear, and general draft packs with safe assembly IDs, blank pricing, needs-review status, and office-only visibility.
 - Estimate Studio, Proposals, Jobs, Uploads, AI Office, and field workflows must be extended, not rebuilt.
 - AI must stay review-first and must not auto-measure as final truth, approve pricing, submit bids, send proposals, or mutate risky customer-facing records.
 - Field users remain blocked from Estimate Studio, Takeoff Studio, pricing, margin, profit, payroll, billing, office notes, and AI Office controls.
 
 Current next action:
 
-- Freeze Phase 17, then continue with Phase 18 trade-specific auto-takeoff packs over the existing reviewed assembly/tool-set system.
+- Freeze Phase 18, then continue with Phase 19 production pilot hardening over the Takeoff Studio beta workflow.
 
 ## Production Patch: Estimate Proposal Type + Print Preview
 
