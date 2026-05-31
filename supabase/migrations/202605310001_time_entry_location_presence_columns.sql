@@ -1,0 +1,15 @@
+alter table public.time_entries
+  add column if not exists clock_in_latitude double precision,
+  add column if not exists clock_in_longitude double precision,
+  add column if not exists clock_in_location_accuracy double precision,
+  add column if not exists clock_in_location_captured_at timestamp with time zone,
+  add column if not exists clock_in_location_unavailable_reason text not null default '',
+  add column if not exists clock_out_latitude double precision,
+  add column if not exists clock_out_longitude double precision,
+  add column if not exists clock_out_location_accuracy double precision,
+  add column if not exists clock_out_location_captured_at timestamp with time zone,
+  add column if not exists clock_out_location_unavailable_reason text not null default '',
+  add column if not exists jobsite_presence_review_status text not null default '',
+  add column if not exists jobsite_presence_review_note text not null default '',
+  add column if not exists jobsite_presence_reviewed_by text not null default '',
+  add column if not exists jobsite_presence_reviewed_at timestamp with time zone;
