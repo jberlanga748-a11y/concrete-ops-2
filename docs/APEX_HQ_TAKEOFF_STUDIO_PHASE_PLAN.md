@@ -1,7 +1,7 @@
 # Apex HQ Takeoff Studio Phase Plan
 
 Date: 2026-05-31
-Status: Phase 1-10 takeoff plan implemented locally; AI plan assist, auto-measure beta, and hardening remain active follow-on phases
+Status: Phase 1-11 takeoff plan implemented locally; auto-measure beta and hardening remain active follow-on phases
 
 ## Goal
 
@@ -305,6 +305,14 @@ Phase 10 first checkpoint:
 4. Render pinned markup markers on the plan overlay while keeping visibility metadata review-only until explicit packet/handoff actions. Complete.
 5. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint.
 
+Phase 11 first checkpoint:
+
+1. Add a local review-first Plan Assist layer over reviewed plan text/OCR notes, sheets, markups, and measurement state. Complete.
+2. Flag missing plan text, uncalibrated sheets, revision/addendum language, scope-category hints, repeated count terms, open RFIs, and draft-versus-reviewed quantity gaps. Complete.
+3. Add owner/admin UI for reviewed plan text/OCR notes and Plan Assist suggestion cards. Complete.
+4. Keep this checkpoint deterministic/local: no external AI calls, no file reads, no automatic measurement, no pricing approval, no bid/customer send, and no provider writes. Complete.
+5. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint.
+
 ## Phase 1 Checkpoint: Manual Editor
 
 Completed on 2026-05-31:
@@ -453,3 +461,16 @@ Completed locally on 2026-05-31:
 Deferred Phase 10 enhancements:
 
 - Cloud/highlight/box drawing shapes, threaded comments, assigned reviewers, and drag-to-edit markup handles remain later collaboration polish.
+
+## Phase 11 Checkpoint: AI Plan Assist
+
+Completed locally on 2026-05-31:
+
+- Takeoff Studio now includes a local review-first Plan Assist panel.
+- Owner/admin users can paste reviewed plan text/OCR notes for scope review without the app reading files automatically.
+- Plan Assist flags revision/addendum language, concrete/sitework scope terms, repeated count hints, open RFIs, missing calibration, and draft-versus-reviewed quantity gaps.
+- Suggestions are review prompts only. They do not call external AI, auto-measure final quantities, approve pricing, submit bids, send messages, write providers, or expose field users.
+
+Deferred Phase 11 enhancements:
+
+- Provider-backed AI plan reading, real OCR extraction, structured RFI drafting, and image-based symbol detection remain provider/file-parsing phases.

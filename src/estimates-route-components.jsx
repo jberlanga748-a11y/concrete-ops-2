@@ -11,7 +11,7 @@ import { calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEst
 import { addEstimateLineItemStarter, applyEstimateTemplateStarter, buildEstimateLineItemsFromRoughNotes, getEstimateLineItemStartersForTrade, getEstimateStarterTradeSummary, getEstimateTemplateStartersForTrade } from "./estimate-template-utils";
 import { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
 import { buildFenceTakeoffBackupRows, buildFenceTakeoffDraftLineItems, buildFenceTakeoffFieldHandoff, buildFenceTakeoffProofPhotoChecklist, buildFenceTakeoffProposalSummary, deriveFenceTakeoffReadiness, mergeFenceTakeoffIntoDraft, normalizeFenceTakeoff, summarizeFenceTakeoffByAssembly } from "./fence-takeoff-utils";
-import { applyTakeoffStudioAssistantSuggestion, applyTakeoffStudioSheetCalibrationToItems, buildTakeoffStudioAssistantQueue, buildTakeoffStudioBackupRows, buildTakeoffStudioCsvExport, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioFieldHandoff, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioMeasurementLegend, buildTakeoffStudioPackageExport, buildTakeoffStudioPlanReviewLayer, buildTakeoffStudioProposalProofRows, buildTakeoffStudioProofSnapshot, buildTakeoffStudioRevisionComparison, buildTakeoffStudioRevisionRegister, buildTakeoffStudioSheetWorkspace, buildTakeoffStudioSnapTargets, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioMarkupComment, createEmptyTakeoffStudioSheet, createTakeoffStudioMarkupFromPoint, createTakeoffStudioMeasurementFromDrawing, deriveTakeoffStudioCalibrationState, deriveTakeoffStudioDrawingState, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, getTakeoffStudioToolSetOptions, mergeTakeoffStudioAssistantSuggestionState, mergeTakeoffStudioCsvImport, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText, snapTakeoffStudioDraftPoint } from "./takeoff-studio-utils";
+import { applyTakeoffStudioAssistantSuggestion, applyTakeoffStudioSheetCalibrationToItems, buildTakeoffStudioAiPlanAssist, buildTakeoffStudioAssistantQueue, buildTakeoffStudioBackupRows, buildTakeoffStudioCsvExport, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioFieldHandoff, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioMeasurementLegend, buildTakeoffStudioPackageExport, buildTakeoffStudioPlanReviewLayer, buildTakeoffStudioProposalProofRows, buildTakeoffStudioProofSnapshot, buildTakeoffStudioRevisionComparison, buildTakeoffStudioRevisionRegister, buildTakeoffStudioSheetWorkspace, buildTakeoffStudioSnapTargets, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioMarkupComment, createEmptyTakeoffStudioSheet, createTakeoffStudioMarkupFromPoint, createTakeoffStudioMeasurementFromDrawing, deriveTakeoffStudioCalibrationState, deriveTakeoffStudioDrawingState, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, getTakeoffStudioToolSetOptions, mergeTakeoffStudioAssistantSuggestionState, mergeTakeoffStudioCsvImport, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText, snapTakeoffStudioDraftPoint } from "./takeoff-studio-utils";
 import { CUSTOM_ESTIMATE_PACKET_THEME_ID, ESTIMATE_PACKET_COPY_TEMPLATE_OPTIONS, ESTIMATE_PACKET_PRESETS, ESTIMATE_PACKET_SECTION_DEFS, ESTIMATE_PACKET_THEME_OPTIONS, INTERNAL_REVIEW_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
 
 export { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
@@ -973,6 +973,7 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
   const drawingState = deriveTakeoffStudioDrawingState({ measurementType: drawingTool, points: draftDrawingPoints, selectedSheet });
   const snapTargets = buildTakeoffStudioSnapTargets(editingTakeoff, selectedSheet);
   const planReviewLayer = buildTakeoffStudioPlanReviewLayer(editingTakeoff, selectedSheet);
+  const planAssist = buildTakeoffStudioAiPlanAssist(editingTakeoff);
 
   function commitTakeoff(nextTakeoff) {
     const normalized = normalizeTakeoffStudio({
@@ -1456,6 +1457,38 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
               </div>
             </div>
           )) : <p className="rounded-xl border border-emerald-100 bg-emerald-50/70 px-3 py-2 text-sm font-bold text-emerald-800">No active assistant suggestions. Reviewed quantities and proof choices look ready for estimator review.</p>}
+        </div>
+        <div className="mt-3 rounded-2xl border border-violet-100 bg-white p-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-violet-700">AI Plan Assist</p>
+              <p className="mt-1 text-sm font-bold leading-6 text-slate-600">{planAssist.summary}</p>
+            </div>
+            <Badge tone={planAssist.suggestionCount ? "amber" : "green"}>{planAssist.mode}</Badge>
+          </div>
+          <TextAreaField
+            label="Reviewed plan text / OCR notes"
+            value={takeoff.planText || ""}
+            onChange={(event) => commitTakeoff({ ...takeoff, sheets, items, markupComments, planText: event.target.value })}
+            disabled={disabled}
+            className="field-input mt-3 min-h-24 resize-y"
+            placeholder="Paste reviewed plan notes, OCR text, addenda notes, dimensions, or scope terms here. No files are read automatically."
+          />
+          <div className="mt-3 grid gap-2">
+            {planAssist.suggestions.length ? planAssist.suggestions.slice(0, 5).map((suggestion) => (
+              <div key={suggestion.id} className="rounded-xl border border-violet-100 bg-violet-50/60 px-3 py-2">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.14em] text-violet-700">{suggestion.category}</p>
+                    <p className="mt-1 text-sm font-black text-slate-950">{suggestion.title}</p>
+                    <p className="mt-1 text-xs font-bold leading-5 text-slate-600">{suggestion.detail}</p>
+                  </div>
+                  <Badge tone={suggestion.confidence === "high" ? "amber" : "blue"}>{suggestion.confidence}</Badge>
+                </div>
+              </div>
+            )) : <p className="rounded-xl border border-emerald-100 bg-emerald-50/70 px-3 py-2 text-sm font-bold text-emerald-800">Plan Assist has no review flags from the current safe context.</p>}
+          </div>
+          <p className="mt-2 text-xs font-bold text-slate-500">{planAssist.safetyBoundary}</p>
         </div>
       </div>
       <div className="mt-3 rounded-2xl border border-slate-200 bg-white/95 p-3">

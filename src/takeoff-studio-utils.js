@@ -551,6 +551,7 @@ export function normalizeTakeoffStudio(takeoff = {}) {
     markupComments: (Array.isArray(takeoff?.markupComments) ? takeoff.markupComments : [])
       .map((comment, index) => normalizeMarkupComment(comment, index))
       .filter((comment) => comment.text),
+    planText: textValue(takeoff?.planText || takeoff?.ocrText || takeoff?.planNotes),
     updatedAt: textValue(takeoff?.updatedAt),
   };
 }
@@ -655,6 +656,98 @@ export function buildTakeoffStudioPlanReviewLayer(takeoff = {}, selectedSheet = 
       ? `${comments.length} markup comment${comments.length === 1 ? "" : "s"} on ${sheet?.name || "takeoff sheets"}; ${openComments.length} open for review.`
       : `No markup comments recorded for ${sheet?.name || "the selected sheet"}.`,
     safetyBoundary: "Markup visibility is review metadata only. Proposal and field visibility do not send, publish, approve, or expose office-only estimate data automatically.",
+  };
+}
+
+export function buildTakeoffStudioAiPlanAssist(takeoff = {}) {
+  const normalized = normalizeTakeoffStudio(takeoff);
+  const suggestions = [];
+  const planText = normalized.planText.toLowerCase();
+  const reviewedItems = normalized.items.filter((item) => item.reviewStatus === "reviewed");
+  const unreviewedItems = normalized.items.filter((item) => item.reviewStatus !== "reviewed" && item.quantity > 0);
+  const uncalibratedSheets = normalized.sheets.filter((sheet) => !sheet.scale.calibrated);
+  const openRfis = normalized.markupComments.filter((comment) => comment.type === "rfi" && comment.status === "open");
+
+  if (!normalized.planText && normalized.sheets.some((sheet) => sheet.sourceFileName || sheet.sourcePreviewUrl)) {
+    suggestions.push({
+      id: "plan-text-needed",
+      category: "plan_text",
+      title: "Add plan text or OCR notes",
+      detail: "A reviewed plan-text note helps the assistant flag scope terms, dimensions, RFIs, and revision language without reading files automatically.",
+      confidence: "medium",
+      actionLabel: "Add reviewed plan text",
+    });
+  }
+  if (uncalibratedSheets.length) {
+    suggestions.push({
+      id: "calibrate-sheets",
+      category: "calibration",
+      title: "Calibrate sheets before AI quantity review",
+      detail: `${uncalibratedSheets.length} sheet${uncalibratedSheets.length === 1 ? "" : "s"} still need reviewed scale calibration.`,
+      confidence: "high",
+      actionLabel: "Review sheet scale",
+    });
+  }
+  if (planText && /addendum|revision|rev\.?\s*\d|delta|bulletin/i.test(normalized.planText)) {
+    suggestions.push({
+      id: "revision-language",
+      category: "revision",
+      title: "Review revision language",
+      detail: "Plan text mentions revisions or addenda. Compare sheet revisions before pushing quantities into estimate backup.",
+      confidence: "medium",
+      actionLabel: "Review revisions",
+    });
+  }
+  if (planText && /saw\s?cut|demo|remove|excavat|base rock|aggregate|curb|sidewalk|driveway|slab|footing/i.test(normalized.planText)) {
+    suggestions.push({
+      id: "scope-category-hints",
+      category: "scope",
+      title: "Check takeoff categories against plan text",
+      detail: "Plan text includes concrete/sitework scope terms. Confirm area, length, count, and volume rows cover those categories before proposal proof.",
+      confidence: "medium",
+      actionLabel: "Review scope categories",
+    });
+  }
+  if (planText && /typ\.?|each|ea\.?|count|bollard|drain|inlet|post|gate/i.test(normalized.planText)) {
+    suggestions.push({
+      id: "count-symbol-review",
+      category: "count",
+      title: "Review repeated count items",
+      detail: "Plan text suggests repeated symbols or each-count items. Confirm count measurements are pinned and reviewed.",
+      confidence: "medium",
+      actionLabel: "Review counts",
+    });
+  }
+  if (openRfis.length) {
+    suggestions.push({
+      id: "open-rfi-review",
+      category: "rfi",
+      title: "Resolve open takeoff RFIs",
+      detail: `${openRfis.length} open RFI marker${openRfis.length === 1 ? "" : "s"} should be resolved or carried as an assumption before customer proof.`,
+      confidence: "high",
+      actionLabel: "Review RFIs",
+    });
+  }
+  if (unreviewedItems.length && reviewedItems.length) {
+    suggestions.push({
+      id: "draft-versus-reviewed",
+      category: "quantity_review",
+      title: "Separate draft and reviewed quantities",
+      detail: `${unreviewedItems.length} draft measurement${unreviewedItems.length === 1 ? "" : "s"} remain next to ${reviewedItems.length} reviewed row${reviewedItems.length === 1 ? "" : "s"}. Review before estimate-line prep.`,
+      confidence: "high",
+      actionLabel: "Review draft measurements",
+    });
+  }
+
+  return {
+    mode: "local-review-first",
+    configured: false,
+    suggestionCount: suggestions.length,
+    suggestions,
+    summary: suggestions.length
+      ? `${suggestions.length} review-first plan assist suggestion${suggestions.length === 1 ? "" : "s"} prepared.`
+      : "No plan assist issues found from the current sheets, plan text, markups, and measurement review state.",
+    safetyBoundary: "Plan Assist is local and review-first in this checkpoint. It does not read files automatically, call external AI, auto-measure final quantities, approve pricing, submit bids, send messages, or write providers.",
   };
 }
 

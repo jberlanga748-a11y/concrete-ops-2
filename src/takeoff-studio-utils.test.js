@@ -13,6 +13,7 @@ import {
   buildTakeoffStudioGcPacketProofSummary,
   buildTakeoffStudioMeasurementLegend,
   buildTakeoffStudioPackageExport,
+  buildTakeoffStudioAiPlanAssist,
   buildTakeoffStudioPlanReviewLayer,
   buildTakeoffStudioProposalProofRows,
   buildTakeoffStudioProofSnapshot,
@@ -293,6 +294,28 @@ test("builds pinned markup review layer with visibility boundaries", () => {
   assert.equal(reviewLayer.visibilityCounts.proposal, 1);
   assert.match(reviewLayer.safetyBoundary, /do not send/i);
   assert.doesNotMatch(JSON.stringify(reviewLayer), /unitPrice|margin|profit|payroll|billing|send proposal|bid submission/i);
+});
+
+test("builds local review-first AI plan assist without external actions", () => {
+  const assist = buildTakeoffStudioAiPlanAssist({
+    planText: "Addendum 2: remove existing sidewalk, sawcut curb, base rock, typ. drain each.",
+    sheets: [{ id: "s1", name: "C2.1", sourceFileName: "plans.pdf" }],
+    markupComments: [{ id: "rfi-1", sheetId: "s1", type: "rfi", text: "Confirm drain count", status: "open" }],
+    items: [
+      { id: "reviewed-1", label: "Sidewalk", sheetId: "s1", measurementType: "area", quantity: 200, unit: "SF", reviewStatus: "reviewed" },
+      { id: "draft-1", label: "Drain count", sheetId: "s1", measurementType: "count", quantity: 3, unit: "EA", reviewStatus: "needs_review" },
+    ],
+  });
+
+  assert.equal(assist.mode, "local-review-first");
+  assert.equal(assist.configured, false);
+  assert.ok(assist.suggestions.some((suggestion) => suggestion.category === "revision"));
+  assert.ok(assist.suggestions.some((suggestion) => suggestion.category === "scope"));
+  assert.ok(assist.suggestions.some((suggestion) => suggestion.category === "count"));
+  assert.ok(assist.suggestions.some((suggestion) => suggestion.category === "rfi"));
+  assert.ok(assist.suggestions.some((suggestion) => suggestion.category === "quantity_review"));
+  assert.match(assist.safetyBoundary, /does not read files automatically/i);
+  assert.doesNotMatch(JSON.stringify(assist), /unitPrice|margin|profit|payroll|billing|send proposal|bid submission|external api/i);
 });
 
 test("normalizes reviewed takeoff items with safe defaults", () => {
