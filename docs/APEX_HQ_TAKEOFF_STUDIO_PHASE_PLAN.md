@@ -1,7 +1,7 @@
 # Apex HQ Takeoff Studio Phase Plan
 
 Date: 2026-05-31
-Status: Phase 1-12 takeoff plan implemented locally; production hardening remains active follow-on phase
+Status: Phase 1-13 takeoff plan implemented locally; provider/PDF vision upgrades remain versioned later work
 
 ## Goal
 
@@ -321,6 +321,13 @@ Phase 12 first checkpoint:
 4. Keep beta suggestions draft-only: no file/image inspection, no certified quantities, no pricing approval, no bid/customer send, no provider writes, and no field exposure. Complete.
 5. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint.
 
+Phase 13 first checkpoint:
+
+1. Add Takeoff Studio production-hardening readiness checks for source gaps, calibration gaps, draft rows, unsafe customer/field review gates, and large geometry risk. Complete.
+2. Surface hardening status, item/point/markup counts, warnings, and safety boundary in the owner/admin plan workspace. Complete.
+3. Keep checks local and read-only: no permission changes, estimate approvals, customer sends, provider writes, production data mutations, or schema changes. Complete.
+4. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint.
+
 ## Phase 1 Checkpoint: Manual Editor
 
 Completed on 2026-05-31:
@@ -496,3 +503,16 @@ Completed locally on 2026-05-31:
 Deferred Phase 12 enhancements:
 
 - Real image/PDF edge detection, symbol detection, OCR extraction, and provider-backed plan vision remain later provider/file-parsing upgrades.
+
+## Phase 13 Checkpoint: Production Hardening
+
+Completed locally on 2026-05-31:
+
+- Takeoff Studio now has local production-hardening readiness checks for pilot/demo use.
+- The hardening layer flags missing sheet sources, uncalibrated measured rows, draft quantity rows, unreviewed customer/field visibility rows, and large geometry sets.
+- The owner/admin plan workspace shows hardening status, row/point/markup counts, warnings, and safety boundary.
+- Hardening checks are read-only evidence. They do not change permissions, approve estimates, send customer data, write providers, mutate production data, or require schema changes.
+
+Deferred Phase 13 enhancements:
+
+- Real file storage/load testing, large PDF rendering performance, tablet stylus tuning, provider-backed OCR/vision, and production telemetry remain versioned upgrades.

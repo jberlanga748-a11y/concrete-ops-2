@@ -49,14 +49,15 @@ Current status:
 - Phase 9 Snapping System first checkpoint is implemented, validated, pushed, and frozen: selected-sheet drawing can snap to endpoints, segment projections, segment midpoints, intersections, and 45/90-degree angle increments with configurable tolerance and visible snap status.
 - Phase 10 Markups + Review Layer first checkpoint is implemented, validated, pushed, and frozen: owner/admin users can switch the plan workspace into markup mode, pin notes/RFIs/scope/risk markers on the selected sheet, and review open/resolved plus office/proposal/field visibility counts.
 - Phase 11 AI Plan Assist first checkpoint is implemented, validated, pushed, and frozen: owner/admin users can paste reviewed plan text/OCR notes and get local review-first suggestions for calibration, revisions/addenda, scope categories, counts, open RFIs, and draft/review gaps without external AI calls or automatic measurement.
-- Phase 12 Auto-Measure Beta first checkpoint is implemented locally: reviewed plan text can create draft-only area, length, and count suggestions with confidence/rationale and owner/admin add-to-draft review controls.
+- Phase 12 Auto-Measure Beta first checkpoint is implemented, validated, pushed, and frozen: reviewed plan text can create draft-only area, length, and count suggestions with confidence/rationale and owner/admin add-to-draft review controls.
+- Phase 13 Production Hardening first checkpoint is implemented locally: Takeoff Studio now flags source gaps, calibration gaps, draft rows, unsafe customer/field review gates, large geometry risk, and local readiness counts in the owner/admin workspace.
 - Estimate Studio, Proposals, Jobs, Uploads, AI Office, and field workflows must be extended, not rebuilt.
 - AI must stay review-first and must not auto-measure as final truth, approve pricing, submit bids, send proposals, or mutate risky customer-facing records.
 - Field users remain blocked from Estimate Studio, Takeoff Studio, pricing, margin, profit, payroll, billing, office notes, and AI Office controls.
 
 Current next action:
 
-- Validate and freeze Phase 12, then complete Phase 13 production hardening without rebuilding the Estimate Studio or the completed Phase 1-12 takeoff foundation.
+- Validate and freeze Phase 13, then run the final completion audit for Takeoff Studio Phases 6-13.
 
 ## Production Patch: Estimate Proposal Type + Print Preview
 

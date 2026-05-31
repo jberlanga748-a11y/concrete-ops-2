@@ -16,6 +16,7 @@ import {
   buildTakeoffStudioAiPlanAssist,
   buildTakeoffStudioAutoMeasureBeta,
   buildTakeoffStudioPlanReviewLayer,
+  buildTakeoffStudioProductionHardening,
   buildTakeoffStudioProposalProofRows,
   buildTakeoffStudioProofSnapshot,
   buildTakeoffStudioRevisionComparison,
@@ -340,6 +341,37 @@ test("builds auto-measure beta suggestions as draft-only measurements", () => {
   assert.match(draft.estimatorNote, /estimator must verify/i);
   assert.match(beta.safetyBoundary, /draft suggestions only/i);
   assert.doesNotMatch(JSON.stringify(beta), /unitPrice|margin|profit|payroll|billing|send proposal|bid submission|guarantee/i);
+});
+
+test("builds production hardening readiness without mutating takeoff data", () => {
+  const needsReview = buildTakeoffStudioProductionHardening({
+    sheets: [{ id: "s1", name: "C2.1" }],
+    markupComments: [{ id: "m1", sheetId: "s1", text: "Confirm scope", points: [{ x: 1, y: 2 }] }],
+    items: [
+      { id: "draft-1", label: "Draft slab", sheetId: "s1", measurementType: "area", quantity: 200, unit: "SF", customerVisible: true },
+    ],
+  });
+  const ready = buildTakeoffStudioProductionHardening({
+    sheets: [{ id: "s1", name: "C2.1", sourceFileName: "plans.pdf" }],
+    items: [{
+      id: "reviewed-1",
+      label: "Reviewed slab",
+      sheetId: "s1",
+      measurementType: "area",
+      points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }],
+      scale: tenFeetScale,
+      reviewStatus: "reviewed",
+    }],
+  });
+
+  assert.equal(needsReview.ready, false);
+  assert.ok(needsReview.warnings.some((warning) => /source file/i.test(warning)));
+  assert.ok(needsReview.warnings.some((warning) => /customer-proof/i.test(warning)));
+  assert.equal(needsReview.markupCount, 1);
+  assert.equal(ready.ready, true);
+  assert.equal(ready.warnings.length, 0);
+  assert.match(ready.safetyBoundary, /do not change permissions/i);
+  assert.doesNotMatch(JSON.stringify(ready), /unitPrice|margin|profit|payroll|billing|send proposal|bid submission/i);
 });
 
 test("normalizes reviewed takeoff items with safe defaults", () => {

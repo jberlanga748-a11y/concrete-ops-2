@@ -847,6 +847,38 @@ export function createTakeoffStudioItemFromAutoMeasureSuggestion(suggestion = {}
   }, index);
 }
 
+export function buildTakeoffStudioProductionHardening(takeoff = {}) {
+  const normalized = normalizeTakeoffStudio(takeoff);
+  const pointCount = normalized.items.reduce((sum, item) => sum + item.points.length, 0)
+    + normalized.markupComments.reduce((sum, comment) => sum + comment.points.length, 0);
+  const unreviewedItems = normalized.items.filter((item) => item.quantity > 0 && item.reviewStatus !== "reviewed");
+  const uncalibratedMeasuredItems = normalized.items.filter((item) => ["area", "length", "volume"].includes(item.measurementType) && item.quantity > 0 && !item.scale.calibrated);
+  const unsafeCustomerRows = normalized.items.filter((item) => item.customerVisible && item.reviewStatus !== "reviewed");
+  const unsafeFieldRows = normalized.items.filter((item) => item.fieldVisible && item.reviewStatus !== "reviewed");
+  const sourceGaps = normalized.sheets.filter((sheet) => !sheet.sourceFileName && !sheet.sourcePreviewUrl);
+  const warnings = [
+    sourceGaps.length ? `${sourceGaps.length} sheet${sourceGaps.length === 1 ? "" : "s"} need a source file or preview URL before pilot use.` : "",
+    uncalibratedMeasuredItems.length ? `${uncalibratedMeasuredItems.length} measured item${uncalibratedMeasuredItems.length === 1 ? "" : "s"} need reviewed scale calibration.` : "",
+    unreviewedItems.length ? `${unreviewedItems.length} quantity row${unreviewedItems.length === 1 ? "" : "s"} remain draft/needs-review.` : "",
+    unsafeCustomerRows.length ? `${unsafeCustomerRows.length} customer-proof row${unsafeCustomerRows.length === 1 ? "" : "s"} must be reviewed first.` : "",
+    unsafeFieldRows.length ? `${unsafeFieldRows.length} field-handoff row${unsafeFieldRows.length === 1 ? "" : "s"} must be reviewed first.` : "",
+    pointCount > 5000 ? "Large geometry set detected; split sheets or verify browser performance before pilot demo." : "",
+  ].filter(Boolean);
+
+  return {
+    ready: normalized.sheets.length > 0 && normalized.items.length > 0 && warnings.length === 0,
+    sheetCount: normalized.sheets.length,
+    itemCount: normalized.items.length,
+    pointCount,
+    markupCount: normalized.markupComments.length,
+    warnings,
+    summary: warnings.length
+      ? `${warnings.length} hardening warning${warnings.length === 1 ? "" : "s"} before pilot-ready takeoff use.`
+      : "Takeoff Studio health checks are clear for reviewed local pilot use.",
+    safetyBoundary: "Hardening checks are local readiness evidence only. They do not change permissions, approve estimates, send customer data, write providers, or mutate production data.",
+  };
+}
+
 export function deriveTakeoffStudioCalibrationState(takeoff = {}) {
   const normalized = normalizeTakeoffStudio(takeoff);
   const uncalibratedSheets = normalized.sheets.filter((sheet) => !sheet.scale.calibrated);
