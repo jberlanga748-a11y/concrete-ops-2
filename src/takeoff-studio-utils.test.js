@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   applyTakeoffStudioAssistantSuggestion,
+  applyTakeoffStudioSheetCalibrationToItems,
   buildTakeoffStudioAssistantQueue,
   buildTakeoffStudioAssistantSuggestions,
   buildTakeoffStudioCsvExport,
@@ -16,10 +17,12 @@ import {
   buildTakeoffStudioProofSnapshot,
   buildTakeoffStudioRevisionComparison,
   buildTakeoffStudioRevisionRegister,
+  buildTakeoffStudioSheetWorkspace,
   calculateTakeoffQuantity,
   createEmptyTakeoffStudioItem,
   createEmptyTakeoffStudioMarkupComment,
   createEmptyTakeoffStudioSheet,
+  deriveTakeoffStudioCalibrationState,
   deriveTakeoffStudioReadiness,
   getTakeoffStudioAssemblyOptions,
   getTakeoffStudioToolSetOptions,
@@ -60,9 +63,23 @@ test("parses and formats point text for manual plan geometry", () => {
 test("creates empty sheet and item drafts for the manual editor", () => {
   assert.deepEqual(createEmptyTakeoffStudioSheet(1), {
     id: "sheet-2",
-    name: "",
+    name: "Sheet 2",
     revision: "",
     sourceFileName: "",
+    sourcePreviewUrl: "",
+    previewKind: "placeholder",
+    pageNumber: 2,
+    pageWidth: 1100,
+    pageHeight: 850,
+    rotation: 0,
+    scale: {
+      label: "",
+      calibrated: false,
+      pixels: 0,
+      realWorldLength: 0,
+      realWorldUnit: "FT",
+      feetPerPixel: 0,
+    },
     status: "active",
   });
   assert.equal(createEmptyTakeoffStudioItem(2).id, "takeoff-item-3");
@@ -101,6 +118,64 @@ test("calculates length, area, count, and volume quantities", () => {
     manualQuantity: 144,
     scale: tenFeetScale,
   }), 144);
+});
+
+test("builds a sheet workspace and applies reviewed sheet calibration to measurements", () => {
+  const takeoff = {
+    selectedSheetId: "s1",
+    sheets: [
+      {
+        id: "s1",
+        name: "C2.1 Site Plan",
+        revision: "Rev A",
+        sourceFileName: "plan-set.pdf",
+        sourcePreviewUrl: "https://example.com/plan-page.png",
+        pageNumber: 3,
+        pageWidth: 1200,
+        pageHeight: 900,
+        scale: tenFeetScale,
+      },
+      {
+        id: "s2",
+        name: "C3.0 Details",
+        sourcePreviewUrl: "javascript:alert(1)",
+      },
+    ],
+    items: [
+      {
+        id: "area-1",
+        label: "Driveway slab",
+        sheetId: "s1",
+        measurementType: "area",
+        points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }],
+        reviewStatus: "reviewed",
+      },
+      {
+        id: "count-1",
+        label: "Drains",
+        sheetId: "s1",
+        measurementType: "count",
+        points: [{ x: 50, y: 50 }],
+      },
+    ],
+  };
+
+  const workspace = buildTakeoffStudioSheetWorkspace(takeoff);
+  const calibration = deriveTakeoffStudioCalibrationState(takeoff);
+  const calibrated = applyTakeoffStudioSheetCalibrationToItems(takeoff, "s1");
+
+  assert.equal(workspace.selectedSheet.name, "C2.1 Site Plan");
+  assert.equal(workspace.selectedSheet.previewKind, "image");
+  assert.equal(workspace.thumbnails.length, 2);
+  assert.equal(workspace.overlays.length, 2);
+  assert.equal(workspace.metrics.calibratedSheetCount, 1);
+  assert.equal(workspace.thumbnails[1].hasSource, false);
+  assert.equal(calibration.itemsUsingSheetScale.length, 1);
+  assert.match(calibration.safetyBoundary, /does not finalize estimate pricing/i);
+  assert.equal(calibrated.items.find((item) => item.id === "area-1").quantity, 100);
+  assert.equal(calibrated.items.find((item) => item.id === "area-1").reviewStatus, "needs_review");
+  assert.equal(calibrated.items.find((item) => item.id === "count-1").quantity, 1);
+  assert.doesNotMatch(JSON.stringify(workspace), /margin|profit|payroll|billing|send proposal|bid submission/i);
 });
 
 test("normalizes reviewed takeoff items with safe defaults", () => {

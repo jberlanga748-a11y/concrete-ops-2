@@ -11,6 +11,8 @@ const ITEM_ACTIVE_REVISION_STATUS = "active";
 const ITEM_REVISED_STATUS = "revised";
 const ITEM_SUPERSEDED_REVISION_STATUS = "superseded";
 const DEFAULT_TOOL_SET_ID = "concrete-flatwork";
+const DEFAULT_SHEET_WIDTH = 1100;
+const DEFAULT_SHEET_HEIGHT = 850;
 
 export const TAKEOFF_STUDIO_TOOL_SET_OPTIONS = [
   {
@@ -186,6 +188,51 @@ function normalizeMarkupComment(comment = {}, index = 0) {
     text: textValue(comment?.text || comment?.note),
     status: ["open", "resolved"].includes(textValue(comment?.status).toLowerCase()) ? textValue(comment?.status).toLowerCase() : "open",
     visibility: ["office", "proposal", "field"].includes(textValue(comment?.visibility).toLowerCase()) ? textValue(comment?.visibility).toLowerCase() : "office",
+  };
+}
+
+function positiveInteger(value, fallback = 0) {
+  const parsed = Math.round(numberValue(value, fallback));
+  return parsed > 0 ? parsed : fallback;
+}
+
+function normalizeRotation(value = 0) {
+  const parsed = Math.round(numberValue(value));
+  const normalized = ((parsed % 360) + 360) % 360;
+  if ([0, 90, 180, 270].includes(normalized)) return normalized;
+  return 0;
+}
+
+function safePreviewUrl(value = "") {
+  const url = textValue(value);
+  if (!url) return "";
+  if (/^(https?:|data:image\/|blob:|\/)/i.test(url)) return url;
+  return "";
+}
+
+function previewKindForUrl(value = "") {
+  const url = safePreviewUrl(value).toLowerCase();
+  if (!url) return "placeholder";
+  if (/\.(png|jpg|jpeg|webp|gif)(\?|#|$)/i.test(url) || url.startsWith("data:image/")) return "image";
+  if (/\.pdf(\?|#|$)/i.test(url)) return "pdf";
+  return "embedded";
+}
+
+function normalizeTakeoffStudioSheet(sheet = {}, index = 0) {
+  const sourcePreviewUrl = safePreviewUrl(sheet?.sourcePreviewUrl || sheet?.previewUrl || sheet?.url);
+  return {
+    id: textValue(sheet?.id) || `sheet-${index + 1}`,
+    name: textValue(sheet?.name || sheet?.sheetName) || `Sheet ${index + 1}`,
+    revision: textValue(sheet?.revision),
+    sourceFileName: textValue(sheet?.sourceFileName || sheet?.fileName),
+    sourcePreviewUrl,
+    previewKind: previewKindForUrl(sourcePreviewUrl),
+    pageNumber: positiveInteger(sheet?.pageNumber || sheet?.page, index + 1),
+    pageWidth: positiveInteger(sheet?.pageWidth || sheet?.width, DEFAULT_SHEET_WIDTH),
+    pageHeight: positiveInteger(sheet?.pageHeight || sheet?.height, DEFAULT_SHEET_HEIGHT),
+    rotation: normalizeRotation(sheet?.rotation),
+    scale: normalizeTakeoffScale(sheet?.scale),
+    status: sheetStatusValue(sheet?.status || (sheet?.superseded ? SHEET_SUPERSEDED_STATUS : SHEET_ACTIVE_STATUS)),
   };
 }
 
@@ -373,13 +420,18 @@ export function normalizeTakeoffStudioItem(item = {}, index = 0) {
 }
 
 export function createEmptyTakeoffStudioSheet(index = 0) {
-  return {
+  return normalizeTakeoffStudioSheet({
     id: `sheet-${index + 1}`,
     name: "",
     revision: "",
     sourceFileName: "",
+    sourcePreviewUrl: "",
+    pageNumber: index + 1,
+    pageWidth: DEFAULT_SHEET_WIDTH,
+    pageHeight: DEFAULT_SHEET_HEIGHT,
+    rotation: 0,
     status: SHEET_ACTIVE_STATUS,
-  };
+  }, index);
 }
 
 export function createEmptyTakeoffStudioItem(index = 0) {
@@ -405,18 +457,16 @@ export function normalizeTakeoffStudio(takeoff = {}) {
   const items = (Array.isArray(takeoff?.items) ? takeoff.items : [])
     .map((item, index) => normalizeTakeoffStudioItem(item, index))
     .filter((item) => item.label || item.quantity || item.points.length || item.estimatorNote);
+  const sheets = (Array.isArray(takeoff?.sheets) ? takeoff.sheets : []).map((sheet, index) => normalizeTakeoffStudioSheet(sheet, index));
+  const selectedSheetId = textValue(takeoff?.selectedSheetId);
+  const selectedSheet = sheets.find((sheet) => sheet.id === selectedSheetId) || sheets[0];
 
   return {
     toolSetId: TAKEOFF_STUDIO_TOOL_SET_OPTIONS.some((option) => option.id === textValue(takeoff?.toolSetId))
       ? textValue(takeoff?.toolSetId)
       : DEFAULT_TOOL_SET_ID,
-    sheets: (Array.isArray(takeoff?.sheets) ? takeoff.sheets : []).map((sheet, index) => ({
-      id: textValue(sheet?.id) || `sheet-${index + 1}`,
-      name: textValue(sheet?.name || sheet?.sheetName) || `Sheet ${index + 1}`,
-      revision: textValue(sheet?.revision),
-      sourceFileName: textValue(sheet?.sourceFileName || sheet?.fileName),
-      status: sheetStatusValue(sheet?.status || (sheet?.superseded ? SHEET_SUPERSEDED_STATUS : SHEET_ACTIVE_STATUS)),
-    })),
+    selectedSheetId: selectedSheet?.id || "",
+    sheets,
     items,
     notes: textValue(takeoff?.notes),
     assistantSuggestions: (Array.isArray(takeoff?.assistantSuggestions) ? takeoff.assistantSuggestions : [])
@@ -432,6 +482,120 @@ export function normalizeTakeoffStudio(takeoff = {}) {
 export function takeoffStudioHasContent(takeoff = {}) {
   const normalized = normalizeTakeoffStudio(takeoff);
   return Boolean(normalized.sheets.length || normalized.items.length || normalized.notes || normalized.markupComments.length);
+}
+
+function itemBelongsToSheet(item = {}, sheet = {}) {
+  if (!sheet?.id && !sheet?.name) return false;
+  if (item.sheetId && sheet.id && item.sheetId === sheet.id) return true;
+  return Boolean(item.sheetName && sheet.name && item.sheetName === sheet.name);
+}
+
+function overlayBounds(items = [], sheet = {}) {
+  const points = items.flatMap((item) => item.points || []);
+  const maxX = Math.max(sheet.pageWidth || DEFAULT_SHEET_WIDTH, ...points.map((point) => numberValue(point.x)));
+  const maxY = Math.max(sheet.pageHeight || DEFAULT_SHEET_HEIGHT, ...points.map((point) => numberValue(point.y)));
+  return {
+    width: positiveInteger(maxX, DEFAULT_SHEET_WIDTH),
+    height: positiveInteger(maxY, DEFAULT_SHEET_HEIGHT),
+  };
+}
+
+export function buildTakeoffStudioSheetWorkspace(takeoff = {}) {
+  const normalized = normalizeTakeoffStudio(takeoff);
+  const selectedSheet = normalized.sheets.find((sheet) => sheet.id === normalized.selectedSheetId) || normalized.sheets[0] || null;
+  const selectedItems = selectedSheet
+    ? normalized.items.filter((item) => itemBelongsToSheet(item, selectedSheet))
+    : [];
+  const bounds = selectedSheet ? overlayBounds(selectedItems, selectedSheet) : { width: DEFAULT_SHEET_WIDTH, height: DEFAULT_SHEET_HEIGHT };
+  const thumbnails = normalized.sheets.map((sheet) => {
+    const sheetItems = normalized.items.filter((item) => itemBelongsToSheet(item, sheet));
+    return {
+      id: sheet.id,
+      label: sheet.name,
+      subtitle: [sheet.revision, sheet.sourceFileName || `Page ${sheet.pageNumber}`].filter(Boolean).join(" / "),
+      status: sheet.status,
+      selected: selectedSheet?.id === sheet.id,
+      hasSource: Boolean(sheet.sourceFileName || sheet.sourcePreviewUrl),
+      calibrated: sheet.scale.calibrated,
+      itemCount: sheetItems.length,
+    };
+  });
+  const overlays = selectedItems.map((item) => ({
+    id: item.id,
+    label: item.label,
+    measurementType: item.measurementType,
+    reviewStatus: item.reviewStatus,
+    quantity: item.quantity,
+    unit: item.unit,
+    points: item.points,
+    closed: item.measurementType === "area" || item.measurementType === "volume",
+  }));
+  const warnings = [
+    !normalized.sheets.length ? "Add a plan sheet before using the sheet workspace." : "",
+    selectedSheet && !selectedSheet.sourceFileName && !selectedSheet.sourcePreviewUrl ? `${selectedSheet.name} does not have a plan source recorded.` : "",
+    selectedSheet && !selectedSheet.scale.calibrated ? `${selectedSheet.name} needs a reviewed sheet scale before drawing-based quantities can be trusted.` : "",
+  ].filter(Boolean);
+
+  return {
+    selectedSheet,
+    thumbnails,
+    overlays,
+    bounds,
+    summary: selectedSheet
+      ? `${selectedSheet.name} has ${selectedItems.length} measurement${selectedItems.length === 1 ? "" : "s"} in the active workspace.`
+      : "Add a sheet to start the plan workspace.",
+    metrics: {
+      sheetCount: normalized.sheets.length,
+      activeSheetCount: normalized.sheets.filter((sheet) => sheet.status !== SHEET_SUPERSEDED_STATUS).length,
+      sourceSheetCount: normalized.sheets.filter((sheet) => sheet.sourceFileName || sheet.sourcePreviewUrl).length,
+      calibratedSheetCount: normalized.sheets.filter((sheet) => sheet.scale.calibrated).length,
+    },
+    warnings,
+    safetyBoundary: "Plan viewing and calibration are estimator review tools only. They do not auto-approve quantities, pricing, proposals, bids, sends, provider writes, or field/customer access.",
+  };
+}
+
+export function deriveTakeoffStudioCalibrationState(takeoff = {}) {
+  const normalized = normalizeTakeoffStudio(takeoff);
+  const uncalibratedSheets = normalized.sheets.filter((sheet) => !sheet.scale.calibrated);
+  const itemsNeedingScale = normalized.items.filter((item) => ["area", "length", "volume"].includes(item.measurementType) && !item.scale.calibrated);
+  const itemsUsingSheetScale = normalized.items.filter((item) => {
+    if (!["area", "length", "volume"].includes(item.measurementType) || item.scale.calibrated) return false;
+    const sheet = normalized.sheets.find((candidate) => itemBelongsToSheet(item, candidate));
+    return Boolean(sheet?.scale.calibrated);
+  });
+
+  return {
+    ready: normalized.sheets.length > 0 && uncalibratedSheets.length === 0,
+    calibratedSheets: normalized.sheets.length - uncalibratedSheets.length,
+    sheetCount: normalized.sheets.length,
+    uncalibratedSheets: uncalibratedSheets.map((sheet) => ({ id: sheet.id, name: sheet.name })),
+    itemsNeedingScale: itemsNeedingScale.map((item) => ({ id: item.id, label: item.label, sheetId: item.sheetId, sheetName: item.sheetName })),
+    itemsUsingSheetScale,
+    summary: normalized.sheets.length
+      ? `${normalized.sheets.length - uncalibratedSheets.length} of ${normalized.sheets.length} sheet${normalized.sheets.length === 1 ? "" : "s"} calibrated. ${itemsUsingSheetScale.length} measurement${itemsUsingSheetScale.length === 1 ? "" : "s"} can inherit sheet scale for review.`
+      : "Add a sheet and calibrate it from a known dimension before trusting drawing-based quantities.",
+    safetyBoundary: "Calibration prepares quantities for human review. It does not finalize estimate pricing, customer commitments, bid submissions, or field handoff.",
+  };
+}
+
+export function applyTakeoffStudioSheetCalibrationToItems(takeoff = {}, sheetId = "") {
+  const normalized = normalizeTakeoffStudio(takeoff);
+  const selectedSheet = normalized.sheets.find((sheet) => sheet.id === textValue(sheetId));
+  if (!selectedSheet?.scale.calibrated) return normalized;
+
+  return normalizeTakeoffStudio({
+    ...normalized,
+    items: normalized.items.map((item, index) => {
+      if (!["area", "length", "volume"].includes(item.measurementType)) return item;
+      if (!itemBelongsToSheet(item, selectedSheet)) return item;
+      return normalizeTakeoffStudioItem({
+        ...item,
+        scale: selectedSheet.scale,
+        reviewStatus: "needs_review",
+      }, index);
+    }),
+  });
 }
 
 export function buildTakeoffStudioRevisionRegister(takeoff = {}) {

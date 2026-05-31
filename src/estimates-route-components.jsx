@@ -11,7 +11,7 @@ import { calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEst
 import { addEstimateLineItemStarter, applyEstimateTemplateStarter, buildEstimateLineItemsFromRoughNotes, getEstimateLineItemStartersForTrade, getEstimateStarterTradeSummary, getEstimateTemplateStartersForTrade } from "./estimate-template-utils";
 import { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
 import { buildFenceTakeoffBackupRows, buildFenceTakeoffDraftLineItems, buildFenceTakeoffFieldHandoff, buildFenceTakeoffProofPhotoChecklist, buildFenceTakeoffProposalSummary, deriveFenceTakeoffReadiness, mergeFenceTakeoffIntoDraft, normalizeFenceTakeoff, summarizeFenceTakeoffByAssembly } from "./fence-takeoff-utils";
-import { applyTakeoffStudioAssistantSuggestion, buildTakeoffStudioAssistantQueue, buildTakeoffStudioBackupRows, buildTakeoffStudioCsvExport, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioFieldHandoff, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioMeasurementLegend, buildTakeoffStudioPackageExport, buildTakeoffStudioProposalProofRows, buildTakeoffStudioProofSnapshot, buildTakeoffStudioRevisionComparison, buildTakeoffStudioRevisionRegister, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioMarkupComment, createEmptyTakeoffStudioSheet, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, getTakeoffStudioToolSetOptions, mergeTakeoffStudioAssistantSuggestionState, mergeTakeoffStudioCsvImport, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText } from "./takeoff-studio-utils";
+import { applyTakeoffStudioAssistantSuggestion, applyTakeoffStudioSheetCalibrationToItems, buildTakeoffStudioAssistantQueue, buildTakeoffStudioBackupRows, buildTakeoffStudioCsvExport, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioFieldHandoff, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioMeasurementLegend, buildTakeoffStudioPackageExport, buildTakeoffStudioProposalProofRows, buildTakeoffStudioProofSnapshot, buildTakeoffStudioRevisionComparison, buildTakeoffStudioRevisionRegister, buildTakeoffStudioSheetWorkspace, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioMarkupComment, createEmptyTakeoffStudioSheet, deriveTakeoffStudioCalibrationState, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, getTakeoffStudioToolSetOptions, mergeTakeoffStudioAssistantSuggestionState, mergeTakeoffStudioCsvImport, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText } from "./takeoff-studio-utils";
 import { CUSTOM_ESTIMATE_PACKET_THEME_ID, ESTIMATE_PACKET_COPY_TEMPLATE_OPTIONS, ESTIMATE_PACKET_PRESETS, ESTIMATE_PACKET_SECTION_DEFS, ESTIMATE_PACKET_THEME_OPTIONS, INTERNAL_REVIEW_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
 
 export { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
@@ -945,6 +945,7 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
   const sheets = takeoff.sheets.length ? takeoff.sheets : [createEmptyTakeoffStudioSheet(0)];
   const items = takeoff.items.length ? takeoff.items : [createEmptyTakeoffStudioItem(0)];
   const markupComments = takeoff.markupComments.length ? takeoff.markupComments : [createEmptyTakeoffStudioMarkupComment(0)];
+  const editingTakeoff = { ...takeoff, sheets, items, markupComments };
   const reviewedRows = buildTakeoffStudioBackupRows({ ...takeoff, items: takeoff.items.filter((item) => item.reviewStatus === "reviewed") });
   const assemblyOptions = getTakeoffStudioAssemblyOptions();
   const toolSetOptions = getTakeoffStudioToolSetOptions();
@@ -959,6 +960,9 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
   const revisionComparison = buildTakeoffStudioRevisionComparison(takeoff);
   const csvExport = buildTakeoffStudioCsvExport(takeoff);
   const packageExport = buildTakeoffStudioPackageExport(takeoff);
+  const sheetWorkspace = buildTakeoffStudioSheetWorkspace(editingTakeoff);
+  const calibrationState = deriveTakeoffStudioCalibrationState(editingTakeoff);
+  const selectedSheet = sheetWorkspace.selectedSheet || sheets[0];
 
   function commitTakeoff(nextTakeoff) {
     const normalized = normalizeTakeoffStudio({
@@ -973,6 +977,17 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
 
   function updateSheet(index, field, value) {
     const nextSheets = sheets.map((sheet, sheetIndex) => sheetIndex === index ? { ...sheet, [field]: value } : sheet);
+    commitTakeoff({ ...takeoff, sheets: nextSheets, items });
+  }
+
+  function updateSelectedSheet(sheetId) {
+    commitTakeoff({ ...takeoff, selectedSheetId: sheetId, sheets, items });
+  }
+
+  function updateSheetScale(index, field, value) {
+    const nextSheets = sheets.map((sheet, sheetIndex) => sheetIndex === index
+      ? { ...sheet, scale: { ...sheet.scale, [field]: value } }
+      : sheet);
     commitTakeoff({ ...takeoff, sheets: nextSheets, items });
   }
 
@@ -1055,6 +1070,11 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
     if (!csvImportText.trim()) return;
     commitTakeoff(mergeTakeoffStudioCsvImport({ ...takeoff, sheets, items }, csvImportText));
     setCsvImportText("");
+  }
+
+  function applySelectedSheetScale() {
+    if (!selectedSheet?.id) return;
+    commitTakeoff(applyTakeoffStudioSheetCalibrationToItems({ ...takeoff, sheets, items }, selectedSheet.id));
   }
 
   function syncReviewedRowsToBackup() {
@@ -1154,6 +1174,98 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
       </div>
       <div className="mt-3 rounded-2xl border border-blue-100 bg-white/85 px-3 py-2 text-sm font-bold leading-6 text-blue-900">
         {readiness.summary}
+      </div>
+      <div className="mt-3 rounded-2xl border border-sky-100 bg-white/95 p-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-sky-700">Plan viewer + calibration</p>
+            <p className="mt-1 text-sm font-bold leading-6 text-slate-600">{sheetWorkspace.summary}</p>
+          </div>
+          <Badge tone={calibrationState.ready ? "green" : "amber"}>{calibrationState.calibratedSheets}/{calibrationState.sheetCount || 0} calibrated</Badge>
+        </div>
+        <div className="mt-3 grid gap-3 xl:grid-cols-[240px_minmax(0,1fr)_260px]">
+          <div className="grid gap-2">
+            {sheetWorkspace.thumbnails.length ? sheetWorkspace.thumbnails.map((thumbnail) => (
+              <button
+                key={thumbnail.id}
+                type="button"
+                onClick={() => updateSelectedSheet(thumbnail.id)}
+                disabled={disabled}
+                className={`rounded-2xl border p-3 text-left transition ${thumbnail.selected ? "border-sky-300 bg-sky-50" : "border-slate-100 bg-slate-50 hover:border-sky-200 hover:bg-white"}`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="break-words text-sm font-black text-slate-950">{thumbnail.label}</p>
+                    <p className="mt-1 break-words text-xs font-bold text-slate-500">{thumbnail.subtitle || "No source recorded"}</p>
+                  </div>
+                  <Badge tone={thumbnail.calibrated ? "green" : "amber"}>{thumbnail.calibrated ? "Scale" : "No scale"}</Badge>
+                </div>
+                <p className="mt-2 text-xs font-bold text-slate-500">{thumbnail.itemCount} measurement{thumbnail.itemCount === 1 ? "" : "s"} / {thumbnail.status}</p>
+              </button>
+            )) : <p className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-900">Add a sheet to start.</p>}
+          </div>
+          <div className="min-w-0 rounded-2xl border border-slate-100 bg-slate-950 p-3 text-white">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-sky-200">{selectedSheet?.name || "No sheet"}</p>
+                <p className="mt-1 text-xs font-bold text-slate-300">{selectedSheet?.sourceFileName || selectedSheet?.sourcePreviewUrl || "Recorded plan preview appears here after a source is added."}</p>
+              </div>
+              <Badge tone={selectedSheet?.status === "superseded" ? "amber" : "blue"}>{selectedSheet?.previewKind || "placeholder"}</Badge>
+            </div>
+            <div className="mt-3 aspect-[11/8.5] overflow-hidden rounded-xl border border-slate-700 bg-slate-900">
+              {selectedSheet?.sourcePreviewUrl && selectedSheet.previewKind === "image" ? (
+                <img src={selectedSheet.sourcePreviewUrl} alt={`${selectedSheet.name} plan preview`} className="h-full w-full object-contain" />
+              ) : selectedSheet?.sourcePreviewUrl ? (
+                <iframe title={`${selectedSheet.name} plan preview`} src={selectedSheet.sourcePreviewUrl} className="h-full w-full bg-white" />
+              ) : (
+                <svg viewBox={`0 0 ${sheetWorkspace.bounds.width} ${sheetWorkspace.bounds.height}`} className="h-full w-full" role="img" aria-label="Plan sheet measurement workspace">
+                  <rect x="0" y="0" width={sheetWorkspace.bounds.width} height={sheetWorkspace.bounds.height} fill="#f8fafc" />
+                  {Array.from({ length: 9 }).map((_, gridIndex) => {
+                    const x = (sheetWorkspace.bounds.width / 8) * gridIndex;
+                    const y = (sheetWorkspace.bounds.height / 8) * gridIndex;
+                    return (
+                      <g key={`plan-grid-${gridIndex}`}>
+                        <line x1={x} y1="0" x2={x} y2={sheetWorkspace.bounds.height} stroke="#e2e8f0" strokeWidth="2" />
+                        <line x1="0" y1={y} x2={sheetWorkspace.bounds.width} y2={y} stroke="#e2e8f0" strokeWidth="2" />
+                      </g>
+                    );
+                  })}
+                  <text x="32" y="48" fill="#334155" fontSize="28" fontWeight="800">{selectedSheet?.name || "Plan sheet"}</text>
+                  {sheetWorkspace.overlays.map((overlay, overlayIndex) => {
+                    const pointList = overlay.points.map((point) => `${point.x},${point.y}`).join(" ");
+                    const color = overlay.reviewStatus === "reviewed" ? "#059669" : "#f59e0b";
+                    return (
+                      <g key={overlay.id || `overlay-${overlayIndex}`}>
+                        {overlay.points.length === 1 ? <circle cx={overlay.points[0].x} cy={overlay.points[0].y} r="10" fill={color} /> : null}
+                        {overlay.points.length > 1 && overlay.closed ? <polygon points={pointList} fill={`${color}33`} stroke={color} strokeWidth="6" /> : null}
+                        {overlay.points.length > 1 && !overlay.closed ? <polyline points={pointList} fill="none" stroke={color} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" /> : null}
+                        {overlay.points[0] ? <text x={overlay.points[0].x + 14} y={overlay.points[0].y - 14} fill="#0f172a" fontSize="24" fontWeight="800">{overlay.label}</text> : null}
+                      </g>
+                    );
+                  })}
+                </svg>
+              )}
+            </div>
+            <p className="mt-2 text-xs font-bold leading-5 text-slate-300">{sheetWorkspace.safetyBoundary}</p>
+          </div>
+          <div className="grid content-start gap-3">
+            <StatCard title="Sheets" value={`${sheetWorkspace.metrics.sheetCount}`} />
+            <StatCard title="Sources" value={`${sheetWorkspace.metrics.sourceSheetCount}`} />
+            <StatCard title="Active sheets" value={`${sheetWorkspace.metrics.activeSheetCount}`} />
+            <div className="rounded-2xl border border-sky-100 bg-sky-50/70 p-3">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-sky-800">Calibration review</p>
+              <p className="mt-1 text-sm font-bold leading-6 text-slate-700">{calibrationState.summary}</p>
+              <div className="mt-3">
+                <Button type="button" size="sm" onClick={applySelectedSheetScale} disabled={disabled || !selectedSheet?.scale?.calibrated || calibrationState.itemsUsingSheetScale.length === 0}>Use Sheet Scale On Measurements</Button>
+              </div>
+              {sheetWorkspace.warnings.length ? (
+                <div className="mt-3 grid gap-2">
+                  {sheetWorkspace.warnings.map((warning) => <p key={warning} className="rounded-xl border border-amber-100 bg-white px-3 py-2 text-xs font-bold text-amber-900">{warning}</p>)}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
       </div>
       <div className="mt-3 rounded-2xl border border-violet-100 bg-white/90 p-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1285,6 +1397,23 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
                     <option value="superseded">Superseded</option>
                   </SelectField>
                   <InputField label="Source file" value={sheet.sourceFileName || ""} onChange={(event) => updateSheet(index, "sourceFileName", event.target.value)} disabled={disabled} placeholder="plan-set.pdf" />
+                </div>
+                <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1.4fr)_90px_110px_110px_110px]">
+                  <InputField label="Preview URL" value={sheet.sourcePreviewUrl || ""} onChange={(event) => updateSheet(index, "sourcePreviewUrl", event.target.value)} disabled={disabled} placeholder="/uploads/plan-page.png or reviewed PDF URL" />
+                  <InputField label="Page" value={sheet.pageNumber || ""} onChange={(event) => updateSheet(index, "pageNumber", event.target.value)} disabled={disabled} inputMode="numeric" placeholder="1" />
+                  <InputField label="Canvas width" value={sheet.pageWidth || ""} onChange={(event) => updateSheet(index, "pageWidth", event.target.value)} disabled={disabled} inputMode="numeric" placeholder="1100" />
+                  <InputField label="Canvas height" value={sheet.pageHeight || ""} onChange={(event) => updateSheet(index, "pageHeight", event.target.value)} disabled={disabled} inputMode="numeric" placeholder="850" />
+                  <SelectField label="Rotation" value={String(sheet.rotation || 0)} onChange={(event) => updateSheet(index, "rotation", event.target.value)} disabled={disabled}>
+                    <option value="0">0</option>
+                    <option value="90">90</option>
+                    <option value="180">180</option>
+                    <option value="270">270</option>
+                  </SelectField>
+                </div>
+                <div className="mt-3 grid gap-3 md:grid-cols-3">
+                  <InputField label="Sheet scale pixels" value={sheet.scale?.pixels || ""} onChange={(event) => updateSheetScale(index, "pixels", event.target.value)} disabled={disabled} inputMode="decimal" placeholder="100" />
+                  <InputField label="Sheet real length" value={sheet.scale?.realWorldLength || ""} onChange={(event) => updateSheetScale(index, "realWorldLength", event.target.value)} disabled={disabled} inputMode="decimal" placeholder="10" />
+                  <InputField label="Sheet scale unit" value={sheet.scale?.realWorldUnit || "FT"} onChange={(event) => updateSheetScale(index, "realWorldUnit", event.target.value)} disabled={disabled} placeholder="FT" />
                 </div>
                 <div className="mt-3 flex justify-end">
                   <button type="button" onClick={() => removeSheet(index)} disabled={disabled} className="text-xs font-black uppercase tracking-[0.16em] text-slate-500 hover:text-slate-950 disabled:cursor-not-allowed disabled:text-slate-300">Remove sheet</button>

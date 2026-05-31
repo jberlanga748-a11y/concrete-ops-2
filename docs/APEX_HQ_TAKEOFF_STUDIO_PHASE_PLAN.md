@@ -1,7 +1,7 @@
 # Apex HQ Takeoff Studio Phase Plan
 
 Date: 2026-05-31
-Status: Phase 1-5 takeoff plan implemented and validated; advanced provider/PDF parsing remains versioned later work
+Status: Phase 1-7 takeoff plan implemented locally; advanced snapping, AI plan assist, auto-measure beta, and hardening remain active follow-on phases
 
 ## Goal
 
@@ -272,6 +272,15 @@ Phase 5 first checkpoint:
 5. Add a takeoff package export for proposal backup and office review that excludes pricing, margin, payroll, billing, provider writes, bid submission, customer approval, and automatic sends. Complete.
 6. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint. Complete.
 
+Phase 6/7 first checkpoint:
+
+1. Add a plan sheet workspace with selected-sheet state, thumbnails, source metadata, safe preview URL handling, and a visual measurement overlay fallback. Complete.
+2. Add per-sheet page metadata for page number, canvas size, rotation, source file, source preview URL, active/superseded state, and preview kind. Complete.
+3. Add per-sheet scale calibration and a review-first helper to apply sheet calibration to drawing-based measurements without finalizing quantities or pricing. Complete.
+4. Add owner/admin Estimate Studio controls for sheet selection, preview, calibration review, and applying sheet scale to measurements. Complete.
+5. Keep this checkpoint local and estimate-backup based; no schema, file storage, provider OCR/PDF parsing, automatic measurement, bid submission, customer send, field access, or pricing automation. Complete.
+6. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint.
+
 ## Phase 1 Checkpoint: Manual Editor
 
 Completed on 2026-05-31:
@@ -366,3 +375,17 @@ Completed on 2026-05-31:
 Deferred Phase 5 enhancements:
 
 - Real PDF page thumbnails, OCR/plan text extraction, plan overlay rendering, provider-backed AI plan assistance, and richer multi-user collaboration are versioned later work that need provider/file parsing and product approval before expansion.
+
+## Phase 6/7 Checkpoint: Plan Viewer And Calibration
+
+Completed locally on 2026-05-31:
+
+- Takeoff Studio now has a selected plan-sheet workspace with sheet thumbnails, source metadata, safe preview URLs, and visual measurement overlays.
+- Sheet records now carry page number, canvas size, rotation, active/superseded state, source file, preview URL, preview kind, and sheet-level scale calibration in the existing estimate backup.
+- Owner/admin users can record a reviewed sheet scale and apply it to drawing-based measurements on that sheet, which recalculates quantities and returns affected measurements to needs-review.
+- The viewer supports image/PDF/embedded preview URLs when a reviewed source URL exists and uses a non-claiming vector fallback when only metadata/points exist.
+- Calibration remains a human review tool. It does not auto-measure, approve estimate pricing, send proposals, submit bids, write providers, expose field users, or create customer-facing commitments.
+
+Deferred Phase 6/7 enhancements:
+
+- Real file upload/storage, rendered PDF page extraction, OCR, snapping, automatic symbol/edge detection, and provider-backed plan parsing remain later phases.
