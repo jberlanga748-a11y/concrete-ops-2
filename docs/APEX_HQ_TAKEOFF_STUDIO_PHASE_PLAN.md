@@ -1,7 +1,7 @@
 # Apex HQ Takeoff Studio Phase Plan
 
 Date: 2026-05-31
-Status: Phase 1-9 takeoff plan implemented locally; AI plan assist, auto-measure beta, and hardening remain active follow-on phases
+Status: Phase 1-10 takeoff plan implemented locally; AI plan assist, auto-measure beta, and hardening remain active follow-on phases
 
 ## Goal
 
@@ -297,6 +297,14 @@ Phase 9 first checkpoint:
 4. Keep snapping as a drafting aid only; it must not finalize quantities, pricing, bids, sends, provider writes, customer proof, or field handoff. Complete.
 5. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint.
 
+Phase 10 first checkpoint:
+
+1. Extend markup comments into pinned plan review markers with sheet, point, type, status, and visibility metadata. Complete.
+2. Add draw/markup workspace mode so owner/admin users can pin notes, RFIs, scope comments, and risks directly on the selected plan. Complete.
+3. Add a plan review layer summary with open/resolved state and office/proposal/field visibility counts. Complete.
+4. Render pinned markup markers on the plan overlay while keeping visibility metadata review-only until explicit packet/handoff actions. Complete.
+5. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint.
+
 ## Phase 1 Checkpoint: Manual Editor
 
 Completed on 2026-05-31:
@@ -432,3 +440,16 @@ Completed locally on 2026-05-31:
 Deferred Phase 9 enhancements:
 
 - Drag-to-edit handles, keyboard modifier keys, snap layers, and high-volume geometry performance tuning remain later polish/hardening work.
+
+## Phase 10 Checkpoint: Markups And Review Layer
+
+Completed locally on 2026-05-31:
+
+- Takeoff Studio markup comments now support pinned plan points while preserving sheet, type, text, status, and visibility metadata.
+- Owner/admin users can switch the plan workspace between drawing mode and markup mode, then click the plan to pin notes, RFIs, scope comments, or risk markers.
+- The plan review layer summarizes open markup comments and office/proposal/field visibility counts for the selected sheet.
+- Pinned markups render on the plan overlay and remain review metadata only. They do not send, publish, approve, expose field data, or change customer-facing packets without explicit review actions.
+
+Deferred Phase 10 enhancements:
+
+- Cloud/highlight/box drawing shapes, threaded comments, assigned reviewers, and drag-to-edit markup handles remain later collaboration polish.

@@ -181,12 +181,14 @@ function parseCsvLine(line = "") {
 }
 
 function normalizeMarkupComment(comment = {}, index = 0) {
+  const points = normalizePoints(comment?.points || (comment?.x != null && comment?.y != null ? [{ x: comment.x, y: comment.y }] : []));
   return {
     id: textValue(comment?.id) || `takeoff-comment-${index + 1}`,
     sheetId: textValue(comment?.sheetId),
     itemId: textValue(comment?.itemId),
     type: textValue(comment?.type) || "note",
     text: textValue(comment?.text || comment?.note),
+    points,
     status: ["open", "resolved"].includes(textValue(comment?.status).toLowerCase()) ? textValue(comment?.status).toLowerCase() : "open",
     visibility: ["office", "proposal", "field"].includes(textValue(comment?.visibility).toLowerCase()) ? textValue(comment?.visibility).toLowerCase() : "office",
   };
@@ -513,6 +515,19 @@ export function createEmptyTakeoffStudioMarkupComment(index = 0) {
   }, index);
 }
 
+export function createTakeoffStudioMarkupFromPoint({ point = {}, selectedSheet = null, type = "note", text = "", visibility = "office", index = 0 } = {}) {
+  const normalizedPoint = normalizePoint(point) || { x: 0, y: 0 };
+  return normalizeMarkupComment({
+    id: `takeoff-comment-${index + 1}`,
+    sheetId: textValue(selectedSheet?.id),
+    type,
+    text: textValue(text) || `Plan markup ${index + 1}`,
+    visibility,
+    status: "open",
+    points: [normalizedPoint],
+  }, index);
+}
+
 export function normalizeTakeoffStudio(takeoff = {}) {
   const items = (Array.isArray(takeoff?.items) ? takeoff.items : [])
     .map((item, index) => normalizeTakeoffStudioItem(item, index))
@@ -613,6 +628,33 @@ export function buildTakeoffStudioSheetWorkspace(takeoff = {}) {
     },
     warnings,
     safetyBoundary: "Plan viewing and calibration are estimator review tools only. They do not auto-approve quantities, pricing, proposals, bids, sends, provider writes, or field/customer access.",
+  };
+}
+
+export function buildTakeoffStudioPlanReviewLayer(takeoff = {}, selectedSheet = null) {
+  const normalized = normalizeTakeoffStudio(takeoff);
+  const sheet = selectedSheet || normalized.sheets.find((candidate) => candidate.id === normalized.selectedSheetId) || normalized.sheets[0] || null;
+  const comments = sheet
+    ? normalized.markupComments.filter((comment) => !comment.sheetId || comment.sheetId === sheet.id)
+    : normalized.markupComments;
+  const pinnedComments = comments.filter((comment) => comment.points.length);
+  const openComments = comments.filter((comment) => comment.status === "open");
+  const visibilityCounts = comments.reduce((counts, comment) => ({
+    ...counts,
+    [comment.visibility]: (counts[comment.visibility] || 0) + 1,
+  }), { office: 0, proposal: 0, field: 0 });
+
+  return {
+    selectedSheetId: sheet?.id || "",
+    comments,
+    pinnedComments,
+    openComments,
+    visibilityCounts,
+    ready: comments.length > 0 && openComments.length === 0,
+    summary: comments.length
+      ? `${comments.length} markup comment${comments.length === 1 ? "" : "s"} on ${sheet?.name || "takeoff sheets"}; ${openComments.length} open for review.`
+      : `No markup comments recorded for ${sheet?.name || "the selected sheet"}.`,
+    safetyBoundary: "Markup visibility is review metadata only. Proposal and field visibility do not send, publish, approve, or expose office-only estimate data automatically.",
   };
 }
 

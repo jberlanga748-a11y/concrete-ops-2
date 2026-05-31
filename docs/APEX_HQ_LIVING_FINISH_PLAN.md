@@ -46,14 +46,15 @@ Current status:
 - Phase 5 Advanced Takeoff Power first checkpoint is implemented, validated, pushed, and frozen: tool sets, measurement legends, CSV import/export, revision comparisons, markup comments, and takeoff package export are available without schema, provider writes, automatic plan detection, customer sends, or field data exposure.
 - Phase 6/7 Plan Viewer + Calibration first checkpoint is implemented, validated, pushed, and frozen: selected sheet workspace, safe preview URL support, image/PDF/embedded preview handling, sheet thumbnails, page metadata, visual measurement overlays, sheet-level calibration, and a review-first apply-scale helper now exist inside the current estimate backup structure.
 - Phase 8 Manual Drawing Tools first checkpoint is implemented, validated, pushed, and frozen: owner/admin users can draw area, length, count, and volume draft measurements over the selected plan workspace with undo/clear/finish controls, while finished rows remain needs-review and office-only by default.
-- Phase 9 Snapping System first checkpoint is implemented locally: selected-sheet drawing can snap to endpoints, segment projections, segment midpoints, intersections, and 45/90-degree angle increments with configurable tolerance and visible snap status.
+- Phase 9 Snapping System first checkpoint is implemented, validated, pushed, and frozen: selected-sheet drawing can snap to endpoints, segment projections, segment midpoints, intersections, and 45/90-degree angle increments with configurable tolerance and visible snap status.
+- Phase 10 Markups + Review Layer first checkpoint is implemented locally: owner/admin users can switch the plan workspace into markup mode, pin notes/RFIs/scope/risk markers on the selected sheet, and review open/resolved plus office/proposal/field visibility counts.
 - Estimate Studio, Proposals, Jobs, Uploads, AI Office, and field workflows must be extended, not rebuilt.
 - AI must stay review-first and must not auto-measure as final truth, approve pricing, submit bids, send proposals, or mutate risky customer-facing records.
 - Field users remain blocked from Estimate Studio, Takeoff Studio, pricing, margin, profit, payroll, billing, office notes, and AI Office controls.
 
 Current next action:
 
-- Validate and freeze Phase 9, then continue Phase 10 markup/review layer without rebuilding the Estimate Studio or the completed Phase 1-9 takeoff foundation.
+- Validate and freeze Phase 10, then continue Phase 11 AI plan assist without rebuilding the Estimate Studio or the completed Phase 1-10 takeoff foundation.
 
 ## Production Patch: Estimate Proposal Type + Print Preview
 

@@ -13,6 +13,7 @@ import {
   buildTakeoffStudioGcPacketProofSummary,
   buildTakeoffStudioMeasurementLegend,
   buildTakeoffStudioPackageExport,
+  buildTakeoffStudioPlanReviewLayer,
   buildTakeoffStudioProposalProofRows,
   buildTakeoffStudioProofSnapshot,
   buildTakeoffStudioRevisionComparison,
@@ -24,6 +25,7 @@ import {
   createEmptyTakeoffStudioMarkupComment,
   createEmptyTakeoffStudioSheet,
   createTakeoffStudioMeasurementFromDrawing,
+  createTakeoffStudioMarkupFromPoint,
   deriveTakeoffStudioCalibrationState,
   deriveTakeoffStudioDrawingState,
   deriveTakeoffStudioReadiness,
@@ -260,6 +262,37 @@ test("snaps draft points to existing geometry and angle increments", () => {
   assert.notDeepEqual(angle.point, { x: 80, y: 30 });
   assert.match(snapTargets.safetyBoundary, /does not auto-measure final quantities/i);
   assert.doesNotMatch(JSON.stringify(snapTargets), /unitPrice|margin|profit|payroll|billing|send proposal|bid submission/i);
+});
+
+test("builds pinned markup review layer with visibility boundaries", () => {
+  const selectedSheet = normalizeTakeoffStudio({ sheets: [{ id: "s1", name: "C2.1" }] }).sheets[0];
+  const pinned = createTakeoffStudioMarkupFromPoint({
+    point: { x: 25, y: 40 },
+    selectedSheet,
+    type: "rfi",
+    text: "Confirm curb transition",
+    visibility: "proposal",
+    index: 0,
+  });
+  const reviewLayer = buildTakeoffStudioPlanReviewLayer({
+    selectedSheetId: "s1",
+    sheets: [selectedSheet],
+    markupComments: [
+      pinned,
+      { id: "office-1", sheetId: "s1", type: "risk", text: "Office-only cost risk", visibility: "office", status: "resolved" },
+      { id: "field-1", sheetId: "s2", type: "note", text: "Other sheet field note", visibility: "field" },
+    ],
+  }, selectedSheet);
+
+  assert.equal(pinned.points[0].x, 25);
+  assert.equal(pinned.visibility, "proposal");
+  assert.equal(reviewLayer.comments.length, 2);
+  assert.equal(reviewLayer.pinnedComments.length, 1);
+  assert.equal(reviewLayer.openComments.length, 1);
+  assert.equal(reviewLayer.visibilityCounts.office, 1);
+  assert.equal(reviewLayer.visibilityCounts.proposal, 1);
+  assert.match(reviewLayer.safetyBoundary, /do not send/i);
+  assert.doesNotMatch(JSON.stringify(reviewLayer), /unitPrice|margin|profit|payroll|billing|send proposal|bid submission/i);
 });
 
 test("normalizes reviewed takeoff items with safe defaults", () => {

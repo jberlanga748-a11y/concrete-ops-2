@@ -11,7 +11,7 @@ import { calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEst
 import { addEstimateLineItemStarter, applyEstimateTemplateStarter, buildEstimateLineItemsFromRoughNotes, getEstimateLineItemStartersForTrade, getEstimateStarterTradeSummary, getEstimateTemplateStartersForTrade } from "./estimate-template-utils";
 import { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
 import { buildFenceTakeoffBackupRows, buildFenceTakeoffDraftLineItems, buildFenceTakeoffFieldHandoff, buildFenceTakeoffProofPhotoChecklist, buildFenceTakeoffProposalSummary, deriveFenceTakeoffReadiness, mergeFenceTakeoffIntoDraft, normalizeFenceTakeoff, summarizeFenceTakeoffByAssembly } from "./fence-takeoff-utils";
-import { applyTakeoffStudioAssistantSuggestion, applyTakeoffStudioSheetCalibrationToItems, buildTakeoffStudioAssistantQueue, buildTakeoffStudioBackupRows, buildTakeoffStudioCsvExport, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioFieldHandoff, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioMeasurementLegend, buildTakeoffStudioPackageExport, buildTakeoffStudioProposalProofRows, buildTakeoffStudioProofSnapshot, buildTakeoffStudioRevisionComparison, buildTakeoffStudioRevisionRegister, buildTakeoffStudioSheetWorkspace, buildTakeoffStudioSnapTargets, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioMarkupComment, createEmptyTakeoffStudioSheet, createTakeoffStudioMeasurementFromDrawing, deriveTakeoffStudioCalibrationState, deriveTakeoffStudioDrawingState, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, getTakeoffStudioToolSetOptions, mergeTakeoffStudioAssistantSuggestionState, mergeTakeoffStudioCsvImport, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText, snapTakeoffStudioDraftPoint } from "./takeoff-studio-utils";
+import { applyTakeoffStudioAssistantSuggestion, applyTakeoffStudioSheetCalibrationToItems, buildTakeoffStudioAssistantQueue, buildTakeoffStudioBackupRows, buildTakeoffStudioCsvExport, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioFieldHandoff, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioMeasurementLegend, buildTakeoffStudioPackageExport, buildTakeoffStudioPlanReviewLayer, buildTakeoffStudioProposalProofRows, buildTakeoffStudioProofSnapshot, buildTakeoffStudioRevisionComparison, buildTakeoffStudioRevisionRegister, buildTakeoffStudioSheetWorkspace, buildTakeoffStudioSnapTargets, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioMarkupComment, createEmptyTakeoffStudioSheet, createTakeoffStudioMarkupFromPoint, createTakeoffStudioMeasurementFromDrawing, deriveTakeoffStudioCalibrationState, deriveTakeoffStudioDrawingState, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, getTakeoffStudioToolSetOptions, mergeTakeoffStudioAssistantSuggestionState, mergeTakeoffStudioCsvImport, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText, snapTakeoffStudioDraftPoint } from "./takeoff-studio-utils";
 import { CUSTOM_ESTIMATE_PACKET_THEME_ID, ESTIMATE_PACKET_COPY_TEMPLATE_OPTIONS, ESTIMATE_PACKET_PRESETS, ESTIMATE_PACKET_SECTION_DEFS, ESTIMATE_PACKET_THEME_OPTIONS, INTERNAL_REVIEW_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
 
 export { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
@@ -943,6 +943,9 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
   const [drawingLabel, setDrawingLabel] = useState("");
   const [draftDrawingPoints, setDraftDrawingPoints] = useState([]);
   const [lastSnapLabel, setLastSnapLabel] = useState("");
+  const [interactionMode, setInteractionMode] = useState("draw");
+  const [markupType, setMarkupType] = useState("note");
+  const [markupText, setMarkupText] = useState("");
   const backup = deriveEstimateBackup(draft);
   const takeoff = normalizeTakeoffStudio(backup.takeoffStudio);
   const readiness = deriveTakeoffStudioReadiness(takeoff);
@@ -969,6 +972,7 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
   const selectedSheet = sheetWorkspace.selectedSheet || sheets[0];
   const drawingState = deriveTakeoffStudioDrawingState({ measurementType: drawingTool, points: draftDrawingPoints, selectedSheet });
   const snapTargets = buildTakeoffStudioSnapTargets(editingTakeoff, selectedSheet);
+  const planReviewLayer = buildTakeoffStudioPlanReviewLayer(editingTakeoff, selectedSheet);
 
   function commitTakeoff(nextTakeoff) {
     const normalized = normalizeTakeoffStudio({
@@ -1109,6 +1113,25 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
       snapTargets,
       snapSettings: takeoff.snapSettings,
     });
+    if (interactionMode === "markup") {
+      const nextComment = createTakeoffStudioMarkupFromPoint({
+        point: snapped.point,
+        selectedSheet,
+        type: markupType,
+        text: markupText,
+        index: markupComments.length,
+      });
+      commitTakeoff({
+        ...takeoff,
+        selectedSheetId: selectedSheet.id,
+        sheets,
+        items,
+        markupComments: [...markupComments, nextComment],
+      });
+      setLastSnapLabel(snapped.snapped ? `Pinned markup snapped to ${snapped.label || snapped.type}` : "Pinned markup");
+      setMarkupText("");
+      return;
+    }
     setLastSnapLabel(snapped.snapped ? `Snapped to ${snapped.label || snapped.type}` : "Free point");
     setDraftDrawingPoints((current) => [...current, snapped.point]);
   }
@@ -1278,6 +1301,19 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
                   {TAKEOFF_MEASUREMENT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </SelectField>
               </div>
+              <div className="mt-2 grid gap-2 md:grid-cols-[120px_120px_minmax(0,1fr)]">
+                <SelectField label="Mode" value={interactionMode} onChange={(event) => setInteractionMode(event.target.value)} disabled={disabled}>
+                  <option value="draw">Draw</option>
+                  <option value="markup">Markup</option>
+                </SelectField>
+                <SelectField label="Markup" value={markupType} onChange={(event) => setMarkupType(event.target.value)} disabled={disabled || interactionMode !== "markup"}>
+                  <option value="note">Note</option>
+                  <option value="rfi">RFI</option>
+                  <option value="scope">Scope</option>
+                  <option value="risk">Risk</option>
+                </SelectField>
+                <InputField label="Markup text" value={markupText} onChange={(event) => setMarkupText(event.target.value)} disabled={disabled || interactionMode !== "markup"} placeholder="Click plan to pin markup" />
+              </div>
               <div className="mt-2 grid gap-2 md:grid-cols-[120px_120px_120px_minmax(0,1fr)]">
                 <SelectField label="Snapping" value={takeoff.snapSettings?.enabled ? "true" : "false"} onChange={(event) => updateSnapSetting("enabled", event.target.value === "true")} disabled={disabled}>
                   <option value="true">On</option>
@@ -1327,6 +1363,16 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
                 {takeoff.snapSettings?.enabled ? snapTargets.targets.slice(0, 80).map((target, targetIndex) => (
                   <circle key={`snap-target-${target.type}-${targetIndex}`} cx={target.point.x} cy={target.point.y} r="5" fill="#0ea5e9" opacity="0.75" />
                 )) : null}
+                {planReviewLayer.pinnedComments.map((comment, commentIndex) => {
+                  const point = comment.points[0];
+                  const color = comment.visibility === "field" ? "#06b6d4" : comment.visibility === "proposal" ? "#10b981" : "#d946ef";
+                  return (
+                    <g key={`markup-pin-${comment.id}-${commentIndex}`}>
+                      <rect x={point.x - 10} y={point.y - 10} width="20" height="20" rx="4" fill={color} stroke="#f8fafc" strokeWidth="3" />
+                      <text x={point.x + 16} y={point.y - 12} fill="#111827" fontSize="22" fontWeight="800">{comment.type}</text>
+                    </g>
+                  );
+                })}
                 {sheetWorkspace.overlays.map((overlay, overlayIndex) => {
                   const pointList = overlay.points.map((point) => `${point.x},${point.y}`).join(" ");
                   const color = overlay.reviewStatus === "reviewed" ? "#059669" : "#f59e0b";
@@ -1355,6 +1401,21 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
             <StatCard title="Sheets" value={`${sheetWorkspace.metrics.sheetCount}`} />
             <StatCard title="Sources" value={`${sheetWorkspace.metrics.sourceSheetCount}`} />
             <StatCard title="Active sheets" value={`${sheetWorkspace.metrics.activeSheetCount}`} />
+            <div className="rounded-2xl border border-fuchsia-100 bg-fuchsia-50/70 p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-fuchsia-800">Plan review layer</p>
+                  <p className="mt-1 text-sm font-bold leading-6 text-slate-700">{planReviewLayer.summary}</p>
+                </div>
+                <Badge tone={planReviewLayer.ready ? "green" : "amber"}>{planReviewLayer.openComments.length} open</Badge>
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs font-black text-slate-700">
+                <span className="rounded-lg bg-white px-2 py-1">Office {planReviewLayer.visibilityCounts.office || 0}</span>
+                <span className="rounded-lg bg-white px-2 py-1">Proposal {planReviewLayer.visibilityCounts.proposal || 0}</span>
+                <span className="rounded-lg bg-white px-2 py-1">Field {planReviewLayer.visibilityCounts.field || 0}</span>
+              </div>
+              <p className="mt-2 text-xs font-bold leading-5 text-slate-500">{planReviewLayer.safetyBoundary}</p>
+            </div>
             <div className="rounded-2xl border border-sky-100 bg-sky-50/70 p-3">
               <p className="text-xs font-black uppercase tracking-[0.16em] text-sky-800">Calibration review</p>
               <p className="mt-1 text-sm font-bold leading-6 text-slate-700">{calibrationState.summary}</p>
