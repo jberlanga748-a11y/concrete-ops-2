@@ -1,7 +1,7 @@
 # Apex HQ Takeoff Studio Phase Plan
 
 Date: 2026-05-31
-Status: Phase 2 proof/packet checkpoint in progress
+Status: Phase 3 review-first assistant checkpoint in progress
 
 ## Goal
 
@@ -247,6 +247,14 @@ Phase 2 first checkpoint:
 6. Add GC/internal packet summary helpers for plan-sheet quantity assumptions. Complete.
 7. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint.
 
+Phase 3 first checkpoint:
+
+1. Add a review-first Takeoff Assistant queue over current takeoff sheets/items. Complete.
+2. Flag missing calibration, missing depth, unreviewed quantities, proposal-proof decisions, direct-area assembly review, and packet/line-prep opportunities. Complete.
+3. Allow safe local apply/dismiss for review-state and proof-state suggestions while keeping global line/GC actions review-first. Complete.
+4. Keep assistant output deterministic/local for this checkpoint; no external AI calls, sends, pricing approvals, bid submissions, provider writes, or customer actions. Complete.
+5. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint.
+
 ## Phase 1 Checkpoint: Manual Editor
 
 Completed on 2026-05-31:
@@ -292,3 +300,19 @@ Remaining Phase 2 work before freeze:
 
 - Validate the proof/packet checkpoint with full estimates, roles, build, diff, and browser QA.
 - Decide whether assembly templates need trade/package-specific defaults before Phase 2 freeze.
+
+## Phase 3 Checkpoint: Review-First Takeoff Assistant Queue
+
+Completed on 2026-05-31:
+
+- Takeoff Studio now has a local review-first assistant queue that inspects existing sheet/item data.
+- Suggestions can flag plan organization, scale calibration, missing volume depth, unreviewed quantities, proposal-proof decisions, direct-area assembly review, estimate-line prep, and GC proof summary prep.
+- Suggestions have explicit review/apply/dismiss state stored in the existing takeoff backup structure; no schema change was introduced.
+- Safe suggestions can apply local review-state or customer-safe proof-state changes only after the estimator clicks them.
+- Assistant line/GC prep still routes through the existing reviewed quantity and GC proof-summary handlers.
+- This checkpoint does not use external AI, auto-measure plans, approve pricing, submit bids, send proposals, write providers, or expose field data.
+
+Remaining Phase 3 work:
+
+- Add optional provider-backed AI drafting later only behind existing AI/provider readiness and role/package gates.
+- Add richer plan-note/RFI/assumption drafting once there is a safe source for plan text or uploaded plan metadata.

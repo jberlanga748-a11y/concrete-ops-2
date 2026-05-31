@@ -11,7 +11,7 @@ import { calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEst
 import { addEstimateLineItemStarter, applyEstimateTemplateStarter, buildEstimateLineItemsFromRoughNotes, getEstimateLineItemStartersForTrade, getEstimateStarterTradeSummary, getEstimateTemplateStartersForTrade } from "./estimate-template-utils";
 import { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
 import { buildFenceTakeoffBackupRows, buildFenceTakeoffDraftLineItems, buildFenceTakeoffFieldHandoff, buildFenceTakeoffProofPhotoChecklist, buildFenceTakeoffProposalSummary, deriveFenceTakeoffReadiness, mergeFenceTakeoffIntoDraft, normalizeFenceTakeoff, summarizeFenceTakeoffByAssembly } from "./fence-takeoff-utils";
-import { buildTakeoffStudioBackupRows, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioProposalProofRows, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioSheet, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText } from "./takeoff-studio-utils";
+import { applyTakeoffStudioAssistantSuggestion, buildTakeoffStudioAssistantQueue, buildTakeoffStudioBackupRows, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioProposalProofRows, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioSheet, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, mergeTakeoffStudioAssistantSuggestionState, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText } from "./takeoff-studio-utils";
 import { CUSTOM_ESTIMATE_PACKET_THEME_ID, ESTIMATE_PACKET_COPY_TEMPLATE_OPTIONS, ESTIMATE_PACKET_PRESETS, ESTIMATE_PACKET_SECTION_DEFS, ESTIMATE_PACKET_THEME_OPTIONS, INTERNAL_REVIEW_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
 
 export { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
@@ -948,6 +948,7 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
   const reviewedLineItems = buildTakeoffStudioEstimateLineItems(takeoff);
   const proposalProofRows = buildTakeoffStudioProposalProofRows(takeoff);
   const gcPacketProof = buildTakeoffStudioGcPacketProofSummary(takeoff);
+  const assistantQueue = buildTakeoffStudioAssistantQueue(takeoff);
 
   function commitTakeoff(nextTakeoff) {
     const normalized = normalizeTakeoffStudio({
@@ -1062,6 +1063,51 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
     });
   }
 
+  function applyAssistantSuggestion(suggestion) {
+    const actionType = suggestion?.apply?.type;
+    if (actionType === "mark_reviewed" || actionType === "mark_customer_safe") {
+      commitTakeoff(applyTakeoffStudioAssistantSuggestion(takeoff, suggestion));
+      return;
+    }
+    if (actionType === "apply_estimate_lines") {
+      setDraft((current) => {
+        const currentBackup = deriveEstimateBackup(current);
+        const nonStudioRows = (currentBackup.takeoffRows || []).filter((row) => !String(row?.source || "").includes("Apex Takeoff Studio"));
+        const takeoffWithState = mergeTakeoffStudioAssistantSuggestionState(takeoff, suggestion.id, "applied");
+        const withDraftItems = mergeTakeoffStudioIntoDraft(current, takeoff);
+        return mergeEstimateBackup(withDraftItems, {
+          ...currentBackup,
+          takeoffStudio: takeoffWithState,
+          takeoffRows: [...nonStudioRows, ...reviewedRows],
+        });
+      });
+      return;
+    }
+    if (actionType === "prepare_gc_summary") {
+      setDraft((current) => {
+        const currentPacket = deriveEstimateGcPacketLite(current);
+        const takeoffWithState = mergeTakeoffStudioAssistantSuggestionState(takeoff, suggestion.id, "applied");
+        const withPacket = mergeEstimateGcPacketLite(current, {
+          ...currentPacket,
+          proposalSummary: appendUniqueTextBlock(currentPacket.proposalSummary, gcPacketProof.proposalSummary),
+          qualifications: appendUniqueTextBlock(currentPacket.qualifications, gcPacketProof.qualifications),
+          addendaRfiReferences: appendUniqueTextBlock(currentPacket.addendaRfiReferences, gcPacketProof.addendaRfiReferences),
+          internalPacketNotes: appendUniqueTextBlock(currentPacket.internalPacketNotes, gcPacketProof.internalPacketNotes),
+        });
+        return mergeEstimateBackup(withPacket, {
+          ...deriveEstimateBackup(withPacket),
+          takeoffStudio: takeoffWithState,
+        });
+      });
+      return;
+    }
+    commitTakeoff(mergeTakeoffStudioAssistantSuggestionState(takeoff, suggestion.id, "applied"));
+  }
+
+  function dismissAssistantSuggestion(suggestion) {
+    commitTakeoff(mergeTakeoffStudioAssistantSuggestionState(takeoff, suggestion.id, "dismissed"));
+  }
+
   return (
     <div className="rounded-3xl border border-blue-100 bg-blue-50/50 p-4 shadow-sm shadow-blue-100/50">
       <SectionHeader
@@ -1076,6 +1122,33 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
       </div>
       <div className="mt-3 rounded-2xl border border-blue-100 bg-white/85 px-3 py-2 text-sm font-bold leading-6 text-blue-900">
         {readiness.summary}
+      </div>
+      <div className="mt-3 rounded-2xl border border-violet-100 bg-white/90 p-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-violet-700">Takeoff Assistant</p>
+            <p className="mt-1 text-sm font-bold leading-6 text-slate-600">Review-first suggestions only. No pricing, approval, send, bid submission, provider write, or customer action happens automatically.</p>
+          </div>
+          <Badge tone={assistantQueue.length ? "amber" : "green"}>{assistantQueue.length} suggestion{assistantQueue.length === 1 ? "" : "s"}</Badge>
+        </div>
+        <div className="mt-3 grid gap-2">
+          {assistantQueue.length ? assistantQueue.slice(0, 5).map((suggestion) => (
+            <div key={suggestion.id} className="rounded-xl border border-violet-100 bg-violet-50/60 p-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-violet-700">{suggestion.category.replace(/_/g, " ")}</p>
+                  <p className="mt-1 text-sm font-black text-slate-950">{suggestion.title}</p>
+                  <p className="mt-1 text-sm font-bold leading-6 text-slate-600">{suggestion.detail}</p>
+                  <p className="mt-2 text-xs font-bold text-slate-500">{suggestion.safetyBoundary}</p>
+                </div>
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  {suggestion.apply?.type ? <Button type="button" size="sm" onClick={() => applyAssistantSuggestion(suggestion)} disabled={disabled}>{suggestion.actionLabel}</Button> : null}
+                  <Button type="button" variant="secondary" size="sm" onClick={() => dismissAssistantSuggestion(suggestion)} disabled={disabled}>Dismiss</Button>
+                </div>
+              </div>
+            </div>
+          )) : <p className="rounded-xl border border-emerald-100 bg-emerald-50/70 px-3 py-2 text-sm font-bold text-emerald-800">No active assistant suggestions. Reviewed quantities and proof choices look ready for estimator review.</p>}
+        </div>
       </div>
 
       <div className="mt-4 grid gap-4">

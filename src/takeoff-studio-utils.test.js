@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  applyTakeoffStudioAssistantSuggestion,
+  buildTakeoffStudioAssistantQueue,
+  buildTakeoffStudioAssistantSuggestions,
   buildTakeoffStudioEstimateLineItems,
   buildTakeoffStudioBackupRows,
   buildTakeoffStudioGcPacketProofSummary,
@@ -11,6 +14,7 @@ import {
   createEmptyTakeoffStudioSheet,
   deriveTakeoffStudioReadiness,
   getTakeoffStudioAssemblyOptions,
+  mergeTakeoffStudioAssistantSuggestionState,
   mergeTakeoffStudioIntoDraft,
   formatTakeoffPointsText,
   normalizeTakeoffScale,
@@ -284,6 +288,58 @@ test("builds GC packet proof summary without pricing or office-only customer cla
   assert.match(summary.addendaRfiReferences, /C2\.1 Site Plan Rev A/);
   assert.match(summary.internalPacketNotes, /kept office-only/i);
   assert.doesNotMatch(JSON.stringify(summary), /unitPrice|margin|profit|payroll|send/i);
+});
+
+test("builds review-first takeoff assistant suggestions without risky actions", () => {
+  const suggestions = buildTakeoffStudioAssistantSuggestions({
+    sheets: [{ sourceFileName: "plan-set.pdf" }],
+    items: [
+      {
+        id: "area-1",
+        label: "Driveway slab",
+        measurementType: "area",
+        quantity: 640,
+        unit: "SF",
+        reviewStatus: "needs_review",
+      },
+      {
+        id: "volume-1",
+        label: "Thickened edge",
+        measurementType: "volume",
+        quantity: 3,
+        unit: "CY",
+        reviewStatus: "reviewed",
+      },
+    ],
+  });
+
+  assert.ok(suggestions.some((suggestion) => suggestion.category === "plan_organization"));
+  assert.ok(suggestions.some((suggestion) => suggestion.category === "calibration"));
+  assert.ok(suggestions.some((suggestion) => suggestion.category === "quantity_check"));
+  assert.ok(suggestions.some((suggestion) => suggestion.apply?.type === "mark_reviewed"));
+  assert.ok(suggestions.every((suggestion) => /Review-first only/i.test(suggestion.safetyBoundary)));
+  assert.doesNotMatch(JSON.stringify(suggestions), /unitPrice|approve pricing|margin|profit|payroll/i);
+});
+
+test("takeoff assistant queue supports apply and dismiss review states", () => {
+  const takeoff = {
+    items: [{
+      id: "slab-apply",
+      label: "Slab to review",
+      measurementType: "area",
+      quantity: 300,
+      unit: "SF",
+      reviewStatus: "needs_review",
+    }],
+  };
+  const suggestion = buildTakeoffStudioAssistantQueue(takeoff).find((entry) => entry.apply?.type === "mark_reviewed");
+  const applied = applyTakeoffStudioAssistantSuggestion(takeoff, suggestion);
+  const dismissed = mergeTakeoffStudioAssistantSuggestionState(applied, "proposal-proof-slab-apply", "dismissed");
+
+  assert.equal(applied.items[0].reviewStatus, "reviewed");
+  assert.equal(applied.assistantSuggestions.some((entry) => entry.id === suggestion.id && entry.status === "applied"), true);
+  assert.equal(buildTakeoffStudioAssistantQueue(applied).some((entry) => entry.id === suggestion.id), false);
+  assert.equal(buildTakeoffStudioAssistantQueue(dismissed).some((entry) => entry.id === "proposal-proof-slab-apply"), false);
 });
 
 test("can include unreviewed takeoff line items only when explicitly requested", () => {

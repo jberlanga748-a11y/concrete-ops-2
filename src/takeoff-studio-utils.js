@@ -2,6 +2,9 @@ const DEFAULT_SCALE_UNIT = "FT";
 const DEFAULT_REVIEW_STATUS = "needs_review";
 const GENERATED_LINE_ITEM_ID_PREFIX = "takeoff-studio-line";
 const GENERATED_LINE_ITEM_DESCRIPTION_PREFIX = "Apex Takeoff -";
+const ASSISTANT_REVIEW_STATUS = "needs_review";
+const ASSISTANT_APPLIED_STATUS = "applied";
+const ASSISTANT_DISMISSED_STATUS = "dismissed";
 
 export const TAKEOFF_STUDIO_ASSEMBLY_OPTIONS = [
   {
@@ -89,6 +92,20 @@ function estimateLine(description = "", quantity = 0, unit = "ea", id = "") {
     quantity: roundQuantity(quantity),
     unit: textValue(unit) || "ea",
     unitPrice: "",
+  };
+}
+
+function normalizeAssistantSuggestion(suggestion = {}, index = 0) {
+  return {
+    id: textValue(suggestion?.id) || `takeoff-assistant-${index + 1}`,
+    category: textValue(suggestion?.category) || "review",
+    title: textValue(suggestion?.title) || "Review takeoff suggestion",
+    detail: textValue(suggestion?.detail),
+    actionLabel: textValue(suggestion?.actionLabel) || "Review",
+    status: textValue(suggestion?.status) || ASSISTANT_REVIEW_STATUS,
+    targetItemId: textValue(suggestion?.targetItemId),
+    apply: suggestion?.apply && typeof suggestion.apply === "object" ? { ...suggestion.apply } : {},
+    safetyBoundary: textValue(suggestion?.safetyBoundary) || "Review-first only. No pricing, approval, send, bid submission, provider write, or customer action happens automatically.",
   };
 }
 
@@ -292,6 +309,9 @@ export function normalizeTakeoffStudio(takeoff = {}) {
     })),
     items,
     notes: textValue(takeoff?.notes),
+    assistantSuggestions: (Array.isArray(takeoff?.assistantSuggestions) ? takeoff.assistantSuggestions : [])
+      .map((suggestion, index) => normalizeAssistantSuggestion(suggestion, index))
+      .filter((suggestion) => suggestion.id),
     updatedAt: textValue(takeoff?.updatedAt),
   };
 }
@@ -364,6 +384,163 @@ export function buildTakeoffStudioGcPacketProofSummary(takeoff = {}) {
       ].filter(Boolean).join(" ")
       : "",
   };
+}
+
+export function buildTakeoffStudioAssistantSuggestions(takeoff = {}) {
+  const normalized = normalizeTakeoffStudio(takeoff);
+  const suggestions = [];
+
+  normalized.sheets.forEach((sheet) => {
+    if (sheet.sourceFileName && (!sheet.name || /^Sheet \d+$/i.test(sheet.name))) {
+      suggestions.push({
+        id: `sheet-name-${sheet.id}`,
+        category: "plan_organization",
+        title: "Name plan sheet before takeoff review",
+        detail: `Source file ${sheet.sourceFileName} has no sheet name. Add a sheet name such as C2.1 or A1.0 before proposal proof.`,
+        actionLabel: "Review sheet name",
+      });
+    }
+  });
+
+  normalized.items.forEach((item) => {
+    if (["area", "length", "volume"].includes(item.measurementType) && !item.scale.calibrated) {
+      suggestions.push({
+        id: `calibrate-${item.id}`,
+        category: "calibration",
+        title: `Calibrate scale for ${item.label}`,
+        detail: `${item.label} is a ${readableMeasurementType(item.measurementType)} measurement without a reviewed scale. Calibrate before applying quantities.`,
+        actionLabel: "Calibrate scale",
+        targetItemId: item.id,
+      });
+    }
+
+    if (item.measurementType === "volume" && !item.depth.feet) {
+      suggestions.push({
+        id: `depth-${item.id}`,
+        category: "quantity_check",
+        title: `Add reviewed depth for ${item.label}`,
+        detail: `${item.label} is a volume quantity without depth. Add slab/curb depth before using CY in estimate backup.`,
+        actionLabel: "Review depth",
+        targetItemId: item.id,
+      });
+    }
+
+    if (item.quantity > 0 && item.reviewStatus !== "reviewed") {
+      suggestions.push({
+        id: `review-${item.id}`,
+        category: "review_state",
+        title: `Review ${item.label} before applying`,
+        detail: `${item.label} has a quantity of ${item.quantity} ${item.unit}, but it is still marked needs review.`,
+        actionLabel: "Mark reviewed",
+        targetItemId: item.id,
+        apply: { type: "mark_reviewed" },
+      });
+    }
+
+    if (item.reviewStatus === "reviewed" && item.quantity > 0 && !item.customerVisible) {
+      suggestions.push({
+        id: `proposal-proof-${item.id}`,
+        category: "proposal_proof",
+        title: `Decide proposal proof for ${item.label}`,
+        detail: `${item.label} is reviewed but office-only. Mark customer safe only if the quantity can appear in proposal proof without private assumptions.`,
+        actionLabel: "Mark customer safe",
+        targetItemId: item.id,
+        apply: { type: "mark_customer_safe" },
+      });
+    }
+
+    if (item.measurementType === "area" && item.reviewStatus === "reviewed" && item.quantity > 0 && item.assemblyId === "direct") {
+      suggestions.push({
+        id: `assembly-${item.id}`,
+        category: "assembly",
+        title: `Review assembly for ${item.label}`,
+        detail: `${item.label} is a reviewed area quantity using a direct row. If this is concrete flatwork or base prep, choose an assembly before applying estimate lines.`,
+        actionLabel: "Review assembly",
+        targetItemId: item.id,
+      });
+    }
+  });
+
+  const reviewedItems = normalized.items.filter((item) => item.reviewStatus === "reviewed" && item.quantity > 0);
+  const proofRows = buildTakeoffStudioProposalProofRows(normalized);
+  if (reviewedItems.length > 0) {
+    suggestions.push({
+      id: "prepare-estimate-lines",
+      category: "estimate_integration",
+      title: "Prepare reviewed takeoff quantities for estimate lines",
+      detail: `${reviewedItems.length} reviewed item${reviewedItems.length === 1 ? "" : "s"} can be converted into blank-priced draft estimate lines for estimator review.`,
+      actionLabel: "Apply reviewed quantities",
+      apply: { type: "apply_estimate_lines" },
+    });
+  }
+  if (proofRows.length > 0) {
+    suggestions.push({
+      id: "prepare-gc-proof",
+      category: "packet_review",
+      title: "Prepare takeoff proof summary for GC packet",
+      detail: `${proofRows.length} customer-safe proof item${proofRows.length === 1 ? "" : "s"} can be summarized in GC packet review notes.`,
+      actionLabel: "Prepare GC summary",
+      apply: { type: "prepare_gc_summary" },
+    });
+  }
+
+  if (!normalized.items.length) {
+    suggestions.push({
+      id: "start-takeoff",
+      category: "setup",
+      title: "Start takeoff measurements",
+      detail: "Add plan sheets and at least one area, length, count, or volume measurement before the assistant can prepare review actions.",
+      actionLabel: "Add measurement",
+    });
+  }
+
+  return suggestions.map((suggestion, index) => normalizeAssistantSuggestion(suggestion, index));
+}
+
+export function buildTakeoffStudioAssistantQueue(takeoff = {}) {
+  const normalized = normalizeTakeoffStudio(takeoff);
+  const stateById = new Map(normalized.assistantSuggestions.map((entry) => [entry.id, entry.status]));
+  return buildTakeoffStudioAssistantSuggestions(normalized)
+    .map((suggestion) => normalizeAssistantSuggestion({
+      ...suggestion,
+      status: stateById.get(suggestion.id) || suggestion.status,
+    }))
+    .filter((suggestion) => suggestion.status === ASSISTANT_REVIEW_STATUS);
+}
+
+export function mergeTakeoffStudioAssistantSuggestionState(takeoff = {}, suggestionId = "", status = ASSISTANT_APPLIED_STATUS) {
+  const normalized = normalizeTakeoffStudio(takeoff);
+  const nextStatus = [ASSISTANT_APPLIED_STATUS, ASSISTANT_DISMISSED_STATUS, ASSISTANT_REVIEW_STATUS].includes(textValue(status))
+    ? textValue(status)
+    : ASSISTANT_REVIEW_STATUS;
+  const existing = Array.isArray(normalized.assistantSuggestions) ? normalized.assistantSuggestions : [];
+  return {
+    ...normalized,
+    assistantSuggestions: [
+      ...existing.filter((entry) => entry.id !== textValue(suggestionId)),
+      normalizeAssistantSuggestion({ id: suggestionId, status: nextStatus }),
+    ].filter((entry) => entry.id),
+  };
+}
+
+export function applyTakeoffStudioAssistantSuggestion(takeoff = {}, suggestion = {}) {
+  const normalized = normalizeTakeoffStudio(takeoff);
+  const actionType = textValue(suggestion?.apply?.type);
+  const targetItemId = textValue(suggestion?.targetItemId);
+
+  if (!targetItemId || !["mark_reviewed", "mark_customer_safe"].includes(actionType)) {
+    return mergeTakeoffStudioAssistantSuggestionState(normalized, suggestion?.id, ASSISTANT_APPLIED_STATUS);
+  }
+
+  return mergeTakeoffStudioAssistantSuggestionState({
+    ...normalized,
+    items: normalized.items.map((item) => {
+      if (item.id !== targetItemId) return item;
+      if (actionType === "mark_reviewed") return normalizeTakeoffStudioItem({ ...item, reviewStatus: "reviewed" });
+      if (actionType === "mark_customer_safe") return normalizeTakeoffStudioItem({ ...item, customerVisible: true });
+      return item;
+    }),
+  }, suggestion?.id, ASSISTANT_APPLIED_STATUS);
 }
 
 export function getTakeoffStudioAssemblyOptions() {
