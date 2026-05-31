@@ -598,6 +598,50 @@ export function applyTakeoffStudioSheetCalibrationToItems(takeoff = {}, sheetId 
   });
 }
 
+export function deriveTakeoffStudioDrawingState({ measurementType = "area", points = [], selectedSheet = null } = {}) {
+  const type = textValue(measurementType).toLowerCase() || "area";
+  const normalizedPoints = normalizePoints(points);
+  const minimumPoints = type === "count" ? 1 : type === "length" ? 2 : 3;
+  const canFinish = Boolean(selectedSheet?.id) && normalizedPoints.length >= minimumPoints;
+  const unit = defaultUnitForType(type);
+
+  return {
+    measurementType: type,
+    unit,
+    points: normalizedPoints,
+    minimumPoints,
+    canFinish,
+    summary: canFinish
+      ? `${normalizedPoints.length} point${normalizedPoints.length === 1 ? "" : "s"} ready to save as a ${readableMeasurementType(type)} measurement.`
+      : `Click ${Math.max(0, minimumPoints - normalizedPoints.length)} more point${Math.max(0, minimumPoints - normalizedPoints.length) === 1 ? "" : "s"} on a selected sheet to finish this ${readableMeasurementType(type)} measurement.`,
+    safetyBoundary: "Drawing tools create draft measurements only. Estimator review is required before estimate lines, proposal proof, field handoff, pricing, bids, or sends.",
+  };
+}
+
+export function createTakeoffStudioMeasurementFromDrawing({ measurementType = "area", label = "", points = [], selectedSheet = null, depth = {}, index = 0 } = {}) {
+  const type = textValue(measurementType).toLowerCase() || "area";
+  const sheet = selectedSheet || {};
+  return normalizeTakeoffStudioItem({
+    id: `takeoff-item-${index + 1}`,
+    label: textValue(label) || `Drawn ${readableMeasurementType(type)} ${index + 1}`,
+    sheetId: textValue(sheet.id),
+    sheetName: textValue(sheet.name),
+    revision: textValue(sheet.revision),
+    measurementType: type,
+    unit: defaultUnitForType(type),
+    points: normalizePoints(points),
+    scale: sheet.scale?.calibrated ? sheet.scale : {},
+    depth,
+    reviewStatus: DEFAULT_REVIEW_STATUS,
+    assemblyId: "direct",
+    customerVisible: false,
+    fieldVisible: false,
+    estimatorNote: sheet.scale?.calibrated
+      ? `Drawn on ${sheet.name}; sheet scale applied for estimator review.`
+      : `Drawn on ${sheet.name || "selected sheet"}; calibrate sheet scale before review.`,
+  }, index);
+}
+
 export function buildTakeoffStudioRevisionRegister(takeoff = {}) {
   const normalized = normalizeTakeoffStudio(takeoff);
   const sheetById = new Map(normalized.sheets.map((sheet) => [sheet.id, sheet]));

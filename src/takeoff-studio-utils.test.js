@@ -22,7 +22,9 @@ import {
   createEmptyTakeoffStudioItem,
   createEmptyTakeoffStudioMarkupComment,
   createEmptyTakeoffStudioSheet,
+  createTakeoffStudioMeasurementFromDrawing,
   deriveTakeoffStudioCalibrationState,
+  deriveTakeoffStudioDrawingState,
   deriveTakeoffStudioReadiness,
   getTakeoffStudioAssemblyOptions,
   getTakeoffStudioToolSetOptions,
@@ -176,6 +178,40 @@ test("builds a sheet workspace and applies reviewed sheet calibration to measure
   assert.equal(calibrated.items.find((item) => item.id === "area-1").reviewStatus, "needs_review");
   assert.equal(calibrated.items.find((item) => item.id === "count-1").quantity, 1);
   assert.doesNotMatch(JSON.stringify(workspace), /margin|profit|payroll|billing|send proposal|bid submission/i);
+});
+
+test("creates draft measurements from plan drawing tools without auto-finalizing", () => {
+  const selectedSheet = normalizeTakeoffStudio({
+    sheets: [{
+      id: "s1",
+      name: "C2.1 Site Plan",
+      revision: "Rev A",
+      scale: tenFeetScale,
+    }],
+  }).sheets[0];
+  const points = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }];
+
+  const drawingState = deriveTakeoffStudioDrawingState({ measurementType: "area", points, selectedSheet });
+  const draftItem = createTakeoffStudioMeasurementFromDrawing({
+    measurementType: "area",
+    label: "Drawn slab",
+    points,
+    selectedSheet,
+    index: 4,
+  });
+
+  assert.equal(drawingState.canFinish, true);
+  assert.equal(drawingState.unit, "SF");
+  assert.match(drawingState.safetyBoundary, /draft measurements only/i);
+  assert.equal(draftItem.id, "takeoff-item-5");
+  assert.equal(draftItem.label, "Drawn slab");
+  assert.equal(draftItem.sheetName, "C2.1 Site Plan");
+  assert.equal(draftItem.quantity, 100);
+  assert.equal(draftItem.reviewStatus, "needs_review");
+  assert.equal(draftItem.customerVisible, false);
+  assert.equal(draftItem.fieldVisible, false);
+  assert.match(draftItem.estimatorNote, /estimator review/i);
+  assert.doesNotMatch(JSON.stringify(draftItem), /unitPrice|margin|profit|payroll|billing|send proposal|bid submission/i);
 });
 
 test("normalizes reviewed takeoff items with safe defaults", () => {

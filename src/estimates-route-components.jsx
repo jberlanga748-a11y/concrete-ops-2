@@ -11,7 +11,7 @@ import { calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEst
 import { addEstimateLineItemStarter, applyEstimateTemplateStarter, buildEstimateLineItemsFromRoughNotes, getEstimateLineItemStartersForTrade, getEstimateStarterTradeSummary, getEstimateTemplateStartersForTrade } from "./estimate-template-utils";
 import { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
 import { buildFenceTakeoffBackupRows, buildFenceTakeoffDraftLineItems, buildFenceTakeoffFieldHandoff, buildFenceTakeoffProofPhotoChecklist, buildFenceTakeoffProposalSummary, deriveFenceTakeoffReadiness, mergeFenceTakeoffIntoDraft, normalizeFenceTakeoff, summarizeFenceTakeoffByAssembly } from "./fence-takeoff-utils";
-import { applyTakeoffStudioAssistantSuggestion, applyTakeoffStudioSheetCalibrationToItems, buildTakeoffStudioAssistantQueue, buildTakeoffStudioBackupRows, buildTakeoffStudioCsvExport, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioFieldHandoff, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioMeasurementLegend, buildTakeoffStudioPackageExport, buildTakeoffStudioProposalProofRows, buildTakeoffStudioProofSnapshot, buildTakeoffStudioRevisionComparison, buildTakeoffStudioRevisionRegister, buildTakeoffStudioSheetWorkspace, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioMarkupComment, createEmptyTakeoffStudioSheet, deriveTakeoffStudioCalibrationState, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, getTakeoffStudioToolSetOptions, mergeTakeoffStudioAssistantSuggestionState, mergeTakeoffStudioCsvImport, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText } from "./takeoff-studio-utils";
+import { applyTakeoffStudioAssistantSuggestion, applyTakeoffStudioSheetCalibrationToItems, buildTakeoffStudioAssistantQueue, buildTakeoffStudioBackupRows, buildTakeoffStudioCsvExport, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioFieldHandoff, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioMeasurementLegend, buildTakeoffStudioPackageExport, buildTakeoffStudioProposalProofRows, buildTakeoffStudioProofSnapshot, buildTakeoffStudioRevisionComparison, buildTakeoffStudioRevisionRegister, buildTakeoffStudioSheetWorkspace, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioMarkupComment, createEmptyTakeoffStudioSheet, createTakeoffStudioMeasurementFromDrawing, deriveTakeoffStudioCalibrationState, deriveTakeoffStudioDrawingState, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, getTakeoffStudioToolSetOptions, mergeTakeoffStudioAssistantSuggestionState, mergeTakeoffStudioCsvImport, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText } from "./takeoff-studio-utils";
 import { CUSTOM_ESTIMATE_PACKET_THEME_ID, ESTIMATE_PACKET_COPY_TEMPLATE_OPTIONS, ESTIMATE_PACKET_PRESETS, ESTIMATE_PACKET_SECTION_DEFS, ESTIMATE_PACKET_THEME_OPTIONS, INTERNAL_REVIEW_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
 
 export { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
@@ -939,6 +939,9 @@ function appendUniqueTextBlock(existing = "", next = "") {
 
 export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false }) {
   const [csvImportText, setCsvImportText] = useState("");
+  const [drawingTool, setDrawingTool] = useState("area");
+  const [drawingLabel, setDrawingLabel] = useState("");
+  const [draftDrawingPoints, setDraftDrawingPoints] = useState([]);
   const backup = deriveEstimateBackup(draft);
   const takeoff = normalizeTakeoffStudio(backup.takeoffStudio);
   const readiness = deriveTakeoffStudioReadiness(takeoff);
@@ -963,6 +966,7 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
   const sheetWorkspace = buildTakeoffStudioSheetWorkspace(editingTakeoff);
   const calibrationState = deriveTakeoffStudioCalibrationState(editingTakeoff);
   const selectedSheet = sheetWorkspace.selectedSheet || sheets[0];
+  const drawingState = deriveTakeoffStudioDrawingState({ measurementType: drawingTool, points: draftDrawingPoints, selectedSheet });
 
   function commitTakeoff(nextTakeoff) {
     const normalized = normalizeTakeoffStudio({
@@ -1075,6 +1079,38 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
   function applySelectedSheetScale() {
     if (!selectedSheet?.id) return;
     commitTakeoff(applyTakeoffStudioSheetCalibrationToItems({ ...takeoff, sheets, items }, selectedSheet.id));
+  }
+
+  function addDrawingPoint(event) {
+    if (disabled || !selectedSheet?.id) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const x = Math.round(((event.clientX - rect.left) / rect.width) * sheetWorkspace.bounds.width);
+    const y = Math.round(((event.clientY - rect.top) / rect.height) * sheetWorkspace.bounds.height);
+    setDraftDrawingPoints((current) => [...current, { x, y }]);
+  }
+
+  function undoDrawingPoint() {
+    setDraftDrawingPoints((current) => current.slice(0, -1));
+  }
+
+  function finishDrawingMeasurement() {
+    if (!drawingState.canFinish) return;
+    const nextItem = createTakeoffStudioMeasurementFromDrawing({
+      measurementType: drawingTool,
+      label: drawingLabel,
+      points: draftDrawingPoints,
+      selectedSheet,
+      index: items.length,
+    });
+    commitTakeoff({
+      ...takeoff,
+      selectedSheetId: selectedSheet.id,
+      sheets,
+      items: [...items, nextItem],
+    });
+    setDraftDrawingPoints([]);
+    setDrawingLabel("");
   }
 
   function syncReviewedRowsToBackup() {
@@ -1212,7 +1248,23 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
               </div>
               <Badge tone={selectedSheet?.status === "superseded" ? "amber" : "blue"}>{selectedSheet?.previewKind || "placeholder"}</Badge>
             </div>
-            <div className="mt-3 aspect-[11/8.5] overflow-hidden rounded-xl border border-slate-700 bg-slate-900">
+            <div className="mt-3 rounded-xl border border-slate-700 bg-slate-900 p-2">
+              <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_140px]">
+                <InputField label="Drawing label" value={drawingLabel} onChange={(event) => setDrawingLabel(event.target.value)} disabled={disabled} placeholder="Driveway slab" />
+                <SelectField label="Drawing tool" value={drawingTool} onChange={(event) => { setDrawingTool(event.target.value); setDraftDrawingPoints([]); }} disabled={disabled}>
+                  {TAKEOFF_MEASUREMENT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </SelectField>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-bold leading-5 text-slate-300">{drawingState.summary}</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="secondary" size="sm" onClick={undoDrawingPoint} disabled={disabled || draftDrawingPoints.length === 0}>Undo Point</Button>
+                  <Button type="button" variant="secondary" size="sm" onClick={() => setDraftDrawingPoints([])} disabled={disabled || draftDrawingPoints.length === 0}>Clear</Button>
+                  <Button type="button" size="sm" onClick={finishDrawingMeasurement} disabled={disabled || !drawingState.canFinish}>Finish Measurement</Button>
+                </div>
+              </div>
+            </div>
+            <div className="relative mt-3 aspect-[11/8.5] overflow-hidden rounded-xl border border-slate-700 bg-slate-900">
               {selectedSheet?.sourcePreviewUrl && selectedSheet.previewKind === "image" ? (
                 <img src={selectedSheet.sourcePreviewUrl} alt={`${selectedSheet.name} plan preview`} className="h-full w-full object-contain" />
               ) : selectedSheet?.sourcePreviewUrl ? (
@@ -1231,21 +1283,31 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false })
                     );
                   })}
                   <text x="32" y="48" fill="#334155" fontSize="28" fontWeight="800">{selectedSheet?.name || "Plan sheet"}</text>
-                  {sheetWorkspace.overlays.map((overlay, overlayIndex) => {
-                    const pointList = overlay.points.map((point) => `${point.x},${point.y}`).join(" ");
-                    const color = overlay.reviewStatus === "reviewed" ? "#059669" : "#f59e0b";
-                    return (
-                      <g key={overlay.id || `overlay-${overlayIndex}`}>
-                        {overlay.points.length === 1 ? <circle cx={overlay.points[0].x} cy={overlay.points[0].y} r="10" fill={color} /> : null}
-                        {overlay.points.length > 1 && overlay.closed ? <polygon points={pointList} fill={`${color}33`} stroke={color} strokeWidth="6" /> : null}
-                        {overlay.points.length > 1 && !overlay.closed ? <polyline points={pointList} fill="none" stroke={color} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" /> : null}
-                        {overlay.points[0] ? <text x={overlay.points[0].x + 14} y={overlay.points[0].y - 14} fill="#0f172a" fontSize="24" fontWeight="800">{overlay.label}</text> : null}
-                      </g>
-                    );
-                  })}
                 </svg>
               )}
+              <svg viewBox={`0 0 ${sheetWorkspace.bounds.width} ${sheetWorkspace.bounds.height}`} className="absolute inset-0 h-full w-full cursor-crosshair" onClick={addDrawingPoint} role="img" aria-label="Clickable takeoff drawing overlay">
+                {sheetWorkspace.overlays.map((overlay, overlayIndex) => {
+                  const pointList = overlay.points.map((point) => `${point.x},${point.y}`).join(" ");
+                  const color = overlay.reviewStatus === "reviewed" ? "#059669" : "#f59e0b";
+                  return (
+                    <g key={overlay.id || `overlay-${overlayIndex}`}>
+                      {overlay.points.length === 1 ? <circle cx={overlay.points[0].x} cy={overlay.points[0].y} r="10" fill={color} /> : null}
+                      {overlay.points.length > 1 && overlay.closed ? <polygon points={pointList} fill={`${color}33`} stroke={color} strokeWidth="6" /> : null}
+                      {overlay.points.length > 1 && !overlay.closed ? <polyline points={pointList} fill="none" stroke={color} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" /> : null}
+                      {overlay.points[0] ? <text x={overlay.points[0].x + 14} y={overlay.points[0].y - 14} fill="#0f172a" fontSize="24" fontWeight="800">{overlay.label}</text> : null}
+                    </g>
+                  );
+                })}
+                {draftDrawingPoints.length ? (
+                  <g>
+                    {draftDrawingPoints.length > 1 && (drawingTool === "area" || drawingTool === "volume") ? <polygon points={draftDrawingPoints.map((point) => `${point.x},${point.y}`).join(" ")} fill="#38bdf833" stroke="#38bdf8" strokeWidth="5" strokeDasharray="12 8" /> : null}
+                    {draftDrawingPoints.length > 1 && drawingTool === "length" ? <polyline points={draftDrawingPoints.map((point) => `${point.x},${point.y}`).join(" ")} fill="none" stroke="#38bdf8" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="12 8" /> : null}
+                    {draftDrawingPoints.map((point, pointIndex) => <circle key={`draft-point-${point.x}-${point.y}-${pointIndex}`} cx={point.x} cy={point.y} r="9" fill="#0284c7" stroke="#f8fafc" strokeWidth="3" />)}
+                  </g>
+                ) : null}
+              </svg>
             </div>
+            <p className="mt-2 text-xs font-bold leading-5 text-slate-300">{drawingState.safetyBoundary}</p>
             <p className="mt-2 text-xs font-bold leading-5 text-slate-300">{sheetWorkspace.safetyBoundary}</p>
           </div>
           <div className="grid content-start gap-3">

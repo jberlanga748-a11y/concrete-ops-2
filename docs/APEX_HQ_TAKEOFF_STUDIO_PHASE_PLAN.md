@@ -1,7 +1,7 @@
 # Apex HQ Takeoff Studio Phase Plan
 
 Date: 2026-05-31
-Status: Phase 1-7 takeoff plan implemented locally; advanced snapping, AI plan assist, auto-measure beta, and hardening remain active follow-on phases
+Status: Phase 1-8 takeoff plan implemented locally; snapping, AI plan assist, auto-measure beta, and hardening remain active follow-on phases
 
 ## Goal
 
@@ -281,6 +281,14 @@ Phase 6/7 first checkpoint:
 5. Keep this checkpoint local and estimate-backup based; no schema, file storage, provider OCR/PDF parsing, automatic measurement, bid submission, customer send, field access, or pricing automation. Complete.
 6. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint.
 
+Phase 8 first checkpoint:
+
+1. Add click-to-draw measurement tools over the plan workspace for area, length, count, and volume. Complete.
+2. Add draft drawing point state, undo point, clear, and finish measurement controls. Complete.
+3. Save finished drawing output as normal Takeoff Studio measurement rows with selected sheet, revision, points, unit, sheet scale when available, and needs-review status. Complete.
+4. Keep drawn measurements office-only by default and exclude pricing, customer proof, field handoff, bids, sends, and provider writes until explicit review. Complete.
+5. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint.
+
 ## Phase 1 Checkpoint: Manual Editor
 
 Completed on 2026-05-31:
@@ -389,3 +397,17 @@ Completed locally on 2026-05-31:
 Deferred Phase 6/7 enhancements:
 
 - Real file upload/storage, rendered PDF page extraction, OCR, snapping, automatic symbol/edge detection, and provider-backed plan parsing remain later phases.
+
+## Phase 8 Checkpoint: Manual Drawing Tools
+
+Completed locally on 2026-05-31:
+
+- Takeoff Studio now supports click-to-draw area, length, count, and volume measurements on the selected plan workspace.
+- Owner/admin users can name a drawing, choose the tool, click points, undo the last point, clear the draft, and finish the measurement.
+- Finished drawings become standard Takeoff Studio measurement rows tied to the selected sheet/revision and remain `needs_review` until the estimator approves them.
+- Sheet scale is applied only when the selected sheet has a reviewed scale; otherwise the row stays draft and asks for calibration before trust.
+- Drawing tools do not auto-finalize quantities, pricing, proposal proof, field handoff, bids, sends, or provider actions.
+
+Deferred Phase 8 enhancements:
+
+- Keyboard shortcuts, grip editing, drag handles, touch-specialized drawing gestures, and snapping are handled in later phases.
