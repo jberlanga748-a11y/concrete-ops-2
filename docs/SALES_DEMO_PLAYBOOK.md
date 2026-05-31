@@ -12,6 +12,8 @@ The demo should feel like:
 
 Apex HQ is close to guided-demo ready and should be sold as a founder-led contractor operations pilot.
 
+For the current production rehearsal script, use `docs/APEX_HQ_FOUNDER_DEMO_RUNBOOK_V618.md`.
+
 Use:
 
 ```text
