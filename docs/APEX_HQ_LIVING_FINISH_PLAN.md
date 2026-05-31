@@ -8,17 +8,27 @@ This living plan tracks active phase memory, deploy evidence, user requests, and
 
 ## Current Public Self-Serve Readiness Note
 
-Current live read-only check: `https://app.apexhq.online/api/setup/status` reports `publicSignupEnabled: true`, `demoMode: false`, and `needsSetup: false`.
+Current live read-only check: `https://app.apexhq.online/api/setup/status` reports `publicSignupEnabled: false`, `demoMode: false`, and `needsSetup: false`.
 
 Decision state:
 
 - Apex HQ remains guided-demo and controlled-pilot ready.
-- Public self-serve launch is not considered complete until the current signup posture is either disabled through the backup-first production release checklist or formally approved with the full self-serve/public-launch evidence bundle.
+- Production public signup has been contained on Fly release `v619` by setting `PUBLIC_SIGNUP_ENABLED=false`.
+- Public self-serve launch is not considered complete until signup is formally approved with the full self-serve/public-launch evidence bundle and explicitly re-enabled.
 - The current status and exact next steps live in `docs/APEX_HQ_PUBLIC_SELF_SERVE_CURRENT_READINESS.md`.
+
+Containment evidence:
+
+- Pre-change production backup: `postgres-app-data-20260531-055430Z.json` plus `uploads-20260531-055430Z.manifest.json`.
+- Fly production release: `v619`, machine `148e06e2b53d68`, one passing service check.
+- `/api/ready` returned ready/database ok.
+- Direct `POST /api/signup/company` returned `404 Not Found`.
+- Hosted skip-auth smoke passed.
+- Self-serve readiness gate now reports controlled self-serve pilot GO and public self-serve launch NO-GO.
 
 Immediate next recommendation:
 
-- Decide whether production public signup should be disabled for containment or kept live under a formal self-serve launch approval path.
+- Prepare the public-launch approval packet: legal/privacy/terms/public-claims review, guided pilot completion or launch waiver, explicit public launch approval, and explicit approval to re-enable production public signup.
 
 ## Production Patch: Estimate Proposal Type + Print Preview
 

@@ -1,26 +1,28 @@
 # Apex HQ Public Self-Serve Current Readiness
 
 Date: 2026-05-31
-Status: launch-readiness mismatch found; do not treat Apex HQ as broad public self-serve complete
+Status: production signup contained; public launch remains approval-gated
 
 ## Current Verdict
 
-Apex HQ is still strongest as a guided demo and controlled pilot platform. The app has tested self-serve foundations, but the live production target currently reports public signup enabled while the self-serve and public-launch gates are still NO-GO without fresh evidence and human approvals.
+Apex HQ is still strongest as a guided demo and controlled pilot platform. The app has tested self-serve foundations, and production public signup has now been turned back off for containment while the self-serve and public-launch gates remain approval-gated.
 
-Live read-only evidence from `npm.cmd run launch:self-serve-readiness -- --check-live --base-url=https://app.apexhq.online --json`:
+Containment evidence:
 
+- Production release: Fly `v619`.
+- Image: `registry.fly.io/concrete-ops-2:deployment-01KSY4B9G5CA2MEQAB6S5SXQXQ`.
+- Pre-change backup: `/app/data/backups/postgres-app-data-20260531-055430Z.json`.
+- Upload backup manifest: `/app/data/backups/uploads-20260531-055430Z.manifest.json`.
 - `/api/ready`: PASS, database ready.
 - `/api/setup/status`: PASS.
-- `publicSignupEnabled`: `true`.
+- `publicSignupEnabled`: `false`.
 - `demoMode`: `false`.
 - `needsSetup`: `false`.
-- self-serve readiness: NO-GO.
-- public self-serve launch: NO-GO.
+- Direct `POST /api/signup/company`: `404 Not Found`, no company created.
+- hosted skip-auth smoke: PASS.
+- self-serve readiness: controlled self-serve pilot GO, public self-serve launch NO-GO.
 
-Treat this as a launch-readiness mismatch until one of these happens:
-
-1. Public signup is disabled through the backup-first production release checklist.
-2. Public signup remains enabled only after the full self-serve/public-launch evidence bundle, legal/privacy/public-claims review, support owner, monitoring path, backup/restore evidence, production safety approval, and explicit signup enablement approval are recorded.
+Treat broad public launch as blocked until public signup is explicitly re-enabled through the full self-serve/public-launch evidence bundle, legal/privacy/public-claims review, support owner, monitoring path, backup/restore evidence, production safety approval, and explicit signup enablement approval.
 
 ## Hard Boundaries
 
@@ -28,23 +30,11 @@ This status note does not approve public launch, billing, production config chan
 
 Do not create real production signup test companies unless that exact smoke scope is separately approved. Use local disposable smoke or an approved non-production target first.
 
-## Immediate Step 0
+## Completed Step 0
 
-Pick one containment direction before more public traffic is invited.
+Production `PUBLIC_SIGNUP_ENABLED` was set to `false` through the Fly production app. This changed runtime configuration only; it did not deploy new code, change schema, send messages, create companies, create billing, or mutate customer records.
 
-Recommended if Apex HQ is not intentionally opening broad self-serve today:
-
-- Disable production `PUBLIC_SIGNUP_ENABLED` through the backup-first release checklist.
-- Rerun `/api/setup/status` and the self-serve readiness gate to confirm the live target is locked.
-- Keep guided demos and controlled pilots active.
-
-Recommended if Apex HQ is intentionally opening self-serve now:
-
-- Keep signup enabled only after completing the full evidence bundle below.
-- Name the first-response support owner and alert destination.
-- Record legal/privacy/public-claims review.
-- Record explicit public signup enablement approval.
-- Keep billing/payment/manual package boundaries visible.
+Keep guided demos and controlled pilots active while public-launch work continues.
 
 ## Evidence Bundle Before Broad Self-Serve
 
@@ -67,11 +57,17 @@ npm.cmd run build
 git diff --check
 ```
 
-Then run the read-only live check:
+Latest read-only live check:
 
 ```powershell
-npm.cmd run launch:self-serve-readiness -- --check-live --base-url=https://app.apexhq.online --json
+npm.cmd run launch:self-serve-readiness -- --check-live --base-url=https://app.apexhq.online --signup-verified --users-verified --roles-verified --backup-verified --restore-verified --build-verified --claims-verified --local-self-serve-smoke-verified --support-owner="Apex HQ founder" --monitoring-destination="GitHub Issues readiness monitor" --manual-billing-boundary-acknowledged --json
 ```
+
+Latest result:
+
+- controlled self-serve pilot: GO.
+- public self-serve launch: NO-GO.
+- next highest leverage: legal/privacy/public-claims review.
 
 Only after the evidence is green and the human approvals are real should the approval-recording gate be run with `--production-safety-approved`, `--public-signup-enable-approved`, `--legal-review-acknowledged`, a support owner, a monitoring destination, and the manual billing boundary acknowledgement.
 
@@ -110,4 +106,10 @@ If public signup stays live:
 
 ## Next Recommended Work
 
-Run the evidence bundle and decide whether the current production signup switch should be disabled or formally approved as the start of controlled public self-serve.
+Prepare the public-launch approval packet:
+
+1. Legal/privacy/terms/public-claims review.
+2. Guided pilot completion or explicit launch waiver.
+3. Public launch approval phrase.
+4. Approval to re-enable `PUBLIC_SIGNUP_ENABLED`.
+5. Hosted self-serve smoke on an approved non-production or launch target before production signup is opened again.
