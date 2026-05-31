@@ -351,3 +351,15 @@ test("system routes resolve directly", () => {
     importedDraftId: "",
   });
 });
+
+test("billing prep route opens existing settings plan readiness surface", () => {
+  assert.deepEqual(parseAppPath("/billing"), {
+    active: "settings",
+    leadId: "",
+    jobId: "",
+    customerId: "",
+    reportId: "",
+    importedDraftId: "",
+    settingsSectionId: "settings-plan-readiness",
+  });
+});

@@ -7901,6 +7901,8 @@ function SettingsPagePolished({
   useEffect(() => {
     if (!settingsFocusSection?.id) return undefined;
     const timerId = window.setTimeout(() => {
+      const matchingShellItem = settingsShellQueueItems.find((item) => item.sectionId === settingsFocusSection.id);
+      if (matchingShellItem) setSelectedSettingsShellItemId(matchingShellItem.id);
       jumpToSettingsSection(settingsFocusSection.id);
       onSettingsSectionFocused?.(settingsFocusSection.id);
     }, 0);
@@ -12764,6 +12766,11 @@ export default function App() {
   }, [passwordResetRoute, pathname]);
   const routeState = useMemo(() => parseAppPath(pathname), [pathname]);
   const active = routeState.active;
+  const routeSettingsFocusSection = useMemo(() => (
+    routeState.settingsSectionId
+      ? { id: routeState.settingsSectionId, nonce: `route:${routeState.settingsSectionId}` }
+      : null
+  ), [routeState.settingsSectionId]);
   const previousActiveRef = useRef(active);
   const visibleNavGroups = useMemo(() => getVisibleNavGroups(NAV_GROUPS, appState.user, appState.companySettings, appState.permissions), [appState.companySettings, appState.permissions, appState.user]);
   const visibleNavItems = useMemo(() => visibleNavGroups.flatMap((group) => group.items), [visibleNavGroups]);
@@ -17318,7 +17325,7 @@ export default function App() {
                 user={appState.user}
                 companySettings={appState.companySettings}
                 firstOwnerOnboarding={appState.firstOwnerOnboarding}
-                settingsFocusSection={settingsFocusSection}
+                settingsFocusSection={settingsFocusSection || routeSettingsFocusSection}
                 onOpenSettingsSection={openSettingsSection}
                 onSettingsSectionFocused={() => setSettingsFocusSection(null)}
                 supportDraftSeed={supportDraftSeed}

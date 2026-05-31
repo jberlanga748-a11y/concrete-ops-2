@@ -46,6 +46,10 @@ const LEGACY_MODULE_PATHS = {
   "/communication-center": "communications",
 };
 
+const SETTINGS_SECTION_ROUTES = {
+  "/billing": "settings-plan-readiness",
+};
+
 export function normalizePathname(pathname = "/") {
   const prefixed = pathname.startsWith("/") ? pathname : `/${pathname}`;
   return prefixed.length > 1 && prefixed.endsWith("/") ? prefixed.slice(0, -1) : prefixed;
@@ -125,6 +129,19 @@ export function parseAppPath(pathname) {
   }
 
   const legacyMatch = LEGACY_MODULE_PATHS[normalized];
+  const settingsSectionId = SETTINGS_SECTION_ROUTES[normalized];
+  if (settingsSectionId) {
+    return {
+      active: "settings",
+      leadId: "",
+      jobId: "",
+      customerId: "",
+      reportId: "",
+      importedDraftId: "",
+      settingsSectionId,
+    };
+  }
+
   const exactMatch = Object.entries(MODULE_PATHS).find(([, path]) => path === normalized);
   return {
     active: legacyMatch || exactMatch?.[0] || "dashboard",
