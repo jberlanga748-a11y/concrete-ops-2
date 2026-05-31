@@ -2662,7 +2662,7 @@ export function EstimatesPagePolished({
         </div>
       ) : null}
       <div className={canUseEstimatorMobilePipeline ? "co-sales-mobile-desktop-content" : ""}>
-      <div className="co-office-page co-estimates-page co-estimates-shell-page">
+      <div className={`co-office-page co-estimates-page co-estimates-shell-page${estimateShellMode === "takeoff" ? " co-estimates-shell-page--takeoff" : ""}`}>
         <ApexOfficeCommandShell
           eyebrow="Office Sales"
           title="Estimate Studio"

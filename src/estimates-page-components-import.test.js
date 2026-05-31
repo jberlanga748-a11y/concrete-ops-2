@@ -5,6 +5,8 @@ import test from "node:test";
 test("Estimates page route shell is extracted and lazy-loaded out of App", () => {
   const appSource = fs.readFileSync(new URL("./App.jsx", import.meta.url), "utf8");
   const estimatesPageSource = fs.readFileSync(new URL("./estimates-page-components.jsx", import.meta.url), "utf8");
+  const estimatesRouteSource = fs.readFileSync(new URL("./estimates-route-components.jsx", import.meta.url), "utf8");
+  const cssSource = fs.readFileSync(new URL("./index.css", import.meta.url), "utf8");
   const estimateDraftUtilsSource = fs.readFileSync(new URL("./estimate-draft-utils.js", import.meta.url), "utf8");
   const estimatorMobileUtilsSource = fs.readFileSync(new URL("./estimator-mobile-utils.js", import.meta.url), "utf8");
 
@@ -17,6 +19,11 @@ test("Estimates page route shell is extracted and lazy-loaded out of App", () =>
   assert.match(estimatesPageSource, /import \{ deriveTakeoffStudioReadiness \} from "\.\/takeoff-studio-utils";/);
   assert.match(estimatesPageSource, /const EstimatesTablePolished = lazyRouteComponent\(\(\) => import\("\.\/estimates-route-components"\), "EstimatesTablePolished"\);/);
   assert.match(estimatesPageSource, /const canUseEstimatorMobilePipeline = Boolean\(MobilePipelinePage\) && isEstimatorMobilePipelineUser\(user, permissions\);/);
+  assert.match(estimatesPageSource, /estimateShellMode === "takeoff" \? " co-estimates-shell-page--takeoff" : ""/);
+  assert.match(estimatesRouteSource, /co-takeoff-studio-plan-workspace-grid/);
+  assert.match(cssSource, /\.co-estimates-shell-page--takeoff \.co-apex-office-command-workspace\s*\{\s*grid-template-columns: minmax\(0, 1fr\);/);
+  assert.match(cssSource, /\.co-estimates-shell-page--takeoff \.co-apex-primary-queue-panel\s*\{\s*display: none;/);
+  assert.match(cssSource, /\.co-estimates-shell-page--takeoff \.co-takeoff-studio-plan-workspace-grid\s*\{[\s\S]*minmax\(34rem, 1fr\)/);
   assert.match(estimateDraftUtilsSource, /export function createEstimateDraft\b/);
   assert.match(estimateDraftUtilsSource, /export function mergeEstimateRoughNotesIntoDraft\b/);
   assert.match(estimatorMobileUtilsSource, /export function isEstimatorMobilePipelineUser\b/);

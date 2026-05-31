@@ -1433,7 +1433,7 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
           </div>
           <Badge tone={calibrationState.ready ? "green" : "amber"}>{calibrationState.calibratedSheets}/{calibrationState.sheetCount || 0} calibrated</Badge>
         </div>
-        <div className="mt-3 grid gap-3 xl:grid-cols-[240px_minmax(0,1fr)_260px]">
+        <div className="co-takeoff-studio-plan-workspace-grid mt-3 grid gap-3 xl:grid-cols-[240px_minmax(0,1fr)_260px]">
           <div className="grid gap-2">
             {sheetWorkspace.thumbnails.length ? sheetWorkspace.thumbnails.map((thumbnail) => (
               <button

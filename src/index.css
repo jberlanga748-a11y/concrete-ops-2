@@ -45469,6 +45469,27 @@ button.co-apex-command-kpi:hover:not(:disabled) {
     grid-template-rows: auto minmax(0, 1fr);
   }
 
+  .co-estimates-shell-page--takeoff .co-apex-office-command-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .co-estimates-shell-page--takeoff .co-apex-primary-queue-panel {
+    display: none;
+  }
+
+  .co-estimates-shell-page--takeoff .co-apex-selected-detail-panel {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .co-estimates-shell-page--takeoff .co-estimates-shell-detail-scroll {
+    gap: 0.72rem;
+  }
+
+  .co-estimates-shell-page--takeoff .co-takeoff-studio-plan-workspace-grid {
+    grid-template-columns: minmax(9.5rem, 0.28fr) minmax(34rem, 1fr) minmax(13rem, 0.28fr);
+  }
+
   .co-estimates-shell-page .co-apex-assistant-action-panel {
     grid-template-rows: minmax(0, 1fr) auto;
   }
