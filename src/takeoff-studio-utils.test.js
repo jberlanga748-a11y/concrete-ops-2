@@ -14,6 +14,7 @@ import {
   buildTakeoffStudioMeasurementLegend,
   buildTakeoffStudioPackageExport,
   buildTakeoffStudioAiPlanAssist,
+  buildTakeoffStudioAutoMeasureBeta,
   buildTakeoffStudioPlanReviewLayer,
   buildTakeoffStudioProposalProofRows,
   buildTakeoffStudioProofSnapshot,
@@ -27,6 +28,7 @@ import {
   createEmptyTakeoffStudioSheet,
   createTakeoffStudioMeasurementFromDrawing,
   createTakeoffStudioMarkupFromPoint,
+  createTakeoffStudioItemFromAutoMeasureSuggestion,
   deriveTakeoffStudioCalibrationState,
   deriveTakeoffStudioDrawingState,
   deriveTakeoffStudioReadiness,
@@ -316,6 +318,28 @@ test("builds local review-first AI plan assist without external actions", () => 
   assert.ok(assist.suggestions.some((suggestion) => suggestion.category === "quantity_review"));
   assert.match(assist.safetyBoundary, /does not read files automatically/i);
   assert.doesNotMatch(JSON.stringify(assist), /unitPrice|margin|profit|payroll|billing|send proposal|bid submission|external api/i);
+});
+
+test("builds auto-measure beta suggestions as draft-only measurements", () => {
+  const beta = buildTakeoffStudioAutoMeasureBeta({
+    selectedSheetId: "s1",
+    planText: "Driveway slab 20 x 30, sawcut 120 LF, 4 drains each.",
+    sheets: [{ id: "s1", name: "C2.1" }],
+  });
+  const areaSuggestion = beta.suggestions.find((suggestion) => suggestion.measurementType === "area");
+  const draft = createTakeoffStudioItemFromAutoMeasureSuggestion(areaSuggestion, 2);
+
+  assert.equal(beta.beta, true);
+  assert.ok(beta.suggestionCount >= 3);
+  assert.equal(areaSuggestion.quantity, 600);
+  assert.equal(areaSuggestion.unit, "SF");
+  assert.equal(draft.id, "takeoff-item-3");
+  assert.equal(draft.reviewStatus, "needs_review");
+  assert.equal(draft.customerVisible, false);
+  assert.equal(draft.fieldVisible, false);
+  assert.match(draft.estimatorNote, /estimator must verify/i);
+  assert.match(beta.safetyBoundary, /draft suggestions only/i);
+  assert.doesNotMatch(JSON.stringify(beta), /unitPrice|margin|profit|payroll|billing|send proposal|bid submission|guarantee/i);
 });
 
 test("normalizes reviewed takeoff items with safe defaults", () => {

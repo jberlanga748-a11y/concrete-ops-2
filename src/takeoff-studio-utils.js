@@ -751,6 +751,102 @@ export function buildTakeoffStudioAiPlanAssist(takeoff = {}) {
   };
 }
 
+function suggestionIdFromParts(...parts) {
+  return parts.join("-").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
+}
+
+export function buildTakeoffStudioAutoMeasureBeta(takeoff = {}) {
+  const normalized = normalizeTakeoffStudio(takeoff);
+  const suggestions = [];
+  const text = normalized.planText;
+  const selectedSheet = normalized.sheets.find((sheet) => sheet.id === normalized.selectedSheetId) || normalized.sheets[0] || {};
+
+  const areaPattern = /(?:area|slab|driveway|sidewalk|pad|pour)?\s*(\d+(?:\.\d+)?)\s*(?:ft|feet|')?\s*[x×]\s*(\d+(?:\.\d+)?)\s*(?:ft|feet|')?/gi;
+  for (const match of text.matchAll(areaPattern)) {
+    const width = numberValue(match[1]);
+    const length = numberValue(match[2]);
+    if (!width || !length) continue;
+    suggestions.push({
+      id: suggestionIdFromParts("auto-area", width, length, suggestions.length + 1),
+      label: `Suggested area ${width} x ${length}`,
+      measurementType: "area",
+      quantity: roundQuantity(width * length),
+      unit: "SF",
+      confidence: "medium",
+      source: "reviewed plan text",
+      sheetId: selectedSheet.id || "",
+      sheetName: selectedSheet.name || "",
+      rationale: `Detected ${width} x ${length} dimension text. Add as a draft area only after estimator review.`,
+    });
+  }
+
+  const lengthPattern = /(\d+(?:\.\d+)?)\s*(?:lf|linear feet|lineal feet)\b/gi;
+  for (const match of text.matchAll(lengthPattern)) {
+    const length = numberValue(match[1]);
+    if (!length) continue;
+    suggestions.push({
+      id: suggestionIdFromParts("auto-length", length, suggestions.length + 1),
+      label: `Suggested length ${length} LF`,
+      measurementType: "length",
+      quantity: roundQuantity(length),
+      unit: "LF",
+      confidence: "medium",
+      source: "reviewed plan text",
+      sheetId: selectedSheet.id || "",
+      sheetName: selectedSheet.name || "",
+      rationale: `Detected ${length} LF in reviewed plan text. Add as a draft length only after estimator review.`,
+    });
+  }
+
+  const countPattern = /(\d+)\s*(?:ea|each|drains?|inlets?|posts?|gates?|bollards?)\b/gi;
+  for (const match of text.matchAll(countPattern)) {
+    const count = Math.round(numberValue(match[1]));
+    if (!count) continue;
+    suggestions.push({
+      id: suggestionIdFromParts("auto-count", count, suggestions.length + 1),
+      label: `Suggested count ${count} EA`,
+      measurementType: "count",
+      quantity: count,
+      unit: "EA",
+      confidence: "low",
+      source: "reviewed plan text",
+      sheetId: selectedSheet.id || "",
+      sheetName: selectedSheet.name || "",
+      rationale: `Detected count language near ${count}. Verify symbols manually before review.`,
+    });
+  }
+
+  return {
+    beta: true,
+    suggestionCount: suggestions.length,
+    suggestions: suggestions.slice(0, 12),
+    summary: suggestions.length
+      ? `${suggestions.length} auto-measure beta suggestion${suggestions.length === 1 ? "" : "s"} prepared from reviewed plan text.`
+      : "No auto-measure beta suggestions found from reviewed plan text.",
+    safetyBoundary: "Auto-Measure Beta creates draft suggestions only. It does not inspect files automatically, certify quantities, finalize measurements, approve pricing, submit bids, send messages, or write providers.",
+  };
+}
+
+export function createTakeoffStudioItemFromAutoMeasureSuggestion(suggestion = {}, index = 0) {
+  return normalizeTakeoffStudioItem({
+    id: `takeoff-item-${index + 1}`,
+    label: textValue(suggestion?.label) || `Auto-measure beta draft ${index + 1}`,
+    sheetId: textValue(suggestion?.sheetId),
+    sheetName: textValue(suggestion?.sheetName),
+    measurementType: textValue(suggestion?.measurementType || "count"),
+    quantity: suggestion?.quantity,
+    unit: textValue(suggestion?.unit),
+    reviewStatus: DEFAULT_REVIEW_STATUS,
+    customerVisible: false,
+    fieldVisible: false,
+    assemblyId: "direct",
+    estimatorNote: [
+      "Auto-Measure Beta suggestion; estimator must verify before use.",
+      textValue(suggestion?.rationale),
+    ].filter(Boolean).join(" "),
+  }, index);
+}
+
 export function deriveTakeoffStudioCalibrationState(takeoff = {}) {
   const normalized = normalizeTakeoffStudio(takeoff);
   const uncalibratedSheets = normalized.sheets.filter((sheet) => !sheet.scale.calibrated);

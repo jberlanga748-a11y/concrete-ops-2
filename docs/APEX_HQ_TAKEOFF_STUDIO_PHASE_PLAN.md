@@ -1,7 +1,7 @@
 # Apex HQ Takeoff Studio Phase Plan
 
 Date: 2026-05-31
-Status: Phase 1-11 takeoff plan implemented locally; auto-measure beta and hardening remain active follow-on phases
+Status: Phase 1-12 takeoff plan implemented locally; production hardening remains active follow-on phase
 
 ## Goal
 
@@ -313,6 +313,14 @@ Phase 11 first checkpoint:
 4. Keep this checkpoint deterministic/local: no external AI calls, no file reads, no automatic measurement, no pricing approval, no bid/customer send, and no provider writes. Complete.
 5. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint.
 
+Phase 12 first checkpoint:
+
+1. Add Auto-Measure Beta suggestions from reviewed plan text dimension/count terms. Complete.
+2. Suggest draft area, length, and count rows with confidence, rationale, source, sheet context, and quantity/unit. Complete.
+3. Let owner/admin add a suggestion as a normal needs-review Takeoff Studio measurement row. Complete.
+4. Keep beta suggestions draft-only: no file/image inspection, no certified quantities, no pricing approval, no bid/customer send, no provider writes, and no field exposure. Complete.
+5. Validate focused tests, estimates, roles, build, diff, and browser QA before freezing this checkpoint.
+
 ## Phase 1 Checkpoint: Manual Editor
 
 Completed on 2026-05-31:
@@ -474,3 +482,17 @@ Completed locally on 2026-05-31:
 Deferred Phase 11 enhancements:
 
 - Provider-backed AI plan reading, real OCR extraction, structured RFI drafting, and image-based symbol detection remain provider/file-parsing phases.
+
+## Phase 12 Checkpoint: Auto-Measure Beta
+
+Completed locally on 2026-05-31:
+
+- Takeoff Studio now has an Auto-Measure Beta panel that reads reviewed plan text/OCR notes and prepares draft area, length, and count suggestions.
+- The beta can detect simple dimensions such as `20 x 30`, length text such as `120 LF`, and count language such as `4 drains`.
+- Owner/admin users can add a beta suggestion as a normal `needs_review` measurement row with office-only defaults.
+- Beta output includes confidence, source, rationale, quantity, and unit, but remains an estimator-review aid only.
+- It does not inspect plan files automatically, certify quantities, finalize measurements, approve pricing, submit bids, send messages, write providers, or expose field users.
+
+Deferred Phase 12 enhancements:
+
+- Real image/PDF edge detection, symbol detection, OCR extraction, and provider-backed plan vision remain later provider/file-parsing upgrades.
