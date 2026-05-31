@@ -1,10 +1,24 @@
 # Apex HQ Living Finish Plan
 
-Last updated: 2026-05-30
+Last updated: 2026-05-31
 
 Canonical first-read file: `docs/APEX_HQ_CANONICAL_SOURCE_OF_TRUTH.md`.
 
 This living plan tracks active phase memory, deploy evidence, user requests, and phase reports. The canonical file owns workspace truth, Concrete Ops to Apex HQ transition rules, stale archive rules, and source-of-truth order.
+
+## Current Public Self-Serve Readiness Note
+
+Current live read-only check: `https://app.apexhq.online/api/setup/status` reports `publicSignupEnabled: true`, `demoMode: false`, and `needsSetup: false`.
+
+Decision state:
+
+- Apex HQ remains guided-demo and controlled-pilot ready.
+- Public self-serve launch is not considered complete until the current signup posture is either disabled through the backup-first production release checklist or formally approved with the full self-serve/public-launch evidence bundle.
+- The current status and exact next steps live in `docs/APEX_HQ_PUBLIC_SELF_SERVE_CURRENT_READINESS.md`.
+
+Immediate next recommendation:
+
+- Decide whether production public signup should be disabled for containment or kept live under a formal self-serve launch approval path.
 
 ## Production Patch: Estimate Proposal Type + Print Preview
 

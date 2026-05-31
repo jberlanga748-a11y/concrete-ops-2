@@ -174,6 +174,7 @@ async function requestJson(baseUrl, pathname, options = {}) {
 function jsonHeaders(token = "") {
   return {
     "Content-Type": "application/json",
+    "X-Apex-Auth-Mode": "bearer",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 }

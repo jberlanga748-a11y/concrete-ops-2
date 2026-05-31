@@ -86,6 +86,44 @@ test("local disposable self-serve smoke can satisfy controlled readiness without
   assert.ok(claimsGate.blockers.some((blocker) => /legal/i.test(blocker)));
 });
 
+test("live public signup blocks readiness until enablement approval is recorded", () => {
+  const report = buildSelfServeReadinessReport({
+    checkedAt: "2026-05-31T00:00:00.000Z",
+    evidence: {
+      signupVerified: true,
+      usersVerified: true,
+      rolesVerified: true,
+      backupVerified: true,
+      restoreVerified: true,
+      buildVerified: true,
+      hostedSmokeVerified: true,
+      supportOwner: "Launch operator",
+      monitoringDestination: "GitHub Issues",
+      claimsVerified: true,
+      manualBillingBoundaryAcknowledged: true,
+    },
+    approvals: {
+      legalReviewAcknowledged: true,
+      productionSafetyApproved: false,
+      publicSignupEnableApproved: false,
+    },
+    live: {
+      checked: true,
+      baseUrl: "https://app.apexhq.online",
+      ready: { ok: true, durationMs: 91, payload: { status: "ready" } },
+      setupStatus: { ok: true, durationMs: 87, payload: { publicSignupEnabled: true, demoMode: false, needsSetup: false } },
+      warnings: ["Public signup is already enabled on the checked target."],
+    },
+  });
+
+  const postureGate = report.gates.find((gate) => gate.name === "Live production signup posture");
+
+  assert.equal(report.controlledSelfServePilotReady, false);
+  assert.equal(report.publicSelfServeReady, false);
+  assert.equal(postureGate.status, "NO-GO");
+  assert.ok(postureGate.blockers.some((blocker) => /public signup enabled/i.test(blocker)));
+});
+
 test("public self-serve launch requires legal and explicit signup enablement approvals", () => {
   const report = buildSelfServeReadinessReport({
     checkedAt: "2026-05-23T00:00:00.000Z",

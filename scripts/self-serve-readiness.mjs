@@ -193,6 +193,8 @@ export function buildSelfServeReadinessReport({
   const setupOk = !live.checked || Boolean(live.setupStatus?.ok);
   const setupStatus = live.setupStatus?.payload || {};
   const liveProductionUnsafe = Boolean(setupStatus.demoMode);
+  const livePublicSignupEnabled = Boolean(setupStatus.publicSignupEnabled);
+  const signupEnablementApproved = Boolean(approvals.productionSafetyApproved && approvals.publicSignupEnableApproved);
   const hasNonProductionWorkflowSmoke = Boolean(evidence.localSelfServeSmokeVerified || evidence.hostedSmokeVerified);
 
   const gates = [
@@ -213,6 +215,20 @@ export function buildSelfServeReadinessReport({
     ], [
       ...(evidence.localSelfServeSmokeVerified && !evidence.hostedSmokeVerified ? ["Controlled readiness is based on local disposable self-serve smoke; run hosted smoke before broad launch."] : []),
       ...(live.warnings || []),
+    ]),
+    gate("Live production signup posture", Boolean(!live.checked || !livePublicSignupEnabled || signupEnablementApproved), [
+      ...missing(
+        !live.checked || !livePublicSignupEnabled || approvals.productionSafetyApproved,
+        "The checked target reports public signup enabled; capture backup-first production safety approval or disable signup through the release checklist.",
+      ),
+      ...missing(
+        !live.checked || !livePublicSignupEnabled || approvals.publicSignupEnableApproved,
+        "The checked target reports public signup enabled; capture explicit PUBLIC_SIGNUP_ENABLED approval or disable signup through the release checklist.",
+      ),
+    ], [
+      ...(live.checked && livePublicSignupEnabled && signupEnablementApproved
+        ? ["Public signup is enabled on the checked target and enablement approval flags were supplied; keep support, monitoring, and rollback evidence active."]
+        : []),
     ]),
     gate("Support owner and alert path", Boolean(supportOwner && monitoringDestination), [
       ...missing(supportOwner, "Set a named first-response support owner."),
@@ -236,6 +252,7 @@ export function buildSelfServeReadinessReport({
     "Tenant, users, and role safety",
     "Backup and restore safety",
     "Build and non-production workflow smoke",
+    "Live production signup posture",
     "Support owner and alert path",
   ].every((name) => gateByName.get(name)?.go);
   const publicSelfServeReady = gates.every((item) => item.go) && Boolean(evidence.hostedSmokeVerified);
