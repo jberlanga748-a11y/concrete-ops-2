@@ -254,11 +254,20 @@ export function EstimatesPagePolished({
   const [visibleEstimateRowCap, setVisibleEstimateRowCap] = useState(6);
   const [estimateShellSelectionId, setEstimateShellSelectionId] = useState("");
   const [estimateShellMode, setEstimateShellMode] = useState("overview");
+  const [forceMobileEstimateStudio, setForceMobileEstimateStudio] = useState(false);
   const [roughNotes, setRoughNotes] = useState("");
   const [roughNotesState, setRoughNotesState] = useState({ loading: false, result: null, error: "" });
   const newEstimateRef = useRef(null);
   const copyFeedbackTimeoutRef = useRef(null);
+  const takeoffToolRef = useRef(null);
   const isDesktopCommandViewport = useDesktopCommandViewport(1024);
+
+  useEffect(() => {
+    if (!showEstimateTools || activeEstimateTool !== "fenceTakeoff" || !forceMobileEstimateStudio) return;
+    window.setTimeout(() => {
+      takeoffToolRef.current?.scrollIntoView?.({ behavior: "auto", block: "start" });
+    }, 120);
+  }, [activeEstimateTool, forceMobileEstimateStudio, showEstimateTools]);
 
   useEffect(() => {
     const storedDefault = loadStoredPacketCustomization(companyName);
@@ -835,6 +844,59 @@ export function EstimatesPagePolished({
     window.setTimeout(() => newEstimateRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
+  function focusNewTakeoff() {
+    setEstimateViewMode("create");
+    setSelectedEstimateId("");
+    setEstimateShellSelectionId("estimate-takeoff-tool");
+    setCreateDraft((current) => createEstimateDraft({
+      ...INITIAL_ESTIMATE_FORM,
+      ...current,
+      customerId: current.customerId || singleCustomerId,
+      customerName: current.customerName || singleCustomerName,
+      customerEmail: current.customerEmail || singleCustomerEmail,
+      title: current.title || "Takeoff draft estimate",
+      status: "draft",
+    }));
+    setActiveEstimateTool("fenceTakeoff");
+    setEstimateShellMode("takeoff");
+    setShowEstimateTools(true);
+    setForceMobileEstimateStudio(true);
+    [80, 300].forEach((delay) => {
+      window.setTimeout(() => {
+        (takeoffToolRef.current || newEstimateRef.current)?.scrollIntoView?.({ behavior: "auto", block: "start" });
+      }, delay);
+    });
+  }
+
+  async function createDraftEstimateWithTakeoff() {
+    const created = await onCreateEstimate(createDraft);
+    if (created) {
+      const createdId = typeof created === "object" ? created.id : "";
+      const createdTitle = typeof created === "object" ? (created.title || createDraft.title) : createDraft.title;
+      setEstimateViewMode("browse");
+      setEstimateShellMode("takeoff");
+      setActiveEstimateTool("fenceTakeoff");
+      setStatusFilter("Draft");
+      setCustomerFilter("All customers");
+      setLeadFilter("All leads");
+      setCreatorFilter("All creators");
+      setArchiveFilter("Active");
+      setSearch("");
+      if (createdId) {
+        setSelectedEstimateId(createdId);
+        setEstimateShellSelectionId(`estimate-${createdId}`);
+      }
+      setCreateDraft(createEstimateDraft({
+        ...INITIAL_ESTIMATE_FORM,
+        customerId: singleCustomerId,
+        customerName: singleCustomerName,
+        customerEmail: singleCustomerEmail,
+      }));
+      showCopyFeedback(`Takeoff draft created: ${createdTitle}. It is selected in Takeoff Studio.`, 7000);
+    }
+    return created;
+  }
+
   function openEstimateTool(toolId = "edit") {
     if (toolId === "roughNotes" && !canUseAiRoughNotes) return;
     if (toolId === "packet" && !canUseGcPackets) return;
@@ -1213,11 +1275,21 @@ export function EstimatesPagePolished({
       id: "new-estimate-workspace",
       title: "New Estimate",
       description: "Create a new owner/admin estimate.",
-      eyebrow: "Owner/admin workspace",
+      eyebrow: "Estimate draft",
       status: "Ready",
       statusLabel: "Ready",
       tone: "orange",
     }
+    : estimateShellMode === "takeoff" && estimateViewMode === "create" && !selectedEstimate
+      ? {
+        id: "estimate-takeoff-tool",
+        title: "Takeoff Tool",
+        description: "Measure a plan inside Estimates, then save it as a draft estimate.",
+        eyebrow: "Estimate tool",
+        status: "Draft next",
+        statusLabel: "Draft next",
+        tone: "green",
+      }
     : null;
   const selectedEstimateShellItem = createEstimateShellItem
     || estimateShellFallbackItem
@@ -1237,8 +1309,8 @@ export function EstimatesPagePolished({
   ];
   const estimateShellQuickActions = [
     { id: "new-estimate", label: "New Estimate", icon: "plus", onClick: () => openEstimateShellMode("create"), disabled: !canManage },
+    { id: "takeoff-tool", label: "Takeoff Tool", icon: "layers", onClick: focusNewTakeoff, disabled: !canManage },
     { id: "ready-send", label: "Ready Send", icon: "arrowUpRight", onClick: () => selectEstimateShellEstimate(readyToSendRows[0], "sendReview"), disabled: !readyToSendRows.length },
-    { id: "handoff", label: "Handoff", icon: "check", onClick: () => selectEstimateShellEstimate(approvedHandoffRows[0], "handoff"), disabled: !approvedHandoffRows.length },
   ];
   const estimateShellModes = [
     { id: "overview", label: "Overview", title: "Overview", manages: "proposal readiness, current totals, contact status, packet readiness, and handoff context." },
@@ -1248,7 +1320,7 @@ export function EstimatesPagePolished({
     { id: "backup", label: "Backup", title: "Backup / SOV Mode", manages: "internal backup rows, SOV notes, takeoff references, and office-only estimate support." },
     { id: "packet", label: "Packet", title: "Packet Mode", manages: "GC packet settings, print sections, branded customer packet readiness, and internal bid review." },
     { id: "roughNotes", label: "Rough Notes", title: "Rough Notes Mode", manages: "AI rough notes drafting for proposal language and packet setup." },
-    { id: "takeoff", label: "Takeoff", title: "Takeoff Mode", manages: "fence takeoff, estimate-grade quantities, local draft quantity review, and office backup context." },
+    { id: "takeoff", label: "Takeoff", title: "Takeoff Tool", manages: "plan measurement, estimate-grade quantities, local draft quantity review, and office backup context inside Estimates." },
     { id: "visualPreview", label: "Visual Preview", title: "Visual Preview Mode", manages: "customer concept prompt readiness from estimate scope and proof backup." },
     { id: "sendReview", label: "Send Review", title: "Send Review Mode", manages: "explicit human-confirmed customer proposal send review, manual copy fallback, customer-facing print readiness, and sent status." },
     { id: "handoff", label: "Handoff", title: "Handoff Mode", manages: "approved estimate-to-job handoff checks, field-safe print review, and explicit human-confirmed conversion." },
@@ -1257,6 +1329,7 @@ export function EstimatesPagePolished({
 
   useEffect(() => {
     if (!canUseEstimatesCommandShell) return;
+    if (createEstimateShellItem) return;
     const fallbackId = estimateShellFallbackItem?.id || "";
     if (!estimateShellSelectionId && fallbackId) {
       setEstimateShellSelectionId(fallbackId);
@@ -1290,10 +1363,13 @@ export function EstimatesPagePolished({
     if (activeShellMode.id === "create") {
       return renderEstimateShellCreateMode();
     }
+    if (activeShellMode.id === "takeoff" && estimateViewMode === "create" && !selectedEstimate) {
+      return renderEstimateShellNewTakeoffMode();
+    }
 
     const estimate = item?.estimate || selectedEstimate;
     if (!estimate) {
-      return <StateCard title="No estimate selected" description="Select a proposal from the priority queue to review readiness, total, contact, packet, and handoff context." tone="slate" />;
+      return <StateCard title="No estimate selected" description="Select an estimate from the queue, or open the Takeoff Tool when the plan should come before pricing." tone="slate" />;
     }
 
     const readiness = estimateShellStateById.get(estimate.id) || estimateShellReadiness(estimate);
@@ -1308,7 +1384,7 @@ export function EstimatesPagePolished({
     const status = String(estimate?.status || "draft").trim().toLowerCase();
     const workspaceMode = readiness.approvedHandoff ? "handoff" : readiness.readyToSend ? "sendReview" : readiness.hasPricing ? "proposal" : "pricing";
     const safeActions = [
-      { id: "open-workspace", label: "Open Workspace", onClick: () => openEstimateShellMode(workspaceMode) },
+      { id: "open-tools", label: "Open Estimate Tools", onClick: () => openEstimateShellMode(workspaceMode) },
       { id: "select-send", label: "Review Send Ready", variant: "secondary", onClick: () => selectEstimateShellEstimate(readyToSendRows[0]), disabled: !readyToSendRows.length },
       { id: "select-handoff", label: "Review Handoff", variant: "secondary", onClick: () => selectEstimateShellEstimate(approvedHandoffRows[0]), disabled: !approvedHandoffRows.length },
     ];
@@ -1324,7 +1400,7 @@ export function EstimatesPagePolished({
         ? "Open send review for copy, print, or configured email confirmation."
         : readiness.missing.length
           ? `Finish ${readiness.missing.slice(0, 3).join(", ")}.`
-          : "Open the workspace mode you need next.";
+          : "Open the estimate tool you need next.";
     const isFocusedShellEditMode = ["create", "pricing", "proposal", "backup", "packet", "roughNotes", "takeoff", "visualPreview", "sendReview", "handoff"].includes(activeShellMode.id);
     const visibleEstimateShellModes = isFocusedShellEditMode
       ? estimateShellModes.filter((mode) => mode.id === "overview" || mode.id === activeShellMode.id)
@@ -1395,16 +1471,16 @@ export function EstimatesPagePolished({
       return (
         <div className="co-estimates-shell-detail-scroll">
           <div className="co-apex-selected-record">
-            <Badge tone="orange">Owner/admin workspace</Badge>
+            <Badge tone="orange">Estimate draft</Badge>
             <h2>New Estimate</h2>
             <p>Create the estimate here from a customer, lead, rough scope, pricing, proposal sections, and packet backup.</p>
           </div>
-          <div className="co-estimates-shell-workflow-panel co-estimates-shell-create-panel" role="region" aria-label="New estimate workspace">
+          <div className="co-estimates-shell-workflow-panel co-estimates-shell-create-panel" role="region" aria-label="New estimate form">
             <div className="co-estimates-shell-workflow-head">
               <div>
                 <Badge tone="green">Ready to create</Badge>
                 <h3>Estimate Details</h3>
-                <p>Owner/admin estimate creation is active in this workspace. Required fields are customer/company name or linked record plus a title.</p>
+                <p>Owner/admin estimate creation is active here. Required fields are customer/company name or linked record plus a title.</p>
               </div>
               <StatusBadge status={estimateStatusLabel(createDraft.status || "draft")} />
             </div>
@@ -1495,6 +1571,74 @@ export function EstimatesPagePolished({
               </>
             ) : (
               <StateCard title="Estimate creation unavailable" description="This role can review estimates but cannot create new pricing records." tone="slate" />
+            )}
+          </div>
+          {copyFeedback ? <p className="co-estimates-shell-feedback">{copyFeedback}</p> : null}
+        </div>
+      );
+    }
+
+    function renderEstimateShellNewTakeoffMode() {
+      return (
+        <div className="co-estimates-shell-detail-scroll">
+          <div className="co-apex-selected-record">
+            <Badge tone="green">Estimate tool</Badge>
+            <h2>Takeoff</h2>
+            <p>Use Takeoff inside Estimates to upload or measure a plan, then save the measured backup as a draft estimate.</p>
+          </div>
+          <div className="co-estimates-shell-workflow-panel co-estimates-shell-takeoff-panel" role="region" aria-label="Takeoff tool inside Estimates">
+            <div className="co-estimates-shell-workflow-head">
+              <div>
+                <Badge tone="green">Inside Estimates</Badge>
+                <h3>Takeoff Studio</h3>
+                <p>Measurements stay in this Estimates tool until you save them into a draft estimate.</p>
+              </div>
+              <StatusBadge status={estimateStatusLabel(createDraft.status || "draft")} />
+            </div>
+            {canManage ? (
+              <div className="grid gap-3">
+                <div className="rounded-2xl border border-green-100 bg-green-50/70 p-3">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <InputField label="Customer / company name" value={createDraft.customerName} onChange={(event) => setCreateDraft((current) => updateDraftLinkFields(current, { customerName: event.target.value }))} placeholder="Customer name" />
+                    <SelectField label="Customer" value={createDraft.customerId} onChange={(event) => setCreateDraft((current) => updateDraftLinkFields(current, { customerId: event.target.value }))}>
+                      <option value="">Select a customer</option>
+                      {visibleCustomers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
+                    </SelectField>
+                    <SelectField label="Lead" value={createDraft.leadId} onChange={(event) => setCreateDraft((current) => updateDraftLinkFields(current, { leadId: event.target.value }))}>
+                      <option value="">Optional linked lead</option>
+                      {visibleLeads.map((lead) => <option key={lead.id} value={lead.id}>{`${lead.customer} - ${lead.project}`}</option>)}
+                    </SelectField>
+                    <InputField label="Estimate / takeoff title" value={createDraft.title} onChange={(event) => setCreateDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Plan takeoff draft" />
+                  </div>
+                </div>
+                <TakeoffStudioManualEditor
+                  draft={createDraft}
+                  setDraft={setCreateDraft}
+                  disabled={busy || !canManage}
+                  jobs={jobs}
+                  uploads={uploads}
+                  sessionToken={sessionToken}
+                  onCreateUpload={onCreateUpload}
+                />
+                <FenceTakeoffLiteEditor
+                  draft={createDraft}
+                  setDraft={setCreateDraft}
+                  disabled={busy || !canManage}
+                  jobsiteAddress={estimateRailProfileLine(createLead?.location, createCustomer?.address, companyProfile.serviceArea)}
+                />
+                <div className="co-estimates-shell-workflow-actions">
+                  <Button
+                    type="button"
+                    onClick={createDraftEstimateWithTakeoff}
+                    disabled={busy || (!createDraft.customerId && !createDraft.leadId && !createDraft.customerName) || !createDraft.title}
+                  >
+                    Save as Draft Estimate
+                  </Button>
+                  <Button type="button" variant="secondary" onClick={() => setEstimateShellMode("overview")}>Back to Estimates</Button>
+                </div>
+              </div>
+            ) : (
+              <StateCard title="Takeoff creation unavailable" description="This role can review estimates but cannot create new takeoff or pricing records." tone="slate" />
             )}
           </div>
           {copyFeedback ? <p className="co-estimates-shell-feedback">{copyFeedback}</p> : null}
@@ -2621,11 +2765,31 @@ export function EstimatesPagePolished({
   }
 
   const canUseEstimatorMobilePipeline = Boolean(MobilePipelinePage) && isEstimatorMobilePipelineUser(user, permissions);
+  const showEstimatorMobilePipeline = canUseEstimatorMobilePipeline && !forceMobileEstimateStudio;
+
+  function openMobileTakeoffStudio(id) {
+    if (!id) {
+      focusNewTakeoff();
+      setForceMobileEstimateStudio(true);
+      setActive?.("estimates");
+      return;
+    }
+    if (id) {
+      setEstimateViewMode("browse");
+      setSelectedEstimateId(id);
+      setEstimateShellSelectionId(id);
+    }
+    setActiveEstimateTool("fenceTakeoff");
+    setEstimateShellMode("takeoff");
+    setShowEstimateTools(true);
+    setForceMobileEstimateStudio(true);
+    setActive?.("estimates");
+  }
 
   if (canUseEstimatesCommandShell) {
     return (
       <>
-      {canUseEstimatorMobilePipeline ? (
+      {showEstimatorMobilePipeline ? (
         <div className="co-sales-mobile-only">
           <MobilePipelinePage
             user={user}
@@ -2642,11 +2806,13 @@ export function EstimatesPagePolished({
               setSelectedEstimateId(id);
               setActive?.("estimates");
             }}
+            onOpenTakeoff={openMobileTakeoffStudio}
+            onStartTakeoff={focusNewTakeoff}
             activeModule="estimates"
           />
         </div>
       ) : null}
-      {canUseEstimatorMobilePipeline ? (
+      {showEstimatorMobilePipeline ? (
         <div className="co-sales-tablet-only">
           <MobilePipelinePage
             user={user}
@@ -2663,11 +2829,13 @@ export function EstimatesPagePolished({
               setSelectedEstimateId(id);
               setActive?.("estimates");
             }}
+            onOpenTakeoff={openMobileTakeoffStudio}
+            onStartTakeoff={focusNewTakeoff}
             activeModule="estimates"
           />
         </div>
       ) : null}
-      <div className={canUseEstimatorMobilePipeline ? "co-sales-mobile-desktop-content" : ""}>
+      <div className={showEstimatorMobilePipeline ? "co-sales-mobile-desktop-content" : ""}>
       <div className={`co-office-page co-estimates-page co-estimates-shell-page${estimateShellMode === "takeoff" ? " co-estimates-shell-page--takeoff" : ""}`}>
         <ApexOfficeCommandShell
           eyebrow="Office Sales"
@@ -2675,8 +2843,8 @@ export function EstimatesPagePolished({
           description="Review pricing readiness, send-ready proposals, sent follow-up, and approved handoffs from one no-drawer command view."
           kpis={estimateShellKpis}
           queue={{
-            title: "Estimate priority queue",
-            description: `${estimateShellQueue.length} proposal item${estimateShellQueue.length === 1 ? "" : "s"} shown from pricing, send, follow-up, and handoff readiness.`,
+            title: "Estimate queue",
+            description: `${estimateShellQueue.length} work item${estimateShellQueue.length === 1 ? "" : "s"} shown from pricing, send, follow-up, and handoff readiness.`,
             items: estimateShellQueue,
             selectedId: estimateShellSelectedId,
             onSelect: selectEstimateShellItem,
@@ -2686,7 +2854,7 @@ export function EstimatesPagePolished({
             title: "Estimate overview",
             item: selectedEstimateShellItem,
             render: renderEstimateShellDetail,
-            emptyState: <StateCard title="No estimate selected" description="Select an estimate from the queue to review proposal readiness." tone="slate" />,
+            emptyState: <StateCard title="No estimate selected" description="Select an estimate from the queue, or open the Takeoff Tool when the plan comes first." tone="slate" />,
           }}
           assistant={{
             title: "Estimate Studio",
@@ -2706,7 +2874,7 @@ export function EstimatesPagePolished({
 
   return (
     <>
-    {canUseEstimatorMobilePipeline ? (
+    {showEstimatorMobilePipeline ? (
       <div className="co-sales-mobile-only">
         <MobilePipelinePage
           user={user}
@@ -2723,11 +2891,13 @@ export function EstimatesPagePolished({
             setSelectedEstimateId(id);
             setActive?.("estimates");
           }}
+          onOpenTakeoff={openMobileTakeoffStudio}
+          onStartTakeoff={focusNewTakeoff}
           activeModule="estimates"
         />
       </div>
     ) : null}
-    {canUseEstimatorMobilePipeline ? (
+    {showEstimatorMobilePipeline ? (
       <div className="co-sales-tablet-only">
         <MobilePipelinePage
           user={user}
@@ -2744,12 +2914,19 @@ export function EstimatesPagePolished({
             setSelectedEstimateId(id);
             setActive?.("estimates");
           }}
+          onOpenTakeoff={openMobileTakeoffStudio}
+          onStartTakeoff={focusNewTakeoff}
           activeModule="estimates"
         />
       </div>
     ) : null}
-    <div className={canUseEstimatorMobilePipeline ? "co-sales-mobile-desktop-content" : ""}>
+    <div className={showEstimatorMobilePipeline ? "co-sales-mobile-desktop-content" : ""}>
     <div className="co-office-page co-estimates-page">
+      {forceMobileEstimateStudio && canUseEstimatorMobilePipeline ? (
+        <div className="co-sales-mobile-studio-return px-5 pt-4 sm:hidden">
+          <Button type="button" variant="secondary" onClick={() => setForceMobileEstimateStudio(false)}>Back to mobile estimates</Button>
+        </div>
+      ) : null}
       <PageHeader
         eyebrow="Office Sales"
         title="Estimate Studio"
@@ -2757,6 +2934,7 @@ export function EstimatesPagePolished({
         actions={
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="secondary" onClick={() => openEstimateTool("edit")}>{filteredRows.length} visible estimates</Button>
+            {canManage ? <Button type="button" variant="secondary" onClick={focusNewTakeoff}>Takeoff Tool</Button> : null}
             {canManage ? <Button type="button" onClick={focusNewEstimate}>New Estimate</Button> : null}
           </div>
         }
@@ -3084,13 +3262,36 @@ export function EstimatesPagePolished({
           ) : null}
 
           {activeEstimateTool === "fenceTakeoff" ? (
-            <Card className="p-4">
-              <SectionHeader title="Takeoff Studio" description={selectedEstimate ? "Measure plan quantities, apply reviewed blank-priced estimate lines, and keep fence-specific takeoff available when needed." : "Select an estimate before building takeoff quantities."} />
-              {selectedEstimate && canManage ? (
+            <Card ref={takeoffToolRef} className="scroll-mt-24 p-4">
+              <SectionHeader title="Takeoff Studio" description={selectedEstimate ? "Measure plan quantities, apply reviewed blank-priced estimate lines, and keep fence-specific takeoff available when needed." : "Use Takeoff inside Estimates, then save the measured backup as a draft estimate when the customer and title are ready."} />
+              {(selectedEstimate || estimateViewMode === "create") && canManage ? (
                 <div className="grid gap-3">
+                  {!selectedEstimate && estimateViewMode === "create" ? (
+                    <div className="rounded-2xl border border-green-100 bg-green-50/70 p-3">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <Badge tone="green">Estimate tool</Badge>
+                          <h3 className="mt-2 text-base font-black text-slate-950">Takeoff</h3>
+                          <p className="mt-1 text-sm font-bold leading-6 text-slate-600">Upload and measure the plan here. Add the customer/title below when you are ready to save it as a draft estimate.</p>
+                        </div>
+                      </div>
+                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                        <InputField label="Customer / company name" value={createDraft.customerName} onChange={(event) => setCreateDraft((current) => updateDraftLinkFields(current, { customerName: event.target.value }))} placeholder="Customer name" />
+                        <SelectField label="Customer" value={createDraft.customerId} onChange={(event) => setCreateDraft((current) => updateDraftLinkFields(current, { customerId: event.target.value }))}>
+                          <option value="">Select a customer</option>
+                          {visibleCustomers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
+                        </SelectField>
+                        <SelectField label="Lead" value={createDraft.leadId} onChange={(event) => setCreateDraft((current) => updateDraftLinkFields(current, { leadId: event.target.value }))}>
+                          <option value="">Optional linked lead</option>
+                          {visibleLeads.map((lead) => <option key={lead.id} value={lead.id}>{`${lead.customer} - ${lead.project}`}</option>)}
+                        </SelectField>
+                        <InputField label="Estimate / takeoff title" value={createDraft.title} onChange={(event) => setCreateDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Plan takeoff draft" />
+                      </div>
+                    </div>
+                  ) : null}
                   <TakeoffStudioManualEditor
-                    draft={detailDraft}
-                    setDraft={setDetailDraft}
+                    draft={selectedEstimate ? detailDraft : createDraft}
+                    setDraft={selectedEstimate ? setDetailDraft : setCreateDraft}
                     disabled={busy || !canManage}
                     jobs={jobs}
                     uploads={uploads}
@@ -3098,13 +3299,25 @@ export function EstimatesPagePolished({
                     onCreateUpload={onCreateUpload}
                   />
                   <FenceTakeoffLiteEditor
-                    draft={detailDraft}
-                    setDraft={setDetailDraft}
+                    draft={selectedEstimate ? detailDraft : createDraft}
+                    setDraft={selectedEstimate ? setDetailDraft : setCreateDraft}
                     disabled={busy || !canManage}
-                    jobsiteAddress={estimateRailProfileLine(detailLead?.location, detailCustomer?.address, companyProfile.serviceArea)}
+                    jobsiteAddress={selectedEstimate
+                      ? estimateRailProfileLine(detailLead?.location, detailCustomer?.address, companyProfile.serviceArea)
+                      : estimateRailProfileLine(createLead?.location, createCustomer?.address, companyProfile.serviceArea)}
                   />
                   <div className="flex flex-wrap gap-2">
-                    <Button type="button" onClick={() => onSaveEstimate(selectedEstimate.id, detailDraft)} disabled={detailSaveDisabled || !canManage}>Save Reviewed Takeoff Draft</Button>
+                    {selectedEstimate ? (
+                      <Button type="button" onClick={() => onSaveEstimate(selectedEstimate.id, detailDraft)} disabled={detailSaveDisabled || !canManage}>Save Reviewed Takeoff Draft</Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        onClick={createDraftEstimateWithTakeoff}
+                        disabled={busy || (!createDraft.customerId && !createDraft.leadId && !createDraft.customerName) || !createDraft.title}
+                      >
+                        Save as Draft Estimate
+                      </Button>
+                    )}
                     <Button type="button" variant="secondary" onClick={() => setActiveEstimateTool("backup")}>Open backup</Button>
                   </div>
                 </div>
@@ -3242,9 +3455,12 @@ export function EstimatesPagePolished({
         </div>
       </details>
     </div>
+    </div>
+    </>
   );
 
   return (
+    <>
     <div className="co-office-page co-estimates-page">
       <PageHeader
         eyebrow="Office Sales"
@@ -3574,7 +3790,6 @@ export function EstimatesPagePolished({
           ) : null}
         </div>
       </div>
-    </div>
     </div>
     </>
   );

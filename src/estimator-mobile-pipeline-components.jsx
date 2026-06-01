@@ -172,6 +172,8 @@ export function EstimatorMobilePipelinePage({
   setActive,
   onSelectLead,
   onOpenEstimate,
+  onOpenTakeoff,
+  onStartTakeoff,
   onSelectCustomer,
   activeModule = "leads",
 }) {
@@ -286,6 +288,16 @@ export function EstimatorMobilePipelinePage({
       className="co-estimator-mobile-pipeline"
     >
       <ApexMobileKpiGrid items={kpis} />
+      {isEstimateRoute && typeof onStartTakeoff === "function" ? (
+        <section className="co-apex-mobile-start-takeoff">
+          <div>
+            <Badge tone="green">Takeoff</Badge>
+            <strong>Takeoff tool</strong>
+            <span>Open Takeoff Studio inside Estimates, upload or measure a plan, then save it as a draft estimate.</span>
+          </div>
+          <Button type="button" onClick={onStartTakeoff}>Open Takeoff</Button>
+        </section>
+      ) : null}
       <ApexMobileActionQueue
         title={isEstimateRoute ? "Top estimate queue" : "Top 3 pipeline"}
         items={mobileQueueItems}
@@ -301,6 +313,11 @@ export function EstimatorMobilePipelinePage({
             </div>
             <h2>{selectedItem.title}</h2>
             <p>{selectedItem.description || "Review this sales item before taking action."}</p>
+            {isEstimateRoute && selectedItem.kind === "estimate" && typeof onOpenTakeoff === "function" ? (
+              <div className="co-apex-mobile-takeoff-shortcut">
+                <Button type="button" onClick={() => onOpenTakeoff(selectedItem.recordId)}>Open Takeoff</Button>
+              </div>
+            ) : null}
             <div className="co-apex-mobile-selected-summary">
               <span>
                 <em>Next safe action</em>

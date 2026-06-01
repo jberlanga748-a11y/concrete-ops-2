@@ -1,5 +1,7 @@
 export const ALLOWED_UPLOAD_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "image/gif", "application/pdf"];
-export const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
+export const MAX_IMAGE_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
+export const MAX_PDF_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024;
+export const MAX_UPLOAD_SIZE_BYTES = MAX_PDF_UPLOAD_SIZE_BYTES;
 
 export function uploadFileIsImage(fileType = "") {
   return String(fileType || "").toLowerCase().startsWith("image/");
@@ -85,11 +87,15 @@ export function deriveUploadDraftFromSelection(currentDraft, file, dataUrl, sele
 
 export function validateUploadFile(file) {
   if (!file) return "Choose a photo or PDF plan to upload.";
-  if (!ALLOWED_UPLOAD_TYPES.includes(String(file.type || "").toLowerCase())) {
+  const fileType = String(file.type || "").toLowerCase();
+  if (!ALLOWED_UPLOAD_TYPES.includes(fileType)) {
     return "Only image uploads and PDF plans are supported right now.";
   }
-  if (Number(file.size || 0) > MAX_UPLOAD_SIZE_BYTES) {
-    return `Files must be ${Math.round(MAX_UPLOAD_SIZE_BYTES / (1024 * 1024))}MB or smaller.`;
+  const maxSize = uploadFileIsPdf(fileType) ? MAX_PDF_UPLOAD_SIZE_BYTES : MAX_IMAGE_UPLOAD_SIZE_BYTES;
+  if (Number(file.size || 0) > maxSize) {
+    return uploadFileIsPdf(fileType)
+      ? `PDF plans must be ${Math.round(MAX_PDF_UPLOAD_SIZE_BYTES / (1024 * 1024))}MB or smaller.`
+      : `Photo uploads must be ${Math.round(MAX_IMAGE_UPLOAD_SIZE_BYTES / (1024 * 1024))}MB or smaller.`;
   }
   return "";
 }

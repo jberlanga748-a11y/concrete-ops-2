@@ -76,8 +76,10 @@ test("deriveUploadDraftFromSelection preserves draft state and sets file metadat
 test("validateUploadFile enforces supported image/PDF types and size", () => {
   assert.equal(validateUploadFile(null), "Choose a photo or PDF plan to upload.");
   assert.equal(validateUploadFile({ type: "application/javascript", size: 100 }), "Only image uploads and PDF plans are supported right now.");
-  assert.match(validateUploadFile({ type: "image/png", size: 11 * 1024 * 1024 }), /10MB or smaller/);
+  assert.match(validateUploadFile({ type: "image/png", size: 11 * 1024 * 1024 }), /Photo uploads must be 10MB or smaller/);
   assert.equal(validateUploadFile({ type: "image/png", size: 1024 }), "");
+  assert.equal(validateUploadFile({ type: "application/pdf", size: 11 * 1024 * 1024 }), "");
+  assert.match(validateUploadFile({ type: "application/pdf", size: 51 * 1024 * 1024 }), /PDF plans must be 50MB or smaller/);
   assert.equal(validateUploadFile({ type: "application/pdf", size: 2048 }), "");
 });
 

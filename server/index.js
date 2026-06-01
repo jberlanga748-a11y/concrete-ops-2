@@ -409,7 +409,8 @@ const PRE_POUR_ITEM_STATUSES = new Set(["unchecked", "checked", "not_applicable"
 const POST_POUR_CHECKLIST_STATUSES = new Set(["draft", "completed", "reviewed", "reopened", "archived"]);
 const POST_POUR_ITEM_STATUSES = new Set(["unchecked", "checked", "not_applicable"]);
 const ALLOWED_UPLOAD_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "image/gif", "application/pdf"]);
-const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
+const MAX_IMAGE_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
+const MAX_PDF_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024;
 const CALCULATOR_RESULT_TYPES = new Set(["slab", "footing", "wall", "round_column", "roundColumn", "multi_section"]);
 const PUBLIC_REQUEST_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const AGENT_PROPOSAL_AUDIT_EVENT_TYPES = new Set([
@@ -509,7 +510,7 @@ app.use(cors({
   exposedHeaders: ["X-CSRF-Token", "X-Request-Id"],
   optionsSuccessStatus: 204,
 }));
-app.use(express.json({ limit: "16mb" }));
+app.use(express.json({ limit: "72mb" }));
 
 class ApiError extends Error {
   constructor(status, message) {
@@ -3968,8 +3969,11 @@ function decodeUploadPayload(payload) {
     throw new ApiError(400, "Uploaded file is empty.");
   }
 
-  if (buffer.length > MAX_UPLOAD_SIZE_BYTES) {
-    throw new ApiError(400, `Uploaded file must be ${Math.round(MAX_UPLOAD_SIZE_BYTES / (1024 * 1024))}MB or smaller.`);
+  const maxUploadSize = fileType === "application/pdf" ? MAX_PDF_UPLOAD_SIZE_BYTES : MAX_IMAGE_UPLOAD_SIZE_BYTES;
+  if (buffer.length > maxUploadSize) {
+    throw new ApiError(400, fileType === "application/pdf"
+      ? `PDF plan must be ${Math.round(MAX_PDF_UPLOAD_SIZE_BYTES / (1024 * 1024))}MB or smaller.`
+      : `Photo upload must be ${Math.round(MAX_IMAGE_UPLOAD_SIZE_BYTES / (1024 * 1024))}MB or smaller.`);
   }
 
   return {

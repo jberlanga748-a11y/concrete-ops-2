@@ -429,6 +429,20 @@ test("uploads reject unsafe types and oversized payloads", async () => {
       }),
     });
     assert.equal(oversizedUpload.response.status, 400);
+    assert.match(oversizedUpload.payload.error, /Photo upload must be 10MB or smaller/);
+
+    const largerPdfData = Buffer.alloc(10 * 1024 * 1024 + 1, 1).toString("base64");
+    const largerPdfUpload = await requestJson(fixture.baseUrl, "/api/uploads", {
+      method: "POST",
+      headers: officeHeaders,
+      body: JSON.stringify({
+        jobId: "J-2201",
+        fileName: "larger-plan.pdf",
+        fileType: "application/pdf",
+        dataUrl: `data:application/pdf;base64,${largerPdfData}`,
+      }),
+    });
+    assert.equal(largerPdfUpload.response.status, 201);
   } finally {
     await fixture.stop();
   }

@@ -1662,10 +1662,10 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.16em] text-indigo-700">Upload plan in Takeoff</p>
-              <p className="mt-1 text-sm font-bold leading-6 text-slate-600">Choose a PDF or image plan, tie it to the job for access control, then attach it to the selected sheet below.</p>
+              <p className="mt-1 text-sm font-bold leading-6 text-slate-600">Choose a PDF plan up to 50MB or an image plan up to 10MB, then attach it to the selected sheet.</p>
             </div>
             <Button type="button" size="sm" variant="secondary" onClick={() => planUploadInputRef.current?.click()} disabled={disabled || planUploadDraft.status === "reading" || planUploadDraft.status === "uploading"}>
-              Choose plan
+              Choose PDF / Image Plan
             </Button>
           </div>
           <input
@@ -1677,12 +1677,12 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
             disabled={disabled || planUploadDraft.status === "reading" || planUploadDraft.status === "uploading"}
           />
           <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
-            <SelectField label="Plan job" value={selectedPlanUploadJobId} onChange={(event) => setPlanUploadDraft((current) => ({ ...current, jobId: event.target.value, error: "", message: "" }))} disabled={disabled || planUploadDraft.status === "uploading" || planUploadJobOptions.length === 0}>
+            <SelectField label="Job access for plan" value={selectedPlanUploadJobId} onChange={(event) => setPlanUploadDraft((current) => ({ ...current, jobId: event.target.value, error: "", message: "" }))} disabled={disabled || planUploadDraft.status === "uploading" || planUploadJobOptions.length === 0}>
               {planUploadJobOptions.length ? planUploadJobOptions.map((job) => <option key={job.id} value={job.id}>{job.label}</option>) : <option value="">No job available</option>}
             </SelectField>
             <InputField label="Plan caption" value={planUploadDraft.caption} onChange={(event) => setPlanUploadDraft((current) => ({ ...current, caption: event.target.value }))} disabled={disabled || planUploadDraft.status === "uploading"} placeholder="A1 slab plan" />
             <Button type="button" size="sm" onClick={uploadTakeoffPlanFile} disabled={disabled || !selectedPlanUploadJobId || !planUploadDraft.dataUrl || planUploadDraft.status === "reading" || planUploadDraft.status === "uploading"}>
-              {planUploadDraft.status === "uploading" ? "Uploading" : "Upload"}
+              {planUploadDraft.status === "uploading" ? "Uploading" : "Upload and Attach"}
             </Button>
           </div>
           {planUploadDraft.fileName ? (
