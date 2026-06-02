@@ -101,6 +101,7 @@ import {
   buildLocalApexOsAnswer,
   parseOpenAiApexOsAskPayload,
 } from "../shared/apexOsAsk.js";
+import { buildApexOsDailyBriefing } from "../shared/apexOsDailyBriefing.js";
 import {
   buildEstimateRoughNotesContext,
   generateEstimateRoughNotesDrafts,
@@ -12475,6 +12476,21 @@ app.get("/api/apex-os/memory", requireAuth, asyncRoute(async (req, res) => {
   res.json({
     apexOsMemory: memory.map(publicApexOsMemoryEntry),
     summary: summarizeApexOsMemory(memory),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/apex-os/daily-briefing", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  res.json({
+    dailyBriefing: buildApexOsDailyBriefing({
+      state: {
+        ...state,
+        companySettings: companySettingsForState(state, req.auth.user),
+      },
+      user: req.auth.user,
+    }),
     requestId: res.locals.requestId,
   });
 }));

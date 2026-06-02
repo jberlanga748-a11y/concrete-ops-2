@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { askApexOs } from "./api";
+import { askApexOs, getApexOsDailyBriefing } from "./api";
 import { Badge, Button, Card, Icon, PageHeader, SectionHeader } from "./app-shell-components";
 import { deriveApexControlRoomState } from "./apex-control-room-utils";
 
@@ -299,6 +299,58 @@ function VoiceTranscriptPanel({ state, onUseTranscript }) {
   );
 }
 
+function DailyBriefingPanel({ state, sessionToken }) {
+  const [briefing, setBriefing] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState("");
+  const canRefresh = state.canView && Boolean(sessionToken) && !loading;
+  const rows = briefing?.briefingRows?.length ? briefing.briefingRows : state.releaseMonitoring.briefingRows;
+
+  async function refreshBriefing() {
+    if (!canRefresh) return;
+    setLoading(true);
+    setNotice("");
+    try {
+      const payload = await getApexOsDailyBriefing(sessionToken);
+      setBriefing(payload.dailyBriefing);
+      setNotice("Daily briefing refreshed from current Apex HQ workspace state.");
+    } catch (error) {
+      setNotice(error?.message || "Daily briefing could not refresh right now.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="grid min-w-0 gap-3">
+      <div className="flex min-w-0 flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="break-words text-sm font-black text-slate-950">{briefing?.summary || "Refresh the briefing for a current private operating snapshot."}</p>
+          <p className="mt-1 break-words text-xs font-bold leading-5 text-slate-600">{notice || "Read-only: no alerts are sent and no records are changed."}</p>
+        </div>
+        <Button type="button" variant="secondary" size="sm" onClick={refreshBriefing} disabled={!canRefresh}>
+          <Icon name="refresh" /> {loading ? "Refreshing..." : "Refresh"}
+        </Button>
+      </div>
+      {rows.map((item) => <StatusRow key={item.id} item={item} />)}
+      {briefing?.alerts?.length ? (
+        <div className="grid min-w-0 gap-3">
+          <SectionHeader title="Briefing Locks" description={`${briefing.alerts.length} safety locks returned with the briefing.`} />
+          {briefing.alerts.map((item) => <StatusRow key={item.id} item={item} />)}
+        </div>
+      ) : null}
+      {briefing?.sourceLabels?.length ? (
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Briefing sources</p>
+          <div className="mt-2 flex min-w-0 flex-wrap gap-2">
+            {briefing.sourceLabels.map((label) => <ToneBadge key={label} tone="slate">{label}</ToneBadge>)}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function ApexControlRoomPage(props) {
   const state = deriveApexControlRoomState(props);
   const [askQuestion, setAskQuestion] = useState("");
@@ -423,9 +475,7 @@ export function ApexControlRoomPage(props) {
 
           <Card className="min-w-0 p-4 sm:p-5">
             <SectionHeader title="Daily Briefing" description={`${state.releaseMonitoring.briefingCount || 0} briefing rows for John-only review.`} />
-            <div className="grid min-w-0 gap-3">
-              {state.releaseMonitoring.briefingRows.map((item) => <StatusRow key={item.id} item={item} />)}
-            </div>
+            <DailyBriefingPanel state={state} sessionToken={props.sessionToken} />
           </Card>
         </section>
 

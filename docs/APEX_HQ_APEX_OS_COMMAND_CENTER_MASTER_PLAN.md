@@ -1100,6 +1100,8 @@ Status:
 
 - Read-only first UI implemented locally on 2026-06-02 as Apex OS Slice 9.
 - Current branch/build/test status, launch gate status, deploy readiness packet, rollback evidence, failed test/build monitor, stalled-agent watch, and daily briefing placeholders are visible inside the private Control Room.
+- Operator-only Daily Briefing refresh implemented locally on 2026-06-02 as Apex OS Slice 16.
+- `/api/apex-os/daily-briefing` returns a read-only briefing packet from current local workspace state, durable Apex OS memory summary, release/approval locks, source labels, and next actions.
 - Deploys, rollback execution, production monitoring provider setup, production data changes, schema/storage changes, and external notifications remain approval-locked.
 
 ### Slice 10: Full Security And QA Hardening

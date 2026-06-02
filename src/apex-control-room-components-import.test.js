@@ -49,6 +49,9 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /Execute locked/);
   assert.match(componentSource, /Release Monitoring/);
   assert.match(componentSource, /Daily Briefing/);
+  assert.match(componentSource, /DailyBriefingPanel/);
+  assert.match(componentSource, /getApexOsDailyBriefing/);
+  assert.match(componentSource, /Briefing Locks/);
   assert.match(componentSource, /Release Readiness Packet/);
   assert.match(componentSource, /Monitoring Locks/);
   assert.match(componentSource, /Business Command Center/);

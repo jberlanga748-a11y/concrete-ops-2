@@ -207,6 +207,10 @@ test("Apex OS memory is operator-only, source-backed, persisted, and audited", a
       body: JSON.stringify({ question: "What is next?" }),
     });
     assert.equal(adminAskBlocked.response.status, 403);
+    const adminBriefingBlocked = await requestJson(fixture.baseUrl, "/api/apex-os/daily-briefing", {
+      headers: authHeaders(adminLogin.token),
+    });
+    assert.equal(adminBriefingBlocked.response.status, 403);
 
     const unsafe = await requestJson(fixture.baseUrl, "/api/apex-os/memory", {
       method: "POST",
@@ -271,6 +275,14 @@ test("Apex OS memory is operator-only, source-backed, persisted, and audited", a
     assert.equal(asked.context.memoryCount, 1);
     assert.equal(asked.answer.sourceLabels.some((label) => label === "Apex OS master plan"), true);
     assert.equal(asked.answer.approvalWarnings.length >= 2, true);
+
+    const briefing = await assertOk(fixture.baseUrl, "/api/apex-os/daily-briefing", {
+      headers: authHeaders(operatorLogin.token),
+    });
+    assert.equal(briefing.dailyBriefing.operatorName, operatorLogin.user.name);
+    assert.equal(briefing.dailyBriefing.briefingRows.some((row) => row.id === "memory-context" && row.status === "1 approved"), true);
+    assert.equal(briefing.dailyBriefing.alerts.some((row) => row.id === "no-execution" && row.status === "Locked"), true);
+    assert.equal(briefing.dailyBriefing.sourceLabels.includes("AGENTS.md field-role protection rules"), true);
 
     const archived = await assertOk(fixture.baseUrl, `/api/apex-os/memory/${created.apexOsMemoryEntry.id}`, {
       method: "PATCH",
