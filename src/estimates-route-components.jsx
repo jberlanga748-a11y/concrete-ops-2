@@ -1658,7 +1658,7 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
             {planFileReadiness.readyFileCount}/{planFileReadiness.fileCount} ready
           </Badge>
         </div>
-        <div className="mt-3 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3">
+        <div className="co-takeoff-studio-plan-upload mt-3 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.16em] text-indigo-700">Upload plan in Takeoff</p>

@@ -260,6 +260,8 @@ export function EstimatesPagePolished({
   const newEstimateRef = useRef(null);
   const copyFeedbackTimeoutRef = useRef(null);
   const takeoffToolRef = useRef(null);
+  const takeoffDraftDetailsRef = useRef(null);
+  const takeoffUploadRef = useRef(null);
   const isDesktopCommandViewport = useDesktopCommandViewport(1024);
 
   useEffect(() => {
@@ -401,6 +403,7 @@ export function EstimatesPagePolished({
     [detailDraft, detailEstimatePreview],
   );
   const detailSaveDisabled = busy || (!detailDraft.customerId && !detailDraft.leadId) || !detailDraft.title;
+  const createTakeoffDraftSaveDisabled = busy || (!createDraft.customerId && !createDraft.leadId && !createDraft.customerName) || !createDraft.title;
   const canMarkSent = canManage && detailDraft.status === "draft";
   const packetPrintSettings = useMemo(() => resolveEstimatePacketSettings({
     presetId: packetPresetId,
@@ -822,6 +825,68 @@ export function EstimatesPagePolished({
             </div>
           </div>
         ) : null}
+      </div>
+    );
+  }
+
+  function scrollToTakeoffDraftDetails() {
+    (takeoffDraftDetailsRef.current || takeoffToolRef.current)?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  }
+
+  function scrollToTakeoffUpload() {
+    const uploadPanel = takeoffUploadRef.current?.querySelector?.(".co-takeoff-studio-plan-upload");
+    (uploadPanel || takeoffUploadRef.current || takeoffToolRef.current)?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+  }
+
+  function handleMobileTakeoffSave() {
+    if (selectedEstimate?.id) {
+      return onSaveEstimate(selectedEstimate.id, detailDraft);
+    }
+    if (createTakeoffDraftSaveDisabled) {
+      scrollToTakeoffDraftDetails();
+      return false;
+    }
+    return createDraftEstimateWithTakeoff();
+  }
+
+  function renderMobileTakeoffActionBar() {
+    if (!canManage || activeEstimateTool !== "fenceTakeoff" || (!selectedEstimate && estimateViewMode !== "create")) return null;
+    const needsDraftCustomer = !selectedEstimate && !createDraft.customerId && !createDraft.leadId && !createDraft.customerName;
+    const needsDraftTitle = !selectedEstimate && !createDraft.title;
+    const saveLabel = selectedEstimate
+      ? "Save Takeoff"
+      : needsDraftCustomer
+        ? "Add customer"
+        : needsDraftTitle
+          ? "Add title"
+          : "Save Draft";
+
+    return (
+      <div className="co-estimates-mobile-takeoff-actions" aria-label="Takeoff quick actions">
+        <Button type="button" size="sm" variant="secondary" onClick={scrollToTakeoffUpload}>Upload plan</Button>
+        <Button
+          type="button"
+          size="sm"
+          variant={selectedEstimate || !createTakeoffDraftSaveDisabled ? "primary" : "secondary"}
+          onClick={handleMobileTakeoffSave}
+          disabled={busy || (selectedEstimate && (detailSaveDisabled || !canManage))}
+        >
+          {saveLabel}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          onClick={() => {
+            if (canUseEstimatorMobilePipeline && forceMobileEstimateStudio) {
+              setForceMobileEstimateStudio(false);
+              return;
+            }
+            setActiveEstimateTool("edit");
+          }}
+        >
+          Back
+        </Button>
       </div>
     );
   }
@@ -3264,10 +3329,11 @@ export function EstimatesPagePolished({
           {activeEstimateTool === "fenceTakeoff" ? (
             <Card ref={takeoffToolRef} className="scroll-mt-24 p-4">
               <SectionHeader title="Takeoff Studio" description={selectedEstimate ? "Measure plan quantities, apply reviewed blank-priced estimate lines, and keep fence-specific takeoff available when needed." : "Use Takeoff inside Estimates, then save the measured backup as a draft estimate when the customer and title are ready."} />
+              {renderMobileTakeoffActionBar()}
               {(selectedEstimate || estimateViewMode === "create") && canManage ? (
                 <div className="grid gap-3">
                   {!selectedEstimate && estimateViewMode === "create" ? (
-                    <div className="rounded-2xl border border-green-100 bg-green-50/70 p-3">
+                    <div ref={takeoffDraftDetailsRef} className="co-estimates-takeoff-draft-details rounded-2xl border border-green-100 bg-green-50/70 p-3">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
                           <Badge tone="green">Estimate tool</Badge>
@@ -3289,15 +3355,17 @@ export function EstimatesPagePolished({
                       </div>
                     </div>
                   ) : null}
-                  <TakeoffStudioManualEditor
-                    draft={selectedEstimate ? detailDraft : createDraft}
-                    setDraft={selectedEstimate ? setDetailDraft : setCreateDraft}
-                    disabled={busy || !canManage}
-                    jobs={jobs}
-                    uploads={uploads}
-                    sessionToken={sessionToken}
-                    onCreateUpload={onCreateUpload}
-                  />
+                  <div ref={takeoffUploadRef} className="co-estimates-takeoff-upload-anchor">
+                    <TakeoffStudioManualEditor
+                      draft={selectedEstimate ? detailDraft : createDraft}
+                      setDraft={selectedEstimate ? setDetailDraft : setCreateDraft}
+                      disabled={busy || !canManage}
+                      jobs={jobs}
+                      uploads={uploads}
+                      sessionToken={sessionToken}
+                      onCreateUpload={onCreateUpload}
+                    />
+                  </div>
                   <FenceTakeoffLiteEditor
                     draft={selectedEstimate ? detailDraft : createDraft}
                     setDraft={selectedEstimate ? setDetailDraft : setCreateDraft}
