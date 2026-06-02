@@ -452,7 +452,7 @@ export function EstimatesPagePolished({
   ];
   const estimateAssistantActions = [
     canUseAiRoughNotes ? { label: "Turn rough notes into packet", icon: "spark", onClick: () => openEstimateTool("roughNotes") } : null,
-    { label: "Build takeoff", icon: "layers", onClick: () => openEstimateTool("fenceTakeoff"), disabled: !selectedEstimate || !canManage },
+    { label: "Open Takeoff", icon: "layers", onClick: () => openEstimateTool("fenceTakeoff"), disabled: !selectedEstimate || !canManage },
     { label: "Prepare visual preview", icon: "photo", onClick: () => openEstimateTool("visual"), disabled: !selectedEstimate || !canManage },
     { label: "Review missing scope", icon: "clipboard", onClick: () => openEstimateTool("sections"), disabled: !selectedEstimate },
     { label: "Create foreman handoff", icon: "users", onClick: () => openEstimateTool("packet"), disabled: !selectedEstimate || !canUseGcPackets },
@@ -863,7 +863,7 @@ export function EstimatesPagePolished({
 
     return (
       <div className="co-estimates-mobile-takeoff-actions" aria-label="Takeoff quick actions">
-        <Button type="button" size="sm" variant="secondary" onClick={scrollToTakeoffUpload}>Upload plan</Button>
+        <Button type="button" size="sm" variant="secondary" onClick={scrollToTakeoffUpload}>Upload PDF</Button>
         <Button
           type="button"
           size="sm"
@@ -1375,6 +1375,7 @@ export function EstimatesPagePolished({
   const estimateShellQuickActions = [
     { id: "new-estimate", label: "New Estimate", icon: "plus", onClick: () => openEstimateShellMode("create"), disabled: !canManage },
     { id: "takeoff-tool", label: "New Takeoff", icon: "layers", onClick: focusNewTakeoff, disabled: !canManage },
+    { id: "open-takeoff", label: "Open Takeoff", icon: "layers", onClick: () => setEstimateShellMode("takeoff"), disabled: !selectedEstimate || !canManage },
     { id: "ready-send", label: "Ready Send", icon: "arrowUpRight", onClick: () => selectEstimateShellEstimate(readyToSendRows[0], "sendReview"), disabled: !readyToSendRows.length },
   ];
   const estimateShellModes = [
@@ -1673,41 +1674,50 @@ export function EstimatesPagePolished({
                     onCreateUpload={onCreateUpload}
                   />
                 </div>
-                <div className="rounded-2xl border border-green-100 bg-green-50/70 p-3">
-                  <div className="mb-3">
-                    <Badge tone="green">Save details</Badge>
-                    <h3 className="mt-2 text-base font-black text-slate-950">Create the draft estimate after takeoff</h3>
-                    <p className="mt-1 text-sm font-bold leading-6 text-slate-600">Customer and title are only needed when you are ready to save this Plan Room work into Estimates.</p>
+                <details ref={takeoffDraftDetailsRef} className="co-estimates-takeoff-save-details">
+                  <summary>
+                    <span>
+                      <strong>Ready to save this takeoff?</strong>
+                      <small>Add customer/title details only when the plan work is ready to become a draft estimate.</small>
+                    </span>
+                    <Badge tone="green">Draft estimate</Badge>
+                  </summary>
+                  <div className="co-estimates-takeoff-save-body">
+                    <div className="mb-3">
+                      <Badge tone="green">Save details</Badge>
+                      <h3 className="mt-2 text-base font-black text-slate-950">Create the draft estimate after takeoff</h3>
+                      <p className="mt-1 text-sm font-bold leading-6 text-slate-600">Customer and title are only needed when you are ready to save this Plan Room work into Estimates.</p>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <InputField label="Customer / company name" value={createDraft.customerName} onChange={(event) => setCreateDraft((current) => updateDraftLinkFields(current, { customerName: event.target.value }))} placeholder="Customer name" />
+                      <SelectField label="Customer" value={createDraft.customerId} onChange={(event) => setCreateDraft((current) => updateDraftLinkFields(current, { customerId: event.target.value }))}>
+                        <option value="">Select a customer</option>
+                        {visibleCustomers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
+                      </SelectField>
+                      <SelectField label="Lead" value={createDraft.leadId} onChange={(event) => setCreateDraft((current) => updateDraftLinkFields(current, { leadId: event.target.value }))}>
+                        <option value="">Optional linked lead</option>
+                        {visibleLeads.map((lead) => <option key={lead.id} value={lead.id}>{`${lead.customer} - ${lead.project}`}</option>)}
+                      </SelectField>
+                      <InputField label="Estimate / takeoff title" value={createDraft.title} onChange={(event) => setCreateDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Plan takeoff draft" />
+                    </div>
+                    <FenceTakeoffLiteEditor
+                      draft={createDraft}
+                      setDraft={setCreateDraft}
+                      disabled={busy || !canManage}
+                      jobsiteAddress={estimateRailProfileLine(createLead?.location, createCustomer?.address, companyProfile.serviceArea)}
+                    />
+                    <div className="co-estimates-shell-workflow-actions">
+                      <Button
+                        type="button"
+                        onClick={createDraftEstimateWithTakeoff}
+                        disabled={busy || (!createDraft.customerId && !createDraft.leadId && !createDraft.customerName) || !createDraft.title}
+                      >
+                        Save as Draft Estimate
+                      </Button>
+                      <Button type="button" variant="secondary" onClick={() => setEstimateShellMode("overview")}>Back to Estimates</Button>
+                    </div>
                   </div>
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <InputField label="Customer / company name" value={createDraft.customerName} onChange={(event) => setCreateDraft((current) => updateDraftLinkFields(current, { customerName: event.target.value }))} placeholder="Customer name" />
-                    <SelectField label="Customer" value={createDraft.customerId} onChange={(event) => setCreateDraft((current) => updateDraftLinkFields(current, { customerId: event.target.value }))}>
-                      <option value="">Select a customer</option>
-                      {visibleCustomers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
-                    </SelectField>
-                    <SelectField label="Lead" value={createDraft.leadId} onChange={(event) => setCreateDraft((current) => updateDraftLinkFields(current, { leadId: event.target.value }))}>
-                      <option value="">Optional linked lead</option>
-                      {visibleLeads.map((lead) => <option key={lead.id} value={lead.id}>{`${lead.customer} - ${lead.project}`}</option>)}
-                    </SelectField>
-                    <InputField label="Estimate / takeoff title" value={createDraft.title} onChange={(event) => setCreateDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Plan takeoff draft" />
-                  </div>
-                </div>
-                <FenceTakeoffLiteEditor
-                  draft={createDraft}
-                  setDraft={setCreateDraft}
-                  disabled={busy || !canManage}
-                  jobsiteAddress={estimateRailProfileLine(createLead?.location, createCustomer?.address, companyProfile.serviceArea)}
-                />
-                <div className="co-estimates-shell-workflow-actions">
-                  <Button
-                    type="button"
-                    onClick={createDraftEstimateWithTakeoff}
-                    disabled={busy || (!createDraft.customerId && !createDraft.leadId && !createDraft.customerName) || !createDraft.title}
-                  >
-                    Save as Draft Estimate
-                  </Button>
-                  <Button type="button" variant="secondary" onClick={() => setEstimateShellMode("overview")}>Back to Estimates</Button>
-                </div>
+                </details>
               </div>
             ) : (
               <StateCard title="Takeoff creation unavailable" description="This role can review estimates but cannot create new takeoff or pricing records." tone="slate" />
@@ -2233,11 +2243,14 @@ export function EstimatesPagePolished({
         <div className="co-estimates-shell-workflow-panel co-estimates-shell-takeoff-panel" role="region" aria-label="Estimate takeoff editor">
           <div className="co-estimates-shell-workflow-head">
             <div>
-              <Badge tone="green">Takeoff editor</Badge>
-              <h3>Takeoff</h3>
-              <p>Draw or manually add estimate-grade quantities. Apply Quantities updates the local draft only; Save persists reviewed draft fields through the existing estimate save path.</p>
+              <Badge tone="green">Plan Room</Badge>
+              <h3>Open Takeoff</h3>
+              <p>Upload or review the job PDF, move through sheets, and save reviewed quantities back to this estimate. Nothing is sent or converted automatically.</p>
             </div>
-            <StatusBadge status={estimateStatusLabel(status)} />
+            <div className="co-estimates-shell-takeoff-head-actions">
+              <Button type="button" size="sm" onClick={handleSaveEstimateShellTakeoff} disabled={takeoffSaveDisabled}>Save Takeoff</Button>
+              <Button type="button" size="sm" variant="secondary" onClick={() => setEstimateShellMode("overview")}>Overview</Button>
+            </div>
           </div>
           <div className="co-estimates-shell-workflow-context">
             <span><em>Estimate</em><strong>{estimateDisplayTitle(estimate)}</strong></span>
@@ -2993,7 +3006,7 @@ export function EstimatesPagePolished({
       </div>
     ) : null}
     <div className={showEstimatorMobilePipeline ? "co-sales-mobile-desktop-content" : ""}>
-    <div className="co-office-page co-estimates-page">
+    <div className={`co-office-page co-estimates-page${forceMobileEstimateStudio && activeEstimateTool === "fenceTakeoff" ? " co-estimates-page--takeoff-focus" : ""}`}>
       {forceMobileEstimateStudio && canUseEstimatorMobilePipeline ? (
         <div className="co-sales-mobile-studio-return px-5 pt-4 sm:hidden">
           <Button type="button" variant="secondary" onClick={() => setForceMobileEstimateStudio(false)}>Back to mobile estimates</Button>

@@ -24,7 +24,7 @@ test("Estimates page route shell is extracted and lazy-loaded out of App", () =>
   assert.match(estimatesRouteSource, /pdfjs-dist/);
   assert.match(estimatesRouteSource, /TakeoffStudioPdfCanvasPreview/);
   assert.match(estimatesRouteSource, /data-pdf-canvas-status/);
-  assert.match(estimatesRouteSource, /Upload plan in Takeoff/);
+  assert.match(estimatesRouteSource, /Plan file upload/);
   assert.match(estimatesRouteSource, /validateUploadFile/);
   assert.match(estimatesPageSource, /openMobileTakeoffStudio/);
   assert.match(estimatesPageSource, /focusNewTakeoff/);
@@ -34,8 +34,8 @@ test("Estimates page route shell is extracted and lazy-loaded out of App", () =>
   assert.match(estimatesPageSource, /Upload the job PDF first/);
   assert.match(estimatesPageSource, /Save as Draft Estimate/);
   assert.match(estimatesPageSource, /Back to mobile estimates/);
-  assert.match(estimatesRouteSource, /job PDF up to 50MB or an image plan up to 10MB/);
-  assert.match(estimatesRouteSource, /Choose Job PDF \/ Image/);
+  assert.match(estimatesRouteSource, /job PDF up to 50MB or a plan image up to 10MB/);
+  assert.match(estimatesRouteSource, /Choose PDF \/ Image/);
   assert.match(estimatesRouteSource, /Job access for plan/);
   assert.match(estimatesRouteSource, /Upload and Attach/);
   assert.match(estimatesPageSource, /jobs=\{jobs\}/);

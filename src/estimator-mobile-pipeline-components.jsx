@@ -295,7 +295,7 @@ export function EstimatorMobilePipelinePage({
             <strong>Plan Room</strong>
             <span>Open the job PDF inside Estimates, work through the pages, then save the takeoff as a draft estimate.</span>
           </div>
-          <Button type="button" onClick={onStartTakeoff}>Open Takeoff</Button>
+          <Button type="button" onClick={onStartTakeoff}>Start New Takeoff</Button>
         </section>
       ) : null}
       <ApexMobileActionQueue

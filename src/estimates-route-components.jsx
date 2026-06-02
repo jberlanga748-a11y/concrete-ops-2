@@ -960,6 +960,41 @@ const TAKEOFF_MEASUREMENT_OPTIONS = [
   { value: "volume", label: "Volume (CY)" },
 ];
 
+const TAKEOFF_PDF_DOCUMENT_CACHE_LIMIT = 4;
+const takeoffPdfDocumentCache = new Map();
+
+async function loadTakeoffPdfDocument(sourceUrl = "") {
+  const key = String(sourceUrl || "").trim();
+  if (!key) throw new Error("PDF source is missing.");
+  const cached = takeoffPdfDocumentCache.get(key);
+  if (cached?.promise) return cached.promise;
+
+  const promise = (async () => {
+    const response = await fetch(key, { credentials: "include" });
+    if (!response.ok) throw new Error(`PDF source returned ${response.status}.`);
+    const documentData = new Uint8Array(await response.arrayBuffer());
+    if (!documentData.length) throw new Error("PDF source was empty.");
+    const loadingTask = pdfjsLib.getDocument({ data: documentData, disableWorker: true });
+    const pdf = await loadingTask.promise;
+    return { pdf, loadingTask };
+  })();
+
+  takeoffPdfDocumentCache.set(key, { promise });
+  if (takeoffPdfDocumentCache.size > TAKEOFF_PDF_DOCUMENT_CACHE_LIMIT) {
+    const oldestKey = takeoffPdfDocumentCache.keys().next().value;
+    const oldest = takeoffPdfDocumentCache.get(oldestKey);
+    takeoffPdfDocumentCache.delete(oldestKey);
+    oldest?.promise?.then((entry) => entry?.loadingTask?.destroy?.()).catch(() => {});
+  }
+
+  try {
+    return await promise;
+  } catch (error) {
+    takeoffPdfDocumentCache.delete(key);
+    throw error;
+  }
+}
+
 function takeoffUnitForType(type = "area") {
   if (type === "length") return "LF";
   if (type === "count") return "EA";
@@ -992,21 +1027,13 @@ function TakeoffStudioPdfCanvasPreview({ src = "", pageNumber = 1, sheetName = "
     }
 
     let cancelled = false;
-    let loadingTask = null;
     let renderTask = null;
 
     async function renderPdfPage() {
-      setRenderState({ status: "loading", message: "Rendering PDF plan page..." });
+      setRenderState({ status: "loading", message: `Rendering PDF page ${Number(pageNumber) || 1}...` });
       let renderStage = "loading document";
       try {
-        renderStage = "fetching document";
-        const response = await fetch(sourceUrl, { credentials: "include" });
-        if (!response.ok) throw new Error(`PDF source returned ${response.status}.`);
-        const documentData = new Uint8Array(await response.arrayBuffer());
-        if (!documentData.length) throw new Error("PDF source was empty.");
-        renderStage = "opening document";
-        loadingTask = pdfjsLib.getDocument({ data: documentData, disableWorker: true });
-        const pdf = await loadingTask.promise;
+        const { pdf } = await loadTakeoffPdfDocument(sourceUrl);
         if (!cancelled && typeof onPageCountRef.current === "function") {
           onPageCountRef.current(pdf.numPages || 1);
         }
@@ -1045,7 +1072,6 @@ function TakeoffStudioPdfCanvasPreview({ src = "", pageNumber = 1, sheetName = "
     return () => {
       cancelled = true;
       renderTask?.cancel?.();
-      loadingTask?.destroy?.();
     };
   }, [src, pageNumber]);
 
@@ -1078,6 +1104,7 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
   const [markupText, setMarkupText] = useState("");
   const [planRoomZoom, setPlanRoomZoom] = useState(1);
   const [planRoomPan, setPlanRoomPan] = useState({ x: 0, y: 0 });
+  const [isPlanRoomFullscreen, setIsPlanRoomFullscreen] = useState(false);
   const [manualPdfPageCount, setManualPdfPageCount] = useState("");
   const planUploadInputRef = useRef(null);
   const planRoomDragRef = useRef(null);
@@ -1204,6 +1231,22 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
       setPlanUploadDraft((current) => ({ ...current, jobId: planUploadJobOptions[0].id }));
     }
   }, [planUploadDraft.jobId, planUploadJobOptions]);
+
+  useEffect(() => {
+    if (!isPlanRoomFullscreen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    function handleFullscreenKeydown(event) {
+      if (event.key === "Escape") {
+        setIsPlanRoomFullscreen(false);
+      }
+    }
+    window.addEventListener("keydown", handleFullscreenKeydown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleFullscreenKeydown);
+    };
+  }, [isPlanRoomFullscreen]);
 
   function resolvePlanPreviewUrl(value = "") {
     const rawUrl = String(value || "");
@@ -1842,7 +1885,7 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
         description="Open the job PDF, review pages, then measure or mark up sheets before saving reviewed quantities into an estimate."
         action={<Badge tone={readiness.tone}>{readiness.label}</Badge>}
       />
-      <div className="co-apex-plan-room mt-3">
+      <div className={`co-apex-plan-room mt-3${isPlanRoomFullscreen ? " is-fullscreen" : ""}`}>
         <div className="co-apex-plan-room-head">
           <div>
             <Badge tone="blue">Plan Room</Badge>
@@ -1850,8 +1893,17 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
             <p>Upload the full job PDF, move page by page, zoom or pan the sheet, then measure or pin markups for reviewed takeoff backup.</p>
           </div>
           <div className="co-apex-plan-room-head-actions">
-            <Button type="button" size="sm" variant="secondary" onClick={() => planUploadInputRef.current?.click()} disabled={disabled || planUploadDraft.status === "reading" || planUploadDraft.status === "uploading"}>Upload Job PDF</Button>
-            {planUploadDraft.dataUrl ? <Button type="button" size="sm" onClick={uploadTakeoffPlanFile} disabled={disabled || !selectedPlanUploadJobId || planUploadDraft.status === "reading" || planUploadDraft.status === "uploading"}>Attach to Sheet</Button> : null}
+            <Button
+              type="button"
+              size="sm"
+              variant={isPlanRoomFullscreen ? "primary" : "secondary"}
+              onClick={() => setIsPlanRoomFullscreen((current) => !current)}
+              aria-pressed={isPlanRoomFullscreen}
+            >
+              {isPlanRoomFullscreen ? "Exit Full Screen" : "Full Screen"}
+            </Button>
+            <Button type="button" size="sm" variant="secondary" onClick={() => planUploadInputRef.current?.click()} disabled={disabled || planUploadDraft.status === "reading" || planUploadDraft.status === "uploading"}>Choose PDF / Image</Button>
+            {planUploadDraft.dataUrl ? <Button type="button" size="sm" onClick={uploadTakeoffPlanFile} disabled={disabled || !selectedPlanUploadJobId || planUploadDraft.status === "reading" || planUploadDraft.status === "uploading"}>Attach Plan to Page</Button> : null}
             {pdfBuildNeedsManualPageCount ? (
               <label className="co-apex-plan-room-page-count">
                 <span>Pages in PDF</span>
@@ -1871,7 +1923,7 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
             {canBuildPdfPageSheets ? (
               <Button type="button" size="sm" onClick={buildPdfPageSheets} disabled={disabled}>Build {pdfPagesRemainingToBuild} Page{pdfPagesRemainingToBuild === 1 ? "" : "s"}</Button>
             ) : null}
-            <Button type="button" size="sm" variant="secondary" onClick={addPdfPageSheet} disabled={disabled || !pdfRenderState.canAddPageSheet}>Add PDF Page</Button>
+            <Button type="button" size="sm" variant="secondary" onClick={addPdfPageSheet} disabled={disabled || !pdfRenderState.canAddPageSheet}>Add Next PDF Page</Button>
           </div>
         </div>
         <div className="co-apex-plan-room-grid">
@@ -2116,11 +2168,11 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
         <div className="co-takeoff-studio-plan-upload mt-3 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-indigo-700">Upload plan in Takeoff</p>
-              <p className="mt-1 text-sm font-bold leading-6 text-slate-600">Choose a job PDF up to 50MB or an image plan up to 10MB, then attach it to the selected sheet.</p>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-indigo-700">Plan file upload</p>
+              <p className="mt-1 text-sm font-bold leading-6 text-slate-600">Choose a job PDF up to 50MB or a plan image up to 10MB, then attach it to the selected sheet.</p>
             </div>
             <Button type="button" size="sm" variant="secondary" onClick={() => planUploadInputRef.current?.click()} disabled={disabled || planUploadDraft.status === "reading" || planUploadDraft.status === "uploading"}>
-              Choose Job PDF / Image
+              Choose PDF / Image
             </Button>
           </div>
           <input
