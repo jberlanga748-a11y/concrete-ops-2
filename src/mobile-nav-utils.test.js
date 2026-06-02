@@ -43,6 +43,17 @@ test("owner admin mobile nav preserves permission-filtered order and labels", ()
   assert.equal(items.some((item) => item.id === "appHealth"), false);
 });
 
+test("owner admin mobile overflow can include private Apex OS when permission-filtered visible", () => {
+  const items = getOwnerAdminMobileNavItems([
+    ...visibleNavItems,
+    { id: "apexControlRoom", label: "Apex Control Room", icon: "original-apex" },
+  ]);
+
+  assert.equal(items[4].id, "apexControlRoom");
+  assert.equal(items[4].label, "Apex OS");
+  assert.equal(items[4].icon, "spark");
+});
+
 test("estimator mobile nav prioritizes sales routes and preserves remaining visible items", () => {
   const items = getEstimatorMobileNavItems(visibleNavItems);
 

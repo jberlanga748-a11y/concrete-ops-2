@@ -6,6 +6,7 @@ export const OWNER_ADMIN_MOBILE_NAV_ORDER = [
 ];
 
 export const OWNER_ADMIN_MOBILE_MORE_ORDER = [
+  { id: "apexControlRoom", label: "Apex OS", icon: "spark" },
   { id: "jobs", label: "Jobs", icon: "briefcase" },
   { id: "schedule", label: "Schedule", icon: "calendar" },
   { id: "reports", label: "Reports", icon: "document" },

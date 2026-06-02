@@ -148,6 +148,10 @@ export function canManageCompanies(user) {
   return user?.operatorAccess === true && isOfficeManager(user);
 }
 
+export function canAccessApexOs(user) {
+  return canManageCompanies(user);
+}
+
 export function canViewLeads(user) {
   return isOfficeManager(user) || isEstimator(user);
 }
@@ -449,6 +453,10 @@ export function getAllowedModuleIds(user, companySettings = DEFAULT_COMPANY_SETT
 
   if (canUseToolChecklist(user, companySettings)) {
     modules.add("toolChecklist");
+  }
+
+  if (canAccessApexOs(user)) {
+    modules.add("apexControlRoom");
   }
 
   return modules;

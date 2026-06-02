@@ -107,12 +107,12 @@ function insertUsers(sqliteFile, users) {
   const database = new DatabaseSync(sqliteFile);
   try {
     const insertUser = database.prepare(`
-      INSERT INTO users (id, email, name, role, password_hash)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO users (id, email, name, role, password_hash, operator_access)
+      VALUES (?, ?, ?, ?, ?, ?)
     `);
 
     for (const user of users) {
-      insertUser.run(user.id, user.email, user.name, user.role, user.passwordHash);
+      insertUser.run(user.id, user.email, user.name, user.role, user.passwordHash, user.operatorAccess ? 1 : 0);
     }
   } finally {
     database.close();
@@ -232,6 +232,68 @@ test("job visibility is role-scoped and field roles receive redacted job payload
       headers: employeeHeaders,
     });
     assert.equal(employeeCustomersDenied.response.status, 403);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("Apex OS bootstrap permission requires private operator access", async () => {
+  const fixture = await startServer();
+
+  try {
+    const privateOwner = createUserRecord({
+      id: "U-PRIVATE-APEX-OS",
+      email: "private-owner@apexhq.test",
+      password: "apexdemo123",
+      name: "Private Owner",
+      role: "Owner",
+      operatorAccess: true,
+    });
+    const normalOwner = createUserRecord({
+      id: "U-NORMAL-APEX-OS",
+      email: "normal-owner@apexhq.test",
+      password: "apexdemo123",
+      name: "Normal Owner",
+      role: "Owner",
+      operatorAccess: false,
+    });
+    const fieldUser = createUserRecord({
+      id: "U-FIELD-APEX-OS",
+      email: "field-apex-os@apexhq.test",
+      password: "apexdemo123",
+      name: "Field Apex",
+      role: "Foreman",
+      operatorAccess: true,
+    });
+
+    insertUsers(fixture.sqliteFile, [privateOwner, normalOwner, fieldUser]);
+
+    const privateLogin = await login(fixture.baseUrl, {
+      email: "private-owner@apexhq.test",
+      password: "apexdemo123",
+    });
+    const normalLogin = await login(fixture.baseUrl, {
+      email: "normal-owner@apexhq.test",
+      password: "apexdemo123",
+    });
+    const fieldLogin = await login(fixture.baseUrl, {
+      email: "field-apex-os@apexhq.test",
+      password: "apexdemo123",
+    });
+    const privateBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(privateLogin.token),
+    });
+    const normalBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(normalLogin.token),
+    });
+    const fieldBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(fieldLogin.token),
+    });
+
+    assert.equal(privateBootstrap.permissions.apexOs.canView, true);
+    assert.equal(privateBootstrap.permissions.apexOs.canManage, true);
+    assert.equal(normalBootstrap.permissions.apexOs.canView, false);
+    assert.equal(fieldBootstrap.permissions.apexOs.canView, false);
   } finally {
     await fixture.stop();
   }

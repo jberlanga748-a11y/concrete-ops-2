@@ -355,6 +355,7 @@ const SupportPage = lazyRouteComponent(() => import("./support-route-components"
 const MaterialPrepPage = lazyRouteComponent(() => import("./material-prep-route-components"), "MaterialPrepPage");
 const RateBookPage = lazyRouteComponent(() => import("./rate-book-route-components"), "RateBookPage");
 const CommunicationCenterPage = lazyRouteComponent(() => import("./communications-route-components"), "CommunicationCenterPage");
+const ApexControlRoomPage = lazyRouteComponent(() => import("./apex-control-room-components"), "ApexControlRoomPage");
 const ProposalsWorkspace = lazy(() => import("./ProposalGenerator"));
 const DashboardPage = lazyRouteComponent(() => import("./dashboard-route-wrapper-components"), "DashboardPage");
 const CommandCenterRoutePage = lazyRouteComponent(() => import("./dashboard-route-wrapper-components"), "CommandCenterRoutePage");
@@ -385,6 +386,12 @@ const FIELD_JOBS_ROUTE_COMPONENTS = {
 };
 
 const NAV_GROUPS = [
+  {
+    label: "Apex",
+    items: [
+      { id: "apexControlRoom", label: "Apex Control Room", icon: "spark" },
+    ],
+  },
   {
     label: "Field",
     items: [
@@ -12374,6 +12381,7 @@ function MainContent(props) {
       />
     );
   }
+  if (active === "apexControlRoom") return <ApexControlRoomPage {...props} />;
   if (active === "dashboard") return <DashboardPage {...props} components={dashboardRouteComponents} />;
   const fieldJobsRouteModule = getFieldJobsRouteModule(active);
   if (fieldJobsRouteModule) {

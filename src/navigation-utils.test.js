@@ -6,6 +6,12 @@ import { canUseToolChecklist, isEstimator, isOfficeManager } from "../shared/per
 
 const NAV_GROUPS = [
   {
+    label: "Apex",
+    items: [
+      { id: "apexControlRoom", label: "Apex Control Room" },
+    ],
+  },
+  {
     label: "Field",
     items: [
       { id: "dashboard", label: "Dashboard" },
@@ -120,6 +126,33 @@ test("package-aware navigation hides premium import and AI Office surfaces", () 
   );
   assert.equal(
     getVisibleNavGroups(NAV_GROUPS, owner, { toolChecklistEnabled: true }, basicPermissions).flatMap((group) => group.items.map((item) => item.id)).includes("appHealth"),
+    false,
+  );
+});
+
+test("Apex Control Room stays hidden unless the private bootstrap permission is present", () => {
+  const privateOperator = { role: "Owner", operatorAccess: true };
+  const normalOwner = { role: "Owner", operatorAccess: false };
+  const privatePermissions = {
+    apexOs: { canView: true },
+    support: { canView: true },
+  };
+  const blockedPermissions = {
+    apexOs: { canView: false },
+    support: { canView: true },
+  };
+
+  assert.equal(canAccessModule("apexControlRoom", privateOperator, { toolChecklistEnabled: true }), true);
+  assert.equal(canAccessModule("apexControlRoom", normalOwner, { toolChecklistEnabled: true }), false);
+  assert.equal(canAccessWorkspaceModule("apexControlRoom", privateOperator, { toolChecklistEnabled: true }, privatePermissions), true);
+  assert.equal(canAccessWorkspaceModule("apexControlRoom", privateOperator, { toolChecklistEnabled: true }, blockedPermissions), false);
+  assert.equal(canAccessWorkspaceModule("apexControlRoom", normalOwner, { toolChecklistEnabled: true }, privatePermissions), false);
+  assert.equal(
+    getVisibleNavGroups(NAV_GROUPS, privateOperator, { toolChecklistEnabled: true }, privatePermissions).flatMap((group) => group.items.map((item) => item.id)).includes("apexControlRoom"),
+    true,
+  );
+  assert.equal(
+    getVisibleNavGroups(NAV_GROUPS, privateOperator, { toolChecklistEnabled: true }, blockedPermissions).flatMap((group) => group.items.map((item) => item.id)).includes("apexControlRoom"),
     false,
   );
 });

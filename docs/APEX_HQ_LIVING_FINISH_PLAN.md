@@ -1,6 +1,6 @@
 # Apex HQ Living Finish Plan
 
-Last updated: 2026-05-31
+Last updated: 2026-06-02
 
 Canonical first-read file: `docs/APEX_HQ_CANONICAL_SOURCE_OF_TRUTH.md`.
 
@@ -29,6 +29,65 @@ Containment evidence:
 Immediate next recommendation:
 
 - Prepare the public-launch approval packet: legal/privacy/terms/public-claims review, guided pilot completion or launch waiver, explicit public launch approval, and explicit approval to re-enable production public signup.
+
+## Active Product Goal: Apex OS / Apex HQ Command Center
+
+Goal recorded on 2026-06-02: build **Apex OS**, Apex HQ's private John-only operating center inside the main Apex HQ app.
+
+Plan file: `docs/APEX_HQ_APEX_OS_COMMAND_CENTER_MASTER_PLAN.md`.
+
+Current decision memory:
+
+- John Berlanga owns Apex HQ.
+- The fake/smoke business remains testing/demo data only.
+- Apex OS is the real Apex HQ operating center, not a contractor customer workspace.
+- Apex OS should use the real Apex HQ logo, brand identity, and private owner/operator language.
+- Apex OS should use the normal Apex HQ login with a stricter private operator access gate.
+- Customers, demo users, field users, estimators, normal company admins, pilots, and customer companies must not see the Apex OS nav item, route, agents, build status, business tasks, internal decisions, or approval controls.
+- Apex OS should eventually support chat, voice, knowledge uploads, durable decision memory, source-backed answers, app/build awareness, agent control, approval queues, launch/revenue/business queues, monitoring, daily briefings, and a kill switch.
+- Apex OS should have maximum freedom to plan, organize, draft, analyze, prioritize, recommend, design, code locally when asked, test locally, summarize, and prepare work. It needs John's approval before anything external, irreversible, customer-visible, private-data-sensitive, production-affecting, permission-affecting, provider-connected, or money-related.
+
+Recommended first implementation:
+
+- Build only the private access boundary and Apex-branded Control Room shell first if no schema change is needed.
+- Use the existing operator-access direction where possible.
+- Validate route/nav/API blocking for non-John users before adding chat, voice, knowledge, or agent controls.
+
+Current implementation status:
+
+- Apex OS Slice 1 is implemented locally: `/apex-control-room` route, `apexControlRoom` module, `apexOs` bootstrap permission, private operator nav visibility, and Apex-branded Control Room shell.
+- Apex OS Slice 2 is implemented locally: the Control Room now uses a read-only Apex OS state aggregator that surfaces operating signals, next best actions, launch readiness, release safety, Agent OS task availability, trust/audit readiness, approval gates, and recent evidence from existing Apex HQ systems.
+- Apex OS Slice 3 is implemented locally: the Control Room now shows read-only Decision Memory and Operating Rules sourced from the Apex OS master plan, including John/Apex HQ identity, private operator-only access, approval boundaries, local/private autonomy, build order, source order, field boundaries, and no-secrets memory.
+- Apex OS Slice 4 is implemented locally: the Control Room now shows a read-only Agent Work Queue, Agent Run Ledger, Agent Safety Locks, and Locked Agent Tasks using existing Agent OS task/run helpers. It shows what can be planned or reviewed, not anything that runs agents.
+- Apex OS Slice 5 is implemented locally: the Control Room now shows a read-only Knowledge Vault first UI with private knowledge categories, source candidates, vault safety gates, and intake status. Upload, durable storage, trusted memory, schema, and provider work remain approval-locked.
+- Apex OS Slice 6 is implemented locally: the Control Room now shows a private Ask Apex Chat first UI with context lanes, source/evidence rows, disabled prompt/actions, source-backed answer rules, and provider/action locks. Real model calls, streaming, provider secrets, durable chat, save-as-decision, create-task, approval mutation, schema, and storage remain approval-locked.
+- Apex OS Slice 7 is implemented locally: the Control Room now shows a private Voice Interface first UI with disabled push-to-talk, transcript confirmation preview, spoken-answer preview, voice modes, safety gates, and approval boundaries. Microphone access, always-listening, speech provider/API, audio capture, transcript storage, voice execution, schema, and deploy remain approval-locked.
+- Apex OS Slice 8 is implemented locally: the Control Room now shows a private Approval Command Center first UI with approval categories, packet requirements, locked approve/reject/defer/execute controls, and approval source rows. Approval writes, durable audit records, execution, schema, storage, deploy, provider setup, and production actions remain approval-locked.
+- Apex OS Slice 9 is implemented locally: the Control Room now shows a fuller private Release Desk / Monitoring first UI with release/monitoring checks, daily briefing rows, release readiness packet rows, and monitoring locks. Deploy, rollback execution, production monitoring provider setup, external alerts/notifications, production data mutation, schema/storage, and production configuration remain approval-locked.
+- Apex OS Slice 10 is implemented locally: the Control Room now shows a private Business Command Center first UI with launch, demo/pilot, marketing, sales/outreach, customer success, revenue/pricing/offer queues, launch/founder-demo rows, business briefing rows, and manual-send/spend/billing/claims gates. Live sends, ad spend, billing/payment, public publishing, provider setup, production data, schema/storage, and customer-visible actions remain approval-locked.
+- Apex OS Slice 11 is implemented locally: the Control Room now shows a private QA / Security Hardening surface with final evidence rows, hardening locks, completion audit rows, and security proof sources for John-only access, company/customer isolation, direct-route blocking, field-user blocking, source-backed answers, upload privacy, approval gates, desktop/mobile quality, build/test/release safety, no secrets, and no bypass actions.
+- Access uses the existing local/private `operatorAccess` flag plus office-level role checks. Normal admins without operator access, estimators, field users, and employees do not get the route/nav permission.
+- The current shell is read-only and safe: no schema change, no auth/session change, no upload parser, no editable memory store, no trusted memory write, no provider/API setup, no live model chat, no streaming, no microphone permission, no speech provider, no always-listening, no audio capture/storage, no approval writes, no agent execution controls, no deploy, no rollback execution, no production monitoring provider changes, no external alerts, no production data mutation, no live sends, no ad spend, no billing/payment, no public publishing, no customer-visible send/publish/spend/delete behavior, and no irreversible action path.
+- Visual QA artifacts: `ui-audit/apex-control-room-local/desktop-apex-control-room.png`, `ui-audit/apex-control-room-local/mobile-apex-control-room.png`, `ui-audit/apex-control-room-local/desktop-admin-blocked.png`, `ui-audit/apex-control-room-local/desktop-apex-control-room-qa-security.png`, `ui-audit/apex-control-room-local/mobile-apex-control-room-qa-security.png`, and `ui-audit/apex-control-room-local/desktop-admin-blocked-qa-security.png`.
+
+Validation:
+
+- `node --test --test-concurrency=1 shared/permissions.test.js src/app-routing.test.js src/navigation-utils.test.js src/app-state-utils.test.js src/mobile-nav-utils.test.js src/app-navigation-components-import.test.js src/apex-control-room-utils.test.js src/apex-control-room-components-import.test.js server/role-permissions.test.js` passed with 77 tests.
+- `npm.cmd run build` passed.
+- `git diff --check` passed with CRLF warnings only.
+- Browser QA passed for private operator desktop, private operator mobile with no horizontal overflow, and normal admin blocked/redirected away from Apex OS.
+- Final hardening browser QA passed for private operator desktop/mobile hardening panels with no horizontal overflow; normal admin direct-route check redirected to `/` and exposed no Apex Control Room or QA / Security Hardening content.
+- The local `demo.ops@apexhq.app` `operator_access` flag was temporarily set to `1` only for browser QA and restored to `0` after screenshots.
+
+Audit/build-plan note:
+
+- Existing Apex HQ systems audit is saved in `docs/APEX_HQ_APEX_OS_COMMAND_CENTER_MASTER_PLAN.md` under "Existing Systems Audit - 2026-06-02" and "Implementation Plan V1".
+- Reuse existing route/nav permissions, operator access, AI Office, Agent OS, action inbox, learning memory, app health, launch readiness, and release safety systems before building any new Apex OS machinery.
+- The next recommended Apex OS step is final packaging and approval decision: review the local proof, decide whether to commit/stage this local implementation, then separately approve any production deploy, provider/API setup, durable memory/storage, speech, live monitoring, or action-execution layer.
+
+Risk/approval memory:
+
+- Ask before schema, auth/session, provider/API secret, AI/speech/vector provider, production deploy, live automation, email/SMS, billing/payment, ad spend, production data, file deletion, or major refactor work.
 
 ## Active Product Goal: Apex Takeoff Studio
 
@@ -239,6 +298,10 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ### Now
 
+- Preserve `docs/APEX_HQ_APEX_OS_COMMAND_CENTER_MASTER_PLAN.md` as the master memory for the private Apex OS / Apex HQ Command Center vision.
+- Treat Apex OS as Apex HQ's real internal operating center for John Berlanga, not as a fake/demo contractor company workspace.
+- Keep Apex OS private to John/operator access; customers, field users, demo users, and normal company workspaces must not see it.
+- Give Apex OS broad autonomy for local/private planning, drafting, analysis, design, code preparation, testing, summaries, task creation, and recommendations; require John's approval for external, irreversible, customer-visible, private-data-sensitive, production, permission, provider, or money-related actions.
 - Keep building the finished roadmap, not only pilot slices.
 - No looped rebuilds.
 - Use `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` as the active tool-by-tool finish source of truth.
@@ -253,6 +316,7 @@ Find work -> advertise smart -> capture lead -> follow up -> estimate -> propose
 
 ### Next
 
+- Review and package the local Apex OS Command Center implementation before any provider-backed knowledge search, speech, durable memory/storage, production deploy, or agent-control execution.
 - Run post-launch route/workflow QA refresh and cleanup triage.
 - Archive or delete untracked temp/demo/security-support artifacts only after explicit cleanup approval.
 - Keep future build work narrow and evidence-driven: fix confirmed live/demo/pilot blockers, not broad new phases.

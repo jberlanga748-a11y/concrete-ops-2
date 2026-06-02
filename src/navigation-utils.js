@@ -22,6 +22,10 @@ function packageAllowsModule(moduleId, permissions = null) {
     return Boolean(permissionFlag(permissions, "appHealth.canView"));
   }
 
+  if (moduleId === "apexControlRoom") {
+    return Boolean(permissionFlag(permissions, "apexOs.canView"));
+  }
+
   if (moduleId === "support") {
     return Boolean(permissionFlag(permissions, "support.canView"));
   }

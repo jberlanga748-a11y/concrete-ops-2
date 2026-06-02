@@ -22,6 +22,10 @@ export const DEFAULT_APP_PERMISSIONS = {
   customerPortal: {
     canPreview: false,
   },
+  apexOs: {
+    canView: false,
+    canManage: false,
+  },
   contactHistory: {
     canView: false,
     canManage: false,

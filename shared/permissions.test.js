@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   canAcknowledgeSafety,
+  canAccessApexOs,
   canCreateDailyReports,
   canCreateDeliveryTickets,
   canCreateJobs,
@@ -110,6 +111,18 @@ test("company switching requires explicit operator access plus an office role", 
   assert.equal(canManageCompanies({ role: "Owner", operatorAccess: false }), false);
   assert.equal(canManageCompanies({ role: "Foreman", operatorAccess: true }), false);
   assert.equal(canManageCompanies({ role: "Employee", operatorAccess: true }), false);
+});
+
+test("Apex OS access requires private operator access plus an office role", () => {
+  assert.equal(canAccessApexOs({ role: "Owner", operatorAccess: true }), true);
+  assert.equal(canAccessApexOs({ role: "Administrator", operatorAccess: true }), true);
+  assert.equal(canAccessApexOs({ role: "Operations Manager", operatorAccess: true }), true);
+  assert.equal(canAccessApexOs({ role: "Owner", operatorAccess: false }), false);
+  assert.equal(canAccessApexOs({ role: "Administrator", operatorAccess: false }), false);
+  assert.equal(canAccessApexOs({ role: "Estimator", operatorAccess: true }), false);
+  assert.equal(canAccessApexOs({ role: "Foreman", operatorAccess: true }), false);
+  assert.equal(getAllowedModuleIds({ role: "Owner", operatorAccess: true }).has("apexControlRoom"), true);
+  assert.equal(getAllowedModuleIds({ role: "Owner", operatorAccess: false }).has("apexControlRoom"), false);
 });
 
 test("operations manager can manage users and see employees module", () => {

@@ -3,6 +3,7 @@ import { FIELD_JOBS_ROUTE_MODULES } from "./field-jobs-route-module.js";
 export const MODULE_PATHS = {
   dashboard: "/",
   fieldWorkspace: FIELD_JOBS_ROUTE_MODULES.fieldWorkspace.path,
+  apexControlRoom: "/apex-control-room",
   commandCenter: "/command-center",
   communications: "/communications",
   leads: "/leads",

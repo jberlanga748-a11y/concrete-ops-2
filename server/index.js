@@ -283,6 +283,7 @@ import {
   canReviewSafetyIncidents,
   canSubmitSafetyIncidents,
   canContributeToolChecklist,
+  canAccessApexOs,
   canManageJobToolChecklist,
   canManageToolChecklist,
   canManageUploads,
@@ -6231,6 +6232,10 @@ function sanitizeBootstrap(state, user) {
       },
       customerPortal: {
         canPreview: packageEntitlements.customerPortal.canUsePreview && canPreviewCustomerPortal(user),
+      },
+      apexOs: {
+        canView: canAccessApexOs(user),
+        canManage: canAccessApexOs(user),
       },
       contactHistory: contactHistoryPermissionsForUser(user),
       estimates: {

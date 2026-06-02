@@ -51,6 +51,18 @@ test("command center module route resolves directly", () => {
   });
 });
 
+test("Apex Control Room route resolves directly", () => {
+  assert.equal(getModulePath("apexControlRoom"), "/apex-control-room");
+  assert.deepEqual(parseAppPath("/apex-control-room"), {
+    active: "apexControlRoom",
+    leadId: "",
+    jobId: "",
+    customerId: "",
+    reportId: "",
+    importedDraftId: "",
+  });
+});
+
 test("field workspace module route resolves directly", () => {
   assert.equal(getModulePath("fieldWorkspace"), "/field");
   assert.deepEqual(parseAppPath("/field"), {

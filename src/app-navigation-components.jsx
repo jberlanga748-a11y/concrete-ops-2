@@ -9,6 +9,15 @@ export function Sidebar({ active, setActive, counts = {}, navGroups, logoInitial
   const anyVisible = (moduleIds) => Boolean(firstVisible(moduleIds));
   const workspaceItems = [
     {
+      id: "apex",
+      label: "Apex OS",
+      helper: "Private",
+      icon: "spark",
+      target: firstVisible(["apexControlRoom"]),
+      modules: ["apexControlRoom"],
+      count: null,
+    },
+    {
       id: "today",
       label: "Today",
       helper: "Command",
