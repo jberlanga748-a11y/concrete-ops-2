@@ -748,10 +748,10 @@ export const APEX_OS_CHAT_CONTEXTS = Object.freeze([
 export const APEX_OS_CHAT_ACTION_LOCKS = Object.freeze([
   {
     id: "ask-provider",
-    title: "Ask Apex provider call",
-    status: "Locked",
-    detail: "No model call, provider secret, streaming response, embedding, or external API request exists in this slice.",
-    tone: "amber",
+    title: "Ask Apex answer endpoint",
+    status: "Server-only",
+    detail: "Answers run through the private Apex OS endpoint with local source-backed fallback; provider secrets stay server-side and no chat action can execute work.",
+    tone: "green",
   },
   {
     id: "save-decision",
@@ -937,19 +937,19 @@ function buildAskApexChatState({
     },
   ];
   return {
-    status: "First UI ready",
-    tone: "blue",
-    providerStatus: "Provider locked",
+    status: "Source-backed live",
+    tone: "green",
+    providerStatus: "Server-only provider",
     contextCount: contexts.length,
     evidenceCount: evidenceRows.length,
     actionLockCount: actionLocks.length,
     placeholder: "Ask Apex about the app, roadmap, agents, launch, business, or next safe build step.",
     answerPreview: {
       id: "source-backed-preview",
-      title: "Source-backed answer preview",
-      status: "Preview only",
-      detail: "Apex will answer with source labels, evidence used, and approval warnings before any risky next step. Real answers wait for approved provider/API setup.",
-      tone: "slate",
+      title: "Source-backed answer surface",
+      status: "Ready",
+      detail: "Apex answers from approved memory and source labels, then flags deploy, provider, production, money, sends, customer-visible, or deletion requests as approval-needed.",
+      tone: "green",
     },
     contexts,
     evidenceRows,
@@ -967,7 +967,7 @@ function buildVoiceInterfaceState({ askApexChat } = {}) {
     modeCount: modes.length,
     safetyCount: safetyRows.length,
     transcriptStatus: "Confirmation required",
-    answerStatus: askApexChat?.status === "First UI ready" ? "Chat shell ready" : "Chat shell required",
+    answerStatus: askApexChat?.status === "Source-backed live" ? "Ask Apex ready" : "Chat shell required",
     prompt: "Hold to talk to Apex",
     transcriptPreview: "Transcript preview waits here before Apex treats speech as an instruction.",
     answerPreview: "Spoken answers wait for approved speech provider/API setup.",
@@ -1480,7 +1480,7 @@ export function deriveApexControlRoomState({
         id: "provider-work",
         title: "Ask Apex chat",
         status: askApexChat.status,
-        detail: `${askApexChat.contextCount} context lanes and ${askApexChat.evidenceCount} evidence sources are mapped; provider/API calls remain locked.`,
+        detail: `${askApexChat.contextCount} context lanes and ${askApexChat.evidenceCount} evidence sources feed the private source-backed answer endpoint.`,
         tone: askApexChat.tone,
       },
       {
@@ -1589,7 +1589,7 @@ export function deriveApexControlRoomState({
         id: "ask-apex-chat",
         title: "Ask Apex chat",
         status: askApexChat.status,
-        detail: `${askApexChat.contextCount} contexts are visible; ${askApexChat.providerStatus.toLowerCase()} until John approves provider/API setup.`,
+        detail: `${askApexChat.contextCount} contexts are visible; ${askApexChat.providerStatus.toLowerCase()} keeps provider secrets off the frontend.`,
         tone: askApexChat.tone,
       },
       {
@@ -1744,7 +1744,7 @@ export function deriveApexControlRoomState({
         id: "ask-apex-chat",
         title: "Ask Apex chat",
         status: askApexChat.status,
-        detail: `${askApexChat.contextCount} source lanes are ready for a private chat shell; provider/API calls are still locked.`,
+        detail: `${askApexChat.contextCount} source lanes are ready for private answers; chat actions still cannot write, send, deploy, or execute.`,
         tone: askApexChat.tone,
       },
       {

@@ -415,6 +415,10 @@ export function askApexAgent(token, payload) {
   return request("/api/agent/ask", { method: "POST", token, body: payload });
 }
 
+export function askApexOs(token, payload) {
+  return request("/api/apex-os/ask", { method: "POST", token, body: payload });
+}
+
 export function createAgentConversationThread(token, payload) {
   return request("/api/agent/conversations", { method: "POST", token, body: payload });
 }

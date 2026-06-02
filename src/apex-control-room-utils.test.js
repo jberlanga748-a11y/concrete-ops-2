@@ -112,7 +112,7 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.operatingSignals.find((item) => item.id === "launch-readiness")?.status, "Launch locked");
   assert.equal(state.operatingSignals.find((item) => item.id === "decision-memory")?.status, "Seeded from plan");
   assert.equal(state.operatingSignals.find((item) => item.id === "knowledge-vault")?.status, "First UI ready");
-  assert.equal(state.operatingSignals.find((item) => item.id === "ask-apex-chat")?.status, "First UI ready");
+  assert.equal(state.operatingSignals.find((item) => item.id === "ask-apex-chat")?.status, "Source-backed live");
   assert.equal(state.operatingSignals.find((item) => item.id === "voice-interface")?.status, "First UI ready");
   assert.equal(state.operatingSignals.find((item) => item.id === "approval-command-center")?.status, "First UI ready");
   assert.equal(state.operatingSignals.find((item) => item.id === "release-monitoring")?.status, "First UI ready");
@@ -120,7 +120,7 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.operatingSignals.find((item) => item.id === "qa-security-hardening")?.status, "Hardening evidence ready");
   assert.equal(state.priorities.find((item) => item.id === "agent-work-queue")?.status, "Review-only");
   assert.equal(state.priorities.find((item) => item.id === "knowledge-vault")?.status, "First UI ready");
-  assert.equal(state.priorities.find((item) => item.id === "provider-work")?.status, "First UI ready");
+  assert.equal(state.priorities.find((item) => item.id === "provider-work")?.status, "Source-backed live");
   assert.equal(state.priorities.find((item) => item.id === "voice-interface")?.status, "First UI ready");
   assert.equal(state.priorities.find((item) => item.id === "approval-command-center")?.status, "First UI ready");
   assert.equal(state.priorities.find((item) => item.id === "release-monitoring")?.status, "First UI ready");
@@ -152,8 +152,8 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.knowledgeVault.safetyRows.some((item) => item.id === "no-storage-yet" && item.status === "Locked"), true);
   assert.equal(state.knowledgeVault.safetyRows.some((item) => item.id === "no-secrets" && item.status === "Locked"), true);
   assert.equal(state.knowledgeVault.sourceRows.some((item) => item.id === "future-uploads" && item.status === "Approval required"), true);
-  assert.equal(state.askApexChat.status, "First UI ready");
-  assert.equal(state.askApexChat.providerStatus, "Provider locked");
+  assert.equal(state.askApexChat.status, "Source-backed live");
+  assert.equal(state.askApexChat.providerStatus, "Server-only provider");
   assert.equal(state.askApexChat.contextCount, APEX_OS_CHAT_CONTEXTS.length);
   assert.equal(state.askApexChat.evidenceCount, 6);
   assert.equal(state.askApexChat.actionLockCount, APEX_OS_CHAT_ACTION_LOCKS.length);
@@ -161,16 +161,16 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.askApexChat.contexts.some((item) => item.id === "all" && item.status === "Review required"), true);
   assert.equal(state.askApexChat.evidenceRows.some((item) => item.id === "knowledge-vault" && item.status === "First UI ready"), true);
   assert.equal(state.askApexChat.evidenceRows.some((item) => item.id === "launch-readiness" && item.status === "Launch locked"), true);
-  assert.equal(state.askApexChat.actionLocks.some((item) => item.id === "ask-provider" && item.status === "Locked"), true);
+  assert.equal(state.askApexChat.actionLocks.some((item) => item.id === "ask-provider" && item.status === "Server-only"), true);
   assert.equal(state.askApexChat.actionLocks.some((item) => item.id === "save-decision" && item.status === "Approval required"), true);
   assert.equal(state.askApexChat.actionLocks.some((item) => item.id === "create-task" && item.status === "Approval required"), true);
-  assert.match(state.askApexChat.answerPreview.detail, /Real answers wait for approved provider\/API setup/);
+  assert.match(state.askApexChat.answerPreview.detail, /Apex answers from approved memory and source labels/);
   assert.equal(state.voiceInterface.status, "First UI ready");
   assert.equal(state.voiceInterface.providerStatus, "Speech provider locked");
   assert.equal(state.voiceInterface.modeCount, APEX_OS_VOICE_MODES.length);
   assert.equal(state.voiceInterface.safetyCount, APEX_OS_VOICE_SAFETY_GATES.length);
   assert.equal(state.voiceInterface.transcriptStatus, "Confirmation required");
-  assert.equal(state.voiceInterface.answerStatus, "Chat shell ready");
+  assert.equal(state.voiceInterface.answerStatus, "Ask Apex ready");
   assert.match(state.voiceInterface.prompt, /Hold to talk/);
   assert.match(state.voiceInterface.transcriptPreview, /Transcript preview waits here/);
   assert.equal(state.voiceInterface.modes.some((item) => item.id === "push-to-talk" && item.status === "Planned"), true);
@@ -222,7 +222,7 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.qaSecurityHardening.evidenceRows.some((item) => item.id === "customer-company-isolation" && item.status === "Evidence required"), true);
   assert.equal(state.qaSecurityHardening.evidenceRows.some((item) => item.id === "direct-route-blocking" && item.status === "Evidence required"), true);
   assert.equal(state.qaSecurityHardening.evidenceRows.some((item) => item.id === "field-user-blocking" && item.status === "Locked"), true);
-  assert.equal(state.qaSecurityHardening.evidenceRows.some((item) => item.id === "source-backed-answers" && item.status === "First UI ready"), true);
+  assert.equal(state.qaSecurityHardening.evidenceRows.some((item) => item.id === "source-backed-answers" && item.status === "Source-backed live"), true);
   assert.equal(state.qaSecurityHardening.evidenceRows.some((item) => item.id === "upload-privacy" && item.status === "Locked"), true);
   assert.equal(state.qaSecurityHardening.evidenceRows.some((item) => item.id === "approval-gates" && item.status === "First UI ready"), true);
   assert.equal(state.qaSecurityHardening.evidenceRows.some((item) => item.id === "desktop-mobile-visual" && item.status === "Evidence required"), true);

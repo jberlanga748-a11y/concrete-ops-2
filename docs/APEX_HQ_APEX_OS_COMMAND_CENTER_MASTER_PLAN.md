@@ -398,9 +398,10 @@ Validation:
 Status:
 
 - Read-only first UI implemented locally on 2026-06-02 as Apex OS Slice 6.
-- The Control Room now shows Ask Apex context lanes, a disabled prompt surface, source/evidence rows, source-backed answer rules, and locked chat actions.
+- The Control Room now shows Ask Apex context lanes, source/evidence rows, source-backed answer rules, and locked chat actions.
 - Operator-only Ask Apex API implemented locally on 2026-06-02 as Apex OS Slice 13.
 - `/api/apex-os/ask` now answers from approved Apex OS memory and source rows, returns source labels and approval warnings, falls back to local source-backed mode when `OPENAI_API_KEY` is not configured, and is provider-ready for server-side OpenAI chat completion when the key is configured.
+- Ask Apex UI wiring implemented locally on 2026-06-02 as Apex OS Slice 14; the private Control Room panel now submits to `/api/apex-os/ask` and renders answer text, source labels, approval warnings, evidence counts, and provider/local mode status.
 - No streaming response, frontend provider secret, durable chat storage, save-as-decision write, create-task write, approval mutation, deploy, production action, sends, money movement, customer-visible action, or irreversible execution path was added.
 - Validation passed with focused Apex OS utility/import tests, the 77-test permission/routing/bootstrap suite, `npm.cmd run build`, desktop/mobile browser QA with no horizontal overflow and disabled chat controls, and normal admin blocked/redirected away from Apex OS.
 
@@ -1046,8 +1047,9 @@ Approval needed:
 Status:
 
 - Read-only first UI implemented locally on 2026-06-02 as Apex OS Slice 6.
-- Ask Apex shows private context lanes, source/evidence planning, disabled prompt/actions, and answer safety rules inside the private Control Room.
+- Ask Apex shows private context lanes, source/evidence planning, live source-backed questions, and answer safety rules inside the private Control Room.
 - Operator-only `/api/apex-os/ask` implemented locally on 2026-06-02 as Apex OS Slice 13 with approved-memory context, source labels, approval warnings, local source-backed fallback, and server-side OpenAI provider readiness when `OPENAI_API_KEY` is configured.
+- Control Room UI wiring implemented locally on 2026-06-02 as Apex OS Slice 14 with answer rendering, evidence counts, source labels, approval warnings, provider/local mode status, and locked non-execution controls.
 - Streaming, durable chat transcript storage, save-as-decision writes, create-task writes, approval mutations, deploy, production actions, sends, money movement, and customer-visible actions remain locked behind later approval.
 
 ### Slice 8: Voice Interface

@@ -1,3 +1,6 @@
+import { useState } from "react";
+
+import { askApexOs } from "./api";
 import { Badge, Button, Card, Icon, PageHeader, SectionHeader } from "./app-shell-components";
 import { deriveApexControlRoomState } from "./apex-control-room-utils";
 
@@ -69,6 +72,144 @@ function EmptyPanel({ children }) {
   return (
     <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm font-bold text-slate-600">
       {children}
+    </div>
+  );
+}
+
+function AskApexAnswerPanel({ response, error }) {
+  if (error) {
+    return (
+      <StatusRow item={{
+        id: "ask-apex-error",
+        title: "Ask Apex response",
+        status: "Needs attention",
+        detail: error,
+        tone: "red",
+      }} />
+    );
+  }
+  if (!response?.answer) return null;
+
+  const answer = response.answer;
+  const sourceLabels = Array.isArray(answer.sourceLabels) ? answer.sourceLabels : [];
+  const approvalWarnings = Array.isArray(answer.approvalWarnings) ? answer.approvalWarnings : [];
+
+  return (
+    <div className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-4">
+      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="break-words text-sm font-black text-slate-950">Apex answer</p>
+          <p className="mt-1 break-words text-sm font-bold leading-6 text-slate-700">{answer.answer}</p>
+        </div>
+        <ToneBadge tone={answer.ok === false ? "amber" : "green"}>{answer.mode || "source-backed"}</ToneBadge>
+      </div>
+
+      <div className="mt-4 grid min-w-0 gap-3 lg:grid-cols-2">
+        <StatusRow item={{
+          id: "ask-next-action",
+          title: "Next action",
+          status: answer.nextAction || "Review",
+          detail: answer.providerConfigured ? "Provider was configured server-side for this answer, with local fallback if the provider failed." : "Local source-backed fallback answered because no server-side provider key is configured here.",
+          tone: approvalWarnings.length ? "amber" : "green",
+        }} />
+        <StatusRow item={{
+          id: "ask-context-count",
+          title: "Evidence count",
+          status: `${response.context?.sourceCount || sourceLabels.length || 0} sources`,
+          detail: `${response.context?.memoryCount || 0} approved memory rows and ${response.context?.approvalWarningCount || approvalWarnings.length || 0} approval warnings were returned by the private endpoint.`,
+          tone: "blue",
+        }} />
+      </div>
+
+      <div className="mt-4 grid min-w-0 gap-3 lg:grid-cols-2">
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Sources</p>
+          <div className="mt-2 flex min-w-0 flex-wrap gap-2">
+            {sourceLabels.length ? sourceLabels.map((label) => <ToneBadge key={label} tone="slate">{label}</ToneBadge>) : <ToneBadge tone="amber">No source labels</ToneBadge>}
+          </div>
+        </div>
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Approval warnings</p>
+          <div className="mt-2 grid min-w-0 gap-2">
+            {approvalWarnings.length ? approvalWarnings.map((warning) => (
+              <p key={warning} className="break-words rounded-lg bg-amber-50 px-3 py-2 text-xs font-black leading-5 text-amber-800 ring-1 ring-amber-200">{warning}</p>
+            )) : <p className="text-xs font-black text-emerald-700">No risky action was requested.</p>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AskApexPanel({ state, sessionToken }) {
+  const [question, setQuestion] = useState("");
+  const [response, setResponse] = useState(null);
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const canAsk = state.canView && Boolean(sessionToken) && question.trim() && !submitting;
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    if (!canAsk) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      const payload = await askApexOs(sessionToken, { question: question.trim() });
+      setResponse(payload);
+    } catch (requestError) {
+      setError(requestError?.message || "Ask Apex could not answer right now.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="grid min-w-0 gap-4">
+      <div className="grid min-w-0 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {state.askApexChat.contexts.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            disabled
+            className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-left opacity-90"
+            title={`${item.title}: ${item.status}`}
+          >
+            <span className="block break-words text-sm font-black text-slate-950">{item.title}</span>
+            <span className="mt-1 block break-words text-xs font-bold leading-5 text-slate-600">{item.detail}</span>
+            <span className="mt-2 inline-flex"><ToneBadge tone={item.tone}>{item.status}</ToneBadge></span>
+          </button>
+        ))}
+      </div>
+
+      <form className="min-w-0 rounded-xl border border-slate-200 bg-white p-3" onSubmit={handleSubmit}>
+        <label className="sr-only" htmlFor="ask-apex-input">Ask Apex</label>
+        <textarea
+          id="ask-apex-input"
+          value={question}
+          onChange={(event) => {
+            setQuestion(event.target.value);
+            setError("");
+          }}
+          maxLength={1000}
+          placeholder={state.askApexChat.placeholder}
+          className="min-h-28 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold leading-6 text-slate-700 placeholder:text-slate-500"
+          disabled={!state.canView || submitting}
+        />
+        <div className="mt-3 flex min-w-0 flex-wrap gap-2">
+          <Button type="submit" disabled={!canAsk} variant="secondary" size="sm">
+            <Icon name="spark" /> {submitting ? "Asking Apex..." : "Ask Apex"}
+          </Button>
+          <Button type="button" disabled variant="secondary" size="sm">
+            <Icon name="clipboard" /> Evidence returned
+          </Button>
+          <Button type="button" disabled variant="secondary" size="sm">
+            <Icon name="lock" /> No execution
+          </Button>
+        </div>
+      </form>
+
+      <AskApexAnswerPanel response={response} error={error} />
+      <StatusRow item={state.askApexChat.answerPreview} />
     </div>
   );
 }
@@ -456,47 +597,7 @@ export function ApexControlRoomPage(props) {
               description="Private source-backed chat shell for app, roadmap, agents, business, and launch questions."
               action={<ToneBadge tone={state.askApexChat.tone}>{state.askApexChat.status}</ToneBadge>}
             />
-            <div className="grid min-w-0 gap-4">
-              <div className="grid min-w-0 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {state.askApexChat.contexts.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    disabled
-                    className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-left opacity-90"
-                    title={`${item.title}: ${item.status}`}
-                  >
-                    <span className="block break-words text-sm font-black text-slate-950">{item.title}</span>
-                    <span className="mt-1 block break-words text-xs font-bold leading-5 text-slate-600">{item.detail}</span>
-                    <span className="mt-2 inline-flex"><ToneBadge tone={item.tone}>{item.status}</ToneBadge></span>
-                  </button>
-                ))}
-              </div>
-
-              <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
-                <label className="sr-only" htmlFor="ask-apex-input">Ask Apex</label>
-                <textarea
-                  id="ask-apex-input"
-                  disabled
-                  value=""
-                  placeholder={state.askApexChat.placeholder}
-                  className="min-h-28 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold leading-6 text-slate-700 placeholder:text-slate-500 disabled:cursor-not-allowed"
-                />
-                <div className="mt-3 flex min-w-0 flex-wrap gap-2">
-                  <Button type="button" disabled variant="secondary" size="sm">
-                    <Icon name="spark" /> Ask Apex
-                  </Button>
-                  <Button type="button" disabled variant="secondary" size="sm">
-                    <Icon name="clipboard" /> Evidence used
-                  </Button>
-                  <Button type="button" disabled variant="secondary" size="sm">
-                    <Icon name="lock" /> Provider locked
-                  </Button>
-                </div>
-              </div>
-
-              <StatusRow item={state.askApexChat.answerPreview} />
-            </div>
+            <AskApexPanel state={state} sessionToken={props.sessionToken} />
           </Card>
 
           <Card className="min-w-0 p-4 sm:p-5">
