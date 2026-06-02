@@ -1073,9 +1073,10 @@ Approval needed:
 Status:
 
 - Read-only first UI implemented locally on 2026-06-02 as Apex OS Slice 7.
-- The Control Room now shows a private Voice Interface with disabled push-to-talk, transcript confirmation preview, spoken-answer preview, voice modes, voice safety gates, and voice approval boundaries.
-- No microphone permission request, audio capture, always-listening behavior, speech-to-text, text-to-speech, model voice, provider/API setup, transcript storage, voice execution, schema change, storage change, or deploy was added.
-- Validation passed with focused Apex OS utility/import tests, the 77-test permission/routing/bootstrap suite, `npm.cmd run build`, desktop/mobile browser QA with no horizontal overflow and disabled voice controls, and normal admin blocked/redirected away from Apex OS.
+- Manual transcript confirmation implemented locally on 2026-06-02 as Apex OS Slice 15.
+- The Control Room now shows a private Voice Interface where John can type what Apex heard, confirm the transcript locally, and copy the confirmed transcript into Ask Apex as a question.
+- No microphone permission request, audio capture, always-listening behavior, speech-to-text, text-to-speech, model voice, provider/API setup, transcript storage, voice execution, schema change, storage change, approval write, send, spend, customer-visible action, production mutation, or deploy was added.
+- Validation passed with focused Apex OS utility/import tests, production-style build, and browser QA for the private Ask Apex flow with no horizontal overflow and normal admin blocked/redirected away from Apex OS.
 
 ### Slice 9: Release Desk And Monitoring
 

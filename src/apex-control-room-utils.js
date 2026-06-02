@@ -780,16 +780,16 @@ export const APEX_OS_VOICE_MODES = Object.freeze([
   {
     id: "push-to-talk",
     title: "Push-to-talk",
-    status: "Planned",
-    detail: "Manual press-to-speak is the first voice mode; no always-listening behavior is enabled.",
+    status: "Transcript only",
+    detail: "The first voice path is manual transcript confirmation; browser microphone capture and always-listening remain disabled.",
     tone: "blue",
   },
   {
     id: "transcript-confirmation",
     title: "Transcript confirmation",
-    status: "Required",
-    detail: "Apex must show what it heard before treating a spoken request as an instruction.",
-    tone: "blue",
+    status: "Ready",
+    detail: "Apex shows confirmed text before it can be copied into Ask Apex as a question.",
+    tone: "green",
   },
   {
     id: "spoken-answer",
@@ -961,16 +961,16 @@ function buildVoiceInterfaceState({ askApexChat } = {}) {
   const modes = APEX_OS_VOICE_MODES.map((item) => ({ ...item }));
   const safetyRows = APEX_OS_VOICE_SAFETY_GATES.map((item) => ({ ...item }));
   return {
-    status: "First UI ready",
-    tone: "blue",
+    status: "Transcript confirm ready",
+    tone: "green",
     providerStatus: "Speech provider locked",
     modeCount: modes.length,
     safetyCount: safetyRows.length,
-    transcriptStatus: "Confirmation required",
+    transcriptStatus: "Manual confirmation",
     answerStatus: askApexChat?.status === "Source-backed live" ? "Ask Apex ready" : "Chat shell required",
-    prompt: "Hold to talk to Apex",
-    transcriptPreview: "Transcript preview waits here before Apex treats speech as an instruction.",
-    answerPreview: "Spoken answers wait for approved speech provider/API setup.",
+    prompt: "Transcript before Apex listens",
+    transcriptPreview: "Type and confirm what Apex heard before it becomes an Ask Apex question.",
+    answerPreview: "Spoken audio output waits for approved speech provider/API setup; confirmed text can feed Ask Apex now.",
     modes,
     safetyRows,
   };

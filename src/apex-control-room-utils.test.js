@@ -113,7 +113,7 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.operatingSignals.find((item) => item.id === "decision-memory")?.status, "Seeded from plan");
   assert.equal(state.operatingSignals.find((item) => item.id === "knowledge-vault")?.status, "First UI ready");
   assert.equal(state.operatingSignals.find((item) => item.id === "ask-apex-chat")?.status, "Source-backed live");
-  assert.equal(state.operatingSignals.find((item) => item.id === "voice-interface")?.status, "First UI ready");
+  assert.equal(state.operatingSignals.find((item) => item.id === "voice-interface")?.status, "Transcript confirm ready");
   assert.equal(state.operatingSignals.find((item) => item.id === "approval-command-center")?.status, "First UI ready");
   assert.equal(state.operatingSignals.find((item) => item.id === "release-monitoring")?.status, "First UI ready");
   assert.equal(state.operatingSignals.find((item) => item.id === "business-command-center")?.status, "First UI ready");
@@ -121,7 +121,7 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.priorities.find((item) => item.id === "agent-work-queue")?.status, "Review-only");
   assert.equal(state.priorities.find((item) => item.id === "knowledge-vault")?.status, "First UI ready");
   assert.equal(state.priorities.find((item) => item.id === "provider-work")?.status, "Source-backed live");
-  assert.equal(state.priorities.find((item) => item.id === "voice-interface")?.status, "First UI ready");
+  assert.equal(state.priorities.find((item) => item.id === "voice-interface")?.status, "Transcript confirm ready");
   assert.equal(state.priorities.find((item) => item.id === "approval-command-center")?.status, "First UI ready");
   assert.equal(state.priorities.find((item) => item.id === "release-monitoring")?.status, "First UI ready");
   assert.equal(state.priorities.find((item) => item.id === "business-command-center")?.status, "First UI ready");
@@ -165,15 +165,16 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.askApexChat.actionLocks.some((item) => item.id === "save-decision" && item.status === "Approval required"), true);
   assert.equal(state.askApexChat.actionLocks.some((item) => item.id === "create-task" && item.status === "Approval required"), true);
   assert.match(state.askApexChat.answerPreview.detail, /Apex answers from approved memory and source labels/);
-  assert.equal(state.voiceInterface.status, "First UI ready");
+  assert.equal(state.voiceInterface.status, "Transcript confirm ready");
   assert.equal(state.voiceInterface.providerStatus, "Speech provider locked");
   assert.equal(state.voiceInterface.modeCount, APEX_OS_VOICE_MODES.length);
   assert.equal(state.voiceInterface.safetyCount, APEX_OS_VOICE_SAFETY_GATES.length);
-  assert.equal(state.voiceInterface.transcriptStatus, "Confirmation required");
+  assert.equal(state.voiceInterface.transcriptStatus, "Manual confirmation");
   assert.equal(state.voiceInterface.answerStatus, "Ask Apex ready");
-  assert.match(state.voiceInterface.prompt, /Hold to talk/);
-  assert.match(state.voiceInterface.transcriptPreview, /Transcript preview waits here/);
-  assert.equal(state.voiceInterface.modes.some((item) => item.id === "push-to-talk" && item.status === "Planned"), true);
+  assert.match(state.voiceInterface.prompt, /Transcript before Apex listens/);
+  assert.match(state.voiceInterface.transcriptPreview, /Type and confirm what Apex heard/);
+  assert.equal(state.voiceInterface.modes.some((item) => item.id === "push-to-talk" && item.status === "Transcript only"), true);
+  assert.equal(state.voiceInterface.modes.some((item) => item.id === "transcript-confirmation" && item.status === "Ready"), true);
   assert.equal(state.voiceInterface.modes.some((item) => item.id === "risky-command-confirmation" && item.status === "Locked"), true);
   assert.equal(state.voiceInterface.safetyRows.some((item) => item.id === "no-microphone" && item.status === "Locked"), true);
   assert.equal(state.voiceInterface.safetyRows.some((item) => item.id === "no-always-listening" && item.status === "Locked"), true);
@@ -188,7 +189,7 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.approvalCommandCenter.packetRows.some((item) => item.id === "approval-phrase" && item.status === "Required"), true);
   assert.equal(state.approvalCommandCenter.controlRows.some((item) => item.id === "approve" && item.status === "Locked"), true);
   assert.equal(state.approvalCommandCenter.controlRows.some((item) => item.id === "execute" && item.status === "Not available"), true);
-  assert.equal(state.approvalCommandCenter.sourceRows.some((item) => item.id === "voice-interface" && item.status === "First UI ready"), true);
+  assert.equal(state.approvalCommandCenter.sourceRows.some((item) => item.id === "voice-interface" && item.status === "Transcript confirm ready"), true);
   assert.equal(state.releaseMonitoring.status, "First UI ready");
   assert.equal(state.releaseMonitoring.readinessCount, APEX_OS_RELEASE_MONITORING_CHECKS.length);
   assert.equal(state.releaseMonitoring.lockCount, APEX_OS_RELEASE_MONITORING_LOCKS.length);

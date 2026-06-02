@@ -141,8 +141,7 @@ function AskApexAnswerPanel({ response, error }) {
   );
 }
 
-function AskApexPanel({ state, sessionToken }) {
-  const [question, setQuestion] = useState("");
+function AskApexPanel({ state, sessionToken, question, setQuestion }) {
   const [response, setResponse] = useState(null);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -214,8 +213,95 @@ function AskApexPanel({ state, sessionToken }) {
   );
 }
 
+function VoiceTranscriptPanel({ state, onUseTranscript }) {
+  const [transcriptDraft, setTranscriptDraft] = useState("");
+  const [confirmedTranscript, setConfirmedTranscript] = useState("");
+  const [notice, setNotice] = useState("");
+  const canConfirm = state.canView && Boolean(transcriptDraft.trim());
+  const canUse = state.canView && Boolean(confirmedTranscript.trim());
+
+  function confirmTranscript() {
+    if (!canConfirm) return;
+    setConfirmedTranscript(transcriptDraft.trim());
+    setNotice("Transcript confirmed locally. Review it before sending it to Ask Apex.");
+  }
+
+  function useTranscript() {
+    if (!canUse) return;
+    onUseTranscript(confirmedTranscript.trim());
+    setNotice("Confirmed transcript copied into Ask Apex. Press Ask Apex when ready.");
+  }
+
+  return (
+    <div className="grid min-w-0 gap-4">
+      <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+        <div className="flex min-h-44 min-w-0 flex-col items-center justify-center rounded-xl border border-slate-200 bg-slate-50 p-4 text-center">
+          <button
+            type="button"
+            disabled
+            className="inline-flex h-20 w-20 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-500 shadow-[0_16px_34px_-28px_rgba(7,17,31,0.5)] disabled:cursor-not-allowed"
+            title="Microphone access is locked"
+          >
+            <Icon name="phone" className="h-8 w-8" />
+          </button>
+          <p className="mt-3 break-words text-sm font-black text-slate-950">{state.voiceInterface.prompt}</p>
+          <p className="mt-1 break-words text-xs font-bold leading-5 text-slate-600">{state.voiceInterface.providerStatus}</p>
+        </div>
+        <div className="grid min-w-0 gap-3">
+          <StatusRow item={{
+            id: "voice-transcript-preview",
+            title: "Transcript preview",
+            status: confirmedTranscript ? "Confirmed locally" : state.voiceInterface.transcriptStatus,
+            detail: confirmedTranscript || state.voiceInterface.transcriptPreview,
+            tone: confirmedTranscript ? "green" : "blue",
+          }} />
+          <StatusRow item={{
+            id: "voice-answer-preview",
+            title: "Spoken answer preview",
+            status: state.voiceInterface.answerStatus,
+            detail: state.voiceInterface.answerPreview,
+            tone: "amber",
+          }} />
+        </div>
+      </div>
+
+      <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+        <label className="sr-only" htmlFor="voice-transcript-input">Voice transcript</label>
+        <textarea
+          id="voice-transcript-input"
+          value={transcriptDraft}
+          onChange={(event) => {
+            setTranscriptDraft(event.target.value);
+            setNotice("");
+          }}
+          maxLength={1000}
+          placeholder="Type what Apex heard before treating it as a command."
+          className="min-h-24 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold leading-6 text-slate-700 placeholder:text-slate-500"
+          disabled={!state.canView}
+        />
+        <div className="mt-3 flex min-w-0 flex-wrap gap-2">
+          <Button type="button" disabled variant="secondary" size="sm">
+            <Icon name="phone" /> Mic locked
+          </Button>
+          <Button type="button" variant="secondary" size="sm" onClick={confirmTranscript} disabled={!canConfirm}>
+            <Icon name="clipboard" /> Confirm transcript
+          </Button>
+          <Button type="button" variant="secondary" size="sm" onClick={useTranscript} disabled={!canUse}>
+            <Icon name="spark" /> Use in Ask Apex
+          </Button>
+          <Button type="button" disabled variant="secondary" size="sm">
+            <Icon name="lock" /> Speech locked
+          </Button>
+        </div>
+        <p className="mt-3 break-words text-xs font-black leading-5 text-slate-500">{notice || "Manual transcript only. Apex does not request microphone access, store audio, or execute voice commands."}</p>
+      </div>
+    </div>
+  );
+}
+
 export function ApexControlRoomPage(props) {
   const state = deriveApexControlRoomState(props);
+  const [askQuestion, setAskQuestion] = useState("");
 
   return (
     <div className="min-w-0 max-w-full bg-slate-100 pb-8">
@@ -597,7 +683,7 @@ export function ApexControlRoomPage(props) {
               description="Private source-backed chat shell for app, roadmap, agents, business, and launch questions."
               action={<ToneBadge tone={state.askApexChat.tone}>{state.askApexChat.status}</ToneBadge>}
             />
-            <AskApexPanel state={state} sessionToken={props.sessionToken} />
+            <AskApexPanel state={state} sessionToken={props.sessionToken} question={askQuestion} setQuestion={setAskQuestion} />
           </Card>
 
           <Card className="min-w-0 p-4 sm:p-5">
@@ -644,52 +730,10 @@ export function ApexControlRoomPage(props) {
           <Card className="min-w-0 p-4 sm:p-5">
             <SectionHeader
               title="Voice Interface"
-              description="Private talk/listen planning surface with microphone, speech provider, and always-listening locked."
+              description="Private transcript confirmation surface with microphone, speech provider, and always-listening locked."
               action={<ToneBadge tone={state.voiceInterface.tone}>{state.voiceInterface.status}</ToneBadge>}
             />
-            <div className="grid min-w-0 gap-4">
-              <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
-                <div className="flex min-h-44 min-w-0 flex-col items-center justify-center rounded-xl border border-slate-200 bg-slate-50 p-4 text-center">
-                  <button
-                    type="button"
-                    disabled
-                    className="inline-flex h-20 w-20 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-500 shadow-[0_16px_34px_-28px_rgba(7,17,31,0.5)] disabled:cursor-not-allowed"
-                    title="Microphone access is locked"
-                  >
-                    <Icon name="phone" className="h-8 w-8" />
-                  </button>
-                  <p className="mt-3 break-words text-sm font-black text-slate-950">{state.voiceInterface.prompt}</p>
-                  <p className="mt-1 break-words text-xs font-bold leading-5 text-slate-600">{state.voiceInterface.providerStatus}</p>
-                </div>
-                <div className="grid min-w-0 gap-3">
-                  <StatusRow item={{
-                    id: "voice-transcript-preview",
-                    title: "Transcript preview",
-                    status: state.voiceInterface.transcriptStatus,
-                    detail: state.voiceInterface.transcriptPreview,
-                    tone: "blue",
-                  }} />
-                  <StatusRow item={{
-                    id: "voice-answer-preview",
-                    title: "Spoken answer preview",
-                    status: state.voiceInterface.answerStatus,
-                    detail: state.voiceInterface.answerPreview,
-                    tone: "amber",
-                  }} />
-                </div>
-              </div>
-              <div className="flex min-w-0 flex-wrap gap-2">
-                <Button type="button" disabled variant="secondary" size="sm">
-                  <Icon name="phone" /> Push to talk
-                </Button>
-                <Button type="button" disabled variant="secondary" size="sm">
-                  <Icon name="clipboard" /> Confirm transcript
-                </Button>
-                <Button type="button" disabled variant="secondary" size="sm">
-                  <Icon name="lock" /> Speech locked
-                </Button>
-              </div>
-            </div>
+            <VoiceTranscriptPanel state={state} onUseTranscript={setAskQuestion} />
           </Card>
 
           <Card className="min-w-0 p-4 sm:p-5">
