@@ -13,7 +13,7 @@ import { calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEst
 import { addEstimateLineItemStarter, applyEstimateTemplateStarter, buildEstimateLineItemsFromRoughNotes, getEstimateLineItemStartersForTrade, getEstimateStarterTradeSummary, getEstimateTemplateStartersForTrade } from "./estimate-template-utils";
 import { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
 import { buildFenceTakeoffBackupRows, buildFenceTakeoffDraftLineItems, buildFenceTakeoffFieldHandoff, buildFenceTakeoffProofPhotoChecklist, buildFenceTakeoffProposalSummary, deriveFenceTakeoffReadiness, mergeFenceTakeoffIntoDraft, normalizeFenceTakeoff, summarizeFenceTakeoffByAssembly } from "./fence-takeoff-utils";
-import { applyTakeoffStudioAssistantSuggestion, applyTakeoffStudioSheetCalibrationToItems, attachTakeoffStudioPlanFileToSheet, buildTakeoffStudioAiPlanAssist, buildTakeoffStudioAssistantQueue, buildTakeoffStudioAutoMeasureBeta, buildTakeoffStudioBackupRows, buildTakeoffStudioCsvExport, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioFieldHandoff, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioMeasurementLegend, buildTakeoffStudioPackageExport, buildTakeoffStudioPdfPageRenderState, buildTakeoffStudioPilotHardeningGate, buildTakeoffStudioPlanFileCandidates, buildTakeoffStudioPlanFileReadiness, buildTakeoffStudioPlanReviewLayer, buildTakeoffStudioPlanTextExtractionState, buildTakeoffStudioProductionHardening, buildTakeoffStudioProposalProofRows, buildTakeoffStudioProofSnapshot, buildTakeoffStudioRevisionComparison, buildTakeoffStudioRevisionRegister, buildTakeoffStudioSheetWorkspace, buildTakeoffStudioSnapTargets, buildTakeoffStudioTradeAutoTakeoffPacks, buildTakeoffStudioVisionAutoMeasureBeta, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioMarkupComment, createEmptyTakeoffStudioSheet, createTakeoffStudioItemFromAutoMeasureSuggestion, createTakeoffStudioMarkupFromPoint, createTakeoffStudioMeasurementFromDrawing, createTakeoffStudioPlanTextSourceDraft, createTakeoffStudioSheetFromPlanFilePage, deriveTakeoffStudioCalibrationState, deriveTakeoffStudioDrawingState, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, getTakeoffStudioToolSetOptions, mergeTakeoffStudioAssistantSuggestionState, mergeTakeoffStudioCsvImport, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText, resolveTakeoffStudioPdfBuildPageCount, snapTakeoffStudioDraftPoint } from "./takeoff-studio-utils";
+import { applyTakeoffStudioAssistantSuggestion, applyTakeoffStudioSheetCalibrationToItems, attachTakeoffStudioPlanFileToSheet, buildTakeoffStudioAiPlanAssist, buildTakeoffStudioAssistantQueue, buildTakeoffStudioAutoMeasureBeta, buildTakeoffStudioBackupRows, buildTakeoffStudioCsvExport, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioFieldHandoff, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioMeasurementLegend, buildTakeoffStudioPackageExport, buildTakeoffStudioPdfPageRenderState, buildTakeoffStudioPilotHardeningGate, buildTakeoffStudioPlanFileCandidates, buildTakeoffStudioPlanFileReadiness, buildTakeoffStudioPlanReviewLayer, buildTakeoffStudioPlanTextExtractionState, buildTakeoffStudioProductionHardening, buildTakeoffStudioProposalProofRows, buildTakeoffStudioProofSnapshot, buildTakeoffStudioRevisionComparison, buildTakeoffStudioRevisionRegister, buildTakeoffStudioSheetWorkspace, buildTakeoffStudioSnapTargets, buildTakeoffStudioTradeAutoTakeoffPacks, buildTakeoffStudioVisionAutoMeasureBeta, clampTakeoffStudioPlanRoomZoom, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioMarkupComment, createEmptyTakeoffStudioSheet, createTakeoffStudioItemFromAutoMeasureSuggestion, createTakeoffStudioMarkupFromPoint, createTakeoffStudioMeasurementFromDrawing, createTakeoffStudioPlanTextSourceDraft, createTakeoffStudioSheetFromPlanFilePage, deriveTakeoffStudioCalibrationState, deriveTakeoffStudioDrawingState, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, getTakeoffStudioToolSetOptions, mergeTakeoffStudioAssistantSuggestionState, mergeTakeoffStudioCsvImport, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText, resolveTakeoffStudioPdfBuildPageCount, snapTakeoffStudioDraftPoint, stepTakeoffStudioPlanRoomZoom } from "./takeoff-studio-utils";
 import { fetchAuthenticatedUploadPreviewUrl } from "./upload-preview-utils";
 import { validateUploadFile } from "./upload-utils";
 import { CUSTOM_ESTIMATE_PACKET_THEME_ID, ESTIMATE_PACKET_COPY_TEMPLATE_OPTIONS, ESTIMATE_PACKET_PRESETS, ESTIMATE_PACKET_SECTION_DEFS, ESTIMATE_PACKET_THEME_OPTIONS, INTERNAL_REVIEW_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
@@ -1152,6 +1152,8 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
   const sheetWorkspace = buildTakeoffStudioSheetWorkspace(editingTakeoff);
   const calibrationState = deriveTakeoffStudioCalibrationState(editingTakeoff);
   const selectedSheet = sheetWorkspace.selectedSheet || sheets[0];
+  const selectedSheetIndex = sheetWorkspace.thumbnails.findIndex((thumbnail) => thumbnail.id === selectedSheet?.id);
+  const selectedPagePosition = selectedSheetIndex >= 0 ? selectedSheetIndex + 1 : 1;
   const selectedSheetDraftMeasurementCount = selectedSheet?.id
     ? items.filter((item) => item.sheetId === selectedSheet.id && item.reviewStatus !== "reviewed").length
     : 0;
@@ -1239,6 +1241,34 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
     function handleFullscreenKeydown(event) {
       if (event.key === "Escape") {
         setIsPlanRoomFullscreen(false);
+        return;
+      }
+      const targetTag = String(event.target?.tagName || "").toLowerCase();
+      if (["input", "select", "textarea"].includes(targetTag) || event.target?.isContentEditable) return;
+      if (disabled) return;
+      if (event.key === "ArrowLeft" || event.key === "PageUp") {
+        event.preventDefault();
+        selectAdjacentSheet(-1);
+        return;
+      }
+      if (event.key === "ArrowRight" || event.key === "PageDown") {
+        event.preventDefault();
+        selectAdjacentSheet(1);
+        return;
+      }
+      if (event.key === "+" || event.key === "=") {
+        event.preventDefault();
+        stepPlanRoomZoom(1);
+        return;
+      }
+      if (event.key === "-" || event.key === "_") {
+        event.preventDefault();
+        stepPlanRoomZoom(-1);
+        return;
+      }
+      if (event.key === "0") {
+        event.preventDefault();
+        resetPlanRoomView();
       }
     }
     window.addEventListener("keydown", handleFullscreenKeydown);
@@ -1246,7 +1276,7 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleFullscreenKeydown);
     };
-  }, [isPlanRoomFullscreen]);
+  }, [disabled, isPlanRoomFullscreen, pdfRenderState.canAddPageSheet, planRoomZoom, selectedSheet?.id, sheetWorkspace.thumbnails.length]);
 
   function resolvePlanPreviewUrl(value = "") {
     const rawUrl = String(value || "");
@@ -1291,8 +1321,16 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
     commitTakeoff({ ...takeoff, sheets: nextSheets, items });
   }
 
+  function resetPlanRoomInteraction() {
+    setDraftDrawingPoints([]);
+    setDraftCalibrationPoints([]);
+    setPlanRoomPan({ x: 0, y: 0 });
+    planRoomDragRef.current = null;
+  }
+
   function updateSelectedSheet(sheetId) {
     commitTakeoff({ ...takeoff, selectedSheetId: sheetId, sheets, items });
+    resetPlanRoomInteraction();
   }
 
   function updateSheetScale(index, field, value) {
@@ -1570,16 +1608,15 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
     const nextSheetId = sheetWorkspace.thumbnails[nextIndex]?.id;
     if (nextSheetId) {
       updateSelectedSheet(nextSheetId);
-      setDraftDrawingPoints([]);
-      setDraftCalibrationPoints([]);
-      setPlanRoomPan({ x: 0, y: 0 });
     }
   }
 
   function updatePlanRoomZoom(nextZoom) {
-    const numericZoom = Number(nextZoom);
-    const clampedZoom = Math.min(2.5, Math.max(0.55, Number.isFinite(numericZoom) ? numericZoom : 1));
-    setPlanRoomZoom(Number(clampedZoom.toFixed(2)));
+    setPlanRoomZoom(clampTakeoffStudioPlanRoomZoom(nextZoom));
+  }
+
+  function stepPlanRoomZoom(direction = 1) {
+    setPlanRoomZoom((current) => stepTakeoffStudioPlanRoomZoom(current, direction));
   }
 
   function resetPlanRoomView() {
@@ -1608,6 +1645,20 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
 
   function handlePlanRoomMouseUp() {
     planRoomDragRef.current = null;
+  }
+
+  function handlePlanRoomWheel(event) {
+    if (disabled) return;
+    event.preventDefault();
+    if (event.ctrlKey || event.metaKey) {
+      stepPlanRoomZoom(event.deltaY < 0 ? 1 : -1);
+      return;
+    }
+    if (interactionMode !== "view") return;
+    setPlanRoomPan((current) => ({
+      x: Number((current.x - event.deltaX).toFixed(1)),
+      y: Number((current.y - event.deltaY).toFixed(1)),
+    }));
   }
 
   function addPlanTextSource() {
@@ -1940,12 +1991,7 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
                   key={`plan-room-page-${thumbnail.id}`}
                   type="button"
                   className={`co-apex-plan-room-page ${thumbnail.selected ? "is-selected" : ""}`}
-                  onClick={() => {
-                    updateSelectedSheet(thumbnail.id);
-                    setDraftDrawingPoints([]);
-                    setDraftCalibrationPoints([]);
-                    setPlanRoomPan({ x: 0, y: 0 });
-                  }}
+                  onClick={() => updateSelectedSheet(thumbnail.id)}
                   disabled={disabled}
                   aria-pressed={thumbnail.selected}
                 >
@@ -1962,9 +2008,24 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
           <section className="co-apex-plan-room-main" aria-label="PDF plan viewer and takeoff workspace">
             <div className="co-apex-plan-room-toolbar">
               <div className="co-apex-plan-room-page-controls">
-                <Button type="button" size="sm" variant="secondary" onClick={() => selectAdjacentSheet(-1)} disabled={disabled || sheetWorkspace.thumbnails.length <= 1}>Prev</Button>
-                <span>{selectedSheet?.name || "No sheet selected"}</span>
-                <Button type="button" size="sm" variant="secondary" onClick={() => selectAdjacentSheet(1)} disabled={disabled || (sheetWorkspace.thumbnails.length <= 1 && !pdfRenderState.canAddPageSheet)}>Next</Button>
+                <Button type="button" size="sm" variant="secondary" onClick={() => selectAdjacentSheet(-1)} disabled={disabled || sheetWorkspace.thumbnails.length <= 1 || selectedPagePosition <= 1} aria-label="Previous plan page">Prev</Button>
+                <label className="co-apex-plan-room-page-jump">
+                  <span>Page</span>
+                  <select
+                    value={selectedSheet?.id || ""}
+                    onChange={(event) => updateSelectedSheet(event.target.value)}
+                    disabled={disabled || sheetWorkspace.thumbnails.length <= 1}
+                    aria-label="Selected plan page"
+                  >
+                    {sheetWorkspace.thumbnails.map((thumbnail, index) => (
+                      <option key={`plan-room-page-jump-${thumbnail.id}`} value={thumbnail.id}>
+                        {index + 1}. {thumbnail.label || `Page ${index + 1}`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <span>{selectedPagePosition}/{Math.max(sheetWorkspace.thumbnails.length, selectedPagePosition)}</span>
+                <Button type="button" size="sm" variant="secondary" onClick={() => selectAdjacentSheet(1)} disabled={disabled || (selectedPagePosition >= sheetWorkspace.thumbnails.length && !pdfRenderState.canAddPageSheet)} aria-label="Next plan page">Next</Button>
               </div>
               <div className="co-apex-plan-room-tools">
                 <SelectField label="Mode" value={interactionMode} onChange={(event) => setInteractionMode(event.target.value)} disabled={disabled}>
@@ -1984,9 +2045,9 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
                 </SelectField>
               </div>
               <div className="co-apex-plan-room-zoom">
-                <Button type="button" size="sm" variant="secondary" onClick={() => updatePlanRoomZoom(planRoomZoom - 0.15)} disabled={disabled}>-</Button>
+                <Button type="button" size="sm" variant="secondary" onClick={() => stepPlanRoomZoom(-1)} disabled={disabled} aria-label="Zoom out">-</Button>
                 <span>{Math.round(planRoomZoom * 100)}%</span>
-                <Button type="button" size="sm" variant="secondary" onClick={() => updatePlanRoomZoom(planRoomZoom + 0.15)} disabled={disabled}>+</Button>
+                <Button type="button" size="sm" variant="secondary" onClick={() => stepPlanRoomZoom(1)} disabled={disabled} aria-label="Zoom in">+</Button>
                 <Button type="button" size="sm" variant="secondary" onClick={resetPlanRoomView} disabled={disabled}>Fit</Button>
               </div>
             </div>
@@ -2002,6 +2063,7 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
               onMouseMove={handlePlanRoomMouseMove}
               onMouseUp={handlePlanRoomMouseUp}
               onMouseLeave={handlePlanRoomMouseUp}
+              onWheel={handlePlanRoomWheel}
             >
               <div
                 className="co-apex-plan-room-canvas-inner"

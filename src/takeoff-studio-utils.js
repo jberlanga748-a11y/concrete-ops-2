@@ -351,6 +351,20 @@ export function takeoffStudioPdfPageUrl(value = "", pageNumber = 1) {
 }
 
 export const TAKEOFF_STUDIO_MAX_PDF_PAGE_COUNT = 500;
+export const TAKEOFF_STUDIO_PLAN_ROOM_ZOOM_MIN = 0.55;
+export const TAKEOFF_STUDIO_PLAN_ROOM_ZOOM_MAX = 2.5;
+export const TAKEOFF_STUDIO_PLAN_ROOM_ZOOM_STEP = 0.15;
+
+export function clampTakeoffStudioPlanRoomZoom(value = 1) {
+  const numeric = Number(value);
+  const safeValue = Number.isFinite(numeric) ? numeric : 1;
+  return Number(Math.min(TAKEOFF_STUDIO_PLAN_ROOM_ZOOM_MAX, Math.max(TAKEOFF_STUDIO_PLAN_ROOM_ZOOM_MIN, safeValue)).toFixed(2));
+}
+
+export function stepTakeoffStudioPlanRoomZoom(current = 1, direction = 1) {
+  const stepDirection = Number(direction) < 0 ? -1 : 1;
+  return clampTakeoffStudioPlanRoomZoom(Number(current || 1) + (TAKEOFF_STUDIO_PLAN_ROOM_ZOOM_STEP * stepDirection));
+}
 
 export function resolveTakeoffStudioPdfBuildPageCount({ recordedPageCount = 0, manualPageCount = 0 } = {}) {
   const recorded = positiveInteger(recordedPageCount, 0);

@@ -9292,12 +9292,53 @@ textarea {
 
 .co-apex-plan-room-toolbar {
   display: grid;
-  grid-template-columns: minmax(8rem, 0.7fr) minmax(16rem, 1.2fr) auto;
+  grid-template-columns: minmax(15rem, 0.82fr) minmax(16rem, 1.12fr) auto;
   gap: 0.5rem;
-  align-items: end;
+  align-items: center;
   border-bottom: 1px solid rgba(148, 163, 184, 0.28);
   background: #0f172a;
   padding: 0.46rem 0.55rem;
+}
+
+.co-apex-plan-room-page-controls {
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+
+.co-apex-plan-room-page-jump {
+  display: grid;
+  min-width: 0;
+  flex: 1 1 9rem;
+  gap: 0.12rem;
+}
+
+.co-apex-plan-room-page-jump span {
+  color: #94a3b8;
+  font-size: 0.56rem;
+  font-weight: 950;
+  letter-spacing: 0.14em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.co-apex-plan-room-page-jump select {
+  width: 100%;
+  height: 2.02rem;
+  min-width: 0;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  border-radius: 0.58rem;
+  background: #111827;
+  color: #f8fafc;
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1;
+  padding: 0.28rem 0.46rem;
+}
+
+.co-apex-plan-room-page-jump select:focus {
+  border-color: #fb923c;
+  box-shadow: 0 0 0 3px rgba(251, 146, 60, 0.18);
+  outline: none;
 }
 
 .co-apex-plan-room-page-controls span,
@@ -9306,6 +9347,23 @@ textarea {
   font-size: 0.78rem;
   font-weight: 900;
   line-height: 1.2;
+}
+
+.co-apex-plan-room-page-controls .co-apex-plan-room-page-jump span {
+  color: #94a3b8;
+  font-size: 0.56rem;
+  letter-spacing: 0.14em;
+  line-height: 1;
+}
+
+.co-apex-plan-room-zoom {
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+}
+
+.co-apex-plan-room-zoom span {
+  min-width: 3.15rem;
+  text-align: center;
 }
 
 .co-apex-plan-room-tools {
@@ -9383,12 +9441,17 @@ textarea {
 
 .co-apex-plan-room-footer {
   display: grid;
-  grid-template-columns: minmax(0, 0.7fr) minmax(0, 0.7fr) minmax(18rem, 1.2fr) auto;
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 0.7fr) minmax(26rem, 1.35fr);
   gap: 0.6rem;
   align-items: end;
   border-top: 1px solid rgba(148, 163, 184, 0.28);
   background: #0f172a;
   padding: 0.55rem 0.65rem;
+}
+
+.co-apex-plan-room-footer-actions {
+  grid-column: 1 / -1;
+  justify-content: flex-end;
 }
 
 .co-estimates-takeoff-save-details {
@@ -9444,7 +9507,7 @@ textarea {
 .co-apex-plan-room-scale-controls {
   display: grid;
   min-width: 0;
-  grid-template-columns: minmax(0, 1fr) minmax(4.6rem, 0.45fr) minmax(7rem, 0.7fr) auto;
+  grid-template-columns: minmax(7.4rem, 1fr) minmax(4.8rem, 0.45fr) minmax(7rem, 0.7fr) auto;
   gap: 0.45rem;
   align-items: end;
 }
@@ -9725,6 +9788,15 @@ textarea {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .co-apex-plan-room-scale-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .co-apex-plan-room-scale-readout,
+  .co-apex-plan-room-scale-controls button {
+    min-height: 3rem;
+  }
+
   .co-apex-plan-room-zoom,
   .co-apex-plan-room-page-controls,
   .co-apex-plan-room-footer-actions {
@@ -9734,7 +9806,19 @@ textarea {
   }
 
   .co-apex-plan-room-page-controls {
-    grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.4fr) minmax(0, 0.7fr);
+    grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.45fr) minmax(3.1rem, 0.52fr) minmax(0, 0.72fr);
+  }
+
+  .co-apex-plan-room-footer-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .co-apex-plan-room-footer-actions button:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .co-apex-plan-room-page-jump {
+    width: 100%;
   }
 
   .co-apex-plan-room-zoom button,

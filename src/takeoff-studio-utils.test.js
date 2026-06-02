@@ -509,6 +509,20 @@ test("resolves PDF build page count from recorded or manual fallback", () => {
   assert.equal(resolveTakeoffStudioPdfBuildPageCount({ recordedPageCount: 0, manualPageCount: 800 }), 500);
 });
 
+test("clamps and steps Plan Room zoom for smooth viewer controls", async () => {
+  const {
+    clampTakeoffStudioPlanRoomZoom,
+    stepTakeoffStudioPlanRoomZoom,
+  } = await import("./takeoff-studio-utils.js");
+
+  assert.equal(clampTakeoffStudioPlanRoomZoom(0.1), 0.55);
+  assert.equal(clampTakeoffStudioPlanRoomZoom(3), 2.5);
+  assert.equal(clampTakeoffStudioPlanRoomZoom("1.234"), 1.23);
+  assert.equal(stepTakeoffStudioPlanRoomZoom(1, 1), 1.15);
+  assert.equal(stepTakeoffStudioPlanRoomZoom(1, -1), 0.85);
+  assert.equal(stepTakeoffStudioPlanRoomZoom(2.45, 1), 2.5);
+});
+
 test("builds review-first plan text extraction readiness without OCR claims", () => {
   const planFile = normalizeTakeoffStudioPlanFile({
     id: "reference:plans",
