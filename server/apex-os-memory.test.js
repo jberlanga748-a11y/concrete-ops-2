@@ -201,6 +201,12 @@ test("Apex OS memory is operator-only, source-backed, persisted, and audited", a
       headers: authHeaders(employeeLogin.token),
     });
     assert.equal(employeeBlocked.response.status, 403);
+    const adminAskBlocked = await requestJson(fixture.baseUrl, "/api/apex-os/ask", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({ question: "What is next?" }),
+    });
+    assert.equal(adminAskBlocked.response.status, 403);
 
     const unsafe = await requestJson(fixture.baseUrl, "/api/apex-os/memory", {
       method: "POST",
@@ -254,6 +260,17 @@ test("Apex OS memory is operator-only, source-backed, persisted, and audited", a
     });
     assert.equal(listed.summary.approved, 1);
     assert.equal(listed.apexOsMemory[0].title, "Apex OS private command center");
+
+    const asked = await assertOk(fixture.baseUrl, "/api/apex-os/ask", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({ question: "Can Apex deploy and send customers messages today?" }),
+    });
+    assert.equal(asked.answer.providerConfigured, false);
+    assert.equal(asked.answer.mode, "local-source-backed");
+    assert.equal(asked.context.memoryCount, 1);
+    assert.equal(asked.answer.sourceLabels.some((label) => label === "Apex OS master plan"), true);
+    assert.equal(asked.answer.approvalWarnings.length >= 2, true);
 
     const archived = await assertOk(fixture.baseUrl, `/api/apex-os/memory/${created.apexOsMemoryEntry.id}`, {
       method: "PATCH",

@@ -399,7 +399,9 @@ Status:
 
 - Read-only first UI implemented locally on 2026-06-02 as Apex OS Slice 6.
 - The Control Room now shows Ask Apex context lanes, a disabled prompt surface, source/evidence rows, source-backed answer rules, and locked chat actions.
-- No model call, streaming response, provider secret, external API request, durable chat storage, save-as-decision write, create-task write, approval mutation, schema change, storage change, or deploy was added.
+- Operator-only Ask Apex API implemented locally on 2026-06-02 as Apex OS Slice 13.
+- `/api/apex-os/ask` now answers from approved Apex OS memory and source rows, returns source labels and approval warnings, falls back to local source-backed mode when `OPENAI_API_KEY` is not configured, and is provider-ready for server-side OpenAI chat completion when the key is configured.
+- No streaming response, frontend provider secret, durable chat storage, save-as-decision write, create-task write, approval mutation, deploy, production action, sends, money movement, customer-visible action, or irreversible execution path was added.
 - Validation passed with focused Apex OS utility/import tests, the 77-test permission/routing/bootstrap suite, `npm.cmd run build`, desktop/mobile browser QA with no horizontal overflow and disabled chat controls, and normal admin blocked/redirected away from Apex OS.
 
 ### Phase 7: Agent Control Plane
@@ -1045,7 +1047,8 @@ Status:
 
 - Read-only first UI implemented locally on 2026-06-02 as Apex OS Slice 6.
 - Ask Apex shows private context lanes, source/evidence planning, disabled prompt/actions, and answer safety rules inside the private Control Room.
-- Real model calls, streaming, provider/API setup, durable chat storage, save-as-decision writes, create-task writes, approval mutations, schema changes, and deploy remain locked behind later approval.
+- Operator-only `/api/apex-os/ask` implemented locally on 2026-06-02 as Apex OS Slice 13 with approved-memory context, source labels, approval warnings, local source-backed fallback, and server-side OpenAI provider readiness when `OPENAI_API_KEY` is configured.
+- Streaming, durable chat transcript storage, save-as-decision writes, create-task writes, approval mutations, deploy, production actions, sends, money movement, and customer-visible actions remain locked behind later approval.
 
 ### Slice 8: Voice Interface
 

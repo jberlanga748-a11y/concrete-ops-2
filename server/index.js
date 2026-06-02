@@ -95,6 +95,13 @@ import {
   summarizeApexOsMemory,
 } from "../shared/apexOsMemory.js";
 import {
+  APEX_OS_ASK_OPENAI_URL,
+  buildApexOsAskContext,
+  buildApexOsAskOpenAiRequest,
+  buildLocalApexOsAnswer,
+  parseOpenAiApexOsAskPayload,
+} from "../shared/apexOsAsk.js";
+import {
   buildEstimateRoughNotesContext,
   generateEstimateRoughNotesDrafts,
 } from "../shared/estimateRoughNotesAi.js";
@@ -12468,6 +12475,64 @@ app.get("/api/apex-os/memory", requireAuth, asyncRoute(async (req, res) => {
   res.json({
     apexOsMemory: memory.map(publicApexOsMemoryEntry),
     summary: summarizeApexOsMemory(memory),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/ask", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const question = optionalString(req.body?.question, "").slice(0, 1000);
+  if (!question) {
+    throw new ApiError(400, "Ask Apex requires a question.");
+  }
+
+  const context = buildApexOsAskContext({
+    question,
+    companySettings: companySettingsForState(state, req.auth.user),
+    user: req.auth.user,
+  });
+  const apiKey = String(process.env.OPENAI_API_KEY || "").trim();
+  let answer = null;
+
+  if (!apiKey) {
+    answer = buildLocalApexOsAnswer(context);
+  } else {
+    try {
+      const response = await fetch(APEX_OS_ASK_OPENAI_URL, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(buildApexOsAskOpenAiRequest(context)),
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!response.ok) {
+        throw new Error(`OpenAI request failed with ${response.status}.`);
+      }
+      answer = parseOpenAiApexOsAskPayload(await response.json());
+    } catch (error) {
+      logger.warn("Apex OS provider answer failed; using local source-backed fallback", {
+        requestId: res.locals.requestId,
+        error: serializeError(error),
+      });
+      answer = {
+        ...buildLocalApexOsAnswer(context),
+        ok: false,
+        providerConfigured: true,
+        mode: "provider-fallback",
+      };
+    }
+  }
+
+  res.json({
+    answer,
+    context: {
+      sourceCount: context.sources.length,
+      memoryCount: context.memory.length,
+      approvalWarningCount: context.approvalWarnings.length,
+    },
     requestId: res.locals.requestId,
   });
 }));
