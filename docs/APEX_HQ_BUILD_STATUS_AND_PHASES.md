@@ -648,6 +648,9 @@ Use skills:
 - codex-browser-automation
 
 Repo:
+C:\Users\jberl\Documents\New project
+
+Archive/reference only:
 C:\Users\jberl\Documents\Codex\concrete-ops-2-clean
 
 Do NOT add Stripe.
