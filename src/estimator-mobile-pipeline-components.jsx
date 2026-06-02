@@ -292,8 +292,8 @@ export function EstimatorMobilePipelinePage({
         <section className="co-apex-mobile-start-takeoff">
           <div>
             <Badge tone="green">Takeoff</Badge>
-            <strong>Takeoff tool</strong>
-            <span>Open Takeoff Studio inside Estimates, upload or measure a plan, then save it as a draft estimate.</span>
+            <strong>Plan Room</strong>
+            <span>Open the job PDF inside Estimates, work through the pages, then save the takeoff as a draft estimate.</span>
           </div>
           <Button type="button" onClick={onStartTakeoff}>Open Takeoff</Button>
         </section>

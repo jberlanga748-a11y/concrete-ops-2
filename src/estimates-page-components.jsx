@@ -267,7 +267,7 @@ export function EstimatesPagePolished({
   useEffect(() => {
     if (!showEstimateTools || activeEstimateTool !== "fenceTakeoff" || !forceMobileEstimateStudio) return;
     window.setTimeout(() => {
-      takeoffToolRef.current?.scrollIntoView?.({ behavior: "auto", block: "start" });
+      (takeoffUploadRef.current || takeoffToolRef.current)?.scrollIntoView?.({ behavior: "auto", block: "start" });
     }, 120);
   }, [activeEstimateTool, forceMobileEstimateStudio, showEstimateTools]);
 
@@ -928,7 +928,7 @@ export function EstimatesPagePolished({
     setForceMobileEstimateStudio(true);
     [80, 300].forEach((delay) => {
       window.setTimeout(() => {
-        (takeoffToolRef.current || newEstimateRef.current)?.scrollIntoView?.({ behavior: "auto", block: "start" });
+        (takeoffUploadRef.current || takeoffToolRef.current || newEstimateRef.current)?.scrollIntoView?.({ behavior: "auto", block: "start" });
       }, delay);
     });
   }
@@ -1649,20 +1649,36 @@ export function EstimatesPagePolished({
           <div className="co-apex-selected-record">
             <Badge tone="green">Estimate tool</Badge>
             <h2>Takeoff</h2>
-            <p>Use Takeoff inside Estimates to upload or measure a plan, then save the measured backup as a draft estimate.</p>
+            <p>Upload the job PDF first, work through the plan pages, then save the reviewed takeoff as a draft estimate.</p>
           </div>
           <div className="co-estimates-shell-workflow-panel co-estimates-shell-takeoff-panel" role="region" aria-label="Takeoff tool inside Estimates">
             <div className="co-estimates-shell-workflow-head">
               <div>
                 <Badge tone="green">Inside Estimates</Badge>
-                <h3>Takeoff Studio</h3>
-                <p>Measurements stay in this Estimates tool until you save them into a draft estimate.</p>
+                <h3>Plan Room</h3>
+                <p>Plan work stays inside Estimates. Add customer and title details only when you are ready to save the takeoff as an estimate.</p>
               </div>
               <StatusBadge status={estimateStatusLabel(createDraft.status || "draft")} />
             </div>
             {canManage ? (
               <div className="grid gap-3">
+                <div ref={takeoffUploadRef} className="co-estimates-takeoff-upload-anchor">
+                  <TakeoffStudioManualEditor
+                    draft={createDraft}
+                    setDraft={setCreateDraft}
+                    disabled={busy || !canManage}
+                    jobs={jobs}
+                    uploads={uploads}
+                    sessionToken={sessionToken}
+                    onCreateUpload={onCreateUpload}
+                  />
+                </div>
                 <div className="rounded-2xl border border-green-100 bg-green-50/70 p-3">
+                  <div className="mb-3">
+                    <Badge tone="green">Save details</Badge>
+                    <h3 className="mt-2 text-base font-black text-slate-950">Create the draft estimate after takeoff</h3>
+                    <p className="mt-1 text-sm font-bold leading-6 text-slate-600">Customer and title are only needed when you are ready to save this Plan Room work into Estimates.</p>
+                  </div>
                   <div className="grid gap-3 md:grid-cols-2">
                     <InputField label="Customer / company name" value={createDraft.customerName} onChange={(event) => setCreateDraft((current) => updateDraftLinkFields(current, { customerName: event.target.value }))} placeholder="Customer name" />
                     <SelectField label="Customer" value={createDraft.customerId} onChange={(event) => setCreateDraft((current) => updateDraftLinkFields(current, { customerId: event.target.value }))}>
@@ -1676,15 +1692,6 @@ export function EstimatesPagePolished({
                     <InputField label="Estimate / takeoff title" value={createDraft.title} onChange={(event) => setCreateDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Plan takeoff draft" />
                   </div>
                 </div>
-                <TakeoffStudioManualEditor
-                  draft={createDraft}
-                  setDraft={setCreateDraft}
-                  disabled={busy || !canManage}
-                  jobs={jobs}
-                  uploads={uploads}
-                  sessionToken={sessionToken}
-                  onCreateUpload={onCreateUpload}
-                />
                 <FenceTakeoffLiteEditor
                   draft={createDraft}
                   setDraft={setCreateDraft}
@@ -3328,17 +3335,28 @@ export function EstimatesPagePolished({
 
           {activeEstimateTool === "fenceTakeoff" ? (
             <Card ref={takeoffToolRef} className="scroll-mt-24 p-4">
-              <SectionHeader title="Takeoff Studio" description={selectedEstimate ? "Measure plan quantities, apply reviewed blank-priced estimate lines, and keep fence-specific takeoff available when needed." : "Use Takeoff inside Estimates, then save the measured backup as a draft estimate when the customer and title are ready."} />
+              <SectionHeader title="Plan Room" description={selectedEstimate ? "Open the job plan, measure reviewed quantities, and keep takeoff backup available inside this estimate." : "Upload the job PDF first, work through the pages, then save the reviewed takeoff as a draft estimate."} />
               {renderMobileTakeoffActionBar()}
               {(selectedEstimate || estimateViewMode === "create") && canManage ? (
                 <div className="grid gap-3">
+                  <div ref={takeoffUploadRef} className="co-estimates-takeoff-upload-anchor">
+                    <TakeoffStudioManualEditor
+                      draft={selectedEstimate ? detailDraft : createDraft}
+                      setDraft={selectedEstimate ? setDetailDraft : setCreateDraft}
+                      disabled={busy || !canManage}
+                      jobs={jobs}
+                      uploads={uploads}
+                      sessionToken={sessionToken}
+                      onCreateUpload={onCreateUpload}
+                    />
+                  </div>
                   {!selectedEstimate && estimateViewMode === "create" ? (
                     <div ref={takeoffDraftDetailsRef} className="co-estimates-takeoff-draft-details rounded-2xl border border-green-100 bg-green-50/70 p-3">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
-                          <Badge tone="green">Estimate tool</Badge>
-                          <h3 className="mt-2 text-base font-black text-slate-950">Takeoff</h3>
-                          <p className="mt-1 text-sm font-bold leading-6 text-slate-600">Upload and measure the plan here. Add the customer/title below when you are ready to save it as a draft estimate.</p>
+                          <Badge tone="green">Save details</Badge>
+                          <h3 className="mt-2 text-base font-black text-slate-950">Create the draft estimate after takeoff</h3>
+                          <p className="mt-1 text-sm font-bold leading-6 text-slate-600">Customer and title are only needed when you are ready to save this Plan Room work into Estimates.</p>
                         </div>
                       </div>
                       <div className="mt-3 grid gap-3 md:grid-cols-2">
@@ -3355,17 +3373,6 @@ export function EstimatesPagePolished({
                       </div>
                     </div>
                   ) : null}
-                  <div ref={takeoffUploadRef} className="co-estimates-takeoff-upload-anchor">
-                    <TakeoffStudioManualEditor
-                      draft={selectedEstimate ? detailDraft : createDraft}
-                      setDraft={selectedEstimate ? setDetailDraft : setCreateDraft}
-                      disabled={busy || !canManage}
-                      jobs={jobs}
-                      uploads={uploads}
-                      sessionToken={sessionToken}
-                      onCreateUpload={onCreateUpload}
-                    />
-                  </div>
                   <FenceTakeoffLiteEditor
                     draft={selectedEstimate ? detailDraft : createDraft}
                     setDraft={selectedEstimate ? setDetailDraft : setCreateDraft}

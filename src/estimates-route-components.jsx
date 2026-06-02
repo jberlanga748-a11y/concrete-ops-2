@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
 import "mapbox-gl/dist/mapbox-gl.css";
@@ -974,9 +974,14 @@ function appendUniqueTextBlock(existing = "", next = "") {
   return [currentText, nextText].filter(Boolean).join("\n\n");
 }
 
-function TakeoffStudioPdfCanvasPreview({ src = "", pageNumber = 1, sheetName = "" }) {
+function TakeoffStudioPdfCanvasPreview({ src = "", pageNumber = 1, sheetName = "", onPageCount = null }) {
   const canvasRef = useRef(null);
+  const onPageCountRef = useRef(onPageCount);
   const [renderState, setRenderState] = useState({ status: "idle", message: "" });
+
+  useEffect(() => {
+    onPageCountRef.current = onPageCount;
+  }, [onPageCount]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -1002,6 +1007,9 @@ function TakeoffStudioPdfCanvasPreview({ src = "", pageNumber = 1, sheetName = "
         renderStage = "opening document";
         loadingTask = pdfjsLib.getDocument({ data: documentData, disableWorker: true });
         const pdf = await loadingTask.promise;
+        if (!cancelled && typeof onPageCountRef.current === "function") {
+          onPageCountRef.current(pdf.numPages || 1);
+        }
         renderStage = "loading page";
         const safePageNumber = Math.min(Math.max(Number(pageNumber) || 1, 1), pdf.numPages || 1);
         const page = await pdf.getPage(safePageNumber);
@@ -1061,11 +1069,17 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
   const [drawingTool, setDrawingTool] = useState("area");
   const [drawingLabel, setDrawingLabel] = useState("");
   const [draftDrawingPoints, setDraftDrawingPoints] = useState([]);
+  const [draftCalibrationPoints, setDraftCalibrationPoints] = useState([]);
+  const [calibrationRealLength, setCalibrationRealLength] = useState("");
+  const [calibrationUnit, setCalibrationUnit] = useState("FT");
   const [lastSnapLabel, setLastSnapLabel] = useState("");
-  const [interactionMode, setInteractionMode] = useState("draw");
+  const [interactionMode, setInteractionMode] = useState("view");
   const [markupType, setMarkupType] = useState("note");
   const [markupText, setMarkupText] = useState("");
+  const [planRoomZoom, setPlanRoomZoom] = useState(1);
+  const [planRoomPan, setPlanRoomPan] = useState({ x: 0, y: 0 });
   const planUploadInputRef = useRef(null);
+  const planRoomDragRef = useRef(null);
   const [pendingPlanUploadAttach, setPendingPlanUploadAttach] = useState(null);
   const [planUploadDraft, setPlanUploadDraft] = useState({
     jobId: "",
@@ -1110,6 +1124,9 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
   const sheetWorkspace = buildTakeoffStudioSheetWorkspace(editingTakeoff);
   const calibrationState = deriveTakeoffStudioCalibrationState(editingTakeoff);
   const selectedSheet = sheetWorkspace.selectedSheet || sheets[0];
+  const selectedSheetDraftMeasurementCount = selectedSheet?.id
+    ? items.filter((item) => item.sheetId === selectedSheet.id && item.reviewStatus !== "reviewed").length
+    : 0;
   const drawingState = deriveTakeoffStudioDrawingState({ measurementType: drawingTool, points: draftDrawingPoints, selectedSheet });
   const snapTargets = buildTakeoffStudioSnapTargets(editingTakeoff, selectedSheet);
   const planReviewLayer = buildTakeoffStudioPlanReviewLayer(editingTakeoff, selectedSheet);
@@ -1122,6 +1139,24 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
   const hardeningState = buildTakeoffStudioProductionHardening(editingTakeoff);
   const pilotHardeningGate = buildTakeoffStudioPilotHardeningGate({ ...editingTakeoff, planFiles: planFileCandidates });
   const selectedSheetPreviewUrl = pdfRenderState.canRender ? pdfRenderState.pagePreviewUrl : selectedSheet?.sourcePreviewUrl;
+  const planRoomModeSummary = interactionMode === "view"
+    ? "Pan mode: drag the plan, move page by page, or switch to Measure when you are ready to take off quantities."
+    : interactionMode === "scale"
+      ? draftCalibrationPoints.length >= 2
+        ? "Scale mode: enter the real length, then save the sheet scale."
+        : `Scale mode: click ${draftCalibrationPoints.length ? "the second point" : "two points"} on a known plan dimension.`
+    : interactionMode === "markup"
+      ? "Markup mode: enter a note, then click the plan to pin it."
+      : drawingState.summary;
+  const calibrationDraftPixelLength = draftCalibrationPoints.length >= 2
+    ? Math.hypot(draftCalibrationPoints[1].x - draftCalibrationPoints[0].x, draftCalibrationPoints[1].y - draftCalibrationPoints[0].y)
+    : 0;
+  const calibrationRealLengthNumber = Number.parseFloat(String(calibrationRealLength || selectedSheet?.scale?.realWorldLength || ""));
+  const canSaveSheetScale = interactionMode === "scale"
+    && draftCalibrationPoints.length >= 2
+    && calibrationDraftPixelLength > 0
+    && Number.isFinite(calibrationRealLengthNumber)
+    && calibrationRealLengthNumber > 0;
   const [authenticatedPlanPreviewUrls, setAuthenticatedPlanPreviewUrls] = useState({});
   const uploadPlanPreviewSignature = planFileCandidates
     .filter((file) => file.sourceType === "upload" && file.previewKind === "pdf" && (file.contentUrl || file.previewUrl))
@@ -1183,6 +1218,21 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
       takeoffStudio: normalized,
     }));
   }
+
+  const recordPdfPageCount = useCallback((pageCount = 0) => {
+    const safePageCount = Number.parseInt(String(pageCount || 0), 10);
+    if (!pdfRenderState.planFileId || !Number.isFinite(safePageCount) || safePageCount <= 0) return;
+    const currentFile = planFileCandidates.find((file) => file.id === pdfRenderState.planFileId);
+    if (!currentFile || Number(currentFile.pageCount || 0) >= safePageCount) return;
+    commitTakeoff({
+      ...takeoff,
+      selectedSheetId: selectedSheet?.id || takeoff.selectedSheetId,
+      sheets,
+      items,
+      markupComments,
+      planFiles: planFileCandidates.map((file) => file.id === currentFile.id ? { ...file, pageCount: safePageCount } : file),
+    });
+  }, [items, markupComments, pdfRenderState.planFileId, planFileCandidates, selectedSheet?.id, sheets, takeoff]);
 
   function updateSheet(index, field, value) {
     const nextSheets = sheets.map((sheet, sheetIndex) => sheetIndex === index ? { ...sheet, [field]: value } : sheet);
@@ -1434,6 +1484,80 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
     });
   }
 
+  function buildPdfPageSheets() {
+    if (!pdfRenderState.planFileId || !pdfRenderState.pageCount) return;
+    const planFile = planFileCandidates.find((file) => file.id === pdfRenderState.planFileId);
+    if (!planFile) return;
+    const existingPages = new Set(pdfRenderState.sheetsForFile.map((sheet) => Number(sheet.pageNumber || 1)));
+    const nextSheets = [];
+    for (let page = 1; page <= pdfRenderState.pageCount; page += 1) {
+      if (!existingPages.has(page)) {
+        nextSheets.push(createTakeoffStudioSheetFromPlanFilePage({ ...planFile, pageCount: pdfRenderState.pageCount }, page, sheets.length + nextSheets.length));
+      }
+    }
+    if (!nextSheets.length) return;
+    commitTakeoff({
+      ...takeoff,
+      selectedSheetId: selectedSheet?.id || nextSheets[0].id,
+      sheets: [...sheets, ...nextSheets],
+      items,
+      markupComments,
+      planFiles: planFileCandidates.map((file) => file.id === planFile.id ? { ...file, pageCount: pdfRenderState.pageCount } : file),
+    });
+  }
+
+  function selectAdjacentSheet(direction = 1) {
+    if (!sheetWorkspace.thumbnails.length) return;
+    const selectedIndex = sheetWorkspace.thumbnails.findIndex((thumbnail) => thumbnail.id === selectedSheet?.id);
+    if (direction > 0 && selectedIndex === sheetWorkspace.thumbnails.length - 1 && pdfRenderState.canAddPageSheet) {
+      addPdfPageSheet();
+      return;
+    }
+    const fallbackIndex = selectedIndex >= 0 ? selectedIndex : 0;
+    const nextIndex = Math.min(Math.max(fallbackIndex + direction, 0), sheetWorkspace.thumbnails.length - 1);
+    const nextSheetId = sheetWorkspace.thumbnails[nextIndex]?.id;
+    if (nextSheetId) {
+      updateSelectedSheet(nextSheetId);
+      setDraftDrawingPoints([]);
+      setDraftCalibrationPoints([]);
+      setPlanRoomPan({ x: 0, y: 0 });
+    }
+  }
+
+  function updatePlanRoomZoom(nextZoom) {
+    const numericZoom = Number(nextZoom);
+    const clampedZoom = Math.min(2.5, Math.max(0.55, Number.isFinite(numericZoom) ? numericZoom : 1));
+    setPlanRoomZoom(Number(clampedZoom.toFixed(2)));
+  }
+
+  function resetPlanRoomView() {
+    setPlanRoomZoom(1);
+    setPlanRoomPan({ x: 0, y: 0 });
+  }
+
+  function handlePlanRoomMouseDown(event) {
+    if (interactionMode !== "view") return;
+    planRoomDragRef.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      panX: planRoomPan.x,
+      panY: planRoomPan.y,
+    };
+  }
+
+  function handlePlanRoomMouseMove(event) {
+    if (interactionMode !== "view" || !planRoomDragRef.current) return;
+    const drag = planRoomDragRef.current;
+    setPlanRoomPan({
+      x: drag.panX + event.clientX - drag.startX,
+      y: drag.panY + event.clientY - drag.startY,
+    });
+  }
+
+  function handlePlanRoomMouseUp() {
+    planRoomDragRef.current = null;
+  }
+
   function addPlanTextSource() {
     const sheetFileName = selectedSheet?.sourceFileName || "";
     const sheetPreviewUrl = selectedSheet?.sourcePreviewUrl || "";
@@ -1480,7 +1604,7 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
   }
 
   function addDrawingPoint(event) {
-    if (disabled || !selectedSheet?.id) return;
+    if (disabled || !selectedSheet?.id || interactionMode === "view" || interactionMode === "scale") return;
     const rect = event.currentTarget.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
     const rawPoint = {
@@ -1514,6 +1638,48 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
     }
     setLastSnapLabel(snapped.snapped ? `Snapped to ${snapped.label || snapped.type}` : "Free point");
     setDraftDrawingPoints((current) => [...current, snapped.point]);
+  }
+
+  function addCalibrationPoint(event) {
+    if (disabled || !selectedSheet?.id || interactionMode !== "scale") return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const nextPoint = {
+      x: Number((((event.clientX - rect.left) / rect.width) * sheetWorkspace.bounds.width).toFixed(2)),
+      y: Number((((event.clientY - rect.top) / rect.height) * sheetWorkspace.bounds.height).toFixed(2)),
+    };
+    setDraftCalibrationPoints((current) => [...current.slice(-1), nextPoint]);
+    setLastSnapLabel("Scale point placed");
+  }
+
+  function handlePlanRoomOverlayClick(event) {
+    if (interactionMode === "scale") {
+      addCalibrationPoint(event);
+      return;
+    }
+    addDrawingPoint(event);
+  }
+
+  function saveSheetCalibrationFromDraft() {
+    if (disabled || !selectedSheet?.id || !canSaveSheetScale) return;
+    const realLength = calibrationRealLengthNumber;
+    const nextUnit = calibrationUnit || selectedSheet?.scale?.realWorldUnit || "FT";
+    const nextSheets = sheets.map((sheet) => sheet.id === selectedSheet.id
+      ? {
+        ...sheet,
+        scale: {
+          ...sheet.scale,
+          calibrated: true,
+          pixels: Number(calibrationDraftPixelLength.toFixed(2)),
+          realWorldLength: realLength,
+          realWorldUnit: nextUnit,
+          label: `${realLength} ${nextUnit} = ${Number(calibrationDraftPixelLength.toFixed(2))} px`,
+        },
+      }
+      : sheet);
+    commitTakeoff({ ...takeoff, selectedSheetId: selectedSheet.id, sheets: nextSheets, items, markupComments });
+    setDraftCalibrationPoints([]);
+    setLastSnapLabel(`Scale saved: ${realLength} ${nextUnit}`);
   }
 
   function undoDrawingPoint() {
@@ -1573,6 +1739,33 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
         takeoffRows: [...nonStudioRows, ...reviewedRows],
       });
     });
+  }
+
+  function reviewSelectedSheetAndApplyToEstimateLines() {
+    if (!selectedSheet?.id || selectedSheetDraftMeasurementCount === 0) return;
+    const nextItems = items.map((item) => item.sheetId === selectedSheet.id ? { ...item, reviewStatus: "reviewed" } : item);
+    const nextTakeoff = {
+      ...takeoff,
+      selectedSheetId: selectedSheet.id,
+      sheets,
+      items: nextItems,
+      markupComments,
+    };
+    const nextReviewedRows = buildTakeoffStudioBackupRows({
+      ...nextTakeoff,
+      items: nextItems.filter((item) => item.reviewStatus === "reviewed"),
+    });
+    setDraft((current) => {
+      const currentBackup = deriveEstimateBackup(current);
+      const nonStudioRows = (currentBackup.takeoffRows || []).filter((row) => !String(row?.source || "").includes("Apex Takeoff Studio"));
+      const withDraftItems = mergeTakeoffStudioIntoDraft(current, nextTakeoff);
+      return mergeEstimateBackup(withDraftItems, {
+        ...currentBackup,
+        takeoffStudio: nextTakeoff,
+        takeoffRows: [...nonStudioRows, ...nextReviewedRows],
+      });
+    });
+    setLastSnapLabel("Reviewed current sheet and added blank-price draft estimate lines.");
   }
 
   function prepareGcPacketTakeoffProof() {
@@ -1636,19 +1829,255 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
   return (
     <div className="rounded-3xl border border-blue-100 bg-blue-50/50 p-4 shadow-sm shadow-blue-100/50">
       <SectionHeader
-        title="Apex Takeoff Studio"
-        description="Manual plan-sheet quantities for estimate backup. Review quantities before they are used in estimate lines or proposal proof."
+        title="Apex Plan Room"
+        description="Open the job PDF, review pages, then measure or mark up sheets before saving reviewed quantities into an estimate."
         action={<Badge tone={readiness.tone}>{readiness.label}</Badge>}
       />
-      <div className="grid gap-3 md:grid-cols-3">
-        <StatCard title="Items" value={`${readiness.itemCount}`} />
-        <StatCard title="Reviewed" value={`${readiness.reviewedItems}`} />
-        <StatCard title="Draft Lines" value={`${reviewedLineItems.length}`} />
+      <div className="co-apex-plan-room mt-3">
+        <div className="co-apex-plan-room-head">
+          <div>
+            <Badge tone="blue">Plan Room</Badge>
+            <h3>Job PDF Workspace</h3>
+            <p>Upload the full job PDF, move page by page, zoom or pan the sheet, then measure or pin markups for reviewed takeoff backup.</p>
+          </div>
+          <div className="co-apex-plan-room-head-actions">
+            <Button type="button" size="sm" variant="secondary" onClick={() => planUploadInputRef.current?.click()} disabled={disabled || planUploadDraft.status === "reading" || planUploadDraft.status === "uploading"}>Upload Job PDF</Button>
+            {planUploadDraft.dataUrl ? <Button type="button" size="sm" onClick={uploadTakeoffPlanFile} disabled={disabled || !selectedPlanUploadJobId || planUploadDraft.status === "reading" || planUploadDraft.status === "uploading"}>Attach to Sheet</Button> : null}
+            {pdfRenderState.canRender && pdfRenderState.pageCount && pdfRenderState.sheetsForFile.length < pdfRenderState.pageCount ? (
+              <Button type="button" size="sm" onClick={buildPdfPageSheets} disabled={disabled}>Build Pages</Button>
+            ) : null}
+            <Button type="button" size="sm" variant="secondary" onClick={addPdfPageSheet} disabled={disabled || !pdfRenderState.canAddPageSheet}>Add PDF Page</Button>
+          </div>
+        </div>
+        <div className="co-apex-plan-room-grid">
+          <aside className="co-apex-plan-room-pages" aria-label="Plan pages">
+            <div className="co-apex-plan-room-pages-head">
+              <span>Pages</span>
+              <Badge tone={pdfRenderState.canRender ? "green" : "slate"}>
+                {pdfRenderState.canRender ? `${pdfRenderState.pageNumber}${pdfRenderState.pageCount ? `/${pdfRenderState.pageCount}` : ""}` : `${sheetWorkspace.metrics.sheetCount}`}
+              </Badge>
+            </div>
+            <div className="co-apex-plan-room-page-list">
+              {sheetWorkspace.thumbnails.length ? sheetWorkspace.thumbnails.map((thumbnail, index) => (
+                <button
+                  key={`plan-room-page-${thumbnail.id}`}
+                  type="button"
+                  className={`co-apex-plan-room-page ${thumbnail.selected ? "is-selected" : ""}`}
+                  onClick={() => {
+                    updateSelectedSheet(thumbnail.id);
+                    setDraftDrawingPoints([]);
+                    setDraftCalibrationPoints([]);
+                    setPlanRoomPan({ x: 0, y: 0 });
+                  }}
+                  disabled={disabled}
+                  aria-pressed={thumbnail.selected}
+                >
+                  <span>{index + 1}</span>
+                  <strong>{thumbnail.label || `Page ${index + 1}`}</strong>
+                  <small>{thumbnail.subtitle || "No source attached"}</small>
+                  <em>{thumbnail.calibrated ? "Calibrated" : "Needs scale"} / {thumbnail.itemCount} row{thumbnail.itemCount === 1 ? "" : "s"}</em>
+                </button>
+              )) : (
+                <p className="co-apex-plan-room-empty">Upload or attach a PDF/image plan to start.</p>
+              )}
+            </div>
+          </aside>
+          <section className="co-apex-plan-room-main" aria-label="PDF plan viewer and takeoff workspace">
+            <div className="co-apex-plan-room-toolbar">
+              <div className="co-apex-plan-room-page-controls">
+                <Button type="button" size="sm" variant="secondary" onClick={() => selectAdjacentSheet(-1)} disabled={disabled || sheetWorkspace.thumbnails.length <= 1}>Prev</Button>
+                <span>{selectedSheet?.name || "No sheet selected"}</span>
+                <Button type="button" size="sm" variant="secondary" onClick={() => selectAdjacentSheet(1)} disabled={disabled || sheetWorkspace.thumbnails.length <= 1}>Next</Button>
+              </div>
+              <div className="co-apex-plan-room-tools">
+                <SelectField label="Mode" value={interactionMode} onChange={(event) => setInteractionMode(event.target.value)} disabled={disabled}>
+                  <option value="view">Pan</option>
+                  <option value="scale">Scale</option>
+                  <option value="draw">Measure</option>
+                  <option value="markup">Markup</option>
+                </SelectField>
+                <SelectField label="Tool" value={drawingTool} onChange={(event) => { setDrawingTool(event.target.value); setDraftDrawingPoints([]); }} disabled={disabled || interactionMode !== "draw"}>
+                  {TAKEOFF_MEASUREMENT_OPTIONS.map((option) => <option key={`plan-room-tool-${option.value}`} value={option.value}>{option.label}</option>)}
+                </SelectField>
+                <SelectField label="Markup" value={markupType} onChange={(event) => setMarkupType(event.target.value)} disabled={disabled || interactionMode !== "markup"}>
+                  <option value="note">Note</option>
+                  <option value="rfi">RFI</option>
+                  <option value="scope">Scope</option>
+                  <option value="risk">Risk</option>
+                </SelectField>
+              </div>
+              <div className="co-apex-plan-room-zoom">
+                <Button type="button" size="sm" variant="secondary" onClick={() => updatePlanRoomZoom(planRoomZoom - 0.15)} disabled={disabled}>-</Button>
+                <span>{Math.round(planRoomZoom * 100)}%</span>
+                <Button type="button" size="sm" variant="secondary" onClick={() => updatePlanRoomZoom(planRoomZoom + 0.15)} disabled={disabled}>+</Button>
+                <Button type="button" size="sm" variant="secondary" onClick={resetPlanRoomView} disabled={disabled}>Fit</Button>
+              </div>
+            </div>
+            <div className="co-apex-plan-room-status">
+              <span>{pdfRenderState.canRender ? `PDF page ${pdfRenderState.pageNumber}${pdfRenderState.pageCount ? ` of ${pdfRenderState.pageCount}` : ""}` : pdfRenderState.warnings[0] || "Attach a PDF/image source to this sheet."}</span>
+              <span>{planRoomModeSummary}</span>
+              <span>{lastSnapLabel || snapTargets.summary}</span>
+            </div>
+            <div
+              className={`co-apex-plan-room-canvas ${interactionMode === "view" ? "is-panning" : "is-drawing"}`}
+              onMouseDown={handlePlanRoomMouseDown}
+              onMouseMove={handlePlanRoomMouseMove}
+              onMouseUp={handlePlanRoomMouseUp}
+              onMouseLeave={handlePlanRoomMouseUp}
+            >
+              <div
+                className="co-apex-plan-room-canvas-inner"
+                style={{
+                  transform: `translate(${planRoomPan.x}px, ${planRoomPan.y}px) scale(${planRoomZoom})`,
+                }}
+              >
+                {pdfRenderState.canRender && displaySelectedSheetPreviewUrl ? (
+                  <TakeoffStudioPdfCanvasPreview src={displaySelectedSheetPreviewUrl} pageNumber={pdfRenderState.pageNumber} sheetName={selectedSheet?.name} onPageCount={recordPdfPageCount} />
+                ) : displaySelectedSheetPreviewUrl && selectedSheet.previewKind === "image" ? (
+                  <img src={displaySelectedSheetPreviewUrl} alt={`${selectedSheet.name} plan preview`} className="h-full w-full object-contain" />
+                ) : displaySelectedSheetPreviewUrl ? (
+                  <iframe title={`${selectedSheet.name} plan preview`} src={displaySelectedSheetPreviewUrl} className="h-full w-full bg-white" />
+                ) : (
+                  <svg viewBox={`0 0 ${sheetWorkspace.bounds.width} ${sheetWorkspace.bounds.height}`} className="h-full w-full" role="img" aria-label="Plan sheet placeholder">
+                    <rect x="0" y="0" width={sheetWorkspace.bounds.width} height={sheetWorkspace.bounds.height} fill="#f8fafc" />
+                    {Array.from({ length: 9 }).map((_, gridIndex) => {
+                      const x = (sheetWorkspace.bounds.width / 8) * gridIndex;
+                      const y = (sheetWorkspace.bounds.height / 8) * gridIndex;
+                      return (
+                        <g key={`plan-room-grid-${gridIndex}`}>
+                          <line x1={x} y1="0" x2={x} y2={sheetWorkspace.bounds.height} stroke="#e2e8f0" strokeWidth="2" />
+                          <line x1="0" y1={y} x2={sheetWorkspace.bounds.width} y2={y} stroke="#e2e8f0" strokeWidth="2" />
+                        </g>
+                      );
+                    })}
+                    <text x="32" y="48" fill="#334155" fontSize="28" fontWeight="800">{selectedSheet?.name || "Plan sheet"}</text>
+                  </svg>
+                )}
+                <svg viewBox={`0 0 ${sheetWorkspace.bounds.width} ${sheetWorkspace.bounds.height}`} className="co-apex-plan-room-overlay" onClick={handlePlanRoomOverlayClick} role="img" aria-label="Plan Room drawing and markup overlay">
+                  {takeoff.snapSettings?.enabled ? snapTargets.targets.slice(0, 80).map((target, targetIndex) => (
+                    <circle key={`plan-room-snap-${target.type}-${targetIndex}`} cx={target.point.x} cy={target.point.y} r="5" fill="#0ea5e9" opacity="0.75" />
+                  )) : null}
+                  {planReviewLayer.pinnedComments.map((comment, commentIndex) => {
+                    const point = comment.points[0];
+                    const color = comment.visibility === "field" ? "#06b6d4" : comment.visibility === "proposal" ? "#10b981" : "#d946ef";
+                    return (
+                      <g key={`plan-room-markup-${comment.id}-${commentIndex}`}>
+                        <rect x={point.x - 10} y={point.y - 10} width="20" height="20" rx="4" fill={color} stroke="#f8fafc" strokeWidth="3" />
+                        <text x={point.x + 16} y={point.y - 12} fill="#111827" fontSize="22" fontWeight="800">{comment.type}</text>
+                      </g>
+                    );
+                  })}
+                  {sheetWorkspace.overlays.map((overlay, overlayIndex) => {
+                    const pointList = overlay.points.map((point) => `${point.x},${point.y}`).join(" ");
+                    const color = overlay.reviewStatus === "reviewed" ? "#059669" : "#f59e0b";
+                    return (
+                      <g key={overlay.id || `plan-room-overlay-${overlayIndex}`}>
+                        {overlay.points.length === 1 ? <circle cx={overlay.points[0].x} cy={overlay.points[0].y} r="10" fill={color} /> : null}
+                        {overlay.points.length > 1 && overlay.closed ? <polygon points={pointList} fill={`${color}33`} stroke={color} strokeWidth="6" /> : null}
+                        {overlay.points.length > 1 && !overlay.closed ? <polyline points={pointList} fill="none" stroke={color} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" /> : null}
+                        {overlay.points[0] ? <text x={overlay.points[0].x + 14} y={overlay.points[0].y - 14} fill="#0f172a" fontSize="24" fontWeight="800">{overlay.label}</text> : null}
+                      </g>
+                    );
+                  })}
+                  {draftDrawingPoints.length ? (
+                    <g>
+                      {draftDrawingPoints.length > 1 && (drawingTool === "area" || drawingTool === "volume") ? <polygon points={draftDrawingPoints.map((point) => `${point.x},${point.y}`).join(" ")} fill="#38bdf833" stroke="#38bdf8" strokeWidth="5" strokeDasharray="12 8" /> : null}
+                      {draftDrawingPoints.length > 1 && drawingTool === "length" ? <polyline points={draftDrawingPoints.map((point) => `${point.x},${point.y}`).join(" ")} fill="none" stroke="#38bdf8" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="12 8" /> : null}
+                      {draftDrawingPoints.map((point, pointIndex) => <circle key={`plan-room-draft-point-${point.x}-${point.y}-${pointIndex}`} cx={point.x} cy={point.y} r="9" fill="#0284c7" stroke="#f8fafc" strokeWidth="3" />)}
+                    </g>
+                  ) : null}
+                  {draftCalibrationPoints.length ? (
+                    <g>
+                      {draftCalibrationPoints.length > 1 ? (
+                        <line
+                          x1={draftCalibrationPoints[0].x}
+                          y1={draftCalibrationPoints[0].y}
+                          x2={draftCalibrationPoints[1].x}
+                          y2={draftCalibrationPoints[1].y}
+                          stroke="#ef4444"
+                          strokeWidth="7"
+                          strokeLinecap="round"
+                          strokeDasharray="14 8"
+                        />
+                      ) : null}
+                      {draftCalibrationPoints.map((point, pointIndex) => (
+                        <circle key={`plan-room-scale-point-${point.x}-${point.y}-${pointIndex}`} cx={point.x} cy={point.y} r="12" fill="#ef4444" stroke="#f8fafc" strokeWidth="4" />
+                      ))}
+                    </g>
+                  ) : null}
+                </svg>
+              </div>
+            </div>
+            <div className="co-apex-plan-room-footer">
+              <InputField label="Drawing label" value={drawingLabel} onChange={(event) => setDrawingLabel(event.target.value)} disabled={disabled || interactionMode !== "draw"} placeholder="Driveway slab" />
+              <InputField label="Markup text" value={markupText} onChange={(event) => setMarkupText(event.target.value)} disabled={disabled || interactionMode !== "markup"} placeholder="Click plan to pin markup" />
+              <div className="co-apex-plan-room-scale-controls">
+                <InputField label="Known length" value={calibrationRealLength || selectedSheet?.scale?.realWorldLength || ""} onChange={(event) => setCalibrationRealLength(event.target.value)} disabled={disabled || interactionMode !== "scale"} inputMode="decimal" placeholder="10" />
+                <SelectField label="Unit" value={calibrationUnit || selectedSheet?.scale?.realWorldUnit || "FT"} onChange={(event) => setCalibrationUnit(event.target.value)} disabled={disabled || interactionMode !== "scale"}>
+                  <option value="FT">FT</option>
+                  <option value="IN">IN</option>
+                  <option value="YD">YD</option>
+                </SelectField>
+                <div className="co-apex-plan-room-scale-readout">
+                  <span>Picked</span>
+                  <strong>{calibrationDraftPixelLength ? `${Math.round(calibrationDraftPixelLength)} px` : selectedSheet?.scale?.calibrated ? `${selectedSheet.scale.realWorldLength} ${selectedSheet.scale.realWorldUnit} = ${Math.round(selectedSheet.scale.pixels)} px` : "2 points"}</strong>
+                </div>
+                <Button type="button" size="sm" onClick={saveSheetCalibrationFromDraft} disabled={disabled || !canSaveSheetScale}>Save Scale</Button>
+              </div>
+              <div className="co-apex-plan-room-footer-actions">
+                <Button type="button" variant="secondary" size="sm" onClick={undoDrawingPoint} disabled={disabled || draftDrawingPoints.length === 0}>Undo</Button>
+                <Button type="button" variant="secondary" size="sm" onClick={() => setDraftDrawingPoints([])} disabled={disabled || draftDrawingPoints.length === 0}>Clear</Button>
+                <Button type="button" size="sm" onClick={finishDrawingMeasurement} disabled={disabled || !drawingState.canFinish}>Finish Measurement</Button>
+              </div>
+            </div>
+          </section>
+          <aside className="co-apex-plan-room-review" aria-label="Plan Room review">
+            <StatCard title="Measurements" value={`${readiness.itemCount}`} />
+            <StatCard title="Reviewed" value={`${readiness.reviewedItems}`} />
+            <StatCard title="Draft lines" value={`${reviewedLineItems.length}`} />
+            <div className="co-apex-plan-room-review-card">
+              <span>Estimate flow</span>
+              <strong>{selectedSheetDraftMeasurementCount ? `${selectedSheetDraftMeasurementCount} ready to review` : reviewedLineItems.length ? `${reviewedLineItems.length} draft line${reviewedLineItems.length === 1 ? "" : "s"}` : "Measure first"}</strong>
+              <p>Review this sheet's measurements, then add them as blank-price estimate lines for office pricing.</p>
+              <Button type="button" size="sm" onClick={reviewSelectedSheetAndApplyToEstimateLines} disabled={disabled || selectedSheetDraftMeasurementCount === 0}>Review + Add Lines</Button>
+            </div>
+            <div className="co-apex-plan-room-review-card">
+              <span>Scale</span>
+              <strong>{selectedSheet?.scale?.calibrated ? "Calibrated" : "Needs scale"}</strong>
+              <p>{calibrationState.summary}</p>
+              <Button type="button" size="sm" variant="secondary" onClick={applySelectedSheetScale} disabled={disabled || !selectedSheet?.scale?.calibrated || calibrationState.itemsUsingSheetScale.length === 0}>Use Sheet Scale</Button>
+            </div>
+            <div className="co-apex-plan-room-review-card">
+              <span>Plan sources</span>
+              <strong>{planFileReadiness.readyFileCount}/{planFileReadiness.fileCount} ready</strong>
+              <p>{planFileReadiness.summary}</p>
+            </div>
+            <div className="co-apex-plan-room-review-card">
+              <span>Review layer</span>
+              <strong>{planReviewLayer.openComments.length} open</strong>
+              <p>{planReviewLayer.summary}</p>
+            </div>
+          </aside>
+        </div>
       </div>
-      <div className="mt-3 rounded-2xl border border-blue-100 bg-white/85 px-3 py-2 text-sm font-bold leading-6 text-blue-900">
-        {readiness.summary}
-      </div>
-      <div className="mt-3 rounded-2xl border border-indigo-100 bg-white/95 p-3">
+      <details className="co-apex-plan-room-advanced mt-3">
+        <summary>
+          <span>
+            <strong>Advanced backup controls</strong>
+            <small>Sheet register, reviewed line sync, CSV exchange, and field/proposal proof settings.</small>
+          </span>
+          <Badge tone="slate">{readiness.itemCount} item{readiness.itemCount === 1 ? "" : "s"}</Badge>
+        </summary>
+        <div className="co-apex-plan-room-advanced-body">
+          <div className="grid gap-3 md:grid-cols-3">
+            <StatCard title="Items" value={`${readiness.itemCount}`} />
+            <StatCard title="Reviewed" value={`${readiness.reviewedItems}`} />
+            <StatCard title="Draft Lines" value={`${reviewedLineItems.length}`} />
+          </div>
+          <div className="mt-3 rounded-2xl border border-blue-100 bg-white/85 px-3 py-2 text-sm font-bold leading-6 text-blue-900">
+            {readiness.summary}
+          </div>
+          <div className="mt-3 rounded-2xl border border-indigo-100 bg-white/95 p-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.16em] text-indigo-700">Plan file register</p>
@@ -1662,10 +2091,10 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.16em] text-indigo-700">Upload plan in Takeoff</p>
-              <p className="mt-1 text-sm font-bold leading-6 text-slate-600">Choose a PDF plan up to 50MB or an image plan up to 10MB, then attach it to the selected sheet.</p>
+              <p className="mt-1 text-sm font-bold leading-6 text-slate-600">Choose a job PDF up to 50MB or an image plan up to 10MB, then attach it to the selected sheet.</p>
             </div>
             <Button type="button" size="sm" variant="secondary" onClick={() => planUploadInputRef.current?.click()} disabled={disabled || planUploadDraft.status === "reading" || planUploadDraft.status === "uploading"}>
-              Choose PDF / Image Plan
+              Choose Job PDF / Image
             </Button>
           </div>
           <input
@@ -1799,6 +2228,8 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
               </div>
               <div className="mt-2 grid gap-2 md:grid-cols-[120px_120px_minmax(0,1fr)]">
                 <SelectField label="Mode" value={interactionMode} onChange={(event) => setInteractionMode(event.target.value)} disabled={disabled}>
+                  <option value="view">Pan</option>
+                  <option value="scale">Scale</option>
                   <option value="draw">Draw</option>
                   <option value="markup">Markup</option>
                 </SelectField>
@@ -1826,7 +2257,7 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
                 </div>
               </div>
               <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs font-bold leading-5 text-slate-300">{drawingState.summary}</p>
+                <p className="text-xs font-bold leading-5 text-slate-300">{planRoomModeSummary}</p>
                 <div className="flex flex-wrap gap-2">
                   <Button type="button" variant="secondary" size="sm" onClick={undoDrawingPoint} disabled={disabled || draftDrawingPoints.length === 0}>Undo Point</Button>
                   <Button type="button" variant="secondary" size="sm" onClick={() => setDraftDrawingPoints([])} disabled={disabled || draftDrawingPoints.length === 0}>Clear</Button>
@@ -1836,7 +2267,7 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
             </div>
             <div className="relative mt-3 aspect-[11/8.5] overflow-hidden rounded-xl border border-slate-700 bg-slate-900">
               {pdfRenderState.canRender && selectedSheetPreviewUrl ? (
-                <TakeoffStudioPdfCanvasPreview src={selectedSheetPreviewUrl} pageNumber={pdfRenderState.pageNumber} sheetName={selectedSheet?.name} />
+                <TakeoffStudioPdfCanvasPreview src={selectedSheetPreviewUrl} pageNumber={pdfRenderState.pageNumber} sheetName={selectedSheet?.name} onPageCount={recordPdfPageCount} />
               ) : displaySelectedSheetPreviewUrl && selectedSheet.previewKind === "image" ? (
                 <img src={displaySelectedSheetPreviewUrl} alt={`${selectedSheet.name} plan preview`} className="h-full w-full object-contain" />
               ) : displaySelectedSheetPreviewUrl ? (
@@ -2457,15 +2888,17 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
           </div>
         </div>
 
-        <TextAreaField
-          label="Takeoff notes"
-          value={takeoff.notes || ""}
-          onChange={(event) => commitTakeoff({ ...takeoff, sheets, items, notes: event.target.value })}
-          disabled={disabled}
-          className="field-input min-h-24 resize-y"
-          placeholder="Plan set assumptions, calibration notes, or review reminders."
-        />
-      </div>
+          <TextAreaField
+            label="Takeoff notes"
+            value={takeoff.notes || ""}
+            onChange={(event) => commitTakeoff({ ...takeoff, sheets, items, notes: event.target.value })}
+            disabled={disabled}
+            className="field-input min-h-24 resize-y"
+            placeholder="Plan set assumptions, calibration notes, or review reminders."
+          />
+        </div>
+        </div>
+      </details>
     </div>
   );
 }
