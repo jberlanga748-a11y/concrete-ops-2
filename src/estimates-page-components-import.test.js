@@ -29,7 +29,7 @@ test("Estimates page route shell is extracted and lazy-loaded out of App", () =>
   assert.match(estimatesPageSource, /openMobileTakeoffStudio/);
   assert.match(estimatesPageSource, /focusNewTakeoff/);
   assert.match(estimatesPageSource, /estimate-takeoff-tool/);
-  assert.match(estimatesPageSource, /Takeoff Tool/);
+  assert.match(estimatesPageSource, /New Takeoff/);
   assert.match(estimatesPageSource, /Estimate queue/);
   assert.match(estimatesPageSource, /Upload the job PDF first/);
   assert.match(estimatesPageSource, /Save as Draft Estimate/);

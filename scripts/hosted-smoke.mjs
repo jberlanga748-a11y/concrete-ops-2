@@ -228,6 +228,22 @@ function assertLatencyBudget(options, durationMs, budgetMs, label) {
   }
 }
 
+function assertRouteSecurityHeaders(response, routePath) {
+  const csp = response.headers.get("content-security-policy") || "";
+  const requiredDirectives = [
+    "default-src 'self'",
+    "frame-ancestors 'none'",
+    "object-src 'none'",
+    "form-action 'self'",
+    "connect-src 'self' blob:",
+  ];
+  for (const directive of requiredDirectives) {
+    if (!csp.includes(directive)) {
+      throw new Error(`Route ${routePath} CSP expected to include ${directive}.`);
+    }
+  }
+}
+
 async function checkHealth(options, results) {
   for (const endpoint of ["/api/health", "/api/ready"]) {
     const result = await requestJson(routeUrl(options.baseUrl, endpoint));
@@ -255,6 +271,9 @@ async function checkRoutes(options, results) {
     const response = await fetch(routeUrl(options.baseUrl, routePath), { redirect: "manual" });
     if (![200, 302, 303, 307, 308].includes(response.status)) {
       throw new Error(`Route ${routePath} expected app response or redirect, received HTTP ${response.status}`);
+    }
+    if (response.status === 200) {
+      assertRouteSecurityHeaders(response, routePath);
     }
     results.checks.push({ flow: "routes", route: routePath, status: response.status });
   }

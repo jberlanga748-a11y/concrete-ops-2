@@ -490,7 +490,7 @@ function securityHeaders(_req, res, next) {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https://api.mapbox.com https://*.tiles.mapbox.com",
     "font-src 'self' data:",
-    "connect-src 'self' https://api.mapbox.com https://events.mapbox.com https://*.tiles.mapbox.com",
+    "connect-src 'self' blob: https://api.mapbox.com https://events.mapbox.com https://*.tiles.mapbox.com",
     "worker-src 'self' blob:",
     "form-action 'self'",
     "manifest-src 'self'",

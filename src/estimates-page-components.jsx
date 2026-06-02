@@ -1348,7 +1348,7 @@ export function EstimatesPagePolished({
     : estimateShellMode === "takeoff" && estimateViewMode === "create" && !selectedEstimate
       ? {
         id: "estimate-takeoff-tool",
-        title: "Takeoff Tool",
+        title: "New Takeoff",
         description: "Measure a plan inside Estimates, then save it as a draft estimate.",
         eyebrow: "Estimate tool",
         status: "Draft next",
@@ -1374,7 +1374,7 @@ export function EstimatesPagePolished({
   ];
   const estimateShellQuickActions = [
     { id: "new-estimate", label: "New Estimate", icon: "plus", onClick: () => openEstimateShellMode("create"), disabled: !canManage },
-    { id: "takeoff-tool", label: "Takeoff Tool", icon: "layers", onClick: focusNewTakeoff, disabled: !canManage },
+    { id: "takeoff-tool", label: "New Takeoff", icon: "layers", onClick: focusNewTakeoff, disabled: !canManage },
     { id: "ready-send", label: "Ready Send", icon: "arrowUpRight", onClick: () => selectEstimateShellEstimate(readyToSendRows[0], "sendReview"), disabled: !readyToSendRows.length },
   ];
   const estimateShellModes = [
@@ -1385,7 +1385,7 @@ export function EstimatesPagePolished({
     { id: "backup", label: "Backup", title: "Backup / SOV Mode", manages: "internal backup rows, SOV notes, takeoff references, and office-only estimate support." },
     { id: "packet", label: "Packet", title: "Packet Mode", manages: "GC packet settings, print sections, branded customer packet readiness, and internal bid review." },
     { id: "roughNotes", label: "Rough Notes", title: "Rough Notes Mode", manages: "AI rough notes drafting for proposal language and packet setup." },
-    { id: "takeoff", label: "Takeoff", title: "Takeoff Tool", manages: "plan measurement, estimate-grade quantities, local draft quantity review, and office backup context inside Estimates." },
+    { id: "takeoff", label: "Takeoff", title: "Plan Room", manages: "plan measurement, estimate-grade quantities, local draft quantity review, and office backup context inside Estimates." },
     { id: "visualPreview", label: "Visual Preview", title: "Visual Preview Mode", manages: "customer concept prompt readiness from estimate scope and proof backup." },
     { id: "sendReview", label: "Send Review", title: "Send Review Mode", manages: "explicit human-confirmed customer proposal send review, manual copy fallback, customer-facing print readiness, and sent status." },
     { id: "handoff", label: "Handoff", title: "Handoff Mode", manages: "approved estimate-to-job handoff checks, field-safe print review, and explicit human-confirmed conversion." },
@@ -1434,7 +1434,7 @@ export function EstimatesPagePolished({
 
     const estimate = item?.estimate || selectedEstimate;
     if (!estimate) {
-      return <StateCard title="No estimate selected" description="Select an estimate from the queue, or open the Takeoff Tool when the plan should come before pricing." tone="slate" />;
+      return <StateCard title="No estimate selected" description="Select an estimate from the queue, or start a new takeoff when the plan should come before pricing." tone="slate" />;
     }
 
     const readiness = estimateShellStateById.get(estimate.id) || estimateShellReadiness(estimate);
@@ -2926,7 +2926,7 @@ export function EstimatesPagePolished({
             title: "Estimate overview",
             item: selectedEstimateShellItem,
             render: renderEstimateShellDetail,
-            emptyState: <StateCard title="No estimate selected" description="Select an estimate from the queue, or open the Takeoff Tool when the plan comes first." tone="slate" />,
+            emptyState: <StateCard title="No estimate selected" description="Select an estimate from the queue, or start a new takeoff when the plan comes first." tone="slate" />,
           }}
           assistant={{
             title: "Estimate Studio",
@@ -3006,7 +3006,7 @@ export function EstimatesPagePolished({
         actions={
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="secondary" onClick={() => openEstimateTool("edit")}>{filteredRows.length} visible estimates</Button>
-            {canManage ? <Button type="button" variant="secondary" onClick={focusNewTakeoff}>Takeoff Tool</Button> : null}
+            {canManage ? <Button type="button" variant="secondary" onClick={focusNewTakeoff}>New Takeoff</Button> : null}
             {canManage ? <Button type="button" onClick={focusNewEstimate}>New Estimate</Button> : null}
           </div>
         }

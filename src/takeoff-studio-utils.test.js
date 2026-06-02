@@ -54,6 +54,7 @@ import {
   normalizeTakeoffStudioPlanFile,
   normalizeTakeoffStudioItem,
   parseTakeoffPointsText,
+  resolveTakeoffStudioPdfBuildPageCount,
   snapTakeoffStudioDraftPoint,
   snapTakeoffStudioPoint,
   takeoffStudioPdfPageUrl,
@@ -499,6 +500,13 @@ test("builds native PDF page render state over registered plan files", () => {
   assert.equal(state.canAddPageSheet, true);
   assert.match(state.safetyBoundary, /does not parse files/i);
   assert.doesNotMatch(JSON.stringify(state), /unitPrice|margin|profit|payroll|billing|send proposal|bid submission/i);
+});
+
+test("resolves PDF build page count from recorded or manual fallback", () => {
+  assert.equal(resolveTakeoffStudioPdfBuildPageCount({ recordedPageCount: 12, manualPageCount: 7 }), 12);
+  assert.equal(resolveTakeoffStudioPdfBuildPageCount({ recordedPageCount: 0, manualPageCount: "7" }), 7);
+  assert.equal(resolveTakeoffStudioPdfBuildPageCount({ recordedPageCount: "", manualPageCount: "" }), 0);
+  assert.equal(resolveTakeoffStudioPdfBuildPageCount({ recordedPageCount: 0, manualPageCount: 800 }), 500);
 });
 
 test("builds review-first plan text extraction readiness without OCR claims", () => {

@@ -13,7 +13,7 @@ import { calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEst
 import { addEstimateLineItemStarter, applyEstimateTemplateStarter, buildEstimateLineItemsFromRoughNotes, getEstimateLineItemStartersForTrade, getEstimateStarterTradeSummary, getEstimateTemplateStartersForTrade } from "./estimate-template-utils";
 import { estimateDisplayCustomer, estimateDisplayLead, estimateDisplayTitle, estimateDisplayTotal, estimateRailProfileLine } from "./estimate-display-utils";
 import { buildFenceTakeoffBackupRows, buildFenceTakeoffDraftLineItems, buildFenceTakeoffFieldHandoff, buildFenceTakeoffProofPhotoChecklist, buildFenceTakeoffProposalSummary, deriveFenceTakeoffReadiness, mergeFenceTakeoffIntoDraft, normalizeFenceTakeoff, summarizeFenceTakeoffByAssembly } from "./fence-takeoff-utils";
-import { applyTakeoffStudioAssistantSuggestion, applyTakeoffStudioSheetCalibrationToItems, attachTakeoffStudioPlanFileToSheet, buildTakeoffStudioAiPlanAssist, buildTakeoffStudioAssistantQueue, buildTakeoffStudioAutoMeasureBeta, buildTakeoffStudioBackupRows, buildTakeoffStudioCsvExport, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioFieldHandoff, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioMeasurementLegend, buildTakeoffStudioPackageExport, buildTakeoffStudioPdfPageRenderState, buildTakeoffStudioPilotHardeningGate, buildTakeoffStudioPlanFileCandidates, buildTakeoffStudioPlanFileReadiness, buildTakeoffStudioPlanReviewLayer, buildTakeoffStudioPlanTextExtractionState, buildTakeoffStudioProductionHardening, buildTakeoffStudioProposalProofRows, buildTakeoffStudioProofSnapshot, buildTakeoffStudioRevisionComparison, buildTakeoffStudioRevisionRegister, buildTakeoffStudioSheetWorkspace, buildTakeoffStudioSnapTargets, buildTakeoffStudioTradeAutoTakeoffPacks, buildTakeoffStudioVisionAutoMeasureBeta, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioMarkupComment, createEmptyTakeoffStudioSheet, createTakeoffStudioItemFromAutoMeasureSuggestion, createTakeoffStudioMarkupFromPoint, createTakeoffStudioMeasurementFromDrawing, createTakeoffStudioPlanTextSourceDraft, createTakeoffStudioSheetFromPlanFilePage, deriveTakeoffStudioCalibrationState, deriveTakeoffStudioDrawingState, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, getTakeoffStudioToolSetOptions, mergeTakeoffStudioAssistantSuggestionState, mergeTakeoffStudioCsvImport, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText, snapTakeoffStudioDraftPoint } from "./takeoff-studio-utils";
+import { applyTakeoffStudioAssistantSuggestion, applyTakeoffStudioSheetCalibrationToItems, attachTakeoffStudioPlanFileToSheet, buildTakeoffStudioAiPlanAssist, buildTakeoffStudioAssistantQueue, buildTakeoffStudioAutoMeasureBeta, buildTakeoffStudioBackupRows, buildTakeoffStudioCsvExport, buildTakeoffStudioEstimateLineItems, buildTakeoffStudioFieldHandoff, buildTakeoffStudioGcPacketProofSummary, buildTakeoffStudioMeasurementLegend, buildTakeoffStudioPackageExport, buildTakeoffStudioPdfPageRenderState, buildTakeoffStudioPilotHardeningGate, buildTakeoffStudioPlanFileCandidates, buildTakeoffStudioPlanFileReadiness, buildTakeoffStudioPlanReviewLayer, buildTakeoffStudioPlanTextExtractionState, buildTakeoffStudioProductionHardening, buildTakeoffStudioProposalProofRows, buildTakeoffStudioProofSnapshot, buildTakeoffStudioRevisionComparison, buildTakeoffStudioRevisionRegister, buildTakeoffStudioSheetWorkspace, buildTakeoffStudioSnapTargets, buildTakeoffStudioTradeAutoTakeoffPacks, buildTakeoffStudioVisionAutoMeasureBeta, createEmptyTakeoffStudioItem, createEmptyTakeoffStudioMarkupComment, createEmptyTakeoffStudioSheet, createTakeoffStudioItemFromAutoMeasureSuggestion, createTakeoffStudioMarkupFromPoint, createTakeoffStudioMeasurementFromDrawing, createTakeoffStudioPlanTextSourceDraft, createTakeoffStudioSheetFromPlanFilePage, deriveTakeoffStudioCalibrationState, deriveTakeoffStudioDrawingState, deriveTakeoffStudioReadiness, formatTakeoffPointsText, getTakeoffStudioAssemblyOptions, getTakeoffStudioToolSetOptions, mergeTakeoffStudioAssistantSuggestionState, mergeTakeoffStudioCsvImport, mergeTakeoffStudioIntoDraft, normalizeTakeoffStudio, normalizeTakeoffStudioItem, parseTakeoffPointsText, resolveTakeoffStudioPdfBuildPageCount, snapTakeoffStudioDraftPoint } from "./takeoff-studio-utils";
 import { fetchAuthenticatedUploadPreviewUrl } from "./upload-preview-utils";
 import { validateUploadFile } from "./upload-utils";
 import { CUSTOM_ESTIMATE_PACKET_THEME_ID, ESTIMATE_PACKET_COPY_TEMPLATE_OPTIONS, ESTIMATE_PACKET_PRESETS, ESTIMATE_PACKET_SECTION_DEFS, ESTIMATE_PACKET_THEME_OPTIONS, INTERNAL_REVIEW_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
@@ -1023,7 +1023,7 @@ function TakeoffStudioPdfCanvasPreview({ src = "", pageNumber = 1, sheetName = "
         context.fillStyle = "#ffffff";
         context.fillRect(0, 0, canvas.width, canvas.height);
         renderStage = "rendering page";
-        renderTask = page.render({ canvasContext: context, viewport });
+        renderTask = page.render({ canvas, viewport });
         await renderTask.promise;
         if (!cancelled) {
           setRenderState({ status: "ready", message: `Rendered PDF page ${safePageNumber} of ${pdf.numPages || 1}.` });
@@ -1078,6 +1078,7 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
   const [markupText, setMarkupText] = useState("");
   const [planRoomZoom, setPlanRoomZoom] = useState(1);
   const [planRoomPan, setPlanRoomPan] = useState({ x: 0, y: 0 });
+  const [manualPdfPageCount, setManualPdfPageCount] = useState("");
   const planUploadInputRef = useRef(null);
   const planRoomDragRef = useRef(null);
   const [pendingPlanUploadAttach, setPendingPlanUploadAttach] = useState(null);
@@ -1131,6 +1132,13 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
   const snapTargets = buildTakeoffStudioSnapTargets(editingTakeoff, selectedSheet);
   const planReviewLayer = buildTakeoffStudioPlanReviewLayer(editingTakeoff, selectedSheet);
   const pdfRenderState = buildTakeoffStudioPdfPageRenderState({ ...editingTakeoff, planFiles: planFileCandidates }, selectedSheet);
+  const pdfBuildPageCount = resolveTakeoffStudioPdfBuildPageCount({
+    recordedPageCount: pdfRenderState.pageCount,
+    manualPageCount: manualPdfPageCount,
+  });
+  const pdfBuildNeedsManualPageCount = Boolean(pdfRenderState.canRender && !pdfRenderState.pageCount);
+  const pdfPagesRemainingToBuild = Math.max(0, pdfBuildPageCount - pdfRenderState.sheetsForFile.length);
+  const canBuildPdfPageSheets = Boolean(pdfRenderState.canRender && pdfBuildPageCount && pdfPagesRemainingToBuild > 0);
   const planTextExtractionState = buildTakeoffStudioPlanTextExtractionState({ ...editingTakeoff, planFiles: planFileCandidates });
   const planAssist = buildTakeoffStudioAiPlanAssist(editingTakeoff);
   const autoMeasureBeta = buildTakeoffStudioAutoMeasureBeta(editingTakeoff);
@@ -1222,6 +1230,7 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
   const recordPdfPageCount = useCallback((pageCount = 0) => {
     const safePageCount = Number.parseInt(String(pageCount || 0), 10);
     if (!pdfRenderState.planFileId || !Number.isFinite(safePageCount) || safePageCount <= 0) return;
+    setManualPdfPageCount("");
     const currentFile = planFileCandidates.find((file) => file.id === pdfRenderState.planFileId);
     if (!currentFile || Number(currentFile.pageCount || 0) >= safePageCount) return;
     commitTakeoff({
@@ -1373,7 +1382,7 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
     setPlanUploadDraft((current) => ({
       ...current,
       status: "uploaded",
-      message: "Plan uploaded and attached to the selected sheet.",
+      message: "Plan uploaded and attached. If page count does not appear, enter the number of PDF pages and build them.",
       error: "",
     }));
   }, [pendingPlanUploadAttach, selectedSheet?.id, planFileCandidates]);
@@ -1485,14 +1494,14 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
   }
 
   function buildPdfPageSheets() {
-    if (!pdfRenderState.planFileId || !pdfRenderState.pageCount) return;
+    if (!pdfRenderState.planFileId || !pdfBuildPageCount) return;
     const planFile = planFileCandidates.find((file) => file.id === pdfRenderState.planFileId);
     if (!planFile) return;
     const existingPages = new Set(pdfRenderState.sheetsForFile.map((sheet) => Number(sheet.pageNumber || 1)));
     const nextSheets = [];
-    for (let page = 1; page <= pdfRenderState.pageCount; page += 1) {
+    for (let page = 1; page <= pdfBuildPageCount; page += 1) {
       if (!existingPages.has(page)) {
-        nextSheets.push(createTakeoffStudioSheetFromPlanFilePage({ ...planFile, pageCount: pdfRenderState.pageCount }, page, sheets.length + nextSheets.length));
+        nextSheets.push(createTakeoffStudioSheetFromPlanFilePage({ ...planFile, pageCount: pdfBuildPageCount }, page, sheets.length + nextSheets.length));
       }
     }
     if (!nextSheets.length) return;
@@ -1502,7 +1511,7 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
       sheets: [...sheets, ...nextSheets],
       items,
       markupComments,
-      planFiles: planFileCandidates.map((file) => file.id === planFile.id ? { ...file, pageCount: pdfRenderState.pageCount } : file),
+      planFiles: planFileCandidates.map((file) => file.id === planFile.id ? { ...file, pageCount: pdfBuildPageCount } : file),
     });
   }
 
@@ -1843,8 +1852,24 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
           <div className="co-apex-plan-room-head-actions">
             <Button type="button" size="sm" variant="secondary" onClick={() => planUploadInputRef.current?.click()} disabled={disabled || planUploadDraft.status === "reading" || planUploadDraft.status === "uploading"}>Upload Job PDF</Button>
             {planUploadDraft.dataUrl ? <Button type="button" size="sm" onClick={uploadTakeoffPlanFile} disabled={disabled || !selectedPlanUploadJobId || planUploadDraft.status === "reading" || planUploadDraft.status === "uploading"}>Attach to Sheet</Button> : null}
-            {pdfRenderState.canRender && pdfRenderState.pageCount && pdfRenderState.sheetsForFile.length < pdfRenderState.pageCount ? (
-              <Button type="button" size="sm" onClick={buildPdfPageSheets} disabled={disabled}>Build Pages</Button>
+            {pdfBuildNeedsManualPageCount ? (
+              <label className="co-apex-plan-room-page-count">
+                <span>Pages in PDF</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="500"
+                  inputMode="numeric"
+                  value={manualPdfPageCount}
+                  onChange={(event) => setManualPdfPageCount(event.target.value)}
+                  disabled={disabled}
+                  aria-label="Pages in PDF"
+                  placeholder="12"
+                />
+              </label>
+            ) : null}
+            {canBuildPdfPageSheets ? (
+              <Button type="button" size="sm" onClick={buildPdfPageSheets} disabled={disabled}>Build {pdfPagesRemainingToBuild} Page{pdfPagesRemainingToBuild === 1 ? "" : "s"}</Button>
             ) : null}
             <Button type="button" size="sm" variant="secondary" onClick={addPdfPageSheet} disabled={disabled || !pdfRenderState.canAddPageSheet}>Add PDF Page</Button>
           </div>
@@ -1887,7 +1912,7 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
               <div className="co-apex-plan-room-page-controls">
                 <Button type="button" size="sm" variant="secondary" onClick={() => selectAdjacentSheet(-1)} disabled={disabled || sheetWorkspace.thumbnails.length <= 1}>Prev</Button>
                 <span>{selectedSheet?.name || "No sheet selected"}</span>
-                <Button type="button" size="sm" variant="secondary" onClick={() => selectAdjacentSheet(1)} disabled={disabled || sheetWorkspace.thumbnails.length <= 1}>Next</Button>
+                <Button type="button" size="sm" variant="secondary" onClick={() => selectAdjacentSheet(1)} disabled={disabled || (sheetWorkspace.thumbnails.length <= 1 && !pdfRenderState.canAddPageSheet)}>Next</Button>
               </div>
               <div className="co-apex-plan-room-tools">
                 <SelectField label="Mode" value={interactionMode} onChange={(event) => setInteractionMode(event.target.value)} disabled={disabled}>
@@ -1915,6 +1940,7 @@ export function TakeoffStudioManualEditor({ draft, setDraft, disabled = false, u
             </div>
             <div className="co-apex-plan-room-status">
               <span>{pdfRenderState.canRender ? `PDF page ${pdfRenderState.pageNumber}${pdfRenderState.pageCount ? ` of ${pdfRenderState.pageCount}` : ""}` : pdfRenderState.warnings[0] || "Attach a PDF/image source to this sheet."}</span>
+              {pdfBuildNeedsManualPageCount ? <span>Automatic page count has not finished. Enter pages, then build the full set.</span> : null}
               <span>{planRoomModeSummary}</span>
               <span>{lastSnapLabel || snapTargets.summary}</span>
             </div>

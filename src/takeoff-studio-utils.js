@@ -350,6 +350,15 @@ export function takeoffStudioPdfPageUrl(value = "", pageNumber = 1) {
   return `${base}#${["toolbar=0", "zoom=page-fit", `page=${page}`, ...hashParts].join("&")}`;
 }
 
+export const TAKEOFF_STUDIO_MAX_PDF_PAGE_COUNT = 500;
+
+export function resolveTakeoffStudioPdfBuildPageCount({ recordedPageCount = 0, manualPageCount = 0 } = {}) {
+  const recorded = positiveInteger(recordedPageCount, 0);
+  const manual = positiveInteger(manualPageCount, 0);
+  const pageCount = recorded || manual;
+  return pageCount ? Math.min(pageCount, TAKEOFF_STUDIO_MAX_PDF_PAGE_COUNT) : 0;
+}
+
 export function createTakeoffStudioSheetFromPlanFilePage(planFile = {}, pageNumber = 1, index = 0) {
   const normalizedFile = normalizeTakeoffStudioPlanFile(planFile, index);
   const page = positiveInteger(pageNumber, 1);
