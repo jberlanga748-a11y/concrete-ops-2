@@ -79,11 +79,19 @@ Validation:
 - Final hardening browser QA passed for private operator desktop/mobile hardening panels with no horizontal overflow; normal admin direct-route check redirected to `/` and exposed no Apex Control Room or QA / Security Hardening content.
 - The local `demo.ops@apexhq.app` `operator_access` flag was temporarily set to `1` only for browser QA and restored to `0` after screenshots.
 
+Packaging and release state:
+
+- Apex OS read-only Control Room package committed locally on branch `codex/apex-os-command-center` as `2fa3bd3`.
+- Branch pushed to GitHub and PR opened: `https://github.com/jberlanga748-a11y/concrete-ops-2/pull/112`.
+- Release validation rerun on packaging branch: `npm.cmd run verify:roles`, `npm.cmd run verify:server`, `npm.cmd run verify:backup`, `npm.cmd run verify:restore`, and `npm.cmd run verify:monitoring` passed.
+- Fresh local backup/restore artifacts for the release packet: `app-data-20260602-222101Z.sqlite`, `app-data-20260602-222101Z.json`, `uploads-20260602-222101Z.manifest.json`, and `uploads-20260602-222101Z`.
+- Production release gate is still NO-GO for deploy because `npm.cmd run verify:production-auth-smoke-readiness` reports missing synthetic production smoke-user approval, production-safety approval, and exact `PRODUCTION_AUTH_SMOKE_APPROVED` workflow dispatch confirmation. The final deploy gate also requires hosted smoke, production auth smoke pass, and exact `BACKUP_FIRST_PRODUCTION_RELEASE_APPROVED` approval phrase.
+
 Audit/build-plan note:
 
 - Existing Apex HQ systems audit is saved in `docs/APEX_HQ_APEX_OS_COMMAND_CENTER_MASTER_PLAN.md` under "Existing Systems Audit - 2026-06-02" and "Implementation Plan V1".
 - Reuse existing route/nav permissions, operator access, AI Office, Agent OS, action inbox, learning memory, app health, launch readiness, and release safety systems before building any new Apex OS machinery.
-- The next recommended Apex OS step is final packaging and approval decision: review the local proof, decide whether to commit/stage this local implementation, then separately approve any production deploy, provider/API setup, durable memory/storage, speech, live monitoring, or action-execution layer.
+- The next recommended Apex OS step is to clear the production-auth-smoke/deploy gate for the read-only Control Room package, then begin the durable memory/knowledge slice locally with schema/provider changes still isolated behind explicit approval packets.
 
 Risk/approval memory:
 
