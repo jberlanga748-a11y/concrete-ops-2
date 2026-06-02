@@ -310,14 +310,12 @@ export function EstimatorMobilePipelinePage({
             <div className="co-apex-mobile-selected-head">
               <Badge tone={selectedItem.tone || "slate"}>{selectedItem.eyebrow || "Pipeline"}</Badge>
               <StatusBadge status={selectedItem.statusLabel || "Review"} />
+              {isEstimateRoute && selectedItem.kind === "estimate" && typeof onOpenTakeoff === "function" ? (
+                <Button type="button" variant="secondary" onClick={() => onOpenTakeoff(selectedItem.recordId)}>Open Takeoff</Button>
+              ) : null}
             </div>
             <h2>{selectedItem.title}</h2>
             <p>{selectedItem.description || "Review this sales item before taking action."}</p>
-            {isEstimateRoute && selectedItem.kind === "estimate" && typeof onOpenTakeoff === "function" ? (
-              <div className="co-apex-mobile-takeoff-shortcut">
-                <Button type="button" onClick={() => onOpenTakeoff(selectedItem.recordId)}>Open Takeoff</Button>
-              </div>
-            ) : null}
             <div className="co-apex-mobile-selected-summary">
               <span>
                 <em>Next safe action</em>

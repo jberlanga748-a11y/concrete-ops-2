@@ -54553,6 +54553,17 @@ body:has(.co-customers-page) .co-apex-assistant-shell {
     grid-area: selected;
   }
 
+  .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-selected-head {
+    flex-wrap: wrap;
+  }
+
+  .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-selected-head button {
+    flex: 1 0 100%;
+    min-height: 2.55rem;
+    border-radius: 0.74rem;
+    font-size: 0.8rem;
+  }
+
   .co-sales-mobile-only .co-estimator-mobile-pipeline .co-apex-mobile-action-list {
     gap: 0.42rem;
     margin-top: 0.52rem;
