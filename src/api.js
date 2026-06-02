@@ -423,6 +423,18 @@ export function getApexOsDailyBriefing(token) {
   return request("/api/apex-os/daily-briefing", { token });
 }
 
+export function getApexOsApprovalPackets(token) {
+  return request("/api/apex-os/approval-packets", { token });
+}
+
+export function createApexOsApprovalPacket(token, payload = {}) {
+  return request("/api/apex-os/approval-packets", { method: "POST", token, body: payload });
+}
+
+export function updateApexOsApprovalPacket(token, id, payload = {}) {
+  return request(`/api/apex-os/approval-packets/${encodeURIComponent(id)}`, { method: "PATCH", token, body: payload });
+}
+
 export function createAgentConversationThread(token, payload) {
   return request("/api/agent/conversations", { method: "POST", token, body: payload });
 }

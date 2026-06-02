@@ -144,13 +144,26 @@ function storedApexOsMemory(sqliteFile, companyId = DEFAULT_COMPANY_ID) {
   }
 }
 
+function storedApexOsApprovalPackets(sqliteFile, companyId = DEFAULT_COMPANY_ID) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    const row = database.prepare(`
+      SELECT value FROM company_settings
+      WHERE company_id = ? AND key = 'apexOsApprovalPackets'
+    `).get(companyId);
+    return JSON.parse(row?.value || "[]");
+  } finally {
+    database.close();
+  }
+}
+
 function auditEvents(sqliteFile) {
   const database = new DatabaseSync(sqliteFile);
   try {
     return database.prepare(`
       SELECT entity_type AS entityType, action, summary
       FROM audit_events
-      WHERE entity_type = 'apexOsMemory'
+      WHERE entity_type IN ('apexOsMemory', 'apexOsApprovalPacket')
       ORDER BY created_at DESC
     `).all();
   } finally {
@@ -211,6 +224,10 @@ test("Apex OS memory is operator-only, source-backed, persisted, and audited", a
       headers: authHeaders(adminLogin.token),
     });
     assert.equal(adminBriefingBlocked.response.status, 403);
+    const adminPacketsBlocked = await requestJson(fixture.baseUrl, "/api/apex-os/approval-packets", {
+      headers: authHeaders(adminLogin.token),
+    });
+    assert.equal(adminPacketsBlocked.response.status, 403);
 
     const unsafe = await requestJson(fixture.baseUrl, "/api/apex-os/memory", {
       method: "POST",
@@ -284,6 +301,75 @@ test("Apex OS memory is operator-only, source-backed, persisted, and audited", a
     assert.equal(briefing.dailyBriefing.alerts.some((row) => row.id === "no-execution" && row.status === "Locked"), true);
     assert.equal(briefing.dailyBriefing.sourceLabels.includes("AGENTS.md field-role protection rules"), true);
 
+    const unsafePacket = await requestJson(fixture.baseUrl, "/api/apex-os/approval-packets", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Unsafe approval packet",
+        action: "Use provider API key sk-test-123456789abc for a speech provider.",
+        sourceLabel: "Unsafe note",
+      }),
+    });
+    assert.equal(unsafePacket.response.status, 400);
+
+    const approvedStatusPacket = await requestJson(fixture.baseUrl, "/api/apex-os/approval-packets", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Approved status is blocked",
+        action: "Deploy now.",
+        status: "approved",
+        sourceLabel: "Manual approval note",
+      }),
+    });
+    assert.equal(approvedStatusPacket.response.status, 400);
+
+    const incompleteReadyPacket = await requestJson(fixture.baseUrl, "/api/apex-os/approval-packets", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Incomplete ready packet",
+        action: "Deploy the Apex OS package.",
+        status: "ready",
+        sourceLabel: "Release Desk",
+      }),
+    });
+    assert.equal(incompleteReadyPacket.response.status, 400);
+
+    const createdPacket = await assertOk(fixture.baseUrl, "/api/apex-os/approval-packets", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Deploy Apex OS Control Room",
+        action: "Deploy the private Apex OS Control Room package after release gates pass.",
+        requestedActionCategory: "deploy",
+        riskLevel: "high",
+        status: "draft",
+        reason: "John wants Apex OS available in production after validation.",
+        affectedScope: "Production web app release only.",
+        validationPlan: "Run focused Apex OS tests, verify roles, build, backup, restore, hosted smoke, and production auth smoke.",
+        rollbackPlan: "Rollback to the previous Fly release if hosted smoke fails.",
+        exactApprovalPhrase: "BACKUP_FIRST_PRODUCTION_RELEASE_APPROVED",
+        sourceLabel: "docs/APEX_HQ_LIVING_FINISH_PLAN.md",
+      }),
+    });
+    assert.equal(createdPacket.apexOsApprovalPacket.status, "draft");
+    assert.equal(createdPacket.apexOsApprovalPacket.readyToReview, true);
+    assert.equal(storedApexOsApprovalPackets(fixture.sqliteFile)[0].title, "Deploy Apex OS Control Room");
+
+    const readyPacket = await assertOk(fixture.baseUrl, `/api/apex-os/approval-packets/${createdPacket.apexOsApprovalPacket.id}`, {
+      method: "PATCH",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({ status: "ready" }),
+    });
+    assert.equal(readyPacket.apexOsApprovalPacket.status, "ready");
+
+    const listedPackets = await assertOk(fixture.baseUrl, "/api/apex-os/approval-packets", {
+      headers: authHeaders(operatorLogin.token),
+    });
+    assert.equal(listedPackets.summary.ready, 1);
+    assert.equal(listedPackets.apexOsApprovalPackets[0].title, "Deploy Apex OS Control Room");
+
     const archived = await assertOk(fixture.baseUrl, `/api/apex-os/memory/${created.apexOsMemoryEntry.id}`, {
       method: "PATCH",
       headers: authHeaders(operatorLogin.token),
@@ -291,7 +377,9 @@ test("Apex OS memory is operator-only, source-backed, persisted, and audited", a
     });
     assert.equal(archived.apexOsMemoryEntry.status, "archived");
     assert.ok(archived.apexOsMemoryEntry.archivedAt);
-    assert.deepEqual(auditEvents(fixture.sqliteFile).map((event) => event.action).slice(0, 3), ["archived", "approved", "suggested"]);
+    const audits = auditEvents(fixture.sqliteFile);
+    assert.equal(audits.some((event) => event.entityType === "apexOsApprovalPacket" && event.action === "readied"), true);
+    assert.deepEqual(audits.filter((event) => event.entityType === "apexOsMemory").map((event) => event.action).slice(0, 3), ["archived", "approved", "suggested"]);
   } finally {
     await fixture.stop();
   }

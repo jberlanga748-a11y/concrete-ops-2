@@ -114,7 +114,7 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.operatingSignals.find((item) => item.id === "knowledge-vault")?.status, "First UI ready");
   assert.equal(state.operatingSignals.find((item) => item.id === "ask-apex-chat")?.status, "Source-backed live");
   assert.equal(state.operatingSignals.find((item) => item.id === "voice-interface")?.status, "Transcript confirm ready");
-  assert.equal(state.operatingSignals.find((item) => item.id === "approval-command-center")?.status, "First UI ready");
+  assert.equal(state.operatingSignals.find((item) => item.id === "approval-command-center")?.status, "Drafting ready");
   assert.equal(state.operatingSignals.find((item) => item.id === "release-monitoring")?.status, "First UI ready");
   assert.equal(state.operatingSignals.find((item) => item.id === "business-command-center")?.status, "First UI ready");
   assert.equal(state.operatingSignals.find((item) => item.id === "qa-security-hardening")?.status, "Hardening evidence ready");
@@ -122,7 +122,7 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.priorities.find((item) => item.id === "knowledge-vault")?.status, "First UI ready");
   assert.equal(state.priorities.find((item) => item.id === "provider-work")?.status, "Source-backed live");
   assert.equal(state.priorities.find((item) => item.id === "voice-interface")?.status, "Transcript confirm ready");
-  assert.equal(state.priorities.find((item) => item.id === "approval-command-center")?.status, "First UI ready");
+  assert.equal(state.priorities.find((item) => item.id === "approval-command-center")?.status, "Drafting ready");
   assert.equal(state.priorities.find((item) => item.id === "release-monitoring")?.status, "First UI ready");
   assert.equal(state.priorities.find((item) => item.id === "business-command-center")?.status, "First UI ready");
   assert.equal(state.priorities.find((item) => item.id === "qa-security-hardening")?.status, "Hardening evidence ready");
@@ -179,7 +179,7 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.voiceInterface.safetyRows.some((item) => item.id === "no-microphone" && item.status === "Locked"), true);
   assert.equal(state.voiceInterface.safetyRows.some((item) => item.id === "no-always-listening" && item.status === "Locked"), true);
   assert.equal(state.voiceInterface.safetyRows.some((item) => item.id === "no-speech-provider" && item.status === "Approval required"), true);
-  assert.equal(state.approvalCommandCenter.status, "First UI ready");
+  assert.equal(state.approvalCommandCenter.status, "Drafting ready");
   assert.equal(state.approvalCommandCenter.queueCount, APEX_CONTROL_ROOM_APPROVAL_GATES.length);
   assert.equal(state.approvalCommandCenter.packetFieldCount, APEX_OS_APPROVAL_PACKET_FIELDS.length);
   assert.equal(state.approvalCommandCenter.controlLockCount, APEX_OS_APPROVAL_CONTROL_LOCKS.length);
@@ -225,7 +225,7 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.qaSecurityHardening.evidenceRows.some((item) => item.id === "field-user-blocking" && item.status === "Locked"), true);
   assert.equal(state.qaSecurityHardening.evidenceRows.some((item) => item.id === "source-backed-answers" && item.status === "Source-backed live"), true);
   assert.equal(state.qaSecurityHardening.evidenceRows.some((item) => item.id === "upload-privacy" && item.status === "Locked"), true);
-  assert.equal(state.qaSecurityHardening.evidenceRows.some((item) => item.id === "approval-gates" && item.status === "First UI ready"), true);
+  assert.equal(state.qaSecurityHardening.evidenceRows.some((item) => item.id === "approval-gates" && item.status === "Drafting ready"), true);
   assert.equal(state.qaSecurityHardening.evidenceRows.some((item) => item.id === "desktop-mobile-visual" && item.status === "Evidence required"), true);
   assert.equal(state.qaSecurityHardening.evidenceRows.some((item) => item.id === "build-test-release" && item.status === "First UI ready"), true);
   assert.equal(state.qaSecurityHardening.evidenceRows.some((item) => item.id === "no-secrets" && item.status === "Locked"), true);
@@ -283,4 +283,38 @@ test("deriveApexControlRoomState includes durable Apex OS memory summary", () =>
   assert.equal(state.knowledgeVault.memorySummary.total, 2);
   assert.equal(state.knowledgeVault.memorySummary.approved, 1);
   assert.equal(state.knowledgeVault.memorySummary.suggested, 1);
+});
+
+test("deriveApexControlRoomState includes durable Apex OS approval packet summary", () => {
+  const state = deriveApexControlRoomState({
+    user: { name: "John Berlanga", role: "Owner", operatorAccess: true },
+    permissions: {
+      apexOs: { canView: true, canManage: true },
+      aiOffice: { canView: true },
+      settings: { canView: true, canManage: true },
+    },
+    companySettings: {
+      apexOsApprovalPackets: [
+        {
+          id: "AAP-1",
+          title: "Deploy Apex OS",
+          action: "Deploy the private Apex OS package after gates pass.",
+          status: "ready",
+          sourceLabel: "Release Desk",
+        },
+        {
+          id: "AAP-2",
+          title: "Provider setup",
+          action: "Prepare provider setup review.",
+          status: "draft",
+          sourceLabel: "Provider checklist",
+        },
+      ],
+    },
+  });
+
+  assert.equal(state.approvalCommandCenter.status, "Durable packets active");
+  assert.equal(state.approvalCommandCenter.packetSummary.total, 2);
+  assert.equal(state.approvalCommandCenter.packetSummary.ready, 1);
+  assert.equal(state.approvalCommandCenter.packetSummary.draft, 1);
 });

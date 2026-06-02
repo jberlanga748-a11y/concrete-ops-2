@@ -3,6 +3,7 @@ import { deriveLaunchReadinessEvidenceState } from "./launch-readiness-utils.js"
 import { deriveEnterpriseTrustReadinessState } from "./owner-health-utils.js";
 import { getReleaseSafetySections } from "./release-safety-utils.js";
 import { summarizeApexOsMemory } from "../shared/apexOsMemory.js";
+import { summarizeApexOsApprovalPackets } from "../shared/apexOsApprovalPackets.js";
 
 function list(value) {
   return Array.isArray(value) ? value : [];
@@ -976,7 +977,7 @@ function buildVoiceInterfaceState({ askApexChat } = {}) {
   };
 }
 
-function buildApprovalCommandCenterState({ releaseDesk, askApexChat, voiceInterface } = {}) {
+function buildApprovalCommandCenterState({ releaseDesk, askApexChat, voiceInterface, companySettings = {} } = {}) {
   const queueRows = APEX_CONTROL_ROOM_APPROVAL_GATES.map((label) => ({
     id: label.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
     title: label,
@@ -986,6 +987,7 @@ function buildApprovalCommandCenterState({ releaseDesk, askApexChat, voiceInterf
   }));
   const packetRows = APEX_OS_APPROVAL_PACKET_FIELDS.map((item) => ({ ...item }));
   const controlRows = APEX_OS_APPROVAL_CONTROL_LOCKS.map((item) => ({ ...item }));
+  const packetSummary = summarizeApexOsApprovalPackets(companySettings?.apexOsApprovalPackets || []);
   const sourceRows = [
     {
       id: "release-desk",
@@ -1010,10 +1012,11 @@ function buildApprovalCommandCenterState({ releaseDesk, askApexChat, voiceInterf
     },
   ];
   return {
-    status: "First UI ready",
-    tone: "blue",
+    status: packetSummary.total ? "Durable packets active" : "Drafting ready",
+    tone: packetSummary.ready ? "green" : packetSummary.total ? "blue" : "blue",
     queueCount: queueRows.length,
     packetFieldCount: packetRows.length,
+    packetSummary,
     controlLockCount: controlRows.length,
     sourceCount: sourceRows.length,
     queueRows,
@@ -1385,7 +1388,7 @@ export function deriveApexControlRoomState({
   const knowledgeVault = buildKnowledgeVaultState(companySettings);
   const askApexChat = buildAskApexChatState({ decisionMemory, knowledgeVault, agentWorkQueue, launchState, releaseDesk });
   const voiceInterface = buildVoiceInterfaceState({ askApexChat });
-  const approvalCommandCenter = buildApprovalCommandCenterState({ releaseDesk, askApexChat, voiceInterface });
+  const approvalCommandCenter = buildApprovalCommandCenterState({ releaseDesk, askApexChat, voiceInterface, companySettings });
   const releaseMonitoring = buildReleaseMonitoringState({ releaseDesk, launchState, trustState, agentWorkQueue, recentEvidence });
   const businessCommandCenter = buildBusinessCommandCenterState({ launchState, knowledgeVault, approvalCommandCenter, releaseMonitoring });
   const qaSecurityHardening = buildQaSecurityHardeningState({

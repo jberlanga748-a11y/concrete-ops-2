@@ -43,7 +43,13 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /Manual transcript only/);
   assert.match(componentSource, /Speech locked/);
   assert.match(componentSource, /Approval Command Center/);
-  assert.match(componentSource, /Approval Packet/);
+  assert.match(componentSource, /Approval Packet Drafts/);
+  assert.match(componentSource, /ApprovalPacketDraftPanel/);
+  assert.match(componentSource, /createApexOsApprovalPacket/);
+  assert.match(componentSource, /getApexOsApprovalPackets/);
+  assert.match(componentSource, /updateApexOsApprovalPacket/);
+  assert.match(componentSource, /Draft packet/);
+  assert.match(componentSource, /Approve locked/);
   assert.match(componentSource, /Approval Controls/);
   assert.match(componentSource, /Approval Sources/);
   assert.match(componentSource, /Execute locked/);

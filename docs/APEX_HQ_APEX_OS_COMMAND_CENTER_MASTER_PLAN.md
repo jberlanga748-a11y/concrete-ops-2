@@ -481,7 +481,8 @@ Status:
 
 - Read-only first UI implemented locally on 2026-06-02 as Apex OS Slice 8.
 - The Control Room now centralizes approval categories, approval packet requirements, locked approve/reject/defer/execute controls, and source rows from Release Desk, Ask Apex Chat, and Voice Interface.
-- No approval write, durable audit record, execution path, schema change, storage change, deploy, production mutation, provider setup, customer-visible action, money action, send, publish, or deletion was added.
+- Durable approval packet drafts implemented locally on 2026-06-02 as Apex OS Slice 17 using existing company settings storage as `apexOsApprovalPackets`, with operator-only list/create/update endpoints, draft/ready/blocked/archived states, source-label and readiness-field requirements, secret/email rejection, audit/activity logging, and Control Room drafting/loading/mark-ready/block/archive UI.
+- No approved/executed state, one-click approval, execution path, schema change, deploy, production mutation, provider setup, customer-visible action, money action, send, publish, or deletion was added.
 - Validation passed with focused Apex OS utility/import tests, the 77-test permission/routing/bootstrap suite, `npm.cmd run build`, desktop/mobile browser QA with no horizontal overflow and disabled approval controls, and normal admin blocked/redirected away from Apex OS.
 
 ### Phase 9: App Build And Code Awareness
@@ -979,7 +980,8 @@ Status:
 
 - Read-only first UI implemented locally on 2026-06-02 as Apex OS Slice 8.
 - Approval categories, packet fields, locked approve/reject/defer/execute controls, and source rows are visible inside the private Control Room.
-- Real approval writes, durable audit records, execution, schema/storage changes, deploy, provider setup, production data mutation, sends, money actions, customer-visible changes, and deletion remain approval-locked.
+- Durable approval packet drafts implemented locally on 2026-06-02 as Apex OS Slice 17 using existing company settings storage as `apexOsApprovalPackets`, with operator-only list/create/update endpoints, draft/ready/blocked/archived states, source-label and readiness-field requirements, secret/email rejection, audit/activity logging, and Control Room drafting/loading/mark-ready/block/archive UI.
+- Real approve/execute decisions, external execution, schema/storage migrations, deploy, provider setup, production data mutation, sends, money actions, customer-visible changes, and deletion remain approval-locked.
 
 ### Slice 5: Decision Memory
 

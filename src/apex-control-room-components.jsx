@@ -1,6 +1,12 @@
 import { useState } from "react";
 
-import { askApexOs, getApexOsDailyBriefing } from "./api";
+import {
+  askApexOs,
+  createApexOsApprovalPacket,
+  getApexOsApprovalPackets,
+  getApexOsDailyBriefing,
+  updateApexOsApprovalPacket,
+} from "./api";
 import { Badge, Button, Card, Icon, PageHeader, SectionHeader } from "./app-shell-components";
 import { deriveApexControlRoomState } from "./apex-control-room-utils";
 
@@ -351,6 +357,233 @@ function DailyBriefingPanel({ state, sessionToken }) {
   );
 }
 
+const EMPTY_APPROVAL_PACKET_FORM = {
+  title: "",
+  requestedActionCategory: "deploy",
+  riskLevel: "high",
+  action: "",
+  reason: "",
+  affectedScope: "",
+  validationPlan: "",
+  rollbackPlan: "",
+  exactApprovalPhrase: "",
+  sourceLabel: "Apex Control Room",
+  sourceUri: "",
+  status: "draft",
+};
+
+function ApprovalPacketDraftPanel({ state, sessionToken }) {
+  const [form, setForm] = useState(EMPTY_APPROVAL_PACKET_FORM);
+  const [packets, setPackets] = useState([]);
+  const [summary, setSummary] = useState(null);
+  const [notice, setNotice] = useState("");
+  const [loading, setLoading] = useState(false);
+  const canUse = state.canView && Boolean(sessionToken) && !loading;
+  const canCreate = canUse && form.title.trim() && form.action.trim() && form.sourceLabel.trim();
+
+  function updateField(field, value) {
+    setForm((current) => ({ ...current, [field]: value }));
+    setNotice("");
+  }
+
+  async function refreshPackets() {
+    if (!canUse) return;
+    setLoading(true);
+    setNotice("");
+    try {
+      const payload = await getApexOsApprovalPackets(sessionToken);
+      setPackets(payload.apexOsApprovalPackets || []);
+      setSummary(payload.summary || null);
+      setNotice("Approval packets loaded from private Apex OS storage.");
+    } catch (error) {
+      setNotice(error?.message || "Approval packets could not load right now.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitPacket(event) {
+    event.preventDefault();
+    if (!canCreate) return;
+    setLoading(true);
+    setNotice("");
+    try {
+      const payload = await createApexOsApprovalPacket(sessionToken, form);
+      setPackets((current) => [payload.apexOsApprovalPacket, ...current].filter(Boolean));
+      setSummary((current) => ({
+        total: (current?.total || 0) + 1,
+        draft: (current?.draft || 0) + (payload.apexOsApprovalPacket?.status === "draft" ? 1 : 0),
+        ready: (current?.ready || 0) + (payload.apexOsApprovalPacket?.status === "ready" ? 1 : 0),
+        blocked: (current?.blocked || 0) + (payload.apexOsApprovalPacket?.status === "blocked" ? 1 : 0),
+        archived: current?.archived || 0,
+      }));
+      setForm(EMPTY_APPROVAL_PACKET_FORM);
+      setNotice("Approval packet drafted. It does not approve or execute the action.");
+    } catch (error) {
+      setNotice(error?.message || "Approval packet could not be saved right now.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function setPacketStatus(packet, status) {
+    if (!canUse || !packet?.id) return;
+    setLoading(true);
+    setNotice("");
+    try {
+      await updateApexOsApprovalPacket(sessionToken, packet.id, { ...packet, status });
+      const payload = await getApexOsApprovalPackets(sessionToken);
+      setPackets(payload.apexOsApprovalPackets || []);
+      setSummary(payload.summary || null);
+      setNotice(status === "archived" ? "Packet archived. No action executed." : "Packet status updated. Approval and execution remain locked.");
+    } catch (error) {
+      setNotice(error?.message || "Approval packet could not be updated right now.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const activeSummary = summary || { total: packets.length, draft: 0, ready: 0, blocked: 0, archived: 0 };
+
+  return (
+    <div className="grid min-w-0 gap-4">
+      <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatusRow item={{
+          id: "approval-packet-total",
+          title: "Saved packets",
+          status: `${activeSummary.total || 0}`,
+          detail: `${activeSummary.ready || 0} ready, ${activeSummary.draft || 0} draft, ${activeSummary.blocked || 0} blocked, ${activeSummary.archived || 0} archived.`,
+          tone: activeSummary.ready ? "green" : "blue",
+        }} />
+        <StatusRow item={{
+          id: "approval-packet-execution-lock",
+          title: "Approval execution",
+          status: "Locked",
+          detail: "This slice can draft, ready, block, and archive packets only. It cannot approve, deploy, send, spend, publish, delete, or mutate production.",
+          tone: "amber",
+        }} />
+      </div>
+
+      <form className="grid min-w-0 gap-3 rounded-xl border border-slate-200 bg-white p-3" onSubmit={submitPacket}>
+        <div className="grid min-w-0 gap-3 lg:grid-cols-2">
+          <input
+            value={form.title}
+            onChange={(event) => updateField("title", event.target.value)}
+            maxLength={160}
+            placeholder="Action title"
+            className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700"
+            disabled={!state.canView || loading}
+          />
+          <div className="grid min-w-0 gap-3 sm:grid-cols-3">
+            <select
+              value={form.requestedActionCategory}
+              onChange={(event) => updateField("requestedActionCategory", event.target.value)}
+              className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700"
+              disabled={!state.canView || loading}
+            >
+              <option value="deploy">Deploy</option>
+              <option value="production-data">Production data</option>
+              <option value="schema-auth-session">Schema/auth/session</option>
+              <option value="customer-visible">Customer-visible</option>
+              <option value="email-sms">Email/SMS</option>
+              <option value="billing-payment">Billing/payment</option>
+              <option value="ad-spend-publishing">Ads/publishing</option>
+              <option value="provider-connection">Provider</option>
+              <option value="file-deletion">File deletion</option>
+              <option value="business-operations">Business ops</option>
+              <option value="general">General</option>
+            </select>
+            <select
+              value={form.riskLevel}
+              onChange={(event) => updateField("riskLevel", event.target.value)}
+              className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700"
+              disabled={!state.canView || loading}
+            >
+              <option value="low">Low risk</option>
+              <option value="medium">Medium risk</option>
+              <option value="high">High risk</option>
+              <option value="critical">Critical risk</option>
+            </select>
+            <select
+              value={form.status}
+              onChange={(event) => updateField("status", event.target.value)}
+              className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700"
+              disabled={!state.canView || loading}
+            >
+              <option value="draft">Draft</option>
+              <option value="ready">Ready</option>
+              <option value="blocked">Blocked</option>
+            </select>
+          </div>
+        </div>
+        <textarea
+          value={form.action}
+          onChange={(event) => updateField("action", event.target.value)}
+          maxLength={1800}
+          placeholder="What action is being requested?"
+          className="min-h-20 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold leading-6 text-slate-700"
+          disabled={!state.canView || loading}
+        />
+        <div className="grid min-w-0 gap-3 lg:grid-cols-2">
+          <textarea value={form.reason} onChange={(event) => updateField("reason", event.target.value)} maxLength={1800} placeholder="Why this matters" className="min-h-20 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold leading-6 text-slate-700" disabled={!state.canView || loading} />
+          <textarea value={form.affectedScope} onChange={(event) => updateField("affectedScope", event.target.value)} maxLength={1800} placeholder="Affected files, data, users, or systems" className="min-h-20 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold leading-6 text-slate-700" disabled={!state.canView || loading} />
+          <textarea value={form.validationPlan} onChange={(event) => updateField("validationPlan", event.target.value)} maxLength={1800} placeholder="Validation plan" className="min-h-20 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold leading-6 text-slate-700" disabled={!state.canView || loading} />
+          <textarea value={form.rollbackPlan} onChange={(event) => updateField("rollbackPlan", event.target.value)} maxLength={1800} placeholder="Rollback plan" className="min-h-20 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold leading-6 text-slate-700" disabled={!state.canView || loading} />
+        </div>
+        <div className="grid min-w-0 gap-3 lg:grid-cols-3">
+          <input value={form.exactApprovalPhrase} onChange={(event) => updateField("exactApprovalPhrase", event.target.value)} maxLength={140} placeholder="Exact approval phrase" className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700" disabled={!state.canView || loading} />
+          <input value={form.sourceLabel} onChange={(event) => updateField("sourceLabel", event.target.value)} maxLength={140} placeholder="Source label" className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700" disabled={!state.canView || loading} />
+          <input value={form.sourceUri} onChange={(event) => updateField("sourceUri", event.target.value)} maxLength={260} placeholder="Source URI or file" className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700" disabled={!state.canView || loading} />
+        </div>
+        <div className="flex min-w-0 flex-wrap gap-2">
+          <Button type="submit" variant="secondary" size="sm" disabled={!canCreate}>
+            <Icon name="clipboard" /> {loading ? "Saving..." : "Draft packet"}
+          </Button>
+          <Button type="button" variant="secondary" size="sm" onClick={refreshPackets} disabled={!canUse}>
+            <Icon name="refresh" /> Load packets
+          </Button>
+          <Button type="button" disabled variant="secondary" size="sm">
+            <Icon name="lock" /> Execute locked
+          </Button>
+        </div>
+        <p className="break-words text-xs font-black leading-5 text-slate-500">{notice || "Ready packets require source, validation, rollback, affected scope, and exact approval phrase. Approval still happens outside this draft flow."}</p>
+      </form>
+
+      <div className="grid min-w-0 gap-3">
+        {packets.length ? packets.slice(0, 5).map((packet) => (
+          <div key={packet.id} className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+            <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <p className="break-words text-sm font-black text-slate-950">{packet.title}</p>
+                <p className="mt-1 break-words text-xs font-bold leading-5 text-slate-600">{packet.action}</p>
+                <p className="mt-2 break-words text-[11px] font-black text-slate-500">Source: {packet.sourceLabel || "Missing source"} | Risk: {packet.riskLevel}</p>
+                {packet.missingFields?.length ? <p className="mt-2 break-words text-[11px] font-black text-amber-700">Missing: {packet.missingFields.join(", ")}</p> : null}
+              </div>
+              <ToneBadge tone={packet.status === "ready" ? "green" : packet.status === "blocked" ? "red" : packet.status === "archived" ? "slate" : "blue"}>{packet.status}</ToneBadge>
+            </div>
+            <div className="mt-3 flex min-w-0 flex-wrap gap-2">
+              <Button type="button" variant="secondary" size="sm" onClick={() => setPacketStatus(packet, "ready")} disabled={!canUse || packet.status === "ready" || packet.status === "archived"}>
+                <Icon name="check" /> Mark ready
+              </Button>
+              <Button type="button" variant="secondary" size="sm" onClick={() => setPacketStatus(packet, "blocked")} disabled={!canUse || packet.status === "blocked" || packet.status === "archived"}>
+                <Icon name="alert" /> Mark blocked
+              </Button>
+              <Button type="button" variant="secondary" size="sm" onClick={() => setPacketStatus(packet, "archived")} disabled={!canUse || packet.status === "archived"}>
+                <Icon name="clock" /> Archive
+              </Button>
+              <Button type="button" disabled variant="secondary" size="sm">
+                <Icon name="lock" /> Approve locked
+              </Button>
+            </div>
+          </div>
+        )) : (
+          <EmptyPanel>No durable approval packet drafts loaded yet.</EmptyPanel>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function ApexControlRoomPage(props) {
   const state = deriveApexControlRoomState(props);
   const [askQuestion, setAskQuestion] = useState("");
@@ -408,10 +641,8 @@ export function ApexControlRoomPage(props) {
           </Card>
 
           <Card className="min-w-0 p-4 sm:p-5">
-            <SectionHeader title="Approval Packet" description={`${state.approvalCommandCenter.packetFieldCount || 0} fields required before risky work can be approved.`} />
-            <div className="grid min-w-0 gap-3">
-              {state.approvalCommandCenter.packetRows.map((item) => <StatusRow key={item.id} item={item} />)}
-            </div>
+            <SectionHeader title="Approval Packet Drafts" description={`${state.approvalCommandCenter.packetFieldCount || 0} fields guide ready packets before any risky work can be approved.`} />
+            <ApprovalPacketDraftPanel state={state} sessionToken={props.sessionToken} />
           </Card>
         </section>
 

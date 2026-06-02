@@ -95,6 +95,13 @@ import {
   summarizeApexOsMemory,
 } from "../shared/apexOsMemory.js";
 import {
+  getApexOsApprovalPacketMissingFields,
+  isApexOsApprovalPacketReady,
+  normalizeApexOsApprovalPacket,
+  normalizeApexOsApprovalPackets,
+  summarizeApexOsApprovalPackets,
+} from "../shared/apexOsApprovalPackets.js";
+import {
   APEX_OS_ASK_OPENAI_URL,
   buildApexOsAskContext,
   buildApexOsAskOpenAiRequest,
@@ -7552,6 +7559,48 @@ function publicApexOsMemoryEntry(entry) {
   return safeEntry;
 }
 
+function apexOsApprovalPacketsForState(state, user) {
+  return normalizeApexOsApprovalPackets(companySettingsForState(state, user).apexOsApprovalPackets);
+}
+
+function rejectUnsafeApexOsApprovalPacket(packet, requestedStatus = packet.status) {
+  if (packet.blockedReasons?.length) {
+    throw new ApiError(400, packet.blockedReasons[0]);
+  }
+  if (!packet.title || !packet.action) {
+    throw new ApiError(400, "Apex OS approval packets require a title and action details.");
+  }
+  if (String(requestedStatus || "").trim().toLowerCase() === "approved" || String(requestedStatus || "").trim().toLowerCase() === "executed") {
+    throw new ApiError(400, "Apex OS approval packets can be drafted, readied, blocked, or archived here; approval and execution require a separate gated workflow.");
+  }
+  if (packet.status === "ready" && !isApexOsApprovalPacketReady(packet)) {
+    throw new ApiError(400, `Ready approval packets are missing: ${getApexOsApprovalPacketMissingFields(packet).join(", ")}.`);
+  }
+  if (!packet.sourceLabel) {
+    throw new ApiError(400, "Apex OS approval packets require a source label.");
+  }
+}
+
+function persistApexOsApprovalPackets(draft, user, packets) {
+  const currentCompanyId = currentCompanyIdForRequestUser(draft, user);
+  draft.currentCompanyId = currentCompanyId;
+  draft.companySettingsByCompanyId ||= {};
+  draft.companySettings = {
+    ...companySettingsForState(draft, user),
+    apexOsApprovalPackets: normalizeApexOsApprovalPackets(packets),
+  };
+  draft.companySettingsByCompanyId[currentCompanyId] = draft.companySettings;
+}
+
+function publicApexOsApprovalPacket(packet) {
+  const { blockedReasons: _blockedReasons, ...safePacket } = packet;
+  return {
+    ...safePacket,
+    missingFields: getApexOsApprovalPacketMissingFields(packet),
+    readyToReview: isApexOsApprovalPacketReady(packet),
+  };
+}
+
 function estimatesForAgentLearningSuggestions(state, user) {
   const companyId = currentCompanyIdForRequestUser(state, user);
   const estimateItems = Array.isArray(state.estimateItems) ? state.estimateItems : [];
@@ -12480,6 +12529,17 @@ app.get("/api/apex-os/memory", requireAuth, asyncRoute(async (req, res) => {
   });
 }));
 
+app.get("/api/apex-os/approval-packets", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const packets = apexOsApprovalPacketsForState(state, req.auth.user);
+  res.json({
+    apexOsApprovalPackets: packets.map(publicApexOsApprovalPacket),
+    summary: summarizeApexOsApprovalPackets(packets),
+    requestId: res.locals.requestId,
+  });
+}));
+
 app.get("/api/apex-os/daily-briefing", requireAuth, asyncRoute(async (req, res) => {
   const state = await readDb();
   assertCanManageApexOsMemory(state, req.auth.user);
@@ -12492,6 +12552,98 @@ app.get("/api/apex-os/daily-briefing", requireAuth, asyncRoute(async (req, res) 
       user: req.auth.user,
     }),
     requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/approval-packets", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let createdPacket = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageApexOsMemory(draft, req.auth.user);
+    const current = apexOsApprovalPacketsForState(draft, req.auth.user);
+    createdPacket = normalizeApexOsApprovalPacket(req.body || {}, {
+      id: makeId("AAP"),
+      now,
+    });
+    createdPacket.createdBy = req.auth.user.id;
+    createdPacket.createdAt = now;
+    rejectUnsafeApexOsApprovalPacket(createdPacket, req.body?.status);
+    persistApexOsApprovalPackets(draft, req.auth.user, [createdPacket, ...current].slice(0, 120));
+    appendActivity(draft, "Apex OS approval packet drafted", `${req.auth.user.name} drafted ${createdPacket.title} for Apex OS approval review.`);
+    appendAuditEvent(draft, {
+      entityType: "apexOsApprovalPacket",
+      entityId: createdPacket.id,
+      action: createdPacket.status === "ready" ? "readied" : createdPacket.status === "blocked" ? "blocked" : "drafted",
+      summary: "Apex OS approval packet drafted",
+      detail: JSON.stringify({
+        id: createdPacket.id,
+        title: createdPacket.title,
+        status: createdPacket.status,
+        requestedActionCategory: createdPacket.requestedActionCategory,
+        riskLevel: createdPacket.riskLevel,
+        sourceLabel: createdPacket.sourceLabel,
+      }),
+      actor: req.auth.user,
+      changedFields: ["apexOsApprovalPackets"],
+    });
+    return draft;
+  });
+
+  res.status(201).json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    apexOsApprovalPacket: publicApexOsApprovalPacket(createdPacket),
+  });
+}));
+
+app.patch("/api/apex-os/approval-packets/:id", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let updatedPacket = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageApexOsMemory(draft, req.auth.user);
+    const current = apexOsApprovalPacketsForState(draft, req.auth.user);
+    const index = current.findIndex((packet) => packet.id === req.params.id);
+    if (index < 0) {
+      throw new ApiError(404, "Apex OS approval packet not found.");
+    }
+    const existing = current[index];
+    updatedPacket = normalizeApexOsApprovalPacket(req.body || {}, {
+      existing,
+      now,
+    });
+    updatedPacket.createdBy = existing.createdBy;
+    updatedPacket.createdAt = existing.createdAt;
+    if (updatedPacket.status === "archived" && existing.status !== "archived") {
+      updatedPacket.archivedAt = now;
+    }
+    rejectUnsafeApexOsApprovalPacket(updatedPacket, req.body?.status);
+    const nextPackets = [...current];
+    nextPackets[index] = updatedPacket;
+    persistApexOsApprovalPackets(draft, req.auth.user, nextPackets);
+    appendActivity(draft, "Apex OS approval packet updated", `${req.auth.user.name} updated ${updatedPacket.title} in Apex OS approval review.`);
+    appendAuditEvent(draft, {
+      entityType: "apexOsApprovalPacket",
+      entityId: updatedPacket.id,
+      action: updatedPacket.status === "archived" ? "archived" : updatedPacket.status === "ready" ? "readied" : updatedPacket.status === "blocked" ? "blocked" : "updated",
+      summary: "Apex OS approval packet updated",
+      detail: JSON.stringify({
+        id: updatedPacket.id,
+        title: updatedPacket.title,
+        status: updatedPacket.status,
+        requestedActionCategory: updatedPacket.requestedActionCategory,
+        riskLevel: updatedPacket.riskLevel,
+        sourceLabel: updatedPacket.sourceLabel,
+      }),
+      actor: req.auth.user,
+      changedFields: ["apexOsApprovalPackets"],
+    });
+    return draft;
+  });
+
+  res.json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    apexOsApprovalPacket: publicApexOsApprovalPacket(updatedPacket),
   });
 }));
 

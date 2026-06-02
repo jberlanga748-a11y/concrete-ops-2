@@ -59,6 +59,7 @@ export const DEFAULT_COMPANY_SETTINGS = {
   managedSetupUpdatedAt: "",
   agentLearningPreferences: [],
   apexOsMemory: [],
+  apexOsApprovalPackets: [],
   apexAgentAutomationPolicy: {
     enabled: true,
     autonomyLevel: "review_first",
