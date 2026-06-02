@@ -90,6 +90,11 @@ import {
   summarizeAgentLearningPreferences,
 } from "../shared/agentLearningPreferences.js";
 import {
+  normalizeApexOsMemory,
+  normalizeApexOsMemoryEntry,
+  summarizeApexOsMemory,
+} from "../shared/apexOsMemory.js";
+import {
   buildEstimateRoughNotesContext,
   generateEstimateRoughNotesDrafts,
 } from "../shared/estimateRoughNotesAi.js";
@@ -7501,6 +7506,44 @@ function publicAgentLearningPreference(preference) {
   return safePreference;
 }
 
+function assertCanManageApexOsMemory(_state, user) {
+  if (!canAccessApexOs(user)) {
+    throw new ApiError(403, "You do not have permission to manage Apex OS memory.");
+  }
+}
+
+function apexOsMemoryForState(state, user) {
+  return normalizeApexOsMemory(companySettingsForState(state, user).apexOsMemory);
+}
+
+function rejectUnsafeApexOsMemoryEntry(entry) {
+  if (entry.blockedReasons?.length) {
+    throw new ApiError(400, entry.blockedReasons[0]);
+  }
+  if (!entry.title || !entry.body) {
+    throw new ApiError(400, "Apex OS memory requires a title and body.");
+  }
+  if (!entry.sourceLabel) {
+    throw new ApiError(400, "Apex OS memory requires a source label.");
+  }
+}
+
+function persistApexOsMemory(draft, user, memory) {
+  const currentCompanyId = currentCompanyIdForRequestUser(draft, user);
+  draft.currentCompanyId = currentCompanyId;
+  draft.companySettingsByCompanyId ||= {};
+  draft.companySettings = {
+    ...companySettingsForState(draft, user),
+    apexOsMemory: normalizeApexOsMemory(memory),
+  };
+  draft.companySettingsByCompanyId[currentCompanyId] = draft.companySettings;
+}
+
+function publicApexOsMemoryEntry(entry) {
+  const { blockedReasons: _blockedReasons, ...safeEntry } = entry;
+  return safeEntry;
+}
+
 function estimatesForAgentLearningSuggestions(state, user) {
   const companyId = currentCompanyIdForRequestUser(state, user);
   const estimateItems = Array.isArray(state.estimateItems) ? state.estimateItems : [];
@@ -12415,6 +12458,117 @@ app.patch("/api/agent/learning-preferences/:id", requireAuth, asyncRoute(async (
   res.json({
     ...sanitizeBootstrap(nextState, req.auth.user),
     agentLearningPreference: publicAgentLearningPreference(updatedPreference),
+  });
+}));
+
+app.get("/api/apex-os/memory", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const memory = apexOsMemoryForState(state, req.auth.user);
+  res.json({
+    apexOsMemory: memory.map(publicApexOsMemoryEntry),
+    summary: summarizeApexOsMemory(memory),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/memory", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let createdEntry = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageApexOsMemory(draft, req.auth.user);
+    const current = apexOsMemoryForState(draft, req.auth.user);
+    createdEntry = normalizeApexOsMemoryEntry(req.body || {}, {
+      id: makeId("AOM"),
+      now,
+    });
+    createdEntry.createdBy = req.auth.user.id;
+    createdEntry.createdAt = now;
+    if (createdEntry.status === "approved") {
+      createdEntry.approvedBy = req.auth.user.id;
+      createdEntry.approvedAt = now;
+    }
+    rejectUnsafeApexOsMemoryEntry(createdEntry);
+    persistApexOsMemory(draft, req.auth.user, [createdEntry, ...current].slice(0, 200));
+    appendActivity(draft, "Apex OS memory added", `${req.auth.user.name} added ${createdEntry.title} to Apex OS memory.`);
+    appendAuditEvent(draft, {
+      entityType: "apexOsMemory",
+      entityId: createdEntry.id,
+      action: createdEntry.status === "approved" ? "approved" : "suggested",
+      summary: "Apex OS memory added",
+      detail: JSON.stringify({
+        id: createdEntry.id,
+        category: createdEntry.category,
+        title: createdEntry.title,
+        status: createdEntry.status,
+        sourceType: createdEntry.sourceType,
+        sourceLabel: createdEntry.sourceLabel,
+      }),
+      actor: req.auth.user,
+      changedFields: ["apexOsMemory"],
+    });
+    return draft;
+  });
+
+  res.status(201).json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    apexOsMemoryEntry: publicApexOsMemoryEntry(createdEntry),
+  });
+}));
+
+app.patch("/api/apex-os/memory/:id", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let updatedEntry = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageApexOsMemory(draft, req.auth.user);
+    const current = apexOsMemoryForState(draft, req.auth.user);
+    const index = current.findIndex((entry) => entry.id === req.params.id);
+    if (index < 0) {
+      throw new ApiError(404, "Apex OS memory item not found.");
+    }
+    const existing = current[index];
+    updatedEntry = normalizeApexOsMemoryEntry(req.body || {}, {
+      existing,
+      now,
+    });
+    updatedEntry.createdBy = existing.createdBy;
+    updatedEntry.createdAt = existing.createdAt;
+    if (updatedEntry.status === "approved" && existing.status !== "approved") {
+      updatedEntry.approvedBy = req.auth.user.id;
+      updatedEntry.approvedAt = now;
+    }
+    if (updatedEntry.status === "archived" && existing.status !== "archived") {
+      updatedEntry.archivedAt = now;
+    }
+    rejectUnsafeApexOsMemoryEntry(updatedEntry);
+    const nextMemory = [...current];
+    nextMemory[index] = updatedEntry;
+    persistApexOsMemory(draft, req.auth.user, nextMemory);
+    appendActivity(draft, "Apex OS memory updated", `${req.auth.user.name} updated ${updatedEntry.title} in Apex OS memory.`);
+    appendAuditEvent(draft, {
+      entityType: "apexOsMemory",
+      entityId: updatedEntry.id,
+      action: updatedEntry.status === "archived" ? "archived" : updatedEntry.status === "approved" ? "approved" : "updated",
+      summary: "Apex OS memory updated",
+      detail: JSON.stringify({
+        id: updatedEntry.id,
+        category: updatedEntry.category,
+        title: updatedEntry.title,
+        status: updatedEntry.status,
+        sourceType: updatedEntry.sourceType,
+        sourceLabel: updatedEntry.sourceLabel,
+      }),
+      actor: req.auth.user,
+      changedFields: ["apexOsMemory"],
+    });
+    return draft;
+  });
+
+  res.json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    apexOsMemoryEntry: publicApexOsMemoryEntry(updatedEntry),
   });
 }));
 

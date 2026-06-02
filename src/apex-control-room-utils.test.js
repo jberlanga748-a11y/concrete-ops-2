@@ -247,3 +247,39 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.approvals.length, APEX_CONTROL_ROOM_APPROVAL_GATES.length);
   assert.equal(state.evidence[0].id, "AUD-3");
 });
+
+test("deriveApexControlRoomState includes durable Apex OS memory summary", () => {
+  const state = deriveApexControlRoomState({
+    user: { name: "John Berlanga", role: "Owner", operatorAccess: true },
+    permissions: {
+      apexOs: { canView: true, canManage: true },
+      aiOffice: { canView: true },
+      settings: { canView: true, canManage: true },
+    },
+    companySettings: {
+      apexOsMemory: [
+        {
+          id: "AOM-1",
+          category: "decision",
+          title: "Private operating center",
+          body: "Apex OS is private to John/operator access.",
+          sourceLabel: "Apex OS master plan",
+          status: "approved",
+        },
+        {
+          id: "AOM-2",
+          category: "business-strategy",
+          title: "Launch queue",
+          body: "Launch work remains approval gated.",
+          sourceLabel: "Living plan",
+          status: "suggested",
+        },
+      ],
+    },
+  });
+
+  assert.equal(state.knowledgeVault.status, "Durable memory active");
+  assert.equal(state.knowledgeVault.memorySummary.total, 2);
+  assert.equal(state.knowledgeVault.memorySummary.approved, 1);
+  assert.equal(state.knowledgeVault.memorySummary.suggested, 1);
+});

@@ -2,6 +2,7 @@ import { deriveAgentOsInternalTaskOptions, deriveAgentOsRunLedgerRows } from "./
 import { deriveLaunchReadinessEvidenceState } from "./launch-readiness-utils.js";
 import { deriveEnterpriseTrustReadinessState } from "./owner-health-utils.js";
 import { getReleaseSafetySections } from "./release-safety-utils.js";
+import { summarizeApexOsMemory } from "../shared/apexOsMemory.js";
 
 function list(value) {
   return Array.isArray(value) ? value : [];
@@ -858,16 +859,18 @@ function buildDecisionMemoryState() {
   };
 }
 
-function buildKnowledgeVaultState() {
+function buildKnowledgeVaultState(companySettings = {}) {
   const categories = APEX_OS_KNOWLEDGE_VAULT_CATEGORIES.map((item) => ({ ...item }));
   const safetyRows = APEX_OS_KNOWLEDGE_VAULT_SAFETY_RULES.map((item) => ({ ...item }));
   const sourceRows = APEX_OS_KNOWLEDGE_SOURCE_CANDIDATES.map((item) => ({ ...item }));
+  const memorySummary = summarizeApexOsMemory(companySettings?.apexOsMemory || []);
   return {
-    status: "First UI ready",
-    tone: "blue",
+    status: memorySummary.total ? "Durable memory active" : "First UI ready",
+    tone: memorySummary.total ? "green" : "blue",
     categoryCount: categories.length,
     sourceCount: sourceRows.length,
     lockedRuleCount: safetyRows.filter((item) => item.status === "Locked").length,
+    memorySummary,
     categories,
     safetyRows,
     sourceRows,
@@ -1379,7 +1382,7 @@ export function deriveApexControlRoomState({
   const trustState = buildTrustState({ permissions, auditEvents, activity, companySettings });
   const releaseDesk = buildReleaseDesk();
   const decisionMemory = buildDecisionMemoryState();
-  const knowledgeVault = buildKnowledgeVaultState();
+  const knowledgeVault = buildKnowledgeVaultState(companySettings);
   const askApexChat = buildAskApexChatState({ decisionMemory, knowledgeVault, agentWorkQueue, launchState, releaseDesk });
   const voiceInterface = buildVoiceInterfaceState({ askApexChat });
   const approvalCommandCenter = buildApprovalCommandCenterState({ releaseDesk, askApexChat, voiceInterface });

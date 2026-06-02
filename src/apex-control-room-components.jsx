@@ -425,6 +425,13 @@ export function ApexControlRoomPage(props) {
             <SectionHeader title="Vault Intake Status" description="What is intentionally not active yet." />
             <div className="grid min-w-0 gap-3 lg:grid-cols-2">
               <StatusRow item={{
+                id: "durable-apex-os-memory",
+                title: "Durable Apex OS memory",
+                status: state.knowledgeVault.memorySummary?.total ? `${state.knowledgeVault.memorySummary.total} saved` : "Ready",
+                detail: `${state.knowledgeVault.memorySummary?.approved || 0} approved, ${state.knowledgeVault.memorySummary?.suggested || 0} suggested, and ${state.knowledgeVault.memorySummary?.archived || 0} archived memory rows are tracked in private company settings.`,
+                tone: state.knowledgeVault.memorySummary?.total ? "green" : "blue",
+              }} />
+              <StatusRow item={{
                 id: "upload-intake",
                 title: "Upload intake",
                 status: "Locked",

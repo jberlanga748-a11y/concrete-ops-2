@@ -353,7 +353,8 @@ Status:
 
 - Read-only first UI implemented locally on 2026-06-02 as Apex OS Slice 5.
 - The Control Room now maps 8 private knowledge categories, 4 source candidates, vault safety gates, and intake status before any upload/storage approval.
-- No real uploads, parsing, durable storage, schema changes, trusted memory writes, provider setup, or model calls were added.
+- Durable source-backed Apex OS memory was implemented locally on 2026-06-02 as Apex OS Slice 12 using existing company settings persistence as `apexOsMemory`, with suggested/approved/archived status, source-label requirements, secret/email rejection, operator-only API access, and audit/activity logging.
+- No real uploads, parsing, provider setup, embeddings, vector index, model calls, customer upload mixing, or production deployment were added.
 - Validation passed with focused Apex OS utility/import tests, the 77-test permission/routing/bootstrap suite, `npm.cmd run build`, `git diff --check` with CRLF warnings only, and desktop/mobile browser QA with no horizontal overflow and normal admin blocked/redirected away from Apex OS.
 
 ### Phase 6: Ask Apex Chat
@@ -1020,7 +1021,8 @@ Status:
 
 - Read-only first UI implemented locally on 2026-06-02 as Apex OS Slice 5.
 - Categories, source candidates, safety gates, and intake status are visible inside the private Control Room.
-- Real uploads, parsing, durable storage, trusted memory, schema changes, provider setup, and model calls remain locked behind later approval.
+- Durable source-backed Apex OS memory was implemented locally on 2026-06-02 as Apex OS Slice 12 through existing company settings storage, with private operator-only API access, source-label requirements, review states, secret/email rejection, and audit evidence.
+- Real uploads, parsing, embeddings/vector search, provider setup, and model calls remain locked behind later approval.
 
 ### Slice 7: Ask Apex Chat
 
