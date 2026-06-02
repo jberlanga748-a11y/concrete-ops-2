@@ -486,6 +486,7 @@ function securityHeaders(_req, res, next) {
     "base-uri 'self'",
     "object-src 'none'",
     "frame-ancestors 'none'",
+    "frame-src 'self' blob:",
     "script-src 'self'",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https://api.mapbox.com https://*.tiles.mapbox.com",

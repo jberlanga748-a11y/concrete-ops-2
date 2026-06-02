@@ -68,7 +68,7 @@ function assertSecurityHeaders(response, { production = false } = {}) {
   }
 
   const csp = response.headers.get("content-security-policy") || "";
-  for (const directive of ["default-src 'self'", "frame-ancestors 'none'", "object-src 'none'", "form-action 'self'", "connect-src 'self' blob:"]) {
+  for (const directive of ["default-src 'self'", "frame-ancestors 'none'", "frame-src 'self' blob:", "object-src 'none'", "form-action 'self'", "connect-src 'self' blob:"]) {
     if (!csp.includes(directive)) {
       throw new Error(`Expected CSP header to include ${directive}.`);
     }
