@@ -596,13 +596,15 @@ Validation:
 
 Status:
 
-- Hard-finished locally and ready for production release on 2026-06-03.
+- Hard-finished and deployed on 2026-06-03.
 - The Control Room now shows launch, demo/pilot, marketing, sales/outreach, customer success, revenue/pricing/offer queues, launch/founder-demo rows, business briefing rows, and manual-send/spend/billing/claims gates.
 - Phase 10 now adds source-backed business memory rows from approved Apex OS memory categories, private business task draft rows for launch/founder demo/marketing/sales/customer success/revenue work, and business approval draft rows for manual sends, ads/publishing, billing/offers, customer-visible work, and business operations.
 - Business task drafts point to existing Agent Handoffs as `business-draft` work, but no queue/run/execution action exists.
 - Business approval drafts are review packets only; manual send/publish/billing/customer-visible gates remain locked until separately approved.
 - No live send, email/SMS, ad spend, public publishing, billing/payment, package change, provider setup, customer-visible action, production data mutation, schema/storage change, auth/session change, or unsupported revenue/lead claim was added.
 - Local validation passed with focused Phase 10 Apex OS utility/import tests, the 82-test Apex OS route/nav/permission regression suite, `npm.cmd run build`, and isolated desktop/mobile browser QA using approved business memory seed rows with no horizontal overflow and screenshots under `ui-audit/apex-control-room-phase10/`.
+- Production release was approved and deployed on 2026-06-03 from commit `ee851f7` to Fly app `concrete-ops-2` as version `642`, image `registry.fly.io/concrete-ops-2:deployment-01KT67FMHMMHQH69R1ZFX5Y0VR`, with predeploy production backup `postgres-app-data-20260603-075124Z.json` and upload snapshot `uploads-20260603-075124Z`.
+- Post-deploy checks passed on 2026-06-03: both production `/api/ready` endpoints returned ready/database ok, `https://concrete-ops-2.fly.dev/api/health` returned healthy, Fly status showed machine `148e06e2b53d68` on version `642` with 1 passing check, hosted skip-auth health/routes smoke passed on `https://app.apexhq.online/`, `/apex-control-room` served `index-DaDMI41p.js` and `app-domain-Ds8onq2Y.js` on both production hosts, unauthenticated `/api/apex-os/approval-packets` and `/api/apex-os/memory` returned 401, and `/api/setup/status` showed demo mode off and public signup disabled. Production auth smoke/login was not run.
 
 ### Phase 11: Monitoring And Daily Briefings
 

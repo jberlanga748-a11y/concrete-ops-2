@@ -255,12 +255,13 @@ Hard-finish package:
 
 Status:
 
-- Hard-finished locally and release-ready on 2026-06-03.
+- Hard-finished, pushed, deployed, and health-checked on 2026-06-03 as Fly release `v642` from commit `ee851f7`.
 - Private business command queues, launch/founder-demo rows, business briefing rows, manual-send/spend/billing/claims gates, source-backed business memory rows, six private business task drafts, and five business approval draft rows are now in the Apex Control Room.
 - Approved business memory feeds only from approved Apex OS memory categories; suggested, archived, unrelated product identity, and non-business rows do not become Phase 10 business context.
 - Task drafts prepare private handoff work only and point to existing Agent Handoffs as `business-draft` records; no agent queue/run/execution surface was added.
 - Approval draft rows are review packets only; sends, publishing, ad spend, billing/payment, customer-visible actions, and unsupported claims remain locked.
 - Validation passed with focused Phase 10 Apex OS utility/import tests, the 82-test Apex OS regression suite, `npm.cmd run build`, and isolated desktop/mobile browser QA with approved business memory seed rows and no horizontal overflow.
+- Production release `v642` is healthy from commit `ee851f7`, image `registry.fly.io/concrete-ops-2:deployment-01KT67FMHMMHQH69R1ZFX5Y0VR`; rollback target is `v641`, image `registry.fly.io/concrete-ops-2:deployment-01KT65V9K2KK4G0V1R6QRXR9QG`.
 
 Blocked right now:
 
