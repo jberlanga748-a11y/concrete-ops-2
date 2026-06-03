@@ -113,7 +113,7 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.match(state.operatingSignals.find((item) => item.id === "agent-tasks")?.detail || "", /10 visible targets/);
   assert.equal(state.operatingSignals.find((item) => item.id === "launch-readiness")?.status, "Launch locked");
   assert.equal(state.operatingSignals.find((item) => item.id === "decision-memory")?.status, "Seeded from plan");
-  assert.equal(state.operatingSignals.find((item) => item.id === "knowledge-vault")?.status, "First UI ready");
+  assert.equal(state.operatingSignals.find((item) => item.id === "knowledge-vault")?.status, "Upload intake ready");
   assert.equal(state.operatingSignals.find((item) => item.id === "ask-apex-chat")?.status, "Source-backed live");
   assert.equal(state.operatingSignals.find((item) => item.id === "voice-interface")?.status, "Transcript confirm ready");
   assert.equal(state.operatingSignals.find((item) => item.id === "approval-command-center")?.status, "Drafting ready");
@@ -122,7 +122,7 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.operatingSignals.find((item) => item.id === "business-command-center")?.status, "First UI ready");
   assert.equal(state.operatingSignals.find((item) => item.id === "qa-security-hardening")?.status, "Hardening evidence ready");
   assert.equal(state.priorities.find((item) => item.id === "agent-work-queue")?.status, "Review-only");
-  assert.equal(state.priorities.find((item) => item.id === "knowledge-vault")?.status, "First UI ready");
+  assert.equal(state.priorities.find((item) => item.id === "knowledge-vault")?.status, "Upload intake ready");
   assert.equal(state.priorities.find((item) => item.id === "provider-work")?.status, "Source-backed live");
   assert.equal(state.priorities.find((item) => item.id === "voice-interface")?.status, "Transcript confirm ready");
   assert.equal(state.priorities.find((item) => item.id === "approval-command-center")?.status, "Drafting ready");
@@ -153,14 +153,14 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.decisionMemory.categories.some((item) => item.id === "personal-preference" && item.status === "Covered"), true);
   assert.equal(state.decisionMemory.decisions.some((item) => item.id === "private-operator-only" && item.status === "Locked"), true);
   assert.equal(state.decisionMemory.rules.some((item) => item.id === "field-boundary" && item.status === "Locked"), true);
-  assert.equal(state.knowledgeVault.status, "First UI ready");
+  assert.equal(state.knowledgeVault.status, "Upload intake ready");
   assert.equal(state.knowledgeVault.categoryCount, 8);
   assert.equal(state.knowledgeVault.sourceCount, 4);
-  assert.equal(state.knowledgeVault.lockedRuleCount, 3);
+  assert.equal(state.knowledgeVault.lockedRuleCount, 2);
   assert.equal(state.knowledgeVault.categories.some((item) => item.id === "private-owner-notes" && item.status === "Private"), true);
-  assert.equal(state.knowledgeVault.safetyRows.some((item) => item.id === "no-storage-yet" && item.status === "Locked"), true);
+  assert.equal(state.knowledgeVault.safetyRows.some((item) => item.id === "no-storage-yet" && item.status === "Active"), true);
   assert.equal(state.knowledgeVault.safetyRows.some((item) => item.id === "no-secrets" && item.status === "Locked"), true);
-  assert.equal(state.knowledgeVault.sourceRows.some((item) => item.id === "future-uploads" && item.status === "Approval required"), true);
+  assert.equal(state.knowledgeVault.sourceRows.some((item) => item.id === "future-uploads" && item.status === "Text intake active"), true);
   assert.equal(state.askApexChat.status, "Source-backed live");
   assert.equal(state.askApexChat.providerStatus, "Server-only provider");
   assert.equal(state.askApexChat.contextCount, APEX_OS_CHAT_CONTEXTS.length);
@@ -168,7 +168,7 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.askApexChat.actionLockCount, APEX_OS_CHAT_ACTION_LOCKS.length);
   assert.match(state.askApexChat.placeholder, /app, roadmap, agents, launch, business/);
   assert.equal(state.askApexChat.contexts.some((item) => item.id === "all" && item.status === "Review required"), true);
-  assert.equal(state.askApexChat.evidenceRows.some((item) => item.id === "knowledge-vault" && item.status === "First UI ready"), true);
+  assert.equal(state.askApexChat.evidenceRows.some((item) => item.id === "knowledge-vault" && item.status === "Upload intake ready"), true);
   assert.equal(state.askApexChat.evidenceRows.some((item) => item.id === "launch-readiness" && item.status === "Launch locked"), true);
   assert.equal(state.askApexChat.actionLocks.some((item) => item.id === "ask-provider" && item.status === "Server-only"), true);
   assert.equal(state.askApexChat.actionLocks.some((item) => item.id === "save-decision" && item.status === "Approval required"), true);
@@ -237,7 +237,7 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.qaSecurityHardening.evidenceRows.some((item) => item.id === "direct-route-blocking" && item.status === "Evidence required"), true);
   assert.equal(state.qaSecurityHardening.evidenceRows.some((item) => item.id === "field-user-blocking" && item.status === "Locked"), true);
   assert.equal(state.qaSecurityHardening.evidenceRows.some((item) => item.id === "source-backed-answers" && item.status === "Source-backed live"), true);
-  assert.equal(state.qaSecurityHardening.evidenceRows.some((item) => item.id === "upload-privacy" && item.status === "Locked"), true);
+  assert.equal(state.qaSecurityHardening.evidenceRows.some((item) => item.id === "upload-privacy" && item.status === "Upload intake ready"), true);
   assert.equal(state.qaSecurityHardening.evidenceRows.some((item) => item.id === "approval-gates" && item.status === "Drafting ready"), true);
   assert.equal(state.qaSecurityHardening.evidenceRows.some((item) => item.id === "desktop-mobile-visual" && item.status === "Evidence required"), true);
   assert.equal(state.qaSecurityHardening.evidenceRows.some((item) => item.id === "build-test-release" && item.status === "First UI ready"), true);
@@ -311,11 +311,54 @@ test("deriveApexControlRoomState includes durable Apex OS decision memory summar
   assert.equal(state.decisionMemory.durableDecisions[0].category, "Product identity");
   assert.equal(state.decisionMemory.durableDecisions[0].recordedAt, "2026-06-02T01:05:00.000Z");
   assert.equal(state.nextBestActions.find((item) => item.id === "memory-review")?.status, "Durable");
-  assert.equal(state.knowledgeVault.status, "Durable memory active");
+  assert.equal(state.knowledgeVault.status, "Upload intake ready");
   assert.equal(state.knowledgeVault.memorySummary.total, 3);
   assert.equal(state.knowledgeVault.memorySummary.approved, 1);
   assert.equal(state.knowledgeVault.memorySummary.suggested, 1);
   assert.equal(state.knowledgeVault.memorySummary.archived, 1);
+  assert.equal(state.knowledgeVault.vaultSummary.total, 0);
+});
+
+test("deriveApexControlRoomState summarizes durable knowledge upload vault rows", () => {
+  const state = deriveApexControlRoomState({
+    user: { name: "John Berlanga", role: "Owner", operatorAccess: true },
+    permissions: {
+      apexOs: { canView: true, canManage: true },
+      aiOffice: { canView: true },
+    },
+    companySettings: {
+      apexOsMemory: [
+        {
+          id: "AOM-KV-1",
+          category: "app-docs",
+          title: "Phase 5 notes",
+          body: "Knowledge Upload Vault supports reviewed private intake.",
+          sourceType: "knowledge-upload",
+          sourceLabel: "phase-5.md",
+          sourceUri: "local-upload:phase-5.md",
+          status: "suggested",
+          reviewNote: "Summary pending.",
+        },
+        {
+          id: "AOM-KV-2",
+          category: "marketing-sales",
+          title: "Demo narrative",
+          body: "Founder-led demo notes for Apex HQ.",
+          sourceType: "manual",
+          sourceLabel: "Sales notes",
+          status: "approved",
+          reviewNote: "Trusted.",
+        },
+      ],
+    },
+  });
+
+  assert.equal(state.knowledgeVault.status, "Knowledge under review");
+  assert.equal(state.knowledgeVault.vaultSummary.total, 2);
+  assert.equal(state.knowledgeVault.vaultSummary.trusted, 1);
+  assert.equal(state.knowledgeVault.vaultSummary.suggested, 1);
+  assert.deepEqual(state.knowledgeVault.sourceOptions, ["phase-5.md", "Sales notes"]);
+  assert.deepEqual(state.knowledgeVault.vaultEntries.map((entry) => entry.title), ["Phase 5 notes", "Demo narrative"]);
 });
 
 test("deriveApexControlRoomState includes durable Apex OS approval packet summary", () => {

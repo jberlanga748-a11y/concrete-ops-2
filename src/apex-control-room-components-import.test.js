@@ -38,6 +38,14 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /Run locked/);
   assert.match(componentSource, /Locked Agent Tasks/);
   assert.match(componentSource, /Knowledge Vault/);
+  assert.match(componentSource, /Knowledge Upload Vault/);
+  assert.match(componentSource, /KnowledgeVaultManager/);
+  assert.match(componentSource, /Draft knowledge/);
+  assert.match(componentSource, /Load vault/);
+  assert.match(componentSource, /Review required/);
+  assert.match(componentSource, /All categories/);
+  assert.match(componentSource, /All sources/);
+  assert.match(componentSource, /All review states/);
   assert.match(componentSource, /Vault Safety Gates/);
   assert.match(componentSource, /Vault Sources/);
   assert.match(componentSource, /Vault Intake Status/);

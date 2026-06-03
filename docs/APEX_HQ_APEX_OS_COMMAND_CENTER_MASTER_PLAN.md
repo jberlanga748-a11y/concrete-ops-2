@@ -355,11 +355,14 @@ Validation:
 
 Status:
 
-- Read-only first UI implemented locally on 2026-06-02 as Apex OS Slice 5.
-- The Control Room now maps 8 private knowledge categories, 4 source candidates, vault safety gates, and intake status before any upload/storage approval.
-- Durable source-backed Apex OS memory was implemented locally on 2026-06-02 as Apex OS Slice 12 using existing company settings persistence as `apexOsMemory`, with suggested/approved/archived status, source-label requirements, secret/email rejection, operator-only API access, and audit/activity logging.
-- No real uploads, parsing, provider setup, embeddings, vector index, model calls, customer upload mixing, or production deployment were added.
-- Validation passed with focused Apex OS utility/import tests, the 77-test permission/routing/bootstrap suite, `npm.cmd run build`, `git diff --check` with CRLF warnings only, and desktop/mobile browser QA with no horizontal overflow and normal admin blocked/redirected away from Apex OS.
+- Completed locally to 100% on 2026-06-03.
+- The private Apex Control Room now has a Knowledge Upload Vault where John can classify manual notes or local text-file uploads into the original 8 Phase 5 categories: Apex HQ app docs, business strategy, marketing/sales, customer research, legal/risk review notes, brand/design assets, product ideas, and private owner notes.
+- Vault intake stores only reviewed text/source metadata through existing private Apex OS memory as `apexOsMemory`; no binary file storage, schema change, parser service, embeddings, vector index, model call, provider setup, production deployment, customer upload mixing, or public publishing path was added.
+- Source metadata, review status, and summary status are visible for each vault row through source label, source URI, suggested/approved/archived state, and review note.
+- New uploaded knowledge is forced to `suggested` when created through the knowledge-upload source type, even if a client tries to create it as approved. It becomes trusted Apex OS context only after a separate manual approve action.
+- The vault supports search plus category, source, and review-status filtering inside the private operator-only Control Room.
+- Secret/customer-email rejection, source-label requirements, operator-only API access, audit/activity logging, normal-admin/field-user blocking, and no-customer-mixing boundaries remain enforced.
+- Validation passed on 2026-06-03 with upload classification tests, role/access tests, focused Apex OS API/UI tests, broader route/nav/permission regression tests, `npm.cmd run build`, `git diff --check` with CRLF warnings only, and desktop/mobile browser QA with no horizontal overflow and normal admin blocked/redirected away from Apex OS.
 
 ### Phase 6: Ask Apex Chat
 

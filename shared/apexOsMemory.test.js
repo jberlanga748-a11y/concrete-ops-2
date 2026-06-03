@@ -4,8 +4,11 @@ import test from "node:test";
 import {
   buildApexOsMemoryContext,
   detectApexOsMemorySafetyIssues,
+  filterApexOsKnowledgeVault,
+  isApexOsKnowledgeCategory,
   normalizeApexOsMemory,
   normalizeApexOsMemoryEntry,
+  summarizeApexOsKnowledgeVault,
   summarizeApexOsMemory,
 } from "./apexOsMemory.js";
 
@@ -93,4 +96,97 @@ test("Apex OS memory summarizes and builds approved context only", () => {
     archived: 0,
   });
   assert.deepEqual(buildApexOsMemoryContext(memory).map((entry) => entry.title), ["Daily focus"]);
+});
+
+test("Apex OS knowledge vault classifies the original Phase 5 upload categories", () => {
+  const categories = [
+    "Apex HQ app docs",
+    "business strategy",
+    "marketing/sales",
+    "customer research",
+    "legal/risk review notes",
+    "brand/design assets",
+    "product ideas",
+    "private owner notes",
+  ];
+
+  const memory = normalizeApexOsMemory(categories.map((category, index) => ({
+    id: `AOM-KV-${index}`,
+    category,
+    title: `${category} upload`,
+    body: `Reviewed ${category} knowledge draft.`,
+    sourceType: "knowledge-upload",
+    sourceLabel: `phase-5-${index}.md`,
+    sourceUri: `local-upload:phase-5-${index}.md`,
+    status: "suggested",
+    reviewNote: "Summary pending - manual review required.",
+  })));
+
+  assert.equal(memory.every((entry) => isApexOsKnowledgeCategory(entry.category)), true);
+  assert.deepEqual(memory.map((entry) => entry.category), [
+    "app-docs",
+    "business-strategy",
+    "marketing-sales",
+    "customer-research",
+    "legal-risk",
+    "brand-design",
+    "product-ideas",
+    "private-owner-notes",
+  ]);
+});
+
+test("Apex OS knowledge vault summarizes and filters by category, source, status, and search", () => {
+  const memory = normalizeApexOsMemory([
+    {
+      id: "AOM-KV-1",
+      category: "app-docs",
+      title: "Phase 5 master plan",
+      body: "Knowledge Upload Vault needs private reviewed intake.",
+      sourceType: "knowledge-upload",
+      sourceLabel: "phase-5.md",
+      sourceUri: "local-upload:phase-5.md",
+      status: "suggested",
+      reviewNote: "Summary pending.",
+    },
+    {
+      id: "AOM-KV-2",
+      category: "marketing-sales",
+      title: "Demo script",
+      body: "Founder-led demo proof narrative.",
+      sourceType: "manual",
+      sourceLabel: "Sales notes",
+      status: "approved",
+      reviewNote: "Trusted.",
+    },
+    {
+      id: "AOM-D-1",
+      category: "roadmap-decision",
+      title: "Phase decision",
+      body: "This is not a vault upload.",
+      sourceLabel: "Decision memory",
+      status: "approved",
+    },
+  ]);
+
+  assert.deepEqual(summarizeApexOsKnowledgeVault(memory), {
+    total: 2,
+    trusted: 1,
+    suggested: 1,
+    archived: 0,
+    sourceCount: 2,
+    sourceLabels: ["phase-5.md", "Sales notes"],
+    byCategory: {
+      "app-docs": 1,
+      "business-strategy": 0,
+      "marketing-sales": 1,
+      "customer-research": 0,
+      "legal-risk": 0,
+      "brand-design": 0,
+      "product-ideas": 0,
+      "private-owner-notes": 0,
+    },
+  });
+  assert.deepEqual(filterApexOsKnowledgeVault(memory, { category: "app-docs" }).map((entry) => entry.title), ["Phase 5 master plan"]);
+  assert.deepEqual(filterApexOsKnowledgeVault(memory, { source: "sales", status: "approved" }).map((entry) => entry.title), ["Demo script"]);
+  assert.deepEqual(filterApexOsKnowledgeVault(memory, { query: "reviewed intake" }).map((entry) => entry.title), ["Phase 5 master plan"]);
 });

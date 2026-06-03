@@ -544,6 +544,302 @@ function DecisionMemoryManager({ state, sessionToken }) {
   );
 }
 
+const EMPTY_KNOWLEDGE_VAULT_FORM = {
+  category: "app-docs",
+  title: "",
+  body: "",
+  sourceType: "knowledge-upload",
+  sourceLabel: "Apex Knowledge Vault",
+  sourceUri: "",
+  reviewNote: "Summary pending - manual review required.",
+  status: "suggested",
+  confidence: 70,
+};
+
+function categoryTitle(categories = [], id = "") {
+  return categories.find((category) => category.id === id)?.title || String(id || "Knowledge").replace(/-/g, " ");
+}
+
+function filterKnowledgeRows(rows = [], { category, source, status, query } = {}) {
+  const normalizedQuery = String(query || "").trim().toLowerCase();
+  const normalizedSource = String(source || "all").trim().toLowerCase();
+  return rows
+    .filter((row) => !category || category === "all" || row.category === category)
+    .filter((row) => !status || status === "all" || row.status === status)
+    .filter((row) => source === "all" || [row.sourceLabel, row.sourceType, row.sourceUri].some((value) => String(value || "").toLowerCase().includes(normalizedSource)))
+    .filter((row) => {
+      if (!normalizedQuery) return true;
+      return [row.title, row.body, row.sourceLabel, row.sourceUri, row.reviewNote, row.category].some((value) => String(value || "").toLowerCase().includes(normalizedQuery));
+    });
+}
+
+function KnowledgeVaultManager({ state, sessionToken }) {
+  const [form, setForm] = useState(EMPTY_KNOWLEDGE_VAULT_FORM);
+  const [vaultRows, setVaultRows] = useState(state.knowledgeVault?.vaultEntries || []);
+  const [summary, setSummary] = useState(state.knowledgeVault?.vaultSummary || null);
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [sourceFilter, setSourceFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const [notice, setNotice] = useState("");
+  const [loading, setLoading] = useState(false);
+  const canUse = state.canView && Boolean(sessionToken) && !loading;
+  const canCreate = canUse && form.category && form.title.trim() && form.body.trim() && form.sourceLabel.trim();
+  const categoryIds = new Set((state.knowledgeVault?.categories || []).map((category) => category.id));
+  const knowledgeRows = vaultRows.filter((row) => categoryIds.has(row.category));
+  const sourceOptions = [...new Set([
+    ...(state.knowledgeVault?.sourceOptions || []),
+    ...knowledgeRows.map((row) => row.sourceLabel).filter(Boolean),
+  ])].sort((left, right) => left.toLowerCase().localeCompare(right.toLowerCase()));
+  const visibleRows = filterKnowledgeRows(knowledgeRows, {
+    category: categoryFilter,
+    source: sourceFilter,
+    status: statusFilter,
+    query: search,
+  });
+  const activeSummary = summary || state.knowledgeVault?.vaultSummary || {
+    total: knowledgeRows.length,
+    trusted: knowledgeRows.filter((row) => row.status === "approved").length,
+    suggested: knowledgeRows.filter((row) => row.status === "suggested").length,
+    archived: knowledgeRows.filter((row) => row.status === "archived").length,
+  };
+
+  function updateField(field, value) {
+    setForm((current) => ({ ...current, [field]: value }));
+    setNotice("");
+  }
+
+  function updateFromMemoryPayload(payload, message) {
+    const rows = (payload.apexOsMemory || payload.companySettings?.apexOsMemory || []).filter((row) => categoryIds.has(row.category));
+    setVaultRows(rows);
+    const total = rows.length;
+    setSummary({
+      total,
+      trusted: rows.filter((row) => row.status === "approved").length,
+      suggested: rows.filter((row) => row.status === "suggested").length,
+      archived: rows.filter((row) => row.status === "archived").length,
+      sourceCount: new Set(rows.map((row) => row.sourceLabel).filter(Boolean)).size,
+      sourceLabels: [...new Set(rows.map((row) => row.sourceLabel).filter(Boolean))],
+    });
+    setNotice(message);
+  }
+
+  async function refreshVault() {
+    if (!canUse) return;
+    setLoading(true);
+    setNotice("");
+    try {
+      const payload = await getApexOsMemory(sessionToken);
+      updateFromMemoryPayload(payload, "Knowledge vault loaded from private Apex OS memory.");
+    } catch (error) {
+      setNotice(error?.message || "Knowledge vault could not load right now.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleFileChange(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const allowed = /\.(txt|md|markdown|json|csv|log|html|css|js|jsx|ts|tsx)$/i.test(file.name);
+    if (!allowed) {
+      setNotice("Use a text-based source file for this private vault intake.");
+      return;
+    }
+    try {
+      const body = (await file.text()).slice(0, 1800);
+      setForm((current) => ({
+        ...current,
+        title: current.title.trim() ? current.title : file.name.replace(/\.[^.]+$/, ""),
+        body,
+        sourceType: "knowledge-upload",
+        sourceLabel: file.name,
+        sourceUri: `local-upload:${file.name}`,
+        reviewNote: "Summary pending - manual review required.",
+      }));
+      setNotice(`${file.name} loaded locally as suggested knowledge. Review before drafting.`);
+    } catch {
+      setNotice("Apex could not read that local text file.");
+    }
+  }
+
+  async function submitKnowledge(event) {
+    event.preventDefault();
+    if (!canCreate) return;
+    setLoading(true);
+    setNotice("");
+    try {
+      const payload = await createApexOsMemory(sessionToken, {
+        ...form,
+        status: "suggested",
+        sourceType: form.sourceType || "knowledge-upload",
+      });
+      setVaultRows((current) => [payload.apexOsMemoryEntry, ...current].filter(Boolean));
+      setSummary((current) => ({
+        total: (current?.total || activeSummary.total || 0) + 1,
+        trusted: current?.trusted || activeSummary.trusted || 0,
+        suggested: (current?.suggested || activeSummary.suggested || 0) + 1,
+        archived: current?.archived || activeSummary.archived || 0,
+        sourceCount: current?.sourceCount || activeSummary.sourceCount || sourceOptions.length,
+        sourceLabels: current?.sourceLabels || activeSummary.sourceLabels || sourceOptions,
+      }));
+      setForm(EMPTY_KNOWLEDGE_VAULT_FORM);
+      setNotice("Knowledge drafted as suggested. It is not trusted Apex context until manually approved.");
+    } catch (error) {
+      setNotice(error?.message || "Knowledge could not be saved right now.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function setKnowledgeStatus(row, status) {
+    if (!canUse || !row?.id) return;
+    setLoading(true);
+    setNotice("");
+    try {
+      await updateApexOsMemory(sessionToken, row.id, { ...row, status });
+      const payload = await getApexOsMemory(sessionToken);
+      updateFromMemoryPayload(payload, status === "archived" ? "Knowledge archived from trusted context." : "Knowledge approved as trusted Apex OS memory.");
+    } catch (error) {
+      setNotice(error?.message || "Knowledge could not be updated right now.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="grid min-w-0 gap-4">
+      <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatusRow item={{
+          id: "vault-total",
+          title: "Saved knowledge",
+          status: `${activeSummary.total || 0}`,
+          detail: `${activeSummary.trusted || 0} trusted, ${activeSummary.suggested || 0} suggested, ${activeSummary.archived || 0} archived.`,
+          tone: activeSummary.trusted ? "green" : "blue",
+        }} />
+        <StatusRow item={{
+          id: "vault-sources",
+          title: "Source metadata",
+          status: `${sourceOptions.length || activeSummary.sourceCount || 0}`,
+          detail: "Each vault row keeps category, source label, source URI, review status, and summary status.",
+          tone: "blue",
+        }} />
+        <StatusRow item={{
+          id: "vault-review",
+          title: "Manual review",
+          status: "Required",
+          detail: "Suggested uploads do not feed trusted Apex context until approved from this panel.",
+          tone: "amber",
+        }} />
+        <StatusRow item={{
+          id: "vault-boundary",
+          title: "Private boundary",
+          status: "Locked",
+          detail: "No customer uploads, public publishing, provider calls, embeddings, or binary storage are created here.",
+          tone: "amber",
+        }} />
+      </div>
+
+      <form className="grid min-w-0 gap-3 rounded-xl border border-slate-200 bg-white p-3" onSubmit={submitKnowledge}>
+        <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_260px]">
+          <input
+            value={form.title}
+            onChange={(event) => updateField("title", event.target.value)}
+            maxLength={140}
+            placeholder="Knowledge title"
+            className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700"
+            disabled={!state.canView || loading}
+          />
+          <select
+            value={form.category}
+            onChange={(event) => updateField("category", event.target.value)}
+            className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700"
+            disabled={!state.canView || loading}
+          >
+            {(state.knowledgeVault?.categories || []).map((category) => (
+              <option key={category.id} value={category.id}>{category.title}</option>
+            ))}
+          </select>
+        </div>
+        <textarea
+          value={form.body}
+          onChange={(event) => updateField("body", event.target.value)}
+          maxLength={1800}
+          placeholder="Knowledge summary or uploaded text"
+          className="min-h-24 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold leading-6 text-slate-700"
+          disabled={!state.canView || loading}
+        />
+        <div className="grid min-w-0 gap-3 lg:grid-cols-4">
+          <input value={form.sourceLabel} onChange={(event) => updateField("sourceLabel", event.target.value)} maxLength={120} placeholder="Source label" className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700" disabled={!state.canView || loading} />
+          <input value={form.sourceUri} onChange={(event) => updateField("sourceUri", event.target.value)} maxLength={240} placeholder="Source URI or file" className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700" disabled={!state.canView || loading} />
+          <input value={form.reviewNote} onChange={(event) => updateField("reviewNote", event.target.value)} maxLength={300} placeholder="Summary status" className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700" disabled={!state.canView || loading} />
+          <input type="file" accept=".txt,.md,.markdown,.json,.csv,.log,.html,.css,.js,.jsx,.ts,.tsx,text/*" onChange={handleFileChange} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-xs file:font-black file:text-white" disabled={!state.canView || loading} />
+        </div>
+        <div className="flex min-w-0 flex-wrap gap-2">
+          <Button type="submit" variant="secondary" size="sm" disabled={!canCreate}>
+            <Icon name="upload" /> {loading ? "Saving..." : "Draft knowledge"}
+          </Button>
+          <Button type="button" variant="secondary" size="sm" onClick={refreshVault} disabled={!canUse}>
+            <Icon name="refresh" /> Load vault
+          </Button>
+          <Button type="button" disabled variant="secondary" size="sm">
+            <Icon name="lock" /> Review required
+          </Button>
+        </div>
+        <p className="break-words text-xs font-black leading-5 text-slate-500">{notice || "Text files are read locally, saved as suggested Apex OS memory with source metadata, and blocked if they include secrets or customer emails."}</p>
+      </form>
+
+      <div className="grid min-w-0 gap-3 rounded-xl border border-slate-200 bg-white p-3">
+        <div className="grid min-w-0 gap-3 lg:grid-cols-4">
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search vault" className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700" />
+          <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700">
+            <option value="all">All categories</option>
+            {(state.knowledgeVault?.categories || []).map((category) => <option key={category.id} value={category.id}>{category.title}</option>)}
+          </select>
+          <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700">
+            <option value="all">All sources</option>
+            {sourceOptions.map((source) => <option key={source} value={source}>{source}</option>)}
+          </select>
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700">
+            <option value="all">All review states</option>
+            <option value="suggested">Suggested</option>
+            <option value="approved">Trusted</option>
+            <option value="archived">Archived</option>
+          </select>
+        </div>
+        <p className="break-words text-xs font-black text-slate-500">Showing {visibleRows.length} of {knowledgeRows.length} vault row{knowledgeRows.length === 1 ? "" : "s"}.</p>
+      </div>
+
+      <div className="grid min-w-0 gap-3">
+        {visibleRows.length ? visibleRows.slice(0, 8).map((row) => (
+          <div key={row.id} className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+            <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <p className="break-words text-[10px] font-black uppercase tracking-[0.16em] text-orange-700">{categoryTitle(state.knowledgeVault?.categories, row.category)}</p>
+                <p className="mt-1 break-words text-sm font-black text-slate-950">{row.title}</p>
+                <p className="mt-1 break-words text-xs font-bold leading-5 text-slate-600">{row.body}</p>
+                <p className="mt-2 break-words text-[11px] font-black text-slate-500">Source: {row.sourceLabel || "Missing source"}{row.sourceUri ? ` | ${row.sourceUri}` : ""}</p>
+                {row.reviewNote ? <p className="mt-1 break-words text-[11px] font-black text-slate-500">Summary: {row.reviewNote}</p> : null}
+              </div>
+              <ToneBadge tone={row.status === "approved" ? "green" : row.status === "archived" ? "slate" : "blue"}>{row.status === "approved" ? "trusted" : row.status}</ToneBadge>
+            </div>
+            <div className="mt-3 flex min-w-0 flex-wrap gap-2">
+              <Button type="button" variant="secondary" size="sm" onClick={() => setKnowledgeStatus(row, "approved")} disabled={!canUse || row.status === "approved" || row.status === "archived"}>
+                <Icon name="check" /> Approve
+              </Button>
+              <Button type="button" variant="secondary" size="sm" onClick={() => setKnowledgeStatus(row, "archived")} disabled={!canUse || row.status === "archived"}>
+                <Icon name="clock" /> Archive
+              </Button>
+            </div>
+          </div>
+        )) : (
+          <EmptyPanel>No knowledge rows match the current vault filters.</EmptyPanel>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const EMPTY_APPROVAL_PACKET_FORM = {
   title: "",
   requestedActionCategory: "deploy",
@@ -1221,8 +1517,8 @@ export function ApexControlRoomPage(props) {
               <StatusRow item={{
                 id: "proof-ask-apex",
                 title: "Ask Apex / Knowledge Vault",
-                status: "Read-only",
-                detail: "Chat, evidence, and vault categories are mapped without provider calls, uploads, storage, embeddings, or trusted memory writes.",
+                status: "Private intake",
+                detail: "Chat, evidence, and vault intake stay private with no provider calls, embeddings, public publishing, or customer upload mixing.",
                 tone: "blue",
               }} />
               <StatusRow item={{
@@ -1359,7 +1655,7 @@ export function ApexControlRoomPage(props) {
           <Card className="min-w-0 p-4 sm:p-5">
             <SectionHeader
               title="Knowledge Vault"
-              description={`${state.knowledgeVault.categoryCount || 0} private knowledge categories are mapped before upload/storage approval.`}
+              description={`${state.knowledgeVault.categoryCount || 0} private knowledge categories are ready for reviewed intake.`}
               action={<ToneBadge tone={state.knowledgeVault.tone}>{state.knowledgeVault.status}</ToneBadge>}
             />
             <div className="grid min-w-0 gap-3 lg:grid-cols-2">
@@ -1384,7 +1680,7 @@ export function ApexControlRoomPage(props) {
           </Card>
 
           <Card className="min-w-0 p-4 sm:p-5">
-            <SectionHeader title="Vault Intake Status" description="What is intentionally not active yet." />
+            <SectionHeader title="Vault Intake Status" description="Reviewed private knowledge intake." />
             <div className="grid min-w-0 gap-3 lg:grid-cols-2">
               <StatusRow item={{
                 id: "durable-apex-os-memory",
@@ -1396,18 +1692,29 @@ export function ApexControlRoomPage(props) {
               <StatusRow item={{
                 id: "upload-intake",
                 title: "Upload intake",
-                status: "Locked",
-                detail: "No files are uploaded, parsed, stored, trusted, embedded, or sent to a provider from this surface.",
-                tone: "amber",
+                status: "Text intake active",
+                detail: "Local text files can be read into the vault and saved as suggested knowledge with source metadata.",
+                tone: "green",
               }} />
               <StatusRow item={{
                 id: "trusted-memory",
                 title: "Trusted memory",
                 status: "Approval required",
-                detail: "A later storage slice must add review status, source metadata, archive controls, and secret screening before knowledge becomes durable.",
+                detail: "Suggested knowledge does not feed approved Apex context until manually approved.",
                 tone: "amber",
               }} />
             </div>
+          </Card>
+        </section>
+
+        <section className="min-w-0">
+          <Card className="min-w-0 p-4 sm:p-5">
+            <SectionHeader
+              title="Knowledge Upload Vault"
+              description="Classify, draft, review, search, and approve private Apex OS knowledge."
+              action={<ToneBadge tone={state.knowledgeVault.tone}>{state.knowledgeVault.status}</ToneBadge>}
+            />
+            <KnowledgeVaultManager state={state} sessionToken={props.sessionToken} />
           </Card>
         </section>
 

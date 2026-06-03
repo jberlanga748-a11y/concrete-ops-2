@@ -2,7 +2,12 @@ import { deriveAgentOsInternalTaskOptions, deriveAgentOsRunLedgerRows } from "./
 import { deriveLaunchReadinessEvidenceState } from "./launch-readiness-utils.js";
 import { deriveEnterpriseTrustReadinessState } from "./owner-health-utils.js";
 import { getReleaseSafetySections } from "./release-safety-utils.js";
-import { normalizeApexOsMemory, summarizeApexOsMemory } from "../shared/apexOsMemory.js";
+import {
+  filterApexOsKnowledgeVault,
+  normalizeApexOsMemory,
+  summarizeApexOsKnowledgeVault,
+  summarizeApexOsMemory,
+} from "../shared/apexOsMemory.js";
 import { summarizeApexOsApprovalPackets } from "../shared/apexOsApprovalPackets.js";
 import { summarizeApexOsExecutionHandoffs } from "../shared/apexOsExecutionHandoffs.js";
 
@@ -312,9 +317,9 @@ export const APEX_OS_QA_SECURITY_EVIDENCE_ROWS = Object.freeze([
   {
     id: "upload-privacy",
     title: "Upload privacy",
-    status: "Locked",
-    detail: "Knowledge Vault upload, parsing, storage, embeddings, provider transfer, and trusted memory are not active yet.",
-    tone: "amber",
+    status: "Private intake ready",
+    detail: "Knowledge Vault text intake stays private to Apex OS, rejects secrets, avoids customer workspace uploads, and requires manual review before trust.",
+    tone: "green",
   },
   {
     id: "approval-gates",
@@ -675,10 +680,10 @@ export const APEX_OS_KNOWLEDGE_VAULT_CATEGORIES = Object.freeze([
 export const APEX_OS_KNOWLEDGE_VAULT_SAFETY_RULES = Object.freeze([
   {
     id: "no-storage-yet",
-    title: "No writable vault yet",
-    status: "Locked",
-    detail: "This slice only defines the vault shape. Real uploads, durable storage, and schema changes require approval.",
-    tone: "amber",
+    title: "Private text intake",
+    status: "Active",
+    detail: "Text-file and manual knowledge intake saves only reviewed text metadata into private Apex OS memory; no binary files, schema changes, embeddings, or providers are used.",
+    tone: "green",
   },
   {
     id: "no-secrets",
@@ -730,11 +735,11 @@ export const APEX_OS_KNOWLEDGE_SOURCE_CANDIDATES = Object.freeze([
   },
   {
     id: "future-uploads",
-    title: "Future uploads",
-    status: "Approval required",
-    detail: "Real upload intake waits for an approved storage/schema slice with review, source, and secret-screening rules.",
-    tone: "amber",
-    source: "Pending approved storage slice",
+    title: "Private knowledge uploads",
+    status: "Text intake active",
+    detail: "Local text files can be classified into the vault and saved as suggested Apex OS memory for manual review.",
+    tone: "green",
+    source: "Private Apex OS memory",
   },
 ]);
 
@@ -950,14 +955,20 @@ function buildKnowledgeVaultState(companySettings = {}) {
   const categories = APEX_OS_KNOWLEDGE_VAULT_CATEGORIES.map((item) => ({ ...item }));
   const safetyRows = APEX_OS_KNOWLEDGE_VAULT_SAFETY_RULES.map((item) => ({ ...item }));
   const sourceRows = APEX_OS_KNOWLEDGE_SOURCE_CANDIDATES.map((item) => ({ ...item }));
-  const memorySummary = summarizeApexOsMemory(companySettings?.apexOsMemory || []);
+  const memory = normalizeApexOsMemory(companySettings?.apexOsMemory || []);
+  const memorySummary = summarizeApexOsMemory(memory);
+  const vaultSummary = summarizeApexOsKnowledgeVault(memory);
+  const vaultEntries = filterApexOsKnowledgeVault(memory);
   return {
-    status: memorySummary.total ? "Durable memory active" : "First UI ready",
-    tone: memorySummary.total ? "green" : "blue",
+    status: vaultSummary.total ? "Knowledge under review" : "Upload intake ready",
+    tone: vaultSummary.total ? "green" : "blue",
     categoryCount: categories.length,
     sourceCount: sourceRows.length,
     lockedRuleCount: safetyRows.filter((item) => item.status === "Locked").length,
     memorySummary,
+    vaultSummary,
+    vaultEntries,
+    sourceOptions: vaultSummary.sourceLabels,
     categories,
     safetyRows,
     sourceRows,
@@ -994,7 +1005,7 @@ function buildAskApexChatState({
       id: "knowledge-vault",
       title: "Knowledge Vault",
       status: knowledgeVault?.status || "Planned",
-      detail: `${formatCount(knowledgeVault?.categoryCount)} categories and ${formatCount(knowledgeVault?.sourceCount)} source candidates are mapped before real uploads or storage.`,
+      detail: `${formatCount(knowledgeVault?.categoryCount)} categories and ${formatCount(knowledgeVault?.sourceCount)} source candidates support private reviewed text intake.`,
       tone: knowledgeVault?.tone || "slate",
       source: "Apex OS Slice 5",
     },
@@ -1256,7 +1267,7 @@ function buildBusinessCommandCenterState({
       id: "knowledge-sources",
       title: "Business knowledge sources",
       status: knowledgeVault?.status || "Planned",
-      detail: `${formatCount(knowledgeVault?.categoryCount)} private knowledge categories can inform business planning; uploads/storage remain locked.`,
+      detail: `${formatCount(knowledgeVault?.categoryCount)} private knowledge categories can inform business planning after manual review.`,
       tone: knowledgeVault?.tone || "slate",
     },
     {
@@ -1333,8 +1344,9 @@ function buildQaSecurityHardeningState({
     if (item.id === "upload-privacy") {
       return {
         ...item,
-        status: knowledgeVault?.lockedRuleCount ? "Locked" : item.status,
-        detail: `${formatCount(knowledgeVault?.lockedRuleCount)} vault rules block storage, secrets, customer mixing, and trusted memory until approval.`,
+        status: knowledgeVault?.status || item.status,
+        tone: knowledgeVault?.tone || item.tone,
+        detail: `${formatCount(knowledgeVault?.lockedRuleCount)} vault rules still block secrets and customer mixing while reviewed text intake stays private.`,
       };
     }
     if (item.id === "approval-gates") {
@@ -1626,7 +1638,7 @@ export function deriveApexControlRoomState({
         id: "knowledge-vault",
         title: "Knowledge vault",
         status: knowledgeVault.status,
-        detail: `${knowledgeVault.categoryCount} private knowledge categories are defined; writable uploads remain locked.`,
+        detail: `${knowledgeVault.categoryCount} private knowledge categories are available for text intake and review.`,
         tone: knowledgeVault.tone,
       },
       {
@@ -1714,7 +1726,7 @@ export function deriveApexControlRoomState({
         id: "knowledge-vault",
         title: "Knowledge vault",
         status: knowledgeVault.status,
-        detail: `${knowledgeVault.sourceCount} source candidates are visible; uploads/storage still require approval.`,
+        detail: `${knowledgeVault.sourceCount} source candidates are visible; trusted context still requires manual approval.`,
         tone: knowledgeVault.tone,
       },
       {
@@ -1876,7 +1888,7 @@ export function deriveApexControlRoomState({
         id: "knowledge-vault",
         title: "Knowledge vault",
         status: knowledgeVault.status,
-        detail: `${knowledgeVault.categoryCount} categories are mapped. Uploads and durable memory still require a later approved storage/schema slice.`,
+        detail: `${knowledgeVault.categoryCount} categories are mapped for private upload intake, search, and manual review.`,
         tone: knowledgeVault.tone,
       },
       {

@@ -1,6 +1,6 @@
 # Apex HQ Living Finish Plan
 
-Last updated: 2026-06-02
+Last updated: 2026-06-03
 
 Canonical first-read file: `docs/APEX_HQ_CANONICAL_SOURCE_OF_TRUTH.md`.
 
@@ -59,7 +59,7 @@ Current implementation status:
 - Apex OS Slice 2 is implemented locally: the Control Room now uses a read-only Apex OS state aggregator that surfaces operating signals, next best actions, launch readiness, release safety, Agent OS task availability, trust/audit readiness, approval gates, and recent evidence from existing Apex HQ systems.
 - Apex OS Phase 4 / Slice 3 is complete locally as of 2026-06-03: the Control Room now shows Decision Memory and Operating Rules sourced from the Apex OS master plan plus durable Apex OS memory, including John/Apex HQ identity, private operator-only access, approval boundaries, local/private autonomy, build order, source order, field boundaries, no-secrets memory, build-freeze discipline, business-goal memory, and personal-preference memory.
 - Apex OS Slice 4 is implemented locally: the Control Room now shows a read-only Agent Work Queue, Agent Run Ledger, Agent Safety Locks, and Locked Agent Tasks using existing Agent OS task/run helpers. It shows what can be planned or reviewed, not anything that runs agents.
-- Apex OS Slice 5 is implemented locally: the Control Room now shows a read-only Knowledge Vault first UI with private knowledge categories, source candidates, vault safety gates, and intake status. Upload, durable storage, trusted memory, schema, and provider work remain approval-locked.
+- Apex OS Phase 5 / Knowledge Upload Vault is complete locally as of 2026-06-03: the private Control Room now has classified manual/text-file knowledge intake for the original 8 Phase 5 categories, source metadata, review status, summary status, search/filter by category/source/status/text, and manual approve/archive review before uploaded knowledge becomes trusted Apex OS memory.
 - Apex OS Slice 6 is implemented locally: the Control Room now shows a private Ask Apex Chat first UI with context lanes, source/evidence rows, disabled prompt/actions, source-backed answer rules, and provider/action locks. Real model calls, streaming, provider secrets, durable chat, save-as-decision, create-task, approval mutation, schema, and storage remain approval-locked.
 - Apex OS Slice 7 is implemented locally: the Control Room now shows a private Voice Interface first UI with disabled push-to-talk, transcript confirmation preview, spoken-answer preview, voice modes, safety gates, and approval boundaries. Microphone access, always-listening, speech provider/API, audio capture, transcript storage, voice execution, schema, and deploy remain approval-locked.
 - Apex OS Slice 8 is implemented locally: the Control Room now shows a private Approval Command Center first UI with approval categories, packet requirements, locked approve/reject/defer/execute controls, and approval source rows. Approval writes, durable audit records, execution, schema, storage, deploy, provider setup, and production actions remain approval-locked.
@@ -74,8 +74,8 @@ Current implementation status:
 - Apex OS Slice 17 is implemented locally: the private Approval Command Center now has durable approval packet drafts stored through existing company settings as `apexOsApprovalPackets`, with operator-only list/create/update endpoints, draft/ready/blocked/archived states only, source-label and readiness-field requirements, secret/email rejection, audit/activity logging, and Control Room UI for drafting, loading, marking ready/blocked, and archiving packets. This slice does not add approved/executed states, one-click approval, deploy, sends, spend, provider setup, production mutation, customer-visible changes, schema changes, or irreversible actions.
 - Apex OS Slice 18 is implemented locally: the private Agent Work Queue now has durable safe agent handoff drafts stored through existing company settings as `apexOsExecutionHandoffs`, with operator-only list/create/update endpoints, draft/ready/blocked/archived states only, source-label and readiness-field requirements, secret/email rejection, audit/activity logging, and Control Room UI for drafting, loading, marking ready/blocked, and archiving handoffs. This slice prepares scoped work packages only; it does not approve, queue, run, execute, deploy, send, spend, publish, configure providers, mutate production, make customer-visible changes, change schema, or perform irreversible actions.
 - Access uses the existing local/private `operatorAccess` flag plus office-level role checks. Normal admins without operator access, estimators, field users, and employees do not get the route/nav permission.
-- The current shell is safe: no auth/session change, no upload parser, no streaming, no microphone permission, no speech provider, no always-listening, no audio capture/storage, no approval execution controls, no agent queue/run execution controls, no deploy, no rollback execution, no production monitoring provider changes, no external alerts, no production data mutation, no live sends, no ad spend, no billing/payment, no public publishing, no customer-visible send/publish/spend/delete behavior, and no irreversible action path. Durable Apex OS memory, approval packet drafts, and execution handoff drafts use the existing company settings persistence path instead of a new table. Ask Apex provider mode uses server-side `OPENAI_API_KEY` only when configured; local validation currently shows the key is missing, so local Ask Apex runs in source-backed fallback mode. Voice is transcript-only in this slice. Daily Briefing refresh is read-only.
-- Visual QA artifacts: `ui-audit/apex-control-room-local/desktop-apex-control-room.png`, `ui-audit/apex-control-room-local/mobile-apex-control-room.png`, `ui-audit/apex-control-room-local/desktop-admin-blocked.png`, `ui-audit/apex-control-room-local/desktop-apex-control-room-qa-security.png`, `ui-audit/apex-control-room-local/mobile-apex-control-room-qa-security.png`, `ui-audit/apex-control-room-local/desktop-admin-blocked-qa-security.png`, `ui-audit/apex-control-room-local/desktop-apex-control-room-ask-apex-live.png`, `ui-audit/apex-control-room-local/desktop-admin-blocked-ask-apex-live.png`, `ui-audit/apex-control-room-local/desktop-apex-control-room-voice-transcript-ask.png`, `ui-audit/apex-control-room-local/desktop-apex-control-room-daily-briefing-refresh.png`, and `ui-audit/apex-control-room-local/desktop-admin-blocked-daily-briefing-refresh.png`.
+- The current shell is safe: no auth/session change, no binary upload storage, no parser service, no embeddings/vector index, no streaming, no microphone permission, no speech provider, no always-listening, no audio capture/storage, no approval execution controls, no agent queue/run execution controls, no deploy, no rollback execution, no production monitoring provider changes, no external alerts, no production data mutation, no live sends, no ad spend, no billing/payment, no public publishing, no customer-visible send/publish/spend/delete behavior, and no irreversible action path. Durable Apex OS memory, knowledge upload drafts, approval packet drafts, and execution handoff drafts use the existing company settings persistence path instead of a new table. Ask Apex provider mode uses server-side `OPENAI_API_KEY` only when configured; local validation currently shows the key is missing, so local Ask Apex runs in source-backed fallback mode. Voice is transcript-only in this slice. Daily Briefing refresh is read-only.
+- Visual QA artifacts: `ui-audit/apex-control-room-local/desktop-apex-control-room.png`, `ui-audit/apex-control-room-local/mobile-apex-control-room.png`, `ui-audit/apex-control-room-local/desktop-admin-blocked.png`, `ui-audit/apex-control-room-local/desktop-apex-control-room-qa-security.png`, `ui-audit/apex-control-room-local/mobile-apex-control-room-qa-security.png`, `ui-audit/apex-control-room-local/desktop-admin-blocked-qa-security.png`, `ui-audit/apex-control-room-local/desktop-apex-control-room-ask-apex-live.png`, `ui-audit/apex-control-room-local/desktop-admin-blocked-ask-apex-live.png`, `ui-audit/apex-control-room-local/desktop-apex-control-room-voice-transcript-ask.png`, `ui-audit/apex-control-room-local/desktop-apex-control-room-daily-briefing-refresh.png`, `ui-audit/apex-control-room-local/desktop-admin-blocked-daily-briefing-refresh.png`, `ui-audit/apex-os-phase-5-knowledge-vault-desktop.png`, `ui-audit/apex-os-phase-5-knowledge-vault-mobile.png`, `ui-audit/apex-os-phase-5-knowledge-vault-desktop-focused.png`, and `ui-audit/apex-os-phase-5-knowledge-vault-mobile-focused.png`.
 
 ## Apex OS Phase 4: Decision Memory And Operating Rules Completion Report
 
@@ -130,6 +130,60 @@ Rollback plan:
 Next recommended phase:
 
 - Stop after committing and pushing Phase 4. Do not start Phase 5 in this pass.
+
+## Apex OS Phase 5: Knowledge Upload Vault Completion Report
+
+Goal:
+
+- Finish Phase 5 from the original Apex OS master plan only: let John upload what Apex needs to know without starting Phase 6.
+
+What was already built:
+
+- The Control Room already mapped the 8 Phase 5 vault categories, source candidates, and vault safety gates.
+- Durable private Apex OS memory already existed through existing company settings as `apexOsMemory`, with suggested/approved/archived states, source-label requirements, secret/email rejection, operator-only API access, and audit/activity logging.
+
+What was completed now:
+
+- Added a private Knowledge Upload Vault panel inside the Apex Control Room.
+- Added manual note and local text-file intake for the original Phase 5 categories: Apex HQ app docs, business strategy, marketing/sales, customer research, legal/risk review notes, brand/design assets, product ideas, and private owner notes.
+- Added source metadata, review status, and summary status through source label, source URI, suggested/approved/archived status, and review note fields.
+- Added search plus category/source/review-state filters for saved vault rows.
+- Added manual approve/archive controls so suggested upload knowledge does not become trusted Apex context until reviewed.
+- Added server-side protection that forces `knowledge-upload` entries in Phase 5 knowledge categories to start as `suggested`, even if a client sends `approved`.
+- Added shared vault classification, summary, and filter helpers plus focused tests.
+
+Risk level:
+
+- Low. Phase 5 reused the existing private Apex OS memory setting and operator-only API guards. No schema change, auth/session change, binary file storage, parser service, embeddings/vector index, provider setup, model call, production data mutation, deploy, customer-visible action, public publishing, send, spend, billing/payment, or deletion was added.
+
+Validation plan/results:
+
+- Focused Phase 5 validation passed locally: `node --test --test-concurrency=1 shared/apexOsMemory.test.js src/apex-control-room-utils.test.js src/apex-control-room-components-import.test.js server/apex-os-memory.test.js shared/permissions.test.js server/role-permissions.test.js`.
+- Broader Apex OS route/nav/permission validation passed locally: `node --test --test-concurrency=1 shared/permissions.test.js src/app-routing.test.js src/navigation-utils.test.js src/app-navigation-components-import.test.js src/apex-control-room-utils.test.js src/apex-control-room-components-import.test.js server/role-permissions.test.js server/apex-os-memory.test.js` with 66 passing tests.
+- `npm.cmd run build` passed with existing large-chunk warnings.
+- `git diff --check` passed with CRLF warnings only.
+- Browser QA passed locally on `http://127.0.0.1:5173/apex-control-room`: private operator desktop loaded the vault, drafted local text-file knowledge as suggested, searched/filtered it, approved it into trusted memory, and showed no horizontal overflow; private operator mobile showed the vault with no horizontal overflow; normal admin direct-route QA redirected to `/` and exposed no Knowledge Upload Vault.
+- Browser-created QA memory rows were removed from local data after validation, and `demo.ops@apexhq.app` / `demo.admin@apexhq.app` `operator_access` flags were restored to `0`.
+
+Permissions impact:
+
+- No permission loosening. Vault UI and memory APIs remain private operator-only through the existing Apex OS access gate.
+
+Mobile impact:
+
+- The vault uses existing responsive Control Room form/card patterns. Private operator mobile browser QA passed with no horizontal overflow.
+
+Field-user impact:
+
+- None. Field users remain blocked from Apex OS, AI office tools, leads, estimates, pricing, profit/margins, payroll, office notes, admin settings, billing, customer data, and private Apex HQ knowledge.
+
+Rollback plan:
+
+- Revert the Phase 5 completion commit to remove the Knowledge Upload Vault UI, vault helpers/tests, and server-side knowledge-upload suggested-state guard. No database migration or production data rollback is required.
+
+Next recommended phase:
+
+- Stop after committing and pushing Phase 5. Do not start Phase 6 until John asks for it after Phase 5 is verified.
 
 Validation:
 

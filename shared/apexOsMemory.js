@@ -4,6 +4,17 @@ const SHORT_LIMIT = 120;
 const MEMORY_LIMIT = 200;
 
 const STATUS_VALUES = new Set(["suggested", "approved", "archived"]);
+export const APEX_OS_KNOWLEDGE_CATEGORY_VALUES = Object.freeze([
+  "app-docs",
+  "business-strategy",
+  "marketing-sales",
+  "customer-research",
+  "legal-risk",
+  "brand-design",
+  "product-ideas",
+  "private-owner-notes",
+]);
+
 const CATEGORY_VALUES = new Set([
   "product-identity",
   "safety-rule",
@@ -75,6 +86,12 @@ function normalizeStatus(value = "suggested") {
 
 function normalizeCategory(value = "general") {
   const normalized = rawText(value, 80).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  const aliases = {
+    "apex-hq-app-docs": "app-docs",
+    "legal-risk-review-notes": "legal-risk",
+    "brand-design-assets": "brand-design",
+  };
+  if (aliases[normalized]) return aliases[normalized];
   return CATEGORY_VALUES.has(normalized) ? normalized : "general";
 }
 
@@ -130,6 +147,55 @@ export function summarizeApexOsMemory(value = []) {
     suggested: memory.filter((entry) => entry.status === "suggested").length,
     archived: memory.filter((entry) => entry.status === "archived").length,
   };
+}
+
+export function isApexOsKnowledgeCategory(value = "") {
+  return APEX_OS_KNOWLEDGE_CATEGORY_VALUES.includes(normalizeCategory(value));
+}
+
+export function summarizeApexOsKnowledgeVault(value = []) {
+  const rows = normalizeApexOsMemory(value).filter((entry) => isApexOsKnowledgeCategory(entry.category));
+  const sourceLabels = [...new Set(rows.map((entry) => entry.sourceLabel).filter(Boolean))]
+    .sort((left, right) => left.toLowerCase().localeCompare(right.toLowerCase()));
+  return {
+    total: rows.length,
+    trusted: rows.filter((entry) => entry.status === "approved").length,
+    suggested: rows.filter((entry) => entry.status === "suggested").length,
+    archived: rows.filter((entry) => entry.status === "archived").length,
+    sourceCount: sourceLabels.length,
+    sourceLabels,
+    byCategory: Object.fromEntries(APEX_OS_KNOWLEDGE_CATEGORY_VALUES.map((category) => [
+      category,
+      rows.filter((entry) => entry.category === category).length,
+    ])),
+  };
+}
+
+export function filterApexOsKnowledgeVault(value = [], {
+  category = "all",
+  source = "all",
+  status = "all",
+  query = "",
+} = {}) {
+  const normalizedCategory = normalizeCategory(category);
+  const normalizedStatus = normalizeStatus(status);
+  const normalizedSource = rawText(source, SHORT_LIMIT).toLowerCase();
+  const normalizedQuery = rawText(query, 300).toLowerCase();
+
+  return normalizeApexOsMemory(value)
+    .filter((entry) => isApexOsKnowledgeCategory(entry.category))
+    .filter((entry) => category === "all" || entry.category === normalizedCategory)
+    .filter((entry) => status === "all" || entry.status === normalizedStatus)
+    .filter((entry) => {
+      if (source === "all") return true;
+      return [entry.sourceLabel, entry.sourceType, entry.sourceUri]
+        .some((value) => String(value || "").toLowerCase().includes(normalizedSource));
+    })
+    .filter((entry) => {
+      if (!normalizedQuery) return true;
+      return [entry.title, entry.body, entry.sourceLabel, entry.sourceUri, entry.reviewNote, entry.category]
+        .some((value) => String(value || "").toLowerCase().includes(normalizedQuery));
+    });
 }
 
 export function buildApexOsMemoryContext(value = [], { limit = 12 } = {}) {

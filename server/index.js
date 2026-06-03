@@ -90,6 +90,7 @@ import {
   summarizeAgentLearningPreferences,
 } from "../shared/agentLearningPreferences.js";
 import {
+  isApexOsKnowledgeCategory,
   normalizeApexOsMemory,
   normalizeApexOsMemoryEntry,
   summarizeApexOsMemory,
@@ -12873,6 +12874,11 @@ app.post("/api/apex-os/memory", requireAuth, asyncRoute(async (req, res) => {
     });
     createdEntry.createdBy = req.auth.user.id;
     createdEntry.createdAt = now;
+    if (isApexOsKnowledgeCategory(createdEntry.category) && String(createdEntry.sourceType || "").toLowerCase() === "knowledge-upload") {
+      createdEntry.status = "suggested";
+      createdEntry.approvedBy = "";
+      createdEntry.approvedAt = "";
+    }
     if (createdEntry.status === "approved") {
       createdEntry.approvedBy = req.auth.user.id;
       createdEntry.approvedAt = now;
