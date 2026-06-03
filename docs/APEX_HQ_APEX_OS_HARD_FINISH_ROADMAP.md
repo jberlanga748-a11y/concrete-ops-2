@@ -405,11 +405,12 @@ Blocked right now:
 
 Status:
 
-- Hard-finished locally on 2026-06-03 and pending production release.
+- Hard-finished, pushed, deployed, and production-checked on 2026-06-03 as Fly release `v648` from commit `c2f99d4`.
 - Completed with source-backed private preference rows, work-style rows, communication rows, daily focus rows, interruption rules, background/check-in rules, preference review controls, and privacy locks inside the private Apex Control Room.
 - Tied to approved decision memory by reusing existing operator-only Apex OS memory category `personal-preference`; no schema, auth/session, provider, production config, or external-action path was added.
 - Review/edit/archive scope is manual only: preference drafts are suggested until approved, source labels are required, secrets are rejected by the existing memory API, and approval does not run agents or perform external work.
 - Validated with focused tests, full Apex OS regression tests, role verification, build, isolated desktop/mobile browser QA, preference draft/load/approval flow, section screenshots, and privacy review.
+- Production evidence: predeploy backup `postgres-app-data-20260603-111313Z.json` plus `uploads-20260603-111313Z`; image `registry.fly.io/concrete-ops-2:deployment-01KT6K0MDP5471S3TZBB3HHGHT`; rollback target `v647`; Fly machine/checks passing; both ready endpoints database OK; health OK; hosted skip-auth smoke passed; unauthenticated Apex OS endpoints returned 401; Control Room served Phase 16 assets.
 
 ### Phase 17: Full Apex OS QA And Security Hardening
 
