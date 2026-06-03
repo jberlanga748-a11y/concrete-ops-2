@@ -59,7 +59,7 @@ Recommended first implementation:
 Current implementation status:
 
 - Apex OS Phase 1 / Slice 1 is hard-finished locally as of 2026-06-03: `/apex-control-room` route, `apexControlRoom` module, `apexOs` bootstrap permission, private operator nav visibility, and direct-route/API blocking are frozen to the normal Apex HQ login plus private `operatorAccess`, an office-level role, the default Apex HQ operating workspace, and server bootstrap permission. Customer/company workspaces stay blocked even after operator company switching.
-- Apex OS Phase 2 / Apex-Branded Control Room Shell is hard-finished locally as of 2026-06-03: the private shell uses Apex HQ branding, private operator identity, dark sidebar/orange active state, white command-board panels, the required top KPI row (`App Build Status`, `Active Agents`, `Launch Blockers`, `Approvals`), and the required main panels (`Apex Briefing`, `Priority Queue`, `Agents`, `Approvals`, `Memory / Decisions`). The KPI row no longer shows contractor/customer dashboard counts, and local browser QA used an empty private Apex HQ workspace payload to verify no demo/customer Today content leaks into the shell.
+- Apex OS Phase 2 / Apex-Branded Control Room Shell is hard-finished and deployed as of 2026-06-03: the private shell uses Apex HQ branding, private operator identity, dark sidebar/orange active state, white command-board panels, the required top KPI row (`App Build Status`, `Active Agents`, `Launch Blockers`, `Approvals`), and the required main panels (`Apex Briefing`, `Priority Queue`, `Agents`, `Approvals`, `Memory / Decisions`). The KPI row no longer shows contractor/customer dashboard counts, and local browser QA used an empty private Apex HQ workspace payload to verify no demo/customer Today content leaks into the shell.
 - Apex OS Slice 2 is implemented locally: the Control Room now uses a read-only Apex OS state aggregator that surfaces operating signals, next best actions, launch readiness, release safety, Agent OS task availability, trust/audit readiness, approval gates, and recent evidence from existing Apex HQ systems.
 - Apex OS Phase 4 / Slice 3 is complete locally as of 2026-06-03: the Control Room now shows Decision Memory and Operating Rules sourced from the Apex OS master plan plus durable Apex OS memory, including John/Apex HQ identity, private operator-only access, approval boundaries, local/private autonomy, build order, source order, field boundaries, no-secrets memory, build-freeze discipline, business-goal memory, and personal-preference memory.
 - Apex OS Slice 4 is implemented locally: the Control Room now shows a read-only Agent Work Queue, Agent Run Ledger, Agent Safety Locks, and Locked Agent Tasks using existing Agent OS task/run helpers. It shows what can be planned or reviewed, not anything that runs agents.
@@ -165,6 +165,9 @@ Validation plan/results:
 - `npm.cmd run verify:roles` passed with 15 passing tests.
 - `npm.cmd run build` passed with the existing large-chunk warnings.
 - Browser QA passed locally on `http://127.0.0.1:5173` with a mocked private Apex HQ operator bootstrap that contained no customer/demo records: desktop `/apex-control-room` showed the required KPIs and panels, no horizontal overflow, and no contractor Today content; mobile `/jobs` redirected to `/apex-control-room`, showed the required KPIs, no horizontal overflow, no contractor Today content, opaque Apex OS bottom nav, and zero actionable overlap; field mobile direct route to `/apex-control-room` redirected to `/jobs` with no Apex Control Room or Apex OS nav exposure.
+- Production release was approved and deployed on 2026-06-03 from commit `eb6595f` to Fly app `concrete-ops-2`, machine `148e06e2b53d68`, version `634`, image `registry.fly.io/concrete-ops-2:deployment-01KT5SASRM9Z1ZTW1RY0S39Y3A`; rollback target is version `633`, image `registry.fly.io/concrete-ops-2:deployment-01KT5Q7T38PVKCT8C1J21KXJNN`.
+- Post-deploy checks passed: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned `ready` with `database: ok`; `https://concrete-ops-2.fly.dev/api/health` returned `healthy`; hosted skip-auth smoke against `https://app.apexhq.online/` passed health and route checks; `/apex-control-room` served the new `index-CMX1-HtE.js` and `app-domain-k09aT8xJ.js` bundles on both production hosts; unauthenticated `/api/apex-os/memory` returned 401; Fly status showed version `634` started with 1 passing check; logs showed normal API startup, health passing, and successful `/api/ready`, `/api/health`, `/apex-control-room`, and route-smoke requests.
+- Production auth smoke/login was not run in this release pass; this was a skip-auth health/route/bundle/API-denial production check only.
 
 Permissions impact:
 
@@ -184,7 +187,7 @@ Rollback plan:
 
 Next recommended phase:
 
-- Phase 2 is locally hard-finished. Deploy this hardening to production only after explicit release approval, then continue phase-by-phase with Phase 3 hardening.
+- Phase 2 is hard-finished, deployed, and ready to freeze. Continue phase-by-phase with Phase 3 hardening; do not start Phase 4/5 rework inside the Phase 3 pass.
 
 ## Apex OS Phase 4: Decision Memory And Operating Rules Completion Report
 

@@ -245,14 +245,16 @@ Validation:
 
 Status:
 
-- Hard-finished locally on 2026-06-03.
+- Hard-finished and deployed on 2026-06-03.
 - The private shell uses Apex HQ logo/branding, private operator identity, dark sidebar/orange active state, white command-board panels, desktop/mobile layouts, and the production operator shell route behavior already deployed in Phase 1/operator-shell hardening.
 - The required top KPI row is now explicit: `App Build Status`, `Active Agents`, `Launch Blockers`, and `Approvals`.
 - The required main panels are now explicit near the top of the Control Room: `Apex Briefing`, `Priority Queue`, `Agents`, `Approvals`, and `Memory / Decisions`.
 - The top KPI row no longer uses contractor/customer dashboard counts such as jobs/leads/estimates as Apex OS shell metrics.
 - Mobile shell hardening stacks KPI cards on narrow screens, gives the Control Room bottom-nav clearance, and makes the Apex OS mobile nav opaque on the Control Room page.
 - Validation passed on 2026-06-03 with focused Control Room/route/mobile/import tests, `npm.cmd run verify:roles`, `npm.cmd run build`, and local desktop/mobile browser QA proving required KPI/panel visibility, no horizontal overflow, no contractor Today content in the private shell, mobile `/jobs` redirecting to `/apex-control-room`, and field direct-route blocking back to `/jobs`.
-- No schema change, auth/session change, provider setup, production data mutation, deploy, customer-visible action, send, spend, billing/payment, deletion, or external execution path was added in this Phase 2 hard-finish pass.
+- Production release approved and deployed on 2026-06-03 from commit `eb6595f` to Fly app `concrete-ops-2`, machine `148e06e2b53d68`, version `634`, image `registry.fly.io/concrete-ops-2:deployment-01KT5SASRM9Z1ZTW1RY0S39Y3A`; rollback target is version `633`, image `registry.fly.io/concrete-ops-2:deployment-01KT5Q7T38PVKCT8C1J21KXJNN`.
+- Post-deploy health, hosted skip-auth route smoke, `/apex-control-room` bundle checks on both production hosts, unauthenticated Apex OS API denial, Fly machine check, and production log snapshot passed. Production auth smoke/login was not run in this release pass.
+- No schema change, auth/session change, provider setup, production data mutation, customer-visible action, send, spend, billing/payment, deletion, or external execution path was added in this Phase 2 hard-finish and approved release pass.
 
 ### Phase 3: Apex OS State Aggregator
 
