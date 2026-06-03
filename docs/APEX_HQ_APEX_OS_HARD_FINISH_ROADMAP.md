@@ -383,7 +383,7 @@ Status:
 - Build awareness parses living-plan deploy-log rows so the desk can show the current production version, commit, image, health/hosted smoke evidence, backup evidence, and recent Apex OS deploy history.
 - The deploy-approved path stays locked and manual: the UI shows validation gates, exact approval phrase, manual deploy handoff, and post-deploy evidence rows, but no deploy/rollback execution is available from Apex OS.
 - Local validation passed: focused deploy-history/release-desk/component tests, Apex OS regression tests, `npm.cmd run verify:roles`, `npm.cmd run build`, and desktop/mobile browser QA with production `v646` evidence and disabled deploy-approved lock.
-- Production release is pending commit, push, backup-first clean-worktree deploy, hosted checks, and release evidence.
+- Production release was deployed on 2026-06-03 from commit `e86b88e` to Fly app `concrete-ops-2` as version `647`, image `registry.fly.io/concrete-ops-2:deployment-01KT6H78S4DEYNQ1S72N63TTXS`, with predeploy backup `postgres-app-data-20260603-104153Z.json`, upload snapshot `uploads-20260603-104153Z`, rollback target `v646`, production ready/health checks, hosted skip-auth health/routes smoke, Control Room asset verification, setup-status verification, and protected unauthenticated Apex OS endpoint checks.
 
 Blocked right now:
 
