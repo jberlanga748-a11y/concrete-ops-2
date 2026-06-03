@@ -207,7 +207,7 @@ Validation:
 
 Status:
 
-- Hard-finished locally on 2026-06-03.
+- Hard-finished, pushed, deployed, and production-checked on 2026-06-03.
 - Access is frozen to the existing Apex HQ login plus the private `operator_access` / `operatorAccess` flag, an office-level role, the default Apex HQ operating workspace, and the server bootstrap `permissions.apexOs.canView` gate.
 - Operator access no longer follows an operator into a selected customer/company workspace. Operators can still switch companies, but Apex OS route/nav/API access is hidden and returns 403 until the default Apex HQ operating workspace is selected again.
 - Normal admins without operator access, estimators, foremen, employees, demo users without the flag, customer/company users, and switched customer-company workspaces cannot see the Apex OS nav item or access Apex OS APIs.
@@ -727,7 +727,8 @@ Status:
 - Conflict detection flags current-rule conflicts such as automatic trust, field access to pricing/private data, external actions without approval, and secret storage; it also flags "This conflicts with older memory" when active memory rows disagree.
 - No unreviewed uploaded document becomes trusted automatically, no customer/public knowledge is mixed into Apex OS, no embeddings/vector index/schema/storage was added, no frontend provider secret was added, and no provider write, production/customer mutation, send, spend, billing/payment, deploy/rollback execution, deletion, or irreversible action path was added.
 - Validation passed with focused source-ranking/conflict/provider-payload tests, Apex OS privacy/access server tests, the 114-test Apex OS route/nav/permission regression suite, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and desktop/mobile browser QA on `/apex-control-room` for Knowledge Intelligence refresh, ranked evidence, conflict warnings, date filter, vector-search lock, no failed post-login requests, and no horizontal overflow.
-- Production release is pending.
+- Production release was deployed on 2026-06-03 from commit `f8193ad` to Fly app `concrete-ops-2` as version `645`, image `registry.fly.io/concrete-ops-2:deployment-01KT6DWEVTQ5CBC5V8TX7TX5CZ`, with predeploy production backup `postgres-app-data-20260603-094325Z.json` and upload snapshot `uploads-20260603-094325Z`.
+- Post-deploy checks passed on 2026-06-03: both production `/api/ready` endpoints returned ready/database ok, `https://concrete-ops-2.fly.dev/api/health` returned healthy, Fly machine `148e06e2b53d68` was on version `645` with 1 passing check, hosted skip-auth health/routes smoke passed on `https://app.apexhq.online/`, `/apex-control-room` served `index-9Ub5wvmX.js` and `app-domain-DwwCEagD.js`, unauthenticated Apex OS knowledge-intelligence, memory, and Ask Apex endpoints returned 401, and `/api/setup/status` showed demo mode off, demo user absent, and public signup disabled. Production auth smoke/login was not run.
 
 ### Phase 14: Action Execution Layer
 

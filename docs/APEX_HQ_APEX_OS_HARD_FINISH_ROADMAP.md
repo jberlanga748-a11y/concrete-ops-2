@@ -307,7 +307,7 @@ Hard-finish package:
 
 Status:
 
-- Completed locally on 2026-06-03.
+- Hard-finished, pushed, deployed, and production-checked on 2026-06-03.
 - The private Voice Interface now has click-to-record push-to-talk, Stop & transcribe, manual transcript fallback, transcript confirmation, command review for the original Phase 12 phrases, safe Ask Apex question handoff, and Speak answer / Stop voice playback.
 - Server-only `/api/apex-os/voice/speech` and `/api/apex-os/voice/transcribe` use `OPENAI_API_KEY` only when configured. Speech falls back safely to browser playback when the key is absent, and transcription stays manual/reviewed when the provider is unavailable.
 - Voice command reviews stay execution-locked: no agent pause/resume/run, decision write, approval execution, send, spend, deploy, billing/payment, customer-visible action, or production mutation can happen from voice.
@@ -336,7 +336,8 @@ Status:
 - Operator-only `/api/apex-os/knowledge-intelligence` returns local intelligence without a provider and optional server-side AI summary/classification when `OPENAI_API_KEY` is configured.
 - Embeddings/vector search remains locked because no private vector storage/schema approval was given.
 - Focused source-ranking/conflict/provider-shape tests, server privacy/access tests, broader Apex OS regression, role verification, production build, diff hygiene, and desktop/mobile browser QA passed.
-- Production release is pending.
+- Production release was deployed on 2026-06-03 from commit `f8193ad` to Fly app `concrete-ops-2` as version `645`, image `registry.fly.io/concrete-ops-2:deployment-01KT6DWEVTQ5CBC5V8TX7TX5CZ`, after production backup `postgres-app-data-20260603-094325Z.json` plus upload snapshot `uploads-20260603-094325Z`. Rollback target is version `644`, image `registry.fly.io/concrete-ops-2:deployment-01KT6BZ28V8HTPBNCWZEA27DXY`.
+- Post-deploy checks passed: both production `/api/ready` endpoints returned ready/database ok, `https://concrete-ops-2.fly.dev/api/health` returned healthy, Fly machine `148e06e2b53d68` was on version `645` with 1 passing check, hosted skip-auth health/routes smoke passed, `/apex-control-room` served the Phase 13 bundles, unauthenticated Apex OS knowledge-intelligence, memory, and Ask Apex endpoints returned 401, and `/api/setup/status` showed demo mode off, demo user absent, and public signup disabled. Production auth smoke/login was not run.
 
 Blocked right now:
 
