@@ -427,11 +427,11 @@ Blocked right now:
 
 Status:
 
-- Hard-finished locally on 2026-06-03 against the original Phase 17 scope.
+- Hard-finished, pushed, deployed, and production-checked on 2026-06-03 as Fly release `v649` from commit `52a3cf4`.
 - Completed with final QA / Security Hardening evidence rows for role and field restrictions, customer/company isolation, direct-route blocking, source-backed answers, upload privacy, approval gates, build/test/release safety, desktop/mobile visual QA, production-preview smoke proof path, docs/memory drift, no secrets, no risky-action bypass, and Apex OS access kill-switch proof.
 - Validated with focused hardening/component tests, broad Apex OS role/security/company-scope regression coverage with transient company-scope startup rerun passing, role verification, production build, diff check, and isolated desktop/mobile/admin-blocked browser QA.
 - No schema, auth/session, provider setup, production data mutation, customer-visible action, send, spend, billing/payment, deploy/rollback execution from the UI, deletion, or irreversible action path was added.
-- Production release is pending the Phase 17 commit, push, approved deploy, hosted smoke, protected endpoint checks, setup checks, Control Room asset verification, rollback evidence, and release-evidence doc commit.
+- Production evidence: predeploy backup `postgres-app-data-20260603-114137Z.json` plus `uploads-20260603-114137Z`; image `registry.fly.io/concrete-ops-2:deployment-01KT6MMM45QFCTYRQVCF7ABG07`; rollback target `v648`; Fly machine/checks passing; both ready endpoints database OK; health OK; hosted skip-auth smoke passed; unauthenticated Apex OS endpoints returned 401; setup status remained production/private; Control Room served Phase 17 assets.
 
 ### Phase 18: Finished Apex OS
 
