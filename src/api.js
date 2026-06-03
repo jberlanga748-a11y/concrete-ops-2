@@ -423,6 +423,18 @@ export function getApexOsDailyBriefing(token) {
   return request("/api/apex-os/daily-briefing", { token });
 }
 
+export function getApexOsMemory(token) {
+  return request("/api/apex-os/memory", { token });
+}
+
+export function createApexOsMemory(token, payload = {}) {
+  return request("/api/apex-os/memory", { method: "POST", token, body: payload });
+}
+
+export function updateApexOsMemory(token, id, payload = {}) {
+  return request(`/api/apex-os/memory/${encodeURIComponent(id)}`, { method: "PATCH", token, body: payload });
+}
+
 export function getApexOsApprovalPackets(token) {
   return request("/api/apex-os/approval-packets", { token });
 }

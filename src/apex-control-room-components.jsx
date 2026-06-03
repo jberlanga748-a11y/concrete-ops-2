@@ -2,11 +2,14 @@ import { useState } from "react";
 
 import {
   askApexOs,
+  createApexOsMemory,
   createApexOsApprovalPacket,
   createApexOsExecutionHandoff,
+  getApexOsMemory,
   getApexOsApprovalPackets,
   getApexOsDailyBriefing,
   getApexOsExecutionHandoffs,
+  updateApexOsMemory,
   updateApexOsApprovalPacket,
   updateApexOsExecutionHandoff,
 } from "./api";
@@ -70,6 +73,8 @@ function MemoryRow({ item }) {
           <p className="mt-1 break-words text-sm font-black text-slate-950">{item.title}</p>
           <p className="mt-1 break-words text-xs font-bold leading-5 text-slate-600">{item.detail}</p>
           {item.source || item.sourceLabel ? <p className="mt-2 break-words text-[11px] font-black text-slate-500">Source: {item.sourceLabel || item.source}</p> : null}
+          {item.recordedAt ? <p className="mt-1 break-words text-[11px] font-black text-slate-500">Recorded: {item.recordedAt}</p> : null}
+          {item.reviewNote ? <p className="mt-1 break-words text-[11px] font-black text-slate-500">Review: {item.reviewNote}</p> : null}
         </div>
         <ToneBadge tone={item.tone}>{item.status}</ToneBadge>
       </div>
@@ -356,6 +361,185 @@ function DailyBriefingPanel({ state, sessionToken }) {
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+const EMPTY_DECISION_MEMORY_FORM = {
+  category: "roadmap-decision",
+  title: "",
+  body: "",
+  sourceType: "manual",
+  sourceLabel: "Apex Control Room",
+  sourceUri: "",
+  reviewNote: "",
+  status: "suggested",
+  confidence: 80,
+};
+
+function DecisionMemoryManager({ state, sessionToken }) {
+  const [form, setForm] = useState(EMPTY_DECISION_MEMORY_FORM);
+  const [memoryRows, setMemoryRows] = useState(state.decisionMemory?.durableEntries || []);
+  const [summary, setSummary] = useState(null);
+  const [notice, setNotice] = useState("");
+  const [loading, setLoading] = useState(false);
+  const canUse = state.canView && Boolean(sessionToken) && !loading;
+  const canCreate = canUse && form.title.trim() && form.body.trim() && form.sourceLabel.trim();
+  const activeSummary = summary || state.decisionMemory?.memorySummary || { total: memoryRows.length, approved: 0, suggested: 0, archived: 0 };
+
+  function updateField(field, value) {
+    setForm((current) => ({ ...current, [field]: value }));
+    setNotice("");
+  }
+
+  async function refreshMemory() {
+    if (!canUse) return;
+    setLoading(true);
+    setNotice("");
+    try {
+      const payload = await getApexOsMemory(sessionToken);
+      setMemoryRows(payload.apexOsMemory || []);
+      setSummary(payload.summary || null);
+      setNotice("Decision memory loaded from private Apex OS storage.");
+    } catch (error) {
+      setNotice(error?.message || "Decision memory could not load right now.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitMemory(event) {
+    event.preventDefault();
+    if (!canCreate) return;
+    setLoading(true);
+    setNotice("");
+    try {
+      const payload = await createApexOsMemory(sessionToken, { ...form, status: "suggested" });
+      setMemoryRows((current) => [payload.apexOsMemoryEntry, ...current].filter(Boolean));
+      setSummary((current) => ({
+        total: (current?.total || 0) + 1,
+        approved: current?.approved || 0,
+        suggested: (current?.suggested || 0) + 1,
+        archived: current?.archived || 0,
+      }));
+      setForm(EMPTY_DECISION_MEMORY_FORM);
+      setNotice("Decision memory drafted as suggested. It is not operating context until approved.");
+    } catch (error) {
+      setNotice(error?.message || "Decision memory could not be saved right now.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function setMemoryStatus(row, status) {
+    if (!canUse || !row?.id) return;
+    setLoading(true);
+    setNotice("");
+    try {
+      await updateApexOsMemory(sessionToken, row.id, { ...row, status });
+      const payload = await getApexOsMemory(sessionToken);
+      setMemoryRows(payload.apexOsMemory || []);
+      setSummary(payload.summary || null);
+      setNotice(status === "archived" ? "Decision archived. It no longer feeds approved Apex OS context." : "Decision approved for source-backed Apex OS context.");
+    } catch (error) {
+      setNotice(error?.message || "Decision memory could not be updated right now.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="grid min-w-0 gap-4">
+      <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatusRow item={{
+          id: "decision-memory-saved",
+          title: "Saved memory",
+          status: `${activeSummary.total || 0}`,
+          detail: `${activeSummary.approved || 0} approved, ${activeSummary.suggested || 0} suggested, ${activeSummary.archived || 0} archived.`,
+          tone: activeSummary.approved ? "green" : "blue",
+        }} />
+        <StatusRow item={{
+          id: "decision-memory-categories",
+          title: "Phase 4 categories",
+          status: `${state.decisionMemory.coveredCategoryCount || 0}/${state.decisionMemory.categoryCount || 0}`,
+          detail: "Product identity, safety, roadmap, build freeze, business goal, provider/account, and personal preference decisions are covered.",
+          tone: "green",
+        }} />
+      </div>
+
+      <form className="grid min-w-0 gap-3 rounded-xl border border-slate-200 bg-white p-3" onSubmit={submitMemory}>
+        <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_260px]">
+          <input
+            value={form.title}
+            onChange={(event) => updateField("title", event.target.value)}
+            maxLength={140}
+            placeholder="Decision title"
+            className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700"
+            disabled={!state.canView || loading}
+          />
+          <select
+            value={form.category}
+            onChange={(event) => updateField("category", event.target.value)}
+            className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700"
+            disabled={!state.canView || loading}
+          >
+            {state.decisionMemory.categories.map((category) => (
+              <option key={category.id} value={category.id}>{category.label}</option>
+            ))}
+          </select>
+        </div>
+        <textarea
+          value={form.body}
+          onChange={(event) => updateField("body", event.target.value)}
+          maxLength={1800}
+          placeholder="What did John decide?"
+          className="min-h-20 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold leading-6 text-slate-700"
+          disabled={!state.canView || loading}
+        />
+        <div className="grid min-w-0 gap-3 lg:grid-cols-3">
+          <input value={form.sourceLabel} onChange={(event) => updateField("sourceLabel", event.target.value)} maxLength={120} placeholder="Source label" className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700" disabled={!state.canView || loading} />
+          <input value={form.sourceUri} onChange={(event) => updateField("sourceUri", event.target.value)} maxLength={240} placeholder="Source URI or file" className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700" disabled={!state.canView || loading} />
+          <input value={form.reviewNote} onChange={(event) => updateField("reviewNote", event.target.value)} maxLength={300} placeholder="Review note" className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700" disabled={!state.canView || loading} />
+        </div>
+        <div className="flex min-w-0 flex-wrap gap-2">
+          <Button type="submit" variant="secondary" size="sm" disabled={!canCreate}>
+            <Icon name="clipboard" /> {loading ? "Saving..." : "Draft memory"}
+          </Button>
+          <Button type="button" variant="secondary" size="sm" onClick={refreshMemory} disabled={!canUse}>
+            <Icon name="refresh" /> Load decisions
+          </Button>
+          <Button type="button" disabled variant="secondary" size="sm">
+            <Icon name="lock" /> No hidden memory
+          </Button>
+        </div>
+        <p className="break-words text-xs font-black leading-5 text-slate-500">{notice || "Memory requires a source label, stores no secrets, starts as suggested, and becomes operating context only after manual approval."}</p>
+      </form>
+
+      <div className="grid min-w-0 gap-3">
+        {memoryRows.length ? memoryRows.slice(0, 6).map((row) => (
+          <div key={row.id} className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+            <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <p className="break-words text-[10px] font-black uppercase tracking-[0.16em] text-orange-700">{String(row.category || "general").replace(/-/g, " ")}</p>
+                <p className="mt-1 break-words text-sm font-black text-slate-950">{row.title}</p>
+                <p className="mt-1 break-words text-xs font-bold leading-5 text-slate-600">{row.body}</p>
+                <p className="mt-2 break-words text-[11px] font-black text-slate-500">Source: {row.sourceLabel || "Missing source"}{row.createdAt ? ` | Created: ${row.createdAt}` : ""}</p>
+              </div>
+              <ToneBadge tone={row.status === "approved" ? "green" : row.status === "archived" ? "slate" : "blue"}>{row.status}</ToneBadge>
+            </div>
+            <div className="mt-3 flex min-w-0 flex-wrap gap-2">
+              <Button type="button" variant="secondary" size="sm" onClick={() => setMemoryStatus(row, "approved")} disabled={!canUse || row.status === "approved" || row.status === "archived"}>
+                <Icon name="check" /> Approve
+              </Button>
+              <Button type="button" variant="secondary" size="sm" onClick={() => setMemoryStatus(row, "archived")} disabled={!canUse || row.status === "archived"}>
+                <Icon name="clock" /> Archive
+              </Button>
+            </div>
+          </div>
+        )) : (
+          <EmptyPanel>No durable decision memory loaded yet.</EmptyPanel>
+        )}
+      </div>
     </div>
   );
 }
@@ -1056,7 +1240,7 @@ export function ApexControlRoomPage(props) {
           <Card className="min-w-0 p-4 sm:p-5">
             <SectionHeader
               title="Decision Memory"
-              description={`What John decided. ${state.decisionMemory.decisionCount || 0} decisions are visible from the saved Apex OS plan.`}
+              description={`What John decided. ${state.decisionMemory.decisionCount || 0} plan decisions and ${state.decisionMemory.durableCount || 0} durable memory rows are visible.`}
               action={<ToneBadge tone={state.decisionMemory.tone}>{state.decisionMemory.status}</ToneBadge>}
             />
             <div className="grid min-w-0 gap-3 lg:grid-cols-2">
@@ -1072,6 +1256,17 @@ export function ApexControlRoomPage(props) {
             <div className="grid min-w-0 gap-3">
               {state.decisionMemory.rules.map((item) => <MemoryRow key={item.id} item={item} />)}
             </div>
+          </Card>
+        </section>
+
+        <section className="grid min-w-0 gap-4">
+          <Card className="min-w-0 p-4 sm:p-5">
+            <SectionHeader
+              title="What Did I Decide?"
+              description="Source-backed decision memory with manual draft, approve, and archive controls."
+              action={<ToneBadge tone={state.decisionMemory.approvedCount ? "green" : "blue"}>{state.decisionMemory.approvedCount || 0} approved</ToneBadge>}
+            />
+            <DecisionMemoryManager state={state} sessionToken={props.sessionToken} />
           </Card>
         </section>
 

@@ -309,11 +309,15 @@ Validation:
 
 Status:
 
-- Implemented locally on 2026-06-02 as Apex OS Slice 3.
-- Added read-only Decision Memory and Operating Rules to the private Apex Control Room.
-- Current memory is seeded from this master plan and includes source/status metadata for John/Apex HQ identity, private operator-only access, approval boundaries, local/private autonomy, safe build order, no-secrets memory, source order, no hidden risky memory, field boundaries, and external-impact approval rules.
-- This is not yet an editable database-backed memory system. Manual approve/archive, hidden-memory prevention workflows, and any writable storage remain deferred until John explicitly approves the storage/schema slice.
-- Validation passed with focused Apex OS utility/import tests, the 77-test permission/routing/bootstrap suite, `npm.cmd run build`, `git diff --check` with CRLF warnings only, and desktop/mobile browser QA with no horizontal overflow and normal admin blocked/redirected away from Apex OS.
+- Completed locally to 100% on 2026-06-03.
+- Decision Memory and Operating Rules now include the original Phase 4 decision categories: product identity, safety rule, roadmap decision, build freeze, business goal, provider/account decision, and personal preference.
+- The private Apex Control Room now has a "What Did I Decide?" view backed by durable Apex OS memory in existing company settings as `apexOsMemory`.
+- Source and timestamp tracking are shown for seeded plan decisions and durable memory rows.
+- Manual draft, load, approve, and archive controls are available only to the private Apex OS operator account through existing operator-only `/api/apex-os/memory` endpoints.
+- Suggested memory does not become approved Apex OS context until manually approved; archived memory no longer feeds approved context.
+- Secret/customer-email rejection, source-label requirements, audit/activity logging, restricted-route/API protection, and no-hidden-memory boundaries are enforced.
+- No schema change, auth/session change, provider setup, production data mutation, deploy, customer-visible action, send, spend, billing/payment, file deletion, or Phase 5 upload/storage/parser work was added in this completion pass.
+- Validation passed on 2026-06-03 with focused memory utility/API/UI import tests plus role permission tests; build, diff check, and browser QA are recorded in the living finish plan.
 
 ### Phase 5: Knowledge Upload Vault
 

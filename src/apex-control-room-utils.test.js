@@ -9,6 +9,7 @@ import {
   APEX_OS_CHAT_CONTEXTS,
   APEX_OS_APPROVAL_CONTROL_LOCKS,
   APEX_OS_APPROVAL_PACKET_FIELDS,
+  APEX_OS_DECISION_CATEGORIES,
   APEX_OS_MEMORY_SOURCE,
   APEX_OS_RELEASE_MONITORING_CHECKS,
   APEX_OS_RELEASE_MONITORING_LOCKS,
@@ -134,7 +135,7 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.launchReadiness.blockedCount > 0, true);
   assert.equal(state.launchReadiness.gates.length, 4);
   assert.match(state.nextBestActions.find((item) => item.id === "release-approval")?.detail || "", /John approval/);
-  assert.match(state.nextBestActions.find((item) => item.id === "memory-review")?.detail || "", /approve\/archive memory/);
+  assert.match(state.nextBestActions.find((item) => item.id === "memory-review")?.detail || "", /manually approve or archive/);
   assert.equal(state.nextBestActions.find((item) => item.id === "ask-apex-chat-plan")?.status, "Ready");
   assert.equal(state.nextBestActions.find((item) => item.id === "voice-interface-plan")?.status, "Ready");
   assert.equal(state.nextBestActions.find((item) => item.id === "approval-command-center-plan")?.status, "Ready");
@@ -143,8 +144,13 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.nextBestActions.find((item) => item.id === "qa-security-hardening-plan")?.status, "Ready");
   assert.equal(state.decisionMemory.status, "Seeded from plan");
   assert.equal(state.decisionMemory.source, APEX_OS_MEMORY_SOURCE);
-  assert.equal(state.decisionMemory.decisionCount, 6);
+  assert.equal(state.decisionMemory.decisionCount, 8);
   assert.equal(state.decisionMemory.ruleCount, 4);
+  assert.equal(state.decisionMemory.categoryCount, APEX_OS_DECISION_CATEGORIES.length);
+  assert.equal(state.decisionMemory.coveredCategoryCount, APEX_OS_DECISION_CATEGORIES.length);
+  assert.equal(state.decisionMemory.categories.some((item) => item.id === "build-freeze" && item.status === "Covered"), true);
+  assert.equal(state.decisionMemory.categories.some((item) => item.id === "business-goal" && item.status === "Covered"), true);
+  assert.equal(state.decisionMemory.categories.some((item) => item.id === "personal-preference" && item.status === "Covered"), true);
   assert.equal(state.decisionMemory.decisions.some((item) => item.id === "private-operator-only" && item.status === "Locked"), true);
   assert.equal(state.decisionMemory.rules.some((item) => item.id === "field-boundary" && item.status === "Locked"), true);
   assert.equal(state.knowledgeVault.status, "First UI ready");
@@ -256,7 +262,7 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.evidence[0].id, "AUD-3");
 });
 
-test("deriveApexControlRoomState includes durable Apex OS memory summary", () => {
+test("deriveApexControlRoomState includes durable Apex OS decision memory summary", () => {
   const state = deriveApexControlRoomState({
     user: { name: "John Berlanga", role: "Owner", operatorAccess: true },
     permissions: {
@@ -268,28 +274,48 @@ test("deriveApexControlRoomState includes durable Apex OS memory summary", () =>
       apexOsMemory: [
         {
           id: "AOM-1",
-          category: "decision",
+          category: "product-identity",
           title: "Private operating center",
           body: "Apex OS is private to John/operator access.",
           sourceLabel: "Apex OS master plan",
           status: "approved",
+          createdAt: "2026-06-02T01:00:00.000Z",
+          approvedAt: "2026-06-02T01:05:00.000Z",
         },
         {
           id: "AOM-2",
-          category: "business-strategy",
+          category: "business-goal",
           title: "Launch queue",
           body: "Launch work remains approval gated.",
           sourceLabel: "Living plan",
           status: "suggested",
         },
+        {
+          id: "AOM-3",
+          category: "personal-preference",
+          title: "Prefer phase discipline",
+          body: "Work phase by phase before jumping ahead.",
+          sourceLabel: "John instruction",
+          status: "archived",
+        },
       ],
     },
   });
 
+  assert.equal(state.decisionMemory.status, "Durable memory active");
+  assert.equal(state.decisionMemory.durableCount, 3);
+  assert.equal(state.decisionMemory.durableEntries.length, 3);
+  assert.equal(state.decisionMemory.approvedCount, 1);
+  assert.equal(state.decisionMemory.suggestedCount, 1);
+  assert.equal(state.decisionMemory.archivedCount, 1);
+  assert.equal(state.decisionMemory.durableDecisions[0].category, "Product identity");
+  assert.equal(state.decisionMemory.durableDecisions[0].recordedAt, "2026-06-02T01:05:00.000Z");
+  assert.equal(state.nextBestActions.find((item) => item.id === "memory-review")?.status, "Durable");
   assert.equal(state.knowledgeVault.status, "Durable memory active");
-  assert.equal(state.knowledgeVault.memorySummary.total, 2);
+  assert.equal(state.knowledgeVault.memorySummary.total, 3);
   assert.equal(state.knowledgeVault.memorySummary.approved, 1);
   assert.equal(state.knowledgeVault.memorySummary.suggested, 1);
+  assert.equal(state.knowledgeVault.memorySummary.archived, 1);
 });
 
 test("deriveApexControlRoomState includes durable Apex OS approval packet summary", () => {

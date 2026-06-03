@@ -12,7 +12,7 @@ import {
 test("Apex OS memory normalizes source-backed private memory", () => {
   const entry = normalizeApexOsMemoryEntry({
     id: "AOM-1",
-    category: "decision",
+    category: "Product identity",
     title: "John owns Apex HQ",
     body: "Apex OS is the private operating center for Apex HQ.",
     sourceLabel: "Apex OS master plan",
@@ -21,11 +21,42 @@ test("Apex OS memory normalizes source-backed private memory", () => {
     confidence: 95,
   }, { now: "2026-06-02T00:00:00.000Z" });
 
-  assert.equal(entry.category, "decision");
+  assert.equal(entry.category, "product-identity");
   assert.equal(entry.status, "approved");
   assert.equal(entry.sourceLabel, "Apex OS master plan");
   assert.equal(entry.confidence, 95);
   assert.deepEqual(entry.blockedReasons, []);
+});
+
+test("Apex OS memory accepts the original Phase 4 decision categories", () => {
+  const categories = [
+    "product identity",
+    "safety rule",
+    "roadmap decision",
+    "build freeze",
+    "business goal",
+    "provider/account decision",
+    "personal preference",
+  ];
+
+  const memory = normalizeApexOsMemory(categories.map((category, index) => ({
+    id: `AOM-CAT-${index}`,
+    category,
+    title: `${category} decision`,
+    body: `Source-backed ${category} memory.`,
+    sourceLabel: "Phase 4 requirement",
+    status: "suggested",
+  })));
+
+  assert.deepEqual(memory.map((entry) => entry.category), [
+    "product-identity",
+    "safety-rule",
+    "roadmap-decision",
+    "build-freeze",
+    "business-goal",
+    "provider-account-decision",
+    "personal-preference",
+  ]);
 });
 
 test("Apex OS memory rejects secrets and customer emails", () => {

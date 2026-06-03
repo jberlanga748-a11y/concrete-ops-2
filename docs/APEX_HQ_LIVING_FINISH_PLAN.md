@@ -57,7 +57,7 @@ Current implementation status:
 
 - Apex OS Slice 1 is implemented locally: `/apex-control-room` route, `apexControlRoom` module, `apexOs` bootstrap permission, private operator nav visibility, and Apex-branded Control Room shell.
 - Apex OS Slice 2 is implemented locally: the Control Room now uses a read-only Apex OS state aggregator that surfaces operating signals, next best actions, launch readiness, release safety, Agent OS task availability, trust/audit readiness, approval gates, and recent evidence from existing Apex HQ systems.
-- Apex OS Slice 3 is implemented locally: the Control Room now shows read-only Decision Memory and Operating Rules sourced from the Apex OS master plan, including John/Apex HQ identity, private operator-only access, approval boundaries, local/private autonomy, build order, source order, field boundaries, and no-secrets memory.
+- Apex OS Phase 4 / Slice 3 is complete locally as of 2026-06-03: the Control Room now shows Decision Memory and Operating Rules sourced from the Apex OS master plan plus durable Apex OS memory, including John/Apex HQ identity, private operator-only access, approval boundaries, local/private autonomy, build order, source order, field boundaries, no-secrets memory, build-freeze discipline, business-goal memory, and personal-preference memory.
 - Apex OS Slice 4 is implemented locally: the Control Room now shows a read-only Agent Work Queue, Agent Run Ledger, Agent Safety Locks, and Locked Agent Tasks using existing Agent OS task/run helpers. It shows what can be planned or reviewed, not anything that runs agents.
 - Apex OS Slice 5 is implemented locally: the Control Room now shows a read-only Knowledge Vault first UI with private knowledge categories, source candidates, vault safety gates, and intake status. Upload, durable storage, trusted memory, schema, and provider work remain approval-locked.
 - Apex OS Slice 6 is implemented locally: the Control Room now shows a private Ask Apex Chat first UI with context lanes, source/evidence rows, disabled prompt/actions, source-backed answer rules, and provider/action locks. Real model calls, streaming, provider secrets, durable chat, save-as-decision, create-task, approval mutation, schema, and storage remain approval-locked.
@@ -66,7 +66,7 @@ Current implementation status:
 - Apex OS Slice 9 is implemented locally: the Control Room now shows a fuller private Release Desk / Monitoring first UI with release/monitoring checks, daily briefing rows, release readiness packet rows, and monitoring locks. Deploy, rollback execution, production monitoring provider setup, external alerts/notifications, production data mutation, schema/storage, and production configuration remain approval-locked.
 - Apex OS Slice 10 is implemented locally: the Control Room now shows a private Business Command Center first UI with launch, demo/pilot, marketing, sales/outreach, customer success, revenue/pricing/offer queues, launch/founder-demo rows, business briefing rows, and manual-send/spend/billing/claims gates. Live sends, ad spend, billing/payment, public publishing, provider setup, production data, schema/storage, and customer-visible actions remain approval-locked.
 - Apex OS Slice 11 is implemented locally: the Control Room now shows a private QA / Security Hardening surface with final evidence rows, hardening locks, completion audit rows, and security proof sources for John-only access, company/customer isolation, direct-route blocking, field-user blocking, source-backed answers, upload privacy, approval gates, desktop/mobile quality, build/test/release safety, no secrets, and no bypass actions.
-- Apex OS Slice 12 is implemented locally: Apex OS now has a durable source-backed memory API stored through existing company settings as `apexOsMemory`, with private operator-only access, suggested/approved/archived states, source-label requirements, secret/email rejection, audit/activity logging, and Knowledge Vault memory summary counts in the Control Room.
+- Apex OS Slice 12 is implemented locally and has been folded into Phase 4 completion: Apex OS now has a durable source-backed decision memory API stored through existing company settings as `apexOsMemory`, with private operator-only access, suggested/approved/archived states, source-label requirements, source/timestamp tracking, secret/email rejection, audit/activity logging, and a private "What Did I Decide?" view with manual draft/load/approve/archive controls in the Control Room.
 - Apex OS Slice 13 is implemented locally: Ask Apex now has an operator-only `/api/apex-os/ask` endpoint that answers from approved Apex OS memory and source rows, returns source labels and approval warnings, falls back to local source-backed mode when `OPENAI_API_KEY` is not configured, and is provider-ready for server-side OpenAI chat completion when the key is configured. No action execution, sends, deploys, production mutation, or frontend secret exposure was added.
 - Apex OS Slice 14 is implemented locally: the private Control Room Ask Apex panel now submits questions to `/api/apex-os/ask`, renders source-backed answers, source labels, approval warnings, evidence counts, and provider/local mode status, while keeping Evidence, No execution, save-as-decision, create-task, approval mutation, sends, deploys, and all external actions locked.
 - Apex OS Slice 15 is implemented locally: the private Voice Interface now supports manual transcript confirmation and can copy a confirmed transcript into Ask Apex as a question. It still does not request microphone permission, capture/store audio, call speech providers, enable always-listening, execute voice commands, write approvals, deploy, send, spend, publish, or mutate production/customer data.
@@ -76,6 +76,60 @@ Current implementation status:
 - Access uses the existing local/private `operatorAccess` flag plus office-level role checks. Normal admins without operator access, estimators, field users, and employees do not get the route/nav permission.
 - The current shell is safe: no auth/session change, no upload parser, no streaming, no microphone permission, no speech provider, no always-listening, no audio capture/storage, no approval execution controls, no agent queue/run execution controls, no deploy, no rollback execution, no production monitoring provider changes, no external alerts, no production data mutation, no live sends, no ad spend, no billing/payment, no public publishing, no customer-visible send/publish/spend/delete behavior, and no irreversible action path. Durable Apex OS memory, approval packet drafts, and execution handoff drafts use the existing company settings persistence path instead of a new table. Ask Apex provider mode uses server-side `OPENAI_API_KEY` only when configured; local validation currently shows the key is missing, so local Ask Apex runs in source-backed fallback mode. Voice is transcript-only in this slice. Daily Briefing refresh is read-only.
 - Visual QA artifacts: `ui-audit/apex-control-room-local/desktop-apex-control-room.png`, `ui-audit/apex-control-room-local/mobile-apex-control-room.png`, `ui-audit/apex-control-room-local/desktop-admin-blocked.png`, `ui-audit/apex-control-room-local/desktop-apex-control-room-qa-security.png`, `ui-audit/apex-control-room-local/mobile-apex-control-room-qa-security.png`, `ui-audit/apex-control-room-local/desktop-admin-blocked-qa-security.png`, `ui-audit/apex-control-room-local/desktop-apex-control-room-ask-apex-live.png`, `ui-audit/apex-control-room-local/desktop-admin-blocked-ask-apex-live.png`, `ui-audit/apex-control-room-local/desktop-apex-control-room-voice-transcript-ask.png`, `ui-audit/apex-control-room-local/desktop-apex-control-room-daily-briefing-refresh.png`, and `ui-audit/apex-control-room-local/desktop-admin-blocked-daily-briefing-refresh.png`.
+
+## Apex OS Phase 4: Decision Memory And Operating Rules Completion Report
+
+Goal:
+
+- Finish Phase 4 from the original Apex OS master plan before starting Phase 5.
+
+What was already built:
+
+- Read-only seeded Decision Memory and Operating Rules were already visible in the private Apex Control Room.
+- Operator-only `/api/apex-os/memory` endpoints already persisted `apexOsMemory` in existing company settings, required source labels, rejected secrets/customer emails, supported suggested/approved/archived states, and logged audit/activity rows.
+
+What was completed now:
+
+- Added the original Phase 4 category model: product identity, safety rule, roadmap decision, build freeze, business goal, provider/account decision, and personal preference.
+- Added build-freeze and business-goal seeded memory rows.
+- Moved durable memory into the Decision Memory state instead of only the Knowledge Vault summary.
+- Added a private "What Did I Decide?" Control Room view with draft, load, manual approve, and archive controls.
+- Kept newly drafted memory suggested by default so it does not become operating context until explicitly approved.
+- Updated focused tests and docs to mark Phase 4 complete.
+
+Risk level:
+
+- Low. This uses existing company settings persistence and existing operator-only Apex OS API guards. No schema, auth/session, provider, production, customer-visible, billing/payment, send, spend, deletion, or Phase 5 upload/parser work was added.
+
+Validation plan/results:
+
+- Focused Phase 4 validation passed locally: `node --test --test-concurrency=1 shared/apexOsMemory.test.js server/apex-os-memory.test.js src/apex-control-room-utils.test.js src/apex-control-room-components-import.test.js shared/permissions.test.js server/role-permissions.test.js`.
+- Broader Apex OS route/nav/bootstrap validation passed locally: `node --test --test-concurrency=1 shared/permissions.test.js src/app-routing.test.js src/navigation-utils.test.js src/app-state-utils.test.js src/mobile-nav-utils.test.js src/app-navigation-components-import.test.js src/apex-control-room-utils.test.js src/apex-control-room-components-import.test.js server/role-permissions.test.js` with 80 passing tests.
+- `npm.cmd run build` passed with the existing large-chunk warnings.
+- `git diff --check` passed with CRLF warnings only.
+- Browser QA passed locally on `http://127.0.0.1:5173/apex-control-room`: private operator desktop drafted, manually approved, and archived a local-only decision memory row; private operator mobile showed the Phase 4 memory surface with no horizontal overflow; normal admin direct-route QA redirected to `/` and exposed no Apex Control Room, Decision Memory, or "What Did I Decide?" content.
+- QA screenshots: `ui-audit/apex-control-room-local/desktop-apex-control-room-phase-4-decision-memory.png`, `ui-audit/apex-control-room-local/mobile-apex-control-room-phase-4-decision-memory.png`, and `ui-audit/apex-control-room-local/desktop-admin-blocked-phase-4-decision-memory.png`.
+- The browser-created QA memory row was removed from local data after validation, and `demo.ops@apexhq.app` / `demo.admin@apexhq.app` `operator_access` flags were restored to `0`.
+
+Permissions impact:
+
+- No permission loosening. Memory APIs and UI remain private operator-only through the Apex OS access gate.
+
+Mobile impact:
+
+- The new memory panel uses existing responsive Control Room card/form patterns. Private operator mobile browser QA passed with no horizontal overflow.
+
+Field-user impact:
+
+- None. Field users remain blocked from Apex OS, AI office tools, leads, estimates, pricing, profit/margins, payroll, office notes, admin settings, billing, and other company data.
+
+Rollback plan:
+
+- Revert the Phase 4 completion commit to remove the added decision categories, "What Did I Decide?" UI, API client helpers, test updates, and doc updates. No database migration or production data rollback is required.
+
+Next recommended phase:
+
+- Stop after committing and pushing Phase 4. Do not start Phase 5 in this pass.
 
 Validation:
 

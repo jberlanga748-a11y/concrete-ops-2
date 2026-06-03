@@ -18,6 +18,14 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /Next Best Actions/);
   assert.match(componentSource, /Decision Memory/);
   assert.match(componentSource, /Operating Rules/);
+  assert.match(componentSource, /What Did I Decide\?/);
+  assert.match(componentSource, /DecisionMemoryManager/);
+  assert.match(componentSource, /createApexOsMemory/);
+  assert.match(componentSource, /getApexOsMemory/);
+  assert.match(componentSource, /updateApexOsMemory/);
+  assert.match(componentSource, /Draft memory/);
+  assert.match(componentSource, /Load decisions/);
+  assert.match(componentSource, /No hidden memory/);
   assert.match(componentSource, /Agent Work Queue/);
   assert.match(componentSource, /Agent Run Ledger/);
   assert.match(componentSource, /Agent Safety Locks/);
@@ -83,6 +91,7 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(utilSource, /deriveLaunchReadinessEvidenceState/);
   assert.match(utilSource, /getReleaseSafetySections/);
   assert.match(utilSource, /APEX_OS_DECISION_MEMORY_SEED/);
+  assert.match(utilSource, /APEX_OS_DECISION_CATEGORIES/);
   assert.match(utilSource, /APEX_OS_OPERATING_RULES/);
   assert.match(utilSource, /function buildAgentWorkQueue/);
   assert.match(utilSource, /function buildExecutionHandoffState/);

@@ -2,7 +2,7 @@ import { deriveAgentOsInternalTaskOptions, deriveAgentOsRunLedgerRows } from "./
 import { deriveLaunchReadinessEvidenceState } from "./launch-readiness-utils.js";
 import { deriveEnterpriseTrustReadinessState } from "./owner-health-utils.js";
 import { getReleaseSafetySections } from "./release-safety-utils.js";
-import { summarizeApexOsMemory } from "../shared/apexOsMemory.js";
+import { normalizeApexOsMemory, summarizeApexOsMemory } from "../shared/apexOsMemory.js";
 import { summarizeApexOsApprovalPackets } from "../shared/apexOsApprovalPackets.js";
 import { summarizeApexOsExecutionHandoffs } from "../shared/apexOsExecutionHandoffs.js";
 
@@ -477,10 +477,24 @@ export const APEX_OS_APPROVAL_CONTROL_LOCKS = Object.freeze([
 export const APEX_OS_MEMORY_SOURCE = "docs/APEX_HQ_APEX_OS_COMMAND_CENTER_MASTER_PLAN.md";
 export const APEX_OS_MEMORY_SOURCE_LABEL = "Apex OS master plan";
 
+export const APEX_OS_DECISION_CATEGORIES = Object.freeze([
+  { id: "product-identity", label: "Product identity" },
+  { id: "safety-rule", label: "Safety rule" },
+  { id: "roadmap-decision", label: "Roadmap decision" },
+  { id: "build-freeze", label: "Build freeze" },
+  { id: "business-goal", label: "Business goal" },
+  { id: "provider-account-decision", label: "Provider/account decision" },
+  { id: "personal-preference", label: "Personal preference" },
+]);
+
+export const APEX_OS_DECISION_CATEGORY_LABELS = Object.freeze(
+  Object.fromEntries(APEX_OS_DECISION_CATEGORIES.map((category) => [category.id, category.label])),
+);
+
 export const APEX_OS_DECISION_MEMORY_SEED = Object.freeze([
   {
     id: "john-owns-apex-hq",
-    category: "Product identity",
+    category: "product-identity",
     title: "John Berlanga owns Apex HQ",
     status: "Active",
     detail: "Apex OS is the real Apex HQ operating center for John, not a contractor customer workspace.",
@@ -491,7 +505,7 @@ export const APEX_OS_DECISION_MEMORY_SEED = Object.freeze([
   },
   {
     id: "private-operator-only",
-    category: "Safety rule",
+    category: "safety-rule",
     title: "Apex OS is private operator-only",
     status: "Locked",
     detail: "Customers, demo users, field users, estimators, normal admins, pilots, and customer companies must not see Apex OS.",
@@ -502,7 +516,7 @@ export const APEX_OS_DECISION_MEMORY_SEED = Object.freeze([
   },
   {
     id: "approval-before-risk",
-    category: "Approval rule",
+    category: "safety-rule",
     title: "Risky actions require John approval",
     status: "Locked",
     detail: "Deploy, schema/auth/session, production data, external sends, provider setup, billing, ads, payments, deletion, and customer-visible changes stay approval-gated.",
@@ -513,7 +527,7 @@ export const APEX_OS_DECISION_MEMORY_SEED = Object.freeze([
   },
   {
     id: "local-autonomy",
-    category: "Autonomy rule",
+    category: "personal-preference",
     title: "Apex can move freely in local/private work",
     status: "Active",
     detail: "Planning, drafting, analysis, local code edits after request, tests, summaries, recommendations, and work-package prep are allowed when they stay private and reversible.",
@@ -524,7 +538,7 @@ export const APEX_OS_DECISION_MEMORY_SEED = Object.freeze([
   },
   {
     id: "build-order",
-    category: "Roadmap decision",
+    category: "roadmap-decision",
     title: "Build Apex OS one safe slice at a time",
     status: "Active",
     detail: "Private access, shell, state aggregator, decision memory, knowledge vault, chat, voice, agent control, approvals, and release desk should be layered in order.",
@@ -534,8 +548,30 @@ export const APEX_OS_DECISION_MEMORY_SEED = Object.freeze([
     sourceLabel: APEX_OS_MEMORY_SOURCE_LABEL,
   },
   {
+    id: "phase-freeze",
+    category: "build-freeze",
+    title: "Completed phases stay frozen",
+    status: "Locked",
+    detail: "Apex OS work must audit the current phase, finish missing pieces, validate, document, commit, and push before moving forward.",
+    tone: "amber",
+    recordedAt: "2026-06-02",
+    source: APEX_OS_MEMORY_SOURCE,
+    sourceLabel: APEX_OS_MEMORY_SOURCE_LABEL,
+  },
+  {
+    id: "contractor-growth-ops",
+    category: "business-goal",
+    title: "Apex HQ serves contractor growth and operations",
+    status: "Active",
+    detail: "The product helps contractors get more work, win more work, run work better, reduce risk, prove work, and get paid faster.",
+    tone: "green",
+    recordedAt: "2026-06-02",
+    source: "AGENTS.md",
+    sourceLabel: "Repo product identity",
+  },
+  {
     id: "no-secrets-memory",
-    category: "Provider/account decision",
+    category: "provider-account-decision",
     title: "Secrets are never normal memory",
     status: "Locked",
     detail: "Credentials, provider keys, payment settings, and sensitive account setup must not be stored in frontend code or saved as casual memory.",
@@ -840,8 +876,39 @@ export const APEX_OS_VOICE_SAFETY_GATES = Object.freeze([
   },
 ]);
 
-function buildDecisionMemoryState() {
-  const decisions = APEX_OS_DECISION_MEMORY_SEED.map((item) => ({ ...item }));
+function memoryStatusTone(status = "") {
+  const normalized = String(status || "").toLowerCase();
+  if (normalized === "approved") return "green";
+  if (normalized === "archived") return "slate";
+  if (normalized === "suggested") return "blue";
+  if (normalized === "locked") return "amber";
+  if (normalized === "active") return "green";
+  return "slate";
+}
+
+function decisionCategoryLabel(category = "general") {
+  return APEX_OS_DECISION_CATEGORY_LABELS[category] || String(category || "General").replace(/-/g, " ");
+}
+
+function buildDecisionMemoryState(companySettings = {}) {
+  const durableMemory = normalizeApexOsMemory(companySettings?.apexOsMemory || []);
+  const durableDecisionRows = durableMemory.map((entry) => ({
+    id: entry.id,
+    category: decisionCategoryLabel(entry.category),
+    title: entry.title,
+    status: entry.status,
+    detail: entry.body,
+    tone: memoryStatusTone(entry.status),
+    recordedAt: entry.approvedAt || entry.createdAt || entry.updatedAt,
+    source: entry.sourceUri,
+    sourceLabel: entry.sourceLabel,
+    reviewNote: entry.reviewNote,
+  }));
+  const memorySummary = summarizeApexOsMemory(durableMemory);
+  const decisions = APEX_OS_DECISION_MEMORY_SEED.map((item) => ({
+    ...item,
+    category: decisionCategoryLabel(item.category),
+  }));
   const rules = APEX_OS_OPERATING_RULES.map((item) => ({
     ...item,
     source: APEX_OS_MEMORY_SOURCE,
@@ -849,15 +916,33 @@ function buildDecisionMemoryState() {
     recordedAt: "2026-06-02",
   }));
   const lockedCount = decisions.filter((item) => item.status === "Locked").length + rules.filter((item) => item.status === "Locked").length;
+  const coveredCategoryIds = new Set([
+    ...APEX_OS_DECISION_MEMORY_SEED.map((item) => item.category),
+    ...durableMemory.map((item) => item.category),
+  ]);
   return {
-    status: "Seeded from plan",
+    status: memorySummary.total ? "Durable memory active" : "Seeded from plan",
     tone: "green",
     source: APEX_OS_MEMORY_SOURCE,
     decisionCount: decisions.length,
     ruleCount: rules.length,
+    durableCount: durableDecisionRows.length,
+    approvedCount: memorySummary.approved,
+    suggestedCount: memorySummary.suggested,
+    archivedCount: memorySummary.archived,
     lockedCount,
+    categoryCount: APEX_OS_DECISION_CATEGORIES.length,
+    coveredCategoryCount: coveredCategoryIds.size,
+    categories: APEX_OS_DECISION_CATEGORIES.map((category) => ({
+      ...category,
+      status: coveredCategoryIds.has(category.id) ? "Covered" : "Ready",
+      tone: coveredCategoryIds.has(category.id) ? "green" : "blue",
+    })),
     decisions,
+    durableEntries: durableMemory,
+    durableDecisions: durableDecisionRows,
     rules,
+    memorySummary,
   };
 }
 
@@ -1419,7 +1504,7 @@ export function deriveApexControlRoomState({
   const launchState = buildLaunchState(permissions);
   const trustState = buildTrustState({ permissions, auditEvents, activity, companySettings });
   const releaseDesk = buildReleaseDesk();
-  const decisionMemory = buildDecisionMemoryState();
+  const decisionMemory = buildDecisionMemoryState(companySettings);
   const knowledgeVault = buildKnowledgeVaultState(companySettings);
   const askApexChat = buildAskApexChatState({ decisionMemory, knowledgeVault, agentWorkQueue, launchState, releaseDesk });
   const voiceInterface = buildVoiceInterfaceState({ askApexChat });
@@ -1716,9 +1801,9 @@ export function deriveApexControlRoomState({
       {
         id: "memory-review",
         title: "Memory review",
-        status: "Read-only",
-        detail: "Use the saved decisions as guidance now; editable approve/archive memory waits for a later approved storage slice.",
-        tone: "slate",
+        status: decisionMemory.durableCount ? "Durable" : "Ready",
+        detail: "Use the What did I decide view to draft source-backed memory, then manually approve or archive it before it becomes operating context.",
+        tone: decisionMemory.durableCount ? "green" : "blue",
       },
       {
         id: "knowledge-vault-plan",

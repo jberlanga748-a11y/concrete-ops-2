@@ -5,6 +5,13 @@ const MEMORY_LIMIT = 200;
 
 const STATUS_VALUES = new Set(["suggested", "approved", "archived"]);
 const CATEGORY_VALUES = new Set([
+  "product-identity",
+  "safety-rule",
+  "roadmap-decision",
+  "build-freeze",
+  "business-goal",
+  "provider-account-decision",
+  "personal-preference",
   "app-docs",
   "business-strategy",
   "marketing-sales",
@@ -67,7 +74,7 @@ function normalizeStatus(value = "suggested") {
 }
 
 function normalizeCategory(value = "general") {
-  const normalized = rawText(value, 80).toLowerCase();
+  const normalized = rawText(value, 80).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   return CATEGORY_VALUES.has(normalized) ? normalized : "general";
 }
 
