@@ -988,9 +988,9 @@ export const APEX_OS_VOICE_MODES = Object.freeze([
   {
     id: "push-to-talk",
     title: "Push-to-talk",
-    status: "Transcript only",
-    detail: "The first voice path is manual transcript confirmation; browser microphone capture and always-listening remain disabled.",
-    tone: "blue",
+    status: "Click-to-record",
+    detail: "Voice input starts only after the operator clicks push-to-talk, stops manually, and reviews the transcript before Ask Apex can use it.",
+    tone: "green",
   },
   {
     id: "transcript-confirmation",
@@ -1002,9 +1002,9 @@ export const APEX_OS_VOICE_MODES = Object.freeze([
   {
     id: "spoken-answer",
     title: "Spoken answer",
-    status: "Provider locked",
-    detail: "Text-to-speech waits for approved speech provider/API setup and privacy review.",
-    tone: "amber",
+    status: "Playback ready",
+    detail: "Apex can speak Ask Apex answers through a private server-side speech endpoint when configured, with browser speech fallback when not configured.",
+    tone: "green",
   },
   {
     id: "risky-command-confirmation",
@@ -1018,10 +1018,10 @@ export const APEX_OS_VOICE_MODES = Object.freeze([
 export const APEX_OS_VOICE_SAFETY_GATES = Object.freeze([
   {
     id: "no-microphone",
-    title: "No microphone access",
-    status: "Locked",
-    detail: "This first UI does not request browser microphone permission or capture audio.",
-    tone: "amber",
+    title: "No hidden microphone access",
+    status: "Push-to-talk only",
+    detail: "Microphone permission is requested only after the operator clicks push-to-talk; no background or automatic capture exists.",
+    tone: "green",
   },
   {
     id: "no-always-listening",
@@ -1032,10 +1032,10 @@ export const APEX_OS_VOICE_SAFETY_GATES = Object.freeze([
   },
   {
     id: "no-speech-provider",
-    title: "No speech provider",
-    status: "Approval required",
-    detail: "Speech-to-text, text-to-speech, model voice, provider secrets, and external audio APIs are not configured in this slice.",
-    tone: "amber",
+    title: "Server-side speech provider",
+    status: "Server-only",
+    detail: "Speech-to-text and text-to-speech use server-side OpenAI only when configured; frontend code never receives provider secrets and audio is not stored.",
+    tone: "green",
   },
   {
     id: "no-voice-actions",
@@ -1230,16 +1230,16 @@ function buildVoiceInterfaceState({ askApexChat } = {}) {
   const modes = APEX_OS_VOICE_MODES.map((item) => ({ ...item }));
   const safetyRows = APEX_OS_VOICE_SAFETY_GATES.map((item) => ({ ...item }));
   return {
-    status: "Transcript confirm ready",
+    status: "Voice playback ready",
     tone: "green",
-    providerStatus: "Speech provider locked",
+    providerStatus: "Push-to-talk review",
     modeCount: modes.length,
     safetyCount: safetyRows.length,
     transcriptStatus: "Manual confirmation",
     answerStatus: askApexChat?.status === "Source-backed live" ? "Ask Apex ready" : "Chat shell required",
     prompt: "Transcript before Apex listens",
     transcriptPreview: "Type and confirm what Apex heard before it becomes an Ask Apex question.",
-    answerPreview: "Spoken audio output waits for approved speech provider/API setup; confirmed text can feed Ask Apex now.",
+    answerPreview: "Apex can speak Ask Apex answers out loud after the answer is generated; confirmed transcripts can feed Ask Apex only after review.",
     modes,
     safetyRows,
   };

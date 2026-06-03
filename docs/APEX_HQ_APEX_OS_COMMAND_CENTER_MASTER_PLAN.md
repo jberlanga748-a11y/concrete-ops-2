@@ -678,6 +678,16 @@ Validation:
 - transcript confirmation tests
 - browser mobile voice UI check
 
+Status:
+
+- Hard-finished locally on 2026-06-03.
+- The private Control Room Voice Interface now supports click-to-record push-to-talk, Stop & transcribe, manual transcript entry, transcript confirmation, command review for the original Phase 12 commands, safe Ask Apex question handoff, and Speak answer / Stop voice playback.
+- Operator-only `POST /api/apex-os/voice/speech` and `POST /api/apex-os/voice/transcribe` are server-side only. They use `OPENAI_API_KEY` when configured; no provider key or voice secret is exposed to the frontend. Without a key, speech returns a safe browser-playback fallback and transcription stays manual/reviewed.
+- Voice remains review-first: transcripts create an execution-locked command review and optional Ask Apex question. They do not pause agents, start tasks, write decisions, approve packets, send messages, deploy, spend money, bill, mutate production/customer data, or run external actions.
+- No always-listening mode, hidden microphone capture, audio storage, transcript persistence, schema/storage change, auth/session change, provider setup, customer-visible action, deletion, or irreversible action path was added.
+- Validation passed with focused voice parser/safety tests, broader Apex OS route/nav/permission regression, `npm.cmd run verify:roles`, `npm.cmd run build`, and desktop/mobile browser QA on `/apex-control-room` for transcript confirmation, safe Ask Apex handoff, speech fallback request, no failed requests, and no horizontal overflow.
+- Production release is pending.
+
 ### Phase 13: Knowledge Intelligence
 
 Goal:
@@ -1146,9 +1156,10 @@ Status:
 
 - Read-only first UI implemented locally on 2026-06-02 as Apex OS Slice 7.
 - Manual transcript confirmation implemented locally on 2026-06-02 as Apex OS Slice 15.
-- The Control Room now shows a private Voice Interface where John can type what Apex heard, confirm the transcript locally, and copy the confirmed transcript into Ask Apex as a question.
-- No microphone permission request, audio capture, always-listening behavior, speech-to-text, text-to-speech, model voice, provider/API setup, transcript storage, voice execution, schema change, storage change, approval write, send, spend, customer-visible action, production mutation, or deploy was added.
-- Validation passed with focused Apex OS utility/import tests, production-style build, and browser QA for the private Ask Apex flow with no horizontal overflow and normal admin blocked/redirected away from Apex OS.
+- Folded into the Phase 12 hard-finish on 2026-06-03.
+- The Control Room now shows a private Voice Interface where the operator can click to record, stop and transcribe through the server-only provider path when configured, type a manual transcript when needed, confirm the transcript, review the detected voice command, copy the safe read-only Ask Apex question, and play/stop Apex's spoken answer.
+- No always-listening behavior, hidden microphone capture, audio storage, transcript persistence, frontend provider secret, voice-triggered execution, schema change, storage change, approval execution, send, spend, customer-visible action, production mutation, or deploy was added in this slice.
+- Validation passed with focused Apex OS voice parser/safety tests, broader Apex OS route/nav/permission tests, production-style build, and desktop/mobile browser QA for the private voice + Ask Apex flow with no failed requests and no horizontal overflow.
 
 ### Slice 9: Release Desk And Monitoring
 

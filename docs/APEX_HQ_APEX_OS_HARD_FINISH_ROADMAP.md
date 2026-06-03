@@ -305,6 +305,15 @@ Hard-finish package:
 - Add voice answer playback.
 - Add voice safety tests and browser QA.
 
+Status:
+
+- Completed locally on 2026-06-03.
+- The private Voice Interface now has click-to-record push-to-talk, Stop & transcribe, manual transcript fallback, transcript confirmation, command review for the original Phase 12 phrases, safe Ask Apex question handoff, and Speak answer / Stop voice playback.
+- Server-only `/api/apex-os/voice/speech` and `/api/apex-os/voice/transcribe` use `OPENAI_API_KEY` only when configured. Speech falls back safely to browser playback when the key is absent, and transcription stays manual/reviewed when the provider is unavailable.
+- Voice command reviews stay execution-locked: no agent pause/resume/run, decision write, approval execution, send, spend, deploy, billing/payment, customer-visible action, or production mutation can happen from voice.
+- Focused voice tests, broader Apex OS regression, role verification, production build, and desktop/mobile browser QA passed.
+- Production release is pending.
+
 Blocked right now:
 
 - Always-listening mode.

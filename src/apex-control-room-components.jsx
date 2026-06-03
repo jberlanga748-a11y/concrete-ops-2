@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
 
@@ -15,6 +15,8 @@ import {
   getApexOsDailyBriefing,
   getApexOsExecutionHandoffs,
   saveApexOsDailyBriefingSnapshot,
+  speakApexOsVoice,
+  transcribeApexOsVoice,
   updateApexOsAgentControlRequest,
   updateApexOsMemory,
   updateApexOsApprovalPacket,
@@ -27,11 +29,46 @@ import {
   buildApexOsAskDecisionDraft,
   buildApexOsAskTaskPacketDraft,
 } from "../shared/apexOsAsk.js";
+import { buildApexOsVoiceCommandReview } from "../shared/apexOsVoice.js";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 function ToneBadge({ children, tone = "slate" }) {
   return <Badge tone={tone}>{children}</Badge>;
+}
+
+function stopBrowserVoice(audioRef) {
+  if (audioRef?.current) {
+    audioRef.current.pause();
+    audioRef.current.currentTime = 0;
+    audioRef.current = null;
+  }
+  if (typeof window !== "undefined" && window.speechSynthesis) {
+    window.speechSynthesis.cancel();
+  }
+}
+
+function speakWithBrowserVoice(text, { onEnd, onError } = {}) {
+  if (typeof window === "undefined" || !window.speechSynthesis || typeof SpeechSynthesisUtterance === "undefined") {
+    return false;
+  }
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate = 0.98;
+  utterance.pitch = 1;
+  utterance.onend = () => onEnd?.();
+  utterance.onerror = () => onError?.();
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(utterance);
+  return true;
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Voice recording could not be read."));
+    reader.readAsDataURL(blob);
+  });
 }
 
 function KpiTile({ item }) {
@@ -198,11 +235,16 @@ function AskApexPanel({ state, sessionToken, question, setQuestion }) {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [actionNotice, setActionNotice] = useState("");
+  const [voiceNotice, setVoiceNotice] = useState("");
+  const [speaking, setSpeaking] = useState(false);
   const [draftingAction, setDraftingAction] = useState("");
   const [draftedActions, setDraftedActions] = useState({});
   const [askedQuestion, setAskedQuestion] = useState("");
+  const answerAudioRef = useRef(null);
   const canAsk = state.canView && Boolean(sessionToken) && question.trim() && !submitting;
   const canDraftFromAnswer = state.canView && Boolean(sessionToken) && Boolean(response?.answer) && !draftingAction;
+  const answerText = response?.answer?.answer || "";
+  const canSpeakAnswer = state.canView && Boolean(answerText) && !speaking;
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -214,6 +256,8 @@ function AskApexPanel({ state, sessionToken, question, setQuestion }) {
     try {
       const nextQuestion = question.trim();
       setAskedQuestion(nextQuestion);
+      stopBrowserVoice(answerAudioRef);
+      setVoiceNotice("");
       const payload = await askApexOs(sessionToken, { question: nextQuestion, contextScope });
       setResponse(payload);
     } catch (requestError) {
@@ -280,6 +324,62 @@ function AskApexPanel({ state, sessionToken, question, setQuestion }) {
     }
   }
 
+  function stopVoicePlayback() {
+    stopBrowserVoice(answerAudioRef);
+    setSpeaking(false);
+    setVoiceNotice("Voice playback stopped.");
+  }
+
+  function speakBrowserFallback(textToSpeak, fallbackMessage = "Apex is speaking with browser voice fallback.") {
+    const started = speakWithBrowserVoice(textToSpeak, {
+      onEnd: () => {
+        setSpeaking(false);
+        setVoiceNotice("Voice playback finished.");
+      },
+      onError: () => {
+        setSpeaking(false);
+        setVoiceNotice("Browser voice playback could not start.");
+      },
+    });
+    if (!started) {
+      setSpeaking(false);
+      setVoiceNotice("This browser does not support speech playback here.");
+      return;
+    }
+    setVoiceNotice(fallbackMessage);
+  }
+
+  async function speakAnswer() {
+    if (!canSpeakAnswer) return;
+    stopBrowserVoice(answerAudioRef);
+    setSpeaking(true);
+    setVoiceNotice("");
+    try {
+      const payload = await speakApexOsVoice(sessionToken, {
+        text: answerText,
+        voice: "alloy",
+      });
+      if (payload?.audioBase64 && payload?.contentType) {
+        const audio = new Audio(`data:${payload.contentType};base64,${payload.audioBase64}`);
+        answerAudioRef.current = audio;
+        audio.onended = () => {
+          setSpeaking(false);
+          setVoiceNotice("Voice playback finished.");
+          answerAudioRef.current = null;
+        };
+        audio.onerror = () => {
+          speakBrowserFallback(answerText, "Apex speech audio could not play, so browser voice fallback is speaking.");
+        };
+        await audio.play();
+        setVoiceNotice(payload.aiDisclosure || "Apex OS voice output is AI-generated.");
+        return;
+      }
+      speakBrowserFallback(payload?.fallbackText || answerText, payload?.providerConfigured ? "Speech provider fallback is active; browser voice is speaking." : "Server speech is not configured; browser voice is speaking.");
+    } catch (speechError) {
+      speakBrowserFallback(answerText, speechError?.message ? `Speech endpoint unavailable; browser voice is speaking. ${speechError.message}` : "Speech endpoint unavailable; browser voice is speaking.");
+    }
+  }
+
   return (
     <div className="grid min-w-0 gap-4">
       <div className="grid min-w-0 gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -342,8 +442,14 @@ function AskApexPanel({ state, sessionToken, question, setQuestion }) {
             <Button type="button" disabled variant="secondary" size="sm">
               <Icon name="lock" /> Execute locked
             </Button>
+            <Button type="button" variant="secondary" size="sm" onClick={speakAnswer} disabled={!canSpeakAnswer}>
+              <Icon name="phone" /> {speaking ? "Speaking..." : "Speak answer"}
+            </Button>
+            <Button type="button" variant="secondary" size="sm" onClick={stopVoicePlayback} disabled={!speaking}>
+              <Icon name="lock" /> Stop voice
+            </Button>
           </div>
-          <p className="mt-3 break-words text-xs font-black leading-5 text-slate-500">{actionNotice || "Decision drafts stay suggested. Task and approval drafts stay review-only packets."}</p>
+          <p className="mt-3 break-words text-xs font-black leading-5 text-slate-500">{voiceNotice || actionNotice || "Decision drafts stay suggested. Task and approval drafts stay review-only packets. Voice playback is AI-generated and does not execute commands."}</p>
         </div>
       ) : null}
       <StatusRow item={state.askApexChat.answerPreview} />
@@ -351,22 +457,106 @@ function AskApexPanel({ state, sessionToken, question, setQuestion }) {
   );
 }
 
-function VoiceTranscriptPanel({ state, onUseTranscript }) {
+function VoiceTranscriptPanel({ state, sessionToken, onUseTranscript }) {
   const [transcriptDraft, setTranscriptDraft] = useState("");
   const [confirmedTranscript, setConfirmedTranscript] = useState("");
   const [notice, setNotice] = useState("");
+  const [commandReview, setCommandReview] = useState(null);
+  const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const recorderRef = useRef(null);
+  const recordedChunksRef = useRef([]);
+  const streamRef = useRef(null);
   const canConfirm = state.canView && Boolean(transcriptDraft.trim());
   const canUse = state.canView && Boolean(confirmedTranscript.trim());
+  const canUseBrowserRecorder = typeof navigator !== "undefined"
+    && Boolean(navigator.mediaDevices?.getUserMedia)
+    && typeof MediaRecorder !== "undefined";
+  const canStartRecording = state.canView && Boolean(sessionToken) && canUseBrowserRecorder && !recording && !transcribing;
+
+  function cleanupRecordingStream() {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+  }
+
+  function preferredVoiceMimeType() {
+    if (typeof MediaRecorder === "undefined" || typeof MediaRecorder.isTypeSupported !== "function") return "";
+    return ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/wav"].find((candidate) => MediaRecorder.isTypeSupported(candidate)) || "";
+  }
+
+  async function transcribeRecordedBlob(blob) {
+    if (!blob?.size) {
+      setNotice("No voice audio was captured. Use the manual transcript box.");
+      return;
+    }
+    setTranscribing(true);
+    setNotice("Transcribing push-to-talk audio through the private server endpoint.");
+    try {
+      const audioDataUrl = await blobToDataUrl(blob);
+      const payload = await transcribeApexOsVoice(sessionToken, { audioDataUrl });
+      const transcript = payload?.transcript || "";
+      const review = payload?.commandReview || buildApexOsVoiceCommandReview(transcript);
+      setTranscriptDraft(transcript);
+      setCommandReview(review);
+      setConfirmedTranscript("");
+      setNotice(transcript ? "Transcript returned. Review and confirm it before using Ask Apex." : "No transcript came back. Use the manual transcript box.");
+    } catch (error) {
+      setNotice(error?.message || "Speech-to-text could not run. Use the manual transcript box.");
+    } finally {
+      setTranscribing(false);
+    }
+  }
+
+  async function startRecording() {
+    if (!canStartRecording) return;
+    setNotice("");
+    setCommandReview(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      recordedChunksRef.current = [];
+      const mimeType = preferredVoiceMimeType();
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      recorderRef.current = recorder;
+      recorder.ondataavailable = (event) => {
+        if (event.data?.size) recordedChunksRef.current.push(event.data);
+      };
+      recorder.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, { type: recorder.mimeType || "audio/webm" });
+        cleanupRecordingStream();
+        setRecording(false);
+        transcribeRecordedBlob(blob);
+      };
+      recorder.start();
+      setRecording(true);
+      setNotice("Push-to-talk recording is active. Stop when you are done speaking.");
+    } catch (error) {
+      cleanupRecordingStream();
+      setRecording(false);
+      setNotice(error?.message || "Microphone permission was not granted. Use the manual transcript box.");
+    }
+  }
+
+  function stopRecording() {
+    if (!recording || !recorderRef.current) return;
+    setNotice("Recording stopped. Preparing transcript review.");
+    recorderRef.current.stop();
+  }
 
   function confirmTranscript() {
     if (!canConfirm) return;
+    const review = buildApexOsVoiceCommandReview(transcriptDraft.trim());
+    setCommandReview(review);
     setConfirmedTranscript(transcriptDraft.trim());
     setNotice("Transcript confirmed locally. Review it before sending it to Ask Apex.");
   }
 
   function useTranscript() {
     if (!canUse) return;
-    onUseTranscript(confirmedTranscript.trim());
+    const review = commandReview || buildApexOsVoiceCommandReview(confirmedTranscript.trim());
+    onUseTranscript(review.askQuestion || confirmedTranscript.trim());
     setNotice("Confirmed transcript copied into Ask Apex. Press Ask Apex when ready.");
   }
 
@@ -376,14 +566,15 @@ function VoiceTranscriptPanel({ state, onUseTranscript }) {
         <div className="flex min-h-44 min-w-0 flex-col items-center justify-center rounded-xl border border-slate-200 bg-slate-50 p-4 text-center">
           <button
             type="button"
-            disabled
-            className="inline-flex h-20 w-20 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-500 shadow-[0_16px_34px_-28px_rgba(7,17,31,0.5)] disabled:cursor-not-allowed"
-            title="Microphone access is locked"
+            disabled={!canStartRecording}
+            onClick={startRecording}
+            className={`inline-flex h-20 w-20 items-center justify-center rounded-full border shadow-[0_16px_34px_-28px_rgba(7,17,31,0.5)] transition disabled:cursor-not-allowed ${recording ? "border-orange-300 bg-orange-50 text-orange-700" : "border-slate-300 bg-white text-slate-600 hover:border-orange-300 hover:text-orange-700"}`}
+            title="Push-to-talk starts only when clicked"
           >
             <Icon name="phone" className="h-8 w-8" />
           </button>
-          <p className="mt-3 break-words text-sm font-black text-slate-950">{state.voiceInterface.prompt}</p>
-          <p className="mt-1 break-words text-xs font-bold leading-5 text-slate-600">{state.voiceInterface.providerStatus}</p>
+          <p className="mt-3 break-words text-sm font-black text-slate-950">{recording ? "Listening now" : state.voiceInterface.prompt}</p>
+          <p className="mt-1 break-words text-xs font-bold leading-5 text-slate-600">{canUseBrowserRecorder ? state.voiceInterface.providerStatus : "Browser microphone unavailable"}</p>
         </div>
         <div className="grid min-w-0 gap-3">
           <StatusRow item={{
@@ -398,8 +589,15 @@ function VoiceTranscriptPanel({ state, onUseTranscript }) {
             title: "Spoken answer preview",
             status: state.voiceInterface.answerStatus,
             detail: state.voiceInterface.answerPreview,
-            tone: "amber",
+            tone: "green",
           }} />
+          {commandReview ? <StatusRow item={{
+            id: "voice-command-review",
+            title: "Voice command review",
+            status: commandReview.status,
+            detail: `${commandReview.label} ${commandReview.approvalRequired ? "Approval packet required before any later action." : "Ready for source-backed Ask Apex review."}`,
+            tone: commandReview.tone,
+          }} /> : null}
         </div>
       </div>
 
@@ -410,6 +608,8 @@ function VoiceTranscriptPanel({ state, onUseTranscript }) {
           value={transcriptDraft}
           onChange={(event) => {
             setTranscriptDraft(event.target.value);
+            setCommandReview(buildApexOsVoiceCommandReview(event.target.value));
+            setConfirmedTranscript("");
             setNotice("");
           }}
           maxLength={1000}
@@ -418,8 +618,11 @@ function VoiceTranscriptPanel({ state, onUseTranscript }) {
           disabled={!state.canView}
         />
         <div className="mt-3 flex min-w-0 flex-wrap gap-2">
-          <Button type="button" disabled variant="secondary" size="sm">
-            <Icon name="phone" /> Mic locked
+          <Button type="button" variant="secondary" size="sm" onClick={startRecording} disabled={!canStartRecording}>
+            <Icon name="phone" /> {recording ? "Recording..." : "Push to talk"}
+          </Button>
+          <Button type="button" variant="secondary" size="sm" onClick={stopRecording} disabled={!recording}>
+            <Icon name="lock" /> Stop & transcribe
           </Button>
           <Button type="button" variant="secondary" size="sm" onClick={confirmTranscript} disabled={!canConfirm}>
             <Icon name="clipboard" /> Confirm transcript
@@ -428,10 +631,10 @@ function VoiceTranscriptPanel({ state, onUseTranscript }) {
             <Icon name="spark" /> Use in Ask Apex
           </Button>
           <Button type="button" disabled variant="secondary" size="sm">
-            <Icon name="lock" /> Speech locked
+            <Icon name="lock" /> Execute locked
           </Button>
         </div>
-        <p className="mt-3 break-words text-xs font-black leading-5 text-slate-500">{notice || "Manual transcript only. Apex does not request microphone access, store audio, or execute voice commands."}</p>
+        <p className="mt-3 break-words text-xs font-black leading-5 text-slate-500">{notice || "Push-to-talk only. Apex does not record in the background, store audio, or execute voice commands."}</p>
       </div>
     </div>
   );
@@ -2802,7 +3005,7 @@ export function ApexControlRoomPage(props) {
               description="Private transcript confirmation surface with microphone, speech provider, and always-listening locked."
               action={<ToneBadge tone={state.voiceInterface.tone}>{state.voiceInterface.status}</ToneBadge>}
             />
-            <VoiceTranscriptPanel state={state} onUseTranscript={setAskQuestion} />
+            <VoiceTranscriptPanel state={state} sessionToken={props.sessionToken} onUseTranscript={setAskQuestion} />
           </Card>
 
           <Card className="min-w-0 p-4 sm:p-5">

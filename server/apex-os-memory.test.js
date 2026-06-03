@@ -246,6 +246,18 @@ test("Apex OS memory is operator-only, source-backed, persisted, and audited", a
       body: JSON.stringify({ question: "What is next?" }),
     });
     assert.equal(adminAskBlocked.response.status, 403);
+    const adminVoiceSpeechBlocked = await requestJson(fixture.baseUrl, "/api/apex-os/voice/speech", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({ text: "Apex should talk back." }),
+    });
+    assert.equal(adminVoiceSpeechBlocked.response.status, 403);
+    const adminVoiceTranscribeBlocked = await requestJson(fixture.baseUrl, "/api/apex-os/voice/transcribe", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({ audioDataUrl: "data:audio/webm;base64,AAAA" }),
+    });
+    assert.equal(adminVoiceTranscribeBlocked.response.status, 403);
     const adminBriefingBlocked = await requestJson(fixture.baseUrl, "/api/apex-os/daily-briefing", {
       headers: authHeaders(adminLogin.token),
     });
@@ -378,6 +390,34 @@ test("Apex OS memory is operator-only, source-backed, persisted, and audited", a
     assert.equal(asked.answer.approvalWarnings.length >= 2, true);
     assert.equal(asked.evidenceUsed[0].rank, 1);
     assert.equal(asked.evidenceUsed.some((row) => row.sourceLabel === "Apex OS master plan"), true);
+
+    const voiceSpeech = await assertOk(fixture.baseUrl, "/api/apex-os/voice/speech", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({ text: asked.answer.answer, voice: "alloy" }),
+    });
+    assert.equal(voiceSpeech.providerConfigured, false);
+    assert.equal(voiceSpeech.providerFallback, true);
+    assert.equal(voiceSpeech.audioStored, false);
+    assert.match(voiceSpeech.fallbackText, /approved Apex OS memory/i);
+    assert.match(voiceSpeech.aiDisclosure, /AI-generated/i);
+
+    const invalidVoiceAudio = await requestJson(fixture.baseUrl, "/api/apex-os/voice/transcribe", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({ audioDataUrl: "data:text/plain;base64,AAAA" }),
+    });
+    assert.equal(invalidVoiceAudio.response.status, 400);
+
+    const voiceTranscribeNoKey = await requestJson(fixture.baseUrl, "/api/apex-os/voice/transcribe", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({ audioDataUrl: "data:audio/webm;base64,AAAA" }),
+    });
+    assert.equal(voiceTranscribeNoKey.response.status, 503);
+    assert.equal(voiceTranscribeNoKey.payload.providerConfigured, false);
+    assert.equal(voiceTranscribeNoKey.payload.audioStored, false);
+    assert.equal(voiceTranscribeNoKey.payload.executionLocked, true);
 
     const briefing = await assertOk(fixture.baseUrl, "/api/apex-os/daily-briefing", {
       headers: authHeaders(operatorLogin.token),

@@ -129,6 +129,16 @@ import {
   parseOpenAiApexOsAskPayload,
 } from "../shared/apexOsAsk.js";
 import {
+  APEX_OS_VOICE_SPEECH_OPENAI_URL,
+  APEX_OS_VOICE_TRANSCRIPTION_OPENAI_URL,
+  APEX_OS_VOICE_TRANSCRIPTION_MODEL,
+  buildApexOsVoiceCommandReview,
+  buildApexOsVoiceSpeechRequest,
+  parseApexOsVoiceAudioDataUrl,
+  parseApexOsVoiceTranscriptionPayload,
+  sanitizeApexOsVoiceSpeechText,
+} from "../shared/apexOsVoice.js";
+import {
   buildApexOsDailyBriefing,
   buildApexOsDailyBriefingHistorySnapshot,
   normalizeApexOsDailyBriefingHistory,
@@ -13169,6 +13179,149 @@ app.post("/api/apex-os/ask", requireAuth, asyncRoute(async (req, res) => {
     },
     requestId: res.locals.requestId,
   });
+}));
+
+app.post("/api/apex-os/voice/speech", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+
+  const speechText = sanitizeApexOsVoiceSpeechText(req.body?.text || "");
+  if (!speechText) {
+    throw new ApiError(400, "Apex OS voice speech requires text.");
+  }
+
+  const apiKey = String(process.env.OPENAI_API_KEY || "").trim();
+  if (!apiKey) {
+    return res.json({
+      ok: true,
+      providerConfigured: false,
+      providerFallback: true,
+      fallbackText: speechText,
+      audioBase64: "",
+      contentType: "",
+      audioStored: false,
+      aiDisclosure: "Apex OS voice output is AI-generated.",
+      requestId: res.locals.requestId,
+    });
+  }
+
+  try {
+    const response = await fetch(APEX_OS_VOICE_SPEECH_OPENAI_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(buildApexOsVoiceSpeechRequest({
+        text: speechText,
+        voice: req.body?.voice,
+      })),
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!response.ok) {
+      throw new Error(`OpenAI speech request failed with ${response.status}.`);
+    }
+    const audioBuffer = Buffer.from(await response.arrayBuffer());
+    return res.json({
+      ok: true,
+      providerConfigured: true,
+      providerFallback: false,
+      audioBase64: audioBuffer.toString("base64"),
+      contentType: response.headers.get("content-type") || "audio/mpeg",
+      audioStored: false,
+      aiDisclosure: "Apex OS voice output is AI-generated.",
+      requestId: res.locals.requestId,
+    });
+  } catch (error) {
+    logger.warn("Apex OS voice speech provider failed; browser fallback can speak the answer", {
+      requestId: res.locals.requestId,
+      error: serializeError(error),
+    });
+    return res.json({
+      ok: false,
+      providerConfigured: true,
+      providerFallback: true,
+      fallbackText: speechText,
+      audioBase64: "",
+      contentType: "",
+      audioStored: false,
+      aiDisclosure: "Apex OS voice output is AI-generated.",
+      error: "Speech provider failed; browser playback fallback is available.",
+      requestId: res.locals.requestId,
+    });
+  }
+}));
+
+app.post("/api/apex-os/voice/transcribe", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+
+  const parsedAudio = parseApexOsVoiceAudioDataUrl(req.body?.audioDataUrl || "");
+  if (!parsedAudio.ok) {
+    throw new ApiError(400, parsedAudio.error || "Apex OS voice audio is invalid.");
+  }
+
+  const apiKey = String(process.env.OPENAI_API_KEY || "").trim();
+  if (!apiKey) {
+    return res.status(503).json({
+      ok: false,
+      providerConfigured: false,
+      transcript: "",
+      commandReview: buildApexOsVoiceCommandReview(""),
+      audioStored: false,
+      executionLocked: true,
+      error: "Speech-to-text is not configured. Set OPENAI_API_KEY on the server or use manual transcript review.",
+      requestId: res.locals.requestId,
+    });
+  }
+
+  try {
+    const form = new FormData();
+    form.set("model", APEX_OS_VOICE_TRANSCRIPTION_MODEL);
+    form.set("response_format", "json");
+    form.set(
+      "file",
+      new Blob([Buffer.from(parsedAudio.base64, "base64")], { type: parsedAudio.mimeType }),
+      `apex-os-voice.${parsedAudio.extension}`,
+    );
+
+    const response = await fetch(APEX_OS_VOICE_TRANSCRIPTION_OPENAI_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: form,
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!response.ok) {
+      throw new Error(`OpenAI transcription request failed with ${response.status}.`);
+    }
+    const transcript = parseApexOsVoiceTranscriptionPayload(await response.json());
+    return res.json({
+      ok: true,
+      providerConfigured: true,
+      transcript,
+      commandReview: buildApexOsVoiceCommandReview(transcript),
+      audioStored: false,
+      executionLocked: true,
+      requestId: res.locals.requestId,
+    });
+  } catch (error) {
+    logger.warn("Apex OS voice transcription provider failed", {
+      requestId: res.locals.requestId,
+      error: serializeError(error),
+    });
+    return res.status(502).json({
+      ok: false,
+      providerConfigured: true,
+      transcript: "",
+      commandReview: buildApexOsVoiceCommandReview(""),
+      audioStored: false,
+      executionLocked: true,
+      error: "Speech-to-text provider failed. Use manual transcript review and try again later.",
+      requestId: res.locals.requestId,
+    });
+  }
 }));
 
 app.post("/api/apex-os/memory", requireAuth, asyncRoute(async (req, res) => {

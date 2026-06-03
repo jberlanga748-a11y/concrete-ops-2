@@ -419,6 +419,14 @@ export function askApexOs(token, payload) {
   return request("/api/apex-os/ask", { method: "POST", token, body: payload });
 }
 
+export function speakApexOsVoice(token, payload) {
+  return request("/api/apex-os/voice/speech", { method: "POST", token, body: payload });
+}
+
+export function transcribeApexOsVoice(token, payload) {
+  return request("/api/apex-os/voice/transcribe", { method: "POST", token, body: payload });
+}
+
 export function getApexOsDailyBriefing(token) {
   return request("/api/apex-os/daily-briefing", { token });
 }
