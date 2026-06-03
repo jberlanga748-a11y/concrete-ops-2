@@ -312,7 +312,7 @@ Status:
 - Server-only `/api/apex-os/voice/speech` and `/api/apex-os/voice/transcribe` use `OPENAI_API_KEY` only when configured. Speech falls back safely to browser playback when the key is absent, and transcription stays manual/reviewed when the provider is unavailable.
 - Voice command reviews stay execution-locked: no agent pause/resume/run, decision write, approval execution, send, spend, deploy, billing/payment, customer-visible action, or production mutation can happen from voice.
 - Focused voice tests, broader Apex OS regression, role verification, production build, and desktop/mobile browser QA passed.
-- Production release is pending.
+- Production release was deployed and health-checked on 2026-06-03 as Fly version `644` from commit `301a852`; rollback target is Phase 11 version `643`.
 
 Blocked right now:
 

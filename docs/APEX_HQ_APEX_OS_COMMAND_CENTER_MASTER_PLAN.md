@@ -686,7 +686,8 @@ Status:
 - Voice remains review-first: transcripts create an execution-locked command review and optional Ask Apex question. They do not pause agents, start tasks, write decisions, approve packets, send messages, deploy, spend money, bill, mutate production/customer data, or run external actions.
 - No always-listening mode, hidden microphone capture, audio storage, transcript persistence, schema/storage change, auth/session change, provider setup, customer-visible action, deletion, or irreversible action path was added.
 - Validation passed with focused voice parser/safety tests, broader Apex OS route/nav/permission regression, `npm.cmd run verify:roles`, `npm.cmd run build`, and desktop/mobile browser QA on `/apex-control-room` for transcript confirmation, safe Ask Apex handoff, speech fallback request, no failed requests, and no horizontal overflow.
-- Production release is pending.
+- Production release was deployed on 2026-06-03 from commit `301a852` to Fly app `concrete-ops-2` as version `644`, image `registry.fly.io/concrete-ops-2:deployment-01KT6BZ28V8HTPBNCWZEA27DXY`, with predeploy production backup `postgres-app-data-20260603-090951Z.json` and upload snapshot `uploads-20260603-090951Z`.
+- Post-deploy checks passed on 2026-06-03: both production `/api/ready` endpoints returned ready/database ok, `https://concrete-ops-2.fly.dev/api/health` returned healthy, Fly machine `148e06e2b53d68` was started on the Phase 12 image with 1 passing check, hosted skip-auth health/routes smoke passed on `https://app.apexhq.online/`, `/apex-control-room` served `index-2kSpyfRN.js` and `app-domain-DXZHV5Al.js` on both production hosts, unauthenticated Apex OS voice speech/transcribe and Ask Apex endpoints returned 401, and `/api/setup/status` showed demo mode off and public signup disabled. Production auth smoke/login was not run.
 
 ### Phase 13: Knowledge Intelligence
 
