@@ -496,7 +496,7 @@ function DecisionMemoryManager({ state, sessionToken }) {
           value={form.body}
           onChange={(event) => updateField("body", event.target.value)}
           maxLength={1800}
-          placeholder="What did John decide?"
+          placeholder="What did the operator decide?"
           className="min-h-20 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold leading-6 text-slate-700"
           disabled={!state.canView || loading}
         />
@@ -1399,7 +1399,7 @@ export function ApexControlRoomPage(props) {
           </Card>
 
           <Card className="min-w-0 p-4 sm:p-5">
-            <SectionHeader title="Approval Gates" description="Risky actions stay locked behind John approval." />
+            <SectionHeader title="Approval Gates" description="Risky actions stay locked behind owner approval." />
             <div className="min-w-0">
               {state.approvals.map((item) => <ApprovalRow key={item.id} item={item} />)}
             </div>
@@ -1410,7 +1410,7 @@ export function ApexControlRoomPage(props) {
           <Card className="min-w-0 p-4 sm:p-5">
             <SectionHeader
               title="Approval Command Center"
-              description={`${state.approvalCommandCenter.queueCount || 0} risky-action categories require scoped John approval packets.`}
+              description={`${state.approvalCommandCenter.queueCount || 0} risky-action categories require scoped owner approval packets.`}
               action={<ToneBadge tone={state.approvalCommandCenter.tone}>{state.approvalCommandCenter.status}</ToneBadge>}
             />
             <div className="grid min-w-0 gap-3 lg:grid-cols-2">
@@ -1870,7 +1870,7 @@ export function ApexControlRoomPage(props) {
               <StatusRow item={{
                 id: "voice-risk-review",
                 title: "Risky spoken commands",
-                status: "John approval required",
+                status: "Owner approval required",
                 detail: "A spoken request cannot deploy, send, spend, publish, change providers, touch production data, or delete anything.",
                 tone: "amber",
               }} />

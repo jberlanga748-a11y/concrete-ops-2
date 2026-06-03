@@ -22,7 +22,7 @@ import {
   upsertNotificationItemMeta,
 } from "./notification-state-utils";
 
-export function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary, navItems, permissions, companyName, companies = [], currentCompanyId = "", onSelectCompany, notificationSource = {}, onOpenPath, sessionToken = "", logoInitials = DEFAULT_LOGO_INITIALS, assistantState = null, onOpenAssistant = null, brandAssets = {}, appName = APP_NAME }) {
+export function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary, navItems, permissions, companyName, companies = [], currentCompanyId = "", onSelectCompany, notificationSource = {}, onOpenPath, sessionToken = "", logoInitials = DEFAULT_LOGO_INITIALS, assistantState = null, onOpenAssistant = null, brandAssets = {}, appName = APP_NAME, operatorShell = false }) {
   void logoInitials;
   const current = navItems.find((item) => item.id === active);
   const canSwitchCompanies = Boolean(permissions?.companies?.canSwitch && companies.length > 1);
@@ -168,8 +168,14 @@ export function TopBar({ active, setActive, stats, user, onLogout, syncing, save
             </button>
           ) : null}
           {saveSummary ? <Badge tone={saveSummary.tone}>{saveSummary.label}</Badge> : null}
-          {permissions?.leads?.canView ? <Badge tone="blue">{stats.newLeads} new leads</Badge> : null}
-          <Badge tone="amber">{stats.reportsDue} reports due</Badge>
+          {operatorShell ? (
+            <Badge tone="slate">Private Apex OS</Badge>
+          ) : (
+            <>
+              {permissions?.leads?.canView ? <Badge tone="blue">{stats.newLeads} new leads</Badge> : null}
+              <Badge tone="amber">{stats.reportsDue} reports due</Badge>
+            </>
+          )}
           {canSwitchCompanies ? (
             <label className="co-topbar-pill flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.14em] text-orange-200">
               Company

@@ -315,7 +315,7 @@ import { OPPORTUNITY_INTAKE_SOURCE_TYPES, OPPORTUNITY_SCOUT_CONNECTOR_PRESETS, O
 import { CONSTRUCTION_TRADE_PROFILES } from "../shared/constructionTrades.js";
 import { buildManagedSetupSupportContext, deriveFirstOwnerOnboardingState, deriveManagedCompanySetupState } from "../shared/managedCompanySetup.js";
 import { packageReadinessSummary } from "../shared/packages.js";
-import { canAccessWorkspaceModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, getWorkspaceModuleLock, resolveDashboardShortcut } from "./navigation-utils";
+import { canAccessWorkspaceModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, getWorkspaceModuleLock, isApexOsOperatorWorkspace, resolveDashboardShortcut } from "./navigation-utils";
 import { ActivityPanel, AuditTrailPanel } from "./office-activity-route-components";
 import { buildPostPourSupportContext, derivePostPourChecklistListState, derivePostPourItems, filterPostPourChecklists, postPourChecklistOwner, postPourChecklistStatusLabel, postPourChecklistUpdated, postPourItemStatusLabel, postPourItemTone, summarizePostPourChecklist } from "./post-pour-utils";
 import { buildPrePourSupportContext, derivePrePourChecklistListState, derivePrePourItems, filterPrePourChecklists, prePourChecklistOwner, prePourChecklistStatusLabel, prePourChecklistUpdated, prePourItemStatusLabel, prePourItemTone, summarizePrePourChecklist } from "./pre-pour-utils";
@@ -12786,7 +12786,8 @@ export default function App() {
   const previousActiveRef = useRef(active);
   const visibleNavGroups = useMemo(() => getVisibleNavGroups(NAV_GROUPS, appState.user, appState.companySettings, appState.permissions), [appState.companySettings, appState.permissions, appState.user]);
   const visibleNavItems = useMemo(() => visibleNavGroups.flatMap((group) => group.items), [visibleNavGroups]);
-  const defaultModuleId = useMemo(() => getDefaultModuleId(appState.user), [appState.user]);
+  const defaultModuleId = useMemo(() => getDefaultModuleId(appState.user, appState.permissions), [appState.permissions, appState.user]);
+  const isApexOsShell = useMemo(() => isApexOsOperatorWorkspace(appState.user, appState.permissions), [appState.permissions, appState.user]);
   const selectedCustomer = appState.customers.find((customer) => customer.id === selectedCustomerId) || null;
   const selectedUser = appState.users.find((user) => user.id === selectedUserId) || null;
   const selectedLead = appState.leads.find((lead) => lead.id === selectedLeadId) || null;
@@ -14040,7 +14041,10 @@ export default function App() {
       setEstimateFocusId("");
       setLeadDraft(INITIAL_LEAD_FORM);
       setLeadAssistantState({ leadId: "", loading: false, result: null, error: "" });
-      navigateTo(getModulePath(active), { replace: true });
+      const nextVisibleNavItems = getVisibleNavGroups(NAV_GROUPS, nextState.user, nextState.companySettings, nextState.permissions).flatMap((group) => group.items);
+      const nextDefaultModuleId = getDefaultModuleId(nextState.user, nextState.permissions);
+      const nextActive = nextVisibleNavItems.some((item) => item.id === active) ? active : nextDefaultModuleId;
+      navigateTo(getModulePath(nextActive), { replace: true });
       setErrorMessage("");
     } catch (error) {
       if (error.status === 401) {
@@ -17291,7 +17295,7 @@ export default function App() {
   const isOwnerAdminMobileWorkspace = isOwnerAdminMobileCommandUser(appState.user, appState.permissions);
   const isEstimatorMobileWorkspace = isEstimatorMobilePipelineUser(appState.user, appState.permissions) && ESTIMATOR_MOBILE_NAV_ROUTES.has(active);
   const mobileNavItems = isFieldMobileWorkspace ? getFieldMobileNavItems(visibleNavItems) : visibleNavItems;
-  const ownerAdminMobileNavItems = getOwnerAdminMobileNavItems(visibleNavItems);
+  const ownerAdminMobileNavItems = getOwnerAdminMobileNavItems(visibleNavItems, { operatorShell: isApexOsShell });
   const estimatorMobileNavItems = getEstimatorMobileNavItems(visibleNavItems);
   const customerRelated = relatedCustomerRecords(selectedCustomer, appState.leads, appState.jobs, appState.activity);
   const leadRelated = relatedLeadActivity(selectedLead, appState.customers, appState.activity, appState.leadStatusHistory);
@@ -17299,7 +17303,18 @@ export default function App() {
   return (
     <div className="co-app-shell min-h-screen overflow-x-hidden text-slate-950" data-print-route={active === "proposals" && routeState.proposalMode === "print" ? "proposal" : undefined}>
       <div className="flex min-w-0 max-w-full">
-        <Sidebar active={active} setActive={setActive} counts={counts} navGroups={visibleNavGroups} logoInitials={workspaceLogoInitials} brandAssets={APEX_BRAND_ASSETS} appName={APP_NAME} />
+        <Sidebar
+          active={active}
+          setActive={setActive}
+          counts={counts}
+          navGroups={visibleNavGroups}
+          logoInitials={workspaceLogoInitials}
+          brandAssets={APEX_BRAND_ASSETS}
+          appName={APP_NAME}
+          workspaceLabel={isApexOsShell ? "Apex OS" : "Team workspace"}
+          statusTitle={isApexOsShell ? "Private workspace" : "Live workspace"}
+          statusDescription={isApexOsShell ? "Operator-only tools for Apex HQ." : "Pick the workspace. The page shows the tools inside it."}
+        />
         <div className="co-workspace-shell mobile-content-safe min-w-0 flex-1 overflow-x-hidden lg:pb-0">
           <TopBar
             active={active}
@@ -17323,6 +17338,7 @@ export default function App() {
             onOpenAssistant={openGlobalAssistant}
             brandAssets={APEX_BRAND_ASSETS}
             appName={APP_NAME}
+            operatorShell={isApexOsShell}
           />
           <ErrorBanner message={errorMessage} onDismiss={() => setErrorMessage("")} />
           <main className="min-w-0 overflow-x-hidden py-0">

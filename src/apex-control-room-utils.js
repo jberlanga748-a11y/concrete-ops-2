@@ -259,7 +259,7 @@ export const APEX_OS_BUSINESS_GATES = Object.freeze([
     id: "no-ad-spend",
     title: "No ad spend or publishing",
     status: "Locked",
-    detail: "Google/Meta ads, boosted posts, public website publishing, and social posting require John approval and provider setup.",
+    detail: "Google/Meta ads, boosted posts, public website publishing, and social posting require owner approval and provider setup.",
     tone: "amber",
   },
   {
@@ -522,7 +522,7 @@ export const APEX_OS_DECISION_MEMORY_SEED = Object.freeze([
   {
     id: "approval-before-risk",
     category: "safety-rule",
-    title: "Risky actions require John approval",
+    title: "Risky actions require owner approval",
     status: "Locked",
     detail: "Deploy, schema/auth/session, production data, external sends, provider setup, billing, ads, payments, deletion, and customer-visible changes stay approval-gated.",
     tone: "amber",
@@ -845,7 +845,7 @@ export const APEX_OS_VOICE_MODES = Object.freeze([
     id: "risky-command-confirmation",
     title: "Risky command confirmation",
     status: "Locked",
-    detail: "Deploy, send, spend, customer-visible, provider, production, money, and deletion commands need visible John approval.",
+    detail: "Deploy, send, spend, customer-visible, provider, production, money, and deletion commands need visible owner approval.",
     tone: "amber",
   },
 ]);
@@ -1029,7 +1029,7 @@ function buildAskApexChatState({
       id: "release-desk",
       title: "Release Desk",
       status: releaseDesk?.status || "Manual release only",
-      detail: "Deploy answers must keep backup, restore, tests, build, rollback, and John approval in the evidence trail.",
+      detail: "Deploy answers must keep backup, restore, tests, build, rollback, and owner approval in the evidence trail.",
       tone: releaseDesk?.tone || "amber",
       source: "Release safety utilities",
     },
@@ -1079,7 +1079,7 @@ function buildApprovalCommandCenterState({ releaseDesk, askApexChat, voiceInterf
     id: label.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
     title: label,
     status: "Packet required",
-    detail: `${label} requests need action, reason, affected scope, risk, validation, rollback, and exact John approval before anything can happen.`,
+    detail: `${label} requests need action, reason, affected scope, risk, validation, rollback, and exact owner approval before anything can happen.`,
     tone: "amber",
   }));
   const packetRows = APEX_OS_APPROVAL_PACKET_FIELDS.map((item) => ({ ...item }));
@@ -1290,14 +1290,14 @@ function buildBusinessCommandCenterState({
       id: "stalled-business-work",
       title: "Stalled business work",
       status: releaseMonitoring?.status || "Planned",
-      detail: "Business blockers can appear beside release and monitoring blockers for John review.",
+      detail: "Business blockers can appear beside release and monitoring blockers for operator review.",
       tone: releaseMonitoring?.tone || "slate",
     },
     {
       id: "manual-next-actions",
       title: "Manual next actions",
       status: "Review required",
-      detail: "Apex can prepare drafts, packets, checklists, and recommendations, but John chooses if anything leaves the app.",
+      detail: "Apex can prepare drafts, packets, checklists, and recommendations, but the owner chooses if anything leaves the app.",
       tone: "amber",
     },
   ];
@@ -1463,7 +1463,7 @@ function buildAgentWorkQueue(agentTaskOptions = [], agentRunRows = [], permissio
         id: "external-gates",
         title: "External gates",
         status: "Approval required",
-        detail: "Customer contact, payment, bid, portal, provider, deploy, and production actions stay behind John approval.",
+        detail: "Customer contact, payment, bid, portal, provider, deploy, and production actions stay behind owner approval.",
         tone: "amber",
       },
     ],
@@ -1800,7 +1800,7 @@ export function deriveApexControlRoomState({
         id: "release-approval",
         title: "Release approval",
         status: "Approval required",
-        detail: "Keep deploy, provider setup, schema/auth/session changes, production data, sends, payments, ads, and deletion behind John approval.",
+        detail: "Keep deploy, provider setup, schema/auth/session changes, production data, sends, payments, ads, and deletion behind owner approval.",
         tone: "amber",
       },
       {
@@ -1849,7 +1849,7 @@ export function deriveApexControlRoomState({
         id: "release-monitoring-plan",
         title: "Release monitoring plan",
         status: "Ready",
-        detail: "Use the release/monitoring briefing to review build, launch, rollback, stalled-agent, and John-action alerts before any provider or deploy work.",
+        detail: "Use the release/monitoring briefing to review build, launch, rollback, stalled-agent, and owner-action alerts before any provider or deploy work.",
         tone: "blue",
       },
       {
@@ -1881,7 +1881,7 @@ export function deriveApexControlRoomState({
         id: "release-desk",
         title: "Release desk",
         status: releaseDesk.status,
-        detail: "Deploys stay locked until validation, exact file staging, backup/restore evidence, and John approval.",
+        detail: "Deploys stay locked until validation, exact file staging, backup/restore evidence, and owner approval.",
         tone: "amber",
       },
       {
@@ -1969,7 +1969,7 @@ export function deriveApexControlRoomState({
     approvals: APEX_CONTROL_ROOM_APPROVAL_GATES.map((label) => ({
       id: label.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
       label,
-      status: "John approval required",
+      status: "Owner approval required",
       tone: "amber",
     })),
     evidence: recentEvidence,

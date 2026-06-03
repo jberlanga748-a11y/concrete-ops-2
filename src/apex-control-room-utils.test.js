@@ -136,7 +136,7 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.releaseDesk.sections.length, 3);
   assert.equal(state.launchReadiness.blockedCount > 0, true);
   assert.equal(state.launchReadiness.gates.length, 4);
-  assert.match(state.nextBestActions.find((item) => item.id === "release-approval")?.detail || "", /John approval/);
+  assert.match(state.nextBestActions.find((item) => item.id === "release-approval")?.detail || "", /owner approval/);
   assert.match(state.nextBestActions.find((item) => item.id === "memory-review")?.detail || "", /manually approve or archive/);
   assert.equal(state.nextBestActions.find((item) => item.id === "ask-apex-chat-plan")?.status, "Ready");
   assert.equal(state.nextBestActions.find((item) => item.id === "voice-interface-plan")?.status, "Ready");

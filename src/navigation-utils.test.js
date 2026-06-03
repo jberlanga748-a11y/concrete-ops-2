@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { canAccessModule, canAccessWorkspaceModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, getWorkspaceModuleLock, resolveDashboardShortcut } from "./navigation-utils.js";
+import { canAccessModule, canAccessWorkspaceModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, getWorkspaceModuleLock, isApexOsOperatorWorkspace, resolveDashboardShortcut } from "./navigation-utils.js";
 import { canUseToolChecklist, isEstimator, isOfficeManager } from "../shared/permissions.js";
 
 const NAV_GROUPS = [
@@ -150,6 +150,11 @@ test("Apex Control Room stays hidden unless the private bootstrap permission is 
   assert.equal(canAccessWorkspaceModule("apexControlRoom", switchedOperator, { toolChecklistEnabled: true }, privatePermissions), false);
   assert.equal(canAccessWorkspaceModule("apexControlRoom", privateOperator, { toolChecklistEnabled: true }, blockedPermissions), false);
   assert.equal(canAccessWorkspaceModule("apexControlRoom", normalOwner, { toolChecklistEnabled: true }, privatePermissions), false);
+  assert.equal(isApexOsOperatorWorkspace(privateOperator, privatePermissions), true);
+  assert.equal(isApexOsOperatorWorkspace(privateOperator, blockedPermissions), false);
+  assert.equal(getDefaultModuleId(privateOperator, privatePermissions), "apexControlRoom");
+  assert.equal(getDefaultModuleId(switchedOperator, blockedPermissions), "dashboard");
+  assert.equal(canAccessWorkspaceModule("dashboard", privateOperator, { toolChecklistEnabled: true }, privatePermissions), false);
   assert.equal(
     getVisibleNavGroups(NAV_GROUPS, privateOperator, { toolChecklistEnabled: true }, privatePermissions).flatMap((group) => group.items.map((item) => item.id)).includes("apexControlRoom"),
     true,
@@ -158,6 +163,42 @@ test("Apex Control Room stays hidden unless the private bootstrap permission is 
     getVisibleNavGroups(NAV_GROUPS, privateOperator, { toolChecklistEnabled: true }, blockedPermissions).flatMap((group) => group.items.map((item) => item.id)).includes("apexControlRoom"),
     false,
   );
+});
+
+test("Apex OS operator shell only exposes private operator routes", () => {
+  const privateOperator = { role: "Owner", operatorAccess: true, currentCompanyId: "COMPANY-DEFAULT" };
+  const privatePermissions = {
+    apexOs: { canView: true },
+    appHealth: { canView: true },
+    aiOffice: { canView: true },
+    support: { canView: true },
+  };
+
+  assert.deepEqual(
+    getVisibleNavGroups(NAV_GROUPS, privateOperator, { toolChecklistEnabled: true }, privatePermissions).flatMap((group) => group.items.map((item) => item.id)),
+    ["apexControlRoom", "support", "appHealth", "copilot", "settings"],
+  );
+  assert.equal(canAccessWorkspaceModule("leads", privateOperator, { toolChecklistEnabled: true }, privatePermissions), false);
+  assert.equal(canAccessWorkspaceModule("jobs", privateOperator, { toolChecklistEnabled: true }, privatePermissions), false);
+  assert.equal(canAccessWorkspaceModule("settings", privateOperator, { toolChecklistEnabled: true }, privatePermissions), true);
+});
+
+test("operator switched into a contractor company keeps contractor route behavior", () => {
+  const switchedOperator = { role: "Owner", operatorAccess: true, currentCompanyId: "COMPANY-LYF" };
+  const contractorPermissions = {
+    apexOs: { canView: false },
+    appHealth: { canView: true },
+    aiOffice: { canView: true },
+    support: { canView: true },
+  };
+  const visibleIds = getVisibleNavGroups(NAV_GROUPS, switchedOperator, { toolChecklistEnabled: true }, contractorPermissions)
+    .flatMap((group) => group.items.map((item) => item.id));
+
+  assert.equal(getDefaultModuleId(switchedOperator, contractorPermissions), "dashboard");
+  assert.equal(visibleIds.includes("dashboard"), true);
+  assert.equal(visibleIds.includes("leads"), true);
+  assert.equal(visibleIds.includes("apexControlRoom"), false);
+  assert.equal(canAccessWorkspaceModule("dashboard", switchedOperator, { toolChecklistEnabled: true }, contractorPermissions), true);
 });
 
 test("workspace module locks do not replace role protection for field users", () => {

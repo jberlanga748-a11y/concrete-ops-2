@@ -3,6 +3,7 @@ import fs from "node:fs";
 import test from "node:test";
 
 import {
+  APEX_OS_MOBILE_NAV_ORDER,
   ESTIMATOR_MOBILE_NAV_ROUTES,
   getEstimatorMobileNavItems,
   getOwnerAdminMobileNavItems,
@@ -54,6 +55,20 @@ test("owner admin mobile overflow can include private Apex OS when permission-fi
   assert.equal(items[4].icon, "spark");
 });
 
+test("Apex OS mobile nav uses private operator order", () => {
+  const items = getOwnerAdminMobileNavItems([
+    { id: "support", label: "Support", icon: "original-support" },
+    { id: "settings", label: "Settings", icon: "original-settings" },
+    { id: "apexControlRoom", label: "Apex Control Room", icon: "original-apex" },
+    { id: "copilot", label: "Apex Assistant", icon: "original-assistant" },
+    { id: "appHealth", label: "App Health", icon: "original-health" },
+  ], { operatorShell: true });
+
+  assert.deepEqual(APEX_OS_MOBILE_NAV_ORDER.map((item) => item.id), ["apexControlRoom", "appHealth", "copilot", "support", "settings"]);
+  assert.deepEqual(items.map((item) => item.id), ["apexControlRoom", "appHealth", "copilot", "support", "settings"]);
+  assert.deepEqual(items.map((item) => item.label), ["Apex OS", "Health", "Assistant", "Help", "Setup"]);
+});
+
 test("estimator mobile nav prioritizes sales routes and preserves remaining visible items", () => {
   const items = getEstimatorMobileNavItems(visibleNavItems);
 
@@ -93,6 +108,7 @@ test("mobile nav helpers are extracted from App", () => {
   assert.match(utilSource, /export function getOwnerAdminMobileNavItems\b/);
   assert.match(utilSource, /export function getEstimatorMobileNavItems\b/);
   assert.match(utilSource, /export const ESTIMATOR_MOBILE_NAV_ROUTES\b/);
+  assert.match(utilSource, /export const APEX_OS_MOBILE_NAV_ORDER\b/);
 
   assert.doesNotMatch(appSource, /const OWNER_ADMIN_MOBILE_NAV_ORDER\s*=/);
   assert.doesNotMatch(appSource, /const OWNER_ADMIN_MOBILE_MORE_ORDER\s*=/);

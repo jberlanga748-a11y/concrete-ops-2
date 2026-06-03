@@ -21,6 +21,14 @@ export const OWNER_ADMIN_MOBILE_MORE_ORDER = [
   { id: "settings", label: "Setup", icon: "settings" },
 ];
 
+export const APEX_OS_MOBILE_NAV_ORDER = [
+  { id: "apexControlRoom", label: "Apex OS", icon: "spark" },
+  { id: "appHealth", label: "Health", icon: "database" },
+  { id: "copilot", label: "Assistant", icon: "spark" },
+  { id: "support", label: "Help", icon: "help" },
+  { id: "settings", label: "Setup", icon: "settings" },
+];
+
 export const ESTIMATOR_MOBILE_NAV_ORDER = [
   { id: "leads", label: "Pipeline", icon: "grid" },
   { id: "estimates", label: "Estimates", icon: "quote" },
@@ -30,8 +38,21 @@ export const ESTIMATOR_MOBILE_NAV_ORDER = [
 
 export const ESTIMATOR_MOBILE_NAV_ROUTES = new Set(["leads", "estimates", "customers", "communications"]);
 
-export function getOwnerAdminMobileNavItems(visibleNavItems = []) {
+export function getOwnerAdminMobileNavItems(visibleNavItems = [], options = {}) {
   const visibleById = new Map((visibleNavItems || []).map((item) => [item.id, item]));
+  if (options.operatorShell) {
+    const ordered = APEX_OS_MOBILE_NAV_ORDER
+      .map((item) => {
+        const visible = visibleById.get(item.id);
+        return visible ? { ...visible, label: item.label, icon: item.icon || visible.icon } : null;
+      })
+      .filter(Boolean);
+    const orderedIds = new Set(ordered.map((item) => item.id));
+    return [
+      ...ordered,
+      ...(visibleNavItems || []).filter((item) => !orderedIds.has(item.id)),
+    ];
+  }
   const ordered = OWNER_ADMIN_MOBILE_NAV_ORDER
     .map((item) => {
       const visible = visibleById.get(item.id);

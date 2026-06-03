@@ -1,6 +1,17 @@
-import { DEFAULT_COMPANY_SETTINGS, canAccessModule, getAllowedModuleIds, getDefaultModuleId } from "../shared/permissions.js";
+import { DEFAULT_COMPANY_SETTINGS, canAccessModule, getAllowedModuleIds, getDefaultModuleId as getRoleDefaultModuleId } from "../shared/permissions.js";
 
-export { canAccessModule, getDefaultModuleId };
+export { canAccessModule };
+
+const APEX_OS_OPERATOR_MODULE_IDS = new Set(["apexControlRoom", "appHealth", "copilot", "settings", "support"]);
+
+export function isApexOsOperatorWorkspace(user, permissions = null) {
+  return Boolean(user && permissions?.apexOs?.canView);
+}
+
+export function getDefaultModuleId(user, permissions = null) {
+  if (isApexOsOperatorWorkspace(user, permissions)) return "apexControlRoom";
+  return getRoleDefaultModuleId(user);
+}
 
 function permissionFlag(permissions, path) {
   if (!permissions || !path) return null;
@@ -34,6 +45,9 @@ function packageAllowsModule(moduleId, permissions = null) {
 }
 
 export function canAccessWorkspaceModule(moduleId, user, companySettings = DEFAULT_COMPANY_SETTINGS, permissions = null) {
+  if (isApexOsOperatorWorkspace(user, permissions) && !APEX_OS_OPERATOR_MODULE_IDS.has(moduleId)) {
+    return false;
+  }
   return canAccessModule(moduleId, user, companySettings) && packageAllowsModule(moduleId, permissions);
 }
 
@@ -158,11 +172,15 @@ const DASHBOARD_SHORTCUTS = {
 
 export function getVisibleNavGroups(navGroups, user, companySettings = DEFAULT_COMPANY_SETTINGS, permissions = null) {
   const allowedModules = getAllowedModuleIds(user, companySettings);
+  const operatorShell = isApexOsOperatorWorkspace(user, permissions);
 
   return navGroups
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => allowedModules.has(item.id) && packageAllowsModule(item.id, permissions)),
+      items: group.items.filter((item) => {
+        if (operatorShell && !APEX_OS_OPERATOR_MODULE_IDS.has(item.id)) return false;
+        return allowedModules.has(item.id) && packageAllowsModule(item.id, permissions);
+      }),
     }))
     .filter((group) => group.items.length > 0);
 }
