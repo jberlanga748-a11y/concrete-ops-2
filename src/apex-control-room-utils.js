@@ -4,6 +4,7 @@ import { deriveEnterpriseTrustReadinessState } from "./owner-health-utils.js";
 import { getReleaseSafetySections } from "./release-safety-utils.js";
 import { summarizeApexOsMemory } from "../shared/apexOsMemory.js";
 import { summarizeApexOsApprovalPackets } from "../shared/apexOsApprovalPackets.js";
+import { summarizeApexOsExecutionHandoffs } from "../shared/apexOsExecutionHandoffs.js";
 
 function list(value) {
   return Array.isArray(value) ? value : [];
@@ -1026,6 +1027,40 @@ function buildApprovalCommandCenterState({ releaseDesk, askApexChat, voiceInterf
   };
 }
 
+function buildExecutionHandoffState({ agentWorkQueue, approvalCommandCenter, companySettings = {} } = {}) {
+  const handoffSummary = summarizeApexOsExecutionHandoffs(companySettings?.apexOsExecutionHandoffs || []);
+  const sourceRows = [
+    {
+      id: "approval-packets",
+      title: "Approval packet context",
+      status: `${approvalCommandCenter?.packetSummary?.ready || 0} ready`,
+      detail: "Ready approval packet drafts can inform handoff packages, but handoffs cannot approve or execute anything.",
+      tone: approvalCommandCenter?.packetSummary?.ready ? "green" : "amber",
+    },
+    {
+      id: "agent-work-queue",
+      title: "Agent Work Queue",
+      status: agentWorkQueue?.status || "Review-only",
+      detail: `${formatCount(agentWorkQueue?.availableTaskCount)} review-only task types are visible. Handoffs prepare instructions without calling queue or run APIs.`,
+      tone: agentWorkQueue?.tone || "blue",
+    },
+    {
+      id: "execution-lock",
+      title: "Execution lock",
+      status: "Run locked",
+      detail: "Queue, run, deploy, send, spend, provider, customer-visible, production, delete, and irreversible actions stay unavailable here.",
+      tone: "amber",
+    },
+  ];
+  return {
+    status: handoffSummary.total ? "Handoff drafts active" : "Drafting ready",
+    tone: handoffSummary.ready ? "green" : handoffSummary.total ? "blue" : "blue",
+    handoffSummary,
+    sourceCount: sourceRows.length,
+    sourceRows,
+  };
+}
+
 function buildReleaseMonitoringState({
   releaseDesk,
   launchState,
@@ -1389,6 +1424,7 @@ export function deriveApexControlRoomState({
   const askApexChat = buildAskApexChatState({ decisionMemory, knowledgeVault, agentWorkQueue, launchState, releaseDesk });
   const voiceInterface = buildVoiceInterfaceState({ askApexChat });
   const approvalCommandCenter = buildApprovalCommandCenterState({ releaseDesk, askApexChat, voiceInterface, companySettings });
+  const executionHandoffs = buildExecutionHandoffState({ agentWorkQueue, approvalCommandCenter, companySettings });
   const releaseMonitoring = buildReleaseMonitoringState({ releaseDesk, launchState, trustState, agentWorkQueue, recentEvidence });
   const businessCommandCenter = buildBusinessCommandCenterState({ launchState, knowledgeVault, approvalCommandCenter, releaseMonitoring });
   const qaSecurityHardening = buildQaSecurityHardeningState({
@@ -1421,6 +1457,7 @@ export function deriveApexControlRoomState({
       askApexChat: { status: "Restricted", tone: "slate", contexts: [], evidenceRows: [], actionLocks: [] },
       voiceInterface: { status: "Restricted", tone: "slate", modes: [], safetyRows: [] },
       approvalCommandCenter: { status: "Restricted", tone: "slate", queueRows: [], packetRows: [], controlRows: [], sourceRows: [] },
+      executionHandoffs: { status: "Restricted", tone: "slate", sourceRows: [], handoffSummary: { total: 0, draft: 0, ready: 0, blocked: 0, archived: 0 } },
       releaseMonitoring: { status: "Restricted", tone: "slate", readinessRows: [], briefingRows: [], releasePacketRows: [], lockRows: [] },
       businessCommandCenter: { status: "Restricted", tone: "slate", queueRows: [], gateRows: [], launchRows: [], briefingRows: [] },
       qaSecurityHardening: { status: "Restricted", tone: "slate", evidenceRows: [], lockRows: [] },
@@ -1522,6 +1559,13 @@ export function deriveApexControlRoomState({
         tone: approvalCommandCenter.tone,
       },
       {
+        id: "execution-handoffs",
+        title: "Agent handoff drafts",
+        status: executionHandoffs.status,
+        detail: `${executionHandoffs.handoffSummary.total} saved handoffs and ${executionHandoffs.handoffSummary.ready} ready handoffs prepare agent work without queueing or running it.`,
+        tone: executionHandoffs.tone,
+      },
+      {
         id: "release-monitoring",
         title: "Release monitoring",
         status: releaseMonitoring.status,
@@ -1608,6 +1652,13 @@ export function deriveApexControlRoomState({
         status: approvalCommandCenter.status,
         detail: `${approvalCommandCenter.controlLockCount} approve/reject/defer/execute controls are visible but locked.`,
         tone: approvalCommandCenter.tone,
+      },
+      {
+        id: "execution-handoffs",
+        title: "Agent handoff drafts",
+        status: executionHandoffs.status,
+        detail: `${executionHandoffs.sourceCount} source rows connect approval packets and Agent Work Queue context without calling queue/run APIs.`,
+        tone: executionHandoffs.tone,
       },
       {
         id: "release-monitoring",
@@ -1765,6 +1816,13 @@ export function deriveApexControlRoomState({
         tone: approvalCommandCenter.tone,
       },
       {
+        id: "execution-handoffs",
+        title: "Agent handoff drafts",
+        status: executionHandoffs.status,
+        detail: `${executionHandoffs.handoffSummary.total} durable handoffs can prepare scoped agent instructions; queueing and running remain locked.`,
+        tone: executionHandoffs.tone,
+      },
+      {
         id: "release-monitoring",
         title: "Release monitoring",
         status: releaseMonitoring.status,
@@ -1806,6 +1864,7 @@ export function deriveApexControlRoomState({
     askApexChat,
     voiceInterface,
     approvalCommandCenter,
+    executionHandoffs,
     releaseMonitoring,
     businessCommandCenter,
     qaSecurityHardening,

@@ -21,6 +21,13 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /Agent Work Queue/);
   assert.match(componentSource, /Agent Run Ledger/);
   assert.match(componentSource, /Agent Safety Locks/);
+  assert.match(componentSource, /Agent Handoff Drafts/);
+  assert.match(componentSource, /ExecutionHandoffDraftPanel/);
+  assert.match(componentSource, /createApexOsExecutionHandoff/);
+  assert.match(componentSource, /getApexOsExecutionHandoffs/);
+  assert.match(componentSource, /updateApexOsExecutionHandoff/);
+  assert.match(componentSource, /Queue locked/);
+  assert.match(componentSource, /Run locked/);
   assert.match(componentSource, /Locked Agent Tasks/);
   assert.match(componentSource, /Knowledge Vault/);
   assert.match(componentSource, /Vault Safety Gates/);
@@ -78,6 +85,7 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(utilSource, /APEX_OS_DECISION_MEMORY_SEED/);
   assert.match(utilSource, /APEX_OS_OPERATING_RULES/);
   assert.match(utilSource, /function buildAgentWorkQueue/);
+  assert.match(utilSource, /function buildExecutionHandoffState/);
   assert.match(utilSource, /runStatusTone/);
   assert.match(utilSource, /APEX_OS_KNOWLEDGE_VAULT_CATEGORIES/);
   assert.match(utilSource, /APEX_OS_KNOWLEDGE_VAULT_SAFETY_RULES/);

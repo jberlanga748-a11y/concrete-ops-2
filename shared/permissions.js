@@ -60,6 +60,7 @@ export const DEFAULT_COMPANY_SETTINGS = {
   agentLearningPreferences: [],
   apexOsMemory: [],
   apexOsApprovalPackets: [],
+  apexOsExecutionHandoffs: [],
   apexAgentAutomationPolicy: {
     enabled: true,
     autonomyLevel: "review_first",

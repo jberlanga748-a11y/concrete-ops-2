@@ -437,6 +437,8 @@ Status:
 - Added Agent Work Queue, Agent Run Ledger, Agent Safety Locks, and Locked Agent Tasks panels to the private Apex Control Room.
 - Reuses existing Agent OS internal task option and run ledger helpers. It shows available review-only task types, visible targets, recent audit-backed run rows, locked/no-target tasks, and safety boundaries.
 - This slice does not run agents, resume/pause background loops, mutate records, deploy, send, spend, delete, configure providers, or change schema.
+- Safe agent handoff drafts implemented locally on 2026-06-02 as Apex OS Slice 18 using existing company settings storage as `apexOsExecutionHandoffs`, with operator-only list/create/update endpoints, draft/ready/blocked/archived states, source-label and readiness-field requirements, secret/email rejection, audit/activity logging, and Control Room drafting/loading/mark-ready/block/archive UI.
+- Handoffs prepare scoped agent work packages only. They cannot approve, queue, run, execute, deploy, send, spend, publish, configure providers, mutate production, make customer-visible changes, change schema, delete files, or perform irreversible actions.
 - Validation passed with focused Apex OS utility/import tests, the 77-test permission/routing/bootstrap suite, `npm.cmd run build`, `git diff --check` with CRLF warnings only, and desktop/mobile browser QA with no horizontal overflow and normal admin blocked/redirected away from Apex OS.
 
 ### Phase 8: Approval Command Center
@@ -954,6 +956,13 @@ Validation:
 - Role tests.
 - Visual checks.
 
+Status:
+
+- Read-only Agent Work Queue and Run Ledger implemented locally on 2026-06-02 as Apex OS Slice 4.
+- Durable safe agent handoff drafts implemented locally on 2026-06-02 as Apex OS Slice 18 using existing company settings storage as `apexOsExecutionHandoffs`.
+- Handoffs can be drafted, readied, blocked, and archived from the private Control Room with source evidence, allowed actions, blocked actions, validation plan, rollback plan, and handoff prompt.
+- Queueing, running, approving, executing, deploys, sends, spend, provider setup, production mutation, customer-visible changes, schema changes, deletion, and irreversible actions remain locked.
+
 ### Slice 4: Approval Center
 
 Goal:
@@ -981,6 +990,7 @@ Status:
 - Read-only first UI implemented locally on 2026-06-02 as Apex OS Slice 8.
 - Approval categories, packet fields, locked approve/reject/defer/execute controls, and source rows are visible inside the private Control Room.
 - Durable approval packet drafts implemented locally on 2026-06-02 as Apex OS Slice 17 using existing company settings storage as `apexOsApprovalPackets`, with operator-only list/create/update endpoints, draft/ready/blocked/archived states, source-label and readiness-field requirements, secret/email rejection, audit/activity logging, and Control Room drafting/loading/mark-ready/block/archive UI.
+- Durable execution handoff drafts implemented locally on 2026-06-02 as Apex OS Slice 18 using existing company settings storage as `apexOsExecutionHandoffs`, with operator-only list/create/update endpoints, draft/ready/blocked/archived states, source-label and readiness-field requirements, secret/email rejection, audit/activity logging, and Control Room drafting/loading/mark-ready/block/archive UI. These are work-package drafts only and do not call Agent OS queue/run endpoints.
 - Real approve/execute decisions, external execution, schema/storage migrations, deploy, provider setup, production data mutation, sends, money actions, customer-visible changes, and deletion remain approval-locked.
 
 ### Slice 5: Decision Memory

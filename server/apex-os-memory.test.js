@@ -157,13 +157,26 @@ function storedApexOsApprovalPackets(sqliteFile, companyId = DEFAULT_COMPANY_ID)
   }
 }
 
+function storedApexOsExecutionHandoffs(sqliteFile, companyId = DEFAULT_COMPANY_ID) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    const row = database.prepare(`
+      SELECT value FROM company_settings
+      WHERE company_id = ? AND key = 'apexOsExecutionHandoffs'
+    `).get(companyId);
+    return JSON.parse(row?.value || "[]");
+  } finally {
+    database.close();
+  }
+}
+
 function auditEvents(sqliteFile) {
   const database = new DatabaseSync(sqliteFile);
   try {
     return database.prepare(`
       SELECT entity_type AS entityType, action, summary
       FROM audit_events
-      WHERE entity_type IN ('apexOsMemory', 'apexOsApprovalPacket')
+      WHERE entity_type IN ('apexOsMemory', 'apexOsApprovalPacket', 'apexOsExecutionHandoff')
       ORDER BY created_at DESC
     `).all();
   } finally {
@@ -228,6 +241,10 @@ test("Apex OS memory is operator-only, source-backed, persisted, and audited", a
       headers: authHeaders(adminLogin.token),
     });
     assert.equal(adminPacketsBlocked.response.status, 403);
+    const adminHandoffsBlocked = await requestJson(fixture.baseUrl, "/api/apex-os/execution-handoffs", {
+      headers: authHeaders(adminLogin.token),
+    });
+    assert.equal(adminHandoffsBlocked.response.status, 403);
 
     const unsafe = await requestJson(fixture.baseUrl, "/api/apex-os/memory", {
       method: "POST",
@@ -370,6 +387,89 @@ test("Apex OS memory is operator-only, source-backed, persisted, and audited", a
     assert.equal(listedPackets.summary.ready, 1);
     assert.equal(listedPackets.apexOsApprovalPackets[0].title, "Deploy Apex OS Control Room");
 
+    const unsafeHandoff = await requestJson(fixture.baseUrl, "/api/apex-os/execution-handoffs", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Unsafe handoff",
+        objective: "Use provider API key sk-test-123456789abc to configure a live provider.",
+        sourceLabel: "Unsafe note",
+      }),
+    });
+    assert.equal(unsafeHandoff.response.status, 400);
+
+    const executedStatusHandoff = await requestJson(fixture.baseUrl, "/api/apex-os/execution-handoffs", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Executed status is blocked",
+        objective: "Run the agent now.",
+        status: "executed",
+        sourceLabel: "Manual note",
+      }),
+    });
+    assert.equal(executedStatusHandoff.response.status, 400);
+
+    const queuedStatusHandoff = await requestJson(fixture.baseUrl, "/api/apex-os/execution-handoffs", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Queued status is blocked",
+        objective: "Queue the agent now.",
+        status: "queued",
+        sourceLabel: "Manual note",
+      }),
+    });
+    assert.equal(queuedStatusHandoff.response.status, 400);
+
+    const incompleteReadyHandoff = await requestJson(fixture.baseUrl, "/api/apex-os/execution-handoffs", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Incomplete ready handoff",
+        objective: "Prepare the next local Apex OS slice.",
+        status: "ready",
+        sourceLabel: "Agent Work Queue",
+      }),
+    });
+    assert.equal(incompleteReadyHandoff.response.status, 400);
+
+    const createdHandoff = await assertOk(fixture.baseUrl, "/api/apex-os/execution-handoffs", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Build Apex OS handoff drafts",
+        agentRole: "build",
+        workType: "local-code-plan",
+        riskLevel: "medium",
+        sourceApprovalPacketId: createdPacket.apexOsApprovalPacket.id,
+        objective: "Prepare the safe agent handoff draft slice for Apex OS.",
+        sourceEvidence: "Apex OS living finish plan, master plan, and approval packet context.",
+        allowedActions: "Read files, draft local code, run local tests, and report evidence.",
+        blockedActions: "No deploy, sends, spend, provider setup, production mutation, customer-visible changes, deletion, or irreversible actions.",
+        validationPlan: "Run focused handoff tests, server tests, role checks, build, and browser QA.",
+        rollbackPlan: "Revert the handoff branch commit.",
+        handoffPrompt: "Act as Apex feature builder and implement local-only handoff drafting.",
+        sourceLabel: "docs/APEX_HQ_LIVING_FINISH_PLAN.md",
+      }),
+    });
+    assert.equal(createdHandoff.apexOsExecutionHandoff.status, "draft");
+    assert.equal(createdHandoff.apexOsExecutionHandoff.readyToReview, true);
+    assert.equal(storedApexOsExecutionHandoffs(fixture.sqliteFile)[0].title, "Build Apex OS handoff drafts");
+
+    const readyHandoff = await assertOk(fixture.baseUrl, `/api/apex-os/execution-handoffs/${createdHandoff.apexOsExecutionHandoff.id}`, {
+      method: "PATCH",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({ status: "ready" }),
+    });
+    assert.equal(readyHandoff.apexOsExecutionHandoff.status, "ready");
+
+    const listedHandoffs = await assertOk(fixture.baseUrl, "/api/apex-os/execution-handoffs", {
+      headers: authHeaders(operatorLogin.token),
+    });
+    assert.equal(listedHandoffs.summary.ready, 1);
+    assert.equal(listedHandoffs.apexOsExecutionHandoffs[0].title, "Build Apex OS handoff drafts");
+
     const archived = await assertOk(fixture.baseUrl, `/api/apex-os/memory/${created.apexOsMemoryEntry.id}`, {
       method: "PATCH",
       headers: authHeaders(operatorLogin.token),
@@ -378,6 +478,7 @@ test("Apex OS memory is operator-only, source-backed, persisted, and audited", a
     assert.equal(archived.apexOsMemoryEntry.status, "archived");
     assert.ok(archived.apexOsMemoryEntry.archivedAt);
     const audits = auditEvents(fixture.sqliteFile);
+    assert.equal(audits.some((event) => event.entityType === "apexOsExecutionHandoff" && event.action === "readied"), true);
     assert.equal(audits.some((event) => event.entityType === "apexOsApprovalPacket" && event.action === "readied"), true);
     assert.deepEqual(audits.filter((event) => event.entityType === "apexOsMemory").map((event) => event.action).slice(0, 3), ["archived", "approved", "suggested"]);
   } finally {

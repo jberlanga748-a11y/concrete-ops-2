@@ -435,6 +435,18 @@ export function updateApexOsApprovalPacket(token, id, payload = {}) {
   return request(`/api/apex-os/approval-packets/${encodeURIComponent(id)}`, { method: "PATCH", token, body: payload });
 }
 
+export function getApexOsExecutionHandoffs(token) {
+  return request("/api/apex-os/execution-handoffs", { token });
+}
+
+export function createApexOsExecutionHandoff(token, payload = {}) {
+  return request("/api/apex-os/execution-handoffs", { method: "POST", token, body: payload });
+}
+
+export function updateApexOsExecutionHandoff(token, id, payload = {}) {
+  return request(`/api/apex-os/execution-handoffs/${encodeURIComponent(id)}`, { method: "PATCH", token, body: payload });
+}
+
 export function createAgentConversationThread(token, payload) {
   return request("/api/agent/conversations", { method: "POST", token, body: payload });
 }

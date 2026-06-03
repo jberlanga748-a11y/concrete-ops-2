@@ -19,6 +19,7 @@ import { normalizeManagedSetupSettings } from "../shared/managedCompanySetup.js"
 import { normalizeAgentLearningPreferences } from "../shared/agentLearningPreferences.js";
 import { normalizeApexOsMemory } from "../shared/apexOsMemory.js";
 import { normalizeApexOsApprovalPackets } from "../shared/apexOsApprovalPackets.js";
+import { normalizeApexOsExecutionHandoffs } from "../shared/apexOsExecutionHandoffs.js";
 import { normalizeAgentConversationThread } from "../shared/agentConversations.js";
 import { normalizeApexAgentAutomationPolicy } from "../shared/apexAgentAutomationPolicy.js";
 import { DEFAULT_COMPANY_SETTINGS, normalizeTimeLocationEvidencePolicy } from "../shared/permissions.js";
@@ -3879,6 +3880,7 @@ function normalizeCompanySettings(settings = {}) {
     agentLearningPreferences: normalizeAgentLearningPreferences(settings?.agentLearningPreferences),
     apexOsMemory: normalizeApexOsMemory(settings?.apexOsMemory),
     apexOsApprovalPackets: normalizeApexOsApprovalPackets(settings?.apexOsApprovalPackets),
+    apexOsExecutionHandoffs: normalizeApexOsExecutionHandoffs(settings?.apexOsExecutionHandoffs),
     apexAgentAutomationPolicy: normalizeApexAgentAutomationPolicy(settings?.apexAgentAutomationPolicy),
     ...managedSetup,
   };
@@ -3910,6 +3912,7 @@ function companySettingsPairs(settings = {}) {
     ["agentLearningPreferences", JSON.stringify(normalized.agentLearningPreferences || [])],
     ["apexOsMemory", JSON.stringify(normalized.apexOsMemory || [])],
     ["apexOsApprovalPackets", JSON.stringify(normalized.apexOsApprovalPackets || [])],
+    ["apexOsExecutionHandoffs", JSON.stringify(normalized.apexOsExecutionHandoffs || [])],
     ["apexAgentAutomationPolicy", JSON.stringify(normalized.apexAgentAutomationPolicy || normalizeApexAgentAutomationPolicy())],
   ];
 }

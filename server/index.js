@@ -102,6 +102,13 @@ import {
   summarizeApexOsApprovalPackets,
 } from "../shared/apexOsApprovalPackets.js";
 import {
+  getApexOsExecutionHandoffMissingFields,
+  isApexOsExecutionHandoffReady,
+  normalizeApexOsExecutionHandoff,
+  normalizeApexOsExecutionHandoffs,
+  summarizeApexOsExecutionHandoffs,
+} from "../shared/apexOsExecutionHandoffs.js";
+import {
   APEX_OS_ASK_OPENAI_URL,
   buildApexOsAskContext,
   buildApexOsAskOpenAiRequest,
@@ -7601,6 +7608,49 @@ function publicApexOsApprovalPacket(packet) {
   };
 }
 
+function apexOsExecutionHandoffsForState(state, user) {
+  return normalizeApexOsExecutionHandoffs(companySettingsForState(state, user).apexOsExecutionHandoffs);
+}
+
+function rejectUnsafeApexOsExecutionHandoff(handoff, requestedStatus = handoff.status) {
+  const normalizedStatus = String(requestedStatus || "").trim().toLowerCase();
+  if (["approved", "executed", "running", "queued"].includes(normalizedStatus)) {
+    throw new ApiError(400, "Apex OS execution handoffs can be drafted, readied, blocked, or archived here; approval, queueing, running, and execution require a separate gated workflow.");
+  }
+  if (handoff.blockedReasons?.length) {
+    throw new ApiError(400, handoff.blockedReasons[0]);
+  }
+  if (!handoff.title || !handoff.objective) {
+    throw new ApiError(400, "Apex OS execution handoffs require a title and objective.");
+  }
+  if (handoff.status === "ready" && !isApexOsExecutionHandoffReady(handoff)) {
+    throw new ApiError(400, `Ready execution handoffs are missing: ${getApexOsExecutionHandoffMissingFields(handoff).join(", ")}.`);
+  }
+  if (!handoff.sourceLabel) {
+    throw new ApiError(400, "Apex OS execution handoffs require a source label.");
+  }
+}
+
+function persistApexOsExecutionHandoffs(draft, user, handoffs) {
+  const currentCompanyId = currentCompanyIdForRequestUser(draft, user);
+  draft.currentCompanyId = currentCompanyId;
+  draft.companySettingsByCompanyId ||= {};
+  draft.companySettings = {
+    ...companySettingsForState(draft, user),
+    apexOsExecutionHandoffs: normalizeApexOsExecutionHandoffs(handoffs),
+  };
+  draft.companySettingsByCompanyId[currentCompanyId] = draft.companySettings;
+}
+
+function publicApexOsExecutionHandoff(handoff) {
+  const { blockedReasons: _blockedReasons, ...safeHandoff } = handoff;
+  return {
+    ...safeHandoff,
+    missingFields: getApexOsExecutionHandoffMissingFields(handoff),
+    readyToReview: isApexOsExecutionHandoffReady(handoff),
+  };
+}
+
 function estimatesForAgentLearningSuggestions(state, user) {
   const companyId = currentCompanyIdForRequestUser(state, user);
   const estimateItems = Array.isArray(state.estimateItems) ? state.estimateItems : [];
@@ -12540,6 +12590,17 @@ app.get("/api/apex-os/approval-packets", requireAuth, asyncRoute(async (req, res
   });
 }));
 
+app.get("/api/apex-os/execution-handoffs", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const handoffs = apexOsExecutionHandoffsForState(state, req.auth.user);
+  res.json({
+    apexOsExecutionHandoffs: handoffs.map(publicApexOsExecutionHandoff),
+    summary: summarizeApexOsExecutionHandoffs(handoffs),
+    requestId: res.locals.requestId,
+  });
+}));
+
 app.get("/api/apex-os/daily-briefing", requireAuth, asyncRoute(async (req, res) => {
   const state = await readDb();
   assertCanManageApexOsMemory(state, req.auth.user);
@@ -12552,6 +12613,100 @@ app.get("/api/apex-os/daily-briefing", requireAuth, asyncRoute(async (req, res) 
       user: req.auth.user,
     }),
     requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/execution-handoffs", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let createdHandoff = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageApexOsMemory(draft, req.auth.user);
+    const current = apexOsExecutionHandoffsForState(draft, req.auth.user);
+    createdHandoff = normalizeApexOsExecutionHandoff(req.body || {}, {
+      id: makeId("AEH"),
+      now,
+    });
+    createdHandoff.createdBy = req.auth.user.id;
+    createdHandoff.createdAt = now;
+    rejectUnsafeApexOsExecutionHandoff(createdHandoff, req.body?.status);
+    persistApexOsExecutionHandoffs(draft, req.auth.user, [createdHandoff, ...current].slice(0, 120));
+    appendActivity(draft, "Apex OS execution handoff drafted", `${req.auth.user.name} drafted ${createdHandoff.title} for Apex OS agent handoff review.`);
+    appendAuditEvent(draft, {
+      entityType: "apexOsExecutionHandoff",
+      entityId: createdHandoff.id,
+      action: createdHandoff.status === "ready" ? "readied" : createdHandoff.status === "blocked" ? "blocked" : "drafted",
+      summary: "Apex OS execution handoff drafted",
+      detail: JSON.stringify({
+        id: createdHandoff.id,
+        title: createdHandoff.title,
+        status: createdHandoff.status,
+        agentRole: createdHandoff.agentRole,
+        workType: createdHandoff.workType,
+        riskLevel: createdHandoff.riskLevel,
+        sourceLabel: createdHandoff.sourceLabel,
+      }),
+      actor: req.auth.user,
+      changedFields: ["apexOsExecutionHandoffs"],
+    });
+    return draft;
+  });
+
+  res.status(201).json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    apexOsExecutionHandoff: publicApexOsExecutionHandoff(createdHandoff),
+  });
+}));
+
+app.patch("/api/apex-os/execution-handoffs/:id", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let updatedHandoff = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageApexOsMemory(draft, req.auth.user);
+    const current = apexOsExecutionHandoffsForState(draft, req.auth.user);
+    const index = current.findIndex((handoff) => handoff.id === req.params.id);
+    if (index < 0) {
+      throw new ApiError(404, "Apex OS execution handoff not found.");
+    }
+    const existing = current[index];
+    updatedHandoff = normalizeApexOsExecutionHandoff(req.body || {}, {
+      existing,
+      now,
+    });
+    updatedHandoff.createdBy = existing.createdBy;
+    updatedHandoff.createdAt = existing.createdAt;
+    if (updatedHandoff.status === "archived" && existing.status !== "archived") {
+      updatedHandoff.archivedAt = now;
+    }
+    rejectUnsafeApexOsExecutionHandoff(updatedHandoff, req.body?.status);
+    const nextHandoffs = [...current];
+    nextHandoffs[index] = updatedHandoff;
+    persistApexOsExecutionHandoffs(draft, req.auth.user, nextHandoffs);
+    appendActivity(draft, "Apex OS execution handoff updated", `${req.auth.user.name} updated ${updatedHandoff.title} in Apex OS agent handoff review.`);
+    appendAuditEvent(draft, {
+      entityType: "apexOsExecutionHandoff",
+      entityId: updatedHandoff.id,
+      action: updatedHandoff.status === "archived" ? "archived" : updatedHandoff.status === "ready" ? "readied" : updatedHandoff.status === "blocked" ? "blocked" : "updated",
+      summary: "Apex OS execution handoff updated",
+      detail: JSON.stringify({
+        id: updatedHandoff.id,
+        title: updatedHandoff.title,
+        status: updatedHandoff.status,
+        agentRole: updatedHandoff.agentRole,
+        workType: updatedHandoff.workType,
+        riskLevel: updatedHandoff.riskLevel,
+        sourceLabel: updatedHandoff.sourceLabel,
+      }),
+      actor: req.auth.user,
+      changedFields: ["apexOsExecutionHandoffs"],
+    });
+    return draft;
+  });
+
+  res.json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    apexOsExecutionHandoff: publicApexOsExecutionHandoff(updatedHandoff),
   });
 }));
 

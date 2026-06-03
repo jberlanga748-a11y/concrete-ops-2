@@ -44,6 +44,7 @@ test("deriveApexControlRoomState blocks non-private users", () => {
   assert.deepEqual(state.approvalCommandCenter.packetRows, []);
   assert.deepEqual(state.approvalCommandCenter.controlRows, []);
   assert.deepEqual(state.approvalCommandCenter.sourceRows, []);
+  assert.deepEqual(state.executionHandoffs.sourceRows, []);
   assert.deepEqual(state.releaseMonitoring.readinessRows, []);
   assert.deepEqual(state.releaseMonitoring.briefingRows, []);
   assert.deepEqual(state.releaseMonitoring.releasePacketRows, []);
@@ -115,6 +116,7 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.operatingSignals.find((item) => item.id === "ask-apex-chat")?.status, "Source-backed live");
   assert.equal(state.operatingSignals.find((item) => item.id === "voice-interface")?.status, "Transcript confirm ready");
   assert.equal(state.operatingSignals.find((item) => item.id === "approval-command-center")?.status, "Drafting ready");
+  assert.equal(state.operatingSignals.find((item) => item.id === "execution-handoffs")?.status, "Drafting ready");
   assert.equal(state.operatingSignals.find((item) => item.id === "release-monitoring")?.status, "First UI ready");
   assert.equal(state.operatingSignals.find((item) => item.id === "business-command-center")?.status, "First UI ready");
   assert.equal(state.operatingSignals.find((item) => item.id === "qa-security-hardening")?.status, "Hardening evidence ready");
@@ -123,6 +125,7 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.priorities.find((item) => item.id === "provider-work")?.status, "Source-backed live");
   assert.equal(state.priorities.find((item) => item.id === "voice-interface")?.status, "Transcript confirm ready");
   assert.equal(state.priorities.find((item) => item.id === "approval-command-center")?.status, "Drafting ready");
+  assert.equal(state.priorities.find((item) => item.id === "execution-handoffs")?.status, "Drafting ready");
   assert.equal(state.priorities.find((item) => item.id === "release-monitoring")?.status, "First UI ready");
   assert.equal(state.priorities.find((item) => item.id === "business-command-center")?.status, "First UI ready");
   assert.equal(state.priorities.find((item) => item.id === "qa-security-hardening")?.status, "Hardening evidence ready");
@@ -190,6 +193,10 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.approvalCommandCenter.controlRows.some((item) => item.id === "approve" && item.status === "Locked"), true);
   assert.equal(state.approvalCommandCenter.controlRows.some((item) => item.id === "execute" && item.status === "Not available"), true);
   assert.equal(state.approvalCommandCenter.sourceRows.some((item) => item.id === "voice-interface" && item.status === "Transcript confirm ready"), true);
+  assert.equal(state.executionHandoffs.status, "Drafting ready");
+  assert.equal(state.executionHandoffs.handoffSummary.total, 0);
+  assert.equal(state.executionHandoffs.sourceCount, 3);
+  assert.equal(state.executionHandoffs.sourceRows.some((item) => item.id === "execution-lock" && item.status === "Run locked"), true);
   assert.equal(state.releaseMonitoring.status, "First UI ready");
   assert.equal(state.releaseMonitoring.readinessCount, APEX_OS_RELEASE_MONITORING_CHECKS.length);
   assert.equal(state.releaseMonitoring.lockCount, APEX_OS_RELEASE_MONITORING_LOCKS.length);
@@ -317,4 +324,44 @@ test("deriveApexControlRoomState includes durable Apex OS approval packet summar
   assert.equal(state.approvalCommandCenter.packetSummary.total, 2);
   assert.equal(state.approvalCommandCenter.packetSummary.ready, 1);
   assert.equal(state.approvalCommandCenter.packetSummary.draft, 1);
+});
+
+test("deriveApexControlRoomState includes durable Apex OS execution handoff summary", () => {
+  const state = deriveApexControlRoomState({
+    user: { name: "John Berlanga", role: "Owner", operatorAccess: true },
+    permissions: {
+      apexOs: { canView: true, canManage: true },
+      aiOffice: { canView: true },
+      settings: { canView: true, canManage: true },
+    },
+    companySettings: {
+      apexOsExecutionHandoffs: [
+        {
+          id: "AEH-1",
+          title: "Build handoff",
+          objective: "Prepare the next local Apex OS slice.",
+          status: "ready",
+          sourceLabel: "Apex OS plan",
+          sourceEvidence: "Living plan and approval packet.",
+          allowedActions: "Read files and run local tests.",
+          blockedActions: "No deploy, sends, spend, provider setup, production mutation, or customer-visible changes.",
+          validationPlan: "Run focused tests and browser QA.",
+          rollbackPlan: "Revert the branch commit.",
+          handoffPrompt: "Continue the local build slice only.",
+        },
+        {
+          id: "AEH-2",
+          title: "Business draft",
+          objective: "Prepare launch copy drafts.",
+          status: "draft",
+          sourceLabel: "Business command center",
+        },
+      ],
+    },
+  });
+
+  assert.equal(state.executionHandoffs.status, "Handoff drafts active");
+  assert.equal(state.executionHandoffs.handoffSummary.total, 2);
+  assert.equal(state.executionHandoffs.handoffSummary.ready, 1);
+  assert.equal(state.executionHandoffs.handoffSummary.draft, 1);
 });
