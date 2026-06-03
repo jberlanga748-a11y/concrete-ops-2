@@ -403,6 +403,14 @@ Blocked right now:
 - Sensitive personal data capture without explicit instruction.
 - Hidden tracking.
 
+Status:
+
+- Hard-finished locally on 2026-06-03 and pending production release.
+- Completed with source-backed private preference rows, work-style rows, communication rows, daily focus rows, interruption rules, background/check-in rules, preference review controls, and privacy locks inside the private Apex Control Room.
+- Tied to approved decision memory by reusing existing operator-only Apex OS memory category `personal-preference`; no schema, auth/session, provider, production config, or external-action path was added.
+- Review/edit/archive scope is manual only: preference drafts are suggested until approved, source labels are required, secrets are rejected by the existing memory API, and approval does not run agents or perform external work.
+- Validated with focused tests, full Apex OS regression tests, role verification, build, isolated desktop/mobile browser QA, preference draft/load/approval flow, section screenshots, and privacy review.
+
 ### Phase 17: Full Apex OS QA And Security Hardening
 
 Hard-finish package:

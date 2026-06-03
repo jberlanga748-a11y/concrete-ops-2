@@ -72,6 +72,7 @@ Current implementation status:
 - Apex OS Phase 13 / Knowledge Intelligence is hard-finished, pushed, deployed, and production-checked as of 2026-06-03: the private Control Room now has source-backed Knowledge Intelligence over approved decisions and Knowledge Vault rows, with local source ranking, reviewed summaries, trusted/suggested/archived status, source/category/status/text/date filters, confidence labels, current-rule conflict warnings, older-memory conflict warnings, operator-only provider-ready summary/classification endpoint, and locked vector-search/embedding state. No unreviewed upload trust, customer/public knowledge mixing, embeddings/schema/storage, frontend provider secret, external action, send, spend, billing/payment, deploy/rollback execution from the UI, or production/customer mutation was added.
 - Apex OS Phase 14 / Action Execution Layer is hard-finished, pushed, deployed, and production-checked as of 2026-06-03: Ask Apex can create safe task handoff drafts from chat, execution handoffs now carry locked work contracts with role/skill, work type, workstream status, allowed/blocked actions, validation, rollback, result report, source chat, approval packet link, and suggested decision-memory update evidence, and finished handoffs require validation results plus result reports before suggested memory can be drafted. No queue/run endpoint, autonomous unrequested agent execution, production action, customer-visible action, external send, ad spend, billing/payment, provider setup, schema/auth/session change, deletion, or irreversible action path was added.
 - Apex OS Phase 15 / Production Preview And Release Desk is hard-finished, pushed, deployed, and production-checked as of 2026-06-03: the Release Desk now shows read-only Production Preview Status, Release Readiness Packet, Deploy History, Deploy Approved Flow, and Release Safety Summary sections; build awareness parses the living-plan deploy log so current production version, commit, image, health evidence, backup evidence, hosted smoke evidence, and recent Apex OS deploy history are visible; and the deploy-approved path is visible but locked. No deploy button, rollback execution, provider setup, production mutation, customer-visible action, live send, ad spend, billing/payment, schema/auth/session change, deletion, or irreversible action path was added.
+- Apex OS Phase 16 / Personal Operating Layer is hard-finished locally as of 2026-06-03 and pending production release: the private Control Room now maps John preferences, work style memory, communication preferences, daily focus, interruption rules, background-vs-check-in rules, preference review, and privacy locks through existing operator-only Apex OS memory category `personal-preference`. Preferences start suggested, require source labels, reject secrets, and become operating guidance only after manual approval; privacy locks keep hidden tracking, sensitive personal tracking, background execution, external sends, production/customer mutation, schema/auth/session changes, provider setup, billing/payment, ad spend, and customer-visible actions locked.
 - Apex OS Slice 8 is folded into Phase 8 completion: the Approval Command Center first UI now has safe durable review decisions while execution remains locked.
 - Apex OS Phase 11 / Monitoring And Daily Briefings is hard-finished and deployed as of 2026-06-03: the private Control Room now has source-backed Release Monitoring refresh for production readiness, demo app readiness, GitHub Actions/smoke status, failed test/build signals, stalled-agent signals, daily briefing manual refresh/save, durable private briefing history, changed-since-last-saved rows, locks, source labels, and John-action alerts. External alerts/notifications, autonomous schedules, deploy/rollback execution from the UI, provider monitoring changes, production/customer data mutation, schema/auth/session changes, live sends, ad spend, billing/payment, public publishing, and customer-visible actions remain locked.
 - Apex OS Phase 10 / Business Operating Center is hard-finished and deployed as of 2026-06-03: the private Control Room now has business command queues for launch, demo/pilot, marketing, sales/outreach, customer success, and revenue/pricing/offer work; launch/founder-demo rows; business briefing rows; approved source-backed business memory rows; private business task drafts; and business approval draft rows for manual sends, ads/publishing, billing/offers, customer-visible work, and business operations. Live sends, ad spend, billing/payment, public publishing, provider setup, production data, schema/storage, auth/session change, customer-visible actions, and unsupported claims remain approval-locked.
@@ -1210,6 +1211,78 @@ Production release state:
 Next recommended phase:
 
 - Start Phase 16: Personal Operating Layer only after Phase 15 is committed, pushed, deployed, production-checked, and the release evidence commit is pushed.
+
+## Apex OS Phase 16: Personal Operating Layer Hard-Finish Report
+
+Date: 2026-06-03
+
+Goal:
+
+- Finish Phase 16 from the original Apex OS master plan before starting Phase 17: let Apex OS adapt to how John works while keeping personal preference memory explicit, sourced, review-first, private, and free of hidden/sensitive tracking.
+
+What was already built before this pass:
+
+- Earlier Apex OS phases already provided private operator-only Control Room access, durable Apex OS memory through existing company settings, decision memory review controls, Ask Apex source-backed answers, approval gates, agent control/handoff records, release monitoring, and release desk evidence.
+
+What was completed in this pass:
+
+- Added a derived Personal Operating Layer state packet with preference rows, work-style rows, communication rows, daily focus rows, interruption rules, background-vs-check-in rules, preference review rows, source options, review counts, and explicit privacy flags.
+- Added a Control Room Personal Operating Layer panel with KPI rows, preference drafting, memory loading, manual approve/archive review controls, owner preference cards, work-style cards, communication preference cards, daily-focus cards, interruption rules, background/check-in rows, and privacy locks.
+- Reused existing operator-only Apex OS memory category `personal-preference`; no schema migration, auth/session change, provider setup, production config change, or new storage layer was added.
+- Kept all preference writes as suggested memory until manual approval. Source label/title/body are required, duplicate active preference rows are blocked, existing memory API secret/email rejection remains in force, and approval/archive are review states only.
+- Added privacy lock evidence for explicit preferences only, no sensitive personal tracking, operator-only preference memory, no background execution, no hidden location/microphone/behavioral tracking, and no off-app personal data capture.
+
+Affected files:
+
+- `src/apex-control-room-utils.js`
+- `src/apex-control-room-utils.test.js`
+- `src/apex-control-room-components.jsx`
+- `src/apex-control-room-components-import.test.js`
+- `docs/APEX_HQ_APEX_OS_COMMAND_CENTER_MASTER_PLAN.md`
+- `docs/APEX_HQ_APEX_OS_HARD_FINISH_ROADMAP.md`
+- `docs/APEX_HQ_LIVING_FINISH_PLAN.md`
+- `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md`
+
+Risk level:
+
+- Low-medium. Phase 16 adds private operator UI/state over existing memory storage. It does not add schema, auth/session changes, provider setup, background jobs, agent execution, production data mutation, customer-visible actions, live sends, ad spend, billing/payment, deletion, or irreversible actions.
+
+Validation results:
+
+- Focused Phase 16 tests passed: `node --test --test-concurrency=1 src\apex-control-room-utils.test.js src\apex-control-room-components-import.test.js` with 11 passing tests.
+- Full Apex OS regression passed: `node --test --test-concurrency=1 shared\apexOsKnowledgeIntelligence.test.js shared\apexOsVoice.test.js shared\apexOsAsk.test.js shared\apexOsDailyBriefing.test.js shared\apexOsBuildAwareness.test.js shared\apexOsApprovalPackets.test.js shared\apexOsAgentControl.test.js shared\apexOsExecutionHandoffs.test.js shared\apexOsMemory.test.js shared\permissions.test.js src\apex-control-room-utils.test.js src\apex-control-room-components-import.test.js src\app-routing.test.js src\navigation-utils.test.js src\app-navigation-components-import.test.js server\apex-os-memory.test.js server\role-permissions.test.js` with 119 passing tests.
+- Role verification passed: `npm.cmd run verify:roles` with 15 passing tests.
+- Production build passed: `npm.cmd run build` with the existing large-chunk warning and produced local Phase 16 bundles `assets/index-DY-46gkK.js`, `assets/app-domain-DKCxfotm.js`, and `assets/app-domain-BG7wb0Ah.css`.
+- Isolated local browser QA passed on `http://127.0.0.1:4216/apex-control-room` using a temp SQLite/DATA_DIR setup and operator-enabled test user. Desktop and mobile verified the Personal Operating Layer, preference load, preference draft, manual approval, privacy locks, and zero horizontal overflow.
+- Browser screenshots were saved locally under ignored `ui-audit/apex-control-room-phase16/`, including exact desktop/mobile Personal Operating Layer section captures.
+- Browser console showed only the expected pre-login unauthenticated 401 resource warning; no page errors or failed requests were captured after login.
+
+Permissions impact:
+
+- Operator-only. Restricted users receive an empty Personal Operating Layer state and cannot see or manage preference memory.
+- Field users, demo users, customers, pilots, and normal company users remain blocked from Apex OS state and controls.
+
+Mobile impact:
+
+- Desktop and mobile browser QA passed with no horizontal overflow. The Phase 16 panel stacks into a long mobile section but remains readable and usable.
+
+Field-user impact:
+
+- None. No field route/nav/API capability was added, and field-private boundaries remain unchanged.
+
+Rollback plan:
+
+- If local validation fails before deploy, revert the Phase 16 hard-finish commit to remove the Personal Operating Layer state, UI panel, focused tests, and docs.
+- If production release fails after deploy, roll back Fly to the previous healthy release and revert the Phase 16 commit if the UI/state change is implicated.
+- No database migration rollback is required because Phase 16 adds no schema and reuses existing Apex OS memory.
+
+Production release state:
+
+- Pending Phase 16 commit, push, production deploy, hosted checks, and release-evidence doc commit.
+
+Next recommended phase:
+
+- Do not start Phase 17 until Phase 16 is committed, pushed, deployed, production-checked, and the Phase 16 release evidence commit is pushed.
 
 Packaging and release state:
 

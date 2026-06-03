@@ -13,6 +13,14 @@ import {
   APEX_OS_APPROVAL_PACKET_FIELDS,
   APEX_OS_DECISION_CATEGORIES,
   APEX_OS_MEMORY_SOURCE,
+  APEX_OS_PERSONAL_BACKGROUND_ROWS,
+  APEX_OS_PERSONAL_CHECK_IN_ROWS,
+  APEX_OS_PERSONAL_COMMUNICATION_ROWS,
+  APEX_OS_PERSONAL_DAILY_FOCUS_ROWS,
+  APEX_OS_PERSONAL_DISTRACTION_RULE_ROWS,
+  APEX_OS_PERSONAL_OPERATING_SEED_ROWS,
+  APEX_OS_PERSONAL_PRIVACY_LOCKS,
+  APEX_OS_PERSONAL_WORK_STYLE_ROWS,
   APEX_OS_RELEASE_MONITORING_CHECKS,
   APEX_OS_RELEASE_MONITORING_LOCKS,
   APEX_OS_QA_SECURITY_EVIDENCE_ROWS,
@@ -37,6 +45,8 @@ test("deriveApexControlRoomState blocks non-private users", () => {
   assert.deepEqual(state.launchReadiness.gates, []);
   assert.deepEqual(state.decisionMemory.decisions, []);
   assert.deepEqual(state.decisionMemory.rules, []);
+  assert.deepEqual(state.personalOperatingLayer.preferenceRows, []);
+  assert.deepEqual(state.personalOperatingLayer.privacyRows, []);
   assert.deepEqual(state.knowledgeVault.categories, []);
   assert.deepEqual(state.knowledgeVault.safetyRows, []);
   assert.deepEqual(state.askApexChat.contexts, []);
@@ -208,6 +218,26 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.decisionMemory.categories.some((item) => item.id === "personal-preference" && item.status === "Covered"), true);
   assert.equal(state.decisionMemory.decisions.some((item) => item.id === "private-operator-only" && item.status === "Locked"), true);
   assert.equal(state.decisionMemory.rules.some((item) => item.id === "field-boundary" && item.status === "Locked"), true);
+  assert.equal(state.personalOperatingLayer.status, "Personal layer ready");
+  assert.equal(state.personalOperatingLayer.preferenceCount, APEX_OS_PERSONAL_OPERATING_SEED_ROWS.length);
+  assert.equal(state.personalOperatingLayer.workStyleCount, APEX_OS_PERSONAL_WORK_STYLE_ROWS.length);
+  assert.equal(state.personalOperatingLayer.communicationCount, APEX_OS_PERSONAL_COMMUNICATION_ROWS.length);
+  assert.equal(state.personalOperatingLayer.dailyFocusCount, APEX_OS_PERSONAL_DAILY_FOCUS_ROWS.length);
+  assert.equal(state.personalOperatingLayer.distractionRuleCount, APEX_OS_PERSONAL_DISTRACTION_RULE_ROWS.length);
+  assert.equal(state.personalOperatingLayer.backgroundCount, APEX_OS_PERSONAL_BACKGROUND_ROWS.length);
+  assert.equal(state.personalOperatingLayer.checkInCount, APEX_OS_PERSONAL_CHECK_IN_ROWS.length);
+  assert.equal(state.personalOperatingLayer.privacyLockCount, APEX_OS_PERSONAL_PRIVACY_LOCKS.length);
+  assert.equal(state.personalOperatingLayer.hiddenTrackingEnabled, false);
+  assert.equal(state.personalOperatingLayer.backgroundExecutionEnabled, false);
+  assert.equal(state.personalOperatingLayer.preferenceRows.some((item) => item.id === "phase-discipline"), true);
+  assert.equal(state.personalOperatingLayer.dailyFocusRows.some((item) => item.id === "daily-focus-current-phase"), true);
+  assert.equal(state.personalOperatingLayer.distractionRows.some((item) => item.id === "distract-validation-failure"), true);
+  assert.equal(state.personalOperatingLayer.backgroundRows.some((item) => item.id === "background-local-build"), true);
+  assert.equal(state.personalOperatingLayer.checkInRows.some((item) => item.id === "check-in-production"), true);
+  assert.equal(state.personalOperatingLayer.privacyRows.some((item) => item.id === "privacy-no-sensitive-tracking" && item.status === "Locked"), true);
+  assert.equal(state.operatingSignals.find((item) => item.id === "personal-operating-layer")?.status, "Personal layer ready");
+  assert.equal(state.priorities.find((item) => item.id === "personal-operating-layer")?.status, "Personal layer ready");
+  assert.equal(state.nextBestActions.find((item) => item.id === "personal-operating-layer-plan")?.status, "Personal layer ready");
   assert.equal(state.knowledgeVault.status, "Upload intake ready");
   assert.equal(state.knowledgeVault.categoryCount, 8);
   assert.equal(state.knowledgeVault.sourceCount, 4);
@@ -414,6 +444,64 @@ test("deriveApexControlRoomState includes durable Apex OS decision memory summar
   assert.equal(state.knowledgeVault.vaultSummary.total, 1);
   assert.equal(state.knowledgeVault.intelligenceSummary.trustedCount, 2);
   assert.equal(state.knowledgeVault.intelligenceSummary.rankedCount >= 1, true);
+});
+
+test("deriveApexControlRoomState builds Phase 16 personal operating layer from explicit preference memory", () => {
+  const state = deriveApexControlRoomState({
+    user: { name: "John Berlanga", role: "Owner", operatorAccess: true },
+    permissions: {
+      apexOs: { canView: true, canManage: true },
+      aiOffice: { canView: true },
+      settings: { canView: true, canManage: true },
+    },
+    companySettings: {
+      apexOsMemory: [
+        {
+          id: "AOM-PREF-1",
+          category: "personal-preference",
+          title: "Short progress updates",
+          body: "Keep updates short while work is running, then give the verified result.",
+          sourceType: "personal-operating-layer",
+          sourceLabel: "John instruction",
+          sourceUri: "chat:phase-16",
+          status: "approved",
+          createdAt: "2026-06-03T11:00:00.000Z",
+          approvedAt: "2026-06-03T11:05:00.000Z",
+        },
+        {
+          id: "AOM-PREF-2",
+          category: "personal-preference",
+          title: "Ask before external actions",
+          body: "External actions need explicit approval before they happen.",
+          sourceLabel: "Apex OS safety",
+          status: "suggested",
+          createdAt: "2026-06-03T11:10:00.000Z",
+        },
+        {
+          id: "AOM-PREF-3",
+          category: "personal-preference",
+          title: "Old preference",
+          body: "Archived personal operating note.",
+          sourceLabel: "Older note",
+          status: "archived",
+          createdAt: "2026-06-03T10:00:00.000Z",
+        },
+      ],
+    },
+  });
+
+  assert.equal(state.personalOperatingLayer.status, "Personal preferences active");
+  assert.equal(state.personalOperatingLayer.approvedCount, 1);
+  assert.equal(state.personalOperatingLayer.suggestedCount, 1);
+  assert.equal(state.personalOperatingLayer.archivedCount, 1);
+  assert.equal(state.personalOperatingLayer.reviewCount, 3);
+  assert.equal(state.personalOperatingLayer.preferenceCount, APEX_OS_PERSONAL_OPERATING_SEED_ROWS.length + 1);
+  assert.deepEqual(state.personalOperatingLayer.sourceOptions, ["Apex OS safety", "John instruction", "Older note"]);
+  assert.equal(state.personalOperatingLayer.preferenceRows.some((item) => item.title === "Short progress updates" && item.status === "approved"), true);
+  assert.equal(state.personalOperatingLayer.reviewRows.some((item) => item.title === "Ask before external actions" && item.status === "suggested"), true);
+  assert.equal(state.personalOperatingLayer.canStoreSensitiveTracking, false);
+  assert.equal(state.personalOperatingLayer.hiddenTrackingEnabled, false);
+  assert.equal(state.personalOperatingLayer.backgroundExecutionEnabled, false);
 });
 
 test("deriveApexControlRoomState summarizes durable knowledge upload vault rows", () => {

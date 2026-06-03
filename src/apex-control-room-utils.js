@@ -943,6 +943,208 @@ export const APEX_OS_OPERATING_RULES = Object.freeze([
   },
 ]);
 
+export const APEX_OS_PERSONAL_OPERATING_SEED_ROWS = Object.freeze([
+  {
+    id: "phase-discipline",
+    title: "Finish one phase before the next",
+    status: "Active preference",
+    detail: "Apex should audit, finish, validate, document, commit, push, and deploy the current phase before opening the next phase.",
+    tone: "green",
+    sourceLabel: APEX_OS_MEMORY_SOURCE_LABEL,
+  },
+  {
+    id: "source-backed-work",
+    title: "Show what is real",
+    status: "Active preference",
+    detail: "Apex should distinguish what was verified from what is inferred, and it should keep important answers tied to source labels and evidence.",
+    tone: "green",
+    sourceLabel: APEX_OS_MEMORY_SOURCE_LABEL,
+  },
+  {
+    id: "remove-friction-safely",
+    title: "Move decisively inside safety boundaries",
+    status: "Active preference",
+    detail: "Apex can plan, draft, organize, code locally when asked, test, summarize, and prepare work without extra friction when it stays private and reversible.",
+    tone: "green",
+    sourceLabel: APEX_OS_MEMORY_SOURCE_LABEL,
+  },
+]);
+
+export const APEX_OS_PERSONAL_WORK_STYLE_ROWS = Object.freeze([
+  {
+    id: "work-style-phase-first",
+    title: "Phase-first execution",
+    status: "Remembered",
+    detail: "Stay on the documented phase, finish missing pieces, and avoid jumping around or rebuilding frozen systems.",
+    tone: "green",
+  },
+  {
+    id: "work-style-small-complete",
+    title: "Small complete changes",
+    status: "Remembered",
+    detail: "Prefer the smallest complete change that preserves existing routes, state, handlers, permissions, tests, and production behavior.",
+    tone: "green",
+  },
+  {
+    id: "work-style-visual-proof",
+    title: "Visual proof matters",
+    status: "Remembered",
+    detail: "For UI work, inspect the real screen on desktop and mobile instead of relying only on code or import tests.",
+    tone: "blue",
+  },
+]);
+
+export const APEX_OS_PERSONAL_COMMUNICATION_ROWS = Object.freeze([
+  {
+    id: "communication-direct-first",
+    title: "Answer the question first",
+    status: "Remembered",
+    detail: "When John asks a question, answer it directly before taking action; when he asks for work, execute and keep updates short.",
+    tone: "green",
+  },
+  {
+    id: "communication-real-status",
+    title: "Say what was verified",
+    status: "Remembered",
+    detail: "Reports should separate completed work, validation results, skipped checks, risks, permissions impact, mobile impact, rollback, and next phase.",
+    tone: "green",
+  },
+  {
+    id: "communication-calm-updates",
+    title: "Keep progress visible",
+    status: "Remembered",
+    detail: "Longer work should include concise progress updates so the operator knows what is being checked, changed, or validated.",
+    tone: "blue",
+  },
+]);
+
+export const APEX_OS_PERSONAL_DAILY_FOCUS_ROWS = Object.freeze([
+  {
+    id: "daily-focus-current-phase",
+    title: "Current phase only",
+    status: "Primary focus",
+    detail: "The active day-to-day focus is the current Apex OS phase until it is validated, documented, committed, pushed, and deployed.",
+    tone: "green",
+  },
+  {
+    id: "daily-focus-release-evidence",
+    title: "Release evidence",
+    status: "Required",
+    detail: "A phase is not treated as done until production evidence and rollback notes are recorded when a production deploy is part of the phase loop.",
+    tone: "amber",
+  },
+  {
+    id: "daily-focus-next-phase",
+    title: "Next phase boundary",
+    status: "Locked",
+    detail: "The next phase opens only after the current phase evidence commit is pushed.",
+    tone: "amber",
+  },
+]);
+
+export const APEX_OS_PERSONAL_DISTRACTION_RULE_ROWS = Object.freeze([
+  {
+    id: "distract-production-risk",
+    title: "Production, auth, or security risk",
+    status: "Interrupt",
+    detail: "Interrupt John when production health, auth/account safety, company separation, secret exposure, or field-user privacy could be affected.",
+    tone: "amber",
+  },
+  {
+    id: "distract-validation-failure",
+    title: "Validation failure",
+    status: "Interrupt",
+    detail: "Interrupt when focused tests, role checks, build, browser QA, or hosted smoke fail and the next step changes materially.",
+    tone: "amber",
+  },
+  {
+    id: "distract-approval-needed",
+    title: "Approval needed",
+    status: "Interrupt",
+    detail: "Interrupt when the next step needs approval for schema/auth/session, production data, deploy, provider setup, sends, spend, billing, deletion, or customer-visible work.",
+    tone: "amber",
+  },
+]);
+
+export const APEX_OS_PERSONAL_BACKGROUND_ROWS = Object.freeze([
+  {
+    id: "background-plan-organize",
+    title: "Plan and organize privately",
+    status: "Allowed after request",
+    detail: "Apex can organize docs, prepare roadmaps, draft task handoffs, summarize evidence, and rank next safe actions inside Apex OS.",
+    tone: "green",
+  },
+  {
+    id: "background-local-build",
+    title: "Local build work",
+    status: "Allowed after request",
+    detail: "Apex can inspect code, edit local files, run local tests/builds, and prepare commits when John has asked for phase or feature work.",
+    tone: "green",
+  },
+  {
+    id: "background-review-drafts",
+    title: "Review-only drafts",
+    status: "Allowed after request",
+    detail: "Apex can draft decisions, approval packets, knowledge rows, and execution handoffs without approving, queueing, running, sending, spending, or mutating production.",
+    tone: "green",
+  },
+]);
+
+export const APEX_OS_PERSONAL_CHECK_IN_ROWS = Object.freeze([
+  {
+    id: "check-in-external",
+    title: "External or customer-visible actions",
+    status: "Check in first",
+    detail: "Email, SMS, ads, publishing, customer-facing shares, outbound communications, and public claims require explicit approval.",
+    tone: "amber",
+  },
+  {
+    id: "check-in-production",
+    title: "Production-impacting work",
+    status: "Check in first",
+    detail: "Schema/auth/session changes, production data mutation, provider configuration, deploys, rollbacks, and irreversible changes require approval.",
+    tone: "amber",
+  },
+  {
+    id: "check-in-money-secrets-delete",
+    title: "Money, secrets, or deletion",
+    status: "Check in first",
+    detail: "Billing/payment, ad spend, provider secrets, credential handling, account setup, destructive file/data deletion, and irreversible work require approval.",
+    tone: "amber",
+  },
+]);
+
+export const APEX_OS_PERSONAL_PRIVACY_LOCKS = Object.freeze([
+  {
+    id: "privacy-explicit-only",
+    title: "Explicit preferences only",
+    status: "Locked",
+    detail: "Apex OS can store preferences only when they are explicitly entered, sourced, and reviewable as personal-preference memory.",
+    tone: "amber",
+  },
+  {
+    id: "privacy-no-sensitive-tracking",
+    title: "No sensitive personal tracking",
+    status: "Locked",
+    detail: "This layer does not collect hidden personal activity, background location, microphone, behavioral tracking, or off-app personal data.",
+    tone: "amber",
+  },
+  {
+    id: "privacy-operator-only",
+    title: "Operator-only preference memory",
+    status: "Locked",
+    detail: "Personal operating preferences stay inside private Apex OS memory and are blocked from normal admins, field users, customers, pilots, and demo users.",
+    tone: "green",
+  },
+  {
+    id: "privacy-no-background-execution",
+    title: "No background execution",
+    status: "Locked",
+    detail: "Preferences can guide Apex OS planning and wording, but they do not create unmanaged background loops or autonomous external actions.",
+    tone: "amber",
+  },
+]);
+
 export const APEX_OS_KNOWLEDGE_VAULT_CATEGORIES = Object.freeze([
   {
     id: "app-docs",
@@ -1279,6 +1481,77 @@ function buildDecisionMemoryState(companySettings = {}) {
     allMemorySummary: memorySummary,
     sourceOptions: decisionSummary.sourceLabels,
     reviewHistory: decisionSummary.reviewHistory,
+  };
+}
+
+function personalPreferenceRow(entry = {}) {
+  return {
+    id: entry.id,
+    title: entry.title || "Personal preference",
+    status: entry.status || "suggested",
+    detail: truncateDetail(entry.body || entry.reviewNote || "Explicit Apex OS personal operating preference.", 260),
+    tone: memoryStatusTone(entry.status),
+    sourceLabel: entry.sourceLabel || "Apex OS personal preference",
+    source: entry.sourceUri || "Private Apex OS memory",
+    reviewNote: entry.reviewNote,
+    createdAt: entry.createdAt,
+    updatedAt: entry.updatedAt,
+    approvedAt: entry.approvedAt,
+    archivedAt: entry.archivedAt,
+    category: entry.category,
+    body: entry.body,
+  };
+}
+
+function buildPersonalOperatingLayerState(decisionMemory = {}) {
+  const personalEntries = (decisionMemory.durableEntries || [])
+    .filter((entry) => entry.category === "personal-preference");
+  const approvedEntries = personalEntries.filter((entry) => entry.status === "approved");
+  const suggestedEntries = personalEntries.filter((entry) => entry.status === "suggested");
+  const archivedEntries = personalEntries.filter((entry) => entry.status === "archived");
+  const approvedPreferenceRows = approvedEntries.map(personalPreferenceRow);
+  const reviewRows = personalEntries
+    .slice()
+    .sort((left, right) => String(right.updatedAt || right.createdAt || right.approvedAt || "").localeCompare(String(left.updatedAt || left.createdAt || left.approvedAt || "")))
+    .map(personalPreferenceRow);
+  const sourceOptions = [...new Set(personalEntries.map((entry) => entry.sourceLabel).filter(Boolean))]
+    .sort((left, right) => left.toLowerCase().localeCompare(right.toLowerCase()));
+
+  return {
+    status: approvedEntries.length ? "Personal preferences active" : "Personal layer ready",
+    tone: approvedEntries.length ? "green" : "blue",
+    source: APEX_OS_MEMORY_SOURCE,
+    sourceLabel: APEX_OS_MEMORY_SOURCE_LABEL,
+    preferenceCount: APEX_OS_PERSONAL_OPERATING_SEED_ROWS.length + approvedPreferenceRows.length,
+    approvedCount: approvedEntries.length,
+    suggestedCount: suggestedEntries.length,
+    archivedCount: archivedEntries.length,
+    reviewCount: reviewRows.length,
+    sourceCount: sourceOptions.length,
+    workStyleCount: APEX_OS_PERSONAL_WORK_STYLE_ROWS.length,
+    communicationCount: APEX_OS_PERSONAL_COMMUNICATION_ROWS.length,
+    dailyFocusCount: APEX_OS_PERSONAL_DAILY_FOCUS_ROWS.length,
+    distractionRuleCount: APEX_OS_PERSONAL_DISTRACTION_RULE_ROWS.length,
+    backgroundCount: APEX_OS_PERSONAL_BACKGROUND_ROWS.length,
+    checkInCount: APEX_OS_PERSONAL_CHECK_IN_ROWS.length,
+    privacyLockCount: APEX_OS_PERSONAL_PRIVACY_LOCKS.length,
+    preferenceRows: [
+      ...APEX_OS_PERSONAL_OPERATING_SEED_ROWS.map((item) => ({ ...item, readOnly: true })),
+      ...approvedPreferenceRows,
+    ],
+    workStyleRows: APEX_OS_PERSONAL_WORK_STYLE_ROWS.map((item) => ({ ...item })),
+    communicationRows: APEX_OS_PERSONAL_COMMUNICATION_ROWS.map((item) => ({ ...item })),
+    dailyFocusRows: APEX_OS_PERSONAL_DAILY_FOCUS_ROWS.map((item) => ({ ...item })),
+    distractionRows: APEX_OS_PERSONAL_DISTRACTION_RULE_ROWS.map((item) => ({ ...item })),
+    backgroundRows: APEX_OS_PERSONAL_BACKGROUND_ROWS.map((item) => ({ ...item })),
+    checkInRows: APEX_OS_PERSONAL_CHECK_IN_ROWS.map((item) => ({ ...item })),
+    privacyRows: APEX_OS_PERSONAL_PRIVACY_LOCKS.map((item) => ({ ...item })),
+    reviewRows,
+    preferenceEntries: personalEntries,
+    sourceOptions,
+    canStoreSensitiveTracking: false,
+    hiddenTrackingEnabled: false,
+    backgroundExecutionEnabled: false,
   };
 }
 
@@ -2215,6 +2488,7 @@ export function deriveApexControlRoomState({
   const releaseDesk = buildReleaseDesk({ buildAwareness });
   const decisionMemory = buildDecisionMemoryState(companySettings);
   const knowledgeVault = buildKnowledgeVaultState(companySettings);
+  const personalOperatingLayer = buildPersonalOperatingLayerState(decisionMemory);
   const askApexChat = buildAskApexChatState({ decisionMemory, knowledgeVault, agentWorkQueue, launchState, releaseDesk });
   const voiceInterface = buildVoiceInterfaceState({ askApexChat });
   const approvalCommandCenter = buildApprovalCommandCenterState({ releaseDesk, askApexChat, voiceInterface, companySettings });
@@ -2288,6 +2562,7 @@ export function deriveApexControlRoomState({
       launchReadiness: { status: "Restricted", tone: "slate", gates: [] },
       releaseDesk: { status: "Restricted", tone: "slate", sections: [], productionPreviewRows: [], readinessPacketRows: [], deployHistoryRows: [], deployApprovalFlowRows: [], canDeploy: false, deployApprovedFlowLocked: true, productionActionLocked: true },
       decisionMemory: { status: "Restricted", tone: "slate", decisions: [], rules: [] },
+      personalOperatingLayer: { status: "Restricted", tone: "slate", preferenceRows: [], workStyleRows: [], communicationRows: [], dailyFocusRows: [], distractionRows: [], backgroundRows: [], checkInRows: [], privacyRows: [], reviewRows: [], preferenceEntries: [] },
       knowledgeVault: { status: "Restricted", tone: "slate", categories: [], safetyRows: [], sourceRows: [] },
       askApexChat: { status: "Restricted", tone: "slate", contexts: [], evidenceRows: [], actionLocks: [] },
       voiceInterface: { status: "Restricted", tone: "slate", modes: [], safetyRows: [] },
@@ -2346,6 +2621,13 @@ export function deriveApexControlRoomState({
         status: decisionMemory.status,
         detail: `${decisionMemory.decisionCount} saved decisions and ${decisionMemory.ruleCount} operating rules are visible from the Apex OS plan.`,
         tone: decisionMemory.tone,
+      },
+      {
+        id: "personal-operating-layer",
+        title: "Personal operating layer",
+        status: personalOperatingLayer.status,
+        detail: `${personalOperatingLayer.preferenceCount} preference rows, ${personalOperatingLayer.dailyFocusCount} daily focus rows, and ${personalOperatingLayer.privacyLockCount} privacy locks are mapped for John-only review.`,
+        tone: personalOperatingLayer.tone,
       },
       {
         id: "agent-work-queue",
@@ -2451,6 +2733,13 @@ export function deriveApexControlRoomState({
         tone: decisionMemory.tone,
       },
       {
+        id: "personal-operating-layer",
+        title: "Personal operating layer",
+        status: personalOperatingLayer.status,
+        detail: `${personalOperatingLayer.workStyleCount} work-style rows, ${personalOperatingLayer.communicationCount} communication rows, and ${personalOperatingLayer.checkInCount} check-in rules guide how Apex works without hidden tracking.`,
+        tone: personalOperatingLayer.tone,
+      },
+      {
         id: "knowledge-vault",
         title: "Knowledge vault",
         status: knowledgeVault.status,
@@ -2551,6 +2840,13 @@ export function deriveApexControlRoomState({
         status: decisionMemory.durableCount ? "Durable" : "Ready",
         detail: "Use the What did I decide view to draft source-backed memory, then manually approve or archive it before it becomes operating context.",
         tone: decisionMemory.durableCount ? "green" : "blue",
+      },
+      {
+        id: "personal-operating-layer-plan",
+        title: "Personal operating layer",
+        status: personalOperatingLayer.status,
+        detail: "Review work style, communication, daily focus, distraction, background, and check-in rules before treating preferences as operating guidance.",
+        tone: personalOperatingLayer.tone,
       },
       {
         id: "knowledge-vault-plan",
@@ -2710,6 +3006,7 @@ export function deriveApexControlRoomState({
     },
     releaseDesk,
     decisionMemory,
+    personalOperatingLayer,
     knowledgeVault,
     askApexChat,
     voiceInterface,

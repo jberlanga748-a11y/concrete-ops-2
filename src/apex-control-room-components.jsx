@@ -1385,6 +1385,282 @@ function DecisionMemoryManager({ state, sessionToken }) {
   );
 }
 
+const EMPTY_PERSONAL_OPERATING_FORM = {
+  category: "personal-preference",
+  title: "",
+  body: "",
+  sourceType: "personal-operating-layer",
+  sourceLabel: "Personal Operating Layer",
+  sourceUri: "apex-os-personal-operating-layer",
+  reviewNote: "Explicit preference - manual review required.",
+  status: "suggested",
+  confidence: 80,
+};
+
+function personalPreferenceRows(rows = []) {
+  return rows.filter((row) => row.category === "personal-preference");
+}
+
+function formatPersonalPreferenceRow(row = {}) {
+  return {
+    id: `personal-${row.id}`,
+    title: row.title || "Personal preference",
+    status: row.status === "approved" ? "Approved" : row.status || "Suggested",
+    detail: row.body || row.reviewNote || "Explicit Apex OS personal operating preference.",
+    tone: row.status === "approved" ? "green" : row.status === "archived" ? "slate" : "blue",
+    sourceLabel: row.sourceLabel || "Personal Operating Layer",
+  };
+}
+
+function PersonalOperatingLayerPanel({ state, sessionToken }) {
+  const layer = state.personalOperatingLayer || {};
+  const [form, setForm] = useState(EMPTY_PERSONAL_OPERATING_FORM);
+  const [memoryRows, setMemoryRows] = useState(layer.preferenceEntries || []);
+  const [notice, setNotice] = useState("");
+  const [loading, setLoading] = useState(false);
+  const canUse = state.canView && Boolean(sessionToken) && !loading;
+  const personalRows = personalPreferenceRows(memoryRows);
+  const reviewRows = personalRows
+    .slice()
+    .sort((left, right) => String(right.updatedAt || right.createdAt || right.approvedAt || "").localeCompare(String(left.updatedAt || left.createdAt || left.approvedAt || "")));
+  const duplicateKeys = new Set(decisionDuplicateKeys(form));
+  const duplicateRow = duplicateKeys.size
+    ? personalRows.find((row) => row.status !== "archived" && decisionDuplicateKeys(row).some((key) => duplicateKeys.has(key)))
+    : null;
+  const approvedRows = personalRows.filter((row) => row.status === "approved").map(formatPersonalPreferenceRow);
+  const existingPreferenceIds = new Set((layer.preferenceRows || []).map((row) => row.id));
+  const preferenceCards = [
+    ...(layer.preferenceRows || []),
+    ...approvedRows.filter((row) => !existingPreferenceIds.has(row.id.replace(/^personal-/, ""))),
+  ];
+  const canCreate = canUse && form.title.trim() && form.body.trim() && form.sourceLabel.trim() && !duplicateRow;
+  const approvedCount = personalRows.filter((row) => row.status === "approved").length || layer.approvedCount || 0;
+  const suggestedCount = personalRows.filter((row) => row.status === "suggested").length || layer.suggestedCount || 0;
+  const archivedCount = personalRows.filter((row) => row.status === "archived").length || layer.archivedCount || 0;
+
+  function updateField(field, value) {
+    setForm((current) => ({ ...current, [field]: value }));
+    setNotice("");
+  }
+
+  async function refreshPreferences() {
+    if (!canUse) return;
+    setLoading(true);
+    setNotice("");
+    try {
+      const payload = await getApexOsMemory(sessionToken);
+      setMemoryRows(personalPreferenceRows(payload.apexOsMemory || []));
+      setNotice("Personal preferences loaded from private Apex OS memory.");
+    } catch (error) {
+      setNotice(error?.message || "Personal preferences could not load right now.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitPreference(event) {
+    event.preventDefault();
+    if (!canCreate) return;
+    setLoading(true);
+    setNotice("");
+    try {
+      const payload = await createApexOsMemory(sessionToken, {
+        ...form,
+        category: "personal-preference",
+        status: "suggested",
+      });
+      setMemoryRows((current) => [payload.apexOsMemoryEntry, ...current].filter(Boolean));
+      setForm(EMPTY_PERSONAL_OPERATING_FORM);
+      setNotice("Personal preference drafted as suggested. It is not operating guidance until approved.");
+    } catch (error) {
+      setNotice(error?.message || "Personal preference could not be saved right now.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function setPreferenceStatus(row, status) {
+    if (!canUse || !row?.id) return;
+    setLoading(true);
+    setNotice("");
+    try {
+      await updateApexOsMemory(sessionToken, row.id, { ...row, status });
+      const payload = await getApexOsMemory(sessionToken);
+      setMemoryRows(personalPreferenceRows(payload.apexOsMemory || []));
+      setNotice(status === "archived" ? "Personal preference archived." : "Personal preference approved for Apex OS operating guidance.");
+    } catch (error) {
+      setNotice(error?.message || "Personal preference could not be updated right now.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="grid min-w-0 gap-4">
+      <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatusRow item={{
+          id: "personal-preferences-count",
+          title: "John preferences",
+          status: `${preferenceCards.length || 0}`,
+          detail: `${approvedCount} approved, ${suggestedCount} suggested, ${archivedCount} archived personal-preference memory rows.`,
+          tone: approvedCount ? "green" : "blue",
+        }} />
+        <StatusRow item={{
+          id: "personal-daily-focus-count",
+          title: "Daily focus",
+          status: `${layer.dailyFocusCount || 0}`,
+          detail: "Current phase, release evidence, and next-phase boundary stay visible.",
+          tone: "green",
+        }} />
+        <StatusRow item={{
+          id: "personal-distraction-count",
+          title: "Do not distract unless",
+          status: `${layer.distractionRuleCount || 0}`,
+          detail: "Interrupt rules are limited to production, validation, approval, and safety changes.",
+          tone: "amber",
+        }} />
+        <StatusRow item={{
+          id: "personal-privacy-count",
+          title: "Privacy locks",
+          status: `${layer.privacyLockCount || 0}`,
+          detail: "No hidden tracking, no sensitive personal capture, no background execution.",
+          tone: "amber",
+        }} />
+      </div>
+
+      <form className="grid min-w-0 gap-3 rounded-xl border border-slate-200 bg-white p-3" onSubmit={submitPreference}>
+        <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_260px]">
+          <input
+            value={form.title}
+            onChange={(event) => updateField("title", event.target.value)}
+            maxLength={140}
+            placeholder="Preference title"
+            className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700"
+            disabled={!state.canView || loading}
+          />
+          <input
+            value={form.sourceLabel}
+            onChange={(event) => updateField("sourceLabel", event.target.value)}
+            maxLength={120}
+            placeholder="Source label"
+            className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700"
+            disabled={!state.canView || loading}
+          />
+        </div>
+        <textarea
+          value={form.body}
+          onChange={(event) => updateField("body", event.target.value)}
+          maxLength={1800}
+          placeholder="What should Apex remember about how John wants to work?"
+          className="min-h-20 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold leading-6 text-slate-700"
+          disabled={!state.canView || loading}
+        />
+        <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <input value={form.sourceUri} onChange={(event) => updateField("sourceUri", event.target.value)} maxLength={240} placeholder="Source URI or file" className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700" disabled={!state.canView || loading} />
+          <input value={form.reviewNote} onChange={(event) => updateField("reviewNote", event.target.value)} maxLength={300} placeholder="Review note" className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700" disabled={!state.canView || loading} />
+        </div>
+        <div className="flex min-w-0 flex-wrap gap-2">
+          <Button type="submit" variant="secondary" size="sm" disabled={!canCreate}>
+            <Icon name="clipboard" /> {loading ? "Saving..." : "Draft preference"}
+          </Button>
+          <Button type="button" variant="secondary" size="sm" onClick={refreshPreferences} disabled={!canUse}>
+            <Icon name="refresh" /> Load preferences
+          </Button>
+          <Button type="button" disabled variant="secondary" size="sm">
+            <Icon name="lock" /> No hidden tracking
+          </Button>
+        </div>
+        <p className="break-words text-xs font-black leading-5 text-slate-500">{notice || (duplicateRow ? `Duplicate blocked: ${duplicateRow.title}.` : "Preferences start as suggested memory, require source labels, reject secrets, and become operating guidance only after manual approval.")}</p>
+      </form>
+
+      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+          <SectionHeader title="John Preferences" description={`${preferenceCards.length || 0} active preference rows.`} />
+          <div className="grid min-w-0 gap-2">
+            {preferenceCards.length ? preferenceCards.map((item) => <StatusRow key={item.id} item={item} />) : <EmptyPanel>No approved personal preference memory is active yet.</EmptyPanel>}
+          </div>
+        </div>
+
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+          <SectionHeader title="Work Style Memory" description={`${layer.workStyleCount || 0} remembered work-style rules.`} />
+          <div className="grid min-w-0 gap-2">
+            {(layer.workStyleRows || []).map((item) => <StatusRow key={item.id} item={item} />)}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+          <SectionHeader title="Communication Preferences" description={`${layer.communicationCount || 0} communication rows.`} />
+          <div className="grid min-w-0 gap-2">
+            {(layer.communicationRows || []).map((item) => <StatusRow key={item.id} item={item} />)}
+          </div>
+        </div>
+
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+          <SectionHeader title="Daily Focus" description={`${layer.dailyFocusCount || 0} daily focus rows.`} />
+          <div className="grid min-w-0 gap-2">
+            {(layer.dailyFocusRows || []).map((item) => <StatusRow key={item.id} item={item} />)}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+          <SectionHeader title="Do Not Distract Unless" description={`${layer.distractionRuleCount || 0} interruption rules.`} />
+          <div className="grid min-w-0 gap-2">
+            {(layer.distractionRows || []).map((item) => <StatusRow key={item.id} item={item} />)}
+          </div>
+        </div>
+
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+          <SectionHeader title="Background Vs Check-In" description={`${layer.backgroundCount || 0} private allowances and ${layer.checkInCount || 0} check-in rules.`} />
+          <div className="grid min-w-0 gap-2">
+            {(layer.backgroundRows || []).map((item) => <StatusRow key={item.id} item={item} />)}
+            {(layer.checkInRows || []).map((item) => <StatusRow key={item.id} item={item} />)}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+          <SectionHeader title="Preference Review" description={`${reviewRows.length || 0} personal-preference memory rows.`} />
+          <div className="grid min-w-0 gap-2">
+            {reviewRows.length ? reviewRows.slice(0, 6).map((row) => (
+              <div key={row.id} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="break-words text-[10px] font-black uppercase tracking-[0.16em] text-orange-700">personal preference</p>
+                    <p className="mt-1 break-words text-sm font-black text-slate-950">{row.title}</p>
+                    <p className="mt-1 break-words text-xs font-bold leading-5 text-slate-600">{row.body}</p>
+                    <p className="mt-2 break-words text-[11px] font-black text-slate-500">Source: {row.sourceLabel || "Missing source"}{row.sourceUri ? ` | URI: ${row.sourceUri}` : ""}</p>
+                  </div>
+                  <ToneBadge tone={row.status === "approved" ? "green" : row.status === "archived" ? "slate" : "blue"}>{row.status}</ToneBadge>
+                </div>
+                <div className="mt-3 flex min-w-0 flex-wrap gap-2">
+                  <Button type="button" variant="secondary" size="sm" onClick={() => setPreferenceStatus(row, "approved")} disabled={!canUse || row.status === "approved" || row.status === "archived"}>
+                    <Icon name="check" /> Approve
+                  </Button>
+                  <Button type="button" variant="secondary" size="sm" onClick={() => setPreferenceStatus(row, "archived")} disabled={!canUse || row.status === "archived"}>
+                    <Icon name="clock" /> Archive
+                  </Button>
+                </div>
+              </div>
+            )) : <EmptyPanel>No personal-preference memory rows are waiting for review.</EmptyPanel>}
+          </div>
+        </div>
+
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+          <SectionHeader title="Personal Privacy Locks" description={`${layer.privacyLockCount || 0} privacy and tracking boundaries.`} />
+          <div className="grid min-w-0 gap-2">
+            {(layer.privacyRows || []).map((item) => <StatusRow key={item.id} item={item} />)}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const EMPTY_KNOWLEDGE_VAULT_FORM = {
   category: "app-docs",
   title: "",
@@ -2921,6 +3197,17 @@ export function ApexControlRoomPage(props) {
           <Card className="min-w-0 p-4 sm:p-5">
             <SectionHeader title="Daily Briefing" description={`${state.releaseMonitoring.briefingCount || 0} briefing rows for John-only review.`} />
             <DailyBriefingPanel state={state} sessionToken={props.sessionToken} />
+          </Card>
+        </section>
+
+        <section className="grid min-w-0 gap-4">
+          <Card className="min-w-0 p-4 sm:p-5">
+            <SectionHeader
+              title="Personal Operating Layer"
+              description={`${state.personalOperatingLayer.preferenceCount || 0} preferences, ${state.personalOperatingLayer.workStyleCount || 0} work-style rows, and ${state.personalOperatingLayer.privacyLockCount || 0} privacy locks for John-only review.`}
+              action={<ToneBadge tone={state.personalOperatingLayer.tone}>{state.personalOperatingLayer.status}</ToneBadge>}
+            />
+            <PersonalOperatingLayerPanel state={state} sessionToken={props.sessionToken} />
           </Card>
         </section>
 

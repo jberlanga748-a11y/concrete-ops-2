@@ -838,6 +838,16 @@ Validation:
 - preference memory tests
 - privacy review
 
+Status:
+
+- Hard-finished locally on 2026-06-03.
+- The private Control Room now has a Personal Operating Layer that maps the original Phase 16 requirements into existing Apex OS memory: John preferences, work style memory, communication preferences, daily focus, "do not distract me unless" rules, background-vs-check-in rules, preference review, and privacy locks.
+- Preference memory reuses the existing operator-only `apexOsMemory` store with category `personal-preference`; no schema, auth/session, production config, or external provider change was added.
+- New preferences start as suggested, require a source label/body/title, reject secrets through the existing memory API, and become operating guidance only after manual operator approval. Approve/archive controls are review records only and do not execute work.
+- Privacy review is explicit in the UI and state: no hidden tracking, no sensitive personal activity/location/microphone capture, no off-app personal data capture, no background execution loop, and no field/customer/demo-user visibility.
+- Validation passed with focused personal-layer/component tests, the full Apex OS regression suite, role verification, production build, desktop/mobile browser QA on an isolated local server, preference draft/load/manual approval flow, section screenshots, and no horizontal overflow.
+- Production release is pending the Phase 16 commit/push/deploy/release-evidence pass.
+
 ### Phase 17: Full Apex OS QA And Security Hardening
 
 Goal:
