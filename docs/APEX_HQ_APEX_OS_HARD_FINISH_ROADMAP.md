@@ -353,6 +353,15 @@ Hard-finish package:
 - Support code/doc/test/browser execution when John asks.
 - Require approval packets for production, provider, schema, deploy, or irreversible operations.
 
+Status:
+
+- Hard-finished locally on 2026-06-03.
+- Ask Apex can draft task handoffs from chat with source request IDs, selected role/work type, allowed and blocked actions, validation plan, rollback plan, and locked execution controls.
+- Execution handoffs now expose locked execution contracts for agent/Codex work packages and track planned, ready-for-agent, in-progress, validating, finished, blocked, and archived status.
+- Finished handoffs require validation results and a result report, and can create only suggested decision-memory updates for manual review.
+- Risky scoped work requires an approval packet reference before it can be saved as allowed action scope; queue/run/execute/deploy/send/spend/bill/provider/schema/customer-visible paths remain locked.
+- Local validation passed: focused task/handoff/approval enforcement tests, server memory tests, Apex OS regression tests, `npm.cmd run verify:roles`, `npm.cmd run build`, and desktop/mobile browser QA with suggested memory evidence and locked queue/run controls.
+
 Blocked right now:
 
 - Email/SMS, ads, billing/payment, customer-visible changes, and autonomous unrequested agent execution.

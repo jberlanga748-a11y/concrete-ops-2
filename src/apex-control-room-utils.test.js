@@ -210,7 +210,7 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.askApexChat.evidenceRows.some((item) => item.id === "launch-readiness" && item.status === "Launch locked"), true);
   assert.equal(state.askApexChat.actionLocks.some((item) => item.id === "ask-provider" && item.status === "Server-only"), true);
   assert.equal(state.askApexChat.actionLocks.some((item) => item.id === "save-decision" && item.status === "Suggested only"), true);
-  assert.equal(state.askApexChat.actionLocks.some((item) => item.id === "create-task" && item.status === "Draft packet"), true);
+  assert.equal(state.askApexChat.actionLocks.some((item) => item.id === "create-task" && item.status === "Draft handoff"), true);
   assert.equal(state.askApexChat.actionLocks.some((item) => item.id === "needs-approval" && item.status === "Draft packet"), true);
   assert.match(state.askApexChat.answerPreview.detail, /Apex answers from approved memory and source labels/);
   assert.equal(state.voiceInterface.status, "Voice playback ready");
@@ -580,6 +580,43 @@ test("deriveApexControlRoomState includes durable Apex OS execution handoff summ
   assert.equal(state.executionHandoffs.handoffSummary.total, 2);
   assert.equal(state.executionHandoffs.handoffSummary.ready, 1);
   assert.equal(state.executionHandoffs.handoffSummary.draft, 1);
+  assert.equal(state.executionHandoffs.handoffSummary.finished, 0);
+});
+
+test("deriveApexControlRoomState summarizes finished execution handoff results", () => {
+  const state = deriveApexControlRoomState({
+    user: { name: "John Berlanga", role: "Owner", operatorAccess: true },
+    permissions: {
+      apexOs: { canView: true, canManage: true },
+      aiOffice: { canView: true },
+      settings: { canView: true, canManage: true },
+    },
+    companySettings: {
+      apexOsExecutionHandoffs: [
+        {
+          id: "AEH-FINISHED",
+          title: "Finished handoff",
+          objective: "Finish Phase 14 safely.",
+          status: "ready",
+          workstreamStatus: "finished",
+          sourceLabel: "Apex OS plan",
+          sourceEvidence: "Master plan.",
+          allowedActions: "Read files, edit docs, run local tests.",
+          blockedActions: "No deploy, sends, spend, provider setup, production mutation, or customer-visible changes.",
+          validationPlan: "Run focused checks.",
+          validationResults: "Focused checks passed.",
+          rollbackPlan: "Revert commit.",
+          resultReport: "Phase 14 finished locally.",
+          handoffPrompt: "Report result.",
+          decisionMemoryId: "AOM-FINISHED",
+        },
+      ],
+    },
+  });
+
+  assert.equal(state.executionHandoffs.status, "Finished handoffs captured");
+  assert.equal(state.executionHandoffs.handoffSummary.finished, 1);
+  assert.equal(state.operatingSignals.some((row) => row.id === "execution-handoffs" && /finished/i.test(row.detail)), true);
 });
 
 test("deriveApexControlRoomState includes Phase 7 agent control plane roster and requests", () => {

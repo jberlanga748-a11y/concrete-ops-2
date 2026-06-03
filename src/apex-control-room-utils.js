@@ -972,8 +972,8 @@ export const APEX_OS_CHAT_ACTION_LOCKS = Object.freeze([
   {
     id: "create-task",
     title: "Create task",
-    status: "Draft packet",
-    detail: "Ask Apex can draft a review-only task packet; it cannot queue, run, or assign agent work.",
+    status: "Draft handoff",
+    detail: "Ask Apex can draft a review-only execution handoff with role, work type, validation, rollback, and result slots; it cannot queue, run, or assign agent work.",
     tone: "green",
   },
   {
@@ -1330,7 +1330,7 @@ function buildExecutionHandoffState({ agentWorkQueue, approvalCommandCenter, com
       id: "agent-work-queue",
       title: "Agent Work Queue",
       status: agentWorkQueue?.status || "Review-only",
-      detail: `${formatCount(agentWorkQueue?.availableTaskCount)} review-only task types are visible. Handoffs prepare instructions without calling queue or run APIs.`,
+      detail: `${formatCount(agentWorkQueue?.availableTaskCount)} review-only task types are visible. Handoffs prepare instructions, validation results, result reports, and suggested memory without calling queue or run APIs.`,
       tone: agentWorkQueue?.tone || "blue",
     },
     {
@@ -1342,8 +1342,8 @@ function buildExecutionHandoffState({ agentWorkQueue, approvalCommandCenter, com
     },
   ];
   return {
-    status: handoffSummary.total ? "Handoff drafts active" : "Drafting ready",
-    tone: handoffSummary.ready ? "green" : handoffSummary.total ? "blue" : "blue",
+    status: handoffSummary.finished ? "Finished handoffs captured" : handoffSummary.total ? "Handoff drafts active" : "Drafting ready",
+    tone: handoffSummary.finished || handoffSummary.ready ? "green" : handoffSummary.total ? "blue" : "blue",
     handoffSummary,
     sourceCount: sourceRows.length,
     sourceRows,
@@ -2220,7 +2220,7 @@ export function deriveApexControlRoomState({
         id: "execution-handoffs",
         title: "Agent handoff drafts",
         status: executionHandoffs.status,
-        detail: `${executionHandoffs.handoffSummary.total} saved handoffs and ${executionHandoffs.handoffSummary.ready} ready handoffs prepare agent work without queueing or running it.`,
+        detail: `${executionHandoffs.handoffSummary.total} saved handoffs, ${executionHandoffs.handoffSummary.ready} ready, and ${executionHandoffs.handoffSummary.finished || 0} finished handoffs prepare agent work without queueing or running it.`,
         tone: executionHandoffs.tone,
       },
       {
@@ -2323,7 +2323,7 @@ export function deriveApexControlRoomState({
         id: "execution-handoffs",
         title: "Agent handoff drafts",
         status: executionHandoffs.status,
-        detail: `${executionHandoffs.sourceCount} source rows connect approval packets and Agent Work Queue context without calling queue/run APIs.`,
+        detail: `${executionHandoffs.handoffSummary.total} saved handoffs, ${executionHandoffs.handoffSummary.finished || 0} finished, and ${executionHandoffs.sourceCount} source rows connect approval packets and Agent Work Queue context without calling queue/run APIs.`,
         tone: executionHandoffs.tone,
       },
       {
@@ -2499,7 +2499,7 @@ export function deriveApexControlRoomState({
         id: "execution-handoffs",
         title: "Agent handoff drafts",
         status: executionHandoffs.status,
-        detail: `${executionHandoffs.handoffSummary.total} durable handoffs can prepare scoped agent instructions; queueing and running remain locked.`,
+        detail: `${executionHandoffs.handoffSummary.total} durable handoffs can prepare scoped agent instructions, validation results, result reports, and suggested memory; queueing and running remain locked.`,
         tone: executionHandoffs.tone,
       },
       {

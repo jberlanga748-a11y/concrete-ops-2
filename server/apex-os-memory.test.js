@@ -717,6 +717,37 @@ test("Apex OS memory is operator-only, source-backed, persisted, and audited", a
     });
     assert.equal(listedHandoffs.summary.ready, 1);
     assert.equal(listedHandoffs.apexOsExecutionHandoffs[0].title, "Build Apex OS handoff drafts");
+    assert.equal(listedHandoffs.apexOsExecutionHandoffs[0].executionLocked, true);
+    assert.equal(listedHandoffs.apexOsExecutionHandoffs[0].canRun, false);
+
+    const incompleteFinishedHandoff = await requestJson(fixture.baseUrl, `/api/apex-os/execution-handoffs/${createdHandoff.apexOsExecutionHandoff.id}`, {
+      method: "PATCH",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        ...readyHandoff.apexOsExecutionHandoff,
+        workstreamStatus: "finished",
+      }),
+    });
+    assert.equal(incompleteFinishedHandoff.response.status, 400);
+
+    const finishedHandoff = await assertOk(fixture.baseUrl, `/api/apex-os/execution-handoffs/${createdHandoff.apexOsExecutionHandoff.id}`, {
+      method: "PATCH",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        ...readyHandoff.apexOsExecutionHandoff,
+        workstreamStatus: "finished",
+        validationResults: "Focused handoff tests, server access tests, role checks, build, and browser QA passed.",
+        resultReport: "Phase 14 safe execution handoff package finished without queueing or running agents.",
+        decisionMemoryUpdate: "Apex OS Phase 14 execution handoffs capture validation/results and only draft suggested memory after finished work.",
+      }),
+    });
+    assert.equal(finishedHandoff.apexOsExecutionHandoff.workstreamStatus, "finished");
+    assert.equal(finishedHandoff.apexOsExecutionHandoff.decisionMemoryId.startsWith("AOM"), true);
+    assert.equal(finishedHandoff.apexOsExecutionHandoff.executionContract.decisionMemoryDraftReady, true);
+    const handoffMemory = storedApexOsMemory(fixture.sqliteFile).find((entry) => entry.id === finishedHandoff.apexOsExecutionHandoff.decisionMemoryId);
+    assert.equal(handoffMemory.status, "suggested");
+    assert.equal(handoffMemory.sourceType, "execution-handoff");
+    assert.equal(handoffMemory.sourceUri, `apex-os-execution-handoff:${createdHandoff.apexOsExecutionHandoff.id}`);
 
     const unsafeAgentControl = await requestJson(fixture.baseUrl, "/api/apex-os/agent-control/requests", {
       method: "POST",

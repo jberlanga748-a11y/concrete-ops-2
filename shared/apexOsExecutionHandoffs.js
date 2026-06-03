@@ -5,6 +5,7 @@ const HANDOFF_LIMIT = 120;
 
 const STATUS_VALUES = new Set(["draft", "ready", "blocked", "archived"]);
 const BLOCKED_STATUS_VALUES = new Set(["approved", "executed", "running", "queued"]);
+const WORKSTREAM_STATUS_VALUES = new Set(["planned", "ready-for-agent", "in-progress", "validating", "finished", "blocked"]);
 const AGENT_ROLE_VALUES = new Set([
   "build",
   "qa",
@@ -27,6 +28,7 @@ const WORK_TYPE_VALUES = new Set([
   "general",
 ]);
 const RISK_VALUES = new Set(["low", "medium", "high", "critical"]);
+const GATED_ALLOWED_ACTION_PATTERN = /\b(deploy|rollback|production|schema|auth|session|migration|provider|api key|openai|email|sms|text|send|publish|ad spend|ads?|payment|billing|invoice|charge|delete|remove|customer-visible|customer facing|public|irreversible)\b/i;
 
 const SECRET_PATTERNS = [
   /\b(password|passcode|api[_ -]?key|secret[a-z0-9_-]*|token|bearer|cookie|session|mfa|captcha|paywall|portal credential|login)\b/gi,
@@ -99,6 +101,17 @@ function normalizeRisk(value = "medium") {
   return RISK_VALUES.has(normalized) ? normalized : "medium";
 }
 
+function normalizeWorkstreamStatus(value = "planned") {
+  const normalized = rawText(value, 80).toLowerCase();
+  return WORKSTREAM_STATUS_VALUES.has(normalized) ? normalized : "planned";
+}
+
+function detectApexOsExecutionHandoffApprovalIssues({ allowedActions = "", sourceApprovalPacketId = "" } = {}) {
+  if (!GATED_ALLOWED_ACTION_PATTERN.test(rawText(allowedActions, TEXT_LIMIT))) return [];
+  if (rawText(sourceApprovalPacketId, SHORT_LIMIT)) return [];
+  return ["Production, provider, schema/auth/session, send, spend, billing/payment, customer-visible, deletion, or irreversible work in allowed actions requires a linked approval packet."];
+}
+
 export function normalizeApexOsExecutionHandoff(input = {}, { existing = {}, id = "", now = new Date().toISOString() } = {}) {
   const title = redactApexOsExecutionHandoffText(input.title ?? existing.title ?? "", TITLE_LIMIT);
   const objective = redactApexOsExecutionHandoffText(input.objective ?? existing.objective ?? "", TEXT_LIMIT);
@@ -106,14 +119,21 @@ export function normalizeApexOsExecutionHandoff(input = {}, { existing = {}, id 
   const allowedActions = redactApexOsExecutionHandoffText(input.allowedActions ?? existing.allowedActions ?? "", TEXT_LIMIT);
   const blockedActions = redactApexOsExecutionHandoffText(input.blockedActions ?? existing.blockedActions ?? "", TEXT_LIMIT);
   const validationPlan = redactApexOsExecutionHandoffText(input.validationPlan ?? existing.validationPlan ?? "", TEXT_LIMIT);
+  const validationResults = redactApexOsExecutionHandoffText(input.validationResults ?? input.validationResult ?? existing.validationResults ?? existing.validationResult ?? "", TEXT_LIMIT);
   const rollbackPlan = redactApexOsExecutionHandoffText(input.rollbackPlan ?? existing.rollbackPlan ?? "", TEXT_LIMIT);
+  const resultReport = redactApexOsExecutionHandoffText(input.resultReport ?? existing.resultReport ?? "", TEXT_LIMIT);
+  const decisionMemoryUpdate = redactApexOsExecutionHandoffText(input.decisionMemoryUpdate ?? existing.decisionMemoryUpdate ?? "", TEXT_LIMIT);
   const handoffPrompt = redactApexOsExecutionHandoffText(input.handoffPrompt ?? input.operatorInstructions ?? existing.handoffPrompt ?? existing.operatorInstructions ?? "", TEXT_LIMIT);
   const sourceApprovalPacketId = redactApexOsExecutionHandoffText(input.sourceApprovalPacketId ?? existing.sourceApprovalPacketId ?? "", SHORT_LIMIT);
+  const sourceChatRequestId = redactApexOsExecutionHandoffText(input.sourceChatRequestId ?? existing.sourceChatRequestId ?? "", SHORT_LIMIT);
+  const sourceQuestion = redactApexOsExecutionHandoffText(input.sourceQuestion ?? existing.sourceQuestion ?? "", TEXT_LIMIT);
   const sourceLabel = redactApexOsExecutionHandoffText(input.sourceLabel ?? existing.sourceLabel ?? "", SHORT_LIMIT);
   const sourceUri = redactApexOsExecutionHandoffText(input.sourceUri ?? existing.sourceUri ?? "", 260);
   const operatorNote = redactApexOsExecutionHandoffText(input.operatorNote ?? existing.operatorNote ?? "", 420);
   const requestedStatus = input.status ?? existing.status;
   const status = normalizeStatus(requestedStatus);
+  const workstreamStatus = normalizeWorkstreamStatus(input.workstreamStatus ?? existing.workstreamStatus);
+  const decisionMemoryId = redactApexOsExecutionHandoffText(input.decisionMemoryId ?? existing.decisionMemoryId ?? "", SHORT_LIMIT);
   const combinedRaw = [
     input.title,
     input.objective,
@@ -121,10 +141,16 @@ export function normalizeApexOsExecutionHandoff(input = {}, { existing = {}, id 
     input.allowedActions,
     input.blockedActions,
     input.validationPlan,
+    input.validationResults,
+    input.validationResult,
     input.rollbackPlan,
+    input.resultReport,
+    input.decisionMemoryUpdate,
     input.handoffPrompt,
     input.operatorInstructions,
     input.sourceApprovalPacketId,
+    input.sourceChatRequestId,
+    input.sourceQuestion,
     input.sourceLabel,
     input.sourceUri,
     input.operatorNote,
@@ -133,6 +159,7 @@ export function normalizeApexOsExecutionHandoff(input = {}, { existing = {}, id 
     ...listBlockedReasons(input.blockedReasons),
     ...listBlockedReasons(existing.blockedReasons),
     ...detectApexOsExecutionHandoffSafetyIssues(combinedRaw, requestedStatus),
+    ...detectApexOsExecutionHandoffApprovalIssues({ allowedActions, sourceApprovalPacketId }),
   ];
 
   return {
@@ -146,13 +173,20 @@ export function normalizeApexOsExecutionHandoff(input = {}, { existing = {}, id 
     allowedActions,
     blockedActions,
     validationPlan,
+    validationResults,
     rollbackPlan,
+    resultReport,
+    decisionMemoryUpdate,
     handoffPrompt,
+    sourceChatRequestId,
+    sourceQuestion,
     sourceLabel,
     sourceUri,
     riskLevel: normalizeRisk(input.riskLevel ?? existing.riskLevel ?? input.risk ?? existing.risk),
     status,
+    workstreamStatus,
     operatorNote,
+    decisionMemoryId,
     createdBy: rawText(existing.createdBy || input.createdBy || "", SHORT_LIMIT),
     createdAt: rawText(existing.createdAt || input.createdAt || now, SHORT_LIMIT),
     updatedAt: now,
@@ -176,6 +210,10 @@ export function summarizeApexOsExecutionHandoffs(value = []) {
     ready: handoffs.filter((handoff) => handoff.status === "ready").length,
     blocked: handoffs.filter((handoff) => handoff.status === "blocked").length,
     archived: handoffs.filter((handoff) => handoff.status === "archived").length,
+    planned: handoffs.filter((handoff) => handoff.workstreamStatus === "planned").length,
+    inProgress: handoffs.filter((handoff) => handoff.workstreamStatus === "in-progress").length,
+    validating: handoffs.filter((handoff) => handoff.workstreamStatus === "validating").length,
+    finished: handoffs.filter((handoff) => handoff.workstreamStatus === "finished").length,
   };
 }
 
@@ -192,10 +230,41 @@ export function getApexOsExecutionHandoffMissingFields(handoff = {}) {
     ["handoffPrompt", "Handoff prompt"],
     ["sourceLabel", "Source label"],
   ];
+  if (normalized.workstreamStatus === "finished") {
+    required.push(["validationResults", "Validation results"]);
+    required.push(["resultReport", "Result report"]);
+  }
   return required.filter(([key]) => !normalized[key]).map(([, label]) => label);
 }
 
 export function isApexOsExecutionHandoffReady(handoff = {}) {
   const normalized = normalizeApexOsExecutionHandoff(handoff);
   return getApexOsExecutionHandoffMissingFields(normalized).length === 0 && normalized.blockedReasons.length === 0;
+}
+
+export function buildApexOsExecutionContract(handoff = {}) {
+  const normalized = normalizeApexOsExecutionHandoff(handoff);
+  return {
+    id: normalized.id,
+    title: normalized.title,
+    objective: normalized.objective,
+    agentRole: normalized.agentRole,
+    workType: normalized.workType,
+    workstreamStatus: normalized.workstreamStatus,
+    allowedActions: normalized.allowedActions,
+    blockedActions: normalized.blockedActions,
+    validationPlan: normalized.validationPlan,
+    validationResults: normalized.validationResults,
+    rollbackPlan: normalized.rollbackPlan,
+    resultReport: normalized.resultReport,
+    sourceEvidence: normalized.sourceEvidence,
+    sourceApprovalPacketId: normalized.sourceApprovalPacketId,
+    sourceChatRequestId: normalized.sourceChatRequestId,
+    decisionMemoryId: normalized.decisionMemoryId,
+    decisionMemoryDraftReady: normalized.workstreamStatus === "finished" && Boolean(normalized.decisionMemoryUpdate),
+    executionLocked: true,
+    canQueue: false,
+    canRun: false,
+    canExecute: false,
+  };
 }

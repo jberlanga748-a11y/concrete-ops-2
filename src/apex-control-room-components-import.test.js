@@ -47,6 +47,10 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /updateApexOsExecutionHandoff/);
   assert.match(componentSource, /Queue locked/);
   assert.match(componentSource, /Run locked/);
+  assert.match(componentSource, /Save updates/);
+  assert.match(componentSource, /Validation results after work finishes/);
+  assert.match(componentSource, /Result report after work finishes/);
+  assert.match(componentSource, /Decision memory update to save as suggested memory/);
   assert.match(componentSource, /Locked Agent Tasks/);
   assert.match(componentSource, /Knowledge Vault/);
   assert.match(componentSource, /Knowledge Upload Vault/);
@@ -86,7 +90,7 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /Create task draft/);
   assert.match(componentSource, /Needs approval/);
   assert.match(componentSource, /buildApexOsAskDecisionDraft/);
-  assert.match(componentSource, /buildApexOsAskTaskPacketDraft/);
+  assert.match(componentSource, /buildApexOsAskExecutionHandoffDraft/);
   assert.match(componentSource, /buildApexOsAskApprovalPacketDraft/);
   assert.match(componentSource, /No execution/);
   assert.match(componentSource, /Voice Interface/);

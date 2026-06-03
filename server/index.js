@@ -107,6 +107,7 @@ import {
 } from "../shared/apexOsApprovalPackets.js";
 import {
   getApexOsExecutionHandoffMissingFields,
+  buildApexOsExecutionContract,
   isApexOsExecutionHandoffReady,
   normalizeApexOsExecutionHandoff,
   normalizeApexOsExecutionHandoffs,
@@ -7664,6 +7665,9 @@ function rejectUnsafeApexOsExecutionHandoff(handoff, requestedStatus = handoff.s
   if (!handoff.title || !handoff.objective) {
     throw new ApiError(400, "Apex OS execution handoffs require a title and objective.");
   }
+  if (handoff.workstreamStatus === "finished" && (!handoff.validationResults || !handoff.resultReport)) {
+    throw new ApiError(400, "Finished Apex OS execution handoffs require validation results and a result report.");
+  }
   if (handoff.status === "ready" && !isApexOsExecutionHandoffReady(handoff)) {
     throw new ApiError(400, `Ready execution handoffs are missing: ${getApexOsExecutionHandoffMissingFields(handoff).join(", ")}.`);
   }
@@ -7689,7 +7693,65 @@ function publicApexOsExecutionHandoff(handoff) {
     ...safeHandoff,
     missingFields: getApexOsExecutionHandoffMissingFields(handoff),
     readyToReview: isApexOsExecutionHandoffReady(handoff),
+    executionContract: buildApexOsExecutionContract(handoff),
+    executionLocked: true,
+    canQueue: false,
+    canRun: false,
+    canExecute: false,
   };
+}
+
+function maybeCreateApexOsExecutionHandoffMemoryDraft(draft, user, handoff, now) {
+  if (handoff.workstreamStatus !== "finished" || !handoff.decisionMemoryUpdate) {
+    return null;
+  }
+  if (handoff.decisionMemoryId) {
+    return null;
+  }
+  const currentMemory = apexOsMemoryForState(draft, user);
+  const memoryEntry = normalizeApexOsMemoryEntry({
+    category: "decision",
+    title: `Finished handoff: ${handoff.title}`,
+    body: handoff.decisionMemoryUpdate,
+    sourceType: "execution-handoff",
+    sourceLabel: handoff.title,
+    sourceUri: `apex-os-execution-handoff:${handoff.id}`,
+    status: "suggested",
+    confidence: 72,
+    reviewNote: "Suggested after a finished Apex OS execution handoff; manual approval required before trusted memory.",
+  }, {
+    id: makeId("AOM"),
+    now,
+  });
+  memoryEntry.createdBy = user.id;
+  memoryEntry.createdAt = now;
+  rejectUnsafeApexOsMemoryEntry(memoryEntry);
+  const duplicate = findApexOsMemoryDuplicate(memoryEntry, currentMemory);
+  if (duplicate) {
+    handoff.decisionMemoryId = duplicate.id;
+    return null;
+  }
+  persistApexOsMemory(draft, user, [memoryEntry, ...currentMemory].slice(0, 200));
+  handoff.decisionMemoryId = memoryEntry.id;
+  appendActivity(draft, "Apex OS handoff memory suggested", `${user.name} captured suggested decision memory from ${handoff.title}.`);
+  appendAuditEvent(draft, {
+    entityType: "apexOsMemory",
+    entityId: memoryEntry.id,
+    action: "suggested",
+    summary: "Apex OS handoff memory suggested",
+    detail: JSON.stringify({
+      id: memoryEntry.id,
+      category: memoryEntry.category,
+      title: memoryEntry.title,
+      status: memoryEntry.status,
+      sourceType: memoryEntry.sourceType,
+      sourceUri: memoryEntry.sourceUri,
+      handoffId: handoff.id,
+    }),
+    actor: user,
+    changedFields: ["apexOsMemory", "apexOsExecutionHandoffs"],
+  });
+  return memoryEntry;
 }
 
 function apexOsAgentControlRequestsForState(state, user) {
@@ -12924,6 +12986,7 @@ app.post("/api/apex-os/execution-handoffs", requireAuth, asyncRoute(async (req, 
     createdHandoff.createdBy = req.auth.user.id;
     createdHandoff.createdAt = now;
     rejectUnsafeApexOsExecutionHandoff(createdHandoff, req.body?.status);
+    maybeCreateApexOsExecutionHandoffMemoryDraft(draft, req.auth.user, createdHandoff, now);
     persistApexOsExecutionHandoffs(draft, req.auth.user, [createdHandoff, ...current].slice(0, 120));
     appendActivity(draft, "Apex OS execution handoff drafted", `${req.auth.user.name} drafted ${createdHandoff.title} for Apex OS agent handoff review.`);
     appendAuditEvent(draft, {
@@ -12937,8 +13000,11 @@ app.post("/api/apex-os/execution-handoffs", requireAuth, asyncRoute(async (req, 
         status: createdHandoff.status,
         agentRole: createdHandoff.agentRole,
         workType: createdHandoff.workType,
+        workstreamStatus: createdHandoff.workstreamStatus,
         riskLevel: createdHandoff.riskLevel,
         sourceLabel: createdHandoff.sourceLabel,
+        decisionMemoryId: createdHandoff.decisionMemoryId,
+        executionLocked: true,
       }),
       actor: req.auth.user,
       changedFields: ["apexOsExecutionHandoffs"],
@@ -12974,6 +13040,7 @@ app.patch("/api/apex-os/execution-handoffs/:id", requireAuth, asyncRoute(async (
       updatedHandoff.archivedAt = now;
     }
     rejectUnsafeApexOsExecutionHandoff(updatedHandoff, req.body?.status);
+    maybeCreateApexOsExecutionHandoffMemoryDraft(draft, req.auth.user, updatedHandoff, now);
     const nextHandoffs = [...current];
     nextHandoffs[index] = updatedHandoff;
     persistApexOsExecutionHandoffs(draft, req.auth.user, nextHandoffs);
@@ -12989,8 +13056,11 @@ app.patch("/api/apex-os/execution-handoffs/:id", requireAuth, asyncRoute(async (
         status: updatedHandoff.status,
         agentRole: updatedHandoff.agentRole,
         workType: updatedHandoff.workType,
+        workstreamStatus: updatedHandoff.workstreamStatus,
         riskLevel: updatedHandoff.riskLevel,
         sourceLabel: updatedHandoff.sourceLabel,
+        decisionMemoryId: updatedHandoff.decisionMemoryId,
+        executionLocked: true,
       }),
       actor: req.auth.user,
       changedFields: ["apexOsExecutionHandoffs"],

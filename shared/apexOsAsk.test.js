@@ -6,6 +6,7 @@ import {
   buildApexOsAskContext,
   buildApexOsAskDecisionDraft,
   buildApexOsAskEvidenceRows,
+  buildApexOsAskExecutionHandoffDraft,
   buildApexOsAskOpenAiRequest,
   buildApexOsAskTaskPacketDraft,
   buildLocalApexOsAnswer,
@@ -144,6 +145,20 @@ test("Ask Apex draft action payloads stay review-only", () => {
   assert.equal(task.requestedActionCategory, "business-operations");
   assert.equal(task.sourceUri, "ask-apex:REQ-2:task");
   assert.equal(task.exactApprovalPhrase, "");
+
+  const handoff = buildApexOsAskExecutionHandoffDraft({
+    question: "What is the next task?",
+    answer,
+    requestId: "REQ-2",
+  });
+  assert.equal(handoff.status, "draft");
+  assert.equal(handoff.workstreamStatus, "planned");
+  assert.equal(handoff.agentRole, "release");
+  assert.equal(handoff.sourceUri, "ask-apex:REQ-2:handoff");
+  assert.equal(handoff.sourceChatRequestId, "REQ-2");
+  assert.match(handoff.blockedActions, /No queue\/run endpoint/i);
+  assert.doesNotMatch(handoff.sourceEvidence, /\bsecret\b/i);
+  assert.doesNotMatch(`${handoff.sourceEvidence} ${handoff.blockedActions}`, /\bsession\b/i);
 
   const approval = buildApexOsAskApprovalPacketDraft({
     question: "Can we deploy?",

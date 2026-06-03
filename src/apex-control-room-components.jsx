@@ -28,7 +28,7 @@ import { deriveApexControlRoomState } from "./apex-control-room-utils";
 import {
   buildApexOsAskApprovalPacketDraft,
   buildApexOsAskDecisionDraft,
-  buildApexOsAskTaskPacketDraft,
+  buildApexOsAskExecutionHandoffDraft,
 } from "../shared/apexOsAsk.js";
 import { buildApexOsVoiceCommandReview } from "../shared/apexOsVoice.js";
 import {
@@ -296,15 +296,15 @@ function AskApexPanel({ state, sessionToken, question, setQuestion }) {
     setDraftingAction("task");
     setActionNotice("");
     try {
-      await createApexOsApprovalPacket(sessionToken, buildApexOsAskTaskPacketDraft({
+      await createApexOsExecutionHandoff(sessionToken, buildApexOsAskExecutionHandoffDraft({
         question: askedQuestion || question,
         answer: response.answer,
         requestId: response.requestId,
       }));
       setDraftedActions((current) => ({ ...current, task: true }));
-      setActionNotice("Task packet drafted for manual review. It does not queue or run any work.");
+      setActionNotice("Task handoff drafted for manual review. It does not queue or run any work.");
     } catch (draftError) {
-      setActionNotice(draftError?.message || "Task packet could not be drafted right now.");
+      setActionNotice(draftError?.message || "Task handoff could not be drafted right now.");
     } finally {
       setDraftingAction("");
     }
@@ -454,7 +454,7 @@ function AskApexPanel({ state, sessionToken, question, setQuestion }) {
               <Icon name="lock" /> Stop voice
             </Button>
           </div>
-          <p className="mt-3 break-words text-xs font-black leading-5 text-slate-500">{voiceNotice || actionNotice || "Decision drafts stay suggested. Task and approval drafts stay review-only packets. Voice playback is AI-generated and does not execute commands."}</p>
+          <p className="mt-3 break-words text-xs font-black leading-5 text-slate-500">{voiceNotice || actionNotice || "Decision drafts stay suggested. Task drafts become safe handoffs. Approval drafts stay review-only packets. Voice playback is AI-generated and does not execute commands."}</p>
         </div>
       ) : null}
       <StatusRow item={state.askApexChat.answerPreview} />
@@ -2165,16 +2165,22 @@ const EMPTY_EXECUTION_HANDOFF_FORM = {
   workType: "local-code-plan",
   riskLevel: "medium",
   sourceApprovalPacketId: "",
+  sourceChatRequestId: "",
+  sourceQuestion: "",
   objective: "",
   sourceEvidence: "",
   allowedActions: "Read files, draft local code or docs, run local tests, and report evidence.",
   blockedActions: "No deploy, sends, spend, provider setup, production mutation, customer-visible changes, deletion, or irreversible actions.",
   validationPlan: "",
+  validationResults: "",
   rollbackPlan: "",
+  resultReport: "",
+  decisionMemoryUpdate: "",
   handoffPrompt: "",
   sourceLabel: "Apex Control Room",
   sourceUri: "",
   status: "draft",
+  workstreamStatus: "planned",
 };
 
 const EMPTY_AGENT_CONTROL_FORM = {
@@ -2417,6 +2423,7 @@ function AgentControlPlanePanel({ state, sessionToken }) {
 
 function ExecutionHandoffDraftPanel({ state, sessionToken }) {
   const [form, setForm] = useState(EMPTY_EXECUTION_HANDOFF_FORM);
+  const [editingId, setEditingId] = useState("");
   const [handoffs, setHandoffs] = useState([]);
   const [summary, setSummary] = useState(null);
   const [notice, setNotice] = useState("");
@@ -2437,6 +2444,8 @@ function ExecutionHandoffDraftPanel({ state, sessionToken }) {
       const payload = await getApexOsExecutionHandoffs(sessionToken);
       setHandoffs(payload.apexOsExecutionHandoffs || []);
       setSummary(payload.summary || null);
+      setEditingId("");
+      setForm(EMPTY_EXECUTION_HANDOFF_FORM);
       setNotice("Agent handoffs loaded from private Apex OS storage.");
     } catch (error) {
       setNotice(error?.message || "Agent handoffs could not load right now.");
@@ -2451,22 +2460,44 @@ function ExecutionHandoffDraftPanel({ state, sessionToken }) {
     setLoading(true);
     setNotice("");
     try {
-      const payload = await createApexOsExecutionHandoff(sessionToken, form);
-      setHandoffs((current) => [payload.apexOsExecutionHandoff, ...current].filter(Boolean));
-      setSummary((current) => ({
-        total: (current?.total || 0) + 1,
-        draft: (current?.draft || 0) + (payload.apexOsExecutionHandoff?.status === "draft" ? 1 : 0),
-        ready: (current?.ready || 0) + (payload.apexOsExecutionHandoff?.status === "ready" ? 1 : 0),
-        blocked: (current?.blocked || 0) + (payload.apexOsExecutionHandoff?.status === "blocked" ? 1 : 0),
-        archived: current?.archived || 0,
-      }));
+      if (editingId) {
+        await updateApexOsExecutionHandoff(sessionToken, editingId, form);
+      } else {
+        await createApexOsExecutionHandoff(sessionToken, form);
+      }
+      const listed = await getApexOsExecutionHandoffs(sessionToken);
+      setHandoffs(listed.apexOsExecutionHandoffs || []);
+      setSummary(listed.summary || null);
       setForm(EMPTY_EXECUTION_HANDOFF_FORM);
-      setNotice("Agent handoff drafted. It cannot queue or run agents.");
+      setEditingId("");
+      setNotice(editingId ? "Agent handoff updated. Finished handoffs only create suggested memory for manual review." : "Agent handoff drafted. It cannot queue or run agents.");
     } catch (error) {
       setNotice(error?.message || "Agent handoff could not be saved right now.");
     } finally {
       setLoading(false);
     }
+  }
+
+  function loadHandoff(handoff) {
+    setEditingId(handoff.id || "");
+    setForm({
+      ...EMPTY_EXECUTION_HANDOFF_FORM,
+      ...handoff,
+      validationResults: handoff.validationResults || "",
+      resultReport: handoff.resultReport || "",
+      decisionMemoryUpdate: handoff.decisionMemoryUpdate || "",
+      workstreamStatus: handoff.workstreamStatus || "planned",
+      sourceChatRequestId: handoff.sourceChatRequestId || "",
+      sourceQuestion: handoff.sourceQuestion || "",
+      status: ["draft", "ready", "blocked"].includes(handoff.status) ? handoff.status : "draft",
+    });
+    setNotice("Handoff loaded for editing. Save updates after adding validation/results.");
+  }
+
+  function clearHandoffForm() {
+    setEditingId("");
+    setForm(EMPTY_EXECUTION_HANDOFF_FORM);
+    setNotice("");
   }
 
   async function setHandoffStatus(handoff, status) {
@@ -2495,8 +2526,8 @@ function ExecutionHandoffDraftPanel({ state, sessionToken }) {
           id: "agent-handoff-total",
           title: "Saved handoffs",
           status: `${activeSummary.total || 0}`,
-          detail: `${activeSummary.ready || 0} ready, ${activeSummary.draft || 0} draft, ${activeSummary.blocked || 0} blocked, ${activeSummary.archived || 0} archived.`,
-          tone: activeSummary.ready ? "green" : "blue",
+          detail: `${activeSummary.ready || 0} ready, ${activeSummary.draft || 0} draft, ${activeSummary.finished || 0} finished, ${activeSummary.blocked || 0} blocked, ${activeSummary.archived || 0} archived.`,
+          tone: activeSummary.finished || activeSummary.ready ? "green" : "blue",
         }} />
         <StatusRow item={{
           id: "agent-handoff-run-lock",
@@ -2556,6 +2587,18 @@ function ExecutionHandoffDraftPanel({ state, sessionToken }) {
             </select>
           </div>
         </div>
+        <div className="grid min-w-0 gap-3 sm:grid-cols-3">
+          <select value={form.workstreamStatus} onChange={(event) => updateField("workstreamStatus", event.target.value)} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700" disabled={!state.canView || loading}>
+            <option value="planned">Planned</option>
+            <option value="ready-for-agent">Ready for agent</option>
+            <option value="in-progress">In progress</option>
+            <option value="validating">Validating</option>
+            <option value="finished">Finished</option>
+            <option value="blocked">Blocked</option>
+          </select>
+          <input value={form.sourceChatRequestId} onChange={(event) => updateField("sourceChatRequestId", event.target.value)} maxLength={140} placeholder="Ask Apex request ID" className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700" disabled={!state.canView || loading} />
+          <input value={form.sourceQuestion} onChange={(event) => updateField("sourceQuestion", event.target.value)} maxLength={1000} placeholder="Source chat question" className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700" disabled={!state.canView || loading} />
+        </div>
         <textarea value={form.objective} onChange={(event) => updateField("objective", event.target.value)} maxLength={1800} placeholder="Objective for the agent handoff" className="min-h-20 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold leading-6 text-slate-700" disabled={!state.canView || loading} />
         <div className="grid min-w-0 gap-3 lg:grid-cols-2">
           <textarea value={form.sourceEvidence} onChange={(event) => updateField("sourceEvidence", event.target.value)} maxLength={1800} placeholder="Source evidence and context" className="min-h-20 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold leading-6 text-slate-700" disabled={!state.canView || loading} />
@@ -2564,7 +2607,10 @@ function ExecutionHandoffDraftPanel({ state, sessionToken }) {
           <textarea value={form.blockedActions} onChange={(event) => updateField("blockedActions", event.target.value)} maxLength={1800} placeholder="Blocked actions" className="min-h-20 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold leading-6 text-slate-700" disabled={!state.canView || loading} />
           <textarea value={form.validationPlan} onChange={(event) => updateField("validationPlan", event.target.value)} maxLength={1800} placeholder="Validation plan" className="min-h-20 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold leading-6 text-slate-700" disabled={!state.canView || loading} />
           <textarea value={form.rollbackPlan} onChange={(event) => updateField("rollbackPlan", event.target.value)} maxLength={1800} placeholder="Rollback plan" className="min-h-20 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold leading-6 text-slate-700" disabled={!state.canView || loading} />
+          <textarea value={form.validationResults} onChange={(event) => updateField("validationResults", event.target.value)} maxLength={1800} placeholder="Validation results after work finishes" className="min-h-20 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold leading-6 text-slate-700" disabled={!state.canView || loading} />
+          <textarea value={form.resultReport} onChange={(event) => updateField("resultReport", event.target.value)} maxLength={1800} placeholder="Result report after work finishes" className="min-h-20 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold leading-6 text-slate-700" disabled={!state.canView || loading} />
         </div>
+        <textarea value={form.decisionMemoryUpdate} onChange={(event) => updateField("decisionMemoryUpdate", event.target.value)} maxLength={1800} placeholder="Decision memory update to save as suggested memory when this handoff is finished" className="min-h-20 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold leading-6 text-slate-700" disabled={!state.canView || loading} />
         <div className="grid min-w-0 gap-3 lg:grid-cols-3">
           <input value={form.sourceApprovalPacketId} onChange={(event) => updateField("sourceApprovalPacketId", event.target.value)} maxLength={140} placeholder="Source approval packet ID" className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700" disabled={!state.canView || loading} />
           <input value={form.sourceLabel} onChange={(event) => updateField("sourceLabel", event.target.value)} maxLength={140} placeholder="Source label" className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700" disabled={!state.canView || loading} />
@@ -2572,7 +2618,10 @@ function ExecutionHandoffDraftPanel({ state, sessionToken }) {
         </div>
         <div className="flex min-w-0 flex-wrap gap-2">
           <Button type="submit" variant="secondary" size="sm" disabled={!canCreate}>
-            <Icon name="clipboard" /> {loading ? "Saving..." : "Draft handoff"}
+            <Icon name="clipboard" /> {loading ? "Saving..." : editingId ? "Save updates" : "Draft handoff"}
+          </Button>
+          <Button type="button" variant="secondary" size="sm" onClick={clearHandoffForm} disabled={!state.canView || loading || (!editingId && form === EMPTY_EXECUTION_HANDOFF_FORM)}>
+            <Icon name="clock" /> Clear form
           </Button>
           <Button type="button" variant="secondary" size="sm" onClick={refreshHandoffs} disabled={!canUse}>
             <Icon name="refresh" /> Load handoffs
@@ -2584,7 +2633,7 @@ function ExecutionHandoffDraftPanel({ state, sessionToken }) {
             <Icon name="lock" /> Run locked
           </Button>
         </div>
-        <p className="break-words text-xs font-black leading-5 text-slate-500">{notice || "Ready handoffs require source evidence, allowed actions, blocked actions, validation, rollback, and a handoff prompt. Execution still requires a separate gated workflow."}</p>
+        <p className="break-words text-xs font-black leading-5 text-slate-500">{notice || "Ready handoffs require source evidence, allowed actions, blocked actions, validation, rollback, and a handoff prompt. Finished handoffs also require validation results and a result report; any memory update stays suggested until approved."}</p>
       </form>
 
       <div className="grid min-w-0 gap-3">
@@ -2594,14 +2643,27 @@ function ExecutionHandoffDraftPanel({ state, sessionToken }) {
               <div className="min-w-0">
                 <p className="break-words text-sm font-black text-slate-950">{handoff.title}</p>
                 <p className="mt-1 break-words text-xs font-bold leading-5 text-slate-600">{handoff.objective}</p>
-                <p className="mt-2 break-words text-[11px] font-black text-slate-500">Role: {handoff.agentRole} | Work: {handoff.workType} | Source: {handoff.sourceLabel || "Missing source"}</p>
+                <p className="mt-2 break-words text-[11px] font-black text-slate-500">Role: {handoff.agentRole} | Work: {handoff.workType} | Workstream: {handoff.workstreamStatus || "planned"} | Source: {handoff.sourceLabel || "Missing source"}</p>
+                {handoff.sourceChatRequestId ? <p className="mt-1 break-words text-[11px] font-black text-slate-500">Chat source: {handoff.sourceChatRequestId}</p> : null}
                 {handoff.missingFields?.length ? <p className="mt-2 break-words text-[11px] font-black text-amber-700">Missing: {handoff.missingFields.join(", ")}</p> : null}
+                {handoff.validationResults ? <p className="mt-2 break-words text-[11px] font-black leading-5 text-emerald-700">Validation: {handoff.validationResults}</p> : null}
+                {handoff.resultReport ? <p className="mt-1 break-words text-[11px] font-black leading-5 text-slate-600">Result: {handoff.resultReport}</p> : null}
+                {handoff.decisionMemoryId ? <p className="mt-1 break-words text-[11px] font-black text-purple-700">Suggested memory: {handoff.decisionMemoryId}</p> : null}
               </div>
-              <ToneBadge tone={handoff.status === "ready" ? "green" : handoff.status === "blocked" ? "red" : handoff.status === "archived" ? "slate" : "blue"}>{handoff.status}</ToneBadge>
+              <ToneBadge tone={handoff.workstreamStatus === "finished" ? "green" : handoff.status === "ready" ? "green" : handoff.status === "blocked" || handoff.workstreamStatus === "blocked" ? "red" : handoff.status === "archived" ? "slate" : "blue"}>{handoff.workstreamStatus || handoff.status}</ToneBadge>
             </div>
             <div className="mt-3 flex min-w-0 flex-wrap gap-2">
+              <Button type="button" variant="secondary" size="sm" onClick={() => loadHandoff(handoff)} disabled={!canUse || handoff.status === "archived"}>
+                <Icon name="clipboard" /> Load
+              </Button>
               <Button type="button" variant="secondary" size="sm" onClick={() => setHandoffStatus(handoff, "ready")} disabled={!canUse || handoff.status === "ready" || handoff.status === "archived"}>
                 <Icon name="check" /> Mark ready
+              </Button>
+              <Button type="button" variant="secondary" size="sm" onClick={() => setHandoffStatus({ ...handoff, workstreamStatus: "validating" }, handoff.status)} disabled={!canUse || handoff.workstreamStatus === "validating" || handoff.status === "archived"}>
+                <Icon name="refresh" /> Validating
+              </Button>
+              <Button type="button" variant="secondary" size="sm" onClick={() => setHandoffStatus({ ...handoff, workstreamStatus: "finished" }, handoff.status)} disabled={!canUse || handoff.workstreamStatus === "finished" || handoff.status === "archived"}>
+                <Icon name="check" /> Finished
               </Button>
               <Button type="button" variant="secondary" size="sm" onClick={() => setHandoffStatus(handoff, "blocked")} disabled={!canUse || handoff.status === "blocked" || handoff.status === "archived"}>
                 <Icon name="alert" /> Mark blocked

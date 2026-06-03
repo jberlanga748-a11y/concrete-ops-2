@@ -757,6 +757,18 @@ Validation:
 - agent handoff tests
 - approval enforcement tests
 
+Status:
+
+- Hard-finished locally on 2026-06-03.
+- Ask Apex can now create safe execution handoff drafts from chat without creating approval decisions, queueing work, running agents, deploying, sending, spending, billing, or mutating production/customer data.
+- Agent handoffs now include an execution contract with objective, assigned role/skill, work type, source chat request, allowed actions, blocked actions, validation plan, rollback plan, result report, approval packet reference, decision memory reference, and locked execution flags.
+- Workstream status now supports planned, ready-for-agent, in-progress, validating, finished, blocked, and archived states. Finished workstreams must include validation results and a result report before they can be saved.
+- Finished handoffs with a decision-memory update create only a suggested Apex OS decision memory row for manual review; they do not approve decisions automatically.
+- Risky allowed actions that mention production, provider setup, schema/auth/session, deployment, customer-visible changes, sends, spend, billing/payment, deletion, or irreversible work require an approval packet reference and remain execution-locked.
+- The Control Room now supports drafting, loading, editing, marking ready/validating/finished/blocked/archive, viewing validation/result/memory evidence, and seeing Queue/Run locked controls for action execution handoffs.
+- No queue/run endpoint, uncontrolled autonomous change path, production action, customer-visible action, external send, ad spend, billing/payment, provider setup, schema/auth/session change, deletion, or irreversible action path was added.
+- Validation passed with focused Ask Apex, execution handoff, server memory, Control Room import/utility tests; the 117-test Apex OS route/nav/permission regression suite; `npm.cmd run verify:roles`; `npm.cmd run build`; `git diff --check` with CRLF warnings only; and desktop/mobile browser QA on `/apex-control-room` for chat-created handoff drafting, finished handoff save, suggested memory creation, locked queue/run controls, and no horizontal overflow.
+
 ### Phase 15: Production Preview And Release Desk
 
 Goal:

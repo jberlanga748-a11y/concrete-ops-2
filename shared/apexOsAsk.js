@@ -198,6 +198,16 @@ function answerText(answer = {}) {
   return text(answer.answer || "", 1600);
 }
 
+function handoffSafeAnswerText(answer = {}) {
+  return answerText(answer)
+    .replace(/\bapi[_ -]?keys?\b/gi, "provider credential references")
+    .replace(/\bsecrets?\b/gi, "credentials")
+    .replace(/\btokens?\b/gi, "auth references")
+    .replace(/\bpasswords?\b/gi, "password references")
+    .replace(/\bsessions?\b/gi, "access state")
+    .replace(/\blogins?\b/gi, "access flows");
+}
+
 export function inferApexOsAskApprovalCategory(answer = {}) {
   const haystack = [
     answer?.answer,
@@ -245,6 +255,36 @@ export function buildApexOsAskTaskPacketDraft({ question = "", answer = {}, requ
     sourceUri: askSourceUri(requestId, "task"),
     status: "draft",
     operatorNote: text(`Original question: ${question}`, 420),
+  };
+}
+
+export function buildApexOsAskExecutionHandoffDraft({ question = "", answer = {}, requestId = "" } = {}) {
+  const responseText = handoffSafeAnswerText(answer);
+  const warnings = Array.isArray(answer?.approvalWarnings) ? answer.approvalWarnings : [];
+  const safeWarnings = warnings.map((warning) => handoffSafeAnswerText(warning)).filter(Boolean);
+  const nextAction = text(answer?.nextAction || "Review source-backed answer", 240);
+  return {
+    title: askTitle("Ask Apex work package", question),
+    agentRole: warnings.some((warning) => /\bdeploy|release|rollback|production\b/i.test(warning)) ? "release" : "general",
+    workType: warnings.some((warning) => /\bdeploy|release|rollback|production\b/i.test(warning)) ? "release-packet" : "general",
+    riskLevel: warnings.length ? "high" : "medium",
+    status: "draft",
+    workstreamStatus: "planned",
+    objective: text(`Prepare the next safe Apex OS work package for: ${text(question, 700)}`, 1800),
+    sourceEvidence: text(`Ask Apex answer: ${responseText}`, 1800),
+    allowedActions: "Read private Apex HQ source rows, prepare local/private code/doc/test/browser work, draft reports, and return evidence for review.",
+    blockedActions: "No queue/run endpoint, deploy, production mutation, provider setup, schema/auth change, customer-visible action, email/SMS, ad spend, billing/payment, deletion, or irreversible action.",
+    validationPlan: "Run focused tests, relevant role/permission checks, build, browser/mobile QA when UI is affected, and record results before any release approval packet.",
+    rollbackPlan: "Revert the scoped branch commit or archive this handoff draft if it is not useful. If a later approved production release fails, roll back to the previous healthy release.",
+    resultReport: "",
+    validationResults: "",
+    decisionMemoryUpdate: "",
+    handoffPrompt: text(`Use Apex skills to complete the safe task from this Ask Apex answer. Next action: ${nextAction}. Stop before any blocked action and return validation, rollback, and decision-memory notes.`, 1800),
+    sourceLabel: "Ask Apex chat",
+    sourceUri: askSourceUri(requestId, "handoff"),
+    sourceChatRequestId: text(requestId, 90),
+    sourceQuestion: text(question, 1000),
+    operatorNote: safeWarnings.length ? `Approval warnings: ${safeWarnings.join(" ")}` : "No risky action warnings were returned.",
   };
 }
 
