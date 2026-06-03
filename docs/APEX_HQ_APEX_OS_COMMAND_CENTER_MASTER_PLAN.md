@@ -287,10 +287,13 @@ Validation:
 
 Status:
 
-- Implemented locally on 2026-06-02 as Apex OS Slice 2.
+- Hard-finished locally on 2026-06-03.
 - Added a read-only `deriveApexControlRoomState` aggregator that reuses existing Agent OS task/run helpers, launch readiness, release safety, enterprise trust/audit readiness, queue state, visible workspace records, approval gates, and recent evidence.
-- The Apex Control Room now shows Operating Signals, Next Best Actions, Launch Readiness, Release Desk, Agent Control, Approval Gates, and Recent Evidence without adding schema, provider setup, chat/voice, production deploy, production data mutation, customer-visible sends, payments, ads, or deletion.
-- Validation passed with focused Apex OS tests, the 77-test permission/routing/bootstrap suite, `npm.cmd run build`, `git diff --check` with CRLF warnings only, and desktop/mobile browser QA with no horizontal overflow and normal admin blocked/redirected away from Apex OS.
+- Added a first-class Phase 3 State Packet that covers current branch evidence when supplied, build/test evidence, phase status, launch blockers, blocked approval packets, approval gates, agents, release packet rows, business queues, source groups, confidence labels, and the read-only mutation boundary.
+- Added source, confidence, and read-only metadata to derived operating signals, next actions, launch gates, and agent/release/business rows so Apex OS shows where state came from instead of presenting unsupported claims.
+- The Apex Control Room now shows Operating Signals, Next Best Actions, Launch Readiness, Release Desk, Agent Control, Approval Gates, Recent Evidence, and the Phase 3 State Packet without adding schema, provider setup, chat/voice rebuilds, production deploy, production data mutation, customer-visible sends, payments, ads, or deletion.
+- Validation passed on 2026-06-03 with focused Phase 3 tests, the 74-test access/routing/company-scope suite, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check` with CRLF warnings only, and desktop/mobile browser QA proving Phase 3 packet visibility for the private operator, source/confidence/read-only metadata, no horizontal overflow, and field direct-route blocking back to `/jobs`.
+- No schema change, auth/session change, provider setup, production data mutation, deploy, customer-visible action, send, spend, billing/payment, deletion, external execution path, or later-phase rebuild was added in this Phase 3 hard-finish pass.
 
 ### Phase 4: Decision Memory And Operating Rules
 

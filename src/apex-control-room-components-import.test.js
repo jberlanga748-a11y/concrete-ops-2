@@ -15,6 +15,9 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /deriveApexControlRoomState/);
   assert.match(componentSource, /Apex Control Room/);
   assert.match(componentSource, /Operating Signals/);
+  assert.match(componentSource, /Phase 3 State Packet/);
+  assert.match(componentSource, /Confidence:/);
+  assert.match(componentSource, /Read-only/);
   assert.match(componentSource, /Next Best Actions/);
   assert.match(componentSource, /Decision Memory/);
   assert.match(componentSource, /Operating Rules/);
@@ -103,6 +106,9 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(utilSource, /deriveAgentOsInternalTaskOptions/);
   assert.match(utilSource, /deriveLaunchReadinessEvidenceState/);
   assert.match(utilSource, /getReleaseSafetySections/);
+  assert.match(utilSource, /function buildPhase3AggregatorState/);
+  assert.match(utilSource, /APEX_OS_DERIVED_STATE_META/);
+  assert.match(utilSource, /withDerivedStateMeta/);
   assert.match(utilSource, /APEX_OS_DECISION_MEMORY_SEED/);
   assert.match(utilSource, /APEX_OS_DECISION_CATEGORIES/);
   assert.match(utilSource, /APEX_OS_OPERATING_RULES/);

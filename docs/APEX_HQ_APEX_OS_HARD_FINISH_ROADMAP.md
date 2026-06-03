@@ -98,12 +98,16 @@ Blocked right now:
 
 ### Phase 3: Apex OS State Aggregator
 
+Status:
+
+- Hard-finished locally on 2026-06-03. The Control Room now has a read-only Phase 3 State Packet, source/confidence/read-only metadata for derived state, branch/build/test evidence slots, phase status, blockers/approvals, agents, release desk, launch/business queues, and blocked-role empty state coverage.
+
 Hard-finish package:
 
-- Expand state aggregation to cover current branch, build/test state, phase status, blockers, approvals, agents, release desk, launch/business queues, and evidence.
-- Add source links and confidence labels for derived state.
-- Add tests proving no blocked role receives Apex OS state.
-- Ensure state remains read-only unless a later approved execution phase owns mutation.
+- Complete: expand state aggregation to cover current branch, build/test state, phase status, blockers, approvals, agents, release desk, launch/business queues, and evidence.
+- Complete: add source links and confidence labels for derived state.
+- Complete: add tests proving no blocked role receives Apex OS state.
+- Complete: ensure state remains read-only unless a later approved execution phase owns mutation.
 
 Blocked right now:
 

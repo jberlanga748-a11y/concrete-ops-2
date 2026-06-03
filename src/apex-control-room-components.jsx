@@ -43,6 +43,13 @@ function StatusRow({ item }) {
         <div className="min-w-0">
           <p className="break-words text-sm font-black text-slate-950">{item.title}</p>
           <p className="mt-1 break-words text-xs font-bold leading-5 text-slate-600">{item.detail}</p>
+          {item.sourceLabel || item.source || item.confidence ? (
+            <p className="mt-2 break-words text-[11px] font-black text-slate-500">
+              {item.sourceLabel || item.source ? `Source: ${item.sourceLabel || item.source}` : "Source: Apex OS derived state"}
+              {item.confidence ? ` | Confidence: ${item.confidence}%` : ""}
+              {item.readOnly ? " | Read-only" : ""}
+            </p>
+          ) : null}
         </div>
         <ToneBadge tone={item.tone}>{item.status}</ToneBadge>
       </div>
@@ -1469,6 +1476,18 @@ export function ApexControlRoomPage(props) {
         <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <Card className="min-w-0 p-4 sm:p-5">
             <SectionHeader title="Operating Signals" description="Read-only state pulled from current Apex HQ systems." />
+            {state.phase3Aggregator?.rows?.length ? (
+              <div className="mb-4 rounded-xl border border-orange-200 bg-orange-50/70 p-3">
+                <SectionHeader
+                  title="Phase 3 State Packet"
+                  description={`${state.phase3Aggregator.rowCount || 0} read-only rows, ${state.phase3Aggregator.sourceCount || 0} source groups, ${state.phase3Aggregator.confidence || 0}% average confidence.`}
+                  action={<ToneBadge tone={state.phase3Aggregator.tone}>{state.phase3Aggregator.status}</ToneBadge>}
+                />
+                <div className="mt-3 grid min-w-0 gap-3 lg:grid-cols-2">
+                  {state.phase3Aggregator.rows.map((item) => <StatusRow key={item.id} item={item} />)}
+                </div>
+              </div>
+            ) : null}
             <div className="grid min-w-0 gap-3 lg:grid-cols-2">
               {state.operatingSignals.map((item) => <StatusRow key={item.id} item={item} />)}
             </div>

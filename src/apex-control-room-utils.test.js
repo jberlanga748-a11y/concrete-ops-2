@@ -55,6 +55,7 @@ test("deriveApexControlRoomState blocks non-private users", () => {
   assert.deepEqual(state.businessCommandCenter.gateRows, []);
   assert.deepEqual(state.businessCommandCenter.launchRows, []);
   assert.deepEqual(state.businessCommandCenter.briefingRows, []);
+  assert.deepEqual(state.phase3Aggregator.rows, []);
   assert.deepEqual(state.qaSecurityHardening.evidenceRows, []);
   assert.deepEqual(state.qaSecurityHardening.lockRows, []);
   assert.deepEqual(state.agentWorkQueue.taskRows, []);
@@ -83,6 +84,7 @@ test("deriveApexControlRoomState builds private operator status from visible sta
       { id: "Q-3", status: "Ready", done: true },
     ],
     auditEvents: [
+      { id: "AUD-BUILD", type: "build.verify", summary: "Focused tests and build passed", createdAt: "2026-06-02T14:00:00.000Z" },
       { id: "AUD-1", type: "release.check", summary: "Build check passed", createdAt: "2026-06-01T12:00:00.000Z" },
       { id: "AUD-2", type: "auth.login", summary: "Login check", createdAt: "2026-06-02T12:00:00.000Z" },
       {
@@ -100,7 +102,15 @@ test("deriveApexControlRoomState builds private operator status from visible sta
       },
     ],
     activity: [{ id: "ACT-1", title: "Owner reviewed dashboard", createdAt: "2026-06-02T10:00:00.000Z" }],
-    companySettings: { packageName: "Apex HQ Owner" },
+    companySettings: {
+      packageName: "Apex HQ Owner",
+      apexOsBuildStatus: {
+        branch: "codex/apex-os-command-center",
+        phaseStatus: "Phase 3 hard-finish",
+        testStatus: "Focused tests passing",
+        testDetail: "Phase 3 utility, role, build, and browser QA evidence is attached.",
+      },
+    },
   });
 
   assert.equal(state.canView, true);
@@ -130,6 +140,9 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.operatingSignals.find((item) => item.id === "state-aggregator"), undefined);
   assert.equal(state.operatingSignals.find((item) => item.id === "agent-tasks")?.status, "10 available");
   assert.match(state.operatingSignals.find((item) => item.id === "agent-tasks")?.detail || "", /10 visible targets/);
+  assert.equal(state.operatingSignals.every((item) => item.readOnly === true), true);
+  assert.equal(state.operatingSignals.every((item) => item.sourceLabel && item.confidence), true);
+  assert.equal(state.operatingSignals.find((item) => item.id === "agent-tasks")?.sourceLabel, "Agent OS task helpers");
   assert.equal(state.operatingSignals.find((item) => item.id === "launch-readiness")?.status, "Launch locked");
   assert.equal(state.operatingSignals.find((item) => item.id === "decision-memory")?.status, "Seeded from plan");
   assert.equal(state.operatingSignals.find((item) => item.id === "knowledge-vault")?.status, "Upload intake ready");
@@ -235,6 +248,13 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.releaseMonitoring.lockRows.some((item) => item.id === "no-deploy" && item.status === "Locked"), true);
   assert.equal(state.releaseMonitoring.lockRows.some((item) => item.id === "no-monitoring-provider" && item.status === "Approval required"), true);
   assert.equal(state.releaseMonitoring.lockRows.some((item) => item.id === "no-external-alerts" && item.status === "Locked"), true);
+  assert.equal(state.phase3Aggregator.status, "Read-only aggregator");
+  assert.equal(state.phase3Aggregator.rowCount, 6);
+  assert.equal(state.phase3Aggregator.rows.some((item) => item.id === "phase-3-current-branch" && item.status === "codex/apex-os-command-center"), true);
+  assert.equal(state.phase3Aggregator.rows.some((item) => item.id === "phase-3-build-test-state" && item.status === "Focused tests passing"), true);
+  assert.equal(state.phase3Aggregator.rows.some((item) => item.id === "phase-3-phase-status" && item.status === "Phase 3 hard-finish"), true);
+  assert.equal(state.phase3Aggregator.rows.some((item) => item.id === "phase-3-blockers-approvals" && /gates/.test(item.status)), true);
+  assert.equal(state.phase3Aggregator.rows.some((item) => item.id === "phase-3-read-only-lock" && item.status === "Locked" && item.confidence === 96), true);
   assert.equal(state.businessCommandCenter.status, "First UI ready");
   assert.equal(state.businessCommandCenter.queueCount, APEX_OS_BUSINESS_QUEUE_ROWS.length);
   assert.equal(state.businessCommandCenter.gateCount, APEX_OS_BUSINESS_GATES.length);
@@ -278,7 +298,7 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.agentWorkQueue.runRows[0].status, "queued");
   assert.equal(state.agentWorkQueue.safetyRows.some((item) => item.id === "external-gates" && item.status === "Approval required"), true);
   assert.equal(state.approvals.length, APEX_CONTROL_ROOM_APPROVAL_GATES.length);
-  assert.equal(state.evidence[0].id, "AUD-3");
+  assert.equal(state.evidence[0].id, "AUD-BUILD");
 });
 
 test("deriveApexControlRoomState includes durable Apex OS decision memory summary", () => {

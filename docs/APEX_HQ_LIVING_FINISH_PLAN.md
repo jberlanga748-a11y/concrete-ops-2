@@ -60,7 +60,7 @@ Current implementation status:
 
 - Apex OS Phase 1 / Slice 1 is hard-finished locally as of 2026-06-03: `/apex-control-room` route, `apexControlRoom` module, `apexOs` bootstrap permission, private operator nav visibility, and direct-route/API blocking are frozen to the normal Apex HQ login plus private `operatorAccess`, an office-level role, the default Apex HQ operating workspace, and server bootstrap permission. Customer/company workspaces stay blocked even after operator company switching.
 - Apex OS Phase 2 / Apex-Branded Control Room Shell is hard-finished and deployed as of 2026-06-03: the private shell uses Apex HQ branding, private operator identity, dark sidebar/orange active state, white command-board panels, the required top KPI row (`App Build Status`, `Active Agents`, `Launch Blockers`, `Approvals`), and the required main panels (`Apex Briefing`, `Priority Queue`, `Agents`, `Approvals`, `Memory / Decisions`). The KPI row no longer shows contractor/customer dashboard counts, and local browser QA used an empty private Apex HQ workspace payload to verify no demo/customer Today content leaks into the shell.
-- Apex OS Slice 2 is implemented locally: the Control Room now uses a read-only Apex OS state aggregator that surfaces operating signals, next best actions, launch readiness, release safety, Agent OS task availability, trust/audit readiness, approval gates, and recent evidence from existing Apex HQ systems.
+- Apex OS Phase 3 / Apex OS State Aggregator is hard-finished locally as of 2026-06-03: the Control Room now uses a read-only state packet that covers current branch/build/test evidence when supplied, phase status, blockers, approvals, agents, release desk, launch/business queues, recent evidence, source labels, confidence labels, and read-only boundaries while blocked users receive no Apex OS state.
 - Apex OS Phase 4 / Slice 3 is complete locally as of 2026-06-03: the Control Room now shows Decision Memory and Operating Rules sourced from the Apex OS master plan plus durable Apex OS memory, including John/Apex HQ identity, private operator-only access, approval boundaries, local/private autonomy, build order, source order, field boundaries, no-secrets memory, build-freeze discipline, business-goal memory, and personal-preference memory.
 - Apex OS Slice 4 is implemented locally: the Control Room now shows a read-only Agent Work Queue, Agent Run Ledger, Agent Safety Locks, and Locked Agent Tasks using existing Agent OS task/run helpers. It shows what can be planned or reviewed, not anything that runs agents.
 - Apex OS Phase 5 / Knowledge Upload Vault is complete locally as of 2026-06-03: the private Control Room now has classified manual/text/PDF knowledge intake for the original 8 Phase 5 categories, source metadata, review status, summary status, search/filter by category/source/status/text, duplicate-source guarding, and manual approve/archive review before uploaded knowledge becomes trusted Apex OS memory.
@@ -188,6 +188,58 @@ Rollback plan:
 Next recommended phase:
 
 - Phase 2 is hard-finished, deployed, and ready to freeze. Continue phase-by-phase with Phase 3 hardening; do not start Phase 4/5 rework inside the Phase 3 pass.
+
+## Apex OS Phase 3: Apex OS State Aggregator Hard-Finish Report
+
+Goal:
+
+- Finish Phase 3 from the original Apex OS master plan before hardening any later phase: make Apex OS derive read-only operating state from existing Apex HQ systems, show where the state came from, and prove blocked roles receive no Apex OS state.
+
+What was already built:
+
+- `deriveApexControlRoomState` already aggregated Agent OS task/run helpers, launch readiness, release safety, enterprise trust/audit readiness, queue state, visible workspace records, approval gates, and recent evidence.
+- The private Control Room already showed Operating Signals, Next Best Actions, Launch Readiness, Release Desk, Agent Control, Approval Gates, and Recent Evidence.
+
+What was completed now:
+
+- Added a first-class Phase 3 State Packet covering current branch evidence when supplied, build/test evidence, phase status, launch blockers, blocked approval packets, approval gates, agents, release packet rows, business queues, source groups, confidence labels, and the read-only mutation boundary.
+- Added source/confidence/read-only metadata to derived state rows so the Control Room shows the origin and confidence of operating signals, next actions, and agent/release/business state.
+- Added tests proving blocked users receive no Phase 3 aggregator rows and private operators receive the branch/build/test/phase/blocker/read-only packet.
+- Kept missing branch/build/test evidence honest: the runtime does not invent git state; it shows `Evidence required` until private build evidence or audit rows are supplied.
+
+Risk level:
+
+- Low. This is read-only state/UI/test hardening only. No schema change, auth/session change, provider setup, production data mutation, customer-visible action, send, spend, billing/payment, deletion, deploy, external execution path, or Phase 4/5 rebuild was added.
+
+Validation plan/results:
+
+- Focused Phase 3 tests passed locally: `node --test --test-concurrency=1 src/apex-control-room-utils.test.js src/apex-control-room-components-import.test.js`.
+- Phase 3 access/routing suite passed locally: `node --test --test-concurrency=1 src/apex-control-room-utils.test.js src/apex-control-room-components-import.test.js src/navigation-utils.test.js src/mobile-nav-utils.test.js src/app-routing.test.js server/role-permissions.test.js server/company-scope.test.js` with 74 passing tests.
+- `npm.cmd run verify:roles` passed with 15 passing tests.
+- `npm.cmd run build` passed with the existing large-chunk warnings.
+- `git diff --check` passed with CRLF warnings only.
+- Browser QA passed locally on `http://127.0.0.1:4313` with mocked private operator and field bootstrap payloads: desktop and mobile `/apex-control-room` showed `Phase 3 State Packet`, `Current branch`, `Confidence:`, and `Read-only` with no horizontal overflow, no console errors, and no failed requests; field mobile direct route to `/apex-control-room` redirected to `/jobs` and exposed no Apex OS text.
+- Browser QA artifacts: `ui-audit/apex-os-phase-3-state-hard-finish/operator-desktop-phase3.png`, `ui-audit/apex-os-phase-3-state-hard-finish/operator-mobile-phase3.png`, and `ui-audit/apex-os-phase-3-state-hard-finish/field-mobile-blocked.png`.
+
+Permissions impact:
+
+- No permission loosening. Apex OS state remains private operator-only, and blocked users receive an empty restricted `phase3Aggregator` state.
+
+Mobile impact:
+
+- Mobile Control Room renders the Phase 3 State Packet in the existing responsive stack with no horizontal overflow.
+
+Field-user impact:
+
+- Field users remain blocked from Apex OS, AI office tools, leads, estimates, pricing, profit/margins, payroll, office notes, admin settings, billing, customer data, and private Apex HQ state.
+
+Rollback plan:
+
+- Revert the Phase 3 hard-finish commit to remove the Phase 3 State Packet, derived-state source/confidence labels, and focused assertions. No database migration, provider rollback, production data rollback, or auth/session rollback is required.
+
+Next recommended phase:
+
+- Phase 3 is locally hard-finished and ready to freeze. Deploy only after explicit release approval, then continue phase-by-phase with Phase 4 hardening/completion audit.
 
 ## Apex OS Phase 4: Decision Memory And Operating Rules Completion Report
 

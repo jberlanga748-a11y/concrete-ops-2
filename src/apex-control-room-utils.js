@@ -50,6 +50,66 @@ function formatCount(value, fallback = 0) {
   return Number.isFinite(numeric) ? numeric : fallback;
 }
 
+const APEX_OS_DERIVED_STATE_META = Object.freeze({
+  "private-shell": { sourceLabel: "Apex OS access boundary", source: "shared permissions + app routing", confidence: 95 },
+  "state-aggregator": { sourceLabel: "Apex OS Phase 3 aggregator", source: "deriveApexControlRoomState", confidence: 95 },
+  "provider-work": { sourceLabel: "Ask Apex source lanes", source: "Apex OS chat state", confidence: 82 },
+  "decision-memory": { sourceLabel: "Apex OS memory", source: "master plan + company settings", confidence: 86 },
+  "agent-work-queue": { sourceLabel: "Agent OS task helpers", source: "deriveAgentOsInternalTaskOptions", confidence: 88 },
+  "knowledge-vault": { sourceLabel: "Apex OS knowledge vault", source: "company settings apexOsMemory", confidence: 84 },
+  "voice-interface": { sourceLabel: "Voice interface plan", source: "Control Room local state", confidence: 78 },
+  "approval-command-center": { sourceLabel: "Approval packet state", source: "apexOsApprovalPackets + approval gates", confidence: 86 },
+  "execution-handoffs": { sourceLabel: "Execution handoff state", source: "apexOsExecutionHandoffs + Agent OS", confidence: 86 },
+  "release-monitoring": { sourceLabel: "Release monitoring state", source: "release safety + recent evidence", confidence: 82 },
+  "business-command-center": { sourceLabel: "Business queue state", source: "Apex OS business queues", confidence: 80 },
+  "qa-security-hardening": { sourceLabel: "QA/security proof map", source: "Apex OS hardening rows", confidence: 84 },
+  "trust-readiness": { sourceLabel: "Enterprise trust readiness", source: "deriveEnterpriseTrustReadinessState", confidence: 86 },
+  "launch-readiness": { sourceLabel: "Launch readiness", source: "deriveLaunchReadinessEvidenceState", confidence: 88 },
+  "agent-tasks": { sourceLabel: "Agent OS task helpers", source: "visible workspace records", confidence: 88 },
+  "release-safety": { sourceLabel: "Release safety utilities", source: "getReleaseSafetySections", confidence: 92 },
+  "ask-apex-chat": { sourceLabel: "Ask Apex source rows", source: "approved memory + evidence lanes", confidence: 82 },
+  "launch-blocker": { sourceLabel: "Launch readiness highest priority", source: "launch readiness state", confidence: 86 },
+  "agent-os-review": { sourceLabel: "Agent OS review state", source: "Agent OS task options", confidence: 86 },
+  "release-approval": { sourceLabel: "Approval boundary", source: "Apex OS approval gates", confidence: 94 },
+  "trust-review": { sourceLabel: "Trust readiness next action", source: "enterprise trust readiness", confidence: 84 },
+  "memory-review": { sourceLabel: "Decision memory review", source: "Apex OS memory state", confidence: 86 },
+  "knowledge-vault-plan": { sourceLabel: "Knowledge vault plan", source: "Phase 5 vault categories", confidence: 82 },
+  "ask-apex-chat-plan": { sourceLabel: "Ask Apex plan", source: "Phase 6 chat plan", confidence: 80 },
+  "voice-interface-plan": { sourceLabel: "Voice interface plan", source: "Phase 7 voice plan", confidence: 78 },
+  "approval-command-center-plan": { sourceLabel: "Approval command plan", source: "Phase 8 approval plan", confidence: 82 },
+  "release-monitoring-plan": { sourceLabel: "Release monitoring plan", source: "Phase 9 release desk", confidence: 82 },
+  "business-command-center-plan": { sourceLabel: "Business command plan", source: "Phase 10 business queues", confidence: 80 },
+  "qa-security-hardening-plan": { sourceLabel: "QA/security plan", source: "Phase 11 hardening rows", confidence: 84 },
+});
+
+function withDerivedStateMeta(row, fallback = {}) {
+  const meta = APEX_OS_DERIVED_STATE_META[row?.id] || fallback;
+  return {
+    ...row,
+    readOnly: row?.readOnly !== false,
+    sourceLabel: row?.sourceLabel || meta.sourceLabel || fallback.sourceLabel || "Apex OS derived state",
+    source: row?.source || meta.source || fallback.source || "deriveApexControlRoomState",
+    confidence: formatCount(row?.confidence ?? meta.confidence ?? fallback.confidence, 80),
+  };
+}
+
+function withDerivedStateMetaList(rows = [], fallback = {}) {
+  return list(rows).map((row) => withDerivedStateMeta(row, fallback));
+}
+
+function latestMatchingEvidence(auditEvents = [], patterns = []) {
+  const loweredPatterns = patterns.map((pattern) => String(pattern || "").toLowerCase()).filter(Boolean);
+  return list(auditEvents)
+    .filter((event) => {
+      const haystack = [event?.type, event?.summary, event?.action, event?.entityType]
+        .map((value) => String(value || "").toLowerCase())
+        .join(" ");
+      return loweredPatterns.some((pattern) => haystack.includes(pattern));
+    })
+    .slice()
+    .sort((left, right) => String(right.createdAt || "").localeCompare(String(left.createdAt || "")))[0] || null;
+}
+
 function buildLaunchState(permissions = {}) {
   return deriveLaunchReadinessEvidenceState({
     launchGate: { guidedDemoReady: true },
@@ -1240,6 +1300,95 @@ function buildReleaseMonitoringState({
   };
 }
 
+function buildPhase3AggregatorState({
+  companySettings = {},
+  auditEvents = [],
+  launchState,
+  agentWorkQueue,
+  approvalCommandCenter,
+  releaseMonitoring,
+  businessCommandCenter,
+} = {}) {
+  const configured = companySettings?.apexOsBuildStatus && typeof companySettings.apexOsBuildStatus === "object"
+    ? companySettings.apexOsBuildStatus
+    : {};
+  const latestBuildEvidence = latestMatchingEvidence(auditEvents, ["build", "test", "verify", "release", "deploy"]);
+  const visibleBlockers = formatCount(launchState?.blockedCount) + formatCount(approvalCommandCenter?.packetSummary?.blocked);
+  const approvalCategories = formatCount(approvalCommandCenter?.queueCount);
+  const rows = [
+    {
+      id: "phase-3-current-branch",
+      title: "Current branch",
+      status: configured.branch || "Evidence required",
+      detail: configured.branch
+        ? `Apex OS can show branch evidence supplied by the private operator workspace: ${configured.branch}.`
+        : "Runtime state does not invent a git branch; attach branch evidence through release or audit records before treating it as current.",
+      tone: configured.branch ? "green" : "amber",
+      sourceLabel: "Private build evidence",
+      source: "companySettings.apexOsBuildStatus.branch",
+      confidence: configured.branch ? 90 : 72,
+    },
+    {
+      id: "phase-3-build-test-state",
+      title: "Build / test state",
+      status: configured.testStatus || (latestBuildEvidence ? "Evidence visible" : "Evidence required"),
+      detail: configured.testDetail || latestBuildEvidence?.summary || "Focused tests, role checks, build, diff check, and browser QA must be attached before a release decision.",
+      tone: configured.testStatus || latestBuildEvidence ? "blue" : "amber",
+      sourceLabel: latestBuildEvidence ? "Recent audit evidence" : "Release evidence requirement",
+      source: latestBuildEvidence?.id || latestBuildEvidence?.createdAt || "release safety checklist",
+      confidence: latestBuildEvidence ? 84 : 74,
+    },
+    {
+      id: "phase-3-phase-status",
+      title: "Phase status",
+      status: configured.phaseStatus || "Phase 3 hardening",
+      detail: "State aggregation is a read-only Apex OS layer. Later chat, voice, memory, approval, agent execution, and provider phases stay separate.",
+      tone: "green",
+      sourceLabel: "Apex OS master plan Phase 3",
+      source: "docs/APEX_HQ_APEX_OS_COMMAND_CENTER_MASTER_PLAN.md",
+      confidence: 94,
+    },
+    {
+      id: "phase-3-blockers-approvals",
+      title: "Blockers and approvals",
+      status: `${visibleBlockers} blockers / ${approvalCategories} gates`,
+      detail: `${formatCount(launchState?.blockedCount)} launch blockers, ${formatCount(approvalCommandCenter?.packetSummary?.blocked)} blocked approval packets, and ${approvalCategories} risky-action approval categories stay visible without execution.`,
+      tone: visibleBlockers || approvalCategories ? "amber" : "green",
+      sourceLabel: "Launch + approval state",
+      source: "launch readiness + apexOsApprovalPackets",
+      confidence: 86,
+    },
+    {
+      id: "phase-3-agent-release-business",
+      title: "Agents, release, and business queues",
+      status: "Aggregated",
+      detail: `${formatCount(agentWorkQueue?.availableTaskCount)} review-only agent task types, ${formatCount(releaseMonitoring?.packetCount)} release packet rows, and ${formatCount(businessCommandCenter?.queueCount)} business queues are summarized.`,
+      tone: "blue",
+      sourceLabel: "Agent OS + Release Desk + Business queues",
+      source: "existing Apex HQ systems",
+      confidence: 84,
+    },
+    {
+      id: "phase-3-read-only-lock",
+      title: "Read-only state boundary",
+      status: "Locked",
+      detail: "Phase 3 can summarize state only. It cannot mutate records, run agents, approve work, deploy, send, spend, bill, configure providers, or touch production data.",
+      tone: "amber",
+      sourceLabel: "Phase 3 non-goals",
+      source: "docs/APEX_HQ_APEX_OS_COMMAND_CENTER_MASTER_PLAN.md",
+      confidence: 96,
+    },
+  ];
+  return {
+    status: "Read-only aggregator",
+    tone: "green",
+    rowCount: rows.length,
+    sourceCount: new Set(rows.map((row) => row.sourceLabel).filter(Boolean)).size,
+    confidence: Math.round(rows.reduce((total, row) => total + formatCount(row.confidence, 80), 0) / rows.length),
+    rows,
+  };
+}
+
 function buildBusinessCommandCenterState({
   launchState,
   knowledgeVault,
@@ -1603,6 +1752,15 @@ export function deriveApexControlRoomState({
   const executionHandoffs = buildExecutionHandoffState({ agentWorkQueue, approvalCommandCenter, companySettings });
   const releaseMonitoring = buildReleaseMonitoringState({ releaseDesk, launchState, trustState, agentWorkQueue, recentEvidence });
   const businessCommandCenter = buildBusinessCommandCenterState({ launchState, knowledgeVault, approvalCommandCenter, releaseMonitoring });
+  const phase3Aggregator = buildPhase3AggregatorState({
+    companySettings,
+    auditEvents,
+    launchState,
+    agentWorkQueue,
+    approvalCommandCenter,
+    releaseMonitoring,
+    businessCommandCenter,
+  });
   const qaSecurityHardening = buildQaSecurityHardeningState({
     decisionMemory,
     knowledgeVault,
@@ -1646,6 +1804,7 @@ export function deriveApexControlRoomState({
       executionHandoffs: { status: "Restricted", tone: "slate", sourceRows: [], handoffSummary: { total: 0, draft: 0, ready: 0, blocked: 0, archived: 0 } },
       releaseMonitoring: { status: "Restricted", tone: "slate", readinessRows: [], briefingRows: [], releasePacketRows: [], lockRows: [] },
       businessCommandCenter: { status: "Restricted", tone: "slate", queueRows: [], gateRows: [], launchRows: [], briefingRows: [] },
+      phase3Aggregator: { status: "Restricted", tone: "slate", rows: [] },
       qaSecurityHardening: { status: "Restricted", tone: "slate", evidenceRows: [], lockRows: [] },
       agentWorkQueue: { status: "Restricted", tone: "slate", taskRows: [], lockedRows: [], runRows: [], safetyRows: [] },
       approvals: [],
@@ -1659,7 +1818,7 @@ export function deriveApexControlRoomState({
     summary,
     kpis,
     commandBoardPanels,
-    priorities: [
+    priorities: withDerivedStateMetaList([
       {
         id: "private-shell",
         title: "Private shell",
@@ -1744,8 +1903,9 @@ export function deriveApexControlRoomState({
         detail: `${qaSecurityHardening.evidenceCount} hardening evidence rows and ${qaSecurityHardening.lockCount} lock rows are ready for final verification.`,
         tone: qaSecurityHardening.tone,
       },
-    ],
-    operatingSignals: [
+    ]),
+    phase3Aggregator,
+    operatingSignals: withDerivedStateMetaList([
       {
         id: "trust-readiness",
         title: "Trust readiness",
@@ -1839,8 +1999,8 @@ export function deriveApexControlRoomState({
         detail: `${qaSecurityHardening.evidenceCount} access, privacy, source, approval, visual, build, secret, and bypass checks are mapped.`,
         tone: qaSecurityHardening.tone,
       },
-    ],
-    nextBestActions: [
+    ]),
+    nextBestActions: withDerivedStateMetaList([
       {
         id: "launch-blocker",
         title: launchState.highestPriority?.label || "Launch readiness",
@@ -1927,8 +2087,8 @@ export function deriveApexControlRoomState({
         detail: "Run focused tests, full permission/routing suite, build, visual QA, direct-route blocking, and docs drift checks before completion is claimed.",
         tone: "green",
       },
-    ],
-    agents: [
+    ]),
+    agents: withDerivedStateMetaList([
       {
         id: "agent-os",
         title: "Agent OS",
@@ -2001,7 +2161,7 @@ export function deriveApexControlRoomState({
         detail: `${qaSecurityHardening.evidenceCount} hardening rows and ${qaSecurityHardening.lockCount} action locks summarize final completion proof.`,
         tone: qaSecurityHardening.tone,
       },
-    ],
+    ], { sourceLabel: "Apex OS agent/release state", source: "deriveApexControlRoomState", confidence: 82 }),
     launchReadiness: {
       status: launchState.status,
       tone: launchState.tone,
@@ -2014,6 +2174,10 @@ export function deriveApexControlRoomState({
         status: item.status,
         detail: item.blockers?.[0] || item.detail,
         tone: item.tone || toneForStatus(item.status),
+        sourceLabel: "Launch readiness gate",
+        source: "deriveLaunchReadinessEvidenceState",
+        confidence: 88,
+        readOnly: true,
       })),
     },
     releaseDesk,
