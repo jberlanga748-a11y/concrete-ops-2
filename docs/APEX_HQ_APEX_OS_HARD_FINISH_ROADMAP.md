@@ -136,7 +136,7 @@ Blocked right now:
 
 Status:
 
-- Hard-finished locally on 2026-06-03 with text/PDF intake, source metadata, review status, summary status, search/filter, category-scoped duplicate-source guard, vault review history, private knowledge export, server-side duplicate rejection coverage, and manual trust review.
+- Hard-finished and deployed on 2026-06-03 with text/PDF intake, source metadata, review status, summary status, search/filter, category-scoped duplicate-source guard, vault review history, private knowledge export, server-side duplicate rejection coverage, and manual trust review. Production release `v637` is healthy; rollback target is `v636`.
 
 Optional hard-finish upgrade if Phase 5 is reopened by explicit request:
 
