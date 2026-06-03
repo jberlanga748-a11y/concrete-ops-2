@@ -1234,6 +1234,7 @@ function ApprovalPacketDraftPanel({ state, sessionToken }) {
   const [form, setForm] = useState(EMPTY_APPROVAL_PACKET_FORM);
   const [packets, setPackets] = useState([]);
   const [summary, setSummary] = useState(null);
+  const [approvalPhrases, setApprovalPhrases] = useState({});
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(false);
   const canUse = state.canView && Boolean(sessionToken) && !loading;
@@ -1272,11 +1273,14 @@ function ApprovalPacketDraftPanel({ state, sessionToken }) {
         total: (current?.total || 0) + 1,
         draft: (current?.draft || 0) + (payload.apexOsApprovalPacket?.status === "draft" ? 1 : 0),
         ready: (current?.ready || 0) + (payload.apexOsApprovalPacket?.status === "ready" ? 1 : 0),
+        approved: (current?.approved || 0) + (payload.apexOsApprovalPacket?.status === "approved" ? 1 : 0),
+        rejected: (current?.rejected || 0) + (payload.apexOsApprovalPacket?.status === "rejected" ? 1 : 0),
+        deferred: (current?.deferred || 0) + (payload.apexOsApprovalPacket?.status === "deferred" ? 1 : 0),
         blocked: (current?.blocked || 0) + (payload.apexOsApprovalPacket?.status === "blocked" ? 1 : 0),
         archived: current?.archived || 0,
       }));
       setForm(EMPTY_APPROVAL_PACKET_FORM);
-      setNotice("Approval packet drafted. It does not approve or execute the action.");
+      setNotice("Approval packet drafted. It does not execute the action.");
     } catch (error) {
       setNotice(error?.message || "Approval packet could not be saved right now.");
     } finally {
@@ -1284,16 +1288,22 @@ function ApprovalPacketDraftPanel({ state, sessionToken }) {
     }
   }
 
-  async function setPacketStatus(packet, status) {
+  function updateApprovalPhrase(packetId, value) {
+    setApprovalPhrases((current) => ({ ...current, [packetId]: value }));
+    setNotice("");
+  }
+
+  async function setPacketStatus(packet, status, extra = {}) {
     if (!canUse || !packet?.id) return;
     setLoading(true);
     setNotice("");
     try {
-      await updateApexOsApprovalPacket(sessionToken, packet.id, { ...packet, status });
+      await updateApexOsApprovalPacket(sessionToken, packet.id, { ...packet, ...extra, status });
       const payload = await getApexOsApprovalPackets(sessionToken);
       setPackets(payload.apexOsApprovalPackets || []);
       setSummary(payload.summary || null);
-      setNotice(status === "archived" ? "Packet archived. No action executed." : "Packet status updated. Approval and execution remain locked.");
+      setApprovalPhrases((current) => ({ ...current, [packet.id]: "" }));
+      setNotice(status === "approved" ? "Approval recorded. Execution remains locked." : status === "archived" ? "Packet archived. No action executed." : "Packet decision updated. Execution remains locked.");
     } catch (error) {
       setNotice(error?.message || "Approval packet could not be updated right now.");
     } finally {
@@ -1301,24 +1311,31 @@ function ApprovalPacketDraftPanel({ state, sessionToken }) {
     }
   }
 
-  const activeSummary = summary || { total: packets.length, draft: 0, ready: 0, blocked: 0, archived: 0 };
+  const activeSummary = summary || { total: packets.length, draft: 0, ready: 0, approved: 0, rejected: 0, deferred: 0, blocked: 0, archived: 0 };
 
   return (
     <div className="grid min-w-0 gap-4">
-      <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid min-w-0 gap-3">
         <StatusRow item={{
           id: "approval-packet-total",
           title: "Saved packets",
           status: `${activeSummary.total || 0}`,
-          detail: `${activeSummary.ready || 0} ready, ${activeSummary.draft || 0} draft, ${activeSummary.blocked || 0} blocked, ${activeSummary.archived || 0} archived.`,
-          tone: activeSummary.ready ? "green" : "blue",
+          detail: `${activeSummary.ready || 0} ready, ${activeSummary.approved || 0} approved, ${activeSummary.rejected || 0} rejected, ${activeSummary.deferred || 0} deferred.`,
+          tone: activeSummary.approved || activeSummary.ready ? "green" : "blue",
         }} />
         <StatusRow item={{
           id: "approval-packet-execution-lock",
           title: "Approval execution",
           status: "Locked",
-          detail: "This slice can draft, ready, block, and archive packets only. It cannot approve, deploy, send, spend, publish, delete, or mutate production.",
+          detail: "This phase can record approval decisions, but it cannot deploy, send, spend, publish, delete, bill, or mutate production.",
           tone: "amber",
+        }} />
+        <StatusRow item={{
+          id: "approval-packet-risk-score",
+          title: "Risk scoring",
+          status: "Active",
+          detail: "Each packet returns a risk score and band from declared risk, requested category, and missing readiness fields.",
+          tone: "blue",
         }} />
       </div>
 
@@ -1404,7 +1421,7 @@ function ApprovalPacketDraftPanel({ state, sessionToken }) {
             <Icon name="lock" /> Execute locked
           </Button>
         </div>
-        <p className="break-words text-xs font-black leading-5 text-slate-500">{notice || "Ready packets require source, validation, rollback, affected scope, and exact approval phrase. Approval still happens outside this draft flow."}</p>
+        <p className="break-words text-xs font-black leading-5 text-slate-500">{notice || "Ready packets require source, validation, rollback, affected scope, and exact approval phrase. Approved packets record review only; execution is still separate and locked."}</p>
       </form>
 
       <div className="grid min-w-0 gap-3">
@@ -1414,10 +1431,30 @@ function ApprovalPacketDraftPanel({ state, sessionToken }) {
               <div className="min-w-0">
                 <p className="break-words text-sm font-black text-slate-950">{packet.title}</p>
                 <p className="mt-1 break-words text-xs font-bold leading-5 text-slate-600">{packet.action}</p>
-                <p className="mt-2 break-words text-[11px] font-black text-slate-500">Source: {packet.sourceLabel || "Missing source"} | Risk: {packet.riskLevel}</p>
+                <p className="mt-2 break-words text-[11px] font-black text-slate-500">Source: {packet.sourceLabel || "Missing source"} | Risk: {packet.riskLevel} | Score: {packet.riskAssessment?.score ?? "n/a"} {packet.riskAssessment?.band ? `(${packet.riskAssessment.band})` : ""}</p>
+                {packet.status === "approved" && packet.approvedAt ? <p className="mt-2 break-words text-[11px] font-black text-emerald-700">Approved at {packet.approvedAt}. Execution locked.</p> : null}
                 {packet.missingFields?.length ? <p className="mt-2 break-words text-[11px] font-black text-amber-700">Missing: {packet.missingFields.join(", ")}</p> : null}
               </div>
-              <ToneBadge tone={packet.status === "ready" ? "green" : packet.status === "blocked" ? "red" : packet.status === "archived" ? "slate" : "blue"}>{packet.status}</ToneBadge>
+              <ToneBadge tone={packet.status === "approved" || packet.status === "ready" ? "green" : packet.status === "blocked" || packet.status === "rejected" ? "red" : packet.status === "archived" || packet.status === "deferred" ? "slate" : "blue"}>{packet.status}</ToneBadge>
+            </div>
+            <div className="mt-3 grid min-w-0 gap-2 lg:grid-cols-[minmax(0,1fr)_auto]">
+              <input
+                value={approvalPhrases[packet.id] || ""}
+                onChange={(event) => updateApprovalPhrase(packet.id, event.target.value)}
+                maxLength={140}
+                placeholder="Type exact approval phrase to record approval"
+                className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700"
+                disabled={!canUse || packet.status === "archived" || packet.status === "approved"}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setPacketStatus(packet, "approved", { approvalPhraseConfirmation: approvalPhrases[packet.id] || "" })}
+                disabled={!canUse || packet.status === "archived" || packet.status === "approved" || !(approvalPhrases[packet.id] || "").trim()}
+              >
+                <Icon name="check" /> Record approval
+              </Button>
             </div>
             <div className="mt-3 flex min-w-0 flex-wrap gap-2">
               <Button type="button" variant="secondary" size="sm" onClick={() => setPacketStatus(packet, "ready")} disabled={!canUse || packet.status === "ready" || packet.status === "archived"}>
@@ -1426,11 +1463,17 @@ function ApprovalPacketDraftPanel({ state, sessionToken }) {
               <Button type="button" variant="secondary" size="sm" onClick={() => setPacketStatus(packet, "blocked")} disabled={!canUse || packet.status === "blocked" || packet.status === "archived"}>
                 <Icon name="alert" /> Mark blocked
               </Button>
+              <Button type="button" variant="secondary" size="sm" onClick={() => setPacketStatus(packet, "rejected")} disabled={!canUse || packet.status === "rejected" || packet.status === "archived"}>
+                <Icon name="alert" /> Reject
+              </Button>
+              <Button type="button" variant="secondary" size="sm" onClick={() => setPacketStatus(packet, "deferred")} disabled={!canUse || packet.status === "deferred" || packet.status === "archived"}>
+                <Icon name="clock" /> Defer
+              </Button>
               <Button type="button" variant="secondary" size="sm" onClick={() => setPacketStatus(packet, "archived")} disabled={!canUse || packet.status === "archived"}>
                 <Icon name="clock" /> Archive
               </Button>
               <Button type="button" disabled variant="secondary" size="sm">
-                <Icon name="lock" /> Approve locked
+                <Icon name="lock" /> Execute locked
               </Button>
             </div>
           </div>
@@ -1981,23 +2024,29 @@ export function ApexControlRoomPage(props) {
 
         <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
           <Card className="min-w-0 p-4 sm:p-5">
-            <SectionHeader title="Approval Controls" description="Visible control model only; no approval writes or execution exist yet." />
+            <SectionHeader title="Approval Controls" description="Approve, reject, and defer are durable review decisions on packets. Execution remains separate and locked." />
             <div className="grid min-w-0 gap-3">
               {state.approvalCommandCenter.controlRows.map((item) => <StatusRow key={item.id} item={item} />)}
             </div>
             <div className="mt-4 flex min-w-0 flex-wrap gap-2">
               <Button type="button" disabled variant="secondary" size="sm">
-                <Icon name="check" /> Approve
+                <Icon name="check" /> Packet approval only
               </Button>
               <Button type="button" disabled variant="secondary" size="sm">
-                <Icon name="alert" /> Reject
+                <Icon name="alert" /> Packet reject only
               </Button>
               <Button type="button" disabled variant="secondary" size="sm">
-                <Icon name="clock" /> Defer
+                <Icon name="clock" /> Packet defer only
               </Button>
               <Button type="button" disabled variant="secondary" size="sm">
                 <Icon name="lock" /> Execute locked
               </Button>
+            </div>
+            <div className="mt-4">
+              <SectionHeader title="Approval Templates" description={`${state.approvalCommandCenter.templateCount || 0} packet templates define phrase and evidence expectations.`} />
+              <div className="grid min-w-0 gap-3">
+                {state.approvalCommandCenter.templateRows.map((item) => <StatusRow key={item.id} item={item} />)}
+              </div>
             </div>
           </Card>
 
@@ -2162,7 +2211,7 @@ export function ApexControlRoomPage(props) {
                 id: "proof-voice-approval",
                 title: "Voice / Approval Center",
                 status: "Locked",
-                detail: "Voice controls are disabled and approval controls are visual only, so risky spoken or clicked actions cannot execute.",
+                detail: "Voice controls are disabled and approval decisions stay review-only, so risky spoken or clicked actions cannot execute.",
                 tone: "amber",
               }} />
             </div>

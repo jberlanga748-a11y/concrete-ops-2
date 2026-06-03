@@ -226,12 +226,14 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.approvalCommandCenter.queueCount, APEX_CONTROL_ROOM_APPROVAL_GATES.length);
   assert.equal(state.approvalCommandCenter.packetFieldCount, APEX_OS_APPROVAL_PACKET_FIELDS.length);
   assert.equal(state.approvalCommandCenter.controlLockCount, APEX_OS_APPROVAL_CONTROL_LOCKS.length);
+  assert.equal(state.approvalCommandCenter.templateCount >= 5, true);
   assert.equal(state.approvalCommandCenter.sourceCount, 3);
   assert.equal(state.approvalCommandCenter.queueRows.some((item) => item.id === "deploy" && item.status === "Packet required"), true);
   assert.equal(state.approvalCommandCenter.packetRows.some((item) => item.id === "rollback" && item.status === "Required"), true);
   assert.equal(state.approvalCommandCenter.packetRows.some((item) => item.id === "approval-phrase" && item.status === "Required"), true);
-  assert.equal(state.approvalCommandCenter.controlRows.some((item) => item.id === "approve" && item.status === "Locked"), true);
+  assert.equal(state.approvalCommandCenter.controlRows.some((item) => item.id === "approve" && item.status === "Decision record"), true);
   assert.equal(state.approvalCommandCenter.controlRows.some((item) => item.id === "execute" && item.status === "Not available"), true);
+  assert.equal(state.approvalCommandCenter.templateRows.some((item) => item.id === "deploy" && /BACKUP_FIRST_PRODUCTION_RELEASE_APPROVED/.test(item.detail)), true);
   assert.equal(state.approvalCommandCenter.sourceRows.some((item) => item.id === "voice-interface" && item.status === "Transcript confirm ready"), true);
   assert.equal(state.executionHandoffs.status, "Drafting ready");
   assert.equal(state.executionHandoffs.handoffSummary.total, 0);
@@ -440,14 +442,23 @@ test("deriveApexControlRoomState includes durable Apex OS approval packet summar
           status: "draft",
           sourceLabel: "Provider checklist",
         },
+        {
+          id: "AAP-3",
+          title: "Billing packet",
+          action: "Approve billing setup for review record only.",
+          status: "approved",
+          sourceLabel: "Billing checklist",
+        },
       ],
     },
   });
 
-  assert.equal(state.approvalCommandCenter.status, "Durable packets active");
-  assert.equal(state.approvalCommandCenter.packetSummary.total, 2);
+  assert.equal(state.approvalCommandCenter.status, "Approval decisions active");
+  assert.equal(state.approvalCommandCenter.packetSummary.total, 3);
   assert.equal(state.approvalCommandCenter.packetSummary.ready, 1);
   assert.equal(state.approvalCommandCenter.packetSummary.draft, 1);
+  assert.equal(state.approvalCommandCenter.packetSummary.approved, 1);
+  assert.equal(state.approvalCommandCenter.templateRows.length >= 5, true);
 });
 
 test("deriveApexControlRoomState includes durable Apex OS execution handoff summary", () => {

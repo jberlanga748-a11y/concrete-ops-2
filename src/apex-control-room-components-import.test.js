@@ -96,7 +96,9 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /getApexOsApprovalPackets/);
   assert.match(componentSource, /updateApexOsApprovalPacket/);
   assert.match(componentSource, /Draft packet/);
-  assert.match(componentSource, /Approve locked/);
+  assert.match(componentSource, /Record approval/);
+  assert.match(componentSource, /Packet approval only/);
+  assert.match(componentSource, /Approval Templates/);
   assert.match(componentSource, /Approval Controls/);
   assert.match(componentSource, /Approval Sources/);
   assert.match(componentSource, /Execute locked/);

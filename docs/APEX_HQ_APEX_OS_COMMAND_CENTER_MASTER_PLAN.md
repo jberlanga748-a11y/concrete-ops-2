@@ -516,11 +516,11 @@ Validation:
 
 Status:
 
-- Read-only first UI implemented locally on 2026-06-02 as Apex OS Slice 8.
-- The Control Room now centralizes approval categories, approval packet requirements, locked approve/reject/defer/execute controls, and source rows from Release Desk, Ask Apex Chat, and Voice Interface.
-- Durable approval packet drafts implemented locally on 2026-06-02 as Apex OS Slice 17 using existing company settings storage as `apexOsApprovalPackets`, with operator-only list/create/update endpoints, draft/ready/blocked/archived states, source-label and readiness-field requirements, secret/email rejection, audit/activity logging, and Control Room drafting/loading/mark-ready/block/archive UI.
-- No approved/executed state, one-click approval, execution path, schema change, deploy, production mutation, provider setup, customer-visible action, money action, send, publish, or deletion was added.
-- Validation passed with focused Apex OS utility/import tests, the 77-test permission/routing/bootstrap suite, `npm.cmd run build`, desktop/mobile browser QA with no horizontal overflow and disabled approval controls, and normal admin blocked/redirected away from Apex OS.
+- Hard-finished locally and release-ready on 2026-06-03.
+- The Control Room now centralizes approval categories, approval packet requirements, packet templates, risk scoring, exact approval phrase entry, approve/reject/defer decision records, execution-locked controls, and source rows from Release Desk, Ask Apex Chat, and Voice Interface.
+- Durable approval packets use existing company settings storage as `apexOsApprovalPackets`, with operator-only list/create/update endpoints, draft/ready/approved/rejected/deferred/blocked/archived states, source-label and readiness-field requirements, secret/email rejection, exact phrase enforcement before approval, decision actor/timestamp fields, audit/activity logging, and Control Room drafting/loading/mark-ready/block/archive/reject/defer/approval-record UI.
+- Approval decisions are review records only. No executed/running/queued state, one-click irreversible action, queue/run endpoint, deploy action, production mutation, provider setup, customer-visible action, money action, send, publish, deletion, schema change, auth/session change, or irreversible execution path was added.
+- Validation passed on 2026-06-03 with focused approval packet shared/API/UI tests, the 77-test Apex OS permission/routing/bootstrap suite, `npm.cmd run build`, `git diff --check`, desktop/mobile browser QA with no horizontal overflow and disabled execution controls, final screenshot evidence at `ui-audit/apex-control-room-phase8/`, and active-local-DB cleanup verification proving no temporary Phase 8 QA packets remain.
 
 ### Phase 9: App Build And Code Awareness
 
@@ -1022,11 +1022,11 @@ Validation:
 
 Status:
 
-- Read-only first UI implemented locally on 2026-06-02 as Apex OS Slice 8.
-- Approval categories, packet fields, locked approve/reject/defer/execute controls, and source rows are visible inside the private Control Room.
-- Durable approval packet drafts implemented locally on 2026-06-02 as Apex OS Slice 17 using existing company settings storage as `apexOsApprovalPackets`, with operator-only list/create/update endpoints, draft/ready/blocked/archived states, source-label and readiness-field requirements, secret/email rejection, audit/activity logging, and Control Room drafting/loading/mark-ready/block/archive UI.
-- Durable execution handoff drafts implemented locally on 2026-06-02 as Apex OS Slice 18 using existing company settings storage as `apexOsExecutionHandoffs`, with operator-only list/create/update endpoints, draft/ready/blocked/archived states, source-label and readiness-field requirements, secret/email rejection, audit/activity logging, and Control Room drafting/loading/mark-ready/block/archive UI. These are work-package drafts only and do not call Agent OS queue/run endpoints.
-- Real approve/execute decisions, external execution, schema/storage migrations, deploy, provider setup, production data mutation, sends, money actions, customer-visible changes, and deletion remain approval-locked.
+- Folded into Phase 8 completion and hard-finished locally on 2026-06-03.
+- Approval categories, packet fields, templates, risk scoring, exact phrase approval entry, approve/reject/defer decision records, execution-locked controls, and source rows are visible inside the private Control Room.
+- Durable approval packets use existing company settings storage as `apexOsApprovalPackets`, with operator-only list/create/update endpoints, draft/ready/approved/rejected/deferred/blocked/archived states, source-label and readiness-field requirements, secret/email rejection, exact phrase enforcement before approval, audit/activity logging, and Control Room drafting/loading/mark-ready/block/archive/reject/defer/approval-record UI.
+- Durable execution handoff drafts remain a Phase 7 work-package path through `apexOsExecutionHandoffs`; Phase 8 approval decisions do not call Agent OS queue/run endpoints.
+- External execution, schema/storage migrations, deploy, provider setup, production data mutation, sends, money actions, customer-visible changes, deletion, and irreversible actions remain execution-locked behind a separate release/operator workflow.
 
 ### Slice 5: Decision Memory
 

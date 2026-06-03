@@ -10,7 +10,11 @@ import {
   summarizeApexOsKnowledgeVault,
   summarizeApexOsMemory,
 } from "../shared/apexOsMemory.js";
-import { summarizeApexOsApprovalPackets } from "../shared/apexOsApprovalPackets.js";
+import {
+  APEX_OS_APPROVAL_PACKET_TEMPLATES,
+  scoreApexOsApprovalPacketRisk,
+  summarizeApexOsApprovalPackets,
+} from "../shared/apexOsApprovalPackets.js";
 import { summarizeApexOsExecutionHandoffs } from "../shared/apexOsExecutionHandoffs.js";
 import { buildApexOsAgentControlPlane } from "../shared/apexOsAgentControl.js";
 
@@ -515,23 +519,23 @@ export const APEX_OS_APPROVAL_CONTROL_LOCKS = Object.freeze([
   {
     id: "approve",
     title: "Approve",
-    status: "Locked",
-    detail: "Approve control is visual only until an approved storage/audit/execution layer exists.",
-    tone: "amber",
+    status: "Decision record",
+    detail: "Approval can be recorded only after a ready packet and exact phrase confirmation. It still does not execute the action.",
+    tone: "green",
   },
   {
     id: "reject",
     title: "Reject",
-    status: "Locked",
-    detail: "Reject control is visual only; no durable approval record is written from this slice.",
-    tone: "amber",
+    status: "Decision record",
+    detail: "Reject records a durable review decision and audit row without touching queues, agents, releases, or customer-facing workflows.",
+    tone: "green",
   },
   {
     id: "defer",
     title: "Defer",
-    status: "Locked",
-    detail: "Defer control is visual only; it does not update queues, agents, releases, or tasks.",
-    tone: "amber",
+    status: "Decision record",
+    detail: "Defer records a durable review decision and keeps the action out of execution until a new explicit review happens.",
+    tone: "blue",
   },
   {
     id: "execute",
@@ -1154,6 +1158,16 @@ function buildApprovalCommandCenterState({ releaseDesk, askApexChat, voiceInterf
   const packetRows = APEX_OS_APPROVAL_PACKET_FIELDS.map((item) => ({ ...item }));
   const controlRows = APEX_OS_APPROVAL_CONTROL_LOCKS.map((item) => ({ ...item }));
   const packetSummary = summarizeApexOsApprovalPackets(companySettings?.apexOsApprovalPackets || []);
+  const templateRows = APEX_OS_APPROVAL_PACKET_TEMPLATES.map((template) => {
+    const risk = scoreApexOsApprovalPacketRisk(template);
+    return {
+      id: template.id,
+      title: template.title,
+      status: `${risk.band} risk`,
+      detail: `${template.exactApprovalPhrase} | Evidence: ${(template.requiredEvidence || []).join(", ")}`,
+      tone: risk.band === "critical" || risk.band === "high" ? "amber" : "blue",
+    };
+  });
   const sourceRows = [
     {
       id: "release-desk",
@@ -1178,15 +1192,17 @@ function buildApprovalCommandCenterState({ releaseDesk, askApexChat, voiceInterf
     },
   ];
   return {
-    status: packetSummary.total ? "Durable packets active" : "Drafting ready",
-    tone: packetSummary.ready ? "green" : packetSummary.total ? "blue" : "blue",
+    status: packetSummary.approved ? "Approval decisions active" : packetSummary.total ? "Durable packets active" : "Drafting ready",
+    tone: packetSummary.approved || packetSummary.ready ? "green" : packetSummary.total ? "blue" : "blue",
     queueCount: queueRows.length,
     packetFieldCount: packetRows.length,
     packetSummary,
+    templateCount: templateRows.length,
     controlLockCount: controlRows.length,
     sourceCount: sourceRows.length,
     queueRows,
     packetRows,
+    templateRows,
     controlRows,
     sourceRows,
   };
@@ -1888,7 +1904,7 @@ export function deriveApexControlRoomState({
         id: "approval-command-center",
         title: "Approval command center",
         status: approvalCommandCenter.status,
-        detail: `${approvalCommandCenter.queueCount} approval categories and ${approvalCommandCenter.packetFieldCount} packet fields are mapped before approval writes exist.`,
+        detail: `${approvalCommandCenter.queueCount} approval categories, ${approvalCommandCenter.packetFieldCount} packet fields, and exact-phrase decision records are mapped before execution can exist.`,
         tone: approvalCommandCenter.tone,
       },
       {
@@ -1991,7 +2007,7 @@ export function deriveApexControlRoomState({
         id: "approval-command-center",
         title: "Approval command center",
         status: approvalCommandCenter.status,
-        detail: `${approvalCommandCenter.controlLockCount} approve/reject/defer/execute controls are visible but locked.`,
+        detail: `${approvalCommandCenter.controlLockCount} controls are visible; approve/reject/defer record review decisions while execute remains locked.`,
         tone: approvalCommandCenter.tone,
       },
       {
@@ -2167,7 +2183,7 @@ export function deriveApexControlRoomState({
         id: "approval-command-center",
         title: "Approval command center",
         status: approvalCommandCenter.status,
-        detail: `${approvalCommandCenter.queueCount} risky-action categories now have packet requirements; approval controls remain visual only.`,
+        detail: `${approvalCommandCenter.queueCount} risky-action categories have packet requirements; approve/reject/defer record review decisions while execution remains locked.`,
         tone: approvalCommandCenter.tone,
       },
       {

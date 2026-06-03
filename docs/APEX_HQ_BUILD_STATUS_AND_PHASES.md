@@ -13,6 +13,7 @@ Apex HQ is a strong guided-pilot contractor operations platform. It is not yet r
 Current state:
 
 - Phase 8-14 finish batch: built, verified, pushed, deployed, and health-checked on production release `v616` with active commit `e904e5a`. This includes Change Orders, Payroll Prep, Closeout & Billing Prep, Reputation & Portfolio, Communications & Customer Portal, Assistant, and Launch readiness gates.
+- Apex OS Phase 8 Approval Command Center: hard-finished locally and release-ready on 2026-06-03 with durable approval packet templates, risk scoring, exact approval phrase enforcement, approve/reject/defer decision records, operator-only endpoints, audit/activity history, and locked execution/no irreversible action path.
 - Production release evidence: `v614` failed because the runtime image missed `/app/src/time-utils.js`, production was rolled back to healthy `v615`, the Docker packaging gap was fixed in `e904e5a`, and `v616` passed `/api/ready`, hosted smoke, production auth smoke run `26686917811`, and unauthenticated desktop/mobile visual shell checks.
 - Pilot/demo readiness: good for guided demos and founder-led pilots.
 - Public signup foundation: built and tested.

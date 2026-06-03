@@ -3,7 +3,8 @@ const TITLE_LIMIT = 160;
 const SHORT_LIMIT = 140;
 const PACKET_LIMIT = 120;
 
-const STATUS_VALUES = new Set(["draft", "ready", "blocked", "archived"]);
+const STATUS_VALUES = new Set(["draft", "ready", "approved", "rejected", "deferred", "blocked", "archived"]);
+const BLOCKED_STATUS_VALUES = new Set(["executed", "running", "queued"]);
 const CATEGORY_VALUES = new Set([
   "deploy",
   "production-data",
@@ -19,6 +20,69 @@ const CATEGORY_VALUES = new Set([
   "general",
 ]);
 const RISK_VALUES = new Set(["low", "medium", "high", "critical"]);
+const RISK_BASE_SCORES = {
+  low: 20,
+  medium: 45,
+  high: 70,
+  critical: 90,
+};
+const CATEGORY_RISK_WEIGHTS = {
+  deploy: 15,
+  "production-data": 20,
+  "schema-auth-session": 20,
+  "customer-visible": 18,
+  "email-sms": 16,
+  "billing-payment": 20,
+  "ad-spend-publishing": 18,
+  "provider-connection": 15,
+  "file-deletion": 20,
+  release: 14,
+  "business-operations": 8,
+  general: 5,
+};
+
+export const APEX_OS_APPROVAL_PACKET_TEMPLATES = [
+  {
+    id: "deploy",
+    title: "Production Deploy",
+    requestedActionCategory: "deploy",
+    riskLevel: "high",
+    exactApprovalPhrase: "BACKUP_FIRST_PRODUCTION_RELEASE_APPROVED",
+    requiredEvidence: ["tests", "build", "backup", "rollback", "hosted smoke"],
+  },
+  {
+    id: "schema-auth-session",
+    title: "Schema/Auth/Session Change",
+    requestedActionCategory: "schema-auth-session",
+    riskLevel: "critical",
+    exactApprovalPhrase: "SCHEMA_AUTH_SESSION_CHANGE_APPROVED",
+    requiredEvidence: ["migration plan", "role tests", "rollback", "data boundary proof"],
+  },
+  {
+    id: "email-sms",
+    title: "Email/SMS Send",
+    requestedActionCategory: "email-sms",
+    riskLevel: "high",
+    exactApprovalPhrase: "CUSTOMER_MESSAGE_SEND_APPROVED",
+    requiredEvidence: ["recipient scope", "message copy", "provider readiness", "opt-out/compliance check"],
+  },
+  {
+    id: "billing-payment",
+    title: "Billing/Payment Action",
+    requestedActionCategory: "billing-payment",
+    riskLevel: "critical",
+    exactApprovalPhrase: "LIVE_MONEY_ACTION_APPROVED",
+    requiredEvidence: ["amount/scope", "provider readiness", "tax/receipt plan", "rollback/refund path"],
+  },
+  {
+    id: "provider-connection",
+    title: "Provider Connection",
+    requestedActionCategory: "provider-connection",
+    riskLevel: "high",
+    exactApprovalPhrase: "PROVIDER_CONNECTION_APPROVED",
+    requiredEvidence: ["server-side secret plan", "health check", "permission scope", "disconnect plan"],
+  },
+];
 
 const SECRET_PATTERNS = [
   /\b(password|passcode|api[_ -]?key|secret[a-z0-9_-]*|token|bearer|cookie|session|mfa|captcha|paywall|portal credential|login)\b/gi,
@@ -39,9 +103,13 @@ export function redactApexOsApprovalPacketText(value = "", limit = TEXT_LIMIT) {
   return next.slice(0, limit);
 }
 
-export function detectApexOsApprovalPacketSafetyIssues(value = "") {
+export function detectApexOsApprovalPacketSafetyIssues(value = "", requestedStatus = "") {
   const raw = rawText(value, 5000);
   const issues = [];
+  const normalizedStatus = rawText(requestedStatus, 40).toLowerCase();
+  if (BLOCKED_STATUS_VALUES.has(normalizedStatus)) {
+    issues.push("Apex OS approval packets can record draft, ready, approved, rejected, deferred, blocked, or archived review states here; queueing, running, execution, and irreversible action still require a separate gated workflow.");
+  }
   if (!raw) return issues;
   if (EMAIL_PATTERN.test(raw)) issues.push("Apex OS approval packets cannot store customer email addresses.");
   EMAIL_PATTERN.lastIndex = 0;
@@ -78,6 +146,33 @@ function normalizeRisk(value = "medium") {
   return RISK_VALUES.has(normalized) ? normalized : "medium";
 }
 
+function normalizeDecisionNote(input = {}, existing = {}) {
+  return redactApexOsApprovalPacketText(input.decisionNote ?? existing.decisionNote ?? input.operatorNote ?? existing.operatorNote ?? "", 420);
+}
+
+export function scoreApexOsApprovalPacketRisk(packet = {}) {
+  const normalized = {
+    requestedActionCategory: normalizeCategory(packet.requestedActionCategory ?? packet.category),
+    riskLevel: normalizeRisk(packet.riskLevel ?? packet.risk),
+  };
+  const missingCount = getApexOsApprovalPacketMissingFields(packet).length;
+  const score = Math.min(
+    100,
+    (RISK_BASE_SCORES[normalized.riskLevel] || RISK_BASE_SCORES.medium)
+      + (CATEGORY_RISK_WEIGHTS[normalized.requestedActionCategory] || CATEGORY_RISK_WEIGHTS.general)
+      + (missingCount ? 8 : 0),
+  );
+  return {
+    score,
+    band: score >= 90 ? "critical" : score >= 70 ? "high" : score >= 40 ? "medium" : "low",
+    reasons: [
+      `${normalized.riskLevel} declared risk`,
+      `${normalized.requestedActionCategory} category`,
+      missingCount ? `${missingCount} missing readiness fields` : "readiness fields complete",
+    ],
+  };
+}
+
 export function normalizeApexOsApprovalPacket(input = {}, { existing = {}, id = "", now = new Date().toISOString() } = {}) {
   const title = redactApexOsApprovalPacketText(input.title ?? existing.title ?? input.actionTitle ?? existing.actionTitle ?? "", TITLE_LIMIT);
   const action = redactApexOsApprovalPacketText(input.action ?? existing.action ?? input.actionSummary ?? existing.actionSummary ?? "", TEXT_LIMIT);
@@ -90,7 +185,9 @@ export function normalizeApexOsApprovalPacket(input = {}, { existing = {}, id = 
   const sourceLabel = redactApexOsApprovalPacketText(input.sourceLabel ?? existing.sourceLabel ?? "", SHORT_LIMIT);
   const sourceUri = redactApexOsApprovalPacketText(input.sourceUri ?? existing.sourceUri ?? "", 260);
   const operatorNote = redactApexOsApprovalPacketText(input.operatorNote ?? existing.operatorNote ?? "", 420);
-  const status = normalizeStatus(input.status ?? existing.status);
+  const requestedStatus = input.status ?? existing.status;
+  const status = normalizeStatus(requestedStatus);
+  const decisionNote = normalizeDecisionNote(input, existing);
   const combinedRaw = [
     input.title,
     input.actionTitle,
@@ -105,8 +202,9 @@ export function normalizeApexOsApprovalPacket(input = {}, { existing = {}, id = 
     input.sourceLabel,
     input.sourceUri,
     input.operatorNote,
+    input.decisionNote,
   ].filter(Boolean).join(" ");
-  const blockedReasons = detectApexOsApprovalPacketSafetyIssues(combinedRaw);
+  const blockedReasons = detectApexOsApprovalPacketSafetyIssues(combinedRaw, requestedStatus);
 
   return {
     id: rawText(existing.id || input.id || id, 80),
@@ -124,6 +222,13 @@ export function normalizeApexOsApprovalPacket(input = {}, { existing = {}, id = 
     sourceUri,
     status,
     operatorNote,
+    decisionNote,
+    approvedBy: rawText(existing.approvedBy || input.approvedBy || "", SHORT_LIMIT),
+    approvedAt: status === "approved" ? rawText(input.approvedAt ?? existing.approvedAt ?? now, SHORT_LIMIT) : "",
+    rejectedBy: rawText(existing.rejectedBy || input.rejectedBy || "", SHORT_LIMIT),
+    rejectedAt: status === "rejected" ? rawText(input.rejectedAt ?? existing.rejectedAt ?? now, SHORT_LIMIT) : "",
+    deferredBy: rawText(existing.deferredBy || input.deferredBy || "", SHORT_LIMIT),
+    deferredAt: status === "deferred" ? rawText(input.deferredAt ?? existing.deferredAt ?? now, SHORT_LIMIT) : "",
     createdBy: rawText(existing.createdBy || input.createdBy || "", SHORT_LIMIT),
     createdAt: rawText(existing.createdAt || input.createdAt || now, SHORT_LIMIT),
     updatedAt: now,
@@ -145,6 +250,9 @@ export function summarizeApexOsApprovalPackets(value = []) {
     total: packets.length,
     draft: packets.filter((packet) => packet.status === "draft").length,
     ready: packets.filter((packet) => packet.status === "ready").length,
+    approved: packets.filter((packet) => packet.status === "approved").length,
+    rejected: packets.filter((packet) => packet.status === "rejected").length,
+    deferred: packets.filter((packet) => packet.status === "deferred").length,
     blocked: packets.filter((packet) => packet.status === "blocked").length,
     archived: packets.filter((packet) => packet.status === "archived").length,
   };
@@ -167,4 +275,11 @@ export function getApexOsApprovalPacketMissingFields(packet = {}) {
 
 export function isApexOsApprovalPacketReady(packet = {}) {
   return getApexOsApprovalPacketMissingFields(packet).length === 0 && normalizeApexOsApprovalPacket(packet).blockedReasons.length === 0;
+}
+
+export function isApexOsApprovalPacketApprovalConfirmed(packet = {}, confirmation = "") {
+  const normalized = normalizeApexOsApprovalPacket(packet);
+  const expected = rawText(normalized.exactApprovalPhrase, SHORT_LIMIT);
+  const provided = rawText(confirmation, SHORT_LIMIT);
+  return isApexOsApprovalPacketReady(normalized) && Boolean(expected) && expected === provided;
 }

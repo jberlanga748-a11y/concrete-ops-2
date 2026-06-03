@@ -98,9 +98,11 @@ import {
 } from "../shared/apexOsMemory.js";
 import {
   getApexOsApprovalPacketMissingFields,
+  isApexOsApprovalPacketApprovalConfirmed,
   isApexOsApprovalPacketReady,
   normalizeApexOsApprovalPacket,
   normalizeApexOsApprovalPackets,
+  scoreApexOsApprovalPacketRisk,
   summarizeApexOsApprovalPackets,
 } from "../shared/apexOsApprovalPackets.js";
 import {
@@ -7581,18 +7583,22 @@ function apexOsApprovalPacketsForState(state, user) {
   return normalizeApexOsApprovalPackets(companySettingsForState(state, user).apexOsApprovalPackets);
 }
 
-function rejectUnsafeApexOsApprovalPacket(packet, requestedStatus = packet.status) {
+function rejectUnsafeApexOsApprovalPacket(packet, requestedStatus = packet.status, requestBody = {}) {
+  const normalizedStatus = String(requestedStatus || "").trim().toLowerCase();
+  if (["executed", "running", "queued"].includes(normalizedStatus)) {
+    throw new ApiError(400, "Apex OS approval packets can record draft, ready, approved, rejected, deferred, blocked, or archived review states here; queueing, running, execution, and irreversible action still require a separate gated workflow.");
+  }
   if (packet.blockedReasons?.length) {
     throw new ApiError(400, packet.blockedReasons[0]);
   }
   if (!packet.title || !packet.action) {
     throw new ApiError(400, "Apex OS approval packets require a title and action details.");
   }
-  if (String(requestedStatus || "").trim().toLowerCase() === "approved" || String(requestedStatus || "").trim().toLowerCase() === "executed") {
-    throw new ApiError(400, "Apex OS approval packets can be drafted, readied, blocked, or archived here; approval and execution require a separate gated workflow.");
-  }
-  if (packet.status === "ready" && !isApexOsApprovalPacketReady(packet)) {
+  if ((packet.status === "ready" || packet.status === "approved") && !isApexOsApprovalPacketReady(packet)) {
     throw new ApiError(400, `Ready approval packets are missing: ${getApexOsApprovalPacketMissingFields(packet).join(", ")}.`);
+  }
+  if (packet.status === "approved" && !isApexOsApprovalPacketApprovalConfirmed(packet, requestBody?.approvalPhraseConfirmation)) {
+    throw new ApiError(400, "Approving an Apex OS approval packet requires the exact approval phrase from the packet. Approval records do not execute the action.");
   }
   if (!packet.sourceLabel) {
     throw new ApiError(400, "Apex OS approval packets require a source label.");
@@ -7616,6 +7622,10 @@ function publicApexOsApprovalPacket(packet) {
     ...safePacket,
     missingFields: getApexOsApprovalPacketMissingFields(packet),
     readyToReview: isApexOsApprovalPacketReady(packet),
+    riskAssessment: scoreApexOsApprovalPacketRisk(packet),
+    approvalDecisionLocked: packet.status !== "approved",
+    executionLocked: true,
+    canExecute: false,
   };
 }
 
@@ -12896,13 +12906,25 @@ app.post("/api/apex-os/approval-packets", requireAuth, asyncRoute(async (req, re
     });
     createdPacket.createdBy = req.auth.user.id;
     createdPacket.createdAt = now;
-    rejectUnsafeApexOsApprovalPacket(createdPacket, req.body?.status);
+    if (createdPacket.status === "approved") {
+      createdPacket.approvedBy = req.auth.user.id;
+      createdPacket.approvedAt = now;
+    }
+    if (createdPacket.status === "rejected") {
+      createdPacket.rejectedBy = req.auth.user.id;
+      createdPacket.rejectedAt = now;
+    }
+    if (createdPacket.status === "deferred") {
+      createdPacket.deferredBy = req.auth.user.id;
+      createdPacket.deferredAt = now;
+    }
+    rejectUnsafeApexOsApprovalPacket(createdPacket, req.body?.status, req.body || {});
     persistApexOsApprovalPackets(draft, req.auth.user, [createdPacket, ...current].slice(0, 120));
     appendActivity(draft, "Apex OS approval packet drafted", `${req.auth.user.name} drafted ${createdPacket.title} for Apex OS approval review.`);
     appendAuditEvent(draft, {
       entityType: "apexOsApprovalPacket",
       entityId: createdPacket.id,
-      action: createdPacket.status === "ready" ? "readied" : createdPacket.status === "blocked" ? "blocked" : "drafted",
+      action: createdPacket.status === "approved" ? "approved" : createdPacket.status === "rejected" ? "rejected" : createdPacket.status === "deferred" ? "deferred" : createdPacket.status === "ready" ? "readied" : createdPacket.status === "blocked" ? "blocked" : "drafted",
       summary: "Apex OS approval packet drafted",
       detail: JSON.stringify({
         id: createdPacket.id,
@@ -12911,6 +12933,7 @@ app.post("/api/apex-os/approval-packets", requireAuth, asyncRoute(async (req, re
         requestedActionCategory: createdPacket.requestedActionCategory,
         riskLevel: createdPacket.riskLevel,
         sourceLabel: createdPacket.sourceLabel,
+        executionLocked: true,
       }),
       actor: req.auth.user,
       changedFields: ["apexOsApprovalPackets"],
@@ -12942,10 +12965,25 @@ app.patch("/api/apex-os/approval-packets/:id", requireAuth, asyncRoute(async (re
     });
     updatedPacket.createdBy = existing.createdBy;
     updatedPacket.createdAt = existing.createdAt;
+    updatedPacket.approvedBy = existing.approvedBy || "";
+    updatedPacket.rejectedBy = existing.rejectedBy || "";
+    updatedPacket.deferredBy = existing.deferredBy || "";
     if (updatedPacket.status === "archived" && existing.status !== "archived") {
       updatedPacket.archivedAt = now;
     }
-    rejectUnsafeApexOsApprovalPacket(updatedPacket, req.body?.status);
+    if (updatedPacket.status === "approved" && existing.status !== "approved") {
+      updatedPacket.approvedBy = req.auth.user.id;
+      updatedPacket.approvedAt = now;
+    }
+    if (updatedPacket.status === "rejected" && existing.status !== "rejected") {
+      updatedPacket.rejectedBy = req.auth.user.id;
+      updatedPacket.rejectedAt = now;
+    }
+    if (updatedPacket.status === "deferred" && existing.status !== "deferred") {
+      updatedPacket.deferredBy = req.auth.user.id;
+      updatedPacket.deferredAt = now;
+    }
+    rejectUnsafeApexOsApprovalPacket(updatedPacket, req.body?.status, req.body || {});
     const nextPackets = [...current];
     nextPackets[index] = updatedPacket;
     persistApexOsApprovalPackets(draft, req.auth.user, nextPackets);
@@ -12953,7 +12991,7 @@ app.patch("/api/apex-os/approval-packets/:id", requireAuth, asyncRoute(async (re
     appendAuditEvent(draft, {
       entityType: "apexOsApprovalPacket",
       entityId: updatedPacket.id,
-      action: updatedPacket.status === "archived" ? "archived" : updatedPacket.status === "ready" ? "readied" : updatedPacket.status === "blocked" ? "blocked" : "updated",
+      action: updatedPacket.status === "archived" ? "archived" : updatedPacket.status === "approved" ? "approved" : updatedPacket.status === "rejected" ? "rejected" : updatedPacket.status === "deferred" ? "deferred" : updatedPacket.status === "ready" ? "readied" : updatedPacket.status === "blocked" ? "blocked" : "updated",
       summary: "Apex OS approval packet updated",
       detail: JSON.stringify({
         id: updatedPacket.id,
@@ -12962,6 +13000,7 @@ app.patch("/api/apex-os/approval-packets/:id", requireAuth, asyncRoute(async (re
         requestedActionCategory: updatedPacket.requestedActionCategory,
         riskLevel: updatedPacket.riskLevel,
         sourceLabel: updatedPacket.sourceLabel,
+        executionLocked: true,
       }),
       actor: req.auth.user,
       changedFields: ["apexOsApprovalPackets"],

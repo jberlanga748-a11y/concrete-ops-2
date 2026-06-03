@@ -398,17 +398,29 @@ test("Apex OS memory is operator-only, source-backed, persisted, and audited", a
     });
     assert.equal(unsafePacket.response.status, 400);
 
-    const approvedStatusPacket = await requestJson(fixture.baseUrl, "/api/apex-os/approval-packets", {
+    const executedStatusPacket = await requestJson(fixture.baseUrl, "/api/apex-os/approval-packets", {
       method: "POST",
       headers: authHeaders(operatorLogin.token),
       body: JSON.stringify({
-        title: "Approved status is blocked",
+        title: "Executed status is blocked",
+        action: "Execute now.",
+        status: "executed",
+        sourceLabel: "Manual approval note",
+      }),
+    });
+    assert.equal(executedStatusPacket.response.status, 400);
+
+    const incompleteApprovedPacket = await requestJson(fixture.baseUrl, "/api/apex-os/approval-packets", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Incomplete approval is blocked",
         action: "Deploy now.",
         status: "approved",
         sourceLabel: "Manual approval note",
       }),
     });
-    assert.equal(approvedStatusPacket.response.status, 400);
+    assert.equal(incompleteApprovedPacket.response.status, 400);
 
     const incompleteReadyPacket = await requestJson(fixture.baseUrl, "/api/apex-os/approval-packets", {
       method: "POST",
@@ -441,6 +453,9 @@ test("Apex OS memory is operator-only, source-backed, persisted, and audited", a
     });
     assert.equal(createdPacket.apexOsApprovalPacket.status, "draft");
     assert.equal(createdPacket.apexOsApprovalPacket.readyToReview, true);
+    assert.equal(createdPacket.apexOsApprovalPacket.executionLocked, true);
+    assert.equal(createdPacket.apexOsApprovalPacket.canExecute, false);
+    assert.equal(createdPacket.apexOsApprovalPacket.riskAssessment.band, "high");
     assert.equal(storedApexOsApprovalPackets(fixture.sqliteFile)[0].title, "Deploy Apex OS Control Room");
 
     const readyPacket = await assertOk(fixture.baseUrl, `/api/apex-os/approval-packets/${createdPacket.apexOsApprovalPacket.id}`, {
@@ -450,11 +465,68 @@ test("Apex OS memory is operator-only, source-backed, persisted, and audited", a
     });
     assert.equal(readyPacket.apexOsApprovalPacket.status, "ready");
 
+    const wrongApprovalPhrase = await requestJson(fixture.baseUrl, `/api/apex-os/approval-packets/${createdPacket.apexOsApprovalPacket.id}`, {
+      method: "PATCH",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({ status: "approved", approvalPhraseConfirmation: "WRONG_PHRASE" }),
+    });
+    assert.equal(wrongApprovalPhrase.response.status, 400);
+
+    const approvedPacket = await assertOk(fixture.baseUrl, `/api/apex-os/approval-packets/${createdPacket.apexOsApprovalPacket.id}`, {
+      method: "PATCH",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        status: "approved",
+        approvalPhraseConfirmation: "BACKUP_FIRST_PRODUCTION_RELEASE_APPROVED",
+        decisionNote: "Josh approved the packet for review record only.",
+      }),
+    });
+    assert.equal(approvedPacket.apexOsApprovalPacket.status, "approved");
+    assert.equal(approvedPacket.apexOsApprovalPacket.approvedBy, operatorLogin.user.id);
+    assert.equal(approvedPacket.apexOsApprovalPacket.executionLocked, true);
+    assert.equal(approvedPacket.apexOsApprovalPacket.canExecute, false);
+
+    const rejectedPacket = await assertOk(fixture.baseUrl, "/api/apex-os/approval-packets", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Reject provider setup",
+        action: "Reject provider setup until credentials and compliance are ready.",
+        requestedActionCategory: "provider-connection",
+        riskLevel: "high",
+        status: "rejected",
+        sourceLabel: "Provider setup review",
+        decisionNote: "Provider setup is not approved yet.",
+      }),
+    });
+    assert.equal(rejectedPacket.apexOsApprovalPacket.status, "rejected");
+    assert.equal(rejectedPacket.apexOsApprovalPacket.rejectedBy, operatorLogin.user.id);
+    assert.equal(rejectedPacket.apexOsApprovalPacket.executionLocked, true);
+
+    const deferredPacket = await assertOk(fixture.baseUrl, "/api/apex-os/approval-packets", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Defer billing action",
+        action: "Defer live billing setup until payment provider testing is approved.",
+        requestedActionCategory: "billing-payment",
+        riskLevel: "critical",
+        status: "deferred",
+        sourceLabel: "Billing review",
+        decisionNote: "Billing remains parked.",
+      }),
+    });
+    assert.equal(deferredPacket.apexOsApprovalPacket.status, "deferred");
+    assert.equal(deferredPacket.apexOsApprovalPacket.deferredBy, operatorLogin.user.id);
+    assert.equal(deferredPacket.apexOsApprovalPacket.executionLocked, true);
+
     const listedPackets = await assertOk(fixture.baseUrl, "/api/apex-os/approval-packets", {
       headers: authHeaders(operatorLogin.token),
     });
-    assert.equal(listedPackets.summary.ready, 1);
-    assert.equal(listedPackets.apexOsApprovalPackets[0].title, "Deploy Apex OS Control Room");
+    assert.equal(listedPackets.summary.approved, 1);
+    assert.equal(listedPackets.summary.rejected, 1);
+    assert.equal(listedPackets.summary.deferred, 1);
+    assert.equal(listedPackets.apexOsApprovalPackets.some((packet) => packet.title === "Deploy Apex OS Control Room" && packet.status === "approved" && packet.executionLocked === true), true);
 
     const unsafeHandoff = await requestJson(fixture.baseUrl, "/api/apex-os/execution-handoffs", {
       method: "POST",
@@ -627,6 +699,9 @@ test("Apex OS memory is operator-only, source-backed, persisted, and audited", a
     assert.equal(audits.some((event) => event.entityType === "apexOsAgentControlRequest" && event.action === "readied"), true);
     assert.equal(audits.some((event) => event.entityType === "apexOsExecutionHandoff" && event.action === "readied"), true);
     assert.equal(audits.some((event) => event.entityType === "apexOsApprovalPacket" && event.action === "readied"), true);
+    assert.equal(audits.some((event) => event.entityType === "apexOsApprovalPacket" && event.action === "approved"), true);
+    assert.equal(audits.some((event) => event.entityType === "apexOsApprovalPacket" && event.action === "rejected"), true);
+    assert.equal(audits.some((event) => event.entityType === "apexOsApprovalPacket" && event.action === "deferred"), true);
     assert.deepEqual(audits.filter((event) => event.entityType === "apexOsMemory").map((event) => event.action).slice(0, 3), ["archived", "approved", "suggested"]);
   } finally {
     await fixture.stop();
