@@ -1,4 +1,6 @@
 import { useState } from "react";
+import * as pdfjsLib from "pdfjs-dist";
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
 
 import {
   askApexOs,
@@ -15,6 +17,8 @@ import {
 } from "./api";
 import { Badge, Button, Card, Icon, PageHeader, SectionHeader } from "./app-shell-components";
 import { deriveApexControlRoomState } from "./apex-control-room-utils";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 function ToneBadge({ children, tone = "slate" }) {
   return <Badge tone={tone}>{children}</Badge>;
@@ -556,8 +560,51 @@ const EMPTY_KNOWLEDGE_VAULT_FORM = {
   confidence: 70,
 };
 
+const KNOWLEDGE_VAULT_BODY_LIMIT = 1800;
+const KNOWLEDGE_VAULT_EXTRACT_LIMIT = 6000;
+const KNOWLEDGE_VAULT_DEFAULT_SOURCE_LABEL = EMPTY_KNOWLEDGE_VAULT_FORM.sourceLabel;
+
 function categoryTitle(categories = [], id = "") {
   return categories.find((category) => category.id === id)?.title || String(id || "Knowledge").replace(/-/g, " ");
+}
+
+function fileSizeLabel(size = 0) {
+  const bytes = Number(size) || 0;
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${bytes} bytes`;
+}
+
+async function extractPdfKnowledgeText(file) {
+  const data = new Uint8Array(await file.arrayBuffer());
+  const loadingTask = pdfjsLib.getDocument({ data, disableWorker: true });
+  try {
+    const pdf = await loadingTask.promise;
+    const pageTexts = [];
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+      const page = await pdf.getPage(pageNumber);
+      const content = await page.getTextContent();
+      const text = content.items.map((item) => item.str || "").join(" ").replace(/\s+/g, " ").trim();
+      if (text) pageTexts.push(text);
+      if (pageTexts.join(" ").length >= KNOWLEDGE_VAULT_EXTRACT_LIMIT) break;
+    }
+    return {
+      text: pageTexts.join("\n\n").slice(0, KNOWLEDGE_VAULT_EXTRACT_LIMIT),
+      pageCount: pdf.numPages,
+    };
+  } finally {
+    loadingTask.destroy?.();
+  }
+}
+
+async function extractKnowledgeFileText(file) {
+  if (/\\.pdf$/i.test(file.name) || file.type === "application/pdf") {
+    return extractPdfKnowledgeText(file);
+  }
+  return {
+    text: (await file.text()).slice(0, KNOWLEDGE_VAULT_EXTRACT_LIMIT),
+    pageCount: 0,
+  };
 }
 
 function filterKnowledgeRows(rows = [], { category, source, status, query } = {}) {
@@ -573,6 +620,12 @@ function filterKnowledgeRows(rows = [], { category, source, status, query } = {}
     });
 }
 
+function knowledgeDuplicateKeys({ title = "", sourceLabel = "", sourceUri = "" } = {}) {
+  return [sourceUri, sourceLabel !== KNOWLEDGE_VAULT_DEFAULT_SOURCE_LABEL ? sourceLabel : "", title]
+    .map((value) => String(value || "").trim().toLowerCase())
+    .filter(Boolean);
+}
+
 function KnowledgeVaultManager({ state, sessionToken }) {
   const [form, setForm] = useState(EMPTY_KNOWLEDGE_VAULT_FORM);
   const [vaultRows, setVaultRows] = useState(state.knowledgeVault?.vaultEntries || []);
@@ -584,9 +637,11 @@ function KnowledgeVaultManager({ state, sessionToken }) {
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(false);
   const canUse = state.canView && Boolean(sessionToken) && !loading;
-  const canCreate = canUse && form.category && form.title.trim() && form.body.trim() && form.sourceLabel.trim();
   const categoryIds = new Set((state.knowledgeVault?.categories || []).map((category) => category.id));
   const knowledgeRows = vaultRows.filter((row) => categoryIds.has(row.category));
+  const duplicateKeys = knowledgeDuplicateKeys(form);
+  const duplicateRow = duplicateKeys.length ? knowledgeRows.find((row) => row.status !== "archived" && knowledgeDuplicateKeys(row).some((key) => duplicateKeys.includes(key))) : null;
+  const canCreate = canUse && form.category && form.title.trim() && form.body.trim() && form.sourceLabel.trim() && !duplicateRow;
   const sourceOptions = [...new Set([
     ...(state.knowledgeVault?.sourceOptions || []),
     ...knowledgeRows.map((row) => row.sourceLabel).filter(Boolean),
@@ -641,13 +696,19 @@ function KnowledgeVaultManager({ state, sessionToken }) {
   async function handleFileChange(event) {
     const file = event.target.files?.[0];
     if (!file) return;
-    const allowed = /\.(txt|md|markdown|json|csv|log|html|css|js|jsx|ts|tsx)$/i.test(file.name);
+    const allowed = /\.(txt|md|markdown|json|csv|log|html|css|js|jsx|ts|tsx|pdf)$/i.test(file.name) || file.type === "application/pdf";
     if (!allowed) {
-      setNotice("Use a text-based source file for this private vault intake.");
+      setNotice("Use a text-based source file or PDF for this private vault intake.");
       return;
     }
     try {
-      const body = (await file.text()).slice(0, 1800);
+      const extracted = await extractKnowledgeFileText(file);
+      const body = extracted.text.slice(0, KNOWLEDGE_VAULT_BODY_LIMIT);
+      if (!body.trim()) {
+        setNotice("Apex could not find readable text in that file.");
+        return;
+      }
+      const extractionSummary = `${file.type === "application/pdf" || /\.pdf$/i.test(file.name) ? `PDF text extracted${extracted.pageCount ? ` from ${extracted.pageCount} page${extracted.pageCount === 1 ? "" : "s"}` : ""}` : "Text file loaded"}; ${fileSizeLabel(file.size)}; ${extracted.text.length} characters read; ${Math.min(body.length, KNOWLEDGE_VAULT_BODY_LIMIT)} saved for review.`;
       setForm((current) => ({
         ...current,
         title: current.title.trim() ? current.title : file.name.replace(/\.[^.]+$/, ""),
@@ -655,11 +716,11 @@ function KnowledgeVaultManager({ state, sessionToken }) {
         sourceType: "knowledge-upload",
         sourceLabel: file.name,
         sourceUri: `local-upload:${file.name}`,
-        reviewNote: "Summary pending - manual review required.",
+        reviewNote: extractionSummary.slice(0, 300),
       }));
       setNotice(`${file.name} loaded locally as suggested knowledge. Review before drafting.`);
     } catch {
-      setNotice("Apex could not read that local text file.");
+      setNotice("Apex could not read that local knowledge file.");
     }
   }
 
@@ -739,6 +800,15 @@ function KnowledgeVaultManager({ state, sessionToken }) {
           tone: "amber",
         }} />
       </div>
+      {duplicateRow ? (
+        <StatusRow item={{
+          id: "vault-duplicate-source",
+          title: "Duplicate source guard",
+          status: "Already saved",
+          detail: `${duplicateRow.title || duplicateRow.sourceLabel || "This knowledge source"} is already in the vault. Archive the old row or change the source before drafting another copy.`,
+          tone: "amber",
+        }} />
+      ) : null}
 
       <form className="grid min-w-0 gap-3 rounded-xl border border-slate-200 bg-white p-3" onSubmit={submitKnowledge}>
         <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_260px]">
@@ -773,7 +843,7 @@ function KnowledgeVaultManager({ state, sessionToken }) {
           <input value={form.sourceLabel} onChange={(event) => updateField("sourceLabel", event.target.value)} maxLength={120} placeholder="Source label" className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700" disabled={!state.canView || loading} />
           <input value={form.sourceUri} onChange={(event) => updateField("sourceUri", event.target.value)} maxLength={240} placeholder="Source URI or file" className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700" disabled={!state.canView || loading} />
           <input value={form.reviewNote} onChange={(event) => updateField("reviewNote", event.target.value)} maxLength={300} placeholder="Summary status" className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700" disabled={!state.canView || loading} />
-          <input type="file" accept=".txt,.md,.markdown,.json,.csv,.log,.html,.css,.js,.jsx,.ts,.tsx,text/*" onChange={handleFileChange} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-xs file:font-black file:text-white" disabled={!state.canView || loading} />
+          <input type="file" accept=".txt,.md,.markdown,.json,.csv,.log,.html,.css,.js,.jsx,.ts,.tsx,.pdf,text/*,application/pdf" onChange={handleFileChange} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-xs file:font-black file:text-white" disabled={!state.canView || loading} />
         </div>
         <div className="flex min-w-0 flex-wrap gap-2">
           <Button type="submit" variant="secondary" size="sm" disabled={!canCreate}>
@@ -786,7 +856,7 @@ function KnowledgeVaultManager({ state, sessionToken }) {
             <Icon name="lock" /> Review required
           </Button>
         </div>
-        <p className="break-words text-xs font-black leading-5 text-slate-500">{notice || "Text files are read locally, saved as suggested Apex OS memory with source metadata, and blocked if they include secrets or customer emails."}</p>
+        <p className="break-words text-xs font-black leading-5 text-slate-500">{notice || "Text files and PDFs are read locally, saved as suggested Apex OS memory with source metadata, and blocked if they include secrets or customer emails."}</p>
       </form>
 
       <div className="grid min-w-0 gap-3 rounded-xl border border-slate-200 bg-white p-3">
