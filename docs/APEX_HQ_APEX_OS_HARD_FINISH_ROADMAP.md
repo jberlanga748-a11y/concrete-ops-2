@@ -448,12 +448,12 @@ Blocked right now:
 
 Status:
 
-- Hard-finished locally on 2026-06-03 against the original Phase 18 scope.
+- Hard-finished, pushed, deployed, and production-checked on 2026-06-03 as Fly release `v650` from commit `67aea87`.
 - Completed with a Finished Apex OS cockpit, capability proof rows, day-to-day run-loop rows, completion-freeze rows, and blocked-action proof rows for the not-approved external/provider/customer-visible action classes.
 - Proves John can run Apex HQ day to day from Apex OS by asking, deciding, uploading/reviewing knowledge, approving packets, briefing, monitoring, planning, preparing scoped task handoffs, preparing releases, and managing agents while execution remains review-first and locked where required.
 - Validated with focused tests, broad Apex OS role/security/company-scope regression, role verification, production build, isolated desktop/mobile/admin-blocked browser QA, direct-route blocking, protected API blocking, and visual screenshots.
 - No schema, auth/session, provider setup, production data mutation, customer-visible action, live send, ad spend, billing/payment, autonomous unrequested execution, deploy/rollback execution from the UI, deletion, or irreversible action path was added.
-- Production release is pending the Phase 18 commit, push, approved deploy, hosted smoke, protected endpoint checks, setup checks, Control Room asset verification, rollback evidence, and release-evidence doc commit.
+- Production evidence: predeploy backup `postgres-app-data-20260603-120459Z.json` plus `uploads-20260603-120459Z`; image `registry.fly.io/concrete-ops-2:deployment-01KT6NZDJQGVF9G4PJ2P7FW7Y9`; rollback target `v649`; Fly machine/checks passing; both ready endpoints database OK; health OK; hosted skip-auth smoke passed; unauthenticated Apex OS endpoints returned 401; setup status remained production/private; Control Room served Phase 18 assets.
 
 ## Required Work Loop For Every Phase
 
