@@ -136,7 +136,7 @@ Blocked right now:
 
 Status:
 
-- Hard-finished locally on 2026-06-03 with text/PDF intake, source metadata, review status, summary status, search/filter, duplicate-source guard, and manual trust review.
+- Hard-finished locally on 2026-06-03 with text/PDF intake, source metadata, review status, summary status, search/filter, category-scoped duplicate-source guard, vault review history, private knowledge export, server-side duplicate rejection coverage, and manual trust review.
 
 Optional hard-finish upgrade if Phase 5 is reopened by explicit request:
 

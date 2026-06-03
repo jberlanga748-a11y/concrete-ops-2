@@ -758,10 +758,30 @@ function filterKnowledgeRows(rows = [], { category, source, status, query } = {}
     });
 }
 
-function knowledgeDuplicateKeys({ title = "", sourceLabel = "", sourceUri = "" } = {}) {
-  return [sourceUri, sourceLabel !== KNOWLEDGE_VAULT_DEFAULT_SOURCE_LABEL ? sourceLabel : "", title]
+function knowledgeDuplicateKeys({ category = "", title = "", sourceLabel = "", sourceUri = "" } = {}) {
+  const normalizedCategory = String(category || "knowledge").trim().toLowerCase();
+  const normalizedTitle = String(title || "").trim();
+  const normalizedSourceLabel = String(sourceLabel || "").trim();
+  const normalizedSourceUri = String(sourceUri || "").trim();
+  return [
+    normalizedSourceUri ? `${normalizedCategory}|uri|${normalizedSourceUri}` : "",
+    normalizedSourceLabel && normalizedTitle ? `${normalizedCategory}|source-title|${normalizedSourceLabel}|${normalizedTitle}` : "",
+  ]
     .map((value) => String(value || "").trim().toLowerCase())
     .filter(Boolean);
+}
+
+function formatKnowledgeVaultExport(rows = [], categories = []) {
+  return JSON.stringify(rows.slice(0, 24).map((row) => ({
+    title: row.title,
+    category: categoryTitle(categories, row.category),
+    status: row.status === "approved" ? "trusted" : row.status,
+    sourceLabel: row.sourceLabel,
+    sourceUri: row.sourceUri,
+    sourceType: row.sourceType,
+    summaryStatus: row.reviewNote,
+    updatedAt: row.updatedAt,
+  })), null, 2);
 }
 
 function KnowledgeVaultManager({ state, sessionToken }) {
@@ -777,8 +797,8 @@ function KnowledgeVaultManager({ state, sessionToken }) {
   const canUse = state.canView && Boolean(sessionToken) && !loading;
   const categoryIds = new Set((state.knowledgeVault?.categories || []).map((category) => category.id));
   const knowledgeRows = vaultRows.filter((row) => categoryIds.has(row.category));
-  const duplicateKeys = knowledgeDuplicateKeys(form);
-  const duplicateRow = duplicateKeys.length ? knowledgeRows.find((row) => row.status !== "archived" && knowledgeDuplicateKeys(row).some((key) => duplicateKeys.includes(key))) : null;
+  const duplicateKeys = new Set(knowledgeDuplicateKeys(form));
+  const duplicateRow = duplicateKeys.size ? knowledgeRows.find((row) => row.status !== "archived" && knowledgeDuplicateKeys(row).some((key) => duplicateKeys.has(key))) : null;
   const canCreate = canUse && form.category && form.title.trim() && form.body.trim() && form.sourceLabel.trim() && !duplicateRow;
   const sourceOptions = [...new Set([
     ...(state.knowledgeVault?.sourceOptions || []),
@@ -796,6 +816,12 @@ function KnowledgeVaultManager({ state, sessionToken }) {
     suggested: knowledgeRows.filter((row) => row.status === "suggested").length,
     archived: knowledgeRows.filter((row) => row.status === "archived").length,
   };
+  const reviewHistoryRows = (activeSummary.reviewHistory?.length ? activeSummary.reviewHistory : knowledgeRows)
+    .filter((row) => categoryIds.has(row.category))
+    .slice()
+    .sort((left, right) => new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime())
+    .slice(0, 6);
+  const exportText = formatKnowledgeVaultExport(visibleRows, state.knowledgeVault?.categories || []);
 
   function updateField(field, value) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -813,6 +839,10 @@ function KnowledgeVaultManager({ state, sessionToken }) {
       archived: rows.filter((row) => row.status === "archived").length,
       sourceCount: new Set(rows.map((row) => row.sourceLabel).filter(Boolean)).size,
       sourceLabels: [...new Set(rows.map((row) => row.sourceLabel).filter(Boolean))],
+      reviewHistory: rows
+        .slice()
+        .sort((left, right) => new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime())
+        .slice(0, 8),
     });
     setNotice(message);
   }
@@ -1043,6 +1073,32 @@ function KnowledgeVaultManager({ state, sessionToken }) {
         )) : (
           <EmptyPanel>No knowledge rows match the current vault filters.</EmptyPanel>
         )}
+      </div>
+
+      <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+          <SectionHeader title="Vault Review History" description={`${reviewHistoryRows.length || 0} latest private knowledge review rows.`} />
+          <div className="grid min-w-0 gap-2">
+            {reviewHistoryRows.length ? reviewHistoryRows.map((row) => (
+              <StatusRow key={`vault-history-${row.id}`} item={{
+                id: `vault-history-${row.id}`,
+                title: row.title,
+                status: row.status === "approved" ? "trusted" : row.status,
+                detail: `${categoryTitle(state.knowledgeVault?.categories, row.category)} | Source: ${row.sourceLabel || "Missing source"}${row.sourceUri ? ` | ${row.sourceUri}` : ""}. ${row.reviewNote || "No summary status."}`,
+                tone: row.status === "approved" ? "green" : row.status === "archived" ? "slate" : "blue",
+              }} />
+            )) : <EmptyPanel>No vault review history is visible yet.</EmptyPanel>}
+          </div>
+        </div>
+
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+          <SectionHeader title="Knowledge Export" description="Copyable private JSON for matching vault rows." />
+          <textarea
+            readOnly
+            value={exportText}
+            className="mt-3 min-h-48 w-full resize-y rounded-xl border border-slate-200 bg-slate-950 px-3 py-3 font-mono text-xs font-bold leading-5 text-slate-100"
+          />
+        </div>
       </div>
     </div>
   );

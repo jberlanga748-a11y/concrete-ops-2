@@ -409,6 +409,7 @@ test("deriveApexControlRoomState summarizes durable knowledge upload vault rows"
   assert.equal(state.knowledgeVault.vaultSummary.total, 2);
   assert.equal(state.knowledgeVault.vaultSummary.trusted, 1);
   assert.equal(state.knowledgeVault.vaultSummary.suggested, 1);
+  assert.equal(state.knowledgeVault.vaultSummary.reviewHistory.length, 2);
   assert.deepEqual(state.knowledgeVault.sourceOptions, ["phase-5.md", "Sales notes"]);
   assert.deepEqual(state.knowledgeVault.vaultEntries.map((entry) => entry.title), ["Phase 5 notes", "Demo narrative"]);
 });

@@ -243,6 +243,24 @@ export function summarizeApexOsKnowledgeVault(value = []) {
   const rows = normalizeApexOsMemory(value).filter((entry) => isApexOsKnowledgeCategory(entry.category));
   const sourceLabels = [...new Set(rows.map((entry) => entry.sourceLabel).filter(Boolean))]
     .sort((left, right) => left.toLowerCase().localeCompare(right.toLowerCase()));
+  const reviewHistory = rows
+    .slice()
+    .sort((left, right) => new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime())
+    .slice(0, 8)
+    .map((entry) => ({
+      id: entry.id,
+      title: entry.title,
+      category: entry.category,
+      status: entry.status,
+      sourceLabel: entry.sourceLabel,
+      sourceUri: entry.sourceUri,
+      sourceType: entry.sourceType,
+      reviewNote: entry.reviewNote,
+      createdAt: entry.createdAt,
+      updatedAt: entry.updatedAt,
+      approvedAt: entry.approvedAt,
+      archivedAt: entry.archivedAt,
+    }));
   return {
     total: rows.length,
     trusted: rows.filter((entry) => entry.status === "approved").length,
@@ -254,6 +272,7 @@ export function summarizeApexOsKnowledgeVault(value = []) {
       category,
       rows.filter((entry) => entry.category === category).length,
     ])),
+    reviewHistory,
   };
 }
 

@@ -384,9 +384,9 @@ Status:
 - Source metadata, review status, and summary status are visible for each vault row through source label, source URI, suggested/approved/archived state, and review note.
 - New uploaded knowledge is forced to `suggested` when created through the knowledge-upload source type, even if a client tries to create it as approved. It becomes trusted Apex OS context only after a separate manual approve action.
 - The vault supports search plus category, source, and review-status filtering inside the private operator-only Control Room.
-- Phase 5 hardening added client-side PDF text extraction and duplicate-source guarding on 2026-06-03, so John can intake PDFs without binary storage and avoid saving repeated active knowledge sources.
+- Phase 5 hardening added client-side PDF text extraction, category-scoped duplicate-source guarding, vault review history, and private knowledge export on 2026-06-03, so John can intake PDFs without binary storage, avoid saving repeated active knowledge sources, and audit/export reviewed private vault rows.
 - Secret/customer-email rejection, source-label requirements, operator-only API access, audit/activity logging, normal-admin/field-user blocking, and no-customer-mixing boundaries remain enforced.
-- Validation passed on 2026-06-03 with upload classification tests, role/access tests, focused Apex OS API/UI tests, broader route/nav/permission regression tests, `npm.cmd run build`, `git diff --check` with CRLF warnings only, desktop/mobile browser QA with no horizontal overflow, PDF intake/duplicate-guard browser QA, and normal admin blocked/redirected away from Apex OS.
+- Validation passed on 2026-06-03 with upload classification tests, role/access tests, focused Apex OS API/UI tests, broader route/nav/permission regression tests, `npm.cmd run build`, `git diff --check` with CRLF warnings only, desktop/mobile browser QA with no horizontal overflow, PDF intake/duplicate-guard browser QA, private export/review-history browser QA, and normal admin blocked from Apex OS/API access.
 
 ### Phase 6: Ask Apex Chat
 

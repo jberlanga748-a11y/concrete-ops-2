@@ -286,6 +286,21 @@ test("Apex OS memory is operator-only, source-backed, persisted, and audited", a
     assert.equal(uploadedKnowledge.apexOsMemoryEntry.approvedBy, "");
     assert.equal(storedApexOsMemory(fixture.sqliteFile)[0].sourceType, "knowledge-upload");
 
+    const duplicateKnowledge = await requestJson(fixture.baseUrl, "/api/apex-os/memory", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        category: "Apex HQ app docs",
+        title: "Phase 5 upload intake",
+        body: "A duplicate active knowledge upload should be blocked before manual review.",
+        sourceType: "knowledge-upload",
+        sourceLabel: "phase-5-upload.md",
+        sourceUri: "local-upload:phase-5-upload.md",
+        status: "suggested",
+      }),
+    });
+    assert.equal(duplicateKnowledge.response.status, 409);
+
     const created = await assertOk(fixture.baseUrl, "/api/apex-os/memory", {
       method: "POST",
       headers: authHeaders(operatorLogin.token),

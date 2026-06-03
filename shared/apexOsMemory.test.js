@@ -228,25 +228,92 @@ test("Apex OS knowledge vault summarizes and filters by category, source, status
     },
   ]);
 
-  assert.deepEqual(summarizeApexOsKnowledgeVault(memory), {
-    total: 2,
-    trusted: 1,
-    suggested: 1,
-    archived: 0,
-    sourceCount: 2,
-    sourceLabels: ["phase-5.md", "Sales notes"],
-    byCategory: {
-      "app-docs": 1,
-      "business-strategy": 0,
-      "marketing-sales": 1,
-      "customer-research": 0,
-      "legal-risk": 0,
-      "brand-design": 0,
-      "product-ideas": 0,
-      "private-owner-notes": 0,
-    },
+  const summary = summarizeApexOsKnowledgeVault(memory);
+  assert.equal(summary.total, 2);
+  assert.equal(summary.trusted, 1);
+  assert.equal(summary.suggested, 1);
+  assert.equal(summary.archived, 0);
+  assert.equal(summary.sourceCount, 2);
+  assert.deepEqual(summary.sourceLabels, ["phase-5.md", "Sales notes"]);
+  assert.deepEqual(summary.byCategory, {
+    "app-docs": 1,
+    "business-strategy": 0,
+    "marketing-sales": 1,
+    "customer-research": 0,
+    "legal-risk": 0,
+    "brand-design": 0,
+    "product-ideas": 0,
+    "private-owner-notes": 0,
   });
+  assert.equal(summary.reviewHistory.length, 2);
+  assert.equal(summary.reviewHistory.some((entry) => entry.title === "Phase 5 master plan" && entry.sourceUri === "local-upload:phase-5.md"), true);
   assert.deepEqual(filterApexOsKnowledgeVault(memory, { category: "app-docs" }).map((entry) => entry.title), ["Phase 5 master plan"]);
   assert.deepEqual(filterApexOsKnowledgeVault(memory, { source: "sales", status: "approved" }).map((entry) => entry.title), ["Demo script"]);
   assert.deepEqual(filterApexOsKnowledgeVault(memory, { query: "reviewed intake" }).map((entry) => entry.title), ["Phase 5 master plan"]);
+});
+
+test("Apex OS knowledge vault duplicate guard is category and active source scoped", () => {
+  const memory = normalizeApexOsMemory([
+    {
+      id: "AOM-KV-1",
+      category: "app-docs",
+      title: "Phase 5 master plan",
+      body: "Knowledge Upload Vault needs private reviewed intake.",
+      sourceType: "knowledge-upload",
+      sourceLabel: "phase-5.md",
+      sourceUri: "local-upload:phase-5.md",
+      status: "suggested",
+    },
+    {
+      id: "AOM-KV-2",
+      category: "marketing-sales",
+      title: "Phase 5 master plan",
+      body: "Same title in a different category is not a duplicate without a matching source.",
+      sourceType: "knowledge-upload",
+      sourceLabel: "phase-5.md",
+      sourceUri: "local-upload:phase-5-marketing.md",
+      status: "suggested",
+    },
+    {
+      id: "AOM-KV-3",
+      category: "app-docs",
+      title: "Archived duplicate",
+      body: "Archived rows should not block new intake.",
+      sourceType: "knowledge-upload",
+      sourceLabel: "old-app-doc.md",
+      sourceUri: "local-upload:old-app-doc.md",
+      status: "archived",
+    },
+  ]);
+
+  assert.equal(findApexOsMemoryDuplicate({
+    category: "app-docs",
+    title: "New app docs title",
+    body: "Same source URI should be blocked.",
+    sourceType: "knowledge-upload",
+    sourceLabel: "different.md",
+    sourceUri: "local-upload:phase-5.md",
+  }, memory)?.id, "AOM-KV-1");
+  assert.equal(findApexOsMemoryDuplicate({
+    category: "app-docs",
+    title: "Phase 5 master plan",
+    body: "Same source label and title should be blocked.",
+    sourceType: "knowledge-upload",
+    sourceLabel: "phase-5.md",
+  }, memory)?.id, "AOM-KV-1");
+  assert.equal(findApexOsMemoryDuplicate({
+    category: "customer-research",
+    title: "Phase 5 master plan",
+    body: "Same title and source label in another category is allowed.",
+    sourceType: "knowledge-upload",
+    sourceLabel: "phase-5.md",
+  }, memory), null);
+  assert.equal(findApexOsMemoryDuplicate({
+    category: "app-docs",
+    title: "Replacement archived source",
+    body: "Archived duplicate source should not block.",
+    sourceType: "knowledge-upload",
+    sourceLabel: "old-app-doc.md",
+    sourceUri: "local-upload:old-app-doc.md",
+  }, memory), null);
 });
