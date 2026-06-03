@@ -17,6 +17,11 @@ import {
 } from "./api";
 import { Badge, Button, Card, Icon, PageHeader, SectionHeader } from "./app-shell-components";
 import { deriveApexControlRoomState } from "./apex-control-room-utils";
+import {
+  buildApexOsAskApprovalPacketDraft,
+  buildApexOsAskDecisionDraft,
+  buildApexOsAskTaskPacketDraft,
+} from "../shared/apexOsAsk.js";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -118,6 +123,7 @@ function AskApexAnswerPanel({ response, error }) {
   const answer = response.answer;
   const sourceLabels = Array.isArray(answer.sourceLabels) ? answer.sourceLabels : [];
   const approvalWarnings = Array.isArray(answer.approvalWarnings) ? answer.approvalWarnings : [];
+  const evidenceRows = Array.isArray(response.evidenceUsed) ? response.evidenceUsed : [];
 
   return (
     <div className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-4">
@@ -162,28 +168,110 @@ function AskApexAnswerPanel({ response, error }) {
           </div>
         </div>
       </div>
+
+      <details className="mt-4 min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+        <summary className="cursor-pointer break-words text-xs font-black uppercase tracking-[0.16em] text-slate-500">Evidence used</summary>
+        <div className="mt-3 grid min-w-0 gap-2">
+          {evidenceRows.length ? evidenceRows.map((row) => (
+            <StatusRow key={row.id || row.sourceLabel} item={{
+              id: row.id,
+              title: `#${row.rank || 1} ${row.title || row.sourceLabel}`,
+              status: response.context?.contextScope || "all",
+              detail: `${row.sourceLabel || "Source"}${row.sourceUri ? ` | ${row.sourceUri}` : ""}`,
+              tone: "blue",
+            }} />
+          )) : <EmptyPanel>No evidence rows were returned for this answer.</EmptyPanel>}
+        </div>
+      </details>
     </div>
   );
 }
 
 function AskApexPanel({ state, sessionToken, question, setQuestion }) {
+  const [contextScope, setContextScope] = useState("all");
   const [response, setResponse] = useState(null);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [actionNotice, setActionNotice] = useState("");
+  const [draftingAction, setDraftingAction] = useState("");
+  const [draftedActions, setDraftedActions] = useState({});
+  const [askedQuestion, setAskedQuestion] = useState("");
   const canAsk = state.canView && Boolean(sessionToken) && question.trim() && !submitting;
+  const canDraftFromAnswer = state.canView && Boolean(sessionToken) && Boolean(response?.answer) && !draftingAction;
 
   async function handleSubmit(event) {
     event.preventDefault();
     if (!canAsk) return;
     setSubmitting(true);
     setError("");
+    setActionNotice("");
+    setDraftedActions({});
     try {
-      const payload = await askApexOs(sessionToken, { question: question.trim() });
+      const nextQuestion = question.trim();
+      setAskedQuestion(nextQuestion);
+      const payload = await askApexOs(sessionToken, { question: nextQuestion, contextScope });
       setResponse(payload);
     } catch (requestError) {
       setError(requestError?.message || "Ask Apex could not answer right now.");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function draftDecision() {
+    if (!canDraftFromAnswer) return;
+    setDraftingAction("decision");
+    setActionNotice("");
+    try {
+      await createApexOsMemory(sessionToken, buildApexOsAskDecisionDraft({
+        question: askedQuestion || question,
+        answer: response.answer,
+        requestId: response.requestId,
+      }));
+      setDraftedActions((current) => ({ ...current, decision: true }));
+      setActionNotice("Decision draft saved as suggested memory. It is not trusted context until manually approved.");
+    } catch (draftError) {
+      setActionNotice(draftError?.message || "Decision draft could not be saved right now.");
+    } finally {
+      setDraftingAction("");
+    }
+  }
+
+  async function draftTaskPacket() {
+    if (!canDraftFromAnswer) return;
+    setDraftingAction("task");
+    setActionNotice("");
+    try {
+      await createApexOsApprovalPacket(sessionToken, buildApexOsAskTaskPacketDraft({
+        question: askedQuestion || question,
+        answer: response.answer,
+        requestId: response.requestId,
+      }));
+      setDraftedActions((current) => ({ ...current, task: true }));
+      setActionNotice("Task packet drafted for manual review. It does not queue or run any work.");
+    } catch (draftError) {
+      setActionNotice(draftError?.message || "Task packet could not be drafted right now.");
+    } finally {
+      setDraftingAction("");
+    }
+  }
+
+  async function draftApprovalPacket() {
+    if (!canDraftFromAnswer) return;
+    setDraftingAction("approval");
+    setActionNotice("");
+    try {
+      await createApexOsApprovalPacket(sessionToken, buildApexOsAskApprovalPacketDraft({
+        question: askedQuestion || question,
+        answer: response.answer,
+        requestId: response.requestId,
+      }));
+      setDraftedActions((current) => ({ ...current, approval: true }));
+      setActionNotice("Approval packet drafted for review. Approval and execution remain locked.");
+    } catch (draftError) {
+      setActionNotice(draftError?.message || "Approval packet could not be drafted right now.");
+    } finally {
+      setDraftingAction("");
     }
   }
 
@@ -194,13 +282,13 @@ function AskApexPanel({ state, sessionToken, question, setQuestion }) {
           <button
             key={item.id}
             type="button"
-            disabled
-            className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-left opacity-90"
+            onClick={() => setContextScope(item.id)}
+            className={`min-w-0 rounded-xl border px-3 py-3 text-left transition ${contextScope === item.id ? "border-orange-300 bg-orange-50" : "border-slate-200 bg-slate-50 hover:border-slate-300"}`}
             title={`${item.title}: ${item.status}`}
           >
             <span className="block break-words text-sm font-black text-slate-950">{item.title}</span>
             <span className="mt-1 block break-words text-xs font-bold leading-5 text-slate-600">{item.detail}</span>
-            <span className="mt-2 inline-flex"><ToneBadge tone={item.tone}>{item.status}</ToneBadge></span>
+            <span className="mt-2 inline-flex"><ToneBadge tone={contextScope === item.id ? "orange" : item.tone}>{contextScope === item.id ? "Selected" : item.status}</ToneBadge></span>
           </button>
         ))}
       </div>
@@ -233,6 +321,26 @@ function AskApexPanel({ state, sessionToken, question, setQuestion }) {
       </form>
 
       <AskApexAnswerPanel response={response} error={error} />
+      {response?.answer ? (
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+          <SectionHeader title="Ask Apex Draft Actions" description="Draft-only outputs from this answer. Nothing approves, executes, sends, spends, or deploys." />
+          <div className="mt-3 flex min-w-0 flex-wrap gap-2">
+            <Button type="button" variant="secondary" size="sm" onClick={draftDecision} disabled={!canDraftFromAnswer || draftedActions.decision}>
+              <Icon name="clipboard" /> {draftingAction === "decision" ? "Saving..." : "Save as decision"}
+            </Button>
+            <Button type="button" variant="secondary" size="sm" onClick={draftTaskPacket} disabled={!canDraftFromAnswer || draftedActions.task}>
+              <Icon name="spark" /> {draftingAction === "task" ? "Drafting..." : "Create task draft"}
+            </Button>
+            <Button type="button" variant="secondary" size="sm" onClick={draftApprovalPacket} disabled={!canDraftFromAnswer || draftedActions.approval}>
+              <Icon name="lock" /> {draftingAction === "approval" ? "Drafting..." : "Needs approval"}
+            </Button>
+            <Button type="button" disabled variant="secondary" size="sm">
+              <Icon name="lock" /> Execute locked
+            </Button>
+          </div>
+          <p className="mt-3 break-words text-xs font-black leading-5 text-slate-500">{actionNotice || "Decision drafts stay suggested. Task and approval drafts stay review-only packets."}</p>
+        </div>
+      ) : null}
       <StatusRow item={state.askApexChat.answerPreview} />
     </div>
   );

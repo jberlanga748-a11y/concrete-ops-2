@@ -199,12 +199,14 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.askApexChat.evidenceCount, 6);
   assert.equal(state.askApexChat.actionLockCount, APEX_OS_CHAT_ACTION_LOCKS.length);
   assert.match(state.askApexChat.placeholder, /app, roadmap, agents, launch, business/);
+  assert.equal(state.askApexChat.contexts.some((item) => item.id === "app-code" && item.status === "Selectable"), true);
   assert.equal(state.askApexChat.contexts.some((item) => item.id === "all" && item.status === "Review required"), true);
   assert.equal(state.askApexChat.evidenceRows.some((item) => item.id === "knowledge-vault" && item.status === "Upload intake ready"), true);
   assert.equal(state.askApexChat.evidenceRows.some((item) => item.id === "launch-readiness" && item.status === "Launch locked"), true);
   assert.equal(state.askApexChat.actionLocks.some((item) => item.id === "ask-provider" && item.status === "Server-only"), true);
-  assert.equal(state.askApexChat.actionLocks.some((item) => item.id === "save-decision" && item.status === "Approval required"), true);
-  assert.equal(state.askApexChat.actionLocks.some((item) => item.id === "create-task" && item.status === "Approval required"), true);
+  assert.equal(state.askApexChat.actionLocks.some((item) => item.id === "save-decision" && item.status === "Suggested only"), true);
+  assert.equal(state.askApexChat.actionLocks.some((item) => item.id === "create-task" && item.status === "Draft packet"), true);
+  assert.equal(state.askApexChat.actionLocks.some((item) => item.id === "needs-approval" && item.status === "Draft packet"), true);
   assert.match(state.askApexChat.answerPreview.detail, /Apex answers from approved memory and source labels/);
   assert.equal(state.voiceInterface.status, "Transcript confirm ready");
   assert.equal(state.voiceInterface.providerStatus, "Speech provider locked");

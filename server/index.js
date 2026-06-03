@@ -113,6 +113,7 @@ import {
 import {
   APEX_OS_ASK_OPENAI_URL,
   buildApexOsAskContext,
+  buildApexOsAskEvidenceRows,
   buildApexOsAskOpenAiRequest,
   buildLocalApexOsAnswer,
   parseOpenAiApexOsAskPayload,
@@ -12814,6 +12815,7 @@ app.post("/api/apex-os/ask", requireAuth, asyncRoute(async (req, res) => {
 
   const context = buildApexOsAskContext({
     question,
+    contextScope: req.body?.contextScope,
     companySettings: companySettingsForState(state, req.auth.user),
     user: req.auth.user,
   });
@@ -12853,7 +12855,9 @@ app.post("/api/apex-os/ask", requireAuth, asyncRoute(async (req, res) => {
 
   res.json({
     answer,
+    evidenceUsed: buildApexOsAskEvidenceRows(context),
     context: {
+      contextScope: context.contextScope,
       sourceCount: context.sources.length,
       memoryCount: context.memory.length,
       approvalWarningCount: context.approvalWarnings.length,

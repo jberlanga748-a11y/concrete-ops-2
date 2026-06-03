@@ -351,13 +351,16 @@ test("Apex OS memory is operator-only, source-backed, persisted, and audited", a
     const asked = await assertOk(fixture.baseUrl, "/api/apex-os/ask", {
       method: "POST",
       headers: authHeaders(operatorLogin.token),
-      body: JSON.stringify({ question: "Can Apex deploy and send customers messages today?" }),
+      body: JSON.stringify({ question: "Can Apex deploy and send customers messages today?", contextScope: "docs-memory" }),
     });
     assert.equal(asked.answer.providerConfigured, false);
     assert.equal(asked.answer.mode, "local-source-backed");
+    assert.equal(asked.context.contextScope, "docs-memory");
     assert.equal(asked.context.memoryCount, 1);
     assert.equal(asked.answer.sourceLabels.some((label) => label === "Apex OS master plan"), true);
     assert.equal(asked.answer.approvalWarnings.length >= 2, true);
+    assert.equal(asked.evidenceUsed[0].rank, 1);
+    assert.equal(asked.evidenceUsed.some((row) => row.sourceLabel === "Apex OS master plan"), true);
 
     const briefing = await assertOk(fixture.baseUrl, "/api/apex-os/daily-briefing", {
       headers: authHeaders(operatorLogin.token),

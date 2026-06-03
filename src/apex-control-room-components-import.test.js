@@ -61,9 +61,17 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /Ask Apex/);
   assert.match(componentSource, /Ask Apex Actions/);
   assert.match(componentSource, /Ask Apex Evidence/);
+  assert.match(componentSource, /Ask Apex Draft Actions/);
+  assert.match(componentSource, /Evidence used/);
   assert.match(componentSource, /Source-Backed Answer Rules/);
   assert.match(componentSource, /askApexOs/);
   assert.match(componentSource, /Apex answer/);
+  assert.match(componentSource, /Save as decision/);
+  assert.match(componentSource, /Create task draft/);
+  assert.match(componentSource, /Needs approval/);
+  assert.match(componentSource, /buildApexOsAskDecisionDraft/);
+  assert.match(componentSource, /buildApexOsAskTaskPacketDraft/);
+  assert.match(componentSource, /buildApexOsAskApprovalPacketDraft/);
   assert.match(componentSource, /No execution/);
   assert.match(componentSource, /Voice Interface/);
   assert.match(componentSource, /Voice Safety Gates/);

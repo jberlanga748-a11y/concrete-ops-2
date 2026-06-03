@@ -428,13 +428,14 @@ Validation:
 
 Status:
 
-- Read-only first UI implemented locally on 2026-06-02 as Apex OS Slice 6.
-- The Control Room now shows Ask Apex context lanes, source/evidence rows, source-backed answer rules, and locked chat actions.
-- Operator-only Ask Apex API implemented locally on 2026-06-02 as Apex OS Slice 13.
-- `/api/apex-os/ask` now answers from approved Apex OS memory and source rows, returns source labels and approval warnings, falls back to local source-backed mode when `OPENAI_API_KEY` is not configured, and is provider-ready for server-side OpenAI chat completion when the key is configured.
-- Ask Apex UI wiring implemented locally on 2026-06-02 as Apex OS Slice 14; the private Control Room panel now submits to `/api/apex-os/ask` and renders answer text, source labels, approval warnings, evidence counts, and provider/local mode status.
-- No streaming response, frontend provider secret, durable chat storage, save-as-decision write, create-task write, approval mutation, deploy, production action, sends, money movement, customer-visible action, or irreversible execution path was added.
-- Validation passed with focused Apex OS utility/import tests, the 77-test permission/routing/bootstrap suite, `npm.cmd run build`, desktop/mobile browser QA with no horizontal overflow and disabled chat controls, and normal admin blocked/redirected away from Apex OS.
+- Completed locally to 100% on 2026-06-03.
+- The private Control Room now has a complete Ask Apex chat surface with selectable context scopes for app/code, docs/memory, business, launch, agents, and all.
+- Operator-only `/api/apex-os/ask` accepts the selected context scope, answers from approved Apex OS memory and source rows, returns ranked evidence, source labels, approval warnings, provider/local mode status, and falls back to local source-backed answers when `OPENAI_API_KEY` is not configured.
+- The Apex answer card includes source-backed answer text, source labels, approval warnings, provider/local mode, and an "Evidence used" drawer with ranked source rows.
+- Save as decision now writes a suggested Apex OS memory draft only; the decision does not become trusted context until separately approved in Decision Memory.
+- Create task and Needs approval now create review-only approval packet drafts; they do not approve, queue, run, deploy, send, spend, publish, mutate production, or trigger customer-visible actions.
+- The Execute control remains locked, and no frontend provider secret, external action, customer-visible answer path, production mutation, schema change, deploy, send, spend, billing/payment, or irreversible execution path was added.
+- Validation passed on 2026-06-03 with focused Ask Apex utility/API/UI tests, broader Apex OS route/nav/permission regression tests, `npm.cmd run build`, desktop/mobile browser QA with no horizontal overflow, ranked evidence/draft-action browser QA, normal admin UI/API blocking, and cleanup of the temporary local QA memory/approval rows.
 
 ### Phase 7: Agent Control Plane
 
@@ -1089,11 +1090,12 @@ Approval needed:
 
 Status:
 
-- Read-only first UI implemented locally on 2026-06-02 as Apex OS Slice 6.
-- Ask Apex shows private context lanes, source/evidence planning, live source-backed questions, and answer safety rules inside the private Control Room.
-- Operator-only `/api/apex-os/ask` implemented locally on 2026-06-02 as Apex OS Slice 13 with approved-memory context, source labels, approval warnings, local source-backed fallback, and server-side OpenAI provider readiness when `OPENAI_API_KEY` is configured.
-- Control Room UI wiring implemented locally on 2026-06-02 as Apex OS Slice 14 with answer rendering, evidence counts, source labels, approval warnings, provider/local mode status, and locked non-execution controls.
-- Streaming, durable chat transcript storage, save-as-decision writes, create-task writes, approval mutations, deploy, production actions, sends, money movement, and customer-visible actions remain locked behind later approval.
+- Completed locally to 100% on 2026-06-03 as Apex OS Phase 6.
+- Ask Apex shows private selectable context scopes, source-backed questions, source-ranked answer cards, approval warnings, provider/local mode, and an "Evidence used" drawer inside the private Control Room.
+- Operator-only `/api/apex-os/ask` now receives the selected context scope, filters approved Apex OS memory/source rows by scope, returns ranked evidence rows, and remains server-side provider-ready when `OPENAI_API_KEY` is configured.
+- Save-as-decision creates suggested decision memory only, and create-task / needs-approval create review-only approval packet drafts only.
+- No streaming, durable chat transcript storage, frontend provider secret, approval execution, deploy, production action, send, money movement, customer-visible action, or irreversible action path was added.
+- Focused Ask Apex tests, broader route/nav/permission tests, production build, desktop/mobile browser QA, and normal-admin UI/API blocking all passed on 2026-06-03.
 
 ### Slice 8: Voice Interface
 

@@ -2,9 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildApexOsAskApprovalPacketDraft,
   buildApexOsAskContext,
+  buildApexOsAskDecisionDraft,
+  buildApexOsAskEvidenceRows,
   buildApexOsAskOpenAiRequest,
+  buildApexOsAskTaskPacketDraft,
   buildLocalApexOsAnswer,
+  inferApexOsAskApprovalCategory,
   parseOpenAiApexOsAskPayload,
 } from "./apexOsAsk.js";
 
@@ -33,8 +38,44 @@ test("Ask Apex builds source-backed context from approved memory", () => {
   });
 
   assert.equal(context.memory.length, 1);
+  assert.equal(context.contextScope, "all");
   assert.equal(context.sources.some((source) => source.sourceLabel === "Release plan"), true);
   assert.equal(context.approvalWarnings.some((warning) => /Production\/release/i.test(warning)), true);
+});
+
+test("Ask Apex context selector filters ranked evidence rows", () => {
+  const context = buildApexOsAskContext({
+    question: "What app code supports Ask Apex?",
+    contextScope: "app-code",
+    companySettings: {
+      apexOsMemory: [
+        {
+          id: "AOM-APP",
+          category: "app-docs",
+          title: "Control Room docs",
+          body: "Ask Apex is in the Control Room.",
+          sourceLabel: "App docs",
+          status: "approved",
+        },
+        {
+          id: "AOM-BIZ",
+          category: "business-strategy",
+          title: "Business note",
+          body: "This should not be the first app-code answer source.",
+          sourceLabel: "Business memo",
+          status: "approved",
+        },
+      ],
+    },
+  });
+  const evidenceRows = buildApexOsAskEvidenceRows(context);
+
+  assert.equal(context.contextScope, "app-code");
+  assert.equal(context.memory.some((entry) => entry.sourceLabel === "App docs"), true);
+  assert.equal(context.memory.some((entry) => entry.sourceLabel === "Business memo"), false);
+  assert.equal(evidenceRows[0].rank, 1);
+  assert.equal(evidenceRows.every((row) => row.contextScope === "app-code"), true);
+  assert.equal(evidenceRows.some((row) => row.sourceLabel === "src/apex-control-room-components.jsx"), true);
 });
 
 test("Ask Apex local answer includes source labels and approval warnings", () => {
@@ -76,4 +117,42 @@ test("Ask Apex OpenAI request and parser keep strict source-backed shape", () =>
   assert.equal(parsed.providerConfigured, true);
   assert.equal(parsed.mode, "provider-source-backed");
   assert.equal(parsed.sourceLabels[0], "Apex OS master plan");
+});
+
+test("Ask Apex draft action payloads stay review-only", () => {
+  const answer = {
+    answer: "Prepare release notes and stop before production deploy.",
+    approvalWarnings: ["Production/release action requires an approval packet and release gate."],
+    nextAction: "Prepare approval packet",
+  };
+
+  const decision = buildApexOsAskDecisionDraft({
+    question: "Can we deploy?",
+    answer,
+    requestId: "REQ-1",
+  });
+  assert.equal(decision.status, "suggested");
+  assert.equal(decision.category, "decision");
+  assert.equal(decision.sourceUri, "ask-apex:REQ-1:decision");
+
+  const task = buildApexOsAskTaskPacketDraft({
+    question: "What is the next task?",
+    answer,
+    requestId: "REQ-2",
+  });
+  assert.equal(task.status, "draft");
+  assert.equal(task.requestedActionCategory, "business-operations");
+  assert.equal(task.sourceUri, "ask-apex:REQ-2:task");
+  assert.equal(task.exactApprovalPhrase, "");
+
+  const approval = buildApexOsAskApprovalPacketDraft({
+    question: "Can we deploy?",
+    answer,
+    requestId: "REQ-3",
+  });
+  assert.equal(approval.status, "draft");
+  assert.equal(approval.requestedActionCategory, "deploy");
+  assert.equal(approval.riskLevel, "high");
+  assert.equal(approval.sourceUri, "ask-apex:REQ-3:approval");
+  assert.equal(inferApexOsAskApprovalCategory(answer), "deploy");
 });
