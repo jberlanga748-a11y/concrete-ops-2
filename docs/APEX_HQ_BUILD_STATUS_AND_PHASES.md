@@ -593,7 +593,7 @@ Do not build these until the above phases are stronger:
 - AI ad publishing or spend.
 - Hidden GPS tracking.
 - Full website builder.
-- Full automated PDF takeoff from blueprints. Apex Takeoff Studio may begin with manual/review-first takeoff and later AI assistance, but automated blueprint quantity detection remains a separately reviewed advanced phase.
+- Full automated PDF takeoff from blueprints. Apex Takeoff Studio already has a manual/review-first takeoff checkpoint plus local draft-only plan-text, auto-measure, and trade-pack helpers; certified automated blueprint quantity detection, provider-backed OCR/vision, and production telemetry remain separately reviewed advanced phases.
 
 ## Package Direction
 

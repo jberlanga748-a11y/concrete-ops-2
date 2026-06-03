@@ -660,7 +660,7 @@ Deferred Phase 19 enhancements:
 
 ## Phase 20 Checkpoint: Final Freeze And Audit
 
-Completed locally on 2026-05-31:
+Completed as a review-first code checkpoint on 2026-05-31 and included in current production code ancestry by the Apex OS Phase 18 release line:
 
 - Takeoff Studio Phases 14-19 are implemented, validated, committed, and pushed to `main`.
 - Final validation covers focused Takeoff Studio tests, estimate verification, role verification, production build, diff check, admin `/estimates` desktop/mobile QA, field-role mobile restricted `/estimates` QA, and focused owner/admin panel checks.
