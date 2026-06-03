@@ -337,9 +337,10 @@ Status:
 - Source and timestamp tracking are shown for seeded plan decisions and durable memory rows.
 - Manual draft, load, approve, and archive controls are available only to the private Apex OS operator account through existing operator-only `/api/apex-os/memory` endpoints.
 - Suggested memory does not become approved Apex OS context until manually approved; archived memory no longer feeds approved context.
+- Decision-memory source/category/status/text browsing, review-history display, active duplicate blocking, server-side duplicate rejection, and private JSON export are now included in the "What Did I Decide?" view.
 - Secret/customer-email rejection, source-label requirements, audit/activity logging, restricted-route/API protection, and no-hidden-memory boundaries are enforced.
 - No schema change, auth/session change, provider setup, production data mutation, deploy, customer-visible action, send, spend, billing/payment, file deletion, or Phase 5 upload/storage/parser work was added in this completion pass.
-- Validation passed on 2026-06-03 with focused memory utility/API/UI import tests plus role permission tests; build, diff check, and browser QA are recorded in the living finish plan.
+- Hard-finish validation passed on 2026-06-03 with focused memory utility/API/UI import tests, role permission tests, broader route/nav/bootstrap validation, `npm.cmd run build`, and browser QA recorded in the living finish plan.
 
 ### Phase 5: Knowledge Upload Vault
 

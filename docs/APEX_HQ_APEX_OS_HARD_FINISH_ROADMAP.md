@@ -116,6 +116,10 @@ Blocked right now:
 
 ### Phase 4: Decision Memory And Operating Rules
 
+Status:
+
+- Hard-finished locally on 2026-06-03 with decision-only durable memory separation, source/category/status/text browsing, review history, active duplicate checks, server-side duplicate rejection, private export, manual approve/archive, source/timestamp tracking, secret rejection, and operator-only access. No schema change was needed because existing company settings storage remained sufficient for this phase.
+
 Hard-finish package:
 
 - Move from minimal durable memory to a complete private decision system if needed: richer source browsing, review history, category coverage, duplicate checks, export, and stronger audit display.

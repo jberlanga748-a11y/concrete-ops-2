@@ -264,18 +264,23 @@ What was completed now:
 - Kept newly drafted memory suggested by default so it does not become operating context until explicitly approved.
 - Updated focused tests and docs to mark Phase 4 complete.
 
+Hard-finish completed now:
+
+- Separated Phase 4 decision-memory rows from Phase 5 knowledge-vault rows so uploaded knowledge no longer appears as a decision in the "What Did I Decide?" view.
+- Added decision-memory source/category/status/text browsing, active source/title duplicate blocking in the UI, server-side active duplicate rejection through `/api/apex-os/memory`, review-history display, and a copyable private JSON export for matching decisions.
+- Added decision-memory utility coverage for source summaries, review history, filters, duplicate detection, and category separation.
+
 Risk level:
 
 - Low. This uses existing company settings persistence and existing operator-only Apex OS API guards. No schema, auth/session, provider, production, customer-visible, billing/payment, send, spend, deletion, or Phase 5 upload/parser work was added.
 
 Validation plan/results:
 
-- Focused Phase 4 validation passed locally: `node --test --test-concurrency=1 shared/apexOsMemory.test.js server/apex-os-memory.test.js src/apex-control-room-utils.test.js src/apex-control-room-components-import.test.js shared/permissions.test.js server/role-permissions.test.js`.
-- Broader Apex OS route/nav/bootstrap validation passed locally: `node --test --test-concurrency=1 shared/permissions.test.js src/app-routing.test.js src/navigation-utils.test.js src/app-state-utils.test.js src/mobile-nav-utils.test.js src/app-navigation-components-import.test.js src/apex-control-room-utils.test.js src/apex-control-room-components-import.test.js server/role-permissions.test.js` with 80 passing tests.
+- Focused Phase 4 validation passed locally: `node --test --test-concurrency=1 shared/apexOsMemory.test.js server/apex-os-memory.test.js src/apex-control-room-utils.test.js src/apex-control-room-components-import.test.js shared/permissions.test.js server/role-permissions.test.js` with 30 passing tests.
+- Broader Apex OS route/nav/bootstrap validation passed locally: `node --test --test-concurrency=1 shared/permissions.test.js src/app-routing.test.js src/navigation-utils.test.js src/app-navigation-components-import.test.js src/apex-control-room-utils.test.js src/apex-control-room-components-import.test.js server/role-permissions.test.js server/apex-os-memory.test.js` with 68 passing tests.
 - `npm.cmd run build` passed with the existing large-chunk warnings.
-- `git diff --check` passed with CRLF warnings only.
-- Browser QA passed locally on `http://127.0.0.1:5173/apex-control-room`: private operator desktop drafted, manually approved, and archived a local-only decision memory row; private operator mobile showed the Phase 4 memory surface with no horizontal overflow; normal admin direct-route QA redirected to `/` and exposed no Apex Control Room, Decision Memory, or "What Did I Decide?" content.
-- QA screenshots: `ui-audit/apex-control-room-local/desktop-apex-control-room-phase-4-decision-memory.png`, `ui-audit/apex-control-room-local/mobile-apex-control-room-phase-4-decision-memory.png`, and `ui-audit/apex-control-room-local/desktop-admin-blocked-phase-4-decision-memory.png`.
+- Browser QA passed locally on `http://127.0.0.1:5173/apex-control-room`: private operator desktop drafted a local-only decision memory row, saw active duplicate blocking, searched/filtered it, manually approved it, archived it, and confirmed it appeared in the private export; private operator desktop and mobile showed no horizontal overflow; normal admin direct-route QA exposed no Apex Control Room, Decision Memory, or "What Did I Decide?" content and `/api/apex-os/memory` returned 403.
+- QA screenshots: `ui-audit/apex-control-room-local/desktop-apex-control-room-phase-4-hard-finish.png`, `ui-audit/apex-control-room-local/mobile-apex-control-room-phase-4-hard-finish.png`, and `ui-audit/apex-control-room-local/desktop-admin-blocked-phase-4-hard-finish.png`.
 - The browser-created QA memory row was removed from local data after validation, and `demo.ops@apexhq.app` / `demo.admin@apexhq.app` `operator_access` flags were restored to `0`.
 
 Permissions impact:

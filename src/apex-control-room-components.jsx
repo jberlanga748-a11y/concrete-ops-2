@@ -388,14 +388,76 @@ const EMPTY_DECISION_MEMORY_FORM = {
   confidence: 80,
 };
 
+function filterDecisionRows(rows = [], { category, source, status, query } = {}) {
+  const normalizedQuery = String(query || "").trim().toLowerCase();
+  const normalizedSource = String(source || "all").trim().toLowerCase();
+  return rows
+    .filter((row) => !category || category === "all" || row.category === category)
+    .filter((row) => !status || status === "all" || row.status === status)
+    .filter((row) => source === "all" || [row.sourceLabel, row.sourceType, row.sourceUri].some((value) => String(value || "").toLowerCase().includes(normalizedSource)))
+    .filter((row) => {
+      if (!normalizedQuery) return true;
+      return [row.title, row.body, row.sourceLabel, row.sourceUri, row.reviewNote, row.category].some((value) => String(value || "").toLowerCase().includes(normalizedQuery));
+    });
+}
+
+function decisionDuplicateKeys({ category = "general", title = "", sourceLabel = "", sourceUri = "" } = {}) {
+  const normalizedCategory = String(category || "general").trim().toLowerCase();
+  return [
+    sourceUri ? `${normalizedCategory}|uri|${sourceUri}` : "",
+    sourceLabel && title ? `${normalizedCategory}|source-title|${sourceLabel}|${title}` : "",
+  ].map((value) => String(value || "").trim().toLowerCase()).filter(Boolean);
+}
+
+function formatDecisionExport(rows = []) {
+  if (!rows.length) return "No decision memory rows match the current filters.";
+  return JSON.stringify(rows.map((row) => ({
+    category: row.category,
+    title: row.title,
+    status: row.status,
+    sourceLabel: row.sourceLabel,
+    sourceUri: row.sourceUri,
+    reviewNote: row.reviewNote,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    approvedAt: row.approvedAt,
+    archivedAt: row.archivedAt,
+    body: row.body,
+  })), null, 2);
+}
+
 function DecisionMemoryManager({ state, sessionToken }) {
   const [form, setForm] = useState(EMPTY_DECISION_MEMORY_FORM);
   const [memoryRows, setMemoryRows] = useState(state.decisionMemory?.durableEntries || []);
   const [summary, setSummary] = useState(null);
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [sourceFilter, setSourceFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [queryFilter, setQueryFilter] = useState("");
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(false);
+  const sourceOptions = [
+    ...new Set([
+      ...(state.decisionMemory?.sourceOptions || []),
+      ...memoryRows.map((row) => row.sourceLabel).filter(Boolean),
+    ]),
+  ].sort((left, right) => left.toLowerCase().localeCompare(right.toLowerCase()));
+  const filteredRows = filterDecisionRows(memoryRows, {
+    category: categoryFilter,
+    source: sourceFilter,
+    status: statusFilter,
+    query: queryFilter,
+  });
+  const latestReviewRows = filteredRows
+    .slice()
+    .sort((left, right) => String(right.updatedAt || right.createdAt || "").localeCompare(String(left.updatedAt || left.createdAt || "")))
+    .slice(0, 4);
+  const candidateDuplicateKeys = new Set(decisionDuplicateKeys(form));
+  const duplicateRow = candidateDuplicateKeys.size
+    ? memoryRows.find((row) => row.status !== "archived" && decisionDuplicateKeys(row).some((key) => candidateDuplicateKeys.has(key)))
+    : null;
   const canUse = state.canView && Boolean(sessionToken) && !loading;
-  const canCreate = canUse && form.title.trim() && form.body.trim() && form.sourceLabel.trim();
+  const canCreate = canUse && form.title.trim() && form.body.trim() && form.sourceLabel.trim() && !duplicateRow;
   const activeSummary = summary || state.decisionMemory?.memorySummary || { total: memoryRows.length, approved: 0, suggested: 0, archived: 0 };
 
   function updateField(field, value) {
@@ -476,6 +538,20 @@ function DecisionMemoryManager({ state, sessionToken }) {
           detail: "Product identity, safety, roadmap, build freeze, business goal, provider/account, and personal preference decisions are covered.",
           tone: "green",
         }} />
+        <StatusRow item={{
+          id: "decision-memory-sources",
+          title: "Source browsing",
+          status: `${sourceOptions.length || 0}`,
+          detail: `${filteredRows.length || 0} rows match the current source, category, status, and text filters.`,
+          tone: sourceOptions.length ? "green" : "blue",
+        }} />
+        <StatusRow item={{
+          id: "decision-memory-duplicates",
+          title: "Duplicate guard",
+          status: duplicateRow ? "Blocked" : "Ready",
+          detail: duplicateRow ? `Active match: ${duplicateRow.title}. Archive it before replacing this source/title.` : "Active source/title duplicates are blocked before draft and by the API.",
+          tone: duplicateRow ? "amber" : "green",
+        }} />
       </div>
 
       <form className="grid min-w-0 gap-3 rounded-xl border border-slate-200 bg-white p-3" onSubmit={submitMemory}>
@@ -523,18 +599,47 @@ function DecisionMemoryManager({ state, sessionToken }) {
             <Icon name="lock" /> No hidden memory
           </Button>
         </div>
-        <p className="break-words text-xs font-black leading-5 text-slate-500">{notice || "Memory requires a source label, stores no secrets, starts as suggested, and becomes operating context only after manual approval."}</p>
+        <p className="break-words text-xs font-black leading-5 text-slate-500">{notice || (duplicateRow ? `Duplicate blocked: ${duplicateRow.title}.` : "Memory requires a source label, stores no secrets, starts as suggested, and becomes operating context only after manual approval.")}</p>
       </form>
 
+      <div className="grid min-w-0 gap-3 rounded-xl border border-slate-200 bg-white p-3 lg:grid-cols-[minmax(0,1fr)_180px_180px_180px]">
+        <input
+          value={queryFilter}
+          onChange={(event) => setQueryFilter(event.target.value)}
+          placeholder="Search decisions, sources, notes"
+          className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700"
+        />
+        <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700">
+          <option value="all">All categories</option>
+          {state.decisionMemory.categories.map((category) => (
+            <option key={category.id} value={category.id}>{category.label}</option>
+          ))}
+        </select>
+        <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700">
+          <option value="all">All sources</option>
+          {sourceOptions.map((source) => <option key={source} value={source}>{source}</option>)}
+        </select>
+        <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700">
+          <option value="all">All statuses</option>
+          <option value="suggested">Suggested</option>
+          <option value="approved">Approved</option>
+          <option value="archived">Archived</option>
+        </select>
+      </div>
+
       <div className="grid min-w-0 gap-3">
-        {memoryRows.length ? memoryRows.slice(0, 6).map((row) => (
+        {filteredRows.length ? filteredRows.slice(0, 8).map((row) => (
           <div key={row.id} className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
             <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <p className="break-words text-[10px] font-black uppercase tracking-[0.16em] text-orange-700">{String(row.category || "general").replace(/-/g, " ")}</p>
                 <p className="mt-1 break-words text-sm font-black text-slate-950">{row.title}</p>
                 <p className="mt-1 break-words text-xs font-bold leading-5 text-slate-600">{row.body}</p>
-                <p className="mt-2 break-words text-[11px] font-black text-slate-500">Source: {row.sourceLabel || "Missing source"}{row.createdAt ? ` | Created: ${row.createdAt}` : ""}</p>
+                <p className="mt-2 break-words text-[11px] font-black text-slate-500">Source: {row.sourceLabel || "Missing source"}{row.sourceUri ? ` | URI: ${row.sourceUri}` : ""}</p>
+                <p className="mt-1 break-words text-[11px] font-black text-slate-500">
+                  Created: {row.createdAt || "unknown"}{row.updatedAt ? ` | Updated: ${row.updatedAt}` : ""}{row.approvedAt ? ` | Approved: ${row.approvedAt}` : ""}{row.archivedAt ? ` | Archived: ${row.archivedAt}` : ""}
+                </p>
+                {row.reviewNote ? <p className="mt-1 break-words text-[11px] font-black text-slate-500">Review: {row.reviewNote}</p> : null}
               </div>
               <ToneBadge tone={row.status === "approved" ? "green" : row.status === "archived" ? "slate" : "blue"}>{row.status}</ToneBadge>
             </div>
@@ -548,8 +653,34 @@ function DecisionMemoryManager({ state, sessionToken }) {
             </div>
           </div>
         )) : (
-          <EmptyPanel>No durable decision memory loaded yet.</EmptyPanel>
+          <EmptyPanel>No durable decision memory matches the current filters.</EmptyPanel>
         )}
+      </div>
+
+      <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+          <SectionHeader title="Review History" description={`${latestReviewRows.length || 0} latest matching decision rows.`} />
+          <div className="grid min-w-0 gap-2">
+            {latestReviewRows.length ? latestReviewRows.map((row) => (
+              <StatusRow key={`history-${row.id}`} item={{
+                id: `history-${row.id}`,
+                title: row.title,
+                status: row.status,
+                detail: `Created ${row.createdAt || "unknown"}${row.updatedAt ? `, updated ${row.updatedAt}` : ""}${row.approvedAt ? `, approved ${row.approvedAt}` : ""}${row.archivedAt ? `, archived ${row.archivedAt}` : ""}. ${row.reviewNote || "No review note."}`,
+                tone: row.status === "approved" ? "green" : row.status === "archived" ? "slate" : "blue",
+              }} />
+            )) : <EmptyPanel>No review history is visible for the current filters.</EmptyPanel>}
+          </div>
+        </div>
+
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+          <SectionHeader title="Decision Export" description="Copyable private JSON for the matching decision rows." />
+          <textarea
+            readOnly
+            value={formatDecisionExport(filteredRows)}
+            className="mt-3 min-h-48 w-full resize-y rounded-xl border border-slate-200 bg-slate-950 px-3 py-3 font-mono text-xs font-bold leading-5 text-slate-100"
+          />
+        </div>
       </div>
     </div>
   );

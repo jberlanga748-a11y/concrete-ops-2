@@ -317,6 +317,7 @@ test("deriveApexControlRoomState includes durable Apex OS decision memory summar
           title: "Private operating center",
           body: "Apex OS is private to John/operator access.",
           sourceLabel: "Apex OS master plan",
+          sourceUri: "docs/APEX_HQ_APEX_OS_COMMAND_CENTER_MASTER_PLAN.md",
           status: "approved",
           createdAt: "2026-06-02T01:00:00.000Z",
           approvedAt: "2026-06-02T01:05:00.000Z",
@@ -337,6 +338,14 @@ test("deriveApexControlRoomState includes durable Apex OS decision memory summar
           sourceLabel: "John instruction",
           status: "archived",
         },
+        {
+          id: "AOM-KV-1",
+          category: "app-docs",
+          title: "Knowledge upload",
+          body: "This belongs to the vault and should not appear as a Phase 4 decision row.",
+          sourceLabel: "Vault upload",
+          status: "approved",
+        },
       ],
     },
   });
@@ -347,15 +356,19 @@ test("deriveApexControlRoomState includes durable Apex OS decision memory summar
   assert.equal(state.decisionMemory.approvedCount, 1);
   assert.equal(state.decisionMemory.suggestedCount, 1);
   assert.equal(state.decisionMemory.archivedCount, 1);
+  assert.equal(state.decisionMemory.sourceCount, 3);
+  assert.deepEqual(state.decisionMemory.sourceOptions, ["Apex OS master plan", "John instruction", "Living plan"]);
+  assert.equal(state.decisionMemory.reviewHistory.length, 3);
   assert.equal(state.decisionMemory.durableDecisions[0].category, "Product identity");
   assert.equal(state.decisionMemory.durableDecisions[0].recordedAt, "2026-06-02T01:05:00.000Z");
+  assert.equal(state.decisionMemory.durableEntries.some((entry) => entry.category === "app-docs"), false);
   assert.equal(state.nextBestActions.find((item) => item.id === "memory-review")?.status, "Durable");
-  assert.equal(state.knowledgeVault.status, "Upload intake ready");
-  assert.equal(state.knowledgeVault.memorySummary.total, 3);
-  assert.equal(state.knowledgeVault.memorySummary.approved, 1);
+  assert.equal(state.knowledgeVault.status, "Knowledge under review");
+  assert.equal(state.knowledgeVault.memorySummary.total, 4);
+  assert.equal(state.knowledgeVault.memorySummary.approved, 2);
   assert.equal(state.knowledgeVault.memorySummary.suggested, 1);
   assert.equal(state.knowledgeVault.memorySummary.archived, 1);
-  assert.equal(state.knowledgeVault.vaultSummary.total, 0);
+  assert.equal(state.knowledgeVault.vaultSummary.total, 1);
 });
 
 test("deriveApexControlRoomState summarizes durable knowledge upload vault rows", () => {

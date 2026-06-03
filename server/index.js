@@ -90,6 +90,7 @@ import {
   summarizeAgentLearningPreferences,
 } from "../shared/agentLearningPreferences.js";
 import {
+  findApexOsMemoryDuplicate,
   isApexOsKnowledgeCategory,
   normalizeApexOsMemory,
   normalizeApexOsMemoryEntry,
@@ -12884,6 +12885,10 @@ app.post("/api/apex-os/memory", requireAuth, asyncRoute(async (req, res) => {
       createdEntry.approvedAt = now;
     }
     rejectUnsafeApexOsMemoryEntry(createdEntry);
+    const duplicate = findApexOsMemoryDuplicate(createdEntry, current);
+    if (duplicate) {
+      throw new ApiError(409, `Apex OS memory already has an active item for this source/title: ${duplicate.title}. Archive the existing item before adding a replacement.`);
+    }
     persistApexOsMemory(draft, req.auth.user, [createdEntry, ...current].slice(0, 200));
     appendActivity(draft, "Apex OS memory added", `${req.auth.user.name} added ${createdEntry.title} to Apex OS memory.`);
     appendAuditEvent(draft, {

@@ -304,6 +304,21 @@ test("Apex OS memory is operator-only, source-backed, persisted, and audited", a
     assert.equal(created.companySettings.apexOsMemory[0].title, "Apex OS private command center");
     assert.equal(storedApexOsMemory(fixture.sqliteFile)[0].sourceLabel, "Apex OS master plan");
 
+    const duplicate = await requestJson(fixture.baseUrl, "/api/apex-os/memory", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        category: "decision",
+        title: "Apex OS private command center",
+        body: "This should be blocked until the active source/title row is archived.",
+        sourceType: "document",
+        sourceLabel: "Apex OS master plan",
+        sourceUri: "docs/APEX_HQ_APEX_OS_COMMAND_CENTER_MASTER_PLAN.md",
+        status: "suggested",
+      }),
+    });
+    assert.equal(duplicate.response.status, 409);
+
     const approved = await assertOk(fixture.baseUrl, `/api/apex-os/memory/${created.apexOsMemoryEntry.id}`, {
       method: "PATCH",
       headers: authHeaders(operatorLogin.token),

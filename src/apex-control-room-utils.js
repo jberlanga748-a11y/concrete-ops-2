@@ -4,7 +4,9 @@ import { deriveEnterpriseTrustReadinessState } from "./owner-health-utils.js";
 import { getReleaseSafetySections } from "./release-safety-utils.js";
 import {
   filterApexOsKnowledgeVault,
+  filterApexOsDecisionMemory,
   normalizeApexOsMemory,
+  summarizeApexOsDecisionMemory,
   summarizeApexOsKnowledgeVault,
   summarizeApexOsMemory,
 } from "../shared/apexOsMemory.js";
@@ -957,7 +959,9 @@ function decisionCategoryLabel(category = "general") {
 
 function buildDecisionMemoryState(companySettings = {}) {
   const durableMemory = normalizeApexOsMemory(companySettings?.apexOsMemory || []);
-  const durableDecisionRows = durableMemory.map((entry) => ({
+  const durableDecisionMemory = filterApexOsDecisionMemory(durableMemory);
+  const decisionSummary = summarizeApexOsDecisionMemory(durableMemory);
+  const durableDecisionRows = durableDecisionMemory.map((entry) => ({
     id: entry.id,
     category: decisionCategoryLabel(entry.category),
     title: entry.title,
@@ -983,18 +987,19 @@ function buildDecisionMemoryState(companySettings = {}) {
   const lockedCount = decisions.filter((item) => item.status === "Locked").length + rules.filter((item) => item.status === "Locked").length;
   const coveredCategoryIds = new Set([
     ...APEX_OS_DECISION_MEMORY_SEED.map((item) => item.category),
-    ...durableMemory.map((item) => item.category),
+    ...durableDecisionMemory.map((item) => item.category),
   ]);
   return {
-    status: memorySummary.total ? "Durable memory active" : "Seeded from plan",
+    status: decisionSummary.total ? "Durable memory active" : "Seeded from plan",
     tone: "green",
     source: APEX_OS_MEMORY_SOURCE,
     decisionCount: decisions.length,
     ruleCount: rules.length,
     durableCount: durableDecisionRows.length,
-    approvedCount: memorySummary.approved,
-    suggestedCount: memorySummary.suggested,
-    archivedCount: memorySummary.archived,
+    approvedCount: decisionSummary.approved,
+    suggestedCount: decisionSummary.suggested,
+    archivedCount: decisionSummary.archived,
+    sourceCount: decisionSummary.sourceCount,
     lockedCount,
     categoryCount: APEX_OS_DECISION_CATEGORIES.length,
     coveredCategoryCount: coveredCategoryIds.size,
@@ -1004,10 +1009,13 @@ function buildDecisionMemoryState(companySettings = {}) {
       tone: coveredCategoryIds.has(category.id) ? "green" : "blue",
     })),
     decisions,
-    durableEntries: durableMemory,
+    durableEntries: durableDecisionMemory,
     durableDecisions: durableDecisionRows,
     rules,
-    memorySummary,
+    memorySummary: decisionSummary,
+    allMemorySummary: memorySummary,
+    sourceOptions: decisionSummary.sourceLabels,
+    reviewHistory: decisionSummary.reviewHistory,
   };
 }
 

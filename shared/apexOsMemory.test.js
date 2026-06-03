@@ -4,10 +4,14 @@ import test from "node:test";
 import {
   buildApexOsMemoryContext,
   detectApexOsMemorySafetyIssues,
+  filterApexOsDecisionMemory,
   filterApexOsKnowledgeVault,
+  findApexOsMemoryDuplicate,
+  isApexOsDecisionCategory,
   isApexOsKnowledgeCategory,
   normalizeApexOsMemory,
   normalizeApexOsMemoryEntry,
+  summarizeApexOsDecisionMemory,
   summarizeApexOsKnowledgeVault,
   summarizeApexOsMemory,
 } from "./apexOsMemory.js";
@@ -60,6 +64,7 @@ test("Apex OS memory accepts the original Phase 4 decision categories", () => {
     "provider-account-decision",
     "personal-preference",
   ]);
+  assert.equal(memory.every((entry) => isApexOsDecisionCategory(entry.category)), true);
 });
 
 test("Apex OS memory rejects secrets and customer emails", () => {
@@ -96,6 +101,61 @@ test("Apex OS memory summarizes and builds approved context only", () => {
     archived: 0,
   });
   assert.deepEqual(buildApexOsMemoryContext(memory).map((entry) => entry.title), ["Daily focus"]);
+});
+
+test("Apex OS decision memory summarizes filters and detects active duplicates", () => {
+  const memory = normalizeApexOsMemory([
+    {
+      id: "AOM-D-1",
+      category: "roadmap-decision",
+      title: "Phase discipline",
+      body: "Work one phase at a time.",
+      sourceLabel: "Josh instruction",
+      sourceUri: "docs/phase-four.md",
+      status: "approved",
+      reviewNote: "Trusted.",
+      updatedAt: "2026-06-03T01:00:00.000Z",
+    },
+    {
+      id: "AOM-D-2",
+      category: "business-goal",
+      title: "Production shell",
+      body: "Keep Apex OS private to the owner.",
+      sourceLabel: "Living plan",
+      status: "suggested",
+    },
+    {
+      id: "AOM-KV-1",
+      category: "app-docs",
+      title: "Knowledge upload",
+      body: "This belongs to the vault, not the decision view.",
+      sourceLabel: "Vault upload",
+      status: "approved",
+    },
+  ]);
+
+  const summary = summarizeApexOsDecisionMemory(memory);
+  assert.equal(summary.total, 2);
+  assert.equal(summary.approved, 1);
+  assert.equal(summary.suggested, 1);
+  assert.equal(summary.sourceCount, 2);
+  assert.equal(summary.byCategory["roadmap-decision"], 1);
+  assert.equal(summary.reviewHistory[0].title, "Phase discipline");
+  assert.deepEqual(filterApexOsDecisionMemory(memory, { source: "josh", status: "approved" }).map((entry) => entry.title), ["Phase discipline"]);
+  assert.deepEqual(filterApexOsDecisionMemory(memory, { query: "private to the owner" }).map((entry) => entry.title), ["Production shell"]);
+  assert.equal(findApexOsMemoryDuplicate({
+    category: "roadmap decision",
+    title: "Phase discipline",
+    body: "Duplicate.",
+    sourceLabel: "Josh instruction",
+  }, memory)?.id, "AOM-D-1");
+  assert.equal(findApexOsMemoryDuplicate({
+    category: "roadmap decision",
+    title: "New decision",
+    body: "Duplicate source URI.",
+    sourceLabel: "Different",
+    sourceUri: "docs/phase-four.md",
+  }, memory)?.id, "AOM-D-1");
 });
 
 test("Apex OS knowledge vault classifies the original Phase 5 upload categories", () => {
