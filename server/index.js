@@ -139,6 +139,11 @@ import {
   sanitizeApexOsVoiceSpeechText,
 } from "../shared/apexOsVoice.js";
 import {
+  buildApexOsKnowledgeIntelligence,
+  buildApexOsKnowledgeOpenAiRequest,
+  parseOpenAiApexOsKnowledgePayload,
+} from "../shared/apexOsKnowledgeIntelligence.js";
+import {
   buildApexOsDailyBriefing,
   buildApexOsDailyBriefingHistorySnapshot,
   normalizeApexOsDailyBriefingHistory,
@@ -13176,6 +13181,73 @@ app.post("/api/apex-os/ask", requireAuth, asyncRoute(async (req, res) => {
       sourceCount: context.sources.length,
       memoryCount: context.memory.length,
       approvalWarningCount: context.approvalWarnings.length,
+    },
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/knowledge-intelligence", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+
+  const settings = companySettingsForState(state, req.auth.user);
+  const intelligence = buildApexOsKnowledgeIntelligence(settings.apexOsMemory || [], {
+    query: optionalString(req.body?.query, "").slice(0, 260),
+    category: optionalString(req.body?.category, "all").slice(0, 80),
+    source: optionalString(req.body?.source, "all").slice(0, 180),
+    status: optionalString(req.body?.status, "all").slice(0, 40),
+    dateRange: optionalString(req.body?.dateRange, "all").slice(0, 40),
+    limit: Number(req.body?.limit) || 8,
+  });
+  const apiKey = String(process.env.OPENAI_API_KEY || "").trim();
+  let providerInsight = {
+    ok: true,
+    providerConfigured: false,
+    mode: "local-knowledge-intelligence",
+    providerSummary: "Local source ranking, document summaries, confidence labels, and conflict warnings are active. Server-side AI summaries are available only when OPENAI_API_KEY is configured.",
+    classifications: [],
+  };
+
+  if (apiKey && req.body?.includeProviderSummary !== false && intelligence.rankedRows.length) {
+    try {
+      const response = await fetch(APEX_OS_ASK_OPENAI_URL, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(buildApexOsKnowledgeOpenAiRequest(intelligence)),
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!response.ok) {
+        throw new Error(`OpenAI knowledge intelligence request failed with ${response.status}.`);
+      }
+      providerInsight = parseOpenAiApexOsKnowledgePayload(await response.json());
+    } catch (error) {
+      logger.warn("Apex OS knowledge provider summary failed; using local intelligence", {
+        requestId: res.locals.requestId,
+        error: serializeError(error),
+      });
+      providerInsight = {
+        ok: false,
+        providerConfigured: true,
+        mode: "provider-fallback",
+        providerSummary: "Provider summary failed, so Apex OS is using local source ranking, summaries, confidence labels, and conflict warnings.",
+        classifications: [],
+      };
+    }
+  }
+
+  res.json({
+    intelligence,
+    providerInsight,
+    context: {
+      sourceCount: intelligence.rankedRows.length,
+      totalRows: intelligence.totalRows,
+      trustedCount: intelligence.trustedCount,
+      suggestedCount: intelligence.suggestedCount,
+      conflictCount: intelligence.conflictWarnings.length,
+      embeddingStatus: intelligence.embeddingStatus,
     },
     requestId: res.locals.requestId,
   });

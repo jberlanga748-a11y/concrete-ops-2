@@ -388,12 +388,14 @@ test("deriveApexControlRoomState includes durable Apex OS decision memory summar
   assert.equal(state.decisionMemory.durableDecisions[0].recordedAt, "2026-06-02T01:05:00.000Z");
   assert.equal(state.decisionMemory.durableEntries.some((entry) => entry.category === "app-docs"), false);
   assert.equal(state.nextBestActions.find((item) => item.id === "memory-review")?.status, "Durable");
-  assert.equal(state.knowledgeVault.status, "Knowledge under review");
+  assert.equal(state.knowledgeVault.status, "Knowledge intelligence ready");
   assert.equal(state.knowledgeVault.memorySummary.total, 4);
   assert.equal(state.knowledgeVault.memorySummary.approved, 2);
   assert.equal(state.knowledgeVault.memorySummary.suggested, 1);
   assert.equal(state.knowledgeVault.memorySummary.archived, 1);
   assert.equal(state.knowledgeVault.vaultSummary.total, 1);
+  assert.equal(state.knowledgeVault.intelligenceSummary.trustedCount, 2);
+  assert.equal(state.knowledgeVault.intelligenceSummary.rankedCount >= 1, true);
 });
 
 test("deriveApexControlRoomState summarizes durable knowledge upload vault rows", () => {
@@ -430,11 +432,14 @@ test("deriveApexControlRoomState summarizes durable knowledge upload vault rows"
     },
   });
 
-  assert.equal(state.knowledgeVault.status, "Knowledge under review");
+  assert.equal(state.knowledgeVault.status, "Knowledge intelligence ready");
   assert.equal(state.knowledgeVault.vaultSummary.total, 2);
   assert.equal(state.knowledgeVault.vaultSummary.trusted, 1);
   assert.equal(state.knowledgeVault.vaultSummary.suggested, 1);
   assert.equal(state.knowledgeVault.vaultSummary.reviewHistory.length, 2);
+  assert.equal(state.knowledgeVault.intelligenceSummary.status, "Source-ranked");
+  assert.equal(state.knowledgeVault.intelligenceSummary.rankedCount, 2);
+  assert.equal(state.knowledgeVault.intelligenceSummary.conflictCount, 0);
   assert.deepEqual(state.knowledgeVault.sourceOptions, ["phase-5.md", "Sales notes"]);
   assert.deepEqual(state.knowledgeVault.vaultEntries.map((entry) => entry.title), ["Phase 5 notes", "Demo narrative"]);
 });

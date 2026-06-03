@@ -130,7 +130,7 @@ export function normalizeApexOsMemoryEntry(input = {}, { existing = {}, id = "",
     approvedBy: rawText(input.approvedBy ?? existing.approvedBy ?? "", SHORT_LIMIT),
     approvedAt: rawText(input.approvedAt ?? existing.approvedAt ?? "", SHORT_LIMIT),
     archivedAt: rawText(input.archivedAt ?? existing.archivedAt ?? "", SHORT_LIMIT),
-    updatedAt: now,
+    updatedAt: rawText(input.updatedAt ?? existing.updatedAt ?? now, SHORT_LIMIT),
     blockedReasons,
   };
 }

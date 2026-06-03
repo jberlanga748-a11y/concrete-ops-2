@@ -427,6 +427,10 @@ export function transcribeApexOsVoice(token, payload) {
   return request("/api/apex-os/voice/transcribe", { method: "POST", token, body: payload });
 }
 
+export function getApexOsKnowledgeIntelligence(token, payload = {}) {
+  return request("/api/apex-os/knowledge-intelligence", { method: "POST", token, body: payload });
+}
+
 export function getApexOsDailyBriefing(token) {
   return request("/api/apex-os/daily-briefing", { token });
 }

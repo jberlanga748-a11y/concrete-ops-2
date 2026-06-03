@@ -21,6 +21,7 @@ import {
 } from "../shared/apexOsBuildAwareness.js";
 import { summarizeApexOsExecutionHandoffs } from "../shared/apexOsExecutionHandoffs.js";
 import { buildApexOsAgentControlPlane } from "../shared/apexOsAgentControl.js";
+import { buildApexOsKnowledgeIntelligence } from "../shared/apexOsKnowledgeIntelligence.js";
 
 function list(value) {
   return Array.isArray(value) ? value : [];
@@ -1130,8 +1131,9 @@ function buildKnowledgeVaultState(companySettings = {}) {
   const memorySummary = summarizeApexOsMemory(memory);
   const vaultSummary = summarizeApexOsKnowledgeVault(memory);
   const vaultEntries = filterApexOsKnowledgeVault(memory);
+  const intelligenceSummary = buildApexOsKnowledgeIntelligence(memory, { limit: 6 });
   return {
-    status: vaultSummary.total ? "Knowledge under review" : "Upload intake ready",
+    status: intelligenceSummary.totalRows ? "Knowledge intelligence ready" : "Upload intake ready",
     tone: vaultSummary.total ? "green" : "blue",
     categoryCount: categories.length,
     sourceCount: sourceRows.length,
@@ -1139,6 +1141,14 @@ function buildKnowledgeVaultState(companySettings = {}) {
     memorySummary,
     vaultSummary,
     vaultEntries,
+    intelligenceSummary: {
+      status: intelligenceSummary.status,
+      rankedCount: intelligenceSummary.rankedRows.length,
+      conflictCount: intelligenceSummary.conflictWarnings.length,
+      trustedCount: intelligenceSummary.trustedCount,
+      suggestedCount: intelligenceSummary.suggestedCount,
+      embeddingStatus: intelligenceSummary.embeddingStatus,
+    },
     sourceOptions: vaultSummary.sourceLabels,
     categories,
     safetyRows,

@@ -69,6 +69,7 @@ Current implementation status:
 - Apex OS Phase 8 / Approval Command Center is hard-finished and deployed as of 2026-06-03: the private Control Room now has risky-action approval categories, packet templates, risk scoring, exact approval phrase entry, durable draft/ready/approved/rejected/deferred/blocked/archived approval packet records in `apexOsApprovalPackets`, operator-only list/create/update endpoints, source-label and readiness-field requirements, secret/email rejection, decision actor/timestamp fields, audit/activity logging, and Control Room drafting/loading/mark-ready/block/archive/reject/defer/approval-record UI. Approval decisions are review records only; no execution, queue/run endpoint, deploy action, production mutation, provider setup, customer-visible action, send, spend, billing/payment, schema/auth/session change, deletion, or irreversible action path was added.
 - Apex OS Phase 9 / App Build And Code Awareness is hard-finished and deployed as of 2026-06-03: the private Control Room now has a read-only App Build Awareness panel with current branch/head, changed-file map, build/test script status, recent deploy evidence, known blockers, frozen phase map, safe source links, recent commits, and source-backed next-safe-task recommendation. Operator-only `/api/apex-os/build-awareness` reads git/status/docs/package/dist/runtime metadata when available and degrades honestly to runtime metadata only in images without `.git`. File references are sanitized, field data is excluded, and execution stays locked: no UI code edits, test runs, commits, pushes, deploys, rollbacks, CI/GitHub writes, provider setup, production mutation, customer-visible action, sends, spend, billing/payment, schema/auth/session change, deletion, or irreversible action path was added.
 - Apex OS Phase 12 / Voice Interface is hard-finished and deployed as of 2026-06-03: the private Control Room now supports click-to-record push-to-talk, Stop & transcribe, manual transcript fallback, transcript confirmation, command review for the original Phase 12 commands, safe Ask Apex question handoff, and Speak answer / Stop voice playback. It remains review-first and execution-locked: no always-listening, hidden microphone capture, audio storage, transcript persistence, frontend provider secret, autonomous command execution, schema/auth/session change, customer-visible action, live send, ad spend, billing/payment, deploy/rollback execution from the UI, or production/customer mutation was added.
+- Apex OS Phase 13 / Knowledge Intelligence is hard-finished locally as of 2026-06-03: the private Control Room now has source-backed Knowledge Intelligence over approved decisions and Knowledge Vault rows, with local source ranking, reviewed summaries, trusted/suggested/archived status, source/category/status/text/date filters, confidence labels, current-rule conflict warnings, older-memory conflict warnings, operator-only provider-ready summary/classification endpoint, and locked vector-search/embedding state. No unreviewed upload trust, customer/public knowledge mixing, embeddings/schema/storage, frontend provider secret, external action, send, spend, billing/payment, deploy/rollback execution from the UI, or production/customer mutation was added.
 - Apex OS Slice 8 is folded into Phase 8 completion: the Approval Command Center first UI now has safe durable review decisions while execution remains locked.
 - Apex OS Phase 11 / Monitoring And Daily Briefings is hard-finished and deployed as of 2026-06-03: the private Control Room now has source-backed Release Monitoring refresh for production readiness, demo app readiness, GitHub Actions/smoke status, failed test/build signals, stalled-agent signals, daily briefing manual refresh/save, durable private briefing history, changed-since-last-saved rows, locks, source labels, and John-action alerts. External alerts/notifications, autonomous schedules, deploy/rollback execution from the UI, provider monitoring changes, production/customer data mutation, schema/auth/session changes, live sends, ad spend, billing/payment, public publishing, and customer-visible actions remain locked.
 - Apex OS Phase 10 / Business Operating Center is hard-finished and deployed as of 2026-06-03: the private Control Room now has business command queues for launch, demo/pilot, marketing, sales/outreach, customer success, and revenue/pricing/offer work; launch/founder-demo rows; business briefing rows; approved source-backed business memory rows; private business task drafts; and business approval draft rows for manual sends, ads/publishing, billing/offers, customer-visible work, and business operations. Live sends, ad spend, billing/payment, public publishing, provider setup, production data, schema/storage, auth/session change, customer-visible actions, and unsupported claims remain approval-locked.
@@ -953,6 +954,91 @@ Production release state:
 Next recommended phase:
 
 - Start Phase 13: Knowledge Intelligence only after Phase 12 release evidence is committed and pushed.
+
+## Apex OS Phase 13: Knowledge Intelligence Hard-Finish Report
+
+Goal:
+
+- Finish Phase 13 from the original Apex OS master plan before starting Phase 14: make uploaded knowledge searchable, source-backed, useful, conflict-aware, and safe.
+
+What was already built:
+
+- Phase 5 Knowledge Upload Vault already had classified manual/text/PDF intake, source metadata, suggested/trusted/archive review states, search/filter by category/source/status/text, duplicate guards, review history, private export, and manual approval before trust.
+- Phase 6 Ask Apex already answered from approved source rows and showed source labels, ranked evidence, and approval warnings.
+
+What was completed now:
+
+- Added a shared Knowledge Intelligence engine over approved decision memory and Knowledge Vault rows.
+- Added local lexical source ranking, reviewed document summaries, trusted/suggested/archived status, source/category/status/text/date filters, confidence labels, ranked evidence rows, and safety locks.
+- Added current-rule conflict detection for automatic trust, field access to pricing/private data, external actions without approval, and secret storage.
+- Added older-memory conflict detection with "This conflicts with older memory" warnings when active memory rows disagree.
+- Added operator-only `POST /api/apex-os/knowledge-intelligence`, which returns local intelligence without a provider and uses server-side `OPENAI_API_KEY` for optional summary/classification only when configured.
+- Added Knowledge Intelligence UI inside the private Knowledge Vault: Refresh intelligence, Conflict warnings, Ranked Evidence, Confidence Labels, Local fallback / Server provider status, date filter, and vector-search lock.
+- Preserved the Phase 13 non-goal: no unreviewed uploaded document silently overrides current repo truth.
+
+Provider/account-dependent remaining work:
+
+- Durable embeddings/vector index remains blocked until private vector storage/schema/provider approval exists.
+- Provider-backed AI summaries/classifications require `OPENAI_API_KEY` to be configured server-side; local QA verified the no-key fallback path.
+
+Affected files:
+
+- `shared/apexOsKnowledgeIntelligence.js`
+- `shared/apexOsKnowledgeIntelligence.test.js`
+- `shared/apexOsMemory.js`
+- `server/index.js`
+- `server/apex-os-memory.test.js`
+- `src/api.js`
+- `src/apex-control-room-utils.js`
+- `src/apex-control-room-utils.test.js`
+- `src/apex-control-room-components.jsx`
+- `src/apex-control-room-components-import.test.js`
+- `docs/APEX_HQ_APEX_OS_COMMAND_CENTER_MASTER_PLAN.md`
+- `docs/APEX_HQ_APEX_OS_HARD_FINISH_ROADMAP.md`
+- `docs/APEX_HQ_LIVING_FINISH_PLAN.md`
+- `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md`
+
+Risk level:
+
+- Medium-low. Phase 13 adds private operator-only intelligence and an optional provider summary path, but no schema, vector storage, auth/session change, frontend secret, customer/public knowledge mixing, automatic trust, external action, send, spend, billing/payment, deploy/rollback execution from the UI, production/customer mutation, deletion, or irreversible action path.
+
+Validation results:
+
+- Focused Phase 13 tests passed: `node --test --test-concurrency=1 shared\apexOsKnowledgeIntelligence.test.js shared\apexOsMemory.test.js shared\apexOsAsk.test.js src\apex-control-room-utils.test.js src\apex-control-room-components-import.test.js server\apex-os-memory.test.js`.
+- Broader Apex OS regression passed with 114 tests: `node --test --test-concurrency=1 shared\apexOsKnowledgeIntelligence.test.js shared\apexOsVoice.test.js shared\apexOsAsk.test.js shared\apexOsDailyBriefing.test.js shared\apexOsBuildAwareness.test.js shared\apexOsApprovalPackets.test.js shared\apexOsAgentControl.test.js shared\apexOsExecutionHandoffs.test.js shared\apexOsMemory.test.js shared\permissions.test.js src\apex-control-room-utils.test.js src\apex-control-room-components-import.test.js src\app-routing.test.js src\navigation-utils.test.js src\app-navigation-components-import.test.js server\apex-os-memory.test.js server\role-permissions.test.js`.
+- Role verification passed: `npm.cmd run verify:roles`.
+- Production build passed: `npm.cmd run build`.
+- Diff hygiene passed: `git diff --check` with CRLF warnings only.
+- Desktop and mobile browser QA passed locally on `/apex-control-room`: Knowledge Intelligence refreshed, ranked evidence appeared, conflict warnings appeared, date filter appeared, vector search stayed locked, no horizontal overflow was found, and no failed post-login requests were recorded. The only browser noise was the expected pre-login unauthenticated `/api/bootstrap` probe/redirect.
+- Browser QA screenshots: `ui-audit/apex-control-room-phase13/desktop-knowledge-intelligence.png` and `ui-audit/apex-control-room-phase13/mobile-knowledge-intelligence.png`.
+
+Permissions impact:
+
+- Private operator-only Apex OS access remains required for the route, UI, and `/api/apex-os/knowledge-intelligence`.
+- The endpoint uses the same Apex OS operator gate as memory, Ask Apex, voice, approvals, agents, handoffs, monitoring, and briefing.
+- Normal admins without operator access, estimators, field users, employees, demo users without the flag, customer/company users, and switched customer-company workspaces remain blocked.
+
+Mobile impact:
+
+- Desktop and mobile QA confirmed the Knowledge Intelligence panel, filters, ranked evidence, conflict warnings, and confidence rows stack without horizontal overflow.
+
+Field-user impact:
+
+- None. Field users remain blocked from Apex OS, Knowledge Vault, Knowledge Intelligence, Ask Apex, approvals, agents, business queues, leads, estimates, pricing, profit/margins, payroll, office notes, admin settings, billing, provider context, customer data, and private Apex HQ memory.
+
+Rollback plan:
+
+- If local validation fails before deploy, revert the Phase 13 hard-finish commit to remove the knowledge-intelligence helper, endpoint, UI panel, date filter, focused assertions, memory timestamp preservation change, and doc updates.
+- If hosted health fails after deploy, roll back Fly to the previous healthy Phase 12 release, version `644`, image `registry.fly.io/concrete-ops-2:deployment-01KT6BZ28V8HTPBNCWZEA27DXY`.
+- No database migration rollback is required because Phase 13 adds no schema and creates no vector/embedding storage.
+
+Production release state:
+
+- Phase 13 is locally hard-finished and pending commit/push/production release.
+
+Next recommended phase:
+
+- Start Phase 14: Action Execution Layer only after Phase 13 release evidence is committed and pushed.
 
 Packaging and release state:
 

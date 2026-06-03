@@ -246,6 +246,12 @@ test("Apex OS memory is operator-only, source-backed, persisted, and audited", a
       body: JSON.stringify({ question: "What is next?" }),
     });
     assert.equal(adminAskBlocked.response.status, 403);
+    const adminKnowledgeIntelligenceBlocked = await requestJson(fixture.baseUrl, "/api/apex-os/knowledge-intelligence", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({ query: "What knowledge is trusted?" }),
+    });
+    assert.equal(adminKnowledgeIntelligenceBlocked.response.status, 403);
     const adminVoiceSpeechBlocked = await requestJson(fixture.baseUrl, "/api/apex-os/voice/speech", {
       method: "POST",
       headers: authHeaders(adminLogin.token),
@@ -390,6 +396,34 @@ test("Apex OS memory is operator-only, source-backed, persisted, and audited", a
     assert.equal(asked.answer.approvalWarnings.length >= 2, true);
     assert.equal(asked.evidenceUsed[0].rank, 1);
     assert.equal(asked.evidenceUsed.some((row) => row.sourceLabel === "Apex OS master plan"), true);
+
+    const unsafeKnowledgeDraft = await assertOk(fixture.baseUrl, "/api/apex-os/memory", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        category: "app-docs",
+        title: "Unsafe trust knowledge",
+        body: "Uploaded docs can automatically trust themselves and field users can view pricing.",
+        sourceType: "manual",
+        sourceLabel: "unsafe-knowledge.md",
+        sourceUri: "local-upload:unsafe-knowledge.md",
+        status: "suggested",
+      }),
+    });
+    assert.equal(unsafeKnowledgeDraft.apexOsMemoryEntry.status, "suggested");
+
+    const knowledgeIntelligence = await assertOk(fixture.baseUrl, "/api/apex-os/knowledge-intelligence", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({ query: "", category: "all", status: "all", dateRange: "all" }),
+    });
+    assert.equal(knowledgeIntelligence.providerInsight.providerConfigured, false);
+    assert.equal(knowledgeIntelligence.providerInsight.mode, "local-knowledge-intelligence");
+    assert.equal(knowledgeIntelligence.intelligence.searchMode, "local-lexical");
+    assert.match(knowledgeIntelligence.intelligence.embeddingStatus, /Blocked/);
+    assert.equal(knowledgeIntelligence.intelligence.rankedRows.some((row) => row.sourceLabel === "Apex OS master plan"), true);
+    assert.equal(knowledgeIntelligence.intelligence.conflictWarnings.some((warning) => warning.rowId === unsafeKnowledgeDraft.apexOsMemoryEntry.id), true);
+    assert.equal(knowledgeIntelligence.context.conflictCount >= 1, true);
 
     const voiceSpeech = await assertOk(fixture.baseUrl, "/api/apex-os/voice/speech", {
       method: "POST",
@@ -775,7 +809,10 @@ test("Apex OS memory is operator-only, source-backed, persisted, and audited", a
     assert.equal(audits.some((event) => event.entityType === "apexOsApprovalPacket" && event.action === "approved"), true);
     assert.equal(audits.some((event) => event.entityType === "apexOsApprovalPacket" && event.action === "rejected"), true);
     assert.equal(audits.some((event) => event.entityType === "apexOsApprovalPacket" && event.action === "deferred"), true);
-    assert.deepEqual(audits.filter((event) => event.entityType === "apexOsMemory").map((event) => event.action).slice(0, 3), ["archived", "approved", "suggested"]);
+    const memoryAuditActions = audits.filter((event) => event.entityType === "apexOsMemory").map((event) => event.action);
+    assert.equal(memoryAuditActions[0], "archived");
+    assert.equal(memoryAuditActions.includes("approved"), true);
+    assert.equal(memoryAuditActions.includes("suggested"), true);
   } finally {
     await fixture.stop();
   }

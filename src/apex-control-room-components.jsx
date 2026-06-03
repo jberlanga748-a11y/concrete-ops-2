@@ -14,6 +14,7 @@ import {
   getApexOsApprovalPackets,
   getApexOsDailyBriefing,
   getApexOsExecutionHandoffs,
+  getApexOsKnowledgeIntelligence,
   saveApexOsDailyBriefingSnapshot,
   speakApexOsVoice,
   transcribeApexOsVoice,
@@ -30,6 +31,10 @@ import {
   buildApexOsAskTaskPacketDraft,
 } from "../shared/apexOsAsk.js";
 import { buildApexOsVoiceCommandReview } from "../shared/apexOsVoice.js";
+import {
+  APEX_OS_KNOWLEDGE_DATE_RANGE_VALUES,
+  buildApexOsKnowledgeIntelligence,
+} from "../shared/apexOsKnowledgeIntelligence.js";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -1353,13 +1358,45 @@ async function extractKnowledgeFileText(file) {
   };
 }
 
-function filterKnowledgeRows(rows = [], { category, source, status, query } = {}) {
+function knowledgeRowTimestamp(row = {}) {
+  const timestamp = Date.parse(row.updatedAt || row.approvedAt || row.createdAt || "");
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function knowledgeDateRangeStart(dateRange = "all") {
+  const now = Date.now();
+  if (dateRange === "last-7-days") return now - 7 * 24 * 60 * 60 * 1000;
+  if (dateRange === "last-30-days") return now - 30 * 24 * 60 * 60 * 1000;
+  if (dateRange === "last-90-days") return now - 90 * 24 * 60 * 60 * 1000;
+  return 0;
+}
+
+function knowledgeMatchesDateRange(row = {}, dateRange = "all") {
+  const timestamp = knowledgeRowTimestamp(row);
+  if (dateRange === "missing-date") return !timestamp;
+  if (!dateRange || dateRange === "all") return true;
+  return timestamp >= knowledgeDateRangeStart(dateRange);
+}
+
+function knowledgeDateRangeLabel(value = "all") {
+  const labels = {
+    all: "All dates",
+    "last-7-days": "Last 7 days",
+    "last-30-days": "Last 30 days",
+    "last-90-days": "Last 90 days",
+    "missing-date": "Missing date",
+  };
+  return labels[value] || "All dates";
+}
+
+function filterKnowledgeRows(rows = [], { category, source, status, query, dateRange = "all" } = {}) {
   const normalizedQuery = String(query || "").trim().toLowerCase();
   const normalizedSource = String(source || "all").trim().toLowerCase();
   return rows
     .filter((row) => !category || category === "all" || row.category === category)
     .filter((row) => !status || status === "all" || row.status === status)
     .filter((row) => source === "all" || [row.sourceLabel, row.sourceType, row.sourceUri].some((value) => String(value || "").toLowerCase().includes(normalizedSource)))
+    .filter((row) => knowledgeMatchesDateRange(row, dateRange))
     .filter((row) => {
       if (!normalizedQuery) return true;
       return [row.title, row.body, row.sourceLabel, row.sourceUri, row.reviewNote, row.category].some((value) => String(value || "").toLowerCase().includes(normalizedQuery));
@@ -1399,7 +1436,10 @@ function KnowledgeVaultManager({ state, sessionToken }) {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [dateRangeFilter, setDateRangeFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [intelligence, setIntelligence] = useState(null);
+  const [providerInsight, setProviderInsight] = useState(null);
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(false);
   const canUse = state.canView && Boolean(sessionToken) && !loading;
@@ -1417,7 +1457,27 @@ function KnowledgeVaultManager({ state, sessionToken }) {
     source: sourceFilter,
     status: statusFilter,
     query: search,
+    dateRange: dateRangeFilter,
   });
+  const intelligenceRows = [
+    ...knowledgeRows,
+    ...(state.decisionMemory?.durableEntries || []).filter((row) => row.status === "approved"),
+  ];
+  const localIntelligence = buildApexOsKnowledgeIntelligence(intelligenceRows, {
+    query: search,
+    category: categoryFilter,
+    source: sourceFilter,
+    status: statusFilter,
+    dateRange: dateRangeFilter,
+    limit: 8,
+  });
+  const activeIntelligence = intelligence || localIntelligence;
+  const activeProviderInsight = providerInsight || {
+    providerConfigured: false,
+    mode: "local-knowledge-intelligence",
+    providerSummary: "Local source ranking, summaries, confidence labels, and conflict warnings are available without provider setup.",
+    classifications: [],
+  };
   const activeSummary = summary || state.knowledgeVault?.vaultSummary || {
     total: knowledgeRows.length,
     trusted: knowledgeRows.filter((row) => row.status === "approved").length,
@@ -1436,6 +1496,11 @@ function KnowledgeVaultManager({ state, sessionToken }) {
     setNotice("");
   }
 
+  function clearKnowledgeIntelligence() {
+    setIntelligence(null);
+    setProviderInsight(null);
+  }
+
   function updateFromMemoryPayload(payload, message) {
     const rows = (payload.apexOsMemory || payload.companySettings?.apexOsMemory || []).filter((row) => categoryIds.has(row.category));
     setVaultRows(rows);
@@ -1452,6 +1517,7 @@ function KnowledgeVaultManager({ state, sessionToken }) {
         .sort((left, right) => new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime())
         .slice(0, 8),
     });
+    clearKnowledgeIntelligence();
     setNotice(message);
   }
 
@@ -1464,6 +1530,29 @@ function KnowledgeVaultManager({ state, sessionToken }) {
       updateFromMemoryPayload(payload, "Knowledge vault loaded from private Apex OS memory.");
     } catch (error) {
       setNotice(error?.message || "Knowledge vault could not load right now.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function refreshIntelligence() {
+    if (!canUse) return;
+    setLoading(true);
+    setNotice("");
+    try {
+      const payload = await getApexOsKnowledgeIntelligence(sessionToken, {
+        query: search,
+        category: categoryFilter,
+        source: sourceFilter,
+        status: statusFilter,
+        dateRange: dateRangeFilter,
+        limit: 8,
+      });
+      setIntelligence(payload.intelligence || null);
+      setProviderInsight(payload.providerInsight || null);
+      setNotice(`Knowledge Intelligence refreshed: ${payload.context?.sourceCount || 0} ranked source row${payload.context?.sourceCount === 1 ? "" : "s"} and ${payload.context?.conflictCount || 0} conflict warning${payload.context?.conflictCount === 1 ? "" : "s"}.`);
+    } catch (error) {
+      setNotice(error?.message || "Knowledge Intelligence could not refresh right now.");
     } finally {
       setLoading(false);
     }
@@ -1521,6 +1610,7 @@ function KnowledgeVaultManager({ state, sessionToken }) {
         sourceLabels: current?.sourceLabels || activeSummary.sourceLabels || sourceOptions,
       }));
       setForm(EMPTY_KNOWLEDGE_VAULT_FORM);
+      clearKnowledgeIntelligence();
       setNotice("Knowledge drafted as suggested. It is not trusted Apex context until manually approved.");
     } catch (error) {
       setNotice(error?.message || "Knowledge could not be saved right now.");
@@ -1586,6 +1676,90 @@ function KnowledgeVaultManager({ state, sessionToken }) {
         }} />
       ) : null}
 
+      <div className="grid min-w-0 gap-3 rounded-xl border border-slate-200 bg-white p-3">
+        <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <SectionHeader title="Knowledge Intelligence" description="Source-ranked summaries, confidence, and conflict warnings for approved decisions and vault knowledge." />
+          <Button type="button" variant="secondary" size="sm" onClick={refreshIntelligence} disabled={!canUse}>
+            <Icon name="refresh" /> Refresh intelligence
+          </Button>
+        </div>
+        <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <StatusRow item={{
+            id: "knowledge-intelligence-ranking",
+            title: "Source ranking",
+            status: `${activeIntelligence.rankedRows?.length || 0} ranked`,
+            detail: `${activeIntelligence.searchMode || "local-lexical"} search across category, source, status, date, title, body, and summary fields.`,
+            tone: activeIntelligence.rankedRows?.length ? "green" : "amber",
+          }} />
+          <StatusRow item={{
+            id: "knowledge-intelligence-conflicts",
+            title: "Conflict warnings",
+            status: `${activeIntelligence.conflictWarnings?.length || 0}`,
+            detail: activeIntelligence.conflictWarnings?.length ? "Review warnings before approving or relying on matching knowledge." : "No conflicts found against current rules or older active memory.",
+            tone: activeIntelligence.conflictWarnings?.length ? "amber" : "green",
+          }} />
+          <StatusRow item={{
+            id: "knowledge-intelligence-provider",
+            title: "AI summaries",
+            status: activeProviderInsight.providerConfigured ? "Server provider" : "Local fallback",
+            detail: activeProviderInsight.providerSummary || "Server-side summaries run only when OPENAI_API_KEY is configured.",
+            tone: activeProviderInsight.providerConfigured ? "green" : "blue",
+          }} />
+          <StatusRow item={{
+            id: "knowledge-intelligence-embeddings",
+            title: "Vector search",
+            status: "Locked",
+            detail: activeIntelligence.embeddingStatus || "Embeddings require private storage/schema approval.",
+            tone: "amber",
+          }} />
+        </div>
+
+        {activeIntelligence.conflictWarnings?.length ? (
+          <div className="grid min-w-0 gap-2">
+            {activeIntelligence.conflictWarnings.slice(0, 3).map((warning) => (
+              <StatusRow key={warning.id} item={{
+                id: warning.id,
+                title: warning.title,
+                status: warning.rowStatus === "approved" ? "Trusted conflict" : "Suggested conflict",
+                detail: `${warning.rowTitle}: ${warning.detail} ${warning.trustedImpact || ""}`,
+                tone: warning.severity === "high" ? "red" : "amber",
+              }} />
+            ))}
+          </div>
+        ) : null}
+
+        <div className="grid min-w-0 gap-3 lg:grid-cols-2">
+          <div className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <SectionHeader title="Ranked Evidence" description={`${knowledgeDateRangeLabel(dateRangeFilter)} / ${activeIntelligence.rankedRows?.length || 0} source rows.`} />
+            <div className="grid min-w-0 gap-2">
+              {activeIntelligence.rankedRows?.length ? activeIntelligence.rankedRows.slice(0, 4).map((row) => (
+                <StatusRow key={`knowledge-rank-${row.id}`} item={{
+                  id: `knowledge-rank-${row.id}`,
+                  title: `${row.rank}. ${row.title}`,
+                  status: row.confidenceLabel,
+                  detail: `${row.documentSummary?.summary || "No summary yet."} Source: ${row.sourceLabel || "Missing source"}.`,
+                  tone: row.confidenceLabel === "High" ? "green" : row.confidenceLabel === "Medium" ? "blue" : "amber",
+                }} />
+              )) : <EmptyPanel>No ranked knowledge rows match the current filters.</EmptyPanel>}
+            </div>
+          </div>
+          <div className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <SectionHeader title="Confidence Labels" description="Apex shows why source rows are useful before they influence decisions." />
+            <div className="grid min-w-0 gap-2">
+              {activeIntelligence.confidenceRows?.length ? activeIntelligence.confidenceRows.map((row) => (
+                <StatusRow key={`knowledge-confidence-${row.id}`} item={{
+                  id: `knowledge-confidence-${row.id}`,
+                  title: row.title,
+                  status: `${row.confidenceLabel} ${row.confidence || 0}`,
+                  detail: `Source: ${row.sourceLabel || "Missing source"}. Confidence is local source relevance, not automatic truth.`,
+                  tone: row.confidenceLabel === "High" ? "green" : row.confidenceLabel === "Medium" ? "blue" : "amber",
+                }} />
+              )) : <EmptyPanel>No confidence rows are visible yet.</EmptyPanel>}
+            </div>
+          </div>
+        </div>
+      </div>
+
       <form className="grid min-w-0 gap-3 rounded-xl border border-slate-200 bg-white p-3" onSubmit={submitKnowledge}>
         <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_260px]">
           <input
@@ -1636,21 +1810,24 @@ function KnowledgeVaultManager({ state, sessionToken }) {
       </form>
 
       <div className="grid min-w-0 gap-3 rounded-xl border border-slate-200 bg-white p-3">
-        <div className="grid min-w-0 gap-3 lg:grid-cols-4">
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search vault" className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700" />
-          <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700">
+        <div className="grid min-w-0 gap-3 lg:grid-cols-5">
+          <input value={search} onChange={(event) => { setSearch(event.target.value); clearKnowledgeIntelligence(); }} placeholder="Search vault" className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700" />
+          <select value={categoryFilter} onChange={(event) => { setCategoryFilter(event.target.value); clearKnowledgeIntelligence(); }} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700">
             <option value="all">All categories</option>
             {(state.knowledgeVault?.categories || []).map((category) => <option key={category.id} value={category.id}>{category.title}</option>)}
           </select>
-          <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700">
+          <select value={sourceFilter} onChange={(event) => { setSourceFilter(event.target.value); clearKnowledgeIntelligence(); }} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700">
             <option value="all">All sources</option>
             {sourceOptions.map((source) => <option key={source} value={source}>{source}</option>)}
           </select>
-          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700">
+          <select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); clearKnowledgeIntelligence(); }} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700">
             <option value="all">All review states</option>
             <option value="suggested">Suggested</option>
             <option value="approved">Trusted</option>
             <option value="archived">Archived</option>
+          </select>
+          <select value={dateRangeFilter} onChange={(event) => { setDateRangeFilter(event.target.value); clearKnowledgeIntelligence(); }} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700">
+            {APEX_OS_KNOWLEDGE_DATE_RANGE_VALUES.map((value) => <option key={value} value={value}>{knowledgeDateRangeLabel(value)}</option>)}
           </select>
         </div>
         <p className="break-words text-xs font-black text-slate-500">Showing {visibleRows.length} of {knowledgeRows.length} vault row{knowledgeRows.length === 1 ? "" : "s"}.</p>

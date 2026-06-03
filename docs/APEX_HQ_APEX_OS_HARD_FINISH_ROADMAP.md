@@ -329,6 +329,15 @@ Hard-finish package:
 - Add embeddings/vector search if private storage/schema is implemented.
 - Add evidence drawer and confidence labels.
 
+Status:
+
+- Completed locally on 2026-06-03.
+- Source-backed local Knowledge Intelligence now ranks approved decisions and Knowledge Vault rows, builds reviewed summaries, shows trusted/suggested/archived status, filters by source/category/status/text/date, labels confidence, and flags conflicts against current Apex HQ rules plus older memory.
+- Operator-only `/api/apex-os/knowledge-intelligence` returns local intelligence without a provider and optional server-side AI summary/classification when `OPENAI_API_KEY` is configured.
+- Embeddings/vector search remains locked because no private vector storage/schema approval was given.
+- Focused source-ranking/conflict/provider-shape tests, server privacy/access tests, broader Apex OS regression, role verification, production build, diff hygiene, and desktop/mobile browser QA passed.
+- Production release is pending.
+
 Blocked right now:
 
 - Unreviewed knowledge becoming trusted automatically.

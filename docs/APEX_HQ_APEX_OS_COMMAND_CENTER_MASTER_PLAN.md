@@ -718,6 +718,17 @@ Validation:
 - conflict tests
 - privacy/access tests
 
+Status:
+
+- Hard-finished locally on 2026-06-03.
+- Apex OS now has source-backed Knowledge Intelligence over approved decision memory and Knowledge Vault rows, including local lexical source ranking, reviewed document summaries, trusted/suggested/archived status, category/source/status/text/date filtering, confidence labels, ranked evidence rows, and conflict warnings against current Apex HQ operating rules.
+- Operator-only `POST /api/apex-os/knowledge-intelligence` returns private ranking, summaries, confidence labels, conflict warnings, safety locks, and provider insight. It uses server-side `OPENAI_API_KEY` for optional AI summary/classification only when configured; without a key it returns local source-backed intelligence.
+- The Knowledge Vault UI now shows Knowledge Intelligence, Refresh intelligence, Conflict warnings, Ranked Evidence, Confidence Labels, Local fallback / Server provider status, and locked vector-search state.
+- Conflict detection flags current-rule conflicts such as automatic trust, field access to pricing/private data, external actions without approval, and secret storage; it also flags "This conflicts with older memory" when active memory rows disagree.
+- No unreviewed uploaded document becomes trusted automatically, no customer/public knowledge is mixed into Apex OS, no embeddings/vector index/schema/storage was added, no frontend provider secret was added, and no provider write, production/customer mutation, send, spend, billing/payment, deploy/rollback execution, deletion, or irreversible action path was added.
+- Validation passed with focused source-ranking/conflict/provider-payload tests, Apex OS privacy/access server tests, the 114-test Apex OS route/nav/permission regression suite, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and desktop/mobile browser QA on `/apex-control-room` for Knowledge Intelligence refresh, ranked evidence, conflict warnings, date filter, vector-search lock, no failed post-login requests, and no horizontal overflow.
+- Production release is pending.
+
 ### Phase 14: Action Execution Layer
 
 Goal:

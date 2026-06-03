@@ -58,10 +58,18 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /Draft knowledge/);
   assert.match(componentSource, /Load vault/);
   assert.match(componentSource, /Review required/);
+  assert.match(componentSource, /Knowledge Intelligence/);
+  assert.match(componentSource, /Refresh intelligence/);
+  assert.match(componentSource, /Ranked Evidence/);
+  assert.match(componentSource, /Conflict warnings/);
+  assert.match(componentSource, /Confidence Labels/);
+  assert.match(componentSource, /getApexOsKnowledgeIntelligence/);
+  assert.match(componentSource, /buildApexOsKnowledgeIntelligence/);
   assert.match(componentSource, /application\/pdf/);
   assert.match(componentSource, /All categories/);
   assert.match(componentSource, /All sources/);
   assert.match(componentSource, /All review states/);
+  assert.match(componentSource, /Last 30 days/);
   assert.match(componentSource, /Vault Safety Gates/);
   assert.match(componentSource, /Vault Sources/);
   assert.match(componentSource, /Vault Intake Status/);
@@ -163,6 +171,7 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(utilSource, /APEX_OS_KNOWLEDGE_VAULT_CATEGORIES/);
   assert.match(utilSource, /APEX_OS_KNOWLEDGE_VAULT_SAFETY_RULES/);
   assert.match(utilSource, /function buildKnowledgeVaultState/);
+  assert.match(utilSource, /buildApexOsKnowledgeIntelligence/);
   assert.match(utilSource, /APEX_OS_CHAT_CONTEXTS/);
   assert.match(utilSource, /APEX_OS_CHAT_ACTION_LOCKS/);
   assert.match(utilSource, /function buildAskApexChatState/);
