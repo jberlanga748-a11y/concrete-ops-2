@@ -473,7 +473,8 @@ Status:
 - Agent Work Queue, Agent Run Ledger, Agent Safety Locks, Locked Agent Tasks, and safe execution handoff drafts remain in the Phase 7 surface. Handoffs continue to prepare scoped work packages through `apexOsExecutionHandoffs`.
 - Phase 7 allows John-requested scoped agent work records and handoff preparation only. It does not add an agent runner, background loop, queue endpoint, run endpoint, approval execution, deploy, send, spend, publish, provider setup, customer-visible action, production mutation, schema change, deletion, or irreversible action path.
 - Validation passed on 2026-06-03 with focused Agent Control Plane shared/API/UI tests, the 73-test Apex OS permission/routing/bootstrap suite, `npm.cmd run build`, and desktop/mobile Playwright browser QA proving operator login, request creation, mark-ready flow, locked execution labels, and no horizontal overflow at 1440px or 390px.
-- Production release is pending the Phase 7 commit/push/deploy gate.
+- Production release was approved and deployed on 2026-06-03 from commit `0aef694` to Fly app `concrete-ops-2` as version `639`, image `registry.fly.io/concrete-ops-2:deployment-01KT60X0SWR6QZWJKQC407W4VC`, with predeploy production backup `postgres-app-data-20260603-055635Z.json` and upload snapshot `uploads-20260603-055635Z`.
+- Post-deploy checks passed on 2026-06-03: both production `/api/ready` endpoints returned ready/database ok, `https://concrete-ops-2.fly.dev/api/health` returned healthy, Fly status showed machine `148e06e2b53d68` on version `639` with 1 passing check, hosted skip-auth health/routes smoke passed on `https://app.apexhq.online/`, `/apex-control-room` served, unauthenticated `/api/apex-os/agent-control` returned 401, `/api/setup/status` showed demo mode off and public signup disabled. Production auth smoke/login was not run.
 
 ### Phase 8: Approval Command Center
 

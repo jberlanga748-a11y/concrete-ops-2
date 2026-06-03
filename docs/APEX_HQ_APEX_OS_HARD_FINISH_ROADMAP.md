@@ -197,7 +197,8 @@ Status:
 - Existing Agent Work Queue, Agent Run Ledger, Agent Safety Locks, Locked Agent Tasks, and safe execution handoff drafts remain available in the same Phase 7 surface.
 - No autonomous unrequested execution, external send/spend/billing/customer-visible action, queue/run endpoint, background loop, deploy action, provider setup, production mutation, schema change, deletion, or irreversible action was added.
 - Local validation passed with focused shared/API/UI tests, broader Apex OS permission/routing/bootstrap tests, production build, and desktop/mobile browser QA.
-- Production release is pending Phase 7 commit/push/deploy.
+- Production release was approved and deployed on 2026-06-03 from commit `0aef694` to Fly app `concrete-ops-2` as version `639`, image `registry.fly.io/concrete-ops-2:deployment-01KT60X0SWR6QZWJKQC407W4VC`, after production backup `postgres-app-data-20260603-055635Z.json` plus upload snapshot `uploads-20260603-055635Z`.
+- Post-deploy checks passed: both production `/api/ready` endpoints returned ready/database ok, `https://concrete-ops-2.fly.dev/api/health` returned healthy, Fly status showed machine `148e06e2b53d68` on version `639` with 1 passing check, hosted skip-auth health/routes smoke passed, `/apex-control-room` served, unauthenticated `/api/apex-os/agent-control` returned 401, and `/api/setup/status` showed demo mode off and public signup disabled. Production auth smoke/login was not run.
 
 ### Phase 8: Approval Command Center
 
