@@ -2325,6 +2325,33 @@ export function ApexControlRoomPage(props) {
           </Card>
         </section>
 
+        <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+          <Card className="min-w-0 p-4 sm:p-5">
+            <SectionHeader title="Business Source Memory" description={`${state.businessCommandCenter.memorySourceCount || 0} approved business memory rows feeding private planning.`} />
+            <div className="grid min-w-0 gap-3">
+              {state.businessCommandCenter.memoryRows.length
+                ? state.businessCommandCenter.memoryRows.map((item) => <StatusRow key={item.id} item={item} />)
+                : <EmptyPanel>No approved business memory is feeding Phase 10 yet. Approve relevant business strategy, marketing/sales, customer research, legal/risk, or owner-note rows before treating them as source context.</EmptyPanel>}
+            </div>
+          </Card>
+
+          <Card className="min-w-0 p-4 sm:p-5">
+            <SectionHeader title="Business Task Drafts" description={`${state.businessCommandCenter.taskDraftCount || 0} private task drafts mapped to existing handoff workflow.`} />
+            <div className="grid min-w-0 gap-3">
+              {state.businessCommandCenter.taskDraftRows.map((item) => <StatusRow key={item.id} item={item} />)}
+            </div>
+          </Card>
+        </section>
+
+        <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)]">
+          <Card className="min-w-0 p-4 sm:p-5">
+            <SectionHeader title="Business Approval Drafts" description={`${state.businessCommandCenter.approvalDraftCount || 0} packet drafts for sends, publishing, billing, customer-visible work, and business operations.`} />
+            <div className="grid min-w-0 gap-3 lg:grid-cols-2">
+              {state.businessCommandCenter.approvalDraftRows.map((item) => <StatusRow key={item.id} item={item} />)}
+            </div>
+          </Card>
+        </section>
+
         <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
           <Card className="min-w-0 p-4 sm:p-5">
             <SectionHeader

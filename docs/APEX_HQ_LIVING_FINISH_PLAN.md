@@ -71,7 +71,7 @@ Current implementation status:
 - Apex OS Slice 7 is implemented locally: the Control Room now shows a private Voice Interface first UI with disabled push-to-talk, transcript confirmation preview, spoken-answer preview, voice modes, safety gates, and approval boundaries. Microphone access, always-listening, speech provider/API, audio capture, transcript storage, voice execution, schema, and deploy remain approval-locked.
 - Apex OS Slice 8 is folded into Phase 8 completion: the Approval Command Center first UI now has safe durable review decisions while execution remains locked.
 - Apex OS Slice 9 is implemented locally: the Control Room now shows a fuller private Release Desk / Monitoring first UI with release/monitoring checks, daily briefing rows, release readiness packet rows, and monitoring locks. Deploy, rollback execution, production monitoring provider setup, external alerts/notifications, production data mutation, schema/storage, and production configuration remain approval-locked.
-- Apex OS Slice 10 is implemented locally: the Control Room now shows a private Business Command Center first UI with launch, demo/pilot, marketing, sales/outreach, customer success, revenue/pricing/offer queues, launch/founder-demo rows, business briefing rows, and manual-send/spend/billing/claims gates. Live sends, ad spend, billing/payment, public publishing, provider setup, production data, schema/storage, and customer-visible actions remain approval-locked.
+- Apex OS Phase 10 / Business Operating Center is hard-finished locally and release-ready as of 2026-06-03: the private Control Room now has business command queues for launch, demo/pilot, marketing, sales/outreach, customer success, and revenue/pricing/offer work; launch/founder-demo rows; business briefing rows; approved source-backed business memory rows; private business task drafts; and business approval draft rows for manual sends, ads/publishing, billing/offers, customer-visible work, and business operations. Live sends, ad spend, billing/payment, public publishing, provider setup, production data, schema/storage, auth/session change, customer-visible actions, and unsupported claims remain approval-locked.
 - Apex OS Slice 11 is implemented locally: the Control Room now shows a private QA / Security Hardening surface with final evidence rows, hardening locks, completion audit rows, and security proof sources for John-only access, company/customer isolation, direct-route blocking, field-user blocking, source-backed answers, upload privacy, approval gates, desktop/mobile quality, build/test/release safety, no secrets, and no bypass actions.
 - Apex OS Slice 12 is implemented locally and has been folded into Phase 4 completion: Apex OS now has a durable source-backed decision memory API stored through existing company settings as `apexOsMemory`, with private operator-only access, suggested/approved/archived states, source-label requirements, source/timestamp tracking, secret/email rejection, audit/activity logging, and a private "What Did I Decide?" view with manual draft/load/approve/archive controls in the Control Room.
 - Apex OS Slice 13 is folded into Phase 6 completion: Ask Apex has an operator-only `/api/apex-os/ask` endpoint that answers from approved Apex OS memory and source rows by selected context scope, returns source labels, ranked evidence rows, approval warnings, local source-backed fallback, and server-side OpenAI provider readiness when `OPENAI_API_KEY` is configured. No action execution, sends, deploys, production mutation, or frontend secret exposure was added.
@@ -702,6 +702,72 @@ Rollback plan:
 Next recommended phase:
 
 - Start Phase 10 only after Phase 9 release evidence is committed and pushed.
+
+## Apex OS Phase 10: Business Operating Center Hard-Finish Report
+
+Goal:
+
+- Finish Phase 10 from the original Apex OS master plan before starting Phase 11: make Apex OS run Apex HQ as a business operating center, not only an app/build tracker, while keeping all sends, publishing, spend, billing, customer-visible actions, and unsupported claims locked.
+
+What was already built:
+
+- The Control Room already had a first UI for launch, demo/pilot, marketing, sales/outreach, customer success, revenue/pricing/offer queues, launch/founder-demo rows, business briefing rows, and manual-send/spend/billing/claims gates.
+- Durable Apex OS memory, approval packet drafts, and execution handoff drafts already existed through private operator-only company-settings storage.
+
+What was completed now:
+
+- Added source-backed business memory rows for approved Apex OS memory categories: business goals, business strategy, marketing/sales, customer research, legal/risk, and private owner notes.
+- Added six private business task draft rows covering launch readiness, founder demo, marketing proof, sales follow-up, customer success, and revenue/offer work.
+- Added five business approval draft rows covering business operations, manual sends, ads/publishing, billing/offers, and customer-visible work.
+- Threaded Phase 10 into the Business Command Center status, briefing, launch/founder-demo, and knowledge-source rows so approved business memory changes the business state from mapped to source-backed.
+- Kept business task drafts pointed at existing Agent Handoffs as `business-draft` work only; no queue/run/execution action was added.
+- Kept approval draft rows as review packets only; no send, publish, spend, billing/payment, customer-visible, provider, production-data, schema, auth/session, or irreversible action path was added.
+
+Affected files:
+
+- `src/apex-control-room-utils.js`
+- `src/apex-control-room-utils.test.js`
+- `src/apex-control-room-components.jsx`
+- `src/apex-control-room-components-import.test.js`
+- `docs/APEX_HQ_APEX_OS_COMMAND_CENTER_MASTER_PLAN.md`
+- `docs/APEX_HQ_APEX_OS_HARD_FINISH_ROADMAP.md`
+- `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md`
+- `docs/APEX_HQ_LIVING_FINISH_PLAN.md`
+
+Risk level:
+
+- Low. This is private operator-only state/UI/test/doc hardening. It uses existing Apex OS memory/approval/handoff concepts and adds no schema change, auth/session change, provider setup, production data mutation, customer-visible action, live send, ad spend, billing/payment, public publishing, package change, deletion, queue/run endpoint, or irreversible execution path.
+
+Validation:
+
+- Focused Phase 10 tests passed: `node --test --test-concurrency=1 src/apex-control-room-utils.test.js src/apex-control-room-components-import.test.js` with 9 tests.
+- Broader Apex OS regression passed: `node --test --test-concurrency=1 shared/apexOsBuildAwareness.test.js shared/apexOsApprovalPackets.test.js shared/apexOsAgentControl.test.js shared/permissions.test.js src/app-routing.test.js src/navigation-utils.test.js src/app-navigation-components-import.test.js src/apex-control-room-utils.test.js src/apex-control-room-components-import.test.js server/role-permissions.test.js server/apex-os-memory.test.js` with 82 tests.
+- `npm.cmd run build` passed with the existing large-chunk warning only.
+- Browser QA passed against an isolated temporary backend and Vite proxy with real UI login, temporary operator access, and two approved business memory seed rows. Desktop 1440px and mobile 390px showed Business Command Center, Business Source Memory, Business Task Drafts, Business Approval Drafts, manual-send/spend/billing/claims gates, and no horizontal overflow.
+- Browser QA artifacts: `ui-audit/apex-control-room-phase10/desktop-business-command-center.png`, `ui-audit/apex-control-room-phase10/mobile-business-command-center.png`, `ui-audit/apex-control-room-phase10/desktop-business-queues-target.png`, `ui-audit/apex-control-room-phase10/desktop-business-memory-drafts-target.png`, `ui-audit/apex-control-room-phase10/mobile-business-queues-target.png`, and `ui-audit/apex-control-room-phase10/mobile-business-memory-drafts-target.png`.
+
+Permissions impact:
+
+- No permission loosening. Phase 10 remains private Apex OS operator-only through the existing Control Room route/API gate.
+- Normal admins, estimators, field users, customer/company users, switched customer-company workspaces, and unauthenticated visitors remain blocked from Apex OS business memory, task drafts, approval drafts, and internal business planning.
+
+Mobile impact:
+
+- Mobile browser QA passed at 390px with no horizontal overflow. The Phase 10 business sections stack in the existing Control Room mobile layout with the existing fixed Apex OS bottom nav.
+
+Field-user impact:
+
+- None. Field users remain blocked from Apex OS, business queues, marketing/sales planning, pricing/offer planning, approval drafts, source-backed owner notes, AI office tools, leads, estimates, pricing, profit/margins, payroll, office notes, admin settings, billing, provider context, customer data, and private Apex HQ memory.
+
+Rollback plan:
+
+- If local release validation fails before deploy, revert the Phase 10 hard-finish commit to remove the business memory/task/approval rows, Control Room Phase 10 sections, focused assertions, and doc updates.
+- If hosted health fails after deploy, roll back Fly to the previous healthy Phase 9 release, version `641`, image `registry.fly.io/concrete-ops-2:deployment-01KT65V9K2KK4G0V1R6QRXR9QG`.
+- No database migration rollback is required because Phase 10 adds no schema and mutates no production data.
+
+Next recommended phase:
+
+- Deploy Phase 10 after commit/push and production release validation, then start Phase 11: Monitoring And Daily Briefings. Do not start Phase 11 before Phase 10 production release evidence is committed and pushed.
 
 Packaging and release state:
 

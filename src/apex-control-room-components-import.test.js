@@ -119,6 +119,12 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /Business Gates/);
   assert.match(componentSource, /Launch \/ Founder Demo/);
   assert.match(componentSource, /Business Briefing/);
+  assert.match(componentSource, /Business Source Memory/);
+  assert.match(componentSource, /Business Task Drafts/);
+  assert.match(componentSource, /Business Approval Drafts/);
+  assert.match(utilSource, /APEX_OS_BUSINESS_TASK_DRAFT_ROWS/);
+  assert.match(utilSource, /APEX_OS_BUSINESS_APPROVAL_DRAFT_ROWS/);
+  assert.match(utilSource, /buildBusinessMemoryRows/);
   assert.match(componentSource, /QA \/ Security Hardening/);
   assert.match(componentSource, /Hardening Locks/);
   assert.match(componentSource, /Completion Audit/);

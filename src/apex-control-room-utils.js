@@ -349,6 +349,100 @@ export const APEX_OS_BUSINESS_GATES = Object.freeze([
   },
 ]);
 
+export const APEX_OS_BUSINESS_TASK_DRAFT_ROWS = Object.freeze([
+  {
+    id: "launch-readiness-task-draft",
+    title: "Launch readiness task draft",
+    status: "Draft-ready",
+    detail: "Prepare launch gate review, legal/claims checklist, public signup posture, and release evidence as a private task package.",
+    tone: "blue",
+    sourceLabel: "Phase 10 business queue",
+  },
+  {
+    id: "founder-demo-task-draft",
+    title: "Founder-demo task draft",
+    status: "Draft-ready",
+    detail: "Prepare demo narrative, proof assets, pilot-fit questions, follow-up plan, and manual next steps without sending anything.",
+    tone: "blue",
+    sourceLabel: "Phase 10 business queue",
+  },
+  {
+    id: "marketing-proof-task-draft",
+    title: "Marketing proof task draft",
+    status: "Draft-only",
+    detail: "Prepare claim-safe website/social/proof copy for review. Publishing and ad spend remain locked.",
+    tone: "amber",
+    sourceLabel: "Phase 10 business queue",
+  },
+  {
+    id: "sales-follow-up-task-draft",
+    title: "Sales follow-up task draft",
+    status: "Draft-only",
+    detail: "Prepare call notes, objection handling, and follow-up scripts. Email/SMS/social sends remain locked.",
+    tone: "amber",
+    sourceLabel: "Phase 10 business queue",
+  },
+  {
+    id: "customer-success-task-draft",
+    title: "Customer success task draft",
+    status: "Draft-ready",
+    detail: "Prepare onboarding, check-in, support, testimonial, referral, and pilot learning tasks for manual review.",
+    tone: "blue",
+    sourceLabel: "Phase 10 business queue",
+  },
+  {
+    id: "revenue-offer-task-draft",
+    title: "Revenue / offer task draft",
+    status: "Approval required",
+    detail: "Prepare package, pricing, discount, billing, and offer review material. Billing/payment actions remain locked.",
+    tone: "amber",
+    sourceLabel: "Phase 10 business queue",
+  },
+]);
+
+export const APEX_OS_BUSINESS_APPROVAL_DRAFT_ROWS = Object.freeze([
+  {
+    id: "business-ops-packet-draft",
+    title: "Business operations packet",
+    status: "Draft packet",
+    detail: "Use the `business-operations` category for launch, demo, sales, marketing, customer success, or revenue work that needs owner review.",
+    tone: "blue",
+    sourceLabel: "Approval Command Center",
+  },
+  {
+    id: "manual-send-packet-draft",
+    title: "Manual send packet",
+    status: "Packet required",
+    detail: "Any email, SMS, voice, social DM, calendar invite, proposal send, or customer message needs recipient scope, copy, compliance, and exact approval.",
+    tone: "amber",
+    sourceLabel: "Approval Command Center",
+  },
+  {
+    id: "ad-publishing-packet-draft",
+    title: "Ads / publishing packet",
+    status: "Packet required",
+    detail: "Any ad spend, boosted post, public website publishing, or social publishing needs provider readiness, budget/scope, claims review, and exact approval.",
+    tone: "amber",
+    sourceLabel: "Approval Command Center",
+  },
+  {
+    id: "billing-offer-packet-draft",
+    title: "Billing / offer packet",
+    status: "Packet required",
+    detail: "Pricing, packages, discounts, invoices, payment links, checkout, or billing provider writes need a scoped money-action packet.",
+    tone: "amber",
+    sourceLabel: "Approval Command Center",
+  },
+  {
+    id: "customer-visible-packet-draft",
+    title: "Customer-visible packet",
+    status: "Packet required",
+    detail: "Anything a customer, pilot, prospect, or public visitor can see needs affected scope, rollback, claims review, and exact approval.",
+    tone: "amber",
+    sourceLabel: "Approval Command Center",
+  },
+]);
+
 export const APEX_OS_QA_SECURITY_EVIDENCE_ROWS = Object.freeze([
   {
     id: "john-only-access",
@@ -1440,14 +1534,68 @@ function buildPhase3AggregatorState({
   };
 }
 
+const APEX_OS_BUSINESS_MEMORY_CATEGORIES = new Set([
+  "business-goal",
+  "business-strategy",
+  "marketing-sales",
+  "customer-research",
+  "legal-risk",
+  "private-owner-notes",
+]);
+
+function humanizeId(value = "") {
+  return String(value || "")
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function truncateDetail(value = "", limit = 220) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  return text.length > limit ? `${text.slice(0, limit - 3)}...` : text;
+}
+
+function buildBusinessMemoryRows(decisionMemory = {}, knowledgeVault = {}) {
+  const decisionRows = (decisionMemory.durableEntries || [])
+    .filter((entry) => entry.status === "approved" && APEX_OS_BUSINESS_MEMORY_CATEGORIES.has(entry.category))
+    .map((entry) => ({
+      id: `decision-${entry.id}`,
+      title: entry.title || "Approved business decision",
+      status: APEX_OS_DECISION_CATEGORY_LABELS[entry.category] || humanizeId(entry.category),
+      detail: truncateDetail(entry.body || entry.reviewNote || "Approved Apex OS business decision with source metadata."),
+      tone: "green",
+      sourceLabel: entry.sourceLabel || "Approved decision memory",
+    }));
+  const vaultRows = (knowledgeVault.vaultEntries || [])
+    .filter((entry) => entry.status === "approved" && APEX_OS_BUSINESS_MEMORY_CATEGORIES.has(entry.category))
+    .map((entry) => ({
+      id: `vault-${entry.id}`,
+      title: entry.title || "Approved business knowledge",
+      status: humanizeId(entry.category),
+      detail: truncateDetail(entry.body || entry.reviewNote || "Approved Apex OS business knowledge with source metadata."),
+      tone: "green",
+      sourceLabel: entry.sourceLabel || "Approved knowledge vault",
+    }));
+  return [...decisionRows, ...vaultRows].slice(0, 6);
+}
+
 function buildBusinessCommandCenterState({
   launchState,
+  decisionMemory,
   knowledgeVault,
   approvalCommandCenter,
+  executionHandoffs,
   releaseMonitoring,
 } = {}) {
   const queueRows = APEX_OS_BUSINESS_QUEUE_ROWS.map((item) => ({ ...item }));
   const gateRows = APEX_OS_BUSINESS_GATES.map((item) => ({ ...item }));
+  const memoryRows = buildBusinessMemoryRows(decisionMemory, knowledgeVault);
+  const taskDraftRows = APEX_OS_BUSINESS_TASK_DRAFT_ROWS.map((item) => ({
+    ...item,
+    detail: `${item.detail} Draft into Agent Handoffs as business-draft work; queue/run stays locked.`,
+  }));
+  const approvalDraftRows = APEX_OS_BUSINESS_APPROVAL_DRAFT_ROWS.map((item) => ({ ...item }));
   const launchRows = [
     {
       id: "public-launch-readiness",
@@ -1466,15 +1614,17 @@ function buildBusinessCommandCenterState({
     {
       id: "knowledge-sources",
       title: "Business knowledge sources",
-      status: knowledgeVault?.status || "Planned",
-      detail: `${formatCount(knowledgeVault?.categoryCount)} private knowledge categories can inform business planning after manual review.`,
-      tone: knowledgeVault?.tone || "slate",
+      status: memoryRows.length ? `${memoryRows.length} approved` : knowledgeVault?.status || "Planned",
+      detail: memoryRows.length
+        ? `${memoryRows.length} approved business memory/source rows can inform private business planning.`
+        : `${formatCount(knowledgeVault?.categoryCount)} private knowledge categories can inform business planning after manual review.`,
+      tone: memoryRows.length ? "green" : knowledgeVault?.tone || "slate",
     },
     {
       id: "approval-path",
       title: "Business approval path",
       status: approvalCommandCenter?.status || "Planned",
-      detail: `${formatCount(approvalCommandCenter?.queueCount)} approval categories protect sends, spend, billing, publishing, providers, and customer-visible changes.`,
+      detail: `${formatCount(approvalCommandCenter?.queueCount)} approval categories and ${approvalDraftRows.length} Phase 10 packet drafts protect sends, spend, billing, publishing, providers, and customer-visible changes.`,
       tone: approvalCommandCenter?.tone || "slate",
     },
   ];
@@ -1496,22 +1646,29 @@ function buildBusinessCommandCenterState({
     {
       id: "manual-next-actions",
       title: "Manual next actions",
-      status: "Review required",
-      detail: "Apex can prepare drafts, packets, checklists, and recommendations, but the owner chooses if anything leaves the app.",
+      status: `${taskDraftRows.length} drafts`,
+      detail: `Apex can prepare ${taskDraftRows.length} task drafts and ${approvalDraftRows.length} approval packet drafts, but the owner chooses if anything leaves the app.`,
       tone: "amber",
     },
   ];
   return {
-    status: "First UI ready",
-    tone: "blue",
+    status: memoryRows.length ? "Source-backed" : "Business ops mapped",
+    tone: memoryRows.length ? "green" : "blue",
     queueCount: queueRows.length,
     gateCount: gateRows.length,
     launchCount: launchRows.length,
     briefingCount: briefingRows.length,
+    memorySourceCount: memoryRows.length,
+    taskDraftCount: taskDraftRows.length,
+    approvalDraftCount: approvalDraftRows.length,
+    handoffReadyCount: executionHandoffs?.handoffSummary?.ready || 0,
     queueRows,
     gateRows,
     launchRows,
     briefingRows,
+    memoryRows,
+    taskDraftRows,
+    approvalDraftRows,
   };
 }
 
@@ -1811,7 +1968,14 @@ export function deriveApexControlRoomState({
     agentControlRequests: companySettings?.apexOsAgentControlRequests || [],
   });
   const releaseMonitoring = buildReleaseMonitoringState({ releaseDesk, launchState, trustState, agentWorkQueue, recentEvidence });
-  const businessCommandCenter = buildBusinessCommandCenterState({ launchState, knowledgeVault, approvalCommandCenter, releaseMonitoring });
+  const businessCommandCenter = buildBusinessCommandCenterState({
+    launchState,
+    decisionMemory,
+    knowledgeVault,
+    approvalCommandCenter,
+    executionHandoffs,
+    releaseMonitoring,
+  });
   const phase3Aggregator = buildPhase3AggregatorState({
     companySettings,
     auditEvents,
@@ -1865,7 +2029,7 @@ export function deriveApexControlRoomState({
       executionHandoffs: { status: "Restricted", tone: "slate", sourceRows: [], handoffSummary: { total: 0, draft: 0, ready: 0, blocked: 0, archived: 0 } },
       agentControlPlane: { status: "Restricted", tone: "slate", rosterRows: [], requestRows: [], reportRows: [], handoffRows: [], safetyRows: [], requestSummary: { total: 0, active: 0, ready: 0, blocked: 0 } },
       releaseMonitoring: { status: "Restricted", tone: "slate", readinessRows: [], briefingRows: [], releasePacketRows: [], lockRows: [] },
-      businessCommandCenter: { status: "Restricted", tone: "slate", queueRows: [], gateRows: [], launchRows: [], briefingRows: [] },
+      businessCommandCenter: { status: "Restricted", tone: "slate", queueRows: [], gateRows: [], launchRows: [], briefingRows: [], memoryRows: [], taskDraftRows: [], approvalDraftRows: [] },
       phase3Aggregator: { status: "Restricted", tone: "slate", rows: [] },
       qaSecurityHardening: { status: "Restricted", tone: "slate", evidenceRows: [], lockRows: [] },
       agentWorkQueue: { status: "Restricted", tone: "slate", taskRows: [], lockedRows: [], runRows: [], safetyRows: [] },

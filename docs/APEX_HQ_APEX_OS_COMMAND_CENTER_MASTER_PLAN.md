@@ -596,10 +596,13 @@ Validation:
 
 Status:
 
-- Read-only first UI implemented locally on 2026-06-02 as Apex OS Slice 10.
+- Hard-finished locally and ready for production release on 2026-06-03.
 - The Control Room now shows launch, demo/pilot, marketing, sales/outreach, customer success, revenue/pricing/offer queues, launch/founder-demo rows, business briefing rows, and manual-send/spend/billing/claims gates.
-- No live send, email/SMS, ad spend, public publishing, billing/payment, package change, provider setup, customer-visible action, production data mutation, schema/storage change, or unsupported revenue/lead claim was added.
-- Validation passed with focused Apex OS utility/import tests, the 77-test permission/routing/bootstrap suite, `npm.cmd run build`, desktop/mobile browser QA with no horizontal overflow, and normal admin blocked/redirected away from Apex OS.
+- Phase 10 now adds source-backed business memory rows from approved Apex OS memory categories, private business task draft rows for launch/founder demo/marketing/sales/customer success/revenue work, and business approval draft rows for manual sends, ads/publishing, billing/offers, customer-visible work, and business operations.
+- Business task drafts point to existing Agent Handoffs as `business-draft` work, but no queue/run/execution action exists.
+- Business approval drafts are review packets only; manual send/publish/billing/customer-visible gates remain locked until separately approved.
+- No live send, email/SMS, ad spend, public publishing, billing/payment, package change, provider setup, customer-visible action, production data mutation, schema/storage change, auth/session change, or unsupported revenue/lead claim was added.
+- Local validation passed with focused Phase 10 Apex OS utility/import tests, the 82-test Apex OS route/nav/permission regression suite, `npm.cmd run build`, and isolated desktop/mobile browser QA using approved business memory seed rows with no horizontal overflow and screenshots under `ui-audit/apex-control-room-phase10/`.
 
 ### Phase 11: Monitoring And Daily Briefings
 

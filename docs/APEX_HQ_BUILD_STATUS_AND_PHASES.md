@@ -1,6 +1,6 @@
 # Apex HQ Build Status And Phase Tracker
 
-Last updated: 2026-05-30
+Last updated: 2026-06-03
 
 Status: historical build-status tracker. Read `docs/APEX_HQ_CANONICAL_SOURCE_OF_TRUTH.md`, `docs/APEX_HQ_LIVING_FINISH_PLAN.md`, and `docs/APEX_HQ_TOOL_COMPLETION_BLUEPRINT.md` before using this file.
 
@@ -15,6 +15,7 @@ Current state:
 - Phase 8-14 finish batch: built, verified, pushed, deployed, and health-checked on production release `v616` with active commit `e904e5a`. This includes Change Orders, Payroll Prep, Closeout & Billing Prep, Reputation & Portfolio, Communications & Customer Portal, Assistant, and Launch readiness gates.
 - Apex OS Phase 8 Approval Command Center: hard-finished, pushed, deployed, and health-checked on 2026-06-03 as Fly release `v640` from commit `be2dccb`, with durable approval packet templates, risk scoring, exact approval phrase enforcement, approve/reject/defer decision records, operator-only endpoints, audit/activity history, and locked execution/no irreversible action path.
 - Apex OS Phase 9 App Build And Code Awareness: hard-finished, pushed, deployed, and health-checked on 2026-06-03 as Fly release `v641` from commit `6368845`, with a read-only operator-only build-awareness endpoint, sanitized git changed-file map, branch/head/recent-commit status, build/test script status, deploy evidence parsing, known blockers, frozen phase map, source links, next-safe-task recommendation, no field-data exposure, and locked no-execution/no-UI-file-edit boundaries.
+- Apex OS Phase 10 Business Operating Center: hard-finished locally and release-ready on 2026-06-03, with private business command queues, source-backed approved business memory rows, launch/founder-demo status, business task drafts, business approval packet draft rows, and manual-only send/publish/ad/billing/customer-visible/claims gates. No live sends, ad spend, billing/payment, customer-visible actions, provider setup, schema/auth/session change, production mutation, or unsupported claims were added.
 - Production release evidence: `v614` failed because the runtime image missed `/app/src/time-utils.js`, production was rolled back to healthy `v615`, the Docker packaging gap was fixed in `e904e5a`, and `v616` passed `/api/ready`, hosted smoke, production auth smoke run `26686917811`, and unauthenticated desktop/mobile visual shell checks.
 - Pilot/demo readiness: good for guided demos and founder-led pilots.
 - Public signup foundation: built and tested.

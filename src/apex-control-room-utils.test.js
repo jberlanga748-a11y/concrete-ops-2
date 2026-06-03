@@ -3,8 +3,10 @@ import test from "node:test";
 
 import {
   APEX_CONTROL_ROOM_APPROVAL_GATES,
+  APEX_OS_BUSINESS_APPROVAL_DRAFT_ROWS,
   APEX_OS_BUSINESS_GATES,
   APEX_OS_BUSINESS_QUEUE_ROWS,
+  APEX_OS_BUSINESS_TASK_DRAFT_ROWS,
   APEX_OS_CHAT_ACTION_LOCKS,
   APEX_OS_CHAT_CONTEXTS,
   APEX_OS_APPROVAL_CONTROL_LOCKS,
@@ -55,6 +57,9 @@ test("deriveApexControlRoomState blocks non-private users", () => {
   assert.deepEqual(state.businessCommandCenter.gateRows, []);
   assert.deepEqual(state.businessCommandCenter.launchRows, []);
   assert.deepEqual(state.businessCommandCenter.briefingRows, []);
+  assert.deepEqual(state.businessCommandCenter.memoryRows, []);
+  assert.deepEqual(state.businessCommandCenter.taskDraftRows, []);
+  assert.deepEqual(state.businessCommandCenter.approvalDraftRows, []);
   assert.deepEqual(state.phase3Aggregator.rows, []);
   assert.deepEqual(state.qaSecurityHardening.evidenceRows, []);
   assert.deepEqual(state.qaSecurityHardening.lockRows, []);
@@ -151,7 +156,7 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.operatingSignals.find((item) => item.id === "approval-command-center")?.status, "Drafting ready");
   assert.equal(state.operatingSignals.find((item) => item.id === "execution-handoffs")?.status, "Drafting ready");
   assert.equal(state.operatingSignals.find((item) => item.id === "release-monitoring")?.status, "First UI ready");
-  assert.equal(state.operatingSignals.find((item) => item.id === "business-command-center")?.status, "First UI ready");
+  assert.equal(state.operatingSignals.find((item) => item.id === "business-command-center")?.status, "Business ops mapped");
   assert.equal(state.operatingSignals.find((item) => item.id === "qa-security-hardening")?.status, "Hardening evidence ready");
   assert.equal(state.priorities.find((item) => item.id === "agent-work-queue")?.status, "Review-only");
   assert.equal(state.priorities.find((item) => item.id === "knowledge-vault")?.status, "Upload intake ready");
@@ -160,7 +165,7 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.priorities.find((item) => item.id === "approval-command-center")?.status, "Drafting ready");
   assert.equal(state.priorities.find((item) => item.id === "execution-handoffs")?.status, "Drafting ready");
   assert.equal(state.priorities.find((item) => item.id === "release-monitoring")?.status, "First UI ready");
-  assert.equal(state.priorities.find((item) => item.id === "business-command-center")?.status, "First UI ready");
+  assert.equal(state.priorities.find((item) => item.id === "business-command-center")?.status, "Business ops mapped");
   assert.equal(state.priorities.find((item) => item.id === "qa-security-hardening")?.status, "Hardening evidence ready");
   assert.equal(state.releaseDesk.status, "Manual release only");
   assert.equal(state.releaseDesk.sections.length, 3);
@@ -265,11 +270,14 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.phase3Aggregator.rows.some((item) => item.id === "phase-3-phase-status" && item.status === "Phase 3 hard-finish"), true);
   assert.equal(state.phase3Aggregator.rows.some((item) => item.id === "phase-3-blockers-approvals" && /gates/.test(item.status)), true);
   assert.equal(state.phase3Aggregator.rows.some((item) => item.id === "phase-3-read-only-lock" && item.status === "Locked" && item.confidence === 96), true);
-  assert.equal(state.businessCommandCenter.status, "First UI ready");
+  assert.equal(state.businessCommandCenter.status, "Business ops mapped");
   assert.equal(state.businessCommandCenter.queueCount, APEX_OS_BUSINESS_QUEUE_ROWS.length);
   assert.equal(state.businessCommandCenter.gateCount, APEX_OS_BUSINESS_GATES.length);
   assert.equal(state.businessCommandCenter.launchCount, 4);
   assert.equal(state.businessCommandCenter.briefingCount, 3);
+  assert.equal(state.businessCommandCenter.taskDraftCount, APEX_OS_BUSINESS_TASK_DRAFT_ROWS.length);
+  assert.equal(state.businessCommandCenter.approvalDraftCount, APEX_OS_BUSINESS_APPROVAL_DRAFT_ROWS.length);
+  assert.equal(state.businessCommandCenter.memorySourceCount, 0);
   assert.equal(state.businessCommandCenter.queueRows.some((item) => item.id === "launch-queue" && item.status === "Planning"), true);
   assert.equal(state.businessCommandCenter.queueRows.some((item) => item.id === "sales-outreach-queue" && item.status === "Draft-only"), true);
   assert.equal(state.businessCommandCenter.queueRows.some((item) => item.id === "revenue-offer-queue" && item.status === "Approval required"), true);
@@ -277,7 +285,11 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.businessCommandCenter.gateRows.some((item) => item.id === "no-ad-spend" && item.status === "Locked"), true);
   assert.equal(state.businessCommandCenter.gateRows.some((item) => item.id === "claims-guardrails" && item.status === "Required"), true);
   assert.equal(state.businessCommandCenter.launchRows.some((item) => item.id === "public-launch-readiness" && item.status === "Launch locked"), true);
-  assert.equal(state.businessCommandCenter.briefingRows.some((item) => item.id === "manual-next-actions" && item.status === "Review required"), true);
+  assert.equal(state.businessCommandCenter.briefingRows.some((item) => item.id === "manual-next-actions" && item.status === "6 drafts"), true);
+  assert.equal(state.businessCommandCenter.taskDraftRows.some((item) => item.id === "founder-demo-task-draft" && item.status === "Draft-ready"), true);
+  assert.equal(state.businessCommandCenter.taskDraftRows.some((item) => item.id === "sales-follow-up-task-draft" && /Email\/SMS/.test(item.detail)), true);
+  assert.equal(state.businessCommandCenter.approvalDraftRows.some((item) => item.id === "business-ops-packet-draft" && item.status === "Draft packet"), true);
+  assert.equal(state.businessCommandCenter.approvalDraftRows.some((item) => item.id === "billing-offer-packet-draft" && /Billing/.test(item.title)), true);
   assert.equal(state.qaSecurityHardening.status, "Hardening evidence ready");
   assert.equal(state.qaSecurityHardening.evidenceCount, APEX_OS_QA_SECURITY_EVIDENCE_ROWS.length);
   assert.equal(state.qaSecurityHardening.lockCount, APEX_OS_QA_SECURITY_LOCKS.length);
@@ -422,6 +434,61 @@ test("deriveApexControlRoomState summarizes durable knowledge upload vault rows"
   assert.equal(state.knowledgeVault.vaultSummary.reviewHistory.length, 2);
   assert.deepEqual(state.knowledgeVault.sourceOptions, ["phase-5.md", "Sales notes"]);
   assert.deepEqual(state.knowledgeVault.vaultEntries.map((entry) => entry.title), ["Phase 5 notes", "Demo narrative"]);
+});
+
+test("deriveApexControlRoomState feeds Phase 10 from approved business memory only", () => {
+  const state = deriveApexControlRoomState({
+    user: { name: "John Berlanga", role: "Owner", operatorAccess: true },
+    permissions: {
+      apexOs: { canView: true, canManage: true },
+      aiOffice: { canView: true },
+      settings: { canView: true, canManage: true },
+    },
+    companySettings: {
+      apexOsMemory: [
+        {
+          id: "AOM-BIZ-1",
+          category: "business-goal",
+          title: "Founder-led launch focus",
+          body: "Use founder-led demos and controlled pilots before wider public launch.",
+          sourceLabel: "Living finish plan",
+          status: "approved",
+        },
+        {
+          id: "AOM-BIZ-2",
+          category: "marketing-sales",
+          title: "Demo proof narrative",
+          body: "Use proof assets and objection notes as private draft context.",
+          sourceType: "knowledge-upload",
+          sourceLabel: "Sales notes",
+          status: "approved",
+        },
+        {
+          id: "AOM-BIZ-3",
+          category: "marketing-sales",
+          title: "Suggested only",
+          body: "This should not be trusted yet.",
+          sourceLabel: "Unreviewed note",
+          status: "suggested",
+        },
+        {
+          id: "AOM-BIZ-4",
+          category: "product-identity",
+          title: "Not a business queue source",
+          body: "Product identity rows should stay out of Phase 10 business source memory.",
+          sourceLabel: "Master plan",
+          status: "approved",
+        },
+      ],
+    },
+  });
+
+  assert.equal(state.businessCommandCenter.status, "Source-backed");
+  assert.equal(state.businessCommandCenter.memorySourceCount, 2);
+  assert.deepEqual(state.businessCommandCenter.memoryRows.map((row) => row.title), ["Founder-led launch focus", "Demo proof narrative"]);
+  assert.equal(state.businessCommandCenter.memoryRows.some((row) => row.title === "Suggested only"), false);
+  assert.equal(state.businessCommandCenter.launchRows.some((row) => row.id === "knowledge-sources" && row.status === "2 approved"), true);
+  assert.equal(state.businessCommandCenter.approvalDraftRows.some((row) => row.id === "customer-visible-packet-draft" && row.status === "Packet required"), true);
 });
 
 test("deriveApexControlRoomState includes durable Apex OS approval packet summary", () => {
