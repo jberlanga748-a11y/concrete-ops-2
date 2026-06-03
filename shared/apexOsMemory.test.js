@@ -91,6 +91,7 @@ test("Apex OS memory summarizes and builds approved context only", () => {
       body: "Keep public launch gated until proof is ready.",
       sourceLabel: "Living plan",
       status: "suggested",
+      updatedAt: "2026-06-03T00:30:00.000Z",
     },
   ]);
 
@@ -123,6 +124,7 @@ test("Apex OS decision memory summarizes filters and detects active duplicates",
       body: "Keep Apex OS private to the owner.",
       sourceLabel: "Living plan",
       status: "suggested",
+      updatedAt: "2026-06-03T00:30:00.000Z",
     },
     {
       id: "AOM-KV-1",
