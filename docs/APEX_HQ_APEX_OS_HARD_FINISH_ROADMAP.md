@@ -361,6 +361,8 @@ Status:
 - Finished handoffs require validation results and a result report, and can create only suggested decision-memory updates for manual review.
 - Risky scoped work requires an approval packet reference before it can be saved as allowed action scope; queue/run/execute/deploy/send/spend/bill/provider/schema/customer-visible paths remain locked.
 - Local validation passed: focused task/handoff/approval enforcement tests, server memory tests, Apex OS regression tests, `npm.cmd run verify:roles`, `npm.cmd run build`, and desktop/mobile browser QA with suggested memory evidence and locked queue/run controls.
+- Production release was deployed on 2026-06-03 from commit `ab1a656` to Fly app `concrete-ops-2` as version `646`, image `registry.fly.io/concrete-ops-2:deployment-01KT6G2KC3ZZ5HS4Q3GT0VHHAP`, after production backup `postgres-app-data-20260603-102138Z.json` plus upload snapshot `uploads-20260603-102138Z`. Rollback target is version `645`, image `registry.fly.io/concrete-ops-2:deployment-01KT6DWEVTQ5CBC5V8TX7TX5CZ`.
+- Post-deploy checks passed: both production `/api/ready` endpoints returned ready/database ok, `https://concrete-ops-2.fly.dev/api/health` returned healthy, Fly machine `148e06e2b53d68` was on version `646` with 1 passing check, hosted skip-auth health/routes smoke passed, `/apex-control-room` served the Phase 14 bundles, unauthenticated Apex OS execution-handoffs, memory, and Ask Apex endpoints returned 401, and `/api/setup/status` showed demo mode off, demo user absent, and public signup disabled. Production auth smoke/login was not run.
 
 Blocked right now:
 
