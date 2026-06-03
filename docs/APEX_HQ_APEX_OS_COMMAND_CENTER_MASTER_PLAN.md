@@ -881,8 +881,12 @@ Status:
 
 - Read-only QA / Security Hardening first UI implemented locally on 2026-06-02 as Apex OS Slice 11.
 - The private Control Room now shows hardening evidence rows, hardening locks, completion audit rows, and security proof sources for John-only access, customer/company isolation, direct-route blocking, field-user blocking, source-backed answers, upload privacy, approval gates, desktop/mobile quality, build/test/release safety, no secrets, and no bypass actions.
-- Focused Apex OS tests, the 77-test permission/routing/bootstrap suite, `npm.cmd run build`, `git diff --check`, and desktop/mobile/admin-blocked browser QA passed locally.
-- Normal admin direct-route QA redirected to `/` and exposed no Apex Control Room or QA / Security Hardening content.
+- Hard-finished locally on 2026-06-03 against the original Phase 17 requirements.
+- Added final evidence rows for production-preview smoke, docs/memory drift, and the Apex OS access kill switch so every Phase 17 exit criterion has a visible proof row before completion can be claimed.
+- Validation passed with focused Apex OS hardening/component tests, the broad Apex OS security/role/company-scope regression suite after a transient company-scope server-start rerun, role verification, production build, `git diff --check`, and desktop/mobile/admin-blocked browser QA on an isolated local server.
+- Local browser QA verified the operator QA / Security Hardening surface, no horizontal overflow on desktop/mobile, admin direct-route redirect to `/`, admin Apex OS API 403, no admin exposure of Apex OS panels, and no page errors.
+- The access kill switch is access removal: `operatorAccess=false`, a non-office role, or switching out of the default Apex HQ workspace removes nav/bootstrap access and blocks Apex OS API/state.
+- No schema change, auth/session change, provider setup, production config change, production data mutation, customer-visible action, external send, ad spend, billing/payment, deploy/rollback execution from the UI, deletion, or irreversible action path was added in this local Phase 17 pass.
 - Production-preview smoke, production deploy, provider monitoring, external alerting, durable kill switch storage/execution, provider/API setup, durable memory/storage, voice provider work, and live action execution remain separate approval-locked later decisions.
 
 ### Phase 18: Finished Apex OS

@@ -3329,14 +3329,14 @@ export function ApexControlRoomPage(props) {
                 id: "completion-local",
                 title: "Local completion",
                 status: state.qaSecurityHardening.status,
-                detail: "The Apex OS surfaces are built locally as first UI slices; final completion depends on tests, build, route checks, mobile checks, and docs being current.",
+                detail: "Phase 17 completion depends on current role tests, route checks, no-secrets proof, source citations, visual QA, production smoke evidence, and docs drift checks.",
                 tone: state.qaSecurityHardening.tone,
               }} />
               <StatusRow item={{
                 id: "completion-production",
                 title: "Production / provider boundary",
                 status: "Approval required",
-                detail: "Deploys, provider/API work, speech, live monitoring, durable memory, customer-visible changes, and production mutations remain outside this local completion pass.",
+                detail: "Deploys and rollbacks stay outside the UI and use backup-first manual release evidence; provider setup, live sends, customer-visible changes, and production mutations remain approval-locked.",
                 tone: "amber",
               }} />
             </div>

@@ -73,6 +73,7 @@ Current implementation status:
 - Apex OS Phase 14 / Action Execution Layer is hard-finished, pushed, deployed, and production-checked as of 2026-06-03: Ask Apex can create safe task handoff drafts from chat, execution handoffs now carry locked work contracts with role/skill, work type, workstream status, allowed/blocked actions, validation, rollback, result report, source chat, approval packet link, and suggested decision-memory update evidence, and finished handoffs require validation results plus result reports before suggested memory can be drafted. No queue/run endpoint, autonomous unrequested agent execution, production action, customer-visible action, external send, ad spend, billing/payment, provider setup, schema/auth/session change, deletion, or irreversible action path was added.
 - Apex OS Phase 15 / Production Preview And Release Desk is hard-finished, pushed, deployed, and production-checked as of 2026-06-03: the Release Desk now shows read-only Production Preview Status, Release Readiness Packet, Deploy History, Deploy Approved Flow, and Release Safety Summary sections; build awareness parses the living-plan deploy log so current production version, commit, image, health evidence, backup evidence, hosted smoke evidence, and recent Apex OS deploy history are visible; and the deploy-approved path is visible but locked. No deploy button, rollback execution, provider setup, production mutation, customer-visible action, live send, ad spend, billing/payment, schema/auth/session change, deletion, or irreversible action path was added.
 - Apex OS Phase 16 / Personal Operating Layer is hard-finished, pushed, deployed, and production-checked as of 2026-06-03: the private Control Room now maps John preferences, work style memory, communication preferences, daily focus, interruption rules, background-vs-check-in rules, preference review, and privacy locks through existing operator-only Apex OS memory category `personal-preference`. Preferences start suggested, require source labels, reject secrets, and become operating guidance only after manual approval; privacy locks keep hidden tracking, sensitive personal tracking, background execution, external sends, production/customer mutation, schema/auth/session changes, provider setup, billing/payment, ad spend, and customer-visible actions locked. Production release `v648` from commit `c2f99d4` passed Fly checks, ready/health/setup checks, unauthenticated Apex OS endpoint 401 checks, Control Room asset verification, and hosted skip-auth smoke.
+- Apex OS Phase 17 / Full Apex OS QA And Security Hardening is hard-finished locally as of 2026-06-03 and pending production release: the private Control Room now has final hardening proof rows for role/field restrictions, customer/company isolation, direct-route blocking, source-backed answers, upload privacy, approval gates, build/test/release safety, desktop/mobile QA, production-preview smoke proof path, docs/memory drift, no secrets, risky-action bypass blocking, and the Apex OS access kill switch. Local validation passed focused tests, broad security/company-scope regression coverage after a transient company-scope server-start rerun, role verification, production build, diff check, and isolated desktop/mobile/admin-blocked browser QA. No schema, auth/session, provider setup, production data mutation, customer-visible action, external send, ad spend, billing/payment, deploy/rollback execution from the UI, deletion, or irreversible action path was added.
 - Apex OS Slice 8 is folded into Phase 8 completion: the Approval Command Center first UI now has safe durable review decisions while execution remains locked.
 - Apex OS Phase 11 / Monitoring And Daily Briefings is hard-finished and deployed as of 2026-06-03: the private Control Room now has source-backed Release Monitoring refresh for production readiness, demo app readiness, GitHub Actions/smoke status, failed test/build signals, stalled-agent signals, daily briefing manual refresh/save, durable private briefing history, changed-since-last-saved rows, locks, source labels, and John-action alerts. External alerts/notifications, autonomous schedules, deploy/rollback execution from the UI, provider monitoring changes, production/customer data mutation, schema/auth/session changes, live sends, ad spend, billing/payment, public publishing, and customer-visible actions remain locked.
 - Apex OS Phase 10 / Business Operating Center is hard-finished and deployed as of 2026-06-03: the private Control Room now has business command queues for launch, demo/pilot, marketing, sales/outreach, customer success, and revenue/pricing/offer work; launch/founder-demo rows; business briefing rows; approved source-backed business memory rows; private business task drafts; and business approval draft rows for manual sends, ads/publishing, billing/offers, customer-visible work, and business operations. Live sends, ad spend, billing/payment, public publishing, provider setup, production data, schema/storage, auth/session change, customer-visible actions, and unsupported claims remain approval-locked.
@@ -1287,6 +1288,80 @@ Production release state:
 Next recommended phase:
 
 - Start Phase 17: Full Apex OS QA And Security Hardening only after this Phase 16 release evidence commit is pushed.
+
+## Apex OS Phase 17: Full Apex OS QA And Security Hardening Hard-Finish Report
+
+Date: 2026-06-03
+
+Goal:
+
+- Finish Phase 17 from the original Apex OS master plan before starting Phase 18: prove Apex OS is safe before treating it as complete, with role, company, direct-route, citation, upload privacy, approval-gate, build/release, visual, production-preview, docs-drift, no-secrets, no-bypass, and kill-switch evidence.
+
+What was already built before this pass:
+
+- Earlier Apex OS phases already provided private operator-only access, source-backed Ask Apex answers, Knowledge Vault intake, approval packets, agent handoff locks, build awareness, monitoring, release desk evidence, and personal operating memory.
+- A first QA / Security Hardening UI existed from the earlier Apex OS slice, but it still needed final proof rows for production-preview smoke, docs/memory drift, and the access kill switch before the original Phase 17 exit criteria could be called complete.
+
+What was completed in this pass:
+
+- Added final QA / Security Hardening proof rows for production-preview smoke, docs/memory drift, and Apex OS access kill switch.
+- Upgraded Phase 17 proof statuses so John-only private access, customer/company isolation, direct-route blocking, field-user blocking, approval gates, desktop/mobile visual quality, build/test/release safety, and risky-action bypass blocking show verified evidence instead of placeholder evidence-required rows.
+- Connected build-awareness and release-desk state into the Phase 17 hardening packet so docs/source links, changed-file signals, deploy-history evidence, protected endpoint expectations, setup status, backup evidence, asset evidence, and rollback evidence can be reflected in the proof rows.
+- Updated the Completion Audit copy to separate local hardening evidence from production/provider boundaries and keep deploys, rollbacks, provider setup, live sends, customer-visible changes, and production mutations approval-locked outside the UI.
+
+Affected files:
+
+- `src/apex-control-room-utils.js`
+- `src/apex-control-room-utils.test.js`
+- `src/apex-control-room-components.jsx`
+- `src/apex-control-room-components-import.test.js`
+- `docs/APEX_HQ_APEX_OS_COMMAND_CENTER_MASTER_PLAN.md`
+- `docs/APEX_HQ_APEX_OS_HARD_FINISH_ROADMAP.md`
+- `docs/APEX_HQ_LIVING_FINISH_PLAN.md`
+- `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md`
+
+Risk level:
+
+- Low-medium. Phase 17 changes private operator UI/state evidence and tests only. It does not add schema, auth/session changes, provider setup, background jobs, agent execution, production data mutation, customer-visible actions, live sends, ad spend, billing/payment, deletion, or irreversible actions.
+
+Validation results:
+
+- Focused Phase 17 tests passed: `node --test --test-concurrency=1 src\apex-control-room-utils.test.js src\apex-control-room-components-import.test.js` with 11 passing tests.
+- Broad Apex OS security regression was run with Ask Apex, voice, daily briefing, build awareness, approval packets, agent control, execution handoffs, memory, permissions, routing/navigation imports, role permissions, and company-scope tests. The first broad run had one transient `server\company-scope.test.js` server-start readiness miss; rerunning `node --test --test-concurrency=1 server\company-scope.test.js` passed all 15 tests.
+- Role verification passed: `npm.cmd run verify:roles` with 15 passing tests.
+- Production build passed: `npm.cmd run build` with the existing large-chunk warning and produced local Phase 17 bundles `assets/index-Da5InDXb.js`, `assets/app-domain-DsA5cCGr.js`, and `assets/app-domain-BG7wb0Ah.css`.
+- `git diff --check` passed with line-ending warnings only.
+- Isolated local browser QA passed on `http://127.0.0.1:4217/apex-control-room` using a temp SQLite/DATA_DIR setup and operator-enabled test user. Desktop and mobile verified the QA / Security Hardening surface, production-preview smoke proof path, docs/memory drift, access kill switch, bypass blocking, no horizontal overflow, and no page errors.
+- Admin-blocked browser QA passed: `demo.admin@apexhq.app` direct route redirected to `/`, Apex OS hardening content was absent, `/api/apex-os/memory` returned 403, and admin view had no horizontal overflow.
+- Browser screenshots were saved locally under ignored `ui-audit/apex-control-room-phase17/`, including `desktop-qa-security-hardening-final.png`, `mobile-qa-security-hardening-final.png`, and `desktop-completion-audit-final.png`.
+
+Permissions impact:
+
+- Operator-only. Restricted users receive no Apex OS hardening state and cannot see Apex OS panels.
+- The access kill switch is access removal: `operatorAccess=false`, a non-office role, or switching out of the default Apex HQ workspace removes nav/bootstrap access and blocks Apex OS API/state.
+- Field users, demo users, customers, pilots, and normal company users remain blocked from Apex OS state and controls.
+
+Mobile impact:
+
+- Desktop and mobile browser QA passed with no horizontal overflow. The hardening proof rows stack into a long mobile review surface and remain usable with the existing mobile bottom navigation.
+
+Field-user impact:
+
+- None. No field route/nav/API capability was added, and field-private boundaries remain unchanged. Field users still cannot see leads, estimates, pricing, margins, payroll, billing, office-only notes, AI office tools, admin setup, company setup, or other company data through Apex OS.
+
+Rollback plan:
+
+- If local validation fails before deploy, revert the Phase 17 hard-finish commit to remove the final hardening evidence rows, updated proof status derivation, Completion Audit copy, focused assertions, and docs.
+- If production release fails after deploy, roll back Fly to the previous healthy release and revert the Phase 17 commit if the UI/state change is implicated.
+- No database migration rollback is required because Phase 17 adds no schema and reuses existing Apex OS state.
+
+Production release state:
+
+- Pending. Phase 17 must still be committed, pushed, deployed with a predeploy backup, production-checked, and recorded in the deploy log before Phase 18 can start.
+
+Next recommended phase:
+
+- Start Phase 18: Finished Apex OS only after Phase 17 is committed, pushed, deployed, production-checked, and the release evidence commit is pushed.
 
 Packaging and release state:
 

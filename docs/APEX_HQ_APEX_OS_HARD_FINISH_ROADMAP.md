@@ -425,6 +425,14 @@ Blocked right now:
 - External customer/money/send actions.
 - Destructive tests against production data.
 
+Status:
+
+- Hard-finished locally on 2026-06-03 against the original Phase 17 scope.
+- Completed with final QA / Security Hardening evidence rows for role and field restrictions, customer/company isolation, direct-route blocking, source-backed answers, upload privacy, approval gates, build/test/release safety, desktop/mobile visual QA, production-preview smoke proof path, docs/memory drift, no secrets, no risky-action bypass, and Apex OS access kill-switch proof.
+- Validated with focused hardening/component tests, broad Apex OS role/security/company-scope regression coverage with transient company-scope startup rerun passing, role verification, production build, diff check, and isolated desktop/mobile/admin-blocked browser QA.
+- No schema, auth/session, provider setup, production data mutation, customer-visible action, send, spend, billing/payment, deploy/rollback execution from the UI, deletion, or irreversible action path was added.
+- Production release is pending the Phase 17 commit, push, approved deploy, hosted smoke, protected endpoint checks, setup checks, Control Room asset verification, rollback evidence, and release-evidence doc commit.
+
 ### Phase 18: Finished Apex OS
 
 Hard-finish package:
