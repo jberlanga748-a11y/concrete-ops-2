@@ -1,3 +1,5 @@
+import { DEFAULT_COMPANY_ID, normalizeCompanyId } from "./companyScope.js";
+
 export const DEFAULT_TIME_LOCATION_EVIDENCE_NOTICE = "Location capture is optional and only runs when a worker taps Capture location during clock-in or clock-out. Apex HQ does not run background GPS, create geofence alerts, or use location evidence for automatic discipline, payroll correction, or jobsite departure decisions.";
 
 export const DEFAULT_TIME_LOCATION_EVIDENCE_POLICY = {
@@ -151,8 +153,13 @@ export function canManageCompanies(user) {
   return user?.operatorAccess === true && isOfficeManager(user);
 }
 
+export function isApexOsWorkspace(user = {}) {
+  const selectedCompanyId = normalizeCompanyId(user?.currentCompanyId || user?.selectedCompanyId || user?.companyId);
+  return selectedCompanyId === DEFAULT_COMPANY_ID;
+}
+
 export function canAccessApexOs(user) {
-  return canManageCompanies(user);
+  return canManageCompanies(user) && isApexOsWorkspace(user);
 }
 
 export function canViewLeads(user) {

@@ -63,6 +63,13 @@ A phase is 100 percent done only when all of this is true:
 
 ### Phase 1: Private Access And Identity
 
+Status:
+
+- Hard-finished locally on 2026-06-03.
+- Frozen access model: normal Apex HQ login, private `operator_access` / `operatorAccess` flag, office-level role, default Apex HQ operating workspace, and server bootstrap `permissions.apexOs.canView`.
+- Customer/company workspaces stay blocked even for an operator after company switching; the operator must be in the default Apex HQ operating workspace for Apex OS route/nav/API access.
+- Validation passed with focused access, route, navigation, bootstrap, API, and company-scope tests; `npm.cmd run verify:roles`; `npm.cmd run build`; `git diff --check`; and desktop/mobile browser QA for operator access, normal-admin blocking, employee blocking, and switched-company blocking.
+
 Hard-finish package:
 
 - Audit route, nav, API, bootstrap permission, operator access, and direct-route behavior.
@@ -336,6 +343,6 @@ For each phase:
 
 ## Next Step
 
-Start with Phase 1 hard-finish closure.
+After the Phase 1 hard-finish commit is pushed, start Phase 2: Apex-Branded Control Room Shell.
 
-Do not begin Phase 2 until Phase 1 is audited, hardened, validated, documented, committed, pushed, and explicitly marked frozen.
+Do not begin Phase 2 until Phase 1 is committed and pushed.

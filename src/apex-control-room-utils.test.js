@@ -104,6 +104,8 @@ test("deriveApexControlRoomState builds private operator status from visible sta
 
   assert.equal(state.canView, true);
   assert.equal(state.operatorName, "John Berlanga");
+  assert.match(state.kpis.find((item) => item.id === "access")?.detail || "", /default Apex HQ workspace/i);
+  assert.match(state.kpis.find((item) => item.id === "access")?.detail || "", /operatorAccess flag/i);
   assert.equal(state.kpis.find((item) => item.id === "queue")?.value, "2");
   assert.match(state.kpis.find((item) => item.id === "queue")?.detail || "", /1 blocked/);
   assert.equal(state.kpis.find((item) => item.id === "workspace")?.value, "4");

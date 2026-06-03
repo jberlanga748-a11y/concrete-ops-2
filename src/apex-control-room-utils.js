@@ -1573,7 +1573,7 @@ export function deriveApexControlRoomState({
         id: "access",
         label: "Private access",
         value: "Locked",
-        detail: "Operator gate passed",
+        detail: "Default Apex HQ workspace, operatorAccess flag, office role, and server bootstrap permission all passed.",
         tone: "green",
       },
       {

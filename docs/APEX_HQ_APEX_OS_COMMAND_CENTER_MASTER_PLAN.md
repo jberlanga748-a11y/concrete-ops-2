@@ -1,6 +1,6 @@
 # Apex HQ Apex OS Command Center Master Plan
 
-Last updated: 2026-06-02
+Last updated: 2026-06-03
 
 Canonical owner: John Berlanga
 
@@ -207,7 +207,13 @@ Validation:
 
 Status:
 
-- Implemented locally on 2026-06-02 as part of Apex OS Slice 1.
+- Hard-finished locally on 2026-06-03.
+- Access is frozen to the existing Apex HQ login plus the private `operator_access` / `operatorAccess` flag, an office-level role, the default Apex HQ operating workspace, and the server bootstrap `permissions.apexOs.canView` gate.
+- Operator access no longer follows an operator into a selected customer/company workspace. Operators can still switch companies, but Apex OS route/nav/API access is hidden and returns 403 until the default Apex HQ operating workspace is selected again.
+- Normal admins without operator access, estimators, foremen, employees, demo users without the flag, customer/company users, and switched customer-company workspaces cannot see the Apex OS nav item or access Apex OS APIs.
+- The private Control Room access KPI now shows proof that the default Apex HQ workspace, `operatorAccess` flag, office role, and server bootstrap permission all passed.
+- No schema change, auth/session redesign, customer-visible access model change, provider setup, production data mutation, deploy, customer-visible action, send, spend, billing/payment, deletion, or Phase 2 shell polish was added in this hard-finish pass.
+- Validation passed on 2026-06-03 with focused route/nav/API/bootstrap/company-scope tests, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check` with CRLF warnings only, and desktop/mobile browser QA for operator access, normal-admin blocking, employee blocking, and switched-company blocking.
 
 ### Phase 2: Apex-Branded Control Room Shell
 

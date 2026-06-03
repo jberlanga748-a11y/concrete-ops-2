@@ -58,7 +58,7 @@ Recommended first implementation:
 
 Current implementation status:
 
-- Apex OS Slice 1 is implemented locally: `/apex-control-room` route, `apexControlRoom` module, `apexOs` bootstrap permission, private operator nav visibility, and Apex-branded Control Room shell.
+- Apex OS Phase 1 / Slice 1 is hard-finished locally as of 2026-06-03: `/apex-control-room` route, `apexControlRoom` module, `apexOs` bootstrap permission, private operator nav visibility, and direct-route/API blocking are frozen to the normal Apex HQ login plus private `operatorAccess`, an office-level role, the default Apex HQ operating workspace, and server bootstrap permission. Customer/company workspaces stay blocked even after operator company switching.
 - Apex OS Slice 2 is implemented locally: the Control Room now uses a read-only Apex OS state aggregator that surfaces operating signals, next best actions, launch readiness, release safety, Agent OS task availability, trust/audit readiness, approval gates, and recent evidence from existing Apex HQ systems.
 - Apex OS Phase 4 / Slice 3 is complete locally as of 2026-06-03: the Control Room now shows Decision Memory and Operating Rules sourced from the Apex OS master plan plus durable Apex OS memory, including John/Apex HQ identity, private operator-only access, approval boundaries, local/private autonomy, build order, source order, field boundaries, no-secrets memory, build-freeze discipline, business-goal memory, and personal-preference memory.
 - Apex OS Slice 4 is implemented locally: the Control Room now shows a read-only Agent Work Queue, Agent Run Ledger, Agent Safety Locks, and Locked Agent Tasks using existing Agent OS task/run helpers. It shows what can be planned or reviewed, not anything that runs agents.
@@ -76,9 +76,62 @@ Current implementation status:
 - Apex OS Slice 16 is implemented locally: the private Daily Briefing can refresh from an operator-only `/api/apex-os/daily-briefing` endpoint that summarizes current local workspace counts, John-action alerts, field proof watch, durable memory context, release posture, evidence pulse, safety locks, source labels, and next actions. It is read-only and does not persist records, send alerts, call providers, execute agents, deploy, or mutate production/customer data.
 - Apex OS Slice 17 is implemented locally: the private Approval Command Center now has durable approval packet drafts stored through existing company settings as `apexOsApprovalPackets`, with operator-only list/create/update endpoints, draft/ready/blocked/archived states only, source-label and readiness-field requirements, secret/email rejection, audit/activity logging, and Control Room UI for drafting, loading, marking ready/blocked, and archiving packets. This slice does not add approved/executed states, one-click approval, deploy, sends, spend, provider setup, production mutation, customer-visible changes, schema changes, or irreversible actions.
 - Apex OS Slice 18 is implemented locally: the private Agent Work Queue now has durable safe agent handoff drafts stored through existing company settings as `apexOsExecutionHandoffs`, with operator-only list/create/update endpoints, draft/ready/blocked/archived states only, source-label and readiness-field requirements, secret/email rejection, audit/activity logging, and Control Room UI for drafting, loading, marking ready/blocked, and archiving handoffs. This slice prepares scoped work packages only; it does not approve, queue, run, execute, deploy, send, spend, publish, configure providers, mutate production, make customer-visible changes, change schema, or perform irreversible actions.
-- Access uses the existing local/private `operatorAccess` flag plus office-level role checks. Normal admins without operator access, estimators, field users, and employees do not get the route/nav permission.
+- Access uses the existing local/private `operatorAccess` flag plus office-level role checks, the default Apex HQ operating workspace, and the server bootstrap `apexOs` permission. Normal admins without operator access, estimators, field users, employees, demo users without the flag, customer/company users, and switched customer-company workspaces do not get the route/nav/API permission.
 - The current shell is safe: no auth/session change, no binary upload storage, no server parser service, no embeddings/vector index, no streaming, no microphone permission, no speech provider, no always-listening, no audio capture/storage, no approval execution controls, no agent queue/run execution controls, no deploy, no rollback execution, no production monitoring provider changes, no external alerts, no production data mutation, no live sends, no ad spend, no billing/payment, no public publishing, no customer-visible send/publish/spend/delete behavior, and no irreversible action path. Durable Apex OS memory, knowledge upload drafts, approval packet drafts, and execution handoff drafts use the existing company settings persistence path instead of a new table. PDF text extraction happens client-side only and stores reviewed text/source metadata, not the binary PDF. Ask Apex provider mode uses server-side `OPENAI_API_KEY` only when configured; local validation currently shows the key is missing, so local Ask Apex runs in source-backed fallback mode. Voice is transcript-only in this slice. Daily Briefing refresh is read-only.
-- Visual QA artifacts: `ui-audit/apex-control-room-local/desktop-apex-control-room.png`, `ui-audit/apex-control-room-local/mobile-apex-control-room.png`, `ui-audit/apex-control-room-local/desktop-admin-blocked.png`, `ui-audit/apex-control-room-local/desktop-apex-control-room-qa-security.png`, `ui-audit/apex-control-room-local/mobile-apex-control-room-qa-security.png`, `ui-audit/apex-control-room-local/desktop-admin-blocked-qa-security.png`, `ui-audit/apex-control-room-local/desktop-apex-control-room-ask-apex-live.png`, `ui-audit/apex-control-room-local/desktop-admin-blocked-ask-apex-live.png`, `ui-audit/apex-control-room-local/desktop-apex-control-room-voice-transcript-ask.png`, `ui-audit/apex-control-room-local/desktop-apex-control-room-daily-briefing-refresh.png`, `ui-audit/apex-control-room-local/desktop-admin-blocked-daily-briefing-refresh.png`, `ui-audit/apex-os-phase-5-knowledge-vault-desktop.png`, `ui-audit/apex-os-phase-5-knowledge-vault-mobile.png`, `ui-audit/apex-os-phase-5-knowledge-vault-desktop-focused.png`, `ui-audit/apex-os-phase-5-knowledge-vault-mobile-focused.png`, `ui-audit/apex-os-phase-5-knowledge-vault-pdf-duplicate-desktop.png`, and `ui-audit/apex-os-phase-5-knowledge-vault-pdf-mobile.png`.
+- Visual QA artifacts: `ui-audit/apex-control-room-local/desktop-apex-control-room.png`, `ui-audit/apex-control-room-local/mobile-apex-control-room.png`, `ui-audit/apex-control-room-local/desktop-admin-blocked.png`, `ui-audit/apex-control-room-local/desktop-apex-control-room-qa-security.png`, `ui-audit/apex-control-room-local/mobile-apex-control-room-qa-security.png`, `ui-audit/apex-control-room-local/desktop-admin-blocked-qa-security.png`, `ui-audit/apex-control-room-local/desktop-apex-control-room-ask-apex-live.png`, `ui-audit/apex-control-room-local/desktop-admin-blocked-ask-apex-live.png`, `ui-audit/apex-control-room-local/desktop-apex-control-room-voice-transcript-ask.png`, `ui-audit/apex-control-room-local/desktop-apex-control-room-daily-briefing-refresh.png`, `ui-audit/apex-control-room-local/desktop-admin-blocked-daily-briefing-refresh.png`, `ui-audit/apex-os-phase-1-access-hard-finish/operator-desktop-access.png`, `ui-audit/apex-os-phase-1-access-hard-finish/operator-mobile-access.png`, `ui-audit/apex-os-phase-1-access-hard-finish/normal-admin-blocked.png`, `ui-audit/apex-os-phase-1-access-hard-finish/employee-mobile-blocked.png`, `ui-audit/apex-os-phase-1-access-hard-finish/operator-switched-company-blocked.png`, `ui-audit/apex-os-phase-5-knowledge-vault-desktop.png`, `ui-audit/apex-os-phase-5-knowledge-vault-mobile.png`, `ui-audit/apex-os-phase-5-knowledge-vault-desktop-focused.png`, `ui-audit/apex-os-phase-5-knowledge-vault-mobile-focused.png`, `ui-audit/apex-os-phase-5-knowledge-vault-pdf-duplicate-desktop.png`, and `ui-audit/apex-os-phase-5-knowledge-vault-pdf-mobile.png`.
+
+## Apex OS Phase 1: Private Access And Identity Hard-Finish Report
+
+Goal:
+
+- Finish Phase 1 from the original Apex OS master plan before starting Phase 2: make Apex OS private to John/operator access and prove route, nav, API, bootstrap, direct-route, and company-workspace boundaries.
+
+What was already built:
+
+- `/apex-control-room` route, `apexControlRoom` module, `permissions.apexOs` bootstrap scope, private operator nav visibility, Control Room shell, and operator-only Apex OS APIs already existed.
+- Existing access used `operatorAccess` plus office-level role checks.
+
+What was completed now:
+
+- Tightened Apex OS access so it also requires the default Apex HQ operating workspace.
+- Kept company switching available for operators, but blocked Apex OS route/nav/API access after an operator switches into a customer/company workspace.
+- Added clearer private access evidence in the Control Room: default Apex HQ workspace, `operatorAccess` flag, office role, and server bootstrap permission must all pass.
+- Tightened tests for owner/operator, operator admin, normal owner/admin, estimator, foreman, employee, demo-user flag behavior, API denial, and switched-company blocking.
+- Updated Phase 1 docs and roadmap status.
+
+Risk level:
+
+- Low. This is a permission hardening change only. No schema change, auth/session redesign, provider setup, production data mutation, deploy, customer-visible action, send, spend, billing/payment, deletion, or Phase 2 shell work was added.
+
+Validation plan/results:
+
+- Focused Phase 1 validation passed locally: `node --test --test-concurrency=1 shared/permissions.test.js shared/companyScope.test.js src/app-routing.test.js src/navigation-utils.test.js src/app-state-utils.test.js src/apex-control-room-utils.test.js src/app-navigation-components-import.test.js src/apex-control-room-components-import.test.js server/role-permissions.test.js server/company-scope.test.js server/apex-os-memory.test.js` with 99 passing tests.
+- `npm.cmd run verify:roles` passed with 15 passing tests.
+- `npm.cmd run build` passed with the existing large-chunk warnings.
+- `git diff --check` passed with CRLF warnings only.
+- Browser QA passed locally on `http://127.0.0.1:5173`: private operator desktop and mobile could access Apex Control Room and saw the access-proof text with no horizontal overflow; normal admin direct route redirected to `/`, showed no Apex OS nav/private surface, and `/api/apex-os/memory` returned 403; employee mobile direct route redirected to `/jobs`, showed no office/private Apex OS text, and `/api/apex-os/memory` returned 403; operator switched into a temporary customer workspace lost Apex OS bootstrap permission, route/nav/private surface, and API access returned 403.
+- Browser QA artifacts: `ui-audit/apex-os-phase-1-access-hard-finish/operator-desktop-access.png`, `ui-audit/apex-os-phase-1-access-hard-finish/operator-mobile-access.png`, `ui-audit/apex-os-phase-1-access-hard-finish/normal-admin-blocked.png`, `ui-audit/apex-os-phase-1-access-hard-finish/employee-mobile-blocked.png`, and `ui-audit/apex-os-phase-1-access-hard-finish/operator-switched-company-blocked.png`.
+- Local QA cleanup completed: `demo.ops@apexhq.app`, `demo.admin@apexhq.app`, `demo.foreman@apexhq.app`, and `demo.employee@apexhq.app` `operator_access` flags were restored to `0`, and the temporary `COMPANY-PHASE1-QA` company was removed.
+
+Permissions impact:
+
+- Permission hardening only. Apex OS now requires private operator access, an office role, default Apex HQ operating workspace, and server bootstrap permission. Normal admins, estimators, field users, employees, demo users without the flag, customer/company users, and switched customer-company workspaces remain blocked.
+
+Mobile impact:
+
+- Private operator mobile access was verified with no horizontal overflow. Employee mobile direct-route blocking was verified.
+
+Field-user impact:
+
+- Field users remain blocked from Apex OS, AI office tools, leads, estimates, pricing, profit/margins, payroll, office-only notes, admin settings, company setup, billing, and other company data.
+
+Rollback plan:
+
+- Revert the Phase 1 hard-finish commit to restore the previous `canAccessApexOs` role-plus-operator-only behavior and remove the added tests, access-proof text, and doc updates. No database migration or production data rollback is required.
+
+Next recommended phase:
+
+- After committing and pushing Phase 1, start Phase 2: Apex-Branded Control Room Shell. Do not start Phase 2 in the Phase 1 commit.
 
 ## Apex OS Phase 4: Decision Memory And Operating Rules Completion Report
 

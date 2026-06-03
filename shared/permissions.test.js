@@ -50,6 +50,7 @@ import {
   canViewUploads,
   canExportData,
   getAllowedModuleIds,
+  isApexOsWorkspace,
   normalizeTimeLocationEvidencePolicy,
 } from "./permissions.js";
 
@@ -121,8 +122,13 @@ test("Apex OS access requires private operator access plus an office role", () =
   assert.equal(canAccessApexOs({ role: "Administrator", operatorAccess: false }), false);
   assert.equal(canAccessApexOs({ role: "Estimator", operatorAccess: true }), false);
   assert.equal(canAccessApexOs({ role: "Foreman", operatorAccess: true }), false);
+  assert.equal(canAccessApexOs({ role: "Employee", operatorAccess: true }), false);
+  assert.equal(canAccessApexOs({ role: "Owner", operatorAccess: true, currentCompanyId: "COMPANY-LYF" }), false);
+  assert.equal(isApexOsWorkspace({ companyId: "COMPANY-DEFAULT" }), true);
+  assert.equal(isApexOsWorkspace({ currentCompanyId: "COMPANY-LYF" }), false);
   assert.equal(getAllowedModuleIds({ role: "Owner", operatorAccess: true }).has("apexControlRoom"), true);
   assert.equal(getAllowedModuleIds({ role: "Owner", operatorAccess: false }).has("apexControlRoom"), false);
+  assert.equal(getAllowedModuleIds({ role: "Owner", operatorAccess: true, currentCompanyId: "COMPANY-LYF" }).has("apexControlRoom"), false);
 });
 
 test("operations manager can manage users and see employees module", () => {

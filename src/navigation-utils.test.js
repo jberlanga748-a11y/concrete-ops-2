@@ -132,6 +132,7 @@ test("package-aware navigation hides premium import and AI Office surfaces", () 
 
 test("Apex Control Room stays hidden unless the private bootstrap permission is present", () => {
   const privateOperator = { role: "Owner", operatorAccess: true };
+  const switchedOperator = { role: "Owner", operatorAccess: true, currentCompanyId: "COMPANY-LYF" };
   const normalOwner = { role: "Owner", operatorAccess: false };
   const privatePermissions = {
     apexOs: { canView: true },
@@ -143,8 +144,10 @@ test("Apex Control Room stays hidden unless the private bootstrap permission is 
   };
 
   assert.equal(canAccessModule("apexControlRoom", privateOperator, { toolChecklistEnabled: true }), true);
+  assert.equal(canAccessModule("apexControlRoom", switchedOperator, { toolChecklistEnabled: true }), false);
   assert.equal(canAccessModule("apexControlRoom", normalOwner, { toolChecklistEnabled: true }), false);
   assert.equal(canAccessWorkspaceModule("apexControlRoom", privateOperator, { toolChecklistEnabled: true }, privatePermissions), true);
+  assert.equal(canAccessWorkspaceModule("apexControlRoom", switchedOperator, { toolChecklistEnabled: true }, privatePermissions), false);
   assert.equal(canAccessWorkspaceModule("apexControlRoom", privateOperator, { toolChecklistEnabled: true }, blockedPermissions), false);
   assert.equal(canAccessWorkspaceModule("apexControlRoom", normalOwner, { toolChecklistEnabled: true }, privatePermissions), false);
   assert.equal(
