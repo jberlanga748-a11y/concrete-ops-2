@@ -121,8 +121,8 @@ test("deriveApexControlRoomState builds private operator status from visible sta
     "Launch Blockers",
     "Approvals",
   ]);
-  assert.equal(state.kpis.find((item) => item.id === "app-build-status")?.value, "Manual release only");
-  assert.match(state.kpis.find((item) => item.id === "app-build-status")?.detail || "", /rollback evidence/);
+  assert.equal(state.kpis.find((item) => item.id === "app-build-status")?.value, "Workspace clean");
+  assert.match(state.kpis.find((item) => item.id === "app-build-status")?.detail || "", /codex\/apex-os-command-center/);
   assert.equal(state.kpis.find((item) => item.id === "active-agents")?.value, "10");
   assert.match(state.kpis.find((item) => item.id === "active-agents")?.detail || "", /No agent execution/);
   assert.equal(state.kpis.find((item) => item.id === "launch-blockers")?.value, "6");
@@ -252,6 +252,12 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.releaseMonitoring.lockRows.some((item) => item.id === "no-deploy" && item.status === "Locked"), true);
   assert.equal(state.releaseMonitoring.lockRows.some((item) => item.id === "no-monitoring-provider" && item.status === "Approval required"), true);
   assert.equal(state.releaseMonitoring.lockRows.some((item) => item.id === "no-external-alerts" && item.status === "Locked"), true);
+  assert.equal(state.buildAwareness.status, "Workspace clean");
+  assert.equal(state.buildAwareness.executionLocked, true);
+  assert.equal(state.buildAwareness.canExecute, false);
+  assert.equal(state.buildAwareness.sourceLinks.some((item) => item.path === "docs/APEX_HQ_LIVING_FINISH_PLAN.md"), true);
+  assert.equal(state.buildAwareness.lockRows.some((item) => item.id === "no-field-data" && item.status === "Locked"), true);
+  assert.equal(state.kpis.some((item) => item.id === "app-build-status" && /changed files/.test(item.detail)), true);
   assert.equal(state.phase3Aggregator.status, "Read-only aggregator");
   assert.equal(state.phase3Aggregator.rowCount, 6);
   assert.equal(state.phase3Aggregator.rows.some((item) => item.id === "phase-3-current-branch" && item.status === "codex/apex-os-command-center"), true);

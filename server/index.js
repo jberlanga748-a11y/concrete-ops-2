@@ -129,6 +129,7 @@ import {
   parseOpenAiApexOsAskPayload,
 } from "../shared/apexOsAsk.js";
 import { buildApexOsDailyBriefing } from "../shared/apexOsDailyBriefing.js";
+import { collectApexOsBuildAwareness } from "./apex-os-build-awareness.js";
 import {
   buildEstimateRoughNotesContext,
   generateEstimateRoughNotesDrafts,
@@ -12679,6 +12680,15 @@ app.get("/api/apex-os/agent-control", requireAuth, asyncRoute(async (req, res) =
       executionHandoffs: handoffs,
       agentControlRequests: requests,
     }),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/apex-os/build-awareness", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  res.json({
+    buildAwareness: await collectApexOsBuildAwareness(),
     requestId: res.locals.requestId,
   });
 }));

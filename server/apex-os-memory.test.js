@@ -387,6 +387,20 @@ test("Apex OS memory is operator-only, source-backed, persisted, and audited", a
     assert.equal(briefing.dailyBriefing.alerts.some((row) => row.id === "no-execution" && row.status === "Locked"), true);
     assert.equal(briefing.dailyBriefing.sourceLabels.includes("AGENTS.md field-role protection rules"), true);
 
+    const buildAwareness = await assertOk(fixture.baseUrl, "/api/apex-os/build-awareness", {
+      headers: authHeaders(operatorLogin.token),
+    });
+    assert.equal(buildAwareness.buildAwareness.executionLocked, true);
+    assert.equal(buildAwareness.buildAwareness.canExecute, false);
+    assert.equal(buildAwareness.buildAwareness.fieldDataIncluded, false);
+    assert.equal(Array.isArray(buildAwareness.buildAwareness.changedFiles), true);
+    assert.equal(buildAwareness.buildAwareness.sourceLinks.some((row) => row.path === "docs/APEX_HQ_LIVING_FINISH_PLAN.md"), true);
+
+    const adminBuildAwarenessBlocked = await requestJson(fixture.baseUrl, "/api/apex-os/build-awareness", {
+      headers: authHeaders(adminLogin.token),
+    });
+    assert.equal(adminBuildAwarenessBlocked.response.status, 403);
+
     const unsafePacket = await requestJson(fixture.baseUrl, "/api/apex-os/approval-packets", {
       method: "POST",
       headers: authHeaders(operatorLogin.token),

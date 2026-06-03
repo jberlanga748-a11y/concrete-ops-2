@@ -103,6 +103,12 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /Approval Sources/);
   assert.match(componentSource, /Execute locked/);
   assert.match(componentSource, /Release Monitoring/);
+  assert.match(componentSource, /App Build Awareness/);
+  assert.match(componentSource, /BuildAwarenessPanel/);
+  assert.match(componentSource, /getApexOsBuildAwareness/);
+  assert.match(componentSource, /Changed File Map/);
+  assert.match(componentSource, /Frozen Phase Map/);
+  assert.match(componentSource, /Source Links/);
   assert.match(componentSource, /Daily Briefing/);
   assert.match(componentSource, /DailyBriefingPanel/);
   assert.match(componentSource, /getApexOsDailyBriefing/);
@@ -125,6 +131,8 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(utilSource, /deriveLaunchReadinessEvidenceState/);
   assert.match(utilSource, /getReleaseSafetySections/);
   assert.match(utilSource, /function buildPhase3AggregatorState/);
+  assert.match(utilSource, /buildApexOsBuildAwarenessSnapshot/);
+  assert.match(utilSource, /restrictedApexOsBuildAwarenessSnapshot/);
   assert.match(utilSource, /APEX_OS_DERIVED_STATE_META/);
   assert.match(utilSource, /withDerivedStateMeta/);
   assert.match(utilSource, /APEX_OS_DECISION_MEMORY_SEED/);

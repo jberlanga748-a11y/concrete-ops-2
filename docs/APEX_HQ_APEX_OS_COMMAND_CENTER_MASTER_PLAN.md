@@ -551,6 +551,17 @@ Validation:
 - docs/source status utility tests
 - safe file reference handling
 
+Status:
+
+- Completed locally to 100% on 2026-06-03 and ready for the approved Phase 9 production release.
+- Apex OS now has a private App Build Awareness panel in the Control Room with current branch, head SHA, changed-file count, build script status, verification-script status, recent deploy evidence, known blockers, frozen phase map, safe source links, recent commits, and "Start next safe task" recommendation.
+- Operator-only `/api/apex-os/build-awareness` collects local git status, recent commits, declared package scripts, dist artifact names, Apex OS docs, and runtime metadata where available. Production/runtime images that do not include `.git` degrade honestly to runtime metadata only instead of inventing git state.
+- File references are sanitized before display; absolute paths, drive-letter paths, parent traversal, and null-byte paths are rejected.
+- Build awareness is read-only and execution-locked. It cannot edit files, run tests, commit, push, deploy, roll back, mutate production data, expose field records, send messages, spend money, process billing, configure providers, or perform customer-visible actions.
+- Normal admins, field users, customer/company users, switched customer-company workspaces, and unauthenticated users remain blocked from the build-awareness endpoint and UI.
+- Local validation passed with focused parser/API/UI tests, the 81-test Apex OS permission/routing/bootstrap regression suite, `npm.cmd run build`, and desktop/mobile browser QA against an isolated temporary database with no horizontal overflow and screenshots under `ui-audit/apex-control-room-phase9/`.
+- No schema change, auth/session change, provider setup, production data mutation, customer-visible action, send, spend, billing/payment, deletion, deploy execution control, GitHub write, CI write, or blind UI code-change path was added.
+
 ### Phase 10: Business Operating Center
 
 Goal:

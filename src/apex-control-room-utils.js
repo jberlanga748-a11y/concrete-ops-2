@@ -15,6 +15,10 @@ import {
   scoreApexOsApprovalPacketRisk,
   summarizeApexOsApprovalPackets,
 } from "../shared/apexOsApprovalPackets.js";
+import {
+  buildApexOsBuildAwarenessSnapshot,
+  restrictedApexOsBuildAwarenessSnapshot,
+} from "../shared/apexOsBuildAwareness.js";
 import { summarizeApexOsExecutionHandoffs } from "../shared/apexOsExecutionHandoffs.js";
 import { buildApexOsAgentControlPlane } from "../shared/apexOsAgentControl.js";
 
@@ -1325,6 +1329,28 @@ function buildReleaseMonitoringState({
   };
 }
 
+function buildBuildAwarenessState(companySettings = {}) {
+  const configured = companySettings?.apexOsBuildAwareness && typeof companySettings.apexOsBuildAwareness === "object"
+    ? companySettings.apexOsBuildAwareness
+    : companySettings?.apexOsBuildStatus && typeof companySettings.apexOsBuildStatus === "object"
+      ? companySettings.apexOsBuildStatus
+      : {};
+  return buildApexOsBuildAwarenessSnapshot({
+    branch: configured.branch || "",
+    headSha: configured.headSha || "",
+    gitAvailable: Boolean(configured.branch || configured.headSha || configured.gitStatusText),
+    gitStatusText: configured.gitStatusText || "",
+    recentCommitsText: configured.recentCommitsText || "",
+    packageScripts: configured.packageScripts || {},
+    distAssets: configured.distAssets || [],
+    docs: {
+      livingPlan: configured.livingPlanText || "",
+    },
+    runtime: configured.runtime || {},
+    collectedAt: configured.collectedAt || "Pending live refresh",
+  });
+}
+
 function buildPhase3AggregatorState({
   companySettings = {},
   auditEvents = [],
@@ -1644,7 +1670,7 @@ function buildAgentWorkQueue(agentTaskOptions = [], agentRunRows = [], permissio
   };
 }
 
-function buildPhase2Kpis({ releaseDesk, agentWorkQueue, launchState, approvalCommandCenter } = {}) {
+function buildPhase2Kpis({ releaseDesk, agentWorkQueue, launchState, approvalCommandCenter, buildAwareness } = {}) {
   const launchBlockers = formatCount(launchState?.blockedCount);
   const approvalQueueCount = formatCount(approvalCommandCenter?.queueCount);
   const readyPackets = formatCount(approvalCommandCenter?.packetSummary?.ready);
@@ -1652,9 +1678,11 @@ function buildPhase2Kpis({ releaseDesk, agentWorkQueue, launchState, approvalCom
     {
       id: "app-build-status",
       label: "App Build Status",
-      value: releaseDesk?.status || "Manual",
-      detail: "Build and release work stays inside the private release desk until tests, rollback evidence, and owner approval are complete.",
-      tone: releaseDesk?.tone || "amber",
+      value: buildAwareness?.status || releaseDesk?.status || "Manual",
+      detail: buildAwareness?.branch
+        ? `${buildAwareness.branch} at ${buildAwareness.headSha}; ${formatCount(buildAwareness.changedFileCount)} changed files are visible. Execution remains locked.`
+        : "Build and release work stays inside the private release desk until tests, rollback evidence, and owner approval are complete.",
+      tone: buildAwareness?.tone || releaseDesk?.tone || "amber",
     },
     {
       id: "active-agents",
@@ -1771,6 +1799,7 @@ export function deriveApexControlRoomState({
   const releaseDesk = buildReleaseDesk();
   const decisionMemory = buildDecisionMemoryState(companySettings);
   const knowledgeVault = buildKnowledgeVaultState(companySettings);
+  const buildAwareness = buildBuildAwarenessState(companySettings);
   const askApexChat = buildAskApexChatState({ decisionMemory, knowledgeVault, agentWorkQueue, launchState, releaseDesk });
   const voiceInterface = buildVoiceInterfaceState({ askApexChat });
   const approvalCommandCenter = buildApprovalCommandCenterState({ releaseDesk, askApexChat, voiceInterface, companySettings });
@@ -1805,7 +1834,7 @@ export function deriveApexControlRoomState({
   });
   const trustTone = trustState.overallStatus === "ready" ? "green" : trustState.overallStatus === "limited" ? "slate" : "amber";
   const summary = "Private Apex HQ operating center.";
-  const kpis = buildPhase2Kpis({ releaseDesk, agentWorkQueue, launchState, approvalCommandCenter });
+  const kpis = buildPhase2Kpis({ releaseDesk, agentWorkQueue, launchState, approvalCommandCenter, buildAwareness });
   const commandBoardPanels = buildPhase2CommandBoard({
     summary,
     launchState,
@@ -1832,6 +1861,7 @@ export function deriveApexControlRoomState({
       askApexChat: { status: "Restricted", tone: "slate", contexts: [], evidenceRows: [], actionLocks: [] },
       voiceInterface: { status: "Restricted", tone: "slate", modes: [], safetyRows: [] },
       approvalCommandCenter: { status: "Restricted", tone: "slate", queueRows: [], packetRows: [], controlRows: [], sourceRows: [] },
+      buildAwareness: restrictedApexOsBuildAwarenessSnapshot(),
       executionHandoffs: { status: "Restricted", tone: "slate", sourceRows: [], handoffSummary: { total: 0, draft: 0, ready: 0, blocked: 0, archived: 0 } },
       agentControlPlane: { status: "Restricted", tone: "slate", rosterRows: [], requestRows: [], reportRows: [], handoffRows: [], safetyRows: [], requestSummary: { total: 0, active: 0, ready: 0, blocked: 0 } },
       releaseMonitoring: { status: "Restricted", tone: "slate", readinessRows: [], briefingRows: [], releasePacketRows: [], lockRows: [] },
@@ -1864,6 +1894,13 @@ export function deriveApexControlRoomState({
         status: "Online",
         detail: "Apex OS is reading Agent OS, launch readiness, release safety, trust, queue, and audit signals.",
         tone: "green",
+      },
+      {
+        id: "build-awareness",
+        title: "Build awareness",
+        status: buildAwareness.status,
+        detail: `${buildAwareness.branch} at ${buildAwareness.headSha}; ${formatCount(buildAwareness.changedFileCount)} changed files are visible and execution remains locked.`,
+        tone: buildAwareness.tone,
       },
       {
         id: "provider-work",
@@ -2246,6 +2283,7 @@ export function deriveApexControlRoomState({
     askApexChat,
     voiceInterface,
     approvalCommandCenter,
+    buildAwareness,
     executionHandoffs,
     agentControlPlane,
     releaseMonitoring,

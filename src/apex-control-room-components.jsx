@@ -9,6 +9,7 @@ import {
   createApexOsApprovalPacket,
   createApexOsExecutionHandoff,
   getApexOsAgentControl,
+  getApexOsBuildAwareness,
   getApexOsMemory,
   getApexOsApprovalPackets,
   getApexOsDailyBriefing,
@@ -483,6 +484,163 @@ function DailyBriefingPanel({ state, sessionToken }) {
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function BuildAwarenessPanel({ state, sessionToken }) {
+  const [snapshot, setSnapshot] = useState(state.buildAwareness || {});
+  const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState("");
+  const canRefresh = state.canView && Boolean(sessionToken) && !loading;
+  const activeSnapshot = snapshot || {};
+  const changedFiles = Array.isArray(activeSnapshot.changedFiles) ? activeSnapshot.changedFiles : [];
+  const frozenPhaseRows = Array.isArray(activeSnapshot.frozenPhaseRows) ? activeSnapshot.frozenPhaseRows : [];
+  const sourceLinks = Array.isArray(activeSnapshot.sourceLinks) ? activeSnapshot.sourceLinks : [];
+  const lockRows = Array.isArray(activeSnapshot.lockRows) ? activeSnapshot.lockRows : [];
+  const knownBlockers = Array.isArray(activeSnapshot.knownBlockers) ? activeSnapshot.knownBlockers : [];
+  const recentCommits = Array.isArray(activeSnapshot.recentCommits) ? activeSnapshot.recentCommits : [];
+
+  async function refreshBuildAwareness() {
+    if (!canRefresh) return;
+    setLoading(true);
+    setNotice("");
+    try {
+      const payload = await getApexOsBuildAwareness(sessionToken);
+      setSnapshot(payload.buildAwareness || {});
+      setNotice("Build awareness refreshed. Read-only; execution remains locked.");
+    } catch (error) {
+      setNotice(error?.message || "Build awareness could not be loaded right now.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="grid min-w-0 gap-4">
+      <div className="grid min-w-0 gap-3 lg:grid-cols-2">
+        <StatusRow item={{
+          id: "build-awareness-branch",
+          title: "Current branch",
+          status: activeSnapshot.branch || "Pending refresh",
+          detail: `Head: ${activeSnapshot.headSha || "Pending refresh"}. Collected: ${activeSnapshot.collectedAt || "Not loaded"}.`,
+          tone: activeSnapshot.tone || "blue",
+          sourceLabel: activeSnapshot.gitAvailable ? "git branch + git rev-parse" : "runtime metadata",
+        }} />
+        <StatusRow item={{
+          id: "build-awareness-changes",
+          title: "Changed files",
+          status: `${activeSnapshot.changedFileCount || 0}`,
+          detail: activeSnapshot.changedFileCount ? "Changed files are visible for exact staging review before commit or deploy." : "No changed files are reported by the latest snapshot.",
+          tone: activeSnapshot.changedFileCount ? "amber" : "green",
+          sourceLabel: "git status --porcelain",
+        }} />
+        <StatusRow item={activeSnapshot.buildStatus || {
+          id: "build-status",
+          title: "Build script",
+          status: "Pending",
+          detail: "Refresh build awareness to read package/build artifact status.",
+          tone: "blue",
+        }} />
+        <StatusRow item={activeSnapshot.testStatus || {
+          id: "test-status",
+          title: "Verification scripts",
+          status: "Pending",
+          detail: "Refresh build awareness to read declared test scripts.",
+          tone: "blue",
+        }} />
+        <StatusRow item={activeSnapshot.latestDeploy || {
+          id: "latest-deploy",
+          title: "Recent deploy evidence",
+          status: "Pending",
+          detail: "Refresh build awareness to parse release evidence.",
+          tone: "blue",
+        }} />
+        <StatusRow item={activeSnapshot.nextSafeTask || {
+          id: "next-safe-task",
+          title: "Start next safe task",
+          status: "Pending",
+          detail: "Refresh build awareness before choosing the next phase action.",
+          tone: "blue",
+        }} />
+      </div>
+
+      <div className="flex min-w-0 flex-wrap gap-2">
+        <Button type="button" variant="secondary" size="sm" onClick={refreshBuildAwareness} disabled={!canRefresh}>
+          <Icon name="refresh" /> {loading ? "Refreshing..." : "Refresh build status"}
+        </Button>
+        <Button type="button" disabled variant="secondary" size="sm">
+          <Icon name="lock" /> Read-only
+        </Button>
+        <Button type="button" disabled variant="secondary" size="sm">
+          <Icon name="lock" /> No UI file edits
+        </Button>
+      </div>
+      <p className="break-words text-xs font-black leading-5 text-slate-500">{notice || "Build awareness reads branch, status, source docs, and release evidence. It cannot edit files, run tests, deploy, or touch production data."}</p>
+
+      <div className="grid min-w-0 gap-4 xl:grid-cols-2">
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+          <SectionHeader title="Changed File Map" description={`${changedFiles.length} sanitized file references shown.`} />
+          <div className="grid min-w-0 gap-2">
+            {changedFiles.length ? changedFiles.slice(0, 10).map((file) => (
+              <StatusRow key={file.id} item={{
+                id: file.id,
+                title: file.path,
+                status: file.status,
+                detail: `${file.tracked ? "Tracked" : "Untracked"}; staged ${file.staged ? "yes" : "no"}; worktree ${file.worktree ? "yes" : "no"}.`,
+                tone: file.tracked ? "amber" : "blue",
+                sourceLabel: file.sourceLabel,
+              }} />
+            )) : <EmptyPanel>No changed files are visible in the latest snapshot.</EmptyPanel>}
+          </div>
+        </div>
+
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+          <SectionHeader title="Known Blockers" description={`${knownBlockers.length} build/release blockers from source evidence.`} />
+          <div className="grid min-w-0 gap-2">
+            {knownBlockers.length ? knownBlockers.map((item) => <StatusRow key={item.id} item={item} />) : <EmptyPanel>No build-awareness blockers are visible.</EmptyPanel>}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid min-w-0 gap-4 xl:grid-cols-2">
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+          <SectionHeader title="Frozen Phase Map" description={`${frozenPhaseRows.filter((row) => row.status === "Deployed").length} deployed phases parsed from the living plan.`} />
+          <div className="grid min-w-0 gap-2">
+            {frozenPhaseRows.slice(0, 11).map((item) => <StatusRow key={item.id} item={item} />)}
+          </div>
+        </div>
+
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+          <SectionHeader title="Source Links" description={`${sourceLinks.length} safe file references.`} />
+          <div className="grid min-w-0 gap-2">
+            {sourceLinks.map((item) => <StatusRow key={item.id} item={{
+              id: item.id,
+              title: item.title,
+              status: item.path,
+              detail: item.detail,
+              tone: "blue",
+              sourceLabel: "Safe repo file reference",
+            }} />)}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid min-w-0 gap-4 xl:grid-cols-2">
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+          <SectionHeader title="Recent Commits" description={`${recentCommits.length} latest git rows when available.`} />
+          <div className="grid min-w-0 gap-2">
+            {recentCommits.length ? recentCommits.map((item) => <StatusRow key={item.id} item={item} />) : <EmptyPanel>No recent commits are visible in this runtime.</EmptyPanel>}
+          </div>
+        </div>
+
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+          <SectionHeader title="Build Awareness Locks" description={`${lockRows.length} hard stops.`} />
+          <div className="grid min-w-0 gap-2">
+            {lockRows.map((item) => <StatusRow key={item.id} item={item} />)}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -2101,6 +2259,17 @@ export function ApexControlRoomPage(props) {
           <Card className="min-w-0 p-4 sm:p-5">
             <SectionHeader title="Daily Briefing" description={`${state.releaseMonitoring.briefingCount || 0} briefing rows for John-only review.`} />
             <DailyBriefingPanel state={state} sessionToken={props.sessionToken} />
+          </Card>
+        </section>
+
+        <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+          <Card className="min-w-0 p-4 sm:p-5 xl:col-span-2">
+            <SectionHeader
+              title="App Build Awareness"
+              description="Current branch, changed files, build/test signals, release evidence, frozen phases, and next safe task."
+              action={<ToneBadge tone={state.buildAwareness.tone}>{state.buildAwareness.status}</ToneBadge>}
+            />
+            <BuildAwarenessPanel state={state} sessionToken={props.sessionToken} />
           </Card>
         </section>
 

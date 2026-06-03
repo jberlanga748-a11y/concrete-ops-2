@@ -67,6 +67,7 @@ Current implementation status:
 - Apex OS Phase 6 / Ask Apex Chat is hard-finished and deployed as of 2026-06-03: the private Control Room now has selectable context scopes, operator-only source-backed Ask Apex answers, server-side OpenAI provider readiness when `OPENAI_API_KEY` is configured, local source-backed fallback, ranked evidence drawer, source labels, approval warnings, save-as-decision suggested memory drafts, create-task approval packet drafts, and needs-approval packet drafts. No frontend provider secrets, customer-visible answers, production mutation, send, spend, billing/payment, schema change, or irreversible execution path was added.
 - Apex OS Phase 7 / Agent Control Plane is hard-finished and deployed as of 2026-06-03: the private Control Room now has the complete seven-role agent roster for build, QA, release, marketing, sales, customer success, and monitoring; derived running/paused/blocked/done/needs-approval status; current task, last update, next action, report history, and handoff/request counts; durable operator-only pause, resume, and scoped-run requests in `apexOsAgentControlRequests`; request/load/mark-ready/block/close/archive UI; audit/activity history; readiness validation; source-label requirements; secret/email rejection; and locked execution/background-loop/external-action controls. No queue/run endpoint, unmanaged background loop, autonomous unrequested execution, deploy action, send, spend, billing/payment, provider setup, customer-visible action, production mutation, schema change, deletion, or irreversible action path was added.
 - Apex OS Phase 8 / Approval Command Center is hard-finished and deployed as of 2026-06-03: the private Control Room now has risky-action approval categories, packet templates, risk scoring, exact approval phrase entry, durable draft/ready/approved/rejected/deferred/blocked/archived approval packet records in `apexOsApprovalPackets`, operator-only list/create/update endpoints, source-label and readiness-field requirements, secret/email rejection, decision actor/timestamp fields, audit/activity logging, and Control Room drafting/loading/mark-ready/block/archive/reject/defer/approval-record UI. Approval decisions are review records only; no execution, queue/run endpoint, deploy action, production mutation, provider setup, customer-visible action, send, spend, billing/payment, schema/auth/session change, deletion, or irreversible action path was added.
+- Apex OS Phase 9 / App Build And Code Awareness is hard-finished locally and release-ready as of 2026-06-03: the private Control Room now has a read-only App Build Awareness panel with current branch/head, changed-file map, build/test script status, recent deploy evidence, known blockers, frozen phase map, safe source links, recent commits, and source-backed next-safe-task recommendation. Operator-only `/api/apex-os/build-awareness` reads git/status/docs/package/dist/runtime metadata when available and degrades honestly to runtime metadata only in images without `.git`. File references are sanitized, field data is excluded, and execution stays locked: no UI code edits, test runs, commits, pushes, deploys, rollbacks, CI/GitHub writes, provider setup, production mutation, customer-visible action, sends, spend, billing/payment, schema/auth/session change, deletion, or irreversible action path was added.
 - Apex OS Slice 7 is implemented locally: the Control Room now shows a private Voice Interface first UI with disabled push-to-talk, transcript confirmation preview, spoken-answer preview, voice modes, safety gates, and approval boundaries. Microphone access, always-listening, speech provider/API, audio capture, transcript storage, voice execution, schema, and deploy remain approval-locked.
 - Apex OS Slice 8 is folded into Phase 8 completion: the Approval Command Center first UI now has safe durable review decisions while execution remains locked.
 - Apex OS Slice 9 is implemented locally: the Control Room now shows a fuller private Release Desk / Monitoring first UI with release/monitoring checks, daily briefing rows, release readiness packet rows, and monitoring locks. Deploy, rollback execution, production monitoring provider setup, external alerts/notifications, production data mutation, schema/storage, and production configuration remain approval-locked.
@@ -87,7 +88,7 @@ Current implementation status:
 - Apex OS Phase 6 production release was approved in chat and deployed on 2026-06-03 from commit `94a6f69` to Fly app `concrete-ops-2`, machine `148e06e2b53d68`, version `638`, image `registry.fly.io/concrete-ops-2:deployment-01KT5Z6DBGHPW3T48S88FAG8AZ`; rollback target is version `637`, image `registry.fly.io/concrete-ops-2:deployment-01KT5XKN0KJ36YSXNV3Y0AJGRA`. The deploy was run from a clean temporary git worktree at commit `94a6f69` so unrelated local brief/output files were not part of the release decision. Predeploy checks passed: focused Phase 6 suite, broader Apex OS route/nav/permission suite, `npm.cmd run verify:roles`, `npm.cmd run verify:server`, `npm.cmd run verify:backup`, `npm.cmd run verify:restore`, `npm.cmd run build`, and `git diff --check`. Post-deploy checks passed: both production `/api/ready` endpoints returned ready/database ok, `https://concrete-ops-2.fly.dev/api/health` returned healthy, Fly status showed v638 started with 1 passing check, hosted skip-auth health/routes smoke passed on `https://app.apexhq.online/`, `/apex-control-room` served `index-edxz1AWA.js` and `app-domain-Dmnfvp72.js`, unauthenticated `/api/apex-os/ask` returned 401, `/api/setup/status` showed setup complete, demo mode off, demo user absent, and public signup disabled, and logs showed startup health recovering quickly before route/ready checks passed. Production auth smoke/login was not run.
 - Apex OS Phase 7 production release was approved in chat and deployed on 2026-06-03 from commit `0aef694` to Fly app `concrete-ops-2`, machine `148e06e2b53d68`, version `639`, image `registry.fly.io/concrete-ops-2:deployment-01KT60X0SWR6QZWJKQC407W4VC`; rollback target is version `638`, image `registry.fly.io/concrete-ops-2:deployment-01KT5Z6DBGHPW3T48S88FAG8AZ`. The deploy was run from a clean temporary git worktree at commit `0aef694` so unrelated local brief/output files were not part of the release decision. Production backup before deploy produced `postgres-app-data-20260603-055635Z.json`, `uploads-20260603-055635Z`, and `uploads-20260603-055635Z.manifest.json`. Predeploy checks passed: focused Phase 7 shared/API/UI tests, broader Apex OS route/nav/permission suite, `npm.cmd run build`, `git diff --check` with CRLF warnings only, and desktop/mobile browser QA. Post-deploy checks passed: both production `/api/ready` endpoints returned ready/database ok, `https://concrete-ops-2.fly.dev/api/health` returned healthy, Fly status showed v639 started with 1 passing check, hosted skip-auth health/routes smoke passed on `https://app.apexhq.online/`, `/apex-control-room` served, unauthenticated `/api/apex-os/agent-control` returned 401, `/api/setup/status` showed setup complete, demo mode off, demo user absent, and public signup disabled. Production auth smoke/login was not run.
 - Apex OS Phase 8 production release was approved in chat and deployed on 2026-06-03 from commit `be2dccb` to Fly app `concrete-ops-2`, machine `148e06e2b53d68`, version `640`, image `registry.fly.io/concrete-ops-2:deployment-01KT63SPFM2EM1SVEHK24148G8`; rollback target is version `639`, image `registry.fly.io/concrete-ops-2:deployment-01KT60X0SWR6QZWJKQC407W4VC`. The deploy was run from a clean temporary git worktree at commit `be2dccb` so unrelated local brief/output files were not part of the release decision. Production backup before deploy produced `postgres-app-data-20260603-064657Z.json`, `uploads-20260603-064657Z`, and `uploads-20260603-064657Z.manifest.json`. Predeploy checks passed: focused Phase 8 shared/API/UI tests, broader 77-test Apex OS route/nav/permission suite, `npm.cmd run build`, `git diff --check` with CRLF warnings only, active-local-DB cleanup verification, and desktop/mobile browser QA screenshots in `ui-audit/apex-control-room-phase8/`. Post-deploy checks passed: both production `/api/ready` endpoints returned ready/database ok, `https://concrete-ops-2.fly.dev/api/health` returned healthy, Fly status showed v640 started with 1 passing check, hosted skip-auth health/routes smoke passed on `https://app.apexhq.online/`, `/apex-control-room` served `index-CbknD5jw.js` and `app-domain-EKFHwEPQ.js` on both production hosts, unauthenticated `/api/apex-os/approval-packets` returned 401, `/api/setup/status` showed setup complete, demo mode off, demo user absent, and public signup disabled, and logs showed startup health recovering quickly before route/ready checks passed. Production auth smoke/login was not run.
-- The current shell is safe: no auth/session change, no binary upload storage, no server parser service, no embeddings/vector index, no streaming, no microphone permission, no speech provider, no always-listening, no audio capture/storage, no approval execution controls, no agent queue/run execution controls, no deploy, no rollback execution, no production monitoring provider changes, no external alerts, no production data mutation, no live sends, no ad spend, no billing/payment, no public publishing, no customer-visible send/publish/spend/delete behavior, and no irreversible action path. Durable Apex OS memory, knowledge upload drafts, approval packet drafts/decision records, execution handoff drafts, and agent control requests use the existing company settings persistence path instead of a new table. Ask Apex draft actions write only suggested decision memory or review-only approval packet drafts. Agent control requests record pause/resume/scoped-run intent only and do not start agents. PDF text extraction happens client-side only and stores reviewed text/source metadata, not the binary PDF. Ask Apex provider mode uses server-side `OPENAI_API_KEY` only when configured; local validation currently shows the key is missing, so local Ask Apex runs in source-backed fallback mode. Voice is transcript-only in this slice. Daily Briefing refresh is read-only.
+- The current shell is safe: no auth/session change, no binary upload storage, no server parser service, no embeddings/vector index, no streaming, no microphone permission, no speech provider, no always-listening, no audio capture/storage, no approval execution controls, no agent queue/run execution controls, no deploy, no rollback execution, no production monitoring provider changes, no external alerts, no production data mutation, no live sends, no ad spend, no billing/payment, no public publishing, no customer-visible send/publish/spend/delete behavior, no UI code-edit/test/git/deploy execution path, and no irreversible action path. Durable Apex OS memory, knowledge upload drafts, approval packet drafts/decision records, execution handoff drafts, and agent control requests use the existing company settings persistence path instead of a new table. Ask Apex draft actions write only suggested decision memory or review-only approval packet drafts. Agent control requests record pause/resume/scoped-run intent only and do not start agents. Build awareness reads safe repo/runtime metadata only and excludes field/customer/private contractor data. PDF text extraction happens client-side only and stores reviewed text/source metadata, not the binary PDF. Ask Apex provider mode uses server-side `OPENAI_API_KEY` only when configured; local validation currently shows the key is missing, so local Ask Apex runs in source-backed fallback mode. Voice is transcript-only in this slice. Daily Briefing refresh is read-only.
 - Visual QA artifacts: `ui-audit/apex-control-room-local/desktop-apex-control-room.png`, `ui-audit/apex-control-room-local/mobile-apex-control-room.png`, `ui-audit/apex-control-room-local/desktop-admin-blocked.png`, `ui-audit/apex-control-room-local/desktop-apex-control-room-qa-security.png`, `ui-audit/apex-control-room-local/mobile-apex-control-room-qa-security.png`, `ui-audit/apex-control-room-local/desktop-admin-blocked-qa-security.png`, `ui-audit/apex-control-room-local/desktop-apex-control-room-ask-apex-live.png`, `ui-audit/apex-control-room-local/desktop-admin-blocked-ask-apex-live.png`, `ui-audit/apex-control-room-local/desktop-apex-control-room-voice-transcript-ask.png`, `ui-audit/apex-control-room-local/desktop-apex-control-room-daily-briefing-refresh.png`, `ui-audit/apex-control-room-local/desktop-admin-blocked-daily-briefing-refresh.png`, `ui-audit/apex-os-phase-1-access-hard-finish/operator-desktop-access.png`, `ui-audit/apex-os-phase-1-access-hard-finish/operator-mobile-access.png`, `ui-audit/apex-os-phase-1-access-hard-finish/normal-admin-blocked.png`, `ui-audit/apex-os-phase-1-access-hard-finish/employee-mobile-blocked.png`, `ui-audit/apex-os-phase-1-access-hard-finish/operator-switched-company-blocked.png`, `ui-audit/apex-os-phase-5-knowledge-vault-desktop.png`, `ui-audit/apex-os-phase-5-knowledge-vault-mobile.png`, `ui-audit/apex-os-phase-5-knowledge-vault-desktop-focused.png`, `ui-audit/apex-os-phase-5-knowledge-vault-mobile-focused.png`, `ui-audit/apex-os-phase-5-knowledge-vault-pdf-duplicate-desktop.png`, and `ui-audit/apex-os-phase-5-knowledge-vault-pdf-mobile.png`.
 
 ## Apex OS Phase 1: Private Access And Identity Hard-Finish Report
@@ -616,6 +617,85 @@ Rollback plan:
 Next recommended phase:
 
 - Start Phase 9 only after Phase 8 release evidence is committed and pushed.
+
+## Apex OS Phase 9: App Build And Code Awareness Hard-Finish Report
+
+Goal:
+
+- Finish Phase 9 from the original Apex OS master plan before starting Phase 10: give Apex OS real source-backed knowledge of the current app/build state while keeping all code, test, git, deploy, CI, and production actions outside the UI.
+
+What was already built:
+
+- The Phase 3 state aggregator had placeholder build/status slots and could show branch/build/test evidence if those values were manually supplied.
+- Release Desk and Monitoring panels already displayed read-only release rows, daily briefing rows, and locked deploy/rollback controls.
+- No real server-side build-awareness collector, git/status parser, source-link sanitizer, or operator-only build awareness endpoint existed yet.
+
+What was completed now:
+
+- Added a shared read-only build-awareness snapshot covering current branch, head SHA, git availability, sanitized changed files, recent commits, build script status, verification-script status, latest deploy evidence, known blockers, frozen phase rows, source links, safety locks, and source-backed next-safe-task recommendation.
+- Added safe file reference handling that rejects absolute paths, drive-letter paths, parent traversal, null bytes, and invalid references before anything is shown in Apex OS.
+- Added operator-only `GET /api/apex-os/build-awareness`, protected by the existing private Apex OS management gate.
+- Added a server collector that reads local git branch/status/head/recent commits, `package.json` scripts, `dist/assets`, Apex OS source docs, and runtime metadata. It degrades honestly to runtime metadata when git/docs are unavailable in production images.
+- Added the private Control Room App Build Awareness panel with changed file map, known blockers, frozen phase map, source links, recent commits, read-only/no-UI-file-edit locks, and manual refresh.
+- Threaded build awareness into the top App Build Status KPI and priority queue so the shell can recommend the next safe phase task from real source evidence.
+- Kept every action locked: no UI code editing, no test execution, no commit, no push, no deploy, no rollback, no CI/GitHub write, no provider setup, no production mutation, no field/customer data exposure, and no irreversible action path.
+
+Affected files:
+
+- `shared/apexOsBuildAwareness.js`
+- `shared/apexOsBuildAwareness.test.js`
+- `server/apex-os-build-awareness.js`
+- `server/index.js`
+- `server/apex-os-memory.test.js`
+- `src/api.js`
+- `src/apex-control-room-utils.js`
+- `src/apex-control-room-utils.test.js`
+- `src/apex-control-room-components.jsx`
+- `src/apex-control-room-components-import.test.js`
+- `docs/APEX_HQ_APEX_OS_COMMAND_CENTER_MASTER_PLAN.md`
+- `docs/APEX_HQ_APEX_OS_HARD_FINISH_ROADMAP.md`
+- `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md`
+- `docs/APEX_HQ_LIVING_FINISH_PLAN.md`
+
+Risk level:
+
+- Low. This is private operator-only read-only build awareness. It adds no schema change, auth/session change, provider secret, production data mutation, customer-visible behavior, external execution, queue/run endpoint, CI/GitHub write, deploy action, send, spend, billing/payment, or irreversible action.
+
+Validation:
+
+- Focused Phase 9 suite passed: `node --test --test-concurrency=1 shared/apexOsBuildAwareness.test.js src/apex-control-room-utils.test.js src/apex-control-room-components-import.test.js server/apex-os-memory.test.js` with 13 tests.
+- Broader Apex OS route/nav/permission validation passed: `node --test --test-concurrency=1 shared/apexOsBuildAwareness.test.js shared/apexOsApprovalPackets.test.js shared/apexOsAgentControl.test.js shared/permissions.test.js src/app-routing.test.js src/navigation-utils.test.js src/app-navigation-components-import.test.js src/apex-control-room-utils.test.js src/apex-control-room-components-import.test.js server/role-permissions.test.js server/apex-os-memory.test.js` with 81 tests.
+- `npm.cmd run build` passed with the existing large-chunk warning only.
+- Browser QA passed against an isolated temporary local database with a temporary backend and Vite proxy: operator login succeeded, `/api/apex-os/build-awareness` returned a read-only execution-locked snapshot, Build Awareness refresh succeeded, required panel markers rendered, and desktop/mobile had no horizontal overflow at 1440px and 390px.
+- Browser QA screenshots were saved at `ui-audit/apex-control-room-phase9/desktop-build-awareness.png` and `ui-audit/apex-control-room-phase9/mobile-build-awareness.png`.
+
+Production release state:
+
+- Pending the approved Phase 9 production deploy. Do not mark Phase 9 deployed until the commit is pushed, Fly deploy finishes, hosted health checks pass, and release evidence is recorded.
+
+Permissions impact:
+
+- Private operator-only access remains required through the existing Apex OS route/API gates.
+- Normal admins, estimators, field users, customer/company users, switched customer-company workspaces, and unauthenticated visitors remain blocked from the build-awareness endpoint and UI.
+- Build awareness records do not grant execution, file edit, test run, git, deploy, rollback, provider, billing, money, customer-visible, deletion, auth/session, schema, production-data, or CI/GitHub permissions.
+
+Mobile impact:
+
+- The App Build Awareness panel lives inside the responsive Control Room layout. Mobile browser QA passed at 390px with no horizontal overflow.
+
+Field-user impact:
+
+- None. Field users remain blocked from Apex OS, build awareness, agents, AI office tools, leads, estimates, pricing, profit/margins, payroll, office notes, admin settings, billing, provider context, customer data, and private Apex HQ memory.
+
+Rollback plan:
+
+- If local release validation fails before deploy, revert the Phase 9 hard-finish commit to remove the build-awareness shared helper, server collector/endpoint, UI/API wiring, tests, and docs.
+- If hosted health fails after deploy, roll back Fly to version `640` and image `registry.fly.io/concrete-ops-2:deployment-01KT63SPFM2EM1SVEHK24148G8`.
+- No database migration rollback is required because Phase 9 adds no schema or persisted production records.
+
+Next recommended phase:
+
+- Deploy Phase 9 after commit/push and production backup. Start Phase 10 only after Phase 9 release evidence is committed and pushed.
 
 Packaging and release state:
 

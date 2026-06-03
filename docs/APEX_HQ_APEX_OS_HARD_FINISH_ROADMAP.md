@@ -233,6 +233,15 @@ Blocked right now:
 
 - Live CI/GitHub writes unless John asks for that exact execution.
 
+Status:
+
+- Completed locally to 100% on 2026-06-03 and ready for the approved production release.
+- Added a read-only shared build-awareness snapshot with sanitized git status parsing, recent commit parsing, source links, deploy evidence parsing, frozen phase mapping, known blockers, and next-safe-task recommendations.
+- Added an operator-only `/api/apex-os/build-awareness` endpoint and collector for local git branch/status, head SHA, recent commits, package scripts, dist artifact names, Apex OS source docs, and honest runtime fallback metadata when git/docs are unavailable.
+- Added the private Control Room App Build Awareness panel with current branch/head, changed file map, build/test status, recent deploy evidence, known blockers, frozen phase map, source links, recent commits, and locked read-only/no-UI-file-edits controls.
+- Field data stays excluded and execution stays locked: no UI code editing, no test running, no commit/push/deploy/rollback action, no CI/GitHub write, no provider setup, no production mutation, no customer-visible action, no send/spend/billing, and no schema/auth/session change was added.
+- Validation passed with focused Phase 9 shared/API/UI tests, the 81-test Apex OS regression suite, `npm.cmd run build`, and isolated desktop/mobile browser QA with no horizontal overflow.
+
 ### Phase 10: Business Operating Center
 
 Hard-finish package:
