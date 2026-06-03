@@ -36,6 +36,8 @@ Goal recorded on 2026-06-02: build **Apex OS**, Apex HQ's private John-only oper
 
 Plan file: `docs/APEX_HQ_APEX_OS_COMMAND_CENTER_MASTER_PLAN.md`.
 
+Hard-finish roadmap file: `docs/APEX_HQ_APEX_OS_HARD_FINISH_ROADMAP.md`.
+
 Current decision memory:
 
 - John Berlanga owns Apex HQ.
@@ -46,6 +48,7 @@ Current decision memory:
 - Customers, demo users, field users, estimators, normal company admins, pilots, and customer companies must not see the Apex OS nav item, route, agents, build status, business tasks, internal decisions, or approval controls.
 - Apex OS should eventually support chat, voice, knowledge uploads, durable decision memory, source-backed answers, app/build awareness, agent control, approval queues, launch/revenue/business queues, monitoring, daily briefings, and a kill switch.
 - Apex OS should have maximum freedom to plan, organize, draft, analyze, prioritize, recommend, design, code locally when asked, test locally, summarize, and prepare work. It needs John's approval before anything external, irreversible, customer-visible, private-data-sensitive, production-affecting, permission-affecting, provider-connected, or money-related.
+- Current hard-finish approval posture: private Apex OS schema/storage, private file/document storage, server-side provider/API integration, production deploy after validation, and John-requested scoped agent execution are approved for phase work. Email/SMS sends, ad publishing/spend, billing/payment actions, customer-visible publishing/sends/shares, autonomous unrequested agent execution, and irreversible external actions remain not approved right now.
 
 Recommended first implementation:
 
