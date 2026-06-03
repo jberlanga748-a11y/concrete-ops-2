@@ -128,7 +128,11 @@ import {
   buildLocalApexOsAnswer,
   parseOpenAiApexOsAskPayload,
 } from "../shared/apexOsAsk.js";
-import { buildApexOsDailyBriefing } from "../shared/apexOsDailyBriefing.js";
+import {
+  buildApexOsDailyBriefing,
+  buildApexOsDailyBriefingHistorySnapshot,
+  normalizeApexOsDailyBriefingHistory,
+} from "../shared/apexOsDailyBriefing.js";
 import { collectApexOsBuildAwareness } from "./apex-os-build-awareness.js";
 import {
   buildEstimateRoughNotesContext,
@@ -7718,6 +7722,25 @@ function publicApexOsAgentControlRequest(request) {
   };
 }
 
+function apexOsDailyBriefingHistoryForState(state, user) {
+  return normalizeApexOsDailyBriefingHistory(companySettingsForState(state, user).apexOsDailyBriefingHistory);
+}
+
+function persistApexOsDailyBriefingHistory(draft, user, history) {
+  const currentCompanyId = currentCompanyIdForRequestUser(draft, user);
+  draft.currentCompanyId = currentCompanyId;
+  draft.companySettingsByCompanyId ||= {};
+  draft.companySettings = {
+    ...companySettingsForState(draft, user),
+    apexOsDailyBriefingHistory: normalizeApexOsDailyBriefingHistory(history),
+  };
+  draft.companySettingsByCompanyId[currentCompanyId] = draft.companySettings;
+}
+
+function publicApexOsDailyBriefingSnapshot(snapshot) {
+  return normalizeApexOsDailyBriefingHistory([snapshot])[0] || null;
+}
+
 function estimatesForAgentLearningSuggestions(state, user) {
   const companyId = currentCompanyIdForRequestUser(state, user);
   const estimateItems = Array.isArray(state.estimateItems) ? state.estimateItems : [];
@@ -12704,6 +12727,69 @@ app.get("/api/apex-os/daily-briefing", requireAuth, asyncRoute(async (req, res) 
       },
       user: req.auth.user,
     }),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/daily-briefing/history", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let savedSnapshot = null;
+  let dailyBriefing = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageApexOsMemory(draft, req.auth.user);
+    const companySettings = companySettingsForState(draft, req.auth.user);
+    const currentHistory = apexOsDailyBriefingHistoryForState(draft, req.auth.user);
+    dailyBriefing = buildApexOsDailyBriefing({
+      state: {
+        ...draft,
+        companySettings,
+      },
+      user: req.auth.user,
+      now,
+    });
+    savedSnapshot = buildApexOsDailyBriefingHistorySnapshot(dailyBriefing, {
+      id: makeId("ADB"),
+      now,
+      savedBy: req.auth.user.id,
+    });
+    persistApexOsDailyBriefingHistory(draft, req.auth.user, [savedSnapshot, ...currentHistory].slice(0, 30));
+    appendActivity(draft, "Apex OS daily briefing saved", `${req.auth.user.name} saved a private Apex OS daily briefing snapshot.`);
+    appendAuditEvent(draft, {
+      entityType: "apexOsDailyBriefing",
+      entityId: savedSnapshot.id,
+      action: "saved",
+      summary: "Apex OS daily briefing saved",
+      detail: JSON.stringify({
+        id: savedSnapshot.id,
+        status: savedSnapshot.status,
+        rowCount: savedSnapshot.rowCount,
+        alertCount: savedSnapshot.alertCount,
+        sourceLabel: savedSnapshot.sourceLabel,
+        externalAlertsEnabled: false,
+        executionLocked: true,
+      }),
+      actor: req.auth.user,
+      changedFields: ["apexOsDailyBriefingHistory"],
+    });
+    return draft;
+  });
+
+  const updatedSettings = companySettingsForState(nextState, req.auth.user);
+  dailyBriefing = buildApexOsDailyBriefing({
+    state: {
+      ...nextState,
+      companySettings: updatedSettings,
+    },
+    user: req.auth.user,
+    now,
+  });
+
+  res.status(201).json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    dailyBriefing,
+    apexOsDailyBriefingSnapshot: publicApexOsDailyBriefingSnapshot(savedSnapshot),
+    summary: dailyBriefing.history,
     requestId: res.locals.requestId,
   });
 }));

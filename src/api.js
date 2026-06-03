@@ -423,6 +423,10 @@ export function getApexOsDailyBriefing(token) {
   return request("/api/apex-os/daily-briefing", { token });
 }
 
+export function saveApexOsDailyBriefingSnapshot(token) {
+  return request("/api/apex-os/daily-briefing/history", { method: "POST", token, body: {} });
+}
+
 export function getApexOsBuildAwareness(token) {
   return request("/api/apex-os/build-awareness", { token });
 }

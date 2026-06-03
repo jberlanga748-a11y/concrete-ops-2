@@ -385,7 +385,26 @@ test("Apex OS memory is operator-only, source-backed, persisted, and audited", a
     assert.equal(briefing.dailyBriefing.operatorName, operatorLogin.user.name);
     assert.equal(briefing.dailyBriefing.briefingRows.some((row) => row.id === "memory-context" && row.status === "1 approved"), true);
     assert.equal(briefing.dailyBriefing.alerts.some((row) => row.id === "no-execution" && row.status === "Locked"), true);
+    assert.equal(briefing.dailyBriefing.history.status, "Baseline needed");
+    assert.equal(briefing.dailyBriefing.changedSincePreviousRows.some((row) => row.id === "briefing-baseline-needed"), true);
     assert.equal(briefing.dailyBriefing.sourceLabels.includes("AGENTS.md field-role protection rules"), true);
+
+    const savedBriefing = await assertOk(fixture.baseUrl, "/api/apex-os/daily-briefing/history", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+    });
+    assert.equal(savedBriefing.apexOsDailyBriefingSnapshot.status, savedBriefing.dailyBriefing.status);
+    assert.equal(savedBriefing.dailyBriefing.history.status, "History active");
+    assert.equal(savedBriefing.dailyBriefing.history.snapshotCount, 1);
+    assert.equal(savedBriefing.dailyBriefing.historyRows.length, 1);
+    assert.equal(savedBriefing.dailyBriefing.externalAlertsEnabled, false);
+    assert.equal(savedBriefing.dailyBriefing.canExecute, false);
+
+    const adminBriefingSaveBlocked = await requestJson(fixture.baseUrl, "/api/apex-os/daily-briefing/history", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+    });
+    assert.equal(adminBriefingSaveBlocked.response.status, 403);
 
     const buildAwareness = await assertOk(fixture.baseUrl, "/api/apex-os/build-awareness", {
       headers: authHeaders(operatorLogin.token),

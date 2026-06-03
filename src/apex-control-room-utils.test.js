@@ -155,7 +155,7 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.operatingSignals.find((item) => item.id === "voice-interface")?.status, "Transcript confirm ready");
   assert.equal(state.operatingSignals.find((item) => item.id === "approval-command-center")?.status, "Drafting ready");
   assert.equal(state.operatingSignals.find((item) => item.id === "execution-handoffs")?.status, "Drafting ready");
-  assert.equal(state.operatingSignals.find((item) => item.id === "release-monitoring")?.status, "First UI ready");
+  assert.equal(state.operatingSignals.find((item) => item.id === "release-monitoring")?.status, "Read-only ready");
   assert.equal(state.operatingSignals.find((item) => item.id === "business-command-center")?.status, "Business ops mapped");
   assert.equal(state.operatingSignals.find((item) => item.id === "qa-security-hardening")?.status, "Hardening evidence ready");
   assert.equal(state.priorities.find((item) => item.id === "agent-work-queue")?.status, "Review-only");
@@ -164,7 +164,7 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.priorities.find((item) => item.id === "voice-interface")?.status, "Transcript confirm ready");
   assert.equal(state.priorities.find((item) => item.id === "approval-command-center")?.status, "Drafting ready");
   assert.equal(state.priorities.find((item) => item.id === "execution-handoffs")?.status, "Drafting ready");
-  assert.equal(state.priorities.find((item) => item.id === "release-monitoring")?.status, "First UI ready");
+  assert.equal(state.priorities.find((item) => item.id === "release-monitoring")?.status, "Read-only ready");
   assert.equal(state.priorities.find((item) => item.id === "business-command-center")?.status, "Business ops mapped");
   assert.equal(state.priorities.find((item) => item.id === "qa-security-hardening")?.status, "Hardening evidence ready");
   assert.equal(state.releaseDesk.status, "Manual release only");
@@ -244,14 +244,16 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.executionHandoffs.handoffSummary.total, 0);
   assert.equal(state.executionHandoffs.sourceCount, 3);
   assert.equal(state.executionHandoffs.sourceRows.some((item) => item.id === "execution-lock" && item.status === "Run locked"), true);
-  assert.equal(state.releaseMonitoring.status, "First UI ready");
+  assert.equal(state.releaseMonitoring.status, "Read-only ready");
   assert.equal(state.releaseMonitoring.readinessCount, APEX_OS_RELEASE_MONITORING_CHECKS.length);
   assert.equal(state.releaseMonitoring.lockCount, APEX_OS_RELEASE_MONITORING_LOCKS.length);
   assert.equal(state.releaseMonitoring.briefingCount, 4);
   assert.equal(state.releaseMonitoring.packetCount, 4);
-  assert.equal(state.releaseMonitoring.readinessRows.some((item) => item.id === "current-branch-build" && item.status === "Evidence required"), true);
-  assert.equal(state.releaseMonitoring.readinessRows.some((item) => item.id === "agent-stalled" && item.status === "Review-only"), true);
-  assert.equal(state.releaseMonitoring.briefingRows.some((item) => item.id === "daily-executive-brief" && item.status === "First UI ready"), true);
+  assert.equal(state.releaseMonitoring.readinessRows.some((item) => item.id === "current-branch-build" && item.status === "Workspace clean"), true);
+  assert.equal(state.releaseMonitoring.readinessRows.some((item) => item.id === "failed-test-build" && item.status === "No failed source"), true);
+  assert.equal(state.releaseMonitoring.readinessRows.some((item) => item.id === "agent-stalled" && item.status === "Reports visible"), true);
+  assert.equal(state.releaseMonitoring.briefingRows.some((item) => item.id === "daily-executive-brief" && item.status === "Refresh + save ready"), true);
+  assert.equal(state.releaseMonitoring.briefingRows.some((item) => item.id === "changed-since-yesterday" && item.status === "Baseline needed"), true);
   assert.equal(state.releaseMonitoring.briefingRows.some((item) => item.id === "stalled-agent-watch" && item.status === "Runs visible"), true);
   assert.equal(state.releaseMonitoring.releasePacketRows.some((item) => item.id === "stop-warnings" && item.status === "10 locks"), true);
   assert.equal(state.releaseMonitoring.lockRows.some((item) => item.id === "no-deploy" && item.status === "Locked"), true);
@@ -301,7 +303,7 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.qaSecurityHardening.evidenceRows.some((item) => item.id === "upload-privacy" && item.status === "Upload intake ready"), true);
   assert.equal(state.qaSecurityHardening.evidenceRows.some((item) => item.id === "approval-gates" && item.status === "Drafting ready"), true);
   assert.equal(state.qaSecurityHardening.evidenceRows.some((item) => item.id === "desktop-mobile-visual" && item.status === "Evidence required"), true);
-  assert.equal(state.qaSecurityHardening.evidenceRows.some((item) => item.id === "build-test-release" && item.status === "First UI ready"), true);
+  assert.equal(state.qaSecurityHardening.evidenceRows.some((item) => item.id === "build-test-release" && item.status === "Read-only ready"), true);
   assert.equal(state.qaSecurityHardening.evidenceRows.some((item) => item.id === "no-secrets" && item.status === "Locked"), true);
   assert.equal(state.qaSecurityHardening.evidenceRows.some((item) => item.id === "no-bypass-actions" && item.status === "Locked"), true);
   assert.equal(state.qaSecurityHardening.lockRows.some((item) => item.id === "no-schema-auth-session" && item.status === "Locked"), true);

@@ -1,6 +1,17 @@
 import { summarizeApexOsMemory } from "./apexOsMemory.js";
 
+const HISTORY_LIMIT = 30;
+const SNAPSHOT_ROW_LIMIT = 12;
+
 function list(value) {
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
   return Array.isArray(value) ? value : [];
 }
 
@@ -26,8 +37,214 @@ function text(value = "", fallback = "") {
   return normalized || fallback;
 }
 
+function shortText(value = "", fallback = "", limit = 600) {
+  return text(value, fallback).slice(0, limit);
+}
+
+function numeric(value, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 function toneForCount(count, emptyTone = "slate") {
   return count > 0 ? "amber" : emptyTone;
+}
+
+function normalizeBriefingStatusRow(row = {}, fallbackId = "briefing-row") {
+  return {
+    id: shortText(row.id, fallbackId, 100),
+    title: shortText(row.title, "Briefing row", 160),
+    status: shortText(row.status, "Recorded", 120),
+    detail: shortText(row.detail, "Saved briefing signal.", 700),
+    tone: shortText(row.tone, "slate", 40),
+    sourceLabel: shortText(row.sourceLabel, "", 180),
+    readOnly: row.readOnly !== false,
+  };
+}
+
+function normalizeBriefingSnapshot(input = {}) {
+  const rows = list(input.rows || input.briefingRows)
+    .map((row, index) => normalizeBriefingStatusRow(row, `row-${index + 1}`))
+    .filter((row) => row.id && row.title)
+    .slice(0, SNAPSHOT_ROW_LIMIT);
+  const alerts = list(input.alerts)
+    .map((row, index) => normalizeBriefingStatusRow(row, `alert-${index + 1}`))
+    .filter((row) => row.id && row.title)
+    .slice(0, SNAPSHOT_ROW_LIMIT);
+  const nextActions = list(input.nextActions)
+    .map((item) => shortText(item, "", 240))
+    .filter(Boolean)
+    .slice(0, 8);
+  const generatedAt = shortText(input.generatedAt || input.createdAt || input.savedAt, "", 80);
+  const savedAt = shortText(input.savedAt || input.createdAt || generatedAt, generatedAt, 80);
+  const id = shortText(input.id, `ADB-${savedAt || generatedAt || "snapshot"}`, 100);
+  return {
+    id,
+    generatedAt,
+    savedAt,
+    savedBy: shortText(input.savedBy || input.createdBy, "", 120),
+    operatorName: shortText(input.operatorName, "", 160),
+    status: shortText(input.status, "Recorded", 120),
+    tone: shortText(input.tone, "blue", 40),
+    summary: shortText(input.summary, "Saved Apex OS daily briefing snapshot.", 900),
+    rowCount: numeric(input.rowCount, rows.length),
+    alertCount: numeric(input.alertCount, alerts.length),
+    actionCount: numeric(input.actionCount, nextActions.length),
+    rows,
+    alerts,
+    nextActions,
+    sourceLabels: list(input.sourceLabels).map((label) => shortText(label, "", 180)).filter(Boolean).slice(0, 10),
+    sourceLabel: shortText(input.sourceLabel, "Apex OS daily briefing history", 180),
+    readOnly: true,
+  };
+}
+
+export function normalizeApexOsDailyBriefingHistory(value = []) {
+  return list(value)
+    .map(normalizeBriefingSnapshot)
+    .filter((snapshot) => snapshot.id && snapshot.savedAt)
+    .sort((left, right) => String(right.savedAt || "").localeCompare(String(left.savedAt || "")))
+    .slice(0, HISTORY_LIMIT);
+}
+
+export function buildApexOsDailyBriefingHistorySnapshot(briefing = {}, {
+  id = "",
+  now = new Date().toISOString(),
+  savedBy = "",
+} = {}) {
+  return normalizeBriefingSnapshot({
+    id,
+    generatedAt: briefing.generatedAt || now,
+    savedAt: now,
+    savedBy,
+    operatorName: briefing.operatorName || "",
+    status: briefing.status || "Recorded",
+    tone: briefing.tone || "blue",
+    summary: briefing.summary || "Saved Apex OS daily briefing snapshot.",
+    rowCount: list(briefing.briefingRows).length,
+    alertCount: list(briefing.alerts).length,
+    actionCount: list(briefing.nextActions).length,
+    rows: list(briefing.briefingRows).map((row) => normalizeBriefingStatusRow(row)),
+    alerts: list(briefing.alerts).map((row) => normalizeBriefingStatusRow(row)),
+    nextActions: list(briefing.nextActions),
+    sourceLabels: list(briefing.sourceLabels),
+    sourceLabel: "Apex OS daily briefing history",
+  });
+}
+
+function rowSignature(row = {}) {
+  return [row.status, row.detail].map((value) => text(value)).join(" | ");
+}
+
+export function buildApexOsBriefingChangeRows(currentBriefing = {}, history = []) {
+  const snapshots = normalizeApexOsDailyBriefingHistory(history);
+  const previous = snapshots[0] || null;
+  if (!previous) {
+    return [
+      {
+        id: "briefing-baseline-needed",
+        title: "What changed since last saved briefing",
+        status: "Baseline needed",
+        detail: "Save one manual daily briefing snapshot to start durable changed-since-prior comparisons.",
+        tone: "blue",
+        sourceLabel: "Apex OS daily briefing history",
+        readOnly: true,
+      },
+    ];
+  }
+
+  const currentRows = [
+    ...list(currentBriefing.briefingRows).map((row) => normalizeBriefingStatusRow(row)),
+    ...list(currentBriefing.alerts).map((row) => normalizeBriefingStatusRow({ ...row, id: `alert-${row.id || row.title}` })),
+  ];
+  const previousRows = [
+    ...list(previous.rows).map((row) => normalizeBriefingStatusRow(row)),
+    ...list(previous.alerts).map((row) => normalizeBriefingStatusRow({ ...row, id: `alert-${row.id || row.title}` })),
+  ];
+  const previousById = new Map(previousRows.map((row) => [row.id, row]));
+  const currentById = new Map(currentRows.map((row) => [row.id, row]));
+  const changes = [];
+
+  for (const row of currentRows) {
+    const old = previousById.get(row.id);
+    if (!old) {
+      changes.push({
+        id: `new-${row.id}`,
+        title: row.title,
+        status: "New signal",
+        detail: `${row.status}: ${row.detail}`,
+        tone: row.tone || "blue",
+        sourceLabel: `Compared with ${previous.savedAt}`,
+        readOnly: true,
+      });
+      continue;
+    }
+    if (rowSignature(row) !== rowSignature(old)) {
+      changes.push({
+        id: `changed-${row.id}`,
+        title: row.title,
+        status: `${old.status} -> ${row.status}`,
+        detail: row.detail,
+        tone: row.tone || "amber",
+        sourceLabel: `Compared with ${previous.savedAt}`,
+        readOnly: true,
+      });
+    }
+  }
+
+  for (const row of previousRows) {
+    if (!currentById.has(row.id)) {
+      changes.push({
+        id: `removed-${row.id}`,
+        title: row.title,
+        status: "No longer present",
+        detail: `Previous signal from ${previous.savedAt}: ${row.status}.`,
+        tone: "slate",
+        sourceLabel: "Apex OS daily briefing history",
+        readOnly: true,
+      });
+    }
+  }
+
+  if (!changes.length) {
+    changes.push({
+      id: "briefing-no-change",
+      title: "What changed since last saved briefing",
+      status: "No change",
+      detail: `Current briefing rows match the last saved snapshot from ${previous.savedAt}.`,
+      tone: "green",
+      sourceLabel: "Apex OS daily briefing history",
+      readOnly: true,
+    });
+  }
+
+  return changes.slice(0, 8);
+}
+
+export function buildApexOsDailyBriefingHistoryState({ briefing = {}, history = [] } = {}) {
+  const snapshots = normalizeApexOsDailyBriefingHistory(history);
+  const changedSincePreviousRows = buildApexOsBriefingChangeRows(briefing, snapshots);
+  const historyRows = snapshots.slice(0, 6).map((snapshot) => ({
+    id: snapshot.id,
+    title: snapshot.summary,
+    status: snapshot.status,
+    detail: `${snapshot.rowCount} briefing rows, ${snapshot.alertCount} locks, and ${snapshot.actionCount} next actions saved at ${snapshot.savedAt}.`,
+    tone: snapshot.tone || "blue",
+    sourceLabel: snapshot.sourceLabel || "Apex OS daily briefing history",
+    readOnly: true,
+  }));
+  return {
+    status: snapshots.length ? "History active" : "Baseline needed",
+    tone: snapshots.length ? "green" : "blue",
+    snapshotCount: snapshots.length,
+    latestSnapshot: snapshots[0] || null,
+    historyRows,
+    changedSincePreviousRows,
+    sourceLabels: [
+      "Apex OS daily briefing history",
+      "Manual operator briefing snapshots",
+    ],
+  };
 }
 
 export function buildApexOsDailyBriefing({ state = {}, user = {}, now = new Date().toISOString() } = {}) {
@@ -122,6 +339,18 @@ export function buildApexOsDailyBriefing({ state = {}, user = {}, now = new Date
     memorySummary.suggested ? "Approve or archive suggested Apex OS memory before using it as trusted context." : "Add source-backed memory only when it has a clear source label.",
   ];
 
+  const sourceLabels = [
+    "Current Apex HQ workspace state",
+    "Apex OS durable memory summary",
+    "Apex OS release and approval locks",
+    "Apex OS daily briefing history",
+    "AGENTS.md field-role protection rules",
+  ];
+  const history = buildApexOsDailyBriefingHistoryState({
+    briefing: { briefingRows, alerts, nextActions, sourceLabels },
+    history: companySettings.apexOsDailyBriefingHistory || [],
+  });
+
   return {
     id: `APEX-BRIEF-${String(now).replace(/[^0-9A-Za-z]+/g, "-").replace(/^-|-$/g, "")}`,
     generatedAt: now,
@@ -132,11 +361,12 @@ export function buildApexOsDailyBriefing({ state = {}, user = {}, now = new Date
     briefingRows,
     alerts,
     nextActions,
-    sourceLabels: [
-      "Current Apex HQ workspace state",
-      "Apex OS durable memory summary",
-      "Apex OS release and approval locks",
-      "AGENTS.md field-role protection rules",
-    ],
+    history,
+    historyRows: history.historyRows,
+    changedSincePreviousRows: history.changedSincePreviousRows,
+    sourceLabels,
+    manualSnapshotEnabled: true,
+    externalAlertsEnabled: false,
+    canExecute: false,
   };
 }

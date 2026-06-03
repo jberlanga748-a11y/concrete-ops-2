@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 
 import {
   buildApexOsBuildAwarenessSnapshot,
+  extractApexOsDemoReadinessEvidence,
   extractApexOsFrozenPhaseRows,
+  extractApexOsGitHubActionsSmokeEvidence,
   parseGitStatusPorcelain,
   sanitizeApexOsFileReference,
 } from "./apexOsBuildAwareness.js";
@@ -34,7 +36,12 @@ test("builds read-only Apex OS build awareness snapshot", () => {
   const livingPlan = [
     "- Apex OS Phase 8 / Approval Command Center is hard-finished and deployed as of 2026-06-03.",
     "- Apex OS Phase 8 production release was approved in chat and deployed on 2026-06-03 from commit `be2dccb` to Fly app `concrete-ops-2`, machine `148e06e2b53d68`, version `640`, image `registry.fly.io/concrete-ops-2:deployment-01KT63SPFM2EM1SVEHK24148G8`.",
+    "- Apex OS Phase 10 production release was approved in chat and deployed on 2026-06-03 from commit `ee851f7` to Fly app `concrete-ops-2`, machine `148e06e2b53d68`, version `642`, image `registry.fly.io/concrete-ops-2:deployment-01KT67FMHMMHQH69R1ZFX5Y0VR`.",
     "- Production auth smoke/login was not run.",
+  ].join("\n");
+  const buildStatus = [
+    "- Demo hosted smoke verification: manual GitHub Actions dispatch `26140455523` passed on `main`.",
+    "- GitHub Actions readiness monitor current-head verification: scheduled run `26133125331` passed on `main`.",
   ].join("\n");
   const snapshot = buildApexOsBuildAwarenessSnapshot({
     branch: "codex/apex-os-command-center\n",
@@ -44,7 +51,7 @@ test("builds read-only Apex OS build awareness snapshot", () => {
     recentCommitsText: "ac26a41 Record Apex OS phase 8 production release\n",
     packageScripts: { build: "vite build", "verify:roles": "node --test" },
     distAssets: ["index.js"],
-    docs: { livingPlan },
+    docs: { livingPlan, buildStatus },
     runtime: { environment: "local" },
     collectedAt: "2026-06-03T00:00:00.000Z",
   });
@@ -54,7 +61,11 @@ test("builds read-only Apex OS build awareness snapshot", () => {
   assert.equal(snapshot.changedFileCount, 2);
   assert.equal(snapshot.buildStatus.status, "Available");
   assert.equal(snapshot.testStatus.status, "1 scripts");
-  assert.equal(snapshot.latestDeploy.version, "640");
+  assert.equal(snapshot.latestDeploy.version, "642");
+  assert.equal(snapshot.productionReadiness.status, "v642");
+  assert.equal(snapshot.demoReadiness.status, "Documented pass");
+  assert.equal(snapshot.githubActionsSmoke.status, "Documented pass");
+  assert.equal(snapshot.failedTestBuild.status, "2 review signals");
   assert.equal(snapshot.knownBlockers.some((row) => row.id === "production-auth-smoke"), true);
   assert.equal(snapshot.nextSafeTask.status, "Review changes first");
   assert.equal(snapshot.executionLocked, true);
@@ -72,4 +83,18 @@ test("extracts frozen phase map from living plan text", () => {
   assert.equal(rows[0].status, "Release ready");
   assert.equal(rows[1].status, "Deployed");
   assert.equal(rows[8].status, "Pending audit");
+});
+
+test("extracts demo and GitHub Actions smoke evidence from docs", () => {
+  const docs = [
+    "- Decision state: Apex HQ remains guided-demo and controlled-pilot ready.",
+    "- Demo hosted smoke verification: manual GitHub Actions dispatch `26140455523` passed on `main`.",
+    "- GitHub Actions readiness monitor current-head verification: scheduled run `26133125331` passed on `main`.",
+  ].join("\n");
+  const demo = extractApexOsDemoReadinessEvidence("", docs);
+  const actions = extractApexOsGitHubActionsSmokeEvidence("", docs);
+  assert.equal(demo.status, "Documented pass");
+  assert.equal(actions.status, "Documented pass");
+  assert.match(demo.detail, /Demo hosted smoke/);
+  assert.match(actions.detail, /GitHub Actions/);
 });

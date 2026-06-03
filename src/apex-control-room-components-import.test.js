@@ -103,6 +103,9 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /Approval Sources/);
   assert.match(componentSource, /Execute locked/);
   assert.match(componentSource, /Release Monitoring/);
+  assert.match(componentSource, /ReleaseMonitoringPanel/);
+  assert.match(componentSource, /Refresh monitoring/);
+  assert.match(componentSource, /releaseMonitoringRowsWithSnapshot/);
   assert.match(componentSource, /App Build Awareness/);
   assert.match(componentSource, /BuildAwarenessPanel/);
   assert.match(componentSource, /getApexOsBuildAwareness/);
@@ -112,6 +115,10 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /Daily Briefing/);
   assert.match(componentSource, /DailyBriefingPanel/);
   assert.match(componentSource, /getApexOsDailyBriefing/);
+  assert.match(componentSource, /saveApexOsDailyBriefingSnapshot/);
+  assert.match(componentSource, /Save snapshot/);
+  assert.match(componentSource, /Changed Since Last Briefing/);
+  assert.match(componentSource, /Briefing History/);
   assert.match(componentSource, /Briefing Locks/);
   assert.match(componentSource, /Release Readiness Packet/);
   assert.match(componentSource, /Monitoring Locks/);

@@ -81,6 +81,71 @@ function firstMatch(text = "", pattern, fallback = "") {
   return cleanText(match?.[1] || fallback);
 }
 
+function firstEvidenceLine(text = "", patterns = []) {
+  const regexes = patterns
+    .map((pattern) => pattern instanceof RegExp ? pattern : new RegExp(String(pattern || ""), "i"))
+    .filter(Boolean);
+  return String(text || "")
+    .split(/\r?\n/)
+    .map((line) => cleanText(line))
+    .filter(Boolean)
+    .find((line) => regexes.every((pattern) => pattern.test(line))) || "";
+}
+
+function evidenceTone(line = "") {
+  const normalized = String(line || "").toLowerCase();
+  if (/failed|failure|non-zero|error|no-go|not run|skipped/.test(normalized)) return "amber";
+  if (/passed|healthy|ready|ok|completed successfully|go\b/.test(normalized)) return "green";
+  return line ? "blue" : "slate";
+}
+
+function evidenceStatus(line = "", fallback = "Evidence required") {
+  const normalized = String(line || "").toLowerCase();
+  if (!line) return fallback;
+  if (/failed|failure|non-zero|error|no-go/.test(normalized)) return "Review";
+  if (/not run|skipped/.test(normalized)) return "Not run";
+  if (/passed|healthy|ready|ok|completed successfully/.test(normalized)) return "Documented pass";
+  if (/\bgo\b/.test(normalized)) return "GO";
+  return "Documented";
+}
+
+function evidenceRow({ id, title, line = "", fallbackDetail = "", fallbackStatus = "Evidence required", sourceLabel = "Apex OS source evidence" } = {}) {
+  return {
+    id,
+    title,
+    status: evidenceStatus(line, fallbackStatus),
+    detail: line || fallbackDetail,
+    tone: evidenceTone(line),
+    sourceLabel,
+  };
+}
+
+export function extractApexOsDemoReadinessEvidence(livingPlanText = "", buildStatusText = "") {
+  const combined = [livingPlanText, buildStatusText].join("\n");
+  const line = firstEvidenceLine(combined, [/demo|concrete-ops-demo|guided demo/i, /smoke|readiness|healthy|passed|GO|hosted/i]);
+  return evidenceRow({
+    id: "demo-readiness-evidence",
+    title: "Demo app readiness status",
+    line,
+    fallbackStatus: "Evidence required",
+    fallbackDetail: "No current demo hosted smoke/readiness evidence was parsed from the local source docs.",
+    sourceLabel: line ? "docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md" : "Apex OS build awareness docs scan",
+  });
+}
+
+export function extractApexOsGitHubActionsSmokeEvidence(livingPlanText = "", buildStatusText = "") {
+  const combined = [livingPlanText, buildStatusText].join("\n");
+  const line = firstEvidenceLine(combined, [/GitHub Actions|workflow|readiness monitor|dispatch|\bCI run\b/i, /smoke|readiness|passed|failed|dispatch|\bCI run\b/i]);
+  return evidenceRow({
+    id: "github-actions-smoke-evidence",
+    title: "GitHub Actions / smoke status",
+    line,
+    fallbackStatus: "Evidence required",
+    fallbackDetail: "No current GitHub Actions smoke/readiness line was parsed from the local source docs.",
+    sourceLabel: line ? "docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md" : "Apex OS build awareness docs scan",
+  });
+}
+
 export function sanitizeApexOsFileReference(value = "") {
   const normalized = String(value || "").replace(/\\/g, "/").trim();
   if (!normalized || normalized.includes("\0")) return "";
@@ -161,7 +226,13 @@ export function extractApexOsFrozenPhaseRows(livingPlanText = "") {
 
 export function extractLatestApexOsDeployEvidence(livingPlanText = "") {
   const text = String(livingPlanText || "");
-  const line = firstMatch(text, /(- Apex OS Phase \d+ production release[^\n]+)/i);
+  const lines = text.split(/\r?\n/).map((item) => cleanText(item)).filter((item) => /- Apex OS Phase \d+ production release/i.test(item));
+  const line = lines
+    .map((item) => ({
+      line: item,
+      version: Number(firstMatch(item, /version `?(\d+)`?/i, "0")),
+    }))
+    .sort((left, right) => right.version - left.version)[0]?.line || firstMatch(text, /(- Apex OS Phase \d+ production release[^\n]+)/i);
   const version = firstMatch(line, /version `?(\d+)`?/i);
   const image = firstMatch(line, /image `([^`]+)`/i);
   const commit = firstMatch(line, /commit `([^`]+)`/i);
@@ -195,6 +266,8 @@ export function buildApexOsBuildAwarenessSnapshot({
   const recentCommits = parseGitLogOneline(recentCommitsText);
   const frozenPhaseRows = extractApexOsFrozenPhaseRows(docs.livingPlan || "");
   const latestDeploy = extractLatestApexOsDeployEvidence(docs.livingPlan || "");
+  const demoReadiness = extractApexOsDemoReadinessEvidence(docs.livingPlan || "", docs.buildStatus || "");
+  const githubActionsSmoke = extractApexOsGitHubActionsSmokeEvidence(docs.livingPlan || "", docs.buildStatus || "");
   const buildScript = packageScripts.build ? "npm.cmd run build" : "Build script missing";
   const testScriptCount = Object.keys(packageScripts).filter((key) => key.startsWith("verify:") || key === "test").length;
   const phaseNineRow = frozenPhaseRows.find((row) => row.id === "phase-9");
@@ -225,6 +298,16 @@ export function buildApexOsBuildAwarenessSnapshot({
       sourceLabel: "docs/APEX_HQ_LIVING_FINISH_PLAN.md",
     } : null,
   ].filter(Boolean);
+  const failedTestBuild = {
+    id: "failed-test-build-monitor",
+    title: "Failed test/build monitor",
+    status: knownBlockers.length ? `${knownBlockers.length} review signals` : "No failed source",
+    detail: knownBlockers.length
+      ? `Review current blocker signals: ${knownBlockers.map((row) => row.title).join("; ")}.`
+      : "No failed test/build source row is visible in the current build awareness snapshot.",
+    tone: knownBlockers.length ? "amber" : "green",
+    sourceLabel: knownBlockers.length ? "Apex OS build awareness blockers" : "Apex OS build awareness snapshot",
+  };
   const nextSafeTask = dirtyCount
     ? "Review current changed files, keep unrelated files unstaged, run focused tests, then commit exact paths before any deploy."
     : phaseNineRow?.status === "Deployed"
@@ -258,6 +341,17 @@ export function buildApexOsBuildAwarenessSnapshot({
       sourceLabel: "package.json",
     },
     latestDeploy,
+    productionReadiness: {
+      id: "production-readiness-evidence",
+      title: "Production readiness status",
+      status: latestDeploy.version ? latestDeploy.status : "Evidence required",
+      detail: latestDeploy.detail,
+      tone: latestDeploy.tone,
+      sourceLabel: latestDeploy.sourceLabel,
+    },
+    demoReadiness,
+    githubActionsSmoke,
+    failedTestBuild,
     knownBlockers,
     frozenPhaseRows,
     sourceLinks: APEX_OS_BUILD_SOURCE_LINKS.map((row) => ({ ...row, path: sanitizeApexOsFileReference(row.path) })),
@@ -296,6 +390,10 @@ export function restrictedApexOsBuildAwarenessSnapshot() {
     buildStatus: { id: "restricted", title: "Build awareness", status: "Restricted", detail: "Private operator access is required.", tone: "slate" },
     testStatus: { id: "restricted-tests", title: "Test awareness", status: "Restricted", detail: "Private operator access is required.", tone: "slate" },
     latestDeploy: { id: "restricted-release", title: "Release evidence", status: "Restricted", detail: "Private operator access is required.", tone: "slate" },
+    productionReadiness: { id: "restricted-production-readiness", title: "Production readiness status", status: "Restricted", detail: "Private operator access is required.", tone: "slate" },
+    demoReadiness: { id: "restricted-demo-readiness", title: "Demo app readiness status", status: "Restricted", detail: "Private operator access is required.", tone: "slate" },
+    githubActionsSmoke: { id: "restricted-github-actions-smoke", title: "GitHub Actions / smoke status", status: "Restricted", detail: "Private operator access is required.", tone: "slate" },
+    failedTestBuild: { id: "restricted-failed-test-build", title: "Failed test/build monitor", status: "Restricted", detail: "Private operator access is required.", tone: "slate" },
     knownBlockers: [],
     frozenPhaseRows: [],
     sourceLinks: [],

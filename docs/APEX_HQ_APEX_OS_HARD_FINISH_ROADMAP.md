@@ -280,6 +280,15 @@ Hard-finish package:
 - Add manual refresh and source evidence.
 - Add production health reads after deploy approval.
 
+Status:
+
+- Hard-finished locally on 2026-06-03.
+- Durable daily briefing history is saved as sanitized private snapshots in existing company settings through operator-only `POST /api/apex-os/daily-briefing/history`.
+- Local/read-only Release Monitoring now refreshes production readiness, demo app readiness, GitHub Actions/smoke status, failed test/build evidence, and stalled-agent signals from safe build-awareness and control-plane sources.
+- The Daily Briefing now shows changed-since-last-saved rows, briefing history rows, locks, source labels, John-action alerts, and manual refresh/save controls.
+- No provider monitoring change, external alert/notification, autonomous schedule, deploy/rollback execution, production/customer mutation, email/SMS send, ad spend, billing/payment, schema/auth/session change, deletion, public publishing, or customer-visible action was added.
+- Validation passed with focused Phase 11 tests, the 98-test Apex OS route/nav/permission regression suite, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and desktop/mobile browser QA with monitoring refresh plus briefing save/history.
+
 Blocked right now:
 
 - External alerts/notifications.

@@ -1345,38 +1345,127 @@ function buildReleaseMonitoringState({
   launchState,
   trustState,
   agentWorkQueue,
+  agentControlPlane,
+  buildAwareness,
+  companySettings = {},
   recentEvidence = [],
 } = {}) {
-  const readinessRows = APEX_OS_RELEASE_MONITORING_CHECKS.map((item) => ({ ...item }));
+  const briefingHistoryCount = Array.isArray(companySettings?.apexOsDailyBriefingHistory)
+    ? companySettings.apexOsDailyBriefingHistory.length
+    : 0;
+  const blockedAgentCount = formatCount(agentControlPlane?.blockedRequestCount)
+    + list(agentControlPlane?.rosterRows).filter((row) => row?.status === "blocked").length;
+  const buildKnownBlockers = list(buildAwareness?.knownBlockers).length;
+  const readinessRows = APEX_OS_RELEASE_MONITORING_CHECKS.map((item) => {
+    if (item.id === "current-branch-build") {
+      return {
+        ...item,
+        status: buildAwareness?.status || item.status,
+        detail: `${buildAwareness?.buildStatus?.status || "Build evidence pending"} build script, ${buildAwareness?.testStatus?.status || "test evidence pending"} verification scripts, and ${formatCount(buildAwareness?.changedFileCount)} changed files are visible.`,
+        tone: buildAwareness?.tone || item.tone,
+        sourceLabel: "Apex OS build awareness endpoint",
+        readOnly: true,
+      };
+    }
+    if (item.id === "production-readiness") {
+      const evidence = buildAwareness?.productionReadiness || buildAwareness?.latestDeploy;
+      return {
+        ...item,
+        status: evidence?.status || item.status,
+        detail: evidence?.detail || item.detail,
+        tone: evidence?.tone || item.tone,
+        sourceLabel: evidence?.sourceLabel || "docs/APEX_HQ_LIVING_FINISH_PLAN.md",
+        readOnly: true,
+      };
+    }
+    if (item.id === "demo-readiness") {
+      const evidence = buildAwareness?.demoReadiness;
+      return {
+        ...item,
+        status: evidence?.status || item.status,
+        detail: evidence?.detail || item.detail,
+        tone: evidence?.tone || item.tone,
+        sourceLabel: evidence?.sourceLabel || "Apex OS build awareness docs scan",
+        readOnly: true,
+      };
+    }
+    if (item.id === "github-actions-smoke") {
+      const evidence = buildAwareness?.githubActionsSmoke;
+      return {
+        ...item,
+        status: evidence?.status || item.status,
+        detail: evidence?.detail || item.detail,
+        tone: evidence?.tone || item.tone,
+        sourceLabel: evidence?.sourceLabel || "Apex OS build awareness docs scan",
+        readOnly: true,
+      };
+    }
+    if (item.id === "failed-test-build") {
+      const evidence = buildAwareness?.failedTestBuild;
+      return {
+        ...item,
+        status: evidence?.status || item.status,
+        detail: evidence?.detail || item.detail,
+        tone: evidence?.tone || item.tone,
+        sourceLabel: evidence?.sourceLabel || "Apex OS build awareness snapshot",
+        readOnly: true,
+      };
+    }
+    if (item.id === "agent-stalled") {
+      return {
+        ...item,
+        status: blockedAgentCount ? `${blockedAgentCount} blocked` : agentControlPlane?.reportRows?.length ? "Reports visible" : "No stalls",
+        detail: blockedAgentCount
+          ? `${blockedAgentCount} blocked agent/control signal${blockedAgentCount === 1 ? "" : "s"} need manual review. Monitoring cannot resume or run agents.`
+          : `${formatCount(agentControlPlane?.reportRows?.length || agentWorkQueue?.recentRunCount)} agent report/run rows are visible; no background resume or execution control exists here.`,
+        tone: blockedAgentCount ? "amber" : agentControlPlane?.reportRows?.length || agentWorkQueue?.recentRunCount ? "blue" : "green",
+        sourceLabel: "Apex OS agent control plane",
+        readOnly: true,
+      };
+    }
+    return { ...item, readOnly: true };
+  });
   const lockRows = APEX_OS_RELEASE_MONITORING_LOCKS.map((item) => ({ ...item }));
   const briefingRows = [
     {
       id: "daily-executive-brief",
       title: "Daily executive brief",
-      status: "First UI ready",
-      detail: `${formatCount(launchState?.readyCount)} of ${formatCount(launchState?.totalCount)} launch gates ready; ${formatCount(recentEvidence.length)} recent evidence rows are available.`,
-      tone: "blue",
+      status: "Refresh + save ready",
+      detail: `${formatCount(launchState?.readyCount)} of ${formatCount(launchState?.totalCount)} launch gates ready; ${formatCount(recentEvidence.length)} recent evidence rows and ${briefingHistoryCount} saved briefing snapshots are available.`,
+      tone: briefingHistoryCount ? "green" : "blue",
+      sourceLabel: "Apex OS daily briefing endpoint",
+      readOnly: true,
     },
     {
       id: "changed-since-yesterday",
       title: "What changed since yesterday",
-      status: "Evidence planned",
-      detail: "Apex OS can reserve this space for build, test, release, agent, and launch diffs without connecting external providers yet.",
-      tone: "slate",
+      status: briefingHistoryCount ? "History backed" : "Baseline needed",
+      detail: briefingHistoryCount
+        ? `${briefingHistoryCount} saved briefing snapshot${briefingHistoryCount === 1 ? "" : "s"} can be compared against the current briefing.`
+        : "Save one manual daily briefing snapshot before Apex OS can compare current signals with prior briefing history.",
+      tone: briefingHistoryCount ? "green" : "blue",
+      sourceLabel: "Apex OS daily briefing history",
+      readOnly: true,
     },
     {
       id: "john-action-alerts",
       title: "Alerts that require John action",
-      status: "Review required",
-      detail: "Approval packets, launch blockers, failed local checks, stalled agents, and release stop warnings should surface here for manual review.",
-      tone: "amber",
+      status: launchState?.blockedCount || buildKnownBlockers || blockedAgentCount ? "Review required" : "Review clear",
+      detail: `${formatCount(launchState?.blockedCount)} launch blockers, ${buildKnownBlockers} build/test signals, and ${blockedAgentCount} blocked agent/control signals are visible for manual review only.`,
+      tone: launchState?.blockedCount || buildKnownBlockers || blockedAgentCount ? "amber" : "green",
+      sourceLabel: "Apex OS monitoring summary",
+      readOnly: true,
     },
     {
       id: "stalled-agent-watch",
       title: "Agent stalled watch",
-      status: agentWorkQueue?.recentRunCount ? "Runs visible" : "No recent runs",
-      detail: `${formatCount(agentWorkQueue?.recentRunCount)} recent Agent OS run rows are visible; no background resume or execution control exists here.`,
-      tone: agentWorkQueue?.recentRunCount ? "blue" : "slate",
+      status: blockedAgentCount ? `${blockedAgentCount} blocked` : agentWorkQueue?.recentRunCount ? "Runs visible" : "No stalls",
+      detail: blockedAgentCount
+        ? "Blocked agent/control rows require manual review before more work is assigned."
+        : `${formatCount(agentWorkQueue?.recentRunCount)} recent Agent OS run rows are visible; no background resume or execution control exists here.`,
+      tone: blockedAgentCount ? "amber" : agentWorkQueue?.recentRunCount ? "blue" : "green",
+      sourceLabel: "Apex OS agent control plane",
+      readOnly: true,
     },
   ];
   const releasePacketRows = [
@@ -1410,8 +1499,8 @@ function buildReleaseMonitoringState({
     },
   ];
   return {
-    status: "First UI ready",
-    tone: "blue",
+    status: "Read-only ready",
+    tone: buildKnownBlockers || blockedAgentCount ? "amber" : "green",
     readinessCount: readinessRows.length,
     briefingCount: briefingRows.length,
     packetCount: releasePacketRows.length,
@@ -1967,7 +2056,16 @@ export function deriveApexControlRoomState({
     executionHandoffs: companySettings?.apexOsExecutionHandoffs || [],
     agentControlRequests: companySettings?.apexOsAgentControlRequests || [],
   });
-  const releaseMonitoring = buildReleaseMonitoringState({ releaseDesk, launchState, trustState, agentWorkQueue, recentEvidence });
+  const releaseMonitoring = buildReleaseMonitoringState({
+    releaseDesk,
+    launchState,
+    trustState,
+    agentWorkQueue,
+    agentControlPlane,
+    buildAwareness,
+    companySettings,
+    recentEvidence,
+  });
   const businessCommandCenter = buildBusinessCommandCenterState({
     launchState,
     decisionMemory,

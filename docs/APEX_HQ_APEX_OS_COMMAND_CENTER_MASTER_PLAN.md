@@ -635,10 +635,12 @@ Validation:
 
 Status:
 
-- Read-only first UI implemented locally on 2026-06-02 as Apex OS Slice 9.
-- The Control Room now shows release/monitoring checks, daily briefing rows, release readiness packet rows, and monitoring locks for John-only review.
-- No deploy, rollback execution, production monitoring provider setup, external alert/notification, production data mutation, schema/storage change, provider config, or production configuration change was added.
-- Validation passed with focused Apex OS utility/import tests, the 77-test permission/routing/bootstrap suite, `npm.cmd run build`, desktop/mobile browser QA with no horizontal overflow, and normal admin blocked/redirected away from Apex OS.
+- Hard-finished locally on 2026-06-03.
+- The Control Room now has source-backed Release Monitoring refresh for production readiness, demo app readiness, GitHub Actions/smoke status, failed test/build signals, and stalled-agent signals using operator-only read-only build awareness.
+- The Daily Briefing now supports operator-only manual refresh, manual private snapshot save through existing company settings as `apexOsDailyBriefingHistory`, changed-since-last-saved briefing comparison, briefing history rows, source labels, locks, and next actions.
+- Operator-only `POST /api/apex-os/daily-briefing/history` saves sanitized briefing snapshots with audit/activity history only.
+- No external alert/notification, autonomous schedule, agent execution, deploy/rollback execution, production monitoring provider setup, provider call, production/customer mutation, schema/storage change, auth/session change, email/SMS send, ad spend, billing/payment, deletion, public publishing, or customer-visible action was added.
+- Validation passed with focused daily briefing/build awareness/control room/server tests, the 98-test Apex OS route/nav/permission regression suite, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and desktop/mobile browser QA on `/apex-control-room` with monitoring refresh plus briefing save/history, no console errors, failed requests, or horizontal overflow.
 
 ### Phase 12: Voice Interface
 
@@ -1166,11 +1168,11 @@ Approval needed:
 
 Status:
 
-- Read-only first UI implemented locally on 2026-06-02 as Apex OS Slice 9.
-- Current branch/build/test status, launch gate status, deploy readiness packet, rollback evidence, failed test/build monitor, stalled-agent watch, and daily briefing placeholders are visible inside the private Control Room.
-- Operator-only Daily Briefing refresh implemented locally on 2026-06-02 as Apex OS Slice 16.
-- `/api/apex-os/daily-briefing` returns a read-only briefing packet from current local workspace state, durable Apex OS memory summary, release/approval locks, source labels, and next actions.
-- Deploys, rollback execution, production monitoring provider setup, production data changes, schema/storage changes, and external notifications remain approval-locked.
+- Read-only first UI implemented locally on 2026-06-02 as Apex OS Slice 9 and hard-finished with Phase 11 on 2026-06-03.
+- Current branch/build/test status, launch gate status, deploy readiness packet, rollback evidence, production readiness evidence, demo app readiness evidence, GitHub Actions/smoke evidence, failed test/build monitor, stalled-agent watch, and daily briefing history are visible inside the private Control Room.
+- Operator-only Daily Briefing refresh was implemented locally on 2026-06-02 as Apex OS Slice 16, then extended on 2026-06-03 with manual private snapshot save, changed-since-last-saved comparison, and durable `apexOsDailyBriefingHistory`.
+- `/api/apex-os/daily-briefing` returns a read-only briefing packet from current local workspace state, durable Apex OS memory summary, release/approval locks, source labels, and next actions; `POST /api/apex-os/daily-briefing/history` stores a sanitized private snapshot only.
+- Deploys, rollback execution, production monitoring provider setup, provider calls, production/customer data changes, schema/storage changes, auth/session changes, external notifications, live sends, spend, billing/payment, public publishing, and customer-visible actions remain locked.
 
 ### Slice 10: Full Security And QA Hardening
 

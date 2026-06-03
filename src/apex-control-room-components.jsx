@@ -14,6 +14,7 @@ import {
   getApexOsApprovalPackets,
   getApexOsDailyBriefing,
   getApexOsExecutionHandoffs,
+  saveApexOsDailyBriefingSnapshot,
   updateApexOsAgentControlRequest,
   updateApexOsMemory,
   updateApexOsApprovalPacket,
@@ -439,9 +440,14 @@ function VoiceTranscriptPanel({ state, onUseTranscript }) {
 function DailyBriefingPanel({ state, sessionToken }) {
   const [briefing, setBriefing] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
-  const canRefresh = state.canView && Boolean(sessionToken) && !loading;
+  const canRefresh = state.canView && Boolean(sessionToken) && !loading && !saving;
+  const canSave = state.canView && Boolean(sessionToken) && !loading && !saving;
   const rows = briefing?.briefingRows?.length ? briefing.briefingRows : state.releaseMonitoring.briefingRows;
+  const history = briefing?.history || {};
+  const changedRows = Array.isArray(briefing?.changedSincePreviousRows) ? briefing.changedSincePreviousRows : history.changedSincePreviousRows || [];
+  const historyRows = Array.isArray(briefing?.historyRows) ? briefing.historyRows : history.historyRows || [];
 
   async function refreshBriefing() {
     if (!canRefresh) return;
@@ -458,18 +464,50 @@ function DailyBriefingPanel({ state, sessionToken }) {
     }
   }
 
+  async function saveSnapshot() {
+    if (!canSave) return;
+    setSaving(true);
+    setNotice("");
+    try {
+      const payload = await saveApexOsDailyBriefingSnapshot(sessionToken);
+      setBriefing(payload.dailyBriefing);
+      setNotice("Daily briefing snapshot saved privately for changed-since-prior review.");
+    } catch (error) {
+      setNotice(error?.message || "Daily briefing snapshot could not be saved right now.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="grid min-w-0 gap-3">
       <div className="flex min-w-0 flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <p className="break-words text-sm font-black text-slate-950">{briefing?.summary || "Refresh the briefing for a current private operating snapshot."}</p>
-          <p className="mt-1 break-words text-xs font-bold leading-5 text-slate-600">{notice || "Read-only: no alerts are sent and no records are changed."}</p>
+          <p className="mt-1 break-words text-xs font-bold leading-5 text-slate-600">{notice || "Read-only monitoring. Save creates a private Apex OS briefing snapshot only; no alerts are sent."}</p>
         </div>
-        <Button type="button" variant="secondary" size="sm" onClick={refreshBriefing} disabled={!canRefresh}>
-          <Icon name="refresh" /> {loading ? "Refreshing..." : "Refresh"}
-        </Button>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <Button type="button" variant="secondary" size="sm" onClick={refreshBriefing} disabled={!canRefresh}>
+            <Icon name="refresh" /> {loading ? "Refreshing..." : "Refresh"}
+          </Button>
+          <Button type="button" variant="secondary" size="sm" onClick={saveSnapshot} disabled={!canSave}>
+            <Icon name="clipboard" /> {saving ? "Saving..." : "Save snapshot"}
+          </Button>
+        </div>
       </div>
       {rows.map((item) => <StatusRow key={item.id} item={item} />)}
+      {changedRows.length ? (
+        <div className="grid min-w-0 gap-3">
+          <SectionHeader title="Changed Since Last Briefing" description={`${changedRows.length} read-only comparison rows.`} />
+          {changedRows.map((item) => <StatusRow key={item.id} item={item} />)}
+        </div>
+      ) : null}
+      {historyRows.length ? (
+        <div className="grid min-w-0 gap-3">
+          <SectionHeader title="Briefing History" description={`${history.snapshotCount || historyRows.length} private snapshots saved for manual review.`} />
+          {historyRows.map((item) => <StatusRow key={item.id} item={item} />)}
+        </div>
+      ) : null}
       {briefing?.alerts?.length ? (
         <div className="grid min-w-0 gap-3">
           <SectionHeader title="Briefing Locks" description={`${briefing.alerts.length} safety locks returned with the briefing.`} />
@@ -484,6 +522,104 @@ function DailyBriefingPanel({ state, sessionToken }) {
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function releaseMonitoringRowsWithSnapshot(rows = [], snapshot = null) {
+  if (!snapshot) return rows;
+  return rows.map((item) => {
+    if (item.id === "current-branch-build") {
+      return {
+        ...item,
+        status: snapshot.status || item.status,
+        detail: `${snapshot.buildStatus?.status || "Build evidence pending"} build script, ${snapshot.testStatus?.status || "test evidence pending"} verification scripts, and ${snapshot.changedFileCount || 0} changed files are visible.`,
+        tone: snapshot.tone || item.tone,
+        sourceLabel: "Apex OS build awareness endpoint",
+        readOnly: true,
+      };
+    }
+    if (item.id === "production-readiness") {
+      const evidence = snapshot.productionReadiness || snapshot.latestDeploy;
+      return {
+        ...item,
+        status: evidence?.status || item.status,
+        detail: evidence?.detail || item.detail,
+        tone: evidence?.tone || item.tone,
+        sourceLabel: evidence?.sourceLabel || item.sourceLabel,
+        readOnly: true,
+      };
+    }
+    if (item.id === "demo-readiness") {
+      const evidence = snapshot.demoReadiness;
+      return {
+        ...item,
+        status: evidence?.status || item.status,
+        detail: evidence?.detail || item.detail,
+        tone: evidence?.tone || item.tone,
+        sourceLabel: evidence?.sourceLabel || item.sourceLabel,
+        readOnly: true,
+      };
+    }
+    if (item.id === "github-actions-smoke") {
+      const evidence = snapshot.githubActionsSmoke;
+      return {
+        ...item,
+        status: evidence?.status || item.status,
+        detail: evidence?.detail || item.detail,
+        tone: evidence?.tone || item.tone,
+        sourceLabel: evidence?.sourceLabel || item.sourceLabel,
+        readOnly: true,
+      };
+    }
+    if (item.id === "failed-test-build") {
+      const evidence = snapshot.failedTestBuild;
+      return {
+        ...item,
+        status: evidence?.status || item.status,
+        detail: evidence?.detail || item.detail,
+        tone: evidence?.tone || item.tone,
+        sourceLabel: evidence?.sourceLabel || item.sourceLabel,
+        readOnly: true,
+      };
+    }
+    return item;
+  });
+}
+
+function ReleaseMonitoringPanel({ state, sessionToken }) {
+  const [snapshot, setSnapshot] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState("");
+  const canRefresh = state.canView && Boolean(sessionToken) && !loading;
+  const rows = releaseMonitoringRowsWithSnapshot(state.releaseMonitoring.readinessRows, snapshot);
+
+  async function refreshMonitoring() {
+    if (!canRefresh) return;
+    setLoading(true);
+    setNotice("");
+    try {
+      const payload = await getApexOsBuildAwareness(sessionToken);
+      setSnapshot(payload.buildAwareness || null);
+      setNotice("Monitoring evidence refreshed from read-only build awareness.");
+    } catch (error) {
+      setNotice(error?.message || "Monitoring evidence could not refresh right now.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="grid min-w-0 gap-3">
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <p className="min-w-0 break-words text-xs font-bold leading-5 text-slate-600">{notice || "Refresh reads local source docs, git/runtime metadata, and build-awareness evidence only."}</p>
+        <Button type="button" variant="secondary" size="sm" onClick={refreshMonitoring} disabled={!canRefresh}>
+          <Icon name="refresh" /> {loading ? "Refreshing..." : "Refresh monitoring"}
+        </Button>
+      </div>
+      <div className="grid min-w-0 gap-3 lg:grid-cols-2">
+        {rows.map((item) => <StatusRow key={item.id} item={item} />)}
+      </div>
     </div>
   );
 }
@@ -2251,9 +2387,7 @@ export function ApexControlRoomPage(props) {
               description={`${state.releaseMonitoring.readinessCount || 0} release and monitoring checks are mapped for private review.`}
               action={<ToneBadge tone={state.releaseMonitoring.tone}>{state.releaseMonitoring.status}</ToneBadge>}
             />
-            <div className="grid min-w-0 gap-3 lg:grid-cols-2">
-              {state.releaseMonitoring.readinessRows.map((item) => <StatusRow key={item.id} item={item} />)}
-            </div>
+            <ReleaseMonitoringPanel state={state} sessionToken={props.sessionToken} />
           </Card>
 
           <Card className="min-w-0 p-4 sm:p-5">
