@@ -516,11 +516,13 @@ Validation:
 
 Status:
 
-- Hard-finished locally and release-ready on 2026-06-03.
+- Hard-finished and deployed on 2026-06-03.
 - The Control Room now centralizes approval categories, approval packet requirements, packet templates, risk scoring, exact approval phrase entry, approve/reject/defer decision records, execution-locked controls, and source rows from Release Desk, Ask Apex Chat, and Voice Interface.
 - Durable approval packets use existing company settings storage as `apexOsApprovalPackets`, with operator-only list/create/update endpoints, draft/ready/approved/rejected/deferred/blocked/archived states, source-label and readiness-field requirements, secret/email rejection, exact phrase enforcement before approval, decision actor/timestamp fields, audit/activity logging, and Control Room drafting/loading/mark-ready/block/archive/reject/defer/approval-record UI.
 - Approval decisions are review records only. No executed/running/queued state, one-click irreversible action, queue/run endpoint, deploy action, production mutation, provider setup, customer-visible action, money action, send, publish, deletion, schema change, auth/session change, or irreversible execution path was added.
 - Validation passed on 2026-06-03 with focused approval packet shared/API/UI tests, the 77-test Apex OS permission/routing/bootstrap suite, `npm.cmd run build`, `git diff --check`, desktop/mobile browser QA with no horizontal overflow and disabled execution controls, final screenshot evidence at `ui-audit/apex-control-room-phase8/`, and active-local-DB cleanup verification proving no temporary Phase 8 QA packets remain.
+- Production release was approved and deployed on 2026-06-03 from commit `be2dccb` to Fly app `concrete-ops-2` as version `640`, image `registry.fly.io/concrete-ops-2:deployment-01KT63SPFM2EM1SVEHK24148G8`, with predeploy production backup `postgres-app-data-20260603-064657Z.json` and upload snapshot `uploads-20260603-064657Z`.
+- Post-deploy checks passed on 2026-06-03: both production `/api/ready` endpoints returned ready/database ok, `https://concrete-ops-2.fly.dev/api/health` returned healthy, Fly status showed machine `148e06e2b53d68` on version `640` with 1 passing check, hosted skip-auth health/routes smoke passed on `https://app.apexhq.online/`, `/apex-control-room` served the new bundle, unauthenticated `/api/apex-os/approval-packets` returned 401, and `/api/setup/status` showed demo mode off and public signup disabled. Production auth smoke/login was not run.
 
 ### Phase 9: App Build And Code Awareness
 

@@ -216,9 +216,10 @@ Blocked right now:
 
 Status:
 
-- Hard-finished locally and release-ready on 2026-06-03.
+- Hard-finished and deployed on 2026-06-03.
 - Completed packet templates, risk scoring, exact approval phrase enforcement, approve/reject/defer decision states, operator-only endpoints, readiness/source requirements, secret/email rejection, decision actor/timestamp fields, audit/activity history, and desktop/mobile browser QA.
 - Execution remains separate and locked: no deploy action, queue/run endpoint, production mutation, provider setup, send, spend, billing/payment, customer-visible action, deletion, schema/auth/session change, or irreversible action path was added.
+- Production release `v640` is healthy; rollback target is `v639`.
 
 ### Phase 9: App Build And Code Awareness
 
