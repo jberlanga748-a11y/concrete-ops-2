@@ -114,6 +114,9 @@ test("deriveApexControlRoomState builds private operator status from visible sta
         phaseStatus: "Phase 3 hard-finish",
         testStatus: "Focused tests passing",
         testDetail: "Phase 3 utility, role, build, and browser QA evidence is attached.",
+        livingPlanText: "| 2026-06-03 | Apex OS Phase 14 Action Execution Layer | `ab1a656`; Fly release `v646`; image `registry.fly.io/concrete-ops-2:deployment-01KT6G2KC3ZZ5HS4Q3GT0VHHAP` | Production Fly app `concrete-ops-2` | Predeploy backup `postgres-app-data-20260603-102138Z.json` plus `uploads-20260603-102138Z`; both `/api/ready` endpoints database OK; hosted skip-auth health/routes smoke passed. |",
+        packageScripts: { build: "vite build", "verify:roles": "node --test" },
+        distAssets: ["index-D5EnyN4J.js"],
       },
     },
   });
@@ -169,6 +172,21 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.priorities.find((item) => item.id === "qa-security-hardening")?.status, "Hardening evidence ready");
   assert.equal(state.releaseDesk.status, "Manual release only");
   assert.equal(state.releaseDesk.sections.length, 3);
+  assert.equal(state.releaseDesk.currentVersion, "646");
+  assert.equal(state.releaseDesk.currentCommit, "ab1a656");
+  assert.equal(state.releaseDesk.canDeploy, false);
+  assert.equal(state.releaseDesk.deployApprovedFlowLocked, true);
+  assert.equal(state.releaseDesk.productionActionLocked, true);
+  assert.equal(state.releaseDesk.productionPreviewCount, 3);
+  assert.equal(state.releaseDesk.readinessPacketCount, 5);
+  assert.equal(state.releaseDesk.deployHistoryCount, 1);
+  assert.equal(state.releaseDesk.approvalFlowCount, 4);
+  assert.equal(state.releaseDesk.productionPreviewRows.some((item) => item.id === "current-production-version" && item.status === "v646"), true);
+  assert.equal(state.releaseDesk.productionPreviewRows.some((item) => item.id === "live-health-evidence" && item.status === "Documented"), true);
+  assert.equal(state.releaseDesk.readinessPacketRows.some((item) => item.id === "backup-restore-evidence" && item.status === "Backup documented"), true);
+  assert.equal(state.releaseDesk.readinessPacketRows.some((item) => item.id === "deploy-approval-phrase" && item.status === "Exact approval required"), true);
+  assert.equal(state.releaseDesk.deployHistoryRows.some((item) => item.status === "v646" && item.commit === "ab1a656"), true);
+  assert.equal(state.releaseDesk.deployApprovalFlowRows.some((item) => item.id === "deploy-approved-lock" && item.status === "Locked"), true);
   assert.equal(state.launchReadiness.blockedCount > 0, true);
   assert.equal(state.launchReadiness.gates.length, 4);
   assert.match(state.nextBestActions.find((item) => item.id === "release-approval")?.detail || "", /owner approval/);

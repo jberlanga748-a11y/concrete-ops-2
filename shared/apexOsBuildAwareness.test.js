@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   buildApexOsBuildAwarenessSnapshot,
   extractApexOsDemoReadinessEvidence,
+  extractApexOsDeployHistoryRows,
   extractApexOsFrozenPhaseRows,
   extractApexOsGitHubActionsSmokeEvidence,
   parseGitStatusPorcelain,
@@ -37,6 +38,7 @@ test("builds read-only Apex OS build awareness snapshot", () => {
     "- Apex OS Phase 8 / Approval Command Center is hard-finished and deployed as of 2026-06-03.",
     "- Apex OS Phase 8 production release was approved in chat and deployed on 2026-06-03 from commit `be2dccb` to Fly app `concrete-ops-2`, machine `148e06e2b53d68`, version `640`, image `registry.fly.io/concrete-ops-2:deployment-01KT63SPFM2EM1SVEHK24148G8`.",
     "- Apex OS Phase 10 production release was approved in chat and deployed on 2026-06-03 from commit `ee851f7` to Fly app `concrete-ops-2`, machine `148e06e2b53d68`, version `642`, image `registry.fly.io/concrete-ops-2:deployment-01KT67FMHMMHQH69R1ZFX5Y0VR`.",
+    "| 2026-06-03 | Apex OS Phase 14 Action Execution Layer | `ab1a656`; Fly release `v646`; image `registry.fly.io/concrete-ops-2:deployment-01KT6G2KC3ZZ5HS4Q3GT0VHHAP` | Production Fly app `concrete-ops-2` | Hosted skip-auth health/routes smoke passed; `/apex-control-room` served Phase 14 bundles. |",
     "- Production auth smoke/login was not run.",
   ].join("\n");
   const buildStatus = [
@@ -61,8 +63,11 @@ test("builds read-only Apex OS build awareness snapshot", () => {
   assert.equal(snapshot.changedFileCount, 2);
   assert.equal(snapshot.buildStatus.status, "Available");
   assert.equal(snapshot.testStatus.status, "1 scripts");
-  assert.equal(snapshot.latestDeploy.version, "642");
-  assert.equal(snapshot.productionReadiness.status, "v642");
+  assert.equal(snapshot.latestDeploy.version, "646");
+  assert.equal(snapshot.productionReadiness.status, "v646");
+  assert.equal(snapshot.deployHistoryRows.length, 1);
+  assert.equal(snapshot.deployHistoryRows[0].commit, "ab1a656");
+  assert.match(snapshot.deployHistoryRows[0].detail, /hosted skip-auth/i);
   assert.equal(snapshot.demoReadiness.status, "Documented pass");
   assert.equal(snapshot.githubActionsSmoke.status, "Documented pass");
   assert.equal(snapshot.failedTestBuild.status, "2 review signals");
@@ -71,6 +76,19 @@ test("builds read-only Apex OS build awareness snapshot", () => {
   assert.equal(snapshot.executionLocked, true);
   assert.equal(snapshot.canExecute, false);
   assert.equal(snapshot.fieldDataIncluded, false);
+});
+
+test("extracts Apex OS deploy history from the living plan deploy log", () => {
+  const rows = extractApexOsDeployHistoryRows([
+    "| 2026-06-03 | Apex OS Phase 13 Knowledge Intelligence | `f8193ad`; Fly release `v645`; image `registry.fly.io/concrete-ops-2:deployment-OLD` | Production Fly app `concrete-ops-2` | Ready OK. |",
+    "| 2026-06-03 | Apex OS Phase 14 Action Execution Layer | `ab1a656`; Fly release `v646`; image `registry.fly.io/concrete-ops-2:deployment-NEW` | Production Fly app `concrete-ops-2` | Ready OK; hosted smoke passed. |",
+  ].join("\n"));
+
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].status, "v646");
+  assert.equal(rows[0].commit, "ab1a656");
+  assert.equal(rows[0].image, "registry.fly.io/concrete-ops-2:deployment-NEW");
+  assert.match(rows[0].sourceLabel, /deploy log/i);
 });
 
 test("extracts frozen phase map from living plan text", () => {

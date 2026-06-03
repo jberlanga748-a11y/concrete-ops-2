@@ -24,7 +24,7 @@ import {
   updateApexOsExecutionHandoff,
 } from "./api";
 import { Badge, Button, Card, Icon, PageHeader, SectionHeader } from "./app-shell-components";
-import { deriveApexControlRoomState } from "./apex-control-room-utils";
+import { buildReleaseDesk, deriveApexControlRoomState } from "./apex-control-room-utils";
 import {
   buildApexOsAskApprovalPacketDraft,
   buildApexOsAskDecisionDraft,
@@ -827,6 +827,92 @@ function ReleaseMonitoringPanel({ state, sessionToken }) {
       </div>
       <div className="grid min-w-0 gap-3 lg:grid-cols-2">
         {rows.map((item) => <StatusRow key={item.id} item={item} />)}
+      </div>
+    </div>
+  );
+}
+
+function ReleaseDeskPanel({ state, sessionToken }) {
+  const [snapshot, setSnapshot] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState("");
+  const canRefresh = state.canView && Boolean(sessionToken) && !loading;
+  const desk = snapshot ? buildReleaseDesk({ buildAwareness: snapshot }) : state.releaseDesk;
+  const productionPreviewRows = Array.isArray(desk.productionPreviewRows) ? desk.productionPreviewRows : [];
+  const readinessPacketRows = Array.isArray(desk.readinessPacketRows) ? desk.readinessPacketRows : [];
+  const deployHistoryRows = Array.isArray(desk.deployHistoryRows) ? desk.deployHistoryRows : [];
+  const deployApprovalFlowRows = Array.isArray(desk.deployApprovalFlowRows) ? desk.deployApprovalFlowRows : [];
+  const safetySections = Array.isArray(desk.sections) ? desk.sections : [];
+
+  async function refreshReleaseDesk() {
+    if (!canRefresh) return;
+    setLoading(true);
+    setNotice("");
+    try {
+      const payload = await getApexOsBuildAwareness(sessionToken);
+      setSnapshot(payload.buildAwareness || null);
+      setNotice("Release desk refreshed from read-only build awareness.");
+    } catch (error) {
+      setNotice(error?.message || "Release desk evidence could not refresh right now.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="grid min-w-0 gap-4">
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="break-words text-sm font-black text-slate-950">{desk.currentVersion ? `Production v${desk.currentVersion}` : "Production evidence pending"}</p>
+          <p className="mt-1 break-words text-xs font-bold leading-5 text-slate-600">{notice || "Release desk reads build awareness, deploy log evidence, release safety, and approval boundaries only."}</p>
+        </div>
+        <div className="flex min-w-0 flex-wrap gap-2">
+          <Button type="button" variant="secondary" size="sm" onClick={refreshReleaseDesk} disabled={!canRefresh}>
+            <Icon name="refresh" /> {loading ? "Refreshing..." : "Refresh release desk"}
+          </Button>
+          <Button type="button" disabled variant="secondary" size="sm">
+            <Icon name="lock" /> Deploy approved locked
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid min-w-0 gap-4 xl:grid-cols-2">
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+          <SectionHeader title="Production Preview Status" description={`${productionPreviewRows.length} production evidence rows.`} />
+          <div className="grid min-w-0 gap-2">
+            {productionPreviewRows.length ? productionPreviewRows.map((item) => <StatusRow key={item.id} item={item} />) : <EmptyPanel>No production preview evidence is visible.</EmptyPanel>}
+          </div>
+        </div>
+
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+          <SectionHeader title="Release Readiness Packet" description={`${readinessPacketRows.length} release packet gates.`} />
+          <div className="grid min-w-0 gap-2">
+            {readinessPacketRows.length ? readinessPacketRows.map((item) => <StatusRow key={item.id} item={item} />) : <EmptyPanel>No release readiness packet rows are visible.</EmptyPanel>}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid min-w-0 gap-4 xl:grid-cols-2">
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+          <SectionHeader title="Deploy History" description={`${deployHistoryRows.length} recent Apex OS release rows.`} />
+          <div className="grid min-w-0 gap-2">
+            {deployHistoryRows.length ? deployHistoryRows.map((item) => <StatusRow key={item.id} item={item} />) : <EmptyPanel>No deploy history rows were parsed yet.</EmptyPanel>}
+          </div>
+        </div>
+
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+          <SectionHeader title="Deploy Approved Flow" description={`${deployApprovalFlowRows.length} locked approval steps.`} />
+          <div className="grid min-w-0 gap-2">
+            {deployApprovalFlowRows.map((item) => <StatusRow key={item.id} item={item} />)}
+          </div>
+        </div>
+      </div>
+
+      <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+        <SectionHeader title="Release Safety Summary" description={`${safetySections.length} release safety rows.`} />
+        <div className="grid min-w-0 gap-2 lg:grid-cols-3">
+          {safetySections.map((item) => <StatusRow key={item.id} item={item} />)}
+        </div>
       </div>
     </div>
   );
@@ -3299,12 +3385,10 @@ export function ApexControlRoomPage(props) {
           <Card className="min-w-0 p-4 sm:p-5">
             <SectionHeader
               title="Release Desk"
-              description="Manual deploy safety, rollback, and stop-warning summary."
+              description="Production preview, release packet, deploy history, rollback, and locked approval flow."
               action={<ToneBadge tone={state.releaseDesk.tone}>{state.releaseDesk.status}</ToneBadge>}
             />
-            <div className="grid min-w-0 gap-3">
-              {state.releaseDesk.sections.map((item) => <StatusRow key={item.id} item={item} />)}
-            </div>
+            <ReleaseDeskPanel state={state} sessionToken={props.sessionToken} />
           </Card>
         </section>
 

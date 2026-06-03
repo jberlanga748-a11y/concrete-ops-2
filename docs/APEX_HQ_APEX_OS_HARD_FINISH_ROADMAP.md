@@ -376,6 +376,15 @@ Hard-finish package:
 - Deploy only after validation and explicit release approval.
 - Record release evidence in docs.
 
+Status:
+
+- Hard-finished locally on 2026-06-03.
+- The private Release Desk now has read-only Production Preview Status, Release Readiness Packet, Deploy History, Deploy Approved Flow, and Release Safety Summary sections.
+- Build awareness parses living-plan deploy-log rows so the desk can show the current production version, commit, image, health/hosted smoke evidence, backup evidence, and recent Apex OS deploy history.
+- The deploy-approved path stays locked and manual: the UI shows validation gates, exact approval phrase, manual deploy handoff, and post-deploy evidence rows, but no deploy/rollback execution is available from Apex OS.
+- Local validation passed: focused deploy-history/release-desk/component tests, Apex OS regression tests, `npm.cmd run verify:roles`, `npm.cmd run build`, and desktop/mobile browser QA with production `v646` evidence and disabled deploy-approved lock.
+- Production release is pending commit, push, backup-first clean-worktree deploy, hosted checks, and release evidence.
+
 Blocked right now:
 
 - Deploy without validation and approval.

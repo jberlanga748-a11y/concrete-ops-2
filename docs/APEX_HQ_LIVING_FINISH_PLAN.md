@@ -71,6 +71,7 @@ Current implementation status:
 - Apex OS Phase 12 / Voice Interface is hard-finished and deployed as of 2026-06-03: the private Control Room now supports click-to-record push-to-talk, Stop & transcribe, manual transcript fallback, transcript confirmation, command review for the original Phase 12 commands, safe Ask Apex question handoff, and Speak answer / Stop voice playback. It remains review-first and execution-locked: no always-listening, hidden microphone capture, audio storage, transcript persistence, frontend provider secret, autonomous command execution, schema/auth/session change, customer-visible action, live send, ad spend, billing/payment, deploy/rollback execution from the UI, or production/customer mutation was added.
 - Apex OS Phase 13 / Knowledge Intelligence is hard-finished, pushed, deployed, and production-checked as of 2026-06-03: the private Control Room now has source-backed Knowledge Intelligence over approved decisions and Knowledge Vault rows, with local source ranking, reviewed summaries, trusted/suggested/archived status, source/category/status/text/date filters, confidence labels, current-rule conflict warnings, older-memory conflict warnings, operator-only provider-ready summary/classification endpoint, and locked vector-search/embedding state. No unreviewed upload trust, customer/public knowledge mixing, embeddings/schema/storage, frontend provider secret, external action, send, spend, billing/payment, deploy/rollback execution from the UI, or production/customer mutation was added.
 - Apex OS Phase 14 / Action Execution Layer is hard-finished, pushed, deployed, and production-checked as of 2026-06-03: Ask Apex can create safe task handoff drafts from chat, execution handoffs now carry locked work contracts with role/skill, work type, workstream status, allowed/blocked actions, validation, rollback, result report, source chat, approval packet link, and suggested decision-memory update evidence, and finished handoffs require validation results plus result reports before suggested memory can be drafted. No queue/run endpoint, autonomous unrequested agent execution, production action, customer-visible action, external send, ad spend, billing/payment, provider setup, schema/auth/session change, deletion, or irreversible action path was added.
+- Apex OS Phase 15 / Production Preview And Release Desk is hard-finished locally as of 2026-06-03: the Release Desk now shows read-only Production Preview Status, Release Readiness Packet, Deploy History, Deploy Approved Flow, and Release Safety Summary sections; build awareness parses the living-plan deploy log so current production version, commit, image, health evidence, backup evidence, hosted smoke evidence, and recent Apex OS deploy history are visible; and the deploy-approved path is visible but locked. No deploy button, rollback execution, provider setup, production mutation, customer-visible action, live send, ad spend, billing/payment, schema/auth/session change, deletion, or irreversible action path was added. Production release is pending the Phase 15 commit, push, deploy, and post-deploy checks.
 - Apex OS Slice 8 is folded into Phase 8 completion: the Approval Command Center first UI now has safe durable review decisions while execution remains locked.
 - Apex OS Phase 11 / Monitoring And Daily Briefings is hard-finished and deployed as of 2026-06-03: the private Control Room now has source-backed Release Monitoring refresh for production readiness, demo app readiness, GitHub Actions/smoke status, failed test/build signals, stalled-agent signals, daily briefing manual refresh/save, durable private briefing history, changed-since-last-saved rows, locks, source labels, and John-action alerts. External alerts/notifications, autonomous schedules, deploy/rollback execution from the UI, provider monitoring changes, production/customer data mutation, schema/auth/session changes, live sends, ad spend, billing/payment, public publishing, and customer-visible actions remain locked.
 - Apex OS Phase 10 / Business Operating Center is hard-finished and deployed as of 2026-06-03: the private Control Room now has business command queues for launch, demo/pilot, marketing, sales/outreach, customer success, and revenue/pricing/offer work; launch/founder-demo rows; business briefing rows; approved source-backed business memory rows; private business task drafts; and business approval draft rows for manual sends, ads/publishing, billing/offers, customer-visible work, and business operations. Live sends, ad spend, billing/payment, public publishing, provider setup, production data, schema/storage, auth/session change, customer-visible actions, and unsupported claims remain approval-locked.
@@ -1129,6 +1130,83 @@ Production release state:
 Next recommended phase:
 
 - Start Phase 15: Production Preview And Release Desk only after this Phase 14 release evidence commit is pushed.
+
+## Apex OS Phase 15: Production Preview And Release Desk Hard-Finish Report
+
+Goal:
+
+- Finish Phase 15 from the original Apex OS master plan before starting Phase 16: make Apex OS the release desk for Apex HQ with production preview, release readiness, deploy history, rollback evidence, current production version/evidence, and a deploy-approved flow that only works after validation gates and explicit release approval.
+
+What was already built:
+
+- Apex OS already had release safety summary rows, Release Monitoring, App Build Awareness, Daily Briefing, approval packet templates for deploys, and locked deploy/non-execution language.
+- Build awareness already read safe git/runtime/docs/package metadata and parsed some release evidence, but it did not yet parse the living-plan deploy log as deploy history.
+- The Control Room already showed a thin Release Desk summary plus Release Readiness Packet and Monitoring Locks, but the original Phase 15 production-preview/release-desk workflow was not fully represented.
+
+What was completed now:
+
+- Added deploy-log parsing to build awareness so Apex OS can read recent Apex OS deploy history rows from `docs/APEX_HQ_LIVING_FINISH_PLAN.md`.
+- Updated latest deploy evidence to use deploy-log rows first, so current production version, commit, image, and health text do not depend on older release bullets.
+- Expanded the Release Desk into read-only `Production Preview Status`, `Release Readiness Packet`, `Deploy History`, `Deploy Approved Flow`, and `Release Safety Summary` sections.
+- Added release-desk rows for current production version, production preview status, live health evidence, local build/test status, backup/restore evidence, rollback target, hosted smoke evidence, exact deploy approval phrase, validation-before-approval, manual deploy handoff, and post-deploy release evidence.
+- Added a disabled `Deploy approved locked` control so the approval path is visible without creating a deploy, rollback, queue, run, provider, production mutation, or irreversible action path.
+- Updated Control Room Release Desk refresh so it can pull current read-only build awareness evidence from `/api/apex-os/build-awareness` and show production `v646` evidence after refresh.
+
+Affected files:
+
+- `shared/apexOsBuildAwareness.js`
+- `shared/apexOsBuildAwareness.test.js`
+- `src/apex-control-room-utils.js`
+- `src/apex-control-room-utils.test.js`
+- `src/apex-control-room-components.jsx`
+- `src/apex-control-room-components-import.test.js`
+- `docs/APEX_HQ_APEX_OS_COMMAND_CENTER_MASTER_PLAN.md`
+- `docs/APEX_HQ_APEX_OS_HARD_FINISH_ROADMAP.md`
+- `docs/APEX_HQ_LIVING_FINISH_PLAN.md`
+- `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md`
+
+Risk level:
+
+- Low-medium. Phase 15 improves read-only release visibility and release approval gating. It does not add a deploy button, rollback execution, queue/run endpoint, production config change, production data mutation, provider setup, customer-visible action, live send, ad spend, billing/payment, schema/auth/session change, deletion, or irreversible action path.
+
+Validation plan/results:
+
+- Focused Phase 15 tests passed: `node --test --test-concurrency=1 shared\apexOsBuildAwareness.test.js src\apex-control-room-utils.test.js src\apex-control-room-components-import.test.js` with 16 passing tests.
+- Full Apex OS regression passed: `node --test --test-concurrency=1 shared\apexOsKnowledgeIntelligence.test.js shared\apexOsVoice.test.js shared\apexOsAsk.test.js shared\apexOsDailyBriefing.test.js shared\apexOsBuildAwareness.test.js shared\apexOsApprovalPackets.test.js shared\apexOsAgentControl.test.js shared\apexOsExecutionHandoffs.test.js shared\apexOsMemory.test.js shared\permissions.test.js src\apex-control-room-utils.test.js src\apex-control-room-components-import.test.js src\app-routing.test.js src\navigation-utils.test.js src\app-navigation-components-import.test.js server\apex-os-memory.test.js server\role-permissions.test.js` with 118 passing tests.
+- `npm.cmd run verify:roles` passed with 15 passing tests.
+- `npm.cmd run build` passed with the existing large-chunk warning and produced local Phase 15 bundles `assets/index-CU7dSODG.js`, `assets/app-domain-C4RXp6QQ.js`, and `assets/app-domain-BG7wb0Ah.css`.
+- `git diff --check` passed for the changed code/test files with CRLF warnings only.
+- Desktop browser QA passed on isolated local data at `http://127.0.0.1:4215`: private operator login, Release Desk refresh, production `v646` evidence, deploy history, backup evidence, hosted smoke evidence, disabled `Deploy approved locked` control, and `overflowX` 0. Screenshot: `ui-audit/apex-control-room-phase15/desktop-release-desk.png`.
+- Mobile browser QA passed on isolated local data at `http://127.0.0.1:4215`: Release Desk refresh showed production `v646`, deploy history, locked deploy-approved control, and `overflowX` 0. Screenshot: `ui-audit/apex-control-room-phase15/mobile-release-desk.png`.
+- Browser noise was limited to expected pre-login unauthenticated `/api/bootstrap` 401 and one aborted bootstrap request; no post-login functional failure was found.
+
+Permissions impact:
+
+- Operator-only Apex OS boundaries are preserved. Release Desk rows are private Control Room UI only and the build-awareness endpoint remains behind Apex OS operator access.
+- Approval packets and deploy approvals remain review records only; no UI execution path was added.
+
+Mobile impact:
+
+- Mobile Release Desk refresh, deploy-history visibility, disabled deploy-approved lock, and no-horizontal-overflow state were verified.
+
+Field-user impact:
+
+- Field users remain blocked from Apex OS, release desk, deploy history, build awareness, approval packets, decision memory, leads, estimates, pricing, profit/margins, payroll, office-only notes, billing, company setup, and other company data.
+
+Rollback plan:
+
+- If local validation fails before deploy, revert the Phase 15 hard-finish commit to remove deploy-log parsing, the expanded release desk state, the Release Desk refresh panel, focused assertions, and doc updates.
+- If hosted health fails after deploy, roll back Fly to the previous healthy Phase 14 release, version `646`, image `registry.fly.io/concrete-ops-2:deployment-01KT6G2KC3ZZ5HS4Q3GT0VHHAP`.
+- No database migration rollback is required because Phase 15 adds no schema and writes no production data.
+
+Production release state:
+
+- Phase 15 is hard-finished and validated locally.
+- Production release is pending commit, push, clean-worktree deploy, hosted smoke, protected-endpoint checks, setup-status check, and release evidence commit.
+
+Next recommended phase:
+
+- Start Phase 16: Personal Operating Layer only after Phase 15 is committed, pushed, deployed, production-checked, and the release evidence commit is pushed.
 
 Packaging and release state:
 

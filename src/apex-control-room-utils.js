@@ -153,14 +153,164 @@ function buildTrustState({
   });
 }
 
-function buildReleaseDesk() {
+export function buildReleaseDesk({ buildAwareness = {} } = {}) {
   const sections = getReleaseSafetySections();
   const preDeploy = sections.find((section) => section.id === "preDeploy");
+  const postDeploy = sections.find((section) => section.id === "postDeploy");
   const rollback = sections.find((section) => section.id === "rollback");
   const dangerous = sections.find((section) => section.id === "dangerous");
+  const latestDeploy = buildAwareness?.latestDeploy || {};
+  const deployHistoryRows = list(buildAwareness?.deployHistoryRows).length
+    ? list(buildAwareness.deployHistoryRows)
+    : latestDeploy?.version
+      ? [latestDeploy]
+      : [];
+  const latestDeployDetail = String(latestDeploy?.detail || deployHistoryRows[0]?.detail || "");
+  const hasCurrentProductionEvidence = Boolean(latestDeploy?.version || deployHistoryRows[0]?.version);
+  const hasHealthEvidence = /api\/ready|database ok|health|hosted smoke|smoke passed/i.test(latestDeployDetail);
+  const hasBackupEvidence = /backup|uploads-\d{8}/i.test(latestDeployDetail);
+  const currentVersion = latestDeploy?.version || deployHistoryRows[0]?.version || "";
+  const currentCommit = latestDeploy?.commit || deployHistoryRows[0]?.commit || "";
+  const currentImage = latestDeploy?.image || deployHistoryRows[0]?.image || "";
+  const productionPreviewRows = [
+    {
+      id: "current-production-version",
+      title: "Current production version",
+      status: currentVersion ? `v${currentVersion}` : "Evidence required",
+      detail: currentImage
+        ? `Commit ${currentCommit || "unknown"} is tied to image ${currentImage}.`
+        : "Refresh build awareness or update the living plan deploy log before treating production version as known.",
+      tone: currentVersion ? "green" : "amber",
+      sourceLabel: latestDeploy?.sourceLabel || deployHistoryRows[0]?.sourceLabel || "Apex OS release desk",
+      readOnly: true,
+    },
+    {
+      id: "production-preview-status",
+      title: "Production preview status",
+      status: hasCurrentProductionEvidence ? "Preview sourced" : "Needs evidence",
+      detail: hasCurrentProductionEvidence
+        ? "The release desk can preview current production evidence from the living plan before any new deploy decision."
+        : "No current production release evidence was parsed from the local source docs.",
+      tone: hasCurrentProductionEvidence ? "green" : "amber",
+      sourceLabel: "docs/APEX_HQ_LIVING_FINISH_PLAN.md",
+      readOnly: true,
+    },
+    {
+      id: "live-health-evidence",
+      title: "Live health evidence",
+      status: hasHealthEvidence ? "Documented" : "Required",
+      detail: hasHealthEvidence
+        ? latestDeployDetail
+        : "A release packet must name /api/ready, hosted smoke, machine checks, and protected endpoint results before deploy approval.",
+      tone: hasHealthEvidence ? "green" : "amber",
+      sourceLabel: latestDeploy?.sourceLabel || "Apex OS release desk",
+      readOnly: true,
+    },
+  ];
+  const readinessPacketRows = [
+    {
+      id: "local-build-test-status",
+      title: "Local build/test status",
+      status: `${buildAwareness?.buildStatus?.status || "Build evidence"} / ${buildAwareness?.testStatus?.status || "test evidence"}`,
+      detail: `${buildAwareness?.buildStatus?.detail || "Build evidence must be attached."} ${buildAwareness?.testStatus?.detail || "Focused test evidence must be attached."}`.trim(),
+      tone: buildAwareness?.buildStatus?.tone === "green" && buildAwareness?.testStatus?.tone === "green" ? "green" : "amber",
+      sourceLabel: "Apex OS build awareness",
+      readOnly: true,
+    },
+    {
+      id: "backup-restore-evidence",
+      title: "Backup / restore evidence",
+      status: hasBackupEvidence ? "Backup documented" : "Required before deploy",
+      detail: hasBackupEvidence
+        ? latestDeployDetail
+        : "The packet must name database and uploaded-file backup artifacts, plus restore confidence, before deploy approval.",
+      tone: hasBackupEvidence ? "green" : "amber",
+      sourceLabel: hasBackupEvidence ? latestDeploy?.sourceLabel : "Release safety checklist",
+      readOnly: true,
+    },
+    {
+      id: "rollback-target",
+      title: "Rollback target",
+      status: currentVersion ? "Known-good required" : "Required",
+      detail: currentVersion
+        ? `Current production is v${currentVersion}; the next release packet must name the prior known-good release/image before deploy.`
+        : "No production version was parsed; rollback target cannot be trusted yet.",
+      tone: "amber",
+      sourceLabel: "Release safety checklist",
+      readOnly: true,
+    },
+    {
+      id: "hosted-smoke-evidence",
+      title: "Hosted smoke evidence",
+      status: /hosted.*smoke|smoke passed/i.test(latestDeployDetail) ? "Documented pass" : "Required",
+      detail: /hosted.*smoke|smoke passed/i.test(latestDeployDetail)
+        ? latestDeployDetail
+        : "Hosted skip-auth smoke and any approved auth smoke evidence must be attached after deploy.",
+      tone: /hosted.*smoke|smoke passed/i.test(latestDeployDetail) ? "green" : "amber",
+      sourceLabel: latestDeploy?.sourceLabel || "Apex OS release desk",
+      readOnly: true,
+    },
+    {
+      id: "deploy-approval-phrase",
+      title: "Deploy approved phrase",
+      status: "Exact approval required",
+      detail: "A deploy approval packet must be approved manually with the exact required phrase; the Control Room still cannot deploy from this panel.",
+      tone: "amber",
+      sourceLabel: "Apex OS approval packet rules",
+      readOnly: true,
+    },
+  ];
+  const deployApprovalFlowRows = [
+    {
+      id: "draft-release-packet",
+      title: "Draft release readiness packet",
+      status: "Manual packet",
+      detail: "Collect objective, changed files, tests, build, backup, restore, hosted smoke plan, rollback target, and owner approval.",
+      tone: "blue",
+      sourceLabel: "Phase 15 release desk",
+      readOnly: true,
+    },
+    {
+      id: "validate-before-approval",
+      title: "Validation gates before approval",
+      status: "Required",
+      detail: "Tests, roles, build, diff check, browser QA, backup, restore, and source docs must pass before deploy approval can be considered.",
+      tone: "amber",
+      sourceLabel: "Release safety checklist",
+      readOnly: true,
+    },
+    {
+      id: "deploy-approved-lock",
+      title: "Deploy approved flow",
+      status: "Locked",
+      detail: "Even after a packet is approved, deploy remains a manual Codex/release-manager action outside this UI; no surprise deploy path exists.",
+      tone: "amber",
+      sourceLabel: "Apex OS Phase 15 non-goal",
+      readOnly: true,
+    },
+    {
+      id: "post-deploy-release-evidence",
+      title: "Post-deploy evidence",
+      status: `${formatCount(postDeploy?.items?.length)} checks`,
+      detail: "After deploy, record Fly release, image, machine/checks, ready/health, hosted smoke, protected endpoints, setup status, rollback target, and auth-smoke status.",
+      tone: "blue",
+      sourceLabel: "Release safety checklist",
+      readOnly: true,
+    },
+  ];
   return {
     status: "Manual release only",
     tone: "amber",
+    currentVersion,
+    currentCommit,
+    currentImage,
+    productionPreviewCount: productionPreviewRows.length,
+    readinessPacketCount: readinessPacketRows.length,
+    deployHistoryCount: deployHistoryRows.length,
+    approvalFlowCount: deployApprovalFlowRows.length,
+    canDeploy: false,
+    deployApprovedFlowLocked: true,
+    productionActionLocked: true,
     sections: [
       {
         id: "pre-deploy",
@@ -184,6 +334,15 @@ function buildReleaseDesk() {
         tone: "red",
       },
     ],
+    productionPreviewRows,
+    readinessPacketRows,
+    deployHistoryRows: deployHistoryRows.map((row) => ({
+      ...row,
+      title: row.title || "Apex OS release",
+      detail: row.detail || "Release evidence row.",
+      readOnly: true,
+    })),
+    deployApprovalFlowRows,
   };
 }
 
@@ -2052,10 +2211,10 @@ export function deriveApexControlRoomState({
   const agentWorkQueue = buildAgentWorkQueue(agentTaskOptions, agentRunRows, permissions);
   const launchState = buildLaunchState(permissions);
   const trustState = buildTrustState({ permissions, auditEvents, activity, companySettings });
-  const releaseDesk = buildReleaseDesk();
+  const buildAwareness = buildBuildAwarenessState(companySettings);
+  const releaseDesk = buildReleaseDesk({ buildAwareness });
   const decisionMemory = buildDecisionMemoryState(companySettings);
   const knowledgeVault = buildKnowledgeVaultState(companySettings);
-  const buildAwareness = buildBuildAwarenessState(companySettings);
   const askApexChat = buildAskApexChatState({ decisionMemory, knowledgeVault, agentWorkQueue, launchState, releaseDesk });
   const voiceInterface = buildVoiceInterfaceState({ askApexChat });
   const approvalCommandCenter = buildApprovalCommandCenterState({ releaseDesk, askApexChat, voiceInterface, companySettings });
@@ -2127,7 +2286,7 @@ export function deriveApexControlRoomState({
       nextBestActions: [],
       agents: [],
       launchReadiness: { status: "Restricted", tone: "slate", gates: [] },
-      releaseDesk: { status: "Restricted", tone: "slate", sections: [] },
+      releaseDesk: { status: "Restricted", tone: "slate", sections: [], productionPreviewRows: [], readinessPacketRows: [], deployHistoryRows: [], deployApprovalFlowRows: [], canDeploy: false, deployApprovedFlowLocked: true, productionActionLocked: true },
       decisionMemory: { status: "Restricted", tone: "slate", decisions: [], rules: [] },
       knowledgeVault: { status: "Restricted", tone: "slate", categories: [], safetyRows: [], sourceRows: [] },
       askApexChat: { status: "Restricted", tone: "slate", contexts: [], evidenceRows: [], actionLocks: [] },

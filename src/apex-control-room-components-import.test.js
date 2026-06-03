@@ -156,7 +156,15 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /What John decided/);
   assert.match(componentSource, /Launch Readiness/);
   assert.match(componentSource, /Release Desk/);
+  assert.match(componentSource, /ReleaseDeskPanel/);
+  assert.match(componentSource, /Refresh release desk/);
+  assert.match(componentSource, /Deploy approved locked/);
+  assert.match(componentSource, /Production Preview Status/);
+  assert.match(componentSource, /Deploy History/);
+  assert.match(componentSource, /Deploy Approved Flow/);
+  assert.match(componentSource, /Release Safety Summary/);
   assert.match(utilSource, /export function deriveApexControlRoomState\b/);
+  assert.match(utilSource, /export function buildReleaseDesk\b/);
   assert.match(utilSource, /deriveAgentOsInternalTaskOptions/);
   assert.match(utilSource, /deriveLaunchReadinessEvidenceState/);
   assert.match(utilSource, /getReleaseSafetySections/);

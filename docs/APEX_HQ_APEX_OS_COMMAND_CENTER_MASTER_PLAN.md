@@ -805,6 +805,13 @@ Status:
 - Release Desk first summary was implemented earlier in Apex OS Slice 2; fuller Release Desk / Monitoring first UI was implemented locally on 2026-06-02 as Apex OS Slice 9.
 - The Control Room now shows release readiness packet rows, daily briefing rows, monitoring checks, and monitoring locks.
 - Real production deploy, hosted smoke, rollback execution, production monitoring provider setup, external alerts, production data changes, schema/storage changes, provider config, and production configuration changes remain approval-locked.
+- Hard-finished locally on 2026-06-03.
+- The Release Desk now shows the original Phase 15 production-preview and release controls as explicit read-only rows: Production Preview Status, Release Readiness Packet, Deploy History, Deploy Approved Flow, and Release Safety Summary.
+- Build awareness now parses the living-plan deploy log so the Release Desk can show the current production version, commit, image, health evidence, backup evidence, hosted smoke evidence, and recent Apex OS deploy history instead of relying on stale release bullets.
+- The "Deploy approved" flow is visible but locked: validation gates, exact approval phrase, manual deploy handoff, and post-deploy evidence rows are shown, while the disabled `Deploy approved locked` control confirms there is no UI execution path.
+- No surprise deploy, rollback execution, queue/run endpoint, provider setup, production data mutation, customer-visible action, live send, ad spend, billing/payment, schema/auth/session change, deletion, or irreversible action path was added.
+- Validation passed with focused build-awareness/release-desk/component tests, the 118-test Apex OS route/nav/permission regression suite, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check` with CRLF warnings only, and desktop/mobile browser QA on `/apex-control-room` for Release Desk refresh, production `v646` evidence, deploy history, backup/smoke evidence, disabled deploy-approved lock, and no horizontal overflow.
+- Production release is pending commit, push, clean-worktree deploy, hosted smoke, protected-endpoint checks, setup-status check, and release evidence commit.
 
 ### Phase 16: Personal Operating Layer
 

@@ -224,8 +224,84 @@ export function extractApexOsFrozenPhaseRows(livingPlanText = "") {
   });
 }
 
+export function extractApexOsDeployHistoryRows(livingPlanText = "") {
+  const text = String(livingPlanText || "");
+  const tableRows = text
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .filter((line) => /^\|\s*\d{4}-\d{2}-\d{2}\s*\|\s*Apex OS Phase/i.test(line) && /Fly release/i.test(line));
+
+  const parsedTableRows = tableRows.map((line, index) => {
+    const cells = line.split("|").slice(1, -1).map((cell) => cleanText(cell));
+    const [date = "", phase = "", versionCell = "", environment = "", health = ""] = cells;
+    const version = firstMatch(versionCell, /Fly release `?v?(\d+)`?/i);
+    const commit = firstMatch(versionCell, /`([a-f0-9]{7,40})`/i);
+    const image = firstMatch(versionCell, /image `([^`]+)`/i);
+    return {
+      id: version ? `release-v${version}` : `release-row-${index + 1}`,
+      title: phase || "Apex OS release",
+      status: version ? `v${version}` : "Recorded",
+      detail: health || line,
+      tone: "green",
+      date,
+      commit,
+      version,
+      image,
+      environment,
+      sourceLabel: "docs/APEX_HQ_LIVING_FINISH_PLAN.md deploy log",
+      readOnly: true,
+    };
+  });
+
+  if (parsedTableRows.length) {
+    return parsedTableRows
+      .sort((left, right) => Number(right.version || 0) - Number(left.version || 0))
+      .slice(0, 6);
+  }
+
+  return text
+    .split(/\r?\n/)
+    .map((item) => cleanText(item))
+    .filter((line) => /- Apex OS Phase \d+ production release/i.test(line))
+    .map((line, index) => {
+      const version = firstMatch(line, /version `?(\d+)`?/i);
+      const image = firstMatch(line, /image `([^`]+)`/i);
+      const commit = firstMatch(line, /commit `([^`]+)`/i);
+      const phase = firstMatch(line, /- (Apex OS Phase \d+[^:]+?) production release/i, `Apex OS release ${index + 1}`);
+      return {
+        id: version ? `release-v${version}` : `release-bullet-${index + 1}`,
+        title: phase,
+        status: version ? `v${version}` : "Recorded",
+        detail: line,
+        tone: "green",
+        commit,
+        version,
+        image,
+        sourceLabel: "docs/APEX_HQ_LIVING_FINISH_PLAN.md release note",
+        readOnly: true,
+      };
+    })
+    .sort((left, right) => Number(right.version || 0) - Number(left.version || 0))
+    .slice(0, 6);
+}
+
 export function extractLatestApexOsDeployEvidence(livingPlanText = "") {
   const text = String(livingPlanText || "");
+  const historyRows = extractApexOsDeployHistoryRows(text);
+  if (historyRows[0]) {
+    const latest = historyRows[0];
+    return {
+      id: "latest-apex-os-release",
+      title: "Latest Apex OS release evidence",
+      status: latest.status,
+      detail: latest.detail,
+      tone: latest.tone,
+      commit: latest.commit,
+      version: latest.version,
+      image: latest.image,
+      sourceLabel: latest.sourceLabel,
+    };
+  }
   const lines = text.split(/\r?\n/).map((item) => cleanText(item)).filter((item) => /- Apex OS Phase \d+ production release/i.test(item));
   const line = lines
     .map((item) => ({
@@ -265,6 +341,7 @@ export function buildApexOsBuildAwarenessSnapshot({
   const changedFiles = parseGitStatusPorcelain(gitStatusText);
   const recentCommits = parseGitLogOneline(recentCommitsText);
   const frozenPhaseRows = extractApexOsFrozenPhaseRows(docs.livingPlan || "");
+  const deployHistoryRows = extractApexOsDeployHistoryRows(docs.livingPlan || "");
   const latestDeploy = extractLatestApexOsDeployEvidence(docs.livingPlan || "");
   const demoReadiness = extractApexOsDemoReadinessEvidence(docs.livingPlan || "", docs.buildStatus || "");
   const githubActionsSmoke = extractApexOsGitHubActionsSmokeEvidence(docs.livingPlan || "", docs.buildStatus || "");
@@ -341,6 +418,7 @@ export function buildApexOsBuildAwarenessSnapshot({
       sourceLabel: "package.json",
     },
     latestDeploy,
+    deployHistoryRows,
     productionReadiness: {
       id: "production-readiness-evidence",
       title: "Production readiness status",
@@ -390,6 +468,7 @@ export function restrictedApexOsBuildAwarenessSnapshot() {
     buildStatus: { id: "restricted", title: "Build awareness", status: "Restricted", detail: "Private operator access is required.", tone: "slate" },
     testStatus: { id: "restricted-tests", title: "Test awareness", status: "Restricted", detail: "Private operator access is required.", tone: "slate" },
     latestDeploy: { id: "restricted-release", title: "Release evidence", status: "Restricted", detail: "Private operator access is required.", tone: "slate" },
+    deployHistoryRows: [],
     productionReadiness: { id: "restricted-production-readiness", title: "Production readiness status", status: "Restricted", detail: "Private operator access is required.", tone: "slate" },
     demoReadiness: { id: "restricted-demo-readiness", title: "Demo app readiness status", status: "Restricted", detail: "Private operator access is required.", tone: "slate" },
     githubActionsSmoke: { id: "restricted-github-actions-smoke", title: "GitHub Actions / smoke status", status: "Restricted", detail: "Private operator access is required.", tone: "slate" },
