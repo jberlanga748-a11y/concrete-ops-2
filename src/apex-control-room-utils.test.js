@@ -489,3 +489,67 @@ test("deriveApexControlRoomState includes durable Apex OS execution handoff summ
   assert.equal(state.executionHandoffs.handoffSummary.ready, 1);
   assert.equal(state.executionHandoffs.handoffSummary.draft, 1);
 });
+
+test("deriveApexControlRoomState includes Phase 7 agent control plane roster and requests", () => {
+  const state = deriveApexControlRoomState({
+    user: { name: "John Berlanga", role: "Owner", operatorAccess: true },
+    permissions: {
+      apexOs: { canView: true, canManage: true },
+      aiOffice: { canView: true },
+      settings: { canView: true, canManage: true },
+    },
+    auditEvents: [
+      {
+        id: "AUDIT-RUN-QA",
+        entityType: "agentOsRun",
+        entityId: "RUN-QA-1",
+        action: "agent.os.run.running",
+        summary: "QA run in progress.",
+        createdAt: "2026-06-03T10:00:00.000Z",
+        detail: JSON.stringify({
+          run: {
+            id: "RUN-QA-1",
+            agentRole: "qa",
+            actionLabel: "QA sweep",
+            status: "running",
+            summary: "Focused QA is running.",
+          },
+        }),
+      },
+    ],
+    companySettings: {
+      apexOsExecutionHandoffs: [
+        {
+          id: "AEH-RELEASE",
+          title: "Release handoff",
+          agentRole: "release",
+          objective: "Prepare the release handoff after approval.",
+          status: "ready",
+          sourceLabel: "Release Desk",
+        },
+      ],
+      apexOsAgentControlRequests: [
+        {
+          id: "AAC-MARKETING",
+          title: "Pause marketing",
+          requestType: "pause",
+          agentRole: "marketing",
+          objective: "Pause launch content work.",
+          scope: "Apex OS launch content only.",
+          validationPlan: "Confirm content scope.",
+          rollbackPlan: "Resume request.",
+          sourceLabel: "Operator",
+          status: "requested",
+        },
+      ],
+    },
+  });
+
+  assert.equal(state.agentControlPlane.status, "Control plane active");
+  assert.equal(state.agentControlPlane.rosterRows.length, 7);
+  assert.equal(state.agentControlPlane.requestSummary.pause, 1);
+  assert.equal(state.agentControlPlane.rosterRows.find((row) => row.id === "marketing").status, "paused");
+  assert.equal(state.agentControlPlane.rosterRows.find((row) => row.id === "release").status, "needs approval");
+  assert.equal(state.agentControlPlane.safetyRows.some((row) => row.id === "scoped-requests-only"), true);
+  assert.equal(state.operatingSignals.some((row) => row.id === "agent-control-plane"), true);
+});

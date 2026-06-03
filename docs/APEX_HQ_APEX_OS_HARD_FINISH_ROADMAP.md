@@ -189,6 +189,16 @@ Blocked right now:
 - Autonomous unrequested execution.
 - External sends/spend/billing/customer-visible actions.
 
+Status:
+
+- Completed locally to 100% on 2026-06-03.
+- Built the full seven-role Agent Control Plane roster with status, current task, last update, next action, report history, and handoff/request counts.
+- Added durable operator-only pause, resume, and scoped-run requests through `apexOsAgentControlRequests`, including requested/ready/blocked/closed/archived states, audit/activity history, readiness-field validation, source-label requirements, secret/email rejection, and Control Room request/load/mark-ready/block/close/archive UI.
+- Existing Agent Work Queue, Agent Run Ledger, Agent Safety Locks, Locked Agent Tasks, and safe execution handoff drafts remain available in the same Phase 7 surface.
+- No autonomous unrequested execution, external send/spend/billing/customer-visible action, queue/run endpoint, background loop, deploy action, provider setup, production mutation, schema change, deletion, or irreversible action was added.
+- Local validation passed with focused shared/API/UI tests, broader Apex OS permission/routing/bootstrap tests, production build, and desktop/mobile browser QA.
+- Production release is pending Phase 7 commit/push/deploy.
+
 ### Phase 8: Approval Command Center
 
 Hard-finish package:

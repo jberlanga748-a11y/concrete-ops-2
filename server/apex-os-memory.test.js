@@ -170,13 +170,26 @@ function storedApexOsExecutionHandoffs(sqliteFile, companyId = DEFAULT_COMPANY_I
   }
 }
 
+function storedApexOsAgentControlRequests(sqliteFile, companyId = DEFAULT_COMPANY_ID) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    const row = database.prepare(`
+      SELECT value FROM company_settings
+      WHERE company_id = ? AND key = 'apexOsAgentControlRequests'
+    `).get(companyId);
+    return JSON.parse(row?.value || "[]");
+  } finally {
+    database.close();
+  }
+}
+
 function auditEvents(sqliteFile) {
   const database = new DatabaseSync(sqliteFile);
   try {
     return database.prepare(`
       SELECT entity_type AS entityType, action, summary
       FROM audit_events
-      WHERE entity_type IN ('apexOsMemory', 'apexOsApprovalPacket', 'apexOsExecutionHandoff')
+      WHERE entity_type IN ('apexOsMemory', 'apexOsApprovalPacket', 'apexOsExecutionHandoff', 'apexOsAgentControlRequest')
       ORDER BY created_at DESC
     `).all();
   } finally {
@@ -245,6 +258,10 @@ test("Apex OS memory is operator-only, source-backed, persisted, and audited", a
       headers: authHeaders(adminLogin.token),
     });
     assert.equal(adminHandoffsBlocked.response.status, 403);
+    const adminAgentControlBlocked = await requestJson(fixture.baseUrl, "/api/apex-os/agent-control", {
+      headers: authHeaders(adminLogin.token),
+    });
+    assert.equal(adminAgentControlBlocked.response.status, 403);
 
     const unsafe = await requestJson(fixture.baseUrl, "/api/apex-os/memory", {
       method: "POST",
@@ -522,6 +539,83 @@ test("Apex OS memory is operator-only, source-backed, persisted, and audited", a
     assert.equal(listedHandoffs.summary.ready, 1);
     assert.equal(listedHandoffs.apexOsExecutionHandoffs[0].title, "Build Apex OS handoff drafts");
 
+    const unsafeAgentControl = await requestJson(fixture.baseUrl, "/api/apex-os/agent-control/requests", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Unsafe agent control",
+        requestType: "scoped-run",
+        agentRole: "build",
+        objective: "Use provider API key sk-test-123456789abc and customer@example.test.",
+        sourceLabel: "Unsafe note",
+      }),
+    });
+    assert.equal(unsafeAgentControl.response.status, 400);
+
+    const queuedAgentControl = await requestJson(fixture.baseUrl, "/api/apex-os/agent-control/requests", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Queued status is blocked",
+        requestType: "scoped-run",
+        agentRole: "build",
+        objective: "Queue this agent now.",
+        status: "queued",
+        sourceLabel: "Manual note",
+      }),
+    });
+    assert.equal(queuedAgentControl.response.status, 400);
+
+    const incompleteReadyAgentControl = await requestJson(fixture.baseUrl, "/api/apex-os/agent-control/requests", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Incomplete ready control",
+        requestType: "scoped-run",
+        agentRole: "qa",
+        objective: "Run QA for Phase 7.",
+        status: "ready",
+        sourceLabel: "Agent Control Plane",
+      }),
+    });
+    assert.equal(incompleteReadyAgentControl.response.status, 400);
+
+    const createdAgentControl = await assertOk(fixture.baseUrl, "/api/apex-os/agent-control/requests", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Run Phase 7 QA",
+        requestType: "scoped-run",
+        agentRole: "qa",
+        riskLevel: "medium",
+        objective: "Run the Phase 7 focused QA pass after the agent control plane is built.",
+        scope: "Local tests, build, role checks, browser QA, docs, and report evidence only.",
+        validationPlan: "Run focused shared, server, UI, permission, build, and browser smoke checks.",
+        rollbackPlan: "Revert the Phase 7 branch commit and redeploy previous production if release smoke fails.",
+        sourceLabel: "docs/APEX_HQ_APEX_OS_COMMAND_CENTER_MASTER_PLAN.md",
+        status: "requested",
+      }),
+    });
+    assert.equal(createdAgentControl.apexOsAgentControlRequest.status, "requested");
+    assert.equal(createdAgentControl.apexOsAgentControlRequest.readyToReview, true);
+    assert.equal(createdAgentControl.apexOsAgentControlRequest.executionLocked, true);
+    assert.equal(storedApexOsAgentControlRequests(fixture.sqliteFile)[0].title, "Run Phase 7 QA");
+
+    const readyAgentControl = await assertOk(fixture.baseUrl, `/api/apex-os/agent-control/requests/${createdAgentControl.apexOsAgentControlRequest.id}`, {
+      method: "PATCH",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({ status: "ready" }),
+    });
+    assert.equal(readyAgentControl.apexOsAgentControlRequest.status, "ready");
+
+    const listedAgentControl = await assertOk(fixture.baseUrl, "/api/apex-os/agent-control", {
+      headers: authHeaders(operatorLogin.token),
+    });
+    assert.equal(listedAgentControl.summary.ready, 1);
+    assert.equal(listedAgentControl.controlPlane.rosterRows.length, 7);
+    assert.equal(listedAgentControl.controlPlane.rosterRows.some((row) => row.id === "qa" && row.status === "needs approval"), true);
+    assert.equal(listedAgentControl.controlPlane.safetyRows.some((row) => row.id === "external-action-gates"), true);
+
     const archived = await assertOk(fixture.baseUrl, `/api/apex-os/memory/${created.apexOsMemoryEntry.id}`, {
       method: "PATCH",
       headers: authHeaders(operatorLogin.token),
@@ -530,6 +624,7 @@ test("Apex OS memory is operator-only, source-backed, persisted, and audited", a
     assert.equal(archived.apexOsMemoryEntry.status, "archived");
     assert.ok(archived.apexOsMemoryEntry.archivedAt);
     const audits = auditEvents(fixture.sqliteFile);
+    assert.equal(audits.some((event) => event.entityType === "apexOsAgentControlRequest" && event.action === "readied"), true);
     assert.equal(audits.some((event) => event.entityType === "apexOsExecutionHandoff" && event.action === "readied"), true);
     assert.equal(audits.some((event) => event.entityType === "apexOsApprovalPacket" && event.action === "readied"), true);
     assert.deepEqual(audits.filter((event) => event.entityType === "apexOsMemory").map((event) => event.action).slice(0, 3), ["archived", "approved", "suggested"]);

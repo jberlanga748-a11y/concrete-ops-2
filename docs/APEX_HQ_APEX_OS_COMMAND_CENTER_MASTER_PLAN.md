@@ -466,13 +466,14 @@ Validation:
 
 Status:
 
-- Read-only first slice implemented locally on 2026-06-02 as Apex OS Slice 4.
-- Added Agent Work Queue, Agent Run Ledger, Agent Safety Locks, and Locked Agent Tasks panels to the private Apex Control Room.
-- Reuses existing Agent OS internal task option and run ledger helpers. It shows available review-only task types, visible targets, recent audit-backed run rows, locked/no-target tasks, and safety boundaries.
-- This slice does not run agents, resume/pause background loops, mutate records, deploy, send, spend, delete, configure providers, or change schema.
-- Safe agent handoff drafts implemented locally on 2026-06-02 as Apex OS Slice 18 using existing company settings storage as `apexOsExecutionHandoffs`, with operator-only list/create/update endpoints, draft/ready/blocked/archived states, source-label and readiness-field requirements, secret/email rejection, audit/activity logging, and Control Room drafting/loading/mark-ready/block/archive UI.
-- Handoffs prepare scoped agent work packages only. They cannot approve, queue, run, execute, deploy, send, spend, publish, configure providers, mutate production, make customer-visible changes, change schema, delete files, or perform irreversible actions.
-- Validation passed with focused Apex OS utility/import tests, the 77-test permission/routing/bootstrap suite, `npm.cmd run build`, `git diff --check` with CRLF warnings only, and desktop/mobile browser QA with no horizontal overflow and normal admin blocked/redirected away from Apex OS.
+- Completed locally to 100% on 2026-06-03.
+- The private Control Room now has a complete Agent Control Plane with a seven-role roster for build, QA, release, marketing, sales, customer success, and monitoring agents.
+- Each roster row derives status, current task, last update, next action, report counts, handoff counts, and request counts from Agent OS run history, execution handoffs, and durable control requests. Supported status states include running, paused, blocked, done, and needs approval.
+- Durable pause, resume, and scoped-run control requests now use existing company settings storage as `apexOsAgentControlRequests`, with operator-only list/create/update endpoints, requested/ready/blocked/closed/archived states, source-label and readiness-field requirements, secret/email rejection, audit/activity logging, and Control Room request/load/mark-ready/block/close/archive UI.
+- Agent Work Queue, Agent Run Ledger, Agent Safety Locks, Locked Agent Tasks, and safe execution handoff drafts remain in the Phase 7 surface. Handoffs continue to prepare scoped work packages through `apexOsExecutionHandoffs`.
+- Phase 7 allows John-requested scoped agent work records and handoff preparation only. It does not add an agent runner, background loop, queue endpoint, run endpoint, approval execution, deploy, send, spend, publish, provider setup, customer-visible action, production mutation, schema change, deletion, or irreversible action path.
+- Validation passed on 2026-06-03 with focused Agent Control Plane shared/API/UI tests, the 73-test Apex OS permission/routing/bootstrap suite, `npm.cmd run build`, and desktop/mobile Playwright browser QA proving operator login, request creation, mark-ready flow, locked execution labels, and no horizontal overflow at 1440px or 390px.
+- Production release is pending the Phase 7 commit/push/deploy gate.
 
 ### Phase 8: Approval Command Center
 

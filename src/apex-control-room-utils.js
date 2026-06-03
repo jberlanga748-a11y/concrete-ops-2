@@ -12,6 +12,7 @@ import {
 } from "../shared/apexOsMemory.js";
 import { summarizeApexOsApprovalPackets } from "../shared/apexOsApprovalPackets.js";
 import { summarizeApexOsExecutionHandoffs } from "../shared/apexOsExecutionHandoffs.js";
+import { buildApexOsAgentControlPlane } from "../shared/apexOsAgentControl.js";
 
 function list(value) {
   return Array.isArray(value) ? value : [];
@@ -1758,6 +1759,12 @@ export function deriveApexControlRoomState({
   const voiceInterface = buildVoiceInterfaceState({ askApexChat });
   const approvalCommandCenter = buildApprovalCommandCenterState({ releaseDesk, askApexChat, voiceInterface, companySettings });
   const executionHandoffs = buildExecutionHandoffState({ agentWorkQueue, approvalCommandCenter, companySettings });
+  const agentControlPlane = buildApexOsAgentControlPlane({
+    agentTaskOptions,
+    agentRunRows,
+    executionHandoffs: companySettings?.apexOsExecutionHandoffs || [],
+    agentControlRequests: companySettings?.apexOsAgentControlRequests || [],
+  });
   const releaseMonitoring = buildReleaseMonitoringState({ releaseDesk, launchState, trustState, agentWorkQueue, recentEvidence });
   const businessCommandCenter = buildBusinessCommandCenterState({ launchState, knowledgeVault, approvalCommandCenter, releaseMonitoring });
   const phase3Aggregator = buildPhase3AggregatorState({
@@ -1810,6 +1817,7 @@ export function deriveApexControlRoomState({
       voiceInterface: { status: "Restricted", tone: "slate", modes: [], safetyRows: [] },
       approvalCommandCenter: { status: "Restricted", tone: "slate", queueRows: [], packetRows: [], controlRows: [], sourceRows: [] },
       executionHandoffs: { status: "Restricted", tone: "slate", sourceRows: [], handoffSummary: { total: 0, draft: 0, ready: 0, blocked: 0, archived: 0 } },
+      agentControlPlane: { status: "Restricted", tone: "slate", rosterRows: [], requestRows: [], reportRows: [], handoffRows: [], safetyRows: [], requestSummary: { total: 0, active: 0, ready: 0, blocked: 0 } },
       releaseMonitoring: { status: "Restricted", tone: "slate", readinessRows: [], briefingRows: [], releasePacketRows: [], lockRows: [] },
       businessCommandCenter: { status: "Restricted", tone: "slate", queueRows: [], gateRows: [], launchRows: [], briefingRows: [] },
       phase3Aggregator: { status: "Restricted", tone: "slate", rows: [] },
@@ -1889,6 +1897,13 @@ export function deriveApexControlRoomState({
         status: executionHandoffs.status,
         detail: `${executionHandoffs.handoffSummary.total} saved handoffs and ${executionHandoffs.handoffSummary.ready} ready handoffs prepare agent work without queueing or running it.`,
         tone: executionHandoffs.tone,
+      },
+      {
+        id: "agent-control-plane",
+        title: "Agent control plane",
+        status: agentControlPlane.status,
+        detail: `${agentControlPlane.roleCount} agent roles, ${agentControlPlane.activeRequestCount} active control requests, and ${agentControlPlane.readyRequestCount} ready requests are visible without queue/run execution.`,
+        tone: agentControlPlane.tone,
       },
       {
         id: "release-monitoring",
@@ -1987,6 +2002,13 @@ export function deriveApexControlRoomState({
         tone: executionHandoffs.tone,
       },
       {
+        id: "agent-control-plane",
+        title: "Agent control plane",
+        status: agentControlPlane.status,
+        detail: `${agentControlPlane.requestSummary.total} control requests, ${agentControlPlane.rosterRows.length} agent roster rows, and ${agentControlPlane.reportRows.length} report history rows are available.`,
+        tone: agentControlPlane.tone,
+      },
+      {
         id: "release-monitoring",
         title: "Release monitoring",
         status: releaseMonitoring.status,
@@ -2075,6 +2097,13 @@ export function deriveApexControlRoomState({
         tone: "blue",
       },
       {
+        id: "agent-control-plane-plan",
+        title: "Agent control plane",
+        status: agentControlPlane.status,
+        detail: "Use pause, resume, and scoped-run requests to assign agent work explicitly while queueing, running, deploys, sends, spend, billing, and deletion stay locked.",
+        tone: agentControlPlane.tone,
+      },
+      {
         id: "release-monitoring-plan",
         title: "Release monitoring plan",
         status: "Ready",
@@ -2149,6 +2178,13 @@ export function deriveApexControlRoomState({
         tone: executionHandoffs.tone,
       },
       {
+        id: "agent-control-plane",
+        title: "Agent control plane",
+        status: agentControlPlane.status,
+        detail: `${agentControlPlane.rosterRows.length} agent roles show status, current task, last update, next action, report history, and safe handoff context.`,
+        tone: agentControlPlane.tone,
+      },
+      {
         id: "release-monitoring",
         title: "Release monitoring",
         status: releaseMonitoring.status,
@@ -2195,6 +2231,7 @@ export function deriveApexControlRoomState({
     voiceInterface,
     approvalCommandCenter,
     executionHandoffs,
+    agentControlPlane,
     releaseMonitoring,
     businessCommandCenter,
     qaSecurityHardening,

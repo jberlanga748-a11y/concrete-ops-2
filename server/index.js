@@ -111,6 +111,14 @@ import {
   summarizeApexOsExecutionHandoffs,
 } from "../shared/apexOsExecutionHandoffs.js";
 import {
+  buildApexOsAgentControlPlane,
+  getApexOsAgentControlRequestMissingFields,
+  isApexOsAgentControlRequestReady,
+  normalizeApexOsAgentControlRequest,
+  normalizeApexOsAgentControlRequests,
+  summarizeApexOsAgentControlRequests,
+} from "../shared/apexOsAgentControl.js";
+import {
   APEX_OS_ASK_OPENAI_URL,
   buildApexOsAskContext,
   buildApexOsAskEvidenceRows,
@@ -7654,6 +7662,51 @@ function publicApexOsExecutionHandoff(handoff) {
   };
 }
 
+function apexOsAgentControlRequestsForState(state, user) {
+  return normalizeApexOsAgentControlRequests(companySettingsForState(state, user).apexOsAgentControlRequests);
+}
+
+function rejectUnsafeApexOsAgentControlRequest(request, requestedStatus = request.status) {
+  const normalizedStatus = String(requestedStatus || "").trim().toLowerCase();
+  if (["approved", "executed", "running", "queued"].includes(normalizedStatus)) {
+    throw new ApiError(400, "Apex OS agent control requests can be requested, readied, blocked, closed, or archived here; approval, queueing, running, and execution require a separate gated workflow.");
+  }
+  if (request.blockedReasons?.length) {
+    throw new ApiError(400, request.blockedReasons[0]);
+  }
+  if (!request.title || !request.objective) {
+    throw new ApiError(400, "Apex OS agent control requests require a title and objective.");
+  }
+  if (request.status === "ready" && !isApexOsAgentControlRequestReady(request)) {
+    throw new ApiError(400, `Ready agent control requests are missing: ${getApexOsAgentControlRequestMissingFields(request).join(", ")}.`);
+  }
+  if (!request.sourceLabel) {
+    throw new ApiError(400, "Apex OS agent control requests require a source label.");
+  }
+}
+
+function persistApexOsAgentControlRequests(draft, user, requests) {
+  const currentCompanyId = currentCompanyIdForRequestUser(draft, user);
+  draft.currentCompanyId = currentCompanyId;
+  draft.companySettingsByCompanyId ||= {};
+  draft.companySettings = {
+    ...companySettingsForState(draft, user),
+    apexOsAgentControlRequests: normalizeApexOsAgentControlRequests(requests),
+  };
+  draft.companySettingsByCompanyId[currentCompanyId] = draft.companySettings;
+}
+
+function publicApexOsAgentControlRequest(request) {
+  const { blockedReasons: _blockedReasons, ...safeRequest } = request;
+  return {
+    ...safeRequest,
+    missingFields: getApexOsAgentControlRequestMissingFields(request),
+    readyToReview: isApexOsAgentControlRequestReady(request),
+    executionLocked: true,
+    externalApprovalRequired: true,
+  };
+}
+
 function estimatesForAgentLearningSuggestions(state, user) {
   const companyId = currentCompanyIdForRequestUser(state, user);
   const estimateItems = Array.isArray(state.estimateItems) ? state.estimateItems : [];
@@ -12604,6 +12657,22 @@ app.get("/api/apex-os/execution-handoffs", requireAuth, asyncRoute(async (req, r
   });
 }));
 
+app.get("/api/apex-os/agent-control", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const handoffs = apexOsExecutionHandoffsForState(state, req.auth.user);
+  const requests = apexOsAgentControlRequestsForState(state, req.auth.user);
+  res.json({
+    apexOsAgentControlRequests: requests.map(publicApexOsAgentControlRequest),
+    summary: summarizeApexOsAgentControlRequests(requests),
+    controlPlane: buildApexOsAgentControlPlane({
+      executionHandoffs: handoffs,
+      agentControlRequests: requests,
+    }),
+    requestId: res.locals.requestId,
+  });
+}));
+
 app.get("/api/apex-os/daily-briefing", requireAuth, asyncRoute(async (req, res) => {
   const state = await readDb();
   assertCanManageApexOsMemory(state, req.auth.user);
@@ -12616,6 +12685,107 @@ app.get("/api/apex-os/daily-briefing", requireAuth, asyncRoute(async (req, res) 
       user: req.auth.user,
     }),
     requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/agent-control/requests", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let createdRequest = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageApexOsMemory(draft, req.auth.user);
+    const current = apexOsAgentControlRequestsForState(draft, req.auth.user);
+    createdRequest = normalizeApexOsAgentControlRequest(req.body || {}, {
+      id: makeId("AAC"),
+      now,
+      requestedBy: req.auth.user.id,
+    });
+    createdRequest.createdBy = req.auth.user.id;
+    createdRequest.createdAt = now;
+    rejectUnsafeApexOsAgentControlRequest(createdRequest, req.body?.status);
+    persistApexOsAgentControlRequests(draft, req.auth.user, [createdRequest, ...current].slice(0, 160));
+    appendActivity(draft, "Apex OS agent control requested", `${req.auth.user.name} requested ${createdRequest.title} for the ${createdRequest.agentRole} agent.`);
+    appendAuditEvent(draft, {
+      entityType: "apexOsAgentControlRequest",
+      entityId: createdRequest.id,
+      action: createdRequest.status === "ready" ? "readied" : createdRequest.status === "blocked" ? "blocked" : "requested",
+      summary: "Apex OS agent control requested",
+      detail: JSON.stringify({
+        id: createdRequest.id,
+        title: createdRequest.title,
+        requestType: createdRequest.requestType,
+        agentRole: createdRequest.agentRole,
+        status: createdRequest.status,
+        riskLevel: createdRequest.riskLevel,
+        sourceLabel: createdRequest.sourceLabel,
+        executionLocked: true,
+      }),
+      actor: req.auth.user,
+      changedFields: ["apexOsAgentControlRequests"],
+    });
+    return draft;
+  });
+
+  res.status(201).json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    apexOsAgentControlRequest: publicApexOsAgentControlRequest(createdRequest),
+  });
+}));
+
+app.patch("/api/apex-os/agent-control/requests/:id", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let updatedRequest = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageApexOsMemory(draft, req.auth.user);
+    const current = apexOsAgentControlRequestsForState(draft, req.auth.user);
+    const index = current.findIndex((request) => request.id === req.params.id);
+    if (index < 0) {
+      throw new ApiError(404, "Apex OS agent control request not found.");
+    }
+    const existing = current[index];
+    updatedRequest = normalizeApexOsAgentControlRequest(req.body || {}, {
+      existing,
+      now,
+      requestedBy: existing.requestedBy || existing.createdBy || req.auth.user.id,
+    });
+    updatedRequest.createdBy = existing.createdBy;
+    updatedRequest.createdAt = existing.createdAt;
+    if (updatedRequest.status === "closed" && existing.status !== "closed") {
+      updatedRequest.closedAt = now;
+    }
+    if (updatedRequest.status === "archived" && existing.status !== "archived") {
+      updatedRequest.archivedAt = now;
+    }
+    rejectUnsafeApexOsAgentControlRequest(updatedRequest, req.body?.status);
+    const nextRequests = [...current];
+    nextRequests[index] = updatedRequest;
+    persistApexOsAgentControlRequests(draft, req.auth.user, nextRequests);
+    appendActivity(draft, "Apex OS agent control updated", `${req.auth.user.name} updated ${updatedRequest.title} in Apex OS agent control.`);
+    appendAuditEvent(draft, {
+      entityType: "apexOsAgentControlRequest",
+      entityId: updatedRequest.id,
+      action: updatedRequest.status === "archived" ? "archived" : updatedRequest.status === "closed" ? "closed" : updatedRequest.status === "ready" ? "readied" : updatedRequest.status === "blocked" ? "blocked" : "updated",
+      summary: "Apex OS agent control updated",
+      detail: JSON.stringify({
+        id: updatedRequest.id,
+        title: updatedRequest.title,
+        requestType: updatedRequest.requestType,
+        agentRole: updatedRequest.agentRole,
+        status: updatedRequest.status,
+        riskLevel: updatedRequest.riskLevel,
+        sourceLabel: updatedRequest.sourceLabel,
+        executionLocked: true,
+      }),
+      actor: req.auth.user,
+      changedFields: ["apexOsAgentControlRequests"],
+    });
+    return draft;
+  });
+
+  res.json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    apexOsAgentControlRequest: publicApexOsAgentControlRequest(updatedRequest),
   });
 }));
 

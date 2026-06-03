@@ -4,13 +4,16 @@ import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
 
 import {
   askApexOs,
+  createApexOsAgentControlRequest,
   createApexOsMemory,
   createApexOsApprovalPacket,
   createApexOsExecutionHandoff,
+  getApexOsAgentControl,
   getApexOsMemory,
   getApexOsApprovalPackets,
   getApexOsDailyBriefing,
   getApexOsExecutionHandoffs,
+  updateApexOsAgentControlRequest,
   updateApexOsMemory,
   updateApexOsApprovalPacket,
   updateApexOsExecutionHandoff,
@@ -1457,6 +1460,244 @@ const EMPTY_EXECUTION_HANDOFF_FORM = {
   status: "draft",
 };
 
+const EMPTY_AGENT_CONTROL_FORM = {
+  title: "",
+  requestType: "scoped-run",
+  agentRole: "build",
+  riskLevel: "medium",
+  objective: "",
+  scope: "Apex OS private operator work only. No customer-visible, provider, billing, spend, production data, deletion, or irreversible action.",
+  validationPlan: "Run focused tests, build, and browser/mobile QA before closing this request.",
+  rollbackPlan: "Close or archive this request and revert the scoped branch commit if validation fails.",
+  sourceLabel: "Apex Control Room",
+  sourceUri: "",
+  status: "requested",
+};
+
+function AgentControlPlanePanel({ state, sessionToken }) {
+  const [form, setForm] = useState(EMPTY_AGENT_CONTROL_FORM);
+  const [controlPlane, setControlPlane] = useState(null);
+  const [requests, setRequests] = useState([]);
+  const [summary, setSummary] = useState(null);
+  const [notice, setNotice] = useState("");
+  const [loading, setLoading] = useState(false);
+  const canUse = state.canView && Boolean(sessionToken) && !loading;
+  const canCreate = canUse && form.title.trim() && form.objective.trim() && form.sourceLabel.trim();
+  const activePlane = controlPlane || state.agentControlPlane || {};
+  const activeSummary = summary || activePlane.requestSummary || { total: 0, active: 0, ready: 0, blocked: 0 };
+
+  function updateField(field, value) {
+    setForm((current) => ({ ...current, [field]: value }));
+    setNotice("");
+  }
+
+  async function refreshControlPlane() {
+    if (!canUse) return;
+    setLoading(true);
+    setNotice("");
+    try {
+      const payload = await getApexOsAgentControl(sessionToken);
+      setControlPlane(payload.controlPlane || null);
+      setRequests(payload.apexOsAgentControlRequests || []);
+      setSummary(payload.summary || null);
+      setNotice("Agent control plane loaded from private Apex OS storage.");
+    } catch (error) {
+      setNotice(error?.message || "Agent control plane could not load right now.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitRequest(event) {
+    event.preventDefault();
+    if (!canCreate) return;
+    setLoading(true);
+    setNotice("");
+    try {
+      const payload = await createApexOsAgentControlRequest(sessionToken, form);
+      setRequests((current) => [payload.apexOsAgentControlRequest, ...current].filter(Boolean));
+      setSummary((current) => ({
+        total: (current?.total || activeSummary.total || 0) + 1,
+        active: (current?.active || activeSummary.active || 0) + (payload.apexOsAgentControlRequest?.status === "archived" ? 0 : 1),
+        requested: (current?.requested || activeSummary.requested || 0) + (payload.apexOsAgentControlRequest?.status === "requested" ? 1 : 0),
+        ready: (current?.ready || activeSummary.ready || 0) + (payload.apexOsAgentControlRequest?.status === "ready" ? 1 : 0),
+        blocked: (current?.blocked || activeSummary.blocked || 0) + (payload.apexOsAgentControlRequest?.status === "blocked" ? 1 : 0),
+      }));
+      setForm(EMPTY_AGENT_CONTROL_FORM);
+      setNotice("Agent control request saved. It cannot queue or run agents.");
+    } catch (error) {
+      setNotice(error?.message || "Agent control request could not be saved right now.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function setRequestStatus(request, status) {
+    if (!canUse || !request?.id) return;
+    setLoading(true);
+    setNotice("");
+    try {
+      await updateApexOsAgentControlRequest(sessionToken, request.id, { ...request, status });
+      const payload = await getApexOsAgentControl(sessionToken);
+      setControlPlane(payload.controlPlane || null);
+      setRequests(payload.apexOsAgentControlRequests || []);
+      setSummary(payload.summary || null);
+      setNotice(status === "closed" ? "Request closed. No agent was queued or run." : "Request status updated. Execution remains locked.");
+    } catch (error) {
+      setNotice(error?.message || "Agent control request could not be updated right now.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="grid min-w-0 gap-4">
+      <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatusRow item={{
+          id: "agent-control-total",
+          title: "Control requests",
+          status: `${activeSummary.total || 0}`,
+          detail: `${activeSummary.active || 0} active, ${activeSummary.ready || 0} ready, ${activeSummary.blocked || 0} blocked.`,
+          tone: activeSummary.blocked ? "amber" : activeSummary.active ? "green" : "blue",
+        }} />
+        <StatusRow item={{
+          id: "agent-control-roles",
+          title: "Agent roster",
+          status: `${activePlane.roleCount || activePlane.rosterRows?.length || 0} roles`,
+          detail: "Build, QA, release, marketing, sales, customer success, and monitoring are visible from this control plane.",
+          tone: "blue",
+        }} />
+        <StatusRow item={{
+          id: "agent-control-execution",
+          title: "Execution",
+          status: "Locked",
+          detail: "Requests prepare explicit operator work packages; this panel has no queue, run, send, spend, delete, or deploy action.",
+          tone: "amber",
+        }} />
+      </div>
+
+      <div className="grid min-w-0 gap-3 lg:grid-cols-2 xl:grid-cols-4">
+        {(activePlane.rosterRows || []).map((item) => (
+          <StatusRow key={item.id} item={{
+            id: item.id,
+            title: item.title,
+            status: item.status,
+            detail: `${item.currentTask || item.detail} Next: ${item.nextAction || "Review scoped work."}`,
+            meta: item.lastUpdate,
+            tone: item.tone,
+          }} />
+        ))}
+      </div>
+
+      <form className="grid min-w-0 gap-3 rounded-xl border border-slate-200 bg-white p-3" onSubmit={submitRequest}>
+        <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <input
+            value={form.title}
+            onChange={(event) => updateField("title", event.target.value)}
+            maxLength={160}
+            placeholder="Control request title"
+            className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700"
+            disabled={!state.canView || loading}
+          />
+          <div className="grid min-w-0 gap-3 sm:grid-cols-4">
+            <select value={form.requestType} onChange={(event) => updateField("requestType", event.target.value)} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700" disabled={!state.canView || loading}>
+              <option value="scoped-run">Scoped run</option>
+              <option value="pause">Pause</option>
+              <option value="resume">Resume</option>
+            </select>
+            <select value={form.agentRole} onChange={(event) => updateField("agentRole", event.target.value)} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700" disabled={!state.canView || loading}>
+              <option value="build">Build</option>
+              <option value="qa">QA</option>
+              <option value="release">Release</option>
+              <option value="marketing">Marketing</option>
+              <option value="sales">Sales</option>
+              <option value="customer-success">Customer success</option>
+              <option value="monitoring">Monitoring</option>
+            </select>
+            <select value={form.riskLevel} onChange={(event) => updateField("riskLevel", event.target.value)} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700" disabled={!state.canView || loading}>
+              <option value="low">Low risk</option>
+              <option value="medium">Medium risk</option>
+              <option value="high">High risk</option>
+              <option value="critical">Critical risk</option>
+            </select>
+            <select value={form.status} onChange={(event) => updateField("status", event.target.value)} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700" disabled={!state.canView || loading}>
+              <option value="requested">Requested</option>
+              <option value="ready">Ready</option>
+              <option value="blocked">Blocked</option>
+            </select>
+          </div>
+        </div>
+        <textarea value={form.objective} onChange={(event) => updateField("objective", event.target.value)} maxLength={1800} placeholder="Objective for the agent control request" className="min-h-20 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold leading-6 text-slate-700" disabled={!state.canView || loading} />
+        <div className="grid min-w-0 gap-3 lg:grid-cols-2">
+          <textarea value={form.scope} onChange={(event) => updateField("scope", event.target.value)} maxLength={1800} placeholder="Allowed scope and blocked boundaries" className="min-h-20 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold leading-6 text-slate-700" disabled={!state.canView || loading} />
+          <textarea value={form.validationPlan} onChange={(event) => updateField("validationPlan", event.target.value)} maxLength={1800} placeholder="Validation plan" className="min-h-20 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold leading-6 text-slate-700" disabled={!state.canView || loading} />
+          <textarea value={form.rollbackPlan} onChange={(event) => updateField("rollbackPlan", event.target.value)} maxLength={1800} placeholder="Rollback plan" className="min-h-20 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold leading-6 text-slate-700" disabled={!state.canView || loading} />
+          <div className="grid min-w-0 gap-3">
+            <input value={form.sourceLabel} onChange={(event) => updateField("sourceLabel", event.target.value)} maxLength={140} placeholder="Source label" className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700" disabled={!state.canView || loading} />
+            <input value={form.sourceUri} onChange={(event) => updateField("sourceUri", event.target.value)} maxLength={260} placeholder="Source URI or file" className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700" disabled={!state.canView || loading} />
+          </div>
+        </div>
+        <div className="flex min-w-0 flex-wrap gap-2">
+          <Button type="submit" variant="secondary" size="sm" disabled={!canCreate}>
+            <Icon name="clipboard" /> {loading ? "Saving..." : "Request control"}
+          </Button>
+          <Button type="button" variant="secondary" size="sm" onClick={refreshControlPlane} disabled={!canUse}>
+            <Icon name="refresh" /> Load controls
+          </Button>
+          <Button type="button" disabled variant="secondary" size="sm">
+            <Icon name="lock" /> Execute locked
+          </Button>
+          <Button type="button" disabled variant="secondary" size="sm">
+            <Icon name="lock" /> Background loops locked
+          </Button>
+        </div>
+        <p className="break-words text-xs font-black leading-5 text-slate-500">{notice || "Pause, resume, and scoped-run requests are durable operator records only. They do not run agents or perform external actions."}</p>
+      </form>
+
+      <div className="grid min-w-0 gap-3 lg:grid-cols-2">
+        {requests.length ? requests.slice(0, 6).map((request) => (
+          <div key={request.id} className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+            <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <p className="break-words text-sm font-black text-slate-950">{request.title}</p>
+                <p className="mt-1 break-words text-xs font-bold leading-5 text-slate-600">{request.objective}</p>
+                <p className="mt-2 break-words text-[11px] font-black text-slate-500">Type: {request.requestType} | Role: {request.agentRole} | Source: {request.sourceLabel || "Missing source"}</p>
+                {request.missingFields?.length ? <p className="mt-2 break-words text-[11px] font-black text-amber-700">Missing: {request.missingFields.join(", ")}</p> : null}
+              </div>
+              <ToneBadge tone={request.status === "ready" ? "green" : request.status === "blocked" ? "red" : request.status === "archived" || request.status === "closed" ? "slate" : "blue"}>{request.status}</ToneBadge>
+            </div>
+            <div className="mt-3 flex min-w-0 flex-wrap gap-2">
+              <Button type="button" variant="secondary" size="sm" onClick={() => setRequestStatus(request, "ready")} disabled={!canUse || request.status === "ready" || request.status === "archived" || request.status === "closed"}>
+                <Icon name="check" /> Mark ready
+              </Button>
+              <Button type="button" variant="secondary" size="sm" onClick={() => setRequestStatus(request, "blocked")} disabled={!canUse || request.status === "blocked" || request.status === "archived" || request.status === "closed"}>
+                <Icon name="alert" /> Block
+              </Button>
+              <Button type="button" variant="secondary" size="sm" onClick={() => setRequestStatus(request, "closed")} disabled={!canUse || request.status === "closed" || request.status === "archived"}>
+                <Icon name="check" /> Close
+              </Button>
+              <Button type="button" variant="secondary" size="sm" onClick={() => setRequestStatus(request, "archived")} disabled={!canUse || request.status === "archived"}>
+                <Icon name="clock" /> Archive
+              </Button>
+              <Button type="button" disabled variant="secondary" size="sm">
+                <Icon name="lock" /> Run locked
+              </Button>
+            </div>
+          </div>
+        )) : activePlane.requestRows?.length ? (
+          activePlane.requestRows.map((item) => <StatusRow key={item.id} item={item} />)
+        ) : (
+          <EmptyPanel>No durable agent control requests loaded yet.</EmptyPanel>
+        )}
+      </div>
+
+      <div className="grid min-w-0 gap-3 lg:grid-cols-3">
+        {(activePlane.safetyRows || []).map((item) => <StatusRow key={item.id} item={item} />)}
+      </div>
+    </div>
+  );
+}
+
 function ExecutionHandoffDraftPanel({ state, sessionToken }) {
   const [form, setForm] = useState(EMPTY_EXECUTION_HANDOFF_FORM);
   const [handoffs, setHandoffs] = useState([]);
@@ -1959,6 +2200,17 @@ export function ApexControlRoomPage(props) {
               action={<ToneBadge tone={state.decisionMemory.approvedCount ? "green" : "blue"}>{state.decisionMemory.approvedCount || 0} approved</ToneBadge>}
             />
             <DecisionMemoryManager state={state} sessionToken={props.sessionToken} />
+          </Card>
+        </section>
+
+        <section className="grid min-w-0 gap-4">
+          <Card className="min-w-0 p-4 sm:p-5">
+            <SectionHeader
+              title="Agent Control Plane"
+              description={`${state.agentControlPlane.rosterRows?.length || 0} agent roles with durable pause, resume, scoped-run, report, and handoff history.`}
+              action={<ToneBadge tone={state.agentControlPlane.tone}>{state.agentControlPlane.status}</ToneBadge>}
+            />
+            <AgentControlPlanePanel state={state} sessionToken={props.sessionToken} />
           </Card>
         </section>
 

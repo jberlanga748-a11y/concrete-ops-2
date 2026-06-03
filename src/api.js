@@ -459,6 +459,18 @@ export function updateApexOsExecutionHandoff(token, id, payload = {}) {
   return request(`/api/apex-os/execution-handoffs/${encodeURIComponent(id)}`, { method: "PATCH", token, body: payload });
 }
 
+export function getApexOsAgentControl(token) {
+  return request("/api/apex-os/agent-control", { token });
+}
+
+export function createApexOsAgentControlRequest(token, payload = {}) {
+  return request("/api/apex-os/agent-control/requests", { method: "POST", token, body: payload });
+}
+
+export function updateApexOsAgentControlRequest(token, id, payload = {}) {
+  return request(`/api/apex-os/agent-control/requests/${encodeURIComponent(id)}`, { method: "PATCH", token, body: payload });
+}
+
 export function createAgentConversationThread(token, payload) {
   return request("/api/agent/conversations", { method: "POST", token, body: payload });
 }
