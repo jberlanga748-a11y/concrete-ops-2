@@ -287,13 +287,15 @@ Validation:
 
 Status:
 
-- Hard-finished locally on 2026-06-03.
+- Hard-finished and deployed on 2026-06-03.
 - Added a read-only `deriveApexControlRoomState` aggregator that reuses existing Agent OS task/run helpers, launch readiness, release safety, enterprise trust/audit readiness, queue state, visible workspace records, approval gates, and recent evidence.
 - Added a first-class Phase 3 State Packet that covers current branch evidence when supplied, build/test evidence, phase status, launch blockers, blocked approval packets, approval gates, agents, release packet rows, business queues, source groups, confidence labels, and the read-only mutation boundary.
 - Added source, confidence, and read-only metadata to derived operating signals, next actions, launch gates, and agent/release/business rows so Apex OS shows where state came from instead of presenting unsupported claims.
 - The Apex Control Room now shows Operating Signals, Next Best Actions, Launch Readiness, Release Desk, Agent Control, Approval Gates, Recent Evidence, and the Phase 3 State Packet without adding schema, provider setup, chat/voice rebuilds, production deploy, production data mutation, customer-visible sends, payments, ads, or deletion.
 - Validation passed on 2026-06-03 with focused Phase 3 tests, the 74-test access/routing/company-scope suite, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check` with CRLF warnings only, and desktop/mobile browser QA proving Phase 3 packet visibility for the private operator, source/confidence/read-only metadata, no horizontal overflow, and field direct-route blocking back to `/jobs`.
-- No schema change, auth/session change, provider setup, production data mutation, deploy, customer-visible action, send, spend, billing/payment, deletion, external execution path, or later-phase rebuild was added in this Phase 3 hard-finish pass.
+- Production release approved and deployed on 2026-06-03 from commit `0685fdf` to Fly app `concrete-ops-2`, machine `148e06e2b53d68`, version `635`, image `registry.fly.io/concrete-ops-2:deployment-01KT5TJ888A2QCGXEQNH5R6CW1`; rollback target is version `634`, image `registry.fly.io/concrete-ops-2:deployment-01KT5SASRM9Z1ZTW1RY0S39Y3A`.
+- Post-deploy health, hosted skip-auth route smoke, `/apex-control-room` bundle checks on both production hosts, unauthenticated Apex OS API denial, setup-status check, Fly machine check, `/.env` HTML-shell/no-env-assignment check, and production log snapshot passed. Production auth smoke/login was not run in this release pass.
+- No schema change, auth/session change, provider setup, production data mutation, customer-visible action, send, spend, billing/payment, deletion, external execution path, or later-phase rebuild was added in this Phase 3 hard-finish and approved release pass.
 
 ### Phase 4: Decision Memory And Operating Rules
 

@@ -100,7 +100,7 @@ Blocked right now:
 
 Status:
 
-- Hard-finished locally on 2026-06-03. The Control Room now has a read-only Phase 3 State Packet, source/confidence/read-only metadata for derived state, branch/build/test evidence slots, phase status, blockers/approvals, agents, release desk, launch/business queues, and blocked-role empty state coverage.
+- Hard-finished and deployed on 2026-06-03. The Control Room now has a read-only Phase 3 State Packet, source/confidence/read-only metadata for derived state, branch/build/test evidence slots, phase status, blockers/approvals, agents, release desk, launch/business queues, and blocked-role empty state coverage. Production release `v635` is healthy; rollback target is `v634`.
 
 Hard-finish package:
 
