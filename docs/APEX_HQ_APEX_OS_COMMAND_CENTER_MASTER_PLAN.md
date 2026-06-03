@@ -436,6 +436,7 @@ Status:
 - Create task and Needs approval now create review-only approval packet drafts; they do not approve, queue, run, deploy, send, spend, publish, mutate production, or trigger customer-visible actions.
 - The Execute control remains locked, and no frontend provider secret, external action, customer-visible answer path, production mutation, schema change, deploy, send, spend, billing/payment, or irreversible execution path was added.
 - Validation passed on 2026-06-03 with focused Ask Apex utility/API/UI tests, broader Apex OS route/nav/permission regression tests, `npm.cmd run build`, desktop/mobile browser QA with no horizontal overflow, ranked evidence/draft-action browser QA, normal admin UI/API blocking, and cleanup of the temporary local QA memory/approval rows.
+- Production release was approved and deployed on 2026-06-03 from commit `94a6f69` to Fly app `concrete-ops-2` as version `638`, with production ready/health checks, hosted route smoke, `/apex-control-room` bundle verification, and unauthenticated Ask Apex API blocking verified after deploy.
 
 ### Phase 7: Agent Control Plane
 

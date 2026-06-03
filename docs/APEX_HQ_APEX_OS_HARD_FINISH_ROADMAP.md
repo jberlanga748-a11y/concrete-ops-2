@@ -156,7 +156,7 @@ Blocked right now:
 
 Status:
 
-- Hard-finished locally on 2026-06-03 with selectable context scopes, operator-only scoped Ask Apex API responses, server-side OpenAI provider readiness, local source-backed fallback, ranked evidence drawer, source-backed answer cards, save-as-decision suggested memory drafts, create-task approval packet drafts, needs-approval packet drafts, citation/source-rank coverage, and desktop/mobile browser QA. No schema change, frontend API key, customer-visible answer path, production mutation, deploy, send, spend, billing/payment, or irreversible execution was added.
+- Hard-finished and deployed on 2026-06-03 with selectable context scopes, operator-only scoped Ask Apex API responses, server-side OpenAI provider readiness, local source-backed fallback, ranked evidence drawer, source-backed answer cards, save-as-decision suggested memory drafts, create-task approval packet drafts, needs-approval packet drafts, citation/source-rank coverage, desktop/mobile browser QA, and production health/route smoke. Production release `v638` is healthy; rollback target is `v637`.
 
 Hard-finish package:
 
