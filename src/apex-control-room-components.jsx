@@ -3082,6 +3082,42 @@ export function ApexControlRoomPage(props) {
           ))}
         </section>
 
+        <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+          <Card className="min-w-0 p-4 sm:p-5">
+            <SectionHeader
+              title="Finished Apex OS"
+              description={`${state.finishedApexOs.readyCount || 0} of ${state.finishedApexOs.capabilityCount || 0} finished capabilities are assembled for day-to-day Apex HQ operation.`}
+              action={<ToneBadge tone={state.finishedApexOs.tone}>{state.finishedApexOs.status}</ToneBadge>}
+            />
+            <div className="grid min-w-0 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+              {state.finishedApexOs.capabilityRows.map((item) => <StatusRow key={item.id} item={item} />)}
+            </div>
+          </Card>
+
+          <Card className="min-w-0 p-4 sm:p-5">
+            <SectionHeader title="Day-to-Day Run Loop" description={`${state.finishedApexOs.runLoopCount || 0} owner workflows Apex OS can coordinate from the private cockpit.`} />
+            <div className="grid min-w-0 gap-3">
+              {state.finishedApexOs.runLoopRows.map((item) => <StatusRow key={item.id} item={item} />)}
+            </div>
+          </Card>
+        </section>
+
+        <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+          <Card className="min-w-0 p-4 sm:p-5">
+            <SectionHeader title="Completion Freeze" description={`${state.finishedApexOs.freezeCount || 0} final freeze rows before closing Apex OS completion.`} />
+            <div className="grid min-w-0 gap-3">
+              {state.finishedApexOs.freezeRows.map((item) => <StatusRow key={item.id} item={item} />)}
+            </div>
+          </Card>
+
+          <Card className="min-w-0 p-4 sm:p-5">
+            <SectionHeader title="Still Blocked" description={`${state.finishedApexOs.blockedActionCount || 0} external action classes stay locked after Apex OS completion.`} />
+            <div className="grid min-w-0 gap-3 lg:grid-cols-2">
+              {state.finishedApexOs.blockedActionRows.map((item) => <StatusRow key={item.id} item={item} />)}
+            </div>
+          </Card>
+        </section>
+
         <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
           <Card className="min-w-0 p-4 sm:p-5">
             <SectionHeader

@@ -74,6 +74,7 @@ Current implementation status:
 - Apex OS Phase 15 / Production Preview And Release Desk is hard-finished, pushed, deployed, and production-checked as of 2026-06-03: the Release Desk now shows read-only Production Preview Status, Release Readiness Packet, Deploy History, Deploy Approved Flow, and Release Safety Summary sections; build awareness parses the living-plan deploy log so current production version, commit, image, health evidence, backup evidence, hosted smoke evidence, and recent Apex OS deploy history are visible; and the deploy-approved path is visible but locked. No deploy button, rollback execution, provider setup, production mutation, customer-visible action, live send, ad spend, billing/payment, schema/auth/session change, deletion, or irreversible action path was added.
 - Apex OS Phase 16 / Personal Operating Layer is hard-finished, pushed, deployed, and production-checked as of 2026-06-03: the private Control Room now maps John preferences, work style memory, communication preferences, daily focus, interruption rules, background-vs-check-in rules, preference review, and privacy locks through existing operator-only Apex OS memory category `personal-preference`. Preferences start suggested, require source labels, reject secrets, and become operating guidance only after manual approval; privacy locks keep hidden tracking, sensitive personal tracking, background execution, external sends, production/customer mutation, schema/auth/session changes, provider setup, billing/payment, ad spend, and customer-visible actions locked. Production release `v648` from commit `c2f99d4` passed Fly checks, ready/health/setup checks, unauthenticated Apex OS endpoint 401 checks, Control Room asset verification, and hosted skip-auth smoke.
 - Apex OS Phase 17 / Full Apex OS QA And Security Hardening is hard-finished, pushed, deployed, and production-checked as of 2026-06-03: the private Control Room now has final hardening proof rows for role/field restrictions, customer/company isolation, direct-route blocking, source-backed answers, upload privacy, approval gates, build/test/release safety, desktop/mobile QA, production-preview smoke proof path, docs/memory drift, no secrets, risky-action bypass blocking, and the Apex OS access kill switch. Local validation passed focused tests, broad security/company-scope regression coverage after a transient company-scope server-start rerun, role verification, production build, diff check, and isolated desktop/mobile/admin-blocked browser QA. Production release `v649` from commit `52a3cf4` passed Fly checks, ready/health/setup checks, unauthenticated Apex OS endpoint 401 checks, Control Room asset verification, and hosted skip-auth smoke. No schema, auth/session, provider setup, production data mutation, customer-visible action, external send, ad spend, billing/payment, deploy/rollback execution from the UI, deletion, or irreversible action path was added.
+- Apex OS Phase 18 / Finished Apex OS is hard-finished locally as of 2026-06-03 and pending production release: the private Control Room now assembles all completed Apex OS capabilities into a Finished Apex OS cockpit with capability proof rows, day-to-day run-loop rows, completion-freeze rows, and blocked-action proof rows. It proves John can run Apex HQ day to day by asking, deciding, uploading/reviewing knowledge, approving packets, briefing, monitoring, planning, preparing scoped task handoffs, preparing releases, and managing agents while email/SMS/voice sends, ads/spend, billing/payment, customer-visible publishing, autonomous unrequested agents, and irreversible external actions stay blocked. Local validation passed focused tests, broad Apex OS regression, role verification, production build, desktop/mobile/operator/admin browser QA, direct-route blocking, protected API blocking, and visual screenshots. No schema, auth/session, provider setup, production data mutation, customer-visible action, live send, ad spend, billing/payment, autonomous unrequested execution, deploy/rollback execution from the UI, deletion, or irreversible action path was added.
 - Apex OS Slice 8 is folded into Phase 8 completion: the Approval Command Center first UI now has safe durable review decisions while execution remains locked.
 - Apex OS Phase 11 / Monitoring And Daily Briefings is hard-finished and deployed as of 2026-06-03: the private Control Room now has source-backed Release Monitoring refresh for production readiness, demo app readiness, GitHub Actions/smoke status, failed test/build signals, stalled-agent signals, daily briefing manual refresh/save, durable private briefing history, changed-since-last-saved rows, locks, source labels, and John-action alerts. External alerts/notifications, autonomous schedules, deploy/rollback execution from the UI, provider monitoring changes, production/customer data mutation, schema/auth/session changes, live sends, ad spend, billing/payment, public publishing, and customer-visible actions remain locked.
 - Apex OS Phase 10 / Business Operating Center is hard-finished and deployed as of 2026-06-03: the private Control Room now has business command queues for launch, demo/pilot, marketing, sales/outreach, customer success, and revenue/pricing/offer work; launch/founder-demo rows; business briefing rows; approved source-backed business memory rows; private business task drafts; and business approval draft rows for manual sends, ads/publishing, billing/offers, customer-visible work, and business operations. Live sends, ad spend, billing/payment, public publishing, provider setup, production data, schema/storage, auth/session change, customer-visible actions, and unsupported claims remain approval-locked.
@@ -1366,6 +1367,79 @@ Production release state:
 Next recommended phase:
 
 - Start Phase 18: Finished Apex OS only after this Phase 17 release evidence commit is pushed.
+
+## Apex OS Phase 18: Finished Apex OS Hard-Finish Report
+
+Date: 2026-06-03
+
+Goal:
+
+- Finish Phase 18 from the original Apex OS master plan: make Apex OS complete enough to run Apex HQ day to day, prove the final owner run loop, and freeze the Apex OS completion state while keeping not-approved external/provider/customer-visible actions locked.
+
+What was already built before this pass:
+
+- Phases 1-17 already provided private operator access, branded command shell, state aggregation, decision memory, Knowledge Vault, Ask Apex, agent control, approvals, build awareness, business queues, monitoring/daily briefings, voice, knowledge intelligence, execution handoffs, release desk, personal operating layer, and final QA/security hardening.
+
+What was completed in this pass:
+
+- Added a Finished Apex OS state packet that assembles the original Phase 18 finished capabilities into one private proof map: John-only command center, text chat, voice input/output, reviewed knowledge and memory, decision log, source-backed answers, app/build awareness, agent control, approval center, launch/business queues, monitoring/daily briefings, kill switch, safe task execution handoff, release desk, and mobile owner cockpit.
+- Added day-to-day run-loop rows for ask, decide, upload, approve, brief, monitor, plan, execute scoped tasks through handoffs, prepare releases, and manage agents.
+- Added completion-freeze rows for phase freeze, completion state, final production-preview QA, blocked-action proof, and no next-phase jump.
+- Added blocked-action proof rows for email/SMS/voice sends, ads/spend, billing/payment, customer-visible publishing, autonomous unrequested agents, and irreversible external actions.
+- Rendered the Finished Apex OS cockpit near the top of the private Control Room so the final operating layer is visible before the older detailed phase surfaces.
+
+Affected files:
+
+- `src/apex-control-room-utils.js`
+- `src/apex-control-room-utils.test.js`
+- `src/apex-control-room-components.jsx`
+- `src/apex-control-room-components-import.test.js`
+- `docs/APEX_HQ_APEX_OS_COMMAND_CENTER_MASTER_PLAN.md`
+- `docs/APEX_HQ_APEX_OS_HARD_FINISH_ROADMAP.md`
+- `docs/APEX_HQ_LIVING_FINISH_PLAN.md`
+- `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md`
+
+Risk level:
+
+- Low-medium. Phase 18 adds private operator UI/state evidence and tests over completed Apex OS systems. It does not add schema, auth/session changes, provider setup, background jobs, live agent execution, production data mutation, customer-visible actions, live sends, ad spend, billing/payment, deletion, or irreversible actions.
+
+Validation results:
+
+- Focused Phase 18 tests passed: `node --test --test-concurrency=1 src\apex-control-room-utils.test.js src\apex-control-room-components-import.test.js` with 11 passing tests.
+- Role verification passed: `npm.cmd run verify:roles` with 15 passing tests.
+- Production build passed on rerun: `npm.cmd run build` with the existing large-chunk warning and produced local Phase 18 bundles `assets/index-CzJhawJV.js`, `assets/app-domain-D96Adw9i.js`, and `assets/app-domain-BG7wb0Ah.css`. The first parallel build attempt hit a transient esbuild `write EPIPE`; the standalone rerun passed.
+- Broad Apex OS regression passed cleanly on rerun: `node --test --test-concurrency=1 shared\apexOsKnowledgeIntelligence.test.js shared\apexOsVoice.test.js shared\apexOsAsk.test.js shared\apexOsDailyBriefing.test.js shared\apexOsBuildAwareness.test.js shared\apexOsApprovalPackets.test.js shared\apexOsAgentControl.test.js shared\apexOsExecutionHandoffs.test.js shared\apexOsMemory.test.js shared\permissions.test.js src\apex-control-room-utils.test.js src\apex-control-room-components-import.test.js src\app-routing.test.js src\navigation-utils.test.js src\app-navigation-components-import.test.js server\apex-os-memory.test.js server\role-permissions.test.js server\company-scope.test.js` with 134 passing tests. The first broad run had one transient import-file failure; rerunning that file passed, then the full broad rerun passed.
+- Isolated local browser QA passed on `http://127.0.0.1:4218/apex-control-room` using a temp SQLite/DATA_DIR setup. Operator QA verified Finished Apex OS, Day-to-Day Run Loop, Completion Freeze, Still Blocked, source-backed proof rows, blocked external action rows, and zero horizontal overflow on desktop and mobile.
+- Admin-blocked browser QA passed: `demo.admin@apexhq.app` direct route redirected to `/`, Finished Apex OS content was absent, `/api/apex-os/memory` returned 403, and admin view had no horizontal overflow.
+- Browser screenshots were saved locally under ignored `ui-audit/apex-control-room-phase18/`, including `desktop-finished-apex-os.png`, `desktop-still-blocked.png`, `mobile-finished-apex-os-section.png`, `mobile-still-blocked.png`, and `admin-blocked-phase18.png`.
+- `git diff --check` passed with line-ending warnings only.
+
+Permissions impact:
+
+- Operator-only. Restricted users receive empty Finished Apex OS rows and cannot see the Phase 18 cockpit.
+- Field users, demo users, customers, pilots, and normal company users remain blocked from Apex OS state and controls.
+
+Mobile impact:
+
+- Desktop and mobile browser QA passed with no horizontal overflow. The Finished Apex OS cockpit stacks into mobile cards and remains usable with the existing mobile bottom navigation.
+
+Field-user impact:
+
+- None. No field route/nav/API capability was added, and field-private boundaries remain unchanged. Field users still cannot see Apex OS, leads, estimates, pricing, margins, payroll, billing, office-only notes, AI office tools, admin setup, company setup, or other company data through this surface.
+
+Rollback plan:
+
+- If local validation fails before deploy, revert the Phase 18 hard-finish commit to remove the Finished Apex OS state, cockpit UI section, focused assertions, and docs.
+- If production release fails after deploy, roll back Fly to the previous healthy release and revert the Phase 18 commit if the UI/state change is implicated.
+- No database migration rollback is required because Phase 18 adds no schema and reuses existing Apex OS state.
+
+Production release state:
+
+- Pending. Phase 18 must still be committed, pushed, deployed with a predeploy backup, production-checked, and recorded in the deploy log before the Apex OS completion state can be frozen.
+
+Next recommended phase:
+
+- Freeze Apex OS completion only after Phase 18 is committed, pushed, deployed, production-checked, and the release evidence commit is pushed. Do not start another phase before that.
 
 Packaging and release state:
 

@@ -165,9 +165,15 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /Hardening Locks/);
   assert.match(componentSource, /Completion Audit/);
   assert.match(componentSource, /Security Proof Sources/);
+  assert.match(componentSource, /Finished Apex OS/);
+  assert.match(componentSource, /Day-to-Day Run Loop/);
+  assert.match(componentSource, /Completion Freeze/);
+  assert.match(componentSource, /Still Blocked/);
   assert.match(utilSource, /production-preview-smoke/);
   assert.match(utilSource, /docs-memory-drift/);
   assert.match(utilSource, /apex-os-kill-switch/);
+  assert.match(utilSource, /APEX_OS_FINISHED_CAPABILITY_ROWS/);
+  assert.match(utilSource, /APEX_OS_FINISHED_BLOCKED_ACTION_ROWS/);
   assert.match(componentSource, /What John decided/);
   assert.match(componentSource, /Launch Readiness/);
   assert.match(componentSource, /Release Desk/);

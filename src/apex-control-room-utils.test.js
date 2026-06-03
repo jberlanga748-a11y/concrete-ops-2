@@ -8,6 +8,8 @@ import {
   APEX_OS_BUSINESS_QUEUE_ROWS,
   APEX_OS_BUSINESS_TASK_DRAFT_ROWS,
   APEX_OS_CHAT_ACTION_LOCKS,
+  APEX_OS_FINISHED_BLOCKED_ACTION_ROWS,
+  APEX_OS_FINISHED_CAPABILITY_ROWS,
   APEX_OS_CHAT_CONTEXTS,
   APEX_OS_APPROVAL_CONTROL_LOCKS,
   APEX_OS_APPROVAL_PACKET_FIELDS,
@@ -73,6 +75,10 @@ test("deriveApexControlRoomState blocks non-private users", () => {
   assert.deepEqual(state.phase3Aggregator.rows, []);
   assert.deepEqual(state.qaSecurityHardening.evidenceRows, []);
   assert.deepEqual(state.qaSecurityHardening.lockRows, []);
+  assert.deepEqual(state.finishedApexOs.capabilityRows, []);
+  assert.deepEqual(state.finishedApexOs.runLoopRows, []);
+  assert.deepEqual(state.finishedApexOs.freezeRows, []);
+  assert.deepEqual(state.finishedApexOs.blockedActionRows, []);
   assert.deepEqual(state.agentWorkQueue.taskRows, []);
   assert.deepEqual(state.agentWorkQueue.runRows, []);
   assert.equal(state.operatorName, "Normal Admin");
@@ -363,6 +369,18 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.qaSecurityHardening.lockRows.some((item) => item.id === "no-production-mutation" && item.status === "Locked"), true);
   assert.equal(state.qaSecurityHardening.lockRows.some((item) => item.id === "no-money-or-sends" && item.status === "Locked"), true);
   assert.equal(state.qaSecurityHardening.lockRows.some((item) => item.id === "no-irrevocable-actions" && item.status === "Locked"), true);
+  assert.equal(state.finishedApexOs.status, "Apex OS ready");
+  assert.equal(state.finishedApexOs.readyCount, APEX_OS_FINISHED_CAPABILITY_ROWS.length);
+  assert.equal(state.finishedApexOs.capabilityCount, APEX_OS_FINISHED_CAPABILITY_ROWS.length);
+  assert.equal(state.finishedApexOs.runLoopCount, 10);
+  assert.equal(state.finishedApexOs.freezeCount, 5);
+  assert.equal(state.finishedApexOs.blockedActionCount, APEX_OS_FINISHED_BLOCKED_ACTION_ROWS.length);
+  assert.equal(state.finishedApexOs.capabilityRows.some((item) => item.id === "john-only-command-center" && item.status === "Ready"), true);
+  assert.equal(state.finishedApexOs.capabilityRows.some((item) => item.id === "voice-input-output" && item.status === "Ready"), true);
+  assert.equal(state.finishedApexOs.capabilityRows.some((item) => item.id === "safe-task-execution-handoff" && item.status === "Ready"), true);
+  assert.equal(state.finishedApexOs.runLoopRows.some((item) => item.id === "run-loop-handoff" && item.status === "Handoff ready"), true);
+  assert.equal(state.finishedApexOs.freezeRows.some((item) => item.id === "phase-freeze" && item.status === "Frozen"), true);
+  assert.equal(state.finishedApexOs.blockedActionRows.some((item) => item.id === "no-live-sends" && item.status === "Blocked"), true);
   assert.equal(state.agentWorkQueue.status, "Review-only");
   assert.equal(state.agentWorkQueue.availableTaskCount, 10);
   assert.equal(state.agentWorkQueue.visibleTargetCount, 10);

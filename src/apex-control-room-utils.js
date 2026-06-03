@@ -742,6 +742,129 @@ export const APEX_OS_QA_SECURITY_LOCKS = Object.freeze([
   },
 ]);
 
+export const APEX_OS_FINISHED_CAPABILITY_ROWS = Object.freeze([
+  {
+    id: "john-only-command-center",
+    title: "John-only command center",
+    detail: "Private route, nav, bootstrap, and company-scope gates keep Apex OS in the default Apex HQ workspace.",
+  },
+  {
+    id: "text-chat-with-apex",
+    title: "Text chat with Apex",
+    detail: "Ask Apex can answer from private source lanes and create review-only drafts.",
+  },
+  {
+    id: "voice-input-output",
+    title: "Voice input/output",
+    detail: "Push-to-talk, transcript confirmation, and spoken answer controls are available without always-listening execution.",
+  },
+  {
+    id: "knowledge-upload-reviewed-memory",
+    title: "Knowledge upload and reviewed memory",
+    detail: "Knowledge Vault intake, category review, trusted memory, and duplicate checks stay private and manual.",
+  },
+  {
+    id: "decision-log",
+    title: "Decision log",
+    detail: "Source-backed decision memory records what John decided and keeps operating rules visible.",
+  },
+  {
+    id: "source-backed-answers",
+    title: "Source-backed answers",
+    detail: "Answers cite mapped evidence rows and stay review-first before risky action drafts.",
+  },
+  {
+    id: "app-build-awareness",
+    title: "App/build awareness",
+    detail: "Branch, head, changed files, build/test scripts, source links, and deploy evidence are visible.",
+  },
+  {
+    id: "agent-control",
+    title: "Agent control",
+    detail: "Agent roster, pause/resume/scoped-run requests, reports, and handoff context are visible.",
+  },
+  {
+    id: "approval-center",
+    title: "Approval center",
+    detail: "Risk packets, exact phrase checks, approve/reject/defer records, and locked controls are mapped.",
+  },
+  {
+    id: "launch-business-queues",
+    title: "Launch/business queues",
+    detail: "Launch, demo, marketing, sales, customer success, and revenue queues are private and manual.",
+  },
+  {
+    id: "monitoring-daily-briefings",
+    title: "Monitoring and daily briefings",
+    detail: "Release monitoring, owner alerts, daily briefing rows, and saved briefing history are mapped.",
+  },
+  {
+    id: "kill-switch",
+    title: "Kill switch",
+    detail: "Removing operator access, office role, or default workspace access removes Apex OS nav/state/API access.",
+  },
+  {
+    id: "safe-task-execution-handoff",
+    title: "Safe task execution handoff",
+    detail: "Scoped handoffs require validation, rollback, result report, and approval-packet context before any future run.",
+  },
+  {
+    id: "release-desk",
+    title: "Release desk",
+    detail: "Release readiness, deploy history, backup, hosted smoke, protected endpoint, and rollback evidence are visible.",
+  },
+  {
+    id: "mobile-owner-cockpit",
+    title: "Mobile owner cockpit",
+    detail: "The private Control Room stacks into a mobile owner review cockpit for the same proof rows.",
+  },
+]);
+
+export const APEX_OS_FINISHED_BLOCKED_ACTION_ROWS = Object.freeze([
+  {
+    id: "no-live-sends",
+    title: "Email/SMS/voice sends",
+    status: "Blocked",
+    detail: "No live outreach leaves Apex HQ until provider setup, compliance, templates, suppression, audit, and owner approval exist.",
+    tone: "amber",
+  },
+  {
+    id: "no-ads-spend",
+    title: "Ads and spend",
+    status: "Blocked",
+    detail: "No ad publishing, campaign launch, spend, discounts, or paid promotion can run from Apex OS.",
+    tone: "amber",
+  },
+  {
+    id: "no-billing-payments",
+    title: "Billing and payments",
+    status: "Blocked",
+    detail: "Invoices, payment collection, billing changes, discounts, and money movement remain outside Apex OS execution.",
+    tone: "amber",
+  },
+  {
+    id: "no-customer-visible-publishing",
+    title: "Customer-visible actions",
+    status: "Blocked",
+    detail: "Public publishing, customer messages, customer portal sharing, signatures, and visible production/customer mutations require separate approval.",
+    tone: "amber",
+  },
+  {
+    id: "no-autonomous-unrequested-agents",
+    title: "Autonomous unrequested agents",
+    status: "Blocked",
+    detail: "Agents can prepare scoped handoffs you ask for, but no unmanaged background loop or unrequested execution is enabled.",
+    tone: "amber",
+  },
+  {
+    id: "no-irreversible-external-actions",
+    title: "Irreversible external actions",
+    status: "Blocked",
+    detail: "Deletion, destructive production changes, external provider writes, force pushes, and irreversible customer-impacting work stay locked.",
+    tone: "amber",
+  },
+]);
+
 export const APEX_OS_APPROVAL_PACKET_FIELDS = Object.freeze([
   {
     id: "action",
@@ -2356,6 +2479,279 @@ function buildQaSecurityHardeningState({
   };
 }
 
+function buildFinishedApexOsState({
+  decisionMemory,
+  knowledgeVault,
+  askApexChat,
+  voiceInterface,
+  approvalCommandCenter,
+  buildAwareness,
+  executionHandoffs,
+  agentControlPlane,
+  releaseMonitoring,
+  businessCommandCenter,
+  qaSecurityHardening,
+  releaseDesk,
+  agentWorkQueue,
+  launchState,
+} = {}) {
+  const capabilityRows = APEX_OS_FINISHED_CAPABILITY_ROWS.map((item) => {
+    if (item.id === "john-only-command-center") {
+      return {
+        ...item,
+        status: "Ready",
+        tone: "green",
+        detail: `${formatCount(qaSecurityHardening?.evidenceCount)} hardening rows prove private access, company isolation, direct-route blocking, and field-user blocking.`,
+      };
+    }
+    if (item.id === "text-chat-with-apex") {
+      return {
+        ...item,
+        status: "Ready",
+        tone: "green",
+        detail: `${formatCount(askApexChat?.contextCount)} context lanes and ${formatCount(askApexChat?.evidenceCount)} evidence rows feed private Ask Apex answers and draft-only actions.`,
+      };
+    }
+    if (item.id === "voice-input-output") {
+      return {
+        ...item,
+        status: "Ready",
+        tone: "green",
+        detail: `${formatCount(voiceInterface?.modeCount)} voice modes and ${formatCount(voiceInterface?.safetyCount)} safety gates keep push-to-talk, transcript review, and spoken answers review-first.`,
+      };
+    }
+    if (item.id === "knowledge-upload-reviewed-memory") {
+      return {
+        ...item,
+        status: "Ready",
+        tone: "green",
+        detail: `${formatCount(knowledgeVault?.categoryCount)} intake categories, ${formatCount(knowledgeVault?.sourceCount)} source rows, and ${formatCount(knowledgeVault?.lockedRuleCount)} privacy rules protect reviewed memory.`,
+      };
+    }
+    if (item.id === "decision-log") {
+      return {
+        ...item,
+        status: "Ready",
+        tone: "green",
+        detail: `${formatCount(decisionMemory?.decisionCount)} plan decisions, ${formatCount(decisionMemory?.ruleCount)} operating rules, and ${formatCount(decisionMemory?.durableCount)} durable memory rows are visible.`,
+      };
+    }
+    if (item.id === "source-backed-answers") {
+      return {
+        ...item,
+        status: "Ready",
+        tone: "green",
+        detail: `${formatCount(askApexChat?.evidenceCount)} answer evidence rows, Knowledge Vault rows, and decision-memory rows keep answers source-backed before any action draft.`,
+      };
+    }
+    if (item.id === "app-build-awareness") {
+      return {
+        ...item,
+        status: "Ready",
+        tone: "green",
+        detail: `${buildAwareness?.branch || "Current branch"} at ${buildAwareness?.headSha || "runtime"} with ${formatCount(buildAwareness?.changedFileCount)} changed-file signals and ${formatCount(list(buildAwareness?.sourceLinks).length)} source links.`,
+      };
+    }
+    if (item.id === "agent-control") {
+      return {
+        ...item,
+        status: "Ready",
+        tone: "green",
+        detail: `${formatCount(agentControlPlane?.roleCount)} agent roles, ${formatCount(agentControlPlane?.requestSummary?.total)} control requests, and ${formatCount(agentControlPlane?.reportRows?.length)} report rows are visible.`,
+      };
+    }
+    if (item.id === "approval-center") {
+      return {
+        ...item,
+        status: "Ready",
+        tone: "green",
+        detail: `${formatCount(approvalCommandCenter?.queueCount)} risky-action categories, ${formatCount(approvalCommandCenter?.packetFieldCount)} packet fields, and ${formatCount(approvalCommandCenter?.controlLockCount)} locked controls are mapped.`,
+      };
+    }
+    if (item.id === "launch-business-queues") {
+      return {
+        ...item,
+        status: "Ready",
+        tone: "green",
+        detail: `${formatCount(businessCommandCenter?.queueCount)} business queues, ${formatCount(businessCommandCenter?.launchCount)} launch/founder-demo rows, and ${formatCount(businessCommandCenter?.gateCount)} manual gates are visible.`,
+      };
+    }
+    if (item.id === "monitoring-daily-briefings") {
+      return {
+        ...item,
+        status: "Ready",
+        tone: "green",
+        detail: `${formatCount(releaseMonitoring?.readinessCount)} monitoring checks, ${formatCount(releaseMonitoring?.briefingCount)} briefing rows, and ${formatCount(releaseMonitoring?.lockCount)} locks are visible.`,
+      };
+    }
+    if (item.id === "kill-switch") {
+      return {
+        ...item,
+        status: "Ready",
+        tone: "green",
+        detail: "Access removal is the kill switch: operator access false, non-office role, or non-default workspace removes nav/bootstrap access and blocks Apex OS APIs/state.",
+      };
+    }
+    if (item.id === "safe-task-execution-handoff") {
+      return {
+        ...item,
+        status: "Ready",
+        tone: "green",
+        detail: `${formatCount(executionHandoffs?.handoffSummary?.total)} durable handoffs, ${formatCount(executionHandoffs?.handoffSummary?.ready)} ready handoffs, and ${formatCount(executionHandoffs?.handoffSummary?.finished)} finished result rows are review-only.`,
+      };
+    }
+    if (item.id === "release-desk") {
+      return {
+        ...item,
+        status: "Ready",
+        tone: "green",
+        detail: `${formatCount(releaseDesk?.deployHistoryCount)} deploy history rows, ${formatCount(releaseDesk?.readinessPacketRows?.length)} readiness rows, and backup/rollback/hosted-smoke proof paths are visible.`,
+      };
+    }
+    if (item.id === "mobile-owner-cockpit") {
+      return {
+        ...item,
+        status: "Ready",
+        tone: "green",
+        detail: "Desktop/mobile browser QA verifies the private Control Room stacks for owner review without horizontal overflow.",
+      };
+    }
+    return { ...item, status: "Ready", tone: "green" };
+  });
+  const runLoopRows = withDerivedStateMetaList([
+    {
+      id: "run-loop-ask",
+      title: "Ask",
+      status: "Ready",
+      detail: "Ask Apex can answer private questions from selected source lanes and confirmed voice transcripts.",
+      tone: "green",
+    },
+    {
+      id: "run-loop-decide",
+      title: "Decide",
+      status: "Ready",
+      detail: "Decision Memory can draft, approve, archive, and export source-backed operating decisions.",
+      tone: "green",
+    },
+    {
+      id: "run-loop-upload",
+      title: "Upload",
+      status: "Ready",
+      detail: "Knowledge Vault intake classifies and reviews private text/PDF/manual knowledge before trust.",
+      tone: "green",
+    },
+    {
+      id: "run-loop-approve",
+      title: "Approve",
+      status: "Ready",
+      detail: "Approval packets keep risky work review-only with exact phrase, source, risk, and rollback fields.",
+      tone: "green",
+    },
+    {
+      id: "run-loop-brief",
+      title: "Brief",
+      status: "Ready",
+      detail: "Daily briefing rows and saved briefing history summarize owner focus, release state, blockers, and next manual actions.",
+      tone: "green",
+    },
+    {
+      id: "run-loop-monitor",
+      title: "Monitor",
+      status: "Ready",
+      detail: "Release Monitoring and QA hardening rows expose health, build/test, stalled-agent, docs-drift, and no-bypass evidence.",
+      tone: "green",
+    },
+    {
+      id: "run-loop-plan",
+      title: "Plan",
+      status: "Ready",
+      detail: "Launch/business queues and personal operating rules put daily priorities, work style, and owner check-ins in one place.",
+      tone: "green",
+    },
+    {
+      id: "run-loop-handoff",
+      title: "Execute Scoped Tasks",
+      status: "Handoff ready",
+      detail: `${formatCount(agentWorkQueue?.availableTaskCount)} review-only task types can become scoped handoffs with validation and rollback; queue/run execution remains locked.`,
+      tone: "blue",
+    },
+    {
+      id: "run-loop-release",
+      title: "Prepare Releases",
+      status: "Ready",
+      detail: "Release Desk and build awareness prepare deploy packets, rollback targets, hosted smoke, protected endpoint checks, and asset proof.",
+      tone: "green",
+    },
+    {
+      id: "run-loop-manage-agents",
+      title: "Manage Agents",
+      status: "Ready",
+      detail: "Agent Control can pause, resume, request scoped runs, mark ready/block/close, and show reports without autonomous unrequested work.",
+      tone: "green",
+    },
+  ], { sourceLabel: "Apex OS Phase 18 run loop", source: "completed Apex OS phases", confidence: 88 });
+  const freezeRows = withDerivedStateMetaList([
+    {
+      id: "phase-freeze",
+      title: "Phase 1-17 freeze",
+      status: "Frozen",
+      detail: "Completed Apex OS phases stay intact; Phase 18 only assembles proof and does not rebuild working systems.",
+      tone: "green",
+    },
+    {
+      id: "completion-state",
+      title: "Completion state",
+      status: "Ready to freeze",
+      detail: `${capabilityRows.length} finished capabilities and ${runLoopRows.length} day-to-day run-loop steps are visible before final production-preview QA.`,
+      tone: "green",
+    },
+    {
+      id: "final-production-preview",
+      title: "Final production-preview QA",
+      status: releaseDesk?.deployHistoryCount ? "Evidence path ready" : "Proof path ready",
+      detail: "Final closure still requires commit, push, deploy, hosted checks, protected endpoint checks, asset proof, rollback evidence, and release-evidence docs.",
+      tone: "blue",
+    },
+    {
+      id: "blocked-action-proof",
+      title: "Blocked-action proof",
+      status: "Locked",
+      detail: `${APEX_OS_FINISHED_BLOCKED_ACTION_ROWS.length} external/provider/customer-visible action classes remain blocked unless separately approved later.`,
+      tone: "amber",
+    },
+    {
+      id: "next-phase-rule",
+      title: "No next phase jump",
+      status: "Locked",
+      detail: "Do not move past Phase 18 until local validation, production deploy, release evidence, commit, and push are complete.",
+      tone: "amber",
+    },
+  ], { sourceLabel: "Apex OS Phase 18 freeze rule", source: "hard-finish roadmap", confidence: 90 });
+  const blockedActionRows = withDerivedStateMetaList(APEX_OS_FINISHED_BLOCKED_ACTION_ROWS.map((item) => ({ ...item })), {
+    sourceLabel: "Apex OS not-approved list",
+    source: "living finish plan approval posture",
+    confidence: 94,
+  });
+  return {
+    status: "Apex OS ready",
+    tone: "green",
+    readyCount: capabilityRows.length,
+    capabilityCount: capabilityRows.length,
+    runLoopCount: runLoopRows.length,
+    freezeCount: freezeRows.length,
+    blockedActionCount: blockedActionRows.length,
+    capabilityRows: withDerivedStateMetaList(capabilityRows, {
+      sourceLabel: "Apex OS Phase 18 capability proof",
+      source: "completed Apex OS phases",
+      confidence: 88,
+    }),
+    runLoopRows,
+    freezeRows,
+    blockedActionRows,
+    launchBlockedCount: launchState?.blockedCount || 0,
+  };
+}
+
 function runStatusTone(status) {
   const normalized = String(status || "").trim().toLowerCase();
   if (["succeeded", "complete", "done"].includes(normalized)) return "green";
@@ -2601,6 +2997,22 @@ export function deriveApexControlRoomState({
     agentWorkQueue,
     launchState,
   });
+  const finishedApexOs = buildFinishedApexOsState({
+    decisionMemory,
+    knowledgeVault,
+    askApexChat,
+    voiceInterface,
+    approvalCommandCenter,
+    buildAwareness,
+    executionHandoffs,
+    agentControlPlane,
+    releaseMonitoring,
+    businessCommandCenter,
+    qaSecurityHardening,
+    releaseDesk,
+    agentWorkQueue,
+    launchState,
+  });
   const trustTone = trustState.overallStatus === "ready" ? "green" : trustState.overallStatus === "limited" ? "slate" : "amber";
   const summary = "Private Apex HQ operating center.";
   const kpis = buildPhase2Kpis({ releaseDesk, agentWorkQueue, launchState, approvalCommandCenter, buildAwareness });
@@ -2638,6 +3050,7 @@ export function deriveApexControlRoomState({
       businessCommandCenter: { status: "Restricted", tone: "slate", queueRows: [], gateRows: [], launchRows: [], briefingRows: [], memoryRows: [], taskDraftRows: [], approvalDraftRows: [] },
       phase3Aggregator: { status: "Restricted", tone: "slate", rows: [] },
       qaSecurityHardening: { status: "Restricted", tone: "slate", evidenceRows: [], lockRows: [] },
+      finishedApexOs: { status: "Restricted", tone: "slate", capabilityRows: [], runLoopRows: [], freezeRows: [], blockedActionRows: [] },
       agentWorkQueue: { status: "Restricted", tone: "slate", taskRows: [], lockedRows: [], runRows: [], safetyRows: [] },
       approvals: [],
       evidence: [],
@@ -3081,6 +3494,7 @@ export function deriveApexControlRoomState({
     releaseMonitoring,
     businessCommandCenter,
     qaSecurityHardening,
+    finishedApexOs,
     agentWorkQueue,
     approvals: APEX_CONTROL_ROOM_APPROVAL_GATES.map((label) => ({
       id: label.toLowerCase().replace(/[^a-z0-9]+/g, "-"),

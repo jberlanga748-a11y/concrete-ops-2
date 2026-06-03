@@ -446,6 +446,15 @@ Blocked right now:
 
 - Anything in the not-approved list: email/SMS sends, ads/spend, billing/payment, customer-visible publishing, autonomous unrequested agents, and irreversible external actions.
 
+Status:
+
+- Hard-finished locally on 2026-06-03 against the original Phase 18 scope.
+- Completed with a Finished Apex OS cockpit, capability proof rows, day-to-day run-loop rows, completion-freeze rows, and blocked-action proof rows for the not-approved external/provider/customer-visible action classes.
+- Proves John can run Apex HQ day to day from Apex OS by asking, deciding, uploading/reviewing knowledge, approving packets, briefing, monitoring, planning, preparing scoped task handoffs, preparing releases, and managing agents while execution remains review-first and locked where required.
+- Validated with focused tests, broad Apex OS role/security/company-scope regression, role verification, production build, isolated desktop/mobile/admin-blocked browser QA, direct-route blocking, protected API blocking, and visual screenshots.
+- No schema, auth/session, provider setup, production data mutation, customer-visible action, live send, ad spend, billing/payment, autonomous unrequested execution, deploy/rollback execution from the UI, deletion, or irreversible action path was added.
+- Production release is pending the Phase 18 commit, push, approved deploy, hosted smoke, protected endpoint checks, setup checks, Control Room asset verification, rollback evidence, and release-evidence doc commit.
+
 ## Required Work Loop For Every Phase
 
 For each phase:

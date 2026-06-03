@@ -915,6 +915,15 @@ Finished capabilities:
 - Release desk.
 - Mobile owner cockpit.
 
+Status:
+
+- Hard-finished locally on 2026-06-03 against the original Phase 18 requirements.
+- Added a Finished Apex OS cockpit near the top of the private Control Room that assembles all completed Apex OS capabilities into one owner view: John-only command center, text chat, voice input/output, reviewed knowledge/memory, decision log, source-backed answers, app/build awareness, agent control, approval center, business queues, monitoring/daily briefings, kill switch, safe task handoffs, release desk, and mobile owner cockpit.
+- Added day-to-day run-loop proof rows for ask, decide, upload, approve, brief, monitor, plan, execute scoped tasks through handoffs, prepare releases, and manage agents.
+- Added completion-freeze rows and blocked-action proof rows so the completion state is explicit while email/SMS/voice sends, ads/spend, billing/payment, customer-visible publishing, autonomous unrequested agents, and irreversible external actions remain locked.
+- Validation passed with focused Control Room tests, broad Apex OS security/role/company-scope regression, role verification, production build, desktop/mobile/operator/admin browser QA, direct-route blocking, protected API blocking, and visual screenshots.
+- Production release is pending commit, push, predeploy backup, deploy, hosted production-preview smoke, protected endpoint checks, setup checks, Control Room asset verification, rollback evidence, and release-evidence docs.
+
 ## Capability Matrix
 
 | Capability | MVP | Complete |
