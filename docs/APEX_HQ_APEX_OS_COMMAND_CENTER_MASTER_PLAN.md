@@ -553,13 +553,15 @@ Validation:
 
 Status:
 
-- Completed locally to 100% on 2026-06-03 and ready for the approved Phase 9 production release.
+- Hard-finished and deployed on 2026-06-03.
 - Apex OS now has a private App Build Awareness panel in the Control Room with current branch, head SHA, changed-file count, build script status, verification-script status, recent deploy evidence, known blockers, frozen phase map, safe source links, recent commits, and "Start next safe task" recommendation.
 - Operator-only `/api/apex-os/build-awareness` collects local git status, recent commits, declared package scripts, dist artifact names, Apex OS docs, and runtime metadata where available. Production/runtime images that do not include `.git` degrade honestly to runtime metadata only instead of inventing git state.
 - File references are sanitized before display; absolute paths, drive-letter paths, parent traversal, and null-byte paths are rejected.
 - Build awareness is read-only and execution-locked. It cannot edit files, run tests, commit, push, deploy, roll back, mutate production data, expose field records, send messages, spend money, process billing, configure providers, or perform customer-visible actions.
 - Normal admins, field users, customer/company users, switched customer-company workspaces, and unauthenticated users remain blocked from the build-awareness endpoint and UI.
 - Local validation passed with focused parser/API/UI tests, the 81-test Apex OS permission/routing/bootstrap regression suite, `npm.cmd run build`, and desktop/mobile browser QA against an isolated temporary database with no horizontal overflow and screenshots under `ui-audit/apex-control-room-phase9/`.
+- Production release was approved and deployed on 2026-06-03 from commit `6368845` to Fly app `concrete-ops-2` as version `641`, image `registry.fly.io/concrete-ops-2:deployment-01KT65V9K2KK4G0V1R6QRXR9QG`, with predeploy production backup `postgres-app-data-20260603-072250Z.json` and upload snapshot `uploads-20260603-072250Z`.
+- Post-deploy checks passed on 2026-06-03: both production `/api/ready` endpoints returned ready/database ok, `https://concrete-ops-2.fly.dev/api/health` returned healthy, Fly status showed machine `148e06e2b53d68` on version `641` with 1 passing check, hosted skip-auth health/routes smoke passed on `https://app.apexhq.online/`, `/apex-control-room` served the new `index-Damj_cyI.js` and `app-domain-VWYbc_UL.js` bundles on both production hosts, unauthenticated `/api/apex-os/build-awareness` returned 401, and `/api/setup/status` showed demo mode off and public signup disabled. Production auth smoke/login was not run.
 - No schema change, auth/session change, provider setup, production data mutation, customer-visible action, send, spend, billing/payment, deletion, deploy execution control, GitHub write, CI write, or blind UI code-change path was added.
 
 ### Phase 10: Business Operating Center

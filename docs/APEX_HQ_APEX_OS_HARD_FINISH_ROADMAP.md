@@ -12,7 +12,7 @@ The operating rule is:
 
 - Work one phase at a time.
 - Do not bounce between phases.
-- Do not start the next phase until the current phase has been audited, hardened, validated, documented, committed, and pushed.
+- Do not start the next phase until the current phase has been audited, hardened, validated, documented, committed, pushed, deployed to production, production-checked, and release-documented.
 - Do not rebuild working systems.
 - Remove the "future pile" wherever the work is now approved and safe.
 
@@ -57,6 +57,8 @@ A phase is 100 percent done only when all of this is true:
 - Focused tests and relevant role/route/build checks passed.
 - Docs record goal, affected files, validation, permissions, mobile impact, field impact, rollback, and next phase.
 - A commit is pushed.
+- Production is deployed and health-checked when release approval exists for that phase.
+- Release evidence is committed and pushed after deploy.
 - The next phase has not been started.
 
 ## Phase Sequence
@@ -235,12 +237,13 @@ Blocked right now:
 
 Status:
 
-- Completed locally to 100% on 2026-06-03 and ready for the approved production release.
+- Hard-finished and deployed on 2026-06-03.
 - Added a read-only shared build-awareness snapshot with sanitized git status parsing, recent commit parsing, source links, deploy evidence parsing, frozen phase mapping, known blockers, and next-safe-task recommendations.
 - Added an operator-only `/api/apex-os/build-awareness` endpoint and collector for local git branch/status, head SHA, recent commits, package scripts, dist artifact names, Apex OS source docs, and honest runtime fallback metadata when git/docs are unavailable.
 - Added the private Control Room App Build Awareness panel with current branch/head, changed file map, build/test status, recent deploy evidence, known blockers, frozen phase map, source links, recent commits, and locked read-only/no-UI-file-edits controls.
 - Field data stays excluded and execution stays locked: no UI code editing, no test running, no commit/push/deploy/rollback action, no CI/GitHub write, no provider setup, no production mutation, no customer-visible action, no send/spend/billing, and no schema/auth/session change was added.
 - Validation passed with focused Phase 9 shared/API/UI tests, the 81-test Apex OS regression suite, `npm.cmd run build`, and isolated desktop/mobile browser QA with no horizontal overflow.
+- Production release `v641` is healthy from commit `6368845`, image `registry.fly.io/concrete-ops-2:deployment-01KT65V9K2KK4G0V1R6QRXR9QG`; rollback target is `v640`.
 
 ### Phase 10: Business Operating Center
 
