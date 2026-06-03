@@ -53899,6 +53899,11 @@ body:has(.co-customers-page) .co-apex-assistant-shell {
     width: 100% !important;
   }
 
+  body:has(.co-apex-control-room-page) nav.co-mobile-bottom-nav {
+    background: linear-gradient(180deg, #111827, #07111f) !important;
+    backdrop-filter: none !important;
+  }
+
   .co-sales-tablet-only .co-apex-mobile-kpi-card strong {
     min-height: 1.75rem;
     overflow: visible;
@@ -56569,4 +56574,10 @@ body:has(.co-field-mobile-reports-shell) .co-mobile-bottom-spacer {
   .proposal-pricing thead {
     display: table-header-group;
   }
+}
+
+body:has(.co-apex-control-room-page) nav.co-mobile-bottom-nav.co-apex-mobile-bottom-nav {
+  background: linear-gradient(180deg, rgb(17, 24, 39), rgb(7, 17, 31)) !important;
+  background-color: rgb(7, 17, 31) !important;
+  backdrop-filter: none !important;
 }

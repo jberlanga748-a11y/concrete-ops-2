@@ -1367,7 +1367,7 @@ export function ApexControlRoomPage(props) {
   const [askQuestion, setAskQuestion] = useState("");
 
   return (
-    <div className="min-w-0 max-w-full bg-slate-100 pb-8">
+    <div className="co-apex-control-room-page min-w-0 max-w-full bg-slate-100 pb-36 lg:pb-8">
       <PageHeader
         eyebrow="Apex OS"
         title="Apex Control Room"
@@ -1382,8 +1382,20 @@ export function ApexControlRoomPage(props) {
       />
 
       <main className="mx-auto flex w-full max-w-[1520px] flex-col gap-4 px-4 sm:px-6">
-        <section className="grid min-w-0 grid-cols-2 gap-3 xl:grid-cols-4">
+        <section className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {state.kpis.map((item) => <KpiTile key={item.id} item={item} />)}
+        </section>
+
+        <section className="grid min-w-0 gap-3 lg:grid-cols-2 2xl:grid-cols-5">
+          {state.commandBoardPanels.map((item) => (
+            <Card key={item.id} className="min-w-0 p-4">
+              <SectionHeader
+                title={item.title}
+                description={item.detail}
+                action={<ToneBadge tone={item.tone}>{item.status}</ToneBadge>}
+              />
+            </Card>
+          ))}
         </section>
 
         <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">

@@ -59,6 +59,7 @@ Recommended first implementation:
 Current implementation status:
 
 - Apex OS Phase 1 / Slice 1 is hard-finished locally as of 2026-06-03: `/apex-control-room` route, `apexControlRoom` module, `apexOs` bootstrap permission, private operator nav visibility, and direct-route/API blocking are frozen to the normal Apex HQ login plus private `operatorAccess`, an office-level role, the default Apex HQ operating workspace, and server bootstrap permission. Customer/company workspaces stay blocked even after operator company switching.
+- Apex OS Phase 2 / Apex-Branded Control Room Shell is hard-finished locally as of 2026-06-03: the private shell uses Apex HQ branding, private operator identity, dark sidebar/orange active state, white command-board panels, the required top KPI row (`App Build Status`, `Active Agents`, `Launch Blockers`, `Approvals`), and the required main panels (`Apex Briefing`, `Priority Queue`, `Agents`, `Approvals`, `Memory / Decisions`). The KPI row no longer shows contractor/customer dashboard counts, and local browser QA used an empty private Apex HQ workspace payload to verify no demo/customer Today content leaks into the shell.
 - Apex OS Slice 2 is implemented locally: the Control Room now uses a read-only Apex OS state aggregator that surfaces operating signals, next best actions, launch readiness, release safety, Agent OS task availability, trust/audit readiness, approval gates, and recent evidence from existing Apex HQ systems.
 - Apex OS Phase 4 / Slice 3 is complete locally as of 2026-06-03: the Control Room now shows Decision Memory and Operating Rules sourced from the Apex OS master plan plus durable Apex OS memory, including John/Apex HQ identity, private operator-only access, approval boundaries, local/private autonomy, build order, source order, field boundaries, no-secrets memory, build-freeze discipline, business-goal memory, and personal-preference memory.
 - Apex OS Slice 4 is implemented locally: the Control Room now shows a read-only Agent Work Queue, Agent Run Ledger, Agent Safety Locks, and Locked Agent Tasks using existing Agent OS task/run helpers. It shows what can be planned or reviewed, not anything that runs agents.
@@ -134,6 +135,56 @@ Rollback plan:
 Next recommended phase:
 
 - After committing and pushing Phase 1, start Phase 2: Apex-Branded Control Room Shell. Do not start Phase 2 in the Phase 1 commit.
+
+## Apex OS Phase 2: Apex-Branded Control Room Shell Hard-Finish Report
+
+Goal:
+
+- Finish Phase 2 from the original Apex OS master plan before hardening any later phase: make the private Apex Control Room shell match the required Apex HQ brand, KPI row, command-board panels, desktop/mobile layout, and field-user boundary.
+
+What was already built:
+
+- The private Apex Control Room route, Apex HQ logo/sidebar shell, operator topbar language, mobile nav order, and route behavior were already present.
+- The page already had several later Apex OS panels, including Decision Memory, Agent Work Queue, Approval Command Center, Release Monitoring, and QA/Security Hardening.
+
+What was completed now:
+
+- Replaced the generic top KPI row with the original Phase 2 KPI requirements: `App Build Status`, `Active Agents`, `Launch Blockers`, and `Approvals`.
+- Added an explicit first-screen command board with the original Phase 2 panels: `Apex Briefing`, `Priority Queue`, `Agents`, `Approvals`, and `Memory / Decisions`.
+- Removed contractor/customer dashboard counts from the top KPI row so the private shell no longer presents jobs/leads/estimates as the primary Apex OS shell metrics.
+- Hardened the mobile layout by stacking KPI cards on narrow screens, adding Control Room bottom spacing, and making the Apex OS mobile nav opaque on this page so content does not visually bleed through it.
+- Added focused tests so the required Phase 2 KPI and command-board labels cannot regress silently.
+
+Risk level:
+
+- Low. This is shell/UI/state hardening only. No schema change, auth/session change, provider setup, production data mutation, customer-visible action, send, spend, billing/payment, deletion, or external execution path was added.
+
+Validation plan/results:
+
+- Focused Phase 2 tests passed locally: `node --test --test-concurrency=1 src/apex-control-room-utils.test.js src/apex-control-room-components-import.test.js src/navigation-utils.test.js src/mobile-nav-utils.test.js src/app-navigation-components-import.test.js src/app-topbar-components-import.test.js` with 32 passing tests.
+- `npm.cmd run verify:roles` passed with 15 passing tests.
+- `npm.cmd run build` passed with the existing large-chunk warnings.
+- Browser QA passed locally on `http://127.0.0.1:5173` with a mocked private Apex HQ operator bootstrap that contained no customer/demo records: desktop `/apex-control-room` showed the required KPIs and panels, no horizontal overflow, and no contractor Today content; mobile `/jobs` redirected to `/apex-control-room`, showed the required KPIs, no horizontal overflow, no contractor Today content, opaque Apex OS bottom nav, and zero actionable overlap; field mobile direct route to `/apex-control-room` redirected to `/jobs` with no Apex Control Room or Apex OS nav exposure.
+
+Permissions impact:
+
+- No permission loosening. Apex OS remains private operator-only through the existing access gate and default Apex HQ operating workspace boundary.
+
+Mobile impact:
+
+- Mobile KPI cards now stack at narrow widths, the Control Room page has mobile bottom-nav clearance, and the Apex OS mobile nav is opaque on the Control Room page.
+
+Field-user impact:
+
+- Field users remain blocked from Apex OS, AI office tools, leads, estimates, pricing, profit/margins, payroll, office notes, admin settings, billing, customer data, and private Apex HQ knowledge.
+
+Rollback plan:
+
+- Revert the Phase 2 hard-finish commit to restore the prior generic KPI row, remove the first-screen Phase 2 command board, remove the Control Room mobile spacing/nav-opacity CSS hook, and remove the new focused assertions. No database migration or production data rollback is required.
+
+Next recommended phase:
+
+- Phase 2 is locally hard-finished. Deploy this hardening to production only after explicit release approval, then continue phase-by-phase with Phase 3 hardening.
 
 ## Apex OS Phase 4: Decision Memory And Operating Rules Completion Report
 

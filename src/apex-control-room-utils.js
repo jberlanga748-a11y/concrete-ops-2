@@ -1470,6 +1470,90 @@ function buildAgentWorkQueue(agentTaskOptions = [], agentRunRows = [], permissio
   };
 }
 
+function buildPhase2Kpis({ releaseDesk, agentWorkQueue, launchState, approvalCommandCenter } = {}) {
+  const launchBlockers = formatCount(launchState?.blockedCount);
+  const approvalQueueCount = formatCount(approvalCommandCenter?.queueCount);
+  const readyPackets = formatCount(approvalCommandCenter?.packetSummary?.ready);
+  return [
+    {
+      id: "app-build-status",
+      label: "App Build Status",
+      value: releaseDesk?.status || "Manual",
+      detail: "Build and release work stays inside the private release desk until tests, rollback evidence, and owner approval are complete.",
+      tone: releaseDesk?.tone || "amber",
+    },
+    {
+      id: "active-agents",
+      label: "Active Agents",
+      value: String(formatCount(agentWorkQueue?.availableTaskCount)),
+      detail: `${formatCount(agentWorkQueue?.availableTaskCount)} review-only task types and ${formatCount(agentWorkQueue?.recentRunCount)} recent audit-backed run rows are visible. No agent execution runs from this shell.`,
+      tone: agentWorkQueue?.tone || "slate",
+    },
+    {
+      id: "launch-blockers",
+      label: "Launch Blockers",
+      value: String(launchBlockers),
+      detail: launchBlockers
+        ? `${launchBlockers} launch gates still need evidence before launch can be treated as clear.`
+        : "No launch gate blockers are currently reported by the launch readiness state.",
+      tone: launchBlockers ? "amber" : "green",
+    },
+    {
+      id: "approvals",
+      label: "Approvals",
+      value: String(approvalQueueCount),
+      detail: `${approvalQueueCount} risky-action categories require scoped approval packets; ${readyPackets} packets are marked ready.`,
+      tone: readyPackets ? "green" : "amber",
+    },
+  ];
+}
+
+function buildPhase2CommandBoard({
+  summary,
+  launchState,
+  agentWorkQueue,
+  approvalCommandCenter,
+  decisionMemory,
+} = {}) {
+  return [
+    {
+      id: "apex-briefing",
+      title: "Apex Briefing",
+      status: "Private operator",
+      detail: summary || "Private Apex HQ operating center.",
+      tone: "green",
+    },
+    {
+      id: "priority-queue",
+      title: "Priority Queue",
+      status: launchState?.highestPriority?.status || launchState?.status || "Review",
+      detail: launchState?.highestPriority?.blockers?.[0] || launchState?.highestPriority?.detail || "Review launch, release, approval, agent, and memory signals before choosing the next local build step.",
+      tone: launchState?.highestPriority?.tone || launchState?.tone || "amber",
+    },
+    {
+      id: "agents",
+      title: "Agents",
+      status: agentWorkQueue?.status || "Review-only",
+      detail: `${formatCount(agentWorkQueue?.availableTaskCount)} review-only task types, ${formatCount(agentWorkQueue?.lockedTaskCount)} locked task types, and ${formatCount(agentWorkQueue?.recentRunCount)} audit-backed run rows are visible.`,
+      tone: agentWorkQueue?.tone || "blue",
+    },
+    {
+      id: "approvals",
+      title: "Approvals",
+      status: approvalCommandCenter?.status || "Drafting ready",
+      detail: `${formatCount(approvalCommandCenter?.queueCount)} approval categories, ${formatCount(approvalCommandCenter?.packetFieldCount)} packet fields, and ${formatCount(approvalCommandCenter?.controlLockCount)} locked controls are mapped before execution exists.`,
+      tone: approvalCommandCenter?.tone || "blue",
+    },
+    {
+      id: "memory-decisions",
+      title: "Memory / Decisions",
+      status: decisionMemory?.status || "Seeded from plan",
+      detail: `${formatCount(decisionMemory?.decisionCount)} plan decisions, ${formatCount(decisionMemory?.ruleCount)} operating rules, and ${formatCount(decisionMemory?.durableCount)} durable memory rows are visible as private source-backed context.`,
+      tone: decisionMemory?.tone || "green",
+    },
+  ];
+}
+
 export function deriveApexControlRoomState({
   user = null,
   permissions = {},
@@ -1491,11 +1575,6 @@ export function deriveApexControlRoomState({
   workflowRows = [],
 } = {}) {
   const canView = permissions?.apexOs?.canView === true;
-  const openQueueItems = activeRows(queueItems).filter((item) => !item?.done);
-  const blockedQueueCount = countBlockedQueue(queueItems);
-  const activeJobs = Number(stats.activeJobs ?? activeRows(jobs).length);
-  const activeLeads = activeRows(leads).length;
-  const estimateCount = activeRows(estimates).length;
   const recentEvidence = latestAuditRows(auditEvents);
   const agentTaskOptions = deriveAgentOsInternalTaskOptions({
     leads,
@@ -1536,6 +1615,15 @@ export function deriveApexControlRoomState({
     launchState,
   });
   const trustTone = trustState.overallStatus === "ready" ? "green" : trustState.overallStatus === "limited" ? "slate" : "amber";
+  const summary = "Private Apex HQ operating center.";
+  const kpis = buildPhase2Kpis({ releaseDesk, agentWorkQueue, launchState, approvalCommandCenter });
+  const commandBoardPanels = buildPhase2CommandBoard({
+    summary,
+    launchState,
+    agentWorkQueue,
+    approvalCommandCenter,
+    decisionMemory,
+  });
 
   if (!canView) {
     return {
@@ -1543,6 +1631,7 @@ export function deriveApexControlRoomState({
       operatorName: user?.name || "Restricted user",
       summary: "Apex OS is private operator-only workspace.",
       kpis: [],
+      commandBoardPanels: [],
       priorities: [],
       operatingSignals: [],
       nextBestActions: [],
@@ -1567,37 +1656,9 @@ export function deriveApexControlRoomState({
   return {
     canView: true,
     operatorName: user?.name || "John Berlanga",
-    summary: "Private Apex HQ operating center.",
-    kpis: [
-      {
-        id: "access",
-        label: "Private access",
-        value: "Locked",
-        detail: "Default Apex HQ workspace, operatorAccess flag, office role, and server bootstrap permission all passed.",
-        tone: "green",
-      },
-      {
-        id: "queue",
-        label: "Open queue",
-        value: String(openQueueItems.length),
-        detail: blockedQueueCount ? `${blockedQueueCount} blocked` : "No blocked queue items",
-        tone: blockedQueueCount ? "amber" : "green",
-      },
-      {
-        id: "workspace",
-        label: "Workspace signal",
-        value: String(activeJobs + activeLeads + estimateCount),
-        detail: `${activeJobs} jobs, ${activeLeads} leads, ${estimateCount} estimates`,
-        tone: "blue",
-      },
-      {
-        id: "evidence",
-        label: "Recent evidence",
-        value: String(recentEvidence.length),
-        detail: recentEvidence.length ? "Audit rows available" : "No recent audit rows",
-        tone: recentEvidence.length ? "blue" : "slate",
-      },
-    ],
+    summary,
+    kpis,
+    commandBoardPanels,
     priorities: [
       {
         id: "private-shell",

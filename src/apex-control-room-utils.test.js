@@ -29,6 +29,7 @@ test("deriveApexControlRoomState blocks non-private users", () => {
 
   assert.equal(state.canView, false);
   assert.deepEqual(state.kpis, []);
+  assert.deepEqual(state.commandBoardPanels, []);
   assert.deepEqual(state.operatingSignals, []);
   assert.deepEqual(state.nextBestActions, []);
   assert.deepEqual(state.launchReadiness.gates, []);
@@ -104,11 +105,27 @@ test("deriveApexControlRoomState builds private operator status from visible sta
 
   assert.equal(state.canView, true);
   assert.equal(state.operatorName, "John Berlanga");
-  assert.match(state.kpis.find((item) => item.id === "access")?.detail || "", /default Apex HQ workspace/i);
-  assert.match(state.kpis.find((item) => item.id === "access")?.detail || "", /operatorAccess flag/i);
-  assert.equal(state.kpis.find((item) => item.id === "queue")?.value, "2");
-  assert.match(state.kpis.find((item) => item.id === "queue")?.detail || "", /1 blocked/);
-  assert.equal(state.kpis.find((item) => item.id === "workspace")?.value, "4");
+  assert.deepEqual(state.kpis.map((item) => item.label), [
+    "App Build Status",
+    "Active Agents",
+    "Launch Blockers",
+    "Approvals",
+  ]);
+  assert.equal(state.kpis.find((item) => item.id === "app-build-status")?.value, "Manual release only");
+  assert.match(state.kpis.find((item) => item.id === "app-build-status")?.detail || "", /rollback evidence/);
+  assert.equal(state.kpis.find((item) => item.id === "active-agents")?.value, "10");
+  assert.match(state.kpis.find((item) => item.id === "active-agents")?.detail || "", /No agent execution/);
+  assert.equal(state.kpis.find((item) => item.id === "launch-blockers")?.value, "6");
+  assert.equal(state.kpis.find((item) => item.id === "approvals")?.value, String(APEX_CONTROL_ROOM_APPROVAL_GATES.length));
+  assert.deepEqual(state.commandBoardPanels.map((item) => item.title), [
+    "Apex Briefing",
+    "Priority Queue",
+    "Agents",
+    "Approvals",
+    "Memory / Decisions",
+  ]);
+  assert.match(state.commandBoardPanels.find((item) => item.id === "agents")?.detail || "", /review-only task types/);
+  assert.match(state.commandBoardPanels.find((item) => item.id === "memory-decisions")?.detail || "", /source-backed context/);
   assert.match(state.agents.find((item) => item.id === "agent-os")?.detail || "", /recent run rows visible/);
   assert.equal(state.operatingSignals.find((item) => item.id === "state-aggregator"), undefined);
   assert.equal(state.operatingSignals.find((item) => item.id === "agent-tasks")?.status, "10 available");
