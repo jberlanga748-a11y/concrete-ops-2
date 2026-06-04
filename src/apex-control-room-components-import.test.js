@@ -16,6 +16,16 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /Apex Control Room/);
   assert.match(componentSource, /APEX_CONTROL_ROOM_SECTIONS/);
   assert.match(componentSource, /aria-label="Apex Control Room sections"/);
+  assert.match(componentSource, /ControlRoomCategoryShell/);
+  assert.match(componentSource, /Category Map/);
+  assert.match(componentSource, /sectionId="overview"/);
+  assert.match(componentSource, /sectionId="memory"/);
+  assert.match(componentSource, /sectionId="agents"/);
+  assert.match(componentSource, /sectionId="approvals"/);
+  assert.match(componentSource, /sectionId="release"/);
+  assert.match(componentSource, /sectionId="business"/);
+  assert.match(componentSource, /sectionId="trust"/);
+  assert.match(componentSource, /sectionId="personal"/);
   assert.match(componentSource, /ApexCockpitScreen/);
   assert.match(componentSource, /ApexCockpitSidebar/);
   assert.match(componentSource, /ApexCockpitAvatar/);

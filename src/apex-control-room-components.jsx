@@ -3060,21 +3060,157 @@ function ExecutionHandoffDraftPanel({ state, sessionToken }) {
 }
 
 const APEX_CONTROL_ROOM_SECTIONS = [
-  { id: "overview", label: "Overview", helper: "Command state", icon: "grid" },
-  { id: "apex", label: "Apex", helper: "Voice + answers", icon: "spark" },
-  { id: "memory", label: "Memory", helper: "Decisions + vault", icon: "database" },
-  { id: "agents", label: "Agents", helper: "Work control", icon: "layers" },
-  { id: "approvals", label: "Approvals", helper: "Risk gates", icon: "lock" },
-  { id: "release", label: "Release", helper: "Deploy evidence", icon: "refresh" },
-  { id: "business", label: "Business", helper: "Growth ops", icon: "briefcase" },
-  { id: "trust", label: "Trust", helper: "QA + finish", icon: "check" },
-  { id: "personal", label: "Personal", helper: "Owner layer", icon: "users" },
+  {
+    id: "overview",
+    label: "Overview",
+    helper: "Command state",
+    summary: "Private command status, approvals, operating signals, evidence, and next work.",
+    icon: "grid",
+    lanes: ["KPI strip", "Command board", "Briefing", "Signals", "Evidence"],
+  },
+  {
+    id: "apex",
+    label: "Apex",
+    helper: "Voice + answers",
+    summary: "Apex life screen, open voice posture, answer drafting, sources, and safety boundaries.",
+    icon: "spark",
+    lanes: ["Voice", "Transcript", "Answer", "Sources", "Boundaries"],
+  },
+  {
+    id: "memory",
+    label: "Memory",
+    helper: "Decisions + vault",
+    summary: "Durable decisions, operating rules, knowledge intake, trusted memory, and vault review.",
+    icon: "database",
+    lanes: ["Decisions", "Rules", "Vault", "Sources", "Upload"],
+  },
+  {
+    id: "agents",
+    label: "Agents",
+    helper: "Work control",
+    summary: "Agent roster, scoped handoffs, locked tasks, run ledger, and execution boundaries.",
+    icon: "layers",
+    lanes: ["Control plane", "Queue", "Ledger", "Handoffs", "Locks"],
+  },
+  {
+    id: "approvals",
+    label: "Approvals",
+    helper: "Risk gates",
+    summary: "Owner review packets for risky actions before any deploy, send, spend, or mutation.",
+    icon: "lock",
+    lanes: ["Queue", "Packets", "Controls", "Templates", "Sources"],
+  },
+  {
+    id: "release",
+    label: "Release",
+    helper: "Deploy evidence",
+    summary: "Release monitoring, build awareness, launch gates, deploy desk, and rollback evidence.",
+    icon: "refresh",
+    lanes: ["Monitoring", "Briefing", "Build", "Readiness", "Release desk"],
+  },
+  {
+    id: "business",
+    label: "Business",
+    helper: "Growth ops",
+    summary: "Private launch, sales, briefing, business memory, and approval draft queues.",
+    icon: "briefcase",
+    lanes: ["Command", "Gates", "Launch", "Briefing", "Drafts"],
+  },
+  {
+    id: "trust",
+    label: "Trust",
+    helper: "QA + finish",
+    summary: "Finished capability proof, hardening evidence, blocked action classes, and freeze checks.",
+    icon: "check",
+    lanes: ["Finished OS", "Run loop", "Freeze", "Hardening", "Audit"],
+  },
+  {
+    id: "personal",
+    label: "Personal",
+    helper: "Owner layer",
+    summary: "Private owner preferences, work style memory, communication posture, and privacy locks.",
+    icon: "users",
+    lanes: ["Preferences", "Work style", "Communication", "Focus", "Privacy"],
+  },
 ];
+
+function getApexControlRoomSection(sectionId) {
+  return APEX_CONTROL_ROOM_SECTIONS.find((section) => section.id === sectionId) || APEX_CONTROL_ROOM_SECTIONS[0];
+}
+
+function countMetric(value, noun) {
+  const number = Number.isFinite(Number(value)) ? Number(value) : 0;
+  return `${number} ${noun}${number === 1 ? "" : "s"}`;
+}
+
+function getApexControlRoomSectionMetrics(sectionId, state) {
+  if (sectionId === "overview") {
+    return [
+      { label: "KPIs", value: countMetric(state.kpis?.length, "tile"), tone: "blue" },
+      { label: "Actions", value: countMetric(state.nextBestActions?.length, "next"), tone: "amber" },
+      { label: "Evidence", value: countMetric(state.evidence?.length, "row"), tone: "green" },
+    ];
+  }
+  if (sectionId === "memory") {
+    return [
+      { label: "Decisions", value: countMetric(state.decisionMemory?.decisionCount, "row"), tone: "blue" },
+      { label: "Approved", value: countMetric(state.decisionMemory?.approvedCount, "memory"), tone: "green" },
+      { label: "Vault", value: countMetric(state.knowledgeVault?.categoryCount, "category"), tone: "amber" },
+    ];
+  }
+  if (sectionId === "agents") {
+    return [
+      { label: "Roster", value: countMetric(state.agentControlPlane?.rosterRows?.length, "agent"), tone: "green" },
+      { label: "Tasks", value: countMetric(state.agentWorkQueue?.availableTaskCount, "task"), tone: "blue" },
+      { label: "Locked", value: countMetric(state.agentWorkQueue?.lockedTaskCount, "task"), tone: "amber" },
+    ];
+  }
+  if (sectionId === "approvals") {
+    return [
+      { label: "Queues", value: countMetric(state.approvalCommandCenter?.queueCount, "queue"), tone: "amber" },
+      { label: "Packets", value: countMetric(state.approvalCommandCenter?.packetFieldCount, "field"), tone: "blue" },
+      { label: "Sources", value: countMetric(state.approvalCommandCenter?.sourceCount, "source"), tone: "slate" },
+    ];
+  }
+  if (sectionId === "release") {
+    return [
+      { label: "Checks", value: countMetric(state.releaseMonitoring?.readinessCount, "check"), tone: "blue" },
+      { label: "Gates", value: `${state.launchReadiness?.readyCount || 0}/${state.launchReadiness?.totalCount || 0}`, tone: state.launchReadiness?.tone || "amber" },
+      { label: "Release", value: state.releaseDesk?.status || "Locked", tone: state.releaseDesk?.tone || "amber" },
+    ];
+  }
+  if (sectionId === "business") {
+    return [
+      { label: "Queues", value: countMetric(state.businessCommandCenter?.queueCount, "queue"), tone: "blue" },
+      { label: "Launch", value: countMetric(state.businessCommandCenter?.launchCount, "row"), tone: "green" },
+      { label: "Approvals", value: countMetric(state.businessCommandCenter?.approvalDraftCount, "draft"), tone: "amber" },
+    ];
+  }
+  if (sectionId === "trust") {
+    return [
+      { label: "Finished", value: `${state.finishedApexOs?.readyCount || 0}/${state.finishedApexOs?.capabilityCount || 0}`, tone: state.finishedApexOs?.tone || "blue" },
+      { label: "Hardening", value: countMetric(state.qaSecurityHardening?.evidenceCount, "row"), tone: state.qaSecurityHardening?.tone || "amber" },
+      { label: "Blocked", value: countMetric(state.finishedApexOs?.blockedActionCount, "class"), tone: "amber" },
+    ];
+  }
+  if (sectionId === "personal") {
+    return [
+      { label: "Prefs", value: countMetric(state.personalOperatingLayer?.preferenceCount, "row"), tone: "blue" },
+      { label: "Style", value: countMetric(state.personalOperatingLayer?.workStyleCount, "row"), tone: "green" },
+      { label: "Locks", value: countMetric(state.personalOperatingLayer?.privacyLockCount, "lock"), tone: "amber" },
+    ];
+  }
+  return [
+    { label: "Status", value: "Private", tone: "green" },
+    { label: "Mode", value: "Review-first", tone: "amber" },
+    { label: "Access", value: "Operator", tone: "blue" },
+  ];
+}
 
 function ApexControlRoomSectionNav({ activeSection, onChange, variant = "light" }) {
   const dark = variant === "dark";
   return (
-    <nav className={`min-w-0 rounded-2xl border p-2 shadow-[0_18px_48px_-42px_rgba(7,17,31,0.6)] ${dark ? "border-slate-800 bg-slate-950/86 backdrop-blur" : "border-slate-200 bg-white"}`} aria-label="Apex Control Room sections">
+    <nav className={`sticky top-2 z-20 w-full min-w-0 max-w-full overflow-hidden rounded-xl border p-2 shadow-[0_18px_48px_-42px_rgba(7,17,31,0.6)] ${dark ? "border-slate-800 bg-slate-950/86 backdrop-blur" : "border-slate-200 bg-white/96 backdrop-blur"}`} aria-label="Apex Control Room sections">
       <div className="scrollbar-none flex min-w-0 max-w-full gap-2 overflow-x-auto pb-1">
         {APEX_CONTROL_ROOM_SECTIONS.map((section) => {
           const active = section.id === activeSection;
@@ -3091,9 +3227,9 @@ function ApexControlRoomSectionNav({ activeSection, onChange, variant = "light" 
               onClick={() => onChange(section.id)}
               aria-current={active ? "page" : undefined}
               title={`${section.label}: ${section.helper}`}
-              className={`co-focus-ring flex min-h-16 w-40 shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-left transition sm:w-44 ${active ? activeClass : idleClass}`}
+              className={`co-focus-ring flex min-h-14 w-36 shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-left transition sm:w-40 ${active ? activeClass : idleClass}`}
             >
-              <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${dark ? active ? "border-orange-300/50 bg-slate-950 text-orange-100" : "border-slate-700 bg-slate-900 text-cyan-100" : active ? "border-orange-200 bg-white" : "border-slate-200 bg-white"}`}>
+              <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${dark ? active ? "border-orange-300/50 bg-slate-950 text-orange-100" : "border-slate-700 bg-slate-900 text-cyan-100" : active ? "border-orange-200 bg-white" : "border-slate-200 bg-white"}`}>
                 <Icon name={section.icon} className="h-4 w-4" />
               </span>
               <span className="min-w-0">
@@ -3105,6 +3241,77 @@ function ApexControlRoomSectionNav({ activeSection, onChange, variant = "light" 
         })}
       </div>
     </nav>
+  );
+}
+
+function ControlRoomCategoryShell({ sectionId, state, children }) {
+  const section = getApexControlRoomSection(sectionId);
+  const metrics = getApexControlRoomSectionMetrics(sectionId, state);
+
+  return (
+    <section className="grid min-w-0 gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
+      <aside className="min-w-0 xl:sticky xl:top-24 xl:self-start">
+        <div className="min-w-0 overflow-hidden rounded-xl border border-slate-800 bg-slate-950 text-white shadow-[0_22px_60px_-44px_rgba(2,6,23,0.96)]">
+          <div
+            className="min-w-0 p-4"
+            style={{
+              backgroundImage: "linear-gradient(135deg, rgba(249,115,22,0.18), rgba(14,165,233,0.08) 42%, rgba(2,6,23,0) 100%)",
+            }}
+          >
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-orange-300/30 bg-orange-500/14 text-orange-100">
+                <Icon name={section.icon} className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-orange-200">Command Room</p>
+                <h2 className="mt-1 break-words text-xl font-black leading-tight text-white">{section.label}</h2>
+                <p className="mt-1 break-words text-xs font-bold leading-5 text-slate-300">{section.summary}</p>
+              </div>
+            </div>
+
+            <div className="mt-4 grid min-w-0 gap-2">
+              {metrics.map((metric) => (
+                <div key={`${section.id}-${metric.label}`} className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.035] px-3 py-2">
+                  <span className="min-w-0 break-words text-[11px] font-black uppercase tracking-[0.08em] text-slate-400">{metric.label}</span>
+                  <ToneBadge tone={metric.tone}>{metric.value}</ToneBadge>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-3 min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-[0_18px_46px_-40px_rgba(7,17,31,0.72)]">
+          <div className="flex min-w-0 items-center gap-2">
+            <Icon name="layers" className="h-4 w-4 shrink-0 text-orange-600" />
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-600">Category Map</p>
+          </div>
+          <div className="mt-3 grid min-w-0 gap-2">
+            {section.lanes.map((lane, index) => (
+              <div key={`${section.id}-${lane}`} className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-slate-950 text-[10px] font-black text-white">{index + 1}</span>
+                <span className="min-w-0 break-words text-xs font-black text-slate-700">{lane}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-3 grid min-w-0 gap-2 rounded-xl border border-orange-200 bg-orange-50 p-3">
+          <div className="flex min-w-0 items-center gap-2 text-orange-900">
+            <Icon name="lock" className="h-4 w-4 shrink-0" />
+            <p className="text-xs font-black uppercase tracking-[0.12em]">Review-First</p>
+          </div>
+          <div className="grid min-w-0 grid-cols-2 gap-2">
+            {["No sends", "No deploys", "No billing", "Private"].map((item) => (
+              <span key={`${section.id}-${item}`} className="min-w-0 rounded-lg border border-orange-200 bg-white px-2 py-1 text-[11px] font-black text-orange-800">{item}</span>
+            ))}
+          </div>
+        </div>
+      </aside>
+
+      <div className="grid min-w-0 content-start gap-4">
+        {children}
+      </div>
+    </section>
   );
 }
 
@@ -3159,7 +3366,7 @@ function ApexCockpitStatusDot({ tone = "green" }) {
 
 function ApexCockpitCard({ title, action, children, className = "" }) {
   return (
-    <section className={`min-w-0 rounded-lg border border-cyan-200/12 bg-slate-950/42 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_14px_42px_-34px_rgba(56,189,248,0.72)] backdrop-blur-sm ${className}`}>
+    <section className={`min-w-0 max-w-full rounded-lg border border-cyan-200/12 bg-slate-950/42 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_14px_42px_-34px_rgba(56,189,248,0.72)] backdrop-blur-sm ${className}`}>
       <div className="mb-1.5 flex min-w-0 items-center justify-between gap-3">
         <h3 className="min-w-0 break-words text-[11px] font-black uppercase tracking-[0.12em] text-slate-100">{title}</h3>
         {action ? <div className="shrink-0">{action}</div> : null}
@@ -3277,8 +3484,8 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const releaseVersion = state.releaseDesk?.latestDeploy?.version || state.releaseDesk?.deployHistoryRows?.[0]?.status || "1.8.4";
   const releaseHealth = state.releaseDesk?.status || "Healthy";
   return (
-    <section className="co-apex-cockpit-screen min-w-0 overflow-hidden rounded-xl border border-slate-700/70 bg-slate-950 text-white shadow-[0_34px_80px_-40px_rgba(2,6,23,0.95)] ring-1 ring-cyan-300/10 lg:h-[calc(100vh-16px)]">
-      <div className="relative grid min-h-[720px] min-w-0 bg-slate-950 lg:h-full lg:min-h-0 lg:grid-cols-[190px_minmax(0,1fr)]">
+    <section className="co-apex-cockpit-screen w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-700/70 bg-slate-950 text-white shadow-[0_34px_80px_-40px_rgba(2,6,23,0.95)] ring-1 ring-cyan-300/10 lg:h-[calc(100vh-16px)]">
+      <div className="relative grid min-h-[720px] w-full min-w-0 max-w-full bg-slate-950 lg:h-full lg:min-h-0 lg:grid-cols-[190px_minmax(0,1fr)]">
         <div
           className="absolute inset-0 opacity-90"
           style={{
@@ -3291,13 +3498,13 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
         />
         <ApexCockpitSidebar activeSection={activeSection} onChange={onChange} />
 
-        <div className="relative z-10 grid min-w-0 content-start gap-2 p-3 lg:grid-rows-[auto_minmax(0,1fr)_auto] lg:overflow-hidden lg:p-4">
-          <header className="flex min-w-0 flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="relative z-10 grid w-full min-w-0 max-w-full content-start gap-2 overflow-hidden p-3 lg:grid-rows-[auto_minmax(0,1fr)_auto] lg:p-4">
+          <header className="flex w-full min-w-0 max-w-full flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="flex min-w-0 items-center gap-3">
               <h2 className="text-3xl font-black uppercase leading-none tracking-normal text-white">Apex</h2>
               <span className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.08em] text-slate-300"><ApexCockpitStatusDot /> Online</span>
             </div>
-            <div className="flex min-w-0 flex-wrap gap-3 text-[11px] font-bold text-slate-300 md:justify-end">
+            <div className="flex min-w-0 max-w-full flex-wrap gap-3 text-[11px] font-bold text-slate-300 md:justify-end">
               <span className="inline-flex items-center gap-1"><Icon name="check" className="h-3.5 w-3.5" /> Review-first</span>
               <span className="hidden h-4 w-px bg-slate-700 md:inline-block" />
               <span>Operator: {state.operatorName}</span>
@@ -3307,8 +3514,12 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
             </div>
           </header>
 
-          <div className="grid min-w-0 gap-2 lg:min-h-0 xl:grid-cols-[174px_minmax(0,1fr)_404px]">
-            <div className="grid min-w-0 content-start gap-2 lg:min-h-0 lg:overflow-hidden">
+          <div className="w-full min-w-0 max-w-full overflow-hidden lg:hidden">
+            <ApexControlRoomSectionNav activeSection={activeSection} onChange={onChange} variant="dark" />
+          </div>
+
+          <div className="grid w-full min-w-0 max-w-full gap-2 lg:min-h-0 xl:grid-cols-[174px_minmax(0,1fr)_404px]">
+            <div className="grid w-full min-w-0 max-w-full content-start gap-2 lg:min-h-0 lg:overflow-hidden">
               <ApexCockpitCard title="Voice" action={<span className="text-slate-500">&gt;</span>}>
                 <div className="grid min-w-0 grid-cols-[44px_minmax(0,1fr)] gap-3">
                   <div className="grid h-11 w-11 place-items-center rounded-full bg-emerald-500/12 text-emerald-300 shadow-[0_0_22px_rgba(16,185,129,0.2)]">
@@ -3350,7 +3561,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
               </ApexCockpitCard>
             </div>
 
-            <div className="grid min-w-0 content-start gap-2 lg:min-h-0 lg:overflow-hidden">
+            <div className="grid w-full min-w-0 max-w-full content-start gap-2 lg:min-h-0 lg:overflow-hidden">
               <ApexCockpitAvatar />
               <div className="grid min-w-0 gap-2">
                 <div className="relative min-w-0">
@@ -3379,7 +3590,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
               </div>
             </div>
 
-            <div className="grid min-w-0 gap-2 md:grid-cols-2 xl:grid-cols-2 lg:min-h-0 lg:overflow-hidden">
+            <div className="grid w-full min-w-0 max-w-full gap-2 md:grid-cols-2 xl:grid-cols-2 lg:min-h-0 lg:overflow-hidden">
               <ApexCockpitCard title="Awareness">
                 <ApexCockpitListItem item={{ label: "Active Approvals", icon: "check" }} value={state.approvalCommandCenter?.queueCount || 0} tone="amber" />
                 <ApexCockpitListItem item={{ label: "Open Blockers", icon: "alert" }} value={state.launchReadiness?.blockedCount || state.approvalCommandCenter?.packetSummary?.blocked || 0} tone="red" />
@@ -3465,7 +3676,7 @@ function ApexHomePanel({ state, activeSection, onChange, askQuestion, setAskQues
 
 function ControlRoomOverviewSection({ state }) {
   return (
-    <>
+    <ControlRoomCategoryShell sectionId="overview" state={state}>
       <section className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {state.kpis.map((item) => <KpiTile key={item.id} item={item} />)}
       </section>
@@ -3544,7 +3755,7 @@ function ControlRoomOverviewSection({ state }) {
           )}
         </Card>
       </section>
-    </>
+    </ControlRoomCategoryShell>
   );
 }
 
@@ -3559,7 +3770,7 @@ function ControlRoomApexSection({ state, activeSection, onChange, sessionToken, 
 
 function ControlRoomMemorySection({ state, sessionToken }) {
   return (
-    <>
+    <ControlRoomCategoryShell sectionId="memory" state={state}>
       <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
         <Card className="min-w-0 p-4 sm:p-5">
           <SectionHeader
@@ -3660,13 +3871,13 @@ function ControlRoomMemorySection({ state, sessionToken }) {
           <KnowledgeVaultManager state={state} sessionToken={sessionToken} />
         </Card>
       </section>
-    </>
+    </ControlRoomCategoryShell>
   );
 }
 
 function ControlRoomAgentsSection({ state, sessionToken }) {
   return (
-    <>
+    <ControlRoomCategoryShell sectionId="agents" state={state}>
       <section className="grid min-w-0 gap-4">
         <Card className="min-w-0 p-4 sm:p-5">
           <SectionHeader
@@ -3771,13 +3982,13 @@ function ControlRoomAgentsSection({ state, sessionToken }) {
           </div>
         </Card>
       </section>
-    </>
+    </ControlRoomCategoryShell>
   );
 }
 
 function ControlRoomApprovalsSection({ state, sessionToken }) {
   return (
-    <>
+    <ControlRoomCategoryShell sectionId="approvals" state={state}>
       <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <Card className="min-w-0 p-4 sm:p-5">
           <SectionHeader
@@ -3831,13 +4042,13 @@ function ControlRoomApprovalsSection({ state, sessionToken }) {
           </div>
         </Card>
       </section>
-    </>
+    </ControlRoomCategoryShell>
   );
 }
 
 function ControlRoomReleaseSection({ state, sessionToken }) {
   return (
-    <>
+    <ControlRoomCategoryShell sectionId="release" state={state}>
       <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <Card className="min-w-0 p-4 sm:p-5">
           <SectionHeader
@@ -3902,13 +4113,13 @@ function ControlRoomReleaseSection({ state, sessionToken }) {
           <ReleaseDeskPanel state={state} sessionToken={sessionToken} />
         </Card>
       </section>
-    </>
+    </ControlRoomCategoryShell>
   );
 }
 
 function ControlRoomBusinessSection({ state }) {
   return (
-    <>
+    <ControlRoomCategoryShell sectionId="business" state={state}>
       <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
         <Card className="min-w-0 p-4 sm:p-5">
           <SectionHeader
@@ -3971,13 +4182,13 @@ function ControlRoomBusinessSection({ state }) {
           </div>
         </Card>
       </section>
-    </>
+    </ControlRoomCategoryShell>
   );
 }
 
 function ControlRoomTrustSection({ state }) {
   return (
-    <>
+    <ControlRoomCategoryShell sectionId="trust" state={state}>
       <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
         <Card className="min-w-0 p-4 sm:p-5">
           <SectionHeader
@@ -4075,22 +4286,24 @@ function ControlRoomTrustSection({ state }) {
           </div>
         </Card>
       </section>
-    </>
+    </ControlRoomCategoryShell>
   );
 }
 
 function ControlRoomPersonalSection({ state, sessionToken }) {
   return (
-    <section className="grid min-w-0 gap-4">
-      <Card className="min-w-0 p-4 sm:p-5">
-        <SectionHeader
-          title="Personal Operating Layer"
-          description={`${state.personalOperatingLayer.preferenceCount || 0} preferences, ${state.personalOperatingLayer.workStyleCount || 0} work-style rows, and ${state.personalOperatingLayer.privacyLockCount || 0} privacy locks for John-only review.`}
-          action={<ToneBadge tone={state.personalOperatingLayer.tone}>{state.personalOperatingLayer.status}</ToneBadge>}
-        />
-        <PersonalOperatingLayerPanel state={state} sessionToken={sessionToken} />
-      </Card>
-    </section>
+    <ControlRoomCategoryShell sectionId="personal" state={state}>
+      <section className="grid min-w-0 gap-4">
+        <Card className="min-w-0 p-4 sm:p-5">
+          <SectionHeader
+            title="Personal Operating Layer"
+            description={`${state.personalOperatingLayer.preferenceCount || 0} preferences, ${state.personalOperatingLayer.workStyleCount || 0} work-style rows, and ${state.personalOperatingLayer.privacyLockCount || 0} privacy locks for John-only review.`}
+            action={<ToneBadge tone={state.personalOperatingLayer.tone}>{state.personalOperatingLayer.status}</ToneBadge>}
+          />
+          <PersonalOperatingLayerPanel state={state} sessionToken={sessionToken} />
+        </Card>
+      </section>
+    </ControlRoomCategoryShell>
   );
 }
 
