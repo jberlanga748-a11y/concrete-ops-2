@@ -81,6 +81,11 @@ test("deriveApexControlRoomState blocks non-private users", () => {
   assert.deepEqual(state.finishedApexOs.blockedActionRows, []);
   assert.deepEqual(state.agentWorkQueue.taskRows, []);
   assert.deepEqual(state.agentWorkQueue.runRows, []);
+  assert.deepEqual(state.autonomyRunCenter.planRows, []);
+  assert.deepEqual(state.autonomyRunCenter.routeRows, []);
+  assert.deepEqual(state.autonomyRunCenter.gateRows, []);
+  assert.equal(state.autonomyRunCenter.canExecuteExternalActions, false);
+  assert.equal(state.autonomyRunCenter.executionLocked, true);
   assert.equal(state.operatorName, "Normal Admin");
 });
 
@@ -391,6 +396,20 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.agentWorkQueue.runRows[0].title, "Lead follow-up draft");
   assert.equal(state.agentWorkQueue.runRows[0].status, "queued");
   assert.equal(state.agentWorkQueue.safetyRows.some((item) => item.id === "external-gates" && item.status === "Approval required"), true);
+  assert.equal(state.autonomyRunCenter.status, "Guarded autonomy ready");
+  assert.equal(state.autonomyRunCenter.mode, "Review-first autonomy");
+  assert.equal(state.autonomyRunCenter.planStepCount, 7);
+  assert.equal(state.autonomyRunCenter.routeCount, 5);
+  assert.equal(state.autonomyRunCenter.gatedActionCount, 3);
+  assert.equal(state.autonomyRunCenter.canDraftInternalRuns, true);
+  assert.equal(state.autonomyRunCenter.canExecuteExternalActions, false);
+  assert.equal(state.autonomyRunCenter.executionLocked, true);
+  assert.equal(state.autonomyRunCenter.externalActionsLocked, true);
+  assert.equal(state.autonomyRunCenter.planRows.some((item) => item.id === "autonomy-gate" && item.status === `${APEX_CONTROL_ROOM_APPROVAL_GATES.length} gates`), true);
+  assert.equal(state.autonomyRunCenter.routeRows.some((item) => item.id === "autonomy-route-agent-plane"), true);
+  assert.equal(state.autonomyRunCenter.gateRows.some((item) => item.id === "autonomy-customer-visible" && item.status === "Approval gate"), true);
+  assert.equal(state.operatingSignals.some((item) => item.id === "autonomy-run-center"), true);
+  assert.equal(state.agents.some((item) => item.id === "autonomy-run-center"), true);
   assert.equal(state.approvals.length, APEX_CONTROL_ROOM_APPROVAL_GATES.length);
   assert.equal(state.evidence[0].id, "AUD-BUILD");
 });

@@ -1926,6 +1926,181 @@ function buildExecutionHandoffState({ agentWorkQueue, approvalCommandCenter, com
   };
 }
 
+function buildAutonomyRunCenterState({
+  agentWorkQueue,
+  agentControlPlane,
+  executionHandoffs,
+  approvalCommandCenter,
+  releaseDesk,
+  decisionMemory,
+  businessCommandCenter,
+} = {}) {
+  const availableTaskCount = formatCount(agentWorkQueue?.availableTaskCount);
+  const visibleTargetCount = formatCount(agentWorkQueue?.visibleTargetCount);
+  const recentRunCount = formatCount(agentWorkQueue?.recentRunCount);
+  const roleCount = formatCount(agentControlPlane?.roleCount || agentControlPlane?.rosterRows?.length);
+  const activeRequestCount = formatCount(agentControlPlane?.activeRequestCount || agentControlPlane?.requestSummary?.active);
+  const readyHandoffCount = formatCount(executionHandoffs?.handoffSummary?.ready);
+  const finishedHandoffCount = formatCount(executionHandoffs?.handoffSummary?.finished);
+  const gateCount = formatCount(approvalCommandCenter?.queueCount);
+  const readyPacketCount = formatCount(approvalCommandCenter?.packetSummary?.ready);
+  const approvedPacketCount = formatCount(approvalCommandCenter?.packetSummary?.approved);
+  const canDraftInternalRuns = agentWorkQueue?.status === "Review-only" && availableTaskCount > 0;
+
+  const planRows = withDerivedStateMetaList([
+    {
+      id: "autonomy-hear",
+      title: "Hear the request",
+      status: "Ready",
+      detail: "Apex can accept a typed or visible voice request from the private command room and keep it in the current operator session.",
+      tone: "green",
+    },
+    {
+      id: "autonomy-route",
+      title: "Route the work",
+      status: `${roleCount} agents`,
+      detail: `${roleCount} agent roles and ${availableTaskCount} review-only task types are available for room, agent, handoff, approval, release, or business routing.`,
+      tone: roleCount ? "green" : "amber",
+    },
+    {
+      id: "autonomy-plan",
+      title: "Build the run plan",
+      status: "Plan ready",
+      detail: "Apex can break the request into intake, route, draft, validation, approval-gate, result, and memory steps before anything executes.",
+      tone: "blue",
+    },
+    {
+      id: "autonomy-draft",
+      title: "Draft internal work",
+      status: canDraftInternalRuns ? "Draft-ready" : "Needs target",
+      detail: `${availableTaskCount} task types across ${visibleTargetCount} visible targets can become locked agent requests or execution handoff drafts when you ask.`,
+      tone: canDraftInternalRuns ? "green" : "amber",
+    },
+    {
+      id: "autonomy-validate",
+      title: "Validate evidence",
+      status: "Required",
+      detail: "Every run plan keeps test, role, browser/mobile QA, build, backup, rollback, and result evidence visible before completion is trusted.",
+      tone: "amber",
+    },
+    {
+      id: "autonomy-gate",
+      title: "Stop at approval gates",
+      status: `${gateCount} gates`,
+      detail: `${gateCount} risky-action categories, ${readyPacketCount} ready packets, and ${approvedPacketCount} approved packet records are visible. Approval never equals automatic execution.`,
+      tone: "amber",
+    },
+    {
+      id: "autonomy-report",
+      title: "Report and remember",
+      status: finishedHandoffCount ? `${finishedHandoffCount} finished` : "Result slot ready",
+      detail: `${readyHandoffCount} ready handoffs and ${finishedHandoffCount} finished handoffs can feed result reports and suggested decision memory after review.`,
+      tone: finishedHandoffCount ? "green" : "blue",
+    },
+  ], {
+    sourceLabel: "Apex autonomy run center",
+    source: "deriveApexControlRoomState",
+    confidence: 88,
+  });
+
+  const routeRows = withDerivedStateMetaList([
+    {
+      id: "autonomy-route-command-room",
+      title: "Command room router",
+      status: "Online",
+      detail: "Requests can be matched to Overview, Apex, Agents, Memory, Approvals, Release, Business, Trust, or Personal rooms.",
+      tone: "green",
+    },
+    {
+      id: "autonomy-route-agent-plane",
+      title: "Agent control plane",
+      status: `${activeRequestCount} active`,
+      detail: `${roleCount} roles, ${activeRequestCount} active requests, and ${agentControlPlane?.readyRequestCount || 0} ready requests are visible without background agent loops.`,
+      tone: activeRequestCount ? "blue" : "green",
+    },
+    {
+      id: "autonomy-route-handoff",
+      title: "Execution handoffs",
+      status: executionHandoffs?.status || "Drafting ready",
+      detail: "Handoffs prepare scoped instructions, allowed actions, blocked actions, validation, rollback, and result slots without calling queue/run APIs.",
+      tone: executionHandoffs?.tone || "blue",
+    },
+    {
+      id: "autonomy-route-release",
+      title: "Release route",
+      status: releaseDesk?.status || "Manual release only",
+      detail: "Build, deploy, smoke, backup, restore, rollback, and production checks stay in the release lane with explicit approval.",
+      tone: releaseDesk?.tone || "amber",
+    },
+    {
+      id: "autonomy-route-business",
+      title: "Business route",
+      status: businessCommandCenter?.status || "Review-first",
+      detail: "Sales, marketing, launch, customer success, and revenue work can be drafted, but sends, spend, billing, and publishing remain gated.",
+      tone: businessCommandCenter?.tone || "blue",
+    },
+  ], {
+    sourceLabel: "Apex autonomy router",
+    source: "agent control + room state",
+    confidence: 86,
+  });
+
+  const gateRows = withDerivedStateMetaList([
+    {
+      id: "autonomy-private-drafts",
+      title: "Private reversible drafts",
+      status: "Allowed when asked",
+      detail: "Apex can draft local/private plans, handoffs, QA steps, and memory suggestions after you request them.",
+      tone: "green",
+    },
+    {
+      id: "autonomy-customer-visible",
+      title: "Customer-visible actions",
+      status: "Approval gate",
+      detail: "Email, SMS, calls, portal shares, bid/proposal sends, public publishing, and customer notifications require scoped approval and provider readiness.",
+      tone: "amber",
+    },
+    {
+      id: "autonomy-money-actions",
+      title: "Money actions",
+      status: "Approval gate",
+      detail: "Billing, invoices, payment links, charges, discounts, package changes, ad spend, and paid promotion remain outside automatic execution.",
+      tone: "amber",
+    },
+    {
+      id: "autonomy-production-actions",
+      title: "Production actions",
+      status: "Approval gate",
+      detail: "Deploys, rollbacks, schema/auth/session changes, production data mutation, provider setup, deletion, and irreversible work require explicit approval.",
+      tone: "amber",
+    },
+  ], {
+    sourceLabel: "Apex autonomy safety gates",
+    source: "approval command center + operating rules",
+    confidence: 94,
+  });
+
+  return {
+    status: canDraftInternalRuns ? "Guarded autonomy ready" : "Planning guard ready",
+    tone: canDraftInternalRuns ? "green" : "amber",
+    mode: "Review-first autonomy",
+    currentRunStatus: recentRunCount ? "Run evidence visible" : "Ready for request",
+    canDraftInternalRuns,
+    canExecuteExternalActions: false,
+    executionLocked: true,
+    externalActionsLocked: true,
+    planStepCount: planRows.length,
+    readyStepCount: planRows.filter((row) => ["Ready", "Plan ready", "Draft-ready"].includes(row.status)).length,
+    gatedActionCount: gateRows.filter((row) => /gate/i.test(row.status)).length,
+    routeCount: routeRows.length,
+    recentRunCount,
+    trustedMemoryCount: formatCount(decisionMemory?.durableCount || decisionMemory?.decisionCount),
+    planRows,
+    routeRows,
+    gateRows,
+  };
+}
+
 function buildReleaseMonitoringState({
   releaseDesk,
   launchState,
@@ -2975,6 +3150,15 @@ export function deriveApexControlRoomState({
     executionHandoffs,
     releaseMonitoring,
   });
+  const autonomyRunCenter = buildAutonomyRunCenterState({
+    agentWorkQueue,
+    agentControlPlane,
+    executionHandoffs,
+    approvalCommandCenter,
+    releaseDesk,
+    decisionMemory,
+    businessCommandCenter,
+  });
   const phase3Aggregator = buildPhase3AggregatorState({
     companySettings,
     auditEvents,
@@ -3052,6 +3236,7 @@ export function deriveApexControlRoomState({
       qaSecurityHardening: { status: "Restricted", tone: "slate", evidenceRows: [], lockRows: [] },
       finishedApexOs: { status: "Restricted", tone: "slate", capabilityRows: [], runLoopRows: [], freezeRows: [], blockedActionRows: [] },
       agentWorkQueue: { status: "Restricted", tone: "slate", taskRows: [], lockedRows: [], runRows: [], safetyRows: [] },
+      autonomyRunCenter: { status: "Restricted", tone: "slate", mode: "Restricted", planRows: [], routeRows: [], gateRows: [], canDraftInternalRuns: false, canExecuteExternalActions: false, executionLocked: true, externalActionsLocked: true },
       approvals: [],
       evidence: [],
     };
@@ -3147,6 +3332,13 @@ export function deriveApexControlRoomState({
         status: agentControlPlane.status,
         detail: `${agentControlPlane.roleCount} agent roles, ${agentControlPlane.activeRequestCount} active control requests, and ${agentControlPlane.readyRequestCount} ready requests are visible without queue/run execution.`,
         tone: agentControlPlane.tone,
+      },
+      {
+        id: "autonomy-run-center",
+        title: "Autonomy run center",
+        status: autonomyRunCenter.status,
+        detail: `${autonomyRunCenter.planStepCount} run-plan steps, ${autonomyRunCenter.routeCount} route lanes, and ${autonomyRunCenter.gatedActionCount} approval-gated action classes are visible before execution.`,
+        tone: autonomyRunCenter.tone,
       },
       {
         id: "release-monitoring",
@@ -3257,6 +3449,13 @@ export function deriveApexControlRoomState({
         status: agentControlPlane.status,
         detail: `${agentControlPlane.requestSummary.total} control requests, ${agentControlPlane.rosterRows.length} agent roster rows, and ${agentControlPlane.reportRows.length} report history rows are available.`,
         tone: agentControlPlane.tone,
+      },
+      {
+        id: "autonomy-run-center",
+        title: "Autonomy run center",
+        status: autonomyRunCenter.status,
+        detail: `${autonomyRunCenter.mode}: Apex can plan, route, draft internal work, validate evidence, and stop at approval gates. External execution remains locked.`,
+        tone: autonomyRunCenter.tone,
       },
       {
         id: "release-monitoring",
@@ -3442,6 +3641,13 @@ export function deriveApexControlRoomState({
         tone: agentControlPlane.tone,
       },
       {
+        id: "autonomy-run-center",
+        title: "Autonomy run center",
+        status: autonomyRunCenter.status,
+        detail: `${autonomyRunCenter.planStepCount} steps turn a request into a routed, validated, approval-gated run plan without external execution.`,
+        tone: autonomyRunCenter.tone,
+      },
+      {
         id: "release-monitoring",
         title: "Release monitoring",
         status: releaseMonitoring.status,
@@ -3493,6 +3699,7 @@ export function deriveApexControlRoomState({
     agentControlPlane,
     releaseMonitoring,
     businessCommandCenter,
+    autonomyRunCenter,
     qaSecurityHardening,
     finishedApexOs,
     agentWorkQueue,

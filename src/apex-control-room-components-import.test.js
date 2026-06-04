@@ -173,6 +173,14 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /Apex focus drawer/);
   assert.match(componentSource, /Autonomy Core/);
   assert.match(componentSource, /Safe internal drafts are on/);
+  assert.match(componentSource, /AutonomyRunCenterPanel/);
+  assert.match(componentSource, /Autonomy Run Center/);
+  assert.match(componentSource, /Plan \+ gates/);
+  assert.match(componentSource, /Current command route/);
+  assert.match(componentSource, /Next safe action/);
+  assert.match(componentSource, /Draft locked run/);
+  assert.match(componentSource, /Execution gates/);
+  assert.match(componentSource, /externalActionsLocked/);
   assert.match(componentSource, /co-apex-cockpit-screen--focus/);
   assert.match(componentSource, /co-apex-cockpit-focus-bar/);
   assert.match(componentSource, /co-apex-cockpit-focus-center/);

@@ -4152,6 +4152,211 @@ function ApexCockpitCommandStream({ turns, route, onOpenRoute, onCreateAgentRequ
   );
 }
 
+function AutonomyRunCenterPanel({
+  state,
+  route,
+  onOpenAgents,
+  onOpenApprovals,
+  onCreateAgentRequest,
+  creatingAgentRequest = false,
+  variant = "light",
+}) {
+  const center = state.autonomyRunCenter || {};
+  const safeRoute = route || buildApexCockpitCommandRoute("");
+  const dark = variant === "dark";
+  const shellClass = dark
+    ? "border-cyan-200/14 bg-slate-950/72 text-white"
+    : "border-slate-200 bg-white text-slate-950";
+  const panelClass = dark
+    ? "border-slate-800 bg-slate-900/58"
+    : "border-slate-200 bg-slate-50";
+  const mutedText = dark ? "text-slate-400" : "text-slate-600";
+  const strongText = dark ? "text-slate-100" : "text-slate-950";
+  const labelText = dark ? "text-cyan-300" : "text-orange-700";
+  const buttonClass = dark
+    ? "border-cyan-200/16 bg-white/[0.045] text-slate-100 hover:border-orange-400/60 hover:bg-orange-500/10"
+    : "border-slate-200 bg-white text-slate-800 hover:border-orange-300 hover:bg-orange-50";
+  const metricRows = [
+    { label: "Mode", value: center.mode || "Review-first autonomy", tone: center.tone || "green" },
+    { label: "Plan", value: `${center.planStepCount || 0} steps`, tone: "blue" },
+    { label: "Routes", value: `${center.routeCount || 0} lanes`, tone: "blue" },
+    { label: "Execution", value: center.executionLocked ? "Locked" : "Open", tone: center.executionLocked ? "amber" : "green" },
+  ];
+  const nextSafeAction = safeRoute.commandAction === "draft-agent-control-request"
+    ? "Draft a locked agent request"
+    : safeRoute.commandAction === "open-section"
+      ? `Open ${safeRoute.label}`
+      : "Answer from approved context";
+
+  return (
+    <section className={`grid min-w-0 gap-3 rounded-lg border p-3 ${shellClass}`} aria-label="Autonomy Run Center">
+      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className={`text-[10px] font-black uppercase tracking-[0.14em] ${labelText}`}>Autonomy Run Center</p>
+          <h3 className={`mt-1 break-words text-base font-black ${strongText}`}>{center.status || "Guarded autonomy ready"}</h3>
+          <p className={`mt-1 break-words text-xs font-bold leading-5 ${mutedText}`}>
+            Apex turns your request into a visible run plan, routes it to the right room or agent, tracks evidence, and stops before approval-gated actions.
+          </p>
+          <p className={`mt-1 break-words text-[11px] font-black leading-4 ${mutedText}`}>
+            Autonomy Core: Safe internal drafts are on; customer sends, billing, ads, production changes, and irreversible external actions remain gated.
+          </p>
+        </div>
+        <ToneBadge tone={center.tone || "green"}>{center.externalActionsLocked ? "External locked" : "Review-first"}</ToneBadge>
+      </div>
+
+      <div className="grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        {metricRows.map((item) => (
+          <div key={item.label} className={`min-w-0 rounded-md border px-3 py-2 ${panelClass}`}>
+            <p className={`text-[9px] font-black uppercase tracking-[0.1em] ${dark ? "text-slate-500" : "text-slate-500"}`}>{item.label}</p>
+            <p className={`mt-0.5 truncate text-[11px] font-black ${item.tone === "green" ? dark ? "text-emerald-300" : "text-emerald-700" : item.tone === "amber" ? dark ? "text-orange-300" : "text-orange-700" : dark ? "text-cyan-200" : "text-cyan-700"}`}>{item.value}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className={`grid min-w-0 gap-3 rounded-lg border p-3 ${panelClass}`}>
+        <div className="grid min-w-0 gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(220px,0.42fr)]">
+          <div className="min-w-0">
+            <p className={`text-[10px] font-black uppercase tracking-[0.12em] ${labelText}`}>Current command route</p>
+            <p className={`mt-1 break-words text-sm font-black ${strongText}`}>{safeRoute.label}</p>
+            <p className={`mt-1 break-words text-xs font-bold leading-5 ${mutedText}`}>{safeRoute.detail}</p>
+          </div>
+          <div className={`min-w-0 rounded-md border px-3 py-2 ${dark ? "border-orange-400/22 bg-orange-500/10" : "border-orange-200 bg-orange-50"}`}>
+            <p className={`text-[10px] font-black uppercase tracking-[0.1em] ${dark ? "text-orange-200" : "text-orange-800"}`}>Next safe action</p>
+            <p className={`mt-1 break-words text-xs font-black ${dark ? "text-orange-100" : "text-orange-950"}`}>{nextSafeAction}</p>
+          </div>
+        </div>
+        <div className="flex min-w-0 flex-wrap gap-2">
+          <button type="button" onClick={onOpenAgents} className={`co-focus-ring min-h-8 rounded-md border px-3 text-[11px] font-black transition ${buttonClass}`}>
+            <Icon name="users" className="mr-1.5 inline h-3.5 w-3.5" /> Open agents
+          </button>
+          <button type="button" onClick={onOpenApprovals} className={`co-focus-ring min-h-8 rounded-md border px-3 text-[11px] font-black transition ${buttonClass}`}>
+            <Icon name="lock" className="mr-1.5 inline h-3.5 w-3.5" /> Open approvals
+          </button>
+          <button
+            type="button"
+            onClick={onCreateAgentRequest}
+            disabled={creatingAgentRequest || safeRoute.id !== "agent-control"}
+            className={`co-focus-ring min-h-8 rounded-md border px-3 text-[11px] font-black transition disabled:cursor-not-allowed disabled:opacity-65 ${buttonClass}`}
+            title={safeRoute.id === "agent-control" ? "Draft a locked agent request" : "Ask for agent work first"}
+          >
+            <Icon name="clipboard" className="mr-1.5 inline h-3.5 w-3.5" /> {creatingAgentRequest ? "Drafting..." : "Draft locked run"}
+          </button>
+        </div>
+      </div>
+
+      <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
+        <div className="grid min-w-0 gap-2">
+          <p className={`text-[10px] font-black uppercase tracking-[0.12em] ${labelText}`}>Run plan</p>
+          <div className="grid min-w-0 gap-1.5">
+            {(center.planRows || []).map((item, index) => (
+              <div key={item.id} className={`grid min-w-0 grid-cols-[1.6rem_minmax(0,1fr)_auto] items-center gap-2 rounded-md border px-2.5 py-2 ${panelClass}`}>
+                <span className={`grid h-6 w-6 place-items-center rounded-md text-[10px] font-black ${dark ? "bg-cyan-400/10 text-cyan-200" : "bg-slate-950 text-white"}`}>{index + 1}</span>
+                <span className="min-w-0">
+                  <span className={`block truncate text-[11px] font-black ${strongText}`}>{item.title}</span>
+                  <span className={`block truncate text-[10px] font-bold ${mutedText}`}>{item.detail}</span>
+                </span>
+                <ToneBadge tone={item.tone}>{item.status}</ToneBadge>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid min-w-0 gap-3">
+          <div className="grid min-w-0 gap-2">
+            <p className={`text-[10px] font-black uppercase tracking-[0.12em] ${labelText}`}>Routing lanes</p>
+            {(center.routeRows || []).map((item) => (
+              <div key={item.id} className={`min-w-0 rounded-md border px-3 py-2 ${panelClass}`}>
+                <div className="flex min-w-0 items-start justify-between gap-2">
+                  <p className={`min-w-0 break-words text-[11px] font-black ${strongText}`}>{item.title}</p>
+                  <ToneBadge tone={item.tone}>{item.status}</ToneBadge>
+                </div>
+                <p className={`mt-1 break-words text-[10px] font-bold leading-4 ${mutedText}`}>{item.detail}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="grid min-w-0 gap-2">
+            <p className={`text-[10px] font-black uppercase tracking-[0.12em] ${labelText}`}>Execution gates</p>
+            {(center.gateRows || []).map((item) => (
+              <div key={item.id} className={`min-w-0 rounded-md border px-3 py-2 ${panelClass}`}>
+                <div className="flex min-w-0 items-start justify-between gap-2">
+                  <p className={`min-w-0 break-words text-[11px] font-black ${strongText}`}>{item.title}</p>
+                  <ToneBadge tone={item.tone}>{item.status}</ToneBadge>
+                </div>
+                <p className={`mt-1 break-words text-[10px] font-bold leading-4 ${mutedText}`}>{item.detail}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function AutonomyRunCenterCompactPanel({
+  state,
+  route,
+  onOpenAgents,
+  onOpenApprovals,
+  onCreateAgentRequest,
+  creatingAgentRequest = false,
+}) {
+  const center = state.autonomyRunCenter || {};
+  const safeRoute = route || buildApexCockpitCommandRoute("");
+  const gates = center.gateRows || [];
+  const primaryGate = gates.find((item) => item.id === "autonomy-private-drafts") || gates[0];
+  const nextSafeAction = safeRoute.commandAction === "draft-agent-control-request"
+    ? "Draft a locked agent request"
+    : safeRoute.commandAction === "open-section"
+      ? `Open ${safeRoute.label}`
+      : "Answer from approved context";
+
+  return (
+    <section className="grid min-w-0 gap-3" aria-label="Autonomy Run Center">
+      <div className="flex min-w-0 flex-col gap-2 md:flex-row md:items-start md:justify-between">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-300">Autonomy Run Center</p>
+          <h3 className="mt-1 text-base font-black text-white">{center.status || "Guarded autonomy ready"}</h3>
+          <p className="mt-1 max-w-4xl break-words text-[11px] font-bold leading-4 text-slate-400">
+            Autonomy Core: Apex plans, routes, drafts, validates, and stops before approval-gated actions.
+          </p>
+        </div>
+        <ToneBadge tone={center.tone || "green"}>{center.externalActionsLocked ? "External locked" : "Review-first"}</ToneBadge>
+      </div>
+
+      <div className="grid min-w-0 gap-2 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.9fr)_minmax(0,0.9fr)]">
+        <div className="min-w-0 rounded-md border border-slate-800 bg-slate-900/58 px-3 py-2">
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Current command route</p>
+          <p className="mt-1 truncate text-xs font-black text-slate-100">{safeRoute.label}</p>
+          <p className="mt-1 line-clamp-2 break-words text-[11px] font-bold leading-4 text-slate-500">{safeRoute.detail}</p>
+        </div>
+        <div className="min-w-0 rounded-md border border-orange-400/22 bg-orange-500/10 px-3 py-2">
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-orange-200">Next safe action</p>
+          <p className="mt-1 break-words text-xs font-black text-orange-100">{nextSafeAction}</p>
+          <p className="mt-1 text-[10px] font-bold text-orange-100/72">{center.planStepCount || 0} plan steps, {center.routeCount || 0} lanes, execution locked.</p>
+        </div>
+        <div className="min-w-0 rounded-md border border-slate-800 bg-slate-900/58 px-3 py-2">
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Execution gates</p>
+          <p className="mt-1 text-xs font-black text-slate-100">{center.gatedActionCount || 0} approval gates stay manual</p>
+          <p className="mt-1 line-clamp-2 text-[10px] font-bold leading-4 text-slate-500">{primaryGate?.title || "Private reversible drafts"}: {primaryGate?.status || "Allowed when asked"}</p>
+        </div>
+      </div>
+
+      <div className="flex min-w-0 flex-wrap gap-2">
+        <ApexCockpitControlButton className="px-3" disabled={false} onClick={onOpenAgents} active={false} title="Open the full Autonomy Run Center">
+          <Icon name="layers" /> Open Run Center
+        </ApexCockpitControlButton>
+        <ApexCockpitControlButton className="px-3" disabled={false} onClick={onOpenApprovals} active={false} title="Open approval gates">
+          <Icon name="lock" /> Open approvals
+        </ApexCockpitControlButton>
+        <ApexCockpitControlButton className="px-3" disabled={creatingAgentRequest || safeRoute.id !== "agent-control"} onClick={onCreateAgentRequest} active={creatingAgentRequest} title="Draft a locked agent request">
+          <Icon name="clipboard" /> {creatingAgentRequest ? "Drafting..." : "Draft locked run"}
+        </ApexCockpitControlButton>
+      </div>
+    </section>
+  );
+}
+
 function ApexCockpitListItem({ item, value, tone = "slate" }) {
   const textTone = {
     green: "text-emerald-300",
@@ -4899,21 +5104,15 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                   </div>
                 ) : null}
                 {cockpitFocusDrawer === "autonomy" ? (
-                  <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.5fr)]">
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Autonomy Core</p>
-                      <p className="mt-1 text-sm font-black text-slate-100">Apex can plan, route, draft agent work, and ask for approval before risky execution.</p>
-                      <p className="mt-1 min-w-0 break-words text-[11px] font-bold leading-4 text-slate-500">Safe internal drafts are on. Customer sends, billing, ads, production changes, and irreversible external actions remain gated.</p>
-                    </div>
-                    <div className="grid min-w-0 gap-1.5">
-                      {["Hear the request", "Match the room", "Draft the agent work", "Validate evidence", "Ask approval when gated"].map((item, index) => (
-                        <div key={item} className="grid min-w-0 grid-cols-[1.5rem_minmax(0,1fr)] items-center gap-2 rounded-md border border-slate-800 bg-slate-900/58 px-2.5 py-2">
-                          <span className="grid h-6 w-6 place-items-center rounded-md bg-cyan-400/10 text-[10px] font-black text-cyan-200">{index + 1}</span>
-                          <span className="min-w-0 truncate text-[11px] font-black text-slate-200">{item}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                  <AutonomyRunCenterCompactPanel
+                    state={state}
+                    route={cockpitCommandRoute}
+                    onOpenAgents={() => onChange("agents")}
+                    onOpenApprovals={() => onChange("approvals")}
+                    onCreateAgentRequest={() => createCockpitAgentRequestFromCommand()}
+                    creatingAgentRequest={cockpitCreatingAgentRequest}
+                    variant="dark"
+                  />
                 ) : null}
                 {cockpitFocusDrawer === "memory" ? (
                   <div className="grid min-w-0 gap-2 sm:grid-cols-3">
@@ -5539,12 +5738,36 @@ function ControlRoomMemorySection({ state, sessionToken }) {
   );
 }
 
-function ControlRoomAgentsSection({ state, sessionToken }) {
+function ControlRoomAgentsSection({ state, sessionToken, onChange }) {
   return (
     <ControlRoomCategoryShell sectionId="agents" state={state}>
       <ControlRoomRoomTabs
         label="Agent room sections"
         tabs={[
+          {
+            id: "run-center",
+            label: "Run Center",
+            helper: "Plan + gates",
+            icon: "spark",
+            content: (
+              <section className="grid min-w-0 gap-4">
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader
+                    title="Autonomy Run Center"
+                    description={`${state.autonomyRunCenter.planStepCount || 0} visible steps turn a request into routed, validated, approval-gated work.`}
+                    action={<ToneBadge tone={state.autonomyRunCenter.tone}>{state.autonomyRunCenter.status}</ToneBadge>}
+                  />
+                  <AutonomyRunCenterPanel
+                    state={state}
+                    onOpenAgents={() => onChange?.("agents")}
+                    onOpenApprovals={() => onChange?.("approvals")}
+                    onCreateAgentRequest={() => onChange?.("agents")}
+                    variant="light"
+                  />
+                </Card>
+              </section>
+            ),
+          },
           {
             id: "control-plane",
             label: "Control plane",
@@ -6165,7 +6388,7 @@ export function ApexControlRoomPage(props) {
         {activeSection === "overview" ? <ControlRoomOverviewSection state={state} /> : null}
         {activeSection === "apex" ? <ControlRoomApexSection state={state} activeSection={activeSection} onChange={setActiveSection} sessionToken={props.sessionToken} askQuestion={askQuestion} setAskQuestion={setAskQuestion} /> : null}
         {activeSection === "memory" ? <ControlRoomMemorySection state={state} sessionToken={props.sessionToken} /> : null}
-        {activeSection === "agents" ? <ControlRoomAgentsSection state={state} sessionToken={props.sessionToken} /> : null}
+        {activeSection === "agents" ? <ControlRoomAgentsSection state={state} sessionToken={props.sessionToken} onChange={setActiveSection} /> : null}
         {activeSection === "approvals" ? <ControlRoomApprovalsSection state={state} sessionToken={props.sessionToken} /> : null}
         {activeSection === "release" ? <ControlRoomReleaseSection state={state} sessionToken={props.sessionToken} /> : null}
         {activeSection === "business" ? <ControlRoomBusinessSection state={state} /> : null}
