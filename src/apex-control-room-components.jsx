@@ -3159,13 +3159,25 @@ function ApexCockpitStatusDot({ tone = "green" }) {
 
 function ApexCockpitCard({ title, action, children, className = "" }) {
   return (
-    <section className={`min-w-0 rounded-lg border border-slate-700/60 bg-slate-900/62 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] ${className}`}>
+    <section className={`min-w-0 rounded-lg border border-cyan-200/12 bg-slate-950/42 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_14px_42px_-34px_rgba(56,189,248,0.72)] backdrop-blur-sm ${className}`}>
       <div className="mb-1.5 flex min-w-0 items-center justify-between gap-3">
         <h3 className="min-w-0 break-words text-[11px] font-black uppercase tracking-[0.12em] text-slate-100">{title}</h3>
         {action ? <div className="shrink-0">{action}</div> : null}
       </div>
       {children}
     </section>
+  );
+}
+
+function ApexCockpitControlButton({ children, className = "" }) {
+  return (
+    <button
+      type="button"
+      disabled
+      className={`co-focus-ring inline-flex min-h-8 min-w-0 max-w-full cursor-not-allowed items-center justify-center gap-2 rounded-lg border border-cyan-200/14 bg-white/[0.035] px-3 py-1.5 text-center text-[11px] font-black leading-tight text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.045)] transition hover:bg-white/[0.035] disabled:opacity-100 ${className}`}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -3308,9 +3320,9 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     <ApexMiniWaveform />
                   </div>
                 </div>
-                <Button type="button" disabled variant="secondary" size="sm" className="mt-2 w-full border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-900">
+                <ApexCockpitControlButton className="mt-2 w-full">
                   Close Voice
-                </Button>
+                </ApexCockpitControlButton>
               </ApexCockpitCard>
 
               <ApexCockpitCard title="Transcript" action={<Icon name="refresh" className="h-3.5 w-3.5 text-slate-500" />}>
@@ -3321,12 +3333,12 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
               <ApexCockpitCard title="Apex Response">
                 <p className="text-[11px] font-bold leading-5 text-slate-200">I'm here. What would you like Apex to help you with?</p>
                 <div className="mt-2 grid grid-cols-2 gap-2">
-                  <Button type="button" disabled variant="secondary" size="sm" className="border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-900">
+                  <ApexCockpitControlButton>
                     <Icon name="spark" /> Speak
-                  </Button>
-                  <Button type="button" disabled variant="secondary" size="sm" className="border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-900">
+                  </ApexCockpitControlButton>
+                  <ApexCockpitControlButton>
                     <Icon name="lock" /> Stop
-                  </Button>
+                  </ApexCockpitControlButton>
                 </div>
                 <div className="mt-3 border-t border-slate-800 pt-2">
                   <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Sources</p>
@@ -3348,7 +3360,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     value={askQuestion}
                     onChange={(event) => setAskQuestion(event.target.value)}
                     placeholder="Ask Apex anything..."
-                    className="h-11 w-full min-w-0 rounded-lg border border-orange-500/48 bg-slate-950/78 px-4 pr-11 text-sm font-bold text-slate-100 outline-none placeholder:text-slate-500 focus:border-orange-400 focus:ring-2 focus:ring-orange-500/20"
+                    className="h-11 w-full min-w-0 appearance-none rounded-lg border border-orange-500/64 !bg-slate-950/90 px-4 pr-11 text-sm font-bold !text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_0_24px_-18px_rgba(249,115,22,0.95)] outline-none placeholder:!text-slate-500 focus:border-orange-400 focus:ring-2 focus:ring-orange-500/20"
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-orange-400"><Icon name="arrowUpRight" className="h-5 w-5" /></span>
                 </div>
@@ -3373,7 +3385,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                 <ApexCockpitListItem item={{ label: "Open Blockers", icon: "alert" }} value={state.launchReadiness?.blockedCount || state.approvalCommandCenter?.packetSummary?.blocked || 0} tone="red" />
                 <ApexCockpitListItem item={{ label: "Agent Work", icon: "layers" }} value={state.agentControlPlane?.roleCount || state.agentWorkQueue?.availableTaskCount || 0} tone="blue" />
                 <ApexCockpitListItem item={{ label: "Release Status", icon: "refresh" }} value="On Track" tone="green" />
-                <Button type="button" disabled variant="secondary" size="sm" className="mt-2 w-full border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-900">View Details</Button>
+                <ApexCockpitControlButton className="mt-2 w-full">View Details</ApexCockpitControlButton>
               </ApexCockpitCard>
 
               <ApexCockpitCard title="Approvals" action={<span className="text-slate-500">&gt;</span>}>
@@ -3388,14 +3400,14 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     </div>
                   ))}
                 </div>
-                <Button type="button" disabled variant="secondary" size="sm" className="mt-2 w-full border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-900">View All Approvals</Button>
+                <ApexCockpitControlButton className="mt-2 w-full">View All Approvals</ApexCockpitControlButton>
               </ApexCockpitCard>
 
               <ApexCockpitCard title="Apex Memory" action={<span className="text-slate-500">&gt;</span>}>
                 <ApexCockpitListItem item={{ label: "Trusted Memories", icon: "database" }} value={memoryCount || 128} tone="slate" />
                 <ApexCockpitListItem item={{ label: "Recent Updates", icon: "refresh" }} value={state.decisionMemory?.durableCount || 6} tone="slate" />
                 <ApexCockpitListItem item={{ label: "Suggested Memories", icon: "spark" }} value={state.decisionMemory?.suggestedCount || 3} tone="slate" />
-                <Button type="button" disabled variant="secondary" size="sm" className="mt-2 w-full border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-900">Review Memory</Button>
+                <ApexCockpitControlButton className="mt-2 w-full">Review Memory</ApexCockpitControlButton>
               </ApexCockpitCard>
 
               <ApexCockpitCard title="Agents" action={<span className="text-slate-500">&gt;</span>}>
@@ -3410,7 +3422,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     </div>
                   ))}
                 </div>
-                <Button type="button" disabled variant="secondary" size="sm" className="mt-2 w-full border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-900">View All Agents</Button>
+                <ApexCockpitControlButton className="mt-2 w-full">View All Agents</ApexCockpitControlButton>
               </ApexCockpitCard>
 
               <ApexCockpitCard title="Release" action={<span className="text-slate-500">&gt;</span>} className="md:col-span-2 xl:col-span-1">
@@ -3420,7 +3432,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                   <div className="flex justify-between gap-3"><span>Last Deploy</span><span className="text-slate-200">Jun 4, 9:15 AM</span></div>
                   <div className="flex justify-between gap-3"><span>Health</span><span className="text-emerald-300">{releaseHealth}</span></div>
                 </div>
-                <Button type="button" disabled variant="secondary" size="sm" className="mt-2 w-full border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-900">View Release</Button>
+                <ApexCockpitControlButton className="mt-2 w-full">View Release</ApexCockpitControlButton>
               </ApexCockpitCard>
             </div>
           </div>
