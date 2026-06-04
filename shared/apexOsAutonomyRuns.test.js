@@ -10,6 +10,7 @@ import {
   normalizeApexOsAutonomyRun,
   normalizeApexOsAutonomyRuns,
   summarizeApexOsAutonomyRuns,
+  validateApexOsAutonomyRunPrivateProof,
 } from "./apexOsAutonomyRuns.js";
 
 test("normalizes autonomy runs without queue, run, approval, or execute states", () => {
@@ -148,6 +149,56 @@ test("private prep stops when internal drafts are missing", () => {
   assert.equal(advanced.steps.find((step) => step.id === "draft-internal").status, "ready");
   assert.equal(advanced.steps.find((step) => step.id === "validate-evidence").status, "todo");
   assert.match(advanced.nextSafeAction, /internal draft package/i);
+});
+
+test("private proof check verifies linked drafts and stops at approval", () => {
+  const run = advanceApexOsAutonomyRunPrivatePrep(markApexOsAutonomyRunInternalDrafted(buildApexOsAutonomyRunPlan({
+    title: "Proof check private run",
+    request: "Check the internal run proof.",
+    routeLabel: "Apex",
+  }, {
+    id: "AAR-PROOF",
+    now: "2026-06-04T10:00:00.000Z",
+    createdBy: "U-1",
+  }), {
+    agentControlRequestId: "AAC-PROOF",
+    executionHandoffId: "AEH-PROOF",
+    now: "2026-06-04T10:01:00.000Z",
+  }), {
+    now: "2026-06-04T10:02:00.000Z",
+  });
+
+  const checked = validateApexOsAutonomyRunPrivateProof(run, {
+    now: "2026-06-04T10:03:00.000Z",
+  });
+
+  assert.equal(checked.status, "waiting-approval");
+  assert.equal(checked.steps.find((step) => step.id === "validate-evidence").status, "done");
+  assert.equal(checked.steps.find((step) => step.id === "approval-gate").status, "waiting-approval");
+  assert.match(checked.steps.find((step) => step.id === "validate-evidence").evidence, /proof check passed/i);
+  assert.match(checked.evidence.join(" "), /proof check passed/i);
+  assert.match(checked.nextSafeAction, /Proof check is complete/i);
+  assert.equal(isApexOsAutonomyRunReady(checked), true);
+});
+
+test("private proof check keeps incomplete proof in validation", () => {
+  const run = buildApexOsAutonomyRunPlan({
+    title: "Incomplete proof",
+    request: "Check proof before drafts exist.",
+  }, {
+    id: "AAR-PROOF-GAPS",
+    now: "2026-06-04T10:00:00.000Z",
+    createdBy: "U-1",
+  });
+
+  const checked = validateApexOsAutonomyRunPrivateProof(run, {
+    now: "2026-06-04T10:03:00.000Z",
+  });
+
+  assert.equal(checked.status, "validating");
+  assert.equal(checked.steps.find((step) => step.id === "validate-evidence").status, "blocked");
+  assert.match(checked.evidence.join(" "), /linked agent-control draft is missing/i);
+  assert.match(checked.nextSafeAction, /Fix proof gaps/i);
 });
 
 test("normalizes durable run lists and redacts unsafe text", () => {

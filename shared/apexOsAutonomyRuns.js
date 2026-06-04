@@ -453,3 +453,72 @@ export function advanceApexOsAutonomyRunPrivatePrep(run = {}, { now = new Date()
     now,
   });
 }
+
+export function validateApexOsAutonomyRunPrivateProof(run = {}, { now = new Date().toISOString(), operatorNote = "" } = {}) {
+  const normalized = normalizeApexOsAutonomyRun(run, { now });
+  if (["done", "archived", "blocked"].includes(normalized.status)) {
+    return normalized;
+  }
+
+  const stepById = new Map(list(normalized.steps).map((step) => [step.id, step]));
+  const hasAgentDraft = Boolean(normalized.linkedAgentControlRequestId);
+  const hasHandoffDraft = Boolean(normalized.linkedExecutionHandoffId);
+  const routeDone = stepById.get("route-work")?.status === "done";
+  const planDone = stepById.get("plan-steps")?.status === "done";
+  const draftLinked = hasAgentDraft && hasHandoffDraft && stepById.get("draft-internal")?.status === "drafted";
+  const approvalStopped = ["waiting-approval", "done"].includes(stepById.get("approval-gate")?.status || "");
+  const proofGaps = [
+    hasAgentDraft ? "" : "linked agent-control draft is missing",
+    hasHandoffDraft ? "" : "linked execution handoff is missing",
+    routeDone ? "" : "route-work step is not done",
+    planDone ? "" : "plan-steps step is not done",
+    draftLinked ? "" : "internal draft linkage is not drafted",
+    approvalStopped ? "" : "approval gate is not stopped",
+  ].filter(Boolean);
+  const proofPassed = proofGaps.length === 0;
+
+  const proofEvidence = proofPassed
+    ? "Apex private proof check passed: linked internal drafts, route, plan, validation readiness, and approval-stop posture were verified while execution stayed locked."
+    : `Apex private proof check found ${proofGaps.length} gap${proofGaps.length === 1 ? "" : "s"}: ${proofGaps.join("; ")}.`;
+
+  const nextSteps = list(normalized.steps).map((step, index) => {
+    if (step.id === "validate-evidence") {
+      return normalizeRunStep({
+        ...step,
+        status: proofPassed ? "done" : "blocked",
+        evidence: proofEvidence,
+        updatedAt: now,
+      }, index, now);
+    }
+    if (step.id === "approval-gate") {
+      return normalizeRunStep({
+        ...step,
+        status: "waiting-approval",
+        evidence: "Apex proof check stopped before customer-visible, money, provider, production, deletion, queue/run, deploy/rollback, or irreversible work.",
+        updatedAt: now,
+      }, index, now);
+    }
+    return normalizeRunStep(step, index, now);
+  });
+
+  const nextEvidence = [
+    ...list(normalized.evidence),
+    proofEvidence,
+  ].slice(-12);
+
+  return normalizeApexOsAutonomyRun({
+    ...normalized,
+    status: proofPassed ? "waiting-approval" : "validating",
+    operatorNote: operatorNote || (proofPassed
+      ? "Apex ran a private proof check and stopped at the manual approval gate."
+      : "Apex ran a private proof check and found proof gaps that need operator review."),
+    steps: nextSteps,
+    evidence: nextEvidence,
+    nextSafeAction: proofPassed
+      ? "Proof check is complete. Review the evidence, then choose Report Done, keep waiting approval, or block the run."
+      : `Fix proof gaps before completion: ${proofGaps.join("; ")}.`,
+  }, {
+    existing: normalized,
+    now,
+  });
+}

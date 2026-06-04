@@ -35,7 +35,10 @@ import {
   buildApexOsAskExecutionHandoffDraft,
 } from "../shared/apexOsAsk.js";
 import { redactApexOsMemoryText } from "../shared/apexOsMemory.js";
-import { advanceApexOsAutonomyRunPrivatePrep } from "../shared/apexOsAutonomyRuns.js";
+import {
+  advanceApexOsAutonomyRunPrivatePrep,
+  validateApexOsAutonomyRunPrivateProof,
+} from "../shared/apexOsAutonomyRuns.js";
 import { buildApexOsVoiceCommandReview } from "../shared/apexOsVoice.js";
 import {
   APEX_OS_KNOWLEDGE_DATE_RANGE_VALUES,
@@ -4850,6 +4853,9 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const cockpitVisibleActiveRunCount = Number(cockpitLiveRunSummary.active ?? cockpitPulseRunSummary.active ?? liveOperatorMode.activeRunCount ?? 0);
   const cockpitVisibleLiveStatus = cockpitVisibleActiveRunCount ? "Live operator running" : liveOperatorMode.status || "Live operator ready";
   const cockpitVisibleLiveTone = cockpitVisibleActiveRunCount ? "green" : liveOperatorMode.tone || "blue";
+  const cockpitVisibleOperatorPercent = cockpitVisibleActiveRunCount
+    ? Math.max(Number(liveOperatorMode.jarvisBehaviorPercent || 0), 86)
+    : Number(liveOperatorMode.jarvisBehaviorPercent || 0);
   const cockpitAnswerText = resolveApexCockpitAnswerText(cockpitResponse);
   const cockpitTurnMemoryKey = apexCockpitMemoryText(cockpitResponse?.requestId || `${cockpitLastQuestion}|${cockpitAnswerText}`, 220);
   const cockpitVoiceMode = cockpitError
@@ -5665,6 +5671,60 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     }
   }
 
+  async function proofCheckCockpitActiveRunPrivately() {
+    if (!state.canView || !sessionToken || !cockpitActiveRun?.id || cockpitUpdatingRun) return null;
+    if (["done", "archived", "blocked"].includes(String(cockpitActiveRun.status || "").toLowerCase())) return null;
+    setCockpitUpdatingRun(`proof-${cockpitActiveRun.id}`);
+    setCockpitLiveRunNotice("Apex is proof-checking the private run and will stop at manual review.");
+    try {
+      let workingRun = cockpitActiveRun;
+      if (!workingRun.linkedAgentControlRequestId || !workingRun.linkedExecutionHandoffId) {
+        const draftPayload = await draftApexOsAutonomyRunInternalWork(sessionToken, workingRun.id);
+        workingRun = draftPayload?.apexOsAutonomyRun || workingRun;
+        syncCockpitLiveRunsFromPayload(draftPayload, workingRun?.id || cockpitActiveRun.id);
+      }
+
+      const preparedRun = advanceApexOsAutonomyRunPrivatePrep(workingRun, {
+        now: new Date().toISOString(),
+        operatorNote: "Apex prepared this private run for proof checking from the body screen.",
+      });
+      const proofRun = validateApexOsAutonomyRunPrivateProof(preparedRun, {
+        now: new Date().toISOString(),
+        operatorNote: "Apex ran a private proof check from the body screen and stopped at the manual review gate.",
+      });
+      const payload = await updateApexOsAutonomyRun(sessionToken, workingRun.id, {
+        status: proofRun.status,
+        operatorNote: proofRun.operatorNote,
+        steps: proofRun.steps,
+        evidence: proofRun.evidence,
+        nextSafeAction: proofRun.nextSafeAction,
+      });
+      const updated = payload?.apexOsAutonomyRun;
+      syncCockpitLiveRunsFromPayload(payload, updated?.id || workingRun.id);
+      const proofPassed = (updated?.status || proofRun.status) === "waiting-approval";
+      const notice = proofPassed
+        ? "Apex proof-checked the private run and moved it to manual approval review."
+        : "Apex proof-checked the private run and found validation gaps for review.";
+      setCockpitLiveRunNotice(notice);
+      setCockpitAgentActionNotice(notice);
+      setCockpitResponse({
+        answer: {
+          answer: `${notice} The proof summary is saved on the run evidence. No external send, billing, ad, provider, production, deletion, queue, run, deploy, rollback, or irreversible action executed.`,
+          sourceLabels: ["Apex Live Operator Mode", "Autonomy Run Center", updated?.sourceLabel || "Private proof check"],
+        },
+      });
+      refreshCockpitLivePulse({ automatic: true });
+      return updated || null;
+    } catch (error) {
+      const message = error?.message || "Apex could not proof-check this live run.";
+      setCockpitLiveRunNotice(message);
+      setCockpitAgentActionNotice(message);
+      return null;
+    } finally {
+      setCockpitUpdatingRun("");
+    }
+  }
+
   async function rememberCockpitTurnFromAnswer() {
     if (!canRememberCockpitTurn) return null;
     const turnKey = cockpitTurnMemoryKey;
@@ -6231,7 +6291,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                   <div className="grid min-w-0 gap-1.5 sm:grid-cols-4">
                     {[
                       { label: "Foundation", value: `${liveOperatorMode.foundationPercent || 0}%`, tone: "green" },
-                      { label: "Operator", value: `${liveOperatorMode.jarvisBehaviorPercent || 0}%`, tone: "blue" },
+                      { label: "Operator", value: `${cockpitVisibleOperatorPercent || 0}%`, tone: "blue" },
                       { label: "Saved runs", value: String(cockpitVisibleSavedRunCount), tone: cockpitVisibleSavedRunCount ? "green" : "slate" },
                       { label: "Gates", value: liveOperatorMode.externalActionsLocked ? "Locked" : "Open", tone: liveOperatorMode.externalActionsLocked ? "amber" : "green" },
                     ].map((item) => (
@@ -6277,9 +6337,12 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                             </p>
                           </div>
                         </div>
-                        <div className="grid min-w-0 gap-1.5 sm:grid-cols-2 xl:grid-cols-6">
+                        <div className="grid min-w-0 gap-1.5 sm:grid-cols-2 xl:grid-cols-7">
                           <ApexCockpitControlButton className="px-2" disabled={Boolean(cockpitUpdatingRun) || cockpitActiveRun.status === "done" || cockpitActiveRun.status === "archived" || cockpitActiveRun.status === "blocked"} onClick={() => continueCockpitActiveRunPrivately()} active={cockpitUpdatingRun === `private-prep-${cockpitActiveRun.id}`} title="Let Apex advance private prep and stop before gated work">
                             <Icon name="spark" /> {cockpitUpdatingRun === `private-prep-${cockpitActiveRun.id}` ? "Prepping" : "Auto Prep"}
+                          </ApexCockpitControlButton>
+                          <ApexCockpitControlButton className="px-2" disabled={Boolean(cockpitUpdatingRun) || cockpitActiveRun.status === "done" || cockpitActiveRun.status === "archived" || cockpitActiveRun.status === "blocked"} onClick={() => proofCheckCockpitActiveRunPrivately()} active={cockpitUpdatingRun === `proof-${cockpitActiveRun.id}`} title="Run private proof checks and stop at manual review">
+                            <Icon name="check" /> {cockpitUpdatingRun === `proof-${cockpitActiveRun.id}` ? "Checking" : "Proof"}
                           </ApexCockpitControlButton>
                           <ApexCockpitControlButton className="px-2" disabled={Boolean(cockpitUpdatingRun) || Boolean(cockpitActiveRun.linkedExecutionHandoffId)} onClick={() => draftCockpitActiveRunInternalWork()} active={cockpitUpdatingRun === `draft-${cockpitActiveRun.id}`} title="Prepare linked internal draft package">
                             <Icon name="clipboard" /> {cockpitUpdatingRun === `draft-${cockpitActiveRun.id}` ? "Drafting" : "Draft"}
@@ -6324,7 +6387,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                   <div className="grid min-w-0 gap-1.5 sm:grid-cols-3">
                     {(liveOperatorMode.operatorLoopRows || []).slice(0, 6).map((item) => (
                       <div key={item.id} className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-slate-800 bg-slate-950/42 px-2.5 py-2">
-                        <Icon name={item.id === "live-loop-validate" ? "check" : item.id === "live-loop-draft" ? "clipboard" : item.id === "live-loop-monitor" ? "refresh" : "spark"} className={`h-3.5 w-3.5 ${item.tone === "green" ? "text-emerald-300" : item.tone === "amber" ? "text-orange-300" : "text-cyan-300"}`} />
+                        <Icon name={item.id === "live-loop-validate" || item.id === "live-loop-proof-check" ? "check" : item.id === "live-loop-draft" ? "clipboard" : item.id === "live-loop-monitor" ? "refresh" : "spark"} className={`h-3.5 w-3.5 ${item.tone === "green" ? "text-emerald-300" : item.tone === "amber" ? "text-orange-300" : "text-cyan-300"}`} />
                         <span className="min-w-0">
                           <span className="block truncate text-[10px] font-black text-slate-200">{item.title}</span>
                           <span className="block truncate text-[9px] font-bold text-slate-500">{item.detail}</span>

@@ -2200,8 +2200,8 @@ function buildApexLiveOperatorModeState({
   const handoffCount = formatCount(executionHandoffs?.handoffSummary?.total);
   const approvalQueueCount = formatCount(approvalCommandCenter?.queueCount || approvalCommandCenter?.packetSummary?.total);
   const monitoringCount = formatCount(releaseMonitoring?.briefingCount || releaseMonitoring?.readinessCount);
-  const liveFoundationPercent = 92;
-  const jarvisBehaviorPercent = activeRunCount || handoffCount ? 82 : 76;
+  const liveFoundationPercent = 93;
+  const jarvisBehaviorPercent = activeRunCount || handoffCount ? 86 : 78;
   const readinessRows = withDerivedStateMetaList([
     {
       id: "live-voice-loop",
@@ -2258,7 +2258,8 @@ function buildApexLiveOperatorModeState({
     { id: "live-loop-save", title: "Save run", status: savedRunCount ? `${savedRunCount} saved` : "Ready", detail: "A private autonomy ledger item is created before work continues.", tone: savedRunCount ? "green" : "blue" },
     { id: "live-loop-draft", title: "Draft", status: autonomyRunCenter?.canDraftInternalRuns ? "Draft-ready" : "Guarded", detail: "Internal agent-control and execution handoff drafts can be prepared.", tone: autonomyRunCenter?.canDraftInternalRuns ? "green" : "amber" },
     { id: "live-loop-auto-prep", title: "Auto prep", status: "Private-only", detail: "Apex can advance routing, planning, and draft-link prep for active runs, then stop before validation and approval gates.", tone: "green" },
-    { id: "live-loop-validate", title: "Validate", status: "Required", detail: "Tests, role checks, browser QA, build proof, and rollback notes stay attached to the work.", tone: "amber" },
+    { id: "live-loop-proof-check", title: "Proof check", status: "Private proof", detail: "Apex can verify linked drafts, route and plan evidence, validation readiness, and approval-stop posture without executing anything.", tone: "green" },
+    { id: "live-loop-validate", title: "Validate", status: "Proof-backed", detail: "Tests, role checks, browser QA, build proof, rollback notes, and private proof checks stay attached to the work.", tone: "green" },
     { id: "live-loop-report", title: "Report", status: savedRunCount ? "Report-ready" : "Result slot", detail: "Apex can report back from the active run and mark it validating, waiting approval, blocked, or done with a result report.", tone: savedRunCount ? "green" : "blue" },
     { id: "live-loop-remember", title: "Remember", status: trustedMemoryCount ? "Trusted context" : "Review first", detail: "The Apex body can draft suggested turn memory, and only reviewed memory becomes future operating context.", tone: trustedMemoryCount ? "green" : "amber" },
     { id: "live-loop-monitor", title: "Monitor", status: releaseMonitoring?.status || "Auto-checking", detail: "The Apex body can refresh read-only build, briefing, and live-run status while the page is open.", tone: releaseMonitoring?.tone || "green" },
@@ -2279,7 +2280,7 @@ function buildApexLiveOperatorModeState({
       id: "live-gap-execution",
       title: "Real-world execution",
       status: "Approval-gated",
-      detail: "Apex can save, draft, auto-advance private prep, validate, and report private runs; customer-visible, billing, send, provider, production, delete, and irreversible actions remain approval-gated.",
+      detail: "Apex can save, draft, auto-advance private prep, proof-check, validate, and report private runs; customer-visible, billing, send, provider, production, delete, and irreversible actions remain approval-gated.",
       tone: "amber",
     },
     {
@@ -2318,7 +2319,7 @@ function buildApexLiveOperatorModeState({
     agentSignalCount,
     externalActionsLocked: true,
     executionLocked: true,
-    nextAction: activeRunCount ? "Review the active live run and validate its internal drafts." : "Start a live operator run from the Apex body.",
+    nextAction: activeRunCount ? "Run the private proof check on the active live run, then report or block it." : "Start a live operator run from the Apex body.",
     readinessRows,
     operatorLoopRows,
     gapRows,
