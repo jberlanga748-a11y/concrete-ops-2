@@ -368,3 +368,88 @@ export function markApexOsAutonomyRunInternalDrafted(run = {}, { agentControlReq
     now,
   });
 }
+
+export function advanceApexOsAutonomyRunPrivatePrep(run = {}, { now = new Date().toISOString(), operatorNote = "" } = {}) {
+  const normalized = normalizeApexOsAutonomyRun(run, { now });
+  if (["done", "archived", "blocked"].includes(normalized.status)) {
+    return normalized;
+  }
+
+  const hasLinkedDrafts = Boolean(normalized.linkedAgentControlRequestId && normalized.linkedExecutionHandoffId);
+  const nextSteps = list(normalized.steps).map((step, index) => {
+    if (step.id === "hear-request") {
+      return normalizeRunStep({
+        ...step,
+        status: "done",
+        evidence: step.evidence || "Operator request is captured in the private Apex run ledger.",
+        updatedAt: now,
+      }, index, now);
+    }
+    if (step.id === "route-work") {
+      return normalizeRunStep({
+        ...step,
+        status: "done",
+        evidence: "Apex routed the request to the current private command-room lane.",
+        updatedAt: now,
+      }, index, now);
+    }
+    if (step.id === "plan-steps") {
+      return normalizeRunStep({
+        ...step,
+        status: "done",
+        evidence: "Apex built the review-first run path and kept execution locked.",
+        updatedAt: now,
+      }, index, now);
+    }
+    if (step.id === "draft-internal") {
+      return normalizeRunStep({
+        ...step,
+        status: hasLinkedDrafts ? "drafted" : "ready",
+        evidence: hasLinkedDrafts
+          ? "Private agent-control and execution handoff drafts are linked for operator review."
+          : "A private internal draft package is required before prep can advance further.",
+        updatedAt: now,
+      }, index, now);
+    }
+    if (step.id === "validate-evidence") {
+      return normalizeRunStep({
+        ...step,
+        status: hasLinkedDrafts ? "ready" : "todo",
+        evidence: hasLinkedDrafts
+          ? "Validation is ready for operator-directed tests, role checks, browser/mobile proof, build proof, and rollback notes."
+          : step.evidence,
+        updatedAt: now,
+      }, index, now);
+    }
+    if (step.id === "approval-gate") {
+      return normalizeRunStep({
+        ...step,
+        status: "waiting-approval",
+        evidence: "Apex stopped before customer-visible, money, provider, production, deletion, or irreversible work.",
+        updatedAt: now,
+      }, index, now);
+    }
+    return normalizeRunStep(step, index, now);
+  });
+
+  const nextEvidence = [
+    ...list(normalized.evidence),
+    hasLinkedDrafts
+      ? "Apex auto-advanced private run prep through routing, planning, and internal draft linkage; validation still requires operator-directed proof."
+      : "Apex auto-advanced safe routing and planning, then stopped because internal draft links are still required.",
+  ].slice(-12);
+
+  return normalizeApexOsAutonomyRun({
+    ...normalized,
+    status: hasLinkedDrafts ? "validating" : "drafting",
+    operatorNote: operatorNote || "Apex advanced private-only run prep and stopped before approval-gated work.",
+    steps: nextSteps,
+    evidence: nextEvidence,
+    nextSafeAction: hasLinkedDrafts
+      ? "Run prep is validation-ready. Run operator-directed proof checks, then decide whether this run is done, blocked, or waiting for approval."
+      : "Create the private internal draft package before Apex can continue prep.",
+  }, {
+    existing: normalized,
+    now,
+  });
+}

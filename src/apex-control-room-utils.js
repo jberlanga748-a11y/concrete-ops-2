@@ -2200,8 +2200,8 @@ function buildApexLiveOperatorModeState({
   const handoffCount = formatCount(executionHandoffs?.handoffSummary?.total);
   const approvalQueueCount = formatCount(approvalCommandCenter?.queueCount || approvalCommandCenter?.packetSummary?.total);
   const monitoringCount = formatCount(releaseMonitoring?.briefingCount || releaseMonitoring?.readinessCount);
-  const liveFoundationPercent = 90;
-  const jarvisBehaviorPercent = activeRunCount || handoffCount ? 78 : 74;
+  const liveFoundationPercent = 92;
+  const jarvisBehaviorPercent = activeRunCount || handoffCount ? 82 : 76;
   const readinessRows = withDerivedStateMetaList([
     {
       id: "live-voice-loop",
@@ -2257,6 +2257,7 @@ function buildApexLiveOperatorModeState({
     { id: "live-loop-plan", title: "Plan", status: `${formatCount(autonomyRunCenter?.planStepCount)} steps`, detail: "The request becomes a visible review-first run plan with an active step and evidence trail.", tone: "blue" },
     { id: "live-loop-save", title: "Save run", status: savedRunCount ? `${savedRunCount} saved` : "Ready", detail: "A private autonomy ledger item is created before work continues.", tone: savedRunCount ? "green" : "blue" },
     { id: "live-loop-draft", title: "Draft", status: autonomyRunCenter?.canDraftInternalRuns ? "Draft-ready" : "Guarded", detail: "Internal agent-control and execution handoff drafts can be prepared.", tone: autonomyRunCenter?.canDraftInternalRuns ? "green" : "amber" },
+    { id: "live-loop-auto-prep", title: "Auto prep", status: "Private-only", detail: "Apex can advance routing, planning, and draft-link prep for active runs, then stop before validation and approval gates.", tone: "green" },
     { id: "live-loop-validate", title: "Validate", status: "Required", detail: "Tests, role checks, browser QA, build proof, and rollback notes stay attached to the work.", tone: "amber" },
     { id: "live-loop-report", title: "Report", status: savedRunCount ? "Report-ready" : "Result slot", detail: "Apex can report back from the active run and mark it validating, waiting approval, blocked, or done with a result report.", tone: savedRunCount ? "green" : "blue" },
     { id: "live-loop-remember", title: "Remember", status: trustedMemoryCount ? "Trusted context" : "Review first", detail: "The Apex body can draft suggested turn memory, and only reviewed memory becomes future operating context.", tone: trustedMemoryCount ? "green" : "amber" },
@@ -2278,7 +2279,7 @@ function buildApexLiveOperatorModeState({
       id: "live-gap-execution",
       title: "Real-world execution",
       status: "Approval-gated",
-      detail: "Apex can save, draft, validate, and report private runs; customer-visible, billing, send, provider, production, delete, and irreversible actions remain approval-gated.",
+      detail: "Apex can save, draft, auto-advance private prep, validate, and report private runs; customer-visible, billing, send, provider, production, delete, and irreversible actions remain approval-gated.",
       tone: "amber",
     },
     {

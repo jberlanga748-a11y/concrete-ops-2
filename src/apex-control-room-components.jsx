@@ -35,6 +35,7 @@ import {
   buildApexOsAskExecutionHandoffDraft,
 } from "../shared/apexOsAsk.js";
 import { redactApexOsMemoryText } from "../shared/apexOsMemory.js";
+import { advanceApexOsAutonomyRunPrivatePrep } from "../shared/apexOsAutonomyRuns.js";
 import { buildApexOsVoiceCommandReview } from "../shared/apexOsVoice.js";
 import {
   APEX_OS_KNOWLEDGE_DATE_RANGE_VALUES,
@@ -5617,6 +5618,53 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     }
   }
 
+  async function continueCockpitActiveRunPrivately() {
+    if (!state.canView || !sessionToken || !cockpitActiveRun?.id || cockpitUpdatingRun) return null;
+    if (["done", "archived", "blocked"].includes(String(cockpitActiveRun.status || "").toLowerCase())) return null;
+    setCockpitUpdatingRun(`private-prep-${cockpitActiveRun.id}`);
+    setCockpitLiveRunNotice("Apex is advancing private prep and will stop before approval-gated work.");
+    try {
+      let workingRun = cockpitActiveRun;
+      if (!workingRun.linkedAgentControlRequestId || !workingRun.linkedExecutionHandoffId) {
+        const draftPayload = await draftApexOsAutonomyRunInternalWork(sessionToken, workingRun.id);
+        workingRun = draftPayload?.apexOsAutonomyRun || workingRun;
+        syncCockpitLiveRunsFromPayload(draftPayload, workingRun?.id || cockpitActiveRun.id);
+      }
+
+      const advancedRun = advanceApexOsAutonomyRunPrivatePrep(workingRun, {
+        now: new Date().toISOString(),
+        operatorNote: "Apex auto-advanced private-only prep from the body screen and stopped before approval-gated work.",
+      });
+      const payload = await updateApexOsAutonomyRun(sessionToken, workingRun.id, {
+        status: advancedRun.status,
+        operatorNote: advancedRun.operatorNote,
+        steps: advancedRun.steps,
+        evidence: advancedRun.evidence,
+        nextSafeAction: advancedRun.nextSafeAction,
+      });
+      const updated = payload?.apexOsAutonomyRun;
+      syncCockpitLiveRunsFromPayload(payload, updated?.id || workingRun.id);
+      const notice = "Apex advanced private prep to validation-ready and stopped before approval-gated work.";
+      setCockpitLiveRunNotice(notice);
+      setCockpitAgentActionNotice(notice);
+      setCockpitResponse({
+        answer: {
+          answer: `${notice} Linked drafts and step evidence were updated. No external send, billing, ad, provider, production, deletion, queue, run, deploy, rollback, or irreversible action executed.`,
+          sourceLabels: ["Apex Live Operator Mode", "Autonomy Run Center", updated?.sourceLabel || "Private prep autopilot"],
+        },
+      });
+      refreshCockpitLivePulse({ automatic: true });
+      return updated || null;
+    } catch (error) {
+      const message = error?.message || "Apex could not advance private prep for this run.";
+      setCockpitLiveRunNotice(message);
+      setCockpitAgentActionNotice(message);
+      return null;
+    } finally {
+      setCockpitUpdatingRun("");
+    }
+  }
+
   async function rememberCockpitTurnFromAnswer() {
     if (!canRememberCockpitTurn) return null;
     const turnKey = cockpitTurnMemoryKey;
@@ -6229,7 +6277,10 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                             </p>
                           </div>
                         </div>
-                        <div className="grid min-w-0 gap-1.5 sm:grid-cols-2 xl:grid-cols-5">
+                        <div className="grid min-w-0 gap-1.5 sm:grid-cols-2 xl:grid-cols-6">
+                          <ApexCockpitControlButton className="px-2" disabled={Boolean(cockpitUpdatingRun) || cockpitActiveRun.status === "done" || cockpitActiveRun.status === "archived" || cockpitActiveRun.status === "blocked"} onClick={() => continueCockpitActiveRunPrivately()} active={cockpitUpdatingRun === `private-prep-${cockpitActiveRun.id}`} title="Let Apex advance private prep and stop before gated work">
+                            <Icon name="spark" /> {cockpitUpdatingRun === `private-prep-${cockpitActiveRun.id}` ? "Prepping" : "Auto Prep"}
+                          </ApexCockpitControlButton>
                           <ApexCockpitControlButton className="px-2" disabled={Boolean(cockpitUpdatingRun) || Boolean(cockpitActiveRun.linkedExecutionHandoffId)} onClick={() => draftCockpitActiveRunInternalWork()} active={cockpitUpdatingRun === `draft-${cockpitActiveRun.id}`} title="Prepare linked internal draft package">
                             <Icon name="clipboard" /> {cockpitUpdatingRun === `draft-${cockpitActiveRun.id}` ? "Drafting" : "Draft"}
                           </ApexCockpitControlButton>

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  advanceApexOsAutonomyRunPrivatePrep,
   buildApexOsAutonomyRunPlan,
   getApexOsAutonomyRunMissingFields,
   isApexOsAutonomyRunReady,
@@ -91,6 +92,62 @@ test("marks internal draft links without enabling execution", () => {
   assert.equal(updated.linkedExecutionHandoffId, "AEH-1");
   assert.equal(updated.steps.find((step) => step.id === "draft-internal").status, "drafted");
   assert.match(updated.nextSafeAction, /Review the linked agent request/i);
+});
+
+test("advances private prep and stops before approval-gated work", () => {
+  const run = markApexOsAutonomyRunInternalDrafted(buildApexOsAutonomyRunPlan({
+    title: "Prep private run",
+    request: "Prepare this Apex run safely.",
+    routeLabel: "Apex",
+  }, {
+    id: "AAR-PREP",
+    now: "2026-06-04T10:00:00.000Z",
+    createdBy: "U-1",
+  }), {
+    agentControlRequestId: "AAC-PREP",
+    executionHandoffId: "AEH-PREP",
+    now: "2026-06-04T10:01:00.000Z",
+  });
+
+  const advanced = advanceApexOsAutonomyRunPrivatePrep(run, {
+    now: "2026-06-04T10:02:00.000Z",
+  });
+
+  assert.equal(advanced.status, "validating");
+  assert.equal(advanced.linkedAgentControlRequestId, "AAC-PREP");
+  assert.equal(advanced.linkedExecutionHandoffId, "AEH-PREP");
+  assert.equal(advanced.steps.find((step) => step.id === "route-work").status, "done");
+  assert.equal(advanced.steps.find((step) => step.id === "plan-steps").status, "done");
+  assert.equal(advanced.steps.find((step) => step.id === "draft-internal").status, "drafted");
+  assert.equal(advanced.steps.find((step) => step.id === "validate-evidence").status, "ready");
+  assert.equal(advanced.steps.find((step) => step.id === "approval-gate").status, "waiting-approval");
+  assert.match(advanced.nextSafeAction, /operator-directed proof/i);
+  assert.match(advanced.evidence.join(" "), /auto-advanced private run prep/i);
+  assert.equal(isApexOsAutonomyRunReady(advanced), true);
+});
+
+test("private prep stops when internal drafts are missing", () => {
+  const run = buildApexOsAutonomyRunPlan({
+    title: "Missing draft prep",
+    request: "Prepare this run without draft links.",
+  }, {
+    id: "AAR-MISSING-DRAFTS",
+    now: "2026-06-04T10:00:00.000Z",
+    createdBy: "U-1",
+  });
+
+  const advanced = advanceApexOsAutonomyRunPrivatePrep(run, {
+    now: "2026-06-04T10:02:00.000Z",
+  });
+
+  assert.equal(advanced.status, "drafting");
+  assert.equal(advanced.linkedAgentControlRequestId, "");
+  assert.equal(advanced.linkedExecutionHandoffId, "");
+  assert.equal(advanced.steps.find((step) => step.id === "route-work").status, "done");
+  assert.equal(advanced.steps.find((step) => step.id === "plan-steps").status, "done");
+  assert.equal(advanced.steps.find((step) => step.id === "draft-internal").status, "ready");
+  assert.equal(advanced.steps.find((step) => step.id === "validate-evidence").status, "todo");
+  assert.match(advanced.nextSafeAction, /internal draft package/i);
 });
 
 test("normalizes durable run lists and redacts unsafe text", () => {
