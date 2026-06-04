@@ -34,6 +34,7 @@ import {
   buildApexOsAskDecisionDraft,
   buildApexOsAskExecutionHandoffDraft,
 } from "../shared/apexOsAsk.js";
+import { redactApexOsMemoryText } from "../shared/apexOsMemory.js";
 import { buildApexOsVoiceCommandReview } from "../shared/apexOsVoice.js";
 import {
   APEX_OS_KNOWLEDGE_DATE_RANGE_VALUES,
@@ -4036,6 +4037,40 @@ function buildApexCockpitAgentControlDraft(question = "", route = {}) {
   };
 }
 
+function apexCockpitMemoryText(value = "", limit = 1800) {
+  return String(value || "").replace(/\s+/g, " ").trim().slice(0, limit);
+}
+
+function apexCockpitSafeMemoryText(value = "", limit = 1800) {
+  return apexCockpitMemoryText(redactApexOsMemoryText(value, limit), limit);
+}
+
+function buildApexCockpitTurnMemoryDraft({ question = "", answer = {}, route = {}, requestId = "" } = {}) {
+  const safeQuestion = apexCockpitSafeMemoryText(question || route?.label || "Apex live operator turn", 700);
+  const safeAnswer = apexCockpitSafeMemoryText(answer?.answer || "Apex gave a source-backed answer in Live Operator Mode.", 950);
+  const sourceLabels = Array.isArray(answer?.sourceLabels)
+    ? answer.sourceLabels.map((label) => apexCockpitSafeMemoryText(label, 80)).filter(Boolean)
+    : [];
+  const sourceKey = apexCockpitMemoryText(requestId || `${Date.now()}`, 90).replace(/[^a-z0-9_-]+/gi, "-");
+
+  return {
+    ...buildApexOsAskDecisionDraft({ question: safeQuestion, answer, requestId: sourceKey }),
+    title: apexCockpitMemoryText(`Apex live turn: ${safeQuestion}`, 140),
+    body: apexCockpitMemoryText([
+      `Operator request: ${safeQuestion}`,
+      `Apex answer summary: ${safeAnswer}`,
+      sourceLabels.length ? `Source labels: ${sourceLabels.join(", ")}` : "Source labels: Apex Live Operator Mode",
+      `Next safe action: ${apexCockpitSafeMemoryText(answer?.nextAction || route?.detail || "Review this memory before trusting it.", 240)}`,
+    ].join(" "), 1800),
+    sourceType: "apex-live-operator-turn",
+    sourceLabel: "Apex Live Operator Mode",
+    sourceUri: `apex-life://turn/${sourceKey}`,
+    status: "suggested",
+    reviewNote: "Suggested from Apex Live Operator Mode answer; manual approval required before trusted memory.",
+    confidence: 76,
+  };
+}
+
 function ApexMiniWaveform({ bars = [8, 13, 7, 18, 10, 22, 12, 16, 9, 20, 8, 14], mode = "listening" }) {
   const voiceMode = APEX_COCKPIT_VOICE_STATES[mode] ? mode : "listening";
   return (
@@ -4150,7 +4185,7 @@ function ApexCockpitCommandStream({ turns, route, onOpenRoute, onCreateAgentRequ
       <div className="grid min-w-0 gap-1.5">
         {visibleTurns.length ? visibleTurns.map((turn) => (
           <div key={turn.id} className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-slate-800 bg-slate-900/58 px-2.5 py-2">
-            <Icon name={turn.source === "interrupt" ? "alert" : turn.source === "voice" ? "phone" : "check"} className="h-3.5 w-3.5 text-cyan-300" />
+            <Icon name={turn.source === "memory" ? "database" : turn.source === "interrupt" ? "alert" : turn.source === "voice" ? "phone" : "check"} className="h-3.5 w-3.5 text-cyan-300" />
             <p className="min-w-0 truncate text-[11px] font-bold text-slate-300">{turn.question}</p>
             <span className="text-[9px] font-black uppercase tracking-[0.08em] text-slate-500">{turn.status === "agent-requested" ? "locked" : turn.routeLabel}</span>
           </div>
@@ -4622,16 +4657,18 @@ function summarizeApexCockpitLivePulse({ state, buildPayload, briefingPayload, r
   };
 }
 
-function buildApexCockpitPulseRows({ state, pulse, recording, speaking, conversationMode, bargeInEnabled, captionFallbackEnabled = false, captionStatus = "standby", interruptionCount = 0 } = {}) {
+function buildApexCockpitPulseRows({ state, pulse, recording, speaking, conversationMode, bargeInEnabled, captionFallbackEnabled = false, captionStatus = "standby", interruptionCount = 0, rememberedTurnCount = 0 } = {}) {
   const summary = pulse?.runSummary || state?.autonomyRunCenter?.runSummary || {};
   const captionActive = captionStatus === "captioning" || captionStatus === "interim";
   const caughtInterruptions = Number(interruptionCount || 0);
+  const rememberedTurns = Number(rememberedTurnCount || 0);
   return [
     { label: "Auto Check", value: formatApexCockpitPulseTime(pulse?.checkedAt), tone: pulse?.checkedAt ? "green" : "slate" },
     { label: "Release", value: pulse?.releaseVersion || (state?.releaseDesk?.currentVersion ? `v${state.releaseDesk.currentVersion}` : "Live"), tone: state?.releaseDesk?.tone || "green" },
     { label: "Runs", value: `${Number(summary.active || 0)} active / ${Number(summary.total || 0)} saved`, tone: Number(summary.active || 0) ? "green" : "slate" },
     { label: "Voice Loop", value: recording ? "Listening" : speaking ? "Talking" : conversationMode ? "Open" : "Manual", tone: recording || conversationMode ? "green" : "slate" },
     { label: "Barge-in", value: caughtInterruptions ? `${caughtInterruptions} caught` : bargeInEnabled ? "Armed" : "Off", tone: caughtInterruptions ? "green" : bargeInEnabled ? "amber" : "slate" },
+    { label: "Turn Memory", value: rememberedTurns ? `${rememberedTurns} suggested` : "Manual", tone: rememberedTurns ? "green" : "blue" },
     { label: "Captions", value: captionFallbackEnabled ? (captionActive ? "Live" : "Ready") : "Server", tone: captionFallbackEnabled ? "blue" : "slate" },
     { label: "Alerts", value: `${Number(pulse?.alertCount || 0)} alerts`, tone: Number(pulse?.alertCount || 0) ? "amber" : "green" },
     { label: "Blockers", value: `${Number(pulse?.blockerCount || 0)} blockers`, tone: Number(pulse?.blockerCount || 0) ? "amber" : "green" },
@@ -4660,6 +4697,9 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const [cockpitCreatingAgentRequest, setCockpitCreatingAgentRequest] = useState(false);
   const [cockpitLiveRunNotice, setCockpitLiveRunNotice] = useState("");
   const [cockpitCreatingLiveRun, setCockpitCreatingLiveRun] = useState(false);
+  const [cockpitRememberingTurn, setCockpitRememberingTurn] = useState(false);
+  const [cockpitRememberedTurnKeys, setCockpitRememberedTurnKeys] = useState({});
+  const [cockpitRememberedTurnCount, setCockpitRememberedTurnCount] = useState(0);
   const [cockpitLivePulse, setCockpitLivePulse] = useState(null);
   const [cockpitLivePulseBusy, setCockpitLivePulseBusy] = useState(false);
   const [cockpitLivePulseError, setCockpitLivePulseError] = useState("");
@@ -4749,6 +4789,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const cockpitVisibleLiveStatus = cockpitVisibleActiveRunCount ? "Live operator running" : liveOperatorMode.status || "Live operator ready";
   const cockpitVisibleLiveTone = cockpitVisibleActiveRunCount ? "green" : liveOperatorMode.tone || "blue";
   const cockpitAnswerText = resolveApexCockpitAnswerText(cockpitResponse);
+  const cockpitTurnMemoryKey = apexCockpitMemoryText(cockpitResponse?.requestId || `${cockpitLastQuestion}|${cockpitAnswerText}`, 220);
   const cockpitVoiceMode = cockpitError
     ? "blocked"
     : cockpitSpeaking
@@ -4768,6 +4809,13 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const canAskCockpit = state.canView && Boolean(sessionToken) && Boolean(askQuestion.trim()) && !cockpitSubmitting;
   const canSpeakCockpitAnswer = state.canView && Boolean(sessionToken) && Boolean(cockpitAnswerText) && !cockpitSpeaking;
   const canCreateCockpitLiveRun = state.canView && Boolean(sessionToken) && !cockpitCreatingLiveRun;
+  const canRememberCockpitTurn = state.canView
+    && Boolean(sessionToken)
+    && Boolean(cockpitResponse?.answer)
+    && Boolean(cockpitAnswerText)
+    && Boolean(cockpitTurnMemoryKey)
+    && !cockpitRememberingTurn
+    && !cockpitRememberedTurnKeys[cockpitTurnMemoryKey];
   const cockpitLiveLevel = Math.max(cockpitMicLevel, cockpitOutputLevel);
   const canStartCockpitVoice = state.canView && Boolean(sessionToken) && canUseCockpitRecorder && !cockpitRecording && !cockpitTranscribing && !cockpitSubmitting && (!cockpitSpeaking || cockpitBargeInEnabled) && !cockpitVoiceOpeningRef.current;
   const canToggleCockpitVoice = canStartCockpitVoice || cockpitRecording;
@@ -4781,6 +4829,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     captionFallbackEnabled: canUseCockpitSpeechRecognition,
     captionStatus: cockpitRecognitionStatus,
     interruptionCount: cockpitInterruptionCount,
+    rememberedTurnCount: cockpitRememberedTurnCount,
   });
   const focusDrawerTabs = [
     { id: "voice", label: "Voice", value: cockpitRecording ? (cockpitRecognitionStatus === "captioning" ? "Captioning" : "Listening") : cockpitSpeaking ? "Talking" : cockpitNeedsWake ? "Wake" : "Ready", tone: cockpitRecording ? "green" : cockpitSpeaking ? "amber" : "slate", icon: "phone" },
@@ -5407,6 +5456,45 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     }
   }
 
+  async function rememberCockpitTurnFromAnswer() {
+    if (!canRememberCockpitTurn) return null;
+    const turnKey = cockpitTurnMemoryKey;
+    const memoryDraft = buildApexCockpitTurnMemoryDraft({
+      question: cockpitLastQuestion || askQuestion || cockpitCommandRoute.label,
+      answer: cockpitResponse.answer,
+      route: cockpitCommandRoute,
+      requestId: cockpitResponse?.requestId || turnKey,
+    });
+    setCockpitRememberingTurn(true);
+    setCockpitAgentActionNotice("Drafting suggested live-turn memory. It will stay untrusted until you approve it.");
+    try {
+      const payload = await createApexOsMemory(sessionToken, memoryDraft);
+      const created = payload?.apexOsMemoryEntry;
+      setCockpitRememberedTurnKeys((current) => ({ ...current, [turnKey]: created?.id || "suggested" }));
+      setCockpitRememberedTurnCount((current) => current + 1);
+      const notice = created?.id
+        ? `Suggested memory ${created.id} saved from this live turn. Review it before trusting it.`
+        : "Suggested memory saved from this live turn. Review it before trusting it.";
+      setCockpitAgentActionNotice(notice);
+      setCockpitTurns((current) => [
+        {
+          id: `cockpit-memory-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          question: `Suggested memory saved: ${created?.title || memoryDraft.title}`,
+          source: "memory",
+          routeLabel: "Memory",
+          status: "suggested",
+        },
+        ...current,
+      ].slice(0, 5));
+      return created || null;
+    } catch (error) {
+      setCockpitAgentActionNotice(error?.message || "Suggested live-turn memory could not be saved.");
+      return null;
+    } finally {
+      setCockpitRememberingTurn(false);
+    }
+  }
+
   async function askCockpitQuestion(nextQuestion, { fromVoice = false, interrupted = false } = {}) {
     const previousTurns = cockpitTurns.slice(0, 4);
     const route = buildApexCockpitCommandRoute(nextQuestion, { previousRoute: cockpitCommandRoute });
@@ -5703,11 +5791,12 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                       <p className="mt-1 text-sm font-black text-slate-100">{cockpitVoiceState.headline}</p>
                       <p className="mt-1 min-w-0 break-words text-[11px] font-bold leading-4 text-slate-500">{cockpitAgentActionNotice || cockpitVoiceNotice || (cockpitNeedsWake ? "Tap Wake Apex once so the browser can unlock microphone and voice playback; after that the conversation loop stays open." : cockpitVoiceState.detail)}</p>
                     </div>
-                    <div className="grid min-w-0 gap-2 sm:grid-cols-2">
+                    <div className="grid min-w-0 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                       <ApexCockpitControlButton disabled={false} onClick={() => setCockpitConversationMode((current) => !current)} active={cockpitConversationMode}>{cockpitConversationMode ? "Conversation On" : "Conversation Off"}</ApexCockpitControlButton>
                       <ApexCockpitControlButton disabled={false} onClick={() => setCockpitBargeInEnabled((current) => !current)} active={cockpitBargeInEnabled}>{cockpitBargeInEnabled ? "Barge-in On" : "Barge-in Off"}</ApexCockpitControlButton>
                       <ApexCockpitControlButton onClick={() => speakCockpitAnswer()} disabled={!canSpeakCockpitAnswer} active={cockpitSpeaking}>Speak Answer</ApexCockpitControlButton>
                       <ApexCockpitControlButton onClick={() => interruptCockpitVoicePlayback("manual-button")} disabled={!cockpitSpeaking}>Interrupt</ApexCockpitControlButton>
+                      <ApexCockpitControlButton onClick={() => rememberCockpitTurnFromAnswer()} disabled={!canRememberCockpitTurn} active={cockpitRememberingTurn}>Remember</ApexCockpitControlButton>
                     </div>
                   </div>
                 ) : null}
@@ -5901,12 +5990,16 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     <ApexCockpitControlButton className="px-2" disabled={!canCreateCockpitLiveRun} onClick={() => createCockpitLiveRunFromCommand()} active={cockpitCreatingLiveRun} title="Start private live operator run">
                       <Icon name="spark" /> {cockpitCreatingLiveRun ? "Starting" : "Live Run"}
                     </ApexCockpitControlButton>
+                    <ApexCockpitControlButton className="px-2" disabled={!canRememberCockpitTurn} onClick={() => rememberCockpitTurnFromAnswer()} active={cockpitRememberingTurn} title="Draft suggested memory from the latest Apex answer">
+                      <Icon name="database" /> {cockpitRememberingTurn ? "Saving" : "Remember"}
+                    </ApexCockpitControlButton>
                   </div>
                 </div>
-                <div className="grid min-w-0 gap-1.5 sm:grid-cols-5">
+                <div className="grid min-w-0 gap-1.5 sm:grid-cols-6">
                   {[
                     { label: "Loop", value: cockpitConversationMode ? "Open" : "Manual", tone: cockpitConversationMode ? "green" : "slate" },
                     { label: "Barge-in", value: cockpitInterruptionCount ? `${cockpitInterruptionCount} caught` : cockpitBargeInEnabled ? "Armed" : "Off", tone: cockpitInterruptionCount ? "green" : cockpitBargeInEnabled ? "amber" : "slate" },
+                    { label: "Memory", value: cockpitRememberedTurnCount ? `${cockpitRememberedTurnCount} saved` : "Manual", tone: cockpitRememberedTurnCount ? "green" : "blue" },
                     { label: "Input", value: cockpitRecording ? "Listening" : cockpitTranscribing ? "Reading" : "Standby", tone: cockpitRecording ? "green" : cockpitTranscribing ? "blue" : "slate" },
                     { label: "Captions", value: canUseCockpitSpeechRecognition ? (cockpitRecognitionStatus === "captioning" || cockpitRecognitionStatus === "interim" ? "Live" : "Ready") : "Server", tone: canUseCockpitSpeechRecognition ? "blue" : "slate" },
                     { label: "Output", value: cockpitSpeaking ? "Talking" : "Ready", tone: cockpitSpeaking ? "amber" : "green" },

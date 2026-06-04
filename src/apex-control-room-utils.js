@@ -2153,8 +2153,8 @@ function buildApexLiveOperatorModeState({
   const handoffCount = formatCount(executionHandoffs?.handoffSummary?.total);
   const approvalQueueCount = formatCount(approvalCommandCenter?.queueCount || approvalCommandCenter?.packetSummary?.total);
   const monitoringCount = formatCount(releaseMonitoring?.briefingCount || releaseMonitoring?.readinessCount);
-  const liveFoundationPercent = 86;
-  const jarvisBehaviorPercent = activeRunCount || handoffCount ? 68 : 64;
+  const liveFoundationPercent = 88;
+  const jarvisBehaviorPercent = activeRunCount || handoffCount ? 74 : 70;
   const readinessRows = withDerivedStateMetaList([
     {
       id: "live-voice-loop",
@@ -2195,7 +2195,7 @@ function buildApexLiveOperatorModeState({
       id: "live-memory",
       title: "Run memory",
       status: trustedMemoryCount ? `${trustedMemoryCount} trusted` : "Memory ready",
-      detail: "Finished runs can report results and suggest memory after review; no hidden memory becomes trusted automatically.",
+      detail: "Apex body turns and finished runs can draft suggested memory after review; no hidden memory becomes trusted automatically.",
       tone: trustedMemoryCount ? "green" : "blue",
     },
   ], {
@@ -2212,7 +2212,7 @@ function buildApexLiveOperatorModeState({
     { id: "live-loop-draft", title: "Draft", status: autonomyRunCenter?.canDraftInternalRuns ? "Draft-ready" : "Guarded", detail: "Internal agent-control and execution handoff drafts can be prepared.", tone: autonomyRunCenter?.canDraftInternalRuns ? "green" : "amber" },
     { id: "live-loop-validate", title: "Validate", status: "Required", detail: "Tests, role checks, browser QA, build proof, and rollback notes stay attached to the work.", tone: "amber" },
     { id: "live-loop-report", title: "Report", status: "Result slot", detail: "Apex reports what happened, what is blocked, and what needs review.", tone: "blue" },
-    { id: "live-loop-remember", title: "Remember", status: trustedMemoryCount ? "Trusted context" : "Review first", detail: "Only reviewed memory becomes future operating context.", tone: trustedMemoryCount ? "green" : "amber" },
+    { id: "live-loop-remember", title: "Remember", status: trustedMemoryCount ? "Trusted context" : "Review first", detail: "The Apex body can draft suggested turn memory, and only reviewed memory becomes future operating context.", tone: trustedMemoryCount ? "green" : "amber" },
     { id: "live-loop-monitor", title: "Monitor", status: releaseMonitoring?.status || "Auto-checking", detail: "The Apex body can refresh read-only build, briefing, and live-run status while the page is open.", tone: releaseMonitoring?.tone || "green" },
   ], {
     sourceLabel: "Apex Live Operator loop",
