@@ -478,6 +478,7 @@ function VoiceTranscriptPanel({ state, sessionToken, onUseTranscript }) {
     && Boolean(navigator.mediaDevices?.getUserMedia)
     && typeof MediaRecorder !== "undefined";
   const canStartRecording = state.canView && Boolean(sessionToken) && canUseBrowserRecorder && !recording && !transcribing;
+  const canToggleRecording = canStartRecording || recording;
 
   function cleanupRecordingStream() {
     if (streamRef.current) {
@@ -497,7 +498,7 @@ function VoiceTranscriptPanel({ state, sessionToken, onUseTranscript }) {
       return;
     }
     setTranscribing(true);
-    setNotice("Transcribing push-to-talk audio through the private server endpoint.");
+    setNotice("Transcribing voice session audio through the private server endpoint.");
     try {
       const audioDataUrl = await blobToDataUrl(blob);
       const payload = await transcribeApexOsVoice(sessionToken, { audioDataUrl });
@@ -514,7 +515,7 @@ function VoiceTranscriptPanel({ state, sessionToken, onUseTranscript }) {
     }
   }
 
-  async function startRecording() {
+  async function openVoiceSession() {
     if (!canStartRecording) return;
     setNotice("");
     setCommandReview(null);
@@ -536,7 +537,7 @@ function VoiceTranscriptPanel({ state, sessionToken, onUseTranscript }) {
       };
       recorder.start();
       setRecording(true);
-      setNotice("Push-to-talk recording is active. Stop when you are done speaking.");
+      setNotice("Voice is open. Speak naturally, then close voice when you are ready for Apex to transcribe it.");
     } catch (error) {
       cleanupRecordingStream();
       setRecording(false);
@@ -544,9 +545,9 @@ function VoiceTranscriptPanel({ state, sessionToken, onUseTranscript }) {
     }
   }
 
-  function stopRecording() {
+  function closeVoiceSession() {
     if (!recording || !recorderRef.current) return;
-    setNotice("Recording stopped. Preparing transcript review.");
+    setNotice("Voice closed. Preparing transcript review.");
     recorderRef.current.stop();
   }
 
@@ -571,15 +572,15 @@ function VoiceTranscriptPanel({ state, sessionToken, onUseTranscript }) {
         <div className="flex min-h-44 min-w-0 flex-col items-center justify-center rounded-xl border border-slate-200 bg-slate-50 p-4 text-center">
           <button
             type="button"
-            disabled={!canStartRecording}
-            onClick={startRecording}
+            disabled={!canToggleRecording}
+            onClick={recording ? closeVoiceSession : openVoiceSession}
             className={`inline-flex h-20 w-20 items-center justify-center rounded-full border shadow-[0_16px_34px_-28px_rgba(7,17,31,0.5)] transition disabled:cursor-not-allowed ${recording ? "border-orange-300 bg-orange-50 text-orange-700" : "border-slate-300 bg-white text-slate-600 hover:border-orange-300 hover:text-orange-700"}`}
-            title="Push-to-talk starts only when clicked"
+            title={recording ? "Close voice and transcribe" : "Open voice"}
           >
             <Icon name="phone" className="h-8 w-8" />
           </button>
-          <p className="mt-3 break-words text-sm font-black text-slate-950">{recording ? "Listening now" : state.voiceInterface.prompt}</p>
-          <p className="mt-1 break-words text-xs font-bold leading-5 text-slate-600">{canUseBrowserRecorder ? state.voiceInterface.providerStatus : "Browser microphone unavailable"}</p>
+          <p className="mt-3 break-words text-sm font-black text-slate-950">{recording ? "Voice open" : transcribing ? "Transcribing..." : state.voiceInterface.prompt}</p>
+          <p className="mt-1 break-words text-xs font-bold leading-5 text-slate-600">{canUseBrowserRecorder ? (recording ? "Mic is open. Close voice when you are done." : state.voiceInterface.providerStatus) : "Browser microphone unavailable"}</p>
         </div>
         <div className="grid min-w-0 gap-3">
           <StatusRow item={{
@@ -623,11 +624,11 @@ function VoiceTranscriptPanel({ state, sessionToken, onUseTranscript }) {
           disabled={!state.canView}
         />
         <div className="mt-3 flex min-w-0 flex-wrap gap-2">
-          <Button type="button" variant="secondary" size="sm" onClick={startRecording} disabled={!canStartRecording}>
-            <Icon name="phone" /> {recording ? "Recording..." : "Push to talk"}
+          <Button type="button" variant="secondary" size="sm" onClick={recording ? closeVoiceSession : openVoiceSession} disabled={!canToggleRecording}>
+            <Icon name="phone" /> {recording ? "Close voice" : "Open voice"}
           </Button>
-          <Button type="button" variant="secondary" size="sm" onClick={stopRecording} disabled={!recording}>
-            <Icon name="lock" /> Stop & transcribe
+          <Button type="button" variant="secondary" size="sm" onClick={closeVoiceSession} disabled={!recording}>
+            <Icon name="lock" /> Close & transcribe
           </Button>
           <Button type="button" variant="secondary" size="sm" onClick={confirmTranscript} disabled={!canConfirm}>
             <Icon name="clipboard" /> Confirm transcript
@@ -639,7 +640,7 @@ function VoiceTranscriptPanel({ state, sessionToken, onUseTranscript }) {
             <Icon name="lock" /> Execute locked
           </Button>
         </div>
-        <p className="mt-3 break-words text-xs font-black leading-5 text-slate-500">{notice || "Push-to-talk only. Apex does not record in the background, store audio, or execute voice commands."}</p>
+        <p className="mt-3 break-words text-xs font-black leading-5 text-slate-500">{notice || "Open voice is visible and user-controlled. Apex does not record in the background, store audio, or execute voice commands."}</p>
       </div>
     </div>
   );
@@ -3650,7 +3651,7 @@ export function ApexControlRoomPage(props) {
           <Card className="min-w-0 p-4 sm:p-5">
             <SectionHeader
               title="Voice Interface"
-              description="Private transcript confirmation surface with microphone, speech provider, and always-listening locked."
+              description="Private open voice surface with microphone, transcript review, and spoken answers."
               action={<ToneBadge tone={state.voiceInterface.tone}>{state.voiceInterface.status}</ToneBadge>}
             />
             <VoiceTranscriptPanel state={state} sessionToken={props.sessionToken} onUseTranscript={setAskQuestion} />
@@ -3686,7 +3687,7 @@ export function ApexControlRoomPage(props) {
                 id: "voice-privacy-review",
                 title: "Privacy review",
                 status: "Required",
-                detail: "Microphone permission, transcript retention, audio handling, and always-listening controls need separate review.",
+                detail: "Microphone permission, transcript retention, audio handling, and visible open voice controls need separate review.",
                 tone: "blue",
               }} />
             </div>

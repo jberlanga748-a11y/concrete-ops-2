@@ -99,8 +99,10 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /Voice Approval Boundary/);
   assert.match(componentSource, /VoiceTranscriptPanel/);
   assert.match(componentSource, /Use in Ask Apex/);
-  assert.match(componentSource, /Push to talk/);
-  assert.match(componentSource, /Stop & transcribe/);
+  assert.match(componentSource, /Open voice/);
+  assert.match(componentSource, /canToggleRecording/);
+  assert.match(componentSource, /onClick=\{recording \? closeVoiceSession : openVoiceSession\}/);
+  assert.match(componentSource, /Close & transcribe/);
   assert.match(componentSource, /Voice command review/);
   assert.match(componentSource, /Speak answer/);
   assert.match(componentSource, /Stop voice/);

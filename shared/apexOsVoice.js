@@ -182,14 +182,25 @@ export function parseApexOsVoiceTranscriptionPayload(payload = {}) {
 
 export function parseApexOsVoiceAudioDataUrl(value = "") {
   const input = String(value || "").trim();
-  const match = input.match(/^data:([^;,]+);base64,([a-z0-9+/=\s]+)$/i);
+  const match = input.match(/^data:([^,]+),([a-z0-9+/=\s]+)$/i);
   if (!match) {
     return {
       ok: false,
       error: "Voice audio must be a base64 data URL.",
     };
   }
-  const mimeType = match[1].toLowerCase();
+  const mediaTypeParts = match[1]
+    .split(";")
+    .map((part) => part.trim().toLowerCase())
+    .filter(Boolean);
+  const mimeType = mediaTypeParts[0] || "";
+  const isBase64Encoded = mediaTypeParts.slice(1).some((part) => part === "base64");
+  if (!mimeType || !isBase64Encoded) {
+    return {
+      ok: false,
+      error: "Voice audio must be a base64 data URL.",
+    };
+  }
   const base64 = match[2].replace(/\s+/g, "");
   if (!APEX_OS_VOICE_AUDIO_MIME_TYPES.includes(mimeType)) {
     return {

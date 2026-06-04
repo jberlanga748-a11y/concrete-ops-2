@@ -453,6 +453,16 @@ test("Apex OS memory is operator-only, source-backed, persisted, and audited", a
     assert.equal(voiceTranscribeNoKey.payload.audioStored, false);
     assert.equal(voiceTranscribeNoKey.payload.executionLocked, true);
 
+    const recorderVoiceTranscribeNoKey = await requestJson(fixture.baseUrl, "/api/apex-os/voice/transcribe", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({ audioDataUrl: "data:audio/webm;codecs=opus;base64,AAAA" }),
+    });
+    assert.equal(recorderVoiceTranscribeNoKey.response.status, 503);
+    assert.equal(recorderVoiceTranscribeNoKey.payload.providerConfigured, false);
+    assert.equal(recorderVoiceTranscribeNoKey.payload.audioStored, false);
+    assert.equal(recorderVoiceTranscribeNoKey.payload.executionLocked, true);
+
     const briefing = await assertOk(fixture.baseUrl, "/api/apex-os/daily-briefing", {
       headers: authHeaders(operatorLogin.token),
     });

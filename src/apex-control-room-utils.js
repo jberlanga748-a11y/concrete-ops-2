@@ -756,7 +756,7 @@ export const APEX_OS_FINISHED_CAPABILITY_ROWS = Object.freeze([
   {
     id: "voice-input-output",
     title: "Voice input/output",
-    detail: "Push-to-talk, transcript confirmation, and spoken answer controls are available without always-listening execution.",
+    detail: "Open voice session, transcript confirmation, and spoken answer controls are available without hidden background capture or voice execution.",
   },
   {
     id: "knowledge-upload-reviewed-memory",
@@ -1492,10 +1492,10 @@ export const APEX_OS_CHAT_ACTION_LOCKS = Object.freeze([
 
 export const APEX_OS_VOICE_MODES = Object.freeze([
   {
-    id: "push-to-talk",
-    title: "Push-to-talk",
-    status: "Click-to-record",
-    detail: "Voice input starts only after the operator clicks push-to-talk, stops manually, and reviews the transcript before Ask Apex can use it.",
+    id: "open-voice-session",
+    title: "Open voice session",
+    status: "Visible mic",
+    detail: "Voice opens from a visible operator action, stays open while the operator speaks, then closes into transcript review before Ask Apex can use it.",
     tone: "green",
   },
   {
@@ -1525,16 +1525,16 @@ export const APEX_OS_VOICE_SAFETY_GATES = Object.freeze([
   {
     id: "no-microphone",
     title: "No hidden microphone access",
-    status: "Push-to-talk only",
-    detail: "Microphone permission is requested only after the operator clicks push-to-talk; no background or automatic capture exists.",
+    status: "Visible open only",
+    detail: "Microphone permission is requested only from the visible voice control; no hidden background capture exists.",
     tone: "green",
   },
   {
-    id: "no-always-listening",
-    title: "No always-listening mode",
-    status: "Locked",
-    detail: "Always-listening would need separate privacy review, consent, visible controls, and explicit approval.",
-    tone: "amber",
+    id: "visible-open-session",
+    title: "Open voice control",
+    status: "Visible session",
+    detail: "Open voice stays user-visible and must be closed from the voice surface before transcription review.",
+    tone: "green",
   },
   {
     id: "no-speech-provider",
@@ -1818,7 +1818,7 @@ function buildVoiceInterfaceState({ askApexChat } = {}) {
   return {
     status: "Voice playback ready",
     tone: "green",
-    providerStatus: "Push-to-talk review",
+    providerStatus: "Open voice ready",
     modeCount: modes.length,
     safetyCount: safetyRows.length,
     transcriptStatus: "Manual confirmation",
@@ -2517,7 +2517,7 @@ function buildFinishedApexOsState({
         ...item,
         status: "Ready",
         tone: "green",
-        detail: `${formatCount(voiceInterface?.modeCount)} voice modes and ${formatCount(voiceInterface?.safetyCount)} safety gates keep push-to-talk, transcript review, and spoken answers review-first.`,
+        detail: `${formatCount(voiceInterface?.modeCount)} voice modes and ${formatCount(voiceInterface?.safetyCount)} safety gates keep open voice, transcript review, and spoken answers review-first.`,
       };
     }
     if (item.id === "knowledge-upload-reviewed-memory") {
@@ -3234,7 +3234,7 @@ export function deriveApexControlRoomState({
         id: "voice-interface",
         title: "Voice interface",
         status: voiceInterface.status,
-        detail: `${voiceInterface.safetyCount} voice safety gates are visible; no microphone, speech provider, or always-listening mode is active.`,
+        detail: `${voiceInterface.safetyCount} voice safety gates are visible; microphone capture stays visible, closed manually, and review-first.`,
         tone: voiceInterface.tone,
       },
       {
@@ -3343,7 +3343,7 @@ export function deriveApexControlRoomState({
         id: "voice-interface-plan",
         title: "Voice interface plan",
         status: "Ready",
-        detail: "Review push-to-talk, transcript confirmation, spoken-answer locks, and privacy gates before approving speech provider work.",
+        detail: "Review open voice, transcript confirmation, spoken-answer locks, and privacy gates before approving speech provider work.",
         tone: "blue",
       },
       {
@@ -3417,7 +3417,7 @@ export function deriveApexControlRoomState({
         id: "voice-interface",
         title: "Voice interface",
         status: voiceInterface.status,
-        detail: `${voiceInterface.modeCount} voice modes are mapped. No microphone, speech provider, always-listening, or voice execution is active.`,
+        detail: `${voiceInterface.modeCount} voice modes are mapped. Voice remains visible, review-first, and blocked from execution.`,
         tone: voiceInterface.tone,
       },
       {

@@ -60,6 +60,14 @@ test("Apex OS voice audio and transcription helpers validate safe inputs", () =>
   assert.equal(parsedAudio.mimeType, "audio/webm");
   assert.equal(parsedAudio.extension, "webm");
 
+  const parsedRecorderAudio = parseApexOsVoiceAudioDataUrl("data:audio/webm;codecs=opus;base64,AAAA");
+  assert.equal(parsedRecorderAudio.ok, true);
+  assert.equal(parsedRecorderAudio.mimeType, "audio/webm");
+  assert.equal(parsedRecorderAudio.extension, "webm");
+
+  const rejectedNonBase64Audio = parseApexOsVoiceAudioDataUrl("data:audio/webm;codecs=opus,AAAA");
+  assert.equal(rejectedNonBase64Audio.ok, false);
+
   const rejectedAudio = parseApexOsVoiceAudioDataUrl("data:text/plain;base64,AAAA");
   assert.equal(rejectedAudio.ok, false);
 
