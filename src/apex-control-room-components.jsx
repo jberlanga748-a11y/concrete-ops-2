@@ -3671,12 +3671,28 @@ function ApexCockpitSidebar({ activeSection, onChange }) {
 }
 
 const APEX_COCKPIT_VOICE_STATES = Object.freeze({
+  standby: {
+    key: "standby",
+    header: "Standby",
+    label: "Voice paused",
+    headline: "Apex is standing by",
+    detail: "Resume voice when you want Apex listening.",
+    tone: "slate",
+  },
   listening: {
     key: "listening",
     header: "Online",
     label: "Listening",
     headline: "Apex is listening",
-    detail: "Ready to capture your request. Speak naturally.",
+    detail: "Voice is open on this page. Speak naturally.",
+    tone: "green",
+  },
+  hearing: {
+    key: "hearing",
+    header: "Hearing",
+    label: "I hear you",
+    headline: "Apex hears you",
+    detail: "Capturing this turn.",
     tone: "green",
   },
   thinking: {
@@ -3695,7 +3711,21 @@ const APEX_COCKPIT_VOICE_STATES = Object.freeze({
     detail: "Voice output is active and review-first.",
     tone: "amber",
   },
+  blocked: {
+    key: "blocked",
+    header: "Needs permission",
+    label: "Mic blocked",
+    headline: "Apex needs access",
+    detail: "Microphone is blocked or unavailable.",
+    tone: "red",
+  },
 });
+
+const APEX_COCKPIT_SILENCE_MS = 1300;
+const APEX_COCKPIT_MIN_TURN_MS = 850;
+const APEX_COCKPIT_LEVEL_THRESHOLD = 0.035;
+const APEX_COCKPIT_IDLE_LEVEL_THRESHOLD = 0.018;
+const APEX_COCKPIT_PREROLL_CHUNKS = 2;
 
 function resolveApexCockpitAnswerText(response) {
   if (typeof response?.answer === "string") return response.answer;
@@ -3710,6 +3740,75 @@ function resolveApexCockpitSources(state, response) {
     : [];
   if (evidenceSources.length) return evidenceSources.slice(0, 4);
   return (state.askApexChat?.contexts || []).slice(0, 4).map((item) => item.title);
+}
+
+function buildApexCockpitCommandRoute(question = "") {
+  const normalized = String(question || "").toLowerCase();
+  const hasAny = (words) => words.some((word) => normalized.includes(word));
+
+  if (hasAny(["approval", "approve", "review", "sign off", "packet"])) {
+    return {
+      id: "approval-review",
+      label: "Approval review",
+      section: "approvals",
+      detail: "Apex matched this to approval packets, review queues, or owner decisions.",
+      actionLabel: "Open approvals",
+      tone: "amber",
+    };
+  }
+
+  if (hasAny(["release", "deploy", "production", "smoke", "rollback", "build"])) {
+    return {
+      id: "release-desk",
+      label: "Release desk",
+      section: "release",
+      detail: "Apex matched this to release readiness, deployment, smoke tests, or rollback evidence.",
+      actionLabel: "Open release",
+      tone: "blue",
+    };
+  }
+
+  if (hasAny(["agent", "agents", "run", "execute", "handoff", "worker", "qa"])) {
+    return {
+      id: "agent-control",
+      label: "Agent control",
+      section: "agents",
+      detail: "Apex matched this to agent work, handoffs, safety locks, or QA routing.",
+      actionLabel: "Open agents",
+      tone: "green",
+    };
+  }
+
+  if (hasAny(["memory", "remember", "decision", "decide", "rule", "source", "vault"])) {
+    return {
+      id: "decision-memory",
+      label: "Decision memory",
+      section: "memory",
+      detail: "Apex matched this to durable memory, operating rules, or source-backed knowledge.",
+      actionLabel: "Open memory",
+      tone: "slate",
+    };
+  }
+
+  if (hasAny(["blocked", "today", "summary", "options", "what needs", "next", "priority"])) {
+    return {
+      id: "command-overview",
+      label: "Command overview",
+      section: "overview",
+      detail: "Apex matched this to the current operating picture and next best actions.",
+      actionLabel: "Open overview",
+      tone: "blue",
+    };
+  }
+
+  return {
+    id: "ask-apex",
+    label: "Ask Apex",
+    section: "apex",
+    detail: "Apex will answer from the full private command-room context.",
+    actionLabel: "Stay with Apex",
+    tone: "green",
+  };
 }
 
 function ApexMiniWaveform({ bars = [8, 13, 7, 18, 10, 22, 12, 16, 9, 20, 8, 14], mode = "listening" }) {
@@ -3727,11 +3826,34 @@ function ApexMiniWaveform({ bars = [8, 13, 7, 18, 10, 22, 12, 16, 9, 20, 8, 14],
   );
 }
 
-function ApexCockpitAvatar({ voiceMode = "listening" }) {
+function ApexCockpitAvatar({ voiceMode = "listening", voiceLevel = 0 }) {
   const mode = APEX_COCKPIT_VOICE_STATES[voiceMode] ? voiceMode : "listening";
   const visualState = APEX_COCKPIT_VOICE_STATES[mode];
+  const levelNumber = Math.max(0.08, Math.min(1, Number(voiceLevel || 0) * 6));
+  const level = levelNumber.toFixed(2);
   return (
-    <div className={`co-apex-life-body co-apex-life-body--${mode} relative mx-auto flex min-h-[360px] w-full max-w-[540px] items-center justify-center overflow-hidden xl:min-h-[385px]`} data-voice-state={mode} aria-label="Apex digital body">
+    <div
+      className={`co-apex-life-body co-apex-life-body--${mode} relative mx-auto flex min-h-[360px] w-full max-w-[540px] items-center justify-center overflow-hidden xl:min-h-[385px]`}
+      data-voice-state={mode}
+      aria-label="Apex digital body"
+      style={{
+        "--apex-voice-level": level,
+        "--apex-voice-ring-glow": `${Math.round(30 + (30 * levelNumber))}px`,
+        "--apex-voice-eye-glow": `${Math.round(16 + (18 * levelNumber))}px`,
+        "--apex-voice-core-glow": `${Math.round(24 + (34 * levelNumber))}px`,
+        "--apex-voice-level-glow": `${Math.round(16 + (34 * levelNumber))}px`,
+        "--apex-voice-scale": (0.84 + (0.42 * levelNumber)).toFixed(2),
+        "--apex-voice-low-scale": (0.998 + (0.01 * levelNumber)).toFixed(3),
+        "--apex-voice-high-scale": (1.008 + (0.02 * levelNumber)).toFixed(3),
+        "--apex-voice-core-low-scale": (0.94 + (0.04 * levelNumber)).toFixed(3),
+        "--apex-voice-core-high-scale": (1.06 + (0.22 * levelNumber)).toFixed(3),
+        "--apex-voice-opacity": (0.22 + (0.7 * levelNumber)).toFixed(2),
+        "--apex-voice-orbit-opacity": (0.38 + (0.34 * levelNumber)).toFixed(2),
+      }}
+    >
+      <span className="co-apex-life-orbit co-apex-life-orbit--one" aria-hidden="true" />
+      <span className="co-apex-life-orbit co-apex-life-orbit--two" aria-hidden="true" />
+      <span className="co-apex-life-orbit co-apex-life-orbit--three" aria-hidden="true" />
       <span className="co-apex-life-ring co-apex-life-ring--outer" aria-hidden="true" />
       <span className="co-apex-life-ring co-apex-life-ring--inner" aria-hidden="true" />
       <span className="co-apex-life-horizon" aria-hidden="true" />
@@ -3745,9 +3867,60 @@ function ApexCockpitAvatar({ voiceMode = "listening" }) {
       />
       <span className="co-apex-life-eyes" aria-hidden="true" />
       <span className="co-apex-life-core" aria-hidden="true" />
+      <span className="co-apex-life-level" aria-hidden="true" />
       <span className="co-apex-life-status" aria-hidden="true">{visualState.headline.toUpperCase()}</span>
       <span className="sr-only">{visualState.detail}</span>
     </div>
+  );
+}
+
+function ApexCockpitCommandStream({ turns, route, onOpenRoute }) {
+  const toneClass = {
+    green: "border-emerald-400/24 bg-emerald-500/[0.06] text-emerald-200",
+    blue: "border-cyan-400/24 bg-cyan-500/[0.06] text-cyan-200",
+    amber: "border-orange-400/26 bg-orange-500/[0.08] text-orange-200",
+    red: "border-red-400/24 bg-red-500/[0.07] text-red-200",
+    slate: "border-slate-700 bg-slate-900/74 text-slate-200",
+  };
+  const safeRoute = route || buildApexCockpitCommandRoute("");
+  const visibleTurns = Array.isArray(turns) ? turns.slice(0, 4) : [];
+  return (
+    <section className="grid min-w-0 gap-2 rounded-lg border border-cyan-200/12 bg-slate-950/78 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]" aria-label="Apex command stream">
+      <div className="flex min-w-0 items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-cyan-400/10 text-cyan-200">
+            <Icon name="spark" className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Command stream</p>
+            <p className="min-w-0 break-words text-xs font-black text-slate-100">{safeRoute.label}</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => onOpenRoute(safeRoute.section)}
+          className="co-focus-ring inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-slate-700 bg-slate-900/82 px-2 text-[10px] font-black text-slate-200 transition hover:border-orange-400/70 hover:text-white"
+          title={safeRoute.actionLabel}
+        >
+          <Icon name="arrowUpRight" className="h-3.5 w-3.5" />
+          {safeRoute.actionLabel}
+        </button>
+      </div>
+      <div className={`rounded-md border px-3 py-2 ${toneClass[safeRoute.tone] || toneClass.slate}`}>
+        <p className="text-[11px] font-bold leading-4">{safeRoute.detail}</p>
+      </div>
+      <div className="grid min-w-0 gap-1.5">
+        {visibleTurns.length ? visibleTurns.map((turn) => (
+          <div key={turn.id} className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-slate-800 bg-slate-900/58 px-2.5 py-2">
+            <Icon name={turn.source === "voice" ? "phone" : "check"} className="h-3.5 w-3.5 text-cyan-300" />
+            <p className="min-w-0 truncate text-[11px] font-bold text-slate-300">{turn.question}</p>
+            <span className="text-[9px] font-black uppercase tracking-[0.08em] text-slate-500">{turn.routeLabel}</span>
+          </div>
+        )) : (
+          <p className="rounded-md border border-dashed border-slate-800 px-3 py-2 text-[11px] font-bold leading-4 text-slate-500">Your voice and typed requests will appear here as Apex routes them.</p>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -3779,11 +3952,26 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const [cockpitRecording, setCockpitRecording] = useState(false);
   const [cockpitTranscribing, setCockpitTranscribing] = useState(false);
   const [cockpitLastQuestion, setCockpitLastQuestion] = useState("");
+  const [cockpitAutoListening, setCockpitAutoListening] = useState(true);
+  const [cockpitSpeechActive, setCockpitSpeechActive] = useState(false);
+  const [cockpitMicLevel, setCockpitMicLevel] = useState(0);
+  const [cockpitCommandRoute, setCockpitCommandRoute] = useState(() => buildApexCockpitCommandRoute(""));
+  const [cockpitTurns, setCockpitTurns] = useState([]);
   const cockpitAudioRef = useRef(null);
   const cockpitAudioUnlockedRef = useRef(false);
   const cockpitRecorderRef = useRef(null);
   const cockpitRecordedChunksRef = useRef([]);
   const cockpitStreamRef = useRef(null);
+  const cockpitVoiceOpeningRef = useRef(false);
+  const cockpitVoiceAnalyserRef = useRef(null);
+  const cockpitVoiceAudioContextRef = useRef(null);
+  const cockpitVoiceSourceRef = useRef(null);
+  const cockpitVoiceFrameRef = useRef(0);
+  const cockpitSpeechStartedRef = useRef(false);
+  const cockpitVoiceStartedAtRef = useRef(0);
+  const cockpitLastSoundAtRef = useRef(0);
+  const cockpitLastLevelPaintRef = useRef(0);
+  const cockpitDiscardNextCaptureRef = useRef(false);
   const approvalRows = (state.approvalCommandCenter?.queueRows || []).slice(0, 4);
   const agentRows = (state.agentControlPlane?.rosterRows || []).slice(0, 4);
   const boundaryRows = [
@@ -3805,7 +3993,19 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     : state.releaseDesk?.deployHistoryRows?.[0]?.status || "Evidence required";
   const releaseHealth = state.releaseDesk?.status || "Healthy";
   const cockpitAnswerText = resolveApexCockpitAnswerText(cockpitResponse);
-  const cockpitVoiceMode = cockpitSpeaking ? "speaking" : (cockpitSubmitting || cockpitTranscribing) ? "thinking" : "listening";
+  const cockpitVoiceMode = cockpitError
+    ? "blocked"
+    : cockpitSpeaking
+      ? "speaking"
+      : (cockpitSubmitting || cockpitTranscribing)
+        ? "thinking"
+        : cockpitSpeechActive
+          ? "hearing"
+          : cockpitRecording
+            ? "listening"
+            : cockpitAutoListening
+              ? "standby"
+              : "standby";
   const cockpitVoiceState = APEX_COCKPIT_VOICE_STATES[cockpitVoiceMode];
   const cockpitSources = resolveApexCockpitSources(state, cockpitResponse);
   const cockpitPromptText = cockpitLastQuestion || askQuestion.trim();
@@ -3814,7 +4014,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const canUseCockpitRecorder = typeof navigator !== "undefined"
     && Boolean(navigator.mediaDevices?.getUserMedia)
     && typeof MediaRecorder !== "undefined";
-  const canStartCockpitVoice = state.canView && Boolean(sessionToken) && canUseCockpitRecorder && !cockpitRecording && !cockpitTranscribing;
+  const canStartCockpitVoice = state.canView && Boolean(sessionToken) && canUseCockpitRecorder && !cockpitRecording && !cockpitTranscribing && !cockpitSubmitting && !cockpitSpeaking && !cockpitVoiceOpeningRef.current;
   const canToggleCockpitVoice = canStartCockpitVoice || cockpitRecording;
 
   useEffect(() => () => {
@@ -3831,11 +4031,98 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     closeUnlockedBrowserAudio(cockpitAudioUnlockedRef);
   }, []);
 
+  useEffect(() => {
+    if (!cockpitAutoListening || !state.canView || !sessionToken || !canUseCockpitRecorder) return undefined;
+    if (cockpitRecording || cockpitTranscribing || cockpitSubmitting || cockpitSpeaking || cockpitVoiceOpeningRef.current) return undefined;
+    const openTimer = setTimeout(() => {
+      openCockpitVoiceSession({ automatic: true });
+    }, 500);
+    return () => clearTimeout(openTimer);
+  }, [cockpitAutoListening, state.canView, sessionToken, canUseCockpitRecorder, cockpitRecording, cockpitTranscribing, cockpitSubmitting, cockpitSpeaking]);
+
   function cleanupCockpitVoiceStream() {
+    stopCockpitVoiceLevelMonitor();
     if (cockpitStreamRef.current) {
       cockpitStreamRef.current.getTracks().forEach((track) => track.stop());
       cockpitStreamRef.current = null;
     }
+  }
+
+  function stopCockpitVoiceLevelMonitor() {
+    if (cockpitVoiceFrameRef.current) {
+      cancelAnimationFrame(cockpitVoiceFrameRef.current);
+      cockpitVoiceFrameRef.current = 0;
+    }
+    if (cockpitVoiceSourceRef.current) {
+      try {
+        cockpitVoiceSourceRef.current.disconnect();
+      } catch {
+        // Browser audio nodes can already be detached after permission changes.
+      }
+      cockpitVoiceSourceRef.current = null;
+    }
+    cockpitVoiceAnalyserRef.current = null;
+    if (cockpitVoiceAudioContextRef.current) {
+      const audioContext = cockpitVoiceAudioContextRef.current;
+      cockpitVoiceAudioContextRef.current = null;
+      if (audioContext.state !== "closed") {
+        audioContext.close().catch(() => {});
+      }
+    }
+    cockpitSpeechStartedRef.current = false;
+    cockpitLastSoundAtRef.current = 0;
+    cockpitLastLevelPaintRef.current = 0;
+    setCockpitSpeechActive(false);
+    setCockpitMicLevel(0);
+  }
+
+  function startCockpitVoiceLevelMonitor(stream) {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+    stopCockpitVoiceLevelMonitor();
+    const audioContext = new AudioContextClass();
+    const analyser = audioContext.createAnalyser();
+    analyser.fftSize = 1024;
+    analyser.smoothingTimeConstant = 0.78;
+    const source = audioContext.createMediaStreamSource(stream);
+    source.connect(analyser);
+    const samples = new Uint8Array(analyser.fftSize);
+    cockpitVoiceAudioContextRef.current = audioContext;
+    cockpitVoiceAnalyserRef.current = analyser;
+    cockpitVoiceSourceRef.current = source;
+    cockpitVoiceStartedAtRef.current = performance.now();
+
+    const readLevel = () => {
+      if (!cockpitVoiceAnalyserRef.current || !cockpitRecorderRef.current || cockpitRecorderRef.current.state !== "recording") return;
+      cockpitVoiceAnalyserRef.current.getByteTimeDomainData(samples);
+      let sum = 0;
+      for (let index = 0; index < samples.length; index += 1) {
+        const centered = (samples[index] - 128) / 128;
+        sum += centered * centered;
+      }
+      const level = Math.sqrt(sum / samples.length);
+      const now = performance.now();
+      if (level > APEX_COCKPIT_LEVEL_THRESHOLD) {
+        cockpitSpeechStartedRef.current = true;
+        cockpitLastSoundAtRef.current = now;
+        setCockpitSpeechActive(true);
+      } else if (level < APEX_COCKPIT_IDLE_LEVEL_THRESHOLD && cockpitSpeechStartedRef.current) {
+        const turnDuration = now - cockpitVoiceStartedAtRef.current;
+        const silenceDuration = now - cockpitLastSoundAtRef.current;
+        if (turnDuration > APEX_COCKPIT_MIN_TURN_MS && silenceDuration > APEX_COCKPIT_SILENCE_MS) {
+          finishCockpitVoiceTurn();
+          return;
+        }
+      }
+
+      if (now - cockpitLastLevelPaintRef.current > 90) {
+        cockpitLastLevelPaintRef.current = now;
+        setCockpitMicLevel(level);
+      }
+      cockpitVoiceFrameRef.current = requestAnimationFrame(readLevel);
+    };
+
+    cockpitVoiceFrameRef.current = requestAnimationFrame(readLevel);
   }
 
   function preferredCockpitVoiceMimeType() {
@@ -3908,6 +4195,19 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   }
 
   async function askCockpitQuestion(nextQuestion, { fromVoice = false } = {}) {
+    const route = buildApexCockpitCommandRoute(nextQuestion);
+    const turnId = `cockpit-turn-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    setCockpitCommandRoute(route);
+    setCockpitTurns((current) => [
+      {
+        id: turnId,
+        question: nextQuestion,
+        source: fromVoice ? "voice" : "typed",
+        routeLabel: route.label,
+        status: "reading",
+      },
+      ...current,
+    ].slice(0, 5));
     setCockpitSubmitting(true);
     setCockpitError("");
     setCockpitVoiceNotice(fromVoice ? "Apex heard you. Reading context now." : "");
@@ -3918,6 +4218,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     try {
       const payload = await askApexOs(sessionToken, { question: nextQuestion, contextScope: "all" });
       setCockpitResponse(payload);
+      setCockpitTurns((current) => current.map((turn) => (turn.id === turnId ? { ...turn, status: "answered" } : turn)));
       const nextAnswerText = resolveApexCockpitAnswerText(payload);
       if (nextAnswerText) {
         await speakCockpitAnswer(nextAnswerText);
@@ -3926,6 +4227,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       }
     } catch (requestError) {
       setCockpitError(requestError?.message || "Ask Apex could not answer right now.");
+      setCockpitTurns((current) => current.map((turn) => (turn.id === turnId ? { ...turn, status: "blocked" } : turn)));
       setCockpitSpeaking(false);
     } finally {
       setCockpitSubmitting(false);
@@ -3967,45 +4269,82 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     }
   }
 
-  async function openCockpitVoiceSession() {
+  async function openCockpitVoiceSession({ automatic = false } = {}) {
     if (!canStartCockpitVoice) {
       setCockpitVoiceNotice(canUseCockpitRecorder ? "Voice is busy right now." : "This browser cannot open the microphone here.");
       return;
     }
+    if (cockpitVoiceOpeningRef.current) return;
+    cockpitVoiceOpeningRef.current = true;
     unlockBrowserAudio(cockpitAudioUnlockedRef);
     setCockpitError("");
-    setCockpitVoiceNotice("");
+    setCockpitVoiceNotice(automatic ? "Opening voice for this Apex page." : "");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       cockpitStreamRef.current = stream;
       cockpitRecordedChunksRef.current = [];
+      cockpitSpeechStartedRef.current = false;
+      cockpitDiscardNextCaptureRef.current = false;
+      cockpitVoiceStartedAtRef.current = performance.now();
+      cockpitLastSoundAtRef.current = cockpitVoiceStartedAtRef.current;
       const mimeType = preferredCockpitVoiceMimeType();
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       cockpitRecorderRef.current = recorder;
       recorder.ondataavailable = (event) => {
-        if (event.data?.size) cockpitRecordedChunksRef.current.push(event.data);
+        if (!event.data?.size) return;
+        cockpitRecordedChunksRef.current.push(event.data);
+        if (!cockpitSpeechStartedRef.current && cockpitRecordedChunksRef.current.length > APEX_COCKPIT_PREROLL_CHUNKS) {
+          cockpitRecordedChunksRef.current = cockpitRecordedChunksRef.current.slice(-APEX_COCKPIT_PREROLL_CHUNKS);
+        }
       };
       recorder.onstop = () => {
+        const shouldDiscard = cockpitDiscardNextCaptureRef.current || !cockpitSpeechStartedRef.current;
         const blob = new Blob(cockpitRecordedChunksRef.current, { type: recorder.mimeType || "audio/webm" });
+        cockpitDiscardNextCaptureRef.current = false;
         cleanupCockpitVoiceStream();
         cockpitRecorderRef.current = null;
         setCockpitRecording(false);
+        if (shouldDiscard) {
+          setCockpitVoiceNotice("Voice paused.");
+          return;
+        }
         transcribeCockpitVoiceBlob(blob);
       };
-      recorder.start();
+      recorder.start(800);
+      startCockpitVoiceLevelMonitor(stream);
       setCockpitRecording(true);
-      setCockpitVoiceNotice("Voice is open. Speak naturally, then close voice and Apex will answer.");
+      setCockpitAutoListening(true);
+      setCockpitVoiceNotice("Voice is open. I'm listening while this page is open.");
     } catch (error) {
       cleanupCockpitVoiceStream();
       setCockpitRecording(false);
+      setCockpitAutoListening(false);
+      setCockpitError("Microphone access is needed for always-open Apex voice.");
       setCockpitVoiceNotice(error?.message || "Microphone permission was not granted. Allow microphone access for Apex HQ and try again.");
+    } finally {
+      cockpitVoiceOpeningRef.current = false;
     }
   }
 
-  function closeCockpitVoiceSession() {
+  function finishCockpitVoiceTurn() {
     if (!cockpitRecording || !cockpitRecorderRef.current) return;
-    setCockpitVoiceNotice("Voice closed. Preparing transcript and answer.");
+    setCockpitVoiceNotice("Apex heard the turn. Reading it now.");
+    setCockpitSpeechActive(false);
     cockpitRecorderRef.current.stop();
+  }
+
+  function pauseCockpitVoiceSession() {
+    setCockpitAutoListening(false);
+    setCockpitSpeechActive(false);
+    setCockpitMicLevel(0);
+    cockpitDiscardNextCaptureRef.current = !cockpitSpeechStartedRef.current;
+    setCockpitVoiceNotice("Voice paused.");
+    if (cockpitRecorderRef.current && cockpitRecorderRef.current.state !== "inactive") {
+      cockpitRecorderRef.current.stop();
+      return;
+    }
+    cleanupCockpitVoiceStream();
+    setCockpitRecording(false);
   }
 
   return (
@@ -4047,23 +4386,29 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
             <div className="order-2 grid w-full min-w-0 max-w-full content-start gap-2 lg:min-h-0 lg:overflow-hidden xl:order-none">
               <ApexCockpitCard title="Voice" action={<span className="text-slate-500">&gt;</span>}>
                 <div className="grid min-w-0 grid-cols-[44px_minmax(0,1fr)] gap-3">
-                  <div className={`grid h-11 w-11 place-items-center rounded-full ${cockpitRecording ? "bg-orange-500/18 text-orange-200 shadow-[0_0_26px_rgba(249,115,22,0.36)]" : cockpitVoiceMode === "speaking" ? "bg-orange-500/14 text-orange-300 shadow-[0_0_24px_rgba(249,115,22,0.28)]" : cockpitVoiceMode === "thinking" ? "bg-cyan-500/12 text-cyan-300 shadow-[0_0_22px_rgba(34,211,238,0.22)]" : "bg-emerald-500/12 text-emerald-300 shadow-[0_0_22px_rgba(16,185,129,0.2)]"}`}>
+                  <div className={`grid h-11 w-11 place-items-center rounded-full ${cockpitRecording ? "bg-emerald-500/16 text-emerald-200 shadow-[0_0_26px_rgba(16,185,129,0.34)]" : cockpitVoiceMode === "speaking" ? "bg-orange-500/14 text-orange-300 shadow-[0_0_24px_rgba(249,115,22,0.28)]" : cockpitVoiceMode === "thinking" ? "bg-cyan-500/12 text-cyan-300 shadow-[0_0_22px_rgba(34,211,238,0.22)]" : cockpitVoiceMode === "blocked" ? "bg-red-500/12 text-red-300 shadow-[0_0_22px_rgba(248,113,113,0.2)]" : "bg-slate-800 text-slate-300"}`}>
                     <Icon name="phone" className="h-6 w-6" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs font-black text-slate-100">{cockpitRecording ? "Voice Open" : "Voice Ready"}</p>
-                    <p className="text-[11px] font-bold text-slate-400">{cockpitRecording ? "Listening now" : cockpitTranscribing ? "Transcribing" : cockpitVoiceState.label}</p>
+                    <p className="text-xs font-black text-slate-100">{cockpitRecording ? "Voice Open" : "Voice Paused"}</p>
+                    <p className="text-[11px] font-bold text-slate-400">{cockpitRecording ? cockpitVoiceState.label : cockpitTranscribing ? "Transcribing" : cockpitVoiceState.label}</p>
                     <ApexMiniWaveform mode={cockpitVoiceMode} />
+                    <div className="mt-1 h-1 overflow-hidden rounded-full bg-slate-800" aria-hidden="true">
+                      <span
+                        className="block h-full rounded-full bg-gradient-to-r from-emerald-300 via-cyan-300 to-orange-300 transition-[width] duration-100"
+                        style={{ width: `${Math.max(5, Math.min(100, cockpitMicLevel * 620))}%` }}
+                      />
+                    </div>
                   </div>
                 </div>
                 <ApexCockpitControlButton
                   className="mt-2 w-full"
-                  onClick={cockpitRecording ? closeCockpitVoiceSession : openCockpitVoiceSession}
+                  onClick={cockpitRecording ? pauseCockpitVoiceSession : () => openCockpitVoiceSession({ automatic: false })}
                   disabled={!canToggleCockpitVoice}
                   active={cockpitRecording}
-                  title={cockpitRecording ? "Close voice and ask Apex" : "Open voice"}
+                  title={cockpitRecording ? "Pause Apex voice" : "Resume Apex voice"}
                 >
-                  {cockpitRecording ? "Close & ask" : cockpitTranscribing ? "Transcribing" : "Open Voice"}
+                  {cockpitRecording ? "Pause Voice" : cockpitTranscribing ? "Transcribing" : cockpitSubmitting ? "Thinking" : cockpitSpeaking ? "Speaking" : "Resume Voice"}
                 </ApexCockpitControlButton>
               </ApexCockpitCard>
 
@@ -4093,7 +4438,38 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
             </div>
 
             <div className="order-1 grid w-full min-w-0 max-w-full content-start gap-2 lg:min-h-0 lg:overflow-hidden xl:order-none">
-              <ApexCockpitAvatar voiceMode={cockpitVoiceMode} />
+              <div className="grid min-w-0 gap-3 rounded-lg border border-cyan-200/14 bg-slate-950/82 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] xl:hidden">
+                <div className="flex min-w-0 items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ${cockpitRecording ? "bg-emerald-500/16 text-emerald-200 shadow-[0_0_24px_rgba(16,185,129,0.3)]" : cockpitVoiceMode === "blocked" ? "bg-red-500/12 text-red-300" : "bg-slate-800 text-slate-300"}`}>
+                      <Icon name="phone" className="h-5 w-5" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-xs font-black text-slate-100">{cockpitRecording ? "Voice Open" : "Voice Paused"}</p>
+                      <p className="text-[11px] font-bold text-slate-400">{cockpitVoiceState.label}</p>
+                    </div>
+                  </div>
+                  <ApexCockpitControlButton
+                    className="shrink-0 px-3"
+                    onClick={cockpitRecording ? pauseCockpitVoiceSession : () => openCockpitVoiceSession({ automatic: false })}
+                    disabled={!canToggleCockpitVoice}
+                    active={cockpitRecording}
+                    title={cockpitRecording ? "Pause Apex voice" : "Resume Apex voice"}
+                  >
+                    {cockpitRecording ? "Pause" : "Resume"}
+                  </ApexCockpitControlButton>
+                </div>
+                <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_44px] items-center gap-3">
+                  <ApexMiniWaveform mode={cockpitVoiceMode} />
+                  <span className="h-1 overflow-hidden rounded-full bg-slate-800" aria-hidden="true">
+                    <span
+                      className="block h-full rounded-full bg-gradient-to-r from-emerald-300 via-cyan-300 to-orange-300 transition-[width] duration-100"
+                      style={{ width: `${Math.max(5, Math.min(100, cockpitMicLevel * 620))}%` }}
+                    />
+                  </span>
+                </div>
+              </div>
+              <ApexCockpitAvatar voiceMode={cockpitVoiceMode} voiceLevel={cockpitMicLevel} />
               <div className="grid min-w-0 gap-2">
                 <form className="relative min-w-0" onSubmit={submitCockpitQuestion}>
                   <label className="sr-only" htmlFor="apex-cockpit-ask">Ask Apex anything</label>
@@ -4126,6 +4502,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     </button>
                   ))}
                 </div>
+                <ApexCockpitCommandStream turns={cockpitTurns} route={cockpitCommandRoute} onOpenRoute={onChange} />
               </div>
             </div>
 
