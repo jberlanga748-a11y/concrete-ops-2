@@ -84,6 +84,8 @@ test("deriveApexControlRoomState blocks non-private users", () => {
   assert.deepEqual(state.autonomyRunCenter.planRows, []);
   assert.deepEqual(state.autonomyRunCenter.routeRows, []);
   assert.deepEqual(state.autonomyRunCenter.gateRows, []);
+  assert.deepEqual(state.autonomyRunCenter.runRows, []);
+  assert.equal(state.autonomyRunCenter.runSummary.total, 0);
   assert.equal(state.autonomyRunCenter.canExecuteExternalActions, false);
   assert.equal(state.autonomyRunCenter.executionLocked, true);
   assert.equal(state.operatorName, "Normal Admin");
@@ -412,6 +414,54 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.agents.some((item) => item.id === "autonomy-run-center"), true);
   assert.equal(state.approvals.length, APEX_CONTROL_ROOM_APPROVAL_GATES.length);
   assert.equal(state.evidence[0].id, "AUD-BUILD");
+});
+
+test("deriveApexControlRoomState includes saved autonomy run ledger rows", () => {
+  const state = deriveApexControlRoomState({
+    user: { name: "John Berlanga", role: "Owner", operatorAccess: true },
+    permissions: {
+      apexOs: { canView: true, canManage: true },
+      aiOffice: { canView: true },
+      settings: { canView: true, canManage: true },
+    },
+    companySettings: {
+      apexOsAutonomyRuns: [
+        {
+          id: "AAR-ACTIVE",
+          title: "Tracked Apex run",
+          request: "Turn the next UI polish request into a saved run.",
+          routeId: "agents",
+          routeLabel: "Agents",
+          sourceLabel: "Run Center",
+          status: "drafting",
+          linkedAgentControlRequestId: "AAC-1",
+          linkedExecutionHandoffId: "AEH-1",
+          updatedAt: "2026-06-04T10:00:00.000Z",
+        },
+        {
+          id: "AAR-DONE",
+          title: "Finished run",
+          request: "Record a completed run.",
+          routeId: "release",
+          routeLabel: "Release",
+          sourceLabel: "Run Center",
+          status: "done",
+          resultReport: "Completed after review.",
+          updatedAt: "2026-06-04T09:00:00.000Z",
+        },
+      ],
+    },
+  });
+
+  assert.equal(state.autonomyRunCenter.status, "Autonomy runs active");
+  assert.equal(state.autonomyRunCenter.runSummary.total, 2);
+  assert.equal(state.autonomyRunCenter.runSummary.active, 1);
+  assert.equal(state.autonomyRunCenter.runSummary.drafting, 1);
+  assert.equal(state.autonomyRunCenter.runSummary.done, 1);
+  assert.equal(state.autonomyRunCenter.runRows[0].id, "AAR-ACTIVE");
+  assert.equal(state.autonomyRunCenter.latestRun.id, "AAR-ACTIVE");
+  assert.equal(state.autonomyRunCenter.runRows[0].executionLocked, true);
+  assert.equal(state.autonomyRunCenter.runRows[0].externalActionsLocked, true);
 });
 
 test("deriveApexControlRoomState includes durable Apex OS decision memory summary", () => {

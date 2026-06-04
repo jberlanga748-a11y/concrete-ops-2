@@ -21,6 +21,7 @@ import {
 } from "../shared/apexOsBuildAwareness.js";
 import { summarizeApexOsExecutionHandoffs } from "../shared/apexOsExecutionHandoffs.js";
 import { buildApexOsAgentControlPlane } from "../shared/apexOsAgentControl.js";
+import { normalizeApexOsAutonomyRuns, summarizeApexOsAutonomyRuns } from "../shared/apexOsAutonomyRuns.js";
 import { buildApexOsKnowledgeIntelligence } from "../shared/apexOsKnowledgeIntelligence.js";
 
 function list(value) {
@@ -1934,6 +1935,7 @@ function buildAutonomyRunCenterState({
   releaseDesk,
   decisionMemory,
   businessCommandCenter,
+  companySettings = {},
 } = {}) {
   const availableTaskCount = formatCount(agentWorkQueue?.availableTaskCount);
   const visibleTargetCount = formatCount(agentWorkQueue?.visibleTargetCount);
@@ -1945,6 +1947,27 @@ function buildAutonomyRunCenterState({
   const gateCount = formatCount(approvalCommandCenter?.queueCount);
   const readyPacketCount = formatCount(approvalCommandCenter?.packetSummary?.ready);
   const approvedPacketCount = formatCount(approvalCommandCenter?.packetSummary?.approved);
+  const autonomyRuns = normalizeApexOsAutonomyRuns(companySettings?.apexOsAutonomyRuns || []);
+  const runSummary = summarizeApexOsAutonomyRuns(autonomyRuns);
+  const sortedRuns = autonomyRuns.slice().sort((left, right) => String(right.updatedAt || right.createdAt || "").localeCompare(String(left.updatedAt || left.createdAt || "")));
+  const latestActiveRun = sortedRuns.find((run) => !["done", "archived"].includes(run.status)) || sortedRuns[0] || null;
+  const runRows = sortedRuns.slice(0, 6).map((run) => ({
+    id: run.id,
+    title: run.title,
+    request: run.request,
+    status: run.status,
+    tone: run.tone || toneForStatus(run.status),
+    routeLabel: run.routeLabel,
+    routeDetail: run.routeDetail,
+    agentRole: run.agentRole,
+    workType: run.workType,
+    nextSafeAction: run.nextSafeAction,
+    linkedAgentControlRequestId: run.linkedAgentControlRequestId,
+    linkedExecutionHandoffId: run.linkedExecutionHandoffId,
+    updatedAt: run.updatedAt || run.createdAt || "",
+    executionLocked: true,
+    externalActionsLocked: true,
+  }));
   const canDraftInternalRuns = agentWorkQueue?.status === "Review-only" && availableTaskCount > 0;
 
   const planRows = withDerivedStateMetaList([
@@ -1965,9 +1988,11 @@ function buildAutonomyRunCenterState({
     {
       id: "autonomy-plan",
       title: "Build the run plan",
-      status: "Plan ready",
-      detail: "Apex can break the request into intake, route, draft, validation, approval-gate, result, and memory steps before anything executes.",
-      tone: "blue",
+      status: runSummary.total ? `${runSummary.total} saved` : "Plan ready",
+      detail: runSummary.total
+        ? `${runSummary.active} active saved runs, ${runSummary.drafting} drafting, ${runSummary.waitingApproval} waiting approval, and ${runSummary.done} completed are visible in the ledger.`
+        : "Apex can break the request into intake, route, draft, validation, approval-gate, result, and memory steps before anything executes.",
+      tone: runSummary.active ? "green" : "blue",
     },
     {
       id: "autonomy-draft",
@@ -2081,14 +2106,21 @@ function buildAutonomyRunCenterState({
   });
 
   return {
-    status: canDraftInternalRuns ? "Guarded autonomy ready" : "Planning guard ready",
-    tone: canDraftInternalRuns ? "green" : "amber",
+    status: runSummary.active ? "Autonomy runs active" : canDraftInternalRuns ? "Guarded autonomy ready" : "Planning guard ready",
+    tone: runSummary.blocked ? "amber" : runSummary.active || canDraftInternalRuns ? "green" : "amber",
     mode: "Review-first autonomy",
-    currentRunStatus: recentRunCount ? "Run evidence visible" : "Ready for request",
+    currentRunStatus: latestActiveRun ? `${latestActiveRun.status}: ${latestActiveRun.title}` : recentRunCount ? "Run evidence visible" : "Ready for request",
     canDraftInternalRuns,
     canExecuteExternalActions: false,
     executionLocked: true,
     externalActionsLocked: true,
+    runSummary,
+    runRows,
+    latestRun: latestActiveRun,
+    savedRunCount: runSummary.total,
+    activeRunCount: runSummary.active,
+    waitingApprovalRunCount: runSummary.waitingApproval,
+    doneRunCount: runSummary.done,
     planStepCount: planRows.length,
     readyStepCount: planRows.filter((row) => ["Ready", "Plan ready", "Draft-ready"].includes(row.status)).length,
     gatedActionCount: gateRows.filter((row) => /gate/i.test(row.status)).length,
@@ -3158,6 +3190,7 @@ export function deriveApexControlRoomState({
     releaseDesk,
     decisionMemory,
     businessCommandCenter,
+    companySettings,
   });
   const phase3Aggregator = buildPhase3AggregatorState({
     companySettings,
@@ -3236,7 +3269,25 @@ export function deriveApexControlRoomState({
       qaSecurityHardening: { status: "Restricted", tone: "slate", evidenceRows: [], lockRows: [] },
       finishedApexOs: { status: "Restricted", tone: "slate", capabilityRows: [], runLoopRows: [], freezeRows: [], blockedActionRows: [] },
       agentWorkQueue: { status: "Restricted", tone: "slate", taskRows: [], lockedRows: [], runRows: [], safetyRows: [] },
-      autonomyRunCenter: { status: "Restricted", tone: "slate", mode: "Restricted", planRows: [], routeRows: [], gateRows: [], canDraftInternalRuns: false, canExecuteExternalActions: false, executionLocked: true, externalActionsLocked: true },
+      autonomyRunCenter: {
+        status: "Restricted",
+        tone: "slate",
+        mode: "Restricted",
+        planRows: [],
+        routeRows: [],
+        gateRows: [],
+        runRows: [],
+        runSummary: { total: 0, active: 0, planned: 0, drafting: 0, validating: 0, waitingApproval: 0, blocked: 0, done: 0, archived: 0 },
+        latestRun: null,
+        savedRunCount: 0,
+        activeRunCount: 0,
+        waitingApprovalRunCount: 0,
+        doneRunCount: 0,
+        canDraftInternalRuns: false,
+        canExecuteExternalActions: false,
+        executionLocked: true,
+        externalActionsLocked: true,
+      },
       approvals: [],
       evidence: [],
     };

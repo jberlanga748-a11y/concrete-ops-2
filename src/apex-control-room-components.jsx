@@ -5,10 +5,13 @@ import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
 import {
   askApexOs,
   createApexOsAgentControlRequest,
+  createApexOsAutonomyRun,
   createApexOsMemory,
   createApexOsApprovalPacket,
   createApexOsExecutionHandoff,
+  draftApexOsAutonomyRunInternalWork,
   getApexOsAgentControl,
+  getApexOsAutonomyRuns,
   getApexOsBuildAwareness,
   getApexOsMemory,
   getApexOsApprovalPackets,
@@ -19,6 +22,7 @@ import {
   speakApexOsVoice,
   transcribeApexOsVoice,
   updateApexOsAgentControlRequest,
+  updateApexOsAutonomyRun,
   updateApexOsMemory,
   updateApexOsApprovalPacket,
   updateApexOsExecutionHandoff,
@@ -4155,6 +4159,7 @@ function ApexCockpitCommandStream({ turns, route, onOpenRoute, onCreateAgentRequ
 function AutonomyRunCenterPanel({
   state,
   route,
+  sessionToken = "",
   onOpenAgents,
   onOpenApprovals,
   onCreateAgentRequest,
@@ -4163,6 +4168,12 @@ function AutonomyRunCenterPanel({
 }) {
   const center = state.autonomyRunCenter || {};
   const safeRoute = route || buildApexCockpitCommandRoute("");
+  const [runRequest, setRunRequest] = useState("");
+  const [ledgerRuns, setLedgerRuns] = useState(center.runRows || []);
+  const [ledgerSummary, setLedgerSummary] = useState(center.runSummary || null);
+  const [selectedRunId, setSelectedRunId] = useState(center.latestRun?.id || center.runRows?.[0]?.id || "");
+  const [ledgerBusy, setLedgerBusy] = useState("");
+  const [ledgerMessage, setLedgerMessage] = useState("");
   const dark = variant === "dark";
   const shellClass = dark
     ? "border-cyan-200/14 bg-slate-950/72 text-white"
@@ -4176,8 +4187,14 @@ function AutonomyRunCenterPanel({
   const buttonClass = dark
     ? "border-cyan-200/16 bg-white/[0.045] text-slate-100 hover:border-orange-400/60 hover:bg-orange-500/10"
     : "border-slate-200 bg-white text-slate-800 hover:border-orange-300 hover:bg-orange-50";
+  const visibleRuns = (ledgerRuns?.length ? ledgerRuns : center.runRows || []).slice(0, 6);
+  const summary = ledgerSummary || center.runSummary || {};
+  const activeRun = visibleRuns.find((run) => run.id === selectedRunId) || visibleRuns[0] || null;
+  const displayStatus = summary.active ? "Autonomy runs active" : center.status || "Guarded autonomy ready";
+  const displayTone = summary.blocked ? "amber" : summary.active ? "green" : center.tone || "green";
   const metricRows = [
-    { label: "Mode", value: center.mode || "Review-first autonomy", tone: center.tone || "green" },
+    { label: "Mode", value: center.mode || "Review-first autonomy", tone: displayTone },
+    { label: "Runs", value: `${summary.total || 0} saved`, tone: summary.active ? "green" : "blue" },
     { label: "Plan", value: `${center.planStepCount || 0} steps`, tone: "blue" },
     { label: "Routes", value: `${center.routeCount || 0} lanes`, tone: "blue" },
     { label: "Execution", value: center.executionLocked ? "Locked" : "Open", tone: center.executionLocked ? "amber" : "green" },
@@ -4188,12 +4205,106 @@ function AutonomyRunCenterPanel({
       ? `Open ${safeRoute.label}`
       : "Answer from approved context";
 
+  useEffect(() => {
+    let cancelled = false;
+    async function loadRuns() {
+      if (!sessionToken) {
+        setLedgerRuns(center.runRows || []);
+        setLedgerSummary(center.runSummary || null);
+        return;
+      }
+      try {
+        const payload = await getApexOsAutonomyRuns(sessionToken);
+        if (cancelled) return;
+        const nextRuns = payload.apexOsAutonomyRuns || [];
+        setLedgerRuns(nextRuns);
+        setLedgerSummary(payload.summary || null);
+        setSelectedRunId((current) => current || nextRuns[0]?.id || "");
+      } catch (error) {
+        if (!cancelled) setLedgerMessage(error.message || "Could not load the run ledger.");
+      }
+    }
+    loadRuns();
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionToken, center.runRows, center.runSummary]);
+
+  async function refreshRuns(nextPayload = null) {
+    if (nextPayload?.apexOsAutonomyRuns) {
+      setLedgerRuns(nextPayload.apexOsAutonomyRuns || []);
+      setLedgerSummary(nextPayload.summary || null);
+      return nextPayload;
+    }
+    if (!sessionToken) return null;
+    const payload = await getApexOsAutonomyRuns(sessionToken);
+    setLedgerRuns(payload.apexOsAutonomyRuns || []);
+    setLedgerSummary(payload.summary || null);
+    return payload;
+  }
+
+  async function handleCreateRun() {
+    if (!sessionToken) return;
+    const request = runRequest.trim() || `Prepare ${safeRoute.label}: ${safeRoute.detail}`;
+    setLedgerBusy("create");
+    setLedgerMessage("");
+    try {
+      const payload = await createApexOsAutonomyRun(sessionToken, {
+        request,
+        routeId: safeRoute.id,
+        routeLabel: safeRoute.label,
+        routeDetail: safeRoute.detail,
+        sourceLabel: "Apex Autonomy Run Center",
+      });
+      await refreshRuns(payload);
+      setSelectedRunId(payload.apexOsAutonomyRun?.id || "");
+      setRunRequest("");
+      setLedgerMessage("Run saved. Apex can now draft internal work against this ledger entry.");
+    } catch (error) {
+      setLedgerMessage(error.message || "Could not save this run.");
+    } finally {
+      setLedgerBusy("");
+    }
+  }
+
+  async function handleDraftInternal(runId = activeRun?.id) {
+    if (!sessionToken || !runId) return;
+    setLedgerBusy(`draft-${runId}`);
+    setLedgerMessage("");
+    try {
+      const payload = await draftApexOsAutonomyRunInternalWork(sessionToken, runId);
+      await refreshRuns(payload);
+      setSelectedRunId(payload.apexOsAutonomyRun?.id || runId);
+      setLedgerMessage("Internal draft package prepared. Execution, sends, billing, provider work, and production actions stayed locked.");
+    } catch (error) {
+      setLedgerMessage(error.message || "Could not draft internal work for this run.");
+    } finally {
+      setLedgerBusy("");
+    }
+  }
+
+  async function handleUpdateRun(runId, patch) {
+    if (!sessionToken || !runId) return;
+    setLedgerBusy(`${patch.status || "update"}-${runId}`);
+    setLedgerMessage("");
+    try {
+      const payload = await updateApexOsAutonomyRun(sessionToken, runId, patch);
+      await refreshRuns(payload);
+      setSelectedRunId(payload.apexOsAutonomyRun?.id || runId);
+      setLedgerMessage(patch.status === "done" ? "Run marked done with a result report." : patch.status === "blocked" ? "Run marked blocked for review." : "Run updated.");
+    } catch (error) {
+      setLedgerMessage(error.message || "Could not update this run.");
+    } finally {
+      setLedgerBusy("");
+    }
+  }
+
   return (
     <section className={`grid min-w-0 gap-3 rounded-lg border p-3 ${shellClass}`} aria-label="Autonomy Run Center">
       <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <p className={`text-[10px] font-black uppercase tracking-[0.14em] ${labelText}`}>Autonomy Run Center</p>
-          <h3 className={`mt-1 break-words text-base font-black ${strongText}`}>{center.status || "Guarded autonomy ready"}</h3>
+          <h3 className={`mt-1 break-words text-base font-black ${strongText}`}>{displayStatus}</h3>
           <p className={`mt-1 break-words text-xs font-bold leading-5 ${mutedText}`}>
             Apex turns your request into a visible run plan, routes it to the right room or agent, tracks evidence, and stops before approval-gated actions.
           </p>
@@ -4201,10 +4312,10 @@ function AutonomyRunCenterPanel({
             Autonomy Core: Safe internal drafts are on; customer sends, billing, ads, production changes, and irreversible external actions remain gated.
           </p>
         </div>
-        <ToneBadge tone={center.tone || "green"}>{center.externalActionsLocked ? "External locked" : "Review-first"}</ToneBadge>
+        <ToneBadge tone={displayTone}>{center.externalActionsLocked ? "External locked" : "Review-first"}</ToneBadge>
       </div>
 
-      <div className="grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-5">
         {metricRows.map((item) => (
           <div key={item.label} className={`min-w-0 rounded-md border px-3 py-2 ${panelClass}`}>
             <p className={`text-[9px] font-black uppercase tracking-[0.1em] ${dark ? "text-slate-500" : "text-slate-500"}`}>{item.label}</p>
@@ -4241,6 +4352,83 @@ function AutonomyRunCenterPanel({
           >
             <Icon name="clipboard" className="mr-1.5 inline h-3.5 w-3.5" /> {creatingAgentRequest ? "Drafting..." : "Draft locked run"}
           </button>
+        </div>
+      </div>
+
+      <div className={`grid min-w-0 gap-3 rounded-lg border p-3 ${panelClass}`}>
+        <div className="grid min-w-0 gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+          <label className="min-w-0">
+            <span className={`text-[10px] font-black uppercase tracking-[0.12em] ${labelText}`}>Save a run</span>
+            <textarea
+              value={runRequest}
+              onChange={(event) => setRunRequest(event.target.value)}
+              rows={3}
+              className={`co-focus-ring mt-1 w-full resize-none rounded-md border px-3 py-2 text-xs font-bold leading-5 outline-none ${dark ? "border-slate-700 bg-slate-950/60 text-slate-100 placeholder:text-slate-600" : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400"}`}
+              placeholder="Tell Apex what to turn into a saved, review-first run..."
+            />
+          </label>
+          <div className="flex min-w-0 flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={handleCreateRun}
+              disabled={!sessionToken || ledgerBusy === "create"}
+              className={`co-focus-ring min-h-9 rounded-md border px-3 text-[11px] font-black transition disabled:cursor-not-allowed disabled:opacity-65 ${buttonClass}`}
+            >
+              <Icon name="plus" className="mr-1.5 inline h-3.5 w-3.5" /> {ledgerBusy === "create" ? "Saving..." : "Save run"}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDraftInternal(activeRun?.id)}
+              disabled={!sessionToken || !activeRun || ledgerBusy === `draft-${activeRun?.id}`}
+              className={`co-focus-ring min-h-9 rounded-md border px-3 text-[11px] font-black transition disabled:cursor-not-allowed disabled:opacity-65 ${buttonClass}`}
+            >
+              <Icon name="clipboard" className="mr-1.5 inline h-3.5 w-3.5" /> {ledgerBusy === `draft-${activeRun?.id}` ? "Drafting..." : "Draft internal work"}
+            </button>
+          </div>
+        </div>
+        {ledgerMessage ? (
+          <p className={`rounded-md border px-3 py-2 text-[11px] font-black leading-4 ${dark ? "border-cyan-200/14 bg-cyan-400/10 text-cyan-100" : "border-cyan-200 bg-cyan-50 text-cyan-900"}`}>{ledgerMessage}</p>
+        ) : null}
+        <div className="grid min-w-0 gap-2">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+            <p className={`text-[10px] font-black uppercase tracking-[0.12em] ${labelText}`}>Run ledger</p>
+            <ToneBadge tone={summary.active ? "green" : "blue"}>{summary.active || 0} active</ToneBadge>
+          </div>
+          {visibleRuns.length ? (
+            <div className="grid min-w-0 gap-2 lg:grid-cols-2">
+              {visibleRuns.map((run) => (
+                <div
+                  key={run.id}
+                  className={`min-w-0 rounded-md border px-3 py-2 ${selectedRunId === run.id ? dark ? "border-cyan-300/45 bg-cyan-400/10" : "border-orange-300 bg-orange-50" : panelClass}`}
+                >
+                  <button type="button" onClick={() => setSelectedRunId(run.id)} className="co-focus-ring block w-full min-w-0 text-left">
+                    <div className="flex min-w-0 items-start justify-between gap-2">
+                      <p className={`min-w-0 break-words text-[11px] font-black ${strongText}`}>{run.title}</p>
+                      <ToneBadge tone={run.tone || "slate"}>{run.status}</ToneBadge>
+                    </div>
+                    <p className={`mt-1 line-clamp-2 break-words text-[10px] font-bold leading-4 ${mutedText}`}>{run.request || run.nextSafeAction}</p>
+                    <p className={`mt-1 truncate text-[9px] font-black uppercase tracking-[0.08em] ${mutedText}`}>{run.routeLabel || "Apex"} {run.linkedExecutionHandoffId ? " / handoff linked" : ""}</p>
+                  </button>
+                  <div className="mt-2 flex min-w-0 flex-wrap gap-1.5">
+                    <button type="button" onClick={() => handleDraftInternal(run.id)} disabled={!sessionToken || ledgerBusy === `draft-${run.id}`} className={`co-focus-ring min-h-7 rounded-md border px-2 text-[10px] font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${buttonClass}`}>
+                      {ledgerBusy === `draft-${run.id}` ? "Drafting..." : "Draft"}
+                    </button>
+                    <button type="button" onClick={() => handleUpdateRun(run.id, { status: "done", resultReport: run.resultReport || "Operator marked this review-first run done after reviewing available evidence." })} disabled={!sessionToken || ledgerBusy === `done-${run.id}`} className={`co-focus-ring min-h-7 rounded-md border px-2 text-[10px] font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${buttonClass}`}>
+                      Done
+                    </button>
+                    <button type="button" onClick={() => handleUpdateRun(run.id, { status: "blocked", operatorNote: "Operator marked this autonomy run blocked for review." })} disabled={!sessionToken || ledgerBusy === `blocked-${run.id}`} className={`co-focus-ring min-h-7 rounded-md border px-2 text-[10px] font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${buttonClass}`}>
+                      Block
+                    </button>
+                    <button type="button" onClick={() => handleUpdateRun(run.id, { status: "archived" })} disabled={!sessionToken || ledgerBusy === `archived-${run.id}`} className={`co-focus-ring min-h-7 rounded-md border px-2 text-[10px] font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${buttonClass}`}>
+                      Archive
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className={`rounded-md border border-dashed px-3 py-3 text-[11px] font-bold leading-4 ${dark ? "border-slate-800 text-slate-500" : "border-slate-200 text-slate-500"}`}>No saved autonomy runs yet. Save a run to give Apex a real history item to plan, draft, validate, and report against.</p>
+          )}
         </div>
       </div>
 
@@ -4305,6 +4493,9 @@ function AutonomyRunCenterCompactPanel({
   const safeRoute = route || buildApexCockpitCommandRoute("");
   const gates = center.gateRows || [];
   const primaryGate = gates.find((item) => item.id === "autonomy-private-drafts") || gates[0];
+  const savedRunCount = center.savedRunCount || center.runSummary?.total || 0;
+  const activeRunCount = center.activeRunCount || center.runSummary?.active || 0;
+  const latestRun = center.latestRun || center.runRows?.[0] || null;
   const nextSafeAction = safeRoute.commandAction === "draft-agent-control-request"
     ? "Draft a locked agent request"
     : safeRoute.commandAction === "open-section"
@@ -4324,7 +4515,7 @@ function AutonomyRunCenterCompactPanel({
         <ToneBadge tone={center.tone || "green"}>{center.externalActionsLocked ? "External locked" : "Review-first"}</ToneBadge>
       </div>
 
-      <div className="grid min-w-0 gap-2 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.9fr)_minmax(0,0.9fr)]">
+      <div className="grid min-w-0 gap-2 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.9fr)]">
         <div className="min-w-0 rounded-md border border-slate-800 bg-slate-900/58 px-3 py-2">
           <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Current command route</p>
           <p className="mt-1 truncate text-xs font-black text-slate-100">{safeRoute.label}</p>
@@ -4339,6 +4530,11 @@ function AutonomyRunCenterCompactPanel({
           <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Execution gates</p>
           <p className="mt-1 text-xs font-black text-slate-100">{center.gatedActionCount || 0} approval gates stay manual</p>
           <p className="mt-1 line-clamp-2 text-[10px] font-bold leading-4 text-slate-500">{primaryGate?.title || "Private reversible drafts"}: {primaryGate?.status || "Allowed when asked"}</p>
+        </div>
+        <div className="min-w-0 rounded-md border border-slate-800 bg-slate-900/58 px-3 py-2">
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Saved runs</p>
+          <p className="mt-1 text-xs font-black text-slate-100">{savedRunCount} saved / {activeRunCount} active</p>
+          <p className="mt-1 line-clamp-2 break-words text-[10px] font-bold leading-4 text-slate-500">{latestRun ? latestRun.title : "No saved autonomy run yet."}</p>
         </div>
       </div>
 
@@ -5759,6 +5955,7 @@ function ControlRoomAgentsSection({ state, sessionToken, onChange }) {
                   />
                   <AutonomyRunCenterPanel
                     state={state}
+                    sessionToken={sessionToken}
                     onOpenAgents={() => onChange?.("agents")}
                     onOpenApprovals={() => onChange?.("approvals")}
                     onCreateAgentRequest={() => onChange?.("agents")}

@@ -483,6 +483,22 @@ export function getApexOsAgentControl(token) {
   return request("/api/apex-os/agent-control", { token });
 }
 
+export function getApexOsAutonomyRuns(token) {
+  return request("/api/apex-os/autonomy-runs", { token });
+}
+
+export function createApexOsAutonomyRun(token, payload = {}) {
+  return request("/api/apex-os/autonomy-runs", { method: "POST", token, body: payload });
+}
+
+export function updateApexOsAutonomyRun(token, id, payload = {}) {
+  return request(`/api/apex-os/autonomy-runs/${encodeURIComponent(id)}`, { method: "PATCH", token, body: payload });
+}
+
+export function draftApexOsAutonomyRunInternalWork(token, id, payload = {}) {
+  return request(`/api/apex-os/autonomy-runs/${encodeURIComponent(id)}/draft-internal`, { method: "POST", token, body: payload });
+}
+
 export function createApexOsAgentControlRequest(token, payload = {}) {
   return request("/api/apex-os/agent-control/requests", { method: "POST", token, body: payload });
 }

@@ -82,6 +82,10 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /createApexOsAgentControlRequest/);
   assert.match(componentSource, /getApexOsAgentControl/);
   assert.match(componentSource, /updateApexOsAgentControlRequest/);
+  assert.match(componentSource, /createApexOsAutonomyRun/);
+  assert.match(componentSource, /getApexOsAutonomyRuns/);
+  assert.match(componentSource, /updateApexOsAutonomyRun/);
+  assert.match(componentSource, /draftApexOsAutonomyRunInternalWork/);
   assert.match(componentSource, /Request control/);
   assert.match(componentSource, /Load controls/);
   assert.match(componentSource, /Background loops locked/);
@@ -178,6 +182,10 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /Plan \+ gates/);
   assert.match(componentSource, /Current command route/);
   assert.match(componentSource, /Next safe action/);
+  assert.match(componentSource, /Save a run/);
+  assert.match(componentSource, /Run ledger/);
+  assert.match(componentSource, /Draft internal work/);
+  assert.match(componentSource, /Saved runs/);
   assert.match(componentSource, /Draft locked run/);
   assert.match(componentSource, /Execution gates/);
   assert.match(componentSource, /externalActionsLocked/);

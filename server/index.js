@@ -122,6 +122,15 @@ import {
   summarizeApexOsAgentControlRequests,
 } from "../shared/apexOsAgentControl.js";
 import {
+  buildApexOsAutonomyRunPlan,
+  getApexOsAutonomyRunMissingFields,
+  isApexOsAutonomyRunReady,
+  markApexOsAutonomyRunInternalDrafted,
+  normalizeApexOsAutonomyRun,
+  normalizeApexOsAutonomyRuns,
+  summarizeApexOsAutonomyRuns,
+} from "../shared/apexOsAutonomyRuns.js";
+import {
   APEX_OS_ASK_OPENAI_URL,
   buildApexOsAskContext,
   buildApexOsAskEvidenceRows,
@@ -7799,6 +7808,94 @@ function publicApexOsAgentControlRequest(request) {
   };
 }
 
+function apexOsAutonomyRunsForState(state, user) {
+  return normalizeApexOsAutonomyRuns(companySettingsForState(state, user).apexOsAutonomyRuns);
+}
+
+function rejectUnsafeApexOsAutonomyRun(run, requestedStatus = run.status) {
+  const normalizedStatus = String(requestedStatus || "").trim().toLowerCase();
+  if (["approved", "executed", "running", "queued"].includes(normalizedStatus)) {
+    throw new ApiError(400, "Apex autonomy runs can be planned, drafted, validated, blocked, completed, or archived here; approval, queueing, running, and execution require a separate gated workflow.");
+  }
+  if (run.blockedReasons?.length) {
+    throw new ApiError(400, run.blockedReasons[0]);
+  }
+  if (!run.title || !run.request) {
+    throw new ApiError(400, "Apex autonomy runs require a title and request.");
+  }
+  if (run.status === "done" && !isApexOsAutonomyRunReady(run)) {
+    throw new ApiError(400, `Completed autonomy runs are missing: ${getApexOsAutonomyRunMissingFields(run).join(", ")}.`);
+  }
+  if (!run.sourceLabel) {
+    throw new ApiError(400, "Apex autonomy runs require a source label.");
+  }
+}
+
+function persistApexOsAutonomyRuns(draft, user, runs) {
+  const currentCompanyId = currentCompanyIdForRequestUser(draft, user);
+  draft.currentCompanyId = currentCompanyId;
+  draft.companySettingsByCompanyId ||= {};
+  draft.companySettings = {
+    ...companySettingsForState(draft, user),
+    apexOsAutonomyRuns: normalizeApexOsAutonomyRuns(runs),
+  };
+  draft.companySettingsByCompanyId[currentCompanyId] = draft.companySettings;
+}
+
+function publicApexOsAutonomyRun(run) {
+  const { blockedReasons: _blockedReasons, ...safeRun } = run;
+  return {
+    ...safeRun,
+    missingFields: getApexOsAutonomyRunMissingFields(run),
+    readyToReview: isApexOsAutonomyRunReady(run),
+    executionLocked: true,
+    externalActionsLocked: true,
+    canDraftInternal: true,
+    canQueue: false,
+    canRunAgent: false,
+    canExecute: false,
+  };
+}
+
+function buildApexOsAutonomyRunAgentControlDraft(run, user) {
+  return {
+    requestType: "scoped-run",
+    agentRole: run.agentRole || "build",
+    title: `Autonomy run draft: ${run.title}`,
+    objective: `Prepare private internal draft work for: ${run.request}`,
+    scope: "Private Apex HQ planning, implementation notes, validation checklist, result report, and suggested memory only. No external action is allowed from this request.",
+    riskLevel: run.riskLevel || "medium",
+    validationPlan: "Confirm the draft stays private, review-first, scoped to the run, and backed by tests, role checks, browser or mobile QA, build evidence, and rollback notes when code changes are involved.",
+    rollbackPlan: "Archive or close this request and keep the saved run history intact. No external systems are changed by this draft.",
+    sourceLabel: "Apex Autonomy Run Ledger",
+    sourceUri: `apex-os-autonomy-run:${run.id}`,
+    operatorNote: `Linked run ${run.id}.`,
+    status: "requested",
+  };
+}
+
+function buildApexOsAutonomyRunExecutionHandoffDraft(run, user) {
+  return {
+    title: `Autonomy handoff: ${run.title}`,
+    agentRole: run.agentRole || "build",
+    workType: run.workType || "local-code-plan",
+    objective: `Draft and validate private internal work for: ${run.request}`,
+    sourceEvidence: `Saved Apex autonomy run ${run.id} from ${run.sourceLabel || "Apex Autonomy Run Ledger"}. Route: ${run.routeLabel || "Apex"}.`,
+    allowedActions: "Read Apex HQ source context, prepare private implementation notes, draft the validation checklist, collect local proof, and report evidence.",
+    blockedActions: "No customer messages, money movement, publishing, production changes, provider credential handling, deletion, queueing, agent execution, rollback, or irreversible work.",
+    validationPlan: "Use focused tests, role checks, build, browser/mobile QA, and result notes as relevant before the operator trusts completion.",
+    rollbackPlan: "Archive this draft and leave linked run history intact. Since this draft performs no external action, rollback is limited to reverting code/doc edits if later work changes files.",
+    handoffPrompt: "Continue only as a private review-first draft. Stop before any approval-gated action and report evidence.",
+    sourceLabel: "Apex Autonomy Run Ledger",
+    sourceUri: `apex-os-autonomy-run:${run.id}`,
+    sourceQuestion: run.request,
+    riskLevel: run.riskLevel || "medium",
+    status: "draft",
+    workstreamStatus: "planned",
+    operatorNote: `Linked run ${run.id}.`,
+  };
+}
+
 function apexOsDailyBriefingHistoryForState(state, user) {
   return normalizeApexOsDailyBriefingHistory(companySettingsForState(state, user).apexOsDailyBriefingHistory);
 }
@@ -12784,6 +12881,17 @@ app.get("/api/apex-os/agent-control", requireAuth, asyncRoute(async (req, res) =
   });
 }));
 
+app.get("/api/apex-os/autonomy-runs", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const runs = apexOsAutonomyRunsForState(state, req.auth.user);
+  res.json({
+    apexOsAutonomyRuns: runs.map(publicApexOsAutonomyRun),
+    summary: summarizeApexOsAutonomyRuns(runs),
+    requestId: res.locals.requestId,
+  });
+}));
+
 app.get("/api/apex-os/build-awareness", requireAuth, asyncRoute(async (req, res) => {
   const state = await readDb();
   assertCanManageApexOsMemory(state, req.auth.user);
@@ -12867,6 +12975,210 @@ app.post("/api/apex-os/daily-briefing/history", requireAuth, asyncRoute(async (r
     dailyBriefing,
     apexOsDailyBriefingSnapshot: publicApexOsDailyBriefingSnapshot(savedSnapshot),
     summary: dailyBriefing.history,
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/autonomy-runs", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let createdRun = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageApexOsMemory(draft, req.auth.user);
+    const current = apexOsAutonomyRunsForState(draft, req.auth.user);
+    createdRun = buildApexOsAutonomyRunPlan(req.body || {}, {
+      id: makeId("AAR"),
+      now,
+      createdBy: req.auth.user.id,
+    });
+    createdRun.createdBy = req.auth.user.id;
+    createdRun.createdAt = now;
+    rejectUnsafeApexOsAutonomyRun(createdRun, req.body?.status);
+    persistApexOsAutonomyRuns(draft, req.auth.user, [createdRun, ...current].slice(0, 120));
+    appendActivity(draft, "Apex autonomy run saved", `${req.auth.user.name} saved ${createdRun.title} in the Apex autonomy run ledger.`);
+    appendAuditEvent(draft, {
+      entityType: "apexOsAutonomyRun",
+      entityId: createdRun.id,
+      action: "planned",
+      summary: "Apex autonomy run saved",
+      detail: JSON.stringify({
+        id: createdRun.id,
+        title: createdRun.title,
+        status: createdRun.status,
+        routeId: createdRun.routeId,
+        routeLabel: createdRun.routeLabel,
+        agentRole: createdRun.agentRole,
+        riskLevel: createdRun.riskLevel,
+        executionLocked: true,
+        externalActionsLocked: true,
+      }),
+      actor: req.auth.user,
+      changedFields: ["apexOsAutonomyRuns"],
+    });
+    return draft;
+  });
+
+  const runs = apexOsAutonomyRunsForState(nextState, req.auth.user);
+  res.status(201).json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    apexOsAutonomyRun: publicApexOsAutonomyRun(createdRun),
+    apexOsAutonomyRuns: runs.map(publicApexOsAutonomyRun),
+    summary: summarizeApexOsAutonomyRuns(runs),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.patch("/api/apex-os/autonomy-runs/:id", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let updatedRun = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageApexOsMemory(draft, req.auth.user);
+    const current = apexOsAutonomyRunsForState(draft, req.auth.user);
+    const index = current.findIndex((run) => run.id === req.params.id);
+    if (index < 0) {
+      throw new ApiError(404, "Apex autonomy run not found.");
+    }
+    const existing = current[index];
+    updatedRun = normalizeApexOsAutonomyRun(req.body || {}, {
+      existing,
+      now,
+      createdBy: existing.createdBy || req.auth.user.id,
+    });
+    updatedRun.createdBy = existing.createdBy;
+    updatedRun.createdAt = existing.createdAt;
+    if (updatedRun.status === "archived" && existing.status !== "archived") {
+      updatedRun.archivedAt = now;
+    }
+    if (updatedRun.status === "done" && existing.status !== "done") {
+      updatedRun.completedAt = now;
+    }
+    rejectUnsafeApexOsAutonomyRun(updatedRun, req.body?.status);
+    const nextRuns = [...current];
+    nextRuns[index] = updatedRun;
+    persistApexOsAutonomyRuns(draft, req.auth.user, nextRuns);
+    appendActivity(draft, "Apex autonomy run updated", `${req.auth.user.name} updated ${updatedRun.title} in the Apex autonomy run ledger.`);
+    appendAuditEvent(draft, {
+      entityType: "apexOsAutonomyRun",
+      entityId: updatedRun.id,
+      action: updatedRun.status === "archived" ? "archived" : updatedRun.status === "done" ? "completed" : updatedRun.status === "blocked" ? "blocked" : "updated",
+      summary: "Apex autonomy run updated",
+      detail: JSON.stringify({
+        id: updatedRun.id,
+        title: updatedRun.title,
+        status: updatedRun.status,
+        routeId: updatedRun.routeId,
+        routeLabel: updatedRun.routeLabel,
+        agentRole: updatedRun.agentRole,
+        riskLevel: updatedRun.riskLevel,
+        executionLocked: true,
+        externalActionsLocked: true,
+      }),
+      actor: req.auth.user,
+      changedFields: ["apexOsAutonomyRuns"],
+    });
+    return draft;
+  });
+
+  const runs = apexOsAutonomyRunsForState(nextState, req.auth.user);
+  res.json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    apexOsAutonomyRun: publicApexOsAutonomyRun(updatedRun),
+    apexOsAutonomyRuns: runs.map(publicApexOsAutonomyRun),
+    summary: summarizeApexOsAutonomyRuns(runs),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/autonomy-runs/:id/draft-internal", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let updatedRun = null;
+  let createdRequest = null;
+  let createdHandoff = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageApexOsMemory(draft, req.auth.user);
+    const currentRuns = apexOsAutonomyRunsForState(draft, req.auth.user);
+    const runIndex = currentRuns.findIndex((run) => run.id === req.params.id);
+    if (runIndex < 0) {
+      throw new ApiError(404, "Apex autonomy run not found.");
+    }
+    const existingRun = currentRuns[runIndex];
+    rejectUnsafeApexOsAutonomyRun(existingRun, existingRun.status);
+    if (["archived", "done", "blocked"].includes(existingRun.status)) {
+      throw new ApiError(400, "Archived, completed, or blocked autonomy runs cannot create new internal draft packages.");
+    }
+
+    let agentControlRequestId = existingRun.linkedAgentControlRequestId;
+    let executionHandoffId = existingRun.linkedExecutionHandoffId;
+
+    if (!agentControlRequestId) {
+      const currentRequests = apexOsAgentControlRequestsForState(draft, req.auth.user);
+      createdRequest = normalizeApexOsAgentControlRequest(buildApexOsAutonomyRunAgentControlDraft(existingRun, req.auth.user), {
+        id: makeId("AAC"),
+        now,
+        requestedBy: req.auth.user.id,
+      });
+      createdRequest.createdBy = req.auth.user.id;
+      createdRequest.createdAt = now;
+      rejectUnsafeApexOsAgentControlRequest(createdRequest, createdRequest.status);
+      agentControlRequestId = createdRequest.id;
+      persistApexOsAgentControlRequests(draft, req.auth.user, [createdRequest, ...currentRequests].slice(0, 160));
+    }
+
+    if (!executionHandoffId) {
+      const currentHandoffs = apexOsExecutionHandoffsForState(draft, req.auth.user);
+      createdHandoff = normalizeApexOsExecutionHandoff(buildApexOsAutonomyRunExecutionHandoffDraft(existingRun, req.auth.user), {
+        id: makeId("AEH"),
+        now,
+      });
+      createdHandoff.createdBy = req.auth.user.id;
+      createdHandoff.createdAt = now;
+      rejectUnsafeApexOsExecutionHandoff(createdHandoff, createdHandoff.status);
+      executionHandoffId = createdHandoff.id;
+      persistApexOsExecutionHandoffs(draft, req.auth.user, [createdHandoff, ...currentHandoffs].slice(0, 120));
+    }
+
+    updatedRun = markApexOsAutonomyRunInternalDrafted(existingRun, {
+      agentControlRequestId,
+      executionHandoffId,
+      now,
+    });
+    rejectUnsafeApexOsAutonomyRun(updatedRun, updatedRun.status);
+    const nextRuns = [...currentRuns];
+    nextRuns[runIndex] = updatedRun;
+    persistApexOsAutonomyRuns(draft, req.auth.user, nextRuns);
+
+    appendActivity(draft, "Apex autonomy internal draft prepared", `${req.auth.user.name} prepared internal drafts for ${updatedRun.title}.`);
+    appendAuditEvent(draft, {
+      entityType: "apexOsAutonomyRun",
+      entityId: updatedRun.id,
+      action: "internal-draft-prepared",
+      summary: "Apex autonomy internal draft prepared",
+      detail: JSON.stringify({
+        id: updatedRun.id,
+        title: updatedRun.title,
+        status: updatedRun.status,
+        linkedAgentControlRequestId: updatedRun.linkedAgentControlRequestId,
+        linkedExecutionHandoffId: updatedRun.linkedExecutionHandoffId,
+        executionLocked: true,
+        externalActionsLocked: true,
+        canExecute: false,
+      }),
+      actor: req.auth.user,
+      changedFields: ["apexOsAutonomyRuns", "apexOsAgentControlRequests", "apexOsExecutionHandoffs"],
+    });
+    return draft;
+  });
+
+  const runs = apexOsAutonomyRunsForState(nextState, req.auth.user);
+  res.status(201).json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    apexOsAutonomyRun: publicApexOsAutonomyRun(updatedRun),
+    apexOsAutonomyRuns: runs.map(publicApexOsAutonomyRun),
+    apexOsAgentControlRequest: createdRequest ? publicApexOsAgentControlRequest(createdRequest) : null,
+    apexOsExecutionHandoff: createdHandoff ? publicApexOsExecutionHandoff(createdHandoff) : null,
+    summary: summarizeApexOsAutonomyRuns(runs),
     requestId: res.locals.requestId,
   });
 }));
