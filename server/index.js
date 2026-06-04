@@ -542,7 +542,7 @@ function securityHeaders(_req, res, next) {
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("Referrer-Policy", "no-referrer");
   res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
-  res.setHeader("Permissions-Policy", "geolocation=(self), microphone=(), payment=(), usb=()");
+  res.setHeader("Permissions-Policy", "geolocation=(self), microphone=(self), payment=(), usb=()");
   res.setHeader("Content-Security-Policy", [
     "default-src 'self'",
     "base-uri 'self'",

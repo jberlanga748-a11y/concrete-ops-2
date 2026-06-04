@@ -57,7 +57,7 @@ function assertSecurityHeaders(response, { production = false } = {}) {
     "x-frame-options": "DENY",
     "referrer-policy": "no-referrer",
     "cross-origin-opener-policy": "same-origin",
-    "permissions-policy": "geolocation=(self), microphone=(), payment=(), usb=()",
+    "permissions-policy": "geolocation=(self), microphone=(self), payment=(), usb=()",
   };
 
   for (const [header, expected] of Object.entries(expectedHeaders)) {
