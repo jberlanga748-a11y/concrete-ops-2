@@ -56520,6 +56520,379 @@ body:has(.co-field-mobile-reports-shell) .co-mobile-bottom-spacer {
   grid-template-columns: minmax(0, 1fr) !important;
 }
 
+.co-apex-life-body {
+  isolation: isolate;
+}
+
+.co-apex-life-body > span,
+.co-apex-life-body > img {
+  pointer-events: none;
+}
+
+.co-apex-life-body-image {
+  position: relative;
+  z-index: 4;
+  transform-origin: 50% 58%;
+  animation: apex-life-listening-breathe 5.2s ease-in-out infinite;
+  filter: drop-shadow(0 0 22px rgba(56, 189, 248, 0.22));
+}
+
+.co-apex-life-body--thinking .co-apex-life-body-image {
+  animation-duration: 2.5s;
+  filter: drop-shadow(0 0 28px rgba(34, 211, 238, 0.3));
+}
+
+.co-apex-life-body--speaking .co-apex-life-body-image {
+  animation: apex-life-speaking-drive 760ms ease-in-out infinite;
+  filter: drop-shadow(0 0 36px rgba(249, 115, 22, 0.38)) drop-shadow(0 0 24px rgba(56, 189, 248, 0.18));
+}
+
+.co-apex-life-ring,
+.co-apex-life-horizon,
+.co-apex-life-scan,
+.co-apex-life-eyes,
+.co-apex-life-core,
+.co-apex-life-status {
+  position: absolute;
+  z-index: 2;
+}
+
+.co-apex-life-ring {
+  left: 50%;
+  top: 51%;
+  border: 1px solid rgba(125, 211, 252, 0.2);
+  border-radius: 999px;
+  box-shadow: 0 0 38px rgba(34, 211, 238, 0.12), inset 0 0 28px rgba(125, 211, 252, 0.08);
+  opacity: 0.78;
+  transform: translate(-50%, -50%);
+  animation: apex-life-ring-pulse 4.6s ease-in-out infinite;
+}
+
+.co-apex-life-ring--outer {
+  width: min(96%, 31rem);
+  height: min(72%, 22rem);
+}
+
+.co-apex-life-ring--inner {
+  width: min(70%, 22rem);
+  height: min(54%, 16rem);
+  animation-duration: 3.4s;
+  animation-delay: -1.2s;
+}
+
+.co-apex-life-body--speaking .co-apex-life-ring {
+  border-color: rgba(251, 146, 60, 0.36);
+  box-shadow: 0 0 44px rgba(249, 115, 22, 0.18), inset 0 0 30px rgba(56, 189, 248, 0.12);
+  animation-duration: 1.15s;
+}
+
+.co-apex-life-horizon {
+  left: 5%;
+  top: 49%;
+  z-index: 1;
+  width: 90%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(125, 211, 252, 0.1), rgba(125, 211, 252, 0.78), rgba(251, 146, 60, 0.72), rgba(125, 211, 252, 0.28), transparent);
+  box-shadow: 0 0 18px rgba(56, 189, 248, 0.45);
+  opacity: 0.68;
+  animation: apex-life-horizon 3.8s ease-in-out infinite;
+}
+
+.co-apex-life-scan {
+  opacity: 0.34;
+}
+
+.co-apex-life-scan--vertical {
+  left: 50%;
+  top: 9%;
+  width: 1px;
+  height: 74%;
+  background: linear-gradient(180deg, transparent, rgba(125, 211, 252, 0.48), transparent);
+  animation: apex-life-vertical-scan 4.2s ease-in-out infinite;
+}
+
+.co-apex-life-scan--horizontal {
+  left: 16%;
+  top: 57%;
+  width: 68%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(125, 211, 252, 0.48), transparent);
+  animation: apex-life-horizontal-scan 3.7s ease-in-out infinite;
+}
+
+.co-apex-life-eyes {
+  left: 50%;
+  top: 34%;
+  z-index: 5;
+  width: clamp(5.8rem, 28%, 9.8rem);
+  height: 0.36rem;
+  transform: translateX(-50%);
+  opacity: 0.86;
+}
+
+.co-apex-life-eyes::before,
+.co-apex-life-eyes::after {
+  position: absolute;
+  top: 0;
+  width: 36%;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, rgba(251, 146, 60, 0.58), #fed7aa, rgba(251, 146, 60, 0.82), transparent);
+  box-shadow: 0 0 16px rgba(249, 115, 22, 0.82), 0 0 28px rgba(125, 211, 252, 0.2);
+  content: "";
+  animation: apex-life-eye-glow 2.4s ease-in-out infinite;
+}
+
+.co-apex-life-eyes::before {
+  left: 0;
+}
+
+.co-apex-life-eyes::after {
+  right: 0;
+  animation-delay: -0.36s;
+}
+
+.co-apex-life-body--speaking .co-apex-life-eyes::before,
+.co-apex-life-body--speaking .co-apex-life-eyes::after {
+  animation-duration: 540ms;
+  box-shadow: 0 0 22px rgba(249, 115, 22, 0.95), 0 0 38px rgba(56, 189, 248, 0.26);
+}
+
+.co-apex-life-core {
+  left: 50%;
+  top: 60%;
+  z-index: 5;
+  width: clamp(4rem, 18%, 6.4rem);
+  aspect-ratio: 1;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.86) 0 4%, rgba(125, 211, 252, 0.52) 18%, rgba(14, 165, 233, 0.18) 42%, transparent 68%);
+  box-shadow: 0 0 30px rgba(56, 189, 248, 0.38), inset 0 0 22px rgba(255, 255, 255, 0.22);
+  transform: translate(-50%, -50%);
+  animation: apex-life-core-listen 2.8s ease-in-out infinite;
+  mix-blend-mode: screen;
+}
+
+.co-apex-life-body--speaking .co-apex-life-core {
+  background: radial-gradient(circle, rgba(255, 247, 237, 0.96) 0 4%, rgba(251, 146, 60, 0.56) 18%, rgba(34, 211, 238, 0.2) 44%, transparent 70%);
+  animation: apex-life-core-speaking 620ms ease-in-out infinite;
+}
+
+.co-apex-life-status {
+  left: 50%;
+  bottom: 0.38rem;
+  z-index: 6;
+  max-width: 92%;
+  transform: translateX(-50%);
+  color: #fb923c;
+  font-size: 0.74rem;
+  font-weight: 950;
+  line-height: 1;
+  text-align: center;
+  text-shadow: 0 0 12px rgba(249, 115, 22, 0.65);
+  white-space: nowrap;
+}
+
+.co-apex-life-body--thinking .co-apex-life-status {
+  color: #67e8f9;
+  text-shadow: 0 0 12px rgba(34, 211, 238, 0.62);
+}
+
+.co-apex-mini-waveform-bar {
+  transform-origin: 50% 50%;
+  animation: apex-mini-wave-listen 1.45s ease-in-out infinite;
+  animation-delay: calc(var(--apex-wave-index) * -78ms);
+}
+
+.co-apex-mini-waveform--thinking .co-apex-mini-waveform-bar {
+  background: #67e8f9;
+  animation-duration: 860ms;
+}
+
+.co-apex-mini-waveform--speaking .co-apex-mini-waveform-bar {
+  background: #fb923c;
+  box-shadow: 0 0 12px rgba(249, 115, 22, 0.86);
+  animation-name: apex-mini-wave-speak;
+  animation-duration: 520ms;
+}
+
+.co-apex-cockpit-response-copy {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 7;
+}
+
+@keyframes apex-life-listening-breathe {
+  0%,
+  100% {
+    transform: translateY(0) scale(0.996);
+  }
+
+  50% {
+    transform: translateY(-0.22rem) scale(1.006);
+  }
+}
+
+@keyframes apex-life-speaking-drive {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+
+  45% {
+    transform: translateY(-0.34rem) scale(1.014);
+  }
+
+  72% {
+    transform: translateY(0.06rem) scale(1.004);
+  }
+}
+
+@keyframes apex-life-ring-pulse {
+  0%,
+  100% {
+    opacity: 0.48;
+    transform: translate(-50%, -50%) scale(0.98);
+  }
+
+  50% {
+    opacity: 0.86;
+    transform: translate(-50%, -50%) scale(1.02);
+  }
+}
+
+@keyframes apex-life-horizon {
+  0%,
+  100% {
+    opacity: 0.42;
+    transform: scaleX(0.94);
+  }
+
+  50% {
+    opacity: 0.84;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes apex-life-vertical-scan {
+  0%,
+  100% {
+    opacity: 0.16;
+    transform: translateX(-0.42rem);
+  }
+
+  50% {
+    opacity: 0.5;
+    transform: translateX(0.42rem);
+  }
+}
+
+@keyframes apex-life-horizontal-scan {
+  0%,
+  100% {
+    opacity: 0.16;
+    transform: translateY(-0.26rem);
+  }
+
+  50% {
+    opacity: 0.48;
+    transform: translateY(0.26rem);
+  }
+}
+
+@keyframes apex-life-eye-glow {
+  0%,
+  100% {
+    opacity: 0.62;
+    transform: scaleX(0.86);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scaleX(1.06);
+  }
+}
+
+@keyframes apex-life-core-listen {
+  0%,
+  100% {
+    opacity: 0.42;
+    transform: translate(-50%, -50%) scale(0.9);
+  }
+
+  50% {
+    opacity: 0.84;
+    transform: translate(-50%, -50%) scale(1.08);
+  }
+}
+
+@keyframes apex-life-core-speaking {
+  0%,
+  100% {
+    opacity: 0.62;
+    transform: translate(-50%, -50%) scale(0.96);
+  }
+
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.18);
+  }
+}
+
+@keyframes apex-mini-wave-listen {
+  0%,
+  100% {
+    transform: scaleY(0.72);
+    opacity: 0.58;
+  }
+
+  50% {
+    transform: scaleY(1.1);
+    opacity: 1;
+  }
+}
+
+@keyframes apex-mini-wave-speak {
+  0%,
+  100% {
+    transform: scaleY(0.58);
+    opacity: 0.72;
+  }
+
+  50% {
+    transform: scaleY(1.34);
+    opacity: 1;
+  }
+}
+
+@media (max-width: 767px) {
+  .co-apex-life-body {
+    min-height: 300px !important;
+  }
+
+  .co-apex-life-status {
+    bottom: 0.16rem;
+    font-size: 0.66rem;
+  }
+
+  .co-apex-cockpit-response-copy {
+    -webkit-line-clamp: 4;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .co-apex-life-body-image,
+  .co-apex-life-ring,
+  .co-apex-life-horizon,
+  .co-apex-life-scan,
+  .co-apex-life-eyes::before,
+  .co-apex-life-eyes::after,
+  .co-apex-life-core,
+  .co-apex-mini-waveform-bar {
+    animation: none !important;
+  }
+}
+
 @media print {
   @page {
     margin: 0.35in;

@@ -3376,12 +3376,15 @@ function ApexCockpitCard({ title, action, children, className = "" }) {
   );
 }
 
-function ApexCockpitControlButton({ children, className = "" }) {
+function ApexCockpitControlButton({ children, className = "", disabled = true, onClick, active = false, title, type = "button" }) {
+  const interactive = !disabled;
   return (
     <button
-      type="button"
-      disabled
-      className={`co-focus-ring inline-flex min-h-8 min-w-0 max-w-full cursor-not-allowed items-center justify-center gap-2 rounded-lg border border-cyan-200/14 bg-white/[0.035] px-3 py-1.5 text-center text-[11px] font-black leading-tight text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.045)] transition hover:bg-white/[0.035] disabled:opacity-100 ${className}`}
+      type={type}
+      disabled={disabled}
+      onClick={onClick}
+      title={title}
+      className={`co-focus-ring inline-flex min-h-8 min-w-0 max-w-full items-center justify-center gap-2 rounded-lg border px-3 py-1.5 text-center text-[11px] font-black leading-tight shadow-[inset_0_1px_0_rgba(255,255,255,0.045)] transition disabled:opacity-100 ${interactive ? "cursor-pointer border-cyan-200/22 bg-white/[0.055] text-slate-100 hover:border-orange-400/60 hover:bg-orange-500/10 hover:text-white" : "cursor-not-allowed border-cyan-200/14 bg-white/[0.035] text-slate-200 hover:bg-white/[0.035]"} ${active ? "border-orange-400/64 bg-orange-500/12 text-orange-100 shadow-[0_0_22px_rgba(249,115,22,0.18),inset_0_1px_0_rgba(255,255,255,0.06)]" : ""} ${className}`}
     >
       {children}
     </button>
@@ -3422,25 +3425,83 @@ function ApexCockpitSidebar({ activeSection, onChange }) {
   );
 }
 
-function ApexMiniWaveform({ bars = [8, 13, 7, 18, 10, 22, 12, 16, 9, 20, 8, 14] }) {
+const APEX_COCKPIT_VOICE_STATES = Object.freeze({
+  listening: {
+    key: "listening",
+    header: "Online",
+    label: "Listening",
+    headline: "Apex is listening",
+    detail: "Ready to capture your request. Speak naturally.",
+    tone: "green",
+  },
+  thinking: {
+    key: "thinking",
+    header: "Thinking",
+    label: "Thinking",
+    headline: "Apex is thinking",
+    detail: "Reading approved memory and source-backed context.",
+    tone: "blue",
+  },
+  speaking: {
+    key: "speaking",
+    header: "Speaking",
+    label: "Speaking answer",
+    headline: "Apex is speaking",
+    detail: "Voice output is active and review-first.",
+    tone: "amber",
+  },
+});
+
+function resolveApexCockpitAnswerText(response) {
+  if (typeof response?.answer === "string") return response.answer;
+  return response?.answer?.answer || "";
+}
+
+function resolveApexCockpitSources(state, response) {
+  const answerSources = Array.isArray(response?.answer?.sourceLabels) ? response.answer.sourceLabels : [];
+  if (answerSources.length) return answerSources.slice(0, 4);
+  const evidenceSources = Array.isArray(response?.evidenceUsed)
+    ? response.evidenceUsed.map((row) => row.sourceLabel || row.title).filter(Boolean)
+    : [];
+  if (evidenceSources.length) return evidenceSources.slice(0, 4);
+  return (state.askApexChat?.contexts || []).slice(0, 4).map((item) => item.title);
+}
+
+function ApexMiniWaveform({ bars = [8, 13, 7, 18, 10, 22, 12, 16, 9, 20, 8, 14], mode = "listening" }) {
+  const voiceMode = APEX_COCKPIT_VOICE_STATES[mode] ? mode : "listening";
   return (
-    <div className="flex h-8 min-w-0 items-center gap-1" aria-hidden="true">
+    <div className={`co-apex-mini-waveform co-apex-mini-waveform--${voiceMode} flex h-8 min-w-0 items-center gap-1`} data-voice-state={voiceMode} aria-hidden="true">
       {bars.map((height, index) => (
-        <span key={`${height}-${index}`} className="w-0.5 rounded-full bg-cyan-300 shadow-[0_0_10px_rgba(34,211,238,0.72)]" style={{ height }} />
+        <span
+          key={`${height}-${index}`}
+          className="co-apex-mini-waveform-bar w-0.5 rounded-full bg-cyan-300 shadow-[0_0_10px_rgba(34,211,238,0.72)]"
+          style={{ height, "--apex-wave-index": index }}
+        />
       ))}
     </div>
   );
 }
 
-function ApexCockpitAvatar() {
+function ApexCockpitAvatar({ voiceMode = "listening" }) {
+  const mode = APEX_COCKPIT_VOICE_STATES[voiceMode] ? voiceMode : "listening";
+  const visualState = APEX_COCKPIT_VOICE_STATES[mode];
   return (
-    <div className="relative mx-auto flex min-h-[360px] w-full max-w-[540px] items-center justify-center overflow-hidden xl:min-h-[385px]" aria-label="Apex digital body">
+    <div className={`co-apex-life-body co-apex-life-body--${mode} relative mx-auto flex min-h-[360px] w-full max-w-[540px] items-center justify-center overflow-hidden xl:min-h-[385px]`} data-voice-state={mode} aria-label="Apex digital body">
+      <span className="co-apex-life-ring co-apex-life-ring--outer" aria-hidden="true" />
+      <span className="co-apex-life-ring co-apex-life-ring--inner" aria-hidden="true" />
+      <span className="co-apex-life-horizon" aria-hidden="true" />
+      <span className="co-apex-life-scan co-apex-life-scan--vertical" aria-hidden="true" />
+      <span className="co-apex-life-scan co-apex-life-scan--horizontal" aria-hidden="true" />
       <img
         src="/brand/apex-cockpit-body-reference.png"
-        alt="Apex is listening digital body"
-        className="h-full max-h-[385px] w-full object-contain object-center"
+        alt={`${visualState.headline} digital body`}
+        className="co-apex-life-body-image h-full max-h-[385px] w-full object-contain object-center"
         draggable="false"
       />
+      <span className="co-apex-life-eyes" aria-hidden="true" />
+      <span className="co-apex-life-core" aria-hidden="true" />
+      <span className="co-apex-life-status" aria-hidden="true">{visualState.headline.toUpperCase()}</span>
+      <span className="sr-only">{visualState.detail}</span>
     </div>
   );
 }
@@ -3464,7 +3525,14 @@ function ApexCockpitListItem({ item, value, tone = "slate" }) {
   );
 }
 
-function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAskQuestion }) {
+function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAskQuestion, sessionToken }) {
+  const [cockpitResponse, setCockpitResponse] = useState(null);
+  const [cockpitError, setCockpitError] = useState("");
+  const [cockpitSubmitting, setCockpitSubmitting] = useState(false);
+  const [cockpitSpeaking, setCockpitSpeaking] = useState(false);
+  const [cockpitVoiceNotice, setCockpitVoiceNotice] = useState("");
+  const [cockpitLastQuestion, setCockpitLastQuestion] = useState("");
+  const cockpitAudioRef = useRef(null);
   const approvalRows = (state.approvalCommandCenter?.queueRows || []).slice(0, 4);
   const agentRows = (state.agentControlPlane?.rosterRows || []).slice(0, 4);
   const boundaryRows = [
@@ -3483,6 +3551,103 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const memoryCount = state.decisionMemory?.durableCount || state.decisionMemory?.decisionCount || 0;
   const releaseVersion = state.releaseDesk?.latestDeploy?.version || state.releaseDesk?.deployHistoryRows?.[0]?.status || "1.8.4";
   const releaseHealth = state.releaseDesk?.status || "Healthy";
+  const cockpitAnswerText = resolveApexCockpitAnswerText(cockpitResponse);
+  const cockpitVoiceMode = cockpitSpeaking ? "speaking" : cockpitSubmitting ? "thinking" : "listening";
+  const cockpitVoiceState = APEX_COCKPIT_VOICE_STATES[cockpitVoiceMode];
+  const cockpitSources = resolveApexCockpitSources(state, cockpitResponse);
+  const cockpitPromptText = cockpitLastQuestion || askQuestion.trim();
+  const canAskCockpit = state.canView && Boolean(sessionToken) && Boolean(askQuestion.trim()) && !cockpitSubmitting;
+  const canSpeakCockpitAnswer = state.canView && Boolean(sessionToken) && Boolean(cockpitAnswerText) && !cockpitSpeaking;
+
+  useEffect(() => () => {
+    stopBrowserVoice(cockpitAudioRef);
+  }, []);
+
+  function stopCockpitVoicePlayback(notice = "Voice playback stopped.") {
+    stopBrowserVoice(cockpitAudioRef);
+    setCockpitSpeaking(false);
+    setCockpitVoiceNotice(notice);
+  }
+
+  function speakCockpitBrowserFallback(textToSpeak, fallbackMessage = "Apex is speaking with browser voice fallback.") {
+    const started = speakWithBrowserVoice(textToSpeak, {
+      onEnd: () => {
+        setCockpitSpeaking(false);
+        setCockpitVoiceNotice("Voice playback finished.");
+      },
+      onError: () => {
+        setCockpitSpeaking(false);
+        setCockpitVoiceNotice("Browser voice playback could not start.");
+      },
+    });
+    if (!started) {
+      setCockpitSpeaking(false);
+      setCockpitVoiceNotice("This browser does not support speech playback here.");
+      return;
+    }
+    setCockpitVoiceNotice(fallbackMessage);
+  }
+
+  async function speakCockpitAnswer(textToSpeak = cockpitAnswerText) {
+    const answerToSpeak = textToSpeak.trim();
+    if (!answerToSpeak || !sessionToken) return;
+    stopBrowserVoice(cockpitAudioRef);
+    setCockpitSpeaking(true);
+    setCockpitVoiceNotice("");
+    try {
+      const payload = await speakApexOsVoice(sessionToken, {
+        text: answerToSpeak,
+        voice: "alloy",
+      });
+      if (payload?.audioBase64 && payload?.contentType) {
+        const audio = new Audio(`data:${payload.contentType};base64,${payload.audioBase64}`);
+        cockpitAudioRef.current = audio;
+        audio.onended = () => {
+          setCockpitSpeaking(false);
+          setCockpitVoiceNotice("Voice playback finished.");
+          cockpitAudioRef.current = null;
+        };
+        audio.onerror = () => {
+          speakCockpitBrowserFallback(answerToSpeak, "Apex speech audio could not play, so browser voice fallback is speaking.");
+        };
+        await audio.play();
+        setCockpitVoiceNotice(payload.aiDisclosure || "Apex OS voice output is AI-generated.");
+        return;
+      }
+      speakCockpitBrowserFallback(payload?.fallbackText || answerToSpeak, payload?.providerConfigured ? "Speech provider fallback is active; browser voice is speaking." : "Server speech is not configured; browser voice is speaking.");
+    } catch (speechError) {
+      speakCockpitBrowserFallback(answerToSpeak, speechError?.message ? `Speech endpoint unavailable; browser voice is speaking. ${speechError.message}` : "Speech endpoint unavailable; browser voice is speaking.");
+    }
+  }
+
+  async function submitCockpitQuestion(event) {
+    event.preventDefault();
+    if (!canAskCockpit) return;
+    const nextQuestion = askQuestion.trim();
+    setCockpitSubmitting(true);
+    setCockpitError("");
+    setCockpitVoiceNotice("");
+    setCockpitResponse(null);
+    setCockpitLastQuestion(nextQuestion);
+    stopBrowserVoice(cockpitAudioRef);
+    setCockpitSpeaking(false);
+    try {
+      const payload = await askApexOs(sessionToken, { question: nextQuestion, contextScope: "all" });
+      setCockpitResponse(payload);
+      const nextAnswerText = resolveApexCockpitAnswerText(payload);
+      if (nextAnswerText) {
+        await speakCockpitAnswer(nextAnswerText);
+      } else {
+        setCockpitVoiceNotice("Apex returned no speakable answer text.");
+      }
+    } catch (requestError) {
+      setCockpitError(requestError?.message || "Ask Apex could not answer right now.");
+      setCockpitSpeaking(false);
+    } finally {
+      setCockpitSubmitting(false);
+    }
+  }
+
   return (
     <section className="co-apex-cockpit-screen w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-700/70 bg-slate-950 text-white shadow-[0_34px_80px_-40px_rgba(2,6,23,0.95)] ring-1 ring-cyan-300/10 lg:h-[calc(100vh-16px)]">
       <div className="relative grid min-h-[720px] w-full min-w-0 max-w-full bg-slate-950 lg:h-full lg:min-h-0 lg:grid-cols-[190px_minmax(0,1fr)]">
@@ -3502,7 +3667,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
           <header className="flex w-full min-w-0 max-w-full flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="flex min-w-0 items-center gap-3">
               <h2 className="text-3xl font-black uppercase leading-none tracking-normal text-white">Apex</h2>
-              <span className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.08em] text-slate-300"><ApexCockpitStatusDot /> Online</span>
+              <span className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.08em] text-slate-300"><ApexCockpitStatusDot tone={cockpitVoiceState.tone} /> {cockpitVoiceState.header}</span>
             </div>
             <div className="flex min-w-0 max-w-full flex-wrap gap-3 text-[11px] font-bold text-slate-300 md:justify-end">
               <span className="inline-flex items-center gap-1"><Icon name="check" className="h-3.5 w-3.5" /> Review-first</span>
@@ -3519,16 +3684,16 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
           </div>
 
           <div className="grid w-full min-w-0 max-w-full gap-2 lg:min-h-0 xl:grid-cols-[174px_minmax(0,1fr)_404px]">
-            <div className="grid w-full min-w-0 max-w-full content-start gap-2 lg:min-h-0 lg:overflow-hidden">
+            <div className="order-2 grid w-full min-w-0 max-w-full content-start gap-2 lg:min-h-0 lg:overflow-hidden xl:order-none">
               <ApexCockpitCard title="Voice" action={<span className="text-slate-500">&gt;</span>}>
                 <div className="grid min-w-0 grid-cols-[44px_minmax(0,1fr)] gap-3">
-                  <div className="grid h-11 w-11 place-items-center rounded-full bg-emerald-500/12 text-emerald-300 shadow-[0_0_22px_rgba(16,185,129,0.2)]">
+                  <div className={`grid h-11 w-11 place-items-center rounded-full ${cockpitVoiceMode === "speaking" ? "bg-orange-500/14 text-orange-300 shadow-[0_0_24px_rgba(249,115,22,0.28)]" : cockpitVoiceMode === "thinking" ? "bg-cyan-500/12 text-cyan-300 shadow-[0_0_22px_rgba(34,211,238,0.22)]" : "bg-emerald-500/12 text-emerald-300 shadow-[0_0_22px_rgba(16,185,129,0.2)]"}`}>
                     <Icon name="phone" className="h-6 w-6" />
                   </div>
                   <div className="min-w-0">
                     <p className="text-xs font-black text-slate-100">Voice Open</p>
-                    <p className="text-[11px] font-bold text-slate-400">Listening</p>
-                    <ApexMiniWaveform />
+                    <p className="text-[11px] font-bold text-slate-400">{cockpitVoiceState.label}</p>
+                    <ApexMiniWaveform mode={cockpitVoiceMode} />
                   </div>
                 </div>
                 <ApexCockpitControlButton className="mt-2 w-full">
@@ -3537,34 +3702,34 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
               </ApexCockpitCard>
 
               <ApexCockpitCard title="Transcript" action={<Icon name="refresh" className="h-3.5 w-3.5 text-slate-500" />}>
-                <p className="text-[11px] font-bold leading-5 text-slate-300">Listening...</p>
-                <p className="mt-2 text-[11px] font-bold leading-5 text-slate-400">Ready to capture your request. Speak naturally.</p>
+                <p className="text-[11px] font-bold leading-5 text-slate-300">{cockpitSubmitting ? "Reading context..." : cockpitPromptText || "Listening..."}</p>
+                <p className="mt-2 text-[11px] font-bold leading-5 text-slate-400">{cockpitVoiceNotice || cockpitVoiceState.detail}</p>
               </ApexCockpitCard>
 
               <ApexCockpitCard title="Apex Response">
-                <p className="text-[11px] font-bold leading-5 text-slate-200">I'm here. What would you like Apex to help you with?</p>
+                <p className={`co-apex-cockpit-response-copy text-[11px] font-bold leading-5 ${cockpitError ? "text-red-200" : "text-slate-200"}`}>{cockpitError || cockpitAnswerText || "I'm here. What would you like Apex to help you with?"}</p>
                 <div className="mt-2 grid grid-cols-2 gap-2">
-                  <ApexCockpitControlButton>
-                    <Icon name="spark" /> Speak
+                  <ApexCockpitControlButton onClick={() => speakCockpitAnswer()} disabled={!canSpeakCockpitAnswer} active={cockpitSpeaking}>
+                    <Icon name="spark" /> {cockpitSpeaking ? "Speaking" : "Speak"}
                   </ApexCockpitControlButton>
-                  <ApexCockpitControlButton>
+                  <ApexCockpitControlButton onClick={() => stopCockpitVoicePlayback()} disabled={!cockpitSpeaking}>
                     <Icon name="lock" /> Stop
                   </ApexCockpitControlButton>
                 </div>
                 <div className="mt-3 border-t border-slate-800 pt-2">
                   <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Sources</p>
                   <ol className="mt-2 grid gap-1 text-[11px] font-bold leading-4 text-slate-400">
-                    {["Project Vega Estimate", "Today's Schedule", "Labor Report", "Client Email Thread"].map((item, index) => <li key={item}>{index + 1}. {item}</li>)}
+                    {cockpitSources.length ? cockpitSources.map((item, index) => <li key={item} className="break-words">{index + 1}. {item}</li>) : <li>Sources appear after Apex answers.</li>}
                   </ol>
                   <p className="mt-3 text-[11px] font-bold text-slate-400">&gt; Show All Sources</p>
                 </div>
               </ApexCockpitCard>
             </div>
 
-            <div className="grid w-full min-w-0 max-w-full content-start gap-2 lg:min-h-0 lg:overflow-hidden">
-              <ApexCockpitAvatar />
+            <div className="order-1 grid w-full min-w-0 max-w-full content-start gap-2 lg:min-h-0 lg:overflow-hidden xl:order-none">
+              <ApexCockpitAvatar voiceMode={cockpitVoiceMode} />
               <div className="grid min-w-0 gap-2">
-                <div className="relative min-w-0">
+                <form className="relative min-w-0" onSubmit={submitCockpitQuestion}>
                   <label className="sr-only" htmlFor="apex-cockpit-ask">Ask Apex anything</label>
                   <input
                     id="apex-cockpit-ask"
@@ -3573,8 +3738,16 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     placeholder="Ask Apex anything..."
                     className="h-11 w-full min-w-0 appearance-none rounded-lg border border-orange-500/64 !bg-slate-950/90 px-4 pr-11 text-sm font-bold !text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_0_24px_-18px_rgba(249,115,22,0.95)] outline-none placeholder:!text-slate-500 focus:border-orange-400 focus:ring-2 focus:ring-orange-500/20"
                   />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-orange-400"><Icon name="arrowUpRight" className="h-5 w-5" /></span>
-                </div>
+                  <button
+                    type="submit"
+                    disabled={!canAskCockpit}
+                    className="co-focus-ring absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-md text-orange-300 transition hover:bg-orange-500/12 hover:text-orange-100 disabled:cursor-not-allowed disabled:text-slate-600"
+                    aria-label={cockpitSubmitting ? "Apex is thinking" : "Ask Apex"}
+                    title={sessionToken ? "Ask Apex" : "Sign in required"}
+                  >
+                    <Icon name={cockpitSubmitting ? "refresh" : "arrowUpRight"} className="h-5 w-5" />
+                  </button>
+                </form>
                 <div className="grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-4">
                   {quickPrompts.map((prompt) => (
                     <button
@@ -3590,7 +3763,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
               </div>
             </div>
 
-            <div className="grid w-full min-w-0 max-w-full gap-2 md:grid-cols-2 xl:grid-cols-2 lg:min-h-0 lg:overflow-hidden">
+            <div className="order-3 grid w-full min-w-0 max-w-full gap-2 md:grid-cols-2 xl:grid-cols-2 lg:min-h-0 lg:overflow-hidden xl:order-none">
               <ApexCockpitCard title="Awareness">
                 <ApexCockpitListItem item={{ label: "Active Approvals", icon: "check" }} value={state.approvalCommandCenter?.queueCount || 0} tone="amber" />
                 <ApexCockpitListItem item={{ label: "Open Blockers", icon: "alert" }} value={state.launchReadiness?.blockedCount || state.approvalCommandCenter?.packetSummary?.blocked || 0} tone="red" />
@@ -3666,10 +3839,10 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   );
 }
 
-function ApexHomePanel({ state, activeSection, onChange, askQuestion, setAskQuestion }) {
+function ApexHomePanel({ state, activeSection, onChange, askQuestion, setAskQuestion, sessionToken }) {
   return (
     <section className="grid min-w-0 gap-4">
-      <ApexCockpitScreen state={state} activeSection={activeSection} onChange={onChange} askQuestion={askQuestion} setAskQuestion={setAskQuestion} />
+      <ApexCockpitScreen state={state} activeSection={activeSection} onChange={onChange} askQuestion={askQuestion} setAskQuestion={setAskQuestion} sessionToken={sessionToken} />
     </section>
   );
 }
@@ -3760,10 +3933,9 @@ function ControlRoomOverviewSection({ state }) {
 }
 
 function ControlRoomApexSection({ state, activeSection, onChange, sessionToken, askQuestion, setAskQuestion }) {
-  void sessionToken;
   return (
     <div className="grid min-w-0 gap-4">
-      <ApexHomePanel state={state} activeSection={activeSection} onChange={onChange} askQuestion={askQuestion} setAskQuestion={setAskQuestion} />
+      <ApexHomePanel state={state} activeSection={activeSection} onChange={onChange} askQuestion={askQuestion} setAskQuestion={setAskQuestion} sessionToken={sessionToken} />
     </div>
   );
 }
