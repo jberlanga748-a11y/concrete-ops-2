@@ -2153,14 +2153,14 @@ function buildApexLiveOperatorModeState({
   const handoffCount = formatCount(executionHandoffs?.handoffSummary?.total);
   const approvalQueueCount = formatCount(approvalCommandCenter?.queueCount || approvalCommandCenter?.packetSummary?.total);
   const monitoringCount = formatCount(releaseMonitoring?.briefingCount || releaseMonitoring?.readinessCount);
-  const liveFoundationPercent = 80;
-  const jarvisBehaviorPercent = activeRunCount || handoffCount ? 56 : 52;
+  const liveFoundationPercent = 84;
+  const jarvisBehaviorPercent = activeRunCount || handoffCount ? 64 : 60;
   const readinessRows = withDerivedStateMetaList([
     {
       id: "live-voice-loop",
       title: "Voice loop",
       status: voiceInterface?.status || "Voice ready",
-      detail: `${formatCount(voiceInterface?.modeCount)} modes, ${formatCount(voiceInterface?.safetyCount)} safety gates, visible microphone control, spoken answers, and interruption support are mapped.`,
+      detail: `${formatCount(voiceInterface?.modeCount)} modes, ${formatCount(voiceInterface?.safetyCount)} safety gates, visible wake control, spoken answers, interruption support, and browser caption fallback are mapped.`,
       tone: voiceInterface?.tone || "green",
     },
     {
@@ -2222,8 +2222,8 @@ function buildApexLiveOperatorModeState({
     {
       id: "live-gap-browser-voice",
       title: "Always-open voice",
-      status: "Wake-gated",
-      detail: "Browsers still require one visible wake/permission event; after that the page keeps the conversation loop open while allowed.",
+      status: "Permission-gated",
+      detail: "Browsers still require one visible wake/permission event; after that the page keeps the open voice loop alive, recovers between turns, and can use browser captions when server transcription is unavailable.",
       tone: "amber",
     },
     {
@@ -2243,9 +2243,9 @@ function buildApexLiveOperatorModeState({
     {
       id: "live-gap-provider-reliability",
       title: "Voice reliability",
-      status: "Fallback ready",
-      detail: "Server speech can speak when configured; browser speech fallback keeps the answer audible when provider audio is unavailable.",
-      tone: "blue",
+      status: "Caption fallback",
+      detail: "Server speech can speak when configured; browser voice and browser speech captions keep answers audible and voice questions usable when provider audio or transcription is unavailable.",
+      tone: "green",
     },
   ], {
     sourceLabel: "Apex Live Operator remaining gaps",

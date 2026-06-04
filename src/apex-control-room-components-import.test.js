@@ -238,6 +238,15 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /Mobile browsers may require one visible wake tap/);
   assert.match(componentSource, /Interrupt Voice/);
   assert.match(componentSource, /Voice is open\. I'm listening while this page is open\./);
+  assert.match(componentSource, /getApexCockpitSpeechRecognitionCtor/);
+  assert.match(componentSource, /webkitSpeechRecognition/);
+  assert.match(componentSource, /cockpitBrowserTranscript/);
+  assert.match(componentSource, /cockpitRecognitionStatus/);
+  assert.match(componentSource, /Browser speech captions/);
+  assert.match(componentSource, /Caption fallback ready/);
+  assert.match(componentSource, /Live captions active/);
+  assert.match(componentSource, /startCockpitSpeechRecognition/);
+  assert.match(componentSource, /stopCockpitSpeechRecognition/);
   assert.match(componentSource, /co-apex-life-orbit/);
   assert.match(componentSource, /co-apex-cockpit-mobile-response/);
   assert.match(componentSource, /co-apex-cockpit-side-rail/);
