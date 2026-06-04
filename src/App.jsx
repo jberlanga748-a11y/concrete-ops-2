@@ -17299,50 +17299,57 @@ export default function App() {
   const estimatorMobileNavItems = getEstimatorMobileNavItems(visibleNavItems);
   const customerRelated = relatedCustomerRecords(selectedCustomer, appState.leads, appState.jobs, appState.activity);
   const leadRelated = relatedLeadActivity(selectedLead, appState.customers, appState.activity, appState.leadStatusHistory);
+  const isApexControlRoomRoute = active === "apexControlRoom";
 
   return (
-    <div className="co-app-shell min-h-screen overflow-x-hidden text-slate-950" data-print-route={active === "proposals" && routeState.proposalMode === "print" ? "proposal" : undefined}>
+    <div className={`co-app-shell min-h-screen overflow-x-hidden text-slate-950 ${isApexControlRoomRoute ? "bg-slate-950" : ""}`} data-print-route={active === "proposals" && routeState.proposalMode === "print" ? "proposal" : undefined}>
       <div className="flex min-w-0 max-w-full">
-        <Sidebar
-          active={active}
-          setActive={setActive}
-          counts={counts}
-          navGroups={visibleNavGroups}
-          logoInitials={workspaceLogoInitials}
-          brandAssets={APEX_BRAND_ASSETS}
-          appName={APP_NAME}
-          workspaceLabel={isApexOsShell ? "Apex OS" : "Team workspace"}
-          statusTitle={isApexOsShell ? "Private workspace" : "Live workspace"}
-          statusDescription={isApexOsShell ? "Operator-only tools for Apex HQ." : "Pick the workspace. The page shows the tools inside it."}
-        />
-        <div className="co-workspace-shell mobile-content-safe min-w-0 flex-1 overflow-x-hidden lg:pb-0">
-          <TopBar
+        {isApexControlRoomRoute ? null : (
+          <Sidebar
             active={active}
             setActive={setActive}
-            stats={stats}
-            user={appState.user}
-            onLogout={handleLogout}
-            syncing={busy || saveSummary?.label === "Saving changes"}
-            saveSummary={saveSummary}
-            navItems={visibleNavItems}
-            permissions={appState.permissions}
-            companyName={workspaceCompanyName}
-            companies={appState.companies}
-            currentCompanyId={appState.currentCompanyId}
-            onSelectCompany={handleSelectCompany}
-            notificationSource={notificationCenterSource}
-            onOpenPath={navigateTo}
-            sessionToken={sessionToken}
+            counts={counts}
+            navGroups={visibleNavGroups}
             logoInitials={workspaceLogoInitials}
-            assistantState={assistantTopbarState}
-            onOpenAssistant={openGlobalAssistant}
             brandAssets={APEX_BRAND_ASSETS}
             appName={APP_NAME}
-            operatorShell={isApexOsShell}
+            workspaceLabel={isApexOsShell ? "Apex OS" : "Team workspace"}
+            statusTitle={isApexOsShell ? "Private workspace" : "Live workspace"}
+            statusDescription={isApexOsShell ? "Operator-only tools for Apex HQ." : "Pick the workspace. The page shows the tools inside it."}
           />
-          <ErrorBanner message={errorMessage} onDismiss={() => setErrorMessage("")} />
-          <main className="min-w-0 overflow-x-hidden py-0">
-            <div className={`co-module-frame co-module-${active}`}>
+        )}
+        <div className={`${isApexControlRoomRoute ? "min-h-screen" : "mobile-content-safe lg:pb-0"} co-workspace-shell min-w-0 flex-1 overflow-x-hidden`}>
+          {isApexControlRoomRoute ? null : (
+            <>
+              <TopBar
+                active={active}
+                setActive={setActive}
+                stats={stats}
+                user={appState.user}
+                onLogout={handleLogout}
+                syncing={busy || saveSummary?.label === "Saving changes"}
+                saveSummary={saveSummary}
+                navItems={visibleNavItems}
+                permissions={appState.permissions}
+                companyName={workspaceCompanyName}
+                companies={appState.companies}
+                currentCompanyId={appState.currentCompanyId}
+                onSelectCompany={handleSelectCompany}
+                notificationSource={notificationCenterSource}
+                onOpenPath={navigateTo}
+                sessionToken={sessionToken}
+                logoInitials={workspaceLogoInitials}
+                assistantState={assistantTopbarState}
+                onOpenAssistant={openGlobalAssistant}
+                brandAssets={APEX_BRAND_ASSETS}
+                appName={APP_NAME}
+                operatorShell={isApexOsShell}
+              />
+              <ErrorBanner message={errorMessage} onDismiss={() => setErrorMessage("")} />
+            </>
+          )}
+          <main className={`min-w-0 overflow-x-hidden py-0 ${isApexControlRoomRoute ? "min-h-screen bg-slate-950" : ""}`}>
+            <div className={`co-module-frame co-module-${active} ${isApexControlRoomRoute ? "min-h-screen" : ""}`}>
               <Suspense fallback={<ModuleLoadingFallback active={active} />}>
               <MainContent
                 active={active}
@@ -17777,17 +17784,17 @@ export default function App() {
               </Suspense>
             </div>
           </main>
-          <div className="co-mobile-bottom-spacer lg:hidden" aria-hidden="true" />
+          {isApexControlRoomRoute ? null : <div className="co-mobile-bottom-spacer lg:hidden" aria-hidden="true" />}
         </div>
       </div>
-      {isEstimatorMobileWorkspace ? (
+      {isApexControlRoomRoute ? null : isEstimatorMobileWorkspace ? (
         <ApexMobileBottomNav items={estimatorMobileNavItems} active={active} onOpen={setActive} />
       ) : isOwnerAdminMobileWorkspace ? (
         <ApexMobileBottomNav items={ownerAdminMobileNavItems} active={active} onOpen={setActive} />
       ) : (
         <FieldMobileQuickNav items={mobileNavItems} active={active} onOpen={setActive} />
       )}
-      <ApexAssistantShell
+      {isApexControlRoomRoute ? null : <ApexAssistantShell
         permissions={appState.permissions}
         commandCenter={assistantCommandCenter}
         assistantCommandSeed={assistantCommandSeed}
@@ -17868,7 +17875,7 @@ export default function App() {
         onOpenSafetyIncidentReview={handleOpenAssistantSafetyIncidentReview}
         onOpenToolChecklistReview={handleOpenAssistantToolChecklistReview}
         onRecordAgentProposalAudit={handleRecordAgentProposalAudit}
-      />
+      />}
     </div>
   );
 }
