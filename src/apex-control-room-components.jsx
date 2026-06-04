@@ -4197,6 +4197,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const [cockpitMicPermissionState, setCockpitMicPermissionState] = useState("unknown");
   const [cockpitVoiceWakeAttempted, setCockpitVoiceWakeAttempted] = useState(false);
   const [cockpitClock, setCockpitClock] = useState(() => formatApexCockpitClock());
+  const [cockpitFocusDrawer, setCockpitFocusDrawer] = useState("");
   const [cockpitCommandRoute, setCockpitCommandRoute] = useState(() => buildApexCockpitCommandRoute(""));
   const [cockpitTurns, setCockpitTurns] = useState([]);
   const cockpitAudioRef = useRef(null);
@@ -4280,6 +4281,13 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const cockpitLiveLevel = Math.max(cockpitMicLevel, cockpitOutputLevel);
   const canStartCockpitVoice = state.canView && Boolean(sessionToken) && canUseCockpitRecorder && !cockpitRecording && !cockpitTranscribing && !cockpitSubmitting && (!cockpitSpeaking || cockpitBargeInEnabled) && !cockpitVoiceOpeningRef.current;
   const canToggleCockpitVoice = canStartCockpitVoice || cockpitRecording;
+  const focusDrawerTabs = [
+    { id: "voice", label: "Voice", value: cockpitRecording ? "Listening" : cockpitSpeaking ? "Talking" : cockpitNeedsWake ? "Wake" : "Ready", tone: cockpitRecording ? "green" : cockpitSpeaking ? "amber" : "slate", icon: "phone" },
+    { id: "autonomy", label: "Autonomy", value: cockpitCommandRoute.id === "agent-control" ? "Draft-ready" : "Guarded", tone: "green", icon: "spark" },
+    { id: "memory", label: "Memory", value: `${memoryCount} trusted`, tone: "slate", icon: "database" },
+    { id: "risk", label: "Risk", value: `${state.approvalCommandCenter?.queueCount || 0} review`, tone: "amber", icon: "alert" },
+    { id: "sources", label: "Sources", value: cockpitSources.length ? `${cockpitSources.length} used` : "Ready", tone: "blue", icon: "layers" },
+  ];
 
   useEffect(() => () => {
     if (cockpitRecorderRef.current) {
@@ -4804,7 +4812,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   }
 
   return (
-    <section className="co-apex-cockpit-screen w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-700/70 bg-slate-950 text-white shadow-[0_34px_80px_-40px_rgba(2,6,23,0.95)] ring-1 ring-cyan-300/10 lg:h-[calc(100vh-16px)]">
+    <section className="co-apex-cockpit-screen co-apex-cockpit-screen--focus w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-700/70 bg-slate-950 text-white shadow-[0_34px_80px_-40px_rgba(2,6,23,0.95)] ring-1 ring-cyan-300/10 lg:h-[calc(100vh-16px)]">
       <div className="relative grid min-h-[720px] w-full min-w-0 max-w-full bg-slate-950 lg:h-full lg:min-h-0 lg:grid-cols-[190px_minmax(0,1fr)]">
         <div
           className="absolute inset-0 opacity-90"
@@ -4838,7 +4846,103 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
             <ApexControlRoomSectionNav activeSection={activeSection} onChange={onChange} variant="dark" />
           </div>
 
-          <div className="grid w-full min-w-0 max-w-full gap-2 lg:min-h-0 xl:grid-cols-[174px_minmax(0,1fr)_404px]">
+          <section className="co-apex-cockpit-focus-bar relative z-30 hidden min-w-0 gap-2 rounded-lg border border-cyan-200/12 bg-slate-950/74 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] xl:grid xl:grid-cols-[auto_minmax(0,1fr)]" aria-label="Apex focus controls">
+            <div className="flex min-w-0 items-center gap-2">
+              <ApexCockpitControlButton
+                className="shrink-0 px-3"
+                onClick={cockpitRecording ? pauseCockpitVoiceSession : cockpitSpeaking ? () => stopCockpitVoicePlayback("Interrupted. I'm listening.") : () => openCockpitVoiceSession({ automatic: false })}
+                disabled={cockpitSpeaking ? false : !canToggleCockpitVoice}
+                active={cockpitRecording || cockpitSpeaking}
+                title={cockpitRecording ? "Pause Apex voice" : "Wake or resume Apex voice"}
+              >
+                <Icon name="phone" /> {cockpitWakeButtonLabel}
+              </ApexCockpitControlButton>
+              <ApexCockpitControlButton className="px-3" disabled={false} onClick={() => deliverCockpitBriefing({ speak: true })} active={false} title="Speak Apex briefing">
+                <Icon name="spark" /> Brief
+              </ApexCockpitControlButton>
+            </div>
+            <div className="grid min-w-0 grid-cols-5 gap-2">
+              {focusDrawerTabs.map((tab) => {
+                const active = cockpitFocusDrawer === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setCockpitFocusDrawer((current) => current === tab.id ? "" : tab.id)}
+                    className={`co-focus-ring grid min-h-11 min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-md border px-2.5 text-left transition ${active ? "border-orange-400/70 bg-orange-500/12 text-white" : "border-slate-800 bg-slate-900/66 text-slate-300 hover:border-cyan-400/44 hover:text-white"}`}
+                    aria-pressed={active}
+                  >
+                    <Icon name={tab.icon} className={`h-4 w-4 shrink-0 ${tab.tone === "green" ? "text-emerald-300" : tab.tone === "amber" ? "text-orange-300" : tab.tone === "blue" ? "text-cyan-300" : "text-slate-400"}`} />
+                    <span className="min-w-0">
+                      <span className="block truncate text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">{tab.label}</span>
+                      <span className="block truncate text-[11px] font-black">{tab.value}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            {cockpitFocusDrawer ? (
+              <div className="co-apex-cockpit-focus-drawer min-w-0 rounded-lg border border-cyan-200/14 bg-slate-950/86 p-3 xl:col-span-2" aria-label="Apex focus drawer">
+                {cockpitFocusDrawer === "voice" ? (
+                  <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(240px,0.55fr)]">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Voice Core</p>
+                      <p className="mt-1 text-sm font-black text-slate-100">{cockpitVoiceState.headline}</p>
+                      <p className="mt-1 min-w-0 break-words text-[11px] font-bold leading-4 text-slate-500">{cockpitAgentActionNotice || cockpitVoiceNotice || (cockpitNeedsWake ? "Tap Wake Apex once so the browser can unlock microphone and voice playback; after that the conversation loop stays open." : cockpitVoiceState.detail)}</p>
+                    </div>
+                    <div className="grid min-w-0 gap-2 sm:grid-cols-2">
+                      <ApexCockpitControlButton disabled={false} onClick={() => setCockpitConversationMode((current) => !current)} active={cockpitConversationMode}>{cockpitConversationMode ? "Conversation On" : "Conversation Off"}</ApexCockpitControlButton>
+                      <ApexCockpitControlButton disabled={false} onClick={() => setCockpitBargeInEnabled((current) => !current)} active={cockpitBargeInEnabled}>{cockpitBargeInEnabled ? "Barge-in On" : "Barge-in Off"}</ApexCockpitControlButton>
+                      <ApexCockpitControlButton onClick={() => speakCockpitAnswer()} disabled={!canSpeakCockpitAnswer} active={cockpitSpeaking}>Speak Answer</ApexCockpitControlButton>
+                      <ApexCockpitControlButton onClick={() => stopCockpitVoicePlayback("Interrupted. I'm listening.")} disabled={!cockpitSpeaking}>Interrupt</ApexCockpitControlButton>
+                    </div>
+                  </div>
+                ) : null}
+                {cockpitFocusDrawer === "autonomy" ? (
+                  <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.5fr)]">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Autonomy Core</p>
+                      <p className="mt-1 text-sm font-black text-slate-100">Apex can plan, route, draft agent work, and ask for approval before risky execution.</p>
+                      <p className="mt-1 min-w-0 break-words text-[11px] font-bold leading-4 text-slate-500">Safe internal drafts are on. Customer sends, billing, ads, production changes, and irreversible external actions remain gated.</p>
+                    </div>
+                    <div className="grid min-w-0 gap-1.5">
+                      {["Hear the request", "Match the room", "Draft the agent work", "Validate evidence", "Ask approval when gated"].map((item, index) => (
+                        <div key={item} className="grid min-w-0 grid-cols-[1.5rem_minmax(0,1fr)] items-center gap-2 rounded-md border border-slate-800 bg-slate-900/58 px-2.5 py-2">
+                          <span className="grid h-6 w-6 place-items-center rounded-md bg-cyan-400/10 text-[10px] font-black text-cyan-200">{index + 1}</span>
+                          <span className="min-w-0 truncate text-[11px] font-black text-slate-200">{item}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {cockpitFocusDrawer === "memory" ? (
+                  <div className="grid min-w-0 gap-2 sm:grid-cols-3">
+                    <ApexCockpitListItem item={{ label: "Trusted Memories", icon: "database" }} value={memoryCount} tone="slate" />
+                    <ApexCockpitListItem item={{ label: "Recent Updates", icon: "refresh" }} value={state.decisionMemory?.durableCount || 0} tone="slate" />
+                    <ApexCockpitListItem item={{ label: "Suggested Memories", icon: "spark" }} value={state.decisionMemory?.suggestedCount || 0} tone="slate" />
+                  </div>
+                ) : null}
+                {cockpitFocusDrawer === "risk" ? (
+                  <div className="grid min-w-0 gap-2 sm:grid-cols-4">
+                    <ApexCockpitListItem item={{ label: "Approvals", icon: "check" }} value={state.approvalCommandCenter?.queueCount || 0} tone="amber" />
+                    <ApexCockpitListItem item={{ label: "Blockers", icon: "alert" }} value={state.launchReadiness?.blockedCount || state.approvalCommandCenter?.packetSummary?.blocked || 0} tone="red" />
+                    <ApexCockpitListItem item={{ label: "Agent Work", icon: "layers" }} value={state.agentControlPlane?.roleCount || state.agentWorkQueue?.availableTaskCount || 0} tone="blue" />
+                    <ApexCockpitListItem item={{ label: "Release", icon: "refresh" }} value={releaseHealth} tone={state.releaseDesk?.tone || "green"} />
+                  </div>
+                ) : null}
+                {cockpitFocusDrawer === "sources" ? (
+                  <div className="grid min-w-0 gap-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Source-backed answer context</p>
+                    <ol className="grid min-w-0 gap-1.5 text-[11px] font-bold leading-4 text-slate-400">
+                      {cockpitSources.length ? cockpitSources.map((item, index) => <li key={item} className="min-w-0 break-words rounded-md border border-slate-800 bg-slate-900/58 px-2.5 py-2">{index + 1}. {item}</li>) : <li className="rounded-md border border-slate-800 bg-slate-900/58 px-2.5 py-2">Sources appear after Apex answers.</li>}
+                    </ol>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </section>
+
+          <div className="co-apex-cockpit-main-grid relative z-10 grid w-full min-w-0 max-w-full gap-2 lg:min-h-0 xl:grid-cols-[174px_minmax(0,1fr)_404px]">
             <div className="co-apex-cockpit-side-rail co-apex-cockpit-side-rail--voice order-2 grid w-full min-w-0 max-w-full content-start gap-2 lg:min-h-0 lg:overflow-hidden xl:order-none">
               <ApexCockpitCard title="Voice" action={<span className="text-slate-500">&gt;</span>}>
                 <div className="grid min-w-0 grid-cols-[44px_minmax(0,1fr)] gap-3">
@@ -4939,7 +5043,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
               </ApexCockpitCard>
             </div>
 
-            <div className="order-1 grid w-full min-w-0 max-w-full content-start gap-2 lg:min-h-0 lg:overflow-hidden xl:order-none">
+            <div className="co-apex-cockpit-focus-center order-1 grid w-full min-w-0 max-w-full content-start gap-2 lg:min-h-0 lg:overflow-hidden xl:order-none">
               <div className="grid min-w-0 gap-3 rounded-lg border border-cyan-200/14 bg-slate-950/82 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] xl:hidden">
                 <div className="flex min-w-0 items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">

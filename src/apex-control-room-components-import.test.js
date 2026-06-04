@@ -168,6 +168,14 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /cockpitMicPermissionState/);
   assert.match(componentSource, /cockpitVoiceWakeAttempted/);
   assert.match(componentSource, /formatApexCockpitClock/);
+  assert.match(componentSource, /cockpitFocusDrawer/);
+  assert.match(componentSource, /Apex focus controls/);
+  assert.match(componentSource, /Apex focus drawer/);
+  assert.match(componentSource, /Autonomy Core/);
+  assert.match(componentSource, /Safe internal drafts are on/);
+  assert.match(componentSource, /co-apex-cockpit-screen--focus/);
+  assert.match(componentSource, /co-apex-cockpit-focus-bar/);
+  assert.match(componentSource, /co-apex-cockpit-focus-center/);
   assert.match(componentSource, /cockpitConversationMode/);
   assert.match(componentSource, /cockpitBargeInEnabled/);
   assert.match(componentSource, /cockpitVoiceProfile/);
@@ -205,6 +213,10 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /co-apex-cockpit-side-rail/);
   assert.match(cssSource, /\.co-apex-cockpit-side-rail/);
   assert.match(cssSource, /max-width: 1279px/);
+  assert.match(cssSource, /min-width: 1280px/);
+  assert.match(cssSource, /\.co-apex-cockpit-screen--focus \.co-apex-cockpit-side-rail/);
+  assert.match(cssSource, /\.co-apex-cockpit-screen--focus \.co-apex-cockpit-main-grid/);
+  assert.match(cssSource, /\.co-apex-cockpit-focus-drawer/);
   assert.match(componentSource, /key: "hearing"/);
   assert.match(componentSource, /No Sends/);
   assert.match(componentSource, /No Deploys/);

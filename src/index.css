@@ -57131,6 +57131,34 @@ body:has(.co-field-mobile-reports-shell) .co-mobile-bottom-spacer {
   }
 }
 
+@media (min-width: 1280px) {
+  .co-apex-cockpit-screen--focus .co-apex-cockpit-main-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .co-apex-cockpit-screen--focus .co-apex-cockpit-side-rail {
+    display: none !important;
+  }
+
+  .co-apex-cockpit-screen--focus .co-apex-cockpit-focus-center {
+    margin-inline: auto;
+    max-width: min(100%, 58rem);
+  }
+
+  .co-apex-cockpit-screen--focus .co-apex-life-body {
+    max-width: 40rem;
+    min-height: clamp(26rem, 52vh, 34rem);
+  }
+
+  .co-apex-cockpit-screen--focus .co-apex-life-body-image {
+    max-height: 32rem;
+  }
+
+  .co-apex-cockpit-focus-drawer {
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 18px 42px -34px rgba(56, 189, 248, 0.7);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .co-apex-life-body-image,
   .co-apex-life-ring,
