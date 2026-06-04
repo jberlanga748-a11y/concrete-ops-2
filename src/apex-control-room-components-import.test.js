@@ -211,6 +211,12 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /Live Conversation/);
   assert.match(componentSource, /Live Operator Mode/);
   assert.match(componentSource, /Live Run/);
+  assert.match(componentSource, /Active Run Session/);
+  assert.match(componentSource, /Report Done/);
+  assert.match(componentSource, /updateCockpitActiveRunStatus/);
+  assert.match(componentSource, /draftCockpitActiveRunInternalWork/);
+  assert.match(componentSource, /summarizeApexCockpitRunProgress/);
+  assert.match(componentSource, /Run reported complete/);
   assert.match(componentSource, /createCockpitLiveRunFromCommand/);
   assert.match(componentSource, /Proactive Pulse/);
   assert.match(componentSource, /refreshCockpitLivePulse/);
@@ -270,6 +276,8 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(utilSource, /Body-first review-first operator/);
   assert.match(utilSource, /live-loop-save/);
   assert.match(utilSource, /live-loop-interrupt/);
+  assert.match(utilSource, /summarizeAutonomyRunProgress/);
+  assert.match(utilSource, /Report-ready/);
   assert.match(utilSource, /Barge-in memory/);
   assert.match(utilSource, /Apex body turns and finished runs can draft suggested memory/);
   assert.match(utilSource, /suggested turn memory/);

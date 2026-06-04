@@ -4624,6 +4624,57 @@ function formatApexCockpitPulseTime(value) {
   return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
+function listApexCockpitRunRows(value = []) {
+  return Array.isArray(value) ? value.filter(Boolean) : [];
+}
+
+function apexCockpitRunStatusTone(status = "") {
+  const normalized = String(status || "").toLowerCase();
+  if (normalized === "done") return "green";
+  if (normalized === "blocked") return "red";
+  if (normalized === "waiting-approval") return "amber";
+  if (normalized === "drafting" || normalized === "validating") return "blue";
+  return "slate";
+}
+
+function summarizeApexCockpitRunProgress(run = {}) {
+  if (run.progress) return run.progress;
+  const steps = listApexCockpitRunRows(run.steps);
+  const completeStatuses = new Set(["done", "drafted"]);
+  const runStatus = String(run.status || "").toLowerCase();
+  const stepDoneCount = steps.filter((step) => completeStatuses.has(String(step?.status || "").toLowerCase())).length;
+  const activeStep = steps.find((step) => !completeStatuses.has(String(step?.status || "").toLowerCase())) || steps[steps.length - 1] || null;
+  const totalCount = steps.length;
+  const doneCount = runStatus === "done" ? totalCount : stepDoneCount;
+  const activeStepTitle = runStatus === "done" ? "Run reported complete" : activeStep?.title || "";
+  const activeStepStatus = runStatus === "done" ? "done" : activeStep?.status || "";
+  const activeStepDetail = runStatus === "done"
+    ? "Apex saved a result report for the operator review trail."
+    : activeStep?.detail || "";
+  return {
+    doneCount,
+    totalCount,
+    progressPercent: totalCount ? Math.round((doneCount / totalCount) * 100) : 0,
+    activeStepTitle,
+    activeStepStatus,
+    activeStepDetail,
+    evidenceCount: listApexCockpitRunRows(run.evidence).length,
+    approvalGateCount: listApexCockpitRunRows(run.approvalGates).length,
+    linkedDraftCount: [run.linkedAgentControlRequestId, run.linkedExecutionHandoffId].filter(Boolean).length,
+    hasResultReport: Boolean(run.resultReport),
+  };
+}
+
+function buildApexCockpitRunResultReport({ run = {}, question = "", answer = "" } = {}) {
+  const subject = apexCockpitMemoryText(run.title || run.request || question || "Apex live operator run", 180);
+  const answerSummary = apexCockpitMemoryText(answer, 320);
+  return [
+    `Apex reported back on ${subject}.`,
+    answerSummary ? `Latest answer: ${answerSummary}` : "Latest answer: reviewed from the live operator session.",
+    "Internal draft/evidence review only. No external send, billing, ad, provider, production, deletion, or irreversible action executed.",
+  ].join(" ");
+}
+
 function summarizeApexCockpitLivePulse({ state, buildPayload, briefingPayload, runsPayload, checkedAt = new Date() } = {}) {
   const buildAwareness = buildPayload?.buildAwareness || {};
   const dailyBriefing = briefingPayload?.dailyBriefing || {};
@@ -4697,6 +4748,10 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const [cockpitCreatingAgentRequest, setCockpitCreatingAgentRequest] = useState(false);
   const [cockpitLiveRunNotice, setCockpitLiveRunNotice] = useState("");
   const [cockpitCreatingLiveRun, setCockpitCreatingLiveRun] = useState(false);
+  const [cockpitLiveRuns, setCockpitLiveRuns] = useState(() => state.autonomyRunCenter?.runRows || []);
+  const [cockpitLiveRunSummary, setCockpitLiveRunSummary] = useState(() => state.autonomyRunCenter?.runSummary || {});
+  const [cockpitActiveRunId, setCockpitActiveRunId] = useState(() => state.autonomyRunCenter?.latestRun?.id || state.autonomyRunCenter?.runRows?.[0]?.id || "");
+  const [cockpitUpdatingRun, setCockpitUpdatingRun] = useState("");
   const [cockpitRememberingTurn, setCockpitRememberingTurn] = useState(false);
   const [cockpitRememberedTurnKeys, setCockpitRememberedTurnKeys] = useState({});
   const [cockpitRememberedTurnCount, setCockpitRememberedTurnCount] = useState(0);
@@ -4784,8 +4839,14 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const releaseHealth = state.releaseDesk?.status || "Healthy";
   const liveOperatorMode = state.liveOperatorMode || {};
   const cockpitPulseRunSummary = cockpitLivePulse?.runSummary || {};
-  const cockpitVisibleSavedRunCount = Number(cockpitPulseRunSummary.total ?? liveOperatorMode.savedRunCount ?? 0);
-  const cockpitVisibleActiveRunCount = Number(cockpitPulseRunSummary.active ?? liveOperatorMode.activeRunCount ?? 0);
+  const cockpitVisibleRunRows = listApexCockpitRunRows(cockpitLiveRuns.length ? cockpitLiveRuns : state.autonomyRunCenter?.runRows || []);
+  const cockpitActiveRun = cockpitVisibleRunRows.find((run) => run.id === cockpitActiveRunId)
+    || cockpitVisibleRunRows.find((run) => !["done", "archived"].includes(String(run.status || "").toLowerCase()))
+    || cockpitVisibleRunRows[0]
+    || null;
+  const cockpitActiveRunProgress = summarizeApexCockpitRunProgress(cockpitActiveRun || {});
+  const cockpitVisibleSavedRunCount = Number(cockpitLiveRunSummary.total ?? cockpitPulseRunSummary.total ?? liveOperatorMode.savedRunCount ?? 0);
+  const cockpitVisibleActiveRunCount = Number(cockpitLiveRunSummary.active ?? cockpitPulseRunSummary.active ?? liveOperatorMode.activeRunCount ?? 0);
   const cockpitVisibleLiveStatus = cockpitVisibleActiveRunCount ? "Live operator running" : liveOperatorMode.status || "Live operator ready";
   const cockpitVisibleLiveTone = cockpitVisibleActiveRunCount ? "green" : liveOperatorMode.tone || "blue";
   const cockpitAnswerText = resolveApexCockpitAnswerText(cockpitResponse);
@@ -5330,6 +5391,9 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
         briefingPayload: briefingResult.status === "fulfilled" ? briefingResult.value : null,
         runsPayload: runsResult.status === "fulfilled" ? runsResult.value : null,
       });
+      if (runsResult.status === "fulfilled") {
+        syncCockpitLiveRunsFromPayload(runsResult.value);
+      }
       const failureCount = [buildResult, briefingResult, runsResult].filter((result) => result.status === "rejected").length;
       setCockpitLivePulse(pulse);
       if (failureCount) {
@@ -5348,6 +5412,18 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     } finally {
       if (!automatic) setCockpitLivePulseBusy(false);
     }
+  }
+
+  function syncCockpitLiveRunsFromPayload(payload = {}, preferredRunId = "") {
+    const nextRuns = listApexCockpitRunRows(payload.apexOsAutonomyRuns);
+    if (!nextRuns.length) return;
+    setCockpitLiveRuns(nextRuns);
+    setCockpitLiveRunSummary(payload.summary || {});
+    setCockpitActiveRunId((current) => {
+      if (preferredRunId && nextRuns.some((run) => run.id === preferredRunId)) return preferredRunId;
+      if (current && nextRuns.some((run) => run.id === current)) return current;
+      return nextRuns.find((run) => !["done", "archived"].includes(String(run.status || "").toLowerCase()))?.id || nextRuns[0]?.id || "";
+    });
   }
 
   function deliverCockpitBriefing({ speak = false } = {}) {
@@ -5430,6 +5506,9 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       if (createdRun?.id) {
         const draftPayload = await draftApexOsAutonomyRunInternalWork(sessionToken, createdRun.id);
         finalRun = draftPayload?.apexOsAutonomyRun || createdRun;
+        syncCockpitLiveRunsFromPayload(draftPayload, finalRun?.id || createdRun.id);
+      } else {
+        syncCockpitLiveRunsFromPayload(createPayload, createdRun?.id || "");
       }
       const finalNotice = finalRun?.id
         ? `Live run ${finalRun.id} saved and internal draft package prepared. Execution stays locked.`
@@ -5453,6 +5532,88 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       return null;
     } finally {
       setCockpitCreatingLiveRun(false);
+    }
+  }
+
+  async function updateCockpitActiveRunStatus(status, { resultReport = "", operatorNote = "" } = {}) {
+    if (!state.canView || !sessionToken || !cockpitActiveRun?.id || cockpitUpdatingRun) return null;
+    const patch = {
+      status,
+      operatorNote: operatorNote || cockpitActiveRun.operatorNote || "",
+    };
+    if (status === "done") {
+      patch.resultReport = resultReport || cockpitActiveRun.resultReport || buildApexCockpitRunResultReport({
+        run: cockpitActiveRun,
+        question: cockpitLastQuestion || askQuestion,
+        answer: cockpitAnswerText,
+      });
+    }
+    if (status === "validating") {
+      patch.nextSafeAction = "Validate evidence, review linked drafts, then report whether this run is done, blocked, or waiting for approval.";
+    }
+    if (status === "waiting-approval") {
+      patch.nextSafeAction = "Review the gated actions manually. Approval does not execute anything from this cockpit.";
+      patch.operatorNote = operatorNote || "Apex marked this live operator run waiting for manual approval review.";
+    }
+    if (status === "blocked") {
+      patch.operatorNote = operatorNote || "Apex marked this live operator run blocked for operator review.";
+      patch.nextSafeAction = "Review the blocker, adjust the request, or keep the run blocked.";
+    }
+    setCockpitUpdatingRun(`${status}-${cockpitActiveRun.id}`);
+    setCockpitLiveRunNotice(`Updating active run to ${status}.`);
+    try {
+      const payload = await updateApexOsAutonomyRun(sessionToken, cockpitActiveRun.id, patch);
+      const updated = payload?.apexOsAutonomyRun;
+      syncCockpitLiveRunsFromPayload(payload, updated?.id || cockpitActiveRun.id);
+      const notice = status === "done"
+        ? "Apex reported back and marked the active run done with a result report."
+        : status === "waiting-approval"
+          ? "Apex moved the active run to waiting approval. Execution is still locked."
+          : status === "blocked"
+            ? "Apex marked the active run blocked for review."
+            : "Apex marked the active run validating with evidence review next.";
+      setCockpitLiveRunNotice(notice);
+      setCockpitAgentActionNotice(notice);
+      setCockpitResponse({
+        answer: {
+          answer: `${notice} No external send, billing, ad, provider, production, deletion, or irreversible action executed.`,
+          sourceLabels: ["Apex Live Operator Mode", "Autonomy Run Center", updated?.sourceLabel || "Active run session"],
+        },
+      });
+      refreshCockpitLivePulse({ automatic: true });
+      return updated || null;
+    } catch (error) {
+      const message = error?.message || "Apex could not update the active live run.";
+      setCockpitLiveRunNotice(message);
+      setCockpitAgentActionNotice(message);
+      return null;
+    } finally {
+      setCockpitUpdatingRun("");
+    }
+  }
+
+  async function draftCockpitActiveRunInternalWork() {
+    if (!state.canView || !sessionToken || !cockpitActiveRun?.id || cockpitUpdatingRun) return null;
+    setCockpitUpdatingRun(`draft-${cockpitActiveRun.id}`);
+    setCockpitLiveRunNotice("Drafting internal work for the active live run.");
+    try {
+      const payload = await draftApexOsAutonomyRunInternalWork(sessionToken, cockpitActiveRun.id);
+      const updated = payload?.apexOsAutonomyRun;
+      syncCockpitLiveRunsFromPayload(payload, updated?.id || cockpitActiveRun.id);
+      const notice = updated?.linkedExecutionHandoffId
+        ? `Internal draft package linked to ${updated.linkedExecutionHandoffId}. Execution stays locked.`
+        : "Internal draft package prepared. Execution stays locked.";
+      setCockpitLiveRunNotice(notice);
+      setCockpitAgentActionNotice(notice);
+      refreshCockpitLivePulse({ automatic: true });
+      return updated || null;
+    } catch (error) {
+      const message = error?.message || "Apex could not draft internal work for this run.";
+      setCockpitLiveRunNotice(message);
+      setCockpitAgentActionNotice(message);
+      return null;
+    } finally {
+      setCockpitUpdatingRun("");
     }
   }
 
@@ -6031,6 +6192,62 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                         <p className={`mt-0.5 text-[11px] font-black ${item.tone === "green" ? "text-emerald-300" : item.tone === "amber" ? "text-orange-300" : item.tone === "blue" ? "text-cyan-300" : "text-slate-300"}`}>{item.value}</p>
                       </div>
                     ))}
+                  </div>
+                  <div className="grid min-w-0 gap-2 rounded-md border border-cyan-200/10 bg-slate-950/48 p-2.5" aria-label="Active Apex run session">
+                    <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Active Run Session</p>
+                        <p className="mt-0.5 min-w-0 break-words text-xs font-black text-slate-100">{cockpitActiveRun?.title || "No active live run yet"}</p>
+                        <p className="mt-0.5 min-w-0 break-words text-[10px] font-bold leading-4 text-slate-500">
+                          {cockpitActiveRun
+                            ? cockpitActiveRun.request || cockpitActiveRun.nextSafeAction || "Apex is tracking this private run."
+                            : "Start a Live Run and Apex will track steps, evidence, linked drafts, status, and result report here."}
+                        </p>
+                      </div>
+                      <ToneBadge tone={apexCockpitRunStatusTone(cockpitActiveRun?.status)}>{cockpitActiveRun?.status || "ready"}</ToneBadge>
+                    </div>
+                    {cockpitActiveRun ? (
+                      <>
+                        <div className="grid min-w-0 gap-1.5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.9fr)]">
+                          <div className="min-w-0 rounded-md border border-slate-800 bg-slate-900/48 px-2.5 py-2">
+                            <p className="text-[8px] font-black uppercase tracking-[0.08em] text-slate-500">Progress</p>
+                            <p className="mt-0.5 text-[11px] font-black text-emerald-300">{cockpitActiveRunProgress.progressPercent || 0}% / {cockpitActiveRunProgress.doneCount || 0} of {cockpitActiveRunProgress.totalCount || 0}</p>
+                            <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-slate-800" aria-hidden="true">
+                              <span className="block h-full rounded-full bg-gradient-to-r from-emerald-300 via-cyan-300 to-orange-300" style={{ width: `${Math.max(4, Math.min(100, cockpitActiveRunProgress.progressPercent || 0))}%` }} />
+                            </span>
+                          </div>
+                          <div className="min-w-0 rounded-md border border-slate-800 bg-slate-900/48 px-2.5 py-2">
+                            <p className="text-[8px] font-black uppercase tracking-[0.08em] text-slate-500">Current Step</p>
+                            <p className="mt-0.5 truncate text-[11px] font-black text-cyan-300">{cockpitActiveRunProgress.activeStepTitle || "Review run"}</p>
+                            <p className="mt-0.5 line-clamp-2 text-[10px] font-bold leading-4 text-slate-500">{cockpitActiveRunProgress.activeStepDetail || cockpitActiveRun.nextSafeAction || "Review evidence before changing status."}</p>
+                          </div>
+                          <div className="min-w-0 rounded-md border border-slate-800 bg-slate-900/48 px-2.5 py-2">
+                            <p className="text-[8px] font-black uppercase tracking-[0.08em] text-slate-500">Evidence Links</p>
+                            <p className="mt-0.5 text-[11px] font-black text-slate-200">{cockpitActiveRunProgress.evidenceCount || 0} evidence / {cockpitActiveRunProgress.linkedDraftCount || 0} linked</p>
+                            <p className="mt-0.5 line-clamp-2 text-[10px] font-bold leading-4 text-slate-500">
+                              {cockpitActiveRun.linkedExecutionHandoffId || cockpitActiveRun.linkedAgentControlRequestId || cockpitActiveRun.evidence?.[0] || "Draft internal work to attach handoff evidence."}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="grid min-w-0 gap-1.5 sm:grid-cols-2 xl:grid-cols-5">
+                          <ApexCockpitControlButton className="px-2" disabled={Boolean(cockpitUpdatingRun) || Boolean(cockpitActiveRun.linkedExecutionHandoffId)} onClick={() => draftCockpitActiveRunInternalWork()} active={cockpitUpdatingRun === `draft-${cockpitActiveRun.id}`} title="Prepare linked internal draft package">
+                            <Icon name="clipboard" /> {cockpitUpdatingRun === `draft-${cockpitActiveRun.id}` ? "Drafting" : "Draft"}
+                          </ApexCockpitControlButton>
+                          <ApexCockpitControlButton className="px-2" disabled={Boolean(cockpitUpdatingRun) || cockpitActiveRun.status === "done" || cockpitActiveRun.status === "archived"} onClick={() => updateCockpitActiveRunStatus("validating")} active={cockpitUpdatingRun === `validating-${cockpitActiveRun.id}`} title="Mark active run as validating">
+                            <Icon name="check" /> Validate
+                          </ApexCockpitControlButton>
+                          <ApexCockpitControlButton className="px-2" disabled={Boolean(cockpitUpdatingRun) || cockpitActiveRun.status === "done" || cockpitActiveRun.status === "archived"} onClick={() => updateCockpitActiveRunStatus("waiting-approval")} active={cockpitUpdatingRun === `waiting-approval-${cockpitActiveRun.id}`} title="Move active run to manual approval review">
+                            <Icon name="lock" /> Approval
+                          </ApexCockpitControlButton>
+                          <ApexCockpitControlButton className="px-2" disabled={Boolean(cockpitUpdatingRun) || cockpitActiveRun.status === "done" || cockpitActiveRun.status === "archived"} onClick={() => updateCockpitActiveRunStatus("done")} active={cockpitUpdatingRun === `done-${cockpitActiveRun.id}`} title="Report back and mark active run done">
+                            <Icon name="spark" /> Report Done
+                          </ApexCockpitControlButton>
+                          <ApexCockpitControlButton className="px-2" disabled={Boolean(cockpitUpdatingRun) || cockpitActiveRun.status === "done" || cockpitActiveRun.status === "archived"} onClick={() => updateCockpitActiveRunStatus("blocked")} active={cockpitUpdatingRun === `blocked-${cockpitActiveRun.id}`} title="Mark active run blocked">
+                            <Icon name="alert" /> Block
+                          </ApexCockpitControlButton>
+                        </div>
+                      </>
+                    ) : null}
                   </div>
                   <div className="grid min-w-0 gap-2 rounded-md border border-cyan-200/10 bg-slate-950/48 p-2.5">
                     <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

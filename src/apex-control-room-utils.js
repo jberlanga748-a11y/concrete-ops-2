@@ -1928,6 +1928,42 @@ function buildExecutionHandoffState({ agentWorkQueue, approvalCommandCenter, com
   };
 }
 
+function summarizeAutonomyRunProgress(run = {}) {
+  const steps = list(run.steps);
+  const doneStatuses = new Set(["done", "drafted"]);
+  const blockedStatuses = new Set(["blocked"]);
+  const waitingStatuses = new Set(["waiting-approval", "validating"]);
+  const runStatus = String(run.status || "").toLowerCase();
+  const doneCount = steps.filter((step) => doneStatuses.has(String(step?.status || "").toLowerCase())).length;
+  const blockedCount = steps.filter((step) => blockedStatuses.has(String(step?.status || "").toLowerCase())).length;
+  const waitingCount = steps.filter((step) => waitingStatuses.has(String(step?.status || "").toLowerCase())).length;
+  const activeStep = steps.find((step) => !doneStatuses.has(String(step?.status || "").toLowerCase()))
+    || steps[steps.length - 1]
+    || null;
+  const totalCount = steps.length;
+  const effectiveDoneCount = runStatus === "done" ? totalCount : doneCount;
+  const progressPercent = totalCount ? Math.round((effectiveDoneCount / totalCount) * 100) : 0;
+  const activeStepTitle = runStatus === "done" ? "Run reported complete" : activeStep?.title || "";
+  const activeStepStatus = runStatus === "done" ? "done" : activeStep?.status || "";
+  const activeStepDetail = runStatus === "done"
+    ? "Apex saved a result report for the operator review trail."
+    : activeStep?.detail || "";
+  return {
+    doneCount: effectiveDoneCount,
+    blockedCount,
+    waitingCount,
+    totalCount,
+    progressPercent,
+    activeStepTitle,
+    activeStepStatus,
+    activeStepDetail,
+    evidenceCount: list(run.evidence).length,
+    approvalGateCount: list(run.approvalGates).length,
+    linkedDraftCount: [run.linkedAgentControlRequestId, run.linkedExecutionHandoffId].filter(Boolean).length,
+    hasResultReport: Boolean(run.resultReport),
+  };
+}
+
 function buildAutonomyRunCenterState({
   agentWorkQueue,
   agentControlPlane,
@@ -1963,9 +1999,20 @@ function buildAutonomyRunCenterState({
     agentRole: run.agentRole,
     workType: run.workType,
     nextSafeAction: run.nextSafeAction,
+    operatorNote: run.operatorNote,
+    resultReport: run.resultReport,
+    steps: list(run.steps),
+    evidence: list(run.evidence),
+    approvalGates: list(run.approvalGates),
+    blockedActions: list(run.blockedActions),
     linkedAgentControlRequestId: run.linkedAgentControlRequestId,
     linkedExecutionHandoffId: run.linkedExecutionHandoffId,
+    linkedApprovalPacketId: run.linkedApprovalPacketId,
+    decisionMemoryId: run.decisionMemoryId,
+    createdAt: run.createdAt || "",
     updatedAt: run.updatedAt || run.createdAt || "",
+    completedAt: run.completedAt || "",
+    progress: summarizeAutonomyRunProgress(run),
     executionLocked: true,
     externalActionsLocked: true,
   }));
@@ -2153,8 +2200,8 @@ function buildApexLiveOperatorModeState({
   const handoffCount = formatCount(executionHandoffs?.handoffSummary?.total);
   const approvalQueueCount = formatCount(approvalCommandCenter?.queueCount || approvalCommandCenter?.packetSummary?.total);
   const monitoringCount = formatCount(releaseMonitoring?.briefingCount || releaseMonitoring?.readinessCount);
-  const liveFoundationPercent = 88;
-  const jarvisBehaviorPercent = activeRunCount || handoffCount ? 74 : 70;
+  const liveFoundationPercent = 90;
+  const jarvisBehaviorPercent = activeRunCount || handoffCount ? 78 : 74;
   const readinessRows = withDerivedStateMetaList([
     {
       id: "live-voice-loop",
@@ -2174,7 +2221,7 @@ function buildApexLiveOperatorModeState({
       id: "live-run-ledger",
       title: "Run ledger",
       status: savedRunCount ? `${savedRunCount} saved` : "Ready",
-      detail: `${activeRunCount} active run${activeRunCount === 1 ? "" : "s"} are visible. New live runs save a private ledger item before internal drafting.`,
+      detail: `${activeRunCount} active run${activeRunCount === 1 ? "" : "s"} are visible with steps, evidence, linked drafts, and report-back state. New live runs save a private ledger item before internal drafting.`,
       tone: savedRunCount ? "green" : "blue",
     },
     {
@@ -2207,11 +2254,11 @@ function buildApexLiveOperatorModeState({
     { id: "live-loop-hear", title: "Hear", status: "Open", detail: "Voice and typed commands enter the Apex body page.", tone: "green" },
     { id: "live-loop-interrupt", title: "Interrupt", status: "Barge-in memory", detail: "Apex can stop speaking, keep listening, and carry the interruption into the next answer context.", tone: "green" },
     { id: "live-loop-understand", title: "Understand", status: "Source-backed", detail: "Apex routes the request against private command-room context.", tone: "green" },
-    { id: "live-loop-plan", title: "Plan", status: `${formatCount(autonomyRunCenter?.planStepCount)} steps`, detail: "The request becomes a visible review-first run plan.", tone: "blue" },
+    { id: "live-loop-plan", title: "Plan", status: `${formatCount(autonomyRunCenter?.planStepCount)} steps`, detail: "The request becomes a visible review-first run plan with an active step and evidence trail.", tone: "blue" },
     { id: "live-loop-save", title: "Save run", status: savedRunCount ? `${savedRunCount} saved` : "Ready", detail: "A private autonomy ledger item is created before work continues.", tone: savedRunCount ? "green" : "blue" },
     { id: "live-loop-draft", title: "Draft", status: autonomyRunCenter?.canDraftInternalRuns ? "Draft-ready" : "Guarded", detail: "Internal agent-control and execution handoff drafts can be prepared.", tone: autonomyRunCenter?.canDraftInternalRuns ? "green" : "amber" },
     { id: "live-loop-validate", title: "Validate", status: "Required", detail: "Tests, role checks, browser QA, build proof, and rollback notes stay attached to the work.", tone: "amber" },
-    { id: "live-loop-report", title: "Report", status: "Result slot", detail: "Apex reports what happened, what is blocked, and what needs review.", tone: "blue" },
+    { id: "live-loop-report", title: "Report", status: savedRunCount ? "Report-ready" : "Result slot", detail: "Apex can report back from the active run and mark it validating, waiting approval, blocked, or done with a result report.", tone: savedRunCount ? "green" : "blue" },
     { id: "live-loop-remember", title: "Remember", status: trustedMemoryCount ? "Trusted context" : "Review first", detail: "The Apex body can draft suggested turn memory, and only reviewed memory becomes future operating context.", tone: trustedMemoryCount ? "green" : "amber" },
     { id: "live-loop-monitor", title: "Monitor", status: releaseMonitoring?.status || "Auto-checking", detail: "The Apex body can refresh read-only build, briefing, and live-run status while the page is open.", tone: releaseMonitoring?.tone || "green" },
   ], {
@@ -2230,8 +2277,8 @@ function buildApexLiveOperatorModeState({
     {
       id: "live-gap-execution",
       title: "Real-world execution",
-      status: "Private drafts only",
-      detail: "Apex can save and draft work; customer-visible, billing, send, provider, production, delete, and irreversible actions remain approval-gated.",
+      status: "Approval-gated",
+      detail: "Apex can save, draft, validate, and report private runs; customer-visible, billing, send, provider, production, delete, and irreversible actions remain approval-gated.",
       tone: "amber",
     },
     {
