@@ -3415,6 +3415,43 @@ function ApexControlRoomSectionNav({ activeSection, onChange, variant = "light" 
   );
 }
 
+function ApexRoomLauncher({ activeSection, onChange, variant = "light", title = "Command rooms", description = "Open the room that matches the work." }) {
+  const dark = variant === "dark";
+  return (
+    <section className={`min-w-0 rounded-lg border p-3 ${dark ? "border-cyan-200/12 bg-slate-950/62 text-white" : "border-slate-200 bg-white text-slate-950 shadow-[0_18px_46px_-40px_rgba(7,17,31,0.72)]"}`} aria-label="Apex Control Room command room launcher">
+      <div className="mb-3 flex min-w-0 flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <p className={`text-[10px] font-black uppercase tracking-[0.14em] ${dark ? "text-orange-200" : "text-orange-700"}`}>{title}</p>
+          <p className={`mt-1 break-words text-xs font-bold leading-5 ${dark ? "text-slate-400" : "text-slate-600"}`}>{description}</p>
+        </div>
+        <ToneBadge tone="amber">Categorized</ToneBadge>
+      </div>
+      <div className="grid min-w-0 gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+        {APEX_CONTROL_ROOM_SECTIONS.map((section) => {
+          const active = section.id === activeSection;
+          return (
+            <button
+              key={`launcher-${section.id}`}
+              type="button"
+              onClick={() => onChange(section.id)}
+              aria-current={active ? "page" : undefined}
+              className={`co-focus-ring group grid min-h-[4.6rem] min-w-0 grid-cols-[2.25rem_minmax(0,1fr)] items-start gap-3 rounded-lg border p-3 text-left transition ${dark ? active ? "border-orange-400/70 bg-orange-500/14 text-white shadow-[0_0_24px_rgba(249,115,22,0.18)]" : "border-slate-800 bg-white/[0.035] text-slate-200 hover:border-cyan-300/38 hover:bg-white/[0.07]" : active ? "border-orange-300 bg-orange-50 text-orange-950 shadow-sm shadow-orange-900/10" : "border-slate-200 bg-slate-50 text-slate-800 hover:border-orange-200 hover:bg-white"}`}
+            >
+              <span className={`grid h-9 w-9 place-items-center rounded-lg border ${dark ? active ? "border-orange-300/50 bg-slate-950 text-orange-100" : "border-slate-700 bg-slate-900 text-cyan-100" : active ? "border-orange-200 bg-white text-orange-700" : "border-slate-200 bg-white text-slate-700"}`}>
+                <Icon name={section.icon} className="h-4 w-4" />
+              </span>
+              <span className="min-w-0">
+                <span className="block break-words text-sm font-black leading-4">{section.label}</span>
+                <span className={`mt-1 block break-words text-[11px] font-bold leading-4 ${dark ? "text-slate-400" : "text-slate-500"}`}>{section.helper}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function ControlRoomCategoryShell({ sectionId, state, children }) {
   const section = getApexControlRoomSection(sectionId);
   const metrics = getApexControlRoomSectionMetrics(sectionId, state);
@@ -3481,6 +3518,43 @@ function ControlRoomCategoryShell({ sectionId, state, children }) {
 
       <div className="grid min-w-0 content-start gap-4">
         {children}
+      </div>
+    </section>
+  );
+}
+
+function ControlRoomRoomTabs({ tabs, label = "Room sections" }) {
+  const firstTabId = tabs[0]?.id || "";
+  const [activeTabId, setActiveTabId] = useState(firstTabId);
+  const activeTab = tabs.find((tab) => tab.id === activeTabId) || tabs[0];
+
+  return (
+    <section className="grid min-w-0 gap-3" aria-label={label}>
+      <div className="scrollbar-none flex min-w-0 gap-2 overflow-x-auto rounded-xl border border-slate-200 bg-white p-2 shadow-[0_14px_38px_-34px_rgba(7,17,31,0.58)]">
+        {tabs.map((tab) => {
+          const active = tab.id === activeTab?.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTabId(tab.id)}
+              aria-pressed={active}
+              className={`co-focus-ring flex min-h-12 w-44 shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-left transition ${active ? "border-orange-300 bg-orange-50 text-orange-900 shadow-sm shadow-orange-900/10" : "border-slate-200 bg-slate-50 text-slate-700 hover:border-orange-200 hover:bg-white hover:text-orange-700"}`}
+            >
+              <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg border ${active ? "border-orange-200 bg-white text-orange-700" : "border-slate-200 bg-white text-slate-600"}`}>
+                <Icon name={tab.icon || "grid"} className="h-4 w-4" />
+              </span>
+              <span className="min-w-0">
+                <span className="block break-words text-xs font-black leading-4">{tab.label}</span>
+                {tab.helper ? <span className="mt-0.5 block break-words text-[11px] font-bold leading-4 text-slate-500">{tab.helper}</span> : null}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="min-w-0" key={activeTab?.id}>
+        {activeTab?.content}
       </div>
     </section>
   );
@@ -3726,7 +3800,9 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     "Give me options",
   ];
   const memoryCount = state.decisionMemory?.durableCount || state.decisionMemory?.decisionCount || 0;
-  const releaseVersion = state.releaseDesk?.latestDeploy?.version || state.releaseDesk?.deployHistoryRows?.[0]?.status || "1.8.4";
+  const releaseVersion = state.releaseDesk?.currentVersion
+    ? `v${state.releaseDesk.currentVersion}`
+    : state.releaseDesk?.deployHistoryRows?.[0]?.status || "Evidence required";
   const releaseHealth = state.releaseDesk?.status || "Healthy";
   const cockpitAnswerText = resolveApexCockpitAnswerText(cockpitResponse);
   const cockpitVoiceMode = cockpitSpeaking ? "speaking" : (cockpitSubmitting || cockpitTranscribing) ? "thinking" : "listening";
@@ -4059,7 +4135,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                 <ApexCockpitListItem item={{ label: "Open Blockers", icon: "alert" }} value={state.launchReadiness?.blockedCount || state.approvalCommandCenter?.packetSummary?.blocked || 0} tone="red" />
                 <ApexCockpitListItem item={{ label: "Agent Work", icon: "layers" }} value={state.agentControlPlane?.roleCount || state.agentWorkQueue?.availableTaskCount || 0} tone="blue" />
                 <ApexCockpitListItem item={{ label: "Release Status", icon: "refresh" }} value="On Track" tone="green" />
-                <ApexCockpitControlButton className="mt-2 w-full">View Details</ApexCockpitControlButton>
+                <ApexCockpitControlButton className="mt-2 w-full" disabled={false} onClick={() => onChange("overview")}>View Overview</ApexCockpitControlButton>
               </ApexCockpitCard>
 
               <ApexCockpitCard title="Approvals" action={<span className="text-slate-500">&gt;</span>}>
@@ -4074,14 +4150,14 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     </div>
                   ))}
                 </div>
-                <ApexCockpitControlButton className="mt-2 w-full">View All Approvals</ApexCockpitControlButton>
+                <ApexCockpitControlButton className="mt-2 w-full" disabled={false} onClick={() => onChange("approvals")}>View Approvals</ApexCockpitControlButton>
               </ApexCockpitCard>
 
               <ApexCockpitCard title="Apex Memory" action={<span className="text-slate-500">&gt;</span>}>
                 <ApexCockpitListItem item={{ label: "Trusted Memories", icon: "database" }} value={memoryCount || 128} tone="slate" />
                 <ApexCockpitListItem item={{ label: "Recent Updates", icon: "refresh" }} value={state.decisionMemory?.durableCount || 6} tone="slate" />
                 <ApexCockpitListItem item={{ label: "Suggested Memories", icon: "spark" }} value={state.decisionMemory?.suggestedCount || 3} tone="slate" />
-                <ApexCockpitControlButton className="mt-2 w-full">Review Memory</ApexCockpitControlButton>
+                <ApexCockpitControlButton className="mt-2 w-full" disabled={false} onClick={() => onChange("memory")}>Review Memory</ApexCockpitControlButton>
               </ApexCockpitCard>
 
               <ApexCockpitCard title="Agents" action={<span className="text-slate-500">&gt;</span>}>
@@ -4096,17 +4172,17 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     </div>
                   ))}
                 </div>
-                <ApexCockpitControlButton className="mt-2 w-full">View All Agents</ApexCockpitControlButton>
+                <ApexCockpitControlButton className="mt-2 w-full" disabled={false} onClick={() => onChange("agents")}>View Agents</ApexCockpitControlButton>
               </ApexCockpitCard>
 
               <ApexCockpitCard title="Release" action={<span className="text-slate-500">&gt;</span>} className="md:col-span-2 xl:col-span-1">
                 <div className="grid gap-0.5 text-[10px] font-bold leading-3 text-slate-400">
                   <div className="flex justify-between gap-3"><span>Version</span><span className="text-slate-200">{releaseVersion}</span></div>
                   <div className="flex justify-between gap-3"><span>Environment</span><span className="text-slate-200">Production</span></div>
-                  <div className="flex justify-between gap-3"><span>Last Deploy</span><span className="text-slate-200">Jun 4, 9:15 AM</span></div>
+                  <div className="flex justify-between gap-3"><span>Evidence</span><span className="text-slate-200">{state.releaseDesk?.deployHistoryCount ? `${state.releaseDesk.deployHistoryCount} rows` : "Required"}</span></div>
                   <div className="flex justify-between gap-3"><span>Health</span><span className="text-emerald-300">{releaseHealth}</span></div>
                 </div>
-                <ApexCockpitControlButton className="mt-2 w-full">View Release</ApexCockpitControlButton>
+                <ApexCockpitControlButton className="mt-2 w-full" disabled={false} onClick={() => onChange("release")}>View Release</ApexCockpitControlButton>
               </ApexCockpitCard>
             </div>
           </div>
@@ -4133,6 +4209,13 @@ function ApexHomePanel({ state, activeSection, onChange, askQuestion, setAskQues
   return (
     <section className="grid min-w-0 gap-4">
       <ApexCockpitScreen state={state} activeSection={activeSection} onChange={onChange} askQuestion={askQuestion} setAskQuestion={setAskQuestion} sessionToken={sessionToken} />
+      <ApexRoomLauncher
+        activeSection={activeSection}
+        onChange={onChange}
+        variant="dark"
+        title="Room switcher"
+        description="The cockpit stays as Apex's home. These buttons open the categorized rooms around it."
+      />
     </section>
   );
 }
@@ -4140,84 +4223,125 @@ function ApexHomePanel({ state, activeSection, onChange, askQuestion, setAskQues
 function ControlRoomOverviewSection({ state }) {
   return (
     <ControlRoomCategoryShell sectionId="overview" state={state}>
-      <section className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {state.kpis.map((item) => <KpiTile key={item.id} item={item} />)}
-      </section>
+      <ControlRoomRoomTabs
+        label="Overview room sections"
+        tabs={[
+          {
+            id: "kpis",
+            label: "KPI strip",
+            helper: "Current state",
+            icon: "grid",
+            content: (
+              <section className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {state.kpis.map((item) => <KpiTile key={item.id} item={item} />)}
+              </section>
+            ),
+          },
+          {
+            id: "board",
+            label: "Command board",
+            helper: "Main panels",
+            icon: "layers",
+            content: (
+              <section className="grid min-w-0 gap-3 lg:grid-cols-2 2xl:grid-cols-5">
+                {state.commandBoardPanels.map((item) => (
+                  <Card key={item.id} className="min-w-0 p-4">
+                    <SectionHeader
+                      title={item.title}
+                      description={item.detail}
+                      action={<ToneBadge tone={item.tone}>{item.status}</ToneBadge>}
+                    />
+                  </Card>
+                ))}
+              </section>
+            ),
+          },
+          {
+            id: "briefing",
+            label: "Briefing",
+            helper: "Priorities + gates",
+            icon: "spark",
+            content: (
+              <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader
+                    title="Apex Briefing"
+                    description={state.summary}
+                    action={<span className="inline-flex h-9 items-center rounded-xl bg-slate-950 px-3 text-xs font-black text-white"><Icon name="spark" className="mr-2 h-4 w-4" />Slice 3 memory</span>}
+                  />
+                  <div className="grid min-w-0 gap-3 lg:grid-cols-2 2xl:grid-cols-4">
+                    {state.priorities.map((item) => <StatusRow key={item.id} item={item} />)}
+                  </div>
+                </Card>
 
-      <section className="grid min-w-0 gap-3 lg:grid-cols-2 2xl:grid-cols-5">
-        {state.commandBoardPanels.map((item) => (
-          <Card key={item.id} className="min-w-0 p-4">
-            <SectionHeader
-              title={item.title}
-              description={item.detail}
-              action={<ToneBadge tone={item.tone}>{item.status}</ToneBadge>}
-            />
-          </Card>
-        ))}
-      </section>
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader title="Approval Gates" description="Risky actions stay locked behind owner approval." />
+                  <div className="min-w-0">
+                    {state.approvals.map((item) => <ApprovalRow key={item.id} item={item} />)}
+                  </div>
+                </Card>
+              </section>
+            ),
+          },
+          {
+            id: "signals",
+            label: "Signals",
+            helper: "Read-only state",
+            icon: "refresh",
+            content: (
+              <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader title="Operating Signals" description="Read-only state pulled from current Apex HQ systems." />
+                  {state.phase3Aggregator?.rows?.length ? (
+                    <div className="mb-4 rounded-xl border border-orange-200 bg-orange-50/70 p-3">
+                      <SectionHeader
+                        title="Phase 3 State Packet"
+                        description={`${state.phase3Aggregator.rowCount || 0} read-only rows, ${state.phase3Aggregator.sourceCount || 0} source groups, ${state.phase3Aggregator.confidence || 0}% average confidence.`}
+                        action={<ToneBadge tone={state.phase3Aggregator.tone}>{state.phase3Aggregator.status}</ToneBadge>}
+                      />
+                      <div className="mt-3 grid min-w-0 gap-3 lg:grid-cols-2">
+                        {state.phase3Aggregator.rows.map((item) => <StatusRow key={item.id} item={item} />)}
+                      </div>
+                    </div>
+                  ) : null}
+                  <div className="grid min-w-0 gap-3 lg:grid-cols-2">
+                    {state.operatingSignals.map((item) => <StatusRow key={item.id} item={item} />)}
+                  </div>
+                </Card>
 
-      <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader
-            title="Apex Briefing"
-            description={state.summary}
-            action={<span className="inline-flex h-9 items-center rounded-xl bg-slate-950 px-3 text-xs font-black text-white"><Icon name="spark" className="mr-2 h-4 w-4" />Slice 3 memory</span>}
-          />
-          <div className="grid min-w-0 gap-3 lg:grid-cols-2 2xl:grid-cols-4">
-            {state.priorities.map((item) => <StatusRow key={item.id} item={item} />)}
-          </div>
-        </Card>
-
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader title="Approval Gates" description="Risky actions stay locked behind owner approval." />
-          <div className="min-w-0">
-            {state.approvals.map((item) => <ApprovalRow key={item.id} item={item} />)}
-          </div>
-        </Card>
-      </section>
-
-      <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader title="Operating Signals" description="Read-only state pulled from current Apex HQ systems." />
-          {state.phase3Aggregator?.rows?.length ? (
-            <div className="mb-4 rounded-xl border border-orange-200 bg-orange-50/70 p-3">
-              <SectionHeader
-                title="Phase 3 State Packet"
-                description={`${state.phase3Aggregator.rowCount || 0} read-only rows, ${state.phase3Aggregator.sourceCount || 0} source groups, ${state.phase3Aggregator.confidence || 0}% average confidence.`}
-                action={<ToneBadge tone={state.phase3Aggregator.tone}>{state.phase3Aggregator.status}</ToneBadge>}
-              />
-              <div className="mt-3 grid min-w-0 gap-3 lg:grid-cols-2">
-                {state.phase3Aggregator.rows.map((item) => <StatusRow key={item.id} item={item} />)}
-              </div>
-            </div>
-          ) : null}
-          <div className="grid min-w-0 gap-3 lg:grid-cols-2">
-            {state.operatingSignals.map((item) => <StatusRow key={item.id} item={item} />)}
-          </div>
-        </Card>
-
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader title="Next Best Actions" description="Private owner actions for the next controlled build step." />
-          <div className="grid min-w-0 gap-3">
-            {state.nextBestActions.map((item) => <StatusRow key={item.id} item={item} />)}
-          </div>
-        </Card>
-      </section>
-
-      <section className="grid min-w-0 gap-4 xl:grid-cols-2">
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader title="Recent Evidence" description="Current audit signal available to Apex OS." />
-          {state.evidence.length ? (
-            <div className="grid min-w-0 gap-3">
-              {state.evidence.map((item) => <EvidenceRow key={item.id} item={item} />)}
-            </div>
-          ) : (
-            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm font-bold text-slate-600">
-              No recent evidence rows are visible for this workspace.
-            </div>
-          )}
-        </Card>
-      </section>
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader title="Next Best Actions" description="Private owner actions for the next controlled build step." />
+                  <div className="grid min-w-0 gap-3">
+                    {state.nextBestActions.map((item) => <StatusRow key={item.id} item={item} />)}
+                  </div>
+                </Card>
+              </section>
+            ),
+          },
+          {
+            id: "evidence",
+            label: "Evidence",
+            helper: "Audit rows",
+            icon: "clipboard",
+            content: (
+              <section className="grid min-w-0 gap-4 xl:grid-cols-2">
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader title="Recent Evidence" description="Current audit signal available to Apex OS." />
+                  {state.evidence.length ? (
+                    <div className="grid min-w-0 gap-3">
+                      {state.evidence.map((item) => <EvidenceRow key={item.id} item={item} />)}
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm font-bold text-slate-600">
+                      No recent evidence rows are visible for this workspace.
+                    </div>
+                  )}
+                </Card>
+              </section>
+            ),
+          },
+        ]}
+      />
     </ControlRoomCategoryShell>
   );
 }
@@ -4233,106 +4357,147 @@ function ControlRoomApexSection({ state, activeSection, onChange, sessionToken, 
 function ControlRoomMemorySection({ state, sessionToken }) {
   return (
     <ControlRoomCategoryShell sectionId="memory" state={state}>
-      <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader
-            title="Decision Memory"
-            description={`What John decided. ${state.decisionMemory.decisionCount || 0} plan decisions and ${state.decisionMemory.durableCount || 0} durable memory rows are visible.`}
-            action={<ToneBadge tone={state.decisionMemory.tone}>{state.decisionMemory.status}</ToneBadge>}
-          />
-          <div className="grid min-w-0 gap-3 lg:grid-cols-2">
-            {state.decisionMemory.decisions.map((item) => <MemoryRow key={item.id} item={item} />)}
-          </div>
-        </Card>
+      <ControlRoomRoomTabs
+        label="Memory room sections"
+        tabs={[
+          {
+            id: "decisions",
+            label: "Decisions",
+            helper: "What John decided",
+            icon: "database",
+            content: (
+              <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader
+                    title="Decision Memory"
+                    description={`What John decided. ${state.decisionMemory.decisionCount || 0} plan decisions and ${state.decisionMemory.durableCount || 0} durable memory rows are visible.`}
+                    action={<ToneBadge tone={state.decisionMemory.tone}>{state.decisionMemory.status}</ToneBadge>}
+                  />
+                  <div className="grid min-w-0 gap-3 lg:grid-cols-2">
+                    {state.decisionMemory.decisions.map((item) => <MemoryRow key={item.id} item={item} />)}
+                  </div>
+                </Card>
 
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader
-            title="Operating Rules"
-            description="Current Apex OS boundaries before editable memory exists."
-          />
-          <div className="grid min-w-0 gap-3">
-            {state.decisionMemory.rules.map((item) => <MemoryRow key={item.id} item={item} />)}
-          </div>
-        </Card>
-      </section>
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader
+                    title="Operating Rules"
+                    description="Current Apex OS boundaries before editable memory exists."
+                  />
+                  <div className="grid min-w-0 gap-3">
+                    {state.decisionMemory.rules.map((item) => <MemoryRow key={item.id} item={item} />)}
+                  </div>
+                </Card>
+              </section>
+            ),
+          },
+          {
+            id: "review",
+            label: "Review",
+            helper: "Draft/approve/archive",
+            icon: "check",
+            content: (
+              <section className="grid min-w-0 gap-4">
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader
+                    title="What Did I Decide?"
+                    description="Source-backed decision memory with manual draft, approve, and archive controls."
+                    action={<ToneBadge tone={state.decisionMemory.approvedCount ? "green" : "blue"}>{state.decisionMemory.approvedCount || 0} approved</ToneBadge>}
+                  />
+                  <DecisionMemoryManager state={state} sessionToken={sessionToken} />
+                </Card>
+              </section>
+            ),
+          },
+          {
+            id: "vault",
+            label: "Vault",
+            helper: "Categories + gates",
+            icon: "layers",
+            content: (
+              <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader
+                    title="Knowledge Vault"
+                    description={`${state.knowledgeVault.categoryCount || 0} private knowledge categories are ready for reviewed intake.`}
+                    action={<ToneBadge tone={state.knowledgeVault.tone}>{state.knowledgeVault.status}</ToneBadge>}
+                  />
+                  <div className="grid min-w-0 gap-3 lg:grid-cols-2">
+                    {state.knowledgeVault.categories.slice(0, 6).map((item) => <StatusRow key={item.id} item={item} />)}
+                  </div>
+                </Card>
 
-      <section className="grid min-w-0 gap-4">
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader
-            title="What Did I Decide?"
-            description="Source-backed decision memory with manual draft, approve, and archive controls."
-            action={<ToneBadge tone={state.decisionMemory.approvedCount ? "green" : "blue"}>{state.decisionMemory.approvedCount || 0} approved</ToneBadge>}
-          />
-          <DecisionMemoryManager state={state} sessionToken={sessionToken} />
-        </Card>
-      </section>
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader title="Vault Safety Gates" description="Upload and trusted-memory boundaries." />
+                  <div className="grid min-w-0 gap-3">
+                    {state.knowledgeVault.safetyRows.map((item) => <StatusRow key={item.id} item={item} />)}
+                  </div>
+                </Card>
+              </section>
+            ),
+          },
+          {
+            id: "sources",
+            label: "Sources",
+            helper: "Intake status",
+            icon: "clipboard",
+            content: (
+              <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader title="Vault Sources" description={`${state.knowledgeVault.sourceCount || 0} current source candidates.`} />
+                  <div className="grid min-w-0 gap-3">
+                    {state.knowledgeVault.sourceRows.map((item) => <StatusRow key={item.id} item={item} />)}
+                  </div>
+                </Card>
 
-      <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader
-            title="Knowledge Vault"
-            description={`${state.knowledgeVault.categoryCount || 0} private knowledge categories are ready for reviewed intake.`}
-            action={<ToneBadge tone={state.knowledgeVault.tone}>{state.knowledgeVault.status}</ToneBadge>}
-          />
-          <div className="grid min-w-0 gap-3 lg:grid-cols-2">
-            {state.knowledgeVault.categories.slice(0, 6).map((item) => <StatusRow key={item.id} item={item} />)}
-          </div>
-        </Card>
-
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader title="Vault Safety Gates" description="Upload and trusted-memory boundaries." />
-          <div className="grid min-w-0 gap-3">
-            {state.knowledgeVault.safetyRows.map((item) => <StatusRow key={item.id} item={item} />)}
-          </div>
-        </Card>
-      </section>
-
-      <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader title="Vault Sources" description={`${state.knowledgeVault.sourceCount || 0} current source candidates.`} />
-          <div className="grid min-w-0 gap-3">
-            {state.knowledgeVault.sourceRows.map((item) => <StatusRow key={item.id} item={item} />)}
-          </div>
-        </Card>
-
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader title="Vault Intake Status" description="Reviewed private knowledge intake." />
-          <div className="grid min-w-0 gap-3 lg:grid-cols-2">
-            <StatusRow item={{
-              id: "durable-apex-os-memory",
-              title: "Durable Apex OS memory",
-              status: state.knowledgeVault.memorySummary?.total ? `${state.knowledgeVault.memorySummary.total} saved` : "Ready",
-              detail: `${state.knowledgeVault.memorySummary?.approved || 0} approved, ${state.knowledgeVault.memorySummary?.suggested || 0} suggested, and ${state.knowledgeVault.memorySummary?.archived || 0} archived memory rows are tracked in private company settings.`,
-              tone: state.knowledgeVault.memorySummary?.total ? "green" : "blue",
-            }} />
-            <StatusRow item={{
-              id: "upload-intake",
-              title: "Upload intake",
-              status: "Text intake active",
-              detail: "Local text files can be read into the vault and saved as suggested knowledge with source metadata.",
-              tone: "green",
-            }} />
-            <StatusRow item={{
-              id: "trusted-memory",
-              title: "Trusted memory",
-              status: "Approval required",
-              detail: "Suggested knowledge does not feed approved Apex context until manually approved.",
-              tone: "amber",
-            }} />
-          </div>
-        </Card>
-      </section>
-
-      <section className="min-w-0">
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader
-            title="Knowledge Upload Vault"
-            description="Classify, draft, review, search, and approve private Apex OS knowledge."
-            action={<ToneBadge tone={state.knowledgeVault.tone}>{state.knowledgeVault.status}</ToneBadge>}
-          />
-          <KnowledgeVaultManager state={state} sessionToken={sessionToken} />
-        </Card>
-      </section>
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader title="Vault Intake Status" description="Reviewed private knowledge intake." />
+                  <div className="grid min-w-0 gap-3 lg:grid-cols-2">
+                    <StatusRow item={{
+                      id: "durable-apex-os-memory",
+                      title: "Durable Apex OS memory",
+                      status: state.knowledgeVault.memorySummary?.total ? `${state.knowledgeVault.memorySummary.total} saved` : "Ready",
+                      detail: `${state.knowledgeVault.memorySummary?.approved || 0} approved, ${state.knowledgeVault.memorySummary?.suggested || 0} suggested, and ${state.knowledgeVault.memorySummary?.archived || 0} archived memory rows are tracked in private company settings.`,
+                      tone: state.knowledgeVault.memorySummary?.total ? "green" : "blue",
+                    }} />
+                    <StatusRow item={{
+                      id: "upload-intake",
+                      title: "Upload intake",
+                      status: "Text intake active",
+                      detail: "Local text files can be read into the vault and saved as suggested knowledge with source metadata.",
+                      tone: "green",
+                    }} />
+                    <StatusRow item={{
+                      id: "trusted-memory",
+                      title: "Trusted memory",
+                      status: "Approval required",
+                      detail: "Suggested knowledge does not feed approved Apex context until manually approved.",
+                      tone: "amber",
+                    }} />
+                  </div>
+                </Card>
+              </section>
+            ),
+          },
+          {
+            id: "upload",
+            label: "Upload",
+            helper: "Knowledge intake",
+            icon: "upload",
+            content: (
+              <section className="min-w-0">
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader
+                    title="Knowledge Upload Vault"
+                    description="Classify, draft, review, search, and approve private Apex OS knowledge."
+                    action={<ToneBadge tone={state.knowledgeVault.tone}>{state.knowledgeVault.status}</ToneBadge>}
+                  />
+                  <KnowledgeVaultManager state={state} sessionToken={sessionToken} />
+                </Card>
+              </section>
+            ),
+          },
+        ]}
+      />
     </ControlRoomCategoryShell>
   );
 }
@@ -4340,110 +4505,151 @@ function ControlRoomMemorySection({ state, sessionToken }) {
 function ControlRoomAgentsSection({ state, sessionToken }) {
   return (
     <ControlRoomCategoryShell sectionId="agents" state={state}>
-      <section className="grid min-w-0 gap-4">
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader
-            title="Agent Control Plane"
-            description={`${state.agentControlPlane.rosterRows?.length || 0} agent roles with durable pause, resume, scoped-run, report, and handoff history.`}
-            action={<ToneBadge tone={state.agentControlPlane.tone}>{state.agentControlPlane.status}</ToneBadge>}
-          />
-          <AgentControlPlanePanel state={state} sessionToken={sessionToken} />
-        </Card>
-      </section>
+      <ControlRoomRoomTabs
+        label="Agent room sections"
+        tabs={[
+          {
+            id: "control-plane",
+            label: "Control plane",
+            helper: "Roster + requests",
+            icon: "users",
+            content: (
+              <section className="grid min-w-0 gap-4">
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader
+                    title="Agent Control Plane"
+                    description={`${state.agentControlPlane.rosterRows?.length || 0} agent roles with durable pause, resume, scoped-run, report, and handoff history.`}
+                    action={<ToneBadge tone={state.agentControlPlane.tone}>{state.agentControlPlane.status}</ToneBadge>}
+                  />
+                  <AgentControlPlanePanel state={state} sessionToken={sessionToken} />
+                </Card>
+              </section>
+            ),
+          },
+          {
+            id: "queue",
+            label: "Queue",
+            helper: "Work + ledger",
+            icon: "layers",
+            content: (
+              <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader
+                    title="Agent Work Queue"
+                    description={`${state.agentWorkQueue.availableTaskCount || 0} review-only task types across ${state.agentWorkQueue.visibleTargetCount || 0} visible targets.`}
+                    action={<ToneBadge tone={state.agentWorkQueue.tone}>{state.agentWorkQueue.status}</ToneBadge>}
+                  />
+                  {state.agentWorkQueue.taskRows.length ? (
+                    <div className="grid min-w-0 gap-3 lg:grid-cols-2">
+                      {state.agentWorkQueue.taskRows.map((item) => <StatusRow key={item.id} item={item} />)}
+                    </div>
+                  ) : (
+                    <EmptyPanel>No review-only agent tasks are available for visible records.</EmptyPanel>
+                  )}
+                </Card>
 
-      <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader
-            title="Agent Work Queue"
-            description={`${state.agentWorkQueue.availableTaskCount || 0} review-only task types across ${state.agentWorkQueue.visibleTargetCount || 0} visible targets.`}
-            action={<ToneBadge tone={state.agentWorkQueue.tone}>{state.agentWorkQueue.status}</ToneBadge>}
-          />
-          {state.agentWorkQueue.taskRows.length ? (
-            <div className="grid min-w-0 gap-3 lg:grid-cols-2">
-              {state.agentWorkQueue.taskRows.map((item) => <StatusRow key={item.id} item={item} />)}
-            </div>
-          ) : (
-            <EmptyPanel>No review-only agent tasks are available for visible records.</EmptyPanel>
-          )}
-        </Card>
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader
+                    title="Agent Run Ledger"
+                    description={`${state.agentWorkQueue.recentRunCount || 0} recent audit-backed run rows.`}
+                  />
+                  {state.agentWorkQueue.runRows.length ? (
+                    <div className="grid min-w-0 gap-3">
+                      {state.agentWorkQueue.runRows.map((item) => <StatusRow key={item.id} item={item} />)}
+                    </div>
+                  ) : (
+                    <EmptyPanel>No recent Agent OS run rows are visible yet.</EmptyPanel>
+                  )}
+                </Card>
+              </section>
+            ),
+          },
+          {
+            id: "handoffs",
+            label: "Handoffs",
+            helper: "Draft packages",
+            icon: "clipboard",
+            content: (
+              <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader title="Agent Safety Locks" description="What this queue still cannot do." />
+                  <div className="grid min-w-0 gap-3">
+                    {state.agentWorkQueue.safetyRows.map((item) => <StatusRow key={item.id} item={item} />)}
+                  </div>
+                </Card>
 
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader
-            title="Agent Run Ledger"
-            description={`${state.agentWorkQueue.recentRunCount || 0} recent audit-backed run rows.`}
-          />
-          {state.agentWorkQueue.runRows.length ? (
-            <div className="grid min-w-0 gap-3">
-              {state.agentWorkQueue.runRows.map((item) => <StatusRow key={item.id} item={item} />)}
-            </div>
-          ) : (
-            <EmptyPanel>No recent Agent OS run rows are visible yet.</EmptyPanel>
-          )}
-        </Card>
-      </section>
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader
+                    title="Agent Handoff Drafts"
+                    description={`${state.executionHandoffs.handoffSummary?.total || 0} durable handoffs prepare scoped agent work packages without running them.`}
+                    action={<ToneBadge tone={state.executionHandoffs.tone}>{state.executionHandoffs.status}</ToneBadge>}
+                  />
+                  <ExecutionHandoffDraftPanel state={state} sessionToken={sessionToken} />
+                </Card>
+              </section>
+            ),
+          },
+          {
+            id: "locked",
+            label: "Locked",
+            helper: "Tasks + locks",
+            icon: "lock",
+            content: (
+              <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader
+                    title="Locked Agent Tasks"
+                    description={`${state.agentWorkQueue.lockedTaskCount || 0} task types are locked or have no visible targets.`}
+                  />
+                  {state.agentWorkQueue.lockedRows.length ? (
+                    <div className="grid min-w-0 gap-3 lg:grid-cols-2">
+                      {state.agentWorkQueue.lockedRows.map((item) => <StatusRow key={item.id} item={item} />)}
+                    </div>
+                  ) : (
+                    <EmptyPanel>No locked agent task rows are visible.</EmptyPanel>
+                  )}
+                </Card>
 
-      <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader title="Agent Safety Locks" description="What this queue still cannot do." />
-          <div className="grid min-w-0 gap-3">
-            {state.agentWorkQueue.safetyRows.map((item) => <StatusRow key={item.id} item={item} />)}
-          </div>
-        </Card>
-
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader
-            title="Agent Handoff Drafts"
-            description={`${state.executionHandoffs.handoffSummary?.total || 0} durable handoffs prepare scoped agent work packages without running them.`}
-            action={<ToneBadge tone={state.executionHandoffs.tone}>{state.executionHandoffs.status}</ToneBadge>}
-          />
-          <ExecutionHandoffDraftPanel state={state} sessionToken={sessionToken} />
-        </Card>
-      </section>
-
-      <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader
-            title="Locked Agent Tasks"
-            description={`${state.agentWorkQueue.lockedTaskCount || 0} task types are locked or have no visible targets.`}
-          />
-          {state.agentWorkQueue.lockedRows.length ? (
-            <div className="grid min-w-0 gap-3 lg:grid-cols-2">
-              {state.agentWorkQueue.lockedRows.map((item) => <StatusRow key={item.id} item={item} />)}
-            </div>
-          ) : (
-            <EmptyPanel>No locked agent task rows are visible.</EmptyPanel>
-          )}
-        </Card>
-
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader title="Handoff Execution Locks" description="Prepared handoffs cannot cross approval boundaries by themselves." />
-          <div className="grid min-w-0 gap-3">
-            <StatusRow item={{
-              id: "handoff-no-queue",
-              title: "No agent queueing",
-              status: "Locked",
-              detail: "Handoff drafts do not call Agent OS queue, run, or execution endpoints.",
-              tone: "amber",
-            }} />
-            <StatusRow item={{
-              id: "handoff-no-external",
-              title: "No external actions",
-              status: "Locked",
-              detail: "Deploy, sends, spend, provider setup, customer-visible changes, production mutation, and deletion remain outside this flow.",
-              tone: "amber",
-            }} />
-          </div>
-        </Card>
-      </section>
-
-      <section className="grid min-w-0 gap-4 xl:grid-cols-2">
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader title="Agent Control" description="Read-only agent posture for the first slice." />
-          <div className="grid min-w-0 gap-3">
-            {state.agents.map((item) => <StatusRow key={item.id} item={item} />)}
-          </div>
-        </Card>
-      </section>
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader title="Handoff Execution Locks" description="Prepared handoffs cannot cross approval boundaries by themselves." />
+                  <div className="grid min-w-0 gap-3">
+                    <StatusRow item={{
+                      id: "handoff-no-queue",
+                      title: "No agent queueing",
+                      status: "Locked",
+                      detail: "Handoff drafts do not call Agent OS queue, run, or execution endpoints.",
+                      tone: "amber",
+                    }} />
+                    <StatusRow item={{
+                      id: "handoff-no-external",
+                      title: "No external actions",
+                      status: "Locked",
+                      detail: "Deploy, sends, spend, provider setup, customer-visible changes, production mutation, and deletion remain outside this flow.",
+                      tone: "amber",
+                    }} />
+                  </div>
+                </Card>
+              </section>
+            ),
+          },
+          {
+            id: "posture",
+            label: "Posture",
+            helper: "Agent status",
+            icon: "check",
+            content: (
+              <section className="grid min-w-0 gap-4 xl:grid-cols-2">
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader title="Agent Control" description="Read-only agent posture for the first slice." />
+                  <div className="grid min-w-0 gap-3">
+                    {state.agents.map((item) => <StatusRow key={item.id} item={item} />)}
+                  </div>
+                </Card>
+              </section>
+            ),
+          },
+        ]}
+      />
     </ControlRoomCategoryShell>
   );
 }
@@ -4451,59 +4657,79 @@ function ControlRoomAgentsSection({ state, sessionToken }) {
 function ControlRoomApprovalsSection({ state, sessionToken }) {
   return (
     <ControlRoomCategoryShell sectionId="approvals" state={state}>
-      <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader
-            title="Approval Command Center"
-            description={`${state.approvalCommandCenter.queueCount || 0} risky-action categories require scoped owner approval packets.`}
-            action={<ToneBadge tone={state.approvalCommandCenter.tone}>{state.approvalCommandCenter.status}</ToneBadge>}
-          />
-          <div className="grid min-w-0 gap-3 lg:grid-cols-2">
-            {state.approvalCommandCenter.queueRows.map((item) => <StatusRow key={item.id} item={item} />)}
-          </div>
-        </Card>
+      <ControlRoomRoomTabs
+        label="Approval room sections"
+        tabs={[
+          {
+            id: "queue",
+            label: "Queue",
+            helper: "Risk categories",
+            icon: "lock",
+            content: (
+              <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader
+                    title="Approval Command Center"
+                    description={`${state.approvalCommandCenter.queueCount || 0} risky-action categories require scoped owner approval packets.`}
+                    action={<ToneBadge tone={state.approvalCommandCenter.tone}>{state.approvalCommandCenter.status}</ToneBadge>}
+                  />
+                  <div className="grid min-w-0 gap-3 lg:grid-cols-2">
+                    {state.approvalCommandCenter.queueRows.map((item) => <StatusRow key={item.id} item={item} />)}
+                  </div>
+                </Card>
 
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader title="Approval Packet Drafts" description={`${state.approvalCommandCenter.packetFieldCount || 0} fields guide ready packets before any risky work can be approved.`} />
-          <ApprovalPacketDraftPanel state={state} sessionToken={sessionToken} />
-        </Card>
-      </section>
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader title="Approval Packet Drafts" description={`${state.approvalCommandCenter.packetFieldCount || 0} fields guide ready packets before any risky work can be approved.`} />
+                  <ApprovalPacketDraftPanel state={state} sessionToken={sessionToken} />
+                </Card>
+              </section>
+            ),
+          },
+          {
+            id: "controls",
+            label: "Controls",
+            helper: "Decisions only",
+            icon: "check",
+            content: (
+              <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader title="Approval Controls" description="Approve, reject, and defer are durable review decisions on packets. Execution remains separate and locked." />
+                  <div className="grid min-w-0 gap-3">
+                    {state.approvalCommandCenter.controlRows.map((item) => <StatusRow key={item.id} item={item} />)}
+                  </div>
+                  <div className="mt-4 flex min-w-0 flex-wrap gap-2">
+                    <Button type="button" disabled variant="secondary" size="sm">
+                      <Icon name="check" /> Packet approval only
+                    </Button>
+                    <Button type="button" disabled variant="secondary" size="sm">
+                      <Icon name="alert" /> Packet reject only
+                    </Button>
+                    <Button type="button" disabled variant="secondary" size="sm">
+                      <Icon name="clock" /> Packet defer only
+                    </Button>
+                    <Button type="button" disabled variant="secondary" size="sm">
+                      <Icon name="lock" /> Execute locked
+                    </Button>
+                  </div>
+                  <div className="mt-4">
+                    <SectionHeader title="Approval Templates" description={`${state.approvalCommandCenter.templateCount || 0} packet templates define phrase and evidence expectations.`} />
+                    <div className="grid min-w-0 gap-3">
+                      {state.approvalCommandCenter.templateRows.map((item) => <StatusRow key={item.id} item={item} />)}
+                    </div>
+                  </div>
+                </Card>
 
-      <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader title="Approval Controls" description="Approve, reject, and defer are durable review decisions on packets. Execution remains separate and locked." />
-          <div className="grid min-w-0 gap-3">
-            {state.approvalCommandCenter.controlRows.map((item) => <StatusRow key={item.id} item={item} />)}
-          </div>
-          <div className="mt-4 flex min-w-0 flex-wrap gap-2">
-            <Button type="button" disabled variant="secondary" size="sm">
-              <Icon name="check" /> Packet approval only
-            </Button>
-            <Button type="button" disabled variant="secondary" size="sm">
-              <Icon name="alert" /> Packet reject only
-            </Button>
-            <Button type="button" disabled variant="secondary" size="sm">
-              <Icon name="clock" /> Packet defer only
-            </Button>
-            <Button type="button" disabled variant="secondary" size="sm">
-              <Icon name="lock" /> Execute locked
-            </Button>
-          </div>
-          <div className="mt-4">
-            <SectionHeader title="Approval Templates" description={`${state.approvalCommandCenter.templateCount || 0} packet templates define phrase and evidence expectations.`} />
-            <div className="grid min-w-0 gap-3">
-              {state.approvalCommandCenter.templateRows.map((item) => <StatusRow key={item.id} item={item} />)}
-            </div>
-          </div>
-        </Card>
-
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader title="Approval Sources" description={`${state.approvalCommandCenter.sourceCount || 0} surfaces feeding approval packets.`} />
-          <div className="grid min-w-0 gap-3">
-            {state.approvalCommandCenter.sourceRows.map((item) => <StatusRow key={item.id} item={item} />)}
-          </div>
-        </Card>
-      </section>
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader title="Approval Sources" description={`${state.approvalCommandCenter.sourceCount || 0} surfaces feeding approval packets.`} />
+                  <div className="grid min-w-0 gap-3">
+                    {state.approvalCommandCenter.sourceRows.map((item) => <StatusRow key={item.id} item={item} />)}
+                  </div>
+                </Card>
+              </section>
+            ),
+          },
+        ]}
+      />
     </ControlRoomCategoryShell>
   );
 }
@@ -4511,70 +4737,104 @@ function ControlRoomApprovalsSection({ state, sessionToken }) {
 function ControlRoomReleaseSection({ state, sessionToken }) {
   return (
     <ControlRoomCategoryShell sectionId="release" state={state}>
-      <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader
-            title="Release Monitoring"
-            description={`${state.releaseMonitoring.readinessCount || 0} release and monitoring checks are mapped for private review.`}
-            action={<ToneBadge tone={state.releaseMonitoring.tone}>{state.releaseMonitoring.status}</ToneBadge>}
-          />
-          <ReleaseMonitoringPanel state={state} sessionToken={sessionToken} />
-        </Card>
+      <ControlRoomRoomTabs
+        label="Release room sections"
+        tabs={[
+          {
+            id: "monitoring",
+            label: "Monitoring",
+            helper: "Release + briefing",
+            icon: "refresh",
+            content: (
+              <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader
+                    title="Release Monitoring"
+                    description={`${state.releaseMonitoring.readinessCount || 0} release and monitoring checks are mapped for private review.`}
+                    action={<ToneBadge tone={state.releaseMonitoring.tone}>{state.releaseMonitoring.status}</ToneBadge>}
+                  />
+                  <ReleaseMonitoringPanel state={state} sessionToken={sessionToken} />
+                </Card>
 
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader title="Daily Briefing" description={`${state.releaseMonitoring.briefingCount || 0} briefing rows for John-only review.`} />
-          <DailyBriefingPanel state={state} sessionToken={sessionToken} />
-        </Card>
-      </section>
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader title="Daily Briefing" description={`${state.releaseMonitoring.briefingCount || 0} briefing rows for John-only review.`} />
+                  <DailyBriefingPanel state={state} sessionToken={sessionToken} />
+                </Card>
+              </section>
+            ),
+          },
+          {
+            id: "build",
+            label: "Build",
+            helper: "Code awareness",
+            icon: "layers",
+            content: (
+              <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+                <Card className="min-w-0 p-4 sm:p-5 xl:col-span-2">
+                  <SectionHeader
+                    title="App Build Awareness"
+                    description="Current branch, changed files, build/test signals, release evidence, frozen phases, and next safe task."
+                    action={<ToneBadge tone={state.buildAwareness.tone}>{state.buildAwareness.status}</ToneBadge>}
+                  />
+                  <BuildAwarenessPanel state={state} sessionToken={sessionToken} />
+                </Card>
+              </section>
+            ),
+          },
+          {
+            id: "packet",
+            label: "Packet",
+            helper: "Readiness + locks",
+            icon: "clipboard",
+            content: (
+              <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader title="Release Readiness Packet" description={`${state.releaseMonitoring.packetCount || 0} packet rows before any release approval.`} />
+                  <div className="grid min-w-0 gap-3 lg:grid-cols-2">
+                    {state.releaseMonitoring.releasePacketRows.map((item) => <StatusRow key={item.id} item={item} />)}
+                  </div>
+                </Card>
 
-      <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
-        <Card className="min-w-0 p-4 sm:p-5 xl:col-span-2">
-          <SectionHeader
-            title="App Build Awareness"
-            description="Current branch, changed files, build/test signals, release evidence, frozen phases, and next safe task."
-            action={<ToneBadge tone={state.buildAwareness.tone}>{state.buildAwareness.status}</ToneBadge>}
-          />
-          <BuildAwarenessPanel state={state} sessionToken={sessionToken} />
-        </Card>
-      </section>
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader title="Monitoring Locks" description="Monitoring is read-only until provider and deploy approval exists." />
+                  <div className="grid min-w-0 gap-3">
+                    {state.releaseMonitoring.lockRows.map((item) => <StatusRow key={item.id} item={item} />)}
+                  </div>
+                </Card>
+              </section>
+            ),
+          },
+          {
+            id: "desk",
+            label: "Release desk",
+            helper: "Launch + deploy desk",
+            icon: "upload",
+            content: (
+              <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader
+                    title="Launch Readiness"
+                    description={`${state.launchReadiness.readyCount || 0} of ${state.launchReadiness.totalCount || 0} gates ready.`}
+                    action={<ToneBadge tone={state.launchReadiness.tone}>{state.launchReadiness.status}</ToneBadge>}
+                  />
+                  <div className="grid min-w-0 gap-3">
+                    {state.launchReadiness.gates.map((item) => <StatusRow key={item.id} item={item} />)}
+                  </div>
+                </Card>
 
-      <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader title="Release Readiness Packet" description={`${state.releaseMonitoring.packetCount || 0} packet rows before any release approval.`} />
-          <div className="grid min-w-0 gap-3 lg:grid-cols-2">
-            {state.releaseMonitoring.releasePacketRows.map((item) => <StatusRow key={item.id} item={item} />)}
-          </div>
-        </Card>
-
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader title="Monitoring Locks" description="Monitoring is read-only until provider and deploy approval exists." />
-          <div className="grid min-w-0 gap-3">
-            {state.releaseMonitoring.lockRows.map((item) => <StatusRow key={item.id} item={item} />)}
-          </div>
-        </Card>
-      </section>
-
-      <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader
-            title="Launch Readiness"
-            description={`${state.launchReadiness.readyCount || 0} of ${state.launchReadiness.totalCount || 0} gates ready.`}
-            action={<ToneBadge tone={state.launchReadiness.tone}>{state.launchReadiness.status}</ToneBadge>}
-          />
-          <div className="grid min-w-0 gap-3">
-            {state.launchReadiness.gates.map((item) => <StatusRow key={item.id} item={item} />)}
-          </div>
-        </Card>
-
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader
-            title="Release Desk"
-            description="Production preview, release packet, deploy history, rollback, and locked approval flow."
-            action={<ToneBadge tone={state.releaseDesk.tone}>{state.releaseDesk.status}</ToneBadge>}
-          />
-          <ReleaseDeskPanel state={state} sessionToken={sessionToken} />
-        </Card>
-      </section>
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader
+                    title="Release Desk"
+                    description="Production preview, release packet, deploy history, rollback, and locked approval flow."
+                    action={<ToneBadge tone={state.releaseDesk.tone}>{state.releaseDesk.status}</ToneBadge>}
+                  />
+                  <ReleaseDeskPanel state={state} sessionToken={sessionToken} />
+                </Card>
+              </section>
+            ),
+          },
+        ]}
+      />
     </ControlRoomCategoryShell>
   );
 }
@@ -4582,68 +4842,102 @@ function ControlRoomReleaseSection({ state, sessionToken }) {
 function ControlRoomBusinessSection({ state }) {
   return (
     <ControlRoomCategoryShell sectionId="business" state={state}>
-      <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader
-            title="Business Command Center"
-            description={`${state.businessCommandCenter.queueCount || 0} private business queues for Apex HQ growth and launch work.`}
-            action={<ToneBadge tone={state.businessCommandCenter.tone}>{state.businessCommandCenter.status}</ToneBadge>}
-          />
-          <div className="grid min-w-0 gap-3 lg:grid-cols-2">
-            {state.businessCommandCenter.queueRows.map((item) => <StatusRow key={item.id} item={item} />)}
-          </div>
-        </Card>
+      <ControlRoomRoomTabs
+        label="Business room sections"
+        tabs={[
+          {
+            id: "command",
+            label: "Command",
+            helper: "Queues + gates",
+            icon: "briefcase",
+            content: (
+              <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader
+                    title="Business Command Center"
+                    description={`${state.businessCommandCenter.queueCount || 0} private business queues for Apex HQ growth and launch work.`}
+                    action={<ToneBadge tone={state.businessCommandCenter.tone}>{state.businessCommandCenter.status}</ToneBadge>}
+                  />
+                  <div className="grid min-w-0 gap-3 lg:grid-cols-2">
+                    {state.businessCommandCenter.queueRows.map((item) => <StatusRow key={item.id} item={item} />)}
+                  </div>
+                </Card>
 
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader title="Business Gates" description={`${state.businessCommandCenter.gateCount || 0} gates keep business actions manual.`} />
-          <div className="grid min-w-0 gap-3">
-            {state.businessCommandCenter.gateRows.map((item) => <StatusRow key={item.id} item={item} />)}
-          </div>
-        </Card>
-      </section>
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader title="Business Gates" description={`${state.businessCommandCenter.gateCount || 0} gates keep business actions manual.`} />
+                  <div className="grid min-w-0 gap-3">
+                    {state.businessCommandCenter.gateRows.map((item) => <StatusRow key={item.id} item={item} />)}
+                  </div>
+                </Card>
+              </section>
+            ),
+          },
+          {
+            id: "launch",
+            label: "Launch",
+            helper: "Demo + briefing",
+            icon: "spark",
+            content: (
+              <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader title="Launch / Founder Demo" description={`${state.businessCommandCenter.launchCount || 0} launch and founder-led demo readiness rows.`} />
+                  <div className="grid min-w-0 gap-3">
+                    {state.businessCommandCenter.launchRows.map((item) => <StatusRow key={item.id} item={item} />)}
+                  </div>
+                </Card>
 
-      <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader title="Launch / Founder Demo" description={`${state.businessCommandCenter.launchCount || 0} launch and founder-led demo readiness rows.`} />
-          <div className="grid min-w-0 gap-3">
-            {state.businessCommandCenter.launchRows.map((item) => <StatusRow key={item.id} item={item} />)}
-          </div>
-        </Card>
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader title="Business Briefing" description={`${state.businessCommandCenter.briefingCount || 0} John-only business briefing rows.`} />
+                  <div className="grid min-w-0 gap-3">
+                    {state.businessCommandCenter.briefingRows.map((item) => <StatusRow key={item.id} item={item} />)}
+                  </div>
+                </Card>
+              </section>
+            ),
+          },
+          {
+            id: "drafts",
+            label: "Drafts",
+            helper: "Memory + tasks",
+            icon: "clipboard",
+            content: (
+              <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader title="Business Source Memory" description={`${state.businessCommandCenter.memorySourceCount || 0} approved business memory rows feeding private planning.`} />
+                  <div className="grid min-w-0 gap-3">
+                    {state.businessCommandCenter.memoryRows.length
+                      ? state.businessCommandCenter.memoryRows.map((item) => <StatusRow key={item.id} item={item} />)
+                      : <EmptyPanel>No approved business memory is feeding Phase 10 yet. Approve relevant business strategy, marketing/sales, customer research, legal/risk, or owner-note rows before treating them as source context.</EmptyPanel>}
+                  </div>
+                </Card>
 
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader title="Business Briefing" description={`${state.businessCommandCenter.briefingCount || 0} John-only business briefing rows.`} />
-          <div className="grid min-w-0 gap-3">
-            {state.businessCommandCenter.briefingRows.map((item) => <StatusRow key={item.id} item={item} />)}
-          </div>
-        </Card>
-      </section>
-
-      <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader title="Business Source Memory" description={`${state.businessCommandCenter.memorySourceCount || 0} approved business memory rows feeding private planning.`} />
-          <div className="grid min-w-0 gap-3">
-            {state.businessCommandCenter.memoryRows.length
-              ? state.businessCommandCenter.memoryRows.map((item) => <StatusRow key={item.id} item={item} />)
-              : <EmptyPanel>No approved business memory is feeding Phase 10 yet. Approve relevant business strategy, marketing/sales, customer research, legal/risk, or owner-note rows before treating them as source context.</EmptyPanel>}
-          </div>
-        </Card>
-
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader title="Business Task Drafts" description={`${state.businessCommandCenter.taskDraftCount || 0} private task drafts mapped to existing handoff workflow.`} />
-          <div className="grid min-w-0 gap-3">
-            {state.businessCommandCenter.taskDraftRows.map((item) => <StatusRow key={item.id} item={item} />)}
-          </div>
-        </Card>
-      </section>
-
-      <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)]">
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader title="Business Approval Drafts" description={`${state.businessCommandCenter.approvalDraftCount || 0} packet drafts for sends, publishing, billing, customer-visible work, and business operations.`} />
-          <div className="grid min-w-0 gap-3 lg:grid-cols-2">
-            {state.businessCommandCenter.approvalDraftRows.map((item) => <StatusRow key={item.id} item={item} />)}
-          </div>
-        </Card>
-      </section>
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader title="Business Task Drafts" description={`${state.businessCommandCenter.taskDraftCount || 0} private task drafts mapped to existing handoff workflow.`} />
+                  <div className="grid min-w-0 gap-3">
+                    {state.businessCommandCenter.taskDraftRows.map((item) => <StatusRow key={item.id} item={item} />)}
+                  </div>
+                </Card>
+              </section>
+            ),
+          },
+          {
+            id: "approval-drafts",
+            label: "Approvals",
+            helper: "Packet drafts",
+            icon: "lock",
+            content: (
+              <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)]">
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader title="Business Approval Drafts" description={`${state.businessCommandCenter.approvalDraftCount || 0} packet drafts for sends, publishing, billing, customer-visible work, and business operations.`} />
+                  <div className="grid min-w-0 gap-3 lg:grid-cols-2">
+                    {state.businessCommandCenter.approvalDraftRows.map((item) => <StatusRow key={item.id} item={item} />)}
+                  </div>
+                </Card>
+              </section>
+            ),
+          },
+        ]}
+      />
     </ControlRoomCategoryShell>
   );
 }
@@ -4651,103 +4945,137 @@ function ControlRoomBusinessSection({ state }) {
 function ControlRoomTrustSection({ state }) {
   return (
     <ControlRoomCategoryShell sectionId="trust" state={state}>
-      <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader
-            title="Finished Apex OS"
-            description={`${state.finishedApexOs.readyCount || 0} of ${state.finishedApexOs.capabilityCount || 0} finished capabilities are assembled for day-to-day Apex HQ operation.`}
-            action={<ToneBadge tone={state.finishedApexOs.tone}>{state.finishedApexOs.status}</ToneBadge>}
-          />
-          <div className="grid min-w-0 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
-            {state.finishedApexOs.capabilityRows.map((item) => <StatusRow key={item.id} item={item} />)}
-          </div>
-        </Card>
+      <ControlRoomRoomTabs
+        label="Trust room sections"
+        tabs={[
+          {
+            id: "finished",
+            label: "Finished OS",
+            helper: "Capabilities",
+            icon: "check",
+            content: (
+              <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader
+                    title="Finished Apex OS"
+                    description={`${state.finishedApexOs.readyCount || 0} of ${state.finishedApexOs.capabilityCount || 0} finished capabilities are assembled for day-to-day Apex HQ operation.`}
+                    action={<ToneBadge tone={state.finishedApexOs.tone}>{state.finishedApexOs.status}</ToneBadge>}
+                  />
+                  <div className="grid min-w-0 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+                    {state.finishedApexOs.capabilityRows.map((item) => <StatusRow key={item.id} item={item} />)}
+                  </div>
+                </Card>
 
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader title="Day-to-Day Run Loop" description={`${state.finishedApexOs.runLoopCount || 0} owner workflows Apex OS can coordinate from the private cockpit.`} />
-          <div className="grid min-w-0 gap-3">
-            {state.finishedApexOs.runLoopRows.map((item) => <StatusRow key={item.id} item={item} />)}
-          </div>
-        </Card>
-      </section>
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader title="Day-to-Day Run Loop" description={`${state.finishedApexOs.runLoopCount || 0} owner workflows Apex OS can coordinate from the private cockpit.`} />
+                  <div className="grid min-w-0 gap-3">
+                    {state.finishedApexOs.runLoopRows.map((item) => <StatusRow key={item.id} item={item} />)}
+                  </div>
+                </Card>
+              </section>
+            ),
+          },
+          {
+            id: "freeze",
+            label: "Freeze",
+            helper: "Blocked actions",
+            icon: "lock",
+            content: (
+              <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader title="Completion Freeze" description={`${state.finishedApexOs.freezeCount || 0} final freeze rows before closing Apex OS completion.`} />
+                  <div className="grid min-w-0 gap-3">
+                    {state.finishedApexOs.freezeRows.map((item) => <StatusRow key={item.id} item={item} />)}
+                  </div>
+                </Card>
 
-      <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader title="Completion Freeze" description={`${state.finishedApexOs.freezeCount || 0} final freeze rows before closing Apex OS completion.`} />
-          <div className="grid min-w-0 gap-3">
-            {state.finishedApexOs.freezeRows.map((item) => <StatusRow key={item.id} item={item} />)}
-          </div>
-        </Card>
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader title="Still Blocked" description={`${state.finishedApexOs.blockedActionCount || 0} external action classes stay locked after Apex OS completion.`} />
+                  <div className="grid min-w-0 gap-3 lg:grid-cols-2">
+                    {state.finishedApexOs.blockedActionRows.map((item) => <StatusRow key={item.id} item={item} />)}
+                  </div>
+                </Card>
+              </section>
+            ),
+          },
+          {
+            id: "hardening",
+            label: "Hardening",
+            helper: "QA evidence",
+            icon: "alert",
+            content: (
+              <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader
+                    title="QA / Security Hardening"
+                    description={`${state.qaSecurityHardening.evidenceCount || 0} final hardening rows before Apex OS is treated as complete.`}
+                    action={<ToneBadge tone={state.qaSecurityHardening.tone}>{state.qaSecurityHardening.status}</ToneBadge>}
+                  />
+                  <div className="grid min-w-0 gap-3 lg:grid-cols-2">
+                    {state.qaSecurityHardening.evidenceRows.map((item) => <StatusRow key={item.id} item={item} />)}
+                  </div>
+                </Card>
 
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader title="Still Blocked" description={`${state.finishedApexOs.blockedActionCount || 0} external action classes stay locked after Apex OS completion.`} />
-          <div className="grid min-w-0 gap-3 lg:grid-cols-2">
-            {state.finishedApexOs.blockedActionRows.map((item) => <StatusRow key={item.id} item={item} />)}
-          </div>
-        </Card>
-      </section>
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader title="Hardening Locks" description={`${state.qaSecurityHardening.lockCount || 0} action classes stay approval-locked.`} />
+                  <div className="grid min-w-0 gap-3">
+                    {state.qaSecurityHardening.lockRows.map((item) => <StatusRow key={item.id} item={item} />)}
+                  </div>
+                </Card>
+              </section>
+            ),
+          },
+          {
+            id: "audit",
+            label: "Audit",
+            helper: "Proof sources",
+            icon: "clipboard",
+            content: (
+              <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader title="Completion Audit" description="What has to be proven before the active Apex OS goal can be closed." />
+                  <div className="grid min-w-0 gap-3">
+                    <StatusRow item={{
+                      id: "completion-local",
+                      title: "Local completion",
+                      status: state.qaSecurityHardening.status,
+                      detail: "Phase 17 completion depends on current role tests, route checks, no-secrets proof, source citations, visual QA, production smoke evidence, and docs drift checks.",
+                      tone: state.qaSecurityHardening.tone,
+                    }} />
+                    <StatusRow item={{
+                      id: "completion-production",
+                      title: "Production / provider boundary",
+                      status: "Approval required",
+                      detail: "Deploys and rollbacks stay outside the UI and use backup-first manual release evidence; provider setup, live sends, customer-visible changes, and production mutations remain approval-locked.",
+                      tone: "amber",
+                    }} />
+                  </div>
+                </Card>
 
-      <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader
-            title="QA / Security Hardening"
-            description={`${state.qaSecurityHardening.evidenceCount || 0} final hardening rows before Apex OS is treated as complete.`}
-            action={<ToneBadge tone={state.qaSecurityHardening.tone}>{state.qaSecurityHardening.status}</ToneBadge>}
-          />
-          <div className="grid min-w-0 gap-3 lg:grid-cols-2">
-            {state.qaSecurityHardening.evidenceRows.map((item) => <StatusRow key={item.id} item={item} />)}
-          </div>
-        </Card>
-
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader title="Hardening Locks" description={`${state.qaSecurityHardening.lockCount || 0} action classes stay approval-locked.`} />
-          <div className="grid min-w-0 gap-3">
-            {state.qaSecurityHardening.lockRows.map((item) => <StatusRow key={item.id} item={item} />)}
-          </div>
-        </Card>
-      </section>
-
-      <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader title="Completion Audit" description="What has to be proven before the active Apex OS goal can be closed." />
-          <div className="grid min-w-0 gap-3">
-            <StatusRow item={{
-              id: "completion-local",
-              title: "Local completion",
-              status: state.qaSecurityHardening.status,
-              detail: "Phase 17 completion depends on current role tests, route checks, no-secrets proof, source citations, visual QA, production smoke evidence, and docs drift checks.",
-              tone: state.qaSecurityHardening.tone,
-            }} />
-            <StatusRow item={{
-              id: "completion-production",
-              title: "Production / provider boundary",
-              status: "Approval required",
-              detail: "Deploys and rollbacks stay outside the UI and use backup-first manual release evidence; provider setup, live sends, customer-visible changes, and production mutations remain approval-locked.",
-              tone: "amber",
-            }} />
-          </div>
-        </Card>
-
-        <Card className="min-w-0 p-4 sm:p-5">
-          <SectionHeader title="Security Proof Sources" description="The private surfaces feeding this hardening pass." />
-          <div className="grid min-w-0 gap-3 lg:grid-cols-2">
-            <StatusRow item={{
-              id: "proof-ask-apex",
-              title: "Ask Apex / Knowledge Vault",
-              status: "Private intake",
-              detail: "Chat, evidence, and vault intake stay private with no provider calls, embeddings, public publishing, or customer upload mixing.",
-              tone: "blue",
-            }} />
-            <StatusRow item={{
-              id: "proof-voice-approval",
-              title: "Voice / Approval Center",
-              status: "Review-only",
-              detail: "Voice can capture local transcripts, but risky spoken or clicked actions cannot execute without approval boundaries.",
-              tone: "amber",
-            }} />
-          </div>
-        </Card>
-      </section>
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader title="Security Proof Sources" description="The private surfaces feeding this hardening pass." />
+                  <div className="grid min-w-0 gap-3 lg:grid-cols-2">
+                    <StatusRow item={{
+                      id: "proof-ask-apex",
+                      title: "Ask Apex / Knowledge Vault",
+                      status: "Private intake",
+                      detail: "Chat, evidence, and vault intake stay private with no provider calls, embeddings, public publishing, or customer upload mixing.",
+                      tone: "blue",
+                    }} />
+                    <StatusRow item={{
+                      id: "proof-voice-approval",
+                      title: "Voice / Approval Center",
+                      status: "Review-only",
+                      detail: "Voice can capture local transcripts, but risky spoken or clicked actions cannot execute without approval boundaries.",
+                      tone: "amber",
+                    }} />
+                  </div>
+                </Card>
+              </section>
+            ),
+          },
+        ]}
+      />
     </ControlRoomCategoryShell>
   );
 }
