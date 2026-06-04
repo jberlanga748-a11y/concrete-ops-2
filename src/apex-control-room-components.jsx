@@ -211,13 +211,19 @@ async function playApexVoiceAudio({ audioBase64 = "", contentType = "audio/mpeg"
   }
 }
 
-function speakWithBrowserVoice(text, { onEnd, onError } = {}) {
+function speakWithBrowserVoice(text, { onEnd, onError, rate = 0.98, pitch = 1, voiceHint = "" } = {}) {
   if (typeof window === "undefined" || !window.speechSynthesis || typeof SpeechSynthesisUtterance === "undefined") {
     return false;
   }
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 0.98;
-  utterance.pitch = 1;
+  utterance.rate = rate;
+  utterance.pitch = pitch;
+  const voices = typeof window.speechSynthesis.getVoices === "function" ? window.speechSynthesis.getVoices() : [];
+  const normalizedHint = String(voiceHint || "").toLowerCase();
+  const matchedVoice = normalizedHint
+    ? voices.find((voice) => String(voice.name || "").toLowerCase().includes(normalizedHint))
+    : null;
+  if (matchedVoice) utterance.voice = matchedVoice;
   utterance.onend = () => onEnd?.();
   utterance.onerror = () => onError?.();
   window.speechSynthesis.cancel();
@@ -3725,7 +3731,45 @@ const APEX_COCKPIT_SILENCE_MS = 1300;
 const APEX_COCKPIT_MIN_TURN_MS = 850;
 const APEX_COCKPIT_LEVEL_THRESHOLD = 0.035;
 const APEX_COCKPIT_IDLE_LEVEL_THRESHOLD = 0.018;
+const APEX_COCKPIT_BARGE_IN_THRESHOLD = 0.066;
+const APEX_COCKPIT_BARGE_IN_GRACE_MS = 700;
 const APEX_COCKPIT_PREROLL_CHUNKS = 2;
+
+const APEX_COCKPIT_VOICE_PROFILES = Object.freeze([
+  { id: "alloy", label: "Alloy", detail: "Balanced operator", rate: 0.98, pitch: 1 },
+  { id: "verse", label: "Verse", detail: "Warmer command", rate: 0.96, pitch: 0.98 },
+  { id: "ash", label: "Ash", detail: "Lower and direct", rate: 0.94, pitch: 0.92 },
+  { id: "sage", label: "Sage", detail: "Calm briefing", rate: 0.96, pitch: 1.03 },
+]);
+
+const APEX_COCKPIT_PERSONALITY_MODES = Object.freeze([
+  {
+    id: "operator",
+    label: "Operator",
+    detail: "Direct, calm, and action-oriented.",
+    prompt: "Answer like Apex HQ's private operator assistant: direct, calm, source-backed, and focused on the next safe move.",
+  },
+  {
+    id: "briefing",
+    label: "Briefing",
+    detail: "Short executive summary first.",
+    prompt: "Answer like an executive briefing: lead with the answer, name blockers, name the next safe action, and avoid filler.",
+  },
+  {
+    id: "builder",
+    label: "Builder",
+    detail: "Implementation and validation focused.",
+    prompt: "Answer like a build operator: identify the route, implementation step, validation, rollback, and permission boundary.",
+  },
+]);
+
+function findApexCockpitVoiceProfile(profileId = "alloy") {
+  return APEX_COCKPIT_VOICE_PROFILES.find((profile) => profile.id === profileId) || APEX_COCKPIT_VOICE_PROFILES[0];
+}
+
+function findApexCockpitPersonalityMode(modeId = "operator") {
+  return APEX_COCKPIT_PERSONALITY_MODES.find((mode) => mode.id === modeId) || APEX_COCKPIT_PERSONALITY_MODES[0];
+}
 
 function resolveApexCockpitAnswerText(response) {
   if (typeof response?.answer === "string") return response.answer;
@@ -3745,69 +3789,167 @@ function resolveApexCockpitSources(state, response) {
 function buildApexCockpitCommandRoute(question = "") {
   const normalized = String(question || "").toLowerCase();
   const hasAny = (words) => words.some((word) => normalized.includes(word));
+  const wantsRouteOpen = hasAny(["open ", "show ", "go to", "take me", "switch to", "pull up", "bring up"]);
+  const wantsAgentRequest = hasAny(["create agent", "draft agent", "agent request", "agent task", "ask agent", "have agent", "run agent", "qa this", "build this", "release this"])
+    || /\b(ask|have|tell|create|draft|run)\b.*\b(agent|qa|build|release|marketing|sales|monitoring)\b/.test(normalized)
+    || /\b(qa|build|release|marketing|sales|monitoring)\b.*\b(agent|check|run|task|request)\b/.test(normalized);
+  const base = {
+    shouldOpenSection: wantsRouteOpen,
+    suggestedActions: ["Answer from memory", "Open matched room"],
+  };
 
   if (hasAny(["approval", "approve", "review", "sign off", "packet"])) {
     return {
+      ...base,
       id: "approval-review",
       label: "Approval review",
       section: "approvals",
       detail: "Apex matched this to approval packets, review queues, or owner decisions.",
       actionLabel: "Open approvals",
+      commandAction: wantsRouteOpen ? "open-section" : "answer",
+      intent: "approval-review",
       tone: "amber",
     };
   }
 
-  if (hasAny(["release", "deploy", "production", "smoke", "rollback", "build"])) {
+  if (hasAny(["release", "deploy", "production", "smoke", "rollback"])) {
     return {
+      ...base,
       id: "release-desk",
       label: "Release desk",
       section: "release",
       detail: "Apex matched this to release readiness, deployment, smoke tests, or rollback evidence.",
       actionLabel: "Open release",
+      commandAction: wantsRouteOpen ? "open-section" : "answer",
+      intent: "release-readiness",
       tone: "blue",
     };
   }
 
-  if (hasAny(["agent", "agents", "run", "execute", "handoff", "worker", "qa"])) {
+  if (hasAny(["agent", "agents", "run", "execute", "handoff", "worker", "qa", "build this", "test this", "check this"])) {
     return {
+      ...base,
       id: "agent-control",
       label: "Agent control",
       section: "agents",
       detail: "Apex matched this to agent work, handoffs, safety locks, or QA routing.",
       actionLabel: "Open agents",
+      commandAction: wantsAgentRequest ? "draft-agent-control-request" : wantsRouteOpen ? "open-section" : "answer",
+      intent: "agent-control",
+      suggestedActions: wantsAgentRequest ? ["Draft locked request", "Open agents"] : ["Answer from memory", "Open agents"],
       tone: "green",
     };
   }
 
   if (hasAny(["memory", "remember", "decision", "decide", "rule", "source", "vault"])) {
     return {
+      ...base,
       id: "decision-memory",
       label: "Decision memory",
       section: "memory",
       detail: "Apex matched this to durable memory, operating rules, or source-backed knowledge.",
       actionLabel: "Open memory",
+      commandAction: wantsRouteOpen ? "open-section" : "answer",
+      intent: "decision-memory",
       tone: "slate",
     };
   }
 
-  if (hasAny(["blocked", "today", "summary", "options", "what needs", "next", "priority"])) {
+  if (hasAny(["blocked", "today", "summary", "brief", "options", "what needs", "next", "priority"])) {
     return {
+      ...base,
       id: "command-overview",
       label: "Command overview",
       section: "overview",
       detail: "Apex matched this to the current operating picture and next best actions.",
       actionLabel: "Open overview",
+      commandAction: wantsRouteOpen ? "open-section" : "answer",
+      intent: "command-overview",
       tone: "blue",
     };
   }
 
   return {
+    ...base,
     id: "ask-apex",
     label: "Ask Apex",
     section: "apex",
     detail: "Apex will answer from the full private command-room context.",
     actionLabel: "Stay with Apex",
+    commandAction: "answer",
+    intent: "ask-apex",
+    suggestedActions: ["Answer from memory", "Brief me"],
     tone: "green",
+  };
+}
+
+function buildApexCockpitProactiveBriefing(state = {}) {
+  const approvalCount = state.approvalCommandCenter?.queueCount || state.approvalCommandCenter?.packetSummary?.total || 0;
+  const blockerCount = state.launchReadiness?.blockedCount || state.approvalCommandCenter?.packetSummary?.blocked || 0;
+  const agentCount = state.agentControlPlane?.roleCount || state.agentWorkQueue?.availableTaskCount || 0;
+  const memoryCount = state.decisionMemory?.durableCount || state.decisionMemory?.decisionCount || 0;
+  const releaseStatus = state.releaseDesk?.status || "Healthy";
+  const moneyReady = state.kpis?.find((item) => /money/i.test(item.title || ""))?.value || state.todayCommandCenter?.moneyReadyCount || 0;
+  return [
+    `Apex briefing for ${state.operatorName || "operator"}.`,
+    `${moneyReady} money-ready item${Number(moneyReady) === 1 ? "" : "s"} are visible.`,
+    `${approvalCount} approval item${approvalCount === 1 ? "" : "s"} need review.`,
+    `${blockerCount} blocker${blockerCount === 1 ? "" : "s"} are open.`,
+    `${agentCount} agent signal${agentCount === 1 ? "" : "s"} are active.`,
+    `${memoryCount} trusted memor${memoryCount === 1 ? "y" : "ies"} are available.`,
+    `Release health reads ${releaseStatus}.`,
+    "I will answer, route, draft safe requests, and keep execution locked until the gated workflow approves it.",
+  ].join(" ");
+}
+
+function buildApexCockpitQuestionEnvelope(question, { personalityMode = "operator", route, memoryCount = 0 } = {}) {
+  const personality = findApexCockpitPersonalityMode(personalityMode);
+  return [
+    "Apex Life operator mode.",
+    personality.prompt,
+    `Matched room: ${route?.label || "Ask Apex"}.`,
+    `Trusted memory count visible: ${memoryCount}.`,
+    `User request: ${String(question || "").trim()}`,
+  ].join("\n").slice(0, 1000);
+}
+
+function inferApexCockpitAgentRole(question = "", route = {}) {
+  const normalized = String(question || "").toLowerCase();
+  if (/\bqa|test|smoke|verify|browser|mobile|audit\b/.test(normalized)) return "qa";
+  if (/\brelease|deploy|production|rollback|backup\b/.test(normalized) || route?.id === "release-desk") return "release";
+  if (/\bmarketing|instagram|content|campaign|ad\b/.test(normalized)) return "marketing";
+  if (/\bsales|lead|follow up|demo|outreach\b/.test(normalized)) return "sales";
+  if (/\bcustomer|onboard|success|account health\b/.test(normalized)) return "customer-success";
+  if (/\bmonitor|watch|health|alert|stalled\b/.test(normalized)) return "monitoring";
+  return "build";
+}
+
+function inferApexCockpitAgentRequestType(question = "") {
+  const normalized = String(question || "").toLowerCase();
+  if (/\bpause|hold|stop agent\b/.test(normalized)) return "pause";
+  if (/\bresume|continue agent|restart agent\b/.test(normalized)) return "resume";
+  return "scoped-run";
+}
+
+function buildApexCockpitAgentControlDraft(question = "", route = {}) {
+  const trimmedQuestion = String(question || "").trim();
+  const agentRole = inferApexCockpitAgentRole(trimmedQuestion, route);
+  const requestType = inferApexCockpitAgentRequestType(trimmedQuestion);
+  const riskLevel = /\bdeploy|production|billing|customer|send|email|sms|delete|payment\b/i.test(trimmedQuestion) ? "high" : "medium";
+  const titlePrefix = requestType === "pause" ? "Pause" : requestType === "resume" ? "Resume" : "Scoped";
+  return {
+    title: `${titlePrefix} ${agentRole} agent request from Apex Life`.slice(0, 150),
+    requestType,
+    agentRole,
+    riskLevel,
+    objective: trimmedQuestion || "Review the Apex Life command and prepare the next safe agent step.",
+    scope: "Apex HQ private operator work only. No customer-visible sends, provider actions, billing, ad spend, production deploy, production data mutation, deletion, or irreversible external action.",
+    validationPlan: "Run focused tests, role/permission checks, build, and browser/mobile QA before closing this request.",
+    rollbackPlan: "Close or archive this locked request and revert the scoped branch commit if validation fails.",
+    sourceLabel: "Apex Life Voice/Text Command",
+    sourceUri: "apex-life://command",
+    operatorNote: "Created by Apex Life command routing. Execution remains locked and requires the gated workflow.",
+    status: "requested",
   };
 }
 
@@ -3874,7 +4016,7 @@ function ApexCockpitAvatar({ voiceMode = "listening", voiceLevel = 0 }) {
   );
 }
 
-function ApexCockpitCommandStream({ turns, route, onOpenRoute }) {
+function ApexCockpitCommandStream({ turns, route, onOpenRoute, onCreateAgentRequest, onBrief, onAnswerCurrent, creatingAgentRequest = false }) {
   const toneClass = {
     green: "border-emerald-400/24 bg-emerald-500/[0.06] text-emerald-200",
     blue: "border-cyan-400/24 bg-cyan-500/[0.06] text-cyan-200",
@@ -3909,12 +4051,25 @@ function ApexCockpitCommandStream({ turns, route, onOpenRoute }) {
       <div className={`rounded-md border px-3 py-2 ${toneClass[safeRoute.tone] || toneClass.slate}`}>
         <p className="text-[11px] font-bold leading-4">{safeRoute.detail}</p>
       </div>
+      <div className="flex min-w-0 flex-wrap gap-1.5">
+        {(safeRoute.suggestedActions || []).map((action) => (
+          <button
+            key={action}
+            type="button"
+            onClick={() => (action === "Draft locked request" ? onCreateAgentRequest?.() : action === "Brief me" ? onBrief?.() : action === "Answer from memory" ? onAnswerCurrent?.() : action.includes("Open") ? onOpenRoute(safeRoute.section) : null)}
+            disabled={action === "Draft locked request" ? creatingAgentRequest : false}
+            className="co-focus-ring inline-flex min-h-7 items-center rounded-md border border-slate-800 bg-slate-900/70 px-2 text-[10px] font-black text-slate-300 transition hover:border-cyan-400/50 hover:text-white disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            {action === "Draft locked request" && creatingAgentRequest ? "Drafting..." : action}
+          </button>
+        ))}
+      </div>
       <div className="grid min-w-0 gap-1.5">
         {visibleTurns.length ? visibleTurns.map((turn) => (
           <div key={turn.id} className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-slate-800 bg-slate-900/58 px-2.5 py-2">
             <Icon name={turn.source === "voice" ? "phone" : "check"} className="h-3.5 w-3.5 text-cyan-300" />
             <p className="min-w-0 truncate text-[11px] font-bold text-slate-300">{turn.question}</p>
-            <span className="text-[9px] font-black uppercase tracking-[0.08em] text-slate-500">{turn.routeLabel}</span>
+            <span className="text-[9px] font-black uppercase tracking-[0.08em] text-slate-500">{turn.status === "agent-requested" ? "locked" : turn.routeLabel}</span>
           </div>
         )) : (
           <p className="rounded-md border border-dashed border-slate-800 px-3 py-2 text-[11px] font-bold leading-4 text-slate-500">Your voice and typed requests will appear here as Apex routes them.</p>
@@ -3955,10 +4110,22 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const [cockpitAutoListening, setCockpitAutoListening] = useState(true);
   const [cockpitSpeechActive, setCockpitSpeechActive] = useState(false);
   const [cockpitMicLevel, setCockpitMicLevel] = useState(0);
+  const [cockpitOutputLevel, setCockpitOutputLevel] = useState(0);
+  const [cockpitConversationMode, setCockpitConversationMode] = useState(true);
+  const [cockpitBargeInEnabled, setCockpitBargeInEnabled] = useState(true);
+  const [cockpitVoiceProfile, setCockpitVoiceProfile] = useState("alloy");
+  const [cockpitPersonalityMode, setCockpitPersonalityMode] = useState("operator");
+  const [cockpitAgentActionNotice, setCockpitAgentActionNotice] = useState("");
+  const [cockpitCreatingAgentRequest, setCockpitCreatingAgentRequest] = useState(false);
   const [cockpitCommandRoute, setCockpitCommandRoute] = useState(() => buildApexCockpitCommandRoute(""));
   const [cockpitTurns, setCockpitTurns] = useState([]);
   const cockpitAudioRef = useRef(null);
   const cockpitAudioUnlockedRef = useRef(false);
+  const cockpitOutputFrameRef = useRef(0);
+  const cockpitSpeakingRef = useRef(false);
+  const cockpitBargeInEnabledRef = useRef(true);
+  const cockpitBargeInterruptedRef = useRef(false);
+  const cockpitBriefingOfferedRef = useRef(false);
   const cockpitRecorderRef = useRef(null);
   const cockpitRecordedChunksRef = useRef([]);
   const cockpitStreamRef = useRef(null);
@@ -3982,12 +4149,15 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     { id: "review-first", title: "Review-First", detail: "You stay in control.", icon: "check" },
   ];
   const quickPrompts = [
-    "Summarize today",
+    "Brief me first",
     "What's blocked?",
     "What needs review?",
-    "Give me options",
+    "Ask QA agent to check this",
   ];
   const memoryCount = state.decisionMemory?.durableCount || state.decisionMemory?.decisionCount || 0;
+  const cockpitVoiceProfileConfig = findApexCockpitVoiceProfile(cockpitVoiceProfile);
+  const cockpitPersonalityConfig = findApexCockpitPersonalityMode(cockpitPersonalityMode);
+  const cockpitBriefingText = buildApexCockpitProactiveBriefing(state);
   const releaseVersion = state.releaseDesk?.currentVersion
     ? `v${state.releaseDesk.currentVersion}`
     : state.releaseDesk?.deployHistoryRows?.[0]?.status || "Evidence required";
@@ -4014,7 +4184,8 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const canUseCockpitRecorder = typeof navigator !== "undefined"
     && Boolean(navigator.mediaDevices?.getUserMedia)
     && typeof MediaRecorder !== "undefined";
-  const canStartCockpitVoice = state.canView && Boolean(sessionToken) && canUseCockpitRecorder && !cockpitRecording && !cockpitTranscribing && !cockpitSubmitting && !cockpitSpeaking && !cockpitVoiceOpeningRef.current;
+  const cockpitLiveLevel = Math.max(cockpitMicLevel, cockpitOutputLevel);
+  const canStartCockpitVoice = state.canView && Boolean(sessionToken) && canUseCockpitRecorder && !cockpitRecording && !cockpitTranscribing && !cockpitSubmitting && (!cockpitSpeaking || cockpitBargeInEnabled) && !cockpitVoiceOpeningRef.current;
   const canToggleCockpitVoice = canStartCockpitVoice || cockpitRecording;
 
   useEffect(() => () => {
@@ -4027,18 +4198,41 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       cockpitRecorderRef.current = null;
     }
     cleanupCockpitVoiceStream();
+    stopCockpitOutputLevelMonitor();
     stopBrowserVoice(cockpitAudioRef);
     closeUnlockedBrowserAudio(cockpitAudioUnlockedRef);
   }, []);
 
   useEffect(() => {
-    if (!cockpitAutoListening || !state.canView || !sessionToken || !canUseCockpitRecorder) return undefined;
-    if (cockpitRecording || cockpitTranscribing || cockpitSubmitting || cockpitSpeaking || cockpitVoiceOpeningRef.current) return undefined;
+    cockpitSpeakingRef.current = cockpitSpeaking;
+  }, [cockpitSpeaking]);
+
+  useEffect(() => {
+    cockpitBargeInEnabledRef.current = cockpitBargeInEnabled;
+  }, [cockpitBargeInEnabled]);
+
+  useEffect(() => {
+    if (!state.canView || cockpitBriefingOfferedRef.current) return;
+    cockpitBriefingOfferedRef.current = true;
+    setCockpitResponse({
+      answer: {
+        answer: cockpitBriefingText,
+        sourceLabels: ["Apex command room", "Decision memory", "Release desk", "Agent control"],
+      },
+    });
+    setCockpitLastQuestion("Proactive briefing");
+    setCockpitCommandRoute(buildApexCockpitCommandRoute("Summarize today"));
+    setCockpitVoiceNotice("Proactive briefing is ready.");
+  }, [state.canView, cockpitBriefingText]);
+
+  useEffect(() => {
+    if (!cockpitConversationMode || !cockpitAutoListening || !state.canView || !sessionToken || !canUseCockpitRecorder) return undefined;
+    if (cockpitRecording || cockpitTranscribing || cockpitSubmitting || (cockpitSpeaking && !cockpitBargeInEnabled) || cockpitVoiceOpeningRef.current) return undefined;
     const openTimer = setTimeout(() => {
       openCockpitVoiceSession({ automatic: true });
     }, 500);
     return () => clearTimeout(openTimer);
-  }, [cockpitAutoListening, state.canView, sessionToken, canUseCockpitRecorder, cockpitRecording, cockpitTranscribing, cockpitSubmitting, cockpitSpeaking]);
+  }, [cockpitConversationMode, cockpitAutoListening, state.canView, sessionToken, canUseCockpitRecorder, cockpitRecording, cockpitTranscribing, cockpitSubmitting, cockpitSpeaking, cockpitBargeInEnabled]);
 
   function cleanupCockpitVoiceStream() {
     stopCockpitVoiceLevelMonitor();
@@ -4076,6 +4270,27 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     setCockpitMicLevel(0);
   }
 
+  function stopCockpitOutputLevelMonitor() {
+    if (cockpitOutputFrameRef.current) {
+      cancelAnimationFrame(cockpitOutputFrameRef.current);
+      cockpitOutputFrameRef.current = 0;
+    }
+    setCockpitOutputLevel(0);
+  }
+
+  function startCockpitOutputLevelMonitor() {
+    stopCockpitOutputLevelMonitor();
+    const startedAt = performance.now();
+    const paint = () => {
+      const elapsed = (performance.now() - startedAt) / 1000;
+      const primaryPulse = Math.abs(Math.sin(elapsed * 13.2));
+      const secondaryPulse = Math.abs(Math.sin(elapsed * 21.7)) * 0.28;
+      setCockpitOutputLevel(Math.min(1, 0.16 + primaryPulse * 0.62 + secondaryPulse));
+      cockpitOutputFrameRef.current = requestAnimationFrame(paint);
+    };
+    cockpitOutputFrameRef.current = requestAnimationFrame(paint);
+  }
+
   function startCockpitVoiceLevelMonitor(stream) {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     if (!AudioContextClass) return;
@@ -4102,6 +4317,19 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       }
       const level = Math.sqrt(sum / samples.length);
       const now = performance.now();
+      const speakingNow = cockpitSpeakingRef.current;
+      if (speakingNow && cockpitBargeInEnabledRef.current && !cockpitBargeInterruptedRef.current) {
+        if (level > APEX_COCKPIT_BARGE_IN_THRESHOLD && now - cockpitVoiceStartedAtRef.current > APEX_COCKPIT_BARGE_IN_GRACE_MS) {
+          handleCockpitVoiceBargeIn(now);
+        } else {
+          if (now - cockpitLastLevelPaintRef.current > 90) {
+            cockpitLastLevelPaintRef.current = now;
+            setCockpitMicLevel(level * 0.35);
+          }
+          cockpitVoiceFrameRef.current = requestAnimationFrame(readLevel);
+          return;
+        }
+      }
       if (level > APEX_COCKPIT_LEVEL_THRESHOLD) {
         cockpitSpeechStartedRef.current = true;
         cockpitLastSoundAtRef.current = now;
@@ -4130,19 +4358,39 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     return ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/wav"].find((candidate) => MediaRecorder.isTypeSupported(candidate)) || "";
   }
 
+  function handleCockpitVoiceBargeIn(now = performance.now()) {
+    if (cockpitBargeInterruptedRef.current) return;
+    cockpitBargeInterruptedRef.current = true;
+    cockpitRecordedChunksRef.current = cockpitRecordedChunksRef.current.slice(-APEX_COCKPIT_PREROLL_CHUNKS);
+    cockpitSpeechStartedRef.current = true;
+    cockpitVoiceStartedAtRef.current = now - APEX_COCKPIT_MIN_TURN_MS;
+    cockpitLastSoundAtRef.current = now;
+    setCockpitSpeechActive(true);
+    stopCockpitVoicePlayback("Barge-in caught. I stopped talking and I'm listening.");
+  }
+
   function stopCockpitVoicePlayback(notice = "Voice playback stopped.") {
     stopBrowserVoice(cockpitAudioRef);
+    stopCockpitOutputLevelMonitor();
+    cockpitSpeakingRef.current = false;
     setCockpitSpeaking(false);
     setCockpitVoiceNotice(notice);
   }
 
   function speakCockpitBrowserFallback(textToSpeak, fallbackMessage = "Apex is speaking with browser voice fallback.") {
     const started = speakWithBrowserVoice(textToSpeak, {
+      rate: cockpitVoiceProfileConfig.rate,
+      pitch: cockpitVoiceProfileConfig.pitch,
+      voiceHint: cockpitVoiceProfileConfig.label,
       onEnd: () => {
+        stopCockpitOutputLevelMonitor();
+        cockpitSpeakingRef.current = false;
         setCockpitSpeaking(false);
         setCockpitVoiceNotice("Voice playback finished.");
       },
       onError: () => {
+        stopCockpitOutputLevelMonitor();
+        cockpitSpeakingRef.current = false;
         setCockpitSpeaking(false);
         setCockpitVoiceNotice("Browser voice playback could not start.");
       },
@@ -4160,12 +4408,14 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     if (!answerToSpeak || !sessionToken) return;
     unlockBrowserAudio(cockpitAudioUnlockedRef);
     stopBrowserVoice(cockpitAudioRef);
+    cockpitSpeakingRef.current = true;
     setCockpitSpeaking(true);
+    startCockpitOutputLevelMonitor();
     setCockpitVoiceNotice("");
     try {
       const payload = await speakApexOsVoice(sessionToken, {
         text: answerToSpeak,
-        voice: "alloy",
+        voice: cockpitVoiceProfile,
       });
       if (payload?.audioBase64 && payload?.contentType) {
         const playbackMode = await playApexVoiceAudio({
@@ -4174,6 +4424,8 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
           audioRef: cockpitAudioRef,
           unlockedRef: cockpitAudioUnlockedRef,
           onEnd: () => {
+            stopCockpitOutputLevelMonitor();
+            cockpitSpeakingRef.current = false;
             setCockpitSpeaking(false);
             setCockpitVoiceNotice("Voice playback finished.");
           },
@@ -4194,10 +4446,57 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     }
   }
 
+  function deliverCockpitBriefing({ speak = false } = {}) {
+    const route = buildApexCockpitCommandRoute("Summarize today");
+    setCockpitCommandRoute(route);
+    setCockpitResponse({
+      answer: {
+        answer: cockpitBriefingText,
+        sourceLabels: ["Apex command room", "Decision memory", "Release desk", "Agent control"],
+      },
+    });
+    setCockpitLastQuestion("Proactive briefing");
+    setCockpitVoiceNotice("Apex briefing loaded.");
+    setCockpitTurns((current) => [
+      {
+        id: `cockpit-briefing-${Date.now()}`,
+        question: "Proactive briefing",
+        source: "system",
+        routeLabel: route.label,
+        status: "answered",
+      },
+      ...current,
+    ].slice(0, 5));
+    if (speak) speakCockpitAnswer(cockpitBriefingText);
+  }
+
+  async function createCockpitAgentRequestFromCommand(question = cockpitLastQuestion || askQuestion || cockpitCommandRoute.label, route = cockpitCommandRoute, { turnId = "" } = {}) {
+    if (!state.canView || !sessionToken || cockpitCreatingAgentRequest) return null;
+    const draft = buildApexCockpitAgentControlDraft(question, route);
+    setCockpitCreatingAgentRequest(true);
+    setCockpitAgentActionNotice("Drafting locked agent-control request. No agent will run from this action.");
+    try {
+      const payload = await createApexOsAgentControlRequest(sessionToken, draft);
+      const created = payload?.apexOsAgentControlRequest;
+      setCockpitAgentActionNotice(created?.id
+        ? `Locked agent-control request ${created.id} saved. Execution remains locked.`
+        : "Locked agent-control request saved. Execution remains locked.");
+      setCockpitTurns((current) => current.map((turn) => (turn.id === turnId ? { ...turn, status: "agent-requested" } : turn)));
+      return created || null;
+    } catch (error) {
+      setCockpitAgentActionNotice(error?.message || "Agent-control request could not be saved.");
+      setCockpitTurns((current) => current.map((turn) => (turn.id === turnId ? { ...turn, status: "blocked" } : turn)));
+      return null;
+    } finally {
+      setCockpitCreatingAgentRequest(false);
+    }
+  }
+
   async function askCockpitQuestion(nextQuestion, { fromVoice = false } = {}) {
     const route = buildApexCockpitCommandRoute(nextQuestion);
     const turnId = `cockpit-turn-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     setCockpitCommandRoute(route);
+    setCockpitAgentActionNotice("");
     setCockpitTurns((current) => [
       {
         id: turnId,
@@ -4214,11 +4513,30 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     setCockpitResponse(null);
     setCockpitLastQuestion(nextQuestion);
     stopBrowserVoice(cockpitAudioRef);
+    stopCockpitOutputLevelMonitor();
+    cockpitSpeakingRef.current = false;
     setCockpitSpeaking(false);
     try {
-      const payload = await askApexOs(sessionToken, { question: nextQuestion, contextScope: "all" });
+      if (route.commandAction === "open-section" && route.section !== "apex") {
+        onChange(route.section);
+        setCockpitVoiceNotice(`Opened ${route.label}. Reading context now.`);
+      }
+      const apexQuestion = buildApexCockpitQuestionEnvelope(nextQuestion, {
+        personalityMode: cockpitPersonalityMode,
+        route,
+        memoryCount,
+      });
+      const payload = await askApexOs(sessionToken, {
+        question: apexQuestion,
+        contextScope: "all",
+        operatorStyle: cockpitPersonalityMode,
+        commandRoute: route.id,
+      });
       setCockpitResponse(payload);
       setCockpitTurns((current) => current.map((turn) => (turn.id === turnId ? { ...turn, status: "answered" } : turn)));
+      if (route.commandAction === "draft-agent-control-request") {
+        await createCockpitAgentRequestFromCommand(nextQuestion, route, { turnId });
+      }
       const nextAnswerText = resolveApexCockpitAnswerText(payload);
       if (nextAnswerText) {
         await speakCockpitAnswer(nextAnswerText);
@@ -4280,10 +4598,17 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     setCockpitError("");
     setCockpitVoiceNotice(automatic ? "Opening voice for this Apex page." : "");
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
       cockpitStreamRef.current = stream;
       cockpitRecordedChunksRef.current = [];
       cockpitSpeechStartedRef.current = false;
+      cockpitBargeInterruptedRef.current = false;
       cockpitDiscardNextCaptureRef.current = false;
       cockpitVoiceStartedAtRef.current = performance.now();
       cockpitLastSoundAtRef.current = cockpitVoiceStartedAtRef.current;
@@ -4337,6 +4662,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     setCockpitAutoListening(false);
     setCockpitSpeechActive(false);
     setCockpitMicLevel(0);
+    cockpitBargeInterruptedRef.current = false;
     cockpitDiscardNextCaptureRef.current = !cockpitSpeechStartedRef.current;
     setCockpitVoiceNotice("Voice paused.");
     if (cockpitRecorderRef.current && cockpitRecorderRef.current.state !== "inactive") {
@@ -4396,25 +4722,71 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     <div className="mt-1 h-1 overflow-hidden rounded-full bg-slate-800" aria-hidden="true">
                       <span
                         className="block h-full rounded-full bg-gradient-to-r from-emerald-300 via-cyan-300 to-orange-300 transition-[width] duration-100"
-                        style={{ width: `${Math.max(5, Math.min(100, cockpitMicLevel * 620))}%` }}
+                        style={{ width: `${Math.max(5, Math.min(100, cockpitLiveLevel * 620))}%` }}
                       />
                     </div>
                   </div>
                 </div>
                 <ApexCockpitControlButton
                   className="mt-2 w-full"
-                  onClick={cockpitRecording ? pauseCockpitVoiceSession : () => openCockpitVoiceSession({ automatic: false })}
-                  disabled={!canToggleCockpitVoice}
-                  active={cockpitRecording}
+                  onClick={cockpitRecording ? pauseCockpitVoiceSession : cockpitSpeaking ? () => stopCockpitVoicePlayback("Interrupted. I'm listening.") : () => openCockpitVoiceSession({ automatic: false })}
+                  disabled={cockpitSpeaking ? false : !canToggleCockpitVoice}
+                  active={cockpitRecording || cockpitSpeaking}
                   title={cockpitRecording ? "Pause Apex voice" : "Resume Apex voice"}
                 >
-                  {cockpitRecording ? "Pause Voice" : cockpitTranscribing ? "Transcribing" : cockpitSubmitting ? "Thinking" : cockpitSpeaking ? "Speaking" : "Resume Voice"}
+                  {cockpitRecording ? "Pause Voice" : cockpitTranscribing ? "Transcribing" : cockpitSubmitting ? "Thinking" : cockpitSpeaking ? "Interrupt Voice" : "Resume Voice"}
                 </ApexCockpitControlButton>
+                <div className="mt-2 grid min-w-0 grid-cols-2 gap-1.5">
+                  <ApexCockpitControlButton
+                    className="px-2"
+                    onClick={() => setCockpitConversationMode((current) => !current)}
+                    disabled={false}
+                    active={cockpitConversationMode}
+                    title="Toggle continuous Apex conversation"
+                  >
+                    {cockpitConversationMode ? "Conversation On" : "Conversation Off"}
+                  </ApexCockpitControlButton>
+                  <ApexCockpitControlButton
+                    className="px-2"
+                    onClick={() => setCockpitBargeInEnabled((current) => !current)}
+                    disabled={false}
+                    active={cockpitBargeInEnabled}
+                    title="Toggle voice barge-in"
+                  >
+                    {cockpitBargeInEnabled ? "Barge-in On" : "Barge-in Off"}
+                  </ApexCockpitControlButton>
+                </div>
+                <div className="mt-2 grid min-w-0 gap-1.5">
+                  <label className="grid min-w-0 gap-1 text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
+                    Voice Identity
+                    <select
+                      value={cockpitVoiceProfile}
+                      onChange={(event) => setCockpitVoiceProfile(event.target.value)}
+                      className="co-focus-ring h-8 min-w-0 rounded-md border border-slate-800 bg-slate-950 px-2 text-[11px] font-black normal-case tracking-normal text-slate-200 outline-none"
+                    >
+                      {APEX_COCKPIT_VOICE_PROFILES.map((profile) => (
+                        <option key={profile.id} value={profile.id}>{profile.label} - {profile.detail}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="grid min-w-0 gap-1 text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
+                    Personality
+                    <select
+                      value={cockpitPersonalityMode}
+                      onChange={(event) => setCockpitPersonalityMode(event.target.value)}
+                      className="co-focus-ring h-8 min-w-0 rounded-md border border-slate-800 bg-slate-950 px-2 text-[11px] font-black normal-case tracking-normal text-slate-200 outline-none"
+                    >
+                      {APEX_COCKPIT_PERSONALITY_MODES.map((mode) => (
+                        <option key={mode.id} value={mode.id}>{mode.label} - {mode.detail}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
               </ApexCockpitCard>
 
               <ApexCockpitCard title="Transcript" action={<Icon name="refresh" className="h-3.5 w-3.5 text-slate-500" />}>
                 <p className="text-[11px] font-bold leading-5 text-slate-300">{cockpitRecording ? "Listening..." : cockpitTranscribing ? "Transcribing voice..." : cockpitSubmitting ? "Reading context..." : cockpitPromptText || "Listening..."}</p>
-                <p className="mt-2 text-[11px] font-bold leading-5 text-slate-400" aria-live="polite">{cockpitVoiceNotice || (canUseCockpitRecorder ? cockpitVoiceState.detail : "Microphone is unavailable in this browser or blocked by site permission.")}</p>
+                <p className="mt-2 text-[11px] font-bold leading-5 text-slate-400" aria-live="polite">{cockpitAgentActionNotice || cockpitVoiceNotice || (canUseCockpitRecorder ? cockpitVoiceState.detail : "Microphone is unavailable in this browser or blocked by site permission.")}</p>
               </ApexCockpitCard>
 
               <ApexCockpitCard title="Apex Response">
@@ -4423,8 +4795,8 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                   <ApexCockpitControlButton onClick={() => speakCockpitAnswer()} disabled={!canSpeakCockpitAnswer} active={cockpitSpeaking}>
                     <Icon name="spark" /> {cockpitSpeaking ? "Speaking" : "Speak"}
                   </ApexCockpitControlButton>
-                  <ApexCockpitControlButton onClick={() => stopCockpitVoicePlayback()} disabled={!cockpitSpeaking}>
-                    <Icon name="lock" /> Stop
+                  <ApexCockpitControlButton onClick={() => stopCockpitVoicePlayback("Interrupted. I'm listening.")} disabled={!cockpitSpeaking}>
+                    <Icon name="lock" /> Interrupt
                   </ApexCockpitControlButton>
                 </div>
                 <div className="mt-3 border-t border-slate-800 pt-2">
@@ -4451,12 +4823,12 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                   </div>
                   <ApexCockpitControlButton
                     className="shrink-0 px-3"
-                    onClick={cockpitRecording ? pauseCockpitVoiceSession : () => openCockpitVoiceSession({ automatic: false })}
-                    disabled={!canToggleCockpitVoice}
-                    active={cockpitRecording}
+                    onClick={cockpitRecording ? pauseCockpitVoiceSession : cockpitSpeaking ? () => stopCockpitVoicePlayback("Interrupted. I'm listening.") : () => openCockpitVoiceSession({ automatic: false })}
+                    disabled={cockpitSpeaking ? false : !canToggleCockpitVoice}
+                    active={cockpitRecording || cockpitSpeaking}
                     title={cockpitRecording ? "Pause Apex voice" : "Resume Apex voice"}
                   >
-                    {cockpitRecording ? "Pause" : "Resume"}
+                    {cockpitRecording ? "Pause" : cockpitSpeaking ? "Interrupt" : "Resume"}
                   </ApexCockpitControlButton>
                 </div>
                 <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_44px] items-center gap-3">
@@ -4464,12 +4836,42 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                   <span className="h-1 overflow-hidden rounded-full bg-slate-800" aria-hidden="true">
                     <span
                       className="block h-full rounded-full bg-gradient-to-r from-emerald-300 via-cyan-300 to-orange-300 transition-[width] duration-100"
-                      style={{ width: `${Math.max(5, Math.min(100, cockpitMicLevel * 620))}%` }}
+                      style={{ width: `${Math.max(5, Math.min(100, cockpitLiveLevel * 620))}%` }}
                     />
                   </span>
                 </div>
               </div>
-              <ApexCockpitAvatar voiceMode={cockpitVoiceMode} voiceLevel={cockpitMicLevel} />
+              <ApexCockpitAvatar voiceMode={cockpitVoiceMode} voiceLevel={cockpitLiveLevel} />
+              <section className="co-apex-cockpit-live-console grid min-w-0 gap-2 rounded-lg border border-cyan-200/14 bg-slate-950/76 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]" aria-label="Apex live conversation console">
+                <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Live Conversation</p>
+                    <p className="mt-0.5 min-w-0 break-words text-xs font-black text-slate-100">{cockpitVoiceState.headline}</p>
+                    <p className="mt-0.5 min-w-0 break-words text-[11px] font-bold leading-4 text-slate-500">{cockpitPersonalityConfig.label} personality, {cockpitVoiceProfileConfig.label} voice, {memoryCount || 0} trusted memories visible.</p>
+                  </div>
+                  <div className="flex min-w-0 flex-wrap gap-1.5 sm:justify-end">
+                    <ApexCockpitControlButton className="px-2" disabled={false} onClick={() => deliverCockpitBriefing({ speak: true })} active={false} title="Speak Apex briefing">
+                      <Icon name="spark" /> Brief Me
+                    </ApexCockpitControlButton>
+                    <ApexCockpitControlButton className="px-2" disabled={cockpitCreatingAgentRequest || cockpitCommandRoute.id !== "agent-control"} onClick={() => createCockpitAgentRequestFromCommand()} active={cockpitCreatingAgentRequest} title="Create locked agent request">
+                      <Icon name="lock" /> Agent Draft
+                    </ApexCockpitControlButton>
+                  </div>
+                </div>
+                <div className="grid min-w-0 gap-1.5 sm:grid-cols-4">
+                  {[
+                    { label: "Loop", value: cockpitConversationMode ? "Open" : "Manual", tone: cockpitConversationMode ? "green" : "slate" },
+                    { label: "Barge-in", value: cockpitBargeInEnabled ? "Armed" : "Off", tone: cockpitBargeInEnabled ? "amber" : "slate" },
+                    { label: "Input", value: cockpitRecording ? "Listening" : cockpitTranscribing ? "Reading" : "Standby", tone: cockpitRecording ? "green" : cockpitTranscribing ? "blue" : "slate" },
+                    { label: "Output", value: cockpitSpeaking ? "Talking" : "Ready", tone: cockpitSpeaking ? "amber" : "green" },
+                  ].map((item) => (
+                    <div key={item.label} className="min-w-0 rounded-md border border-slate-800 bg-slate-900/58 px-2.5 py-2">
+                      <p className="text-[9px] font-black uppercase tracking-[0.1em] text-slate-500">{item.label}</p>
+                      <p className={`mt-0.5 text-[11px] font-black ${item.tone === "green" ? "text-emerald-300" : item.tone === "amber" ? "text-orange-300" : item.tone === "blue" ? "text-cyan-300" : "text-slate-300"}`}>{item.value}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
               <div className="grid min-w-0 gap-2">
                 <form className="relative min-w-0" onSubmit={submitCockpitQuestion}>
                   <label className="sr-only" htmlFor="apex-cockpit-ask">Ask Apex anything</label>
@@ -4502,7 +4904,19 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     </button>
                   ))}
                 </div>
-                <ApexCockpitCommandStream turns={cockpitTurns} route={cockpitCommandRoute} onOpenRoute={onChange} />
+                <ApexCockpitCommandStream
+                  turns={cockpitTurns}
+                  route={cockpitCommandRoute}
+                  onOpenRoute={onChange}
+                  onCreateAgentRequest={() => createCockpitAgentRequestFromCommand()}
+                  onBrief={() => deliverCockpitBriefing({ speak: true })}
+                  onAnswerCurrent={() => {
+                    const currentQuestion = askQuestion.trim() || cockpitLastQuestion || "Summarize today";
+                    setAskQuestion(currentQuestion);
+                    askCockpitQuestion(currentQuestion);
+                  }}
+                  creatingAgentRequest={cockpitCreatingAgentRequest}
+                />
               </div>
             </div>
 

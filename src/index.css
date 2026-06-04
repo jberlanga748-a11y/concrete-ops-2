@@ -56615,7 +56615,7 @@ body:has(.co-field-mobile-reports-shell) .co-mobile-bottom-spacer {
 
 .co-apex-life-body--speaking .co-apex-life-ring {
   border-color: rgba(251, 146, 60, 0.36);
-  box-shadow: 0 0 44px rgba(249, 115, 22, 0.18), inset 0 0 30px rgba(56, 189, 248, 0.12);
+  box-shadow: 0 0 var(--apex-voice-ring-glow) rgba(249, 115, 22, 0.22), inset 0 0 30px rgba(56, 189, 248, 0.12);
   animation-duration: 1.15s;
 }
 
@@ -56676,7 +56676,7 @@ body:has(.co-field-mobile-reports-shell) .co-mobile-bottom-spacer {
 
 .co-apex-life-body--speaking .co-apex-life-orbit {
   border-color: rgba(251, 146, 60, 0.24);
-  opacity: 0.72;
+  opacity: var(--apex-voice-orbit-opacity);
   animation-duration: 2.8s;
 }
 
@@ -56769,7 +56769,7 @@ body:has(.co-field-mobile-reports-shell) .co-mobile-bottom-spacer {
 .co-apex-life-body--speaking .co-apex-life-eyes::before,
 .co-apex-life-body--speaking .co-apex-life-eyes::after {
   animation-duration: 540ms;
-  box-shadow: 0 0 22px rgba(249, 115, 22, 0.95), 0 0 38px rgba(56, 189, 248, 0.26);
+  box-shadow: 0 0 var(--apex-voice-eye-glow) rgba(249, 115, 22, 0.95), 0 0 38px rgba(56, 189, 248, 0.26);
 }
 
 .co-apex-life-body--blocked .co-apex-life-eyes::before,
@@ -56806,7 +56806,13 @@ body:has(.co-field-mobile-reports-shell) .co-mobile-bottom-spacer {
 
 .co-apex-life-body--speaking .co-apex-life-core {
   background: radial-gradient(circle, rgba(255, 247, 237, 0.96) 0 4%, rgba(251, 146, 60, 0.56) 18%, rgba(34, 211, 238, 0.2) 44%, transparent 70%);
+  box-shadow: 0 0 var(--apex-voice-core-glow) rgba(249, 115, 22, 0.34), inset 0 0 24px rgba(255, 255, 255, 0.22);
   animation: apex-life-core-speaking 620ms ease-in-out infinite;
+}
+
+.co-apex-life-body--speaking .co-apex-life-level {
+  border-color: rgba(251, 146, 60, 0.28);
+  box-shadow: 0 0 var(--apex-voice-level-glow) rgba(249, 115, 22, 0.24);
 }
 
 .co-apex-life-body--blocked .co-apex-life-core {
@@ -56937,11 +56943,11 @@ body:has(.co-field-mobile-reports-shell) .co-mobile-bottom-spacer {
 @keyframes apex-life-speaking-drive {
   0%,
   100% {
-    transform: translateY(0) scale(1);
+    transform: translateY(0) scale(var(--apex-voice-low-scale));
   }
 
   45% {
-    transform: translateY(-0.34rem) scale(1.014);
+    transform: translateY(-0.34rem) scale(var(--apex-voice-high-scale));
   }
 
   72% {
@@ -57054,12 +57060,12 @@ body:has(.co-field-mobile-reports-shell) .co-mobile-bottom-spacer {
   0%,
   100% {
     opacity: 0.62;
-    transform: translate(-50%, -50%) scale(0.96);
+    transform: translate(-50%, -50%) scale(var(--apex-voice-core-low-scale));
   }
 
   50% {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1.18);
+    transform: translate(-50%, -50%) scale(var(--apex-voice-core-high-scale));
   }
 }
 
