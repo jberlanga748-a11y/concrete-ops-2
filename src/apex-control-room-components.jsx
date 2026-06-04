@@ -44,8 +44,29 @@ function ToneBadge({ children, tone = "slate" }) {
 
 function stopBrowserVoice(audioRef) {
   if (audioRef?.current) {
-    audioRef.current.pause();
-    audioRef.current.currentTime = 0;
+    if (typeof audioRef.current.pause === "function") {
+      audioRef.current.pause();
+    }
+    if (typeof audioRef.current.stop === "function") {
+      try {
+        audioRef.current.stop(0);
+      } catch {
+        // Already stopped.
+      }
+    }
+    if (typeof audioRef.current.disconnect === "function") {
+      try {
+        audioRef.current.disconnect();
+      } catch {
+        // Already disconnected.
+      }
+    }
+    if ("currentTime" in audioRef.current) {
+      audioRef.current.currentTime = 0;
+    }
+    if (audioRef.current.objectUrl && typeof URL !== "undefined") {
+      URL.revokeObjectURL(audioRef.current.objectUrl);
+    }
     audioRef.current = null;
   }
   if (typeof window !== "undefined" && window.speechSynthesis) {
@@ -53,18 +74,140 @@ function stopBrowserVoice(audioRef) {
   }
 }
 
+function playSilentUnlockBuffer(audioContext) {
+  if (!audioContext || typeof audioContext.createBufferSource !== "function" || typeof audioContext.createBuffer !== "function") return;
+  const source = audioContext.createBufferSource();
+  source.buffer = audioContext.createBuffer(1, 1, Math.max(1, audioContext.sampleRate || 44100));
+  if (typeof audioContext.createGain === "function") {
+    const gain = audioContext.createGain();
+    gain.gain.value = 0.00001;
+    source.connect(gain);
+    gain.connect(audioContext.destination);
+  } else {
+    source.connect(audioContext.destination);
+  }
+  source.start(0);
+}
+
 function unlockBrowserAudio(unlockedRef) {
-  if (unlockedRef?.current || typeof window === "undefined") return;
+  if (typeof window === "undefined") return null;
+  if (unlockedRef?.current && typeof unlockedRef.current.resume === "function") {
+    if (unlockedRef.current.state === "suspended") {
+      unlockedRef.current.resume().catch(() => {});
+    }
+    return unlockedRef.current;
+  }
   const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContextCtor) return;
+  if (!AudioContextCtor) return null;
   try {
     const audioContext = new AudioContextCtor();
     if (audioContext.state === "suspended") {
       audioContext.resume().catch(() => {});
     }
+    playSilentUnlockBuffer(audioContext);
     unlockedRef.current = audioContext;
+    return audioContext;
   } catch {
     unlockedRef.current = false;
+    return null;
+  }
+}
+
+function closeUnlockedBrowserAudio(unlockedRef) {
+  const unlockedAudioContext = unlockedRef?.current;
+  if (unlockedAudioContext && typeof unlockedAudioContext.close === "function") {
+    unlockedAudioContext.close().catch(() => {});
+  }
+  if (unlockedRef) unlockedRef.current = false;
+}
+
+function apexVoiceBytesFromBase64(audioBase64 = "") {
+  if (typeof window === "undefined" || typeof window.atob !== "function") return null;
+  const binary = window.atob(String(audioBase64 || "").replace(/\s+/g, ""));
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+function decodeApexVoiceAudioBuffer(audioContext, audioBytes) {
+  return new Promise((resolve, reject) => {
+    if (!audioContext || !audioBytes?.byteLength || typeof audioContext.decodeAudioData !== "function") {
+      reject(new Error("Audio context cannot decode Apex voice audio."));
+      return;
+    }
+    let settled = false;
+    const finish = (audioBuffer) => {
+      if (settled) return;
+      settled = true;
+      resolve(audioBuffer);
+    };
+    const fail = (error) => {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    };
+    const decodeResult = audioContext.decodeAudioData(audioBytes.buffer.slice(0), finish, fail);
+    if (decodeResult && typeof decodeResult.then === "function") {
+      decodeResult.then(finish).catch(fail);
+    }
+  });
+}
+
+async function playApexVoiceAudio({ audioBase64 = "", contentType = "audio/mpeg", audioRef, unlockedRef, onEnd, onPlaybackError } = {}) {
+  if (!audioBase64 || typeof window === "undefined") return "";
+  const audioBytes = apexVoiceBytesFromBase64(audioBase64);
+  if (!audioBytes?.byteLength) return "";
+
+  const audioContext = unlockBrowserAudio(unlockedRef);
+  if (audioContext && typeof audioContext.createBufferSource === "function" && typeof audioContext.decodeAudioData === "function") {
+    try {
+      if (audioContext.state === "suspended") {
+        await audioContext.resume();
+      }
+      const audioBuffer = await decodeApexVoiceAudioBuffer(audioContext, audioBytes);
+      const source = audioContext.createBufferSource();
+      source.buffer = audioBuffer;
+      source.onended = () => {
+        if (audioRef?.current === source) audioRef.current = null;
+        onEnd?.();
+      };
+      source.connect(audioContext.destination);
+      if (audioRef) audioRef.current = source;
+      source.start(0);
+      return "web-audio";
+    } catch {
+      if (audioRef) audioRef.current = null;
+    }
+  }
+
+  try {
+    const audioBlob = new Blob([audioBytes], { type: contentType || "audio/mpeg" });
+    const objectUrl = typeof URL !== "undefined" && typeof URL.createObjectURL === "function"
+      ? URL.createObjectURL(audioBlob)
+      : "";
+    const audio = new Audio(objectUrl || `data:${contentType || "audio/mpeg"};base64,${audioBase64}`);
+    audio.preload = "auto";
+    audio.playsInline = true;
+    audio.volume = 1;
+    audio.objectUrl = objectUrl;
+    if (audioRef) audioRef.current = audio;
+    audio.onended = () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      if (audioRef?.current === audio) audioRef.current = null;
+      onEnd?.();
+    };
+    audio.onerror = () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      if (audioRef?.current === audio) audioRef.current = null;
+      onPlaybackError?.();
+    };
+    await audio.play();
+    return "html-audio";
+  } catch {
+    if (audioRef) audioRef.current = null;
+    return "";
   }
 }
 
@@ -261,10 +404,16 @@ function AskApexPanel({ state, sessionToken, question, setQuestion }) {
   const [draftedActions, setDraftedActions] = useState({});
   const [askedQuestion, setAskedQuestion] = useState("");
   const answerAudioRef = useRef(null);
+  const answerAudioUnlockedRef = useRef(false);
   const canAsk = state.canView && Boolean(sessionToken) && question.trim() && !submitting;
   const canDraftFromAnswer = state.canView && Boolean(sessionToken) && Boolean(response?.answer) && !draftingAction;
   const answerText = response?.answer?.answer || "";
   const canSpeakAnswer = state.canView && Boolean(answerText) && !speaking;
+
+  useEffect(() => () => {
+    stopBrowserVoice(answerAudioRef);
+    closeUnlockedBrowserAudio(answerAudioUnlockedRef);
+  }, []);
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -371,6 +520,7 @@ function AskApexPanel({ state, sessionToken, question, setQuestion }) {
 
   async function speakAnswer() {
     if (!canSpeakAnswer) return;
+    unlockBrowserAudio(answerAudioUnlockedRef);
     stopBrowserVoice(answerAudioRef);
     setSpeaking(true);
     setVoiceNotice("");
@@ -380,18 +530,24 @@ function AskApexPanel({ state, sessionToken, question, setQuestion }) {
         voice: "alloy",
       });
       if (payload?.audioBase64 && payload?.contentType) {
-        const audio = new Audio(`data:${payload.contentType};base64,${payload.audioBase64}`);
-        answerAudioRef.current = audio;
-        audio.onended = () => {
-          setSpeaking(false);
-          setVoiceNotice("Voice playback finished.");
-          answerAudioRef.current = null;
-        };
-        audio.onerror = () => {
-          speakBrowserFallback(answerText, "Apex speech audio could not play, so browser voice fallback is speaking.");
-        };
-        await audio.play();
-        setVoiceNotice(payload.aiDisclosure || "Apex OS voice output is AI-generated.");
+        const playbackMode = await playApexVoiceAudio({
+          audioBase64: payload.audioBase64,
+          contentType: payload.contentType,
+          audioRef: answerAudioRef,
+          unlockedRef: answerAudioUnlockedRef,
+          onEnd: () => {
+            setSpeaking(false);
+            setVoiceNotice("Voice playback finished.");
+          },
+          onPlaybackError: () => {
+            speakBrowserFallback(answerText, "Apex speech audio stopped, so browser voice fallback is speaking.");
+          },
+        });
+        if (playbackMode) {
+          setVoiceNotice(payload.aiDisclosure || "Apex OS voice output is AI-generated.");
+          return;
+        }
+        speakBrowserFallback(answerText, "Apex speech audio could not start, so browser voice fallback is speaking.");
         return;
       }
       speakBrowserFallback(payload?.fallbackText || answerText, payload?.providerConfigured ? "Speech provider fallback is active; browser voice is speaking." : "Server speech is not configured; browser voice is speaking.");
@@ -3596,11 +3752,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     }
     cleanupCockpitVoiceStream();
     stopBrowserVoice(cockpitAudioRef);
-    const unlockedAudioContext = cockpitAudioUnlockedRef.current;
-    if (unlockedAudioContext && typeof unlockedAudioContext.close === "function") {
-      unlockedAudioContext.close().catch(() => {});
-    }
-    cockpitAudioUnlockedRef.current = false;
+    closeUnlockedBrowserAudio(cockpitAudioUnlockedRef);
   }, []);
 
   function cleanupCockpitVoiceStream() {
@@ -3653,18 +3805,24 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
         voice: "alloy",
       });
       if (payload?.audioBase64 && payload?.contentType) {
-        const audio = new Audio(`data:${payload.contentType};base64,${payload.audioBase64}`);
-        cockpitAudioRef.current = audio;
-        audio.onended = () => {
-          setCockpitSpeaking(false);
-          setCockpitVoiceNotice("Voice playback finished.");
-          cockpitAudioRef.current = null;
-        };
-        audio.onerror = () => {
-          speakCockpitBrowserFallback(answerToSpeak, "Apex speech audio could not play, so browser voice fallback is speaking.");
-        };
-        await audio.play();
-        setCockpitVoiceNotice(payload.aiDisclosure || "Apex OS voice output is AI-generated.");
+        const playbackMode = await playApexVoiceAudio({
+          audioBase64: payload.audioBase64,
+          contentType: payload.contentType,
+          audioRef: cockpitAudioRef,
+          unlockedRef: cockpitAudioUnlockedRef,
+          onEnd: () => {
+            setCockpitSpeaking(false);
+            setCockpitVoiceNotice("Voice playback finished.");
+          },
+          onPlaybackError: () => {
+            speakCockpitBrowserFallback(answerToSpeak, "Apex speech audio stopped, so browser voice fallback is speaking.");
+          },
+        });
+        if (playbackMode) {
+          setCockpitVoiceNotice(payload.aiDisclosure || "Apex OS voice output is AI-generated.");
+          return;
+        }
+        speakCockpitBrowserFallback(answerToSpeak, "Apex speech audio could not start, so browser voice fallback is speaking.");
         return;
       }
       speakCockpitBrowserFallback(payload?.fallbackText || answerToSpeak, payload?.providerConfigured ? "Speech provider fallback is active; browser voice is speaking." : "Server speech is not configured; browser voice is speaking.");

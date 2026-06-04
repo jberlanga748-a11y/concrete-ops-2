@@ -138,6 +138,14 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /closeCockpitVoiceSession/);
   assert.match(componentSource, /transcribeCockpitVoiceBlob/);
   assert.match(componentSource, /unlockBrowserAudio/);
+  assert.match(componentSource, /playSilentUnlockBuffer/);
+  assert.match(componentSource, /playApexVoiceAudio/);
+  assert.match(componentSource, /decodeApexVoiceAudioBuffer/);
+  assert.match(componentSource, /createBufferSource/);
+  assert.match(componentSource, /decodeAudioData/);
+  assert.match(componentSource, /playsInline/);
+  assert.match(componentSource, /createObjectURL/);
+  assert.match(componentSource, /answerAudioUnlockedRef/);
   assert.match(componentSource, /navigator\.mediaDevices\?\.getUserMedia/);
   assert.match(componentSource, /onClick=\{recording \? closeVoiceSession : openVoiceSession\}/);
   assert.match(componentSource, /onClick=\{cockpitRecording \? closeCockpitVoiceSession : openCockpitVoiceSession\}/);
