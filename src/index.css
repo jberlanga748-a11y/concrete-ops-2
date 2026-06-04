@@ -57108,7 +57108,7 @@ body:has(.co-field-mobile-reports-shell) .co-mobile-bottom-spacer {
 
 @media (max-width: 767px) {
   .co-apex-life-body {
-    min-height: 300px !important;
+    min-height: clamp(17rem, 58dvh, 300px) !important;
   }
 
   .co-apex-life-status {
@@ -57118,6 +57118,16 @@ body:has(.co-field-mobile-reports-shell) .co-mobile-bottom-spacer {
 
   .co-apex-cockpit-response-copy {
     -webkit-line-clamp: 4;
+  }
+}
+
+@media (max-width: 1279px) {
+  .co-apex-cockpit-side-rail {
+    display: none !important;
+  }
+
+  .co-apex-cockpit-screen {
+    border-radius: 0.75rem !important;
   }
 }
 
