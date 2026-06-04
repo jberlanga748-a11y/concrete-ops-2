@@ -4576,6 +4576,60 @@ function formatApexCockpitClock(date = new Date()) {
   return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
+function formatApexCockpitPulseTime(value) {
+  if (!value) return "Pending";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "Pending";
+  return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+function summarizeApexCockpitLivePulse({ state, buildPayload, briefingPayload, runsPayload, checkedAt = new Date() } = {}) {
+  const buildAwareness = buildPayload?.buildAwareness || {};
+  const dailyBriefing = briefingPayload?.dailyBriefing || {};
+  const runSummary = runsPayload?.summary || state?.autonomyRunCenter?.runSummary || {};
+  const alertCount = Number(dailyBriefing.alertCount || dailyBriefing.alerts?.length || dailyBriefing.alertRows?.length || 0);
+  const rowCount = Number(dailyBriefing.rowCount || dailyBriefing.rows?.length || state?.releaseMonitoring?.briefingCount || 0);
+  const blockerCount = Number(
+    buildAwareness.knownBlockers?.length
+      || buildAwareness.blockers?.length
+      || state?.launchReadiness?.blockedCount
+      || state?.approvalCommandCenter?.packetSummary?.blocked
+      || 0,
+  );
+  const releaseVersion = state?.releaseDesk?.currentVersion
+    ? `v${state.releaseDesk.currentVersion}`
+    : state?.releaseDesk?.deployHistoryRows?.[0]?.status || "Live";
+  const releaseStatus = buildAwareness.releaseStatus
+    || state?.releaseDesk?.status
+    || state?.releaseMonitoring?.status
+    || "Checked";
+  return {
+    checkedAt: checkedAt.toISOString(),
+    releaseVersion,
+    releaseStatus,
+    runSummary,
+    alertCount,
+    rowCount,
+    blockerCount,
+    buildLabel: buildAwareness.headSha ? `Head ${String(buildAwareness.headSha).slice(0, 7)}` : "Build checked",
+    requestIds: [buildPayload?.requestId, briefingPayload?.requestId, runsPayload?.requestId].filter(Boolean),
+  };
+}
+
+function buildApexCockpitPulseRows({ state, pulse, recording, speaking, conversationMode, bargeInEnabled } = {}) {
+  const summary = pulse?.runSummary || state?.autonomyRunCenter?.runSummary || {};
+  return [
+    { label: "Auto Check", value: formatApexCockpitPulseTime(pulse?.checkedAt), tone: pulse?.checkedAt ? "green" : "slate" },
+    { label: "Release", value: pulse?.releaseVersion || (state?.releaseDesk?.currentVersion ? `v${state.releaseDesk.currentVersion}` : "Live"), tone: state?.releaseDesk?.tone || "green" },
+    { label: "Runs", value: `${Number(summary.active || 0)} active / ${Number(summary.total || 0)} saved`, tone: Number(summary.active || 0) ? "green" : "slate" },
+    { label: "Voice Loop", value: recording ? "Listening" : speaking ? "Talking" : conversationMode ? "Open" : "Manual", tone: recording || conversationMode ? "green" : "slate" },
+    { label: "Barge-in", value: bargeInEnabled ? "Armed" : "Off", tone: bargeInEnabled ? "amber" : "slate" },
+    { label: "Alerts", value: `${Number(pulse?.alertCount || 0)} alerts`, tone: Number(pulse?.alertCount || 0) ? "amber" : "green" },
+    { label: "Blockers", value: `${Number(pulse?.blockerCount || 0)} blockers`, tone: Number(pulse?.blockerCount || 0) ? "amber" : "green" },
+    { label: "Safety", value: state?.liveOperatorMode?.externalActionsLocked === false ? "Open" : "Locked", tone: state?.liveOperatorMode?.externalActionsLocked === false ? "red" : "amber" },
+  ];
+}
+
 function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAskQuestion, sessionToken }) {
   const [cockpitResponse, setCockpitResponse] = useState(null);
   const [cockpitError, setCockpitError] = useState("");
@@ -4597,6 +4651,9 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const [cockpitCreatingAgentRequest, setCockpitCreatingAgentRequest] = useState(false);
   const [cockpitLiveRunNotice, setCockpitLiveRunNotice] = useState("");
   const [cockpitCreatingLiveRun, setCockpitCreatingLiveRun] = useState(false);
+  const [cockpitLivePulse, setCockpitLivePulse] = useState(null);
+  const [cockpitLivePulseBusy, setCockpitLivePulseBusy] = useState(false);
+  const [cockpitLivePulseError, setCockpitLivePulseError] = useState("");
   const [cockpitMicPermissionState, setCockpitMicPermissionState] = useState("unknown");
   const [cockpitVoiceWakeAttempted, setCockpitVoiceWakeAttempted] = useState(false);
   const [cockpitClock, setCockpitClock] = useState(() => formatApexCockpitClock());
@@ -4663,6 +4720,11 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     : state.releaseDesk?.deployHistoryRows?.[0]?.status || "Evidence required";
   const releaseHealth = state.releaseDesk?.status || "Healthy";
   const liveOperatorMode = state.liveOperatorMode || {};
+  const cockpitPulseRunSummary = cockpitLivePulse?.runSummary || {};
+  const cockpitVisibleSavedRunCount = Number(cockpitPulseRunSummary.total ?? liveOperatorMode.savedRunCount ?? 0);
+  const cockpitVisibleActiveRunCount = Number(cockpitPulseRunSummary.active ?? liveOperatorMode.activeRunCount ?? 0);
+  const cockpitVisibleLiveStatus = cockpitVisibleActiveRunCount ? "Live operator running" : liveOperatorMode.status || "Live operator ready";
+  const cockpitVisibleLiveTone = cockpitVisibleActiveRunCount ? "green" : liveOperatorMode.tone || "blue";
   const cockpitAnswerText = resolveApexCockpitAnswerText(cockpitResponse);
   const cockpitVoiceMode = cockpitError
     ? "blocked"
@@ -4686,6 +4748,14 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const cockpitLiveLevel = Math.max(cockpitMicLevel, cockpitOutputLevel);
   const canStartCockpitVoice = state.canView && Boolean(sessionToken) && canUseCockpitRecorder && !cockpitRecording && !cockpitTranscribing && !cockpitSubmitting && (!cockpitSpeaking || cockpitBargeInEnabled) && !cockpitVoiceOpeningRef.current;
   const canToggleCockpitVoice = canStartCockpitVoice || cockpitRecording;
+  const cockpitPulseRows = buildApexCockpitPulseRows({
+    state,
+    pulse: cockpitLivePulse,
+    recording: cockpitRecording,
+    speaking: cockpitSpeaking,
+    conversationMode: cockpitConversationMode,
+    bargeInEnabled: cockpitBargeInEnabled,
+  });
   const focusDrawerTabs = [
     { id: "voice", label: "Voice", value: cockpitRecording ? "Listening" : cockpitSpeaking ? "Talking" : cockpitNeedsWake ? "Wake" : "Ready", tone: cockpitRecording ? "green" : cockpitSpeaking ? "amber" : "slate", icon: "phone" },
     { id: "autonomy", label: "Autonomy", value: cockpitCommandRoute.id === "agent-control" ? "Draft-ready" : "Guarded", tone: "green", icon: "spark" },
@@ -4761,6 +4831,21 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     setCockpitCommandRoute(buildApexCockpitCommandRoute("Summarize today"));
     setCockpitVoiceNotice("Proactive briefing is ready.");
   }, [state.canView, cockpitBriefingText]);
+
+  useEffect(() => {
+    if (!state.canView || !sessionToken) return undefined;
+    let cancelled = false;
+    const runPulse = () => {
+      if (!cancelled) refreshCockpitLivePulse({ automatic: true });
+    };
+    const firstPulse = setTimeout(runPulse, 1_500);
+    const pulseTimer = setInterval(runPulse, 60_000);
+    return () => {
+      cancelled = true;
+      clearTimeout(firstPulse);
+      clearInterval(pulseTimer);
+    };
+  }, [state.canView, sessionToken]);
 
   useEffect(() => {
     if (!cockpitConversationMode || !cockpitAutoListening || !state.canView || !sessionToken || !canUseCockpitRecorder) return undefined;
@@ -4984,6 +5069,42 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     }
   }
 
+  async function refreshCockpitLivePulse({ automatic = false } = {}) {
+    if (!state.canView || !sessionToken) return null;
+    if (!automatic) setCockpitLivePulseBusy(true);
+    setCockpitLivePulseError("");
+    try {
+      const [buildResult, briefingResult, runsResult] = await Promise.allSettled([
+        getApexOsBuildAwareness(sessionToken),
+        getApexOsDailyBriefing(sessionToken),
+        getApexOsAutonomyRuns(sessionToken),
+      ]);
+      const pulse = summarizeApexCockpitLivePulse({
+        state,
+        buildPayload: buildResult.status === "fulfilled" ? buildResult.value : null,
+        briefingPayload: briefingResult.status === "fulfilled" ? briefingResult.value : null,
+        runsPayload: runsResult.status === "fulfilled" ? runsResult.value : null,
+      });
+      const failureCount = [buildResult, briefingResult, runsResult].filter((result) => result.status === "rejected").length;
+      setCockpitLivePulse(pulse);
+      if (failureCount) {
+        const message = `Live pulse checked with ${failureCount} limited source${failureCount === 1 ? "" : "s"}.`;
+        setCockpitLivePulseError(message);
+        if (!automatic) setCockpitVoiceNotice(message);
+      } else if (!automatic) {
+        setCockpitVoiceNotice("Live pulse refreshed from build, briefing, and run status. External actions stayed locked.");
+      }
+      return pulse;
+    } catch (error) {
+      const message = error?.message || "Live pulse could not refresh right now.";
+      setCockpitLivePulseError(message);
+      if (!automatic) setCockpitVoiceNotice(message);
+      return null;
+    } finally {
+      if (!automatic) setCockpitLivePulseBusy(false);
+    }
+  }
+
   function deliverCockpitBriefing({ speak = false } = {}) {
     const route = buildApexCockpitCommandRoute("Summarize today");
     setCockpitCommandRoute(route);
@@ -5077,6 +5198,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
         },
       });
       setCockpitTurns((current) => current.map((turn) => (turn.id === runTurnId ? { ...turn, status: "live-run-drafted" } : turn)));
+      refreshCockpitLivePulse({ automatic: true });
       return finalRun;
     } catch (error) {
       const message = error?.message || "Live run could not be saved.";
@@ -5570,16 +5692,16 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                   <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Live Operator Mode</p>
-                      <p className="mt-0.5 min-w-0 break-words text-xs font-black text-slate-100">{liveOperatorMode.status || "Live operator ready"}</p>
+                      <p className="mt-0.5 min-w-0 break-words text-xs font-black text-slate-100">{cockpitVisibleLiveStatus}</p>
                       <p className="mt-0.5 min-w-0 break-words text-[11px] font-bold leading-4 text-slate-500">{cockpitLiveRunNotice || cockpitAgentActionNotice || liveOperatorMode.nextAction || "Start a live operator run from the Apex body."}</p>
                     </div>
-                    <ToneBadge tone={liveOperatorMode.tone || "blue"}>{liveOperatorMode.mode || "Review-first"}</ToneBadge>
+                    <ToneBadge tone={cockpitVisibleLiveTone}>{liveOperatorMode.mode || "Review-first"}</ToneBadge>
                   </div>
                   <div className="grid min-w-0 gap-1.5 sm:grid-cols-4">
                     {[
                       { label: "Foundation", value: `${liveOperatorMode.foundationPercent || 0}%`, tone: "green" },
                       { label: "Operator", value: `${liveOperatorMode.jarvisBehaviorPercent || 0}%`, tone: "blue" },
-                      { label: "Saved runs", value: String(liveOperatorMode.savedRunCount || 0), tone: liveOperatorMode.savedRunCount ? "green" : "slate" },
+                      { label: "Saved runs", value: String(cockpitVisibleSavedRunCount), tone: cockpitVisibleSavedRunCount ? "green" : "slate" },
                       { label: "Gates", value: liveOperatorMode.externalActionsLocked ? "Locked" : "Open", tone: liveOperatorMode.externalActionsLocked ? "amber" : "green" },
                     ].map((item) => (
                       <div key={item.label} className="min-w-0 rounded-md border border-slate-800 bg-slate-950/54 px-2.5 py-2">
@@ -5587,6 +5709,27 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                         <p className={`mt-0.5 text-[11px] font-black ${item.tone === "green" ? "text-emerald-300" : item.tone === "amber" ? "text-orange-300" : item.tone === "blue" ? "text-cyan-300" : "text-slate-300"}`}>{item.value}</p>
                       </div>
                     ))}
+                  </div>
+                  <div className="grid min-w-0 gap-2 rounded-md border border-cyan-200/10 bg-slate-950/48 p-2.5">
+                    <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Proactive Pulse</p>
+                        <p className="mt-0.5 min-w-0 break-words text-[10px] font-bold leading-4 text-slate-500">
+                          {cockpitLivePulseError || "Auto-checks build, briefing, and live-run status every minute while this page is open."}
+                        </p>
+                      </div>
+                      <ApexCockpitControlButton className="shrink-0 px-2" disabled={cockpitLivePulseBusy || !sessionToken} onClick={() => refreshCockpitLivePulse({ automatic: false })} active={cockpitLivePulseBusy} title="Refresh Apex live pulse">
+                        <Icon name="refresh" /> {cockpitLivePulseBusy ? "Checking" : "Check Now"}
+                      </ApexCockpitControlButton>
+                    </div>
+                    <div className="grid min-w-0 gap-1.5 sm:grid-cols-4">
+                      {cockpitPulseRows.map((item) => (
+                        <div key={item.label} className="min-w-0 rounded-md border border-slate-800 bg-slate-900/48 px-2 py-1.5">
+                          <p className="text-[8px] font-black uppercase tracking-[0.08em] text-slate-500">{item.label}</p>
+                          <p className={`mt-0.5 truncate text-[10px] font-black ${item.tone === "green" ? "text-emerald-300" : item.tone === "amber" ? "text-orange-300" : item.tone === "red" ? "text-red-300" : "text-slate-300"}`}>{item.value}</p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                   <div className="grid min-w-0 gap-1.5 sm:grid-cols-3">
                     {(liveOperatorMode.operatorLoopRows || []).slice(0, 6).map((item) => (

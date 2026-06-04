@@ -419,14 +419,15 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.agents.some((item) => item.id === "autonomy-run-center"), true);
   assert.equal(state.liveOperatorMode.status, "Live operator ready");
   assert.equal(state.liveOperatorMode.mode, "Body-first review-first operator");
-  assert.equal(state.liveOperatorMode.foundationPercent, 72);
-  assert.equal(state.liveOperatorMode.jarvisBehaviorPercent, 42);
+  assert.equal(state.liveOperatorMode.foundationPercent, 80);
+  assert.equal(state.liveOperatorMode.jarvisBehaviorPercent, 52);
   assert.equal(state.liveOperatorMode.readinessRows.length, 6);
   assert.equal(state.liveOperatorMode.operatorLoopRows.length, 9);
   assert.equal(state.liveOperatorMode.gapRows.length, 4);
   assert.equal(state.liveOperatorMode.readinessRows.some((item) => item.id === "live-run-ledger" && item.status === "Ready"), true);
   assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-save"), true);
   assert.equal(state.liveOperatorMode.gapRows.some((item) => item.id === "live-gap-execution" && item.status === "Private drafts only"), true);
+  assert.equal(state.liveOperatorMode.gapRows.some((item) => item.id === "live-gap-proactive" && item.status === "Auto-checking"), true);
   assert.equal(state.liveOperatorMode.externalActionsLocked, true);
   assert.equal(state.liveOperatorMode.executionLocked, true);
   assert.equal(state.operatingSignals.some((item) => item.id === "live-operator-mode"), true);
@@ -484,6 +485,7 @@ test("deriveApexControlRoomState includes saved autonomy run ledger rows", () =>
   assert.equal(state.liveOperatorMode.status, "Live operator running");
   assert.equal(state.liveOperatorMode.savedRunCount, 2);
   assert.equal(state.liveOperatorMode.activeRunCount, 1);
+  assert.equal(state.liveOperatorMode.jarvisBehaviorPercent, 56);
   assert.equal(state.liveOperatorMode.readinessRows.some((item) => item.id === "live-run-ledger" && item.status === "2 saved"), true);
   assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-save" && item.status === "2 saved"), true);
 });

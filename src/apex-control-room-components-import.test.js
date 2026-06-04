@@ -212,6 +212,15 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /Live Operator Mode/);
   assert.match(componentSource, /Live Run/);
   assert.match(componentSource, /createCockpitLiveRunFromCommand/);
+  assert.match(componentSource, /Proactive Pulse/);
+  assert.match(componentSource, /refreshCockpitLivePulse/);
+  assert.match(componentSource, /Auto Check/);
+  assert.match(componentSource, /Check Now/);
+  assert.match(componentSource, /getApexOsBuildAwareness/);
+  assert.match(componentSource, /getApexOsDailyBriefing/);
+  assert.match(componentSource, /getApexOsAutonomyRuns/);
+  assert.match(componentSource, /buildApexCockpitPulseRows/);
+  assert.match(componentSource, /summarizeApexCockpitLivePulse/);
   assert.match(componentSource, /Apex Live Operator Mode/);
   assert.match(componentSource, /liveOperatorMode/);
   assert.match(componentSource, /Voice Identity/);

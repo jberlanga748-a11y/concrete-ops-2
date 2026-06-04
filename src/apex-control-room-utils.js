@@ -2153,8 +2153,8 @@ function buildApexLiveOperatorModeState({
   const handoffCount = formatCount(executionHandoffs?.handoffSummary?.total);
   const approvalQueueCount = formatCount(approvalCommandCenter?.queueCount || approvalCommandCenter?.packetSummary?.total);
   const monitoringCount = formatCount(releaseMonitoring?.briefingCount || releaseMonitoring?.readinessCount);
-  const liveFoundationPercent = 72;
-  const jarvisBehaviorPercent = activeRunCount || handoffCount ? 46 : 42;
+  const liveFoundationPercent = 80;
+  const jarvisBehaviorPercent = activeRunCount || handoffCount ? 56 : 52;
   const readinessRows = withDerivedStateMetaList([
     {
       id: "live-voice-loop",
@@ -2187,8 +2187,8 @@ function buildApexLiveOperatorModeState({
     {
       id: "live-monitoring",
       title: "Monitoring",
-      status: releaseMonitoring?.status || releaseDesk?.status || "Monitoring ready",
-      detail: `${monitoringCount} release/monitoring rows and ${formatCount(businessCommandCenter?.briefingCount)} business briefing rows can feed proactive status.`,
+      status: releaseMonitoring?.status || releaseDesk?.status || "Auto-check ready",
+      detail: `${monitoringCount} release/monitoring rows and ${formatCount(businessCommandCenter?.briefingCount)} business briefing rows feed the live pulse while the Apex body page is open.`,
       tone: releaseMonitoring?.tone || releaseDesk?.tone || "green",
     },
     {
@@ -2212,7 +2212,7 @@ function buildApexLiveOperatorModeState({
     { id: "live-loop-validate", title: "Validate", status: "Required", detail: "Tests, role checks, browser QA, build proof, and rollback notes stay attached to the work.", tone: "amber" },
     { id: "live-loop-report", title: "Report", status: "Result slot", detail: "Apex reports what happened, what is blocked, and what needs review.", tone: "blue" },
     { id: "live-loop-remember", title: "Remember", status: trustedMemoryCount ? "Trusted context" : "Review first", detail: "Only reviewed memory becomes future operating context.", tone: trustedMemoryCount ? "green" : "amber" },
-    { id: "live-loop-monitor", title: "Monitor", status: releaseMonitoring?.status || "Watching", detail: "Release, business, approval, and agent signals stay visible for operator review.", tone: releaseMonitoring?.tone || "green" },
+    { id: "live-loop-monitor", title: "Monitor", status: releaseMonitoring?.status || "Auto-checking", detail: "The Apex body can refresh read-only build, briefing, and live-run status while the page is open.", tone: releaseMonitoring?.tone || "green" },
   ], {
     sourceLabel: "Apex Live Operator loop",
     source: "voice + autonomy run center",
@@ -2222,8 +2222,8 @@ function buildApexLiveOperatorModeState({
     {
       id: "live-gap-browser-voice",
       title: "Always-open voice",
-      status: "Browser-gated",
-      detail: "Browsers still require a visible wake/permission event before microphone and audio can stay open.",
+      status: "Wake-gated",
+      detail: "Browsers still require one visible wake/permission event; after that the page keeps the conversation loop open while allowed.",
       tone: "amber",
     },
     {
@@ -2235,10 +2235,10 @@ function buildApexLiveOperatorModeState({
     },
     {
       id: "live-gap-proactive",
-      title: "Proactive action",
-      status: "Status visible",
-      detail: "Monitoring can surface briefings and blockers, but background autonomous actions stay off until a separate approved execution lane exists.",
-      tone: "blue",
+      title: "Proactive status",
+      status: "Auto-checking",
+      detail: "Apex can refresh live status while the page is open; unattended external actions stay off until a separate approved execution lane exists.",
+      tone: "green",
     },
     {
       id: "live-gap-provider-reliability",
