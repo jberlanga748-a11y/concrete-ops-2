@@ -213,14 +213,17 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /Live Run/);
   assert.match(componentSource, /Active Run Session/);
   assert.match(componentSource, /Report Done/);
+  assert.match(componentSource, /Cycle/);
   assert.match(componentSource, /Auto Prep/);
   assert.match(componentSource, /Proof/);
   assert.match(componentSource, /updateCockpitActiveRunStatus/);
   assert.match(componentSource, /draftCockpitActiveRunInternalWork/);
   assert.match(componentSource, /continueCockpitActiveRunPrivately/);
   assert.match(componentSource, /proofCheckCockpitActiveRunPrivately/);
+  assert.match(componentSource, /cycleCockpitActiveRunPrivately/);
   assert.match(componentSource, /advanceApexOsAutonomyRunPrivatePrep/);
   assert.match(componentSource, /validateApexOsAutonomyRunPrivateProof/);
+  assert.match(componentSource, /runApexOsAutonomyRunPrivateOperatorCycle/);
   assert.match(componentSource, /cockpitVisibleOperatorPercent/);
   assert.match(componentSource, /summarizeApexCockpitRunProgress/);
   assert.match(componentSource, /Run reported complete/);
@@ -283,6 +286,7 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(utilSource, /Body-first review-first operator/);
   assert.match(utilSource, /live-loop-save/);
   assert.match(utilSource, /live-loop-interrupt/);
+  assert.match(utilSource, /live-loop-cycle/);
   assert.match(utilSource, /live-loop-auto-prep/);
   assert.match(utilSource, /live-loop-proof-check/);
   assert.match(utilSource, /summarizeAutonomyRunProgress/);

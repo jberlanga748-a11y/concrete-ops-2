@@ -2200,8 +2200,8 @@ function buildApexLiveOperatorModeState({
   const handoffCount = formatCount(executionHandoffs?.handoffSummary?.total);
   const approvalQueueCount = formatCount(approvalCommandCenter?.queueCount || approvalCommandCenter?.packetSummary?.total);
   const monitoringCount = formatCount(releaseMonitoring?.briefingCount || releaseMonitoring?.readinessCount);
-  const liveFoundationPercent = 93;
-  const jarvisBehaviorPercent = activeRunCount || handoffCount ? 86 : 78;
+  const liveFoundationPercent = 94;
+  const jarvisBehaviorPercent = activeRunCount || handoffCount ? 88 : 80;
   const readinessRows = withDerivedStateMetaList([
     {
       id: "live-voice-loop",
@@ -2221,7 +2221,7 @@ function buildApexLiveOperatorModeState({
       id: "live-run-ledger",
       title: "Run ledger",
       status: savedRunCount ? `${savedRunCount} saved` : "Ready",
-      detail: `${activeRunCount} active run${activeRunCount === 1 ? "" : "s"} are visible with steps, evidence, linked drafts, and report-back state. New live runs save a private ledger item before internal drafting.`,
+      detail: `${activeRunCount} active run${activeRunCount === 1 ? "" : "s"} are visible with steps, evidence, linked drafts, cycle state, and report-back state. New live runs save a private ledger item before internal drafting.`,
       tone: savedRunCount ? "green" : "blue",
     },
     {
@@ -2257,6 +2257,7 @@ function buildApexLiveOperatorModeState({
     { id: "live-loop-plan", title: "Plan", status: `${formatCount(autonomyRunCenter?.planStepCount)} steps`, detail: "The request becomes a visible review-first run plan with an active step and evidence trail.", tone: "blue" },
     { id: "live-loop-save", title: "Save run", status: savedRunCount ? `${savedRunCount} saved` : "Ready", detail: "A private autonomy ledger item is created before work continues.", tone: savedRunCount ? "green" : "blue" },
     { id: "live-loop-draft", title: "Draft", status: autonomyRunCenter?.canDraftInternalRuns ? "Draft-ready" : "Guarded", detail: "Internal agent-control and execution handoff drafts can be prepared.", tone: autonomyRunCenter?.canDraftInternalRuns ? "green" : "amber" },
+    { id: "live-loop-cycle", title: "Cycle", status: "Private cycle", detail: "Apex can privately work an active run through draft, prep, proof, approval hold, and report-memory readiness.", tone: "green" },
     { id: "live-loop-auto-prep", title: "Auto prep", status: "Private-only", detail: "Apex can advance routing, planning, and draft-link prep for active runs, then stop before validation and approval gates.", tone: "green" },
     { id: "live-loop-proof-check", title: "Proof check", status: "Private proof", detail: "Apex can verify linked drafts, route and plan evidence, validation readiness, and approval-stop posture without executing anything.", tone: "green" },
     { id: "live-loop-validate", title: "Validate", status: "Proof-backed", detail: "Tests, role checks, browser QA, build proof, rollback notes, and private proof checks stay attached to the work.", tone: "green" },
@@ -2280,7 +2281,7 @@ function buildApexLiveOperatorModeState({
       id: "live-gap-execution",
       title: "Real-world execution",
       status: "Approval-gated",
-      detail: "Apex can save, draft, auto-advance private prep, proof-check, validate, and report private runs; customer-visible, billing, send, provider, production, delete, and irreversible actions remain approval-gated.",
+      detail: "Apex can save, draft, auto-advance private prep, proof-check, run private operator cycles, validate, and report private runs; customer-visible, billing, send, provider, production, delete, and irreversible actions remain approval-gated.",
       tone: "amber",
     },
     {
@@ -2319,7 +2320,7 @@ function buildApexLiveOperatorModeState({
     agentSignalCount,
     externalActionsLocked: true,
     executionLocked: true,
-    nextAction: activeRunCount ? "Run the private proof check on the active live run, then report or block it." : "Start a live operator run from the Apex body.",
+    nextAction: activeRunCount ? "Run the private operator cycle on the active live run, then report, keep waiting approval, or block it." : "Start a live operator run from the Apex body.",
     readinessRows,
     operatorLoopRows,
     gapRows,

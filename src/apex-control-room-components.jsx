@@ -37,6 +37,7 @@ import {
 import { redactApexOsMemoryText } from "../shared/apexOsMemory.js";
 import {
   advanceApexOsAutonomyRunPrivatePrep,
+  runApexOsAutonomyRunPrivateOperatorCycle,
   validateApexOsAutonomyRunPrivateProof,
 } from "../shared/apexOsAutonomyRuns.js";
 import { buildApexOsVoiceCommandReview } from "../shared/apexOsVoice.js";
@@ -4854,7 +4855,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const cockpitVisibleLiveStatus = cockpitVisibleActiveRunCount ? "Live operator running" : liveOperatorMode.status || "Live operator ready";
   const cockpitVisibleLiveTone = cockpitVisibleActiveRunCount ? "green" : liveOperatorMode.tone || "blue";
   const cockpitVisibleOperatorPercent = cockpitVisibleActiveRunCount
-    ? Math.max(Number(liveOperatorMode.jarvisBehaviorPercent || 0), 86)
+    ? Math.max(Number(liveOperatorMode.jarvisBehaviorPercent || 0), 88)
     : Number(liveOperatorMode.jarvisBehaviorPercent || 0);
   const cockpitAnswerText = resolveApexCockpitAnswerText(cockpitResponse);
   const cockpitTurnMemoryKey = apexCockpitMemoryText(cockpitResponse?.requestId || `${cockpitLastQuestion}|${cockpitAnswerText}`, 220);
@@ -5725,6 +5726,66 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     }
   }
 
+  async function cycleCockpitActiveRunPrivately() {
+    if (!state.canView || !sessionToken || !cockpitActiveRun?.id || cockpitUpdatingRun) return null;
+    if (["done", "archived", "blocked"].includes(String(cockpitActiveRun.status || "").toLowerCase())) return null;
+    setCockpitUpdatingRun(`cycle-${cockpitActiveRun.id}`);
+    setCockpitLiveRunNotice("Apex is running a private operator cycle and will stop at manual review.");
+    try {
+      let workingRun = cockpitActiveRun;
+      if (!workingRun.linkedAgentControlRequestId || !workingRun.linkedExecutionHandoffId) {
+        const draftPayload = await draftApexOsAutonomyRunInternalWork(sessionToken, workingRun.id);
+        workingRun = draftPayload?.apexOsAutonomyRun || workingRun;
+        syncCockpitLiveRunsFromPayload(draftPayload, workingRun?.id || cockpitActiveRun.id);
+      }
+
+      const cycleRun = runApexOsAutonomyRunPrivateOperatorCycle(workingRun, {
+        now: new Date().toISOString(),
+        operatorNote: "Apex ran a private operator cycle from the body screen and stopped at manual approval/report review.",
+      });
+      const payload = await updateApexOsAutonomyRun(sessionToken, workingRun.id, {
+        status: cycleRun.status,
+        operatorNote: cycleRun.operatorNote,
+        steps: cycleRun.steps,
+        evidence: cycleRun.evidence,
+        nextSafeAction: cycleRun.nextSafeAction,
+      });
+      const updated = payload?.apexOsAutonomyRun;
+      syncCockpitLiveRunsFromPayload(payload, updated?.id || workingRun.id);
+      const cyclePassed = (updated?.status || cycleRun.status) === "waiting-approval";
+      const notice = cyclePassed
+        ? "Apex worked the private run through draft, prep, proof, and report-memory readiness, then stopped at manual review."
+        : "Apex ran the private operator cycle and found validation gaps for review.";
+      setCockpitLiveRunNotice(notice);
+      setCockpitAgentActionNotice(notice);
+      setCockpitResponse({
+        answer: {
+          answer: `${notice} No external send, billing, ad, provider, production, deletion, queue, run, deploy, rollback, or irreversible action executed.`,
+          sourceLabels: ["Apex Live Operator Mode", "Autonomy Run Center", updated?.sourceLabel || "Private operator cycle"],
+        },
+      });
+      setCockpitTurns((current) => [
+        {
+          id: `cockpit-cycle-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          question: updated?.title || workingRun.title || "Private operator cycle",
+          source: "operator-cycle",
+          routeLabel: updated?.routeLabel || workingRun.routeLabel || "Apex",
+          status: cyclePassed ? "cycle-waiting-approval" : "cycle-needs-review",
+        },
+        ...current,
+      ].slice(0, 5));
+      refreshCockpitLivePulse({ automatic: true });
+      return updated || null;
+    } catch (error) {
+      const message = error?.message || "Apex could not run the private operator cycle.";
+      setCockpitLiveRunNotice(message);
+      setCockpitAgentActionNotice(message);
+      return null;
+    } finally {
+      setCockpitUpdatingRun("");
+    }
+  }
+
   async function rememberCockpitTurnFromAnswer() {
     if (!canRememberCockpitTurn) return null;
     const turnKey = cockpitTurnMemoryKey;
@@ -6337,7 +6398,10 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                             </p>
                           </div>
                         </div>
-                        <div className="grid min-w-0 gap-1.5 sm:grid-cols-2 xl:grid-cols-7">
+                        <div className="grid min-w-0 gap-1.5 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
+                          <ApexCockpitControlButton className="px-2" disabled={Boolean(cockpitUpdatingRun) || cockpitActiveRun.status === "done" || cockpitActiveRun.status === "archived" || cockpitActiveRun.status === "blocked"} onClick={() => cycleCockpitActiveRunPrivately()} active={cockpitUpdatingRun === `cycle-${cockpitActiveRun.id}`} title="Run the private operator cycle and stop at manual review">
+                            <Icon name="refresh" /> {cockpitUpdatingRun === `cycle-${cockpitActiveRun.id}` ? "Cycling" : "Cycle"}
+                          </ApexCockpitControlButton>
                           <ApexCockpitControlButton className="px-2" disabled={Boolean(cockpitUpdatingRun) || cockpitActiveRun.status === "done" || cockpitActiveRun.status === "archived" || cockpitActiveRun.status === "blocked"} onClick={() => continueCockpitActiveRunPrivately()} active={cockpitUpdatingRun === `private-prep-${cockpitActiveRun.id}`} title="Let Apex advance private prep and stop before gated work">
                             <Icon name="spark" /> {cockpitUpdatingRun === `private-prep-${cockpitActiveRun.id}` ? "Prepping" : "Auto Prep"}
                           </ApexCockpitControlButton>
@@ -6387,7 +6451,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                   <div className="grid min-w-0 gap-1.5 sm:grid-cols-3">
                     {(liveOperatorMode.operatorLoopRows || []).slice(0, 6).map((item) => (
                       <div key={item.id} className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-slate-800 bg-slate-950/42 px-2.5 py-2">
-                        <Icon name={item.id === "live-loop-validate" || item.id === "live-loop-proof-check" ? "check" : item.id === "live-loop-draft" ? "clipboard" : item.id === "live-loop-monitor" ? "refresh" : "spark"} className={`h-3.5 w-3.5 ${item.tone === "green" ? "text-emerald-300" : item.tone === "amber" ? "text-orange-300" : "text-cyan-300"}`} />
+                        <Icon name={item.id === "live-loop-validate" || item.id === "live-loop-proof-check" ? "check" : item.id === "live-loop-draft" ? "clipboard" : item.id === "live-loop-monitor" || item.id === "live-loop-cycle" ? "refresh" : "spark"} className={`h-3.5 w-3.5 ${item.tone === "green" ? "text-emerald-300" : item.tone === "amber" ? "text-orange-300" : "text-cyan-300"}`} />
                         <span className="min-w-0">
                           <span className="block truncate text-[10px] font-black text-slate-200">{item.title}</span>
                           <span className="block truncate text-[9px] font-bold text-slate-500">{item.detail}</span>

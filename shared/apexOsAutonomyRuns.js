@@ -522,3 +522,56 @@ export function validateApexOsAutonomyRunPrivateProof(run = {}, { now = new Date
     now,
   });
 }
+
+export function runApexOsAutonomyRunPrivateOperatorCycle(run = {}, { now = new Date().toISOString(), operatorNote = "" } = {}) {
+  const normalized = normalizeApexOsAutonomyRun(run, { now });
+  if (["done", "archived", "blocked"].includes(normalized.status)) {
+    return normalized;
+  }
+
+  const preparedRun = advanceApexOsAutonomyRunPrivatePrep(normalized, {
+    now,
+    operatorNote: operatorNote || "Apex started a private operator cycle and kept execution locked.",
+  });
+  const proofRun = validateApexOsAutonomyRunPrivateProof(preparedRun, {
+    now,
+    operatorNote: operatorNote || "Apex completed a private operator cycle and stopped at manual review.",
+  });
+  const proofPassed = proofRun.status === "waiting-approval"
+    && proofRun.steps?.find((step) => step.id === "validate-evidence")?.status === "done";
+  const cycleEvidence = proofPassed
+    ? "Apex private operator cycle completed: request heard, routed, planned, internal drafts linked, proof checked, approval gate held, and report/memory review prepared. No external action executed."
+    : "Apex private operator cycle stopped with validation gaps. No external action executed.";
+  const nextSteps = list(proofRun.steps).map((step, index) => {
+    if (step.id === "report-memory") {
+      return normalizeRunStep({
+        ...step,
+        status: proofPassed ? "ready" : "todo",
+        evidence: proofPassed
+          ? "Result report and suggested memory can be prepared after operator review; nothing becomes trusted automatically."
+          : step.evidence,
+        updatedAt: now,
+      }, index, now);
+    }
+    return normalizeRunStep(step, index, now);
+  });
+
+  return normalizeApexOsAutonomyRun({
+    ...proofRun,
+    status: proofPassed ? "waiting-approval" : proofRun.status,
+    operatorNote: operatorNote || (proofPassed
+      ? "Apex ran the private operator cycle from the body screen and stopped at manual approval/report review."
+      : "Apex ran the private operator cycle from the body screen and found validation gaps."),
+    steps: nextSteps,
+    evidence: [
+      ...list(proofRun.evidence),
+      cycleEvidence,
+    ].slice(-12),
+    nextSafeAction: proofPassed
+      ? "Operator cycle is complete through private proof. Review the evidence, then choose Report Done, keep waiting approval, block it, or draft reviewed memory."
+      : proofRun.nextSafeAction,
+  }, {
+    existing: proofRun,
+    now,
+  });
+}

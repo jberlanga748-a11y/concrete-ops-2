@@ -9,6 +9,7 @@ import {
   markApexOsAutonomyRunInternalDrafted,
   normalizeApexOsAutonomyRun,
   normalizeApexOsAutonomyRuns,
+  runApexOsAutonomyRunPrivateOperatorCycle,
   summarizeApexOsAutonomyRuns,
   validateApexOsAutonomyRunPrivateProof,
 } from "./apexOsAutonomyRuns.js";
@@ -199,6 +200,78 @@ test("private proof check keeps incomplete proof in validation", () => {
   assert.equal(checked.steps.find((step) => step.id === "validate-evidence").status, "blocked");
   assert.match(checked.evidence.join(" "), /linked agent-control draft is missing/i);
   assert.match(checked.nextSafeAction, /Fix proof gaps/i);
+});
+
+test("private operator cycle prepares proof, report memory, and waits for review", () => {
+  const run = markApexOsAutonomyRunInternalDrafted(buildApexOsAutonomyRunPlan({
+    title: "Cycle private run",
+    request: "Work this Apex run up for review.",
+    routeLabel: "Apex",
+  }, {
+    id: "AAR-CYCLE",
+    now: "2026-06-04T10:00:00.000Z",
+    createdBy: "U-1",
+  }), {
+    agentControlRequestId: "AAC-CYCLE",
+    executionHandoffId: "AEH-CYCLE",
+    now: "2026-06-04T10:01:00.000Z",
+  });
+
+  const cycled = runApexOsAutonomyRunPrivateOperatorCycle(run, {
+    now: "2026-06-04T10:04:00.000Z",
+  });
+
+  assert.equal(cycled.status, "waiting-approval");
+  assert.equal(cycled.steps.find((step) => step.id === "route-work").status, "done");
+  assert.equal(cycled.steps.find((step) => step.id === "plan-steps").status, "done");
+  assert.equal(cycled.steps.find((step) => step.id === "draft-internal").status, "drafted");
+  assert.equal(cycled.steps.find((step) => step.id === "validate-evidence").status, "done");
+  assert.equal(cycled.steps.find((step) => step.id === "approval-gate").status, "waiting-approval");
+  assert.equal(cycled.steps.find((step) => step.id === "report-memory").status, "ready");
+  assert.match(cycled.evidence.join(" "), /private operator cycle completed/i);
+  assert.match(cycled.nextSafeAction, /Operator cycle is complete/i);
+  assert.equal(isApexOsAutonomyRunReady(cycled), true);
+});
+
+test("private operator cycle reports proof gaps without executing", () => {
+  const run = buildApexOsAutonomyRunPlan({
+    title: "Cycle gaps",
+    request: "Try to work this run without linked drafts.",
+  }, {
+    id: "AAR-CYCLE-GAPS",
+    now: "2026-06-04T10:00:00.000Z",
+    createdBy: "U-1",
+  });
+
+  const cycled = runApexOsAutonomyRunPrivateOperatorCycle(run, {
+    now: "2026-06-04T10:04:00.000Z",
+  });
+
+  assert.equal(cycled.status, "validating");
+  assert.equal(cycled.steps.find((step) => step.id === "validate-evidence").status, "blocked");
+  assert.equal(cycled.steps.find((step) => step.id === "report-memory").status, "todo");
+  assert.match(cycled.evidence.join(" "), /validation gaps/i);
+  assert.match(cycled.nextSafeAction, /Fix proof gaps/i);
+});
+
+test("private operator cycle leaves terminal runs unchanged", () => {
+  const doneRun = normalizeApexOsAutonomyRun({
+    id: "AAR-CYCLE-DONE",
+    title: "Already done",
+    request: "Do not reopen this run.",
+    status: "done",
+    resultReport: "Completed after review.",
+  }, {
+    now: "2026-06-04T10:00:00.000Z",
+  });
+
+  const cycled = runApexOsAutonomyRunPrivateOperatorCycle(doneRun, {
+    now: "2026-06-04T10:05:00.000Z",
+  });
+
+  assert.equal(cycled.status, "done");
+  assert.equal(cycled.resultReport, "Completed after review.");
+  assert.equal(cycled.nextSafeAction, doneRun.nextSafeAction);
 });
 
 test("normalizes durable run lists and redacts unsafe text", () => {
