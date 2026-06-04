@@ -209,6 +209,11 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /startCockpitOutputLevelMonitor/);
   assert.match(componentSource, /stopCockpitOutputLevelMonitor/);
   assert.match(componentSource, /Live Conversation/);
+  assert.match(componentSource, /Live Operator Mode/);
+  assert.match(componentSource, /Live Run/);
+  assert.match(componentSource, /createCockpitLiveRunFromCommand/);
+  assert.match(componentSource, /Apex Live Operator Mode/);
+  assert.match(componentSource, /liveOperatorMode/);
   assert.match(componentSource, /Voice Identity/);
   assert.match(componentSource, /Barge-in On/);
   assert.match(componentSource, /Brief Me/);
@@ -227,6 +232,11 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /co-apex-life-orbit/);
   assert.match(componentSource, /co-apex-cockpit-mobile-response/);
   assert.match(componentSource, /co-apex-cockpit-side-rail/);
+  assert.match(utilSource, /buildApexLiveOperatorModeState/);
+  assert.match(utilSource, /liveOperatorMode/);
+  assert.match(utilSource, /Body-first review-first operator/);
+  assert.match(utilSource, /live-loop-save/);
+  assert.match(utilSource, /live-gap-execution/);
   assert.match(cssSource, /\.co-apex-cockpit-side-rail/);
   assert.match(cssSource, /max-width: 1279px/);
   assert.match(cssSource, /min-width: 1280px/);

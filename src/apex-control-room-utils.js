@@ -76,6 +76,7 @@ const APEX_OS_DERIVED_STATE_META = Object.freeze({
   "release-monitoring": { sourceLabel: "Release monitoring state", source: "release safety + recent evidence", confidence: 82 },
   "business-command-center": { sourceLabel: "Business queue state", source: "Apex OS business queues", confidence: 80 },
   "qa-security-hardening": { sourceLabel: "QA/security proof map", source: "Apex OS hardening rows", confidence: 84 },
+  "live-operator-mode": { sourceLabel: "Apex Live Operator Mode", source: "voice + autonomy + monitoring state", confidence: 86 },
   "trust-readiness": { sourceLabel: "Enterprise trust readiness", source: "deriveEnterpriseTrustReadinessState", confidence: 86 },
   "launch-readiness": { sourceLabel: "Launch readiness", source: "deriveLaunchReadinessEvidenceState", confidence: 88 },
   "agent-tasks": { sourceLabel: "Agent OS task helpers", source: "visible workspace records", confidence: 88 },
@@ -2133,6 +2134,148 @@ function buildAutonomyRunCenterState({
   };
 }
 
+function buildApexLiveOperatorModeState({
+  autonomyRunCenter,
+  voiceInterface,
+  askApexChat,
+  agentControlPlane,
+  executionHandoffs,
+  releaseMonitoring,
+  decisionMemory,
+  approvalCommandCenter,
+  releaseDesk,
+  businessCommandCenter,
+} = {}) {
+  const savedRunCount = formatCount(autonomyRunCenter?.savedRunCount || autonomyRunCenter?.runSummary?.total);
+  const activeRunCount = formatCount(autonomyRunCenter?.activeRunCount || autonomyRunCenter?.runSummary?.active);
+  const trustedMemoryCount = formatCount(decisionMemory?.durableCount || decisionMemory?.decisionCount);
+  const agentSignalCount = formatCount(agentControlPlane?.roleCount || agentControlPlane?.rosterRows?.length);
+  const handoffCount = formatCount(executionHandoffs?.handoffSummary?.total);
+  const approvalQueueCount = formatCount(approvalCommandCenter?.queueCount || approvalCommandCenter?.packetSummary?.total);
+  const monitoringCount = formatCount(releaseMonitoring?.briefingCount || releaseMonitoring?.readinessCount);
+  const liveFoundationPercent = 72;
+  const jarvisBehaviorPercent = activeRunCount || handoffCount ? 46 : 42;
+  const readinessRows = withDerivedStateMetaList([
+    {
+      id: "live-voice-loop",
+      title: "Voice loop",
+      status: voiceInterface?.status || "Voice ready",
+      detail: `${formatCount(voiceInterface?.modeCount)} modes, ${formatCount(voiceInterface?.safetyCount)} safety gates, visible microphone control, spoken answers, and interruption support are mapped.`,
+      tone: voiceInterface?.tone || "green",
+    },
+    {
+      id: "live-understanding",
+      title: "Understanding",
+      status: askApexChat?.status || "Source-backed",
+      detail: `${formatCount(askApexChat?.contextCount)} context lanes and ${formatCount(askApexChat?.evidenceCount)} evidence rows feed private answers before action.`,
+      tone: askApexChat?.tone || "green",
+    },
+    {
+      id: "live-run-ledger",
+      title: "Run ledger",
+      status: savedRunCount ? `${savedRunCount} saved` : "Ready",
+      detail: `${activeRunCount} active run${activeRunCount === 1 ? "" : "s"} are visible. New live runs save a private ledger item before internal drafting.`,
+      tone: savedRunCount ? "green" : "blue",
+    },
+    {
+      id: "live-internal-drafts",
+      title: "Internal drafts",
+      status: handoffCount ? `${handoffCount} handoffs` : "Draft-ready",
+      detail: `${agentSignalCount} agent roles can receive locked private handoffs without queueing or running agent work.`,
+      tone: handoffCount ? "green" : "blue",
+    },
+    {
+      id: "live-monitoring",
+      title: "Monitoring",
+      status: releaseMonitoring?.status || releaseDesk?.status || "Monitoring ready",
+      detail: `${monitoringCount} release/monitoring rows and ${formatCount(businessCommandCenter?.briefingCount)} business briefing rows can feed proactive status.`,
+      tone: releaseMonitoring?.tone || releaseDesk?.tone || "green",
+    },
+    {
+      id: "live-memory",
+      title: "Run memory",
+      status: trustedMemoryCount ? `${trustedMemoryCount} trusted` : "Memory ready",
+      detail: "Finished runs can report results and suggest memory after review; no hidden memory becomes trusted automatically.",
+      tone: trustedMemoryCount ? "green" : "blue",
+    },
+  ], {
+    sourceLabel: "Apex Live Operator readiness",
+    source: "deriveApexControlRoomState",
+    confidence: 86,
+  });
+  const operatorLoopRows = withDerivedStateMetaList([
+    { id: "live-loop-hear", title: "Hear", status: "Open", detail: "Voice and typed commands enter the Apex body page.", tone: "green" },
+    { id: "live-loop-understand", title: "Understand", status: "Source-backed", detail: "Apex routes the request against private command-room context.", tone: "green" },
+    { id: "live-loop-plan", title: "Plan", status: `${formatCount(autonomyRunCenter?.planStepCount)} steps`, detail: "The request becomes a visible review-first run plan.", tone: "blue" },
+    { id: "live-loop-save", title: "Save run", status: savedRunCount ? `${savedRunCount} saved` : "Ready", detail: "A private autonomy ledger item is created before work continues.", tone: savedRunCount ? "green" : "blue" },
+    { id: "live-loop-draft", title: "Draft", status: autonomyRunCenter?.canDraftInternalRuns ? "Draft-ready" : "Guarded", detail: "Internal agent-control and execution handoff drafts can be prepared.", tone: autonomyRunCenter?.canDraftInternalRuns ? "green" : "amber" },
+    { id: "live-loop-validate", title: "Validate", status: "Required", detail: "Tests, role checks, browser QA, build proof, and rollback notes stay attached to the work.", tone: "amber" },
+    { id: "live-loop-report", title: "Report", status: "Result slot", detail: "Apex reports what happened, what is blocked, and what needs review.", tone: "blue" },
+    { id: "live-loop-remember", title: "Remember", status: trustedMemoryCount ? "Trusted context" : "Review first", detail: "Only reviewed memory becomes future operating context.", tone: trustedMemoryCount ? "green" : "amber" },
+    { id: "live-loop-monitor", title: "Monitor", status: releaseMonitoring?.status || "Watching", detail: "Release, business, approval, and agent signals stay visible for operator review.", tone: releaseMonitoring?.tone || "green" },
+  ], {
+    sourceLabel: "Apex Live Operator loop",
+    source: "voice + autonomy run center",
+    confidence: 86,
+  });
+  const gapRows = withDerivedStateMetaList([
+    {
+      id: "live-gap-browser-voice",
+      title: "Always-open voice",
+      status: "Browser-gated",
+      detail: "Browsers still require a visible wake/permission event before microphone and audio can stay open.",
+      tone: "amber",
+    },
+    {
+      id: "live-gap-execution",
+      title: "Real-world execution",
+      status: "Private drafts only",
+      detail: "Apex can save and draft work; customer-visible, billing, send, provider, production, delete, and irreversible actions remain approval-gated.",
+      tone: "amber",
+    },
+    {
+      id: "live-gap-proactive",
+      title: "Proactive action",
+      status: "Status visible",
+      detail: "Monitoring can surface briefings and blockers, but background autonomous actions stay off until a separate approved execution lane exists.",
+      tone: "blue",
+    },
+    {
+      id: "live-gap-provider-reliability",
+      title: "Voice reliability",
+      status: "Fallback ready",
+      detail: "Server speech can speak when configured; browser speech fallback keeps the answer audible when provider audio is unavailable.",
+      tone: "blue",
+    },
+  ], {
+    sourceLabel: "Apex Live Operator remaining gaps",
+    source: "current safety model",
+    confidence: 86,
+  });
+
+  return {
+    status: activeRunCount ? "Live operator running" : "Live operator ready",
+    tone: activeRunCount ? "green" : "blue",
+    mode: "Body-first review-first operator",
+    detail: "Apex is moving from a screen with tools into a visible operator loop: hear, understand, save, draft, validate, report, remember, and monitor.",
+    foundationPercent: liveFoundationPercent,
+    jarvisBehaviorPercent,
+    readinessCount: readinessRows.length,
+    operatorLoopCount: operatorLoopRows.length,
+    gapCount: gapRows.length,
+    savedRunCount,
+    activeRunCount,
+    approvalQueueCount,
+    agentSignalCount,
+    externalActionsLocked: true,
+    executionLocked: true,
+    nextAction: activeRunCount ? "Review the active live run and validate its internal drafts." : "Start a live operator run from the Apex body.",
+    readinessRows,
+    operatorLoopRows,
+    gapRows,
+  };
+}
+
 function buildReleaseMonitoringState({
   releaseDesk,
   launchState,
@@ -3192,6 +3335,18 @@ export function deriveApexControlRoomState({
     businessCommandCenter,
     companySettings,
   });
+  const liveOperatorMode = buildApexLiveOperatorModeState({
+    autonomyRunCenter,
+    voiceInterface,
+    askApexChat,
+    agentControlPlane,
+    executionHandoffs,
+    releaseMonitoring,
+    decisionMemory,
+    approvalCommandCenter,
+    releaseDesk,
+    businessCommandCenter,
+  });
   const phase3Aggregator = buildPhase3AggregatorState({
     companySettings,
     auditEvents,
@@ -3287,6 +3442,27 @@ export function deriveApexControlRoomState({
         canExecuteExternalActions: false,
         executionLocked: true,
         externalActionsLocked: true,
+      },
+      liveOperatorMode: {
+        status: "Restricted",
+        tone: "slate",
+        mode: "Restricted",
+        detail: "Apex Live Operator Mode is operator-only.",
+        foundationPercent: 0,
+        jarvisBehaviorPercent: 0,
+        readinessCount: 0,
+        operatorLoopCount: 0,
+        gapCount: 0,
+        savedRunCount: 0,
+        activeRunCount: 0,
+        approvalQueueCount: 0,
+        agentSignalCount: 0,
+        externalActionsLocked: true,
+        executionLocked: true,
+        nextAction: "Operator access required.",
+        readinessRows: [],
+        operatorLoopRows: [],
+        gapRows: [],
       },
       approvals: [],
       evidence: [],
@@ -3390,6 +3566,13 @@ export function deriveApexControlRoomState({
         status: autonomyRunCenter.status,
         detail: `${autonomyRunCenter.planStepCount} run-plan steps, ${autonomyRunCenter.routeCount} route lanes, and ${autonomyRunCenter.gatedActionCount} approval-gated action classes are visible before execution.`,
         tone: autonomyRunCenter.tone,
+      },
+      {
+        id: "live-operator-mode",
+        title: "Live operator mode",
+        status: liveOperatorMode.status,
+        detail: `${liveOperatorMode.operatorLoopCount} live loop stages and ${liveOperatorMode.readinessCount} readiness systems move Apex toward live operator behavior while execution remains locked.`,
+        tone: liveOperatorMode.tone,
       },
       {
         id: "release-monitoring",
@@ -3507,6 +3690,13 @@ export function deriveApexControlRoomState({
         status: autonomyRunCenter.status,
         detail: `${autonomyRunCenter.mode}: Apex can plan, route, draft internal work, validate evidence, and stop at approval gates. External execution remains locked.`,
         tone: autonomyRunCenter.tone,
+      },
+      {
+        id: "live-operator-mode",
+        title: "Live operator mode",
+        status: liveOperatorMode.status,
+        detail: `${liveOperatorMode.foundationPercent}% command foundation, ${liveOperatorMode.jarvisBehaviorPercent}% live operator behavior, ${liveOperatorMode.savedRunCount} saved runs, and ${liveOperatorMode.gapCount} controlled gaps are visible.`,
+        tone: liveOperatorMode.tone,
       },
       {
         id: "release-monitoring",
@@ -3699,6 +3889,13 @@ export function deriveApexControlRoomState({
         tone: autonomyRunCenter.tone,
       },
       {
+        id: "live-operator-mode",
+        title: "Live operator mode",
+        status: liveOperatorMode.status,
+        detail: liveOperatorMode.detail,
+        tone: liveOperatorMode.tone,
+      },
+      {
         id: "release-monitoring",
         title: "Release monitoring",
         status: releaseMonitoring.status,
@@ -3751,6 +3948,7 @@ export function deriveApexControlRoomState({
     releaseMonitoring,
     businessCommandCenter,
     autonomyRunCenter,
+    liveOperatorMode,
     qaSecurityHardening,
     finishedApexOs,
     agentWorkQueue,

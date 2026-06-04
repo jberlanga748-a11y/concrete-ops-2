@@ -4595,6 +4595,8 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const [cockpitPersonalityMode, setCockpitPersonalityMode] = useState("operator");
   const [cockpitAgentActionNotice, setCockpitAgentActionNotice] = useState("");
   const [cockpitCreatingAgentRequest, setCockpitCreatingAgentRequest] = useState(false);
+  const [cockpitLiveRunNotice, setCockpitLiveRunNotice] = useState("");
+  const [cockpitCreatingLiveRun, setCockpitCreatingLiveRun] = useState(false);
   const [cockpitMicPermissionState, setCockpitMicPermissionState] = useState("unknown");
   const [cockpitVoiceWakeAttempted, setCockpitVoiceWakeAttempted] = useState(false);
   const [cockpitClock, setCockpitClock] = useState(() => formatApexCockpitClock());
@@ -4660,6 +4662,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     ? `v${state.releaseDesk.currentVersion}`
     : state.releaseDesk?.deployHistoryRows?.[0]?.status || "Evidence required";
   const releaseHealth = state.releaseDesk?.status || "Healthy";
+  const liveOperatorMode = state.liveOperatorMode || {};
   const cockpitAnswerText = resolveApexCockpitAnswerText(cockpitResponse);
   const cockpitVoiceMode = cockpitError
     ? "blocked"
@@ -4679,6 +4682,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const cockpitPromptText = cockpitLastQuestion || askQuestion.trim();
   const canAskCockpit = state.canView && Boolean(sessionToken) && Boolean(askQuestion.trim()) && !cockpitSubmitting;
   const canSpeakCockpitAnswer = state.canView && Boolean(sessionToken) && Boolean(cockpitAnswerText) && !cockpitSpeaking;
+  const canCreateCockpitLiveRun = state.canView && Boolean(sessionToken) && !cockpitCreatingLiveRun;
   const cockpitLiveLevel = Math.max(cockpitMicLevel, cockpitOutputLevel);
   const canStartCockpitVoice = state.canView && Boolean(sessionToken) && canUseCockpitRecorder && !cockpitRecording && !cockpitTranscribing && !cockpitSubmitting && (!cockpitSpeaking || cockpitBargeInEnabled) && !cockpitVoiceOpeningRef.current;
   const canToggleCockpitVoice = canStartCockpitVoice || cockpitRecording;
@@ -5026,6 +5030,65 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     }
   }
 
+  async function createCockpitLiveRunFromCommand(question = cockpitLastQuestion || askQuestion || cockpitBriefingText, route = cockpitCommandRoute, { turnId = "" } = {}) {
+    if (!state.canView || !sessionToken || cockpitCreatingLiveRun) return null;
+    const request = String(question || "").trim() || `Start Apex live operator run for ${route?.label || "Apex"}.`;
+    const runTurnId = turnId || `cockpit-live-run-${Date.now()}`;
+    setCockpitCreatingLiveRun(true);
+    setCockpitLiveRunNotice("Starting private live run. Saving ledger and drafting internal work only.");
+    setCockpitAgentActionNotice("Starting private live run. No external action will execute.");
+    if (!turnId) {
+      setCockpitTurns((current) => [
+        {
+          id: runTurnId,
+          question: request,
+          source: "live-run",
+          routeLabel: route?.label || "Apex",
+          status: "saving-run",
+        },
+        ...current,
+      ].slice(0, 5));
+    }
+    try {
+      const createPayload = await createApexOsAutonomyRun(sessionToken, {
+        request,
+        routeId: route?.id || "apex",
+        routeLabel: route?.label || "Apex",
+        routeDetail: route?.detail || "Apex Live Operator Mode command.",
+        sourceLabel: "Apex Live Operator Mode",
+        sourceUri: "apex-life://live-operator",
+        operatorNote: "Created from the Apex body screen. Save, draft, validate, report, and remember only; execution stays locked.",
+      });
+      const createdRun = createPayload?.apexOsAutonomyRun;
+      let finalRun = createdRun || null;
+      if (createdRun?.id) {
+        const draftPayload = await draftApexOsAutonomyRunInternalWork(sessionToken, createdRun.id);
+        finalRun = draftPayload?.apexOsAutonomyRun || createdRun;
+      }
+      const finalNotice = finalRun?.id
+        ? `Live run ${finalRun.id} saved and internal draft package prepared. Execution stays locked.`
+        : "Live run saved and internal draft package prepared. Execution stays locked.";
+      setCockpitLiveRunNotice(finalNotice);
+      setCockpitAgentActionNotice(finalNotice);
+      setCockpitResponse({
+        answer: {
+          answer: `${finalNotice} Next: review the run ledger, validate evidence, then approve only the gated actions you truly want.`,
+          sourceLabels: ["Apex Live Operator Mode", "Autonomy Run Center", "Agent handoff drafts"],
+        },
+      });
+      setCockpitTurns((current) => current.map((turn) => (turn.id === runTurnId ? { ...turn, status: "live-run-drafted" } : turn)));
+      return finalRun;
+    } catch (error) {
+      const message = error?.message || "Live run could not be saved.";
+      setCockpitLiveRunNotice(message);
+      setCockpitAgentActionNotice(message);
+      setCockpitTurns((current) => current.map((turn) => (turn.id === runTurnId ? { ...turn, status: "blocked" } : turn)));
+      return null;
+    } finally {
+      setCockpitCreatingLiveRun(false);
+    }
+  }
+
   async function askCockpitQuestion(nextQuestion, { fromVoice = false } = {}) {
     const previousTurns = cockpitTurns.slice(0, 4);
     const route = buildApexCockpitCommandRoute(nextQuestion, { previousRoute: cockpitCommandRoute });
@@ -5214,7 +5277,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
 
   return (
     <section className="co-apex-cockpit-screen co-apex-cockpit-screen--focus w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-700/70 bg-slate-950 text-white shadow-[0_34px_80px_-40px_rgba(2,6,23,0.95)] ring-1 ring-cyan-300/10 lg:h-[calc(100vh-16px)]">
-      <div className="relative grid min-h-[720px] w-full min-w-0 max-w-full bg-slate-950 lg:h-full lg:min-h-0 lg:grid-cols-[190px_minmax(0,1fr)]">
+      <div className="co-apex-cockpit-frame relative grid min-h-[720px] w-full min-w-0 max-w-full bg-slate-950 lg:h-full lg:min-h-0 lg:grid-cols-[190px_minmax(0,1fr)]">
         <div
           className="absolute inset-0 opacity-90"
           style={{
@@ -5485,6 +5548,9 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     <ApexCockpitControlButton className="px-2" disabled={cockpitCreatingAgentRequest || cockpitCommandRoute.id !== "agent-control"} onClick={() => createCockpitAgentRequestFromCommand()} active={cockpitCreatingAgentRequest} title="Create locked agent request">
                       <Icon name="lock" /> Agent Draft
                     </ApexCockpitControlButton>
+                    <ApexCockpitControlButton className="px-2" disabled={!canCreateCockpitLiveRun} onClick={() => createCockpitLiveRunFromCommand()} active={cockpitCreatingLiveRun} title="Start private live operator run">
+                      <Icon name="spark" /> {cockpitCreatingLiveRun ? "Starting" : "Live Run"}
+                    </ApexCockpitControlButton>
                   </div>
                 </div>
                 <div className="grid min-w-0 gap-1.5 sm:grid-cols-4">
@@ -5499,6 +5565,41 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                       <p className={`mt-0.5 text-[11px] font-black ${item.tone === "green" ? "text-emerald-300" : item.tone === "amber" ? "text-orange-300" : item.tone === "blue" ? "text-cyan-300" : "text-slate-300"}`}>{item.value}</p>
                     </div>
                   ))}
+                </div>
+                <div className="grid min-w-0 gap-2 rounded-lg border border-cyan-200/12 bg-slate-900/46 p-3">
+                  <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Live Operator Mode</p>
+                      <p className="mt-0.5 min-w-0 break-words text-xs font-black text-slate-100">{liveOperatorMode.status || "Live operator ready"}</p>
+                      <p className="mt-0.5 min-w-0 break-words text-[11px] font-bold leading-4 text-slate-500">{cockpitLiveRunNotice || cockpitAgentActionNotice || liveOperatorMode.nextAction || "Start a live operator run from the Apex body."}</p>
+                    </div>
+                    <ToneBadge tone={liveOperatorMode.tone || "blue"}>{liveOperatorMode.mode || "Review-first"}</ToneBadge>
+                  </div>
+                  <div className="grid min-w-0 gap-1.5 sm:grid-cols-4">
+                    {[
+                      { label: "Foundation", value: `${liveOperatorMode.foundationPercent || 0}%`, tone: "green" },
+                      { label: "Operator", value: `${liveOperatorMode.jarvisBehaviorPercent || 0}%`, tone: "blue" },
+                      { label: "Saved runs", value: String(liveOperatorMode.savedRunCount || 0), tone: liveOperatorMode.savedRunCount ? "green" : "slate" },
+                      { label: "Gates", value: liveOperatorMode.externalActionsLocked ? "Locked" : "Open", tone: liveOperatorMode.externalActionsLocked ? "amber" : "green" },
+                    ].map((item) => (
+                      <div key={item.label} className="min-w-0 rounded-md border border-slate-800 bg-slate-950/54 px-2.5 py-2">
+                        <p className="text-[9px] font-black uppercase tracking-[0.1em] text-slate-500">{item.label}</p>
+                        <p className={`mt-0.5 text-[11px] font-black ${item.tone === "green" ? "text-emerald-300" : item.tone === "amber" ? "text-orange-300" : item.tone === "blue" ? "text-cyan-300" : "text-slate-300"}`}>{item.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="grid min-w-0 gap-1.5 sm:grid-cols-3">
+                    {(liveOperatorMode.operatorLoopRows || []).slice(0, 6).map((item) => (
+                      <div key={item.id} className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-slate-800 bg-slate-950/42 px-2.5 py-2">
+                        <Icon name={item.id === "live-loop-validate" ? "check" : item.id === "live-loop-draft" ? "clipboard" : item.id === "live-loop-monitor" ? "refresh" : "spark"} className={`h-3.5 w-3.5 ${item.tone === "green" ? "text-emerald-300" : item.tone === "amber" ? "text-orange-300" : "text-cyan-300"}`} />
+                        <span className="min-w-0">
+                          <span className="block truncate text-[10px] font-black text-slate-200">{item.title}</span>
+                          <span className="block truncate text-[9px] font-bold text-slate-500">{item.detail}</span>
+                        </span>
+                        <span className={`shrink-0 text-[9px] font-black uppercase tracking-[0.08em] ${item.tone === "green" ? "text-emerald-300" : item.tone === "amber" ? "text-orange-300" : "text-cyan-300"}`}>{item.status}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </section>
               <section className="co-apex-cockpit-mobile-response grid min-w-0 gap-2 rounded-lg border border-cyan-200/14 bg-slate-950/76 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] xl:hidden" aria-label="Apex mobile response">
@@ -5639,7 +5740,7 @@ function ApexHomePanel({ state, activeSection, onChange, askQuestion, setAskQues
   return (
     <section className="grid min-w-0 gap-4">
       <ApexCockpitScreen state={state} activeSection={activeSection} onChange={onChange} askQuestion={askQuestion} setAskQuestion={setAskQuestion} sessionToken={sessionToken} />
-      <div className="hidden lg:block">
+      <div className="hidden">
         <ApexRoomLauncher
           activeSection={activeSection}
           onChange={onChange}

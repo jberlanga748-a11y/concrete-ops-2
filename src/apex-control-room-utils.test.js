@@ -88,6 +88,11 @@ test("deriveApexControlRoomState blocks non-private users", () => {
   assert.equal(state.autonomyRunCenter.runSummary.total, 0);
   assert.equal(state.autonomyRunCenter.canExecuteExternalActions, false);
   assert.equal(state.autonomyRunCenter.executionLocked, true);
+  assert.deepEqual(state.liveOperatorMode.readinessRows, []);
+  assert.deepEqual(state.liveOperatorMode.operatorLoopRows, []);
+  assert.deepEqual(state.liveOperatorMode.gapRows, []);
+  assert.equal(state.liveOperatorMode.externalActionsLocked, true);
+  assert.equal(state.liveOperatorMode.executionLocked, true);
   assert.equal(state.operatorName, "Normal Admin");
 });
 
@@ -412,6 +417,20 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.autonomyRunCenter.gateRows.some((item) => item.id === "autonomy-customer-visible" && item.status === "Approval gate"), true);
   assert.equal(state.operatingSignals.some((item) => item.id === "autonomy-run-center"), true);
   assert.equal(state.agents.some((item) => item.id === "autonomy-run-center"), true);
+  assert.equal(state.liveOperatorMode.status, "Live operator ready");
+  assert.equal(state.liveOperatorMode.mode, "Body-first review-first operator");
+  assert.equal(state.liveOperatorMode.foundationPercent, 72);
+  assert.equal(state.liveOperatorMode.jarvisBehaviorPercent, 42);
+  assert.equal(state.liveOperatorMode.readinessRows.length, 6);
+  assert.equal(state.liveOperatorMode.operatorLoopRows.length, 9);
+  assert.equal(state.liveOperatorMode.gapRows.length, 4);
+  assert.equal(state.liveOperatorMode.readinessRows.some((item) => item.id === "live-run-ledger" && item.status === "Ready"), true);
+  assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-save"), true);
+  assert.equal(state.liveOperatorMode.gapRows.some((item) => item.id === "live-gap-execution" && item.status === "Private drafts only"), true);
+  assert.equal(state.liveOperatorMode.externalActionsLocked, true);
+  assert.equal(state.liveOperatorMode.executionLocked, true);
+  assert.equal(state.operatingSignals.some((item) => item.id === "live-operator-mode"), true);
+  assert.equal(state.agents.some((item) => item.id === "live-operator-mode"), true);
   assert.equal(state.approvals.length, APEX_CONTROL_ROOM_APPROVAL_GATES.length);
   assert.equal(state.evidence[0].id, "AUD-BUILD");
 });
@@ -462,6 +481,11 @@ test("deriveApexControlRoomState includes saved autonomy run ledger rows", () =>
   assert.equal(state.autonomyRunCenter.latestRun.id, "AAR-ACTIVE");
   assert.equal(state.autonomyRunCenter.runRows[0].executionLocked, true);
   assert.equal(state.autonomyRunCenter.runRows[0].externalActionsLocked, true);
+  assert.equal(state.liveOperatorMode.status, "Live operator running");
+  assert.equal(state.liveOperatorMode.savedRunCount, 2);
+  assert.equal(state.liveOperatorMode.activeRunCount, 1);
+  assert.equal(state.liveOperatorMode.readinessRows.some((item) => item.id === "live-run-ledger" && item.status === "2 saved"), true);
+  assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-save" && item.status === "2 saved"), true);
 });
 
 test("deriveApexControlRoomState includes durable Apex OS decision memory summary", () => {

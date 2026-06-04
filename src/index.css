@@ -57132,6 +57132,16 @@ body:has(.co-field-mobile-reports-shell) .co-mobile-bottom-spacer {
 }
 
 @media (min-width: 1280px) {
+  .co-apex-cockpit-screen--focus {
+    height: auto !important;
+    min-height: calc(100vh - 16px) !important;
+  }
+
+  .co-apex-cockpit-screen--focus .co-apex-cockpit-frame {
+    height: auto !important;
+    min-height: calc(100vh - 16px) !important;
+  }
+
   .co-apex-cockpit-screen--focus .co-apex-cockpit-main-grid {
     grid-template-columns: minmax(0, 1fr) !important;
   }
@@ -57143,15 +57153,16 @@ body:has(.co-field-mobile-reports-shell) .co-mobile-bottom-spacer {
   .co-apex-cockpit-screen--focus .co-apex-cockpit-focus-center {
     margin-inline: auto;
     max-width: min(100%, 58rem);
+    overflow: visible !important;
   }
 
   .co-apex-cockpit-screen--focus .co-apex-life-body {
     max-width: 40rem;
-    min-height: clamp(26rem, 52vh, 34rem);
+    min-height: clamp(22rem, 44vh, 30rem);
   }
 
   .co-apex-cockpit-screen--focus .co-apex-life-body-image {
-    max-height: 32rem;
+    max-height: 28rem;
   }
 
   .co-apex-cockpit-focus-drawer {
