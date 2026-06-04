@@ -3983,7 +3983,7 @@ function buildApexCockpitProactiveBriefing(state = {}) {
   ].join(" ");
 }
 
-function buildApexCockpitQuestionEnvelope(question, { personalityMode = "operator", route, memoryCount = 0, turns = [] } = {}) {
+function buildApexCockpitQuestionEnvelope(question, { personalityMode = "operator", route, memoryCount = 0, turns = [], interrupted = false } = {}) {
   const personality = findApexCockpitPersonalityMode(personalityMode);
   return [
     "Apex Life operator mode.",
@@ -3991,8 +3991,9 @@ function buildApexCockpitQuestionEnvelope(question, { personalityMode = "operato
     `Matched room: ${route?.label || "Ask Apex"}.`,
     `Trusted memory count visible: ${memoryCount}.`,
     `Recent page conversation:\n${buildApexCockpitTurnMemory(turns)}`,
+    interrupted ? "The operator interrupted Apex while it was speaking. Stop the prior answer, prioritize this new request, and answer naturally from the updated context." : "",
     `User request: ${String(question || "").trim()}`,
-  ].join("\n").slice(0, 1000);
+  ].filter(Boolean).join("\n").slice(0, 1100);
 }
 
 function inferApexCockpitAgentRole(question = "", route = {}) {
@@ -4149,7 +4150,7 @@ function ApexCockpitCommandStream({ turns, route, onOpenRoute, onCreateAgentRequ
       <div className="grid min-w-0 gap-1.5">
         {visibleTurns.length ? visibleTurns.map((turn) => (
           <div key={turn.id} className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-slate-800 bg-slate-900/58 px-2.5 py-2">
-            <Icon name={turn.source === "voice" ? "phone" : "check"} className="h-3.5 w-3.5 text-cyan-300" />
+            <Icon name={turn.source === "interrupt" ? "alert" : turn.source === "voice" ? "phone" : "check"} className="h-3.5 w-3.5 text-cyan-300" />
             <p className="min-w-0 truncate text-[11px] font-bold text-slate-300">{turn.question}</p>
             <span className="text-[9px] font-black uppercase tracking-[0.08em] text-slate-500">{turn.status === "agent-requested" ? "locked" : turn.routeLabel}</span>
           </div>
@@ -4621,15 +4622,16 @@ function summarizeApexCockpitLivePulse({ state, buildPayload, briefingPayload, r
   };
 }
 
-function buildApexCockpitPulseRows({ state, pulse, recording, speaking, conversationMode, bargeInEnabled, captionFallbackEnabled = false, captionStatus = "standby" } = {}) {
+function buildApexCockpitPulseRows({ state, pulse, recording, speaking, conversationMode, bargeInEnabled, captionFallbackEnabled = false, captionStatus = "standby", interruptionCount = 0 } = {}) {
   const summary = pulse?.runSummary || state?.autonomyRunCenter?.runSummary || {};
   const captionActive = captionStatus === "captioning" || captionStatus === "interim";
+  const caughtInterruptions = Number(interruptionCount || 0);
   return [
     { label: "Auto Check", value: formatApexCockpitPulseTime(pulse?.checkedAt), tone: pulse?.checkedAt ? "green" : "slate" },
     { label: "Release", value: pulse?.releaseVersion || (state?.releaseDesk?.currentVersion ? `v${state.releaseDesk.currentVersion}` : "Live"), tone: state?.releaseDesk?.tone || "green" },
     { label: "Runs", value: `${Number(summary.active || 0)} active / ${Number(summary.total || 0)} saved`, tone: Number(summary.active || 0) ? "green" : "slate" },
     { label: "Voice Loop", value: recording ? "Listening" : speaking ? "Talking" : conversationMode ? "Open" : "Manual", tone: recording || conversationMode ? "green" : "slate" },
-    { label: "Barge-in", value: bargeInEnabled ? "Armed" : "Off", tone: bargeInEnabled ? "amber" : "slate" },
+    { label: "Barge-in", value: caughtInterruptions ? `${caughtInterruptions} caught` : bargeInEnabled ? "Armed" : "Off", tone: caughtInterruptions ? "green" : bargeInEnabled ? "amber" : "slate" },
     { label: "Captions", value: captionFallbackEnabled ? (captionActive ? "Live" : "Ready") : "Server", tone: captionFallbackEnabled ? "blue" : "slate" },
     { label: "Alerts", value: `${Number(pulse?.alertCount || 0)} alerts`, tone: Number(pulse?.alertCount || 0) ? "amber" : "green" },
     { label: "Blockers", value: `${Number(pulse?.blockerCount || 0)} blockers`, tone: Number(pulse?.blockerCount || 0) ? "amber" : "green" },
@@ -4666,6 +4668,8 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const [cockpitBrowserTranscript, setCockpitBrowserTranscript] = useState("");
   const [cockpitRecognitionStatus, setCockpitRecognitionStatus] = useState("standby");
   const [cockpitRecognitionError, setCockpitRecognitionError] = useState("");
+  const [cockpitInterruptionCount, setCockpitInterruptionCount] = useState(0);
+  const [cockpitLastInterruptionLabel, setCockpitLastInterruptionLabel] = useState("");
   const [cockpitClock, setCockpitClock] = useState(() => formatApexCockpitClock());
   const [cockpitFocusDrawer, setCockpitFocusDrawer] = useState("");
   const [cockpitCommandRoute, setCockpitCommandRoute] = useState(() => buildApexCockpitCommandRoute(""));
@@ -4690,6 +4694,9 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const cockpitRecognitionRestartTimerRef = useRef(0);
   const cockpitRecognitionStopRequestedRef = useRef(false);
   const cockpitBrowserTranscriptRef = useRef("");
+  const cockpitInterruptionCountRef = useRef(0);
+  const cockpitLastInterruptionLabelRef = useRef("");
+  const cockpitPendingInterruptionRef = useRef(false);
   const cockpitSpeechStartedRef = useRef(false);
   const cockpitVoiceStartedAtRef = useRef(0);
   const cockpitLastSoundAtRef = useRef(0);
@@ -4773,6 +4780,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     bargeInEnabled: cockpitBargeInEnabled,
     captionFallbackEnabled: canUseCockpitSpeechRecognition,
     captionStatus: cockpitRecognitionStatus,
+    interruptionCount: cockpitInterruptionCount,
   });
   const focusDrawerTabs = [
     { id: "voice", label: "Voice", value: cockpitRecording ? (cockpitRecognitionStatus === "captioning" ? "Captioning" : "Listening") : cockpitSpeaking ? "Talking" : cockpitNeedsWake ? "Wake" : "Ready", tone: cockpitRecording ? "green" : cockpitSpeaking ? "amber" : "slate", icon: "phone" },
@@ -5072,6 +5080,9 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
           else interimText = `${interimText} ${transcript}`.trim();
         }
         const now = performance.now();
+        if ((finalText || interimText) && cockpitSpeakingRef.current && cockpitBargeInEnabledRef.current && !cockpitBargeInterruptedRef.current) {
+          handleCockpitVoiceBargeIn(now, finalText ? "caption-final" : "caption-interim");
+        }
         if (finalText) {
           const combinedTranscript = `${cockpitBrowserTranscriptRef.current || ""} ${finalText}`.trim();
           cockpitBrowserTranscriptRef.current = combinedTranscript;
@@ -5081,7 +5092,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
           cockpitLastSoundAtRef.current = now;
           setCockpitSpeechActive(true);
           setCockpitRecognitionStatus("captioning");
-          setCockpitVoiceNotice(`Browser captions heard: "${combinedTranscript}"`);
+          setCockpitVoiceNotice(cockpitBargeInterruptedRef.current ? `Barge-in captions heard: "${combinedTranscript}"` : `Browser captions heard: "${combinedTranscript}"`);
           if (cockpitRecorderRef.current?.state === "recording") {
             setTimeout(() => finishCockpitVoiceTurn(), 420);
           }
@@ -5125,15 +5136,56 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     }
   }
 
-  function handleCockpitVoiceBargeIn(now = performance.now()) {
+  function recordCockpitInterruption(reason = "voice-level") {
+    const label = reason === "manual-button"
+      ? "Manual interruption"
+      : reason.startsWith("caption")
+        ? "Caption barge-in"
+        : "Voice barge-in";
+    cockpitInterruptionCountRef.current += 1;
+    cockpitLastInterruptionLabelRef.current = label;
+    cockpitPendingInterruptionRef.current = true;
+    setCockpitInterruptionCount(cockpitInterruptionCountRef.current);
+    setCockpitLastInterruptionLabel(label);
+    setCockpitTurns((current) => [
+      {
+        id: `cockpit-interrupt-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        question: `${label}: Apex stopped speaking and kept listening for the new request.`,
+        source: "interrupt",
+        routeLabel: "Barge-in",
+        status: "listening",
+      },
+      ...current,
+    ].slice(0, 5));
+    return label;
+  }
+
+  function handleCockpitVoiceBargeIn(now = performance.now(), reason = "voice-level") {
     if (cockpitBargeInterruptedRef.current) return;
     cockpitBargeInterruptedRef.current = true;
+    const label = recordCockpitInterruption(reason);
     cockpitRecordedChunksRef.current = cockpitRecordedChunksRef.current.slice(-APEX_COCKPIT_PREROLL_CHUNKS);
     cockpitSpeechStartedRef.current = true;
     cockpitVoiceStartedAtRef.current = now - APEX_COCKPIT_MIN_TURN_MS;
     cockpitLastSoundAtRef.current = now;
     setCockpitSpeechActive(true);
-    stopCockpitVoicePlayback("Barge-in caught. I stopped talking and I'm listening.");
+    stopCockpitVoicePlayback(`${label} caught. I stopped talking and I'm listening.`);
+  }
+
+  function interruptCockpitVoicePlayback(reason = "manual-button") {
+    if (!cockpitSpeakingRef.current && !cockpitSpeaking) {
+      setCockpitVoiceNotice("Apex is already listening.");
+      return;
+    }
+    cockpitBargeInterruptedRef.current = true;
+    const label = recordCockpitInterruption(reason);
+    cockpitSpeechStartedRef.current = true;
+    cockpitLastSoundAtRef.current = performance.now();
+    setCockpitSpeechActive(true);
+    stopCockpitVoicePlayback(`${label} caught. I'm listening.`);
+    if (!cockpitRecordingRef.current && cockpitConversationMode && cockpitAutoListening && canUseCockpitRecorder && state.canView && sessionToken) {
+      setTimeout(() => openCockpitVoiceSession({ automatic: false }), 80);
+    }
   }
 
   function stopCockpitVoicePlayback(notice = "Voice playback stopped.") {
@@ -5355,7 +5407,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     }
   }
 
-  async function askCockpitQuestion(nextQuestion, { fromVoice = false } = {}) {
+  async function askCockpitQuestion(nextQuestion, { fromVoice = false, interrupted = false } = {}) {
     const previousTurns = cockpitTurns.slice(0, 4);
     const route = buildApexCockpitCommandRoute(nextQuestion, { previousRoute: cockpitCommandRoute });
     const turnId = `cockpit-turn-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -5365,15 +5417,15 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       {
         id: turnId,
         question: nextQuestion,
-        source: fromVoice ? "voice" : "typed",
+        source: interrupted ? "interrupt" : fromVoice ? "voice" : "typed",
         routeLabel: route.label,
-        status: "reading",
+        status: interrupted ? "interruption-reading" : "reading",
       },
       ...current,
     ].slice(0, 5));
     setCockpitSubmitting(true);
     setCockpitError("");
-    setCockpitVoiceNotice(fromVoice ? "Apex heard you. Reading context now." : "");
+    setCockpitVoiceNotice(interrupted ? "Apex heard the interruption. Reading the new context now." : fromVoice ? "Apex heard you. Reading context now." : "");
     setCockpitResponse(null);
     setCockpitLastQuestion(nextQuestion);
     stopBrowserVoice(cockpitAudioRef);
@@ -5390,6 +5442,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
         route,
         memoryCount,
         turns: previousTurns,
+        interrupted,
       });
       const payload = await askApexOs(sessionToken, {
         question: apexQuestion,
@@ -5432,11 +5485,13 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     }
     const review = buildApexOsVoiceCommandReview(cleanTranscript);
     const nextQuestion = review.askQuestion || cleanTranscript;
+    const interrupted = cockpitBargeInterruptedRef.current || cockpitPendingInterruptionRef.current;
     setAskQuestion(nextQuestion);
     setCockpitLastQuestion(cleanTranscript);
     setCockpitBrowserTranscript(cleanTranscript);
-    setCockpitVoiceNotice(`${sourceLabel}: "${cleanTranscript}"`);
-    await askCockpitQuestion(nextQuestion, { fromVoice: true });
+    setCockpitVoiceNotice(interrupted ? `${cockpitLastInterruptionLabelRef.current || "Barge-in"} transcript: "${cleanTranscript}"` : `${sourceLabel}: "${cleanTranscript}"`);
+    await askCockpitQuestion(nextQuestion, { fromVoice: true, interrupted });
+    if (interrupted) cockpitPendingInterruptionRef.current = false;
   }
 
   async function transcribeCockpitVoiceBlob(blob) {
@@ -5456,10 +5511,12 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
         return;
       }
       const nextQuestion = review.askQuestion || transcript;
+      const interrupted = cockpitBargeInterruptedRef.current || cockpitPendingInterruptionRef.current;
       setAskQuestion(nextQuestion);
       setCockpitLastQuestion(transcript);
-      setCockpitVoiceNotice(`Heard: "${transcript}"`);
-      await askCockpitQuestion(nextQuestion, { fromVoice: true });
+      setCockpitVoiceNotice(interrupted ? `${cockpitLastInterruptionLabelRef.current || "Barge-in"} heard: "${transcript}"` : `Heard: "${transcript}"`);
+      await askCockpitQuestion(nextQuestion, { fromVoice: true, interrupted });
+      if (interrupted) cockpitPendingInterruptionRef.current = false;
     } catch (error) {
       setCockpitVoiceNotice(error?.message || "Apex could not transcribe that audio. Check microphone permission and voice provider setup.");
     } finally {
@@ -5606,7 +5663,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
             <div className="flex min-w-0 items-center gap-2">
               <ApexCockpitControlButton
                 className="shrink-0 px-3"
-                onClick={cockpitRecording ? pauseCockpitVoiceSession : cockpitSpeaking ? () => stopCockpitVoicePlayback("Interrupted. I'm listening.") : () => openCockpitVoiceSession({ automatic: false })}
+                onClick={cockpitRecording ? pauseCockpitVoiceSession : cockpitSpeaking ? () => interruptCockpitVoicePlayback("manual-button") : () => openCockpitVoiceSession({ automatic: false })}
                 disabled={cockpitSpeaking ? false : !canToggleCockpitVoice}
                 active={cockpitRecording || cockpitSpeaking}
                 title={cockpitRecording ? "Pause Apex voice" : "Wake or resume Apex voice"}
@@ -5650,7 +5707,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                       <ApexCockpitControlButton disabled={false} onClick={() => setCockpitConversationMode((current) => !current)} active={cockpitConversationMode}>{cockpitConversationMode ? "Conversation On" : "Conversation Off"}</ApexCockpitControlButton>
                       <ApexCockpitControlButton disabled={false} onClick={() => setCockpitBargeInEnabled((current) => !current)} active={cockpitBargeInEnabled}>{cockpitBargeInEnabled ? "Barge-in On" : "Barge-in Off"}</ApexCockpitControlButton>
                       <ApexCockpitControlButton onClick={() => speakCockpitAnswer()} disabled={!canSpeakCockpitAnswer} active={cockpitSpeaking}>Speak Answer</ApexCockpitControlButton>
-                      <ApexCockpitControlButton onClick={() => stopCockpitVoicePlayback("Interrupted. I'm listening.")} disabled={!cockpitSpeaking}>Interrupt</ApexCockpitControlButton>
+                      <ApexCockpitControlButton onClick={() => interruptCockpitVoicePlayback("manual-button")} disabled={!cockpitSpeaking}>Interrupt</ApexCockpitControlButton>
                     </div>
                   </div>
                 ) : null}
@@ -5714,7 +5771,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                 </div>
                 <ApexCockpitControlButton
                   className="mt-2 w-full"
-                  onClick={cockpitRecording ? pauseCockpitVoiceSession : cockpitSpeaking ? () => stopCockpitVoicePlayback("Interrupted. I'm listening.") : () => openCockpitVoiceSession({ automatic: false })}
+                  onClick={cockpitRecording ? pauseCockpitVoiceSession : cockpitSpeaking ? () => interruptCockpitVoicePlayback("manual-button") : () => openCockpitVoiceSession({ automatic: false })}
                   disabled={cockpitSpeaking ? false : !canToggleCockpitVoice}
                   active={cockpitRecording || cockpitSpeaking}
                   title={cockpitRecording ? "Pause Apex voice" : "Resume Apex voice"}
@@ -5780,7 +5837,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                   <ApexCockpitControlButton onClick={() => speakCockpitAnswer()} disabled={!canSpeakCockpitAnswer} active={cockpitSpeaking}>
                     <Icon name="spark" /> {cockpitSpeaking ? "Speaking" : "Speak"}
                   </ApexCockpitControlButton>
-                  <ApexCockpitControlButton onClick={() => stopCockpitVoicePlayback("Interrupted. I'm listening.")} disabled={!cockpitSpeaking}>
+                  <ApexCockpitControlButton onClick={() => interruptCockpitVoicePlayback("manual-button")} disabled={!cockpitSpeaking}>
                     <Icon name="lock" /> Interrupt
                   </ApexCockpitControlButton>
                 </div>
@@ -5808,7 +5865,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                   </div>
                   <ApexCockpitControlButton
                     className="shrink-0 px-3"
-                    onClick={cockpitRecording ? pauseCockpitVoiceSession : cockpitSpeaking ? () => stopCockpitVoicePlayback("Interrupted. I'm listening.") : () => openCockpitVoiceSession({ automatic: false })}
+                    onClick={cockpitRecording ? pauseCockpitVoiceSession : cockpitSpeaking ? () => interruptCockpitVoicePlayback("manual-button") : () => openCockpitVoiceSession({ automatic: false })}
                     disabled={cockpitSpeaking ? false : !canToggleCockpitVoice}
                     active={cockpitRecording || cockpitSpeaking}
                     title={cockpitRecording ? "Pause Apex voice" : "Resume Apex voice"}
@@ -5849,7 +5906,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                 <div className="grid min-w-0 gap-1.5 sm:grid-cols-5">
                   {[
                     { label: "Loop", value: cockpitConversationMode ? "Open" : "Manual", tone: cockpitConversationMode ? "green" : "slate" },
-                    { label: "Barge-in", value: cockpitBargeInEnabled ? "Armed" : "Off", tone: cockpitBargeInEnabled ? "amber" : "slate" },
+                    { label: "Barge-in", value: cockpitInterruptionCount ? `${cockpitInterruptionCount} caught` : cockpitBargeInEnabled ? "Armed" : "Off", tone: cockpitInterruptionCount ? "green" : cockpitBargeInEnabled ? "amber" : "slate" },
                     { label: "Input", value: cockpitRecording ? "Listening" : cockpitTranscribing ? "Reading" : "Standby", tone: cockpitRecording ? "green" : cockpitTranscribing ? "blue" : "slate" },
                     { label: "Captions", value: canUseCockpitSpeechRecognition ? (cockpitRecognitionStatus === "captioning" || cockpitRecognitionStatus === "interim" ? "Live" : "Ready") : "Server", tone: canUseCockpitSpeechRecognition ? "blue" : "slate" },
                     { label: "Output", value: cockpitSpeaking ? "Talking" : "Ready", tone: cockpitSpeaking ? "amber" : "green" },

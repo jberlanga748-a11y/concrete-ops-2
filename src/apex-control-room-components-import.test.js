@@ -237,6 +237,14 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /Tap Wake Apex once/);
   assert.match(componentSource, /Mobile browsers may require one visible wake tap/);
   assert.match(componentSource, /Interrupt Voice/);
+  assert.match(componentSource, /interruptCockpitVoicePlayback/);
+  assert.match(componentSource, /recordCockpitInterruption/);
+  assert.match(componentSource, /Caption barge-in/);
+  assert.match(componentSource, /Manual interruption/);
+  assert.match(componentSource, /cockpitPendingInterruptionRef/);
+  assert.match(componentSource, /Apex stopped speaking and kept listening/);
+  assert.match(componentSource, /The operator interrupted Apex while it was speaking/);
+  assert.match(componentSource, /interruption-reading/);
   assert.match(componentSource, /Voice is open\. I'm listening while this page is open\./);
   assert.match(componentSource, /getApexCockpitSpeechRecognitionCtor/);
   assert.match(componentSource, /webkitSpeechRecognition/);
@@ -254,6 +262,8 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(utilSource, /liveOperatorMode/);
   assert.match(utilSource, /Body-first review-first operator/);
   assert.match(utilSource, /live-loop-save/);
+  assert.match(utilSource, /live-loop-interrupt/);
+  assert.match(utilSource, /Barge-in memory/);
   assert.match(utilSource, /live-gap-execution/);
   assert.match(cssSource, /\.co-apex-cockpit-side-rail/);
   assert.match(cssSource, /max-width: 1279px/);
@@ -288,7 +298,7 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /noiseSuppression: true/);
   assert.match(componentSource, /autoGainControl: true/);
   assert.match(componentSource, /onClick=\{recording \? closeVoiceSession : openVoiceSession\}/);
-  assert.match(componentSource, /onClick=\{cockpitRecording \? pauseCockpitVoiceSession : cockpitSpeaking \? \(\) => stopCockpitVoicePlayback\("Interrupted\. I'm listening\."\) : \(\) => openCockpitVoiceSession\(\{ automatic: false \}\)\}/);
+  assert.match(componentSource, /onClick=\{cockpitRecording \? pauseCockpitVoiceSession : cockpitSpeaking \? \(\) => interruptCockpitVoicePlayback\("manual-button"\) : \(\) => openCockpitVoiceSession\(\{ automatic: false \}\)\}/);
   assert.doesNotMatch(componentSource, />9:41 AM</);
   assert.doesNotMatch(componentSource, /value=\{memoryCount \|\| 128\}/);
   assert.match(componentSource, /Close & transcribe/);

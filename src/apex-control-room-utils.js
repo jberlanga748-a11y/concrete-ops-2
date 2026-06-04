@@ -2153,14 +2153,14 @@ function buildApexLiveOperatorModeState({
   const handoffCount = formatCount(executionHandoffs?.handoffSummary?.total);
   const approvalQueueCount = formatCount(approvalCommandCenter?.queueCount || approvalCommandCenter?.packetSummary?.total);
   const monitoringCount = formatCount(releaseMonitoring?.briefingCount || releaseMonitoring?.readinessCount);
-  const liveFoundationPercent = 84;
-  const jarvisBehaviorPercent = activeRunCount || handoffCount ? 64 : 60;
+  const liveFoundationPercent = 86;
+  const jarvisBehaviorPercent = activeRunCount || handoffCount ? 68 : 64;
   const readinessRows = withDerivedStateMetaList([
     {
       id: "live-voice-loop",
       title: "Voice loop",
       status: voiceInterface?.status || "Voice ready",
-      detail: `${formatCount(voiceInterface?.modeCount)} modes, ${formatCount(voiceInterface?.safetyCount)} safety gates, visible wake control, spoken answers, interruption support, and browser caption fallback are mapped.`,
+      detail: `${formatCount(voiceInterface?.modeCount)} modes, ${formatCount(voiceInterface?.safetyCount)} safety gates, visible wake control, spoken answers, interruption-aware turn memory, and browser caption fallback are mapped.`,
       tone: voiceInterface?.tone || "green",
     },
     {
@@ -2205,6 +2205,7 @@ function buildApexLiveOperatorModeState({
   });
   const operatorLoopRows = withDerivedStateMetaList([
     { id: "live-loop-hear", title: "Hear", status: "Open", detail: "Voice and typed commands enter the Apex body page.", tone: "green" },
+    { id: "live-loop-interrupt", title: "Interrupt", status: "Barge-in memory", detail: "Apex can stop speaking, keep listening, and carry the interruption into the next answer context.", tone: "green" },
     { id: "live-loop-understand", title: "Understand", status: "Source-backed", detail: "Apex routes the request against private command-room context.", tone: "green" },
     { id: "live-loop-plan", title: "Plan", status: `${formatCount(autonomyRunCenter?.planStepCount)} steps`, detail: "The request becomes a visible review-first run plan.", tone: "blue" },
     { id: "live-loop-save", title: "Save run", status: savedRunCount ? `${savedRunCount} saved` : "Ready", detail: "A private autonomy ledger item is created before work continues.", tone: savedRunCount ? "green" : "blue" },
