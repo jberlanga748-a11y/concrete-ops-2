@@ -58,6 +58,9 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /cockpitListeningHandoffPendingRef/);
   assert.match(componentSource, /cockpitListeningHandoffKey/);
   assert.match(componentSource, /clearCockpitResumeListeningTimer/);
+  assert.match(componentSource, /APEX_COCKPIT_CAPTION_FINAL_TURN_MS/);
+  assert.match(componentSource, /scheduleCockpitCaptionFinalTurn/);
+  assert.match(componentSource, /reserveCockpitVoiceTranscript/);
   assert.match(componentSource, /scheduleCockpitListeningAfterSpeech/);
   assert.match(componentSource, /resumeListening/);
   assert.match(componentSource, /Apex finished speaking and is listening for your next turn/);

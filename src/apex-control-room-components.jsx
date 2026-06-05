@@ -3885,6 +3885,8 @@ const APEX_COCKPIT_IDLE_LEVEL_THRESHOLD = 0.018;
 const APEX_COCKPIT_BARGE_IN_THRESHOLD = 0.066;
 const APEX_COCKPIT_BARGE_IN_GRACE_MS = 700;
 const APEX_COCKPIT_PREROLL_CHUNKS = 2;
+const APEX_COCKPIT_CAPTION_FINAL_TURN_MS = 420;
+const APEX_COCKPIT_DUPLICATE_TURN_MS = 2800;
 const APEX_COCKPIT_LISTENING_HANDOFF_NOTICE = "Apex finished speaking and is listening for your next turn.";
 
 const APEX_COCKPIT_VOICE_PROFILES = Object.freeze([
@@ -5450,6 +5452,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const cockpitSpeakingRef = useRef(false);
   const cockpitSpeechSafetyTimerRef = useRef(0);
   const cockpitResumeListeningTimerRef = useRef(0);
+  const cockpitCaptionFinalTurnTimerRef = useRef(0);
   const cockpitListeningHandoffPendingRef = useRef(false);
   const cockpitRecordingRef = useRef(false);
   const cockpitBargeInEnabledRef = useRef(true);
@@ -5475,6 +5478,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const cockpitLastSoundAtRef = useRef(0);
   const cockpitLastLevelPaintRef = useRef(0);
   const cockpitDiscardNextCaptureRef = useRef(false);
+  const cockpitLastHandledVoiceTurnRef = useRef({ key: "", at: 0 });
   const cockpitLastHeartbeatRef = useRef(null);
   const cockpitLastProactiveSignatureRef = useRef("");
   const cockpitLastSpokenProactiveSignatureRef = useRef("");
@@ -5764,6 +5768,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     stopCockpitSpeechRecognition();
     stopCockpitOutputLevelMonitor();
     clearCockpitResumeListeningTimer();
+    clearCockpitCaptionFinalTurnTimer();
     stopBrowserVoice(cockpitAudioRef);
     closeUnlockedBrowserAudio(cockpitAudioUnlockedRef);
   }, []);
@@ -5964,6 +5969,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   }, [cockpitConversationMode, cockpitAutoListening, state.canView, sessionToken, canUseCockpitRecorder, cockpitMicReady, cockpitVoiceWakeAttempted, cockpitRecording, cockpitTranscribing, cockpitSubmitting, cockpitSpeaking, cockpitBargeInEnabled, cockpitListeningHandoffKey]);
 
   function cleanupCockpitVoiceStream() {
+    clearCockpitCaptionFinalTurnTimer();
     stopCockpitVoiceLevelMonitor();
     stopCockpitSpeechRecognition();
     if (cockpitStreamRef.current) {
@@ -6018,6 +6024,35 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     if (!cockpitResumeListeningTimerRef.current) return;
     clearTimeout(cockpitResumeListeningTimerRef.current);
     cockpitResumeListeningTimerRef.current = 0;
+  }
+
+  function clearCockpitCaptionFinalTurnTimer() {
+    if (!cockpitCaptionFinalTurnTimerRef.current) return;
+    clearTimeout(cockpitCaptionFinalTurnTimerRef.current);
+    cockpitCaptionFinalTurnTimerRef.current = 0;
+  }
+
+  function scheduleCockpitCaptionFinalTurn(transcript) {
+    const cleanTranscript = String(transcript || "").trim();
+    if (!cleanTranscript) return false;
+    clearCockpitCaptionFinalTurnTimer();
+    cockpitCaptionFinalTurnTimerRef.current = setTimeout(() => {
+      cockpitCaptionFinalTurnTimerRef.current = 0;
+      finishCockpitVoiceTurn({ fallbackTranscript: cleanTranscript });
+    }, APEX_COCKPIT_CAPTION_FINAL_TURN_MS);
+    return true;
+  }
+
+  function reserveCockpitVoiceTranscript(cleanTranscript) {
+    const transcriptKey = String(cleanTranscript || "").trim().toLowerCase().replace(/\s+/g, " ").slice(0, 260);
+    const now = Date.now();
+    const lastTurn = cockpitLastHandledVoiceTurnRef.current || { key: "", at: 0 };
+    if (transcriptKey && lastTurn.key === transcriptKey && now - lastTurn.at < APEX_COCKPIT_DUPLICATE_TURN_MS) {
+      setCockpitVoiceNotice("Apex already picked up that voice turn.");
+      return false;
+    }
+    cockpitLastHandledVoiceTurnRef.current = { key: transcriptKey, at: now };
+    return true;
   }
 
   function scheduleCockpitListeningAfterSpeech(notice = APEX_COCKPIT_LISTENING_HANDOFF_NOTICE) {
@@ -6200,9 +6235,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
           setCockpitSpeechActive(true);
           setCockpitRecognitionStatus("captioning");
           setCockpitVoiceNotice(cockpitBargeInterruptedRef.current ? `Barge-in captions heard: "${combinedTranscript}"` : `Browser captions heard: "${combinedTranscript}"`);
-          if (cockpitRecorderRef.current?.state === "recording") {
-            setTimeout(() => finishCockpitVoiceTurn(), 420);
-          }
+          scheduleCockpitCaptionFinalTurn(combinedTranscript);
         } else if (interimText) {
           setCockpitBrowserTranscript(interimText);
           setAskQuestion(interimText);
@@ -7371,6 +7404,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       setCockpitVoiceNotice("Apex could not hear words clearly. Try again closer to the mic.");
       return;
     }
+    if (!reserveCockpitVoiceTranscript(cleanTranscript)) return;
     const review = buildApexOsVoiceCommandReview(cleanTranscript);
     const nextQuestion = review.askQuestion || cleanTranscript;
     const interrupted = cockpitBargeInterruptedRef.current || cockpitPendingInterruptionRef.current;
@@ -7398,6 +7432,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
         setCockpitVoiceNotice("Apex could not hear words clearly. Try again closer to the mic.");
         return;
       }
+      if (!reserveCockpitVoiceTranscript(transcript)) return;
       const nextQuestion = review.askQuestion || transcript;
       const interrupted = cockpitBargeInterruptedRef.current || cockpitPendingInterruptionRef.current;
       setAskQuestion(nextQuestion);
@@ -7511,9 +7546,32 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     openCockpitVoiceSession({ automatic: false });
   }
 
-  function finishCockpitVoiceTurn() {
-    if (!cockpitRecordingRef.current || !cockpitRecorderRef.current) return;
-    if (cockpitRecorderRef.current.state === "inactive") return;
+  function finishCockpitVoiceTurn({ fallbackTranscript = "" } = {}) {
+    clearCockpitCaptionFinalTurnTimer();
+    const cleanFallbackTranscript = String(fallbackTranscript || cockpitBrowserTranscriptRef.current || "").trim();
+    const routeCaptionTranscript = () => {
+      if (!cleanFallbackTranscript) return false;
+      cleanupCockpitVoiceStream();
+      cockpitRecorderRef.current = null;
+      cockpitRecordingRef.current = false;
+      setCockpitRecording(false);
+      setCockpitSpeechActive(false);
+      setCockpitVoiceNotice("Apex heard the turn. Reading it now.");
+      handleCockpitVoiceTranscript(cleanFallbackTranscript, { sourceLabel: "Browser speech captions" });
+      return true;
+    };
+    if (!cockpitRecordingRef.current || !cockpitRecorderRef.current) {
+      routeCaptionTranscript();
+      return;
+    }
+    if (cockpitRecorderRef.current.state === "inactive") {
+      routeCaptionTranscript();
+      return;
+    }
+    if (cleanFallbackTranscript) {
+      cockpitBrowserTranscriptRef.current = cleanFallbackTranscript;
+      setCockpitBrowserTranscript(cleanFallbackTranscript);
+    }
     setCockpitVoiceNotice("Apex heard the turn. Reading it now.");
     setCockpitSpeechActive(false);
     cockpitRecorderRef.current.stop();
@@ -7521,6 +7579,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
 
   function pauseCockpitVoiceSession() {
     clearCockpitResumeListeningTimer();
+    clearCockpitCaptionFinalTurnTimer();
     cockpitListeningHandoffPendingRef.current = false;
     setCockpitAutoListening(false);
     setCockpitSpeechActive(false);
