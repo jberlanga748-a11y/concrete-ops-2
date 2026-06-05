@@ -6,6 +6,7 @@ import {
   filterApexOsKnowledgeVault,
   filterApexOsDecisionMemory,
   normalizeApexOsMemory,
+  summarizeApexOsLiveOperatorMemory,
   summarizeApexOsDecisionMemory,
   summarizeApexOsKnowledgeVault,
   summarizeApexOsMemory,
@@ -1701,6 +1702,57 @@ function buildPersonalOperatingLayerState(decisionMemory = {}) {
   };
 }
 
+function liveOperatorMemoryTone(status = "") {
+  if (status === "approved") return "green";
+  if (status === "suggested") return "amber";
+  if (status === "archived") return "slate";
+  return "blue";
+}
+
+function buildLiveOperatorMemoryState(companySettings = {}) {
+  const summary = summarizeApexOsLiveOperatorMemory(companySettings?.apexOsMemory || [], { limit: 6 });
+  const latestRows = summary.trustedRows.map((entry) => ({
+    id: entry.id,
+    title: entry.title,
+    status: entry.kind,
+    detail: truncateDetail(entry.body, 240),
+    tone: "green",
+    sourceLabel: entry.sourceLabel,
+    source: entry.sourceUri,
+    reviewedAt: entry.reviewedAt,
+  }));
+  const reviewRows = [...summary.pendingRows, ...summary.trustedRows]
+    .slice(0, 8)
+    .map((entry) => ({
+      id: entry.id,
+      title: entry.title,
+      status: entry.status,
+      detail: truncateDetail(entry.body, 220),
+      tone: liveOperatorMemoryTone(entry.status),
+      sourceLabel: entry.sourceLabel,
+      source: entry.sourceUri,
+      reviewedAt: entry.reviewedAt,
+    }));
+
+  return {
+    status: summary.approved ? "Trusted run history" : summary.suggested ? "Run memory review" : "Run memory ready",
+    tone: summary.approved ? "green" : summary.suggested ? "amber" : "blue",
+    totalCount: summary.total,
+    trustedCount: summary.approved,
+    suggestedCount: summary.suggested,
+    archivedCount: summary.archived,
+    turnCount: summary.turnCount,
+    runCount: summary.runCount,
+    proactiveCheckInCount: summary.proactiveCheckInCount,
+    sourceCount: summary.sourceCount,
+    latestTrustedAt: summary.latestTrustedAt,
+    latestSuggestedAt: summary.latestSuggestedAt,
+    sourceOptions: summary.sourceLabels,
+    latestRows,
+    reviewRows,
+  };
+}
+
 function buildKnowledgeVaultState(companySettings = {}) {
   const categories = APEX_OS_KNOWLEDGE_VAULT_CATEGORIES.map((item) => ({ ...item }));
   const safetyRows = APEX_OS_KNOWLEDGE_VAULT_SAFETY_RULES.map((item) => ({ ...item }));
@@ -2187,6 +2239,7 @@ function buildApexLiveOperatorJudgmentRows({
   releaseMonitoring,
   decisionMemory,
   businessCommandCenter,
+  liveOperatorMemory,
 } = {}) {
   const latestRun = autonomyRunCenter?.latestRun || autonomyRunCenter?.runRows?.[0] || null;
   const latestRunStatus = String(latestRun?.status || "").toLowerCase();
@@ -2196,6 +2249,7 @@ function buildApexLiveOperatorJudgmentRows({
   const blockedApprovalCount = formatCount(approvalCommandCenter?.packetSummary?.blocked);
   const briefingCount = formatCount(businessCommandCenter?.briefingCount);
   const trustedMemoryCount = formatCount(decisionMemory?.durableCount || decisionMemory?.decisionCount);
+  const trustedRunMemoryCount = formatCount(liveOperatorMemory?.trustedCount);
   const releaseStatus = releaseMonitoring?.status || "Auto-checking";
   const rows = [];
 
@@ -2246,9 +2300,11 @@ function buildApexLiveOperatorJudgmentRows({
   rows.push({
     id: "judgment-memory-loop",
     title: "Remember reviewed outcomes",
-    status: trustedMemoryCount ? `${trustedMemoryCount} trusted` : "Review first",
-    detail: "Apex should only turn live answers or run outcomes into trusted long-term memory after operator review.",
-    tone: trustedMemoryCount ? "green" : "amber",
+    status: trustedRunMemoryCount ? `${trustedRunMemoryCount} run memor${trustedRunMemoryCount === 1 ? "y" : "ies"}` : trustedMemoryCount ? `${trustedMemoryCount} trusted` : "Review first",
+    detail: trustedRunMemoryCount
+      ? "Apex has reviewed live-run history available for future answers; suggested run memories still require manual approval before they guide behavior."
+      : "Apex should only turn live answers or run outcomes into trusted long-term memory after operator review.",
+    tone: trustedRunMemoryCount || trustedMemoryCount ? "green" : "amber",
     actionLabel: "Review memory",
   });
 
@@ -2270,10 +2326,13 @@ function buildApexLiveOperatorModeState({
   approvalCommandCenter,
   releaseDesk,
   businessCommandCenter,
+  liveOperatorMemory,
 } = {}) {
   const savedRunCount = formatCount(autonomyRunCenter?.savedRunCount || autonomyRunCenter?.runSummary?.total);
   const activeRunCount = formatCount(autonomyRunCenter?.activeRunCount || autonomyRunCenter?.runSummary?.active);
   const trustedMemoryCount = formatCount(decisionMemory?.durableCount || decisionMemory?.decisionCount);
+  const trustedRunMemoryCount = formatCount(liveOperatorMemory?.trustedCount);
+  const pendingRunMemoryCount = formatCount(liveOperatorMemory?.suggestedCount);
   const agentSignalCount = formatCount(agentControlPlane?.roleCount || agentControlPlane?.rosterRows?.length);
   const handoffCount = formatCount(executionHandoffs?.handoffSummary?.total);
   const approvalQueueCount = formatCount(approvalCommandCenter?.queueCount || approvalCommandCenter?.packetSummary?.total);
@@ -2284,6 +2343,7 @@ function buildApexLiveOperatorModeState({
     releaseMonitoring,
     decisionMemory,
     businessCommandCenter,
+    liveOperatorMemory,
   });
   const liveFoundationPercent = 96;
   const jarvisBehaviorPercent = activeRunCount || handoffCount ? 96 : 90;
@@ -2326,9 +2386,11 @@ function buildApexLiveOperatorModeState({
     {
       id: "live-memory",
       title: "Run memory",
-      status: trustedMemoryCount ? `${trustedMemoryCount} trusted` : "Memory ready",
-      detail: "Apex body turns, finished run outcomes, and surfaced proactive check-ins can draft suggested memory for review; no hidden memory becomes trusted automatically.",
-      tone: trustedMemoryCount ? "green" : "blue",
+      status: trustedRunMemoryCount ? `${trustedRunMemoryCount} trusted runs` : pendingRunMemoryCount ? `${pendingRunMemoryCount} pending review` : "Memory ready",
+      detail: trustedRunMemoryCount
+        ? `${trustedRunMemoryCount} reviewed live-run memor${trustedRunMemoryCount === 1 ? "y" : "ies"} now feed future Apex answers as run history; ${pendingRunMemoryCount} suggested live-run memor${pendingRunMemoryCount === 1 ? "y" : "ies"} remain pending manual approval.`
+        : "Apex body turns, finished run outcomes, and surfaced proactive check-ins can draft suggested memory for review; no hidden memory becomes trusted automatically.",
+      tone: trustedRunMemoryCount ? "green" : pendingRunMemoryCount ? "amber" : "blue",
     },
   ], {
     sourceLabel: "Apex Live Operator readiness",
@@ -2350,7 +2412,7 @@ function buildApexLiveOperatorModeState({
     { id: "live-loop-proof-check", title: "Proof check", status: "Private proof", detail: "Apex can verify linked drafts, route and plan evidence, validation readiness, and approval-stop posture without executing anything.", tone: "green" },
     { id: "live-loop-validate", title: "Validate", status: "Proof-backed", detail: "Tests, role checks, browser QA, build proof, rollback notes, and private proof checks stay attached to the work.", tone: "green" },
     { id: "live-loop-report", title: "Report", status: savedRunCount ? "Report-ready" : "Result slot", detail: "Apex can report back from the active run and mark it validating, waiting approval, blocked, or done with a result report.", tone: savedRunCount ? "green" : "blue" },
-    { id: "live-loop-remember", title: "Remember", status: trustedMemoryCount ? "Trusted context" : "Review first", detail: "The Apex body can draft suggested turn, run outcome, and proactive check-in memory; only reviewed memory becomes future operating context.", tone: trustedMemoryCount ? "green" : "amber" },
+    { id: "live-loop-remember", title: "Remember", status: trustedRunMemoryCount ? "Run history context" : trustedMemoryCount ? "Trusted context" : "Review first", detail: "The Apex body can draft suggested turn, run outcome, and proactive check-in memory; only reviewed live-run memory becomes future operating context.", tone: trustedRunMemoryCount || trustedMemoryCount ? "green" : "amber" },
     { id: "live-loop-monitor", title: "Monitor", status: releaseMonitoring?.status || "Auto-checking", detail: "The Apex body can refresh read-only build, briefing, and live-run status while the page is open, then preserve surfaced check-ins as suggested run history.", tone: releaseMonitoring?.tone || "green" },
   ], {
     sourceLabel: "Apex Live Operator loop",
@@ -2375,8 +2437,10 @@ function buildApexLiveOperatorModeState({
     {
       id: "live-gap-proactive",
       title: "Proactive status",
-      status: "Remembered check-ins",
-      detail: "Apex can refresh live status while the page is open, turn pulse/run/approval/release context into next-safe recommendations, and draft surfaced check-ins into suggested memory; unattended external actions stay off until a separate approved execution lane exists.",
+      status: trustedRunMemoryCount ? "Trusted history" : "Remembered check-ins",
+      detail: trustedRunMemoryCount
+        ? "Apex can refresh live status, draft surfaced check-ins, and use reviewed live-run history in later answers while unattended external actions stay off."
+        : "Apex can refresh live status while the page is open, turn pulse/run/approval/release context into next-safe recommendations, and draft surfaced check-ins into suggested memory; unattended external actions stay off until a separate approved execution lane exists.",
       tone: "green",
     },
     {
@@ -2407,6 +2471,8 @@ function buildApexLiveOperatorModeState({
     activeRunCount,
     approvalQueueCount,
     agentSignalCount,
+    trustedRunMemoryCount,
+    pendingRunMemoryCount,
     externalActionsLocked: true,
     executionLocked: true,
     nextAction: operatorJudgmentRows[0]?.detail || (activeRunCount ? "Run the private operator cycle on the active live run, then report, keep waiting approval, or block it." : "Start a live operator run from the Apex body."),
@@ -2414,6 +2480,7 @@ function buildApexLiveOperatorModeState({
     operatorLoopRows,
     operatorJudgmentRows,
     gapRows,
+    runMemory: liveOperatorMemory,
   };
 }
 
@@ -3438,6 +3505,7 @@ export function deriveApexControlRoomState({
   const decisionMemory = buildDecisionMemoryState(companySettings);
   const knowledgeVault = buildKnowledgeVaultState(companySettings);
   const personalOperatingLayer = buildPersonalOperatingLayerState(decisionMemory);
+  const liveOperatorMemory = buildLiveOperatorMemoryState(companySettings);
   const askApexChat = buildAskApexChatState({ decisionMemory, knowledgeVault, agentWorkQueue, launchState, releaseDesk });
   const voiceInterface = buildVoiceInterfaceState({ askApexChat });
   const approvalCommandCenter = buildApprovalCommandCenterState({ releaseDesk, askApexChat, voiceInterface, companySettings });
@@ -3487,6 +3555,7 @@ export function deriveApexControlRoomState({
     approvalCommandCenter,
     releaseDesk,
     businessCommandCenter,
+    liveOperatorMemory,
   });
   const phase3Aggregator = buildPhase3AggregatorState({
     companySettings,
@@ -3552,6 +3621,7 @@ export function deriveApexControlRoomState({
       releaseDesk: { status: "Restricted", tone: "slate", sections: [], productionPreviewRows: [], readinessPacketRows: [], deployHistoryRows: [], deployApprovalFlowRows: [], canDeploy: false, deployApprovedFlowLocked: true, productionActionLocked: true },
       decisionMemory: { status: "Restricted", tone: "slate", decisions: [], rules: [] },
       personalOperatingLayer: { status: "Restricted", tone: "slate", preferenceRows: [], workStyleRows: [], communicationRows: [], dailyFocusRows: [], distractionRows: [], backgroundRows: [], checkInRows: [], privacyRows: [], reviewRows: [], preferenceEntries: [] },
+      liveOperatorMemory: { status: "Restricted", tone: "slate", totalCount: 0, trustedCount: 0, suggestedCount: 0, archivedCount: 0, turnCount: 0, runCount: 0, proactiveCheckInCount: 0, latestRows: [], reviewRows: [] },
       knowledgeVault: { status: "Restricted", tone: "slate", categories: [], safetyRows: [], sourceRows: [] },
       askApexChat: { status: "Restricted", tone: "slate", contexts: [], evidenceRows: [], actionLocks: [] },
       voiceInterface: { status: "Restricted", tone: "slate", modes: [], safetyRows: [] },
@@ -4079,6 +4149,7 @@ export function deriveApexControlRoomState({
     releaseDesk,
     decisionMemory,
     personalOperatingLayer,
+    liveOperatorMemory,
     knowledgeVault,
     askApexChat,
     voiceInterface,

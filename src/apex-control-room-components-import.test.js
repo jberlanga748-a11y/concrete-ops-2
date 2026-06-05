@@ -162,6 +162,8 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /Start private run/);
   assert.match(componentSource, /buildApexCockpitTurnMemory/);
   assert.match(componentSource, /Recent page conversation/);
+  assert.match(componentSource, /buildApexCockpitLiveRunMemoryContext/);
+  assert.match(componentSource, /Reviewed live-run memory/);
   assert.match(componentSource, /ApexCockpitCommandStream/);
   assert.match(componentSource, /Agent control/);
   assert.match(componentSource, /Release desk/);
@@ -216,6 +218,9 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /stopCockpitOutputLevelMonitor/);
   assert.match(componentSource, /Live Conversation/);
   assert.match(componentSource, /Live Operator Mode/);
+  assert.match(componentSource, /Trusted run history/);
+  assert.match(componentSource, /trustedRunMemoryCount/);
+  assert.match(componentSource, /run history/);
   assert.match(componentSource, /Live Run/);
   assert.match(componentSource, /Active Run Session/);
   assert.match(componentSource, /Report Done/);

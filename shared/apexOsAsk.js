@@ -1,4 +1,7 @@
-import { buildApexOsMemoryContext } from "./apexOsMemory.js";
+import {
+  buildApexOsLiveOperatorMemoryContext,
+  buildApexOsMemoryContext,
+} from "./apexOsMemory.js";
 
 export const APEX_OS_ASK_DEFAULT_MODEL = "gpt-4o-mini";
 export const APEX_OS_ASK_OPENAI_URL = "https://api.openai.com/v1/chat/completions";
@@ -121,6 +124,7 @@ export function buildApexOsAskEvidenceRows(context = {}) {
 
 export function buildApexOsAskContext({ question = "", contextScope = "all", companySettings = {}, user = {} } = {}) {
   const normalizedScope = normalizeContextScope(contextScope);
+  const liveOperatorMemory = buildApexOsLiveOperatorMemoryContext(companySettings.apexOsMemory || [], { limit: 6 });
   const memory = buildApexOsMemoryContext(companySettings.apexOsMemory || [], { limit: 16 })
     .map((entry, index) => ({
       ...entry,
@@ -130,6 +134,13 @@ export function buildApexOsAskContext({ question = "", contextScope = "all", com
     .filter((entry) => sourceMatchesScope(entry, normalizedScope))
     .slice(0, 10);
   const sources = [
+    ...liveOperatorMemory.map((entry, index) => ({
+      id: `live-memory-${index + 1}`,
+      title: entry.title,
+      sourceLabel: entry.sourceLabel || `Apex ${entry.kind}`,
+      sourceUri: entry.sourceUri || "",
+      scopes: ["docs-memory", "agents"],
+    })),
     ...memory.map((entry, index) => ({
       id: `memory-${index + 1}`,
       title: entry.title,
@@ -148,6 +159,7 @@ export function buildApexOsAskContext({ question = "", contextScope = "all", com
       role: text(user.role, 80),
     },
     memory,
+    liveOperatorMemory,
     sources: sources.slice(0, 14),
     approvalWarnings: riskyWarnings(question),
     operatingBoundary: "Answer only. Do not execute deploys, sends, payments, provider changes, schema/auth changes, customer-visible actions, deletion, or production mutations.",
@@ -157,9 +169,13 @@ export function buildApexOsAskContext({ question = "", contextScope = "all", com
 export function buildLocalApexOsAnswer(context = {}) {
   const question = text(context.question, QUESTION_LIMIT);
   const memory = Array.isArray(context.memory) ? context.memory : [];
+  const liveOperatorMemory = Array.isArray(context.liveOperatorMemory) ? context.liveOperatorMemory : [];
   const memoryLine = memory.length
     ? `I found ${memory.length} approved Apex OS memory item${memory.length === 1 ? "" : "s"} that can guide this.`
     : "I do not have approved durable Apex OS memory for this yet, so I am using the saved Apex OS plan and repo operating contract.";
+  const liveMemoryLine = liveOperatorMemory.length
+    ? `Reviewed live-run memory available: ${liveOperatorMemory.slice(0, 3).map((entry) => `${entry.kind}: ${entry.title}`).join("; ")}.`
+    : "";
   const sourceLabels = (Array.isArray(context.sources) ? context.sources : [])
     .map((source) => source.sourceLabel || source.title)
     .filter(Boolean)
@@ -171,11 +187,12 @@ export function buildLocalApexOsAnswer(context = {}) {
     providerConfigured: false,
     answer: [
       memoryLine,
+      liveMemoryLine,
       question
         ? `For "${question}", the safe next step is to prepare or review the work inside Apex OS, keep it source-backed, and stop before any external or irreversible action.`
         : "Ask a specific Apex HQ operating question and I will answer from approved memory and source rows.",
       warnings.length ? `Approval boundary: ${warnings.join(" ")}` : "Approval boundary: no risky action was requested.",
-    ].join(" "),
+    ].filter(Boolean).join(" "),
     sourceLabels,
     approvalWarnings: warnings,
     nextAction: warnings.length ? "Prepare approval packet" : "Review source-backed answer",

@@ -3,7 +3,14 @@ const TITLE_LIMIT = 140;
 const SHORT_LIMIT = 120;
 const MEMORY_LIMIT = 200;
 
+export const APEX_OS_LIVE_OPERATOR_MEMORY_SOURCE_TYPES = Object.freeze([
+  "apex-live-operator-turn",
+  "apex-live-operator-run",
+  "apex-live-operator-proactive-check-in",
+]);
+
 const STATUS_VALUES = new Set(["suggested", "approved", "archived"]);
+const LIVE_OPERATOR_MEMORY_SOURCE_TYPE_SET = new Set(APEX_OS_LIVE_OPERATOR_MEMORY_SOURCE_TYPES);
 export const APEX_OS_DECISION_CATEGORY_VALUES = Object.freeze([
   "product-identity",
   "safety-rule",
@@ -307,12 +314,96 @@ export function buildApexOsMemoryContext(value = [], { limit = 12 } = {}) {
   return normalizeApexOsMemory(value)
     .filter((entry) => entry.status === "approved")
     .map((entry) => ({
+      id: entry.id,
       category: entry.category,
       title: entry.title,
       body: entry.body,
+      sourceType: entry.sourceType,
       sourceLabel: entry.sourceLabel,
       sourceUri: entry.sourceUri,
+      status: entry.status,
       confidence: entry.confidence,
     }))
     .slice(0, Math.max(1, Math.min(24, Number(limit) || 12)));
+}
+
+function liveOperatorMemoryKind(sourceType = "") {
+  if (sourceType === "apex-live-operator-run") return "run outcome";
+  if (sourceType === "apex-live-operator-proactive-check-in") return "proactive check-in";
+  if (sourceType === "apex-live-operator-turn") return "live turn";
+  return "live operator memory";
+}
+
+function sortApexOsMemoryNewestFirst(left = {}, right = {}) {
+  const leftDate = String(left.approvedAt || left.updatedAt || left.createdAt || "");
+  const rightDate = String(right.approvedAt || right.updatedAt || right.createdAt || "");
+  return rightDate.localeCompare(leftDate);
+}
+
+function liveOperatorMemoryRow(entry = {}) {
+  return {
+    id: entry.id,
+    category: entry.category,
+    title: entry.title,
+    body: entry.body,
+    detail: rawText(entry.body, 360),
+    sourceType: entry.sourceType,
+    kind: liveOperatorMemoryKind(entry.sourceType),
+    sourceLabel: entry.sourceLabel,
+    sourceUri: entry.sourceUri,
+    status: entry.status,
+    confidence: entry.confidence,
+    createdAt: entry.createdAt,
+    updatedAt: entry.updatedAt,
+    approvedAt: entry.approvedAt,
+    reviewedAt: entry.approvedAt || entry.updatedAt || entry.createdAt,
+    reviewNote: entry.reviewNote,
+  };
+}
+
+export function summarizeApexOsLiveOperatorMemory(value = [], { limit = 8 } = {}) {
+  const rows = normalizeApexOsMemory(value)
+    .filter((entry) => LIVE_OPERATOR_MEMORY_SOURCE_TYPE_SET.has(entry.sourceType))
+    .slice()
+    .sort(sortApexOsMemoryNewestFirst);
+  const trustedRows = rows
+    .filter((entry) => entry.status === "approved")
+    .slice(0, Math.max(1, Math.min(24, Number(limit) || 8)))
+    .map(liveOperatorMemoryRow);
+  const pendingRows = rows
+    .filter((entry) => entry.status === "suggested")
+    .slice(0, Math.max(1, Math.min(24, Number(limit) || 8)))
+    .map(liveOperatorMemoryRow);
+  const sourceLabels = [...new Set(rows.map((entry) => entry.sourceLabel).filter(Boolean))]
+    .sort((left, right) => left.toLowerCase().localeCompare(right.toLowerCase()));
+
+  return {
+    total: rows.length,
+    approved: rows.filter((entry) => entry.status === "approved").length,
+    suggested: rows.filter((entry) => entry.status === "suggested").length,
+    archived: rows.filter((entry) => entry.status === "archived").length,
+    turnCount: rows.filter((entry) => entry.sourceType === "apex-live-operator-turn").length,
+    runCount: rows.filter((entry) => entry.sourceType === "apex-live-operator-run").length,
+    proactiveCheckInCount: rows.filter((entry) => entry.sourceType === "apex-live-operator-proactive-check-in").length,
+    sourceCount: sourceLabels.length,
+    sourceLabels,
+    latestTrustedAt: trustedRows[0]?.reviewedAt || "",
+    latestSuggestedAt: pendingRows[0]?.updatedAt || pendingRows[0]?.createdAt || "",
+    trustedRows,
+    pendingRows,
+  };
+}
+
+export function buildApexOsLiveOperatorMemoryContext(value = [], { limit = 6 } = {}) {
+  return summarizeApexOsLiveOperatorMemory(value, { limit }).trustedRows.map((entry) => ({
+    id: entry.id,
+    title: entry.title,
+    body: entry.body,
+    sourceType: entry.sourceType,
+    kind: entry.kind,
+    sourceLabel: entry.sourceLabel,
+    sourceUri: entry.sourceUri,
+    confidence: entry.confidence,
+    reviewedAt: entry.reviewedAt,
+  }));
 }

@@ -3987,11 +3987,21 @@ function buildApexCockpitTurnMemory(turns = []) {
     .join("\n");
 }
 
+function buildApexCockpitLiveRunMemoryContext(liveOperatorMemory = {}) {
+  const rows = Array.isArray(liveOperatorMemory.latestRows) ? liveOperatorMemory.latestRows.slice(0, 4) : [];
+  if (!rows.length) return "No reviewed live-run memory yet.";
+  return rows
+    .map((row, index) => `${index + 1}. ${row.status || "memory"} -> ${row.title}: ${String(row.detail || "").slice(0, 160)}`)
+    .join("\n");
+}
+
 function buildApexCockpitProactiveBriefing(state = {}) {
   const approvalCount = state.approvalCommandCenter?.queueCount || state.approvalCommandCenter?.packetSummary?.total || 0;
   const blockerCount = state.launchReadiness?.blockedCount || state.approvalCommandCenter?.packetSummary?.blocked || 0;
   const agentCount = state.agentControlPlane?.roleCount || state.agentWorkQueue?.availableTaskCount || 0;
   const memoryCount = state.decisionMemory?.durableCount || state.decisionMemory?.decisionCount || 0;
+  const trustedRunMemoryCount = state.liveOperatorMemory?.trustedCount || state.liveOperatorMode?.trustedRunMemoryCount || 0;
+  const pendingRunMemoryCount = state.liveOperatorMemory?.suggestedCount || state.liveOperatorMode?.pendingRunMemoryCount || 0;
   const releaseStatus = state.releaseDesk?.status || "Healthy";
   const moneyReady = state.kpis?.find((item) => /money/i.test(item.title || ""))?.value || state.todayCommandCenter?.moneyReadyCount || 0;
   return [
@@ -4001,22 +4011,24 @@ function buildApexCockpitProactiveBriefing(state = {}) {
     `${blockerCount} blocker${blockerCount === 1 ? "" : "s"} are open.`,
     `${agentCount} agent signal${agentCount === 1 ? "" : "s"} are active.`,
     `${memoryCount} trusted memor${memoryCount === 1 ? "y" : "ies"} are available.`,
+    `${trustedRunMemoryCount} trusted live-run memor${trustedRunMemoryCount === 1 ? "y" : "ies"} and ${pendingRunMemoryCount} suggested run memor${pendingRunMemoryCount === 1 ? "y" : "ies"} are visible.`,
     `Release health reads ${releaseStatus}.`,
     "I will answer, route, draft safe requests, and keep execution locked until the gated workflow approves it.",
   ].join(" ");
 }
 
-function buildApexCockpitQuestionEnvelope(question, { personalityMode = "operator", route, memoryCount = 0, turns = [], interrupted = false } = {}) {
+function buildApexCockpitQuestionEnvelope(question, { personalityMode = "operator", route, memoryCount = 0, liveOperatorMemory = {}, turns = [], interrupted = false } = {}) {
   const personality = findApexCockpitPersonalityMode(personalityMode);
   return [
     "Apex Life operator mode.",
     personality.prompt,
     `Matched room: ${route?.label || "Ask Apex"}.`,
     `Trusted memory count visible: ${memoryCount}.`,
+    `Reviewed live-run memory:\n${buildApexCockpitLiveRunMemoryContext(liveOperatorMemory)}`,
     `Recent page conversation:\n${buildApexCockpitTurnMemory(turns)}`,
     interrupted ? "The operator interrupted Apex while it was speaking. Stop the prior answer, prioritize this new request, and answer naturally from the updated context." : "",
     `User request: ${String(question || "").trim()}`,
-  ].filter(Boolean).join("\n").slice(0, 1100);
+  ].filter(Boolean).join("\n").slice(0, 1600);
 }
 
 function inferApexCockpitAgentRole(question = "", route = {}) {
@@ -5080,6 +5092,10 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     : state.releaseDesk?.deployHistoryRows?.[0]?.status || "Evidence required";
   const releaseHealth = state.releaseDesk?.status || "Healthy";
   const liveOperatorMode = state.liveOperatorMode || {};
+  const liveOperatorMemory = state.liveOperatorMemory || liveOperatorMode.runMemory || {};
+  const trustedRunMemoryCount = Number(liveOperatorMemory.trustedCount || liveOperatorMode.trustedRunMemoryCount || 0);
+  const pendingRunMemoryCount = Number(liveOperatorMemory.suggestedCount || liveOperatorMode.pendingRunMemoryCount || 0);
+  const latestRunMemory = (Array.isArray(liveOperatorMemory.latestRows) ? liveOperatorMemory.latestRows : [])[0] || null;
   const cockpitPulseRunSummary = cockpitLivePulse?.runSummary || {};
   const cockpitVisibleRunRows = listApexCockpitRunRows(cockpitLiveRuns.length ? cockpitLiveRuns : state.autonomyRunCenter?.runRows || []);
   const cockpitActiveRun = cockpitVisibleRunRows.find((run) => run.id === cockpitActiveRunId)
@@ -5170,7 +5186,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const focusDrawerTabs = [
     { id: "voice", label: "Voice", value: cockpitRecording ? (cockpitRecognitionStatus === "captioning" ? "Captioning" : "Listening") : cockpitSpeaking ? "Talking" : cockpitNeedsWake ? "Wake" : "Ready", tone: cockpitRecording ? "green" : cockpitSpeaking ? "amber" : "slate", icon: "phone" },
     { id: "autonomy", label: "Autonomy", value: cockpitCommandRoute.id === "agent-control" ? "Draft-ready" : "Guarded", tone: "green", icon: "spark" },
-    { id: "memory", label: "Memory", value: `${memoryCount} trusted`, tone: "slate", icon: "database" },
+    { id: "memory", label: "Memory", value: trustedRunMemoryCount ? `${trustedRunMemoryCount} run history` : `${memoryCount} trusted`, tone: trustedRunMemoryCount ? "green" : "slate", icon: "database" },
     { id: "risk", label: "Risk", value: `${state.approvalCommandCenter?.queueCount || 0} review`, tone: "amber", icon: "alert" },
     { id: "sources", label: "Sources", value: cockpitSources.length ? `${cockpitSources.length} used` : "Ready", tone: "blue", icon: "layers" },
   ];
@@ -6394,6 +6410,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
         personalityMode: cockpitPersonalityMode,
         route,
         memoryCount,
+        liveOperatorMemory,
         turns: previousTurns,
         interrupted,
       });
@@ -6698,9 +6715,9 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                 ) : null}
                 {cockpitFocusDrawer === "memory" ? (
                   <div className="grid min-w-0 gap-2 sm:grid-cols-3">
+                    <ApexCockpitListItem item={{ label: "Run History", icon: "database" }} value={trustedRunMemoryCount || "Review"} tone={trustedRunMemoryCount ? "green" : pendingRunMemoryCount ? "amber" : "slate"} />
                     <ApexCockpitListItem item={{ label: "Trusted Memories", icon: "database" }} value={memoryCount} tone="slate" />
-                    <ApexCockpitListItem item={{ label: "Recent Updates", icon: "refresh" }} value={state.decisionMemory?.durableCount || 0} tone="slate" />
-                    <ApexCockpitListItem item={{ label: "Suggested Memories", icon: "spark" }} value={state.decisionMemory?.suggestedCount || 0} tone="slate" />
+                    <ApexCockpitListItem item={{ label: "Suggested Run", icon: "spark" }} value={pendingRunMemoryCount || 0} tone={pendingRunMemoryCount ? "amber" : "slate"} />
                   </div>
                 ) : null}
                 {cockpitFocusDrawer === "risk" ? (
@@ -6863,7 +6880,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                   <div className="min-w-0">
                     <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Live Conversation</p>
                     <p className="mt-0.5 min-w-0 break-words text-xs font-black text-slate-100">{cockpitVoiceState.headline}</p>
-                    <p className="mt-0.5 min-w-0 break-words text-[11px] font-bold leading-4 text-slate-500">{cockpitPersonalityConfig.label} personality, {cockpitVoiceProfileConfig.label} voice, {memoryCount || 0} trusted memories visible.</p>
+                    <p className="mt-0.5 min-w-0 break-words text-[11px] font-bold leading-4 text-slate-500">{cockpitPersonalityConfig.label} personality, {cockpitVoiceProfileConfig.label} voice, {trustedRunMemoryCount ? `${trustedRunMemoryCount} trusted run memor${trustedRunMemoryCount === 1 ? "y" : "ies"}` : `${memoryCount || 0} trusted memories`} visible.</p>
                   </div>
                   <div className="flex min-w-0 flex-wrap gap-1.5 sm:justify-end">
                     <ApexCockpitControlButton className="px-2" disabled={false} onClick={() => deliverCockpitBriefing({ speak: true })} active={false} title="Speak Apex briefing">
@@ -6887,7 +6904,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                   {[
                     { label: "Loop", value: cockpitConversationMode ? "Open" : "Manual", tone: cockpitConversationMode ? "green" : "slate" },
                     { label: "Barge-in", value: cockpitInterruptionCount ? `${cockpitInterruptionCount} caught` : cockpitBargeInEnabled ? "Armed" : "Off", tone: cockpitInterruptionCount ? "green" : cockpitBargeInEnabled ? "amber" : "slate" },
-                    { label: "Memory", value: cockpitRememberedTurnCount ? `${cockpitRememberedTurnCount} saved` : "Manual", tone: cockpitRememberedTurnCount ? "green" : "blue" },
+                    { label: "Memory", value: trustedRunMemoryCount ? `${trustedRunMemoryCount} run history` : cockpitRememberedTurnCount ? `${cockpitRememberedTurnCount} saved` : "Manual", tone: trustedRunMemoryCount || cockpitRememberedTurnCount ? "green" : "blue" },
                     { label: "Input", value: cockpitRecording ? "Listening" : cockpitTranscribing ? "Reading" : "Standby", tone: cockpitRecording ? "green" : cockpitTranscribing ? "blue" : "slate" },
                     { label: "Captions", value: canUseCockpitSpeechRecognition ? (cockpitRecognitionStatus === "captioning" || cockpitRecognitionStatus === "interim" ? "Live" : "Ready") : "Server", tone: canUseCockpitSpeechRecognition ? "blue" : "slate" },
                     { label: "Output", value: cockpitSpeaking ? "Talking" : "Ready", tone: cockpitSpeaking ? "amber" : "green" },
@@ -6938,11 +6955,12 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     </div>
                     <ToneBadge tone={cockpitVisibleLiveTone}>{liveOperatorMode.mode || "Review-first"}</ToneBadge>
                   </div>
-                  <div className="grid min-w-0 gap-1.5 sm:grid-cols-4">
+                  <div className="grid min-w-0 gap-1.5 sm:grid-cols-5">
                     {[
                       { label: "Foundation", value: `${liveOperatorMode.foundationPercent || 0}%`, tone: "green" },
                       { label: "Operator", value: `${cockpitVisibleOperatorPercent || 0}%`, tone: "blue" },
                       { label: "Saved runs", value: String(cockpitVisibleSavedRunCount), tone: cockpitVisibleSavedRunCount ? "green" : "slate" },
+                      { label: "Run memory", value: trustedRunMemoryCount ? `${trustedRunMemoryCount} trusted` : pendingRunMemoryCount ? `${pendingRunMemoryCount} review` : "Ready", tone: trustedRunMemoryCount ? "green" : pendingRunMemoryCount ? "amber" : "slate" },
                       { label: "Gates", value: liveOperatorMode.externalActionsLocked ? "Locked" : "Open", tone: liveOperatorMode.externalActionsLocked ? "amber" : "green" },
                     ].map((item) => (
                       <div key={item.label} className="min-w-0 rounded-md border border-slate-800 bg-slate-950/54 px-2.5 py-2">
@@ -6951,6 +6969,13 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                       </div>
                     ))}
                   </div>
+                  {(latestRunMemory || pendingRunMemoryCount) ? (
+                    <p className="min-w-0 break-words rounded-md border border-emerald-300/12 bg-emerald-400/8 px-2.5 py-2 text-[10px] font-bold leading-4 text-emerald-100">
+                      {latestRunMemory
+                        ? `Trusted run history: ${latestRunMemory.title}. Apex can use reviewed run outcomes in later answers.`
+                        : `${pendingRunMemoryCount} suggested run memor${pendingRunMemoryCount === 1 ? "y is" : "ies are"} waiting for manual review before Apex can trust them.`}
+                    </p>
+                  ) : null}
                   <div className="grid min-w-0 gap-2 rounded-md border border-cyan-200/10 bg-slate-950/52 p-2.5" aria-label="Apex live session heartbeat">
                     <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
@@ -7234,9 +7259,9 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
               </ApexCockpitCard>
 
               <ApexCockpitCard title="Apex Memory" action={<span className="text-slate-500">&gt;</span>}>
+                <ApexCockpitListItem item={{ label: "Run History", icon: "database" }} value={trustedRunMemoryCount || "Review"} tone={trustedRunMemoryCount ? "green" : pendingRunMemoryCount ? "amber" : "slate"} />
                 <ApexCockpitListItem item={{ label: "Trusted Memories", icon: "database" }} value={memoryCount} tone="slate" />
-                <ApexCockpitListItem item={{ label: "Recent Updates", icon: "refresh" }} value={state.decisionMemory?.durableCount || 0} tone="slate" />
-                <ApexCockpitListItem item={{ label: "Suggested Memories", icon: "spark" }} value={state.decisionMemory?.suggestedCount || 0} tone="slate" />
+                <ApexCockpitListItem item={{ label: "Suggested Run", icon: "spark" }} value={pendingRunMemoryCount || 0} tone={pendingRunMemoryCount ? "amber" : "slate"} />
                 <ApexCockpitControlButton className="mt-2 w-full" disabled={false} onClick={() => onChange("memory")}>Review Memory</ApexCockpitControlButton>
               </ApexCockpitCard>
 

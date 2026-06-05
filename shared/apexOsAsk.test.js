@@ -44,6 +44,45 @@ test("Ask Apex builds source-backed context from approved memory", () => {
   assert.equal(context.approvalWarnings.some((warning) => /Production\/release/i.test(warning)), true);
 });
 
+test("Ask Apex includes reviewed live-run memory but not suggested run memory", () => {
+  const context = buildApexOsAskContext({
+    question: "What did Apex learn from the last run?",
+    user: { id: "U-1", name: "John", role: "Owner" },
+    companySettings: {
+      apexOsMemory: [
+        {
+          id: "AOM-LIVE-1",
+          category: "private-owner-notes",
+          title: "Release stayed blocked until browser QA passed",
+          body: "Apex should carry forward that release work needs browser QA evidence before deploy.",
+          sourceType: "apex-live-operator-proactive-check-in",
+          sourceLabel: "Apex Proactive Check-In",
+          sourceUri: "apex-live-operator:proactive:1",
+          status: "approved",
+        },
+        {
+          id: "AOM-LIVE-2",
+          category: "private-owner-notes",
+          title: "Unreviewed run memory",
+          body: "This is only a suggested run outcome.",
+          sourceType: "apex-live-operator-run",
+          sourceLabel: "Apex Live Operator Mode",
+          sourceUri: "apex-live-operator:run:2",
+          status: "suggested",
+        },
+      ],
+    },
+  });
+  const answer = buildLocalApexOsAnswer(context);
+
+  assert.equal(context.liveOperatorMemory.length, 1);
+  assert.equal(context.liveOperatorMemory[0].title, "Release stayed blocked until browser QA passed");
+  assert.equal(context.liveOperatorMemory.some((entry) => entry.title === "Unreviewed run memory"), false);
+  assert.equal(context.sources.some((source) => source.sourceLabel === "Apex Proactive Check-In"), true);
+  assert.match(answer.answer, /Reviewed live-run memory available/);
+  assert.doesNotMatch(answer.answer, /Unreviewed run memory/);
+});
+
 test("Ask Apex context selector filters ranked evidence rows", () => {
   const context = buildApexOsAskContext({
     question: "What app code supports Ask Apex?",

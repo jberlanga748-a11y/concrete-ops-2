@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   buildApexOsMemoryContext,
+  buildApexOsLiveOperatorMemoryContext,
   detectApexOsMemorySafetyIssues,
   filterApexOsDecisionMemory,
   filterApexOsKnowledgeVault,
@@ -12,6 +13,7 @@ import {
   normalizeApexOsMemory,
   normalizeApexOsMemoryEntry,
   summarizeApexOsDecisionMemory,
+  summarizeApexOsLiveOperatorMemory,
   summarizeApexOsKnowledgeVault,
   summarizeApexOsMemory,
 } from "./apexOsMemory.js";
@@ -102,6 +104,67 @@ test("Apex OS memory summarizes and builds approved context only", () => {
     archived: 0,
   });
   assert.deepEqual(buildApexOsMemoryContext(memory).map((entry) => entry.title), ["Daily focus"]);
+});
+
+test("Apex OS live operator memory summarizes trusted run history only", () => {
+  const memory = normalizeApexOsMemory([
+    {
+      id: "AOM-LIVE-1",
+      category: "private-owner-notes",
+      title: "Apex remembered the blocked release",
+      body: "The last proactive check-in found the release blocked on browser QA.",
+      sourceType: "apex-live-operator-proactive-check-in",
+      sourceLabel: "Apex Proactive Check-In",
+      sourceUri: "apex-live-operator:proactive:1",
+      status: "approved",
+      approvedAt: "2026-06-05T01:00:00.000Z",
+    },
+    {
+      id: "AOM-LIVE-2",
+      category: "private-owner-notes",
+      title: "Suggested run result",
+      body: "Apex drafted this run outcome, but it still needs review.",
+      sourceType: "apex-live-operator-run",
+      sourceLabel: "Apex Live Operator Mode",
+      sourceUri: "apex-live-operator:run:2",
+      status: "suggested",
+      updatedAt: "2026-06-05T01:05:00.000Z",
+    },
+    {
+      id: "AOM-LIVE-3",
+      category: "private-owner-notes",
+      title: "Archived turn",
+      body: "This live turn is no longer trusted.",
+      sourceType: "apex-live-operator-turn",
+      sourceLabel: "Apex Live Operator Mode",
+      sourceUri: "apex-live-operator:turn:3",
+      status: "archived",
+    },
+    {
+      id: "AOM-OTHER",
+      category: "business-strategy",
+      title: "Normal memory",
+      body: "This approved memory is not live-run history.",
+      sourceLabel: "Business memo",
+      status: "approved",
+    },
+  ]);
+
+  const summary = summarizeApexOsLiveOperatorMemory(memory);
+  assert.equal(summary.total, 3);
+  assert.equal(summary.approved, 1);
+  assert.equal(summary.suggested, 1);
+  assert.equal(summary.archived, 1);
+  assert.equal(summary.proactiveCheckInCount, 1);
+  assert.equal(summary.runCount, 1);
+  assert.equal(summary.turnCount, 1);
+  assert.equal(summary.trustedRows[0].title, "Apex remembered the blocked release");
+  assert.equal(summary.pendingRows[0].title, "Suggested run result");
+
+  const context = buildApexOsLiveOperatorMemoryContext(memory);
+  assert.deepEqual(context.map((entry) => entry.title), ["Apex remembered the blocked release"]);
+  assert.equal(context[0].sourceType, "apex-live-operator-proactive-check-in");
+  assert.equal(context.some((entry) => entry.title === "Suggested run result"), false);
 });
 
 test("Apex OS decision memory summarizes filters and detects active duplicates", () => {

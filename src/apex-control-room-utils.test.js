@@ -96,6 +96,52 @@ test("deriveApexControlRoomState blocks non-private users", () => {
   assert.equal(state.operatorName, "Normal Admin");
 });
 
+test("deriveApexControlRoomState exposes trusted live-run memory to Live Operator Mode", () => {
+  const state = deriveApexControlRoomState({
+    user: { name: "John Berlanga", role: "Owner", operatorAccess: true },
+    permissions: {
+      apexOs: { canView: true, canManage: true },
+      aiOffice: { canView: true },
+    },
+    companySettings: {
+      apexOsMemory: [
+        {
+          id: "AOM-LIVE-1",
+          category: "private-owner-notes",
+          title: "Apex remembered blocked browser QA",
+          body: "Release work should not deploy until browser QA evidence passes.",
+          sourceType: "apex-live-operator-proactive-check-in",
+          sourceLabel: "Apex Proactive Check-In",
+          sourceUri: "apex-live-operator:proactive:1",
+          status: "approved",
+          approvedAt: "2026-06-05T01:00:00.000Z",
+        },
+        {
+          id: "AOM-LIVE-2",
+          category: "private-owner-notes",
+          title: "Suggested run result",
+          body: "This run outcome is still waiting for manual review.",
+          sourceType: "apex-live-operator-run",
+          sourceLabel: "Apex Live Operator Mode",
+          sourceUri: "apex-live-operator:run:2",
+          status: "suggested",
+          updatedAt: "2026-06-05T01:05:00.000Z",
+        },
+      ],
+    },
+  });
+
+  assert.equal(state.liveOperatorMemory.status, "Trusted run history");
+  assert.equal(state.liveOperatorMemory.trustedCount, 1);
+  assert.equal(state.liveOperatorMemory.suggestedCount, 1);
+  assert.equal(state.liveOperatorMemory.latestRows[0].title, "Apex remembered blocked browser QA");
+  assert.equal(state.liveOperatorMode.trustedRunMemoryCount, 1);
+  assert.equal(state.liveOperatorMode.pendingRunMemoryCount, 1);
+  assert.match(state.liveOperatorMode.readinessRows.find((row) => row.id === "live-memory")?.detail || "", /future Apex answers/);
+  assert.match(state.liveOperatorMode.operatorLoopRows.find((row) => row.id === "live-loop-remember")?.detail || "", /reviewed live-run memory/);
+  assert.equal(state.liveOperatorMode.operatorJudgmentRows.find((row) => row.id === "judgment-memory-loop")?.status, "1 run memory");
+});
+
 test("deriveApexControlRoomState builds private operator status from visible state", () => {
   const state = deriveApexControlRoomState({
     user: { name: "John Berlanga", role: "Owner", operatorAccess: true },
