@@ -5093,6 +5093,24 @@ function buildApexCockpitRunHandbackText(handback = {}) {
   return "Apex operator handback: no active private run is live. Start a private run when there is real work to track. Execution, sends, billing, provider work, production changes, deletion, deploy, rollback, and irreversible actions stay locked.";
 }
 
+function buildApexCockpitAutoDriveNarration({ advance = {}, updatedRun = {}, autoDrive = false } = {}) {
+  const title = String(advance.title || updatedRun.title || "the private run").trim();
+  const nextTitle = String(advance.nextTitle || "manual review").trim();
+  const status = String(updatedRun.status || advance.status || "").trim();
+  const stopAtReview = advance.canContinue === false;
+  return [
+    autoDrive ? "Auto Drive voice handback." : "Private run voice handback.",
+    stopAtReview
+      ? `I advanced ${title} and I am holding at ${nextTitle}.`
+      : `I advanced ${title}. Next safe move is ${nextTitle}.`,
+    status ? `Run status is ${status}.` : "",
+    stopAtReview
+      ? "I need manual review before I go further."
+      : "I will continue safe private prep after this handback if Auto Drive stays on.",
+    "Execution stays locked. No sends, billing, provider work, production changes, deploys, rollbacks, agent runs, or irreversible actions.",
+  ].filter(Boolean).join(" ");
+}
+
 function normalizeApexCockpitFollowUpPrompt(prompt = {}) {
   return {
     id: String(prompt.id || `follow-up-${prompt.label || "prompt"}`).trim(),
@@ -5411,6 +5429,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const cockpitAudioUnlockedRef = useRef(false);
   const cockpitOutputFrameRef = useRef(0);
   const cockpitSpeakingRef = useRef(false);
+  const cockpitSpeechSafetyTimerRef = useRef(0);
   const cockpitRecordingRef = useRef(false);
   const cockpitBargeInEnabledRef = useRef(true);
   const cockpitBargeInterruptedRef = useRef(false);
@@ -5439,6 +5458,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const cockpitLastProactiveSignatureRef = useRef("");
   const cockpitProactiveMemorySavingRef = useRef(false);
   const cockpitAutoDriveRunningRef = useRef(false);
+  const cockpitLastAutoDriveHandbackAtRef = useRef(0);
   const approvalRows = (state.approvalCommandCenter?.queueRows || []).slice(0, 4);
   const agentRows = (state.agentControlPlane?.rosterRows || []).slice(0, 4);
   const boundaryRows = [
@@ -5809,18 +5829,24 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     setCockpitProactiveCheckIn(checkIn);
     if (!checkIn.shouldSurface || cockpitLastProactiveSignatureRef.current === checkIn.signature) return;
     cockpitLastProactiveSignatureRef.current = checkIn.signature;
-    const route = buildApexCockpitCommandRoute("Give me the active run check-in");
-    const answer = buildApexCockpitProactiveCheckInText(checkIn);
-    setCockpitCommandRoute(route);
-    setCockpitError("");
-    setCockpitResponse({
-      answer: {
-        answer,
-        sourceLabels: checkIn.sourceLabels || ["Apex Proactive Check-In", "Live Session Heartbeat", "Autonomy Run Center"],
-      },
-    });
-    setCockpitLastQuestion("Proactive check-in");
-    setCockpitVoiceNotice(checkIn.voiceNotice || "Apex surfaced a proactive live-run check-in. Execution stayed locked.");
+    const recentAutoDriveHandback = cockpitLastAutoDriveHandbackAtRef.current
+      && Date.now() - cockpitLastAutoDriveHandbackAtRef.current < 12_000;
+    if (!recentAutoDriveHandback) {
+      const route = buildApexCockpitCommandRoute("Give me the active run check-in");
+      const answer = buildApexCockpitProactiveCheckInText(checkIn);
+      setCockpitCommandRoute(route);
+      setCockpitError("");
+      setCockpitResponse({
+        answer: {
+          answer,
+          sourceLabels: checkIn.sourceLabels || ["Apex Proactive Check-In", "Live Session Heartbeat", "Autonomy Run Center"],
+        },
+      });
+      setCockpitLastQuestion("Proactive check-in");
+      setCockpitVoiceNotice(checkIn.voiceNotice || "Apex surfaced a proactive live-run check-in. Execution stayed locked.");
+    } else {
+      setCockpitLiveRunNotice(checkIn.recommendation || "Apex noticed live-run progress while keeping the Auto Drive handback visible.");
+    }
     setCockpitTurns((current) => [
       {
         id: `cockpit-proactive-check-in-${Date.now()}`,
@@ -5837,6 +5863,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   useEffect(() => {
     if (!cockpitAutoDriveEnabled) return undefined;
     if (cockpitUpdatingRun || cockpitCreatingLiveRun) return undefined;
+    if (cockpitSpeaking || cockpitRecording || cockpitTranscribing || cockpitSubmitting) return undefined;
     if (!canAutoDriveCockpitRun) {
       if (cockpitActiveRun?.id && cockpitNextPrivateMove?.actionId) {
         setCockpitAutoDriveNotice(`Auto Drive is holding at ${cockpitNextPrivateMove.title || "manual review"}. Apex will not advance past review gates.`);
@@ -5860,6 +5887,10 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     cockpitNextPrivateMove?.title,
     cockpitUpdatingRun,
     cockpitCreatingLiveRun,
+    cockpitSpeaking,
+    cockpitRecording,
+    cockpitTranscribing,
+    cockpitSubmitting,
   ]);
 
   useEffect(() => {
@@ -5915,6 +5946,21 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       cockpitOutputFrameRef.current = 0;
     }
     setCockpitOutputLevel(0);
+  }
+
+  function clearCockpitSpeechSafetyTimer() {
+    if (!cockpitSpeechSafetyTimerRef.current) return;
+    clearTimeout(cockpitSpeechSafetyTimerRef.current);
+    cockpitSpeechSafetyTimerRef.current = 0;
+  }
+
+  function armCockpitSpeechSafetyTimer(textToSpeak = "") {
+    clearCockpitSpeechSafetyTimer();
+    const timeoutMs = Math.min(24_000, Math.max(7_000, String(textToSpeak || "").length * 48));
+    cockpitSpeechSafetyTimerRef.current = setTimeout(() => {
+      if (!cockpitSpeakingRef.current) return;
+      stopCockpitVoicePlayback("Apex voice safety recovered after playback did not finish cleanly.");
+    }, timeoutMs);
   }
 
   function startCockpitOutputLevelMonitor() {
@@ -6168,6 +6214,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   function stopCockpitVoicePlayback(notice = "Voice playback stopped.") {
     stopBrowserVoice(cockpitAudioRef);
     stopCockpitOutputLevelMonitor();
+    clearCockpitSpeechSafetyTimer();
     cockpitSpeakingRef.current = false;
     setCockpitSpeaking(false);
     setCockpitVoiceNotice(notice);
@@ -6180,18 +6227,21 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       voiceHint: cockpitVoiceProfileConfig.label,
       onEnd: () => {
         stopCockpitOutputLevelMonitor();
+        clearCockpitSpeechSafetyTimer();
         cockpitSpeakingRef.current = false;
         setCockpitSpeaking(false);
         setCockpitVoiceNotice("Voice playback finished.");
       },
       onError: () => {
         stopCockpitOutputLevelMonitor();
+        clearCockpitSpeechSafetyTimer();
         cockpitSpeakingRef.current = false;
         setCockpitSpeaking(false);
         setCockpitVoiceNotice("Browser voice playback could not start.");
       },
     });
     if (!started) {
+      clearCockpitSpeechSafetyTimer();
       setCockpitSpeaking(false);
       setCockpitVoiceNotice("This browser does not support speech playback here.");
       return;
@@ -6207,6 +6257,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     cockpitSpeakingRef.current = true;
     setCockpitSpeaking(true);
     startCockpitOutputLevelMonitor();
+    armCockpitSpeechSafetyTimer(answerToSpeak);
     setCockpitVoiceNotice("");
     try {
       const payload = await speakApexOsVoice(sessionToken, {
@@ -6221,6 +6272,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
           unlockedRef: cockpitAudioUnlockedRef,
           onEnd: () => {
             stopCockpitOutputLevelMonitor();
+            clearCockpitSpeechSafetyTimer();
             cockpitSpeakingRef.current = false;
             setCockpitSpeaking(false);
             setCockpitVoiceNotice("Voice playback finished.");
@@ -6948,6 +7000,29 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     }
   }
 
+  function toggleCockpitAutoDrive() {
+    const nextEnabled = !cockpitAutoDriveEnabled;
+    const notice = nextEnabled
+      ? "Auto Drive is on. I will narrate each safe private step, wait for the handback to finish, and stop at manual review."
+      : "Auto Drive is off. I will wait for your next command.";
+    setCockpitAutoDriveEnabled(nextEnabled);
+    setCockpitAutoDriveNotice(notice);
+    setCockpitLiveRunNotice(notice);
+    setCockpitAgentActionNotice(notice);
+    setCockpitResponse({
+      answer: {
+        answer: `${notice} Execution stays locked. No sends, billing, provider work, production changes, deploys, rollbacks, agent runs, or irreversible actions.`,
+        sourceLabels: ["Apex Live Operator Mode", "Auto Drive voice handback", "Review-first safety locks"],
+      },
+    });
+    cockpitLastAutoDriveHandbackAtRef.current = Date.now();
+    if (nextEnabled) {
+      void speakCockpitAnswer(notice);
+    } else if (cockpitSpeakingRef.current || cockpitSpeaking) {
+      stopCockpitVoicePlayback(notice);
+    }
+  }
+
   async function advanceCockpitActiveRunWithServer({ autoDrive = false } = {}) {
     if (!state.canView || !sessionToken || !cockpitActiveRun?.id || cockpitUpdatingRun || cockpitCreatingLiveRun) return null;
     const runId = cockpitActiveRun.id;
@@ -6969,6 +7044,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       const notice = stopAtReview
         ? `Apex advanced ${advance.title || "the private run"} and stopped at ${advance.nextTitle || "manual review"}. Execution stays locked.`
         : `Apex advanced ${advance.title || "the private run"}; next safe move is ${advance.nextTitle || "continue private work"}. Execution stays locked.`;
+      const narration = buildApexCockpitAutoDriveNarration({ advance, updatedRun: updated, autoDrive });
       setCockpitLiveRunNotice(notice);
       setCockpitAgentActionNotice(notice);
       setCockpitAutoDriveNotice(autoDrive ? notice : "Server-backed private advance is ready when Auto Drive is on.");
@@ -6977,10 +7053,16 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       }
       setCockpitResponse({
         answer: {
-          answer: `${notice} No external send, billing, ad, provider, production, deletion, queue, run, deploy, rollback, automatic trusted memory, or irreversible action executed.`,
-          sourceLabels: ["Apex Live Operator Mode", "Server-backed Auto Drive", updated?.sourceLabel || "Autonomy Run Center"],
+          answer: `${narration} ${notice} No external send, billing, ad, provider, production, deletion, queue, run, deploy, rollback, automatic trusted memory, or irreversible action executed.`,
+          sourceLabels: ["Apex Live Operator Mode", "Server-backed Auto Drive", "Auto Drive voice handback", updated?.sourceLabel || "Autonomy Run Center"],
         },
       });
+      if (autoDrive) {
+        cockpitLastAutoDriveHandbackAtRef.current = Date.now();
+      }
+      if (autoDrive) {
+        void speakCockpitAnswer(narration);
+      }
       setCockpitTurns((current) => [
         {
           id: `cockpit-auto-drive-${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -7691,11 +7773,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                       <ApexCockpitControlButton
                         className="px-2"
                         disabled={!cockpitActiveRun?.id || (!canAutoDriveCockpitRun && !cockpitAutoDriveEnabled)}
-                        onClick={() => {
-                          const nextEnabled = !cockpitAutoDriveEnabled;
-                          setCockpitAutoDriveEnabled(nextEnabled);
-                          setCockpitAutoDriveNotice(nextEnabled ? "Auto Drive is on. Apex will advance safe private steps and stop at manual review." : "Auto Drive is off. Apex will wait for your next command.");
-                        }}
+                        onClick={() => toggleCockpitAutoDrive()}
                         active={cockpitAutoDriveEnabled}
                         title="Toggle Apex Auto Drive for server-backed private steps only"
                       >
@@ -7970,11 +8048,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                               <ApexCockpitControlButton
                                 className="px-2"
                                 disabled={!cockpitActiveRun?.id || (!canAutoDriveCockpitRun && !cockpitAutoDriveEnabled)}
-                                onClick={() => {
-                                  const nextEnabled = !cockpitAutoDriveEnabled;
-                                  setCockpitAutoDriveEnabled(nextEnabled);
-                                  setCockpitAutoDriveNotice(nextEnabled ? "Auto Drive is on. Apex will advance safe private steps and stop at manual review." : "Auto Drive is off. Apex will wait for your next command.");
-                                }}
+                                onClick={() => toggleCockpitAutoDrive()}
                                 active={cockpitAutoDriveEnabled}
                                 title="Toggle Apex Auto Drive for server-backed private steps only"
                               >

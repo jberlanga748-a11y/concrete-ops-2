@@ -332,6 +332,15 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /advanceCockpitActiveRunWithServer/);
   assert.match(componentSource, /cockpitAutoDriveEnabled/);
   assert.match(componentSource, /canAutoDriveCockpitRun/);
+  assert.match(componentSource, /buildApexCockpitAutoDriveNarration/);
+  assert.match(componentSource, /toggleCockpitAutoDrive/);
+  assert.match(componentSource, /cockpitSpeechSafetyTimerRef/);
+  assert.match(componentSource, /armCockpitSpeechSafetyTimer/);
+  assert.match(componentSource, /cockpitLastAutoDriveHandbackAtRef/);
+  assert.match(componentSource, /recentAutoDriveHandback/);
+  assert.match(componentSource, /keeping the Auto Drive handback visible/);
+  assert.match(componentSource, /Auto Drive voice handback/);
+  assert.match(componentSource, /wait for the handback to finish/);
   assert.match(componentSource, /Apex Auto Drive/);
   assert.match(componentSource, /Auto Drive is on/);
   assert.match(componentSource, /server-backed private steps only/);
