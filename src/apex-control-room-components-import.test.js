@@ -425,6 +425,10 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /recentAutoDriveHandback/);
   assert.match(componentSource, /keeping the Auto Drive handback visible/);
   assert.match(componentSource, /Auto Drive voice handback/);
+  assert.match(componentSource, /Auto Drive operator handback/);
+  assert.match(componentSource, /Auto Drive stopped at manual review and gave the full operator handback/);
+  assert.match(componentSource, /advance\.handbackRequired/);
+  assert.match(componentSource, /operator-handback/);
   assert.match(componentSource, /wait for the handback to finish/);
   assert.match(componentSource, /Apex Auto Drive/);
   assert.match(componentSource, /Auto Drive is on/);

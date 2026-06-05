@@ -288,6 +288,9 @@ test("Apex autonomy runs are operator-only, persisted, linked to drafts, and exe
     assert.equal(thirdAdvance.privateAdvance.actionId, "proof-check");
     assert.equal(thirdAdvance.privateAdvance.nextActionId, "operator-review");
     assert.equal(thirdAdvance.privateAdvance.canContinue, false);
+    assert.equal(thirdAdvance.privateAdvance.handbackRequired, true);
+    assert.equal(thirdAdvance.privateAdvance.stopReason, "manual-review-gate");
+    assert.match(thirdAdvance.privateAdvance.handbackRecommendation, /Review.*evidence/i);
     assert.equal(thirdAdvance.apexOsAutonomyRun.status, "waiting-approval");
     assert.equal(thirdAdvance.apexOsAutonomyRun.canRunAgent, false);
     assert.equal(thirdAdvance.apexOsAutonomyRun.canExecute, false);

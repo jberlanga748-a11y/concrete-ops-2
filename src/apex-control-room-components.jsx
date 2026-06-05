@@ -8006,28 +8006,37 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       const updated = payload?.apexOsAutonomyRun;
       const advance = payload?.privateAdvance || {};
       syncCockpitLiveRunsFromPayload(payload, updated?.id || runId);
-      const stopAtReview = !advance.canContinue;
+      const stopAtReview = Boolean(advance.handbackRequired || !advance.canContinue);
       const notice = stopAtReview
         ? `Apex advanced ${advance.title || "the private run"} and stopped at ${advance.nextTitle || "manual review"}. Execution stays locked.`
         : `Apex advanced ${advance.title || "the private run"}; next safe move is ${advance.nextTitle || "continue private work"}. Execution stays locked.`;
       const narration = buildApexCockpitAutoDriveNarration({ advance, updatedRun: updated, autoDrive });
+      const reviewHandback = stopAtReview
+        ? buildApexOsAutonomyRunHandback(updated, {
+          latestAnswer: narration,
+          now: new Date().toISOString(),
+        })
+        : null;
+      const spokenHandback = stopAtReview ? buildApexCockpitRunHandbackText(reviewHandback) : narration;
       setCockpitLiveRunNotice(notice);
       setCockpitAgentActionNotice(notice);
-      setCockpitAutoDriveNotice(autoDrive ? notice : "Server-backed private advance is ready when Auto Drive is on.");
+      setCockpitAutoDriveNotice(autoDrive && stopAtReview ? "Auto Drive stopped at manual review and gave the full operator handback." : autoDrive ? notice : "Server-backed private advance is ready when Auto Drive is on.");
       if (autoDrive && stopAtReview) {
         setCockpitAutoDriveEnabled(false);
       }
       setCockpitResponse({
         answer: {
-          answer: `${narration} ${notice} No external send, billing, ad, provider, production, deletion, queue, run, deploy, rollback, automatic trusted memory, or irreversible action executed.`,
-          sourceLabels: ["Apex Live Operator Mode", "Server-backed Auto Drive", "Auto Drive voice handback", updated?.sourceLabel || "Autonomy Run Center"],
+          answer: `${spokenHandback} ${notice} No external send, billing, ad, provider, production, deletion, queue, run, deploy, rollback, automatic trusted memory, or irreversible action executed.`,
+          sourceLabels: stopAtReview
+            ? ["Apex Live Operator Mode", "Server-backed Auto Drive", "Auto Drive operator handback", "Autonomy Run Center", updated?.sourceLabel || "Review gate"]
+            : ["Apex Live Operator Mode", "Server-backed Auto Drive", "Auto Drive voice handback", updated?.sourceLabel || "Autonomy Run Center"],
         },
       });
       if (autoDrive) {
         cockpitLastAutoDriveHandbackAtRef.current = Date.now();
       }
       if (autoDrive) {
-        void speakCockpitAnswer(narration);
+        void speakCockpitAnswer(spokenHandback);
       }
       setCockpitTurns((current) => [
         {
@@ -8035,7 +8044,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
           question: updated?.title || cockpitActiveRun.title || "Server-backed private advance",
           source: autoDrive ? "auto-drive" : "next-private-move",
           routeLabel: updated?.routeLabel || cockpitActiveRun.routeLabel || "Apex",
-          status: stopAtReview ? "manual-review" : "private-advanced",
+          status: stopAtReview ? "operator-handback" : "private-advanced",
         },
         ...current,
       ].slice(0, 5));
