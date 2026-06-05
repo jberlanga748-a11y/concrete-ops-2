@@ -419,8 +419,8 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.agents.some((item) => item.id === "autonomy-run-center"), true);
   assert.equal(state.liveOperatorMode.status, "Live operator ready");
   assert.equal(state.liveOperatorMode.mode, "Body-first review-first operator");
-  assert.equal(state.liveOperatorMode.foundationPercent, 94);
-  assert.equal(state.liveOperatorMode.jarvisBehaviorPercent, 80);
+  assert.equal(state.liveOperatorMode.foundationPercent, 95);
+  assert.equal(state.liveOperatorMode.jarvisBehaviorPercent, 82);
   assert.equal(state.liveOperatorMode.readinessRows.length, 6);
   assert.equal(state.liveOperatorMode.operatorLoopRows.length, 13);
   assert.equal(state.liveOperatorMode.gapRows.length, 4);
@@ -433,7 +433,7 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-proof-check" && item.status === "Private proof"), true);
   assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-validate" && item.status === "Proof-backed"), true);
   assert.equal(state.liveOperatorMode.readinessRows.some((item) => item.id === "live-memory" && /Apex body turns/i.test(item.detail)), true);
-  assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-remember" && /suggested turn memory/i.test(item.detail)), true);
+  assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-remember" && /run outcome memory/i.test(item.detail)), true);
   assert.equal(state.liveOperatorMode.gapRows.some((item) => item.id === "live-gap-execution" && item.status === "Approval-gated"), true);
   assert.equal(state.liveOperatorMode.gapRows.some((item) => item.id === "live-gap-proactive" && item.status === "Auto-checking"), true);
   assert.equal(state.liveOperatorMode.gapRows.some((item) => item.id === "live-gap-provider-reliability" && item.status === "Caption fallback"), true);
@@ -503,7 +503,7 @@ test("deriveApexControlRoomState includes saved autonomy run ledger rows", () =>
   assert.equal(state.liveOperatorMode.status, "Live operator running");
   assert.equal(state.liveOperatorMode.savedRunCount, 2);
   assert.equal(state.liveOperatorMode.activeRunCount, 1);
-  assert.equal(state.liveOperatorMode.jarvisBehaviorPercent, 88);
+  assert.equal(state.liveOperatorMode.jarvisBehaviorPercent, 90);
   assert.equal(state.liveOperatorMode.readinessRows.some((item) => item.id === "live-run-ledger" && item.status === "2 saved"), true);
   assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-save" && item.status === "2 saved"), true);
   assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-report" && item.status === "Report-ready"), true);

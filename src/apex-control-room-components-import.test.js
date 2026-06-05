@@ -256,12 +256,17 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /interruptCockpitVoicePlayback/);
   assert.match(componentSource, /recordCockpitInterruption/);
   assert.match(componentSource, /buildApexCockpitTurnMemoryDraft/);
+  assert.match(componentSource, /buildApexCockpitRunMemoryDraft/);
   assert.match(componentSource, /redactApexOsMemoryText/);
   assert.match(componentSource, /Apex answer summary/);
   assert.match(componentSource, /apex-live-operator-turn/);
+  assert.match(componentSource, /apex-live-operator-run/);
   assert.match(componentSource, /rememberCockpitTurnFromAnswer/);
   assert.match(componentSource, /Suggested memory saved from this live turn/);
+  assert.match(componentSource, /Suggested run memory/);
+  assert.match(componentSource, /manual approval required before trusted memory/);
   assert.match(componentSource, /Apex Live Operator Mode answer; manual approval required before trusted memory/);
+  assert.match(componentSource, /Math\.max\(Number\(liveOperatorMode\.jarvisBehaviorPercent \|\| 0\), 90\)/);
   assert.match(componentSource, /Caption barge-in/);
   assert.match(componentSource, /Manual interruption/);
   assert.match(componentSource, /cockpitPendingInterruptionRef/);
@@ -292,8 +297,8 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(utilSource, /summarizeAutonomyRunProgress/);
   assert.match(utilSource, /Report-ready/);
   assert.match(utilSource, /Barge-in memory/);
-  assert.match(utilSource, /Apex body turns and finished runs can draft suggested memory/);
-  assert.match(utilSource, /suggested turn memory/);
+  assert.match(utilSource, /Apex body turns and finished run outcomes can draft suggested memory/);
+  assert.match(utilSource, /run outcome memory/);
   assert.match(utilSource, /live-gap-execution/);
   assert.match(cssSource, /\.co-apex-cockpit-side-rail/);
   assert.match(cssSource, /max-width: 1279px/);

@@ -4076,6 +4076,42 @@ function buildApexCockpitTurnMemoryDraft({ question = "", answer = {}, route = {
   };
 }
 
+function buildApexCockpitRunMemoryDraft({ run = {}, resultReport = "" } = {}) {
+  const safeTitle = apexCockpitSafeMemoryText(run.title || run.request || "Apex live operator run", 120);
+  const safeRequest = apexCockpitSafeMemoryText(run.request || safeTitle, 650);
+  const safeResult = apexCockpitSafeMemoryText(resultReport || run.resultReport || "Apex completed a private operator run and stopped at manual review.", 800);
+  const evidenceRows = (Array.isArray(run.evidence) ? run.evidence : [])
+    .map((item) => apexCockpitSafeMemoryText(item, 180))
+    .filter(Boolean)
+    .slice(0, 5);
+  const stepRows = (Array.isArray(run.steps) ? run.steps : [])
+    .map((step) => `${apexCockpitSafeMemoryText(step?.title || step?.id || "Step", 80)}: ${apexCockpitSafeMemoryText(step?.status || "review", 60)}`)
+    .filter(Boolean)
+    .slice(0, 7);
+  const sourceKey = apexCockpitMemoryText(run.id || `${Date.now()}`, 90).replace(/[^a-z0-9_-]+/gi, "-");
+
+  return {
+    category: "decision",
+    title: apexCockpitMemoryText(`Apex run result: ${safeTitle}`, 140),
+    body: apexCockpitMemoryText([
+      `Operator run: ${safeTitle}`,
+      `Request: ${safeRequest}`,
+      `Route: ${apexCockpitSafeMemoryText(run.routeLabel || "Apex", 100)}`,
+      `Result report: ${safeResult}`,
+      stepRows.length ? `Run steps: ${stepRows.join("; ")}` : "Run steps: Not captured.",
+      evidenceRows.length ? `Evidence: ${evidenceRows.join("; ")}` : "Evidence: No extra evidence captured.",
+      `Next safe action: ${apexCockpitSafeMemoryText(run.nextSafeAction || "Review this run memory before trusting it.", 240)}`,
+      "Safety: Suggested memory only; nothing external was executed.",
+    ].join(" "), 1800),
+    sourceType: "apex-live-operator-run",
+    sourceLabel: "Apex Live Operator Mode",
+    sourceUri: `apex-life://run/${sourceKey}`,
+    status: "suggested",
+    reviewNote: "Suggested from Apex Live Operator Mode run result; manual approval required before trusted memory.",
+    confidence: 80,
+  };
+}
+
 function ApexMiniWaveform({ bars = [8, 13, 7, 18, 10, 22, 12, 16, 9, 20, 8, 14], mode = "listening" }) {
   const voiceMode = APEX_COCKPIT_VOICE_STATES[mode] ? mode : "listening";
   return (
@@ -4855,7 +4891,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const cockpitVisibleLiveStatus = cockpitVisibleActiveRunCount ? "Live operator running" : liveOperatorMode.status || "Live operator ready";
   const cockpitVisibleLiveTone = cockpitVisibleActiveRunCount ? "green" : liveOperatorMode.tone || "blue";
   const cockpitVisibleOperatorPercent = cockpitVisibleActiveRunCount
-    ? Math.max(Number(liveOperatorMode.jarvisBehaviorPercent || 0), 88)
+    ? Math.max(Number(liveOperatorMode.jarvisBehaviorPercent || 0), 90)
     : Number(liveOperatorMode.jarvisBehaviorPercent || 0);
   const cockpitAnswerText = resolveApexCockpitAnswerText(cockpitResponse);
   const cockpitTurnMemoryKey = apexCockpitMemoryText(cockpitResponse?.requestId || `${cockpitLastQuestion}|${cockpitAnswerText}`, 220);
@@ -5545,16 +5581,31 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
 
   async function updateCockpitActiveRunStatus(status, { resultReport = "", operatorNote = "" } = {}) {
     if (!state.canView || !sessionToken || !cockpitActiveRun?.id || cockpitUpdatingRun) return null;
+    const isDoneStatus = status === "done";
+    const doneResultReport = isDoneStatus
+      ? resultReport || cockpitActiveRun.resultReport || buildApexCockpitRunResultReport({
+        run: cockpitActiveRun,
+        question: cockpitLastQuestion || askQuestion,
+        answer: cockpitAnswerText,
+      })
+      : "";
     const patch = {
       status,
       operatorNote: operatorNote || cockpitActiveRun.operatorNote || "",
     };
-    if (status === "done") {
-      patch.resultReport = resultReport || cockpitActiveRun.resultReport || buildApexCockpitRunResultReport({
-        run: cockpitActiveRun,
-        question: cockpitLastQuestion || askQuestion,
-        answer: cockpitAnswerText,
-      });
+    if (isDoneStatus) {
+      patch.resultReport = doneResultReport;
+      patch.nextSafeAction = "Review the suggested run memory before trusting it, or reopen/block the run if evidence is incomplete.";
+      patch.steps = (Array.isArray(cockpitActiveRun.steps) ? cockpitActiveRun.steps : []).map((step) => (
+        step.id === "report-memory"
+          ? {
+            ...step,
+            status: "done",
+            evidence: "Apex reported the run outcome and prepared the result for suggested memory review.",
+            updatedAt: new Date().toISOString(),
+          }
+          : step
+      ));
     }
     if (status === "validating") {
       patch.nextSafeAction = "Validate evidence, review linked drafts, then report whether this run is done, blocked, or waiting for approval.";
@@ -5571,8 +5622,47 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     setCockpitLiveRunNotice(`Updating active run to ${status}.`);
     try {
       const payload = await updateApexOsAutonomyRun(sessionToken, cockpitActiveRun.id, patch);
-      const updated = payload?.apexOsAutonomyRun;
+      let updated = payload?.apexOsAutonomyRun;
       syncCockpitLiveRunsFromPayload(payload, updated?.id || cockpitActiveRun.id);
+      let memoryNotice = "";
+      if (isDoneStatus && updated?.id && !updated.decisionMemoryId) {
+        try {
+          const memoryPayload = await createApexOsMemory(sessionToken, buildApexCockpitRunMemoryDraft({
+            run: updated,
+            resultReport: doneResultReport,
+          }));
+          const memoryId = memoryPayload?.apexOsMemoryEntry?.id || "";
+          if (memoryId) {
+            const memorySteps = (Array.isArray(updated.steps) ? updated.steps : []).map((step) => (
+              step.id === "report-memory"
+                ? {
+                  ...step,
+                  status: "done",
+                  evidence: `Suggested run memory ${memoryId} drafted for manual review; it is not trusted automatically.`,
+                  updatedAt: new Date().toISOString(),
+                }
+                : step
+            ));
+            const memoryRunPayload = await updateApexOsAutonomyRun(sessionToken, updated.id, {
+              decisionMemoryId: memoryId,
+              steps: memorySteps,
+              evidence: [
+                ...(Array.isArray(updated.evidence) ? updated.evidence : []),
+                `Suggested run memory ${memoryId} drafted for manual review. No automatic trusted memory created.`,
+              ].slice(-12),
+              nextSafeAction: "Review the suggested run memory before trusting it, or reopen/block the run if evidence is incomplete.",
+            });
+            updated = memoryRunPayload?.apexOsAutonomyRun || updated;
+            syncCockpitLiveRunsFromPayload(memoryRunPayload, updated.id);
+            setCockpitRememberedTurnCount((current) => current + 1);
+            memoryNotice = " Suggested run memory was drafted for manual review.";
+          }
+        } catch (memoryError) {
+          memoryNotice = memoryError?.status === 409
+            ? " Suggested run memory already exists for this run."
+            : " Suggested run memory could not be drafted; the result report is still saved.";
+        }
+      }
       const notice = status === "done"
         ? "Apex reported back and marked the active run done with a result report."
         : status === "waiting-approval"
@@ -5580,11 +5670,12 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
           : status === "blocked"
             ? "Apex marked the active run blocked for review."
             : "Apex marked the active run validating with evidence review next.";
-      setCockpitLiveRunNotice(notice);
-      setCockpitAgentActionNotice(notice);
+      const finalNotice = `${notice}${memoryNotice}`;
+      setCockpitLiveRunNotice(finalNotice);
+      setCockpitAgentActionNotice(finalNotice);
       setCockpitResponse({
         answer: {
-          answer: `${notice} No external send, billing, ad, provider, production, deletion, or irreversible action executed.`,
+          answer: `${finalNotice} No external send, billing, ad, provider, production, deletion, automatic trusted memory, or irreversible action executed.`,
           sourceLabels: ["Apex Live Operator Mode", "Autonomy Run Center", updated?.sourceLabel || "Active run session"],
         },
       });
@@ -6417,8 +6508,8 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                           <ApexCockpitControlButton className="px-2" disabled={Boolean(cockpitUpdatingRun) || cockpitActiveRun.status === "done" || cockpitActiveRun.status === "archived"} onClick={() => updateCockpitActiveRunStatus("waiting-approval")} active={cockpitUpdatingRun === `waiting-approval-${cockpitActiveRun.id}`} title="Move active run to manual approval review">
                             <Icon name="lock" /> Approval
                           </ApexCockpitControlButton>
-                          <ApexCockpitControlButton className="px-2" disabled={Boolean(cockpitUpdatingRun) || cockpitActiveRun.status === "done" || cockpitActiveRun.status === "archived"} onClick={() => updateCockpitActiveRunStatus("done")} active={cockpitUpdatingRun === `done-${cockpitActiveRun.id}`} title="Report back and mark active run done">
-                            <Icon name="spark" /> Report Done
+                          <ApexCockpitControlButton className="px-2" disabled={Boolean(cockpitUpdatingRun) || cockpitActiveRun.status === "done" || cockpitActiveRun.status === "archived"} onClick={() => updateCockpitActiveRunStatus("done")} active={cockpitUpdatingRun === `done-${cockpitActiveRun.id}`} title="Report back, mark active run done, and draft suggested run memory">
+                            <Icon name="spark" /> {cockpitUpdatingRun === `done-${cockpitActiveRun.id}` ? "Reporting" : "Report Done"}
                           </ApexCockpitControlButton>
                           <ApexCockpitControlButton className="px-2" disabled={Boolean(cockpitUpdatingRun) || cockpitActiveRun.status === "done" || cockpitActiveRun.status === "archived"} onClick={() => updateCockpitActiveRunStatus("blocked")} active={cockpitUpdatingRun === `blocked-${cockpitActiveRun.id}`} title="Mark active run blocked">
                             <Icon name="alert" /> Block
