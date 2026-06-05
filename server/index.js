@@ -122,13 +122,17 @@ import {
   summarizeApexOsAgentControlRequests,
 } from "../shared/apexOsAgentControl.js";
 import {
+  advanceApexOsAutonomyRunPrivatePrep,
   buildApexOsAutonomyRunPlan,
+  buildApexOsAutonomyRunNextPrivateMove,
   getApexOsAutonomyRunMissingFields,
   isApexOsAutonomyRunReady,
   markApexOsAutonomyRunInternalDrafted,
   normalizeApexOsAutonomyRun,
   normalizeApexOsAutonomyRuns,
+  runApexOsAutonomyRunPrivateOperatorCycle,
   summarizeApexOsAutonomyRuns,
+  validateApexOsAutonomyRunPrivateProof,
 } from "../shared/apexOsAutonomyRuns.js";
 import {
   APEX_OS_ASK_OPENAI_URL,
@@ -7896,6 +7900,50 @@ function buildApexOsAutonomyRunExecutionHandoffDraft(run, user) {
   };
 }
 
+function ensureApexOsAutonomyRunInternalDrafts(draft, user, existingRun, now) {
+  let agentControlRequestId = existingRun.linkedAgentControlRequestId;
+  let executionHandoffId = existingRun.linkedExecutionHandoffId;
+  let createdRequest = null;
+  let createdHandoff = null;
+
+  if (!agentControlRequestId) {
+    const currentRequests = apexOsAgentControlRequestsForState(draft, user);
+    createdRequest = normalizeApexOsAgentControlRequest(buildApexOsAutonomyRunAgentControlDraft(existingRun, user), {
+      id: makeId("AAC"),
+      now,
+      requestedBy: user.id,
+    });
+    createdRequest.createdBy = user.id;
+    createdRequest.createdAt = now;
+    rejectUnsafeApexOsAgentControlRequest(createdRequest, createdRequest.status);
+    agentControlRequestId = createdRequest.id;
+    persistApexOsAgentControlRequests(draft, user, [createdRequest, ...currentRequests].slice(0, 160));
+  }
+
+  if (!executionHandoffId) {
+    const currentHandoffs = apexOsExecutionHandoffsForState(draft, user);
+    createdHandoff = normalizeApexOsExecutionHandoff(buildApexOsAutonomyRunExecutionHandoffDraft(existingRun, user), {
+      id: makeId("AEH"),
+      now,
+    });
+    createdHandoff.createdBy = user.id;
+    createdHandoff.createdAt = now;
+    rejectUnsafeApexOsExecutionHandoff(createdHandoff, createdHandoff.status);
+    executionHandoffId = createdHandoff.id;
+    persistApexOsExecutionHandoffs(draft, user, [createdHandoff, ...currentHandoffs].slice(0, 120));
+  }
+
+  return {
+    updatedRun: markApexOsAutonomyRunInternalDrafted(existingRun, {
+      agentControlRequestId,
+      executionHandoffId,
+      now,
+    }),
+    createdRequest,
+    createdHandoff,
+  };
+}
+
 function apexOsDailyBriefingHistoryForState(state, user) {
   return normalizeApexOsDailyBriefingHistory(companySettingsForState(state, user).apexOsDailyBriefingHistory);
 }
@@ -13109,41 +13157,10 @@ app.post("/api/apex-os/autonomy-runs/:id/draft-internal", requireAuth, asyncRout
       throw new ApiError(400, "Archived, completed, or blocked autonomy runs cannot create new internal draft packages.");
     }
 
-    let agentControlRequestId = existingRun.linkedAgentControlRequestId;
-    let executionHandoffId = existingRun.linkedExecutionHandoffId;
-
-    if (!agentControlRequestId) {
-      const currentRequests = apexOsAgentControlRequestsForState(draft, req.auth.user);
-      createdRequest = normalizeApexOsAgentControlRequest(buildApexOsAutonomyRunAgentControlDraft(existingRun, req.auth.user), {
-        id: makeId("AAC"),
-        now,
-        requestedBy: req.auth.user.id,
-      });
-      createdRequest.createdBy = req.auth.user.id;
-      createdRequest.createdAt = now;
-      rejectUnsafeApexOsAgentControlRequest(createdRequest, createdRequest.status);
-      agentControlRequestId = createdRequest.id;
-      persistApexOsAgentControlRequests(draft, req.auth.user, [createdRequest, ...currentRequests].slice(0, 160));
-    }
-
-    if (!executionHandoffId) {
-      const currentHandoffs = apexOsExecutionHandoffsForState(draft, req.auth.user);
-      createdHandoff = normalizeApexOsExecutionHandoff(buildApexOsAutonomyRunExecutionHandoffDraft(existingRun, req.auth.user), {
-        id: makeId("AEH"),
-        now,
-      });
-      createdHandoff.createdBy = req.auth.user.id;
-      createdHandoff.createdAt = now;
-      rejectUnsafeApexOsExecutionHandoff(createdHandoff, createdHandoff.status);
-      executionHandoffId = createdHandoff.id;
-      persistApexOsExecutionHandoffs(draft, req.auth.user, [createdHandoff, ...currentHandoffs].slice(0, 120));
-    }
-
-    updatedRun = markApexOsAutonomyRunInternalDrafted(existingRun, {
-      agentControlRequestId,
-      executionHandoffId,
-      now,
-    });
+    const prepared = ensureApexOsAutonomyRunInternalDrafts(draft, req.auth.user, existingRun, now);
+    updatedRun = prepared.updatedRun;
+    createdRequest = prepared.createdRequest;
+    createdHandoff = prepared.createdHandoff;
     rejectUnsafeApexOsAutonomyRun(updatedRun, updatedRun.status);
     const nextRuns = [...currentRuns];
     nextRuns[runIndex] = updatedRun;
@@ -13178,6 +13195,121 @@ app.post("/api/apex-os/autonomy-runs/:id/draft-internal", requireAuth, asyncRout
     apexOsAutonomyRuns: runs.map(publicApexOsAutonomyRun),
     apexOsAgentControlRequest: createdRequest ? publicApexOsAgentControlRequest(createdRequest) : null,
     apexOsExecutionHandoff: createdHandoff ? publicApexOsExecutionHandoff(createdHandoff) : null,
+    summary: summarizeApexOsAutonomyRuns(runs),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/autonomy-runs/:id/advance-private", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let updatedRun = null;
+  let createdRequest = null;
+  let createdHandoff = null;
+  let privateAdvance = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageApexOsMemory(draft, req.auth.user);
+    const currentRuns = apexOsAutonomyRunsForState(draft, req.auth.user);
+    const runIndex = currentRuns.findIndex((run) => run.id === req.params.id);
+    if (runIndex < 0) {
+      throw new ApiError(404, "Apex autonomy run not found.");
+    }
+
+    const existingRun = currentRuns[runIndex];
+    rejectUnsafeApexOsAutonomyRun(existingRun, existingRun.status);
+    if (["archived", "done", "blocked"].includes(existingRun.status)) {
+      throw new ApiError(400, "Archived, completed, or blocked autonomy runs cannot be advanced by private Auto Drive.");
+    }
+
+    const move = buildApexOsAutonomyRunNextPrivateMove(existingRun, { now });
+    if (!move.canAdvance || move.actionId === "operator-review") {
+      throw new ApiError(400, `Apex Auto Drive is stopped at ${move.title || "manual review"}. ${move.recommendation || "Manual operator review is required."}`);
+    }
+
+    let workingRun = existingRun;
+    if (["draft-internal", "private-prep", "proof-check", "private-cycle"].includes(move.actionId)) {
+      const prepared = ensureApexOsAutonomyRunInternalDrafts(draft, req.auth.user, workingRun, now);
+      workingRun = prepared.updatedRun;
+      createdRequest = prepared.createdRequest;
+      createdHandoff = prepared.createdHandoff;
+    }
+
+    if (move.actionId === "draft-internal") {
+      updatedRun = workingRun;
+    } else if (move.actionId === "private-prep") {
+      updatedRun = advanceApexOsAutonomyRunPrivatePrep(workingRun, {
+        now,
+        operatorNote: "Apex Auto Drive advanced this saved run through server-backed private prep and stopped before approval-gated work.",
+      });
+    } else if (move.actionId === "proof-check") {
+      const preparedRun = advanceApexOsAutonomyRunPrivatePrep(workingRun, {
+        now,
+        operatorNote: "Apex Auto Drive prepared this saved run for server-backed proof checking.",
+      });
+      updatedRun = validateApexOsAutonomyRunPrivateProof(preparedRun, {
+        now,
+        operatorNote: "Apex Auto Drive proof-checked this saved run and stopped at the manual review gate.",
+      });
+    } else if (move.actionId === "private-cycle") {
+      updatedRun = runApexOsAutonomyRunPrivateOperatorCycle(workingRun, {
+        now,
+        operatorNote: "Apex Auto Drive ran a server-backed private operator cycle and stopped at manual approval/report review.",
+      });
+    } else {
+      throw new ApiError(400, "Apex Auto Drive can only advance private draft, prep, proof, or cycle steps.");
+    }
+
+    rejectUnsafeApexOsAutonomyRun(updatedRun, updatedRun.status);
+    const nextRuns = [...currentRuns];
+    nextRuns[runIndex] = updatedRun;
+    persistApexOsAutonomyRuns(draft, req.auth.user, nextRuns);
+
+    const nextMove = buildApexOsAutonomyRunNextPrivateMove(updatedRun, { now });
+    privateAdvance = {
+      actionId: move.actionId,
+      title: move.title,
+      status: updatedRun.status,
+      nextActionId: nextMove.actionId,
+      nextTitle: nextMove.title,
+      recommendation: nextMove.recommendation,
+      canContinue: Boolean(nextMove.canAdvance && !["operator-review", "review-blocker", "review-result"].includes(nextMove.actionId)),
+      executionLocked: true,
+      externalActionsLocked: true,
+      canExecute: false,
+    };
+
+    appendActivity(draft, "Apex Auto Drive advanced private run", `${req.auth.user.name} let Apex Auto Drive advance ${updatedRun.title} through ${move.title}.`);
+    appendAuditEvent(draft, {
+      entityType: "apexOsAutonomyRun",
+      entityId: updatedRun.id,
+      action: "private-auto-drive-advanced",
+      summary: "Apex Auto Drive advanced private run",
+      detail: JSON.stringify({
+        id: updatedRun.id,
+        title: updatedRun.title,
+        status: updatedRun.status,
+        actionId: move.actionId,
+        nextActionId: nextMove.actionId,
+        linkedAgentControlRequestId: updatedRun.linkedAgentControlRequestId,
+        linkedExecutionHandoffId: updatedRun.linkedExecutionHandoffId,
+        executionLocked: true,
+        externalActionsLocked: true,
+        canExecute: false,
+      }),
+      actor: req.auth.user,
+      changedFields: ["apexOsAutonomyRuns", "apexOsAgentControlRequests", "apexOsExecutionHandoffs"],
+    });
+    return draft;
+  });
+
+  const runs = apexOsAutonomyRunsForState(nextState, req.auth.user);
+  res.json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    apexOsAutonomyRun: publicApexOsAutonomyRun(updatedRun),
+    apexOsAutonomyRuns: runs.map(publicApexOsAutonomyRun),
+    apexOsAgentControlRequest: createdRequest ? publicApexOsAgentControlRequest(createdRequest) : null,
+    apexOsExecutionHandoff: createdHandoff ? publicApexOsExecutionHandoff(createdHandoff) : null,
+    privateAdvance,
     summary: summarizeApexOsAutonomyRuns(runs),
     requestId: res.locals.requestId,
   });

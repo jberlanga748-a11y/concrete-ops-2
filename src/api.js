@@ -499,6 +499,10 @@ export function draftApexOsAutonomyRunInternalWork(token, id, payload = {}) {
   return request(`/api/apex-os/autonomy-runs/${encodeURIComponent(id)}/draft-internal`, { method: "POST", token, body: payload });
 }
 
+export function advanceApexOsAutonomyRunPrivateMove(token, id, payload = {}) {
+  return request(`/api/apex-os/autonomy-runs/${encodeURIComponent(id)}/advance-private`, { method: "POST", token, body: payload });
+}
+
 export function createApexOsAgentControlRequest(token, payload = {}) {
   return request("/api/apex-os/agent-control/requests", { method: "POST", token, body: payload });
 }

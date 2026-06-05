@@ -6,6 +6,7 @@ test("Apex Control Room route is extracted and wired through App", () => {
   const appSource = fs.readFileSync(new URL("./App.jsx", import.meta.url), "utf8");
   const componentSource = fs.readFileSync(new URL("./apex-control-room-components.jsx", import.meta.url), "utf8");
   const utilSource = fs.readFileSync(new URL("./apex-control-room-utils.js", import.meta.url), "utf8");
+  const apiSource = fs.readFileSync(new URL("./api.js", import.meta.url), "utf8");
   const cssSource = fs.readFileSync(new URL("./index.css", import.meta.url), "utf8");
 
   assert.match(appSource, /const ApexControlRoomPage = lazyRouteComponent\(\(\) => import\("\.\/apex-control-room-components"\), "ApexControlRoomPage"\);/);
@@ -327,6 +328,15 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /refreshCockpitLivePulse/);
   assert.match(componentSource, /Auto Check/);
   assert.match(componentSource, /Check Now/);
+  assert.match(componentSource, /advanceApexOsAutonomyRunPrivateMove/);
+  assert.match(componentSource, /advanceCockpitActiveRunWithServer/);
+  assert.match(componentSource, /cockpitAutoDriveEnabled/);
+  assert.match(componentSource, /canAutoDriveCockpitRun/);
+  assert.match(componentSource, /Apex Auto Drive/);
+  assert.match(componentSource, /Auto Drive is on/);
+  assert.match(componentSource, /server-backed private steps only/);
+  assert.match(apiSource, /advanceApexOsAutonomyRunPrivateMove/);
+  assert.match(apiSource, /\/api\/apex-os\/autonomy-runs\/\$\{encodeURIComponent\(id\)\}\/advance-private/);
   assert.match(componentSource, /getApexOsBuildAwareness/);
   assert.match(componentSource, /getApexOsDailyBriefing/);
   assert.match(componentSource, /getApexOsAutonomyRuns/);

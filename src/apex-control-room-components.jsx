@@ -4,6 +4,7 @@ import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
 
 import {
   askApexOs,
+  advanceApexOsAutonomyRunPrivateMove,
   createApexOsAgentControlRequest,
   createApexOsAutonomyRun,
   createApexOsMemory,
@@ -5376,6 +5377,8 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const [cockpitLiveRunSummary, setCockpitLiveRunSummary] = useState(() => state.autonomyRunCenter?.runSummary || {});
   const [cockpitActiveRunId, setCockpitActiveRunId] = useState(() => state.autonomyRunCenter?.latestRun?.id || state.autonomyRunCenter?.runRows?.[0]?.id || "");
   const [cockpitUpdatingRun, setCockpitUpdatingRun] = useState("");
+  const [cockpitAutoDriveEnabled, setCockpitAutoDriveEnabled] = useState(false);
+  const [cockpitAutoDriveNotice, setCockpitAutoDriveNotice] = useState("");
   const [cockpitRememberingTurn, setCockpitRememberingTurn] = useState(false);
   const [cockpitRememberedTurnKeys, setCockpitRememberedTurnKeys] = useState({});
   const [cockpitRememberedTurnCount, setCockpitRememberedTurnCount] = useState(0);
@@ -5435,6 +5438,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const cockpitLastHeartbeatRef = useRef(null);
   const cockpitLastProactiveSignatureRef = useRef("");
   const cockpitProactiveMemorySavingRef = useRef(false);
+  const cockpitAutoDriveRunningRef = useRef(false);
   const approvalRows = (state.approvalCommandCenter?.queueRows || []).slice(0, 4);
   const agentRows = (state.agentControlPlane?.rosterRows || []).slice(0, 4);
   const boundaryRows = [
@@ -5526,6 +5530,14 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const cockpitNextPrivateMove = buildApexOsAutonomyRunNextPrivateMove(cockpitActiveRun, {
     now: new Date().toISOString(),
   });
+  const canAutoDriveCockpitRun = state.canView
+    && Boolean(sessionToken)
+    && Boolean(cockpitActiveRun?.id)
+    && Boolean(cockpitNextPrivateMove?.canAdvance)
+    && !["done", "archived", "blocked"].includes(String(cockpitActiveRun?.status || "").toLowerCase())
+    && !["operator-review", "review-blocker", "review-result"].includes(String(cockpitNextPrivateMove?.actionId || ""))
+    && !cockpitUpdatingRun
+    && !cockpitCreatingLiveRun;
   const cockpitRunMemoryReviewRow = findApexCockpitRunMemoryReviewRow(cockpitActiveRun, liveOperatorMemory);
   const cockpitRunMemoryReviewStatus = cockpitRunMemoryReviewRow?.status || (cockpitActiveRun?.decisionMemoryId ? "missing" : "not-drafted");
   const canTrustCockpitRunMemory = state.canView
@@ -5821,6 +5833,34 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     ].slice(0, 5));
     void saveCockpitProactiveCheckInMemory(checkIn, { automatic: true });
   }, [state.canView, cockpitSessionHeartbeat.signature, cockpitLivePulse?.checkedAt]);
+
+  useEffect(() => {
+    if (!cockpitAutoDriveEnabled) return undefined;
+    if (cockpitUpdatingRun || cockpitCreatingLiveRun) return undefined;
+    if (!canAutoDriveCockpitRun) {
+      if (cockpitActiveRun?.id && cockpitNextPrivateMove?.actionId) {
+        setCockpitAutoDriveNotice(`Auto Drive is holding at ${cockpitNextPrivateMove.title || "manual review"}. Apex will not advance past review gates.`);
+      }
+      return undefined;
+    }
+    const autoDriveTimer = setTimeout(() => {
+      if (cockpitAutoDriveRunningRef.current) return;
+      cockpitAutoDriveRunningRef.current = true;
+      advanceCockpitActiveRunWithServer({ autoDrive: true }).finally(() => {
+        cockpitAutoDriveRunningRef.current = false;
+      });
+    }, 1_800);
+    return () => clearTimeout(autoDriveTimer);
+  }, [
+    cockpitAutoDriveEnabled,
+    canAutoDriveCockpitRun,
+    cockpitActiveRun?.id,
+    cockpitActiveRun?.updatedAt,
+    cockpitNextPrivateMove?.actionId,
+    cockpitNextPrivateMove?.title,
+    cockpitUpdatingRun,
+    cockpitCreatingLiveRun,
+  ]);
 
   useEffect(() => {
     if (!cockpitConversationMode || !cockpitAutoListening || !state.canView || !sessionToken || !canUseCockpitRecorder) return undefined;
@@ -6908,6 +6948,63 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     }
   }
 
+  async function advanceCockpitActiveRunWithServer({ autoDrive = false } = {}) {
+    if (!state.canView || !sessionToken || !cockpitActiveRun?.id || cockpitUpdatingRun || cockpitCreatingLiveRun) return null;
+    const runId = cockpitActiveRun.id;
+    const busyKey = autoDrive ? `auto-drive-${runId}` : `advance-${runId}`;
+    setCockpitUpdatingRun(busyKey);
+    const openingNotice = autoDrive
+      ? "Apex Auto Drive is advancing the next private safe move from the server-backed run ledger."
+      : "Apex is advancing the next private safe move from the server-backed run ledger.";
+    setCockpitLiveRunNotice(openingNotice);
+    setCockpitAutoDriveNotice(openingNotice);
+    try {
+      const payload = await advanceApexOsAutonomyRunPrivateMove(sessionToken, runId, {
+        sourceLabel: autoDrive ? "Apex Auto Drive" : "Apex Next Private Move",
+      });
+      const updated = payload?.apexOsAutonomyRun;
+      const advance = payload?.privateAdvance || {};
+      syncCockpitLiveRunsFromPayload(payload, updated?.id || runId);
+      const stopAtReview = !advance.canContinue;
+      const notice = stopAtReview
+        ? `Apex advanced ${advance.title || "the private run"} and stopped at ${advance.nextTitle || "manual review"}. Execution stays locked.`
+        : `Apex advanced ${advance.title || "the private run"}; next safe move is ${advance.nextTitle || "continue private work"}. Execution stays locked.`;
+      setCockpitLiveRunNotice(notice);
+      setCockpitAgentActionNotice(notice);
+      setCockpitAutoDriveNotice(autoDrive ? notice : "Server-backed private advance is ready when Auto Drive is on.");
+      if (autoDrive && stopAtReview) {
+        setCockpitAutoDriveEnabled(false);
+      }
+      setCockpitResponse({
+        answer: {
+          answer: `${notice} No external send, billing, ad, provider, production, deletion, queue, run, deploy, rollback, automatic trusted memory, or irreversible action executed.`,
+          sourceLabels: ["Apex Live Operator Mode", "Server-backed Auto Drive", updated?.sourceLabel || "Autonomy Run Center"],
+        },
+      });
+      setCockpitTurns((current) => [
+        {
+          id: `cockpit-auto-drive-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          question: updated?.title || cockpitActiveRun.title || "Server-backed private advance",
+          source: autoDrive ? "auto-drive" : "next-private-move",
+          routeLabel: updated?.routeLabel || cockpitActiveRun.routeLabel || "Apex",
+          status: stopAtReview ? "manual-review" : "private-advanced",
+        },
+        ...current,
+      ].slice(0, 5));
+      refreshCockpitLivePulse({ automatic: true });
+      return updated || null;
+    } catch (error) {
+      const message = error?.message || "Apex could not advance the private run from the server.";
+      setCockpitLiveRunNotice(message);
+      setCockpitAgentActionNotice(message);
+      setCockpitAutoDriveNotice(message);
+      if (autoDrive) setCockpitAutoDriveEnabled(false);
+      return null;
+    } finally {
+      setCockpitUpdatingRun("");
+    }
+  }
+
   async function workCockpitActiveRunNextMove() {
     const move = cockpitNextPrivateMove || {};
     if (!state.canView || !sessionToken || cockpitUpdatingRun || cockpitCreatingLiveRun) return null;
@@ -6916,20 +7013,8 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       return createCockpitLiveRunFromCommand(askQuestion.trim() || cockpitLastQuestion || cockpitCommandRoute.label, cockpitCommandRoute, { autoCycle: true });
     }
 
-    if (move.actionId === "draft-internal") {
-      return draftCockpitActiveRunInternalWork();
-    }
-
-    if (move.actionId === "private-prep") {
-      return continueCockpitActiveRunPrivately();
-    }
-
-    if (move.actionId === "proof-check") {
-      return proofCheckCockpitActiveRunPrivately();
-    }
-
-    if (move.actionId === "private-cycle") {
-      return cycleCockpitActiveRunPrivately();
+    if (["draft-internal", "private-prep", "proof-check", "private-cycle"].includes(move.actionId)) {
+      return advanceCockpitActiveRunWithServer();
     }
 
     deliverCockpitRunHandback({ speak: true });
@@ -7598,15 +7683,28 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                         disabled={Boolean(cockpitUpdatingRun) || cockpitCreatingLiveRun}
                         onClick={() => workCockpitActiveRunNextMove()}
                         active={Boolean(cockpitUpdatingRun) || cockpitCreatingLiveRun}
-                        title="Let Apex work the next private safe move"
+                        title="Let Apex work the next private safe move from the server-backed run ledger"
                       >
                         <Icon name={cockpitNextPrivateMove.actionId === "operator-review" || cockpitNextPrivateMove.actionId === "review-result" || cockpitNextPrivateMove.actionId === "review-blocker" ? "phone" : cockpitNextPrivateMove.actionId === "draft-internal" ? "clipboard" : cockpitNextPrivateMove.actionId === "proof-check" ? "check" : "refresh"} />
                         {cockpitUpdatingRun || cockpitCreatingLiveRun ? "Working" : cockpitNextPrivateMove.buttonLabel || "Work Next"}
                       </ApexCockpitControlButton>
+                      <ApexCockpitControlButton
+                        className="px-2"
+                        disabled={!cockpitActiveRun?.id || (!canAutoDriveCockpitRun && !cockpitAutoDriveEnabled)}
+                        onClick={() => {
+                          const nextEnabled = !cockpitAutoDriveEnabled;
+                          setCockpitAutoDriveEnabled(nextEnabled);
+                          setCockpitAutoDriveNotice(nextEnabled ? "Auto Drive is on. Apex will advance safe private steps and stop at manual review." : "Auto Drive is off. Apex will wait for your next command.");
+                        }}
+                        active={cockpitAutoDriveEnabled}
+                        title="Toggle Apex Auto Drive for server-backed private steps only"
+                      >
+                        <Icon name={cockpitAutoDriveEnabled ? "refresh" : "spark"} /> {cockpitAutoDriveEnabled ? "Auto On" : "Auto Drive"}
+                      </ApexCockpitControlButton>
                     </div>
                   </div>
                   <div className="grid min-w-0 gap-1">
-                    <p className="line-clamp-1 min-w-0 text-[9px] font-bold leading-4 text-emerald-100">{cockpitNextPrivateMove.recommendation || cockpitNextPrivateMove.detail}</p>
+                    <p className="line-clamp-1 min-w-0 text-[9px] font-bold leading-4 text-emerald-100">{cockpitAutoDriveNotice || cockpitNextPrivateMove.recommendation || cockpitNextPrivateMove.detail}</p>
                     <p className="line-clamp-1 min-w-0 break-words text-[9px] font-bold leading-4 text-orange-100" title={cockpitNextPrivateMove.safetyNote}>External actions locked. Private prep/proof only.</p>
                   </div>
                 </div>
@@ -7864,15 +7962,28 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                                 disabled={Boolean(cockpitUpdatingRun) || cockpitCreatingLiveRun}
                                 onClick={() => workCockpitActiveRunNextMove()}
                                 active={Boolean(cockpitUpdatingRun) || cockpitCreatingLiveRun}
-                                title="Let Apex work the next private safe move"
+                                title="Let Apex work the next private safe move from the server-backed run ledger"
                               >
                                 <Icon name={cockpitNextPrivateMove.actionId === "operator-review" || cockpitNextPrivateMove.actionId === "review-result" || cockpitNextPrivateMove.actionId === "review-blocker" ? "phone" : cockpitNextPrivateMove.actionId === "draft-internal" ? "clipboard" : cockpitNextPrivateMove.actionId === "proof-check" ? "check" : "refresh"} />
                                 {cockpitUpdatingRun || cockpitCreatingLiveRun ? "Working" : cockpitNextPrivateMove.buttonLabel || "Work Next"}
                               </ApexCockpitControlButton>
+                              <ApexCockpitControlButton
+                                className="px-2"
+                                disabled={!cockpitActiveRun?.id || (!canAutoDriveCockpitRun && !cockpitAutoDriveEnabled)}
+                                onClick={() => {
+                                  const nextEnabled = !cockpitAutoDriveEnabled;
+                                  setCockpitAutoDriveEnabled(nextEnabled);
+                                  setCockpitAutoDriveNotice(nextEnabled ? "Auto Drive is on. Apex will advance safe private steps and stop at manual review." : "Auto Drive is off. Apex will wait for your next command.");
+                                }}
+                                active={cockpitAutoDriveEnabled}
+                                title="Toggle Apex Auto Drive for server-backed private steps only"
+                              >
+                                <Icon name={cockpitAutoDriveEnabled ? "refresh" : "spark"} /> {cockpitAutoDriveEnabled ? "Auto On" : "Auto Drive"}
+                              </ApexCockpitControlButton>
                             </div>
                           </div>
                           <div className="grid min-w-0 gap-1.5 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
-                            <p className="min-w-0 break-words rounded-md border border-emerald-300/12 bg-slate-950/46 px-2.5 py-2 text-[10px] font-bold leading-4 text-emerald-100">{cockpitNextPrivateMove.recommendation}</p>
+                            <p className="min-w-0 break-words rounded-md border border-emerald-300/12 bg-slate-950/46 px-2.5 py-2 text-[10px] font-bold leading-4 text-emerald-100">{cockpitAutoDriveNotice || cockpitNextPrivateMove.recommendation}</p>
                             <p className="min-w-0 break-words rounded-md border border-orange-300/12 bg-orange-500/8 px-2.5 py-2 text-[10px] font-bold leading-4 text-orange-100">{cockpitNextPrivateMove.safetyNote}</p>
                           </div>
                         </div>

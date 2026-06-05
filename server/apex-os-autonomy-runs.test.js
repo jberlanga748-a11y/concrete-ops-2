@@ -243,6 +243,63 @@ test("Apex autonomy runs are operator-only, persisted, linked to drafts, and exe
     assert.equal(storedJsonSetting(fixture.sqliteFile, "apexOsAgentControlRequests").length, 1);
     assert.equal(storedJsonSetting(fixture.sqliteFile, "apexOsExecutionHandoffs").length, 1);
 
+    const autoRun = await assertOk(fixture.baseUrl, "/api/apex-os/autonomy-runs", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        request: "Let Apex Auto Drive a private safe run to manual review.",
+        routeId: "apex",
+        routeLabel: "Apex",
+        routeDetail: "Server-backed private steps only.",
+        sourceLabel: "Auto Drive route test",
+      }),
+    });
+
+    const firstAdvance = await assertOk(fixture.baseUrl, `/api/apex-os/autonomy-runs/${autoRun.apexOsAutonomyRun.id}/advance-private`, {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({}),
+    });
+    assert.equal(firstAdvance.privateAdvance.actionId, "draft-internal");
+    assert.equal(firstAdvance.privateAdvance.canContinue, true);
+    assert.equal(firstAdvance.privateAdvance.executionLocked, true);
+    assert.equal(firstAdvance.privateAdvance.canExecute, false);
+    assert.equal(firstAdvance.apexOsAutonomyRun.status, "drafting");
+    assert.ok(firstAdvance.apexOsAutonomyRun.linkedAgentControlRequestId);
+    assert.ok(firstAdvance.apexOsAutonomyRun.linkedExecutionHandoffId);
+    assert.equal(firstAdvance.apexOsAutonomyRun.canExecute, false);
+
+    const secondAdvance = await assertOk(fixture.baseUrl, `/api/apex-os/autonomy-runs/${autoRun.apexOsAutonomyRun.id}/advance-private`, {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({}),
+    });
+    assert.equal(secondAdvance.privateAdvance.actionId, "private-prep");
+    assert.equal(secondAdvance.privateAdvance.nextActionId, "proof-check");
+    assert.equal(secondAdvance.privateAdvance.canContinue, true);
+    assert.equal(secondAdvance.apexOsAutonomyRun.status, "validating");
+    assert.equal(secondAdvance.apexOsAutonomyRun.externalActionsLocked, true);
+
+    const thirdAdvance = await assertOk(fixture.baseUrl, `/api/apex-os/autonomy-runs/${autoRun.apexOsAutonomyRun.id}/advance-private`, {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({}),
+    });
+    assert.equal(thirdAdvance.privateAdvance.actionId, "proof-check");
+    assert.equal(thirdAdvance.privateAdvance.nextActionId, "operator-review");
+    assert.equal(thirdAdvance.privateAdvance.canContinue, false);
+    assert.equal(thirdAdvance.apexOsAutonomyRun.status, "waiting-approval");
+    assert.equal(thirdAdvance.apexOsAutonomyRun.canRunAgent, false);
+    assert.equal(thirdAdvance.apexOsAutonomyRun.canExecute, false);
+
+    const reviewGateAdvance = await requestJson(fixture.baseUrl, `/api/apex-os/autonomy-runs/${autoRun.apexOsAutonomyRun.id}/advance-private`, {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({}),
+    });
+    assert.equal(reviewGateAdvance.response.status, 400);
+    assert.match(reviewGateAdvance.payload.error, /manual review/i);
+
     const incompleteDone = await requestJson(fixture.baseUrl, `/api/apex-os/autonomy-runs/${created.apexOsAutonomyRun.id}`, {
       method: "PATCH",
       headers: authHeaders(operatorLogin.token),
@@ -273,12 +330,14 @@ test("Apex autonomy runs are operator-only, persisted, linked to drafts, and exe
     const listed = await assertOk(fixture.baseUrl, "/api/apex-os/autonomy-runs", {
       headers: authHeaders(operatorLogin.token),
     });
-    assert.equal(listed.apexOsAutonomyRuns[0].title, created.apexOsAutonomyRun.title);
-    assert.equal(listed.apexOsAutonomyRuns[0].externalActionsLocked, true);
-    assert.equal(listed.apexOsAutonomyRuns[0].canExecute, false);
+    const listedCreatedRun = listed.apexOsAutonomyRuns.find((run) => run.id === created.apexOsAutonomyRun.id);
+    assert.equal(listedCreatedRun.title, created.apexOsAutonomyRun.title);
+    assert.equal(listedCreatedRun.externalActionsLocked, true);
+    assert.equal(listedCreatedRun.canExecute, false);
 
     const events = autonomyAuditEvents(fixture.sqliteFile);
     assert.ok(events.some((event) => event.entityType === "apexOsAutonomyRun" && event.action === "internal-draft-prepared"));
+    assert.ok(events.some((event) => event.entityType === "apexOsAutonomyRun" && event.action === "private-auto-drive-advanced"));
   } finally {
     await fixture.stop();
   }
