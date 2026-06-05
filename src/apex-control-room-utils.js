@@ -2286,13 +2286,13 @@ function buildApexLiveOperatorModeState({
     businessCommandCenter,
   });
   const liveFoundationPercent = 96;
-  const jarvisBehaviorPercent = activeRunCount || handoffCount ? 94 : 88;
+  const jarvisBehaviorPercent = activeRunCount || handoffCount ? 96 : 90;
   const readinessRows = withDerivedStateMetaList([
     {
       id: "live-voice-loop",
       title: "Voice loop",
       status: voiceInterface?.status || "Voice ready",
-      detail: `${formatCount(voiceInterface?.modeCount)} modes, ${formatCount(voiceInterface?.safetyCount)} safety gates, visible wake control, spoken answers, interruption-aware turn memory, and browser caption fallback are mapped.`,
+      detail: `${formatCount(voiceInterface?.modeCount)} modes, ${formatCount(voiceInterface?.safetyCount)} safety gates, visible wake control, spoken answers, next-turn prompts, interruption-aware turn memory, and browser caption fallback are mapped.`,
       tone: voiceInterface?.tone || "green",
     },
     {
@@ -2339,6 +2339,7 @@ function buildApexLiveOperatorModeState({
     { id: "live-loop-hear", title: "Hear", status: "Open", detail: "Voice and typed commands enter the Apex body page.", tone: "green" },
     { id: "live-loop-interrupt", title: "Interrupt", status: "Barge-in memory", detail: "Apex can stop speaking, keep listening, and carry the interruption into the next answer context.", tone: "green" },
     { id: "live-loop-understand", title: "Understand", status: "Source-backed", detail: "Apex routes the request against private command-room context.", tone: "green" },
+    { id: "live-loop-follow-up", title: "Follow up", status: "Next turns", detail: "Apex suggests source-backed next-turn prompts after answers, runs, and operator judgment so the conversation keeps moving naturally without hidden execution.", tone: "green" },
     { id: "live-loop-command-run", title: "Act", status: "Natural command", detail: "Apex can turn typed or spoken get-this-done requests into a saved private run, cycle safe prep/proof, and stop at manual review.", tone: "green" },
     { id: "live-loop-judge", title: "Judge", status: "Proactive", detail: "Apex can turn pulse, run, approval, release, and memory state into ranked next-safe recommendations without executing them.", tone: "green" },
     { id: "live-loop-plan", title: "Plan", status: `${formatCount(autonomyRunCenter?.planStepCount)} steps`, detail: "The request becomes a visible review-first run plan with an active step and evidence trail.", tone: "blue" },
@@ -2395,7 +2396,7 @@ function buildApexLiveOperatorModeState({
     status: activeRunCount ? "Live operator running" : "Live operator ready",
     tone: activeRunCount ? "green" : "blue",
     mode: "Body-first review-first operator",
-    detail: "Apex is moving from a screen with tools into a visible operator loop: hear, understand, judge, save, draft, validate, report, remember, and monitor.",
+    detail: "Apex is moving from a screen with tools into a visible operator loop: hear, understand, follow up, judge, save, draft, validate, report, remember, and monitor.",
     foundationPercent: liveFoundationPercent,
     jarvisBehaviorPercent,
     readinessCount: readinessRows.length,

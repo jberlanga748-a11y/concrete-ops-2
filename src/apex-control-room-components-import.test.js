@@ -241,6 +241,12 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /buildApexCockpitOperatorJudgmentText/);
   assert.match(componentSource, /deliverCockpitOperatorJudgment/);
   assert.match(componentSource, /Execution, sends, billing, provider work, production changes, deletion, deploy, rollback, and irreversible actions stay locked/);
+  assert.match(componentSource, /buildApexCockpitFollowUpPrompts/);
+  assert.match(componentSource, /loadCockpitFollowUpPrompt/);
+  assert.match(componentSource, /Apex next turn prompts/);
+  assert.match(componentSource, /Apex mobile next turn prompts/);
+  assert.match(componentSource, /Press Ask or say it out loud; execution stays locked/);
+  assert.match(componentSource, /Get this done as a private run/);
   assert.match(componentSource, /refreshCockpitLivePulse/);
   assert.match(componentSource, /Auto Check/);
   assert.match(componentSource, /Check Now/);
@@ -307,8 +313,10 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(utilSource, /live-loop-interrupt/);
   assert.match(utilSource, /live-loop-command-run/);
   assert.match(utilSource, /live-loop-judge/);
+  assert.match(utilSource, /live-loop-follow-up/);
   assert.match(utilSource, /operatorJudgmentRows/);
   assert.match(utilSource, /Apex Live Operator judgment/);
+  assert.match(utilSource, /next-turn prompts/);
   assert.match(utilSource, /Natural command/);
   assert.match(utilSource, /natural-command autopilot/);
   assert.match(utilSource, /live-loop-cycle/);

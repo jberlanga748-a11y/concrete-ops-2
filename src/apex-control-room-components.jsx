@@ -4859,6 +4859,92 @@ function buildApexCockpitOperatorJudgmentText(rows = []) {
   return `Operator judgment: ${first.title}. ${first.detail} Next safe action: ${first.actionLabel}. ${restText} Execution, sends, billing, provider work, production changes, deletion, deploy, rollback, and irreversible actions stay locked.`;
 }
 
+function normalizeApexCockpitFollowUpPrompt(prompt = {}) {
+  return {
+    id: String(prompt.id || `follow-up-${prompt.label || "prompt"}`).trim(),
+    label: apexCockpitMemoryText(prompt.label || "Ask next", 42),
+    question: apexCockpitMemoryText(prompt.question || "What should I do next?", 180),
+    detail: apexCockpitMemoryText(prompt.detail || "Load this next turn into Apex without executing anything.", 160),
+    tone: prompt.tone || "blue",
+  };
+}
+
+function buildApexCockpitFollowUpPrompts({
+  answerText = "",
+  route,
+  activeRun,
+  activeRunProgress,
+  operatorJudgmentRows = [],
+} = {}) {
+  const prompts = [];
+  const runStatus = String(activeRun?.status || "").toLowerCase();
+  const hasActiveRun = Boolean(activeRun?.id) && !["done", "archived"].includes(runStatus);
+  const firstJudgment = Array.isArray(operatorJudgmentRows) ? operatorJudgmentRows[0] : null;
+
+  if (hasActiveRun) {
+    prompts.push(normalizeApexCockpitFollowUpPrompt({
+      id: runStatus === "waiting-approval" ? "follow-up-review-run" : "follow-up-advance-run",
+      label: runStatus === "waiting-approval" ? "Review Run" : "Next Run Step",
+      question: runStatus === "waiting-approval"
+        ? "What should I review before I report this run done?"
+        : "What is the next safe step on this active run?",
+      detail: runStatus === "waiting-approval"
+        ? "Ask Apex to explain the approval stop before you mark the run done or blocked."
+        : `Ask Apex to explain the current ${Number(activeRunProgress?.progressPercent || 0)}% run state.`,
+      tone: runStatus === "waiting-approval" ? "amber" : "green",
+    }));
+  } else if (firstJudgment) {
+    prompts.push(normalizeApexCockpitFollowUpPrompt({
+      id: "follow-up-top-judgment",
+      label: firstJudgment.actionLabel || "Top Signal",
+      question: /start private run/i.test(firstJudgment.actionLabel || "")
+        ? "Get this done as a private run"
+        : `What should I do about ${firstJudgment.title || "the top Apex signal"}?`,
+      detail: firstJudgment.detail || "Use Apex judgment as the next natural turn.",
+      tone: firstJudgment.tone || "blue",
+    }));
+  }
+
+  if (answerText) {
+    prompts.push(normalizeApexCockpitFollowUpPrompt({
+      id: "follow-up-make-run",
+      label: "Make It A Run",
+      question: "Get this done as a private run",
+      detail: "Turn the current answer into a saved private run with evidence and approval stop.",
+      tone: "green",
+    }));
+    prompts.push(normalizeApexCockpitFollowUpPrompt({
+      id: "follow-up-remember-answer",
+      label: "Remember This",
+      question: "What part of this answer should become suggested memory?",
+      detail: "Ask Apex what is worth saving before you use the visible Remember control.",
+      tone: "slate",
+    }));
+  }
+
+  prompts.push(normalizeApexCockpitFollowUpPrompt({
+    id: "follow-up-next-options",
+    label: "Options",
+    question: "Give me the next safe options",
+    detail: route?.detail || "Ask for the next safe choices from the matched room.",
+    tone: route?.tone || "blue",
+  }));
+  prompts.push(normalizeApexCockpitFollowUpPrompt({
+    id: "follow-up-blocked",
+    label: "Blocked",
+    question: "What's blocked right now?",
+    detail: "Ask Apex to look across approvals, release, run, and business blockers.",
+    tone: "amber",
+  }));
+
+  const seen = new Set();
+  return prompts.filter((prompt) => {
+    if (!prompt.id || seen.has(prompt.id)) return false;
+    seen.add(prompt.id);
+    return true;
+  }).slice(0, 4);
+}
+
 function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAskQuestion, sessionToken }) {
   const [cockpitResponse, setCockpitResponse] = useState(null);
   const [cockpitError, setCockpitError] = useState("");
@@ -4992,6 +5078,13 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     ? Math.max(Number(liveOperatorMode.jarvisBehaviorPercent || 0), 92)
     : Number(liveOperatorMode.jarvisBehaviorPercent || 0);
   const cockpitAnswerText = resolveApexCockpitAnswerText(cockpitResponse);
+  const cockpitFollowUpPrompts = buildApexCockpitFollowUpPrompts({
+    answerText: cockpitAnswerText,
+    route: cockpitCommandRoute,
+    activeRun: cockpitActiveRun,
+    activeRunProgress: cockpitActiveRunProgress,
+    operatorJudgmentRows: cockpitOperatorJudgmentRows,
+  });
   const cockpitTurnMemoryKey = apexCockpitMemoryText(cockpitResponse?.requestId || `${cockpitLastQuestion}|${cockpitAnswerText}`, 220);
   const cockpitVoiceMode = cockpitError
     ? "blocked"
@@ -5052,6 +5145,15 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
           : cockpitRecognitionStatus === "limited"
             ? "Captions limited"
             : "Caption fallback ready";
+  const cockpitVisiblePromptRows = cockpitFollowUpPrompts.length
+    ? cockpitFollowUpPrompts
+    : quickPrompts.map((prompt) => normalizeApexCockpitFollowUpPrompt({
+      id: `quick-${prompt.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+      label: prompt,
+      question: prompt,
+      detail: "Load this prompt into Apex.",
+      tone: /blocked|review/i.test(prompt) ? "amber" : /private run/i.test(prompt) ? "green" : "blue",
+    }));
 
   useEffect(() => () => {
     if (cockpitRecorderRef.current) {
@@ -5614,6 +5716,14 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       ...current,
     ].slice(0, 5));
     if (speak) speakCockpitAnswer(cockpitOperatorJudgmentText);
+  }
+
+  function loadCockpitFollowUpPrompt(prompt = {}) {
+    const safePrompt = normalizeApexCockpitFollowUpPrompt(prompt);
+    const route = buildApexCockpitCommandRoute(safePrompt.question, { previousRoute: cockpitCommandRoute });
+    setAskQuestion(safePrompt.question);
+    setCockpitCommandRoute(route);
+    setCockpitVoiceNotice(`Next turn loaded: ${safePrompt.label}. Press Ask or say it out loud; execution stays locked.`);
   }
 
   async function createCockpitAgentRequestFromCommand(question = cockpitLastQuestion || askQuestion || cockpitCommandRoute.label, route = cockpitCommandRoute, { turnId = "" } = {}) {
@@ -6599,6 +6709,25 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                       <span className="shrink-0 rounded-md border border-cyan-300/20 bg-cyan-300/8 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.08em] text-cyan-200">{cockpitSources.length || 0} sources</span>
                     </div>
                     <p className={`min-w-0 break-words text-[11px] font-bold leading-5 ${cockpitError ? "text-red-200" : "text-slate-200"}`}>{cockpitError || cockpitAnswerText}</p>
+                    {(cockpitAgentActionNotice || cockpitVoiceNotice || cockpitRecognitionError) ? (
+                      <p className="min-w-0 break-words rounded-md border border-cyan-200/10 bg-slate-900/58 px-2.5 py-2 text-[10px] font-bold leading-4 text-cyan-100">{cockpitAgentActionNotice || cockpitVoiceNotice || cockpitRecognitionError}</p>
+                    ) : null}
+                    <div className="grid min-w-0 gap-1.5" aria-label="Apex next turn prompts">
+                      <p className="text-[9px] font-black uppercase tracking-[0.12em] text-slate-500">Next Turn</p>
+                      <div className="grid min-w-0 gap-1.5 sm:grid-cols-2">
+                        {cockpitFollowUpPrompts.map((prompt) => (
+                          <button
+                            key={prompt.id}
+                            type="button"
+                            onClick={() => loadCockpitFollowUpPrompt(prompt)}
+                            className="co-focus-ring min-w-0 rounded-md border border-slate-800 bg-slate-900/64 px-2.5 py-2 text-left transition hover:border-orange-500/50 hover:bg-orange-500/10"
+                          >
+                            <span className={`block truncate text-[10px] font-black ${prompt.tone === "green" ? "text-emerald-300" : prompt.tone === "amber" ? "text-orange-300" : prompt.tone === "slate" ? "text-slate-300" : "text-cyan-300"}`}>{prompt.label}</span>
+                            <span className="mt-0.5 block line-clamp-2 text-[9px] font-bold leading-4 text-slate-500">{prompt.question}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 ) : null}
                 <div className="grid min-w-0 gap-2 rounded-lg border border-cyan-200/12 bg-slate-900/46 p-3">
@@ -6751,6 +6880,22 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                 </div>
                 <p className={`min-w-0 break-words text-[11px] font-bold leading-5 ${cockpitError ? "text-red-200" : "text-slate-200"}`}>{cockpitError || cockpitAnswerText || "I'm here. Ask Apex anything, or wake voice once to keep the page listening."}</p>
                 <p className="min-w-0 break-words text-[10px] font-bold leading-4 text-slate-500">{cockpitAgentActionNotice || cockpitVoiceNotice || cockpitRecognitionError || (cockpitNeedsWake ? "Mobile browsers may require one visible wake tap before open voice can stay alive." : `Answers stay source-backed and execution locked. ${cockpitCaptionStatusLabel}.`)}</p>
+                <div className="grid min-w-0 gap-1.5" aria-label="Apex mobile next turn prompts">
+                  <p className="text-[9px] font-black uppercase tracking-[0.12em] text-slate-500">Next Turn</p>
+                  <div className="grid min-w-0 grid-cols-2 gap-1.5">
+                    {cockpitFollowUpPrompts.slice(0, 4).map((prompt) => (
+                      <button
+                        key={prompt.id}
+                        type="button"
+                        onClick={() => loadCockpitFollowUpPrompt(prompt)}
+                        className="co-focus-ring min-h-9 min-w-0 rounded-md border border-slate-800 bg-slate-900/72 px-2 text-left transition hover:border-orange-500/50 hover:bg-orange-500/10"
+                      >
+                        <span className={`block truncate text-[9px] font-black ${prompt.tone === "green" ? "text-emerald-300" : prompt.tone === "amber" ? "text-orange-300" : prompt.tone === "slate" ? "text-slate-300" : "text-cyan-300"}`}>{prompt.label}</span>
+                        <span className="block truncate text-[8px] font-bold text-slate-500">{prompt.question}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </section>
               <div className="grid min-w-0 gap-2">
                 <form className="relative min-w-0" onSubmit={submitCockpitQuestion}>
@@ -6772,15 +6917,15 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     <Icon name={cockpitSubmitting ? "refresh" : "arrowUpRight"} className="h-5 w-5" />
                   </button>
                 </form>
-                <div className="grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                  {quickPrompts.map((prompt) => (
+                <div className="grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-4" aria-label="Apex quick next turns">
+                  {cockpitVisiblePromptRows.map((prompt) => (
                     <button
-                      key={prompt}
+                      key={prompt.id}
                       type="button"
-                      onClick={() => setAskQuestion(prompt)}
+                      onClick={() => loadCockpitFollowUpPrompt(prompt)}
                       className="co-focus-ring min-h-9 rounded-lg border border-slate-800 bg-slate-900/82 px-3 text-[11px] font-black text-slate-300 transition hover:border-orange-500/60 hover:text-white"
                     >
-                      {prompt}
+                      {prompt.label}
                     </button>
                   ))}
                 </div>
