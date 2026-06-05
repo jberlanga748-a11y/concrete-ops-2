@@ -237,6 +237,15 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /Live Session Heartbeat/);
   assert.match(componentSource, /Speak Check-In/);
   assert.match(componentSource, /Apex Live Session Heartbeat/);
+  assert.match(componentSource, /buildApexOsAutonomyRunProactiveCheckIn/);
+  assert.match(componentSource, /buildApexCockpitProactiveCheckInText/);
+  assert.match(componentSource, /deliverCockpitProactiveCheckIn/);
+  assert.match(componentSource, /cockpitLastProactiveSignatureRef/);
+  assert.match(componentSource, /cockpitVisibleProactiveCheckIn/);
+  assert.match(componentSource, /Proactive Check-In/);
+  assert.match(componentSource, /Speak Latest/);
+  assert.match(componentSource, /Apex Proactive Check-In/);
+  assert.match(componentSource, /function deliverCockpitProactiveCheckIn[\s\S]*setCockpitError\(""\);[\s\S]*Apex Proactive Check-In/);
   assert.match(componentSource, /cockpitVisibleOperatorPercent/);
   assert.match(componentSource, /summarizeApexCockpitRunProgress/);
   assert.match(componentSource, /Run reported complete/);

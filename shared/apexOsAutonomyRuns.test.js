@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   advanceApexOsAutonomyRunPrivatePrep,
   buildApexOsAutonomyRunHeartbeat,
+  buildApexOsAutonomyRunProactiveCheckIn,
   buildApexOsAutonomyRunPlan,
   getApexOsAutonomyRunMissingFields,
   isApexOsAutonomyRunReady,
@@ -348,6 +349,100 @@ test("heartbeat stands by when no private run is active", () => {
   assert.equal(heartbeat.executionLocked, true);
   assert.equal(heartbeat.canExecute, false);
   assert.match(heartbeat.recommendation, /Start a private run/i);
+});
+
+test("proactive check-in stays quiet when no run has started", () => {
+  const heartbeat = buildApexOsAutonomyRunHeartbeat(null, {
+    now: "2026-06-05T10:31:00.000Z",
+  });
+  const checkIn = buildApexOsAutonomyRunProactiveCheckIn(null, heartbeat, {
+    now: "2026-06-05T10:31:10.000Z",
+  });
+
+  assert.equal(checkIn.shouldSurface, false);
+  assert.equal(checkIn.status, "Watching");
+  assert.equal(checkIn.executionLocked, true);
+  assert.equal(checkIn.externalActionsLocked, true);
+  assert.equal(checkIn.canExecute, false);
+  assert.match(checkIn.answer, /Execution, sends, billing/i);
+});
+
+test("proactive check-in surfaces a new active run without enabling execution", () => {
+  const run = buildApexOsAutonomyRunPlan({
+    title: "New live run",
+    request: "Track this active operator run.",
+    routeLabel: "Apex",
+  }, {
+    id: "AAR-PROACTIVE-NEW",
+    now: "2026-06-05T10:00:00.000Z",
+    createdBy: "U-1",
+  });
+  const heartbeat = buildApexOsAutonomyRunHeartbeat(run, {
+    now: "2026-06-05T10:03:00.000Z",
+  });
+  const checkIn = buildApexOsAutonomyRunProactiveCheckIn(null, heartbeat, {
+    now: "2026-06-05T10:03:10.000Z",
+  });
+
+  assert.equal(checkIn.shouldSurface, true);
+  assert.equal(checkIn.trigger, "active-run-detected");
+  assert.match(checkIn.title, /active private run/i);
+  assert.deepEqual(checkIn.sourceLabels, ["Apex Proactive Check-In", "Live Session Heartbeat", "Autonomy Run Center"]);
+  assert.equal(checkIn.executionLocked, true);
+  assert.equal(checkIn.canExecute, false);
+});
+
+test("proactive check-in surfaces status and progress changes", () => {
+  const baseRun = buildApexOsAutonomyRunPlan({
+    title: "Progress live run",
+    request: "Watch progress changes.",
+    routeLabel: "Apex",
+  }, {
+    id: "AAR-PROACTIVE-PROGRESS",
+    now: "2026-06-05T10:00:00.000Z",
+    createdBy: "U-1",
+  });
+  const previous = buildApexOsAutonomyRunHeartbeat(baseRun, {
+    now: "2026-06-05T10:02:00.000Z",
+  });
+  const progressedRun = markApexOsAutonomyRunInternalDrafted(baseRun, {
+    agentControlRequestId: "AAC-PROACTIVE-PROGRESS",
+    executionHandoffId: "AEH-PROACTIVE-PROGRESS",
+    now: "2026-06-05T10:05:00.000Z",
+  });
+  const current = buildApexOsAutonomyRunHeartbeat(progressedRun, {
+    now: "2026-06-05T10:06:00.000Z",
+  });
+  const checkIn = buildApexOsAutonomyRunProactiveCheckIn(previous, current, {
+    now: "2026-06-05T10:06:10.000Z",
+  });
+
+  assert.equal(checkIn.shouldSurface, true);
+  assert.match(checkIn.trigger, /status-change|progress-change/);
+  assert.match(checkIn.answer, /Progress live run/i);
+  assert.match(checkIn.answer, /Execution, sends, billing/i);
+});
+
+test("proactive check-in does not resurface unchanged heartbeat signatures", () => {
+  const run = buildApexOsAutonomyRunPlan({
+    title: "Stable live run",
+    request: "Keep watching without noise.",
+    routeLabel: "Apex",
+  }, {
+    id: "AAR-PROACTIVE-STABLE",
+    now: "2026-06-05T10:00:00.000Z",
+    createdBy: "U-1",
+  });
+  const heartbeat = buildApexOsAutonomyRunHeartbeat(run, {
+    now: "2026-06-05T10:03:00.000Z",
+  });
+  const checkIn = buildApexOsAutonomyRunProactiveCheckIn(heartbeat, heartbeat, {
+    now: "2026-06-05T10:03:30.000Z",
+  });
+
+  assert.equal(checkIn.shouldSurface, false);
+  assert.equal(checkIn.trigger, "watching");
+  assert.equal(checkIn.signature, `watching|${heartbeat.signature}|${heartbeat.signature}`);
 });
 
 test("normalizes durable run lists and redacts unsafe text", () => {

@@ -356,6 +356,7 @@ export function buildApexOsAutonomyRunHeartbeat(run = {}, { now = new Date().toI
   if (!normalized?.id) {
     return {
       id: "apex-run-heartbeat-ready",
+      signature: "no-active-private-run",
       status: "Standing by",
       tone: "blue",
       title: "No active private run",
@@ -406,9 +407,23 @@ export function buildApexOsAutonomyRunHeartbeat(run = {}, { now = new Date().toI
   return {
     id: `apex-run-heartbeat-${normalized.id}`,
     runId: normalized.id,
+    signature: [
+      normalized.id,
+      status,
+      heartbeatStatus,
+      progress.doneCount,
+      progress.blockedCount,
+      progress.waitingCount,
+      progress.totalCount,
+      progress.progressPercent,
+      progress.linkedDraftCount,
+      normalized.updatedAt || normalized.createdAt || "",
+      progress.activeStepTitle || "",
+    ].join("|"),
     status: heartbeatStatus,
     tone,
     title: normalized.title,
+    updatedAt,
     ageMinutes,
     ageLabel,
     progress,
@@ -417,6 +432,84 @@ export function buildApexOsAutonomyRunHeartbeat(run = {}, { now = new Date().toI
     currentStep: progress.activeStepTitle || normalized.nextSafeAction || "Review run",
     detail: `${normalized.title} is ${status || "planned"}, ${progress.progressPercent}% complete, updated ${ageLabel}. Next safe action: ${normalized.nextSafeAction || "review the run ledger"}.`,
     recommendation,
+    executionLocked: true,
+    externalActionsLocked: true,
+    canExecute: false,
+  };
+}
+
+export function buildApexOsAutonomyRunProactiveCheckIn(previousHeartbeat = null, heartbeat = {}, { now = new Date().toISOString() } = {}) {
+  const current = heartbeat || {};
+  const previous = previousHeartbeat || null;
+  const currentRunId = rawText(current.runId, 120);
+  const previousRunId = rawText(previous?.runId, 120);
+  const currentStatus = rawText(current.status || "Standing by", 80);
+  const previousStatus = rawText(previous?.status || "", 80);
+  const currentProgress = current.progress || {};
+  const previousProgress = previous?.progress || {};
+  const progressMoved = Number(currentProgress.doneCount || 0) > Number(previousProgress.doneCount || 0)
+    || Number(currentProgress.progressPercent || 0) > Number(previousProgress.progressPercent || 0);
+  const currentIsAttention = /manual review|needs review|check-in due/i.test(currentStatus);
+  const currentIsReported = /reported/i.test(currentStatus);
+
+  let trigger = "watching";
+  let shouldSurface = false;
+  let title = "Apex is watching the live run";
+  let detail = currentRunId
+    ? `${current.title || "Active private run"} is ${currentStatus}. ${current.progressLabel || "Progress is available"}.`
+    : "No active private run is live. Apex is standing by for the next private run.";
+  let recommendation = current.recommendation || "Keep monitoring. Execution remains locked.";
+
+  if (currentRunId && !previousRunId) {
+    trigger = currentIsAttention ? "attention-detected" : "active-run-detected";
+    shouldSurface = true;
+    title = currentIsAttention ? "Apex found a run that needs review" : "Apex found an active private run";
+  } else if (!currentRunId && previousRunId) {
+    trigger = "run-cleared";
+    shouldSurface = true;
+    title = "Apex sees no active private run now";
+    recommendation = "Start the next Live Run only when there is real work to track.";
+  } else if (currentRunId && previousRunId && currentRunId !== previousRunId) {
+    trigger = "run-switched";
+    shouldSurface = true;
+    title = "Apex switched to a different active run";
+  } else if (currentRunId && currentStatus !== previousStatus) {
+    trigger = currentIsAttention ? "attention-status" : currentIsReported ? "reported-status" : "status-change";
+    shouldSurface = true;
+    title = currentIsAttention
+      ? `Apex needs review on ${current.title || "the active run"}`
+      : currentIsReported
+        ? `Apex sees ${current.title || "the active run"} reported`
+        : `Apex sees ${current.title || "the active run"} moved to ${currentStatus}`;
+  } else if (currentRunId && progressMoved) {
+    trigger = "progress-change";
+    shouldSurface = true;
+    title = "Apex sees live run progress";
+  }
+
+  if (currentRunId) {
+    detail = `${current.title || "Active private run"}: ${currentStatus}. Progress ${current.progressLabel || "unknown"}, updated ${current.ageLabel || "recently"}. Current step: ${current.currentStep || "review run"}.`;
+  }
+
+  const answer = `${title}. ${detail} Recommendation: ${recommendation} Execution, sends, billing, provider work, production changes, deletion, deploy, rollback, and irreversible actions stay locked.`;
+  return {
+    id: `apex-proactive-check-in-${currentRunId || "standby"}`,
+    signature: [
+      trigger,
+      current.signature || "no-signature",
+      previous?.signature || "no-previous",
+    ].join("|"),
+    trigger,
+    shouldSurface,
+    status: shouldSurface ? "New check-in" : "Watching",
+    tone: current.tone || (shouldSurface ? "green" : "slate"),
+    title,
+    detail,
+    recommendation,
+    answer,
+    checkedAt: now,
+    sourceLabels: ["Apex Proactive Check-In", "Live Session Heartbeat", "Autonomy Run Center"],
+    voiceNotice: shouldSurface ? "Apex surfaced a proactive live-run check-in. Execution stayed locked." : "Apex is watching live-run status. Execution stayed locked.",
     executionLocked: true,
     externalActionsLocked: true,
     canExecute: false,

@@ -38,6 +38,7 @@ import { redactApexOsMemoryText } from "../shared/apexOsMemory.js";
 import {
   advanceApexOsAutonomyRunPrivatePrep,
   buildApexOsAutonomyRunHeartbeat,
+  buildApexOsAutonomyRunProactiveCheckIn,
   runApexOsAutonomyRunPrivateOperatorCycle,
   validateApexOsAutonomyRunPrivateProof,
 } from "../shared/apexOsAutonomyRuns.js";
@@ -4241,7 +4242,7 @@ function ApexCockpitCommandStream({ turns, route, onOpenRoute, onCreateAgentRequ
       <div className="grid min-w-0 gap-1.5">
         {visibleTurns.length ? visibleTurns.map((turn) => (
           <div key={turn.id} className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-slate-800 bg-slate-900/58 px-2.5 py-2">
-            <Icon name={turn.source === "memory" ? "database" : turn.source === "interrupt" ? "alert" : turn.source === "voice" ? "phone" : "check"} className="h-3.5 w-3.5 text-cyan-300" />
+            <Icon name={turn.source === "memory" ? "database" : turn.source === "interrupt" ? "alert" : turn.source === "voice" ? "phone" : turn.source === "proactive" ? "refresh" : "check"} className="h-3.5 w-3.5 text-cyan-300" />
             <p className="min-w-0 truncate text-[11px] font-bold text-slate-300">{turn.question}</p>
             <span className="text-[9px] font-black uppercase tracking-[0.08em] text-slate-500">{turn.status === "agent-requested" ? "locked" : turn.routeLabel}</span>
           </div>
@@ -4867,6 +4868,11 @@ function buildApexCockpitHeartbeatText(heartbeat = {}) {
   return `Apex heartbeat: ${heartbeat.title || "active private run"} is ${heartbeat.status || "active"}. Progress is ${heartbeat.progressLabel || "unknown"}, updated ${heartbeat.ageLabel || "recently"}. Current step: ${heartbeat.currentStep || "review the run"}. Recommendation: ${heartbeat.recommendation || "review the run ledger"}. Execution, sends, billing, provider work, production changes, deletion, deploy, rollback, and irreversible actions stay locked.`;
 }
 
+function buildApexCockpitProactiveCheckInText(checkIn = {}) {
+  if (checkIn?.answer) return checkIn.answer;
+  return "Apex proactive check-in: I am watching the live run heartbeat and will surface meaningful changes here. Execution, sends, billing, provider work, production changes, deletion, deploy, rollback, and irreversible actions stay locked.";
+}
+
 function normalizeApexCockpitFollowUpPrompt(prompt = {}) {
   return {
     id: String(prompt.id || `follow-up-${prompt.label || "prompt"}`).trim(),
@@ -4984,6 +4990,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const [cockpitLivePulse, setCockpitLivePulse] = useState(null);
   const [cockpitLivePulseBusy, setCockpitLivePulseBusy] = useState(false);
   const [cockpitLivePulseError, setCockpitLivePulseError] = useState("");
+  const [cockpitProactiveCheckIn, setCockpitProactiveCheckIn] = useState(null);
   const [cockpitMicPermissionState, setCockpitMicPermissionState] = useState("unknown");
   const [cockpitVoiceWakeAttempted, setCockpitVoiceWakeAttempted] = useState(false);
   const [cockpitBrowserTranscript, setCockpitBrowserTranscript] = useState("");
@@ -5024,6 +5031,8 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const cockpitLastSoundAtRef = useRef(0);
   const cockpitLastLevelPaintRef = useRef(0);
   const cockpitDiscardNextCaptureRef = useRef(false);
+  const cockpitLastHeartbeatRef = useRef(null);
+  const cockpitLastProactiveSignatureRef = useRef("");
   const approvalRows = (state.approvalCommandCenter?.queueRows || []).slice(0, 4);
   const agentRows = (state.agentControlPlane?.rosterRows || []).slice(0, 4);
   const boundaryRows = [
@@ -5077,6 +5086,10 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     pulse: cockpitLivePulse,
   });
   const cockpitSessionHeartbeatText = buildApexCockpitHeartbeatText(cockpitSessionHeartbeat);
+  const cockpitVisibleProactiveCheckIn = cockpitProactiveCheckIn || buildApexOsAutonomyRunProactiveCheckIn(null, cockpitSessionHeartbeat, {
+    now: new Date().toISOString(),
+  });
+  const cockpitProactiveCheckInText = buildApexCockpitProactiveCheckInText(cockpitVisibleProactiveCheckIn);
   const cockpitOperatorJudgmentRows = buildApexCockpitOperatorJudgmentRows({
     state,
     pulse: cockpitLivePulse,
@@ -5256,6 +5269,39 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       clearInterval(pulseTimer);
     };
   }, [state.canView, sessionToken]);
+
+  useEffect(() => {
+    if (!state.canView) return;
+    const checkIn = buildApexOsAutonomyRunProactiveCheckIn(cockpitLastHeartbeatRef.current, cockpitSessionHeartbeat, {
+      now: new Date().toISOString(),
+    });
+    cockpitLastHeartbeatRef.current = cockpitSessionHeartbeat;
+    setCockpitProactiveCheckIn(checkIn);
+    if (!checkIn.shouldSurface || cockpitLastProactiveSignatureRef.current === checkIn.signature) return;
+    cockpitLastProactiveSignatureRef.current = checkIn.signature;
+    const route = buildApexCockpitCommandRoute("Give me the active run check-in");
+    const answer = buildApexCockpitProactiveCheckInText(checkIn);
+    setCockpitCommandRoute(route);
+    setCockpitError("");
+    setCockpitResponse({
+      answer: {
+        answer,
+        sourceLabels: checkIn.sourceLabels || ["Apex Proactive Check-In", "Live Session Heartbeat", "Autonomy Run Center"],
+      },
+    });
+    setCockpitLastQuestion("Proactive check-in");
+    setCockpitVoiceNotice(checkIn.voiceNotice || "Apex surfaced a proactive live-run check-in. Execution stayed locked.");
+    setCockpitTurns((current) => [
+      {
+        id: `cockpit-proactive-check-in-${Date.now()}`,
+        question: checkIn.title || "Proactive check-in",
+        source: "proactive",
+        routeLabel: "Live heartbeat",
+        status: checkIn.trigger || "noticed",
+      },
+      ...current,
+    ].slice(0, 5));
+  }, [state.canView, cockpitSessionHeartbeat.signature, cockpitLivePulse?.checkedAt]);
 
   useEffect(() => {
     if (!cockpitConversationMode || !cockpitAutoListening || !state.canView || !sessionToken || !canUseCockpitRecorder) return undefined;
@@ -5757,6 +5803,33 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       ...current,
     ].slice(0, 5));
     if (speak) speakCockpitAnswer(cockpitSessionHeartbeatText);
+  }
+
+  function deliverCockpitProactiveCheckIn({ speak = false } = {}) {
+    const route = buildApexCockpitCommandRoute("Give me the active run check-in", { previousRoute: cockpitCommandRoute });
+    const checkIn = cockpitVisibleProactiveCheckIn;
+    const answer = buildApexCockpitProactiveCheckInText(checkIn);
+    setCockpitCommandRoute(route);
+    setCockpitError("");
+    setCockpitResponse({
+      answer: {
+        answer,
+        sourceLabels: checkIn.sourceLabels || ["Apex Proactive Check-In", "Live Session Heartbeat", "Autonomy Run Center"],
+      },
+    });
+    setCockpitLastQuestion("Proactive check-in");
+    setCockpitVoiceNotice(checkIn.voiceNotice || "Apex proactive check-in is ready. Execution stayed locked.");
+    setCockpitTurns((current) => [
+      {
+        id: `cockpit-proactive-manual-${Date.now()}`,
+        question: checkIn.title || "Proactive check-in",
+        source: "proactive",
+        routeLabel: "Live heartbeat",
+        status: checkIn.trigger || "reviewed",
+      },
+      ...current,
+    ].slice(0, 5));
+    if (speak) speakCockpitAnswer(answer);
   }
 
   function loadCockpitFollowUpPrompt(prompt = {}) {
@@ -6829,6 +6902,32 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                       ))}
                     </div>
                     <p className="min-w-0 break-words rounded-md border border-cyan-200/10 bg-slate-900/44 px-2.5 py-2 text-[10px] font-bold leading-4 text-cyan-100">{cockpitSessionHeartbeat.recommendation}</p>
+                  </div>
+                  <div className="grid min-w-0 gap-2 rounded-md border border-orange-300/16 bg-slate-950/52 p-2.5" aria-label="Apex proactive check-in">
+                    <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-orange-300">Proactive Check-In</p>
+                        <p className="mt-0.5 min-w-0 break-words text-xs font-black text-slate-100">{cockpitVisibleProactiveCheckIn.title || "Apex is watching the live run"}</p>
+                        <p className="mt-0.5 min-w-0 break-words text-[10px] font-bold leading-4 text-slate-500">{cockpitVisibleProactiveCheckIn.detail || "Apex will surface meaningful live-run changes here."}</p>
+                      </div>
+                      <ApexCockpitControlButton className="shrink-0 px-2" disabled={false} onClick={() => deliverCockpitProactiveCheckIn({ speak: true })} active={false} title="Speak Apex proactive check-in">
+                        <Icon name="phone" /> Speak Latest
+                      </ApexCockpitControlButton>
+                    </div>
+                    <div className="grid min-w-0 gap-1.5 sm:grid-cols-4">
+                      {[
+                        { label: "Status", value: cockpitVisibleProactiveCheckIn.status || "Watching", tone: cockpitVisibleProactiveCheckIn.shouldSurface ? "green" : "slate" },
+                        { label: "Trigger", value: cockpitVisibleProactiveCheckIn.trigger || "watching", tone: cockpitVisibleProactiveCheckIn.shouldSurface ? "green" : "blue" },
+                        { label: "Surface", value: cockpitVisibleProactiveCheckIn.shouldSurface ? "New" : "Quiet", tone: cockpitVisibleProactiveCheckIn.shouldSurface ? "amber" : "slate" },
+                        { label: "Execution", value: cockpitVisibleProactiveCheckIn.executionLocked ? "Locked" : "Open", tone: cockpitVisibleProactiveCheckIn.executionLocked ? "amber" : "red" },
+                      ].map((item) => (
+                        <div key={item.label} className="min-w-0 rounded-md border border-slate-800 bg-slate-900/48 px-2.5 py-2">
+                          <p className="text-[8px] font-black uppercase tracking-[0.08em] text-slate-500">{item.label}</p>
+                          <p className={`mt-0.5 truncate text-[10px] font-black ${item.tone === "green" ? "text-emerald-300" : item.tone === "amber" ? "text-orange-300" : item.tone === "red" ? "text-red-300" : item.tone === "blue" ? "text-cyan-300" : "text-slate-300"}`}>{item.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="min-w-0 break-words rounded-md border border-orange-200/10 bg-orange-500/8 px-2.5 py-2 text-[10px] font-bold leading-4 text-orange-100">{cockpitVisibleProactiveCheckIn.recommendation || "Keep monitoring. Execution remains locked."}</p>
                   </div>
                   <div className="grid min-w-0 gap-2 rounded-md border border-cyan-200/10 bg-slate-950/48 p-2.5" aria-label="Active Apex run session">
                     <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
