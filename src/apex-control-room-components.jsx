@@ -5017,6 +5017,53 @@ function summarizeApexCockpitRunProgress(run = {}) {
   };
 }
 
+function buildApexCockpitRunTimelineRows(run = {}, progress = {}, nextPrivateMove = {}) {
+  if (!run?.id) return [];
+  const steps = listApexCockpitRunRows(run.steps);
+  const runStatus = String(run.status || "").toLowerCase();
+  const completeStatuses = new Set(["done", "drafted"]);
+  const activeStepId = steps.find((step) => !completeStatuses.has(String(step?.status || "").toLowerCase()))?.id
+    || steps[steps.length - 1]?.id
+    || "";
+  const normalizedRows = steps.map((step, index) => {
+    const status = String(step?.status || "").toLowerCase();
+    const done = runStatus === "done" || completeStatuses.has(status);
+    const blocked = status === "blocked" || (runStatus === "blocked" && step.id === activeStepId);
+    const waiting = status === "waiting-approval" || (runStatus === "waiting-approval" && step.id === activeStepId);
+    const active = !done && !blocked && !waiting && step.id === activeStepId;
+    const queued = !done && !blocked && !waiting && !active;
+    const statusLabel = done
+      ? "Done"
+      : blocked
+        ? "Blocked"
+        : waiting
+          ? "Manual review"
+          : active
+            ? "Now"
+            : "Queued";
+    const detail = step.detail || step.evidence || (active ? nextPrivateMove.detail : "") || "Review-first private step.";
+    return {
+      id: step.id || `run-step-${index}`,
+      number: index + 1,
+      title: apexCockpitMemoryText(step.title || `Step ${index + 1}`, 80),
+      statusLabel,
+      detail: apexCockpitMemoryText(detail, 180),
+      tone: done ? "green" : blocked ? "red" : waiting ? "amber" : active ? "blue" : "slate",
+      state: done ? "done" : blocked ? "blocked" : waiting ? "waiting" : active ? "active" : queued ? "queued" : "queued",
+    };
+  });
+  if (normalizedRows.length) return normalizedRows.slice(0, 8);
+  return [{
+    id: "run-timeline-ledger",
+    number: 1,
+    title: "Private run ledger",
+    statusLabel: runStatus === "done" ? "Done" : nextPrivateMove.status || "Ready",
+    detail: apexCockpitMemoryText(run.nextSafeAction || nextPrivateMove.detail || "Apex is tracking this private run with execution locked.", 180),
+    tone: apexCockpitRunStatusTone(runStatus || nextPrivateMove.tone),
+    state: runStatus === "done" ? "done" : "active",
+  }];
+}
+
 function buildApexCockpitRunResultReport({ run = {}, question = "", answer = "" } = {}) {
   const subject = apexCockpitMemoryText(run.title || run.request || question || "Apex live operator run", 180);
   const answerSummary = apexCockpitMemoryText(answer, 320);
@@ -5531,6 +5578,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const cockpitBargeInEnabledRef = useRef(true);
   const cockpitBargeInterruptedRef = useRef(false);
   const cockpitBriefingOfferedRef = useRef(false);
+  const cockpitRunLaneOpenedRef = useRef("");
   const cockpitRecorderRef = useRef(null);
   const cockpitRecordedChunksRef = useRef([]);
   const cockpitStreamRef = useRef(null);
@@ -5650,6 +5698,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const cockpitNextPrivateMove = buildApexOsAutonomyRunNextPrivateMove(cockpitActiveRun, {
     now: new Date().toISOString(),
   });
+  const cockpitRunTimelineRows = buildApexCockpitRunTimelineRows(cockpitActiveRun, cockpitActiveRunProgress, cockpitNextPrivateMove);
   const canAutoDriveCockpitRun = state.canView
     && Boolean(sessionToken)
     && Boolean(cockpitActiveRun?.id)
@@ -5857,6 +5906,15 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   useEffect(() => {
     cockpitBargeInEnabledRef.current = cockpitBargeInEnabled;
   }, [cockpitBargeInEnabled]);
+
+  useEffect(() => {
+    const runId = cockpitActiveRun?.id || "";
+    const runStatus = String(cockpitActiveRun?.status || "").toLowerCase();
+    if (!runId || ["done", "archived"].includes(runStatus)) return;
+    if (cockpitRunLaneOpenedRef.current === runId) return;
+    cockpitRunLaneOpenedRef.current = runId;
+    setCockpitConsoleTab("run");
+  }, [cockpitActiveRun?.id, cockpitActiveRun?.status]);
 
   useEffect(() => {
     const clockTimer = setInterval(() => {
@@ -8113,6 +8171,22 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     </ApexCockpitControlButton>
                   </div>
                 </div>
+                {cockpitActiveRun?.id ? (
+                  <div className="grid min-w-0 gap-2 rounded-md border border-cyan-300/14 bg-cyan-400/8 px-2.5 py-2" aria-label="Apex visible run timeline strip">
+                    <div className="flex min-w-0 items-center justify-between gap-2">
+                      <p className="text-[9px] font-black uppercase tracking-[0.12em] text-cyan-300">Live Run Spine</p>
+                      <span className="shrink-0 rounded-md border border-orange-300/18 bg-orange-500/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-orange-200">Execution locked</span>
+                    </div>
+                    <div className="grid min-w-0 gap-1.5 sm:grid-cols-5">
+                      {cockpitRunTimelineRows.slice(0, 5).map((row) => (
+                        <div key={`strip-${row.id}`} className={`co-apex-run-timeline-step co-apex-run-timeline-step--${row.state} min-w-0 rounded-md border px-2 py-1.5`}>
+                          <p className={`truncate text-[8px] font-black uppercase tracking-[0.08em] ${row.tone === "green" ? "text-emerald-300" : row.tone === "amber" ? "text-orange-300" : row.tone === "red" ? "text-red-300" : row.tone === "blue" ? "text-cyan-300" : "text-slate-500"}`}>{row.statusLabel}</p>
+                          <p className="mt-0.5 truncate text-[10px] font-black text-slate-100">{row.number}. {row.title}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
                 <div className="grid min-w-0 gap-1.5 rounded-md border border-emerald-300/16 bg-emerald-400/8 px-2.5 py-2 xl:hidden" aria-label="Apex mobile private work loop">
                   <div className="grid min-w-0 gap-1.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
                     <div className="min-w-0">
@@ -8421,6 +8495,33 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                           <div className="grid min-w-0 gap-1.5 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
                             <p className="min-w-0 break-words rounded-md border border-emerald-300/12 bg-slate-950/46 px-2.5 py-2 text-[10px] font-bold leading-4 text-emerald-100">{cockpitAutoDriveNotice || cockpitNextPrivateMove.recommendation}</p>
                             <p className="min-w-0 break-words rounded-md border border-orange-300/12 bg-orange-500/8 px-2.5 py-2 text-[10px] font-bold leading-4 text-orange-100">{cockpitNextPrivateMove.safetyNote}</p>
+                          </div>
+                        </div>
+                        <div className="grid min-w-0 gap-2 rounded-md border border-cyan-300/14 bg-cyan-400/8 p-2.5" aria-label="Apex run mission timeline">
+                          <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="min-w-0">
+                              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Mission Timeline</p>
+                              <p className="mt-0.5 min-w-0 break-words text-[10px] font-bold leading-4 text-cyan-100">
+                                Live run spine: done, now, review gate, and locked next moves stay visible before Apex reports back.
+                              </p>
+                            </div>
+                            <ToneBadge tone={cockpitActiveRunProgress.hasResultReport ? "green" : cockpitNextPrivateMove.tone || "blue"}>
+                              {cockpitActiveRunProgress.hasResultReport ? "report saved" : cockpitNextPrivateMove.status || "tracking"}
+                            </ToneBadge>
+                          </div>
+                          <div className="co-apex-run-timeline grid min-w-0 gap-1.5 sm:grid-cols-2 xl:grid-cols-4">
+                            {cockpitRunTimelineRows.map((row) => (
+                              <div key={row.id} className={`co-apex-run-timeline-step co-apex-run-timeline-step--${row.state} min-w-0 rounded-md border px-2.5 py-2`}>
+                                <div className="flex min-w-0 items-start gap-2">
+                                  <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border text-[10px] font-black ${row.tone === "green" ? "border-emerald-300/50 bg-emerald-400/14 text-emerald-200" : row.tone === "amber" ? "border-orange-300/50 bg-orange-500/14 text-orange-200" : row.tone === "red" ? "border-red-300/50 bg-red-500/14 text-red-200" : row.tone === "blue" ? "border-cyan-300/50 bg-cyan-400/14 text-cyan-200" : "border-slate-700 bg-slate-900 text-slate-400"}`}>{row.number}</span>
+                                  <span className="min-w-0">
+                                    <span className={`block truncate text-[8px] font-black uppercase tracking-[0.08em] ${row.tone === "green" ? "text-emerald-300" : row.tone === "amber" ? "text-orange-300" : row.tone === "red" ? "text-red-300" : row.tone === "blue" ? "text-cyan-300" : "text-slate-500"}`}>{row.statusLabel}</span>
+                                    <span className="mt-0.5 block truncate text-[11px] font-black text-slate-100">{row.title}</span>
+                                    <span className="mt-0.5 block line-clamp-2 text-[9px] font-bold leading-4 text-slate-500">{row.detail}</span>
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         </div>
                         <div className="grid min-w-0 gap-1.5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.9fr)]">

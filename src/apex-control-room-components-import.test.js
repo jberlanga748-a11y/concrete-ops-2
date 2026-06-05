@@ -179,6 +179,14 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /block-active-run/);
   assert.match(componentSource, /wait-active-run-approval/);
   assert.match(componentSource, /It will use the saved run ledger and keep execution locked/);
+  assert.match(componentSource, /buildApexCockpitRunTimelineRows/);
+  assert.match(componentSource, /Apex run mission timeline/);
+  assert.match(componentSource, /Apex visible run timeline strip/);
+  assert.match(componentSource, /Mission Timeline/);
+  assert.match(componentSource, /Live Run Spine/);
+  assert.match(componentSource, /Live run spine: done, now, review gate, and locked next moves stay visible/);
+  assert.match(componentSource, /cockpitRunLaneOpenedRef/);
+  assert.match(componentSource, /setCockpitConsoleTab\("run"\)/);
   assert.match(componentSource, /Give me the active run check-in", \{\s*previousRoute: cockpitCommandRoute,\s*activeRun: cockpitActiveRun,\s*nextPrivateMove: cockpitNextPrivateMove/s);
   assert.match(componentSource, /Give me the active run handback", \{\s*previousRoute: cockpitCommandRoute,\s*activeRun: cockpitActiveRun,\s*nextPrivateMove: cockpitNextPrivateMove/s);
   assert.match(componentSource, /get this done/);
@@ -510,6 +518,8 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(cssSource, /\.co-apex-cockpit-screen--spotlight \.co-apex-cockpit-operator-metrics/);
   assert.match(cssSource, /\.co-apex-cockpit-screen--full-console \.co-apex-cockpit-live-console/);
   assert.match(cssSource, /\.co-apex-cockpit-focus-drawer/);
+  assert.match(cssSource, /\.co-apex-run-timeline-step/);
+  assert.match(cssSource, /\.co-apex-run-timeline-step--active/);
   assert.match(componentSource, /key: "hearing"/);
   assert.match(componentSource, /No Sends/);
   assert.match(componentSource, /No Deploys/);

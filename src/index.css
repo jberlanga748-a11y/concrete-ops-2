@@ -56918,6 +56918,32 @@ body:has(.co-field-mobile-reports-shell) .co-mobile-bottom-spacer {
   -webkit-line-clamp: 7;
 }
 
+.co-apex-run-timeline-step {
+  background: rgba(15, 23, 42, 0.54);
+  border-color: rgba(30, 41, 59, 0.92);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.co-apex-run-timeline-step--done {
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.1), rgba(15, 23, 42, 0.58));
+  border-color: rgba(110, 231, 183, 0.22);
+}
+
+.co-apex-run-timeline-step--active {
+  background: linear-gradient(180deg, rgba(34, 211, 238, 0.11), rgba(15, 23, 42, 0.6));
+  border-color: rgba(103, 232, 249, 0.24);
+}
+
+.co-apex-run-timeline-step--waiting {
+  background: linear-gradient(180deg, rgba(249, 115, 22, 0.11), rgba(15, 23, 42, 0.6));
+  border-color: rgba(253, 186, 116, 0.24);
+}
+
+.co-apex-run-timeline-step--blocked {
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.11), rgba(15, 23, 42, 0.6));
+  border-color: rgba(252, 165, 165, 0.24);
+}
+
 @keyframes apex-life-listening-breathe {
   0%,
   100% {
