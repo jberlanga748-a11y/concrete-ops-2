@@ -39,6 +39,7 @@ import {
   advanceApexOsAutonomyRunPrivatePrep,
   buildApexOsAutonomyRunHeartbeat,
   buildApexOsAutonomyRunHandback,
+  buildApexOsAutonomyRunNextPrivateMove,
   buildApexOsAutonomyRunProactiveCheckIn,
   buildApexOsAutonomyRunProactiveMemoryDraft,
   runApexOsAutonomyRunPrivateOperatorCycle,
@@ -5449,6 +5450,9 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     now: new Date().toISOString(),
   });
   const cockpitActiveRunHandbackText = buildApexCockpitRunHandbackText(cockpitActiveRunHandback);
+  const cockpitNextPrivateMove = buildApexOsAutonomyRunNextPrivateMove(cockpitActiveRun, {
+    now: new Date().toISOString(),
+  });
   const cockpitFollowUpPrompts = buildApexCockpitFollowUpPrompts({
     answerText: cockpitAnswerText,
     route: cockpitCommandRoute,
@@ -6760,6 +6764,36 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     }
   }
 
+  async function workCockpitActiveRunNextMove() {
+    const move = cockpitNextPrivateMove || {};
+    if (!state.canView || !sessionToken || cockpitUpdatingRun || cockpitCreatingLiveRun) return null;
+
+    if (!cockpitActiveRun?.id || move.actionId === "start-private-run") {
+      return createCockpitLiveRunFromCommand(askQuestion.trim() || cockpitLastQuestion || cockpitCommandRoute.label, cockpitCommandRoute, { autoCycle: true });
+    }
+
+    if (move.actionId === "draft-internal") {
+      return draftCockpitActiveRunInternalWork();
+    }
+
+    if (move.actionId === "private-prep") {
+      return continueCockpitActiveRunPrivately();
+    }
+
+    if (move.actionId === "proof-check") {
+      return proofCheckCockpitActiveRunPrivately();
+    }
+
+    if (move.actionId === "private-cycle") {
+      return cycleCockpitActiveRunPrivately();
+    }
+
+    deliverCockpitRunHandback({ speak: true });
+    setCockpitLiveRunNotice(`${move.title || "Apex private run"} is at a review gate. Apex spoke the handback and kept execution locked.`);
+    setCockpitAgentActionNotice("Apex reported the next safe move. Manual approval is still required before any gated work.");
+    return cockpitActiveRun;
+  }
+
   async function rememberCockpitTurnFromAnswer() {
     if (!canRememberCockpitTurn) return null;
     const turnKey = cockpitTurnMemoryKey;
@@ -7406,6 +7440,31 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     </ApexCockpitControlButton>
                   </div>
                 </div>
+                <div className="grid min-w-0 gap-1.5 rounded-md border border-emerald-300/16 bg-emerald-400/8 px-2.5 py-2 xl:hidden" aria-label="Apex mobile private work loop">
+                  <div className="grid min-w-0 gap-1.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+                    <div className="min-w-0">
+                      <p className="text-[9px] font-black uppercase tracking-[0.12em] text-emerald-300">Apex Work Loop</p>
+                      <p className="mt-0.5 min-w-0 break-words text-[11px] font-black leading-4 text-slate-100">{cockpitNextPrivateMove.title}</p>
+                    </div>
+                    <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:justify-end">
+                      <ToneBadge tone={cockpitNextPrivateMove.tone || "blue"}>{cockpitNextPrivateMove.status || "Ready"}</ToneBadge>
+                      <ApexCockpitControlButton
+                        className="px-2"
+                        disabled={Boolean(cockpitUpdatingRun) || cockpitCreatingLiveRun}
+                        onClick={() => workCockpitActiveRunNextMove()}
+                        active={Boolean(cockpitUpdatingRun) || cockpitCreatingLiveRun}
+                        title="Let Apex work the next private safe move"
+                      >
+                        <Icon name={cockpitNextPrivateMove.actionId === "operator-review" || cockpitNextPrivateMove.actionId === "review-result" || cockpitNextPrivateMove.actionId === "review-blocker" ? "phone" : cockpitNextPrivateMove.actionId === "draft-internal" ? "clipboard" : cockpitNextPrivateMove.actionId === "proof-check" ? "check" : "refresh"} />
+                        {cockpitUpdatingRun || cockpitCreatingLiveRun ? "Working" : cockpitNextPrivateMove.buttonLabel || "Work Next"}
+                      </ApexCockpitControlButton>
+                    </div>
+                  </div>
+                  <div className="grid min-w-0 gap-1">
+                    <p className="line-clamp-1 min-w-0 text-[9px] font-bold leading-4 text-emerald-100">{cockpitNextPrivateMove.recommendation || cockpitNextPrivateMove.detail}</p>
+                    <p className="line-clamp-1 min-w-0 break-words text-[9px] font-bold leading-4 text-orange-100" title={cockpitNextPrivateMove.safetyNote}>External actions locked. Private prep/proof only.</p>
+                  </div>
+                </div>
                 <div className="grid min-w-0 gap-2 rounded-md border border-cyan-200/10 bg-slate-950/52 px-2.5 py-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center" aria-label="Apex live voice health">
                   <div className="min-w-0">
                     <p className="text-[9px] font-black uppercase tracking-[0.12em] text-cyan-300">Voice Health</p>
@@ -7614,6 +7673,32 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     </div>
                     {cockpitActiveRun ? (
                       <>
+                        <div className="grid min-w-0 gap-2 rounded-md border border-emerald-300/16 bg-emerald-400/8 p-2.5" aria-label="Apex private work loop">
+                          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="min-w-0">
+                              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-emerald-300">Apex Work Loop</p>
+                              <p className="mt-0.5 min-w-0 break-words text-xs font-black text-slate-100">{cockpitNextPrivateMove.title}</p>
+                              <p className="mt-0.5 min-w-0 break-words text-[10px] font-bold leading-4 text-emerald-100">{cockpitNextPrivateMove.detail}</p>
+                            </div>
+                            <div className="flex shrink-0 flex-wrap items-center gap-1.5 sm:justify-end">
+                              <ToneBadge tone={cockpitNextPrivateMove.tone || "blue"}>{cockpitNextPrivateMove.status || "Ready"}</ToneBadge>
+                              <ApexCockpitControlButton
+                                className="px-2"
+                                disabled={Boolean(cockpitUpdatingRun) || cockpitCreatingLiveRun}
+                                onClick={() => workCockpitActiveRunNextMove()}
+                                active={Boolean(cockpitUpdatingRun) || cockpitCreatingLiveRun}
+                                title="Let Apex work the next private safe move"
+                              >
+                                <Icon name={cockpitNextPrivateMove.actionId === "operator-review" || cockpitNextPrivateMove.actionId === "review-result" || cockpitNextPrivateMove.actionId === "review-blocker" ? "phone" : cockpitNextPrivateMove.actionId === "draft-internal" ? "clipboard" : cockpitNextPrivateMove.actionId === "proof-check" ? "check" : "refresh"} />
+                                {cockpitUpdatingRun || cockpitCreatingLiveRun ? "Working" : cockpitNextPrivateMove.buttonLabel || "Work Next"}
+                              </ApexCockpitControlButton>
+                            </div>
+                          </div>
+                          <div className="grid min-w-0 gap-1.5 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
+                            <p className="min-w-0 break-words rounded-md border border-emerald-300/12 bg-slate-950/46 px-2.5 py-2 text-[10px] font-bold leading-4 text-emerald-100">{cockpitNextPrivateMove.recommendation}</p>
+                            <p className="min-w-0 break-words rounded-md border border-orange-300/12 bg-orange-500/8 px-2.5 py-2 text-[10px] font-bold leading-4 text-orange-100">{cockpitNextPrivateMove.safetyNote}</p>
+                          </div>
+                        </div>
                         <div className="grid min-w-0 gap-1.5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.9fr)]">
                           <div className="min-w-0 rounded-md border border-slate-800 bg-slate-900/48 px-2.5 py-2">
                             <p className="text-[8px] font-black uppercase tracking-[0.08em] text-slate-500">Progress</p>
@@ -7688,7 +7773,31 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                           </ApexCockpitControlButton>
                         </div>
                       </>
-                    ) : null}
+                    ) : (
+                      <div className="grid min-w-0 gap-2 rounded-md border border-emerald-300/16 bg-emerald-400/8 p-2.5" aria-label="Apex private work loop">
+                        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-emerald-300">Apex Work Loop</p>
+                            <p className="mt-0.5 min-w-0 break-words text-xs font-black text-slate-100">{cockpitNextPrivateMove.title}</p>
+                            <p className="mt-0.5 min-w-0 break-words text-[10px] font-bold leading-4 text-emerald-100">{cockpitNextPrivateMove.detail}</p>
+                          </div>
+                          <div className="flex shrink-0 flex-wrap items-center gap-1.5 sm:justify-end">
+                            <ToneBadge tone={cockpitNextPrivateMove.tone || "blue"}>{cockpitNextPrivateMove.status || "Ready"}</ToneBadge>
+                            <ApexCockpitControlButton
+                              className="px-2"
+                              disabled={Boolean(cockpitUpdatingRun) || cockpitCreatingLiveRun}
+                              onClick={() => workCockpitActiveRunNextMove()}
+                              active={Boolean(cockpitUpdatingRun) || cockpitCreatingLiveRun}
+                              title="Let Apex start the next private safe move"
+                            >
+                              <Icon name="refresh" />
+                              {cockpitUpdatingRun || cockpitCreatingLiveRun ? "Working" : cockpitNextPrivateMove.buttonLabel || "Start Run"}
+                            </ApexCockpitControlButton>
+                          </div>
+                        </div>
+                        <p className="min-w-0 break-words rounded-md border border-orange-300/12 bg-orange-500/8 px-2.5 py-2 text-[10px] font-bold leading-4 text-orange-100">{cockpitNextPrivateMove.safetyNote}</p>
+                      </div>
+                    )}
                   </div>
                   ) : null}
                   {cockpitConsoleTab === "pulse" ? (

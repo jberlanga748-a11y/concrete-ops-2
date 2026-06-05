@@ -584,6 +584,181 @@ export function buildApexOsAutonomyRunHeartbeat(run = {}, { now = new Date().toI
   };
 }
 
+export function buildApexOsAutonomyRunNextPrivateMove(run = {}, { now = new Date().toISOString() } = {}) {
+  const normalized = run?.id ? normalizeApexOsAutonomyRun(run, { now }) : null;
+  const base = {
+    executionLocked: true,
+    externalActionsLocked: true,
+    canExecute: false,
+    sourceLabels: ["Apex Private Work Loop", "Autonomy Run Center"],
+    safetyNote: "Private prep/proof only. No sends, billing, provider work, production changes, deletion, deploy, rollback, queue/run, or irreversible action.",
+  };
+
+  if (!normalized?.id) {
+    return {
+      ...base,
+      id: "apex-run-next-move-start",
+      runId: "",
+      actionId: "start-private-run",
+      title: "Start a private run",
+      status: "Ready",
+      tone: "blue",
+      buttonLabel: "Start Run",
+      detail: "Apex is standing by. Start a private run when there is real work to track.",
+      recommendation: "Give Apex a command, then start a private review-first run.",
+      canAdvance: true,
+    };
+  }
+
+  const progress = summarizeApexOsAutonomyRunProgress(normalized);
+  const status = String(normalized.status || "").toLowerCase();
+  const steps = list(normalized.steps);
+  const stepById = new Map(steps.map((step) => [step.id, step]));
+  const hasAgentDraft = Boolean(normalized.linkedAgentControlRequestId);
+  const hasHandoffDraft = Boolean(normalized.linkedExecutionHandoffId);
+  const hasLinkedDrafts = hasAgentDraft && hasHandoffDraft;
+  const draftStep = stepById.get("draft-internal") || {};
+  const validateStep = stepById.get("validate-evidence") || {};
+  const approvalStep = stepById.get("approval-gate") || {};
+  const routeDone = stepById.get("route-work")?.status === "done";
+  const planDone = stepById.get("plan-steps")?.status === "done";
+  const title = normalized.title || "Apex private run";
+
+  if (status === "done" || status === "archived") {
+    return {
+      ...base,
+      id: `apex-run-next-move-review-${normalized.id}`,
+      runId: normalized.id,
+      actionId: "review-result",
+      title: "Review the result",
+      status: status === "done" ? "Reported" : "Archived",
+      tone: "green",
+      buttonLabel: "Speak Handback",
+      detail: `${title} is already ${status}. Review the result report and suggested memory before trusting it long term.`,
+      recommendation: normalized.resultReport || normalized.nextSafeAction || "Review the operator handback.",
+      canAdvance: true,
+      progress,
+    };
+  }
+
+  if (status === "blocked") {
+    return {
+      ...base,
+      id: `apex-run-next-move-blocked-${normalized.id}`,
+      runId: normalized.id,
+      actionId: "review-blocker",
+      title: "Review the blocker",
+      status: "Blocked",
+      tone: "red",
+      buttonLabel: "Speak Blocker",
+      detail: `${title} is blocked. Apex should report the blocker back before any more private work continues.`,
+      recommendation: normalized.nextSafeAction || "Review the blocker and decide whether to revise or keep the run blocked.",
+      canAdvance: false,
+      progress,
+    };
+  }
+
+  if (!hasLinkedDrafts || draftStep.status !== "drafted") {
+    return {
+      ...base,
+      id: `apex-run-next-move-draft-${normalized.id}`,
+      runId: normalized.id,
+      actionId: "draft-internal",
+      title: "Draft internal package",
+      status: hasLinkedDrafts ? "Draft review" : "Draft needed",
+      tone: "blue",
+      buttonLabel: "Draft Internal",
+      detail: `${title} needs locked agent-control and execution handoff drafts before Apex can safely prep or proof the work.`,
+      recommendation: "Create linked private drafts, then continue prep. Execution remains locked.",
+      canAdvance: true,
+      progress,
+    };
+  }
+
+  if (!routeDone || !planDone || status === "planned" || status === "drafting") {
+    return {
+      ...base,
+      id: `apex-run-next-move-prep-${normalized.id}`,
+      runId: normalized.id,
+      actionId: "private-prep",
+      title: "Advance private prep",
+      status: "Prep next",
+      tone: "blue",
+      buttonLabel: "Auto Prep",
+      detail: `${title} has linked drafts. Apex can advance routing, planning, and validation readiness while staying private.`,
+      recommendation: "Advance private prep, then proof-check before any approval-gated work.",
+      canAdvance: true,
+      progress,
+    };
+  }
+
+  if (status === "waiting-approval" || (approvalStep.status === "waiting-approval" && validateStep.status === "done")) {
+    return {
+      ...base,
+      id: `apex-run-next-move-review-gate-${normalized.id}`,
+      runId: normalized.id,
+      actionId: "operator-review",
+      title: "Manual review gate",
+      status: "Review gate",
+      tone: "amber",
+      buttonLabel: "Speak Handback",
+      detail: `${title} reached the manual review gate with ${progress.doneCount} of ${progress.totalCount} steps handled.`,
+      recommendation: normalized.nextSafeAction || "Review evidence, then choose Report Done, keep waiting approval, or block the run.",
+      canAdvance: false,
+      progress,
+    };
+  }
+
+  if (validateStep.status === "blocked") {
+    return {
+      ...base,
+      id: `apex-run-next-move-proof-gaps-${normalized.id}`,
+      runId: normalized.id,
+      actionId: "proof-check",
+      title: "Recheck private proof",
+      status: "Proof gaps",
+      tone: "amber",
+      buttonLabel: "Proof Check",
+      detail: `${title} has proof gaps recorded. Apex can rerun private proof after the draft/plan evidence is updated.`,
+      recommendation: normalized.nextSafeAction || "Review the proof gaps, then rerun proof only when the evidence is ready.",
+      canAdvance: true,
+      progress,
+    };
+  }
+
+  if (status === "validating" || validateStep.status !== "done") {
+    return {
+      ...base,
+      id: `apex-run-next-move-proof-${normalized.id}`,
+      runId: normalized.id,
+      actionId: "proof-check",
+      title: "Proof-check private run",
+      status: "Proof next",
+      tone: "green",
+      buttonLabel: "Proof Check",
+      detail: `${title} is ready for Apex to verify linked drafts, route, plan, validation posture, and the approval stop.`,
+      recommendation: "Run the private proof check and stop at manual review.",
+      canAdvance: true,
+      progress,
+    };
+  }
+
+  return {
+    ...base,
+    id: `apex-run-next-move-cycle-${normalized.id}`,
+    runId: normalized.id,
+    actionId: "private-cycle",
+    title: "Run private cycle",
+    status: "Cycle next",
+    tone: "green",
+    buttonLabel: "Cycle",
+    detail: `${title} can run through the private operator cycle and stop at manual review.`,
+    recommendation: normalized.nextSafeAction || "Run private prep/proof and stop before gated work.",
+    canAdvance: true,
+    progress,
+  };
+}
+
 export function buildApexOsAutonomyRunProactiveCheckIn(previousHeartbeat = null, heartbeat = {}, { now = new Date().toISOString() } = {}) {
   const current = heartbeat || {};
   const previous = previousHeartbeat || null;

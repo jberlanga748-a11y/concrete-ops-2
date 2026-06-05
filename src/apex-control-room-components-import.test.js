@@ -260,6 +260,13 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /advanceApexOsAutonomyRunPrivatePrep/);
   assert.match(componentSource, /validateApexOsAutonomyRunPrivateProof/);
   assert.match(componentSource, /runApexOsAutonomyRunPrivateOperatorCycle/);
+  assert.match(componentSource, /buildApexOsAutonomyRunNextPrivateMove/);
+  assert.match(componentSource, /cockpitNextPrivateMove/);
+  assert.match(componentSource, /workCockpitActiveRunNextMove/);
+  assert.match(componentSource, /Apex Work Loop/);
+  assert.match(componentSource, /Apex private work loop/);
+  assert.match(componentSource, /Apex mobile private work loop/);
+  assert.match(componentSource, /Let Apex work the next private safe move/);
   assert.match(componentSource, /buildApexOsAutonomyRunHeartbeat/);
   assert.match(componentSource, /buildApexOsAutonomyRunHandback/);
   assert.match(componentSource, /buildApexCockpitRunHandbackText/);

@@ -5,6 +5,7 @@ import {
   advanceApexOsAutonomyRunPrivatePrep,
   buildApexOsAutonomyRunHeartbeat,
   buildApexOsAutonomyRunHandback,
+  buildApexOsAutonomyRunNextPrivateMove,
   buildApexOsAutonomyRunProactiveCheckIn,
   buildApexOsAutonomyRunProactiveMemoryDraft,
   buildApexOsAutonomyRunPlan,
@@ -280,6 +281,95 @@ test("private operator cycle leaves terminal runs unchanged", () => {
   assert.equal(cycled.status, "done");
   assert.equal(cycled.resultReport, "Completed after review.");
   assert.equal(cycled.nextSafeAction, doneRun.nextSafeAction);
+});
+
+test("next private move starts with a run when Apex is standing by", () => {
+  const move = buildApexOsAutonomyRunNextPrivateMove(null, {
+    now: "2026-06-05T10:00:00.000Z",
+  });
+
+  assert.equal(move.actionId, "start-private-run");
+  assert.equal(move.buttonLabel, "Start Run");
+  assert.equal(move.canAdvance, true);
+  assert.equal(move.executionLocked, true);
+  assert.equal(move.externalActionsLocked, true);
+  assert.equal(move.canExecute, false);
+  assert.match(move.safetyNote, /No sends/i);
+});
+
+test("next private move drafts, preps, proofs, then stops at manual review", () => {
+  const planned = buildApexOsAutonomyRunPlan({
+    title: "Next move run",
+    request: "Let Apex work the next safe move.",
+    routeLabel: "Apex",
+  }, {
+    id: "AAR-NEXT-MOVE",
+    now: "2026-06-05T10:00:00.000Z",
+    createdBy: "U-1",
+  });
+
+  const draftMove = buildApexOsAutonomyRunNextPrivateMove(planned, {
+    now: "2026-06-05T10:01:00.000Z",
+  });
+  assert.equal(draftMove.actionId, "draft-internal");
+  assert.equal(draftMove.buttonLabel, "Draft Internal");
+
+  const drafted = markApexOsAutonomyRunInternalDrafted(planned, {
+    agentControlRequestId: "AAC-NEXT-MOVE",
+    executionHandoffId: "AEH-NEXT-MOVE",
+    now: "2026-06-05T10:02:00.000Z",
+  });
+  const prepMove = buildApexOsAutonomyRunNextPrivateMove(drafted, {
+    now: "2026-06-05T10:03:00.000Z",
+  });
+  assert.equal(prepMove.actionId, "private-prep");
+  assert.equal(prepMove.buttonLabel, "Auto Prep");
+
+  const prepared = advanceApexOsAutonomyRunPrivatePrep(drafted, {
+    now: "2026-06-05T10:04:00.000Z",
+  });
+  const proofMove = buildApexOsAutonomyRunNextPrivateMove(prepared, {
+    now: "2026-06-05T10:05:00.000Z",
+  });
+  assert.equal(proofMove.actionId, "proof-check");
+  assert.equal(proofMove.buttonLabel, "Proof Check");
+
+  const proofed = validateApexOsAutonomyRunPrivateProof(prepared, {
+    now: "2026-06-05T10:06:00.000Z",
+  });
+  const gateMove = buildApexOsAutonomyRunNextPrivateMove(proofed, {
+    now: "2026-06-05T10:07:00.000Z",
+  });
+  assert.equal(gateMove.actionId, "operator-review");
+  assert.equal(gateMove.buttonLabel, "Speak Handback");
+  assert.equal(gateMove.canAdvance, false);
+  assert.match(gateMove.detail, /manual review gate/i);
+  assert.equal(gateMove.executionLocked, true);
+  assert.equal(gateMove.canExecute, false);
+});
+
+test("next private move reports blockers without advancing execution", () => {
+  const blocked = normalizeApexOsAutonomyRun({
+    id: "AAR-NEXT-BLOCKED",
+    title: "Blocked next move",
+    request: "Review blocker.",
+    sourceLabel: "Run Center",
+    status: "blocked",
+    nextSafeAction: "Operator must review a blocker.",
+  }, {
+    now: "2026-06-05T10:00:00.000Z",
+  });
+
+  const move = buildApexOsAutonomyRunNextPrivateMove(blocked, {
+    now: "2026-06-05T10:05:00.000Z",
+  });
+
+  assert.equal(move.actionId, "review-blocker");
+  assert.equal(move.canAdvance, false);
+  assert.equal(move.buttonLabel, "Speak Blocker");
+  assert.equal(move.executionLocked, true);
+  assert.equal(move.externalActionsLocked, true);
+  assert.equal(move.canExecute, false);
 });
 
 test("summarizes private run progress for live operator heartbeat", () => {
