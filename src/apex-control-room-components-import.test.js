@@ -219,7 +219,11 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /handleCockpitVoiceBargeIn/);
   assert.match(componentSource, /startCockpitOutputLevelMonitor/);
   assert.match(componentSource, /stopCockpitOutputLevelMonitor/);
-  assert.match(componentSource, /Live Conversation/);
+  assert.match(componentSource, /buildApexCockpitNowState/);
+  assert.match(componentSource, /Apex Now/);
+  assert.match(componentSource, /Apex live operator state/);
+  assert.match(componentSource, /Next Safe Move/);
+  assert.match(componentSource, /Working private run/);
   assert.match(componentSource, /Apex operator console tabs/);
   assert.match(componentSource, /Operator Console/);
   assert.match(componentSource, /Console tab: \{tab\.label\}/);

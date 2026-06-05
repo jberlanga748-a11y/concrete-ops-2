@@ -4991,6 +4991,167 @@ function buildApexCockpitFollowUpPrompts({
   }).slice(0, 4);
 }
 
+function buildApexCockpitNowState({
+  voiceState = {},
+  error = "",
+  submitting = false,
+  transcribing = false,
+  speaking = false,
+  speechActive = false,
+  recording = false,
+  autoListening = false,
+  conversationMode = false,
+  activeRun = null,
+  activeRunProgress = {},
+  heartbeat = {},
+  proactiveCheckIn = {},
+  latestRunMemory = null,
+  commandRoute = {},
+  answerText = "",
+  voiceNotice = "",
+  agentActionNotice = "",
+  liveRunNotice = "",
+  captionStatusLabel = "",
+} = {}) {
+  const routeLabel = commandRoute?.label || "Apex";
+  const safeVoiceLabel = voiceState?.label || voiceState?.headline || "Standby";
+  const safeNextAction = liveRunNotice || agentActionNotice || proactiveCheckIn?.recommendation || activeRun?.nextSafeAction || heartbeat?.recommendation || commandRoute?.detail || "Ask Apex naturally or start a private run.";
+  let stage = "standby";
+  let title = "Standing by";
+  let status = conversationMode || autoListening ? "Open loop" : "Manual";
+  let detail = conversationMode || autoListening
+    ? "Apex is awake for this page after the visible wake step and is waiting for the next natural request."
+    : "Apex is ready for a typed command or visible voice wake.";
+  let nextSafeAction = safeNextAction;
+  let tone = conversationMode || autoListening ? "green" : "slate";
+  let icon = "spark";
+
+  if (error) {
+    stage = "blocked";
+    title = "Needs review";
+    status = "Blocked";
+    detail = String(error);
+    nextSafeAction = "Resolve the visible issue, then ask Apex again.";
+    tone = "red";
+    icon = "alert";
+  } else if (submitting) {
+    stage = "thinking";
+    title = "Reading context";
+    status = routeLabel;
+    detail = "Apex is checking approved memory, sources, recent turns, and the matched command room.";
+    nextSafeAction = "Let Apex finish the source-backed answer.";
+    tone = "blue";
+    icon = "refresh";
+  } else if (transcribing) {
+    stage = "hearing";
+    title = "Transcribing voice";
+    status = "Reading audio";
+    detail = "Apex heard audio and is turning it into a reviewed command before answering.";
+    nextSafeAction = "Wait for the transcript, or type the request if the mic is unclear.";
+    tone = "blue";
+    icon = "phone";
+  } else if (speaking) {
+    stage = "reporting";
+    title = "Talking back";
+    status = safeVoiceLabel;
+    detail = voiceNotice || "Apex is speaking the current source-backed answer.";
+    nextSafeAction = "Interrupt at any time, or let Apex finish and keep listening.";
+    tone = "amber";
+    icon = "phone";
+  } else if (speechActive) {
+    stage = "hearing";
+    title = "Hearing you";
+    status = "Live input";
+    detail = "Apex detects your voice. When you pause, it will close the turn and route the request.";
+    nextSafeAction = "Keep talking naturally. Apex will answer when the turn is complete.";
+    tone = "green";
+    icon = "phone";
+  } else if (recording) {
+    stage = "hearing";
+    title = "Listening";
+    status = captionStatusLabel || "Voice open";
+    detail = "Voice is open on this page with visible controls, caption fallback, and no hidden recording.";
+    nextSafeAction = "Ask Apex naturally. Silence closes the turn.";
+    tone = "green";
+    icon = "phone";
+  } else if (activeRun?.id && !["done", "archived"].includes(String(activeRun.status || "").toLowerCase())) {
+    stage = "acting";
+    title = "Working private run";
+    status = activeRun.status || "Active";
+    detail = activeRunProgress?.activeStepTitle
+      ? `${activeRun.title || "Private run"}: ${activeRunProgress.activeStepTitle}.`
+      : activeRun.title || "Apex is tracking a private run with evidence and approval stops.";
+    nextSafeAction = activeRun.nextSafeAction || heartbeat?.recommendation || "Advance the private run, proof-check it, or stop at manual approval.";
+    tone = apexCockpitRunStatusTone(activeRun.status);
+    icon = "spark";
+  } else if (proactiveCheckIn?.shouldSurface) {
+    stage = "monitoring";
+    title = "Noticed a live change";
+    status = proactiveCheckIn.trigger || "Check-in";
+    detail = proactiveCheckIn.detail || "Apex surfaced a meaningful live-run change for review.";
+    nextSafeAction = proactiveCheckIn.recommendation || "Review the check-in before trusting or saving it.";
+    tone = "amber";
+    icon = "refresh";
+  } else if (latestRunMemory?.title) {
+    stage = "memory";
+    title = "Ready to continue";
+    status = "Trusted run history";
+    detail = `Latest reviewed run memory: ${latestRunMemory.title}.`;
+    nextSafeAction = "Use Continue Memory when you want Apex to pick up from the reviewed outcome.";
+    tone = "green";
+    icon = "database";
+  } else if (answerText) {
+    stage = "reporting";
+    title = "Answer ready";
+    status = "Review";
+    detail = "Apex has a source-backed answer ready for review, follow-up, memory, or private run handoff.";
+    nextSafeAction = "Choose a next-turn prompt, remember the answer, or make it a private run.";
+    tone = "blue";
+    icon = "check";
+  }
+
+  const stageRows = [
+    {
+      id: "hear",
+      label: "Hear",
+      value: stage === "hearing" ? "Active" : recording ? "Open" : "Ready",
+      tone: stage === "hearing" || recording ? "green" : "slate",
+    },
+    {
+      id: "think",
+      label: "Think",
+      value: stage === "thinking" ? "Reading" : routeLabel,
+      tone: stage === "thinking" ? "blue" : "slate",
+    },
+    {
+      id: "act",
+      label: "Act Privately",
+      value: stage === "acting" ? "Run live" : activeRun?.id ? "Run ready" : "Guarded",
+      tone: stage === "acting" || activeRun?.id ? "green" : "slate",
+    },
+    {
+      id: "report",
+      label: "Report Back",
+      value: stage === "reporting" ? (speaking ? "Talking" : "Ready") : answerText ? "Ready" : "Waiting",
+      tone: stage === "reporting" || answerText ? "amber" : "slate",
+    },
+    {
+      id: "memory",
+      label: "Memory",
+      value: latestRunMemory?.title ? "Trusted" : "Ready",
+      tone: latestRunMemory?.title ? "green" : "blue",
+    },
+    {
+      id: "safety",
+      label: "Safety",
+      value: "Locked",
+      tone: "amber",
+    },
+  ];
+
+  return { stage, title, status, detail, nextSafeAction, tone, icon, stageRows };
+}
+
 function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAskQuestion, sessionToken }) {
   const [cockpitResponse, setCockpitResponse] = useState(null);
   const [cockpitError, setCockpitError] = useState("");
@@ -5265,6 +5426,28 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       icon: "layers",
     },
   ];
+  const cockpitNowState = buildApexCockpitNowState({
+    voiceState: cockpitVoiceState,
+    error: cockpitError,
+    submitting: cockpitSubmitting,
+    transcribing: cockpitTranscribing,
+    speaking: cockpitSpeaking,
+    speechActive: cockpitSpeechActive,
+    recording: cockpitRecording,
+    autoListening: cockpitAutoListening,
+    conversationMode: cockpitConversationMode,
+    activeRun: cockpitActiveRun,
+    activeRunProgress: cockpitActiveRunProgress,
+    heartbeat: cockpitSessionHeartbeat,
+    proactiveCheckIn: cockpitVisibleProactiveCheckIn,
+    latestRunMemory,
+    commandRoute: cockpitCommandRoute,
+    answerText: cockpitAnswerText,
+    voiceNotice: cockpitVoiceNotice,
+    agentActionNotice: cockpitAgentActionNotice,
+    liveRunNotice: cockpitLiveRunNotice,
+    captionStatusLabel: cockpitCaptionStatusLabel,
+  });
 
   useEffect(() => () => {
     if (cockpitRecorderRef.current) {
@@ -6933,11 +7116,12 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
               <section className="co-apex-cockpit-live-console grid min-w-0 gap-2 rounded-lg border border-cyan-200/14 bg-slate-950/76 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]" aria-label="Apex live conversation console">
                 <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
-                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Live Conversation</p>
-                    <p className="mt-0.5 min-w-0 break-words text-xs font-black text-slate-100">{cockpitVoiceState.headline}</p>
-                    <p className="mt-0.5 min-w-0 break-words text-[11px] font-bold leading-4 text-slate-500">{cockpitPersonalityConfig.label} personality, {cockpitVoiceProfileConfig.label} voice, {trustedRunMemoryCount ? `${trustedRunMemoryCount} trusted run memor${trustedRunMemoryCount === 1 ? "y" : "ies"}` : `${memoryCount || 0} trusted memories`} visible.</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Apex Now</p>
+                    <p className="mt-0.5 min-w-0 break-words text-xs font-black text-slate-100">{cockpitNowState.title}</p>
+                    <p className="mt-0.5 min-w-0 break-words text-[11px] font-bold leading-4 text-slate-500">{cockpitNowState.detail}</p>
                   </div>
                   <div className="flex min-w-0 flex-wrap gap-1.5 sm:justify-end">
+                    <ToneBadge tone={cockpitNowState.tone}>{cockpitNowState.status}</ToneBadge>
                     <ApexCockpitControlButton className="px-2" disabled={false} onClick={() => deliverCockpitBriefing({ speak: true })} active={false} title="Speak Apex briefing">
                       <Icon name="spark" /> Brief Me
                     </ApexCockpitControlButton>
@@ -6955,20 +7139,17 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     </ApexCockpitControlButton>
                   </div>
                 </div>
-                <div className="grid min-w-0 gap-1.5 sm:grid-cols-6">
-                  {[
-                    { label: "Loop", value: cockpitConversationMode ? "Open" : "Manual", tone: cockpitConversationMode ? "green" : "slate" },
-                    { label: "Barge-in", value: cockpitInterruptionCount ? `${cockpitInterruptionCount} caught` : cockpitBargeInEnabled ? "Armed" : "Off", tone: cockpitInterruptionCount ? "green" : cockpitBargeInEnabled ? "amber" : "slate" },
-                    { label: "Memory", value: trustedRunMemoryCount ? `${trustedRunMemoryCount} run history` : cockpitRememberedTurnCount ? `${cockpitRememberedTurnCount} saved` : "Manual", tone: trustedRunMemoryCount || cockpitRememberedTurnCount ? "green" : "blue" },
-                    { label: "Input", value: cockpitRecording ? "Listening" : cockpitTranscribing ? "Reading" : "Standby", tone: cockpitRecording ? "green" : cockpitTranscribing ? "blue" : "slate" },
-                    { label: "Captions", value: canUseCockpitSpeechRecognition ? (cockpitRecognitionStatus === "captioning" || cockpitRecognitionStatus === "interim" ? "Live" : "Ready") : "Server", tone: canUseCockpitSpeechRecognition ? "blue" : "slate" },
-                    { label: "Output", value: cockpitSpeaking ? "Talking" : "Ready", tone: cockpitSpeaking ? "amber" : "green" },
-                  ].map((item) => (
+                <div className="grid min-w-0 gap-1.5 sm:grid-cols-6" aria-label="Apex live operator state">
+                  {cockpitNowState.stageRows.map((item) => (
                     <div key={item.label} className="min-w-0 rounded-md border border-slate-800 bg-slate-900/58 px-2.5 py-2">
                       <p className="text-[9px] font-black uppercase tracking-[0.1em] text-slate-500">{item.label}</p>
-                      <p className={`mt-0.5 text-[11px] font-black ${item.tone === "green" ? "text-emerald-300" : item.tone === "amber" ? "text-orange-300" : item.tone === "blue" ? "text-cyan-300" : "text-slate-300"}`}>{item.value}</p>
+                      <p className={`mt-0.5 truncate text-[11px] font-black ${item.tone === "green" ? "text-emerald-300" : item.tone === "amber" ? "text-orange-300" : item.tone === "red" ? "text-red-300" : item.tone === "blue" ? "text-cyan-300" : "text-slate-300"}`}>{item.value}</p>
                     </div>
                   ))}
+                </div>
+                <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-2 rounded-md border border-cyan-200/10 bg-slate-950/52 px-2.5 py-2" aria-label="Apex next safe move">
+                  <Icon name={cockpitNowState.icon} className={`mt-0.5 h-3.5 w-3.5 ${cockpitNowState.tone === "green" ? "text-emerald-300" : cockpitNowState.tone === "amber" ? "text-orange-300" : cockpitNowState.tone === "red" ? "text-red-300" : cockpitNowState.tone === "blue" ? "text-cyan-300" : "text-slate-400"}`} />
+                  <p className="min-w-0 break-words text-[10px] font-bold leading-4 text-cyan-100"><span className="font-black uppercase tracking-[0.08em] text-cyan-300">Next Safe Move:</span> {cockpitNowState.nextSafeAction}</p>
                 </div>
                 {(cockpitAnswerText || cockpitError) ? (
                   <div className="co-apex-cockpit-main-response grid min-w-0 gap-2 rounded-lg border border-cyan-200/12 bg-slate-950/64 p-3" aria-label="Apex visible response">
