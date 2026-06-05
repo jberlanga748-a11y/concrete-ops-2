@@ -2352,7 +2352,7 @@ function buildApexLiveOperatorModeState({
       id: "live-voice-loop",
       title: "Voice loop",
       status: voiceInterface?.status || "Voice ready",
-      detail: `${formatCount(voiceInterface?.modeCount)} modes, ${formatCount(voiceInterface?.safetyCount)} safety gates, visible wake control, spoken answers, next-turn prompts, interruption-aware turn memory, and browser caption fallback are mapped.`,
+      detail: `${formatCount(voiceInterface?.modeCount)} modes, ${formatCount(voiceInterface?.safetyCount)} safety gates, visible wake control, spoken answers, next-turn prompts, interruption-aware turn memory, browser caption fallback, and voice health recovery are mapped.`,
       tone: voiceInterface?.tone || "green",
     },
     {
@@ -2398,7 +2398,7 @@ function buildApexLiveOperatorModeState({
     confidence: 86,
   });
   const operatorLoopRows = withDerivedStateMetaList([
-    { id: "live-loop-hear", title: "Hear", status: "Open", detail: "Voice and typed commands enter the Apex body page.", tone: "green" },
+    { id: "live-loop-hear", title: "Hear", status: "Open", detail: "Voice and typed commands enter the Apex body page with visible mic, caption, speaker, and recovery health.", tone: "green" },
     { id: "live-loop-interrupt", title: "Interrupt", status: "Barge-in memory", detail: "Apex can stop speaking, keep listening, and carry the interruption into the next answer context.", tone: "green" },
     { id: "live-loop-understand", title: "Understand", status: "Source-backed", detail: "Apex routes the request against private command-room context.", tone: "green" },
     { id: "live-loop-follow-up", title: "Follow up", status: "Next turns", detail: "Apex suggests source-backed next-turn prompts after answers, runs, and operator judgment so the conversation keeps moving naturally without hidden execution.", tone: "green" },
@@ -2447,7 +2447,7 @@ function buildApexLiveOperatorModeState({
       id: "live-gap-provider-reliability",
       title: "Voice reliability",
       status: "Caption fallback",
-      detail: "Server speech can speak when configured; browser voice and browser speech captions keep answers audible and voice questions usable when provider audio or transcription is unavailable.",
+      detail: "Server speech can speak when configured; browser voice, browser speech captions, and the voice health recovery lane keep answers audible and voice questions usable when provider audio or transcription is unavailable.",
       tone: "green",
     },
   ], {

@@ -339,7 +339,7 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /Resume Voice/);
   assert.match(componentSource, /Wake Apex/);
   assert.match(componentSource, /Tap Wake Apex once/);
-  assert.match(componentSource, /Mobile browsers may require one visible wake tap/);
+  assert.match(componentSource, /Voice is wake-gated, visible, and ready for a natural turn/);
   assert.match(componentSource, /Interrupt Voice/);
   assert.match(componentSource, /interruptCockpitVoicePlayback/);
   assert.match(componentSource, /recordCockpitInterruption/);
@@ -371,6 +371,14 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /Live captions active/);
   assert.match(componentSource, /startCockpitSpeechRecognition/);
   assert.match(componentSource, /stopCockpitSpeechRecognition/);
+  assert.match(componentSource, /buildApexCockpitVoiceHealth/);
+  assert.match(componentSource, /Apex voice health and recovery/);
+  assert.match(componentSource, /Apex live voice health/);
+  assert.match(componentSource, /Voice Health/);
+  assert.match(componentSource, /Recover Voice/);
+  assert.match(componentSource, /recoverCockpitVoice/);
+  assert.match(componentSource, /Captions recovering/);
+  assert.match(componentSource, /server transcription fallback/);
   assert.match(componentSource, /co-apex-life-orbit/);
   assert.match(componentSource, /co-apex-cockpit-mobile-response/);
   assert.match(componentSource, /co-apex-cockpit-main-response/);
@@ -387,6 +395,8 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(utilSource, /operatorJudgmentRows/);
   assert.match(utilSource, /Apex Live Operator judgment/);
   assert.match(utilSource, /next-turn prompts/);
+  assert.match(utilSource, /voice health recovery/);
+  assert.match(utilSource, /voice health recovery lane/);
   assert.match(utilSource, /Natural command/);
   assert.match(utilSource, /natural-command autopilot/);
   assert.match(utilSource, /live-loop-cycle/);

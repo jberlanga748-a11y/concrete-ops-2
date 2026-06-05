@@ -478,7 +478,9 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-follow-up" && item.status === "Next turns"), true);
   assert.equal(state.liveOperatorMode.operatorJudgmentRows.some((item) => item.id === "judgment-start-private-run" && item.actionLabel === "Start private run"), true);
   assert.equal(state.liveOperatorMode.readinessRows.some((item) => item.id === "live-voice-loop" && /next-turn prompts/i.test(item.detail)), true);
+  assert.equal(state.liveOperatorMode.readinessRows.some((item) => item.id === "live-voice-loop" && /voice health recovery/i.test(item.detail)), true);
   assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-interrupt" && item.status === "Barge-in memory"), true);
+  assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-hear" && /recovery health/i.test(item.detail)), true);
   assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-cycle" && item.status === "Private cycle"), true);
   assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-auto-prep" && item.status === "Private-only"), true);
   assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-proof-check" && item.status === "Private proof"), true);
@@ -488,6 +490,7 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.liveOperatorMode.gapRows.some((item) => item.id === "live-gap-execution" && item.status === "Approval-gated"), true);
   assert.equal(state.liveOperatorMode.gapRows.some((item) => item.id === "live-gap-proactive" && item.status === "Remembered check-ins"), true);
   assert.equal(state.liveOperatorMode.gapRows.some((item) => item.id === "live-gap-provider-reliability" && item.status === "Caption fallback"), true);
+  assert.equal(state.liveOperatorMode.gapRows.some((item) => item.id === "live-gap-provider-reliability" && /voice health recovery lane/i.test(item.detail)), true);
   assert.equal(state.liveOperatorMode.externalActionsLocked, true);
   assert.equal(state.liveOperatorMode.executionLocked, true);
   assert.equal(state.operatingSignals.some((item) => item.id === "live-operator-mode"), true);
