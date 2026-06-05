@@ -5088,6 +5088,21 @@ function buildApexCockpitProactiveCheckInText(checkIn = {}) {
   return "Apex proactive check-in: I am watching the live run heartbeat and will surface meaningful changes here. Execution, sends, billing, provider work, production changes, deletion, deploy, rollback, and irreversible actions stay locked.";
 }
 
+function buildApexCockpitSpokenProactiveCheckInText(checkIn = {}) {
+  const title = apexCockpitMemoryText(checkIn.title || "Proactive check-in", 120);
+  const status = apexCockpitMemoryText(checkIn.status || checkIn.trigger || "New live-run signal", 80);
+  const detail = apexCockpitMemoryText(checkIn.detail || "I noticed a meaningful live-run change.", 220);
+  const recommendation = apexCockpitMemoryText(checkIn.recommendation || "Review this check-in before trusting or acting on it.", 220);
+  return [
+    "Apex proactive check-in.",
+    `${title}.`,
+    status ? `Status: ${status}.` : "",
+    detail,
+    `Next safe action: ${recommendation}.`,
+    "Execution remains locked. No sends, billing, provider work, production changes, deploys, rollbacks, agent runs, or irreversible actions.",
+  ].filter(Boolean).join(" ");
+}
+
 function buildApexCockpitRunHandbackText(handback = {}) {
   if (handback?.answer) return handback.answer;
   return "Apex operator handback: no active private run is live. Start a private run when there is real work to track. Execution, sends, billing, provider work, production changes, deletion, deploy, rollback, and irreversible actions stay locked.";
@@ -5411,6 +5426,8 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const [cockpitProactiveMemoryBusy, setCockpitProactiveMemoryBusy] = useState(false);
   const [cockpitProactiveMemoryIds, setCockpitProactiveMemoryIds] = useState({});
   const [cockpitProactiveMemoryCount, setCockpitProactiveMemoryCount] = useState(0);
+  const [cockpitProactiveVoiceStatus, setCockpitProactiveVoiceStatus] = useState("Watching");
+  const [cockpitProactiveVoiceQueueKey, setCockpitProactiveVoiceQueueKey] = useState(0);
   const [cockpitMicPermissionState, setCockpitMicPermissionState] = useState("unknown");
   const [cockpitVoiceWakeAttempted, setCockpitVoiceWakeAttempted] = useState(false);
   const [cockpitBrowserTranscript, setCockpitBrowserTranscript] = useState("");
@@ -5456,6 +5473,8 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const cockpitDiscardNextCaptureRef = useRef(false);
   const cockpitLastHeartbeatRef = useRef(null);
   const cockpitLastProactiveSignatureRef = useRef("");
+  const cockpitLastSpokenProactiveSignatureRef = useRef("");
+  const cockpitPendingProactiveVoiceRef = useRef(null);
   const cockpitProactiveMemorySavingRef = useRef(false);
   const cockpitAutoDriveRunningRef = useRef(false);
   const cockpitLastAutoDriveHandbackAtRef = useRef(0);
@@ -5827,7 +5846,11 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     });
     cockpitLastHeartbeatRef.current = cockpitSessionHeartbeat;
     setCockpitProactiveCheckIn(checkIn);
-    if (!checkIn.shouldSurface || cockpitLastProactiveSignatureRef.current === checkIn.signature) return;
+    if (!checkIn.shouldSurface) {
+      setCockpitProactiveVoiceStatus((current) => (current === "Watching" ? current : "Watching"));
+      return;
+    }
+    if (cockpitLastProactiveSignatureRef.current === checkIn.signature) return;
     cockpitLastProactiveSignatureRef.current = checkIn.signature;
     const recentAutoDriveHandback = cockpitLastAutoDriveHandbackAtRef.current
       && Date.now() - cockpitLastAutoDriveHandbackAtRef.current < 12_000;
@@ -5847,6 +5870,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     } else {
       setCockpitLiveRunNotice(checkIn.recommendation || "Apex noticed live-run progress while keeping the Auto Drive handback visible.");
     }
+    speakCockpitProactiveCheckIn(checkIn, { reason: recentAutoDriveHandback ? "auto-drive-handback" : "automatic" });
     setCockpitTurns((current) => [
       {
         id: `cockpit-proactive-check-in-${Date.now()}`,
@@ -5891,6 +5915,34 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     cockpitRecording,
     cockpitTranscribing,
     cockpitSubmitting,
+  ]);
+
+  useEffect(() => {
+    const pendingCheckIn = cockpitPendingProactiveVoiceRef.current;
+    if (!pendingCheckIn?.shouldSurface) return undefined;
+    if (!state.canView || !sessionToken || !cockpitConversationMode || !cockpitAutoListening) return undefined;
+    if (cockpitNeedsWake && !cockpitVoiceWakeAttempted && !cockpitMicReady) return undefined;
+    if (cockpitSpeaking || cockpitRecording || cockpitTranscribing || cockpitSubmitting || cockpitVoiceOpeningRef.current) return undefined;
+    if (cockpitLastAutoDriveHandbackAtRef.current && Date.now() - cockpitLastAutoDriveHandbackAtRef.current < 12_000) return undefined;
+    const queuedVoiceTimer = setTimeout(() => {
+      speakCockpitProactiveCheckIn(pendingCheckIn, { reason: "queued" });
+    }, 450);
+    return () => clearTimeout(queuedVoiceTimer);
+  }, [
+    state.canView,
+    sessionToken,
+    cockpitConversationMode,
+    cockpitAutoListening,
+    cockpitNeedsWake,
+    cockpitVoiceWakeAttempted,
+    cockpitMicReady,
+    cockpitSpeaking,
+    cockpitRecording,
+    cockpitTranscribing,
+    cockpitSubmitting,
+    cockpitProactiveVoiceQueueKey,
+    cockpitLivePulse?.checkedAt,
+    cockpitSessionHeartbeat.signature,
   ]);
 
   useEffect(() => {
@@ -6292,6 +6344,53 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     } catch (speechError) {
       speakCockpitBrowserFallback(answerToSpeak, speechError?.message ? `Speech endpoint unavailable; browser voice is speaking. ${speechError.message}` : "Speech endpoint unavailable; browser voice is speaking.");
     }
+  }
+
+  function queueCockpitProactiveVoice(checkIn = {}, reason = "busy") {
+    if (!checkIn?.shouldSurface) return false;
+    const signature = checkIn.signature || "";
+    if (signature && cockpitLastSpokenProactiveSignatureRef.current === signature) return false;
+    cockpitPendingProactiveVoiceRef.current = checkIn;
+    setCockpitProactiveVoiceStatus("Queued");
+    setCockpitProactiveVoiceQueueKey((current) => current + 1);
+    const reasonText = reason === "wake-required"
+      ? "Wake Apex once and I will speak this proactive check-in."
+      : reason === "auto-drive-handback"
+        ? "Apex queued the proactive check-in until the Auto Drive handback clears."
+        : "Apex queued the proactive check-in until the live voice turn is clear.";
+    setCockpitVoiceNotice(reasonText);
+    return true;
+  }
+
+  function speakCockpitProactiveCheckIn(checkIn = cockpitVisibleProactiveCheckIn, { reason = "automatic" } = {}) {
+    if (!checkIn?.shouldSurface || !state.canView || !sessionToken) return false;
+    const signature = checkIn.signature || "";
+    if (signature && cockpitLastSpokenProactiveSignatureRef.current === signature) return false;
+    if (!cockpitConversationMode || !cockpitAutoListening) {
+      setCockpitProactiveVoiceStatus("Manual");
+      return false;
+    }
+    if (cockpitNeedsWake && !cockpitVoiceWakeAttempted && !cockpitMicReady) {
+      return queueCockpitProactiveVoice(checkIn, "wake-required");
+    }
+    const recentAutoDriveHandback = cockpitLastAutoDriveHandbackAtRef.current
+      && Date.now() - cockpitLastAutoDriveHandbackAtRef.current < 12_000;
+    const voiceBusy = cockpitSpeakingRef.current
+      || cockpitSpeaking
+      || cockpitRecording
+      || cockpitTranscribing
+      || cockpitSubmitting
+      || cockpitVoiceOpeningRef.current
+      || recentAutoDriveHandback;
+    if (voiceBusy) return queueCockpitProactiveVoice(checkIn, reason);
+
+    cockpitPendingProactiveVoiceRef.current = null;
+    if (signature) cockpitLastSpokenProactiveSignatureRef.current = signature;
+    const spokenCheckIn = buildApexCockpitSpokenProactiveCheckInText(checkIn);
+    setCockpitProactiveVoiceStatus("Spoken");
+    setCockpitVoiceNotice("Apex is speaking a proactive live-run check-in.");
+    void speakCockpitAnswer(spokenCheckIn);
+    return true;
   }
 
   async function refreshCockpitLivePulse({ automatic = false } = {}) {
@@ -7983,11 +8082,12 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                         </ApexCockpitControlButton>
                       </div>
                     </div>
-                    <div className="grid min-w-0 gap-1.5 sm:grid-cols-5">
+                    <div className="grid min-w-0 gap-1.5 sm:grid-cols-6">
                       {[
                         { label: "Status", value: cockpitVisibleProactiveCheckIn.status || "Watching", tone: cockpitVisibleProactiveCheckIn.shouldSurface ? "green" : "slate" },
                         { label: "Trigger", value: cockpitVisibleProactiveCheckIn.trigger || "watching", tone: cockpitVisibleProactiveCheckIn.shouldSurface ? "green" : "blue" },
                         { label: "Surface", value: cockpitVisibleProactiveCheckIn.shouldSurface ? "New" : "Quiet", tone: cockpitVisibleProactiveCheckIn.shouldSurface ? "amber" : "slate" },
+                        { label: "Voice", value: cockpitProactiveVoiceStatus, tone: cockpitProactiveVoiceStatus === "Spoken" ? "green" : cockpitProactiveVoiceStatus === "Queued" ? "amber" : cockpitProactiveVoiceStatus === "Manual" ? "blue" : "slate" },
                         { label: "Memory", value: cockpitVisibleProactiveMemoryId ? "Drafted" : cockpitVisibleProactiveCheckIn.shouldSurface ? "Suggested" : "Quiet", tone: cockpitVisibleProactiveMemoryId ? "green" : cockpitVisibleProactiveCheckIn.shouldSurface ? "amber" : "slate" },
                         { label: "Execution", value: cockpitVisibleProactiveCheckIn.executionLocked ? "Locked" : "Open", tone: cockpitVisibleProactiveCheckIn.executionLocked ? "amber" : "red" },
                       ].map((item) => (
