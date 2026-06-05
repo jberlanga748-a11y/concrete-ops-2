@@ -34,7 +34,10 @@ import {
   buildApexOsAskDecisionDraft,
   buildApexOsAskExecutionHandoffDraft,
 } from "../shared/apexOsAsk.js";
-import { redactApexOsMemoryText } from "../shared/apexOsMemory.js";
+import {
+  redactApexOsMemoryText,
+  summarizeApexOsLiveOperatorMemory,
+} from "../shared/apexOsMemory.js";
 import {
   advanceApexOsAutonomyRunPrivatePrep,
   buildApexOsAutonomyRunHeartbeat,
@@ -4272,6 +4275,73 @@ function buildApexCockpitRunMemoryDraft({ run = {}, resultReport = "" } = {}) {
   };
 }
 
+function buildApexCockpitLiveOperatorMemorySnapshot(memoryRows = []) {
+  const summary = summarizeApexOsLiveOperatorMemory(memoryRows, { limit: 8 });
+  const toReviewRow = (entry, tone = "amber") => ({
+    id: entry.id,
+    title: entry.title,
+    status: entry.status,
+    detail: apexCockpitMemoryText(entry.body, 260),
+    body: entry.body,
+    tone,
+    sourceLabel: entry.sourceLabel,
+    source: entry.sourceUri,
+    sourceUri: entry.sourceUri,
+    sourceType: entry.sourceType,
+    reviewedAt: entry.reviewedAt,
+    reviewNote: entry.reviewNote,
+  });
+
+  return {
+    status: summary.approved ? "Trusted run history" : summary.suggested ? "Run memory review" : "Run memory ready",
+    tone: summary.approved ? "green" : summary.suggested ? "amber" : "blue",
+    totalCount: summary.total,
+    trustedCount: summary.approved,
+    suggestedCount: summary.suggested,
+    archivedCount: summary.archived,
+    turnCount: summary.turnCount,
+    runCount: summary.runCount,
+    proactiveCheckInCount: summary.proactiveCheckInCount,
+    sourceCount: summary.sourceCount,
+    latestTrustedAt: summary.latestTrustedAt,
+    latestSuggestedAt: summary.latestSuggestedAt,
+    sourceOptions: summary.sourceLabels,
+    latestRows: summary.trustedRows.map((entry) => ({
+      id: entry.id,
+      title: entry.title,
+      status: entry.kind,
+      detail: apexCockpitMemoryText(entry.body, 260),
+      body: entry.body,
+      tone: "green",
+      sourceLabel: entry.sourceLabel,
+      source: entry.sourceUri,
+      sourceUri: entry.sourceUri,
+      sourceType: entry.sourceType,
+      reviewedAt: entry.reviewedAt,
+      reviewNote: entry.reviewNote,
+    })),
+    reviewRows: [
+      ...summary.pendingRows.map((entry) => toReviewRow(entry, "amber")),
+      ...summary.trustedRows.map((entry) => toReviewRow(entry, "green")),
+    ].slice(0, 10),
+  };
+}
+
+function findApexCockpitRunMemoryReviewRow(run = {}, liveOperatorMemory = {}) {
+  if (!run?.id) return null;
+  const sourceKey = `apex-life://run/${apexCockpitMemoryText(run.id, 90).replace(/[^a-z0-9_-]+/gi, "-")}`;
+  const rows = [
+    ...(Array.isArray(liveOperatorMemory.reviewRows) ? liveOperatorMemory.reviewRows : []),
+    ...(Array.isArray(liveOperatorMemory.latestRows) ? liveOperatorMemory.latestRows : []),
+  ].filter(Boolean);
+  return rows.find((row) => (
+    row.id === run.decisionMemoryId
+    || row.source === sourceKey
+    || row.sourceUri === sourceKey
+    || String(row.source || row.sourceUri || "").endsWith(`/${run.id}`)
+  )) || null;
+}
+
 function ApexMiniWaveform({ bars = [8, 13, 7, 18, 10, 22, 12, 16, 9, 20, 8, 14], mode = "listening" }) {
   const voiceMode = APEX_COCKPIT_VOICE_STATES[mode] ? mode : "listening";
   return (
@@ -5309,6 +5379,9 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const [cockpitRememberingTurn, setCockpitRememberingTurn] = useState(false);
   const [cockpitRememberedTurnKeys, setCockpitRememberedTurnKeys] = useState({});
   const [cockpitRememberedTurnCount, setCockpitRememberedTurnCount] = useState(0);
+  const [cockpitLiveOperatorMemory, setCockpitLiveOperatorMemory] = useState(() => state.liveOperatorMemory || state.liveOperatorMode?.runMemory || {});
+  const [cockpitRunMemoryReviewNotice, setCockpitRunMemoryReviewNotice] = useState("");
+  const [cockpitRunMemoryReviewBusy, setCockpitRunMemoryReviewBusy] = useState("");
   const [cockpitLivePulse, setCockpitLivePulse] = useState(null);
   const [cockpitLivePulseBusy, setCockpitLivePulseBusy] = useState(false);
   const [cockpitLivePulseError, setCockpitLivePulseError] = useState("");
@@ -5403,7 +5476,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     : state.releaseDesk?.deployHistoryRows?.[0]?.status || "Evidence required";
   const releaseHealth = state.releaseDesk?.status || "Healthy";
   const liveOperatorMode = state.liveOperatorMode || {};
-  const liveOperatorMemory = state.liveOperatorMemory || liveOperatorMode.runMemory || {};
+  const liveOperatorMemory = cockpitLiveOperatorMemory || state.liveOperatorMemory || liveOperatorMode.runMemory || {};
   const trustedRunMemoryCount = Number(liveOperatorMemory.trustedCount || liveOperatorMode.trustedRunMemoryCount || 0);
   const pendingRunMemoryCount = Number(liveOperatorMemory.suggestedCount || liveOperatorMode.pendingRunMemoryCount || 0);
   const latestRunMemory = (Array.isArray(liveOperatorMemory.latestRows) ? liveOperatorMemory.latestRows : [])[0] || null;
@@ -5453,6 +5526,22 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const cockpitNextPrivateMove = buildApexOsAutonomyRunNextPrivateMove(cockpitActiveRun, {
     now: new Date().toISOString(),
   });
+  const cockpitRunMemoryReviewRow = findApexCockpitRunMemoryReviewRow(cockpitActiveRun, liveOperatorMemory);
+  const cockpitRunMemoryReviewStatus = cockpitRunMemoryReviewRow?.status || (cockpitActiveRun?.decisionMemoryId ? "missing" : "not-drafted");
+  const canTrustCockpitRunMemory = state.canView
+    && Boolean(sessionToken)
+    && Boolean(cockpitRunMemoryReviewRow?.id)
+    && cockpitRunMemoryReviewRow.status === "suggested"
+    && !cockpitRunMemoryReviewBusy;
+  const cockpitRunMemoryReviewNoticeText = cockpitRunMemoryReviewNotice || (
+    cockpitRunMemoryReviewStatus === "approved"
+      ? "Run memory is trusted. Apex can use this reviewed run outcome in future answers. No external action was executed."
+      : cockpitRunMemoryReviewStatus === "archived"
+        ? "Run memory is archived. Apex will not trust this run outcome in future answers."
+        : cockpitRunMemoryReviewStatus === "suggested"
+          ? "Memory stays suggested until you trust it. Trusting memory changes only Apex's reviewed context; it does not send, bill, deploy, publish, or execute anything."
+          : "Report the run done to draft suggested memory for manual trust or archive review."
+  );
   const cockpitFollowUpPrompts = buildApexCockpitFollowUpPrompts({
     answerText: cockpitAnswerText,
     route: cockpitCommandRoute,
@@ -5694,6 +5783,10 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       clearInterval(pulseTimer);
     };
   }, [state.canView, sessionToken]);
+
+  useEffect(() => {
+    setCockpitLiveOperatorMemory(state.liveOperatorMemory || state.liveOperatorMode?.runMemory || {});
+  }, [state.liveOperatorMemory, state.liveOperatorMode?.runMemory]);
 
   useEffect(() => {
     if (!state.canView) return;
@@ -6160,6 +6253,55 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     });
   }
 
+  function syncCockpitLiveOperatorMemoryFromPayload(payload = {}) {
+    const memoryRows = Array.isArray(payload.apexOsMemory)
+      ? payload.apexOsMemory
+      : Array.isArray(payload.companySettings?.apexOsMemory)
+        ? payload.companySettings.apexOsMemory
+        : [];
+    if (!memoryRows.length) return;
+    setCockpitLiveOperatorMemory(buildApexCockpitLiveOperatorMemorySnapshot(memoryRows));
+  }
+
+  async function reviewCockpitRunMemory(status) {
+    if (!state.canView || !sessionToken || !cockpitRunMemoryReviewRow?.id || cockpitRunMemoryReviewBusy) return null;
+    const normalizedStatus = status === "approved" ? "approved" : "archived";
+    setCockpitRunMemoryReviewBusy(normalizedStatus);
+    setCockpitRunMemoryReviewNotice(normalizedStatus === "approved"
+      ? "Trusting this run memory after operator review."
+      : "Archiving this suggested run memory.");
+    try {
+      const payload = await updateApexOsMemory(sessionToken, cockpitRunMemoryReviewRow.id, {
+        status: normalizedStatus,
+        reviewNote: normalizedStatus === "approved"
+          ? "Operator reviewed this Apex Live Operator Mode run memory from the handback gate and trusted it for future Apex answers."
+          : "Operator archived this Apex Live Operator Mode run memory from the handback gate.",
+      });
+      syncCockpitLiveOperatorMemoryFromPayload(payload);
+      const updated = payload?.apexOsMemoryEntry || {};
+      const notice = normalizedStatus === "approved"
+        ? "Run memory trusted. Apex can use this reviewed run outcome in future answers."
+        : "Suggested run memory archived. Apex will not trust this run outcome.";
+      setCockpitRunMemoryReviewNotice(notice);
+      setCockpitAgentActionNotice(notice);
+      setCockpitResponse({
+        answer: {
+          answer: `${notice} No external send, billing, provider work, production change, deletion, deploy, rollback, or irreversible action executed.`,
+          sourceLabels: ["Apex Live Operator Mode", "Run Memory Review", updated.sourceLabel || "Apex OS memory"],
+        },
+      });
+      refreshCockpitLivePulse({ automatic: true });
+      return updated;
+    } catch (error) {
+      const message = error?.message || "Run memory review could not be saved.";
+      setCockpitRunMemoryReviewNotice(message);
+      setCockpitAgentActionNotice(message);
+      return null;
+    } finally {
+      setCockpitRunMemoryReviewBusy("");
+    }
+  }
+
   function deliverCockpitBriefing({ speak = false } = {}) {
     const route = buildApexCockpitCommandRoute("Summarize today");
     setCockpitCommandRoute(route);
@@ -6315,6 +6457,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       : "Drafting suggested proactive memory. It stays untrusted until reviewed.");
     try {
       const payload = await createApexOsMemory(sessionToken, memoryDraft);
+      syncCockpitLiveOperatorMemoryFromPayload(payload);
       const created = payload?.apexOsMemoryEntry;
       const memoryId = created?.id || "suggested";
       setCockpitProactiveMemoryIds((current) => ({ ...current, [signature || memoryDraft.sourceUri]: memoryId }));
@@ -6518,6 +6661,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
             run: updated,
             resultReport: doneResultReport,
           }));
+          syncCockpitLiveOperatorMemoryFromPayload(memoryPayload);
           const memoryId = memoryPayload?.apexOsMemoryEntry?.id || "";
           if (memoryId) {
             const memorySteps = (Array.isArray(updated.steps) ? updated.steps : []).map((step) => (
@@ -6807,6 +6951,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     setCockpitAgentActionNotice("Drafting suggested live-turn memory. It will stay untrusted until you approve it.");
     try {
       const payload = await createApexOsMemory(sessionToken, memoryDraft);
+      syncCockpitLiveOperatorMemoryFromPayload(payload);
       const created = payload?.apexOsMemoryEntry;
       setCockpitRememberedTurnKeys((current) => ({ ...current, [turnKey]: created?.id || "suggested" }));
       setCockpitRememberedTurnCount((current) => current + 1);
@@ -7465,6 +7610,38 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     <p className="line-clamp-1 min-w-0 break-words text-[9px] font-bold leading-4 text-orange-100" title={cockpitNextPrivateMove.safetyNote}>External actions locked. Private prep/proof only.</p>
                   </div>
                 </div>
+                {cockpitActiveRun?.id ? (
+                  <div className="grid min-w-0 gap-1.5 rounded-md border border-cyan-300/14 bg-cyan-400/8 px-2.5 py-2 xl:hidden" aria-label="Apex mobile run memory review">
+                    <div className="grid min-w-0 gap-1.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+                      <div className="min-w-0">
+                        <p className="text-[9px] font-black uppercase tracking-[0.12em] text-cyan-300">Run Memory Review</p>
+                        <p className="mt-0.5 line-clamp-1 min-w-0 break-words text-[11px] font-black leading-4 text-slate-100">
+                          {cockpitRunMemoryReviewRow?.title || (cockpitActiveRun.status === "done" ? "Run result memory needs review" : "Report done to draft run memory")}
+                        </p>
+                      </div>
+                      <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:justify-end">
+                        <ToneBadge tone={cockpitRunMemoryReviewRow?.tone || (cockpitRunMemoryReviewStatus === "missing" ? "amber" : "slate")}>
+                          {cockpitRunMemoryReviewStatus === "approved" ? "trusted" : cockpitRunMemoryReviewStatus === "suggested" ? "review" : cockpitRunMemoryReviewStatus === "archived" ? "archived" : "not drafted"}
+                        </ToneBadge>
+                        <ApexCockpitControlButton className="px-2" disabled={!canTrustCockpitRunMemory} onClick={() => reviewCockpitRunMemory("approved")} active={cockpitRunMemoryReviewBusy === "approved"} title="Trust reviewed Apex run memory from mobile">
+                          <Icon name="database" /> {cockpitRunMemoryReviewBusy === "approved" ? "Trusting" : "Trust Memory"}
+                        </ApexCockpitControlButton>
+                        <ApexCockpitControlButton className="px-2" disabled={!canTrustCockpitRunMemory} onClick={() => reviewCockpitRunMemory("archived")} active={cockpitRunMemoryReviewBusy === "archived"} title="Archive suggested Apex run memory from mobile">
+                          <Icon name="inbox" /> {cockpitRunMemoryReviewBusy === "archived" ? "Archiving" : "Archive"}
+                        </ApexCockpitControlButton>
+                      </div>
+                    </div>
+                    <p className="line-clamp-2 min-w-0 break-words text-[9px] font-bold leading-4 text-cyan-100">
+                      {cockpitRunMemoryReviewRow?.detail
+                        || (cockpitActiveRun.status === "done"
+                          ? "Apex has a completed run, but no matching suggested memory is loaded in this cockpit yet."
+                          : "Report done to draft suggested run memory for manual trust or archive review.")}
+                    </p>
+                    <p className="line-clamp-2 min-w-0 break-words rounded-md border border-orange-300/12 bg-orange-500/8 px-2 py-1.5 text-[9px] font-bold leading-4 text-orange-100">
+                      {cockpitRunMemoryReviewNoticeText}
+                    </p>
+                  </div>
+                ) : null}
                 <div className="grid min-w-0 gap-2 rounded-md border border-cyan-200/10 bg-slate-950/52 px-2.5 py-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center" aria-label="Apex live voice health">
                   <div className="min-w-0">
                     <p className="text-[9px] font-black uppercase tracking-[0.12em] text-cyan-300">Voice Health</p>
@@ -7745,6 +7922,36 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                               </div>
                             ))}
                           </div>
+                        </div>
+                        <div className="grid min-w-0 gap-2 rounded-md border border-cyan-300/14 bg-cyan-400/8 p-2.5" aria-label="Apex run memory review">
+                          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="min-w-0">
+                              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Run Memory Review</p>
+                              <p className="mt-0.5 min-w-0 break-words text-xs font-black text-slate-100">
+                                {cockpitRunMemoryReviewRow?.title || (cockpitActiveRun.status === "done" ? "Run result memory needs review" : "Report done to draft run memory")}
+                              </p>
+                              <p className="mt-0.5 min-w-0 break-words text-[10px] font-bold leading-4 text-cyan-100">
+                                {cockpitRunMemoryReviewRow?.detail
+                                  || (cockpitActiveRun.status === "done"
+                                    ? "Apex has a completed run, but no matching suggested memory is loaded in this cockpit yet."
+                                    : "When this run is reported done, Apex drafts suggested run memory here for manual trust or archive review.")}
+                              </p>
+                            </div>
+                            <div className="flex shrink-0 flex-wrap items-center gap-1.5 sm:justify-end">
+                              <ToneBadge tone={cockpitRunMemoryReviewRow?.tone || (cockpitRunMemoryReviewStatus === "missing" ? "amber" : "slate")}>
+                                {cockpitRunMemoryReviewStatus === "approved" ? "trusted" : cockpitRunMemoryReviewStatus === "suggested" ? "review" : cockpitRunMemoryReviewStatus === "archived" ? "archived" : "not drafted"}
+                              </ToneBadge>
+                              <ApexCockpitControlButton className="px-2" disabled={!canTrustCockpitRunMemory} onClick={() => reviewCockpitRunMemory("approved")} active={cockpitRunMemoryReviewBusy === "approved"} title="Trust reviewed Apex run memory">
+                                <Icon name="database" /> {cockpitRunMemoryReviewBusy === "approved" ? "Trusting" : "Trust Memory"}
+                              </ApexCockpitControlButton>
+                              <ApexCockpitControlButton className="px-2" disabled={!canTrustCockpitRunMemory} onClick={() => reviewCockpitRunMemory("archived")} active={cockpitRunMemoryReviewBusy === "archived"} title="Archive suggested Apex run memory">
+                                <Icon name="inbox" /> {cockpitRunMemoryReviewBusy === "archived" ? "Archiving" : "Archive"}
+                              </ApexCockpitControlButton>
+                            </div>
+                          </div>
+                          <p className="min-w-0 break-words rounded-md border border-orange-300/12 bg-orange-500/8 px-2.5 py-2 text-[10px] font-bold leading-4 text-orange-100">
+                            {cockpitRunMemoryReviewNoticeText}
+                          </p>
                         </div>
                         <div className="grid min-w-0 gap-1.5 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
                           <ApexCockpitControlButton className="px-2" disabled={Boolean(cockpitUpdatingRun) || cockpitActiveRun.status === "done" || cockpitActiveRun.status === "archived" || cockpitActiveRun.status === "blocked"} onClick={() => cycleCockpitActiveRunPrivately()} active={cockpitUpdatingRun === `cycle-${cockpitActiveRun.id}`} title="Run the private operator cycle and stop at manual review">

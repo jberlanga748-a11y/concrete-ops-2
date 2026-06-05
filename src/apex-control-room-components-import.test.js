@@ -352,7 +352,11 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /recordCockpitInterruption/);
   assert.match(componentSource, /buildApexCockpitTurnMemoryDraft/);
   assert.match(componentSource, /buildApexCockpitRunMemoryDraft/);
+  assert.match(componentSource, /buildApexCockpitLiveOperatorMemorySnapshot/);
+  assert.match(componentSource, /findApexCockpitRunMemoryReviewRow/);
+  assert.match(componentSource, /reviewCockpitRunMemory/);
   assert.match(componentSource, /redactApexOsMemoryText/);
+  assert.match(componentSource, /summarizeApexOsLiveOperatorMemory/);
   assert.match(componentSource, /Apex answer summary/);
   assert.match(componentSource, /apex-live-operator-turn/);
   assert.match(componentSource, /apex-live-operator-run/);
@@ -361,6 +365,15 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /Suggested run memory/);
   assert.match(componentSource, /manual approval required before trusted memory/);
   assert.match(componentSource, /Apex Live Operator Mode answer; manual approval required before trusted memory/);
+  assert.match(componentSource, /Run Memory Review/);
+  assert.match(componentSource, /Apex run memory review/);
+  assert.match(componentSource, /Apex mobile run memory review/);
+  assert.match(componentSource, /Trust Memory/);
+  assert.match(componentSource, /Archive/);
+  assert.match(componentSource, /Trust reviewed Apex run memory/);
+  assert.match(componentSource, /Trust reviewed Apex run memory from mobile/);
+  assert.match(componentSource, /Memory stays suggested until you trust it/);
+  assert.match(componentSource, /Run memory is trusted/);
   assert.match(componentSource, /Math\.max\(Number\(liveOperatorMode\.jarvisBehaviorPercent \|\| 0\), 92\)/);
   assert.match(componentSource, /Caption barge-in/);
   assert.match(componentSource, /Manual interruption/);
