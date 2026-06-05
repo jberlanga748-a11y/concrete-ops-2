@@ -359,6 +359,144 @@ export function summarizeApexOsAutonomyRunProgress(run = {}) {
   };
 }
 
+const DEFAULT_RUN_HANDBACK_LOCKS = [
+  "No external sends.",
+  "No billing or payment actions.",
+  "No provider, production, deploy, rollback, deletion, queue, run, execute, or irreversible actions.",
+  "Operator review stays required before anything customer-visible changes.",
+];
+
+function compactApexOsAutonomyRunHandbackItems(items = [], fallback = "", { limit = 4, textLimit = 220 } = {}) {
+  const seen = new Set();
+  const rows = [];
+  for (const item of list(items)) {
+    const value = redactApexOsAutonomyRunText(item, textLimit);
+    if (!value || seen.has(value.toLowerCase())) continue;
+    seen.add(value.toLowerCase());
+    rows.push(value);
+    if (rows.length >= limit) break;
+  }
+  if (!rows.length && fallback) rows.push(redactApexOsAutonomyRunText(fallback, textLimit));
+  return rows;
+}
+
+function buildApexOsAutonomyRunHandbackAnswer(handback = {}) {
+  return [
+    `Apex operator handback: ${handback.summary || "Apex is standing by."}`,
+    `What I did: ${(handback.did || []).join(" ") || "No private run work yet."}`,
+    `Proof I have: ${(handback.proof || []).join(" ") || "No evidence attached yet."}`,
+    `What I need: ${(handback.needs || []).join(" ") || "Start a private run or choose the next safe review action."}`,
+    `Still locked: ${(handback.locks || []).join(" ") || DEFAULT_RUN_HANDBACK_LOCKS.join(" ")}`,
+  ].join(" ");
+}
+
+export function buildApexOsAutonomyRunHandback(run = {}, { latestAnswer = "", now = new Date().toISOString() } = {}) {
+  const normalized = run?.id ? normalizeApexOsAutonomyRun(run, { now }) : null;
+  if (!normalized?.id) {
+    const standby = {
+      id: "apex-run-handback-ready",
+      runId: "",
+      title: "No active private run",
+      status: "standing-by",
+      tone: "blue",
+      summary: "Apex has no active private run yet. Start a private run when there is real work for Apex to track, prove, report, and remember.",
+      did: ["Standing by for a private operator run."],
+      proof: ["No run evidence exists yet."],
+      needs: ["Start a private run, ask for options, or load the next safe command."],
+      locks: DEFAULT_RUN_HANDBACK_LOCKS,
+      nextSafeAction: "Start a private run from the Apex body when there is real work to track.",
+      sourceLabels: ["Apex Operator Handback", "Autonomy Run Center"],
+      executionLocked: true,
+      externalActionsLocked: true,
+      canExecute: false,
+    };
+    return {
+      ...standby,
+      answer: buildApexOsAutonomyRunHandbackAnswer(standby),
+    };
+  }
+
+  const progress = summarizeApexOsAutonomyRunProgress(normalized);
+  const steps = list(normalized.steps);
+  const status = rawText(normalized.status || "planned", 80).toLowerCase();
+  const completedStepRows = steps
+    .filter((step) => ["done", "drafted"].includes(String(step?.status || "").toLowerCase()))
+    .slice(-4)
+    .map((step) => `${step.title}: ${step.evidence || step.detail || step.status}.`);
+  const evidenceRows = [
+    ...list(normalized.evidence).slice(-3),
+    normalized.linkedAgentControlRequestId ? `Linked agent-control draft: ${normalized.linkedAgentControlRequestId}.` : "",
+    normalized.linkedExecutionHandoffId ? `Linked execution handoff draft: ${normalized.linkedExecutionHandoffId}.` : "",
+    normalized.resultReport ? `Result report: ${normalized.resultReport}.` : "",
+    latestAnswer ? `Latest answer reviewed: ${latestAnswer}.` : "",
+  ].filter(Boolean);
+  const needRows = [
+    ...list(normalized.blockedReasons),
+    progress.activeStepTitle && status !== "done"
+      ? `${progress.activeStepTitle}: ${progress.activeStepDetail || normalized.nextSafeAction || "Review the active step."}`
+      : "",
+    status === "waiting-approval"
+      ? "Manual review is needed before any gated approval, report, customer-visible, money, provider, or production action."
+      : "",
+    status === "blocked"
+      ? "Operator review is needed to resolve the blocker, adjust the request, or keep this run blocked."
+      : "",
+    status === "done"
+      ? "Review the result report and suggested memory before trusting it long term."
+      : "",
+    !normalized.resultReport && status === "done"
+      ? "A completed run still needs a result report before it can be trusted."
+      : "",
+  ].filter(Boolean);
+  const locks = compactApexOsAutonomyRunHandbackItems(
+    list(normalized.blockedActions).length ? normalized.blockedActions : DEFAULT_RUN_HANDBACK_LOCKS,
+    DEFAULT_RUN_HANDBACK_LOCKS[0],
+    { limit: 4, textLimit: 240 },
+  );
+  const progressLabel = progress.totalCount
+    ? `${progress.doneCount} of ${progress.totalCount} steps`
+    : "0 steps";
+  const statusLabel = status.replace(/-/g, " ") || "planned";
+  const summary = status === "done"
+    ? `Apex has reported ${normalized.title} complete with ${progressLabel} handled. Review the result and suggested memory before trusting it.`
+    : `Apex has ${progressLabel} handled on ${normalized.title} and is ${statusLabel}. Next safe action: ${normalized.nextSafeAction || "review the run ledger"}.`;
+  const handback = {
+    id: `apex-run-handback-${normalized.id}`,
+    runId: normalized.id,
+    title: normalized.title,
+    status,
+    tone: statusTone(status),
+    summary: redactApexOsAutonomyRunText(summary, 520),
+    did: compactApexOsAutonomyRunHandbackItems(
+      completedStepRows,
+      `Captured the request and created a review-first run ledger for ${normalized.title}.`,
+      { limit: 4, textLimit: 240 },
+    ),
+    proof: compactApexOsAutonomyRunHandbackItems(
+      evidenceRows,
+      "No evidence is attached yet. Draft internal work or run proof before trusting the result.",
+      { limit: 5, textLimit: 260 },
+    ),
+    needs: compactApexOsAutonomyRunHandbackItems(
+      needRows,
+      normalized.nextSafeAction || "Review the active run and choose the next safe action.",
+      { limit: 4, textLimit: 260 },
+    ),
+    locks,
+    nextSafeAction: normalized.nextSafeAction || "Review the run ledger.",
+    progress,
+    sourceLabels: ["Apex Operator Handback", "Autonomy Run Center", normalized.sourceLabel || "Active run session"],
+    executionLocked: true,
+    externalActionsLocked: true,
+    canExecute: false,
+  };
+
+  return {
+    ...handback,
+    answer: buildApexOsAutonomyRunHandbackAnswer(handback),
+  };
+}
+
 export function buildApexOsAutonomyRunHeartbeat(run = {}, { now = new Date().toISOString(), pulse = {} } = {}) {
   const normalized = run?.id ? normalizeApexOsAutonomyRun(run, { now }) : null;
   if (!normalized?.id) {

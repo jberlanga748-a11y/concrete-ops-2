@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   advanceApexOsAutonomyRunPrivatePrep,
   buildApexOsAutonomyRunHeartbeat,
+  buildApexOsAutonomyRunHandback,
   buildApexOsAutonomyRunProactiveCheckIn,
   buildApexOsAutonomyRunProactiveMemoryDraft,
   buildApexOsAutonomyRunPlan,
@@ -338,6 +339,81 @@ test("builds a live session heartbeat without enabling execution", () => {
   assert.equal(heartbeat.externalActionsLocked, true);
   assert.equal(heartbeat.canExecute, false);
   assert.match(heartbeat.recommendation, /Review evidence/i);
+});
+
+test("builds an operator handback from a private run without enabling execution", () => {
+  const run = runApexOsAutonomyRunPrivateOperatorCycle(markApexOsAutonomyRunInternalDrafted(buildApexOsAutonomyRunPlan({
+    title: "Handback run",
+    request: "Give me a Jarvis-style report on this run.",
+    routeLabel: "Apex",
+  }, {
+    id: "AAR-HANDBACK",
+    now: "2026-06-05T10:00:00.000Z",
+    createdBy: "U-1",
+  }), {
+    agentControlRequestId: "AAC-HANDBACK",
+    executionHandoffId: "AEH-HANDBACK",
+    now: "2026-06-05T10:01:00.000Z",
+  }), {
+    now: "2026-06-05T10:04:00.000Z",
+  });
+
+  const handback = buildApexOsAutonomyRunHandback(run, {
+    latestAnswer: "Apex prepared internal proof and stopped for review.",
+    now: "2026-06-05T10:05:00.000Z",
+  });
+
+  assert.equal(handback.runId, "AAR-HANDBACK");
+  assert.equal(handback.status, "waiting-approval");
+  assert.equal(handback.tone, "amber");
+  assert.match(handback.summary, /5 of 7 steps/i);
+  assert.ok(handback.did.some((item) => /Validate evidence|Draft internal work/i.test(item)));
+  assert.ok(handback.proof.some((item) => /AAC-HANDBACK|AEH-HANDBACK|private operator cycle/i.test(item)));
+  assert.ok(handback.needs.some((item) => /Manual review|Stop at approval gates/i.test(item)));
+  assert.ok(handback.locks.some((item) => /No billing|No queue, run, execute/i.test(item)));
+  assert.match(handback.answer, /Apex operator handback/i);
+  assert.equal(handback.executionLocked, true);
+  assert.equal(handback.externalActionsLocked, true);
+  assert.equal(handback.canExecute, false);
+});
+
+test("operator handback stands by when no private run is active", () => {
+  const handback = buildApexOsAutonomyRunHandback(null, {
+    now: "2026-06-05T10:05:00.000Z",
+  });
+
+  assert.equal(handback.status, "standing-by");
+  assert.equal(handback.tone, "blue");
+  assert.match(handback.summary, /no active private run/i);
+  assert.deepEqual(handback.sourceLabels, ["Apex Operator Handback", "Autonomy Run Center"]);
+  assert.equal(handback.executionLocked, true);
+  assert.equal(handback.canExecute, false);
+});
+
+test("operator handback redacts unsafe run evidence", () => {
+  const run = normalizeApexOsAutonomyRun({
+    id: "AAR-HANDBACK-UNSAFE",
+    title: "Unsafe handback",
+    request: "Review portal password sample-value.",
+    sourceLabel: "Run Center",
+    status: "validating",
+    evidence: ["Use password sample-value to check the portal."],
+    blockedActions: ["No provider login with password sample-value."],
+  }, {
+    now: "2026-06-05T10:00:00.000Z",
+  });
+
+  const handback = buildApexOsAutonomyRunHandback(run, {
+    latestAnswer: "Password sample-value was refused.",
+    now: "2026-06-05T10:05:00.000Z",
+  });
+
+  assert.doesNotMatch(handback.summary, /sample-value/i);
+  assert.match(handback.proof.join(" "), /\[REDACTED\]/);
+  assert.match(handback.locks.join(" "), /\[REDACTED\]/);
+  assert.match(handback.answer, /\[REDACTED\]/);
+  assert.doesNotMatch(handback.answer, /sample-value/i);
+  assert.equal(handback.executionLocked, true);
 });
 
 test("heartbeat stands by when no private run is active", () => {

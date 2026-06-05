@@ -38,6 +38,7 @@ import { redactApexOsMemoryText } from "../shared/apexOsMemory.js";
 import {
   advanceApexOsAutonomyRunPrivatePrep,
   buildApexOsAutonomyRunHeartbeat,
+  buildApexOsAutonomyRunHandback,
   buildApexOsAutonomyRunProactiveCheckIn,
   buildApexOsAutonomyRunProactiveMemoryDraft,
   runApexOsAutonomyRunPrivateOperatorCycle,
@@ -4893,6 +4894,11 @@ function buildApexCockpitProactiveCheckInText(checkIn = {}) {
   return "Apex proactive check-in: I am watching the live run heartbeat and will surface meaningful changes here. Execution, sends, billing, provider work, production changes, deletion, deploy, rollback, and irreversible actions stay locked.";
 }
 
+function buildApexCockpitRunHandbackText(handback = {}) {
+  if (handback?.answer) return handback.answer;
+  return "Apex operator handback: no active private run is live. Start a private run when there is real work to track. Execution, sends, billing, provider work, production changes, deletion, deploy, rollback, and irreversible actions stay locked.";
+}
+
 function normalizeApexCockpitFollowUpPrompt(prompt = {}) {
   return {
     id: String(prompt.id || `follow-up-${prompt.label || "prompt"}`).trim(),
@@ -5315,6 +5321,11 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     ? Math.max(Number(liveOperatorMode.jarvisBehaviorPercent || 0), 92)
     : Number(liveOperatorMode.jarvisBehaviorPercent || 0);
   const cockpitAnswerText = resolveApexCockpitAnswerText(cockpitResponse);
+  const cockpitActiveRunHandback = buildApexOsAutonomyRunHandback(cockpitActiveRun, {
+    latestAnswer: cockpitAnswerText,
+    now: new Date().toISOString(),
+  });
+  const cockpitActiveRunHandbackText = buildApexCockpitRunHandbackText(cockpitActiveRunHandback);
   const cockpitFollowUpPrompts = buildApexCockpitFollowUpPrompts({
     answerText: cockpitAnswerText,
     route: cockpitCommandRoute,
@@ -6071,6 +6082,33 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       ...current,
     ].slice(0, 5));
     if (speak) speakCockpitAnswer(cockpitSessionHeartbeatText);
+  }
+
+  function deliverCockpitRunHandback({ speak = false } = {}) {
+    const route = buildApexCockpitCommandRoute("Give me the active run handback", { previousRoute: cockpitCommandRoute });
+    const handback = cockpitActiveRunHandback;
+    const answer = cockpitActiveRunHandbackText;
+    setCockpitCommandRoute(route);
+    setCockpitError("");
+    setCockpitResponse({
+      answer: {
+        answer,
+        sourceLabels: handback.sourceLabels || ["Apex Operator Handback", "Autonomy Run Center", "Active run session"],
+      },
+    });
+    setCockpitLastQuestion("Operator handback");
+    setCockpitVoiceNotice("Apex operator handback is ready. Execution stayed locked.");
+    setCockpitTurns((current) => [
+      {
+        id: `cockpit-handback-${Date.now()}`,
+        question: handback.title || "Operator handback",
+        source: "handback",
+        routeLabel: route.label,
+        status: handback.status || "reviewed",
+      },
+      ...current,
+    ].slice(0, 5));
+    if (speak) speakCockpitAnswer(answer);
   }
 
   function deliverCockpitProactiveCheckIn({ speak = false } = {}) {
@@ -7322,7 +7360,12 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                             : "Start a Live Run and Apex will track steps, evidence, linked drafts, status, and result report here."}
                         </p>
                       </div>
-                      <ToneBadge tone={apexCockpitRunStatusTone(cockpitActiveRun?.status)}>{cockpitActiveRun?.status || "ready"}</ToneBadge>
+                      <div className="flex shrink-0 flex-wrap items-center gap-1.5 sm:justify-end">
+                        <ApexCockpitControlButton className="px-2" disabled={false} onClick={() => deliverCockpitRunHandback({ speak: true })} active={false} title="Speak Apex operator handback">
+                          <Icon name="phone" /> Speak Handback
+                        </ApexCockpitControlButton>
+                        <ToneBadge tone={apexCockpitRunStatusTone(cockpitActiveRun?.status)}>{cockpitActiveRun?.status || "ready"}</ToneBadge>
+                      </div>
                     </div>
                     {cockpitActiveRun ? (
                       <>
@@ -7345,6 +7388,32 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                             <p className="mt-0.5 line-clamp-2 text-[10px] font-bold leading-4 text-slate-500">
                               {cockpitActiveRun.linkedExecutionHandoffId || cockpitActiveRun.linkedAgentControlRequestId || cockpitActiveRun.evidence?.[0] || "Draft internal work to attach handoff evidence."}
                             </p>
+                          </div>
+                        </div>
+                        <div className="grid min-w-0 gap-2 rounded-md border border-orange-300/16 bg-orange-500/8 p-2.5" aria-label="Apex operator handback">
+                          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="min-w-0">
+                              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-orange-300">Operator Handback</p>
+                              <p className="mt-0.5 min-w-0 break-words text-[10px] font-bold leading-4 text-orange-100">{cockpitActiveRunHandback.summary}</p>
+                            </div>
+                            <ToneBadge tone={cockpitActiveRunHandback.tone || "amber"}>{cockpitActiveRunHandback.status || "review"}</ToneBadge>
+                          </div>
+                          <div className="grid min-w-0 gap-1.5 sm:grid-cols-2 xl:grid-cols-4">
+                            {[
+                              { label: "What I Did", rows: cockpitActiveRunHandback.did || [], tone: "green" },
+                              { label: "Proof I Have", rows: cockpitActiveRunHandback.proof || [], tone: "blue" },
+                              { label: "What I Need", rows: cockpitActiveRunHandback.needs || [], tone: "amber" },
+                              { label: "Still Locked", rows: cockpitActiveRunHandback.locks || [], tone: "slate" },
+                            ].map((item) => (
+                              <div key={item.label} className="min-w-0 rounded-md border border-slate-800 bg-slate-950/56 px-2.5 py-2">
+                                <p className={`text-[8px] font-black uppercase tracking-[0.08em] ${item.tone === "green" ? "text-emerald-300" : item.tone === "amber" ? "text-orange-300" : item.tone === "blue" ? "text-cyan-300" : "text-slate-400"}`}>{item.label}</p>
+                                <div className="mt-1 grid min-w-0 gap-1">
+                                  {(item.rows.length ? item.rows : ["Review the active run."]).slice(0, 4).map((row, index) => (
+                                    <p key={`${item.label}-${index}`} className="min-w-0 break-words text-[9px] font-bold leading-4 text-slate-400">{row}</p>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         </div>
                         <div className="grid min-w-0 gap-1.5 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
