@@ -12,6 +12,10 @@ const SECRET_PATTERNS = [
   /\b(password|passcode|api[_ -]?key|secret[a-z0-9_-]*|token|bearer|cookie|session|mfa|captcha|paywall|portal credential|login)\b/gi,
   /\bsk-[a-z0-9_-]{12,}\b/gi,
 ];
+const SECRET_VALUE_PATTERNS = [
+  /\b(password|passcode|api[_ -]?key|secret[a-z0-9_-]*|token|bearer|cookie|mfa|captcha|portal credential)\s*[:=]?\s*[^\s,;.]+/gi,
+  /\bsk-[a-z0-9_-]{12,}\b/gi,
+];
 const EMAIL_PATTERN = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
 
 function rawText(value = "", limit = TEXT_LIMIT) {
@@ -36,9 +40,13 @@ function parseRunList(value) {
 export function redactApexOsAutonomyRunText(value = "", limit = TEXT_LIMIT) {
   let next = rawText(value, limit);
   next = next.replace(EMAIL_PATTERN, "[REDACTED]");
+  for (const pattern of SECRET_VALUE_PATTERNS) {
+    next = next.replace(pattern, "[REDACTED]");
+  }
   for (const pattern of SECRET_PATTERNS) {
     next = next.replace(pattern, "[REDACTED]");
   }
+  for (const pattern of SECRET_VALUE_PATTERNS) pattern.lastIndex = 0;
   return next.slice(0, limit);
 }
 
@@ -513,6 +521,43 @@ export function buildApexOsAutonomyRunProactiveCheckIn(previousHeartbeat = null,
     executionLocked: true,
     externalActionsLocked: true,
     canExecute: false,
+  };
+}
+
+export function buildApexOsAutonomyRunProactiveMemoryDraft(checkIn = {}, heartbeat = {}, { now = new Date().toISOString() } = {}) {
+  if (!checkIn?.shouldSurface) return null;
+  const title = redactApexOsAutonomyRunText(checkIn.title || "Apex proactive live-run check-in", TITLE_LIMIT);
+  const detail = redactApexOsAutonomyRunText(checkIn.detail || heartbeat.detail || "Apex surfaced a meaningful private live-run change.", 700);
+  const recommendation = redactApexOsAutonomyRunText(checkIn.recommendation || heartbeat.recommendation || "Review this suggested memory before trusting it.", 360);
+  const answer = redactApexOsAutonomyRunText(checkIn.answer || "", 700);
+  const trigger = redactApexOsAutonomyRunText(checkIn.trigger || "proactive-check-in", 80);
+  const runId = redactApexOsAutonomyRunText(heartbeat.runId || checkIn.runId || "standby", 80);
+  const signatureKey = rawText(checkIn.signature || `${trigger}-${runId}-${now}`, 180)
+    .replace(/[^a-z0-9_-]+/gi, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120) || "check-in";
+
+  return {
+    category: "decision",
+    title: redactApexOsAutonomyRunText(`Apex proactive check-in: ${title}`, TITLE_LIMIT),
+    body: redactApexOsAutonomyRunText([
+      `Run: ${redactApexOsAutonomyRunText(heartbeat.title || title || "Apex private run", 180)}`,
+      `Trigger: ${trigger}`,
+      `Status: ${redactApexOsAutonomyRunText(checkIn.status || heartbeat.status || "New check-in", 80)}`,
+      `Progress: ${redactApexOsAutonomyRunText(heartbeat.progressLabel || "Progress not captured", 100)}`,
+      `Current step: ${redactApexOsAutonomyRunText(heartbeat.currentStep || "Review run", 140)}`,
+      `Detail: ${detail}`,
+      `Recommendation: ${recommendation}`,
+      answer ? `Apex said: ${answer}` : "",
+      `Checked at: ${redactApexOsAutonomyRunText(checkIn.checkedAt || now, 80)}`,
+      "Safety: Suggested memory only; no execution, sends, billing, provider work, production change, deletion, deploy, rollback, or irreversible action occurred.",
+    ].filter(Boolean).join(" "), TEXT_LIMIT),
+    sourceType: "apex-live-operator-proactive-check-in",
+    sourceLabel: "Apex Proactive Check-In",
+    sourceUri: `apex-life://proactive-check-in/${runId}/${signatureKey}`,
+    status: "suggested",
+    reviewNote: "Suggested from a surfaced Apex proactive check-in; manual approval required before trusted memory.",
+    confidence: 74,
   };
 }
 

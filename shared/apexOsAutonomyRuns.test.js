@@ -5,6 +5,7 @@ import {
   advanceApexOsAutonomyRunPrivatePrep,
   buildApexOsAutonomyRunHeartbeat,
   buildApexOsAutonomyRunProactiveCheckIn,
+  buildApexOsAutonomyRunProactiveMemoryDraft,
   buildApexOsAutonomyRunPlan,
   getApexOsAutonomyRunMissingFields,
   isApexOsAutonomyRunReady,
@@ -443,6 +444,70 @@ test("proactive check-in does not resurface unchanged heartbeat signatures", () 
   assert.equal(checkIn.shouldSurface, false);
   assert.equal(checkIn.trigger, "watching");
   assert.equal(checkIn.signature, `watching|${heartbeat.signature}|${heartbeat.signature}`);
+});
+
+test("proactive memory draft is only created for surfaced check-ins", () => {
+  const heartbeat = buildApexOsAutonomyRunHeartbeat(null, {
+    now: "2026-06-05T10:31:00.000Z",
+  });
+  const quietCheckIn = buildApexOsAutonomyRunProactiveCheckIn(null, heartbeat, {
+    now: "2026-06-05T10:31:10.000Z",
+  });
+
+  assert.equal(buildApexOsAutonomyRunProactiveMemoryDraft(quietCheckIn, heartbeat), null);
+});
+
+test("proactive memory draft stays suggested and source-backed", () => {
+  const run = buildApexOsAutonomyRunPlan({
+    title: "Memory live run",
+    request: "Remember meaningful progress changes.",
+    routeLabel: "Apex",
+  }, {
+    id: "AAR-PROACTIVE-MEMORY",
+    now: "2026-06-05T10:00:00.000Z",
+    createdBy: "U-1",
+  });
+  const heartbeat = buildApexOsAutonomyRunHeartbeat(run, {
+    now: "2026-06-05T10:03:00.000Z",
+  });
+  const checkIn = buildApexOsAutonomyRunProactiveCheckIn(null, heartbeat, {
+    now: "2026-06-05T10:03:10.000Z",
+  });
+  const draft = buildApexOsAutonomyRunProactiveMemoryDraft(checkIn, heartbeat, {
+    now: "2026-06-05T10:03:11.000Z",
+  });
+
+  assert.equal(draft.category, "decision");
+  assert.equal(draft.status, "suggested");
+  assert.equal(draft.sourceType, "apex-live-operator-proactive-check-in");
+  assert.equal(draft.sourceLabel, "Apex Proactive Check-In");
+  assert.match(draft.sourceUri, /^apex-life:\/\/proactive-check-in\/AAR-PROACTIVE-MEMORY\//);
+  assert.match(draft.body, /manual approval required|Suggested memory only|no execution/i);
+  assert.match(draft.body, /Memory live run/i);
+});
+
+test("proactive memory draft redacts unsafe run text", () => {
+  const draft = buildApexOsAutonomyRunProactiveMemoryDraft({
+    shouldSurface: true,
+    runId: "AAR-UNSAFE-MEMORY",
+    title: "Portal password review",
+    status: "New check-in",
+    trigger: "attention-status",
+    detail: "Use password sample-value for a portal.",
+    recommendation: "Do not store the password.",
+    answer: "Apex noticed password sample-value and refused to trust it.",
+    checkedAt: "2026-06-05T10:03:10.000Z",
+    signature: "unsafe-signature",
+  }, {
+    runId: "AAR-UNSAFE-MEMORY",
+    title: "Portal password review",
+    progressLabel: "20% / 1 of 5",
+    currentStep: "Review password",
+  });
+
+  assert.match(draft.title, /\[REDACTED\]/);
+  assert.match(draft.body, /\[REDACTED\]/);
+  assert.doesNotMatch(draft.body, /sample-value/i);
 });
 
 test("normalizes durable run lists and redacts unsafe text", () => {

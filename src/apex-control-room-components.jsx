@@ -39,6 +39,7 @@ import {
   advanceApexOsAutonomyRunPrivatePrep,
   buildApexOsAutonomyRunHeartbeat,
   buildApexOsAutonomyRunProactiveCheckIn,
+  buildApexOsAutonomyRunProactiveMemoryDraft,
   runApexOsAutonomyRunPrivateOperatorCycle,
   validateApexOsAutonomyRunPrivateProof,
 } from "../shared/apexOsAutonomyRuns.js";
@@ -4991,6 +4992,10 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const [cockpitLivePulseBusy, setCockpitLivePulseBusy] = useState(false);
   const [cockpitLivePulseError, setCockpitLivePulseError] = useState("");
   const [cockpitProactiveCheckIn, setCockpitProactiveCheckIn] = useState(null);
+  const [cockpitProactiveMemoryNotice, setCockpitProactiveMemoryNotice] = useState("");
+  const [cockpitProactiveMemoryBusy, setCockpitProactiveMemoryBusy] = useState(false);
+  const [cockpitProactiveMemoryIds, setCockpitProactiveMemoryIds] = useState({});
+  const [cockpitProactiveMemoryCount, setCockpitProactiveMemoryCount] = useState(0);
   const [cockpitMicPermissionState, setCockpitMicPermissionState] = useState("unknown");
   const [cockpitVoiceWakeAttempted, setCockpitVoiceWakeAttempted] = useState(false);
   const [cockpitBrowserTranscript, setCockpitBrowserTranscript] = useState("");
@@ -5033,6 +5038,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const cockpitDiscardNextCaptureRef = useRef(false);
   const cockpitLastHeartbeatRef = useRef(null);
   const cockpitLastProactiveSignatureRef = useRef("");
+  const cockpitProactiveMemorySavingRef = useRef(false);
   const approvalRows = (state.approvalCommandCenter?.queueRows || []).slice(0, 4);
   const agentRows = (state.agentControlPlane?.rosterRows || []).slice(0, 4);
   const boundaryRows = [
@@ -5090,6 +5096,13 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     now: new Date().toISOString(),
   });
   const cockpitProactiveCheckInText = buildApexCockpitProactiveCheckInText(cockpitVisibleProactiveCheckIn);
+  const cockpitProactiveMemorySignature = cockpitVisibleProactiveCheckIn?.signature || "";
+  const cockpitVisibleProactiveMemoryId = cockpitProactiveMemoryIds[cockpitProactiveMemorySignature] || "";
+  const canDraftCockpitProactiveMemory = state.canView
+    && Boolean(sessionToken)
+    && Boolean(cockpitVisibleProactiveCheckIn?.shouldSurface)
+    && !cockpitVisibleProactiveMemoryId
+    && !cockpitProactiveMemoryBusy;
   const cockpitOperatorJudgmentRows = buildApexCockpitOperatorJudgmentRows({
     state,
     pulse: cockpitLivePulse,
@@ -5301,6 +5314,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       },
       ...current,
     ].slice(0, 5));
+    void saveCockpitProactiveCheckInMemory(checkIn, { automatic: true });
   }, [state.canView, cockpitSessionHeartbeat.signature, cockpitLivePulse?.checkedAt]);
 
   useEffect(() => {
@@ -5830,6 +5844,66 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       ...current,
     ].slice(0, 5));
     if (speak) speakCockpitAnswer(answer);
+  }
+
+  async function saveCockpitProactiveCheckInMemory(checkIn = cockpitVisibleProactiveCheckIn, { automatic = false } = {}) {
+    const signature = checkIn?.signature || "";
+    if (!state.canView || !sessionToken || !checkIn?.shouldSurface) {
+      if (!automatic) setCockpitProactiveMemoryNotice("Only surfaced proactive check-ins become suggested memory.");
+      return null;
+    }
+    if (signature && cockpitProactiveMemoryIds[signature]) {
+      if (!automatic) setCockpitProactiveMemoryNotice("This proactive check-in is already captured as suggested memory.");
+      return null;
+    }
+    if (cockpitProactiveMemorySavingRef.current) return null;
+    const memoryDraft = buildApexOsAutonomyRunProactiveMemoryDraft(checkIn, cockpitSessionHeartbeat, {
+      now: new Date().toISOString(),
+    });
+    if (!memoryDraft) {
+      if (!automatic) setCockpitProactiveMemoryNotice("Apex is still watching. No meaningful check-in is ready for memory yet.");
+      return null;
+    }
+
+    cockpitProactiveMemorySavingRef.current = true;
+    setCockpitProactiveMemoryBusy(true);
+    setCockpitProactiveMemoryNotice(automatic
+      ? "Drafting suggested memory from the proactive check-in."
+      : "Drafting suggested proactive memory. It stays untrusted until reviewed.");
+    try {
+      const payload = await createApexOsMemory(sessionToken, memoryDraft);
+      const created = payload?.apexOsMemoryEntry;
+      const memoryId = created?.id || "suggested";
+      setCockpitProactiveMemoryIds((current) => ({ ...current, [signature || memoryDraft.sourceUri]: memoryId }));
+      setCockpitProactiveMemoryCount((current) => current + 1);
+      const notice = created?.id
+        ? `Suggested proactive memory ${created.id} drafted for manual review.`
+        : "Suggested proactive memory drafted for manual review.";
+      setCockpitProactiveMemoryNotice(notice);
+      setCockpitAgentActionNotice(`${notice} It is not trusted automatically.`);
+      setCockpitTurns((current) => [
+        {
+          id: `cockpit-proactive-memory-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          question: `Suggested memory saved: ${created?.title || memoryDraft.title}`,
+          source: "memory",
+          routeLabel: "Memory",
+          status: "suggested",
+        },
+        ...current,
+      ].slice(0, 5));
+      return created || null;
+    } catch (error) {
+      if (error?.status === 409) {
+        setCockpitProactiveMemoryIds((current) => ({ ...current, [signature || memoryDraft.sourceUri]: "duplicate" }));
+        setCockpitProactiveMemoryNotice("Suggested proactive memory already exists for this check-in.");
+      } else {
+        setCockpitProactiveMemoryNotice(error?.message || "Suggested proactive memory could not be saved.");
+      }
+      return null;
+    } finally {
+      cockpitProactiveMemorySavingRef.current = false;
+      setCockpitProactiveMemoryBusy(false);
+    }
   }
 
   function loadCockpitFollowUpPrompt(prompt = {}) {
@@ -6910,15 +6984,21 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                         <p className="mt-0.5 min-w-0 break-words text-xs font-black text-slate-100">{cockpitVisibleProactiveCheckIn.title || "Apex is watching the live run"}</p>
                         <p className="mt-0.5 min-w-0 break-words text-[10px] font-bold leading-4 text-slate-500">{cockpitVisibleProactiveCheckIn.detail || "Apex will surface meaningful live-run changes here."}</p>
                       </div>
-                      <ApexCockpitControlButton className="shrink-0 px-2" disabled={false} onClick={() => deliverCockpitProactiveCheckIn({ speak: true })} active={false} title="Speak Apex proactive check-in">
-                        <Icon name="phone" /> Speak Latest
-                      </ApexCockpitControlButton>
+                      <div className="flex shrink-0 flex-wrap gap-1.5">
+                        <ApexCockpitControlButton className="px-2" disabled={false} onClick={() => deliverCockpitProactiveCheckIn({ speak: true })} active={false} title="Speak Apex proactive check-in">
+                          <Icon name="phone" /> Speak Latest
+                        </ApexCockpitControlButton>
+                        <ApexCockpitControlButton className="px-2" disabled={!canDraftCockpitProactiveMemory} onClick={() => saveCockpitProactiveCheckInMemory(cockpitVisibleProactiveCheckIn)} active={cockpitProactiveMemoryBusy} title="Draft suggested memory from this proactive check-in">
+                          <Icon name="database" /> {cockpitProactiveMemoryBusy ? "Saving" : "Draft Memory"}
+                        </ApexCockpitControlButton>
+                      </div>
                     </div>
-                    <div className="grid min-w-0 gap-1.5 sm:grid-cols-4">
+                    <div className="grid min-w-0 gap-1.5 sm:grid-cols-5">
                       {[
                         { label: "Status", value: cockpitVisibleProactiveCheckIn.status || "Watching", tone: cockpitVisibleProactiveCheckIn.shouldSurface ? "green" : "slate" },
                         { label: "Trigger", value: cockpitVisibleProactiveCheckIn.trigger || "watching", tone: cockpitVisibleProactiveCheckIn.shouldSurface ? "green" : "blue" },
                         { label: "Surface", value: cockpitVisibleProactiveCheckIn.shouldSurface ? "New" : "Quiet", tone: cockpitVisibleProactiveCheckIn.shouldSurface ? "amber" : "slate" },
+                        { label: "Memory", value: cockpitVisibleProactiveMemoryId ? "Drafted" : cockpitVisibleProactiveCheckIn.shouldSurface ? "Suggested" : "Quiet", tone: cockpitVisibleProactiveMemoryId ? "green" : cockpitVisibleProactiveCheckIn.shouldSurface ? "amber" : "slate" },
                         { label: "Execution", value: cockpitVisibleProactiveCheckIn.executionLocked ? "Locked" : "Open", tone: cockpitVisibleProactiveCheckIn.executionLocked ? "amber" : "red" },
                       ].map((item) => (
                         <div key={item.label} className="min-w-0 rounded-md border border-slate-800 bg-slate-900/48 px-2.5 py-2">
@@ -6928,6 +7008,11 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                       ))}
                     </div>
                     <p className="min-w-0 break-words rounded-md border border-orange-200/10 bg-orange-500/8 px-2.5 py-2 text-[10px] font-bold leading-4 text-orange-100">{cockpitVisibleProactiveCheckIn.recommendation || "Keep monitoring. Execution remains locked."}</p>
+                    <p className="min-w-0 break-words rounded-md border border-cyan-200/10 bg-cyan-500/8 px-2.5 py-2 text-[10px] font-bold leading-4 text-cyan-100">
+                      {cockpitProactiveMemoryNotice || (cockpitProactiveMemoryCount
+                        ? `${cockpitProactiveMemoryCount} proactive check-in memory draft${cockpitProactiveMemoryCount === 1 ? "" : "s"} created this session; manual approval is still required.`
+                        : "Surfaced check-ins can draft suggested memory, but nothing becomes trusted until you review it.")}
+                    </p>
                   </div>
                   <div className="grid min-w-0 gap-2 rounded-md border border-cyan-200/10 bg-slate-950/48 p-2.5" aria-label="Active Apex run session">
                     <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">

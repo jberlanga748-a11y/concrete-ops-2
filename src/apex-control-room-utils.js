@@ -2327,7 +2327,7 @@ function buildApexLiveOperatorModeState({
       id: "live-memory",
       title: "Run memory",
       status: trustedMemoryCount ? `${trustedMemoryCount} trusted` : "Memory ready",
-      detail: "Apex body turns and finished run outcomes can draft suggested memory after report-back review; no hidden memory becomes trusted automatically.",
+      detail: "Apex body turns, finished run outcomes, and surfaced proactive check-ins can draft suggested memory for review; no hidden memory becomes trusted automatically.",
       tone: trustedMemoryCount ? "green" : "blue",
     },
   ], {
@@ -2350,8 +2350,8 @@ function buildApexLiveOperatorModeState({
     { id: "live-loop-proof-check", title: "Proof check", status: "Private proof", detail: "Apex can verify linked drafts, route and plan evidence, validation readiness, and approval-stop posture without executing anything.", tone: "green" },
     { id: "live-loop-validate", title: "Validate", status: "Proof-backed", detail: "Tests, role checks, browser QA, build proof, rollback notes, and private proof checks stay attached to the work.", tone: "green" },
     { id: "live-loop-report", title: "Report", status: savedRunCount ? "Report-ready" : "Result slot", detail: "Apex can report back from the active run and mark it validating, waiting approval, blocked, or done with a result report.", tone: savedRunCount ? "green" : "blue" },
-    { id: "live-loop-remember", title: "Remember", status: trustedMemoryCount ? "Trusted context" : "Review first", detail: "The Apex body can draft suggested turn and run outcome memory; only reviewed memory becomes future operating context.", tone: trustedMemoryCount ? "green" : "amber" },
-    { id: "live-loop-monitor", title: "Monitor", status: releaseMonitoring?.status || "Auto-checking", detail: "The Apex body can refresh read-only build, briefing, and live-run status while the page is open.", tone: releaseMonitoring?.tone || "green" },
+    { id: "live-loop-remember", title: "Remember", status: trustedMemoryCount ? "Trusted context" : "Review first", detail: "The Apex body can draft suggested turn, run outcome, and proactive check-in memory; only reviewed memory becomes future operating context.", tone: trustedMemoryCount ? "green" : "amber" },
+    { id: "live-loop-monitor", title: "Monitor", status: releaseMonitoring?.status || "Auto-checking", detail: "The Apex body can refresh read-only build, briefing, and live-run status while the page is open, then preserve surfaced check-ins as suggested run history.", tone: releaseMonitoring?.tone || "green" },
   ], {
     sourceLabel: "Apex Live Operator loop",
     source: "voice + autonomy run center",
@@ -2375,8 +2375,8 @@ function buildApexLiveOperatorModeState({
     {
       id: "live-gap-proactive",
       title: "Proactive status",
-      status: "Operator judgment",
-      detail: "Apex can refresh live status while the page is open and turn pulse/run/approval/release context into next-safe recommendations; unattended external actions stay off until a separate approved execution lane exists.",
+      status: "Remembered check-ins",
+      detail: "Apex can refresh live status while the page is open, turn pulse/run/approval/release context into next-safe recommendations, and draft surfaced check-ins into suggested memory; unattended external actions stay off until a separate approved execution lane exists.",
       tone: "green",
     },
     {
