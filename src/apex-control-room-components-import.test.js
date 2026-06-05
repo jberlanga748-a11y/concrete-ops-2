@@ -210,6 +210,8 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /APEX_COCKPIT_VOICE_PROFILES/);
   assert.match(componentSource, /APEX_COCKPIT_PERSONALITY_MODES/);
   assert.match(componentSource, /buildApexCockpitProactiveBriefing/);
+  assert.match(componentSource, /resolveApexCockpitLatestTrustedRunMemory/);
+  assert.match(componentSource, /Latest trusted run history/);
   assert.match(componentSource, /buildApexCockpitQuestionEnvelope/);
   assert.match(componentSource, /buildApexCockpitAgentControlDraft/);
   assert.match(componentSource, /createCockpitAgentRequestFromCommand/);
@@ -273,6 +275,9 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /deliverCockpitOperatorJudgment/);
   assert.match(componentSource, /Execution, sends, billing, provider work, production changes, deletion, deploy, rollback, and irreversible actions stay locked/);
   assert.match(componentSource, /buildApexCockpitFollowUpPrompts/);
+  assert.match(componentSource, /Continue Memory/);
+  assert.match(componentSource, /Continue from trusted run memory/);
+  assert.match(componentSource, /liveOperatorMemory,/);
   assert.match(componentSource, /loadCockpitFollowUpPrompt/);
   assert.match(componentSource, /Apex next turn prompts/);
   assert.match(componentSource, /Apex mobile next turn prompts/);

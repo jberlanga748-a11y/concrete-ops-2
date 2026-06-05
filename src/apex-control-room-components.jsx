@@ -3995,6 +3995,11 @@ function buildApexCockpitLiveRunMemoryContext(liveOperatorMemory = {}) {
     .join("\n");
 }
 
+function resolveApexCockpitLatestTrustedRunMemory(liveOperatorMemory = {}) {
+  const rows = Array.isArray(liveOperatorMemory.latestRows) ? liveOperatorMemory.latestRows : [];
+  return rows.find((row) => row?.title) || null;
+}
+
 function buildApexCockpitProactiveBriefing(state = {}) {
   const approvalCount = state.approvalCommandCenter?.queueCount || state.approvalCommandCenter?.packetSummary?.total || 0;
   const blockerCount = state.launchReadiness?.blockedCount || state.approvalCommandCenter?.packetSummary?.blocked || 0;
@@ -4002,6 +4007,7 @@ function buildApexCockpitProactiveBriefing(state = {}) {
   const memoryCount = state.decisionMemory?.durableCount || state.decisionMemory?.decisionCount || 0;
   const trustedRunMemoryCount = state.liveOperatorMemory?.trustedCount || state.liveOperatorMode?.trustedRunMemoryCount || 0;
   const pendingRunMemoryCount = state.liveOperatorMemory?.suggestedCount || state.liveOperatorMode?.pendingRunMemoryCount || 0;
+  const latestRunMemory = resolveApexCockpitLatestTrustedRunMemory(state.liveOperatorMemory || state.liveOperatorMode?.runMemory || {});
   const releaseStatus = state.releaseDesk?.status || "Healthy";
   const moneyReady = state.kpis?.find((item) => /money/i.test(item.title || ""))?.value || state.todayCommandCenter?.moneyReadyCount || 0;
   return [
@@ -4012,9 +4018,10 @@ function buildApexCockpitProactiveBriefing(state = {}) {
     `${agentCount} agent signal${agentCount === 1 ? "" : "s"} are active.`,
     `${memoryCount} trusted memor${memoryCount === 1 ? "y" : "ies"} are available.`,
     `${trustedRunMemoryCount} trusted live-run memor${trustedRunMemoryCount === 1 ? "y" : "ies"} and ${pendingRunMemoryCount} suggested run memor${pendingRunMemoryCount === 1 ? "y" : "ies"} are visible.`,
+    latestRunMemory ? `Latest trusted run history: ${latestRunMemory.title}. I can continue from that reviewed outcome when you ask.` : "",
     `Release health reads ${releaseStatus}.`,
     "I will answer, route, draft safe requests, and keep execution locked until the gated workflow approves it.",
-  ].join(" ");
+  ].filter(Boolean).join(" ");
 }
 
 function buildApexCockpitQuestionEnvelope(question, { personalityMode = "operator", route, memoryCount = 0, liveOperatorMemory = {}, turns = [], interrupted = false } = {}) {
@@ -4901,12 +4908,14 @@ function buildApexCockpitFollowUpPrompts({
   route,
   activeRun,
   activeRunProgress,
+  liveOperatorMemory = {},
   operatorJudgmentRows = [],
 } = {}) {
   const prompts = [];
   const runStatus = String(activeRun?.status || "").toLowerCase();
   const hasActiveRun = Boolean(activeRun?.id) && !["done", "archived"].includes(runStatus);
   const firstJudgment = Array.isArray(operatorJudgmentRows) ? operatorJudgmentRows[0] : null;
+  const latestRunMemory = resolveApexCockpitLatestTrustedRunMemory(liveOperatorMemory);
 
   if (hasActiveRun) {
     prompts.push(normalizeApexCockpitFollowUpPrompt({
@@ -4920,7 +4929,17 @@ function buildApexCockpitFollowUpPrompts({
         : `Ask Apex to explain the current ${Number(activeRunProgress?.progressPercent || 0)}% run state.`,
       tone: runStatus === "waiting-approval" ? "amber" : "green",
     }));
-  } else if (firstJudgment) {
+  } else if (latestRunMemory) {
+    prompts.push(normalizeApexCockpitFollowUpPrompt({
+      id: "follow-up-continue-memory",
+      label: "Continue Memory",
+      question: `Continue from trusted run memory: ${latestRunMemory.title}. What is the next safe move?`,
+      detail: "Use reviewed live-run history as the starting point for the next Apex turn.",
+      tone: "green",
+    }));
+  }
+
+  if (!hasActiveRun && firstJudgment) {
     prompts.push(normalizeApexCockpitFollowUpPrompt({
       id: "follow-up-top-judgment",
       label: firstJudgment.actionLabel || "Top Signal",
@@ -5139,6 +5158,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     route: cockpitCommandRoute,
     activeRun: cockpitActiveRun,
     activeRunProgress: cockpitActiveRunProgress,
+    liveOperatorMemory,
     operatorJudgmentRows: cockpitOperatorJudgmentRows,
   });
   const cockpitTurnMemoryKey = apexCockpitMemoryText(cockpitResponse?.requestId || `${cockpitLastQuestion}|${cockpitAnswerText}`, 220);
