@@ -37,6 +37,7 @@ import {
 import { redactApexOsMemoryText } from "../shared/apexOsMemory.js";
 import {
   advanceApexOsAutonomyRunPrivatePrep,
+  buildApexOsAutonomyRunHeartbeat,
   runApexOsAutonomyRunPrivateOperatorCycle,
   validateApexOsAutonomyRunPrivateProof,
 } from "../shared/apexOsAutonomyRuns.js";
@@ -4859,6 +4860,13 @@ function buildApexCockpitOperatorJudgmentText(rows = []) {
   return `Operator judgment: ${first.title}. ${first.detail} Next safe action: ${first.actionLabel}. ${restText} Execution, sends, billing, provider work, production changes, deletion, deploy, rollback, and irreversible actions stay locked.`;
 }
 
+function buildApexCockpitHeartbeatText(heartbeat = {}) {
+  if (!heartbeat?.runId) {
+    return "Apex heartbeat: no active private run is live. I am standing by. Start a private run when there is real work to track. Execution, sends, billing, provider work, production changes, deletion, deploy, rollback, and irreversible actions stay locked.";
+  }
+  return `Apex heartbeat: ${heartbeat.title || "active private run"} is ${heartbeat.status || "active"}. Progress is ${heartbeat.progressLabel || "unknown"}, updated ${heartbeat.ageLabel || "recently"}. Current step: ${heartbeat.currentStep || "review the run"}. Recommendation: ${heartbeat.recommendation || "review the run ledger"}. Execution, sends, billing, provider work, production changes, deletion, deploy, rollback, and irreversible actions stay locked.`;
+}
+
 function normalizeApexCockpitFollowUpPrompt(prompt = {}) {
   return {
     id: String(prompt.id || `follow-up-${prompt.label || "prompt"}`).trim(),
@@ -5064,6 +5072,11 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     || cockpitVisibleRunRows[0]
     || null;
   const cockpitActiveRunProgress = summarizeApexCockpitRunProgress(cockpitActiveRun || {});
+  const cockpitSessionHeartbeat = buildApexOsAutonomyRunHeartbeat(cockpitActiveRun, {
+    now: new Date().toISOString(),
+    pulse: cockpitLivePulse,
+  });
+  const cockpitSessionHeartbeatText = buildApexCockpitHeartbeatText(cockpitSessionHeartbeat);
   const cockpitOperatorJudgmentRows = buildApexCockpitOperatorJudgmentRows({
     state,
     pulse: cockpitLivePulse,
@@ -5674,6 +5687,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   function deliverCockpitBriefing({ speak = false } = {}) {
     const route = buildApexCockpitCommandRoute("Summarize today");
     setCockpitCommandRoute(route);
+    setCockpitError("");
     setCockpitResponse({
       answer: {
         answer: cockpitBriefingText,
@@ -5698,6 +5712,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   function deliverCockpitOperatorJudgment({ speak = false } = {}) {
     const route = buildApexCockpitCommandRoute("What should I do next?");
     setCockpitCommandRoute(route);
+    setCockpitError("");
     setCockpitResponse({
       answer: {
         answer: cockpitOperatorJudgmentText,
@@ -5717,6 +5732,31 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       ...current,
     ].slice(0, 5));
     if (speak) speakCockpitAnswer(cockpitOperatorJudgmentText);
+  }
+
+  function deliverCockpitSessionHeartbeat({ speak = false } = {}) {
+    const route = buildApexCockpitCommandRoute("Give me the active run check-in", { previousRoute: cockpitCommandRoute });
+    setCockpitCommandRoute(route);
+    setCockpitError("");
+    setCockpitResponse({
+      answer: {
+        answer: cockpitSessionHeartbeatText,
+        sourceLabels: ["Apex Live Session Heartbeat", "Autonomy Run Center", "Proactive Pulse"],
+      },
+    });
+    setCockpitLastQuestion("Live session heartbeat");
+    setCockpitVoiceNotice("Apex live session heartbeat is ready. Execution stayed locked.");
+    setCockpitTurns((current) => [
+      {
+        id: `cockpit-heartbeat-${Date.now()}`,
+        question: "Live session heartbeat",
+        source: "system",
+        routeLabel: route.label,
+        status: "answered",
+      },
+      ...current,
+    ].slice(0, 5));
+    if (speak) speakCockpitAnswer(cockpitSessionHeartbeatText);
   }
 
   function loadCockpitFollowUpPrompt(prompt = {}) {
@@ -6763,6 +6803,32 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                         <p className={`mt-0.5 text-[11px] font-black ${item.tone === "green" ? "text-emerald-300" : item.tone === "amber" ? "text-orange-300" : item.tone === "blue" ? "text-cyan-300" : "text-slate-300"}`}>{item.value}</p>
                       </div>
                     ))}
+                  </div>
+                  <div className="grid min-w-0 gap-2 rounded-md border border-cyan-200/10 bg-slate-950/52 p-2.5" aria-label="Apex live session heartbeat">
+                    <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Live Session Heartbeat</p>
+                        <p className="mt-0.5 min-w-0 break-words text-xs font-black text-slate-100">{cockpitSessionHeartbeat.status}</p>
+                        <p className="mt-0.5 min-w-0 break-words text-[10px] font-bold leading-4 text-slate-500">{cockpitSessionHeartbeat.detail}</p>
+                      </div>
+                      <ApexCockpitControlButton className="shrink-0 px-2" disabled={false} onClick={() => deliverCockpitSessionHeartbeat({ speak: true })} active={false} title="Speak Apex live session heartbeat">
+                        <Icon name="phone" /> Speak Check-In
+                      </ApexCockpitControlButton>
+                    </div>
+                    <div className="grid min-w-0 gap-1.5 sm:grid-cols-4">
+                      {[
+                        { label: "Progress", value: cockpitSessionHeartbeat.progressLabel, tone: cockpitSessionHeartbeat.tone },
+                        { label: "Updated", value: cockpitSessionHeartbeat.ageLabel, tone: cockpitSessionHeartbeat.tone },
+                        { label: "Pulse", value: cockpitSessionHeartbeat.pulseLabel, tone: cockpitLivePulse?.checkedAt ? "green" : "slate" },
+                        { label: "Execution", value: cockpitSessionHeartbeat.executionLocked ? "Locked" : "Open", tone: cockpitSessionHeartbeat.executionLocked ? "amber" : "red" },
+                      ].map((item) => (
+                        <div key={item.label} className="min-w-0 rounded-md border border-slate-800 bg-slate-900/48 px-2.5 py-2">
+                          <p className="text-[8px] font-black uppercase tracking-[0.08em] text-slate-500">{item.label}</p>
+                          <p className={`mt-0.5 truncate text-[10px] font-black ${item.tone === "green" ? "text-emerald-300" : item.tone === "amber" ? "text-orange-300" : item.tone === "red" ? "text-red-300" : "text-slate-300"}`}>{item.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="min-w-0 break-words rounded-md border border-cyan-200/10 bg-slate-900/44 px-2.5 py-2 text-[10px] font-bold leading-4 text-cyan-100">{cockpitSessionHeartbeat.recommendation}</p>
                   </div>
                   <div className="grid min-w-0 gap-2 rounded-md border border-cyan-200/10 bg-slate-950/48 p-2.5" aria-label="Active Apex run session">
                     <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">

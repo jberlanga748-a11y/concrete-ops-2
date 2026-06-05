@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   advanceApexOsAutonomyRunPrivatePrep,
+  buildApexOsAutonomyRunHeartbeat,
   buildApexOsAutonomyRunPlan,
   getApexOsAutonomyRunMissingFields,
   isApexOsAutonomyRunReady,
@@ -10,6 +11,7 @@ import {
   normalizeApexOsAutonomyRun,
   normalizeApexOsAutonomyRuns,
   runApexOsAutonomyRunPrivateOperatorCycle,
+  summarizeApexOsAutonomyRunProgress,
   summarizeApexOsAutonomyRuns,
   validateApexOsAutonomyRunPrivateProof,
 } from "./apexOsAutonomyRuns.js";
@@ -275,6 +277,77 @@ test("private operator cycle leaves terminal runs unchanged", () => {
   assert.equal(cycled.status, "done");
   assert.equal(cycled.resultReport, "Completed after review.");
   assert.equal(cycled.nextSafeAction, doneRun.nextSafeAction);
+});
+
+test("summarizes private run progress for live operator heartbeat", () => {
+  const run = runApexOsAutonomyRunPrivateOperatorCycle(markApexOsAutonomyRunInternalDrafted(buildApexOsAutonomyRunPlan({
+    title: "Heartbeat run",
+    request: "Keep this run alive like an operator.",
+    routeLabel: "Apex",
+  }, {
+    id: "AAR-HEARTBEAT",
+    now: "2026-06-05T10:00:00.000Z",
+    createdBy: "U-1",
+  }), {
+    agentControlRequestId: "AAC-HEARTBEAT",
+    executionHandoffId: "AEH-HEARTBEAT",
+    now: "2026-06-05T10:01:00.000Z",
+  }), {
+    now: "2026-06-05T10:04:00.000Z",
+  });
+
+  const progress = summarizeApexOsAutonomyRunProgress(run);
+  assert.equal(progress.totalCount, 7);
+  assert.equal(progress.doneCount, 5);
+  assert.equal(progress.waitingCount, 1);
+  assert.equal(progress.linkedDraftCount, 2);
+  assert.equal(progress.progressPercent, 71);
+});
+
+test("builds a live session heartbeat without enabling execution", () => {
+  const run = runApexOsAutonomyRunPrivateOperatorCycle(markApexOsAutonomyRunInternalDrafted(buildApexOsAutonomyRunPlan({
+    title: "Heartbeat check-in",
+    request: "Report on this private run.",
+    routeLabel: "Apex",
+  }, {
+    id: "AAR-HEARTBEAT-CHECK",
+    now: "2026-06-05T10:00:00.000Z",
+    createdBy: "U-1",
+  }), {
+    agentControlRequestId: "AAC-HEARTBEAT-CHECK",
+    executionHandoffId: "AEH-HEARTBEAT-CHECK",
+    now: "2026-06-05T10:01:00.000Z",
+  }), {
+    now: "2026-06-05T10:04:00.000Z",
+  });
+
+  const heartbeat = buildApexOsAutonomyRunHeartbeat(run, {
+    now: "2026-06-05T10:31:00.000Z",
+    pulse: { checkedAt: "2026-06-05T10:30:00.000Z" },
+  });
+
+  assert.equal(heartbeat.runId, "AAR-HEARTBEAT-CHECK");
+  assert.equal(heartbeat.status, "Manual review");
+  assert.equal(heartbeat.tone, "amber");
+  assert.equal(heartbeat.ageLabel, "27m ago");
+  assert.match(heartbeat.progressLabel, /71%/);
+  assert.match(heartbeat.pulseLabel, /Pulse 1m ago/);
+  assert.equal(heartbeat.executionLocked, true);
+  assert.equal(heartbeat.externalActionsLocked, true);
+  assert.equal(heartbeat.canExecute, false);
+  assert.match(heartbeat.recommendation, /Review evidence/i);
+});
+
+test("heartbeat stands by when no private run is active", () => {
+  const heartbeat = buildApexOsAutonomyRunHeartbeat(null, {
+    now: "2026-06-05T10:31:00.000Z",
+  });
+
+  assert.equal(heartbeat.status, "Standing by");
+  assert.equal(heartbeat.tone, "blue");
+  assert.equal(heartbeat.executionLocked, true);
+  assert.equal(heartbeat.canExecute, false);
+  assert.match(heartbeat.recommendation, /Start a private run/i);
 });
 
 test("normalizes durable run lists and redacts unsafe text", () => {

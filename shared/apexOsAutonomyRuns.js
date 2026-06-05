@@ -317,6 +317,112 @@ export function summarizeApexOsAutonomyRuns(value = []) {
   };
 }
 
+function formatApexOsRunAge(minutes = 0) {
+  const safeMinutes = Math.max(0, Math.floor(Number(minutes) || 0));
+  if (safeMinutes < 1) return "just now";
+  if (safeMinutes < 60) return `${safeMinutes}m ago`;
+  const hours = Math.floor(safeMinutes / 60);
+  const remainingMinutes = safeMinutes % 60;
+  if (hours < 24) return remainingMinutes ? `${hours}h ${remainingMinutes}m ago` : `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+export function summarizeApexOsAutonomyRunProgress(run = {}) {
+  const normalized = normalizeApexOsAutonomyRun(run);
+  const steps = list(normalized.steps);
+  const totalCount = steps.length;
+  const doneCount = steps.filter((step) => ["done", "drafted"].includes(step.status)).length;
+  const blockedCount = steps.filter((step) => step.status === "blocked").length;
+  const waitingCount = steps.filter((step) => step.status === "waiting-approval").length;
+  const activeStep = steps.find((step) => !["done", "drafted"].includes(step.status)) || steps[steps.length - 1] || null;
+  const progressPercent = totalCount ? Math.round((doneCount / totalCount) * 100) : 0;
+  return {
+    doneCount,
+    blockedCount,
+    waitingCount,
+    totalCount,
+    progressPercent,
+    activeStepTitle: activeStep?.title || "",
+    activeStepStatus: activeStep?.status || "",
+    activeStepDetail: activeStep?.detail || "",
+    evidenceCount: list(normalized.evidence).length,
+    linkedDraftCount: [normalized.linkedAgentControlRequestId, normalized.linkedExecutionHandoffId].filter(Boolean).length,
+  };
+}
+
+export function buildApexOsAutonomyRunHeartbeat(run = {}, { now = new Date().toISOString(), pulse = {} } = {}) {
+  const normalized = run?.id ? normalizeApexOsAutonomyRun(run, { now }) : null;
+  if (!normalized?.id) {
+    return {
+      id: "apex-run-heartbeat-ready",
+      status: "Standing by",
+      tone: "blue",
+      title: "No active private run",
+      ageLabel: "ready",
+      progressLabel: "0% / 0 steps",
+      pulseLabel: pulse?.checkedAt ? `Pulse ${formatApexOsRunAge((Date.parse(now) - Date.parse(pulse.checkedAt)) / 60000)}` : "Pulse ready",
+      detail: "Apex has no active private run to check in on. Start a Live Run when there is real work to track.",
+      recommendation: "Start a private run from the Apex body, or ask Apex for the next safe options.",
+      executionLocked: true,
+      externalActionsLocked: true,
+      canExecute: false,
+    };
+  }
+
+  const progress = summarizeApexOsAutonomyRunProgress(normalized);
+  const status = String(normalized.status || "").toLowerCase();
+  const updatedAt = normalized.updatedAt || normalized.createdAt || now;
+  const updatedMs = Date.parse(updatedAt);
+  const nowMs = Date.parse(now);
+  const ageMinutes = Number.isFinite(updatedMs) && Number.isFinite(nowMs)
+    ? Math.max(0, Math.floor((nowMs - updatedMs) / 60000))
+    : 0;
+  const ageLabel = formatApexOsRunAge(ageMinutes);
+  const terminal = ["done", "archived", "blocked"].includes(status);
+  const checkInDue = !terminal && ageMinutes >= 20;
+  const waitingApproval = status === "waiting-approval";
+  const blocked = status === "blocked" || progress.blockedCount > 0;
+  const tone = blocked ? "amber" : waitingApproval || checkInDue ? "amber" : terminal ? "green" : "green";
+  const heartbeatStatus = blocked
+    ? "Needs review"
+    : waitingApproval
+      ? "Manual review"
+      : checkInDue
+        ? "Check-in due"
+        : terminal
+          ? "Reported"
+          : "On pace";
+  const recommendation = blocked
+    ? "Review the blocked step and decide whether to keep waiting, fix proof gaps, or mark the run blocked."
+    : waitingApproval
+      ? "Review evidence, then report done, keep waiting approval, or block the run."
+      : checkInDue
+        ? "Ask Apex for a status check, run private proof, or update the active run before starting new work."
+        : terminal
+          ? "Review the result and suggested memory before trusting it long term."
+          : normalized.nextSafeAction || "Keep monitoring the active run and only advance private prep/proof when asked.";
+
+  return {
+    id: `apex-run-heartbeat-${normalized.id}`,
+    runId: normalized.id,
+    status: heartbeatStatus,
+    tone,
+    title: normalized.title,
+    ageMinutes,
+    ageLabel,
+    progress,
+    progressLabel: `${progress.progressPercent}% / ${progress.doneCount} of ${progress.totalCount}`,
+    pulseLabel: pulse?.checkedAt ? `Pulse ${formatApexOsRunAge((Date.parse(now) - Date.parse(pulse.checkedAt)) / 60000)}` : "Pulse ready",
+    currentStep: progress.activeStepTitle || normalized.nextSafeAction || "Review run",
+    detail: `${normalized.title} is ${status || "planned"}, ${progress.progressPercent}% complete, updated ${ageLabel}. Next safe action: ${normalized.nextSafeAction || "review the run ledger"}.`,
+    recommendation,
+    executionLocked: true,
+    externalActionsLocked: true,
+    canExecute: false,
+  };
+}
+
 export function getApexOsAutonomyRunMissingFields(run = {}) {
   const normalized = normalizeApexOsAutonomyRun(run);
   const required = [
