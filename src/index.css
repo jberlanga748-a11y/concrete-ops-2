@@ -57194,6 +57194,64 @@ body:has(.co-field-mobile-reports-shell) .co-mobile-bottom-spacer {
     background: rgba(2, 6, 23, 0.62);
   }
 
+  .co-apex-cockpit-screen--spotlight .co-apex-cockpit-focus-bar {
+    background: rgba(2, 6, 23, 0.58);
+  }
+
+  .co-apex-cockpit-screen--spotlight .co-apex-cockpit-focus-center {
+    gap: 0.6rem;
+    max-width: min(100%, 76rem);
+  }
+
+  .co-apex-cockpit-screen--spotlight .co-apex-life-body {
+    max-width: min(100%, 64rem);
+    min-height: clamp(30rem, 58vh, 39rem);
+  }
+
+  .co-apex-cockpit-screen--spotlight .co-apex-life-body-image {
+    max-height: clamp(30rem, 56vh, 37rem);
+  }
+
+  .co-apex-cockpit-screen--spotlight .co-apex-cockpit-live-console {
+    margin-inline: auto;
+    max-height: clamp(10rem, 24vh, 15rem);
+    max-width: min(100%, 54rem);
+    overflow-y: auto;
+    scrollbar-color: rgba(56, 189, 248, 0.38) rgba(15, 23, 42, 0.58);
+    scrollbar-width: thin;
+    width: 100%;
+    background:
+      linear-gradient(180deg, rgba(15, 23, 42, 0.76), rgba(2, 6, 23, 0.86)),
+      radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.11), transparent 17rem);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.04),
+      0 -18px 42px -38px rgba(56, 189, 248, 0.9),
+      0 22px 58px -48px rgba(2, 6, 23, 0.95);
+  }
+
+  .co-apex-cockpit-screen--spotlight .co-apex-cockpit-live-console::-webkit-scrollbar {
+    height: 0.5rem;
+    width: 0.5rem;
+  }
+
+  .co-apex-cockpit-screen--spotlight .co-apex-cockpit-live-console::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(56, 189, 248, 0.34);
+  }
+
+  .co-apex-cockpit-screen--spotlight #apex-cockpit-ask,
+  .co-apex-cockpit-screen--spotlight [aria-label="Apex quick next turns"],
+  .co-apex-cockpit-screen--spotlight [aria-label="Apex command stream"] {
+    margin-inline: auto;
+    max-width: min(100%, 54rem);
+    width: 100%;
+  }
+
+  .co-apex-cockpit-screen--full-console .co-apex-cockpit-live-console {
+    max-height: none;
+    overflow: visible;
+  }
+
   .co-apex-cockpit-screen--console .co-apex-cockpit-focus-center {
     max-width: min(100%, 58rem);
   }

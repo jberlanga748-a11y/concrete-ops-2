@@ -179,11 +179,17 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /formatApexCockpitClock/);
   assert.match(componentSource, /cockpitFocusDrawer/);
   assert.match(componentSource, /cockpitImmersiveMode/);
+  assert.match(componentSource, /cockpitSpotlightMode/);
   assert.match(componentSource, /cockpitConsoleTab/);
   assert.match(componentSource, /Apex focus controls/);
   assert.match(componentSource, /Apex focus drawer/);
   assert.match(componentSource, /co-apex-cockpit-screen--immersive/);
+  assert.match(componentSource, /co-apex-cockpit-screen--spotlight/);
+  assert.match(componentSource, /co-apex-cockpit-screen--full-console/);
   assert.match(componentSource, /Return to immersive Apex body/);
+  assert.match(componentSource, /Return to Apex spotlight/);
+  assert.match(componentSource, /Open full operator console dock/);
+  assert.match(componentSource, /co-apex-cockpit-live-console--dock/);
   assert.match(componentSource, /Autonomy Core/);
   assert.match(componentSource, /Safe internal drafts are on/);
   assert.match(componentSource, /AutonomyRunCenterPanel/);
@@ -394,6 +400,9 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(cssSource, /\.co-apex-cockpit-screen--immersive \.co-apex-life-body/);
   assert.match(cssSource, /min-height: clamp\(31rem, 64vh, 42rem\)/);
   assert.match(cssSource, /\.co-apex-cockpit-screen--console \.co-apex-life-body/);
+  assert.match(cssSource, /\.co-apex-cockpit-screen--spotlight \.co-apex-life-body/);
+  assert.match(cssSource, /\.co-apex-cockpit-screen--spotlight \.co-apex-cockpit-live-console/);
+  assert.match(cssSource, /\.co-apex-cockpit-screen--full-console \.co-apex-cockpit-live-console/);
   assert.match(cssSource, /\.co-apex-cockpit-focus-drawer/);
   assert.match(componentSource, /key: "hearing"/);
   assert.match(componentSource, /No Sends/);

@@ -5204,6 +5204,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const [cockpitClock, setCockpitClock] = useState(() => formatApexCockpitClock());
   const [cockpitFocusDrawer, setCockpitFocusDrawer] = useState("");
   const [cockpitImmersiveMode, setCockpitImmersiveMode] = useState(true);
+  const [cockpitSpotlightMode, setCockpitSpotlightMode] = useState(true);
   const [cockpitConsoleTab, setCockpitConsoleTab] = useState("live");
   const [cockpitCommandRoute, setCockpitCommandRoute] = useState(() => buildApexCockpitCommandRoute(""));
   const [cockpitTurns, setCockpitTurns] = useState([]);
@@ -6879,7 +6880,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     setCockpitRecording(false);
   }
 
-  const cockpitScreenClassName = `co-apex-cockpit-screen co-apex-cockpit-screen--focus ${cockpitImmersiveMode ? "co-apex-cockpit-screen--immersive" : "co-apex-cockpit-screen--console"} w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-700/70 bg-slate-950 text-white shadow-[0_34px_80px_-40px_rgba(2,6,23,0.95)] ring-1 ring-cyan-300/10 lg:h-[calc(100vh-16px)]`;
+  const cockpitScreenClassName = `co-apex-cockpit-screen co-apex-cockpit-screen--focus ${cockpitImmersiveMode ? "co-apex-cockpit-screen--immersive" : "co-apex-cockpit-screen--console"} ${cockpitSpotlightMode ? "co-apex-cockpit-screen--spotlight" : "co-apex-cockpit-screen--full-console"} w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-700/70 bg-slate-950 text-white shadow-[0_34px_80px_-40px_rgba(2,6,23,0.95)] ring-1 ring-cyan-300/10 lg:h-[calc(100vh-16px)]`;
 
   return (
     <section className={cockpitScreenClassName}>
@@ -6938,6 +6939,15 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                 title={cockpitImmersiveMode ? "Show denser Apex console" : "Return to immersive Apex body"}
               >
                 <Icon name="layers" /> {cockpitImmersiveMode ? "Immersive" : "Console"}
+              </ApexCockpitControlButton>
+              <ApexCockpitControlButton
+                className="px-3"
+                disabled={false}
+                onClick={() => setCockpitSpotlightMode((current) => !current)}
+                active={cockpitSpotlightMode}
+                title={cockpitSpotlightMode ? "Open full operator console dock" : "Return to Apex spotlight"}
+              >
+                <Icon name="spark" /> {cockpitSpotlightMode ? "Spotlight" : "Full Console"}
               </ApexCockpitControlButton>
             </div>
             <div className="grid min-w-0 grid-cols-5 gap-2">
@@ -7151,7 +7161,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                 </div>
               </div>
               <ApexCockpitAvatar voiceMode={cockpitVoiceMode} voiceLevel={cockpitLiveLevel} />
-              <section className="co-apex-cockpit-live-console grid min-w-0 gap-2 rounded-lg border border-cyan-200/14 bg-slate-950/76 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]" aria-label="Apex live conversation console">
+              <section className={`co-apex-cockpit-live-console ${cockpitSpotlightMode ? "co-apex-cockpit-live-console--dock" : "co-apex-cockpit-live-console--full"} grid min-w-0 gap-2 rounded-lg border border-cyan-200/14 bg-slate-950/76 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]`} aria-label="Apex live conversation console">
                 <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
                     <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Apex Now</p>
