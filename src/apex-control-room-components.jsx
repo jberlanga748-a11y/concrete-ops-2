@@ -230,7 +230,7 @@ async function playApexVoiceAudio({ audioBase64 = "", contentType = "audio/mpeg"
   }
 }
 
-function speakWithBrowserVoice(text, { onEnd, onError, rate = 0.98, pitch = 1, voiceHint = "" } = {}) {
+function speakWithBrowserVoice(text, { onStart, onEnd, onError, rate = 0.98, pitch = 1, voiceHint = "" } = {}) {
   if (typeof window === "undefined" || !window.speechSynthesis || typeof SpeechSynthesisUtterance === "undefined") {
     return false;
   }
@@ -245,13 +245,19 @@ function speakWithBrowserVoice(text, { onEnd, onError, rate = 0.98, pitch = 1, v
     ? voices.find((voice) => String(voice.name || "").toLowerCase().includes(normalizedHint))
     : null;
   if (matchedVoice) utterance.voice = matchedVoice;
+  utterance.onstart = () => onStart?.();
   utterance.onend = () => onEnd?.();
   utterance.onerror = () => onError?.();
   window.speechSynthesis.cancel();
   if (typeof window.speechSynthesis.resume === "function") {
     window.speechSynthesis.resume();
   }
-  window.speechSynthesis.speak(utterance);
+  try {
+    window.speechSynthesis.speak(utterance);
+  } catch {
+    onError?.();
+    return false;
+  }
   return true;
 }
 
@@ -3906,6 +3912,7 @@ const APEX_COCKPIT_DUPLICATE_TURN_MS = 2800;
 const APEX_COCKPIT_LISTENING_HANDOFF_NOTICE = "Apex finished speaking and is listening for your next turn.";
 const APEX_COCKPIT_VOICE_RETRY_NOTICE = "I missed that. Say it again and I'll keep listening.";
 const APEX_COCKPIT_VOICE_RETRY_OPEN_MS = 520;
+const APEX_COCKPIT_AUDIO_CHECK_TEXT = "Apex audio is on. I can talk back on this desktop.";
 
 const APEX_COCKPIT_VOICE_PROFILES = Object.freeze([
   { id: "alloy", label: "Alloy", detail: "Balanced operator", rate: 0.98, pitch: 1 },
@@ -4644,9 +4651,11 @@ function ApexCockpitAvatar({ voiceMode = "listening", voiceLevel = 0 }) {
       <span className="co-apex-life-orbit co-apex-life-orbit--one" aria-hidden="true" />
       <span className="co-apex-life-orbit co-apex-life-orbit--two" aria-hidden="true" />
       <span className="co-apex-life-orbit co-apex-life-orbit--three" aria-hidden="true" />
+      <span className="co-apex-life-aura" aria-hidden="true" />
       <span className="co-apex-life-ring co-apex-life-ring--outer" aria-hidden="true" />
       <span className="co-apex-life-ring co-apex-life-ring--inner" aria-hidden="true" />
       <span className="co-apex-life-horizon" aria-hidden="true" />
+      <span className="co-apex-life-neural-grid" aria-hidden="true" />
       <span className="co-apex-life-scan co-apex-life-scan--vertical" aria-hidden="true" />
       <span className="co-apex-life-scan co-apex-life-scan--horizontal" aria-hidden="true" />
       <img
@@ -4656,6 +4665,7 @@ function ApexCockpitAvatar({ voiceMode = "listening", voiceLevel = 0 }) {
         draggable="false"
       />
       <span className="co-apex-life-eyes" aria-hidden="true" />
+      <span className="co-apex-life-voice-band" aria-hidden="true" />
       <span className="co-apex-life-core" aria-hidden="true" />
       <span className="co-apex-life-level" aria-hidden="true" />
       <span className="co-apex-life-status" aria-hidden="true">{visualState.headline.toUpperCase()}</span>
@@ -6158,6 +6168,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const [cockpitSpeechActive, setCockpitSpeechActive] = useState(false);
   const [cockpitMicLevel, setCockpitMicLevel] = useState(0);
   const [cockpitOutputLevel, setCockpitOutputLevel] = useState(0);
+  const [cockpitAudioReady, setCockpitAudioReady] = useState(false);
   const [cockpitConversationMode, setCockpitConversationMode] = useState(true);
   const [cockpitBargeInEnabled, setCockpitBargeInEnabled] = useState(true);
   const [cockpitVoiceProfile, setCockpitVoiceProfile] = useState("alloy");
@@ -6207,6 +6218,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const [cockpitTurns, setCockpitTurns] = useState([]);
   const cockpitAudioRef = useRef(null);
   const cockpitAudioUnlockedRef = useRef(false);
+  const cockpitAudioReadyRef = useRef(false);
   const cockpitOutputFrameRef = useRef(0);
   const cockpitSpeakingRef = useRef(false);
   const cockpitTranscribingRef = useRef(false);
@@ -6473,7 +6485,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     recognitionStatus: cockpitRecognitionStatus,
     recognitionError: cockpitRecognitionError,
     needsWake: cockpitNeedsWake,
-    audioUnlocked: Boolean(cockpitAudioUnlockedRef.current),
+    audioUnlocked: cockpitAudioReady,
     conversationMode: cockpitConversationMode,
     bargeInEnabled: cockpitBargeInEnabled,
     retryCount: cockpitVoiceRetryCount,
@@ -6854,6 +6866,86 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     setCockpitOutputLevel(0);
   }
 
+  function setCockpitAudioReadyState(ready) {
+    const nextReady = Boolean(ready);
+    cockpitAudioReadyRef.current = nextReady;
+    setCockpitAudioReady(nextReady);
+  }
+
+  function primeCockpitAudioOutput({ speakCheck = false, notice = "" } = {}) {
+    const audioContext = unlockBrowserAudio(cockpitAudioUnlockedRef);
+    const hasBrowserSpeech = typeof window !== "undefined" && Boolean(window.speechSynthesis) && typeof SpeechSynthesisUtterance !== "undefined";
+    if (typeof window !== "undefined" && window.speechSynthesis?.resume) {
+      try {
+        const resumeResult = window.speechSynthesis.resume();
+        if (resumeResult && typeof resumeResult.catch === "function") resumeResult.catch(() => {});
+      } catch {
+        // Some browsers throw while site audio is still blocked.
+      }
+    }
+    setCockpitAudioReadyState(Boolean(audioContext || hasBrowserSpeech));
+
+    if (!speakCheck) {
+      if (notice) setCockpitVoiceNotice(notice);
+      return Boolean(audioContext || hasBrowserSpeech);
+    }
+
+    if (!hasBrowserSpeech) {
+      setCockpitAudioReadyState(Boolean(audioContext));
+      setCockpitVoiceNotice("This browser cannot play Apex's desktop voice. Use a supported desktop browser or allow site sound.");
+      return false;
+    }
+
+    stopBrowserVoice(cockpitAudioRef);
+    stopCockpitOutputLevelMonitor();
+    clearCockpitSpeechSafetyTimer();
+    cockpitSpeakingRef.current = true;
+    setCockpitSpeaking(true);
+    startCockpitOutputLevelMonitor();
+    armCockpitSpeechSafetyTimer(APEX_COCKPIT_AUDIO_CHECK_TEXT, {
+      minimumMs: 3_200,
+      recoveryNotice: "Sound check started but did not finish cleanly. If you did not hear Apex, allow site sound and run Sound Check again.",
+      resumeListening: false,
+    });
+    setCockpitVoiceNotice("Running Apex desktop sound check.");
+
+    const started = speakWithBrowserVoice(APEX_COCKPIT_AUDIO_CHECK_TEXT, {
+      rate: cockpitVoiceProfileConfig.rate,
+      pitch: cockpitVoiceProfileConfig.pitch,
+      voiceHint: cockpitVoiceProfileConfig.label,
+      onStart: () => {
+        setCockpitAudioReadyState(true);
+        setCockpitVoiceNotice("Apex desktop voice is audible.");
+      },
+      onEnd: () => {
+        stopCockpitOutputLevelMonitor();
+        clearCockpitSpeechSafetyTimer();
+        cockpitSpeakingRef.current = false;
+        setCockpitSpeaking(false);
+        setCockpitAudioReadyState(true);
+        setCockpitVoiceNotice("Sound check passed. Wake Apex and talk naturally.");
+      },
+      onError: () => {
+        stopCockpitOutputLevelMonitor();
+        clearCockpitSpeechSafetyTimer();
+        cockpitSpeakingRef.current = false;
+        setCockpitSpeaking(false);
+        setCockpitAudioReadyState(false);
+        setCockpitVoiceNotice("Browser blocked Apex desktop voice. Allow sound for this site, then run Sound Check again.");
+      },
+    });
+
+    if (!started) {
+      stopCockpitOutputLevelMonitor();
+      clearCockpitSpeechSafetyTimer();
+      cockpitSpeakingRef.current = false;
+      setCockpitSpeaking(false);
+      setCockpitAudioReadyState(false);
+      setCockpitVoiceNotice("Apex desktop voice could not start. Allow site sound, then run Sound Check again.");
+    }
+    return started;
+  }
+
   function clearCockpitSpeechSafetyTimer() {
     if (!cockpitSpeechSafetyTimerRef.current) return;
     clearTimeout(cockpitSpeechSafetyTimerRef.current);
@@ -6956,12 +7048,20 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     return true;
   }
 
-  function armCockpitSpeechSafetyTimer(textToSpeak = "") {
+  function armCockpitSpeechSafetyTimer(
+    textToSpeak = "",
+    {
+      minimumMs = 7_000,
+      recoveryNotice = "Apex voice safety recovered after playback did not finish cleanly.",
+      resumeListening = true,
+    } = {},
+  ) {
     clearCockpitSpeechSafetyTimer();
-    const timeoutMs = Math.min(24_000, Math.max(7_000, String(textToSpeak || "").length * 48));
+    const timeoutMs = Math.min(24_000, Math.max(minimumMs, String(textToSpeak || "").length * 48));
     cockpitSpeechSafetyTimerRef.current = setTimeout(() => {
       if (!cockpitSpeakingRef.current) return;
-      stopCockpitVoicePlayback("Apex voice safety recovered after playback did not finish cleanly.", { resumeListening: true });
+      if (!resumeListening) setCockpitAudioReadyState(false);
+      stopCockpitVoicePlayback(recoveryNotice, { resumeListening });
     }, timeoutMs);
   }
 
@@ -7226,7 +7326,11 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       rate: cockpitVoiceProfileConfig.rate,
       pitch: cockpitVoiceProfileConfig.pitch,
       voiceHint: cockpitVoiceProfileConfig.label,
+      onStart: () => {
+        setCockpitAudioReadyState(true);
+      },
       onEnd: () => {
+        setCockpitAudioReadyState(true);
         stopCockpitOutputLevelMonitor();
         clearCockpitSpeechSafetyTimer();
         cockpitSpeakingRef.current = false;
@@ -7238,14 +7342,16 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
         clearCockpitSpeechSafetyTimer();
         cockpitSpeakingRef.current = false;
         setCockpitSpeaking(false);
+        setCockpitAudioReadyState(false);
         if (!scheduleCockpitListeningAfterSpeech("Browser voice playback could not start. Apex is listening for your next turn.")) {
-          setCockpitVoiceNotice("Browser voice playback could not start.");
+          setCockpitVoiceNotice("Browser voice playback could not start. Run Sound Check and allow site sound.");
         }
       },
     });
     if (!started) {
       clearCockpitSpeechSafetyTimer();
       setCockpitSpeaking(false);
+      setCockpitAudioReadyState(false);
       if (!scheduleCockpitListeningAfterSpeech("This browser does not support speech playback here. Apex is listening for your next turn.")) {
         setCockpitVoiceNotice("This browser does not support speech playback here.");
       }
@@ -7257,7 +7363,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   async function speakCockpitAnswer(textToSpeak = cockpitAnswerText) {
     const answerToSpeak = textToSpeak.trim();
     if (!answerToSpeak) return;
-    unlockBrowserAudio(cockpitAudioUnlockedRef);
+    primeCockpitAudioOutput();
     stopBrowserVoice(cockpitAudioRef);
     cockpitSpeakingRef.current = true;
     setCockpitSpeaking(true);
@@ -7280,6 +7386,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
           audioRef: cockpitAudioRef,
           unlockedRef: cockpitAudioUnlockedRef,
           onEnd: () => {
+            setCockpitAudioReadyState(true);
             stopCockpitOutputLevelMonitor();
             clearCockpitSpeechSafetyTimer();
             cockpitSpeakingRef.current = false;
@@ -7287,10 +7394,12 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
             scheduleCockpitListeningAfterSpeech();
           },
           onPlaybackError: () => {
+            setCockpitAudioReadyState(false);
             speakCockpitBrowserFallback(answerToSpeak, "Apex speech audio stopped, so browser voice fallback is speaking.");
           },
         });
         if (playbackMode) {
+          setCockpitAudioReadyState(true);
           setCockpitVoiceNotice(payload.aiDisclosure || "Apex OS voice output is AI-generated.");
           return;
         }
@@ -8477,7 +8586,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   async function submitCockpitQuestion(event) {
     event.preventDefault();
     if (!canAskCockpit) return;
-    unlockBrowserAudio(cockpitAudioUnlockedRef);
+    primeCockpitAudioOutput();
     await askCockpitQuestion(askQuestion.trim());
   }
 
@@ -8545,7 +8654,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     if (cockpitVoiceOpeningRef.current) return;
     cockpitVoiceOpeningRef.current = true;
     if (!automatic) setCockpitVoiceWakeAttempted(true);
-    unlockBrowserAudio(cockpitAudioUnlockedRef);
+    primeCockpitAudioOutput();
     setCockpitError("");
     setCockpitVoiceNotice(automatic ? (handoff ? "Apex finished speaking. Reopening live listening." : "Opening voice for this Apex page.") : "");
     try {
@@ -8732,6 +8841,15 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
               >
                 <Icon name="phone" /> {cockpitWakeButtonLabel}
               </ApexCockpitControlButton>
+              <ApexCockpitControlButton
+                className="shrink-0 px-3"
+                onClick={() => primeCockpitAudioOutput({ speakCheck: true })}
+                disabled={cockpitSpeaking}
+                active={cockpitAudioReady}
+                title="Play an Apex desktop voice sound check"
+              >
+                <Icon name="spark" /> Sound Check
+              </ApexCockpitControlButton>
               <ApexCockpitControlButton className="px-3" disabled={false} onClick={() => deliverCockpitBriefing({ speak: true })} active={false} title="Speak Apex briefing">
                 <Icon name="spark" /> Brief
               </ApexCockpitControlButton>
@@ -8786,6 +8904,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     <div className="grid min-w-0 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                       <ApexCockpitControlButton disabled={false} onClick={() => setCockpitConversationMode((current) => !current)} active={cockpitConversationMode}>{cockpitConversationMode ? "Conversation On" : "Conversation Off"}</ApexCockpitControlButton>
                       <ApexCockpitControlButton disabled={false} onClick={() => setCockpitBargeInEnabled((current) => !current)} active={cockpitBargeInEnabled}>{cockpitBargeInEnabled ? "Barge-in On" : "Barge-in Off"}</ApexCockpitControlButton>
+                      <ApexCockpitControlButton onClick={() => primeCockpitAudioOutput({ speakCheck: true })} disabled={cockpitSpeaking} active={cockpitAudioReady}>Sound Check</ApexCockpitControlButton>
                       <ApexCockpitControlButton onClick={() => speakCockpitAnswer()} disabled={!canSpeakCockpitAnswer} active={cockpitSpeaking}>Speak Answer</ApexCockpitControlButton>
                       <ApexCockpitControlButton onClick={() => interruptCockpitVoicePlayback("manual-button")} disabled={!cockpitSpeaking}>Interrupt</ApexCockpitControlButton>
                       <ApexCockpitControlButton onClick={() => recoverCockpitVoice()} disabled={!canUseCockpitRecorder && !cockpitSpeaking && !cockpitRecording}>Recover Voice</ApexCockpitControlButton>
@@ -8878,6 +8997,15 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     title="Toggle voice barge-in"
                   >
                     {cockpitBargeInEnabled ? "Barge-in On" : "Barge-in Off"}
+                  </ApexCockpitControlButton>
+                  <ApexCockpitControlButton
+                    className="px-2"
+                    onClick={() => primeCockpitAudioOutput({ speakCheck: true })}
+                    disabled={cockpitSpeaking}
+                    active={cockpitAudioReady}
+                    title="Play an Apex desktop voice sound check"
+                  >
+                    Sound Check
                   </ApexCockpitControlButton>
                 </div>
                 <div className="mt-2 grid min-w-0 gap-1.5 rounded-md border border-cyan-200/10 bg-slate-950/56 p-2" aria-label="Apex voice health and recovery">

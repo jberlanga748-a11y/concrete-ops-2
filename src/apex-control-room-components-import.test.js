@@ -268,6 +268,13 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /cockpitVoiceProfile/);
   assert.match(componentSource, /cockpitPersonalityMode/);
   assert.match(componentSource, /cockpitOutputLevel/);
+  assert.match(componentSource, /cockpitAudioReady/);
+  assert.match(componentSource, /APEX_COCKPIT_AUDIO_CHECK_TEXT/);
+  assert.match(componentSource, /primeCockpitAudioOutput/);
+  assert.match(componentSource, /Sound Check/);
+  assert.match(componentSource, /Apex audio is on\. I can talk back on this desktop\./);
+  assert.match(componentSource, /minimumMs:\s*3_200/);
+  assert.match(componentSource, /Sound check started but did not finish cleanly/);
   assert.match(componentSource, /APEX_COCKPIT_BARGE_IN_THRESHOLD/);
   assert.match(componentSource, /APEX_COCKPIT_BARGE_IN_GRACE_MS/);
   assert.match(componentSource, /APEX_COCKPIT_VOICE_PROFILES/);
@@ -605,6 +612,11 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(cssSource, /\.co-apex-cockpit-screen--spotlight \.co-apex-cockpit-operator-metrics/);
   assert.match(cssSource, /\.co-apex-cockpit-screen--full-console \.co-apex-cockpit-live-console/);
   assert.match(cssSource, /\.co-apex-cockpit-focus-drawer/);
+  assert.match(cssSource, /\.co-apex-life-aura/);
+  assert.match(cssSource, /\.co-apex-life-neural-grid/);
+  assert.match(cssSource, /\.co-apex-life-voice-band/);
+  assert.match(cssSource, /@keyframes apex-life-aura-spin/);
+  assert.match(cssSource, /@keyframes apex-life-voice-band/);
   assert.match(cssSource, /\.co-apex-run-timeline-step/);
   assert.match(cssSource, /\.co-apex-run-timeline-step--active/);
   assert.match(componentSource, /key: "hearing"/);

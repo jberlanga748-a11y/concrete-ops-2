@@ -56578,10 +56578,136 @@ body:has(.co-field-mobile-reports-shell) .co-mobile-bottom-spacer {
   opacity: 0.72;
 }
 
+.co-apex-life-aura {
+  left: 50%;
+  top: 50%;
+  z-index: 1;
+  width: min(94%, 33rem);
+  height: min(82%, 26rem);
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 50% 58%, rgba(14, 165, 233, 0.18), transparent 42%),
+    conic-gradient(from 0deg, transparent, rgba(34, 211, 238, 0.16), transparent, rgba(249, 115, 22, 0.18), transparent);
+  filter: blur(8px);
+  opacity: 0.5;
+  transform: translate(-50%, -50%);
+  animation: apex-life-aura-spin 8s linear infinite;
+}
+
+.co-apex-life-body--standby .co-apex-life-aura {
+  opacity: 0.24;
+  animation-duration: 16s;
+}
+
+.co-apex-life-body--hearing .co-apex-life-aura {
+  background:
+    radial-gradient(circle at 50% 58%, rgba(16, 185, 129, 0.26), transparent 42%),
+    conic-gradient(from 0deg, transparent, rgba(110, 231, 183, 0.22), transparent, rgba(34, 211, 238, 0.2), transparent);
+  opacity: 0.72;
+  animation-duration: 3.2s;
+}
+
+.co-apex-life-body--thinking .co-apex-life-aura {
+  background:
+    radial-gradient(circle at 50% 58%, rgba(34, 211, 238, 0.24), transparent 42%),
+    conic-gradient(from 0deg, transparent, rgba(14, 165, 233, 0.2), transparent, rgba(125, 211, 252, 0.16), transparent);
+  opacity: 0.64;
+  animation-duration: 5s;
+}
+
+.co-apex-life-body--speaking .co-apex-life-aura {
+  background:
+    radial-gradient(circle at 50% 58%, rgba(249, 115, 22, 0.28), transparent 42%),
+    conic-gradient(from 0deg, transparent, rgba(251, 146, 60, 0.28), transparent, rgba(34, 211, 238, 0.18), transparent);
+  opacity: 0.82;
+  animation-duration: 2.6s;
+}
+
+.co-apex-life-neural-grid {
+  left: 50%;
+  top: 52%;
+  z-index: 3;
+  width: min(76%, 25rem);
+  height: min(68%, 20rem);
+  border-radius: 999px;
+  background-image:
+    linear-gradient(rgba(125, 211, 252, 0.13) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(125, 211, 252, 0.12) 1px, transparent 1px);
+  background-size: 24px 24px;
+  opacity: 0.32;
+  transform: translate(-50%, -50%) perspective(420px) rotateX(58deg);
+  animation: apex-life-grid-drift 4.8s linear infinite;
+  mask-image: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.82) 0 48%, transparent 76%);
+  mix-blend-mode: screen;
+}
+
+.co-apex-life-body--hearing .co-apex-life-neural-grid {
+  opacity: 0.54;
+  background-size: 19px 19px;
+  animation-duration: 2.4s;
+}
+
+.co-apex-life-body--speaking .co-apex-life-neural-grid {
+  opacity: 0.62;
+  background-size: 17px 17px;
+  animation-duration: 1.8s;
+}
+
+.co-apex-life-voice-band {
+  left: 50%;
+  top: 43%;
+  z-index: 6;
+  width: clamp(6.6rem, 34%, 11rem);
+  height: 1.6rem;
+  transform: translateX(-50%);
+  opacity: 0.42;
+  background:
+    linear-gradient(90deg, transparent 0 4%, rgba(125, 211, 252, 0.3) 4% 8%, transparent 8% 12%),
+    linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.3), rgba(251, 146, 60, 0.22), transparent);
+  background-size: 18px 100%, 100% 100%;
+  border-top: 1px solid rgba(125, 211, 252, 0.24);
+  border-bottom: 1px solid rgba(125, 211, 252, 0.18);
+  filter: drop-shadow(0 0 12px rgba(34, 211, 238, 0.3));
+  animation: apex-life-voice-band 1.6s linear infinite;
+  mix-blend-mode: screen;
+}
+
+.co-apex-life-body--standby .co-apex-life-voice-band {
+  opacity: 0.16;
+  animation-duration: 3.8s;
+}
+
+.co-apex-life-body--hearing .co-apex-life-voice-band {
+  opacity: 0.72;
+  border-color: rgba(110, 231, 183, 0.36);
+  filter: drop-shadow(0 0 15px rgba(16, 185, 129, 0.5));
+  animation-duration: 620ms;
+}
+
+.co-apex-life-body--thinking .co-apex-life-voice-band {
+  opacity: 0.58;
+  filter: drop-shadow(0 0 16px rgba(34, 211, 238, 0.48));
+  animation-duration: 980ms;
+}
+
+.co-apex-life-body--speaking .co-apex-life-voice-band {
+  opacity: 0.9;
+  border-color: rgba(251, 146, 60, 0.42);
+  background:
+    linear-gradient(90deg, transparent 0 3%, rgba(251, 146, 60, 0.5) 3% 8%, transparent 8% 12%),
+    linear-gradient(90deg, transparent, rgba(251, 146, 60, 0.44), rgba(34, 211, 238, 0.24), transparent);
+  background-size: 14px 100%, 100% 100%;
+  filter: drop-shadow(0 0 18px rgba(249, 115, 22, 0.66));
+  animation-duration: 360ms;
+}
+
 .co-apex-life-ring,
 .co-apex-life-horizon,
 .co-apex-life-scan,
 .co-apex-life-eyes,
+.co-apex-life-aura,
+.co-apex-life-neural-grid,
+.co-apex-life-voice-band,
 .co-apex-life-core,
 .co-apex-life-status,
 .co-apex-life-orbit,
@@ -56978,6 +57104,46 @@ body:has(.co-field-mobile-reports-shell) .co-mobile-bottom-spacer {
 
   72% {
     transform: translateY(0.06rem) scale(1.004);
+  }
+}
+
+@keyframes apex-life-aura-spin {
+  0% {
+    transform: translate(-50%, -50%) rotate(0deg) scale(0.98);
+  }
+
+  50% {
+    transform: translate(-50%, -50%) rotate(180deg) scale(1.03);
+  }
+
+  100% {
+    transform: translate(-50%, -50%) rotate(360deg) scale(0.98);
+  }
+}
+
+@keyframes apex-life-grid-drift {
+  0% {
+    background-position: 0 0, 0 0;
+  }
+
+  100% {
+    background-position: 24px 24px, 24px 24px;
+  }
+}
+
+@keyframes apex-life-voice-band {
+  0% {
+    background-position: 0 0, 0 0;
+    transform: translateX(-50%) scaleX(0.94);
+  }
+
+  50% {
+    transform: translateX(-50%) scaleX(1.08);
+  }
+
+  100% {
+    background-position: 28px 0, 0 0;
+    transform: translateX(-50%) scaleX(0.94);
   }
 }
 
@@ -57433,6 +57599,9 @@ body:has(.co-field-mobile-reports-shell) .co-mobile-bottom-spacer {
   .co-apex-life-body-image,
   .co-apex-life-ring,
   .co-apex-life-orbit,
+  .co-apex-life-aura,
+  .co-apex-life-neural-grid,
+  .co-apex-life-voice-band,
   .co-apex-life-horizon,
   .co-apex-life-scan,
   .co-apex-life-eyes::before,
