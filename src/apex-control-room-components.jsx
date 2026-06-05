@@ -4985,6 +4985,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const [cockpitLastInterruptionLabel, setCockpitLastInterruptionLabel] = useState("");
   const [cockpitClock, setCockpitClock] = useState(() => formatApexCockpitClock());
   const [cockpitFocusDrawer, setCockpitFocusDrawer] = useState("");
+  const [cockpitImmersiveMode, setCockpitImmersiveMode] = useState(true);
   const [cockpitCommandRoute, setCockpitCommandRoute] = useState(() => buildApexCockpitCommandRoute(""));
   const [cockpitTurns, setCockpitTurns] = useState([]);
   const cockpitAudioRef = useRef(null);
@@ -6398,8 +6399,10 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     setCockpitRecording(false);
   }
 
+  const cockpitScreenClassName = `co-apex-cockpit-screen co-apex-cockpit-screen--focus ${cockpitImmersiveMode ? "co-apex-cockpit-screen--immersive" : "co-apex-cockpit-screen--console"} w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-700/70 bg-slate-950 text-white shadow-[0_34px_80px_-40px_rgba(2,6,23,0.95)] ring-1 ring-cyan-300/10 lg:h-[calc(100vh-16px)]`;
+
   return (
-    <section className="co-apex-cockpit-screen co-apex-cockpit-screen--focus w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-700/70 bg-slate-950 text-white shadow-[0_34px_80px_-40px_rgba(2,6,23,0.95)] ring-1 ring-cyan-300/10 lg:h-[calc(100vh-16px)]">
+    <section className={cockpitScreenClassName}>
       <div className="co-apex-cockpit-frame relative grid min-h-[720px] w-full min-w-0 max-w-full bg-slate-950 lg:h-full lg:min-h-0 lg:grid-cols-[190px_minmax(0,1fr)]">
         <div
           className="absolute inset-0 opacity-90"
@@ -6446,6 +6449,15 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
               </ApexCockpitControlButton>
               <ApexCockpitControlButton className="px-3" disabled={false} onClick={() => deliverCockpitBriefing({ speak: true })} active={false} title="Speak Apex briefing">
                 <Icon name="spark" /> Brief
+              </ApexCockpitControlButton>
+              <ApexCockpitControlButton
+                className="px-3"
+                disabled={false}
+                onClick={() => setCockpitImmersiveMode((current) => !current)}
+                active={cockpitImmersiveMode}
+                title={cockpitImmersiveMode ? "Show denser Apex console" : "Return to immersive Apex body"}
+              >
+                <Icon name="layers" /> {cockpitImmersiveMode ? "Immersive" : "Console"}
               </ApexCockpitControlButton>
             </div>
             <div className="grid min-w-0 grid-cols-5 gap-2">

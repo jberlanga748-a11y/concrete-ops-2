@@ -57168,6 +57168,44 @@ body:has(.co-field-mobile-reports-shell) .co-mobile-bottom-spacer {
   .co-apex-cockpit-focus-drawer {
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 18px 42px -34px rgba(56, 189, 248, 0.7);
   }
+
+  .co-apex-cockpit-screen--immersive .co-apex-cockpit-focus-center {
+    max-width: min(100%, 72rem);
+  }
+
+  .co-apex-cockpit-screen--immersive .co-apex-life-body {
+    max-width: min(100%, 52rem);
+    min-height: clamp(31rem, 64vh, 42rem);
+  }
+
+  .co-apex-cockpit-screen--immersive .co-apex-life-body-image {
+    max-height: clamp(31rem, 62vh, 40rem);
+  }
+
+  .co-apex-cockpit-screen--immersive .co-apex-cockpit-live-console,
+  .co-apex-cockpit-screen--immersive #apex-cockpit-ask,
+  .co-apex-cockpit-screen--immersive [aria-label="Apex quick next turns"],
+  .co-apex-cockpit-screen--immersive [aria-label="Apex command stream"] {
+    margin-inline: auto;
+    max-width: 58rem;
+  }
+
+  .co-apex-cockpit-screen--immersive .co-apex-cockpit-live-console {
+    background: rgba(2, 6, 23, 0.62);
+  }
+
+  .co-apex-cockpit-screen--console .co-apex-cockpit-focus-center {
+    max-width: min(100%, 58rem);
+  }
+
+  .co-apex-cockpit-screen--console .co-apex-life-body {
+    max-width: 40rem;
+    min-height: clamp(22rem, 44vh, 30rem);
+  }
+
+  .co-apex-cockpit-screen--console .co-apex-life-body-image {
+    max-height: 28rem;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
