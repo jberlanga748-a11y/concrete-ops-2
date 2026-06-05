@@ -420,13 +420,16 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.liveOperatorMode.status, "Live operator ready");
   assert.equal(state.liveOperatorMode.mode, "Body-first review-first operator");
   assert.equal(state.liveOperatorMode.foundationPercent, 96);
-  assert.equal(state.liveOperatorMode.jarvisBehaviorPercent, 86);
+  assert.equal(state.liveOperatorMode.jarvisBehaviorPercent, 88);
   assert.equal(state.liveOperatorMode.readinessRows.length, 6);
-  assert.equal(state.liveOperatorMode.operatorLoopRows.length, 14);
+  assert.equal(state.liveOperatorMode.operatorLoopRows.length, 15);
+  assert.equal(state.liveOperatorMode.operatorJudgmentRows.length, 4);
   assert.equal(state.liveOperatorMode.gapRows.length, 4);
   assert.equal(state.liveOperatorMode.readinessRows.some((item) => item.id === "live-run-ledger" && item.status === "Ready" && /natural-command autopilot/i.test(item.detail)), true);
   assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-save"), true);
   assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-command-run" && item.status === "Natural command"), true);
+  assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-judge" && item.status === "Proactive"), true);
+  assert.equal(state.liveOperatorMode.operatorJudgmentRows.some((item) => item.id === "judgment-start-private-run" && item.actionLabel === "Start private run"), true);
   assert.equal(state.liveOperatorMode.readinessRows.some((item) => item.id === "live-voice-loop" && /interruption-aware turn memory/i.test(item.detail)), true);
   assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-interrupt" && item.status === "Barge-in memory"), true);
   assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-cycle" && item.status === "Private cycle"), true);
@@ -436,7 +439,7 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.liveOperatorMode.readinessRows.some((item) => item.id === "live-memory" && /Apex body turns/i.test(item.detail)), true);
   assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-remember" && /run outcome memory/i.test(item.detail)), true);
   assert.equal(state.liveOperatorMode.gapRows.some((item) => item.id === "live-gap-execution" && item.status === "Approval-gated"), true);
-  assert.equal(state.liveOperatorMode.gapRows.some((item) => item.id === "live-gap-proactive" && item.status === "Auto-checking"), true);
+  assert.equal(state.liveOperatorMode.gapRows.some((item) => item.id === "live-gap-proactive" && item.status === "Operator judgment"), true);
   assert.equal(state.liveOperatorMode.gapRows.some((item) => item.id === "live-gap-provider-reliability" && item.status === "Caption fallback"), true);
   assert.equal(state.liveOperatorMode.externalActionsLocked, true);
   assert.equal(state.liveOperatorMode.executionLocked, true);
@@ -504,10 +507,11 @@ test("deriveApexControlRoomState includes saved autonomy run ledger rows", () =>
   assert.equal(state.liveOperatorMode.status, "Live operator running");
   assert.equal(state.liveOperatorMode.savedRunCount, 2);
   assert.equal(state.liveOperatorMode.activeRunCount, 1);
-  assert.equal(state.liveOperatorMode.jarvisBehaviorPercent, 92);
+  assert.equal(state.liveOperatorMode.jarvisBehaviorPercent, 94);
   assert.equal(state.liveOperatorMode.readinessRows.some((item) => item.id === "live-run-ledger" && item.status === "2 saved"), true);
   assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-save" && item.status === "2 saved"), true);
   assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-report" && item.status === "Report-ready"), true);
+  assert.equal(state.liveOperatorMode.operatorJudgmentRows.some((item) => item.id === "judgment-finish-active-run" && item.status === "14% done"), true);
 });
 
 test("deriveApexControlRoomState includes durable Apex OS decision memory summary", () => {

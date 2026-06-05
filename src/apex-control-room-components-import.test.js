@@ -235,6 +235,12 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /live-run-cycled/);
   assert.match(componentSource, /private run, prepared internal drafts, checked proof/);
   assert.match(componentSource, /Proactive Pulse/);
+  assert.match(componentSource, /Operator judgment/);
+  assert.match(componentSource, /Speak Judgment/);
+  assert.match(componentSource, /buildApexCockpitOperatorJudgmentRows/);
+  assert.match(componentSource, /buildApexCockpitOperatorJudgmentText/);
+  assert.match(componentSource, /deliverCockpitOperatorJudgment/);
+  assert.match(componentSource, /Execution, sends, billing, provider work, production changes, deletion, deploy, rollback, and irreversible actions stay locked/);
   assert.match(componentSource, /refreshCockpitLivePulse/);
   assert.match(componentSource, /Auto Check/);
   assert.match(componentSource, /Check Now/);
@@ -291,6 +297,8 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /stopCockpitSpeechRecognition/);
   assert.match(componentSource, /co-apex-life-orbit/);
   assert.match(componentSource, /co-apex-cockpit-mobile-response/);
+  assert.match(componentSource, /co-apex-cockpit-main-response/);
+  assert.match(componentSource, /Apex visible response/);
   assert.match(componentSource, /co-apex-cockpit-side-rail/);
   assert.match(utilSource, /buildApexLiveOperatorModeState/);
   assert.match(utilSource, /liveOperatorMode/);
@@ -298,6 +306,9 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(utilSource, /live-loop-save/);
   assert.match(utilSource, /live-loop-interrupt/);
   assert.match(utilSource, /live-loop-command-run/);
+  assert.match(utilSource, /live-loop-judge/);
+  assert.match(utilSource, /operatorJudgmentRows/);
+  assert.match(utilSource, /Apex Live Operator judgment/);
   assert.match(utilSource, /Natural command/);
   assert.match(utilSource, /natural-command autopilot/);
   assert.match(utilSource, /live-loop-cycle/);

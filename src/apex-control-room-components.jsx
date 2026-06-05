@@ -4786,6 +4786,79 @@ function buildApexCockpitPulseRows({ state, pulse, recording, speaking, conversa
   ];
 }
 
+function normalizeApexCockpitJudgmentRow(row = {}) {
+  return {
+    id: String(row.id || `judgment-${row.title || "item"}`).trim(),
+    title: apexCockpitMemoryText(row.title || "Operator judgment", 80),
+    status: apexCockpitMemoryText(row.status || "Review", 80),
+    detail: apexCockpitMemoryText(row.detail || "Review the current Apex context before taking action.", 260),
+    tone: row.tone || "blue",
+    actionLabel: apexCockpitMemoryText(row.actionLabel || "Review", 80),
+  };
+}
+
+function buildApexCockpitOperatorJudgmentRows({ state, pulse, activeRun, activeRunProgress } = {}) {
+  const rows = [];
+  const runStatus = String(activeRun?.status || "").toLowerCase();
+  if (activeRun?.id) {
+    rows.push(normalizeApexCockpitJudgmentRow({
+      id: runStatus === "waiting-approval" ? "judgment-review-active-run" : "judgment-finish-active-run",
+      title: runStatus === "waiting-approval" ? "Review active run" : "Advance active run",
+      status: runStatus === "waiting-approval" ? "Manual review" : `${Number(activeRunProgress?.progressPercent || 0)}% done`,
+      detail: runStatus === "waiting-approval"
+        ? "Apex proof-checked the active private run and is stopped at manual review. Report done, block it, or keep waiting."
+        : "Apex sees an unfinished private run. Cycle prep/proof, attach evidence, then stop at approval or report back.",
+      tone: runStatus === "waiting-approval" ? "amber" : "green",
+      actionLabel: runStatus === "waiting-approval" ? "Review run" : "Cycle run",
+    }));
+  }
+
+  if (Number(pulse?.blockerCount || 0) > 0) {
+    rows.push(normalizeApexCockpitJudgmentRow({
+      id: "judgment-pulse-blockers",
+      title: "Clear live blockers",
+      status: `${Number(pulse.blockerCount || 0)} blockers`,
+      detail: "Apex sees blocker pressure in the live pulse. Ask what is blocked or start a private run to triage it.",
+      tone: "amber",
+      actionLabel: "Review blockers",
+    }));
+  }
+
+  if (Number(pulse?.alertCount || 0) > 0) {
+    rows.push(normalizeApexCockpitJudgmentRow({
+      id: "judgment-pulse-alerts",
+      title: "Review live alerts",
+      status: `${Number(pulse.alertCount || 0)} alerts`,
+      detail: "Apex sees alert rows in the daily briefing. Review them before trusting new execution or release work.",
+      tone: "amber",
+      actionLabel: "Open briefing",
+    }));
+  }
+
+  const baseRows = Array.isArray(state?.liveOperatorMode?.operatorJudgmentRows)
+    ? state.liveOperatorMode.operatorJudgmentRows.map(normalizeApexCockpitJudgmentRow)
+    : [];
+  const merged = [...rows, ...baseRows];
+  const seen = new Set();
+  return merged.filter((row) => {
+    if (!row.id || seen.has(row.id)) return false;
+    seen.add(row.id);
+    return true;
+  }).slice(0, 4);
+}
+
+function buildApexCockpitOperatorJudgmentText(rows = []) {
+  const safeRows = rows.map(normalizeApexCockpitJudgmentRow).slice(0, 4);
+  if (!safeRows.length) {
+    return "Operator judgment is clear: keep monitoring, keep execution locked, and start a private run when there is real work to track.";
+  }
+  const [first, ...rest] = safeRows;
+  const restText = rest.length
+    ? ` Other signals: ${rest.map((row) => `${row.title}: ${row.status}`).join("; ")}.`
+    : "";
+  return `Operator judgment: ${first.title}. ${first.detail} Next safe action: ${first.actionLabel}. ${restText} Execution, sends, billing, provider work, production changes, deletion, deploy, rollback, and irreversible actions stay locked.`;
+}
+
 function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAskQuestion, sessionToken }) {
   const [cockpitResponse, setCockpitResponse] = useState(null);
   const [cockpitError, setCockpitError] = useState("");
@@ -4904,6 +4977,13 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     || cockpitVisibleRunRows[0]
     || null;
   const cockpitActiveRunProgress = summarizeApexCockpitRunProgress(cockpitActiveRun || {});
+  const cockpitOperatorJudgmentRows = buildApexCockpitOperatorJudgmentRows({
+    state,
+    pulse: cockpitLivePulse,
+    activeRun: cockpitActiveRun,
+    activeRunProgress: cockpitActiveRunProgress,
+  });
+  const cockpitOperatorJudgmentText = buildApexCockpitOperatorJudgmentText(cockpitOperatorJudgmentRows);
   const cockpitVisibleSavedRunCount = Number(cockpitLiveRunSummary.total ?? cockpitPulseRunSummary.total ?? liveOperatorMode.savedRunCount ?? 0);
   const cockpitVisibleActiveRunCount = Number(cockpitLiveRunSummary.active ?? cockpitPulseRunSummary.active ?? liveOperatorMode.activeRunCount ?? 0);
   const cockpitVisibleLiveStatus = cockpitVisibleActiveRunCount ? "Live operator running" : liveOperatorMode.status || "Live operator ready";
@@ -5510,6 +5590,30 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       ...current,
     ].slice(0, 5));
     if (speak) speakCockpitAnswer(cockpitBriefingText);
+  }
+
+  function deliverCockpitOperatorJudgment({ speak = false } = {}) {
+    const route = buildApexCockpitCommandRoute("What should I do next?");
+    setCockpitCommandRoute(route);
+    setCockpitResponse({
+      answer: {
+        answer: cockpitOperatorJudgmentText,
+        sourceLabels: ["Apex Live Operator Mode", "Proactive Pulse", "Autonomy Run Center"],
+      },
+    });
+    setCockpitLastQuestion("Operator judgment");
+    setCockpitVoiceNotice("Apex operator judgment is ready. Execution stayed locked.");
+    setCockpitTurns((current) => [
+      {
+        id: `cockpit-judgment-${Date.now()}`,
+        question: "Operator judgment",
+        source: "system",
+        routeLabel: route.label,
+        status: "answered",
+      },
+      ...current,
+    ].slice(0, 5));
+    if (speak) speakCockpitAnswer(cockpitOperatorJudgmentText);
   }
 
   async function createCockpitAgentRequestFromCommand(question = cockpitLastQuestion || askQuestion || cockpitCommandRoute.label, route = cockpitCommandRoute, { turnId = "" } = {}) {
@@ -6456,6 +6560,9 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     <ApexCockpitControlButton className="px-2" disabled={false} onClick={() => deliverCockpitBriefing({ speak: true })} active={false} title="Speak Apex briefing">
                       <Icon name="spark" /> Brief Me
                     </ApexCockpitControlButton>
+                    <ApexCockpitControlButton className="px-2" disabled={false} onClick={() => deliverCockpitOperatorJudgment({ speak: true })} active={false} title="Speak Apex operator judgment">
+                      <Icon name="check" /> Judgment
+                    </ApexCockpitControlButton>
                     <ApexCockpitControlButton className="px-2" disabled={cockpitCreatingAgentRequest || cockpitCommandRoute.id !== "agent-control"} onClick={() => createCockpitAgentRequestFromCommand()} active={cockpitCreatingAgentRequest} title="Create locked agent request">
                       <Icon name="lock" /> Agent Draft
                     </ApexCockpitControlButton>
@@ -6482,6 +6589,18 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     </div>
                   ))}
                 </div>
+                {(cockpitAnswerText || cockpitError) ? (
+                  <div className="co-apex-cockpit-main-response grid min-w-0 gap-2 rounded-lg border border-cyan-200/12 bg-slate-950/64 p-3" aria-label="Apex visible response">
+                    <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Apex Response</p>
+                        <p className="mt-0.5 min-w-0 break-words text-[10px] font-bold leading-4 text-slate-500">{cockpitLastQuestion || "Live operator answer"}</p>
+                      </div>
+                      <span className="shrink-0 rounded-md border border-cyan-300/20 bg-cyan-300/8 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.08em] text-cyan-200">{cockpitSources.length || 0} sources</span>
+                    </div>
+                    <p className={`min-w-0 break-words text-[11px] font-bold leading-5 ${cockpitError ? "text-red-200" : "text-slate-200"}`}>{cockpitError || cockpitAnswerText}</p>
+                  </div>
+                ) : null}
                 <div className="grid min-w-0 gap-2 rounded-lg border border-cyan-200/12 bg-slate-900/46 p-3">
                   <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
@@ -6577,15 +6696,34 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                           {cockpitLivePulseError || "Auto-checks build, briefing, and live-run status every minute while this page is open."}
                         </p>
                       </div>
-                      <ApexCockpitControlButton className="shrink-0 px-2" disabled={cockpitLivePulseBusy || !sessionToken} onClick={() => refreshCockpitLivePulse({ automatic: false })} active={cockpitLivePulseBusy} title="Refresh Apex live pulse">
-                        <Icon name="refresh" /> {cockpitLivePulseBusy ? "Checking" : "Check Now"}
-                      </ApexCockpitControlButton>
+                      <div className="flex shrink-0 flex-wrap gap-1.5 sm:justify-end">
+                        <ApexCockpitControlButton className="px-2" disabled={false} onClick={() => deliverCockpitOperatorJudgment({ speak: true })} active={false} title="Speak Apex operator judgment">
+                          <Icon name="check" /> Speak Judgment
+                        </ApexCockpitControlButton>
+                        <ApexCockpitControlButton className="px-2" disabled={cockpitLivePulseBusy || !sessionToken} onClick={() => refreshCockpitLivePulse({ automatic: false })} active={cockpitLivePulseBusy} title="Refresh Apex live pulse">
+                          <Icon name="refresh" /> {cockpitLivePulseBusy ? "Checking" : "Check Now"}
+                        </ApexCockpitControlButton>
+                      </div>
                     </div>
                     <div className="grid min-w-0 gap-1.5 sm:grid-cols-4">
                       {cockpitPulseRows.map((item) => (
                         <div key={item.label} className="min-w-0 rounded-md border border-slate-800 bg-slate-900/48 px-2 py-1.5">
                           <p className="text-[8px] font-black uppercase tracking-[0.08em] text-slate-500">{item.label}</p>
                           <p className={`mt-0.5 truncate text-[10px] font-black ${item.tone === "green" ? "text-emerald-300" : item.tone === "amber" ? "text-orange-300" : item.tone === "red" ? "text-red-300" : "text-slate-300"}`}>{item.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="grid min-w-0 gap-1.5 sm:grid-cols-2">
+                      {cockpitOperatorJudgmentRows.map((item) => (
+                        <div key={item.id} className="grid min-w-0 gap-1 rounded-md border border-cyan-200/10 bg-slate-950/52 px-2.5 py-2">
+                          <div className="flex min-w-0 items-start justify-between gap-2">
+                            <span className="min-w-0">
+                              <span className="block truncate text-[10px] font-black text-slate-200">{item.title}</span>
+                              <span className="block truncate text-[9px] font-black uppercase tracking-[0.08em] text-cyan-300">{item.status}</span>
+                            </span>
+                            <span className={`shrink-0 text-[9px] font-black ${item.tone === "green" ? "text-emerald-300" : item.tone === "amber" ? "text-orange-300" : item.tone === "red" ? "text-red-300" : "text-cyan-300"}`}>{item.actionLabel}</span>
+                          </div>
+                          <p className="line-clamp-2 min-w-0 text-[9px] font-bold leading-4 text-slate-500">{item.detail}</p>
                         </div>
                       ))}
                     </div>

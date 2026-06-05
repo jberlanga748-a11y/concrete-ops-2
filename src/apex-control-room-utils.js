@@ -2181,6 +2181,84 @@ function buildAutonomyRunCenterState({
   };
 }
 
+function buildApexLiveOperatorJudgmentRows({
+  autonomyRunCenter,
+  approvalCommandCenter,
+  releaseMonitoring,
+  decisionMemory,
+  businessCommandCenter,
+} = {}) {
+  const latestRun = autonomyRunCenter?.latestRun || autonomyRunCenter?.runRows?.[0] || null;
+  const latestRunStatus = String(latestRun?.status || "").toLowerCase();
+  const activeRun = latestRun && !["done", "archived"].includes(latestRunStatus) ? latestRun : null;
+  const activeProgress = activeRun?.progress || summarizeAutonomyRunProgress(activeRun || {});
+  const approvalCount = formatCount(approvalCommandCenter?.queueCount || approvalCommandCenter?.packetSummary?.total);
+  const blockedApprovalCount = formatCount(approvalCommandCenter?.packetSummary?.blocked);
+  const briefingCount = formatCount(businessCommandCenter?.briefingCount);
+  const trustedMemoryCount = formatCount(decisionMemory?.durableCount || decisionMemory?.decisionCount);
+  const releaseStatus = releaseMonitoring?.status || "Auto-checking";
+  const rows = [];
+
+  if (activeRun) {
+    rows.push({
+      id: activeRun.status === "waiting-approval" ? "judgment-review-active-run" : "judgment-finish-active-run",
+      title: activeRun.status === "waiting-approval" ? "Review active run" : "Advance active run",
+      status: activeRun.status === "waiting-approval" ? "Manual review" : `${formatCount(activeProgress.progressPercent)}% done`,
+      detail: activeRun.status === "waiting-approval"
+        ? "Apex has proof-checked the active private run and is waiting for operator review, report-back, block, or keep-waiting decision."
+        : "Apex sees an active private run. Cycle prep/proof, attach evidence, then report done or hold at approval.",
+      tone: activeRun.status === "waiting-approval" ? "amber" : "green",
+      actionLabel: activeRun.status === "waiting-approval" ? "Review run" : "Cycle run",
+    });
+  } else {
+    rows.push({
+      id: "judgment-start-private-run",
+      title: "Start the next private run",
+      status: autonomyRunCenter?.savedRunCount ? "No active run" : "Ready",
+      detail: "Apex has no active private run. Ask in natural language or use Live Run so the next operator task has a ledger, evidence, and approval stop.",
+      tone: "blue",
+      actionLabel: "Start private run",
+    });
+  }
+
+  rows.push({
+    id: "judgment-review-queues",
+    title: blockedApprovalCount ? "Clear blockers" : approvalCount ? "Review approvals" : "Review posture",
+    status: blockedApprovalCount ? `${blockedApprovalCount} blocked` : approvalCount ? `${approvalCount} review` : "Clear",
+    detail: blockedApprovalCount
+      ? "Apex sees blocked approval or launch work. Review blockers before trusting new execution or release work."
+      : approvalCount
+        ? "Apex sees approval work ready for operator review. Keep external actions locked until the packet is approved."
+        : "No approval pressure is visible in the current private command context.",
+    tone: blockedApprovalCount ? "amber" : approvalCount ? "blue" : "green",
+    actionLabel: blockedApprovalCount || approvalCount ? "Open approvals" : "Keep monitoring",
+  });
+
+  rows.push({
+    id: "judgment-monitor-release",
+    title: "Monitor live status",
+    status: releaseStatus,
+    detail: `${releaseStatus} release posture, ${briefingCount} business briefing rows, and read-only pulse checks feed Apex before it recommends work.`,
+    tone: releaseMonitoring?.tone || "green",
+    actionLabel: "Check pulse",
+  });
+
+  rows.push({
+    id: "judgment-memory-loop",
+    title: "Remember reviewed outcomes",
+    status: trustedMemoryCount ? `${trustedMemoryCount} trusted` : "Review first",
+    detail: "Apex should only turn live answers or run outcomes into trusted long-term memory after operator review.",
+    tone: trustedMemoryCount ? "green" : "amber",
+    actionLabel: "Review memory",
+  });
+
+  return withDerivedStateMetaList(rows.slice(0, 4), {
+    sourceLabel: "Apex Live Operator judgment",
+    source: "run ledger + approvals + release pulse + memory",
+    confidence: 86,
+  });
+}
+
 function buildApexLiveOperatorModeState({
   autonomyRunCenter,
   voiceInterface,
@@ -2200,8 +2278,15 @@ function buildApexLiveOperatorModeState({
   const handoffCount = formatCount(executionHandoffs?.handoffSummary?.total);
   const approvalQueueCount = formatCount(approvalCommandCenter?.queueCount || approvalCommandCenter?.packetSummary?.total);
   const monitoringCount = formatCount(releaseMonitoring?.briefingCount || releaseMonitoring?.readinessCount);
+  const operatorJudgmentRows = buildApexLiveOperatorJudgmentRows({
+    autonomyRunCenter,
+    approvalCommandCenter,
+    releaseMonitoring,
+    decisionMemory,
+    businessCommandCenter,
+  });
   const liveFoundationPercent = 96;
-  const jarvisBehaviorPercent = activeRunCount || handoffCount ? 92 : 86;
+  const jarvisBehaviorPercent = activeRunCount || handoffCount ? 94 : 88;
   const readinessRows = withDerivedStateMetaList([
     {
       id: "live-voice-loop",
@@ -2255,6 +2340,7 @@ function buildApexLiveOperatorModeState({
     { id: "live-loop-interrupt", title: "Interrupt", status: "Barge-in memory", detail: "Apex can stop speaking, keep listening, and carry the interruption into the next answer context.", tone: "green" },
     { id: "live-loop-understand", title: "Understand", status: "Source-backed", detail: "Apex routes the request against private command-room context.", tone: "green" },
     { id: "live-loop-command-run", title: "Act", status: "Natural command", detail: "Apex can turn typed or spoken get-this-done requests into a saved private run, cycle safe prep/proof, and stop at manual review.", tone: "green" },
+    { id: "live-loop-judge", title: "Judge", status: "Proactive", detail: "Apex can turn pulse, run, approval, release, and memory state into ranked next-safe recommendations without executing them.", tone: "green" },
     { id: "live-loop-plan", title: "Plan", status: `${formatCount(autonomyRunCenter?.planStepCount)} steps`, detail: "The request becomes a visible review-first run plan with an active step and evidence trail.", tone: "blue" },
     { id: "live-loop-save", title: "Save run", status: savedRunCount ? `${savedRunCount} saved` : "Ready", detail: "A private autonomy ledger item is created before work continues.", tone: savedRunCount ? "green" : "blue" },
     { id: "live-loop-draft", title: "Draft", status: autonomyRunCenter?.canDraftInternalRuns ? "Draft-ready" : "Guarded", detail: "Internal agent-control and execution handoff drafts can be prepared.", tone: autonomyRunCenter?.canDraftInternalRuns ? "green" : "amber" },
@@ -2288,8 +2374,8 @@ function buildApexLiveOperatorModeState({
     {
       id: "live-gap-proactive",
       title: "Proactive status",
-      status: "Auto-checking",
-      detail: "Apex can refresh live status while the page is open; unattended external actions stay off until a separate approved execution lane exists.",
+      status: "Operator judgment",
+      detail: "Apex can refresh live status while the page is open and turn pulse/run/approval/release context into next-safe recommendations; unattended external actions stay off until a separate approved execution lane exists.",
       tone: "green",
     },
     {
@@ -2309,11 +2395,12 @@ function buildApexLiveOperatorModeState({
     status: activeRunCount ? "Live operator running" : "Live operator ready",
     tone: activeRunCount ? "green" : "blue",
     mode: "Body-first review-first operator",
-    detail: "Apex is moving from a screen with tools into a visible operator loop: hear, understand, save, draft, validate, report, remember, and monitor.",
+    detail: "Apex is moving from a screen with tools into a visible operator loop: hear, understand, judge, save, draft, validate, report, remember, and monitor.",
     foundationPercent: liveFoundationPercent,
     jarvisBehaviorPercent,
     readinessCount: readinessRows.length,
     operatorLoopCount: operatorLoopRows.length,
+    operatorJudgmentCount: operatorJudgmentRows.length,
     gapCount: gapRows.length,
     savedRunCount,
     activeRunCount,
@@ -2321,9 +2408,10 @@ function buildApexLiveOperatorModeState({
     agentSignalCount,
     externalActionsLocked: true,
     executionLocked: true,
-    nextAction: activeRunCount ? "Run the private operator cycle on the active live run, then report, keep waiting approval, or block it." : "Start a live operator run from the Apex body.",
+    nextAction: operatorJudgmentRows[0]?.detail || (activeRunCount ? "Run the private operator cycle on the active live run, then report, keep waiting approval, or block it." : "Start a live operator run from the Apex body."),
     readinessRows,
     operatorLoopRows,
+    operatorJudgmentRows,
     gapRows,
   };
 }
