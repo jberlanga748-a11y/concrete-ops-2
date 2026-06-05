@@ -285,11 +285,15 @@ function buildApexCockpitVoiceHealth({
   audioUnlocked = false,
   conversationMode = true,
   bargeInEnabled = true,
+  retryCount = 0,
+  retryReason = "",
 } = {}) {
   const hardMicBlock = micPermissionState === "denied" || recognitionStatus === "blocked";
   const captionRecovering = recognitionStatus === "recovering";
   const captionLimited = recognitionStatus === "limited" || Boolean(recognitionError);
   const captionLive = recording && ["captioning", "interim"].includes(recognitionStatus);
+  const voiceRetryCount = Number(retryCount || 0);
+  const retryDetail = retryReason || "Apex missed the last voice turn";
   let status = "Voice ready";
   let tone = "blue";
   let actionLabel = "Wake Apex";
@@ -330,6 +334,11 @@ function buildApexCockpitVoiceHealth({
     tone = "green";
     actionLabel = "Speak naturally";
     notice = "Voice health is green. Apex is listening, captioning, and ready for interruption.";
+  } else if (voiceRetryCount && recording) {
+    status = "Retry listening";
+    tone = "green";
+    actionLabel = "Speak again";
+    notice = `${retryDetail}. Apex reopened live listening and did not take action.`;
   } else if (recording && captionLimited) {
     status = "Recorder live";
     tone = "amber";
@@ -341,10 +350,12 @@ function buildApexCockpitVoiceHealth({
     actionLabel = "Speak";
     notice = "Apex is listening on this visible page.";
   } else if (autoListening && conversationMode) {
-    status = "Standing by";
-    tone = "green";
-    actionLabel = "Resume Voice";
-    notice = "Open voice is standing by and can resume from the visible control.";
+    status = voiceRetryCount ? "Retry ready" : "Standing by";
+    tone = voiceRetryCount ? "amber" : "green";
+    actionLabel = voiceRetryCount ? "Speak again" : "Resume Voice";
+    notice = voiceRetryCount
+      ? `${retryDetail}. Apex is ready to reopen listening from the visible control.`
+      : "Open voice is standing by and can resume from the visible control.";
   }
 
   const captionValue = !canUseSpeechRecognition
@@ -386,6 +397,11 @@ function buildApexCockpitVoiceHealth({
         label: "Recovery",
         value: actionLabel,
         tone,
+      },
+      {
+        label: "Retry",
+        value: voiceRetryCount ? `${voiceRetryCount} reopened` : "Ready",
+        tone: voiceRetryCount ? "amber" : "green",
       },
     ],
   };
@@ -3888,6 +3904,8 @@ const APEX_COCKPIT_PREROLL_CHUNKS = 2;
 const APEX_COCKPIT_CAPTION_FINAL_TURN_MS = 420;
 const APEX_COCKPIT_DUPLICATE_TURN_MS = 2800;
 const APEX_COCKPIT_LISTENING_HANDOFF_NOTICE = "Apex finished speaking and is listening for your next turn.";
+const APEX_COCKPIT_VOICE_RETRY_NOTICE = "I missed that. Say it again and I'll keep listening.";
+const APEX_COCKPIT_VOICE_RETRY_OPEN_MS = 520;
 
 const APEX_COCKPIT_VOICE_PROFILES = Object.freeze([
   { id: "alloy", label: "Alloy", detail: "Balanced operator", rate: 0.98, pitch: 1 },
@@ -5239,17 +5257,19 @@ function summarizeApexCockpitLivePulse({ state, buildPayload, briefingPayload, r
   };
 }
 
-function buildApexCockpitPulseRows({ state, pulse, recording, speaking, conversationMode, bargeInEnabled, captionFallbackEnabled = false, captionStatus = "standby", interruptionCount = 0, rememberedTurnCount = 0 } = {}) {
+function buildApexCockpitPulseRows({ state, pulse, recording, speaking, conversationMode, bargeInEnabled, captionFallbackEnabled = false, captionStatus = "standby", interruptionCount = 0, rememberedTurnCount = 0, voiceRetryCount = 0 } = {}) {
   const summary = pulse?.runSummary || state?.autonomyRunCenter?.runSummary || {};
   const captionActive = captionStatus === "captioning" || captionStatus === "interim";
   const caughtInterruptions = Number(interruptionCount || 0);
   const rememberedTurns = Number(rememberedTurnCount || 0);
+  const retries = Number(voiceRetryCount || 0);
   return [
     { label: "Auto Check", value: formatApexCockpitPulseTime(pulse?.checkedAt), tone: pulse?.checkedAt ? "green" : "slate" },
     { label: "Release", value: pulse?.releaseVersion || (state?.releaseDesk?.currentVersion ? `v${state.releaseDesk.currentVersion}` : "Live"), tone: state?.releaseDesk?.tone || "green" },
     { label: "Runs", value: `${Number(summary.active || 0)} active / ${Number(summary.total || 0)} saved`, tone: Number(summary.active || 0) ? "green" : "slate" },
     { label: "Voice Loop", value: recording ? "Listening" : speaking ? "Talking" : conversationMode ? "Open" : "Manual", tone: recording || conversationMode ? "green" : "slate" },
     { label: "Barge-in", value: caughtInterruptions ? `${caughtInterruptions} caught` : bargeInEnabled ? "Armed" : "Off", tone: caughtInterruptions ? "green" : bargeInEnabled ? "amber" : "slate" },
+    { label: "Retry", value: retries ? `${retries} reopened` : "Ready", tone: retries ? "amber" : "green" },
     { label: "Turn Memory", value: rememberedTurns ? `${rememberedTurns} suggested` : "Manual", tone: rememberedTurns ? "green" : "blue" },
     { label: "Captions", value: captionFallbackEnabled ? (captionActive ? "Live" : "Ready") : "Server", tone: captionFallbackEnabled ? "blue" : "slate" },
     { label: "Alerts", value: `${Number(pulse?.alertCount || 0)} alerts`, tone: Number(pulse?.alertCount || 0) ? "amber" : "green" },
@@ -6069,6 +6089,8 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const [cockpitRecognitionError, setCockpitRecognitionError] = useState("");
   const [cockpitInterruptionCount, setCockpitInterruptionCount] = useState(0);
   const [cockpitLastInterruptionLabel, setCockpitLastInterruptionLabel] = useState("");
+  const [cockpitVoiceRetryCount, setCockpitVoiceRetryCount] = useState(0);
+  const [cockpitVoiceRetryReason, setCockpitVoiceRetryReason] = useState("");
   const [cockpitClock, setCockpitClock] = useState(() => formatApexCockpitClock());
   const [cockpitFocusDrawer, setCockpitFocusDrawer] = useState("");
   const [cockpitImmersiveMode, setCockpitImmersiveMode] = useState(true);
@@ -6080,6 +6102,8 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const cockpitAudioUnlockedRef = useRef(false);
   const cockpitOutputFrameRef = useRef(0);
   const cockpitSpeakingRef = useRef(false);
+  const cockpitTranscribingRef = useRef(false);
+  const cockpitSubmittingRef = useRef(false);
   const cockpitSpeechSafetyTimerRef = useRef(0);
   const cockpitResumeListeningTimerRef = useRef(0);
   const cockpitCaptionFinalTurnTimerRef = useRef(0);
@@ -6103,6 +6127,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const cockpitBrowserTranscriptRef = useRef("");
   const cockpitInterruptionCountRef = useRef(0);
   const cockpitLastInterruptionLabelRef = useRef("");
+  const cockpitVoiceRetryCountRef = useRef(0);
   const cockpitPendingInterruptionRef = useRef(false);
   const cockpitSpeechStartedRef = useRef(false);
   const cockpitVoiceStartedAtRef = useRef(0);
@@ -6333,6 +6358,8 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     audioUnlocked: Boolean(cockpitAudioUnlockedRef.current),
     conversationMode: cockpitConversationMode,
     bargeInEnabled: cockpitBargeInEnabled,
+    retryCount: cockpitVoiceRetryCount,
+    retryReason: cockpitVoiceRetryReason,
   });
   const cockpitVoiceHealthSummary = cockpitVoiceHealth.rows.map((item) => `${item.label}: ${item.value}`).join(" / ");
   const cockpitPulseRows = buildApexCockpitPulseRows({
@@ -6346,6 +6373,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     captionStatus: cockpitRecognitionStatus,
     interruptionCount: cockpitInterruptionCount,
     rememberedTurnCount: cockpitRememberedTurnCount,
+    voiceRetryCount: cockpitVoiceRetryCount,
   });
   const focusDrawerTabs = [
     { id: "voice", label: "Voice", value: cockpitVoiceHealth.status, tone: cockpitVoiceHealth.tone, icon: "phone" },
@@ -6441,6 +6469,14 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   useEffect(() => {
     cockpitSpeakingRef.current = cockpitSpeaking;
   }, [cockpitSpeaking]);
+
+  useEffect(() => {
+    cockpitTranscribingRef.current = cockpitTranscribing;
+  }, [cockpitTranscribing]);
+
+  useEffect(() => {
+    cockpitSubmittingRef.current = cockpitSubmitting;
+  }, [cockpitSubmitting]);
 
   useEffect(() => {
     cockpitRecordingRef.current = cockpitRecording;
@@ -6753,13 +6789,52 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       setCockpitVoiceNotice(notice);
       return true;
     }
-    if (cockpitTranscribing || cockpitSubmitting || cockpitVoiceOpeningRef.current) return false;
+    if (cockpitTranscribingRef.current || cockpitSubmittingRef.current || cockpitVoiceOpeningRef.current) return false;
     cockpitListeningHandoffPendingRef.current = true;
     setCockpitVoiceNotice(notice);
     cockpitResumeListeningTimerRef.current = setTimeout(() => {
       cockpitResumeListeningTimerRef.current = 0;
       setCockpitListeningHandoffKey((current) => current + 1);
     }, 140);
+    return true;
+  }
+
+  function scheduleCockpitVoiceRetry(reason = "Apex missed the last voice turn", { speakPrompt = true } = {}) {
+    const retryReason = apexCockpitMemoryText(reason || "Apex missed the last voice turn", 180);
+    cockpitVoiceRetryCountRef.current += 1;
+    setCockpitVoiceRetryCount(cockpitVoiceRetryCountRef.current);
+    setCockpitVoiceRetryReason(retryReason);
+    setCockpitAutoListening(true);
+    setCockpitVoiceNotice(`${retryReason}. Reopening live listening; no action was taken.`);
+    setCockpitTurns((current) => [
+      {
+        id: `cockpit-voice-retry-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        question: `${retryReason}. Apex reopened live listening without taking action.`,
+        source: "voice-retry",
+        routeLabel: "Voice retry",
+        status: "retry-listening",
+      },
+      ...current,
+    ].slice(0, 5));
+
+    const canRetryListen = state.canView
+      && Boolean(sessionToken)
+      && cockpitConversationMode
+      && canUseCockpitRecorder
+      && (cockpitMicReady || cockpitVoiceWakeAttempted);
+    if (!canRetryListen) return false;
+
+    if (speakPrompt && !cockpitSpeakingRef.current) {
+      void speakCockpitAnswer(`${retryReason}. ${APEX_COCKPIT_VOICE_RETRY_NOTICE}`);
+      return true;
+    }
+
+    clearCockpitResumeListeningTimer();
+    cockpitListeningHandoffPendingRef.current = true;
+    cockpitResumeListeningTimerRef.current = setTimeout(() => {
+      cockpitResumeListeningTimerRef.current = 0;
+      setCockpitListeningHandoffKey((current) => current + 1);
+    }, APEX_COCKPIT_VOICE_RETRY_OPEN_MS);
     return true;
   }
 
@@ -8272,13 +8347,14 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   async function handleCockpitVoiceTranscript(transcript, { sourceLabel = "Voice transcript" } = {}) {
     const cleanTranscript = String(transcript || "").trim();
     if (!cleanTranscript) {
-      setCockpitVoiceNotice("Apex could not hear words clearly. Try again closer to the mic.");
+      scheduleCockpitVoiceRetry("Apex could not hear clear words from that turn", { speakPrompt: true });
       return;
     }
     if (!reserveCockpitVoiceTranscript(cleanTranscript)) return;
     const review = buildApexOsVoiceCommandReview(cleanTranscript);
     const nextQuestion = review.askQuestion || cleanTranscript;
     const interrupted = cockpitBargeInterruptedRef.current || cockpitPendingInterruptionRef.current;
+    if (cockpitVoiceRetryCountRef.current) setCockpitVoiceRetryReason(`Recovered with ${String(sourceLabel || "voice transcript").toLowerCase()}.`);
     setAskQuestion(nextQuestion);
     setCockpitLastQuestion(cleanTranscript);
     setCockpitBrowserTranscript(cleanTranscript);
@@ -8289,7 +8365,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
 
   async function transcribeCockpitVoiceBlob(blob) {
     if (!blob?.size) {
-      setCockpitVoiceNotice("No voice audio was captured. Check microphone permission and try again.");
+      scheduleCockpitVoiceRetry("No voice audio was captured from that turn", { speakPrompt: true });
       return;
     }
     setCockpitTranscribing(true);
@@ -8300,19 +8376,23 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       const transcript = String(payload?.transcript || "").trim();
       const review = payload?.commandReview || buildApexOsVoiceCommandReview(transcript);
       if (!transcript) {
-        setCockpitVoiceNotice("Apex could not hear words clearly. Try again closer to the mic.");
+        scheduleCockpitVoiceRetry("Apex heard audio but could not turn it into clear words", { speakPrompt: true });
         return;
       }
       if (!reserveCockpitVoiceTranscript(transcript)) return;
       const nextQuestion = review.askQuestion || transcript;
       const interrupted = cockpitBargeInterruptedRef.current || cockpitPendingInterruptionRef.current;
+      if (cockpitVoiceRetryCountRef.current) setCockpitVoiceRetryReason("Recovered with private server transcription.");
       setAskQuestion(nextQuestion);
       setCockpitLastQuestion(transcript);
       setCockpitVoiceNotice(interrupted ? `${cockpitLastInterruptionLabelRef.current || "Barge-in"} heard: "${transcript}"` : `Heard: "${transcript}"`);
       await askCockpitQuestion(nextQuestion, { fromVoice: true, interrupted });
       if (interrupted) cockpitPendingInterruptionRef.current = false;
     } catch (error) {
-      setCockpitVoiceNotice(error?.message || "Apex could not transcribe that audio. Check microphone permission and voice provider setup.");
+      const retryReason = /not configured|speech-to-text|provider|transcription/i.test(String(error?.message || ""))
+        ? "Private transcription is limited; Apex will retry with browser captions when this browser allows it"
+        : "Apex could not transcribe that audio turn";
+      scheduleCockpitVoiceRetry(retryReason, { speakPrompt: true });
     } finally {
       setCockpitTranscribing(false);
     }
