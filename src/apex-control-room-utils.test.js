@@ -475,7 +475,7 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-save"), true);
   assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-command-run" && item.status === "Natural command"), true);
   assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-judge" && item.status === "Proactive"), true);
-  assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-follow-up" && item.status === "Next turns"), true);
+  assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-follow-up" && item.status === "Conversation continuity" && /last request, answer summary, matched room/i.test(item.detail)), true);
   assert.equal(state.liveOperatorMode.operatorJudgmentRows.some((item) => item.id === "judgment-start-private-run" && item.actionLabel === "Start private run"), true);
   assert.equal(state.liveOperatorMode.readinessRows.some((item) => item.id === "live-voice-loop" && /next-turn prompts/i.test(item.detail)), true);
   assert.equal(state.liveOperatorMode.readinessRows.some((item) => item.id === "live-voice-loop" && /voice health recovery/i.test(item.detail)), true);

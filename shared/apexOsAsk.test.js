@@ -132,6 +132,21 @@ test("Ask Apex local answer includes source labels and approval warnings", () =>
   assert.equal(answer.nextAction, "Prepare approval packet");
 });
 
+test("Ask Apex live conversation context stays hidden from local fallback answer", () => {
+  const context = buildApexOsAskContext({
+    question: "yes do that next",
+    liveConversationContext: "Live conversation continuity: hidden prompt envelope with Last operator request and Last Apex answer summary.",
+    companySettings: { apexOsMemory: [] },
+  });
+  const answer = buildLocalApexOsAnswer(context);
+  const request = buildApexOsAskOpenAiRequest(context);
+
+  assert.equal(context.liveConversationContext.includes("Last Apex answer summary"), true);
+  assert.match(request.messages[1].content, /Last Apex answer summary/);
+  assert.match(answer.answer, /For "yes do that next"/);
+  assert.doesNotMatch(answer.answer, /hidden prompt envelope|Last Apex answer summary|Live conversation continuity/);
+});
+
 test("Ask Apex OpenAI request and parser keep strict source-backed shape", () => {
   const context = buildApexOsAskContext({ question: "What is next?" });
   const request = buildApexOsAskOpenAiRequest(context);

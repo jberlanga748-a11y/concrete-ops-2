@@ -13650,10 +13650,12 @@ app.post("/api/apex-os/ask", requireAuth, asyncRoute(async (req, res) => {
   if (!question) {
     throw new ApiError(400, "Ask Apex requires a question.");
   }
+  const liveConversationContext = optionalString(req.body?.liveConversationContext || req.body?.conversationContext, "").slice(0, 2600);
 
   const context = buildApexOsAskContext({
     question,
     contextScope: req.body?.contextScope,
+    liveConversationContext,
     companySettings: companySettingsForState(state, req.auth.user),
     user: req.auth.user,
   });
@@ -13699,6 +13701,7 @@ app.post("/api/apex-os/ask", requireAuth, asyncRoute(async (req, res) => {
       sourceCount: context.sources.length,
       memoryCount: context.memory.length,
       approvalWarningCount: context.approvalWarnings.length,
+      liveConversationContextIncluded: Boolean(context.liveConversationContext),
     },
     requestId: res.locals.requestId,
   });

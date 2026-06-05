@@ -2359,7 +2359,7 @@ function buildApexLiveOperatorModeState({
       id: "live-understanding",
       title: "Understanding",
       status: askApexChat?.status || "Source-backed",
-      detail: `${formatCount(askApexChat?.contextCount)} context lanes and ${formatCount(askApexChat?.evidenceCount)} evidence rows feed private answers before action.`,
+      detail: `${formatCount(askApexChat?.contextCount)} context lanes, ${formatCount(askApexChat?.evidenceCount)} evidence rows, and explicit live conversation continuity feed private answers before action.`,
       tone: askApexChat?.tone || "green",
     },
     {
@@ -2401,7 +2401,7 @@ function buildApexLiveOperatorModeState({
     { id: "live-loop-hear", title: "Hear", status: "Open", detail: "Voice and typed commands enter the Apex body page with visible mic, caption, speaker, misheard retry listening, and recovery health.", tone: "green" },
     { id: "live-loop-interrupt", title: "Interrupt", status: "Barge-in memory", detail: "Apex can stop speaking, keep listening, and carry the interruption into the next answer context.", tone: "green" },
     { id: "live-loop-understand", title: "Understand", status: "Source-backed", detail: "Apex routes the request against private command-room context.", tone: "green" },
-    { id: "live-loop-follow-up", title: "Follow up", status: "Next turns", detail: "Apex suggests source-backed next-turn prompts after answers, runs, and operator judgment so the conversation keeps moving naturally without hidden execution.", tone: "green" },
+    { id: "live-loop-follow-up", title: "Follow up", status: "Conversation continuity", detail: "Apex carries the last request, answer summary, matched room, active run, next private move, interruption state, retry state, and recent turn history into short follow-ups without hidden execution.", tone: "green" },
     { id: "live-loop-command-run", title: "Act", status: "Natural command", detail: "Apex can turn typed or spoken get-this-done requests into a saved private run, then use server-backed Auto Drive to advance safe prep/proof and stop at manual review.", tone: "green" },
     { id: "live-loop-judge", title: "Judge", status: "Proactive", detail: "Apex can turn pulse, run, approval, release, and memory state into ranked next-safe recommendations without executing them.", tone: "green" },
     { id: "live-loop-plan", title: "Plan", status: `${formatCount(autonomyRunCenter?.planStepCount)} steps`, detail: "The request becomes a visible review-first run plan with an active step and evidence trail.", tone: "blue" },

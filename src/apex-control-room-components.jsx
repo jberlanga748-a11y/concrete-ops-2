@@ -4262,7 +4262,11 @@ function buildApexCockpitTurnMemory(turns = []) {
   const visibleTurns = Array.isArray(turns) ? turns.filter((turn) => turn?.question).slice(0, 4) : [];
   if (!visibleTurns.length) return "No prior turns in this page session.";
   return visibleTurns
-    .map((turn, index) => `${index + 1}. ${turn.source || "typed"} -> ${turn.routeLabel || "Ask Apex"} (${turn.status || "recorded"}): ${String(turn.question || "").slice(0, 140)}`)
+    .map((turn, index) => {
+      const question = apexCockpitMemoryText(turn.question || "", 140);
+      const answer = turn.answerSnippet ? ` Apex answered: ${apexCockpitMemoryText(turn.answerSnippet, 150)}` : "";
+      return `${index + 1}. ${turn.source || "typed"} -> ${turn.routeLabel || "Ask Apex"} (${turn.status || "recorded"}): ${question}${answer}`;
+    })
     .join("\n");
 }
 
@@ -4277,6 +4281,85 @@ function buildApexCockpitLiveRunMemoryContext(liveOperatorMemory = {}) {
 function resolveApexCockpitLatestTrustedRunMemory(liveOperatorMemory = {}) {
   const rows = Array.isArray(liveOperatorMemory.latestRows) ? liveOperatorMemory.latestRows : [];
   return rows.find((row) => row?.title) || null;
+}
+
+function buildApexCockpitConversationContext({
+  turns = [],
+  lastQuestion = "",
+  lastAnswerText = "",
+  lastRoute = {},
+  activeRun = null,
+  nextPrivateMove = null,
+  interrupted = false,
+  retryCount = 0,
+  retryReason = "",
+} = {}) {
+  const safeLastQuestion = apexCockpitMemoryText(lastQuestion, 260);
+  const safeLastAnswer = apexCockpitMemoryText(lastAnswerText, 360);
+  const routeLabel = apexCockpitMemoryText(lastRoute?.label || "", 120);
+  const routeDetail = apexCockpitMemoryText(lastRoute?.detail || "", 260);
+  const activeRunTitle = apexCockpitMemoryText(activeRun?.title || activeRun?.request || "", 180);
+  const activeRunStatus = apexCockpitMemoryText(activeRun?.status || "", 80);
+  const moveTitle = apexCockpitMemoryText(nextPrivateMove?.title || nextPrivateMove?.buttonLabel || "", 160);
+  const moveDetail = apexCockpitMemoryText(nextPrivateMove?.detail || nextPrivateMove?.description || nextPrivateMove?.nextSafeAction || "", 240);
+  return [
+    "Live conversation continuity:",
+    "Treat short follow-ups like yes, do it, that, it, keep going, what about that, and go ahead as referring to the last Apex answer, matched room, and active private run unless the operator clearly redirects.",
+    safeLastQuestion ? `Last operator request: ${safeLastQuestion}` : "Last operator request: none yet in this page session.",
+    safeLastAnswer ? `Last Apex answer summary: ${safeLastAnswer}` : "Last Apex answer summary: none yet.",
+    routeLabel ? `Last matched room/action: ${routeLabel}${routeDetail ? ` - ${routeDetail}` : ""}` : "Last matched room/action: Ask Apex.",
+    activeRunTitle ? `Active private run: ${activeRunTitle} (${activeRunStatus || "review"}).` : "Active private run: none selected.",
+    moveTitle ? `Next private move: ${moveTitle}${moveDetail ? ` - ${moveDetail}` : ""}` : "Next private move: none.",
+    interrupted ? "Continuity event: the operator interrupted Apex; answer the new request first and do not continue the prior speech." : "",
+    retryCount ? `Voice retry context: ${retryCount} retry turn${Number(retryCount) === 1 ? "" : "s"} reopened. Latest reason: ${apexCockpitMemoryText(retryReason || "Apex retried the last voice turn.", 180)}` : "",
+    `Recent page conversation:\n${buildApexCockpitTurnMemory(turns)}`,
+  ].filter(Boolean).join("\n").slice(0, 2400);
+}
+
+function buildApexCockpitVisibleConversationContext({
+  turns = [],
+  lastQuestion = "",
+  answerText = "",
+  route = {},
+  activeRun = null,
+  nextPrivateMove = null,
+  interruptionCount = 0,
+  retryCount = 0,
+  retryReason = "",
+} = {}) {
+  const latestTurn = Array.isArray(turns) ? turns[0] || null : null;
+  const routeLabel = route?.label || latestTurn?.routeLabel || "Ask Apex";
+  const routeDetail = route?.detail || "";
+  const question = lastQuestion || latestTurn?.question || "";
+  const answer = answerText || latestTurn?.answerSnippet || "";
+  const activeRunTitle = activeRun?.title || activeRun?.request || "";
+  const moveTitle = nextPrivateMove?.title || nextPrivateMove?.buttonLabel || "";
+  const hasContinuity = Boolean(question || answer || latestTurn || activeRunTitle);
+  const status = retryCount
+    ? "Retry-aware"
+    : interruptionCount
+      ? "Interrupt-aware"
+      : hasContinuity
+        ? "Following"
+        : "Ready";
+  const tone = retryCount ? "amber" : interruptionCount ? "green" : hasContinuity ? "blue" : "slate";
+  return {
+    status,
+    tone,
+    title: hasContinuity ? `Following ${routeLabel}` : "Ready for the first turn",
+    detail: question
+      ? `Last turn: ${apexCockpitMemoryText(question, 160)}`
+      : "Apex will carry the last answer, matched room, and active run into the next short follow-up.",
+    answer: answer ? `Last answer: ${apexCockpitMemoryText(answer, 180)}` : "No prior answer loaded yet.",
+    rows: [
+      { label: "Thread", value: status, tone },
+      { label: "Route", value: routeLabel, tone: routeLabel === "Ask Apex" ? "slate" : "blue" },
+      { label: "Run", value: activeRunTitle ? "Active" : "None", tone: activeRunTitle ? "green" : "slate" },
+      { label: "Move", value: moveTitle || "Review", tone: moveTitle ? "amber" : "slate" },
+    ],
+    routeDetail,
+    retryReason: retryCount ? apexCockpitMemoryText(retryReason || "Apex retried the last voice turn.", 180) : "",
+  };
 }
 
 function buildApexCockpitProactiveBriefing(state = {}) {
@@ -4303,7 +4386,21 @@ function buildApexCockpitProactiveBriefing(state = {}) {
   ].filter(Boolean).join(" ");
 }
 
-function buildApexCockpitQuestionEnvelope(question, { personalityMode = "operator", route, memoryCount = 0, liveOperatorMemory = {}, turns = [], interrupted = false } = {}) {
+function buildApexCockpitQuestionEnvelope(question, {
+  personalityMode = "operator",
+  route,
+  memoryCount = 0,
+  liveOperatorMemory = {},
+  turns = [],
+  lastQuestion = "",
+  lastAnswerText = "",
+  lastRoute = {},
+  activeRun = null,
+  nextPrivateMove = null,
+  interrupted = false,
+  retryCount = 0,
+  retryReason = "",
+} = {}) {
   const personality = findApexCockpitPersonalityMode(personalityMode);
   return [
     "Apex Life operator mode.",
@@ -4311,10 +4408,20 @@ function buildApexCockpitQuestionEnvelope(question, { personalityMode = "operato
     `Matched room: ${route?.label || "Ask Apex"}.`,
     `Trusted memory count visible: ${memoryCount}.`,
     `Reviewed live-run memory:\n${buildApexCockpitLiveRunMemoryContext(liveOperatorMemory)}`,
-    `Recent page conversation:\n${buildApexCockpitTurnMemory(turns)}`,
+    buildApexCockpitConversationContext({
+      turns,
+      lastQuestion,
+      lastAnswerText,
+      lastRoute,
+      activeRun,
+      nextPrivateMove,
+      interrupted,
+      retryCount,
+      retryReason,
+    }),
     interrupted ? "The operator interrupted Apex while it was speaking. Stop the prior answer, prioritize this new request, and answer naturally from the updated context." : "",
     `User request: ${String(question || "").trim()}`,
-  ].filter(Boolean).join("\n").slice(0, 1600);
+  ].filter(Boolean).join("\n").slice(0, 2600);
 }
 
 function inferApexCockpitAgentRole(question = "", route = {}) {
@@ -6299,6 +6406,17 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     liveOperatorMemory,
     operatorJudgmentRows: cockpitOperatorJudgmentRows,
   });
+  const cockpitVisibleConversationContext = buildApexCockpitVisibleConversationContext({
+    turns: cockpitTurns,
+    lastQuestion: cockpitLastQuestion,
+    answerText: cockpitAnswerText,
+    route: cockpitCommandRoute,
+    activeRun: cockpitActiveRun,
+    nextPrivateMove: cockpitNextPrivateMove,
+    interruptionCount: cockpitInterruptionCount,
+    retryCount: cockpitVoiceRetryCount,
+    retryReason: cockpitVoiceRetryReason,
+  });
   const cockpitTurnMemoryKey = apexCockpitMemoryText(cockpitResponse?.requestId || `${cockpitLastQuestion}|${cockpitAnswerText}`, 220);
   const cockpitVoiceMode = cockpitError
     ? "blocked"
@@ -8197,8 +8315,11 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
 
   async function askCockpitQuestion(nextQuestion, { fromVoice = false, interrupted = false } = {}) {
     const previousTurns = cockpitTurns.slice(0, 4);
+    const previousQuestion = cockpitLastQuestion;
+    const previousAnswerText = cockpitAnswerText;
+    const previousRoute = cockpitCommandRoute;
     const route = buildApexCockpitCommandRoute(nextQuestion, {
-      previousRoute: cockpitCommandRoute,
+      previousRoute,
       activeRun: cockpitActiveRun,
       nextPrivateMove: cockpitNextPrivateMove,
     });
@@ -8229,22 +8350,38 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
         onChange(route.section);
         setCockpitVoiceNotice(`Opened ${route.label}. Reading context now.`);
       }
-      const apexQuestion = buildApexCockpitQuestionEnvelope(nextQuestion, {
+      const apexConversationContext = buildApexCockpitQuestionEnvelope(nextQuestion, {
         personalityMode: cockpitPersonalityMode,
         route,
         memoryCount,
         liveOperatorMemory,
         turns: previousTurns,
+        lastQuestion: previousQuestion,
+        lastAnswerText: previousAnswerText,
+        lastRoute: previousRoute,
+        activeRun: cockpitActiveRun,
+        nextPrivateMove: cockpitNextPrivateMove,
         interrupted,
+        retryCount: cockpitVoiceRetryCountRef.current,
+        retryReason: cockpitVoiceRetryReason,
       });
       const payload = await askApexOs(sessionToken, {
-        question: apexQuestion,
+        question: nextQuestion,
+        liveConversationContext: apexConversationContext,
         contextScope: "all",
         operatorStyle: cockpitPersonalityMode,
         commandRoute: route.id,
       });
+      const payloadAnswerText = resolveApexCockpitAnswerText(payload);
+      const payloadSources = resolveApexCockpitSources(state, payload);
       setCockpitResponse(payload);
-      setCockpitTurns((current) => current.map((turn) => (turn.id === turnId ? { ...turn, status: "answered" } : turn)));
+      setCockpitTurns((current) => current.map((turn) => (turn.id === turnId ? {
+        ...turn,
+        status: "answered",
+        answerSnippet: apexCockpitMemoryText(payloadAnswerText, 220),
+        sourceLabels: payloadSources,
+        routeDetail: route.detail,
+      } : turn)));
       if (route.commandAction === "draft-agent-control-request") {
         await createCockpitAgentRequestFromCommand(nextQuestion, route, { turnId });
       }
@@ -8322,7 +8459,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
           ? " I held the active private run at manual approval review. Execution stays locked."
           : " I tried to hold the active private run at manual review, but it needs review.";
       }
-      const nextAnswerText = `${commandHandledSpeech ? "" : resolveApexCockpitAnswerText(payload)}${commandSpokenSuffix}`.trim();
+      const nextAnswerText = `${commandHandledSpeech ? "" : payloadAnswerText}${commandSpokenSuffix}`.trim();
       if (!commandHandledSpeech && nextAnswerText) {
         await speakCockpitAnswer(nextAnswerText);
       } else if (!commandHandledSpeech) {
@@ -9112,6 +9249,28 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     {(cockpitAgentActionNotice || cockpitVoiceNotice || cockpitRecognitionError) ? (
                       <p className="min-w-0 break-words rounded-md border border-cyan-200/10 bg-slate-900/58 px-2.5 py-2 text-[10px] font-bold leading-4 text-cyan-100">{cockpitAgentActionNotice || cockpitVoiceNotice || cockpitRecognitionError}</p>
                     ) : null}
+                    <div className="grid min-w-0 gap-1.5 rounded-md border border-cyan-200/10 bg-cyan-400/8 px-2.5 py-2" aria-label="Apex live conversation context">
+                      <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <p className="text-[9px] font-black uppercase tracking-[0.12em] text-cyan-300">Conversation Context</p>
+                          <p className={`mt-0.5 min-w-0 break-words text-[10px] font-black ${cockpitVisibleConversationContext.tone === "green" ? "text-emerald-300" : cockpitVisibleConversationContext.tone === "amber" ? "text-orange-300" : cockpitVisibleConversationContext.tone === "blue" ? "text-cyan-200" : "text-slate-300"}`}>{cockpitVisibleConversationContext.title}</p>
+                        </div>
+                        <span className="shrink-0 rounded-md border border-cyan-300/18 bg-slate-950/52 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-cyan-200">{cockpitVisibleConversationContext.status}</span>
+                      </div>
+                      <p className="min-w-0 break-words text-[10px] font-bold leading-4 text-slate-400">{cockpitVisibleConversationContext.detail}</p>
+                      <p className="min-w-0 break-words text-[10px] font-bold leading-4 text-slate-500">{cockpitVisibleConversationContext.answer}</p>
+                      {cockpitVisibleConversationContext.retryReason ? (
+                        <p className="min-w-0 break-words rounded-md border border-orange-300/12 bg-orange-500/8 px-2 py-1.5 text-[9px] font-bold leading-4 text-orange-100">{cockpitVisibleConversationContext.retryReason}</p>
+                      ) : null}
+                      <div className="grid min-w-0 gap-1 sm:grid-cols-4">
+                        {cockpitVisibleConversationContext.rows.map((row) => (
+                          <div key={row.label} className="min-w-0 rounded-md border border-slate-800 bg-slate-950/46 px-2 py-1.5">
+                            <p className="truncate text-[8px] font-black uppercase tracking-[0.08em] text-slate-500">{row.label}</p>
+                            <p className={`mt-0.5 truncate text-[10px] font-black ${row.tone === "green" ? "text-emerald-300" : row.tone === "amber" ? "text-orange-300" : row.tone === "blue" ? "text-cyan-300" : "text-slate-300"}`}>{row.value}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                     <div className="grid min-w-0 gap-1.5" aria-label="Apex next turn prompts">
                       <p className="text-[9px] font-black uppercase tracking-[0.12em] text-slate-500">Next Turn</p>
                       <div className="grid min-w-0 gap-1.5 sm:grid-cols-2">
@@ -9605,6 +9764,27 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                 </div>
                 <p className={`min-w-0 break-words text-[11px] font-bold leading-5 ${cockpitError ? "text-red-200" : "text-slate-200"}`}>{cockpitError || cockpitAnswerText || "I'm here. Ask Apex anything, or wake voice once to keep the page listening."}</p>
                 <p className="min-w-0 break-words text-[10px] font-bold leading-4 text-slate-500">{cockpitAgentActionNotice || cockpitVoiceNotice || cockpitRecognitionError || cockpitVoiceHealth.notice}</p>
+                {(cockpitAnswerText || cockpitError) ? (
+                  <div className="grid min-w-0 gap-1.5 rounded-md border border-cyan-200/10 bg-cyan-400/8 px-2.5 py-2" aria-label="Apex mobile live conversation context">
+                    <div className="flex min-w-0 items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-[9px] font-black uppercase tracking-[0.12em] text-cyan-300">Conversation Context</p>
+                        <p className={`mt-0.5 min-w-0 break-words text-[10px] font-black ${cockpitVisibleConversationContext.tone === "green" ? "text-emerald-300" : cockpitVisibleConversationContext.tone === "amber" ? "text-orange-300" : cockpitVisibleConversationContext.tone === "blue" ? "text-cyan-200" : "text-slate-300"}`}>{cockpitVisibleConversationContext.title}</p>
+                      </div>
+                      <span className="shrink-0 rounded-md border border-cyan-300/18 bg-slate-950/52 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-cyan-200">{cockpitVisibleConversationContext.status}</span>
+                    </div>
+                    <p className="min-w-0 break-words text-[10px] font-bold leading-4 text-slate-400">{cockpitVisibleConversationContext.detail}</p>
+                    <p className="min-w-0 break-words text-[10px] font-bold leading-4 text-slate-500">{cockpitVisibleConversationContext.answer}</p>
+                    <div className="grid min-w-0 grid-cols-2 gap-1">
+                      {cockpitVisibleConversationContext.rows.map((row) => (
+                        <div key={`mobile-${row.label}`} className="min-w-0 rounded-md border border-slate-800 bg-slate-950/46 px-2 py-1.5">
+                          <p className="truncate text-[8px] font-black uppercase tracking-[0.08em] text-slate-500">{row.label}</p>
+                          <p className={`mt-0.5 truncate text-[10px] font-black ${row.tone === "green" ? "text-emerald-300" : row.tone === "amber" ? "text-orange-300" : row.tone === "blue" ? "text-cyan-300" : "text-slate-300"}`}>{row.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
                 <div className="grid min-w-0 gap-1.5" aria-label="Apex mobile next turn prompts">
                   <p className="text-[9px] font-black uppercase tracking-[0.12em] text-slate-500">Next Turn</p>
                   <div className="grid min-w-0 grid-cols-2 gap-1.5">

@@ -122,7 +122,7 @@ export function buildApexOsAskEvidenceRows(context = {}) {
     .slice(0, 10);
 }
 
-export function buildApexOsAskContext({ question = "", contextScope = "all", companySettings = {}, user = {} } = {}) {
+export function buildApexOsAskContext({ question = "", contextScope = "all", companySettings = {}, user = {}, liveConversationContext = "" } = {}) {
   const normalizedScope = normalizeContextScope(contextScope);
   const liveOperatorMemory = buildApexOsLiveOperatorMemoryContext(companySettings.apexOsMemory || [], { limit: 6 });
   const memory = buildApexOsMemoryContext(companySettings.apexOsMemory || [], { limit: 16 })
@@ -158,6 +158,7 @@ export function buildApexOsAskContext({ question = "", contextScope = "all", com
       name: text(user.name, 120),
       role: text(user.role, 80),
     },
+    liveConversationContext: text(liveConversationContext, TEXT_LIMIT),
     memory,
     liveOperatorMemory,
     sources: sources.slice(0, 14),
