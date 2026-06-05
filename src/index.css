@@ -57111,6 +57111,56 @@ body:has(.co-field-mobile-reports-shell) .co-mobile-bottom-spacer {
     min-height: clamp(17rem, 58dvh, 300px) !important;
   }
 
+  .co-apex-cockpit-screen--spotlight .co-apex-cockpit-focus-center {
+    gap: 0.55rem;
+  }
+
+  .co-apex-cockpit-mobile-dock {
+    background:
+      linear-gradient(180deg, rgba(15, 23, 42, 0.76), rgba(2, 6, 23, 0.88)),
+      radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.12), transparent 14rem);
+  }
+
+  .co-apex-cockpit-mobile-dock-tab {
+    overflow: hidden;
+  }
+
+  .co-apex-cockpit-screen--spotlight .co-apex-cockpit-live-console {
+    height: clamp(16.5rem, 44dvh, 23rem);
+    max-height: clamp(16.5rem, 44dvh, 23rem);
+    overflow-y: auto;
+    padding: 0.65rem !important;
+    scrollbar-color: rgba(56, 189, 248, 0.38) rgba(15, 23, 42, 0.58);
+    scrollbar-width: thin;
+    background:
+      linear-gradient(180deg, rgba(15, 23, 42, 0.74), rgba(2, 6, 23, 0.9)),
+      radial-gradient(circle at 50% 0%, rgba(249, 115, 22, 0.09), transparent 15rem);
+  }
+
+  .co-apex-cockpit-screen--spotlight .co-apex-cockpit-live-console::-webkit-scrollbar {
+    width: 0.45rem;
+  }
+
+  .co-apex-cockpit-screen--spotlight .co-apex-cockpit-live-console::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(56, 189, 248, 0.36);
+  }
+
+  .co-apex-cockpit-screen--spotlight .co-apex-cockpit-main-response,
+  .co-apex-cockpit-screen--spotlight .co-apex-cockpit-console-tabs {
+    display: none !important;
+  }
+
+  .co-apex-cockpit-screen--spotlight [aria-label="Apex live operator state"],
+  .co-apex-cockpit-screen--spotlight .co-apex-cockpit-operator-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .co-apex-cockpit-screen--spotlight .co-apex-cockpit-operator-stack {
+    padding: 0.65rem !important;
+    background: rgba(2, 6, 23, 0.52);
+  }
+
   .co-apex-life-status {
     bottom: 0.16rem;
     font-size: 0.66rem;
@@ -57128,6 +57178,63 @@ body:has(.co-field-mobile-reports-shell) .co-mobile-bottom-spacer {
 
   .co-apex-cockpit-screen {
     border-radius: 0.75rem !important;
+  }
+
+  .co-apex-cockpit-screen--spotlight,
+  .co-apex-cockpit-screen--spotlight .co-apex-cockpit-frame,
+  .co-apex-cockpit-screen--spotlight .co-apex-cockpit-content-shell,
+  .co-apex-cockpit-screen--spotlight .co-apex-cockpit-main-grid,
+  .co-apex-cockpit-screen--spotlight .co-apex-cockpit-focus-center {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  .co-apex-cockpit-screen--spotlight .co-apex-cockpit-content-shell {
+    grid-template-rows: auto !important;
+  }
+
+  .co-apex-cockpit-screen--spotlight .co-apex-cockpit-main-grid {
+    align-content: start;
+    grid-auto-rows: auto;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1279px) {
+  .co-apex-cockpit-screen--spotlight .co-apex-cockpit-focus-center {
+    gap: 0.65rem;
+    margin-inline: auto;
+    max-width: min(100%, 54rem);
+  }
+
+  .co-apex-cockpit-screen--spotlight .co-apex-life-body {
+    max-width: min(100%, 44rem);
+    min-height: clamp(23rem, 46dvh, 31rem);
+  }
+
+  .co-apex-cockpit-screen--spotlight .co-apex-life-body-image {
+    max-height: clamp(23rem, 44dvh, 29rem);
+  }
+
+  .co-apex-cockpit-screen--spotlight .co-apex-cockpit-live-console {
+    height: clamp(16rem, 32dvh, 23rem);
+    max-height: clamp(16rem, 32dvh, 23rem);
+    overflow-y: auto;
+    scrollbar-color: rgba(56, 189, 248, 0.38) rgba(15, 23, 42, 0.58);
+    scrollbar-width: thin;
+    background:
+      linear-gradient(180deg, rgba(15, 23, 42, 0.72), rgba(2, 6, 23, 0.88)),
+      radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.09), transparent 16rem);
+  }
+
+  .co-apex-cockpit-screen--spotlight .co-apex-cockpit-main-response,
+  .co-apex-cockpit-screen--spotlight .co-apex-cockpit-console-tabs {
+    display: none !important;
+  }
+
+  .co-apex-cockpit-screen--spotlight [aria-label="Apex live operator state"],
+  .co-apex-cockpit-screen--spotlight .co-apex-cockpit-operator-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   }
 }
 

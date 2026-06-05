@@ -6897,7 +6897,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
         />
         <ApexCockpitSidebar activeSection={activeSection} onChange={onChange} />
 
-        <div className="relative z-10 grid w-full min-w-0 max-w-full content-start gap-2 overflow-hidden p-3 lg:grid-rows-[auto_minmax(0,1fr)_auto] lg:p-4">
+        <div className="co-apex-cockpit-content-shell relative z-10 grid w-full min-w-0 max-w-full content-start gap-2 overflow-hidden p-3 lg:grid-rows-[auto_minmax(0,1fr)_auto] lg:p-4">
           <header className="flex w-full min-w-0 max-w-full flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="flex min-w-0 items-center gap-3">
               <h2 className="text-3xl font-black uppercase leading-none tracking-normal text-white">Apex</h2>
@@ -7161,6 +7161,31 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                 </div>
               </div>
               <ApexCockpitAvatar voiceMode={cockpitVoiceMode} voiceLevel={cockpitLiveLevel} />
+              <section className="co-apex-cockpit-mobile-dock grid min-w-0 gap-2 rounded-lg border border-cyan-200/14 bg-slate-950/78 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] xl:hidden" aria-label="Apex mobile operator dock">
+                <div className="flex min-w-0 items-center justify-between gap-2">
+                  <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Apex Dock</p>
+                  <span className="truncate rounded-md border border-orange-300/18 bg-orange-500/10 px-2 py-1 text-[9px] font-black uppercase tracking-[0.08em] text-orange-200">{cockpitConsoleTabs.find((tab) => tab.id === cockpitConsoleTab)?.label || "Live"}</span>
+                </div>
+                <div className="grid min-w-0 grid-cols-4 gap-1.5">
+                  {cockpitConsoleTabs.map((tab) => {
+                    const active = cockpitConsoleTab === tab.id;
+                    return (
+                      <button
+                        key={`mobile-${tab.id}`}
+                        type="button"
+                        onClick={() => setCockpitConsoleTab(tab.id)}
+                        className={`co-apex-cockpit-mobile-dock-tab co-focus-ring grid min-h-[3.35rem] min-w-0 place-items-center rounded-md border px-1.5 py-1.5 text-center transition ${active ? "border-orange-400/70 bg-orange-500/14 text-white shadow-[0_0_18px_-13px_rgba(249,115,22,0.95)]" : "border-slate-800 bg-slate-900/58 text-slate-400 hover:border-cyan-300/45 hover:bg-cyan-500/8 hover:text-white"}`}
+                        aria-pressed={active}
+                        title={`Open ${tab.label} mobile dock lane`}
+                      >
+                        <Icon name={tab.icon} className={`h-3.5 w-3.5 ${active ? "text-orange-200" : tab.tone === "green" ? "text-emerald-300" : tab.tone === "amber" ? "text-orange-300" : tab.tone === "red" ? "text-red-300" : tab.tone === "blue" ? "text-cyan-300" : "text-slate-400"}`} />
+                        <span className="mt-0.5 block max-w-full truncate text-[9px] font-black uppercase tracking-[0.06em]">{tab.label}</span>
+                        <span className={`mt-0.5 block max-w-full truncate text-[8px] font-black ${active ? "text-white" : "text-slate-500"}`}>{tab.value}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
               <section className={`co-apex-cockpit-live-console ${cockpitSpotlightMode ? "co-apex-cockpit-live-console--dock" : "co-apex-cockpit-live-console--full"} grid min-w-0 gap-2 rounded-lg border border-cyan-200/14 bg-slate-950/76 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]`} aria-label="Apex live conversation console">
                 <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
@@ -7230,7 +7255,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     </div>
                   </div>
                 ) : null}
-                <div className="grid min-w-0 gap-2 rounded-lg border border-cyan-200/12 bg-slate-900/46 p-3">
+                <div className="co-apex-cockpit-operator-stack grid min-w-0 gap-2 rounded-lg border border-cyan-200/12 bg-slate-900/46 p-3">
                   <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Live Operator Mode</p>
@@ -7239,7 +7264,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     </div>
                     <ToneBadge tone={cockpitVisibleLiveTone}>{liveOperatorMode.mode || "Review-first"}</ToneBadge>
                   </div>
-                  <div className="grid min-w-0 gap-1.5 sm:grid-cols-5">
+                  <div className="co-apex-cockpit-operator-metrics grid min-w-0 gap-1.5 sm:grid-cols-5">
                     {[
                       { label: "Foundation", value: `${liveOperatorMode.foundationPercent || 0}%`, tone: "green" },
                       { label: "Operator", value: `${cockpitVisibleOperatorPercent || 0}%`, tone: "blue" },
@@ -7260,7 +7285,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                         : `${pendingRunMemoryCount} suggested run memor${pendingRunMemoryCount === 1 ? "y is" : "ies are"} waiting for manual review before Apex can trust them.`}
                     </p>
                   ) : null}
-                  <div className="grid min-w-0 gap-2 rounded-md border border-cyan-200/10 bg-slate-950/52 p-2.5" aria-label="Apex operator console tabs">
+                  <div className="co-apex-cockpit-console-tabs grid min-w-0 gap-2 rounded-md border border-cyan-200/10 bg-slate-950/52 p-2.5" aria-label="Apex operator console tabs">
                     <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0">
                         <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Operator Console</p>
