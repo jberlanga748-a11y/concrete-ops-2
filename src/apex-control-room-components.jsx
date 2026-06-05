@@ -3960,6 +3960,24 @@ function buildApexCockpitCommandRoute(question = "", { previousRoute = null, act
   const hasActiveRun = Boolean(activeRun?.id) && !["archived"].includes(activeRunStatus);
   const activeRunTitle = String(activeRun?.title || activeRun?.request || "the active private run").trim();
   const moveTitle = String(nextPrivateMove?.title || nextPrivateMove?.buttonLabel || "next private safe move").trim();
+  const wantsMissionBrief = hasAny(["mission brief", "mission status", "mission report", "operator report", "status report", "full status", "brief the mission", "give me the mission", "what's the mission", "what is the mission"])
+    || /\b(give|show|speak|read|brief)\b.*\b(mission|status report|operator report|full status)\b/i.test(normalized);
+  if (wantsMissionBrief) {
+    return {
+      ...base,
+      id: "mission-brief",
+      label: "Mission brief",
+      section: "apex",
+      detail: hasActiveRun
+        ? `Apex will brief ${activeRunTitle}, the heartbeat, top signal, run memory, and next private move: ${moveTitle}.`
+        : "Apex will brief the current operator signal, trusted run memory, and next safe private move.",
+      actionLabel: "Mission Brief",
+      commandAction: "speak-mission-brief",
+      intent: "mission-brief",
+      suggestedActions: hasActiveRun ? ["Mission Brief", "Next safe move", "Speak handback", "Report done"] : ["Mission Brief", "Start private run", "Brief me"],
+      tone: hasActiveRun ? "green" : "blue",
+    };
+  }
   const wantsActiveRunHandback = hasActiveRun && (
     hasAny(["handback", "speak handback", "run handback", "active run check-in", "run check-in", "check-in", "check in", "heartbeat", "live run progress", "what did you do", "what have you done", "report back", "status of this run", "where is this run"])
     || /\b(tell|show|speak|give)\b.*\b(handback|status|check-?in|heartbeat|progress|what you did|run report)\b/i.test(normalized)
@@ -5199,6 +5217,116 @@ function buildApexCockpitOperatorJudgmentText(rows = []) {
   return `Operator judgment: ${first.title}. ${first.detail} Next safe action: ${first.actionLabel}. ${restText} Execution, sends, billing, provider work, production changes, deletion, deploy, rollback, and irreversible actions stay locked.`;
 }
 
+function normalizeApexCockpitMissionBriefRow(row = {}) {
+  return {
+    id: String(row.id || `mission-${row.label || "row"}`).trim(),
+    label: apexCockpitMemoryText(row.label || "Signal", 48),
+    value: apexCockpitMemoryText(row.value || "Ready", 70),
+    detail: apexCockpitMemoryText(row.detail || "Review before acting.", 190),
+    tone: row.tone || "blue",
+  };
+}
+
+function buildApexCockpitMissionBrief({
+  activeRun,
+  activeRunProgress = {},
+  heartbeat = {},
+  proactiveCheckIn = {},
+  nextPrivateMove = {},
+  operatorJudgmentRows = [],
+  liveOperatorMemory = {},
+  pulse = {},
+} = {}) {
+  const hasRun = Boolean(activeRun?.id);
+  const runStatus = apexCockpitMemoryText(activeRun?.status || heartbeat.status || "Ready", 64);
+  const progressPercent = Number(activeRunProgress?.progressPercent || 0);
+  const doneCount = Number(activeRunProgress?.doneCount || 0);
+  const totalCount = Number(activeRunProgress?.totalCount || 0);
+  const progressLabel = hasRun
+    ? `${progressPercent}% / ${doneCount} of ${totalCount || "?"}`
+    : `${Number(pulse?.runSummary?.active || 0)} active / ${Number(pulse?.runSummary?.total || 0)} saved`;
+  const topJudgment = Array.isArray(operatorJudgmentRows) && operatorJudgmentRows.length
+    ? normalizeApexCockpitJudgmentRow(operatorJudgmentRows[0])
+    : null;
+  const latestRunMemory = resolveApexCockpitLatestTrustedRunMemory(liveOperatorMemory);
+  const pendingRunMemoryCount = Number(liveOperatorMemory?.suggestedCount || 0);
+  const trustedRunMemoryCount = Number(liveOperatorMemory?.trustedCount || 0);
+  const checkInSurface = Boolean(proactiveCheckIn?.shouldSurface);
+  const title = hasRun
+    ? `Mission Brief: ${apexCockpitMemoryText(activeRun.title || activeRun.request || "active private run", 120)}`
+    : "Mission Brief: Apex is standing by";
+  const status = hasRun
+    ? runStatus
+    : topJudgment
+      ? topJudgment.status
+      : latestRunMemory
+        ? "Trusted history"
+        : "Ready";
+  const tone = hasRun
+    ? apexCockpitRunStatusTone(activeRun.status)
+    : topJudgment?.tone || (latestRunMemory ? "green" : "blue");
+  const nextMoveTitle = nextPrivateMove?.title || (hasRun ? "Review active run" : "Start private run when ready");
+  const nextMoveDetail = nextPrivateMove?.recommendation || nextPrivateMove?.detail || heartbeat.recommendation || "Review the current context before taking action.";
+  const summary = hasRun
+    ? `${apexCockpitMemoryText(activeRun.title || activeRun.request || "The active private run", 140)} is ${progressLabel}. Current step: ${apexCockpitMemoryText(activeRunProgress.activeStepTitle || heartbeat.currentStep || "review the run", 90)}. Next safe move: ${apexCockpitMemoryText(nextMoveTitle, 120)}.`
+    : `${topJudgment ? `Top signal: ${topJudgment.title}.` : "No active private run is live."} ${latestRunMemory ? `Latest trusted run memory: ${latestRunMemory.title}.` : "Apex is ready to start a private run when there is real work to track."}`;
+  const rows = [
+    normalizeApexCockpitMissionBriefRow({
+      id: "mission-run",
+      label: "Run",
+      value: hasRun ? runStatus : "No active run",
+      detail: hasRun ? progressLabel : "Start a private run to give Apex real work to track.",
+      tone: hasRun ? apexCockpitRunStatusTone(activeRun.status) : "slate",
+    }),
+    normalizeApexCockpitMissionBriefRow({
+      id: "mission-current",
+      label: "Current",
+      value: hasRun ? activeRunProgress.activeStepTitle || heartbeat.currentStep || "Review" : topJudgment?.title || "Standing by",
+      detail: hasRun ? activeRunProgress.activeStepDetail || heartbeat.detail || "Review active run evidence." : topJudgment?.detail || "No live run is waiting for action.",
+      tone: hasRun ? heartbeat.tone || "blue" : topJudgment?.tone || "slate",
+    }),
+    normalizeApexCockpitMissionBriefRow({
+      id: "mission-next",
+      label: "Next",
+      value: nextMoveTitle,
+      detail: nextMoveDetail,
+      tone: nextPrivateMove?.tone || (hasRun ? "green" : "blue"),
+    }),
+    normalizeApexCockpitMissionBriefRow({
+      id: "mission-pulse",
+      label: "Pulse",
+      value: checkInSurface ? "Check-in" : heartbeat.pulseLabel || "Watching",
+      detail: proactiveCheckIn?.recommendation || heartbeat.recommendation || "Apex is watching for meaningful changes.",
+      tone: checkInSurface ? "amber" : pulse?.checkedAt ? "green" : "blue",
+    }),
+    normalizeApexCockpitMissionBriefRow({
+      id: "mission-memory",
+      label: "Memory",
+      value: trustedRunMemoryCount ? `${trustedRunMemoryCount} trusted` : pendingRunMemoryCount ? `${pendingRunMemoryCount} review` : "Ready",
+      detail: latestRunMemory?.title || (pendingRunMemoryCount ? "Suggested run memory is waiting for manual review." : "Reviewed outcomes can become trusted memory after approval."),
+      tone: trustedRunMemoryCount ? "green" : pendingRunMemoryCount ? "amber" : "blue",
+    }),
+  ];
+  const spokenText = [
+    "Apex mission brief.",
+    summary,
+    topJudgment ? `Operator judgment: ${topJudgment.title}. ${topJudgment.detail}` : "",
+    `Next safe action: ${apexCockpitMemoryText(nextMoveTitle, 140)}. ${apexCockpitMemoryText(nextMoveDetail, 220)}`,
+    latestRunMemory ? `Trusted run memory available: ${latestRunMemory.title}.` : "",
+    "Execution remains locked. No sends, billing, provider work, production changes, deploys, rollbacks, agent runs, automatic trusted memory, or irreversible actions.",
+  ].filter(Boolean).join(" ");
+
+  return {
+    title,
+    status,
+    tone,
+    summary: apexCockpitMemoryText(summary, 420),
+    spokenText: apexCockpitMemoryText(spokenText, 1200),
+    sourceLabels: ["Apex Mission Brief", "Live Session Heartbeat", "Autonomy Run Center", "Proactive Pulse", "Reviewed Run Memory"],
+    rows,
+  };
+}
+
 function buildApexCockpitHeartbeatText(heartbeat = {}) {
   if (!heartbeat?.runId) {
     return "Apex heartbeat: no active private run is live. I am standing by. Start a private run when there is real work to track. Execution, sends, billing, provider work, production changes, deletion, deploy, rollback, and irreversible actions stay locked.";
@@ -5699,6 +5827,16 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     now: new Date().toISOString(),
   });
   const cockpitRunTimelineRows = buildApexCockpitRunTimelineRows(cockpitActiveRun, cockpitActiveRunProgress, cockpitNextPrivateMove);
+  const cockpitMissionBrief = buildApexCockpitMissionBrief({
+    activeRun: cockpitActiveRun,
+    activeRunProgress: cockpitActiveRunProgress,
+    heartbeat: cockpitSessionHeartbeat,
+    proactiveCheckIn: cockpitVisibleProactiveCheckIn,
+    nextPrivateMove: cockpitNextPrivateMove,
+    operatorJudgmentRows: cockpitOperatorJudgmentRows,
+    liveOperatorMemory,
+    pulse: cockpitLivePulse,
+  });
   const canAutoDriveCockpitRun = state.canView
     && Boolean(sessionToken)
     && Boolean(cockpitActiveRun?.id)
@@ -6760,6 +6898,35 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     if (speak) speakCockpitAnswer(cockpitOperatorJudgmentText);
   }
 
+  function deliverCockpitMissionBrief({ speak = false } = {}) {
+    const route = buildApexCockpitCommandRoute("Give me the mission brief", {
+      previousRoute: cockpitCommandRoute,
+      activeRun: cockpitActiveRun,
+      nextPrivateMove: cockpitNextPrivateMove,
+    });
+    setCockpitCommandRoute(route);
+    setCockpitError("");
+    setCockpitResponse({
+      answer: {
+        answer: cockpitMissionBrief.spokenText,
+        sourceLabels: cockpitMissionBrief.sourceLabels,
+      },
+    });
+    setCockpitLastQuestion("Mission brief");
+    setCockpitVoiceNotice("Apex mission brief is ready. Execution stayed locked.");
+    setCockpitTurns((current) => [
+      {
+        id: `cockpit-mission-brief-${Date.now()}`,
+        question: cockpitMissionBrief.title,
+        source: "mission-brief",
+        routeLabel: route.label,
+        status: cockpitMissionBrief.status || "reviewed",
+      },
+      ...current,
+    ].slice(0, 5));
+    if (speak) speakCockpitAnswer(cockpitMissionBrief.spokenText);
+  }
+
   function deliverCockpitSessionHeartbeat({ speak = false } = {}) {
     const route = buildApexCockpitCommandRoute("Give me the active run check-in", {
       previousRoute: cockpitCommandRoute,
@@ -7532,6 +7699,10 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       }
       let commandSpokenSuffix = "";
       let commandHandledSpeech = false;
+      if (route.commandAction === "speak-mission-brief") {
+        deliverCockpitMissionBrief({ speak: true });
+        commandHandledSpeech = true;
+      }
       if (route.commandAction === "start-live-operator-run") {
         const run = await createCockpitLiveRunFromCommand(nextQuestion, route, { turnId, autoCycle: true });
         commandSpokenSuffix = run?.status === "waiting-approval"
@@ -8160,6 +8331,9 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     <ApexCockpitControlButton className="px-2" disabled={false} onClick={() => deliverCockpitOperatorJudgment({ speak: true })} active={false} title="Speak Apex operator judgment">
                       <Icon name="check" /> Judgment
                     </ApexCockpitControlButton>
+                    <ApexCockpitControlButton className="px-2" disabled={false} onClick={() => deliverCockpitMissionBrief({ speak: true })} active={false} title="Speak Apex mission brief">
+                      <Icon name="layers" /> Mission
+                    </ApexCockpitControlButton>
                     <ApexCockpitControlButton className="px-2" disabled={cockpitCreatingAgentRequest || cockpitCommandRoute.id !== "agent-control"} onClick={() => createCockpitAgentRequestFromCommand()} active={cockpitCreatingAgentRequest} title="Create locked agent request">
                       <Icon name="lock" /> Agent Draft
                     </ApexCockpitControlButton>
@@ -8169,6 +8343,30 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     <ApexCockpitControlButton className="px-2" disabled={!canRememberCockpitTurn} onClick={() => rememberCockpitTurnFromAnswer()} active={cockpitRememberingTurn} title="Draft suggested memory from the latest Apex answer">
                       <Icon name="database" /> {cockpitRememberingTurn ? "Saving" : "Remember"}
                     </ApexCockpitControlButton>
+                  </div>
+                </div>
+                <div className="grid min-w-0 gap-2 rounded-md border border-orange-300/16 bg-orange-500/8 px-2.5 py-2" aria-label="Apex mission brief">
+                  <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="text-[9px] font-black uppercase tracking-[0.12em] text-orange-300">Mission Brief</p>
+                      <p className="mt-0.5 min-w-0 break-words text-[11px] font-black leading-4 text-slate-100">{cockpitMissionBrief.title}</p>
+                      <p className="mt-0.5 line-clamp-2 min-w-0 break-words text-[9px] font-bold leading-4 text-orange-100">{cockpitMissionBrief.summary}</p>
+                    </div>
+                    <div className="flex shrink-0 flex-wrap items-center gap-1.5 sm:justify-end">
+                      <ToneBadge tone={cockpitMissionBrief.tone}>{cockpitMissionBrief.status}</ToneBadge>
+                      <ApexCockpitControlButton className="px-2" disabled={false} onClick={() => deliverCockpitMissionBrief({ speak: true })} active={false} title="Speak the current Apex mission brief">
+                        <Icon name="phone" /> Speak
+                      </ApexCockpitControlButton>
+                    </div>
+                  </div>
+                  <div className="grid min-w-0 gap-1.5 sm:grid-cols-5">
+                    {cockpitMissionBrief.rows.map((row) => (
+                      <div key={row.id} className="min-w-0 rounded-md border border-slate-800 bg-slate-950/46 px-2 py-1.5">
+                        <p className="truncate text-[8px] font-black uppercase tracking-[0.08em] text-slate-500">{row.label}</p>
+                        <p className={`mt-0.5 truncate text-[10px] font-black ${row.tone === "green" ? "text-emerald-300" : row.tone === "amber" ? "text-orange-300" : row.tone === "red" ? "text-red-300" : row.tone === "slate" ? "text-slate-300" : "text-cyan-300"}`}>{row.value}</p>
+                        <p className="mt-0.5 line-clamp-2 min-w-0 break-words text-[8px] font-bold leading-3 text-slate-500">{row.detail}</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
                 {cockpitActiveRun?.id ? (
@@ -8665,6 +8863,9 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                         </p>
                       </div>
                       <div className="flex shrink-0 flex-wrap gap-1.5 sm:justify-end">
+                        <ApexCockpitControlButton className="px-2" disabled={false} onClick={() => deliverCockpitMissionBrief({ speak: true })} active={false} title="Speak Apex mission brief">
+                          <Icon name="layers" /> Mission Brief
+                        </ApexCockpitControlButton>
                         <ApexCockpitControlButton className="px-2" disabled={false} onClick={() => deliverCockpitOperatorJudgment({ speak: true })} active={false} title="Speak Apex operator judgment">
                           <Icon name="check" /> Speak Judgment
                         </ApexCockpitControlButton>

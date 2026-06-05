@@ -184,6 +184,15 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /Apex visible run timeline strip/);
   assert.match(componentSource, /Mission Timeline/);
   assert.match(componentSource, /Live Run Spine/);
+  assert.match(componentSource, /buildApexCockpitMissionBrief/);
+  assert.match(componentSource, /normalizeApexCockpitMissionBriefRow/);
+  assert.match(componentSource, /aria-label="Apex mission brief"/);
+  assert.match(componentSource, /Mission Brief/);
+  assert.match(componentSource, /Apex mission brief is ready/);
+  assert.match(componentSource, /speak-mission-brief/);
+  assert.match(componentSource, /mission-brief/);
+  assert.match(componentSource, /Apex mission brief\./);
+  assert.match(componentSource, /Execution remains locked\. No sends, billing, provider work, production changes, deploys, rollbacks, agent runs, automatic trusted memory, or irreversible actions\./);
   assert.match(componentSource, /Live run spine: done, now, review gate, and locked next moves stay visible/);
   assert.match(componentSource, /cockpitRunLaneOpenedRef/);
   assert.match(componentSource, /setCockpitConsoleTab\("run"\)/);
