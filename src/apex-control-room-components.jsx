@@ -3885,6 +3885,7 @@ const APEX_COCKPIT_IDLE_LEVEL_THRESHOLD = 0.018;
 const APEX_COCKPIT_BARGE_IN_THRESHOLD = 0.066;
 const APEX_COCKPIT_BARGE_IN_GRACE_MS = 700;
 const APEX_COCKPIT_PREROLL_CHUNKS = 2;
+const APEX_COCKPIT_LISTENING_HANDOFF_NOTICE = "Apex finished speaking and is listening for your next turn.";
 
 const APEX_COCKPIT_VOICE_PROFILES = Object.freeze([
   { id: "alloy", label: "Alloy", detail: "Balanced operator", rate: 0.98, pitch: 1 },
@@ -5428,6 +5429,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const [cockpitProactiveMemoryCount, setCockpitProactiveMemoryCount] = useState(0);
   const [cockpitProactiveVoiceStatus, setCockpitProactiveVoiceStatus] = useState("Watching");
   const [cockpitProactiveVoiceQueueKey, setCockpitProactiveVoiceQueueKey] = useState(0);
+  const [cockpitListeningHandoffKey, setCockpitListeningHandoffKey] = useState(0);
   const [cockpitMicPermissionState, setCockpitMicPermissionState] = useState("unknown");
   const [cockpitVoiceWakeAttempted, setCockpitVoiceWakeAttempted] = useState(false);
   const [cockpitBrowserTranscript, setCockpitBrowserTranscript] = useState("");
@@ -5447,6 +5449,8 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const cockpitOutputFrameRef = useRef(0);
   const cockpitSpeakingRef = useRef(false);
   const cockpitSpeechSafetyTimerRef = useRef(0);
+  const cockpitResumeListeningTimerRef = useRef(0);
+  const cockpitListeningHandoffPendingRef = useRef(false);
   const cockpitRecordingRef = useRef(false);
   const cockpitBargeInEnabledRef = useRef(true);
   const cockpitBargeInterruptedRef = useRef(false);
@@ -5759,6 +5763,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     cleanupCockpitVoiceStream();
     stopCockpitSpeechRecognition();
     stopCockpitOutputLevelMonitor();
+    clearCockpitResumeListeningTimer();
     stopBrowserVoice(cockpitAudioRef);
     closeUnlockedBrowserAudio(cockpitAudioUnlockedRef);
   }, []);
@@ -5949,11 +5954,14 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     if (!cockpitConversationMode || !cockpitAutoListening || !state.canView || !sessionToken || !canUseCockpitRecorder) return undefined;
     if (!cockpitMicReady && !cockpitVoiceWakeAttempted) return undefined;
     if (cockpitRecording || cockpitTranscribing || cockpitSubmitting || (cockpitSpeaking && !cockpitBargeInEnabled) || cockpitVoiceOpeningRef.current) return undefined;
+    const handoffRequested = cockpitListeningHandoffPendingRef.current;
     const openTimer = setTimeout(() => {
-      openCockpitVoiceSession({ automatic: true });
-    }, 500);
+      const handoff = cockpitListeningHandoffPendingRef.current;
+      cockpitListeningHandoffPendingRef.current = false;
+      openCockpitVoiceSession({ automatic: true, handoff });
+    }, handoffRequested ? 180 : 500);
     return () => clearTimeout(openTimer);
-  }, [cockpitConversationMode, cockpitAutoListening, state.canView, sessionToken, canUseCockpitRecorder, cockpitMicReady, cockpitVoiceWakeAttempted, cockpitRecording, cockpitTranscribing, cockpitSubmitting, cockpitSpeaking, cockpitBargeInEnabled]);
+  }, [cockpitConversationMode, cockpitAutoListening, state.canView, sessionToken, canUseCockpitRecorder, cockpitMicReady, cockpitVoiceWakeAttempted, cockpitRecording, cockpitTranscribing, cockpitSubmitting, cockpitSpeaking, cockpitBargeInEnabled, cockpitListeningHandoffKey]);
 
   function cleanupCockpitVoiceStream() {
     stopCockpitVoiceLevelMonitor();
@@ -6006,12 +6014,40 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     cockpitSpeechSafetyTimerRef.current = 0;
   }
 
+  function clearCockpitResumeListeningTimer() {
+    if (!cockpitResumeListeningTimerRef.current) return;
+    clearTimeout(cockpitResumeListeningTimerRef.current);
+    cockpitResumeListeningTimerRef.current = 0;
+  }
+
+  function scheduleCockpitListeningAfterSpeech(notice = APEX_COCKPIT_LISTENING_HANDOFF_NOTICE) {
+    clearCockpitResumeListeningTimer();
+    if (!state.canView || !sessionToken || !cockpitConversationMode || !cockpitAutoListening || !canUseCockpitRecorder) return false;
+    if (!cockpitMicReady && !cockpitVoiceWakeAttempted) {
+      setCockpitVoiceNotice("Apex finished speaking. Wake Apex once to keep the voice loop open.");
+      return false;
+    }
+    if (cockpitRecordingRef.current) {
+      cockpitListeningHandoffPendingRef.current = false;
+      setCockpitVoiceNotice(notice);
+      return true;
+    }
+    if (cockpitTranscribing || cockpitSubmitting || cockpitVoiceOpeningRef.current) return false;
+    cockpitListeningHandoffPendingRef.current = true;
+    setCockpitVoiceNotice(notice);
+    cockpitResumeListeningTimerRef.current = setTimeout(() => {
+      cockpitResumeListeningTimerRef.current = 0;
+      setCockpitListeningHandoffKey((current) => current + 1);
+    }, 140);
+    return true;
+  }
+
   function armCockpitSpeechSafetyTimer(textToSpeak = "") {
     clearCockpitSpeechSafetyTimer();
     const timeoutMs = Math.min(24_000, Math.max(7_000, String(textToSpeak || "").length * 48));
     cockpitSpeechSafetyTimerRef.current = setTimeout(() => {
       if (!cockpitSpeakingRef.current) return;
-      stopCockpitVoicePlayback("Apex voice safety recovered after playback did not finish cleanly.");
+      stopCockpitVoicePlayback("Apex voice safety recovered after playback did not finish cleanly.", { resumeListening: true });
     }, timeoutMs);
   }
 
@@ -6263,13 +6299,14 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     }
   }
 
-  function stopCockpitVoicePlayback(notice = "Voice playback stopped.") {
+  function stopCockpitVoicePlayback(notice = "Voice playback stopped.", { resumeListening = false } = {}) {
     stopBrowserVoice(cockpitAudioRef);
     stopCockpitOutputLevelMonitor();
     clearCockpitSpeechSafetyTimer();
     cockpitSpeakingRef.current = false;
     setCockpitSpeaking(false);
     setCockpitVoiceNotice(notice);
+    if (resumeListening) scheduleCockpitListeningAfterSpeech(notice || APEX_COCKPIT_LISTENING_HANDOFF_NOTICE);
   }
 
   function speakCockpitBrowserFallback(textToSpeak, fallbackMessage = "Apex is speaking with browser voice fallback.") {
@@ -6282,20 +6319,24 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
         clearCockpitSpeechSafetyTimer();
         cockpitSpeakingRef.current = false;
         setCockpitSpeaking(false);
-        setCockpitVoiceNotice("Voice playback finished.");
+        scheduleCockpitListeningAfterSpeech();
       },
       onError: () => {
         stopCockpitOutputLevelMonitor();
         clearCockpitSpeechSafetyTimer();
         cockpitSpeakingRef.current = false;
         setCockpitSpeaking(false);
-        setCockpitVoiceNotice("Browser voice playback could not start.");
+        if (!scheduleCockpitListeningAfterSpeech("Browser voice playback could not start. Apex is listening for your next turn.")) {
+          setCockpitVoiceNotice("Browser voice playback could not start.");
+        }
       },
     });
     if (!started) {
       clearCockpitSpeechSafetyTimer();
       setCockpitSpeaking(false);
-      setCockpitVoiceNotice("This browser does not support speech playback here.");
+      if (!scheduleCockpitListeningAfterSpeech("This browser does not support speech playback here. Apex is listening for your next turn.")) {
+        setCockpitVoiceNotice("This browser does not support speech playback here.");
+      }
       return;
     }
     setCockpitVoiceNotice(fallbackMessage);
@@ -6327,7 +6368,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
             clearCockpitSpeechSafetyTimer();
             cockpitSpeakingRef.current = false;
             setCockpitSpeaking(false);
-            setCockpitVoiceNotice("Voice playback finished.");
+            scheduleCockpitListeningAfterSpeech();
           },
           onPlaybackError: () => {
             speakCockpitBrowserFallback(answerToSpeak, "Apex speech audio stopped, so browser voice fallback is speaking.");
@@ -7371,7 +7412,9 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     }
   }
 
-  async function openCockpitVoiceSession({ automatic = false } = {}) {
+  async function openCockpitVoiceSession({ automatic = false, handoff = false } = {}) {
+    clearCockpitResumeListeningTimer();
+    if (!handoff) cockpitListeningHandoffPendingRef.current = false;
     if (!canStartCockpitVoice) {
       setCockpitVoiceNotice(canUseCockpitRecorder ? "Voice is busy right now." : "This browser cannot open the microphone here.");
       return;
@@ -7381,7 +7424,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     if (!automatic) setCockpitVoiceWakeAttempted(true);
     unlockBrowserAudio(cockpitAudioUnlockedRef);
     setCockpitError("");
-    setCockpitVoiceNotice(automatic ? "Opening voice for this Apex page." : "");
+    setCockpitVoiceNotice(automatic ? (handoff ? "Apex finished speaking. Reopening live listening." : "Opening voice for this Apex page.") : "");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -7433,7 +7476,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       cockpitRecordingRef.current = true;
       setCockpitRecording(true);
       setCockpitAutoListening(true);
-      setCockpitVoiceNotice(cockpitNeedsWake ? "Apex is awake. Voice will stay open on this page." : "Voice is open. I'm listening while this page is open.");
+      setCockpitVoiceNotice(handoff ? APEX_COCKPIT_LISTENING_HANDOFF_NOTICE : cockpitNeedsWake ? "Apex is awake. Voice will stay open on this page." : "Voice is open. I'm listening while this page is open.");
     } catch (error) {
       cleanupCockpitVoiceStream();
       cockpitRecordingRef.current = false;
@@ -7477,6 +7520,8 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   }
 
   function pauseCockpitVoiceSession() {
+    clearCockpitResumeListeningTimer();
+    cockpitListeningHandoffPendingRef.current = false;
     setCockpitAutoListening(false);
     setCockpitSpeechActive(false);
     setCockpitMicLevel(0);

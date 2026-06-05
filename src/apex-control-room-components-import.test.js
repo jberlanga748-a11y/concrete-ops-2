@@ -54,6 +54,13 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /co-apex-mini-waveform--/);
   assert.match(componentSource, /resolveApexCockpitAnswerText/);
   assert.match(componentSource, /speakCockpitAnswer/);
+  assert.match(componentSource, /APEX_COCKPIT_LISTENING_HANDOFF_NOTICE/);
+  assert.match(componentSource, /cockpitListeningHandoffPendingRef/);
+  assert.match(componentSource, /cockpitListeningHandoffKey/);
+  assert.match(componentSource, /clearCockpitResumeListeningTimer/);
+  assert.match(componentSource, /scheduleCockpitListeningAfterSpeech/);
+  assert.match(componentSource, /resumeListening/);
+  assert.match(componentSource, /Apex finished speaking and is listening for your next turn/);
   assert.match(componentSource, /aria-label="Apex cockpit sections"/);
   assert.match(componentSource, /aria-label="Apex digital body"/);
   assert.match(componentSource, /Apex Boundaries/);
