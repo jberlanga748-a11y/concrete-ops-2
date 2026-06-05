@@ -5037,6 +5037,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const [cockpitClock, setCockpitClock] = useState(() => formatApexCockpitClock());
   const [cockpitFocusDrawer, setCockpitFocusDrawer] = useState("");
   const [cockpitImmersiveMode, setCockpitImmersiveMode] = useState(true);
+  const [cockpitConsoleTab, setCockpitConsoleTab] = useState("live");
   const [cockpitCommandRoute, setCockpitCommandRoute] = useState(() => buildApexCockpitCommandRoute(""));
   const [cockpitTurns, setCockpitTurns] = useState([]);
   const cockpitAudioRef = useRef(null);
@@ -5230,6 +5231,40 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       detail: "Load this prompt into Apex.",
       tone: /blocked|review/i.test(prompt) ? "amber" : /private run/i.test(prompt) ? "green" : "blue",
     }));
+  const cockpitConsoleTabs = [
+    {
+      id: "live",
+      label: "Live",
+      value: cockpitSessionHeartbeat.status || "Ready",
+      detail: cockpitSessionHeartbeat.recommendation || "Heartbeat and review-first status.",
+      tone: cockpitSessionHeartbeat.tone || "blue",
+      icon: "phone",
+    },
+    {
+      id: "run",
+      label: "Run",
+      value: cockpitActiveRun ? cockpitActiveRun.status || "Active" : `${cockpitVisibleSavedRunCount} saved`,
+      detail: cockpitActiveRun?.title || "Private run ledger and safe run controls.",
+      tone: cockpitActiveRun ? apexCockpitRunStatusTone(cockpitActiveRun.status) : cockpitVisibleSavedRunCount ? "green" : "slate",
+      icon: "spark",
+    },
+    {
+      id: "pulse",
+      label: "Pulse",
+      value: cockpitVisibleProactiveCheckIn.shouldSurface ? "Check-in" : cockpitLivePulse?.checkedAt ? "Fresh" : "Ready",
+      detail: cockpitVisibleProactiveCheckIn.recommendation || cockpitLivePulseError || "Proactive checks and operator judgment.",
+      tone: cockpitVisibleProactiveCheckIn.shouldSurface ? "amber" : cockpitLivePulse?.checkedAt ? "green" : "blue",
+      icon: "refresh",
+    },
+    {
+      id: "loop",
+      label: "Loop",
+      value: `${(liveOperatorMode.operatorLoopRows || []).length || 0} lanes`,
+      detail: "Operator loop lanes and locked action boundaries.",
+      tone: "green",
+      icon: "layers",
+    },
+  ];
 
   useEffect(() => () => {
     if (cockpitRecorderRef.current) {
@@ -6996,6 +7031,38 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                         : `${pendingRunMemoryCount} suggested run memor${pendingRunMemoryCount === 1 ? "y is" : "ies are"} waiting for manual review before Apex can trust them.`}
                     </p>
                   ) : null}
+                  <div className="grid min-w-0 gap-2 rounded-md border border-cyan-200/10 bg-slate-950/52 p-2.5" aria-label="Apex operator console tabs">
+                    <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Operator Console</p>
+                        <p className="mt-0.5 min-w-0 break-words text-[10px] font-bold leading-4 text-slate-500">Choose the live lane without turning the Apex body into a long wall of panels.</p>
+                      </div>
+                      <span className="shrink-0 rounded-md border border-orange-300/18 bg-orange-500/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.08em] text-orange-200">Review-first</span>
+                    </div>
+                    <div className="grid min-w-0 gap-1.5 sm:grid-cols-4">
+                      {cockpitConsoleTabs.map((tab) => {
+                        const active = cockpitConsoleTab === tab.id;
+                        return (
+                          <button
+                            key={tab.id}
+                            type="button"
+                            onClick={() => setCockpitConsoleTab(tab.id)}
+                            className={`co-focus-ring grid min-h-[4.2rem] min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-2 rounded-md border px-2.5 py-2 text-left transition ${active ? "border-orange-400/70 bg-orange-500/12 text-white shadow-[0_0_22px_-14px_rgba(249,115,22,0.95)]" : "border-slate-800 bg-slate-900/52 text-slate-300 hover:border-cyan-300/50 hover:bg-cyan-500/8 hover:text-white"}`}
+                            aria-pressed={active}
+                            title={`Open ${tab.label} console lane`}
+                          >
+                            <Icon name={tab.icon} className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${tab.tone === "green" ? "text-emerald-300" : tab.tone === "amber" ? "text-orange-300" : tab.tone === "red" ? "text-red-300" : tab.tone === "blue" ? "text-cyan-300" : "text-slate-400"}`} />
+                            <span className="min-w-0">
+                              <span className="block truncate text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">Console tab: {tab.label}</span>
+                              <span className={`mt-0.5 block truncate text-[11px] font-black ${active ? "text-white" : tab.tone === "green" ? "text-emerald-300" : tab.tone === "amber" ? "text-orange-300" : tab.tone === "red" ? "text-red-300" : tab.tone === "blue" ? "text-cyan-300" : "text-slate-300"}`}>{tab.value}</span>
+                              <span className="mt-0.5 block line-clamp-2 text-[9px] font-bold leading-4 text-slate-500">{tab.detail}</span>
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  {cockpitConsoleTab === "live" ? (
                   <div className="grid min-w-0 gap-2 rounded-md border border-cyan-200/10 bg-slate-950/52 p-2.5" aria-label="Apex live session heartbeat">
                     <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
@@ -7022,6 +7089,8 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     </div>
                     <p className="min-w-0 break-words rounded-md border border-cyan-200/10 bg-slate-900/44 px-2.5 py-2 text-[10px] font-bold leading-4 text-cyan-100">{cockpitSessionHeartbeat.recommendation}</p>
                   </div>
+                  ) : null}
+                  {cockpitConsoleTab === "pulse" ? (
                   <div className="grid min-w-0 gap-2 rounded-md border border-orange-300/16 bg-slate-950/52 p-2.5" aria-label="Apex proactive check-in">
                     <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
@@ -7059,6 +7128,8 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                         : "Surfaced check-ins can draft suggested memory, but nothing becomes trusted until you review it.")}
                     </p>
                   </div>
+                  ) : null}
+                  {cockpitConsoleTab === "run" ? (
                   <div className="grid min-w-0 gap-2 rounded-md border border-cyan-200/10 bg-slate-950/48 p-2.5" aria-label="Active Apex run session">
                     <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
@@ -7124,6 +7195,8 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                       </>
                     ) : null}
                   </div>
+                  ) : null}
+                  {cockpitConsoleTab === "pulse" ? (
                   <div className="grid min-w-0 gap-2 rounded-md border border-cyan-200/10 bg-slate-950/48 p-2.5">
                     <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0">
@@ -7164,7 +7237,14 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                       ))}
                     </div>
                   </div>
-                  <div className="grid min-w-0 gap-1.5 sm:grid-cols-3">
+                  ) : null}
+                  {cockpitConsoleTab === "loop" ? (
+                  <div className="grid min-w-0 gap-2 rounded-md border border-cyan-200/10 bg-slate-950/48 p-2.5" aria-label="Apex operator loop lanes">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Operator Loop</p>
+                      <p className="mt-0.5 min-w-0 break-words text-[10px] font-bold leading-4 text-slate-500">Apex can hear, follow up, act privately, judge the next move, and keep every external action locked.</p>
+                    </div>
+                    <div className="grid min-w-0 gap-1.5 sm:grid-cols-3">
                     {(liveOperatorMode.operatorLoopRows || []).slice(0, 6).map((item) => (
                       <div key={item.id} className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-slate-800 bg-slate-950/42 px-2.5 py-2">
                         <Icon name={item.id === "live-loop-validate" || item.id === "live-loop-proof-check" ? "check" : item.id === "live-loop-draft" ? "clipboard" : item.id === "live-loop-monitor" || item.id === "live-loop-cycle" ? "refresh" : "spark"} className={`h-3.5 w-3.5 ${item.tone === "green" ? "text-emerald-300" : item.tone === "amber" ? "text-orange-300" : "text-cyan-300"}`} />
@@ -7175,7 +7255,9 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                         <span className={`shrink-0 text-[9px] font-black uppercase tracking-[0.08em] ${item.tone === "green" ? "text-emerald-300" : item.tone === "amber" ? "text-orange-300" : "text-cyan-300"}`}>{item.status}</span>
                       </div>
                     ))}
+                    </div>
                   </div>
+                  ) : null}
                 </div>
               </section>
               <section className="co-apex-cockpit-mobile-response grid min-w-0 gap-2 rounded-lg border border-cyan-200/14 bg-slate-950/76 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] xl:hidden" aria-label="Apex mobile response">

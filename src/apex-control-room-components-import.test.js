@@ -179,6 +179,7 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /formatApexCockpitClock/);
   assert.match(componentSource, /cockpitFocusDrawer/);
   assert.match(componentSource, /cockpitImmersiveMode/);
+  assert.match(componentSource, /cockpitConsoleTab/);
   assert.match(componentSource, /Apex focus controls/);
   assert.match(componentSource, /Apex focus drawer/);
   assert.match(componentSource, /co-apex-cockpit-screen--immersive/);
@@ -219,6 +220,11 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /startCockpitOutputLevelMonitor/);
   assert.match(componentSource, /stopCockpitOutputLevelMonitor/);
   assert.match(componentSource, /Live Conversation/);
+  assert.match(componentSource, /Apex operator console tabs/);
+  assert.match(componentSource, /Operator Console/);
+  assert.match(componentSource, /Console tab: \{tab\.label\}/);
+  assert.match(componentSource, /Open \$\{tab\.label\} console lane/);
+  assert.match(componentSource, /Apex operator loop lanes/);
   assert.match(componentSource, /Live Operator Mode/);
   assert.match(componentSource, /Trusted run history/);
   assert.match(componentSource, /trustedRunMemoryCount/);
