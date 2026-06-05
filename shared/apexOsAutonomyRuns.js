@@ -173,7 +173,7 @@ function defaultRunSteps(routeLabel = "Apex request", now = "") {
 }
 
 function normalizeStringList(value = [], fallback = []) {
-  const source = Array.isArray(value) ? value : fallback;
+  const source = Array.isArray(value) && value.length ? value : fallback;
   return source.map((item) => redactApexOsAutonomyRunText(item, 260)).filter(Boolean).slice(0, 12);
 }
 

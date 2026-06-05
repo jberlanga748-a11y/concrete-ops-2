@@ -2200,8 +2200,8 @@ function buildApexLiveOperatorModeState({
   const handoffCount = formatCount(executionHandoffs?.handoffSummary?.total);
   const approvalQueueCount = formatCount(approvalCommandCenter?.queueCount || approvalCommandCenter?.packetSummary?.total);
   const monitoringCount = formatCount(releaseMonitoring?.briefingCount || releaseMonitoring?.readinessCount);
-  const liveFoundationPercent = 95;
-  const jarvisBehaviorPercent = activeRunCount || handoffCount ? 90 : 82;
+  const liveFoundationPercent = 96;
+  const jarvisBehaviorPercent = activeRunCount || handoffCount ? 92 : 86;
   const readinessRows = withDerivedStateMetaList([
     {
       id: "live-voice-loop",
@@ -2221,7 +2221,7 @@ function buildApexLiveOperatorModeState({
       id: "live-run-ledger",
       title: "Run ledger",
       status: savedRunCount ? `${savedRunCount} saved` : "Ready",
-      detail: `${activeRunCount} active run${activeRunCount === 1 ? "" : "s"} are visible with steps, evidence, linked drafts, cycle state, and report-back state. New live runs save a private ledger item before internal drafting.`,
+      detail: `${activeRunCount} active run${activeRunCount === 1 ? "" : "s"} are visible with steps, evidence, linked drafts, cycle state, natural-command autopilot, and report-back state. New live runs save a private ledger item before internal drafting.`,
       tone: savedRunCount ? "green" : "blue",
     },
     {
@@ -2254,6 +2254,7 @@ function buildApexLiveOperatorModeState({
     { id: "live-loop-hear", title: "Hear", status: "Open", detail: "Voice and typed commands enter the Apex body page.", tone: "green" },
     { id: "live-loop-interrupt", title: "Interrupt", status: "Barge-in memory", detail: "Apex can stop speaking, keep listening, and carry the interruption into the next answer context.", tone: "green" },
     { id: "live-loop-understand", title: "Understand", status: "Source-backed", detail: "Apex routes the request against private command-room context.", tone: "green" },
+    { id: "live-loop-command-run", title: "Act", status: "Natural command", detail: "Apex can turn typed or spoken get-this-done requests into a saved private run, cycle safe prep/proof, and stop at manual review.", tone: "green" },
     { id: "live-loop-plan", title: "Plan", status: `${formatCount(autonomyRunCenter?.planStepCount)} steps`, detail: "The request becomes a visible review-first run plan with an active step and evidence trail.", tone: "blue" },
     { id: "live-loop-save", title: "Save run", status: savedRunCount ? `${savedRunCount} saved` : "Ready", detail: "A private autonomy ledger item is created before work continues.", tone: savedRunCount ? "green" : "blue" },
     { id: "live-loop-draft", title: "Draft", status: autonomyRunCenter?.canDraftInternalRuns ? "Draft-ready" : "Guarded", detail: "Internal agent-control and execution handoff drafts can be prepared.", tone: autonomyRunCenter?.canDraftInternalRuns ? "green" : "amber" },
@@ -2281,7 +2282,7 @@ function buildApexLiveOperatorModeState({
       id: "live-gap-execution",
       title: "Real-world execution",
       status: "Approval-gated",
-      detail: "Apex can save, draft, auto-advance private prep, proof-check, run private operator cycles, validate, and report private runs; customer-visible, billing, send, provider, production, delete, and irreversible actions remain approval-gated.",
+      detail: "Apex can answer natural get-this-done commands by saving a real private run, drafting, cycling prep/proof, validating, and reporting private runs; customer-visible, billing, send, provider, production, delete, and irreversible actions remain approval-gated.",
       tone: "amber",
     },
     {

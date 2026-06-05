@@ -157,6 +157,9 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /Command stream/);
   assert.match(componentSource, /buildApexCockpitCommandRoute/);
   assert.match(componentSource, /previousRoute/);
+  assert.match(componentSource, /get this done/);
+  assert.match(componentSource, /start-live-operator-run/);
+  assert.match(componentSource, /Start private run/);
   assert.match(componentSource, /buildApexCockpitTurnMemory/);
   assert.match(componentSource, /Recent page conversation/);
   assert.match(componentSource, /ApexCockpitCommandStream/);
@@ -228,6 +231,9 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /summarizeApexCockpitRunProgress/);
   assert.match(componentSource, /Run reported complete/);
   assert.match(componentSource, /createCockpitLiveRunFromCommand/);
+  assert.match(componentSource, /autoCycle/);
+  assert.match(componentSource, /live-run-cycled/);
+  assert.match(componentSource, /private run, prepared internal drafts, checked proof/);
   assert.match(componentSource, /Proactive Pulse/);
   assert.match(componentSource, /refreshCockpitLivePulse/);
   assert.match(componentSource, /Auto Check/);
@@ -266,7 +272,7 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /Suggested run memory/);
   assert.match(componentSource, /manual approval required before trusted memory/);
   assert.match(componentSource, /Apex Live Operator Mode answer; manual approval required before trusted memory/);
-  assert.match(componentSource, /Math\.max\(Number\(liveOperatorMode\.jarvisBehaviorPercent \|\| 0\), 90\)/);
+  assert.match(componentSource, /Math\.max\(Number\(liveOperatorMode\.jarvisBehaviorPercent \|\| 0\), 92\)/);
   assert.match(componentSource, /Caption barge-in/);
   assert.match(componentSource, /Manual interruption/);
   assert.match(componentSource, /cockpitPendingInterruptionRef/);
@@ -291,6 +297,9 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(utilSource, /Body-first review-first operator/);
   assert.match(utilSource, /live-loop-save/);
   assert.match(utilSource, /live-loop-interrupt/);
+  assert.match(utilSource, /live-loop-command-run/);
+  assert.match(utilSource, /Natural command/);
+  assert.match(utilSource, /natural-command autopilot/);
   assert.match(utilSource, /live-loop-cycle/);
   assert.match(utilSource, /live-loop-auto-prep/);
   assert.match(utilSource, /live-loop-proof-check/);

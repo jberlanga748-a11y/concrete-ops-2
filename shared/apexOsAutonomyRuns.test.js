@@ -229,6 +229,9 @@ test("private operator cycle prepares proof, report memory, and waits for review
   assert.equal(cycled.steps.find((step) => step.id === "approval-gate").status, "waiting-approval");
   assert.equal(cycled.steps.find((step) => step.id === "report-memory").status, "ready");
   assert.match(cycled.evidence.join(" "), /private operator cycle completed/i);
+  assert.match(cycled.blockedActions.join(" "), /No external sends/i);
+  assert.match(cycled.blockedActions.join(" "), /No billing/i);
+  assert.match(cycled.blockedActions.join(" "), /No queue, run, execute, deploy, or rollback/i);
   assert.match(cycled.nextSafeAction, /Operator cycle is complete/i);
   assert.equal(isApexOsAutonomyRunReady(cycled), true);
 });

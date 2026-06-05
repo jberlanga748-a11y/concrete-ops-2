@@ -419,13 +419,14 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.agents.some((item) => item.id === "autonomy-run-center"), true);
   assert.equal(state.liveOperatorMode.status, "Live operator ready");
   assert.equal(state.liveOperatorMode.mode, "Body-first review-first operator");
-  assert.equal(state.liveOperatorMode.foundationPercent, 95);
-  assert.equal(state.liveOperatorMode.jarvisBehaviorPercent, 82);
+  assert.equal(state.liveOperatorMode.foundationPercent, 96);
+  assert.equal(state.liveOperatorMode.jarvisBehaviorPercent, 86);
   assert.equal(state.liveOperatorMode.readinessRows.length, 6);
-  assert.equal(state.liveOperatorMode.operatorLoopRows.length, 13);
+  assert.equal(state.liveOperatorMode.operatorLoopRows.length, 14);
   assert.equal(state.liveOperatorMode.gapRows.length, 4);
-  assert.equal(state.liveOperatorMode.readinessRows.some((item) => item.id === "live-run-ledger" && item.status === "Ready"), true);
+  assert.equal(state.liveOperatorMode.readinessRows.some((item) => item.id === "live-run-ledger" && item.status === "Ready" && /natural-command autopilot/i.test(item.detail)), true);
   assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-save"), true);
+  assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-command-run" && item.status === "Natural command"), true);
   assert.equal(state.liveOperatorMode.readinessRows.some((item) => item.id === "live-voice-loop" && /interruption-aware turn memory/i.test(item.detail)), true);
   assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-interrupt" && item.status === "Barge-in memory"), true);
   assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-cycle" && item.status === "Private cycle"), true);
@@ -503,7 +504,7 @@ test("deriveApexControlRoomState includes saved autonomy run ledger rows", () =>
   assert.equal(state.liveOperatorMode.status, "Live operator running");
   assert.equal(state.liveOperatorMode.savedRunCount, 2);
   assert.equal(state.liveOperatorMode.activeRunCount, 1);
-  assert.equal(state.liveOperatorMode.jarvisBehaviorPercent, 90);
+  assert.equal(state.liveOperatorMode.jarvisBehaviorPercent, 92);
   assert.equal(state.liveOperatorMode.readinessRows.some((item) => item.id === "live-run-ledger" && item.status === "2 saved"), true);
   assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-save" && item.status === "2 saved"), true);
   assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-report" && item.status === "Report-ready"), true);

@@ -3813,25 +3813,30 @@ function buildApexCockpitCommandRoute(question = "", { previousRoute = null } = 
     && /\b(that|it|this|yes|yeah|yep|do it|draft it|make it|create it|open it|show it|go there)\b/i.test(normalized)
     && normalized.length < 90;
   const wantsRouteOpen = hasAny(["open ", "show ", "go to", "take me", "switch to", "pull up", "bring up"]);
+  const wantsLiveRun = hasAny(["live run", "operator run", "autonomy run", "start a run", "start the run", "get this done", "get it done", "handle this", "handle it", "work this", "work on this", "make this happen", "take care of this", "take care of it"])
+    || /\b(do|run|work|handle|finish|complete|execute)\b.*\b(this|it|task|work|for me|done)\b/i.test(normalized);
   const wantsAgentRequest = hasAny(["create agent", "draft agent", "agent request", "agent task", "ask agent", "have agent", "run agent", "qa this", "build this", "release this"])
     || /\b(ask|have|tell|create|draft|run)\b.*\b(agent|qa|build|release|marketing|sales|monitoring)\b/.test(normalized)
     || /\b(qa|build|release|marketing|sales|monitoring)\b.*\b(agent|check|run|task|request)\b/.test(normalized);
   const base = {
     shouldOpenSection: wantsRouteOpen,
-    suggestedActions: ["Answer from memory", "Open matched room"],
+    suggestedActions: wantsLiveRun ? ["Start private run", "Answer from memory", "Open matched room"] : ["Answer from memory", "Open matched room"],
   };
 
   if (isFollowUp) {
     const wantsDraftFollowUp = previousRoute.id === "agent-control" && /\b(yes|yeah|yep|do it|draft it|make it|create it|request it)\b/i.test(normalized);
+    const wantsLiveRunFollowUp = wantsLiveRun || /\b(do it|get it done|handle it|work it|start it|run it|make it happen)\b/i.test(normalized);
     return {
       ...base,
       ...previousRoute,
-      id: wantsDraftFollowUp ? "agent-control" : previousRoute.id,
-      detail: wantsDraftFollowUp
+      id: wantsDraftFollowUp && !wantsLiveRunFollowUp ? "agent-control" : previousRoute.id,
+      detail: wantsLiveRunFollowUp
+        ? `Apex treated this as a follow-up to ${previousRoute.label || "the last command"} and will start a private live run, cycle safe internal prep/proof, and stop at manual review.`
+        : wantsDraftFollowUp
         ? "Apex treated this as a follow-up to the agent request and will draft a locked request only."
         : `Apex treated this as a follow-up to ${previousRoute.label || "the last command"}.`,
-      commandAction: wantsDraftFollowUp ? "draft-agent-control-request" : wantsRouteOpen ? "open-section" : "answer",
-      suggestedActions: wantsDraftFollowUp ? ["Draft locked request", "Open agents"] : previousRoute.suggestedActions || base.suggestedActions,
+      commandAction: wantsLiveRunFollowUp ? "start-live-operator-run" : wantsDraftFollowUp ? "draft-agent-control-request" : wantsRouteOpen ? "open-section" : "answer",
+      suggestedActions: wantsLiveRunFollowUp ? ["Start private run", "Open matched room"] : wantsDraftFollowUp ? ["Draft locked request", "Open agents"] : previousRoute.suggestedActions || base.suggestedActions,
     };
   }
 
@@ -3843,8 +3848,9 @@ function buildApexCockpitCommandRoute(question = "", { previousRoute = null } = 
       section: "approvals",
       detail: "Apex matched this to approval packets, review queues, or owner decisions.",
       actionLabel: "Open approvals",
-      commandAction: wantsRouteOpen ? "open-section" : "answer",
+      commandAction: wantsLiveRun ? "start-live-operator-run" : wantsRouteOpen ? "open-section" : "answer",
       intent: "approval-review",
+      suggestedActions: wantsLiveRun ? ["Start private run", "Open approvals"] : base.suggestedActions,
       tone: "amber",
     };
   }
@@ -3857,8 +3863,9 @@ function buildApexCockpitCommandRoute(question = "", { previousRoute = null } = 
       section: "release",
       detail: "Apex matched this to release readiness, deployment, smoke tests, or rollback evidence.",
       actionLabel: "Open release",
-      commandAction: wantsRouteOpen ? "open-section" : "answer",
+      commandAction: wantsLiveRun ? "start-live-operator-run" : wantsRouteOpen ? "open-section" : "answer",
       intent: "release-readiness",
+      suggestedActions: wantsLiveRun ? ["Start private run", "Open release"] : base.suggestedActions,
       tone: "blue",
     };
   }
@@ -3871,9 +3878,9 @@ function buildApexCockpitCommandRoute(question = "", { previousRoute = null } = 
       section: "agents",
       detail: "Apex matched this to agent work, handoffs, safety locks, or QA routing.",
       actionLabel: "Open agents",
-      commandAction: wantsAgentRequest ? "draft-agent-control-request" : wantsRouteOpen ? "open-section" : "answer",
+      commandAction: wantsLiveRun ? "start-live-operator-run" : wantsAgentRequest ? "draft-agent-control-request" : wantsRouteOpen ? "open-section" : "answer",
       intent: "agent-control",
-      suggestedActions: wantsAgentRequest ? ["Draft locked request", "Open agents"] : ["Answer from memory", "Open agents"],
+      suggestedActions: wantsLiveRun ? ["Start private run", "Draft locked request", "Open agents"] : wantsAgentRequest ? ["Draft locked request", "Open agents"] : ["Answer from memory", "Open agents"],
       tone: "green",
     };
   }
@@ -3886,8 +3893,9 @@ function buildApexCockpitCommandRoute(question = "", { previousRoute = null } = 
       section: "business",
       detail: "Apex matched this to launch, sales, marketing, revenue, demo, or customer-success planning.",
       actionLabel: "Open business",
-      commandAction: wantsRouteOpen ? "open-section" : "answer",
+      commandAction: wantsLiveRun ? "start-live-operator-run" : wantsRouteOpen ? "open-section" : "answer",
       intent: "business-ops",
+      suggestedActions: wantsLiveRun ? ["Start private run", "Open business"] : base.suggestedActions,
       tone: "blue",
     };
   }
@@ -3900,8 +3908,9 @@ function buildApexCockpitCommandRoute(question = "", { previousRoute = null } = 
       section: "personal",
       detail: "Apex matched this to John's preferences, work style memory, daily focus, or check-in posture.",
       actionLabel: "Open personal",
-      commandAction: wantsRouteOpen ? "open-section" : "answer",
+      commandAction: wantsLiveRun ? "start-live-operator-run" : wantsRouteOpen ? "open-section" : "answer",
       intent: "personal-operating-layer",
+      suggestedActions: wantsLiveRun ? ["Start private run", "Open personal"] : base.suggestedActions,
       tone: "slate",
     };
   }
@@ -3914,8 +3923,9 @@ function buildApexCockpitCommandRoute(question = "", { previousRoute = null } = 
       section: "trust",
       detail: "Apex matched this to QA hardening, access proof, field boundaries, or finished-system evidence.",
       actionLabel: "Open trust",
-      commandAction: wantsRouteOpen ? "open-section" : "answer",
+      commandAction: wantsLiveRun ? "start-live-operator-run" : wantsRouteOpen ? "open-section" : "answer",
       intent: "trust-hardening",
+      suggestedActions: wantsLiveRun ? ["Start private run", "Open trust"] : base.suggestedActions,
       tone: "green",
     };
   }
@@ -3928,8 +3938,9 @@ function buildApexCockpitCommandRoute(question = "", { previousRoute = null } = 
       section: "memory",
       detail: "Apex matched this to durable memory, operating rules, or source-backed knowledge.",
       actionLabel: "Open memory",
-      commandAction: wantsRouteOpen ? "open-section" : "answer",
+      commandAction: wantsLiveRun ? "start-live-operator-run" : wantsRouteOpen ? "open-section" : "answer",
       intent: "decision-memory",
+      suggestedActions: wantsLiveRun ? ["Start private run", "Open memory"] : base.suggestedActions,
       tone: "slate",
     };
   }
@@ -3942,8 +3953,9 @@ function buildApexCockpitCommandRoute(question = "", { previousRoute = null } = 
       section: "overview",
       detail: "Apex matched this to the current operating picture and next best actions.",
       actionLabel: "Open overview",
-      commandAction: wantsRouteOpen ? "open-section" : "answer",
+      commandAction: wantsLiveRun ? "start-live-operator-run" : wantsRouteOpen ? "open-section" : "answer",
       intent: "command-overview",
+      suggestedActions: wantsLiveRun ? ["Start private run", "Open overview"] : base.suggestedActions,
       tone: "blue",
     };
   }
@@ -3953,11 +3965,13 @@ function buildApexCockpitCommandRoute(question = "", { previousRoute = null } = 
     id: "ask-apex",
     label: "Ask Apex",
     section: "apex",
-    detail: "Apex will answer from the full private command-room context.",
+    detail: wantsLiveRun
+      ? "Apex will start a private live run, cycle safe internal prep/proof, and stop at manual review."
+      : "Apex will answer from the full private command-room context.",
     actionLabel: "Stay with Apex",
-    commandAction: "answer",
+    commandAction: wantsLiveRun ? "start-live-operator-run" : "answer",
     intent: "ask-apex",
-    suggestedActions: ["Answer from memory", "Brief me"],
+    suggestedActions: wantsLiveRun ? ["Start private run", "Brief me"] : ["Answer from memory", "Brief me"],
     tone: "green",
   };
 }
@@ -4175,7 +4189,7 @@ function ApexCockpitAvatar({ voiceMode = "listening", voiceLevel = 0 }) {
   );
 }
 
-function ApexCockpitCommandStream({ turns, route, onOpenRoute, onCreateAgentRequest, onBrief, onAnswerCurrent, creatingAgentRequest = false }) {
+function ApexCockpitCommandStream({ turns, route, onOpenRoute, onCreateAgentRequest, onCreateLiveRun, onBrief, onAnswerCurrent, creatingAgentRequest = false, creatingLiveRun = false }) {
   const toneClass = {
     green: "border-emerald-400/24 bg-emerald-500/[0.06] text-emerald-200",
     blue: "border-cyan-400/24 bg-cyan-500/[0.06] text-cyan-200",
@@ -4215,11 +4229,11 @@ function ApexCockpitCommandStream({ turns, route, onOpenRoute, onCreateAgentRequ
           <button
             key={action}
             type="button"
-            onClick={() => (action === "Draft locked request" ? onCreateAgentRequest?.() : action === "Brief me" ? onBrief?.() : action === "Answer from memory" ? onAnswerCurrent?.() : action.includes("Open") ? onOpenRoute(safeRoute.section) : null)}
-            disabled={action === "Draft locked request" ? creatingAgentRequest : false}
+            onClick={() => (action === "Start private run" ? onCreateLiveRun?.() : action === "Draft locked request" ? onCreateAgentRequest?.() : action === "Brief me" ? onBrief?.() : action === "Answer from memory" ? onAnswerCurrent?.() : action.includes("Open") ? onOpenRoute(safeRoute.section) : null)}
+            disabled={action === "Draft locked request" ? creatingAgentRequest : action === "Start private run" ? creatingLiveRun : false}
             className="co-focus-ring inline-flex min-h-7 items-center rounded-md border border-slate-800 bg-slate-900/70 px-2 text-[10px] font-black text-slate-300 transition hover:border-cyan-400/50 hover:text-white disabled:cursor-not-allowed disabled:opacity-70"
           >
-            {action === "Draft locked request" && creatingAgentRequest ? "Drafting..." : action}
+            {action === "Draft locked request" && creatingAgentRequest ? "Drafting..." : action === "Start private run" && creatingLiveRun ? "Starting..." : action}
           </button>
         ))}
       </div>
@@ -4283,6 +4297,8 @@ function AutonomyRunCenterPanel({
   ];
   const nextSafeAction = safeRoute.commandAction === "draft-agent-control-request"
     ? "Draft a locked agent request"
+    : safeRoute.commandAction === "start-live-operator-run"
+      ? "Start a private live run"
     : safeRoute.commandAction === "open-section"
       ? `Open ${safeRoute.label}`
       : "Answer from approved context";
@@ -4580,6 +4596,8 @@ function AutonomyRunCenterCompactPanel({
   const latestRun = center.latestRun || center.runRows?.[0] || null;
   const nextSafeAction = safeRoute.commandAction === "draft-agent-control-request"
     ? "Draft a locked agent request"
+    : safeRoute.commandAction === "start-live-operator-run"
+      ? "Start a private live run"
     : safeRoute.commandAction === "open-section"
       ? `Open ${safeRoute.label}`
       : "Answer from approved context";
@@ -4851,7 +4869,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     "Brief me first",
     "What's blocked?",
     "What needs review?",
-    "Ask QA agent to check this",
+    "Get this done as a private run",
   ];
   const memoryCount = state.decisionMemory?.durableCount || state.decisionMemory?.decisionCount || 0;
   const cockpitVoiceProfileConfig = findApexCockpitVoiceProfile(cockpitVoiceProfile);
@@ -4891,7 +4909,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const cockpitVisibleLiveStatus = cockpitVisibleActiveRunCount ? "Live operator running" : liveOperatorMode.status || "Live operator ready";
   const cockpitVisibleLiveTone = cockpitVisibleActiveRunCount ? "green" : liveOperatorMode.tone || "blue";
   const cockpitVisibleOperatorPercent = cockpitVisibleActiveRunCount
-    ? Math.max(Number(liveOperatorMode.jarvisBehaviorPercent || 0), 90)
+    ? Math.max(Number(liveOperatorMode.jarvisBehaviorPercent || 0), 92)
     : Number(liveOperatorMode.jarvisBehaviorPercent || 0);
   const cockpitAnswerText = resolveApexCockpitAnswerText(cockpitResponse);
   const cockpitTurnMemoryKey = apexCockpitMemoryText(cockpitResponse?.requestId || `${cockpitLastQuestion}|${cockpitAnswerText}`, 220);
@@ -5516,13 +5534,17 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     }
   }
 
-  async function createCockpitLiveRunFromCommand(question = cockpitLastQuestion || askQuestion || cockpitBriefingText, route = cockpitCommandRoute, { turnId = "" } = {}) {
+  async function createCockpitLiveRunFromCommand(question = cockpitLastQuestion || askQuestion || cockpitBriefingText, route = cockpitCommandRoute, { turnId = "", autoCycle = false } = {}) {
     if (!state.canView || !sessionToken || cockpitCreatingLiveRun) return null;
     const request = String(question || "").trim() || `Start Apex live operator run for ${route?.label || "Apex"}.`;
     const runTurnId = turnId || `cockpit-live-run-${Date.now()}`;
     setCockpitCreatingLiveRun(true);
-    setCockpitLiveRunNotice("Starting private live run. Saving ledger and drafting internal work only.");
-    setCockpitAgentActionNotice("Starting private live run. No external action will execute.");
+    setCockpitLiveRunNotice(autoCycle
+      ? "Starting private live run. Apex will cycle safe internal prep/proof and stop at manual review."
+      : "Starting private live run. Saving ledger and drafting internal work only.");
+    setCockpitAgentActionNotice(autoCycle
+      ? "Starting private live run from command. No external action will execute."
+      : "Starting private live run. No external action will execute.");
     if (!turnId) {
       setCockpitTurns((current) => [
         {
@@ -5554,8 +5576,28 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       } else {
         syncCockpitLiveRunsFromPayload(createPayload, createdRun?.id || "");
       }
+      let autoCycleNotice = "";
+      if (autoCycle && finalRun?.id && !["done", "archived", "blocked"].includes(String(finalRun.status || "").toLowerCase())) {
+        setCockpitLiveRunNotice("Apex is cycling the new private run through prep and proof before manual review.");
+        const cycleRun = runApexOsAutonomyRunPrivateOperatorCycle(finalRun, {
+          now: new Date().toISOString(),
+          operatorNote: "Apex started this from a natural command, cycled private prep/proof, and stopped at manual approval/report review.",
+        });
+        const cyclePayload = await updateApexOsAutonomyRun(sessionToken, finalRun.id, {
+          status: cycleRun.status,
+          operatorNote: cycleRun.operatorNote,
+          steps: cycleRun.steps,
+          evidence: cycleRun.evidence,
+          nextSafeAction: cycleRun.nextSafeAction,
+        });
+        finalRun = cyclePayload?.apexOsAutonomyRun || cycleRun;
+        syncCockpitLiveRunsFromPayload(cyclePayload, finalRun.id);
+        autoCycleNotice = finalRun.status === "waiting-approval"
+          ? " Apex also cycled private prep/proof and stopped at manual review."
+          : " Apex started the private cycle and found validation gaps for review.";
+      }
       const finalNotice = finalRun?.id
-        ? `Live run ${finalRun.id} saved and internal draft package prepared. Execution stays locked.`
+        ? `Live run ${finalRun.id} saved and internal draft package prepared.${autoCycleNotice} Execution stays locked.`
         : "Live run saved and internal draft package prepared. Execution stays locked.";
       setCockpitLiveRunNotice(finalNotice);
       setCockpitAgentActionNotice(finalNotice);
@@ -5565,7 +5607,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
           sourceLabels: ["Apex Live Operator Mode", "Autonomy Run Center", "Agent handoff drafts"],
         },
       });
-      setCockpitTurns((current) => current.map((turn) => (turn.id === runTurnId ? { ...turn, status: "live-run-drafted" } : turn)));
+      setCockpitTurns((current) => current.map((turn) => (turn.id === runTurnId ? { ...turn, status: autoCycle ? "live-run-cycled" : "live-run-drafted" } : turn)));
       refreshCockpitLivePulse({ automatic: true });
       return finalRun;
     } catch (error) {
@@ -5964,7 +6006,16 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       if (route.commandAction === "draft-agent-control-request") {
         await createCockpitAgentRequestFromCommand(nextQuestion, route, { turnId });
       }
-      const nextAnswerText = resolveApexCockpitAnswerText(payload);
+      let commandSpokenSuffix = "";
+      if (route.commandAction === "start-live-operator-run") {
+        const run = await createCockpitLiveRunFromCommand(nextQuestion, route, { turnId, autoCycle: true });
+        commandSpokenSuffix = run?.status === "waiting-approval"
+          ? " I started the private run, prepared internal drafts, checked proof, and stopped at manual review."
+          : run?.id
+            ? " I started the private run and kept execution locked for review."
+            : " I tried to start the private run, but it needs review.";
+      }
+      const nextAnswerText = `${resolveApexCockpitAnswerText(payload)}${commandSpokenSuffix}`.trim();
       if (nextAnswerText) {
         await speakCockpitAnswer(nextAnswerText);
       } else {
@@ -6600,6 +6651,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                   route={cockpitCommandRoute}
                   onOpenRoute={onChange}
                   onCreateAgentRequest={() => createCockpitAgentRequestFromCommand()}
+                  onCreateLiveRun={() => createCockpitLiveRunFromCommand(askQuestion.trim() || cockpitLastQuestion || cockpitCommandRoute.label, cockpitCommandRoute, { autoCycle: true })}
                   onBrief={() => deliverCockpitBriefing({ speak: true })}
                   onAnswerCurrent={() => {
                     const currentQuestion = askQuestion.trim() || cockpitLastQuestion || "Summarize today";
@@ -6607,6 +6659,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     askCockpitQuestion(currentQuestion);
                   }}
                   creatingAgentRequest={cockpitCreatingAgentRequest}
+                  creatingLiveRun={cockpitCreatingLiveRun}
                 />
               </div>
             </div>
