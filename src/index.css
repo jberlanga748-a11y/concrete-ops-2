@@ -57336,6 +57336,22 @@ body:has(.co-field-mobile-reports-shell) .co-mobile-bottom-spacer {
     max-width: min(100%, 76rem);
   }
 
+  .co-apex-cockpit-stage-hud {
+    align-items: center;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 24rem) auto;
+    margin-inline: auto;
+    max-width: min(100%, 58rem);
+    width: 100%;
+  }
+
+  .co-apex-cockpit-stage-metrics {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .co-apex-cockpit-stage-command-dock {
+    max-width: 22rem;
+  }
+
   .co-apex-cockpit-screen--spotlight .co-apex-life-body {
     max-width: min(100%, 64rem);
     min-height: clamp(30rem, 58vh, 39rem);
@@ -57370,6 +57386,20 @@ body:has(.co-field-mobile-reports-shell) .co-mobile-bottom-spacer {
   .co-apex-cockpit-screen--spotlight .co-apex-cockpit-live-console::-webkit-scrollbar-thumb {
     border-radius: 999px;
     background: rgba(56, 189, 248, 0.34);
+  }
+
+  .co-apex-cockpit-screen--spotlight .co-apex-cockpit-live-console {
+    max-height: none;
+    max-width: min(100%, 44rem);
+    overflow: visible;
+    padding: 0.75rem 0.85rem !important;
+  }
+
+  .co-apex-cockpit-screen--spotlight .co-apex-cockpit-live-console > :not(.co-apex-cockpit-now-shell),
+  .co-apex-cockpit-screen--spotlight .co-apex-cockpit-now-actions,
+  .co-apex-cockpit-screen--spotlight [aria-label="Apex quick next turns"],
+  .co-apex-cockpit-screen--spotlight [aria-label="Apex command stream"] {
+    display: none !important;
   }
 
   .co-apex-cockpit-screen--spotlight #apex-cockpit-ask,

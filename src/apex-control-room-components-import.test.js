@@ -224,6 +224,14 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /cockpitConsoleTab/);
   assert.match(componentSource, /Apex focus controls/);
   assert.match(componentSource, /Apex focus drawer/);
+  assert.match(componentSource, /ApexCockpitStageHud/);
+  assert.match(componentSource, /Apex body-first stage HUD/);
+  assert.match(componentSource, /Apex stage command dock/);
+  assert.match(componentSource, /Apex stage status chips/);
+  assert.match(componentSource, /Stage View/);
+  assert.match(componentSource, /co-apex-cockpit-now-shell/);
+  assert.match(componentSource, /co-apex-cockpit-now-actions/);
+  assert.match(componentSource, /co-apex-cockpit-stage-primary-action/);
   assert.match(componentSource, /co-apex-cockpit-screen--immersive/);
   assert.match(componentSource, /co-apex-cockpit-screen--spotlight/);
   assert.match(componentSource, /co-apex-cockpit-screen--full-console/);
@@ -530,6 +538,13 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(cssSource, /min-width: 1280px/);
   assert.match(cssSource, /\.co-apex-cockpit-screen--focus \.co-apex-cockpit-side-rail/);
   assert.match(cssSource, /\.co-apex-cockpit-screen--focus \.co-apex-cockpit-main-grid/);
+  assert.match(cssSource, /\.co-apex-cockpit-stage-hud/);
+  assert.match(cssSource, /\.co-apex-cockpit-stage-metrics/);
+  assert.match(cssSource, /\.co-apex-cockpit-stage-command-dock/);
+  assert.match(cssSource, /\.co-apex-cockpit-screen--spotlight \.co-apex-cockpit-live-console > :not\(\.co-apex-cockpit-now-shell\)/);
+  assert.match(cssSource, /\.co-apex-cockpit-screen--spotlight \.co-apex-cockpit-now-actions/);
+  assert.match(cssSource, /\.co-apex-cockpit-screen--spotlight \[aria-label="Apex quick next turns"\]/);
+  assert.match(cssSource, /\.co-apex-cockpit-screen--spotlight \[aria-label="Apex command stream"\]/);
   assert.match(cssSource, /\.co-apex-cockpit-screen--immersive \.co-apex-life-body/);
   assert.match(cssSource, /min-height: clamp\(31rem, 64vh, 42rem\)/);
   assert.match(cssSource, /\.co-apex-cockpit-screen--console \.co-apex-life-body/);

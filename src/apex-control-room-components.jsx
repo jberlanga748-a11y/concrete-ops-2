@@ -4539,6 +4539,81 @@ function ApexCockpitAvatar({ voiceMode = "listening", voiceLevel = 0 }) {
   );
 }
 
+function ApexCockpitStageHud({
+  voiceMode = "listening",
+  voiceHealth = {},
+  nowState = {},
+  activeRun = null,
+  nextPrivateMove = {},
+  liveStatus = "",
+  liveTone = "blue",
+  savedRunCount = 0,
+  trustedRunMemoryCount = 0,
+  pendingRunMemoryCount = 0,
+  releaseHealth = "Healthy",
+  onBrief,
+  onWatch,
+  onPrimaryRunAction,
+  onOpenConsole,
+  primaryRunDisabled = false,
+  primaryRunBusy = false,
+}) {
+  const safeVoiceMode = APEX_COCKPIT_VOICE_STATES[voiceMode] ? voiceMode : "listening";
+  const voiceLabel = voiceHealth?.status || APEX_COCKPIT_VOICE_STATES[safeVoiceMode]?.label || "Listening";
+  const runTitle = activeRun?.title || nextPrivateMove?.title || "Private run ready";
+  const runStatus = activeRun?.status || nextPrivateMove?.status || "Ready";
+  const primaryLabel = primaryRunBusy
+    ? "Working"
+    : activeRun?.id
+      ? nextPrivateMove?.buttonLabel || "Work Next"
+      : "Start Run";
+  const metricRows = [
+    { label: "Voice", value: voiceLabel, tone: voiceHealth?.tone || "blue" },
+    { label: "Live Run", value: activeRun?.id ? runStatus : `${savedRunCount || 0} saved`, tone: activeRun?.id ? apexCockpitRunStatusTone(activeRun.status) : savedRunCount ? "green" : "slate" },
+    { label: "Memory", value: trustedRunMemoryCount ? `${trustedRunMemoryCount} trusted` : pendingRunMemoryCount ? `${pendingRunMemoryCount} review` : "Ready", tone: trustedRunMemoryCount ? "green" : pendingRunMemoryCount ? "amber" : "slate" },
+    { label: "Release", value: releaseHealth || "Healthy", tone: String(releaseHealth || "").toLowerCase().includes("block") ? "red" : "green" },
+    { label: "Execution", value: "Locked", tone: "amber" },
+  ];
+
+  return (
+    <section className="co-apex-cockpit-stage-hud hidden min-w-0 gap-2 rounded-lg border border-cyan-200/14 bg-slate-950/70 p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] xl:grid" aria-label="Apex body-first stage HUD">
+      <div className="grid min-w-0 gap-1">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-orange-300/20 bg-orange-500/10 px-2 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-orange-200">
+            <Icon name="spark" className="h-3 w-3" /> Stage View
+          </span>
+          <ToneBadge tone={nowState?.tone || liveTone}>{nowState?.status || liveStatus || "Online"}</ToneBadge>
+          <ApexCockpitStatusDot tone={voiceHealth?.tone || "green"} />
+        </div>
+        <p className="min-w-0 truncate text-sm font-black text-slate-100">{nowState?.title || "Apex is online"}</p>
+        <p className="min-w-0 truncate text-[10px] font-bold leading-4 text-cyan-100">{runTitle}</p>
+      </div>
+      <div className="co-apex-cockpit-stage-metrics grid min-w-0 gap-1.5" aria-label="Apex stage status chips">
+        {metricRows.map((item) => (
+          <div key={item.label} className="min-w-0 rounded-md border border-slate-800 bg-slate-900/54 px-2 py-1.5">
+            <p className="truncate text-[8px] font-black uppercase tracking-[0.08em] text-slate-500">{item.label}</p>
+            <p className={`mt-0.5 truncate text-[10px] font-black ${item.tone === "green" ? "text-emerald-300" : item.tone === "amber" ? "text-orange-300" : item.tone === "red" ? "text-red-300" : item.tone === "blue" ? "text-cyan-300" : "text-slate-300"}`}>{item.value}</p>
+          </div>
+        ))}
+      </div>
+      <div className="co-apex-cockpit-stage-command-dock flex min-w-0 flex-wrap items-center justify-end gap-1.5" aria-label="Apex stage command dock">
+        <ApexCockpitControlButton className="px-2" disabled={false} onClick={onBrief} active={false} title="Speak Apex briefing from stage view">
+          <Icon name="spark" /> Brief
+        </ApexCockpitControlButton>
+        <ApexCockpitControlButton className="px-2" disabled={false} onClick={onWatch} active={false} title="Speak Apex watch officer from stage view">
+          <Icon name="phone" /> Watch
+        </ApexCockpitControlButton>
+        <ApexCockpitControlButton className="co-apex-cockpit-stage-primary-action px-2" disabled={primaryRunDisabled} onClick={onPrimaryRunAction} active={primaryRunBusy} title="Work the next private safe move from stage view">
+          <Icon name={activeRun?.id ? "refresh" : "spark"} /> {primaryLabel}
+        </ApexCockpitControlButton>
+        <ApexCockpitControlButton className="px-2" disabled={false} onClick={onOpenConsole} active={false} title="Open the full Apex operator console">
+          <Icon name="layers" /> Console
+        </ApexCockpitControlButton>
+      </div>
+    </section>
+  );
+}
+
 function ApexCockpitCommandStream({ turns, route, onOpenRoute, onCreateAgentRequest, onCreateLiveRun, onBrief, onAnswerCurrent, creatingAgentRequest = false, creatingLiveRun = false }) {
   const toneClass = {
     green: "border-emerald-400/24 bg-emerald-500/[0.06] text-emerald-200",
@@ -8450,7 +8525,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                 active={cockpitSpotlightMode}
                 title={cockpitSpotlightMode ? "Open full operator console dock" : "Return to Apex spotlight"}
               >
-                <Icon name="spark" /> {cockpitSpotlightMode ? "Spotlight" : "Full Console"}
+                <Icon name="spark" /> {cockpitSpotlightMode ? "Stage View" : "Full Console"}
               </ApexCockpitControlButton>
             </div>
             <div className="grid min-w-0 grid-cols-5 gap-2">
@@ -8691,6 +8766,25 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                 </div>
               </div>
               <ApexCockpitAvatar voiceMode={cockpitVoiceMode} voiceLevel={cockpitLiveLevel} />
+              <ApexCockpitStageHud
+                voiceMode={cockpitVoiceMode}
+                voiceHealth={cockpitVoiceHealth}
+                nowState={cockpitNowState}
+                activeRun={cockpitActiveRun}
+                nextPrivateMove={cockpitNextPrivateMove}
+                liveStatus={cockpitVisibleLiveStatus}
+                liveTone={cockpitVisibleLiveTone}
+                savedRunCount={cockpitVisibleSavedRunCount}
+                trustedRunMemoryCount={trustedRunMemoryCount}
+                pendingRunMemoryCount={pendingRunMemoryCount}
+                releaseHealth={releaseHealth}
+                onBrief={() => deliverCockpitBriefing({ speak: true })}
+                onWatch={() => deliverCockpitWatchOfficer({ speak: true })}
+                onPrimaryRunAction={() => workCockpitActiveRunNextMove()}
+                onOpenConsole={() => setCockpitSpotlightMode(false)}
+                primaryRunDisabled={Boolean(cockpitUpdatingRun) || cockpitCreatingLiveRun || !state.canView || !sessionToken}
+                primaryRunBusy={Boolean(cockpitUpdatingRun) || cockpitCreatingLiveRun}
+              />
               <section className="co-apex-cockpit-mobile-dock grid min-w-0 gap-2 rounded-lg border border-cyan-200/14 bg-slate-950/78 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] xl:hidden" aria-label="Apex mobile operator dock">
                 <div className="flex min-w-0 items-center justify-between gap-2">
                   <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Apex Dock</p>
@@ -8717,13 +8811,13 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                 </div>
               </section>
               <section className={`co-apex-cockpit-live-console ${cockpitSpotlightMode ? "co-apex-cockpit-live-console--dock" : "co-apex-cockpit-live-console--full"} grid min-w-0 gap-2 rounded-lg border border-cyan-200/14 bg-slate-950/76 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]`} aria-label="Apex live conversation console">
-                <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="co-apex-cockpit-now-shell flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
                     <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Apex Now</p>
                     <p className="mt-0.5 min-w-0 break-words text-xs font-black text-slate-100">{cockpitNowState.title}</p>
                     <p className="mt-0.5 min-w-0 break-words text-[11px] font-bold leading-4 text-slate-500">{cockpitNowState.detail}</p>
                   </div>
-                  <div className="flex min-w-0 flex-wrap gap-1.5 sm:justify-end">
+                  <div className="co-apex-cockpit-now-actions flex min-w-0 flex-wrap gap-1.5 sm:justify-end">
                     <ToneBadge tone={cockpitNowState.tone}>{cockpitNowState.status}</ToneBadge>
                     <ApexCockpitControlButton className="px-2" disabled={false} onClick={() => deliverCockpitBriefing({ speak: true })} active={false} title="Speak Apex briefing">
                       <Icon name="spark" /> Brief Me
