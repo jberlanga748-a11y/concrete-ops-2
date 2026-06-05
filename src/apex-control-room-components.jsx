@@ -3978,6 +3978,36 @@ function buildApexCockpitCommandRoute(question = "", { previousRoute = null, act
       tone: hasActiveRun ? "green" : "blue",
     };
   }
+  const wantsWatchOfficer = hasAny([
+    "watch officer",
+    "watch report",
+    "standing watch",
+    "keep watch",
+    "what changed",
+    "anything changed",
+    "what did you notice",
+    "what are you watching",
+    "what do you see",
+    "what needs attention",
+    "what needs my attention",
+    "what should i watch",
+  ]) || /\b(what|anything|something)\b.*\b(changed|new|noticed|watching|attention)\b/i.test(normalized);
+  if (wantsWatchOfficer) {
+    return {
+      ...base,
+      id: "watch-officer",
+      label: "Watch officer",
+      section: "apex",
+      detail: hasActiveRun
+        ? `Apex will report what changed around ${activeRunTitle}, why it matters, and the next safe private move: ${moveTitle}.`
+        : "Apex will report the current standing watch, top signal, memory posture, and next safe private move.",
+      actionLabel: "Watch Report",
+      commandAction: "speak-watch-officer",
+      intent: "watch-officer",
+      suggestedActions: hasActiveRun ? ["Watch Report", "Speak handback", "Next safe move", "Draft memory"] : ["Watch Report", "Mission Brief", "Start private run"],
+      tone: hasActiveRun ? "green" : "blue",
+    };
+  }
   const wantsActiveRunHandback = hasActiveRun && (
     hasAny(["handback", "speak handback", "run handback", "active run check-in", "run check-in", "check-in", "check in", "heartbeat", "live run progress", "what did you do", "what have you done", "report back", "status of this run", "where is this run"])
     || /\b(tell|show|speak|give)\b.*\b(handback|status|check-?in|heartbeat|progress|what you did|run report)\b/i.test(normalized)
@@ -5354,6 +5384,151 @@ function buildApexCockpitSpokenProactiveCheckInText(checkIn = {}) {
   ].filter(Boolean).join(" ");
 }
 
+function normalizeApexCockpitWatchOfficerRow(row = {}) {
+  return {
+    id: String(row.id || `watch-${row.label || "row"}`).trim(),
+    label: apexCockpitMemoryText(row.label || "Signal", 48),
+    value: apexCockpitMemoryText(row.value || "Watching", 74),
+    detail: apexCockpitMemoryText(row.detail || "Apex is keeping this under review.", 190),
+    tone: row.tone || "blue",
+  };
+}
+
+function buildApexCockpitWatchOfficer({
+  activeRun,
+  activeRunProgress = {},
+  heartbeat = {},
+  proactiveCheckIn = {},
+  missionBrief = {},
+  nextPrivateMove = {},
+  operatorJudgmentRows = [],
+  liveOperatorMemory = {},
+  pulse = {},
+  proactiveVoiceStatus = "Watching",
+  proactiveMemoryId = "",
+  proactiveMemoryCount = 0,
+} = {}) {
+  const hasRun = Boolean(activeRun?.id || heartbeat?.runId);
+  const surfacedSignal = Boolean(proactiveCheckIn?.shouldSurface);
+  const topJudgment = Array.isArray(operatorJudgmentRows) && operatorJudgmentRows.length
+    ? normalizeApexCockpitJudgmentRow(operatorJudgmentRows[0])
+    : null;
+  const latestRunMemory = resolveApexCockpitLatestTrustedRunMemory(liveOperatorMemory);
+  const runTitle = apexCockpitMemoryText(activeRun?.title || activeRun?.request || heartbeat.title || "private run", 110);
+  const progressLabel = hasRun
+    ? apexCockpitMemoryText(heartbeat.progressLabel || `${Number(activeRunProgress?.progressPercent || 0)}% / ${Number(activeRunProgress?.doneCount || 0)} of ${Number(activeRunProgress?.totalCount || 0) || "?"}`, 80)
+    : `${Number(pulse?.runSummary?.active || 0)} active / ${Number(pulse?.runSummary?.total || 0)} saved`;
+  const trigger = apexCockpitMemoryText(proactiveCheckIn?.trigger || (hasRun ? "watching-run" : "standing-watch"), 70);
+  const title = surfacedSignal
+    ? `Watch Officer: ${apexCockpitMemoryText(proactiveCheckIn.title || "new signal surfaced", 130)}`
+    : hasRun
+      ? `Watch Officer: watching ${runTitle}`
+      : "Watch Officer: standing by";
+  const status = surfacedSignal
+    ? "Signal surfaced"
+    : hasRun
+      ? heartbeat.status || activeRun?.status || "Watching run"
+      : topJudgment?.status || missionBrief.status || "Standing watch";
+  const tone = surfacedSignal
+    ? "amber"
+    : hasRun
+      ? heartbeat.tone || apexCockpitRunStatusTone(activeRun?.status)
+      : topJudgment?.tone || missionBrief.tone || "blue";
+  const detail = surfacedSignal
+    ? proactiveCheckIn.detail || "Apex noticed a meaningful change in the live run heartbeat."
+    : hasRun
+      ? `${runTitle} is ${progressLabel}. Current step: ${apexCockpitMemoryText(activeRunProgress.activeStepTitle || heartbeat.currentStep || "review the run", 90)}.`
+      : topJudgment?.detail || latestRunMemory?.title || "No active private run is live; Apex is ready to start one when you ask.";
+  const whyItMatters = surfacedSignal
+    ? `This changed since the last heartbeat: ${trigger}. Apex is surfacing it now so you can review before anything moves.`
+    : hasRun
+      ? "Apex has a saved private run in progress, so it can keep the next safe move and review gate visible without executing outside the app."
+      : latestRunMemory
+        ? `Apex has trusted run history available: ${latestRunMemory.title}.`
+        : "Apex is not inventing work while idle; it is waiting for a real private run or operator question.";
+  const nextAction = surfacedSignal
+    ? proactiveCheckIn.recommendation || nextPrivateMove.recommendation || "Review the surfaced signal before trusting it or moving the run forward."
+    : hasRun
+      ? nextPrivateMove.recommendation || heartbeat.recommendation || "Review the active run heartbeat and next safe private move."
+      : topJudgment?.actionLabel || nextPrivateMove.title || "Ask Apex for the next private run when there is work to track.";
+  const memoryValue = proactiveMemoryId
+    ? "Drafted"
+    : proactiveMemoryCount
+      ? `${proactiveMemoryCount} draft${proactiveMemoryCount === 1 ? "" : "s"}`
+      : latestRunMemory
+        ? "Trusted"
+        : surfacedSignal
+          ? "Suggested"
+          : "Quiet";
+  const rows = [
+    normalizeApexCockpitWatchOfficerRow({
+      id: "watch-signal",
+      label: "Signal",
+      value: surfacedSignal ? "New" : "Quiet",
+      detail: surfacedSignal ? trigger : "No new heartbeat change needs interruption.",
+      tone: surfacedSignal ? "amber" : "slate",
+    }),
+    normalizeApexCockpitWatchOfficerRow({
+      id: "watch-run",
+      label: "Run",
+      value: hasRun ? progressLabel : "No live run",
+      detail: hasRun ? runTitle : "Apex is waiting for a private run or direct question.",
+      tone: hasRun ? "green" : "slate",
+    }),
+    normalizeApexCockpitWatchOfficerRow({
+      id: "watch-voice",
+      label: "Voice",
+      value: proactiveVoiceStatus || "Watching",
+      detail: proactiveVoiceStatus === "Queued"
+        ? "The latest proactive report will speak when the voice loop is clear."
+        : proactiveVoiceStatus === "Spoken"
+          ? "The latest proactive report was spoken in this session."
+          : "Apex will speak meaningful updates when voice is open.",
+      tone: proactiveVoiceStatus === "Spoken" ? "green" : proactiveVoiceStatus === "Queued" ? "amber" : proactiveVoiceStatus === "Manual" ? "blue" : "slate",
+    }),
+    normalizeApexCockpitWatchOfficerRow({
+      id: "watch-memory",
+      label: "Memory",
+      value: memoryValue,
+      detail: proactiveMemoryId
+        ? "A suggested memory draft exists; it is not trusted automatically."
+        : surfacedSignal
+          ? "This surfaced signal can become suggested memory for manual review."
+          : latestRunMemory?.title || "Nothing new needs memory yet.",
+      tone: proactiveMemoryId || latestRunMemory ? "green" : surfacedSignal ? "amber" : "slate",
+    }),
+    normalizeApexCockpitWatchOfficerRow({
+      id: "watch-locks",
+      label: "Locks",
+      value: "Execution locked",
+      detail: "No sends, billing, provider work, production changes, deploys, rollbacks, agent runs, or irreversible actions.",
+      tone: "amber",
+    }),
+  ];
+  const spokenText = [
+    "Apex watch officer report.",
+    title,
+    `Status: ${apexCockpitMemoryText(status, 90)}.`,
+    apexCockpitMemoryText(detail, 260),
+    `Why it matters: ${apexCockpitMemoryText(whyItMatters, 280)}`,
+    `Next safe action: ${apexCockpitMemoryText(nextAction, 260)}`,
+    `Voice status: ${apexCockpitMemoryText(proactiveVoiceStatus || "Watching", 80)}.`,
+    "Execution remains locked. No sends, billing, provider work, production changes, deploys, rollbacks, agent runs, automatic trusted memory, or irreversible actions.",
+  ].filter(Boolean).join(" ");
+
+  return {
+    title: apexCockpitMemoryText(title, 150),
+    status: apexCockpitMemoryText(status, 86),
+    tone,
+    detail: apexCockpitMemoryText(detail, 330),
+    whyItMatters: apexCockpitMemoryText(whyItMatters, 330),
+    nextAction: apexCockpitMemoryText(nextAction, 330),
+    spokenText: apexCockpitMemoryText(spokenText, 1250),
+    sourceLabels: ["Apex Watch Officer", "Live Session Heartbeat", "Proactive Check-In", "Autonomy Run Center", "Reviewed Run Memory"],
+    rows,
+  };
+}
+
 function buildApexCockpitRunHandbackText(handback = {}) {
   if (handback?.answer) return handback.answer;
   return "Apex operator handback: no active private run is live. Start a private run when there is real work to track. Execution, sends, billing, provider work, production changes, deletion, deploy, rollback, and irreversible actions stay locked.";
@@ -5836,6 +6011,20 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     operatorJudgmentRows: cockpitOperatorJudgmentRows,
     liveOperatorMemory,
     pulse: cockpitLivePulse,
+  });
+  const cockpitWatchOfficer = buildApexCockpitWatchOfficer({
+    activeRun: cockpitActiveRun,
+    activeRunProgress: cockpitActiveRunProgress,
+    heartbeat: cockpitSessionHeartbeat,
+    proactiveCheckIn: cockpitVisibleProactiveCheckIn,
+    missionBrief: cockpitMissionBrief,
+    nextPrivateMove: cockpitNextPrivateMove,
+    operatorJudgmentRows: cockpitOperatorJudgmentRows,
+    liveOperatorMemory,
+    pulse: cockpitLivePulse,
+    proactiveVoiceStatus: cockpitProactiveVoiceStatus,
+    proactiveMemoryId: cockpitVisibleProactiveMemoryId,
+    proactiveMemoryCount: cockpitProactiveMemoryCount,
   });
   const canAutoDriveCockpitRun = state.canView
     && Boolean(sessionToken)
@@ -6898,6 +7087,35 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     if (speak) speakCockpitAnswer(cockpitOperatorJudgmentText);
   }
 
+  function deliverCockpitWatchOfficer({ speak = false } = {}) {
+    const route = buildApexCockpitCommandRoute("Give me the watch officer report", {
+      previousRoute: cockpitCommandRoute,
+      activeRun: cockpitActiveRun,
+      nextPrivateMove: cockpitNextPrivateMove,
+    });
+    setCockpitCommandRoute(route);
+    setCockpitError("");
+    setCockpitResponse({
+      answer: {
+        answer: cockpitWatchOfficer.spokenText,
+        sourceLabels: cockpitWatchOfficer.sourceLabels,
+      },
+    });
+    setCockpitLastQuestion("Watch officer");
+    setCockpitVoiceNotice("Apex watch officer report is ready. Execution stayed locked.");
+    setCockpitTurns((current) => [
+      {
+        id: `cockpit-watch-officer-${Date.now()}`,
+        question: cockpitWatchOfficer.title,
+        source: "watch-officer",
+        routeLabel: route.label,
+        status: cockpitWatchOfficer.status || "watching",
+      },
+      ...current,
+    ].slice(0, 5));
+    if (speak) speakCockpitAnswer(cockpitWatchOfficer.spokenText);
+  }
+
   function deliverCockpitMissionBrief({ speak = false } = {}) {
     const route = buildApexCockpitCommandRoute("Give me the mission brief", {
       previousRoute: cockpitCommandRoute,
@@ -7703,6 +7921,10 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
         deliverCockpitMissionBrief({ speak: true });
         commandHandledSpeech = true;
       }
+      if (route.commandAction === "speak-watch-officer") {
+        deliverCockpitWatchOfficer({ speak: true });
+        commandHandledSpeech = true;
+      }
       if (route.commandAction === "start-live-operator-run") {
         const run = await createCockpitLiveRunFromCommand(nextQuestion, route, { turnId, autoCycle: true });
         commandSpokenSuffix = run?.status === "waiting-approval"
@@ -8331,6 +8553,9 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     <ApexCockpitControlButton className="px-2" disabled={false} onClick={() => deliverCockpitOperatorJudgment({ speak: true })} active={false} title="Speak Apex operator judgment">
                       <Icon name="check" /> Judgment
                     </ApexCockpitControlButton>
+                    <ApexCockpitControlButton className="px-2" disabled={false} onClick={() => deliverCockpitWatchOfficer({ speak: true })} active={false} title="Speak Apex watch officer report">
+                      <Icon name="spark" /> Watch
+                    </ApexCockpitControlButton>
                     <ApexCockpitControlButton className="px-2" disabled={false} onClick={() => deliverCockpitMissionBrief({ speak: true })} active={false} title="Speak Apex mission brief">
                       <Icon name="layers" /> Mission
                     </ApexCockpitControlButton>
@@ -8343,6 +8568,40 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     <ApexCockpitControlButton className="px-2" disabled={!canRememberCockpitTurn} onClick={() => rememberCockpitTurnFromAnswer()} active={cockpitRememberingTurn} title="Draft suggested memory from the latest Apex answer">
                       <Icon name="database" /> {cockpitRememberingTurn ? "Saving" : "Remember"}
                     </ApexCockpitControlButton>
+                  </div>
+                </div>
+                <div className="grid min-w-0 gap-2 rounded-md border border-cyan-300/16 bg-cyan-400/8 px-2.5 py-2" aria-label="Apex watch officer">
+                  <div className="grid min-w-0 gap-1.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+                    <div className="min-w-0">
+                      <p className="text-[9px] font-black uppercase tracking-[0.12em] text-cyan-300">Watch Officer</p>
+                      <p className="mt-0.5 min-w-0 break-words text-[11px] font-black leading-4 text-slate-100">{cockpitWatchOfficer.title}</p>
+                      <p className="mt-0.5 line-clamp-2 min-w-0 break-words text-[9px] font-bold leading-4 text-cyan-100">{cockpitWatchOfficer.detail}</p>
+                    </div>
+                    <div className="flex shrink-0 flex-wrap items-center gap-1.5 sm:justify-end">
+                      <ToneBadge tone={cockpitWatchOfficer.tone}>{cockpitWatchOfficer.status}</ToneBadge>
+                      <ApexCockpitControlButton className="px-2" disabled={false} onClick={() => deliverCockpitWatchOfficer({ speak: true })} active={false} title="Speak Apex watch officer report">
+                        <Icon name="phone" /> Speak Watch
+                      </ApexCockpitControlButton>
+                      <ApexCockpitControlButton className="px-2" disabled={cockpitLivePulseBusy} onClick={() => refreshCockpitLivePulse()} active={cockpitLivePulseBusy} title="Refresh Apex watch officer pulse">
+                        <Icon name="refresh" /> {cockpitLivePulseBusy ? "Checking" : "Check Now"}
+                      </ApexCockpitControlButton>
+                    </div>
+                  </div>
+                  <div className="hidden min-w-0 gap-1.5">
+                    {cockpitWatchOfficer.rows.map((row) => (
+                      <div key={row.id} className="min-w-0 rounded-md border border-slate-800 bg-slate-950/46 px-2 py-1.5">
+                        <p className="truncate text-[8px] font-black uppercase tracking-[0.08em] text-slate-500">{row.label}</p>
+                        <p className={`mt-0.5 truncate text-[10px] font-black ${row.tone === "green" ? "text-emerald-300" : row.tone === "amber" ? "text-orange-300" : row.tone === "red" ? "text-red-300" : row.tone === "blue" ? "text-cyan-300" : "text-slate-300"}`}>{row.value}</p>
+                        <p className="mt-0.5 line-clamp-2 min-w-0 break-words text-[8px] font-bold leading-3 text-slate-500">{row.detail}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="min-w-0 break-words rounded-md border border-orange-300/12 bg-slate-950/44 px-2 py-1.5 text-[9px] font-bold leading-4 text-orange-100">
+                    Execution locked: no sends, billing, provider work, production changes, deploys, rollbacks, agent runs, or irreversible actions.
+                  </p>
+                  <div className="grid min-w-0 gap-1.5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                    <p className="min-w-0 break-words rounded-md border border-cyan-200/10 bg-slate-950/44 px-2 py-1.5 text-[9px] font-bold leading-4 text-cyan-100">{cockpitWatchOfficer.whyItMatters}</p>
+                    <p className="min-w-0 break-words rounded-md border border-orange-300/12 bg-orange-500/8 px-2 py-1.5 text-[9px] font-bold leading-4 text-orange-100">{cockpitWatchOfficer.nextAction}</p>
                   </div>
                 </div>
                 <div className="grid min-w-0 gap-2 rounded-md border border-orange-300/16 bg-orange-500/8 px-2.5 py-2" aria-label="Apex mission brief">
@@ -8863,6 +9122,9 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                         </p>
                       </div>
                       <div className="flex shrink-0 flex-wrap gap-1.5 sm:justify-end">
+                        <ApexCockpitControlButton className="px-2" disabled={false} onClick={() => deliverCockpitWatchOfficer({ speak: true })} active={false} title="Speak Apex watch officer report from pulse">
+                          <Icon name="phone" /> Speak Watch
+                        </ApexCockpitControlButton>
                         <ApexCockpitControlButton className="px-2" disabled={false} onClick={() => deliverCockpitMissionBrief({ speak: true })} active={false} title="Speak Apex mission brief">
                           <Icon name="layers" /> Mission Brief
                         </ApexCockpitControlButton>
@@ -8872,6 +9134,29 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                         <ApexCockpitControlButton className="px-2" disabled={cockpitLivePulseBusy || !sessionToken} onClick={() => refreshCockpitLivePulse({ automatic: false })} active={cockpitLivePulseBusy} title="Refresh Apex live pulse">
                           <Icon name="refresh" /> {cockpitLivePulseBusy ? "Checking" : "Check Now"}
                         </ApexCockpitControlButton>
+                      </div>
+                    </div>
+                    <div className="grid min-w-0 gap-2 rounded-md border border-cyan-300/14 bg-cyan-400/8 p-2.5" aria-label="Apex watch officer pulse detail">
+                      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Watch Officer Detail</p>
+                          <p className="mt-0.5 min-w-0 break-words text-xs font-black text-slate-100">{cockpitWatchOfficer.title}</p>
+                          <p className="mt-0.5 min-w-0 break-words text-[10px] font-bold leading-4 text-cyan-100">{cockpitWatchOfficer.detail}</p>
+                        </div>
+                        <ToneBadge tone={cockpitWatchOfficer.tone}>{cockpitWatchOfficer.status}</ToneBadge>
+                      </div>
+                      <div className="grid min-w-0 gap-1.5 sm:grid-cols-5">
+                        {cockpitWatchOfficer.rows.map((row) => (
+                          <div key={`pulse-${row.id}`} className="min-w-0 rounded-md border border-slate-800 bg-slate-950/46 px-2 py-1.5">
+                            <p className="truncate text-[8px] font-black uppercase tracking-[0.08em] text-slate-500">{row.label}</p>
+                            <p className={`mt-0.5 truncate text-[10px] font-black ${row.tone === "green" ? "text-emerald-300" : row.tone === "amber" ? "text-orange-300" : row.tone === "red" ? "text-red-300" : row.tone === "blue" ? "text-cyan-300" : "text-slate-300"}`}>{row.value}</p>
+                            <p className="mt-0.5 line-clamp-2 min-w-0 break-words text-[8px] font-bold leading-3 text-slate-500">{row.detail}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="grid min-w-0 gap-1.5 sm:grid-cols-2">
+                        <p className="min-w-0 break-words rounded-md border border-cyan-200/10 bg-slate-950/44 px-2.5 py-2 text-[10px] font-bold leading-4 text-cyan-100">{cockpitWatchOfficer.whyItMatters}</p>
+                        <p className="min-w-0 break-words rounded-md border border-orange-300/12 bg-orange-500/8 px-2.5 py-2 text-[10px] font-bold leading-4 text-orange-100">{cockpitWatchOfficer.nextAction}</p>
                       </div>
                     </div>
                     <div className="grid min-w-0 gap-1.5 sm:grid-cols-4">

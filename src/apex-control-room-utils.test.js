@@ -487,6 +487,7 @@ test("deriveApexControlRoomState builds private operator status from visible sta
   assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-validate" && item.status === "Proof-backed"), true);
   assert.equal(state.liveOperatorMode.readinessRows.some((item) => item.id === "live-memory" && /proactive check-ins/i.test(item.detail)), true);
   assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-remember" && /proactive check-in memory/i.test(item.detail)), true);
+  assert.equal(state.liveOperatorMode.operatorLoopRows.some((item) => item.id === "live-loop-monitor" && /Watch Officer/i.test(item.detail)), true);
   assert.equal(state.liveOperatorMode.gapRows.some((item) => item.id === "live-gap-execution" && item.status === "Approval-gated"), true);
   assert.equal(state.liveOperatorMode.gapRows.some((item) => item.id === "live-gap-proactive" && item.status === "Remembered check-ins"), true);
   assert.equal(state.liveOperatorMode.gapRows.some((item) => item.id === "live-gap-provider-reliability" && item.status === "Caption fallback"), true);

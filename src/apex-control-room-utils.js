@@ -2413,7 +2413,7 @@ function buildApexLiveOperatorModeState({
     { id: "live-loop-validate", title: "Validate", status: "Proof-backed", detail: "Tests, role checks, browser QA, build proof, rollback notes, and private proof checks stay attached to the work.", tone: "green" },
     { id: "live-loop-report", title: "Report", status: savedRunCount ? "Report-ready" : "Result slot", detail: "Apex can report back from the active run and mark it validating, waiting approval, blocked, or done with a result report.", tone: savedRunCount ? "green" : "blue" },
     { id: "live-loop-remember", title: "Remember", status: trustedRunMemoryCount ? "Run history context" : trustedMemoryCount ? "Trusted context" : "Review first", detail: "The Apex body can draft suggested turn, run outcome, and proactive check-in memory; only reviewed live-run memory becomes future operating context.", tone: trustedRunMemoryCount || trustedMemoryCount ? "green" : "amber" },
-    { id: "live-loop-monitor", title: "Monitor", status: releaseMonitoring?.status || "Auto-checking", detail: "The Apex body can refresh read-only build, briefing, and live-run status while the page is open, then preserve surfaced check-ins as suggested run history.", tone: releaseMonitoring?.tone || "green" },
+    { id: "live-loop-monitor", title: "Monitor", status: releaseMonitoring?.status || "Auto-checking", detail: "The Apex Watch Officer can refresh read-only build, briefing, voice, memory, and live-run status while the page is open, then explain what changed and preserve surfaced check-ins as suggested run history.", tone: releaseMonitoring?.tone || "green" },
   ], {
     sourceLabel: "Apex Live Operator loop",
     source: "voice + autonomy run center",

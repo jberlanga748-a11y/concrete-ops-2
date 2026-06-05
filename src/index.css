@@ -57152,9 +57152,9 @@ body:has(.co-field-mobile-reports-shell) .co-mobile-bottom-spacer {
   }
 
   .co-apex-cockpit-screen--spotlight .co-apex-cockpit-live-console {
-    height: clamp(16.5rem, 44dvh, 23rem);
-    max-height: clamp(16.5rem, 44dvh, 23rem);
-    overflow-y: auto;
+    height: auto;
+    max-height: none;
+    overflow: visible;
     padding: 0.65rem !important;
     scrollbar-color: rgba(56, 189, 248, 0.38) rgba(15, 23, 42, 0.58);
     scrollbar-width: thin;
