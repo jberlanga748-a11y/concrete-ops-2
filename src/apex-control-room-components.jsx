@@ -4008,6 +4008,11 @@ function buildApexCockpitCommandRoute(question = "", { previousRoute = null, act
       tone: hasActiveRun ? "green" : "blue",
     };
   }
+  const wantsActiveRunClosingReport = hasActiveRun && (
+    hasAny(["closing report", "closeout report", "close out report", "final report", "operator closing", "operator closeout", "run closing", "run closeout", "closing handback", "what did you finish", "what is finished", "what got finished"])
+    || /\b(give|show|speak|read|tell)\b.*\b(closing|closeout|close out|final)\b.*\b(report|handback|run)\b/i.test(normalized)
+    || /\bwhat\b.*\b(finished|completed|closed|wrapped)\b/i.test(normalized)
+  );
   const wantsActiveRunHandback = hasActiveRun && (
     hasAny(["handback", "speak handback", "run handback", "active run check-in", "run check-in", "check-in", "check in", "heartbeat", "live run progress", "what did you do", "what have you done", "report back", "status of this run", "where is this run"])
     || /\b(tell|show|speak|give)\b.*\b(handback|status|check-?in|heartbeat|progress|what you did|run report)\b/i.test(normalized)
@@ -4037,8 +4042,10 @@ function buildApexCockpitCommandRoute(question = "", { previousRoute = null, act
     || /\b(continue|advance|work|do|run)\b.*\b(next|safe|move|step)\b/i.test(normalized)
   );
 
-  if (wantsActiveRunHandback || wantsActiveRunReportDone || wantsActiveRunBlocked || wantsActiveRunWaitingApproval || wantsActiveRunProof || wantsActiveRunAutoDrive || wantsActiveRunAdvance) {
-    const commandAction = wantsActiveRunReportDone
+  if (wantsActiveRunClosingReport || wantsActiveRunHandback || wantsActiveRunReportDone || wantsActiveRunBlocked || wantsActiveRunWaitingApproval || wantsActiveRunProof || wantsActiveRunAutoDrive || wantsActiveRunAdvance) {
+    const commandAction = wantsActiveRunClosingReport
+      ? "speak-closing-report"
+      : wantsActiveRunReportDone
       ? "report-active-run-done"
       : wantsActiveRunBlocked
         ? "block-active-run"
@@ -4051,7 +4058,9 @@ function buildApexCockpitCommandRoute(question = "", { previousRoute = null, act
               : wantsActiveRunProof
                 ? "proof-active-run"
                 : "advance-active-run";
-    const actionLabel = commandAction === "report-active-run-done"
+    const actionLabel = commandAction === "speak-closing-report"
+      ? "Closing Report"
+      : commandAction === "report-active-run-done"
       ? "Report Done"
       : commandAction === "block-active-run"
         ? "Block Run"
@@ -4073,7 +4082,7 @@ function buildApexCockpitCommandRoute(question = "", { previousRoute = null, act
       actionLabel,
       commandAction,
       intent: "active-run-follow-up",
-      suggestedActions: ["Next safe move", "Speak handback", "Report done", "Block run"],
+      suggestedActions: ["Next safe move", "Closing report", "Report done", "Block run"],
       tone: commandAction === "block-active-run" ? "red" : commandAction === "wait-active-run-approval" ? "amber" : "green",
     };
   }
@@ -5529,6 +5538,129 @@ function buildApexCockpitWatchOfficer({
   };
 }
 
+function normalizeApexCockpitClosingReportRow(row = {}) {
+  return {
+    id: String(row.id || `closing-${row.label || "row"}`).trim(),
+    label: apexCockpitMemoryText(row.label || "Signal", 48),
+    value: apexCockpitMemoryText(row.value || "Review", 76),
+    detail: apexCockpitMemoryText(row.detail || "Review the run before trusting or acting.", 210),
+    tone: row.tone || "blue",
+  };
+}
+
+function buildApexCockpitClosingReport({
+  activeRun,
+  activeRunProgress = {},
+  handback = {},
+  nextPrivateMove = {},
+  memoryReviewRow = null,
+  memoryReviewStatus = "",
+  latestAnswer = "",
+} = {}) {
+  const hasRun = Boolean(activeRun?.id);
+  const status = String(activeRun?.status || "ready").toLowerCase();
+  const runTitle = apexCockpitMemoryText(activeRun?.title || activeRun?.request || "Apex private run", 130);
+  const progressLabel = hasRun
+    ? `${Number(activeRunProgress?.progressPercent || 0)}% / ${Number(activeRunProgress?.doneCount || 0)} of ${Number(activeRunProgress?.totalCount || 0) || "?"}`
+    : "No live run";
+  const evidenceCount = Number(activeRunProgress?.evidenceCount || 0);
+  const linkedDraftCount = Number(activeRunProgress?.linkedDraftCount || 0);
+  const hasResultReport = Boolean(activeRunProgress?.hasResultReport || activeRun?.resultReport);
+  const memoryStatus = memoryReviewStatus === "approved"
+    ? "Trusted"
+    : memoryReviewStatus === "suggested"
+      ? "Needs review"
+      : memoryReviewStatus === "archived"
+        ? "Archived"
+        : activeRun?.decisionMemoryId
+          ? "Missing loaded memory"
+          : "Not drafted";
+  const decisionLabel = !hasRun
+    ? "Start a run"
+    : status === "done"
+      ? (memoryReviewStatus === "approved" ? "Closed and trusted" : "Review memory")
+      : status === "waiting-approval"
+        ? "Manual approval review"
+        : status === "blocked"
+          ? "Review blocker"
+          : hasResultReport
+            ? "Review result report"
+            : nextPrivateMove?.title || "Work next private move";
+  const summary = hasRun
+    ? `${runTitle} is ${status || "tracking"} with ${progressLabel} complete. ${hasResultReport ? "Apex saved a result report." : "Apex has not saved a result report yet."} ${memoryReviewRow?.title ? `Memory posture: ${memoryReviewRow.title}.` : `Memory posture: ${memoryStatus}.`}`
+    : "No active private run is live. Start a saved run when there is real work for Apex to track and report back on.";
+  const evidenceDetail = hasRun
+    ? `${evidenceCount} evidence row${evidenceCount === 1 ? "" : "s"} and ${linkedDraftCount} linked draft${linkedDraftCount === 1 ? "" : "s"} are attached to the run ledger.`
+    : "No run evidence exists until a private run is started.";
+  const memoryDetail = memoryReviewRow?.detail
+    || (memoryReviewStatus === "approved"
+      ? "The operator trusted the run memory for future Apex answers."
+      : memoryReviewStatus === "suggested"
+        ? "Suggested run memory is waiting for manual trust or archive review."
+        : memoryReviewStatus === "archived"
+          ? "The suggested run memory was archived and will not become trusted context."
+          : hasResultReport
+            ? "A result report exists, but matching memory is not trusted yet."
+            : "Report done to create suggested memory for manual review.");
+  const rows = [
+    normalizeApexCockpitClosingReportRow({
+      id: "closing-work",
+      label: "Work",
+      value: hasRun ? status || "tracking" : "No run",
+      detail: hasRun ? handback.summary || activeRun?.nextSafeAction || "Apex is tracking this private run." : "Start a private run to create a reportable work trail.",
+      tone: hasRun ? apexCockpitRunStatusTone(status) : "slate",
+    }),
+    normalizeApexCockpitClosingReportRow({
+      id: "closing-evidence",
+      label: "Evidence",
+      value: hasRun ? `${evidenceCount} / ${linkedDraftCount}` : "None",
+      detail: evidenceDetail,
+      tone: evidenceCount || linkedDraftCount ? "green" : hasRun ? "amber" : "slate",
+    }),
+    normalizeApexCockpitClosingReportRow({
+      id: "closing-memory",
+      label: "Memory",
+      value: memoryStatus,
+      detail: memoryDetail,
+      tone: memoryReviewStatus === "approved" ? "green" : memoryReviewStatus === "suggested" ? "amber" : memoryReviewStatus === "archived" ? "slate" : hasResultReport ? "amber" : "slate",
+    }),
+    normalizeApexCockpitClosingReportRow({
+      id: "closing-decision",
+      label: "Decision",
+      value: decisionLabel,
+      detail: nextPrivateMove?.recommendation || activeRun?.nextSafeAction || "Review the run ledger before deciding the next move.",
+      tone: status === "done" && memoryReviewStatus === "approved" ? "green" : status === "blocked" ? "red" : "amber",
+    }),
+    normalizeApexCockpitClosingReportRow({
+      id: "closing-locks",
+      label: "Locks",
+      value: "Execution locked",
+      detail: "No sends, billing, provider work, production changes, deploys, rollbacks, agent runs, automatic trusted memory, or irreversible actions.",
+      tone: "amber",
+    }),
+  ];
+  const spokenText = [
+    "Apex live operator closing report.",
+    summary,
+    hasRun ? `Current run status: ${status || "tracking"}. Progress: ${progressLabel}.` : "",
+    evidenceDetail,
+    `Memory: ${memoryStatus}. ${memoryDetail}`,
+    latestAnswer ? `Latest spoken answer: ${apexCockpitMemoryText(latestAnswer, 260)}` : "",
+    `Next decision: ${apexCockpitMemoryText(decisionLabel, 120)}. ${apexCockpitMemoryText(nextPrivateMove?.recommendation || activeRun?.nextSafeAction || "Review before acting.", 260)}`,
+    "Execution remains locked. No sends, billing, provider work, production changes, deploys, rollbacks, agent runs, automatic trusted memory, or irreversible actions.",
+  ].filter(Boolean).join(" ");
+
+  return {
+    title: hasRun ? `Closing Report: ${runTitle}` : "Closing Report: no active run",
+    status: hasRun ? decisionLabel : "Standing by",
+    tone: hasRun ? (status === "done" && memoryReviewStatus === "approved" ? "green" : apexCockpitRunStatusTone(status || "amber")) : "slate",
+    summary: apexCockpitMemoryText(summary, 420),
+    spokenText: apexCockpitMemoryText(spokenText, 1400),
+    sourceLabels: ["Apex Live Operator Closing Report", "Autonomy Run Center", "Operator Handback", "Run Memory Review"],
+    rows,
+  };
+}
+
 function buildApexCockpitRunHandbackText(handback = {}) {
   if (handback?.answer) return handback.answer;
   return "Apex operator handback: no active private run is live. Start a private run when there is real work to track. Execution, sends, billing, provider work, production changes, deletion, deploy, rollback, and irreversible actions stay locked.";
@@ -6050,6 +6182,15 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
           ? "Memory stays suggested until you trust it. Trusting memory changes only Apex's reviewed context; it does not send, bill, deploy, publish, or execute anything."
           : "Report the run done to draft suggested memory for manual trust or archive review."
   );
+  const cockpitClosingReport = buildApexCockpitClosingReport({
+    activeRun: cockpitActiveRun,
+    activeRunProgress: cockpitActiveRunProgress,
+    handback: cockpitActiveRunHandback,
+    nextPrivateMove: cockpitNextPrivateMove,
+    memoryReviewRow: cockpitRunMemoryReviewRow,
+    memoryReviewStatus: cockpitRunMemoryReviewStatus,
+    latestAnswer: cockpitAnswerText,
+  });
   const cockpitFollowUpPrompts = buildApexCockpitFollowUpPrompts({
     answerText: cockpitAnswerText,
     route: cockpitCommandRoute,
@@ -6847,7 +6988,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
 
   async function speakCockpitAnswer(textToSpeak = cockpitAnswerText) {
     const answerToSpeak = textToSpeak.trim();
-    if (!answerToSpeak || !sessionToken) return;
+    if (!answerToSpeak) return;
     unlockBrowserAudio(cockpitAudioUnlockedRef);
     stopBrowserVoice(cockpitAudioRef);
     cockpitSpeakingRef.current = true;
@@ -6855,6 +6996,10 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     startCockpitOutputLevelMonitor();
     armCockpitSpeechSafetyTimer(answerToSpeak);
     setCockpitVoiceNotice("");
+    if (!sessionToken) {
+      speakCockpitBrowserFallback(answerToSpeak, "Server speech is not available in this session; browser voice is speaking.");
+      return;
+    }
     try {
       const payload = await speakApexOsVoice(sessionToken, {
         text: answerToSpeak,
@@ -7203,6 +7348,35 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       ...current,
     ].slice(0, 5));
     if (speak) speakCockpitAnswer(answer);
+  }
+
+  function deliverCockpitClosingReport({ speak = false } = {}) {
+    const route = buildApexCockpitCommandRoute("Give me the active run closing report", {
+      previousRoute: cockpitCommandRoute,
+      activeRun: cockpitActiveRun,
+      nextPrivateMove: cockpitNextPrivateMove,
+    });
+    setCockpitCommandRoute(route);
+    setCockpitError("");
+    setCockpitResponse({
+      answer: {
+        answer: cockpitClosingReport.spokenText,
+        sourceLabels: cockpitClosingReport.sourceLabels,
+      },
+    });
+    setCockpitLastQuestion("Closing report");
+    setCockpitVoiceNotice("Apex live operator closing report is ready. Execution stayed locked.");
+    setCockpitTurns((current) => [
+      {
+        id: `cockpit-closing-report-${Date.now()}`,
+        question: cockpitClosingReport.title,
+        source: "closing-report",
+        routeLabel: route.label,
+        status: cockpitClosingReport.status || "review",
+      },
+      ...current,
+    ].slice(0, 5));
+    if (speak) speakCockpitAnswer(cockpitClosingReport.spokenText);
   }
 
   function deliverCockpitProactiveCheckIn({ speak = false } = {}) {
@@ -7959,6 +8133,10 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       }
       if (route.commandAction === "speak-active-run-handback") {
         deliverCockpitRunHandback({ speak: true });
+        commandHandledSpeech = true;
+      }
+      if (route.commandAction === "speak-closing-report") {
+        deliverCockpitClosingReport({ speak: true });
         commandHandledSpeech = true;
       }
       if (route.commandAction === "report-active-run-done") {
@@ -8914,6 +9092,9 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                         <ApexCockpitControlButton className="px-2" disabled={false} onClick={() => deliverCockpitRunHandback({ speak: true })} active={false} title="Speak Apex operator handback">
                           <Icon name="phone" /> Speak Handback
                         </ApexCockpitControlButton>
+                        <ApexCockpitControlButton className="px-2" disabled={!cockpitActiveRun?.id} onClick={() => deliverCockpitClosingReport({ speak: true })} active={false} title="Speak Apex live operator closing report">
+                          <Icon name="check" /> Speak Closing
+                        </ApexCockpitControlButton>
                         <ToneBadge tone={apexCockpitRunStatusTone(cockpitActiveRun?.status)}>{cockpitActiveRun?.status || "ready"}</ToneBadge>
                       </div>
                     </div>
@@ -9027,6 +9208,33 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                               </div>
                             ))}
                           </div>
+                        </div>
+                        <div className="grid min-w-0 gap-2 rounded-md border border-emerald-300/16 bg-emerald-400/8 p-2.5" aria-label="Apex live operator closing report">
+                          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="min-w-0">
+                              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-emerald-300">Closing Report</p>
+                              <p className="mt-0.5 min-w-0 break-words text-xs font-black text-slate-100">{cockpitClosingReport.title}</p>
+                              <p className="mt-0.5 min-w-0 break-words text-[10px] font-bold leading-4 text-emerald-100">{cockpitClosingReport.summary}</p>
+                            </div>
+                            <div className="flex shrink-0 flex-wrap items-center gap-1.5 sm:justify-end">
+                              <ToneBadge tone={cockpitClosingReport.tone}>{cockpitClosingReport.status}</ToneBadge>
+                              <ApexCockpitControlButton className="px-2" disabled={false} onClick={() => deliverCockpitClosingReport({ speak: true })} active={false} title="Speak Apex live operator closing report">
+                                <Icon name="phone" /> Speak Closing
+                              </ApexCockpitControlButton>
+                            </div>
+                          </div>
+                          <div className="grid min-w-0 gap-1.5 sm:grid-cols-5">
+                            {cockpitClosingReport.rows.map((row) => (
+                              <div key={row.id} className="min-w-0 rounded-md border border-slate-800 bg-slate-950/56 px-2.5 py-2">
+                                <p className={`truncate text-[8px] font-black uppercase tracking-[0.08em] ${row.tone === "green" ? "text-emerald-300" : row.tone === "amber" ? "text-orange-300" : row.tone === "red" ? "text-red-300" : row.tone === "blue" ? "text-cyan-300" : "text-slate-400"}`}>{row.label}</p>
+                                <p className="mt-0.5 truncate text-[10px] font-black text-slate-100">{row.value}</p>
+                                <p className="mt-0.5 line-clamp-2 min-w-0 break-words text-[9px] font-bold leading-4 text-slate-500">{row.detail}</p>
+                              </div>
+                            ))}
+                          </div>
+                          <p className="min-w-0 break-words rounded-md border border-orange-300/12 bg-orange-500/8 px-2.5 py-2 text-[10px] font-bold leading-4 text-orange-100">
+                            Closing reports summarize private work only. No sends, billing, provider work, production changes, deploys, rollbacks, agent runs, automatic trusted memory, or irreversible actions.
+                          </p>
                         </div>
                         <div className="grid min-w-0 gap-2 rounded-md border border-cyan-300/14 bg-cyan-400/8 p-2.5" aria-label="Apex run memory review">
                           <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
