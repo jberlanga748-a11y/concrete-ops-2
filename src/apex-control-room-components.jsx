@@ -3940,7 +3940,7 @@ function resolveApexCockpitSources(state, response) {
   return (state.askApexChat?.contexts || []).slice(0, 4).map((item) => item.title);
 }
 
-function buildApexCockpitCommandRoute(question = "", { previousRoute = null } = {}) {
+function buildApexCockpitCommandRoute(question = "", { previousRoute = null, activeRun = null, nextPrivateMove = null } = {}) {
   const normalized = String(question || "").toLowerCase();
   const hasAny = (words) => words.some((word) => normalized.includes(word));
   const isFollowUp = Boolean(previousRoute?.id)
@@ -3956,6 +3956,79 @@ function buildApexCockpitCommandRoute(question = "", { previousRoute = null } = 
     shouldOpenSection: wantsRouteOpen,
     suggestedActions: wantsLiveRun ? ["Start private run", "Answer from memory", "Open matched room"] : ["Answer from memory", "Open matched room"],
   };
+  const activeRunStatus = String(activeRun?.status || "").toLowerCase();
+  const hasActiveRun = Boolean(activeRun?.id) && !["archived"].includes(activeRunStatus);
+  const activeRunTitle = String(activeRun?.title || activeRun?.request || "the active private run").trim();
+  const moveTitle = String(nextPrivateMove?.title || nextPrivateMove?.buttonLabel || "next private safe move").trim();
+  const wantsActiveRunHandback = hasActiveRun && (
+    hasAny(["handback", "speak handback", "run handback", "active run check-in", "run check-in", "check-in", "check in", "heartbeat", "live run progress", "what did you do", "what have you done", "report back", "status of this run", "where is this run"])
+    || /\b(tell|show|speak|give)\b.*\b(handback|status|check-?in|heartbeat|progress|what you did|run report)\b/i.test(normalized)
+  );
+  const wantsActiveRunReportDone = hasActiveRun && (
+    hasAny(["report done", "mark done", "mark it done", "mark this done", "finish the run", "close the run"])
+    || /\b(mark|report|call|set)\b.*\b(done|complete|completed|finished)\b/i.test(normalized)
+  );
+  const wantsActiveRunBlocked = hasActiveRun && (
+    hasAny(["block this run", "mark blocked", "mark it blocked", "this is blocked", "keep it blocked", "hold this run"])
+    || /\b(block|blocked|hold)\b.*\b(run|it|this)\b/i.test(normalized)
+  );
+  const wantsActiveRunWaitingApproval = hasActiveRun && (
+    hasAny(["waiting approval", "wait for approval", "hold for approval", "manual review", "approval gate", "wait at review"])
+    || /\b(wait|hold|stop)\b.*\b(approval|manual review|review gate)\b/i.test(normalized)
+  );
+  const wantsActiveRunProof = hasActiveRun && (
+    hasAny(["proof check", "check proof", "verify this run", "validate this run", "proof this run"])
+    || /\b(proof|verify|validate|check)\b.*\b(run|it|this|evidence)\b/i.test(normalized)
+  );
+  const wantsActiveRunAutoDrive = hasActiveRun && (
+    hasAny(["auto drive", "auto-drive", "drive it", "work it forward", "let apex work", "let it work"])
+    || /\b(auto|drive|work)\b.*\b(next|run|step|move|forward)\b/i.test(normalized)
+  );
+  const wantsActiveRunAdvance = hasActiveRun && (
+    hasAny(["continue", "keep going", "next safe move", "next private move", "next step", "advance", "move forward", "work the next step"])
+    || /\b(continue|advance|work|do|run)\b.*\b(next|safe|move|step)\b/i.test(normalized)
+  );
+
+  if (wantsActiveRunHandback || wantsActiveRunReportDone || wantsActiveRunBlocked || wantsActiveRunWaitingApproval || wantsActiveRunProof || wantsActiveRunAutoDrive || wantsActiveRunAdvance) {
+    const commandAction = wantsActiveRunReportDone
+      ? "report-active-run-done"
+      : wantsActiveRunBlocked
+        ? "block-active-run"
+        : wantsActiveRunWaitingApproval
+          ? "wait-active-run-approval"
+          : wantsActiveRunHandback
+            ? "speak-active-run-handback"
+            : wantsActiveRunAutoDrive
+              ? "auto-drive-active-run"
+              : wantsActiveRunProof
+                ? "proof-active-run"
+                : "advance-active-run";
+    const actionLabel = commandAction === "report-active-run-done"
+      ? "Report Done"
+      : commandAction === "block-active-run"
+        ? "Block Run"
+        : commandAction === "wait-active-run-approval"
+          ? "Hold Review"
+          : commandAction === "speak-active-run-handback"
+            ? "Speak Handback"
+            : commandAction === "auto-drive-active-run"
+              ? "Auto Drive"
+              : commandAction === "proof-active-run"
+                ? "Proof Check"
+                : "Next Safe Move";
+    return {
+      ...base,
+      id: "active-run-follow-up",
+      label: "Active run",
+      section: "apex",
+      detail: `Apex matched this to ${activeRunTitle}. Next private move: ${moveTitle}. It will use the saved run ledger and keep execution locked.`,
+      actionLabel,
+      commandAction,
+      intent: "active-run-follow-up",
+      suggestedActions: ["Next safe move", "Speak handback", "Report done", "Block run"],
+      tone: commandAction === "block-active-run" ? "red" : commandAction === "wait-active-run-approval" ? "amber" : "green",
+    };
+  }
 
   if (isFollowUp) {
     const wantsDraftFollowUp = previousRoute.id === "agent-control" && /\b(yes|yeah|yep|do it|draft it|make it|create it|request it)\b/i.test(normalized);
@@ -5865,7 +5938,11 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     const recentAutoDriveHandback = cockpitLastAutoDriveHandbackAtRef.current
       && Date.now() - cockpitLastAutoDriveHandbackAtRef.current < 12_000;
     if (!recentAutoDriveHandback) {
-      const route = buildApexCockpitCommandRoute("Give me the active run check-in");
+      const route = buildApexCockpitCommandRoute("Give me the active run check-in", {
+        previousRoute: cockpitCommandRoute,
+        activeRun: cockpitActiveRun,
+        nextPrivateMove: cockpitNextPrivateMove,
+      });
       const answer = buildApexCockpitProactiveCheckInText(checkIn);
       setCockpitCommandRoute(route);
       setCockpitError("");
@@ -5892,7 +5969,15 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       ...current,
     ].slice(0, 5));
     void saveCockpitProactiveCheckInMemory(checkIn, { automatic: true });
-  }, [state.canView, cockpitSessionHeartbeat.signature, cockpitLivePulse?.checkedAt]);
+  }, [
+    state.canView,
+    cockpitSessionHeartbeat.signature,
+    cockpitLivePulse?.checkedAt,
+    cockpitCommandRoute?.id,
+    cockpitActiveRun?.id,
+    cockpitActiveRun?.status,
+    cockpitNextPrivateMove?.actionId,
+  ]);
 
   useEffect(() => {
     if (!cockpitAutoDriveEnabled) return undefined;
@@ -6618,7 +6703,11 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   }
 
   function deliverCockpitSessionHeartbeat({ speak = false } = {}) {
-    const route = buildApexCockpitCommandRoute("Give me the active run check-in", { previousRoute: cockpitCommandRoute });
+    const route = buildApexCockpitCommandRoute("Give me the active run check-in", {
+      previousRoute: cockpitCommandRoute,
+      activeRun: cockpitActiveRun,
+      nextPrivateMove: cockpitNextPrivateMove,
+    });
     setCockpitCommandRoute(route);
     setCockpitError("");
     setCockpitResponse({
@@ -6643,7 +6732,11 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   }
 
   function deliverCockpitRunHandback({ speak = false } = {}) {
-    const route = buildApexCockpitCommandRoute("Give me the active run handback", { previousRoute: cockpitCommandRoute });
+    const route = buildApexCockpitCommandRoute("Give me the active run handback", {
+      previousRoute: cockpitCommandRoute,
+      activeRun: cockpitActiveRun,
+      nextPrivateMove: cockpitNextPrivateMove,
+    });
     const handback = cockpitActiveRunHandback;
     const answer = cockpitActiveRunHandbackText;
     setCockpitCommandRoute(route);
@@ -6670,7 +6763,11 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   }
 
   function deliverCockpitProactiveCheckIn({ speak = false } = {}) {
-    const route = buildApexCockpitCommandRoute("Give me the active run check-in", { previousRoute: cockpitCommandRoute });
+    const route = buildApexCockpitCommandRoute("Give me the active run check-in", {
+      previousRoute: cockpitCommandRoute,
+      activeRun: cockpitActiveRun,
+      nextPrivateMove: cockpitNextPrivateMove,
+    });
     const checkIn = cockpitVisibleProactiveCheckIn;
     const answer = buildApexCockpitProactiveCheckInText(checkIn);
     setCockpitCommandRoute(route);
@@ -6759,7 +6856,11 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
 
   function loadCockpitFollowUpPrompt(prompt = {}) {
     const safePrompt = normalizeApexCockpitFollowUpPrompt(prompt);
-    const route = buildApexCockpitCommandRoute(safePrompt.question, { previousRoute: cockpitCommandRoute });
+    const route = buildApexCockpitCommandRoute(safePrompt.question, {
+      previousRoute: cockpitCommandRoute,
+      activeRun: cockpitActiveRun,
+      nextPrivateMove: cockpitNextPrivateMove,
+    });
     setAskQuestion(safePrompt.question);
     setCockpitCommandRoute(route);
     setCockpitVoiceNotice(`Next turn loaded: ${safePrompt.label}. Press Ask or say it out loud; execution stays locked.`);
@@ -7320,7 +7421,11 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
 
   async function askCockpitQuestion(nextQuestion, { fromVoice = false, interrupted = false } = {}) {
     const previousTurns = cockpitTurns.slice(0, 4);
-    const route = buildApexCockpitCommandRoute(nextQuestion, { previousRoute: cockpitCommandRoute });
+    const route = buildApexCockpitCommandRoute(nextQuestion, {
+      previousRoute: cockpitCommandRoute,
+      activeRun: cockpitActiveRun,
+      nextPrivateMove: cockpitNextPrivateMove,
+    });
     const turnId = `cockpit-turn-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     setCockpitCommandRoute(route);
     setCockpitAgentActionNotice("");
@@ -7368,6 +7473,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
         await createCockpitAgentRequestFromCommand(nextQuestion, route, { turnId });
       }
       let commandSpokenSuffix = "";
+      let commandHandledSpeech = false;
       if (route.commandAction === "start-live-operator-run") {
         const run = await createCockpitLiveRunFromCommand(nextQuestion, route, { turnId, autoCycle: true });
         commandSpokenSuffix = run?.status === "waiting-approval"
@@ -7376,10 +7482,62 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
             ? " I started the private run and kept execution locked for review."
             : " I tried to start the private run, but it needs review.";
       }
-      const nextAnswerText = `${resolveApexCockpitAnswerText(payload)}${commandSpokenSuffix}`.trim();
-      if (nextAnswerText) {
+      if (route.commandAction === "advance-active-run") {
+        const reviewMove = ["operator-review", "review-result", "review-blocker"].includes(String(cockpitNextPrivateMove?.actionId || ""));
+        const run = await workCockpitActiveRunNextMove();
+        commandHandledSpeech = reviewMove;
+        commandSpokenSuffix = run?.id && !reviewMove
+          ? " I advanced the active private run through its next safe move and kept execution locked."
+          : reviewMove
+            ? ""
+            : " I checked the active private run, but it needs review.";
+      }
+      if (route.commandAction === "auto-drive-active-run") {
+        setCockpitAutoDriveEnabled(true);
+        const run = await advanceCockpitActiveRunWithServer({ autoDrive: true });
+        commandHandledSpeech = true;
+        commandSpokenSuffix = run?.id ? "" : " I tried to Auto Drive the active private run, but it needs review.";
+      }
+      if (route.commandAction === "proof-active-run") {
+        const run = await proofCheckCockpitActiveRunPrivately();
+        commandSpokenSuffix = run?.status === "waiting-approval"
+          ? " I proof-checked the active private run and stopped at manual review."
+          : run?.id
+            ? " I proof-checked the active private run and found review items."
+            : " I tried to proof-check the active private run, but it needs review.";
+      }
+      if (route.commandAction === "speak-active-run-handback") {
+        deliverCockpitRunHandback({ speak: true });
+        commandHandledSpeech = true;
+      }
+      if (route.commandAction === "report-active-run-done") {
+        const run = await updateCockpitActiveRunStatus("done", {
+          operatorNote: "Operator used a natural Apex command to report this private run done after review.",
+        });
+        commandSpokenSuffix = run?.id
+          ? " I reported the active private run done and drafted suggested run memory for review when available."
+          : " I tried to report the active private run done, but it needs review.";
+      }
+      if (route.commandAction === "block-active-run") {
+        const run = await updateCockpitActiveRunStatus("blocked", {
+          operatorNote: "Operator used a natural Apex command to block this private run for review.",
+        });
+        commandSpokenSuffix = run?.id
+          ? " I marked the active private run blocked for review."
+          : " I tried to block the active private run, but it needs review.";
+      }
+      if (route.commandAction === "wait-active-run-approval") {
+        const run = await updateCockpitActiveRunStatus("waiting-approval", {
+          operatorNote: "Operator used a natural Apex command to hold this private run at manual approval review.",
+        });
+        commandSpokenSuffix = run?.id
+          ? " I held the active private run at manual approval review. Execution stays locked."
+          : " I tried to hold the active private run at manual review, but it needs review.";
+      }
+      const nextAnswerText = `${commandHandledSpeech ? "" : resolveApexCockpitAnswerText(payload)}${commandSpokenSuffix}`.trim();
+      if (!commandHandledSpeech && nextAnswerText) {
         await speakCockpitAnswer(nextAnswerText);
-      } else {
+      } else if (!commandHandledSpeech) {
         setCockpitVoiceNotice("Apex returned no speakable answer text.");
       }
     } catch (requestError) {

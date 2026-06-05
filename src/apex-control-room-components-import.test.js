@@ -168,6 +168,19 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /Command stream/);
   assert.match(componentSource, /buildApexCockpitCommandRoute/);
   assert.match(componentSource, /previousRoute/);
+  assert.match(componentSource, /activeRun/);
+  assert.match(componentSource, /nextPrivateMove/);
+  assert.match(componentSource, /active-run-follow-up/);
+  assert.match(componentSource, /advance-active-run/);
+  assert.match(componentSource, /auto-drive-active-run/);
+  assert.match(componentSource, /proof-active-run/);
+  assert.match(componentSource, /speak-active-run-handback/);
+  assert.match(componentSource, /report-active-run-done/);
+  assert.match(componentSource, /block-active-run/);
+  assert.match(componentSource, /wait-active-run-approval/);
+  assert.match(componentSource, /It will use the saved run ledger and keep execution locked/);
+  assert.match(componentSource, /Give me the active run check-in", \{\s*previousRoute: cockpitCommandRoute,\s*activeRun: cockpitActiveRun,\s*nextPrivateMove: cockpitNextPrivateMove/s);
+  assert.match(componentSource, /Give me the active run handback", \{\s*previousRoute: cockpitCommandRoute,\s*activeRun: cockpitActiveRun,\s*nextPrivateMove: cockpitNextPrivateMove/s);
   assert.match(componentSource, /get this done/);
   assert.match(componentSource, /start-live-operator-run/);
   assert.match(componentSource, /Start private run/);
@@ -274,6 +287,8 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /buildApexOsAutonomyRunNextPrivateMove/);
   assert.match(componentSource, /cockpitNextPrivateMove/);
   assert.match(componentSource, /workCockpitActiveRunNextMove/);
+  assert.match(componentSource, /I advanced the active private run through its next safe move/);
+  assert.match(componentSource, /Operator used a natural Apex command to report this private run done after review/);
   assert.match(componentSource, /Apex Work Loop/);
   assert.match(componentSource, /Apex private work loop/);
   assert.match(componentSource, /Apex mobile private work loop/);
