@@ -952,6 +952,7 @@ const APEX_LOCAL_MOE_MODEL = "qwen3:30b-a3b";
 const APEX_LOCAL_CODER_MODEL = "qwen3-coder:30b-a3b-q4_K_M";
 const APEX_LOCAL_CODING_MODEL = APEX_LOCAL_DEEP_CODING_MODEL;
 const APEX_LOCAL_EFFORT_OPTIONS = Object.freeze([
+  Object.freeze({ id: "auto", label: "Auto", model: APEX_LOCAL_TALK_MODEL, numCtx: 4096, manualOnly: false, output: "adaptive" }),
   Object.freeze({ id: "fast", label: "Fast", model: APEX_LOCAL_TALK_MODEL, numCtx: 4096, manualOnly: false, output: "short" }),
   Object.freeze({ id: "normal", label: "Normal", model: APEX_LOCAL_TALK_MODEL, numCtx: 4096, manualOnly: false, output: "full" }),
   Object.freeze({ id: "reasoning", label: "Reasoning", model: APEX_LOCAL_REASONING_MODEL, numCtx: 8192, manualOnly: true, output: "reason" }),
@@ -971,7 +972,7 @@ function apexLocalModelStatusLabel(available, known) {
   return known ? "Missing" : "Checking";
 }
 
-function normalizeApexCockpitEffortId(value = "", fallback = "fast") {
+function normalizeApexCockpitEffortId(value = "", fallback = "auto") {
   const normalized = String(value || "").trim().toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
   return APEX_LOCAL_EFFORT_OPTIONS.some((option) => option.id === normalized) ? normalized : fallback;
 }
@@ -981,7 +982,7 @@ function apexCockpitEffortOption(value = "") {
   return APEX_LOCAL_EFFORT_OPTIONS.find((option) => option.id === effortId) || APEX_LOCAL_EFFORT_OPTIONS[0];
 }
 
-function buildApexLocalIntelligenceStatus({ response = null, providerStatusPayload = null, selectedEffort = "fast" } = {}) {
+function buildApexLocalIntelligenceStatus({ response = null, providerStatusPayload = null, selectedEffort = "auto" } = {}) {
   const answer = response?.answer && typeof response.answer === "object" ? response.answer : {};
   const responseStatus = response?.context?.localProviderStatus || {};
   const primaryStatusFromPayload = findLlamaCppStatusPayload(providerStatusPayload || {});
@@ -1009,7 +1010,8 @@ function buildApexLocalIntelligenceStatus({ response = null, providerStatusPaylo
   const provider = answer.provider || responseStatus.provider || providerStatus.provider || "llama.cpp";
   const providerLabel = String(provider || "llama.cpp").toLowerCase() === "ollama" ? "Ollama" : String(provider || "llama.cpp");
   const selectedModel = answer.model || responseStatus.selectedModel || providerStatus.selectedModel || providerStatus.loadedModel?.model || APEX_LOCAL_TALK_MODEL;
-  const effortOption = apexCockpitEffortOption(answer.agentEffort || answer.effort || responseStatus.selectedEffort || responseAgentSpeed.effortId || benchmarkReceipt?.effortId || selectedEffort);
+  const selectedEffortId = normalizeApexCockpitEffortId(selectedEffort);
+  const effortOption = apexCockpitEffortOption(answer.agentEffort || answer.effort || responseStatus.selectedEffort || responseAgentSpeed.effortId || benchmarkReceipt?.effortId || selectedEffortId);
   const effortId = effortOption.id;
   const effortLabel = answer.agentEffortLabel || responseStatus.effortLabel || responseAgentSpeed.effortLabel || benchmarkReceipt?.effortLabel || effortOption.label;
   const effortModel = responseAgentSpeed.modelId || answer.effortModel || benchmarkReceipt?.modelUsed || effortOption.model;
@@ -1098,6 +1100,7 @@ function buildApexLocalIntelligenceStatus({ response = null, providerStatusPaylo
     selectedModel,
     effortId,
     effortLabel,
+    effortAutoSelected: selectedEffortId === "auto" || Boolean(responseAgentSpeed.effortAutoSelected || responseAgentSpeed.automaticSelection),
     effortModel,
     effortNumCtx,
     effortManualOnly: Boolean(effortOption.manualOnly),
@@ -8404,7 +8407,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const [cockpitBackgroundStatus, setCockpitBackgroundStatus] = useState(null);
   const [cockpitLocalProviderStatus, setCockpitLocalProviderStatus] = useState(null);
   const [cockpitLocalProviderNotice, setCockpitLocalProviderNotice] = useState("");
-  const [cockpitSelectedEffort, setCockpitSelectedEffort] = useState("fast");
+  const [cockpitSelectedEffort] = useState("auto");
   const [cockpitLocalVoiceStatus, setCockpitLocalVoiceStatus] = useState(null);
   const [cockpitLiveBenchmarkSummary, setCockpitLiveBenchmarkSummary] = useState(null);
   const [cockpitLiveBenchmarkBusy, setCockpitLiveBenchmarkBusy] = useState("");
@@ -12508,7 +12511,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
         assistantMode: cockpitPersonalityMode,
         operatorStyle: cockpitPersonalityMode,
         commandRoute: route.id,
-        effort: cockpitSelectedEffort,
+        effort: cockpitSelectedEffort === "auto" ? undefined : cockpitSelectedEffort,
       });
       const modelRequestMs = Math.max(0, Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - modelRequestStartedAt));
       const payloadAnswerText = resolveApexCockpitAnswerText(payload);
@@ -13857,20 +13860,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                       <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                         <span className="shrink-0 rounded-md border border-emerald-300/18 bg-emerald-500/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-emerald-200">Local Intelligence</span>
                         <span className="min-w-0 break-words text-[10px] font-black text-emerald-100">{cockpitLocalIntelligence.providerLabel} / {cockpitLocalIntelligence.selectedModel}</span>
-                        <label className="flex shrink-0 items-center gap-1 rounded-md border border-emerald-300/18 bg-slate-950/54 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-emerald-100" title="Select the local model effort for the next Ask Apex turn. This does not load a model by itself.">
-                          Effort
-                          <select
-                            className="max-w-[7.8rem] rounded border border-emerald-300/16 bg-slate-950 px-1 py-0.5 text-[9px] font-black normal-case tracking-normal text-emerald-50 outline-none"
-                            value={cockpitSelectedEffort}
-                            onChange={(event) => setCockpitSelectedEffort(normalizeApexCockpitEffortId(event.target.value))}
-                            aria-label="Apex local model effort"
-                          >
-                            {APEX_LOCAL_EFFORT_OPTIONS.map((option) => (
-                              <option key={option.id} value={option.id}>{option.label}</option>
-                            ))}
-                          </select>
-                        </label>
-                        <span className={`shrink-0 rounded-md border px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] ${cockpitLocalIntelligence.effortManualOnly ? "border-cyan-300/16 bg-cyan-500/10 text-cyan-100" : "border-emerald-300/18 bg-emerald-500/10 text-emerald-200"}`}>Effort {cockpitLocalIntelligence.effortLabel} / ctx {cockpitLocalIntelligence.effortNumCtx} / {cockpitLocalIntelligence.effortModelStatus}</span>
+                        <span className={`shrink-0 rounded-md border px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] ${cockpitLocalIntelligence.effortManualOnly ? "border-cyan-300/16 bg-cyan-500/10 text-cyan-100" : "border-emerald-300/18 bg-emerald-500/10 text-emerald-200"}`} title="Apex picks the local effort automatically for normal turns. Manual reasoning, MoE, coder, or deep lanes must be explicitly requested in the prompt.">{cockpitLocalIntelligence.effortAutoSelected ? (cockpitLocalIntelligence.effortLabel === "Auto" ? "Auto effort" : `Auto picked ${cockpitLocalIntelligence.effortLabel}`) : `Effort ${cockpitLocalIntelligence.effortLabel}`} / ctx {cockpitLocalIntelligence.effortNumCtx} / {cockpitLocalIntelligence.effortModelStatus}</span>
                         <span className="shrink-0 rounded-md border border-cyan-300/16 bg-cyan-500/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-cyan-100">Lane {cockpitLocalIntelligence.agentLaneLabel} / {cockpitLocalIntelligence.agentNumCtx}</span>
                         <span className={`shrink-0 rounded-md border px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] ${cockpitLocalIntelligence.coderStatusLabel === "Active" || cockpitLocalIntelligence.coderStatusLabel === "Manual-only" ? "border-emerald-300/18 bg-emerald-500/10 text-emerald-200" : cockpitLocalIntelligence.coderStatusLabel === "Missing" ? "border-orange-300/18 bg-orange-500/10 text-orange-200" : "border-cyan-300/14 bg-cyan-500/10 text-cyan-200"}`}>30B {cockpitLocalIntelligence.coderStatusLabel}</span>
                         <span className={`shrink-0 rounded-md border px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] ${cockpitBuildLoopToneClass}`}>Coding {cockpitBuildLoopStatusLabel}</span>

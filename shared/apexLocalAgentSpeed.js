@@ -205,6 +205,7 @@ function normalizeLaneId(value = "") {
 
 function normalizeEffortId(value = "") {
   const normalized = text(value, 80).toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
+  if (["auto", "automatic", "adaptive", "decide", "you-decide", "apex-decide"].includes(normalized)) return "";
   if (["fast", "speed", "quick", "voice", "short", "status"].includes(normalized)) return APEX_LOCAL_AGENT_EFFORT_ID.FAST;
   if (["normal", "standard", "daily", "full", "chat", "coding", "code", "builder"].includes(normalized)) return APEX_LOCAL_AGENT_EFFORT_ID.NORMAL;
   if (["reasoning", "reason", "gpt-oss", "gpt-oss-20b", "20b"].includes(normalized)) return APEX_LOCAL_AGENT_EFFORT_ID.REASONING;
@@ -212,6 +213,15 @@ function normalizeEffortId(value = "") {
   if (["coder", "coding-deep", "qwen3-coder-30b-a3b", "qwen3-coder-30b-a3b-q4-k-m"].includes(normalized)) return APEX_LOCAL_AGENT_EFFORT_ID.CODER;
   if (["deep", "deep-local", "best-local", "best-proven", "manual-deep"].includes(normalized)) return APEX_LOCAL_AGENT_EFFORT_ID.DEEP;
   return "";
+}
+
+function rawEffortText(input = {}) {
+  return text(input.effort || input.requestedEffort || input.agentEffort || input.selectedEffort || "", 120).toLowerCase();
+}
+
+function autoEffortRequested(input = {}) {
+  const normalized = rawEffortText(input).replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
+  return ["auto", "automatic", "adaptive", "decide", "you-decide", "apex-decide"].includes(normalized);
 }
 
 function matchesAny(value = "", patterns = []) {
@@ -257,6 +267,57 @@ function fastCoderRequested(input = {}) {
   return matchesAny(combined, [
     /\b(qwen2\.?5-coder:7b|qwen2\.?5 coder 7b|fast coder|small coder|7b coder)\b/i,
     /\b(use|switch to|run|manual|explicit)\b.{0,40}\b(fast coder|small coder|qwen2\.?5-coder|7b coder)\b/i,
+  ]);
+}
+
+function explicitReasoningRequested(input = {}) {
+  const combined = text([
+    input.requestedLane,
+    input.lane,
+    input.brainMode,
+    input.route,
+    input.question,
+    input.requestText,
+    messageText(input.messages),
+  ].filter(Boolean).join(" "), 2000).toLowerCase();
+  if (normalizeLaneId(input.requestedLane || input.lane || input.brainMode) === APEX_LOCAL_AGENT_SPEED_LANE_ID.REASONING) return true;
+  return matchesAny(combined, [
+    /\b(use|switch to|run|manual|explicit)\b.{0,48}\b(reasoning|gpt-oss|gpt oss|gpt-oss:20b|20b reasoning)\b/i,
+    /\b(reasoning lane|gpt-oss lane|gpt oss lane)\b/i,
+  ]);
+}
+
+function explicitMoeRequested(input = {}) {
+  const combined = text([
+    input.requestedLane,
+    input.lane,
+    input.brainMode,
+    input.route,
+    input.question,
+    input.requestText,
+    messageText(input.messages),
+  ].filter(Boolean).join(" "), 2000).toLowerCase();
+  if (normalizeLaneId(input.requestedLane || input.lane || input.brainMode) === APEX_LOCAL_AGENT_SPEED_LANE_ID.MOE) return true;
+  return matchesAny(combined, [
+    /\b(use|switch to|run|manual|explicit)\b.{0,48}\b(moe|qwen3:30b-a3b|qwen3 30b a3b|30b-a3b)\b/i,
+    /\b(moe lane|30b-a3b lane)\b/i,
+  ]);
+}
+
+function explicitCoderRequested(input = {}) {
+  const combined = text([
+    input.requestedLane,
+    input.lane,
+    input.brainMode,
+    input.route,
+    input.question,
+    input.requestText,
+    messageText(input.messages),
+  ].filter(Boolean).join(" "), 2000).toLowerCase();
+  if (normalizeLaneId(input.requestedLane || input.lane || input.brainMode) === APEX_LOCAL_AGENT_SPEED_LANE_ID.CODER) return true;
+  return matchesAny(combined, [
+    /\b(use|switch to|run|manual|explicit)\b.{0,48}\b(coder-a3b|qwen3-coder:30b-a3b|qwen3 coder 30b a3b|30b coder)\b/i,
+    /\b(coder lane|coder-a3b lane|30b coder lane)\b/i,
   ]);
 }
 
@@ -534,22 +595,54 @@ function routeIsFast(input = {}) {
   ]);
 }
 
+function routeNeedsNormalEffort(input = {}) {
+  const combined = text([
+    input.route,
+    input.question,
+    input.requestText,
+    messageText(input.messages),
+  ].filter(Boolean).join(" "), 2400).toLowerCase();
+  if (!combined) return false;
+  if (matchesAny(combined, [
+    /\b(full answer|complete answer|detailed answer|full detail|all details|all the details|everything you know|tell me everything)\b/i,
+    /\b(do not summarize|don't summarize|dont summarize|do not truncate|don't truncate|dont truncate|no short answer)\b/i,
+    /\b(explain|break down|breakdown|walk me through|step by step|compare|audit|strategy|architecture|diagnosis)\b/i,
+    /\b(detailed plan|full plan|complete plan|show me a plan|make a plan)\b/i,
+    /\b(what should we do|what do we do next|how do we|how would we|what's the plan|what is the plan)\b/i,
+  ])) return true;
+  return combined.length > 420;
+}
+
 export function normalizeApexLocalAgentSpeedLaneId(value = "", fallback = APEX_LOCAL_AGENT_SPEED_LANE_ID.FAST) {
   return normalizeLaneId(value) || fallback;
 }
 
 export function selectApexLocalAgentSpeedLane(input = {}) {
   const requested = normalizeLaneId(input.requestedLane || input.lane || input.brainMode || "");
-  const requestedEffort = normalizeEffortId(input.effort || input.requestedEffort || input.agentEffort || input.selectedEffort || "");
+  const effortAutoSelected = autoEffortRequested(input);
+  const requestedEffort = effortAutoSelected ? "" : normalizeEffortId(input.effort || input.requestedEffort || input.agentEffort || input.selectedEffort || "");
   let laneId = requestedEffort ? laneIdFromEffortId(requestedEffort) : requested || APEX_LOCAL_AGENT_SPEED_LANE_ID.FAST;
   const reasons = [];
   const blockedReasons = [];
+
+  if (effortAutoSelected) {
+    reasons.push("auto-effort-selected");
+  }
 
   if (requestedEffort) {
     reasons.push(`manual-${requestedEffort}-effort-selected`);
   } else if (!requested && explicitDeepRequested(input)) {
     laneId = APEX_LOCAL_AGENT_SPEED_LANE_ID.DEEP;
     reasons.push("explicit-deep-coding-request");
+  } else if (!requested && explicitReasoningRequested(input)) {
+    laneId = APEX_LOCAL_AGENT_SPEED_LANE_ID.REASONING;
+    reasons.push("explicit-reasoning-lane-request");
+  } else if (!requested && explicitMoeRequested(input)) {
+    laneId = APEX_LOCAL_AGENT_SPEED_LANE_ID.MOE;
+    reasons.push("explicit-moe-lane-request");
+  } else if (!requested && explicitCoderRequested(input)) {
+    laneId = APEX_LOCAL_AGENT_SPEED_LANE_ID.CODER;
+    reasons.push("explicit-coder-lane-request");
   } else if (requested === APEX_LOCAL_AGENT_SPEED_LANE_ID.DEEP) {
     reasons.push("manual-deep-lane-selected");
   } else if (requested === APEX_LOCAL_AGENT_SPEED_LANE_ID.REASONING) {
@@ -574,6 +667,9 @@ export function selectApexLocalAgentSpeedLane(input = {}) {
   } else if (!requested && routeIsCoding(input)) {
     laneId = APEX_LOCAL_AGENT_SPEED_LANE_ID.CODING;
     reasons.push("coding-route-selected");
+  } else if (!requested && routeNeedsNormalEffort(input)) {
+    laneId = APEX_LOCAL_AGENT_SPEED_LANE_ID.NORMAL;
+    reasons.push("auto-normal-effort-for-full-answer");
   } else if (!requested && routeIsFast(input)) {
     laneId = APEX_LOCAL_AGENT_SPEED_LANE_ID.FAST;
     reasons.push("fast-route-selected");
@@ -618,7 +714,15 @@ export function selectApexLocalAgentSpeedLane(input = {}) {
     oversizedRequested ? "32768-context-blocked" : "",
     selectedManualOnly && !effort.modelInstalled && !preserveFastCoderLane ? "selected-effort-model-not-installed" : "",
   ].filter(Boolean));
-  const routeSelectionMode = (requested || requestedEffort || explicitDeepRequested(input) || fastCoderRequested(input)) ? "manual" : "automatic";
+  const routeSelectionMode = (
+    requested
+    || requestedEffort
+    || explicitDeepRequested(input)
+    || explicitReasoningRequested(input)
+    || explicitMoeRequested(input)
+    || explicitCoderRequested(input)
+    || fastCoderRequested(input)
+  ) ? "manual" : "automatic";
 
   return Object.freeze({
     provider: "apex-local-agent-speed",
@@ -650,6 +754,7 @@ export function selectApexLocalAgentSpeedLane(input = {}) {
     modelInstalled: effort.modelInstalled,
     explicitDeepRequested: explicitDeepRequested(input),
     routeSelectionMode,
+    effortAutoSelected,
     manualSelection: routeSelectionMode === "manual",
     automaticSelection: routeSelectionMode !== "manual",
     coderModel: selectedCoderModel,

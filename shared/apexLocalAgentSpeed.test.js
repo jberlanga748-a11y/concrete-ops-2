@@ -38,6 +38,32 @@ test("local agent speed selects fast lane for normal Apex work", () => {
   assert.equal(options.options.num_predict, 240);
 });
 
+test("local agent speed auto effort expands detailed turns without manual dropdowns", () => {
+  const detailed = selectApexLocalAgentSpeedLane({
+    route: "normal-chat",
+    effort: "auto",
+    question: "Apex, give me the full answer and break down the plan step by step.",
+  });
+  const short = selectApexLocalAgentSpeedLane({
+    route: "voice-command",
+    effort: "auto",
+    question: "Are you ready?",
+  });
+
+  assert.equal(detailed.laneId, APEX_LOCAL_AGENT_SPEED_LANE_ID.NORMAL);
+  assert.equal(detailed.effortId, APEX_LOCAL_AGENT_EFFORT_ID.NORMAL);
+  assert.equal(detailed.modelId, APEX_LOCAL_AGENT_SPEED_MODEL.FAST);
+  assert.equal(detailed.numCtx, 4096);
+  assert.equal(detailed.maxOutputTokens, 1400);
+  assert.equal(detailed.routeSelectionMode, "automatic");
+  assert.equal(detailed.effortAutoSelected, true);
+  assert.equal(detailed.manualOnly, false);
+  assert.equal(detailed.reasons.includes("auto-normal-effort-for-full-answer"), true);
+  assert.equal(short.laneId, APEX_LOCAL_AGENT_SPEED_LANE_ID.FAST);
+  assert.equal(short.maxOutputTokens, 240);
+  assert.equal(short.effortAutoSelected, true);
+});
+
 test("local agent speed ignores system persona coding words for normal turns", () => {
   const lane = selectApexLocalAgentSpeedLane({
     route: "normal-chat",
@@ -52,6 +78,29 @@ test("local agent speed ignores system persona coding words for normal turns", (
   assert.equal(lane.modelId, APEX_LOCAL_AGENT_SPEED_MODEL.FAST);
   assert.equal(lane.numCtx, 4096);
   assert.equal(lane.stable4096Active, true);
+});
+
+test("local agent speed keeps manual deep models explicit without dropdown UI", () => {
+  const reasoning = selectApexLocalAgentSpeedLane({
+    route: "normal-chat",
+    question: "Apex, use the reasoning lane for this local comparison.",
+    modelNames: ["gpt-oss:20b"],
+  });
+  const moe = selectApexLocalAgentSpeedLane({
+    route: "normal-chat",
+    question: "Apex, explicitly run the MoE lane for this test.",
+    modelNames: ["qwen3:30b-a3b"],
+  });
+
+  assert.equal(reasoning.laneId, APEX_LOCAL_AGENT_SPEED_LANE_ID.REASONING);
+  assert.equal(reasoning.effortId, APEX_LOCAL_AGENT_EFFORT_ID.REASONING);
+  assert.equal(reasoning.manualOnly, true);
+  assert.equal(reasoning.routeSelectionMode, "manual");
+  assert.equal(reasoning.reasons.includes("explicit-reasoning-lane-request"), true);
+  assert.equal(moe.laneId, APEX_LOCAL_AGENT_SPEED_LANE_ID.MOE);
+  assert.equal(moe.effortId, APEX_LOCAL_AGENT_EFFORT_ID.MOE);
+  assert.equal(moe.manualOnly, true);
+  assert.equal(moe.routeSelectionMode, "manual");
 });
 
 test("local agent speed selects coding lane for code and builder work", () => {

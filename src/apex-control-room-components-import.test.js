@@ -112,11 +112,12 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /qwen3:30b-a3b/);
   assert.match(componentSource, /qwen3-coder:30b-a3b-q4_K_M/);
   assert.match(componentSource, /APEX_LOCAL_EFFORT_OPTIONS/);
-  assert.match(componentSource, /const \[cockpitSelectedEffort, setCockpitSelectedEffort\] = useState\("fast"\);/);
-  assert.match(componentSource, /aria-label="Apex local model effort"/);
-  assert.match(componentSource, /This does not load a model by itself/);
-  assert.match(componentSource, /effort: cockpitSelectedEffort/);
-  assert.match(componentSource, /Effort \{cockpitLocalIntelligence\.effortLabel\}/);
+  assert.match(componentSource, /id: "auto", label: "Auto"/);
+  assert.match(componentSource, /const \[cockpitSelectedEffort\] = useState\("auto"\);/);
+  assert.doesNotMatch(componentSource, /aria-label="Apex local model effort"/);
+  assert.match(componentSource, /effort: cockpitSelectedEffort === "auto" \? undefined : cockpitSelectedEffort/);
+  assert.match(componentSource, /Auto effort/);
+  assert.match(componentSource, /Auto picked \$\{cockpitLocalIntelligence\.effortLabel\}/);
   assert.match(componentSource, /30B \{cockpitLocalIntelligence\.coderStatusLabel\}/);
   assert.match(componentSource, /buildApexPersonalOsCoreState/);
   assert.match(componentSource, /buildApexPersonalOsLocalVoiceReadiness/);
