@@ -19,7 +19,7 @@ import {
   stopApexLocalRuntimeProcesses,
 } from "./apex-local-operator-runtime.mjs";
 
-test("Apex local operator runtime args default to local Apex Home with browser tab open", () => {
+test("Apex local operator runtime args default to local Apex Home with desktop shell open", () => {
   const options = parseApexLocalOperatorRuntimeArgs([]);
 
   assert.equal(options.apiUrl, "http://localhost:4000/");
@@ -33,7 +33,7 @@ test("Apex local operator runtime args default to local Apex Home with browser t
   assert.equal(options.prepareBrain, true);
   assert.equal(options.keepWarm, false);
   assert.equal(options.installShortcuts, process.platform === "win32");
-  assert.equal(options.desktopShell, false);
+  assert.equal(options.desktopShell, true);
   assert.equal(options.desktopShellPort, 2739);
 });
 

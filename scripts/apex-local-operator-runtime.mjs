@@ -653,7 +653,7 @@ export function parseApexLocalOperatorRuntimeArgs(argv = []) {
     keepWarm: false,
     installShortcuts: isWindows(),
     shortcutsOnly: false,
-    desktopShell: false,
+    desktopShell: true,
     desktopFocusGuard: false,
     desktopShellPort: DEFAULT_DESKTOP_SHELL_PORT,
     json: false,
@@ -1796,8 +1796,8 @@ Options:
   --client-url=<url>           Local Vite/client base URL. Default: ${DEFAULT_CLIENT_URL}
   --route=<path>               Route to open. Default: ${DEFAULT_APEX_ROUTE}
   --open / --no-open           Open Apex Home after readiness. Default: --open
-  --browser-tab                Open Apex in the normal system browser tab. Default.
-  --desktop-shell              Open Apex in Chrome/Edge app mode.
+  --desktop-shell              Open Apex in Chrome/Edge app mode. Default.
+  --browser-tab                Open Apex in the normal system browser tab for troubleshooting.
   --desktop-shell-port=<port>  Local-only focus guard port. Default: ${DEFAULT_DESKTOP_SHELL_PORT}
   --install-shortcuts          Create/update Desktop and Start Menu Apex shortcuts. Default on Windows.
   --no-shortcuts               Do not create/update shortcuts on this run.
@@ -1813,7 +1813,7 @@ Options:
   --help                       Print this message.
 
 Safety:
-  Local-only launcher. It checks /api/ready, the protected /apex browser entry gate, and local provider status, warns about Apex-owned duplicate dev/watch processes unless --cleanup or --stop is explicit, starts local dev processes only when needed, opens /apex in the normal browser by default, and does not call OpenAI, deploy, touch production, change schema/auth/session, register a Windows service, start on boot, bind LAN/public ports, or control unrelated desktop/browser/devices.
+  Local-only launcher. It checks /api/ready, the protected /apex browser entry gate, and local provider status, warns about Apex-owned duplicate dev/watch processes unless --cleanup or --stop is explicit, starts local dev processes only when needed, opens /apex in a local Chrome/Edge app-mode shell by default, and does not call OpenAI, deploy, touch production, change schema/auth/session, register a Windows service, start on boot, bind LAN/public ports, or control unrelated desktop/browser/devices.
 `);
 }
 

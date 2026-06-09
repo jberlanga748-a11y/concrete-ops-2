@@ -6,6 +6,8 @@ Status: saved plan only. Do not implement from this document while another Build
 
 ## Latest Handoff
 
+2026-06-08: Apex Native Shell v1 is the current private local launch default. `npm.cmd run apex:local` now opens `/apex` in the existing Chrome/Edge app-mode desktop shell by default so John does not have to work from a visible localhost tab. `--browser-tab` remains the explicit troubleshooting fallback when normal browser mic/session debugging is needed. The launcher still stays local-only, prepares llama.cpp GPT-OSS by default, keeps Ollama as legacy/manual fallback only, creates/refreshes local Windows shortcuts on Windows, and does not add a Windows service, boot registration, tray app, LAN/public binding, cloud fallback, deploy, schema/auth/session change, production touch, or unrelated desktop control.
+
 2026-06-07: Self-Fix v2 is complete. Apex now auto-dispatches safe local repair requests from `/apex` into the existing controlled Builder tooling, keeps Talk-To-Apex minimal, and reports short outcomes first. Evidence was saved under `outputs/apex-self-fix-v2/2026-06-07T07-19-57-445Z`.
 
 2026-06-07: Apex Local Operator Runtime v0 is complete and `npm.cmd run apex:local` is the Windows-friendly local start command. Apex Personal OS Core v0 is the next split: Apex is the top-level private operator, Apex HQ is one domain underneath it, `/apex` remains the temporary clean cockpit, and routing/skills/agents/local-voice readiness must stay conversational and non-cluttered. Local voice must be honest: browser playback/captions are fallback only, OpenAI audio/cloud STT/TTS is not part of the Personal OS local voice path, and full hear/speak readiness waits for local STT/TTS provider wiring.
