@@ -4421,14 +4421,28 @@ function joinApexTalkList(items = [], emptyText = "nothing new is waiting for yo
   return `${clean.slice(0, -1).join("; ")}; and ${clean[clean.length - 1]}`;
 }
 
-const APEX_LOCAL_TALK_MODEL = "qwen3:14b";
-const APEX_LOCAL_NORMAL_CODING_MODEL = "qwen3:14b";
+const APEX_LOCAL_PRIMARY_PROVIDER = "llama.cpp";
+const APEX_LOCAL_TALK_MODEL = "gpt-oss:20b";
+const APEX_LOCAL_NORMAL_CODING_MODEL = "gpt-oss:20b";
+const APEX_LOCAL_OLLAMA_FALLBACK_MODEL = "qwen3:14b";
 const APEX_LOCAL_FAST_CODER_MODEL = "qwen2.5-coder:7b";
 const APEX_LOCAL_DEEP_CODING_MODEL = "qwen3-coder:30b";
 const APEX_LOCAL_CODING_MODEL = APEX_LOCAL_DEEP_CODING_MODEL;
 
+function findApexLlamaCppProviderStatus(payload = {}) {
+  if (payload?.localProviders?.llamaCpp) return payload.localProviders.llamaCpp;
+  if (payload?.localProviders?.primaryProvider?.provider === APEX_LOCAL_PRIMARY_PROVIDER) return payload.localProviders.primaryProvider;
+  if (payload?.primaryProvider?.provider === APEX_LOCAL_PRIMARY_PROVIDER) return payload.primaryProvider;
+  if (Array.isArray(payload?.providers)) {
+    return payload.providers.find((provider) => String(provider?.provider || "").toLowerCase() === APEX_LOCAL_PRIMARY_PROVIDER) || {};
+  }
+  if (String(payload?.provider || "").toLowerCase() === APEX_LOCAL_PRIMARY_PROVIDER) return payload;
+  return {};
+}
+
 function findApexOllamaProviderStatus(payload = {}) {
   if (payload?.localProviders?.ollama) return payload.localProviders.ollama;
+  if (payload?.localProviders?.legacyFallbackProvider?.provider === "ollama") return payload.localProviders.legacyFallbackProvider;
   if (Array.isArray(payload?.providers)) {
     return payload.providers.find((provider) => String(provider?.provider || "").toLowerCase() === "ollama") || {};
   }
@@ -4471,7 +4485,19 @@ function hasApexLocalModel(modelNames = [], model = "") {
   return list(modelNames).some((name) => String(name || "").trim().toLowerCase() === target);
 }
 
+function isApexLlamaCppModelReady(status = {}, model = APEX_LOCAL_TALK_MODEL) {
+  const target = String(model || "").trim().toLowerCase();
+  if (!target) return false;
+  if (status.selectedModelAvailable && String(status.selectedModel || "").trim().toLowerCase() === target) return true;
+  if (status.loadedModel?.model && String(status.loadedModel.model).trim().toLowerCase() === target && status.loadedModel.matchedKnownFile !== false) return true;
+  return list(status.models).some((row) => (
+    String(row?.model || "").trim().toLowerCase() === target
+    && (row.loaded || row.fileAvailable)
+  ));
+}
+
 function buildApexLocalReadinessSummary(localProviderStatus = null) {
+  const llamaCpp = findApexLlamaCppProviderStatus(localProviderStatus || {});
   const ollama = findApexOllamaProviderStatus(localProviderStatus || {});
   const gpu = findApexGpuStatus(localProviderStatus || {});
   const rawBrain = findApexBrainStatus(localProviderStatus || {});
@@ -4488,29 +4514,35 @@ function buildApexLocalReadinessSummary(localProviderStatus = null) {
         modelNames: Array.isArray(ollama.modelNames) ? ollama.modelNames : [],
         gpu,
       });
-  const modelProcessorReceipt = ollama.modelProcessor || localProviderStatus?.modelProcessor || {};
-  const modelNames = Array.isArray(ollama.modelNames) ? ollama.modelNames : [];
-  const providerAvailable = Boolean(ollama.available);
+  const modelProcessorReceipt = llamaCpp.modelProcessor || localProviderStatus?.modelProcessor || ollama.modelProcessor || {};
+  const modelNames = Array.isArray(llamaCpp.modelNames) ? llamaCpp.modelNames : [];
+  const legacyModelNames = Array.isArray(ollama.modelNames) ? ollama.modelNames : [];
+  const providerAvailable = Boolean(llamaCpp.available);
   const hasModelData = modelNames.length > 0;
-  const normalReady = hasApexLocalModel(modelNames, APEX_LOCAL_TALK_MODEL);
+  const selectedPrimaryModel = safeReceiptText(llamaCpp.selectedModel || llamaCpp.loadedModel?.model || APEX_LOCAL_TALK_MODEL, 120);
+  const normalReady = Boolean(providerAvailable && isApexLlamaCppModelReady(llamaCpp, selectedPrimaryModel));
   const codingReady = normalReady;
   const fastCoderReady = hasApexLocalModel(modelNames, APEX_LOCAL_FAST_CODER_MODEL);
-  const deepCodingReady = hasApexLocalModel(modelNames, APEX_LOCAL_DEEP_CODING_MODEL);
-  const providerStatus = providerAvailable ? "available" : ollama.status || "unknown";
+  const deepCodingReady = hasApexLocalModel(legacyModelNames, APEX_LOCAL_DEEP_CODING_MODEL);
+  const legacyFallbackReady = Boolean(ollama.available && hasApexLocalModel(legacyModelNames, APEX_LOCAL_OLLAMA_FALLBACK_MODEL));
+  const providerStatus = providerAvailable ? "available" : llamaCpp.status || "unknown";
   const overall = providerAvailable && normalReady
     ? "ready"
-    : providerAvailable || hasModelData
+    : providerAvailable || hasModelData || legacyFallbackReady
       ? "partial"
       : "unknown";
   const needs = [
-    !providerAvailable ? "start Ollama locally" : "",
-    providerAvailable && !normalReady ? `pull ${APEX_LOCAL_TALK_MODEL}` : "",
+    !providerAvailable ? "start the llama.cpp GPT-OSS sidecar" : "",
+    providerAvailable && !normalReady ? `load ${selectedPrimaryModel} in llama.cpp` : "",
   ].filter(Boolean);
   return {
-    provider: "Ollama",
+    provider: APEX_LOCAL_PRIMARY_PROVIDER,
     providerStatus,
+    legacyProviderStatus: ollama.status || "unknown",
+    legacyFallbackReady,
     overall,
     modelNames,
+    legacyModelNames,
     gpu: {
       available: Boolean(gpu.available),
       status: gpu.status || (gpu.available ? "available" : "unknown"),
@@ -4545,7 +4577,7 @@ function buildApexLocalReadinessSummary(localProviderStatus = null) {
       provider: "apex-local-agent-speed",
       laneId: safeReceiptText(agentSpeed.laneId || "fast", 40),
       laneLabel: safeReceiptText(agentSpeed.laneLabel || "Fast", 80),
-      modelId: safeReceiptText(agentSpeed.modelId || APEX_LOCAL_TALK_MODEL, 120),
+      modelId: safeReceiptText(llamaCpp.selectedModel || agentSpeed.modelId || APEX_LOCAL_TALK_MODEL, 120),
       numCtx: Number(agentSpeed.numCtx || 2048) || 2048,
       keepAlive: safeReceiptText(agentSpeed.keepAlive || "30m", 40),
       coderManualOnly: agentSpeed.coderManualOnly !== false,
@@ -4563,12 +4595,12 @@ function buildApexLocalReadinessSummary(localProviderStatus = null) {
       no30BWarm: true,
     },
     normalModel: {
-      model: APEX_LOCAL_TALK_MODEL,
+      model: selectedPrimaryModel,
       status: normalReady ? "ready" : hasModelData ? "missing" : "checking",
       ready: normalReady,
     },
     codingModel: {
-      model: APEX_LOCAL_NORMAL_CODING_MODEL,
+      model: selectedPrimaryModel || APEX_LOCAL_NORMAL_CODING_MODEL,
       status: codingReady ? "ready" : hasModelData ? "missing" : "checking",
       ready: codingReady,
     },
@@ -4578,6 +4610,11 @@ function buildApexLocalReadinessSummary(localProviderStatus = null) {
       ready: fastCoderReady,
       optional: true,
       measuredRequired: true,
+    },
+    legacyFallbackModel: {
+      model: APEX_LOCAL_OLLAMA_FALLBACK_MODEL,
+      status: legacyFallbackReady ? "ready" : legacyModelNames.length ? "missing" : "checking",
+      ready: legacyFallbackReady,
     },
     deepCodingModel: {
       model: APEX_LOCAL_DEEP_CODING_MODEL,
@@ -5206,8 +5243,8 @@ export function buildApexTalkToApexResponse({
       ...base,
       handled: true,
       intent: "local-readiness",
-      answer: `${readyText} Ollama is ${local.providerStatus}. ${local.normalModel.model} is ${local.normalModel.status}; normal coding uses the same resident ${local.codingModel.model} context unless a request explicitly needs more; ${local.deepCodingModel.model} is ${local.deepCodingModel.status} for manual deep work. ${residentText} ${warmText} Cloud is disabled by default and OpenAI is not required for normal Apex. ${needsText}`,
-      sourceLabels: ["Apex Local Operator Runtime v0", "Ollama", "Local Intelligence"],
+      answer: `${readyText} Primary local brain is llama.cpp on ${local.normalModel.model}, currently ${local.normalModel.status}. Normal chat and normal coding use that primary local path when ready. Ollama/qwen is legacy fallback only; ${local.legacyFallbackModel.model} is ${local.legacyFallbackModel.status}, and ${local.deepCodingModel.model} is ${local.deepCodingModel.status} for manual deep fallback work. ${residentText} ${warmText} Cloud is disabled by default and OpenAI is not required for normal Apex. ${needsText}`,
+      sourceLabels: ["Apex Local Operator Runtime v0", "llama.cpp", "Ollama fallback", "Local Intelligence"],
       notice: "Apex summarized local runtime readiness.",
     };
   }
@@ -5223,7 +5260,7 @@ export function buildApexTalkToApexResponse({
       ? `Latest model processor receipt says ${local.modelProcessor.processor}${local.modelProcessor.vramUsedMb ? ` with about ${local.modelProcessor.vramUsedMb} MB VRAM for ${local.modelProcessor.model || "the local model"}` : ""}.`
       : brain.processor && brain.processor !== "unknown"
         ? `Workstation Brain reports ${brain.processor}${brain.vramUsedMb ? ` with about ${brain.vramUsedMb} MB VRAM` : ""} in ${brain.activeMode} mode.`
-        : "The next real local model turn will record whether Ollama used GPU, CPU, mixed, or unknown.";
+        : "The next real local model turn will record whether llama.cpp used GPU, CPU, mixed, or unknown.";
     const sttText = voice.sttProcessor
       ? `Local STT is ${voice.sttEngine || voice.sttStatus} on ${voice.sttProcessor}${voice.sttGpuCapable ? " and is GPU-capable" : ""}.`
       : "Local STT processor status is still unknown.";
@@ -5232,7 +5269,7 @@ export function buildApexTalkToApexResponse({
       handled: true,
       intent: "local-gpu-status",
       answer: `${gpuText} ${modelText} ${sttText} OpenAI and cloud audio are not part of the normal local path.`,
-      sourceLabels: ["Apex GPU Voice + Speed Core", "Ollama", "Local Voice Runtime"],
+      sourceLabels: ["Apex GPU Voice + Speed Core", "llama.cpp", "Local Voice Runtime"],
       notice: "Apex summarized local GPU and processor status.",
     };
   }
@@ -5247,7 +5284,7 @@ export function buildApexTalkToApexResponse({
       ? `Last local benchmark: ${benchmark.latestLane || "lane"} on ${benchmark.latestModel || APEX_LOCAL_TALK_MODEL} at ctx ${benchmark.latestNumCtx || "unknown"} took ${Math.round(benchmark.latestTotalDurationMs)} ms; average total is ${Math.round(benchmark.averageTotalDurationMs || benchmark.latestTotalDurationMs)} ms.`
       : benchmark.summary || "No local benchmark history yet; I will not run benchmarks unless you ask.";
     const stableLine = local.stableResidency?.residentNumCtx
-      ? `${APEX_LOCAL_TALK_MODEL} resident context is ${local.stableResidency.residentLane} at ${local.stableResidency.residentNumCtx}; fast mode is kept fast by shorter prompts/output caps instead of flipping between 2048 and 4096. ${local.stableResidency.lastBenchmarkSummary || ""}`.trim()
+      ? `The old Ollama fallback residency evidence is ${local.stableResidency.residentLane} at ${local.stableResidency.residentNumCtx}; the primary path is llama.cpp/${local.normalModel.model}. Fast mode stays fast by avoiding unnecessary context flips and keeping output bounded. ${local.stableResidency.lastBenchmarkSummary || ""}`.trim()
       : "Stable residency has not reported a resident context yet.";
     const warmLine = local.keepWarm?.enabled
       ? `The main ${local.keepWarm.targetModel} brain is kept warm with bounded ${local.keepWarm.keepAlive}; 30B is not warmed.`
@@ -5272,7 +5309,7 @@ export function buildApexTalkToApexResponse({
           ? `Current speed limits I see: ${joinApexTalkList(issues)}.`
           : "Current local voice and model status looks healthy.",
         stableLine,
-        `${APEX_LOCAL_DEEP_CODING_MODEL} stays manual-only for explicit deep work and is not kept warm.`,
+        `${APEX_LOCAL_DEEP_CODING_MODEL} stays manual-only for explicit fallback/deep work and is not kept warm.`,
         warmLine,
         "For this speed pass I keep normal Apex light, keep 30B out of always-warm mode, and report the slowest local step without adding cloud audio.",
         failureLine,
@@ -5296,7 +5333,7 @@ export function buildApexTalkToApexResponse({
       ...base,
       handled: true,
       intent: brainAnswer.intent,
-      answer: `${brainAnswer.answer} Readiness: ${APEX_LOCAL_TALK_MODEL} is ${local.normalModel.status}; normal coding is ${local.codingModel.status}; ${APEX_LOCAL_DEEP_CODING_MODEL} is ${local.deepCodingModel.status}.`,
+      answer: `${brainAnswer.answer} Readiness: primary llama.cpp/${local.normalModel.model} is ${local.normalModel.status}; normal coding is ${local.codingModel.status}; legacy Ollama fallback ${local.legacyFallbackModel.model} is ${local.legacyFallbackModel.status}; ${APEX_LOCAL_DEEP_CODING_MODEL} is ${local.deepCodingModel.status}.`,
       sourceLabels: brainAnswer.sourceLabels,
       notice: "Apex summarized workstation brain status.",
     };
@@ -5304,14 +5341,14 @@ export function buildApexTalkToApexResponse({
 
   if (brainCommand.status !== "detected" && /\b(what model are you using|what model is running|fast brain|deep brain|fast mode|deep mode)\b/i.test(normalized)) {
     const local = summary.localReadiness;
-    const modeLine = `Apex uses ${APEX_LOCAL_TALK_MODEL} as the stable resident brain at ${local.stableResidency.residentNumCtx || 4096} context when local VRAM is healthy; fast answers use shorter caps, and normal coding uses that same resident context unless a request explicitly needs more. Optional fast coder can use ${APEX_LOCAL_FAST_CODER_MODEL} only after it is installed and measured. Deep coding uses ${APEX_LOCAL_DEEP_CODING_MODEL} at 4096-8192 only when John explicitly asks, and 30B is not kept warm by default.`;
-    const warmLine = local.keepWarm?.enabled ? `The active local session keeps ${local.keepWarm.targetModel} warm for ${local.keepWarm.keepAlive}.` : "Keep-warm is off for this session.";
+    const modeLine = `Apex uses local llama.cpp with ${local.normalModel.model} as the primary talking and normal coding brain when the sidecar is ready. Ollama/qwen is legacy fallback/status only: ${local.legacyFallbackModel.model} is ${local.legacyFallbackModel.status}, and ${APEX_LOCAL_DEEP_CODING_MODEL} is manual-only fallback/deep work.`;
+    const warmLine = local.keepWarm?.enabled ? `Legacy Ollama keep-warm is bounded at ${local.keepWarm.keepAlive} for ${local.keepWarm.targetModel}; the primary llama.cpp path is controlled by the local sidecar.` : "Legacy Ollama keep-warm is off for this session.";
     return {
       ...base,
       handled: true,
       intent: "local-model-mode",
-      answer: `${modeLine} ${warmLine} Current readiness: ${APEX_LOCAL_TALK_MODEL} is ${local.normalModel.status}; normal coding is ${local.codingModel.status}; ${APEX_LOCAL_DEEP_CODING_MODEL} is ${local.deepCodingModel.status}. OpenAI stays disabled unless John explicitly requests cloud and server policy allows it.`,
-      sourceLabels: ["Apex Workstation Brain Mode", "Ollama"],
+      answer: `${modeLine} ${warmLine} Current readiness: ${local.normalModel.model} is ${local.normalModel.status}; normal coding is ${local.codingModel.status}. OpenAI stays disabled unless John explicitly requests cloud and server policy allows it.`,
+      sourceLabels: ["Apex llama.cpp primary brain", "Ollama fallback"],
       notice: "Apex summarized model routing.",
     };
   }
@@ -5331,13 +5368,13 @@ export function buildApexTalkToApexResponse({
     const local = summary.localReadiness;
     const needs = local.needs.length
       ? local.needs
-      : ["keep this local server/client running", "keep Ollama running", "type one test request in Apex Home"];
+      : ["keep this local server/client running", "keep the llama.cpp GPT-OSS sidecar ready", "type one test request in Apex Home"];
     return {
       ...base,
       handled: true,
       intent: "local-tonight-needs",
-      answer: `For tonight I need this local app open, Ollama running, and ${local.normalModel.model} ready for normal conversation plus normal coding. Current status: ${local.normalModel.model} is ${local.normalModel.status}; normal coding is ${local.codingModel.status}; ${local.deepCodingModel.model} is ${local.deepCodingModel.status} and stays manual-only. Next: ${joinApexTalkList(needs)}. Local Voice Runtime v2 reports the local STT/TTS truth now; typed Apex stays reliable whenever a local voice engine is missing.`,
-      sourceLabels: ["Apex Local Operator Runtime v0", "Ollama", "Local Voice Runtime Plan"],
+      answer: `For tonight I need this local app open and llama.cpp/${local.normalModel.model} ready for normal conversation plus normal coding. Current status: primary brain is ${local.normalModel.status}; legacy Ollama fallback ${local.legacyFallbackModel.model} is ${local.legacyFallbackModel.status}; ${local.deepCodingModel.model} is ${local.deepCodingModel.status} and stays manual-only. Next: ${joinApexTalkList(needs)}. Local Voice Runtime v2 reports the local STT/TTS truth now; typed Apex stays reliable whenever a local voice engine is missing.`,
+      sourceLabels: ["Apex Local Operator Runtime v0", "llama.cpp", "Local Voice Runtime Plan"],
       notice: "Apex summarized what is needed for local work tonight.",
     };
   }

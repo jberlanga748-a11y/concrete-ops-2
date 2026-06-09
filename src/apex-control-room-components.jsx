@@ -904,9 +904,21 @@ function EmptyPanel({ children }) {
 
 function findOllamaStatusPayload(payload = {}) {
   if (payload?.localProviders?.ollama) return payload.localProviders.ollama;
+  if (payload?.localProviders?.legacyFallbackProvider?.provider === "ollama") return payload.localProviders.legacyFallbackProvider;
   if (Array.isArray(payload?.providers)) {
     return payload.providers.find((provider) => String(provider?.provider || "").toLowerCase() === "ollama") || {};
   }
+  return {};
+}
+
+function findLlamaCppStatusPayload(payload = {}) {
+  if (payload?.localProviders?.llamaCpp) return payload.localProviders.llamaCpp;
+  if (payload?.localProviders?.primaryProvider?.provider === "llama.cpp") return payload.localProviders.primaryProvider;
+  if (payload?.primaryProvider?.provider === "llama.cpp") return payload.primaryProvider;
+  if (Array.isArray(payload?.providers)) {
+    return payload.providers.find((provider) => String(provider?.provider || "").toLowerCase() === "llama.cpp") || {};
+  }
+  if (String(payload?.provider || "").toLowerCase() === "llama.cpp") return payload;
   return {};
 }
 
@@ -931,7 +943,8 @@ function findAgentSpeedPayload(payload = {}) {
   return {};
 }
 
-const APEX_LOCAL_TALK_MODEL = "qwen3:14b";
+const APEX_LOCAL_TALK_MODEL = "gpt-oss:20b";
+const APEX_LOCAL_OLLAMA_FALLBACK_MODEL = "qwen3:14b";
 const APEX_LOCAL_FAST_CODER_MODEL = "qwen2.5-coder:7b";
 const APEX_LOCAL_DEEP_CODING_MODEL = "qwen3-coder:30b";
 const APEX_LOCAL_REASONING_MODEL = "gpt-oss:20b";
@@ -971,7 +984,11 @@ function apexCockpitEffortOption(value = "") {
 function buildApexLocalIntelligenceStatus({ response = null, providerStatusPayload = null, selectedEffort = "fast" } = {}) {
   const answer = response?.answer && typeof response.answer === "object" ? response.answer : {};
   const responseStatus = response?.context?.localProviderStatus || {};
-  const providerStatus = findOllamaStatusPayload(providerStatusPayload || {});
+  const primaryStatusFromPayload = findLlamaCppStatusPayload(providerStatusPayload || {});
+  const providerStatus = String(responseStatus.provider || "").toLowerCase() === "llama.cpp"
+    ? responseStatus
+    : primaryStatusFromPayload;
+  const legacyOllamaStatus = findOllamaStatusPayload(providerStatusPayload || {});
   const gpuStatus = findGpuStatusPayload(providerStatusPayload || {});
   const brainStatus = answer.brainStatus || answer.brainTelemetry || findBrainStatusPayload(providerStatusPayload || {});
   const responseAgentSpeed = answer.agentSpeed || answer.benchmarkReceipt || responseStatus.agentSpeed || findAgentSpeedPayload(providerStatusPayload || {});
@@ -989,9 +1006,9 @@ function buildApexLocalIntelligenceStatus({ response = null, providerStatusPaylo
     || responseStatus.residency
     || {};
   const modelProcessor = answer.modelProcessor || responseStatus.modelProcessor || providerStatus.modelProcessor || {};
-  const provider = answer.provider || responseStatus.provider || providerStatus.provider || "ollama";
-  const providerLabel = String(provider || "ollama").toLowerCase() === "ollama" ? "Ollama" : String(provider || "Ollama");
-  const selectedModel = answer.model || responseStatus.selectedModel || providerStatus.selectedModel || "qwen3:14b";
+  const provider = answer.provider || responseStatus.provider || providerStatus.provider || "llama.cpp";
+  const providerLabel = String(provider || "llama.cpp").toLowerCase() === "ollama" ? "Ollama" : String(provider || "llama.cpp");
+  const selectedModel = answer.model || responseStatus.selectedModel || providerStatus.selectedModel || providerStatus.loadedModel?.model || APEX_LOCAL_TALK_MODEL;
   const effortOption = apexCockpitEffortOption(answer.agentEffort || answer.effort || responseStatus.selectedEffort || responseAgentSpeed.effortId || benchmarkReceipt?.effortId || selectedEffort);
   const effortId = effortOption.id;
   const effortLabel = answer.agentEffortLabel || responseStatus.effortLabel || responseAgentSpeed.effortLabel || benchmarkReceipt?.effortLabel || effortOption.label;
@@ -1020,6 +1037,7 @@ function buildApexLocalIntelligenceStatus({ response = null, providerStatusPaylo
   const cloudDecision = response?.context?.localFirstProviderPolicy?.decision || "block-cloud";
   const openAiUsed = /openai/i.test(String(answer.provider || answer.mode || ""));
   const localOllamaUsed = /ollama/i.test(String(answer.provider || answer.mode || provider));
+  const localLlamaCppUsed = /llama\.cpp|llama-cpp/i.test(String(answer.provider || answer.mode || provider));
   const fallback = Boolean(answer.providerFallback);
   const processor = String(modelProcessor.processor || answer.processor || responseStatus.processor || "unknown").toLowerCase();
   const gpuAvailable = Boolean(gpuStatus.available);
@@ -1057,23 +1075,23 @@ function buildApexLocalIntelligenceStatus({ response = null, providerStatusPaylo
       : "";
   const effortLine = ` Effort: ${effortLabel} on ${effortModel}, ctx ${effortNumCtx}, ${effortOption.manualOnly ? "manual-only" : "resident"}, installed ${apexLocalModelStatusLabel(effortModelAvailable, hasModelData || selectedModelAvailable)}.`;
   const agentLine = ` Lane: ${agentLaneLabel} on ${selectedModel}, ctx ${agentNumCtx}, keep-alive ${agentKeepAlive}; warm ${warmLabel}; 30B is ${thirtyBActive ? "active for this manual deep turn" : "idle/manual-only"}. Timing: ${timingLabel}. Last benchmark: ${lastBenchmarkLabel}.${receivingActive ? " Apex is receiving a local model response now." : ""}${adaptiveLine}${effortLine}`;
-  const status = localOllamaUsed && !fallback
+  const status = (localOllamaUsed || localLlamaCppUsed) && !fallback
     ? "Answering locally"
     : providerAvailable && selectedModelAvailable
       ? "Local ready"
       : providerAvailable
         ? "Model check"
         : providerStatusPayload
-          ? "Ollama offline"
+          ? "llama.cpp offline"
           : "Local-first";
-  const tone = openAiUsed ? "amber" : localOllamaUsed || selectedModelAvailable ? "green" : providerAvailable ? "blue" : "amber";
+  const tone = openAiUsed ? "amber" : localOllamaUsed || localLlamaCppUsed || selectedModelAvailable ? "green" : providerAvailable ? "blue" : "amber";
   const summary = openAiUsed
       ? "This answer used a cloud override. Everyday Apex remains local-first and cloud-disabled by default."
     : fallback
       ? `${providerLabel} stayed local-first, but this turn used a deterministic local fallback. OpenAI was not used.`
-      : localOllamaUsed
-        ? `${providerLabel} answered this turn on the ${agentLaneLabel} lane with ${selectedModel}. Normal chat/coding use ${APEX_LOCAL_TALK_MODEL}; ${APEX_LOCAL_DEEP_CODING_MODEL} is manual-only. OpenAI was not used.`
-        : `${providerLabel} is the default local provider. ${APEX_LOCAL_TALK_MODEL}: ${apexLocalModelStatusLabel(talkModelAvailable, hasModelData)}. ${APEX_LOCAL_DEEP_CODING_MODEL}: ${apexLocalModelStatusLabel(codingModelAvailable, hasModelData)} manual-only. OpenAI stays disabled unless John explicitly asks for cloud and server policy allows it.`;
+    : localOllamaUsed
+        ? `Ollama answered this legacy fallback turn on the ${agentLaneLabel} lane with ${selectedModel}. Primary chat/coding is llama.cpp/${APEX_LOCAL_TALK_MODEL}; ${APEX_LOCAL_DEEP_CODING_MODEL} is manual-only. OpenAI was not used.`
+        : `${providerLabel} is the primary local provider. ${APEX_LOCAL_TALK_MODEL}: ${apexLocalModelStatusLabel(talkModelAvailable, hasModelData || selectedModelAvailable)}. Ollama fallback ${APEX_LOCAL_OLLAMA_FALLBACK_MODEL}: ${apexLocalModelStatusLabel(hasApexLocalModel(legacyOllamaStatus.modelNames, APEX_LOCAL_OLLAMA_FALLBACK_MODEL), Array.isArray(legacyOllamaStatus.modelNames) && legacyOllamaStatus.modelNames.length > 0)}. OpenAI stays disabled unless John explicitly asks for cloud and server policy allows it.`;
   const summaryWithProcessor = `${summary}${processorLine}${agentLine}${brainLine}`;
   return {
     providerLabel,
@@ -1117,14 +1135,15 @@ function buildApexLocalIntelligenceStatus({ response = null, providerStatusPaylo
     cloudDecision,
     openAiUsed,
     rows: [
-      { label: "Provider", value: providerLabel, tone: providerAvailable || localOllamaUsed ? "green" : "blue" },
+      { label: "Provider", value: providerLabel, tone: providerAvailable || localOllamaUsed || localLlamaCppUsed ? "green" : "blue" },
       { label: "Effort", value: `${effortLabel} / ${effortOption.manualOnly ? "manual" : "resident"}`, tone: effortOption.manualOnly ? "blue" : "green" },
       { label: "Lane", value: `${agentLaneLabel} / ctx ${agentNumCtx}`, tone: agentLaneId === "fast" ? "green" : "blue" },
       { label: "Timing", value: timingLabel, tone: timingMs ? "green" : "blue" },
       { label: "Benchmark", value: lastBenchmarkLabel, tone: lastBenchmarkMs ? "green" : "blue" },
       { label: "Warm", value: warmLabel, tone: warmStatus.enabled ? "green" : "blue" },
       { label: "Brain", value: `${brainModel} / ctx ${brainNumCtx}${brainReloadNeeded ? " / reload needed" : ""}`, tone: brainReloadNeeded ? "amber" : activeBrainMode === "speed" ? "green" : "blue" },
-      { label: "Talk", value: `${APEX_LOCAL_TALK_MODEL} ${apexLocalModelStatusLabel(talkModelAvailable, hasModelData || selectedModelAvailable)}`, tone: talkModelAvailable || localOllamaUsed ? "green" : hasModelData ? "amber" : "blue" },
+      { label: "Talk", value: `${APEX_LOCAL_TALK_MODEL} ${apexLocalModelStatusLabel(talkModelAvailable, hasModelData || selectedModelAvailable)}`, tone: talkModelAvailable || localLlamaCppUsed ? "green" : hasModelData ? "amber" : "blue" },
+      { label: "Legacy", value: `${APEX_LOCAL_OLLAMA_FALLBACK_MODEL} ${apexLocalModelStatusLabel(hasApexLocalModel(legacyOllamaStatus.modelNames, APEX_LOCAL_OLLAMA_FALLBACK_MODEL), Array.isArray(legacyOllamaStatus.modelNames) && legacyOllamaStatus.modelNames.length > 0)}`, tone: hasApexLocalModel(legacyOllamaStatus.modelNames, APEX_LOCAL_OLLAMA_FALLBACK_MODEL) ? "green" : "blue" },
       { label: "30B", value: `${APEX_LOCAL_DEEP_CODING_MODEL} ${thirtyBActive ? "active" : codingModelAvailable ? "manual-only" : apexLocalModelStatusLabel(codingModelAvailable, hasModelData || selectedModelAvailable)}`, tone: thirtyBActive || codingModelAvailable ? "green" : hasModelData ? "amber" : "blue" },
       { label: "GPU", value: gpuLabel, tone: gpuAvailable ? "green" : "blue" },
       { label: "Cloud", value: "Disabled default", tone: openAiUsed ? "amber" : "green" },
@@ -12328,14 +12347,14 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
             }
           }
         }
-        const localStatus = findOllamaStatusPayload(cockpitLocalProviderStatus || {});
+        const localStatus = findLlamaCppStatusPayload(cockpitLocalProviderStatus || {});
         const localTalkPayload = {
           requestId: turnId,
           answer: {
             answer: resolvedTalkAnswer,
             sourceLabels: resolvedSourceLabels,
-            provider: "ollama",
-            model: "qwen3:14b",
+            provider: "llama.cpp",
+            model: APEX_LOCAL_TALK_MODEL,
             providerFallback: true,
             selfFixPatchHandoff: talkResponse.patchHandoff || null,
             selfFixHandoffReceipt: talkResponse.handoffReceipt || "",
@@ -12355,12 +12374,12 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
             learningMode: talkResponse.learningMode,
             learningMemoryId,
             localProviderStatus: {
-              provider: "ollama",
-              selectedModel: "qwen3:14b",
+              provider: "llama.cpp",
+              selectedModel: APEX_LOCAL_TALK_MODEL,
               available: Boolean(cockpitLocalProviderStatus) ? localStatus.available !== false : true,
               modelNames: Array.isArray(localStatus.modelNames) ? localStatus.modelNames : [],
               selectedModelAvailable: Array.isArray(localStatus.modelNames)
-                ? localStatus.modelNames.some((model) => String(model).toLowerCase() === "qwen3:14b")
+                ? localStatus.modelNames.some((model) => String(model).toLowerCase() === APEX_LOCAL_TALK_MODEL)
                 : Boolean(cockpitLocalProviderStatus) ? localStatus.available !== false : true,
             },
             localFirstProviderPolicy: { decision: "use-local-fallback" },

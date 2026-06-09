@@ -401,6 +401,8 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /Consequential actions remain gated\. No sends, billing, provider work, production changes, deploys, rollbacks, agent runs, automatic trusted memory, or irreversible actions\./);
   assert.match(componentSource, /getApexOsLocalProvidersStatus/);
   assert.match(componentSource, /Local Intelligence/);
+  assert.match(componentSource, /llama\.cpp/);
+  assert.match(componentSource, /gpt-oss:20b/);
   assert.match(componentSource, /qwen3:14b/);
   assert.match(componentSource, /Cloud", value: "Disabled default"/);
   assert.match(componentSource, /OpenAI", value: openAiUsed \? "Manual override" : "Not used"/);

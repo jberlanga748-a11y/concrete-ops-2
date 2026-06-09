@@ -117,8 +117,8 @@ Validation:
 - `/api/ready` pass
 - local provider status test
 - Apex Home opens locally
-- Ask Apex typed test with `qwen3:14b` when available
-- coding route status proves normal coding stays on `qwen3:14b` at `num_ctx=4096` and `qwen3-coder:30b` is manual-only
+- Ask Apex typed test with local llama.cpp/GPT-OSS when the sidecar/model is ready
+- coding route status proves normal coding stays on the primary local llama.cpp/GPT-OSS path when ready and `qwen3-coder:30b` remains manual-only fallback/deep work
 - `npm.cmd run build`
 - `git diff --check`
 
@@ -134,7 +134,7 @@ Personal OS Core v0 should happen before full provider wiring so Apex can answer
 
 Voice architecture:
 
-- Keep `qwen3:14b` as the conversation brain.
+- Keep local llama.cpp/GPT-OSS as the primary conversation brain when the sidecar/model is ready.
 - Add a local STT adapter for microphone audio.
 - Add a local TTS adapter for spoken answers.
 - Add provider health/status so Apex can say whether local voice is ready.
@@ -314,7 +314,7 @@ Goal:
 Make Apex hear John and speak back locally without OpenAI audio.
 
 Current state:
-`qwen3:14b` is already the local conversation brain. The missing part is local microphone transcription and local spoken output. Keep Apex Home clean and conversational.
+Local llama.cpp/GPT-OSS is already the primary local conversation brain when the sidecar/model is ready. The missing part in this older prompt was local microphone transcription and local spoken output. Keep Apex Home clean and conversational.
 
 Build:
 - local STT provider adapter

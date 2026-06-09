@@ -697,6 +697,18 @@ test("buildApexTalkToApexResponse answers Self-Fix v2 dispatch details conversat
 test("buildApexTalkToApexResponse answers local runtime readiness conversationally", () => {
   const localProviderStatus = {
     localProviders: {
+      llamaCpp: {
+        provider: "llama.cpp",
+        available: true,
+        status: "available",
+        selectedModel: "gpt-oss:20b",
+        selectedModelAvailable: true,
+        modelNames: ["gpt-oss:20b"],
+        loadedModel: {
+          model: "gpt-oss:20b",
+          matchedKnownFile: true,
+        },
+      },
       ollama: {
         provider: "ollama",
         available: true,
@@ -714,8 +726,10 @@ test("buildApexTalkToApexResponse answers local runtime readiness conversational
   assert.equal(ready.handled, true);
   assert.equal(ready.intent, "local-readiness");
   assert.match(ready.answer, /Apex is ready locally/i);
-  assert.match(ready.answer, /qwen3:14b is ready/i);
-  assert.match(ready.answer, /normal coding uses the same resident qwen3:14b/i);
+  assert.match(ready.answer, /llama\.cpp/i);
+  assert.match(ready.answer, /gpt-oss:20b/i);
+  assert.match(ready.answer, /Normal chat and normal coding use that primary local path/i);
+  assert.match(ready.answer, /Ollama\/qwen is legacy fallback only/i);
   assert.match(ready.answer, /qwen3-coder:30b is manual-only-ready/i);
   assert.match(ready.answer, /OpenAI is not required/i);
   assert.doesNotMatch(ready.answer, /review-only|Execution Locked/i);
@@ -769,6 +783,25 @@ test("buildApexTalkToApexResponse handles Apex build-loop commands conversationa
 test("buildApexTalkToApexResponse handles GPU, speed, model, and cleanup commands conversationally", () => {
   const localProviderStatus = {
     localProviders: {
+      llamaCpp: {
+        provider: "llama.cpp",
+        available: true,
+        status: "available",
+        selectedModel: "gpt-oss:20b",
+        selectedModelAvailable: true,
+        modelNames: ["gpt-oss:20b"],
+        loadedModel: {
+          model: "gpt-oss:20b",
+          matchedKnownFile: true,
+        },
+        modelProcessor: {
+          processor: "gpu",
+          model: "gpt-oss:20b",
+          vramUsedMb: 10000,
+          responseTimingMs: 900,
+          modelAlreadyLoaded: true,
+        },
+      },
       ollama: {
         provider: "ollama",
         available: true,
@@ -846,21 +879,23 @@ test("buildApexTalkToApexResponse handles GPU, speed, model, and cleanup command
   assert.equal(gpu.intent, "local-gpu-status");
   assert.match(gpu.answer, /RTX 5080/i);
   assert.match(gpu.answer, /Latest model processor receipt says gpu/i);
+  assert.match(gpu.answer, /gpt-oss:20b/i);
   assert.match(gpu.answer, /faster-whisper CUDA on gpu/i);
   assert.doesNotMatch(gpu.answer, /OpenAI.*used/i);
 
   assert.equal(speed.intent, "local-speed-check");
-  assert.match(speed.answer, /qwen3:14b/i);
-  assert.match(speed.answer, /Resident context/i);
+  assert.match(speed.answer, /gpt-oss:20b/i);
+  assert.match(speed.answer, /primary path is llama\.cpp/i);
   assert.match(speed.answer, /4096/i);
-  assert.match(speed.answer, /shorter prompts\/output caps/i);
+  assert.match(speed.answer, /output bounded/i);
   assert.match(speed.answer, /manual-only/i);
   assert.doesNotMatch(speed.answer, /dashboard|process table/i);
 
   assert.equal(model.intent, "local-model-mode");
+  assert.match(model.answer, /llama\.cpp/i);
+  assert.match(model.answer, /gpt-oss:20b/i);
   assert.match(model.answer, /qwen3:14b/i);
   assert.match(model.answer, /qwen3-coder:30b/i);
-  assert.match(model.answer, /30B is not kept warm by default/i);
   assert.match(model.answer, /OpenAI stays disabled/i);
 
   assert.equal(brainStatus.intent, "workstation-brain-mode");
@@ -880,6 +915,18 @@ test("buildApexTalkToApexResponse explains what Apex needs to work tonight", () 
     question: "Apex, what do you need to work tonight?",
     localProviderStatus: {
       localProviders: {
+        llamaCpp: {
+          provider: "llama.cpp",
+          available: true,
+          status: "available",
+          selectedModel: "gpt-oss:20b",
+          selectedModelAvailable: true,
+          modelNames: ["gpt-oss:20b"],
+          loadedModel: {
+            model: "gpt-oss:20b",
+            matchedKnownFile: true,
+          },
+        },
         ollama: {
           provider: "ollama",
           available: true,
@@ -892,7 +939,8 @@ test("buildApexTalkToApexResponse explains what Apex needs to work tonight", () 
 
   assert.equal(partial.handled, true);
   assert.equal(partial.intent, "local-tonight-needs");
-  assert.match(partial.answer, /qwen3:14b is ready/i);
+  assert.match(partial.answer, /llama\.cpp\/gpt-oss:20b ready/i);
+  assert.match(partial.answer, /legacy Ollama fallback qwen3:14b is ready/i);
   assert.match(partial.answer, /qwen3-coder:30b is missing-optional/i);
   assert.doesNotMatch(partial.answer, /pull qwen3-coder:30b/i);
   assert.match(partial.answer, /Local Voice Runtime/i);
