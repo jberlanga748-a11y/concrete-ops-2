@@ -10,6 +10,13 @@ yarn-debug.log*
 yarn-error.log*
 ui-audit/
 output/
+outputs/
+.codex-run-logs/
+.codex-remote-attachments/
+outputs/apex-kokoro-onnx-tts-v4-*/
+outputs/apex-build-loop-v0-*/
 tmp/
 tmp-ai-office-server*.log
 tmp-ai-office-server*.pid
+dev-server*.log
+visual-dev-server*.log
