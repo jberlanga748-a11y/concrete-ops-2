@@ -30,7 +30,7 @@ If a feature makes the family type more, manage more, or feel watched instead of
 
 ## One-Sentence Product Shape
 
-Apex Family Care is a private family-only PWA and voice-first care domain that Apex can operate: it captures quick spoken/tapped updates, organizes care memory, prepares doctor summaries, creates family digests, and watches the care loop for missing or concerning patterns.
+Apex Family Care is a private family-only PWA and care domain that Apex can operate: it captures quick tapped/typed updates now, stays ready for voice later, organizes care memory, prepares doctor summaries, creates family digests, and watches the care loop for missing or concerning patterns.
 
 ## What This Is Not
 
@@ -62,10 +62,10 @@ Dad, Brother, Grandma, or a family member should be able to interact with Apex F
 - An installable PWA on phones.
 - A simple tablet or old phone at the house.
 - Big buttons for common updates.
-- Voice-first note capture when available.
+- Voice-ready note capture later, after the app workflows are useful.
 - Notifications that are calm, useful, and private.
 
-The first interaction should feel like:
+The eventual voice interaction should feel like:
 
 ```text
 Apex, log that Grandma's knee hurt after lunch.
@@ -179,6 +179,112 @@ Avoid:
 - sensitive medical detail on lock screens
 - panic language unless a family member marks an urgent concern
 
+## Continuation Rule
+
+When a phase intentionally defers part of the idea, the deferred work must be written into this plan before the phase is considered closed. Future builders should not have to remember chat context or guess what comes later.
+
+Completed phases stay frozen. Follow-up phases extend the foundation; they do not rebuild completed work unless there is a bug, safety issue, privacy issue, or John explicitly starts a versioned improvement.
+
+## Foundation Follow-Up Roadmap
+
+These are the already-known later steps from the foundation work completed so far. They are not current work unless `Current Next Step` points at them.
+
+### Phase 1A - Family Access And Install Hardening
+
+Purpose: turn the local standalone PWA foundation into a simple family-only entry that non-technical family members can actually open and trust.
+
+- Add a simple family access model: family code, invite, or trusted-device pairing.
+- Add a direct install/open flow for phones and a house tablet/old phone.
+- Decide local-only, private LAN, or private remote access before any real family rollout.
+- Keep Family Care separate from Apex HQ routes, nav, permissions, and cockpit access.
+- Add tests proving family access does not expose Apex HQ, Apex private operator, customer, field, demo, or business data.
+
+Do later when: the app is ready for real family testing beyond John's local machine. Any auth/session/production exposure requires explicit approval first.
+
+### Phase 2A - Care Review And Doctor-Prep Polish
+
+Purpose: make the existing care notes and summaries easier to review before a real doctor appointment or family update.
+
+- Add edit/archive/review states for mistaken notes.
+- Add timeline filters by category, reporter, concern, and doctor-summary flag.
+- Add doctor-summary copy/print/export flow with practical family-note language only.
+- Add a doctor-visit prep checklist so Dad can walk in with useful context.
+- Keep diagnosis, treatment advice, emergency claims, and raw transcript/audio storage blocked.
+
+Do later when: basic notes and summaries are being used enough that cleanup, review, and appointment prep matter.
+
+### Phase 3A - Apex Care Coordinator Loop
+
+Purpose: let Apex operate the Family Care domain more usefully after the data model proves itself.
+
+- Add a daily care status review packet.
+- Add open-concern prompts that suggest what to check next without sending messages automatically.
+- Add missing-detail prompts for doctor prep, with human review.
+- Add medication-confirmation review only; never medication control, dosing, or treatment instructions.
+- Keep receipts metadata-only with no raw prompts, raw responses, secrets, raw audio, or raw transcripts.
+
+Do later when: Family Care has enough real notes for Apex's care coordinator behavior to be useful.
+
+### Phase 3.5A - Standalone Boundary Release Prep
+
+Purpose: decide how the standalone Family Care PWA should be made available without drifting back into Apex HQ.
+
+- Keep `family-care.html`, the Family Care manifest, and the direct PWA entry separate.
+- Decide whether production should continue to 404 Family Care or whether a private family-only release path is approved.
+- Add deployment/hosting/access notes only after the family access model is approved.
+- Keep Apex HQ business app navigation and permissions free of Family Care.
+
+Do later when: John is ready to move from local-only proof to a private family-access release path.
+
+### Phase 4A - Real Local Voice Input
+
+Purpose: add real spoken input only after the Family Care app itself works and has a clear place for voice updates to land.
+
+- Connect a visible, user-started local STT path only after the app workflows are useful.
+- Use push-to-talk or an obvious listening state; no hidden/background microphone capture.
+- Store no raw audio and do not store raw transcript receipts.
+- Keep one-follow-up behavior from Phase 4.
+- Add visible stop/mute/recover controls for household use.
+- Keep cloud STT, browser SpeechRecognition, OpenAI/Groq fallback, and auto-listening blocked unless John explicitly starts a later approved voice phase.
+
+Do later when: notes, summaries, notifications, and family access are useful enough that voice improves an existing workflow instead of blocking the build.
+
+### Phase 5A - Real Notification Delivery
+
+Purpose: connect actual delivery after Phase 5 proves the notification brain and safe-copy rules.
+
+- Choose delivery method: PWA push, device notification, local house device, SMS, or email.
+- Require approval before SMS/email/cloud/provider setup or any real sends.
+- Keep lock-screen copy generic and private-safe.
+- Add opt-in, quiet hours, device trust, and family recipient controls.
+- Add tests that sensitive note details never leak into lock-screen or provider payloads.
+
+Do later when: Phase 5 notification decisions and UI are proven safe locally.
+
+### Phase 6A - Household Device Voice And Presence
+
+Purpose: make the kitchen/tablet/Raspberry Pi style experience useful after the basic kitchen mode exists.
+
+- Decide the first real household device.
+- Add always-visible mute/stop status.
+- Add offline/online health checks for the house device.
+- Add local voice only if Phase 4A is ready and safe.
+- Avoid camera surveillance, hidden recording, and automatic emergency claims.
+
+Do later when: the family has chosen the house device and the core app flow is already useful without voice.
+
+### Phase 7A - Family Test Week Improvements
+
+Purpose: use real family feedback to simplify instead of piling on features.
+
+- Review whether Dad had to explain less.
+- Review whether siblings felt informed without spam.
+- Review whether doctor prep got easier.
+- Remove or simplify anything that felt like another chore.
+- Freeze what worked and write the next versioned improvement list.
+
+Do later when: one real family test week is complete.
+
 ## Build Checklist
 
 ### Phase 0 - Plan Lock
@@ -261,19 +367,21 @@ Phase 3.5 receipt (2026-06-09): corrected the Family Care boundary so it is Apex
 
 Done means: Dad/Brother/Grandma can speak short updates and Apex turns them into structured notes.
 
-Phase 4 receipt (2026-06-09): added a standalone Family Care Voice Update screen and Today shortcut. The flow starts quiet, requires a visible user action, accepts recognized spoken words or typed fallback text, turns the update into a compact structured care note, asks at most one follow-up for unclear notes, and saves metadata-only voice receipts. No browser microphone auto-start, hidden/background recording, raw audio storage, raw transcript receipts, cloud STT, browser SpeechRecognition, fetch path, schema/auth/session change, deploy, customer/field/demo exposure, medical diagnosis, emergency replacement claim, or Apex HQ route/nav reintegration was added. Focused validation: `node --test --test-concurrency=1 shared/apexFamilyCare.test.js shared/apexFamilyCareBrain.test.js shared/apexFamilyCareVoice.test.js src/apex-family-care-components-import.test.js src/pwa-config.test.js shared/permissions.test.js src/app-routing.test.js src/navigation-utils.test.js src/mobile-nav-utils.test.js src/app-navigation-components-import.test.js` passed 95/95.
+Phase 4 receipt (2026-06-09): added a standalone Family Care Voice Update screen and Today shortcut. The flow starts quiet, requires a visible user action, accepts recognized spoken words or typed fallback text, turns the update into a compact structured care note, asks at most one follow-up for unclear notes, and saves metadata-only voice receipts. This is voice-ready structure, not live mic/STT capture; real local voice input is deferred to Phase 4A after the app workflows are useful. No browser microphone auto-start, hidden/background recording, raw audio storage, raw transcript receipts, cloud STT, browser SpeechRecognition, fetch path, schema/auth/session change, deploy, customer/field/demo exposure, medical diagnosis, emergency replacement claim, or Apex HQ route/nav reintegration was added. Focused validation: `node --test --test-concurrency=1 shared/apexFamilyCare.test.js shared/apexFamilyCareBrain.test.js shared/apexFamilyCareVoice.test.js src/apex-family-care-components-import.test.js src/pwa-config.test.js shared/permissions.test.js src/app-routing.test.js src/navigation-utils.test.js src/mobile-nav-utils.test.js src/app-navigation-components-import.test.js` passed 95/95.
 
 ### Phase 5 - Notifications
 
 - [ ] Add notification preference model.
 - [ ] Add private-safe notification copy.
-- [ ] Add family digest notification.
-- [ ] Add concern-marked notification.
-- [ ] Add missing-update notification.
+- [ ] Add family digest notification decision.
+- [ ] Add concern-marked notification decision.
+- [ ] Add missing-update notification decision.
 - [ ] Add quiet hours / low-noise guard.
+- [ ] Add safe notification settings UI.
+- [ ] Keep real delivery/provider sends deferred to Phase 5A.
 - [ ] Add tests that lock-screen notifications do not expose sensitive details.
 
-Done means: family gets useful updates without spam or sensitive lock-screen content.
+Done means: Family Care knows what should be notified, who it matters to, what safe copy should say, and what must wait for quiet hours, without live SMS/email/cloud/push sends yet.
 
 ### Phase 6 - Home Device / Kitchen Mode
 
@@ -348,4 +456,4 @@ Build only the next unchecked phase and update docs/APEX_FAMILY_CARE_LOCAL_PLAN.
 
 ## Current Next Step
 
-Next unchecked phase: Phase 4 - Voice-First Entry.
+Next unchecked phase: Phase 5 - Notifications.
