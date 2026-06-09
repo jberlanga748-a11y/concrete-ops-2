@@ -74,6 +74,37 @@ export const APEX_FAMILY_CARE_BOUNDARY_RELEASE_POLICY = Object.freeze({
   medicalDiagnosis: false,
   emergencyReplacement: false,
 });
+export const APEX_FAMILY_CARE_LOCAL_RELEASE_SMOKE_POLICY = Object.freeze({
+  policyId: "apex-family-care-local-release-smoke-v1",
+  phase: "phase-3-5b-standalone-boundary-follow-up",
+  familyCareOnly: true,
+  apexHqProductWork: false,
+  localOnly: true,
+  humanRunOnly: true,
+  localPreviewOnly: true,
+  familyAccessModelRequired: true,
+  familyAccessModelApproved: false,
+  productionReleaseApproved: false,
+  productionExposure: false,
+  remoteAccessApproved: false,
+  authSessionChanged: false,
+  schemaChanged: false,
+  deployChanged: false,
+  hostingChanged: false,
+  providerConfigured: false,
+  publicAccess: false,
+  customerAccess: false,
+  fieldAccess: false,
+  cloudUsed: false,
+  smsSent: false,
+  emailSent: false,
+  pushSent: false,
+  secretsStored: false,
+  rawAudioStored: false,
+  rawTranscriptStored: false,
+  medicalDiagnosis: false,
+  emergencyReplacement: false,
+});
 export const APEX_FAMILY_CARE_REQUIRED_SCREENS = [
   "today",
   "kitchen",
@@ -924,6 +955,107 @@ export function buildApexFamilyCareBoundaryReleasePrep(input = {}) {
         schemaChanged: false,
         deployChanged: false,
         hostingChanged: false,
+        noSends: true,
+      },
+    },
+  };
+}
+
+export function buildApexFamilyCareLocalReleaseSmokeChecklist(input = {}) {
+  const accessModel = cleanText(input.accessModel, 64) || "not-chosen";
+  const familyAccessModelApproved = input.familyAccessModelApproved === true && accessModel !== "not-chosen";
+  const standalone = input.standalone !== false;
+  const localPreviewReady = input.localPreviewReady !== false;
+  const productionBlocked = input.productionBlocked !== false;
+  const houseDeviceTarget = cleanText(input.houseDeviceTarget, 80) || "house tablet or old phone";
+  const apexHqNavigationFree = input.apexHqNavigationFree !== false;
+  const directPwaReady = input.directPwaReady !== false;
+  const noImplementationChanges = true;
+  const readyToRunLocalSmoke = Boolean(standalone && localPreviewReady && productionBlocked && directPwaReady && apexHqNavigationFree);
+  const accessModelStatus = familyAccessModelApproved ? "approved" : "decision-needed";
+  const smokeSteps = [
+    {
+      id: "open-direct-family-care",
+      label: "Open direct Family Care PWA",
+      status: directPwaReady ? "ready" : "blocked",
+      ready: directPwaReady,
+      detail: "Open `/family-care` directly, outside Apex HQ navigation.",
+    },
+    {
+      id: "install-house-screen-rehearsal",
+      label: "Rehearse house-screen install",
+      status: houseDeviceTarget ? "ready" : "target-needed",
+      ready: Boolean(houseDeviceTarget),
+      detail: `Use the ${houseDeviceTarget} as the first visible family screen.`,
+    },
+    {
+      id: "check-local-preview-only",
+      label: "Confirm local preview only",
+      status: localPreviewReady && productionBlocked ? "local-only" : "needs-check",
+      ready: Boolean(localPreviewReady && productionBlocked),
+      detail: productionBlocked ? "Production stays blocked while local/house-device smoke testing runs." : "Stop and restore production-blocked posture before release testing.",
+    },
+    {
+      id: "confirm-family-boundary",
+      label: "Confirm Family Care boundary",
+      status: apexHqNavigationFree ? "clear" : "needs-cleanup",
+      ready: apexHqNavigationFree,
+      detail: apexHqNavigationFree ? "No Apex HQ contractor, customer, field, or private cockpit navigation is required." : "Remove app-boundary drift before any family rollout.",
+    },
+    {
+      id: "choose-access-model",
+      label: "Choose access model",
+      status: accessModelStatus,
+      ready: familyAccessModelApproved,
+      detail: familyAccessModelApproved
+        ? `Approved access model: ${accessModel}.`
+        : "John still needs to choose family code, invite, trusted-device pairing, private LAN, or private remote access before real rollout.",
+    },
+  ];
+
+  return {
+    checklistType: "apex-family-care-local-release-smoke",
+    policy: APEX_FAMILY_CARE_LOCAL_RELEASE_SMOKE_POLICY,
+    accessModel,
+    familyAccessModelApproved,
+    readyToRunLocalSmoke,
+    productionBlocked,
+    houseDeviceTarget,
+    noImplementationChanges,
+    smokeSteps,
+    localRunInstructions: [
+      "Open the standalone Family Care PWA on John's machine.",
+      `Open the same local preview on the ${houseDeviceTarget} if it is available.`,
+      "Confirm no Apex HQ contractor/customer/field navigation appears.",
+      "Confirm the app can be installed or added to the home screen.",
+      "Stop before remote access, auth/session, deploy, provider, SMS, email, or push work until the access model is approved.",
+    ],
+    nextApprovalNeeded: familyAccessModelApproved
+      ? "Run the local smoke checklist with the approved access model before any production or remote release."
+      : "Choose the family access model before designing the real phone/house-device rollout path.",
+    receipt: {
+      receiptType: "apex-family-care-local-release-smoke",
+      schemaVersion: 1,
+      generatedAt: cleanText(input.generatedAt, 40) || new Date().toISOString(),
+      policyId: APEX_FAMILY_CARE_LOCAL_RELEASE_SMOKE_POLICY.policyId,
+      ...APEX_FAMILY_CARE_LOCAL_RELEASE_SMOKE_POLICY,
+      metadata: {
+        accessModel,
+        familyAccessModelApproved,
+        readyToRunLocalSmoke,
+        productionBlocked,
+        directPwaReady,
+        apexHqNavigationFree,
+        smokeStepCount: smokeSteps.length,
+        readySmokeStepCount: smokeSteps.filter((step) => step.ready).length,
+        localRunInstructionCount: 5,
+        rawFamilyDetailsStoredInReceipt: false,
+        noImplementationChanges,
+        authSessionChanged: false,
+        schemaChanged: false,
+        deployChanged: false,
+        hostingChanged: false,
+        providerConfigured: false,
         noSends: true,
       },
     },

@@ -11,6 +11,7 @@ import {
   addApexFamilyCareNote,
   buildApexFamilyCareAccessReadiness,
   buildApexFamilyCareBoundaryReleasePrep,
+  buildApexFamilyCareLocalReleaseSmokeChecklist,
   buildApexFamilyCareDoctorSummary,
   buildApexFamilyCareFamilySummary,
   buildApexFamilyCareReviewState,
@@ -1290,7 +1291,7 @@ function TestWeekView({
   );
 }
 
-function AccessView({ accessReadiness, boundaryReleasePrep, gate, standalone = false }) {
+function AccessView({ accessReadiness, boundaryReleasePrep, releaseSmokeChecklist, gate, standalone = false }) {
   return (
     <div className="space-y-4">
       <Card className="p-4">
@@ -1341,6 +1342,45 @@ function AccessView({ accessReadiness, boundaryReleasePrep, gate, standalone = f
       </Card>
 
       <Card className="p-4">
+        <SectionHeader
+          title="Local Release Smoke"
+          description={releaseSmokeChecklist.nextApprovalNeeded}
+          action={<Badge tone={releaseSmokeChecklist.readyToRunLocalSmoke ? "green" : "amber"}>{releaseSmokeChecklist.readyToRunLocalSmoke ? "Ready locally" : "Check first"}</Badge>}
+        />
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <StatCard title="Run Type" value="Human-run" detail="John/family runs these checks visibly." />
+          <StatCard title="Preview" value={releaseSmokeChecklist.readyToRunLocalSmoke ? "Ready" : "Check"} detail="Local/house-device smoke only." />
+          <StatCard title="Access Model" value={releaseSmokeChecklist.familyAccessModelApproved ? "Approved" : "Needed"} detail="No real rollout before this is chosen." />
+          <StatCard title="Production" value={releaseSmokeChecklist.productionBlocked ? "Blocked" : "Stop"} detail="No release posture change in this slice." />
+        </div>
+        <div className="mt-3 grid gap-2 md:grid-cols-2">
+          {releaseSmokeChecklist.smokeSteps.map((step) => (
+            <div key={step.id} className="rounded-lg border border-slate-200 bg-white p-3">
+              <div className="flex min-w-0 items-center justify-between gap-3">
+                <p className="min-w-0 break-words text-sm font-black text-slate-950">{step.label}</p>
+                <Badge tone={step.ready ? "green" : "amber"}>{step.status}</Badge>
+              </div>
+              <p className="mt-1 break-words text-xs font-bold text-slate-600">{step.detail}</p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 grid gap-2 md:grid-cols-2">
+          {releaseSmokeChecklist.localRunInstructions.map((step, index) => (
+            <div key={step} className="flex min-w-0 gap-3 rounded-lg border border-slate-200 bg-white p-3">
+              <Badge tone="blue">{index + 1}</Badge>
+              <p className="min-w-0 break-words text-sm font-black text-slate-700">{step}</p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Badge tone="green">Local only</Badge>
+          <Badge tone="green">No auth change</Badge>
+          <Badge tone="green">No deploy</Badge>
+          <Badge tone="green">No sends</Badge>
+        </div>
+      </Card>
+
+      <Card className="p-4">
         <SectionHeader title="Install Path" description={accessReadiness.nextApprovalNeeded} />
         <div className="grid gap-2 md:grid-cols-2">
           {accessReadiness.installSteps.map((step, index) => (
@@ -1382,7 +1422,7 @@ function promptReviewLabel(status) {
   return status;
 }
 
-function HealthView({ accessReadiness, boundaryReleasePrep, gate, summary, latestVoiceReceipt, notificationState, kitchenStatus, householdPresence, testWeekSummary, coordinatorPacket, coordinatorReviewPacket, onCoordinatorPromptReview }) {
+function HealthView({ accessReadiness, boundaryReleasePrep, releaseSmokeChecklist, gate, summary, latestVoiceReceipt, notificationState, kitchenStatus, householdPresence, testWeekSummary, coordinatorPacket, coordinatorReviewPacket, onCoordinatorPromptReview }) {
   const brainInterface = getApexFamilyCareBrainInterfaceSummary();
   const coordinatorSummary = coordinatorPacket?.summary || {};
   const coordinatorPrompts = coordinatorReviewPacket?.reviewedPrompts || coordinatorPacket?.prompts || [];
@@ -1412,6 +1452,9 @@ function HealthView({ accessReadiness, boundaryReleasePrep, gate, summary, lates
     ["Local family preview", boundaryReleasePrep?.localPreviewReady ? "Ready" : "Check", boundaryReleasePrep?.localPreviewReady ? "green" : "amber"],
     ["Production family route", boundaryReleasePrep?.productionBlocked ? "Blocked" : "Approved", boundaryReleasePrep?.productionBlocked ? "green" : "amber"],
     ["Family release approval", boundaryReleasePrep?.privateReleaseApproved ? "Approved" : "Needed", boundaryReleasePrep?.privateReleaseApproved ? "amber" : "green"],
+    ["Release smoke", releaseSmokeChecklist?.readyToRunLocalSmoke ? "Ready" : "Check", releaseSmokeChecklist?.readyToRunLocalSmoke ? "green" : "amber"],
+    ["Release smoke sends", releaseSmokeChecklist?.policy?.smsSent || releaseSmokeChecklist?.policy?.emailSent || releaseSmokeChecklist?.policy?.pushSent ? "On" : "Off", releaseSmokeChecklist?.policy?.smsSent || releaseSmokeChecklist?.policy?.emailSent || releaseSmokeChecklist?.policy?.pushSent ? "red" : "green"],
+    ["Release smoke auth", releaseSmokeChecklist?.policy?.authSessionChanged ? "Changed" : "No change", releaseSmokeChecklist?.policy?.authSessionChanged ? "red" : "green"],
     ["Auth/session change", accessReadiness?.policy?.authSessionChanged ? "Yes" : "No", accessReadiness?.policy?.authSessionChanged ? "red" : "green"],
     ["Schema change", accessReadiness?.policy?.schemaChanged ? "Yes" : "No", accessReadiness?.policy?.schemaChanged ? "red" : "green"],
     ["Missing update detector", summary?.missingUpdate ? "On" : "Off", summary?.missingUpdate ? "green" : "amber"],
@@ -1631,6 +1674,16 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
     familyAccessModelApproved: false,
     privateReleaseApproved: false,
   }), [standalone]);
+  const releaseSmokeChecklist = useMemo(() => buildApexFamilyCareLocalReleaseSmokeChecklist({
+    standalone,
+    localPreviewReady: boundaryReleasePrep.localPreviewReady,
+    productionBlocked: boundaryReleasePrep.productionBlocked,
+    directPwaReady: accessReadiness.localReady,
+    apexHqNavigationFree: true,
+    houseDeviceTarget: accessReadiness.installTarget,
+    familyAccessModelApproved: false,
+    accessModel: "not-chosen",
+  }), [accessReadiness, boundaryReleasePrep, standalone]);
 
   function handleQuickAdd(categoryId) {
     const nextDraft = newDraft(categoryId);
@@ -1929,11 +1982,12 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
         onUpdateTestWeekMetric={handleUpdateTestWeekMetric}
       />
     ),
-    access: <AccessView accessReadiness={accessReadiness} boundaryReleasePrep={boundaryReleasePrep} gate={gate} standalone={standalone} />,
+    access: <AccessView accessReadiness={accessReadiness} boundaryReleasePrep={boundaryReleasePrep} releaseSmokeChecklist={releaseSmokeChecklist} gate={gate} standalone={standalone} />,
     health: (
       <HealthView
         accessReadiness={accessReadiness}
         boundaryReleasePrep={boundaryReleasePrep}
+        releaseSmokeChecklist={releaseSmokeChecklist}
         gate={gate}
         summary={todaySummary}
         latestVoiceReceipt={latestVoiceReceipt}

@@ -655,9 +655,19 @@ Phase 3.5A slice receipt (2026-06-09): added `buildApexFamilyCareBoundaryRelease
 
 ### Phase 3.5B - Next Standalone Boundary Follow-Up
 
+- [x] Defer exact private release path design to Phase 3.5C until John chooses the family access model: local LAN, trusted-device pairing, family code, invite, or private remote access.
+- [x] Defer the real phone/house-device install checklist for the chosen path to Phase 3.5C without adding auth/session, provider, deploy, or remote-access implementation until approved.
+- [x] Add human-run release smoke steps for local/house-device testing before any production or remote release.
+- [x] Keep production 404/local-only behavior until explicit approval changes the release posture.
+- [x] Keep Apex HQ business navigation, customer/field access, private cockpit dependency, raw audio/transcripts, sends, cloud fallback, schema/auth/session changes, and provider setup blocked unless explicitly approved.
+
+Phase 3.5B slice receipt (2026-06-09): added `buildApexFamilyCareLocalReleaseSmokeChecklist` and a Family Access Local Release Smoke section. This gives John/family a human-run local smoke checklist for opening the direct `/family-care` PWA, rehearsing the house tablet or old phone install path, confirming local-preview-only posture, checking Family Care boundary separation, and stopping before remote access/auth/session/deploy/provider/sends until the family access model is approved. Apex Health now includes release-smoke readiness, release-smoke sends, and release-smoke auth status. This slice made no auth/session/schema/deploy/hosting/provider/remote-access/sending/cloud changes, stored no raw audio/transcripts/family details/secrets, and did not expose Family Care to Apex HQ customer/product, field, customer, public, or private cockpit navigation. Focused validation: `node --test --test-concurrency=1 shared/apexFamilyCare.test.js src/apex-family-care-components-import.test.js` passed 18/18.
+
+### Phase 3.5C - Approved Family Access Release Path
+
 - [ ] After John chooses the family access model, design the exact private release path: local LAN, trusted-device pairing, family code, invite, or private remote access.
-- [ ] Add a real phone/house-device install checklist for the chosen path without adding auth/session, provider, deploy, or remote-access implementation until approved.
-- [ ] Add human-run release smoke steps for local/house-device testing before any production or remote release.
+- [ ] Add the real phone/house-device install checklist for the chosen path without adding auth/session, provider, deploy, or remote-access implementation until approved.
+- [ ] Add human-run smoke evidence fields only after the chosen path is known.
 - [ ] Keep production 404/local-only behavior until explicit approval changes the release posture.
 - [ ] Keep Apex HQ business navigation, customer/field access, private cockpit dependency, raw audio/transcripts, sends, cloud fallback, schema/auth/session changes, and provider setup blocked unless explicitly approved.
 
@@ -721,7 +731,7 @@ Complete the Current Next Step, advance the plan, then continue through foundati
 
 ## Current Next Step
 
-Next active build slice: Phase 3.5B - Next Standalone Boundary Follow-Up.
+Next active build slice: Phase 4B - Approved Family Local STT Bridge.
 
 Open validation track: Phase 7 - Family Test Week remains incomplete until one real family test week is run and reviewed. Do not mark Phase 7 complete from synthetic data or builder prep work.
 
@@ -731,7 +741,7 @@ Open Phase 2C work: add print/export doctor-brief polish only after the current 
 
 Open Phase 3C work: connect the coordinator review packet into Apex's private operator command path only after Family Care flow proves useful.
 
-Open approval-gated Phase 3.5B work: choose the real family access/release path and add human-run install/smoke steps only after approval.
+Open approval-gated Phase 3.5C work: choose the real family access/release path and add the chosen phone/house-device install checklist only after approval.
 
 Open Phase 4B work: choose and approve the Family Care-specific local STT bridge before connecting real speech recognition.
 

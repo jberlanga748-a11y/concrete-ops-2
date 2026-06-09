@@ -44,6 +44,7 @@ test("Apex Family Care page contains family screens and no hidden mic APIs", () 
   assert.match(componentSource, /APEX_FAMILY_CARE_KITCHEN_MODE_POLICY/);
   assert.match(componentSource, /buildApexFamilyCareAccessReadiness/);
   assert.match(componentSource, /buildApexFamilyCareBoundaryReleasePrep/);
+  assert.match(componentSource, /buildApexFamilyCareLocalReleaseSmokeChecklist/);
   assert.match(componentSource, /buildApexFamilyCareTestWeekSummary/);
   assert.match(componentSource, /buildApexFamilyCareTestWeekRunPacket/);
   assert.match(componentSource, /addApexFamilyCareTestWeekFrictionNote/);
@@ -56,6 +57,12 @@ test("Apex Family Care page contains family screens and no hidden mic APIs", () 
   assert.match(componentSource, /Install Path/);
   assert.match(componentSource, /Boundary Checks/);
   assert.match(componentSource, /Standalone Release Boundary/);
+  assert.match(componentSource, /Local Release Smoke/);
+  assert.match(componentSource, /Human-run/);
+  assert.match(componentSource, /Ready locally/);
+  assert.match(componentSource, /Release smoke/);
+  assert.match(componentSource, /Release smoke sends/);
+  assert.match(componentSource, /Release smoke auth/);
   assert.match(componentSource, /Production blocked/);
   assert.match(componentSource, /Local Preview/);
   assert.match(componentSource, /No deploy/);

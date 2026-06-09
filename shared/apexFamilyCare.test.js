@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   APEX_FAMILY_CARE_BOUNDARY_RELEASE_POLICY,
+  APEX_FAMILY_CARE_LOCAL_RELEASE_SMOKE_POLICY,
   APEX_FAMILY_CARE_NOTE_MODEL,
   APEX_FAMILY_CARE_NOTE_STATUSES,
   APEX_FAMILY_CARE_REQUIRED_SCREENS,
@@ -11,6 +12,7 @@ import {
   addApexFamilyCareNote,
   buildApexFamilyCareAccessReadiness,
   buildApexFamilyCareBoundaryReleasePrep,
+  buildApexFamilyCareLocalReleaseSmokeChecklist,
   buildApexFamilyCareDoctorSummary,
   buildApexFamilyCareFamilySummary,
   buildApexFamilyCareReviewState,
@@ -491,4 +493,56 @@ test("Family Care boundary release prep keeps production blocked until approved"
   assert.equal(prep.receipt.metadata.productionBlocked, true);
   assert.equal(prep.receipt.metadata.privateReleaseApproved, false);
   assert.equal(prep.receipt.metadata.noSends, true);
+});
+
+test("Family Care local release smoke stays human-run and approval-gated", () => {
+  const smoke = buildApexFamilyCareLocalReleaseSmokeChecklist({
+    generatedAt: "2026-06-09T19:00:00.000Z",
+    standalone: true,
+    localPreviewReady: true,
+    productionBlocked: true,
+    directPwaReady: true,
+    apexHqNavigationFree: true,
+    houseDeviceTarget: "house tablet",
+    familyAccessModelApproved: false,
+    accessModel: "not-chosen",
+  });
+
+  assert.equal(APEX_FAMILY_CARE_LOCAL_RELEASE_SMOKE_POLICY.apexHqProductWork, false);
+  assert.equal(APEX_FAMILY_CARE_LOCAL_RELEASE_SMOKE_POLICY.humanRunOnly, true);
+  assert.equal(APEX_FAMILY_CARE_LOCAL_RELEASE_SMOKE_POLICY.localPreviewOnly, true);
+  assert.equal(APEX_FAMILY_CARE_LOCAL_RELEASE_SMOKE_POLICY.familyAccessModelRequired, true);
+  assert.equal(smoke.checklistType, "apex-family-care-local-release-smoke");
+  assert.equal(smoke.readyToRunLocalSmoke, true);
+  assert.equal(smoke.familyAccessModelApproved, false);
+  assert.equal(smoke.productionBlocked, true);
+  assert.equal(smoke.noImplementationChanges, true);
+  assert.equal(smoke.smokeSteps.some((step) => step.id === "choose-access-model" && step.status === "decision-needed"), true);
+  assert.equal(smoke.localRunInstructions.some((step) => step.includes("Stop before remote access")), true);
+  assert.match(smoke.nextApprovalNeeded, /Choose the family access model/i);
+  assert.equal(smoke.receipt.receiptType, "apex-family-care-local-release-smoke");
+  assert.equal(smoke.receipt.localOnly, true);
+  assert.equal(smoke.receipt.familyCareOnly, true);
+  assert.equal(smoke.receipt.apexHqProductWork, false);
+  assert.equal(smoke.receipt.humanRunOnly, true);
+  assert.equal(smoke.receipt.productionExposure, false);
+  assert.equal(smoke.receipt.remoteAccessApproved, false);
+  assert.equal(smoke.receipt.authSessionChanged, false);
+  assert.equal(smoke.receipt.schemaChanged, false);
+  assert.equal(smoke.receipt.deployChanged, false);
+  assert.equal(smoke.receipt.hostingChanged, false);
+  assert.equal(smoke.receipt.providerConfigured, false);
+  assert.equal(smoke.receipt.smsSent, false);
+  assert.equal(smoke.receipt.emailSent, false);
+  assert.equal(smoke.receipt.pushSent, false);
+  assert.equal(smoke.receipt.cloudUsed, false);
+  assert.equal(smoke.receipt.secretsStored, false);
+  assert.equal(smoke.receipt.rawAudioStored, false);
+  assert.equal(smoke.receipt.rawTranscriptStored, false);
+  assert.equal(smoke.receipt.medicalDiagnosis, false);
+  assert.equal(smoke.receipt.emergencyReplacement, false);
+  assert.equal(smoke.receipt.metadata.rawFamilyDetailsStoredInReceipt, false);
+  assert.equal(smoke.receipt.metadata.noImplementationChanges, true);
+  assert.equal(smoke.receipt.metadata.noSends, true);
+  assert.equal(JSON.stringify(smoke.receipt).includes("house tablet"), false);
 });
