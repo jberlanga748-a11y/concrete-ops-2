@@ -47,7 +47,7 @@ export function LoginScreen({
       ]
     : isApexOperatorEntry
       ? [
-          { label: "Brain", value: "Local qwen3:14b" },
+          { label: "Brain", value: "Local llama.cpp/GPT-OSS" },
           { label: "Voice", value: "Mic permission required" },
           { label: "Boundary", value: "Operator only" },
         ]
