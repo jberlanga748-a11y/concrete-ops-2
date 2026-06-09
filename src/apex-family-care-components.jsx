@@ -25,8 +25,10 @@ import {
   getApexFamilyCareBrainInterfaceSummary,
 } from "../shared/apexFamilyCareBrain.js";
 import {
+  APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_PRESENCE_POLICY,
   APEX_FAMILY_CARE_KITCHEN_MODE_POLICY,
   applyApexFamilyCareKitchenControl,
+  buildApexFamilyCareHouseholdDevicePresence,
   buildApexFamilyCareKitchenModeStatus,
   getDefaultApexFamilyCareKitchenDeviceState,
 } from "../shared/apexFamilyCareKitchen.js";
@@ -352,7 +354,7 @@ function TodayView({ notes, summary, onQuickAdd, onVoiceStart, setActiveScreen }
   );
 }
 
-function KitchenModeView({ kitchenStatus, onKitchenQuickLog, onKitchenControl, onVoiceStart, setActiveScreen }) {
+function KitchenModeView({ kitchenStatus, householdPresence, onKitchenQuickLog, onKitchenControl, onVoiceStart, setActiveScreen }) {
   const quickCategories = APEX_FAMILY_CARE_CATEGORIES.slice(0, 9);
   const isMuted = kitchenStatus.controls.muted;
 
@@ -386,7 +388,7 @@ function KitchenModeView({ kitchenStatus, onKitchenQuickLog, onKitchenControl, o
             <Icon name={isMuted ? "check" : "lock"} /> {isMuted ? "Resume Kitchen" : "Mute Kitchen"}
           </Button>
           <Button type="button" variant="secondary" size="lg" onClick={() => onKitchenControl("stop")}>
-            <Icon name="refresh" /> Stop Voice State
+            <Icon name="refresh" /> Stop / Recover Voice State
           </Button>
           <Button type="button" variant="secondary" size="lg" onClick={onVoiceStart}>
             <Icon name="quote" /> Visible Voice Update
@@ -421,12 +423,31 @@ function KitchenModeView({ kitchenStatus, onKitchenQuickLog, onKitchenControl, o
       </Card>
 
       <Card className="p-4">
-        <SectionHeader title="Kitchen Device Health" description="Local PWA heartbeat only; real device integration waits for Phase 6A." />
+        <SectionHeader title="Household Device Presence" description={householdPresence.presence.readyForHouse ? "House screen is ready for family use." : householdPresence.presence.offlineReason || "House screen needs a local PWA heartbeat."} />
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+          <StatCard title="Primary Device" value={householdPresence.device.primaryLabel} detail={`Backup: ${householdPresence.device.backupLabel}`} />
+          <StatCard title="Presence" value={householdPresence.presence.statusLabel} detail={`Last seen ${householdPresence.presence.minutesSinceLastSeen ?? 0}m ago`} />
+          <StatCard title="Voice Mode" value={householdPresence.voice.statusLabel} detail={householdPresence.voice.detail} />
+          <StatCard title="Controls" value={householdPresence.controls.alwaysVisible ? "Visible" : "Check"} detail="Mute, stop, recover" />
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Badge tone="green">Tablet or old phone first</Badge>
+          <Badge tone={householdPresence.device.raspberryPiDeferred ? "amber" : "green"}>{householdPresence.device.raspberryPiDeferred ? "Raspberry Pi deferred" : "No hardware needed"}</Badge>
+          <Badge tone="green">Heartbeat only</Badge>
+          <Badge tone="green">No camera</Badge>
+          <Badge tone="green">No network scan</Badge>
+          <Badge tone="green">No device control</Badge>
+          <Badge tone={householdPresence.voice.bridgeApprovalRequired ? "amber" : "green"}>{householdPresence.voice.bridgeApprovalRequired ? "Local STT bridge pending" : "Local STT ready"}</Badge>
+        </div>
+      </Card>
+
+      <Card className="p-4">
+        <SectionHeader title="Kitchen Device Health" description="Local PWA heartbeat and visible controls only." />
         <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
           <StatCard title="Device" value={kitchenStatus.device.deviceTypeLabel} detail={kitchenStatus.device.room} />
           <StatCard title="PWA" value={kitchenStatus.health.statusLabel} detail={`Last seen ${kitchenStatus.health.minutesSinceLastSeen ?? 0}m ago`} />
-          <StatCard title="Mic" value={APEX_FAMILY_CARE_KITCHEN_MODE_POLICY.liveMicCaptureEnabled ? "Live" : "Off"} detail="Visible voice path later" />
-          <StatCard title="Device Control" value={APEX_FAMILY_CARE_KITCHEN_MODE_POLICY.deviceControlEnabled ? "On" : "Off"} detail="Deferred to Phase 6A" />
+          <StatCard title="Mic" value={APEX_FAMILY_CARE_KITCHEN_MODE_POLICY.liveMicCaptureEnabled ? "Live" : "Off"} detail="Explicit visible voice only" />
+          <StatCard title="Device Control" value={APEX_FAMILY_CARE_KITCHEN_MODE_POLICY.deviceControlEnabled ? "On" : "Off"} detail="No remote control" />
         </div>
       </Card>
     </div>
@@ -1236,7 +1257,7 @@ function AccessView({ accessReadiness, boundaryReleasePrep, gate, standalone = f
   );
 }
 
-function HealthView({ accessReadiness, boundaryReleasePrep, gate, summary, latestVoiceReceipt, notificationState, kitchenStatus, testWeekSummary, coordinatorPacket }) {
+function HealthView({ accessReadiness, boundaryReleasePrep, gate, summary, latestVoiceReceipt, notificationState, kitchenStatus, householdPresence, testWeekSummary, coordinatorPacket }) {
   const brainInterface = getApexFamilyCareBrainInterfaceSummary();
   const coordinatorSummary = coordinatorPacket?.summary || {};
   const coordinatorPrompts = coordinatorPacket?.prompts || [];
@@ -1284,8 +1305,13 @@ function HealthView({ accessReadiness, boundaryReleasePrep, gate, summary, lates
     ["Lock-screen details", notificationState?.summary?.nextSafeLockScreenCopySafe ? "Safe" : "Check", notificationState?.summary?.nextSafeLockScreenCopySafe ? "green" : "red"],
     ["Kitchen mode", kitchenStatus?.health?.statusLabel || "Off", kitchenStatus?.health?.statusTone || "slate"],
     ["Kitchen first device", kitchenStatus?.device?.deviceTypeLabel || "House tablet PWA", "green"],
+    ["Household presence", householdPresence?.presence?.statusLabel || "Off", householdPresence?.presence?.statusTone || "slate"],
+    ["Household voice mode", householdPresence?.voice?.statusLabel || "Off", householdPresence?.voice?.statusTone || "slate"],
+    ["Household stop/mute", householdPresence?.controls?.alwaysVisible ? "Visible" : "Check", householdPresence?.controls?.alwaysVisible ? "green" : "red"],
     ["Kitchen hidden mic", APEX_FAMILY_CARE_KITCHEN_MODE_POLICY.hiddenRecording ? "On" : "Off", APEX_FAMILY_CARE_KITCHEN_MODE_POLICY.hiddenRecording ? "red" : "green"],
     ["Kitchen device control", APEX_FAMILY_CARE_KITCHEN_MODE_POLICY.deviceControlEnabled ? "On" : "Off", APEX_FAMILY_CARE_KITCHEN_MODE_POLICY.deviceControlEnabled ? "red" : "green"],
+    ["Household camera", APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_PRESENCE_POLICY.cameraSurveillanceEnabled ? "On" : "Off", APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_PRESENCE_POLICY.cameraSurveillanceEnabled ? "red" : "green"],
+    ["Household network scan", APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_PRESENCE_POLICY.networkScanningEnabled ? "On" : "Off", APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_PRESENCE_POLICY.networkScanningEnabled ? "red" : "green"],
     ["Test week status", testWeekSummary?.state?.status || "prep", testWeekSummary?.evidenceReady ? "amber" : "slate"],
     ["Test week evidence", testWeekSummary?.evidenceReady ? "Review" : "Missing", testWeekSummary?.evidenceReady ? "amber" : "slate"],
   ];
@@ -1386,6 +1412,7 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
   const reviewState = useMemo(() => buildApexFamilyCareReviewState(allNotes, timelineFilters), [allNotes, timelineFilters]);
   const coordinatorPacket = useMemo(() => buildApexFamilyCareCoordinatorPacket(allNotes), [allNotes]);
   const kitchenStatus = useMemo(() => buildApexFamilyCareKitchenModeStatus(kitchenDeviceState), [kitchenDeviceState]);
+  const householdPresence = useMemo(() => buildApexFamilyCareHouseholdDevicePresence(kitchenStatus), [kitchenStatus]);
   const notificationState = useMemo(() => buildApexFamilyCareNotificationState(sortedNotes, {
     preferences: notificationPreferences,
     kitchenStatus,
@@ -1602,6 +1629,7 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
     kitchen: (
       <KitchenModeView
         kitchenStatus={kitchenStatus}
+        householdPresence={householdPresence}
         onKitchenQuickLog={handleKitchenQuickLog}
         onKitchenControl={handleKitchenControl}
         onVoiceStart={handleStartVoiceUpdate}
@@ -1653,7 +1681,7 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
       />
     ),
     access: <AccessView accessReadiness={accessReadiness} boundaryReleasePrep={boundaryReleasePrep} gate={gate} standalone={standalone} />,
-    health: <HealthView accessReadiness={accessReadiness} boundaryReleasePrep={boundaryReleasePrep} gate={gate} summary={todaySummary} latestVoiceReceipt={latestVoiceReceipt} notificationState={notificationState} kitchenStatus={kitchenStatus} testWeekSummary={testWeekSummary} coordinatorPacket={coordinatorPacket} />,
+    health: <HealthView accessReadiness={accessReadiness} boundaryReleasePrep={boundaryReleasePrep} gate={gate} summary={todaySummary} latestVoiceReceipt={latestVoiceReceipt} notificationState={notificationState} kitchenStatus={kitchenStatus} householdPresence={householdPresence} testWeekSummary={testWeekSummary} coordinatorPacket={coordinatorPacket} />,
   };
 
   return (
@@ -1705,8 +1733,16 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
                 <Badge tone={kitchenStatus.health.statusTone}>{kitchenStatus.health.statusLabel}</Badge>
               </div>
               <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3">
+                <span className="text-sm font-black text-slate-700">Presence</span>
+                <Badge tone={householdPresence.presence.statusTone}>{householdPresence.presence.readyForHouse ? "Ready" : "Check"}</Badge>
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3">
                 <span className="text-sm font-black text-slate-700">Mute</span>
                 <Badge tone={kitchenStatus.controls.muted ? "slate" : "green"}>{kitchenStatus.controls.muted ? "On" : "Off"}</Badge>
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3">
+                <span className="text-sm font-black text-slate-700">Voice mode</span>
+                <Badge tone={householdPresence.voice.statusTone}>{householdPresence.voice.statusLabel}</Badge>
               </div>
               <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3">
                 <span className="text-sm font-black text-slate-700">Live mic</span>

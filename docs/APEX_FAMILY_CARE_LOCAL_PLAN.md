@@ -379,7 +379,19 @@ Purpose: make the kitchen/tablet/Raspberry Pi style experience useful after the 
 - Add local voice only if Phase 4A is ready and safe.
 - Avoid camera surveillance, hidden recording, and automatic emergency claims.
 
-Do later when: the family has chosen the house device and the core app flow is already useful without voice.
+Status: Phase 6A household device presence and voice-readiness is complete. Actual Raspberry Pi/local satellite/approved local STT bridge/device integration moves to Phase 6B.
+
+### Phase 6B - Approved Household Device Integration
+
+Purpose: connect a real household device beyond the standalone PWA only after the family approves the device path and the app has proven useful.
+
+- Choose whether the house tablet/old phone PWA is enough or whether a Raspberry Pi/local satellite is actually needed.
+- Add only the approved local device bridge after John approves the device boundary.
+- Keep visible mute, stop/recover, and explicit voice start on every household device path.
+- Keep the local STT bridge approval-gated by Phase 4B until John approves it.
+- Keep hidden recording, camera surveillance, network scanning, device OS control, raw audio/transcript storage, cloud, sends, schema/auth/session changes, deploys, and Apex HQ exposure blocked.
+
+Do later when: John approves a real household device bridge beyond the current tablet/old phone PWA presence lane.
 
 ### Phase 7A - Family Test Week Improvements
 
@@ -532,6 +544,18 @@ Done means: the house has a simple non-technical way to add updates and hear Ape
 
 Phase 6 receipt (2026-06-09): chose the first household device path as a house tablet or old phone running the standalone Family Care PWA, with Raspberry Pi/local satellite hardware deferred to Phase 6A. Added a Kitchen Mode screen with one-tap care-update buttons, visible listening/speaking/muted/ready status, mute/resume/stop controls, and local PWA heartbeat health. Added shared kitchen-mode policy/status/receipt helpers that keep live mic capture off, hidden/background recording off, camera surveillance off, network scanning off, device control off, cloud off, diagnosis off, and emergency replacement off. Kitchen receipts store compact metadata only and no raw audio, raw transcripts, prompts, responses, secrets, production data, or customer data. No schema/auth/session/deploy/provider changes were made. Focused validation: `node --test --test-concurrency=1 shared/apexFamilyCare.test.js shared/apexFamilyCareBrain.test.js shared/apexFamilyCareVoice.test.js shared/apexFamilyCareNotifications.test.js shared/apexFamilyCareKitchen.test.js src/apex-family-care-components-import.test.js src/pwa-config.test.js shared/permissions.test.js src/app-routing.test.js src/navigation-utils.test.js src/mobile-nav-utils.test.js src/app-navigation-components-import.test.js` passed 105/105.
 
+### Phase 6A - Household Device Voice And Presence
+
+- [x] Confirm first real household device remains a house tablet or old phone running the standalone PWA.
+- [x] Add household device presence packet with heartbeat-only readiness.
+- [x] Add always-visible mute, stop/recover, and visible voice-entry status.
+- [x] Add voice-readiness status that stays visible-session-only until the local STT bridge is approved.
+- [x] Keep Raspberry Pi/local satellite, camera surveillance, hidden recording, network scanning, device control, live mic capture, raw audio/transcript storage, cloud, sends, diagnosis, emergency replacement, schema/auth/session changes, deploys, and Apex HQ exposure blocked.
+
+Done means: Family Care can tell whether the house screen is ready, what voice mode is safe, and whether mute/stop/recover controls are visible, without adding hidden capture or device control.
+
+Phase 6A receipt (2026-06-09): added a household device presence policy and packet for the standalone Family Care PWA. The first household device remains a house tablet PWA with old-phone PWA as backup; Raspberry Pi/local satellite hardware is deferred to Phase 6B. Kitchen Mode now shows Household Device Presence with heartbeat-only readiness, visible voice status, mute/stop/recover control visibility, tablet-or-old-phone-first status, no camera, no network scan, no device control, and local STT bridge pending until approved. Apex Health and side status now include household presence/voice/control safety. Receipts remain compact metadata only and store no raw audio, transcripts, prompts, responses, secrets, customer data, or production data. No schema/auth/session/backend/provider/deploy/cloud behavior was added. Focused validation: `node --test --test-concurrency=1 shared/apexFamilyCare.test.js shared/apexFamilyCareBrain.test.js shared/apexFamilyCareVoice.test.js shared/apexFamilyCareNotifications.test.js shared/apexFamilyCareKitchen.test.js shared/apexFamilyCareTestWeek.test.js src/apex-family-care-components-import.test.js src/pwa-config.test.js shared/permissions.test.js src/app-routing.test.js src/navigation-utils.test.js src/mobile-nav-utils.test.js src/app-navigation-components-import.test.js` passed 126/126.
+
 ### Phase 7 - Family Test Week
 
 - [ ] Run one real family test week.
@@ -681,7 +705,7 @@ Complete the Current Next Step, advance the plan, then continue through foundati
 
 ## Current Next Step
 
-Next active build slice: Phase 6A - Household Device Voice And Presence.
+Next active build slice: Phase 7A - Family Test Week Improvements.
 
 Open validation track: Phase 7 - Family Test Week remains incomplete until one real family test week is run and reviewed. Do not mark Phase 7 complete from synthetic data or builder prep work.
 
@@ -696,3 +720,5 @@ Open Phase 3.5B work: choose the real family access/release path and add human-r
 Open Phase 4B work: choose and approve the Family Care-specific local STT bridge before connecting real speech recognition.
 
 Open Phase 5B work: choose and approve the exact external notification channel/provider/device boundary before adding real SMS, email, PWA push, browser/device notifications, service worker push, provider payloads, or live sends.
+
+Open Phase 6B work: choose and approve any real household device bridge beyond the tablet/old-phone PWA before adding Raspberry Pi/local satellite integration, local STT bridge wiring, device OS control, camera, network scanning, cloud, sends, schema/auth/session changes, or deploys.

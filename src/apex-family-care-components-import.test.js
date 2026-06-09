@@ -71,8 +71,14 @@ test("Apex Family Care page contains family screens and no hidden mic APIs", () 
   assert.match(componentSource, /Save Needs Review/);
   assert.match(componentSource, /One-Tap Care Updates/);
   assert.match(componentSource, /Mute Kitchen/);
-  assert.match(componentSource, /Stop Voice State/);
+  assert.match(componentSource, /Stop \/ Recover Voice State/);
   assert.match(componentSource, /Kitchen Device Health/);
+  assert.match(componentSource, /Household Device Presence/);
+  assert.match(componentSource, /Tablet or old phone first/);
+  assert.match(componentSource, /Heartbeat only/);
+  assert.match(componentSource, /No network scan/);
+  assert.match(componentSource, /No device control/);
+  assert.match(componentSource, /Local STT bridge pending/);
   assert.match(componentSource, /Family Test Week/);
   assert.match(componentSource, /Run The Week/);
   assert.match(componentSource, /House Screen/);
@@ -118,7 +124,9 @@ test("Apex Family Care still uses Phase 2 and Phase 3 shared helpers", () => {
     "buildApexFamilyCareCoordinatorPacket",
     "createApexFamilyCareVoiceNoteDraft",
     "buildApexFamilyCareKitchenModeStatus",
+    "buildApexFamilyCareHouseholdDevicePresence",
     "applyApexFamilyCareKitchenControl",
+    "APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_PRESENCE_POLICY",
     "buildApexFamilyCareTestWeekSummary",
     "buildApexFamilyCareTestWeekRunPacket",
     "startApexFamilyCareTestWeek",
@@ -160,6 +168,11 @@ test("Apex Family Care still uses Phase 2 and Phase 3 shared helpers", () => {
   assert.match(componentSource, /Family local STT/);
   assert.match(componentSource, /Family voice auto-listen/);
   assert.match(componentSource, /Family voice controls/);
+  assert.match(componentSource, /Household presence/);
+  assert.match(componentSource, /Household voice mode/);
+  assert.match(componentSource, /Household stop\/mute/);
+  assert.match(componentSource, /Household camera/);
+  assert.match(componentSource, /Household network scan/);
   assert.match(componentSource, /Kitchen device control/);
   assert.match(componentSource, /Test week evidence/);
   assert.doesNotMatch(componentSource, /getUserMedia|MediaRecorder|navigator\.mediaDevices|fetch\(|Notification\.requestPermission|navigator\.serviceWorker|PushManager|NetworkInformation|navigator\.usb|navigator\.bluetooth/i);

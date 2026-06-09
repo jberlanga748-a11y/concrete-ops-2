@@ -1,3 +1,5 @@
+import { APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY } from "./apexFamilyCareVoice.js";
+
 export const APEX_FAMILY_CARE_KITCHEN_MODE_POLICY = Object.freeze({
   policyId: "apex-family-care-kitchen-mode-v1",
   phase: "home-device-kitchen-mode",
@@ -21,6 +23,43 @@ export const APEX_FAMILY_CARE_KITCHEN_MODE_POLICY = Object.freeze({
   realVoiceInputDeferredTo: "Phase 4A",
 });
 
+export const APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_PRESENCE_POLICY = Object.freeze({
+  policyId: "apex-family-care-household-device-presence-v1",
+  phase: "phase-6a-household-device-voice-and-presence",
+  localOnly: true,
+  familyCareOnly: true,
+  apexHqProductWork: false,
+  firstDeviceType: "house-tablet-pwa",
+  backupDeviceType: "old-phone-pwa",
+  raspberryPiDeferred: true,
+  hardwarePurchaseRequired: false,
+  localPwaPresenceOnly: true,
+  heartbeatOnly: true,
+  alwaysVisibleMuteRequired: true,
+  alwaysVisibleStopRequired: true,
+  alwaysVisibleRecoverRequired: true,
+  explicitVoiceStartRequired: true,
+  visibleVoiceSessionOnly: true,
+  localVoiceInputPhaseReady: true,
+  localSttEndpointEnabled: false,
+  localSttBridgeApprovalRequired: true,
+  hiddenRecording: false,
+  backgroundRecording: false,
+  autoListening: false,
+  liveMicCaptureEnabled: false,
+  rawAudioStored: false,
+  rawTranscriptStored: false,
+  cameraSurveillanceEnabled: false,
+  networkScanningEnabled: false,
+  deviceControlEnabled: false,
+  cloudUsed: false,
+  smsEnabled: false,
+  emailEnabled: false,
+  pushEnabled: false,
+  emergencyReplacement: false,
+  medicalDiagnosis: false,
+});
+
 export const APEX_FAMILY_CARE_KITCHEN_DEVICE_TYPES = Object.freeze([
   { id: "house-tablet-pwa", label: "House tablet PWA", installTarget: "Install Family Care on a house tablet." },
   { id: "old-phone-pwa", label: "Old phone PWA", installTarget: "Install Family Care on an old phone kept at the house." },
@@ -30,6 +69,8 @@ export const APEX_FAMILY_CARE_KITCHEN_DEVICE_TYPES = Object.freeze([
 
 const DEVICE_TYPE_BY_ID = new Map(APEX_FAMILY_CARE_KITCHEN_DEVICE_TYPES.map((device) => [device.id, device]));
 const KITCHEN_CONTROLS = new Set(["heartbeat", "mute", "resume", "stop", "set-listening", "set-speaking"]);
+const HOUSE_DEVICE_PRIMARY = DEVICE_TYPE_BY_ID.get(APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_PRESENCE_POLICY.firstDeviceType);
+const HOUSE_DEVICE_BACKUP = DEVICE_TYPE_BY_ID.get(APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_PRESENCE_POLICY.backupDeviceType);
 
 function cleanText(value, maxLength = 120) {
   return String(value || "").replace(/\s+/g, " ").trim().slice(0, maxLength);
@@ -227,6 +268,148 @@ export function buildApexFamilyCareKitchenModeStatus(input = {}, options = {}) {
         hiddenRecording: false,
         cameraSurveillanceEnabled: false,
         deviceControlEnabled: false,
+      },
+    },
+  };
+}
+
+function voicePresenceStatus(localVoicePolicy) {
+  const safeVisibleVoice = Boolean(
+    localVoicePolicy?.localOnly
+    && localVoicePolicy?.explicitUserStartedRequired
+    && localVoicePolicy?.visibleStopRequired
+    && localVoicePolicy?.visibleMuteRequired
+    && localVoicePolicy?.visibleRecoverRequired
+    && localVoicePolicy?.hiddenRecording === false
+    && localVoicePolicy?.backgroundRecording === false
+    && localVoicePolicy?.autoListening === false
+    && localVoicePolicy?.cloudSttAllowed === false
+  );
+  if (!safeVisibleVoice) {
+    return {
+      status: "blocked",
+      statusLabel: "Voice blocked",
+      statusTone: "red",
+      detail: "Visible voice controls are not safe yet.",
+      visibleVoiceSessionOnly: false,
+      localSttEndpointEnabled: false,
+      bridgeApprovalRequired: true,
+    };
+  }
+  if (localVoicePolicy.localSttEndpointEnabled) {
+    return {
+      status: "local-stt-ready",
+      statusLabel: "Local STT ready",
+      statusTone: "green",
+      detail: "Use explicit visible voice turns only.",
+      visibleVoiceSessionOnly: true,
+      localSttEndpointEnabled: true,
+      bridgeApprovalRequired: false,
+    };
+  }
+  return {
+    status: "visible-session-ready",
+    statusLabel: "Visible voice ready",
+    statusTone: "amber",
+    detail: "Typed/visible transcript fallback stays on until the local STT bridge is approved.",
+    visibleVoiceSessionOnly: true,
+    localSttEndpointEnabled: false,
+    bridgeApprovalRequired: true,
+  };
+}
+
+export function buildApexFamilyCareHouseholdDevicePresence(input = {}, options = {}) {
+  const status = input?.health && input?.device && input?.controls
+    ? input
+    : buildApexFamilyCareKitchenModeStatus(input, options);
+  const localVoicePolicy = options.localVoicePolicy || APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY;
+  const voice = voicePresenceStatus(localVoicePolicy);
+  const online = status.health.status === "online";
+  const controlsAlwaysVisible = Boolean(
+    status.controls.muteAvailable
+    && status.controls.stopAvailable !== undefined
+    && status.controls.visibleVoiceEntryAvailable
+  );
+  const readyForHouse = Boolean(
+    online
+    && status.device.localPwaMounted
+    && status.device.modeEnabled
+    && controlsAlwaysVisible
+  );
+
+  return {
+    policy: APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_PRESENCE_POLICY,
+    generatedAt: status.generatedAt,
+    device: {
+      selectedType: status.device.deviceType,
+      selectedLabel: status.device.deviceTypeLabel,
+      selectedRoom: status.device.room,
+      primaryType: HOUSE_DEVICE_PRIMARY.id,
+      primaryLabel: HOUSE_DEVICE_PRIMARY.label,
+      backupType: HOUSE_DEVICE_BACKUP.id,
+      backupLabel: HOUSE_DEVICE_BACKUP.label,
+      installTarget: status.device.installTarget,
+      hardwarePurchaseRequired: false,
+      raspberryPiDeferred: status.device.raspberryPiDeferred || status.device.deviceType === "raspberry-pi-local-satellite",
+      localPwaMounted: status.device.localPwaMounted,
+    },
+    presence: {
+      status: status.health.status,
+      statusLabel: status.health.statusLabel,
+      statusTone: status.health.statusTone,
+      readyForHouse,
+      lastSeenAt: status.health.lastSeenAt,
+      minutesSinceLastSeen: status.health.minutesSinceLastSeen,
+      onlineThresholdMinutes: status.health.onlineThresholdMinutes,
+      offlineReason: status.health.offlineReason,
+      heartbeatOnly: true,
+      localPwaPresenceOnly: true,
+      networkScanningEnabled: false,
+    },
+    controls: {
+      alwaysVisible: controlsAlwaysVisible,
+      muteVisible: true,
+      stopVisible: true,
+      recoverVisible: true,
+      voiceEntryVisible: status.controls.visibleVoiceEntryAvailable,
+      muted: status.controls.muted,
+      listening: status.device.listening,
+      speaking: status.device.speaking,
+    },
+    voice,
+    safety: {
+      hiddenRecording: false,
+      backgroundRecording: false,
+      autoListening: false,
+      liveMicCaptureEnabled: false,
+      rawAudioStored: false,
+      rawTranscriptStored: false,
+      cameraSurveillanceEnabled: false,
+      networkScanningEnabled: false,
+      deviceControlEnabled: false,
+      cloudUsed: false,
+      smsEnabled: false,
+      emailEnabled: false,
+      pushEnabled: false,
+      emergencyReplacement: false,
+      medicalDiagnosis: false,
+    },
+    receipt: {
+      receiptType: "apex-family-care-household-device-presence",
+      schemaVersion: 1,
+      generatedAt: status.generatedAt,
+      policyId: APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_PRESENCE_POLICY.policyId,
+      ...APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_PRESENCE_POLICY,
+      metadata: {
+        selectedDeviceType: status.device.deviceType,
+        room: status.device.room,
+        presenceStatus: status.health.status,
+        readyForHouse,
+        controlsAlwaysVisible,
+        muted: status.controls.muted,
+        voiceStatus: voice.status,
+        localSttEndpointEnabled: voice.localSttEndpointEnabled,
+        bridgeApprovalRequired: voice.bridgeApprovalRequired,
       },
     },
   };
