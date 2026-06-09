@@ -354,7 +354,20 @@ Purpose: connect actual delivery after Phase 5 proves the notification brain and
 - Add opt-in, quiet hours, device trust, and family recipient controls.
 - Add tests that sensitive note details never leak into lock-screen or provider payloads.
 
-Do later when: Phase 5 notification decisions and UI are proven safe locally.
+Status: Phase 5A local house-device in-app delivery is complete. External push/device/SMS/email/provider delivery stays approval-gated and moves to Phase 5B.
+
+### Phase 5B - Approved External Notification Delivery
+
+Purpose: add real external notification delivery only after John approves the channel, recipients, provider, and family access model.
+
+- Choose the approved external delivery channel: PWA push, device notification, SMS, or email.
+- Add exact provider/device setup only after approval.
+- Keep opt-in, quiet hours, device trust, and family recipient controls.
+- Keep lock-screen/provider payload copy generic and private-safe.
+- Add provider payload tests before any live sends.
+- Keep raw note text, sensitive medical detail, raw audio, raw transcripts, secrets, cloud fallback, schema/auth/session changes, public/customer/field exposure, and deploys blocked unless explicitly approved.
+
+Do later when: John approves the exact external channel and provider/device boundary.
 
 ### Phase 6A - Household Device Voice And Presence
 
@@ -494,6 +507,18 @@ Phase 4A receipt (2026-06-09): added a Family Care local voice input policy/sess
 Done means: Family Care knows what should be notified, who it matters to, what safe copy should say, and what must wait for quiet hours, without live SMS/email/cloud/push sends yet.
 
 Phase 5 receipt (2026-06-09): added the local-only Family Care notification decision brain with safe lock-screen copy, normalized notification preferences, family digest/concern/missing-update/doctor-summary/repeated-pattern decisions, quiet-hours and low-noise holds, and metadata-only notification receipts. The standalone Settings screen now previews decisions and stores only non-sensitive local preferences; the side status and Health view show notification decision counts, quiet-hours holds, live-send off, provider-send off, and lock-screen safety. Real push/SMS/email/provider delivery remains deferred to Phase 5A and requires approval before any sends or provider setup. No raw audio, raw transcript, raw prompts, raw responses, raw note text, secrets, customer data, Apex HQ product exposure, schema/auth/session changes, deploys, cloud fallback, medical diagnosis, or emergency replacement behavior was added. Focused validation: `node --test --test-concurrency=1 shared/apexFamilyCare.test.js shared/apexFamilyCareBrain.test.js shared/apexFamilyCareVoice.test.js shared/apexFamilyCareNotifications.test.js src/apex-family-care-components-import.test.js src/pwa-config.test.js shared/permissions.test.js src/app-routing.test.js src/navigation-utils.test.js src/mobile-nav-utils.test.js src/app-navigation-components-import.test.js` passed 100/100.
+
+### Phase 5A - Real Notification Delivery
+
+- [x] Choose the first delivery method: local house-device in-app notices.
+- [x] Keep SMS, email, PWA push, browser/device notifications, cloud/provider setup, and external sends approval-gated.
+- [x] Add opt-in, quiet hours, device trust, and family recipient controls.
+- [x] Keep lock-screen and house-screen copy generic and private-safe.
+- [x] Add tests proving sensitive note details do not leak into receipts/provider payloads and provider methods stay blocked.
+
+Done means: Family Care can show local house-screen notice readiness inside the standalone PWA without external sends, provider payloads, browser notification APIs, SMS, email, or cloud.
+
+Phase 5A receipt (2026-06-09): added `APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_POLICY` and a local house-device delivery lane that turns notification decisions into in-app house-screen notice readiness only when local delivery is opted in, the house screen is trusted, the house device is ready, quiet hours allow it, and family recipient controls select at least one recipient. The Settings screen now shows Delivery lane, Trust this house screen, Family recipients, and Local House Notices; the Health/side status show local delivery count, house-screen trust, and external-send approval state. SMS, email, PWA push, browser/device notifications, service worker push, provider sends, provider payload storage, cloud use, raw note text, raw audio, raw transcripts, secrets, medical diagnosis, emergency replacement behavior, schema/auth/session changes, deploys, customer/field/demo exposure, and Apex HQ product exposure remain blocked. Focused validation: `node --test --test-concurrency=1 shared/apexFamilyCare.test.js shared/apexFamilyCareBrain.test.js shared/apexFamilyCareVoice.test.js shared/apexFamilyCareNotifications.test.js shared/apexFamilyCareKitchen.test.js shared/apexFamilyCareTestWeek.test.js src/apex-family-care-components-import.test.js src/pwa-config.test.js shared/permissions.test.js src/app-routing.test.js src/navigation-utils.test.js src/mobile-nav-utils.test.js src/app-navigation-components-import.test.js` passed 124/124.
 
 ### Phase 6 - Home Device / Kitchen Mode
 
@@ -656,7 +681,7 @@ Complete the Current Next Step, advance the plan, then continue through foundati
 
 ## Current Next Step
 
-Next active build slice: Phase 5A - Real Notification Delivery.
+Next active build slice: Phase 6A - Household Device Voice And Presence.
 
 Open validation track: Phase 7 - Family Test Week remains incomplete until one real family test week is run and reviewed. Do not mark Phase 7 complete from synthetic data or builder prep work.
 
@@ -669,3 +694,5 @@ Open Phase 3B work: add coordinator prompt resolution, daily digest review, and 
 Open Phase 3.5B work: choose the real family access/release path and add human-run install/smoke steps only after approval.
 
 Open Phase 4B work: choose and approve the Family Care-specific local STT bridge before connecting real speech recognition.
+
+Open Phase 5B work: choose and approve the exact external notification channel/provider/device boundary before adding real SMS, email, PWA push, browser/device notifications, service worker push, provider payloads, or live sends.

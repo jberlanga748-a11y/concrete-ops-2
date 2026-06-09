@@ -31,6 +31,46 @@ export const APEX_FAMILY_CARE_NOTIFICATION_POLICY = Object.freeze({
   realDeliveryDeferredTo: "Phase 5A",
 });
 
+export const APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_POLICY = Object.freeze({
+  policyId: "apex-family-care-notification-delivery-v1",
+  phase: "phase-5a-real-local-notification-delivery",
+  localOnly: true,
+  familyCareOnly: true,
+  apexHqProductWork: false,
+  defaultDeliveryMethod: "local-house-device",
+  localHouseDeviceDeliveryEnabled: true,
+  inAppHouseDeviceOnly: true,
+  deviceTrustRequired: true,
+  recipientControlsRequired: true,
+  pwaPushEnabled: false,
+  browserNotificationEnabled: false,
+  serviceWorkerPushEnabled: false,
+  smsEnabled: false,
+  emailEnabled: false,
+  cloudUsed: false,
+  providerSendsEnabled: false,
+  providerPayloadStored: false,
+  externalSendApprovalRequired: true,
+  lockScreenSensitiveDetailsAllowed: false,
+  rawAudioStored: false,
+  rawTranscriptStored: false,
+  rawPromptStored: false,
+  rawResponseStored: false,
+  rawNoteStored: false,
+  secretsStored: false,
+  customerDataStored: false,
+  medicalDiagnosis: false,
+  emergencyReplacement: false,
+});
+
+export const APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_METHODS = Object.freeze([
+  { id: "local-house-device", label: "Local house device", requiresProviderApproval: false },
+  { id: "pwa-push", label: "PWA push", requiresProviderApproval: true },
+  { id: "device-notification", label: "Device notification", requiresProviderApproval: true },
+  { id: "sms", label: "SMS", requiresProviderApproval: true },
+  { id: "email", label: "Email", requiresProviderApproval: true },
+]);
+
 export const APEX_FAMILY_CARE_NOTIFICATION_TYPES = Object.freeze([
   "family-digest",
   "concern-marked",
@@ -62,6 +102,13 @@ const DEFAULT_NOTIFICATION_PREFERENCES = Object.freeze({
   lockScreenSensitiveDetails: false,
   liveDeliveryEnabled: false,
   recipientGroup: "family",
+  deliveryMethod: APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_POLICY.defaultDeliveryMethod,
+  localHouseDeviceDeliveryEnabled: true,
+  houseDeviceTrusted: false,
+  recipientDadEnabled: true,
+  recipientBrotherEnabled: true,
+  recipientJohnEnabled: true,
+  recipientFamilyEnabled: true,
 });
 
 const SENSITIVE_LOCK_SCREEN_PATTERNS = [
@@ -100,6 +147,12 @@ function normalizeTime(value, fallback) {
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(text) ? text : fallback;
 }
 
+function normalizeDeliveryMethod(value) {
+  const text = cleanText(value, 40);
+  const method = APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_METHODS.find((item) => item.id === text);
+  return method?.id || APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_POLICY.defaultDeliveryMethod;
+}
+
 function timeToMinutes(value) {
   const [hours, minutes] = normalizeTime(value, "00:00").split(":").map((part) => Number.parseInt(part, 10));
   return hours * 60 + minutes;
@@ -119,6 +172,110 @@ function isQuietHoursActive(now, preferences) {
 
 function countActive(decisions) {
   return decisions.filter((decision) => decision.shouldNotify && decision.enabled).length;
+}
+
+function countSelectedRecipients(preferences) {
+  return [
+    preferences.recipientDadEnabled,
+    preferences.recipientBrotherEnabled,
+    preferences.recipientJohnEnabled,
+    preferences.recipientFamilyEnabled,
+  ].filter(Boolean).length;
+}
+
+function buildDeliveryContext(preferences, kitchenStatus = {}) {
+  const deliveryMethod = normalizeDeliveryMethod(preferences.deliveryMethod);
+  const providerMethod = deliveryMethod !== APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_POLICY.defaultDeliveryMethod;
+  const recipientCount = countSelectedRecipients(preferences);
+  const houseDeviceReady = Boolean(
+    kitchenStatus?.device?.localPwaMounted
+    && kitchenStatus?.device?.modeEnabled !== false
+    && kitchenStatus?.health?.status !== "offline"
+  );
+  return {
+    deliveryMethod,
+    providerMethod,
+    recipientCount,
+    localHouseDeviceDeliveryEnabled: preferences.localHouseDeviceDeliveryEnabled === true,
+    houseDeviceTrusted: preferences.houseDeviceTrusted === true,
+    houseDeviceReady,
+    externalSendApprovalRequired: true,
+    providerSendsEnabled: false,
+  };
+}
+
+function attachLocalDelivery(decision, deliveryContext) {
+  const candidate = Boolean(decision.enabled && decision.shouldNotify && !decision.quietHoursHold);
+  let localDeliveryStatus = "quiet";
+  let localDeliveryStatusLabel = "Quiet";
+
+  if (decision.quietHoursHold) {
+    localDeliveryStatus = "held-quiet-hours";
+    localDeliveryStatusLabel = "Held for quiet hours";
+  } else if (candidate && deliveryContext.providerMethod) {
+    localDeliveryStatus = "blocked-provider-approval";
+    localDeliveryStatusLabel = "Provider approval required";
+  } else if (candidate && !deliveryContext.localHouseDeviceDeliveryEnabled) {
+    localDeliveryStatus = "blocked-opt-in";
+    localDeliveryStatusLabel = "Local delivery opt-in off";
+  } else if (candidate && deliveryContext.recipientCount < 1) {
+    localDeliveryStatus = "blocked-no-recipients";
+    localDeliveryStatusLabel = "No family recipients selected";
+  } else if (candidate && !deliveryContext.houseDeviceTrusted) {
+    localDeliveryStatus = "blocked-device-trust";
+    localDeliveryStatusLabel = "Trust the house screen first";
+  } else if (candidate && !deliveryContext.houseDeviceReady) {
+    localDeliveryStatus = "blocked-device-offline";
+    localDeliveryStatusLabel = "House screen not ready";
+  } else if (candidate) {
+    localDeliveryStatus = "ready-local-house-device";
+    localDeliveryStatusLabel = "Ready on house screen";
+  }
+
+  return {
+    ...decision,
+    deliveryMethod: deliveryContext.deliveryMethod,
+    localDeliveryCandidate: candidate,
+    localDeliveryReady: localDeliveryStatus === "ready-local-house-device",
+    localDeliveryStatus,
+    localDeliveryStatusLabel,
+    providerApprovalRequired: deliveryContext.providerMethod,
+    externalSendApprovalRequired: true,
+    providerPayloadStored: false,
+  };
+}
+
+function buildDeliverySummary(decisions, deliveryContext) {
+  const readyLocalDecisions = decisions.filter((decision) => decision.localDeliveryReady);
+  const blockedLocalDecisions = decisions.filter((decision) => decision.localDeliveryCandidate && !decision.localDeliveryReady);
+  const heldLocalDecisions = decisions.filter((decision) => decision.localDeliveryStatus === "held-quiet-hours");
+  const firstReadyLocalDecision = readyLocalDecisions[0] || null;
+  const statusLabel = firstReadyLocalDecision
+    ? `${readyLocalDecisions.length} local house notice${readyLocalDecisions.length === 1 ? "" : "s"} ready`
+    : blockedLocalDecisions[0]?.localDeliveryStatusLabel || heldLocalDecisions[0]?.localDeliveryStatusLabel || "No local notice ready";
+
+  return {
+    policy: APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_POLICY,
+    deliveryMethod: deliveryContext.deliveryMethod,
+    localHouseDeviceDeliveryEnabled: deliveryContext.localHouseDeviceDeliveryEnabled,
+    houseDeviceTrusted: deliveryContext.houseDeviceTrusted,
+    houseDeviceReady: deliveryContext.houseDeviceReady,
+    recipientCount: deliveryContext.recipientCount,
+    readyLocalNoticeCount: readyLocalDecisions.length,
+    blockedLocalNoticeCount: blockedLocalDecisions.length,
+    heldLocalNoticeCount: heldLocalDecisions.length,
+    firstReadyLocalDecisionId: firstReadyLocalDecision?.id || "",
+    nextSafeHouseScreenCopy: firstReadyLocalDecision?.lockScreenCopy || "",
+    statusLabel,
+    externalSendApprovalRequired: true,
+    providerSendsEnabled: false,
+    providerPayloadStored: false,
+    liveExternalSendsEnabled: false,
+    pwaPushEnabled: false,
+    smsEnabled: false,
+    emailEnabled: false,
+    cloudUsed: false,
+  };
 }
 
 function buildDecision(input, preferences, quietHoursActive) {
@@ -164,7 +321,7 @@ function buildDecision(input, preferences, quietHoursActive) {
   };
 }
 
-function buildReceipt(now, decisions, preferences, quietHoursActive) {
+function buildReceipt(now, decisions, preferences, quietHoursActive, deliverySummary) {
   const activeDecisions = decisions.filter((decision) => decision.shouldNotify);
   return {
     receiptType: "apex-family-care-notifications",
@@ -187,6 +344,15 @@ function buildReceipt(now, decisions, preferences, quietHoursActive) {
       providerSendsQueued: false,
       safeCopiesOnly: decisions.every((decision) => decision.lockScreenCopySafe),
       activeTypes: activeDecisions.map((decision) => decision.type),
+      deliveryMethod: deliverySummary.deliveryMethod,
+      localHouseDeviceDeliveryEnabled: deliverySummary.localHouseDeviceDeliveryEnabled,
+      houseDeviceTrusted: deliverySummary.houseDeviceTrusted,
+      houseDeviceReady: deliverySummary.houseDeviceReady,
+      recipientCount: deliverySummary.recipientCount,
+      readyLocalNoticeCount: deliverySummary.readyLocalNoticeCount,
+      blockedLocalNoticeCount: deliverySummary.blockedLocalNoticeCount,
+      providerPayloadStored: false,
+      externalSendApprovalRequired: true,
     },
   };
 }
@@ -211,6 +377,13 @@ export function normalizeApexFamilyCareNotificationPreferences(input = {}) {
     lockScreenSensitiveDetails: false,
     liveDeliveryEnabled: false,
     recipientGroup: cleanText(input.recipientGroup || base.recipientGroup, 40) || base.recipientGroup,
+    deliveryMethod: normalizeDeliveryMethod(input.deliveryMethod || base.deliveryMethod),
+    localHouseDeviceDeliveryEnabled: normalizeBoolean(input.localHouseDeviceDeliveryEnabled, base.localHouseDeviceDeliveryEnabled),
+    houseDeviceTrusted: normalizeBoolean(input.houseDeviceTrusted, base.houseDeviceTrusted),
+    recipientDadEnabled: normalizeBoolean(input.recipientDadEnabled, base.recipientDadEnabled),
+    recipientBrotherEnabled: normalizeBoolean(input.recipientBrotherEnabled, base.recipientBrotherEnabled),
+    recipientJohnEnabled: normalizeBoolean(input.recipientJohnEnabled, base.recipientJohnEnabled),
+    recipientFamilyEnabled: normalizeBoolean(input.recipientFamilyEnabled, base.recipientFamilyEnabled),
   };
 }
 
@@ -230,6 +403,7 @@ export function buildApexFamilyCareNotificationState(notes = [], options = {}) {
   const familySummary = buildApexFamilyCareFamilySummary(normalizedNotes, generatedAt);
   const quietHoursActive = isQuietHoursActive(generatedAt, preferences);
   const repeatedPatternCount = familySummary.patternSummary?.patterns?.length || 0;
+  const deliveryContext = buildDeliveryContext(preferences, options.kitchenStatus);
 
   const decisions = [
     buildDecision({
@@ -291,28 +465,38 @@ export function buildApexFamilyCareNotificationState(notes = [], options = {}) {
       inAppCopy: `${repeatedPatternCount} repeated care pattern${repeatedPatternCount === 1 ? "" : "s"} ready for review.`,
       inactiveReason: "no-repeated-pattern",
     }, preferences, quietHoursActive),
-  ];
+  ].map((decision) => attachLocalDelivery(decision, deliveryContext));
 
   const activeDecisions = decisions.filter((decision) => decision.shouldNotify);
   const firstReadyDecision = activeDecisions.find((decision) => !decision.quietHoursHold) || activeDecisions[0] || null;
   const nextSafeLockScreenCopy = firstReadyDecision?.lockScreenCopy || APEX_FAMILY_CARE_SAFE_NOTIFICATION_COPY.newUpdate;
+  const deliverySummary = buildDeliverySummary(decisions, deliveryContext);
 
   return {
     policy: APEX_FAMILY_CARE_NOTIFICATION_POLICY,
+    deliveryPolicy: APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_POLICY,
     preferences,
     generatedAt: generatedAt.toISOString(),
     quietHoursActive,
     decisions,
+    delivery: deliverySummary,
     summary: {
       activeDecisionCount: countActive(decisions),
       heldForQuietHoursCount: decisions.filter((decision) => decision.quietHoursHold).length,
       providerSendQueuedCount: 0,
       liveDeliveryEnabled: false,
+      readyLocalNoticeCount: deliverySummary.readyLocalNoticeCount,
+      blockedLocalNoticeCount: deliverySummary.blockedLocalNoticeCount,
+      localDeliveryStatusLabel: deliverySummary.statusLabel,
+      deliveryMethod: deliverySummary.deliveryMethod,
+      houseDeviceTrusted: deliverySummary.houseDeviceTrusted,
+      houseDeviceReady: deliverySummary.houseDeviceReady,
+      recipientCount: deliverySummary.recipientCount,
       nextDecisionId: firstReadyDecision?.id || "",
       nextSafeLockScreenCopy,
       nextSafeLockScreenCopySafe: isApexFamilyCareLockScreenCopySafe(nextSafeLockScreenCopy),
       realDeliveryDeferredTo: APEX_FAMILY_CARE_NOTIFICATION_POLICY.realDeliveryDeferredTo,
     },
-    receipt: buildReceipt(generatedAt, decisions, preferences, quietHoursActive),
+    receipt: buildReceipt(generatedAt, decisions, preferences, quietHoursActive, deliverySummary),
   };
 }

@@ -31,6 +31,8 @@ import {
   getDefaultApexFamilyCareKitchenDeviceState,
 } from "../shared/apexFamilyCareKitchen.js";
 import {
+  APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_METHODS,
+  APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_POLICY,
   APEX_FAMILY_CARE_NOTIFICATION_POLICY,
   buildApexFamilyCareNotificationState,
   getDefaultApexFamilyCareNotificationPreferences,
@@ -816,7 +818,25 @@ function NotificationDecisionPreview({ decision }) {
       <div className="mt-2 flex flex-wrap gap-2">
         <Badge tone={decision.lockScreenCopySafe ? "green" : "red"}>Safe lock-screen copy</Badge>
         <Badge tone="slate">{decision.lockScreenCopy}</Badge>
+        <Badge tone={decision.localDeliveryReady ? "green" : decision.localDeliveryCandidate ? "amber" : "slate"}>{decision.localDeliveryStatusLabel}</Badge>
         <Badge tone={decision.providerSendQueued ? "red" : "green"}>{decision.providerSendQueued ? "Send queued" : "No live send"}</Badge>
+      </div>
+    </div>
+  );
+}
+
+function LocalDeliveryNoticePreview({ decision }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-black text-slate-950">{decision.label}</p>
+        <Badge tone={decision.localDeliveryReady ? "green" : "amber"}>{decision.localDeliveryStatusLabel}</Badge>
+      </div>
+      <p className="mt-1 text-sm font-bold text-slate-600">{decision.lockScreenCopy}</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <Badge tone="green">House screen only</Badge>
+        <Badge tone="green">Generic copy</Badge>
+        <Badge tone="green">No provider payload</Badge>
       </div>
     </div>
   );
@@ -830,17 +850,20 @@ function SettingsView({ notificationPreferences, setNotificationPreferences, not
     }));
   }
 
+  const localDeliveryDecisions = notificationState.decisions.filter((decision) => decision.localDeliveryCandidate || decision.localDeliveryReady);
+
   return (
     <div className="space-y-4">
       <Card className="p-4">
-        <SectionHeader title="Notifications / Settings" description="Decision previews only. Real delivery stays deferred until Phase 5A approval." />
+        <SectionHeader title="Notifications / Settings" description="Local house-screen notices only. External sends still require approval." />
         <div className="mb-3 flex flex-wrap gap-2">
           <Badge tone="green">No live sends</Badge>
           <Badge tone="green">Safe lock-screen copy</Badge>
-          <Badge tone="slate">Phase 5A delivery later</Badge>
+          <Badge tone="green">Local house device</Badge>
+          <Badge tone="amber">External sends approval</Badge>
           <Badge tone="green">No provider payloads</Badge>
         </div>
-        <div className="grid gap-3 lg:grid-cols-2">
+        <div className="grid gap-3 xl:grid-cols-3">
           <div className="rounded-lg border border-slate-200 bg-white p-3">
             <p className="text-sm font-black text-slate-950">Notification types</p>
             <div className="mt-3 grid gap-2">
@@ -863,8 +886,39 @@ function SettingsView({ notificationPreferences, setNotificationPreferences, not
               <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
                 <p className="text-sm font-black text-emerald-950">Live delivery</p>
                 <p className="mt-1 text-sm font-bold text-emerald-800">
-                  {APEX_FAMILY_CARE_NOTIFICATION_POLICY.liveDeliveryEnabled ? "Enabled" : "Off until Phase 5A."}
+                  {APEX_FAMILY_CARE_NOTIFICATION_POLICY.liveDeliveryEnabled ? "Enabled" : "External sends off."}
                 </p>
+              </div>
+            </div>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white p-3">
+            <p className="text-sm font-black text-slate-950">Delivery lane</p>
+            <div className="mt-3 grid gap-2">
+              <SelectField label="Method" value={notificationPreferences.deliveryMethod} onChange={(event) => updatePreference("deliveryMethod", event.target.value)}>
+                {APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_METHODS.map((method) => (
+                  <option key={method.id} value={method.id}>{method.label}{method.requiresProviderApproval ? " - approval" : ""}</option>
+                ))}
+              </SelectField>
+              <ToggleRow label="House device notices" checked={notificationPreferences.localHouseDeviceDeliveryEnabled} onChange={(value) => updatePreference("localHouseDeviceDeliveryEnabled", value)} />
+              <ToggleRow label="Trust this house screen" checked={notificationPreferences.houseDeviceTrusted} onChange={(value) => updatePreference("houseDeviceTrusted", value)} />
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                <p className="text-sm font-black text-amber-950">External sends</p>
+                <p className="mt-1 text-sm font-bold text-amber-800">
+                  {APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_POLICY.externalSendApprovalRequired ? "Approval required before SMS, email, push, or provider setup." : "Not locked"}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white p-3">
+            <p className="text-sm font-black text-slate-950">Family recipients</p>
+            <div className="mt-3 grid gap-2">
+              <ToggleRow label="Dad" checked={notificationPreferences.recipientDadEnabled} onChange={(value) => updatePreference("recipientDadEnabled", value)} />
+              <ToggleRow label="Brother" checked={notificationPreferences.recipientBrotherEnabled} onChange={(value) => updatePreference("recipientBrotherEnabled", value)} />
+              <ToggleRow label="John" checked={notificationPreferences.recipientJohnEnabled} onChange={(value) => updatePreference("recipientJohnEnabled", value)} />
+              <ToggleRow label="Family group" checked={notificationPreferences.recipientFamilyEnabled} onChange={(value) => updatePreference("recipientFamilyEnabled", value)} />
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+                <p className="text-sm font-black text-blue-950">Recipient controls</p>
+                <p className="mt-1 text-sm font-bold text-blue-800">Local intent only until real family access is approved.</p>
               </div>
             </div>
           </div>
@@ -873,13 +927,32 @@ function SettingsView({ notificationPreferences, setNotificationPreferences, not
 
       <Card className="p-4">
         <SectionHeader title="Notification Decisions" description="Apex decides what matters and keeps lock-screen text generic." />
-        <div className="mb-3 grid gap-2 md:grid-cols-3">
+        <div className="mb-3 grid gap-2 md:grid-cols-3 xl:grid-cols-5">
           <StatCard title="Ready" value={notificationState.summary.activeDecisionCount} detail="Decision previews" />
           <StatCard title="Quiet Hold" value={notificationState.summary.heldForQuietHoursCount} detail="Low-noise guard" />
-          <StatCard title="Provider Sends" value={notificationState.summary.providerSendQueuedCount} detail="Deferred" />
+          <StatCard title="House Notices" value={notificationState.summary.readyLocalNoticeCount} detail={notificationState.summary.localDeliveryStatusLabel} />
+          <StatCard title="Recipients" value={notificationState.summary.recipientCount} detail="Selected locally" />
+          <StatCard title="Provider Sends" value={notificationState.summary.providerSendQueuedCount} detail="Approval locked" />
         </div>
         <div className="space-y-2">
           {notificationState.decisions.map((decision) => <NotificationDecisionPreview key={decision.id} decision={decision} />)}
+        </div>
+      </Card>
+
+      <Card className="p-4">
+        <SectionHeader title="Local House Notices" description={notificationState.delivery.statusLabel} />
+        <div className="mb-3 flex flex-wrap gap-2">
+          <Badge tone={notificationState.delivery.houseDeviceTrusted ? "green" : "amber"}>{notificationState.delivery.houseDeviceTrusted ? "House screen trusted" : "Trust required"}</Badge>
+          <Badge tone={notificationState.delivery.houseDeviceReady ? "green" : "amber"}>{notificationState.delivery.houseDeviceReady ? "House screen ready" : "House screen not ready"}</Badge>
+          <Badge tone={notificationState.delivery.providerSendsEnabled ? "red" : "green"}>{notificationState.delivery.providerSendsEnabled ? "Provider on" : "Provider off"}</Badge>
+          <Badge tone="green">No payload storage</Badge>
+        </div>
+        <div className="grid gap-2 md:grid-cols-2">
+          {localDeliveryDecisions.length ? localDeliveryDecisions.map((decision) => (
+            <LocalDeliveryNoticePreview key={decision.id} decision={decision} />
+          )) : (
+            <div className="rounded-lg border border-slate-200 bg-white p-3 text-sm font-bold text-slate-600">No local house notices need attention right now.</div>
+          )}
         </div>
       </Card>
     </div>
@@ -1203,6 +1276,9 @@ function HealthView({ accessReadiness, boundaryReleasePrep, gate, summary, lates
     ["Family voice controls", APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.visibleStopRequired && APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.visibleMuteRequired && APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.visibleRecoverRequired ? "Visible" : "Check", APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.visibleStopRequired && APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.visibleMuteRequired && APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.visibleRecoverRequired ? "green" : "red"],
     ["Latest voice receipt", latestVoiceReceipt ? latestVoiceReceipt.metadata.category : "None", latestVoiceReceipt ? "blue" : "slate"],
     ["Notification decisions", notificationState?.summary?.activeDecisionCount ?? 0, "green"],
+    ["Notification local delivery", notificationState?.summary?.readyLocalNoticeCount ?? 0, notificationState?.summary?.readyLocalNoticeCount ? "green" : "slate"],
+    ["House screen trusted", notificationState?.summary?.houseDeviceTrusted ? "Yes" : "No", notificationState?.summary?.houseDeviceTrusted ? "green" : "amber"],
+    ["External send approval", APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_POLICY.externalSendApprovalRequired ? "Required" : "Off", APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_POLICY.externalSendApprovalRequired ? "green" : "red"],
     ["Notification live sends", APEX_FAMILY_CARE_NOTIFICATION_POLICY.liveDeliveryEnabled ? "On" : "Off", APEX_FAMILY_CARE_NOTIFICATION_POLICY.liveDeliveryEnabled ? "red" : "green"],
     ["Notification provider sends", notificationState?.summary?.providerSendQueuedCount ?? 0, notificationState?.summary?.providerSendQueuedCount ? "red" : "green"],
     ["Lock-screen details", notificationState?.summary?.nextSafeLockScreenCopySafe ? "Safe" : "Check", notificationState?.summary?.nextSafeLockScreenCopySafe ? "green" : "red"],
@@ -1309,10 +1385,11 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
   const familySummary = useMemo(() => buildApexFamilyCareFamilySummary(sortedNotes), [sortedNotes]);
   const reviewState = useMemo(() => buildApexFamilyCareReviewState(allNotes, timelineFilters), [allNotes, timelineFilters]);
   const coordinatorPacket = useMemo(() => buildApexFamilyCareCoordinatorPacket(allNotes), [allNotes]);
+  const kitchenStatus = useMemo(() => buildApexFamilyCareKitchenModeStatus(kitchenDeviceState), [kitchenDeviceState]);
   const notificationState = useMemo(() => buildApexFamilyCareNotificationState(sortedNotes, {
     preferences: notificationPreferences,
-  }), [notificationPreferences, sortedNotes]);
-  const kitchenStatus = useMemo(() => buildApexFamilyCareKitchenModeStatus(kitchenDeviceState), [kitchenDeviceState]);
+    kitchenStatus,
+  }), [kitchenStatus, notificationPreferences, sortedNotes]);
   const testWeekSummary = useMemo(() => buildApexFamilyCareTestWeekSummary(testWeekState, sortedNotes), [sortedNotes, testWeekState]);
   const testWeekRunPacket = useMemo(() => buildApexFamilyCareTestWeekRunPacket(testWeekState, sortedNotes), [sortedNotes, testWeekState]);
   const gate = useMemo(() => getApexFamilyCareAccessGateSummary({
@@ -1670,6 +1747,14 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
               <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3">
                 <span className="text-sm font-black text-slate-700">Quiet-hours hold</span>
                 <Badge tone={notificationState.summary.heldForQuietHoursCount ? "amber" : "green"}>{notificationState.summary.heldForQuietHoursCount}</Badge>
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3">
+                <span className="text-sm font-black text-slate-700">House notices</span>
+                <Badge tone={notificationState.summary.readyLocalNoticeCount ? "green" : "slate"}>{notificationState.summary.readyLocalNoticeCount}</Badge>
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3">
+                <span className="text-sm font-black text-slate-700">House trust</span>
+                <Badge tone={notificationState.summary.houseDeviceTrusted ? "green" : "amber"}>{notificationState.summary.houseDeviceTrusted ? "On" : "Needed"}</Badge>
               </div>
               <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3">
                 <span className="text-sm font-black text-slate-700">Live sends</span>

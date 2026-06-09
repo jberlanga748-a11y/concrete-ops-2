@@ -93,7 +93,13 @@ test("Apex Family Care page contains family screens and no hidden mic APIs", () 
   assert.match(componentSource, /Notification Decisions/);
   assert.match(componentSource, /Safe lock-screen copy/);
   assert.match(componentSource, /No live sends/);
-  assert.match(componentSource, /Phase 5A delivery later/);
+  assert.match(componentSource, /Local house device/);
+  assert.match(componentSource, /Delivery lane/);
+  assert.match(componentSource, /Trust this house screen/);
+  assert.match(componentSource, /Family recipients/);
+  assert.match(componentSource, /Local House Notices/);
+  assert.match(componentSource, /House notices/);
+  assert.match(componentSource, /External sends approval/);
   assert.doesNotMatch(componentSource, /getUserMedia|MediaRecorder|navigator\.mediaDevices|ApexMciWave|windows-mci-waveaudio|native-voice|NetworkInformation|navigator\.usb|navigator\.bluetooth/i);
   assert.doesNotMatch(componentSource, /fetch\(|Notification\.requestPermission|navigator\.serviceWorker|PushManager/i);
 });
@@ -118,6 +124,8 @@ test("Apex Family Care still uses Phase 2 and Phase 3 shared helpers", () => {
     "startApexFamilyCareTestWeek",
     "buildApexFamilyCareNotificationState",
     "getDefaultApexFamilyCareNotificationPreferences",
+    "APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_METHODS",
+    "APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_POLICY",
     "listApexFamilyCareNotes",
     "updateApexFamilyCareNote",
     "APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY",
@@ -140,6 +148,9 @@ test("Apex Family Care still uses Phase 2 and Phase 3 shared helpers", () => {
   assert.match(componentSource, /Voice explicit start/);
   assert.match(componentSource, /Voice hidden recording/);
   assert.match(componentSource, /Notification live sends/);
+  assert.match(componentSource, /Notification local delivery/);
+  assert.match(componentSource, /House screen trusted/);
+  assert.match(componentSource, /External send approval/);
   assert.match(componentSource, /Notification provider sends/);
   assert.match(componentSource, /Lock-screen details/);
   assert.match(componentSource, /Local family preview/);
