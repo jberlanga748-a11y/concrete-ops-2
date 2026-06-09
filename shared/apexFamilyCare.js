@@ -20,6 +20,7 @@ export const APEX_FAMILY_CARE_CATEGORIES = [
 export const APEX_FAMILY_CARE_SEVERITIES = ["unknown", "mild", "medium", "severe"];
 export const APEX_FAMILY_CARE_REPORTERS = ["Dad", "Brother", "Grandma", "Family"];
 export const APEX_FAMILY_CARE_SOURCES = ["tap", "typed", "voice", "imported", "system", "apex"];
+export const APEX_FAMILY_CARE_NOTE_STATUSES = ["active", "needs-review", "archived"];
 export const APEX_FAMILY_CARE_ACCESS_POLICY = Object.freeze({
   policyId: "apex-family-care-access-hardening-v1",
   phase: "phase-1a-family-access-install-hardening",
@@ -94,6 +95,7 @@ export const APEX_FAMILY_CARE_NOTE_MODEL = {
 const CATEGORY_BY_ID = new Map(APEX_FAMILY_CARE_CATEGORIES.map((category) => [category.id, category]));
 const SEVERITY_SET = new Set(APEX_FAMILY_CARE_SEVERITIES);
 const SOURCE_SET = new Set(APEX_FAMILY_CARE_SOURCES);
+const STATUS_SET = new Set(APEX_FAMILY_CARE_NOTE_STATUSES);
 const CONCERN_PATTERN_CATEGORIES = new Set(["concern", "pain", "meds", "mobility", "sleep", "mood", "food"]);
 
 function cleanText(value, maxLength = 240) {
@@ -168,7 +170,7 @@ export function createApexFamilyCareNote(input = {}, now = new Date()) {
     familyVisible: input.familyVisible !== false,
     urgent: Boolean(input.urgent || isConcern),
     source,
-    status: cleanText(input.status, 40) || "active",
+    status: STATUS_SET.has(input.status) ? input.status : "active",
     medicationConfirmed: Boolean(input.medicationConfirmed),
     medicationConfirmedAt: cleanText(input.medicationConfirmedAt, 40),
     medicationConfirmedBy: cleanText(input.medicationConfirmedBy, 80),
@@ -210,13 +212,13 @@ export function listApexFamilyCareNotes(notes = [], options = {}) {
 export function addApexFamilyCareNote(notes = [], input = {}, now = new Date(), options = {}) {
   const maxNotes = options.maxNotes || APEX_FAMILY_CARE_MAX_LOCAL_NOTES;
   const note = createApexFamilyCareNote(input, now);
-  return listApexFamilyCareNotes([note, ...(Array.isArray(notes) ? notes : [])], { limit: maxNotes });
+  return listApexFamilyCareNotes([note, ...(Array.isArray(notes) ? notes : [])], { limit: maxNotes, status: "" });
 }
 
 export function updateApexFamilyCareNote(notes = [], noteId = "", patch = {}, now = new Date(), options = {}) {
   const maxNotes = options.maxNotes || APEX_FAMILY_CARE_MAX_LOCAL_NOTES;
   let updatedNote = null;
-  const normalized = listApexFamilyCareNotes(notes, { limit: Number.POSITIVE_INFINITY });
+  const normalized = listApexFamilyCareNotes(notes, { limit: Number.POSITIVE_INFINITY, status: "" });
   const nextNotes = normalized.map((note) => {
     if (note.id !== noteId) return note;
     updatedNote = createApexFamilyCareNote({
@@ -232,7 +234,85 @@ export function updateApexFamilyCareNote(notes = [], noteId = "", patch = {}, no
   return {
     changed: Boolean(updatedNote),
     updatedNote,
-    notes: listApexFamilyCareNotes(nextNotes, { limit: maxNotes }),
+    notes: listApexFamilyCareNotes(nextNotes, { limit: maxNotes, status: "" }),
+  };
+}
+
+export function buildApexFamilyCareReviewState(notes = [], filters = {}) {
+  const {
+    category = "",
+    concernOnly = false,
+    doctorOnly = false,
+    reporter = "",
+    status = "open",
+  } = filters;
+  const normalized = listApexFamilyCareNotes(notes, { limit: Number.POSITIVE_INFINITY, status: "" });
+  const statusCounts = APEX_FAMILY_CARE_NOTE_STATUSES.reduce((counts, noteStatus) => ({
+    ...counts,
+    [noteStatus]: normalized.filter((note) => note.status === noteStatus).length,
+  }), {});
+  const statusFiltered = normalized.filter((note) => {
+    if (status === "all") return true;
+    if (status === "open") return note.status !== "archived";
+    return note.status === status;
+  });
+  const filteredNotes = statusFiltered
+    .filter((note) => !category || note.category === category)
+    .filter((note) => !reporter || note.reporter === reporter)
+    .filter((note) => !doctorOnly || note.addToDoctorSummary)
+    .filter((note) => !concernOnly || note.urgent || note.category === "concern" || note.severity === "severe");
+
+  return {
+    reviewType: "apex-family-care-note-review-state",
+    filters: {
+      category,
+      concernOnly: Boolean(concernOnly),
+      doctorOnly: Boolean(doctorOnly),
+      reporter,
+      status,
+    },
+    notes: filteredNotes,
+    counts: {
+      total: normalized.length,
+      active: statusCounts.active || 0,
+      needsReview: statusCounts["needs-review"] || 0,
+      archived: statusCounts.archived || 0,
+      filtered: filteredNotes.length,
+      doctorPrep: normalized.filter((note) => note.addToDoctorSummary && note.status !== "archived").length,
+      concern: normalized.filter((note) => note.status !== "archived" && (note.urgent || note.category === "concern" || note.severity === "severe")).length,
+    },
+    nextAction: statusCounts["needs-review"]
+      ? "Review notes marked needs-review before relying on family or doctor summaries."
+      : "Review filters are clear; use doctor-prep notes for appointment context.",
+    receipt: {
+      receiptType: "apex-family-care-note-review-state",
+      schemaVersion: 1,
+      generatedAt: new Date().toISOString(),
+      familyCareOnly: true,
+      apexHqProductWork: false,
+      localOnly: true,
+      rawAudioStored: false,
+      rawTranscriptStored: false,
+      rawPromptStored: false,
+      rawResponseStored: false,
+      rawNoteTextStoredInReceipt: false,
+      medicalDiagnosis: false,
+      emergencyReplacement: false,
+      smsSent: false,
+      emailSent: false,
+      pushSent: false,
+      cloudUsed: false,
+      metadata: {
+        totalCount: normalized.length,
+        activeCount: statusCounts.active || 0,
+        needsReviewCount: statusCounts["needs-review"] || 0,
+        archivedCount: statusCounts.archived || 0,
+        filteredCount: filteredNotes.length,
+        doctorPrepCount: normalized.filter((note) => note.addToDoctorSummary && note.status !== "archived").length,
+        concernCount: normalized.filter((note) => note.status !== "archived" && (note.urgent || note.category === "concern" || note.severity === "severe")).length,
+        rawNoteTextStoredInReceipt: false,
+      },
+    },
   };
 }
 
@@ -339,16 +419,56 @@ export function buildApexFamilyCareTodaySummary(notes = [], now = new Date()) {
 }
 
 export function buildApexFamilyCareDoctorSummary(notes = [], now = new Date()) {
+  const allNotes = listApexFamilyCareNotes(notes, { limit: Number.POSITIVE_INFINITY, status: "" });
   const normalized = listApexFamilyCareNotes(notes, { limit: Number.POSITIVE_INFINITY });
   const items = normalized
     .filter((note) => note.addToDoctorSummary)
     .slice(0, 12);
   const patterns = detectApexFamilyCareRepeatedConcerns(normalized, now);
   const missingUpdate = detectApexFamilyCareMissingUpdates(normalized, now);
+  const reviewState = buildApexFamilyCareReviewState(allNotes, { status: "open", doctorOnly: true });
+  const doctorReviewCount = reviewState.notes.filter((note) => note.status === "needs-review").length;
   const medicationItems = items.filter((note) => note.category === "meds");
   const painItems = items.filter((note) => note.category === "pain");
   const mobilityItems = items.filter((note) => note.category === "mobility");
   const concernItems = items.filter((note) => note.urgent || note.category === "concern" || note.severity === "severe");
+  const doctorPrepChecklist = [
+    {
+      id: "review-flagged-notes",
+      label: "Review flagged notes",
+      ready: doctorReviewCount === 0,
+      detail: doctorReviewCount
+        ? `${doctorReviewCount} doctor-prep note${doctorReviewCount === 1 ? "" : "s"} need review first.`
+        : "No doctor-prep notes are marked needs-review.",
+    },
+    {
+      id: "save-appointment-notes",
+      label: "Save appointment notes",
+      ready: items.length > 0,
+      detail: items.length ? `${items.length} notes are ready for appointment prep.` : "Mark useful notes for doctor summary before the visit.",
+    },
+    {
+      id: "check-repeated-patterns",
+      label: "Check repeated patterns",
+      ready: patterns.patterns.length > 0,
+      detail: patterns.patterns.length ? patterns.summaryLabel : "No repeated pattern is currently flagged.",
+    },
+    {
+      id: "keep-family-language",
+      label: "Keep it family-note language",
+      ready: true,
+      detail: "Use these notes for appointment context only, not diagnosis or treatment instructions.",
+    },
+  ];
+  const doctorVisitBriefLines = [
+    `Doctor visit prep for ${APEX_FAMILY_CARE_SUBJECT}.`,
+    `${items.length} saved family note${items.length === 1 ? "" : "s"} marked for appointment prep.`,
+    `${concernItems.length} concern or severe note${concernItems.length === 1 ? "" : "s"}.`,
+    patterns.summaryLabel,
+    missingUpdate.message,
+    "Family notes only; ask the clinician what matters medically.",
+    ...items.slice(0, 6).map((note) => `${note.categoryLabel}: ${note.summary}`),
+  ];
 
   return {
     generatedAt: now.toISOString(),
@@ -364,11 +484,19 @@ export function buildApexFamilyCareDoctorSummary(notes = [], now = new Date()) {
       { id: "repeated-patterns", title: "Repeated care patterns", patterns: patterns.patterns },
       { id: "care-loop", title: "Care loop status", missingUpdate },
     ],
+    reviewState,
+    doctorPrepChecklist,
+    doctorVisitBriefLines,
+    manualCopyOnly: true,
+    noSends: true,
+    noRawAudio: true,
+    noRawTranscripts: true,
     patternSummary: patterns,
     missingUpdate,
     preparedLines: [
       `${items.length} saved doctor-prep notes.`,
       `${concernItems.length} concern or severe notes.`,
+      `${doctorReviewCount} doctor-prep notes need review.`,
       patterns.summaryLabel,
       missingUpdate.message,
     ],

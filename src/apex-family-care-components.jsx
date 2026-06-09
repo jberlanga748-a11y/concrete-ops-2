@@ -4,6 +4,7 @@ import { Badge, Button, Card, Icon, InputField, PageHeader, SectionHeader, Selec
 import {
   APEX_FAMILY_CARE_CATEGORIES,
   APEX_FAMILY_CARE_MAX_LOCAL_NOTES,
+  APEX_FAMILY_CARE_NOTE_STATUSES,
   APEX_FAMILY_CARE_REPORTERS,
   APEX_FAMILY_CARE_REQUIRED_SCREENS,
   APEX_FAMILY_CARE_SEVERITIES,
@@ -11,10 +12,12 @@ import {
   buildApexFamilyCareAccessReadiness,
   buildApexFamilyCareDoctorSummary,
   buildApexFamilyCareFamilySummary,
+  buildApexFamilyCareReviewState,
   buildApexFamilyCareTodaySummary,
   createApexFamilyCareNote,
   getApexFamilyCareAccessGateSummary,
   listApexFamilyCareNotes,
+  updateApexFamilyCareNote,
 } from "../shared/apexFamilyCare.js";
 import { getApexFamilyCareBrainInterfaceSummary } from "../shared/apexFamilyCareBrain.js";
 import {
@@ -111,7 +114,7 @@ function loadInitialNotes() {
     if (!stored) return starterNotes;
     const parsed = JSON.parse(stored);
     if (!Array.isArray(parsed) || parsed.length === 0) return starterNotes;
-    return listApexFamilyCareNotes(parsed, { limit: APEX_FAMILY_CARE_MAX_LOCAL_NOTES });
+    return listApexFamilyCareNotes(parsed, { limit: APEX_FAMILY_CARE_MAX_LOCAL_NOTES, status: "" });
   } catch {
     return starterNotes;
   }
@@ -197,6 +200,16 @@ function newTestWeekDraft() {
   };
 }
 
+function newTimelineFilters() {
+  return {
+    status: "open",
+    category: "",
+    reporter: "",
+    concernOnly: false,
+    doctorOnly: false,
+  };
+}
+
 function ToggleRow({ label, checked, onChange }) {
   return (
     <label className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-black text-slate-700">
@@ -211,12 +224,20 @@ function ToggleRow({ label, checked, onChange }) {
   );
 }
 
-function CareNoteRow({ note }) {
+function noteStatusTone(status) {
+  if (status === "archived") return "slate";
+  if (status === "needs-review") return "amber";
+  return "green";
+}
+
+function CareNoteRow({ note, onStatusChange = null }) {
+  const showStatusActions = typeof onStatusChange === "function";
   return (
     <div className="min-w-0 rounded-lg border border-slate-200 bg-white px-3 py-3">
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <Badge tone={noteTone(note)}>{note.categoryLabel}</Badge>
         <Badge tone={note.urgent ? "amber" : "slate"}>{note.urgent ? "Concern" : "Normal"}</Badge>
+        <Badge tone={noteStatusTone(note.status)}>{note.status === "needs-review" ? "Needs review" : note.status}</Badge>
         {note.addToDoctorSummary ? <Badge tone="blue">Doctor prep</Badge> : null}
         <span className="text-xs font-black text-slate-500">{formatCareTime(note.timestamp)}</span>
       </div>
@@ -226,6 +247,19 @@ function CareNoteRow({ note }) {
         {note.severity !== "unknown" ? ` / ${note.severity}` : ""}
         {note.bodyArea ? ` / ${note.bodyArea}` : ""}
       </p>
+      {showStatusActions ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button type="button" variant="secondary" onClick={() => onStatusChange(note.id, "needs-review")} disabled={note.status === "needs-review"}>
+            <Icon name="alert" /> Needs Review
+          </Button>
+          <Button type="button" variant="secondary" onClick={() => onStatusChange(note.id, "active")} disabled={note.status === "active"}>
+            <Icon name="check" /> Restore Active
+          </Button>
+          <Button type="button" variant="secondary" onClick={() => onStatusChange(note.id, "archived")} disabled={note.status === "archived"}>
+            <Icon name="inbox" /> Archive
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -582,14 +616,56 @@ function VoiceUpdateView({ voiceDraft, setVoiceDraft, onStart, onCancel, onRevie
   );
 }
 
-function TimelineView({ notes }) {
+function TimelineView({ reviewState, timelineFilters, setTimelineFilters, onStatusChange }) {
   return (
-    <Card className="p-4">
-      <SectionHeader title="Care Timeline" description="Family care notes stay separate from Apex HQ business records." />
-      <div className="space-y-2">
-        {notes.map((note) => <CareNoteRow key={note.id} note={note} />)}
-      </div>
-    </Card>
+    <div className="space-y-4">
+      <Card className="p-4">
+        <SectionHeader title="Care Timeline" description={reviewState.nextAction} />
+        <div className="mb-3 grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+          <StatCard title="Active" value={reviewState.counts.active} detail="Visible in summaries" />
+          <StatCard title="Needs Review" value={reviewState.counts.needsReview} detail="Check before relying on it" />
+          <StatCard title="Archived" value={reviewState.counts.archived} detail="Hidden from summaries" />
+          <StatCard title="Doctor Prep" value={reviewState.counts.doctorPrep} detail="Open appointment notes" />
+          <StatCard title="Filtered" value={reviewState.counts.filtered} detail="Shown below" />
+        </div>
+        <div className="grid gap-3 lg:grid-cols-5">
+          <SelectField label="Status" value={timelineFilters.status} onChange={(event) => setTimelineFilters((current) => ({ ...current, status: event.target.value }))}>
+            <option value="open">Open</option>
+            <option value="all">All</option>
+            {APEX_FAMILY_CARE_NOTE_STATUSES.map((status) => <option key={status} value={status}>{status === "needs-review" ? "Needs Review" : status}</option>)}
+          </SelectField>
+          <SelectField label="Category" value={timelineFilters.category} onChange={(event) => setTimelineFilters((current) => ({ ...current, category: event.target.value }))}>
+            <option value="">All categories</option>
+            {APEX_FAMILY_CARE_CATEGORIES.map((category) => <option key={category.id} value={category.id}>{category.label}</option>)}
+          </SelectField>
+          <SelectField label="Reporter" value={timelineFilters.reporter} onChange={(event) => setTimelineFilters((current) => ({ ...current, reporter: event.target.value }))}>
+            <option value="">All reporters</option>
+            {APEX_FAMILY_CARE_REPORTERS.map((reporter) => <option key={reporter} value={reporter}>{reporter}</option>)}
+          </SelectField>
+          <ToggleRow label="Concern only" checked={timelineFilters.concernOnly} onChange={(value) => setTimelineFilters((current) => ({ ...current, concernOnly: value }))} />
+          <ToggleRow label="Doctor prep only" checked={timelineFilters.doctorOnly} onChange={(value) => setTimelineFilters((current) => ({ ...current, doctorOnly: value }))} />
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button type="button" variant="secondary" onClick={() => setTimelineFilters(newTimelineFilters())}>
+            <Icon name="refresh" /> Reset Filters
+          </Button>
+          <Badge tone="green">Local review only</Badge>
+          <Badge tone="green">No deletes</Badge>
+          <Badge tone="green">No medical advice</Badge>
+        </div>
+      </Card>
+
+      <Card className="p-4">
+        <SectionHeader title="Review Notes" description="Mark mistaken or uncertain notes for review before they feed family or doctor prep." />
+        <div className="space-y-2">
+          {reviewState.notes.length ? reviewState.notes.map((note) => (
+            <CareNoteRow key={note.id} note={note} onStatusChange={onStatusChange} />
+          )) : (
+            <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm font-bold text-slate-600">No notes match these review filters.</div>
+          )}
+        </div>
+      </Card>
+    </div>
   );
 }
 
@@ -605,6 +681,29 @@ function DoctorSummaryView({ doctorSummary }) {
       </div>
       <div className="mb-3 flex flex-wrap gap-2">
         {(doctorSummary.preparedLines || []).map((line) => <Badge key={line} tone="slate">{line}</Badge>)}
+      </div>
+      <div className="mb-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+        {(doctorSummary.doctorPrepChecklist || []).map((item) => (
+          <div key={item.id} className="rounded-lg border border-slate-200 bg-white p-3">
+            <div className="flex min-w-0 items-center justify-between gap-3">
+              <p className="min-w-0 break-words text-sm font-black text-slate-950">{item.label}</p>
+              <Badge tone={item.ready ? "green" : "amber"}>{item.ready ? "Ready" : "Check"}</Badge>
+            </div>
+            <p className="mt-1 break-words text-xs font-bold text-slate-600">{item.detail}</p>
+          </div>
+        ))}
+      </div>
+      <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm font-black text-blue-950">Copy-Safe Doctor Visit Brief</p>
+          <Badge tone="blue">Manual copy only</Badge>
+          <Badge tone="green">No sends</Badge>
+        </div>
+        <div className="mt-2 space-y-1">
+          {(doctorSummary.doctorVisitBriefLines || []).map((line) => (
+            <p key={line} className="break-words text-sm font-bold text-blue-900">{line}</p>
+          ))}
+        </div>
       </div>
       <div className="space-y-2">
         {doctorSummary.items.length ? doctorSummary.items.map((note) => <CareNoteRow key={note.id} note={note} />) : (
@@ -1049,6 +1148,7 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
   const [kitchenDeviceState, setKitchenDeviceState] = useState(loadInitialKitchenDeviceState);
   const [testWeekState, setTestWeekState] = useState(loadInitialTestWeekState);
   const [testWeekDraft, setTestWeekDraft] = useState(newTestWeekDraft);
+  const [timelineFilters, setTimelineFilters] = useState(newTimelineFilters);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1070,10 +1170,12 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
     window.localStorage.setItem(TEST_WEEK_STORAGE_KEY, JSON.stringify(testWeekState));
   }, [testWeekState]);
 
-  const sortedNotes = useMemo(() => listApexFamilyCareNotes(notes, { limit: APEX_FAMILY_CARE_MAX_LOCAL_NOTES }), [notes]);
+  const allNotes = useMemo(() => listApexFamilyCareNotes(notes, { limit: APEX_FAMILY_CARE_MAX_LOCAL_NOTES, status: "" }), [notes]);
+  const sortedNotes = useMemo(() => listApexFamilyCareNotes(allNotes, { limit: APEX_FAMILY_CARE_MAX_LOCAL_NOTES }), [allNotes]);
   const todaySummary = useMemo(() => buildApexFamilyCareTodaySummary(sortedNotes), [sortedNotes]);
-  const doctorSummary = useMemo(() => buildApexFamilyCareDoctorSummary(sortedNotes), [sortedNotes]);
+  const doctorSummary = useMemo(() => buildApexFamilyCareDoctorSummary(allNotes), [allNotes]);
   const familySummary = useMemo(() => buildApexFamilyCareFamilySummary(sortedNotes), [sortedNotes]);
+  const reviewState = useMemo(() => buildApexFamilyCareReviewState(allNotes, timelineFilters), [allNotes, timelineFilters]);
   const notificationState = useMemo(() => buildApexFamilyCareNotificationState(sortedNotes, {
     preferences: notificationPreferences,
   }), [notificationPreferences, sortedNotes]);
@@ -1151,6 +1253,15 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
   function handleAddTestWeekFrictionNote() {
     setTestWeekState((current) => addApexFamilyCareTestWeekFrictionNote(current, testWeekDraft));
     setTestWeekDraft(newTestWeekDraft());
+  }
+
+  function handleUpdateNoteStatus(noteId, status) {
+    setNotes((current) => {
+      const updated = updateApexFamilyCareNote(current, noteId, { status }, new Date(), {
+        maxNotes: APEX_FAMILY_CARE_MAX_LOCAL_NOTES,
+      });
+      return updated.changed ? updated.notes : current;
+    });
   }
 
   function handleSave() {
@@ -1252,7 +1363,14 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
         onSaveNeedsReview={handleSaveVoiceNeedsReview}
       />
     ),
-    timeline: <TimelineView notes={sortedNotes} />,
+    timeline: (
+      <TimelineView
+        reviewState={reviewState}
+        timelineFilters={timelineFilters}
+        setTimelineFilters={setTimelineFilters}
+        onStatusChange={handleUpdateNoteStatus}
+      />
+    ),
     doctor: <DoctorSummaryView doctorSummary={doctorSummary} />,
     family: <FamilySummaryView familySummary={familySummary} />,
     settings: (

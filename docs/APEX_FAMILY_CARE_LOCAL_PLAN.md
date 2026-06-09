@@ -517,6 +517,24 @@ Phase 7 check-in-gating receipt (2026-06-09): tightened daily check-in evidence 
 
 Phase 1A slice receipt (2026-06-09): looped the active builder back from Phase 7 into the first foundation follow-up slice per John's override. Added `buildApexFamilyCareAccessReadiness` with local-only access mode, direct PWA checks, install-target steps, remote-access approval gate, no Apex HQ navigation requirement, no private cockpit requirement, no auth/session/schema changes, no sends, no cloud, no public/customer/field exposure, no raw audio/transcript storage, no diagnosis, and metadata-only receipt data. The standalone Family Access screen now shows Access Mode, Install Path, Boundary Checks, and explicit No auth change / No schema change / No Apex HQ nav / No sends badges. Phase 1A is not fully closed because the real family access model and any approved remote/auth work remain later decisions.
 
+### Phase 2A - Care Review And Doctor-Prep Polish
+
+- [x] Add local review/archive note states without deleting notes.
+- [x] Keep active summaries and doctor prep from relying on archived or needs-review notes by default.
+- [x] Add timeline filters by status, category, reporter, concern, and doctor-summary flag.
+- [x] Add a doctor-prep checklist and copy-safe doctor visit brief preview.
+- [x] Confirm receipts stay metadata-only and no raw audio/transcript/prompt/response/secrets/cloud/sends/diagnosis/emergency claims are added.
+
+Phase 2A slice receipt (2026-06-09): added the first care-review polish slice. Family Care now preserves active / needs-review / archived note states locally, keeps needs-review and archived notes out of default summaries, shows timeline filters for status/category/reporter/concern/doctor-prep, and gives each timeline note local controls to mark Needs Review, Restore Active, or Archive. Doctor Summary now includes a practical prep checklist and a manual copy-only Doctor Visit Brief preview using family-note language. No schema/auth/session/backend/deploy/provider/sending/cloud behavior was added; receipts remain compact metadata only.
+
+### Phase 2B - Next Care Review Follow-Up
+
+- [ ] Add a true edit/revise flow for mistaken note text, category, reporter, timestamp, doctor-summary flag, family-visible flag, and concern flag.
+- [ ] Add a reviewed/confirmed state separate from active when the family verifies a note.
+- [ ] Add a print/export path for the doctor visit brief only after the brief format is proven useful.
+- [ ] Add doctor-visit sections for "questions to ask", "changes since last visit", and "family concerns" without diagnosis or treatment advice.
+- [ ] Keep raw audio, raw transcripts, medical diagnosis, emergency replacement, real sends, cloud fallback, schema/auth/session changes, and Apex HQ exposure blocked unless explicitly approved.
+
 ## Done And Frozen Rule
 
 When a checklist item is completed:
@@ -577,8 +595,10 @@ Complete the Current Next Step, advance the plan, then continue through foundati
 
 ## Current Next Step
 
-Next active build slice: Phase 2A - Care Review And Doctor-Prep Polish.
+Next active build slice: Phase 3A - Apex Care Coordinator Loop.
 
 Open validation track: Phase 7 - Family Test Week remains incomplete until one real family test week is run and reviewed. Do not mark Phase 7 complete from synthetic data or builder prep work.
 
 Open approval-gated Phase 1A work: choose and approve the real family access model before adding real remote access, auth/session changes, provider setup, or family-device rollout.
+
+Open Phase 2B work: add true note editing/revision, reviewed/confirmed note state, and print/export doctor-brief polish after the current review lane proves useful.

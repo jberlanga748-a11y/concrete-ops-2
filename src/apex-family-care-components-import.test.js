@@ -85,6 +85,7 @@ test("Apex Family Care still uses Phase 2 and Phase 3 shared helpers", () => {
     "buildApexFamilyCareDoctorSummary",
     "buildApexFamilyCareFamilySummary",
     "buildApexFamilyCareTodaySummary",
+    "buildApexFamilyCareReviewState",
     "getApexFamilyCareBrainInterfaceSummary",
     "createApexFamilyCareVoiceNoteDraft",
     "buildApexFamilyCareKitchenModeStatus",
@@ -95,10 +96,17 @@ test("Apex Family Care still uses Phase 2 and Phase 3 shared helpers", () => {
     "buildApexFamilyCareNotificationState",
     "getDefaultApexFamilyCareNotificationPreferences",
     "listApexFamilyCareNotes",
+    "updateApexFamilyCareNote",
   ]) {
     assert.match(componentSource, new RegExp(helperName));
   }
 
+  assert.match(componentSource, /Review Notes/);
+  assert.match(componentSource, /Needs Review/);
+  assert.match(componentSource, /Restore Active/);
+  assert.match(componentSource, /Archive/);
+  assert.match(componentSource, /Copy-Safe Doctor Visit Brief/);
+  assert.match(componentSource, /Manual copy only/);
   assert.match(componentSource, /Care Signals/);
   assert.match(componentSource, /Missing update detector/);
   assert.match(componentSource, /Pattern detector/);
