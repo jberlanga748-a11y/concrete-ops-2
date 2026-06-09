@@ -8,6 +8,7 @@ import {
   visualPolishFullAuditCommands,
 } from "./visual-polish-full-audit.mjs";
 import { visualPolishChromiumAuditCommands } from "./visual-polish-chromium-audit.mjs";
+import { isIgnorableConsoleMessage } from "./visual-polish-route-audit.mjs";
 
 test("full visual polish audit runs desktop/phone before tablet", () => {
   assert.deepEqual(visualPolishFullAuditCommands, [
@@ -28,6 +29,27 @@ test("chromium visual polish audit includes both field phone roles", () => {
 test("tablet visual polish audit includes foreman field leadership coverage", () => {
   const packageJson = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"));
   assert.match(packageJson.scripts["audit:visual-polish:tablet"], /--roles=admin,foreman,employee/);
+});
+
+test("visual polish audit has explicit Apex OS and Apex HQ route modes", () => {
+  const packageJson = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  assert.match(packageJson.scripts["audit:visual-polish:apex"], /--routes=\/apex,\/apex-avatar-lab/);
+  assert.match(packageJson.scripts["audit:visual-polish:hq"], /--routes=\/,\/command-center/);
+});
+
+test("visual polish audit ignores only known WebGL ReadPixels performance warnings", () => {
+  assert.equal(isIgnorableConsoleMessage({
+    type: () => "warning",
+    text: () => "[.WebGL-0x657c00198400]GL Driver Message (OpenGL, Performance): GPU stall due to ReadPixels",
+  }), true);
+  assert.equal(isIgnorableConsoleMessage({
+    type: () => "warning",
+    text: () => "React error boundary warning",
+  }), false);
+  assert.equal(isIgnorableConsoleMessage({
+    type: () => "error",
+    text: () => "[.WebGL] GPU stall due to ReadPixels",
+  }), false);
 });
 
 test("visual polish audit step timeout is bounded", () => {
