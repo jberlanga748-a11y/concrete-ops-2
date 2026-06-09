@@ -4960,8 +4960,8 @@ const APEX_COCKPIT_VOICE_STATES = Object.freeze({
   },
 });
 
-const APEX_COCKPIT_SILENCE_MS = 1800;
-const APEX_COCKPIT_MIN_TURN_MS = 1200;
+const APEX_COCKPIT_SILENCE_MS = 2800;
+const APEX_COCKPIT_MIN_TURN_MS = 1500;
 const APEX_COCKPIT_LEVEL_THRESHOLD = 0.018;
 const APEX_COCKPIT_IDLE_LEVEL_THRESHOLD = 0.009;
 const APEX_COCKPIT_BARGE_IN_THRESHOLD = 0.066;
@@ -4988,9 +4988,9 @@ const APEX_COCKPIT_MIC_CALIBRATION_MS = 1800;
 const APEX_COCKPIT_MIC_MAX_FRAME_AGE_MS = 2400;
 const APEX_COCKPIT_MIC_MIN_THRESHOLD = 0.01;
 const APEX_COCKPIT_MIC_MAX_THRESHOLD = 0.045;
-const APEX_COCKPIT_LISTENING_HANDOFF_NOTICE = "Apex finished speaking and is quiet until John starts the next turn.";
+const APEX_COCKPIT_LISTENING_HANDOFF_NOTICE = "Apex finished speaking and is listening for the next visible local turn.";
 const APEX_COCKPIT_NATIVE_PAUSED_NOTICE = "Apex answered. Voice is paused to avoid hearing its own answer.";
-const APEX_COCKPIT_VOICE_RETRY_NOTICE = "I missed that. Press Resume Voice and say it again.";
+const APEX_COCKPIT_VOICE_RETRY_NOTICE = "I missed that. Say it again when the visible local voice loop is ready.";
 const APEX_COCKPIT_VOICE_RETRY_OPEN_MS = 420;
 
 function normalizeApexCockpitLoopText(value = "") {
@@ -8419,14 +8419,14 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const [cockpitRecording, setCockpitRecording] = useState(false);
   const [cockpitTranscribing, setCockpitTranscribing] = useState(false);
   const [cockpitLastQuestion, setCockpitLastQuestion] = useState("");
-  const [cockpitAutoListening, setCockpitAutoListening] = useState(false);
+  const [cockpitAutoListening, setCockpitAutoListening] = useState(() => Boolean(conversationFirst));
   const [cockpitPageVisible, setCockpitPageVisible] = useState(() => (typeof document === "undefined" ? true : document.visibilityState !== "hidden"));
   const [cockpitSpeechActive, setCockpitSpeechActive] = useState(false);
   const [cockpitMicLevel, setCockpitMicLevel] = useState(0);
   const [cockpitMicCalibration, setCockpitMicCalibration] = useState(() => createApexCockpitMicCalibrationState());
   const [cockpitOutputLevel, setCockpitOutputLevel] = useState(0);
   const [cockpitAudioReady, setCockpitAudioReady] = useState(false);
-  const [cockpitConversationMode, setCockpitConversationMode] = useState(false);
+  const [cockpitConversationMode, setCockpitConversationMode] = useState(() => Boolean(conversationFirst));
   const [cockpitBargeInEnabled, setCockpitBargeInEnabled] = useState(false);
   const [cockpitAlwaysOpenMic, setCockpitAlwaysOpenMic] = useState(() => buildApexAlwaysOpenMicStatus({
     state: APEX_ALWAYS_OPEN_MIC_STATE.QUIET,
@@ -8498,7 +8498,8 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const cockpitListeningHandoffPendingRef = useRef(false);
   const cockpitRecordingRef = useRef(false);
   const cockpitBargeInEnabledRef = useRef(false);
-  const cockpitAutoListeningRef = useRef(false);
+  const cockpitAutoListeningRef = useRef(Boolean(conversationFirst));
+  const cockpitVisibleAutoVoiceOpenPendingRef = useRef(false);
   const cockpitAlwaysOpenMicRef = useRef(cockpitAlwaysOpenMic);
   const cockpitRecoveringUntilRef = useRef(0);
   const cockpitDroppedMicFrameCountRef = useRef(0);
@@ -8772,7 +8773,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const cockpitNativeVoiceStatus = cockpitLocalVoicePayload.nativeVoice || cockpitBackgroundVoice.nativeVoice || {};
   const cockpitNativeVoiceReady = Boolean(cockpitNativeVoiceStatus.available || cockpitNativeVoiceStatus.canListenNatively || cockpitLocalVoicePayload.nativeInputAvailable);
   const cockpitCanUseBrowserAutoVoice = canUseCockpitRecorder && cockpitMicPermissionState !== "denied";
-  const cockpitCanUseNativeAutoVoice = cockpitNativeVoiceReady && (!canUseCockpitRecorder || cockpitMicPermissionState === "denied");
+  const cockpitCanUseNativeAutoVoice = cockpitNativeVoiceReady;
   const cockpitWakeButtonLabel = cockpitRecording
     ? "Pause Voice"
     : cockpitTranscribing
@@ -9141,6 +9142,39 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     pauseCockpitVoiceSession();
     return undefined;
   }, [cockpitPageVisible]);
+
+  useEffect(() => {
+    if (!conversationFirst || cockpitVisibleAutoVoiceOpenPendingRef.current) return undefined;
+    if (!state.canView || !sessionToken || !cockpitConversationMode || !cockpitAutoListening || !cockpitPageVisible || !canStartCockpitVoice) return undefined;
+    if (!cockpitNativeVoiceReady && cockpitMicPermissionState !== "granted") return undefined;
+    if (cockpitRecording || cockpitTranscribing || cockpitSubmitting || cockpitSpeaking || cockpitAlwaysOpenMicMode === APEX_ALWAYS_OPEN_MIC_STATE.RECOVERING) return undefined;
+    cockpitVisibleAutoVoiceOpenPendingRef.current = true;
+    const openTimer = setTimeout(() => {
+      if (!cockpitRecordingRef.current && !cockpitTranscribingRef.current && !cockpitSpeakingRef.current && !cockpitVoiceOpeningRef.current) {
+        openCockpitVoiceSession({ automatic: true });
+      }
+      cockpitVisibleAutoVoiceOpenPendingRef.current = false;
+    }, 450);
+    return () => {
+      clearTimeout(openTimer);
+      cockpitVisibleAutoVoiceOpenPendingRef.current = false;
+    };
+  }, [
+    conversationFirst,
+    state.canView,
+    sessionToken,
+    cockpitConversationMode,
+    cockpitAutoListening,
+    cockpitPageVisible,
+    canStartCockpitVoice,
+    cockpitNativeVoiceReady,
+    cockpitMicPermissionState,
+    cockpitRecording,
+    cockpitTranscribing,
+    cockpitSubmitting,
+    cockpitSpeaking,
+    cockpitAlwaysOpenMicMode,
+  ]);
 
   useEffect(() => {
     cockpitAlwaysOpenMicRef.current = cockpitAlwaysOpenMic;
@@ -9822,7 +9856,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   function scheduleCockpitListeningAfterSpeech(notice = APEX_COCKPIT_LISTENING_HANDOFF_NOTICE, { force = false } = {}) {
     clearCockpitResumeListeningTimer();
     markCockpitVoiceRecovering(notice);
-    if (!force && cockpitCurrentSpeechInputModeRef.current === "native") {
+    if (!force && cockpitCurrentSpeechInputModeRef.current === "native" && (!cockpitConversationMode || !cockpitAutoListeningRef.current)) {
       cockpitListeningHandoffPendingRef.current = false;
       setCockpitAutoListening(false);
       cockpitAutoListeningRef.current = false;
@@ -9866,6 +9900,22 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     setCockpitVoiceNotice(notice);
     cockpitResumeListeningTimerRef.current = setTimeout(() => {
       cockpitResumeListeningTimerRef.current = 0;
+      if (
+        state.canView
+        && sessionToken
+        && cockpitConversationMode
+        && cockpitAutoListeningRef.current
+        && cockpitPageVisible
+        && !cockpitRecordingRef.current
+        && !cockpitTranscribingRef.current
+        && !cockpitSubmittingRef.current
+        && !cockpitSpeakingRef.current
+        && !cockpitVoiceOpeningRef.current
+      ) {
+        cockpitRecoveringUntilRef.current = 0;
+        openCockpitVoiceSession({ automatic: true, handoff: true });
+        return;
+      }
       cockpitRecoveringUntilRef.current = 0;
       updateCockpitAlwaysOpenMicStatus({
         state: APEX_ALWAYS_OPEN_MIC_STATE.QUIET,
@@ -9873,10 +9923,12 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
         feedbackSuppressionActive: false,
         fallbackReason: "Voice is quiet until John starts the next turn.",
       });
-      setCockpitAutoListening(false);
-      cockpitAutoListeningRef.current = false;
+      if (!cockpitConversationMode) {
+        setCockpitAutoListening(false);
+        cockpitAutoListeningRef.current = false;
+      }
     }, APEX_COCKPIT_RECOVERY_DROP_MS);
-    return false;
+    return true;
   }
 
   function scheduleCockpitVoiceRetry(reason = "Apex missed the last voice turn", _options = {}) {
@@ -11463,7 +11515,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     };
     setCockpitVoiceBenchmarkArmed(true);
     setCockpitLiveBenchmarkSummary((current) => current || cockpitBackgroundPayload?.liveTurnBenchmarkHistory || cockpitBackgroundPayload?.latency?.benchmarkHistory || null);
-    setCockpitVoiceNotice("Voice benchmark armed. Press Resume Voice, then speak into the visible mic; Apex will store compact timing metadata only.");
+    setCockpitVoiceNotice("Voice benchmark armed. Speak into the visible local mic loop; Apex will store compact timing metadata only.");
     setCockpitAgentActionNotice("Apex will benchmark exactly the next visible voice turn. No hidden mic, no background recording, no raw audio, no transcript storage, and no cloud STT/TTS.");
     return true;
   }
@@ -12742,7 +12794,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
           });
           setCockpitAutoListening(false);
           cockpitAutoListeningRef.current = false;
-          setCockpitVoiceNotice("Apex heard audio, but this browser turn could not become local WAV. I paused voice instead of looping or sending bad audio to STT. Press Resume Voice to try again.");
+          setCockpitVoiceNotice("Apex heard audio, but this browser turn could not become local WAV. The visible local voice loop will retry when it is ready.");
           return;
         }
         const dataUrlStartedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -12969,8 +13021,13 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     cockpitTranscribingRef.current = true;
     setCockpitRecording(false);
     cockpitRecordingRef.current = false;
-    setCockpitAutoListening(false);
-    cockpitAutoListeningRef.current = false;
+    if (cockpitConversationMode) {
+      setCockpitAutoListening(true);
+      cockpitAutoListeningRef.current = true;
+    } else {
+      setCockpitAutoListening(false);
+      cockpitAutoListeningRef.current = false;
+    }
     setCockpitError("");
     resetCockpitBrowserCaptionTurn();
     updateCockpitAlwaysOpenMicStatus({
@@ -13117,8 +13174,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
         ? "Chrome may ask for microphone now. Choose Allow for localhost:5173 so Apex can hear you."
         : "");
     try {
-      const shouldUseNativeVoice = cockpitNativeVoiceReady
-        && (!canUseCockpitRecorder || cockpitMicPermissionState === "denied");
+      const shouldUseNativeVoice = cockpitNativeVoiceReady;
       if (shouldUseNativeVoice) {
         await openCockpitNativeVoiceTurn({ automatic, handoff, captureId });
         return;
@@ -13245,13 +13301,15 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   function toggleCockpitConversationMode() {
     const nextConversationMode = !cockpitConversationMode;
     setCockpitConversationMode(nextConversationMode);
-    setCockpitAutoListening(false);
-    cockpitAutoListeningRef.current = false;
     if (!nextConversationMode) {
+      setCockpitAutoListening(false);
+      cockpitAutoListeningRef.current = false;
       pauseCockpitVoiceSession("Conversation off. Voice is quiet.");
       return;
     }
-    setCockpitVoiceNotice("Conversation on. Opening one visible voice turn; Apex will not auto-reopen after it settles.");
+    setCockpitAutoListening(true);
+    cockpitAutoListeningRef.current = true;
+    setCockpitVoiceNotice("Conversation on. Apex will keep the visible local listening loop open while this window is active.");
     if (!cockpitRecordingRef.current && !cockpitTranscribingRef.current && !cockpitSpeakingRef.current) {
       setTimeout(() => openCockpitVoiceSession({ automatic: false }), 80);
     }
@@ -13272,7 +13330,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       return true;
     };
     if (cockpitTranscribingRef.current && !cockpitRecorderRef.current) {
-      pauseCockpitVoiceSession("Voice turn settled. Apex is quiet until John starts the next turn.");
+      setCockpitVoiceNotice(cockpitConversationMode ? "Done talking noted. Apex is finishing this local turn." : "Voice turn settled. Apex is quiet until John starts the next turn.");
       return;
     }
     if (!cockpitRecordingRef.current || !cockpitRecorderRef.current) {
