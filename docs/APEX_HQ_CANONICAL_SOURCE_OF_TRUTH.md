@@ -1,6 +1,6 @@
 # Apex HQ Canonical Source Of Truth
 
-Last updated: 2026-06-07
+Last updated: 2026-06-09
 
 This is the first file to read before any Apex HQ work. It is the one-file consolidation of the Apex HQ product direction, the Concrete Ops to Apex HQ transition, the active repo, stale/archive worktrees, local memories, and no-loop rules.
 
@@ -21,6 +21,8 @@ Use **Apex HQ** everywhere users see the product. `Concrete Ops`, `concrete-ops`
 ## Apex OS Private Operator Clarification
 
 Recorded on 2026-06-06:
+
+- 2026-06-09 separation update: Apex no longer lives inside the Apex HQ product shell. Apex is John's standalone local PC intelligence in `C:\Users\jberl\Documents\Apex`. Apex HQ remains the contractor SaaS/product and keeps customer-facing AI features such as AI Office, lead/estimate/proposal/job/document helpers, and role/company-scoped workflow intelligence. Current Apex HQ boundary details live in `docs/APEX_HQ_APEX_SEPARATION_BOUNDARY.md`. Historical notes below remain implementation history only and do not re-authorize `/apex`, `/api/apex-os/*`, private Apex memory, local model/runtime controls, voice runtime, device control, or personal operator tools as active Apex HQ product surfaces.
 
 - Apex North Star, recorded on 2026-06-07: Apex is John's private operator. Apex is not a dashboard, review system, or safety product. Apex is one main intelligence with internal agents underneath it. John talks; Apex does. Apex reports only what matters. Apex should use what John already built instead of rebuilding. Apex should act for private, local, reversible work. Apex should not expose internal machinery unless John asks. Apex should feel alive, emotionally intelligent, capable, and personal. Apex HQ is one domain Apex can operate, not the whole identity of Apex.
 - Do Not Drift rule: before any Apex work, Codex, Builder, and every Apex agent must ask, "Does this make Apex feel more like one private operator John talks to?" If not, stop and correct course before building more UI, panels, review flows, duplicate agents, or visible machinery.

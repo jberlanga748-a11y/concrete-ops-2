@@ -6,7 +6,6 @@ export const OWNER_ADMIN_MOBILE_NAV_ORDER = [
 ];
 
 export const OWNER_ADMIN_MOBILE_MORE_ORDER = [
-  { id: "apexControlRoom", label: "Apex OS", icon: "spark" },
   { id: "jobs", label: "Jobs", icon: "briefcase" },
   { id: "schedule", label: "Schedule", icon: "calendar" },
   { id: "reports", label: "Reports", icon: "document" },
@@ -22,11 +21,6 @@ export const OWNER_ADMIN_MOBILE_MORE_ORDER = [
 ];
 
 export const APEX_OS_MOBILE_NAV_ORDER = [
-  { id: "apexControlRoom", label: "Apex OS", icon: "spark" },
-  { id: "appHealth", label: "Health", icon: "database" },
-  { id: "copilot", label: "Assistant", icon: "spark" },
-  { id: "support", label: "Help", icon: "help" },
-  { id: "settings", label: "Setup", icon: "settings" },
 ];
 
 export const ESTIMATOR_MOBILE_NAV_ORDER = [
@@ -37,22 +31,12 @@ export const ESTIMATOR_MOBILE_NAV_ORDER = [
 ];
 
 export const ESTIMATOR_MOBILE_NAV_ROUTES = new Set(["leads", "estimates", "customers", "communications"]);
+const RETIRED_PRIVATE_APEX_MODULES = new Set(["apexControlRoom", "apexAvatarLab"]);
 
 export function getOwnerAdminMobileNavItems(visibleNavItems = [], options = {}) {
-  const visibleById = new Map((visibleNavItems || []).map((item) => [item.id, item]));
-  if (options.operatorShell) {
-    const ordered = APEX_OS_MOBILE_NAV_ORDER
-      .map((item) => {
-        const visible = visibleById.get(item.id);
-        return visible ? { ...visible, label: item.label, icon: item.icon || visible.icon } : null;
-      })
-      .filter(Boolean);
-    const orderedIds = new Set(ordered.map((item) => item.id));
-    return [
-      ...ordered,
-      ...(visibleNavItems || []).filter((item) => !orderedIds.has(item.id)),
-    ];
-  }
+  const filteredVisibleNavItems = (visibleNavItems || []).filter((item) => !RETIRED_PRIVATE_APEX_MODULES.has(item.id));
+  const visibleById = new Map(filteredVisibleNavItems.map((item) => [item.id, item]));
+  void options;
   const ordered = OWNER_ADMIN_MOBILE_NAV_ORDER
     .map((item) => {
       const visible = visibleById.get(item.id);

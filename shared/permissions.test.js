@@ -114,10 +114,10 @@ test("company switching requires explicit operator access plus an office role", 
   assert.equal(canManageCompanies({ role: "Employee", operatorAccess: true }), false);
 });
 
-test("Apex OS access requires private operator access plus an office role", () => {
-  assert.equal(canAccessApexOs({ role: "Owner", operatorAccess: true }), true);
-  assert.equal(canAccessApexOs({ role: "Administrator", operatorAccess: true }), true);
-  assert.equal(canAccessApexOs({ role: "Operations Manager", operatorAccess: true }), true);
+test("private Apex access is retired from Apex HQ permissions", () => {
+  assert.equal(canAccessApexOs({ role: "Owner", operatorAccess: true }), false);
+  assert.equal(canAccessApexOs({ role: "Administrator", operatorAccess: true }), false);
+  assert.equal(canAccessApexOs({ role: "Operations Manager", operatorAccess: true }), false);
   assert.equal(canAccessApexOs({ role: "Owner", operatorAccess: false }), false);
   assert.equal(canAccessApexOs({ role: "Administrator", operatorAccess: false }), false);
   assert.equal(canAccessApexOs({ role: "Estimator", operatorAccess: true }), false);
@@ -128,9 +128,9 @@ test("Apex OS access requires private operator access plus an office role", () =
   assert.equal(canAccessApexOs({ role: "Owner", operatorAccess: true, currentCompanyId: "COMPANY-LYF" }), false);
   assert.equal(isApexOsWorkspace({ companyId: "COMPANY-DEFAULT" }), true);
   assert.equal(isApexOsWorkspace({ currentCompanyId: "COMPANY-LYF" }), false);
-  assert.equal(getAllowedModuleIds({ role: "Owner", operatorAccess: true }).has("apexControlRoom"), true);
+  assert.equal(getAllowedModuleIds({ role: "Owner", operatorAccess: true }).has("apexControlRoom"), false);
   assert.equal(getAllowedModuleIds({ role: "Owner", operatorAccess: true }).has("familyCare"), false);
-  assert.equal(getAllowedModuleIds({ role: "Owner", operatorAccess: true }).has("apexAvatarLab"), true);
+  assert.equal(getAllowedModuleIds({ role: "Owner", operatorAccess: true }).has("apexAvatarLab"), false);
   assert.equal(getAllowedModuleIds({ role: "Owner", operatorAccess: false }).has("apexControlRoom"), false);
   assert.equal(getAllowedModuleIds({ role: "Owner", operatorAccess: false }).has("familyCare"), false);
   assert.equal(getAllowedModuleIds({ role: "Owner", operatorAccess: false }).has("apexAvatarLab"), false);

@@ -692,6 +692,15 @@ app.use(cors({
 }));
 app.use(express.json({ limit: "72mb" }));
 
+app.use("/api/apex-os", (_req, res) => {
+  res.status(410).json({
+    error: "Private Apex has moved to the standalone local repo at C:\\Users\\jberl\\Documents\\Apex.",
+    movedTo: "C:\\Users\\jberl\\Documents\\Apex",
+    apexHqProductAiStillAvailable: true,
+    cloudUsed: false,
+  });
+});
+
 class ApiError extends Error {
   constructor(status, message) {
     super(message);

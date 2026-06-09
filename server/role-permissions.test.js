@@ -237,7 +237,7 @@ test("job visibility is role-scoped and field roles receive redacted job payload
   }
 });
 
-test("Apex OS bootstrap permission requires private operator access", async () => {
+test("Apex OS bootstrap permission is retired from Apex HQ", async () => {
   const fixture = await startServer();
 
   try {
@@ -328,83 +328,80 @@ test("Apex OS bootstrap permission requires private operator access", async () =
       headers: authHeaders(blockedLogin.token),
     })));
 
-    assert.equal(privateBootstrap.permissions.apexOs.canView, true);
-    assert.equal(privateBootstrap.permissions.apexOs.canManage, true);
-    assert.equal(operatorAdminBootstrap.permissions.apexOs.canView, true);
-    assert.equal(operatorAdminBootstrap.permissions.apexOs.canManage, true);
+    assert.equal(privateBootstrap.permissions.apexOs.canView, false);
+    assert.equal(privateBootstrap.permissions.apexOs.canManage, false);
+    assert.equal(operatorAdminBootstrap.permissions.apexOs.canView, false);
+    assert.equal(operatorAdminBootstrap.permissions.apexOs.canManage, false);
     assert.equal(normalBootstrap.permissions.apexOs.canView, false);
     assert.deepEqual(blockedBootstraps.map((bootstrap) => bootstrap.permissions.apexOs.canView), [false, false, false, false]);
 
     const privateMemory = await requestJson(fixture.baseUrl, "/api/apex-os/memory", {
       headers: authHeaders(privateLogin.token),
     });
-    assert.equal(privateMemory.response.status, 200);
+    assert.equal(privateMemory.response.status, 410);
+    assert.match(privateMemory.payload.error, /standalone local repo/i);
 
     const privateBuilderValidation = await requestJson(fixture.baseUrl, "/api/apex-os/builder/validation-runs", {
       method: "POST",
       headers: authHeaders(privateLogin.token),
       body: JSON.stringify({ commandId: "not-a-real-command" }),
     });
-    assert.equal(privateBuilderValidation.response.status, 200);
-    assert.equal(privateBuilderValidation.payload.validationRun.status, "blocked");
+    assert.equal(privateBuilderValidation.response.status, 410);
 
     const privateBuilderFix = await requestJson(fixture.baseUrl, "/api/apex-os/builder/fix-runs", {
       method: "POST",
       headers: authHeaders(privateLogin.token),
       body: JSON.stringify({ request: "deploy production" }),
     });
-    assert.equal(privateBuilderFix.response.status, 200);
-    assert.equal(privateBuilderFix.payload.fixRun.status, "blocked");
+    assert.equal(privateBuilderFix.response.status, 410);
 
     const privateBuilderUndo = await requestJson(fixture.baseUrl, "/api/apex-os/builder/undo-runs", {
       method: "POST",
       headers: authHeaders(privateLogin.token),
       body: JSON.stringify({ fixRun: null }),
     });
-    assert.equal(privateBuilderUndo.response.status, 200);
-    assert.equal(privateBuilderUndo.payload.undoRun.status, "blocked");
+    assert.equal(privateBuilderUndo.response.status, 410);
 
     const privateBuildLoop = await requestJson(fixture.baseUrl, "/api/apex-os/build-loop/runs", {
       method: "POST",
       headers: authHeaders(privateLogin.token),
       body: JSON.stringify({ request: "deploy production", runValidation: false }),
     });
-    assert.equal(privateBuildLoop.response.status, 200);
-    assert.equal(privateBuildLoop.payload.buildLoop.receipt.outcome, "blocked");
+    assert.equal(privateBuildLoop.response.status, 410);
 
     for (const blockedLogin of [normalLogin, ...blockedLogins]) {
       const blockedMemory = await requestJson(fixture.baseUrl, "/api/apex-os/memory", {
         headers: authHeaders(blockedLogin.token),
       });
-      assert.equal(blockedMemory.response.status, 403);
+      assert.equal(blockedMemory.response.status, 410);
 
       const blockedBuilderValidation = await requestJson(fixture.baseUrl, "/api/apex-os/builder/validation-runs", {
         method: "POST",
         headers: authHeaders(blockedLogin.token),
         body: JSON.stringify({ commandId: "not-a-real-command" }),
       });
-      assert.equal(blockedBuilderValidation.response.status, 403);
+      assert.equal(blockedBuilderValidation.response.status, 410);
 
       const blockedBuilderFix = await requestJson(fixture.baseUrl, "/api/apex-os/builder/fix-runs", {
         method: "POST",
         headers: authHeaders(blockedLogin.token),
         body: JSON.stringify({ request: "fix small UI copy" }),
       });
-      assert.equal(blockedBuilderFix.response.status, 403);
+      assert.equal(blockedBuilderFix.response.status, 410);
 
       const blockedBuilderUndo = await requestJson(fixture.baseUrl, "/api/apex-os/builder/undo-runs", {
         method: "POST",
         headers: authHeaders(blockedLogin.token),
         body: JSON.stringify({ fixRun: null }),
       });
-      assert.equal(blockedBuilderUndo.response.status, 403);
+      assert.equal(blockedBuilderUndo.response.status, 410);
 
       const blockedBuildLoop = await requestJson(fixture.baseUrl, "/api/apex-os/build-loop/runs", {
         method: "POST",
         headers: authHeaders(blockedLogin.token),
         body: JSON.stringify({ request: "Apex, work on yourself.", runValidation: false }),
       });
-      assert.equal(blockedBuildLoop.response.status, 403);
+      assert.equal(blockedBuildLoop.response.status, 410);
     }
   } finally {
     await fixture.stop();

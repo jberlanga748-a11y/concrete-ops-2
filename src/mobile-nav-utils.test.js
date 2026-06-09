@@ -44,18 +44,16 @@ test("owner admin mobile nav preserves permission-filtered order and labels", ()
   assert.equal(items.some((item) => item.id === "appHealth"), false);
 });
 
-test("owner admin mobile overflow can include private Apex OS when permission-filtered visible", () => {
+test("owner admin mobile overflow does not include private Apex after separation", () => {
   const items = getOwnerAdminMobileNavItems([
     ...visibleNavItems,
     { id: "apexControlRoom", label: "Apex Control Room", icon: "original-apex" },
   ]);
 
-  assert.equal(items[4].id, "apexControlRoom");
-  assert.equal(items[4].label, "Apex OS");
-  assert.equal(items[4].icon, "spark");
+  assert.equal(items.some((item) => item.id === "apexControlRoom"), false);
 });
 
-test("Apex OS mobile nav uses private operator order", () => {
+test("private Apex mobile shell order is retired", () => {
   const items = getOwnerAdminMobileNavItems([
     { id: "support", label: "Support", icon: "original-support" },
     { id: "settings", label: "Settings", icon: "original-settings" },
@@ -64,9 +62,8 @@ test("Apex OS mobile nav uses private operator order", () => {
     { id: "appHealth", label: "App Health", icon: "original-health" },
   ], { operatorShell: true });
 
-  assert.deepEqual(APEX_OS_MOBILE_NAV_ORDER.map((item) => item.id), ["apexControlRoom", "appHealth", "copilot", "support", "settings"]);
-  assert.deepEqual(items.map((item) => item.id), ["apexControlRoom", "appHealth", "copilot", "support", "settings"]);
-  assert.deepEqual(items.map((item) => item.label), ["Apex OS", "Health", "Assistant", "Help", "Setup"]);
+  assert.deepEqual(APEX_OS_MOBILE_NAV_ORDER, []);
+  assert.equal(items.some((item) => item.id === "apexControlRoom"), false);
 });
 
 test("estimator mobile nav prioritizes sales routes and preserves remaining visible items", () => {

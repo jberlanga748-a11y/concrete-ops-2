@@ -21,8 +21,8 @@ test("Login screen is extracted and lazy-loaded from the logged-out branch", () 
   assert.match(screenSource, /brandAssets = \{\}/);
   assert.match(screenSource, /demoLoginPresets = \[\]/);
   assert.match(screenSource, /requestedRoute = ""/);
-  assert.match(screenSource, /Private Apex operator/);
-  assert.match(screenSource, /Local llama\.cpp\/GPT-OSS/);
+  assert.doesNotMatch(screenSource, /Private Apex operator|Local llama\.cpp\/GPT-OSS|local brain|Bench typed|Bench voice/);
+  assert.match(screenSource, /Founder-led demo workspace/);
   assert.match(screenSource, /SplashScreenComponent = null/);
   assert.match(screenSource, /setCredentials/);
   assert.match(screenSource, /onSignupSubmit/);

@@ -163,7 +163,8 @@ export function isApexOsWorkspace(user = {}) {
 }
 
 export function canAccessApexOs(user) {
-  return canManageCompanies(user) && isApexOsWorkspace(user);
+  void user;
+  return false;
 }
 
 export function canViewLeads(user) {
@@ -467,11 +468,6 @@ export function getAllowedModuleIds(user, companySettings = DEFAULT_COMPANY_SETT
 
   if (canUseToolChecklist(user, companySettings)) {
     modules.add("toolChecklist");
-  }
-
-  if (canAccessApexOs(user)) {
-    modules.add("apexControlRoom");
-    modules.add("apexAvatarLab");
   }
 
   return modules;

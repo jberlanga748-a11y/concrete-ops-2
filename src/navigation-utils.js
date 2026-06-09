@@ -2,14 +2,14 @@ import { DEFAULT_COMPANY_SETTINGS, canAccessModule, getAllowedModuleIds, getDefa
 
 export { canAccessModule };
 
-const APEX_OS_OPERATOR_MODULE_IDS = new Set(["apexControlRoom", "apexAvatarLab", "appHealth", "copilot", "settings", "support"]);
-
 export function isApexOsOperatorWorkspace(user, permissions = null) {
-  return Boolean(user && permissions?.apexOs?.canView);
+  void user;
+  void permissions;
+  return false;
 }
 
 export function getDefaultModuleId(user, permissions = null) {
-  if (isApexOsOperatorWorkspace(user, permissions)) return "apexControlRoom";
+  void permissions;
   return getRoleDefaultModuleId(user);
 }
 
@@ -33,10 +33,6 @@ function packageAllowsModule(moduleId, permissions = null) {
     return Boolean(permissionFlag(permissions, "appHealth.canView"));
   }
 
-  if (moduleId === "apexControlRoom" || moduleId === "apexAvatarLab") {
-    return Boolean(permissionFlag(permissions, "apexOs.canView"));
-  }
-
   if (moduleId === "support") {
     return Boolean(permissionFlag(permissions, "support.canView"));
   }
@@ -45,9 +41,6 @@ function packageAllowsModule(moduleId, permissions = null) {
 }
 
 export function canAccessWorkspaceModule(moduleId, user, companySettings = DEFAULT_COMPANY_SETTINGS, permissions = null) {
-  if (isApexOsOperatorWorkspace(user, permissions) && !APEX_OS_OPERATOR_MODULE_IDS.has(moduleId)) {
-    return false;
-  }
   return canAccessModule(moduleId, user, companySettings) && packageAllowsModule(moduleId, permissions);
 }
 
@@ -172,13 +165,10 @@ const DASHBOARD_SHORTCUTS = {
 
 export function getVisibleNavGroups(navGroups, user, companySettings = DEFAULT_COMPANY_SETTINGS, permissions = null) {
   const allowedModules = getAllowedModuleIds(user, companySettings);
-  const operatorShell = isApexOsOperatorWorkspace(user, permissions);
-
   return navGroups
     .map((group) => ({
       ...group,
       items: group.items.filter((item) => {
-        if (operatorShell && !APEX_OS_OPERATOR_MODULE_IDS.has(item.id)) return false;
         return allowedModules.has(item.id) && packageAllowsModule(item.id, permissions);
       }),
     }))

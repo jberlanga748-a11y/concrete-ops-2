@@ -20,15 +20,6 @@ export function Sidebar({
   const anyVisible = (moduleIds) => Boolean(firstVisible(moduleIds));
   const workspaceItems = [
     {
-      id: "apex",
-      label: "Apex",
-      helper: "Private",
-      icon: "spark",
-      target: firstVisible(["apexControlRoom", "apexAvatarLab"]),
-      modules: ["apexControlRoom", "apexAvatarLab"],
-      count: null,
-    },
-    {
       id: "today",
       label: "Today",
       helper: "Command",

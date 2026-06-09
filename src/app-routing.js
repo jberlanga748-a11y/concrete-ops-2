@@ -3,8 +3,6 @@ import { FIELD_JOBS_ROUTE_MODULES } from "./field-jobs-route-module.js";
 export const MODULE_PATHS = {
   dashboard: "/",
   fieldWorkspace: FIELD_JOBS_ROUTE_MODULES.fieldWorkspace.path,
-  apexControlRoom: "/apex",
-  apexAvatarLab: "/apex-avatar-lab",
   commandCenter: "/command-center",
   communications: "/communications",
   leads: "/leads",
@@ -37,7 +35,6 @@ export const MODULE_PATHS = {
 };
 
 const LEGACY_MODULE_PATHS = {
-  "/apex-control-room": "apexControlRoom",
   "/copilot": "copilot",
   "/job-draft-imports": "jobDraftImports",
   "/toolbox": "toolbox",

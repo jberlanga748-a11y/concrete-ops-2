@@ -315,7 +315,7 @@ import { OPPORTUNITY_INTAKE_SOURCE_TYPES, OPPORTUNITY_SCOUT_CONNECTOR_PRESETS, O
 import { CONSTRUCTION_TRADE_PROFILES } from "../shared/constructionTrades.js";
 import { buildManagedSetupSupportContext, deriveFirstOwnerOnboardingState, deriveManagedCompanySetupState } from "../shared/managedCompanySetup.js";
 import { packageReadinessSummary } from "../shared/packages.js";
-import { canAccessWorkspaceModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, getWorkspaceModuleLock, isApexOsOperatorWorkspace, resolveDashboardShortcut } from "./navigation-utils";
+import { canAccessWorkspaceModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, getWorkspaceModuleLock, resolveDashboardShortcut } from "./navigation-utils";
 import { ActivityPanel, AuditTrailPanel } from "./office-activity-route-components";
 import { buildPostPourSupportContext, derivePostPourChecklistListState, derivePostPourItems, filterPostPourChecklists, postPourChecklistOwner, postPourChecklistStatusLabel, postPourChecklistUpdated, postPourItemStatusLabel, postPourItemTone, summarizePostPourChecklist } from "./post-pour-utils";
 import { buildPrePourSupportContext, derivePrePourChecklistListState, derivePrePourItems, filterPrePourChecklists, prePourChecklistOwner, prePourChecklistStatusLabel, prePourChecklistUpdated, prePourItemStatusLabel, prePourItemTone, summarizePrePourChecklist } from "./pre-pour-utils";
@@ -355,8 +355,6 @@ const SupportPage = lazyRouteComponent(() => import("./support-route-components"
 const MaterialPrepPage = lazyRouteComponent(() => import("./material-prep-route-components"), "MaterialPrepPage");
 const RateBookPage = lazyRouteComponent(() => import("./rate-book-route-components"), "RateBookPage");
 const CommunicationCenterPage = lazyRouteComponent(() => import("./communications-route-components"), "CommunicationCenterPage");
-const ApexControlRoomPage = lazyRouteComponent(() => import("./apex-control-room-components"), "ApexControlRoomPage");
-const ApexAvatarLabPage = lazyRouteComponent(() => import("./apex-avatar-lab-components"), "ApexAvatarLabPage");
 const ProposalsWorkspace = lazy(() => import("./ProposalGenerator"));
 const DashboardPage = lazyRouteComponent(() => import("./dashboard-route-wrapper-components"), "DashboardPage");
 const CommandCenterRoutePage = lazyRouteComponent(() => import("./dashboard-route-wrapper-components"), "CommandCenterRoutePage");
@@ -387,13 +385,6 @@ const FIELD_JOBS_ROUTE_COMPONENTS = {
 };
 
 const NAV_GROUPS = [
-  {
-    label: "Apex",
-    items: [
-      { id: "apexControlRoom", label: "Apex Home", icon: "spark" },
-      { id: "apexAvatarLab", label: "Avatar Lab", icon: "spark" },
-    ],
-  },
   {
     label: "Field",
     items: [
@@ -12383,8 +12374,6 @@ function MainContent(props) {
       />
     );
   }
-  if (active === "apexControlRoom") return <ApexControlRoomPage {...props} />;
-  if (active === "apexAvatarLab") return <ApexAvatarLabPage {...props} />;
   if (active === "dashboard") return <DashboardPage {...props} components={dashboardRouteComponents} />;
   const fieldJobsRouteModule = getFieldJobsRouteModule(active);
   if (fieldJobsRouteModule) {
@@ -12782,12 +12771,8 @@ export default function App() {
   const routeState = useMemo(() => parseAppPath(pathname), [pathname]);
   const active = routeState.active;
   useEffect(() => {
-    document.title = active === "apexControlRoom"
-      ? "Apex"
-      : active === "apexAvatarLab"
-        ? "Apex Avatar Lab"
-        : APP_NAME;
-  }, [active]);
+    document.title = APP_NAME;
+  }, []);
   const routeSettingsFocusSection = useMemo(() => (
     routeState.settingsSectionId
       ? { id: routeState.settingsSectionId, nonce: `route:${routeState.settingsSectionId}` }
@@ -12797,7 +12782,7 @@ export default function App() {
   const visibleNavGroups = useMemo(() => getVisibleNavGroups(NAV_GROUPS, appState.user, appState.companySettings, appState.permissions), [appState.companySettings, appState.permissions, appState.user]);
   const visibleNavItems = useMemo(() => visibleNavGroups.flatMap((group) => group.items), [visibleNavGroups]);
   const defaultModuleId = useMemo(() => getDefaultModuleId(appState.user, appState.permissions), [appState.permissions, appState.user]);
-  const isApexOsShell = useMemo(() => isApexOsOperatorWorkspace(appState.user, appState.permissions), [appState.permissions, appState.user]);
+  const isApexOsShell = false;
   const selectedCustomer = appState.customers.find((customer) => customer.id === selectedCustomerId) || null;
   const selectedUser = appState.users.find((user) => user.id === selectedUserId) || null;
   const selectedLead = appState.leads.find((lead) => lead.id === selectedLeadId) || null;
@@ -17306,11 +17291,11 @@ export default function App() {
   const isOwnerAdminMobileWorkspace = isOwnerAdminMobileCommandUser(appState.user, appState.permissions);
   const isEstimatorMobileWorkspace = isEstimatorMobilePipelineUser(appState.user, appState.permissions) && ESTIMATOR_MOBILE_NAV_ROUTES.has(active);
   const mobileNavItems = isFieldMobileWorkspace ? getFieldMobileNavItems(visibleNavItems) : visibleNavItems;
-  const ownerAdminMobileNavItems = getOwnerAdminMobileNavItems(visibleNavItems, { operatorShell: isApexOsShell });
+  const ownerAdminMobileNavItems = getOwnerAdminMobileNavItems(visibleNavItems);
   const estimatorMobileNavItems = getEstimatorMobileNavItems(visibleNavItems);
   const customerRelated = relatedCustomerRecords(selectedCustomer, appState.leads, appState.jobs, appState.activity);
   const leadRelated = relatedLeadActivity(selectedLead, appState.customers, appState.activity, appState.leadStatusHistory);
-  const isApexOsFullscreenRoute = active === "apexControlRoom" || active === "apexAvatarLab";
+  const isApexOsFullscreenRoute = false;
 
   return (
     <div className={`co-app-shell min-h-screen overflow-x-hidden text-slate-950 ${isApexOsFullscreenRoute ? "bg-slate-950" : ""}`} data-print-route={active === "proposals" && routeState.proposalMode === "print" ? "proposal" : undefined}>
@@ -17324,9 +17309,9 @@ export default function App() {
             logoInitials={workspaceLogoInitials}
             brandAssets={APEX_BRAND_ASSETS}
             appName={APP_NAME}
-            workspaceLabel={isApexOsShell ? "Apex" : "Team workspace"}
-            statusTitle={isApexOsShell ? "Private workspace" : "Live workspace"}
-            statusDescription={isApexOsShell ? "Private operator tools with Apex HQ as the business domain." : "Pick the workspace. The page shows the tools inside it."}
+            workspaceLabel="Team workspace"
+            statusTitle="Live workspace"
+            statusDescription="Pick the workspace. The page shows the tools inside it."
           />
         )}
         <div className={`${isApexOsFullscreenRoute ? "min-h-screen" : "mobile-content-safe lg:pb-0"} co-workspace-shell min-w-0 flex-1 overflow-x-hidden`}>

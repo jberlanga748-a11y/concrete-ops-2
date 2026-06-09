@@ -29,15 +29,13 @@ export function LoginScreen({
   const backendLabel = backendStatus === "online" ? "Workspace online" : backendStatus === "offline" ? "Workspace offline" : "Checking workspace";
   const isSetupMode = backendStatus === "online" && setupStatus.checked && setupStatus.needsSetup;
   const isSignupMode = !isSetupMode && showSignup && setupStatus.publicSignupEnabled;
-  const isApexOperatorEntry = requestedRoute === "apexControlRoom";
+  void requestedRoute;
   const canShowDemoCredentials = setupStatus.demoMode && setupStatus.demoUserExists && !isSetupMode;
-  const heroKickerLabel = isSignupMode ? "Self-serve workspace" : isApexOperatorEntry ? "Private Apex operator" : "Founder-led demo workspace";
-  const heroKickerStatus = isSignupMode ? "Owner setup ready" : isApexOperatorEntry ? "Sign-in required" : "Guided pilot ready";
-  const heroTitle = isSignupMode ? "Build your contractor command center" : isApexOperatorEntry ? "Apex" : "Apex HQ demo command";
+  const heroKickerLabel = isSignupMode ? "Self-serve workspace" : "Founder-led demo workspace";
+  const heroKickerStatus = isSignupMode ? "Owner setup ready" : "Guided pilot ready";
+  const heroTitle = isSignupMode ? "Build your contractor command center" : "Apex HQ demo command";
   const heroDescription = isSignupMode
     ? "Create the company workspace, confirm services, invite the crew, and start the first lead-to-job workflow from one guided setup path."
-    : isApexOperatorEntry
-      ? "Open John's private local operator after account access is confirmed. Local intelligence and voice checks load inside Apex."
     : "Open the workspace as office leadership or step into field roles to preview the same job day from the crew side.";
   const heroMetrics = isSignupMode
     ? [
@@ -45,12 +43,6 @@ export function LoginScreen({
         { label: "Setup", value: "Profile, services, team" },
         { label: "First work", value: "Lead, estimate, job" },
       ]
-    : isApexOperatorEntry
-      ? [
-          { label: "Brain", value: "Local llama.cpp/GPT-OSS" },
-          { label: "Voice", value: "Mic permission required" },
-          { label: "Boundary", value: "Operator only" },
-        ]
     : [
         { label: "Office", value: "Command center, leads, estimates" },
         { label: "Field", value: "Jobs, reports, photos, safety" },
@@ -58,8 +50,6 @@ export function LoginScreen({
       ];
   const heroPath = isSignupMode
     ? ["Company", "Services", "Team", "First estimate", "Field rollout"]
-    : isApexOperatorEntry
-      ? ["Sign in", "Allow mic", "Local brain", "Bench typed", "Bench voice"]
     : ["Lead", "Estimate", "Job", "Field proof", "Owner review"];
   const signupReadinessSteps = [
     { label: "Workspace", detail: "Company, first owner, and scoped session are created together." },
@@ -129,9 +119,7 @@ export function LoginScreen({
             <span>
               {backendStatus === "online" && !setupStatus.checked
                 ? "Checking workspace access."
-                : isApexOperatorEntry
-                  ? "Private Apex checks account access before entry."
-                  : "Workspace status and account access are checked before entry."}
+                : "Workspace status and account access are checked before entry."}
             </span>
             <span className="co-login-status-meta">
               <Badge tone={backendTone}>{backendLabel}</Badge>
@@ -145,8 +133,6 @@ export function LoginScreen({
                 ? "Create the first admin account for this workspace."
                 : isSignupMode
                   ? "Start a real company workspace. You become the first owner, then Apex HQ guides you through setup before adding the crew."
-                  : isApexOperatorEntry
-                    ? "Use an owner/admin account. Apex loads the local brain, voice, and runtime status after sign-in."
                   : canShowDemoCredentials
                     ? "Use demo logins for demo data, or sign in with your own office account."
                     : "Enter the admin account for this workspace."}
@@ -214,13 +200,9 @@ export function LoginScreen({
 
           <div className="co-login-support-grid">
             <div>
-              <p>{isApexOperatorEntry ? "Local operator" : "Founder-led demo"}</p>
-              <span>
-                {isApexOperatorEntry
-                  ? "After sign-in, allow microphone access for localhost so Apex can switch voice from waiting to ready."
-                  : "See the public founder-pilot page before signing in. Demo requests stay manual and do not create accounts."}
-              </span>
-              {!isApexOperatorEntry ? <Button type="button" variant="secondary" size="sm" className="mt-3" onClick={onOpenPublicWebsite}>View founder pilot</Button> : null}
+              <p>Founder-led demo</p>
+              <span>See the public founder-pilot page before signing in. Demo requests stay manual and do not create accounts.</span>
+              <Button type="button" variant="secondary" size="sm" className="mt-3" onClick={onOpenPublicWebsite}>View founder pilot</Button>
             </div>
             <div>
               <p>{isSignupMode ? "Already have a workspace?" : "Account help"}</p>
