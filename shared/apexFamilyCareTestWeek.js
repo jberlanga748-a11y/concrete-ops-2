@@ -32,6 +32,45 @@ export const APEX_FAMILY_CARE_TEST_WEEK_FRICTION_CATEGORIES = Object.freeze([
   "other",
 ]);
 
+export const APEX_FAMILY_CARE_TEST_WEEK_GUIDE_STEPS = Object.freeze([
+  {
+    id: "install-house-screen",
+    label: "Set up the house screen",
+    shortAction: "Open Family Care on the house tablet or old phone.",
+    successSignal: "Dad or Brother can reach Kitchen Mode quickly.",
+  },
+  {
+    id: "baseline-texts",
+    label: "Count the old text burden",
+    shortAction: "Write the rough number of status texts per day before using the app.",
+    successSignal: "There is a before number to compare against.",
+  },
+  {
+    id: "daily-fast-updates",
+    label: "Use one fast update daily",
+    shortAction: "Use Kitchen Mode or Add Update for one real care update each day.",
+    successSignal: "The family has care notes across the week.",
+  },
+  {
+    id: "doctor-prep-check",
+    label: "Check doctor prep",
+    shortAction: "Mark useful appointment notes and review the Doctor Summary.",
+    successSignal: "Dad has clearer appointment context.",
+  },
+  {
+    id: "friction-note",
+    label: "Capture friction once",
+    shortAction: "Add one note when something feels annoying, private, or like extra work.",
+    successSignal: "There is at least one thing to simplify or freeze.",
+  },
+  {
+    id: "end-week-review",
+    label: "Review the week",
+    shortAction: "Enter after counts/ratings and decide what helped.",
+    successSignal: "Phase 7 has real evidence for human review.",
+  },
+]);
+
 const FRICTION_CATEGORY_SET = new Set(APEX_FAMILY_CARE_TEST_WEEK_FRICTION_CATEGORIES);
 const REPORTERS = new Set(["Dad", "Brother", "Grandma", "Family", "John"]);
 const UPDATE_SPEED_VALUES = new Set(["unknown", "yes", "no"]);
@@ -82,6 +121,12 @@ function localDateKey(value) {
 
 function noteDays(notes) {
   return new Set(listApexFamilyCareNotes(notes, { limit: Number.POSITIVE_INFINITY }).map((note) => localDateKey(note.timestamp)).filter(Boolean)).size;
+}
+
+function clampPercent(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.max(0, Math.min(100, Math.round(numeric)));
 }
 
 export function createApexFamilyCareTestWeekFrictionNote(input = {}, now = new Date()) {
@@ -272,6 +317,106 @@ export function buildApexFamilyCareTestWeekSummary(input = {}, notes = [], optio
         grandmaRespected,
         quickUpdates,
         noteDayCount: noteDays(notes),
+      },
+    },
+  };
+}
+
+export function buildApexFamilyCareTestWeekRunPacket(input = {}, notes = [], options = {}) {
+  const summary = buildApexFamilyCareTestWeekSummary(input, notes, options);
+  const state = summary.state;
+  const guideSteps = APEX_FAMILY_CARE_TEST_WEEK_GUIDE_STEPS.map((step) => {
+    let done = false;
+    if (step.id === "install-house-screen") done = true;
+    if (step.id === "baseline-texts") done = state.baselineStatusTextsPerDay > 0;
+    if (step.id === "daily-fast-updates") done = summary.noteDayCount >= Math.min(7, Math.max(1, summary.trackedDays || 1));
+    if (step.id === "doctor-prep-check") done = state.doctorPrepAfterRating > 0 || state.doctorPrepBeforeRating > 0;
+    if (step.id === "friction-note") done = state.frictionNotes.length > 0;
+    if (step.id === "end-week-review") done = summary.evidenceReady;
+    return {
+      ...step,
+      done,
+    };
+  });
+  const completedStepCount = guideSteps.filter((step) => step.done).length;
+  const progressPercent = clampPercent((completedStepCount / guideSteps.length) * 100);
+  const reviewPrompts = [
+    {
+      id: "dad-burden",
+      label: "Did Dad explain less?",
+      metric: state.dadExplanationBurdenBeforeRating && state.dadExplanationBurdenAfterRating
+        ? `${state.dadExplanationBurdenBeforeRating} -> ${state.dadExplanationBurdenAfterRating}`
+        : "Needs before/after rating",
+      ready: state.dadExplanationBurdenBeforeRating > 0 && state.dadExplanationBurdenAfterRating > 0,
+    },
+    {
+      id: "family-informed",
+      label: "Did siblings feel more informed?",
+      metric: state.familyInformedBeforeRating && state.familyInformedAfterRating
+        ? `${state.familyInformedBeforeRating} -> ${state.familyInformedAfterRating}`
+        : "Needs before/after rating",
+      ready: state.familyInformedBeforeRating > 0 && state.familyInformedAfterRating > 0,
+    },
+    {
+      id: "doctor-prep",
+      label: "Did doctor prep get easier?",
+      metric: state.doctorPrepBeforeRating && state.doctorPrepAfterRating
+        ? `${state.doctorPrepBeforeRating} -> ${state.doctorPrepAfterRating}`
+        : "Needs before/after rating",
+      ready: state.doctorPrepBeforeRating > 0 && state.doctorPrepAfterRating > 0,
+    },
+    {
+      id: "grandma-dignity",
+      label: "Did Grandma still feel respected?",
+      metric: state.grandmaDignityRating ? `${state.grandmaDignityRating}/5` : "Needs dignity rating",
+      ready: state.grandmaDignityRating > 0,
+    },
+    {
+      id: "simplify",
+      label: "What felt like extra work?",
+      metric: `${summary.simplifyCount} simplify note${summary.simplifyCount === 1 ? "" : "s"}`,
+      ready: state.frictionNotes.length > 0,
+    },
+    {
+      id: "freeze",
+      label: "What should stay?",
+      metric: `${summary.freezeCount} freeze note${summary.freezeCount === 1 ? "" : "s"}`,
+      ready: state.frictionNotes.length > 0,
+    },
+  ];
+
+  return {
+    packetType: "apex-family-care-test-week-run-packet",
+    generatedAt: summary.generatedAt,
+    policy: summary.policy,
+    guideSteps,
+    completedStepCount,
+    progressPercent,
+    reviewPrompts,
+    nextHumanAction: summary.evidenceReady
+      ? "Review the real week with Dad/Brother/family, simplify friction, and freeze what helped."
+      : state.realWeekStarted
+        ? "Keep using Family Care through the full real week, then enter after counts and ratings."
+        : "Start the real family test week before collecting after ratings.",
+    noAutoClose: true,
+    noSends: true,
+    noMedicalAdvice: true,
+    receipt: {
+      receiptType: "apex-family-care-test-week-run-packet",
+      schemaVersion: 1,
+      generatedAt: summary.generatedAt,
+      policyId: APEX_FAMILY_CARE_TEST_WEEK_POLICY.policyId,
+      ...APEX_FAMILY_CARE_TEST_WEEK_POLICY,
+      metadata: {
+        guideStepCount: guideSteps.length,
+        completedStepCount,
+        progressPercent,
+        reviewPromptCount: reviewPrompts.length,
+        readyReviewPromptCount: reviewPrompts.filter((prompt) => prompt.ready).length,
+        evidenceReady: summary.evidenceReady,
+        noAutoClose: true,
+        noSends: true,
+        rawFeedbackStoredInReceipt: false,
       },
     },
   };

@@ -43,6 +43,7 @@ test("Apex Family Care page contains family screens and no hidden mic APIs", () 
   assert.match(componentSource, /buildApexFamilyCareKitchenModeStatus/);
   assert.match(componentSource, /APEX_FAMILY_CARE_KITCHEN_MODE_POLICY/);
   assert.match(componentSource, /buildApexFamilyCareTestWeekSummary/);
+  assert.match(componentSource, /buildApexFamilyCareTestWeekRunPacket/);
   assert.match(componentSource, /addApexFamilyCareTestWeekFrictionNote/);
   assert.match(componentSource, /Start Voice Update/);
   assert.match(componentSource, /Done Talking \/ Review/);
@@ -52,6 +53,8 @@ test("Apex Family Care page contains family screens and no hidden mic APIs", () 
   assert.match(componentSource, /Stop Voice State/);
   assert.match(componentSource, /Kitchen Device Health/);
   assert.match(componentSource, /Family Test Week/);
+  assert.match(componentSource, /Run The Week/);
+  assert.match(componentSource, /Review Packet/);
   assert.match(componentSource, /Friction And Useful Notes/);
   assert.match(componentSource, /Human review required/);
   assert.match(componentSource, /Notification Decisions/);
@@ -75,6 +78,7 @@ test("Apex Family Care still uses Phase 2 and Phase 3 shared helpers", () => {
     "buildApexFamilyCareKitchenModeStatus",
     "applyApexFamilyCareKitchenControl",
     "buildApexFamilyCareTestWeekSummary",
+    "buildApexFamilyCareTestWeekRunPacket",
     "startApexFamilyCareTestWeek",
     "buildApexFamilyCareNotificationState",
     "getDefaultApexFamilyCareNotificationPreferences",

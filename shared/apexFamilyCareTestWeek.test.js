@@ -5,6 +5,7 @@ import { createApexFamilyCareNote } from "./apexFamilyCare.js";
 import {
   APEX_FAMILY_CARE_TEST_WEEK_POLICY,
   addApexFamilyCareTestWeekFrictionNote,
+  buildApexFamilyCareTestWeekRunPacket,
   buildApexFamilyCareTestWeekSummary,
   getDefaultApexFamilyCareTestWeekState,
   markApexFamilyCareTestWeekComplete,
@@ -109,4 +110,66 @@ test("test week receipts do not store raw friction text", () => {
   assert.equal(JSON.stringify(summary.receipt).includes("knee"), false);
   assert.equal(summary.receipt.rawAudioStored, false);
   assert.equal(summary.receipt.rawTranscriptStored, false);
+});
+
+test("test week run packet gives a practical guide without closing the phase", () => {
+  const state = startApexFamilyCareTestWeek({
+    baselineStatusTextsPerDay: 6,
+    doctorPrepBeforeRating: 2,
+  }, new Date("2026-06-09T08:00:00.000Z"));
+  const packet = buildApexFamilyCareTestWeekRunPacket(state, [], {
+    now: new Date("2026-06-10T08:00:00.000Z"),
+  });
+
+  assert.equal(packet.packetType, "apex-family-care-test-week-run-packet");
+  assert.equal(packet.guideSteps.length, 6);
+  assert.equal(packet.guideSteps.some((step) => step.id === "baseline-texts" && step.done), true);
+  assert.equal(packet.guideSteps.some((step) => step.id === "end-week-review" && !step.done), true);
+  assert.equal(packet.progressPercent > 0, true);
+  assert.equal(packet.noAutoClose, true);
+  assert.equal(packet.noSends, true);
+  assert.equal(packet.noMedicalAdvice, true);
+  assert.match(packet.nextHumanAction, /full real week/i);
+});
+
+test("test week run packet review prompts become ready from real evidence", () => {
+  const notes = [
+    createApexFamilyCareNote({
+      id: "day-1",
+      category: "normal",
+      timestamp: "2026-06-09T09:00:00.000Z",
+      summary: "Normal check-in.",
+      familyVisible: true,
+    }),
+  ];
+  let state = startApexFamilyCareTestWeek({
+    baselineStatusTextsPerDay: 8,
+    afterStatusTextsPerDay: 3,
+    doctorPrepBeforeRating: 2,
+    doctorPrepAfterRating: 4,
+    familyInformedBeforeRating: 2,
+    familyInformedAfterRating: 4,
+    dadExplanationBurdenBeforeRating: 5,
+    dadExplanationBurdenAfterRating: 2,
+    grandmaDignityRating: 5,
+    updatesUnder10Seconds: "yes",
+  }, new Date("2026-06-09T08:00:00.000Z"));
+  state = addApexFamilyCareTestWeekFrictionNote(state, {
+    reporter: "Brother",
+    category: "too-much-work",
+    text: "The first screen had too many choices.",
+    shouldSimplify: true,
+  }, new Date("2026-06-12T08:00:00.000Z"));
+  state = markApexFamilyCareTestWeekComplete(state, new Date("2026-06-16T08:00:00.000Z"));
+
+  const packet = buildApexFamilyCareTestWeekRunPacket(state, notes, {
+    now: new Date("2026-06-16T08:00:00.000Z"),
+  });
+
+  assert.equal(packet.reviewPrompts.every((prompt) => prompt.ready), true);
+  assert.match(packet.nextHumanAction, /simplify friction/i);
+  assert.equal(packet.receipt.rawFeedbackStoredInReceipt, false);
+  assert.equal(JSON.stringify(packet.receipt).includes("too many choices"), false);
+  assert.equal(packet.receipt.metadata.noAutoClose, true);
+  assert.equal(packet.receipt.metadata.noSends, true);
 });

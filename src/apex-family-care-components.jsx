@@ -31,6 +31,7 @@ import {
 import {
   APEX_FAMILY_CARE_TEST_WEEK_FRICTION_CATEGORIES,
   addApexFamilyCareTestWeekFrictionNote,
+  buildApexFamilyCareTestWeekRunPacket,
   buildApexFamilyCareTestWeekSummary,
   getDefaultApexFamilyCareTestWeekState,
   markApexFamilyCareTestWeekComplete,
@@ -748,6 +749,7 @@ function formatFrictionCategory(category) {
 
 function TestWeekView({
   testWeekSummary,
+  testWeekRunPacket,
   testWeekDraft,
   setTestWeekDraft,
   onStartTestWeek,
@@ -785,6 +787,26 @@ function TestWeekView({
       </Card>
 
       <Card className="p-4">
+        <SectionHeader
+          title="Run The Week"
+          description={testWeekRunPacket.nextHumanAction}
+          action={<Badge tone={testWeekRunPacket.progressPercent >= 100 ? "green" : "blue"}>{testWeekRunPacket.progressPercent}%</Badge>}
+        />
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          {testWeekRunPacket.guideSteps.map((step) => (
+            <div key={step.id} className="rounded-lg border border-slate-200 bg-white p-3">
+              <div className="flex min-w-0 items-center justify-between gap-3">
+                <p className="min-w-0 break-words text-sm font-black text-slate-950">{step.label}</p>
+                <Badge tone={step.done ? "green" : "slate"}>{step.done ? "Done" : "Next"}</Badge>
+              </div>
+              <p className="mt-1 break-words text-xs font-bold text-slate-600">{step.shortAction}</p>
+              <p className="mt-1 break-words text-xs font-bold text-slate-500">{step.successSignal}</p>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <Card className="p-4">
         <SectionHeader title="Before / After Measures" description="Use rough family counts and 0-5 ratings after the real week." />
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <InputField label="Status texts before / day" type="number" min="0" value={state.baselineStatusTextsPerDay} onChange={(event) => onUpdateTestWeekMetric("baselineStatusTextsPerDay", event.target.value)} />
@@ -811,6 +833,25 @@ function TestWeekView({
             <div key={check.id} className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-3">
               <span className="min-w-0 break-words text-sm font-black text-slate-700">{check.label}</span>
               <Badge tone={check.passed ? "green" : "slate"}>{check.passed ? "Yes" : "Wait"}</Badge>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <Card className="p-4">
+        <SectionHeader
+          title="Review Packet"
+          description="Use these prompts after the real week, then simplify what felt like extra work."
+          action={<Badge tone={testWeekSummary.evidenceReady ? "amber" : "slate"}>{testWeekSummary.evidenceReady ? "Ready" : "Waiting"}</Badge>}
+        />
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          {testWeekRunPacket.reviewPrompts.map((prompt) => (
+            <div key={prompt.id} className="rounded-lg border border-slate-200 bg-white p-3">
+              <div className="flex min-w-0 items-center justify-between gap-3">
+                <p className="min-w-0 break-words text-sm font-black text-slate-950">{prompt.label}</p>
+                <Badge tone={prompt.ready ? "green" : "slate"}>{prompt.ready ? "Ready" : "Need"}</Badge>
+              </div>
+              <p className="mt-1 break-words text-xs font-bold text-slate-600">{prompt.metric}</p>
             </div>
           ))}
         </div>
@@ -966,6 +1007,7 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
   }), [notificationPreferences, sortedNotes]);
   const kitchenStatus = useMemo(() => buildApexFamilyCareKitchenModeStatus(kitchenDeviceState), [kitchenDeviceState]);
   const testWeekSummary = useMemo(() => buildApexFamilyCareTestWeekSummary(testWeekState, sortedNotes), [sortedNotes, testWeekState]);
+  const testWeekRunPacket = useMemo(() => buildApexFamilyCareTestWeekRunPacket(testWeekState, sortedNotes), [sortedNotes, testWeekState]);
   const gate = useMemo(() => getApexFamilyCareAccessGateSummary({
     routePrivate: standalone || Boolean(user?.operatorAccess),
     apexOsOnly: !standalone && Boolean(permissions?.apexOs?.canView),
@@ -1144,6 +1186,7 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
     testWeek: (
       <TestWeekView
         testWeekSummary={testWeekSummary}
+        testWeekRunPacket={testWeekRunPacket}
         testWeekDraft={testWeekDraft}
         setTestWeekDraft={setTestWeekDraft}
         onStartTestWeek={handleStartTestWeek}
