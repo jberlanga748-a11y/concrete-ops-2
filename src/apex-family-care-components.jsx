@@ -47,7 +47,10 @@ import {
   startApexFamilyCareTestWeek,
 } from "../shared/apexFamilyCareTestWeek.js";
 import {
+  APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY,
   APEX_FAMILY_CARE_VOICE_POLICY,
+  applyApexFamilyCareLocalVoiceInputControl,
+  buildApexFamilyCareLocalVoiceInputSession,
   createApexFamilyCareVoiceNoteDraft,
 } from "../shared/apexFamilyCareVoice.js";
 
@@ -189,6 +192,7 @@ function newVoiceDraft(reporter = "Dad") {
     followUpAsked: false,
     parsed: null,
     receipt: null,
+    localVoiceSession: buildApexFamilyCareLocalVoiceInputSession({ state: "quiet" }),
     notice: "Ready for one visible voice update.",
   };
 }
@@ -463,9 +467,10 @@ function AddUpdateView({ draft, setDraft, onSave }) {
   );
 }
 
-function VoiceUpdateView({ voiceDraft, setVoiceDraft, onStart, onCancel, onReview, onSave, onSaveNeedsReview }) {
+function VoiceUpdateView({ voiceDraft, setVoiceDraft, onStart, onStop, onMute, onRecover, onCancel, onReview, onSave, onSaveNeedsReview }) {
   const receipt = voiceDraft.receipt;
   const parsed = voiceDraft.parsed;
+  const localVoiceSession = voiceDraft.localVoiceSession || buildApexFamilyCareLocalVoiceInputSession({ state: "quiet" });
   const showFollowUp = voiceDraft.status === "needs-follow-up";
   const showPreview = parsed?.noteReady;
 
@@ -476,8 +481,8 @@ function VoiceUpdateView({ voiceDraft, setVoiceDraft, onStart, onCancel, onRevie
           title="Voice Update"
           description="Visible one-turn entry for spoken care notes. This screen does not auto-start the microphone or store raw audio."
           action={(
-            <Badge tone={voiceDraft.listening ? "amber" : "green"}>
-              {voiceDraft.listening ? "Visible listening" : "Quiet until started"}
+            <Badge tone={localVoiceSession.sessionActive ? "amber" : "green"}>
+              {localVoiceSession.sessionActive ? "Local STT visible" : "Quiet until started"}
             </Badge>
           )}
         />
@@ -493,6 +498,25 @@ function VoiceUpdateView({ voiceDraft, setVoiceDraft, onStart, onCancel, onRevie
           <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
             <p className="text-sm font-black text-blue-950">Follow-up rule</p>
             <p className="mt-1 text-sm font-bold text-blue-800">Apex asks at most one clarifying question.</p>
+          </div>
+        </div>
+
+        <div className="mb-3 grid gap-2 md:grid-cols-4">
+          <div className="rounded-lg border border-slate-200 bg-white p-3">
+            <p className="text-sm font-black text-slate-950">Local STT Bridge</p>
+            <p className="mt-1 text-sm font-bold text-slate-600">{localVoiceSession.statusLabel}</p>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white p-3">
+            <p className="text-sm font-black text-slate-950">Endpoint</p>
+            <p className="mt-1 text-sm font-bold text-slate-600">{localVoiceSession.localSttEndpointEnabled ? "Ready" : "Endpoint approval required"}</p>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white p-3">
+            <p className="text-sm font-black text-slate-950">Audio storage</p>
+            <p className="mt-1 text-sm font-bold text-slate-600">{APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.rawAudioStored ? "Stored" : "Never stored"}</p>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white p-3">
+            <p className="text-sm font-black text-slate-950">Cloud STT</p>
+            <p className="mt-1 text-sm font-bold text-slate-600">{APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.cloudSttAllowed ? "Allowed" : "Blocked"}</p>
           </div>
         </div>
 
@@ -522,6 +546,15 @@ function VoiceUpdateView({ voiceDraft, setVoiceDraft, onStart, onCancel, onRevie
               <Button type="button" onClick={onStart} disabled={voiceDraft.listening}>
                 <Icon name="quote" /> Start Voice Update
               </Button>
+              <Button type="button" variant="secondary" onClick={onStop} disabled={!voiceDraft.listening}>
+                <Icon name="pause" /> Stop Listening
+              </Button>
+              <Button type="button" variant="secondary" onClick={onMute}>
+                <Icon name="volume-x" /> Mute Voice Input
+              </Button>
+              <Button type="button" variant="secondary" onClick={onRecover}>
+                <Icon name="refresh" /> Recover To Quiet
+              </Button>
               <Button type="button" variant="secondary" onClick={onReview} disabled={!voiceDraft.transcript.trim()}>
                 <Icon name="check" /> Done Talking / Review
               </Button>
@@ -534,8 +567,14 @@ function VoiceUpdateView({ voiceDraft, setVoiceDraft, onStart, onCancel, onRevie
 
         <div className="mt-3 flex flex-wrap gap-2">
           <Badge tone="green">Explicit start</Badge>
+          <Badge tone="green">Visible stop</Badge>
+          <Badge tone="green">Visible mute</Badge>
+          <Badge tone="green">Visible recover</Badge>
+          <Badge tone="amber">Endpoint approval required</Badge>
+          <Badge tone={localVoiceSession.localSttEndpointEnabled ? "green" : "amber"}>{localVoiceSession.localSttEndpointEnabled ? "Local STT ready" : "Local STT bridge pending"}</Badge>
           <Badge tone="green">No raw transcript receipt</Badge>
           <Badge tone="green">No cloud STT</Badge>
+          <Badge tone="green">No browser speech</Badge>
           <Badge tone="slate">Typed/tap fallback stays on</Badge>
         </div>
         <p className="mt-3 rounded-lg border border-slate-200 bg-white p-3 text-sm font-bold text-slate-600">{voiceDraft.notice}</p>
@@ -1159,6 +1198,9 @@ function HealthView({ accessReadiness, boundaryReleasePrep, gate, summary, lates
     ["Voice explicit start", APEX_FAMILY_CARE_VOICE_POLICY.explicitUserStartedRequired ? "Required" : "Off", APEX_FAMILY_CARE_VOICE_POLICY.explicitUserStartedRequired ? "green" : "red"],
     ["Voice hidden recording", APEX_FAMILY_CARE_VOICE_POLICY.hiddenRecording ? "On" : "Off", APEX_FAMILY_CARE_VOICE_POLICY.hiddenRecording ? "red" : "green"],
     ["Voice follow-up limit", APEX_FAMILY_CARE_VOICE_POLICY.maxFollowUps, "green"],
+    ["Family local STT", APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.localSttEndpointEnabled ? "Ready" : "Approval", APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.localSttEndpointEnabled ? "green" : "amber"],
+    ["Family voice auto-listen", APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.autoListening ? "On" : "Off", APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.autoListening ? "red" : "green"],
+    ["Family voice controls", APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.visibleStopRequired && APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.visibleMuteRequired && APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.visibleRecoverRequired ? "Visible" : "Check", APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.visibleStopRequired && APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.visibleMuteRequired && APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.visibleRecoverRequired ? "green" : "red"],
     ["Latest voice receipt", latestVoiceReceipt ? latestVoiceReceipt.metadata.category : "None", latestVoiceReceipt ? "blue" : "slate"],
     ["Notification decisions", notificationState?.summary?.activeDecisionCount ?? 0, "green"],
     ["Notification live sends", APEX_FAMILY_CARE_NOTIFICATION_POLICY.liveDeliveryEnabled ? "On" : "Off", APEX_FAMILY_CARE_NOTIFICATION_POLICY.liveDeliveryEnabled ? "red" : "green"],
@@ -1307,9 +1349,41 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
       ...newVoiceDraft(current.reporter),
       listening: true,
       status: "listening",
+      localVoiceSession: applyApexFamilyCareLocalVoiceInputControl(current.localVoiceSession, "start"),
       notice: "Visible voice update started. Speak the short update, then enter the recognized words or typed fallback and review.",
     }));
     setActiveScreen("voice");
+  }
+
+  function handleStopVoiceUpdate() {
+    setKitchenDeviceState((current) => applyApexFamilyCareKitchenControl(current, "stop"));
+    setVoiceDraft((current) => ({
+      ...current,
+      listening: false,
+      status: "stopped",
+      localVoiceSession: applyApexFamilyCareLocalVoiceInputControl(current.localVoiceSession, "stop"),
+      notice: "Voice listening stopped. Review the recognized words or typed fallback before saving.",
+    }));
+  }
+
+  function handleMuteVoiceUpdate() {
+    setKitchenDeviceState((current) => applyApexFamilyCareKitchenControl(current, "mute"));
+    setVoiceDraft((current) => ({
+      ...current,
+      listening: false,
+      status: "muted",
+      localVoiceSession: applyApexFamilyCareLocalVoiceInputControl(current.localVoiceSession, "mute"),
+      notice: "Voice input muted. Typed fallback stays available.",
+    }));
+  }
+
+  function handleRecoverVoiceUpdate() {
+    setKitchenDeviceState((current) => applyApexFamilyCareKitchenControl(current, "stop"));
+    setVoiceDraft((current) => ({
+      ...newVoiceDraft(current.reporter),
+      localVoiceSession: applyApexFamilyCareLocalVoiceInputControl(current.localVoiceSession, "recover"),
+      notice: "Recovered to quiet manual mode. No raw audio or transcript was stored.",
+    }));
   }
 
   function handleKitchenControl(control) {
@@ -1395,6 +1469,7 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
         followUpAsked: parsed.needsFollowUp || current.followUpAsked,
         parsed,
         receipt: parsed.receipt,
+        localVoiceSession: applyApexFamilyCareLocalVoiceInputControl(current.localVoiceSession, "stop"),
         notice: parsed.needsFollowUp
           ? "Apex needs one detail before saving. It will not ask a second follow-up."
           : "Apex turned this into a structured care note. Review and save it locally.",
@@ -1438,7 +1513,11 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
 
   function handleCancelVoiceUpdate() {
     setKitchenDeviceState((current) => applyApexFamilyCareKitchenControl(current, "stop"));
-    setVoiceDraft((current) => newVoiceDraft(current.reporter));
+    setVoiceDraft((current) => ({
+      ...newVoiceDraft(current.reporter),
+      localVoiceSession: applyApexFamilyCareLocalVoiceInputControl(current.localVoiceSession, "recover"),
+      notice: "Recovered to quiet manual mode. No raw audio or transcript was stored.",
+    }));
   }
 
   const screenContent = {
@@ -1458,6 +1537,9 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
         voiceDraft={voiceDraft}
         setVoiceDraft={setVoiceDraft}
         onStart={handleStartVoiceUpdate}
+        onStop={handleStopVoiceUpdate}
+        onMute={handleMuteVoiceUpdate}
+        onRecover={handleRecoverVoiceUpdate}
         onCancel={handleCancelVoiceUpdate}
         onReview={() => reviewVoiceDraft()}
         onSave={handleSaveVoiceDraft}

@@ -61,6 +61,12 @@ test("Apex Family Care page contains family screens and no hidden mic APIs", () 
   assert.match(componentSource, /No auth change/);
   assert.match(componentSource, /No schema change/);
   assert.match(componentSource, /Start Voice Update/);
+  assert.match(componentSource, /Local STT Bridge/);
+  assert.match(componentSource, /Endpoint approval required/);
+  assert.match(componentSource, /No browser speech/);
+  assert.match(componentSource, /Stop Listening/);
+  assert.match(componentSource, /Mute Voice Input/);
+  assert.match(componentSource, /Recover To Quiet/);
   assert.match(componentSource, /Done Talking \/ Review/);
   assert.match(componentSource, /Save Needs Review/);
   assert.match(componentSource, /One-Tap Care Updates/);
@@ -114,6 +120,9 @@ test("Apex Family Care still uses Phase 2 and Phase 3 shared helpers", () => {
     "getDefaultApexFamilyCareNotificationPreferences",
     "listApexFamilyCareNotes",
     "updateApexFamilyCareNote",
+    "APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY",
+    "applyApexFamilyCareLocalVoiceInputControl",
+    "buildApexFamilyCareLocalVoiceInputSession",
   ]) {
     assert.match(componentSource, new RegExp(helperName));
   }
@@ -137,6 +146,9 @@ test("Apex Family Care still uses Phase 2 and Phase 3 shared helpers", () => {
   assert.match(componentSource, /Production family route/);
   assert.match(componentSource, /Family release approval/);
   assert.match(componentSource, /Kitchen hidden mic/);
+  assert.match(componentSource, /Family local STT/);
+  assert.match(componentSource, /Family voice auto-listen/);
+  assert.match(componentSource, /Family voice controls/);
   assert.match(componentSource, /Kitchen device control/);
   assert.match(componentSource, /Test week evidence/);
   assert.doesNotMatch(componentSource, /getUserMedia|MediaRecorder|navigator\.mediaDevices|fetch\(|Notification\.requestPermission|navigator\.serviceWorker|PushManager|NetworkInformation|navigator\.usb|navigator\.bluetooth/i);

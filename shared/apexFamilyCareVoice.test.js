@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY,
   APEX_FAMILY_CARE_VOICE_POLICY,
+  applyApexFamilyCareLocalVoiceInputControl,
+  buildApexFamilyCareLocalVoiceInputSession,
   createApexFamilyCareVoiceNoteDraft,
   parseApexFamilyCareVoiceNote,
 } from "./apexFamilyCareVoice.js";
@@ -43,6 +46,87 @@ test("Family Care voice policy is explicit, local, and non-recording by default"
   assert.equal(APEX_FAMILY_CARE_VOICE_POLICY.cloudUsed, false);
   assert.equal(APEX_FAMILY_CARE_VOICE_POLICY.browserSpeechRecognitionAllowed, false);
   assert.equal(APEX_FAMILY_CARE_VOICE_POLICY.maxFollowUps, 1);
+  assert.equal(APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.policyId, "apex-family-care-local-voice-input-v1");
+  assert.equal(APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.explicitUserStartedRequired, true);
+  assert.equal(APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.visiblePushToTalkRequired, true);
+  assert.equal(APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.visibleStopRequired, true);
+  assert.equal(APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.visibleMuteRequired, true);
+  assert.equal(APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.visibleRecoverRequired, true);
+  assert.equal(APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.localSttOnly, true);
+  assert.equal(APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.localSttEndpointEnabled, false);
+  assert.equal(APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.endpointApprovalRequired, true);
+  assert.equal(APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.hiddenRecording, false);
+  assert.equal(APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.backgroundRecording, false);
+  assert.equal(APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.autoListening, false);
+  assert.equal(APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.rawAudioStored, false);
+  assert.equal(APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.rawAudioUploaded, false);
+  assert.equal(APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.rawTranscriptStored, false);
+  assert.equal(APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.cloudSttAllowed, false);
+  assert.equal(APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.browserSpeechRecognitionAllowed, false);
+});
+
+test("local voice input session blocks listening unless explicitly user-started", () => {
+  const blocked = buildApexFamilyCareLocalVoiceInputSession({
+    state: "listening",
+    explicitUserStarted: false,
+    localSttBridgeReady: true,
+    localSttEndpointEnabled: true,
+  }, FIXED_NOW);
+
+  assert.equal(blocked.state, "blocked");
+  assert.equal(blocked.sessionActive, false);
+  assert.equal(blocked.explicitUserStarted, false);
+  assert.equal(blocked.receipt.receiptType, "apex-family-care-local-voice-input-session");
+  assert.equal(blocked.receipt.explicitUserStarted, false);
+  assert.equal(blocked.receipt.hiddenRecording, false);
+  assert.equal(blocked.receipt.backgroundRecording, false);
+  assert.equal(blocked.receipt.rawAudioStored, false);
+  assert.equal(blocked.receipt.rawAudioUploaded, false);
+  assert.equal(blocked.receipt.rawTranscriptStored, false);
+  assert.equal(blocked.receipt.rawTranscriptStoredInReceipt, false);
+  assert.equal(blocked.receipt.cloudUsed, false);
+  assert.equal(blocked.receipt.cloudSttAllowed, false);
+  assert.equal(blocked.receipt.browserSpeechRecognitionAllowed, false);
+  assert.equal(blocked.receipt.openAiUsed, false);
+  assert.equal(blocked.receipt.groqUsed, false);
+  assert.equal(blocked.receipt.metadata.state, "blocked");
+  assert.doesNotMatch(JSON.stringify(blocked.receipt), /Grandma knee hurt after lunch/i);
+});
+
+test("local voice controls are visible, cancel-safe, and metadata-only", () => {
+  const started = applyApexFamilyCareLocalVoiceInputControl({}, "start", FIXED_NOW);
+  assert.equal(started.state, "listening");
+  assert.equal(started.explicitUserStarted, true);
+  assert.equal(started.sessionActive, true);
+  assert.equal(started.localSttBridgeReady, false);
+  assert.equal(started.localSttEndpointEnabled, false);
+  assert.equal(started.endpointApprovalRequired, true);
+  assert.equal(started.inputMode, "visible-transcript");
+  assert.equal(started.controls.stopVisible, true);
+  assert.equal(started.controls.muteVisible, true);
+  assert.equal(started.controls.recoverVisible, true);
+  assert.equal(started.controls.doneVisible, true);
+  assert.equal(started.receipt.metadata.stopVisible, true);
+  assert.equal(started.receipt.metadata.muteVisible, true);
+  assert.equal(started.receipt.metadata.recoverVisible, true);
+  assert.equal(started.receipt.metadata.doneVisible, true);
+  assert.equal(started.receipt.metadata.localSttEndpointEnabled, false);
+
+  const muted = applyApexFamilyCareLocalVoiceInputControl(started, "mute", FIXED_NOW);
+  assert.equal(muted.state, "muted");
+  assert.equal(muted.sessionActive, false);
+  assert.equal(muted.muted, true);
+
+  const stopped = applyApexFamilyCareLocalVoiceInputControl(started, "stop", FIXED_NOW);
+  assert.equal(stopped.state, "stopped");
+  assert.equal(stopped.sessionActive, false);
+
+  const recovered = applyApexFamilyCareLocalVoiceInputControl(started, "recover", FIXED_NOW);
+  assert.equal(recovered.state, "recovering");
+  assert.equal(recovered.sessionActive, false);
+  assert.equal(recovered.explicitUserStarted, false);
+  assert.equal(recovered.receipt.rawAudioStored, false);
+  assert.equal(recovered.receipt.rawTranscriptStored, false);
 });
 
 test("voice parser turns a spoken pain update into a compact care note", () => {

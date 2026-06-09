@@ -21,6 +21,39 @@ export const APEX_FAMILY_CARE_VOICE_POLICY = Object.freeze({
   maxFollowUps: 1,
 });
 
+export const APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY = Object.freeze({
+  policyId: "apex-family-care-local-voice-input-v1",
+  phase: "phase-4a-real-local-voice-input",
+  localOnly: true,
+  familyCareOnly: true,
+  apexHqProductWork: false,
+  explicitUserStartedRequired: true,
+  visiblePushToTalkRequired: true,
+  visibleStopRequired: true,
+  visibleMuteRequired: true,
+  visibleRecoverRequired: true,
+  localSttOnly: true,
+  localSttProviderTarget: "approved-local-stt-bridge",
+  localSttEndpointEnabled: false,
+  endpointApprovalRequired: true,
+  hiddenRecording: false,
+  backgroundRecording: false,
+  autoListening: false,
+  rawAudioStored: false,
+  rawAudioUploaded: false,
+  rawTranscriptStored: false,
+  rawTranscriptStoredInReceipt: false,
+  cloudUsed: false,
+  cloudSttAllowed: false,
+  browserSpeechRecognitionAllowed: false,
+  openAiUsed: false,
+  groqUsed: false,
+  medicalDiagnosis: false,
+  emergencyReplacement: false,
+});
+
+const LOCAL_VOICE_SESSION_STATES = new Set(["quiet", "listening", "stopped", "muted", "recovering", "blocked"]);
+
 const CATEGORY_LABEL_BY_ID = new Map(APEX_FAMILY_CARE_CATEGORIES.map((category) => [category.id, category.label]));
 const CATEGORY_DOCTOR_DEFAULT_BY_ID = new Map(APEX_FAMILY_CARE_CATEGORIES.map((category) => [category.id, Boolean(category.doctorDefault)]));
 const REPORTER_SET = new Set(APEX_FAMILY_CARE_REPORTERS);
@@ -128,6 +161,20 @@ function countWords(text) {
   return (text.toLowerCase().match(/[a-z0-9']+/g) || []).length;
 }
 
+function normalizeSessionState(value) {
+  const state = cleanText(value, 32);
+  return LOCAL_VOICE_SESSION_STATES.has(state) ? state : "quiet";
+}
+
+function localVoiceStatusForState(state, localSttBridgeReady) {
+  if (state === "blocked") return "Explicit start required";
+  if (state === "listening") return localSttBridgeReady ? "Visible local STT session" : "Visible session; local STT bridge pending";
+  if (state === "muted") return "Muted";
+  if (state === "stopped") return "Stopped";
+  if (state === "recovering") return "Recovered to quiet";
+  return "Quiet";
+}
+
 function buildFollowUpPrompt({ category, bodyArea }) {
   if (category === "pain") return bodyArea ? "How bad was the pain, and should it go on the doctor summary?" : "Where did it hurt, and how bad was it?";
   if (category === "meds") return "Was this just a medication note or a confirmed medication taken?";
@@ -187,6 +234,99 @@ export function buildApexFamilyCareVoiceReceipt(parseResult = {}, options = {}) 
       summaryLength: Math.max(0, Number.parseInt(parseResult.summaryLength || 0, 10) || 0),
     },
   };
+}
+
+export function buildApexFamilyCareLocalVoiceInputSession(input = {}, nowInput = new Date()) {
+  const now = normalizeNow(input.now || nowInput);
+  const explicitUserStarted = input.explicitUserStarted === true;
+  const requestedState = normalizeSessionState(input.state);
+  const state = requestedState === "listening" && !explicitUserStarted ? "blocked" : requestedState;
+  const localSttBridgeReady = input.localSttBridgeReady === true && input.localSttEndpointEnabled === true;
+  const muted = input.muted === true || state === "muted";
+  const sessionActive = state === "listening" && explicitUserStarted && !muted;
+  const statusLabel = localVoiceStatusForState(state, localSttBridgeReady);
+
+  return {
+    sessionType: "apex-family-care-local-voice-input-session",
+    generatedAt: now.toISOString(),
+    state,
+    statusLabel,
+    explicitUserStarted,
+    sessionActive,
+    muted,
+    localSttBridgeReady,
+    localSttEndpointEnabled: false,
+    endpointApprovalRequired: true,
+    inputMode: localSttBridgeReady ? "local-stt-bridge" : "visible-transcript",
+    controls: {
+      startVisible: true,
+      stopVisible: true,
+      muteVisible: true,
+      recoverVisible: true,
+      doneVisible: true,
+    },
+    policy: APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY,
+    receipt: {
+      receiptType: "apex-family-care-local-voice-input-session",
+      schemaVersion: 1,
+      generatedAt: now.toISOString(),
+      policyId: APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.policyId,
+      ...APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY,
+      explicitUserStarted,
+      visibleListeningMode: true,
+      sessionActive,
+      muted,
+      metadata: {
+        state,
+        statusLabel,
+        inputMode: localSttBridgeReady ? "local-stt-bridge" : "visible-transcript",
+        localSttBridgeReady,
+        localSttEndpointEnabled: false,
+        endpointApprovalRequired: true,
+        stopVisible: true,
+        muteVisible: true,
+        recoverVisible: true,
+        doneVisible: true,
+      },
+    },
+  };
+}
+
+export function applyApexFamilyCareLocalVoiceInputControl(current = {}, control = "", now = new Date()) {
+  const normalizedControl = cleanText(control, 40);
+  const localSttBridgeReady = current.localSttBridgeReady === true && current.localSttEndpointEnabled === true;
+  if (normalizedControl === "start") {
+    return buildApexFamilyCareLocalVoiceInputSession({
+      state: "listening",
+      explicitUserStarted: true,
+      localSttBridgeReady,
+      localSttEndpointEnabled: false,
+    }, now);
+  }
+  if (normalizedControl === "mute") {
+    return buildApexFamilyCareLocalVoiceInputSession({
+      state: "muted",
+      explicitUserStarted: current.explicitUserStarted === true,
+      muted: true,
+      localSttBridgeReady,
+      localSttEndpointEnabled: false,
+    }, now);
+  }
+  if (normalizedControl === "stop") {
+    return buildApexFamilyCareLocalVoiceInputSession({
+      state: "stopped",
+      explicitUserStarted: current.explicitUserStarted === true,
+      localSttBridgeReady,
+      localSttEndpointEnabled: false,
+    }, now);
+  }
+  return buildApexFamilyCareLocalVoiceInputSession({
+    state: "recovering",
+    explicitUserStarted: false,
+    muted: false,
+    localSttBridgeReady,
+    localSttEndpointEnabled: false,
+  }, now);
 }
 
 export function parseApexFamilyCareVoiceNote(transcript = "", options = {}) {
