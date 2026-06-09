@@ -768,10 +768,11 @@ function TestWeekView({
           description="Collect the real family evidence before Phase 7 can close."
           action={<Badge tone={statusTone}>{testWeekSummary.phaseClosureStatus}</Badge>}
         />
-        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-6">
           <StatCard title="Status" value={state.status} detail={state.realWeekStarted ? "Real week started" : "Ready to start"} />
           <StatCard title="House Screen" value={state.houseScreenReady ? "Ready" : "Not Ready"} detail="Kitchen/house device" />
           <StatCard title="Tracked Days" value={testWeekSummary.trackedDays} detail="Needs 7 real days" />
+          <StatCard title="Used Days" value={`${testWeekSummary.dailyCheckInCount}/7`} detail="Real use marks" />
           <StatCard title="Checks Passing" value={`${testWeekSummary.passedCount}/7`} detail="Success test" />
           <StatCard title="Friction Notes" value={state.frictionNotes.length} detail={`${testWeekSummary.simplifyCount} simplify / ${testWeekSummary.freezeCount} freeze`} />
         </div>
@@ -806,6 +807,30 @@ function TestWeekView({
               <p className="mt-1 break-words text-xs font-bold text-slate-600">{step.shortAction}</p>
               <p className="mt-1 break-words text-xs font-bold text-slate-500">{step.successSignal}</p>
             </div>
+          ))}
+        </div>
+      </Card>
+
+      <Card className="p-4">
+        <SectionHeader
+          title="Daily Check-Ins"
+          description="Tap a day only after Family Care was actually used for the real test week."
+          action={<Badge tone={testWeekSummary.fullWeekUsageEvidence ? "green" : "slate"}>{testWeekSummary.dailyCheckInCount}/7</Badge>}
+        />
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+          {state.dailyCheckIns.map((checked, index) => (
+            <Button
+              key={`test-week-day-${index + 1}`}
+              type="button"
+              variant={checked ? "primary" : "secondary"}
+              className="min-h-11"
+              onClick={() => {
+                const nextDailyCheckIns = state.dailyCheckIns.map((current, currentIndex) => (currentIndex === index ? !current : current));
+                onUpdateTestWeekMetric("dailyCheckIns", nextDailyCheckIns);
+              }}
+            >
+              <Icon name={checked ? "check" : "calendar"} /> Day {index + 1}
+            </Button>
           ))}
         </div>
       </Card>

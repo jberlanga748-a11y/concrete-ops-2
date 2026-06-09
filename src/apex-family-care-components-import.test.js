@@ -56,6 +56,8 @@ test("Apex Family Care page contains family screens and no hidden mic APIs", () 
   assert.match(componentSource, /Run The Week/);
   assert.match(componentSource, /House Screen/);
   assert.match(componentSource, /Mark House Screen Ready/);
+  assert.match(componentSource, /Daily Check-Ins/);
+  assert.match(componentSource, /Used Days/);
   assert.match(componentSource, /Review Packet/);
   assert.match(componentSource, /Friction And Useful Notes/);
   assert.match(componentSource, /Human review required/);

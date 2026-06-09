@@ -74,6 +74,7 @@ export const APEX_FAMILY_CARE_TEST_WEEK_GUIDE_STEPS = Object.freeze([
 const FRICTION_CATEGORY_SET = new Set(APEX_FAMILY_CARE_TEST_WEEK_FRICTION_CATEGORIES);
 const REPORTERS = new Set(["Dad", "Brother", "Grandma", "Family", "John"]);
 const UPDATE_SPEED_VALUES = new Set(["unknown", "yes", "no"]);
+const TEST_WEEK_DAY_COUNT = 7;
 
 function cleanText(value, maxLength = 240) {
   return String(value || "").replace(/\s+/g, " ").trim().slice(0, maxLength);
@@ -129,6 +130,11 @@ function clampPercent(value) {
   return Math.max(0, Math.min(100, Math.round(numeric)));
 }
 
+function normalizeDailyCheckIns(value) {
+  const source = Array.isArray(value) ? value : [];
+  return Array.from({ length: TEST_WEEK_DAY_COUNT }, (_, index) => Boolean(source[index]));
+}
+
 export function createApexFamilyCareTestWeekFrictionNote(input = {}, now = new Date()) {
   const generatedAt = normalizeNow(now);
   const category = FRICTION_CATEGORY_SET.has(input.category) ? input.category : "other";
@@ -161,6 +167,7 @@ export function getDefaultApexFamilyCareTestWeekState(now = new Date()) {
     realWeekStarted: false,
     realWeekCompleted: false,
     houseScreenReady: false,
+    dailyCheckIns: normalizeDailyCheckIns(),
     baselineStatusTextsPerDay: 0,
     afterStatusTextsPerDay: 0,
     doctorPrepBeforeRating: 0,
@@ -192,6 +199,7 @@ export function normalizeApexFamilyCareTestWeekState(input = {}, now = new Date(
     realWeekStarted,
     realWeekCompleted,
     houseScreenReady: Boolean(input.houseScreenReady),
+    dailyCheckIns: normalizeDailyCheckIns(input.dailyCheckIns),
     baselineStatusTextsPerDay: normalizeNonNegativeNumber(input.baselineStatusTextsPerDay),
     afterStatusTextsPerDay: normalizeNonNegativeNumber(input.afterStatusTextsPerDay),
     doctorPrepBeforeRating: normalizeRating(input.doctorPrepBeforeRating),
@@ -259,6 +267,8 @@ export function buildApexFamilyCareTestWeekSummary(input = {}, notes = [], optio
   const grandmaRespected = state.grandmaDignityRating >= 4;
   const quickUpdates = state.updatesUnder10Seconds === "yes";
   const usefulSignals = noteDays(notes) > 0;
+  const dailyCheckInCount = state.dailyCheckIns.filter(Boolean).length;
+  const fullWeekUsageEvidence = dailyCheckInCount >= TEST_WEEK_DAY_COUNT || noteDays(notes) >= TEST_WEEK_DAY_COUNT;
   const simplifyCount = state.frictionNotes.filter((note) => note.shouldSimplify).length;
   const freezeCount = state.frictionNotes.filter((note) => note.shouldFreeze).length;
   const successChecks = [
@@ -274,6 +284,7 @@ export function buildApexFamilyCareTestWeekSummary(input = {}, notes = [], optio
   const evidenceReady = Boolean(
     state.realWeekCompleted
     && trackedDays >= 7
+    && fullWeekUsageEvidence
     && state.baselineStatusTextsPerDay > 0
     && state.afterStatusTextsPerDay >= 0
     && state.frictionNotes.length > 0
@@ -285,6 +296,8 @@ export function buildApexFamilyCareTestWeekSummary(input = {}, notes = [], optio
     state,
     trackedDays,
     noteDayCount: noteDays(notes),
+    dailyCheckInCount,
+    fullWeekUsageEvidence,
     statusTextDelta,
     successChecks,
     passedCount,
@@ -307,6 +320,8 @@ export function buildApexFamilyCareTestWeekSummary(input = {}, notes = [], optio
         realWeekStarted: state.realWeekStarted,
         realWeekCompleted: state.realWeekCompleted,
         houseScreenReady: state.houseScreenReady,
+        dailyCheckInCount,
+        fullWeekUsageEvidence,
         evidenceReady,
         phaseClosureStatus: evidenceReady ? "human-review-required" : "real-week-evidence-missing",
         frictionNoteCount: state.frictionNotes.length,
@@ -332,7 +347,7 @@ export function buildApexFamilyCareTestWeekRunPacket(input = {}, notes = [], opt
     let done = false;
     if (step.id === "install-house-screen") done = state.houseScreenReady;
     if (step.id === "baseline-texts") done = state.baselineStatusTextsPerDay > 0;
-    if (step.id === "daily-fast-updates") done = summary.noteDayCount >= Math.min(7, Math.max(1, summary.trackedDays || 1));
+    if (step.id === "daily-fast-updates") done = summary.dailyCheckInCount >= Math.min(7, Math.max(1, summary.trackedDays || 1)) || summary.noteDayCount >= Math.min(7, Math.max(1, summary.trackedDays || 1));
     if (step.id === "doctor-prep-check") done = state.doctorPrepAfterRating > 0 || state.doctorPrepBeforeRating > 0;
     if (step.id === "friction-note") done = state.frictionNotes.length > 0;
     if (step.id === "end-week-review") done = summary.evidenceReady;
@@ -419,6 +434,8 @@ export function buildApexFamilyCareTestWeekRunPacket(input = {}, notes = [], opt
         reviewPromptCount: reviewPrompts.length,
         readyReviewPromptCount: reviewPrompts.filter((prompt) => prompt.ready).length,
         houseScreenReady: state.houseScreenReady,
+        dailyCheckInCount: summary.dailyCheckInCount,
+        fullWeekUsageEvidence: summary.fullWeekUsageEvidence,
         evidenceReady: summary.evidenceReady,
         noAutoClose: true,
         noSends: true,
