@@ -38,6 +38,8 @@ test("Apex Family Care page contains family screens and no hidden mic APIs", () 
   assert.match(componentSource, /No diagnosis/);
   assert.match(componentSource, /createApexFamilyCareVoiceNoteDraft/);
   assert.match(componentSource, /APEX_FAMILY_CARE_VOICE_POLICY/);
+  assert.match(componentSource, /APEX_FAMILY_CARE_LOCAL_STT_BRIDGE_APPROVAL_POLICY/);
+  assert.match(componentSource, /buildApexFamilyCareLocalSttBridgeApprovalPacket/);
   assert.match(componentSource, /buildApexFamilyCareNotificationState/);
   assert.match(componentSource, /APEX_FAMILY_CARE_NOTIFICATION_POLICY/);
   assert.match(componentSource, /buildApexFamilyCareKitchenModeStatus/);
@@ -73,6 +75,10 @@ test("Apex Family Care page contains family screens and no hidden mic APIs", () 
   assert.match(componentSource, /No schema change/);
   assert.match(componentSource, /Start Voice Update/);
   assert.match(componentSource, /Local STT Bridge/);
+  assert.match(componentSource, /STT Bridge Approval/);
+  assert.match(componentSource, /Family STT bridge approval/);
+  assert.match(componentSource, /Family STT endpoint/);
+  assert.match(componentSource, /Family STT raw audio/);
   assert.match(componentSource, /Endpoint approval required/);
   assert.match(componentSource, /No browser speech/);
   assert.match(componentSource, /Stop Listening/);

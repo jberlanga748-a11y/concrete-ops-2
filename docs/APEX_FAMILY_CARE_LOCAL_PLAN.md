@@ -336,13 +336,24 @@ Status: Phase 4A local session control is complete. The actual Family Care-speci
 
 Purpose: connect the Family Care voice screen to an approved local STT bridge without adding hidden capture or Apex HQ dependency.
 
-- Choose the Family Care-specific local STT bridge and endpoint boundary.
+- Add an approval-readiness packet for the Family Care-specific local STT bridge and endpoint boundary.
 - Keep start/stop/mute/recover visible during every voice state.
 - Require explicit user start for each listening session.
 - Keep raw audio storage/upload, raw transcript receipts, cloud STT, browser SpeechRecognition, OpenAI/Groq, and auto-listening blocked.
-- Add local endpoint tests only after John approves the bridge.
+- Defer local endpoint tests and live STT wiring to Phase 4C after John approves the bridge.
 
-Do later when: John approves the local STT bridge boundary for Family Care specifically.
+Status: Phase 4B approval-readiness is complete. The actual Family Care-specific local STT endpoint stays disabled and moves to Phase 4C after John approves the bridge boundary.
+
+### Phase 4C - Approved Family Local STT Endpoint Wiring
+
+Purpose: wire the approved Family Care local STT endpoint only after John approves the bridge boundary.
+
+- Use only the approved Family Care-specific local STT bridge.
+- Add local endpoint tests before live STT wiring.
+- Keep every session explicit-start, visible, stop/mute/recover-capable, and one-turn bounded.
+- Keep raw audio storage/upload, raw transcript receipts, hidden/background capture, cloud STT, browser SpeechRecognition, OpenAI/Groq, auto-listening, schema/auth/session changes, deploys, sends, and Apex HQ dependency blocked unless explicitly approved.
+
+Do later when: John approves the Family Care local STT bridge boundary specifically.
 
 ### Phase 5A - Real Notification Delivery
 
@@ -503,6 +514,18 @@ Phase 4 receipt (2026-06-09): added a standalone Family Care Voice Update screen
 Done means: Family Care has the safe visible local voice session boundary ready, but no hidden mic capture or approved local STT endpoint is turned on yet.
 
 Phase 4A receipt (2026-06-09): added a Family Care local voice input policy/session helper, explicit-start session controls, and metadata-only local voice session receipts. The Voice Update screen now shows Local STT Bridge status, endpoint approval-required state, visible Stop Listening, Mute Voice Input, Recover To Quiet, and Done Talking / Review controls, while the Health view shows Family local STT, Family voice auto-listen, and Family voice controls. The actual Family Care local STT endpoint remains disabled until Phase 4B approval. No browser microphone API, hidden/background recording, raw audio storage/upload, raw transcript receipts, cloud STT, browser SpeechRecognition, OpenAI/Groq, schema/auth/session change, deploy, customer/field/demo exposure, medical diagnosis, emergency replacement behavior, or Apex HQ route/nav reintegration was added.
+
+### Phase 4B - Approved Family Local STT Bridge
+
+- [x] Add an approval-readiness packet for the Family Care-specific local STT bridge and endpoint boundary.
+- [x] Keep start/stop/mute/recover visible during every voice state.
+- [x] Require explicit user start for each listening session.
+- [x] Keep raw audio storage/upload, raw transcript receipts, cloud STT, browser SpeechRecognition, OpenAI/Groq, and auto-listening blocked.
+- [x] Defer local endpoint tests and live STT wiring to Phase 4C after John approves the bridge.
+
+Done means: Family Care can clearly show the local STT bridge approval boundary without connecting live speech recognition or enabling an endpoint.
+
+Phase 4B slice receipt (2026-06-09): added `buildApexFamilyCareLocalSttBridgeApprovalPacket` with a Family Care-only approval packet for the existing local faster-whisper bridge boundary. The Voice Update screen now shows STT Bridge Approval checks for explicit start, visible stop/mute/recover, local-only STT, no raw audio/transcript storage, no browser speech recognition, Family Care boundary separation, and John approval. Apex Health now shows Family STT bridge approval, Family STT endpoint, and Family STT raw audio status. The endpoint remains disabled, unimplemented, and untested until Phase 4C after John approves the bridge boundary. No microphone API, endpoint call, raw audio upload/storage, raw transcript receipt, hidden/background recording, cloud STT, browser SpeechRecognition, OpenAI/Groq, auto-listening, schema/auth/session change, deploy, send, customer/field/demo exposure, medical diagnosis, emergency replacement behavior, or Apex HQ route/nav reintegration was added. Focused validation: `node --test --test-concurrency=1 shared/apexFamilyCareVoice.test.js src/apex-family-care-components-import.test.js` passed 11/11.
 
 ### Phase 5 - Notifications
 
@@ -731,7 +754,7 @@ Complete the Current Next Step, advance the plan, then continue through foundati
 
 ## Current Next Step
 
-Next active build slice: Phase 4B - Approved Family Local STT Bridge.
+Next active build slice: Phase 5B - Approved External Notification Delivery.
 
 Open validation track: Phase 7 - Family Test Week remains incomplete until one real family test week is run and reviewed. Do not mark Phase 7 complete from synthetic data or builder prep work.
 
@@ -743,7 +766,7 @@ Open Phase 3C work: connect the coordinator review packet into Apex's private op
 
 Open approval-gated Phase 3.5C work: choose the real family access/release path and add the chosen phone/house-device install checklist only after approval.
 
-Open Phase 4B work: choose and approve the Family Care-specific local STT bridge before connecting real speech recognition.
+Open approval-gated Phase 4C work: choose and approve the Family Care-specific local STT bridge before connecting real speech recognition.
 
 Open Phase 5B work: choose and approve the exact external notification channel/provider/device boundary before adding real SMS, email, PWA push, browser/device notifications, service worker push, provider payloads, or live sends.
 

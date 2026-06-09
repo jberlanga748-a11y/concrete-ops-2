@@ -3,8 +3,10 @@ import test from "node:test";
 
 import {
   APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY,
+  APEX_FAMILY_CARE_LOCAL_STT_BRIDGE_APPROVAL_POLICY,
   APEX_FAMILY_CARE_VOICE_POLICY,
   applyApexFamilyCareLocalVoiceInputControl,
+  buildApexFamilyCareLocalSttBridgeApprovalPacket,
   buildApexFamilyCareLocalVoiceInputSession,
   createApexFamilyCareVoiceNoteDraft,
   parseApexFamilyCareVoiceNote,
@@ -63,6 +65,62 @@ test("Family Care voice policy is explicit, local, and non-recording by default"
   assert.equal(APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.rawTranscriptStored, false);
   assert.equal(APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.cloudSttAllowed, false);
   assert.equal(APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.browserSpeechRecognitionAllowed, false);
+  assert.equal(APEX_FAMILY_CARE_LOCAL_STT_BRIDGE_APPROVAL_POLICY.policyId, "apex-family-care-local-stt-bridge-approval-v1");
+  assert.equal(APEX_FAMILY_CARE_LOCAL_STT_BRIDGE_APPROVAL_POLICY.humanApprovalRequired, true);
+  assert.equal(APEX_FAMILY_CARE_LOCAL_STT_BRIDGE_APPROVAL_POLICY.bridgeApprovalGranted, false);
+  assert.equal(APEX_FAMILY_CARE_LOCAL_STT_BRIDGE_APPROVAL_POLICY.endpointEnabled, false);
+  assert.equal(APEX_FAMILY_CARE_LOCAL_STT_BRIDGE_APPROVAL_POLICY.endpointImplemented, false);
+  assert.equal(APEX_FAMILY_CARE_LOCAL_STT_BRIDGE_APPROVAL_POLICY.endpointTestEnabled, false);
+  assert.equal(APEX_FAMILY_CARE_LOCAL_STT_BRIDGE_APPROVAL_POLICY.apexHqDependency, false);
+});
+
+test("Family Care local STT bridge approval packet blocks endpoint work until approved", () => {
+  const packet = buildApexFamilyCareLocalSttBridgeApprovalPacket({
+    now: FIXED_NOW,
+    requestedBridge: "existing-apex-local-faster-whisper-bridge",
+    endpointBoundary: "family-care-specific-local-stt-endpoint",
+    bridgeApprovalGranted: false,
+  });
+
+  assert.equal(packet.packetType, "apex-family-care-local-stt-bridge-approval");
+  assert.equal(packet.policy.familyCareOnly, true);
+  assert.equal(packet.policy.apexHqProductWork, false);
+  assert.equal(packet.policy.humanApprovalRequired, true);
+  assert.equal(packet.approvalStatus, "approval-required");
+  assert.equal(packet.readyForEndpointWork, false);
+  assert.equal(packet.endpointEnabled, false);
+  assert.equal(packet.endpointImplemented, false);
+  assert.equal(packet.endpointTestEnabled, false);
+  assert.equal(packet.approvalChecks.some((check) => check.id === "john-approval" && check.ready === false), true);
+  assert.equal(packet.approvalChecks.every((check) => typeof check.label === "string" && typeof check.detail === "string"), true);
+  assert.equal(packet.implementationRules.some((rule) => rule.includes("Store no raw audio")), true);
+  assert.match(packet.nextApprovalNeeded, /Approve the Family Care local STT bridge boundary/i);
+  assert.equal(packet.receipt.receiptType, "apex-family-care-local-stt-bridge-approval");
+  assert.equal(packet.receipt.localOnly, true);
+  assert.equal(packet.receipt.familyCareOnly, true);
+  assert.equal(packet.receipt.apexHqProductWork, false);
+  assert.equal(packet.receipt.bridgeApprovalGranted, false);
+  assert.equal(packet.receipt.endpointEnabled, false);
+  assert.equal(packet.receipt.endpointImplemented, false);
+  assert.equal(packet.receipt.endpointTestEnabled, false);
+  assert.equal(packet.receipt.autoListening, false);
+  assert.equal(packet.receipt.hiddenRecording, false);
+  assert.equal(packet.receipt.backgroundRecording, false);
+  assert.equal(packet.receipt.rawAudioStored, false);
+  assert.equal(packet.receipt.rawAudioUploaded, false);
+  assert.equal(packet.receipt.rawTranscriptStored, false);
+  assert.equal(packet.receipt.rawTranscriptStoredInReceipt, false);
+  assert.equal(packet.receipt.cloudUsed, false);
+  assert.equal(packet.receipt.cloudSttAllowed, false);
+  assert.equal(packet.receipt.browserSpeechRecognitionAllowed, false);
+  assert.equal(packet.receipt.openAiUsed, false);
+  assert.equal(packet.receipt.groqUsed, false);
+  assert.equal(packet.receipt.apexHqDependency, false);
+  assert.equal(packet.receipt.medicalDiagnosis, false);
+  assert.equal(packet.receipt.emergencyReplacement, false);
+  assert.equal(packet.receipt.metadata.readyForEndpointWork, false);
+  assert.equal(packet.receipt.metadata.endpointEnabled, false);
+  assert.equal(packet.receipt.metadata.noRawStorage, true);
 });
 
 test("local voice input session blocks listening unless explicitly user-started", () => {

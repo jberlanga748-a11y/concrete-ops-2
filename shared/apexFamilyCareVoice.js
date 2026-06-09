@@ -52,6 +52,39 @@ export const APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY = Object.freeze({
   emergencyReplacement: false,
 });
 
+export const APEX_FAMILY_CARE_LOCAL_STT_BRIDGE_APPROVAL_POLICY = Object.freeze({
+  policyId: "apex-family-care-local-stt-bridge-approval-v1",
+  phase: "phase-4b-approved-family-local-stt-bridge",
+  localOnly: true,
+  familyCareOnly: true,
+  apexHqProductWork: false,
+  humanApprovalRequired: true,
+  bridgeApprovalGranted: false,
+  endpointEnabled: false,
+  endpointImplemented: false,
+  endpointTestEnabled: false,
+  explicitUserStartedRequired: true,
+  visiblePushToTalkRequired: true,
+  visibleStopRequired: true,
+  visibleMuteRequired: true,
+  visibleRecoverRequired: true,
+  autoListening: false,
+  hiddenRecording: false,
+  backgroundRecording: false,
+  rawAudioStored: false,
+  rawAudioUploaded: false,
+  rawTranscriptStored: false,
+  rawTranscriptStoredInReceipt: false,
+  cloudUsed: false,
+  cloudSttAllowed: false,
+  browserSpeechRecognitionAllowed: false,
+  openAiUsed: false,
+  groqUsed: false,
+  apexHqDependency: false,
+  medicalDiagnosis: false,
+  emergencyReplacement: false,
+});
+
 const LOCAL_VOICE_SESSION_STATES = new Set(["quiet", "listening", "stopped", "muted", "recovering", "blocked"]);
 
 const CATEGORY_LABEL_BY_ID = new Map(APEX_FAMILY_CARE_CATEGORIES.map((category) => [category.id, category.label]));
@@ -287,6 +320,127 @@ export function buildApexFamilyCareLocalVoiceInputSession(input = {}, nowInput =
         muteVisible: true,
         recoverVisible: true,
         doneVisible: true,
+      },
+    },
+  };
+}
+
+export function buildApexFamilyCareLocalSttBridgeApprovalPacket(input = {}) {
+  const now = normalizeNow(input.now || input.generatedAt);
+  const requestedBridge = cleanText(input.requestedBridge, 80) || "existing-apex-local-faster-whisper-bridge";
+  const approvalStatus = input.bridgeApprovalGranted === true ? "approved" : "approval-required";
+  const endpointBoundary = cleanText(input.endpointBoundary, 120) || "family-care-specific-local-stt-endpoint";
+  const explicitStartReady = input.explicitStartReady !== false;
+  const visibleControlsReady = input.visibleControlsReady !== false;
+  const noRawStorage = input.noRawStorage !== false;
+  const localOnly = input.localOnly !== false;
+  const noCloud = input.noCloud !== false;
+  const noBrowserSpeech = input.noBrowserSpeech !== false;
+  const noApexHqDependency = input.noApexHqDependency !== false;
+  const approvalChecks = [
+    {
+      id: "explicit-user-start",
+      label: "Explicit user start",
+      status: explicitStartReady ? "ready" : "needs-control",
+      ready: explicitStartReady,
+      detail: "Every voice session must start from the visible Family Care Voice Update control.",
+    },
+    {
+      id: "visible-stop-mute-recover",
+      label: "Visible stop/mute/recover",
+      status: visibleControlsReady ? "ready" : "needs-controls",
+      ready: visibleControlsReady,
+      detail: "Stop Listening, Mute Voice Input, Recover To Quiet, and Done Talking controls stay visible.",
+    },
+    {
+      id: "local-only-stt",
+      label: "Local-only STT",
+      status: localOnly && noCloud ? "local-only" : "blocked",
+      ready: localOnly && noCloud,
+      detail: "No OpenAI, Groq, cloud STT, or provider fallback is allowed for Family Care voice.",
+    },
+    {
+      id: "no-raw-audio-transcript-storage",
+      label: "No raw audio/transcript storage",
+      status: noRawStorage ? "blocked-by-policy" : "needs-privacy-fix",
+      ready: noRawStorage,
+      detail: "Receipts stay metadata-only and do not store raw audio, uploaded audio, or raw transcript text.",
+    },
+    {
+      id: "no-browser-speech-recognition",
+      label: "No browser speech recognition",
+      status: noBrowserSpeech ? "blocked-by-policy" : "needs-boundary-fix",
+      ready: noBrowserSpeech,
+      detail: "Do not add browser SpeechRecognition or hidden microphone APIs for this bridge.",
+    },
+    {
+      id: "family-care-boundary",
+      label: "Family Care boundary",
+      status: noApexHqDependency ? "separate" : "needs-separation",
+      ready: noApexHqDependency,
+      detail: "Bridge must be Family Care-specific and not depend on Apex HQ navigation or the private cockpit.",
+    },
+    {
+      id: "john-approval",
+      label: "John approval",
+      status: approvalStatus,
+      ready: approvalStatus === "approved",
+      detail: approvalStatus === "approved"
+        ? `Approved bridge boundary: ${endpointBoundary}.`
+        : "John must approve the Family Care STT bridge boundary before endpoint wiring or live STT tests.",
+    },
+  ];
+  const readyForEndpointWork = approvalStatus === "approved" && approvalChecks.every((check) => check.ready);
+
+  return {
+    packetType: "apex-family-care-local-stt-bridge-approval",
+    generatedAt: now.toISOString(),
+    policy: APEX_FAMILY_CARE_LOCAL_STT_BRIDGE_APPROVAL_POLICY,
+    requestedBridge,
+    endpointBoundary,
+    approvalStatus,
+    readyForEndpointWork,
+    endpointEnabled: false,
+    endpointImplemented: false,
+    endpointTestEnabled: false,
+    approvalChecks,
+    implementationRules: [
+      "Use the existing local STT runtime only after John approves the Family Care boundary.",
+      "Require visible push-to-talk or visible one-turn listening for every session.",
+      "Keep stop, mute, recover, and done controls visible during every voice state.",
+      "Store no raw audio, uploaded audio, raw transcripts, prompts, responses, secrets, or provider payloads.",
+      "Keep cloud STT, browser SpeechRecognition, auto-listening, hidden recording, Apex HQ dependency, schema/auth/session changes, deploys, and sends blocked.",
+    ],
+    nextApprovalNeeded: readyForEndpointWork
+      ? "Bridge boundary is approved; the next slice may add endpoint tests before live STT wiring."
+      : "Approve the Family Care local STT bridge boundary before endpoint wiring or real speech recognition.",
+    receipt: {
+      receiptType: "apex-family-care-local-stt-bridge-approval",
+      schemaVersion: 1,
+      generatedAt: now.toISOString(),
+      policyId: APEX_FAMILY_CARE_LOCAL_STT_BRIDGE_APPROVAL_POLICY.policyId,
+      ...APEX_FAMILY_CARE_LOCAL_STT_BRIDGE_APPROVAL_POLICY,
+      metadata: {
+        requestedBridge,
+        endpointBoundary,
+        approvalStatus,
+        readyForEndpointWork,
+        approvalCheckCount: approvalChecks.length,
+        readyApprovalCheckCount: approvalChecks.filter((check) => check.ready).length,
+        endpointEnabled: false,
+        endpointImplemented: false,
+        endpointTestEnabled: false,
+        explicitUserStartedRequired: true,
+        visibleControlsReady,
+        localOnly,
+        noRawStorage,
+        noCloud,
+        noBrowserSpeech,
+        noApexHqDependency,
+        rawAudioStored: false,
+        rawAudioUploaded: false,
+        rawTranscriptStored: false,
+        rawTranscriptStoredInReceipt: false,
       },
     },
   };

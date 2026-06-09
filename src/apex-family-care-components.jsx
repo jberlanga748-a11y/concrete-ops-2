@@ -58,8 +58,10 @@ import {
 } from "../shared/apexFamilyCareTestWeek.js";
 import {
   APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY,
+  APEX_FAMILY_CARE_LOCAL_STT_BRIDGE_APPROVAL_POLICY,
   APEX_FAMILY_CARE_VOICE_POLICY,
   applyApexFamilyCareLocalVoiceInputControl,
+  buildApexFamilyCareLocalSttBridgeApprovalPacket,
   buildApexFamilyCareLocalVoiceInputSession,
   createApexFamilyCareVoiceNoteDraft,
 } from "../shared/apexFamilyCareVoice.js";
@@ -547,7 +549,7 @@ function AddUpdateView({ draft, setDraft, onSave }) {
   );
 }
 
-function VoiceUpdateView({ voiceDraft, setVoiceDraft, onStart, onStop, onMute, onRecover, onCancel, onReview, onSave, onSaveNeedsReview }) {
+function VoiceUpdateView({ voiceDraft, setVoiceDraft, localSttBridgeApproval, onStart, onStop, onMute, onRecover, onCancel, onReview, onSave, onSaveNeedsReview }) {
   const receipt = voiceDraft.receipt;
   const parsed = voiceDraft.parsed;
   const localVoiceSession = voiceDraft.localVoiceSession || buildApexFamilyCareLocalVoiceInputSession({ state: "quiet" });
@@ -597,6 +599,27 @@ function VoiceUpdateView({ voiceDraft, setVoiceDraft, onStart, onStop, onMute, o
           <div className="rounded-lg border border-slate-200 bg-white p-3">
             <p className="text-sm font-black text-slate-950">Cloud STT</p>
             <p className="mt-1 text-sm font-bold text-slate-600">{APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.cloudSttAllowed ? "Allowed" : "Blocked"}</p>
+          </div>
+        </div>
+
+        <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-black text-amber-950">STT Bridge Approval</p>
+              <p className="mt-1 text-sm font-bold text-amber-800">{localSttBridgeApproval.nextApprovalNeeded}</p>
+            </div>
+            <Badge tone={localSttBridgeApproval.readyForEndpointWork ? "green" : "amber"}>{localSttBridgeApproval.approvalStatus}</Badge>
+          </div>
+          <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            {localSttBridgeApproval.approvalChecks.map((check) => (
+              <div key={check.id} className="rounded-lg border border-white/70 bg-white p-3">
+                <div className="flex min-w-0 items-center justify-between gap-2">
+                  <p className="min-w-0 break-words text-xs font-black text-slate-950">{check.label}</p>
+                  <Badge tone={check.ready ? "green" : "amber"}>{check.status}</Badge>
+                </div>
+                <p className="mt-1 break-words text-xs font-bold text-slate-600">{check.detail}</p>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -1422,7 +1445,7 @@ function promptReviewLabel(status) {
   return status;
 }
 
-function HealthView({ accessReadiness, boundaryReleasePrep, releaseSmokeChecklist, gate, summary, latestVoiceReceipt, notificationState, kitchenStatus, householdPresence, testWeekSummary, coordinatorPacket, coordinatorReviewPacket, onCoordinatorPromptReview }) {
+function HealthView({ accessReadiness, boundaryReleasePrep, releaseSmokeChecklist, localSttBridgeApproval, gate, summary, latestVoiceReceipt, notificationState, kitchenStatus, householdPresence, testWeekSummary, coordinatorPacket, coordinatorReviewPacket, onCoordinatorPromptReview }) {
   const brainInterface = getApexFamilyCareBrainInterfaceSummary();
   const coordinatorSummary = coordinatorPacket?.summary || {};
   const coordinatorPrompts = coordinatorReviewPacket?.reviewedPrompts || coordinatorPacket?.prompts || [];
@@ -1472,6 +1495,9 @@ function HealthView({ accessReadiness, boundaryReleasePrep, releaseSmokeChecklis
     ["Voice hidden recording", APEX_FAMILY_CARE_VOICE_POLICY.hiddenRecording ? "On" : "Off", APEX_FAMILY_CARE_VOICE_POLICY.hiddenRecording ? "red" : "green"],
     ["Voice follow-up limit", APEX_FAMILY_CARE_VOICE_POLICY.maxFollowUps, "green"],
     ["Family local STT", APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.localSttEndpointEnabled ? "Ready" : "Approval", APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.localSttEndpointEnabled ? "green" : "amber"],
+    ["Family STT bridge approval", localSttBridgeApproval?.approvalStatus || "approval-required", localSttBridgeApproval?.readyForEndpointWork ? "green" : "amber"],
+    ["Family STT endpoint", APEX_FAMILY_CARE_LOCAL_STT_BRIDGE_APPROVAL_POLICY.endpointEnabled ? "Enabled" : "Off", APEX_FAMILY_CARE_LOCAL_STT_BRIDGE_APPROVAL_POLICY.endpointEnabled ? "red" : "green"],
+    ["Family STT raw audio", APEX_FAMILY_CARE_LOCAL_STT_BRIDGE_APPROVAL_POLICY.rawAudioStored || APEX_FAMILY_CARE_LOCAL_STT_BRIDGE_APPROVAL_POLICY.rawAudioUploaded ? "On" : "Off", APEX_FAMILY_CARE_LOCAL_STT_BRIDGE_APPROVAL_POLICY.rawAudioStored || APEX_FAMILY_CARE_LOCAL_STT_BRIDGE_APPROVAL_POLICY.rawAudioUploaded ? "red" : "green"],
     ["Family voice auto-listen", APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.autoListening ? "On" : "Off", APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.autoListening ? "red" : "green"],
     ["Family voice controls", APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.visibleStopRequired && APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.visibleMuteRequired && APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.visibleRecoverRequired ? "Visible" : "Check", APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.visibleStopRequired && APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.visibleMuteRequired && APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY.visibleRecoverRequired ? "green" : "red"],
     ["Latest voice receipt", latestVoiceReceipt ? latestVoiceReceipt.metadata.category : "None", latestVoiceReceipt ? "blue" : "slate"],
@@ -1684,6 +1710,18 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
     familyAccessModelApproved: false,
     accessModel: "not-chosen",
   }), [accessReadiness, boundaryReleasePrep, standalone]);
+  const localSttBridgeApproval = useMemo(() => buildApexFamilyCareLocalSttBridgeApprovalPacket({
+    requestedBridge: "existing-apex-local-faster-whisper-bridge",
+    endpointBoundary: "family-care-specific-local-stt-endpoint",
+    bridgeApprovalGranted: false,
+    explicitStartReady: true,
+    visibleControlsReady: true,
+    noRawStorage: true,
+    localOnly: true,
+    noCloud: true,
+    noBrowserSpeech: true,
+    noApexHqDependency: true,
+  }), []);
 
   function handleQuickAdd(categoryId) {
     const nextDraft = newDraft(categoryId);
@@ -1938,6 +1976,7 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
       <VoiceUpdateView
         voiceDraft={voiceDraft}
         setVoiceDraft={setVoiceDraft}
+        localSttBridgeApproval={localSttBridgeApproval}
         onStart={handleStartVoiceUpdate}
         onStop={handleStopVoiceUpdate}
         onMute={handleMuteVoiceUpdate}
@@ -1988,6 +2027,7 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
         accessReadiness={accessReadiness}
         boundaryReleasePrep={boundaryReleasePrep}
         releaseSmokeChecklist={releaseSmokeChecklist}
+        localSttBridgeApproval={localSttBridgeApproval}
         gate={gate}
         summary={todaySummary}
         latestVoiceReceipt={latestVoiceReceipt}
