@@ -201,6 +201,7 @@ Do not store raw audio. Do not store private rambling when a compact care note i
 ## Core Screens
 
 - Today
+- Kitchen Mode
 - Add Update
 - Care Timeline
 - Doctor Summary
@@ -449,13 +450,15 @@ Phase 5 receipt (2026-06-09): added the local-only Family Care notification deci
 
 ### Phase 6 - Home Device / Kitchen Mode
 
-- [ ] Decide first household device: tablet, old phone, Raspberry Pi, or other local satellite.
-- [ ] Add big-button kitchen/tablet mode if needed.
-- [ ] Add visible listening/speaking status.
-- [ ] Add mute/stop behavior.
-- [ ] Add system health checks for device online/offline.
+- [x] Decide first household device: tablet, old phone, Raspberry Pi, or other local satellite.
+- [x] Add big-button kitchen/tablet mode if needed.
+- [x] Add visible listening/speaking status.
+- [x] Add mute/stop behavior.
+- [x] Add system health checks for device online/offline.
 
 Done means: the house has a simple non-technical way to add updates and hear Apex.
+
+Phase 6 receipt (2026-06-09): chose the first household device path as a house tablet or old phone running the standalone Family Care PWA, with Raspberry Pi/local satellite hardware deferred to Phase 6A. Added a Kitchen Mode screen with one-tap care-update buttons, visible listening/speaking/muted/ready status, mute/resume/stop controls, and local PWA heartbeat health. Added shared kitchen-mode policy/status/receipt helpers that keep live mic capture off, hidden/background recording off, camera surveillance off, network scanning off, device control off, cloud off, diagnosis off, and emergency replacement off. Kitchen receipts store compact metadata only and no raw audio, raw transcripts, prompts, responses, secrets, production data, or customer data. No schema/auth/session/deploy/provider changes were made. Focused validation: `node --test --test-concurrency=1 shared/apexFamilyCare.test.js shared/apexFamilyCareBrain.test.js shared/apexFamilyCareVoice.test.js shared/apexFamilyCareNotifications.test.js shared/apexFamilyCareKitchen.test.js src/apex-family-care-components-import.test.js src/pwa-config.test.js shared/permissions.test.js src/app-routing.test.js src/navigation-utils.test.js src/mobile-nav-utils.test.js src/app-navigation-components-import.test.js` passed 105/105.
 
 ### Phase 7 - Family Test Week
 
@@ -528,4 +531,4 @@ Complete the Current Next Step, advance the plan, then continue through foundati
 
 ## Current Next Step
 
-Next unchecked phase: Phase 6 - Home Device / Kitchen Mode.
+Next unchecked phase: Phase 7 - Family Test Week.

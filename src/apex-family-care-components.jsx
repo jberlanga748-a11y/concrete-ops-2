@@ -17,6 +17,12 @@ import {
 } from "../shared/apexFamilyCare.js";
 import { getApexFamilyCareBrainInterfaceSummary } from "../shared/apexFamilyCareBrain.js";
 import {
+  APEX_FAMILY_CARE_KITCHEN_MODE_POLICY,
+  applyApexFamilyCareKitchenControl,
+  buildApexFamilyCareKitchenModeStatus,
+  getDefaultApexFamilyCareKitchenDeviceState,
+} from "../shared/apexFamilyCareKitchen.js";
+import {
   APEX_FAMILY_CARE_NOTIFICATION_POLICY,
   buildApexFamilyCareNotificationState,
   getDefaultApexFamilyCareNotificationPreferences,
@@ -29,9 +35,11 @@ import {
 
 const STORAGE_KEY = "apex-family-care-local-notes-v1";
 const NOTIFICATION_STORAGE_KEY = "apex-family-care-notification-preferences-v1";
+const KITCHEN_STORAGE_KEY = "apex-family-care-kitchen-device-v1";
 
 const SCREEN_LABELS = {
   today: "Today",
+  kitchen: "Kitchen Mode",
   add: "Add Update",
   voice: "Voice Update",
   timeline: "Care Timeline",
@@ -103,6 +111,18 @@ function loadInitialNotificationPreferences() {
     const stored = window.localStorage.getItem(NOTIFICATION_STORAGE_KEY);
     if (!stored) return defaults;
     return normalizeApexFamilyCareNotificationPreferences(JSON.parse(stored));
+  } catch {
+    return defaults;
+  }
+}
+
+function loadInitialKitchenDeviceState() {
+  const defaults = getDefaultApexFamilyCareKitchenDeviceState();
+  if (typeof window === "undefined") return defaults;
+  try {
+    const stored = window.localStorage.getItem(KITCHEN_STORAGE_KEY);
+    if (!stored) return defaults;
+    return applyApexFamilyCareKitchenControl(JSON.parse(stored), "heartbeat");
   } catch {
     return defaults;
   }
@@ -246,6 +266,87 @@ function TodayView({ notes, summary, onQuickAdd, onVoiceStart, setActiveScreen }
         <SectionHeader title="Latest Care Notes" description="Newest family care context first." />
         <div className="space-y-2">
           {notes.slice(0, 5).map((note) => <CareNoteRow key={note.id} note={note} />)}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function KitchenModeView({ kitchenStatus, onKitchenQuickLog, onKitchenControl, onVoiceStart, setActiveScreen }) {
+  const quickCategories = APEX_FAMILY_CARE_CATEGORIES.slice(0, 9);
+  const isMuted = kitchenStatus.controls.muted;
+
+  return (
+    <div className="space-y-4">
+      <Card className="border-blue-200 bg-blue-50 p-4">
+        <SectionHeader
+          title="Kitchen Mode"
+          description="House tablet or old phone mode for fast visible updates."
+          action={<Badge tone={kitchenStatus.health.statusTone}>{kitchenStatus.health.statusLabel}</Badge>}
+        />
+        <div className="grid gap-3 md:grid-cols-3">
+          <div className="rounded-lg border border-blue-200 bg-white p-3">
+            <p className="text-sm font-black text-slate-950">First device</p>
+            <p className="mt-1 text-sm font-bold text-slate-700">{kitchenStatus.device.deviceTypeLabel}</p>
+            <p className="mt-1 text-xs font-bold text-slate-500">{kitchenStatus.device.installTarget}</p>
+          </div>
+          <div className="rounded-lg border border-blue-200 bg-white p-3">
+            <p className="text-sm font-black text-slate-950">Listening</p>
+            <p className="mt-1 text-sm font-bold text-slate-700">{kitchenStatus.controls.visibleListeningStatus}</p>
+            <p className="mt-1 text-xs font-bold text-slate-500">No hidden microphone capture.</p>
+          </div>
+          <div className="rounded-lg border border-blue-200 bg-white p-3">
+            <p className="text-sm font-black text-slate-950">Speaking</p>
+            <p className="mt-1 text-sm font-bold text-slate-700">{kitchenStatus.controls.visibleSpeakingStatus}</p>
+            <p className="mt-1 text-xs font-bold text-slate-500">Mute and stop stay visible.</p>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-3">
+          <Button type="button" variant={isMuted ? "primary" : "secondary"} size="lg" onClick={() => onKitchenControl(isMuted ? "resume" : "mute")}>
+            <Icon name={isMuted ? "check" : "lock"} /> {isMuted ? "Resume Kitchen" : "Mute Kitchen"}
+          </Button>
+          <Button type="button" variant="secondary" size="lg" onClick={() => onKitchenControl("stop")}>
+            <Icon name="refresh" /> Stop Voice State
+          </Button>
+          <Button type="button" variant="secondary" size="lg" onClick={onVoiceStart}>
+            <Icon name="quote" /> Visible Voice Update
+          </Button>
+        </div>
+      </Card>
+
+      <Card className="p-4">
+        <SectionHeader title="One-Tap Care Updates" description="Large buttons for common kitchen/tablet entries." />
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {quickCategories.map((category) => (
+            <Button
+              key={category.id}
+              type="button"
+              variant="secondary"
+              className="min-h-20 justify-start px-4 py-4 text-left text-base"
+              onClick={() => onKitchenQuickLog(category.id)}
+            >
+              <Icon name={category.icon} className="h-5 w-5 shrink-0" />
+              <span>{category.label}</span>
+            </Button>
+          ))}
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button type="button" variant="secondary" onClick={() => setActiveScreen("add")}>
+            <Icon name="plus" /> Add Details
+          </Button>
+          <Badge tone="green">Local only</Badge>
+          <Badge tone="green">No camera</Badge>
+          <Badge tone="green">No network scan</Badge>
+        </div>
+      </Card>
+
+      <Card className="p-4">
+        <SectionHeader title="Kitchen Device Health" description="Local PWA heartbeat only; real device integration waits for Phase 6A." />
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+          <StatCard title="Device" value={kitchenStatus.device.deviceTypeLabel} detail={kitchenStatus.device.room} />
+          <StatCard title="PWA" value={kitchenStatus.health.statusLabel} detail={`Last seen ${kitchenStatus.health.minutesSinceLastSeen ?? 0}m ago`} />
+          <StatCard title="Mic" value={APEX_FAMILY_CARE_KITCHEN_MODE_POLICY.liveMicCaptureEnabled ? "Live" : "Off"} detail="Visible voice path later" />
+          <StatCard title="Device Control" value={APEX_FAMILY_CARE_KITCHEN_MODE_POLICY.deviceControlEnabled ? "On" : "Off"} detail="Deferred to Phase 6A" />
         </div>
       </Card>
     </div>
@@ -620,7 +721,7 @@ function AccessView({ gate, standalone = false }) {
   );
 }
 
-function HealthView({ gate, summary, latestVoiceReceipt, notificationState }) {
+function HealthView({ gate, summary, latestVoiceReceipt, notificationState, kitchenStatus }) {
   const brainInterface = getApexFamilyCareBrainInterfaceSummary();
   const healthItems = [
     ["Public access", gate.publicAccess ? "Open" : "Closed", gate.publicAccess ? "red" : "green"],
@@ -642,6 +743,10 @@ function HealthView({ gate, summary, latestVoiceReceipt, notificationState }) {
     ["Notification live sends", APEX_FAMILY_CARE_NOTIFICATION_POLICY.liveDeliveryEnabled ? "On" : "Off", APEX_FAMILY_CARE_NOTIFICATION_POLICY.liveDeliveryEnabled ? "red" : "green"],
     ["Notification provider sends", notificationState?.summary?.providerSendQueuedCount ?? 0, notificationState?.summary?.providerSendQueuedCount ? "red" : "green"],
     ["Lock-screen details", notificationState?.summary?.nextSafeLockScreenCopySafe ? "Safe" : "Check", notificationState?.summary?.nextSafeLockScreenCopySafe ? "green" : "red"],
+    ["Kitchen mode", kitchenStatus?.health?.statusLabel || "Off", kitchenStatus?.health?.statusTone || "slate"],
+    ["Kitchen first device", kitchenStatus?.device?.deviceTypeLabel || "House tablet PWA", "green"],
+    ["Kitchen hidden mic", APEX_FAMILY_CARE_KITCHEN_MODE_POLICY.hiddenRecording ? "On" : "Off", APEX_FAMILY_CARE_KITCHEN_MODE_POLICY.hiddenRecording ? "red" : "green"],
+    ["Kitchen device control", APEX_FAMILY_CARE_KITCHEN_MODE_POLICY.deviceControlEnabled ? "On" : "Off", APEX_FAMILY_CARE_KITCHEN_MODE_POLICY.deviceControlEnabled ? "red" : "green"],
   ];
 
   return (
@@ -666,6 +771,7 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
   const [voiceDraft, setVoiceDraft] = useState(() => newVoiceDraft("Dad"));
   const [latestVoiceReceipt, setLatestVoiceReceipt] = useState(null);
   const [notificationPreferences, setNotificationPreferences] = useState(loadInitialNotificationPreferences);
+  const [kitchenDeviceState, setKitchenDeviceState] = useState(loadInitialKitchenDeviceState);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -677,6 +783,11 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
     window.localStorage.setItem(NOTIFICATION_STORAGE_KEY, JSON.stringify(notificationPreferences));
   }, [notificationPreferences]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(KITCHEN_STORAGE_KEY, JSON.stringify(kitchenDeviceState));
+  }, [kitchenDeviceState]);
+
   const sortedNotes = useMemo(() => listApexFamilyCareNotes(notes, { limit: APEX_FAMILY_CARE_MAX_LOCAL_NOTES }), [notes]);
   const todaySummary = useMemo(() => buildApexFamilyCareTodaySummary(sortedNotes), [sortedNotes]);
   const doctorSummary = useMemo(() => buildApexFamilyCareDoctorSummary(sortedNotes), [sortedNotes]);
@@ -684,6 +795,7 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
   const notificationState = useMemo(() => buildApexFamilyCareNotificationState(sortedNotes, {
     preferences: notificationPreferences,
   }), [notificationPreferences, sortedNotes]);
+  const kitchenStatus = useMemo(() => buildApexFamilyCareKitchenModeStatus(kitchenDeviceState), [kitchenDeviceState]);
   const gate = useMemo(() => getApexFamilyCareAccessGateSummary({
     routePrivate: standalone || Boolean(user?.operatorAccess),
     apexOsOnly: !standalone && Boolean(permissions?.apexOs?.canView),
@@ -696,6 +808,7 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
   }
 
   function handleStartVoiceUpdate() {
+    setKitchenDeviceState((current) => applyApexFamilyCareKitchenControl(current, "set-listening"));
     setVoiceDraft((current) => ({
       ...newVoiceDraft(current.reporter),
       listening: true,
@@ -703,6 +816,29 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
       notice: "Visible voice update started. Speak the short update, then enter the recognized words or typed fallback and review.",
     }));
     setActiveScreen("voice");
+  }
+
+  function handleKitchenControl(control) {
+    setKitchenDeviceState((current) => applyApexFamilyCareKitchenControl(current, control));
+  }
+
+  function handleKitchenQuickLog(categoryId) {
+    const category = APEX_FAMILY_CARE_CATEGORIES.find((item) => item.id === categoryId) || APEX_FAMILY_CARE_CATEGORIES[0];
+    const now = new Date();
+    const saved = createApexFamilyCareNote({
+      id: `family-care-kitchen-${Date.now()}`,
+      category: category.id,
+      reporter: "Family",
+      timestamp: now.toISOString(),
+      summary: category.defaultSummary,
+      addToDoctorSummary: category.doctorDefault,
+      familyVisible: true,
+      urgent: category.id === "concern",
+      source: "tap",
+    }, now);
+    setNotes((current) => addApexFamilyCareNote(current, saved, now));
+    setKitchenDeviceState((current) => applyApexFamilyCareKitchenControl(current, "heartbeat", now));
+    setActiveScreen("kitchen");
   }
 
   function handleSave() {
@@ -717,6 +853,7 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
   }
 
   function reviewVoiceDraft(options = {}) {
+    setKitchenDeviceState((current) => applyApexFamilyCareKitchenControl(current, "stop"));
     setVoiceDraft((current) => {
       const followUpCount = options.forceFollowUpLimit ? APEX_FAMILY_CARE_VOICE_POLICY.maxFollowUps : current.followUpAsked ? 1 : 0;
       const parsed = createApexFamilyCareVoiceNoteDraft({
@@ -750,6 +887,7 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
     });
     setNotes((current) => addApexFamilyCareNote(current, saved));
     setLatestVoiceReceipt(parsed.receipt);
+    setKitchenDeviceState((current) => applyApexFamilyCareKitchenControl(current, "stop"));
     setVoiceDraft(newVoiceDraft(saved.reporter));
     setActiveScreen("today");
   }
@@ -775,11 +913,21 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
   }
 
   function handleCancelVoiceUpdate() {
+    setKitchenDeviceState((current) => applyApexFamilyCareKitchenControl(current, "stop"));
     setVoiceDraft((current) => newVoiceDraft(current.reporter));
   }
 
   const screenContent = {
     today: <TodayView notes={sortedNotes} summary={todaySummary} onQuickAdd={handleQuickAdd} onVoiceStart={handleStartVoiceUpdate} setActiveScreen={setActiveScreen} />,
+    kitchen: (
+      <KitchenModeView
+        kitchenStatus={kitchenStatus}
+        onKitchenQuickLog={handleKitchenQuickLog}
+        onKitchenControl={handleKitchenControl}
+        onVoiceStart={handleStartVoiceUpdate}
+        setActiveScreen={setActiveScreen}
+      />
+    ),
     add: <AddUpdateView draft={draft} setDraft={setDraft} onSave={handleSave} />,
     voice: (
       <VoiceUpdateView
@@ -803,7 +951,7 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
       />
     ),
     access: <AccessView gate={gate} standalone={standalone} />,
-    health: <HealthView gate={gate} summary={todaySummary} latestVoiceReceipt={latestVoiceReceipt} notificationState={notificationState} />,
+    health: <HealthView gate={gate} summary={todaySummary} latestVoiceReceipt={latestVoiceReceipt} notificationState={notificationState} kitchenStatus={kitchenStatus} />,
   };
 
   return (
@@ -842,6 +990,26 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
               <Badge tone="green">No customer/field access</Badge>
               <Badge tone="green">No raw audio</Badge>
               <Badge tone="green">No diagnosis</Badge>
+            </div>
+          </Card>
+          <Card className="p-4">
+            <SectionHeader
+              title="Kitchen Status"
+              description={`${kitchenStatus.device.deviceTypeLabel} in ${kitchenStatus.device.room}`}
+            />
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3">
+                <span className="text-sm font-black text-slate-700">House screen</span>
+                <Badge tone={kitchenStatus.health.statusTone}>{kitchenStatus.health.statusLabel}</Badge>
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3">
+                <span className="text-sm font-black text-slate-700">Mute</span>
+                <Badge tone={kitchenStatus.controls.muted ? "slate" : "green"}>{kitchenStatus.controls.muted ? "On" : "Off"}</Badge>
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3">
+                <span className="text-sm font-black text-slate-700">Live mic</span>
+                <Badge tone={APEX_FAMILY_CARE_KITCHEN_MODE_POLICY.liveMicCaptureEnabled ? "red" : "green"}>{APEX_FAMILY_CARE_KITCHEN_MODE_POLICY.liveMicCaptureEnabled ? "On" : "Off"}</Badge>
+              </div>
             </div>
           </Card>
           <Card className="p-4">
