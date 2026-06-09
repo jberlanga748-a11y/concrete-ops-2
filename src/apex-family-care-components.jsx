@@ -15,6 +15,7 @@ import {
   getApexFamilyCareAccessGateSummary,
   listApexFamilyCareNotes,
 } from "../shared/apexFamilyCare.js";
+import { getApexFamilyCareBrainInterfaceSummary } from "../shared/apexFamilyCareBrain.js";
 
 const STORAGE_KEY = "apex-family-care-local-notes-v1";
 
@@ -346,6 +347,7 @@ function AccessView({ gate }) {
 }
 
 function HealthView({ gate, summary }) {
+  const brainInterface = getApexFamilyCareBrainInterfaceSummary();
   const healthItems = [
     ["Public access", gate.publicAccess ? "Open" : "Closed", gate.publicAccess ? "red" : "green"],
     ["Customer access", gate.customerAccess ? "Open" : "Closed", gate.customerAccess ? "red" : "green"],
@@ -356,11 +358,13 @@ function HealthView({ gate, summary }) {
     ["Emergency replacement", gate.emergencyReplacement ? "Yes" : "No", gate.emergencyReplacement ? "red" : "green"],
     ["Missing update detector", summary?.missingUpdate ? "On" : "Off", summary?.missingUpdate ? "green" : "amber"],
     ["Pattern detector", summary?.repeatedConcernPatterns ? "On" : "Off", summary?.repeatedConcernPatterns ? "green" : "amber"],
+    ["Apex care brain", brainInterface.status === "ready" ? "Ready" : "Off", brainInterface.status === "ready" ? "green" : "amber"],
+    ["Medication control", brainInterface.medicationControl ? "On" : "Off", brainInterface.medicationControl ? "red" : "green"],
   ];
 
   return (
     <Card className="p-4">
-      <SectionHeader title="Apex System Health" description="Phase 1 boundary checks for the private care workspace." />
+      <SectionHeader title="Apex System Health" description="Private care boundary and brain-interface checks." />
       <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
         {healthItems.map(([label, value, tone]) => (
           <div key={label} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-3">

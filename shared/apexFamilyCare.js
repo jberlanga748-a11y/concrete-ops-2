@@ -19,7 +19,7 @@ export const APEX_FAMILY_CARE_CATEGORIES = [
 
 export const APEX_FAMILY_CARE_SEVERITIES = ["unknown", "mild", "medium", "severe"];
 export const APEX_FAMILY_CARE_REPORTERS = ["Dad", "Brother", "Grandma", "Family"];
-export const APEX_FAMILY_CARE_SOURCES = ["tap", "typed", "voice", "imported", "system"];
+export const APEX_FAMILY_CARE_SOURCES = ["tap", "typed", "voice", "imported", "system", "apex"];
 export const APEX_FAMILY_CARE_REQUIRED_SCREENS = [
   "today",
   "add",
@@ -52,6 +52,10 @@ export const APEX_FAMILY_CARE_NOTE_MODEL = {
     "urgent",
     "source",
     "status",
+    "medicationConfirmed",
+    "medicationConfirmedAt",
+    "medicationConfirmedBy",
+    "medicationConfirmationOnly",
   ],
   privacy: {
     rawAudioStored: false,
@@ -139,6 +143,10 @@ export function createApexFamilyCareNote(input = {}, now = new Date()) {
     urgent: Boolean(input.urgent || isConcern),
     source,
     status: cleanText(input.status, 40) || "active",
+    medicationConfirmed: Boolean(input.medicationConfirmed),
+    medicationConfirmedAt: cleanText(input.medicationConfirmedAt, 40),
+    medicationConfirmedBy: cleanText(input.medicationConfirmedBy, 80),
+    medicationConfirmationOnly: Boolean(input.medicationConfirmationOnly),
   };
 }
 

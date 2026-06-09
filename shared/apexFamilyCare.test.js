@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   APEX_FAMILY_CARE_NOTE_MODEL,
   APEX_FAMILY_CARE_REQUIRED_SCREENS,
+  APEX_FAMILY_CARE_SOURCES,
   APEX_FAMILY_CARE_ROUTE_PATH,
   addApexFamilyCareNote,
   buildApexFamilyCareDoctorSummary,
@@ -53,6 +54,28 @@ test("care notes normalize into compact family care metadata", () => {
   assert.deepEqual(note.tags, ["knee", "after lunch"]);
   assert.equal(APEX_FAMILY_CARE_NOTE_MODEL.privacy.rawAudioStored, false);
   assert.equal(APEX_FAMILY_CARE_NOTE_MODEL.privacy.medicalDiagnosis, false);
+});
+
+test("care notes support Apex source and medication confirmation-only metadata", () => {
+  const note = createApexFamilyCareNote({
+    category: "meds",
+    reporter: "Brother",
+    source: "apex",
+    timestamp: "2026-06-09T12:30:00.000Z",
+    summary: "Medication was confirmed by Brother.",
+    medicationConfirmed: true,
+    medicationConfirmedAt: "2026-06-09T12:30:00.000Z",
+    medicationConfirmedBy: "Brother",
+    medicationConfirmationOnly: true,
+  });
+
+  assert.equal(APEX_FAMILY_CARE_SOURCES.includes("apex"), true);
+  assert.equal(note.source, "apex");
+  assert.equal(note.medicationConfirmed, true);
+  assert.equal(note.medicationConfirmedAt, "2026-06-09T12:30:00.000Z");
+  assert.equal(note.medicationConfirmedBy, "Brother");
+  assert.equal(note.medicationConfirmationOnly, true);
+  assert.equal(APEX_FAMILY_CARE_NOTE_MODEL.fields.includes("medicationConfirmationOnly"), true);
 });
 
 test("care note add, list, and update helpers keep notes compact and sorted", () => {

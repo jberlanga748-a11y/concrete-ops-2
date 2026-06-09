@@ -1,0 +1,338 @@
+import {
+  APEX_FAMILY_CARE_MAX_LOCAL_NOTES,
+  APEX_FAMILY_CARE_SUBJECT,
+  addApexFamilyCareNote,
+  buildApexFamilyCareDoctorSummary,
+  buildApexFamilyCareFamilySummary,
+  buildApexFamilyCareTodaySummary,
+  createApexFamilyCareNote,
+  listApexFamilyCareNotes,
+  updateApexFamilyCareNote,
+} from "./apexFamilyCare.js";
+
+export const APEX_FAMILY_CARE_BRAIN_ACTIONS = [
+  "logCareNote",
+  "getTodayCareStatus",
+  "buildDoctorSummary",
+  "buildFamilyDigest",
+  "listOpenConcerns",
+  "markMedicationConfirmed",
+];
+
+export const APEX_FAMILY_CARE_RECEIPT_PRIVACY = Object.freeze({
+  localOnly: true,
+  operatorOnly: true,
+  familyCareOnly: true,
+  apexHqProductWork: false,
+  cloudUsed: false,
+  rawPromptStored: false,
+  rawResponseStored: false,
+  rawAudioStored: false,
+  rawTranscriptStored: false,
+  secretsStored: false,
+  customerDataStored: false,
+  medicalDiagnosis: false,
+  emergencyReplacement: false,
+});
+
+const MAX_RECEIPTS = 80;
+const OPEN_CONCERN_CATEGORIES = new Set(["concern", "pain", "mobility"]);
+const SAFE_METADATA_KEYS = new Set([
+  "action",
+  "outcome",
+  "noteId",
+  "category",
+  "severity",
+  "reporter",
+  "familyVisible",
+  "addToDoctorSummary",
+  "urgent",
+  "noteCount",
+  "todayCount",
+  "openConcernCount",
+  "doctorItemCount",
+  "visibleCount",
+  "concernCount",
+  "careLoopStatus",
+  "missingUpdateStatus",
+  "hasRepeatedConcerns",
+  "medicationConfirmationOnly",
+  "medicationControl",
+  "changed",
+  "found",
+  "limit",
+]);
+
+function cleanText(value, maxLength = 96) {
+  return String(value || "").replace(/\s+/g, " ").trim().slice(0, maxLength);
+}
+
+function normalizeNow(value, fallback = new Date()) {
+  const resolved = typeof value === "function" ? value() : value;
+  const date = resolved instanceof Date ? resolved : new Date(resolved || fallback);
+  return Number.isNaN(date.getTime()) ? fallback : date;
+}
+
+function mergeTags(...groups) {
+  return Array.from(new Set(groups.flat().map((tag) => cleanText(tag, 48)).filter(Boolean))).slice(0, 8);
+}
+
+function safeMetadata(metadata = {}) {
+  const output = {};
+  for (const [key, value] of Object.entries(metadata)) {
+    if (!SAFE_METADATA_KEYS.has(key)) continue;
+    if (typeof value === "boolean" || typeof value === "number") {
+      output[key] = value;
+    } else if (typeof value === "string") {
+      output[key] = cleanText(value, 96);
+    }
+  }
+  return output;
+}
+
+function createReceipt(action, generatedAt, metadata = {}) {
+  return {
+    receiptType: "apex-family-care-brain",
+    schemaVersion: 1,
+    action,
+    generatedAt: generatedAt.toISOString(),
+    subject: APEX_FAMILY_CARE_SUBJECT,
+    ...APEX_FAMILY_CARE_RECEIPT_PRIVACY,
+    metadata: safeMetadata({
+      action,
+      outcome: "ok",
+      ...metadata,
+    }),
+  };
+}
+
+function isOpenConcern(note) {
+  if (note.status !== "active") return false;
+  if (note.urgent || note.severity === "severe" || note.category === "concern") return true;
+  return OPEN_CONCERN_CATEGORIES.has(note.category) && note.severity !== "unknown";
+}
+
+export function getApexFamilyCareBrainInterfaceSummary() {
+  return {
+    interfaceId: "apex-family-care-brain",
+    status: "ready",
+    actions: APEX_FAMILY_CARE_BRAIN_ACTIONS,
+    ...APEX_FAMILY_CARE_RECEIPT_PRIVACY,
+    medicationConfirmationOnly: true,
+    medicationControl: false,
+  };
+}
+
+export function createApexFamilyCareBrain(initialNotes = [], options = {}) {
+  const maxNotes = options.maxNotes || APEX_FAMILY_CARE_MAX_LOCAL_NOTES;
+  let notes = listApexFamilyCareNotes(initialNotes, { limit: maxNotes });
+  let receipts = [];
+
+  function readNow(actionOptions = {}) {
+    return normalizeNow(actionOptions.now ?? options.now, new Date());
+  }
+
+  function pushReceipt(action, now, metadata = {}) {
+    const receipt = createReceipt(action, now, metadata);
+    receipts = [receipt, ...receipts].slice(0, MAX_RECEIPTS);
+    return receipt;
+  }
+
+  function getNotes(actionOptions = {}) {
+    return listApexFamilyCareNotes(notes, {
+      limit: actionOptions.limit || maxNotes,
+      status: actionOptions.status ?? "active",
+    });
+  }
+
+  function logCareNote(input = {}, actionOptions = {}) {
+    const now = readNow(actionOptions);
+    const note = createApexFamilyCareNote({
+      ...input,
+      source: "apex",
+    }, now);
+    notes = addApexFamilyCareNote(notes, note, now, { maxNotes });
+
+    const receipt = pushReceipt("logCareNote", now, {
+      noteId: note.id,
+      category: note.category,
+      severity: note.severity,
+      reporter: note.reporter,
+      familyVisible: note.familyVisible,
+      addToDoctorSummary: note.addToDoctorSummary,
+      urgent: note.urgent,
+      noteCount: notes.length,
+    });
+
+    return { note, notes: getNotes(), receipt };
+  }
+
+  function getTodayCareStatus(actionOptions = {}) {
+    const now = readNow(actionOptions);
+    const todayStatus = buildApexFamilyCareTodaySummary(notes, now);
+    const receipt = pushReceipt("getTodayCareStatus", now, {
+      noteCount: todayStatus.noteCount,
+      todayCount: todayStatus.todayCount,
+      openConcernCount: todayStatus.openConcernCount,
+      doctorItemCount: todayStatus.doctorItemCount,
+      careLoopStatus: todayStatus.careLoopStatus,
+      missingUpdateStatus: todayStatus.missingUpdate?.status,
+      hasRepeatedConcerns: todayStatus.repeatedConcernPatterns?.hasRepeatedConcerns,
+    });
+    return { todayStatus, receipt };
+  }
+
+  function buildDoctorSummary(actionOptions = {}) {
+    const now = readNow(actionOptions);
+    const doctorSummary = buildApexFamilyCareDoctorSummary(notes, now);
+    const receipt = pushReceipt("buildDoctorSummary", now, {
+      noteCount: notes.length,
+      doctorItemCount: doctorSummary.itemCount,
+      concernCount: doctorSummary.concernCount,
+      missingUpdateStatus: doctorSummary.missingUpdate?.status,
+      hasRepeatedConcerns: doctorSummary.patternSummary?.hasRepeatedConcerns,
+    });
+    return { doctorSummary, receipt };
+  }
+
+  function buildFamilyDigest(actionOptions = {}) {
+    const now = readNow(actionOptions);
+    const familyDigest = buildApexFamilyCareFamilySummary(notes, now);
+    const receipt = pushReceipt("buildFamilyDigest", now, {
+      noteCount: notes.length,
+      visibleCount: familyDigest.visibleCount,
+      concernCount: familyDigest.concernCount,
+      missingUpdateStatus: familyDigest.missingUpdate?.status,
+      hasRepeatedConcerns: familyDigest.patternSummary?.hasRepeatedConcerns,
+    });
+    return { familyDigest, receipt };
+  }
+
+  function listOpenConcerns(actionOptions = {}) {
+    const now = readNow(actionOptions);
+    const limit = actionOptions.limit || 12;
+    const concerns = getNotes({ limit: Number.POSITIVE_INFINITY }).filter(isOpenConcern).slice(0, limit);
+    const receipt = pushReceipt("listOpenConcerns", now, {
+      noteCount: notes.length,
+      openConcernCount: concerns.length,
+      limit,
+    });
+    return { concerns, receipt };
+  }
+
+  function markMedicationConfirmed(input = {}, actionOptions = {}) {
+    const now = readNow(actionOptions);
+    const confirmedBy = cleanText(input.confirmedBy || input.reporter || "Family", 80) || "Family";
+    const confirmedAt = cleanText(input.confirmedAt, 40) || now.toISOString();
+    const medicationTag = cleanText(input.medicationTag || input.medicationName, 48);
+    const confirmationTags = mergeTags(["medication-confirmed"], medicationTag ? [medicationTag] : []);
+    const noteId = cleanText(input.noteId, 96);
+
+    if (noteId) {
+      const existing = getNotes({ limit: Number.POSITIVE_INFINITY }).find((note) => note.id === noteId);
+      if (!existing) {
+        const receipt = pushReceipt("markMedicationConfirmed", now, {
+          outcome: "not-found",
+          noteId,
+          found: false,
+          changed: false,
+          medicationConfirmationOnly: true,
+          medicationControl: false,
+        });
+        return {
+          changed: false,
+          note: null,
+          notes: getNotes(),
+          medicationConfirmationOnly: true,
+          medicationControl: false,
+          receipt,
+        };
+      }
+
+      const updated = updateApexFamilyCareNote(notes, noteId, {
+        addToDoctorSummary: true,
+        medicationConfirmed: true,
+        medicationConfirmedAt: confirmedAt,
+        medicationConfirmedBy: confirmedBy,
+        medicationConfirmationOnly: true,
+        source: "apex",
+        tags: mergeTags(existing.tags, confirmationTags),
+      }, now, { maxNotes });
+
+      notes = updated.notes;
+      const receipt = pushReceipt("markMedicationConfirmed", now, {
+        outcome: updated.changed ? "updated" : "not-found",
+        noteId,
+        category: updated.updatedNote?.category || existing.category,
+        changed: updated.changed,
+        found: true,
+        medicationConfirmationOnly: true,
+        medicationControl: false,
+      });
+
+      return {
+        changed: updated.changed,
+        note: updated.updatedNote,
+        notes: getNotes(),
+        medicationConfirmationOnly: true,
+        medicationControl: false,
+        receipt,
+      };
+    }
+
+    const summary = `Medication was confirmed by ${confirmedBy}.`;
+    const note = createApexFamilyCareNote({
+      category: "meds",
+      reporter: confirmedBy,
+      timestamp: confirmedAt,
+      summary,
+      tags: confirmationTags,
+      addToDoctorSummary: true,
+      familyVisible: input.familyVisible !== false,
+      medicationConfirmed: true,
+      medicationConfirmedAt: confirmedAt,
+      medicationConfirmedBy: confirmedBy,
+      medicationConfirmationOnly: true,
+      source: "apex",
+    }, now);
+
+    notes = addApexFamilyCareNote(notes, note, now, { maxNotes });
+    const receipt = pushReceipt("markMedicationConfirmed", now, {
+      outcome: "created",
+      noteId: note.id,
+      category: note.category,
+      changed: true,
+      found: true,
+      familyVisible: note.familyVisible,
+      addToDoctorSummary: note.addToDoctorSummary,
+      medicationConfirmationOnly: true,
+      medicationControl: false,
+    });
+
+    return {
+      changed: true,
+      note,
+      notes: getNotes(),
+      medicationConfirmationOnly: true,
+      medicationControl: false,
+      receipt,
+    };
+  }
+
+  function getReceipts(actionOptions = {}) {
+    const limit = actionOptions.limit || MAX_RECEIPTS;
+    return receipts.slice(0, limit);
+  }
+
+  return {
+    interface: getApexFamilyCareBrainInterfaceSummary(),
+    logCareNote,
+    getTodayCareStatus,
+    buildDoctorSummary,
+    buildFamilyDigest,
+    listOpenConcerns,
+    markMedicationConfirmed,
+    getNotes,
+    getReceipts,
+  };
+}

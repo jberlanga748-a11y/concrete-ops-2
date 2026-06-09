@@ -205,16 +205,18 @@ Phase 2 receipt (2026-06-09): added an explicit compact care-note model, create/
 
 ### Phase 3 - Apex Care Brain Integration
 
-- [ ] Add Apex internal interface for Family Care.
-- [ ] Support `logCareNote`.
-- [ ] Support `getTodayCareStatus`.
-- [ ] Support `buildDoctorSummary`.
-- [ ] Support `buildFamilyDigest`.
-- [ ] Support `listOpenConcerns`.
-- [ ] Support `markMedicationConfirmed` only as confirmation, not medication control.
-- [ ] Add Apex receipts with no raw prompt/response/audio storage.
+- [x] Add Apex internal interface for Family Care.
+- [x] Support `logCareNote`.
+- [x] Support `getTodayCareStatus`.
+- [x] Support `buildDoctorSummary`.
+- [x] Support `buildFamilyDigest`.
+- [x] Support `listOpenConcerns`.
+- [x] Support `markMedicationConfirmed` only as confirmation, not medication control.
+- [x] Add Apex receipts with no raw prompt/response/audio storage.
 
 Done means: Apex can operate the Family Care domain through a clean internal interface.
+
+Phase 3 receipt (2026-06-09): added the local-only Apex Family Care brain interface with `logCareNote`, `getTodayCareStatus`, `buildDoctorSummary`, `buildFamilyDigest`, `listOpenConcerns`, and medication-confirmation-only `markMedicationConfirmed`. Receipts stay compact and metadata-only with no raw prompts, raw responses, raw audio, raw transcripts, secrets, customer data, cloud use, diagnosis, emergency replacement claims, or medication-control behavior. The existing Apex System Health screen now surfaces a compact brain-ready signal and medication-control-off guard without adding a dashboard, voice capture, server route, schema, auth/session, deploy, or Apex HQ customer/product exposure. Focused validation: `node --test --test-concurrency=1 shared/apexFamilyCare.test.js shared/apexFamilyCareBrain.test.js src/apex-family-care-components-import.test.js shared/permissions.test.js src/app-routing.test.js src/navigation-utils.test.js src/mobile-nav-utils.test.js src/app-navigation-components-import.test.js` passed 85/85.
 
 ### Phase 4 - Voice-First Entry
 
@@ -311,4 +313,4 @@ Build only the next unchecked phase and update docs/APEX_FAMILY_CARE_LOCAL_PLAN.
 
 ## Current Next Step
 
-Next unchecked phase: Phase 3 - Apex Care Brain Integration.
+Next unchecked phase: Phase 4 - Voice-First Entry.

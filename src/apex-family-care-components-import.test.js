@@ -49,3 +49,12 @@ test("Apex Family Care page surfaces Phase 2 care signals through shared helpers
   assert.match(componentSource, /Emergency replacement/);
   assert.doesNotMatch(componentSource, /getUserMedia|MediaRecorder|navigator\.mediaDevices|fetch\(/i);
 });
+
+test("Apex Family Care page surfaces Phase 3 brain readiness without voice capture", () => {
+  const componentSource = fs.readFileSync(new URL("./apex-family-care-components.jsx", import.meta.url), "utf8");
+
+  assert.match(componentSource, /getApexFamilyCareBrainInterfaceSummary/);
+  assert.match(componentSource, /Apex care brain/);
+  assert.match(componentSource, /Medication control/);
+  assert.doesNotMatch(componentSource, /getUserMedia|MediaRecorder|navigator\.mediaDevices|ApexMciWave|windows-mci-waveaudio|native-voice|fetch\(/i);
+});
