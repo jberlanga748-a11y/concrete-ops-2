@@ -29,6 +29,7 @@ export const APEX_FAMILY_CARE_REQUIRED_SCREENS = [
   "doctor",
   "family",
   "settings",
+  "testWeek",
   "access",
   "health",
 ];

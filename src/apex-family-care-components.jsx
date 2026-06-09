@@ -29,6 +29,15 @@ import {
   normalizeApexFamilyCareNotificationPreferences,
 } from "../shared/apexFamilyCareNotifications.js";
 import {
+  APEX_FAMILY_CARE_TEST_WEEK_FRICTION_CATEGORIES,
+  addApexFamilyCareTestWeekFrictionNote,
+  buildApexFamilyCareTestWeekSummary,
+  getDefaultApexFamilyCareTestWeekState,
+  markApexFamilyCareTestWeekComplete,
+  normalizeApexFamilyCareTestWeekState,
+  startApexFamilyCareTestWeek,
+} from "../shared/apexFamilyCareTestWeek.js";
+import {
   APEX_FAMILY_CARE_VOICE_POLICY,
   createApexFamilyCareVoiceNoteDraft,
 } from "../shared/apexFamilyCareVoice.js";
@@ -36,6 +45,7 @@ import {
 const STORAGE_KEY = "apex-family-care-local-notes-v1";
 const NOTIFICATION_STORAGE_KEY = "apex-family-care-notification-preferences-v1";
 const KITCHEN_STORAGE_KEY = "apex-family-care-kitchen-device-v1";
+const TEST_WEEK_STORAGE_KEY = "apex-family-care-test-week-v1";
 
 const SCREEN_LABELS = {
   today: "Today",
@@ -46,6 +56,7 @@ const SCREEN_LABELS = {
   doctor: "Doctor Summary",
   family: "Family Summary",
   settings: "Settings",
+  testWeek: "Test Week",
   access: "Family Access",
   health: "Apex Health",
 };
@@ -128,6 +139,18 @@ function loadInitialKitchenDeviceState() {
   }
 }
 
+function loadInitialTestWeekState() {
+  const defaults = getDefaultApexFamilyCareTestWeekState();
+  if (typeof window === "undefined") return defaults;
+  try {
+    const stored = window.localStorage.getItem(TEST_WEEK_STORAGE_KEY);
+    if (!stored) return defaults;
+    return normalizeApexFamilyCareTestWeekState(JSON.parse(stored));
+  } catch {
+    return defaults;
+  }
+}
+
 function noteTone(note) {
   return APEX_FAMILY_CARE_CATEGORIES.find((category) => category.id === note.category)?.tone || "slate";
 }
@@ -158,6 +181,17 @@ function newVoiceDraft(reporter = "Dad") {
     parsed: null,
     receipt: null,
     notice: "Ready for one visible voice update.",
+  };
+}
+
+function newTestWeekDraft() {
+  return {
+    reporter: "Dad",
+    category: "too-much-work",
+    text: "",
+    suggestion: "",
+    extraWork: false,
+    shouldFreeze: false,
   };
 }
 
@@ -708,6 +742,132 @@ function SettingsView({ notificationPreferences, setNotificationPreferences, not
   );
 }
 
+function formatFrictionCategory(category) {
+  return String(category || "other").split("-").map((part) => part.slice(0, 1).toUpperCase() + part.slice(1)).join(" ");
+}
+
+function TestWeekView({
+  testWeekSummary,
+  testWeekDraft,
+  setTestWeekDraft,
+  onStartTestWeek,
+  onCompleteTestWeek,
+  onAddFrictionNote,
+  onUpdateTestWeekMetric,
+}) {
+  const state = testWeekSummary.state;
+  const statusTone = testWeekSummary.evidenceReady ? "amber" : state.realWeekStarted ? "blue" : "slate";
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-4">
+        <SectionHeader
+          title="Family Test Week"
+          description="Collect the real family evidence before Phase 7 can close."
+          action={<Badge tone={statusTone}>{testWeekSummary.phaseClosureStatus}</Badge>}
+        />
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+          <StatCard title="Status" value={state.status} detail={state.realWeekStarted ? "Real week started" : "Ready to start"} />
+          <StatCard title="Tracked Days" value={testWeekSummary.trackedDays} detail="Needs 7 real days" />
+          <StatCard title="Checks Passing" value={`${testWeekSummary.passedCount}/7`} detail="Success test" />
+          <StatCard title="Friction Notes" value={state.frictionNotes.length} detail={`${testWeekSummary.simplifyCount} simplify / ${testWeekSummary.freezeCount} freeze`} />
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button type="button" onClick={onStartTestWeek} disabled={state.realWeekStarted}>
+            <Icon name="check" /> Start Real Week
+          </Button>
+          <Button type="button" variant="secondary" onClick={onCompleteTestWeek} disabled={!state.realWeekStarted || state.realWeekCompleted}>
+            <Icon name="calendar" /> Mark Week Complete
+          </Button>
+          <Badge tone="green">No auto-close</Badge>
+          <Badge tone="green">Human review required</Badge>
+        </div>
+      </Card>
+
+      <Card className="p-4">
+        <SectionHeader title="Before / After Measures" description="Use rough family counts and 0-5 ratings after the real week." />
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <InputField label="Status texts before / day" type="number" min="0" value={state.baselineStatusTextsPerDay} onChange={(event) => onUpdateTestWeekMetric("baselineStatusTextsPerDay", event.target.value)} />
+          <InputField label="Status texts after / day" type="number" min="0" value={state.afterStatusTextsPerDay} onChange={(event) => onUpdateTestWeekMetric("afterStatusTextsPerDay", event.target.value)} />
+          <InputField label="Doctor prep before" type="number" min="0" max="5" value={state.doctorPrepBeforeRating} onChange={(event) => onUpdateTestWeekMetric("doctorPrepBeforeRating", event.target.value)} />
+          <InputField label="Doctor prep after" type="number" min="0" max="5" value={state.doctorPrepAfterRating} onChange={(event) => onUpdateTestWeekMetric("doctorPrepAfterRating", event.target.value)} />
+          <InputField label="Family informed before" type="number" min="0" max="5" value={state.familyInformedBeforeRating} onChange={(event) => onUpdateTestWeekMetric("familyInformedBeforeRating", event.target.value)} />
+          <InputField label="Family informed after" type="number" min="0" max="5" value={state.familyInformedAfterRating} onChange={(event) => onUpdateTestWeekMetric("familyInformedAfterRating", event.target.value)} />
+          <InputField label="Dad burden before" type="number" min="0" max="5" value={state.dadExplanationBurdenBeforeRating} onChange={(event) => onUpdateTestWeekMetric("dadExplanationBurdenBeforeRating", event.target.value)} />
+          <InputField label="Dad burden after" type="number" min="0" max="5" value={state.dadExplanationBurdenAfterRating} onChange={(event) => onUpdateTestWeekMetric("dadExplanationBurdenAfterRating", event.target.value)} />
+          <InputField label="Grandma dignity" type="number" min="0" max="5" value={state.grandmaDignityRating} onChange={(event) => onUpdateTestWeekMetric("grandmaDignityRating", event.target.value)} />
+          <SelectField label="Updates under 10 sec" value={state.updatesUnder10Seconds} onChange={(event) => onUpdateTestWeekMetric("updatesUnder10Seconds", event.target.value)}>
+            <option value="unknown">Unknown</option>
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </SelectField>
+        </div>
+      </Card>
+
+      <Card className="p-4">
+        <SectionHeader title="Success Checks" description={testWeekSummary.recommendedNextStep} />
+        <div className="grid gap-2 md:grid-cols-2">
+          {testWeekSummary.successChecks.map((check) => (
+            <div key={check.id} className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-3">
+              <span className="min-w-0 break-words text-sm font-black text-slate-700">{check.label}</span>
+              <Badge tone={check.passed ? "green" : "slate"}>{check.passed ? "Yes" : "Wait"}</Badge>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <Card className="p-4">
+        <SectionHeader title="Friction And Useful Notes" description="Capture what to remove, simplify, or freeze after the real week." />
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px]">
+          <div className="space-y-3">
+            <TextAreaField
+              label="Family note"
+              value={testWeekDraft.text}
+              onChange={(event) => setTestWeekDraft((current) => ({ ...current, text: event.target.value }))}
+              placeholder="Example: Dad still had to explain dinner updates twice."
+            />
+            <TextAreaField
+              label="What should change"
+              value={testWeekDraft.suggestion}
+              onChange={(event) => setTestWeekDraft((current) => ({ ...current, suggestion: event.target.value }))}
+              placeholder="Example: Make dinner/meds easier to scan."
+            />
+          </div>
+          <div className="space-y-3">
+            <SelectField label="Reporter" value={testWeekDraft.reporter} onChange={(event) => setTestWeekDraft((current) => ({ ...current, reporter: event.target.value }))}>
+              {[...APEX_FAMILY_CARE_REPORTERS, "John"].map((reporter) => <option key={reporter} value={reporter}>{reporter}</option>)}
+            </SelectField>
+            <SelectField label="Category" value={testWeekDraft.category} onChange={(event) => setTestWeekDraft((current) => ({ ...current, category: event.target.value }))}>
+              {APEX_FAMILY_CARE_TEST_WEEK_FRICTION_CATEGORIES.map((category) => <option key={category} value={category}>{formatFrictionCategory(category)}</option>)}
+            </SelectField>
+            <ToggleRow label="Felt like extra work" checked={testWeekDraft.extraWork} onChange={(value) => setTestWeekDraft((current) => ({ ...current, extraWork: value }))} />
+            <ToggleRow label="Freeze this part" checked={testWeekDraft.shouldFreeze} onChange={(value) => setTestWeekDraft((current) => ({ ...current, shouldFreeze: value }))} />
+            <Button type="button" onClick={onAddFrictionNote} disabled={!testWeekDraft.text.trim()}>
+              <Icon name="plus" /> Add Test Note
+            </Button>
+          </div>
+        </div>
+        <div className="mt-3 space-y-2">
+          {state.frictionNotes.length ? state.frictionNotes.slice(0, 5).map((note) => (
+            <div key={note.id} className="rounded-lg border border-slate-200 bg-white p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge tone={note.shouldSimplify ? "amber" : note.shouldFreeze ? "green" : "slate"}>{formatFrictionCategory(note.category)}</Badge>
+                <Badge tone="slate">{note.reporter}</Badge>
+                {note.shouldSimplify ? <Badge tone="amber">Simplify</Badge> : null}
+                {note.shouldFreeze ? <Badge tone="green">Freeze</Badge> : null}
+              </div>
+              <p className="mt-2 break-words text-sm font-black text-slate-950">{note.text}</p>
+              {note.suggestion ? <p className="mt-1 break-words text-xs font-bold text-slate-500">{note.suggestion}</p> : null}
+            </div>
+          )) : (
+            <div className="rounded-lg border border-slate-200 bg-white p-3 text-sm font-bold text-slate-600">No real family test notes yet.</div>
+          )}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 function AccessView({ gate, standalone = false }) {
   return (
     <Card className="p-4">
@@ -721,7 +881,7 @@ function AccessView({ gate, standalone = false }) {
   );
 }
 
-function HealthView({ gate, summary, latestVoiceReceipt, notificationState, kitchenStatus }) {
+function HealthView({ gate, summary, latestVoiceReceipt, notificationState, kitchenStatus, testWeekSummary }) {
   const brainInterface = getApexFamilyCareBrainInterfaceSummary();
   const healthItems = [
     ["Public access", gate.publicAccess ? "Open" : "Closed", gate.publicAccess ? "red" : "green"],
@@ -747,6 +907,8 @@ function HealthView({ gate, summary, latestVoiceReceipt, notificationState, kitc
     ["Kitchen first device", kitchenStatus?.device?.deviceTypeLabel || "House tablet PWA", "green"],
     ["Kitchen hidden mic", APEX_FAMILY_CARE_KITCHEN_MODE_POLICY.hiddenRecording ? "On" : "Off", APEX_FAMILY_CARE_KITCHEN_MODE_POLICY.hiddenRecording ? "red" : "green"],
     ["Kitchen device control", APEX_FAMILY_CARE_KITCHEN_MODE_POLICY.deviceControlEnabled ? "On" : "Off", APEX_FAMILY_CARE_KITCHEN_MODE_POLICY.deviceControlEnabled ? "red" : "green"],
+    ["Test week status", testWeekSummary?.state?.status || "prep", testWeekSummary?.evidenceReady ? "amber" : "slate"],
+    ["Test week evidence", testWeekSummary?.evidenceReady ? "Review" : "Missing", testWeekSummary?.evidenceReady ? "amber" : "slate"],
   ];
 
   return (
@@ -772,6 +934,8 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
   const [latestVoiceReceipt, setLatestVoiceReceipt] = useState(null);
   const [notificationPreferences, setNotificationPreferences] = useState(loadInitialNotificationPreferences);
   const [kitchenDeviceState, setKitchenDeviceState] = useState(loadInitialKitchenDeviceState);
+  const [testWeekState, setTestWeekState] = useState(loadInitialTestWeekState);
+  const [testWeekDraft, setTestWeekDraft] = useState(newTestWeekDraft);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -788,6 +952,11 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
     window.localStorage.setItem(KITCHEN_STORAGE_KEY, JSON.stringify(kitchenDeviceState));
   }, [kitchenDeviceState]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(TEST_WEEK_STORAGE_KEY, JSON.stringify(testWeekState));
+  }, [testWeekState]);
+
   const sortedNotes = useMemo(() => listApexFamilyCareNotes(notes, { limit: APEX_FAMILY_CARE_MAX_LOCAL_NOTES }), [notes]);
   const todaySummary = useMemo(() => buildApexFamilyCareTodaySummary(sortedNotes), [sortedNotes]);
   const doctorSummary = useMemo(() => buildApexFamilyCareDoctorSummary(sortedNotes), [sortedNotes]);
@@ -796,6 +965,7 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
     preferences: notificationPreferences,
   }), [notificationPreferences, sortedNotes]);
   const kitchenStatus = useMemo(() => buildApexFamilyCareKitchenModeStatus(kitchenDeviceState), [kitchenDeviceState]);
+  const testWeekSummary = useMemo(() => buildApexFamilyCareTestWeekSummary(testWeekState, sortedNotes), [sortedNotes, testWeekState]);
   const gate = useMemo(() => getApexFamilyCareAccessGateSummary({
     routePrivate: standalone || Boolean(user?.operatorAccess),
     apexOsOnly: !standalone && Boolean(permissions?.apexOs?.canView),
@@ -839,6 +1009,27 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
     setNotes((current) => addApexFamilyCareNote(current, saved, now));
     setKitchenDeviceState((current) => applyApexFamilyCareKitchenControl(current, "heartbeat", now));
     setActiveScreen("kitchen");
+  }
+
+  function handleStartTestWeek() {
+    setTestWeekState((current) => startApexFamilyCareTestWeek(current));
+  }
+
+  function handleCompleteTestWeek() {
+    setTestWeekState((current) => markApexFamilyCareTestWeekComplete(current));
+  }
+
+  function handleUpdateTestWeekMetric(key, value) {
+    setTestWeekState((current) => normalizeApexFamilyCareTestWeekState({
+      ...current,
+      [key]: value,
+      updatedAt: new Date().toISOString(),
+    }));
+  }
+
+  function handleAddTestWeekFrictionNote() {
+    setTestWeekState((current) => addApexFamilyCareTestWeekFrictionNote(current, testWeekDraft));
+    setTestWeekDraft(newTestWeekDraft());
   }
 
   function handleSave() {
@@ -950,8 +1141,19 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
         notificationState={notificationState}
       />
     ),
+    testWeek: (
+      <TestWeekView
+        testWeekSummary={testWeekSummary}
+        testWeekDraft={testWeekDraft}
+        setTestWeekDraft={setTestWeekDraft}
+        onStartTestWeek={handleStartTestWeek}
+        onCompleteTestWeek={handleCompleteTestWeek}
+        onAddFrictionNote={handleAddTestWeekFrictionNote}
+        onUpdateTestWeekMetric={handleUpdateTestWeekMetric}
+      />
+    ),
     access: <AccessView gate={gate} standalone={standalone} />,
-    health: <HealthView gate={gate} summary={todaySummary} latestVoiceReceipt={latestVoiceReceipt} notificationState={notificationState} kitchenStatus={kitchenStatus} />,
+    health: <HealthView gate={gate} summary={todaySummary} latestVoiceReceipt={latestVoiceReceipt} notificationState={notificationState} kitchenStatus={kitchenStatus} testWeekSummary={testWeekSummary} />,
   };
 
   return (
@@ -1009,6 +1211,26 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
               <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3">
                 <span className="text-sm font-black text-slate-700">Live mic</span>
                 <Badge tone={APEX_FAMILY_CARE_KITCHEN_MODE_POLICY.liveMicCaptureEnabled ? "red" : "green"}>{APEX_FAMILY_CARE_KITCHEN_MODE_POLICY.liveMicCaptureEnabled ? "On" : "Off"}</Badge>
+              </div>
+            </div>
+          </Card>
+          <Card className="p-4">
+            <SectionHeader
+              title="Test Week Status"
+              description={testWeekSummary.recommendedNextStep}
+            />
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3">
+                <span className="text-sm font-black text-slate-700">Tracked days</span>
+                <Badge tone={testWeekSummary.trackedDays >= 7 ? "green" : "slate"}>{testWeekSummary.trackedDays}/7</Badge>
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3">
+                <span className="text-sm font-black text-slate-700">Success checks</span>
+                <Badge tone={testWeekSummary.passedCount >= 4 ? "green" : "slate"}>{testWeekSummary.passedCount}/7</Badge>
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3">
+                <span className="text-sm font-black text-slate-700">Phase closure</span>
+                <Badge tone={testWeekSummary.evidenceReady ? "amber" : "slate"}>{testWeekSummary.evidenceReady ? "Review" : "Missing"}</Badge>
               </div>
             </div>
           </Card>

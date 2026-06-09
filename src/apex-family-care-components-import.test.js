@@ -28,7 +28,7 @@ test("Apex Family Care has a standalone PWA entry outside the Apex HQ app", () =
 test("Apex Family Care page contains family screens and no hidden mic APIs", () => {
   const componentSource = fs.readFileSync(new URL("./apex-family-care-components.jsx", import.meta.url), "utf8");
 
-  for (const label of ["Today", "Kitchen Mode", "Add Update", "Voice Update", "Care Timeline", "Doctor Summary", "Family Summary", "Settings", "Family Access", "Apex Health"]) {
+  for (const label of ["Today", "Kitchen Mode", "Add Update", "Voice Update", "Care Timeline", "Doctor Summary", "Family Summary", "Settings", "Test Week", "Family Access", "Apex Health"]) {
     assert.match(componentSource, new RegExp(label));
   }
 
@@ -42,6 +42,8 @@ test("Apex Family Care page contains family screens and no hidden mic APIs", () 
   assert.match(componentSource, /APEX_FAMILY_CARE_NOTIFICATION_POLICY/);
   assert.match(componentSource, /buildApexFamilyCareKitchenModeStatus/);
   assert.match(componentSource, /APEX_FAMILY_CARE_KITCHEN_MODE_POLICY/);
+  assert.match(componentSource, /buildApexFamilyCareTestWeekSummary/);
+  assert.match(componentSource, /addApexFamilyCareTestWeekFrictionNote/);
   assert.match(componentSource, /Start Voice Update/);
   assert.match(componentSource, /Done Talking \/ Review/);
   assert.match(componentSource, /Save Needs Review/);
@@ -49,6 +51,9 @@ test("Apex Family Care page contains family screens and no hidden mic APIs", () 
   assert.match(componentSource, /Mute Kitchen/);
   assert.match(componentSource, /Stop Voice State/);
   assert.match(componentSource, /Kitchen Device Health/);
+  assert.match(componentSource, /Family Test Week/);
+  assert.match(componentSource, /Friction And Useful Notes/);
+  assert.match(componentSource, /Human review required/);
   assert.match(componentSource, /Notification Decisions/);
   assert.match(componentSource, /Safe lock-screen copy/);
   assert.match(componentSource, /No live sends/);
@@ -69,6 +74,8 @@ test("Apex Family Care still uses Phase 2 and Phase 3 shared helpers", () => {
     "createApexFamilyCareVoiceNoteDraft",
     "buildApexFamilyCareKitchenModeStatus",
     "applyApexFamilyCareKitchenControl",
+    "buildApexFamilyCareTestWeekSummary",
+    "startApexFamilyCareTestWeek",
     "buildApexFamilyCareNotificationState",
     "getDefaultApexFamilyCareNotificationPreferences",
     "listApexFamilyCareNotes",
@@ -87,5 +94,6 @@ test("Apex Family Care still uses Phase 2 and Phase 3 shared helpers", () => {
   assert.match(componentSource, /Lock-screen details/);
   assert.match(componentSource, /Kitchen hidden mic/);
   assert.match(componentSource, /Kitchen device control/);
+  assert.match(componentSource, /Test week evidence/);
   assert.doesNotMatch(componentSource, /getUserMedia|MediaRecorder|navigator\.mediaDevices|fetch\(|Notification\.requestPermission|navigator\.serviceWorker|PushManager|NetworkInformation|navigator\.usb|navigator\.bluetooth/i);
 });

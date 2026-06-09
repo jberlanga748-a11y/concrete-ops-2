@@ -29,6 +29,7 @@ test("Family Care route and required Phase 1 screens are declared", () => {
     "doctor",
     "family",
     "settings",
+    "testWeek",
     "access",
     "health",
   ]);

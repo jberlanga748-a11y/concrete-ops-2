@@ -207,6 +207,7 @@ Do not store raw audio. Do not store private rambling when a compact care note i
 - Doctor Summary
 - Family Summary
 - Notifications / Settings
+- Family Test Week
 - Family Access
 - Apex System Health
 
@@ -471,6 +472,8 @@ Phase 6 receipt (2026-06-09): chose the first household device path as a house t
 
 Done means: the family confirms it helps.
 
+Phase 7 readiness receipt (2026-06-09): added a local Family Test Week evidence tracker so the real week can be measured instead of guessed from memory. The standalone PWA now has a Test Week screen for starting the real week, recording before/after repeated-status-text counts, doctor-prep ratings, family-informed ratings, Dad explanation-burden ratings, Grandma dignity rating, under-10-second update evidence, and friction/useful notes that identify what to simplify or freeze. Added shared test-week policy/summary/receipt helpers that explicitly require a real family week, prevent auto-completing Phase 7, require human review before closure, and keep receipts metadata-only with no raw friction text, raw audio, raw transcripts, prompts, responses, cloud use, SMS/email/push sends, diagnosis, emergency replacement, schema/auth/session changes, deploys, or Apex HQ customer/product exposure. The original Phase 7 checklist remains unchecked until the real family week is actually run and reviewed. Focused validation: `node --test --test-concurrency=1 shared/apexFamilyCare.test.js shared/apexFamilyCareBrain.test.js shared/apexFamilyCareVoice.test.js shared/apexFamilyCareNotifications.test.js shared/apexFamilyCareKitchen.test.js shared/apexFamilyCareTestWeek.test.js src/apex-family-care-components-import.test.js src/pwa-config.test.js shared/permissions.test.js src/app-routing.test.js src/navigation-utils.test.js src/mobile-nav-utils.test.js src/app-navigation-components-import.test.js` passed 109/109.
+
 ## Done And Frozen Rule
 
 When a checklist item is completed:
@@ -531,4 +534,4 @@ Complete the Current Next Step, advance the plan, then continue through foundati
 
 ## Current Next Step
 
-Next unchecked phase: Phase 7 - Family Test Week.
+Next unchecked phase: Phase 7 - Family Test Week. Phase 7 now has a readiness tracker, but it is not complete until one real family test week is run and reviewed.
