@@ -30,6 +30,25 @@ Before closing any phase, the builder must update this file with:
 
 This rule exists so future Family Care work does not depend on chat memory, compacted context, or a builder trying to remember the plan from a previous turn.
 
+## Active Build Loop Goal
+
+Family Care is now a planned build loop, not a one-off feature pass.
+
+The builder should continue in this order:
+
+1. Read this file at the start of each Family Care turn.
+2. Build the phase named in `Current Next Step`.
+3. Validate the phase with focused tests and any relevant browser checks.
+4. Update this plan with completed checklist items, receipt evidence, deferred follow-up work, and the next unchecked phase.
+5. Commit only Family Care-owned files for that completed phase.
+6. Move to the next unchecked foundation phase.
+7. After Phase 7 is completed, cycle back through the follow-up roadmap phases, starting with the earliest useful follow-up such as Phase 1A, 2A, 3A, 3.5A, 4A, 5A, 6A, or 7A.
+8. Continue this loop until the Family Care plan has no remaining unchecked work, or until a safety/approval blocker requires John.
+
+The builder must not treat this loop as permission to broaden scope, rebuild frozen work, touch Apex HQ product/customer work, change schema/auth/session, deploy, expose secrets, send SMS/email/push messages, add cloud fallback, or add hidden recording.
+
+If the builder discovers a better idea while building, it must pass the Idea Filter, then either fit inside the current phase or be added to the Foundation Follow-Up Roadmap for later. Do not silently change the phase order.
+
 ## Boundary Rule
 
 Apex Family Care is its own private family PWA. It is Apex-powered, but it is not Apex HQ, not a contractor app module, and not a page family members should reach through John's business app or private Apex cockpit.
@@ -334,6 +353,7 @@ Do later when: one real family test week is complete.
 - [x] Use this file as the first-read file for every Apex Family Care build prompt.
 - [x] Do not mix Family Care work with Apex core runtime/model/voice Builder threads.
 - [x] Add mandatory startup and idea-filter rules for future compacted-context turns.
+- [x] Add active build-loop goal so foundation and follow-up phases keep moving without chat-memory guessing.
 
 Done means: this plan exists locally and future work starts here.
 
@@ -499,6 +519,9 @@ Before closing the phase:
 - add any deferred follow-up work to the Foundation Follow-Up Roadmap
 - update Current Next Step
 - commit only Family Care-owned files
+
+Standing build-loop goal:
+Complete the Current Next Step, advance the plan, then continue through foundation phases and follow-up roadmap phases until no unchecked Family Care work remains or a safety/approval blocker requires John.
 ```
 
 ## Current Next Step
