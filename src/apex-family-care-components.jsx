@@ -39,9 +39,11 @@ import {
   getDefaultApexFamilyCareKitchenDeviceState,
 } from "../shared/apexFamilyCareKitchen.js";
 import {
+  APEX_FAMILY_CARE_EXTERNAL_NOTIFICATION_APPROVAL_POLICY,
   APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_METHODS,
   APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_POLICY,
   APEX_FAMILY_CARE_NOTIFICATION_POLICY,
+  buildApexFamilyCareExternalNotificationApprovalPacket,
   buildApexFamilyCareNotificationState,
   getDefaultApexFamilyCareNotificationPreferences,
   normalizeApexFamilyCareNotificationPreferences,
@@ -1000,7 +1002,7 @@ function LocalDeliveryNoticePreview({ decision }) {
   );
 }
 
-function SettingsView({ notificationPreferences, setNotificationPreferences, notificationState }) {
+function SettingsView({ notificationPreferences, setNotificationPreferences, notificationState, externalNotificationApproval }) {
   function updatePreference(key, value) {
     setNotificationPreferences((current) => normalizeApexFamilyCareNotificationPreferences({
       ...current,
@@ -1080,6 +1082,33 @@ function SettingsView({ notificationPreferences, setNotificationPreferences, not
               </div>
             </div>
           </div>
+        </div>
+      </Card>
+
+      <Card className="p-4">
+        <SectionHeader title="External Delivery Approval" description={externalNotificationApproval.nextApprovalNeeded} />
+        <div className="mb-3 flex flex-wrap gap-2">
+          <Badge tone="amber">Approval required</Badge>
+          <Badge tone="green">No provider payload</Badge>
+          <Badge tone="green">No live sends</Badge>
+          <Badge tone="green">No raw note text</Badge>
+        </div>
+        <div className="mb-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+          <StatCard title="Selected" value={externalNotificationApproval.selectedChannelLabel} detail="External channel preview" />
+          <StatCard title="Approved" value={externalNotificationApproval.approvedChannelLabel} detail={externalNotificationApproval.approvalStatus} />
+          <StatCard title="Provider Payload" value={externalNotificationApproval.providerPayloadCreated ? "Created" : "Off"} detail="Blocked in Phase 5B" />
+          <StatCard title="Live Sends" value={externalNotificationApproval.liveDeliveryEnabled ? "On" : "Off"} detail="Phase 5C only after approval" />
+        </div>
+        <div className="grid gap-2 md:grid-cols-2">
+          {externalNotificationApproval.checks.map((check) => (
+            <div key={check.id} className="rounded-lg border border-slate-200 bg-white p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-black text-slate-950">{check.label}</p>
+                <Badge tone={check.passed ? "green" : "amber"}>{check.passed ? "Ready" : "Needed"}</Badge>
+              </div>
+              <p className="mt-1 text-sm font-bold text-slate-600">{check.detail}</p>
+            </div>
+          ))}
         </div>
       </Card>
 
@@ -1445,7 +1474,7 @@ function promptReviewLabel(status) {
   return status;
 }
 
-function HealthView({ accessReadiness, boundaryReleasePrep, releaseSmokeChecklist, localSttBridgeApproval, gate, summary, latestVoiceReceipt, notificationState, kitchenStatus, householdPresence, testWeekSummary, coordinatorPacket, coordinatorReviewPacket, onCoordinatorPromptReview }) {
+function HealthView({ accessReadiness, boundaryReleasePrep, releaseSmokeChecklist, localSttBridgeApproval, gate, summary, latestVoiceReceipt, notificationState, externalNotificationApproval, kitchenStatus, householdPresence, testWeekSummary, coordinatorPacket, coordinatorReviewPacket, onCoordinatorPromptReview }) {
   const brainInterface = getApexFamilyCareBrainInterfaceSummary();
   const coordinatorSummary = coordinatorPacket?.summary || {};
   const coordinatorPrompts = coordinatorReviewPacket?.reviewedPrompts || coordinatorPacket?.prompts || [];
@@ -1505,6 +1534,10 @@ function HealthView({ accessReadiness, boundaryReleasePrep, releaseSmokeChecklis
     ["Notification local delivery", notificationState?.summary?.readyLocalNoticeCount ?? 0, notificationState?.summary?.readyLocalNoticeCount ? "green" : "slate"],
     ["House screen trusted", notificationState?.summary?.houseDeviceTrusted ? "Yes" : "No", notificationState?.summary?.houseDeviceTrusted ? "green" : "amber"],
     ["External send approval", APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_POLICY.externalSendApprovalRequired ? "Required" : "Off", APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_POLICY.externalSendApprovalRequired ? "green" : "red"],
+    ["External delivery approval", externalNotificationApproval?.approvalStatus || "approval-required", externalNotificationApproval?.readyForProviderSetup ? "green" : "amber"],
+    ["External channel", externalNotificationApproval?.approvedChannelLabel || "Not chosen", externalNotificationApproval?.externalChannelApproved ? "green" : "amber"],
+    ["External provider payload", externalNotificationApproval?.providerPayloadCreated || APEX_FAMILY_CARE_EXTERNAL_NOTIFICATION_APPROVAL_POLICY.providerPayloadCreated ? "Created" : "Off", externalNotificationApproval?.providerPayloadCreated || APEX_FAMILY_CARE_EXTERNAL_NOTIFICATION_APPROVAL_POLICY.providerPayloadCreated ? "red" : "green"],
+    ["External live sends", externalNotificationApproval?.liveDeliveryEnabled || APEX_FAMILY_CARE_EXTERNAL_NOTIFICATION_APPROVAL_POLICY.liveDeliveryEnabled ? "On" : "Off", externalNotificationApproval?.liveDeliveryEnabled || APEX_FAMILY_CARE_EXTERNAL_NOTIFICATION_APPROVAL_POLICY.liveDeliveryEnabled ? "red" : "green"],
     ["Notification live sends", APEX_FAMILY_CARE_NOTIFICATION_POLICY.liveDeliveryEnabled ? "On" : "Off", APEX_FAMILY_CARE_NOTIFICATION_POLICY.liveDeliveryEnabled ? "red" : "green"],
     ["Notification provider sends", notificationState?.summary?.providerSendQueuedCount ?? 0, notificationState?.summary?.providerSendQueuedCount ? "red" : "green"],
     ["Lock-screen details", notificationState?.summary?.nextSafeLockScreenCopySafe ? "Safe" : "Check", notificationState?.summary?.nextSafeLockScreenCopySafe ? "green" : "red"],
@@ -1677,6 +1710,21 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
     preferences: notificationPreferences,
     kitchenStatus,
   }), [kitchenStatus, notificationPreferences, sortedNotes]);
+  const externalNotificationApproval = useMemo(() => buildApexFamilyCareExternalNotificationApprovalPacket({
+    selectedChannel: notificationPreferences.deliveryMethod === "local-house-device" ? "not-chosen" : notificationPreferences.deliveryMethod,
+    externalChannelApproved: false,
+    providerBoundaryApproved: false,
+    familyAccessModelApproved: false,
+    recipientsOptedIn: notificationState.summary.recipientCount > 0,
+    recipientCount: notificationState.summary.recipientCount,
+    quietHoursReady: notificationPreferences.quietHoursEnabled,
+    lockScreenCopySafe: notificationState.summary.nextSafeLockScreenCopySafe,
+  }), [
+    notificationPreferences.deliveryMethod,
+    notificationPreferences.quietHoursEnabled,
+    notificationState.summary.nextSafeLockScreenCopySafe,
+    notificationState.summary.recipientCount,
+  ]);
   const testWeekSummary = useMemo(() => buildApexFamilyCareTestWeekSummary(testWeekState, sortedNotes), [sortedNotes, testWeekState]);
   const testWeekRunPacket = useMemo(() => buildApexFamilyCareTestWeekRunPacket(testWeekState, sortedNotes), [sortedNotes, testWeekState]);
   const gate = useMemo(() => getApexFamilyCareAccessGateSummary({
@@ -2007,6 +2055,7 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
         notificationPreferences={notificationPreferences}
         setNotificationPreferences={setNotificationPreferences}
         notificationState={notificationState}
+        externalNotificationApproval={externalNotificationApproval}
       />
     ),
     testWeek: (
@@ -2032,6 +2081,7 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
         summary={todaySummary}
         latestVoiceReceipt={latestVoiceReceipt}
         notificationState={notificationState}
+        externalNotificationApproval={externalNotificationApproval}
         kitchenStatus={kitchenStatus}
         householdPresence={householdPresence}
         testWeekSummary={testWeekSummary}

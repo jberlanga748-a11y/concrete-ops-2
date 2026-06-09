@@ -63,6 +63,52 @@ export const APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_POLICY = Object.freeze({
   emergencyReplacement: false,
 });
 
+export const APEX_FAMILY_CARE_EXTERNAL_NOTIFICATION_APPROVAL_POLICY = Object.freeze({
+  policyId: "apex-family-care-external-notification-approval-v1",
+  phase: "phase-5b-approved-external-notification-delivery",
+  localOnly: true,
+  familyCareOnly: true,
+  apexHqProductWork: false,
+  humanApprovalRequired: true,
+  externalChannelApproved: false,
+  approvedChannel: "not-chosen",
+  providerBoundaryApproved: false,
+  providerConfigured: false,
+  providerPayloadCreated: false,
+  providerPayloadTested: false,
+  liveDeliveryEnabled: false,
+  readyForProviderSetup: false,
+  readyForLiveSend: false,
+  pwaPushEnabled: false,
+  browserNotificationEnabled: false,
+  serviceWorkerPushEnabled: false,
+  deviceNotificationEnabled: false,
+  smsEnabled: false,
+  emailEnabled: false,
+  smsSent: false,
+  emailSent: false,
+  pushSent: false,
+  browserNotificationSent: false,
+  notificationApiPermissionRequested: false,
+  serviceWorkerPushRegistered: false,
+  rawNoteTextStoredInReceipt: false,
+  sensitiveMedicalDetailInProviderPayload: false,
+  lockScreenSensitiveDetailsAllowed: false,
+  rawAudioStored: false,
+  rawTranscriptStored: false,
+  rawPromptStored: false,
+  rawResponseStored: false,
+  secretsStored: false,
+  customerDataStored: false,
+  cloudUsed: false,
+  schemaChanged: false,
+  authSessionChanged: false,
+  deployChanged: false,
+  publicAccess: false,
+  customerAccess: false,
+  fieldAccess: false,
+});
+
 export const APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_METHODS = Object.freeze([
   { id: "local-house-device", label: "Local house device", requiresProviderApproval: false },
   { id: "pwa-push", label: "PWA push", requiresProviderApproval: true },
@@ -70,6 +116,10 @@ export const APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_METHODS = Object.freeze([
   { id: "sms", label: "SMS", requiresProviderApproval: true },
   { id: "email", label: "Email", requiresProviderApproval: true },
 ]);
+
+const EXTERNAL_NOTIFICATION_CHANNELS = Object.freeze(
+  APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_METHODS.filter((method) => method.requiresProviderApproval),
+);
 
 export const APEX_FAMILY_CARE_NOTIFICATION_TYPES = Object.freeze([
   "family-digest",
@@ -151,6 +201,18 @@ function normalizeDeliveryMethod(value) {
   const text = cleanText(value, 40);
   const method = APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_METHODS.find((item) => item.id === text);
   return method?.id || APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_POLICY.defaultDeliveryMethod;
+}
+
+function normalizeExternalNotificationChannel(value) {
+  const text = cleanText(value, 40);
+  const method = EXTERNAL_NOTIFICATION_CHANNELS.find((item) => item.id === text);
+  return method?.id || "not-chosen";
+}
+
+function getDeliveryMethodLabel(methodId) {
+  if (methodId === "not-chosen") return "Not chosen";
+  const method = APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_METHODS.find((item) => item.id === methodId);
+  return method?.label || "Not chosen";
 }
 
 function timeToMinutes(value) {
@@ -384,6 +446,163 @@ export function normalizeApexFamilyCareNotificationPreferences(input = {}) {
     recipientBrotherEnabled: normalizeBoolean(input.recipientBrotherEnabled, base.recipientBrotherEnabled),
     recipientJohnEnabled: normalizeBoolean(input.recipientJohnEnabled, base.recipientJohnEnabled),
     recipientFamilyEnabled: normalizeBoolean(input.recipientFamilyEnabled, base.recipientFamilyEnabled),
+  };
+}
+
+export function buildApexFamilyCareExternalNotificationApprovalPacket(input = {}) {
+  const now = input.now instanceof Date ? input.now : new Date(input.now || Date.now());
+  const generatedAt = Number.isNaN(now.getTime()) ? new Date() : now;
+  const selectedChannel = normalizeExternalNotificationChannel(input.selectedChannel || input.channel || input.deliveryMethod);
+  const requestedApprovedChannel = normalizeExternalNotificationChannel(input.approvedChannel || selectedChannel);
+  const externalChannelApproved = Boolean(input.externalChannelApproved === true && requestedApprovedChannel !== "not-chosen");
+  const approvedChannel = externalChannelApproved ? requestedApprovedChannel : "not-chosen";
+  const providerBoundaryApproved = Boolean(externalChannelApproved && input.providerBoundaryApproved === true);
+  const familyAccessModelApproved = input.familyAccessModelApproved === true;
+  const recipientsOptedIn = input.recipientsOptedIn === true;
+  const recipientCount = Math.max(0, Number.parseInt(input.recipientCount || 0, 10) || 0);
+  const quietHoursReady = input.quietHoursReady !== false;
+  const lockScreenCopySafe = input.lockScreenCopySafe !== false;
+  const providerPayloadTestsReady = input.providerPayloadTestsReady === true;
+  const readyForProviderSetup = Boolean(
+    externalChannelApproved
+    && providerBoundaryApproved
+    && familyAccessModelApproved
+    && recipientsOptedIn
+    && quietHoursReady
+    && lockScreenCopySafe
+  );
+  const approvalStatus = readyForProviderSetup ? "provider-setup-ready" : "approval-required";
+  const checks = [
+    {
+      id: "external-channel-approved",
+      label: "External channel approved",
+      passed: externalChannelApproved,
+      detail: externalChannelApproved ? getDeliveryMethodLabel(approvedChannel) : "Choose and approve SMS, email, PWA push, or device notification.",
+    },
+    {
+      id: "provider-device-boundary-approved",
+      label: "Provider/device boundary approved",
+      passed: providerBoundaryApproved,
+      detail: providerBoundaryApproved ? "Exact provider or device boundary approved." : "Do not create provider setup or payloads until the boundary is approved.",
+    },
+    {
+      id: "family-access-approved",
+      label: "Family access model approved",
+      passed: familyAccessModelApproved,
+      detail: familyAccessModelApproved ? "Family access model approved." : "Family access model must be approved before external delivery.",
+    },
+    {
+      id: "recipients-opted-in",
+      label: "Family recipients opted in",
+      passed: recipientsOptedIn,
+      detail: recipientsOptedIn ? `${recipientCount} recipient control${recipientCount === 1 ? "" : "s"} selected.` : "Recipients stay local-only until family opt-in is approved.",
+    },
+    {
+      id: "quiet-hours-ready",
+      label: "Quiet hours ready",
+      passed: quietHoursReady,
+      detail: quietHoursReady ? "Quiet hours guard ready." : "Quiet hours must stay configured before external delivery.",
+    },
+    {
+      id: "lock-screen-copy-safe",
+      label: "Lock-screen copy safe",
+      passed: lockScreenCopySafe,
+      detail: lockScreenCopySafe ? "Generic lock-screen copy only." : "Sensitive medical detail is blocked from provider and lock-screen payloads.",
+    },
+    {
+      id: "provider-payload-tests",
+      label: "Provider payload tests",
+      passed: providerPayloadTestsReady,
+      detail: providerPayloadTestsReady ? "Provider payload tests are ready for Phase 5C." : "Payload tests are required before live sends in Phase 5C.",
+    },
+    {
+      id: "live-sends-blocked",
+      label: "Live sends blocked",
+      passed: true,
+      detail: "Phase 5B creates approval metadata only.",
+    },
+  ];
+  const nextApprovalNeeded = checks.find((check) => !check.passed)?.detail || "Provider setup can be designed next, but live sends remain blocked until Phase 5C.";
+
+  return {
+    policy: APEX_FAMILY_CARE_EXTERNAL_NOTIFICATION_APPROVAL_POLICY,
+    generatedAt: generatedAt.toISOString(),
+    approvalStatus,
+    selectedChannel,
+    selectedChannelLabel: getDeliveryMethodLabel(selectedChannel),
+    approvedChannel,
+    approvedChannelLabel: getDeliveryMethodLabel(approvedChannel),
+    externalChannelApproved,
+    providerBoundaryApproved,
+    familyAccessModelApproved,
+    recipientsOptedIn,
+    recipientCount,
+    quietHoursReady,
+    lockScreenCopySafe,
+    providerPayloadTestsReady,
+    readyForProviderSetup,
+    readyForLiveSend: false,
+    providerConfigured: false,
+    providerPayloadCreated: false,
+    providerPayloadStored: false,
+    liveDeliveryEnabled: false,
+    pwaPushEnabled: false,
+    browserNotificationEnabled: false,
+    serviceWorkerPushEnabled: false,
+    deviceNotificationEnabled: false,
+    smsEnabled: false,
+    emailEnabled: false,
+    cloudUsed: false,
+    nextApprovalNeeded,
+    checks,
+    approvalInstructions: [
+      "Choose the exact external channel.",
+      "Approve the provider or device boundary.",
+      "Approve family access and recipient opt-in.",
+      "Add provider payload tests before any live delivery.",
+    ],
+    receipt: {
+      receiptType: "apex-family-care-external-notification-approval",
+      schemaVersion: 1,
+      generatedAt: generatedAt.toISOString(),
+      policyId: APEX_FAMILY_CARE_EXTERNAL_NOTIFICATION_APPROVAL_POLICY.policyId,
+      phase: APEX_FAMILY_CARE_EXTERNAL_NOTIFICATION_APPROVAL_POLICY.phase,
+      localOnly: true,
+      familyCareOnly: true,
+      apexHqProductWork: false,
+      rawPromptStored: false,
+      rawResponseStored: false,
+      rawAudioStored: false,
+      rawTranscriptStored: false,
+      rawNoteTextStoredInReceipt: false,
+      secretsStored: false,
+      customerDataStored: false,
+      cloudUsed: false,
+      metadata: {
+        approvalStatus,
+        selectedChannel,
+        approvedChannel,
+        externalChannelApproved,
+        providerBoundaryApproved,
+        familyAccessModelApproved,
+        recipientsOptedIn,
+        recipientCount,
+        readyForProviderSetup,
+        readyForLiveSend: false,
+        providerConfigured: false,
+        providerPayloadCreated: false,
+        liveDeliveryEnabled: false,
+        smsSent: false,
+        emailSent: false,
+        pushSent: false,
+        browserNotificationSent: false,
+        notificationApiPermissionRequested: false,
+        serviceWorkerPushRegistered: false,
+        rawNoteTextStoredInReceipt: false,
+        sensitiveMedicalDetailInProviderPayload: false,
+        lockScreenSensitiveDetailsAllowed: false,
+      },
+    },
   };
 }
 

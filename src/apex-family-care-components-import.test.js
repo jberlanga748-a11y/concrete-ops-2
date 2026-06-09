@@ -42,6 +42,8 @@ test("Apex Family Care page contains family screens and no hidden mic APIs", () 
   assert.match(componentSource, /buildApexFamilyCareLocalSttBridgeApprovalPacket/);
   assert.match(componentSource, /buildApexFamilyCareNotificationState/);
   assert.match(componentSource, /APEX_FAMILY_CARE_NOTIFICATION_POLICY/);
+  assert.match(componentSource, /APEX_FAMILY_CARE_EXTERNAL_NOTIFICATION_APPROVAL_POLICY/);
+  assert.match(componentSource, /buildApexFamilyCareExternalNotificationApprovalPacket/);
   assert.match(componentSource, /buildApexFamilyCareKitchenModeStatus/);
   assert.match(componentSource, /APEX_FAMILY_CARE_KITCHEN_MODE_POLICY/);
   assert.match(componentSource, /buildApexFamilyCareAccessReadiness/);
@@ -134,6 +136,13 @@ test("Apex Family Care page contains family screens and no hidden mic APIs", () 
   assert.match(componentSource, /Local House Notices/);
   assert.match(componentSource, /House notices/);
   assert.match(componentSource, /External sends approval/);
+  assert.match(componentSource, /External Delivery Approval/);
+  assert.match(componentSource, /Provider Payload/);
+  assert.match(componentSource, /External delivery approval/);
+  assert.match(componentSource, /External provider payload/);
+  assert.match(componentSource, /External live sends/);
+  assert.match(componentSource, /No provider payload/);
+  assert.match(componentSource, /No raw note text/);
   assert.doesNotMatch(componentSource, /getUserMedia|MediaRecorder|navigator\.mediaDevices|ApexMciWave|windows-mci-waveaudio|native-voice|NetworkInformation|navigator\.usb|navigator\.bluetooth/i);
   assert.doesNotMatch(componentSource, /fetch\(|Notification\.requestPermission|navigator\.serviceWorker|PushManager/i);
 });
@@ -162,6 +171,8 @@ test("Apex Family Care still uses Phase 2 and Phase 3 shared helpers", () => {
     "getDefaultApexFamilyCareNotificationPreferences",
     "APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_METHODS",
     "APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_POLICY",
+    "APEX_FAMILY_CARE_EXTERNAL_NOTIFICATION_APPROVAL_POLICY",
+    "buildApexFamilyCareExternalNotificationApprovalPacket",
     "listApexFamilyCareNotes",
     "reviseApexFamilyCareNote",
     "updateApexFamilyCareNote",
@@ -197,6 +208,9 @@ test("Apex Family Care still uses Phase 2 and Phase 3 shared helpers", () => {
   assert.match(componentSource, /External send approval/);
   assert.match(componentSource, /Notification provider sends/);
   assert.match(componentSource, /Lock-screen details/);
+  assert.match(componentSource, /External channel/);
+  assert.match(componentSource, /External provider payload/);
+  assert.match(componentSource, /External live sends/);
   assert.match(componentSource, /Local family preview/);
   assert.match(componentSource, /Production family route/);
   assert.match(componentSource, /Family release approval/);

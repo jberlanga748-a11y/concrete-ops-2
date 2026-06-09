@@ -3,9 +3,11 @@ import test from "node:test";
 
 import { createApexFamilyCareNote } from "./apexFamilyCare.js";
 import {
+  APEX_FAMILY_CARE_EXTERNAL_NOTIFICATION_APPROVAL_POLICY,
   APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_POLICY,
   APEX_FAMILY_CARE_NOTIFICATION_POLICY,
   APEX_FAMILY_CARE_SAFE_NOTIFICATION_COPY,
+  buildApexFamilyCareExternalNotificationApprovalPacket,
   buildApexFamilyCareNotificationState,
   getDefaultApexFamilyCareNotificationPreferences,
   isApexFamilyCareLockScreenCopySafe,
@@ -34,6 +36,10 @@ test("Family Care notification policy is local-only and sends nothing live", () 
   assert.equal(APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_POLICY.emailEnabled, false);
   assert.equal(APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_POLICY.providerPayloadStored, false);
   assert.equal(APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_POLICY.externalSendApprovalRequired, true);
+  assert.equal(APEX_FAMILY_CARE_EXTERNAL_NOTIFICATION_APPROVAL_POLICY.humanApprovalRequired, true);
+  assert.equal(APEX_FAMILY_CARE_EXTERNAL_NOTIFICATION_APPROVAL_POLICY.liveDeliveryEnabled, false);
+  assert.equal(APEX_FAMILY_CARE_EXTERNAL_NOTIFICATION_APPROVAL_POLICY.providerPayloadCreated, false);
+  assert.equal(APEX_FAMILY_CARE_EXTERNAL_NOTIFICATION_APPROVAL_POLICY.notificationApiPermissionRequested, false);
 });
 
 test("notification preferences normalize to safe defaults and force live delivery off", () => {
@@ -237,4 +243,69 @@ test("provider delivery methods stay blocked behind approval and store no payloa
   assert.equal(digest.providerPayloadStored, false);
   assert.equal(state.receipt.metadata.providerSendsQueued, false);
   assert.equal(state.receipt.metadata.providerPayloadStored, false);
+});
+
+test("external notification approval packet blocks provider setup until John approves the channel boundary", () => {
+  const rawPrivateText = "Grandma's knee hurt after lunch and she took a pill.";
+  const packet = buildApexFamilyCareExternalNotificationApprovalPacket({
+    now: new Date("2026-06-09T12:30:00.000Z"),
+    selectedChannel: "sms",
+    recipientCount: 4,
+    recipientsOptedIn: true,
+    quietHoursReady: true,
+    lockScreenCopySafe: true,
+    rawPrivateText,
+  });
+
+  assert.equal(packet.policy.policyId, APEX_FAMILY_CARE_EXTERNAL_NOTIFICATION_APPROVAL_POLICY.policyId);
+  assert.equal(packet.approvalStatus, "approval-required");
+  assert.equal(packet.selectedChannel, "sms");
+  assert.equal(packet.approvedChannel, "not-chosen");
+  assert.equal(packet.externalChannelApproved, false);
+  assert.equal(packet.providerBoundaryApproved, false);
+  assert.equal(packet.readyForProviderSetup, false);
+  assert.equal(packet.readyForLiveSend, false);
+  assert.equal(packet.providerConfigured, false);
+  assert.equal(packet.providerPayloadCreated, false);
+  assert.equal(packet.liveDeliveryEnabled, false);
+  assert.equal(packet.smsEnabled, false);
+  assert.equal(packet.emailEnabled, false);
+  assert.equal(packet.pwaPushEnabled, false);
+  assert.equal(packet.browserNotificationEnabled, false);
+  assert.equal(packet.serviceWorkerPushEnabled, false);
+  assert.equal(packet.receipt.cloudUsed, false);
+  assert.equal(packet.receipt.rawNoteTextStoredInReceipt, false);
+  assert.equal(packet.receipt.metadata.smsSent, false);
+  assert.equal(packet.receipt.metadata.notificationApiPermissionRequested, false);
+  assert.equal(packet.receipt.metadata.serviceWorkerPushRegistered, false);
+  assert.equal(JSON.stringify(packet.receipt).includes(rawPrivateText), false);
+  assert.equal(JSON.stringify(packet.receipt).includes("knee"), false);
+});
+
+test("approved external notification packet can become provider-setup-ready while live sends stay blocked", () => {
+  const packet = buildApexFamilyCareExternalNotificationApprovalPacket({
+    now: new Date("2026-06-09T12:30:00.000Z"),
+    selectedChannel: "email",
+    approvedChannel: "email",
+    externalChannelApproved: true,
+    providerBoundaryApproved: true,
+    familyAccessModelApproved: true,
+    recipientsOptedIn: true,
+    recipientCount: 3,
+    quietHoursReady: true,
+    lockScreenCopySafe: true,
+  });
+
+  assert.equal(packet.approvalStatus, "provider-setup-ready");
+  assert.equal(packet.approvedChannel, "email");
+  assert.equal(packet.readyForProviderSetup, true);
+  assert.equal(packet.readyForLiveSend, false);
+  assert.equal(packet.providerConfigured, false);
+  assert.equal(packet.providerPayloadCreated, false);
+  assert.equal(packet.providerPayloadTestsReady, false);
+  assert.equal(packet.liveDeliveryEnabled, false);
+  assert.equal(packet.receipt.metadata.readyForProviderSetup, true);
+  assert.equal(packet.receipt.metadata.readyForLiveSend, false);
+  assert.equal(packet.receipt.metadata.providerPayloadCreated, false);
+  assert.equal(packet.receipt.metadata.emailSent, false);
 });

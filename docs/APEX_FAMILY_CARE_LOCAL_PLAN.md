@@ -378,7 +378,20 @@ Purpose: add real external notification delivery only after John approves the ch
 - Add provider payload tests before any live sends.
 - Keep raw note text, sensitive medical detail, raw audio, raw transcripts, secrets, cloud fallback, schema/auth/session changes, public/customer/field exposure, and deploys blocked unless explicitly approved.
 
-Do later when: John approves the exact external channel and provider/device boundary.
+Status: Phase 5B approval-readiness is complete. External notification provider setup and live delivery remain approval-gated and move to Phase 5C after John approves the exact channel, family access model, recipients, and provider/device boundary.
+
+### Phase 5C - Approved External Notification Wiring
+
+Purpose: wire the approved external notification channel only after the Phase 5B approval packet is satisfied.
+
+- Use only the approved channel and provider/device boundary.
+- Add provider payload tests before any live delivery.
+- Keep provider payloads generic and private-safe with no raw note text or sensitive medical detail.
+- Keep opt-in, quiet hours, device trust, and family recipient controls.
+- Keep live SMS/email/push/browser/device sends disabled until John explicitly approves the live-send test.
+- Keep raw audio, raw transcripts, secrets, cloud fallback, schema/auth/session changes, public/customer/field exposure, and deploys blocked unless explicitly approved.
+
+Do later when: John approves the exact external channel, provider/device boundary, family access model, recipients, and live-send test boundary.
 
 ### Phase 6A - Household Device Voice And Presence
 
@@ -554,6 +567,16 @@ Phase 5 receipt (2026-06-09): added the local-only Family Care notification deci
 Done means: Family Care can show local house-screen notice readiness inside the standalone PWA without external sends, provider payloads, browser notification APIs, SMS, email, or cloud.
 
 Phase 5A receipt (2026-06-09): added `APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_POLICY` and a local house-device delivery lane that turns notification decisions into in-app house-screen notice readiness only when local delivery is opted in, the house screen is trusted, the house device is ready, quiet hours allow it, and family recipient controls select at least one recipient. The Settings screen now shows Delivery lane, Trust this house screen, Family recipients, and Local House Notices; the Health/side status show local delivery count, house-screen trust, and external-send approval state. SMS, email, PWA push, browser/device notifications, service worker push, provider sends, provider payload storage, cloud use, raw note text, raw audio, raw transcripts, secrets, medical diagnosis, emergency replacement behavior, schema/auth/session changes, deploys, customer/field/demo exposure, and Apex HQ product exposure remain blocked. Focused validation: `node --test --test-concurrency=1 shared/apexFamilyCare.test.js shared/apexFamilyCareBrain.test.js shared/apexFamilyCareVoice.test.js shared/apexFamilyCareNotifications.test.js shared/apexFamilyCareKitchen.test.js shared/apexFamilyCareTestWeek.test.js src/apex-family-care-components-import.test.js src/pwa-config.test.js shared/permissions.test.js src/app-routing.test.js src/navigation-utils.test.js src/mobile-nav-utils.test.js src/app-navigation-components-import.test.js` passed 124/124.
+
+### Phase 5B - Approved External Notification Delivery
+
+- [x] Add an external notification approval packet with channel, provider/device boundary, family access, recipient opt-in, quiet hours, lock-screen safety, and provider payload test checks.
+- [x] Keep provider setup, provider payload creation, live SMS/email/PWA push/browser/device sends, Notification API permission requests, service worker push registration, cloud use, raw note text, sensitive medical detail, raw audio, raw transcripts, secrets, schema/auth/session changes, public/customer/field exposure, and deploys blocked.
+- [x] Show the approval boundary compactly in Settings and Apex Health.
+- [x] Add focused tests proving the approval packet stores compact metadata only and that approved setup still does not unlock live sends.
+- [x] Defer actual external notification wiring and provider payload tests to Phase 5C after John approves the exact channel/provider/device boundary.
+
+Phase 5B slice receipt (2026-06-09): added `APEX_FAMILY_CARE_EXTERNAL_NOTIFICATION_APPROVAL_POLICY` and `buildApexFamilyCareExternalNotificationApprovalPacket`. Settings now shows External Delivery Approval with selected channel preview, approved channel status, provider payload off, live sends off, and per-check approval requirements. Apex Health now shows external delivery approval, external channel, external provider payload, and external live-send status. The packet can become provider-setup-ready only after John approves the external channel, provider/device boundary, family access model, and recipient opt-in, but live sends and provider payload creation stay blocked until Phase 5C. Focused validation: `node --test --test-concurrency=1 shared/apexFamilyCareNotifications.test.js src/apex-family-care-components-import.test.js` passed 12/12.
 
 ### Phase 6 - Home Device / Kitchen Mode
 
@@ -754,7 +777,7 @@ Complete the Current Next Step, advance the plan, then continue through foundati
 
 ## Current Next Step
 
-Next active build slice: Phase 5B - Approved External Notification Delivery.
+Next active build slice: Phase 6B - Approved Household Device Integration.
 
 Open validation track: Phase 7 - Family Test Week remains incomplete until one real family test week is run and reviewed. Do not mark Phase 7 complete from synthetic data or builder prep work.
 
@@ -768,6 +791,6 @@ Open approval-gated Phase 3.5C work: choose the real family access/release path 
 
 Open approval-gated Phase 4C work: choose and approve the Family Care-specific local STT bridge before connecting real speech recognition.
 
-Open Phase 5B work: choose and approve the exact external notification channel/provider/device boundary before adding real SMS, email, PWA push, browser/device notifications, service worker push, provider payloads, or live sends.
+Open Phase 5C work: choose and approve the exact external notification channel/provider/device boundary before adding real SMS, email, PWA push, browser/device notifications, service worker push, provider payloads, provider payload tests, or live sends.
 
 Open Phase 6B work: choose and approve any real household device bridge beyond the tablet/old-phone PWA before adding Raspberry Pi/local satellite integration, local STT bridge wiring, device OS control, camera, network scanning, cloud, sends, schema/auth/session changes, or deploys.
