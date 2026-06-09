@@ -1,87 +1,109 @@
 # Apex HQ Daily Instagram Brief
 
-Date: 2026-05-25
+Date: 2026-06-06
 Account: @apexhqapp
 Status: Draft only - requires John's exact approval before any posting
 
-## Today's Post (Feed)
+## Today's Post
+
+Format:
+Single graphic feed post or short 3-slide carousel
 
 Caption:
 
-I am John Berlanga, founder of Apex HQ.
+Founder-led Apex HQ walkthroughs are open for contractors and trade businesses that are tired of running the business out of texts, scattered photos, paper notes, and memory.
 
-I have spent 15 years in concrete, from field work to running the business side.
+This is not a mass launch and it is not an "AI runs everything" pitch.
 
-I know what it feels like when jobs are moving, crews need answers, customers want updates, and the important details are buried in texts, photos, and memory.
+It is a practical walkthrough of one contractor workflow:
 
-Apex HQ is being built from that experience for contractors and trade businesses.
+lead -> estimate -> job -> field proof -> owner review -> follow-up
+
+Apex HQ is being built to keep that workflow cleaner, easier to review, and harder to lose track of when the work is moving fast.
+
+Built by a contractor for contractors and trade businesses.
 
 CTA:
-Follow @apexhqapp and comment your trade if you want to see workflow examples built for your lane.
+Comment "walkthrough" if you want to see the workflow.
 
 ## Visual Idea
 
-Founder story carousel (4 slides):
-- Slide 1: "Built by a contractor"
-- Slide 2: "15 years in concrete: field to office"
-- Slide 3: "The problem: details lost in texts, photos, and memory"
-- Slide 4: "Apex HQ: one contractor command center"
+Primary option:
+- Clean branded invite graphic with headline: "Founder-led contractor workflow walkthroughs"
+- Subhead: "Lead -> estimate -> job -> field proof -> owner review"
+- Footer line: "Built for contractors and trade businesses"
 
-Alternative single-image option:
-- Clean founder card with "Built by a contractor for contractors and trade businesses"
+Alternate option:
+- 3-slide carousel
+- Slide 1: "Still running jobs out of texts, photos, and memory?"
+- Slide 2: "See one cleaner contractor workflow"
+- Slide 3: "Founder-led Apex HQ walkthroughs"
 
-Keep visuals free of customer names, addresses, pricing, payroll info, private job data, or unapproved logos.
+Visual rules:
+- No customer names
+- No addresses
+- No pricing, margin, payroll, or billing details
+- No office-only notes or admin data
+- No fake dashboards, fake customers, or fake activity counts
 
 ## Story Idea
 
-Story frame 1 question box:
-"What trade are you in?"
+Frame 1 poll:
+"What breaks first when jobs get busy?"
+Options: "Follow-up" / "Job details"
 
-Story frame 2:
-"I’m building Apex HQ from real field + office experience. Reply with your biggest workflow bottleneck."
+Frame 2:
+"Apex HQ is being built around one cleaner contractor workflow: lead -> estimate -> job -> field proof -> owner review."
 
-## Reel Idea (Optional)
+Frame 3 question box:
+"What part of that workflow is the messiest in your company?"
+
+## Reel Idea
+
+Useful if John wants a simple founder-style talking reel.
 
 Hook:
-"I’m not building Apex HQ from theory."
+"If your business is still running out of texts, photos, and memory, this walkthrough is for you."
 
 Body:
-15-25 second founder reel:
-- quick founder intro
-- one field-to-office pain point
-- one-line explanation of how Apex HQ organizes the workflow
+15-20 second reel:
+- explain that the walkthrough focuses on one real contractor workflow
+- position Apex HQ as a practical operating system, not a hype demo
+- keep language centered on review, organization, and field-to-office clarity
 
 End CTA:
-"DM 'demo' for a founder-led walkthrough."
+"Comment 'walkthrough' if you want to see it."
 
 ## Hashtags
 
-#apexhq #builtbyacontractor #contractorfounder #contractorlife #constructionbusiness #tradebusiness #contractorsoftware #constructionworkflow #fieldwork #smallbusinessowner
+#apexhq #contractorlife #contractorsofinstagram #tradebusiness #constructionbusiness #contractorsoftware #constructionworkflow #fieldwork #builtbyacontractor #founderled
 
 ## Risk/Claims Check
 
-Approved positioning used:
-- Founder story and practical workflow framing
-- "Built by a contractor" language
-- Contractor + trade business positioning
+Safe claims used:
+- Contractor and trade business positioning
+- Founder-led walkthrough language
+- Product-in-progress framing with "is being built"
+- One-workflow demonstration framing instead of broad feature claims
 
 Claims avoided:
-- No guaranteed leads or guaranteed revenue
-- No AI autopilot claims
-- No payroll/accounting replacement claims
-- No fake customers, testimonials, or inflated adoption claims
-- No promise of automatic posting, bidding, billing, or scheduling
+- No guaranteed leads
+- No guaranteed revenue
+- No AI autopilot language
+- No payroll or accounting replacement language
+- No claim that public launch is live
+- No fake customers, fake testimonials, or fake proof
 
 ## What To Measure
 
 Track after posting:
 - Reach and profile visits
-- Comments naming trade type
-- Story question-box responses
-- DMs requesting demos/walkthroughs
-- Saves/shares
-- Link clicks
-- Top pain themes mentioned by contractors
+- Comments asking for a walkthrough or describing workflow breakdowns
+- Saves from owners who relate to scattered operations
+- Story poll responses and question-box replies
+- DMs requesting demos after manual review
+- Website clicks
+- Which pain point shows up most: follow-up, estimates, field proof, or owner review
 
 Success signal for this post:
-At least 3 qualified conversations from contractors/trade businesses tied to a real workflow bottleneck.
+Contractors respond with specific workflow pain and clear interest in a founder-led walkthrough, not just passive likes.

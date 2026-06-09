@@ -127,6 +127,54 @@ Reason: refresh 3 top prospects with current sources; keep verified facts separa
 
 - These three are strong first-demo candidates because they appear contractor-led with direct contact info and clear estimate-to-job-to-proof workflow relevance.
 
+## 2026-06-03 Verified-Facts Addendum
+
+Reason: refresh the three highest-priority prospects with current public sources before drafting the June 4 outreach plan.
+
+### Verified Facts (checked 2026-06-03 from official websites)
+
+- M2 Mini LLC (https://www.m2mini.com/): site says licensed, bonded, and insured; home base Albany, Oregon; serves Linn County and surrounding communities; services include residential concrete, small commercial concrete, excavation, demos/removals, and shop floors; owner shown as Joseph Madesh; phone 541-990-7365; email M2minicase@gmail.com; PO Box 1337 Albany OR 97321; hours shown as M-F 7AM-7PM; license #242728. Site also says "15 years of experience" which should be treated as their claim, not Apex HQ proof.
+- LME Concrete (https://www.lmeconcretellc.com/ and https://www.lmeconcretellc.com/contact): site says founded in 2021 by Aparicio Lopez Hernandez; based in Salem, Oregon; address 3959 Stanley Lane South, Salem, OR 97302; phone (503) 270-1575 (Spanish); additional phone (503) 420-6286 (English); email lopez@lmeconcrete.com; hours Monday-Friday 8:00 AM-7:00 PM and Saturday 8:00 AM-2:00 PM; "Speaks Spanish"; CCB#235123.
+- Rosewood Concrete (https://rosewoodconcrete.com/): site says licensed, bonded, and insured Oregon CCB #253867; offers residential and commercial concrete, pavers, and retaining walls; says it manages planning, coordination, permits, 811 locates, and on-site oversight; serves Salem and Portland area plus Marion, Polk, and Clackamas counties; phone (971) 289-6488; email info@rosewoodconcrete.com.
+
+### Inference (for qualification and outreach angle only)
+
+- M2 Mini remains the best near-term first demo because it combines warm context, direct owner contact, and a likely solo or small-crew workflow fit for the Basic founder pilot.
+- LME Concrete is the strongest cold outreach target right now because the site shows an owner/founder, bilingual phone lines, clear local address, and a straightforward residential/commercial concrete workflow.
+- Rosewood Concrete looks more likely to fit a Premium pilot than a Basic pilot because the site presents broader coordination work and a more structured project scope.
+
+## 2026-06-04 Verified-Facts Addendum
+
+Reason: refresh the three highest-priority fence prospects with current official-site facts before drafting the June 5 outreach plan.
+
+### Verified Facts (checked 2026-06-04 from official websites)
+
+- RPB Fence (https://rpbfence.com/): site says Redpoint Builders LLC DBA RPB Fence is a licensed Oregon contractor based in Salem; lists phone (541) 360-1468, email Golive@rpbfence.com, address 146 Chemawa Rd. N, Keizer, OR 97303, hours Monday-Saturday 7:00 AM-6:00 PM, Oregon CCB# 246584, and service across Salem, Keizer, Albany, Corvallis, and the Willamette Valley. The site also says it has "50+ five-star Google reviews" and metal posts that last "50+ years"; treat those as the company's claims, not Apex HQ proof.
+- Mid Valley Fence & Construction (https://www.midvalleyfence.com/contact): site lists phone 971-208-3360, email ian@midvalleyfence.com, Salem, Oregon location, services including fence installation, fence repair, wooden fences, gates and automation, agricultural fences, pool fences, and commercial fencing, business hours Monday-Friday 8:00 AM-5:00 PM, and service-area pages for Salem, Woodburn, Lebanon, McMinnville, Monmouth, Dallas, Keizer, Molalla, Silverton, Aumsville, Stayton, Sublimity, Mount Angel, Turner, Gervais, Amity, Mill City, Scio, and Donald.
+- OnPoint Fencing & Decking (https://onpointfencing.com/contact/): site lists phone (503) 949-2712, email info@onpointfencing.com, services for fencing, decks and patios, patio covers, and gate installation, office hours Monday-Friday 8AM-5PM, Saturday by appointment, Sunday closed, and service areas that include Salem, Portland, and Eugene. The contact page also links to financing and hiring pages; those are website facts, not buying-intent proof.
+
+### Inference (for outreach angle and qualification only)
+
+- RPB Fence is the strongest first cold fence target because the site is specific, the contact surface is complete, and the workflow appears estimate-heavy with visible fence, gate, deck, and service-area complexity.
+- Mid Valley Fence & Construction is a strong second target because the range of fence categories and service cities suggests active quoting and job coordination volume, but the decision-maker role still needs confirmation.
+- OnPoint Fencing & Decking is a strong third target because the multi-service scope fits Apex HQ's handoff and photo-proof story, but it may lean slightly more Premium than the first two fence targets.
+
+## 2026-06-06 Verified-Facts Addendum
+
+Reason: refresh the top three June 7 prospects with current official-site facts before drafting the next founder-led outreach day.
+
+### Verified Facts (checked 2026-06-06 from official websites)
+
+- M2 Mini LLC (https://m2mini.com/ and https://www.m2mini.com/): site says it serves Albany, Lebanon, Corvallis, Salem, Harrisburg, Junction City, Philomath, Stayton, Lyons, and nearby Linn County communities; offers residential and light commercial concrete plus excavation/site prep work; lists Joseph Madesh as owner on the older site version; lists phone 541-990-7365, email M2minicase@gmail.com, Albany, Oregon, PO Box 1337 Albany OR 97321, and Oregon CCB #242728. The site also says locally owned, family-owned, and licensed/bonded/insured; treat those as website claims unless separately confirmed.
+- RPB Fence (https://rpbfence.com/): site says Redpoint Builders LLC DBA RPB Fence is an Oregon contractor with CCB #246584; lists phone (541) 360-1468, email Golive@rpbfence.com, address 146 Chemawa Rd. N, Keizer, OR 97303, and hours Monday-Saturday 7:00 AM-6:00 PM; shows fencing, gate installation and repair, fence post replacement, and decking; and says it serves Salem, Keizer, West Salem, Turner, Aumsville, Stayton, Silverton, Monmouth, Independence, Dallas, Albany, and Corvallis. The site also says metal posts last 50+ years; treat that durability line as the company's claim.
+- Mid Valley Fence & Construction (https://www.midvalleyfence.com/, https://www.midvalleyfence.com/about-us, and https://www.midvalleyfence.com/contact): site lists phone 971-208-3360, email ian@midvalleyfence.com, Salem, Oregon, hours Monday-Friday 8:00 AM-5:00 PM, and CCB #220320; services shown include fence installation, fence repair, wooden fences, gates and automation, agricultural fences, pool fences, and commercial fencing; and service areas shown include Salem, Woodburn, Lebanon, McMinnville, Monmouth, Dallas, Keizer, Molalla, Silverton, Aumsville, Stayton, Sublimity, Mount Angel, Turner, Gervais, Amity, Mill City, Scio, and Donald. The site also says licensed and insured and 30 years of experience; treat those as website claims unless separately confirmed.
+
+### Inference (for prioritization and call questions only)
+
+- M2 Mini remains the cleanest first June 7 conversation because the warm context and narrow concrete/excavation workflow still fit a Basic founder pilot better than the colder fence prospects.
+- RPB Fence remains the best first cold target because the contact surface is complete and the website shows a clear estimate-to-install-to-repair workflow that fits Apex HQ's handoff and follow-up story.
+- Mid Valley Fence remains the best second cold target because its public service spread implies steady inbound quoting and scheduling, but the actual decision-maker and workflow pain still need confirmation live.
+
 ## Source Notes
 
 Use these only as research notes. Refresh before public claims.
@@ -146,15 +194,17 @@ Additional researched prospects (not yet in the top 10 board):
 
 - Exclusive Concrete Construction: https://www.exclusivece.com/
 
-Last refreshed: 2026-05-25 (website checks only; no outreach sent)
+Last refreshed: 2026-06-06 (official website checks only; no outreach sent)
 
 ## First Contact Priority
 
-1. M2 Mini because warm relationship and price question already happened.
-2. LME Concrete, Rosewood Concrete, RT Concrete, and Catt Hardscape because they match early contractor workflow pain.
-3. River City Hardscapes and Big Leaf Landscapes because hardscape work is visual, multi-step, and photo-heavy.
-4. C&A Concrete because broad services may create workflow pain.
-5. RDL and Gelco later, because they may be larger and more complex than the first controlled pilots.
+1. M2 Mini first as the warm reactivation because it still offers the clearest path to a Basic founder pilot conversation for Saturday, 2026-06-07.
+2. RPB Fence second as the first cold priority because the official-site facts are current and the direct phone/email path is complete.
+3. Mid Valley Fence & Construction third because the official-site facts are current, now include a visible CCB number, and the service footprint suggests active estimating volume.
+4. OnPoint Fencing & Decking fourth because the official-site facts are current and the multi-service scope fits the handoff/photo/follow-up story.
+5. LME Concrete next as the first concrete backup if the fence-first wave is ready.
+6. River City Hardscapes and Catt Hardscape after that as visual-workflow backups.
+7. RT Concrete, C&A Concrete, RDL, and Gelco later, because they still look more complex than the first controlled-pilot targets.
 
 ## Fit Score
 
