@@ -553,6 +553,24 @@ Phase 3A slice receipt (2026-06-09): added `buildApexFamilyCareCoordinatorPacket
 - [ ] Add prompt usefulness/friction tracking so Apex can ask fewer, better questions.
 - [ ] Keep medication review confirmation-only and keep dosing, treatment, diagnosis, emergency, raw transcript/audio storage, real sends, cloud fallback, schema/auth/session changes, and Apex HQ exposure blocked unless explicitly approved.
 
+### Phase 3.5A - Standalone Boundary Release Prep
+
+- [x] Add a local release-boundary readiness packet for the standalone Family Care PWA.
+- [x] Show local preview readiness, production blocked status, family access approval status, and Apex HQ drift checks in Family Access.
+- [x] Confirm production release remains blocked/local-only until John approves the real family access model.
+- [x] Confirm this slice makes no deploy, hosting, auth/session, schema, provider, remote access, send, cloud, or Apex HQ navigation changes.
+- [x] Add tests proving the prep receipt is metadata-only and production exposure remains false.
+
+Phase 3.5A slice receipt (2026-06-09): added `buildApexFamilyCareBoundaryReleasePrep` with a local-only release-prep policy for the standalone Family Care PWA. The Family Access screen now shows a Standalone Release Boundary card with Local Preview ready, Production blocked, Family Access needed, Apex HQ Drift blocked, and explicit No deploy / No hosting change / No auth change / No provider setup badges. Apex Health now reports local family preview, production family route, and family release approval status. Production remains blocked/local-only until a real family access model is approved; no deploy, hosting, provider, auth/session, schema, remote access, real sends, cloud fallback, hidden recording, medical diagnosis, or Apex HQ product exposure was added.
+
+### Phase 3.5B - Next Standalone Boundary Follow-Up
+
+- [ ] After John chooses the family access model, design the exact private release path: local LAN, trusted-device pairing, family code, invite, or private remote access.
+- [ ] Add a real phone/house-device install checklist for the chosen path without adding auth/session, provider, deploy, or remote-access implementation until approved.
+- [ ] Add human-run release smoke steps for local/house-device testing before any production or remote release.
+- [ ] Keep production 404/local-only behavior until explicit approval changes the release posture.
+- [ ] Keep Apex HQ business navigation, customer/field access, private cockpit dependency, raw audio/transcripts, sends, cloud fallback, schema/auth/session changes, and provider setup blocked unless explicitly approved.
+
 ## Done And Frozen Rule
 
 When a checklist item is completed:
@@ -613,7 +631,7 @@ Complete the Current Next Step, advance the plan, then continue through foundati
 
 ## Current Next Step
 
-Next active build slice: Phase 3.5A - Standalone Boundary Release Prep.
+Next active build slice: Phase 4A - Real Local Voice Input.
 
 Open validation track: Phase 7 - Family Test Week remains incomplete until one real family test week is run and reviewed. Do not mark Phase 7 complete from synthetic data or builder prep work.
 
@@ -622,3 +640,5 @@ Open approval-gated Phase 1A work: choose and approve the real family access mod
 Open Phase 2B work: add true note editing/revision, reviewed/confirmed note state, and print/export doctor-brief polish after the current review lane proves useful.
 
 Open Phase 3B work: add coordinator prompt resolution, daily digest review, and usefulness/friction tracking after the first coordinator packet slice proves helpful.
+
+Open Phase 3.5B work: choose the real family access/release path and add human-run install/smoke steps only after approval.

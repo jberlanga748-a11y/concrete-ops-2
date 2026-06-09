@@ -43,6 +43,7 @@ test("Apex Family Care page contains family screens and no hidden mic APIs", () 
   assert.match(componentSource, /buildApexFamilyCareKitchenModeStatus/);
   assert.match(componentSource, /APEX_FAMILY_CARE_KITCHEN_MODE_POLICY/);
   assert.match(componentSource, /buildApexFamilyCareAccessReadiness/);
+  assert.match(componentSource, /buildApexFamilyCareBoundaryReleasePrep/);
   assert.match(componentSource, /buildApexFamilyCareTestWeekSummary/);
   assert.match(componentSource, /buildApexFamilyCareTestWeekRunPacket/);
   assert.match(componentSource, /addApexFamilyCareTestWeekFrictionNote/);
@@ -50,6 +51,12 @@ test("Apex Family Care page contains family screens and no hidden mic APIs", () 
   assert.match(componentSource, /Access Mode/);
   assert.match(componentSource, /Install Path/);
   assert.match(componentSource, /Boundary Checks/);
+  assert.match(componentSource, /Standalone Release Boundary/);
+  assert.match(componentSource, /Production blocked/);
+  assert.match(componentSource, /Local Preview/);
+  assert.match(componentSource, /No deploy/);
+  assert.match(componentSource, /No hosting change/);
+  assert.match(componentSource, /No provider setup/);
   assert.match(componentSource, /Remote Access/);
   assert.match(componentSource, /No auth change/);
   assert.match(componentSource, /No schema change/);
@@ -94,6 +101,7 @@ test("Apex Family Care still uses Phase 2 and Phase 3 shared helpers", () => {
     "buildApexFamilyCareFamilySummary",
     "buildApexFamilyCareTodaySummary",
     "buildApexFamilyCareReviewState",
+    "buildApexFamilyCareBoundaryReleasePrep",
     "getApexFamilyCareBrainInterfaceSummary",
     "buildApexFamilyCareCoordinatorPacket",
     "createApexFamilyCareVoiceNoteDraft",
@@ -125,6 +133,9 @@ test("Apex Family Care still uses Phase 2 and Phase 3 shared helpers", () => {
   assert.match(componentSource, /Notification live sends/);
   assert.match(componentSource, /Notification provider sends/);
   assert.match(componentSource, /Lock-screen details/);
+  assert.match(componentSource, /Local family preview/);
+  assert.match(componentSource, /Production family route/);
+  assert.match(componentSource, /Family release approval/);
   assert.match(componentSource, /Kitchen hidden mic/);
   assert.match(componentSource, /Kitchen device control/);
   assert.match(componentSource, /Test week evidence/);

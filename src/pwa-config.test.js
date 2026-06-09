@@ -155,5 +155,6 @@ test("server exposes PWA static assets without changing API behavior", () => {
   assert.match(serverSource, /app\.get\("\/family-care\.webmanifest"/);
   assert.match(serverSource, /serverConfig\.nodeEnv !== "production"/);
   assert.match(serverSource, /"\/family-care"/);
+  assert.match(serverSource, /Apex Family Care is local-only in this build/);
   assert.match(serverSource, /application\/manifest\+json/);
 });

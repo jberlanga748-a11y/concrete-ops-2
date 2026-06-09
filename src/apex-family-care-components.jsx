@@ -10,6 +10,7 @@ import {
   APEX_FAMILY_CARE_SEVERITIES,
   addApexFamilyCareNote,
   buildApexFamilyCareAccessReadiness,
+  buildApexFamilyCareBoundaryReleasePrep,
   buildApexFamilyCareDoctorSummary,
   buildApexFamilyCareFamilySummary,
   buildApexFamilyCareReviewState,
@@ -1043,7 +1044,7 @@ function TestWeekView({
   );
 }
 
-function AccessView({ accessReadiness, gate, standalone = false }) {
+function AccessView({ accessReadiness, boundaryReleasePrep, gate, standalone = false }) {
   return (
     <div className="space-y-4">
       <Card className="p-4">
@@ -1059,6 +1060,37 @@ function AccessView({ accessReadiness, gate, standalone = false }) {
           <Badge tone="green">No schema change</Badge>
           <Badge tone="green">No Apex HQ nav</Badge>
           <Badge tone="green">No sends</Badge>
+        </div>
+      </Card>
+
+      <Card className="p-4">
+        <SectionHeader
+          title="Standalone Release Boundary"
+          description={boundaryReleasePrep.nextApprovalNeeded}
+          action={<Badge tone={boundaryReleasePrep.productionBlocked ? "green" : "amber"}>{boundaryReleasePrep.productionBlocked ? "Production blocked" : "Private release"}</Badge>}
+        />
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <StatCard title="Local Preview" value={boundaryReleasePrep.localPreviewReady ? "Ready" : "Check"} detail="John can test the standalone PWA locally." />
+          <StatCard title="Production" value={boundaryReleasePrep.productionBlocked ? "Blocked" : "Approved"} detail="No public family release without approval." />
+          <StatCard title="Family Access" value={boundaryReleasePrep.familyAccessModelApproved ? "Approved" : "Needed"} detail="Family code, invite, LAN, or remote path comes later." />
+          <StatCard title="Apex HQ Drift" value="Blocked" detail="No contractor/customer/field navigation." />
+        </div>
+        <div className="mt-3 grid gap-2 md:grid-cols-2">
+          {boundaryReleasePrep.checks.map((check) => (
+            <div key={check.id} className="rounded-lg border border-slate-200 bg-white p-3">
+              <div className="flex min-w-0 items-center justify-between gap-3">
+                <p className="min-w-0 break-words text-sm font-black text-slate-950">{check.label}</p>
+                <Badge tone={check.ready ? "green" : "amber"}>{check.status}</Badge>
+              </div>
+              <p className="mt-1 break-words text-xs font-bold text-slate-600">{check.detail}</p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Badge tone="green">No deploy</Badge>
+          <Badge tone="green">No hosting change</Badge>
+          <Badge tone="green">No auth change</Badge>
+          <Badge tone="green">No provider setup</Badge>
         </div>
       </Card>
 
@@ -1092,7 +1124,7 @@ function AccessView({ accessReadiness, gate, standalone = false }) {
   );
 }
 
-function HealthView({ accessReadiness, gate, summary, latestVoiceReceipt, notificationState, kitchenStatus, testWeekSummary, coordinatorPacket }) {
+function HealthView({ accessReadiness, boundaryReleasePrep, gate, summary, latestVoiceReceipt, notificationState, kitchenStatus, testWeekSummary, coordinatorPacket }) {
   const brainInterface = getApexFamilyCareBrainInterfaceSummary();
   const coordinatorSummary = coordinatorPacket?.summary || {};
   const coordinatorPrompts = coordinatorPacket?.prompts || [];
@@ -1112,6 +1144,9 @@ function HealthView({ accessReadiness, gate, summary, latestVoiceReceipt, notifi
     ["Emergency replacement", gate.emergencyReplacement ? "Yes" : "No", gate.emergencyReplacement ? "red" : "green"],
     ["Family access mode", accessReadiness?.accessMode || "local-only", accessReadiness?.localReady ? "green" : "amber"],
     ["Remote access", accessReadiness?.remoteReady ? "Ready" : "Approval", accessReadiness?.remoteReady ? "green" : "amber"],
+    ["Local family preview", boundaryReleasePrep?.localPreviewReady ? "Ready" : "Check", boundaryReleasePrep?.localPreviewReady ? "green" : "amber"],
+    ["Production family route", boundaryReleasePrep?.productionBlocked ? "Blocked" : "Approved", boundaryReleasePrep?.productionBlocked ? "green" : "amber"],
+    ["Family release approval", boundaryReleasePrep?.privateReleaseApproved ? "Approved" : "Needed", boundaryReleasePrep?.privateReleaseApproved ? "amber" : "green"],
     ["Auth/session change", accessReadiness?.policy?.authSessionChanged ? "Yes" : "No", accessReadiness?.policy?.authSessionChanged ? "red" : "green"],
     ["Schema change", accessReadiness?.policy?.schemaChanged ? "Yes" : "No", accessReadiness?.policy?.schemaChanged ? "red" : "green"],
     ["Missing update detector", summary?.missingUpdate ? "On" : "Off", summary?.missingUpdate ? "green" : "amber"],
@@ -1249,6 +1284,16 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
     installTarget: "house tablet or old phone",
     familyMembers: ["Dad", "Brother", "John", "Family"],
   }), [gate.routePrivate, standalone]);
+  const boundaryReleasePrep = useMemo(() => buildApexFamilyCareBoundaryReleasePrep({
+    standalone,
+    hasHtmlEntry: true,
+    hasManifest: true,
+    hasStandaloneMount: true,
+    apexHqNavigationFree: true,
+    productionRouteStatus: "blocked-local-only",
+    familyAccessModelApproved: false,
+    privateReleaseApproved: false,
+  }), [standalone]);
 
   function handleQuickAdd(categoryId) {
     const nextDraft = newDraft(categoryId);
@@ -1448,8 +1493,8 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
         onUpdateTestWeekMetric={handleUpdateTestWeekMetric}
       />
     ),
-    access: <AccessView accessReadiness={accessReadiness} gate={gate} standalone={standalone} />,
-    health: <HealthView accessReadiness={accessReadiness} gate={gate} summary={todaySummary} latestVoiceReceipt={latestVoiceReceipt} notificationState={notificationState} kitchenStatus={kitchenStatus} testWeekSummary={testWeekSummary} coordinatorPacket={coordinatorPacket} />,
+    access: <AccessView accessReadiness={accessReadiness} boundaryReleasePrep={boundaryReleasePrep} gate={gate} standalone={standalone} />,
+    health: <HealthView accessReadiness={accessReadiness} boundaryReleasePrep={boundaryReleasePrep} gate={gate} summary={todaySummary} latestVoiceReceipt={latestVoiceReceipt} notificationState={notificationState} kitchenStatus={kitchenStatus} testWeekSummary={testWeekSummary} coordinatorPacket={coordinatorPacket} />,
   };
 
   return (

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  APEX_FAMILY_CARE_BOUNDARY_RELEASE_POLICY,
   APEX_FAMILY_CARE_NOTE_MODEL,
   APEX_FAMILY_CARE_NOTE_STATUSES,
   APEX_FAMILY_CARE_REQUIRED_SCREENS,
@@ -9,6 +10,7 @@ import {
   APEX_FAMILY_CARE_ROUTE_PATH,
   addApexFamilyCareNote,
   buildApexFamilyCareAccessReadiness,
+  buildApexFamilyCareBoundaryReleasePrep,
   buildApexFamilyCareDoctorSummary,
   buildApexFamilyCareFamilySummary,
   buildApexFamilyCareReviewState,
@@ -373,4 +375,51 @@ test("Family Care access readiness keeps Phase 1A local and approval-gated", () 
   assert.equal(readiness.receipt.metadata.noSends, true);
   assert.equal(JSON.stringify(readiness.receipt).includes("Dad"), false);
   assert.equal(JSON.stringify(readiness.receipt).includes("Brother"), false);
+});
+
+test("Family Care boundary release prep keeps production blocked until approved", () => {
+  const prep = buildApexFamilyCareBoundaryReleasePrep({
+    generatedAt: "2026-06-09T18:00:00.000Z",
+    standalone: true,
+    hasHtmlEntry: true,
+    hasManifest: true,
+    hasStandaloneMount: true,
+    apexHqNavigationFree: true,
+    familyAccessModelApproved: false,
+    privateReleaseApproved: false,
+  });
+
+  assert.equal(APEX_FAMILY_CARE_BOUNDARY_RELEASE_POLICY.apexHqProductWork, false);
+  assert.equal(APEX_FAMILY_CARE_BOUNDARY_RELEASE_POLICY.productionReleaseApproved, false);
+  assert.equal(APEX_FAMILY_CARE_BOUNDARY_RELEASE_POLICY.productionExposure, false);
+  assert.equal(prep.readinessType, "apex-family-care-boundary-release-prep");
+  assert.equal(prep.localPreviewReady, true);
+  assert.equal(prep.productionBlocked, true);
+  assert.equal(prep.privateReleaseApproved, false);
+  assert.equal(prep.familyAccessModelApproved, false);
+  assert.equal(prep.checks.every((check) => typeof check.label === "string" && typeof check.detail === "string"), true);
+  assert.equal(prep.checks.find((check) => check.id === "production-release-gate").ready, true);
+  assert.match(prep.nextApprovalNeeded, /Approve family access model/i);
+  assert.equal(prep.receipt.receiptType, "apex-family-care-boundary-release-prep");
+  assert.equal(prep.receipt.localOnly, true);
+  assert.equal(prep.receipt.familyCareOnly, true);
+  assert.equal(prep.receipt.apexHqProductWork, false);
+  assert.equal(prep.receipt.productionExposure, false);
+  assert.equal(prep.receipt.deployChanged, false);
+  assert.equal(prep.receipt.hostingChanged, false);
+  assert.equal(prep.receipt.authSessionChanged, false);
+  assert.equal(prep.receipt.schemaChanged, false);
+  assert.equal(prep.receipt.providerConfigured, false);
+  assert.equal(prep.receipt.smsSent, false);
+  assert.equal(prep.receipt.emailSent, false);
+  assert.equal(prep.receipt.pushSent, false);
+  assert.equal(prep.receipt.secretsStored, false);
+  assert.equal(prep.receipt.rawAudioStored, false);
+  assert.equal(prep.receipt.rawTranscriptStored, false);
+  assert.equal(prep.receipt.medicalDiagnosis, false);
+  assert.equal(prep.receipt.emergencyReplacement, false);
+  assert.equal(prep.receipt.metadata.localPreviewReady, true);
+  assert.equal(prep.receipt.metadata.productionBlocked, true);
+  assert.equal(prep.receipt.metadata.privateReleaseApproved, false);
+  assert.equal(prep.receipt.metadata.noSends, true);
 });

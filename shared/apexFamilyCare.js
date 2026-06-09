@@ -44,6 +44,36 @@ export const APEX_FAMILY_CARE_ACCESS_POLICY = Object.freeze({
   medicalDiagnosis: false,
   emergencyReplacement: false,
 });
+export const APEX_FAMILY_CARE_BOUNDARY_RELEASE_POLICY = Object.freeze({
+  policyId: "apex-family-care-boundary-release-prep-v1",
+  phase: "phase-3-5a-standalone-boundary-release-prep",
+  familyCareOnly: true,
+  apexHqProductWork: false,
+  localOnly: true,
+  directPwaRequired: true,
+  apexHqNavigationRequired: false,
+  apexPrivateCockpitRequired: false,
+  productionReleaseApproved: false,
+  productionExposure: false,
+  remoteAccessApproved: false,
+  authSessionChanged: false,
+  schemaChanged: false,
+  deployChanged: false,
+  hostingChanged: false,
+  providerConfigured: false,
+  publicAccess: false,
+  customerAccess: false,
+  fieldAccess: false,
+  cloudUsed: false,
+  smsSent: false,
+  emailSent: false,
+  pushSent: false,
+  secretsStored: false,
+  rawAudioStored: false,
+  rawTranscriptStored: false,
+  medicalDiagnosis: false,
+  emergencyReplacement: false,
+});
 export const APEX_FAMILY_CARE_REQUIRED_SCREENS = [
   "today",
   "kitchen",
@@ -635,6 +665,102 @@ export function buildApexFamilyCareAccessReadiness(input = {}) {
         rawFamilyDetailsStoredInReceipt: false,
         authSessionChanged: false,
         schemaChanged: false,
+        noSends: true,
+      },
+    },
+  };
+}
+
+export function buildApexFamilyCareBoundaryReleasePrep(input = {}) {
+  const standalone = input.standalone !== false;
+  const hasHtmlEntry = input.hasHtmlEntry !== false;
+  const hasManifest = input.hasManifest !== false;
+  const hasStandaloneMount = input.hasStandaloneMount !== false;
+  const apexHqNavigationFree = input.apexHqNavigationFree !== false;
+  const productionRouteStatus = cleanText(input.productionRouteStatus, 64) || "blocked-local-only";
+  const familyAccessModelApproved = input.familyAccessModelApproved === true;
+  const privateReleaseApproved = input.privateReleaseApproved === true && familyAccessModelApproved;
+  const localPreviewReady = Boolean(standalone && hasHtmlEntry && hasManifest && hasStandaloneMount && apexHqNavigationFree);
+  const productionBlocked = !privateReleaseApproved;
+  const checks = [
+    {
+      id: "family-care-html-entry",
+      label: "Standalone HTML entry",
+      status: hasHtmlEntry ? "ready" : "missing",
+      ready: hasHtmlEntry,
+      detail: hasHtmlEntry ? "family-care.html is the direct app entry." : "Add the standalone HTML entry before release prep continues.",
+    },
+    {
+      id: "family-care-manifest",
+      label: "Family manifest",
+      status: hasManifest ? "ready" : "missing",
+      ready: hasManifest,
+      detail: hasManifest ? "Family Care has separate PWA metadata." : "Add the Family Care manifest before install testing.",
+    },
+    {
+      id: "standalone-react-mount",
+      label: "Standalone app mount",
+      status: hasStandaloneMount ? "ready" : "missing",
+      ready: hasStandaloneMount,
+      detail: hasStandaloneMount ? "Family Care mounts without booting the Apex HQ app shell." : "Mount Family Care outside the Apex HQ shell.",
+    },
+    {
+      id: "apex-hq-navigation-free",
+      label: "Apex HQ nav free",
+      status: apexHqNavigationFree ? "clear" : "needs-cleanup",
+      ready: apexHqNavigationFree,
+      detail: apexHqNavigationFree ? "No contractor/customer/field navigation is required." : "Remove Family Care from Apex HQ navigation before release.",
+    },
+    {
+      id: "production-release-gate",
+      label: "Production release gate",
+      status: productionBlocked ? productionRouteStatus : "approved-private-release",
+      ready: productionBlocked,
+      detail: productionBlocked
+        ? "Production stays blocked/local-only until John approves a private family access model."
+        : "A private family release was explicitly approved after access-model approval.",
+    },
+  ];
+  const releaseNotes = [
+    "Local preview can serve Family Care for John's testing.",
+    "Production must keep Family Care blocked until the family access model is approved.",
+    "Do not add hosting, auth/session, provider, deploy, SMS, email, or push work in this prep slice.",
+    "Keep Family Care out of Apex HQ contractor, customer, field, and private cockpit navigation.",
+  ];
+
+  return {
+    readinessType: "apex-family-care-boundary-release-prep",
+    policy: APEX_FAMILY_CARE_BOUNDARY_RELEASE_POLICY,
+    localPreviewReady,
+    productionBlocked,
+    privateReleaseApproved,
+    familyAccessModelApproved,
+    productionRouteStatus,
+    checks,
+    releaseNotes,
+    nextApprovalNeeded: privateReleaseApproved
+      ? "Private family release path has approval evidence."
+      : "Approve family access model before any production, hosting, auth/session, provider, or remote-release work.",
+    receipt: {
+      receiptType: "apex-family-care-boundary-release-prep",
+      schemaVersion: 1,
+      generatedAt: cleanText(input.generatedAt, 40) || new Date().toISOString(),
+      policyId: APEX_FAMILY_CARE_BOUNDARY_RELEASE_POLICY.policyId,
+      ...APEX_FAMILY_CARE_BOUNDARY_RELEASE_POLICY,
+      metadata: {
+        localPreviewReady,
+        productionBlocked,
+        privateReleaseApproved,
+        familyAccessModelApproved,
+        productionRouteStatus,
+        checkCount: checks.length,
+        readyCheckCount: checks.filter((check) => check.ready).length,
+        releaseNoteCount: releaseNotes.length,
+        rawFamilyDetailsStoredInReceipt: false,
+        authSessionChanged: false,
+        schemaChanged: false,
+        deployChanged: false,
+        hostingChanged: false,
         noSends: true,
       },
     },
