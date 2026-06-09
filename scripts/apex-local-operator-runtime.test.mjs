@@ -7,6 +7,7 @@ import {
   buildApexLocalRuntimeStopPlan,
   buildApexLocalRuntimeCleanupPlan,
   buildApexLocalReadinessReceipt,
+  buildApexDesktopAppReadiness,
   buildApexShortcutSpec,
   cleanupApexLocalRuntimeProcesses,
   executeApexLocalRuntimeCleanupPlan,
@@ -138,6 +139,32 @@ test("Apex desktop shell launch plan uses Chrome or Edge app-mode and localhost 
     () => buildApexDesktopShellLaunchPlan({ appUrl: "https://app.apexhq.online/apex" }),
     /localhost/i,
   );
+});
+
+test("Apex desktop app readiness separates the current app-mode bridge from the local desktop target", () => {
+  const readiness = buildApexDesktopAppReadiness({
+    appUrl: "http://localhost:5173/apex",
+    windowsHost: true,
+    desktopShell: {
+      status: "focused",
+      appMode: true,
+      selectedBrowser: "chrome",
+    },
+  });
+
+  assert.equal(readiness.mode, "apex-local-desktop-app-readiness-v1");
+  assert.equal(readiness.status, "bridge-active");
+  assert.equal(readiness.target, "apex-local-desktop-app");
+  assert.equal(readiness.currentBridge, "chrome-app-mode-bridge");
+  assert.equal(readiness.currentBridgeDisplay, "Chrome/Edge app-mode bridge");
+  assert.equal(readiness.trueDesktopApp, false);
+  assert.equal(readiness.chromeEdgeAppModeBridge, true);
+  assert.equal(readiness.localhostInternalOnly, true);
+  assert.equal(readiness.localhostUserVisible, false);
+  assert.equal(readiness.localOnly, true);
+  assert.equal(readiness.windowsServiceRegistered, false);
+  assert.equal(readiness.schemaAuthSessionChanged, false);
+  assert.equal(readiness.secretsExposed, false);
 });
 
 test("Apex desktop shell prefers Chrome when Chrome and Edge are both installed", () => {
@@ -304,6 +331,19 @@ test("Apex local runtime receipt reports focused app-mode shell and installed sh
   assert.equal(receipt.desktopShell.launched, false);
   assert.equal(receipt.desktopShell.browser, "edge");
   assert.equal(receipt.desktopShell.duplicateServerSuppression, true);
+  assert.equal(receipt.desktopApp.target, "apex-local-desktop-app");
+  assert.equal(receipt.desktopApp.currentBridge, "edge-app-mode-bridge");
+  assert.equal(receipt.desktopApp.trueDesktopApp, false);
+  assert.equal(receipt.desktopApp.chromeEdgeAppModeBridge, true);
+  assert.equal(receipt.desktopApp.localhostUserVisible, false);
+  assert.equal(receipt.homeBase.mode, "apex-home-base-v1");
+  assert.equal(receipt.homeBase.identity.operatingRule, "This PC is Apex's dedicated home.");
+  assert.equal(receipt.homeBase.launch.userShouldSeeLocalhost, false);
+  assert.equal(receipt.homeBase.launch.localhostIsInternalPlumbing, true);
+  assert.equal(receipt.homeBase.runtime.brain.provider, "llama.cpp");
+  assert.equal(receipt.homeBase.runtime.brain.model, "gpt-oss:20b");
+  assert.equal(receipt.homeBase.selfEditLoop.activeBuilderAreas.includes("family-care"), true);
+  assert.match(receipt.homeBaseSummary, /This PC is Apex's dedicated home/i);
   assert.equal(receipt.shortcuts.status, "installed");
   assert.equal(receipt.shortcuts.installedCount, 2);
   assert.deepEqual(receipt.shortcuts.paths, [
@@ -704,6 +744,11 @@ test("Apex local status mode does not cleanup or spawn services", async () => {
   assert.equal(receipt.background.keepAlive, "30m");
   assert.equal(receipt.background.latency.profile.provider, "apex-latency-profiler");
   assert.equal(receipt.desktopShell.status, "not-run");
+  assert.equal(receipt.desktopApp.status, "not-opened");
+  assert.equal(receipt.desktopApp.currentBridge, "not-opened");
+  assert.equal(receipt.desktopApp.trueDesktopApp, false);
+  assert.equal(receipt.homeBase.mode, "apex-home-base-v1");
+  assert.equal(receipt.homeBase.launch.userShouldSeeLocalhost, false);
   assert.equal(receipt.shortcuts.status, "not-run");
   assert.equal(receipt.safety.windowsServiceRegistered, false);
 });

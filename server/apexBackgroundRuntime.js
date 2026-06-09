@@ -40,6 +40,9 @@ import {
   buildApexLatencyProfile,
 } from "../shared/apexVoiceTurnDiagnostics.js";
 import {
+  buildApexHomeBaseManifest,
+} from "../shared/apexHomeBaseManifest.js";
+import {
   APEX_LOCAL_AGENT_SPEED_KEEP_ALIVE,
   selectApexLocalAgentSpeedLane,
   buildApexStableResidencyPolicy,
@@ -366,6 +369,7 @@ export function buildApexBackgroundRuntimeStatus({
   keepWarm = null,
   agentSpeedBenchmarkHistory = null,
   liveTurnLatencyHistory = null,
+  homeBase = null,
   now = new Date().toISOString(),
   serverPid = process.pid,
   serverStartedAt = backgroundRuntimeStartedAt,
@@ -449,12 +453,21 @@ export function buildApexBackgroundRuntimeStatus({
     },
   });
   const liveTurnLatency = latencyProfile.liveTurn || {};
+  const homeBaseManifest = homeBase?.mode === "apex-home-base-v1"
+    ? homeBase
+    : buildApexHomeBaseManifest({
+        workspaceRoot: process.cwd(),
+        clientUrl: client.url || "http://localhost:5173/apex",
+        route: "/apex",
+        generatedAt: now,
+      });
 
   return Object.freeze({
     provider: "apex-background-runtime",
     version: "v0",
     status,
     generatedAt: now,
+    homeBase: homeBaseManifest,
     supervisor: Object.freeze({
       status: config.supervisorPid ? "reported" : "unknown",
       pid: config.supervisorPid || 0,

@@ -271,6 +271,12 @@ test("background status marks local workstation components without execution", (
   });
 
   assert.equal(status.status, "healthy");
+  assert.equal(status.homeBase.mode, "apex-home-base-v1");
+  assert.equal(status.homeBase.identity.operatingRule, "This PC is Apex's dedicated home.");
+  assert.equal(status.homeBase.launch.userShouldSeeLocalhost, false);
+  assert.equal(status.homeBase.launch.localhostIsInternalPlumbing, true);
+  assert.equal(status.homeBase.runtime.brain.provider, "llama.cpp");
+  assert.equal(status.homeBase.runtime.brain.model, "gpt-oss:20b");
   assert.equal(status.llamaCpp.ready, true);
   assert.equal(status.llamaCpp.selectedModel, "gpt-oss:20b");
   assert.equal(status.primaryRuntime.status, "resident");
@@ -355,5 +361,6 @@ test("background status degrades when infrastructure drops without exposing secr
   assert.equal(status.degradedReasons.includes("voice-not-ready"), true);
   assert.equal(status.safety.openAiUsed, false);
   assert.equal(status.safety.secretsExposed, false);
+  assert.equal(status.homeBase.identity.cloudOperatingPath, false);
   assert.doesNotMatch(JSON.stringify(status), /sk-background-secret-should-not-leak/i);
 });

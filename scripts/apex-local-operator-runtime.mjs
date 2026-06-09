@@ -21,6 +21,10 @@ import {
   APEX_BACKGROUND_RUNTIME_ENV,
   collectApexBackgroundRuntimeStatus,
 } from "../server/apexBackgroundRuntime.js";
+import {
+  buildApexHomeBaseManifest,
+  summarizeApexHomeBaseManifest,
+} from "../shared/apexHomeBaseManifest.js";
 
 const DEFAULT_API_URL = "http://localhost:4000/";
 const DEFAULT_CLIENT_URL = "http://localhost:5173/";
@@ -293,6 +297,49 @@ export function buildApexDesktopShellLaunchPlan({
       executable: candidate.executable,
       available: exists(candidate.executable),
     }))),
+  });
+}
+
+export function buildApexDesktopAppReadiness({
+  desktopShell = {},
+  appUrl = withPath(DEFAULT_CLIENT_URL, DEFAULT_APEX_ROUTE),
+  windowsHost = isWindows(),
+} = {}) {
+  const appModeBridge = Boolean(desktopShell.appMode);
+  const browserName = text(desktopShell.selectedBrowser || desktopShell.browser || "", 40);
+  const currentBridge = desktopShell.status === "not-run"
+    ? "not-opened"
+    : appModeBridge
+      ? `${browserName || "chromium"}-app-mode-bridge`
+      : desktopShell.status === "browser-tab-opened"
+        ? "system-browser-tab"
+        : "local-browser-bridge";
+  const currentBridgeDisplay = currentBridge === "not-opened"
+    ? "not opened"
+    : appModeBridge
+      ? "Chrome/Edge app-mode bridge"
+      : "browser tab bridge";
+  return Object.freeze({
+    mode: "apex-local-desktop-app-readiness-v1",
+    status: !windowsHost ? "not-windows" : currentBridge === "not-opened" ? "not-opened" : "bridge-active",
+    target: "apex-local-desktop-app",
+    targetDisplay: "Apex local desktop app",
+    currentBridge,
+    currentBridgeDisplay,
+    trueDesktopApp: false,
+    browserEngineBridge: currentBridge !== "not-opened",
+    chromeEdgeAppModeBridge: appModeBridge,
+    localhostInternalOnly: true,
+    localhostUserVisible: !appModeBridge,
+    localOnly: isLocalRuntimeUrl(appUrl),
+    appUrl,
+    nextImplementation: "Build a dedicated Apex desktop window that starts/reuses the local Apex runtime, opens /apex without making John find localhost, and keeps local server plumbing internal.",
+    windowsServiceRegistered: false,
+    startupRegistration: false,
+    trayAppAdded: false,
+    deployRequired: false,
+    schemaAuthSessionChanged: false,
+    secretsExposed: false,
   });
 }
 
@@ -1154,6 +1201,7 @@ export function buildApexLocalReadinessReceipt({
   appUrl = withPath(DEFAULT_CLIENT_URL, DEFAULT_APEX_ROUTE),
   opened = false,
   route = DEFAULT_APEX_ROUTE,
+  workspaceRoot = process.cwd(),
   statusOnly = false,
   keepWarmRequested = false,
   generatedAt = new Date().toISOString(),
@@ -1189,6 +1237,14 @@ export function buildApexLocalReadinessReceipt({
     !llamaReady ? "Start the local llama.cpp sidecar on localhost for Apex conversation." : "",
     entryReceipt.signInRequired ? "Sign in in the browser to open private Apex; allow microphone permission for local voice." : "",
   ].filter(Boolean);
+  const desktopAppReadiness = buildApexDesktopAppReadiness({ desktopShell, appUrl });
+  const homeBase = buildApexHomeBaseManifest({
+    workspaceRoot,
+    clientUrl: appUrl,
+    route,
+    generatedAt,
+    activeBuilderAreas: ["family-care"],
+  });
 
   return Object.freeze({
     mode: "apex-local-operator-runtime-v0",
@@ -1198,6 +1254,8 @@ export function buildApexLocalReadinessReceipt({
     route,
     opened,
     statusOnly: Boolean(statusOnly),
+    homeBase,
+    homeBaseSummary: summarizeApexHomeBaseManifest(homeBase),
     entry: entryReceipt,
     supervisor: Object.freeze({
       mode: "local-supervisor-v0",
@@ -1261,6 +1319,7 @@ export function buildApexLocalReadinessReceipt({
       windowsServiceRegistered: false,
       secretsExposed: false,
     }),
+    desktopApp: desktopAppReadiness,
     shortcuts: Object.freeze({
       mode: shortcuts.mode || "apex-desktop-shortcuts-v0",
       status: shortcuts.status || "not-run",
@@ -1796,7 +1855,7 @@ Options:
   --client-url=<url>           Local Vite/client base URL. Default: ${DEFAULT_CLIENT_URL}
   --route=<path>               Route to open. Default: ${DEFAULT_APEX_ROUTE}
   --open / --no-open           Open Apex Home after readiness. Default: --open
-  --desktop-shell              Open Apex in Chrome/Edge app mode. Default.
+  --desktop-shell              Open Apex in the temporary Chrome/Edge app-mode bridge. Default.
   --browser-tab                Open Apex in the normal system browser tab for troubleshooting.
   --desktop-shell-port=<port>  Local-only focus guard port. Default: ${DEFAULT_DESKTOP_SHELL_PORT}
   --install-shortcuts          Create/update Desktop and Start Menu Apex shortcuts. Default on Windows.
@@ -1813,7 +1872,7 @@ Options:
   --help                       Print this message.
 
 Safety:
-  Local-only launcher. It checks /api/ready, the protected /apex browser entry gate, and local provider status, warns about Apex-owned duplicate dev/watch processes unless --cleanup or --stop is explicit, starts local dev processes only when needed, opens /apex in a local Chrome/Edge app-mode shell by default, and does not call OpenAI, deploy, touch production, change schema/auth/session, register a Windows service, start on boot, bind LAN/public ports, or control unrelated desktop/browser/devices.
+  Local-only launcher. It checks /api/ready, the protected /apex browser entry gate, and local provider status, warns about Apex-owned duplicate dev/watch processes unless --cleanup or --stop is explicit, starts local dev processes only when needed, opens /apex in a local Chrome/Edge app-mode bridge by default, and does not call OpenAI, deploy, touch production, change schema/auth/session, register a Windows service, start on boot, bind LAN/public ports, or control unrelated desktop/browser/devices.
 `);
 }
 
@@ -1826,7 +1885,9 @@ function printReceipt(receipt = {}) {
   console.log(`API: ${receipt.api?.status}${receipt.api?.reused ? " (reused)" : receipt.api?.started ? " (started)" : ""}`);
   console.log(`Client: ${receipt.client?.status}${receipt.client?.reused ? " (reused)" : receipt.client?.started ? " (started)" : ""}`);
   console.log(`Entry: ${receipt.entry?.status || "unknown"}${receipt.entry?.signInRequired ? " / sign in, then allow mic" : ""}`);
+  console.log(`Home base: ${receipt.homeBase?.identity?.operatingRule || "This PC is Apex's dedicated home."}`);
   console.log(`Desktop shell: ${receipt.desktopShell?.status || "unknown"} / ${receipt.desktopShell?.appMode ? receipt.desktopShell?.appArg || APEX_DESKTOP_APP_MODE_ARG : "browser tab"} / port ${receipt.desktopShell?.port || DEFAULT_DESKTOP_SHELL_PORT}`);
+  console.log(`Desktop app: target ${receipt.desktopApp?.targetDisplay || "Apex local desktop app"} / current ${receipt.desktopApp?.currentBridgeDisplay || "browser bridge"}`);
   console.log(`Shortcuts: ${receipt.shortcuts?.status || "not-run"} (${receipt.shortcuts?.installedCount || 0} installed)`);
   console.log(`Primary brain: ${receipt.localIntelligence?.provider} (${receipt.localIntelligence?.providerStatus})`);
   console.log(`Primary runtime: ${receipt.localIntelligence?.primaryRuntime?.status || "unknown"} / ${receipt.localIntelligence?.primaryRuntime?.model || "gpt-oss:20b"} / ${receipt.localIntelligence?.primaryRuntime?.keepAliveStyle || "process-resident"}`);
