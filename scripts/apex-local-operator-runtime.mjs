@@ -97,6 +97,10 @@ function defaultShortcutIconCandidates(workspaceRoot = process.cwd()) {
   ]);
 }
 
+function quotePowerShellSingleQuoted(value = "") {
+  return `'${String(value ?? "").replace(/'/g, "''")}'`;
+}
+
 export function resolveApexShortcutIconLocation({
   workspaceRoot = process.cwd(),
   exists = existsSync,
@@ -114,8 +118,8 @@ export function buildApexShortcutSpec({
   appData = defaultAppData(),
   iconLocation = resolveApexShortcutIconLocation({ workspaceRoot }),
 } = {}) {
-  const targetPath = "cmd.exe";
-  const argumentsValue = `/c cd /d "${workspaceRoot}" && npm.cmd run apex:local`;
+  const targetPath = "powershell.exe";
+  const argumentsValue = `-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "Set-Location -LiteralPath ${quotePowerShellSingleQuoted(workspaceRoot)}; npm.cmd run apex:desktop"`;
   const shortcuts = [
     {
       id: "desktop",
@@ -141,6 +145,8 @@ export function buildApexShortcutSpec({
     targetExecutionString: `${targetPath} ${argumentsValue}`,
     iconLocation,
     localIconCandidates: defaultShortcutIconCandidates(workspaceRoot),
+    primaryLauncher: "npm.cmd run apex:desktop",
+    runtimeLauncher: "npm.cmd run apex:local",
     shortcuts: Object.freeze(shortcuts),
     secretsExposed: false,
   });
@@ -1930,7 +1936,7 @@ function printShortcutsReceipt(receipt = {}) {
   for (const shortcut of receipt.shortcuts || []) {
     console.log(`${shortcut.id}: ${shortcut.path} (${shortcut.status})`);
   }
-  console.log("Target: cmd.exe /c cd /d <repo> && npm.cmd run apex:local");
+  console.log("Target: powershell.exe -WindowStyle Hidden ... npm.cmd run apex:desktop");
   console.log("Icon: local apex.ico override when present, system placeholder otherwise");
 }
 

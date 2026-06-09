@@ -22,8 +22,9 @@ test("Apex Home Base v1 declares this PC as Apex dedicated local home", () => {
   assert.equal(manifest.identity.deployRequiredToRun, false);
   assert.equal(manifest.workspace.root, "C:\\Users\\jberl\\Documents\\New project");
   assert.equal(manifest.workspace.repoIsApexHomeBase, true);
-  assert.equal(manifest.launch.primaryCommand, "npm.cmd run apex:local");
+  assert.equal(manifest.launch.primaryCommand, "npm.cmd run apex:desktop");
   assert.equal(manifest.launch.shortcutCommand, "npm.cmd run apex:local -- --shortcuts-only");
+  assert.equal(manifest.launch.dedicatedDesktopApp, true);
   assert.equal(manifest.launch.userShouldSeeLocalhost, false);
   assert.equal(manifest.launch.localhostIsInternalPlumbing, true);
   assert.equal(manifest.runtime.brain.provider, "llama.cpp");
@@ -45,7 +46,7 @@ test("Apex Home Base v1 summary stays local and conversational", () => {
   const summary = summarizeApexHomeBaseManifest(manifest);
 
   assert.match(summary, /This PC is Apex's dedicated home/i);
-  assert.match(summary, /npm\.cmd run apex:local/i);
+  assert.match(summary, /npm\.cmd run apex:desktop/i);
   assert.match(summary, /llama\.cpp \/ gpt-oss:20b/i);
   assert.match(summary, /cloud audio default is off/i);
   assert.doesNotMatch(summary, /github required|deploy required/i);

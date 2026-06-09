@@ -53,7 +53,7 @@ export function buildApexHomeBaseManifest({
       secretsOpened: false,
     }),
     launch: Object.freeze({
-      primaryCommand: "npm.cmd run apex:local",
+      primaryCommand: "npm.cmd run apex:desktop",
       statusCommand: "npm.cmd run apex:local -- --status --json",
       shortcutCommand: "npm.cmd run apex:local -- --shortcuts-only",
       desktopShortcutName: "Apex.lnk",
@@ -61,6 +61,7 @@ export function buildApexHomeBaseManifest({
       route,
       userShouldSeeLocalhost: false,
       localhostIsInternalPlumbing: true,
+      dedicatedDesktopApp: true,
     }),
     runtime: Object.freeze({
       apiUrl: cleanText(apiUrl, 160) || DEFAULT_API_URL,
@@ -95,7 +96,7 @@ export function buildApexHomeBaseManifest({
       deployDefault: false,
       exactFileStagingOnly: true,
       defaultValidationCommands: Object.freeze([
-        "node --test --test-concurrency=1 scripts\\apex-local-operator-runtime.test.mjs shared\\apexHomeBaseManifest.test.js",
+        "node --test --test-concurrency=1 scripts\\apex-local-operator-runtime.test.mjs scripts\\apex-desktop-app.test.mjs shared\\apexHomeBaseManifest.test.js",
         "npm.cmd run verify:roles",
         "npm.cmd run verify:docs",
         "git diff --check",
@@ -131,7 +132,7 @@ export function summarizeApexHomeBaseManifest(manifest = {}) {
   const voice = runtime.voice || {};
   return [
     identity.operatingRule || "This PC is Apex's dedicated home.",
-    `Launch: ${launch.primaryCommand || "npm.cmd run apex:local"}; shortcut: ${launch.desktopShortcutName || "Apex.lnk"}.`,
+    `Launch: ${launch.primaryCommand || "npm.cmd run apex:desktop"}; shortcut: ${launch.desktopShortcutName || "Apex.lnk"}.`,
     `Brain: ${brain.provider || "llama.cpp"} / ${brain.model || "gpt-oss:20b"} local resident target.`,
     `Voice: ${voice.localSttTarget || "local STT"} + ${voice.localTtsTarget || "local TTS"}; cloud audio default is off.`,
     "Edits inspect, patch, validate, and commit locally first.",

@@ -109,12 +109,16 @@ test("Apex shortcut spec uses exact Windows target command and local icon overri
   });
 
   assert.equal(spec.mode, "apex-desktop-shortcuts-v0");
-  assert.equal(spec.targetExecutionString, 'cmd.exe /c cd /d "C:\\Users\\jberl\\Documents\\New project" && npm.cmd run apex:local');
+  assert.match(spec.targetExecutionString, /^powershell\.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command /);
+  assert.match(spec.targetExecutionString, /npm\.cmd run apex:desktop/);
+  assert.equal(spec.primaryLauncher, "npm.cmd run apex:desktop");
+  assert.equal(spec.runtimeLauncher, "npm.cmd run apex:local");
   assert.equal(spec.shortcuts.length, 2);
   assert.equal(spec.shortcuts[0].path, "C:\\Users\\jberl\\Desktop\\Apex.lnk");
   assert.equal(spec.shortcuts[1].path, "C:\\Users\\jberl\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Apex.lnk");
-  assert.equal(spec.shortcuts.every((shortcut) => shortcut.targetPath === "cmd.exe"), true);
-  assert.equal(spec.shortcuts.every((shortcut) => shortcut.arguments === '/c cd /d "C:\\Users\\jberl\\Documents\\New project" && npm.cmd run apex:local'), true);
+  assert.equal(spec.shortcuts.every((shortcut) => shortcut.targetPath === "powershell.exe"), true);
+  assert.equal(spec.shortcuts.every((shortcut) => /npm\.cmd run apex:desktop/.test(shortcut.arguments)), true);
+  assert.equal(spec.shortcuts.every((shortcut) => /-WindowStyle Hidden/.test(shortcut.arguments)), true);
   assert.match(spec.iconLocation, /apex\.ico,0$/i);
 });
 
@@ -315,7 +319,7 @@ test("Apex local runtime receipt reports focused app-mode shell and installed sh
       status: "installed",
       installedCount: 2,
       failedCount: 0,
-      targetExecutionString: 'cmd.exe /c cd /d "C:\\Users\\jberl\\Documents\\New project" && npm.cmd run apex:local',
+      targetExecutionString: "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command \"Set-Location -LiteralPath 'C:\\Users\\jberl\\Documents\\New project'; npm.cmd run apex:desktop\"",
       iconLocation: "C:\\Windows\\System32\\imageres.dll,15",
       shortcuts: [
         { path: "C:\\Users\\jberl\\Desktop\\Apex.lnk" },
