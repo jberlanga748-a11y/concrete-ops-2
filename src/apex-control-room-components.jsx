@@ -13485,24 +13485,26 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
           className="absolute inset-2 rounded-lg border border-cyan-200/12 shadow-[inset_0_0_32px_rgba(125,211,252,0.12)]"
           aria-hidden="true"
         />
-        <ApexCockpitSidebar activeSection={activeSection} onChange={onChange} />
+        {conversationFirst ? null : <ApexCockpitSidebar activeSection={activeSection} onChange={onChange} />}
 
         <div className="co-apex-cockpit-content-shell relative z-10 grid w-full min-w-0 max-w-full content-start gap-2 overflow-hidden p-3 lg:grid-rows-[auto_minmax(0,1fr)_auto] lg:p-4">
-          <header className="co-apex-cockpit-header flex w-full min-w-0 max-w-full flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="flex min-w-0 items-center gap-3">
-              <h2 className="text-3xl font-black uppercase leading-none tracking-normal text-white">Apex</h2>
-              <span className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.08em] text-slate-300"><ApexCockpitStatusDot tone={cockpitVoiceHealth.tone} /> {cockpitVoiceHealth.status}</span>
-            </div>
-            <div className="flex min-w-0 max-w-full flex-wrap gap-3 text-[11px] font-bold text-slate-300 md:justify-end">
-              <span className="inline-flex items-center gap-1"><Icon name="check" className="h-3.5 w-3.5" /> Private Apex</span>
-              <span className="inline-flex items-center gap-1"><Icon name="spark" className="h-3.5 w-3.5" /> Local-first</span>
-              <span className="hidden h-4 w-px bg-slate-700 md:inline-block" />
-              <span>Operator: {cockpitOperatorName}</span>
-              <span className="hidden h-4 w-px bg-slate-700 md:inline-block" />
-              <span>Company: Apex HQ</span>
-              <span>{cockpitClock}</span>
-            </div>
-          </header>
+          {conversationFirst ? null : (
+            <header className="co-apex-cockpit-header flex w-full min-w-0 max-w-full flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="flex min-w-0 items-center gap-3">
+                <h2 className="text-3xl font-black uppercase leading-none tracking-normal text-white">Apex</h2>
+                <span className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.08em] text-slate-300"><ApexCockpitStatusDot tone={cockpitVoiceHealth.tone} /> {cockpitVoiceHealth.status}</span>
+              </div>
+              <div className="flex min-w-0 max-w-full flex-wrap gap-3 text-[11px] font-bold text-slate-300 md:justify-end">
+                <span className="inline-flex items-center gap-1"><Icon name="check" className="h-3.5 w-3.5" /> Private Apex</span>
+                <span className="inline-flex items-center gap-1"><Icon name="spark" className="h-3.5 w-3.5" /> Local-first</span>
+                <span className="hidden h-4 w-px bg-slate-700 md:inline-block" />
+                <span>Operator: {cockpitOperatorName}</span>
+                <span className="hidden h-4 w-px bg-slate-700 md:inline-block" />
+                <span>Company: Apex HQ</span>
+                <span>{cockpitClock}</span>
+              </div>
+            </header>
+          )}
 
           <div className="co-apex-cockpit-mobile-section-nav w-full min-w-0 max-w-full overflow-hidden lg:hidden">
             <ApexControlRoomSectionNav activeSection={activeSection} onChange={onChange} variant="dark" />

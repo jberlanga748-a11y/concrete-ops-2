@@ -198,7 +198,10 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(cssSource, /co-apex-cockpit-context-card/);
   assert.match(cssSource, /co-apex-cockpit-header/);
   assert.match(cssSource, /co-apex-cockpit-live-console/);
+  assert.match(cssSource, /co-apex-life-status/);
+  assert.match(cssSource, /height: 100dvh !important/);
   assert.match(componentSource, /Apex context window/);
+  assert.match(componentSource, /conversationFirst \? null : <ApexCockpitSidebar/);
   assert.match(componentSource, /cockpitCommandOverlayMode/);
   assert.match(componentSource, /co-apex-cockpit-screen--overlay-\$\{cockpitCommandOverlayMode\}/);
   assert.match(componentSource, /openCockpitCommandOverlay/);

@@ -58183,7 +58183,18 @@ body:has(.co-field-mobile-reports-shell) .co-mobile-bottom-spacer {
 }
 
 .co-apex-cockpit-screen--conversation-first {
-  min-height: min(100dvh, 960px);
+  min-height: 100dvh !important;
+  height: 100dvh !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+}
+
+.co-apex-cockpit-screen--conversation-first .co-apex-cockpit-frame {
+  min-height: 100dvh !important;
+  height: 100dvh !important;
+  border: 0 !important;
 }
 
 .co-apex-cockpit-screen--conversation-first .co-apex-cockpit-content-shell,
@@ -58211,9 +58222,9 @@ body:has(.co-field-mobile-reports-shell) .co-mobile-bottom-spacer {
 }
 
 .co-apex-cockpit-screen--conversation-first .co-apex-life-body {
-  width: min(62vw, 740px);
-  max-width: min(62vw, 740px);
-  min-height: min(68dvh, 620px);
+  width: min(64vw, 760px);
+  max-width: min(64vw, 760px);
+  min-height: min(72dvh, 660px);
   pointer-events: auto;
 }
 
@@ -58222,26 +58233,26 @@ body:has(.co-field-mobile-reports-shell) .co-mobile-bottom-spacer {
   right: clamp(1rem, 2.4vw, 2rem);
   bottom: clamp(1rem, 2.4vw, 2rem);
   z-index: 80;
-  width: min(22rem, calc(100vw - 2rem));
+  width: min(19rem, calc(100vw - 2rem));
   pointer-events: auto;
 }
 
 .co-apex-cockpit-context-card {
-  max-height: 13rem;
+  max-height: 9.5rem;
   overflow: hidden;
   border: 1px solid rgba(125, 211, 252, 0.2);
   border-radius: 0.7rem;
   background:
     linear-gradient(180deg, rgba(15, 23, 42, 0.86), rgba(2, 6, 23, 0.92)),
     radial-gradient(circle at 100% 0%, rgba(56, 189, 248, 0.12), transparent 9rem);
-  padding: 0.85rem;
+  padding: 0.7rem;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.05),
     0 22px 48px -30px rgba(0, 0, 0, 0.82);
 }
 
 .co-apex-cockpit-context-scroll {
-  max-height: 7.5rem;
+  max-height: 5.5rem;
   overflow-y: auto;
   padding-right: 0.15rem;
 }
@@ -58255,6 +58266,7 @@ body:has(.co-field-mobile-reports-shell) .co-mobile-bottom-spacer {
 }
 
 .co-apex-cockpit-screen--conversation-first .co-apex-cockpit-frame > aside,
+.co-apex-cockpit-screen--conversation-first .co-apex-cockpit-frame > [aria-hidden="true"],
 .co-apex-cockpit-screen--conversation-first .co-apex-cockpit-header,
 .co-apex-cockpit-screen--conversation-first .co-apex-cockpit-focus-bar,
 .co-apex-cockpit-screen--conversation-first .co-apex-cockpit-stage-hud,
@@ -58273,6 +58285,7 @@ body:has(.co-field-mobile-reports-shell) .co-mobile-bottom-spacer {
 .co-apex-cockpit-screen--conversation-first .co-apex-cockpit-operator-stack,
 .co-apex-cockpit-screen--conversation-first .co-apex-cockpit-mobile-response,
 .co-apex-cockpit-screen--conversation-first .co-apex-cockpit-boundaries,
+.co-apex-cockpit-screen--conversation-first .co-apex-life-status,
 .co-apex-cockpit-screen--conversation-first [aria-label="Apex command stream"],
 .co-apex-cockpit-screen--conversation-first [aria-label="Apex local intelligence status"],
 .co-apex-cockpit-screen--conversation-first [aria-label="Apex local voice status"],
