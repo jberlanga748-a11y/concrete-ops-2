@@ -58182,10 +58182,86 @@ body:has(.co-field-mobile-reports-shell) .co-mobile-bottom-spacer {
   overflow: visible !important;
 }
 
+.co-apex-cockpit-screen--conversation-first {
+  min-height: min(100dvh, 960px);
+}
+
+.co-apex-cockpit-screen--conversation-first .co-apex-cockpit-content-shell,
+.co-apex-cockpit-screen--conversation-first .co-apex-cockpit-main-grid,
+.co-apex-cockpit-screen--conversation-first .co-apex-cockpit-focus-center {
+  inset: 0;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-width: none !important;
+  overflow: hidden !important;
+}
+
+.co-apex-cockpit-screen--conversation-first .co-apex-cockpit-content-shell,
+.co-apex-cockpit-screen--conversation-first .co-apex-cockpit-main-grid {
+  position: absolute;
+  display: block !important;
+  padding: 0 !important;
+}
+
+.co-apex-cockpit-screen--conversation-first .co-apex-cockpit-focus-center {
+  position: absolute;
+  display: grid !important;
+  place-items: center;
+  pointer-events: none;
+}
+
+.co-apex-cockpit-screen--conversation-first .co-apex-life-body {
+  width: min(62vw, 740px);
+  max-width: min(62vw, 740px);
+  min-height: min(68dvh, 620px);
+  pointer-events: auto;
+}
+
+.co-apex-cockpit-screen--conversation-first .co-apex-cockpit-context-window {
+  position: absolute;
+  right: clamp(1rem, 2.4vw, 2rem);
+  bottom: clamp(1rem, 2.4vw, 2rem);
+  z-index: 80;
+  width: min(22rem, calc(100vw - 2rem));
+  pointer-events: auto;
+}
+
+.co-apex-cockpit-context-card {
+  max-height: 13rem;
+  overflow: hidden;
+  border: 1px solid rgba(125, 211, 252, 0.2);
+  border-radius: 0.7rem;
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.86), rgba(2, 6, 23, 0.92)),
+    radial-gradient(circle at 100% 0%, rgba(56, 189, 248, 0.12), transparent 9rem);
+  padding: 0.85rem;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 22px 48px -30px rgba(0, 0, 0, 0.82);
+}
+
+.co-apex-cockpit-context-scroll {
+  max-height: 7.5rem;
+  overflow-y: auto;
+  padding-right: 0.15rem;
+}
+
+.co-apex-cockpit-screen--conversation-first.co-apex-cockpit-screen--overlay-open .co-apex-cockpit-context-card {
+  border-color: rgba(251, 146, 60, 0.42);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 0 0 1px rgba(251, 146, 60, 0.08),
+    0 26px 58px -32px rgba(249, 115, 22, 0.72);
+}
+
 .co-apex-cockpit-screen--conversation-first .co-apex-cockpit-frame > aside,
+.co-apex-cockpit-screen--conversation-first .co-apex-cockpit-header,
 .co-apex-cockpit-screen--conversation-first .co-apex-cockpit-focus-bar,
+.co-apex-cockpit-screen--conversation-first .co-apex-cockpit-stage-hud,
 .co-apex-cockpit-screen--conversation-first .co-apex-cockpit-stage-metrics,
 .co-apex-cockpit-screen--conversation-first .co-apex-cockpit-stage-command-dock,
+.co-apex-cockpit-screen--conversation-first .co-apex-cockpit-primary-voice-control,
+.co-apex-cockpit-screen--conversation-first .co-apex-cockpit-live-console,
 .co-apex-cockpit-screen--conversation-first .co-apex-cockpit-now-actions,
 .co-apex-cockpit-screen--conversation-first .co-apex-cockpit-debug-control,
 .co-apex-cockpit-screen--conversation-first .co-apex-cockpit-local-intelligence-panel,
@@ -58225,6 +58301,21 @@ body:has(.co-field-mobile-reports-shell) .co-mobile-bottom-spacer {
 .co-apex-cockpit-screen--conversation-first [aria-label="Apex operator loop lanes"],
 .co-apex-cockpit-screen--conversation-first [aria-label="Apex quick next turns"] {
   display: none !important;
+}
+
+@media (max-width: 767px) {
+  .co-apex-cockpit-screen--conversation-first .co-apex-life-body {
+    width: min(86vw, 28rem);
+    max-width: min(86vw, 28rem);
+    min-height: min(58dvh, 27rem) !important;
+  }
+
+  .co-apex-cockpit-screen--conversation-first .co-apex-cockpit-context-window {
+    left: 1rem;
+    right: 1rem;
+    bottom: 1rem;
+    width: auto;
+  }
 }
 
 @media (min-width: 768px) and (max-width: 1279px) {

@@ -5549,7 +5549,40 @@ const APEX_BUILDER_COMMAND_ROUTES = [
     intent: "clear-screen",
     commandAction: "clear-apex-panels",
     tone: "slate",
-    patterns: [/\b(clear the screen|hide panels|close panels|conversation first|back to apex home|hide everything|clean screen|go quiet|quiet down|calm standby|show me only if i need to see it|only show me if i need to see it|keep (it|the interface) minimal)\b/i],
+    patterns: [/\b(clear screen|clear the screen|hide panels|close panels|conversation first|back to apex home|hide everything|clean screen|go quiet|quiet down|calm standby|show me only if i need to see it|only show me if i need to see it|keep (it|the interface) minimal)\b/i],
+  },
+  {
+    id: "apex-show-diagnostics",
+    label: "Local diagnostics",
+    detail: "Apex matched this to hidden local diagnostics. It can reveal the current local brain, runtime, voice, skills, latency, VRAM, and benchmark receipts without making them default clutter.",
+    actionLabel: "Show diagnostics",
+    section: "apex",
+    intent: "show-local-diagnostics",
+    commandAction: "show-diagnostics-overlay",
+    tone: "blue",
+    patterns: [/\b(show|open|pull up|bring up)\b.*\b(diagnostics|status|local status|system status|brain status|runtime status|benchmarks?|receipts?|vram|gpu|what'?s working|what is working|what'?s not working|what is not working)\b/i],
+  },
+  {
+    id: "apex-show-voice-status",
+    label: "Voice status",
+    detail: "Apex matched this to hidden local voice diagnostics. It can reveal mic, STT, TTS, timing, and voice benchmark state only when John asks.",
+    actionLabel: "Show voice",
+    section: "apex",
+    intent: "show-local-voice-status",
+    commandAction: "show-voice-overlay",
+    tone: "blue",
+    patterns: [/\b(show|open|pull up|bring up)\b.*\b(voice status|mic status|microphone status|stt|tts|voice timing|voice benchmark|can you hear me)\b/i],
+  },
+  {
+    id: "apex-show-skills",
+    label: "Skills status",
+    detail: "Apex matched this to hidden private skills and agent routing status. It can reveal the skills/agents panel only when John asks.",
+    actionLabel: "Show skills",
+    section: "apex",
+    intent: "show-skills-agents-status",
+    commandAction: "show-skills-overlay",
+    tone: "violet",
+    patterns: [/\b(show|open|pull up|bring up)\b.*\b(skills?|agents?|agent status|what can you do|routes?|routing)\b/i],
   },
   {
     id: "apex-builder-check-app",
@@ -8479,6 +8512,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const [cockpitFocusDrawer, setCockpitFocusDrawer] = useState("");
   const [cockpitImmersiveMode, setCockpitImmersiveMode] = useState(true);
   const [cockpitSpotlightMode, setCockpitSpotlightMode] = useState(true);
+  const [cockpitCommandOverlayMode, setCockpitCommandOverlayMode] = useState("");
   const [cockpitConsoleTab, setCockpitConsoleTab] = useState("live");
   const [cockpitCommandRoute, setCockpitCommandRoute] = useState(() => buildApexCockpitCommandRoute(""));
   const [cockpitTurns, setCockpitTurns] = useState([]);
@@ -10906,8 +10940,10 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     setCockpitAgentActionNotice("");
     setCockpitLiveRunNotice("");
     setCockpitFocusDrawer("");
+    setCockpitCommandOverlayMode("");
     setCockpitConsoleTab("live");
     setCockpitSpotlightMode(true);
+    setCockpitImmersiveMode(true);
     setCockpitProactiveCheckIn(null);
     setCockpitActiveRunId("");
     setCockpitVoiceRetryReason("");
@@ -10917,6 +10953,16 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     cockpitPendingProactiveVoiceRef.current = null;
     setCockpitProactiveVoiceStatus("Watching");
     setCockpitVoiceNotice(notice);
+  }
+
+  function openCockpitCommandOverlay(mode = "diagnostics", notice = "Apex opened the requested local operator overlay.") {
+    const nextMode = ["diagnostics", "voice", "skills"].includes(mode) ? mode : "diagnostics";
+    setCockpitCommandOverlayMode(nextMode);
+    setCockpitSpotlightMode(true);
+    setCockpitImmersiveMode(true);
+    setCockpitConsoleTab(nextMode === "diagnostics" ? "live" : "loop");
+    setCockpitVoiceNotice(notice);
+    return true;
   }
 
   async function reviewCockpitRunMemory(status) {
@@ -12484,6 +12530,38 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
         onPanelCommand?.("", route);
         setCockpitVoiceNotice("Builder panel hidden. Apex is back to the conversation-first surface.");
       }
+      const commandOverlayModeByAction = {
+        "show-diagnostics-overlay": "diagnostics",
+        "show-voice-overlay": "voice",
+        "show-skills-overlay": "skills",
+      };
+      const nextCommandOverlayMode = commandOverlayModeByAction[route.commandAction] || "";
+      if (nextCommandOverlayMode) {
+        const overlayLabels = {
+          diagnostics: "local diagnostics",
+          voice: "local voice status",
+          skills: "skills and agent routing",
+        };
+        const overlayLabel = overlayLabels[nextCommandOverlayMode] || "local operator status";
+        const overlayAnswer = `I opened ${overlayLabel}. Say clear screen when you want the calm Apex surface back.`;
+        openCockpitCommandOverlay(nextCommandOverlayMode, `Apex opened ${overlayLabel}. Say clear screen to hide it.`);
+        setCockpitResponse({
+          answer: {
+            answer: overlayAnswer,
+            sourceLabels: ["Apex command overlay", overlayLabel],
+          },
+        });
+        setCockpitTurns((current) => current.map((turn) => (turn.id === turnId ? {
+          ...turn,
+          status: "answered",
+          answerSnippet: overlayAnswer,
+          sourceLabels: ["Apex command overlay", overlayLabel],
+          routeDetail: route.detail,
+        } : turn)));
+        markVoiceAnswerTiming({ source: "command-overlay", status: "answer-ready" });
+        void speakCockpitAnswer(overlayAnswer, { voiceTurnId: liveTurnId, voiceTurnStartedAt: liveTurnStartedAt, voiceInputMode: liveTurnInputMode });
+        return;
+      }
       if (route.commandAction === "clear-apex-panels") {
         onPanelCommand?.("", route);
         clearCockpitHomeSurface();
@@ -13392,7 +13470,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     setCockpitRecording(false);
   }
 
-  const cockpitScreenClassName = `co-apex-cockpit-screen co-apex-cockpit-screen--focus ${conversationFirst ? "co-apex-cockpit-screen--conversation-first" : ""} ${cockpitImmersiveMode ? "co-apex-cockpit-screen--immersive" : "co-apex-cockpit-screen--console"} ${cockpitSpotlightMode ? "co-apex-cockpit-screen--spotlight" : "co-apex-cockpit-screen--full-console"} w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-700/70 bg-slate-950 text-white shadow-[0_34px_80px_-40px_rgba(2,6,23,0.95)] ring-1 ring-cyan-300/10 lg:h-[calc(100vh-16px)]`;
+  const cockpitScreenClassName = `co-apex-cockpit-screen co-apex-cockpit-screen--focus ${conversationFirst ? "co-apex-cockpit-screen--conversation-first" : ""} ${cockpitImmersiveMode ? "co-apex-cockpit-screen--immersive" : "co-apex-cockpit-screen--console"} ${cockpitSpotlightMode ? "co-apex-cockpit-screen--spotlight" : "co-apex-cockpit-screen--full-console"} ${cockpitCommandOverlayMode ? `co-apex-cockpit-screen--overlay-open co-apex-cockpit-screen--overlay-${cockpitCommandOverlayMode}` : ""} w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-700/70 bg-slate-950 text-white shadow-[0_34px_80px_-40px_rgba(2,6,23,0.95)] ring-1 ring-cyan-300/10 lg:h-[calc(100vh-16px)]`;
 
   return (
     <section className={cockpitScreenClassName}>
@@ -13410,7 +13488,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
         <ApexCockpitSidebar activeSection={activeSection} onChange={onChange} />
 
         <div className="co-apex-cockpit-content-shell relative z-10 grid w-full min-w-0 max-w-full content-start gap-2 overflow-hidden p-3 lg:grid-rows-[auto_minmax(0,1fr)_auto] lg:p-4">
-          <header className="flex w-full min-w-0 max-w-full flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <header className="co-apex-cockpit-header flex w-full min-w-0 max-w-full flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="flex min-w-0 items-center gap-3">
               <h2 className="text-3xl font-black uppercase leading-none tracking-normal text-white">Apex</h2>
               <span className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.08em] text-slate-300"><ApexCockpitStatusDot tone={cockpitVoiceHealth.tone} /> {cockpitVoiceHealth.status}</span>
@@ -14687,7 +14765,50 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                   </div>
                 </div>
               </section>
-              <div className="grid min-w-0 gap-2">
+              <div className="co-apex-cockpit-context-window grid min-w-0 gap-2">
+                <div className="co-apex-cockpit-context-card grid min-w-0 gap-2" aria-label="Apex context window">
+                  <div className="flex min-w-0 items-center justify-between gap-2">
+                    <span className="min-w-0 truncate text-[10px] font-black uppercase tracking-[0.12em] text-cyan-200">
+                      {cockpitCommandOverlayMode
+                        ? cockpitCommandOverlayMode === "voice"
+                          ? "Voice"
+                          : cockpitCommandOverlayMode === "skills"
+                            ? "Skills"
+                            : "Diagnostics"
+                        : "Apex"}
+                    </span>
+                    <span className={`shrink-0 rounded-md border px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] ${cockpitCommandOverlayMode ? "border-orange-300/28 bg-orange-500/12 text-orange-100" : cockpitVoiceHealth.tone === "green" ? "border-emerald-300/22 bg-emerald-500/12 text-emerald-100" : cockpitVoiceHealth.tone === "amber" ? "border-orange-300/22 bg-orange-500/12 text-orange-100" : "border-cyan-300/18 bg-cyan-500/10 text-cyan-100"}`}>
+                      {cockpitCommandOverlayMode
+                        ? "Shown"
+                        : cockpitSpeaking
+                          ? "Talking"
+                          : cockpitRecording
+                            ? "Listening"
+                            : cockpitSubmitting
+                              ? "Thinking"
+                              : "Ready"}
+                    </span>
+                  </div>
+                  <div className="co-apex-cockpit-context-scroll min-w-0">
+                    <p className={`min-w-0 break-words text-[11px] font-bold leading-5 ${cockpitError ? "text-red-200" : "text-slate-100"}`}>
+                      {cockpitError
+                        || (cockpitCommandOverlayMode === "diagnostics"
+                          ? cockpitLocalIntelligence.summary
+                          : cockpitCommandOverlayMode === "voice"
+                            ? cockpitMicCalibrationSummary
+                            : cockpitCommandOverlayMode === "skills"
+                              ? `Apex has ${cockpitPersonalOsCore.availableRouteCount} active private routes and ${cockpitPersonalOsCore.plannedRouteCount} planned routes.`
+                              : cockpitAnswerText
+                                || cockpitBrowserTranscript
+                                || cockpitVoiceNotice
+                                || cockpitRecognitionError
+                                || "Talk to Apex or type here.")}
+                    </p>
+                    {cockpitLastQuestion ? (
+                      <p className="mt-2 min-w-0 break-words text-[10px] font-bold leading-4 text-slate-500">{cockpitLastQuestion}</p>
+                    ) : null}
+                  </div>
+                </div>
                 <form className="relative min-w-0" onSubmit={submitCockpitQuestion}>
                   <label className="sr-only" htmlFor="apex-cockpit-ask">Ask Apex anything</label>
                   <input

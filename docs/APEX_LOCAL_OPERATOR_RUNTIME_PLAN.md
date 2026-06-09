@@ -1,6 +1,6 @@
 # Apex Local Operator Runtime Plan
 
-Last updated: 2026-06-07
+Last updated: 2026-06-09
 
 Status: saved plan only. Do not implement from this document while another Builder thread is actively working unless John explicitly starts this phase. This plan exists so Apex work does not drift, duplicate completed Qwen/Self-Fix work, or forget the path to making Apex usable locally.
 
@@ -14,6 +14,8 @@ Status: saved plan only. Do not implement from this document while another Build
 
 2026-06-08: Apex Full Answer v1 is the current private local answer-continuity behavior. Ask Apex now has a no-teaser response contract: answer completely within the current output budget, do not end with "read the rest" / "I can provide the rest" style copy, and use compact sections instead of truncation language when John asks for full detail. Detailed/complex/coding route budgets and local lane caps were widened, long answer parser limits were raised for llama.cpp/Ollama/OpenAI-compatible parsing, and the latest typed answer area now scrolls instead of line-clamping to four lines.
 
+2026-06-09: Apex Avatar-Only Context Window v1 is the current private local cockpit behavior. The default `/apex` surface is Apex's avatar plus one compact bottom-right context window for transcript, prompt, and answer. The old operator controls, status chips, diagnostics, voice details, skills, command stream, and stage panels remain hidden machinery unless Apex is asked for that information. "Show diagnostics/status", "show voice", and "show skills/agents" now update the context window instead of turning the home surface back into a dashboard wall. "Clear screen" resets Apex back to the calm avatar-only surface. No model dropdowns, cloud calls, auth/session/schema changes, deployment, family-care integration, or permission changes were added.
+
 ### Private Local Operator Refinement Ledger
 
 Use this ledger after each phase. Do not treat these as blockers for the current pass unless John explicitly says to loop back now.
@@ -23,7 +25,7 @@ Use this ledger after each phase. Do not treat these as blockers for the current
 - Phase 3 voice-loop follow-up: voice should feel always ready on John's machine, with native local mic preferred, longer patience before turn close, no cut-off while John is talking, and clearer recovery when STT/TTS stalls. Browser permission workarounds remain a bridge, not the final target.
 - Phase 4 effort/model follow-up: keep tuning Auto from real turn receipts. Apex should explain its choice conversationally when asked, learn which prompts deserve full Normal output, and recommend manual reasoning/MoE/coder only when receipts prove it is worth the load.
 - Phase 5 answer-quality follow-up: tune full-answer style from real conversations. Apex should keep voice replies understandable, keep typed full answers complete, and add a clean "continue that section" conversation command without ever pretending the original answer was complete when it was not.
-- Phase 6 overlay follow-up: every hidden panel needs a spoken/typed command route, a compact open/close state, and no scroll-heavy dashboard wall on the home screen.
+- Phase 6 overlay follow-up: make the bottom-right context window smarter: expandable on command, collapsible by voice, able to show diagnostics in tabs inside the window, and never allowed to push content above or around the avatar.
 - Phase 7 checkpoint follow-up: each loop ends with local-only validation, exact changed-file staging, local commits, and a clean or intentionally documented working tree before the next loop begins.
 
 2026-06-07: Self-Fix v2 is complete. Apex now auto-dispatches safe local repair requests from `/apex` into the existing controlled Builder tooling, keeps Talk-To-Apex minimal, and reports short outcomes first. Evidence was saved under `outputs/apex-self-fix-v2/2026-06-07T07-19-57-445Z`.
