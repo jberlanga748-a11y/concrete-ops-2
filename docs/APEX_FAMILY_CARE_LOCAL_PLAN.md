@@ -403,7 +403,7 @@ Purpose: use real family feedback to simplify instead of piling on features.
 - Remove or simplify anything that felt like another chore.
 - Freeze what worked and write the next versioned improvement list.
 
-Do later when: one real family test week is complete.
+Status: gated. Do not build Phase 7A improvements until one real family test week is complete and reviewed. Per John's loop-back override, continue the active foundation loop through the next useful non-approval slice instead of guessing test-week improvements.
 
 ## Build Checklist
 
@@ -603,11 +603,18 @@ Phase 2A slice receipt (2026-06-09): added the first care-review polish slice. F
 
 ### Phase 2B - Next Care Review Follow-Up
 
-- [ ] Add a true edit/revise flow for mistaken note text, category, reporter, timestamp, doctor-summary flag, family-visible flag, and concern flag.
-- [ ] Add a reviewed/confirmed state separate from active when the family verifies a note.
+- [x] Add a true edit/revise flow for mistaken note text, category, reporter, timestamp, doctor-summary flag, family-visible flag, and concern flag.
+- [x] Add a reviewed/confirmed state separate from active when the family verifies a note.
 - [ ] Add a print/export path for the doctor visit brief only after the brief format is proven useful.
-- [ ] Add doctor-visit sections for "questions to ask", "changes since last visit", and "family concerns" without diagnosis or treatment advice.
-- [ ] Keep raw audio, raw transcripts, medical diagnosis, emergency replacement, real sends, cloud fallback, schema/auth/session changes, and Apex HQ exposure blocked unless explicitly approved.
+- [x] Add doctor-visit sections for "questions to ask", "changes since last visit", and "family concerns" without diagnosis or treatment advice.
+- [x] Keep raw audio, raw transcripts, medical diagnosis, emergency replacement, real sends, cloud fallback, schema/auth/session changes, and Apex HQ exposure blocked unless explicitly approved.
+
+Phase 2B slice receipt (2026-06-09): Phase 7A remains gated until one real family test week is complete, so the active loop advanced to the next useful local care-review slice instead of guessing feedback. Added a confirmed note status separate from active, note revision metadata, metadata-only revision receipts, and a Timeline Revise Note flow that can correct summary, category, reporter, timestamp, severity, body area, doctor-summary flag, family-visible flag, concern flag, and review status without deleting notes. Doctor Summary now includes practical appointment sections for questions to ask, changes since last visit, and family concerns while keeping family-note language only. Print/export remains deferred to Phase 2C until the brief format is proven useful. No raw audio, raw transcripts, raw prompts, raw responses, secrets, medical diagnosis, emergency replacement, real sends, cloud fallback, schema/auth/session changes, deploys, or Apex HQ exposure were added. Focused validation: `node --test --test-concurrency=1 shared/apexFamilyCare.test.js src/apex-family-care-components-import.test.js` passed 17/17.
+
+### Phase 2C - Doctor Brief Print And Export Polish
+
+- [ ] Add print/export only after the current doctor brief format is proven useful in family review.
+- [ ] Keep export copy family-note-only with no diagnosis, treatment advice, emergency claims, raw audio, raw transcripts, real sends, cloud fallback, schema/auth/session changes, or Apex HQ exposure.
 
 ### Phase 3A - Apex Care Coordinator Loop
 
@@ -705,13 +712,13 @@ Complete the Current Next Step, advance the plan, then continue through foundati
 
 ## Current Next Step
 
-Next active build slice: Phase 7A - Family Test Week Improvements.
+Next active build slice: Phase 3B - Next Care Coordinator Follow-Up.
 
 Open validation track: Phase 7 - Family Test Week remains incomplete until one real family test week is run and reviewed. Do not mark Phase 7 complete from synthetic data or builder prep work.
 
 Open approval-gated Phase 1A work: choose and approve the real family access model before adding real remote access, auth/session changes, provider setup, or family-device rollout.
 
-Open Phase 2B work: add true note editing/revision, reviewed/confirmed note state, and print/export doctor-brief polish after the current review lane proves useful.
+Open Phase 2C work: add print/export doctor-brief polish only after the current doctor brief format is proven useful in family review.
 
 Open Phase 3B work: add coordinator prompt resolution, daily digest review, and usefulness/friction tracking after the first coordinator packet slice proves helpful.
 

@@ -135,6 +135,7 @@ test("Apex Family Care still uses Phase 2 and Phase 3 shared helpers", () => {
     "APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_METHODS",
     "APEX_FAMILY_CARE_NOTIFICATION_DELIVERY_POLICY",
     "listApexFamilyCareNotes",
+    "reviseApexFamilyCareNote",
     "updateApexFamilyCareNote",
     "APEX_FAMILY_CARE_LOCAL_VOICE_INPUT_POLICY",
     "applyApexFamilyCareLocalVoiceInputControl",
@@ -144,10 +145,17 @@ test("Apex Family Care still uses Phase 2 and Phase 3 shared helpers", () => {
   }
 
   assert.match(componentSource, /Review Notes/);
+  assert.match(componentSource, /Revise Note/);
+  assert.match(componentSource, /Corrected note/);
+  assert.match(componentSource, /Save Revision/);
+  assert.match(componentSource, /Cancel Revision/);
+  assert.match(componentSource, /Confirm Reviewed/);
+  assert.match(componentSource, /Confirmed/);
   assert.match(componentSource, /Needs Review/);
   assert.match(componentSource, /Restore Active/);
   assert.match(componentSource, /Archive/);
   assert.match(componentSource, /Copy-Safe Doctor Visit Brief/);
+  assert.match(componentSource, /doctorVisitSections/);
   assert.match(componentSource, /Manual copy only/);
   assert.match(componentSource, /Care Signals/);
   assert.match(componentSource, /Missing update detector/);

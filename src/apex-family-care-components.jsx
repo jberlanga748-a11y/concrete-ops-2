@@ -18,6 +18,7 @@ import {
   createApexFamilyCareNote,
   getApexFamilyCareAccessGateSummary,
   listApexFamilyCareNotes,
+  reviseApexFamilyCareNote,
   updateApexFamilyCareNote,
 } from "../shared/apexFamilyCare.js";
 import {
@@ -222,6 +223,27 @@ function newTimelineFilters() {
   };
 }
 
+function noteTimestampToInputValue(timestamp) {
+  const parsed = new Date(timestamp);
+  return Number.isNaN(parsed.getTime()) ? toDatetimeInputValue() : toDatetimeInputValue(parsed);
+}
+
+function newRevisionDraft(note = null) {
+  return {
+    noteId: note?.id || "",
+    category: note?.category || "normal",
+    reporter: note?.reporter || "Dad",
+    timestamp: noteTimestampToInputValue(note?.timestamp),
+    summary: note?.summary || "",
+    severity: note?.severity || "unknown",
+    bodyArea: note?.bodyArea || "",
+    addToDoctorSummary: Boolean(note?.addToDoctorSummary),
+    familyVisible: note?.familyVisible !== false,
+    urgent: Boolean(note?.urgent),
+    status: note?.status === "archived" ? "needs-review" : note?.status || "needs-review",
+  };
+}
+
 function ToggleRow({ label, checked, onChange }) {
   return (
     <label className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-black text-slate-700">
@@ -239,18 +261,27 @@ function ToggleRow({ label, checked, onChange }) {
 function noteStatusTone(status) {
   if (status === "archived") return "slate";
   if (status === "needs-review") return "amber";
+  if (status === "confirmed") return "blue";
   return "green";
 }
 
-function CareNoteRow({ note, onStatusChange = null }) {
+function noteStatusLabel(status) {
+  if (status === "needs-review") return "Needs review";
+  if (status === "confirmed") return "Confirmed";
+  return status;
+}
+
+function CareNoteRow({ note, onStatusChange = null, onRevise = null }) {
   const showStatusActions = typeof onStatusChange === "function";
+  const showRevisionAction = typeof onRevise === "function";
   return (
     <div className="min-w-0 rounded-lg border border-slate-200 bg-white px-3 py-3">
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <Badge tone={noteTone(note)}>{note.categoryLabel}</Badge>
         <Badge tone={note.urgent ? "amber" : "slate"}>{note.urgent ? "Concern" : "Normal"}</Badge>
-        <Badge tone={noteStatusTone(note.status)}>{note.status === "needs-review" ? "Needs review" : note.status}</Badge>
+        <Badge tone={noteStatusTone(note.status)}>{noteStatusLabel(note.status)}</Badge>
         {note.addToDoctorSummary ? <Badge tone="blue">Doctor prep</Badge> : null}
+        {note.revisionCount ? <Badge tone="slate">Revised {note.revisionCount}x</Badge> : null}
         <span className="text-xs font-black text-slate-500">{formatCareTime(note.timestamp)}</span>
       </div>
       <p className="mt-2 break-words text-sm font-black text-slate-950">{note.summary}</p>
@@ -261,8 +292,16 @@ function CareNoteRow({ note, onStatusChange = null }) {
       </p>
       {showStatusActions ? (
         <div className="mt-3 flex flex-wrap gap-2">
+          {showRevisionAction ? (
+            <Button type="button" variant="secondary" onClick={() => onRevise(note)}>
+              <Icon name="document" /> Revise Note
+            </Button>
+          ) : null}
           <Button type="button" variant="secondary" onClick={() => onStatusChange(note.id, "needs-review")} disabled={note.status === "needs-review"}>
             <Icon name="alert" /> Needs Review
+          </Button>
+          <Button type="button" variant="secondary" onClick={() => onStatusChange(note.id, "confirmed")} disabled={note.status === "confirmed"}>
+            <Icon name="check" /> Confirm Reviewed
           </Button>
           <Button type="button" variant="secondary" onClick={() => onStatusChange(note.id, "active")} disabled={note.status === "active"}>
             <Icon name="check" /> Restore Active
@@ -682,13 +721,16 @@ function VoiceUpdateView({ voiceDraft, setVoiceDraft, onStart, onStop, onMute, o
   );
 }
 
-function TimelineView({ reviewState, timelineFilters, setTimelineFilters, onStatusChange }) {
+function TimelineView({ reviewState, revisionDraft, setRevisionDraft, timelineFilters, setTimelineFilters, onCancelRevision, onSaveRevision, onStartRevise, onStatusChange }) {
+  const editingRevision = Boolean(revisionDraft?.noteId);
+
   return (
     <div className="space-y-4">
       <Card className="p-4">
         <SectionHeader title="Care Timeline" description={reviewState.nextAction} />
-        <div className="mb-3 grid gap-2 md:grid-cols-2 xl:grid-cols-5">
-          <StatCard title="Active" value={reviewState.counts.active} detail="Visible in summaries" />
+        <div className="mb-3 grid gap-2 md:grid-cols-2 xl:grid-cols-6">
+          <StatCard title="Active" value={reviewState.counts.active} detail="Unconfirmed notes" />
+          <StatCard title="Confirmed" value={reviewState.counts.confirmed} detail="Reviewed by family" />
           <StatCard title="Needs Review" value={reviewState.counts.needsReview} detail="Check before relying on it" />
           <StatCard title="Archived" value={reviewState.counts.archived} detail="Hidden from summaries" />
           <StatCard title="Doctor Prep" value={reviewState.counts.doctorPrep} detail="Open appointment notes" />
@@ -698,7 +740,7 @@ function TimelineView({ reviewState, timelineFilters, setTimelineFilters, onStat
           <SelectField label="Status" value={timelineFilters.status} onChange={(event) => setTimelineFilters((current) => ({ ...current, status: event.target.value }))}>
             <option value="open">Open</option>
             <option value="all">All</option>
-            {APEX_FAMILY_CARE_NOTE_STATUSES.map((status) => <option key={status} value={status}>{status === "needs-review" ? "Needs Review" : status}</option>)}
+            {APEX_FAMILY_CARE_NOTE_STATUSES.map((status) => <option key={status} value={status}>{noteStatusLabel(status)}</option>)}
           </SelectField>
           <SelectField label="Category" value={timelineFilters.category} onChange={(event) => setTimelineFilters((current) => ({ ...current, category: event.target.value }))}>
             <option value="">All categories</option>
@@ -721,11 +763,52 @@ function TimelineView({ reviewState, timelineFilters, setTimelineFilters, onStat
         </div>
       </Card>
 
+      {editingRevision ? (
+        <Card className="p-4">
+          <SectionHeader title="Revise Note" description="Correct mistaken details locally without deleting the original note history." />
+          <div className="grid gap-3 lg:grid-cols-2">
+            <SelectField label="Category" value={revisionDraft.category} onChange={(event) => setRevisionDraft((current) => ({ ...current, category: event.target.value }))}>
+              {APEX_FAMILY_CARE_CATEGORIES.map((category) => <option key={category.id} value={category.id}>{category.label}</option>)}
+            </SelectField>
+            <SelectField label="Reporter" value={revisionDraft.reporter} onChange={(event) => setRevisionDraft((current) => ({ ...current, reporter: event.target.value }))}>
+              {APEX_FAMILY_CARE_REPORTERS.map((reporter) => <option key={reporter} value={reporter}>{reporter}</option>)}
+            </SelectField>
+            <InputField label="Time" type="datetime-local" value={revisionDraft.timestamp} onChange={(event) => setRevisionDraft((current) => ({ ...current, timestamp: event.target.value }))} />
+            <SelectField label="Severity" value={revisionDraft.severity} onChange={(event) => setRevisionDraft((current) => ({ ...current, severity: event.target.value }))}>
+              {APEX_FAMILY_CARE_SEVERITIES.map((severity) => <option key={severity} value={severity}>{severity}</option>)}
+            </SelectField>
+            <InputField label="Body area" value={revisionDraft.bodyArea} onChange={(event) => setRevisionDraft((current) => ({ ...current, bodyArea: event.target.value }))} placeholder="Optional" />
+            <SelectField label="Review status" value={revisionDraft.status} onChange={(event) => setRevisionDraft((current) => ({ ...current, status: event.target.value }))}>
+              {APEX_FAMILY_CARE_NOTE_STATUSES.map((status) => <option key={status} value={status}>{noteStatusLabel(status)}</option>)}
+            </SelectField>
+          </div>
+          <div className="mt-3">
+            <TextAreaField label="Corrected note" value={revisionDraft.summary} onChange={(event) => setRevisionDraft((current) => ({ ...current, summary: event.target.value }))} />
+          </div>
+          <div className="mt-3 grid gap-2 md:grid-cols-3">
+            <ToggleRow label="Add to doctor summary" checked={revisionDraft.addToDoctorSummary} onChange={(value) => setRevisionDraft((current) => ({ ...current, addToDoctorSummary: value }))} />
+            <ToggleRow label="Family visible" checked={revisionDraft.familyVisible} onChange={(value) => setRevisionDraft((current) => ({ ...current, familyVisible: value }))} />
+            <ToggleRow label="Concern flag" checked={revisionDraft.urgent} onChange={(value) => setRevisionDraft((current) => ({ ...current, urgent: value }))} />
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button type="button" onClick={onSaveRevision} disabled={!revisionDraft.summary.trim()}>
+              <Icon name="check" /> Save Revision
+            </Button>
+            <Button type="button" variant="secondary" onClick={onCancelRevision}>
+              <Icon name="refresh" /> Cancel Revision
+            </Button>
+            <Badge tone="green">No delete</Badge>
+            <Badge tone="green">Metadata-only receipt</Badge>
+            <Badge tone="green">No medical advice</Badge>
+          </div>
+        </Card>
+      ) : null}
+
       <Card className="p-4">
         <SectionHeader title="Review Notes" description="Mark mistaken or uncertain notes for review before they feed family or doctor prep." />
         <div className="space-y-2">
           {reviewState.notes.length ? reviewState.notes.map((note) => (
-            <CareNoteRow key={note.id} note={note} onStatusChange={onStatusChange} />
+            <CareNoteRow key={note.id} note={note} onRevise={onStartRevise} onStatusChange={onStatusChange} />
           )) : (
             <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm font-bold text-slate-600">No notes match these review filters.</div>
           )}
@@ -770,6 +853,19 @@ function DoctorSummaryView({ doctorSummary }) {
             <p key={line} className="break-words text-sm font-bold text-blue-900">{line}</p>
           ))}
         </div>
+      </div>
+      <div className="mb-3 grid gap-3 lg:grid-cols-3">
+        {(doctorSummary.doctorVisitSections || []).map((section) => (
+          <div key={section.id} className="rounded-lg border border-slate-200 bg-white p-3">
+            <p className="text-sm font-black text-slate-950">{section.title}</p>
+            <div className="mt-2 space-y-1">
+              {section.lines.map((line) => <p key={line} className="break-words text-sm font-bold text-slate-600">{line}</p>)}
+            </div>
+            <div className="mt-2">
+              <Badge tone="green">{section.safetyLabel}</Badge>
+            </div>
+          </div>
+        ))}
       </div>
       <div className="space-y-2">
         {doctorSummary.items.length ? doctorSummary.items.map((note) => <CareNoteRow key={note.id} note={note} />) : (
@@ -1383,6 +1479,7 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
   const [testWeekState, setTestWeekState] = useState(loadInitialTestWeekState);
   const [testWeekDraft, setTestWeekDraft] = useState(newTestWeekDraft);
   const [timelineFilters, setTimelineFilters] = useState(newTimelineFilters);
+  const [revisionDraft, setRevisionDraft] = useState(() => newRevisionDraft());
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1535,12 +1632,55 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
   }
 
   function handleUpdateNoteStatus(noteId, status) {
+    const now = new Date();
+    const patch = status === "confirmed"
+      ? {
+        status,
+        reviewConfirmedAt: now.toISOString(),
+        reviewConfirmedBy: "Family",
+      }
+      : { status };
     setNotes((current) => {
-      const updated = updateApexFamilyCareNote(current, noteId, { status }, new Date(), {
+      const updated = updateApexFamilyCareNote(current, noteId, patch, now, {
         maxNotes: APEX_FAMILY_CARE_MAX_LOCAL_NOTES,
       });
       return updated.changed ? updated.notes : current;
     });
+  }
+
+  function handleStartRevise(note) {
+    setRevisionDraft(newRevisionDraft(note));
+    setActiveScreen("timeline");
+  }
+
+  function handleCancelRevision() {
+    setRevisionDraft(newRevisionDraft());
+  }
+
+  function handleSaveRevision() {
+    if (!revisionDraft.noteId || !revisionDraft.summary.trim()) return;
+    const revision = {
+      category: revisionDraft.category,
+      reporter: revisionDraft.reporter,
+      timestamp: revisionDraft.timestamp || new Date().toISOString(),
+      summary: revisionDraft.summary,
+      severity: revisionDraft.severity,
+      bodyArea: revisionDraft.bodyArea,
+      addToDoctorSummary: revisionDraft.addToDoctorSummary,
+      familyVisible: revisionDraft.familyVisible,
+      urgent: revisionDraft.urgent,
+      status: revisionDraft.status,
+      revisedBy: revisionDraft.reporter,
+    };
+    setNotes((current) => {
+      const updated = reviseApexFamilyCareNote(current, revisionDraft.noteId, revision, new Date(), {
+        maxNotes: APEX_FAMILY_CARE_MAX_LOCAL_NOTES,
+      });
+      return updated.changed ? updated.notes : current;
+    });
+    setRevisionDraft(newRevisionDraft());
+    setTimelineFilters((current) => ({ ...current, status: "open" }));
+    setActiveScreen("timeline");
   }
 
   function handleSave() {
@@ -1654,8 +1794,13 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
     timeline: (
       <TimelineView
         reviewState={reviewState}
+        revisionDraft={revisionDraft}
+        setRevisionDraft={setRevisionDraft}
         timelineFilters={timelineFilters}
         setTimelineFilters={setTimelineFilters}
+        onCancelRevision={handleCancelRevision}
+        onSaveRevision={handleSaveRevision}
+        onStartRevise={handleStartRevise}
         onStatusChange={handleUpdateNoteStatus}
       />
     ),

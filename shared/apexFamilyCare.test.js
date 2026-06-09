@@ -20,6 +20,7 @@ import {
   detectApexFamilyCareRepeatedConcerns,
   getApexFamilyCareAccessGateSummary,
   listApexFamilyCareNotes,
+  reviseApexFamilyCareNote,
   updateApexFamilyCareNote,
 } from "./apexFamilyCare.js";
 
@@ -124,13 +125,22 @@ test("care note add, list, and update helpers keep notes compact and sorted", ()
 });
 
 test("care note review and archive states stay local and outside default summaries", () => {
-  assert.deepEqual(APEX_FAMILY_CARE_NOTE_STATUSES, ["active", "needs-review", "archived"]);
+  assert.deepEqual(APEX_FAMILY_CARE_NOTE_STATUSES, ["active", "confirmed", "needs-review", "archived"]);
   const now = new Date("2026-06-09T14:00:00.000Z");
   const active = createApexFamilyCareNote({
     id: "active-note",
     category: "normal",
     timestamp: "2026-06-09T10:00:00.000Z",
     summary: "Normal morning check-in.",
+  }, now);
+  const confirmed = createApexFamilyCareNote({
+    id: "confirmed-note",
+    category: "normal",
+    timestamp: "2026-06-09T10:30:00.000Z",
+    summary: "Family confirmed this check-in.",
+    status: "confirmed",
+    reviewConfirmedAt: "2026-06-09T12:00:00.000Z",
+    reviewConfirmedBy: "Dad",
   }, now);
   const review = createApexFamilyCareNote({
     id: "review-note",
@@ -147,15 +157,16 @@ test("care note review and archive states stay local and outside default summari
     summary: "Mistaken duplicate lunch note.",
     status: "archived",
   }, now);
-  const notes = [active, review, archived];
+  const notes = [active, confirmed, review, archived];
 
-  assert.deepEqual(listApexFamilyCareNotes(notes).map((note) => note.id), ["active-note"]);
-  assert.deepEqual(listApexFamilyCareNotes(notes, { status: "" }).map((note) => note.id), ["archived-note", "review-note", "active-note"]);
+  assert.deepEqual(listApexFamilyCareNotes(notes).map((note) => note.id), ["confirmed-note", "active-note"]);
+  assert.deepEqual(listApexFamilyCareNotes(notes, { status: "" }).map((note) => note.id), ["archived-note", "review-note", "confirmed-note", "active-note"]);
 
   const reviewState = buildApexFamilyCareReviewState(notes, { status: "open", doctorOnly: true });
 
-  assert.equal(reviewState.counts.total, 3);
+  assert.equal(reviewState.counts.total, 4);
   assert.equal(reviewState.counts.active, 1);
+  assert.equal(reviewState.counts.confirmed, 1);
   assert.equal(reviewState.counts.needsReview, 1);
   assert.equal(reviewState.counts.archived, 1);
   assert.deepEqual(reviewState.notes.map((note) => note.id), ["review-note"]);
@@ -199,6 +210,61 @@ test("updating note status preserves archived/review notes in local storage", ()
   assert.deepEqual(listApexFamilyCareNotes(restored.notes).map((note) => note.id), ["already-review"]);
 });
 
+test("revising care notes updates allowed fields and keeps revision receipts metadata-only", () => {
+  const notes = [
+    createApexFamilyCareNote({
+      id: "note-to-revise",
+      category: "pain",
+      reporter: "Dad",
+      timestamp: "2026-06-09T13:00:00.000Z",
+      summary: "Knee hurt after lunch.",
+      severity: "medium",
+      bodyArea: "knee",
+      addToDoctorSummary: true,
+      familyVisible: true,
+      urgent: true,
+      status: "needs-review",
+    }),
+  ];
+
+  const revised = reviseApexFamilyCareNote(notes, "note-to-revise", {
+    category: "mobility",
+    reporter: "Brother",
+    timestamp: "2026-06-09T14:00:00.000Z",
+    summary: "Needed extra time getting up after lunch.",
+    severity: "mild",
+    bodyArea: "legs",
+    addToDoctorSummary: true,
+    familyVisible: false,
+    urgent: false,
+    status: "confirmed",
+    revisedBy: "Brother",
+  }, new Date("2026-06-09T15:00:00.000Z"));
+
+  assert.equal(revised.changed, true);
+  assert.equal(revised.updatedNote.category, "mobility");
+  assert.equal(revised.updatedNote.reporter, "Brother");
+  assert.equal(revised.updatedNote.summary, "Needed extra time getting up after lunch.");
+  assert.equal(revised.updatedNote.severity, "mild");
+  assert.equal(revised.updatedNote.bodyArea, "legs");
+  assert.equal(revised.updatedNote.familyVisible, false);
+  assert.equal(revised.updatedNote.urgent, false);
+  assert.equal(revised.updatedNote.status, "confirmed");
+  assert.equal(revised.updatedNote.revisionCount, 1);
+  assert.equal(revised.updatedNote.revisedAt, "2026-06-09T15:00:00.000Z");
+  assert.equal(revised.updatedNote.revisedBy, "Brother");
+  assert.equal(revised.updatedNote.reviewConfirmedAt, "2026-06-09T15:00:00.000Z");
+  assert.equal(revised.updatedNote.reviewConfirmedBy, "Brother");
+  assert.equal(revised.receipt.rawNoteTextStoredInReceipt, false);
+  assert.equal(revised.receipt.metadata.changedFieldIds.includes("summary"), true);
+  assert.equal(revised.receipt.metadata.confirmed, true);
+  assert.equal(revised.receipt.metadata.rawNoteTextStoredInReceipt, false);
+  assert.equal(JSON.stringify(revised.receipt).includes("Needed extra time"), false);
+  assert.equal(revised.receipt.medicalDiagnosis, false);
+  assert.equal(revised.receipt.emergencyReplacement, false);
+  assert.equal(revised.receipt.cloudUsed, false);
+});
+
 test("today, doctor, and family summaries stay practical without medical claims", () => {
   const notes = [
     createApexFamilyCareNote({
@@ -235,6 +301,9 @@ test("today, doctor, and family summaries stay practical without medical claims"
   assert.equal(doctor.concernCount, 1);
   assert.equal(doctor.preparedLines.some((line) => line.includes("saved doctor-prep notes")), true);
   assert.equal(doctor.doctorPrepChecklist.some((item) => item.id === "review-flagged-notes"), true);
+  assert.equal(doctor.doctorVisitSections.some((section) => section.id === "questions-to-ask"), true);
+  assert.equal(doctor.doctorVisitSections.some((section) => section.id === "changes-since-last-visit"), true);
+  assert.equal(doctor.doctorVisitSections.some((section) => section.id === "family-concerns"), true);
   assert.equal(doctor.doctorVisitBriefLines.some((line) => line.includes("Family notes only")), true);
   assert.equal(doctor.manualCopyOnly, true);
   assert.equal(doctor.noSends, true);
