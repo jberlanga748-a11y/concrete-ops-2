@@ -4,6 +4,32 @@ Last updated: 2026-06-09
 
 Status: local source-of-truth plan. This is Apex private life-operator work, not Apex HQ customer/product work.
 
+## Mandatory Family Care Startup Rule
+
+Every Apex Family Care build turn must start by reading this file before planning or editing. This file is the local memory that survives context compaction.
+
+The builder must confirm:
+
+- the Boundary Rule
+- the North Star
+- the current `Current Next Step`
+- completed/frozen phases
+- the Continuation Rule
+- the Foundation Follow-Up Roadmap
+- privacy/safety rules
+- what deferred work belongs later instead of in the current phase
+
+The builder must not start random work just because an idea sounds useful. If John does not explicitly override the plan, work starts from `Current Next Step`.
+
+Before closing any phase, the builder must update this file with:
+
+- completed checklist items
+- validation evidence or receipt
+- any new deferred follow-up work
+- the next unchecked phase
+
+This rule exists so future Family Care work does not depend on chat memory, compacted context, or a builder trying to remember the plan from a previous turn.
+
 ## Boundary Rule
 
 Apex Family Care is its own private family PWA. It is Apex-powered, but it is not Apex HQ, not a contractor app module, and not a page family members should reach through John's business app or private Apex cockpit.
@@ -27,6 +53,21 @@ Apex Family Care exists to make Grandma's care easier on the family, especially 
 The system must reduce repeated "what is going on?" texts, help Dad prepare for doctor appointments, keep adult kids calmly informed, and protect Grandma's dignity and independence.
 
 If a feature makes the family type more, manage more, or feel watched instead of helped, it is off track.
+
+## Idea Filter
+
+New ideas are welcome, but they only belong in the active plan when they make Family Care easier, calmer, safer, or more useful for the real family care loop.
+
+An idea should move forward only if it helps at least one of these:
+
+- Dad has less explaining to do.
+- Brother can log or check care status faster.
+- Grandma stays respected and not watched.
+- Adult kids can understand what matters without a text-message pileup.
+- Doctor prep gets clearer.
+- Apex notices useful gaps without nagging or panicking.
+
+An idea should be deferred or rejected if it adds chores, exposes private details, creates surveillance, mixes in Apex HQ/business data, sends messages without approval, or tries to solve live voice before the app workflow is ready.
 
 ## One-Sentence Product Shape
 
@@ -292,6 +333,7 @@ Do later when: one real family test week is complete.
 - [x] Save local source-of-truth plan.
 - [x] Use this file as the first-read file for every Apex Family Care build prompt.
 - [x] Do not mix Family Care work with Apex core runtime/model/voice Builder threads.
+- [x] Add mandatory startup and idea-filter rules for future compacted-context turns.
 
 Done means: this plan exists locally and future work starts here.
 
@@ -419,12 +461,12 @@ When an entire phase is completed:
 3. Freeze that phase.
 4. Move to the next unchecked phase.
 
-## First Build Prompt
+## Family Care Builder Startup Prompt
 
-Use this when starting the dedicated Builder thread:
+Use this when starting or resuming a dedicated Family Care Builder thread:
 
 ```text
-Start Apex Family Care v0.
+Start or continue Apex Family Care.
 
 This is Apex private life-operator work only, not Apex HQ customer/product work.
 
@@ -437,7 +479,7 @@ First read:
 6. docs/APEX_FAMILY_CARE_LOCAL_PLAN.md
 
 Goal:
-Build Phase 1 from docs/APEX_FAMILY_CARE_LOCAL_PLAN.md without mixing it into Apex core runtime/model/voice work.
+Read docs/APEX_FAMILY_CARE_LOCAL_PLAN.md, confirm the Current Next Step, and build only that next unchecked Family Care phase unless John explicitly overrides the plan.
 
 Hard rules:
 - family-only
@@ -451,7 +493,12 @@ Hard rules:
 - no production data
 - no broad refactor
 
-Build only the next unchecked phase and update docs/APEX_FAMILY_CARE_LOCAL_PLAN.md when items are completed.
+Before closing the phase:
+- update checklist items
+- add validation evidence or a receipt
+- add any deferred follow-up work to the Foundation Follow-Up Roadmap
+- update Current Next Step
+- commit only Family Care-owned files
 ```
 
 ## Current Next Step
