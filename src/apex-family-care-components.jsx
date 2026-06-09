@@ -16,12 +16,17 @@ import {
   listApexFamilyCareNotes,
 } from "../shared/apexFamilyCare.js";
 import { getApexFamilyCareBrainInterfaceSummary } from "../shared/apexFamilyCareBrain.js";
+import {
+  APEX_FAMILY_CARE_VOICE_POLICY,
+  createApexFamilyCareVoiceNoteDraft,
+} from "../shared/apexFamilyCareVoice.js";
 
 const STORAGE_KEY = "apex-family-care-local-notes-v1";
 
 const SCREEN_LABELS = {
   today: "Today",
   add: "Add Update",
+  voice: "Voice Update",
   timeline: "Care Timeline",
   doctor: "Doctor Summary",
   family: "Family Summary",
@@ -103,6 +108,20 @@ function newDraft(categoryId = "normal") {
   };
 }
 
+function newVoiceDraft(reporter = "Dad") {
+  return {
+    reporter,
+    transcript: "",
+    followUpAnswer: "",
+    listening: false,
+    status: "idle",
+    followUpAsked: false,
+    parsed: null,
+    receipt: null,
+    notice: "Ready for one visible voice update.",
+  };
+}
+
 function ToggleRow({ label, checked, onChange }) {
   return (
     <label className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-black text-slate-700">
@@ -161,7 +180,7 @@ function CareSignalPanel({ missingUpdate, patternSummary }) {
   );
 }
 
-function TodayView({ notes, summary, onQuickAdd, setActiveScreen }) {
+function TodayView({ notes, summary, onQuickAdd, onVoiceStart, setActiveScreen }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
@@ -176,11 +195,16 @@ function TodayView({ notes, summary, onQuickAdd, setActiveScreen }) {
       <Card className="p-4">
         <SectionHeader
           title="Fast Update"
-          description="Short buttons for the common care notes."
+          description="Short buttons and visible voice entry for the common care notes."
           action={(
-            <Button type="button" variant="secondary" onClick={() => setActiveScreen("add")}>
-              <Icon name="plus" /> Add Details
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="secondary" onClick={onVoiceStart}>
+                <Icon name="quote" /> Voice Update
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => setActiveScreen("add")}>
+                <Icon name="plus" /> Add Details
+              </Button>
+            </div>
           )}
         />
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
@@ -242,6 +266,163 @@ function AddUpdateView({ draft, setDraft, onSave }) {
         <Badge tone="slate">No diagnosis</Badge>
       </div>
     </Card>
+  );
+}
+
+function VoiceUpdateView({ voiceDraft, setVoiceDraft, onStart, onCancel, onReview, onSave, onSaveNeedsReview }) {
+  const receipt = voiceDraft.receipt;
+  const parsed = voiceDraft.parsed;
+  const showFollowUp = voiceDraft.status === "needs-follow-up";
+  const showPreview = parsed?.noteReady;
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-4">
+        <SectionHeader
+          title="Voice Update"
+          description="Visible one-turn entry for spoken care notes. This screen does not auto-start the microphone or store raw audio."
+          action={(
+            <Badge tone={voiceDraft.listening ? "amber" : "green"}>
+              {voiceDraft.listening ? "Visible listening" : "Quiet until started"}
+            </Badge>
+          )}
+        />
+        <div className="mb-3 grid gap-2 md:grid-cols-3">
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+            <p className="text-sm font-black text-emerald-950">Start rule</p>
+            <p className="mt-1 text-sm font-bold text-emerald-800">Only after someone taps Start Voice Update.</p>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white p-3">
+            <p className="text-sm font-black text-slate-950">Recording rule</p>
+            <p className="mt-1 text-sm font-bold text-slate-600">No hidden/background recording and no raw audio storage.</p>
+          </div>
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+            <p className="text-sm font-black text-blue-950">Follow-up rule</p>
+            <p className="mt-1 text-sm font-bold text-blue-800">Apex asks at most one clarifying question.</p>
+          </div>
+        </div>
+
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
+          <TextAreaField
+            label="Recognized words or typed fallback"
+            value={voiceDraft.transcript}
+            onChange={(event) => setVoiceDraft((current) => ({
+              ...current,
+              transcript: event.target.value,
+              parsed: null,
+              receipt: null,
+              status: current.listening ? "listening" : "drafting",
+              notice: "Voice text changed. Review it before saving.",
+            }))}
+            placeholder="Example: Apex, log that Grandma's knee hurt after lunch."
+          />
+          <div className="space-y-3">
+            <SelectField
+              label="Reporter"
+              value={voiceDraft.reporter}
+              onChange={(event) => setVoiceDraft((current) => ({ ...current, reporter: event.target.value }))}
+            >
+              {APEX_FAMILY_CARE_REPORTERS.map((reporter) => <option key={reporter} value={reporter}>{reporter}</option>)}
+            </SelectField>
+            <div className="flex flex-col gap-2">
+              <Button type="button" onClick={onStart} disabled={voiceDraft.listening}>
+                <Icon name="quote" /> Start Voice Update
+              </Button>
+              <Button type="button" variant="secondary" onClick={onReview} disabled={!voiceDraft.transcript.trim()}>
+                <Icon name="check" /> Done Talking / Review
+              </Button>
+              <Button type="button" variant="secondary" onClick={onCancel}>
+                <Icon name="refresh" /> Cancel Voice Update
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Badge tone="green">Explicit start</Badge>
+          <Badge tone="green">No raw transcript receipt</Badge>
+          <Badge tone="green">No cloud STT</Badge>
+          <Badge tone="slate">Typed/tap fallback stays on</Badge>
+        </div>
+        <p className="mt-3 rounded-lg border border-slate-200 bg-white p-3 text-sm font-bold text-slate-600">{voiceDraft.notice}</p>
+      </Card>
+
+      {showFollowUp ? (
+        <Card className="border-amber-200 bg-amber-50 p-4">
+          <SectionHeader title="One Follow-up" description={parsed.followUpPrompt} />
+          <TextAreaField
+            label="Answer"
+            value={voiceDraft.followUpAnswer}
+            onChange={(event) => setVoiceDraft((current) => ({
+              ...current,
+              followUpAnswer: event.target.value,
+              parsed: null,
+              receipt: null,
+              notice: "Follow-up answer changed. Review it before saving.",
+            }))}
+            placeholder="Add one short detail, then review again."
+          />
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button type="button" onClick={onReview} disabled={!voiceDraft.followUpAnswer.trim()}>
+              <Icon name="check" /> Review With Answer
+            </Button>
+            <Button type="button" variant="secondary" onClick={onSaveNeedsReview}>
+              <Icon name="alert" /> Save Needs Review
+            </Button>
+            <Badge tone="amber">No second follow-up</Badge>
+          </div>
+        </Card>
+      ) : null}
+
+      {showPreview ? (
+        <Card className="p-4">
+          <SectionHeader title="Apex Structured Note" description="Review the compact note Apex will save for the family." />
+          <div className="rounded-lg border border-slate-200 bg-white p-3">
+            <div className="flex flex-wrap gap-2">
+              <Badge tone="blue">{parsed.categoryLabel}</Badge>
+              <Badge tone={parsed.urgent ? "amber" : "green"}>{parsed.urgent ? "Concern" : "Normal"}</Badge>
+              <Badge tone="slate">{parsed.severity}</Badge>
+              {parsed.bodyArea ? <Badge tone="slate">{parsed.bodyArea}</Badge> : null}
+              {parsed.addToDoctorSummary ? <Badge tone="blue">Doctor prep</Badge> : null}
+            </div>
+            <p className="mt-2 break-words text-sm font-black text-slate-950">{parsed.noteInput.summary}</p>
+            <p className="mt-1 text-xs font-bold text-slate-500">Reporter: {parsed.reporter}. Family visible: {parsed.familyVisible ? "yes" : "no"}.</p>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button type="button" onClick={onSave}>
+              <Icon name="check" /> Save Voice Note
+            </Button>
+            <Button type="button" variant="secondary" onClick={onCancel}>
+              <Icon name="refresh" /> Start Over
+            </Button>
+          </div>
+        </Card>
+      ) : null}
+
+      {receipt ? (
+        <Card className="p-4">
+          <SectionHeader title="Voice Receipt" description="Compact local metadata only. No raw audio, transcript, prompts, responses, secrets, or cloud use." />
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-3">
+              <span className="text-sm font-black text-slate-700">Explicit start</span>
+              <Badge tone={receipt.explicitUserStarted ? "green" : "red"}>{receipt.explicitUserStarted ? "Yes" : "No"}</Badge>
+            </div>
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-3">
+              <span className="text-sm font-black text-slate-700">Raw audio</span>
+              <Badge tone={receipt.rawAudioStored ? "red" : "green"}>{receipt.rawAudioStored ? "Stored" : "Not stored"}</Badge>
+            </div>
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-3">
+              <span className="text-sm font-black text-slate-700">Cloud</span>
+              <Badge tone={receipt.cloudUsed ? "red" : "green"}>{receipt.cloudUsed ? "Used" : "Unused"}</Badge>
+            </div>
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-3">
+              <span className="text-sm font-black text-slate-700">Follow-ups</span>
+              <Badge tone={receipt.metadata.followUpCount > APEX_FAMILY_CARE_VOICE_POLICY.maxFollowUps ? "red" : "green"}>{receipt.metadata.followUpCount}/{APEX_FAMILY_CARE_VOICE_POLICY.maxFollowUps}</Badge>
+            </div>
+          </div>
+        </Card>
+      ) : null}
+    </div>
   );
 }
 
@@ -314,7 +495,7 @@ function FamilySummaryView({ familySummary }) {
 function SettingsView() {
   return (
     <Card className="p-4">
-      <SectionHeader title="Notifications / Settings" description="Phase 2 keeps summaries compact and lock-screen copy private." />
+      <SectionHeader title="Notifications / Settings" description="Summaries stay compact, voice starts visibly, and lock-screen copy stays private." />
       <div className="grid gap-3 lg:grid-cols-3">
         <div className="rounded-lg border border-slate-200 bg-white p-3">
           <p className="text-sm font-black text-slate-950">Lock screen</p>
@@ -326,7 +507,7 @@ function SettingsView() {
         </div>
         <div className="rounded-lg border border-slate-200 bg-white p-3">
           <p className="text-sm font-black text-slate-950">Voice</p>
-          <p className="mt-1 text-sm font-bold text-slate-600">No hidden or background recording.</p>
+          <p className="mt-1 text-sm font-bold text-slate-600">Visible start only. No hidden or background recording.</p>
         </div>
       </div>
     </Card>
@@ -346,7 +527,7 @@ function AccessView({ gate, standalone = false }) {
   );
 }
 
-function HealthView({ gate, summary }) {
+function HealthView({ gate, summary, latestVoiceReceipt }) {
   const brainInterface = getApexFamilyCareBrainInterfaceSummary();
   const healthItems = [
     ["Public access", gate.publicAccess ? "Open" : "Closed", gate.publicAccess ? "red" : "green"],
@@ -360,6 +541,10 @@ function HealthView({ gate, summary }) {
     ["Pattern detector", summary?.repeatedConcernPatterns ? "On" : "Off", summary?.repeatedConcernPatterns ? "green" : "amber"],
     ["Apex care brain", brainInterface.status === "ready" ? "Ready" : "Off", brainInterface.status === "ready" ? "green" : "amber"],
     ["Medication control", brainInterface.medicationControl ? "On" : "Off", brainInterface.medicationControl ? "red" : "green"],
+    ["Voice explicit start", APEX_FAMILY_CARE_VOICE_POLICY.explicitUserStartedRequired ? "Required" : "Off", APEX_FAMILY_CARE_VOICE_POLICY.explicitUserStartedRequired ? "green" : "red"],
+    ["Voice hidden recording", APEX_FAMILY_CARE_VOICE_POLICY.hiddenRecording ? "On" : "Off", APEX_FAMILY_CARE_VOICE_POLICY.hiddenRecording ? "red" : "green"],
+    ["Voice follow-up limit", APEX_FAMILY_CARE_VOICE_POLICY.maxFollowUps, "green"],
+    ["Latest voice receipt", latestVoiceReceipt ? latestVoiceReceipt.metadata.category : "None", latestVoiceReceipt ? "blue" : "slate"],
   ];
 
   return (
@@ -381,6 +566,8 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
   const [activeScreen, setActiveScreen] = useState("today");
   const [notes, setNotes] = useState(loadInitialNotes);
   const [draft, setDraft] = useState(() => newDraft("normal"));
+  const [voiceDraft, setVoiceDraft] = useState(() => newVoiceDraft("Dad"));
+  const [latestVoiceReceipt, setLatestVoiceReceipt] = useState(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -402,6 +589,16 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
     setActiveScreen("add");
   }
 
+  function handleStartVoiceUpdate() {
+    setVoiceDraft((current) => ({
+      ...newVoiceDraft(current.reporter),
+      listening: true,
+      status: "listening",
+      notice: "Visible voice update started. Speak the short update, then enter the recognized words or typed fallback and review.",
+    }));
+    setActiveScreen("voice");
+  }
+
   function handleSave() {
     const saved = createApexFamilyCareNote({
       ...draft,
@@ -413,15 +610,88 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
     setActiveScreen("today");
   }
 
+  function reviewVoiceDraft(options = {}) {
+    setVoiceDraft((current) => {
+      const followUpCount = options.forceFollowUpLimit ? APEX_FAMILY_CARE_VOICE_POLICY.maxFollowUps : current.followUpAsked ? 1 : 0;
+      const parsed = createApexFamilyCareVoiceNoteDraft({
+        transcript: current.transcript,
+        followUpAnswer: current.followUpAsked ? current.followUpAnswer : "",
+        followUpCount,
+        reporter: current.reporter,
+        inputMode: "visible-transcript",
+        explicitUserStarted: true,
+      });
+      return {
+        ...current,
+        listening: false,
+        status: parsed.needsFollowUp ? "needs-follow-up" : "ready",
+        followUpAsked: parsed.needsFollowUp || current.followUpAsked,
+        parsed,
+        receipt: parsed.receipt,
+        notice: parsed.needsFollowUp
+          ? "Apex needs one detail before saving. It will not ask a second follow-up."
+          : "Apex turned this into a structured care note. Review and save it locally.",
+      };
+    });
+  }
+
+  function saveVoiceParsed(parsed, reporter) {
+    const saved = createApexFamilyCareNote({
+      ...parsed.noteInput,
+      id: `family-care-voice-${Date.now()}`,
+      reporter: reporter || parsed.noteInput.reporter,
+      timestamp: parsed.noteInput.timestamp || new Date().toISOString(),
+    });
+    setNotes((current) => addApexFamilyCareNote(current, saved));
+    setLatestVoiceReceipt(parsed.receipt);
+    setVoiceDraft(newVoiceDraft(saved.reporter));
+    setActiveScreen("today");
+  }
+
+  function handleSaveVoiceDraft() {
+    if (voiceDraft.parsed?.noteReady) {
+      saveVoiceParsed(voiceDraft.parsed, voiceDraft.reporter);
+      return;
+    }
+    reviewVoiceDraft();
+  }
+
+  function handleSaveVoiceNeedsReview() {
+    const parsed = createApexFamilyCareVoiceNoteDraft({
+      transcript: voiceDraft.transcript,
+      followUpAnswer: "",
+      followUpCount: APEX_FAMILY_CARE_VOICE_POLICY.maxFollowUps,
+      reporter: voiceDraft.reporter,
+      inputMode: "visible-transcript",
+      explicitUserStarted: true,
+    });
+    saveVoiceParsed(parsed, voiceDraft.reporter);
+  }
+
+  function handleCancelVoiceUpdate() {
+    setVoiceDraft((current) => newVoiceDraft(current.reporter));
+  }
+
   const screenContent = {
-    today: <TodayView notes={sortedNotes} summary={todaySummary} onQuickAdd={handleQuickAdd} setActiveScreen={setActiveScreen} />,
+    today: <TodayView notes={sortedNotes} summary={todaySummary} onQuickAdd={handleQuickAdd} onVoiceStart={handleStartVoiceUpdate} setActiveScreen={setActiveScreen} />,
     add: <AddUpdateView draft={draft} setDraft={setDraft} onSave={handleSave} />,
+    voice: (
+      <VoiceUpdateView
+        voiceDraft={voiceDraft}
+        setVoiceDraft={setVoiceDraft}
+        onStart={handleStartVoiceUpdate}
+        onCancel={handleCancelVoiceUpdate}
+        onReview={() => reviewVoiceDraft()}
+        onSave={handleSaveVoiceDraft}
+        onSaveNeedsReview={handleSaveVoiceNeedsReview}
+      />
+    ),
     timeline: <TimelineView notes={sortedNotes} />,
     doctor: <DoctorSummaryView doctorSummary={doctorSummary} />,
     family: <FamilySummaryView familySummary={familySummary} />,
     settings: <SettingsView />,
     access: <AccessView gate={gate} standalone={standalone} />,
-    health: <HealthView gate={gate} summary={todaySummary} />,
+    health: <HealthView gate={gate} summary={todaySummary} latestVoiceReceipt={latestVoiceReceipt} />,
   };
 
   return (
@@ -460,6 +730,26 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
               <Badge tone="green">No customer/field access</Badge>
               <Badge tone="green">No raw audio</Badge>
               <Badge tone="green">No diagnosis</Badge>
+            </div>
+          </Card>
+          <Card className="p-4">
+            <SectionHeader
+              title="Voice Status"
+              description={latestVoiceReceipt ? "Latest visible voice note receipt is metadata-only." : "Voice starts only from the visible Voice Update control."}
+            />
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3">
+                <span className="text-sm font-black text-slate-700">Hidden recording</span>
+                <Badge tone={APEX_FAMILY_CARE_VOICE_POLICY.hiddenRecording ? "red" : "green"}>{APEX_FAMILY_CARE_VOICE_POLICY.hiddenRecording ? "On" : "Off"}</Badge>
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3">
+                <span className="text-sm font-black text-slate-700">Latest category</span>
+                <Badge tone={latestVoiceReceipt ? "blue" : "slate"}>{latestVoiceReceipt?.metadata?.category || "None"}</Badge>
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3">
+                <span className="text-sm font-black text-slate-700">Follow-up used</span>
+                <Badge tone="green">{latestVoiceReceipt?.metadata?.followUpCount || 0}/{APEX_FAMILY_CARE_VOICE_POLICY.maxFollowUps}</Badge>
+              </div>
             </div>
           </Card>
           <Card className="p-4">

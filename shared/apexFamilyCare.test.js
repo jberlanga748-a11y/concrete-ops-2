@@ -23,6 +23,7 @@ test("Family Care route and required Phase 1 screens are declared", () => {
   assert.deepEqual(APEX_FAMILY_CARE_REQUIRED_SCREENS, [
     "today",
     "add",
+    "voice",
     "timeline",
     "doctor",
     "family",

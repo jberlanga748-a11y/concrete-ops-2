@@ -253,13 +253,15 @@ Phase 3.5 receipt (2026-06-09): corrected the Family Care boundary so it is Apex
 
 ### Phase 4 - Voice-First Entry
 
-- [ ] Add voice note flow from Apex.
-- [ ] Add one-follow-up limit for unclear notes.
-- [ ] Add push-to-talk or visible listening mode for household device/tablet.
-- [ ] Add fallback typed/tap entry.
-- [ ] Add no-hidden-recording tests/receipts.
+- [x] Add voice note flow from Apex.
+- [x] Add one-follow-up limit for unclear notes.
+- [x] Add push-to-talk or visible listening mode for household device/tablet.
+- [x] Add fallback typed/tap entry.
+- [x] Add no-hidden-recording tests/receipts.
 
 Done means: Dad/Brother/Grandma can speak short updates and Apex turns them into structured notes.
+
+Phase 4 receipt (2026-06-09): added a standalone Family Care Voice Update screen and Today shortcut. The flow starts quiet, requires a visible user action, accepts recognized spoken words or typed fallback text, turns the update into a compact structured care note, asks at most one follow-up for unclear notes, and saves metadata-only voice receipts. No browser microphone auto-start, hidden/background recording, raw audio storage, raw transcript receipts, cloud STT, browser SpeechRecognition, fetch path, schema/auth/session change, deploy, customer/field/demo exposure, medical diagnosis, emergency replacement claim, or Apex HQ route/nav reintegration was added. Focused validation: `node --test --test-concurrency=1 shared/apexFamilyCare.test.js shared/apexFamilyCareBrain.test.js shared/apexFamilyCareVoice.test.js src/apex-family-care-components-import.test.js src/pwa-config.test.js shared/permissions.test.js src/app-routing.test.js src/navigation-utils.test.js src/mobile-nav-utils.test.js src/app-navigation-components-import.test.js` passed 95/95.
 
 ### Phase 5 - Notifications
 

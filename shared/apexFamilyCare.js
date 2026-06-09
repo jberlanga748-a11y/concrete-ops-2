@@ -23,6 +23,7 @@ export const APEX_FAMILY_CARE_SOURCES = ["tap", "typed", "voice", "imported", "s
 export const APEX_FAMILY_CARE_REQUIRED_SCREENS = [
   "today",
   "add",
+  "voice",
   "timeline",
   "doctor",
   "family",

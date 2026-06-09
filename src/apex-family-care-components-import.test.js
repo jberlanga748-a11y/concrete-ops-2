@@ -28,7 +28,7 @@ test("Apex Family Care has a standalone PWA entry outside the Apex HQ app", () =
 test("Apex Family Care page contains family screens and no hidden mic APIs", () => {
   const componentSource = fs.readFileSync(new URL("./apex-family-care-components.jsx", import.meta.url), "utf8");
 
-  for (const label of ["Today", "Add Update", "Care Timeline", "Doctor Summary", "Family Summary", "Settings", "Family Access", "Apex Health"]) {
+  for (const label of ["Today", "Add Update", "Voice Update", "Care Timeline", "Doctor Summary", "Family Summary", "Settings", "Family Access", "Apex Health"]) {
     assert.match(componentSource, new RegExp(label));
   }
 
@@ -36,6 +36,11 @@ test("Apex Family Care page contains family screens and no hidden mic APIs", () 
   assert.match(componentSource, /Opens directly without Apex HQ/);
   assert.match(componentSource, /No raw audio/);
   assert.match(componentSource, /No diagnosis/);
+  assert.match(componentSource, /createApexFamilyCareVoiceNoteDraft/);
+  assert.match(componentSource, /APEX_FAMILY_CARE_VOICE_POLICY/);
+  assert.match(componentSource, /Start Voice Update/);
+  assert.match(componentSource, /Done Talking \/ Review/);
+  assert.match(componentSource, /Save Needs Review/);
   assert.doesNotMatch(componentSource, /getUserMedia|MediaRecorder|navigator\.mediaDevices|ApexMciWave|windows-mci-waveaudio|native-voice/i);
   assert.doesNotMatch(componentSource, /fetch\(/);
 });
@@ -49,6 +54,7 @@ test("Apex Family Care still uses Phase 2 and Phase 3 shared helpers", () => {
     "buildApexFamilyCareFamilySummary",
     "buildApexFamilyCareTodaySummary",
     "getApexFamilyCareBrainInterfaceSummary",
+    "createApexFamilyCareVoiceNoteDraft",
     "listApexFamilyCareNotes",
   ]) {
     assert.match(componentSource, new RegExp(helperName));
@@ -58,5 +64,7 @@ test("Apex Family Care still uses Phase 2 and Phase 3 shared helpers", () => {
   assert.match(componentSource, /Missing update detector/);
   assert.match(componentSource, /Pattern detector/);
   assert.match(componentSource, /Medication control/);
+  assert.match(componentSource, /Voice explicit start/);
+  assert.match(componentSource, /Voice hidden recording/);
   assert.doesNotMatch(componentSource, /getUserMedia|MediaRecorder|navigator\.mediaDevices|fetch\(/i);
 });
