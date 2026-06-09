@@ -8,6 +8,20 @@ Status: saved plan only. Do not implement from this document while another Build
 
 2026-06-08: Apex Native Shell v1 is the current private local launch default. `npm.cmd run apex:local` now opens `/apex` in the existing Chrome/Edge app-mode desktop shell by default so John does not have to work from a visible localhost tab. `--browser-tab` remains the explicit troubleshooting fallback when normal browser mic/session debugging is needed. The launcher still stays local-only, prepares llama.cpp GPT-OSS by default, keeps Ollama as legacy/manual fallback only, creates/refreshes local Windows shortcuts on Windows, and does not add a Windows service, boot registration, tray app, LAN/public binding, cloud fallback, deploy, schema/auth/session change, production touch, or unrelated desktop control.
 
+2026-06-08 iterative rule: each private Apex local operator phase must leave two things behind before Codex moves on: a local commit/checkpoint for the working change and a refinement note for what still needs to improve in that same phase. After the first pass through the active phases, the next pass loops back through those refinement notes in order instead of inventing random new work.
+
+### Private Local Operator Refinement Ledger
+
+Use this ledger after each phase. Do not treat these as blockers for the current pass unless John explicitly says to loop back now.
+
+- Phase 1 launch/native shell follow-up: Chrome/Edge app-mode is only the temporary bridge. The next refinement is a true private Windows-native shell/runtime that does not require John to think about browser tabs or localhost, keeps the server bound locally, and still avoids services/boot hooks until approved.
+- Phase 2 avatar-first UI follow-up: diagnostics, status chips, benchmarks, Builder, patches, and receipts should stay hidden behind command-revealed overlays. The default screen should be Apex avatar, voice state, conversation strip, and optional prompt/transcript only.
+- Phase 3 voice-loop follow-up: voice should feel always ready on John's machine, with native local mic preferred, longer patience before turn close, no cut-off while John is talking, and clearer recovery when STT/TTS stalls. Browser permission workarounds remain a bridge, not the final target.
+- Phase 4 effort/model follow-up: effort should be automatic by default. Apex should decide fast, normal, coding, or manual-deep recommendation from the request and receipts; John should not manage a dropdown for everyday talking.
+- Phase 5 answer-quality follow-up: Apex should stop ending with "read the rest" style truncation. It should answer fully when John asks for full detail, summarize only when the turn is voice-short or explicitly fast, and keep continuation available in the conversation strip.
+- Phase 6 overlay follow-up: every hidden panel needs a spoken/typed command route, a compact open/close state, and no scroll-heavy dashboard wall on the home screen.
+- Phase 7 checkpoint follow-up: each loop ends with local-only validation, exact changed-file staging, local commits, and a clean or intentionally documented working tree before the next loop begins.
+
 2026-06-07: Self-Fix v2 is complete. Apex now auto-dispatches safe local repair requests from `/apex` into the existing controlled Builder tooling, keeps Talk-To-Apex minimal, and reports short outcomes first. Evidence was saved under `outputs/apex-self-fix-v2/2026-06-07T07-19-57-445Z`.
 
 2026-06-07: Apex Local Operator Runtime v0 is complete and `npm.cmd run apex:local` is the Windows-friendly local start command. Apex Personal OS Core v0 is the next split: Apex is the top-level private operator, Apex HQ is one domain underneath it, `/apex` remains the temporary clean cockpit, and routing/skills/agents/local-voice readiness must stay conversational and non-cluttered. Local voice must be honest: browser playback/captions are fallback only, OpenAI audio/cloud STT/TTS is not part of the Personal OS local voice path, and full hear/speak readiness waits for local STT/TTS provider wiring.
