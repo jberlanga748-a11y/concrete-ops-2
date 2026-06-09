@@ -87,6 +87,45 @@ test("typed live latency benchmark stores compact local timing metadata only", a
   }
 });
 
+test("typed live latency benchmark defaults to llama.cpp GPT-OSS", async () => {
+  let capturedInput = null;
+  const result = await runApexTypedLiveTurnLatencyBenchmark({
+    explicitUserStarted: true,
+    save: false,
+    includeHistory: false,
+    chatFn: async (input) => {
+      capturedInput = input;
+      return {
+        available: true,
+        status: "available",
+        modelUsed: input.model,
+        agentSpeed: {
+          laneId: "fast",
+          laneLabel: "Fast",
+          numCtx: 4096,
+          keepAlive: "process-resident",
+        },
+        benchmarkReceipt: {
+          laneId: "fast",
+          laneLabel: "Fast",
+          modelUsed: input.model,
+          numCtx: 4096,
+          firstTokenLatencyMs: 140,
+          totalDurationMs: 410,
+          contextSwitchHappened: false,
+          warmResidencyReused: true,
+        },
+        responseTimingMs: 410,
+      };
+    },
+  });
+
+  assert.equal(capturedInput.model, "gpt-oss:20b");
+  assert.equal(result.typedBenchmark.model, "gpt-oss:20b");
+  assert.equal(result.typedBenchmark.openAiUsed, false);
+  assert.equal(result.typedBenchmark.cloudUsed, false);
+});
+
 test("typed benchmark receipt can be built without raw prompt or response fields", () => {
   const receipt = buildApexTypedLiveTurnBenchmarkReceipt({
     turnId: "typed-build-1",

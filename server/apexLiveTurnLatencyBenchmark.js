@@ -1,9 +1,9 @@
 import { performance } from "node:perf_hooks";
 
 import {
-  APEX_OLLAMA_DEFAULT_CHAT_MODEL,
-  chatWithOllamaForApexOs,
-} from "./apexOllamaProvider.js";
+  APEX_LLAMA_CPP_MODEL_ID,
+  chatWithLlamaCppForApexOs,
+} from "./apexLlamaCppProvider.js";
 import {
   APEX_LIVE_TURN_LATENCY_BENCHMARK_VERSION,
   readApexLiveTurnLatencyHistory,
@@ -61,7 +61,7 @@ export function buildApexTypedLiveTurnBenchmarkReceipt({
   );
   const queueMs = number(queue.queuedMs || queue.lastQueuedMs);
   const totalTurnMs = number(wallTimingMs || (queueMs + modelTotalMs));
-  const model = text(answer.modelUsed || answer.model || benchmark.modelUsed || APEX_OLLAMA_DEFAULT_CHAT_MODEL, 160);
+  const model = text(answer.modelUsed || answer.model || benchmark.modelUsed || APEX_LLAMA_CPP_MODEL_ID.GPT_OSS_20B, 160);
   const numCtx = number(benchmark.numCtx || agentSpeed.numCtx || answer.brainReceipt?.numCtx || 4096);
   const latencyProfile = buildApexLatencyProfile({
     turnId,
@@ -175,12 +175,12 @@ export async function runApexTypedLiveTurnLatencyBenchmark(input = {}) {
     });
   }
 
-  const chatFn = typeof input.chatFn === "function" ? input.chatFn : chatWithOllamaForApexOs;
+  const chatFn = typeof input.chatFn === "function" ? input.chatFn : chatWithLlamaCppForApexOs;
   const turnId = text(input.turnId || `ALT-TYPED-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, 120);
   const createdAt = new Date().toISOString();
   const startedAt = performance.now();
   const localAnswer = await chatFn({
-    model: input.model || APEX_OLLAMA_DEFAULT_CHAT_MODEL,
+    model: input.model || APEX_LLAMA_CPP_MODEL_ID.GPT_OSS_20B,
     route: "normal-chat",
     maxOutputTokens: number(input.maxOutputTokens, 48) || 48,
     stream: true,

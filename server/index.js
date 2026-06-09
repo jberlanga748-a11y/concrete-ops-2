@@ -14553,7 +14553,7 @@ app.post("/api/apex-os/local-voice/live-turn-benchmark/typed", requireAuth, asyn
       transcriptStored: false,
       openAiAudioUsed: false,
       cloudAudioAllowed: false,
-      note: "This private operator benchmark sends a fixed local-only typed benchmark prompt to the resident Ollama lane and stores compact timing metadata only.",
+      note: "This private operator benchmark sends a fixed local-only typed benchmark prompt to the resident llama.cpp/GPT-OSS lane and stores compact timing metadata only.",
     },
     requestId: res.locals.requestId,
   });
