@@ -31,9 +31,11 @@ import {
   normalizeApexFamilyCareCoordinatorReviewState,
 } from "../shared/apexFamilyCareBrain.js";
 import {
+  APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_BRIDGE_APPROVAL_POLICY,
   APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_PRESENCE_POLICY,
   APEX_FAMILY_CARE_KITCHEN_MODE_POLICY,
   applyApexFamilyCareKitchenControl,
+  buildApexFamilyCareHouseholdDeviceBridgeApprovalPacket,
   buildApexFamilyCareHouseholdDevicePresence,
   buildApexFamilyCareKitchenModeStatus,
   getDefaultApexFamilyCareKitchenDeviceState,
@@ -415,7 +417,7 @@ function TodayView({ notes, summary, onQuickAdd, onVoiceStart, setActiveScreen }
   );
 }
 
-function KitchenModeView({ kitchenStatus, householdPresence, onKitchenQuickLog, onKitchenControl, onVoiceStart, setActiveScreen }) {
+function KitchenModeView({ kitchenStatus, householdPresence, householdDeviceBridgeApproval, onKitchenQuickLog, onKitchenControl, onVoiceStart, setActiveScreen }) {
   const quickCategories = APEX_FAMILY_CARE_CATEGORIES.slice(0, 9);
   const isMuted = kitchenStatus.controls.muted;
 
@@ -499,6 +501,35 @@ function KitchenModeView({ kitchenStatus, householdPresence, onKitchenQuickLog, 
           <Badge tone="green">No network scan</Badge>
           <Badge tone="green">No device control</Badge>
           <Badge tone={householdPresence.voice.bridgeApprovalRequired ? "amber" : "green"}>{householdPresence.voice.bridgeApprovalRequired ? "Local STT bridge pending" : "Local STT ready"}</Badge>
+        </div>
+      </Card>
+
+      <Card className="p-4">
+        <SectionHeader title="Household Device Bridge Approval" description={householdDeviceBridgeApproval.nextApprovalNeeded} />
+        <div className="mb-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+          <StatCard title="Current Path" value={householdDeviceBridgeApproval.currentPwaEnough ? "PWA enough" : "Approval needed"} detail={householdDeviceBridgeApproval.currentSafePath} />
+          <StatCard title="Selected Device" value={householdDeviceBridgeApproval.selectedDeviceLabel} detail={householdDeviceBridgeApproval.selectedDeviceInstallTarget} />
+          <StatCard title="Bridge Status" value={householdDeviceBridgeApproval.approvalStatus} detail="No activation in Phase 6B" />
+          <StatCard title="Device Control" value={householdDeviceBridgeApproval.deviceOsControlEnabled ? "On" : "Off"} detail="Blocked" />
+        </div>
+        <div className="mb-3 flex flex-wrap gap-2">
+          <Badge tone="green">PWA first</Badge>
+          <Badge tone="amber">Bridge approval required</Badge>
+          <Badge tone="green">No device OS control</Badge>
+          <Badge tone="green">No camera</Badge>
+          <Badge tone="green">No network scan</Badge>
+          <Badge tone="green">No hidden recording</Badge>
+        </div>
+        <div className="grid gap-2 md:grid-cols-2">
+          {householdDeviceBridgeApproval.checks.map((check) => (
+            <div key={check.id} className="rounded-lg border border-slate-200 bg-white p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-black text-slate-950">{check.label}</p>
+                <Badge tone={check.passed ? "green" : "amber"}>{check.passed ? "Ready" : "Needed"}</Badge>
+              </div>
+              <p className="mt-1 text-sm font-bold text-slate-600">{check.detail}</p>
+            </div>
+          ))}
         </div>
       </Card>
 
@@ -1474,7 +1505,7 @@ function promptReviewLabel(status) {
   return status;
 }
 
-function HealthView({ accessReadiness, boundaryReleasePrep, releaseSmokeChecklist, localSttBridgeApproval, gate, summary, latestVoiceReceipt, notificationState, externalNotificationApproval, kitchenStatus, householdPresence, testWeekSummary, coordinatorPacket, coordinatorReviewPacket, onCoordinatorPromptReview }) {
+function HealthView({ accessReadiness, boundaryReleasePrep, releaseSmokeChecklist, localSttBridgeApproval, gate, summary, latestVoiceReceipt, notificationState, externalNotificationApproval, kitchenStatus, householdPresence, householdDeviceBridgeApproval, testWeekSummary, coordinatorPacket, coordinatorReviewPacket, onCoordinatorPromptReview }) {
   const brainInterface = getApexFamilyCareBrainInterfaceSummary();
   const coordinatorSummary = coordinatorPacket?.summary || {};
   const coordinatorPrompts = coordinatorReviewPacket?.reviewedPrompts || coordinatorPacket?.prompts || [];
@@ -1546,6 +1577,11 @@ function HealthView({ accessReadiness, boundaryReleasePrep, releaseSmokeChecklis
     ["Household presence", householdPresence?.presence?.statusLabel || "Off", householdPresence?.presence?.statusTone || "slate"],
     ["Household voice mode", householdPresence?.voice?.statusLabel || "Off", householdPresence?.voice?.statusTone || "slate"],
     ["Household stop/mute", householdPresence?.controls?.alwaysVisible ? "Visible" : "Check", householdPresence?.controls?.alwaysVisible ? "green" : "red"],
+    ["Household bridge approval", householdDeviceBridgeApproval?.approvalStatus || "pwa-enough", householdDeviceBridgeApproval?.readyForBridgeWork ? "green" : "amber"],
+    ["Household bridge active", householdDeviceBridgeApproval?.localDeviceBridgeActive || APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_BRIDGE_APPROVAL_POLICY.localDeviceBridgeActive ? "On" : "Off", householdDeviceBridgeApproval?.localDeviceBridgeActive || APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_BRIDGE_APPROVAL_POLICY.localDeviceBridgeActive ? "red" : "green"],
+    ["Household bridge device control", householdDeviceBridgeApproval?.deviceOsControlEnabled || APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_BRIDGE_APPROVAL_POLICY.deviceOsControlEnabled ? "On" : "Off", householdDeviceBridgeApproval?.deviceOsControlEnabled || APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_BRIDGE_APPROVAL_POLICY.deviceOsControlEnabled ? "red" : "green"],
+    ["Household bridge camera", householdDeviceBridgeApproval?.cameraSurveillanceEnabled || APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_BRIDGE_APPROVAL_POLICY.cameraSurveillanceEnabled ? "On" : "Off", householdDeviceBridgeApproval?.cameraSurveillanceEnabled || APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_BRIDGE_APPROVAL_POLICY.cameraSurveillanceEnabled ? "red" : "green"],
+    ["Household bridge network scan", householdDeviceBridgeApproval?.networkScanningEnabled || APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_BRIDGE_APPROVAL_POLICY.networkScanningEnabled ? "On" : "Off", householdDeviceBridgeApproval?.networkScanningEnabled || APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_BRIDGE_APPROVAL_POLICY.networkScanningEnabled ? "red" : "green"],
     ["Kitchen hidden mic", APEX_FAMILY_CARE_KITCHEN_MODE_POLICY.hiddenRecording ? "On" : "Off", APEX_FAMILY_CARE_KITCHEN_MODE_POLICY.hiddenRecording ? "red" : "green"],
     ["Kitchen device control", APEX_FAMILY_CARE_KITCHEN_MODE_POLICY.deviceControlEnabled ? "On" : "Off", APEX_FAMILY_CARE_KITCHEN_MODE_POLICY.deviceControlEnabled ? "red" : "green"],
     ["Household camera", APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_PRESENCE_POLICY.cameraSurveillanceEnabled ? "On" : "Off", APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_PRESENCE_POLICY.cameraSurveillanceEnabled ? "red" : "green"],
@@ -1706,6 +1742,20 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
   }), [allNotes, coordinatorPacket, normalizedCoordinatorReviewState]);
   const kitchenStatus = useMemo(() => buildApexFamilyCareKitchenModeStatus(kitchenDeviceState), [kitchenDeviceState]);
   const householdPresence = useMemo(() => buildApexFamilyCareHouseholdDevicePresence(kitchenStatus), [kitchenStatus]);
+  const householdDeviceBridgeApproval = useMemo(() => buildApexFamilyCareHouseholdDeviceBridgeApprovalPacket({
+    selectedDevicePath: householdPresence.device.selectedType,
+    currentPwaEnough: true,
+    bridgeBeyondPwaApproved: false,
+    deviceBoundaryApproved: false,
+    familyAccessModelApproved: false,
+    visibleControlsReady: householdPresence.controls.alwaysVisible,
+    explicitVoiceStartReady: true,
+    localSttBridgeApproved: false,
+    noSurveillanceReady: true,
+  }), [
+    householdPresence.controls.alwaysVisible,
+    householdPresence.device.selectedType,
+  ]);
   const notificationState = useMemo(() => buildApexFamilyCareNotificationState(sortedNotes, {
     preferences: notificationPreferences,
     kitchenStatus,
@@ -2013,6 +2063,7 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
       <KitchenModeView
         kitchenStatus={kitchenStatus}
         householdPresence={householdPresence}
+        householdDeviceBridgeApproval={householdDeviceBridgeApproval}
         onKitchenQuickLog={handleKitchenQuickLog}
         onKitchenControl={handleKitchenControl}
         onVoiceStart={handleStartVoiceUpdate}
@@ -2084,6 +2135,7 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
         externalNotificationApproval={externalNotificationApproval}
         kitchenStatus={kitchenStatus}
         householdPresence={householdPresence}
+        householdDeviceBridgeApproval={householdDeviceBridgeApproval}
         testWeekSummary={testWeekSummary}
         coordinatorPacket={coordinatorPacket}
         coordinatorReviewPacket={coordinatorReviewPacket}

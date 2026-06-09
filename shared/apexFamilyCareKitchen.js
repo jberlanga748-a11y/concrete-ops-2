@@ -60,6 +60,47 @@ export const APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_PRESENCE_POLICY = Object.freeze({
   medicalDiagnosis: false,
 });
 
+export const APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_BRIDGE_APPROVAL_POLICY = Object.freeze({
+  policyId: "apex-family-care-household-device-bridge-approval-v1",
+  phase: "phase-6b-approved-household-device-integration",
+  localOnly: true,
+  familyCareOnly: true,
+  apexHqProductWork: false,
+  currentSafePath: "house-tablet-or-old-phone-pwa",
+  currentPwaPathAllowed: true,
+  bridgeBeyondPwaApproved: false,
+  deviceBoundaryApproved: false,
+  familyAccessModelApproved: false,
+  localDeviceBridgeConfigured: false,
+  localDeviceBridgeActive: false,
+  raspberryPiEnabled: false,
+  localSatelliteEnabled: false,
+  deviceOsControlEnabled: false,
+  networkScanningEnabled: false,
+  cameraSurveillanceEnabled: false,
+  hiddenRecording: false,
+  backgroundRecording: false,
+  autoListening: false,
+  liveMicCaptureEnabled: false,
+  localSttBridgeApproved: false,
+  localSttEndpointEnabled: false,
+  rawAudioStored: false,
+  rawTranscriptStored: false,
+  cloudUsed: false,
+  smsEnabled: false,
+  emailEnabled: false,
+  pushEnabled: false,
+  schemaChanged: false,
+  authSessionChanged: false,
+  deployChanged: false,
+  apexHqExposure: false,
+  publicAccess: false,
+  customerAccess: false,
+  fieldAccess: false,
+  emergencyReplacement: false,
+  medicalDiagnosis: false,
+});
+
 export const APEX_FAMILY_CARE_KITCHEN_DEVICE_TYPES = Object.freeze([
   { id: "house-tablet-pwa", label: "House tablet PWA", installTarget: "Install Family Care on a house tablet." },
   { id: "old-phone-pwa", label: "Old phone PWA", installTarget: "Install Family Care on an old phone kept at the house." },
@@ -108,6 +149,11 @@ function statusToneForState(state, online) {
   if (state.muted) return "slate";
   if (state.speaking || state.listening) return "blue";
   return "green";
+}
+
+function normalizeDeviceType(value, fallback = APEX_FAMILY_CARE_KITCHEN_MODE_POLICY.firstDeviceType) {
+  const text = cleanText(value, 80);
+  return DEVICE_TYPE_BY_ID.has(text) ? text : fallback;
 }
 
 export function getDefaultApexFamilyCareKitchenDeviceState(now = new Date()) {
@@ -268,6 +314,180 @@ export function buildApexFamilyCareKitchenModeStatus(input = {}, options = {}) {
         hiddenRecording: false,
         cameraSurveillanceEnabled: false,
         deviceControlEnabled: false,
+      },
+    },
+  };
+}
+
+export function buildApexFamilyCareHouseholdDeviceBridgeApprovalPacket(input = {}) {
+  const now = normalizeNow(input.now);
+  const selectedDevicePath = normalizeDeviceType(input.selectedDevicePath || input.devicePath);
+  const selectedDevice = DEVICE_TYPE_BY_ID.get(selectedDevicePath);
+  const currentPwaEnough = input.currentPwaEnough !== false;
+  const bridgeBeyondPwaApproved = input.bridgeBeyondPwaApproved === true;
+  const deviceBoundaryApproved = Boolean(bridgeBeyondPwaApproved && input.deviceBoundaryApproved === true);
+  const familyAccessModelApproved = input.familyAccessModelApproved === true;
+  const visibleControlsReady = input.visibleControlsReady !== false;
+  const explicitVoiceStartReady = input.explicitVoiceStartReady !== false;
+  const localSttBridgeApproved = input.localSttBridgeApproved === true;
+  const noSurveillanceReady = input.noSurveillanceReady !== false;
+  const readyForBridgeWork = Boolean(
+    bridgeBeyondPwaApproved
+    && deviceBoundaryApproved
+    && familyAccessModelApproved
+    && visibleControlsReady
+    && explicitVoiceStartReady
+    && localSttBridgeApproved
+    && noSurveillanceReady
+  );
+  const approvalStatus = readyForBridgeWork
+    ? "bridge-setup-ready"
+    : currentPwaEnough
+      ? "pwa-enough"
+      : "approval-required";
+  const checks = [
+    {
+      id: "pwa-path-enough",
+      label: "Tablet or old phone PWA enough",
+      passed: currentPwaEnough,
+      detail: currentPwaEnough ? "Keep using the house tablet or old phone PWA." : "Approve a real device bridge before moving beyond the PWA.",
+    },
+    {
+      id: "bridge-beyond-pwa-approved",
+      label: "Bridge beyond PWA approved",
+      passed: bridgeBeyondPwaApproved,
+      detail: bridgeBeyondPwaApproved ? "A real bridge path was approved." : "Raspberry Pi or local satellite stays deferred.",
+    },
+    {
+      id: "device-boundary-approved",
+      label: "Device boundary approved",
+      passed: deviceBoundaryApproved,
+      detail: deviceBoundaryApproved ? "Exact device boundary approved." : "No device OS control, network scan, camera, or background mic.",
+    },
+    {
+      id: "family-access-approved",
+      label: "Family access model approved",
+      passed: familyAccessModelApproved,
+      detail: familyAccessModelApproved ? "Family access model approved." : "Family access must be approved before a real household bridge.",
+    },
+    {
+      id: "visible-controls-ready",
+      label: "Visible controls ready",
+      passed: visibleControlsReady,
+      detail: "Mute, stop/recover, and visible voice entry stay required.",
+    },
+    {
+      id: "explicit-voice-start-ready",
+      label: "Explicit voice start ready",
+      passed: explicitVoiceStartReady,
+      detail: "No always-on or hidden listening path is approved.",
+    },
+    {
+      id: "local-stt-bridge-approved",
+      label: "Local STT bridge approved",
+      passed: localSttBridgeApproved,
+      detail: localSttBridgeApproved ? "Family Care local STT bridge approved." : "Local STT bridge remains gated by Phase 4C.",
+    },
+    {
+      id: "no-surveillance-device-control",
+      label: "No surveillance or device control",
+      passed: noSurveillanceReady,
+      detail: "Camera, network scanning, and device OS control stay off.",
+    },
+    {
+      id: "bridge-active-blocked",
+      label: "Bridge activation blocked",
+      passed: true,
+      detail: "Phase 6B creates approval metadata only.",
+    },
+  ];
+  const nextApprovalNeeded = checks.find((check) => !check.passed && check.id !== "bridge-beyond-pwa-approved")?.detail
+    || checks.find((check) => !check.passed)?.detail
+    || "Bridge setup can be designed next, but activation remains blocked until Phase 6C.";
+
+  return {
+    policy: APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_BRIDGE_APPROVAL_POLICY,
+    generatedAt: now.toISOString(),
+    approvalStatus,
+    currentPwaEnough,
+    currentSafePath: APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_BRIDGE_APPROVAL_POLICY.currentSafePath,
+    selectedDevicePath,
+    selectedDeviceLabel: selectedDevice.label,
+    selectedDeviceInstallTarget: selectedDevice.installTarget,
+    bridgeBeyondPwaApproved,
+    deviceBoundaryApproved,
+    familyAccessModelApproved,
+    visibleControlsReady,
+    explicitVoiceStartReady,
+    localSttBridgeApproved,
+    noSurveillanceReady,
+    readyForBridgeWork,
+    readyForActivation: false,
+    localDeviceBridgeConfigured: false,
+    localDeviceBridgeActive: false,
+    raspberryPiEnabled: false,
+    localSatelliteEnabled: false,
+    deviceOsControlEnabled: false,
+    networkScanningEnabled: false,
+    cameraSurveillanceEnabled: false,
+    hiddenRecording: false,
+    backgroundRecording: false,
+    autoListening: false,
+    liveMicCaptureEnabled: false,
+    rawAudioStored: false,
+    rawTranscriptStored: false,
+    cloudUsed: false,
+    smsEnabled: false,
+    emailEnabled: false,
+    pushEnabled: false,
+    schemaChanged: false,
+    authSessionChanged: false,
+    deployChanged: false,
+    apexHqExposure: false,
+    nextApprovalNeeded,
+    checks,
+    approvalInstructions: [
+      "Keep the tablet or old-phone PWA as the default house device.",
+      "Approve a bridge only if the PWA is not enough.",
+      "Choose the exact hardware and boundary before any wiring.",
+      "Keep mute, stop/recover, and explicit voice start visible on every device path.",
+    ],
+    receipt: {
+      receiptType: "apex-family-care-household-device-bridge-approval",
+      schemaVersion: 1,
+      generatedAt: now.toISOString(),
+      policyId: APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_BRIDGE_APPROVAL_POLICY.policyId,
+      phase: APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_BRIDGE_APPROVAL_POLICY.phase,
+      localOnly: true,
+      familyCareOnly: true,
+      apexHqProductWork: false,
+      rawPromptStored: false,
+      rawResponseStored: false,
+      rawAudioStored: false,
+      rawTranscriptStored: false,
+      secretsStored: false,
+      customerDataStored: false,
+      cloudUsed: false,
+      metadata: {
+        approvalStatus,
+        currentPwaEnough,
+        selectedDevicePath,
+        bridgeBeyondPwaApproved,
+        deviceBoundaryApproved,
+        familyAccessModelApproved,
+        localSttBridgeApproved,
+        readyForBridgeWork,
+        readyForActivation: false,
+        localDeviceBridgeConfigured: false,
+        localDeviceBridgeActive: false,
+        raspberryPiEnabled: false,
+        localSatelliteEnabled: false,
+        deviceOsControlEnabled: false,
+        networkScanningEnabled: false,
+        cameraSurveillanceEnabled: false,
+        hiddenRecording: false,
+        rawAudioStored: false,
+        rawTranscriptStored: false,
       },
     },
   };

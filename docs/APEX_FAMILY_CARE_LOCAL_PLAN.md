@@ -415,7 +415,19 @@ Purpose: connect a real household device beyond the standalone PWA only after th
 - Keep the local STT bridge approval-gated by Phase 4B until John approves it.
 - Keep hidden recording, camera surveillance, network scanning, device OS control, raw audio/transcript storage, cloud, sends, schema/auth/session changes, deploys, and Apex HQ exposure blocked.
 
-Do later when: John approves a real household device bridge beyond the current tablet/old phone PWA presence lane.
+Status: Phase 6B approval-readiness is complete. The current safe device path stays the house tablet or old-phone PWA. Any Raspberry Pi/local satellite/device bridge wiring stays approval-gated and moves to Phase 6C.
+
+### Phase 6C - Approved Household Device Bridge Wiring
+
+Purpose: wire a real household device bridge only if the tablet/old-phone PWA is not enough and John approves the exact hardware and boundary.
+
+- Use only the approved hardware/device boundary.
+- Add bridge tests before any live device bridge activation.
+- Keep visible mute, stop/recover, and explicit voice start on every device path.
+- Keep the Family Care local STT bridge gated until Phase 4C is approved.
+- Keep hidden recording, camera surveillance, network scanning, device OS control, raw audio/transcript storage, cloud, sends, schema/auth/session changes, deploys, and Apex HQ exposure blocked unless explicitly approved.
+
+Do later when: John approves a real household device bridge beyond the current tablet/old-phone PWA lane.
 
 ### Phase 7A - Family Test Week Improvements
 
@@ -602,6 +614,25 @@ Done means: Family Care can tell whether the house screen is ready, what voice m
 
 Phase 6A receipt (2026-06-09): added a household device presence policy and packet for the standalone Family Care PWA. The first household device remains a house tablet PWA with old-phone PWA as backup; Raspberry Pi/local satellite hardware is deferred to Phase 6B. Kitchen Mode now shows Household Device Presence with heartbeat-only readiness, visible voice status, mute/stop/recover control visibility, tablet-or-old-phone-first status, no camera, no network scan, no device control, and local STT bridge pending until approved. Apex Health and side status now include household presence/voice/control safety. Receipts remain compact metadata only and store no raw audio, transcripts, prompts, responses, secrets, customer data, or production data. No schema/auth/session/backend/provider/deploy/cloud behavior was added. Focused validation: `node --test --test-concurrency=1 shared/apexFamilyCare.test.js shared/apexFamilyCareBrain.test.js shared/apexFamilyCareVoice.test.js shared/apexFamilyCareNotifications.test.js shared/apexFamilyCareKitchen.test.js shared/apexFamilyCareTestWeek.test.js src/apex-family-care-components-import.test.js src/pwa-config.test.js shared/permissions.test.js src/app-routing.test.js src/navigation-utils.test.js src/mobile-nav-utils.test.js src/app-navigation-components-import.test.js` passed 126/126.
 
+### Phase 6B - Approved Household Device Integration
+
+- [x] Add a household device bridge approval packet showing whether the current tablet/old-phone PWA path is enough.
+- [x] Keep Raspberry Pi/local satellite/device bridge wiring approval-gated.
+- [x] Keep visible mute, stop/recover, and explicit voice start required for every household device path.
+- [x] Keep the Family Care local STT bridge gated by Phase 4C.
+- [x] Keep hidden recording, camera surveillance, network scanning, device OS control, raw audio/transcript storage, cloud, sends, schema/auth/session changes, deploys, and Apex HQ exposure blocked.
+- [x] Show the bridge boundary compactly in Kitchen Mode and Apex Health.
+- [x] Add focused tests proving bridge receipts are metadata-only and that setup-ready still does not activate a device bridge.
+
+Phase 6B slice receipt (2026-06-09): added `APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_BRIDGE_APPROVAL_POLICY` and `buildApexFamilyCareHouseholdDeviceBridgeApprovalPacket`. Kitchen Mode now shows Household Device Bridge Approval with the current safe PWA-first path, selected device, bridge approval status, blocked device OS control, no camera, no network scan, and no hidden recording. Apex Health now shows household bridge approval, active bridge status, bridge device control, bridge camera, and bridge network-scan status. The packet can become bridge-setup-ready only after John approves a bridge beyond the PWA, the exact device boundary, family access, visible controls, explicit voice start, and the local STT bridge; bridge activation, Raspberry Pi/local satellite enablement, device OS control, camera, network scan, hidden recording, raw audio/transcripts, cloud, sends, schema/auth/session changes, deploys, and Apex HQ exposure remain blocked until Phase 6C. Focused validation: `node --test --test-concurrency=1 shared/apexFamilyCareKitchen.test.js src/apex-family-care-components-import.test.js` passed 12/12.
+
+### Phase 6C - Approved Household Device Bridge Wiring
+
+- [ ] Wire a real household device bridge only after John approves the exact hardware/device boundary.
+- [ ] Add local bridge tests before any live device bridge activation.
+- [ ] Keep tablet/old-phone PWA as the default unless the real family test proves more hardware is useful.
+- [ ] Keep visible mute, stop/recover, explicit voice start, no hidden recording, no camera, no network scan, no device OS control, no raw audio/transcripts, no cloud, no sends, no schema/auth/session changes, no deploy, and no Apex HQ exposure unless explicitly approved.
+
 ### Phase 7 - Family Test Week
 
 - [ ] Run one real family test week.
@@ -636,6 +667,13 @@ Phase 7 check-in-gating receipt (2026-06-09): tightened daily check-in evidence 
 - [ ] Add any needed auth/session or remote access implementation only after explicit approval.
 
 Phase 1A slice receipt (2026-06-09): looped the active builder back from Phase 7 into the first foundation follow-up slice per John's override. Added `buildApexFamilyCareAccessReadiness` with local-only access mode, direct PWA checks, install-target steps, remote-access approval gate, no Apex HQ navigation requirement, no private cockpit requirement, no auth/session/schema changes, no sends, no cloud, no public/customer/field exposure, no raw audio/transcript storage, no diagnosis, and metadata-only receipt data. The standalone Family Access screen now shows Access Mode, Install Path, Boundary Checks, and explicit No auth change / No schema change / No Apex HQ nav / No sends badges. Phase 1A is not fully closed because the real family access model and any approved remote/auth work remain later decisions.
+
+### Phase 1B - Family Access Model Decision Packet
+
+- [ ] Add a family access decision packet that compares local-only, private LAN, trusted-device pairing, family code, invite, and private remote access without implementing any auth/session or remote access changes.
+- [ ] Recommend the lowest-friction first test path for Dad/Brother/family to review.
+- [ ] Show what approval is needed before any real family-device rollout.
+- [ ] Keep schema/auth/session changes, provider setup, deploys, sends, public/customer/field exposure, raw audio/transcripts, and Apex HQ navigation blocked.
 
 ### Phase 2A - Care Review And Doctor-Prep Polish
 
@@ -777,11 +815,13 @@ Complete the Current Next Step, advance the plan, then continue through foundati
 
 ## Current Next Step
 
-Next active build slice: Phase 6B - Approved Household Device Integration.
+Next active build slice: Review checkpoint before Phase 1B - Family Access Model Decision Packet.
 
 Open validation track: Phase 7 - Family Test Week remains incomplete until one real family test week is run and reviewed. Do not mark Phase 7 complete from synthetic data or builder prep work.
 
 Open approval-gated Phase 1A work: choose and approve the real family access model before adding real remote access, auth/session changes, provider setup, or family-device rollout.
+
+Open Phase 1B review-start work: after John reviews this checkpoint, prepare a family access model decision packet without implementing auth/session, remote access, deploy, provider setup, sends, public/customer/field exposure, or Apex HQ navigation.
 
 Open Phase 2C work: add print/export doctor-brief polish only after the current doctor brief format is proven useful in family review.
 
@@ -793,4 +833,4 @@ Open approval-gated Phase 4C work: choose and approve the Family Care-specific l
 
 Open Phase 5C work: choose and approve the exact external notification channel/provider/device boundary before adding real SMS, email, PWA push, browser/device notifications, service worker push, provider payloads, provider payload tests, or live sends.
 
-Open Phase 6B work: choose and approve any real household device bridge beyond the tablet/old-phone PWA before adding Raspberry Pi/local satellite integration, local STT bridge wiring, device OS control, camera, network scanning, cloud, sends, schema/auth/session changes, or deploys.
+Open Phase 6C work: choose and approve any real household device bridge beyond the tablet/old-phone PWA before adding Raspberry Pi/local satellite integration, local STT bridge wiring, device OS control, camera, network scanning, cloud, sends, schema/auth/session changes, deploys, or Apex HQ exposure.

@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_BRIDGE_APPROVAL_POLICY,
   APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_PRESENCE_POLICY,
   APEX_FAMILY_CARE_KITCHEN_MODE_POLICY,
   applyApexFamilyCareKitchenControl,
+  buildApexFamilyCareHouseholdDeviceBridgeApprovalPacket,
   buildApexFamilyCareHouseholdDevicePresence,
   buildApexFamilyCareKitchenModeStatus,
   getDefaultApexFamilyCareKitchenDeviceState,
@@ -40,6 +42,14 @@ test("Family Care kitchen policy chooses house tablet PWA first and avoids devic
   assert.equal(APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_PRESENCE_POLICY.cameraSurveillanceEnabled, false);
   assert.equal(APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_PRESENCE_POLICY.networkScanningEnabled, false);
   assert.equal(APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_PRESENCE_POLICY.deviceControlEnabled, false);
+  assert.equal(APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_BRIDGE_APPROVAL_POLICY.phase, "phase-6b-approved-household-device-integration");
+  assert.equal(APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_BRIDGE_APPROVAL_POLICY.currentPwaPathAllowed, true);
+  assert.equal(APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_BRIDGE_APPROVAL_POLICY.bridgeBeyondPwaApproved, false);
+  assert.equal(APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_BRIDGE_APPROVAL_POLICY.localDeviceBridgeActive, false);
+  assert.equal(APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_BRIDGE_APPROVAL_POLICY.raspberryPiEnabled, false);
+  assert.equal(APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_BRIDGE_APPROVAL_POLICY.deviceOsControlEnabled, false);
+  assert.equal(APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_BRIDGE_APPROVAL_POLICY.cameraSurveillanceEnabled, false);
+  assert.equal(APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_BRIDGE_APPROVAL_POLICY.networkScanningEnabled, false);
 });
 
 test("kitchen device defaults to a simple local tablet mode", () => {
@@ -163,4 +173,76 @@ test("household presence reports offline without device control or surveillance"
   assert.equal(presence.receipt.cloudUsed, false);
   assert.equal(presence.receipt.metadata.presenceStatus, "offline");
   assert.equal(JSON.stringify(presence.receipt).includes("Grandma's knee hurt after lunch"), false);
+});
+
+test("household device bridge approval keeps tablet PWA as enough until John approves hardware", () => {
+  const rawPrivateText = "Grandma's knee hurt after lunch.";
+  const packet = buildApexFamilyCareHouseholdDeviceBridgeApprovalPacket({
+    now: new Date("2026-06-09T12:00:00.000Z"),
+    selectedDevicePath: "raspberry-pi-local-satellite",
+    currentPwaEnough: true,
+    bridgeBeyondPwaApproved: false,
+    visibleControlsReady: true,
+    explicitVoiceStartReady: true,
+    rawPrivateText,
+  });
+
+  assert.equal(packet.policy.policyId, APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_BRIDGE_APPROVAL_POLICY.policyId);
+  assert.equal(packet.approvalStatus, "pwa-enough");
+  assert.equal(packet.currentPwaEnough, true);
+  assert.equal(packet.selectedDevicePath, "raspberry-pi-local-satellite");
+  assert.equal(packet.bridgeBeyondPwaApproved, false);
+  assert.equal(packet.deviceBoundaryApproved, false);
+  assert.equal(packet.familyAccessModelApproved, false);
+  assert.equal(packet.localSttBridgeApproved, false);
+  assert.equal(packet.readyForBridgeWork, false);
+  assert.equal(packet.readyForActivation, false);
+  assert.equal(packet.localDeviceBridgeConfigured, false);
+  assert.equal(packet.localDeviceBridgeActive, false);
+  assert.equal(packet.raspberryPiEnabled, false);
+  assert.equal(packet.localSatelliteEnabled, false);
+  assert.equal(packet.deviceOsControlEnabled, false);
+  assert.equal(packet.networkScanningEnabled, false);
+  assert.equal(packet.cameraSurveillanceEnabled, false);
+  assert.equal(packet.hiddenRecording, false);
+  assert.equal(packet.rawAudioStored, false);
+  assert.equal(packet.rawTranscriptStored, false);
+  assert.equal(packet.cloudUsed, false);
+  assert.equal(packet.receipt.rawAudioStored, false);
+  assert.equal(packet.receipt.rawTranscriptStored, false);
+  assert.equal(packet.receipt.metadata.localDeviceBridgeActive, false);
+  assert.equal(packet.receipt.metadata.raspberryPiEnabled, false);
+  assert.equal(packet.receipt.metadata.deviceOsControlEnabled, false);
+  assert.equal(JSON.stringify(packet.receipt).includes(rawPrivateText), false);
+  assert.equal(JSON.stringify(packet.receipt).includes("knee"), false);
+});
+
+test("approved household bridge can become setup-ready while activation stays blocked", () => {
+  const packet = buildApexFamilyCareHouseholdDeviceBridgeApprovalPacket({
+    now: new Date("2026-06-09T12:00:00.000Z"),
+    selectedDevicePath: "other-local-satellite",
+    currentPwaEnough: false,
+    bridgeBeyondPwaApproved: true,
+    deviceBoundaryApproved: true,
+    familyAccessModelApproved: true,
+    visibleControlsReady: true,
+    explicitVoiceStartReady: true,
+    localSttBridgeApproved: true,
+    noSurveillanceReady: true,
+  });
+
+  assert.equal(packet.approvalStatus, "bridge-setup-ready");
+  assert.equal(packet.readyForBridgeWork, true);
+  assert.equal(packet.readyForActivation, false);
+  assert.equal(packet.localDeviceBridgeConfigured, false);
+  assert.equal(packet.localDeviceBridgeActive, false);
+  assert.equal(packet.raspberryPiEnabled, false);
+  assert.equal(packet.localSatelliteEnabled, false);
+  assert.equal(packet.deviceOsControlEnabled, false);
+  assert.equal(packet.networkScanningEnabled, false);
+  assert.equal(packet.cameraSurveillanceEnabled, false);
+  assert.equal(packet.localSttBridgeApproved, true);
+  assert.equal(packet.receipt.metadata.readyForBridgeWork, true);
+  assert.equal(packet.receipt.metadata.readyForActivation, false);
+  assert.equal(packet.receipt.metadata.localDeviceBridgeActive, false);
 });

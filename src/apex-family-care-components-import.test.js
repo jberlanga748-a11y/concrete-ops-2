@@ -45,6 +45,8 @@ test("Apex Family Care page contains family screens and no hidden mic APIs", () 
   assert.match(componentSource, /APEX_FAMILY_CARE_EXTERNAL_NOTIFICATION_APPROVAL_POLICY/);
   assert.match(componentSource, /buildApexFamilyCareExternalNotificationApprovalPacket/);
   assert.match(componentSource, /buildApexFamilyCareKitchenModeStatus/);
+  assert.match(componentSource, /APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_BRIDGE_APPROVAL_POLICY/);
+  assert.match(componentSource, /buildApexFamilyCareHouseholdDeviceBridgeApprovalPacket/);
   assert.match(componentSource, /APEX_FAMILY_CARE_KITCHEN_MODE_POLICY/);
   assert.match(componentSource, /buildApexFamilyCareAccessReadiness/);
   assert.match(componentSource, /buildApexFamilyCareBoundaryReleasePrep/);
@@ -97,6 +99,10 @@ test("Apex Family Care page contains family screens and no hidden mic APIs", () 
   assert.match(componentSource, /Heartbeat only/);
   assert.match(componentSource, /No network scan/);
   assert.match(componentSource, /No device control/);
+  assert.match(componentSource, /Household Device Bridge Approval/);
+  assert.match(componentSource, /PWA first/);
+  assert.match(componentSource, /Bridge approval required/);
+  assert.match(componentSource, /No device OS control/);
   assert.match(componentSource, /Local STT bridge pending/);
   assert.match(componentSource, /Family Test Week/);
   assert.match(componentSource, /Run The Week/);
@@ -162,8 +168,10 @@ test("Apex Family Care still uses Phase 2 and Phase 3 shared helpers", () => {
     "createApexFamilyCareVoiceNoteDraft",
     "buildApexFamilyCareKitchenModeStatus",
     "buildApexFamilyCareHouseholdDevicePresence",
+    "buildApexFamilyCareHouseholdDeviceBridgeApprovalPacket",
     "applyApexFamilyCareKitchenControl",
     "APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_PRESENCE_POLICY",
+    "APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_BRIDGE_APPROVAL_POLICY",
     "buildApexFamilyCareTestWeekSummary",
     "buildApexFamilyCareTestWeekRunPacket",
     "startApexFamilyCareTestWeek",
@@ -221,6 +229,11 @@ test("Apex Family Care still uses Phase 2 and Phase 3 shared helpers", () => {
   assert.match(componentSource, /Household presence/);
   assert.match(componentSource, /Household voice mode/);
   assert.match(componentSource, /Household stop\/mute/);
+  assert.match(componentSource, /Household bridge approval/);
+  assert.match(componentSource, /Household bridge active/);
+  assert.match(componentSource, /Household bridge device control/);
+  assert.match(componentSource, /Household bridge camera/);
+  assert.match(componentSource, /Household bridge network scan/);
   assert.match(componentSource, /Household camera/);
   assert.match(componentSource, /Household network scan/);
   assert.match(componentSource, /Kitchen device control/);
