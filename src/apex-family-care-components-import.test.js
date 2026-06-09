@@ -38,11 +38,17 @@ test("Apex Family Care page contains family screens and no hidden mic APIs", () 
   assert.match(componentSource, /No diagnosis/);
   assert.match(componentSource, /createApexFamilyCareVoiceNoteDraft/);
   assert.match(componentSource, /APEX_FAMILY_CARE_VOICE_POLICY/);
+  assert.match(componentSource, /buildApexFamilyCareNotificationState/);
+  assert.match(componentSource, /APEX_FAMILY_CARE_NOTIFICATION_POLICY/);
   assert.match(componentSource, /Start Voice Update/);
   assert.match(componentSource, /Done Talking \/ Review/);
   assert.match(componentSource, /Save Needs Review/);
+  assert.match(componentSource, /Notification Decisions/);
+  assert.match(componentSource, /Safe lock-screen copy/);
+  assert.match(componentSource, /No live sends/);
+  assert.match(componentSource, /Phase 5A delivery later/);
   assert.doesNotMatch(componentSource, /getUserMedia|MediaRecorder|navigator\.mediaDevices|ApexMciWave|windows-mci-waveaudio|native-voice/i);
-  assert.doesNotMatch(componentSource, /fetch\(/);
+  assert.doesNotMatch(componentSource, /fetch\(|Notification\.requestPermission|navigator\.serviceWorker|PushManager/i);
 });
 
 test("Apex Family Care still uses Phase 2 and Phase 3 shared helpers", () => {
@@ -55,6 +61,8 @@ test("Apex Family Care still uses Phase 2 and Phase 3 shared helpers", () => {
     "buildApexFamilyCareTodaySummary",
     "getApexFamilyCareBrainInterfaceSummary",
     "createApexFamilyCareVoiceNoteDraft",
+    "buildApexFamilyCareNotificationState",
+    "getDefaultApexFamilyCareNotificationPreferences",
     "listApexFamilyCareNotes",
   ]) {
     assert.match(componentSource, new RegExp(helperName));
@@ -66,5 +74,8 @@ test("Apex Family Care still uses Phase 2 and Phase 3 shared helpers", () => {
   assert.match(componentSource, /Medication control/);
   assert.match(componentSource, /Voice explicit start/);
   assert.match(componentSource, /Voice hidden recording/);
-  assert.doesNotMatch(componentSource, /getUserMedia|MediaRecorder|navigator\.mediaDevices|fetch\(/i);
+  assert.match(componentSource, /Notification live sends/);
+  assert.match(componentSource, /Notification provider sends/);
+  assert.match(componentSource, /Lock-screen details/);
+  assert.doesNotMatch(componentSource, /getUserMedia|MediaRecorder|navigator\.mediaDevices|fetch\(|Notification\.requestPermission|navigator\.serviceWorker|PushManager/i);
 });

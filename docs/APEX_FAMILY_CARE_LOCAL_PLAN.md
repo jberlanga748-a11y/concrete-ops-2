@@ -433,17 +433,19 @@ Phase 4 receipt (2026-06-09): added a standalone Family Care Voice Update screen
 
 ### Phase 5 - Notifications
 
-- [ ] Add notification preference model.
-- [ ] Add private-safe notification copy.
-- [ ] Add family digest notification decision.
-- [ ] Add concern-marked notification decision.
-- [ ] Add missing-update notification decision.
-- [ ] Add quiet hours / low-noise guard.
-- [ ] Add safe notification settings UI.
-- [ ] Keep real delivery/provider sends deferred to Phase 5A.
-- [ ] Add tests that lock-screen notifications do not expose sensitive details.
+- [x] Add notification preference model.
+- [x] Add private-safe notification copy.
+- [x] Add family digest notification decision.
+- [x] Add concern-marked notification decision.
+- [x] Add missing-update notification decision.
+- [x] Add quiet hours / low-noise guard.
+- [x] Add safe notification settings UI.
+- [x] Keep real delivery/provider sends deferred to Phase 5A.
+- [x] Add tests that lock-screen notifications do not expose sensitive details.
 
 Done means: Family Care knows what should be notified, who it matters to, what safe copy should say, and what must wait for quiet hours, without live SMS/email/cloud/push sends yet.
+
+Phase 5 receipt (2026-06-09): added the local-only Family Care notification decision brain with safe lock-screen copy, normalized notification preferences, family digest/concern/missing-update/doctor-summary/repeated-pattern decisions, quiet-hours and low-noise holds, and metadata-only notification receipts. The standalone Settings screen now previews decisions and stores only non-sensitive local preferences; the side status and Health view show notification decision counts, quiet-hours holds, live-send off, provider-send off, and lock-screen safety. Real push/SMS/email/provider delivery remains deferred to Phase 5A and requires approval before any sends or provider setup. No raw audio, raw transcript, raw prompts, raw responses, raw note text, secrets, customer data, Apex HQ product exposure, schema/auth/session changes, deploys, cloud fallback, medical diagnosis, or emergency replacement behavior was added. Focused validation: `node --test --test-concurrency=1 shared/apexFamilyCare.test.js shared/apexFamilyCareBrain.test.js shared/apexFamilyCareVoice.test.js shared/apexFamilyCareNotifications.test.js src/apex-family-care-components-import.test.js src/pwa-config.test.js shared/permissions.test.js src/app-routing.test.js src/navigation-utils.test.js src/mobile-nav-utils.test.js src/app-navigation-components-import.test.js` passed 100/100.
 
 ### Phase 6 - Home Device / Kitchen Mode
 
@@ -526,4 +528,4 @@ Complete the Current Next Step, advance the plan, then continue through foundati
 
 ## Current Next Step
 
-Next unchecked phase: Phase 5 - Notifications.
+Next unchecked phase: Phase 6 - Home Device / Kitchen Mode.

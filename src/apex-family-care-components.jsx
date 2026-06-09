@@ -17,11 +17,18 @@ import {
 } from "../shared/apexFamilyCare.js";
 import { getApexFamilyCareBrainInterfaceSummary } from "../shared/apexFamilyCareBrain.js";
 import {
+  APEX_FAMILY_CARE_NOTIFICATION_POLICY,
+  buildApexFamilyCareNotificationState,
+  getDefaultApexFamilyCareNotificationPreferences,
+  normalizeApexFamilyCareNotificationPreferences,
+} from "../shared/apexFamilyCareNotifications.js";
+import {
   APEX_FAMILY_CARE_VOICE_POLICY,
   createApexFamilyCareVoiceNoteDraft,
 } from "../shared/apexFamilyCareVoice.js";
 
 const STORAGE_KEY = "apex-family-care-local-notes-v1";
+const NOTIFICATION_STORAGE_KEY = "apex-family-care-notification-preferences-v1";
 
 const SCREEN_LABELS = {
   today: "Today",
@@ -86,6 +93,18 @@ function loadInitialNotes() {
     return listApexFamilyCareNotes(parsed, { limit: APEX_FAMILY_CARE_MAX_LOCAL_NOTES });
   } catch {
     return starterNotes;
+  }
+}
+
+function loadInitialNotificationPreferences() {
+  const defaults = getDefaultApexFamilyCareNotificationPreferences();
+  if (typeof window === "undefined") return defaults;
+  try {
+    const stored = window.localStorage.getItem(NOTIFICATION_STORAGE_KEY);
+    if (!stored) return defaults;
+    return normalizeApexFamilyCareNotificationPreferences(JSON.parse(stored));
+  } catch {
+    return defaults;
   }
 }
 
@@ -492,25 +511,99 @@ function FamilySummaryView({ familySummary }) {
   );
 }
 
-function SettingsView() {
+function NotificationDecisionPreview({ decision }) {
+  const tone = !decision.enabled
+    ? "slate"
+    : decision.quietHoursHold
+      ? "amber"
+      : decision.shouldNotify
+        ? "green"
+        : "slate";
+  const status = !decision.enabled
+    ? "Off"
+    : decision.quietHoursHold
+      ? "Quiet hours"
+      : decision.shouldNotify
+        ? "Ready"
+        : "Quiet";
+
   return (
-    <Card className="p-4">
-      <SectionHeader title="Notifications / Settings" description="Summaries stay compact, voice starts visibly, and lock-screen copy stays private." />
-      <div className="grid gap-3 lg:grid-cols-3">
-        <div className="rounded-lg border border-slate-200 bg-white p-3">
-          <p className="text-sm font-black text-slate-950">Lock screen</p>
-          <p className="mt-1 text-sm font-bold text-slate-600">Use generic copy like "New Grandma update."</p>
-        </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-3">
-          <p className="text-sm font-black text-slate-950">Noise level</p>
-          <p className="mt-1 text-sm font-bold text-slate-600">Digest routine notes; elevate concerns.</p>
-        </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-3">
-          <p className="text-sm font-black text-slate-950">Voice</p>
-          <p className="mt-1 text-sm font-bold text-slate-600">Visible start only. No hidden or background recording.</p>
-        </div>
+    <div className="rounded-lg border border-slate-200 bg-white p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-black text-slate-950">{decision.label}</p>
+        <Badge tone={tone}>{status}</Badge>
       </div>
-    </Card>
+      <p className="mt-1 text-sm font-bold text-slate-600">{decision.inAppCopy}</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <Badge tone={decision.lockScreenCopySafe ? "green" : "red"}>Safe lock-screen copy</Badge>
+        <Badge tone="slate">{decision.lockScreenCopy}</Badge>
+        <Badge tone={decision.providerSendQueued ? "red" : "green"}>{decision.providerSendQueued ? "Send queued" : "No live send"}</Badge>
+      </div>
+    </div>
+  );
+}
+
+function SettingsView({ notificationPreferences, setNotificationPreferences, notificationState }) {
+  function updatePreference(key, value) {
+    setNotificationPreferences((current) => normalizeApexFamilyCareNotificationPreferences({
+      ...current,
+      [key]: value,
+    }));
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-4">
+        <SectionHeader title="Notifications / Settings" description="Decision previews only. Real delivery stays deferred until Phase 5A approval." />
+        <div className="mb-3 flex flex-wrap gap-2">
+          <Badge tone="green">No live sends</Badge>
+          <Badge tone="green">Safe lock-screen copy</Badge>
+          <Badge tone="slate">Phase 5A delivery later</Badge>
+          <Badge tone="green">No provider payloads</Badge>
+        </div>
+        <div className="grid gap-3 lg:grid-cols-2">
+          <div className="rounded-lg border border-slate-200 bg-white p-3">
+            <p className="text-sm font-black text-slate-950">Notification types</p>
+            <div className="mt-3 grid gap-2">
+              <ToggleRow label="Family digest decisions" checked={notificationPreferences.familyDigestEnabled} onChange={(value) => updatePreference("familyDigestEnabled", value)} />
+              <ToggleRow label="Concern-marked decisions" checked={notificationPreferences.concernNotificationsEnabled} onChange={(value) => updatePreference("concernNotificationsEnabled", value)} />
+              <ToggleRow label="Missing-update decisions" checked={notificationPreferences.missingUpdateNotificationsEnabled} onChange={(value) => updatePreference("missingUpdateNotificationsEnabled", value)} />
+              <ToggleRow label="Doctor summary decisions" checked={notificationPreferences.doctorSummaryNotificationsEnabled} onChange={(value) => updatePreference("doctorSummaryNotificationsEnabled", value)} />
+              <ToggleRow label="Repeated-pattern decisions" checked={notificationPreferences.repeatedPatternNotificationsEnabled} onChange={(value) => updatePreference("repeatedPatternNotificationsEnabled", value)} />
+            </div>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white p-3">
+            <p className="text-sm font-black text-slate-950">Low-noise guard</p>
+            <div className="mt-3 grid gap-2">
+              <ToggleRow label="Quiet hours" checked={notificationPreferences.quietHoursEnabled} onChange={(value) => updatePreference("quietHoursEnabled", value)} />
+              <ToggleRow label="Low-noise mode" checked={notificationPreferences.lowNoiseMode} onChange={(value) => updatePreference("lowNoiseMode", value)} />
+              <div className="grid gap-2 sm:grid-cols-2">
+                <InputField label="Quiet start" type="time" value={notificationPreferences.quietHoursStart} onChange={(event) => updatePreference("quietHoursStart", event.target.value)} />
+                <InputField label="Quiet end" type="time" value={notificationPreferences.quietHoursEnd} onChange={(event) => updatePreference("quietHoursEnd", event.target.value)} />
+              </div>
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                <p className="text-sm font-black text-emerald-950">Live delivery</p>
+                <p className="mt-1 text-sm font-bold text-emerald-800">
+                  {APEX_FAMILY_CARE_NOTIFICATION_POLICY.liveDeliveryEnabled ? "Enabled" : "Off until Phase 5A."}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      <Card className="p-4">
+        <SectionHeader title="Notification Decisions" description="Apex decides what matters and keeps lock-screen text generic." />
+        <div className="mb-3 grid gap-2 md:grid-cols-3">
+          <StatCard title="Ready" value={notificationState.summary.activeDecisionCount} detail="Decision previews" />
+          <StatCard title="Quiet Hold" value={notificationState.summary.heldForQuietHoursCount} detail="Low-noise guard" />
+          <StatCard title="Provider Sends" value={notificationState.summary.providerSendQueuedCount} detail="Deferred" />
+        </div>
+        <div className="space-y-2">
+          {notificationState.decisions.map((decision) => <NotificationDecisionPreview key={decision.id} decision={decision} />)}
+        </div>
+      </Card>
+    </div>
   );
 }
 
@@ -527,7 +620,7 @@ function AccessView({ gate, standalone = false }) {
   );
 }
 
-function HealthView({ gate, summary, latestVoiceReceipt }) {
+function HealthView({ gate, summary, latestVoiceReceipt, notificationState }) {
   const brainInterface = getApexFamilyCareBrainInterfaceSummary();
   const healthItems = [
     ["Public access", gate.publicAccess ? "Open" : "Closed", gate.publicAccess ? "red" : "green"],
@@ -545,6 +638,10 @@ function HealthView({ gate, summary, latestVoiceReceipt }) {
     ["Voice hidden recording", APEX_FAMILY_CARE_VOICE_POLICY.hiddenRecording ? "On" : "Off", APEX_FAMILY_CARE_VOICE_POLICY.hiddenRecording ? "red" : "green"],
     ["Voice follow-up limit", APEX_FAMILY_CARE_VOICE_POLICY.maxFollowUps, "green"],
     ["Latest voice receipt", latestVoiceReceipt ? latestVoiceReceipt.metadata.category : "None", latestVoiceReceipt ? "blue" : "slate"],
+    ["Notification decisions", notificationState?.summary?.activeDecisionCount ?? 0, "green"],
+    ["Notification live sends", APEX_FAMILY_CARE_NOTIFICATION_POLICY.liveDeliveryEnabled ? "On" : "Off", APEX_FAMILY_CARE_NOTIFICATION_POLICY.liveDeliveryEnabled ? "red" : "green"],
+    ["Notification provider sends", notificationState?.summary?.providerSendQueuedCount ?? 0, notificationState?.summary?.providerSendQueuedCount ? "red" : "green"],
+    ["Lock-screen details", notificationState?.summary?.nextSafeLockScreenCopySafe ? "Safe" : "Check", notificationState?.summary?.nextSafeLockScreenCopySafe ? "green" : "red"],
   ];
 
   return (
@@ -568,16 +665,25 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
   const [draft, setDraft] = useState(() => newDraft("normal"));
   const [voiceDraft, setVoiceDraft] = useState(() => newVoiceDraft("Dad"));
   const [latestVoiceReceipt, setLatestVoiceReceipt] = useState(null);
+  const [notificationPreferences, setNotificationPreferences] = useState(loadInitialNotificationPreferences);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(notes.slice(0, APEX_FAMILY_CARE_MAX_LOCAL_NOTES)));
   }, [notes]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(NOTIFICATION_STORAGE_KEY, JSON.stringify(notificationPreferences));
+  }, [notificationPreferences]);
+
   const sortedNotes = useMemo(() => listApexFamilyCareNotes(notes, { limit: APEX_FAMILY_CARE_MAX_LOCAL_NOTES }), [notes]);
   const todaySummary = useMemo(() => buildApexFamilyCareTodaySummary(sortedNotes), [sortedNotes]);
   const doctorSummary = useMemo(() => buildApexFamilyCareDoctorSummary(sortedNotes), [sortedNotes]);
   const familySummary = useMemo(() => buildApexFamilyCareFamilySummary(sortedNotes), [sortedNotes]);
+  const notificationState = useMemo(() => buildApexFamilyCareNotificationState(sortedNotes, {
+    preferences: notificationPreferences,
+  }), [notificationPreferences, sortedNotes]);
   const gate = useMemo(() => getApexFamilyCareAccessGateSummary({
     routePrivate: standalone || Boolean(user?.operatorAccess),
     apexOsOnly: !standalone && Boolean(permissions?.apexOs?.canView),
@@ -689,9 +795,15 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
     timeline: <TimelineView notes={sortedNotes} />,
     doctor: <DoctorSummaryView doctorSummary={doctorSummary} />,
     family: <FamilySummaryView familySummary={familySummary} />,
-    settings: <SettingsView />,
+    settings: (
+      <SettingsView
+        notificationPreferences={notificationPreferences}
+        setNotificationPreferences={setNotificationPreferences}
+        notificationState={notificationState}
+      />
+    ),
     access: <AccessView gate={gate} standalone={standalone} />,
-    health: <HealthView gate={gate} summary={todaySummary} latestVoiceReceipt={latestVoiceReceipt} />,
+    health: <HealthView gate={gate} summary={todaySummary} latestVoiceReceipt={latestVoiceReceipt} notificationState={notificationState} />,
   };
 
   return (
@@ -730,6 +842,26 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
               <Badge tone="green">No customer/field access</Badge>
               <Badge tone="green">No raw audio</Badge>
               <Badge tone="green">No diagnosis</Badge>
+            </div>
+          </Card>
+          <Card className="p-4">
+            <SectionHeader
+              title="Notification Status"
+              description={notificationState.summary.nextSafeLockScreenCopy}
+            />
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3">
+                <span className="text-sm font-black text-slate-700">Decision previews</span>
+                <Badge tone="green">{notificationState.summary.activeDecisionCount}</Badge>
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3">
+                <span className="text-sm font-black text-slate-700">Quiet-hours hold</span>
+                <Badge tone={notificationState.summary.heldForQuietHoursCount ? "amber" : "green"}>{notificationState.summary.heldForQuietHoursCount}</Badge>
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3">
+                <span className="text-sm font-black text-slate-700">Live sends</span>
+                <Badge tone={APEX_FAMILY_CARE_NOTIFICATION_POLICY.liveDeliveryEnabled ? "red" : "green"}>{APEX_FAMILY_CARE_NOTIFICATION_POLICY.liveDeliveryEnabled ? "On" : "Off"}</Badge>
+              </div>
             </div>
           </Card>
           <Card className="p-4">
