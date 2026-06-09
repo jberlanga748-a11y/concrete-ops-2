@@ -49,6 +49,25 @@ The builder must not treat this loop as permission to broaden scope, rebuild fro
 
 If the builder discovers a better idea while building, it must pass the Idea Filter, then either fit inside the current phase or be added to the Foundation Follow-Up Roadmap for later. Do not silently change the phase order.
 
+## Loop-Back Rule
+
+Phase 7 is not the finish line. Phase 7 closes only the first foundation lap after one real family test week is run and reviewed.
+
+After Phase 7 is actually complete, the builder must loop back to the earliest useful follow-up slice instead of stopping:
+
+1. Phase 1A - Family Access And Install Hardening.
+2. Phase 2A - Care Review And Doctor-Prep Polish.
+3. Phase 3A - Apex Care Coordinator Loop.
+4. Phase 3.5A - Standalone Boundary Release Prep.
+5. Phase 4A - Real Local Voice Input, only when the workflow is ready.
+6. Phase 5A - Real Notification Delivery, only after approval for real sends/providers.
+7. Phase 6A - Household Device Voice And Presence.
+8. Phase 7A - Family Test Week Improvements.
+
+When that follow-up lap reaches the end, the builder must loop again through any remaining or newly added versioned slices, such as Phase 1B, 2B, 3B, and so on. Each slice must still be small, validated, committed, and aligned with the North Star. Better and better is the point; random broader building is not.
+
+The builder must never skip the real Phase 7 family test week just to reach Phase 1A. The loop-back begins only after the current Phase 7 evidence exists.
+
 ## Boundary Rule
 
 Apex Family Care is its own private family PWA. It is Apex-powered, but it is not Apex HQ, not a contractor app module, and not a page family members should reach through John's business app or private Apex cockpit.
