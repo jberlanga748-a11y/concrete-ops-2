@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import * as THREE from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
 
@@ -19,9 +21,21 @@ import {
   getApexOsDailyBriefing,
   getApexOsExecutionHandoffs,
   getApexOsKnowledgeIntelligence,
+  getApexOsBackgroundStatus,
+  getApexOsLocalProvidersStatus,
+  getApexOsLocalVoiceStatus,
+  listenApexOsNativeVoice,
+  runApexOsBuilderFix,
+  runApexOsTypedLiveTurnBenchmark,
+  runApexOsBuilderUndo,
+  runApexOsBuilderValidation,
+  runApexOsBuildLoop,
   saveApexOsDailyBriefingSnapshot,
-  speakApexOsVoice,
+  saveApexOsLocalVoiceLiveTurnReceipt,
+  speakApexOsLocalVoice,
+  transcribeApexOsLocalVoice,
   transcribeApexOsVoice,
+  updateApexOsLocalVoiceSelection,
   updateApexOsAgentControlRequest,
   updateApexOsAutonomyRun,
   updateApexOsMemory,
@@ -29,12 +43,22 @@ import {
   updateApexOsExecutionHandoff,
 } from "./api";
 import { Badge, Button, Card, Icon, PageHeader, SectionHeader } from "./app-shell-components";
-import { buildReleaseDesk, deriveApexControlRoomState } from "./apex-control-room-utils";
+import {
+  buildApexBuilderModeState,
+  buildApexTalkToApexResponse,
+  buildApexWhatChangedFeedState,
+  buildReleaseDesk,
+  deriveApexControlRoomState,
+} from "./apex-control-room-utils";
 import {
   buildApexOsAskApprovalPacketDraft,
   buildApexOsAskDecisionDraft,
   buildApexOsAskExecutionHandoffDraft,
 } from "../shared/apexOsAsk.js";
+import {
+  APEX_OS_ASSISTANT_MODES,
+  DEFAULT_APEX_OS_ASSISTANT_MODE_ID,
+} from "../shared/apexOsAssistantModes.js";
 import {
   redactApexOsMemoryText,
   summarizeApexOsLiveOperatorMemory,
@@ -54,11 +78,29 @@ import {
   APEX_OS_KNOWLEDGE_DATE_RANGE_VALUES,
   buildApexOsKnowledgeIntelligence,
 } from "../shared/apexOsKnowledgeIntelligence.js";
+import {
+  buildApexPersonalOsCoreState,
+  buildApexPersonalOsLocalVoiceReadiness,
+} from "../shared/apexPersonalOsCore.js";
+import {
+  APEX_ALWAYS_OPEN_MIC_STATE,
+  buildApexAlwaysOpenMicReceipt,
+  buildApexAlwaysOpenMicStatus,
+  buildApexAlwaysOpenMicTranscriptionGate,
+} from "../shared/apexAlwaysOpenMicRuntime.js";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 function ToneBadge({ children, tone = "slate" }) {
   return <Badge tone={tone}>{children}</Badge>;
+}
+
+function resolveApexPrivateOperatorDisplayName(operatorName = "") {
+  const trimmed = String(operatorName || "").trim();
+  if (!trimmed || /\b(demo admin|demo user|demo operator|restricted user)\b/i.test(trimmed)) return "John";
+  if (/\b(jordan berl|josh berlanga|josh)\b/i.test(trimmed)) return "John";
+  if (/john berlanga/i.test(trimmed)) return "John";
+  return trimmed;
 }
 
 function stopBrowserVoice(audioRef) {
@@ -270,6 +312,241 @@ function blobToDataUrl(blob) {
   });
 }
 
+function writeAscii(view, offset, value) {
+  for (let index = 0; index < value.length; index += 1) {
+    view.setUint8(offset + index, value.charCodeAt(index));
+  }
+}
+
+function readAscii(view, offset, length) {
+  let value = "";
+  for (let index = 0; index < length; index += 1) {
+    value += String.fromCharCode(view.getUint8(offset + index));
+  }
+  return value;
+}
+
+function readApexCockpitWavMetadata(buffer) {
+  if (!buffer || buffer.byteLength < 44) return { wavHeaderValid: false };
+  const view = new DataView(buffer);
+  const riff = readAscii(view, 0, 4);
+  const wave = readAscii(view, 8, 4);
+  const dataSize = view.getUint32(40, true);
+  const sampleRate = view.getUint32(24, true);
+  const channelCount = view.getUint16(22, true);
+  const bitDepth = view.getUint16(34, true);
+  const bytesPerSecond = view.getUint32(28, true);
+  const durationEstimateMs = bytesPerSecond ? Math.round((dataSize / bytesPerSecond) * 1000) : 0;
+  return {
+    wavHeaderValid: riff === "RIFF" && wave === "WAVE",
+    sampleRate,
+    channelCount,
+    bitDepth,
+    durationEstimateMs,
+    encoding: "pcm_s16le",
+  };
+}
+
+function readMixedAudioSample(audioBuffer, sourcePosition, channelCount) {
+  const lowerFrame = Math.max(0, Math.min(audioBuffer.length - 1, Math.floor(sourcePosition)));
+  const upperFrame = Math.max(0, Math.min(audioBuffer.length - 1, lowerFrame + 1));
+  const mix = sourcePosition - lowerFrame;
+  let sample = 0;
+  for (let channel = 0; channel < channelCount; channel += 1) {
+    const channelData = audioBuffer.getChannelData(channel);
+    const lowerValue = channelData[lowerFrame] || 0;
+    const upperValue = channelData[upperFrame] || lowerValue;
+    sample += lowerValue + ((upperValue - lowerValue) * mix);
+  }
+  return sample / channelCount;
+}
+
+function mergeApexCockpitPcmChunks(chunks = []) {
+  const safeChunks = Array.isArray(chunks) ? chunks.filter((chunk) => chunk?.length) : [];
+  const totalLength = safeChunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  if (!totalLength) return new Float32Array(0);
+  const merged = new Float32Array(totalLength);
+  let offset = 0;
+  for (const chunk of safeChunks) {
+    merged.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return merged;
+}
+
+function encodeFloat32PcmToWav(samples, { sourceSampleRate = 16000, targetSampleRate = 16000 } = {}) {
+  const sourceRate = Math.max(1, Math.round(sourceSampleRate || targetSampleRate || 16000));
+  const outputSampleRate = Math.max(8000, Math.round(targetSampleRate || sourceRate));
+  const sourceSamples = samples instanceof Float32Array ? samples : new Float32Array(0);
+  const frameCount = Math.max(1, Math.round((sourceSamples.length * outputSampleRate) / sourceRate));
+  const bytesPerSample = 2;
+  const dataSize = frameCount * bytesPerSample;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+  writeAscii(view, 0, "RIFF");
+  view.setUint32(4, 36 + dataSize, true);
+  writeAscii(view, 8, "WAVE");
+  writeAscii(view, 12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, outputSampleRate, true);
+  view.setUint32(28, outputSampleRate * bytesPerSample, true);
+  view.setUint16(32, bytesPerSample, true);
+  view.setUint16(34, 8 * bytesPerSample, true);
+  writeAscii(view, 36, "data");
+  view.setUint32(40, dataSize, true);
+  let offset = 44;
+  for (let frame = 0; frame < frameCount; frame += 1) {
+    const sourcePosition = (frame * sourceRate) / outputSampleRate;
+    const lowerFrame = Math.max(0, Math.min(sourceSamples.length - 1, Math.floor(sourcePosition)));
+    const upperFrame = Math.max(0, Math.min(sourceSamples.length - 1, lowerFrame + 1));
+    const mix = sourcePosition - lowerFrame;
+    const sample = (sourceSamples[lowerFrame] || 0) + (((sourceSamples[upperFrame] || sourceSamples[lowerFrame] || 0) - (sourceSamples[lowerFrame] || 0)) * mix);
+    const clamped = Math.max(-1, Math.min(1, sample));
+    view.setInt16(offset, clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff, true);
+    offset += bytesPerSample;
+  }
+  return {
+    buffer,
+    metadata: {
+      sourceSampleRate: sourceRate,
+      sourceChannelCount: 1,
+      sampleRate: outputSampleRate,
+      channelCount: 1,
+      bitDepth: 16,
+      durationEstimateMs: Math.max(0, Math.round((frameCount / outputSampleRate) * 1000)),
+      wavHeaderValid: true,
+      encoding: "pcm_s16le",
+    },
+  };
+}
+
+function encodeAudioBufferToWav(audioBuffer, { targetSampleRate = 16000 } = {}) {
+  const sourceSampleRate = Math.max(1, audioBuffer.sampleRate || targetSampleRate);
+  const channelCount = Math.max(1, audioBuffer.numberOfChannels || 1);
+  const outputSampleRate = Math.max(8000, Math.round(targetSampleRate || sourceSampleRate));
+  const frameCount = Math.max(1, Math.round((audioBuffer.length * outputSampleRate) / sourceSampleRate));
+  const bytesPerSample = 2;
+  const dataSize = frameCount * bytesPerSample;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+  writeAscii(view, 0, "RIFF");
+  view.setUint32(4, 36 + dataSize, true);
+  writeAscii(view, 8, "WAVE");
+  writeAscii(view, 12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, outputSampleRate, true);
+  view.setUint32(28, outputSampleRate * bytesPerSample, true);
+  view.setUint16(32, bytesPerSample, true);
+  view.setUint16(34, 8 * bytesPerSample, true);
+  writeAscii(view, 36, "data");
+  view.setUint32(40, dataSize, true);
+  let offset = 44;
+  for (let frame = 0; frame < frameCount; frame += 1) {
+    const sourcePosition = (frame * sourceSampleRate) / outputSampleRate;
+    const sample = readMixedAudioSample(audioBuffer, sourcePosition, channelCount);
+    const clamped = Math.max(-1, Math.min(1, sample));
+    view.setInt16(offset, clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff, true);
+    offset += bytesPerSample;
+  }
+  return {
+    buffer,
+    metadata: {
+      sourceSampleRate,
+      sourceChannelCount: channelCount,
+      sampleRate: outputSampleRate,
+      channelCount: 1,
+      bitDepth: 16,
+      durationEstimateMs: Math.max(0, Math.round((frameCount / outputSampleRate) * 1000)),
+      wavHeaderValid: true,
+      encoding: "pcm_s16le",
+    },
+  };
+}
+
+async function convertVoiceBlobToLocalWav(blob) {
+  if (!blob?.size) {
+    return {
+      blob,
+      metadata: {
+        sourceMimeType: blob?.type || "",
+        sourceByteLength: blob?.size || 0,
+        convertedMimeType: blob?.type || "",
+        convertedByteLength: blob?.size || 0,
+        wavHeaderValid: false,
+        failureReason: "empty-audio",
+      },
+    };
+  }
+  if (String(blob.type || "").toLowerCase() === "audio/wav") {
+    const audioBytes = await blob.arrayBuffer();
+    const wavMetadata = readApexCockpitWavMetadata(audioBytes);
+    if (wavMetadata.wavHeaderValid) {
+      return {
+        blob,
+        metadata: {
+          ...wavMetadata,
+          sourceMimeType: blob.type || "audio/wav",
+          sourceByteLength: blob.size || 0,
+          convertedMimeType: "audio/wav",
+          convertedByteLength: blob.size || 0,
+          readyForTranscription: true,
+          captureProvider: "browser-pcm",
+        },
+      };
+    }
+  }
+  if (typeof window === "undefined") throw new Error("Browser audio conversion is unavailable.");
+  const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextCtor) {
+    throw new Error("This browser cannot convert microphone audio to WAV for local STT.");
+  }
+  const context = new AudioContextCtor();
+  try {
+    const audioBuffer = await context.decodeAudioData(await blob.arrayBuffer());
+    const encoded = encodeAudioBufferToWav(audioBuffer, { targetSampleRate: 16000 });
+    const wavBlob = new Blob([encoded.buffer], { type: "audio/wav" });
+    return {
+      blob: wavBlob,
+      metadata: {
+        ...encoded.metadata,
+        sourceMimeType: blob.type || "",
+        sourceByteLength: blob.size || 0,
+        convertedMimeType: wavBlob.type || "audio/wav",
+        convertedByteLength: wavBlob.size || 0,
+        readyForTranscription: true,
+      },
+    };
+  } catch (error) {
+    return {
+      blob,
+      metadata: {
+        sourceMimeType: blob.type || "",
+        sourceByteLength: blob.size || 0,
+        convertedMimeType: blob.type || "",
+        convertedByteLength: blob.size || 0,
+        wavHeaderValid: false,
+        browserWavConversionFailed: true,
+        clientConversionFailureReason: "wav-conversion-failed",
+        clientConversionFailureMessage: String(error?.message || "Browser could not decode microphone audio.").slice(0, 180),
+        fallbackMode: "client-wav-required",
+        readyForTranscription: false,
+      },
+    };
+  } finally {
+    if (typeof context.close === "function") {
+      try {
+        await context.close();
+      } catch {
+        // Closing AudioContext is best effort.
+      }
+    }
+  }
+}
+
 function getApexCockpitSpeechRecognitionCtor() {
   if (typeof window === "undefined") return null;
   return window.SpeechRecognition || window.webkitSpeechRecognition || null;
@@ -277,6 +554,7 @@ function getApexCockpitSpeechRecognitionCtor() {
 
 function buildApexCockpitVoiceHealth({
   canUseRecorder = false,
+  canUseNativeVoice = false,
   canUseSpeechRecognition = false,
   micPermissionState = "unknown",
   wakeAttempted = false,
@@ -293,8 +571,29 @@ function buildApexCockpitVoiceHealth({
   bargeInEnabled = true,
   retryCount = 0,
   retryReason = "",
+  alwaysOpenMic = null,
+  localVoiceReadiness = null,
+  backgroundStatus = null,
+  micCalibration = null,
 } = {}) {
-  const hardMicBlock = micPermissionState === "denied" || recognitionStatus === "blocked";
+  const micRuntimeState = String(alwaysOpenMic?.state || (autoListening ? "standby" : "quiet"));
+  const backgroundRuntimeStatus = String(backgroundStatus?.status || "unknown");
+  const vadProvider = String(alwaysOpenMic?.vadProvider || "amplitude-gate");
+  const micCal = createApexCockpitMicCalibrationState(micCalibration || {});
+  const micCaptureProvider = micCal.captureProvider || "none";
+  const micFrameCount = Number(micCal.frameCount || 0);
+  const micSignalLive = micCal.status === "signal" || micCal.signalDetected === true;
+  const sttLabel = localVoiceReadiness?.sttEngine
+    ? `${localVoiceReadiness.sttEngine}${localVoiceReadiness.sttProcessor ? ` / ${localVoiceReadiness.sttProcessor}` : ""}`
+    : "faster-whisper CUDA / GPU";
+  const ttsLabel = APEX_COCKPIT_USE_FAST_SIMPLE_VOICE
+    ? "Windows SAPI fast test"
+    : localVoiceReadiness?.usingLightweightVoice
+    ? `Kokoro ONNX${localVoiceReadiness.lightweightVoiceId ? ` / ${localVoiceReadiness.lightweightVoiceId}` : ""}`
+    : localVoiceReadiness?.ttsEngine || "Kokoro ONNX / am_michael";
+  const hasLocalVoiceInput = canUseRecorder || canUseNativeVoice;
+  const browserMicBlocked = micPermissionState === "denied";
+  const hardMicBlock = (browserMicBlocked && !canUseNativeVoice) || (recognitionStatus === "blocked" && !canUseNativeVoice);
   const captionRecovering = recognitionStatus === "recovering";
   const captionLimited = recognitionStatus === "limited" || Boolean(recognitionError);
   const captionLive = recording && ["captioning", "interim"].includes(recognitionStatus);
@@ -302,24 +601,14 @@ function buildApexCockpitVoiceHealth({
   const retryDetail = retryReason || "Apex missed the last voice turn";
   let status = "Voice ready";
   let tone = "blue";
-  let actionLabel = "Wake Apex";
-  let notice = "Voice is wake-gated, visible, and ready for a natural turn.";
+  let actionLabel = "Start voice";
+  let notice = "Apex is trying to keep the visible page microphone open for natural turns.";
 
-  if (!canUseRecorder) {
+  if (!hasLocalVoiceInput) {
     status = "Voice unavailable";
     tone = "red";
     actionLabel = "Use text";
-    notice = "This browser cannot open microphone here. Type the request or use another supported browser.";
-  } else if (hardMicBlock) {
-    status = "Mic blocked";
-    tone = "red";
-    actionLabel = "Allow mic";
-    notice = "Microphone or browser captions are blocked. Allow microphone access, then recover voice.";
-  } else if (needsWake && !wakeAttempted) {
-    status = "Needs wake";
-    tone = "amber";
-    actionLabel = "Wake Apex";
-    notice = "Tap Wake Apex once so browser microphone and speech playback can unlock.";
+    notice = "No local microphone input is ready here. Type the request while Apex checks voice.";
   } else if (speaking) {
     status = "Talking";
     tone = "amber";
@@ -329,7 +618,22 @@ function buildApexCockpitVoiceHealth({
     status = "Processing";
     tone = "blue";
     actionLabel = "Hold";
-    notice = transcribing ? "Apex is reading your voice through the private transcription endpoint." : "Apex is reading private context for the answer.";
+    notice = transcribing ? "Apex is reading your voice through local transcription." : "Apex is reading private context for the answer.";
+  } else if (browserMicBlocked && canUseNativeVoice) {
+    status = autoListening ? "Native mic ready" : "Voice ready";
+    tone = autoListening ? "green" : "blue";
+    actionLabel = autoListening ? "Speak naturally" : "Resume Voice";
+    notice = "Browser mic permission is blocked, so Apex is using the visible native Windows mic path locally.";
+  } else if (hardMicBlock) {
+    status = "Mic blocked";
+    tone = "red";
+    actionLabel = "Allow mic";
+    notice = "Microphone or browser captions are blocked. Allow microphone access, then recover voice.";
+  } else if (needsWake && !wakeAttempted) {
+    status = "Needs mic permission";
+    tone = "amber";
+    actionLabel = "Allow mic";
+    notice = "Choose Allow when the browser asks for microphone access on this visible Apex page.";
   } else if (captionRecovering) {
     status = "Recovering captions";
     tone = "amber";
@@ -340,11 +644,26 @@ function buildApexCockpitVoiceHealth({
     tone = "green";
     actionLabel = "Speak naturally";
     notice = "Voice health is green. Apex is listening, captioning, and ready for interruption.";
-  } else if (voiceRetryCount && recording) {
-    status = "Retry listening";
+  } else if (recording && micSignalLive) {
+    status = "Mic signal live";
     tone = "green";
-    actionLabel = "Speak again";
-    notice = `${retryDetail}. Apex reopened live listening and did not take action.`;
+    actionLabel = "Speak naturally";
+    notice = `Apex sees microphone signal through ${micCaptureProvider}. Gate ${formatApexCockpitMicPercent(micCal.calibratedLevelThreshold)}; peak ${formatApexCockpitMicPercent(micCal.peakLevel)}.`;
+  } else if (recording && micFrameCount > 0 && micCal.status === "calibrating") {
+    status = "Calibrating mic";
+    tone = "blue";
+    actionLabel = "Speak normally";
+    notice = "Apex is measuring local mic frames, room noise, and the speech gate.";
+  } else if (recording && micFrameCount > 0) {
+    status = "Mic frames live";
+    tone = "amber";
+    actionLabel = "Speak closer";
+    notice = `Mic frames are arriving through ${micCaptureProvider}, but speech has not crossed the gate yet.`;
+  } else if (voiceRetryCount && recording) {
+    status = "Manual voice active";
+    tone = "green";
+    actionLabel = "Done Talking";
+    notice = `${retryDetail}. Apex is in one visible voice turn and will pause when it settles.`;
   } else if (recording && captionLimited) {
     status = "Recorder live";
     tone = "amber";
@@ -386,8 +705,48 @@ function buildApexCockpitVoiceHealth({
     rows: [
       {
         label: "Mic",
-        value: !canUseRecorder ? "Unavailable" : hardMicBlock ? "Blocked" : recording ? "Open" : needsWake ? "Wake" : "Ready",
+        value: !canUseRecorder ? "Unavailable" : hardMicBlock ? "Blocked" : recording ? "Open" : needsWake ? "Allow" : "Ready",
         tone: !canUseRecorder || hardMicBlock ? "red" : recording ? "green" : needsWake ? "amber" : "blue",
+      },
+      {
+        label: "Mode",
+        value: micRuntimeState,
+        tone: micRuntimeState === "quiet" ? "slate" : micRuntimeState === "recovering" || micRuntimeState === "speaking" ? "amber" : micRuntimeState === "capturing" ? "green" : "blue",
+      },
+      {
+        label: "Runtime",
+        value: backgroundRuntimeStatus,
+        tone: backgroundRuntimeStatus === "healthy" ? "green" : backgroundRuntimeStatus === "degraded" ? "amber" : "blue",
+      },
+      {
+        label: "VAD",
+        value: micCal.calibratedLevelThreshold ? `Gate ${formatApexCockpitMicPercent(micCal.calibratedLevelThreshold)}` : vadProvider,
+        tone: "green",
+      },
+      {
+        label: "Capture",
+        value: micCaptureProvider,
+        tone: micCal.audioWorkletActive ? "green" : micCal.fallbackCaptureUsed ? "amber" : micCaptureProvider === "none" ? "slate" : "blue",
+      },
+      {
+        label: "Signal",
+        value: micFrameCount ? `${formatApexCockpitMicPercent(micCal.peakLevel)} peak` : "No frames",
+        tone: micSignalLive ? "green" : micFrameCount ? "amber" : "slate",
+      },
+      {
+        label: "STT",
+        value: sttLabel,
+        tone: localVoiceReadiness?.sttProcessor === "gpu" || /gpu|cuda/i.test(sttLabel) ? "green" : "amber",
+      },
+      {
+        label: "TTS",
+        value: ttsLabel,
+        tone: localVoiceReadiness?.usingLightweightVoice ? "green" : "amber",
+      },
+      {
+        label: "Cloud",
+        value: "Off",
+        tone: "green",
       },
       {
         label: "Captions",
@@ -396,7 +755,7 @@ function buildApexCockpitVoiceHealth({
       },
       {
         label: "Speaker",
-        value: speaking ? "Talking" : audioUnlocked ? "Unlocked" : needsWake ? "Wake" : "Ready",
+        value: speaking ? "Talking" : audioUnlocked ? "Unlocked" : needsWake ? "Allow" : "Ready",
         tone: speaking ? "amber" : audioUnlocked ? "green" : needsWake ? "amber" : "blue",
       },
       {
@@ -464,6 +823,59 @@ function EvidenceRow({ item }) {
   );
 }
 
+function ApexActivityReceiptRow({ item }) {
+  return (
+    <div className="min-w-0 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-[0_12px_34px_-32px_rgba(15,23,42,0.8)]">
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="break-words text-[10px] font-black uppercase tracking-[0.14em] text-orange-700">{item.actionLabel || "Apex internal action"}</p>
+          <p className="mt-1 break-words text-sm font-black text-slate-950">{item.reason || "Apex OS internal action evaluated."}</p>
+          <div className="mt-2 flex min-w-0 flex-wrap gap-2">
+            <span className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-black text-slate-600">{item.affectedRecordType || "internal record"}</span>
+            {item.affectedRecordId ? <span className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-black text-slate-600">{item.affectedRecordId}</span> : null}
+            {item.timestamp ? <span className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-black text-slate-600">{item.timestamp}</span> : null}
+          </div>
+          <p className="mt-2 break-words text-[11px] font-bold leading-4 text-slate-500">{item.undoHint || "Archive, edit, or reset the private record where supported."}</p>
+        </div>
+        <ToneBadge tone={item.tone || "slate"}>{item.statusLabel || item.status || "Recorded"}</ToneBadge>
+      </div>
+    </div>
+  );
+}
+
+function ApexActivityReceiptsPanel({ state }) {
+  const activity = state.apexActivity || {};
+  if (activity.loading) {
+    return <EmptyPanel>Loading recent Apex internal action receipts.</EmptyPanel>;
+  }
+  if (activity.error) {
+    return <EmptyPanel>{activity.error}</EmptyPanel>;
+  }
+  return (
+    <div className="grid min-w-0 gap-3">
+      <div className="grid min-w-0 gap-2 rounded-xl border border-orange-200 bg-orange-50 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+        <div className="min-w-0">
+          <p className="break-words text-sm font-black text-orange-950">{activity.summaryText || "Recent Level 2 receipts are shown here."}</p>
+          <p className="mt-1 break-words text-xs font-bold leading-5 text-orange-800">External actions remain locked: no sends, spend, orders, bookings, desktop/browser/music control, deploys, schema/auth changes, or customer-visible work.</p>
+        </div>
+        <div className="flex min-w-0 flex-wrap gap-2 sm:justify-end">
+          <ToneBadge tone={activity.performedCount ? "green" : "slate"}>{activity.performedCount || 0} done</ToneBadge>
+          <ToneBadge tone={activity.blockedCount ? "red" : "slate"}>{activity.blockedCount || 0} stopped</ToneBadge>
+          <ToneBadge tone={activity.escalatedCount ? "amber" : "slate"}>{activity.escalatedCount || 0} review</ToneBadge>
+        </div>
+      </div>
+
+      {activity.rows?.length ? (
+        <div className="grid min-w-0 gap-3">
+          {activity.rows.map((item) => <ApexActivityReceiptRow key={item.id} item={item} />)}
+        </div>
+      ) : (
+        <EmptyPanel>No Apex Level 2 internal action receipts are visible yet. When Apex saves a private task, reminder, memory suggestion, preference, planning note, or research note, the receipt will appear here.</EmptyPanel>
+      )}
+    </div>
+  );
+}
+
 function MemoryRow({ item }) {
   return (
     <div className="min-w-0 rounded-xl border border-slate-200 bg-white px-4 py-3">
@@ -490,6 +902,250 @@ function EmptyPanel({ children }) {
   );
 }
 
+function findOllamaStatusPayload(payload = {}) {
+  if (payload?.localProviders?.ollama) return payload.localProviders.ollama;
+  if (Array.isArray(payload?.providers)) {
+    return payload.providers.find((provider) => String(provider?.provider || "").toLowerCase() === "ollama") || {};
+  }
+  return {};
+}
+
+function findGpuStatusPayload(payload = {}) {
+  if (payload?.localProviders?.gpu) return payload.localProviders.gpu;
+  if (payload?.gpu) return payload.gpu;
+  if (payload?.speedCore?.gpu) return payload.speedCore.gpu;
+  return {};
+}
+
+function findBrainStatusPayload(payload = {}) {
+  if (payload?.brain?.provider === "apex-workstation-brain") return payload.brain;
+  if (payload?.background?.brain?.provider === "apex-workstation-brain") return payload.background.brain;
+  if (payload?.localProviders?.brain?.provider === "apex-workstation-brain") return payload.localProviders.brain;
+  return {};
+}
+
+function findAgentSpeedPayload(payload = {}) {
+  if (payload?.agentSpeed?.provider === "apex-local-agent-speed") return payload.agentSpeed;
+  if (payload?.background?.agentSpeed?.provider === "apex-local-agent-speed") return payload.background.agentSpeed;
+  if (payload?.localProviders?.agentSpeed?.provider === "apex-local-agent-speed") return payload.localProviders.agentSpeed;
+  return {};
+}
+
+const APEX_LOCAL_TALK_MODEL = "qwen3:14b";
+const APEX_LOCAL_FAST_CODER_MODEL = "qwen2.5-coder:7b";
+const APEX_LOCAL_DEEP_CODING_MODEL = "qwen3-coder:30b";
+const APEX_LOCAL_REASONING_MODEL = "gpt-oss:20b";
+const APEX_LOCAL_MOE_MODEL = "qwen3:30b-a3b";
+const APEX_LOCAL_CODER_MODEL = "qwen3-coder:30b-a3b-q4_K_M";
+const APEX_LOCAL_CODING_MODEL = APEX_LOCAL_DEEP_CODING_MODEL;
+const APEX_LOCAL_EFFORT_OPTIONS = Object.freeze([
+  Object.freeze({ id: "fast", label: "Fast", model: APEX_LOCAL_TALK_MODEL, numCtx: 4096, manualOnly: false, output: "short" }),
+  Object.freeze({ id: "normal", label: "Normal", model: APEX_LOCAL_TALK_MODEL, numCtx: 4096, manualOnly: false, output: "full" }),
+  Object.freeze({ id: "reasoning", label: "Reasoning", model: APEX_LOCAL_REASONING_MODEL, numCtx: 8192, manualOnly: true, output: "reason" }),
+  Object.freeze({ id: "moe", label: "MoE", model: APEX_LOCAL_MOE_MODEL, numCtx: 8192, manualOnly: true, output: "wide" }),
+  Object.freeze({ id: "coder", label: "Coder", model: APEX_LOCAL_CODER_MODEL, numCtx: 8192, manualOnly: true, output: "code" }),
+  Object.freeze({ id: "deep", label: "Deep", model: APEX_LOCAL_REASONING_MODEL, numCtx: 8192, manualOnly: true, output: "best" }),
+]);
+
+function hasApexLocalModel(modelNames = [], model = "") {
+  const target = String(model || "").trim().toLowerCase();
+  return (Array.isArray(modelNames) ? modelNames : [])
+    .some((name) => String(name || "").trim().toLowerCase() === target);
+}
+
+function apexLocalModelStatusLabel(available, known) {
+  if (available) return "Ready";
+  return known ? "Missing" : "Checking";
+}
+
+function normalizeApexCockpitEffortId(value = "", fallback = "fast") {
+  const normalized = String(value || "").trim().toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
+  return APEX_LOCAL_EFFORT_OPTIONS.some((option) => option.id === normalized) ? normalized : fallback;
+}
+
+function apexCockpitEffortOption(value = "") {
+  const effortId = normalizeApexCockpitEffortId(value);
+  return APEX_LOCAL_EFFORT_OPTIONS.find((option) => option.id === effortId) || APEX_LOCAL_EFFORT_OPTIONS[0];
+}
+
+function buildApexLocalIntelligenceStatus({ response = null, providerStatusPayload = null, selectedEffort = "fast" } = {}) {
+  const answer = response?.answer && typeof response.answer === "object" ? response.answer : {};
+  const responseStatus = response?.context?.localProviderStatus || {};
+  const providerStatus = findOllamaStatusPayload(providerStatusPayload || {});
+  const gpuStatus = findGpuStatusPayload(providerStatusPayload || {});
+  const brainStatus = answer.brainStatus || answer.brainTelemetry || findBrainStatusPayload(providerStatusPayload || {});
+  const responseAgentSpeed = answer.agentSpeed || answer.benchmarkReceipt || responseStatus.agentSpeed || findAgentSpeedPayload(providerStatusPayload || {});
+  const benchmarkReceipt = answer.benchmarkReceipt || responseStatus.benchmarkReceipt || (responseAgentSpeed.receiptType === "local-agent-benchmark" ? responseAgentSpeed : {});
+  const benchmarkHistory = answer.benchmarkHistory
+    || responseStatus.benchmarkHistory
+    || providerStatusPayload?.agentSpeedBenchmarkHistory
+    || providerStatusPayload?.background?.agentSpeedBenchmarkHistory
+    || providerStatusPayload?.localIntelligence?.benchmarkHistory
+    || {};
+  const residencyStatus = providerStatusPayload?.residency
+    || providerStatusPayload?.localProviders?.residency
+    || providerStatusPayload?.background?.residency
+    || answer.residency
+    || responseStatus.residency
+    || {};
+  const modelProcessor = answer.modelProcessor || responseStatus.modelProcessor || providerStatus.modelProcessor || {};
+  const provider = answer.provider || responseStatus.provider || providerStatus.provider || "ollama";
+  const providerLabel = String(provider || "ollama").toLowerCase() === "ollama" ? "Ollama" : String(provider || "Ollama");
+  const selectedModel = answer.model || responseStatus.selectedModel || providerStatus.selectedModel || "qwen3:14b";
+  const effortOption = apexCockpitEffortOption(answer.agentEffort || answer.effort || responseStatus.selectedEffort || responseAgentSpeed.effortId || benchmarkReceipt?.effortId || selectedEffort);
+  const effortId = effortOption.id;
+  const effortLabel = answer.agentEffortLabel || responseStatus.effortLabel || responseAgentSpeed.effortLabel || benchmarkReceipt?.effortLabel || effortOption.label;
+  const effortModel = responseAgentSpeed.modelId || answer.effortModel || benchmarkReceipt?.modelUsed || effortOption.model;
+  const effortNumCtx = Number(answer.effortNumCtx || responseAgentSpeed.numCtx || benchmarkReceipt?.numCtx || effortOption.numCtx) || effortOption.numCtx;
+  const deepModelActive = String(selectedModel).toLowerCase() === APEX_LOCAL_DEEP_CODING_MODEL;
+  const agentLaneId = String(responseAgentSpeed.laneId || responseStatus.agentSpeedLane || answer.agentSpeedLane || (deepModelActive ? "deep" : "fast")).toLowerCase();
+  const agentLaneLabel = responseAgentSpeed.laneLabel || responseStatus.agentSpeedLabel || answer.agentSpeedLabel || (agentLaneId === "coding" ? "Coding" : agentLaneId === "deep" ? "Deep coding" : "Fast");
+  const agentNumCtx = Number(responseAgentSpeed.numCtx || benchmarkReceipt?.numCtx || 2048) || 2048;
+  const agentKeepAlive = responseAgentSpeed.keepAlive || benchmarkReceipt?.keepAlive || (agentLaneId === "fast" || agentLaneId === "coding" ? "30m" : "5m");
+  const activeBrainMode = String(brainStatus.activeMode || answer.brainMode || "speed").toLowerCase();
+  const brainModel = brainStatus.modelId || answer.model || selectedModel;
+  const brainNumCtx = Number(brainStatus.numCtx || residencyStatus.activeLaneNumCtx || agentNumCtx || 2048) || 2048;
+  const residencyNumCtx = Number(residencyStatus.numCtx || 0) || 0;
+  const brainVramUsedMb = Number(residencyStatus.vramUsedMb || brainStatus.vramUsedMb || answer.vramUsedMb || modelProcessor.vramUsedMb || 0) || 0;
+  const brainVramTotalMb = Number(brainStatus.vramTotalMb || gpuStatus.vramTotalMb || 0) || 0;
+  const brainReloadNeeded = Boolean(residencyStatus.reloadNeeded || residencyStatus.contextExceedsActiveLane || residencyStatus.contextTooLarge);
+  const modelNames = Array.isArray(responseStatus.modelNames) ? responseStatus.modelNames : Array.isArray(providerStatus.modelNames) ? providerStatus.modelNames : [];
+  const hasModelData = modelNames.length > 0;
+  const selectedModelAvailable = Boolean(responseStatus.selectedModelAvailable ?? (modelNames.length ? modelNames.some((model) => String(model).toLowerCase() === String(selectedModel).toLowerCase()) : providerStatus.available));
+  const talkModelAvailable = hasApexLocalModel(modelNames, APEX_LOCAL_TALK_MODEL) || (String(selectedModel).toLowerCase() === APEX_LOCAL_TALK_MODEL && selectedModelAvailable);
+  const codingModelAvailable = hasApexLocalModel(modelNames, APEX_LOCAL_CODING_MODEL) || (String(selectedModel).toLowerCase() === APEX_LOCAL_CODING_MODEL && selectedModelAvailable);
+  const fastCoderModelAvailable = hasApexLocalModel(modelNames, APEX_LOCAL_FAST_CODER_MODEL);
+  const effortModelAvailable = hasApexLocalModel(modelNames, effortOption.model) || (String(selectedModel).toLowerCase() === String(effortOption.model).toLowerCase() && selectedModelAvailable);
+  const providerAvailable = Boolean(responseStatus.available ?? providerStatus.available);
+  const cloudDecision = response?.context?.localFirstProviderPolicy?.decision || "block-cloud";
+  const openAiUsed = /openai/i.test(String(answer.provider || answer.mode || ""));
+  const localOllamaUsed = /ollama/i.test(String(answer.provider || answer.mode || provider));
+  const fallback = Boolean(answer.providerFallback);
+  const processor = String(modelProcessor.processor || answer.processor || responseStatus.processor || "unknown").toLowerCase();
+  const gpuAvailable = Boolean(gpuStatus.available);
+  const gpuLabel = gpuAvailable
+    ? processor === "gpu" || processor === "mixed"
+      ? processor === "mixed" ? "GPU mixed" : "GPU active"
+      : "GPU ready"
+    : "GPU checking";
+  const processorLine = processor && processor !== "unknown"
+    ? ` Processor: ${processor}${modelProcessor.vramUsedMb ? `, ${modelProcessor.vramUsedMb} MB VRAM` : ""}.`
+    : gpuAvailable
+      ? " GPU is detected; the next model turn will receipt actual GPU/CPU use."
+      : "";
+  const brainOutputCap = Number(brainStatus.maxOutputTokens || answer.brainProfile?.maxOutputTokens || answer.brainTelemetry?.maxOutputTokens || 0) || 0;
+  const brainLine = ` Brain: ${activeBrainMode} on ${brainModel}, ctx ${brainNumCtx}${residencyNumCtx ? `, resident ctx ${residencyNumCtx}` : ""}${brainStatus.speedLane && brainOutputCap ? `, speed cap ${brainOutputCap}` : ""}, threshold ${brainReloadNeeded ? "reload-needed" : brainStatus.thresholdStatus || "stable"}.`;
+  const thirtyBActive = agentLaneId === "deep" || deepModelActive;
+  const timingMs = Number(benchmarkReceipt.totalDurationMs || answer.responseTimingMs || responseStatus.responseTimingMs || 0) || 0;
+  const timingLabel = timingMs ? `${Math.round(timingMs)} ms` : "waiting for turn";
+  const lastBenchmarkMs = Number(benchmarkHistory.latest?.totalDurationMs || 0) || 0;
+  const lastBenchmarkLabel = lastBenchmarkMs
+    ? `${Math.round(lastBenchmarkMs)} ms`
+    : benchmarkHistory.status === "ready" && benchmarkHistory.averageTotalDurationMs
+      ? `avg ${Math.round(Number(benchmarkHistory.averageTotalDurationMs || 0))} ms`
+      : "not run";
+  const warmStatus = providerStatusPayload?.background?.keepWarm || providerStatusPayload?.keepWarm || {};
+  const warmLabel = warmStatus.enabled
+    ? `${warmStatus.targetModel || APEX_LOCAL_TALK_MODEL} / ctx ${warmStatus.lastReceipt?.targetNumCtx || residencyStatus.activeLaneNumCtx || agentNumCtx} / warm`
+    : "off";
+  const receivingActive = Boolean(brainStatus.queue?.active || providerStatusPayload?.background?.brain?.queue?.active);
+  const adaptiveNotes = benchmarkReceipt.adaptiveLaneNotes || answer.adaptiveLaneNotes || responseStatus.adaptiveLaneNotes || {};
+  const adaptiveLine = adaptiveNotes.deepLaneSuggested
+    ? " Adaptive note: manual 30B deep lane may be worth trying next; Apex will not auto-promote."
+    : adaptiveNotes.timingObserved
+      ? " Adaptive note: current lane looks sufficient."
+      : "";
+  const effortLine = ` Effort: ${effortLabel} on ${effortModel}, ctx ${effortNumCtx}, ${effortOption.manualOnly ? "manual-only" : "resident"}, installed ${apexLocalModelStatusLabel(effortModelAvailable, hasModelData || selectedModelAvailable)}.`;
+  const agentLine = ` Lane: ${agentLaneLabel} on ${selectedModel}, ctx ${agentNumCtx}, keep-alive ${agentKeepAlive}; warm ${warmLabel}; 30B is ${thirtyBActive ? "active for this manual deep turn" : "idle/manual-only"}. Timing: ${timingLabel}. Last benchmark: ${lastBenchmarkLabel}.${receivingActive ? " Apex is receiving a local model response now." : ""}${adaptiveLine}${effortLine}`;
+  const status = localOllamaUsed && !fallback
+    ? "Answering locally"
+    : providerAvailable && selectedModelAvailable
+      ? "Local ready"
+      : providerAvailable
+        ? "Model check"
+        : providerStatusPayload
+          ? "Ollama offline"
+          : "Local-first";
+  const tone = openAiUsed ? "amber" : localOllamaUsed || selectedModelAvailable ? "green" : providerAvailable ? "blue" : "amber";
+  const summary = openAiUsed
+      ? "This answer used a cloud override. Everyday Apex remains local-first and cloud-disabled by default."
+    : fallback
+      ? `${providerLabel} stayed local-first, but this turn used a deterministic local fallback. OpenAI was not used.`
+      : localOllamaUsed
+        ? `${providerLabel} answered this turn on the ${agentLaneLabel} lane with ${selectedModel}. Normal chat/coding use ${APEX_LOCAL_TALK_MODEL}; ${APEX_LOCAL_DEEP_CODING_MODEL} is manual-only. OpenAI was not used.`
+        : `${providerLabel} is the default local provider. ${APEX_LOCAL_TALK_MODEL}: ${apexLocalModelStatusLabel(talkModelAvailable, hasModelData)}. ${APEX_LOCAL_DEEP_CODING_MODEL}: ${apexLocalModelStatusLabel(codingModelAvailable, hasModelData)} manual-only. OpenAI stays disabled unless John explicitly asks for cloud and server policy allows it.`;
+  const summaryWithProcessor = `${summary}${processorLine}${agentLine}${brainLine}`;
+  return {
+    providerLabel,
+    selectedModel,
+    effortId,
+    effortLabel,
+    effortModel,
+    effortNumCtx,
+    effortManualOnly: Boolean(effortOption.manualOnly),
+    effortModelStatus: apexLocalModelStatusLabel(effortModelAvailable, hasModelData || selectedModelAvailable),
+    agentLaneId,
+    agentLaneLabel,
+    agentNumCtx,
+    agentKeepAlive,
+    coderManualOnly: true,
+    coderStatusLabel: thirtyBActive
+      ? "Active"
+      : codingModelAvailable
+        ? "Manual-only"
+        : apexLocalModelStatusLabel(codingModelAvailable, hasModelData || selectedModelAvailable),
+    activeBrainMode,
+    brainModel,
+    brainNumCtx,
+    brainKeepAlive: brainStatus.keepAlive || "10m",
+    brainSpeedLane: Boolean(brainStatus.speedLane || answer.brainProfile?.speedLane || answer.brainTelemetry?.speedLane),
+    brainMaxOutputTokens: Number(brainStatus.maxOutputTokens || answer.brainProfile?.maxOutputTokens || answer.brainTelemetry?.maxOutputTokens || 0) || 0,
+    brainVramLabel: brainReloadNeeded ? "reload needed" : brainVramTotalMb ? `${brainVramUsedMb}/${brainVramTotalMb} MB` : brainVramUsedMb ? `${brainVramUsedMb} MB` : "VRAM checking",
+    brainThresholdStatus: brainReloadNeeded ? "reload-needed" : brainStatus.thresholdStatus || "stable",
+    brainReloadNeeded,
+    brainResidentNumCtx: residencyNumCtx,
+    talkModelStatus: apexLocalModelStatusLabel(talkModelAvailable, hasModelData || selectedModelAvailable),
+    codingModelStatus: apexLocalModelStatusLabel(codingModelAvailable, hasModelData || selectedModelAvailable),
+    fastCoderModelStatus: apexLocalModelStatusLabel(fastCoderModelAvailable, hasModelData || selectedModelAvailable),
+    timingLabel,
+    lastBenchmarkLabel,
+    warmLabel,
+    receivingActive,
+    status,
+    tone,
+    summary: summaryWithProcessor,
+    cloudDecision,
+    openAiUsed,
+    rows: [
+      { label: "Provider", value: providerLabel, tone: providerAvailable || localOllamaUsed ? "green" : "blue" },
+      { label: "Effort", value: `${effortLabel} / ${effortOption.manualOnly ? "manual" : "resident"}`, tone: effortOption.manualOnly ? "blue" : "green" },
+      { label: "Lane", value: `${agentLaneLabel} / ctx ${agentNumCtx}`, tone: agentLaneId === "fast" ? "green" : "blue" },
+      { label: "Timing", value: timingLabel, tone: timingMs ? "green" : "blue" },
+      { label: "Benchmark", value: lastBenchmarkLabel, tone: lastBenchmarkMs ? "green" : "blue" },
+      { label: "Warm", value: warmLabel, tone: warmStatus.enabled ? "green" : "blue" },
+      { label: "Brain", value: `${brainModel} / ctx ${brainNumCtx}${brainReloadNeeded ? " / reload needed" : ""}`, tone: brainReloadNeeded ? "amber" : activeBrainMode === "speed" ? "green" : "blue" },
+      { label: "Talk", value: `${APEX_LOCAL_TALK_MODEL} ${apexLocalModelStatusLabel(talkModelAvailable, hasModelData || selectedModelAvailable)}`, tone: talkModelAvailable || localOllamaUsed ? "green" : hasModelData ? "amber" : "blue" },
+      { label: "30B", value: `${APEX_LOCAL_DEEP_CODING_MODEL} ${thirtyBActive ? "active" : codingModelAvailable ? "manual-only" : apexLocalModelStatusLabel(codingModelAvailable, hasModelData || selectedModelAvailable)}`, tone: thirtyBActive || codingModelAvailable ? "green" : hasModelData ? "amber" : "blue" },
+      { label: "GPU", value: gpuLabel, tone: gpuAvailable ? "green" : "blue" },
+      { label: "Cloud", value: "Disabled default", tone: openAiUsed ? "amber" : "green" },
+      { label: "OpenAI", value: openAiUsed ? "Manual override" : "Not used", tone: openAiUsed ? "amber" : "green" },
+    ],
+  };
+}
+
+function LocalIntelligenceStatusRow({ intelligence }) {
+  const status = intelligence || buildApexLocalIntelligenceStatus();
+  return (
+    <StatusRow item={{
+      id: "local-intelligence-status",
+      title: "Local Intelligence",
+      status: `${status.providerLabel} / ${status.selectedModel}`,
+      detail: status.summary,
+      tone: status.tone,
+    }} />
+  );
+}
+
 function AskApexAnswerPanel({ response, error }) {
   if (error) {
     return (
@@ -505,9 +1161,11 @@ function AskApexAnswerPanel({ response, error }) {
   if (!response?.answer) return null;
 
   const answer = response.answer;
+  const localIntelligence = buildApexLocalIntelligenceStatus({ response });
   const sourceLabels = Array.isArray(answer.sourceLabels) ? answer.sourceLabels : [];
   const approvalWarnings = Array.isArray(answer.approvalWarnings) ? answer.approvalWarnings : [];
   const evidenceRows = Array.isArray(response.evidenceUsed) ? response.evidenceUsed : [];
+  const memoryRetrieval = response.context?.memoryRetrievalSummary || {};
 
   return (
     <div className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-4">
@@ -524,19 +1182,20 @@ function AskApexAnswerPanel({ response, error }) {
           id: "ask-next-action",
           title: "Next action",
           status: answer.nextAction || "Review",
-          detail: answer.providerConfigured ? "Provider was configured server-side for this answer, with local fallback if the provider failed." : "Local source-backed fallback answered because no server-side provider key is configured here.",
+          detail: "Apex can act privately for reversible internal work and will ask before consequential actions.",
           tone: approvalWarnings.length ? "amber" : "green",
         }} />
+        <LocalIntelligenceStatusRow intelligence={localIntelligence} />
+      </div>
+
+      <div className="mt-4 grid min-w-0 gap-3 lg:grid-cols-2">
         <StatusRow item={{
           id: "ask-context-count",
           title: "Evidence count",
           status: `${response.context?.sourceCount || sourceLabels.length || 0} sources`,
-          detail: `${response.context?.memoryCount || 0} approved memory rows and ${response.context?.approvalWarningCount || approvalWarnings.length || 0} approval warnings were returned by the private endpoint.`,
+          detail: `${response.context?.memoryCount || 0} approved memory rows, ${memoryRetrieval.retrievedCount || 0} retrieved memories, ${memoryRetrieval.compaction?.compactCharacterCount || 0} compacted turn characters, and ${response.context?.approvalWarningCount || approvalWarnings.length || 0} approval warnings were returned by the private endpoint.`,
           tone: "blue",
         }} />
-      </div>
-
-      <div className="mt-4 grid min-w-0 gap-3 lg:grid-cols-2">
         <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
           <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Sources</p>
           <div className="mt-2 flex min-w-0 flex-wrap gap-2">
@@ -662,6 +1321,8 @@ function AskApexPanel({ state, sessionToken, question, setQuestion }) {
         question: askedQuestion || question,
         answer: response.answer,
         requestId: response.requestId,
+        toolRouteSummary: response.context?.toolRouteSummary,
+        externalActionApprovalSummary: response.context?.externalActionApprovalSummary,
       }));
       setDraftedActions((current) => ({ ...current, approval: true }));
       setActionNotice("Approval packet drafted for review. Approval and execution remain locked.");
@@ -704,9 +1365,11 @@ function AskApexPanel({ state, sessionToken, question, setQuestion }) {
     setSpeaking(true);
     setVoiceNotice("");
     try {
-      const payload = await speakApexOsVoice(sessionToken, {
+      const payload = await speakApexOsLocalVoice(sessionToken, {
         text: answerText,
-        voice: "alloy",
+        voice: "apex",
+        voiceMode: APEX_COCKPIT_USE_FAST_SIMPLE_VOICE ? "fast-fallback" : "apex",
+        preferFastVoice: APEX_COCKPIT_USE_FAST_SIMPLE_VOICE,
       });
       if (payload?.audioBase64 && payload?.contentType) {
         const playbackMode = await playApexVoiceAudio({
@@ -723,13 +1386,13 @@ function AskApexPanel({ state, sessionToken, question, setQuestion }) {
           },
         });
         if (playbackMode) {
-          setVoiceNotice(payload.aiDisclosure || "Apex OS voice output is AI-generated.");
+          setVoiceNotice(payload.aiDisclosure || "Apex local voice output is ready. The typed answer stays visible.");
           return;
         }
         speakBrowserFallback(answerText, "Apex speech audio could not start, so browser voice fallback is speaking.");
         return;
       }
-      speakBrowserFallback(payload?.fallbackText || answerText, payload?.providerConfigured ? "Speech provider fallback is active; browser voice is speaking." : "Server speech is not configured; browser voice is speaking.");
+      speakBrowserFallback(payload?.fallbackText || answerText, payload?.providerConfigured ? "Speech provider fallback is active; browser voice is speaking. The typed answer stays visible." : "Server speech is not configured; browser voice is speaking. The typed answer stays visible.");
     } catch (speechError) {
       speakBrowserFallback(answerText, speechError?.message ? `Speech endpoint unavailable; browser voice is speaking. ${speechError.message}` : "Speech endpoint unavailable; browser voice is speaking.");
     }
@@ -1301,7 +1964,7 @@ function BuildAwarenessPanel({ state, sessionToken }) {
     try {
       const payload = await getApexOsBuildAwareness(sessionToken);
       setSnapshot(payload.buildAwareness || {});
-      setNotice("Build awareness refreshed. Read-only; execution remains locked.");
+      setNotice("Build awareness refreshed. Read-only; consequential actions remain gated.");
     } catch (error) {
       setNotice(error?.message || "Build awareness could not be loaded right now.");
     } finally {
@@ -1595,9 +2258,9 @@ function DecisionMemoryManager({ state, sessionToken }) {
         }} />
         <StatusRow item={{
           id: "decision-memory-categories",
-          title: "Phase 4 categories",
+          title: "Memory lanes",
           status: `${state.decisionMemory.coveredCategoryCount || 0}/${state.decisionMemory.categoryCount || 0}`,
-          detail: "Product identity, safety, roadmap, build freeze, business goal, provider/account, and personal preference decisions are covered.",
+          detail: "Legacy decision categories and Phase 3 John/business/life/preference/priority/idea/do-not-do memory lanes stay suggested until approved.",
           tone: "green",
         }} />
         <StatusRow item={{
@@ -1748,6 +2411,293 @@ function DecisionMemoryManager({ state, sessionToken }) {
   );
 }
 
+function memoryReviewSort(left = {}, right = {}) {
+  const sortValue = (row = {}) => (row.status === "approved"
+    ? String(row.approvedAt || row.updatedAt || row.createdAt || "")
+    : String(row.createdAt || row.updatedAt || row.approvedAt || ""));
+  return sortValue(right).localeCompare(sortValue(left));
+}
+
+function suggestedMemoryRows(rows = []) {
+  return rows
+    .filter((row) => row?.status === "suggested")
+    .slice()
+    .sort(memoryReviewSort);
+}
+
+function recentApprovedMemoryRows(rows = []) {
+  return rows
+    .filter((row) => row?.status === "approved")
+    .slice()
+    .sort(memoryReviewSort)
+    .slice(0, 4);
+}
+
+function formatMemoryLaneLabel(value = "apex-project") {
+  return String(value || "apex-project")
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function memoryReviewSummaryCount(summary = {}, key = "") {
+  if (key === "approved") return summary.approvedCount ?? summary.approved ?? 0;
+  if (key === "suggested") return summary.suggestedCount ?? summary.suggested ?? 0;
+  if (key === "archived") return summary.archivedCount ?? summary.archived ?? 0;
+  return summary.total ?? 0;
+}
+
+function MemorySuggestionsReviewPanel({ state, sessionToken }) {
+  const suggestionState = state.memorySuggestions || {};
+  const [suggestionRows, setSuggestionRows] = useState(suggestionState.rows || []);
+  const [approvedRows, setApprovedRows] = useState(suggestionState.recentApprovedRows || []);
+  const [summary, setSummary] = useState(suggestionState.summary || null);
+  const [editingId, setEditingId] = useState("");
+  const [editDraft, setEditDraft] = useState(null);
+  const [notice, setNotice] = useState("");
+  const [loading, setLoading] = useState(false);
+  const categoryOptions = state.decisionMemory?.categories?.length
+    ? state.decisionMemory.categories
+    : [{ id: "apex-project", label: "Apex project" }];
+  const canUse = state.canView && Boolean(sessionToken) && !loading;
+  const activeSummary = summary || suggestionState.summary || {};
+  const suggestedCount = suggestionRows.length || memoryReviewSummaryCount(activeSummary, "suggested") || suggestionState.suggestedCount || 0;
+  const approvedCount = memoryReviewSummaryCount(activeSummary, "approved") || suggestionState.approvedCount || approvedRows.length || 0;
+  const archivedCount = memoryReviewSummaryCount(activeSummary, "archived") || suggestionState.archivedCount || 0;
+  const totalCount = memoryReviewSummaryCount(activeSummary, "total") || suggestionState.totalCount || (suggestedCount + approvedCount + archivedCount);
+
+  function hydrateFromMemoryRows(rows = [], nextSummary = null) {
+    setSuggestionRows(suggestedMemoryRows(rows));
+    setApprovedRows(recentApprovedMemoryRows(rows));
+    setSummary(nextSummary);
+  }
+
+  function startEdit(row = {}) {
+    const lane = row.category || row.type || "apex-project";
+    setEditingId(row.id || "");
+    setEditDraft({
+      category: lane,
+      type: row.type || lane,
+      title: row.title || "",
+      body: row.body || row.detail || "",
+      sourceLabel: row.sourceLabel || "",
+      sourceUri: row.sourceUri || "",
+      reviewNote: row.reviewNote || "",
+    });
+    setNotice("");
+  }
+
+  function updateEditField(field, value) {
+    setEditDraft((current) => {
+      const next = { ...(current || {}), [field]: value };
+      if (field === "category") {
+        next.type = value;
+      }
+      return next;
+    });
+    setNotice("");
+  }
+
+  function cancelEdit() {
+    setEditingId("");
+    setEditDraft(null);
+    setNotice("");
+  }
+
+  async function refreshSuggestions() {
+    if (!canUse) return;
+    setLoading(true);
+    setNotice("");
+    try {
+      const payload = await getApexOsMemory(sessionToken);
+      hydrateFromMemoryRows(payload.apexOsMemory || [], payload.summary || null);
+      setNotice("Memory suggestions loaded from private Apex OS storage.");
+    } catch (error) {
+      setNotice(error?.message || "Memory suggestions could not load right now.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function setSuggestionStatus(row, status) {
+    if (!canUse || !row?.id) return;
+    const editingThisRow = editingId === row.id;
+    const payload = editingThisRow
+      ? {
+        ...row,
+        ...editDraft,
+        category: editDraft?.category || row.category || row.type || "apex-project",
+        type: editDraft?.type || editDraft?.category || row.type || row.category || "apex-project",
+        status,
+      }
+      : { ...row, status };
+    const canApprove = status !== "approved" || (payload.title || "").trim() && (payload.body || "").trim() && (payload.sourceLabel || "").trim();
+    if (!canApprove) {
+      setNotice("Approve needs a title, content, and source label.");
+      return;
+    }
+    setLoading(true);
+    setNotice("");
+    try {
+      await updateApexOsMemory(sessionToken, row.id, payload);
+      const refreshed = await getApexOsMemory(sessionToken);
+      hydrateFromMemoryRows(refreshed.apexOsMemory || [], refreshed.summary || null);
+      setEditingId("");
+      setEditDraft(null);
+      setNotice(status === "archived" ? "Memory suggestion archived/rejected. It will not feed approved Apex OS context." : "Memory suggestion approved and separated into approved Apex OS memory.");
+    } catch (error) {
+      setNotice(error?.message || "Memory suggestion could not be updated right now.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="grid min-w-0 gap-4">
+      <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatusRow item={{
+          id: "memory-suggestions-waiting",
+          title: "Waiting review",
+          status: `${suggestedCount}`,
+          detail: "Suggested memory stays out of approved Apex OS context until John/operator approval succeeds.",
+          tone: suggestedCount ? "amber" : "green",
+        }} />
+        <StatusRow item={{
+          id: "memory-approved-count",
+          title: "Approved memory",
+          status: `${approvedCount}`,
+          detail: `${totalCount} total private Apex OS memory rows are tracked; approved rows stay separate from suggestions.`,
+          tone: approvedCount ? "green" : "blue",
+        }} />
+        <StatusRow item={{
+          id: "memory-archived-count",
+          title: "Archived/rejected",
+          status: `${archivedCount}`,
+          detail: "Archive marks a suggestion rejected without deleting the private auditable memory row.",
+          tone: archivedCount ? "slate" : "blue",
+        }} />
+        <StatusRow item={{
+          id: "memory-suggestion-boundary",
+          title: "Operator boundary",
+          status: state.canView ? "Private" : "Restricted",
+          detail: "This review surface uses the existing Apex OS memory permission gate.",
+          tone: state.canView ? "green" : "slate",
+        }} />
+      </div>
+
+      <div className="flex min-w-0 flex-wrap gap-2">
+        <Button type="button" variant="secondary" size="sm" onClick={refreshSuggestions} disabled={!canUse}>
+          <Icon name="refresh" /> {loading ? "Loading..." : "Load suggestions"}
+        </Button>
+        <Button type="button" disabled variant="secondary" size="sm">
+          <Icon name="lock" /> Review gated
+        </Button>
+      </div>
+      <p className="break-words text-xs font-black leading-5 text-slate-500">
+        {notice || (activeSummary.summaryText || "Review suggestions from Ask Apex before they become durable assistant memory.")}
+      </p>
+
+      <div className="grid min-w-0 gap-3">
+        {suggestionRows.length ? suggestionRows.map((row) => {
+          const isEditing = editingId === row.id;
+          const lane = row.category || row.type || "apex-project";
+          return (
+            <div key={row.id} className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+              <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <p className="break-words text-[10px] font-black uppercase tracking-[0.16em] text-orange-700">{formatMemoryLaneLabel(lane)}</p>
+                  <p className="mt-1 break-words text-sm font-black text-slate-950">{row.title || "Memory suggestion"}</p>
+                  <p className="mt-1 break-words text-xs font-bold leading-5 text-slate-600">{row.body || row.detail || "No suggestion content is available."}</p>
+                  <p className="mt-2 break-words text-[11px] font-black text-slate-500">
+                    Source: {row.sourceLabel || "Missing source"}{row.sourceType ? ` | Type: ${row.sourceType}` : ""}{row.sourceUri ? ` | URI: ${row.sourceUri}` : ""}
+                  </p>
+                  {row.reviewNote ? <p className="mt-1 break-words text-[11px] font-black text-slate-500">Review: {row.reviewNote}</p> : null}
+                </div>
+                <ToneBadge tone="amber">{row.status || "suggested"}</ToneBadge>
+              </div>
+
+              {isEditing ? (
+                <div className="mt-3 grid min-w-0 gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
+                    <input
+                      value={editDraft?.title || ""}
+                      onChange={(event) => updateEditField("title", event.target.value)}
+                      maxLength={140}
+                      className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-700"
+                      disabled={loading}
+                    />
+                    <select
+                      value={editDraft?.category || lane}
+                      onChange={(event) => updateEditField("category", event.target.value)}
+                      className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-700"
+                      disabled={loading}
+                    >
+                      {categoryOptions.map((category) => (
+                        <option key={category.id} value={category.id}>{category.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <textarea
+                    value={editDraft?.body || ""}
+                    onChange={(event) => updateEditField("body", event.target.value)}
+                    maxLength={1800}
+                    className="min-h-24 w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold leading-6 text-slate-700"
+                    disabled={loading}
+                  />
+                  <div className="grid min-w-0 gap-3 lg:grid-cols-3">
+                    <input value={editDraft?.sourceLabel || ""} onChange={(event) => updateEditField("sourceLabel", event.target.value)} maxLength={120} className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-700" disabled={loading} />
+                    <input value={editDraft?.sourceUri || ""} onChange={(event) => updateEditField("sourceUri", event.target.value)} maxLength={240} className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-700" disabled={loading} />
+                    <input value={editDraft?.reviewNote || ""} onChange={(event) => updateEditField("reviewNote", event.target.value)} maxLength={300} className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-700" disabled={loading} />
+                  </div>
+                  <div className="flex min-w-0 flex-wrap gap-2">
+                    <Button type="button" variant="secondary" size="sm" onClick={() => setSuggestionStatus(row, "approved")} disabled={!canUse}>
+                      <Icon name="check" /> Save edits and approve
+                    </Button>
+                    <Button type="button" variant="secondary" size="sm" onClick={cancelEdit} disabled={loading}>
+                      Cancel edit
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="mt-3 flex min-w-0 flex-wrap gap-2">
+                <Button type="button" variant="secondary" size="sm" onClick={() => setSuggestionStatus(row, "approved")} disabled={!canUse || isEditing}>
+                  <Icon name="check" /> Approve suggestion
+                </Button>
+                <Button type="button" variant="secondary" size="sm" onClick={() => startEdit(row)} disabled={!canUse || isEditing}>
+                  <Icon name="clipboard" /> Edit before approve
+                </Button>
+                <Button type="button" variant="secondary" size="sm" onClick={() => setSuggestionStatus(row, "archived")} disabled={!canUse}>
+                  <Icon name="clock" /> Archive / reject
+                </Button>
+              </div>
+            </div>
+          );
+        }) : (
+          <EmptyPanel>No memory suggestions are waiting for review.</EmptyPanel>
+        )}
+      </div>
+
+      <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+        <SectionHeader title="Recent Approved Memory" description={`${approvedRows.length || 0} compact approved rows stay separate from pending suggestions.`} />
+        <div className="grid min-w-0 gap-2 lg:grid-cols-2">
+          {approvedRows.length ? approvedRows.map((row) => (
+            <StatusRow key={`approved-memory-${row.id}`} item={{
+              id: `approved-memory-${row.id}`,
+              title: row.title || "Approved memory",
+              status: formatMemoryLaneLabel(row.category || row.type),
+              detail: row.body || row.detail || row.reviewNote || "Approved Apex OS memory.",
+              tone: "green",
+              sourceLabel: row.sourceLabel || "Apex OS memory",
+            }} />
+          )) : <EmptyPanel>No approved memory rows are visible yet.</EmptyPanel>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const EMPTY_PERSONAL_OPERATING_FORM = {
   category: "personal-preference",
   title: "",
@@ -1860,7 +2810,7 @@ function PersonalOperatingLayerPanel({ state, sessionToken }) {
 
   return (
     <div className="grid min-w-0 gap-4">
-      <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <StatusRow item={{
           id: "personal-preferences-count",
           title: "John preferences",
@@ -1888,6 +2838,20 @@ function PersonalOperatingLayerPanel({ state, sessionToken }) {
           status: `${layer.privacyLockCount || 0}`,
           detail: "No hidden tracking, no sensitive personal capture, no background execution.",
           tone: "amber",
+        }} />
+        <StatusRow item={{
+          id: "personal-open-task-count",
+          title: "Internal tasks",
+          status: `${layer.openTaskCount || 0}`,
+          detail: "Private Apex OS records only. No external notifications, calendar writes, SMS, email, plugins, or desktop control.",
+          tone: layer.openTaskCount ? "blue" : "slate",
+        }} />
+        <StatusRow item={{
+          id: "personal-open-reminder-count",
+          title: "Internal reminders",
+          status: `${layer.openReminderCount || 0}`,
+          detail: "Stored for Ask Apex planning context only until a reviewed UI command flow is added.",
+          tone: layer.openReminderCount ? "amber" : "slate",
         }} />
       </div>
 
@@ -1986,6 +2950,15 @@ function PersonalOperatingLayerPanel({ state, sessionToken }) {
       </div>
 
       <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
+          <SectionHeader title="Tasks / Reminders" description={layer.taskReminderSummary?.summaryText || "0 open tasks, 0 open reminders."} />
+          <div className="grid min-w-0 gap-2">
+            {(layer.taskReminderRows || []).length
+              ? layer.taskReminderRows.map((item) => <StatusRow key={item.id} item={item} />)
+              : <EmptyPanel>No internal Apex OS tasks or reminders are saved yet.</EmptyPanel>}
+          </div>
+        </div>
+
         <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
           <SectionHeader title="Preference Review" description={`${reviewRows.length || 0} personal-preference memory rows.`} />
           <div className="grid min-w-0 gap-2">
@@ -2426,8 +3399,8 @@ function KnowledgeVaultManager({ state, sessionToken }) {
           <StatusRow item={{
             id: "knowledge-intelligence-provider",
             title: "AI summaries",
-            status: activeProviderInsight.providerConfigured ? "Server provider" : "Local fallback",
-            detail: activeProviderInsight.providerSummary || "Server-side summaries run only when OPENAI_API_KEY is configured.",
+            status: activeProviderInsight.provider === "ollama" ? `Ollama ${activeProviderInsight.model || "local"}` : activeProviderInsight.providerConfigured ? "Local-first provider" : "Local-first fallback",
+            detail: activeProviderInsight.providerSummary || "Knowledge summaries use local-first intelligence by default; OpenAI is not used unless John explicitly requests cloud and policy allows it.",
             tone: activeProviderInsight.providerConfigured ? "green" : "blue",
           }} />
           <StatusRow item={{
@@ -2702,7 +3675,7 @@ function ApprovalPacketDraftPanel({ state, sessionToken }) {
       setPackets(payload.apexOsApprovalPackets || []);
       setSummary(payload.summary || null);
       setApprovalPhrases((current) => ({ ...current, [packet.id]: "" }));
-      setNotice(status === "approved" ? "Approval recorded. Execution remains locked." : status === "archived" ? "Packet archived. No action executed." : "Packet decision updated. Execution remains locked.");
+      setNotice(status === "approved" ? "Approval recorded. Live execution remains a separate gated step." : status === "archived" ? "Packet archived. No action executed." : "Packet decision updated. Consequential actions remain gated.");
     } catch (error) {
       setNotice(error?.message || "Approval packet could not be updated right now.");
     } finally {
@@ -2760,10 +3733,19 @@ function ApprovalPacketDraftPanel({ state, sessionToken }) {
               <option value="schema-auth-session">Schema/auth/session</option>
               <option value="customer-visible">Customer-visible</option>
               <option value="email-sms">Email/SMS</option>
+              <option value="email">Email</option>
+              <option value="messaging">Messaging</option>
+              <option value="calendar">Calendar</option>
+              <option value="ordering">Ordering</option>
+              <option value="booking">Booking</option>
               <option value="billing-payment">Billing/payment</option>
               <option value="ad-spend-publishing">Ads/publishing</option>
               <option value="provider-connection">Provider</option>
               <option value="file-deletion">File deletion</option>
+              <option value="file-write">File write</option>
+              <option value="browser-desktop">Browser/desktop</option>
+              <option value="music">Music</option>
+              <option value="external-action">External action</option>
               <option value="business-operations">Business ops</option>
               <option value="general">General</option>
             </select>
@@ -2831,7 +3813,7 @@ function ApprovalPacketDraftPanel({ state, sessionToken }) {
                 <p className="break-words text-sm font-black text-slate-950">{packet.title}</p>
                 <p className="mt-1 break-words text-xs font-bold leading-5 text-slate-600">{packet.action}</p>
                 <p className="mt-2 break-words text-[11px] font-black text-slate-500">Source: {packet.sourceLabel || "Missing source"} | Risk: {packet.riskLevel} | Score: {packet.riskAssessment?.score ?? "n/a"} {packet.riskAssessment?.band ? `(${packet.riskAssessment.band})` : ""}</p>
-                {packet.status === "approved" && packet.approvedAt ? <p className="mt-2 break-words text-[11px] font-black text-emerald-700">Approved at {packet.approvedAt}. Execution locked.</p> : null}
+                {packet.status === "approved" && packet.approvedAt ? <p className="mt-2 break-words text-[11px] font-black text-emerald-700">Approved at {packet.approvedAt}. Live execution remains a separate gated step.</p> : null}
                 {packet.missingFields?.length ? <p className="mt-2 break-words text-[11px] font-black text-amber-700">Missing: {packet.missingFields.join(", ")}</p> : null}
               </div>
               <ToneBadge tone={packet.status === "approved" || packet.status === "ready" ? "green" : packet.status === "blocked" || packet.status === "rejected" ? "red" : packet.status === "archived" || packet.status === "deferred" ? "slate" : "blue"}>{packet.status}</ToneBadge>
@@ -2990,7 +3972,7 @@ function AgentControlPlanePanel({ state, sessionToken }) {
       setControlPlane(payload.controlPlane || null);
       setRequests(payload.apexOsAgentControlRequests || []);
       setSummary(payload.summary || null);
-      setNotice(status === "closed" ? "Request closed. No agent was queued or run." : "Request status updated. Execution remains locked.");
+      setNotice(status === "closed" ? "Request closed. No agent was queued or run." : "Request status updated. Agent execution remains gated.");
     } catch (error) {
       setNotice(error?.message || "Agent control request could not be updated right now.");
     } finally {
@@ -3552,7 +4534,7 @@ function getApexControlRoomSectionMetrics(sectionId, state) {
   }
   return [
     { label: "Status", value: "Private", tone: "green" },
-    { label: "Mode", value: "Review-first", tone: "amber" },
+    { label: "Mode", value: "Private Apex", tone: "green" },
     { label: "Access", value: "Operator", tone: "blue" },
   ];
 }
@@ -3685,10 +4667,10 @@ function ControlRoomCategoryShell({ sectionId, state, children }) {
         <div className="mt-3 grid min-w-0 gap-2 rounded-xl border border-orange-200 bg-orange-50 p-3">
           <div className="flex min-w-0 items-center gap-2 text-orange-900">
             <Icon name="lock" className="h-4 w-4 shrink-0" />
-            <p className="text-xs font-black uppercase tracking-[0.12em]">Review-First</p>
+            <p className="text-xs font-black uppercase tracking-[0.12em]">Private Apex</p>
           </div>
           <div className="grid min-w-0 grid-cols-2 gap-2">
-            {["No sends", "No deploys", "No billing", "Private"].map((item) => (
+            {["Local-first", "Acts privately", "Asks on risk", "Operator only"].map((item) => (
               <span key={`${section.id}-${item}`} className="min-w-0 rounded-lg border border-orange-200 bg-white px-2 py-1 text-[11px] font-black text-orange-800">{item}</span>
             ))}
           </div>
@@ -3740,11 +4722,12 @@ function ControlRoomRoomTabs({ tabs, label = "Room sections" }) {
 }
 
 function ApexImmersiveHeader({ state }) {
+  const operatorName = resolveApexPrivateOperatorDisplayName(state.operatorName);
   return (
     <header className="sr-only">
-      <p>Apex OS</p>
+      <p>Apex</p>
       <h1>Apex Life Screen</h1>
-      <p>Apex Body Screen for {state.operatorName}. Private operator, execution locked, voice and answers ready.</p>
+      <p>Apex Body Screen for {operatorName}. Private Apex, local-first intelligence, voice and typed answers ready.</p>
     </header>
   );
 }
@@ -3815,6 +4798,32 @@ function ApexCockpitControlButton({ children, className = "", disabled = true, o
   );
 }
 
+function ApexCockpitLocalIntelligencePanel({ intelligence, notice = "" }) {
+  const status = intelligence || buildApexLocalIntelligenceStatus();
+  return (
+    <div className="co-apex-cockpit-local-intelligence-panel grid min-w-0 gap-2 rounded-md border border-emerald-300/16 bg-emerald-400/8 px-2.5 py-2" aria-label="Apex local intelligence status">
+      <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-[9px] font-black uppercase tracking-[0.12em] text-emerald-300">Local Intelligence</p>
+          <p className="mt-0.5 min-w-0 break-words text-[11px] font-black leading-4 text-slate-100">{status.status}</p>
+          <p className="mt-0.5 min-w-0 break-words text-[9px] font-bold leading-4 text-emerald-100">{notice || status.summary}</p>
+        </div>
+        <span className={`shrink-0 rounded-md border px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] ${status.openAiUsed ? "border-orange-300/18 bg-orange-500/10 text-orange-200" : "border-emerald-300/18 bg-emerald-500/10 text-emerald-200"}`}>
+          {status.openAiUsed ? "Cloud override" : "Local-first"}
+        </span>
+      </div>
+      <div className="grid min-w-0 gap-1.5 sm:grid-cols-6">
+        {status.rows.map((row) => (
+          <div key={row.label} className="min-w-0 rounded-md border border-slate-800 bg-slate-950/46 px-2 py-1.5">
+            <p className="truncate text-[8px] font-black uppercase tracking-[0.08em] text-slate-500">{row.label}</p>
+            <p className={`mt-0.5 truncate text-[10px] font-black ${row.tone === "green" ? "text-emerald-300" : row.tone === "amber" ? "text-orange-300" : "text-cyan-300"}`}>{row.value}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ApexCockpitSidebar({ activeSection, onChange }) {
   return (
     <aside className="relative z-10 hidden min-w-0 border-r border-slate-800/90 bg-slate-950/82 p-4 lg:flex lg:flex-col">
@@ -3853,9 +4862,17 @@ const APEX_COCKPIT_VOICE_STATES = Object.freeze({
   standby: {
     key: "standby",
     header: "Standby",
-    label: "Voice paused",
+    label: "Mic standby",
     headline: "Apex is standing by",
-    detail: "Resume voice when you want Apex listening.",
+    detail: "The local mic gate is open; GPU STT waits for a completed voice turn.",
+    tone: "slate",
+  },
+  quiet: {
+    key: "quiet",
+    header: "Quiet",
+    label: "Quiet",
+    headline: "Apex is quiet",
+    detail: "Voice routing and STT are suppressed until you resume voice.",
     tone: "slate",
   },
   listening: {
@@ -3866,6 +4883,14 @@ const APEX_COCKPIT_VOICE_STATES = Object.freeze({
     detail: "Voice is open on this page. Speak naturally.",
     tone: "green",
   },
+  capturing: {
+    key: "capturing",
+    header: "Capturing",
+    label: "Capturing",
+    headline: "Apex hears you",
+    detail: "Speech is being buffered locally until sustained silence.",
+    tone: "green",
+  },
   hearing: {
     key: "hearing",
     header: "Hearing",
@@ -3873,6 +4898,14 @@ const APEX_COCKPIT_VOICE_STATES = Object.freeze({
     headline: "Apex hears you",
     detail: "Capturing this turn.",
     tone: "green",
+  },
+  processing: {
+    key: "processing",
+    header: "Processing",
+    label: "Processing",
+    headline: "Apex is transcribing",
+    detail: "The completed local turn is moving through faster-whisper CUDA.",
+    tone: "blue",
   },
   thinking: {
     key: "thinking",
@@ -3887,7 +4920,15 @@ const APEX_COCKPIT_VOICE_STATES = Object.freeze({
     header: "Speaking",
     label: "Speaking answer",
     headline: "Apex is speaking",
-    detail: "Voice output is active and review-first.",
+    detail: "Voice output is optional; typed answers remain visible.",
+    tone: "amber",
+  },
+  recovering: {
+    key: "recovering",
+    header: "Recovering",
+    label: "Echo guard",
+    headline: "Apex is clearing room echo",
+    detail: "Mic frames are dropped briefly after speech playback.",
     tone: "amber",
   },
   blocked: {
@@ -3900,18 +4941,429 @@ const APEX_COCKPIT_VOICE_STATES = Object.freeze({
   },
 });
 
-const APEX_COCKPIT_SILENCE_MS = 1300;
-const APEX_COCKPIT_MIN_TURN_MS = 850;
-const APEX_COCKPIT_LEVEL_THRESHOLD = 0.035;
-const APEX_COCKPIT_IDLE_LEVEL_THRESHOLD = 0.018;
+const APEX_COCKPIT_SILENCE_MS = 1800;
+const APEX_COCKPIT_MIN_TURN_MS = 1200;
+const APEX_COCKPIT_LEVEL_THRESHOLD = 0.018;
+const APEX_COCKPIT_IDLE_LEVEL_THRESHOLD = 0.009;
 const APEX_COCKPIT_BARGE_IN_THRESHOLD = 0.066;
 const APEX_COCKPIT_BARGE_IN_GRACE_MS = 700;
+const APEX_COCKPIT_RECOVERY_DROP_MS = 620;
 const APEX_COCKPIT_PREROLL_CHUNKS = 2;
-const APEX_COCKPIT_CAPTION_FINAL_TURN_MS = 420;
+const APEX_COCKPIT_CAPTION_FINAL_TURN_MS = 1800;
 const APEX_COCKPIT_DUPLICATE_TURN_MS = 2800;
-const APEX_COCKPIT_LISTENING_HANDOFF_NOTICE = "Apex finished speaking and is listening for your next turn.";
-const APEX_COCKPIT_VOICE_RETRY_NOTICE = "I missed that. Say it again and I'll keep listening.";
-const APEX_COCKPIT_VOICE_RETRY_OPEN_MS = 520;
+const APEX_COCKPIT_DUPLICATE_SPEECH_MS = 9000;
+const APEX_COCKPIT_DUPLICATE_STATUS_SPEECH_MS = 60000;
+const APEX_COCKPIT_ECHO_SUPPRESSION_MS = 18000;
+const APEX_COCKPIT_NO_VOICE_NOTICE_MS = 3800;
+const APEX_COCKPIT_STT_TURN_TIMEOUT_MS = 30000;
+const APEX_COCKPIT_NATIVE_LISTEN_SECONDS = 8;
+const APEX_COCKPIT_NATIVE_TIMEOUT_MS = 18000;
+const APEX_COCKPIT_USE_FAST_SIMPLE_VOICE = true;
+const APEX_COCKPIT_FAST_SPEECH_MAX_CHARS = 120;
+const APEX_COCKPIT_FAST_SPEECH_SUFFIX = "Full answer is on screen.";
+const APEX_COCKPIT_SPEECH_SAFETY_MIN_MS = 16_000;
+const APEX_COCKPIT_SPEECH_SAFETY_PER_CHAR_MS = 92;
+const APEX_COCKPIT_SPEECH_SAFETY_MAX_MS = 45_000;
+const APEX_COCKPIT_RECORDER_SLICE_MS = 250;
+const APEX_COCKPIT_MIC_CALIBRATION_MS = 1800;
+const APEX_COCKPIT_MIC_MAX_FRAME_AGE_MS = 2400;
+const APEX_COCKPIT_MIC_MIN_THRESHOLD = 0.01;
+const APEX_COCKPIT_MIC_MAX_THRESHOLD = 0.045;
+const APEX_COCKPIT_LISTENING_HANDOFF_NOTICE = "Apex finished speaking and is quiet until John starts the next turn.";
+const APEX_COCKPIT_NATIVE_PAUSED_NOTICE = "Apex answered. Voice is paused to avoid hearing its own answer.";
+const APEX_COCKPIT_VOICE_RETRY_NOTICE = "I missed that. Press Resume Voice and say it again.";
+const APEX_COCKPIT_VOICE_RETRY_OPEN_MS = 420;
+
+function normalizeApexCockpitLoopText(value = "") {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+const APEX_COCKPIT_DONE_TALKING_PATTERN = /\b(?:done talking|i(?:'m| am|m)? done talking|finished talking|i(?:'m| am|m)? finished talking|that'?s it|that is it|send it|go ahead apex)\b/i;
+const APEX_COCKPIT_DONE_TALKING_STRIP_PATTERN = /\b(?:done talking|i(?:'m| am|m)? done talking|finished talking|i(?:'m| am|m)? finished talking|that'?s it|that is it|send it|go ahead apex)\b[.!,;:\s]*/gi;
+
+function hasApexCockpitDoneTalkingCue(value = "") {
+  return APEX_COCKPIT_DONE_TALKING_PATTERN.test(String(value || ""));
+}
+
+function stripApexCockpitDoneTalkingCue(value = "") {
+  return String(value || "")
+    .replace(APEX_COCKPIT_DONE_TALKING_STRIP_PATTERN, " ")
+    .replace(/\s+([?.!,])/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isLikelyApexCockpitEcho(transcript = "", spokenText = "") {
+  const transcriptKey = normalizeApexCockpitLoopText(transcript);
+  const spokenKey = normalizeApexCockpitLoopText(spokenText);
+  if (!transcriptKey || !spokenKey) return false;
+  if (transcriptKey === spokenKey) return true;
+  if (transcriptKey.length >= 28 && spokenKey.includes(transcriptKey)) return true;
+  if (spokenKey.length >= 28 && transcriptKey.includes(spokenKey.slice(0, Math.min(spokenKey.length, 140)))) return true;
+  const transcriptWords = transcriptKey.split(" ").filter((word) => word.length > 2);
+  if (transcriptWords.length < 5) return false;
+  const spokenWordSet = new Set(spokenKey.split(" ").filter((word) => word.length > 2));
+  const sharedCount = transcriptWords.filter((word) => spokenWordSet.has(word)).length;
+  return sharedCount / transcriptWords.length >= 0.74;
+}
+
+function findApexCockpitSlowestTimingStep(timingMs = {}) {
+  const rows = Object.entries(timingMs && typeof timingMs === "object" ? timingMs : {})
+    .filter(([key]) => !/^(total|totalturnms|totalvoiceturnms|totalclientturnms)$/i.test(String(key || "")))
+    .map(([key, value]) => ({ step: key, ms: Math.max(0, Math.round(Number(value) || 0)) }))
+    .filter((row) => row.ms > 0)
+    .sort((a, b) => b.ms - a.ms);
+  return rows[0] || { step: "", ms: 0 };
+}
+
+function clampApexCockpitMicThreshold(value, fallback = APEX_COCKPIT_LEVEL_THRESHOLD) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.max(APEX_COCKPIT_MIC_MIN_THRESHOLD, Math.min(APEX_COCKPIT_MIC_MAX_THRESHOLD, parsed));
+}
+
+function clampApexCockpitMicLevel(value = 0) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+  return Math.max(0, Math.min(1, parsed));
+}
+
+function createApexCockpitMicCalibrationState(patch = {}) {
+  return {
+    status: "not-started",
+    inputProvider: "browser",
+    captureProvider: "none",
+    audioWorkletSupported: false,
+    audioWorkletActive: false,
+    fallbackCaptureUsed: false,
+    frameCount: 0,
+    peakLevel: 0,
+    noiseFloor: 0,
+    averageLevel: 0,
+    calibratedLevelThreshold: APEX_COCKPIT_LEVEL_THRESHOLD,
+    calibratedIdleLevelThreshold: APEX_COCKPIT_IDLE_LEVEL_THRESHOLD,
+    lastFrameAtMs: 0,
+    lastSignalAtMs: 0,
+    startedAtMs: 0,
+    completedAtMs: 0,
+    signalDetected: false,
+    reason: "",
+    micDeviceLabel: "",
+    sampleRate: 0,
+    ...patch,
+  };
+}
+
+function buildApexCockpitMicCalibrationThreshold({ peakLevel = 0, noiseFloor = 0, averageLevel = 0 } = {}) {
+  const peak = Math.max(0, Number(peakLevel || 0) || 0);
+  const floor = Math.max(0, Number(noiseFloor || 0) || 0);
+  const average = Math.max(0, Number(averageLevel || 0) || 0);
+  const spread = Math.max(0, peak - floor);
+  const adaptive = floor + Math.max(APEX_COCKPIT_MIC_MIN_THRESHOLD, spread * 0.28, average * 1.7);
+  const levelThreshold = clampApexCockpitMicThreshold(adaptive);
+  return {
+    levelThreshold,
+    idleLevelThreshold: Math.max(0.004, Math.min(levelThreshold * 0.55, APEX_COCKPIT_IDLE_LEVEL_THRESHOLD)),
+  };
+}
+
+function formatApexCockpitMicPercent(value = 0) {
+  return `${Math.round(Math.max(0, Math.min(1, Number(value || 0) || 0)) * 100)}%`;
+}
+
+function formatApexCockpitTimingMs(value = 0, fallback = "--") {
+  const parsed = Math.max(0, Math.round(Number(value || 0) || 0));
+  return parsed ? `${parsed}ms` : fallback;
+}
+
+function buildApexCockpitVoiceTimingSummary(receipt = null, alwaysOpenMic = {}) {
+  const safeReceipt = receipt && typeof receipt === "object" ? receipt : {};
+  const timing = safeReceipt.timingMs && typeof safeReceipt.timingMs === "object" ? safeReceipt.timingMs : {};
+  const totalTurnMs = Math.max(0, Math.round(Number(safeReceipt.totalTurnMs || timing.totalTurnMs || 0) || 0));
+  const closeMs = Math.max(0, Math.round(Number(
+    safeReceipt.voiceCloseMs
+    || timing.voiceCloseMs
+    || timing.vadActualSilenceMs
+    || safeReceipt.silenceDurationMs
+    || alwaysOpenMic.silenceDurationMs
+    || alwaysOpenMic.sustainedSilenceMs
+    || APEX_COCKPIT_SILENCE_MS,
+  ) || 0));
+  const slowest = findApexCockpitSlowestTimingStep(timing);
+  const slowStep = safeReceipt.slowestStep || slowest.step || "";
+  const slowMs = Math.max(0, Math.round(Number(safeReceipt.slowestStepMs || slowest.ms || 0) || 0));
+  const sttMs = Math.max(0, Math.round(Number(timing.sttMs || timing.transcriptionTimingMs || safeReceipt.transcriptionTimingMs || 0) || 0));
+  const modelFirstTokenMs = Math.max(0, Math.round(Number(timing.modelFirstTokenMs || safeReceipt.liveTurnLatency?.modelFirstTokenMs || 0) || 0));
+  const modelTotalMs = Math.max(0, Math.round(Number(timing.modelTotalMs || timing.modelRequestMs || safeReceipt.liveTurnLatency?.modelTotalMs || 0) || 0));
+  const ttsMs = Math.max(0, Math.round(Number(timing.ttsGenerationMs || timing.ttsRequestMs || safeReceipt.liveTurnLatency?.ttsMs || 0) || 0));
+  const playbackMs = Math.max(0, Math.round(Number(
+    timing.playbackStartDelayMs
+    || timing.playbackDurationMs
+    || timing.recoveryMs
+    || safeReceipt.liveTurnLatency?.playbackRecoveryMs
+    || 0,
+  ) || 0));
+  return {
+    totalTurnMs,
+    closeMs,
+    sttMs,
+    modelFirstTokenMs,
+    modelTotalMs,
+    ttsMs,
+    playbackMs,
+    slowStep,
+    slowMs,
+    turnLabel: formatApexCockpitTimingMs(totalTurnMs),
+    closeLabel: formatApexCockpitTimingMs(closeMs),
+    sttLabel: formatApexCockpitTimingMs(sttMs),
+    modelLabel: modelFirstTokenMs || modelTotalMs
+      ? `${modelFirstTokenMs ? `${modelFirstTokenMs}ms` : "--"}/${modelTotalMs ? `${modelTotalMs}ms` : "--"}`
+      : "--",
+    ttsLabel: formatApexCockpitTimingMs(ttsMs),
+    playbackLabel: formatApexCockpitTimingMs(playbackMs),
+    slowLabel: slowStep ? `${slowStep} ${formatApexCockpitTimingMs(slowMs)}` : "--",
+  };
+}
+
+function buildApexCockpitLiveBenchmarkStatus(history = null) {
+  const safeHistory = history && typeof history === "object" ? history : {};
+  const typed = safeHistory.latestTypedBenchmark || safeHistory.typedBenchmark || null;
+  const voice = safeHistory.latestVoiceBenchmark || safeHistory.voiceBenchmark || null;
+  const comparison = safeHistory.benchmarkComparison || {};
+  const typedTotal = Number(typed?.totalTurnMs || 0) || 0;
+  const typedFirst = Number(typed?.modelFirstTokenMs || typed?.firstTokenLatencyMs || 0) || 0;
+  const typedModel = Number(typed?.modelTotalMs || 0) || 0;
+  const voiceTotal = Number(voice?.totalTurnMs || 0) || 0;
+  const voiceClose = Number(voice?.closeMs || 0) || 0;
+  const voiceStt = Number(voice?.sttMs || 0) || 0;
+  const voiceModel = Number(voice?.modelTotalMs || 0) || 0;
+  const voiceTts = Number(voice?.ttsMs || 0) || 0;
+  const voicePlay = Number(voice?.playbackRecoveryMs || 0) || 0;
+  const diagnosis = comparison.diagnosis || voice?.diagnosis || typed?.diagnosis || "pending";
+  const slowestStep = comparison.slowestStepLabel || voice?.slowestStepLabel || typed?.slowestStepLabel || "";
+  const slowestMs = Number(comparison.slowestStepMs || voice?.slowestStepMs || typed?.slowestStepMs || 0) || 0;
+  return {
+    typed,
+    voice,
+    comparison,
+    status: typed && voice ? "compared" : typed ? "voice-needed" : "ready",
+    tone: typed && voice ? "green" : typed ? "amber" : "blue",
+    typedLabel: typed ? `${typedTotal}ms / ${typedFirst || "--"}/${typedModel || "--"}ms` : "--",
+    voiceLabel: voice ? `${voiceTotal}ms` : "visible turn needed",
+    voiceBreakdownLabel: voice ? `close ${voiceClose || "--"} / STT ${voiceStt || "--"} / model ${voiceModel || "--"} / TTS ${voiceTts || "--"} / play ${voicePlay || "--"}` : "voice benchmark waits for a visible user-started mic turn",
+    slowLabel: slowestStep ? `${slowestStep} ${slowestMs || "--"}ms` : "--",
+    diagnosis,
+  };
+}
+
+function buildApexCockpitMicCalibrationPatch({
+  current = null,
+  level = 0,
+  nowMs = 0,
+  captureProvider = "",
+  audioWorkletSupported = false,
+  audioWorkletActive = false,
+  fallbackCaptureUsed = false,
+  micDeviceLabel = "",
+  sampleRate = 0,
+  frameReceived = true,
+  muted = false,
+} = {}) {
+  const base = createApexCockpitMicCalibrationState(current || {});
+  const now = Math.max(0, Number(nowMs || 0) || 0);
+  const startedAtMs = base.startedAtMs || now;
+  const cleanLevel = clampApexCockpitMicLevel(muted ? 0 : level);
+  const frameCount = frameReceived ? Number(base.frameCount || 0) + 1 : Number(base.frameCount || 0);
+  const peakLevel = frameReceived ? Math.max((Number(base.peakLevel || 0) * 0.985), cleanLevel) : Number(base.peakLevel || 0);
+  const averageLevel = frameReceived
+    ? Number(base.averageLevel || 0)
+      ? (Number(base.averageLevel || 0) * 0.88) + (cleanLevel * 0.12)
+      : cleanLevel
+    : Number(base.averageLevel || 0);
+  const previousFloor = Number(base.noiseFloor || 0) || (cleanLevel || 0);
+  const quietCandidate = cleanLevel && cleanLevel < Math.max(base.calibratedLevelThreshold || APEX_COCKPIT_LEVEL_THRESHOLD, APEX_COCKPIT_MIC_MIN_THRESHOLD)
+    ? cleanLevel
+    : previousFloor;
+  const noiseFloor = frameReceived
+    ? Math.max(0, Math.min(peakLevel || quietCandidate || 0, previousFloor ? (previousFloor * 0.94) + (quietCandidate * 0.06) : quietCandidate))
+    : previousFloor;
+  const thresholds = buildApexCockpitMicCalibrationThreshold({ peakLevel, noiseFloor, averageLevel });
+  const speechSignal = !muted && cleanLevel >= thresholds.levelThreshold;
+  const signalDetected = Boolean(base.signalDetected || speechSignal || peakLevel >= thresholds.levelThreshold);
+  const calibrating = now && startedAtMs ? now - startedAtMs < APEX_COCKPIT_MIC_CALIBRATION_MS : true;
+  const lastFrameAtMs = frameReceived ? now : Number(base.lastFrameAtMs || 0);
+  const lastSignalAtMs = speechSignal ? now : Number(base.lastSignalAtMs || 0);
+  let status = base.status || "not-started";
+  let reason = base.reason || "";
+  if (!frameCount) {
+    status = "open-no-frames";
+    reason = "Mic permission may be open, but Apex has not received PCM frames yet.";
+  } else if (muted) {
+    status = "muted";
+    reason = "Apex is dropping mic frames during speech or echo recovery.";
+  } else if (speechSignal || (lastSignalAtMs && now - lastSignalAtMs < APEX_COCKPIT_MIC_MAX_FRAME_AGE_MS)) {
+    status = "signal";
+    reason = "Mic frames are crossing the calibrated speech gate.";
+  } else if (calibrating) {
+    status = "calibrating";
+    reason = "Apex is measuring the room noise floor and speech gate.";
+  } else {
+    status = "quiet";
+    reason = "Mic frames are arriving, but speech has not crossed the calibrated gate yet.";
+  }
+
+  return createApexCockpitMicCalibrationState({
+    ...base,
+    status,
+    reason,
+    inputProvider: "browser",
+    captureProvider: captureProvider || base.captureProvider || "media-recorder",
+    audioWorkletSupported: Boolean(audioWorkletSupported || base.audioWorkletSupported),
+    audioWorkletActive: Boolean(audioWorkletActive),
+    fallbackCaptureUsed: Boolean(fallbackCaptureUsed || base.fallbackCaptureUsed),
+    frameCount,
+    peakLevel,
+    noiseFloor,
+    averageLevel,
+    calibratedLevelThreshold: thresholds.levelThreshold,
+    calibratedIdleLevelThreshold: thresholds.idleLevelThreshold,
+    lastFrameAtMs,
+    lastSignalAtMs,
+    startedAtMs,
+    completedAtMs: !calibrating && frameCount ? (base.completedAtMs || now) : Number(base.completedAtMs || 0),
+    signalDetected,
+    micDeviceLabel: micDeviceLabel || base.micDeviceLabel || "",
+    sampleRate: Number(sampleRate || base.sampleRate || 0) || 0,
+  });
+}
+
+function buildApexCockpitMicTestSummary({
+  calibration = null,
+  canUseRecorder = false,
+  canUseNativeVoice = false,
+  micPermissionState = "unknown",
+  recording = false,
+} = {}) {
+  if (!canUseRecorder && !canUseNativeVoice) return "No local microphone input is ready here. Type the request while Apex checks voice.";
+  const mic = createApexCockpitMicCalibrationState(calibration || {});
+  if (micPermissionState === "denied" && canUseNativeVoice) return "Browser mic permission is blocked, but Apex can still listen through the visible native Windows mic path.";
+  if (micPermissionState === "denied") return "The microphone is blocked for this Apex window. Allow mic access for localhost:5173, then run the mic test again.";
+  if (!recording) return "Mic test is ready. Speak normally once voice opens; I will measure frames, peak level, and the local speech gate.";
+  const capture = mic.captureProvider || "media-recorder";
+  const gate = formatApexCockpitMicPercent(mic.calibratedLevelThreshold || APEX_COCKPIT_LEVEL_THRESHOLD);
+  const peak = formatApexCockpitMicPercent(mic.peakLevel || 0);
+  const floor = formatApexCockpitMicPercent(mic.noiseFloor || 0);
+  if (!mic.frameCount) return `Mic is open, but Apex has not received PCM frames yet. Capture path: ${capture}. Check the Windows input device and browser mic permission.`;
+  if (mic.status === "signal" || mic.signalDetected) {
+    return `Mic frames are arriving and your voice crossed the local gate. Peak ${peak}, room floor ${floor}, gate ${gate}, capture ${capture}.`;
+  }
+  return `Mic frames are arriving, but speech has not crossed the local gate yet. Peak ${peak}, room floor ${floor}, gate ${gate}, capture ${capture}. Speak closer or check the selected Windows input.`;
+}
+
+function isApexCockpitMicCalibrationCommand(value = "") {
+  return /\b(test my mic|test the mic|mic test|microphone test|calibrate my mic|calibrate the mic|check my mic|check the microphone|why can't you hear me|why cant you hear me)\b/i.test(String(value || ""));
+}
+
+function mergeApexCockpitVoiceReceipt(current = null, patch = {}) {
+  const base = current && typeof current === "object" ? current : {};
+  const nextTiming = {
+    ...(base.timingMs && typeof base.timingMs === "object" ? base.timingMs : {}),
+    ...(patch.timingMs && typeof patch.timingMs === "object" ? patch.timingMs : {}),
+  };
+  const slowest = findApexCockpitSlowestTimingStep(nextTiming);
+  const totalTurnMs = Math.max(
+    0,
+    Math.round(Number(patch.totalTurnMs || nextTiming.totalTurnMs || base.totalTurnMs || 0) || 0),
+  );
+  return {
+    ...base,
+    ...patch,
+    id: patch.id || base.id || (patch.turnId || base.turnId ? `AVR-${patch.turnId || base.turnId}` : `AVR-${Date.now()}`),
+    turnId: patch.turnId || base.turnId || base.lastTurnId || "",
+    lastTurnId: patch.lastTurnId || patch.turnId || base.lastTurnId || base.turnId || "",
+    status: patch.status || base.status || "tracked",
+    provider: patch.provider || base.provider || "apex-local-voice",
+    timingMs: nextTiming,
+    slowestStep: patch.slowestStep || slowest.step || base.slowestStep || "",
+    slowestStepMs: Math.max(0, Math.round(Number(patch.slowestStepMs || slowest.ms || base.slowestStepMs || 0) || 0)),
+    totalTurnMs,
+    audioStored: false,
+    openAiAudioUsed: false,
+    cloudAudioAllowed: false,
+  };
+}
+
+function isApexCockpitLoopProneSpeech(value = "") {
+  return /\b(needs review|blocked for review|stopped at review|manual review|approval gate|progress \d+|current step|recommendation:|audio data|voice turn failed|audio turn failed|local stt timed out|same thing|retry listening)\b/i.test(String(value || ""));
+}
+
+function isApexCockpitReviewGateCheckIn(checkIn = {}) {
+  const combined = [
+    checkIn.trigger,
+    checkIn.title,
+    checkIn.status,
+    checkIn.detail,
+    checkIn.recommendation,
+  ].join(" ");
+  return /\b(attention|manual review|needs review|approval|blocked|gate)\b/i.test(combined);
+}
+
+function buildApexCockpitFastSpeechText(value = "", { maxChars = APEX_COCKPIT_FAST_SPEECH_MAX_CHARS } = {}) {
+  const raw = String(value || "")
+    .replace(/https?:\/\/\S+/gi, "link")
+    .replace(/\b[A-Z]:\\[^\s]+/g, "file path")
+    .replace(/\s*[-*]\s+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (raw.length <= maxChars) return raw;
+  const sentences = raw.match(/[^.!?]+[.!?]+/g) || [];
+  let spoken = "";
+  for (const sentence of sentences) {
+    const next = `${spoken} ${sentence}`.trim();
+    if (next.length > maxChars) break;
+    spoken = next;
+  }
+  if (!spoken) {
+    spoken = raw.slice(0, maxChars).replace(/\s+\S*$/, "").trim();
+  }
+  const clipped = (spoken || raw.slice(0, maxChars))
+    .replace(/\s+\S*$/, "")
+    .trim()
+    .replace(/[,:;]+$/, "");
+  const punctuation = /[.!?]$/.test(clipped) ? "" : ".";
+  return `${clipped}${punctuation} ${APEX_COCKPIT_FAST_SPEECH_SUFFIX}`;
+}
+
+function isApexCockpitAuthRequiredError(error = {}) {
+  const message = String(error?.payload?.error || error?.message || "").trim();
+  return Number(error?.status || 0) === 401 || /authentication required|session expired|not authenticated/i.test(message);
+}
+
+function apexCockpitLocalVoiceAuthRecoveryText() {
+  return "This Apex desktop voice window needs John's private operator session before local voice can use STT or TTS. Sign in in this window, or relaunch Apex after signing in with Chrome. The typed answer stays visible and no cloud audio was used.";
+}
+
+function resolveApexCockpitMicFailureMessage(error = {}) {
+  const name = String(error?.name || "").trim();
+  const message = String(error?.message || "").trim();
+  if (/notallowed|permissiondenied|security/i.test(`${name} ${message}`)) {
+    return "Chrome has not allowed the microphone for this Apex window. Choose Allow when prompted, or set Microphone to Allow for localhost:5173 in Chrome site settings, then press Recover Voice.";
+  }
+  if (/notfound|devicesnotfound/i.test(`${name} ${message}`)) {
+    return "Chrome cannot find an input microphone. Check the Windows input device, then press Recover Voice.";
+  }
+  if (/notreadable|trackstart/i.test(`${name} ${message}`)) {
+    return "Chrome can see the microphone, but Windows or another app has it busy. Close the other mic app or switch the Windows input device, then press Recover Voice.";
+  }
+  if (/overconstrained|constraint/i.test(`${name} ${message}`)) {
+    return "Chrome could not start the microphone with the requested local voice settings. Press Recover Voice and Apex will try again.";
+  }
+  return "Apex could not open the microphone in this window. Allow microphone access for localhost:5173, then press Recover Voice.";
+}
 const APEX_COCKPIT_AUDIO_CHECK_TEXT = "Apex audio is on. I can talk back on this desktop.";
 
 const APEX_COCKPIT_VOICE_PROFILES = Object.freeze([
@@ -3921,32 +5373,18 @@ const APEX_COCKPIT_VOICE_PROFILES = Object.freeze([
   { id: "sage", label: "Sage", detail: "Calm briefing", rate: 0.96, pitch: 1.03 },
 ]);
 
-const APEX_COCKPIT_PERSONALITY_MODES = Object.freeze([
-  {
-    id: "operator",
-    label: "Operator",
-    detail: "Direct, calm, and action-oriented.",
-    prompt: "Answer like Apex HQ's private operator assistant: direct, calm, source-backed, and focused on the next safe move.",
-  },
-  {
-    id: "briefing",
-    label: "Briefing",
-    detail: "Short executive summary first.",
-    prompt: "Answer like an executive briefing: lead with the answer, name blockers, name the next safe action, and avoid filler.",
-  },
-  {
-    id: "builder",
-    label: "Builder",
-    detail: "Implementation and validation focused.",
-    prompt: "Answer like a build operator: identify the route, implementation step, validation, rollback, and permission boundary.",
-  },
-]);
+const APEX_COCKPIT_PERSONALITY_MODES = Object.freeze(APEX_OS_ASSISTANT_MODES.map((mode) => ({
+  id: mode.id,
+  label: mode.label,
+  detail: mode.description,
+  prompt: mode.promptGuidance,
+})));
 
 function findApexCockpitVoiceProfile(profileId = "alloy") {
   return APEX_COCKPIT_VOICE_PROFILES.find((profile) => profile.id === profileId) || APEX_COCKPIT_VOICE_PROFILES[0];
 }
 
-function findApexCockpitPersonalityMode(modeId = "operator") {
+function findApexCockpitPersonalityMode(modeId = DEFAULT_APEX_OS_ASSISTANT_MODE_ID) {
   return APEX_COCKPIT_PERSONALITY_MODES.find((mode) => mode.id === modeId) || APEX_COCKPIT_PERSONALITY_MODES[0];
 }
 
@@ -3965,6 +5403,241 @@ function resolveApexCockpitSources(state, response) {
   return (state.askApexChat?.contexts || []).slice(0, 4).map((item) => item.title);
 }
 
+const APEX_HQ_DOMAIN_COMMAND_ROUTES = [
+  {
+    id: "apex-hq-leads",
+    label: "Apex HQ Leads",
+    detail: "Apex matched this to the existing Apex HQ Leads workspace. It can open/show leads and summarize current lead state without sending anything.",
+    actionLabel: "Open leads",
+    moduleId: "leads",
+    intent: "apex-hq-leads",
+    tone: "green",
+    patterns: [/\b(leads?|lead pipeline|lead board|lead workspace|prospects?)\b/i],
+  },
+  {
+    id: "apex-hq-jobs",
+    label: "Apex HQ Jobs",
+    detail: "Apex matched this to the existing Apex HQ Jobs workspace. It can open/show jobs and summarize active work from current state.",
+    actionLabel: "Open jobs",
+    moduleId: "jobs",
+    intent: "apex-hq-jobs",
+    tone: "green",
+    patterns: [/\b(jobs?|job board|active work|work orders?|projects?)\b/i],
+  },
+  {
+    id: "apex-hq-customers",
+    label: "Apex HQ Customers",
+    detail: "Apex matched this to the existing Apex HQ Customers workspace. It can open/show customers without exposing private Apex state to field users.",
+    actionLabel: "Open customers",
+    moduleId: "customers",
+    intent: "apex-hq-customers",
+    tone: "green",
+    patterns: [/\b(customers?|clients?|customer list|client list)\b/i],
+  },
+  {
+    id: "apex-hq-estimates",
+    label: "Apex HQ Estimates",
+    detail: "Apex matched this to existing Apex HQ estimate workflows. It can open/show estimates; sending and pricing approvals stay gated.",
+    actionLabel: "Open estimates",
+    moduleId: "estimates",
+    intent: "apex-hq-estimates",
+    tone: "green",
+    patterns: [/\b(estimates?|quote|quotes|bids?)\b/i],
+  },
+  {
+    id: "apex-hq-proposals",
+    label: "Apex HQ Proposals",
+    detail: "Apex matched this to the existing Apex HQ Proposals workspace. It can open/show proposals; sending and customer-visible delivery stay gated.",
+    actionLabel: "Open proposals",
+    moduleId: "proposals",
+    intent: "apex-hq-proposals",
+    tone: "green",
+    patterns: [/\b(proposals?|proposal workspace|proposal packet)\b/i],
+  },
+  {
+    id: "apex-hq-reports",
+    label: "Apex HQ Reports",
+    detail: "Apex matched this to existing Apex HQ report workflows. It can open/show reports without changing customer-visible records.",
+    actionLabel: "Open reports",
+    moduleId: "reports",
+    intent: "apex-hq-reports",
+    tone: "green",
+    patterns: [/\b(reports?|daily reports?)\b/i],
+  },
+  {
+    id: "apex-hq-uploads",
+    label: "Apex HQ Uploads",
+    detail: "Apex matched this to existing Apex HQ upload/evidence workflows. It can open/show uploads and proof without changing customer-visible records.",
+    actionLabel: "Open uploads",
+    moduleId: "uploads",
+    intent: "apex-hq-uploads",
+    tone: "green",
+    patterns: [/\b(uploads?|photos?|evidence|proof)\b/i],
+  },
+  {
+    id: "apex-hq-today",
+    label: "Apex HQ Today",
+    detail: "Apex matched this to today's Apex HQ business state. It can answer from current dashboard, leads, jobs, reports, memory, tasks, and build awareness.",
+    actionLabel: "Use Apex home",
+    section: "apex",
+    intent: "apex-hq-today-summary",
+    tone: "blue",
+    patterns: [/\b(today's apex hq|today in apex hq|what should i handle today|business state|apex hq state|apex hq today)\b/i],
+  },
+  {
+    id: "apex-hq-domain",
+    label: "Apex HQ Domain",
+    detail: "Apex matched this to the Apex HQ business workspace summary. It can show what business modules it can route to without duplicating workflows.",
+    actionLabel: "Show Apex HQ",
+    section: "apex",
+    intent: "apex-hq-domain",
+    commandAction: "show-panel-apex-hq",
+    tone: "blue",
+    patterns: [/\b(show apex hq|open apex hq|check apex hq|show business workspace|open business workspace|pull up apex hq|apex hq domain)\b/i],
+  },
+  {
+    id: "apex-hq-build-status",
+    label: "Build Status",
+    detail: "Apex matched this to build awareness. It can summarize local app/build status while deploy, production, schema, auth, and deletion remain gated.",
+    actionLabel: "Open build status",
+    section: "release",
+    intent: "apex-hq-build-status",
+    tone: "blue",
+    patterns: [/\b(build status|app status|what changed in (the )?(app|repo|build)|repo status|phase status|local build)\b/i],
+  },
+  {
+    id: "apex-private-task",
+    label: "Private Apex Tasks",
+    detail: "Apex matched this to private internal tasks/reminders/notes. It can use existing operator-only Apex state for reversible private records.",
+    actionLabel: "Open tasks",
+    section: "personal",
+    intent: "apex-private-task",
+    tone: "green",
+    patterns: [/\b(remind me|reminder|task|to-do|todo|note|save this)\b/i],
+  },
+];
+
+const APEX_BUILDER_COMMAND_ROUTES = [
+  {
+    id: "apex-clear-screen",
+    label: "Clear screen",
+    detail: "Apex matched this to the home surface router. It will hide detailed panels and return to the conversation-first home.",
+    actionLabel: "Clear screen",
+    section: "apex",
+    intent: "clear-screen",
+    commandAction: "clear-apex-panels",
+    tone: "slate",
+    patterns: [/\b(clear the screen|hide panels|close panels|conversation first|back to apex home|hide everything|clean screen|go quiet|quiet down|calm standby|show me only if i need to see it|only show me if i need to see it|keep (it|the interface) minimal)\b/i],
+  },
+  {
+    id: "apex-builder-check-app",
+    label: "Apex Builder Mode",
+    detail: "Apex matched this to Builder Mode. It can refresh local build awareness, summarize dirty files, run fixed local checks, and report what changed without deploying.",
+    actionLabel: "Open Builder Mode",
+    section: "apex",
+    intent: "builder-check-app",
+    commandAction: "builder-status",
+    tone: "blue",
+    patterns: [/\b(use builder|check the app|check app|app check|inspect the app|inspect app|work on the app|work the app|build the app|builder mode|builder status|show builder|show me what builder is doing|what builder is doing)\b/i],
+  },
+  {
+    id: "apex-builder-hide",
+    label: "Hide Builder",
+    detail: "Apex matched this to the home surface router. It will hide Builder Mode and keep the conversation-first feed visible.",
+    actionLabel: "Hide builder",
+    section: "apex",
+    intent: "builder-hide",
+    commandAction: "hide-builder-panel",
+    tone: "slate",
+    patterns: [/\b(hide builder|close builder|hide builder mode|close builder mode)\b/i],
+  },
+  {
+    id: "apex-builder-what-changed",
+    label: "What changed",
+    detail: "Apex matched this to local build awareness. It can summarize current changed files and validation posture from the private workspace.",
+    actionLabel: "Summarize changes",
+    section: "apex",
+    intent: "builder-what-changed",
+    commandAction: "show-what-changed",
+    tone: "amber",
+    patterns: [/\b(show what changed|what changed|what's changed|what did we change|what did you change|dirty files|changed files|repo changes|local changes)\b/i],
+  },
+  {
+    id: "apex-autonomous-build-loop",
+    label: "Apex Build Loop",
+    detail: "Apex matched this to the controlled local build loop. It can create an Apex-owned scoped build task, route normal coding through qwen3:14b at 4096 context, keep 30B manual-only, save a receipt, and use controlled Builder/Self-Fix tooling only.",
+    actionLabel: "Run build loop",
+    section: "apex",
+    intent: "apex-autonomous-build-loop",
+    commandAction: "run-autonomous-build-loop",
+    tone: "green",
+    patterns: [/\b(work on yourself|improve yourself|work on apex itself|start coding|start building|start the build loop|stop coding|pause coding|stop building|pause building|what are you building|what are you coding|build loop status|improve your voice status|fix your voice status|clean up your runtime|clean up local runtime|cleanup local runtime)\b/i],
+  },
+  {
+    id: "apex-builder-controlled-fix",
+    label: "Self-Fix",
+    detail: "Apex matched this to Self-Fix v2. It can prepare the repair context, dispatch the existing controlled Builder tooling, validate, learn, and report back without turning Home into a dashboard.",
+    actionLabel: "Handle fix",
+    section: "apex",
+    intent: "self-fix-auto-dispatch",
+    commandAction: "self-fix-auto-dispatch",
+    tone: "green",
+    patterns: [/\b(fix this screen|fix this page|fix this small ui issue|fix small ui|fix stale copy|repair this screen|repair this page|repair a focused test|repair this test|fix this status label|fix status label|clean up this small layout issue|small layout issue|check and fix the local app|run the focused fix|focused fix|controlled fix|fix this bug|work on this bug|repair this|fix this local|fix the app|fix the local app|what's broken here|what is broken here|what would you change|what would change|prepare a patch|show me the patch|hand this to the build thread|handoff to the build thread|what tests would you run|what tests should run|stop fixing)\b/i],
+  },
+  {
+    id: "apex-builder-fix-history",
+    label: "Fix history",
+    detail: "Apex matched this to Builder Mode history. It can show recent controlled fix receipts, patch previews, touched files, validation results, and What Apex Did rows.",
+    actionLabel: "Show fix history",
+    section: "apex",
+    intent: "builder-fix-history",
+    commandAction: "show-patch-panel",
+    tone: "blue",
+    patterns: [/\b(show fix history|fix history|what apex did|what did apex do|show what apex did|show what you changed|recent fixes|fix receipts)\b/i],
+  },
+  {
+    id: "apex-builder-patch-preview",
+    label: "Patch preview",
+    detail: "Apex matched this to Builder Mode patch preview. It can show exact before/after snippets, target files, validation command, and expected result for Apex-prepared fixes.",
+    actionLabel: "Show patch",
+    section: "apex",
+    intent: "builder-patch-preview",
+    commandAction: "builder-status",
+    tone: "blue",
+    patterns: [/\b(show the patch|show patch|pull up patch preview|patch preview|before after patch|what patch|show the diff|exact patch)\b/i],
+  },
+  {
+    id: "apex-builder-local-undo",
+    label: "Local undo",
+    detail: "Apex matched this to Builder Mode local undo. It can undo Apex's own last successful scoped patch when the file still matches the Apex-applied baseline.",
+    actionLabel: "Undo last Apex patch",
+    section: "apex",
+    intent: "builder-local-undo",
+    commandAction: "show-undo-panel",
+    tone: "amber",
+    patterns: [/\b(undo your last fix|undo last fix|revert your local patch|undo apex patch|local undo|undo the patch|revert your patch)\b/i],
+  },
+  {
+    id: "apex-builder-task",
+    label: "Builder task",
+    detail: "Apex matched this to a private builder task. It can create a private Builder Mode task in the existing autonomy ledger and keep consequential actions gated.",
+    actionLabel: "Create builder task",
+    section: "apex",
+    intent: "builder-task",
+    commandAction: "create-builder-task",
+    tone: "green",
+    patterns: [/\b(make this a builder task|create (a )?builder task|track this bug|track (this )?(issue|bug)|builder task)\b/i],
+  },
+];
+
+function matchApexHqDomainCommandRoute(normalized = "") {
+  return APEX_HQ_DOMAIN_COMMAND_ROUTES.find((route) => route.patterns.some((pattern) => pattern.test(normalized))) || null;
+}
+
+function matchApexBuilderCommandRoute(normalized = "") {
+  return APEX_BUILDER_COMMAND_ROUTES.find((route) => route.patterns.some((pattern) => pattern.test(normalized))) || null;
+}
+
 function buildApexCockpitCommandRoute(question = "", { previousRoute = null, activeRun = null, nextPrivateMove = null } = {}) {
   const normalized = String(question || "").toLowerCase();
   const hasAny = (words) => words.some((word) => normalized.includes(word));
@@ -3981,6 +5654,33 @@ function buildApexCockpitCommandRoute(question = "", { previousRoute = null, act
     shouldOpenSection: wantsRouteOpen,
     suggestedActions: wantsLiveRun ? ["Start private run", "Answer from memory", "Open matched room"] : ["Answer from memory", "Open matched room"],
   };
+  const builderRoute = matchApexBuilderCommandRoute(normalized);
+  if (builderRoute && !wantsAgentRequest && !wantsLiveRun && !isFollowUp) {
+    return {
+      ...base,
+      ...builderRoute,
+      section: "apex",
+      suggestedActions: builderRoute.commandAction === "self-fix-prep"
+        ? ["Prepare patch handoff", "Show patch", "Validation plan"]
+        : builderRoute.commandAction === "run-builder-fix"
+          ? ["Run focused fix", "Show receipt", "Run focused check"]
+        : builderRoute.commandAction === "create-builder-task"
+        ? ["Create builder task", "Run focused check", "Summarize changes"]
+        : ["Refresh build awareness", "Run focused check", "Create builder task"],
+    };
+  }
+  const apexHqRoute = matchApexHqDomainCommandRoute(normalized);
+  if (apexHqRoute && !wantsAgentRequest && !wantsLiveRun && !isFollowUp) {
+    return {
+      ...base,
+      ...apexHqRoute,
+      section: apexHqRoute.section || "apex",
+      commandAction: apexHqRoute.commandAction || (apexHqRoute.moduleId ? "open-apex-hq-module" : wantsRouteOpen ? "open-section" : "answer"),
+      suggestedActions: apexHqRoute.moduleId
+        ? [apexHqRoute.actionLabel, "Answer from memory", "Summarize state"]
+        : [apexHqRoute.actionLabel, "Answer from memory", "Open matched room"],
+    };
+  }
   const activeRunStatus = String(activeRun?.status || "").toLowerCase();
   const hasActiveRun = Boolean(activeRun?.id) && !["archived"].includes(activeRunStatus);
   const activeRunTitle = String(activeRun?.title || activeRun?.request || "the active private run").trim();
@@ -4103,7 +5803,7 @@ function buildApexCockpitCommandRoute(question = "", { previousRoute = null, act
       id: "active-run-follow-up",
       label: "Active run",
       section: "apex",
-      detail: `Apex matched this to ${activeRunTitle}. Next private move: ${moveTitle}. It will use the saved run ledger and keep execution locked.`,
+      detail: `Apex matched this to ${activeRunTitle}. Next private move: ${moveTitle}. It will use the saved run ledger and stop before consequential actions.`,
       actionLabel,
       commandAction,
       intent: "active-run-follow-up",
@@ -4370,7 +6070,6 @@ function buildApexCockpitVisibleConversationContext({
 }
 
 function buildApexCockpitProactiveBriefing(state = {}) {
-  const approvalCount = state.approvalCommandCenter?.queueCount || state.approvalCommandCenter?.packetSummary?.total || 0;
   const blockerCount = state.launchReadiness?.blockedCount || state.approvalCommandCenter?.packetSummary?.blocked || 0;
   const agentCount = state.agentControlPlane?.roleCount || state.agentWorkQueue?.availableTaskCount || 0;
   const memoryCount = state.decisionMemory?.durableCount || state.decisionMemory?.decisionCount || 0;
@@ -4379,17 +6078,17 @@ function buildApexCockpitProactiveBriefing(state = {}) {
   const latestRunMemory = resolveApexCockpitLatestTrustedRunMemory(state.liveOperatorMemory || state.liveOperatorMode?.runMemory || {});
   const releaseStatus = state.releaseDesk?.status || "Healthy";
   const moneyReady = state.kpis?.find((item) => /money/i.test(item.title || ""))?.value || state.todayCommandCenter?.moneyReadyCount || 0;
+  const operatorName = resolveApexPrivateOperatorDisplayName(state.operatorName);
   return [
-    `Apex briefing for ${state.operatorName || "operator"}.`,
+    `Apex briefing for ${operatorName}.`,
     `${moneyReady} money-ready item${Number(moneyReady) === 1 ? "" : "s"} are visible.`,
-    `${approvalCount} approval item${approvalCount === 1 ? "" : "s"} need review.`,
     `${blockerCount} blocker${blockerCount === 1 ? "" : "s"} are open.`,
     `${agentCount} agent signal${agentCount === 1 ? "" : "s"} are active.`,
     `${memoryCount} trusted memor${memoryCount === 1 ? "y" : "ies"} are available.`,
     `${trustedRunMemoryCount} trusted live-run memor${trustedRunMemoryCount === 1 ? "y" : "ies"} and ${pendingRunMemoryCount} suggested run memor${pendingRunMemoryCount === 1 ? "y" : "ies"} are visible.`,
     latestRunMemory ? `Latest trusted run history: ${latestRunMemory.title}. I can continue from that reviewed outcome when you ask.` : "",
     `Release health reads ${releaseStatus}.`,
-    "I will answer, route, draft safe requests, and keep execution locked until the gated workflow approves it.",
+    "I act privately for reversible internal work and interrupt only for consequential actions like sends, spend, orders, booking, deploys, production, schema/auth/session, deletion, secrets, permission changes, or customer-visible work.",
   ].filter(Boolean).join(" ");
 }
 
@@ -4466,7 +6165,7 @@ function buildApexCockpitAgentControlDraft(question = "", route = {}) {
     rollbackPlan: "Close or archive this locked request and revert the scoped branch commit if validation fails.",
     sourceLabel: "Apex Life Voice/Text Command",
     sourceUri: "apex-life://command",
-    operatorNote: "Created by Apex Life command routing. Execution remains locked and requires the gated workflow.",
+    operatorNote: "Created by Apex Life command routing. Consequential actions require the gated workflow.",
     status: "requested",
   };
 }
@@ -4623,15 +6322,489 @@ function ApexMiniWaveform({ bars = [8, 13, 7, 18, 10, 22, 12, 16, 9, 20, 8, 14],
   );
 }
 
+const APEX_LIFE_MOUTH_BARS = Object.freeze([6, 11, 16, 9, 18, 12, 7]);
+const APEX_LIFE_SPECTRUM_BARS = Object.freeze([9, 15, 10, 22, 13, 28, 16, 24, 12, 20, 14, 26, 11, 18]);
+const APEX_LIFE_DATA_STREAMS = Object.freeze(["one", "two", "three", "four", "five", "six"]);
+const APEX_COCKPIT_INTELLIGENCE_MODEL_URL = "/assets/apex-avatar/apex-intelligence-live-web-1536.glb";
+const APEX_COCKPIT_INTELLIGENCE_MOBILE_MODEL_URL = "/assets/apex-avatar/apex-intelligence-live-web-1024.glb";
+const APEX_COCKPIT_INTELLIGENCE_MASTER_MODEL_URL = "/assets/apex-avatar/apex-intelligence-idle-app-ready.glb";
+const APEX_COCKPIT_INTELLIGENCE_FALLBACK_MODEL_URL = "/assets/apex-avatar/apex-assistant.glb";
+const APEX_COCKPIT_INTELLIGENCE_STATES = Object.freeze({
+  standby: { color: 0x94a3b8, accent: 0x38bdf8, energy: 0.14, speed: 0.68, motion: 0.16 },
+  listening: { color: 0x67e8f9, accent: 0xfb923c, energy: 0.28, speed: 0.82, motion: 0.28 },
+  hearing: { color: 0x6ee7b7, accent: 0x67e8f9, energy: 0.58, speed: 1.05, motion: 0.72 },
+  thinking: { color: 0x38bdf8, accent: 0xa5f3fc, energy: 0.44, speed: 0.96, motion: 0.5 },
+  speaking: { color: 0xfb923c, accent: 0x67e8f9, energy: 0.74, speed: 1.18, motion: 0.9 },
+  blocked: { color: 0xf87171, accent: 0xfca5a5, energy: 0.24, speed: 0.55, motion: 0.18 },
+});
+const APEX_COCKPIT_INTELLIGENCE_CLIP_BY_STATE = Object.freeze({
+  standby: "Idle",
+  listening: "Listening",
+  hearing: "Hearing",
+  thinking: "Thinking",
+  speaking: "Speaking",
+  blocked: "Alert",
+});
+const APEX_COCKPIT_INTELLIGENCE_REQUIRED_CLIPS = Object.freeze([
+  "Idle",
+  "Listening",
+  "Hearing",
+  "Thinking",
+  "Speaking",
+  "Blocked",
+  "Alert",
+]);
+
+function clampApexCockpitUnit(value, fallback = 0) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.max(0, Math.min(1, number));
+}
+
+function createApexCockpitGlowMaterial(color = 0x67e8f9, opacity = 0.42) {
+  return new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+}
+
+function createApexCockpitRing(radius, color, opacity = 0.22) {
+  const geometry = new THREE.TorusGeometry(radius, 0.007, 8, 120);
+  return new THREE.Mesh(geometry, createApexCockpitGlowMaterial(color, opacity));
+}
+
+function cloneApexCockpitModelMaterial(material, { preserveTexture = true } = {}) {
+  const cloned = material?.clone ? material.clone() : new THREE.MeshStandardMaterial({ color: 0x101827, metalness: 0.72, roughness: 0.38 });
+  cloned.side = THREE.DoubleSide;
+  if (cloned.map && THREE.SRGBColorSpace) cloned.map.colorSpace = THREE.SRGBColorSpace;
+  if ("metalness" in cloned) cloned.metalness = Math.max(cloned.metalness ?? 0, preserveTexture ? 0.58 : 0.2);
+  if ("roughness" in cloned) cloned.roughness = Math.min(Math.max(cloned.roughness ?? 0.42, 0.24), 0.62);
+  if ("emissive" in cloned) {
+    cloned.emissive = cloned.emissive || new THREE.Color(0x000000);
+    cloned.emissiveIntensity = Math.max(cloned.emissiveIntensity ?? 0, preserveTexture ? 0.08 : 0.16);
+  }
+  if (!preserveTexture) {
+    cloned.transparent = true;
+    cloned.opacity = 0.28;
+    cloned.blending = THREE.AdditiveBlending;
+    cloned.depthWrite = false;
+  } else {
+    cloned.transparent = false;
+    cloned.opacity = 1;
+    cloned.depthWrite = true;
+  }
+  cloned.userData.apexCockpitBaseColor = cloned.color?.clone?.() || new THREE.Color(0x101827);
+  cloned.userData.apexCockpitBaseEmissive = cloned.emissive?.clone?.() || new THREE.Color(0x000000);
+  cloned.userData.apexCockpitBaseOpacity = typeof cloned.opacity === "number" ? cloned.opacity : 1;
+  cloned.needsUpdate = true;
+  return cloned;
+}
+
+function disposeApexCockpitThreeObject(object) {
+  object.traverse((node) => {
+    if (node.geometry) node.geometry.dispose();
+    const materials = Array.isArray(node.material) ? node.material : [node.material];
+    materials.filter(Boolean).forEach((material) => {
+      ["map", "emissiveMap", "normalMap", "roughnessMap", "metalnessMap", "aoMap", "alphaMap"].forEach((key) => {
+        if (material[key]?.dispose) material[key].dispose();
+      });
+      material.dispose();
+    });
+  });
+}
+
+function ApexCockpitIntelligenceAvatar({ voiceMode = "listening", voiceLevel = 0 }) {
+  const canvasRef = useRef(null);
+  const modeRef = useRef(APEX_COCKPIT_VOICE_STATES[voiceMode] ? voiceMode : "listening");
+  const levelRef = useRef(clampApexCockpitUnit(voiceLevel));
+
+  useEffect(() => {
+    modeRef.current = APEX_COCKPIT_VOICE_STATES[voiceMode] ? voiceMode : "listening";
+    levelRef.current = clampApexCockpitUnit(voiceLevel);
+  }, [voiceLevel, voiceMode]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || typeof window === "undefined") return undefined;
+
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({
+        canvas,
+        alpha: true,
+        antialias: true,
+        powerPreference: "high-performance",
+      });
+    } catch {
+      return undefined;
+    }
+
+    if (THREE.SRGBColorSpace) renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+    renderer.setClearColor(0x020617, 0);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 80);
+    camera.position.set(0, 0.18, 6.55);
+
+    const root = new THREE.Group();
+    root.position.y = -0.12;
+    root.userData.mobile = false;
+    scene.add(root);
+
+    const assetRigGroup = new THREE.Group();
+    assetRigGroup.name = "ApexCockpitIntelligenceGLB";
+    assetRigGroup.visible = false;
+    root.add(assetRigGroup);
+
+    const overlayGroup = new THREE.Group();
+    overlayGroup.name = "ApexCockpitIntelligenceLiveOverlay";
+    overlayGroup.visible = false;
+    root.add(overlayGroup);
+
+    const ambient = new THREE.AmbientLight(0x67e8f9, 0.8);
+    scene.add(ambient);
+    const keyLight = new THREE.PointLight(0xfb923c, 3.4, 14);
+    keyLight.position.set(1.9, 2.25, 3.7);
+    scene.add(keyLight);
+    const cyanLight = new THREE.PointLight(0x67e8f9, 2.7, 14);
+    cyanLight.position.set(-2.1, 1.35, 2.9);
+    scene.add(cyanLight);
+    const backLight = new THREE.PointLight(0x38bdf8, 1.2, 10);
+    backLight.position.set(0, 1.1, -3.2);
+    scene.add(backLight);
+
+    const awarenessLine = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.022, 0.018), createApexCockpitGlowMaterial(0x67e8f9, 0.72));
+    awarenessLine.position.set(0, 1.15, 0.73);
+    overlayGroup.add(awarenessLine);
+    const awarenessGlow = new THREE.Mesh(new THREE.PlaneGeometry(1.08, 0.07), createApexCockpitGlowMaterial(0x67e8f9, 0.04));
+    awarenessGlow.position.set(0, 1.15, 0.725);
+    overlayGroup.add(awarenessGlow);
+
+    const coreRing = createApexCockpitRing(0.2, 0x67e8f9, 0.36);
+    coreRing.position.set(0, 0.02, 0.74);
+    overlayGroup.add(coreRing);
+    const coreInnerRing = createApexCockpitRing(0.105, 0xfb923c, 0.3);
+    coreInnerRing.position.copy(coreRing.position);
+    overlayGroup.add(coreInnerRing);
+    const coreDot = new THREE.Mesh(new THREE.SphereGeometry(0.038, 16, 8), createApexCockpitGlowMaterial(0x67e8f9, 0.82));
+    coreDot.position.set(0, 0.02, 0.765);
+    overlayGroup.add(coreDot);
+
+    const baseRingGroup = new THREE.Group();
+    baseRingGroup.position.set(0, -1.2, 0.02);
+    overlayGroup.add(baseRingGroup);
+    const baseRings = [0.74, 1.08, 1.42].map((radius, index) => {
+      const ring = createApexCockpitRing(radius, index === 1 ? 0xfb923c : 0x67e8f9, 0.11);
+      ring.rotation.x = Math.PI / 2;
+      baseRingGroup.add(ring);
+      return ring;
+    });
+
+    const shoulderScan = new THREE.Mesh(new THREE.TorusGeometry(1.18, 0.006, 8, 128, Math.PI * 1.04), createApexCockpitGlowMaterial(0x67e8f9, 0.18));
+    shoulderScan.position.set(0, 0.34, 0.58);
+    shoulderScan.rotation.set(Math.PI, 0, 0);
+    shoulderScan.scale.set(1, 0.24, 1);
+    overlayGroup.add(shoulderScan);
+
+    let disposed = false;
+    let modelReady = false;
+    let assetMixer = null;
+    let animationFrame = 0;
+    let lastFrameElapsed = 0;
+    let smoothedEnergy = levelRef.current;
+    const assetMaterials = [];
+    const assetActions = new Map();
+    let activeAssetAction = null;
+    let activeAssetClipName = "";
+    const assetLoader = new GLTFLoader();
+
+    function resolveAssetClipName(currentMode) {
+      const preferred = APEX_COCKPIT_INTELLIGENCE_CLIP_BY_STATE[currentMode] || "Idle";
+      if (assetActions.has(preferred)) return preferred;
+      if (currentMode === "blocked" && assetActions.has("Blocked")) return "Blocked";
+      if (assetActions.has("Idle")) return "Idle";
+      return assetActions.keys().next().value || "";
+    }
+
+    function playAssetStateClip(currentMode, { immediate = false } = {}) {
+      if (!assetMixer || !assetActions.size) return;
+      const nextClipName = resolveAssetClipName(currentMode);
+      if (!nextClipName || nextClipName === activeAssetClipName) return;
+      const nextAction = assetActions.get(nextClipName);
+      if (!nextAction) return;
+
+      nextAction.enabled = true;
+      nextAction.reset();
+      nextAction.setEffectiveTimeScale(1);
+      nextAction.setEffectiveWeight(1);
+      nextAction.play();
+
+      if (activeAssetAction && activeAssetAction !== nextAction) {
+        activeAssetAction.enabled = true;
+        activeAssetAction.crossFadeTo(nextAction, immediate ? 0 : 0.36, false);
+      } else {
+        nextAction.setEffectiveWeight(1);
+      }
+
+      activeAssetAction = nextAction;
+      activeAssetClipName = nextClipName;
+    }
+
+    function loadAvatarModel(url, { fallback = "runtime", preserveTexture = true } = {}) {
+      assetLoader.load(
+        url,
+        (gltf) => {
+          if (disposed) return;
+          const model = gltf.scene;
+          model.name = fallback ? "ApexCockpitFallbackGLBModel" : "ApexCockpitIntelligenceMeshyGLBModel";
+          const modelBox = new THREE.Box3().setFromObject(model);
+          const modelSize = modelBox.getSize(new THREE.Vector3());
+          const modelCenter = modelBox.getCenter(new THREE.Vector3());
+          const modelHeight = preserveTexture ? 3.48 : 2.55;
+          const modelScale = modelSize.y > 0 ? modelHeight / modelSize.y : 1;
+          model.scale.setScalar(modelScale);
+          model.position.set(-modelCenter.x * modelScale, -modelBox.min.y * modelScale - 1.33, -modelCenter.z * modelScale + (preserveTexture ? 0.02 : 0.05));
+
+          model.traverse((node) => {
+            if (!node.isMesh) return;
+            node.castShadow = false;
+            node.receiveShadow = false;
+            node.frustumCulled = false;
+            const sourceMaterialNames = (Array.isArray(node.material) ? node.material : [node.material])
+              .filter(Boolean)
+              .map((material) => material.name || "")
+              .join(" ");
+            const materialSignature = `${node.name || ""} ${sourceMaterialNames}`;
+            const isEnergySurface = /Visor|Mouth|Jaw|Core|Halo|Ring|Panel|Signal|Line|Emit|Glow|Light/i.test(materialSignature);
+            const preparedMaterials = (Array.isArray(node.material) ? node.material : [node.material]).map((material) => {
+              const prepared = cloneApexCockpitModelMaterial(material, { preserveTexture });
+              prepared.userData.apexCockpitSurface = preserveTexture
+                ? isEnergySurface ? "textured-energy" : "textured"
+                : isEnergySurface ? "energy" : "armor";
+              assetMaterials.push(prepared);
+              return prepared;
+            });
+            node.material = Array.isArray(node.material) ? preparedMaterials : preparedMaterials[0];
+          });
+
+          assetRigGroup.add(model);
+          assetMixer = gltf.animations?.length ? new THREE.AnimationMixer(model) : null;
+          assetActions.clear();
+          activeAssetAction = null;
+          activeAssetClipName = "";
+          if (assetMixer) {
+            gltf.animations.forEach((clip) => {
+              const clipName = clip.name || `clip-${assetActions.size}`;
+              const action = assetMixer.clipAction(clip);
+              action.enabled = true;
+              action.clampWhenFinished = false;
+              action.setLoop(THREE.LoopRepeat, Infinity);
+              action.setEffectiveWeight(0);
+              assetActions.set(clipName, action);
+            });
+            playAssetStateClip(modeRef.current, { immediate: true });
+          }
+          modelReady = true;
+          assetRigGroup.visible = true;
+          overlayGroup.visible = true;
+        },
+        undefined,
+        () => {
+          if (fallback === "runtime" && APEX_COCKPIT_INTELLIGENCE_MASTER_MODEL_URL) {
+            loadAvatarModel(APEX_COCKPIT_INTELLIGENCE_MASTER_MODEL_URL, { fallback: "master", preserveTexture: true });
+            return;
+          }
+          if (fallback !== "procedural" && APEX_COCKPIT_INTELLIGENCE_FALLBACK_MODEL_URL) {
+            loadAvatarModel(APEX_COCKPIT_INTELLIGENCE_FALLBACK_MODEL_URL, { fallback: "procedural", preserveTexture: false });
+          }
+        },
+      );
+    }
+
+    function resize() {
+      const parent = canvas.parentElement || canvas;
+      const rect = parent.getBoundingClientRect();
+      const width = Math.max(1, Math.floor(rect.width));
+      const height = Math.max(1, Math.floor(rect.height));
+      renderer.setSize(width, height, false);
+      camera.aspect = width / height;
+      const mobileFrame = width < 560;
+      root.userData.mobile = mobileFrame;
+      camera.position.z = mobileFrame ? 7.55 : 6.55;
+      camera.position.y = mobileFrame ? 0.08 : 0.18;
+      camera.updateProjectionMatrix();
+    }
+
+    let resizeObserver = null;
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(resize);
+      resizeObserver.observe(canvas.parentElement || canvas);
+    } else {
+      window.addEventListener("resize", resize);
+    }
+    resize();
+    const initialWidth = Math.max(
+      canvas.parentElement?.getBoundingClientRect?.().width || 0,
+      window.innerWidth || 0,
+    );
+    const runtimeModelUrl = initialWidth > 0 && initialWidth < 560
+      ? APEX_COCKPIT_INTELLIGENCE_MOBILE_MODEL_URL
+      : APEX_COCKPIT_INTELLIGENCE_MODEL_URL;
+    loadAvatarModel(runtimeModelUrl, { preserveTexture: true });
+
+    const startTime = performance.now();
+    function animate() {
+      if (disposed) return;
+      const elapsed = (performance.now() - startTime) / 1000;
+      const delta = Math.max(0.001, Math.min(0.05, elapsed - lastFrameElapsed || 0.016));
+      lastFrameElapsed = elapsed;
+      const currentMode = APEX_COCKPIT_VOICE_STATES[modeRef.current] ? modeRef.current : "listening";
+      const modeConfig = APEX_COCKPIT_INTELLIGENCE_STATES[currentMode] || APEX_COCKPIT_INTELLIGENCE_STATES.listening;
+      const color = new THREE.Color(modeConfig.color);
+      const accent = new THREE.Color(modeConfig.accent);
+      const speechMode = currentMode === "speaking" || currentMode === "hearing";
+      const thinkingMode = currentMode === "thinking";
+      const signalPulse = 0.5 + (Math.sin(elapsed * (2.8 + modeConfig.energy * 3.6)) * 0.5);
+      const voicePulse = 0.5 + (Math.sin(elapsed * (speechMode ? 9.4 : thinkingMode ? 4.4 : 2.4)) * 0.5);
+      const targetEnergy = clampApexCockpitUnit(Math.max(modeConfig.energy, levelRef.current) + signalPulse * (speechMode ? 0.12 : 0.06));
+      smoothedEnergy += (targetEnergy - smoothedEnergy) * 0.09;
+      const finalEnergy = smoothedEnergy;
+      const mobileFrame = Boolean(root.userData.mobile);
+      const motion = modeConfig.motion * (0.7 + finalEnergy * 0.65);
+
+      const rootScale = mobileFrame ? 0.74 : 1;
+      root.scale.setScalar(rootScale * (1 + voicePulse * motion * 0.008));
+      root.rotation.y = Math.sin(elapsed * (0.34 + motion * 0.18)) * (assetMixer ? 0.026 + motion * 0.014 : 0.12 + finalEnergy * 0.05);
+      root.rotation.x = Math.sin(elapsed * 0.28) * (0.022 + motion * 0.012);
+      root.position.y = (mobileFrame ? 0.2 : -0.12) + Math.sin(elapsed * (1.08 + motion * 0.5)) * (assetMixer ? 0.01 + motion * 0.012 : 0.034 + motion * 0.02);
+
+      if (modelReady) {
+        playAssetStateClip(currentMode);
+        assetRigGroup.rotation.y = Math.sin(elapsed * (0.46 + motion * 0.24)) * (assetMixer ? 0.024 + motion * 0.012 : 0.12 + finalEnergy * 0.06);
+        assetRigGroup.rotation.z = Math.sin(elapsed * (speechMode ? 2.25 : 0.78)) * (0.004 + motion * 0.012);
+        assetRigGroup.position.y = Math.sin(elapsed * (1.2 + motion * 0.7)) * (assetMixer ? 0.008 + motion * 0.016 : 0.032 + motion * 0.018);
+        assetRigGroup.scale.set(
+          1 + voicePulse * motion * 0.012,
+          1 + signalPulse * motion * 0.016,
+          1 + voicePulse * motion * 0.006,
+        );
+        if (assetMixer) {
+          assetMixer.update(delta * (modeConfig.speed + finalEnergy * 0.34 + (speechMode ? voicePulse * 0.18 : 0)));
+        }
+      }
+
+      overlayGroup.rotation.copy(assetRigGroup.rotation);
+      overlayGroup.position.y = assetRigGroup.position.y;
+      overlayGroup.scale.copy(assetRigGroup.scale);
+      awarenessLine.material.color.copy(accent);
+      awarenessLine.material.opacity = 0.18 + finalEnergy * 0.18 + signalPulse * 0.04 + (speechMode ? voicePulse * 0.08 : 0);
+      awarenessLine.scale.x = 0.82 + finalEnergy * 0.12 + (speechMode ? voicePulse * 0.12 : thinkingMode ? signalPulse * 0.08 : 0);
+      awarenessGlow.material.color.copy(accent);
+      awarenessGlow.material.opacity = 0.008 + finalEnergy * 0.026 + signalPulse * 0.01 + (speechMode ? voicePulse * 0.018 : 0);
+      awarenessGlow.scale.set(1 + finalEnergy * 0.06 + motion * 0.04, 1 + signalPulse * 0.08 + voicePulse * motion * 0.18, 1);
+      coreRing.material.color.copy(color);
+      coreRing.material.opacity = 0.2 + finalEnergy * 0.32 + (speechMode ? voicePulse * 0.08 : 0);
+      coreRing.rotation.z += 0.012 + finalEnergy * 0.026 + motion * 0.018;
+      coreRing.scale.setScalar(1 + signalPulse * (0.08 + finalEnergy * 0.1) + voicePulse * motion * 0.12);
+      coreInnerRing.material.color.copy(accent);
+      coreInnerRing.material.opacity = 0.2 + finalEnergy * 0.3 + (speechMode ? voicePulse * 0.06 : 0);
+      coreInnerRing.rotation.z -= 0.009 + finalEnergy * 0.02 + motion * 0.014;
+      coreDot.material.color.copy(accent);
+      coreDot.material.opacity = 0.46 + finalEnergy * 0.38;
+      coreDot.scale.setScalar(0.82 + signalPulse * 0.42 + finalEnergy * 0.16 + voicePulse * motion * 0.28);
+      shoulderScan.material.color.copy(color);
+      shoulderScan.material.opacity = 0.06 + finalEnergy * 0.2 + (speechMode ? voicePulse * 0.06 : 0);
+      shoulderScan.rotation.z = Math.sin(elapsed * (0.68 + motion * 0.5)) * (0.06 + motion * 0.08);
+      shoulderScan.scale.set(1 + voicePulse * motion * 0.04, 0.24 + signalPulse * motion * 0.035, 1);
+      baseRingGroup.rotation.y = Math.sin(elapsed * (0.22 + motion * 0.12)) * (0.08 + motion * 0.06);
+      baseRings.forEach((ring, index) => {
+        ring.material.color.copy(index === 1 ? accent : color);
+        ring.material.opacity = 0.045 + finalEnergy * (0.16 - index * 0.018) + (speechMode ? voicePulse * 0.05 : 0);
+        ring.rotation.z += (0.004 + finalEnergy * 0.014 + motion * 0.012) * (index % 2 ? -1 : 1);
+        ring.scale.setScalar(1 + Math.sin(elapsed * (1.1 + index * 0.28)) * 0.025 + voicePulse * motion * (0.045 - index * 0.008));
+      });
+
+      assetMaterials.forEach((material, index) => {
+        const surface = material.userData.apexCockpitSurface || "textured";
+        const baseColor = material.userData.apexCockpitBaseColor || new THREE.Color(0x101827);
+        const baseEmissive = material.userData.apexCockpitBaseEmissive || new THREE.Color(0x000000);
+        if (surface === "textured" || surface === "textured-energy") {
+          if (material.color) material.color.copy(baseColor).lerp(surface === "textured-energy" ? accent : color, 0.026 + finalEnergy * 0.044);
+          if (material.emissive) {
+            material.emissive.copy(baseEmissive).lerp(surface === "textured-energy" ? accent : color, 0.04 + finalEnergy * 0.1 + signalPulse * 0.032);
+            material.emissiveIntensity = surface === "textured-energy"
+              ? 0.2 + finalEnergy * 0.55 + voicePulse * motion * 0.18
+              : 0.08 + finalEnergy * 0.24 + voicePulse * motion * 0.05;
+          }
+          material.opacity = material.userData.apexCockpitBaseOpacity || 1;
+        } else {
+          if (material.color) material.color.copy(index % 2 ? accent : color);
+          material.opacity = surface === "energy" ? 0.2 + finalEnergy * 0.34 : 0.12 + finalEnergy * 0.22;
+        }
+      });
+      keyLight.color.copy(accent);
+      keyLight.intensity = 1.2 + finalEnergy * 4.4 + signalPulse * 0.4 + voicePulse * motion * 1.1;
+      cyanLight.color.copy(color);
+      cyanLight.intensity = 1.1 + finalEnergy * 3.6 + (thinkingMode ? signalPulse * 0.8 : 0);
+      backLight.color.copy(color);
+      backLight.intensity = currentMode === "blocked" ? 0.7 : 0.8 + finalEnergy * 1.2;
+
+      renderer.render(scene, camera);
+      animationFrame = window.requestAnimationFrame(animate);
+    }
+
+    animate();
+
+    return () => {
+      disposed = true;
+      window.cancelAnimationFrame(animationFrame);
+      if (resizeObserver) resizeObserver.disconnect();
+      else window.removeEventListener("resize", resize);
+      disposeApexCockpitThreeObject(scene);
+      renderer.dispose();
+    };
+  }, []);
+
+  const renderedMode = APEX_COCKPIT_VOICE_STATES[voiceMode] ? voiceMode : "listening";
+  const renderedClip = APEX_COCKPIT_INTELLIGENCE_CLIP_BY_STATE[renderedMode] || "Idle";
+
+  return (
+    <div
+      className="co-apex-life-glb-shell"
+      data-apex-intelligence-model="apex-intelligence-live-web"
+      data-apex-intelligence-state-clip={renderedClip}
+      aria-hidden="true"
+    >
+      <canvas ref={canvasRef} className="co-apex-life-glb-canvas" />
+    </div>
+  );
+}
+
 function ApexCockpitAvatar({ voiceMode = "listening", voiceLevel = 0 }) {
   const mode = APEX_COCKPIT_VOICE_STATES[voiceMode] ? voiceMode : "listening";
   const visualState = APEX_COCKPIT_VOICE_STATES[mode];
-  const levelNumber = Math.max(0.08, Math.min(1, Number(voiceLevel || 0) * 6));
+  const rawLevel = Math.max(0, Math.min(1, Number(voiceLevel || 0) * 6));
+  const modeIntensity = {
+    standby: 0.08,
+    listening: 0.18,
+    hearing: 0.52,
+    thinking: 0.34,
+    speaking: 0.68,
+    blocked: 0.12,
+  }[mode] || 0.18;
+  const levelNumber = Math.max(modeIntensity, rawLevel);
   const level = levelNumber.toFixed(2);
   return (
     <div
       className={`co-apex-life-body co-apex-life-body--${mode} relative mx-auto flex min-h-[360px] w-full max-w-[540px] items-center justify-center overflow-hidden xl:min-h-[385px]`}
       data-voice-state={mode}
+      data-intensity={level}
+      data-renderer="glb"
+      data-model="apex-intelligence-live-web"
       aria-label="Apex digital body"
       style={{
         "--apex-voice-level": level,
@@ -4656,18 +6829,53 @@ function ApexCockpitAvatar({ voiceMode = "listening", voiceLevel = 0 }) {
       <span className="co-apex-life-ring co-apex-life-ring--inner" aria-hidden="true" />
       <span className="co-apex-life-horizon" aria-hidden="true" />
       <span className="co-apex-life-neural-grid" aria-hidden="true" />
+      <ApexCockpitIntelligenceAvatar voiceMode={mode} voiceLevel={levelNumber} />
       <span className="co-apex-life-scan co-apex-life-scan--vertical" aria-hidden="true" />
       <span className="co-apex-life-scan co-apex-life-scan--horizontal" aria-hidden="true" />
-      <img
-        src="/brand/apex-cockpit-body-reference.png"
-        alt={`${visualState.headline} digital body`}
-        className="co-apex-life-body-image h-full max-h-[385px] w-full object-contain object-center"
-        draggable="false"
-      />
+      <span className="co-apex-life-data-rain" aria-hidden="true">
+        {APEX_LIFE_DATA_STREAMS.map((stream, index) => (
+          <span key={stream} className={`co-apex-life-data-stream co-apex-life-data-stream--${stream}`} style={{ "--apex-stream-index": index }} />
+        ))}
+      </span>
+      <span className="co-apex-life-holo-shell" aria-hidden="true" />
+      <span className="co-apex-life-humanoid" aria-hidden="true">
+        <span className="co-apex-life-head">
+          <span className="co-apex-life-head-lines" />
+          <span className="co-apex-life-head-mask" />
+        </span>
+        <span className="co-apex-life-neck" />
+        <span className="co-apex-life-shoulders" />
+        <span className="co-apex-life-torso">
+          <span className="co-apex-life-torso-grid" />
+          <span className="co-apex-life-spine" />
+          <span className="co-apex-life-core-mount" />
+        </span>
+        <span className="co-apex-life-arm co-apex-life-arm--left" />
+        <span className="co-apex-life-arm co-apex-life-arm--right" />
+      </span>
+      <span className="co-apex-life-shoulder-trace co-apex-life-shoulder-trace--left" aria-hidden="true" />
+      <span className="co-apex-life-shoulder-trace co-apex-life-shoulder-trace--right" aria-hidden="true" />
+      <span className="co-apex-life-face-rig" aria-hidden="true">
+        <span className="co-apex-life-face-rig__brow" />
+        <span className="co-apex-life-face-rig__jaw" />
+        <span className="co-apex-life-face-rig__cheek co-apex-life-face-rig__cheek--left" />
+        <span className="co-apex-life-face-rig__cheek co-apex-life-face-rig__cheek--right" />
+      </span>
       <span className="co-apex-life-eyes" aria-hidden="true" />
+      <span className="co-apex-life-mouth" aria-hidden="true">
+        {APEX_LIFE_MOUTH_BARS.map((height, index) => (
+          <span key={`${height}-${index}`} style={{ "--apex-mouth-index": index, "--apex-mouth-height": `${height}px` }} />
+        ))}
+      </span>
       <span className="co-apex-life-voice-band" aria-hidden="true" />
       <span className="co-apex-life-core" aria-hidden="true" />
+      <span className="co-apex-life-reactor" aria-hidden="true" />
       <span className="co-apex-life-level" aria-hidden="true" />
+      <span className="co-apex-life-spectrum" aria-hidden="true">
+        {APEX_LIFE_SPECTRUM_BARS.map((height, index) => (
+          <span key={`${height}-${index}`} style={{ "--apex-spectrum-index": index, "--apex-spectrum-height": `${height}px` }} />
+        ))}
+      </span>
       <span className="co-apex-life-status" aria-hidden="true">{visualState.headline.toUpperCase()}</span>
       <span className="sr-only">{visualState.detail}</span>
     </div>
@@ -4707,7 +6915,7 @@ function ApexCockpitStageHud({
     { label: "Live Run", value: activeRun?.id ? runStatus : `${savedRunCount || 0} saved`, tone: activeRun?.id ? apexCockpitRunStatusTone(activeRun.status) : savedRunCount ? "green" : "slate" },
     { label: "Memory", value: trustedRunMemoryCount ? `${trustedRunMemoryCount} trusted` : pendingRunMemoryCount ? `${pendingRunMemoryCount} review` : "Ready", tone: trustedRunMemoryCount ? "green" : pendingRunMemoryCount ? "amber" : "slate" },
     { label: "Release", value: releaseHealth || "Healthy", tone: String(releaseHealth || "").toLowerCase().includes("block") ? "red" : "green" },
-    { label: "Execution", value: "Locked", tone: "amber" },
+    { label: "Gate", value: "Consequential", tone: "amber" },
   ];
 
   return (
@@ -4749,7 +6957,7 @@ function ApexCockpitStageHud({
   );
 }
 
-function ApexCockpitCommandStream({ turns, route, onOpenRoute, onCreateAgentRequest, onCreateLiveRun, onBrief, onAnswerCurrent, creatingAgentRequest = false, creatingLiveRun = false }) {
+function ApexCockpitCommandStream({ turns, route, onOpenRoute, onOpenModule, onCreateAgentRequest, onCreateLiveRun, onBrief, onAnswerCurrent, creatingAgentRequest = false, creatingLiveRun = false }) {
   const toneClass = {
     green: "border-emerald-400/24 bg-emerald-500/[0.06] text-emerald-200",
     blue: "border-cyan-400/24 bg-cyan-500/[0.06] text-cyan-200",
@@ -4773,7 +6981,7 @@ function ApexCockpitCommandStream({ turns, route, onOpenRoute, onCreateAgentRequ
         </div>
         <button
           type="button"
-          onClick={() => onOpenRoute(safeRoute.section)}
+          onClick={() => (safeRoute.moduleId ? onOpenModule?.(safeRoute.moduleId) : onOpenRoute(safeRoute.section))}
           className="co-focus-ring inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-slate-700 bg-slate-900/82 px-2 text-[10px] font-black text-slate-200 transition hover:border-orange-400/70 hover:text-white"
           title={safeRoute.actionLabel}
         >
@@ -4789,7 +6997,7 @@ function ApexCockpitCommandStream({ turns, route, onOpenRoute, onCreateAgentRequ
           <button
             key={action}
             type="button"
-            onClick={() => (action === "Start private run" ? onCreateLiveRun?.() : action === "Draft locked request" ? onCreateAgentRequest?.() : action === "Brief me" ? onBrief?.() : action === "Answer from memory" ? onAnswerCurrent?.() : action.includes("Open") ? onOpenRoute(safeRoute.section) : null)}
+            onClick={() => (action === "Start private run" ? onCreateLiveRun?.() : action === "Draft locked request" ? onCreateAgentRequest?.() : action === "Brief me" ? onBrief?.() : action === "Answer from memory" ? onAnswerCurrent?.() : action.includes("Open") ? (safeRoute.moduleId ? onOpenModule?.(safeRoute.moduleId) : onOpenRoute(safeRoute.section)) : null)}
             disabled={action === "Draft locked request" ? creatingAgentRequest : action === "Start private run" ? creatingLiveRun : false}
             className="co-focus-ring inline-flex min-h-7 items-center rounded-md border border-slate-800 bg-slate-900/70 px-2 text-[10px] font-black text-slate-300 transition hover:border-cyan-400/50 hover:text-white disabled:cursor-not-allowed disabled:opacity-70"
           >
@@ -4849,7 +7057,7 @@ function AutonomyRunCenterPanel({
   const displayStatus = summary.active ? "Autonomy runs active" : center.status || "Guarded autonomy ready";
   const displayTone = summary.blocked ? "amber" : summary.active ? "green" : center.tone || "green";
   const metricRows = [
-    { label: "Mode", value: center.mode || "Review-first autonomy", tone: displayTone },
+    { label: "Mode", value: center.mode || "Private act-by-default", tone: displayTone },
     { label: "Runs", value: `${summary.total || 0} saved`, tone: summary.active ? "green" : "blue" },
     { label: "Plan", value: `${center.planStepCount || 0} steps`, tone: "blue" },
     { label: "Routes", value: `${center.routeCount || 0} lanes`, tone: "blue" },
@@ -4933,7 +7141,7 @@ function AutonomyRunCenterPanel({
       const payload = await draftApexOsAutonomyRunInternalWork(sessionToken, runId);
       await refreshRuns(payload);
       setSelectedRunId(payload.apexOsAutonomyRun?.id || runId);
-      setLedgerMessage("Internal draft package prepared. Execution, sends, billing, provider work, and production actions stayed locked.");
+      setLedgerMessage("Internal draft package prepared. Money, sends, billing, provider work, and production actions stayed gated.");
     } catch (error) {
       setLedgerMessage(error.message || "Could not draft internal work for this run.");
     } finally {
@@ -4970,7 +7178,7 @@ function AutonomyRunCenterPanel({
             Autonomy Core: Safe internal drafts are on; customer sends, billing, ads, production changes, and irreversible external actions remain gated.
           </p>
         </div>
-        <ToneBadge tone={displayTone}>{center.externalActionsLocked ? "External locked" : "Review-first"}</ToneBadge>
+        <ToneBadge tone={displayTone}>{center.externalActionsLocked ? "Consequential gated" : "Private Apex"}</ToneBadge>
       </div>
 
       <div className="grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-5">
@@ -5022,7 +7230,7 @@ function AutonomyRunCenterPanel({
               onChange={(event) => setRunRequest(event.target.value)}
               rows={3}
               className={`co-focus-ring mt-1 w-full resize-none rounded-md border px-3 py-2 text-xs font-bold leading-5 outline-none ${dark ? "border-slate-700 bg-slate-950/60 text-slate-100 placeholder:text-slate-600" : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400"}`}
-              placeholder="Tell Apex what to turn into a saved, review-first run..."
+              placeholder="Tell Apex what to turn into a saved private run..."
             />
           </label>
           <div className="flex min-w-0 flex-wrap gap-2">
@@ -5071,7 +7279,7 @@ function AutonomyRunCenterPanel({
                     <button type="button" onClick={() => handleDraftInternal(run.id)} disabled={!sessionToken || ledgerBusy === `draft-${run.id}`} className={`co-focus-ring min-h-7 rounded-md border px-2 text-[10px] font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${buttonClass}`}>
                       {ledgerBusy === `draft-${run.id}` ? "Drafting..." : "Draft"}
                     </button>
-                    <button type="button" onClick={() => handleUpdateRun(run.id, { status: "done", resultReport: run.resultReport || "Operator marked this review-first run done after reviewing available evidence." })} disabled={!sessionToken || ledgerBusy === `done-${run.id}`} className={`co-focus-ring min-h-7 rounded-md border px-2 text-[10px] font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${buttonClass}`}>
+                    <button type="button" onClick={() => handleUpdateRun(run.id, { status: "done", resultReport: run.resultReport || "Operator marked this private run done after reviewing available evidence." })} disabled={!sessionToken || ledgerBusy === `done-${run.id}`} className={`co-focus-ring min-h-7 rounded-md border px-2 text-[10px] font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${buttonClass}`}>
                       Done
                     </button>
                     <button type="button" onClick={() => handleUpdateRun(run.id, { status: "blocked", operatorNote: "Operator marked this autonomy run blocked for review." })} disabled={!sessionToken || ledgerBusy === `blocked-${run.id}`} className={`co-focus-ring min-h-7 rounded-md border px-2 text-[10px] font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${buttonClass}`}>
@@ -5172,7 +7380,7 @@ function AutonomyRunCenterCompactPanel({
             Autonomy Core: Apex plans, routes, drafts, validates, and stops before approval-gated actions.
           </p>
         </div>
-        <ToneBadge tone={center.tone || "green"}>{center.externalActionsLocked ? "External locked" : "Review-first"}</ToneBadge>
+        <ToneBadge tone={center.tone || "green"}>{center.externalActionsLocked ? "Consequential gated" : "Private Apex"}</ToneBadge>
       </div>
 
       <div className="grid min-w-0 gap-2 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.9fr)]">
@@ -5184,7 +7392,7 @@ function AutonomyRunCenterCompactPanel({
         <div className="min-w-0 rounded-md border border-orange-400/22 bg-orange-500/10 px-3 py-2">
           <p className="text-[10px] font-black uppercase tracking-[0.12em] text-orange-200">Next safe action</p>
           <p className="mt-1 break-words text-xs font-black text-orange-100">{nextSafeAction}</p>
-          <p className="mt-1 text-[10px] font-bold text-orange-100/72">{center.planStepCount || 0} plan steps, {center.routeCount || 0} lanes, execution locked.</p>
+          <p className="mt-1 text-[10px] font-bold text-orange-100/72">{center.planStepCount || 0} plan steps, {center.routeCount || 0} lanes, consequential actions gated.</p>
         </div>
         <div className="min-w-0 rounded-md border border-slate-800 bg-slate-900/58 px-3 py-2">
           <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Execution gates</p>
@@ -5245,6 +7453,23 @@ function formatApexCockpitPulseTime(value) {
 
 function listApexCockpitRunRows(value = []) {
   return Array.isArray(value) ? value.filter(Boolean) : [];
+}
+
+function isApexCockpitQuietReviewGateRun(run = {}) {
+  const status = String(run?.status || run?.statusLabel || "").toLowerCase();
+  const combined = [
+    run?.title,
+    run?.request,
+    run?.nextSafeAction,
+    run?.resultReport,
+    ...(Array.isArray(run?.steps) ? run.steps.map((step) => `${step?.title || ""} ${step?.status || ""} ${step?.detail || ""}`) : []),
+  ].join(" ");
+  return ["blocked", "waiting-approval", "needs-review", "needs_review"].includes(status)
+    || /\b(needs review|blocked for review|stopped at (a )?(review|approval) gate|waiting for (review|approval))\b/i.test(combined);
+}
+
+function listApexCockpitHomeRunRows(value = []) {
+  return listApexCockpitRunRows(value).filter((run) => !isApexCockpitQuietReviewGateRun(run));
 }
 
 function apexCockpitRunStatusTone(status = "") {
@@ -5308,7 +7533,7 @@ function buildApexCockpitRunTimelineRows(run = {}, progress = {}, nextPrivateMov
           : active
             ? "Now"
             : "Queued";
-    const detail = step.detail || step.evidence || (active ? nextPrivateMove.detail : "") || "Review-first private step.";
+    const detail = step.detail || step.evidence || (active ? nextPrivateMove.detail : "") || "Private Apex step.";
     return {
       id: step.id || `run-step-${index}`,
       number: index + 1,
@@ -5325,7 +7550,7 @@ function buildApexCockpitRunTimelineRows(run = {}, progress = {}, nextPrivateMov
     number: 1,
     title: "Private run ledger",
     statusLabel: runStatus === "done" ? "Done" : nextPrivateMove.status || "Ready",
-    detail: apexCockpitMemoryText(run.nextSafeAction || nextPrivateMove.detail || "Apex is tracking this private run with execution locked.", 180),
+    detail: apexCockpitMemoryText(run.nextSafeAction || nextPrivateMove.detail || "Apex is tracking this private run with consequential actions gated.", 180),
     tone: apexCockpitRunStatusTone(runStatus || nextPrivateMove.tone),
     state: runStatus === "done" ? "done" : "active",
   }];
@@ -5459,13 +7684,13 @@ function buildApexCockpitOperatorJudgmentRows({ state, pulse, activeRun, activeR
 function buildApexCockpitOperatorJudgmentText(rows = []) {
   const safeRows = rows.map(normalizeApexCockpitJudgmentRow).slice(0, 4);
   if (!safeRows.length) {
-    return "Operator judgment is clear: keep monitoring, keep execution locked, and start a private run when there is real work to track.";
+    return "Operator judgment is clear: keep monitoring, act privately when useful, and ask before consequential action.";
   }
   const [first, ...rest] = safeRows;
   const restText = rest.length
     ? ` Other signals: ${rest.map((row) => `${row.title}: ${row.status}`).join("; ")}.`
     : "";
-  return `Operator judgment: ${first.title}. ${first.detail} Next safe action: ${first.actionLabel}. ${restText} Execution, sends, billing, provider work, production changes, deletion, deploy, rollback, and irreversible actions stay locked.`;
+  return `Operator judgment: ${first.title}. ${first.detail} Next safe action: ${first.actionLabel}. ${restText} Money, sends, billing, provider work, production changes, deletion, deploy, rollback, and irreversible actions stay gated.`;
 }
 
 function normalizeApexCockpitMissionBriefRow(row = {}) {
@@ -5564,7 +7789,7 @@ function buildApexCockpitMissionBrief({
     topJudgment ? `Operator judgment: ${topJudgment.title}. ${topJudgment.detail}` : "",
     `Next safe action: ${apexCockpitMemoryText(nextMoveTitle, 140)}. ${apexCockpitMemoryText(nextMoveDetail, 220)}`,
     latestRunMemory ? `Trusted run memory available: ${latestRunMemory.title}.` : "",
-    "Execution remains locked. No sends, billing, provider work, production changes, deploys, rollbacks, agent runs, automatic trusted memory, or irreversible actions.",
+    "Consequential actions remain gated. No sends, billing, provider work, production changes, deploys, rollbacks, agent runs, automatic trusted memory, or irreversible actions.",
   ].filter(Boolean).join(" ");
 
   return {
@@ -5580,14 +7805,14 @@ function buildApexCockpitMissionBrief({
 
 function buildApexCockpitHeartbeatText(heartbeat = {}) {
   if (!heartbeat?.runId) {
-    return "Apex heartbeat: no active private run is live. I am standing by. Start a private run when there is real work to track. Execution, sends, billing, provider work, production changes, deletion, deploy, rollback, and irreversible actions stay locked.";
+    return "Apex heartbeat: no active private run is live. I am standing by. Start a private run when there is real work to track. Consequential actions, sends, billing, provider work, production changes, deletion, deploy, rollback, and irreversible actions stay gated.";
   }
-  return `Apex heartbeat: ${heartbeat.title || "active private run"} is ${heartbeat.status || "active"}. Progress is ${heartbeat.progressLabel || "unknown"}, updated ${heartbeat.ageLabel || "recently"}. Current step: ${heartbeat.currentStep || "review the run"}. Recommendation: ${heartbeat.recommendation || "review the run ledger"}. Execution, sends, billing, provider work, production changes, deletion, deploy, rollback, and irreversible actions stay locked.`;
+  return `Apex heartbeat: ${heartbeat.title || "active private run"} is ${heartbeat.status || "active"}. Progress is ${heartbeat.progressLabel || "unknown"}, updated ${heartbeat.ageLabel || "recently"}. Current step: ${heartbeat.currentStep || "review the run"}. Recommendation: ${heartbeat.recommendation || "review the run ledger"}. Consequential actions, sends, billing, provider work, production changes, deletion, deploy, rollback, and irreversible actions stay gated.`;
 }
 
 function buildApexCockpitProactiveCheckInText(checkIn = {}) {
   if (checkIn?.answer) return checkIn.answer;
-  return "Apex proactive check-in: I am watching the live run heartbeat and will surface meaningful changes here. Execution, sends, billing, provider work, production changes, deletion, deploy, rollback, and irreversible actions stay locked.";
+  return "Apex proactive check-in: I am watching the live run heartbeat and will surface meaningful changes here. Consequential actions, sends, billing, provider work, production changes, deletion, deploy, rollback, and irreversible actions stay gated.";
 }
 
 function buildApexCockpitSpokenProactiveCheckInText(checkIn = {}) {
@@ -5601,7 +7826,7 @@ function buildApexCockpitSpokenProactiveCheckInText(checkIn = {}) {
     status ? `Status: ${status}.` : "",
     detail,
     `Next safe action: ${recommendation}.`,
-    "Execution remains locked. No sends, billing, provider work, production changes, deploys, rollbacks, agent runs, or irreversible actions.",
+    "Consequential actions remain gated. No sends, billing, provider work, production changes, deploys, rollbacks, agent runs, or irreversible actions.",
   ].filter(Boolean).join(" ");
 }
 
@@ -5721,7 +7946,7 @@ function buildApexCockpitWatchOfficer({
     normalizeApexCockpitWatchOfficerRow({
       id: "watch-locks",
       label: "Locks",
-      value: "Execution locked",
+      value: "Hard gates",
       detail: "No sends, billing, provider work, production changes, deploys, rollbacks, agent runs, or irreversible actions.",
       tone: "amber",
     }),
@@ -5734,7 +7959,7 @@ function buildApexCockpitWatchOfficer({
     `Why it matters: ${apexCockpitMemoryText(whyItMatters, 280)}`,
     `Next safe action: ${apexCockpitMemoryText(nextAction, 260)}`,
     `Voice status: ${apexCockpitMemoryText(proactiveVoiceStatus || "Watching", 80)}.`,
-    "Execution remains locked. No sends, billing, provider work, production changes, deploys, rollbacks, agent runs, automatic trusted memory, or irreversible actions.",
+    "Consequential actions remain gated. No sends, billing, provider work, production changes, deploys, rollbacks, agent runs, automatic trusted memory, or irreversible actions.",
   ].filter(Boolean).join(" ");
 
   return {
@@ -5846,7 +8071,7 @@ function buildApexCockpitClosingReport({
     normalizeApexCockpitClosingReportRow({
       id: "closing-locks",
       label: "Locks",
-      value: "Execution locked",
+      value: "Hard gates",
       detail: "No sends, billing, provider work, production changes, deploys, rollbacks, agent runs, automatic trusted memory, or irreversible actions.",
       tone: "amber",
     }),
@@ -5859,7 +8084,7 @@ function buildApexCockpitClosingReport({
     `Memory: ${memoryStatus}. ${memoryDetail}`,
     latestAnswer ? `Latest spoken answer: ${apexCockpitMemoryText(latestAnswer, 260)}` : "",
     `Next decision: ${apexCockpitMemoryText(decisionLabel, 120)}. ${apexCockpitMemoryText(nextPrivateMove?.recommendation || activeRun?.nextSafeAction || "Review before acting.", 260)}`,
-    "Execution remains locked. No sends, billing, provider work, production changes, deploys, rollbacks, agent runs, automatic trusted memory, or irreversible actions.",
+    "Consequential actions remain gated. No sends, billing, provider work, production changes, deploys, rollbacks, agent runs, automatic trusted memory, or irreversible actions.",
   ].filter(Boolean).join(" ");
 
   return {
@@ -5875,7 +8100,7 @@ function buildApexCockpitClosingReport({
 
 function buildApexCockpitRunHandbackText(handback = {}) {
   if (handback?.answer) return handback.answer;
-  return "Apex operator handback: no active private run is live. Start a private run when there is real work to track. Execution, sends, billing, provider work, production changes, deletion, deploy, rollback, and irreversible actions stay locked.";
+  return "Apex operator handback: no active private run is live. Start a private run when there is real work to track. Money, sends, billing, provider work, production changes, deletion, deploy, rollback, and irreversible actions stay gated.";
 }
 
 function buildApexCockpitAutoDriveNarration({ advance = {}, updatedRun = {}, autoDrive = false } = {}) {
@@ -5892,7 +8117,7 @@ function buildApexCockpitAutoDriveNarration({ advance = {}, updatedRun = {}, aut
     stopAtReview
       ? "I need manual review before I go further."
       : "I will continue safe private prep after this handback if Auto Drive stays on.",
-    "Execution stays locked. No sends, billing, provider work, production changes, deploys, rollbacks, agent runs, or irreversible actions.",
+    "Consequential actions stay gated. No sends, billing, provider work, production changes, deploys, rollbacks, agent runs, or irreversible actions.",
   ].filter(Boolean).join(" ");
 }
 
@@ -6023,8 +8248,8 @@ function buildApexCockpitNowState({
   let title = "Standing by";
   let status = conversationMode || autoListening ? "Open loop" : "Manual";
   let detail = conversationMode || autoListening
-    ? "Apex is awake for this page after the visible wake step and is waiting for the next natural request."
-    : "Apex is ready for a typed command or visible voice wake.";
+    ? "Apex is listening on this visible page when microphone permission is available."
+    : "Apex is ready for a typed command or manual voice resume.";
   let nextSafeAction = safeNextAction;
   let tone = conversationMode || autoListening ? "green" : "slate";
   let icon = "spark";
@@ -6106,8 +8331,8 @@ function buildApexCockpitNowState({
   } else if (answerText) {
     stage = "reporting";
     title = "Answer ready";
-    status = "Review";
-    detail = "Apex has a source-backed answer ready for review, follow-up, memory, or private run handoff.";
+    status = "Answered";
+    detail = apexCockpitMemoryText(answerText, 420);
     nextSafeAction = "Choose a next-turn prompt, remember the answer, or make it a private run.";
     tone = "blue";
     icon = "check";
@@ -6147,7 +8372,7 @@ function buildApexCockpitNowState({
     {
       id: "safety",
       label: "Safety",
-      value: "Locked",
+      value: "Hard gates",
       tone: "amber",
     },
   ];
@@ -6155,8 +8380,19 @@ function buildApexCockpitNowState({
   return { stage, title, status, detail, nextSafeAction, tone, icon, stageRows };
 }
 
-function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAskQuestion, sessionToken }) {
+function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAskQuestion, sessionToken, onOpenAvatarLab, onOpenModule, onPanelCommand, onBuilderFixReceipt, talkToApexContext = null, conversationFirst = false }) {
   const [cockpitResponse, setCockpitResponse] = useState(null);
+  const [cockpitBackgroundStatus, setCockpitBackgroundStatus] = useState(null);
+  const [cockpitLocalProviderStatus, setCockpitLocalProviderStatus] = useState(null);
+  const [cockpitLocalProviderNotice, setCockpitLocalProviderNotice] = useState("");
+  const [cockpitSelectedEffort, setCockpitSelectedEffort] = useState("fast");
+  const [cockpitLocalVoiceStatus, setCockpitLocalVoiceStatus] = useState(null);
+  const [cockpitLiveBenchmarkSummary, setCockpitLiveBenchmarkSummary] = useState(null);
+  const [cockpitLiveBenchmarkBusy, setCockpitLiveBenchmarkBusy] = useState("");
+  const [cockpitVoiceBenchmarkArmed, setCockpitVoiceBenchmarkArmed] = useState(false);
+  const [cockpitLearningMode, setCockpitLearningMode] = useState(false);
+  const [cockpitLastLearningMemory, setCockpitLastLearningMemory] = useState(null);
+  const [cockpitLastLocalTranscript, setCockpitLastLocalTranscript] = useState("");
   const [cockpitError, setCockpitError] = useState("");
   const [cockpitSubmitting, setCockpitSubmitting] = useState(false);
   const [cockpitSpeaking, setCockpitSpeaking] = useState(false);
@@ -6164,15 +8400,23 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const [cockpitRecording, setCockpitRecording] = useState(false);
   const [cockpitTranscribing, setCockpitTranscribing] = useState(false);
   const [cockpitLastQuestion, setCockpitLastQuestion] = useState("");
-  const [cockpitAutoListening, setCockpitAutoListening] = useState(true);
+  const [cockpitAutoListening, setCockpitAutoListening] = useState(false);
+  const [cockpitPageVisible, setCockpitPageVisible] = useState(() => (typeof document === "undefined" ? true : document.visibilityState !== "hidden"));
   const [cockpitSpeechActive, setCockpitSpeechActive] = useState(false);
   const [cockpitMicLevel, setCockpitMicLevel] = useState(0);
+  const [cockpitMicCalibration, setCockpitMicCalibration] = useState(() => createApexCockpitMicCalibrationState());
   const [cockpitOutputLevel, setCockpitOutputLevel] = useState(0);
   const [cockpitAudioReady, setCockpitAudioReady] = useState(false);
-  const [cockpitConversationMode, setCockpitConversationMode] = useState(true);
-  const [cockpitBargeInEnabled, setCockpitBargeInEnabled] = useState(true);
+  const [cockpitConversationMode, setCockpitConversationMode] = useState(false);
+  const [cockpitBargeInEnabled, setCockpitBargeInEnabled] = useState(false);
+  const [cockpitAlwaysOpenMic, setCockpitAlwaysOpenMic] = useState(() => buildApexAlwaysOpenMicStatus({
+    state: APEX_ALWAYS_OPEN_MIC_STATE.QUIET,
+    ingressProvider: "browser",
+    vadProvider: "amplitude-gate",
+  }));
+  const [cockpitLastLocalVoiceReceipt, setCockpitLastLocalVoiceReceipt] = useState(null);
   const [cockpitVoiceProfile, setCockpitVoiceProfile] = useState("alloy");
-  const [cockpitPersonalityMode, setCockpitPersonalityMode] = useState("operator");
+  const [cockpitPersonalityMode, setCockpitPersonalityMode] = useState(DEFAULT_APEX_OS_ASSISTANT_MODE_ID);
   const [cockpitAgentActionNotice, setCockpitAgentActionNotice] = useState("");
   const [cockpitCreatingAgentRequest, setCockpitCreatingAgentRequest] = useState(false);
   const [cockpitLiveRunNotice, setCockpitLiveRunNotice] = useState("");
@@ -6201,7 +8445,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const [cockpitProactiveVoiceQueueKey, setCockpitProactiveVoiceQueueKey] = useState(0);
   const [cockpitListeningHandoffKey, setCockpitListeningHandoffKey] = useState(0);
   const [cockpitMicPermissionState, setCockpitMicPermissionState] = useState("unknown");
-  const [cockpitVoiceWakeAttempted, setCockpitVoiceWakeAttempted] = useState(false);
+  const [cockpitVoiceWakeAttempted, setCockpitVoiceWakeAttempted] = useState(true);
   const [cockpitBrowserTranscript, setCockpitBrowserTranscript] = useState("");
   const [cockpitRecognitionStatus, setCockpitRecognitionStatus] = useState("standby");
   const [cockpitRecognitionError, setCockpitRecognitionError] = useState("");
@@ -6216,24 +8460,42 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const [cockpitConsoleTab, setCockpitConsoleTab] = useState("live");
   const [cockpitCommandRoute, setCockpitCommandRoute] = useState(() => buildApexCockpitCommandRoute(""));
   const [cockpitTurns, setCockpitTurns] = useState([]);
+  const [cockpitSelfFixDispatchReceipt, setCockpitSelfFixDispatchReceipt] = useState(null);
+  const [cockpitBuildLoopReceipt, setCockpitBuildLoopReceipt] = useState(null);
   const cockpitAudioRef = useRef(null);
   const cockpitAudioUnlockedRef = useRef(false);
   const cockpitAudioReadyRef = useRef(false);
   const cockpitOutputFrameRef = useRef(0);
   const cockpitSpeakingRef = useRef(false);
+  const cockpitSpeechJobIdRef = useRef(0);
   const cockpitTranscribingRef = useRef(false);
   const cockpitSubmittingRef = useRef(false);
   const cockpitSpeechSafetyTimerRef = useRef(0);
+  const cockpitNoVoiceTimerRef = useRef(0);
+  const cockpitTranscriptionTimeoutRef = useRef(0);
+  const cockpitActiveTranscriptionTurnRef = useRef("");
   const cockpitResumeListeningTimerRef = useRef(0);
   const cockpitCaptionFinalTurnTimerRef = useRef(0);
   const cockpitListeningHandoffPendingRef = useRef(false);
   const cockpitRecordingRef = useRef(false);
-  const cockpitBargeInEnabledRef = useRef(true);
+  const cockpitBargeInEnabledRef = useRef(false);
+  const cockpitAutoListeningRef = useRef(false);
+  const cockpitAlwaysOpenMicRef = useRef(cockpitAlwaysOpenMic);
+  const cockpitRecoveringUntilRef = useRef(0);
+  const cockpitDroppedMicFrameCountRef = useRef(0);
+  const cockpitLastAlwaysOpenGateRef = useRef(null);
   const cockpitBargeInterruptedRef = useRef(false);
   const cockpitBriefingOfferedRef = useRef(false);
   const cockpitRunLaneOpenedRef = useRef("");
   const cockpitRecorderRef = useRef(null);
   const cockpitRecordedChunksRef = useRef([]);
+  const cockpitPcmChunksRef = useRef([]);
+  const cockpitPcmSampleRateRef = useRef(0);
+  const cockpitPcmProcessorRef = useRef(null);
+  const cockpitPcmMuteGainRef = useRef(null);
+  const cockpitPcmWorkletUrlRef = useRef("");
+  const cockpitMicCalibrationRef = useRef(cockpitMicCalibration);
+  const cockpitMicCalibrationPaintRef = useRef(0);
   const cockpitStreamRef = useRef(null);
   const cockpitVoiceOpeningRef = useRef(false);
   const cockpitVoiceAnalyserRef = useRef(null);
@@ -6244,6 +8506,10 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const cockpitRecognitionRestartTimerRef = useRef(0);
   const cockpitRecognitionStopRequestedRef = useRef(false);
   const cockpitBrowserTranscriptRef = useRef("");
+  const cockpitCurrentCaptureIdRef = useRef("");
+  const cockpitBrowserTranscriptCaptureIdRef = useRef("");
+  const cockpitLastVoiceInputModeRef = useRef("");
+  const cockpitCurrentSpeechInputModeRef = useRef("");
   const cockpitInterruptionCountRef = useRef(0);
   const cockpitLastInterruptionLabelRef = useRef("");
   const cockpitVoiceRetryCountRef = useRef(0);
@@ -6254,6 +8520,11 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const cockpitLastLevelPaintRef = useRef(0);
   const cockpitDiscardNextCaptureRef = useRef(false);
   const cockpitLastHandledVoiceTurnRef = useRef({ key: "", at: 0 });
+  const cockpitLastSpokenAnswerRef = useRef({ key: "", text: "", at: 0 });
+  const cockpitVoiceTurnTimingRef = useRef({ turnId: "", startedAt: 0 });
+  const cockpitLastLocalVoiceReceiptRef = useRef(cockpitLastLocalVoiceReceipt);
+  const cockpitLiveVoiceBenchmarkRef = useRef({ armed: false, benchmarkId: "" });
+  const cockpitSavedLiveTurnReceiptRef = useRef({ key: "" });
   const cockpitLastHeartbeatRef = useRef(null);
   const cockpitLastProactiveSignatureRef = useRef("");
   const cockpitLastSpokenProactiveSignatureRef = useRef("");
@@ -6268,7 +8539,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     { id: "no-deploys", title: "No Deploys", detail: "I don't deploy anything.", icon: "alert" },
     { id: "no-production", title: "No Production Changes", detail: "I don't change production.", icon: "settings" },
     { id: "no-billing", title: "No Billing Actions", detail: "I don't process payments.", icon: "clock" },
-    { id: "review-first", title: "Review-First", detail: "You stay in control.", icon: "check" },
+    { id: "private-apex", title: "Private Apex", detail: "I act privately for reversible work and ask before consequential actions.", icon: "check" },
   ];
   const quickPrompts = [
     "Brief me first",
@@ -6277,6 +8548,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     "Get this done as a private run",
   ];
   const memoryCount = state.decisionMemory?.durableCount || state.decisionMemory?.decisionCount || 0;
+  const cockpitOperatorName = resolveApexPrivateOperatorDisplayName(state.operatorName);
   const cockpitVoiceProfileConfig = findApexCockpitVoiceProfile(cockpitVoiceProfile);
   const cockpitPersonalityConfig = findApexCockpitPersonalityMode(cockpitPersonalityMode);
   const cockpitBriefingText = buildApexCockpitProactiveBriefing(state);
@@ -6285,18 +8557,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     && typeof MediaRecorder !== "undefined";
   const canUseCockpitSpeechRecognition = Boolean(getApexCockpitSpeechRecognitionCtor());
   const cockpitMicReady = cockpitMicPermissionState === "granted";
-  const cockpitNeedsWake = canUseCockpitRecorder && !cockpitMicReady && !cockpitVoiceWakeAttempted;
-  const cockpitWakeButtonLabel = cockpitRecording
-    ? "Pause Voice"
-    : cockpitTranscribing
-      ? "Transcribing"
-      : cockpitSubmitting
-        ? "Thinking"
-        : cockpitSpeaking
-          ? "Interrupt Voice"
-          : cockpitNeedsWake
-            ? "Wake Apex"
-            : "Resume Voice";
+  const cockpitNeedsWake = canUseCockpitRecorder && !cockpitMicReady && cockpitMicPermissionState !== "denied";
   const releaseVersion = state.releaseDesk?.currentVersion
     ? `v${state.releaseDesk.currentVersion}`
     : state.releaseDesk?.deployHistoryRows?.[0]?.status || "Evidence required";
@@ -6307,7 +8568,8 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const pendingRunMemoryCount = Number(liveOperatorMemory.suggestedCount || liveOperatorMode.pendingRunMemoryCount || 0);
   const latestRunMemory = (Array.isArray(liveOperatorMemory.latestRows) ? liveOperatorMemory.latestRows : [])[0] || null;
   const cockpitPulseRunSummary = cockpitLivePulse?.runSummary || {};
-  const cockpitVisibleRunRows = listApexCockpitRunRows(cockpitLiveRuns.length ? cockpitLiveRuns : state.autonomyRunCenter?.runRows || []);
+  const cockpitAllRunRows = listApexCockpitRunRows(cockpitLiveRuns.length ? cockpitLiveRuns : state.autonomyRunCenter?.runRows || []);
+  const cockpitVisibleRunRows = listApexCockpitHomeRunRows(cockpitAllRunRows);
   const cockpitActiveRun = cockpitVisibleRunRows.find((run) => run.id === cockpitActiveRunId)
     || cockpitVisibleRunRows.find((run) => !["done", "archived"].includes(String(run.status || "").toLowerCase()))
     || cockpitVisibleRunRows[0]
@@ -6320,6 +8582,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   const cockpitSessionHeartbeatText = buildApexCockpitHeartbeatText(cockpitSessionHeartbeat);
   const cockpitVisibleProactiveCheckIn = cockpitProactiveCheckIn || buildApexOsAutonomyRunProactiveCheckIn(null, cockpitSessionHeartbeat, {
     now: new Date().toISOString(),
+    suppressReviewGateCheckIns: true,
   });
   const cockpitProactiveCheckInText = buildApexCockpitProactiveCheckInText(cockpitVisibleProactiveCheckIn);
   const cockpitProactiveMemorySignature = cockpitVisibleProactiveCheckIn?.signature || "";
@@ -6336,14 +8599,44 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     activeRunProgress: cockpitActiveRunProgress,
   });
   const cockpitOperatorJudgmentText = buildApexCockpitOperatorJudgmentText(cockpitOperatorJudgmentRows);
-  const cockpitVisibleSavedRunCount = Number(cockpitLiveRunSummary.total ?? cockpitPulseRunSummary.total ?? liveOperatorMode.savedRunCount ?? 0);
-  const cockpitVisibleActiveRunCount = Number(cockpitLiveRunSummary.active ?? cockpitPulseRunSummary.active ?? liveOperatorMode.activeRunCount ?? 0);
+  const cockpitVisibleSavedRunCount = Number(cockpitLiveRunSummary.total ?? cockpitPulseRunSummary.total ?? liveOperatorMode.savedRunCount ?? cockpitAllRunRows.length ?? 0);
+  const cockpitVisibleActiveRunCount = cockpitVisibleRunRows.length
+    ? Number(cockpitLiveRunSummary.active ?? cockpitPulseRunSummary.active ?? liveOperatorMode.activeRunCount ?? cockpitVisibleRunRows.length ?? 0)
+    : 0;
   const cockpitVisibleLiveStatus = cockpitVisibleActiveRunCount ? "Live operator running" : liveOperatorMode.status || "Live operator ready";
   const cockpitVisibleLiveTone = cockpitVisibleActiveRunCount ? "green" : liveOperatorMode.tone || "blue";
   const cockpitVisibleOperatorPercent = cockpitVisibleActiveRunCount
     ? Math.max(Number(liveOperatorMode.jarvisBehaviorPercent || 0), 92)
     : Number(liveOperatorMode.jarvisBehaviorPercent || 0);
   const cockpitAnswerText = resolveApexCockpitAnswerText(cockpitResponse);
+  const cockpitBackgroundPayload = cockpitBackgroundStatus?.background || cockpitBackgroundStatus || {};
+  const cockpitLocalIntelligence = buildApexLocalIntelligenceStatus({
+    response: cockpitResponse,
+    selectedEffort: cockpitSelectedEffort,
+    providerStatusPayload: {
+      ...(cockpitLocalProviderStatus || {}),
+      background: cockpitBackgroundPayload,
+      brain: cockpitBackgroundPayload?.brain || {},
+      gpu: cockpitBackgroundPayload?.gpu || {},
+    },
+  });
+  const cockpitBuildLoopOutcome = String(cockpitBuildLoopReceipt?.outcome || cockpitBuildLoopReceipt?.finalOutcome || "").toLowerCase();
+  const cockpitBuildLoopStatusLabel = cockpitBuildLoopOutcome === "fixed"
+    ? "Fixed"
+    : cockpitBuildLoopOutcome === "blocked"
+      ? "Blocked"
+      : cockpitBuildLoopOutcome === "needs-john"
+        ? "Needs John"
+        : cockpitCreatingLiveRun && cockpitCommandRoute.commandAction === "run-autonomous-build-loop"
+          ? "Running"
+          : "Idle";
+  const cockpitBuildLoopToneClass = cockpitBuildLoopStatusLabel === "Fixed"
+    ? "border-emerald-300/18 bg-emerald-500/10 text-emerald-200"
+    : cockpitBuildLoopStatusLabel === "Blocked" || cockpitBuildLoopStatusLabel === "Needs John"
+      ? "border-orange-300/18 bg-orange-500/10 text-orange-200"
+      : cockpitBuildLoopStatusLabel === "Running"
+        ? "border-cyan-300/16 bg-cyan-500/10 text-cyan-100"
+        : "border-slate-700 bg-slate-950/60 text-slate-300";
   const cockpitActiveRunHandback = buildApexOsAutonomyRunHandback(cockpitActiveRun, {
     latestAnswer: cockpitAnswerText,
     now: new Date().toISOString(),
@@ -6430,20 +8723,131 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     retryReason: cockpitVoiceRetryReason,
   });
   const cockpitTurnMemoryKey = apexCockpitMemoryText(cockpitResponse?.requestId || `${cockpitLastQuestion}|${cockpitAnswerText}`, 220);
+  const cockpitAlwaysOpenMicMode = cockpitAlwaysOpenMic?.state || APEX_ALWAYS_OPEN_MIC_STATE.STANDBY;
   const cockpitVoiceMode = cockpitError
     ? "blocked"
     : cockpitSpeaking
       ? "speaking"
+      : cockpitAlwaysOpenMicMode === APEX_ALWAYS_OPEN_MIC_STATE.RECOVERING
+        ? "recovering"
       : (cockpitSubmitting || cockpitTranscribing)
-        ? "thinking"
-        : cockpitSpeechActive
-          ? "hearing"
+        ? "processing"
+      : cockpitSpeechActive
+          ? "capturing"
+          : !cockpitAutoListening
+            ? "quiet"
           : cockpitRecording
-            ? "listening"
+            ? "standby"
             : cockpitAutoListening
               ? "standby"
-              : "standby";
+              : "quiet";
   const cockpitVoiceState = APEX_COCKPIT_VOICE_STATES[cockpitVoiceMode];
+  const cockpitLocalVoicePayload = cockpitLocalVoiceStatus?.localVoice || cockpitLocalVoiceStatus || {};
+  const cockpitBackgroundRuntimeStatus = String(cockpitBackgroundPayload?.status || "checking");
+  const cockpitBackgroundRuntimeToneClass = cockpitBackgroundRuntimeStatus === "healthy"
+    ? "border-emerald-300/18 bg-emerald-500/10 text-emerald-200"
+    : cockpitBackgroundRuntimeStatus === "degraded"
+      ? "border-orange-300/18 bg-orange-500/10 text-orange-200"
+      : "border-cyan-300/14 bg-cyan-500/10 text-cyan-200";
+  const cockpitBackgroundVoice = cockpitBackgroundPayload?.voice || {};
+  const cockpitNativeVoiceStatus = cockpitLocalVoicePayload.nativeVoice || cockpitBackgroundVoice.nativeVoice || {};
+  const cockpitNativeVoiceReady = Boolean(cockpitNativeVoiceStatus.available || cockpitNativeVoiceStatus.canListenNatively || cockpitLocalVoicePayload.nativeInputAvailable);
+  const cockpitCanUseBrowserAutoVoice = canUseCockpitRecorder && cockpitMicPermissionState !== "denied";
+  const cockpitCanUseNativeAutoVoice = cockpitNativeVoiceReady && (!canUseCockpitRecorder || cockpitMicPermissionState === "denied");
+  const cockpitWakeButtonLabel = cockpitRecording
+    ? "Pause Voice"
+    : cockpitTranscribing
+      ? "Stop Voice"
+      : cockpitSubmitting
+        ? "Thinking"
+        : cockpitSpeaking
+          ? "Interrupt Voice"
+          : cockpitNeedsWake || (canUseCockpitRecorder && cockpitMicPermissionState === "denied" && !cockpitNativeVoiceReady)
+            ? "Allow Mic"
+            : "Resume Voice";
+  const cockpitNativeVoiceProvider = cockpitNativeVoiceStatus.selectedInputMode || cockpitLocalVoicePayload.nativeMicProvider || "windows-sapi-direct";
+  const cockpitPreferredVoiceInputMode = cockpitNativeVoiceReady
+    ? cockpitNativeVoiceProvider
+    : cockpitLocalVoicePayload.preferredInputMode || "browser-audio-worklet-wav";
+  const cockpitLatestLocalVoiceReceipt = cockpitLastLocalVoiceReceipt || cockpitLocalVoicePayload.lastVoiceTurn || cockpitBackgroundVoice.lastVoiceTurn || null;
+  const cockpitRuntimeSttEngines = Array.isArray(cockpitLocalVoicePayload.sttEngines) && cockpitLocalVoicePayload.sttEngines.length
+    ? cockpitLocalVoicePayload.sttEngines
+    : cockpitBackgroundVoice.sttProvider
+      ? [{
+          id: cockpitBackgroundVoice.sttProvider,
+          name: cockpitBackgroundVoice.sttName || cockpitBackgroundVoice.sttProvider,
+          available: cockpitBackgroundVoice.ready !== false,
+          local: true,
+          processor: cockpitBackgroundVoice.sttProcessor || "unknown",
+          gpuCapable: /gpu|cuda/i.test(`${cockpitBackgroundVoice.sttProvider || ""} ${cockpitBackgroundVoice.sttProcessor || ""}`),
+        }]
+      : state.apexPersonalOsCore?.localVoice?.sttEngines || [];
+  const cockpitRuntimeTtsEngines = Array.isArray(cockpitLocalVoicePayload.ttsEngines) && cockpitLocalVoicePayload.ttsEngines.length
+    ? cockpitLocalVoicePayload.ttsEngines
+    : cockpitBackgroundVoice.ttsProvider
+      ? [{
+          id: /kokoro/i.test(cockpitBackgroundVoice.ttsProvider) ? "apex-lightweight-kokoro" : cockpitBackgroundVoice.ttsProvider,
+          name: cockpitBackgroundVoice.ttsProvider,
+          available: cockpitBackgroundVoice.ready !== false,
+          local: true,
+          processor: cockpitBackgroundVoice.ttsProcessor || "",
+          voiceId: cockpitBackgroundVoice.ttsVoice || "",
+          voiceName: cockpitBackgroundVoice.ttsVoice || "",
+        }]
+      : state.apexPersonalOsCore?.localVoice?.ttsEngines || [];
+  const cockpitLocalVoiceReadiness = buildApexPersonalOsLocalVoiceReadiness({
+    loopState: cockpitVoiceMode,
+    microphoneSupported: canUseCockpitRecorder,
+    microphonePermission: cockpitMicPermissionState,
+    recording: cockpitRecording,
+    transcribing: cockpitTranscribing,
+    thinking: cockpitSubmitting,
+    speaking: cockpitSpeaking,
+    failed: Boolean(cockpitError || cockpitRecognitionError),
+    browserSpeechRecognitionSupported: !conversationFirst && canUseCockpitSpeechRecognition,
+    browserSpeechSynthesisSupported: typeof window !== "undefined" && Boolean(window.speechSynthesis) && typeof SpeechSynthesisUtterance !== "undefined",
+    browserAudioUnlocked: cockpitAudioReady,
+    sttEngines: cockpitRuntimeSttEngines,
+    ttsEngines: cockpitRuntimeTtsEngines,
+    lastVoiceTurn: cockpitLatestLocalVoiceReceipt,
+  });
+  const cockpitLocalVoiceTtsLabel = APEX_COCKPIT_USE_FAST_SIMPLE_VOICE
+    ? "Windows SAPI fast test"
+    : cockpitLocalVoiceReadiness.usingLightweightVoice
+    ? `Kokoro ONNX${cockpitLocalVoiceReadiness.lightweightVoiceId ? ` / ${cockpitLocalVoiceReadiness.lightweightVoiceId}` : ""}${cockpitLocalVoiceReadiness.lightweightVoiceProcessor ? " / CPU" : ""}`
+    : cockpitLocalVoiceReadiness.usingPiperVoiceFallback
+      ? "Piper fallback"
+      : cockpitLocalVoiceReadiness.usingWindowsVoiceFallback
+        ? "Windows SAPI emergency"
+        : cockpitLocalVoiceReadiness.ttsEngine || cockpitLocalVoiceReadiness.ttsStatus || "config needed";
+  const cockpitMicCalibrationSummary = buildApexCockpitMicTestSummary({
+    calibration: cockpitMicCalibration,
+    canUseRecorder: canUseCockpitRecorder,
+    canUseNativeVoice: cockpitNativeVoiceReady,
+    micPermissionState: cockpitMicPermissionState,
+    recording: cockpitRecording,
+  });
+  const cockpitMicCaptureLabel = cockpitMicCalibration.captureProvider || "none";
+  const cockpitMicGateLabel = formatApexCockpitMicPercent(cockpitMicCalibration.calibratedLevelThreshold || APEX_COCKPIT_LEVEL_THRESHOLD);
+  const cockpitMicPeakLabel = formatApexCockpitMicPercent(cockpitMicCalibration.peakLevel || 0);
+  const cockpitVoiceTimingSummary = buildApexCockpitVoiceTimingSummary(cockpitLocalVoiceReadiness.lastVoiceTurn || cockpitLatestLocalVoiceReceipt, cockpitAlwaysOpenMic);
+  const cockpitLatencyProfile = cockpitResponse?.answer?.latencyProfile || cockpitLatestLocalVoiceReceipt?.latencyProfile || cockpitBackgroundPayload?.latency?.profile || null;
+  const cockpitLatencyLabel = cockpitLatencyProfile?.slowestStepLabel
+    ? `${cockpitLatencyProfile.status || "timing"} / ${cockpitLatencyProfile.slowestStepLabel} ${cockpitLatencyProfile.slowestStepMs || 0}ms`
+    : cockpitBackgroundPayload?.latency?.slowestStepLabel
+      ? `${cockpitBackgroundPayload.latency.status || "timing"} / ${cockpitBackgroundPayload.latency.slowestStepLabel} ${cockpitBackgroundPayload.latency.slowestStepMs || 0}ms`
+      : "profiling";
+  const cockpitLiveBenchmarkStatus = buildApexCockpitLiveBenchmarkStatus(
+    cockpitLiveBenchmarkSummary
+    || cockpitBackgroundPayload?.liveTurnBenchmarkHistory
+    || cockpitBackgroundPayload?.latency?.benchmarkHistory
+    || null,
+  );
+  const cockpitShouldShowLastVoiceTurn = Boolean(cockpitLocalVoiceReadiness.lastTurnStatus)
+    && !(cockpitMicCalibration.signalDetected && /\b(failed|error)\b/i.test(cockpitLocalVoiceReadiness.lastTurnStatus));
+  const cockpitPersonalOsCore = buildApexPersonalOsCoreState({
+    voiceReadiness: cockpitLocalVoiceReadiness,
+  });
   const cockpitSources = resolveApexCockpitSources(state, cockpitResponse);
   const cockpitPromptText = cockpitLastQuestion || askQuestion.trim();
   const canAskCockpit = state.canView && Boolean(sessionToken) && Boolean(askQuestion.trim()) && !cockpitSubmitting;
@@ -6457,8 +8861,10 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     && !cockpitRememberingTurn
     && !cockpitRememberedTurnKeys[cockpitTurnMemoryKey];
   const cockpitLiveLevel = Math.max(cockpitMicLevel, cockpitOutputLevel);
-  const canStartCockpitVoice = state.canView && Boolean(sessionToken) && canUseCockpitRecorder && !cockpitRecording && !cockpitTranscribing && !cockpitSubmitting && (!cockpitSpeaking || cockpitBargeInEnabled) && !cockpitVoiceOpeningRef.current;
-  const canToggleCockpitVoice = canStartCockpitVoice || cockpitRecording;
+  const canUseCockpitVoiceInput = canUseCockpitRecorder || cockpitNativeVoiceReady;
+  const canStartCockpitVoice = state.canView && Boolean(sessionToken) && cockpitPageVisible && canUseCockpitVoiceInput && !cockpitRecording && !cockpitTranscribing && !cockpitSubmitting && !cockpitSpeaking && cockpitAlwaysOpenMicMode !== APEX_ALWAYS_OPEN_MIC_STATE.RECOVERING && !cockpitVoiceOpeningRef.current;
+  const cockpitVoiceBusy = cockpitRecording || cockpitTranscribing || cockpitVoiceOpeningRef.current;
+  const canToggleCockpitVoice = canStartCockpitVoice || cockpitVoiceBusy;
   const cockpitCaptionStatusLabel = !canUseCockpitSpeechRecognition
     ? "Server transcription"
     : cockpitRecognitionStatus === "captioning"
@@ -6474,6 +8880,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
               : "Caption fallback ready";
   const cockpitVoiceHealth = buildApexCockpitVoiceHealth({
     canUseRecorder: canUseCockpitRecorder,
+    canUseNativeVoice: cockpitNativeVoiceReady,
     canUseSpeechRecognition: canUseCockpitSpeechRecognition,
     micPermissionState: cockpitMicPermissionState,
     wakeAttempted: cockpitVoiceWakeAttempted,
@@ -6490,6 +8897,10 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     bargeInEnabled: cockpitBargeInEnabled,
     retryCount: cockpitVoiceRetryCount,
     retryReason: cockpitVoiceRetryReason,
+    alwaysOpenMic: cockpitAlwaysOpenMic,
+    localVoiceReadiness: cockpitLocalVoiceReadiness,
+    backgroundStatus: cockpitBackgroundPayload,
+    micCalibration: cockpitMicCalibration,
   });
   const cockpitVoiceHealthSummary = cockpitVoiceHealth.rows.map((item) => `${item.label}: ${item.value}`).join(" / ");
   const cockpitPulseRows = buildApexCockpitPulseRows({
@@ -6526,7 +8937,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       id: "live",
       label: "Live",
       value: cockpitSessionHeartbeat.status || "Ready",
-      detail: cockpitSessionHeartbeat.recommendation || "Heartbeat and review-first status.",
+      detail: cockpitSessionHeartbeat.recommendation || "Heartbeat and private Apex status.",
       tone: cockpitSessionHeartbeat.tone || "blue",
       icon: "phone",
     },
@@ -6578,6 +8989,79 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     captionStatusLabel: cockpitCaptionStatusLabel,
   });
 
+  useEffect(() => {
+    let cancelled = false;
+    async function loadBackgroundStatus() {
+      if (!sessionToken) {
+        setCockpitBackgroundStatus(null);
+        return;
+      }
+      try {
+        const payload = await getApexOsBackgroundStatus(sessionToken);
+        if (cancelled) return;
+        setCockpitBackgroundStatus(payload?.background || payload);
+      } catch {
+        if (cancelled) return;
+        setCockpitBackgroundStatus(null);
+      }
+    }
+    loadBackgroundStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionToken]);
+
+  useEffect(() => {
+    cockpitLastLocalVoiceReceiptRef.current = cockpitLastLocalVoiceReceipt;
+  }, [cockpitLastLocalVoiceReceipt]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadLocalProviderStatus() {
+      if (!state.canView || !sessionToken) {
+        setCockpitLocalProviderStatus(null);
+        setCockpitLocalProviderNotice("");
+        return;
+      }
+      try {
+        const payload = await getApexOsLocalProvidersStatus(sessionToken);
+        if (cancelled) return;
+        setCockpitLocalProviderStatus(payload);
+        setCockpitLocalProviderNotice("");
+      } catch (error) {
+        if (cancelled) return;
+        setCockpitLocalProviderStatus(null);
+        setCockpitLocalProviderNotice(error?.message || "Local provider status is unavailable right now.");
+      }
+    }
+    loadLocalProviderStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, [state.canView, sessionToken]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadLocalVoiceStatus() {
+      if (!state.canView || !sessionToken) {
+        setCockpitLocalVoiceStatus(null);
+        return;
+      }
+      try {
+        const payload = await getApexOsLocalVoiceStatus(sessionToken);
+        if (cancelled) return;
+        setCockpitLocalVoiceStatus(payload?.localVoice || payload);
+      } catch {
+        if (cancelled) return;
+        setCockpitLocalVoiceStatus(null);
+      }
+    }
+    loadLocalVoiceStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, [state.canView, sessionToken]);
+
   useEffect(() => () => {
     if (cockpitRecorderRef.current) {
       cockpitRecorderRef.current.ondataavailable = null;
@@ -6592,6 +9076,8 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     stopCockpitOutputLevelMonitor();
     clearCockpitResumeListeningTimer();
     clearCockpitCaptionFinalTurnTimer();
+    clearCockpitNoVoiceTimer();
+    clearCockpitTranscriptionTimeout();
     stopBrowserVoice(cockpitAudioRef);
     closeUnlockedBrowserAudio(cockpitAudioUnlockedRef);
   }, []);
@@ -6615,6 +9101,35 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   useEffect(() => {
     cockpitBargeInEnabledRef.current = cockpitBargeInEnabled;
   }, [cockpitBargeInEnabled]);
+
+  useEffect(() => {
+    cockpitAutoListeningRef.current = cockpitAutoListening;
+  }, [cockpitAutoListening]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return undefined;
+    const syncPageVisibility = () => {
+      setCockpitPageVisible(document.visibilityState !== "hidden");
+    };
+    syncPageVisibility();
+    document.addEventListener("visibilitychange", syncPageVisibility);
+    return () => document.removeEventListener("visibilitychange", syncPageVisibility);
+  }, []);
+
+  useEffect(() => {
+    if (cockpitPageVisible) return undefined;
+    if (!cockpitRecordingRef.current && !cockpitVoiceOpeningRef.current) return undefined;
+    pauseCockpitVoiceSession();
+    return undefined;
+  }, [cockpitPageVisible]);
+
+  useEffect(() => {
+    cockpitAlwaysOpenMicRef.current = cockpitAlwaysOpenMic;
+  }, [cockpitAlwaysOpenMic]);
+
+  useEffect(() => {
+    cockpitMicCalibrationRef.current = cockpitMicCalibration;
+  }, [cockpitMicCalibration]);
 
   useEffect(() => {
     const runId = cockpitActiveRun?.id || "";
@@ -6643,9 +9158,18 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     navigator.permissions.query({ name: "microphone" }).then((status) => {
       if (cancelled) return;
       permissionStatus = status;
-      setCockpitMicPermissionState(status.state || "unknown");
+      const nextState = status.state || "unknown";
+      setCockpitMicPermissionState(nextState);
+      if (nextState === "denied") {
+        setCockpitVoiceNotice(resolveApexCockpitMicFailureMessage({ name: "NotAllowedError" }));
+      } else if (nextState === "prompt") {
+        setCockpitVoiceNotice("Chrome is waiting for microphone permission. Choose Allow for localhost:5173 so Apex can hear you.");
+      }
       status.onchange = () => {
-        setCockpitMicPermissionState(status.state || "unknown");
+        const changedState = status.state || "unknown";
+        setCockpitMicPermissionState(changedState);
+        if (changedState === "granted") setCockpitVoiceNotice("Microphone is allowed for this Apex window. Talk naturally.");
+        if (changedState === "denied") setCockpitVoiceNotice(resolveApexCockpitMicFailureMessage({ name: "NotAllowedError" }));
       };
     }).catch(() => {
       if (!cancelled) setCockpitMicPermissionState("unknown");
@@ -6693,6 +9217,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     if (!state.canView) return;
     const checkIn = buildApexOsAutonomyRunProactiveCheckIn(cockpitLastHeartbeatRef.current, cockpitSessionHeartbeat, {
       now: new Date().toISOString(),
+      suppressReviewGateCheckIns: true,
     });
     cockpitLastHeartbeatRef.current = cockpitSessionHeartbeat;
     setCockpitProactiveCheckIn(checkIn);
@@ -6720,7 +9245,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
         },
       });
       setCockpitLastQuestion("Proactive check-in");
-      setCockpitVoiceNotice(checkIn.voiceNotice || "Apex surfaced a proactive live-run check-in. Execution stayed locked.");
+      setCockpitVoiceNotice(checkIn.voiceNotice || "Apex surfaced a proactive live-run check-in. Consequential actions stayed gated.");
     } else {
       setCockpitLiveRunNotice(checkIn.recommendation || "Apex noticed live-run progress while keeping the Auto Drive handback visible.");
     }
@@ -6783,8 +9308,8 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     const pendingCheckIn = cockpitPendingProactiveVoiceRef.current;
     if (!pendingCheckIn?.shouldSurface) return undefined;
     if (!state.canView || !sessionToken || !cockpitConversationMode || !cockpitAutoListening) return undefined;
-    if (cockpitNeedsWake && !cockpitVoiceWakeAttempted && !cockpitMicReady) return undefined;
-    if (cockpitSpeaking || cockpitRecording || cockpitTranscribing || cockpitSubmitting || cockpitVoiceOpeningRef.current) return undefined;
+    if (cockpitNeedsWake && !cockpitMicReady && cockpitMicPermissionState === "denied") return undefined;
+    if (cockpitSpeaking || cockpitRecording || cockpitTranscribing || cockpitSubmitting || cockpitAlwaysOpenMicMode === APEX_ALWAYS_OPEN_MIC_STATE.RECOVERING || cockpitVoiceOpeningRef.current) return undefined;
     if (cockpitLastAutoDriveHandbackAtRef.current && Date.now() - cockpitLastAutoDriveHandbackAtRef.current < 12_000) return undefined;
     const queuedVoiceTimer = setTimeout(() => {
       speakCockpitProactiveCheckIn(pendingCheckIn, { reason: "queued" });
@@ -6796,9 +9321,10 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     cockpitConversationMode,
     cockpitAutoListening,
     cockpitNeedsWake,
-    cockpitVoiceWakeAttempted,
     cockpitMicReady,
+    cockpitMicPermissionState,
     cockpitSpeaking,
+    cockpitAlwaysOpenMicMode,
     cockpitRecording,
     cockpitTranscribing,
     cockpitSubmitting,
@@ -6807,21 +9333,9 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     cockpitSessionHeartbeat.signature,
   ]);
 
-  useEffect(() => {
-    if (!cockpitConversationMode || !cockpitAutoListening || !state.canView || !sessionToken || !canUseCockpitRecorder) return undefined;
-    if (!cockpitMicReady && !cockpitVoiceWakeAttempted) return undefined;
-    if (cockpitRecording || cockpitTranscribing || cockpitSubmitting || (cockpitSpeaking && !cockpitBargeInEnabled) || cockpitVoiceOpeningRef.current) return undefined;
-    const handoffRequested = cockpitListeningHandoffPendingRef.current;
-    const openTimer = setTimeout(() => {
-      const handoff = cockpitListeningHandoffPendingRef.current;
-      cockpitListeningHandoffPendingRef.current = false;
-      openCockpitVoiceSession({ automatic: true, handoff });
-    }, handoffRequested ? 180 : 500);
-    return () => clearTimeout(openTimer);
-  }, [cockpitConversationMode, cockpitAutoListening, state.canView, sessionToken, canUseCockpitRecorder, cockpitMicReady, cockpitVoiceWakeAttempted, cockpitRecording, cockpitTranscribing, cockpitSubmitting, cockpitSpeaking, cockpitBargeInEnabled, cockpitListeningHandoffKey]);
-
   function cleanupCockpitVoiceStream() {
     clearCockpitCaptionFinalTurnTimer();
+    clearCockpitNoVoiceTimer();
     stopCockpitVoiceLevelMonitor();
     stopCockpitSpeechRecognition();
     if (cockpitStreamRef.current) {
@@ -6834,6 +9348,32 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     if (cockpitVoiceFrameRef.current) {
       cancelAnimationFrame(cockpitVoiceFrameRef.current);
       cockpitVoiceFrameRef.current = 0;
+    }
+    if (cockpitPcmProcessorRef.current) {
+      try {
+        if (cockpitPcmProcessorRef.current.port) cockpitPcmProcessorRef.current.port.onmessage = null;
+        cockpitPcmProcessorRef.current.onaudioprocess = null;
+        cockpitPcmProcessorRef.current.disconnect();
+      } catch {
+        // Browser audio nodes can already be detached after permission changes.
+      }
+      cockpitPcmProcessorRef.current = null;
+    }
+    if (cockpitPcmMuteGainRef.current) {
+      try {
+        cockpitPcmMuteGainRef.current.disconnect();
+      } catch {
+        // Browser audio nodes can already be detached after permission changes.
+      }
+      cockpitPcmMuteGainRef.current = null;
+    }
+    if (cockpitPcmWorkletUrlRef.current && typeof URL !== "undefined" && typeof URL.revokeObjectURL === "function") {
+      try {
+        URL.revokeObjectURL(cockpitPcmWorkletUrlRef.current);
+      } catch {
+        // Blob URL cleanup is best effort after browser audio teardown.
+      }
+      cockpitPcmWorkletUrlRef.current = "";
     }
     if (cockpitVoiceSourceRef.current) {
       try {
@@ -6854,6 +9394,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     cockpitSpeechStartedRef.current = false;
     cockpitLastSoundAtRef.current = 0;
     cockpitLastLevelPaintRef.current = 0;
+    cockpitMicCalibrationPaintRef.current = 0;
     setCockpitSpeechActive(false);
     setCockpitMicLevel(0);
   }
@@ -6864,6 +9405,109 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       cockpitOutputFrameRef.current = 0;
     }
     setCockpitOutputLevel(0);
+  }
+
+  function buildCockpitPcmWavBlob() {
+    const samples = mergeApexCockpitPcmChunks(cockpitPcmChunksRef.current);
+    const sourceSampleRate = cockpitPcmSampleRateRef.current || 0;
+    if (!samples.length || !sourceSampleRate) return null;
+    const encoded = encodeFloat32PcmToWav(samples, { sourceSampleRate, targetSampleRate: 16000 });
+    const blob = new Blob([encoded.buffer], { type: "audio/wav" });
+    return {
+      blob,
+      metadata: {
+        ...encoded.metadata,
+        sourceMimeType: "audio/pcm",
+        sourceByteLength: samples.length * 4,
+        convertedMimeType: "audio/wav",
+        convertedByteLength: blob.size,
+        readyForTranscription: true,
+        captureProvider: "browser-pcm",
+      },
+    };
+  }
+
+  function shouldPersistCockpitLiveTurnReceipt(receipt = {}) {
+    const status = String(receipt?.status || "").toLowerCase();
+    return Boolean(receipt?.turnId)
+      && /\b(spoken|failed|error|fallback|duplicate-speech-held|playback-failed)\b/i.test(status)
+      && Number(receipt?.timingMs?.totalTurnMs || receipt?.totalTurnMs || 0) > 0;
+  }
+
+  function persistCockpitLiveTurnReceipt(receipt = {}) {
+    if (!sessionToken || !shouldPersistCockpitLiveTurnReceipt(receipt)) return;
+    const key = `${receipt.turnId}|${receipt.status}|${receipt.totalTurnMs || receipt.timingMs?.totalTurnMs || 0}`;
+    if (cockpitSavedLiveTurnReceiptRef.current.key === key) return;
+    cockpitSavedLiveTurnReceiptRef.current = { key };
+    void saveApexOsLocalVoiceLiveTurnReceipt(sessionToken, {
+      receipt,
+    }).catch(() => {});
+  }
+
+  function cockpitLiveBenchmarkMetadataForPatch(patch = {}, turnId = "") {
+    const activeBenchmark = cockpitLiveVoiceBenchmarkRef.current || {};
+    const explicitBenchmarkType = /^(typed|voice)$/i.test(String(patch.benchmarkType || "")) ? String(patch.benchmarkType).toLowerCase() : "";
+    const inputMode = String(patch.inputMode || patch.source || cockpitLastVoiceInputModeRef.current || "").toLowerCase();
+    const voiceBenchmarkActive = Boolean(activeBenchmark.armed) && inputMode !== "typed";
+    if (!explicitBenchmarkType && !voiceBenchmarkActive) return {};
+    const benchmarkType = explicitBenchmarkType || "voice";
+    return {
+      benchmarkVersion: "v1.1",
+      benchmarkType,
+      benchmarkId: patch.benchmarkId || activeBenchmark.benchmarkId || (turnId ? `ALB-${turnId}` : ""),
+      explicitUserStarted: patch.explicitUserStarted === true || voiceBenchmarkActive,
+      visibleUserStarted: true,
+      noHiddenMicCapture: true,
+      inputMode: patch.inputMode || benchmarkType,
+    };
+  }
+
+  function updateCockpitLiveBenchmarkFromReceipt(receipt = {}) {
+    if (!receipt?.benchmarkType) return;
+    setCockpitLiveBenchmarkSummary((current) => {
+      const previous = current && typeof current === "object" ? current : {};
+      const latestTypedBenchmark = receipt.benchmarkType === "typed"
+        ? receipt
+        : previous.latestTypedBenchmark || cockpitBackgroundPayload?.liveTurnBenchmarkHistory?.latestTypedBenchmark || cockpitBackgroundPayload?.latency?.latestTypedBenchmark || null;
+      const latestVoiceBenchmark = receipt.benchmarkType === "voice"
+        ? receipt
+        : previous.latestVoiceBenchmark || cockpitBackgroundPayload?.liveTurnBenchmarkHistory?.latestVoiceBenchmark || cockpitBackgroundPayload?.latency?.latestVoiceBenchmark || null;
+      return {
+        ...previous,
+        latestTypedBenchmark,
+        latestVoiceBenchmark,
+        benchmarkComparison: previous.benchmarkComparison || cockpitBackgroundPayload?.liveTurnBenchmarkHistory?.benchmarkComparison || cockpitBackgroundPayload?.latency?.benchmarkComparison || {},
+      };
+    });
+  }
+
+  function updateCockpitVoiceTimingReceipt(patch = {}) {
+    const activeTiming = cockpitVoiceTurnTimingRef.current || {};
+    const currentReceipt = cockpitLastLocalVoiceReceiptRef.current || cockpitLastLocalVoiceReceipt || null;
+    const turnId = patch.turnId || activeTiming.turnId || currentReceipt?.turnId || "";
+    const startedAt = Number(patch.startedAt || activeTiming.startedAt || 0) || 0;
+    const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+    const totalTurnMs = startedAt ? Math.max(0, Math.round(now - startedAt)) : Number(patch.totalTurnMs || 0) || 0;
+    const benchmarkMetadata = cockpitLiveBenchmarkMetadataForPatch(patch, turnId);
+    const nextReceipt = mergeApexCockpitVoiceReceipt(currentReceipt, {
+      ...patch,
+      ...benchmarkMetadata,
+      turnId,
+      lastTurnId: turnId,
+      totalTurnMs: Math.max(totalTurnMs, Number(patch.totalTurnMs || 0) || 0),
+      timingMs: {
+        ...(patch.timingMs || {}),
+        totalTurnMs: Math.max(totalTurnMs, Number(patch.timingMs?.totalTurnMs || 0) || 0),
+      },
+    });
+    cockpitLastLocalVoiceReceiptRef.current = nextReceipt;
+    setCockpitLastLocalVoiceReceipt(nextReceipt);
+    updateCockpitLiveBenchmarkFromReceipt(nextReceipt);
+    persistCockpitLiveTurnReceipt(nextReceipt);
+    if (nextReceipt.benchmarkType === "voice" && shouldPersistCockpitLiveTurnReceipt(nextReceipt)) {
+      cockpitLiveVoiceBenchmarkRef.current = { armed: false, benchmarkId: "" };
+      setCockpitVoiceBenchmarkArmed(false);
+    }
   }
 
   function setCockpitAudioReadyState(ready) {
@@ -6901,6 +9545,12 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     clearCockpitSpeechSafetyTimer();
     cockpitSpeakingRef.current = true;
     setCockpitSpeaking(true);
+    updateCockpitAlwaysOpenMicStatus({
+      state: APEX_ALWAYS_OPEN_MIC_STATE.SPEAKING,
+      speechDetected: false,
+      feedbackSuppressionActive: true,
+      fallbackReason: "Apex is speaking.",
+    });
     startCockpitOutputLevelMonitor();
     armCockpitSpeechSafetyTimer(APEX_COCKPIT_AUDIO_CHECK_TEXT, {
       minimumMs: 3_200,
@@ -6923,7 +9573,8 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
         cockpitSpeakingRef.current = false;
         setCockpitSpeaking(false);
         setCockpitAudioReadyState(true);
-        setCockpitVoiceNotice("Sound check passed. Wake Apex and talk naturally.");
+        scheduleCockpitListeningAfterSpeech("Sound check passed. Apex is clearing echo, then listening.");
+        setCockpitVoiceNotice("Sound check passed. Talk naturally; Apex will keep the visible mic loop open when permission allows.");
       },
       onError: () => {
         stopCockpitOutputLevelMonitor();
@@ -6964,8 +9615,155 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     cockpitCaptionFinalTurnTimerRef.current = 0;
   }
 
+  function clearCockpitNoVoiceTimer() {
+    if (!cockpitNoVoiceTimerRef.current) return;
+    clearTimeout(cockpitNoVoiceTimerRef.current);
+    cockpitNoVoiceTimerRef.current = 0;
+  }
+
+  function armCockpitNoVoiceTimer() {
+    clearCockpitNoVoiceTimer();
+    cockpitNoVoiceTimerRef.current = setTimeout(() => {
+      cockpitNoVoiceTimerRef.current = 0;
+      if (!cockpitRecordingRef.current || cockpitSpeechStartedRef.current || cockpitTranscribingRef.current || cockpitSpeakingRef.current) return;
+      updateCockpitAlwaysOpenMicStatus({
+        state: APEX_ALWAYS_OPEN_MIC_STATE.STANDBY,
+        speechDetected: false,
+        feedbackSuppressionActive: false,
+        fallbackReason: "Mic stream is open, but no voice level crossed the local detection gate yet.",
+      });
+      setCockpitVoiceNotice(buildApexCockpitMicTestSummary({
+        calibration: cockpitMicCalibrationRef.current,
+        canUseRecorder: canUseCockpitRecorder,
+        canUseNativeVoice: cockpitNativeVoiceReady,
+        micPermissionState: cockpitMicPermissionState,
+        recording: true,
+      }));
+    }, APEX_COCKPIT_NO_VOICE_NOTICE_MS);
+  }
+
+  function clearCockpitTranscriptionTimeout() {
+    if (!cockpitTranscriptionTimeoutRef.current) return;
+    clearTimeout(cockpitTranscriptionTimeoutRef.current);
+    cockpitTranscriptionTimeoutRef.current = 0;
+  }
+
+  function armCockpitTranscriptionTimeout(turnId = "") {
+    clearCockpitTranscriptionTimeout();
+    cockpitActiveTranscriptionTurnRef.current = turnId;
+    cockpitTranscriptionTimeoutRef.current = setTimeout(() => {
+      cockpitTranscriptionTimeoutRef.current = 0;
+      if (cockpitActiveTranscriptionTurnRef.current !== turnId) return;
+      cockpitActiveTranscriptionTurnRef.current = "";
+      cockpitTranscribingRef.current = false;
+      setCockpitTranscribing(false);
+      updateCockpitAlwaysOpenMicStatus({
+        state: APEX_ALWAYS_OPEN_MIC_STATE.STANDBY,
+        speechDetected: false,
+        feedbackSuppressionActive: false,
+        fallbackReason: "Local STT turn timed out and was reset.",
+      });
+      setCockpitVoiceNotice("That local voice turn took too long, so Apex reset the mic loop. Say it again; no OpenAI audio was used.");
+      scheduleCockpitVoiceRetry("Local STT timed out and Apex reset the mic loop", { speakPrompt: false });
+    }, APEX_COCKPIT_STT_TURN_TIMEOUT_MS);
+  }
+
+  function resetCockpitBrowserCaptionTurn({ clearDisplay = true } = {}) {
+    clearCockpitCaptionFinalTurnTimer();
+    cockpitBrowserTranscriptRef.current = "";
+    cockpitBrowserTranscriptCaptureIdRef.current = "";
+    if (clearDisplay) setCockpitBrowserTranscript("");
+  }
+
+  function currentCockpitBrowserCaptionTranscript() {
+    if (!cockpitBrowserTranscriptRef.current) return "";
+    if (!cockpitCurrentCaptureIdRef.current) return "";
+    if (cockpitBrowserTranscriptCaptureIdRef.current !== cockpitCurrentCaptureIdRef.current) return "";
+    return String(cockpitBrowserTranscriptRef.current || "").trim();
+  }
+
+  function updateCockpitAlwaysOpenMicStatus(patch = {}) {
+    const micCalibration = cockpitMicCalibrationRef.current || {};
+    const levelThreshold = patch.levelThreshold ?? micCalibration.calibratedLevelThreshold ?? APEX_COCKPIT_LEVEL_THRESHOLD;
+    const idleLevelThreshold = patch.idleLevelThreshold ?? micCalibration.calibratedIdleLevelThreshold ?? APEX_COCKPIT_IDLE_LEVEL_THRESHOLD;
+    const nextStatus = buildApexAlwaysOpenMicStatus({
+      ...cockpitAlwaysOpenMicRef.current,
+      ...patch,
+      ingressProvider: "browser",
+      vadProvider: "amplitude-gate",
+      sustainedSilenceMs: APEX_COCKPIT_SILENCE_MS,
+      minCaptureMs: APEX_COCKPIT_MIN_TURN_MS,
+      levelThreshold,
+      idleLevelThreshold,
+      droppedFramesWhileMuted: patch.droppedFramesWhileMuted ?? cockpitDroppedMicFrameCountRef.current,
+    });
+    cockpitAlwaysOpenMicRef.current = nextStatus;
+    setCockpitAlwaysOpenMic(nextStatus);
+    return nextStatus;
+  }
+
+  function resolveCockpitAlwaysOpenMicState() {
+    const now = performance.now();
+    if (!cockpitAutoListeningRef.current) return APEX_ALWAYS_OPEN_MIC_STATE.QUIET;
+    if (cockpitSpeakingRef.current) return APEX_ALWAYS_OPEN_MIC_STATE.SPEAKING;
+    if (cockpitRecoveringUntilRef.current && now < cockpitRecoveringUntilRef.current) return APEX_ALWAYS_OPEN_MIC_STATE.RECOVERING;
+    if (cockpitTranscribingRef.current || cockpitSubmittingRef.current) return APEX_ALWAYS_OPEN_MIC_STATE.PROCESSING;
+    if (cockpitSpeechStartedRef.current) return APEX_ALWAYS_OPEN_MIC_STATE.CAPTURING;
+    return APEX_ALWAYS_OPEN_MIC_STATE.STANDBY;
+  }
+
+  function buildCockpitAlwaysOpenMicPacket(overrides = {}) {
+    const micCalibration = cockpitMicCalibrationRef.current || {};
+    const levelThreshold = overrides.levelThreshold ?? micCalibration.calibratedLevelThreshold ?? APEX_COCKPIT_LEVEL_THRESHOLD;
+    const idleLevelThreshold = overrides.idleLevelThreshold ?? micCalibration.calibratedIdleLevelThreshold ?? APEX_COCKPIT_IDLE_LEVEL_THRESHOLD;
+    return {
+      ...cockpitAlwaysOpenMicRef.current,
+      ...overrides,
+      ingressProvider: "browser",
+      vadProvider: "amplitude-gate",
+      sustainedSilenceMs: APEX_COCKPIT_SILENCE_MS,
+      minCaptureMs: APEX_COCKPIT_MIN_TURN_MS,
+      levelThreshold,
+      idleLevelThreshold,
+      silenceDurationMs: overrides.silenceDurationMs ?? cockpitAlwaysOpenMicRef.current?.silenceDurationMs ?? 0,
+      micCalibration: {
+        status: micCalibration.status || "",
+        captureProvider: micCalibration.captureProvider || "",
+        frameCount: micCalibration.frameCount || 0,
+        peakLevel: micCalibration.peakLevel || 0,
+        noiseFloor: micCalibration.noiseFloor || 0,
+        calibratedLevelThreshold: levelThreshold,
+        calibratedIdleLevelThreshold: idleLevelThreshold,
+      },
+      droppedFramesWhileMuted: overrides.droppedFramesWhileMuted ?? cockpitDroppedMicFrameCountRef.current,
+      cloudAudioAllowed: false,
+      openAiAudioUsed: false,
+      audioStored: false,
+    };
+  }
+
+  function recordCockpitMutedMicFrame(reason = "feedback suppression") {
+    cockpitDroppedMicFrameCountRef.current += 1;
+    return updateCockpitAlwaysOpenMicStatus({
+      state: resolveCockpitAlwaysOpenMicState(),
+      feedbackSuppressionActive: true,
+      fallbackReason: reason,
+      droppedFramesWhileMuted: cockpitDroppedMicFrameCountRef.current,
+    });
+  }
+
+  function markCockpitVoiceRecovering(notice = APEX_COCKPIT_LISTENING_HANDOFF_NOTICE) {
+    cockpitRecoveringUntilRef.current = performance.now() + APEX_COCKPIT_RECOVERY_DROP_MS;
+    updateCockpitAlwaysOpenMicStatus({
+      state: APEX_ALWAYS_OPEN_MIC_STATE.RECOVERING,
+      feedbackSuppressionActive: true,
+      fallbackReason: "Dropping mic frames briefly after Apex speech playback.",
+    });
+    if (notice) setCockpitVoiceNotice(notice);
+  }
+
   function scheduleCockpitCaptionFinalTurn(transcript) {
-    const cleanTranscript = String(transcript || "").trim();
+    const cleanTranscript = stripApexCockpitDoneTalkingCue(transcript);
     if (!cleanTranscript) return false;
     clearCockpitCaptionFinalTurnTimer();
     cockpitCaptionFinalTurnTimerRef.current = setTimeout(() => {
@@ -6983,20 +9781,65 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       setCockpitVoiceNotice("Apex already picked up that voice turn.");
       return false;
     }
+    const lastSpoken = cockpitLastSpokenAnswerRef.current || { text: "", at: 0 };
+    if (
+      lastSpoken.text
+      && now - Number(lastSpoken.at || 0) < APEX_COCKPIT_ECHO_SUPPRESSION_MS
+      && isLikelyApexCockpitEcho(cleanTranscript, lastSpoken.text)
+    ) {
+      setCockpitVoiceNotice("Apex ignored its own spoken audio and kept listening.");
+      updateCockpitAlwaysOpenMicStatus({
+        state: APEX_ALWAYS_OPEN_MIC_STATE.STANDBY,
+        speechDetected: false,
+        feedbackSuppressionActive: true,
+        fallbackReason: "Echo suppression dropped Apex's own spoken answer.",
+      });
+      return false;
+    }
     cockpitLastHandledVoiceTurnRef.current = { key: transcriptKey, at: now };
     return true;
   }
 
-  function scheduleCockpitListeningAfterSpeech(notice = APEX_COCKPIT_LISTENING_HANDOFF_NOTICE) {
+  function scheduleCockpitListeningAfterSpeech(notice = APEX_COCKPIT_LISTENING_HANDOFF_NOTICE, { force = false } = {}) {
     clearCockpitResumeListeningTimer();
-    if (!state.canView || !sessionToken || !cockpitConversationMode || !cockpitAutoListening || !canUseCockpitRecorder) return false;
-    if (!cockpitMicReady && !cockpitVoiceWakeAttempted) {
-      setCockpitVoiceNotice("Apex finished speaking. Wake Apex once to keep the voice loop open.");
+    markCockpitVoiceRecovering(notice);
+    if (!force && cockpitCurrentSpeechInputModeRef.current === "native") {
+      cockpitListeningHandoffPendingRef.current = false;
+      setCockpitAutoListening(false);
+      cockpitAutoListeningRef.current = false;
+      cockpitResumeListeningTimerRef.current = setTimeout(() => {
+        cockpitResumeListeningTimerRef.current = 0;
+        cockpitRecoveringUntilRef.current = 0;
+        updateCockpitAlwaysOpenMicStatus({
+          state: APEX_ALWAYS_OPEN_MIC_STATE.QUIET,
+          speechDetected: false,
+          feedbackSuppressionActive: false,
+          fallbackReason: "Native voice is paused until John starts the next turn.",
+        });
+        setCockpitVoiceNotice(APEX_COCKPIT_NATIVE_PAUSED_NOTICE);
+      }, APEX_COCKPIT_RECOVERY_DROP_MS);
+      return false;
+    }
+    if (!state.canView || !sessionToken || !cockpitConversationMode || !cockpitAutoListening || !cockpitPageVisible || (!cockpitCanUseBrowserAutoVoice && !cockpitCanUseNativeAutoVoice)) return false;
+    if (!cockpitMicReady && cockpitMicPermissionState === "denied" && !cockpitCanUseNativeAutoVoice) {
+      setCockpitVoiceNotice("Apex finished speaking. Microphone permission is blocked, so voice cannot reopen yet.");
       return false;
     }
     if (cockpitRecordingRef.current) {
       cockpitListeningHandoffPendingRef.current = false;
-      setCockpitVoiceNotice(notice);
+      cockpitResumeListeningTimerRef.current = setTimeout(() => {
+        cockpitResumeListeningTimerRef.current = 0;
+        if (!cockpitSpeakingRef.current && cockpitAutoListeningRef.current) {
+          cockpitRecoveringUntilRef.current = 0;
+          updateCockpitAlwaysOpenMicStatus({
+            state: APEX_ALWAYS_OPEN_MIC_STATE.STANDBY,
+            speechDetected: false,
+            feedbackSuppressionActive: false,
+            fallbackReason: "",
+          });
+          setCockpitVoiceNotice(notice);
+        }
+      }, APEX_COCKPIT_RECOVERY_DROP_MS);
       return true;
     }
     if (cockpitTranscribingRef.current || cockpitSubmittingRef.current || cockpitVoiceOpeningRef.current) return false;
@@ -7004,60 +9847,61 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     setCockpitVoiceNotice(notice);
     cockpitResumeListeningTimerRef.current = setTimeout(() => {
       cockpitResumeListeningTimerRef.current = 0;
-      setCockpitListeningHandoffKey((current) => current + 1);
-    }, 140);
-    return true;
+      cockpitRecoveringUntilRef.current = 0;
+      updateCockpitAlwaysOpenMicStatus({
+        state: APEX_ALWAYS_OPEN_MIC_STATE.QUIET,
+        speechDetected: false,
+        feedbackSuppressionActive: false,
+        fallbackReason: "Voice is quiet until John starts the next turn.",
+      });
+      setCockpitAutoListening(false);
+      cockpitAutoListeningRef.current = false;
+    }, APEX_COCKPIT_RECOVERY_DROP_MS);
+    return false;
   }
 
-  function scheduleCockpitVoiceRetry(reason = "Apex missed the last voice turn", { speakPrompt = true } = {}) {
+  function scheduleCockpitVoiceRetry(reason = "Apex missed the last voice turn", _options = {}) {
     const retryReason = apexCockpitMemoryText(reason || "Apex missed the last voice turn", 180);
     cockpitVoiceRetryCountRef.current += 1;
     setCockpitVoiceRetryCount(cockpitVoiceRetryCountRef.current);
     setCockpitVoiceRetryReason(retryReason);
-    setCockpitAutoListening(true);
-    setCockpitVoiceNotice(`${retryReason}. Reopening live listening; no action was taken.`);
+    setCockpitAutoListening(false);
+    cockpitAutoListeningRef.current = false;
+    setCockpitVoiceNotice(`${retryReason}. Voice paused instead of looping; no action was taken.`);
     setCockpitTurns((current) => [
       {
         id: `cockpit-voice-retry-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        question: `${retryReason}. Apex reopened live listening without taking action.`,
+        question: `${retryReason}. Apex paused voice without taking action.`,
         source: "voice-retry",
         routeLabel: "Voice retry",
-        status: "retry-listening",
+        status: "paused",
       },
       ...current,
     ].slice(0, 5));
 
-    const canRetryListen = state.canView
-      && Boolean(sessionToken)
-      && cockpitConversationMode
-      && canUseCockpitRecorder
-      && (cockpitMicReady || cockpitVoiceWakeAttempted);
-    if (!canRetryListen) return false;
-
-    if (speakPrompt && !cockpitSpeakingRef.current) {
-      void speakCockpitAnswer(`${retryReason}. ${APEX_COCKPIT_VOICE_RETRY_NOTICE}`);
-      return true;
-    }
-
     clearCockpitResumeListeningTimer();
-    cockpitListeningHandoffPendingRef.current = true;
-    cockpitResumeListeningTimerRef.current = setTimeout(() => {
-      cockpitResumeListeningTimerRef.current = 0;
-      setCockpitListeningHandoffKey((current) => current + 1);
-    }, APEX_COCKPIT_VOICE_RETRY_OPEN_MS);
-    return true;
+    cockpitListeningHandoffPendingRef.current = false;
+    updateCockpitAlwaysOpenMicStatus({
+      state: APEX_ALWAYS_OPEN_MIC_STATE.QUIET,
+      speechDetected: false,
+      feedbackSuppressionActive: false,
+      fallbackReason: retryReason,
+    });
+    return false;
   }
 
   function armCockpitSpeechSafetyTimer(
     textToSpeak = "",
     {
-      minimumMs = 7_000,
+      minimumMs = APEX_COCKPIT_SPEECH_SAFETY_MIN_MS,
+      perCharMs = APEX_COCKPIT_SPEECH_SAFETY_PER_CHAR_MS,
+      maxMs = APEX_COCKPIT_SPEECH_SAFETY_MAX_MS,
       recoveryNotice = "Apex voice safety recovered after playback did not finish cleanly.",
       resumeListening = true,
     } = {},
   ) {
     clearCockpitSpeechSafetyTimer();
-    const timeoutMs = Math.min(24_000, Math.max(minimumMs, String(textToSpeak || "").length * 48));
+    const timeoutMs = Math.min(maxMs, Math.max(minimumMs, String(textToSpeak || "").length * perCharMs));
     cockpitSpeechSafetyTimerRef.current = setTimeout(() => {
       if (!cockpitSpeakingRef.current) return;
       if (!resumeListening) setCockpitAudioReadyState(false);
@@ -7088,11 +9932,141 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     analyser.smoothingTimeConstant = 0.78;
     const source = audioContext.createMediaStreamSource(stream);
     source.connect(analyser);
+    cockpitPcmSampleRateRef.current = audioContext.sampleRate || 0;
+    cockpitPcmChunksRef.current = [];
+    const audioWorkletSupported = Boolean(audioContext.audioWorklet) && typeof AudioWorkletNode !== "undefined";
+    const audioTrack = stream?.getAudioTracks?.()[0] || null;
+    const micDeviceLabel = audioTrack?.label || "";
+    const setMicCalibration = (patch = {}) => {
+      const nextCalibration = createApexCockpitMicCalibrationState({
+        ...cockpitMicCalibrationRef.current,
+        ...patch,
+        inputProvider: "browser",
+        micDeviceLabel: patch.micDeviceLabel || micDeviceLabel || cockpitMicCalibrationRef.current?.micDeviceLabel || "",
+        sampleRate: patch.sampleRate || audioContext.sampleRate || cockpitPcmSampleRateRef.current || 0,
+        audioWorkletSupported,
+      });
+      cockpitMicCalibrationRef.current = nextCalibration;
+      setCockpitMicCalibration(nextCalibration);
+      return nextCalibration;
+    };
+    const appendPcmFrame = (input) => {
+      if (!cockpitRecorderRef.current || cockpitRecorderRef.current.state !== "recording") return;
+      if (!input?.length) return;
+      cockpitPcmChunksRef.current.push(new Float32Array(input));
+      if (!cockpitSpeechStartedRef.current && cockpitPcmChunksRef.current.length > 80) {
+        cockpitPcmChunksRef.current = cockpitPcmChunksRef.current.slice(-80);
+      }
+    };
+    const startScriptProcessorFallback = (reason = "audio-worklet-unavailable") => {
+      if (cockpitPcmProcessorRef.current || typeof audioContext.createScriptProcessor !== "function") {
+        setMicCalibration({
+          status: "fallback",
+          captureProvider: "media-recorder",
+          fallbackCaptureUsed: true,
+          reason: "AudioWorklet and ScriptProcessor PCM capture are unavailable; MediaRecorder remains active.",
+        });
+        return false;
+      }
+      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      const muteGain = typeof audioContext.createGain === "function" ? audioContext.createGain() : null;
+      if (muteGain) muteGain.gain.value = 0;
+      processor.onaudioprocess = (event) => {
+        const input = event.inputBuffer?.getChannelData?.(0);
+        appendPcmFrame(input);
+      };
+      source.connect(processor);
+      if (muteGain) {
+        processor.connect(muteGain);
+        muteGain.connect(audioContext.destination);
+      } else {
+        processor.connect(audioContext.destination);
+      }
+      cockpitPcmProcessorRef.current = processor;
+      cockpitPcmMuteGainRef.current = muteGain;
+      setMicCalibration({
+        status: "calibrating",
+        captureProvider: "script-processor-fallback",
+        fallbackCaptureUsed: true,
+        reason,
+      });
+      return true;
+    };
     const samples = new Uint8Array(analyser.fftSize);
     cockpitVoiceAudioContextRef.current = audioContext;
     cockpitVoiceAnalyserRef.current = analyser;
     cockpitVoiceSourceRef.current = source;
     cockpitVoiceStartedAtRef.current = performance.now();
+    setMicCalibration({
+      status: "calibrating",
+      captureProvider: audioWorkletSupported ? "audio-worklet-starting" : "media-recorder",
+      audioWorkletSupported,
+      audioWorkletActive: false,
+      fallbackCaptureUsed: false,
+      frameCount: 0,
+      peakLevel: 0,
+      noiseFloor: 0,
+      averageLevel: 0,
+      calibratedLevelThreshold: APEX_COCKPIT_LEVEL_THRESHOLD,
+      calibratedIdleLevelThreshold: APEX_COCKPIT_IDLE_LEVEL_THRESHOLD,
+      lastFrameAtMs: 0,
+      lastSignalAtMs: 0,
+      startedAtMs: performance.now(),
+      completedAtMs: 0,
+      signalDetected: false,
+      reason: "Apex is calibrating the browser microphone gate.",
+    });
+
+    if (audioWorkletSupported) {
+      const workletSource = `
+        class ApexPcmCaptureProcessor extends AudioWorkletProcessor {
+          process(inputs) {
+            const input = inputs && inputs[0] && inputs[0][0];
+            if (input && input.length) this.port.postMessage(Float32Array.from(input));
+            return true;
+          }
+        }
+        registerProcessor("apex-pcm-capture", ApexPcmCaptureProcessor);
+      `;
+      const workletUrl = URL.createObjectURL(new Blob([workletSource], { type: "application/javascript" }));
+      cockpitPcmWorkletUrlRef.current = workletUrl;
+      audioContext.audioWorklet.addModule(workletUrl).then(() => {
+        if (cockpitPcmWorkletUrlRef.current === workletUrl) {
+          URL.revokeObjectURL(workletUrl);
+          cockpitPcmWorkletUrlRef.current = "";
+        }
+        if (cockpitVoiceAudioContextRef.current !== audioContext || audioContext.state === "closed") return;
+        const processor = new AudioWorkletNode(audioContext, "apex-pcm-capture");
+        const muteGain = typeof audioContext.createGain === "function" ? audioContext.createGain() : null;
+        if (muteGain) muteGain.gain.value = 0;
+        processor.port.onmessage = (event) => appendPcmFrame(event.data);
+        source.connect(processor);
+        if (muteGain) {
+          processor.connect(muteGain);
+          muteGain.connect(audioContext.destination);
+        } else {
+          processor.connect(audioContext.destination);
+        }
+        cockpitPcmProcessorRef.current = processor;
+        cockpitPcmMuteGainRef.current = muteGain;
+        setMicCalibration({
+          status: "calibrating",
+          captureProvider: "audio-worklet",
+          audioWorkletActive: true,
+          fallbackCaptureUsed: false,
+          reason: "AudioWorklet PCM capture is active.",
+        });
+      }).catch((error) => {
+        if (cockpitPcmWorkletUrlRef.current === workletUrl) {
+          URL.revokeObjectURL(workletUrl);
+          cockpitPcmWorkletUrlRef.current = "";
+        }
+        if (cockpitVoiceAudioContextRef.current !== audioContext || audioContext.state === "closed") return;
+        startScriptProcessorFallback(error?.message || "audio-worklet-failed");
+      });
+    } else {
+      startScriptProcessorFallback("audio-worklet-unavailable");
+    }
 
     const readLevel = () => {
       if (!cockpitVoiceAnalyserRef.current || !cockpitRecorderRef.current || cockpitRecorderRef.current.state !== "recording") return;
@@ -7104,35 +10078,121 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       }
       const level = Math.sqrt(sum / samples.length);
       const now = performance.now();
-      const speakingNow = cockpitSpeakingRef.current;
-      if (speakingNow && cockpitBargeInEnabledRef.current && !cockpitBargeInterruptedRef.current) {
-        if (level > APEX_COCKPIT_BARGE_IN_THRESHOLD && now - cockpitVoiceStartedAtRef.current > APEX_COCKPIT_BARGE_IN_GRACE_MS) {
-          handleCockpitVoiceBargeIn(now);
-        } else {
-          if (now - cockpitLastLevelPaintRef.current > 90) {
-            cockpitLastLevelPaintRef.current = now;
-            setCockpitMicLevel(level * 0.35);
-          }
-          cockpitVoiceFrameRef.current = requestAnimationFrame(readLevel);
-          return;
+      const runtimeState = resolveCockpitAlwaysOpenMicState();
+      const calibration = buildApexCockpitMicCalibrationPatch({
+        current: cockpitMicCalibrationRef.current,
+        level,
+        nowMs: now,
+        captureProvider: cockpitMicCalibrationRef.current?.captureProvider || (audioWorkletSupported ? "audio-worklet-starting" : "media-recorder"),
+        audioWorkletSupported,
+        audioWorkletActive: cockpitMicCalibrationRef.current?.audioWorkletActive === true,
+        fallbackCaptureUsed: cockpitMicCalibrationRef.current?.fallbackCaptureUsed === true,
+        micDeviceLabel,
+        sampleRate: audioContext.sampleRate || 0,
+        frameReceived: true,
+        muted: [APEX_ALWAYS_OPEN_MIC_STATE.SPEAKING, APEX_ALWAYS_OPEN_MIC_STATE.RECOVERING, APEX_ALWAYS_OPEN_MIC_STATE.QUIET].includes(runtimeState),
+      });
+      cockpitMicCalibrationRef.current = calibration;
+      const calibratedLevelThreshold = calibration.calibratedLevelThreshold || APEX_COCKPIT_LEVEL_THRESHOLD;
+      const calibratedIdleLevelThreshold = calibration.calibratedIdleLevelThreshold || APEX_COCKPIT_IDLE_LEVEL_THRESHOLD;
+      const gate = buildApexAlwaysOpenMicTranscriptionGate({
+        state: runtimeState,
+        level,
+        nowMs: now,
+        captureStartedAtMs: cockpitSpeechStartedRef.current ? cockpitVoiceStartedAtRef.current : 0,
+        lastSpeechAtMs: cockpitLastSoundAtRef.current,
+        isSpeaking: cockpitSpeakingRef.current,
+        ttsActive: cockpitSpeakingRef.current,
+        playbackExpected: cockpitSpeakingRef.current || runtimeState === APEX_ALWAYS_OPEN_MIC_STATE.RECOVERING,
+        sustainedSilenceMs: APEX_COCKPIT_SILENCE_MS,
+        minCaptureMs: APEX_COCKPIT_MIN_TURN_MS,
+        levelThreshold: calibratedLevelThreshold,
+        idleLevelThreshold: calibratedIdleLevelThreshold,
+        ingressProvider: "browser",
+        vadProvider: "amplitude-gate",
+      });
+      cockpitLastAlwaysOpenGateRef.current = gate;
+
+      if (gate.muted || gate.shouldDropFrame) {
+        recordCockpitMutedMicFrame(gate.reason || "Apex voice feedback suppression");
+        if (now - cockpitLastLevelPaintRef.current > 90) {
+          cockpitLastLevelPaintRef.current = now;
+          setCockpitMicLevel(0);
         }
+        cockpitVoiceFrameRef.current = requestAnimationFrame(readLevel);
+        return;
       }
-      if (level > APEX_COCKPIT_LEVEL_THRESHOLD) {
+
+      if (gate.speechDetected) {
+        clearCockpitNoVoiceTimer();
+        if (!cockpitSpeechStartedRef.current) {
+          cockpitVoiceStartedAtRef.current = now;
+          cockpitDroppedMicFrameCountRef.current = 0;
+        }
         cockpitSpeechStartedRef.current = true;
         cockpitLastSoundAtRef.current = now;
         setCockpitSpeechActive(true);
-      } else if (level < APEX_COCKPIT_IDLE_LEVEL_THRESHOLD && cockpitSpeechStartedRef.current) {
-        const turnDuration = now - cockpitVoiceStartedAtRef.current;
-        const silenceDuration = now - cockpitLastSoundAtRef.current;
-        if (turnDuration > APEX_COCKPIT_MIN_TURN_MS && silenceDuration > APEX_COCKPIT_SILENCE_MS) {
-          finishCockpitVoiceTurn();
-          return;
-        }
+        updateCockpitAlwaysOpenMicStatus({
+          state: APEX_ALWAYS_OPEN_MIC_STATE.CAPTURING,
+          speechDetected: true,
+          captureDurationMs: gate.captureDurationMs,
+          silenceDurationMs: gate.silenceDurationMs,
+          feedbackSuppressionActive: false,
+          fallbackReason: "",
+          levelThreshold: calibratedLevelThreshold,
+          idleLevelThreshold: calibratedIdleLevelThreshold,
+        });
+      } else if (gate.shouldTranscribe || gate.readyForTranscription) {
+        clearCockpitNoVoiceTimer();
+        updateCockpitAlwaysOpenMicStatus({
+          state: APEX_ALWAYS_OPEN_MIC_STATE.PROCESSING,
+          speechDetected: true,
+          captureDurationMs: gate.captureDurationMs,
+          silenceDurationMs: gate.silenceDurationMs,
+          feedbackSuppressionActive: false,
+          fallbackReason: "Sustained silence reached; sending completed turn to local STT.",
+          levelThreshold: calibratedLevelThreshold,
+          idleLevelThreshold: calibratedIdleLevelThreshold,
+        });
+        const alwaysOpenMicReceipt = buildApexAlwaysOpenMicReceipt({
+          ...buildCockpitAlwaysOpenMicPacket(gate),
+          state: APEX_ALWAYS_OPEN_MIC_STATE.PROCESSING,
+          status: "processing",
+          speechDetected: true,
+          captureDurationMs: gate.captureDurationMs,
+          silenceDurationMs: gate.silenceDurationMs,
+          droppedFramesWhileMuted: cockpitDroppedMicFrameCountRef.current,
+        });
+        finishCockpitVoiceTurn({ alwaysOpenMic: alwaysOpenMicReceipt });
+        return;
+      } else if (cockpitSpeechStartedRef.current) {
+        updateCockpitAlwaysOpenMicStatus({
+          state: APEX_ALWAYS_OPEN_MIC_STATE.CAPTURING,
+          speechDetected: true,
+          captureDurationMs: gate.captureDurationMs,
+          silenceDurationMs: gate.silenceDurationMs,
+          feedbackSuppressionActive: false,
+          levelThreshold: calibratedLevelThreshold,
+          idleLevelThreshold: calibratedIdleLevelThreshold,
+        });
+      } else {
+        updateCockpitAlwaysOpenMicStatus({
+          state: APEX_ALWAYS_OPEN_MIC_STATE.STANDBY,
+          speechDetected: false,
+          feedbackSuppressionActive: false,
+          fallbackReason: "",
+          levelThreshold: calibratedLevelThreshold,
+          idleLevelThreshold: calibratedIdleLevelThreshold,
+        });
       }
 
       if (now - cockpitLastLevelPaintRef.current > 90) {
         cockpitLastLevelPaintRef.current = now;
         setCockpitMicLevel(level);
+      }
+      if (now - cockpitMicCalibrationPaintRef.current > 120) {
+        cockpitMicCalibrationPaintRef.current = now;
+        setCockpitMicCalibration(calibration);
       }
       cockpitVoiceFrameRef.current = requestAnimationFrame(readLevel);
     };
@@ -7164,13 +10224,17 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       cockpitSpeechRecognitionRef.current = null;
     }
     if (clearTranscript) {
-      cockpitBrowserTranscriptRef.current = "";
-      setCockpitBrowserTranscript("");
+      resetCockpitBrowserCaptionTurn();
     }
     setCockpitRecognitionStatus((current) => (current === "unavailable" ? "unavailable" : "standby"));
   }
 
   function startCockpitSpeechRecognition({ clearTranscript = true } = {}) {
+    if (conversationFirst) {
+      setCockpitRecognitionStatus("unavailable");
+      setCockpitRecognitionError("");
+      return false;
+    }
     const SpeechRecognitionCtor = getApexCockpitSpeechRecognitionCtor();
     if (!SpeechRecognitionCtor) {
       setCockpitRecognitionStatus("unavailable");
@@ -7191,6 +10255,20 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
         setCockpitRecognitionError("");
       };
       recognition.onresult = (event) => {
+        const runtimeState = resolveCockpitAlwaysOpenMicState();
+        const captionGate = buildApexAlwaysOpenMicTranscriptionGate({
+          state: runtimeState,
+          isSpeaking: cockpitSpeakingRef.current,
+          ttsActive: cockpitSpeakingRef.current,
+          playbackExpected: cockpitSpeakingRef.current || runtimeState === APEX_ALWAYS_OPEN_MIC_STATE.RECOVERING,
+          ingressProvider: "browser",
+          vadProvider: "browser-caption-gate",
+          sustainedSilenceMs: APEX_COCKPIT_SILENCE_MS,
+        });
+        if (captionGate.muted || captionGate.shouldDropFrame) {
+          recordCockpitMutedMicFrame(captionGate.reason || "Apex voice feedback suppression");
+          return;
+        }
         let finalText = "";
         let interimText = "";
         for (let index = event.resultIndex || 0; index < event.results.length; index += 1) {
@@ -7206,15 +10284,19 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
         }
         if (finalText) {
           const combinedTranscript = `${cockpitBrowserTranscriptRef.current || ""} ${finalText}`.trim();
-          cockpitBrowserTranscriptRef.current = combinedTranscript;
-          setCockpitBrowserTranscript(combinedTranscript);
-          setAskQuestion(combinedTranscript);
+          const doneTalking = hasApexCockpitDoneTalkingCue(combinedTranscript);
+          const cleanCombinedTranscript = stripApexCockpitDoneTalkingCue(combinedTranscript) || combinedTranscript;
+          cockpitBrowserTranscriptRef.current = cleanCombinedTranscript;
+          cockpitBrowserTranscriptCaptureIdRef.current = cockpitCurrentCaptureIdRef.current;
+          setCockpitBrowserTranscript(cleanCombinedTranscript);
+          setAskQuestion(cleanCombinedTranscript);
           cockpitSpeechStartedRef.current = true;
           cockpitLastSoundAtRef.current = now;
           setCockpitSpeechActive(true);
           setCockpitRecognitionStatus("captioning");
-          setCockpitVoiceNotice(cockpitBargeInterruptedRef.current ? `Barge-in captions heard: "${combinedTranscript}"` : `Browser captions heard: "${combinedTranscript}"`);
-          scheduleCockpitCaptionFinalTurn(combinedTranscript);
+          setCockpitVoiceNotice(cockpitBargeInterruptedRef.current ? `Barge-in captions heard: "${cleanCombinedTranscript}"` : `Browser captions heard: "${cleanCombinedTranscript}"`);
+          if (doneTalking) finishCockpitVoiceTurn({ fallbackTranscript: cleanCombinedTranscript });
+          else scheduleCockpitCaptionFinalTurn(cleanCombinedTranscript);
         } else if (interimText) {
           setCockpitBrowserTranscript(interimText);
           setAskQuestion(interimText);
@@ -7318,7 +10400,11 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     cockpitSpeakingRef.current = false;
     setCockpitSpeaking(false);
     setCockpitVoiceNotice(notice);
-    if (resumeListening) scheduleCockpitListeningAfterSpeech(notice || APEX_COCKPIT_LISTENING_HANDOFF_NOTICE);
+    if (resumeListening) {
+      scheduleCockpitListeningAfterSpeech(notice || APEX_COCKPIT_LISTENING_HANDOFF_NOTICE);
+    } else if (cockpitAutoListeningRef.current) {
+      markCockpitVoiceRecovering(notice);
+    }
   }
 
   function speakCockpitBrowserFallback(textToSpeak, fallbackMessage = "Apex is speaking with browser voice fallback.") {
@@ -7328,6 +10414,11 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       voiceHint: cockpitVoiceProfileConfig.label,
       onStart: () => {
         setCockpitAudioReadyState(true);
+        updateCockpitAlwaysOpenMicStatus({
+          state: APEX_ALWAYS_OPEN_MIC_STATE.SPEAKING,
+          feedbackSuppressionActive: true,
+          fallbackReason: "Browser fallback voice is speaking.",
+        });
       },
       onEnd: () => {
         setCockpitAudioReadyState(true);
@@ -7343,7 +10434,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
         cockpitSpeakingRef.current = false;
         setCockpitSpeaking(false);
         setCockpitAudioReadyState(false);
-        if (!scheduleCockpitListeningAfterSpeech("Browser voice playback could not start. Apex is listening for your next turn.")) {
+        if (!scheduleCockpitListeningAfterSpeech("Browser voice playback could not start. Apex is quiet until John starts the next turn.")) {
           setCockpitVoiceNotice("Browser voice playback could not start. Run Sound Check and allow site sound.");
         }
       },
@@ -7352,7 +10443,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       clearCockpitSpeechSafetyTimer();
       setCockpitSpeaking(false);
       setCockpitAudioReadyState(false);
-      if (!scheduleCockpitListeningAfterSpeech("This browser does not support speech playback here. Apex is listening for your next turn.")) {
+      if (!scheduleCockpitListeningAfterSpeech("This browser does not support speech playback here. Apex is quiet until John starts the next turn.")) {
         setCockpitVoiceNotice("This browser does not support speech playback here.");
       }
       return;
@@ -7360,32 +10451,214 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     setCockpitVoiceNotice(fallbackMessage);
   }
 
-  async function speakCockpitAnswer(textToSpeak = cockpitAnswerText) {
-    const answerToSpeak = textToSpeak.trim();
+  async function speakCockpitAnswer(textToSpeak = cockpitAnswerText, { voiceTurnId = "", voiceTurnStartedAt = 0, voiceInputMode = "" } = {}) {
+    const fullAnswerText = String(textToSpeak || "").trim();
+    const answerToSpeak = buildApexCockpitFastSpeechText(fullAnswerText);
     if (!answerToSpeak) return;
+    cockpitCurrentSpeechInputModeRef.current = voiceInputMode || (voiceTurnId ? cockpitLastVoiceInputModeRef.current : "") || "";
+    const speechKey = normalizeApexCockpitLoopText(answerToSpeak).slice(0, 520);
+    const lastSpoken = cockpitLastSpokenAnswerRef.current || { key: "", at: 0 };
+    const now = Date.now();
+    const duplicateWindowMs = isApexCockpitLoopProneSpeech(answerToSpeak)
+      ? APEX_COCKPIT_DUPLICATE_STATUS_SPEECH_MS
+      : APEX_COCKPIT_DUPLICATE_SPEECH_MS;
+    if (speechKey && lastSpoken.key === speechKey && now - Number(lastSpoken.at || 0) < duplicateWindowMs) {
+      setCockpitVoiceNotice("Apex held a duplicate spoken answer and is listening.");
+      if (voiceTurnId) {
+        updateCockpitVoiceTimingReceipt({
+          turnId: voiceTurnId,
+          startedAt: voiceTurnStartedAt,
+          status: "duplicate-speech-held",
+          timingMs: {
+            duplicateSpeechHoldMs: Math.max(0, now - Number(lastSpoken.at || 0)),
+          },
+        });
+      }
+      scheduleCockpitListeningAfterSpeech("Apex held a duplicate spoken answer and is listening.");
+      return;
+    }
+    cockpitLastSpokenAnswerRef.current = {
+      key: speechKey,
+      text: answerToSpeak,
+      at: now,
+    };
     primeCockpitAudioOutput();
     stopBrowserVoice(cockpitAudioRef);
     cockpitSpeakingRef.current = true;
     setCockpitSpeaking(true);
+    updateCockpitAlwaysOpenMicStatus({
+      state: APEX_ALWAYS_OPEN_MIC_STATE.SPEAKING,
+      speechDetected: false,
+      feedbackSuppressionActive: true,
+      fallbackReason: "Apex is speaking.",
+    });
     startCockpitOutputLevelMonitor();
     armCockpitSpeechSafetyTimer(answerToSpeak);
     setCockpitVoiceNotice("");
+    if (conversationFirst) {
+      if (!sessionToken) {
+        speakCockpitBrowserFallback(answerToSpeak, "Local voice needs the private operator session. Browser playback is fallback-only; OpenAI audio was not used.");
+        return;
+      }
+      try {
+        const ttsRequestStartedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+        const payload = await speakApexOsLocalVoice(sessionToken, {
+          turnId: voiceTurnId,
+          text: answerToSpeak,
+          voice: cockpitVoiceProfile,
+          voiceMode: APEX_COCKPIT_USE_FAST_SIMPLE_VOICE ? "fast-fallback" : "apex",
+          preferFastVoice: APEX_COCKPIT_USE_FAST_SIMPLE_VOICE,
+        });
+        const ttsRequestMs = Math.max(0, Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - ttsRequestStartedAt));
+        if (voiceTurnId) {
+          updateCockpitVoiceTimingReceipt({
+            turnId: voiceTurnId,
+            startedAt: voiceTurnStartedAt,
+            status: "tts-ready",
+            engine: payload?.engine || payload?.selectedTtsEngine || "",
+            timingMs: {
+              ttsRequestMs,
+              ttsGenerationMs: Number(payload?.generationTimingMs || payload?.receipt?.generationTimingMs || 0) || 0,
+            },
+            ttsProvider: payload?.ttsProvider || payload?.selectedTtsEngine || "",
+            ttsEngine: payload?.engine || "",
+          });
+        }
+        if (payload?.localVoiceStatus) setCockpitLocalVoiceStatus(payload.localVoiceStatus);
+        if (payload?.audioBase64 && payload?.contentType) {
+          const playbackAttemptStartedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+          let playbackStartedAt = 0;
+          const playbackMode = await playApexVoiceAudio({
+            audioBase64: payload.audioBase64,
+            contentType: payload.contentType,
+            audioRef: cockpitAudioRef,
+            unlockedRef: cockpitAudioUnlockedRef,
+            onEnd: () => {
+              if (voiceTurnId) {
+                updateCockpitVoiceTimingReceipt({
+                  turnId: voiceTurnId,
+                  startedAt: voiceTurnStartedAt,
+                  status: "spoken",
+                  timingMs: {
+                    playbackDurationMs: playbackStartedAt ? Math.max(0, Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - playbackStartedAt)) : 0,
+                  },
+                });
+              }
+              setCockpitAudioReadyState(true);
+              stopCockpitOutputLevelMonitor();
+              clearCockpitSpeechSafetyTimer();
+              cockpitSpeakingRef.current = false;
+              setCockpitSpeaking(false);
+              scheduleCockpitListeningAfterSpeech();
+            },
+            onPlaybackError: () => {
+              if (voiceTurnId) {
+                updateCockpitVoiceTimingReceipt({
+                  turnId: voiceTurnId,
+                  startedAt: voiceTurnStartedAt,
+                  status: "playback-failed",
+                  failureReason: "playback-failed",
+                });
+              }
+              setCockpitAudioReadyState(false);
+              speakCockpitBrowserFallback(answerToSpeak, "Local TTS produced audio but playback failed. Browser playback is fallback-only; OpenAI audio was not used.");
+            },
+          });
+          if (playbackMode) {
+            playbackStartedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+            armCockpitSpeechSafetyTimer(answerToSpeak, {
+              recoveryNotice: "Apex voice playback took too long, so I stopped it before it could loop.",
+            });
+            if (voiceTurnId) {
+              updateCockpitVoiceTimingReceipt({
+                turnId: voiceTurnId,
+                startedAt: voiceTurnStartedAt,
+                status: "playing",
+                timingMs: {
+                  playbackStartDelayMs: Math.max(0, Math.round(playbackStartedAt - playbackAttemptStartedAt)),
+                },
+                playbackMode,
+              });
+            }
+            setCockpitAudioReadyState(true);
+            setCockpitVoiceNotice(payload.aiDisclosure || "Apex spoke with local TTS. OpenAI audio was not used.");
+            return;
+          }
+        }
+        const missing = payload?.error || payload?.localVoiceStatus?.missing?.join(" ") || "Local TTS is not ready yet.";
+        if (voiceTurnId) {
+          updateCockpitVoiceTimingReceipt({
+            turnId: voiceTurnId,
+            startedAt: voiceTurnStartedAt,
+            status: "tts-fallback",
+            failureReason: "tts-fallback",
+          });
+        }
+        speakCockpitBrowserFallback(payload?.fallbackText || answerToSpeak, `${missing} Browser playback is fallback-only; OpenAI audio was not used. The typed answer stays visible.`);
+        return;
+      } catch (speechError) {
+        const missing = isApexCockpitAuthRequiredError(speechError)
+          ? apexCockpitLocalVoiceAuthRecoveryText()
+          : speechError?.payload?.error || speechError?.message || "Local TTS endpoint is unavailable.";
+        if (voiceTurnId) {
+          updateCockpitVoiceTimingReceipt({
+            turnId: voiceTurnId,
+            startedAt: voiceTurnStartedAt,
+            status: "tts-error",
+            failureReason: "tts-error",
+          });
+        }
+        speakCockpitBrowserFallback(answerToSpeak, `${missing} Browser playback is fallback-only; OpenAI audio was not used. The typed answer stays visible.`);
+      }
+      return;
+    }
     if (!sessionToken) {
       speakCockpitBrowserFallback(answerToSpeak, "Server speech is not available in this session; browser voice is speaking.");
       return;
     }
     try {
-      const payload = await speakApexOsVoice(sessionToken, {
+      const ttsRequestStartedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+      const payload = await speakApexOsLocalVoice(sessionToken, {
+        turnId: voiceTurnId,
         text: answerToSpeak,
         voice: cockpitVoiceProfile,
+        voiceMode: APEX_COCKPIT_USE_FAST_SIMPLE_VOICE ? "fast-fallback" : "apex",
+        preferFastVoice: APEX_COCKPIT_USE_FAST_SIMPLE_VOICE,
       });
+      const ttsRequestMs = Math.max(0, Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - ttsRequestStartedAt));
+      if (voiceTurnId) {
+        updateCockpitVoiceTimingReceipt({
+          turnId: voiceTurnId,
+          startedAt: voiceTurnStartedAt,
+          status: "tts-ready",
+          engine: payload?.engine || payload?.selectedTtsEngine || "",
+          timingMs: {
+            ttsRequestMs,
+            ttsGenerationMs: Number(payload?.generationTimingMs || payload?.receipt?.generationTimingMs || 0) || 0,
+          },
+          ttsProvider: payload?.ttsProvider || payload?.selectedTtsEngine || "",
+          ttsEngine: payload?.engine || "",
+        });
+      }
       if (payload?.audioBase64 && payload?.contentType) {
+        const playbackAttemptStartedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+        let playbackStartedAt = 0;
         const playbackMode = await playApexVoiceAudio({
           audioBase64: payload.audioBase64,
           contentType: payload.contentType,
           audioRef: cockpitAudioRef,
           unlockedRef: cockpitAudioUnlockedRef,
           onEnd: () => {
+            if (voiceTurnId) {
+              updateCockpitVoiceTimingReceipt({
+                turnId: voiceTurnId,
+                startedAt: voiceTurnStartedAt,
+                status: "spoken",
+                timingMs: {
+                  playbackDurationMs: playbackStartedAt ? Math.max(0, Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - playbackStartedAt)) : 0,
+                },
+              });
+            }
             setCockpitAudioReadyState(true);
             stopCockpitOutputLevelMonitor();
             clearCockpitSpeechSafetyTimer();
@@ -7394,11 +10667,34 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
             scheduleCockpitListeningAfterSpeech();
           },
           onPlaybackError: () => {
+            if (voiceTurnId) {
+              updateCockpitVoiceTimingReceipt({
+                turnId: voiceTurnId,
+                startedAt: voiceTurnStartedAt,
+                status: "playback-failed",
+                failureReason: "playback-failed",
+              });
+            }
             setCockpitAudioReadyState(false);
             speakCockpitBrowserFallback(answerToSpeak, "Apex speech audio stopped, so browser voice fallback is speaking.");
           },
         });
-        if (playbackMode) {
+          if (playbackMode) {
+            playbackStartedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+            armCockpitSpeechSafetyTimer(answerToSpeak, {
+              recoveryNotice: "Apex voice playback took too long, so I stopped it before it could loop.",
+            });
+            if (voiceTurnId) {
+              updateCockpitVoiceTimingReceipt({
+              turnId: voiceTurnId,
+              startedAt: voiceTurnStartedAt,
+              status: "playing",
+              timingMs: {
+                playbackStartDelayMs: Math.max(0, Math.round(playbackStartedAt - playbackAttemptStartedAt)),
+              },
+              playbackMode,
+            });
+          }
           setCockpitAudioReadyState(true);
           setCockpitVoiceNotice(payload.aiDisclosure || "Apex OS voice output is AI-generated.");
           return;
@@ -7406,9 +10702,12 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
         speakCockpitBrowserFallback(answerToSpeak, "Apex speech audio could not start, so browser voice fallback is speaking.");
         return;
       }
-      speakCockpitBrowserFallback(payload?.fallbackText || answerToSpeak, payload?.providerConfigured ? "Speech provider fallback is active; browser voice is speaking." : "Server speech is not configured; browser voice is speaking.");
+      speakCockpitBrowserFallback(payload?.fallbackText || answerToSpeak, payload?.providerConfigured ? "Speech provider fallback is active; browser voice is speaking. The typed answer stays visible." : "Server speech is not configured; browser voice is speaking. The typed answer stays visible.");
     } catch (speechError) {
-      speakCockpitBrowserFallback(answerToSpeak, speechError?.message ? `Speech endpoint unavailable; browser voice is speaking. ${speechError.message}` : "Speech endpoint unavailable; browser voice is speaking.");
+      const missing = isApexCockpitAuthRequiredError(speechError)
+        ? apexCockpitLocalVoiceAuthRecoveryText()
+        : speechError?.message ? `Speech endpoint unavailable; browser voice is speaking. ${speechError.message}` : "Speech endpoint unavailable; browser voice is speaking.";
+      speakCockpitBrowserFallback(answerToSpeak, missing);
     }
   }
 
@@ -7420,7 +10719,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     setCockpitProactiveVoiceStatus("Queued");
     setCockpitProactiveVoiceQueueKey((current) => current + 1);
     const reasonText = reason === "wake-required"
-      ? "Wake Apex once and I will speak this proactive check-in."
+      ? "Allow microphone access and I will speak this proactive check-in."
       : reason === "auto-drive-handback"
         ? "Apex queued the proactive check-in until the Auto Drive handback clears."
         : "Apex queued the proactive check-in until the live voice turn is clear.";
@@ -7432,11 +10731,18 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     if (!checkIn?.shouldSurface || !state.canView || !sessionToken) return false;
     const signature = checkIn.signature || "";
     if (signature && cockpitLastSpokenProactiveSignatureRef.current === signature) return false;
+    if (reason !== "manual" && isApexCockpitReviewGateCheckIn(checkIn)) {
+      if (signature) cockpitLastSpokenProactiveSignatureRef.current = signature;
+      cockpitPendingProactiveVoiceRef.current = null;
+      setCockpitProactiveVoiceStatus("Manual");
+      setCockpitVoiceNotice("Apex surfaced the review-gate state silently and kept listening.");
+      return false;
+    }
     if (!cockpitConversationMode || !cockpitAutoListening) {
       setCockpitProactiveVoiceStatus("Manual");
       return false;
     }
-    if (cockpitNeedsWake && !cockpitVoiceWakeAttempted && !cockpitMicReady) {
+    if (cockpitNeedsWake && cockpitMicPermissionState === "denied" && !cockpitMicReady) {
       return queueCockpitProactiveVoice(checkIn, "wake-required");
     }
     const recentAutoDriveHandback = cockpitLastAutoDriveHandbackAtRef.current
@@ -7485,7 +10791,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
         setCockpitLivePulseError(message);
         if (!automatic) setCockpitVoiceNotice(message);
       } else if (!automatic) {
-        setCockpitVoiceNotice("Live pulse refreshed from build, briefing, and run status. External actions stayed locked.");
+        setCockpitVoiceNotice("Live pulse refreshed from build, briefing, and run status. Consequential external actions stayed gated.");
       }
       return pulse;
     } catch (error) {
@@ -7501,12 +10807,13 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   function syncCockpitLiveRunsFromPayload(payload = {}, preferredRunId = "") {
     const nextRuns = listApexCockpitRunRows(payload.apexOsAutonomyRuns);
     if (!nextRuns.length) return;
+    const nextHomeRuns = listApexCockpitHomeRunRows(nextRuns);
     setCockpitLiveRuns(nextRuns);
     setCockpitLiveRunSummary(payload.summary || {});
     setCockpitActiveRunId((current) => {
-      if (preferredRunId && nextRuns.some((run) => run.id === preferredRunId)) return preferredRunId;
-      if (current && nextRuns.some((run) => run.id === current)) return current;
-      return nextRuns.find((run) => !["done", "archived"].includes(String(run.status || "").toLowerCase()))?.id || nextRuns[0]?.id || "";
+      if (preferredRunId && nextHomeRuns.some((run) => run.id === preferredRunId)) return preferredRunId;
+      if (current && nextHomeRuns.some((run) => run.id === current)) return current;
+      return nextHomeRuns.find((run) => !["done", "archived"].includes(String(run.status || "").toLowerCase()))?.id || "";
     });
   }
 
@@ -7518,6 +10825,24 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
         : [];
     if (!memoryRows.length) return;
     setCockpitLiveOperatorMemory(buildApexCockpitLiveOperatorMemorySnapshot(memoryRows));
+  }
+
+  function clearCockpitHomeSurface({ notice = "Screen cleared to the calm Apex conversation surface." } = {}) {
+    setCockpitError("");
+    setCockpitAgentActionNotice("");
+    setCockpitLiveRunNotice("");
+    setCockpitFocusDrawer("");
+    setCockpitConsoleTab("live");
+    setCockpitSpotlightMode(true);
+    setCockpitProactiveCheckIn(null);
+    setCockpitActiveRunId("");
+    setCockpitVoiceRetryReason("");
+    setCockpitVoiceRetryCount(0);
+    cockpitVoiceRetryCountRef.current = 0;
+    cockpitLastProactiveSignatureRef.current = "";
+    cockpitPendingProactiveVoiceRef.current = null;
+    setCockpitProactiveVoiceStatus("Watching");
+    setCockpitVoiceNotice(notice);
   }
 
   async function reviewCockpitRunMemory(status) {
@@ -7595,7 +10920,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       },
     });
     setCockpitLastQuestion("Operator judgment");
-    setCockpitVoiceNotice("Apex operator judgment is ready. Execution stayed locked.");
+    setCockpitVoiceNotice("Apex operator judgment is ready. Consequential actions stayed gated.");
     setCockpitTurns((current) => [
       {
         id: `cockpit-judgment-${Date.now()}`,
@@ -7624,7 +10949,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       },
     });
     setCockpitLastQuestion("Watch officer");
-    setCockpitVoiceNotice("Apex watch officer report is ready. Execution stayed locked.");
+    setCockpitVoiceNotice("Apex watch officer report is ready. Consequential actions stayed gated.");
     setCockpitTurns((current) => [
       {
         id: `cockpit-watch-officer-${Date.now()}`,
@@ -7653,7 +10978,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       },
     });
     setCockpitLastQuestion("Mission brief");
-    setCockpitVoiceNotice("Apex mission brief is ready. Execution stayed locked.");
+    setCockpitVoiceNotice("Apex mission brief is ready. Consequential actions stayed gated.");
     setCockpitTurns((current) => [
       {
         id: `cockpit-mission-brief-${Date.now()}`,
@@ -7682,7 +11007,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       },
     });
     setCockpitLastQuestion("Live session heartbeat");
-    setCockpitVoiceNotice("Apex live session heartbeat is ready. Execution stayed locked.");
+    setCockpitVoiceNotice("Apex live session heartbeat is ready. Consequential actions stayed gated.");
     setCockpitTurns((current) => [
       {
         id: `cockpit-heartbeat-${Date.now()}`,
@@ -7713,7 +11038,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       },
     });
     setCockpitLastQuestion("Operator handback");
-    setCockpitVoiceNotice("Apex operator handback is ready. Execution stayed locked.");
+    setCockpitVoiceNotice("Apex operator handback is ready. Consequential actions stayed gated.");
     setCockpitTurns((current) => [
       {
         id: `cockpit-handback-${Date.now()}`,
@@ -7742,7 +11067,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       },
     });
     setCockpitLastQuestion("Closing report");
-    setCockpitVoiceNotice("Apex live operator closing report is ready. Execution stayed locked.");
+    setCockpitVoiceNotice("Apex live operator closing report is ready. Consequential actions stayed gated.");
     setCockpitTurns((current) => [
       {
         id: `cockpit-closing-report-${Date.now()}`,
@@ -7773,7 +11098,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       },
     });
     setCockpitLastQuestion("Proactive check-in");
-    setCockpitVoiceNotice(checkIn.voiceNotice || "Apex proactive check-in is ready. Execution stayed locked.");
+    setCockpitVoiceNotice(checkIn.voiceNotice || "Apex proactive check-in is ready. Consequential actions stayed gated.");
     setCockpitTurns((current) => [
       {
         id: `cockpit-proactive-manual-${Date.now()}`,
@@ -7857,7 +11182,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     });
     setAskQuestion(safePrompt.question);
     setCockpitCommandRoute(route);
-    setCockpitVoiceNotice(`Next turn loaded: ${safePrompt.label}. Press Ask or say it out loud; execution stays locked.`);
+    setCockpitVoiceNotice(`Next turn loaded: ${safePrompt.label}. Press Ask or say it out loud; consequential actions stay gated.`);
   }
 
   async function createCockpitAgentRequestFromCommand(question = cockpitLastQuestion || askQuestion || cockpitCommandRoute.label, route = cockpitCommandRoute, { turnId = "" } = {}) {
@@ -7869,8 +11194,8 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       const payload = await createApexOsAgentControlRequest(sessionToken, draft);
       const created = payload?.apexOsAgentControlRequest;
       setCockpitAgentActionNotice(created?.id
-        ? `Locked agent-control request ${created.id} saved. Execution remains locked.`
-        : "Locked agent-control request saved. Execution remains locked.");
+        ? `Locked agent-control request ${created.id} saved. Agent execution remains gated.`
+        : "Locked agent-control request saved. Agent execution remains gated.");
       setCockpitTurns((current) => current.map((turn) => (turn.id === turnId ? { ...turn, status: "agent-requested" } : turn)));
       return created || null;
     } catch (error) {
@@ -7880,6 +11205,248 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     } finally {
       setCockpitCreatingAgentRequest(false);
     }
+  }
+
+  async function createCockpitBuilderTaskFromCommand(question = cockpitLastQuestion || askQuestion || "Check the Apex HQ app", route = cockpitCommandRoute, { turnId = "" } = {}) {
+    if (!state.canView || !sessionToken || cockpitCreatingLiveRun) return null;
+    const request = String(question || "").trim() || "Track the next Apex HQ builder task.";
+    const runTurnId = turnId || `cockpit-builder-task-${Date.now()}`;
+    setCockpitCreatingLiveRun(true);
+    setCockpitLiveRunNotice("Creating private builder task. Apex will track this locally and keep consequential actions gated.");
+    setCockpitAgentActionNotice("Creating private builder task in Apex's existing run ledger. No deploy or file edit will run from this action.");
+    if (!turnId) {
+      setCockpitTurns((current) => [
+        {
+          id: runTurnId,
+          question: request,
+          source: "builder-task",
+          routeLabel: "Apex Builder Mode",
+          status: "saving-builder-task",
+        },
+        ...current,
+      ].slice(0, 5));
+    }
+    try {
+      const payload = await createApexOsAutonomyRun(sessionToken, {
+        request,
+        routeId: "apex-builder-mode",
+        routeLabel: "Apex Builder Mode",
+        routeDetail: route?.detail || "Private Apex Builder Mode task for local app work.",
+        sourceLabel: "Apex Builder Mode",
+        sourceUri: "apex://builder-mode",
+        operatorNote: "Created from Apex Home Builder Mode. Safe local checks and private tracking are allowed; deploy, production mutation, schema/auth/session, deletion, sends, spend, orders, booking, permission weakening, and uncontrolled file edits stay blocked.",
+      });
+      const created = payload?.apexOsAutonomyRun;
+      syncCockpitLiveRunsFromPayload(payload, created?.id || "");
+      const notice = created?.id
+        ? `Builder task ${created.id} saved. Apex can track it, run fixed local checks, and report progress from Builder Mode.`
+        : "Builder task saved. Apex can track it, run fixed local checks, and report progress from Builder Mode.";
+      setCockpitLiveRunNotice(notice);
+      setCockpitAgentActionNotice(`${notice} Consequential actions stayed gated.`);
+      setCockpitResponse({
+        answer: {
+          answer: `${notice} Next: refresh build awareness or run a focused local validation check.`,
+          sourceLabels: ["Apex Builder Mode", "Autonomy Run Center", "Build awareness"],
+        },
+      });
+      setCockpitTurns((current) => current.map((turn) => (turn.id === runTurnId ? { ...turn, status: "builder-task-created" } : turn)));
+      refreshCockpitLivePulse({ automatic: true });
+      return created || null;
+    } catch (error) {
+      const message = error?.message || "Builder task could not be saved.";
+      setCockpitLiveRunNotice(message);
+      setCockpitAgentActionNotice(message);
+      setCockpitTurns((current) => current.map((turn) => (turn.id === runTurnId ? { ...turn, status: "blocked" } : turn)));
+      return null;
+    } finally {
+      setCockpitCreatingLiveRun(false);
+    }
+  }
+
+  async function runCockpitBuilderFixFromCommand(question = cockpitLastQuestion || askQuestion || "Run a focused Apex Builder fix", route = cockpitCommandRoute, { turnId = "", selfFixPatchHandoff = null, selfFixAutoDispatch = false } = {}) {
+    if (!state.canView || !sessionToken || cockpitCreatingLiveRun) return null;
+    const request = String(question || "").trim() || "Run a controlled local Builder Mode fix.";
+    const fixTurnId = turnId || `cockpit-builder-fix-${Date.now()}`;
+    setCockpitCreatingLiveRun(true);
+    setCockpitLiveRunNotice(selfFixAutoDispatch
+      ? "Dispatching Self-Fix to controlled Builder tooling. Apex will report the short result first."
+      : "Running controlled local fix. Apex will stay inside allowlisted local Builder Mode profiles.");
+    setCockpitAgentActionNotice(selfFixAutoDispatch
+      ? "Apex is auto-dispatching a private local fix through controlled Builder tooling. Consequential actions stay stopped."
+      : "Apex is attempting a controlled local fix. Deploy, production, schema/auth/session, deletion, sends, spend, orders, booking, permission changes, and broad rewrites stay blocked.");
+    if (!turnId) {
+      setCockpitTurns((current) => [
+        {
+          id: fixTurnId,
+          question: request,
+          source: selfFixAutoDispatch ? "self-fix-v2" : "builder-fix",
+          routeLabel: selfFixAutoDispatch ? "Apex Self-Fix v2" : "Apex Builder Mode",
+          status: selfFixAutoDispatch ? "self-fix-dispatching" : "running-controlled-fix",
+        },
+        ...current,
+      ].slice(0, 5));
+    }
+    try {
+      const payload = await runApexOsBuilderFix(sessionToken, {
+        request,
+        selfFixPatchHandoff: selfFixPatchHandoff || undefined,
+        source: selfFixAutoDispatch ? "apex-home-self-fix-v2" : "apex-home-builder-mode",
+        applyPatch: true,
+        runValidation: true,
+      });
+      const fixRun = payload?.fixRun;
+      const dispatchReceipt = fixRun?.selfFixAutoDispatch || null;
+      if (dispatchReceipt) setCockpitSelfFixDispatchReceipt(dispatchReceipt);
+      const notice = selfFixAutoDispatch
+        ? (dispatchReceipt?.shortAnswer || fixRun?.receipt || "Handled. Result recorded.")
+        : (fixRun?.receipt || "Controlled local fix finished.");
+      if (fixRun && typeof onBuilderFixReceipt === "function") onBuilderFixReceipt(fixRun);
+      setCockpitLiveRunNotice(notice);
+      setCockpitAgentActionNotice(dispatchReceipt?.receipt || notice);
+      setCockpitResponse({
+        answer: {
+          answer: selfFixAutoDispatch
+            ? notice
+            : `${notice} ${fixRun?.scopedFiles?.length ? `Scoped files: ${fixRun.scopedFiles.join(", ")}.` : ""}`.trim(),
+          sourceLabels: [
+            selfFixAutoDispatch ? "Apex Self-Fix v2" : "Apex Builder Mode v1.2",
+            "Controlled Local Fixes",
+            fixRun?.fixId || "local-fix",
+          ].filter(Boolean),
+          selfFixAutoDispatch: dispatchReceipt,
+        },
+        context: dispatchReceipt ? { selfFixAutoDispatch: dispatchReceipt } : undefined,
+      });
+      setCockpitTurns((current) => current.map((turn) => (turn.id === fixTurnId ? {
+        ...turn,
+        status: selfFixAutoDispatch ? (dispatchReceipt?.status || fixRun?.status || "self-fix-finished") : (fixRun?.status || "fix-finished"),
+        answerSnippet: apexCockpitMemoryText(notice, 220),
+        sourceLabels: [
+          selfFixAutoDispatch ? "Apex Self-Fix v2" : "Apex Builder Mode v1.2",
+          fixRun?.fixId || "controlled-local-fix",
+        ].filter(Boolean),
+        routeDetail: route?.detail,
+      } : turn)));
+      refreshCockpitLivePulse({ automatic: true });
+      return fixRun || null;
+    } catch (error) {
+      const message = error?.message || "Controlled local fix could not run.";
+      setCockpitLiveRunNotice(message);
+      setCockpitAgentActionNotice(message);
+      setCockpitTurns((current) => current.map((turn) => (turn.id === fixTurnId ? { ...turn, status: "blocked" } : turn)));
+      return null;
+    } finally {
+      setCockpitCreatingLiveRun(false);
+    }
+  }
+
+  async function runCockpitBuildLoopFromCommand(question = cockpitLastQuestion || askQuestion || "Apex, work on yourself.", route = cockpitCommandRoute, { turnId = "" } = {}) {
+    if (!state.canView || !sessionToken || cockpitCreatingLiveRun) return null;
+    const request = String(question || "").trim() || "Apex, work on yourself.";
+    const buildTurnId = turnId || `cockpit-build-loop-${Date.now()}`;
+    setCockpitCreatingLiveRun(true);
+    setCockpitLiveRunNotice("Apex Build Loop is starting a scoped local task through controlled Builder/Self-Fix tooling.");
+    setCockpitAgentActionNotice("Apex is routing normal controlled Builder work through qwen3:14b at 4096 context. qwen3-coder:30b stays manual-only unless John explicitly asks for deep coding. No raw file writes, git, deploy, production, schema/auth/session, secrets, or external actions.");
+    if (!turnId) {
+      setCockpitTurns((current) => [
+        {
+          id: buildTurnId,
+          question: request,
+          source: "apex-build-loop-v0",
+          routeLabel: "Apex Build Loop",
+          status: "starting-build-loop",
+        },
+        ...current,
+      ].slice(0, 5));
+    }
+    try {
+      const payload = await runApexOsBuildLoop(sessionToken, {
+        request,
+        applyPatch: true,
+        runValidation: true,
+      });
+      const receipt = payload?.buildLoop?.receipt || null;
+      if (receipt) setCockpitBuildLoopReceipt(receipt);
+      const answer = receipt?.shortAnswer
+        ? `${receipt.shortAnswer} ${receipt.reason ? apexCockpitMemoryText(receipt.reason, 180) : ""}`.trim()
+        : "Apex Build Loop recorded the task.";
+      const notice = receipt?.receiptFolder
+        ? `${answer} Receipt saved.`
+        : answer;
+      setCockpitResponse({
+        answer: {
+          answer: notice,
+          sourceLabels: ["Apex Autonomous Build Loop v0", "qwen3:14b coding lane", "30B manual-only", "Controlled Builder"].filter(Boolean),
+          buildLoopReceipt: receipt,
+        },
+        context: {
+          buildLoop: payload?.buildLoop || null,
+        },
+      });
+      setCockpitLiveRunNotice(notice);
+      setCockpitAgentActionNotice(receipt?.permissionsPrivacyImpact || notice);
+      setCockpitTurns((current) => current.map((turn) => (turn.id === buildTurnId ? {
+        ...turn,
+        status: receipt?.outcome || receipt?.status || "build-loop-recorded",
+        answerSnippet: apexCockpitMemoryText(notice, 220),
+        sourceLabels: ["Apex Build Loop", receipt?.taskProfile || "controlled-builder"].filter(Boolean),
+        routeDetail: route?.detail,
+      } : turn)));
+      refreshCockpitLivePulse({ automatic: true });
+      return receipt;
+    } catch (error) {
+      const message = error?.message || "Apex Build Loop could not run.";
+      setCockpitLiveRunNotice(message);
+      setCockpitAgentActionNotice(message);
+      setCockpitTurns((current) => current.map((turn) => (turn.id === buildTurnId ? { ...turn, status: "blocked" } : turn)));
+      return null;
+    } finally {
+      setCockpitCreatingLiveRun(false);
+    }
+  }
+
+  async function runCockpitTypedLiveLatencyBenchmark() {
+    if (!state.canView || !sessionToken || cockpitLiveBenchmarkBusy) return null;
+    setCockpitLiveBenchmarkBusy("typed");
+    setCockpitVoiceNotice("Running visible typed latency benchmark through the local resident qwen3:14b lane. No mic, raw prompt, or raw response will be stored.");
+    try {
+      const payload = await runApexOsTypedLiveTurnBenchmark(sessionToken, {
+        explicitUserStarted: true,
+        residentNumCtx: 4096,
+      });
+      const history = payload?.liveTurnBenchmarkHistory || {
+        latestTypedBenchmark: payload?.typedBenchmark || payload?.liveTurnBenchmark || null,
+        latestVoiceBenchmark: cockpitLiveBenchmarkSummary?.latestVoiceBenchmark || cockpitBackgroundPayload?.liveTurnBenchmarkHistory?.latestVoiceBenchmark || null,
+      };
+      setCockpitLiveBenchmarkSummary(history);
+      const typed = history.latestTypedBenchmark || payload?.typedBenchmark || payload?.liveTurnBenchmark || {};
+      setCockpitVoiceNotice(`Typed benchmark recorded: ${typed.totalTurnMs || 0}ms total, first token ${typed.modelFirstTokenMs || typed.firstTokenLatencyMs || 0}ms, model ${typed.modelTotalMs || 0}ms.`);
+      setCockpitAgentActionNotice("Apex Live Turn Latency v1.1 typed benchmark ran locally. Voice comparison still requires a visible user-started mic turn.");
+      return payload;
+    } catch (error) {
+      const message = error?.message || "Typed latency benchmark could not run.";
+      setCockpitVoiceNotice(message);
+      setCockpitAgentActionNotice(message);
+      return null;
+    } finally {
+      setCockpitLiveBenchmarkBusy("");
+    }
+  }
+
+  function armCockpitVoiceLiveLatencyBenchmark() {
+    if (!state.canView || !sessionToken || cockpitLiveBenchmarkBusy) return false;
+    const benchmarkId = `ALB-VOICE-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    cockpitLiveVoiceBenchmarkRef.current = {
+      armed: true,
+      benchmarkId,
+      startedAt: Date.now(),
+      explicitUserStarted: true,
+    };
+    setCockpitVoiceBenchmarkArmed(true);
+    setCockpitLiveBenchmarkSummary((current) => current || cockpitBackgroundPayload?.liveTurnBenchmarkHistory || cockpitBackgroundPayload?.latency?.benchmarkHistory || null);
+    setCockpitVoiceNotice("Voice benchmark armed. Press Resume Voice, then speak into the visible mic; Apex will store compact timing metadata only.");
+    setCockpitAgentActionNotice("Apex will benchmark exactly the next visible voice turn. No hidden mic, no background recording, no raw audio, no transcript storage, and no cloud STT/TTS.");
+    return true;
   }
 
   async function createCockpitLiveRunFromCommand(question = cockpitLastQuestion || askQuestion || cockpitBriefingText, route = cockpitCommandRoute, { turnId = "", autoCycle = false } = {}) {
@@ -7913,7 +11480,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
         routeDetail: route?.detail || "Apex Live Operator Mode command.",
         sourceLabel: "Apex Live Operator Mode",
         sourceUri: "apex-life://live-operator",
-        operatorNote: "Created from the Apex body screen. Save, draft, validate, report, and remember only; execution stays locked.",
+        operatorNote: "Created from the Apex body screen. Save, draft, validate, report, and remember privately; consequential actions stay gated.",
       });
       const createdRun = createPayload?.apexOsAutonomyRun;
       let finalRun = createdRun || null;
@@ -7945,8 +11512,8 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
           : " Apex started the private cycle and found validation gaps for review.";
       }
       const finalNotice = finalRun?.id
-        ? `Live run ${finalRun.id} saved and internal draft package prepared.${autoCycleNotice} Execution stays locked.`
-        : "Live run saved and internal draft package prepared. Execution stays locked.";
+        ? `Live run ${finalRun.id} saved and internal draft package prepared.${autoCycleNotice} Consequential actions stayed gated.`
+        : "Live run saved and internal draft package prepared. Consequential actions stayed gated.";
       setCockpitLiveRunNotice(finalNotice);
       setCockpitAgentActionNotice(finalNotice);
       setCockpitResponse({
@@ -8057,7 +11624,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       const notice = status === "done"
         ? "Apex reported back and marked the active run done with a result report."
         : status === "waiting-approval"
-          ? "Apex moved the active run to waiting approval. Execution is still locked."
+          ? "Apex moved the active run to waiting approval. Consequential actions remain gated."
           : status === "blocked"
             ? "Apex marked the active run blocked for review."
             : "Apex marked the active run validating with evidence review next.";
@@ -8091,8 +11658,8 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       const updated = payload?.apexOsAutonomyRun;
       syncCockpitLiveRunsFromPayload(payload, updated?.id || cockpitActiveRun.id);
       const notice = updated?.linkedExecutionHandoffId
-        ? `Internal draft package linked to ${updated.linkedExecutionHandoffId}. Execution stays locked.`
-        : "Internal draft package prepared. Execution stays locked.";
+        ? `Internal draft package linked to ${updated.linkedExecutionHandoffId}. Consequential actions stayed gated.`
+        : "Internal draft package prepared. Consequential actions stayed gated.";
       setCockpitLiveRunNotice(notice);
       setCockpitAgentActionNotice(notice);
       refreshCockpitLivePulse({ automatic: true });
@@ -8279,8 +11846,8 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     setCockpitAgentActionNotice(notice);
     setCockpitResponse({
       answer: {
-        answer: `${notice} Execution stays locked. No sends, billing, provider work, production changes, deploys, rollbacks, agent runs, or irreversible actions.`,
-        sourceLabels: ["Apex Live Operator Mode", "Auto Drive voice handback", "Review-first safety locks"],
+        answer: `${notice} Consequential actions stay gated. No sends, billing, provider work, production changes, deploys, rollbacks, agent runs, or irreversible actions.`,
+      sourceLabels: ["Apex Live Operator Mode", "Auto Drive voice handback", "Consequential action gates"],
       },
     });
     cockpitLastAutoDriveHandbackAtRef.current = Date.now();
@@ -8310,8 +11877,8 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       syncCockpitLiveRunsFromPayload(payload, updated?.id || runId);
       const stopAtReview = Boolean(advance.handbackRequired || !advance.canContinue);
       const notice = stopAtReview
-        ? `Apex advanced ${advance.title || "the private run"} and stopped at ${advance.nextTitle || "manual review"}. Execution stays locked.`
-        : `Apex advanced ${advance.title || "the private run"}; next safe move is ${advance.nextTitle || "continue private work"}. Execution stays locked.`;
+        ? `Apex advanced ${advance.title || "the private run"} and stopped at ${advance.nextTitle || "manual review"}. Consequential actions stayed gated.`
+        : `Apex advanced ${advance.title || "the private run"}; next safe move is ${advance.nextTitle || "continue private work"}. Consequential actions stayed gated.`;
       const narration = buildApexCockpitAutoDriveNarration({ advance, updatedRun: updated, autoDrive });
       const reviewHandback = stopAtReview
         ? buildApexOsAutonomyRunHandback(updated, {
@@ -8377,7 +11944,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     }
 
     deliverCockpitRunHandback({ speak: true });
-    setCockpitLiveRunNotice(`${move.title || "Apex private run"} is at a review gate. Apex spoke the handback and kept execution locked.`);
+    setCockpitLiveRunNotice(`${move.title || "Apex private run"} is at a review gate. Apex spoke the handback and stopped before consequential action.`);
     setCockpitAgentActionNotice("Apex reported the next safe move. Manual approval is still required before any gated work.");
     return cockpitActiveRun;
   }
@@ -8422,7 +11989,40 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     }
   }
 
-  async function askCockpitQuestion(nextQuestion, { fromVoice = false, interrupted = false } = {}) {
+  async function askCockpitQuestion(nextQuestion, {
+    fromVoice = false,
+    interrupted = false,
+    localVoiceReadinessOverride = null,
+    voiceTurnId = "",
+    voiceTurnStartedAt = 0,
+    voiceInputMode = "",
+  } = {}) {
+    if (fromVoice) cockpitLastVoiceInputModeRef.current = voiceInputMode || cockpitLastVoiceInputModeRef.current || "voice";
+    else cockpitLastVoiceInputModeRef.current = "typed";
+    const questionStartedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+    const turnId = `cockpit-turn-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const liveTurnId = voiceTurnId || turnId;
+    const liveTurnStartedAt = voiceTurnStartedAt || questionStartedAt;
+    const liveTurnInputMode = fromVoice ? (voiceInputMode || cockpitLastVoiceInputModeRef.current || "voice") : "typed";
+    const markVoiceAnswerTiming = (patch = {}) => {
+      if (!liveTurnId) return;
+      const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+      const answerReadyMs = Math.max(0, Math.round(now - questionStartedAt));
+      updateCockpitVoiceTimingReceipt({
+        turnId: liveTurnId,
+        startedAt: liveTurnStartedAt,
+        status: patch.status || "answer-ready",
+        inputMode: liveTurnInputMode,
+        source: fromVoice ? "voice" : "typed",
+        ...patch,
+        timingMs: {
+          modelTotalMs: answerReadyMs,
+          answerReadyMs,
+          inputMode: liveTurnInputMode,
+          ...(patch.timingMs || {}),
+        },
+      });
+    };
     const previousTurns = cockpitTurns.slice(0, 4);
     const previousQuestion = cockpitLastQuestion;
     const previousAnswerText = cockpitAnswerText;
@@ -8432,7 +12032,6 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       activeRun: cockpitActiveRun,
       nextPrivateMove: cockpitNextPrivateMove,
     });
-    const turnId = `cockpit-turn-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     setCockpitCommandRoute(route);
     setCockpitAgentActionNotice("");
     setCockpitTurns((current) => [
@@ -8455,9 +12054,365 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     cockpitSpeakingRef.current = false;
     setCockpitSpeaking(false);
     try {
+      let effectiveLocalVoiceReadiness = localVoiceReadinessOverride || cockpitLocalVoiceReadiness;
+      if (!localVoiceReadinessOverride && sessionToken && /\b(voice|hear|listen|quiet|sapi|kokoro|piper|voicebox|premium|stt|gpu|mic|microphone)\b/i.test(nextQuestion || "")) {
+        try {
+          const localVoicePayload = await getApexOsLocalVoiceStatus(sessionToken);
+          const nextLocalVoicePayload = localVoicePayload?.localVoice || localVoicePayload || {};
+          setCockpitLocalVoiceStatus(nextLocalVoicePayload);
+          effectiveLocalVoiceReadiness = buildApexPersonalOsLocalVoiceReadiness({
+            loopState: cockpitVoiceMode,
+            microphoneSupported: canUseCockpitRecorder,
+            microphonePermission: cockpitMicPermissionState,
+            recording: cockpitRecording,
+            transcribing: cockpitTranscribing,
+            thinking: true,
+            speaking: false,
+            failed: false,
+            browserSpeechRecognitionSupported: !conversationFirst && canUseCockpitSpeechRecognition,
+            browserSpeechSynthesisSupported: typeof window !== "undefined" && Boolean(window.speechSynthesis) && typeof SpeechSynthesisUtterance !== "undefined",
+            browserAudioUnlocked: cockpitAudioReady,
+            sttEngines: nextLocalVoicePayload.sttEngines || [],
+            ttsEngines: nextLocalVoicePayload.ttsEngines || [],
+            lastVoiceTurn: nextLocalVoicePayload.lastVoiceTurn || cockpitLatestLocalVoiceReceipt,
+          });
+        } catch {
+          // Keep the existing page-local voice readiness; typed Apex still answers.
+        }
+      }
+      if (conversationFirst && isApexCockpitMicCalibrationCommand(nextQuestion)) {
+        const calibrationSummary = buildApexCockpitMicTestSummary({
+          calibration: cockpitMicCalibrationRef.current,
+          canUseRecorder: canUseCockpitRecorder,
+          canUseNativeVoice: cockpitNativeVoiceReady,
+          micPermissionState: cockpitMicPermissionState,
+          recording: cockpitRecordingRef.current || cockpitRecording,
+        });
+        const shouldOpenMicForTest = state.canView
+          && Boolean(sessionToken)
+          && canUseCockpitRecorder
+          && !cockpitRecordingRef.current
+          && !cockpitTranscribingRef.current
+          && !cockpitSpeakingRef.current
+          && !cockpitVoiceOpeningRef.current;
+        const resolvedTalkAnswer = shouldOpenMicForTest
+          ? `${calibrationSummary} I am opening the mic calibration now. Speak normally for two seconds.`
+          : calibrationSummary;
+        const resolvedSourceLabels = ["Apex Real Mic Calibration v1", "Always-Open Mic Runtime", "Browser AudioWorklet"];
+        setCockpitResponse({
+          requestId: turnId,
+          answer: {
+            answer: resolvedTalkAnswer,
+            sourceLabels: resolvedSourceLabels,
+            provider: "local-mic-calibration",
+            model: "browser-audio-worklet",
+            localVoiceReadiness: effectiveLocalVoiceReadiness,
+            micCalibration: cockpitMicCalibrationRef.current,
+          },
+          context: {
+            localVoiceReadiness: effectiveLocalVoiceReadiness,
+            micCalibration: cockpitMicCalibrationRef.current,
+          },
+        });
+        setCockpitAgentActionNotice("Apex checked the visible local mic calibration path.");
+        setCockpitVoiceNotice(shouldOpenMicForTest
+          ? "Mic test started. Speak normally while Apex measures frames, peak, and gate."
+          : "Mic test readout is visible.");
+        setCockpitTurns((current) => current.map((turn) => (turn.id === turnId ? {
+          ...turn,
+          status: "mic-calibration",
+          answerSnippet: apexCockpitMemoryText(resolvedTalkAnswer, 220),
+          sourceLabels: resolvedSourceLabels,
+          routeDetail: route.detail,
+        } : turn)));
+        markVoiceAnswerTiming({ source: "mic-calibration", intent: "voice-mic-test" });
+        if (shouldOpenMicForTest) setTimeout(() => openCockpitVoiceSession({ automatic: false }), 140);
+        return;
+      }
+      const effectivePersonalOsCore = effectiveLocalVoiceReadiness
+        ? buildApexPersonalOsCoreState({ voiceReadiness: effectiveLocalVoiceReadiness })
+        : cockpitPersonalOsCore;
+      const voiceSelectionAction = /\btry the next male voice\b|\bnext male voice\b/i.test(nextQuestion || "")
+        ? "next-male"
+        : /\block this voice\b/i.test(nextQuestion || "")
+          ? "lock-current"
+          : "";
+      if (conversationFirst && voiceSelectionAction && sessionToken) {
+        const selectionPayload = await updateApexOsLocalVoiceSelection(sessionToken, { action: voiceSelectionAction });
+        const nextLocalVoicePayload = selectionPayload?.localVoice || {};
+        setCockpitLocalVoiceStatus(nextLocalVoicePayload);
+        const selectedVoiceId = selectionPayload?.voiceSelection?.voiceId || nextLocalVoicePayload?.lightweightVoice?.voiceId || "";
+        const nextVoiceReadiness = buildApexPersonalOsLocalVoiceReadiness({
+          loopState: cockpitVoiceMode,
+          microphoneSupported: canUseCockpitRecorder,
+          microphonePermission: cockpitMicPermissionState,
+          recording: cockpitRecording,
+          transcribing: cockpitTranscribing,
+          thinking: false,
+          speaking: false,
+          failed: false,
+          browserSpeechRecognitionSupported: !conversationFirst && canUseCockpitSpeechRecognition,
+          browserSpeechSynthesisSupported: typeof window !== "undefined" && Boolean(window.speechSynthesis) && typeof SpeechSynthesisUtterance !== "undefined",
+          browserAudioUnlocked: cockpitAudioReady,
+          sttEngines: nextLocalVoicePayload.sttEngines || [],
+          ttsEngines: nextLocalVoicePayload.ttsEngines || [],
+          lastVoiceTurn: nextLocalVoicePayload.lastVoiceTurn || cockpitLatestLocalVoiceReceipt,
+        });
+        const resolvedTalkAnswer = voiceSelectionAction === "next-male"
+          ? `I switched the Kokoro ONNX audition voice to ${selectedVoiceId || "the next male voice"}. I’ll use that voice for this local test if Kokoro can generate it here.`
+          : `I locked ${selectedVoiceId || "the current Kokoro ONNX voice"} as the daily Apex voice. I only saved provider, model id, voice id, dtype, and processor.`;
+        const resolvedSourceLabels = ["Kokoro ONNX TTS v4", "Apex Local Voice"];
+        setCockpitResponse({
+          requestId: turnId,
+          answer: {
+            answer: resolvedTalkAnswer,
+            sourceLabels: resolvedSourceLabels,
+            provider: "local-voice",
+            model: nextLocalVoicePayload?.lightweightVoice?.modelId || "onnx-community/Kokoro-82M-v1.0-ONNX",
+            localVoiceReadiness: nextVoiceReadiness,
+            voiceSelection: selectionPayload?.voiceSelection || null,
+          },
+          context: {
+            localVoiceReadiness: nextVoiceReadiness,
+            voiceSelection: selectionPayload?.voiceSelection || null,
+          },
+        });
+        setCockpitAgentActionNotice("Apex updated the safe local Kokoro ONNX voice selection.");
+        setCockpitVoiceNotice("Apex updated the local voice selection.");
+        setCockpitTurns((current) => current.map((turn) => (turn.id === turnId ? {
+          ...turn,
+          status: "answered",
+          answerSnippet: apexCockpitMemoryText(resolvedTalkAnswer, 220),
+          sourceLabels: resolvedSourceLabels,
+          routeDetail: route.detail,
+        } : turn)));
+        markVoiceAnswerTiming({ source: "local-voice-selection" });
+        void speakCockpitAnswer(resolvedTalkAnswer, { voiceTurnId: liveTurnId, voiceTurnStartedAt: liveTurnStartedAt, voiceInputMode: liveTurnInputMode });
+        return;
+      }
+      const talkResponse = conversationFirst ? buildApexTalkToApexResponse({
+        question: nextQuestion,
+        state,
+        builderMode: talkToApexContext?.builderMode,
+        whatChangedFeed: talkToApexContext?.whatChangedFeed,
+        validationReceipts: talkToApexContext?.validationReceipts,
+        fixReceipts: talkToApexContext?.fixReceipts,
+        undoReceipts: talkToApexContext?.undoReceipts,
+        commandEvents: talkToApexContext?.commandEvents,
+        buildLoopReceipt: cockpitBuildLoopReceipt,
+        selfFixDispatchReceipt: cockpitSelfFixDispatchReceipt,
+        localProviderStatus: cockpitLocalProviderStatus,
+        localVoiceReadiness: effectiveLocalVoiceReadiness,
+        personalOsCore: effectivePersonalOsCore,
+        learningMode: cockpitLearningMode,
+        lastVoiceTranscript: cockpitLastLocalTranscript,
+        lastLocalVoiceReceipt: cockpitLatestLocalVoiceReceipt,
+        memoryRows: [
+          ...(Array.isArray(state.decisionMemory?.durableEntries) ? state.decisionMemory.durableEntries : []),
+          ...(Array.isArray(state.memorySuggestions?.recentApprovedRows) ? state.memorySuggestions.recentApprovedRows : []),
+          cockpitLastLearningMemory,
+        ].filter(Boolean),
+      }) : null;
+      const selfFixReadyHandoff = talkResponse?.patchHandoff?.status === "ready-for-build-thread";
+      const shouldAutoDispatchSelfFix = talkResponse?.handled
+        && route.commandAction === "self-fix-auto-dispatch"
+        && talkResponse.autoDispatchEligible === true
+        && (talkResponse.intent === "repair-plan" || (["repair-patch", "patch-handoff"].includes(talkResponse.intent) && selfFixReadyHandoff));
+      const shouldRunBuildLoop = talkResponse?.handled
+        && route.commandAction === "run-autonomous-build-loop"
+        && talkResponse.autoBuildLoopEligible === true;
+      if (shouldRunBuildLoop) {
+        const receipt = await runCockpitBuildLoopFromCommand(nextQuestion, route, { turnId });
+        const buildLoopAnswer = receipt?.shortAnswer
+          ? `${receipt.shortAnswer} ${receipt.reason ? apexCockpitMemoryText(receipt.reason, 180) : ""}`.trim()
+          : talkResponse.answer || "Apex Build Loop recorded the task.";
+        setCockpitTurns((current) => current.map((turn) => (turn.id === turnId ? {
+          ...turn,
+          status: receipt?.outcome || receipt?.status || "build-loop-recorded",
+          answerSnippet: apexCockpitMemoryText(buildLoopAnswer, 220),
+          sourceLabels: ["Apex Build Loop", receipt?.taskProfile || "controlled-builder"].filter(Boolean),
+          routeDetail: route.detail,
+        } : turn)));
+        markVoiceAnswerTiming({ source: "build-loop", status: receipt?.outcome || receipt?.status || "answer-ready" });
+        if (buildLoopAnswer) void speakCockpitAnswer(buildLoopAnswer, { voiceTurnId: liveTurnId, voiceTurnStartedAt: liveTurnStartedAt, voiceInputMode: liveTurnInputMode });
+        return;
+      }
+      if (shouldAutoDispatchSelfFix) {
+        const fixRun = await runCockpitBuilderFixFromCommand(nextQuestion, route, {
+          turnId,
+          selfFixPatchHandoff: talkResponse.patchHandoff || null,
+          selfFixAutoDispatch: true,
+        });
+        const dispatchReceipt = fixRun?.selfFixAutoDispatch || null;
+        const dispatchAnswer = dispatchReceipt?.shortAnswer
+          || (fixRun?.ok ? "Handled. Result recorded." : "I checked it and recorded what needs attention.");
+        setCockpitTurns((current) => current.map((turn) => (turn.id === turnId ? {
+          ...turn,
+          status: dispatchReceipt?.status || fixRun?.status || "self-fix-finished",
+          answerSnippet: apexCockpitMemoryText(dispatchAnswer, 220),
+          sourceLabels: ["Apex Self-Fix v2", "Builder Mode", fixRun?.fixId || "controlled-local-fix"].filter(Boolean),
+          routeDetail: route.detail,
+        } : turn)));
+        markVoiceAnswerTiming({ source: "self-fix", status: dispatchReceipt?.status || fixRun?.status || "answer-ready" });
+        if (dispatchAnswer) void speakCockpitAnswer(dispatchAnswer, { voiceTurnId: liveTurnId, voiceTurnStartedAt: liveTurnStartedAt, voiceInputMode: liveTurnInputMode });
+        return;
+      }
+      if (talkResponse?.handled && route.commandAction !== "run-builder-fix" && route.commandAction !== "create-builder-task" && route.commandAction !== "open-apex-hq-module" && route.commandAction !== "open-section") {
+        if (talkResponse.shouldClearScreen) {
+          onPanelCommand?.("", route);
+          clearCockpitHomeSurface();
+        }
+        if (talkResponse.shouldStopListening) {
+          cockpitAutoListeningRef.current = false;
+          setCockpitAutoListening(false);
+          cockpitRecoveringUntilRef.current = 0;
+          updateCockpitAlwaysOpenMicStatus({
+            state: APEX_ALWAYS_OPEN_MIC_STATE.QUIET,
+            speechDetected: false,
+            feedbackSuppressionActive: true,
+            fallbackReason: "Apex is quiet.",
+          });
+          if (cockpitRecordingRef.current) pauseCockpitVoiceSession();
+        }
+        if (talkResponse.shouldStartListening) {
+          cockpitAutoListeningRef.current = true;
+          setCockpitAutoListening(true);
+          updateCockpitAlwaysOpenMicStatus({
+            state: APEX_ALWAYS_OPEN_MIC_STATE.STANDBY,
+            speechDetected: false,
+            feedbackSuppressionActive: false,
+            fallbackReason: "",
+          });
+        }
+        let resolvedTalkAnswer = talkResponse.answer || "";
+        let resolvedTalkNotice = talkResponse.notice || "Apex answered from the private local home context.";
+        let resolvedSourceLabels = talkResponse.sourceLabels || ["Apex Home", "Private local state"];
+        let learningMemoryId = "";
+        if (talkResponse.intent === "learning-start") {
+          setCockpitLearningMode(true);
+        }
+        if (talkResponse.intent === "learning-stop") {
+          setCockpitLearningMode(false);
+        }
+        if (talkResponse.learningMemoryBlocked) {
+          setCockpitLearningMode(true);
+        }
+        if (talkResponse.learningMemoryDraft) {
+          if (!sessionToken) {
+            resolvedTalkAnswer = "I caught the durable part, but I cannot save it without the private operator session. The typed answer stays here so you can try again once Apex is connected.";
+            resolvedTalkNotice = "Apex could not save learning memory without a session.";
+            setCockpitLearningMode(true);
+          } else {
+            try {
+              const memoryPayload = await createApexOsMemory(sessionToken, talkResponse.learningMemoryDraft);
+              const createdMemory = memoryPayload?.apexOsMemoryEntry || null;
+              if (createdMemory?.id) {
+                learningMemoryId = createdMemory.id;
+                setCockpitLastLearningMemory(createdMemory);
+                setCockpitLearningMode(false);
+                syncCockpitLiveOperatorMemoryFromPayload(memoryPayload);
+                resolvedTalkAnswer = `I learned it and saved it to private Apex memory: ${createdMemory.title || "Learning memory"}. ${createdMemory.body || ""}`;
+                resolvedTalkNotice = "Apex saved a compact private learning memory.";
+                resolvedSourceLabels = ["Apex Learning Conversation", "Private Memory", createdMemory.id].filter(Boolean);
+              } else {
+                setCockpitLearningMode(true);
+                resolvedTalkAnswer = "I prepared the learning memory, but the save did not return a created record. I did not claim it was saved.";
+                resolvedTalkNotice = "Apex learning memory save did not return a record.";
+              }
+            } catch (memoryError) {
+              setCockpitLearningMode(true);
+              resolvedTalkAnswer = memoryError?.message
+                ? `I caught it, but I could not save that memory: ${memoryError.message}`
+                : "I caught it, but I could not save that memory.";
+              resolvedTalkNotice = "Apex could not persist learning memory.";
+            }
+          }
+        }
+        const localStatus = findOllamaStatusPayload(cockpitLocalProviderStatus || {});
+        const localTalkPayload = {
+          requestId: turnId,
+          answer: {
+            answer: resolvedTalkAnswer,
+            sourceLabels: resolvedSourceLabels,
+            provider: "ollama",
+            model: "qwen3:14b",
+            providerFallback: true,
+            selfFixPatchHandoff: talkResponse.patchHandoff || null,
+            selfFixHandoffReceipt: talkResponse.handoffReceipt || "",
+            selfFixAutoDispatch: cockpitSelfFixDispatchReceipt,
+            buildLoopReceipt: cockpitBuildLoopReceipt,
+            localVoiceReadiness: effectiveLocalVoiceReadiness,
+            personalOsRoute: talkResponse.personalOsRoute || null,
+            learningMemoryId,
+          },
+          context: {
+            selfFixPatchHandoff: talkResponse.patchHandoff || null,
+            selfFixHandoffReceipt: talkResponse.handoffReceipt || "",
+            selfFixAutoDispatch: cockpitSelfFixDispatchReceipt,
+            buildLoopReceipt: cockpitBuildLoopReceipt,
+            localVoiceReadiness: effectiveLocalVoiceReadiness,
+            personalOsRoute: talkResponse.personalOsRoute || null,
+            learningMode: talkResponse.learningMode,
+            learningMemoryId,
+            localProviderStatus: {
+              provider: "ollama",
+              selectedModel: "qwen3:14b",
+              available: Boolean(cockpitLocalProviderStatus) ? localStatus.available !== false : true,
+              modelNames: Array.isArray(localStatus.modelNames) ? localStatus.modelNames : [],
+              selectedModelAvailable: Array.isArray(localStatus.modelNames)
+                ? localStatus.modelNames.some((model) => String(model).toLowerCase() === "qwen3:14b")
+                : Boolean(cockpitLocalProviderStatus) ? localStatus.available !== false : true,
+            },
+            localFirstProviderPolicy: { decision: "use-local-fallback" },
+          },
+        };
+        setCockpitResponse(localTalkPayload);
+        setCockpitAgentActionNotice(resolvedTalkNotice || "");
+        setCockpitVoiceNotice(resolvedTalkNotice || "Apex answered from the private local home context.");
+        setCockpitTurns((current) => current.map((turn) => (turn.id === turnId ? {
+          ...turn,
+          status: "answered",
+          answerSnippet: apexCockpitMemoryText(resolvedTalkAnswer, 220),
+          sourceLabels: resolvedSourceLabels,
+          routeDetail: route.detail,
+        } : turn)));
+        markVoiceAnswerTiming({ source: "talk-to-apex", intent: talkResponse.intent || "" });
+        if (resolvedTalkAnswer && !talkResponse.shouldStopListening) {
+          void speakCockpitAnswer(resolvedTalkAnswer, { voiceTurnId: liveTurnId, voiceTurnStartedAt: liveTurnStartedAt, voiceInputMode: liveTurnInputMode });
+        } else if (talkResponse.shouldStartListening && !cockpitRecordingRef.current && canUseCockpitRecorder) {
+          setTimeout(() => openCockpitVoiceSession({ automatic: false }), 80);
+        }
+        return;
+      }
       if (route.commandAction === "open-section" && route.section !== "apex") {
         onChange(route.section);
         setCockpitVoiceNotice(`Opened ${route.label}. Reading context now.`);
+      }
+      if (route.commandAction === "open-apex-hq-module" && route.moduleId) {
+        onPanelCommand?.("apex-hq", route);
+        onOpenModule?.(route.moduleId);
+        setCockpitVoiceNotice(`Opened ${route.label}. Reading context now.`);
+      }
+      if (route.commandAction === "show-panel-apex-hq") {
+        onPanelCommand?.("apex-hq", route);
+        setCockpitVoiceNotice("Apex HQ workspace panel is open.");
+      }
+      if (route.commandAction === "show-what-changed") {
+        setCockpitVoiceNotice("Apex will summarize What Changed in the conversation.");
+      }
+      if (route.commandAction === "show-patch-panel") {
+        setCockpitVoiceNotice("Apex will summarize Patch Preview in the conversation.");
+      }
+      if (route.commandAction === "show-undo-panel") {
+        setCockpitVoiceNotice("Apex will summarize Local Undo in the conversation.");
+      }
+      if (route.commandAction === "hide-builder-panel") {
+        onPanelCommand?.("", route);
+        setCockpitVoiceNotice("Builder panel hidden. Apex is back to the conversation-first surface.");
+      }
+      if (route.commandAction === "clear-apex-panels") {
+        onPanelCommand?.("", route);
+        clearCockpitHomeSurface();
       }
       const apexConversationContext = buildApexCockpitQuestionEnvelope(nextQuestion, {
         personalityMode: cockpitPersonalityMode,
@@ -8474,15 +12429,38 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
         retryCount: cockpitVoiceRetryCountRef.current,
         retryReason: cockpitVoiceRetryReason,
       });
+      const modelRequestStartedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
       const payload = await askApexOs(sessionToken, {
         question: nextQuestion,
         liveConversationContext: apexConversationContext,
         contextScope: "all",
+        assistantMode: cockpitPersonalityMode,
         operatorStyle: cockpitPersonalityMode,
         commandRoute: route.id,
+        effort: cockpitSelectedEffort,
       });
+      const modelRequestMs = Math.max(0, Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - modelRequestStartedAt));
       const payloadAnswerText = resolveApexCockpitAnswerText(payload);
       const payloadSources = resolveApexCockpitSources(state, payload);
+      const payloadAnswer = payload?.answer || {};
+      const responseTimingMs = Number(payloadAnswer.responseTimingMs || payloadAnswer.modelProcessor?.responseTimingMs || payload.responseTimingMs || payload.modelProcessor?.responseTimingMs || 0) || 0;
+      const payloadBenchmark = payloadAnswer.benchmarkReceipt || payload.benchmarkReceipt || {};
+      const payloadQueue = payloadAnswer.queueReceipt || payloadAnswer.modelQueue || payload.queueReceipt || payload.modelQueue || {};
+      const payloadLiveTurn = payloadAnswer.latencyProfile?.liveTurn || payload.latencyProfile?.liveTurn || {};
+      const modelFirstTokenMs = Number(payloadLiveTurn.modelFirstTokenMs || payloadBenchmark.firstTokenLatencyMs || payloadAnswer.modelProcessor?.firstTokenLatencyMs || payload.modelProcessor?.firstTokenLatencyMs || 0) || 0;
+      const modelQueueMs = Number(payloadLiveTurn.modelQueueMs || payloadQueue.queuedMs || 0) || 0;
+      markVoiceAnswerTiming({
+        source: "ask-apex",
+        provider: payloadAnswer.provider || payload.provider || "",
+        modelName: payloadAnswer.model || payload.model || "",
+        processor: payloadAnswer.processor || payloadAnswer.modelProcessor?.processor || payload.processor || "",
+        timingMs: {
+          modelQueueMs,
+          modelFirstTokenMs,
+          modelRequestMs,
+          modelTotalMs: responseTimingMs || modelRequestMs,
+        },
+      });
       setCockpitResponse(payload);
       setCockpitTurns((current) => current.map((turn) => (turn.id === turnId ? {
         ...turn,
@@ -8496,6 +12474,24 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       }
       let commandSpokenSuffix = "";
       let commandHandledSpeech = false;
+      if (route.commandAction === "builder-status") {
+        setCockpitAgentActionNotice("Apex routed this to Builder internally. It can refresh build awareness, track private builder tasks, and run fixed local checks without turning Home into a panel wall.");
+        setCockpitLiveRunNotice("Builder Mode is ready. Deploy, production, schema/auth/session, deletion, sends, spend, orders, booking, and permission changes stay blocked.");
+      }
+      if (route.commandAction === "create-builder-task") {
+        const run = await createCockpitBuilderTaskFromCommand(nextQuestion, route, { turnId });
+        commandSpokenSuffix = run?.id
+          ? " I saved that as a private builder task and kept consequential actions gated."
+          : " I tried to save that as a private builder task, but it needs review.";
+      }
+      if (route.commandAction === "run-builder-fix") {
+        const fixRun = await runCockpitBuilderFixFromCommand(nextQuestion, route, { turnId });
+        commandSpokenSuffix = fixRun?.ok
+          ? " I ran the controlled local fix, recorded the receipt, and kept consequential actions gated."
+          : fixRun?.status === "blocked"
+            ? " I blocked that fix request because it crossed a hard stop."
+            : " I scoped the controlled local fix and recorded what still needs attention.";
+      }
       if (route.commandAction === "speak-mission-brief") {
         deliverCockpitMissionBrief({ speak: true });
         commandHandledSpeech = true;
@@ -8509,7 +12505,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
         commandSpokenSuffix = run?.status === "waiting-approval"
           ? " I started the private run, prepared internal drafts, checked proof, and stopped at manual review."
           : run?.id
-            ? " I started the private run and kept execution locked for review."
+            ? " I started the private run and kept external/consequential action gated."
             : " I tried to start the private run, but it needs review.";
       }
       if (route.commandAction === "advance-active-run") {
@@ -8517,7 +12513,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
         const run = await workCockpitActiveRunNextMove();
         commandHandledSpeech = reviewMove;
         commandSpokenSuffix = run?.id && !reviewMove
-          ? " I advanced the active private run through its next safe move and kept execution locked."
+          ? " I advanced the active private run through its next safe move and kept consequential action gated."
           : reviewMove
             ? ""
             : " I checked the active private run, but it needs review.";
@@ -8565,17 +12561,22 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
           operatorNote: "Operator used a natural Apex command to hold this private run at manual approval review.",
         });
         commandSpokenSuffix = run?.id
-          ? " I held the active private run at manual approval review. Execution stays locked."
+          ? " I held the active private run at manual approval review. Consequential actions stay gated."
           : " I tried to hold the active private run at manual review, but it needs review.";
       }
       const nextAnswerText = `${commandHandledSpeech ? "" : payloadAnswerText}${commandSpokenSuffix}`.trim();
       if (!commandHandledSpeech && nextAnswerText) {
-        await speakCockpitAnswer(nextAnswerText);
+        void speakCockpitAnswer(nextAnswerText, { voiceTurnId: liveTurnId, voiceTurnStartedAt: liveTurnStartedAt, voiceInputMode: liveTurnInputMode });
       } else if (!commandHandledSpeech) {
         setCockpitVoiceNotice("Apex returned no speakable answer text.");
       }
     } catch (requestError) {
-      setCockpitError(requestError?.message || "Ask Apex could not answer right now.");
+      const authRequired = isApexCockpitAuthRequiredError(requestError);
+      const recoveryMessage = authRequired
+        ? apexCockpitLocalVoiceAuthRecoveryText()
+        : requestError?.message || "Ask Apex could not answer right now.";
+      setCockpitError(recoveryMessage);
+      if (authRequired) setCockpitVoiceNotice(recoveryMessage);
       setCockpitTurns((current) => current.map((turn) => (turn.id === turnId ? { ...turn, status: "blocked" } : turn)));
       setCockpitSpeaking(false);
     } finally {
@@ -8590,13 +12591,19 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     await askCockpitQuestion(askQuestion.trim());
   }
 
-  async function handleCockpitVoiceTranscript(transcript, { sourceLabel = "Voice transcript" } = {}) {
-    const cleanTranscript = String(transcript || "").trim();
+  async function handleCockpitVoiceTranscript(transcript, { sourceLabel = "Voice transcript", voiceInputMode = "browser", voiceTurnId = "", voiceTurnStartedAt = 0, localVoiceReadinessOverride = null } = {}) {
+    const rawTranscript = String(transcript || "").trim();
+    const cleanTranscript = stripApexCockpitDoneTalkingCue(rawTranscript);
     if (!cleanTranscript) {
+      if (hasApexCockpitDoneTalkingCue(rawTranscript)) {
+        setCockpitVoiceNotice("Apex closed that voice turn. Say the message first, then say done talking.");
+        return;
+      }
       scheduleCockpitVoiceRetry("Apex could not hear clear words from that turn", { speakPrompt: true });
       return;
     }
     if (!reserveCockpitVoiceTranscript(cleanTranscript)) return;
+    cockpitLastVoiceInputModeRef.current = voiceInputMode || "browser";
     const review = buildApexOsVoiceCommandReview(cleanTranscript);
     const nextQuestion = review.askQuestion || cleanTranscript;
     const interrupted = cockpitBargeInterruptedRef.current || cockpitPendingInterruptionRef.current;
@@ -8605,41 +12612,465 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     setCockpitLastQuestion(cleanTranscript);
     setCockpitBrowserTranscript(cleanTranscript);
     setCockpitVoiceNotice(interrupted ? `${cockpitLastInterruptionLabelRef.current || "Barge-in"} transcript: "${cleanTranscript}"` : `${sourceLabel}: "${cleanTranscript}"`);
-    await askCockpitQuestion(nextQuestion, { fromVoice: true, interrupted });
+    await askCockpitQuestion(nextQuestion, { fromVoice: true, interrupted, voiceInputMode, voiceTurnId, voiceTurnStartedAt, localVoiceReadinessOverride });
     if (interrupted) cockpitPendingInterruptionRef.current = false;
   }
 
-  async function transcribeCockpitVoiceBlob(blob) {
+  async function transcribeCockpitVoiceBlob(blob, { alwaysOpenMic = null } = {}) {
+    const turnId = `AVT-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const turnStartedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+    cockpitVoiceTurnTimingRef.current = { turnId, startedAt: turnStartedAt };
+    const closeMs = Number(alwaysOpenMic?.silenceDurationMs || alwaysOpenMic?.sustainedSilenceMs || APEX_COCKPIT_SILENCE_MS) || APEX_COCKPIT_SILENCE_MS;
+    updateCockpitVoiceTimingReceipt({
+      turnId,
+      startedAt: turnStartedAt,
+      status: "closing",
+      inputMode: "voice",
+      voiceCloseMs: closeMs,
+      silenceDurationMs: Number(alwaysOpenMic?.silenceDurationMs || 0) || 0,
+      sustainedSilenceMs: Number(alwaysOpenMic?.sustainedSilenceMs || APEX_COCKPIT_SILENCE_MS) || APEX_COCKPIT_SILENCE_MS,
+      timingMs: {
+        voiceCloseMs: closeMs,
+        vadActualSilenceMs: Number(alwaysOpenMic?.silenceDurationMs || 0) || 0,
+        sustainedSilenceMs: Number(alwaysOpenMic?.sustainedSilenceMs || APEX_COCKPIT_SILENCE_MS) || APEX_COCKPIT_SILENCE_MS,
+      },
+    });
+    clearCockpitNoVoiceTimer();
     if (!blob?.size) {
+      setCockpitLastLocalVoiceReceipt({
+        id: `AVR-${turnId}`,
+        turnId,
+        lastTurnId: turnId,
+        status: "failed",
+        failureReason: "empty-audio",
+        failureLabel: "empty audio",
+        audioValid: false,
+        readyForTranscription: false,
+        totalTurnMs: 0,
+        openAiAudioUsed: false,
+        cloudAudioAllowed: false,
+        audioStored: false,
+      });
       scheduleCockpitVoiceRetry("No voice audio was captured from that turn", { speakPrompt: true });
       return;
     }
+    if (conversationFirst) {
+      if (!sessionToken) {
+        scheduleCockpitVoiceRetry("Local STT needs the private operator session; sign in here before using mic voice", { speakPrompt: false, authRequired: true });
+        return;
+      }
+      setCockpitTranscribing(true);
+      cockpitTranscribingRef.current = true;
+      armCockpitTranscriptionTimeout(turnId);
+      setCockpitVoiceNotice("Apex heard audio. Transcribing through local STT only; OpenAI audio is not used.");
+      try {
+        setCockpitVoiceNotice("Apex heard audio. Converting it to local WAV for STT; OpenAI audio is not used.");
+        const conversionStartedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+        const localConversion = await convertVoiceBlobToLocalWav(blob);
+        const conversionTimingMs = Math.max(0, Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - conversionStartedAt));
+        const localSttBlob = localConversion?.blob || localConversion;
+        const conversionMetadata = localConversion?.metadata || {};
+        const localSttMimeType = String(localSttBlob?.type || conversionMetadata.convertedMimeType || "").toLowerCase();
+        const conversionReady = conversionMetadata.readyForTranscription === true
+          && conversionMetadata.wavHeaderValid === true
+          && localSttMimeType === "audio/wav";
+        if (!conversionReady) {
+          clearCockpitTranscriptionTimeout();
+          cockpitActiveTranscriptionTurnRef.current = "";
+          const failureLabel = conversionMetadata.browserWavConversionFailed
+            ? "browser WAV conversion failed"
+            : "local WAV was not ready";
+          const receipt = {
+            id: `AVR-${turnId}`,
+            turnId,
+            lastTurnId: turnId,
+            status: "failed",
+            failureReason: conversionMetadata.clientConversionFailureReason || "wav-conversion-failed",
+            failureLabel,
+            audioValid: false,
+            readyForTranscription: false,
+            audio: {
+              sourceMimeType: blob.type || "",
+              sourceByteLength: blob.size || 0,
+              convertedMimeType: localSttMimeType || conversionMetadata.convertedMimeType || "",
+              convertedByteLength: localSttBlob?.size || conversionMetadata.convertedByteLength || 0,
+              browserWavConversionFailed: conversionMetadata.browserWavConversionFailed === true,
+              clientConversionFailureReason: conversionMetadata.clientConversionFailureReason || "wav-conversion-failed",
+              clientConversionFailureMessage: conversionMetadata.clientConversionFailureMessage || "",
+              fallbackMode: conversionMetadata.fallbackMode || "client-wav-required",
+            },
+            timingMs: {
+              captureDurationMs: Number(alwaysOpenMic?.captureDurationMs || conversionMetadata.durationEstimateMs || 0) || 0,
+              clientWavConversionMs: conversionTimingMs,
+              totalClientTurnMs: Math.max(0, Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - turnStartedAt)),
+              totalTurnMs: Math.max(0, Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - turnStartedAt)),
+            },
+            openAiAudioUsed: false,
+            cloudAudioAllowed: false,
+            audioStored: false,
+          };
+          updateCockpitVoiceTimingReceipt({
+            ...receipt,
+            turnId,
+            startedAt: turnStartedAt,
+            inputMode: "voice",
+          });
+          updateCockpitAlwaysOpenMicStatus({
+            state: APEX_ALWAYS_OPEN_MIC_STATE.QUIET,
+            speechDetected: false,
+            feedbackSuppressionActive: false,
+            fallbackReason: "Local WAV conversion failed before STT.",
+          });
+          setCockpitAutoListening(false);
+          cockpitAutoListeningRef.current = false;
+          setCockpitVoiceNotice("Apex heard audio, but this browser turn could not become local WAV. I paused voice instead of looping or sending bad audio to STT. Press Resume Voice to try again.");
+          return;
+        }
+        const dataUrlStartedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+        const audioDataUrl = await blobToDataUrl(localSttBlob);
+        const dataUrlCreationMs = Math.max(0, Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - dataUrlStartedAt));
+        const micPacket = alwaysOpenMic
+          ? buildCockpitAlwaysOpenMicPacket({
+            ...alwaysOpenMic,
+            state: APEX_ALWAYS_OPEN_MIC_STATE.PROCESSING,
+            readyForTranscription: true,
+            shouldTranscribe: true,
+            speechDetected: true,
+            droppedFramesWhileMuted: cockpitDroppedMicFrameCountRef.current,
+          })
+          : null;
+        const clientTimingMs = {
+          captureDurationMs: Number(alwaysOpenMic?.captureDurationMs || conversionMetadata.durationEstimateMs || 0) || 0,
+          vadSilenceWaitMs: Number(alwaysOpenMic?.sustainedSilenceMs || 0) || 0,
+          sustainedSilenceMs: Number(alwaysOpenMic?.sustainedSilenceMs || 0) || 0,
+          vadActualSilenceMs: Number(alwaysOpenMic?.silenceDurationMs || 0) || 0,
+          silenceDurationMs: Number(alwaysOpenMic?.silenceDurationMs || 0) || 0,
+          voiceCloseMs: Number(alwaysOpenMic?.silenceDurationMs || alwaysOpenMic?.sustainedSilenceMs || APEX_COCKPIT_SILENCE_MS) || APEX_COCKPIT_SILENCE_MS,
+          clientWavConversionMs: conversionTimingMs,
+          dataUrlCreationMs,
+          uploadRequestMs: 0,
+          recorderSliceMs: APEX_COCKPIT_RECORDER_SLICE_MS,
+        };
+        const requestStartedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+        const payload = await transcribeApexOsLocalVoice(sessionToken, {
+          turnId,
+          audioDataUrl,
+          audioTurn: {
+            turnId,
+            sourceMimeType: blob.type || "",
+            sourceByteLength: blob.size || 0,
+            convertedMimeType: localSttBlob?.type || conversionMetadata.convertedMimeType || "audio/wav",
+            convertedByteLength: localSttBlob?.size || conversionMetadata.convertedByteLength || 0,
+            wavHeaderValid: conversionMetadata.wavHeaderValid === true,
+            durationEstimateMs: conversionMetadata.durationEstimateMs || 0,
+            sampleRate: conversionMetadata.sampleRate || 16000,
+            channelCount: conversionMetadata.channelCount || 1,
+            bitDepth: conversionMetadata.bitDepth || 16,
+            targetSampleRate: 16000,
+            targetChannelCount: 1,
+            targetBitDepth: 16,
+            readyForTranscription: true,
+            browserWavConversionFailed: conversionMetadata.browserWavConversionFailed === true,
+            clientConversionFailureReason: conversionMetadata.clientConversionFailureReason || "",
+            clientConversionFailureMessage: conversionMetadata.clientConversionFailureMessage || "",
+            fallbackMode: conversionMetadata.fallbackMode || "",
+            alwaysOpenMicState: micPacket?.state || alwaysOpenMic?.state || "",
+            clientTimingMs,
+          },
+          ...(micPacket ? { alwaysOpenMic: micPacket } : {}),
+        });
+        if (cockpitActiveTranscriptionTurnRef.current !== turnId) return;
+        clearCockpitTranscriptionTimeout();
+        cockpitActiveTranscriptionTurnRef.current = "";
+        const uploadRequestMs = Math.max(0, Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - requestStartedAt));
+        const localVoiceReceipt = payload?.audioTurnReceipt || payload?.lastVoiceTurn || payload?.receipt || payload?.alwaysOpenMic || null;
+        if (localVoiceReceipt) {
+          const totalClientTurnMs = Math.max(0, Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - turnStartedAt));
+          updateCockpitVoiceTimingReceipt({
+            ...localVoiceReceipt,
+            turnId,
+            lastTurnId: turnId,
+            startedAt: turnStartedAt,
+            inputMode: "voice",
+            status: localVoiceReceipt.status || "transcribed",
+            timingMs: {
+              ...(localVoiceReceipt.timingMs || {}),
+              uploadRequestMs,
+              totalClientTurnMs,
+              totalTurnMs: totalClientTurnMs,
+            },
+            totalTurnMs: totalClientTurnMs,
+          });
+        }
+        if (payload?.alwaysOpenMic) {
+          updateCockpitAlwaysOpenMicStatus({
+            ...payload.alwaysOpenMic,
+            state: APEX_ALWAYS_OPEN_MIC_STATE.PROCESSING,
+          });
+        }
+        let localVoiceReadinessOverride = null;
+        if (payload?.localVoiceStatus) {
+          setCockpitLocalVoiceStatus(payload.localVoiceStatus);
+          const localVoicePayload = payload.localVoiceStatus?.localVoice || payload.localVoiceStatus || {};
+          localVoiceReadinessOverride = buildApexPersonalOsLocalVoiceReadiness({
+            loopState: "idle",
+            microphoneSupported: canUseCockpitRecorder,
+            microphonePermission: cockpitMicPermissionState,
+            recording: false,
+            transcribing: false,
+            thinking: false,
+            speaking: false,
+            failed: false,
+            browserSpeechRecognitionSupported: !conversationFirst && canUseCockpitSpeechRecognition,
+            browserSpeechSynthesisSupported: typeof window !== "undefined" && Boolean(window.speechSynthesis) && typeof SpeechSynthesisUtterance !== "undefined",
+            browserAudioUnlocked: cockpitAudioReady,
+            sttEngines: localVoicePayload.sttEngines || [],
+            ttsEngines: localVoicePayload.ttsEngines || [],
+            lastVoiceTurn: payload?.lastVoiceTurn || localVoiceReceipt,
+          });
+        }
+        const transcript = String(payload?.transcript || "").trim();
+        if (!stripApexCockpitDoneTalkingCue(transcript)) {
+          if (payload?.gated) {
+            setCockpitVoiceNotice(payload.error || "Apex muted that local audio before STT.");
+            return;
+          }
+          if (hasApexCockpitDoneTalkingCue(transcript)) {
+            setCockpitVoiceNotice("Apex closed that voice turn. Say the message first, then say done talking.");
+            return;
+          }
+          const failureLabel = payload?.audioTurnReceipt?.failureLabel || payload?.receipt?.failureLabel || payload?.failureReason || "STT failed";
+          scheduleCockpitVoiceRetry(`Audio turn failed: ${failureLabel}. OpenAI transcription was not used.`, { speakPrompt: true });
+          return;
+        }
+        if (cockpitVoiceRetryCountRef.current) setCockpitVoiceRetryReason("Recovered with local STT.");
+        setCockpitLastLocalTranscript(stripApexCockpitDoneTalkingCue(transcript));
+        await handleCockpitVoiceTranscript(transcript, {
+          sourceLabel: "Browser mic -> amplitude gate -> GPU STT",
+          voiceInputMode: "browser",
+          voiceTurnId: turnId,
+          voiceTurnStartedAt: turnStartedAt,
+          localVoiceReadinessOverride,
+        });
+      } catch (error) {
+        if (cockpitActiveTranscriptionTurnRef.current !== turnId) return;
+        clearCockpitTranscriptionTimeout();
+        cockpitActiveTranscriptionTurnRef.current = "";
+        if (error?.payload?.localVoiceStatus) setCockpitLocalVoiceStatus(error.payload.localVoiceStatus);
+        const localVoiceReceipt = error.payload?.audioTurnReceipt || error.payload?.lastVoiceTurn || error.payload?.receipt || error.payload?.alwaysOpenMic || null;
+        if (localVoiceReceipt) {
+          updateCockpitVoiceTimingReceipt({
+            ...localVoiceReceipt,
+            turnId,
+            lastTurnId: turnId,
+            startedAt: turnStartedAt,
+            inputMode: "voice",
+            totalTurnMs: Math.max(0, Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - turnStartedAt)),
+            timingMs: {
+              ...(localVoiceReceipt.timingMs || {}),
+              totalTurnMs: Math.max(0, Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - turnStartedAt)),
+            },
+          });
+        }
+        if (error?.payload?.gated) {
+          setCockpitVoiceNotice(error.payload.error || "Apex muted that local audio before STT.");
+          return;
+        }
+        const authRequired = isApexCockpitAuthRequiredError(error);
+        const missing = authRequired
+          ? apexCockpitLocalVoiceAuthRecoveryText()
+          : error?.payload?.receipt?.failureLabel
+          || error?.payload?.failureReason
+          || error?.payload?.error
+          || error?.message
+          || "Local STT is not configured yet.";
+        scheduleCockpitVoiceRetry(`${missing}. OpenAI transcription was not used.`, { speakPrompt: true, authRequired });
+      } finally {
+        if (cockpitActiveTranscriptionTurnRef.current === turnId) {
+          clearCockpitTranscriptionTimeout();
+          cockpitActiveTranscriptionTurnRef.current = "";
+        }
+        cockpitTranscribingRef.current = false;
+        setCockpitTranscribing(false);
+      }
+      return;
+    }
     setCockpitTranscribing(true);
+    cockpitTranscribingRef.current = true;
+    armCockpitTranscriptionTimeout(turnId);
     setCockpitVoiceNotice("Apex heard audio. Transcribing through the private server endpoint.");
     try {
       const audioDataUrl = await blobToDataUrl(blob);
       const payload = await transcribeApexOsVoice(sessionToken, { audioDataUrl });
+      if (cockpitActiveTranscriptionTurnRef.current !== turnId) return;
+      clearCockpitTranscriptionTimeout();
+      cockpitActiveTranscriptionTurnRef.current = "";
       const transcript = String(payload?.transcript || "").trim();
-      const review = payload?.commandReview || buildApexOsVoiceCommandReview(transcript);
-      if (!transcript) {
+      if (!stripApexCockpitDoneTalkingCue(transcript)) {
+        if (hasApexCockpitDoneTalkingCue(transcript)) {
+          setCockpitVoiceNotice("Apex closed that voice turn. Say the message first, then say done talking.");
+          return;
+        }
         scheduleCockpitVoiceRetry("Apex heard audio but could not turn it into clear words", { speakPrompt: true });
         return;
       }
-      if (!reserveCockpitVoiceTranscript(transcript)) return;
-      const nextQuestion = review.askQuestion || transcript;
-      const interrupted = cockpitBargeInterruptedRef.current || cockpitPendingInterruptionRef.current;
       if (cockpitVoiceRetryCountRef.current) setCockpitVoiceRetryReason("Recovered with private server transcription.");
-      setAskQuestion(nextQuestion);
-      setCockpitLastQuestion(transcript);
-      setCockpitVoiceNotice(interrupted ? `${cockpitLastInterruptionLabelRef.current || "Barge-in"} heard: "${transcript}"` : `Heard: "${transcript}"`);
-      await askCockpitQuestion(nextQuestion, { fromVoice: true, interrupted });
-      if (interrupted) cockpitPendingInterruptionRef.current = false;
+      await handleCockpitVoiceTranscript(transcript, {
+        sourceLabel: "Private server voice transcript",
+        voiceInputMode: "browser",
+        voiceTurnId: turnId,
+        voiceTurnStartedAt: turnStartedAt,
+      });
     } catch (error) {
+      if (cockpitActiveTranscriptionTurnRef.current !== turnId) return;
+      clearCockpitTranscriptionTimeout();
+      cockpitActiveTranscriptionTurnRef.current = "";
       const retryReason = /not configured|speech-to-text|provider|transcription/i.test(String(error?.message || ""))
         ? "Private transcription is limited; Apex will retry with browser captions when this browser allows it"
         : "Apex could not transcribe that audio turn";
       scheduleCockpitVoiceRetry(retryReason, { speakPrompt: true });
     } finally {
+      if (cockpitActiveTranscriptionTurnRef.current === turnId) {
+        clearCockpitTranscriptionTimeout();
+        cockpitActiveTranscriptionTurnRef.current = "";
+      }
+      cockpitTranscribingRef.current = false;
+      setCockpitTranscribing(false);
+    }
+  }
+
+  async function openCockpitNativeVoiceTurn({ automatic = false, handoff = false, captureId = "" } = {}) {
+    const turnId = `ANVT-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const turnStartedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+    cockpitVoiceTurnTimingRef.current = { turnId, startedAt: turnStartedAt };
+    cockpitActiveTranscriptionTurnRef.current = turnId;
+    clearCockpitNoVoiceTimer();
+    clearCockpitTranscriptionTimeout();
+    setCockpitTranscribing(true);
+    cockpitTranscribingRef.current = true;
+    setCockpitRecording(false);
+    cockpitRecordingRef.current = false;
+    setCockpitAutoListening(false);
+    cockpitAutoListeningRef.current = false;
+    setCockpitError("");
+    resetCockpitBrowserCaptionTurn();
+    updateCockpitAlwaysOpenMicStatus({
+      state: APEX_ALWAYS_OPEN_MIC_STATE.PROCESSING,
+      speechDetected: false,
+      feedbackSuppressionActive: false,
+      ingressProvider: cockpitNativeVoiceProvider,
+      vadProvider: "native-windows-wav-gpu-stt",
+      fallbackReason: "",
+    });
+    setCockpitMicCalibration(createApexCockpitMicCalibrationState({
+      status: "native-listening",
+      inputProvider: "native-windows",
+      captureProvider: cockpitNativeVoiceProvider,
+      audioWorkletSupported: false,
+      audioWorkletActive: false,
+      fallbackCaptureUsed: false,
+      micDeviceLabel: "Windows default microphone",
+      startedAtMs: turnStartedAt,
+      reason: "Apex is listening through Native Voice Runtime v1, not browser audio blob conversion.",
+    }));
+    setCockpitVoiceNotice(automatic || handoff
+      ? "Apex is listening through the native Windows mic and local GPU STT."
+      : "Listening through native Windows mic to local GPU STT. Browser audio conversion is bypassed for this turn.");
+
+    try {
+      const payload = await listenApexOsNativeVoice(sessionToken, {
+        listenSeconds: Math.max(APEX_COCKPIT_NATIVE_LISTEN_SECONDS, Number(cockpitNativeVoiceStatus.listenSeconds || 0) || 0),
+        timeoutMs: Math.max(APEX_COCKPIT_NATIVE_TIMEOUT_MS, Number(cockpitNativeVoiceStatus.timeoutMs || 0) || 0),
+        provider: cockpitNativeVoiceProvider,
+        captureId,
+      });
+      if (cockpitActiveTranscriptionTurnRef.current !== turnId) return true;
+      clearCockpitTranscriptionTimeout();
+      cockpitActiveTranscriptionTurnRef.current = "";
+      if (payload?.nativeVoice) {
+        setCockpitLocalVoiceStatus((current) => ({
+          ...(current || {}),
+          nativeVoice: payload.nativeVoice,
+          nativeInputAvailable: Boolean(payload.nativeVoice.available),
+          preferredInputMode: payload.nativeVoice.available ? payload.nativeVoice.selectedInputMode : "browser-audio-worklet-wav",
+        }));
+      }
+      if (payload?.receipt) {
+        const totalTurnMs = Math.max(0, Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - turnStartedAt));
+        setCockpitLastLocalVoiceReceipt((current) => mergeApexCockpitVoiceReceipt(current || payload.receipt, {
+          ...payload.receipt,
+          turnId,
+          lastTurnId: turnId,
+          status: payload.receipt.status || (payload.ok ? "transcribed" : "failed"),
+          timingMs: {
+            ...(payload.receipt.timingMs || {}),
+            nativeListenMs: payload.receipt.nativeListenMs || totalTurnMs,
+            totalTurnMs,
+          },
+          totalTurnMs,
+        }));
+      }
+      const transcript = String(payload?.transcript || "").trim();
+      if (!payload?.ok || !transcript) {
+        const reason = payload?.error || "Native mic heard no clear words.";
+        updateCockpitAlwaysOpenMicStatus({
+          state: APEX_ALWAYS_OPEN_MIC_STATE.QUIET,
+          speechDetected: false,
+          feedbackSuppressionActive: false,
+          ingressProvider: cockpitNativeVoiceProvider,
+          fallbackReason: reason,
+        });
+        setCockpitVoiceNotice(`${reason} Native voice stopped cleanly; no browser audio was sent to STT.`);
+        return true;
+      }
+      updateCockpitAlwaysOpenMicStatus({
+        state: APEX_ALWAYS_OPEN_MIC_STATE.PROCESSING,
+        speechDetected: true,
+        feedbackSuppressionActive: false,
+        ingressProvider: cockpitNativeVoiceProvider,
+      });
+      if (cockpitVoiceRetryCountRef.current) setCockpitVoiceRetryReason("Recovered with native Windows mic.");
+      setCockpitLastLocalTranscript(transcript);
+      setCockpitVoiceNotice(`Heard locally through native Windows mic -> GPU STT: "${transcript}"`);
+      await handleCockpitVoiceTranscript(transcript, {
+        sourceLabel: "Native Windows mic -> GPU STT",
+        voiceInputMode: "native",
+        voiceTurnId: turnId,
+        voiceTurnStartedAt: turnStartedAt,
+      });
+      return true;
+    } catch (error) {
+      if (cockpitActiveTranscriptionTurnRef.current !== turnId) return true;
+      clearCockpitTranscriptionTimeout();
+      cockpitActiveTranscriptionTurnRef.current = "";
+      const nativeVoicePayload = error?.payload?.nativeVoice || null;
+      const nativeStillAvailable = Boolean(nativeVoicePayload?.available || nativeVoicePayload?.canListenNatively || (!nativeVoicePayload && cockpitNativeVoiceReady));
+      if (error?.payload?.nativeVoice) {
+        setCockpitLocalVoiceStatus((current) => ({
+          ...(current || {}),
+          nativeVoice: error.payload.nativeVoice,
+          nativeInputAvailable: nativeStillAvailable,
+          preferredInputMode: nativeStillAvailable ? error.payload.nativeVoice.selectedInputMode : "browser-audio-worklet-wav",
+        }));
+      }
+      const reason = error?.payload?.error || error?.message || "Native Voice Runtime could not listen on this turn.";
+      updateCockpitAlwaysOpenMicStatus({
+        state: APEX_ALWAYS_OPEN_MIC_STATE.QUIET,
+        speechDetected: false,
+        feedbackSuppressionActive: false,
+        ingressProvider: cockpitNativeVoiceProvider,
+        fallbackReason: reason,
+      });
+      setCockpitAutoListening(false);
+      cockpitAutoListeningRef.current = false;
+      setCockpitVoiceNotice(`${reason} Native voice stopped cleanly; browser mic fallback is still available.`);
+      return true;
+    } finally {
+      if (cockpitActiveTranscriptionTurnRef.current === turnId) {
+        clearCockpitTranscriptionTimeout();
+        cockpitActiveTranscriptionTurnRef.current = "";
+      }
+      cockpitTranscribingRef.current = false;
       setCockpitTranscribing(false);
     }
   }
@@ -8648,16 +13079,31 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     clearCockpitResumeListeningTimer();
     if (!handoff) cockpitListeningHandoffPendingRef.current = false;
     if (!canStartCockpitVoice) {
-      setCockpitVoiceNotice(canUseCockpitRecorder ? "Voice is busy right now." : "This browser cannot open the microphone here.");
+      setCockpitVoiceNotice(canUseCockpitVoiceInput ? "Voice is busy right now." : "No local voice input is ready here.");
       return;
     }
     if (cockpitVoiceOpeningRef.current) return;
     cockpitVoiceOpeningRef.current = true;
     if (!automatic) setCockpitVoiceWakeAttempted(true);
     primeCockpitAudioOutput();
+    const captureId = `AVC-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    cockpitCurrentCaptureIdRef.current = captureId;
+    resetCockpitBrowserCaptionTurn();
     setCockpitError("");
-    setCockpitVoiceNotice(automatic ? (handoff ? "Apex finished speaking. Reopening live listening." : "Opening voice for this Apex page.") : "");
+    setCockpitVoiceNotice(automatic
+      ? (handoff ? "Apex finished speaking. Voice is ready for a visible turn." : "Opening one visible voice turn for this Apex page.")
+      : cockpitNativeVoiceReady
+        ? "Opening patient local voice for this Apex turn."
+      : cockpitMicPermissionState === "prompt" || cockpitMicPermissionState === "unknown"
+        ? "Chrome may ask for microphone now. Choose Allow for localhost:5173 so Apex can hear you."
+        : "");
     try {
+      const shouldUseNativeVoice = cockpitNativeVoiceReady
+        && (!canUseCockpitRecorder || cockpitMicPermissionState === "denied");
+      if (shouldUseNativeVoice) {
+        await openCockpitNativeVoiceTurn({ automatic, handoff, captureId });
+        return;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
@@ -8668,25 +13114,66 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       setCockpitMicPermissionState("granted");
       cockpitStreamRef.current = stream;
       cockpitRecordedChunksRef.current = [];
+      cockpitPcmChunksRef.current = [];
+      cockpitPcmSampleRateRef.current = 0;
       cockpitSpeechStartedRef.current = false;
       cockpitBargeInterruptedRef.current = false;
       cockpitDiscardNextCaptureRef.current = false;
-      cockpitVoiceStartedAtRef.current = performance.now();
-      cockpitLastSoundAtRef.current = cockpitVoiceStartedAtRef.current;
+      cockpitDroppedMicFrameCountRef.current = 0;
+      cockpitLastAlwaysOpenGateRef.current = null;
+      cockpitVoiceStartedAtRef.current = 0;
+      cockpitLastSoundAtRef.current = 0;
+      const audioTrack = stream.getAudioTracks?.()[0] || null;
+      const nextMicCalibration = createApexCockpitMicCalibrationState({
+        status: "calibrating",
+        inputProvider: "browser",
+        captureProvider: "media-recorder",
+        audioWorkletSupported: false,
+        audioWorkletActive: false,
+        fallbackCaptureUsed: false,
+        micDeviceLabel: audioTrack?.label || "",
+        startedAtMs: performance.now(),
+        reason: "Apex is opening the local mic calibration path.",
+      });
+      cockpitMicCalibrationRef.current = nextMicCalibration;
+      setCockpitMicCalibration(nextMicCalibration);
+      resetCockpitBrowserCaptionTurn();
+      updateCockpitAlwaysOpenMicStatus({
+        state: APEX_ALWAYS_OPEN_MIC_STATE.STANDBY,
+        speechDetected: false,
+        feedbackSuppressionActive: false,
+        fallbackReason: "",
+        droppedFramesWhileMuted: 0,
+      });
       const mimeType = preferredCockpitVoiceMimeType();
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       cockpitRecorderRef.current = recorder;
       recorder.ondataavailable = (event) => {
         if (!event.data?.size) return;
+        const runtimeState = resolveCockpitAlwaysOpenMicState();
+        const gate = buildApexAlwaysOpenMicTranscriptionGate({
+          state: runtimeState,
+          isSpeaking: cockpitSpeakingRef.current,
+          ttsActive: cockpitSpeakingRef.current,
+          playbackExpected: cockpitSpeakingRef.current || runtimeState === APEX_ALWAYS_OPEN_MIC_STATE.RECOVERING,
+          ingressProvider: "browser",
+          vadProvider: "amplitude-gate",
+          sustainedSilenceMs: APEX_COCKPIT_SILENCE_MS,
+        });
+        if (gate.muted || gate.shouldDropFrame) {
+          recordCockpitMutedMicFrame(gate.reason || "Apex voice feedback suppression");
+          return;
+        }
         cockpitRecordedChunksRef.current.push(event.data);
         if (!cockpitSpeechStartedRef.current && cockpitRecordedChunksRef.current.length > APEX_COCKPIT_PREROLL_CHUNKS) {
           cockpitRecordedChunksRef.current = cockpitRecordedChunksRef.current.slice(-APEX_COCKPIT_PREROLL_CHUNKS);
         }
       };
       recorder.onstop = () => {
-        const browserTranscript = String(cockpitBrowserTranscriptRef.current || "").trim();
+        const browserTranscript = currentCockpitBrowserCaptionTranscript();
         const shouldDiscard = cockpitDiscardNextCaptureRef.current || (!cockpitSpeechStartedRef.current && !browserTranscript);
-        const blob = new Blob(cockpitRecordedChunksRef.current, { type: recorder.mimeType || "audio/webm" });
+        const pcmWav = buildCockpitPcmWavBlob();
+        const blob = pcmWav?.blob || new Blob(cockpitRecordedChunksRef.current, { type: recorder.mimeType || "audio/webm" });
         cockpitDiscardNextCaptureRef.current = false;
         cleanupCockpitVoiceStream();
         cockpitRecorderRef.current = null;
@@ -8700,15 +13187,21 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
           setCockpitVoiceNotice("Voice paused.");
           return;
         }
-        transcribeCockpitVoiceBlob(blob);
+        transcribeCockpitVoiceBlob(blob, { alwaysOpenMic: cockpitLastAlwaysOpenGateRef.current });
       };
-      recorder.start(800);
+      recorder.start(APEX_COCKPIT_RECORDER_SLICE_MS);
       startCockpitVoiceLevelMonitor(stream);
       startCockpitSpeechRecognition();
       cockpitRecordingRef.current = true;
       setCockpitRecording(true);
       setCockpitAutoListening(true);
-      setCockpitVoiceNotice(handoff ? APEX_COCKPIT_LISTENING_HANDOFF_NOTICE : cockpitNeedsWake ? "Apex is awake. Voice will stay open on this page." : "Voice is open. I'm listening while this page is open.");
+      armCockpitNoVoiceTimer();
+      updateCockpitAlwaysOpenMicStatus({
+        state: APEX_ALWAYS_OPEN_MIC_STATE.STANDBY,
+        speechDetected: false,
+        feedbackSuppressionActive: false,
+      });
+      setCockpitVoiceNotice(handoff ? APEX_COCKPIT_LISTENING_HANDOFF_NOTICE : "Voice is open. Speak normally while I calibrate the mic gate.");
     } catch (error) {
       cleanupCockpitVoiceStream();
       cockpitRecordingRef.current = false;
@@ -8716,7 +13209,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       setCockpitAutoListening(false);
       setCockpitMicPermissionState("denied");
       setCockpitError("Microphone access is needed for always-open Apex voice.");
-      setCockpitVoiceNotice(error?.message || "Microphone permission was not granted. Allow microphone access for Apex HQ and try again.");
+      setCockpitVoiceNotice(resolveApexCockpitMicFailureMessage(error));
     } finally {
       cockpitVoiceOpeningRef.current = false;
     }
@@ -8724,28 +13217,30 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
 
   function recoverCockpitVoice() {
     setCockpitRecognitionError("");
-    if (!canUseCockpitRecorder) {
-      setCockpitVoiceNotice("This browser cannot open microphone here. Type the request or use another supported browser.");
-      return;
-    }
     if (cockpitSpeakingRef.current || cockpitSpeaking) {
       interruptCockpitVoicePlayback("manual-button");
-      return;
     }
-    if (cockpitRecordingRef.current || cockpitRecording) {
-      if (canUseCockpitSpeechRecognition && !["captioning", "interim"].includes(cockpitRecognitionStatus)) {
-        setCockpitRecognitionStatus("recovering");
-        startCockpitSpeechRecognition({ clearTranscript: false });
-      }
-      setCockpitVoiceNotice("Voice health checked. Apex is listening; browser captions will reconnect if the browser allows it.");
-      return;
-    }
-    openCockpitVoiceSession({ automatic: false });
+    pauseCockpitVoiceSession("Voice recovered to quiet/manual mode.");
   }
 
-  function finishCockpitVoiceTurn({ fallbackTranscript = "" } = {}) {
+  function toggleCockpitConversationMode() {
+    const nextConversationMode = !cockpitConversationMode;
+    setCockpitConversationMode(nextConversationMode);
+    setCockpitAutoListening(false);
+    cockpitAutoListeningRef.current = false;
+    if (!nextConversationMode) {
+      pauseCockpitVoiceSession("Conversation off. Voice is quiet.");
+      return;
+    }
+    setCockpitVoiceNotice("Conversation on. Opening one visible voice turn; Apex will not auto-reopen after it settles.");
+    if (!cockpitRecordingRef.current && !cockpitTranscribingRef.current && !cockpitSpeakingRef.current) {
+      setTimeout(() => openCockpitVoiceSession({ automatic: false }), 80);
+    }
+  }
+
+  function finishCockpitVoiceTurn({ fallbackTranscript = "", alwaysOpenMic = null } = {}) {
     clearCockpitCaptionFinalTurnTimer();
-    const cleanFallbackTranscript = String(fallbackTranscript || cockpitBrowserTranscriptRef.current || "").trim();
+    const cleanFallbackTranscript = String(fallbackTranscript || currentCockpitBrowserCaptionTranscript()).trim();
     const routeCaptionTranscript = () => {
       if (!cleanFallbackTranscript) return false;
       cleanupCockpitVoiceStream();
@@ -8757,6 +13252,10 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
       handleCockpitVoiceTranscript(cleanFallbackTranscript, { sourceLabel: "Browser speech captions" });
       return true;
     };
+    if (cockpitTranscribingRef.current && !cockpitRecorderRef.current) {
+      pauseCockpitVoiceSession("Voice turn settled. Apex is quiet until John starts the next turn.");
+      return;
+    }
     if (!cockpitRecordingRef.current || !cockpitRecorderRef.current) {
       routeCaptionTranscript();
       return;
@@ -8767,24 +13266,44 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     }
     if (cleanFallbackTranscript) {
       cockpitBrowserTranscriptRef.current = cleanFallbackTranscript;
+      cockpitBrowserTranscriptCaptureIdRef.current = cockpitCurrentCaptureIdRef.current;
       setCockpitBrowserTranscript(cleanFallbackTranscript);
     }
+    updateCockpitAlwaysOpenMicStatus({
+      state: APEX_ALWAYS_OPEN_MIC_STATE.PROCESSING,
+      speechDetected: true,
+      feedbackSuppressionActive: false,
+    });
     setCockpitVoiceNotice("Apex heard the turn. Reading it now.");
     setCockpitSpeechActive(false);
+    if (alwaysOpenMic) cockpitLastAlwaysOpenGateRef.current = alwaysOpenMic;
     cockpitRecorderRef.current.stop();
   }
 
-  function pauseCockpitVoiceSession() {
+  function pauseCockpitVoiceSession(notice = "Voice paused.") {
     clearCockpitResumeListeningTimer();
     clearCockpitCaptionFinalTurnTimer();
+    clearCockpitNoVoiceTimer();
+    clearCockpitTranscriptionTimeout();
+    cockpitActiveTranscriptionTurnRef.current = "";
     cockpitListeningHandoffPendingRef.current = false;
     setCockpitAutoListening(false);
+    cockpitAutoListeningRef.current = false;
+    cockpitRecoveringUntilRef.current = 0;
+    updateCockpitAlwaysOpenMicStatus({
+      state: APEX_ALWAYS_OPEN_MIC_STATE.QUIET,
+      speechDetected: false,
+      feedbackSuppressionActive: true,
+      fallbackReason: "Voice routing is quiet.",
+    });
     setCockpitSpeechActive(false);
     setCockpitMicLevel(0);
     cockpitRecordingRef.current = false;
+    cockpitTranscribingRef.current = false;
     cockpitBargeInterruptedRef.current = false;
-    cockpitDiscardNextCaptureRef.current = !cockpitSpeechStartedRef.current;
-    setCockpitVoiceNotice("Voice paused.");
+    cockpitDiscardNextCaptureRef.current = true;
+    setCockpitTranscribing(false);
+    setCockpitVoiceNotice(notice);
     if (cockpitRecorderRef.current && cockpitRecorderRef.current.state !== "inactive") {
       cockpitRecorderRef.current.stop();
       return;
@@ -8793,7 +13312,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
     setCockpitRecording(false);
   }
 
-  const cockpitScreenClassName = `co-apex-cockpit-screen co-apex-cockpit-screen--focus ${cockpitImmersiveMode ? "co-apex-cockpit-screen--immersive" : "co-apex-cockpit-screen--console"} ${cockpitSpotlightMode ? "co-apex-cockpit-screen--spotlight" : "co-apex-cockpit-screen--full-console"} w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-700/70 bg-slate-950 text-white shadow-[0_34px_80px_-40px_rgba(2,6,23,0.95)] ring-1 ring-cyan-300/10 lg:h-[calc(100vh-16px)]`;
+  const cockpitScreenClassName = `co-apex-cockpit-screen co-apex-cockpit-screen--focus ${conversationFirst ? "co-apex-cockpit-screen--conversation-first" : ""} ${cockpitImmersiveMode ? "co-apex-cockpit-screen--immersive" : "co-apex-cockpit-screen--console"} ${cockpitSpotlightMode ? "co-apex-cockpit-screen--spotlight" : "co-apex-cockpit-screen--full-console"} w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-700/70 bg-slate-950 text-white shadow-[0_34px_80px_-40px_rgba(2,6,23,0.95)] ring-1 ring-cyan-300/10 lg:h-[calc(100vh-16px)]`;
 
   return (
     <section className={cockpitScreenClassName}>
@@ -8817,16 +13336,17 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
               <span className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.08em] text-slate-300"><ApexCockpitStatusDot tone={cockpitVoiceHealth.tone} /> {cockpitVoiceHealth.status}</span>
             </div>
             <div className="flex min-w-0 max-w-full flex-wrap gap-3 text-[11px] font-bold text-slate-300 md:justify-end">
-              <span className="inline-flex items-center gap-1"><Icon name="check" className="h-3.5 w-3.5" /> Review-first</span>
+              <span className="inline-flex items-center gap-1"><Icon name="check" className="h-3.5 w-3.5" /> Private Apex</span>
+              <span className="inline-flex items-center gap-1"><Icon name="spark" className="h-3.5 w-3.5" /> Local-first</span>
               <span className="hidden h-4 w-px bg-slate-700 md:inline-block" />
-              <span>Operator: {state.operatorName}</span>
+              <span>Operator: {cockpitOperatorName}</span>
               <span className="hidden h-4 w-px bg-slate-700 md:inline-block" />
               <span>Company: Apex HQ</span>
               <span>{cockpitClock}</span>
             </div>
           </header>
 
-          <div className="w-full min-w-0 max-w-full overflow-hidden lg:hidden">
+          <div className="co-apex-cockpit-mobile-section-nav w-full min-w-0 max-w-full overflow-hidden lg:hidden">
             <ApexControlRoomSectionNav activeSection={activeSection} onChange={onChange} variant="dark" />
           </div>
 
@@ -8834,10 +13354,10 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
             <div className="flex min-w-0 items-center gap-2">
               <ApexCockpitControlButton
                 className="shrink-0 px-3"
-                onClick={cockpitRecording ? pauseCockpitVoiceSession : cockpitSpeaking ? () => interruptCockpitVoicePlayback("manual-button") : () => openCockpitVoiceSession({ automatic: false })}
+                onClick={cockpitRecording || cockpitTranscribing ? () => pauseCockpitVoiceSession() : cockpitSpeaking ? () => interruptCockpitVoicePlayback("manual-button") : () => openCockpitVoiceSession({ automatic: false })}
                 disabled={cockpitSpeaking ? false : !canToggleCockpitVoice}
                 active={cockpitRecording || cockpitSpeaking}
-                title={cockpitRecording ? "Pause Apex voice" : "Wake or resume Apex voice"}
+                title={cockpitRecording ? "Pause Apex voice" : "Resume Apex voice"}
               >
                 <Icon name="phone" /> {cockpitWakeButtonLabel}
               </ApexCockpitControlButton>
@@ -8871,6 +13391,15 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
               >
                 <Icon name="spark" /> {cockpitSpotlightMode ? "Stage View" : "Full Console"}
               </ApexCockpitControlButton>
+              <ApexCockpitControlButton
+                className="px-3"
+                disabled={false}
+                onClick={onOpenAvatarLab}
+                active={false}
+                title="Open Apex Avatar Lab"
+              >
+                <Icon name="spark" /> Avatar Lab
+              </ApexCockpitControlButton>
             </div>
             <div className="grid min-w-0 grid-cols-5 gap-2">
               {focusDrawerTabs.map((tab) => {
@@ -8902,12 +13431,12 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                       <p className="mt-1 min-w-0 break-words text-[11px] font-bold leading-4 text-slate-500">{cockpitAgentActionNotice || cockpitVoiceNotice || cockpitVoiceHealth.notice}</p>
                     </div>
                     <div className="grid min-w-0 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                      <ApexCockpitControlButton disabled={false} onClick={() => setCockpitConversationMode((current) => !current)} active={cockpitConversationMode}>{cockpitConversationMode ? "Conversation On" : "Conversation Off"}</ApexCockpitControlButton>
+                      <ApexCockpitControlButton disabled={false} onClick={toggleCockpitConversationMode} active={cockpitConversationMode}>{cockpitConversationMode ? "Conversation On" : "Conversation Off"}</ApexCockpitControlButton>
                       <ApexCockpitControlButton disabled={false} onClick={() => setCockpitBargeInEnabled((current) => !current)} active={cockpitBargeInEnabled}>{cockpitBargeInEnabled ? "Barge-in On" : "Barge-in Off"}</ApexCockpitControlButton>
                       <ApexCockpitControlButton onClick={() => primeCockpitAudioOutput({ speakCheck: true })} disabled={cockpitSpeaking} active={cockpitAudioReady}>Sound Check</ApexCockpitControlButton>
                       <ApexCockpitControlButton onClick={() => speakCockpitAnswer()} disabled={!canSpeakCockpitAnswer} active={cockpitSpeaking}>Speak Answer</ApexCockpitControlButton>
                       <ApexCockpitControlButton onClick={() => interruptCockpitVoicePlayback("manual-button")} disabled={!cockpitSpeaking}>Interrupt</ApexCockpitControlButton>
-                      <ApexCockpitControlButton onClick={() => recoverCockpitVoice()} disabled={!canUseCockpitRecorder && !cockpitSpeaking && !cockpitRecording}>Recover Voice</ApexCockpitControlButton>
+                      <ApexCockpitControlButton onClick={() => recoverCockpitVoice()} disabled={!canUseCockpitVoiceInput && !cockpitSpeaking && !cockpitRecording && !cockpitTranscribing}>Recover Voice</ApexCockpitControlButton>
                       <ApexCockpitControlButton onClick={() => rememberCockpitTurnFromAnswer()} disabled={!canRememberCockpitTurn} active={cockpitRememberingTurn}>Remember</ApexCockpitControlButton>
                     </div>
                   </div>
@@ -8958,7 +13487,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     <Icon name="phone" className="h-6 w-6" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs font-black text-slate-100">{cockpitRecording ? "Voice Open" : "Voice Paused"}</p>
+                    <p className="text-xs font-black text-slate-100">{cockpitRecording ? "Voice Open" : "Voice Ready"}</p>
                     <p className="text-[11px] font-bold text-slate-400">{cockpitRecording ? cockpitVoiceState.label : cockpitTranscribing ? "Transcribing" : cockpitVoiceState.label}</p>
                     <p className="mt-0.5 text-[10px] font-black uppercase tracking-[0.08em] text-cyan-300">{cockpitCaptionStatusLabel}</p>
                     <ApexMiniWaveform mode={cockpitVoiceMode} />
@@ -8972,7 +13501,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                 </div>
                 <ApexCockpitControlButton
                   className="mt-2 w-full"
-                  onClick={cockpitRecording ? pauseCockpitVoiceSession : cockpitSpeaking ? () => interruptCockpitVoicePlayback("manual-button") : () => openCockpitVoiceSession({ automatic: false })}
+                  onClick={cockpitRecording || cockpitTranscribing ? () => pauseCockpitVoiceSession() : cockpitSpeaking ? () => interruptCockpitVoicePlayback("manual-button") : () => openCockpitVoiceSession({ automatic: false })}
                   disabled={cockpitSpeaking ? false : !canToggleCockpitVoice}
                   active={cockpitRecording || cockpitSpeaking}
                   title={cockpitRecording ? "Pause Apex voice" : "Resume Apex voice"}
@@ -8982,7 +13511,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                 <div className="mt-2 grid min-w-0 grid-cols-2 gap-1.5">
                   <ApexCockpitControlButton
                     className="px-2"
-                    onClick={() => setCockpitConversationMode((current) => !current)}
+                    onClick={toggleCockpitConversationMode}
                     disabled={false}
                     active={cockpitConversationMode}
                     title="Toggle continuous Apex conversation"
@@ -9017,7 +13546,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     <ApexCockpitControlButton
                       className="shrink-0 px-2"
                       onClick={() => recoverCockpitVoice()}
-                      disabled={!canUseCockpitRecorder && !cockpitSpeaking && !cockpitRecording}
+                      disabled={!canUseCockpitVoiceInput && !cockpitSpeaking && !cockpitRecording && !cockpitTranscribing}
                       active={cockpitVoiceHealth.status === "Recovering captions"}
                       title="Recover Apex voice health"
                     >
@@ -9048,7 +13577,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     </select>
                   </label>
                   <label className="grid min-w-0 gap-1 text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
-                    Personality
+                    Assistant Mode
                     <select
                       value={cockpitPersonalityMode}
                       onChange={(event) => setCockpitPersonalityMode(event.target.value)}
@@ -9088,25 +13617,25 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
             </div>
 
             <div className="co-apex-cockpit-focus-center order-1 grid w-full min-w-0 max-w-full content-start gap-2 lg:min-h-0 lg:overflow-hidden xl:order-none">
-              <div className="grid min-w-0 gap-3 rounded-lg border border-cyan-200/14 bg-slate-950/82 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] xl:hidden">
+              <div className="co-apex-cockpit-mobile-voice-card grid min-w-0 gap-3 rounded-lg border border-cyan-200/14 bg-slate-950/82 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] xl:hidden">
                 <div className="flex min-w-0 items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">
                     <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ${cockpitRecording ? "bg-emerald-500/16 text-emerald-200 shadow-[0_0_24px_rgba(16,185,129,0.3)]" : cockpitVoiceMode === "blocked" ? "bg-red-500/12 text-red-300" : "bg-slate-800 text-slate-300"}`}>
                       <Icon name="phone" className="h-5 w-5" />
                     </span>
                     <div className="min-w-0">
-                      <p className="text-xs font-black text-slate-100">{cockpitRecording ? "Voice Open" : "Voice Paused"}</p>
+                      <p className="text-xs font-black text-slate-100">{cockpitRecording ? "Voice Open" : "Voice Ready"}</p>
                       <p className="text-[11px] font-bold text-slate-400">{cockpitVoiceState.label} / {cockpitCaptionStatusLabel}</p>
                     </div>
                   </div>
                   <ApexCockpitControlButton
                     className="shrink-0 px-3"
-                    onClick={cockpitRecording ? pauseCockpitVoiceSession : cockpitSpeaking ? () => interruptCockpitVoicePlayback("manual-button") : () => openCockpitVoiceSession({ automatic: false })}
+                    onClick={cockpitRecording || cockpitTranscribing ? () => pauseCockpitVoiceSession() : cockpitSpeaking ? () => interruptCockpitVoicePlayback("manual-button") : () => openCockpitVoiceSession({ automatic: false })}
                     disabled={cockpitSpeaking ? false : !canToggleCockpitVoice}
                     active={cockpitRecording || cockpitSpeaking}
                     title={cockpitRecording ? "Pause Apex voice" : "Resume Apex voice"}
                   >
-                    {cockpitRecording ? "Pause" : cockpitSpeaking ? "Interrupt" : cockpitNeedsWake ? "Wake" : "Resume"}
+                    {cockpitRecording ? "Pause" : cockpitSpeaking ? "Interrupt" : cockpitNeedsWake ? "Allow Mic" : "Resume"}
                   </ApexCockpitControlButton>
                 </div>
                 <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_44px] items-center gap-3">
@@ -9120,6 +13649,83 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                 </div>
               </div>
               <ApexCockpitAvatar voiceMode={cockpitVoiceMode} voiceLevel={cockpitLiveLevel} />
+              <section className="co-apex-cockpit-primary-voice-control relative z-30 mx-auto grid w-full max-w-2xl min-w-0 gap-2 rounded-lg border border-cyan-200/16 bg-slate-950/72 p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center" aria-label="Apex primary voice control">
+                <div className="grid min-w-0 grid-cols-[36px_minmax(0,1fr)] items-center gap-2">
+                  <span className={`grid h-9 w-9 place-items-center rounded-full ${cockpitRecording ? "bg-emerald-500/16 text-emerald-200 shadow-[0_0_24px_rgba(16,185,129,0.28)]" : cockpitSpeaking ? "bg-orange-500/14 text-orange-200 shadow-[0_0_22px_rgba(249,115,22,0.24)]" : cockpitVoiceMode === "blocked" ? "bg-red-500/12 text-red-200" : "bg-cyan-500/10 text-cyan-200"}`}>
+                    <Icon name="phone" className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-[11px] font-black uppercase tracking-[0.1em] text-cyan-200">
+                      {cockpitRecording
+                        ? "Voice is listening"
+                        : cockpitTranscribing
+                          ? "Reading your voice"
+                          : cockpitSubmitting
+                            ? "Thinking"
+                            : cockpitSpeaking
+                              ? "Speaking"
+                              : "Voice ready"}
+                    </p>
+                    <p className="line-clamp-1 min-w-0 break-words text-[10px] font-bold leading-4 text-slate-400">{cockpitVoiceNotice || cockpitRecognitionError || cockpitVoiceHealth.notice}</p>
+                  </div>
+                </div>
+                <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:justify-end">
+                  <ApexCockpitControlButton
+                    className="shrink-0 px-3"
+                    onClick={cockpitRecording || cockpitTranscribing ? () => pauseCockpitVoiceSession() : cockpitSpeaking ? () => interruptCockpitVoicePlayback("manual-button") : () => openCockpitVoiceSession({ automatic: false })}
+                    disabled={cockpitSpeaking ? false : !canToggleCockpitVoice}
+                    active={cockpitRecording || cockpitSpeaking}
+                    title={cockpitRecording ? "Pause Apex voice" : cockpitSpeaking ? "Interrupt Apex voice" : "Resume Apex voice"}
+                  >
+                    <Icon name="phone" /> {cockpitWakeButtonLabel}
+                  </ApexCockpitControlButton>
+                  <ApexCockpitControlButton
+                    className="shrink-0 px-3"
+                    onClick={toggleCockpitConversationMode}
+                    disabled={false}
+                    active={cockpitConversationMode}
+                    title={cockpitConversationMode ? "Turn Apex conversation off and force quiet" : "Turn Apex conversation on for one visible voice turn"}
+                  >
+                    {cockpitConversationMode ? "Conversation On" : "Conversation Off"}
+                  </ApexCockpitControlButton>
+                  <ApexCockpitControlButton
+                    className="shrink-0 px-3"
+                    onClick={() => finishCockpitVoiceTurn()}
+                    disabled={!cockpitRecording && !cockpitTranscribing && !cockpitBrowserTranscript}
+                    active={cockpitRecording || cockpitTranscribing}
+                    title="Finish the current Apex voice turn"
+                  >
+                    <Icon name="check" /> Done Talking
+                  </ApexCockpitControlButton>
+                  <ApexCockpitControlButton
+                    className="shrink-0 px-3"
+                    onClick={() => recoverCockpitVoice()}
+                    disabled={!canUseCockpitVoiceInput && !cockpitSpeaking && !cockpitRecording && !cockpitTranscribing}
+                    active={cockpitVoiceHealth.status === "Recovering captions"}
+                    title="Recover Apex voice"
+                  >
+                    <Icon name="refresh" /> Recover
+                  </ApexCockpitControlButton>
+                  <ApexCockpitControlButton
+                    className="shrink-0 px-3"
+                    onClick={() => runCockpitTypedLiveLatencyBenchmark()}
+                    disabled={!state.canView || !sessionToken || Boolean(cockpitLiveBenchmarkBusy)}
+                    active={cockpitLiveBenchmarkBusy === "typed"}
+                    title="Run Apex typed live latency benchmark locally"
+                  >
+                    <Icon name="clock" /> {cockpitLiveBenchmarkBusy === "typed" ? "Typed..." : "Bench Typed"}
+                  </ApexCockpitControlButton>
+                  <ApexCockpitControlButton
+                    className="shrink-0 px-3"
+                    onClick={() => armCockpitVoiceLiveLatencyBenchmark()}
+                    disabled={!state.canView || !sessionToken || Boolean(cockpitLiveBenchmarkBusy) || (!canUseCockpitVoiceInput && !cockpitRecording)}
+                    active={cockpitVoiceBenchmarkArmed}
+                    title="Arm the next visible voice turn as the Apex latency benchmark"
+                  >
+                    <Icon name="phone" /> {cockpitVoiceBenchmarkArmed ? "Voice Armed" : "Bench Voice"}
+                  </ApexCockpitControlButton>
+                </div>
+              </section>
               <ApexCockpitStageHud
                 voiceMode={cockpitVoiceMode}
                 voiceHealth={cockpitVoiceHealth}
@@ -9170,6 +13776,89 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Apex Now</p>
                     <p className="mt-0.5 min-w-0 break-words text-xs font-black text-slate-100">{cockpitNowState.title}</p>
                     <p className="mt-0.5 min-w-0 break-words text-[11px] font-bold leading-4 text-slate-500">{cockpitNowState.detail}</p>
+                    <div className="mt-2 grid min-w-0 gap-1.5 rounded-md border border-emerald-300/16 bg-emerald-400/8 px-2 py-1.5" aria-label="Apex local intelligence status">
+                      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                        <span className="shrink-0 rounded-md border border-emerald-300/18 bg-emerald-500/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-emerald-200">Local Intelligence</span>
+                        <span className="min-w-0 break-words text-[10px] font-black text-emerald-100">{cockpitLocalIntelligence.providerLabel} / {cockpitLocalIntelligence.selectedModel}</span>
+                        <label className="flex shrink-0 items-center gap-1 rounded-md border border-emerald-300/18 bg-slate-950/54 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-emerald-100" title="Select the local model effort for the next Ask Apex turn. This does not load a model by itself.">
+                          Effort
+                          <select
+                            className="max-w-[7.8rem] rounded border border-emerald-300/16 bg-slate-950 px-1 py-0.5 text-[9px] font-black normal-case tracking-normal text-emerald-50 outline-none"
+                            value={cockpitSelectedEffort}
+                            onChange={(event) => setCockpitSelectedEffort(normalizeApexCockpitEffortId(event.target.value))}
+                            aria-label="Apex local model effort"
+                          >
+                            {APEX_LOCAL_EFFORT_OPTIONS.map((option) => (
+                              <option key={option.id} value={option.id}>{option.label}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <span className={`shrink-0 rounded-md border px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] ${cockpitLocalIntelligence.effortManualOnly ? "border-cyan-300/16 bg-cyan-500/10 text-cyan-100" : "border-emerald-300/18 bg-emerald-500/10 text-emerald-200"}`}>Effort {cockpitLocalIntelligence.effortLabel} / ctx {cockpitLocalIntelligence.effortNumCtx} / {cockpitLocalIntelligence.effortModelStatus}</span>
+                        <span className="shrink-0 rounded-md border border-cyan-300/16 bg-cyan-500/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-cyan-100">Lane {cockpitLocalIntelligence.agentLaneLabel} / {cockpitLocalIntelligence.agentNumCtx}</span>
+                        <span className={`shrink-0 rounded-md border px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] ${cockpitLocalIntelligence.coderStatusLabel === "Active" || cockpitLocalIntelligence.coderStatusLabel === "Manual-only" ? "border-emerald-300/18 bg-emerald-500/10 text-emerald-200" : cockpitLocalIntelligence.coderStatusLabel === "Missing" ? "border-orange-300/18 bg-orange-500/10 text-orange-200" : "border-cyan-300/14 bg-cyan-500/10 text-cyan-200"}`}>30B {cockpitLocalIntelligence.coderStatusLabel}</span>
+                        <span className={`shrink-0 rounded-md border px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] ${cockpitBuildLoopToneClass}`}>Coding {cockpitBuildLoopStatusLabel}</span>
+                        <span className={`shrink-0 rounded-md border px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] ${cockpitBackgroundRuntimeToneClass}`}>Runtime {cockpitBackgroundRuntimeStatus}</span>
+                        <span className={`shrink-0 rounded-md border px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] ${cockpitLatencyProfile?.status === "slow" ? "border-orange-300/18 bg-orange-500/10 text-orange-200" : cockpitLatencyProfile?.status === "fast" ? "border-emerald-300/18 bg-emerald-500/10 text-emerald-200" : "border-cyan-300/14 bg-cyan-500/10 text-cyan-200"}`}>Latency {cockpitLatencyLabel}</span>
+                        <span className="shrink-0 rounded-md border border-emerald-300/18 bg-emerald-500/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-emerald-200">{cockpitLocalIntelligence.rows.find((row) => row.label === "GPU")?.value || "GPU checking"}</span>
+                        <span className={`shrink-0 rounded-md border px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] ${cockpitLocalIntelligence.brainThresholdStatus === "hard-rollback" || cockpitLocalIntelligence.brainThresholdStatus === "reload-needed" ? "border-red-300/20 bg-red-500/10 text-red-200" : cockpitLocalIntelligence.brainThresholdStatus === "soft-threshold" ? "border-orange-300/18 bg-orange-500/10 text-orange-200" : "border-emerald-300/18 bg-emerald-500/10 text-emerald-200"}`}>VRAM {cockpitLocalIntelligence.brainVramLabel}</span>
+                        <span className="shrink-0 rounded-md border border-cyan-300/14 bg-cyan-500/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-cyan-200">Cloud disabled</span>
+                        <span className={`shrink-0 rounded-md border px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] ${cockpitBackgroundPayload?.keepWarm?.enabled ? "border-emerald-300/18 bg-emerald-500/10 text-emerald-200" : "border-slate-700 bg-slate-950/60 text-slate-300"}`}>Warm {cockpitBackgroundPayload?.keepWarm?.enabled ? `${cockpitLocalIntelligence.agentNumCtx}` : "off"}</span>
+                        <span className="shrink-0 rounded-md border border-cyan-300/14 bg-cyan-500/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-cyan-200">Bench {cockpitLocalIntelligence.lastBenchmarkLabel}</span>
+                        <span className="shrink-0 rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-slate-300">OpenAI not used</span>
+                      </div>
+                      <p className="min-w-0 break-words text-[9px] font-bold leading-4 text-emerald-100">{cockpitLocalIntelligence.summary}</p>
+                    </div>
+                    <div className="mt-2 grid min-w-0 gap-1.5 sm:grid-cols-2">
+                      <div className="grid min-w-0 gap-1 rounded-md border border-cyan-300/14 bg-cyan-400/8 px-2 py-1.5" aria-label="Apex local voice status">
+                        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                          <span className="shrink-0 rounded-md border border-cyan-300/18 bg-cyan-500/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-cyan-200">Local Voice</span>
+                          <span className={`shrink-0 rounded-md border px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] ${cockpitLocalVoiceReadiness.tone === "green" ? "border-emerald-300/18 bg-emerald-500/10 text-emerald-200" : cockpitLocalVoiceReadiness.tone === "red" ? "border-red-300/18 bg-red-500/10 text-red-200" : "border-orange-300/18 bg-orange-500/10 text-orange-200"}`}>{cockpitLocalVoiceReadiness.status}</span>
+                          <span className="min-w-0 break-words text-[9px] font-black text-cyan-100">{cockpitLocalVoiceReadiness.loopState}</span>
+                          <span className={`shrink-0 rounded-md border px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] ${cockpitNativeVoiceReady ? "border-emerald-300/18 bg-emerald-500/10 text-emerald-200" : "border-slate-700 bg-slate-950/60 text-slate-300"}`}>Input {cockpitNativeVoiceReady ? "Native" : "Browser"} / {cockpitPreferredVoiceInputMode}</span>
+                          <span className="shrink-0 rounded-md border border-cyan-300/14 bg-cyan-500/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-cyan-100">STT {cockpitLocalVoiceReadiness.sttEngine || cockpitLocalVoiceReadiness.sttStatus} / {cockpitLocalVoiceReadiness.sttProcessor || "unknown"}</span>
+                          <span className={`shrink-0 rounded-md border px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] ${cockpitLocalVoiceReadiness.usingLightweightVoice && !APEX_COCKPIT_USE_FAST_SIMPLE_VOICE ? "border-emerald-300/18 bg-emerald-500/10 text-emerald-200" : "border-orange-300/18 bg-orange-500/10 text-orange-200"}`}>TTS {cockpitLocalVoiceTtsLabel}</span>
+                          <span className={`shrink-0 rounded-md border px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] ${cockpitMicCalibration.signalDetected ? "border-emerald-300/18 bg-emerald-500/10 text-emerald-200" : cockpitMicCalibration.frameCount ? "border-orange-300/18 bg-orange-500/10 text-orange-200" : "border-slate-700 bg-slate-950/60 text-slate-300"}`}>Mic {cockpitMicCalibration.status || "standby"}</span>
+                          <span className="shrink-0 rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-slate-300">Capture {cockpitMicCaptureLabel}</span>
+                          <span className="shrink-0 rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-slate-300">Peak {cockpitMicPeakLabel}</span>
+                          <span className="shrink-0 rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-slate-300">Gate {cockpitMicGateLabel}</span>
+                          <span className="shrink-0 rounded-md border border-emerald-300/18 bg-emerald-500/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-emerald-200">Close {cockpitVoiceTimingSummary.closeLabel}</span>
+                          <span className="shrink-0 rounded-md border border-cyan-300/14 bg-cyan-500/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-cyan-100">STT {cockpitVoiceTimingSummary.sttLabel}</span>
+                          <span className="shrink-0 rounded-md border border-cyan-300/14 bg-cyan-500/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-cyan-100">Model {cockpitVoiceTimingSummary.modelLabel}</span>
+                          <span className="shrink-0 rounded-md border border-cyan-300/14 bg-cyan-500/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-cyan-100">TTS {cockpitVoiceTimingSummary.ttsLabel}</span>
+                          <span className="shrink-0 rounded-md border border-cyan-300/14 bg-cyan-500/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-cyan-100">Play {cockpitVoiceTimingSummary.playbackLabel}</span>
+                          <span className={`shrink-0 rounded-md border px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] ${cockpitVoiceTimingSummary.totalTurnMs && cockpitVoiceTimingSummary.totalTurnMs > 4500 ? "border-orange-300/18 bg-orange-500/10 text-orange-200" : "border-slate-700 bg-slate-950/60 text-slate-300"}`}>Turn {cockpitVoiceTimingSummary.turnLabel}</span>
+                          <span className="shrink-0 rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-slate-300">Slow {cockpitVoiceTimingSummary.slowLabel}</span>
+                          <span className="shrink-0 rounded-md border border-cyan-300/14 bg-cyan-500/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-cyan-100">Typed bench {cockpitLiveBenchmarkStatus.typedLabel}</span>
+                          <span className={`shrink-0 rounded-md border px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] ${cockpitVoiceBenchmarkArmed ? "border-orange-300/18 bg-orange-500/10 text-orange-200" : cockpitLiveBenchmarkStatus.voice ? "border-emerald-300/18 bg-emerald-500/10 text-emerald-200" : "border-slate-700 bg-slate-950/60 text-slate-300"}`}>Voice bench {cockpitVoiceBenchmarkArmed ? "armed" : cockpitLiveBenchmarkStatus.voiceLabel}</span>
+                          <span className="shrink-0 rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-slate-300">Diag {cockpitLiveBenchmarkStatus.diagnosis}</span>
+                          {cockpitShouldShowLastVoiceTurn ? (
+                            <span className="shrink-0 rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-slate-200">Last {cockpitLocalVoiceReadiness.lastTurnStatus}{cockpitLocalVoiceReadiness.lastTurnTotalMs ? ` / ${cockpitLocalVoiceReadiness.lastTurnTotalMs}ms` : ""}</span>
+                          ) : null}
+                          <span className="shrink-0 rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-slate-300">Cloud off</span>
+                        </div>
+                        <p className="line-clamp-2 min-w-0 break-words text-[9px] font-bold leading-4 text-cyan-100">{cockpitMicCalibrationSummary} Bench: typed {cockpitLiveBenchmarkStatus.typedLabel}; voice {cockpitLiveBenchmarkStatus.voiceBreakdownLabel}; slow {cockpitLiveBenchmarkStatus.slowLabel}.</p>
+                      </div>
+                      <div className="grid min-w-0 gap-1 rounded-md border border-violet-300/14 bg-violet-400/8 px-2 py-1.5" aria-label="Apex Personal OS skills status">
+                        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                          <span className="shrink-0 rounded-md border border-violet-300/18 bg-violet-500/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-violet-100">Skills / Agents</span>
+                          <span className="shrink-0 rounded-md border border-emerald-300/18 bg-emerald-500/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-emerald-200">{cockpitPersonalOsCore.availableRouteCount} active</span>
+                          <span className="shrink-0 rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-slate-300">{cockpitPersonalOsCore.plannedRouteCount} planned</span>
+                        </div>
+                        <p className="line-clamp-2 min-w-0 break-words text-[9px] font-bold leading-4 text-violet-100">Apex receives the command first, then routes to Builder, Self-Fix, Apex HQ, memory/tasks, local intelligence, or planned agents when appropriate.</p>
+                      </div>
+                    </div>
+                    {(cockpitAnswerText || cockpitError) ? (
+                      <div className="mt-2 grid min-w-0 gap-1.5 rounded-md border border-cyan-300/16 bg-cyan-400/8 px-2 py-1.5" aria-label="Apex latest typed answer">
+                        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                          <span className="shrink-0 rounded-md border border-cyan-300/18 bg-cyan-500/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-cyan-200">Apex Answer</span>
+                          <span className="min-w-0 break-words text-[9px] font-bold leading-4 text-slate-400">{cockpitLastQuestion || "Typed answer"}</span>
+                        </div>
+                        <p className={`line-clamp-4 min-w-0 break-words text-[10px] font-bold leading-4 ${cockpitError ? "text-red-200" : "text-slate-100"}`}>{cockpitError || cockpitAnswerText}</p>
+                        {(cockpitVoiceNotice || cockpitRecognitionError) ? (
+                          <p className="min-w-0 break-words text-[9px] font-bold leading-4 text-cyan-100">{cockpitVoiceNotice || cockpitRecognitionError}</p>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                   <div className="co-apex-cockpit-now-actions flex min-w-0 flex-wrap gap-1.5 sm:justify-end">
                     <ToneBadge tone={cockpitNowState.tone}>{cockpitNowState.status}</ToneBadge>
@@ -9196,6 +13885,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     </ApexCockpitControlButton>
                   </div>
                 </div>
+                <ApexCockpitLocalIntelligencePanel intelligence={cockpitLocalIntelligence} notice={cockpitLocalProviderNotice} />
                 <div className="grid min-w-0 gap-2 rounded-md border border-cyan-300/16 bg-cyan-400/8 px-2.5 py-2" aria-label="Apex watch officer">
                   <div className="grid min-w-0 gap-1.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
                     <div className="min-w-0">
@@ -9223,7 +13913,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     ))}
                   </div>
                   <p className="min-w-0 break-words rounded-md border border-orange-300/12 bg-slate-950/44 px-2 py-1.5 text-[9px] font-bold leading-4 text-orange-100">
-                    Execution locked: no sends, billing, provider work, production changes, deploys, rollbacks, agent runs, or irreversible actions.
+                    Consequential actions gated: no sends, billing, provider work, production changes, deploys, rollbacks, agent runs, or irreversible actions.
                   </p>
                   <div className="grid min-w-0 gap-1.5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                     <p className="min-w-0 break-words rounded-md border border-cyan-200/10 bg-slate-950/44 px-2 py-1.5 text-[9px] font-bold leading-4 text-cyan-100">{cockpitWatchOfficer.whyItMatters}</p>
@@ -9258,7 +13948,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                   <div className="grid min-w-0 gap-2 rounded-md border border-cyan-300/14 bg-cyan-400/8 px-2.5 py-2" aria-label="Apex visible run timeline strip">
                     <div className="flex min-w-0 items-center justify-between gap-2">
                       <p className="text-[9px] font-black uppercase tracking-[0.12em] text-cyan-300">Live Run Spine</p>
-                      <span className="shrink-0 rounded-md border border-orange-300/18 bg-orange-500/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-orange-200">Execution locked</span>
+                      <span className="shrink-0 rounded-md border border-orange-300/18 bg-orange-500/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-orange-200">Actions gated</span>
                     </div>
                     <div className="grid min-w-0 gap-1.5 sm:grid-cols-5">
                       {cockpitRunTimelineRows.slice(0, 5).map((row) => (
@@ -9345,7 +14035,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                   <ApexCockpitControlButton
                     className="shrink-0 px-2"
                     onClick={() => recoverCockpitVoice()}
-                    disabled={!canUseCockpitRecorder && !cockpitSpeaking && !cockpitRecording}
+                    disabled={!canUseCockpitVoiceInput && !cockpitSpeaking && !cockpitRecording && !cockpitTranscribing}
                     active={cockpitVoiceHealth.status === "Recovering captions"}
                     title="Recover Apex voice health from the live console"
                   >
@@ -9365,7 +14055,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                   <p className="min-w-0 break-words text-[10px] font-bold leading-4 text-cyan-100"><span className="font-black uppercase tracking-[0.08em] text-cyan-300">Next Safe Move:</span> {cockpitNowState.nextSafeAction}</p>
                 </div>
                 {(cockpitAnswerText || cockpitError) ? (
-                  <div className="co-apex-cockpit-main-response grid min-w-0 gap-2 rounded-lg border border-cyan-200/12 bg-slate-950/64 p-3" aria-label="Apex visible response">
+                  <div className="co-apex-cockpit-visible-response grid min-w-0 gap-2 rounded-lg border border-cyan-200/12 bg-slate-950/64 p-3" aria-label="Apex visible response">
                     <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0">
                         <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Apex Response</p>
@@ -9424,7 +14114,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                       <p className="mt-0.5 min-w-0 break-words text-xs font-black text-slate-100">{cockpitVisibleLiveStatus}</p>
                       <p className="mt-0.5 min-w-0 break-words text-[11px] font-bold leading-4 text-slate-500">{cockpitLiveRunNotice || cockpitAgentActionNotice || liveOperatorMode.nextAction || "Start a live operator run from the Apex body."}</p>
                     </div>
-                    <ToneBadge tone={cockpitVisibleLiveTone}>{liveOperatorMode.mode || "Review-first"}</ToneBadge>
+                    <ToneBadge tone={cockpitVisibleLiveTone}>{liveOperatorMode.mode || "Private Apex"}</ToneBadge>
                   </div>
                   <div className="co-apex-cockpit-operator-metrics grid min-w-0 gap-1.5 sm:grid-cols-5">
                     {[
@@ -9453,7 +14143,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                         <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Operator Console</p>
                         <p className="mt-0.5 min-w-0 break-words text-[10px] font-bold leading-4 text-slate-500">Choose the live lane without turning the Apex body into a long wall of panels.</p>
                       </div>
-                      <span className="shrink-0 rounded-md border border-orange-300/18 bg-orange-500/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.08em] text-orange-200">Review-first</span>
+                      <span className="shrink-0 rounded-md border border-emerald-300/18 bg-emerald-500/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.08em] text-emerald-200">Private Apex</span>
                     </div>
                     <div className="grid min-w-0 gap-1.5 sm:grid-cols-4">
                       {cockpitConsoleTabs.map((tab) => {
@@ -9495,7 +14185,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                         { label: "Progress", value: cockpitSessionHeartbeat.progressLabel, tone: cockpitSessionHeartbeat.tone },
                         { label: "Updated", value: cockpitSessionHeartbeat.ageLabel, tone: cockpitSessionHeartbeat.tone },
                         { label: "Pulse", value: cockpitSessionHeartbeat.pulseLabel, tone: cockpitLivePulse?.checkedAt ? "green" : "slate" },
-                        { label: "Execution", value: cockpitSessionHeartbeat.executionLocked ? "Locked" : "Open", tone: cockpitSessionHeartbeat.executionLocked ? "amber" : "red" },
+                        { label: "Gate", value: cockpitSessionHeartbeat.executionLocked ? "Consequential" : "Open", tone: cockpitSessionHeartbeat.executionLocked ? "amber" : "red" },
                       ].map((item) => (
                         <div key={item.label} className="min-w-0 rounded-md border border-slate-800 bg-slate-900/48 px-2.5 py-2">
                           <p className="text-[8px] font-black uppercase tracking-[0.08em] text-slate-500">{item.label}</p>
@@ -9530,7 +14220,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                         { label: "Surface", value: cockpitVisibleProactiveCheckIn.shouldSurface ? "New" : "Quiet", tone: cockpitVisibleProactiveCheckIn.shouldSurface ? "amber" : "slate" },
                         { label: "Voice", value: cockpitProactiveVoiceStatus, tone: cockpitProactiveVoiceStatus === "Spoken" ? "green" : cockpitProactiveVoiceStatus === "Queued" ? "amber" : cockpitProactiveVoiceStatus === "Manual" ? "blue" : "slate" },
                         { label: "Memory", value: cockpitVisibleProactiveMemoryId ? "Drafted" : cockpitVisibleProactiveCheckIn.shouldSurface ? "Suggested" : "Quiet", tone: cockpitVisibleProactiveMemoryId ? "green" : cockpitVisibleProactiveCheckIn.shouldSurface ? "amber" : "slate" },
-                        { label: "Execution", value: cockpitVisibleProactiveCheckIn.executionLocked ? "Locked" : "Open", tone: cockpitVisibleProactiveCheckIn.executionLocked ? "amber" : "red" },
+                        { label: "Gate", value: cockpitVisibleProactiveCheckIn.executionLocked ? "Consequential" : "Review", tone: cockpitVisibleProactiveCheckIn.executionLocked ? "amber" : "red" },
                       ].map((item) => (
                         <div key={item.label} className="min-w-0 rounded-md border border-slate-800 bg-slate-900/48 px-2.5 py-2">
                           <p className="text-[8px] font-black uppercase tracking-[0.08em] text-slate-500">{item.label}</p>
@@ -9538,7 +14228,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                         </div>
                       ))}
                     </div>
-                    <p className="min-w-0 break-words rounded-md border border-orange-200/10 bg-orange-500/8 px-2.5 py-2 text-[10px] font-bold leading-4 text-orange-100">{cockpitVisibleProactiveCheckIn.recommendation || "Keep monitoring. Execution remains locked."}</p>
+                    <p className="min-w-0 break-words rounded-md border border-orange-200/10 bg-orange-500/8 px-2.5 py-2 text-[10px] font-bold leading-4 text-orange-100">{cockpitVisibleProactiveCheckIn.recommendation || "Keep monitoring. Consequential actions remain gated."}</p>
                     <p className="min-w-0 break-words rounded-md border border-cyan-200/10 bg-cyan-500/8 px-2.5 py-2 text-[10px] font-bold leading-4 text-cyan-100">
                       {cockpitProactiveMemoryNotice || (cockpitProactiveMemoryCount
                         ? `${cockpitProactiveMemoryCount} proactive check-in memory draft${cockpitProactiveMemoryCount === 1 ? "" : "s"} created this session; manual approval is still required.`
@@ -9890,7 +14580,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     <Icon name="spark" /> {cockpitSpeaking ? "Speaking" : "Speak"}
                   </ApexCockpitControlButton>
                 </div>
-                <p className={`min-w-0 break-words text-[11px] font-bold leading-5 ${cockpitError ? "text-red-200" : "text-slate-200"}`}>{cockpitError || cockpitAnswerText || "I'm here. Ask Apex anything, or wake voice once to keep the page listening."}</p>
+                <p className={`min-w-0 break-words text-[11px] font-bold leading-5 ${cockpitError ? "text-red-200" : "text-slate-200"}`}>{cockpitError || cockpitAnswerText || "I'm here. Talk to Apex or type if the browser is still waiting on microphone permission."}</p>
                 <p className="min-w-0 break-words text-[10px] font-bold leading-4 text-slate-500">{cockpitAgentActionNotice || cockpitVoiceNotice || cockpitRecognitionError || cockpitVoiceHealth.notice}</p>
                 {(cockpitAnswerText || cockpitError) ? (
                   <div className="grid min-w-0 gap-1.5 rounded-md border border-cyan-200/10 bg-cyan-400/8 px-2.5 py-2" aria-label="Apex mobile live conversation context">
@@ -9966,6 +14656,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                   turns={cockpitTurns}
                   route={cockpitCommandRoute}
                   onOpenRoute={onChange}
+                  onOpenModule={onOpenModule}
                   onCreateAgentRequest={() => createCockpitAgentRequestFromCommand()}
                   onCreateLiveRun={() => createCockpitLiveRunFromCommand(askQuestion.trim() || cockpitLastQuestion || cockpitCommandRoute.label, cockpitCommandRoute, { autoCycle: true })}
                   onBrief={() => deliverCockpitBriefing({ speak: true })}
@@ -10038,7 +14729,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
             </div>
           </div>
 
-          <section className="grid min-w-0 gap-3 rounded-lg border border-slate-800 bg-slate-950/70 p-3 sm:grid-cols-2 xl:grid-cols-5">
+          <section className="co-apex-cockpit-boundaries grid min-w-0 gap-3 rounded-lg border border-slate-800 bg-slate-950/70 p-3 sm:grid-cols-2 xl:grid-cols-5">
             <p className="sm:col-span-2 xl:col-span-5 text-[11px] font-black uppercase tracking-[0.12em] text-slate-300">Apex Boundaries <span className="font-bold normal-case text-slate-500">(Always On)</span></p>
             {boundaryRows.map((item) => (
               <div key={item.id} className="flex min-w-0 items-start gap-3 border-slate-800 xl:border-r xl:pr-3 xl:last:border-r-0">
@@ -10056,10 +14747,922 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   );
 }
 
-function ApexHomePanel({ state, activeSection, onChange, askQuestion, setAskQuestion, sessionToken }) {
+function ApexHqDomainBridgePanel({ state, onChange, onOpenModule }) {
+  const domain = state.apexHqDomain || {};
+  const rows = Array.isArray(domain.rows) ? domain.rows : [];
+  const commandRows = Array.isArray(domain.commandRows) ? domain.commandRows : [];
+  const blockedRows = Array.isArray(domain.blockedRows) ? domain.blockedRows : [];
+  const openTarget = (row = {}) => {
+    if (row.moduleId) {
+      onOpenModule?.(row.moduleId);
+      return;
+    }
+    if (row.sectionId) onChange?.(row.sectionId);
+  };
+
+  return (
+    <section className="grid min-w-0 gap-3 rounded-xl border border-cyan-200/12 bg-slate-950/78 p-3 text-white shadow-[0_26px_64px_-46px_rgba(2,6,23,0.92)] sm:p-4" aria-label="Apex HQ Domain bridge">
+      <div className="flex min-w-0 flex-col gap-2 md:flex-row md:items-start md:justify-between">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Apex HQ Domain</p>
+          <h2 className="mt-1 break-words text-lg font-black text-white">Business Workspace</h2>
+          <p className="mt-1 max-w-4xl break-words text-[12px] font-bold leading-5 text-slate-300">
+            {domain.summary || "Apex can route to Apex HQ business workspaces using existing modules, state, and permissions."}
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <ToneBadge tone={domain.tone || "green"}>{domain.status || "Ready"}</ToneBadge>
+          <ToneBadge tone="amber">Consequential actions gated</ToneBadge>
+        </div>
+      </div>
+
+      <div className="grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        {rows.length ? rows.map((row) => (
+          <button
+            key={row.id}
+            type="button"
+            onClick={() => openTarget(row)}
+            disabled={!row.moduleId && !row.sectionId}
+            className="co-focus-ring group grid min-w-0 gap-2 rounded-lg border border-slate-800 bg-slate-900/68 p-3 text-left transition hover:border-cyan-300/45 hover:bg-slate-900 disabled:cursor-default disabled:hover:border-slate-800"
+          >
+            <div className="flex min-w-0 items-start justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-cyan-400/10 text-cyan-200">
+                  <Icon name={row.icon || "spark"} className="h-3.5 w-3.5" />
+                </span>
+                <div className="min-w-0">
+                  <p className="break-words text-[12px] font-black text-slate-100">{row.title}</p>
+                  <p className="break-words text-[10px] font-black uppercase tracking-[0.08em] text-cyan-300">{row.status}</p>
+                </div>
+              </div>
+              {row.moduleId || row.sectionId ? <Icon name="arrowUpRight" className="h-3.5 w-3.5 shrink-0 text-slate-500 transition group-hover:text-cyan-200" /> : null}
+            </div>
+            <p className="break-words text-[11px] font-bold leading-4 text-slate-400">{row.detail}</p>
+            <p className="break-words text-[9px] font-black uppercase tracking-[0.08em] text-slate-500">{(row.examples || []).join(" / ")}</p>
+          </button>
+        )) : (
+          <p className="rounded-lg border border-dashed border-slate-800 p-3 text-[12px] font-bold text-slate-500 sm:col-span-2 xl:col-span-4">Apex HQ domain access is not visible for this user.</p>
+        )}
+      </div>
+
+      <div className="grid min-w-0 gap-2 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+        <div className="min-w-0 rounded-lg border border-slate-800 bg-slate-900/54 p-3">
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Command Bridge v0</p>
+          <div className="mt-2 flex min-w-0 flex-wrap gap-1.5">
+            {commandRows.map((row) => (
+              <button
+                key={row.id}
+                type="button"
+                onClick={() => openTarget(row)}
+                className="co-focus-ring inline-flex min-h-7 items-center rounded-md border border-slate-800 bg-slate-950/70 px-2 text-[10px] font-black text-slate-300 transition hover:border-cyan-400/50 hover:text-white"
+              >
+                {row.title}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="min-w-0 rounded-lg border border-orange-300/16 bg-orange-500/[0.06] p-3">
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-orange-200">Still asks first</p>
+          <div className="mt-2 flex min-w-0 flex-wrap gap-1.5">
+            {blockedRows.map((row) => (
+              <span key={row.id} className="rounded-md border border-orange-300/16 bg-slate-950/48 px-2 py-1 text-[10px] font-black text-orange-100">
+                {row.title}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function BuilderFixHistoryRow({ row }) {
+  const files = Array.isArray(row.filesTouched) ? row.filesTouched.slice(0, 5) : [];
+  const actions = Array.isArray(row.actionTaken) ? row.actionTaken.slice(0, 4) : [];
+  return (
+    <div className="grid min-w-0 gap-2 rounded-md border border-slate-800 bg-slate-950/72 p-2.5">
+      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="break-words text-[12px] font-black text-slate-100">{row.title || "Controlled local fix"}</p>
+          <p className="mt-1 break-words text-[11px] font-bold leading-4 text-slate-400">{row.whatApexDid || row.detail}</p>
+        </div>
+        <ToneBadge tone={row.tone}>{row.status || "recorded"}</ToneBadge>
+      </div>
+      {row.request ? (
+        <p className="break-words text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500">Request: {row.request}</p>
+      ) : null}
+      <div className="grid min-w-0 gap-2 sm:grid-cols-2">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">Files</p>
+          <div className="mt-1 flex min-w-0 flex-wrap gap-1">
+            {(files.length ? files : ["No patch applied"]).map((file) => (
+              <span key={file} className="max-w-full truncate rounded-md border border-emerald-300/12 bg-emerald-400/[0.06] px-2 py-1 text-[10px] font-black text-emerald-100">{file}</span>
+            ))}
+          </div>
+        </div>
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">Validation</p>
+          <p className="mt-1 break-words text-[11px] font-bold text-slate-300">
+            {row.validationCommandId ? `${row.validationCommandId}: ${row.validationStatus || "recorded"}` : "No validation command returned."}
+          </p>
+        </div>
+      </div>
+      {actions.length ? (
+        <div className="flex min-w-0 flex-wrap gap-1">
+          {actions.map((action) => (
+            <span key={action} className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-[10px] font-black text-slate-300">{action}</span>
+          ))}
+        </div>
+      ) : null}
+      {row.undoHint ? (
+        <p className="break-words text-[10px] font-bold leading-4 text-slate-500">Undo: {row.undoHint}</p>
+      ) : null}
+    </div>
+  );
+}
+
+function ApexBuilderModePanel({
+  state,
+  sessionToken,
+  validationReceipts: sharedValidationReceipts = null,
+  setValidationReceipts: setSharedValidationReceipts = null,
+  fixReceipts: sharedFixReceipts = null,
+  setFixReceipts: setSharedFixReceipts = null,
+  undoReceipts: sharedUndoReceipts = null,
+  setUndoReceipts: setSharedUndoReceipts = null,
+}) {
+  const [runtimeBuildAwareness, setRuntimeBuildAwareness] = useState(null);
+  const [builderRuns, setBuilderRuns] = useState(() => state.autonomyRunCenter?.runRows || []);
+  const [localValidationReceipts, setLocalValidationReceipts] = useState([]);
+  const [localFixReceipts, setLocalFixReceipts] = useState([]);
+  const [localUndoReceipts, setLocalUndoReceipts] = useState([]);
+  const validationReceipts = Array.isArray(sharedValidationReceipts) ? sharedValidationReceipts : localValidationReceipts;
+  const fixReceipts = Array.isArray(sharedFixReceipts) ? sharedFixReceipts : localFixReceipts;
+  const undoReceipts = Array.isArray(sharedUndoReceipts) ? sharedUndoReceipts : localUndoReceipts;
+  const pushValidationReceipt = (receipt) => {
+    const updater = (current) => [receipt, ...current].slice(0, 6);
+    if (typeof setSharedValidationReceipts === "function") setSharedValidationReceipts(updater);
+    else setLocalValidationReceipts(updater);
+  };
+  const pushFixReceipt = (receipt) => {
+    const updater = (current) => [receipt, ...current].slice(0, 6);
+    if (typeof setSharedFixReceipts === "function") setSharedFixReceipts(updater);
+    else setLocalFixReceipts(updater);
+  };
+  const updateFixReceipts = (updater) => {
+    if (typeof setSharedFixReceipts === "function") setSharedFixReceipts(updater);
+    else setLocalFixReceipts(updater);
+  };
+  const pushUndoReceipt = (receipt) => {
+    const updater = (current) => [receipt, ...current].slice(0, 6);
+    if (typeof setSharedUndoReceipts === "function") setSharedUndoReceipts(updater);
+    else setLocalUndoReceipts(updater);
+  };
+  const [taskDraft, setTaskDraft] = useState("");
+  const [fixDraft, setFixDraft] = useState("");
+  const [busy, setBusy] = useState("");
+  const [notice, setNotice] = useState("");
+  const taskRowsForState = builderRuns.length ? builderRuns : state.autonomyRunCenter?.runRows || [];
+  const builder = buildApexBuilderModeState({
+    buildAwareness: runtimeBuildAwareness || state.buildAwareness,
+    autonomyRunCenter: { ...(state.autonomyRunCenter || {}), runRows: taskRowsForState },
+    executionHandoffs: state.executionHandoffs,
+    agentControlPlane: state.agentControlPlane,
+    apexActivity: state.apexActivity,
+    validationReceipts,
+    fixReceipts,
+    undoReceipts,
+  });
+  const canAct = state.canView && Boolean(sessionToken) && !busy;
+
+  function syncBuilderRun(row = {}) {
+    if (!row?.id) return;
+    setBuilderRuns((current) => {
+      const source = current.length ? current : state.autonomyRunCenter?.runRows || [];
+      const filtered = source.filter((item) => item.id !== row.id);
+      return [row, ...filtered].slice(0, 12);
+    });
+  }
+
+  async function refreshBuildAwareness() {
+    if (!canAct) return;
+    setBusy("refresh-build");
+    setNotice("Refreshing local build awareness.");
+    try {
+      const payload = await getApexOsBuildAwareness(sessionToken);
+      setRuntimeBuildAwareness(payload?.buildAwareness || null);
+      setNotice("Build awareness refreshed from local git, docs, package scripts, runtime metadata, and dist artifacts.");
+    } catch (error) {
+      setNotice(error?.message || "Build awareness could not refresh.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function createBuilderTask() {
+    const request = String(taskDraft || "").trim();
+    if (!canAct || !request) return;
+    setBusy("create-builder-task");
+    setNotice("Creating a private builder task.");
+    try {
+      const payload = await createApexOsAutonomyRun(sessionToken, {
+        request,
+        routeId: "apex-builder-mode",
+        routeLabel: "Apex Builder Mode",
+        routeDetail: "Private local app builder task from Apex Home.",
+        sourceLabel: "Apex Builder Mode",
+        sourceUri: "apex://builder-mode",
+        operatorNote: "Private builder task. Apex can track status and run fixed local validation checks; deploy, production, schema/auth/session, deletion, customer-visible writes, sends, spend, orders, booking, permission weakening, and uncontrolled file editing stay blocked.",
+      });
+      const created = payload?.apexOsAutonomyRun;
+      syncBuilderRun(created);
+      setTaskDraft("");
+      setNotice(created?.id ? `Builder task ${created.id} created.` : "Builder task created.");
+    } catch (error) {
+      setNotice(error?.message || "Builder task could not be created.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function updateBuilderTask(row, status) {
+    if (!canAct || !row?.id) return;
+    setBusy(`${status}-${row.id}`);
+    setNotice(`Updating builder task to ${status}.`);
+    try {
+      const payload = await updateApexOsAutonomyRun(sessionToken, row.id, {
+        status,
+        operatorNote: `Apex Builder Mode marked this private builder task ${status}.`,
+        nextSafeAction: status === "done"
+          ? "Review validation evidence and decide whether to archive or create the next private builder task."
+          : status === "blocked"
+            ? "Review the blocker, adjust the task, or leave it blocked."
+            : "Run scoped local validation, update progress, then report the result.",
+      });
+      const updated = payload?.apexOsAutonomyRun || row;
+      syncBuilderRun(updated);
+      setNotice(`Builder task ${updated.id || row.id} marked ${status}.`);
+    } catch (error) {
+      setNotice(error?.message || "Builder task status could not update.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function runValidation(commandId) {
+    if (!canAct || !commandId) return;
+    setBusy(`validation-${commandId}`);
+    setNotice("Running fixed local validation. Custom shell commands are blocked.");
+    try {
+      const payload = await runApexOsBuilderValidation(sessionToken, { commandId });
+      const receipt = payload?.validationRun;
+      if (receipt) {
+        pushValidationReceipt(receipt);
+        setNotice(receipt.receipt || "Local validation finished.");
+      } else {
+        setNotice("Local validation finished without a receipt.");
+      }
+    } catch (error) {
+      setNotice(error?.message || "Local validation could not run.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function runControlledFix({ request = "", fixId = "" } = {}) {
+    const safeRequest = String(request || fixDraft || "").trim();
+    if (!canAct || (!safeRequest && !fixId)) return;
+    const busyId = fixId ? `fix-${fixId}` : "fix-custom";
+    setBusy(busyId);
+    setNotice("Running controlled local fix. Apex will only use allowlisted local profiles and exact patch rules.");
+    try {
+      const payload = await runApexOsBuilderFix(sessionToken, {
+        request: safeRequest,
+        fixId,
+        applyPatch: true,
+        runValidation: true,
+      });
+      const receipt = payload?.fixRun;
+      if (receipt) {
+        pushFixReceipt(receipt);
+        setNotice(receipt.receipt || "Controlled local fix finished.");
+        if (receipt.ok && safeRequest === fixDraft) setFixDraft("");
+      } else {
+        setNotice("Controlled local fix finished without a receipt.");
+      }
+    } catch (error) {
+      setNotice(error?.message || "Controlled local fix could not run.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function runUndoLastFix() {
+    if (!canAct) return;
+    const latestFix = fixReceipts.find((receipt) => receipt?.undoAvailable === true && receipt?.status === "fixed" && receipt?.ok === true);
+    if (!latestFix) {
+      setNotice("No Apex-owned successful local patch is available to undo.");
+      return;
+    }
+    setBusy("undo-last-fix");
+    setNotice("Checking the local undo baseline before touching files.");
+    try {
+      const payload = await runApexOsBuilderUndo(sessionToken, {
+        fixRun: latestFix,
+        runValidation: true,
+      });
+      const receipt = payload?.undoRun;
+      if (receipt) {
+        pushUndoReceipt(receipt);
+        if (receipt.ok) {
+          updateFixReceipts((current) => current.map((item) => (
+            item.id === latestFix.id
+              ? { ...item, undoAvailable: false, undoHint: "Apex completed the local undo for this fix receipt." }
+              : item
+          )));
+        }
+        setNotice(receipt.receipt || "Local undo finished.");
+      } else {
+        setNotice("Local undo finished without a receipt.");
+      }
+    } catch (error) {
+      setNotice(error?.message || "Local undo could not run.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  return (
+    <section className="grid min-w-0 gap-3 rounded-xl border border-emerald-300/12 bg-slate-950/82 p-3 text-white shadow-[0_26px_64px_-46px_rgba(2,6,23,0.92)] sm:p-4" aria-label="Apex Builder Mode">
+      <div className="flex min-w-0 flex-col gap-2 md:flex-row md:items-start md:justify-between">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-emerald-300">Apex Builder Mode v1.2</p>
+          <h2 className="mt-1 break-words text-lg font-black text-white">Build The App With Apex</h2>
+          <p className="mt-1 max-w-4xl break-words text-[12px] font-bold leading-5 text-slate-300">{builder.summary}</p>
+        </div>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <ToneBadge tone={builder.tone}>{builder.status}</ToneBadge>
+          <ToneBadge tone="green">Patch preview</ToneBadge>
+          <ToneBadge tone="green">Local undo</ToneBadge>
+          <ToneBadge tone="green">Local checks allowed</ToneBadge>
+          <ToneBadge tone="amber">Deploy blocked</ToneBadge>
+        </div>
+      </div>
+
+      <div className="grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        {builder.summaryRows.map((row) => <StatusRow key={row.id} item={row} />)}
+      </div>
+
+      <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+        <div className="grid min-w-0 gap-3 rounded-lg border border-slate-800 bg-slate-900/58 p-3">
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">App State</p>
+              <p className="break-words text-sm font-black text-slate-100">{builder.nextAction?.title || "Next useful local action"}</p>
+              <p className="mt-1 break-words text-[11px] font-bold leading-4 text-slate-400">{builder.nextAction?.detail}</p>
+            </div>
+            <Button type="button" variant="secondary" size="sm" onClick={refreshBuildAwareness} disabled={!canAct}>
+              <Icon name="refresh" /> {busy === "refresh-build" ? "Refreshing..." : "Refresh"}
+            </Button>
+          </div>
+          <div className="grid min-w-0 gap-1.5">
+            {builder.dirtyFileRows.length ? builder.dirtyFileRows.map((row) => (
+              <div key={row.id || row.path} className="grid min-w-0 gap-1 rounded-md border border-slate-800 bg-slate-950/62 px-2.5 py-2">
+                <p className="break-words text-[11px] font-black text-slate-200">{row.path}</p>
+                <p className="break-words text-[10px] font-bold uppercase tracking-[0.08em] text-amber-200">{row.status || row.statusCode || "changed"}</p>
+              </div>
+            )) : <p className="rounded-md border border-dashed border-slate-800 px-3 py-3 text-[11px] font-bold text-slate-500">No dirty files reported by current build awareness.</p>}
+          </div>
+        </div>
+
+        <div className="grid min-w-0 gap-3 rounded-lg border border-slate-800 bg-slate-900/58 p-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Builder Tasks</p>
+            <p className="break-words text-sm font-black text-slate-100">{builder.activeTaskCount || 0} active / {builder.taskCount || 0} tracked</p>
+          </div>
+          <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <label className="sr-only" htmlFor="apex-builder-task">Create builder task</label>
+            <input
+              id="apex-builder-task"
+              value={taskDraft}
+              onChange={(event) => setTaskDraft(event.target.value)}
+              maxLength={240}
+              placeholder="Track a bug or local build step..."
+              className="min-h-10 min-w-0 rounded-lg border border-slate-800 bg-slate-950 px-3 text-[12px] font-bold text-slate-100 placeholder:text-slate-500"
+              disabled={!state.canView || Boolean(busy)}
+            />
+            <Button type="button" variant="secondary" size="sm" onClick={createBuilderTask} disabled={!canAct || !taskDraft.trim()}>
+              <Icon name="spark" /> {busy === "create-builder-task" ? "Saving..." : "Create"}
+            </Button>
+          </div>
+          <div className="grid min-w-0 gap-2">
+            {builder.builderTaskRows.length ? builder.builderTaskRows.map((row) => (
+              <div key={row.id} className="grid min-w-0 gap-2 rounded-md border border-slate-800 bg-slate-950/62 p-2.5">
+                <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="break-words text-[12px] font-black text-slate-100">{row.title || row.request || "Builder task"}</p>
+                    <p className="break-words text-[10px] font-black uppercase tracking-[0.08em] text-cyan-300">{row.status || "planned"}</p>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap gap-1.5">
+                    <button type="button" onClick={() => updateBuilderTask(row, "validating")} disabled={!canAct} className="co-focus-ring min-h-7 rounded-md border border-slate-700 px-2 text-[10px] font-black text-slate-200 disabled:opacity-50">Active</button>
+                    <button type="button" onClick={() => updateBuilderTask(row, "done")} disabled={!canAct} className="co-focus-ring min-h-7 rounded-md border border-emerald-400/30 px-2 text-[10px] font-black text-emerald-200 disabled:opacity-50">Done</button>
+                    <button type="button" onClick={() => updateBuilderTask(row, "blocked")} disabled={!canAct} className="co-focus-ring min-h-7 rounded-md border border-amber-400/30 px-2 text-[10px] font-black text-amber-200 disabled:opacity-50">Blocked</button>
+                  </div>
+                </div>
+                <p className="break-words text-[11px] font-bold leading-4 text-slate-500">{row.nextSafeAction || row.detail || "Apex can track progress and run local checks, then report the result."}</p>
+              </div>
+            )) : <p className="rounded-md border border-dashed border-slate-800 px-3 py-3 text-[11px] font-bold text-slate-500">No private builder tasks yet. Create one from a bug, app issue, or next build step.</p>}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid min-w-0 gap-3 rounded-lg border border-emerald-300/14 bg-emerald-400/[0.05] p-3">
+        <div className="flex min-w-0 flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-emerald-300">Controlled Local Fixes</p>
+            <p className="break-words text-sm font-black text-slate-100">Small scoped app repairs</p>
+            <p className="mt-1 break-words text-[11px] font-bold leading-4 text-slate-400">Apex can act inside fixed local profiles for stale copy, import/render, status labels, receipt history, helper/test issues, and scoped layout overflow. Broad rewrites and consequential work stay blocked.</p>
+          </div>
+          <ToneBadge tone={builder.canApplyControlledLocalFixes ? "green" : "slate"}>{builder.canApplyControlledLocalFixes ? "Fix runner ready" : "Fix runner locked"}</ToneBadge>
+        </div>
+        <div className="grid min-w-0 gap-2 lg:grid-cols-[minmax(0,1fr)_auto]">
+          <label className="sr-only" htmlFor="apex-builder-fix">Controlled fix request</label>
+          <input
+            id="apex-builder-fix"
+            value={fixDraft}
+            onChange={(event) => setFixDraft(event.target.value)}
+            maxLength={280}
+            placeholder="Describe a small local UI/test/helper/layout issue..."
+            className="min-h-10 min-w-0 rounded-lg border border-emerald-300/18 bg-slate-950 px-3 text-[12px] font-bold text-slate-100 placeholder:text-slate-500"
+            disabled={!state.canView || Boolean(busy)}
+          />
+          <Button type="button" variant="secondary" size="sm" onClick={() => runControlledFix()} disabled={!canAct || !fixDraft.trim()}>
+            <Icon name="spark" /> {busy === "fix-custom" ? "Fixing..." : "Run focused fix"}
+          </Button>
+        </div>
+        <div className="grid min-w-0 gap-2 md:grid-cols-2 xl:grid-cols-4">
+          {builder.fixActionRows.map((row) => (
+            <button
+              key={row.id}
+              type="button"
+              onClick={() => runControlledFix({ request: fixDraft || row.detail, fixId: row.id })}
+              disabled={!canAct}
+              className="co-focus-ring grid min-w-0 gap-1 rounded-md border border-emerald-300/12 bg-slate-950/70 p-2.5 text-left transition hover:border-emerald-300/45 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <span className="break-words text-[11px] font-black text-slate-100">{busy === `fix-${row.id}` ? "Fixing..." : row.title}</span>
+              <span className="break-words text-[10px] font-bold uppercase tracking-[0.08em] text-emerald-300">{row.status}</span>
+              <span className="break-words text-[10px] font-bold leading-4 text-slate-500">{row.detail}</span>
+            </button>
+          ))}
+        </div>
+        <div className="grid min-w-0 gap-2 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+          <div className="grid min-w-0 gap-2 rounded-md border border-slate-800 bg-slate-950/58 p-2.5">
+            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Latest Fix History</p>
+            {builder.recentFixRows.map((row) => <BuilderFixHistoryRow key={row.id} row={row} />)}
+          </div>
+          <div className="grid min-w-0 gap-2 rounded-md border border-slate-800 bg-slate-950/58 p-2.5">
+            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Fix Boundaries</p>
+            <div className="flex min-w-0 flex-wrap gap-1.5">
+              {["exact patches only", "baseline checked", "allowlisted files", "focused validation", "auto-revert on failed validation", "no broad rewrites", "no secrets", "no deploy"].map((label) => (
+                <span key={label} className="rounded-md border border-emerald-300/12 bg-emerald-400/[0.06] px-2 py-1 text-[10px] font-black text-emerald-100">{label}</span>
+              ))}
+            </div>
+            <p className="break-words text-[11px] font-bold leading-4 text-slate-500">Fix receipts show the request, files touched, action taken, validation result, what Apex did, and undo/revert guidance.</p>
+          </div>
+        </div>
+        <div className="grid min-w-0 gap-2 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+          <div className="grid min-w-0 gap-2 rounded-md border border-cyan-300/14 bg-cyan-400/[0.045] p-2.5">
+            <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-200">Patch Preview</p>
+                <p className="break-words text-[11px] font-bold leading-4 text-slate-400">
+                  {builder.latestPatchPreviewSource?.label ? `Latest from ${builder.latestPatchPreviewSource.label}.` : "Exact before/after snippets appear after Apex prepares or applies a controlled fix."}
+                </p>
+              </div>
+              <ToneBadge tone={builder.patchPreviewRows.length ? "green" : "slate"}>{builder.patchPreviewRows.length ? `${builder.patchPreviewRows.length} previewed` : "Waiting"}</ToneBadge>
+            </div>
+            <div className="grid min-w-0 gap-2">
+              {builder.patchPreviewRows.length ? builder.patchPreviewRows.map((row) => (
+                <div key={row.id} className="grid min-w-0 gap-2 rounded-md border border-cyan-300/12 bg-slate-950/70 p-2.5">
+                  <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                    <p className="break-words text-[11px] font-black text-slate-100">{row.targetFile}</p>
+                    <span className="rounded-md border border-cyan-300/16 bg-cyan-400/[0.06] px-2 py-1 text-[10px] font-black text-cyan-100">{row.validationCommand || "Focused validation"}</span>
+                  </div>
+                  <div className="grid min-w-0 gap-2 md:grid-cols-2">
+                    <div className="min-w-0 rounded-md border border-slate-800 bg-slate-950/76 p-2">
+                      <p className="text-[9px] font-black uppercase tracking-[0.12em] text-slate-500">Search snippet</p>
+                      <p className="mt-1 break-words font-mono text-[10px] leading-4 text-slate-300">{row.searchSnippet || "No search snippet."}</p>
+                    </div>
+                    <div className="min-w-0 rounded-md border border-emerald-300/12 bg-emerald-400/[0.05] p-2">
+                      <p className="text-[9px] font-black uppercase tracking-[0.12em] text-emerald-300">Replacement snippet</p>
+                      <p className="mt-1 break-words font-mono text-[10px] leading-4 text-emerald-100">{row.replacementSnippet || "No replacement snippet."}</p>
+                    </div>
+                  </div>
+                  <p className="break-words text-[10px] font-bold leading-4 text-slate-400">{row.explanation}</p>
+                  <p className="break-words text-[10px] font-bold leading-4 text-cyan-100">{row.expectedResult}</p>
+                </div>
+              )) : (
+                <p className="rounded-md border border-dashed border-cyan-300/14 px-3 py-3 text-[11px] font-bold text-slate-500">Run a controlled local fix or ask Apex to show the patch to populate this preview.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="grid min-w-0 gap-2 rounded-md border border-violet-300/14 bg-violet-400/[0.045] p-2.5">
+            <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.12em] text-violet-200">Local Undo</p>
+                <p className="break-words text-[11px] font-bold leading-4 text-slate-400">Undo only Apex's own last successful scoped patch after a baseline check. No git reset, checkout, deletion, or broad rollback.</p>
+              </div>
+              <ToneBadge tone={builder.latestSuccessfulFix ? "green" : builder.recentUndoRows.length ? "blue" : "slate"}>
+                {builder.latestSuccessfulFix ? "Undo available" : builder.recentUndoRows.length ? "Undo recorded" : "No patch"}
+              </ToneBadge>
+            </div>
+            {builder.latestSuccessfulFix ? (
+              <div className="grid min-w-0 gap-2 rounded-md border border-violet-300/12 bg-slate-950/70 p-2.5">
+                <p className="break-words text-[12px] font-black text-slate-100">{builder.latestSuccessfulFix.label}</p>
+                <p className="break-words text-[10px] font-bold uppercase tracking-[0.08em] text-violet-200">{builder.latestSuccessfulFix.status}</p>
+                {builder.latestSuccessfulFix.filesTouched?.length ? (
+                  <div className="flex min-w-0 flex-wrap gap-1">
+                    {builder.latestSuccessfulFix.filesTouched.map((file) => (
+                      <span key={file} className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-[10px] font-black text-slate-300">{file}</span>
+                    ))}
+                  </div>
+                ) : null}
+                <p className="break-words text-[10px] font-bold leading-4 text-slate-500">{builder.latestSuccessfulFix.undoHint}</p>
+              </div>
+            ) : (
+              <p className="rounded-md border border-dashed border-violet-300/14 px-3 py-3 text-[11px] font-bold text-slate-500">No Apex-owned successful patch is currently undoable. Failed validation patches still auto-revert immediately.</p>
+            )}
+            <Button type="button" variant="secondary" size="sm" onClick={runUndoLastFix} disabled={!canAct || !builder.latestSuccessfulFix}>
+              <Icon name="refresh" /> {busy === "undo-last-fix" ? "Undoing..." : "Undo last Apex patch"}
+            </Button>
+            <div className="grid min-w-0 gap-2">
+              {builder.recentUndoRows.length ? builder.recentUndoRows.map((row) => <BuilderFixHistoryRow key={row.id} row={row} />) : null}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="grid min-w-0 gap-2 rounded-lg border border-slate-800 bg-slate-900/54 p-3">
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Safe Local Checks</p>
+          <div className="grid min-w-0 gap-2 sm:grid-cols-2">
+            {builder.actionRows.map((row) => (
+              <button
+                key={row.id}
+                type="button"
+                onClick={() => runValidation(row.id)}
+                disabled={!canAct}
+                className="co-focus-ring grid min-w-0 gap-1 rounded-md border border-slate-800 bg-slate-950/70 p-2.5 text-left transition hover:border-emerald-300/45 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <span className="break-words text-[11px] font-black text-slate-100">{busy === `validation-${row.id}` ? "Running..." : row.title}</span>
+                <span className="break-words text-[10px] font-bold leading-4 text-slate-500">{row.detail}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid min-w-0 gap-2 rounded-lg border border-slate-800 bg-slate-900/54 p-3">
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Recent Validation / Activity</p>
+          <div className="grid min-w-0 gap-2">
+            {builder.recentValidationRows.map((row) => <StatusRow key={row.id} item={row} />)}
+            {builder.activityRows.length ? builder.activityRows.map((row) => <StatusRow key={row.id} item={row} />) : null}
+          </div>
+          <p className="break-words text-[11px] font-bold leading-4 text-slate-500">{notice || "Validation receipts appear here after Apex runs a fixed local check."}</p>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-orange-300/16 bg-orange-500/[0.06] p-3">
+        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-orange-200">Hard Stops</p>
+        <div className="mt-2 flex min-w-0 flex-wrap gap-1.5">
+          {builder.blockedRows.map((row) => (
+            <span key={row.id} className="rounded-md border border-orange-300/16 bg-slate-950/48 px-2 py-1 text-[10px] font-black text-orange-100">{row.title}</span>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+const APEX_HOME_DETAIL_PANELS = Object.freeze([
+  { id: "builder", label: "Builder Mode", helper: "Fixes + checks", tone: "green" },
+  { id: "patch", label: "Patch Preview", helper: "Before / after", tone: "blue" },
+  { id: "undo", label: "Local Undo", helper: "Apex-owned only", tone: "amber" },
+  { id: "apex-hq", label: "Apex HQ", helper: "Business workspace", tone: "green" },
+  { id: "memory", label: "Memory / Tasks", helper: "Private state", tone: "blue" },
+  { id: "voice", label: "Voice", helper: "Live controls", tone: "blue" },
+  { id: "activity", label: "Activity", helper: "What changed", tone: "slate" },
+]);
+
+function ApexWhatChangedFeedPanel({ feed = {}, activePanel = "", onOpenPanel = () => {} }) {
+  const entries = Array.isArray(feed.entries) ? feed.entries : [];
+  return (
+    <section className="grid min-w-0 gap-3 rounded-xl border border-cyan-300/14 bg-slate-950/88 p-3 text-white shadow-[0_26px_64px_-48px_rgba(2,6,23,0.96)] sm:p-4" aria-label="Apex What Changed Feed">
+      <div className="flex min-w-0 flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">What Changed</p>
+          <h2 className="mt-1 break-words text-lg font-black text-white">Apex Feed</h2>
+          <p className="mt-1 max-w-4xl break-words text-[12px] font-bold leading-5 text-slate-400">{feed.summary || "Apex summarizes recent private/local work here."}</p>
+        </div>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <ToneBadge tone={feed.tone || "slate"}>{feed.status || "Standing by"}</ToneBadge>
+          <ToneBadge tone="green">Conversation-first</ToneBadge>
+          <ToneBadge tone="amber">Hard stops kept</ToneBadge>
+        </div>
+      </div>
+      <div className="grid min-w-0 gap-2 md:grid-cols-2 xl:grid-cols-4">
+        {entries.length ? entries.map((entry) => (
+          <div key={entry.id} className="grid min-w-0 gap-2 rounded-lg border border-slate-800 bg-slate-900/70 p-3">
+            <div className="flex min-w-0 items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="break-words text-[10px] font-black uppercase tracking-[0.1em] text-cyan-300">{entry.domain}</p>
+                <p className="mt-0.5 break-words text-[12px] font-black text-slate-100">{entry.title}</p>
+              </div>
+              <ToneBadge tone={entry.tone}>{entry.status}</ToneBadge>
+            </div>
+            <p className="break-words text-[11px] font-bold leading-4 text-slate-400">{entry.detail}</p>
+            <div className="flex min-w-0 items-center justify-between gap-2">
+              <span className="truncate text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">{entry.createdAt || "Now"}</span>
+              {entry.panelId ? (
+                <button
+                  type="button"
+                  onClick={() => onOpenPanel(entry.panelId)}
+                  className={`co-focus-ring shrink-0 rounded-md border px-2 py-1 text-[10px] font-black transition ${activePanel === entry.panelId ? "border-orange-300/50 bg-orange-500/14 text-orange-100" : "border-slate-700 bg-slate-950/68 text-slate-300 hover:border-cyan-300/45 hover:text-white"}`}
+                >
+                  {entry.actionLabel || "Open details"}
+                </button>
+              ) : null}
+            </div>
+          </div>
+        )) : (
+          <p className="rounded-lg border border-dashed border-slate-700 px-3 py-4 text-[12px] font-bold text-slate-500 md:col-span-2 xl:col-span-4">No changes yet. Ask Apex to check the app, run a focused local fix, create a private task, or show Apex HQ.</p>
+        )}
+      </div>
+      <div className="grid min-w-0 gap-2 rounded-lg border border-slate-800 bg-slate-900/54 p-3">
+        <div className="flex min-w-0 flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Summon Details</p>
+            <p className="break-words text-[11px] font-bold leading-4 text-slate-400">Detailed panels stay tucked away until John asks for them.</p>
+          </div>
+          <button type="button" onClick={() => onOpenPanel("")} className="co-focus-ring shrink-0 rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-[11px] font-black text-slate-200 hover:border-cyan-300/45">
+            Clear the screen
+          </button>
+        </div>
+        <div className="flex min-w-0 flex-wrap gap-1.5">
+          {APEX_HOME_DETAIL_PANELS.map((panel) => (
+            <button
+              key={panel.id}
+              type="button"
+              onClick={() => onOpenPanel(activePanel === panel.id ? "" : panel.id)}
+              className={`co-focus-ring rounded-md border px-2.5 py-2 text-left transition ${activePanel === panel.id ? "border-orange-300/60 bg-orange-500/14 text-white" : "border-slate-800 bg-slate-950/72 text-slate-300 hover:border-cyan-300/45 hover:text-white"}`}
+              aria-pressed={activePanel === panel.id}
+            >
+              <span className="block text-[10px] font-black">{panel.label}</span>
+              <span className="block text-[9px] font-bold uppercase tracking-[0.08em] text-slate-500">{panel.helper}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      {feed.surfaceRows?.length ? (
+        <div className="grid min-w-0 gap-2 rounded-lg border border-violet-300/12 bg-violet-400/[0.04] p-3">
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-violet-200">Surface Router v0</p>
+          <div className="grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            {feed.surfaceRows.map((row) => <StatusRow key={row.id} item={row} />)}
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function ApexTalkToApexPulse({ feed = {} }) {
+  const entries = Array.isArray(feed.entries) ? feed.entries : [];
+  const latest = entries[0] || null;
+  const count = Number(feed.entryCount || entries.length || 0);
+  return (
+    <section className="co-apex-talk-pulse flex min-w-0 flex-col gap-2 rounded-lg border border-cyan-300/14 bg-slate-950/72 px-3 py-2 text-white shadow-[0_18px_54px_-44px_rgba(2,6,23,0.92)] sm:flex-row sm:items-center sm:justify-between" aria-label="Apex what changed pulse">
+      <div className="min-w-0">
+        <p className="text-[9px] font-black uppercase tracking-[0.12em] text-cyan-300">What Changed Pulse</p>
+        <p className="mt-0.5 min-w-0 break-words text-[11px] font-black text-slate-100">
+          {count ? `${count} private update${count === 1 ? "" : "s"} tracked` : "Calm standby"}
+        </p>
+      </div>
+      <p className="min-w-0 break-words text-[10px] font-bold leading-4 text-slate-400 sm:max-w-[34rem] sm:text-right">
+        {latest ? `${latest.domain}: ${latest.title}` : "Apex will summarize details in conversation when you ask."}
+      </p>
+    </section>
+  );
+}
+
+function ApexPatchPreviewDetailPanel({ builder = {}, onOpenBuilder = () => {} }) {
+  const rows = Array.isArray(builder.patchPreviewRows) ? builder.patchPreviewRows : [];
+  return (
+    <section className="grid min-w-0 gap-3 rounded-xl border border-cyan-300/14 bg-slate-950/84 p-3 text-white sm:p-4" aria-label="Apex Patch Preview Detail">
+      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Patch Preview</p>
+          <h3 className="mt-1 break-words text-base font-black text-white">Exact local patch details</h3>
+          <p className="mt-1 break-words text-[11px] font-bold leading-4 text-slate-400">Apex shows target files and before/after snippets before or after controlled local fixes. No free-form patching or external execution is active.</p>
+        </div>
+        <Button type="button" variant="secondary" size="sm" onClick={onOpenBuilder}>Open Builder</Button>
+      </div>
+      <div className="grid min-w-0 gap-2">
+        {rows.length ? rows.map((row) => (
+          <div key={row.id} className="grid min-w-0 gap-2 rounded-lg border border-slate-800 bg-slate-900/70 p-3">
+            <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+              <p className="break-words text-[12px] font-black text-slate-100">{row.targetFile}</p>
+              <ToneBadge tone="blue">{row.validationCommand || "Focused validation"}</ToneBadge>
+            </div>
+            <div className="grid min-w-0 gap-2 md:grid-cols-2">
+              <div className="rounded-md border border-slate-800 bg-slate-950/70 p-2">
+                <p className="text-[9px] font-black uppercase tracking-[0.12em] text-slate-500">Search snippet</p>
+                <p className="mt-1 break-words font-mono text-[10px] leading-4 text-slate-300">{row.searchSnippet}</p>
+              </div>
+              <div className="rounded-md border border-emerald-300/12 bg-emerald-400/[0.05] p-2">
+                <p className="text-[9px] font-black uppercase tracking-[0.12em] text-emerald-300">Replacement snippet</p>
+                <p className="mt-1 break-words font-mono text-[10px] leading-4 text-emerald-100">{row.replacementSnippet}</p>
+              </div>
+            </div>
+            <p className="break-words text-[10px] font-bold leading-4 text-slate-400">{row.explanation}</p>
+          </div>
+        )) : (
+          <p className="rounded-lg border border-dashed border-slate-700 px-3 py-4 text-[12px] font-bold text-slate-500">No patch preview yet. Ask Apex to run a controlled local fix or open Builder Mode.</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function ApexLocalUndoDetailPanel({ builder = {}, onOpenBuilder = () => {} }) {
+  return (
+    <section className="grid min-w-0 gap-3 rounded-xl border border-violet-300/14 bg-slate-950/84 p-3 text-white sm:p-4" aria-label="Apex Local Undo Detail">
+      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-violet-200">Local Undo</p>
+          <h3 className="mt-1 break-words text-base font-black text-white">Apex-owned patch rollback only</h3>
+          <p className="mt-1 break-words text-[11px] font-bold leading-4 text-slate-400">Undo only reverses Apex's own last successful scoped patch after a baseline check. It never uses git reset, checkout, deletion, or broad rollback.</p>
+        </div>
+        <Button type="button" variant="secondary" size="sm" onClick={onOpenBuilder}>Open Builder</Button>
+      </div>
+      {builder.latestSuccessfulFix ? (
+        <StatusRow item={{
+          id: "latest-undoable-fix",
+          title: builder.latestSuccessfulFix.label,
+          status: "Undo available",
+          detail: builder.latestSuccessfulFix.undoHint,
+          tone: "green",
+        }} />
+      ) : (
+        <p className="rounded-lg border border-dashed border-slate-700 px-3 py-4 text-[12px] font-bold text-slate-500">No Apex-owned successful patch is currently undoable. Failed validation patches still auto-revert immediately.</p>
+      )}
+      <div className="grid min-w-0 gap-2">
+        {builder.recentUndoRows?.length ? builder.recentUndoRows.map((row) => <BuilderFixHistoryRow key={row.id} row={row} />) : null}
+      </div>
+    </section>
+  );
+}
+
+function ApexMemoryTasksDetailPanel({ state }) {
+  const rows = [
+    ...(state.personalOperatingLayer?.taskReminderRows || []),
+    ...(state.memorySuggestions?.rows || []).slice(0, 4),
+  ].slice(0, 8);
+  return (
+    <section className="grid min-w-0 gap-3 rounded-xl border border-blue-300/14 bg-slate-950/84 p-3 text-white sm:p-4" aria-label="Apex Memory Tasks Detail">
+      <div className="min-w-0">
+        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Memory / Tasks</p>
+        <h3 className="mt-1 break-words text-base font-black text-white">Private state shortcuts</h3>
+        <p className="mt-1 break-words text-[11px] font-bold leading-4 text-slate-400">Private memory, task, and reminder signals stay operator-only. Detailed review still lives in the Memory and Personal rooms.</p>
+      </div>
+      <div className="grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        {rows.length ? rows.map((row) => <StatusRow key={row.id || row.title} item={row} />) : (
+          <p className="rounded-lg border border-dashed border-slate-700 px-3 py-4 text-[12px] font-bold text-slate-500 sm:col-span-2 xl:col-span-4">No compact memory/task rows are available yet.</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function ApexVoiceDetailPanel({ state }) {
+  return (
+    <section className="grid min-w-0 gap-3 rounded-xl border border-cyan-300/14 bg-slate-950/84 p-3 text-white sm:p-4" aria-label="Apex Voice Detail">
+      <div className="min-w-0">
+        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Voice</p>
+        <h3 className="mt-1 break-words text-base font-black text-white">{state.voiceInterface?.status || "Voice ready"}</h3>
+        <p className="mt-1 break-words text-[11px] font-bold leading-4 text-slate-400">Live voice remains visible in the main cockpit. Typed answers stay visible even if voice playback fails.</p>
+      </div>
+      <div className="grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        {(state.voiceInterface?.modes || []).slice(0, 4).map((row) => <StatusRow key={row.id} item={row} />)}
+        {(state.voiceInterface?.safetyRows || []).slice(0, 4).map((row) => <StatusRow key={row.id} item={row} />)}
+      </div>
+    </section>
+  );
+}
+
+function ApexHomePanel({ state, activeSection, onChange, askQuestion, setAskQuestion, sessionToken, onOpenAvatarLab, onOpenModule }) {
+  const [activeDetailPanel, setActiveDetailPanel] = useState("");
+  const [validationReceipts, setValidationReceipts] = useState([]);
+  const [fixReceipts, setFixReceipts] = useState([]);
+  const [undoReceipts, setUndoReceipts] = useState([]);
+  const [commandEvents, setCommandEvents] = useState([]);
+  const builderFeedState = buildApexBuilderModeState({
+    buildAwareness: state.buildAwareness,
+    autonomyRunCenter: state.autonomyRunCenter,
+    executionHandoffs: state.executionHandoffs,
+    agentControlPlane: state.agentControlPlane,
+    apexActivity: state.apexActivity,
+    validationReceipts,
+    fixReceipts,
+    undoReceipts,
+  });
+  const whatChangedFeed = buildApexWhatChangedFeedState({
+    state,
+    builderMode: builderFeedState,
+    validationReceipts,
+    fixReceipts,
+    undoReceipts,
+    commandEvents,
+  });
+  function openDetailPanel(panelId = "", route = null) {
+    const normalizedPanel = String(panelId || "").trim();
+    setActiveDetailPanel(normalizedPanel);
+    if (route?.id) {
+      setCommandEvents((current) => [{
+        id: `${route.id}-${Date.now()}`,
+        domain: route.intent?.includes("apex-hq") ? "Apex HQ" : "System",
+        title: route.label || "Command routed",
+        detail: route.detail || "Apex routed a natural command to a private home surface.",
+        status: normalizedPanel ? "active" : "done",
+        tone: route.tone || "blue",
+        actionLabel: normalizedPanel ? "Open details" : "Show what changed",
+        panelId: normalizedPanel || "activity",
+        createdAt: "Now",
+      }, ...current].slice(0, 6));
+    }
+  }
+
   return (
     <section className="grid min-w-0 gap-4">
-      <ApexCockpitScreen state={state} activeSection={activeSection} onChange={onChange} askQuestion={askQuestion} setAskQuestion={setAskQuestion} sessionToken={sessionToken} />
+      <ApexCockpitScreen
+        state={state}
+        activeSection={activeSection}
+        onChange={onChange}
+        askQuestion={askQuestion}
+        setAskQuestion={setAskQuestion}
+        sessionToken={sessionToken}
+        onOpenAvatarLab={onOpenAvatarLab}
+        onOpenModule={onOpenModule}
+        onPanelCommand={openDetailPanel}
+        onBuilderFixReceipt={(receipt) => setFixReceipts((current) => [receipt, ...current].slice(0, 6))}
+        talkToApexContext={{
+          builderMode: builderFeedState,
+          whatChangedFeed,
+          validationReceipts,
+          fixReceipts,
+          undoReceipts,
+          commandEvents,
+        }}
+        conversationFirst
+      />
+      <ApexTalkToApexPulse feed={whatChangedFeed} />
+      {activeDetailPanel ? (
+        <section className="grid min-w-0 gap-3" aria-label="Apex summoned detail panel">
+          <div className="flex min-w-0 flex-col gap-2 rounded-xl border border-slate-800 bg-slate-950/86 p-3 text-white sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Summoned Panel</p>
+              <p className="break-words text-sm font-black text-slate-100">{APEX_HOME_DETAIL_PANELS.find((panel) => panel.id === activeDetailPanel)?.label || "Apex details"}</p>
+            </div>
+            <Button type="button" variant="secondary" size="sm" onClick={() => openDetailPanel("")}>Hide panel</Button>
+          </div>
+          {activeDetailPanel === "builder" ? (
+            <ApexBuilderModePanel
+              state={state}
+              sessionToken={sessionToken}
+              validationReceipts={validationReceipts}
+              setValidationReceipts={setValidationReceipts}
+              fixReceipts={fixReceipts}
+              setFixReceipts={setFixReceipts}
+              undoReceipts={undoReceipts}
+              setUndoReceipts={setUndoReceipts}
+            />
+          ) : null}
+          {activeDetailPanel === "patch" ? <ApexPatchPreviewDetailPanel builder={builderFeedState} onOpenBuilder={() => openDetailPanel("builder")} /> : null}
+          {activeDetailPanel === "undo" ? <ApexLocalUndoDetailPanel builder={builderFeedState} onOpenBuilder={() => openDetailPanel("builder")} /> : null}
+          {activeDetailPanel === "apex-hq" ? <ApexHqDomainBridgePanel state={state} onChange={onChange} onOpenModule={onOpenModule} /> : null}
+          {activeDetailPanel === "memory" ? <ApexMemoryTasksDetailPanel state={state} /> : null}
+          {activeDetailPanel === "voice" ? <ApexVoiceDetailPanel state={state} /> : null}
+          {activeDetailPanel === "activity" ? (
+            <section className="grid min-w-0 gap-3 rounded-xl border border-slate-800 bg-slate-950/84 p-3 text-white sm:p-4" aria-label="Apex Activity Detail">
+              <SectionHeader
+                title="Activity / What Changed"
+                description="Private internal receipts and compact feed entries."
+                action={<ToneBadge tone={whatChangedFeed.tone}>{whatChangedFeed.status}</ToneBadge>}
+              />
+              <ApexActivityReceiptsPanel state={state} />
+            </section>
+          ) : null}
+        </section>
+      ) : null}
       <div className="hidden">
         <ApexRoomLauncher
           activeSection={activeSection}
@@ -10193,16 +15796,34 @@ function ControlRoomOverviewSection({ state }) {
               </section>
             ),
           },
+          {
+            id: "activity",
+            label: "Activity",
+            helper: "What Apex did",
+            icon: "check",
+            content: (
+              <section className="grid min-w-0 gap-4">
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader
+                    title="What Apex Did"
+                    description="Recent Level 2 private/internal receipts. Apex acts by default only inside safe private state and reports what changed."
+                    action={<ToneBadge tone={state.apexActivity?.tone || "slate"}>{state.apexActivity?.status || "No receipts yet"}</ToneBadge>}
+                  />
+                  <ApexActivityReceiptsPanel state={state} />
+                </Card>
+              </section>
+            ),
+          },
         ]}
       />
     </ControlRoomCategoryShell>
   );
 }
 
-function ControlRoomApexSection({ state, activeSection, onChange, sessionToken, askQuestion, setAskQuestion }) {
+function ControlRoomApexSection({ state, activeSection, onChange, sessionToken, askQuestion, setAskQuestion, onOpenAvatarLab, onOpenModule }) {
   return (
     <div className="grid min-w-0 gap-4">
-      <ApexHomePanel state={state} activeSection={activeSection} onChange={onChange} askQuestion={askQuestion} setAskQuestion={setAskQuestion} sessionToken={sessionToken} />
+      <ApexHomePanel state={state} activeSection={activeSection} onChange={onChange} askQuestion={askQuestion} setAskQuestion={setAskQuestion} sessionToken={sessionToken} onOpenAvatarLab={onOpenAvatarLab} onOpenModule={onOpenModule} />
     </div>
   );
 }
@@ -10239,6 +15860,24 @@ function ControlRoomMemorySection({ state, sessionToken }) {
                   <div className="grid min-w-0 gap-3">
                     {state.decisionMemory.rules.map((item) => <MemoryRow key={item.id} item={item} />)}
                   </div>
+                </Card>
+              </section>
+            ),
+          },
+          {
+            id: "suggestions",
+            label: "Suggestions",
+            helper: "Review memories",
+            icon: "spark",
+            content: (
+              <section className="grid min-w-0 gap-4">
+                <Card className="min-w-0 p-4 sm:p-5">
+                  <SectionHeader
+                    title="Memory Suggestions"
+                    description="Review suggested Apex OS memory before it becomes approved private context."
+                    action={<ToneBadge tone={state.memorySuggestions?.tone || "blue"}>Review gated</ToneBadge>}
+                  />
+                  <MemorySuggestionsReviewPanel state={state} sessionToken={sessionToken} />
                 </Card>
               </section>
             ),
@@ -10980,6 +16619,12 @@ export function ApexControlRoomPage(props) {
   const [askQuestion, setAskQuestion] = useState("");
   const [activeSection, setActiveSection] = useState("apex");
   const isApexSection = activeSection === "apex";
+  const openAvatarLab = () => {
+    if (typeof props.setActive === "function") props.setActive("apexAvatarLab");
+  };
+  const openModule = (moduleId) => {
+    if (typeof props.setActive === "function" && moduleId) props.setActive(moduleId);
+  };
 
   return (
     <div className={`co-apex-control-room-page min-w-0 max-w-full pb-36 lg:pb-8 ${isApexSection ? "bg-slate-950" : "bg-slate-100"}`}>
@@ -10987,7 +16632,7 @@ export function ApexControlRoomPage(props) {
         <ApexImmersiveHeader state={state} />
       ) : (
         <PageHeader
-          eyebrow="Apex OS"
+          eyebrow="Apex"
           title="Apex Control Room"
           description={`Private Apex HQ operating center for ${state.operatorName}.`}
           actions={(
@@ -11004,7 +16649,7 @@ export function ApexControlRoomPage(props) {
         {isApexSection ? null : <ApexControlRoomSectionNav activeSection={activeSection} onChange={setActiveSection} variant="light" />}
 
         {activeSection === "overview" ? <ControlRoomOverviewSection state={state} /> : null}
-        {activeSection === "apex" ? <ControlRoomApexSection state={state} activeSection={activeSection} onChange={setActiveSection} sessionToken={props.sessionToken} askQuestion={askQuestion} setAskQuestion={setAskQuestion} /> : null}
+        {activeSection === "apex" ? <ControlRoomApexSection state={state} activeSection={activeSection} onChange={setActiveSection} sessionToken={props.sessionToken} askQuestion={askQuestion} setAskQuestion={setAskQuestion} onOpenAvatarLab={openAvatarLab} onOpenModule={openModule} /> : null}
         {activeSection === "memory" ? <ControlRoomMemorySection state={state} sessionToken={props.sessionToken} /> : null}
         {activeSection === "agents" ? <ControlRoomAgentsSection state={state} sessionToken={props.sessionToken} onChange={setActiveSection} /> : null}
         {activeSection === "approvals" ? <ControlRoomApprovalsSection state={state} sessionToken={props.sessionToken} /> : null}

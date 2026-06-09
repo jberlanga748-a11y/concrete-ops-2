@@ -5,12 +5,14 @@ import { getReleaseSafetySections } from "./release-safety-utils.js";
 import {
   filterApexOsKnowledgeVault,
   filterApexOsDecisionMemory,
+  buildApexOsMemorySummary,
   normalizeApexOsMemory,
   summarizeApexOsLiveOperatorMemory,
   summarizeApexOsDecisionMemory,
   summarizeApexOsKnowledgeVault,
   summarizeApexOsMemory,
 } from "../shared/apexOsMemory.js";
+import { redactApexOsSensitiveText } from "../shared/apexOsPrivacyFirewall.js";
 import {
   APEX_OS_APPROVAL_PACKET_TEMPLATES,
   scoreApexOsApprovalPacketRisk,
@@ -24,6 +26,28 @@ import { summarizeApexOsExecutionHandoffs } from "../shared/apexOsExecutionHando
 import { buildApexOsAgentControlPlane } from "../shared/apexOsAgentControl.js";
 import { normalizeApexOsAutonomyRuns, summarizeApexOsAutonomyRuns } from "../shared/apexOsAutonomyRuns.js";
 import { buildApexOsKnowledgeIntelligence } from "../shared/apexOsKnowledgeIntelligence.js";
+import { summarizeApexOsTasks } from "../shared/apexOsTasks.js";
+import {
+  buildApexPersonalOsCommandResponse,
+  buildApexPersonalOsCoreState,
+  buildApexPersonalOsLocalVoiceReadiness,
+} from "../shared/apexPersonalOsCore.js";
+import {
+  buildApexLearningConversationResponse,
+} from "../shared/apexLearningConversation.js";
+import {
+  buildApexBuildLoopConversationResponse,
+  summarizeApexBuildLoopReceipt,
+} from "../shared/apexAutonomousBuildLoop.js";
+import {
+  buildApexWorkstationBrainCommandAnswer,
+  buildApexWorkstationBrainStatus,
+  inferApexWorkstationBrainCommand,
+} from "../shared/apexWorkstationBrainMode.js";
+import {
+  summarizeApexVoiceTurnFailure,
+  summarizeApexVoiceTurnSpeed,
+} from "../shared/apexVoiceTurnDiagnostics.js";
 
 function list(value) {
   return Array.isArray(value) ? value : [];
@@ -49,6 +73,101 @@ function latestAuditRows(auditEvents = [], limit = 4) {
       meta: event.createdAt || "",
       tone: String(event.type || "").includes("auth") ? "amber" : "slate",
     }));
+}
+
+function parseJsonObject(value) {
+  if (value && typeof value === "object") return value;
+  try {
+    const parsed = JSON.parse(String(value || "{}"));
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function safeReceiptText(value = "", limit = 240) {
+  return String(redactApexOsSensitiveText(value).sanitizedText || "")
+    .replace(/\bsecret[-_\s]*token[-_\s]*[a-z0-9._~+/=-]+\b/gi, "[REDACTED:token]")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, limit);
+}
+
+function labelFromActionType(value = "") {
+  const normalized = safeReceiptText(value, 80);
+  if (!normalized) return "Apex action";
+  return normalized
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function recordTypeFromActionType(actionType = "") {
+  const normalized = String(actionType || "").toLowerCase();
+  if (normalized.includes("reminder")) return "reminder";
+  if (normalized.includes("task")) return "task";
+  if (normalized.includes("memory")) return "memory";
+  if (normalized.includes("preference")) return "preference";
+  if (normalized.includes("planning")) return "planning note";
+  if (normalized.includes("research")) return "research note";
+  return "internal record";
+}
+
+function toneForInternalActionStatus(status = "") {
+  const normalized = String(status || "").toLowerCase();
+  if (normalized === "performed") return "green";
+  if (normalized === "escalated") return "amber";
+  if (normalized === "blocked") return "red";
+  return "slate";
+}
+
+function buildApexActivityState({ auditEvents = [] } = {}) {
+  const rows = list(auditEvents)
+    .filter((event) => String(event?.entityType || "").toLowerCase() === "apexosinternalaction")
+    .slice()
+    .sort((left, right) => String(right.createdAt || "").localeCompare(String(left.createdAt || "")))
+    .slice(0, 8)
+    .map((event) => {
+      const detail = parseJsonObject(event.detail);
+      const actionType = safeReceiptText(detail.actionType || "internal-action", 100);
+      const status = safeReceiptText(detail.status || event.action || "blocked", 40).toLowerCase();
+      const affectedRecordId = safeReceiptText(detail.affectedRecordId || "", 120);
+      const undoHint = safeReceiptText(detail.undoHint || "Archive, edit, or reset the private record where supported.", 260);
+      const summary = safeReceiptText(detail.receiptSummary || event.summary || "Apex OS internal action evaluated.", 260);
+      const recordType = recordTypeFromActionType(actionType);
+      return {
+        id: safeReceiptText(detail.actionId || event.entityId || event.id || `${event.createdAt}-${actionType}`, 140),
+        actionType,
+        actionLabel: labelFromActionType(actionType),
+        status,
+        statusLabel: status === "performed" ? "Done" : status === "escalated" ? "Needs review" : "Stopped",
+        tone: toneForInternalActionStatus(status),
+        affectedRecordType: recordType,
+        affectedRecordId,
+        timestamp: safeReceiptText(event.createdAt || "", 80),
+        reason: summary,
+        undoHint,
+      };
+    });
+  const performedCount = rows.filter((row) => row.status === "performed").length;
+  const blockedCount = rows.filter((row) => row.status === "blocked").length;
+  const escalatedCount = rows.filter((row) => row.status === "escalated").length;
+  return {
+    status: rows.length ? "Receipts visible" : "No receipts yet",
+    tone: rows.length ? "green" : "slate",
+    loading: false,
+    error: "",
+    totalCount: rows.length,
+    performedCount,
+    blockedCount,
+    escalatedCount,
+    rows,
+    externalActionsLocked: true,
+    summaryText: rows.length
+      ? `${performedCount} performed, ${blockedCount} blocked, and ${escalatedCount} escalated Level 2 internal receipts are visible.`
+      : "No Level 2 internal action receipts are visible yet.",
+  };
 }
 
 function toneForStatus(status) {
@@ -441,7 +560,7 @@ export const APEX_OS_BUSINESS_QUEUE_ROWS = Object.freeze([
     id: "launch-queue",
     title: "Launch queue",
     status: "Planning",
-    detail: "Public launch, guided demo, pricing, claims, support, provider readiness, and production release gates stay review-first.",
+    detail: "Public launch, guided demo, pricing, claims, support, provider readiness, and production release gates stay approval-gated.",
     tone: "blue",
   },
   {
@@ -469,7 +588,7 @@ export const APEX_OS_BUSINESS_QUEUE_ROWS = Object.freeze([
     id: "customer-success-queue",
     title: "Customer success queue",
     status: "Planning",
-    detail: "Onboarding, support, check-ins, retention, testimonials, referrals, and pilot learning stay review-first.",
+    detail: "Onboarding, support, check-ins, retention, testimonials, referrals, and pilot learning stay approval-gated before customer-visible action.",
     tone: "blue",
   },
   {
@@ -774,7 +893,7 @@ export const APEX_OS_FINISHED_CAPABILITY_ROWS = Object.freeze([
   {
     id: "source-backed-answers",
     title: "Source-backed answers",
-    detail: "Answers cite mapped evidence rows and stay review-first before risky action drafts.",
+    detail: "Answers cite mapped evidence rows, act privately for reversible internal work, and ask before risky action drafts.",
   },
   {
     id: "app-build-awareness",
@@ -808,7 +927,7 @@ export const APEX_OS_FINISHED_CAPABILITY_ROWS = Object.freeze([
   },
   {
     id: "safe-task-execution-handoff",
-    title: "Safe task execution handoff",
+    title: "Safe task handoff draft",
     detail: "Scoped handoffs require validation, rollback, result report, and approval-packet context before any future run.",
   },
   {
@@ -944,7 +1063,7 @@ export const APEX_OS_APPROVAL_CONTROL_LOCKS = Object.freeze([
   },
   {
     id: "execute",
-    title: "Execute approved action",
+    title: "Separate execution gate",
     status: "Not available",
     detail: "Approval never equals automatic execution; deploys, sends, payments, provider changes, deletion, and production actions remain separate gated steps.",
     tone: "slate",
@@ -962,6 +1081,15 @@ export const APEX_OS_DECISION_CATEGORIES = Object.freeze([
   { id: "business-goal", label: "Business goal" },
   { id: "provider-account-decision", label: "Provider/account decision" },
   { id: "personal-preference", label: "Personal preference" },
+  { id: "john-personal", label: "John personal" },
+  { id: "john-business", label: "John business" },
+  { id: "assistant-preference", label: "Assistant preference" },
+  { id: "apex-project", label: "Apex project" },
+  { id: "life-routine", label: "Life routine" },
+  { id: "active-priority", label: "Active priority" },
+  { id: "saved-idea", label: "Saved idea" },
+  { id: "people-context", label: "People context" },
+  { id: "do-not-do", label: "Do-not-do rule" },
 ]);
 
 export const APEX_OS_DECISION_CATEGORY_LABELS = Object.freeze(
@@ -1543,7 +1671,7 @@ export const APEX_OS_VOICE_SAFETY_GATES = Object.freeze([
     id: "no-speech-provider",
     title: "Server-side speech provider",
     status: "Server-only",
-    detail: "Speech-to-text and text-to-speech use server-side OpenAI only when configured; frontend code never receives provider secrets and audio is not stored.",
+    detail: "Speech-to-text and text-to-speech use server-side providers only when configured; frontend code never receives provider secrets and audio is not stored.",
     tone: "green",
   },
   {
@@ -1650,9 +1778,91 @@ function personalPreferenceRow(entry = {}) {
   };
 }
 
-function buildPersonalOperatingLayerState(decisionMemory = {}) {
+function memorySuggestionReviewRow(entry = {}) {
+  const type = entry.type || entry.category || "apex-project";
+  return {
+    id: entry.id,
+    title: entry.title || "Memory suggestion",
+    status: entry.status || "suggested",
+    detail: truncateDetail(entry.body || entry.reviewNote || "Suggested Apex OS memory waiting for John/operator review.", 320),
+    tone: memoryStatusTone(entry.status),
+    sourceLabel: entry.sourceLabel || "Apex OS memory suggestion",
+    source: entry.sourceUri || entry.sourceType || "Private Apex OS memory",
+    reviewNote: entry.reviewNote,
+    createdAt: entry.createdAt,
+    updatedAt: entry.updatedAt,
+    approvedAt: entry.approvedAt,
+    archivedAt: entry.archivedAt,
+    category: entry.category,
+    type,
+    typeLabel: APEX_OS_DECISION_CATEGORY_LABELS[type] || humanizeId(type),
+    body: entry.body,
+    sourceType: entry.sourceType,
+    sourceUri: entry.sourceUri,
+    confidence: entry.confidence,
+  };
+}
+
+function memorySuggestionReviewSortValue(entry = {}) {
+  return entry.status === "approved"
+    ? String(entry.approvedAt || entry.updatedAt || entry.createdAt || "")
+    : String(entry.createdAt || entry.updatedAt || entry.approvedAt || "");
+}
+
+function buildMemorySuggestionReviewState(companySettings = {}) {
+  const memory = normalizeApexOsMemory(companySettings?.apexOsMemory || []);
+  const sorted = memory
+    .slice()
+    .sort((left, right) => memorySuggestionReviewSortValue(right).localeCompare(memorySuggestionReviewSortValue(left)));
+  const suggestedRows = sorted.filter((entry) => entry.status === "suggested");
+  const approvedRows = sorted.filter((entry) => entry.status === "approved");
+  const archivedRows = sorted.filter((entry) => entry.status === "archived");
+  const summary = buildApexOsMemorySummary(memory, { limit: 4 });
+  const sourceOptions = [...new Set(suggestedRows.map((entry) => entry.sourceLabel).filter(Boolean))]
+    .sort((left, right) => left.toLowerCase().localeCompare(right.toLowerCase()));
+
+  return {
+    status: suggestedRows.length ? "Review waiting" : "No pending suggestions",
+    tone: suggestedRows.length ? "amber" : approvedRows.length ? "green" : "blue",
+    suggestedCount: suggestedRows.length,
+    approvedCount: approvedRows.length,
+    archivedCount: archivedRows.length,
+    totalCount: memory.length,
+    sourceCount: sourceOptions.length,
+    sourceOptions,
+    rows: suggestedRows.slice(0, 12).map(memorySuggestionReviewRow),
+    recentApprovedRows: approvedRows.slice(0, 4).map(memorySuggestionReviewRow),
+    summary,
+  };
+}
+
+function taskReminderStatusRow(entry = {}) {
+  const label = entry.type === "reminder" ? "Reminder" : "Task";
+  return {
+    id: `apex-os-task-${entry.id}`,
+    title: entry.title || label,
+    status: `${label} / ${entry.priority || "normal"}`,
+    detail: [entry.dueText || entry.dueAt || "", entry.category || "general"].filter(Boolean).join(" | ") || "Internal Apex OS item.",
+    tone: entry.priority === "critical" ? "red" : entry.priority === "high" ? "amber" : "blue",
+    sourceLabel: "Apex OS tasks/reminders",
+    source: "company settings apexOsTasks",
+    confidence: 86,
+    readOnly: true,
+  };
+}
+
+function buildPersonalOperatingLayerState(decisionMemory = {}, companySettings = {}) {
+  const personalMemoryCategories = new Set([
+    "personal-preference",
+    "john-personal",
+    "assistant-preference",
+    "life-routine",
+    "active-priority",
+    "people-context",
+    "do-not-do",
+  ]);
   const personalEntries = (decisionMemory.durableEntries || [])
-    .filter((entry) => entry.category === "personal-preference");
+    .filter((entry) => personalMemoryCategories.has(entry.category));
   const approvedEntries = personalEntries.filter((entry) => entry.status === "approved");
   const suggestedEntries = personalEntries.filter((entry) => entry.status === "suggested");
   const archivedEntries = personalEntries.filter((entry) => entry.status === "archived");
@@ -1663,6 +1873,13 @@ function buildPersonalOperatingLayerState(decisionMemory = {}) {
     .map(personalPreferenceRow);
   const sourceOptions = [...new Set(personalEntries.map((entry) => entry.sourceLabel).filter(Boolean))]
     .sort((left, right) => left.toLowerCase().localeCompare(right.toLowerCase()));
+  const taskReminderSummary = summarizeApexOsTasks(companySettings?.apexOsTasks || [], { limit: 5 });
+  const taskReminderRows = [
+    ...taskReminderSummary.highestPriorityItems,
+    ...taskReminderSummary.dueSoonItems.filter((dueItem) => (
+      !taskReminderSummary.highestPriorityItems.some((priorityItem) => priorityItem.id === dueItem.id)
+    )),
+  ].slice(0, 5).map(taskReminderStatusRow);
 
   return {
     status: approvedEntries.length ? "Personal preferences active" : "Personal layer ready",
@@ -1682,6 +1899,10 @@ function buildPersonalOperatingLayerState(decisionMemory = {}) {
     backgroundCount: APEX_OS_PERSONAL_BACKGROUND_ROWS.length,
     checkInCount: APEX_OS_PERSONAL_CHECK_IN_ROWS.length,
     privacyLockCount: APEX_OS_PERSONAL_PRIVACY_LOCKS.length,
+    openTaskCount: taskReminderSummary.openTaskCount,
+    openReminderCount: taskReminderSummary.openReminderCount,
+    taskReminderSummary,
+    taskReminderRows,
     preferenceRows: [
       ...APEX_OS_PERSONAL_OPERATING_SEED_ROWS.map((item) => ({ ...item, readOnly: true })),
       ...approvedPreferenceRows,
@@ -1848,7 +2069,7 @@ function buildAskApexChatState({
   return {
     status: "Source-backed live",
     tone: "green",
-    providerStatus: "Server-only provider",
+    providerStatus: "Local-first Ollama",
     contextCount: contexts.length,
     evidenceCount: evidenceRows.length,
     actionLockCount: actionLocks.length,
@@ -1857,7 +2078,7 @@ function buildAskApexChatState({
       id: "source-backed-preview",
       title: "Source-backed answer surface",
       status: "Ready",
-      detail: "Apex answers from approved memory and source labels, then flags deploy, provider, production, money, sends, customer-visible, or deletion requests as approval-needed.",
+      detail: "Apex answers through local-first intelligence, uses approved memory/source labels, acts privately for reversible internal work, and asks before deploy, provider, production, money, sends, customer-visible, deletion, or other consequential requests.",
       tone: "green",
     },
     contexts,
@@ -1879,7 +2100,7 @@ function buildVoiceInterfaceState({ askApexChat } = {}) {
     answerStatus: askApexChat?.status === "Source-backed live" ? "Ask Apex ready" : "Chat shell required",
     prompt: "Transcript before Apex listens",
     transcriptPreview: "Type and confirm what Apex heard before it becomes an Ask Apex question.",
-    answerPreview: "Apex can speak Ask Apex answers out loud after the answer is generated; confirmed transcripts can feed Ask Apex only after review.",
+    answerPreview: "Apex keeps the typed answer visible after generation; voice playback is optional and can fail over without hiding the text.",
     modes,
     safetyRows,
   };
@@ -1890,7 +2111,7 @@ function buildApprovalCommandCenterState({ releaseDesk, askApexChat, voiceInterf
     id: label.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
     title: label,
     status: "Packet required",
-    detail: `${label} requests need action, reason, affected scope, risk, validation, rollback, and exact owner approval before anything can happen.`,
+    detail: `${label} requests need action, reason, affected scope, risk, validation, rollback, and exact owner approval before any separate gated workflow can be considered.`,
     tone: "amber",
   }));
   const packetRows = APEX_OS_APPROVAL_PACKET_FIELDS.map((item) => ({ ...item }));
@@ -1918,7 +2139,7 @@ function buildApprovalCommandCenterState({ releaseDesk, askApexChat, voiceInterf
       id: "ask-apex-chat",
       title: "Ask Apex chat",
       status: askApexChat?.status || "Planned",
-      detail: "Chat can label risky answers approval-needed, but cannot write approvals or execute actions.",
+      detail: "Chat can label risky answers approval-needed while private internal work stays reversible and operator-only.",
       tone: askApexChat?.tone || "slate",
     },
     {
@@ -2160,7 +2381,7 @@ function buildAutonomyRunCenterState({
     {
       id: "autonomy-route-business",
       title: "Business route",
-      status: businessCommandCenter?.status || "Review-first",
+      status: businessCommandCenter?.status || "Private planning",
       detail: "Sales, marketing, launch, customer success, and revenue work can be drafted, but sends, spend, billing, and publishing remain gated.",
       tone: businessCommandCenter?.tone || "blue",
     },
@@ -2208,7 +2429,7 @@ function buildAutonomyRunCenterState({
   return {
     status: runSummary.active ? "Autonomy runs active" : canDraftInternalRuns ? "Guarded autonomy ready" : "Planning guard ready",
     tone: runSummary.blocked ? "amber" : runSummary.active || canDraftInternalRuns ? "green" : "amber",
-    mode: "Review-first autonomy",
+    mode: "Private act-by-default",
     currentRunStatus: latestActiveRun ? `${latestActiveRun.status}: ${latestActiveRun.title}` : recentRunCount ? "Run evidence visible" : "Ready for request",
     canDraftInternalRuns,
     canExecuteExternalActions: false,
@@ -2352,7 +2573,7 @@ function buildApexLiveOperatorModeState({
       id: "live-voice-loop",
       title: "Voice loop",
       status: voiceInterface?.status || "Voice ready",
-      detail: `${formatCount(voiceInterface?.modeCount)} modes, ${formatCount(voiceInterface?.safetyCount)} safety gates, visible wake control, spoken answers, next-turn prompts, interruption-aware turn memory, browser caption fallback, misheard retry listening, and voice health recovery are mapped.`,
+      detail: `${formatCount(voiceInterface?.modeCount)} modes, ${formatCount(voiceInterface?.safetyCount)} safety gates, visible page microphone control, spoken answers, next-turn prompts, interruption-aware turn memory, browser caption fallback, misheard retry listening, and voice health recovery are mapped.`,
       tone: voiceInterface?.tone || "green",
     },
     {
@@ -2404,7 +2625,7 @@ function buildApexLiveOperatorModeState({
     { id: "live-loop-follow-up", title: "Follow up", status: "Conversation continuity", detail: "Apex carries the last request, answer summary, matched room, active run, next private move, interruption state, retry state, and recent turn history into short follow-ups without hidden execution.", tone: "green" },
     { id: "live-loop-command-run", title: "Act", status: "Natural command", detail: "Apex can turn typed or spoken get-this-done requests into a saved private run, then use server-backed Auto Drive to advance safe prep/proof and stop at manual review.", tone: "green" },
     { id: "live-loop-judge", title: "Judge", status: "Proactive", detail: "Apex can turn pulse, run, approval, release, and memory state into ranked next-safe recommendations without executing them.", tone: "green" },
-    { id: "live-loop-plan", title: "Plan", status: `${formatCount(autonomyRunCenter?.planStepCount)} steps`, detail: "The request becomes a visible review-first run plan with an active step and evidence trail.", tone: "blue" },
+    { id: "live-loop-plan", title: "Plan", status: `${formatCount(autonomyRunCenter?.planStepCount)} steps`, detail: "The request becomes a visible private run plan with an active step, evidence trail, and consequential-action stop.", tone: "blue" },
     { id: "live-loop-save", title: "Save run", status: savedRunCount ? `${savedRunCount} saved` : "Ready", detail: "A private autonomy ledger item is created before work continues.", tone: savedRunCount ? "green" : "blue" },
     { id: "live-loop-draft", title: "Draft", status: autonomyRunCenter?.canDraftInternalRuns ? "Draft-ready" : "Guarded", detail: "Internal agent-control and execution handoff drafts can be prepared.", tone: autonomyRunCenter?.canDraftInternalRuns ? "green" : "amber" },
     { id: "live-loop-cycle", title: "Auto Drive", status: "Server-backed", detail: "Apex can advance a saved active run through draft, prep, proof, approval hold, and report-memory readiness from the private server ledger.", tone: "green" },
@@ -2424,7 +2645,7 @@ function buildApexLiveOperatorModeState({
       id: "live-gap-browser-voice",
       title: "Always-open voice",
       status: "Permission-gated",
-      detail: "Browsers still require one visible wake/permission event; after that the page keeps the open voice loop alive, recovers between turns, and can use browser captions when server transcription is unavailable.",
+      detail: "Browsers still require visible microphone permission; after that the page keeps the open voice loop alive, recovers between turns, and can use browser captions when server transcription is unavailable.",
       tone: "amber",
     },
     {
@@ -2459,7 +2680,7 @@ function buildApexLiveOperatorModeState({
   return {
     status: activeRunCount ? "Live operator running" : "Live operator ready",
     tone: activeRunCount ? "green" : "blue",
-    mode: "Body-first review-first operator",
+    mode: "Private Apex operator",
     detail: "Apex is moving from a screen with tools into a visible operator loop: hear, understand, follow up, judge, save, draft, validate, report, remember, and monitor.",
     foundationPercent: liveFoundationPercent,
     jarvisBehaviorPercent,
@@ -2769,6 +2990,13 @@ function buildPhase3AggregatorState({
 
 const APEX_OS_BUSINESS_MEMORY_CATEGORIES = new Set([
   "business-goal",
+  "john-business",
+  "assistant-preference",
+  "apex-project",
+  "active-priority",
+  "saved-idea",
+  "people-context",
+  "do-not-do",
   "business-strategy",
   "marketing-sales",
   "customer-research",
@@ -2840,7 +3068,7 @@ function buildBusinessCommandCenterState({
     {
       id: "founder-demo-packet",
       title: "Founder-led demo packet",
-      status: "Review-first",
+      status: "Private draft",
       detail: "Demo packets, scripts, proof, pilot handoff, and follow-up work stay private drafts until John approves exact use.",
       tone: "blue",
     },
@@ -3075,7 +3303,7 @@ function buildFinishedApexOsState({
         ...item,
         status: "Ready",
         tone: "green",
-        detail: `${formatCount(voiceInterface?.modeCount)} voice modes and ${formatCount(voiceInterface?.safetyCount)} safety gates keep open voice, transcript review, and spoken answers review-first.`,
+        detail: `${formatCount(voiceInterface?.modeCount)} voice modes and ${formatCount(voiceInterface?.safetyCount)} safety gates keep open voice visible while typed answers remain available if speech fails.`,
       };
     }
     if (item.id === "knowledge-upload-reviewed-memory") {
@@ -3230,7 +3458,7 @@ function buildFinishedApexOsState({
       id: "run-loop-handoff",
       title: "Execute Scoped Tasks",
       status: "Handoff ready",
-      detail: `${formatCount(agentWorkQueue?.availableTaskCount)} review-only task types can become scoped handoffs with validation and rollback; queue/run execution remains locked.`,
+      detail: `${formatCount(agentWorkQueue?.availableTaskCount)} review-only task types can become scoped handoffs with validation and rollback; queue/run actions remain gated.`,
       tone: "blue",
     },
     {
@@ -3384,7 +3612,7 @@ function buildPhase2Kpis({ releaseDesk, agentWorkQueue, launchState, approvalCom
       label: "App Build Status",
       value: buildAwareness?.status || releaseDesk?.status || "Manual",
       detail: buildAwareness?.branch
-        ? `${buildAwareness.branch} at ${buildAwareness.headSha}; ${formatCount(buildAwareness.changedFileCount)} changed files are visible. Execution remains locked.`
+        ? `${buildAwareness.branch} at ${buildAwareness.headSha}; ${formatCount(buildAwareness.changedFileCount)} changed files are visible. Consequential actions remain gated.`
         : "Build and release work stays inside the private release desk until tests, rollback evidence, and owner approval are complete.",
       tone: buildAwareness?.tone || releaseDesk?.tone || "amber",
     },
@@ -3460,13 +3688,1751 @@ function buildPhase2CommandBoard({
   ];
 }
 
+function buildApexHqDomainBridgeState({
+  leads = [],
+  jobs = [],
+  customers = [],
+  estimates = [],
+  proposals = [],
+  dailyReports = [],
+  uploads = [],
+  buildAwareness = {},
+  personalOperatingLayer = {},
+} = {}) {
+  const leadCount = activeRows(leads).length;
+  const jobCount = activeRows(jobs).length;
+  const customerCount = activeRows(customers).length;
+  const estimateCount = activeRows(estimates).length;
+  const proposalCount = activeRows(proposals).length;
+  const reportCount = activeRows(dailyReports).length;
+  const uploadCount = activeRows(uploads).length;
+  const openTaskCount = formatCount(personalOperatingLayer?.taskReminderSummary?.openTaskCount);
+  const openReminderCount = formatCount(personalOperatingLayer?.taskReminderSummary?.openReminderCount);
+  const rows = [
+    {
+      id: "apex-hq-leads",
+      title: "Leads",
+      status: `${leadCount} visible`,
+      detail: "Apex can open the existing Apex HQ lead workspace and summarize lead context from current state.",
+      tone: leadCount ? "green" : "slate",
+      icon: "inbox",
+      moduleId: "leads",
+      actionLabel: "Open leads",
+      examples: ["show leads", "open leads"],
+    },
+    {
+      id: "apex-hq-jobs",
+      title: "Jobs",
+      status: `${jobCount} visible`,
+      detail: "Apex can open the existing jobs workspace and summarize active work from current state.",
+      tone: jobCount ? "green" : "slate",
+      icon: "briefcase",
+      moduleId: "jobs",
+      actionLabel: "Open jobs",
+      examples: ["show jobs", "open jobs"],
+    },
+    {
+      id: "apex-hq-customers",
+      title: "Customers",
+      status: `${customerCount} visible`,
+      detail: "Apex can open the existing customer workspace without duplicating customer workflows.",
+      tone: customerCount ? "green" : "slate",
+      icon: "users",
+      moduleId: "customers",
+      actionLabel: "Open customers",
+      examples: ["show customers", "open customers"],
+    },
+    {
+      id: "apex-hq-estimates",
+      title: "Estimates",
+      status: `${estimateCount} visible`,
+      detail: "Apex can route to the existing estimate workspace. Sending and pricing approvals stay gated.",
+      tone: estimateCount ? "green" : "slate",
+      icon: "quote",
+      moduleId: "estimates",
+      actionLabel: "Open estimates",
+      examples: ["show estimates", "open estimates"],
+    },
+    {
+      id: "apex-hq-proposals",
+      title: "Proposals",
+      status: `${proposalCount} visible`,
+      detail: "Apex can route to the existing proposal workspace. Customer-visible sending stays gated.",
+      tone: proposalCount ? "green" : "slate",
+      icon: "quote",
+      moduleId: "proposals",
+      actionLabel: "Open proposals",
+      examples: ["show proposals", "open proposals"],
+    },
+    {
+      id: "apex-hq-reports",
+      title: "Reports",
+      status: `${reportCount} visible`,
+      detail: "Apex can route to the existing report workspace.",
+      tone: reportCount ? "green" : "slate",
+      icon: "upload",
+      moduleId: "reports",
+      actionLabel: "Open reports",
+      examples: ["show reports", "open reports"],
+    },
+    {
+      id: "apex-hq-uploads",
+      title: "Uploads",
+      status: `${uploadCount} visible`,
+      detail: "Apex can route to the existing upload and proof workspace.",
+      tone: uploadCount ? "green" : "slate",
+      icon: "upload",
+      moduleId: "uploads",
+      actionLabel: "Open uploads",
+      examples: ["show uploads", "open uploads"],
+    },
+    {
+      id: "apex-hq-build",
+      title: "Build Status",
+      status: buildAwareness?.status || "Visible",
+      detail: `${buildAwareness?.branch || "Current branch"} build awareness is available inside Apex. Deploy and production actions stay gated.`,
+      tone: buildAwareness?.tone || "blue",
+      icon: "spark",
+      sectionId: "release",
+      actionLabel: "Open build status",
+      examples: ["summarize build status", "what changed in the app"],
+    },
+    {
+      id: "apex-private-tasks",
+      title: "Private Tasks",
+      status: `${openTaskCount} tasks / ${openReminderCount} reminders`,
+      detail: "Apex can create private internal tasks/reminders through the existing operator-only Apex state.",
+      tone: openTaskCount || openReminderCount ? "green" : "blue",
+      icon: "check",
+      sectionId: "personal",
+      actionLabel: "Open tasks",
+      examples: ["remind me", "create a private task"],
+    },
+  ];
+  const commandRows = [
+    { id: "bridge-open-leads", title: "show/open leads", status: "Routes to Leads", moduleId: "leads", tone: "green" },
+    { id: "bridge-open-jobs", title: "show/open jobs", status: "Routes to Jobs", moduleId: "jobs", tone: "green" },
+    { id: "bridge-open-customers", title: "show/open customers", status: "Routes to Customers", moduleId: "customers", tone: "green" },
+    { id: "bridge-open-estimates", title: "show/open estimates", status: "Routes to Estimates", moduleId: "estimates", tone: "green" },
+    { id: "bridge-open-proposals", title: "show/open proposals", status: "Routes to Proposals", moduleId: "proposals", tone: "green" },
+    { id: "bridge-open-reports", title: "show/open reports", status: "Routes to Reports", moduleId: "reports", tone: "green" },
+    { id: "bridge-open-uploads", title: "show/open uploads", status: "Routes to Uploads", moduleId: "uploads", tone: "green" },
+    { id: "bridge-today-summary", title: "summarize today's Apex HQ state", status: "Answers from current state", sectionId: "apex", tone: "blue" },
+    { id: "bridge-build-summary", title: "summarize app/build status", status: "Uses build awareness", sectionId: "release", tone: "blue" },
+    { id: "bridge-private-task", title: "create private task/reminder/note", status: "Private Apex state only", sectionId: "personal", tone: "green" },
+  ];
+  const blockedRows = [
+    "sends",
+    "spend",
+    "orders",
+    "booking",
+    "auth/security",
+    "schema/session",
+    "production/deploy",
+    "deletion",
+    "other people's time/privacy/data",
+  ].map((label) => ({
+    id: `bridge-block-${label.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`,
+    title: label,
+    status: "Confirmation required",
+    tone: "amber",
+  }));
+
+  return {
+    status: "Business workspace ready",
+    tone: "green",
+    summary: "Apex is the private operator. Apex HQ is the business domain it can route through using existing modules, state, and permission gates.",
+    counts: {
+      leadCount,
+      jobCount,
+      customerCount,
+      estimateCount,
+      proposalCount,
+      reportCount,
+      uploadCount,
+      openTaskCount,
+      openReminderCount,
+    },
+    rows,
+    commandRows,
+    blockedRows,
+  };
+}
+
+export const APEX_BUILDER_VALIDATION_ACTION_ROWS = Object.freeze([
+  {
+    id: "git-diff-check",
+    title: "Diff whitespace check",
+    status: "Safe local check",
+    detail: "Runs git diff --check against the local worktree. It does not stage, commit, deploy, or edit files.",
+    tone: "blue",
+  },
+  {
+    id: "apex-home-focused-tests",
+    title: "Apex Home focused tests",
+    status: "Safe local check",
+    detail: "Runs focused route, Apex Home, Control Room import, navigation, and permission tests.",
+    tone: "green",
+  },
+  {
+    id: "apex-local-intelligence-tests",
+    title: "Local intelligence tests",
+    status: "Safe local check",
+    detail: "Runs local-first provider, Ask Apex, and Knowledge Intelligence regression tests.",
+    tone: "green",
+  },
+  {
+    id: "verify-roles",
+    title: "Role boundary check",
+    status: "Safe local check",
+    detail: "Runs the owner/admin/field permission boundary suite.",
+    tone: "green",
+  },
+  {
+    id: "build",
+    title: "Production build",
+    status: "Safe local build",
+    detail: "Runs the local production build only. It does not deploy or touch production.",
+    tone: "amber",
+  },
+]);
+
+export const APEX_BUILDER_CONTROLLED_FIX_ACTION_ROWS = Object.freeze([
+  {
+    id: "apex-home-copy-polish",
+    title: "Stale copy polish",
+    status: "Controlled local fix",
+    detail: "Applies exact allowlisted Apex Home copy fixes when stale wording is found, then runs focused checks.",
+    tone: "green",
+  },
+  {
+    id: "control-room-import-repair",
+    title: "Import/render repair",
+    status: "Scoped local fix",
+    detail: "Scopes Apex Home or Control Room import/render issues and runs the focused route/import suite.",
+    tone: "blue",
+  },
+  {
+    id: "builder-status-label-repair",
+    title: "Status label repair",
+    status: "Scoped local fix",
+    detail: "Scopes Builder Mode status labels, badges, and local intelligence display mismatches.",
+    tone: "blue",
+  },
+  {
+    id: "builder-receipt-history-display",
+    title: "Receipt history repair",
+    status: "Scoped local fix",
+    detail: "Scopes missing latest fix history, touched files, validation result, and What Apex Did rows.",
+    tone: "blue",
+  },
+  {
+    id: "utility-test-repair",
+    title: "Utility/test repair",
+    status: "Scoped local fix",
+    detail: "Scopes small helper or assertion issues and runs the matching local focused checks.",
+    tone: "amber",
+  },
+  {
+    id: "layout-overflow-guard",
+    title: "Layout overflow guard",
+    status: "Scoped local fix",
+    detail: "Scopes harmless mobile/text overflow issues in Apex Home layout and CSS.",
+    tone: "amber",
+  },
+]);
+
+function sanitizeApexBuilderNextAction(action = null, dirtyCount = 0) {
+  const fallback = {
+    id: "builder-next-action",
+    title: "Next useful local action",
+    status: dirtyCount ? "Check changes" : "Ready",
+    detail: dirtyCount
+      ? "Refresh build awareness, run focused tests, then decide the next private builder task."
+      : "Ask Apex to check the app or track the next bug/build task.",
+    tone: dirtyCount ? "amber" : "green",
+  };
+  const row = action && typeof action === "object" ? { ...action } : fallback;
+  const joined = `${row.title || ""} ${row.status || ""} ${row.detail || ""}`;
+  if (/\b(commit|push|deploy|production|schema|auth|session|delete|deletion)\b/i.test(joined)) {
+    return {
+      ...row,
+      status: "Local only",
+      detail: "Run focused local validation and document the result. Release, production, schema/auth/session, and deletion work stay outside Builder Mode.",
+      tone: "amber",
+    };
+  }
+  return row;
+}
+
+export function buildApexBuilderModeState({
+  buildAwareness = {},
+  autonomyRunCenter = {},
+  executionHandoffs = {},
+  agentControlPlane = {},
+  apexActivity = {},
+  validationReceipts = [],
+  fixReceipts = [],
+  undoReceipts = [],
+} = {}) {
+  const changedFiles = list(buildAwareness?.changedFiles);
+  const dirtyCount = formatCount(buildAwareness?.changedFileCount, changedFiles.length);
+  const runRows = list(autonomyRunCenter?.runRows);
+  const builderTaskRows = runRows
+    .filter((run) => {
+      const text = [
+        run?.routeId,
+        run?.routeLabel,
+        run?.title,
+        run?.request,
+        run?.detail,
+      ].join(" ").toLowerCase();
+      return /\b(builder|build|bug|fix|app|code|repo|validation|test|qa)\b/.test(text);
+    })
+    .slice(0, 6);
+  const activeTaskRows = builderTaskRows.filter((run) => !["done", "archived", "blocked"].includes(String(run.status || "").toLowerCase()));
+  const receipts = list(validationReceipts).slice(0, 6);
+  const fixes = list(fixReceipts).slice(0, 6);
+  const undos = list(undoReceipts).slice(0, 6);
+  const latestSuccessfulFix = fixes.find((fix) => fix?.undoAvailable === true && fix?.status === "fixed") || null;
+  const patchPreviewSource = latestSuccessfulFix || fixes.find((fix) => list(fix?.patchPreviews).length || list(fix?.patchResults).some((patch) => patch.preview)) || null;
+  const patchPreviewRows = (list(patchPreviewSource?.patchPreviews).length
+    ? list(patchPreviewSource?.patchPreviews)
+    : list(patchPreviewSource?.patchResults).map((patch) => patch.preview).filter(Boolean))
+    .slice(0, 4)
+    .map((preview, index) => ({
+      id: preview.id || `${patchPreviewSource?.id || "patch-preview"}-${index}`,
+      targetFile: preview.targetFile || preview.file || "allowlisted file",
+      searchSnippet: safeReceiptText(preview.searchSnippet || "", 280),
+      replacementSnippet: safeReceiptText(preview.replacementSnippet || "", 280),
+      explanation: safeReceiptText(preview.explanation || "Exact controlled local patch preview.", 220),
+      validationCommand: preview.validationCommand?.label || preview.validationCommand?.id || patchPreviewSource?.validationSummary?.label || "",
+      expectedResult: safeReceiptText(preview.expectedResult || "Focused validation should pass.", 180),
+      sourceFixId: patchPreviewSource?.id || patchPreviewSource?.fixId || "",
+    }));
+  const recentUndoRows = undos.length
+    ? undos.map((undo) => ({
+      id: undo.id || undo.sourceFixId || "builder-undo",
+      title: undo.label || "Local undo",
+      status: undo.historyStatus || undo.status || (undo.ok ? "undone" : "blocked"),
+      detail: safeReceiptText(undo.receipt || undo.whatApexDid || "Local undo receipt returned from Apex Builder Mode.", 320),
+      tone: undo.ok ? "green" : undo.status === "blocked" ? "amber" : "red",
+      sourceLabel: undo.sourceFixId || undo.fixId || "controlled-local-undo",
+      filesTouched: list(undo.filesTouched).slice(0, 4),
+      validationStatus: undo.validationSummary?.status || undo.validationRun?.status || "",
+      undoHint: safeReceiptText(undo.undoHint || "", 220),
+      whatApexDid: safeReceiptText(undo.whatApexDid || undo.receipt || "", 260),
+    }))
+    : [];
+  const recentFixRows = fixes.length
+    ? fixes.map((fix) => ({
+      id: fix.id || fix.fixId,
+      title: fix.label || fix.fixId || "Controlled local fix",
+      status: fix.historyStatus || fix.status || (fix.ok ? "validated" : "review"),
+      detail: safeReceiptText(fix.receipt || fix.detail || "Controlled local fix receipt returned from Apex Builder Mode.", 320),
+      tone: fix.status === "reverted" ? "amber" : fix.ok ? "green" : fix.status === "blocked" ? "amber" : "red",
+      sourceLabel: fix.fixId || "controlled-local-fix",
+      request: safeReceiptText(fix.request || "", 160),
+      filesTouched: list(fix.filesTouched).length ? list(fix.filesTouched) : list(fix.scopedFiles).slice(0, 4),
+      validationStatus: fix.validationSummary?.status || fix.validationRun?.status || "",
+      validationCommandId: fix.validationSummary?.commandId || fix.validationRun?.commandId || "",
+      actionTaken: list(fix.actionTaken).slice(0, 5),
+      whatApexDid: safeReceiptText(fix.whatApexDid || fix.receipt || "", 260),
+      undoHint: safeReceiptText(fix.undoHint || "", 220),
+      undoAvailable: fix.undoAvailable === true,
+      patchPreviewCount: list(fix.patchPreviews).length || list(fix.patchResults).filter((patch) => patch.preview).length,
+    }))
+    : [
+      {
+        id: "builder-fix-ready",
+        title: "Controlled local fixes",
+        status: "Ready",
+        detail: "Apex can run small scoped local UI/test/helper fixes through fixed profiles and exact allowlisted patch rules.",
+        tone: "green",
+      },
+    ];
+  const recentValidationRows = receipts.length
+    ? receipts.map((receipt) => ({
+      id: receipt.id || receipt.commandId,
+      title: receipt.label || receipt.commandId || "Local validation",
+      status: receipt.status || (receipt.ok ? "passed" : "review"),
+      detail: receipt.receipt || receipt.output || "Local validation result returned from Apex Builder Mode.",
+      tone: receipt.ok ? "green" : receipt.status === "blocked" ? "amber" : "red",
+      commandId: receipt.commandId,
+    }))
+    : [
+      {
+        id: "build-script-status",
+        title: buildAwareness?.buildStatus?.title || "Build script",
+        status: buildAwareness?.buildStatus?.status || "Available",
+        detail: buildAwareness?.buildStatus?.detail || "Apex can run the safe local build command when you ask.",
+        tone: buildAwareness?.buildStatus?.tone || "blue",
+      },
+      {
+        id: "test-script-status",
+        title: buildAwareness?.testStatus?.title || "Verification scripts",
+        status: buildAwareness?.testStatus?.status || "Available",
+        detail: buildAwareness?.testStatus?.detail || "Apex can run focused local checks from the private builder surface.",
+        tone: buildAwareness?.testStatus?.tone || "blue",
+      },
+    ];
+
+  const activityRows = [
+    ...fixes.map((fix) => ({
+      id: `fix-${fix.id || fix.fixId}`,
+      title: "What Apex Did",
+      status: fix.historyStatus || fix.status || "recorded",
+      detail: safeReceiptText(fix.whatApexDid || fix.receipt || "Apex ran a controlled local fix.", 280),
+      tone: fix.status === "reverted" ? "amber" : fix.ok ? "green" : fix.status === "blocked" ? "amber" : "blue",
+      sourceLabel: fix.fixId || "controlled-local-fix",
+    })),
+    ...undos.map((undo) => ({
+      id: `undo-${undo.id || undo.sourceFixId}`,
+      title: "What Apex Undid",
+      status: undo.historyStatus || undo.status || "recorded",
+      detail: safeReceiptText(undo.whatApexDid || undo.receipt || "Apex ran a scoped local undo.", 280),
+      tone: undo.ok ? "green" : undo.status === "blocked" ? "amber" : "red",
+      sourceLabel: undo.sourceFixId || undo.fixId || "controlled-local-undo",
+    })),
+    ...receipts.map((receipt) => ({
+      id: `receipt-${receipt.id || receipt.commandId}`,
+      title: receipt.label || "Local validation",
+      status: receipt.status || "checked",
+      detail: receipt.receipt || "Apex ran a safe local validation check.",
+      tone: receipt.ok ? "green" : "amber",
+    })),
+    ...list(apexActivity?.rows).slice(0, 3).map((row) => ({
+      id: `activity-${row.id}`,
+      title: row.actionType || row.title || "Apex activity",
+      status: row.status || "recorded",
+      detail: row.reason || row.receipt || row.undoHint || "Private Apex activity receipt.",
+      tone: row.status === "blocked" ? "amber" : "green",
+    })),
+  ].slice(0, 6);
+
+  const summaryRows = [
+    {
+      id: "builder-build-status",
+      title: "Current app/build status",
+      status: buildAwareness?.status || "Build awareness ready",
+      detail: `${buildAwareness?.branch || "Current branch"} at ${buildAwareness?.headSha || "current head"}. ${buildAwareness?.buildStatus?.detail || "Build script evidence is available."}`,
+      tone: buildAwareness?.tone || "blue",
+    },
+    {
+      id: "builder-dirty-files",
+      title: "Dirty files summary",
+      status: dirtyCount ? `${dirtyCount} changed` : "Clean",
+      detail: dirtyCount
+        ? "Apex can summarize changed files and run safe local checks, but it will not stage, commit, delete, deploy, or mutate production from Builder Mode."
+        : "No changed files are reported by build awareness.",
+      tone: dirtyCount ? "amber" : "green",
+    },
+    {
+      id: "builder-active-tasks",
+      title: "Active builder tasks",
+      status: activeTaskRows.length ? `${activeTaskRows.length} active` : builderTaskRows.length ? "No active" : "Ready",
+      detail: builderTaskRows.length
+        ? `${builderTaskRows.length} builder-related private task${builderTaskRows.length === 1 ? "" : "s"} are visible from the existing autonomy ledger.`
+        : "Create a private builder task from Apex Home when you want Apex to track an issue or build step.",
+      tone: activeTaskRows.length ? "green" : builderTaskRows.length ? "blue" : "slate",
+    },
+    {
+      id: "builder-handoffs",
+      title: "Builder handoffs",
+      status: `${formatCount(executionHandoffs?.handoffSummary?.total)} handoffs`,
+      detail: `${formatCount(executionHandoffs?.handoffSummary?.ready)} ready handoffs and ${formatCount(agentControlPlane?.activeRequestCount)} active agent requests are visible. Apex remains one operator with agents underneath it.`,
+      tone: executionHandoffs?.tone || agentControlPlane?.tone || "blue",
+    },
+  ];
+
+  return {
+    status: "Builder ready",
+    tone: dirtyCount ? "amber" : "green",
+    summary: "Apex Builder Mode lets Apex inspect local app state, track private builder work, run controlled local fixes, preview exact patches, undo Apex-owned local changes, keep clear fix history, run fixed checks, and report progress without deploys or production changes.",
+    canRunLocalValidation: true,
+    canCreateBuilderTasks: true,
+    canApplyControlledLocalFixes: true,
+    canUndoControlledLocalFixes: true,
+    canEditFiles: false,
+    canDeploy: false,
+    canDeleteFiles: false,
+    changedFileCount: dirtyCount,
+    activeTaskCount: activeTaskRows.length,
+    taskCount: builderTaskRows.length,
+    validationCount: receipts.length,
+    fixCount: fixes.length,
+    undoCount: undos.length,
+    latestPatchPreviewSource: patchPreviewSource ? {
+      id: patchPreviewSource.id || patchPreviewSource.fixId,
+      label: patchPreviewSource.label || patchPreviewSource.fixId || "Controlled local fix",
+      status: patchPreviewSource.status || patchPreviewSource.historyStatus || "recorded",
+    } : null,
+    latestSuccessfulFix: latestSuccessfulFix ? {
+      id: latestSuccessfulFix.id || latestSuccessfulFix.fixId,
+      fixId: latestSuccessfulFix.fixId,
+      label: latestSuccessfulFix.label || latestSuccessfulFix.fixId || "Controlled local fix",
+      status: latestSuccessfulFix.historyStatus || latestSuccessfulFix.status || "validated",
+      undoHint: safeReceiptText(latestSuccessfulFix.undoHint || "", 220),
+      filesTouched: list(latestSuccessfulFix.filesTouched).slice(0, 4),
+    } : null,
+    summaryRows,
+    dirtyFileRows: changedFiles.slice(0, 8),
+    builderTaskRows,
+    recentFixRows,
+    patchPreviewRows,
+    recentUndoRows,
+    recentValidationRows,
+    actionRows: APEX_BUILDER_VALIDATION_ACTION_ROWS.map((row) => ({ ...row })),
+    fixActionRows: APEX_BUILDER_CONTROLLED_FIX_ACTION_ROWS.map((row) => ({ ...row })),
+    activityRows,
+    nextAction: sanitizeApexBuilderNextAction(buildAwareness?.nextSafeTask, dirtyCount),
+    blockedRows: [
+      "deploy",
+      "production mutation",
+      "schema/auth/session",
+      "deletion",
+      "customer-visible writes",
+      "sends/spend/orders/booking",
+      "permission weakening",
+      "uncontrolled autonomous file editing",
+    ].map((label) => ({
+      id: `builder-block-${label.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`,
+      title: label,
+      status: "Hard stop",
+      tone: "amber",
+    })),
+  };
+}
+
+function statusForFeed(status = "", ok = false) {
+  const normalized = String(status || "").toLowerCase();
+  if (ok || ["done", "passed", "validated", "fixed", "undone", "already-fixed", "performed"].includes(normalized)) return "done";
+  if (["active", "running", "validating", "thinking", "queued"].includes(normalized)) return "active";
+  if (["blocked", "denied", "rejected"].includes(normalized)) return "blocked";
+  if (["reverted", "reverted-after-validation-failed"].includes(normalized)) return "reverted";
+  return "info";
+}
+
+function toneForFeedStatus(status = "") {
+  switch (statusForFeed(status)) {
+    case "done":
+      return "green";
+    case "active":
+      return "blue";
+    case "blocked":
+    case "reverted":
+      return "amber";
+    default:
+      return "slate";
+  }
+}
+
+function feedEntry({
+  id = "",
+  domain = "System",
+  title = "",
+  detail = "",
+  status = "info",
+  tone = "",
+  actionLabel = "Open details",
+  panelId = "",
+  createdAt = "",
+} = {}) {
+  return {
+    id: id || `feed-${domain.toLowerCase()}-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+    domain,
+    title: safeReceiptText(title || "Apex update", 120),
+    detail: safeReceiptText(detail || "Apex recorded a private operator update.", 260),
+    status: statusForFeed(status),
+    tone: tone || toneForFeedStatus(status),
+    actionLabel,
+    panelId,
+    createdAt: createdAt || "Now",
+  };
+}
+
+export function buildApexWhatChangedFeedState({
+  state = {},
+  builderMode = null,
+  validationReceipts = [],
+  fixReceipts = [],
+  undoReceipts = [],
+  commandEvents = [],
+} = {}) {
+  const builder = builderMode || state.apexBuilderMode || {};
+  const entries = [];
+
+  for (const fix of list(fixReceipts).slice(0, 4)) {
+    entries.push(feedEntry({
+      id: `builder-fix-${fix.id || fix.fixId}`,
+      domain: "Builder",
+      title: fix.status === "already-fixed" ? "Checked controlled fix" : fix.label || "Controlled local fix",
+      detail: fix.whatApexDid || fix.receipt || "Apex ran or checked a controlled local fix.",
+      status: fix.historyStatus || fix.status,
+      tone: fix.status === "blocked" ? "amber" : fix.ok ? "green" : "blue",
+      actionLabel: "Show builder",
+      panelId: "builder",
+      createdAt: fix.createdAt || "Latest",
+    }));
+  }
+
+  for (const preview of list(builder.patchPreviewRows).slice(0, 3)) {
+    entries.push(feedEntry({
+      id: `patch-preview-${preview.id || preview.targetFile}`,
+      domain: "Builder",
+      title: `Patch preview: ${preview.targetFile || "allowlisted file"}`,
+      detail: preview.explanation || "Apex prepared exact before/after patch snippets for a controlled local fix.",
+      status: "info",
+      tone: "blue",
+      actionLabel: "Show patch",
+      panelId: "patch",
+      createdAt: "Preview",
+    }));
+  }
+
+  for (const undo of list(undoReceipts).slice(0, 3)) {
+    entries.push(feedEntry({
+      id: `builder-undo-${undo.id || undo.sourceFixId}`,
+      domain: "Builder",
+      title: undo.ok ? "Undid local patch" : "Undo blocked",
+      detail: undo.whatApexDid || undo.receipt || "Apex checked local undo state.",
+      status: undo.historyStatus || undo.status,
+      tone: undo.ok ? "green" : "amber",
+      actionLabel: "Show undo",
+      panelId: "undo",
+      createdAt: undo.createdAt || "Latest",
+    }));
+  }
+
+  for (const receipt of list(validationReceipts).slice(0, 3)) {
+    entries.push(feedEntry({
+      id: `validation-${receipt.id || receipt.commandId}`,
+      domain: "System",
+      title: receipt.label || "Local validation",
+      detail: receipt.receipt || receipt.output || "Apex ran a fixed local validation command.",
+      status: receipt.status || (receipt.ok ? "passed" : "info"),
+      tone: receipt.ok ? "green" : receipt.status === "blocked" ? "amber" : "red",
+      actionLabel: "Show builder",
+      panelId: "builder",
+      createdAt: receipt.createdAt || "Latest",
+    }));
+  }
+
+  for (const event of list(commandEvents).slice(0, 4)) {
+    entries.push(feedEntry({
+      id: `command-${event.id || event.intent || event.label}`,
+      domain: event.domain || "Apex HQ",
+      title: event.title || event.label || "Command routed",
+      detail: event.detail || "Apex routed a natural command to an existing private workspace capability.",
+      status: event.status || "info",
+      tone: event.tone || "blue",
+      actionLabel: event.actionLabel || "Open details",
+      panelId: event.panelId || "activity",
+      createdAt: event.createdAt || "Latest",
+    }));
+  }
+
+  for (const row of list(state.apexActivity?.rows).slice(0, 3)) {
+    entries.push(feedEntry({
+      id: `activity-${row.id}`,
+      domain: row.affectedRecordType === "task" || row.affectedRecordType === "reminder" ? "Memory" : "System",
+      title: row.actionType || "Private internal action",
+      detail: row.reason || row.receipt || row.undoHint || "Apex recorded a private internal action receipt.",
+      status: row.status,
+      tone: row.status === "blocked" ? "amber" : "green",
+      actionLabel: "Show activity",
+      panelId: "activity",
+      createdAt: row.createdAt || "Latest",
+    }));
+  }
+
+  if (state.apexHqDomain?.status) {
+    entries.push(feedEntry({
+      id: "apex-hq-domain-ready",
+      domain: "Apex HQ",
+      title: "Business workspace ready",
+      detail: state.apexHqDomain.summary || "Apex can route to existing Apex HQ modules without duplicating workflows.",
+      status: state.apexHqDomain.status,
+      tone: state.apexHqDomain.tone || "green",
+      actionLabel: "Show Apex HQ",
+      panelId: "apex-hq",
+      createdAt: "Current",
+    }));
+  }
+
+  if (builder.status) {
+    entries.push(feedEntry({
+      id: "builder-mode-ready",
+      domain: "Builder",
+      title: "Builder Mode ready",
+      detail: `${builder.fixCount || 0} fix receipts, ${builder.undoCount || 0} undo receipts, and ${builder.validationCount || 0} validation receipts are available.`,
+      status: builder.status,
+      tone: builder.tone || "green",
+      actionLabel: "Show builder",
+      panelId: "builder",
+      createdAt: "Current",
+    }));
+  }
+
+  if (state.askApexChat?.providerStatus) {
+    entries.push(feedEntry({
+      id: "local-intelligence-status",
+      domain: "System",
+      title: "Local intelligence",
+      detail: `${state.askApexChat.providerStatus}. OpenAI stays disabled by default unless John explicitly asks for cloud and policy allows it.`,
+      status: "done",
+      tone: "green",
+      actionLabel: "Show voice",
+      panelId: "voice",
+      createdAt: "Current",
+    }));
+  }
+
+  const compactEntries = entries.slice(0, 10);
+  return {
+    status: compactEntries.length ? "Feed ready" : "Standing by",
+    tone: compactEntries.some((entry) => entry.status === "blocked" || entry.status === "reverted") ? "amber" : compactEntries.length ? "green" : "slate",
+    entryCount: compactEntries.length,
+    entries: compactEntries,
+    surfaceRows: [
+      { id: "main-screen", title: "Main screen", status: "Active", detail: "Conversation, avatar, current action, and What Changed stay on the primary Apex surface.", tone: "green" },
+      { id: "second-monitor", title: "Second monitor", status: "Placeholder", detail: "Future surface route only; no remote push or device control is active in v0.", tone: "slate" },
+      { id: "phone", title: "Phone", status: "Placeholder", detail: "Future companion surface only; no push/control path exists yet.", tone: "slate" },
+      { id: "tablet-tv-watch", title: "Tablet / TV / watch", status: "Placeholder", detail: "Future display targets only. Real device execution stays locked until a later approved connector phase.", tone: "slate" },
+    ],
+    summary: compactEntries.length
+      ? "Apex summarizes recent private/local changes here and opens detailed panels only when John asks."
+      : "Apex is standing by. New private actions, checks, fixes, and routed commands will appear here.",
+  };
+}
+
+function formatApexTalkList(items = [], limit = 4) {
+  return list(items).slice(0, limit).map((item) => {
+    const title = safeReceiptText(item.title || item.label || item.actionType || "Apex update", 110);
+    const detail = safeReceiptText(item.detail || item.whatApexDid || item.receipt || item.reason || "", 160);
+    return detail ? `${title}: ${detail}` : title;
+  });
+}
+
+function joinApexTalkList(items = [], emptyText = "nothing new is waiting for you") {
+  const clean = list(items).map((item) => String(item || "").trim()).filter(Boolean);
+  if (!clean.length) return emptyText;
+  if (clean.length === 1) return clean[0];
+  return `${clean.slice(0, -1).join("; ")}; and ${clean[clean.length - 1]}`;
+}
+
+const APEX_LOCAL_TALK_MODEL = "qwen3:14b";
+const APEX_LOCAL_NORMAL_CODING_MODEL = "qwen3:14b";
+const APEX_LOCAL_FAST_CODER_MODEL = "qwen2.5-coder:7b";
+const APEX_LOCAL_DEEP_CODING_MODEL = "qwen3-coder:30b";
+const APEX_LOCAL_CODING_MODEL = APEX_LOCAL_DEEP_CODING_MODEL;
+
+function findApexOllamaProviderStatus(payload = {}) {
+  if (payload?.localProviders?.ollama) return payload.localProviders.ollama;
+  if (Array.isArray(payload?.providers)) {
+    return payload.providers.find((provider) => String(provider?.provider || "").toLowerCase() === "ollama") || {};
+  }
+  if (String(payload?.provider || "").toLowerCase() === "ollama") return payload;
+  return {};
+}
+
+function findApexGpuStatus(payload = {}) {
+  if (payload?.localProviders?.gpu) return payload.localProviders.gpu;
+  if (payload?.gpu) return payload.gpu;
+  if (payload?.speedCore?.gpu) return payload.speedCore.gpu;
+  return {};
+}
+
+function findApexBrainStatus(payload = {}) {
+  if (payload?.brain?.provider === "apex-workstation-brain") return payload.brain;
+  if (payload?.localProviders?.brain?.provider === "apex-workstation-brain") return payload.localProviders.brain;
+  if (payload?.background?.brain?.provider === "apex-workstation-brain") return payload.background.brain;
+  return {};
+}
+
+function findApexAgentSpeedStatus(payload = {}) {
+  if (payload?.agentSpeed?.provider === "apex-local-agent-speed") return payload.agentSpeed;
+  if (payload?.localProviders?.agentSpeed?.provider === "apex-local-agent-speed") return payload.localProviders.agentSpeed;
+  if (payload?.background?.agentSpeed?.provider === "apex-local-agent-speed") return payload.background.agentSpeed;
+  return {};
+}
+
+function findApexStableResidencyStatus(payload = {}) {
+  if (payload?.stableResidency?.provider === "apex-local-agent-stable-residency") return payload.stableResidency;
+  if (payload?.localProviders?.stableResidency?.provider === "apex-local-agent-stable-residency") return payload.localProviders.stableResidency;
+  if (payload?.background?.stableResidency?.provider === "apex-local-agent-stable-residency") return payload.background.stableResidency;
+  if (payload?.agentSpeed?.stableResidency?.provider === "apex-local-agent-stable-residency") return payload.agentSpeed.stableResidency;
+  if (payload?.background?.agentSpeed?.stableResidency?.provider === "apex-local-agent-stable-residency") return payload.background.agentSpeed.stableResidency;
+  return {};
+}
+
+function hasApexLocalModel(modelNames = [], model = "") {
+  const target = String(model || "").trim().toLowerCase();
+  return list(modelNames).some((name) => String(name || "").trim().toLowerCase() === target);
+}
+
+function buildApexLocalReadinessSummary(localProviderStatus = null) {
+  const ollama = findApexOllamaProviderStatus(localProviderStatus || {});
+  const gpu = findApexGpuStatus(localProviderStatus || {});
+  const rawBrain = findApexBrainStatus(localProviderStatus || {});
+  const agentSpeed = findApexAgentSpeedStatus(localProviderStatus || {});
+  const stableResidency = findApexStableResidencyStatus(localProviderStatus || {});
+  const benchmarkHistory = localProviderStatus?.agentSpeedBenchmarkHistory
+    || localProviderStatus?.background?.agentSpeedBenchmarkHistory
+    || localProviderStatus?.localIntelligence?.benchmarkHistory
+    || {};
+  const keepWarm = localProviderStatus?.background?.keepWarm || localProviderStatus?.keepWarm || {};
+  const brain = rawBrain.provider === "apex-workstation-brain"
+    ? rawBrain
+    : buildApexWorkstationBrainStatus({
+        modelNames: Array.isArray(ollama.modelNames) ? ollama.modelNames : [],
+        gpu,
+      });
+  const modelProcessorReceipt = ollama.modelProcessor || localProviderStatus?.modelProcessor || {};
+  const modelNames = Array.isArray(ollama.modelNames) ? ollama.modelNames : [];
+  const providerAvailable = Boolean(ollama.available);
+  const hasModelData = modelNames.length > 0;
+  const normalReady = hasApexLocalModel(modelNames, APEX_LOCAL_TALK_MODEL);
+  const codingReady = normalReady;
+  const fastCoderReady = hasApexLocalModel(modelNames, APEX_LOCAL_FAST_CODER_MODEL);
+  const deepCodingReady = hasApexLocalModel(modelNames, APEX_LOCAL_DEEP_CODING_MODEL);
+  const providerStatus = providerAvailable ? "available" : ollama.status || "unknown";
+  const overall = providerAvailable && normalReady
+    ? "ready"
+    : providerAvailable || hasModelData
+      ? "partial"
+      : "unknown";
+  const needs = [
+    !providerAvailable ? "start Ollama locally" : "",
+    providerAvailable && !normalReady ? `pull ${APEX_LOCAL_TALK_MODEL}` : "",
+  ].filter(Boolean);
+  return {
+    provider: "Ollama",
+    providerStatus,
+    overall,
+    modelNames,
+    gpu: {
+      available: Boolean(gpu.available),
+      status: gpu.status || (gpu.available ? "available" : "unknown"),
+      name: safeReceiptText(gpu.gpuName || "", 120),
+      vramTotalMb: Number(gpu.vramTotalMb || 0) || 0,
+      vramUsedMb: Number(gpu.vramUsedMb || 0) || 0,
+    },
+    modelProcessor: {
+      processor: safeReceiptText(modelProcessorReceipt.processor || "unknown", 40),
+      model: safeReceiptText(modelProcessorReceipt.model || "", 120),
+      vramUsedMb: Number(modelProcessorReceipt.vramUsedMb || 0) || 0,
+      responseTimingMs: Number(modelProcessorReceipt.responseTimingMs || 0) || 0,
+      modelAlreadyLoaded: Boolean(modelProcessorReceipt.modelAlreadyLoaded),
+    },
+    brain: {
+      provider: "apex-workstation-brain",
+      activeMode: safeReceiptText(brain.activeMode || "speed", 40),
+      label: safeReceiptText(brain.label || brain.activeMode || "Speed", 80),
+      modelId: safeReceiptText(brain.modelId || agentSpeed.modelId || APEX_LOCAL_TALK_MODEL, 120),
+      numCtx: Number(brain.numCtx || agentSpeed.numCtx || 2048) || 2048,
+      keepAlive: safeReceiptText(brain.keepAlive || agentSpeed.keepAlive || "30m", 40),
+      processor: safeReceiptText(brain.processor || modelProcessorReceipt.processor || "unknown", 40),
+      vramUsedMb: Number(brain.vramUsedMb || gpu.vramUsedMb || modelProcessorReceipt.vramUsedMb || 0) || 0,
+      vramTotalMb: Number(brain.vramTotalMb || gpu.vramTotalMb || 0) || 0,
+      thresholdStatus: safeReceiptText(brain.thresholdStatus || "stable", 80),
+      lastPromotionDecision: safeReceiptText(brain.lastPromotionDecision || "stable", 120),
+      rollbackReason: safeReceiptText(brain.rollbackReason || "", 220),
+      dedicatedEnabled: Boolean(brain.dedicatedMode?.enabled),
+      queueSerialized: brain.queue?.serialized !== false,
+    },
+    agentSpeed: {
+      provider: "apex-local-agent-speed",
+      laneId: safeReceiptText(agentSpeed.laneId || "fast", 40),
+      laneLabel: safeReceiptText(agentSpeed.laneLabel || "Fast", 80),
+      modelId: safeReceiptText(agentSpeed.modelId || APEX_LOCAL_TALK_MODEL, 120),
+      numCtx: Number(agentSpeed.numCtx || 2048) || 2048,
+      keepAlive: safeReceiptText(agentSpeed.keepAlive || "30m", 40),
+      coderManualOnly: agentSpeed.coderManualOnly !== false,
+      coderAutoWarm: false,
+      noCloudFallback: true,
+    },
+    stableResidency: {
+      provider: "apex-local-agent-stable-residency",
+      residentLane: safeReceiptText(stableResidency.residentLane || agentSpeed.residentLane || benchmarkHistory.stableResidency?.chosenResidentLane || "stable-4096", 80),
+      residentNumCtx: Number(stableResidency.residentNumCtx || agentSpeed.residentNumCtx || benchmarkHistory.recommendedResidentNumCtx || 4096) || 4096,
+      stable4096Active: Boolean(stableResidency.stable4096Active || agentSpeed.stable4096Active || Number(stableResidency.residentNumCtx || agentSpeed.residentNumCtx || benchmarkHistory.recommendedResidentNumCtx || 4096) === 4096),
+      fallback2048Active: Boolean(stableResidency.fallback2048Active || agentSpeed.fallback2048Active || Number(stableResidency.residentNumCtx || agentSpeed.residentNumCtx || 4096) === 2048),
+      reason: safeReceiptText(stableResidency.reason || benchmarkHistory.stableResidency?.reason || "daily-stable-4096-default", 160),
+      lastBenchmarkSummary: safeReceiptText(benchmarkHistory.stableResidency?.summary || benchmarkHistory.summary || "No stable residency benchmark history yet.", 260),
+      no30BWarm: true,
+    },
+    normalModel: {
+      model: APEX_LOCAL_TALK_MODEL,
+      status: normalReady ? "ready" : hasModelData ? "missing" : "checking",
+      ready: normalReady,
+    },
+    codingModel: {
+      model: APEX_LOCAL_NORMAL_CODING_MODEL,
+      status: codingReady ? "ready" : hasModelData ? "missing" : "checking",
+      ready: codingReady,
+    },
+    fastCoderModel: {
+      model: APEX_LOCAL_FAST_CODER_MODEL,
+      status: fastCoderReady ? "ready" : hasModelData ? "missing" : "checking",
+      ready: fastCoderReady,
+      optional: true,
+      measuredRequired: true,
+    },
+    deepCodingModel: {
+      model: APEX_LOCAL_DEEP_CODING_MODEL,
+      status: deepCodingReady ? "manual-only-ready" : hasModelData ? "missing-optional" : "checking",
+      ready: deepCodingReady,
+      manualOnly: true,
+      autoWarm: false,
+    },
+    openAiRequired: false,
+    openAiUsed: false,
+    keepWarm: {
+      enabled: Boolean(keepWarm.enabled),
+      targetModel: safeReceiptText(keepWarm.targetModel || APEX_LOCAL_TALK_MODEL, 120),
+      keepAlive: safeReceiptText(keepWarm.keepAlive || "30m", 40),
+      targetNumCtx: Number(keepWarm.lastReceipt?.targetNumCtx || keepWarm.targetNumCtx || stableResidency.residentNumCtx || agentSpeed.residentNumCtx || 0) || 0,
+      residentLane: safeReceiptText(keepWarm.residentLane || stableResidency.residentLane || agentSpeed.residentLane || "", 80),
+      permanent: false,
+    },
+    benchmarkHistory: {
+      status: safeReceiptText(benchmarkHistory.status || "empty", 40),
+      latestLane: safeReceiptText(benchmarkHistory.latest?.laneId || "", 40),
+      latestModel: safeReceiptText(benchmarkHistory.latest?.modelUsed || "", 120),
+      latestNumCtx: Number(benchmarkHistory.latest?.numCtx || 0) || 0,
+      latestTotalDurationMs: Number(benchmarkHistory.latest?.totalDurationMs || 0) || 0,
+      averageTotalDurationMs: Number(benchmarkHistory.averageTotalDurationMs || 0) || 0,
+      firstTokenSamples: Number(benchmarkHistory.firstTokenSamples || 0) || 0,
+      summary: safeReceiptText(benchmarkHistory.summary || "No local benchmark history yet. Apex will not run benchmarks unless John asks.", 260),
+      stableResidencySummary: safeReceiptText(benchmarkHistory.stableResidency?.summary || "", 260),
+      recommendedResidentNumCtx: Number(benchmarkHistory.recommendedResidentNumCtx || benchmarkHistory.stableResidency?.recommendedResidentNumCtx || 0) || 0,
+      autoPromoteTo30B: false,
+    },
+    needs,
+  };
+}
+
+function inferApexSelfFixIntent(question = "") {
+  const normalized = String(question || "").toLowerCase().replace(/\s+/g, " ").trim();
+  if (!normalized) return "";
+  if (/\b(stop fixing|stop repair|cancel repair|cancel fixing|stand down repair|stop self[- ]?fix)\b/i.test(normalized)) return "stop-repair";
+  if (/\b(hand this to the build thread|handoff to the build thread|hand off to the build thread|send this to the build thread|handoff package|patch handoff|build thread)\b/i.test(normalized)) return "patch-handoff";
+  if (/\b(show me the patch|show the patch|show patch|pull up patch preview|patch preview|before after patch|what patch|show the diff|exact patch)\b/i.test(normalized)) return "patch-show";
+  if (/\b(what tests would you run|what test would you run|what tests should run|what test should run|validation plan|what should we test|what checks would you run|focused validation)\b/i.test(normalized)) return "repair-tests";
+  if (/\b(what would you change|what would change|what would you fix|what is the change|explain the fix|proposed change|smallest fix)\b/i.test(normalized)) return "repair-change";
+  if (/\b(prepare a patch|prep a patch|patch intent|patch plan|draft a patch|make a patch preview|prepare patch preview)\b/i.test(normalized)) return "repair-patch";
+  if (/\b(what'?s broken here|what is broken here|what broke here|find the issue|what seems broken|likely issue|diagnose this screen)\b/i.test(normalized)) return "repair-diagnosis";
+  if (/\b(fix this screen|fix this page|fix this ui|fix this small ui issue|fix small ui|fix stale copy|repair this screen|repair this page|repair a focused test|repair this test|fix this status label|fix status label|clean up this small layout issue|small layout issue|run the focused fix|focused fix|controlled fix|work on this bug|fix this bug|repair this|fix this local|fix the app|fix the local app|check and fix the local app)\b/i.test(normalized)) return "repair-plan";
+  return "";
+}
+
+function normalizeApexSelfFixPatchPreview(preview = {}, index = 0, fallbackValidation = "") {
+  const targetFile = safeReceiptText(preview.targetFile || preview.file || "", 180);
+  const searchSnippet = safeReceiptText(preview.searchSnippet || preview.search || preview.before || "", 520);
+  const replacementSnippet = safeReceiptText(preview.replacementSnippet || preview.replacement || preview.after || "", 520);
+  const changeSummary = safeReceiptText(preview.explanation || preview.changeSummary || preview.summary || "Apply the exact scoped local patch preview.", 260);
+  const validationCommand = safeReceiptText(
+    preview.validationCommand?.label
+      || preview.validationCommand?.id
+      || preview.validationCommand
+      || fallbackValidation,
+    180,
+  );
+  const expectedResult = safeReceiptText(preview.expectedResult || "Focused validation should pass.", 180);
+  return {
+    id: safeReceiptText(preview.id || `self-fix-patch-${index + 1}`, 80),
+    targetFile,
+    searchSnippet,
+    replacementSnippet,
+    changeSummary,
+    validationCommand,
+    expectedResult,
+    exactMatchRequired: true,
+    canApplyFromApexUi: false,
+  };
+}
+
+export function buildApexSelfFixPatchHandoff({
+  question = "",
+  builderMode = {},
+  repairPrep = null,
+  now = new Date().toISOString(),
+} = {}) {
+  const builder = builderMode || {};
+  const prep = repairPrep || {};
+  const fallbackValidation = list(prep.validationPlan)[0] || "Focused Apex Home tests";
+  const patches = list(builder.patchPreviewRows)
+    .map((preview, index) => normalizeApexSelfFixPatchPreview(preview, index, fallbackValidation))
+    .filter((patch) => patch.targetFile && patch.searchSnippet && patch.replacementSnippet)
+    .slice(0, 4);
+  const targetFiles = [...new Set([
+    ...patches.map((patch) => patch.targetFile),
+    ...list(prep.likelyAffectedFiles),
+  ].filter(Boolean))].slice(0, 6);
+  const ready = patches.length > 0;
+  const handoffIdSeed = safeReceiptText(question || patches[0]?.targetFile || prep.intent || "self-fix", 48)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    || "self-fix";
+  const validationCommandRecommendation = patches.find((patch) => patch.validationCommand)?.validationCommand
+    || fallbackValidation
+    || "Focused Apex Home tests";
+  const humanReadableChangeSummary = ready
+    ? joinApexTalkList(patches.map((patch) => `${patch.targetFile}: ${patch.changeSummary}`), "Apply the prepared exact patch preview.")
+    : "Apex needs exact target file, search snippet, and replacement snippet before it can hand off a patch.";
+  const rollbackNote = prep.rollbackPath || "Rollback only the exact touched local files from the build thread/tooling; do not use broad reset, checkout, deletion, or production rollback.";
+  const receipt = ready
+    ? `Patch handoff ready for build-thread/tooling execution. ${patches.length} exact patch${patches.length === 1 ? "" : "es"} prepared across ${targetFiles.length || patches.length} target file${(targetFiles.length || patches.length) === 1 ? "" : "s"}. Apex Home did not edit files, run git, deploy, touch production, or change schema/auth/session.`
+    : "Patch handoff needs exact patch context before execution tooling can receive it. Apex Home did not edit files, run git, deploy, touch production, or change schema/auth/session.";
+  return {
+    handoffId: `self-fix-handoff-${handoffIdSeed}`,
+    version: "self-fix-v1",
+    status: ready ? "ready-for-build-thread" : "needs-exact-patch-context",
+    destination: "build-thread-tooling",
+    createdAt: safeReceiptText(now, 80),
+    targetFiles,
+    patches,
+    searchSnippet: patches[0]?.searchSnippet || "",
+    replacementSnippet: patches[0]?.replacementSnippet || "",
+    humanReadableChangeSummary,
+    validationCommandRecommendation,
+    rollbackNote: safeReceiptText(rollbackNote, 520),
+    receipt: safeReceiptText(receipt, 620),
+    canExecuteNow: false,
+    canEditFilesFromApexUi: false,
+    canRunGitFromApexUi: false,
+    canDeploy: false,
+    executionBoundary: "Apex Home prepares the package only. Build-thread/tooling performs any file edits after normal local safeguards.",
+    blockedActions: [
+      "file writes from Apex UI",
+      "git operations from Apex UI",
+      "deploy or production mutation",
+      "schema/auth/session changes",
+      "deletion",
+      "secrets exposure",
+      "sends/spend/orders/bookings",
+      "customer-visible changes",
+      "permission weakening",
+    ],
+  };
+}
+
+function buildApexSelfFixAutoDispatchDetailAnswer({ question = "", receipt = null } = {}) {
+  const normalized = String(question || "").toLowerCase().replace(/\s+/g, " ").trim();
+  if (!receipt || !normalized) return null;
+  const patchLines = formatApexTalkList(list(receipt.patchPreviews).map((patch) => ({
+    title: patch.targetFile || "Patch",
+    detail: patch.explanation || `${patch.searchSnippet || "before"} -> ${patch.replacementSnippet || "after"}`,
+  })), 3);
+  if (/\b(what did you learn|what did apex learn|what learned|learned receipt)\b/i.test(normalized)) {
+    const learned = receipt.learningReceipt || {};
+    return {
+      intent: "self-fix-learning",
+      answer: `I learned the pattern as ${safeReceiptText(learned.issuePattern || "a scoped local app issue", 140)}. Strategy: ${safeReceiptText(learned.patchStrategy || "use the narrow controlled Builder profile", 220)} Validation proof: ${safeReceiptText(learned.validationProof || receipt.testedDetail || "not recorded", 220)} Next time: ${safeReceiptText(learned.fasterNextTime || "dispatch the matched Builder profile directly and keep the screen quiet", 220)}.`,
+      notice: "Apex summarized the Self-Fix v2 learning receipt.",
+    };
+  }
+  if (/\b(what did you test|what tests did you run|what did apex test|what passed|validation proof)\b/i.test(normalized)) {
+    return {
+      intent: "self-fix-tested",
+      answer: `I tested this with ${safeReceiptText(receipt.testedDetail || receipt.validationSummary?.label || "the focused local validation path", 260)}. I kept deploy, production, schema/auth/session, deletion, and git controls out of Apex Home.`,
+      notice: "Apex summarized Self-Fix validation.",
+    };
+  }
+  if (/\b(what failed|what went wrong|why failed|failure|what blocked)\b/i.test(normalized)) {
+    const failure = receipt.failureDetail || receipt.learningReceipt?.failure;
+    return {
+      intent: "self-fix-failure",
+      answer: failure
+        ? `Here is what failed or blocked: ${safeReceiptText(failure, 360)}`
+        : "Nothing failed on the latest Self-Fix dispatch receipt. If you want the exact patch or validation proof, ask me for that detail.",
+      notice: "Apex summarized Self-Fix failure state.",
+    };
+  }
+  if (/\b(show me the patch|show the patch|show patch|pull up patch preview|patch preview|before after patch|what patch|show the diff|exact patch)\b/i.test(normalized)) {
+    return {
+      intent: "self-fix-patch-detail",
+      answer: patchLines.length
+        ? `The latest Self-Fix patch was: ${joinApexTalkList(patchLines)}. I'm keeping it conversational instead of opening a permanent patch panel.`
+        : "The latest Self-Fix dispatch did not include an applied patch preview. It either scoped the issue, found the fix already present, or blocked before changing files.",
+      notice: "Apex summarized the Self-Fix patch.",
+    };
+  }
+  if (/\b(what did you change|show what you changed|what changed in the fix|what did apex change)\b/i.test(normalized)) {
+    return {
+      intent: "self-fix-changed",
+      answer: `I changed or checked this: ${safeReceiptText(receipt.changedDetail || receipt.receipt || receipt.shortAnswer || "Self-Fix dispatch result recorded.", 420)} ${receipt.filesTouched?.length ? `Files touched: ${joinApexTalkList(receipt.filesTouched, "none")}.` : ""}`.trim(),
+      notice: "Apex summarized Self-Fix changes.",
+    };
+  }
+  return null;
+}
+
+export function buildApexSelfFixRepairPrep({
+  question = "",
+  builderMode = {},
+  whatChangedFeed = {},
+  validationReceipts = [],
+  fixReceipts = [],
+  undoReceipts = [],
+} = {}) {
+  const intent = inferApexSelfFixIntent(question);
+  const builder = builderMode || {};
+  const feedEntries = list(whatChangedFeed.entries);
+  const latestFeed = feedEntries[0] || {};
+  const latestFix = list(fixReceipts)[0] || list(builder.recentFixRows)[0] || {};
+  const latestUndo = list(undoReceipts)[0] || list(builder.recentUndoRows)[0] || {};
+  const patchPreviewRows = list(builder.patchPreviewRows);
+  const summaryRows = list(builder.summaryRows);
+  const changedFileRows = summaryRows.filter((row) => /\b(file|dirty|change|build|status|test|validation)\b/i.test(`${row.id || ""} ${row.title || ""} ${row.detail || ""}`));
+  const likelyFiles = [
+    ...list(latestFix.filesTouched),
+    ...list(latestFix.scopedFiles),
+    ...patchPreviewRows.map((row) => row.targetFile || row.file),
+    ...changedFileRows.map((row) => row.detail).filter((detail) => /\.[a-z0-9]{1,5}\b/i.test(String(detail || ""))),
+  ]
+    .map((value) => safeReceiptText(value, 140))
+    .filter(Boolean)
+    .filter((value, index, rows) => rows.indexOf(value) === index)
+    .slice(0, 5);
+  const validationRows = [
+    ...list(builder.actionRows),
+    ...list(validationReceipts),
+  ].slice(0, 4);
+  const validationPlan = validationRows.length
+    ? formatApexTalkList(validationRows, 4)
+    : [
+      "Focused Apex Home tests",
+      "Builder Mode regression tests",
+      "Permission boundary tests",
+      "Production build",
+      "git diff --check",
+    ];
+  const blockedActions = [
+    "no auto-edit from the Apex UI",
+    "no git",
+    "no deploy or production mutation",
+    "no schema/auth/session changes",
+    "no deletion",
+    "no sends, spend, orders, bookings, or customer-visible work",
+  ];
+  const surface = likelyFiles.length
+    ? joinApexTalkList(likelyFiles, "the current Apex Home surface")
+    : latestFeed.title
+      ? safeReceiptText(`${latestFeed.domain || "Apex"} / ${latestFeed.title}`, 160)
+      : "the current Apex Home conversation surface";
+  const issueSummary = intent === "repair-diagnosis"
+    ? `Likely issue: something on ${surface} needs a focused local repair pass, but I need visual/context evidence before naming a root cause.`
+    : intent === "repair-patch"
+      ? "Patch prep: I can package the exact target file, search snippet, replacement snippet, validation command, and rollback note for the build thread."
+      : intent === "patch-show"
+        ? "Patch preview: I can summarize the current patch handoff conversationally without opening a permanent panel."
+        : intent === "patch-handoff"
+          ? "Patch handoff: I can hand the exact patch package to the build thread/tooling while Apex Home stays conversational."
+          : intent === "repair-tests"
+            ? "Validation prep: the next move is focused local tests around the affected Apex surface, then build if the small checks pass."
+            : intent === "repair-change"
+              ? `Proposed change: keep it to the smallest local UI/helper/test adjustment on ${surface}, with exact target files and validation before any patch is applied outside this UI.`
+              : `Repair prep: I understand this as a small local Apex HQ app issue on ${surface}.`;
+  const proposedSmallestFix = patchPreviewRows.length
+    ? `Use the latest patch preview as the candidate fix: ${joinApexTalkList(formatApexTalkList(patchPreviewRows, 2), "review the current preview")}.`
+    : "First isolate the affected screen/helper, identify the smallest exact file change, prepare a before/after patch preview, then validate locally.";
+  const rollbackPath = latestUndo.id || latestUndo.sourceFixId
+    ? `If Apex already applied the related scoped patch, use Apex's local undo receipt when the baseline still matches: ${safeReceiptText(latestUndo.detail || latestUndo.receipt || latestUndo.undoHint || "undo available for Apex-owned patch", 180)}.`
+    : "Rollback path: use the pre-phase checkpoint or revert only the exact touched local files. No git reset, checkout, deletion, or broad rollback from Apex Home.";
+  const nextSafeAction = intent === "repair-tests"
+    ? "Run the focused validation path from the local workspace, then report the result."
+    : ["repair-patch", "patch-show", "patch-handoff"].includes(intent)
+      ? "Prepare the exact patch preview with target file, search snippet, replacement snippet, expected result, and validation command."
+      : "Inspect the current screen/evidence, prepare the smallest patch preview, then run the focused validation path if John asks from the build thread.";
+  const patchHandoff = ["repair-patch", "patch-show", "patch-handoff", "repair-change"].includes(intent)
+    ? buildApexSelfFixPatchHandoff({ question, builderMode: builder, repairPrep: {
+      intent,
+      likelyAffectedFiles: likelyFiles,
+      validationPlan,
+      rollbackPath,
+    } })
+    : null;
+  const patchHandoffLine = patchHandoff?.status === "ready-for-build-thread"
+    ? `Patch handoff: ${patchHandoff.receipt} Target files: ${joinApexTalkList(patchHandoff.targetFiles, "none")}. Search snippet: ${safeReceiptText(patchHandoff.searchSnippet, 220)}. Replacement snippet: ${safeReceiptText(patchHandoff.replacementSnippet, 220)}.`
+    : patchHandoff
+      ? `Patch handoff: ${patchHandoff.receipt}`
+      : "";
+  const answer = [
+    issueSummary,
+    `Likely affected surface/files: ${surface}.`,
+    `Smallest fix: ${proposedSmallestFix}`,
+    patchHandoffLine,
+    "Execution boundary: Apex Home prepares the handoff; the build thread/tooling performs any file edit after the normal local safeguards.",
+    `Boundaries kept: ${blockedActions.join(", ")}.`,
+    `Validation I would run: ${joinApexTalkList(validationPlan, "focused Apex Home tests, Builder regression tests, permission checks, build, and git diff --check")}.`,
+    rollbackPath,
+    `Next safe action: ${nextSafeAction}`,
+  ].join(" ");
+  return {
+    requested: Boolean(intent),
+    intent,
+    issueSummary,
+    likelyAffectedSurface: surface,
+    likelyAffectedFiles: likelyFiles,
+    proposedSmallestFix,
+    riskLevel: "low-to-medium-local-prep",
+    blockedActions,
+    validationPlan,
+    rollbackPath,
+    nextSafeAction,
+    canExecuteNow: false,
+    canEditFilesFromApexUi: false,
+    canRunGitFromApexUi: false,
+    canDeploy: false,
+    patchHandoff,
+    handoffReceipt: patchHandoff?.receipt || "",
+    answer: safeReceiptText(answer, 1800),
+    sourceLabels: ["Apex Self-Fix v1", "Builder Mode", "Patch Preview", "Local Undo", "What Changed"],
+    autoDispatchEligible: ["repair-plan", "repair-patch", "patch-handoff"].includes(intent),
+    autoDispatchSource: "apex-home-self-fix-v2",
+  };
+}
+
+export function buildApexTalkToApexSummary({
+  state = {},
+  builderMode = {},
+  whatChangedFeed = {},
+  validationReceipts = [],
+  fixReceipts = [],
+  undoReceipts = [],
+  commandEvents = [],
+  buildLoopReceipt = null,
+  localProviderStatus = null,
+  localVoiceReadiness = null,
+  personalOsCore = null,
+  learningMode = false,
+  lastVoiceTranscript = "",
+  lastLocalVoiceReceipt = null,
+  memoryRows = [],
+} = {}) {
+  const feedEntries = list(whatChangedFeed.entries);
+  const builder = builderMode || {};
+  const activeBuilderTasks = list(builder.builderTaskRows).filter((row) => !["done", "archived"].includes(String(row.status || "").toLowerCase()));
+  const activeRuns = list(state.autonomyRunCenter?.runRows).filter((row) => !["done", "archived", "blocked"].includes(String(row.status || "").toLowerCase()));
+  const agentSignals = Number(state.agentControlPlane?.activeRequestCount || state.agentControlPlane?.roleCount || state.agentWorkQueue?.availableTaskCount || 0);
+  const recentReceipts = [
+    buildLoopReceipt,
+    ...list(fixReceipts),
+    ...list(undoReceipts),
+    ...list(validationReceipts),
+    ...list(state.apexActivity?.rows),
+    ...list(commandEvents),
+  ].filter(Boolean);
+  const changedLines = formatApexTalkList(feedEntries, 4);
+  const receiptLines = formatApexTalkList(recentReceipts, 4);
+  const builderLines = [
+    builder.status ? `Builder is ${safeReceiptText(builder.status, 80)}` : "",
+    buildLoopReceipt?.taskTitle ? `Build loop: ${safeReceiptText(buildLoopReceipt.taskTitle, 100)} is ${safeReceiptText(buildLoopReceipt.outcome || buildLoopReceipt.status || "recorded", 80)}` : "",
+    Number(builder.changedFileCount || 0) ? `${builder.changedFileCount} local file${Number(builder.changedFileCount) === 1 ? "" : "s"} changed` : "",
+    Number(builder.fixCount || 0) ? `${builder.fixCount} fix receipt${Number(builder.fixCount) === 1 ? "" : "s"}` : "",
+    Number(builder.undoCount || 0) ? `${builder.undoCount} undo receipt${Number(builder.undoCount) === 1 ? "" : "s"}` : "",
+    activeBuilderTasks.length ? `${activeBuilderTasks.length} active builder task${activeBuilderTasks.length === 1 ? "" : "s"}` : "",
+  ].filter(Boolean);
+  const voiceReceipt = lastLocalVoiceReceipt || localVoiceReadiness?.lastVoiceTurn || state.localVoiceStatus?.lastVoiceTurn || null;
+  return {
+    changedLines,
+    receiptLines,
+    buildLoopSummary: summarizeApexBuildLoopReceipt(buildLoopReceipt),
+    buildLoopReceipt,
+    builderLines,
+    learningMode: Boolean(learningMode),
+    lastVoiceTranscript: safeReceiptText(lastVoiceTranscript, 320),
+    lastLocalVoiceReceipt: voiceReceipt,
+    learningMemoryRows: list(memoryRows).length ? list(memoryRows) : list(state.decisionMemory?.durableEntries),
+    feedCount: Number(whatChangedFeed.entryCount || feedEntries.length || 0),
+    validationCount: list(validationReceipts).length || Number(builder.validationCount || 0),
+    fixCount: list(fixReceipts).length || Number(builder.fixCount || 0),
+    undoCount: list(undoReceipts).length || Number(builder.undoCount || 0),
+    activeBuilderTaskCount: activeBuilderTasks.length,
+    activeRunCount: activeRuns.length,
+    agentSignalCount: agentSignals,
+    localProviderStatus: safeReceiptText(state.askApexChat?.providerStatus || "Ollama local-first", 120),
+    localReadiness: buildApexLocalReadinessSummary(localProviderStatus || state.localProviderStatus || state.localOperatorRuntime?.localProviders || state.localOperatorRuntime || {}),
+    localVoiceReadiness: localVoiceReadiness || buildApexPersonalOsLocalVoiceReadiness(),
+    personalOsCore: personalOsCore || buildApexPersonalOsCoreState({
+      voiceReadiness: localVoiceReadiness || buildApexPersonalOsLocalVoiceReadiness(),
+    }),
+  };
+}
+
+export function buildApexTalkToApexResponse({
+  question = "",
+  state = {},
+  builderMode = {},
+  whatChangedFeed = {},
+  validationReceipts = [],
+  fixReceipts = [],
+  undoReceipts = [],
+  commandEvents = [],
+  buildLoopReceipt = null,
+  selfFixDispatchReceipt = null,
+  localProviderStatus = null,
+  localVoiceReadiness = null,
+  personalOsCore = null,
+  learningMode = false,
+  lastVoiceTranscript = "",
+  lastLocalVoiceReceipt = null,
+  memoryRows = [],
+} = {}) {
+  const normalized = String(question || "").toLowerCase().replace(/\s+/g, " ").trim();
+  const summary = buildApexTalkToApexSummary({
+    state,
+    builderMode,
+    whatChangedFeed,
+    validationReceipts,
+    fixReceipts,
+    undoReceipts,
+    commandEvents,
+    buildLoopReceipt,
+    localProviderStatus,
+    localVoiceReadiness,
+    personalOsCore,
+    learningMode,
+    lastVoiceTranscript,
+    lastLocalVoiceReceipt,
+    memoryRows,
+  });
+  const base = {
+    handled: false,
+    intent: "",
+    answer: "",
+    sourceLabels: ["Apex Home", "Private local state"],
+    shouldClearScreen: false,
+    notice: "",
+  };
+  if (!normalized) return base;
+
+  const dispatchDetail = buildApexSelfFixAutoDispatchDetailAnswer({
+    question,
+    receipt: selfFixDispatchReceipt,
+  });
+  if (dispatchDetail) {
+    return {
+      ...base,
+      handled: true,
+      intent: dispatchDetail.intent,
+      answer: dispatchDetail.answer,
+      sourceLabels: ["Apex Self-Fix v2", "Builder Mode", "Learning Receipt"],
+      notice: dispatchDetail.notice,
+    };
+  }
+
+  const repairPrep = buildApexSelfFixRepairPrep({
+    question,
+    builderMode,
+    whatChangedFeed,
+    validationReceipts,
+    fixReceipts,
+    undoReceipts,
+  });
+  if (repairPrep.intent === "stop-repair") {
+    return {
+      ...base,
+      handled: true,
+      intent: "self-fix-stop",
+      shouldClearScreen: true,
+      answer: "I stopped the repair prep and returned to calm standby. I did not edit files, run git, deploy, touch production, or change schema/auth/session.",
+      sourceLabels: repairPrep.sourceLabels,
+      notice: "Apex stopped Self-Fix prep.",
+    };
+  }
+  if (repairPrep.requested) {
+    return {
+      ...base,
+      handled: true,
+      intent: repairPrep.intent,
+      answer: repairPrep.answer,
+      sourceLabels: repairPrep.sourceLabels,
+      patchHandoff: repairPrep.patchHandoff,
+      handoffReceipt: repairPrep.handoffReceipt,
+      autoDispatchEligible: repairPrep.autoDispatchEligible,
+      autoDispatchSource: repairPrep.autoDispatchSource,
+      notice: repairPrep.patchHandoff?.status === "ready-for-build-thread"
+        ? "Apex prepared a Self-Fix patch handoff for Builder."
+        : "Apex prepared the Self-Fix repair context.",
+    };
+  }
+
+  const buildLoopResponse = buildApexBuildLoopConversationResponse({
+    question,
+    receipt: summary.buildLoopReceipt,
+    state: {
+      lastReceipt: summary.buildLoopReceipt,
+      status: summary.buildLoopSummary?.status,
+      activeTaskTitle: summary.buildLoopSummary?.pulse,
+    },
+  });
+  if (buildLoopResponse.handled) {
+    return {
+      ...base,
+      handled: true,
+      intent: buildLoopResponse.intent,
+      answer: buildLoopResponse.answer,
+      sourceLabels: buildLoopResponse.sourceLabels || ["Apex Autonomous Build Loop v0", "Builder Mode"],
+      notice: "Apex routed this through the controlled local build loop.",
+      buildLoopCommand: buildLoopResponse.buildLoopCommand || null,
+      autoBuildLoopEligible: Boolean(buildLoopResponse.autoBuildLoopEligible),
+    };
+  }
+
+  const learningResponse = buildApexLearningConversationResponse({
+    text: question,
+    learningMode,
+    memoryRows: summary.learningMemoryRows,
+  });
+  if (learningResponse.handled) {
+    return {
+      ...base,
+      handled: true,
+      intent: learningResponse.intent,
+      answer: learningResponse.answer,
+      sourceLabels: learningResponse.sourceLabels || ["Apex Learning Conversation", "Private Memory"],
+      notice: learningResponse.notice || "Apex handled learning conversation.",
+      learningMode: learningResponse.learningMode,
+      learningMemoryDraft: learningResponse.learningMemoryDraft || null,
+      learningMemoryPreview: learningResponse.learningMemoryPreview || "",
+      learningMemoryBlocked: Boolean(learningResponse.learningMemoryBlocked),
+      learningSummary: learningResponse.learningSummary || null,
+    };
+  }
+
+  if (/\b(what did i just say|what did you hear|repeat what i said|read back what i said|did you hear that)\b/i.test(normalized)) {
+    const transcript = summary.lastVoiceTranscript;
+    return {
+      ...base,
+      handled: true,
+      intent: "voice-transcript-readback",
+      answer: transcript
+        ? `I heard: “${transcript}”.`
+        : "I do not have a local voice transcript in this page session yet. Tap or hold voice, say it once, and I’ll read back the local transcript.",
+      sourceLabels: ["Apex Local STT v2", "Local Voice Runtime"],
+      notice: transcript ? "Apex read back the last local transcript." : "Apex has no local transcript yet.",
+    };
+  }
+
+  const lastVoiceReceipt = summary.lastLocalVoiceReceipt || summary.localVoiceReadiness?.lastVoiceTurn || null;
+  if (/\b(what failed with that audio turn|what failed with the audio turn|what happened with that audio|what happened to that voice turn|audio data is not right|audio turn failed|voice turn failed|why did voice fail)\b/i.test(normalized)) {
+    const failureLine = lastVoiceReceipt
+      ? summarizeApexVoiceTurnFailure(lastVoiceReceipt)
+      : "I do not have a failed audio turn receipt yet.";
+    const audioLine = lastVoiceReceipt?.audio
+      ? `Audio facts: ${lastVoiceReceipt.audio.convertedMimeType || "unknown MIME"}, ${lastVoiceReceipt.audio.sampleRate || "unknown"} Hz, ${lastVoiceReceipt.audio.channelCount || "unknown"} channel, valid=${lastVoiceReceipt.audioValid === true ? "true" : "false"}.`
+      : "Audio facts are not recorded yet.";
+    return {
+      ...base,
+      handled: true,
+      intent: "voice-audio-turn-failure",
+      answer: `${failureLine} ${audioLine} OpenAI audio was not used, cloud audio is off, and I do not store the mic audio.`,
+      sourceLabels: ["Apex Realtime Voice Diagnostics", "Local Voice Runtime"],
+      notice: "Apex explained the last local audio turn failure.",
+    };
+  }
+
+  const earlyPersonalOsResponse = buildApexPersonalOsCommandResponse({
+    command: question,
+    coreState: summary.personalOsCore,
+    voiceReadiness: summary.localVoiceReadiness,
+  });
+  const shouldPreferLocalSpeedAnswer = /\b(why are you slow|why were you slow|why so slow|why is voice slow|why is your voice slow|what is making you slow|speed issue|local speed|voice health|voice latency|latency check|how fast was that|how long did that take|where was the delay|where is the delay|check voice health|check your local speed|check your voice speed|make your voice faster)\b/i.test(normalized);
+  if (!shouldPreferLocalSpeedAnswer && earlyPersonalOsResponse.handled && !["local-chat", "builder", "self-fix"].includes(earlyPersonalOsResponse.intent)) {
+    return {
+      ...base,
+      handled: true,
+      intent: earlyPersonalOsResponse.intent,
+      answer: earlyPersonalOsResponse.answer,
+      sourceLabels: earlyPersonalOsResponse.sourceLabels || ["Apex Personal OS", "Apex Operator"],
+      shouldClearScreen: Boolean(earlyPersonalOsResponse.shouldClearScreen),
+      shouldStopListening: Boolean(earlyPersonalOsResponse.shouldStopListening),
+      shouldStartListening: Boolean(earlyPersonalOsResponse.shouldStartListening),
+      notice: earlyPersonalOsResponse.notice || "Apex routed this through Personal OS.",
+      personalOsRoute: {
+        id: earlyPersonalOsResponse.routeId,
+        category: earlyPersonalOsResponse.category,
+        status: earlyPersonalOsResponse.routeStatus,
+        canExecuteNow: false,
+      },
+    };
+  }
+
+  if (/\b(go quiet|quiet down|stand down|calm standby|be quiet)\b/i.test(normalized)) {
+    return {
+      ...base,
+      handled: true,
+      intent: "quiet-standby",
+      shouldClearScreen: true,
+      answer: "I’m going quiet. The screen is calm again, and I’ll only surface details when they matter.",
+      notice: "Apex is in calm standby.",
+    };
+  }
+
+  if (/\b(clear the screen|hide everything|clean screen|show me only if i need to see it|only show me if i need to see it|keep (it|the interface) minimal|minimal mode)\b/i.test(normalized)) {
+    return {
+      ...base,
+      handled: true,
+      intent: "clear-screen",
+      shouldClearScreen: true,
+      answer: "Screen cleared. I’ll keep this as a simple conversation surface and pull details forward only when you actually need them.",
+      notice: "Apex Home is back to the minimal talk surface.",
+    };
+  }
+
+  const isLocalCleanupRequest = /\b(clean up your local runtime|cleanup local runtime|clean local runtime|stop duplicate dev|clean up apex local|clean up local processes)\b/i.test(normalized);
+
+  if (!isLocalCleanupRequest && /\b(are you ready locally|ready locally|local readiness|local runtime|is apex ready|are we ready locally|ready to work locally)\b/i.test(normalized)) {
+    const local = summary.localReadiness;
+    const readyText = local.overall === "ready"
+      ? "Yes. Apex is ready locally."
+      : local.overall === "partial"
+        ? "Partially. Apex is open locally, but local intelligence still has a setup item."
+        : "Apex Home is open, but I am still checking local intelligence.";
+    const needsText = local.needs.length
+      ? `What I still need: ${joinApexTalkList(local.needs)}.`
+      : "I do not need OpenAI for normal Apex use.";
+    const residentText = local.stableResidency?.stable4096Active
+      ? `Stable residency is using ${local.stableResidency.residentLane} at ${local.stableResidency.residentNumCtx} context, so fast answers and normal coding do not flip contexts each turn.`
+      : `Stable residency is using fallback ${local.stableResidency?.residentNumCtx || 2048} context because local VRAM or benchmark evidence says to stay lighter.`;
+    const warmText = local.keepWarm?.enabled
+      ? `The ${local.keepWarm.targetModel} brain is set to stay warm with bounded ${local.keepWarm.keepAlive} residency while Apex is open.`
+      : "Brain keep-warm is off for this local session.";
+    return {
+      ...base,
+      handled: true,
+      intent: "local-readiness",
+      answer: `${readyText} Ollama is ${local.providerStatus}. ${local.normalModel.model} is ${local.normalModel.status}; normal coding uses the same resident ${local.codingModel.model} context unless a request explicitly needs more; ${local.deepCodingModel.model} is ${local.deepCodingModel.status} for manual deep work. ${residentText} ${warmText} Cloud is disabled by default and OpenAI is not required for normal Apex. ${needsText}`,
+      sourceLabels: ["Apex Local Operator Runtime v0", "Ollama", "Local Intelligence"],
+      notice: "Apex summarized local runtime readiness.",
+    };
+  }
+
+  if (/\b(are you using my gpu|using my gpu|use my gpu|gpu status|rtx|vram|local gpu)\b/i.test(normalized)) {
+    const local = summary.localReadiness;
+    const voice = summary.localVoiceReadiness || {};
+    const brain = local.brain || {};
+    const gpuText = local.gpu.available
+      ? `Yes, I can see ${local.gpu.name || "your NVIDIA GPU"} with ${local.gpu.vramTotalMb || "unknown"} MB VRAM.`
+      : "I cannot confirm the GPU from the current local status yet.";
+    const modelText = local.modelProcessor.processor && local.modelProcessor.processor !== "unknown"
+      ? `Latest model processor receipt says ${local.modelProcessor.processor}${local.modelProcessor.vramUsedMb ? ` with about ${local.modelProcessor.vramUsedMb} MB VRAM for ${local.modelProcessor.model || "the local model"}` : ""}.`
+      : brain.processor && brain.processor !== "unknown"
+        ? `Workstation Brain reports ${brain.processor}${brain.vramUsedMb ? ` with about ${brain.vramUsedMb} MB VRAM` : ""} in ${brain.activeMode} mode.`
+        : "The next real local model turn will record whether Ollama used GPU, CPU, mixed, or unknown.";
+    const sttText = voice.sttProcessor
+      ? `Local STT is ${voice.sttEngine || voice.sttStatus} on ${voice.sttProcessor}${voice.sttGpuCapable ? " and is GPU-capable" : ""}.`
+      : "Local STT processor status is still unknown.";
+    return {
+      ...base,
+      handled: true,
+      intent: "local-gpu-status",
+      answer: `${gpuText} ${modelText} ${sttText} OpenAI and cloud audio are not part of the normal local path.`,
+      sourceLabels: ["Apex GPU Voice + Speed Core", "Ollama", "Local Voice Runtime"],
+      notice: "Apex summarized local GPU and processor status.",
+    };
+  }
+
+  if (/\b(why are you slow|why were you slow|why so slow|why is voice slow|why is your voice slow|what is making you slow|speed issue|local speed|voice health|voice latency|latency check|how fast was that|how long did that take|where was the delay|where is the delay|check voice health|check your local speed|check your voice speed|make your voice faster)\b/i.test(normalized)) {
+    const local = summary.localReadiness;
+    const voice = summary.localVoiceReadiness || {};
+    const receiptLine = lastVoiceReceipt ? summarizeApexVoiceTurnSpeed(lastVoiceReceipt) : "";
+    const failureLine = lastVoiceReceipt?.failureReason ? ` Last voice issue: ${summarizeApexVoiceTurnFailure(lastVoiceReceipt)}` : "";
+    const benchmark = local.benchmarkHistory || {};
+    const benchmarkLine = benchmark.latestTotalDurationMs
+      ? `Last local benchmark: ${benchmark.latestLane || "lane"} on ${benchmark.latestModel || APEX_LOCAL_TALK_MODEL} at ctx ${benchmark.latestNumCtx || "unknown"} took ${Math.round(benchmark.latestTotalDurationMs)} ms; average total is ${Math.round(benchmark.averageTotalDurationMs || benchmark.latestTotalDurationMs)} ms.`
+      : benchmark.summary || "No local benchmark history yet; I will not run benchmarks unless you ask.";
+    const stableLine = local.stableResidency?.residentNumCtx
+      ? `${APEX_LOCAL_TALK_MODEL} resident context is ${local.stableResidency.residentLane} at ${local.stableResidency.residentNumCtx}; fast mode is kept fast by shorter prompts/output caps instead of flipping between 2048 and 4096. ${local.stableResidency.lastBenchmarkSummary || ""}`.trim()
+      : "Stable residency has not reported a resident context yet.";
+    const warmLine = local.keepWarm?.enabled
+      ? `The main ${local.keepWarm.targetModel} brain is kept warm with bounded ${local.keepWarm.keepAlive}; 30B is not warmed.`
+      : "Brain keep-warm is off right now, so the first answer can feel slower.";
+    const issues = [
+      !local.gpu.available ? "GPU status is not confirmed" : "",
+      local.modelProcessor.processor === "cpu" ? "the latest model receipt shows CPU inference" : "",
+      local.modelProcessor.processor === "mixed" ? "the latest model receipt shows mixed CPU/GPU inference" : "",
+      !local.normalModel.ready ? `${local.normalModel.model} is not ready` : "",
+      voice.usingWindowsVoiceFallback ? "speech is using Windows SAPI fallback instead of the locked lightweight voice" : "",
+      voice.sttProcessor === "cpu" ? "STT is on CPU fallback" : "",
+      voice.sttStatus !== "local-ready" ? "GPU Whisper STT is not configured yet" : "",
+    ].filter(Boolean);
+    return {
+      ...base,
+      handled: true,
+      intent: "local-speed-check",
+      answer: [
+        receiptLine || "I do not have a per-turn voice timing receipt yet.",
+        benchmarkLine,
+        issues.length
+          ? `Current speed limits I see: ${joinApexTalkList(issues)}.`
+          : "Current local voice and model status looks healthy.",
+        stableLine,
+        `${APEX_LOCAL_DEEP_CODING_MODEL} stays manual-only for explicit deep work and is not kept warm.`,
+        warmLine,
+        "For this speed pass I keep normal Apex light, keep 30B out of always-warm mode, and report the slowest local step without adding cloud audio.",
+        failureLine,
+      ].filter(Boolean).join(" "),
+      sourceLabels: ["Apex Realtime Voice Diagnostics", "Apex GPU Voice + Speed Core", "Local Runtime"],
+      notice: "Apex summarized local speed bottlenecks.",
+    };
+  }
+
+  const brainCommand = inferApexWorkstationBrainCommand(question);
+  if (brainCommand.status === "detected" && ["status", "gpu-status"].includes(brainCommand.action)) {
+    const local = summary.localReadiness;
+    const brainAnswer = buildApexWorkstationBrainCommandAnswer({
+      command: brainCommand,
+      brainStatus: {
+        provider: "apex-workstation-brain",
+        ...local.brain,
+      },
+    });
+    return {
+      ...base,
+      handled: true,
+      intent: brainAnswer.intent,
+      answer: `${brainAnswer.answer} Readiness: ${APEX_LOCAL_TALK_MODEL} is ${local.normalModel.status}; normal coding is ${local.codingModel.status}; ${APEX_LOCAL_DEEP_CODING_MODEL} is ${local.deepCodingModel.status}.`,
+      sourceLabels: brainAnswer.sourceLabels,
+      notice: "Apex summarized workstation brain status.",
+    };
+  }
+
+  if (brainCommand.status !== "detected" && /\b(what model are you using|what model is running|fast brain|deep brain|fast mode|deep mode)\b/i.test(normalized)) {
+    const local = summary.localReadiness;
+    const modeLine = `Apex uses ${APEX_LOCAL_TALK_MODEL} as the stable resident brain at ${local.stableResidency.residentNumCtx || 4096} context when local VRAM is healthy; fast answers use shorter caps, and normal coding uses that same resident context unless a request explicitly needs more. Optional fast coder can use ${APEX_LOCAL_FAST_CODER_MODEL} only after it is installed and measured. Deep coding uses ${APEX_LOCAL_DEEP_CODING_MODEL} at 4096-8192 only when John explicitly asks, and 30B is not kept warm by default.`;
+    const warmLine = local.keepWarm?.enabled ? `The active local session keeps ${local.keepWarm.targetModel} warm for ${local.keepWarm.keepAlive}.` : "Keep-warm is off for this session.";
+    return {
+      ...base,
+      handled: true,
+      intent: "local-model-mode",
+      answer: `${modeLine} ${warmLine} Current readiness: ${APEX_LOCAL_TALK_MODEL} is ${local.normalModel.status}; normal coding is ${local.codingModel.status}; ${APEX_LOCAL_DEEP_CODING_MODEL} is ${local.deepCodingModel.status}. OpenAI stays disabled unless John explicitly requests cloud and server policy allows it.`,
+      sourceLabels: ["Apex Workstation Brain Mode", "Ollama"],
+      notice: "Apex summarized model routing.",
+    };
+  }
+
+  if (isLocalCleanupRequest) {
+    return {
+      ...base,
+      handled: true,
+      intent: "local-runtime-cleanup",
+      answer: "I added cleanup to the Windows launcher path. `npm.cmd run apex:local` now checks Apex-owned duplicate dev server/client/watch processes and leftover Playwright headless QA shells, reuses healthy local servers, and avoids touching normal browser windows or unrelated apps. From this conversation surface I keep it safe and report the cleanup receipt instead of killing arbitrary processes.",
+      sourceLabels: ["Apex Local Operator Runtime", "GPU Voice + Speed Core"],
+      notice: "Apex summarized local runtime cleanup behavior.",
+    };
+  }
+
+  if (/\b(what do you need to work tonight|what do you need tonight|what do you need to work locally|what do you need from me tonight|what is needed tonight)\b/i.test(normalized)) {
+    const local = summary.localReadiness;
+    const needs = local.needs.length
+      ? local.needs
+      : ["keep this local server/client running", "keep Ollama running", "type one test request in Apex Home"];
+    return {
+      ...base,
+      handled: true,
+      intent: "local-tonight-needs",
+      answer: `For tonight I need this local app open, Ollama running, and ${local.normalModel.model} ready for normal conversation plus normal coding. Current status: ${local.normalModel.model} is ${local.normalModel.status}; normal coding is ${local.codingModel.status}; ${local.deepCodingModel.model} is ${local.deepCodingModel.status} and stays manual-only. Next: ${joinApexTalkList(needs)}. Local Voice Runtime v2 reports the local STT/TTS truth now; typed Apex stays reliable whenever a local voice engine is missing.`,
+      sourceLabels: ["Apex Local Operator Runtime v0", "Ollama", "Local Voice Runtime Plan"],
+      notice: "Apex summarized what is needed for local work tonight.",
+    };
+  }
+
+  if (/\b(what changed|what's changed|what did we change|what did you change|show what changed|local changes|changed files|dirty files)\b/i.test(normalized)) {
+    const changed = joinApexTalkList(summary.changedLines, "nothing new has changed in this Apex Home session yet");
+    return {
+      ...base,
+      handled: true,
+      intent: "what-changed",
+      answer: `Here’s what changed: ${changed}. I’m keeping the feed tucked away unless you ask for detail.`,
+      notice: "Apex summarized What Changed without opening a dashboard panel.",
+    };
+  }
+
+  if (/\b(what are you working on|what are you doing|what builder is doing|what are the agents doing|show me what builder is doing)\b/i.test(normalized)) {
+    const builder = joinApexTalkList(summary.builderLines, "Builder is standing by for private local app work");
+    const agentText = summary.agentSignalCount
+      ? `${summary.agentSignalCount} agent signal${summary.agentSignalCount === 1 ? "" : "s"} are visible`
+      : "no active agent signals need the main screen";
+    const runText = summary.activeRunCount
+      ? `${summary.activeRunCount} private run${summary.activeRunCount === 1 ? "" : "s"} are active`
+      : "no private run is actively taking over the surface";
+    return {
+      ...base,
+      handled: true,
+      intent: "working-on",
+      answer: `Right now I’m watching Builder, Apex HQ routing, memory/tasks, local intelligence, and recent receipts. ${builder}. ${runText}, and ${agentText}.`,
+      notice: "Apex summarized active work conversationally.",
+    };
+  }
+
+  if (/\b(what did you just do|what did you do|what have you done|what apex did|show what apex did|what did apex do|recent fixes|fix receipts)\b/i.test(normalized)) {
+    const receipts = joinApexTalkList(summary.receiptLines.length ? summary.receiptLines : summary.changedLines, "I have not recorded a new local action receipt in this session yet");
+    return {
+      ...base,
+      handled: true,
+      intent: "what-apex-did",
+      answer: `Here’s what I just did or tracked: ${receipts}. Consequential actions stayed gated.`,
+      notice: "Apex summarized recent receipts.",
+    };
+  }
+
+  if (/\b(show the patch|show patch|pull up patch preview|patch preview|before after patch|what patch|show the diff|exact patch)\b/i.test(normalized)) {
+    const patchLines = formatApexTalkList(builderMode?.patchPreviewRows || [], 3);
+    return {
+      ...base,
+      handled: true,
+      intent: "patch-preview",
+      answer: patchLines.length
+        ? `The latest patch preview is: ${joinApexTalkList(patchLines)}. I’m keeping it as a conversation result instead of pinning another panel to the home screen.`
+        : "I don’t have a current patch preview loaded. Ask me to run a controlled local fix and I’ll show the exact before/after when there is one.",
+      notice: "Apex summarized patch preview state.",
+    };
+  }
+
+  if (/\b(undo state|local undo|undo available|revert your local patch|undo apex patch|undo the patch)\b/i.test(normalized)) {
+    const undoLines = formatApexTalkList(undoReceipts.length ? undoReceipts : builderMode?.recentUndoRows || [], 3);
+    const latest = builderMode?.latestSuccessfulFix?.undoHint;
+    return {
+      ...base,
+      handled: true,
+      intent: "undo-state",
+      answer: undoLines.length
+        ? `Local undo state: ${joinApexTalkList(undoLines)}.`
+        : latest
+          ? `Local undo is available for my last successful scoped patch. ${safeReceiptText(latest, 180)}`
+          : "There is no Apex-owned successful patch currently marked undoable. I won’t use git reset, checkout, deletion, or broad rollback.",
+      notice: "Apex summarized local undo state.",
+    };
+  }
+
+  if (/\b(use builder|work on the app|work the app|build the app|check the app|inspect the app|builder status|builder mode)\b/i.test(normalized)) {
+    const builder = joinApexTalkList(summary.builderLines, "Builder is ready for private local app work");
+    return {
+      ...base,
+      handled: true,
+      intent: "builder-work",
+      answer: `I’m routing that to Builder internally. ${builder}. I can inspect, track, run safe local checks, and handle small reversible fixes while deploy, production, schema/auth/session, deletion, sends, spend, orders, and customer-visible changes stay stopped.`,
+      notice: "Apex routed the request to Builder without opening a permanent panel.",
+    };
+  }
+
+  return base;
+}
+
 export function deriveApexControlRoomState({
   user = null,
   permissions = {},
   stats = {},
   leads = [],
   jobs = [],
+  customers = [],
   estimates = [],
+  proposals = [],
   opportunitySearchProfiles = [],
   dailyReports = [],
   uploads = [],
@@ -3502,9 +5468,11 @@ export function deriveApexControlRoomState({
   const trustState = buildTrustState({ permissions, auditEvents, activity, companySettings });
   const buildAwareness = buildBuildAwarenessState(companySettings);
   const releaseDesk = buildReleaseDesk({ buildAwareness });
+  const apexActivity = buildApexActivityState({ auditEvents });
   const decisionMemory = buildDecisionMemoryState(companySettings);
+  const memorySuggestions = buildMemorySuggestionReviewState(companySettings);
   const knowledgeVault = buildKnowledgeVaultState(companySettings);
-  const personalOperatingLayer = buildPersonalOperatingLayerState(decisionMemory);
+  const personalOperatingLayer = buildPersonalOperatingLayerState(decisionMemory, companySettings);
   const liveOperatorMemory = buildLiveOperatorMemoryState(companySettings);
   const askApexChat = buildAskApexChatState({ decisionMemory, knowledgeVault, agentWorkQueue, launchState, releaseDesk });
   const voiceInterface = buildVoiceInterfaceState({ askApexChat });
@@ -3605,6 +5573,35 @@ export function deriveApexControlRoomState({
     approvalCommandCenter,
     decisionMemory,
   });
+  const apexHqDomain = buildApexHqDomainBridgeState({
+    leads,
+    jobs,
+    customers,
+    estimates,
+    proposals,
+    dailyReports,
+    uploads,
+    buildAwareness,
+    personalOperatingLayer,
+  });
+  const apexBuilderMode = buildApexBuilderModeState({
+    buildAwareness,
+    autonomyRunCenter,
+    executionHandoffs,
+    agentControlPlane,
+    apexActivity,
+  });
+  const apexWhatChangedFeed = buildApexWhatChangedFeedState({
+    state: {
+      apexActivity,
+      apexHqDomain,
+      askApexChat,
+    },
+    builderMode: apexBuilderMode,
+  });
+  const apexPersonalOsCore = buildApexPersonalOsCoreState({
+    voiceReadiness: buildApexPersonalOsLocalVoiceReadiness(),
+  });
 
   if (!canView) {
     return {
@@ -3620,12 +5617,18 @@ export function deriveApexControlRoomState({
       launchReadiness: { status: "Restricted", tone: "slate", gates: [] },
       releaseDesk: { status: "Restricted", tone: "slate", sections: [], productionPreviewRows: [], readinessPacketRows: [], deployHistoryRows: [], deployApprovalFlowRows: [], canDeploy: false, deployApprovedFlowLocked: true, productionActionLocked: true },
       decisionMemory: { status: "Restricted", tone: "slate", decisions: [], rules: [] },
-      personalOperatingLayer: { status: "Restricted", tone: "slate", preferenceRows: [], workStyleRows: [], communicationRows: [], dailyFocusRows: [], distractionRows: [], backgroundRows: [], checkInRows: [], privacyRows: [], reviewRows: [], preferenceEntries: [] },
+      memorySuggestions: { status: "Restricted", tone: "slate", suggestedCount: 0, approvedCount: 0, archivedCount: 0, totalCount: 0, sourceCount: 0, sourceOptions: [], rows: [], recentApprovedRows: [], summary: { total: 0, approvedCount: 0, suggestedCount: 0, archivedCount: 0, compactRows: [], pendingSuggestions: [], summaryText: "Apex OS memory suggestions are operator-only." } },
+      personalOperatingLayer: { status: "Restricted", tone: "slate", preferenceRows: [], workStyleRows: [], communicationRows: [], dailyFocusRows: [], distractionRows: [], backgroundRows: [], checkInRows: [], privacyRows: [], reviewRows: [], preferenceEntries: [], taskReminderRows: [], taskReminderSummary: { openTaskCount: 0, openReminderCount: 0, activeCount: 0 } },
       liveOperatorMemory: { status: "Restricted", tone: "slate", totalCount: 0, trustedCount: 0, suggestedCount: 0, archivedCount: 0, turnCount: 0, runCount: 0, proactiveCheckInCount: 0, latestRows: [], reviewRows: [] },
       knowledgeVault: { status: "Restricted", tone: "slate", categories: [], safetyRows: [], sourceRows: [] },
       askApexChat: { status: "Restricted", tone: "slate", contexts: [], evidenceRows: [], actionLocks: [] },
       voiceInterface: { status: "Restricted", tone: "slate", modes: [], safetyRows: [] },
       approvalCommandCenter: { status: "Restricted", tone: "slate", queueRows: [], packetRows: [], controlRows: [], sourceRows: [] },
+      apexActivity: { status: "Restricted", tone: "slate", loading: false, error: "", totalCount: 0, performedCount: 0, blockedCount: 0, escalatedCount: 0, rows: [], externalActionsLocked: true, summaryText: "Apex Activity is operator-only." },
+      apexHqDomain: { status: "Restricted", tone: "slate", summary: "Apex HQ domain bridge is operator-only.", counts: {}, rows: [], commandRows: [], blockedRows: [] },
+      apexBuilderMode: { status: "Restricted", tone: "slate", summary: "Apex Builder Mode is operator-only.", canRunLocalValidation: false, canCreateBuilderTasks: false, canApplyControlledLocalFixes: false, canUndoControlledLocalFixes: false, canEditFiles: false, canDeploy: false, canDeleteFiles: false, summaryRows: [], dirtyFileRows: [], builderTaskRows: [], recentFixRows: [], patchPreviewRows: [], recentUndoRows: [], recentValidationRows: [], actionRows: [], fixActionRows: [], activityRows: [], blockedRows: [] },
+      apexWhatChangedFeed: { status: "Restricted", tone: "slate", entryCount: 0, entries: [], surfaceRows: [], summary: "Apex What Changed feed is operator-only." },
+      apexPersonalOsCore: { status: "Restricted", tone: "slate", operatorOnly: true, fieldCustomerDemoVisible: false, routes: [], skillRows: [], agentRows: [], summary: "Apex Personal OS is operator-only." },
       buildAwareness: restrictedApexOsBuildAwarenessSnapshot(),
       executionHandoffs: { status: "Restricted", tone: "slate", sourceRows: [], handoffSummary: { total: 0, draft: 0, ready: 0, blocked: 0, archived: 0 } },
       agentControlPlane: { status: "Restricted", tone: "slate", rosterRows: [], requestRows: [], reportRows: [], handoffRows: [], safetyRows: [], requestSummary: { total: 0, active: 0, ready: 0, blocked: 0 } },
@@ -3705,7 +5708,7 @@ export function deriveApexControlRoomState({
         id: "build-awareness",
         title: "Build awareness",
         status: buildAwareness.status,
-        detail: `${buildAwareness.branch} at ${buildAwareness.headSha}; ${formatCount(buildAwareness.changedFileCount)} changed files are visible and execution remains locked.`,
+        detail: `${buildAwareness.branch} at ${buildAwareness.headSha}; ${formatCount(buildAwareness.changedFileCount)} changed files are visible and consequential actions remain gated.`,
         tone: buildAwareness.tone,
       },
       {
@@ -3782,7 +5785,7 @@ export function deriveApexControlRoomState({
         id: "live-operator-mode",
         title: "Live operator mode",
         status: liveOperatorMode.status,
-        detail: `${liveOperatorMode.operatorLoopCount} live loop stages and ${liveOperatorMode.readinessCount} readiness systems move Apex toward live operator behavior while execution remains locked.`,
+        detail: `${liveOperatorMode.operatorLoopCount} live loop stages and ${liveOperatorMode.readinessCount} readiness systems move Apex toward live operator behavior while consequential actions remain gated.`,
         tone: liveOperatorMode.tone,
       },
       {
@@ -3808,6 +5811,7 @@ export function deriveApexControlRoomState({
       },
     ]),
     phase3Aggregator,
+    apexActivity,
     operatingSignals: withDerivedStateMetaList([
       {
         id: "trust-readiness",
@@ -3871,7 +5875,7 @@ export function deriveApexControlRoomState({
         id: "voice-interface",
         title: "Voice interface",
         status: voiceInterface.status,
-        detail: `${voiceInterface.safetyCount} voice safety gates are visible; microphone capture stays visible, closed manually, and review-first.`,
+        detail: `${voiceInterface.safetyCount} voice safety gates are visible; microphone capture stays visible and closed manually while typed answers remain available.`,
         tone: voiceInterface.tone,
       },
       {
@@ -3899,7 +5903,7 @@ export function deriveApexControlRoomState({
         id: "autonomy-run-center",
         title: "Autonomy run center",
         status: autonomyRunCenter.status,
-        detail: `${autonomyRunCenter.mode}: Apex can plan, route, draft internal work, validate evidence, and stop at approval gates. External execution remains locked.`,
+        detail: `${autonomyRunCenter.mode}: Apex can plan, route, draft internal work, validate evidence, and stop at approval gates. External actions remain gated.`,
         tone: autonomyRunCenter.tone,
       },
       {
@@ -4068,14 +6072,14 @@ export function deriveApexControlRoomState({
         id: "voice-interface",
         title: "Voice interface",
         status: voiceInterface.status,
-        detail: `${voiceInterface.modeCount} voice modes are mapped. Voice remains visible, review-first, and blocked from execution.`,
+        detail: `${voiceInterface.modeCount} voice modes are mapped. Voice remains visible and never executes external actions by itself.`,
         tone: voiceInterface.tone,
       },
       {
         id: "approval-command-center",
         title: "Approval command center",
         status: approvalCommandCenter.status,
-        detail: `${approvalCommandCenter.queueCount} risky-action categories have packet requirements; approve/reject/defer record review decisions while execution remains locked.`,
+        detail: `${approvalCommandCenter.queueCount} risky-action categories have packet requirements; approve/reject/defer record review decisions while live execution remains separately gated.`,
         tone: approvalCommandCenter.tone,
       },
       {
@@ -4148,12 +6152,17 @@ export function deriveApexControlRoomState({
     },
     releaseDesk,
     decisionMemory,
+    memorySuggestions,
     personalOperatingLayer,
     liveOperatorMemory,
     knowledgeVault,
     askApexChat,
     voiceInterface,
     approvalCommandCenter,
+    apexHqDomain,
+    apexBuilderMode,
+    apexWhatChangedFeed,
+    apexPersonalOsCore,
     buildAwareness,
     executionHandoffs,
     agentControlPlane,

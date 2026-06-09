@@ -21,11 +21,11 @@ export function Sidebar({
   const workspaceItems = [
     {
       id: "apex",
-      label: "Apex OS",
+      label: "Apex",
       helper: "Private",
       icon: "spark",
-      target: firstVisible(["apexControlRoom"]),
-      modules: ["apexControlRoom"],
+      target: firstVisible(["apexControlRoom", "apexAvatarLab"]),
+      modules: ["apexControlRoom", "apexAvatarLab"],
       count: null,
     },
     {

@@ -65,6 +65,7 @@ export const DEFAULT_COMPANY_SETTINGS = {
   apexOsExecutionHandoffs: [],
   apexOsAgentControlRequests: [],
   apexOsAutonomyRuns: [],
+  apexOsTasks: [],
   apexOsDailyBriefingHistory: [],
   apexAgentAutomationPolicy: {
     enabled: true,
@@ -470,6 +471,7 @@ export function getAllowedModuleIds(user, companySettings = DEFAULT_COMPANY_SETT
 
   if (canAccessApexOs(user)) {
     modules.add("apexControlRoom");
+    modules.add("apexAvatarLab");
   }
 
   return modules;

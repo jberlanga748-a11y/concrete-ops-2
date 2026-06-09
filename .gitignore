@@ -20,3 +20,4 @@ tmp-ai-office-server*.log
 tmp-ai-office-server*.pid
 dev-server*.log
 visual-dev-server*.log
+public/assets/apex-avatar/*.blend

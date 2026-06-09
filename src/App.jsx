@@ -356,6 +356,7 @@ const MaterialPrepPage = lazyRouteComponent(() => import("./material-prep-route-
 const RateBookPage = lazyRouteComponent(() => import("./rate-book-route-components"), "RateBookPage");
 const CommunicationCenterPage = lazyRouteComponent(() => import("./communications-route-components"), "CommunicationCenterPage");
 const ApexControlRoomPage = lazyRouteComponent(() => import("./apex-control-room-components"), "ApexControlRoomPage");
+const ApexAvatarLabPage = lazyRouteComponent(() => import("./apex-avatar-lab-components"), "ApexAvatarLabPage");
 const ProposalsWorkspace = lazy(() => import("./ProposalGenerator"));
 const DashboardPage = lazyRouteComponent(() => import("./dashboard-route-wrapper-components"), "DashboardPage");
 const CommandCenterRoutePage = lazyRouteComponent(() => import("./dashboard-route-wrapper-components"), "CommandCenterRoutePage");
@@ -389,7 +390,8 @@ const NAV_GROUPS = [
   {
     label: "Apex",
     items: [
-      { id: "apexControlRoom", label: "Apex Control Room", icon: "spark" },
+      { id: "apexControlRoom", label: "Apex Home", icon: "spark" },
+      { id: "apexAvatarLab", label: "Avatar Lab", icon: "spark" },
     ],
   },
   {
@@ -12382,6 +12384,7 @@ function MainContent(props) {
     );
   }
   if (active === "apexControlRoom") return <ApexControlRoomPage {...props} />;
+  if (active === "apexAvatarLab") return <ApexAvatarLabPage {...props} />;
   if (active === "dashboard") return <DashboardPage {...props} components={dashboardRouteComponents} />;
   const fieldJobsRouteModule = getFieldJobsRouteModule(active);
   if (fieldJobsRouteModule) {
@@ -12778,6 +12781,13 @@ export default function App() {
   }, [passwordResetRoute, pathname]);
   const routeState = useMemo(() => parseAppPath(pathname), [pathname]);
   const active = routeState.active;
+  useEffect(() => {
+    document.title = active === "apexControlRoom"
+      ? "Apex"
+      : active === "apexAvatarLab"
+        ? "Apex Avatar Lab"
+        : APP_NAME;
+  }, [active]);
   const routeSettingsFocusSection = useMemo(() => (
     routeState.settingsSectionId
       ? { id: routeState.settingsSectionId, nonce: `route:${routeState.settingsSectionId}` }
@@ -17285,6 +17295,7 @@ export default function App() {
           onOpenPublicEstimateRequest={openPublicEstimateRequest}
           brandAssets={APEX_BRAND_ASSETS}
           demoLoginPresets={DEMO_LOGIN_PRESETS}
+          requestedRoute={active}
           SplashScreenComponent={SplashScreen}
         />
       </Suspense>
@@ -17299,12 +17310,12 @@ export default function App() {
   const estimatorMobileNavItems = getEstimatorMobileNavItems(visibleNavItems);
   const customerRelated = relatedCustomerRecords(selectedCustomer, appState.leads, appState.jobs, appState.activity);
   const leadRelated = relatedLeadActivity(selectedLead, appState.customers, appState.activity, appState.leadStatusHistory);
-  const isApexControlRoomRoute = active === "apexControlRoom";
+  const isApexOsFullscreenRoute = active === "apexControlRoom" || active === "apexAvatarLab";
 
   return (
-    <div className={`co-app-shell min-h-screen overflow-x-hidden text-slate-950 ${isApexControlRoomRoute ? "bg-slate-950" : ""}`} data-print-route={active === "proposals" && routeState.proposalMode === "print" ? "proposal" : undefined}>
+    <div className={`co-app-shell min-h-screen overflow-x-hidden text-slate-950 ${isApexOsFullscreenRoute ? "bg-slate-950" : ""}`} data-print-route={active === "proposals" && routeState.proposalMode === "print" ? "proposal" : undefined}>
       <div className="flex min-w-0 max-w-full">
-        {isApexControlRoomRoute ? null : (
+        {isApexOsFullscreenRoute ? null : (
           <Sidebar
             active={active}
             setActive={setActive}
@@ -17313,13 +17324,13 @@ export default function App() {
             logoInitials={workspaceLogoInitials}
             brandAssets={APEX_BRAND_ASSETS}
             appName={APP_NAME}
-            workspaceLabel={isApexOsShell ? "Apex OS" : "Team workspace"}
+            workspaceLabel={isApexOsShell ? "Apex" : "Team workspace"}
             statusTitle={isApexOsShell ? "Private workspace" : "Live workspace"}
-            statusDescription={isApexOsShell ? "Operator-only tools for Apex HQ." : "Pick the workspace. The page shows the tools inside it."}
+            statusDescription={isApexOsShell ? "Private operator tools with Apex HQ as the business domain." : "Pick the workspace. The page shows the tools inside it."}
           />
         )}
-        <div className={`${isApexControlRoomRoute ? "min-h-screen" : "mobile-content-safe lg:pb-0"} co-workspace-shell min-w-0 flex-1 overflow-x-hidden`}>
-          {isApexControlRoomRoute ? null : (
+        <div className={`${isApexOsFullscreenRoute ? "min-h-screen" : "mobile-content-safe lg:pb-0"} co-workspace-shell min-w-0 flex-1 overflow-x-hidden`}>
+          {isApexOsFullscreenRoute ? null : (
             <>
               <TopBar
                 active={active}
@@ -17348,8 +17359,8 @@ export default function App() {
               <ErrorBanner message={errorMessage} onDismiss={() => setErrorMessage("")} />
             </>
           )}
-          <main className={`min-w-0 overflow-x-hidden py-0 ${isApexControlRoomRoute ? "min-h-screen bg-slate-950" : ""}`}>
-            <div className={`co-module-frame co-module-${active} ${isApexControlRoomRoute ? "min-h-screen" : ""}`}>
+          <main className={`min-w-0 overflow-x-hidden py-0 ${isApexOsFullscreenRoute ? "min-h-screen bg-slate-950" : ""}`}>
+            <div className={`co-module-frame co-module-${active} ${isApexOsFullscreenRoute ? "min-h-screen" : ""}`}>
               <Suspense fallback={<ModuleLoadingFallback active={active} />}>
               <MainContent
                 active={active}
@@ -17784,17 +17795,17 @@ export default function App() {
               </Suspense>
             </div>
           </main>
-          {isApexControlRoomRoute ? null : <div className="co-mobile-bottom-spacer lg:hidden" aria-hidden="true" />}
+          {isApexOsFullscreenRoute ? null : <div className="co-mobile-bottom-spacer lg:hidden" aria-hidden="true" />}
         </div>
       </div>
-      {isApexControlRoomRoute ? null : isEstimatorMobileWorkspace ? (
+      {isApexOsFullscreenRoute ? null : isEstimatorMobileWorkspace ? (
         <ApexMobileBottomNav items={estimatorMobileNavItems} active={active} onOpen={setActive} />
       ) : isOwnerAdminMobileWorkspace ? (
         <ApexMobileBottomNav items={ownerAdminMobileNavItems} active={active} onOpen={setActive} />
       ) : (
         <FieldMobileQuickNav items={mobileNavItems} active={active} onOpen={setActive} />
       )}
-      {isApexControlRoomRoute ? null : <ApexAssistantShell
+      {isApexOsFullscreenRoute ? null : <ApexAssistantShell
         permissions={appState.permissions}
         commandCenter={assistantCommandCenter}
         assistantCommandSeed={assistantCommandSeed}

@@ -431,6 +431,46 @@ export function getApexOsKnowledgeIntelligence(token, payload = {}) {
   return request("/api/apex-os/knowledge-intelligence", { method: "POST", token, body: payload });
 }
 
+export function getApexOsLocalProvidersStatus(token) {
+  return request("/api/apex-os/local-providers/status", { token });
+}
+
+export function reloadApexOsLocalBrain(token, payload) {
+  return request("/api/apex-os/local-providers/reload-brain", { method: "POST", token, body: payload });
+}
+
+export function getApexOsLocalVoiceStatus(token) {
+  return request("/api/apex-os/local-voice/status", { token });
+}
+
+export function getApexOsBackgroundStatus(token) {
+  return request("/api/apex-os/background/status", { token });
+}
+
+export function updateApexOsLocalVoiceSelection(token, payload) {
+  return request("/api/apex-os/local-voice/voice-selection", { method: "POST", token, body: payload });
+}
+
+export function speakApexOsLocalVoice(token, payload) {
+  return request("/api/apex-os/local-voice/speech", { method: "POST", token, body: payload });
+}
+
+export function listenApexOsNativeVoice(token, payload = {}) {
+  return request("/api/apex-os/local-voice/native-listen", { method: "POST", token, body: payload });
+}
+
+export function transcribeApexOsLocalVoice(token, payload) {
+  return request("/api/apex-os/local-voice/transcribe", { method: "POST", token, body: payload });
+}
+
+export function saveApexOsLocalVoiceLiveTurnReceipt(token, payload) {
+  return request("/api/apex-os/local-voice/live-turn-receipt", { method: "POST", token, body: payload });
+}
+
+export function runApexOsTypedLiveTurnBenchmark(token, payload = {}) {
+  return request("/api/apex-os/local-voice/live-turn-benchmark/typed", { method: "POST", token, body: payload });
+}
+
 export function getApexOsDailyBriefing(token) {
   return request("/api/apex-os/daily-briefing", { token });
 }
@@ -443,8 +483,40 @@ export function getApexOsBuildAwareness(token) {
   return request("/api/apex-os/build-awareness", { token });
 }
 
+export function runApexOsBuilderValidation(token, payload) {
+  return request("/api/apex-os/builder/validation-runs", { method: "POST", token, body: payload });
+}
+
+export function runApexOsBuilderFix(token, payload = {}) {
+  return request("/api/apex-os/builder/fix-runs", { method: "POST", token, body: payload });
+}
+
+export function runApexOsBuilderUndo(token, payload = {}) {
+  return request("/api/apex-os/builder/undo-runs", { method: "POST", token, body: payload });
+}
+
+export function getApexOsBuildLoopStatus(token) {
+  return request("/api/apex-os/build-loop/status", { token });
+}
+
+export function runApexOsBuildLoop(token, payload = {}) {
+  return request("/api/apex-os/build-loop/runs", { method: "POST", token, body: payload });
+}
+
 export function getApexOsMemory(token) {
   return request("/api/apex-os/memory", { token });
+}
+
+export function getApexOsSkills(token) {
+  return request("/api/apex-os/skills", { token });
+}
+
+export function runApexOsInternalAction(token, payload = {}) {
+  return request("/api/apex-os/internal-actions", { method: "POST", token, body: payload });
+}
+
+export function createApexOsExternalPreparationPacket(token, payload = {}) {
+  return request("/api/apex-os/external-preparation-packets", { method: "POST", token, body: payload });
 }
 
 export function createApexOsMemory(token, payload = {}) {
@@ -453,6 +525,30 @@ export function createApexOsMemory(token, payload = {}) {
 
 export function updateApexOsMemory(token, id, payload = {}) {
   return request(`/api/apex-os/memory/${encodeURIComponent(id)}`, { method: "PATCH", token, body: payload });
+}
+
+export function getApexOsTasks(token) {
+  return request("/api/apex-os/tasks", { token });
+}
+
+export function createApexOsTask(token, payload = {}) {
+  return request("/api/apex-os/tasks", { method: "POST", token, body: payload });
+}
+
+export function updateApexOsTask(token, id, payload = {}) {
+  return request(`/api/apex-os/tasks/${encodeURIComponent(id)}`, { method: "PATCH", token, body: payload });
+}
+
+export function getApexOsReminders(token) {
+  return request("/api/apex-os/reminders", { token });
+}
+
+export function createApexOsReminder(token, payload = {}) {
+  return request("/api/apex-os/reminders", { method: "POST", token, body: payload });
+}
+
+export function updateApexOsReminder(token, id, payload = {}) {
+  return request(`/api/apex-os/reminders/${encodeURIComponent(id)}`, { method: "PATCH", token, body: payload });
 }
 
 export function getApexOsApprovalPackets(token) {
