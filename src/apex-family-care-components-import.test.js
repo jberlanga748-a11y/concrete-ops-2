@@ -46,6 +46,7 @@ test("Apex Family Care page contains family screens and no hidden mic APIs", () 
   assert.match(componentSource, /buildApexFamilyCareTestWeekSummary/);
   assert.match(componentSource, /buildApexFamilyCareTestWeekRunPacket/);
   assert.match(componentSource, /addApexFamilyCareTestWeekFrictionNote/);
+  assert.match(componentSource, /buildApexFamilyCareCoordinatorPacket/);
   assert.match(componentSource, /Access Mode/);
   assert.match(componentSource, /Install Path/);
   assert.match(componentSource, /Boundary Checks/);
@@ -68,7 +69,14 @@ test("Apex Family Care page contains family screens and no hidden mic APIs", () 
   assert.match(componentSource, /Mark the house screen ready and start the real week before checking off days/);
   assert.match(componentSource, /Review Packet/);
   assert.match(componentSource, /Friction And Useful Notes/);
+  assert.match(componentSource, /Apex Care Coordinator/);
+  assert.match(componentSource, /Care coordinator/);
+  assert.match(componentSource, /Coordinator sends/);
   assert.match(componentSource, /Human review required/);
+  assert.match(componentSource, /Human review/);
+  assert.match(componentSource, /No sends/);
+  assert.match(componentSource, /No medication control/);
+  assert.match(componentSource, /Metadata-only receipt/);
   assert.match(componentSource, /Notification Decisions/);
   assert.match(componentSource, /Safe lock-screen copy/);
   assert.match(componentSource, /No live sends/);
@@ -87,6 +95,7 @@ test("Apex Family Care still uses Phase 2 and Phase 3 shared helpers", () => {
     "buildApexFamilyCareTodaySummary",
     "buildApexFamilyCareReviewState",
     "getApexFamilyCareBrainInterfaceSummary",
+    "buildApexFamilyCareCoordinatorPacket",
     "createApexFamilyCareVoiceNoteDraft",
     "buildApexFamilyCareKitchenModeStatus",
     "applyApexFamilyCareKitchenControl",

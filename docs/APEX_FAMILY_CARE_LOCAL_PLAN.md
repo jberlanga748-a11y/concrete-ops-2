@@ -535,6 +535,24 @@ Phase 2A slice receipt (2026-06-09): added the first care-review polish slice. F
 - [ ] Add doctor-visit sections for "questions to ask", "changes since last visit", and "family concerns" without diagnosis or treatment advice.
 - [ ] Keep raw audio, raw transcripts, medical diagnosis, emergency replacement, real sends, cloud fallback, schema/auth/session changes, and Apex HQ exposure blocked unless explicitly approved.
 
+### Phase 3A - Apex Care Coordinator Loop
+
+- [x] Add a daily care status review packet.
+- [x] Add open-concern prompts that suggest what to check next without sending messages automatically.
+- [x] Add missing-detail prompts for doctor prep, with human review.
+- [x] Add medication-confirmation review only; never medication control, dosing, or treatment instructions.
+- [x] Keep receipts metadata-only with no raw prompts, raw responses, secrets, raw audio, raw transcripts, or raw note text.
+
+Phase 3A slice receipt (2026-06-09): added `buildApexFamilyCareCoordinatorPacket` and the Apex brain `buildCareCoordinatorPacket` action. The packet combines daily care-loop status, open concern prompts, doctor-prep missing-detail prompts, medication-confirmation review prompts, and needs-review note prompts. The standalone Apex Health screen now shows a compact Apex Care Coordinator card with prompt counts and explicit Human review / No sends / No medication control / Metadata-only receipt guardrails. This slice made no auth/session/schema/backend/deploy/provider changes, no real sends, no cloud fallback, no Apex HQ product exposure, no hidden recording, no medical diagnosis, and no medication control.
+
+### Phase 3B - Next Care Coordinator Follow-Up
+
+- [ ] Add human-reviewed prompt resolution state so family can mark coordinator prompts handled, deferred, or not useful.
+- [ ] Connect the coordinator packet into Apex's private operator command path only after the Family Care app flow proves useful.
+- [ ] Add a daily digest review workflow that drafts what Dad/family should see without sending it automatically.
+- [ ] Add prompt usefulness/friction tracking so Apex can ask fewer, better questions.
+- [ ] Keep medication review confirmation-only and keep dosing, treatment, diagnosis, emergency, raw transcript/audio storage, real sends, cloud fallback, schema/auth/session changes, and Apex HQ exposure blocked unless explicitly approved.
+
 ## Done And Frozen Rule
 
 When a checklist item is completed:
@@ -595,10 +613,12 @@ Complete the Current Next Step, advance the plan, then continue through foundati
 
 ## Current Next Step
 
-Next active build slice: Phase 3A - Apex Care Coordinator Loop.
+Next active build slice: Phase 3.5A - Standalone Boundary Release Prep.
 
 Open validation track: Phase 7 - Family Test Week remains incomplete until one real family test week is run and reviewed. Do not mark Phase 7 complete from synthetic data or builder prep work.
 
 Open approval-gated Phase 1A work: choose and approve the real family access model before adding real remote access, auth/session changes, provider setup, or family-device rollout.
 
 Open Phase 2B work: add true note editing/revision, reviewed/confirmed note state, and print/export doctor-brief polish after the current review lane proves useful.
+
+Open Phase 3B work: add coordinator prompt resolution, daily digest review, and usefulness/friction tracking after the first coordinator packet slice proves helpful.

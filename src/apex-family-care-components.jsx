@@ -19,7 +19,10 @@ import {
   listApexFamilyCareNotes,
   updateApexFamilyCareNote,
 } from "../shared/apexFamilyCare.js";
-import { getApexFamilyCareBrainInterfaceSummary } from "../shared/apexFamilyCareBrain.js";
+import {
+  buildApexFamilyCareCoordinatorPacket,
+  getApexFamilyCareBrainInterfaceSummary,
+} from "../shared/apexFamilyCareBrain.js";
 import {
   APEX_FAMILY_CARE_KITCHEN_MODE_POLICY,
   applyApexFamilyCareKitchenControl,
@@ -1089,8 +1092,16 @@ function AccessView({ accessReadiness, gate, standalone = false }) {
   );
 }
 
-function HealthView({ accessReadiness, gate, summary, latestVoiceReceipt, notificationState, kitchenStatus, testWeekSummary }) {
+function HealthView({ accessReadiness, gate, summary, latestVoiceReceipt, notificationState, kitchenStatus, testWeekSummary, coordinatorPacket }) {
   const brainInterface = getApexFamilyCareBrainInterfaceSummary();
+  const coordinatorSummary = coordinatorPacket?.summary || {};
+  const coordinatorPrompts = coordinatorPacket?.prompts || [];
+  const coordinatorStats = [
+    ["Daily review", coordinatorPacket?.dailyReviewItems?.length ?? 0, "green"],
+    ["Open concerns", coordinatorSummary.openConcernCount ?? 0, coordinatorSummary.openConcernCount ? "amber" : "green"],
+    ["Doctor prep", coordinatorSummary.doctorPrepPromptCount ?? 0, coordinatorSummary.doctorPrepPromptCount ? "amber" : "green"],
+    ["Medication review", coordinatorSummary.medicationReviewCount ?? 0, coordinatorSummary.medicationReviewCount ? "amber" : "green"],
+  ];
   const healthItems = [
     ["Public access", gate.publicAccess ? "Open" : "Closed", gate.publicAccess ? "red" : "green"],
     ["Customer access", gate.customerAccess ? "Open" : "Closed", gate.customerAccess ? "red" : "green"],
@@ -1106,6 +1117,9 @@ function HealthView({ accessReadiness, gate, summary, latestVoiceReceipt, notifi
     ["Missing update detector", summary?.missingUpdate ? "On" : "Off", summary?.missingUpdate ? "green" : "amber"],
     ["Pattern detector", summary?.repeatedConcernPatterns ? "On" : "Off", summary?.repeatedConcernPatterns ? "green" : "amber"],
     ["Apex care brain", brainInterface.status === "ready" ? "Ready" : "Off", brainInterface.status === "ready" ? "green" : "amber"],
+    ["Care coordinator", coordinatorPrompts.length ? `${coordinatorPrompts.length} prompts` : "Quiet", coordinatorPrompts.length ? "amber" : "green"],
+    ["Coordinator review", brainInterface.humanReviewRequired ? "Human" : "Auto", brainInterface.humanReviewRequired ? "green" : "red"],
+    ["Coordinator sends", brainInterface.autoSend ? "On" : "Off", brainInterface.autoSend ? "red" : "green"],
     ["Medication control", brainInterface.medicationControl ? "On" : "Off", brainInterface.medicationControl ? "red" : "green"],
     ["Voice explicit start", APEX_FAMILY_CARE_VOICE_POLICY.explicitUserStartedRequired ? "Required" : "Off", APEX_FAMILY_CARE_VOICE_POLICY.explicitUserStartedRequired ? "green" : "red"],
     ["Voice hidden recording", APEX_FAMILY_CARE_VOICE_POLICY.hiddenRecording ? "On" : "Off", APEX_FAMILY_CARE_VOICE_POLICY.hiddenRecording ? "red" : "green"],
@@ -1124,17 +1138,58 @@ function HealthView({ accessReadiness, gate, summary, latestVoiceReceipt, notifi
   ];
 
   return (
-    <Card className="p-4">
-      <SectionHeader title="Apex System Health" description="Private care boundary and brain-interface checks." />
-      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-        {healthItems.map(([label, value, tone]) => (
-          <div key={label} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-3">
-            <span className="text-sm font-black text-slate-700">{label}</span>
-            <Badge tone={tone}>{value}</Badge>
-          </div>
-        ))}
-      </div>
-    </Card>
+    <div className="space-y-4">
+      <Card className="p-4">
+        <SectionHeader
+          title="Apex Care Coordinator"
+          description={coordinatorSummary.nextHumanAction || "No coordinator prompts need action right now."}
+          action={<Badge tone={coordinatorPrompts.length ? "amber" : "green"}>{coordinatorPrompts.length ? `${coordinatorPrompts.length} prompts` : "Quiet"}</Badge>}
+        />
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+          {coordinatorStats.map(([label, value, tone]) => (
+            <div key={label} className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-3">
+              <span className="min-w-0 break-words text-sm font-black text-slate-700">{label}</span>
+              <Badge tone={tone}>{value}</Badge>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Badge tone="green">Human review</Badge>
+          <Badge tone="green">No sends</Badge>
+          <Badge tone="green">No medication control</Badge>
+          <Badge tone="green">Metadata-only receipt</Badge>
+        </div>
+        <div className="mt-3 grid gap-2">
+          {coordinatorPrompts.length ? coordinatorPrompts.slice(0, 4).map((prompt) => (
+            <div key={prompt.id} className="rounded-lg border border-slate-200 bg-white p-3">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <Badge tone={prompt.priority === "high" ? "amber" : "slate"}>{prompt.priority}</Badge>
+                <Badge tone="green">Human review</Badge>
+                <Badge tone="green">No sends</Badge>
+              </div>
+              <p className="mt-2 break-words text-sm font-black text-slate-950">{prompt.label}</p>
+              <p className="mt-1 break-words text-xs font-bold text-slate-600">{prompt.detail}</p>
+            </div>
+          )) : (
+            <div className="rounded-lg border border-slate-200 bg-white p-3 text-sm font-bold text-slate-600">
+              Coordinator is quiet. Keep using quick updates and doctor prep.
+            </div>
+          )}
+        </div>
+      </Card>
+
+      <Card className="p-4">
+        <SectionHeader title="Apex System Health" description="Private care boundary and brain-interface checks." />
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          {healthItems.map(([label, value, tone]) => (
+            <div key={label} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-3">
+              <span className="text-sm font-black text-slate-700">{label}</span>
+              <Badge tone={tone}>{value}</Badge>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
   );
 }
 
@@ -1176,6 +1231,7 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
   const doctorSummary = useMemo(() => buildApexFamilyCareDoctorSummary(allNotes), [allNotes]);
   const familySummary = useMemo(() => buildApexFamilyCareFamilySummary(sortedNotes), [sortedNotes]);
   const reviewState = useMemo(() => buildApexFamilyCareReviewState(allNotes, timelineFilters), [allNotes, timelineFilters]);
+  const coordinatorPacket = useMemo(() => buildApexFamilyCareCoordinatorPacket(allNotes), [allNotes]);
   const notificationState = useMemo(() => buildApexFamilyCareNotificationState(sortedNotes, {
     preferences: notificationPreferences,
   }), [notificationPreferences, sortedNotes]);
@@ -1393,7 +1449,7 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
       />
     ),
     access: <AccessView accessReadiness={accessReadiness} gate={gate} standalone={standalone} />,
-    health: <HealthView accessReadiness={accessReadiness} gate={gate} summary={todaySummary} latestVoiceReceipt={latestVoiceReceipt} notificationState={notificationState} kitchenStatus={kitchenStatus} testWeekSummary={testWeekSummary} />,
+    health: <HealthView accessReadiness={accessReadiness} gate={gate} summary={todaySummary} latestVoiceReceipt={latestVoiceReceipt} notificationState={notificationState} kitchenStatus={kitchenStatus} testWeekSummary={testWeekSummary} coordinatorPacket={coordinatorPacket} />,
   };
 
   return (
