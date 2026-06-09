@@ -15,6 +15,9 @@ import {
   getLlamaCppProviderStatus,
 } from "../server/apexLlamaCppProvider.js";
 import {
+  runApexLlamaCppRuntimeAction,
+} from "../server/apexLlamaCppRuntime.js";
+import {
   APEX_BACKGROUND_RUNTIME_ENV,
   collectApexBackgroundRuntimeStatus,
 } from "../server/apexBackgroundRuntime.js";
@@ -646,6 +649,7 @@ export function parseApexLocalOperatorRuntimeArgs(argv = []) {
     cleanupOnly: false,
     statusOnly: false,
     stop: false,
+    prepareBrain: true,
     keepWarm: false,
     installShortcuts: isWindows(),
     shortcutsOnly: false,
@@ -697,6 +701,8 @@ export function parseApexLocalOperatorRuntimeArgs(argv = []) {
       options.cleanup = false;
       options.open = false;
     }
+    else if (arg === "--prepare-brain") options.prepareBrain = true;
+    else if (arg === "--no-prepare-brain") options.prepareBrain = false;
     else if (arg === "--keep-warm") options.keepWarm = true;
     else if (arg === "--no-keep-warm") options.keepWarm = false;
     else if (arg.startsWith("--api-url=")) options.apiUrl = arg.slice("--api-url=".length);
@@ -1141,6 +1147,7 @@ export function buildApexLocalReadinessReceipt({
   llamaCpp = {},
   cleanup = {},
   background = {},
+  llamaRuntime = null,
   desktopShell = {},
   shortcuts = {},
   entry = {},
@@ -1152,12 +1159,24 @@ export function buildApexLocalReadinessReceipt({
   generatedAt = new Date().toISOString(),
 } = {}) {
   const modelNames = Array.isArray(ollama.modelNames) ? ollama.modelNames : [];
-  const normalModel = modelReadiness(modelNames, APEX_OLLAMA_DEFAULT_CHAT_MODEL);
-  const codingModel = modelReadiness(modelNames, APEX_OLLAMA_CODING_CHAT_MODEL);
+  const llamaModelNames = Array.isArray(llamaCpp.modelNames) ? llamaCpp.modelNames : [];
   const apiReady = Boolean(api.ok);
   const clientReady = Boolean(client.ok);
   const ollamaReady = Boolean(ollama.available);
   const llamaReady = Boolean(llamaCpp.available || llamaCpp.canChatNow);
+  const primaryModelReady = Boolean(llamaReady && llamaModelNames.some((name) => String(name || "").trim().toLowerCase() === "gpt-oss:20b"));
+  const normalModel = Object.freeze({
+    model: "gpt-oss:20b",
+    installed: primaryModelReady || llamaModelNames.includes("gpt-oss:20b"),
+    status: primaryModelReady ? "ready" : llamaModelNames.length ? "missing" : "checking",
+  });
+  const codingModel = normalModel;
+  const legacyNormalModel = modelReadiness(modelNames, APEX_OLLAMA_DEFAULT_CHAT_MODEL);
+  const legacyCodingModel = modelReadiness(modelNames, APEX_OLLAMA_CODING_CHAT_MODEL);
+  const primaryRuntime = llamaRuntime?.provider === "apex-llama-cpp-runtime"
+    ? llamaRuntime
+    : background.primaryRuntime || background.llamaRuntime || null;
+  const primaryRuntimeReady = Boolean(primaryRuntime?.canChatNow || background.llamaCpp?.ready || llamaReady);
   const entryReceipt = entry?.mode === "apex-local-entry-v0"
     ? entry
     : buildApexLocalEntryReceipt({ route, appUrl, authProbe: entry });
@@ -1193,7 +1212,10 @@ export function buildApexLocalReadinessReceipt({
     background: Object.freeze({
       status: background.status || "unknown",
       heartbeatStatus: background.heartbeat?.status || "unknown",
-      keepWarmEnabled: Boolean(background.keepWarm?.enabled || keepWarmRequested),
+      primaryRuntimeStatus: background.primaryRuntime?.status || (primaryRuntimeReady ? "resident" : "not-ready"),
+      primaryRuntimeModel: background.primaryRuntime?.model || primaryRuntime?.model || "gpt-oss:20b",
+      primaryRuntimeReady,
+      keepWarmEnabled: Boolean(background.keepWarm?.enabled || (keepWarmRequested && !primaryRuntimeReady)),
       keepWarmTargetModel: background.keepWarm?.targetModel || APEX_OLLAMA_DEFAULT_CHAT_MODEL,
       keepAlive: background.keepWarm?.keepAlive || "10m",
       keepAlivePermanent: false,
@@ -1254,10 +1276,21 @@ export function buildApexLocalReadinessReceipt({
       provider: "llama.cpp",
       primaryProvider: true,
       providerStatus: llamaReady ? "available" : llamaCpp.status || "unavailable",
+      primaryRuntime: Object.freeze({
+        provider: "llama.cpp",
+        status: primaryRuntimeReady ? "resident" : primaryRuntime?.status || llamaCpp.status || "not-ready",
+        model: primaryRuntime?.model || llamaCpp.loadedModel?.model || "gpt-oss:20b",
+        processResident: primaryRuntimeReady,
+        ownedProcessActive: Boolean(primaryRuntime?.runtime?.ownedProcessActive || background.primaryRuntime?.ownedProcessActive),
+        reason: text(primaryRuntime?.reason || background.primaryRuntime?.reason || llamaCpp.reason || "", 160),
+        keepAliveStyle: "llama-server-process-resident",
+      }),
       legacyFallbackProvider: "ollama",
       legacyFallbackStatus: ollamaReady ? "available" : ollama.status || "unavailable",
       normalModel,
       codingModel,
+      legacyNormalModel,
+      legacyCodingModel,
       llamaCppStatus: llamaCpp.status || (llamaReady ? "available" : "unavailable"),
       llamaCppModelNames: Object.freeze(Array.isArray(llamaCpp.modelNames) ? llamaCpp.modelNames.slice(0, 8).map((name) => text(name, 160)) : []),
       stableResidency: background.stableResidency || null,
@@ -1270,8 +1303,16 @@ export function buildApexLocalReadinessReceipt({
       openAiRequired: false,
       openAiUsed: false,
       cloudDefault: "disabled",
+      smallHelperStrategy: Object.freeze({
+        provider: "llama.cpp-or-ollama-local",
+        candidateModel: "qwen3:4b-instruct",
+        installed: modelNames.includes("qwen3:4b-instruct") || (Array.isArray(llamaCpp.modelNames) ? llamaCpp.modelNames.includes("qwen3:4b-instruct") : false),
+        recommendedDefault: false,
+        recommendedUse: "test-only-for-nano-intent-routing-or-short-summaries-if-gpt-oss-latency-becomes-the-proven-bottleneck",
+        reason: "Do not split Apex into extra brains until a small-model benchmark proves it removes more latency than it adds routing complexity.",
+      }),
       summary: llamaReady
-        ? "llama.cpp is reachable and is the primary Apex local brain. Ollama is legacy fallback/status only. OpenAI is not required for normal Apex use."
+        ? "llama.cpp is reachable and is the primary Apex local brain. GPT-OSS stays resident by keeping the local llama-server process alive; Ollama is legacy fallback/status only. OpenAI is not required for normal Apex use."
         : "llama.cpp is not ready yet. Apex can still open locally, but local intelligence needs the llama.cpp sidecar running.",
     }),
     cleanup: Object.freeze({
@@ -1316,7 +1357,7 @@ export function buildApexLocalReadinessReceipt({
       cloudAudioAllowed: false,
     }),
     summary: ready
-      ? `Apex services are locally ready at ${appUrl}. ${entryReceipt.summary} llama.cpp is the primary local brain; Ollama is legacy fallback/status only.`
+      ? `Apex services are locally ready at ${appUrl}. ${entryReceipt.summary} llama.cpp/GPT-OSS is the primary resident local brain; Ollama is legacy fallback/status only.`
       : `Apex local runtime is ${status}. ${nextNeeds.length ? nextNeeds.join(" ") : "OpenAI is still not required for normal Apex use."}`,
     nextNeeds: Object.freeze(nextNeeds),
     safety: Object.freeze({
@@ -1363,6 +1404,43 @@ async function getPrimaryLlamaCppStatus(input = {}) {
     modelNames: [],
     modelCount: 0,
     canChatNow: false,
+  }));
+}
+
+async function preparePrimaryLlamaCppRuntime(input = {}) {
+  if (input.enabled === false) {
+    return Object.freeze({
+      provider: "apex-llama-cpp-runtime",
+      receiptType: "llama-cpp-runtime-action",
+      action: "prepare-gpt",
+      status: "skipped",
+      reason: "primary-brain-prepare-disabled",
+      model: "gpt-oss:20b",
+      canChatNow: false,
+      primaryProvider: true,
+      noCloudFallback: true,
+      secretsExposed: false,
+    });
+  }
+  const runner = input.runner || runApexLlamaCppRuntimeAction;
+  return runner({
+    action: "prepare-gpt",
+    model: "gpt-oss:20b",
+    effort: "reasoning",
+    unloadOllama: true,
+    detachProcess: true,
+    waitMs: input.waitMs || DEFAULT_READY_TIMEOUT_MS,
+  }).catch((error) => Object.freeze({
+    provider: "apex-llama-cpp-runtime",
+    receiptType: "llama-cpp-runtime-action",
+    action: "prepare-gpt",
+    status: "failed",
+    reason: text(error?.message || "primary-brain-prepare-failed", 160),
+    model: "gpt-oss:20b",
+    canChatNow: false,
+    primaryProvider: true,
+    noCloudFallback: true,
+    secretsExposed: false,
   }));
 }
 
@@ -1537,6 +1615,8 @@ export async function startApexLocalOperatorRuntime(input = {}) {
         url: appUrl,
       },
       ollama: input.ollama,
+      llamaCpp: input.llamaCpp,
+      llamaRuntime: input.llamaRuntime,
       gpu: input.gpu,
       localVoice: input.localVoice,
       keepWarm: input.keepWarmReceipt,
@@ -1547,6 +1627,7 @@ export async function startApexLocalOperatorRuntime(input = {}) {
       client: { ...client, reused: client.ok, started: false },
       ollama: background.ollama || {},
       llamaCpp,
+      llamaRuntime: input.llamaRuntime || background.primaryRuntime || null,
       cleanup: { status: "not-run", mode: "apex-local-runtime-cleanup-v0" },
       background,
       entry,
@@ -1630,14 +1711,28 @@ export async function startApexLocalOperatorRuntime(input = {}) {
     getLegacyOllamaStatus({ ollama: input.ollama, timeoutMs: options.probeTimeoutMs }),
     getPrimaryLlamaCppStatus({ llamaCpp: input.llamaCpp, timeoutMs: options.probeTimeoutMs }),
   ]);
+  const llamaRuntime = await preparePrimaryLlamaCppRuntime({
+    enabled: Boolean(options.prepareBrain && api.ok),
+    runner: input.llamaRuntimePreparer,
+    waitMs: options.readyTimeoutMs,
+  });
+  const preparedLlamaCpp = llamaRuntime?.providerStatus?.provider === "llama.cpp"
+    ? llamaRuntime.providerStatus
+    : await getPrimaryLlamaCppStatus({
+        llamaCpp: input.llamaCpp,
+        timeoutMs: options.probeTimeoutMs,
+      });
+  const effectiveKeepWarm = Boolean(options.keepWarm && !options.prepareBrain);
   const background = await collectApexBackgroundRuntimeStatus({
-    keepWarmEnabled: options.keepWarm,
+    keepWarmEnabled: effectiveKeepWarm,
     api,
     client: {
       ...client,
       url: appUrl,
     },
     ollama: input.ollama || ollama,
+    llamaCpp: preparedLlamaCpp,
+    llamaRuntime,
     gpu: input.gpu,
     localVoice: input.localVoice,
     keepWarm: input.keepWarmReceipt,
@@ -1674,7 +1769,8 @@ export async function startApexLocalOperatorRuntime(input = {}) {
     api,
     client,
     ollama,
-    llamaCpp,
+    llamaCpp: preparedLlamaCpp,
+    llamaRuntime,
     cleanup,
     background,
     entry,
@@ -1710,6 +1806,8 @@ Options:
   --cleanup-only               Run safe Apex-owned cleanup and exit without starting/opening services.
   --status                     Print local runtime/background health and exit without starting services.
   --stop                       Stop only Apex-owned local runtime processes and exit.
+  --prepare-brain / --no-prepare-brain
+                               Start/keep the primary llama.cpp GPT-OSS sidecar for normal Apex. Default: --prepare-brain
   --keep-warm / --no-keep-warm Legacy bounded qwen3:14b Ollama keep-warm for this runtime. Default: --no-keep-warm
   --json                       Print the readiness receipt as JSON.
   --help                       Print this message.
@@ -1731,14 +1829,15 @@ function printReceipt(receipt = {}) {
   console.log(`Desktop shell: ${receipt.desktopShell?.status || "unknown"} / ${receipt.desktopShell?.appMode ? receipt.desktopShell?.appArg || APEX_DESKTOP_APP_MODE_ARG : "browser tab"} / port ${receipt.desktopShell?.port || DEFAULT_DESKTOP_SHELL_PORT}`);
   console.log(`Shortcuts: ${receipt.shortcuts?.status || "not-run"} (${receipt.shortcuts?.installedCount || 0} installed)`);
   console.log(`Primary brain: ${receipt.localIntelligence?.provider} (${receipt.localIntelligence?.providerStatus})`);
+  console.log(`Primary runtime: ${receipt.localIntelligence?.primaryRuntime?.status || "unknown"} / ${receipt.localIntelligence?.primaryRuntime?.model || "gpt-oss:20b"} / ${receipt.localIntelligence?.primaryRuntime?.keepAliveStyle || "process-resident"}`);
   console.log(`Legacy Ollama: ${receipt.localIntelligence?.legacyFallbackStatus}`);
-  console.log(`${APEX_OLLAMA_DEFAULT_CHAT_MODEL} legacy tag: ${receipt.localIntelligence?.normalModel?.status}`);
-  console.log(`${APEX_OLLAMA_CODING_CHAT_MODEL} legacy tag: ${receipt.localIntelligence?.codingModel?.status}`);
+  console.log(`${APEX_OLLAMA_DEFAULT_CHAT_MODEL} legacy tag: ${receipt.localIntelligence?.legacyNormalModel?.status || "unknown"}`);
+  console.log(`${APEX_OLLAMA_CODING_CHAT_MODEL} legacy tag: ${receipt.localIntelligence?.legacyCodingModel?.status || "unknown"}`);
   console.log(`Resident lane: ${receipt.localIntelligence?.stableResidency?.residentLane || "unknown"} / ctx ${receipt.localIntelligence?.stableResidency?.residentNumCtx || receipt.localIntelligence?.brainNumCtx || "unknown"}`);
   console.log(`GPU: ${receipt.gpu?.computeReady ? "compute-ready" : receipt.gpu?.status || "unknown"}${receipt.gpu?.gpuName ? ` (${receipt.gpu.gpuName})` : ""}`);
   console.log(`Voice: ${receipt.voice?.ready ? "ready" : receipt.voice?.status || "unknown"} / STT ${receipt.voice?.sttProvider || "unknown"} ${receipt.voice?.sttProcessor || ""} / TTS ${receipt.voice?.ttsProvider || "unknown"} ${receipt.voice?.ttsVoice || ""}`.trim());
   console.log(`Mic: ${receipt.voice?.micMode || "standby"} via ${receipt.voice?.nativeInputAvailable ? receipt.voice?.preferredInputMode || "native" : receipt.voice?.ingressProvider || "browser"} / ${receipt.voice?.vadProvider || "amplitude-gate"}`);
-  console.log(`Keep-warm: ${receipt.background?.keepWarmEnabled ? `enabled (${receipt.background?.keepWarmTargetModel}, ${receipt.background?.keepAlive || "10m"})` : "disabled"}`);
+  console.log(`Warm brain: ${receipt.background?.primaryRuntimeReady ? `llama.cpp resident (${receipt.background?.primaryRuntimeModel || "gpt-oss:20b"})` : receipt.background?.keepWarmEnabled ? `legacy Ollama enabled (${receipt.background?.keepWarmTargetModel}, ${receipt.background?.keepAlive || "10m"})` : "not resident"}`);
   if (receipt.background?.latency?.slowestStepLabel) {
     console.log(`Latency: ${receipt.background.latency.status || "unknown"} / slowest ${receipt.background.latency.slowestStepLabel} ${receipt.background.latency.slowestStepMs || 0} ms`);
     if (receipt.background.latency.liveTurn?.diagnosis) {

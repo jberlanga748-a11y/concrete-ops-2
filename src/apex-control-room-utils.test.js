@@ -885,7 +885,7 @@ test("buildApexTalkToApexResponse handles GPU, speed, model, and cleanup command
 
   assert.equal(speed.intent, "local-speed-check");
   assert.match(speed.answer, /gpt-oss:20b/i);
-  assert.match(speed.answer, /primary path is llama\.cpp/i);
+  assert.match(speed.answer, /primary path is now llama\.cpp/i);
   assert.match(speed.answer, /4096/i);
   assert.match(speed.answer, /output bounded/i);
   assert.match(speed.answer, /manual-only/i);

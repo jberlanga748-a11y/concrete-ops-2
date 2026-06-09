@@ -30,6 +30,7 @@ test("Apex local operator runtime args default to local Apex Home with browser t
   assert.equal(options.cleanupOnly, false);
   assert.equal(options.statusOnly, false);
   assert.equal(options.stop, false);
+  assert.equal(options.prepareBrain, true);
   assert.equal(options.keepWarm, false);
   assert.equal(options.installShortcuts, process.platform === "win32");
   assert.equal(options.desktopShell, false);
@@ -50,7 +51,7 @@ test("Apex local operator runtime args can request or run cleanup only", () => {
 
 test("Apex local operator runtime args support status stop json no-open and keep-warm", () => {
   const status = parseApexLocalOperatorRuntimeArgs(["--status", "--json", "--keep-warm"]);
-  const stop = parseApexLocalOperatorRuntimeArgs(["--stop", "--no-open"]);
+  const stop = parseApexLocalOperatorRuntimeArgs(["--stop", "--no-open", "--no-prepare-brain"]);
   const disabledWarm = parseApexLocalOperatorRuntimeArgs(["--no-keep-warm"]);
 
   assert.equal(status.statusOnly, true);
@@ -63,6 +64,7 @@ test("Apex local operator runtime args support status stop json no-open and keep
   assert.equal(stop.stop, true);
   assert.equal(stop.open, false);
   assert.equal(stop.cleanup, false);
+  assert.equal(stop.prepareBrain, false);
 });
 
 test("Apex local operator runtime args support shortcuts and desktop shell flags", () => {
@@ -184,10 +186,19 @@ test("Apex local operator runtime receipt marks llama.cpp primary and Ollama leg
   assert.equal(receipt.client.started, true);
   assert.equal(receipt.localIntelligence.provider, "llama.cpp");
   assert.equal(receipt.localIntelligence.primaryProvider, true);
+  assert.equal(receipt.localIntelligence.primaryRuntime.status, "resident");
+  assert.equal(receipt.localIntelligence.primaryRuntime.model, "gpt-oss:20b");
+  assert.equal(receipt.localIntelligence.primaryRuntime.keepAliveStyle, "llama-server-process-resident");
   assert.equal(receipt.localIntelligence.legacyFallbackProvider, "ollama");
   assert.match(receipt.localIntelligence.summary, /llama\.cpp is reachable/i);
+  assert.match(receipt.localIntelligence.summary, /GPT-OSS stays resident/i);
+  assert.equal(receipt.localIntelligence.normalModel.model, "gpt-oss:20b");
   assert.equal(receipt.localIntelligence.normalModel.status, "ready");
+  assert.equal(receipt.localIntelligence.codingModel.model, "gpt-oss:20b");
   assert.equal(receipt.localIntelligence.codingModel.status, "ready");
+  assert.equal(receipt.localIntelligence.legacyNormalModel.model, "qwen3:14b");
+  assert.equal(receipt.localIntelligence.legacyNormalModel.status, "ready");
+  assert.equal(receipt.localIntelligence.smallHelperStrategy.recommendedDefault, false);
   assert.equal(receipt.localIntelligence.openAiRequired, false);
   assert.equal(receipt.localIntelligence.openAiUsed, false);
   assert.equal(receipt.cleanup.status, "not-run");
@@ -315,8 +326,12 @@ test("Apex local operator runtime receipt reports missing local intelligence nee
   });
 
   assert.equal(receipt.status, "partial");
-  assert.equal(receipt.localIntelligence.normalModel.status, "ready");
-  assert.equal(receipt.localIntelligence.codingModel.status, "missing");
+  assert.equal(receipt.localIntelligence.normalModel.model, "gpt-oss:20b");
+  assert.equal(receipt.localIntelligence.normalModel.status, "checking");
+  assert.equal(receipt.localIntelligence.codingModel.model, "gpt-oss:20b");
+  assert.equal(receipt.localIntelligence.codingModel.status, "checking");
+  assert.equal(receipt.localIntelligence.legacyNormalModel.status, "ready");
+  assert.equal(receipt.localIntelligence.legacyCodingModel.status, "missing");
   assert.equal(receipt.nextNeeds.some((item) => /qwen3-coder:30b/i.test(item)), false);
   assert.match(receipt.nextNeeds.join(" "), /llama\.cpp sidecar/i);
   assert.match(receipt.summary, /llama\.cpp sidecar/i);
@@ -649,6 +664,15 @@ test("Apex local status mode does not cleanup or spawn services", async () => {
       vramTotalMb: 16303,
       vramUsedMb: 1000,
     },
+    llamaCpp: {
+      provider: "llama.cpp",
+      available: true,
+      status: "available",
+      canChatNow: true,
+      modelNames: ["gpt-oss:20b"],
+      loadedModel: { model: "gpt-oss:20b", matchedKnownFile: true },
+      models: [{ model: "gpt-oss:20b", fileAvailable: true, loaded: true }],
+    },
     localVoice: {
       status: "ready",
       canHearLocally: true,
@@ -675,6 +699,8 @@ test("Apex local status mode does not cleanup or spawn services", async () => {
   assert.equal(receipt.cleanup.status, "not-run");
   assert.equal(receipt.supervisor.singleInstance, true);
   assert.equal(receipt.background.keepWarmEnabled, false);
+  assert.equal(receipt.background.primaryRuntimeReady, true);
+  assert.equal(receipt.background.primaryRuntimeModel, "gpt-oss:20b");
   assert.equal(receipt.background.keepAlive, "30m");
   assert.equal(receipt.background.latency.profile.provider, "apex-latency-profiler");
   assert.equal(receipt.desktopShell.status, "not-run");

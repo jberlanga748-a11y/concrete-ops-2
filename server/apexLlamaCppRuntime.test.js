@@ -63,11 +63,15 @@ function fakeChild(pid = 12345) {
     pid,
     killed: false,
     exitCode: null,
+    unrefCalled: false,
     kill(signal = "SIGTERM") {
       this.signal = signal;
       this.killed = true;
       this.exitCode = 0;
       return true;
+    },
+    unref() {
+      this.unrefCalled = true;
     },
   };
 }
@@ -170,6 +174,40 @@ test("stop only stops the Apex-owned llama.cpp child process", async () => {
     assert.equal(secondStop.status, "noop");
     assert.equal(secondStop.processStopped, false);
     assert.equal(secondStop.runtime.randomProcessesTouched, false);
+  });
+});
+
+test("prepare-gpt can detach the sidecar for one-shot local launcher runs", async () => {
+  await withRuntimeFiles(async ({ exePath, modelPath }) => {
+    const spawnCalls = [];
+    const child = fakeChild(86420);
+    const statuses = [unavailableStatus(), readyStatus()];
+
+    const receipt = await runApexLlamaCppRuntimeAction({
+      action: "prepare-gpt",
+      detachProcess: true,
+      env: {
+        [APEX_LLAMA_CPP_RUNTIME_ENV.EXE_PATH]: exePath,
+        [APEX_LLAMA_CPP_ENV.GPT_OSS_GGUF]: modelPath,
+      },
+      providerStatusImpl: async () => statuses.shift() || readyStatus(),
+      reloadOllamaImpl: async () => ({ provider: "apex-ollama-brain-reload", status: "completed" }),
+      spawnImpl: (command, args, options) => {
+        spawnCalls.push({ command, args, options });
+        return child;
+      },
+      sleepImpl: async () => {},
+      waitMs: 5_000,
+    });
+
+    assert.equal(receipt.status, "completed");
+    assert.equal(receipt.canChatNow, true);
+    assert.equal(receipt.processStarted, true);
+    assert.equal(receipt.processOwned, false);
+    assert.equal(receipt.processDetached, true);
+    assert.equal(child.unrefCalled, true);
+    assert.equal(spawnCalls[0].options.detached, true);
+    assert.equal(receipt.runtime.ownedProcessActive, false);
   });
 });
 

@@ -11427,7 +11427,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
   async function runCockpitTypedLiveLatencyBenchmark() {
     if (!state.canView || !sessionToken || cockpitLiveBenchmarkBusy) return null;
     setCockpitLiveBenchmarkBusy("typed");
-    setCockpitVoiceNotice("Running visible typed latency benchmark through the local resident qwen3:14b lane. No mic, raw prompt, or raw response will be stored.");
+    setCockpitVoiceNotice("Running visible typed latency benchmark through the local resident llama.cpp/GPT-OSS lane. No mic, raw prompt, or raw response will be stored.");
     try {
       const payload = await runApexOsTypedLiveTurnBenchmark(sessionToken, {
         explicitUserStarted: true,
@@ -13821,7 +13821,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                         <span className="shrink-0 rounded-md border border-emerald-300/18 bg-emerald-500/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-emerald-200">{cockpitLocalIntelligence.rows.find((row) => row.label === "GPU")?.value || "GPU checking"}</span>
                         <span className={`shrink-0 rounded-md border px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] ${cockpitLocalIntelligence.brainThresholdStatus === "hard-rollback" || cockpitLocalIntelligence.brainThresholdStatus === "reload-needed" ? "border-red-300/20 bg-red-500/10 text-red-200" : cockpitLocalIntelligence.brainThresholdStatus === "soft-threshold" ? "border-orange-300/18 bg-orange-500/10 text-orange-200" : "border-emerald-300/18 bg-emerald-500/10 text-emerald-200"}`}>VRAM {cockpitLocalIntelligence.brainVramLabel}</span>
                         <span className="shrink-0 rounded-md border border-cyan-300/14 bg-cyan-500/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-cyan-200">Cloud disabled</span>
-                        <span className={`shrink-0 rounded-md border px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] ${cockpitBackgroundPayload?.keepWarm?.enabled ? "border-emerald-300/18 bg-emerald-500/10 text-emerald-200" : "border-slate-700 bg-slate-950/60 text-slate-300"}`}>Warm {cockpitBackgroundPayload?.keepWarm?.enabled ? `${cockpitLocalIntelligence.agentNumCtx}` : "off"}</span>
+                        <span className={`shrink-0 rounded-md border px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] ${cockpitBackgroundPayload?.primaryRuntime?.ready || cockpitBackgroundPayload?.keepWarm?.enabled ? "border-emerald-300/18 bg-emerald-500/10 text-emerald-200" : "border-slate-700 bg-slate-950/60 text-slate-300"}`}>Warm {cockpitBackgroundPayload?.primaryRuntime?.ready ? "GPT" : cockpitBackgroundPayload?.keepWarm?.enabled ? "legacy" : "off"}</span>
                         <span className="shrink-0 rounded-md border border-cyan-300/14 bg-cyan-500/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-cyan-200">Bench {cockpitLocalIntelligence.lastBenchmarkLabel}</span>
                         <span className="shrink-0 rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-slate-300">OpenAI not used</span>
                       </div>

@@ -4508,6 +4508,10 @@ function buildApexLocalReadinessSummary(localProviderStatus = null) {
     || localProviderStatus?.localIntelligence?.benchmarkHistory
     || {};
   const keepWarm = localProviderStatus?.background?.keepWarm || localProviderStatus?.keepWarm || {};
+  const primaryRuntime = localProviderStatus?.background?.primaryRuntime
+    || localProviderStatus?.primaryRuntime
+    || localProviderStatus?.localIntelligence?.primaryRuntime
+    || {};
   const brain = rawBrain.provider === "apex-workstation-brain"
     ? rawBrain
     : buildApexWorkstationBrainStatus({
@@ -4526,6 +4530,11 @@ function buildApexLocalReadinessSummary(localProviderStatus = null) {
   const deepCodingReady = hasApexLocalModel(legacyModelNames, APEX_LOCAL_DEEP_CODING_MODEL);
   const legacyFallbackReady = Boolean(ollama.available && hasApexLocalModel(legacyModelNames, APEX_LOCAL_OLLAMA_FALLBACK_MODEL));
   const providerStatus = providerAvailable ? "available" : llamaCpp.status || "unknown";
+  const primaryRuntimeReady = Boolean(
+    primaryRuntime.ready
+    || primaryRuntime.status === "resident"
+    || (providerAvailable && normalReady),
+  );
   const overall = providerAvailable && normalReady
     ? "ready"
     : providerAvailable || hasModelData || legacyFallbackReady
@@ -4584,6 +4593,16 @@ function buildApexLocalReadinessSummary(localProviderStatus = null) {
       coderAutoWarm: false,
       noCloudFallback: true,
     },
+    primaryRuntime: {
+      provider: APEX_LOCAL_PRIMARY_PROVIDER,
+      status: safeReceiptText(primaryRuntimeReady ? "resident" : primaryRuntime.status || providerStatus || "not-ready", 80),
+      model: safeReceiptText(primaryRuntime.model || llamaCpp.loadedModel?.model || APEX_LOCAL_TALK_MODEL, 120),
+      ready: primaryRuntimeReady,
+      processResident: primaryRuntimeReady,
+      ownedProcessActive: Boolean(primaryRuntime.ownedProcessActive),
+      keepAliveStyle: "llama-server-process-resident",
+      reason: safeReceiptText(primaryRuntime.reason || llamaCpp.reason || "", 160),
+    },
     stableResidency: {
       provider: "apex-local-agent-stable-residency",
       residentLane: safeReceiptText(stableResidency.residentLane || agentSpeed.residentLane || benchmarkHistory.stableResidency?.chosenResidentLane || "stable-4096", 80),
@@ -4632,6 +4651,7 @@ function buildApexLocalReadinessSummary(localProviderStatus = null) {
       targetNumCtx: Number(keepWarm.lastReceipt?.targetNumCtx || keepWarm.targetNumCtx || stableResidency.residentNumCtx || agentSpeed.residentNumCtx || 0) || 0,
       residentLane: safeReceiptText(keepWarm.residentLane || stableResidency.residentLane || agentSpeed.residentLane || "", 80),
       permanent: false,
+      legacyFallbackOnly: keepWarm.legacyFallbackOnly !== false,
     },
     benchmarkHistory: {
       status: safeReceiptText(benchmarkHistory.status || "empty", 40),
@@ -5236,9 +5256,11 @@ export function buildApexTalkToApexResponse({
     const residentText = local.stableResidency?.stable4096Active
       ? `Stable residency is using ${local.stableResidency.residentLane} at ${local.stableResidency.residentNumCtx} context, so fast answers and normal coding do not flip contexts each turn.`
       : `Stable residency is using fallback ${local.stableResidency?.residentNumCtx || 2048} context because local VRAM or benchmark evidence says to stay lighter.`;
-    const warmText = local.keepWarm?.enabled
-      ? `The ${local.keepWarm.targetModel} brain is set to stay warm with bounded ${local.keepWarm.keepAlive} residency while Apex is open.`
-      : "Brain keep-warm is off for this local session.";
+    const warmText = local.primaryRuntime?.ready
+      ? `${local.primaryRuntime.model} is resident by keeping the local llama.cpp server process alive.`
+      : local.keepWarm?.enabled
+        ? `Legacy Ollama fallback keep-warm is bounded at ${local.keepWarm.keepAlive} for ${local.keepWarm.targetModel}.`
+        : "No model is resident yet; the first local answer may need the llama.cpp sidecar started.";
     return {
       ...base,
       handled: true,
@@ -5284,11 +5306,13 @@ export function buildApexTalkToApexResponse({
       ? `Last local benchmark: ${benchmark.latestLane || "lane"} on ${benchmark.latestModel || APEX_LOCAL_TALK_MODEL} at ctx ${benchmark.latestNumCtx || "unknown"} took ${Math.round(benchmark.latestTotalDurationMs)} ms; average total is ${Math.round(benchmark.averageTotalDurationMs || benchmark.latestTotalDurationMs)} ms.`
       : benchmark.summary || "No local benchmark history yet; I will not run benchmarks unless you ask.";
     const stableLine = local.stableResidency?.residentNumCtx
-      ? `The old Ollama fallback residency evidence is ${local.stableResidency.residentLane} at ${local.stableResidency.residentNumCtx}; the primary path is llama.cpp/${local.normalModel.model}. Fast mode stays fast by avoiding unnecessary context flips and keeping output bounded. ${local.stableResidency.lastBenchmarkSummary || ""}`.trim()
+      ? `Older Ollama fallback residency evidence is ${local.stableResidency.residentLane} at ${local.stableResidency.residentNumCtx}; the primary path is now llama.cpp/${local.normalModel.model}. Fast mode stays fast by avoiding unnecessary context flips and keeping output bounded. ${local.stableResidency.lastBenchmarkSummary || ""}`.trim()
       : "Stable residency has not reported a resident context yet.";
-    const warmLine = local.keepWarm?.enabled
-      ? `The main ${local.keepWarm.targetModel} brain is kept warm with bounded ${local.keepWarm.keepAlive}; 30B is not warmed.`
-      : "Brain keep-warm is off right now, so the first answer can feel slower.";
+    const warmLine = local.primaryRuntime?.ready
+      ? `${local.primaryRuntime.model} is already resident in the llama.cpp process; legacy Ollama keep-warm is not needed for normal Apex.`
+      : local.keepWarm?.enabled
+        ? `Legacy Ollama keep-warm is bounded at ${local.keepWarm.keepAlive} for ${local.keepWarm.targetModel}; 30B is not warmed.`
+        : "No primary model is resident right now, so the first answer can feel slower until llama.cpp starts.";
     const issues = [
       !local.gpu.available ? "GPU status is not confirmed" : "",
       local.modelProcessor.processor === "cpu" ? "the latest model receipt shows CPU inference" : "",
@@ -5342,7 +5366,7 @@ export function buildApexTalkToApexResponse({
   if (brainCommand.status !== "detected" && /\b(what model are you using|what model is running|fast brain|deep brain|fast mode|deep mode)\b/i.test(normalized)) {
     const local = summary.localReadiness;
     const modeLine = `Apex uses local llama.cpp with ${local.normalModel.model} as the primary talking and normal coding brain when the sidecar is ready. Ollama/qwen is legacy fallback/status only: ${local.legacyFallbackModel.model} is ${local.legacyFallbackModel.status}, and ${APEX_LOCAL_DEEP_CODING_MODEL} is manual-only fallback/deep work.`;
-    const warmLine = local.keepWarm?.enabled ? `Legacy Ollama keep-warm is bounded at ${local.keepWarm.keepAlive} for ${local.keepWarm.targetModel}; the primary llama.cpp path is controlled by the local sidecar.` : "Legacy Ollama keep-warm is off for this session.";
+    const warmLine = local.primaryRuntime?.ready ? `${local.primaryRuntime.model} is resident in the local llama.cpp sidecar.` : local.keepWarm?.enabled ? `Legacy Ollama keep-warm is bounded at ${local.keepWarm.keepAlive} for ${local.keepWarm.targetModel}; the primary llama.cpp path is controlled by the local sidecar.` : "Legacy Ollama keep-warm is off for this session.";
     return {
       ...base,
       handled: true,

@@ -29,7 +29,7 @@ Implemented:
 - Knowledge Intelligence now uses local llama.cpp `/completion` by default for source-aware summaries when the selected model is available and policy/privacy/untrusted-content gates pass.
 - Knowledge source summaries / notes / research synthesis use the same primary llama.cpp GPT-OSS lane by default; deeper synthesis remains manual-only.
 - Knowledge Intelligence falls back to deterministic local source ranking/summaries if llama.cpp is offline, the selected model is missing, local output is malformed, privacy blocks the payload, or untrusted source content requires review.
-- Apex Stable Residency v1.3 is implemented for John's private local Apex operator. Active `apex:local` sessions keep only `qwen3:14b` warm with bounded `keep_alive` and prefer one stable resident context: stable `num_ctx=4096` when VRAM/benchmark evidence is healthy, fallback stable `2048` when VRAM is tight. Fast answers use shorter prompts/output caps and lower temperature instead of per-turn 2048/4096 flips; normal coding uses the same resident context unless a request explicitly needs more. The v1.3 benchmark compares stable 2048, stable 4096, and alternating 2048/4096 under `outputs/apex-local-agent-speed-v1-3/`; latest evidence chose stable 4096 after stable 4096 averaged 572 ms total / 160 ms first token with healthy VRAM, while alternating averaged 3228 ms / 2808 ms. No `32768`, no `keep_alive=-1`, no `qwen3-coder:30b` warm residency or auto-promotion, no OpenAI/Groq/cloud fallback, and no automatic benchmark runs.
+- Apex llama.cpp Resident Brain v1 is implemented for John's private local Apex operator. Active `apex:local` sessions now prepare the primary llama.cpp sidecar by default with `gpt-oss:20b`, keep that model resident by keeping the local `llama-server.exe` process alive, and unload legacy Ollama qwen residency during prepare so normal Apex does not compete with itself for VRAM. Ollama `qwen3:14b` stable-residency benchmark evidence remains useful legacy fallback/manual model evidence, but it is not the normal warm path anymore. `--status` stays read-only, `--no-prepare-brain` skips sidecar prepare for troubleshooting, `--keep-warm` is legacy Ollama fallback only, no `32768`, no `keep_alive=-1`, no `qwen3-coder:30b` warm residency or auto-promotion, no OpenAI/Groq/cloud fallback, and no automatic benchmark runs.
 
 Still not implemented:
 
@@ -171,7 +171,7 @@ First practical install target:
 1. `standard` / everyday: llama.cpp `gpt-oss:20b` for normal Apex OS private chat and source-backed work.
 2. `standard` / normal coding: llama.cpp `gpt-oss:20b` for everyday Builder/Self-Fix/code analysis when safety gates pass.
 3. `flagship-local` / manual deep coding: larger local coder/MoE models only when John explicitly asks for deep local coding or a benchmark shows it is worth trying.
-4. Add `nano` only if background loops need lower latency.
+4. Add/test a `nano` helper such as `qwen3:4b-instruct` only if GPT-OSS sidecar latency becomes a measured bottleneck for narrow intent routing or short summaries. Do not split normal Apex into multiple brains by default.
 5. Keep `flagship-local` manual-only until benchmarks show a specific deep request is worth the cost.
 
 ## No-Paid-Call Guard

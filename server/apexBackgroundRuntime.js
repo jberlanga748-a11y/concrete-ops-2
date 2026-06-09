@@ -16,6 +16,13 @@ import {
   getCachedApexLocalVoiceRuntimeStatus,
 } from "./apexLocalVoiceRuntime.js";
 import {
+  APEX_LLAMA_CPP_MODEL_ID,
+  getLlamaCppProviderStatus,
+} from "./apexLlamaCppProvider.js";
+import {
+  getApexLlamaCppRuntimeState,
+} from "./apexLlamaCppRuntime.js";
+import {
   readApexLocalAgentSpeedBenchmarkHistory,
 } from "./apexLocalAgentSpeedHistory.js";
 import {
@@ -106,6 +113,17 @@ function modelReadiness(modelNames = [], model = "") {
     installed,
     status: installed ? "ready" : "missing",
   });
+}
+
+function isPrimaryLlamaCppReady(llamaCpp = {}) {
+  if (!llamaCpp?.available || llamaCpp.canChatNow === false) return false;
+  const loadedModel = String(llamaCpp.loadedModel?.model || "").trim().toLowerCase();
+  if (loadedModel === APEX_LLAMA_CPP_MODEL_ID.GPT_OSS_20B && llamaCpp.loadedModel?.matchedKnownFile !== false) return true;
+  return (Array.isArray(llamaCpp.models) ? llamaCpp.models : []).some((row) => (
+    String(row?.model || "").trim().toLowerCase() === APEX_LLAMA_CPP_MODEL_ID.GPT_OSS_20B
+    && row.loaded
+    && row.fileAvailable !== false
+  ));
 }
 
 export function readApexBackgroundRuntimeConfig(input = {}) {
@@ -337,6 +355,8 @@ export function buildApexBackgroundRuntimeStatus({
   api = {},
   client = {},
   ollama = {},
+  llamaCpp = {},
+  llamaRuntime = null,
   gpu = {},
   localVoice = {},
   alwaysOpenMic = null,
@@ -354,6 +374,7 @@ export function buildApexBackgroundRuntimeStatus({
   const modelNames = Array.isArray(ollama.modelNames) ? ollama.modelNames : [];
   const defaultModel = modelReadiness(modelNames, APEX_OLLAMA_DEFAULT_CHAT_MODEL);
   const codingModel = modelReadiness(modelNames, APEX_OLLAMA_CODING_CHAT_MODEL);
+  const llamaReady = isPrimaryLlamaCppReady(llamaCpp);
   const voiceReady = Boolean(localVoice?.canHearLocally && localVoice?.canSpeakLocally);
   const micStatus = buildApexAlwaysOpenMicStatus(alwaysOpenMic || {});
   const brainStatus = brain?.provider === "apex-workstation-brain"
@@ -380,8 +401,7 @@ export function buildApexBackgroundRuntimeStatus({
   const degradedReasons = [
     api.ok === false ? "api-not-ready" : "",
     client.ok === false ? "client-not-ready" : "",
-    !ollama.available ? "ollama-not-ready" : "",
-    !defaultModel.installed ? `${APEX_OLLAMA_DEFAULT_CHAT_MODEL}-missing` : "",
+    !llamaReady ? "llama-cpp-not-ready" : "",
     !gpu.available ? "gpu-not-ready" : "",
     !voiceReady ? "voice-not-ready" : "",
   ].filter(Boolean);
@@ -409,8 +429,18 @@ export function buildApexBackgroundRuntimeStatus({
     modelReceipt: brainStatus.lastModelReceipt || brainStatus,
     modelQueue: brainStatus.queue,
     warmRuntime: {
-      fastPathActive: brainStatus.activeMode === "speed",
-      keepWarm: keepWarmReceipt,
+      fastPathActive: brainStatus.activeMode === "speed" || llamaReady,
+      primaryProviderReady: llamaReady,
+      targetModel: APEX_LLAMA_CPP_MODEL_ID.GPT_OSS_20B,
+      keepWarm: llamaReady
+        ? {
+            provider: "llama.cpp",
+            status: "ready",
+            enabled: true,
+            targetModel: APEX_LLAMA_CPP_MODEL_ID.GPT_OSS_20B,
+            keepAlive: "process-resident",
+          }
+        : keepWarmReceipt,
       voice: {
         ready: voiceReady,
         canHearLocally: Boolean(localVoice?.canHearLocally),
@@ -454,12 +484,43 @@ export function buildApexBackgroundRuntimeStatus({
     ollama: Object.freeze({
       status: ollama.status || "unknown",
       available: Boolean(ollama.available),
+      legacyFallback: true,
       defaultModel,
       codingModel,
       modelCount: Number(ollama.modelCount || modelNames.length || 0),
       modelNames: Object.freeze(modelNames.slice(0, 8)),
       openAiUsed: false,
       cloudDefault: "disabled",
+    }),
+    llamaCpp: Object.freeze({
+      provider: "llama.cpp",
+      status: llamaCpp.status || (llamaReady ? "available" : "unknown"),
+      available: Boolean(llamaCpp.available),
+      ready: llamaReady,
+      selectedModel: APEX_LLAMA_CPP_MODEL_ID.GPT_OSS_20B,
+      loadedModel: llamaCpp.loadedModel || null,
+      modelCount: Number(llamaCpp.modelCount || 0),
+      modelNames: Object.freeze(Array.isArray(llamaCpp.modelNames) ? llamaCpp.modelNames.slice(0, 8) : []),
+      canChatNow: Boolean(llamaReady),
+      primaryProvider: true,
+      keepAliveStyle: "llama-server-process-resident",
+      openAiUsed: false,
+      cloudDefault: "disabled",
+    }),
+    primaryRuntime: Object.freeze({
+      provider: "llama.cpp",
+      status: llamaReady ? "resident" : llamaRuntime?.lastAction?.status || llamaCpp.status || "not-ready",
+      ready: llamaReady,
+      model: APEX_LLAMA_CPP_MODEL_ID.GPT_OSS_20B,
+      ownedProcessActive: Boolean(llamaRuntime?.ownedProcessActive),
+      ownedPid: Number(llamaRuntime?.ownedPid || 0) || 0,
+      startedAt: llamaRuntime?.startedAt || "",
+      keepAliveStyle: "llama-server-process-resident",
+      legacyOllamaKeepWarmRequired: false,
+      reason: text(llamaRuntime?.lastAction?.reason || llamaCpp.reason || "", 160),
+      openAiUsed: false,
+      cloudUsed: false,
+      secretsExposed: false,
     }),
     brain: brainStatus,
     agentSpeed,
@@ -569,6 +630,7 @@ export function buildApexBackgroundRuntimeStatus({
     keepWarm: Object.freeze({
       enabled: Boolean(config.keepWarmEnabled),
       targetModel: config.keepWarmModel,
+      legacyFallbackOnly: true,
       keepAlive: config.keepAlive,
       keepAlivePermanent: false,
       lastReceipt: keepWarmReceipt,
@@ -630,12 +692,14 @@ export async function collectApexBackgroundRuntimeStatus(input = {}) {
   const config = input.config?.provider === "apex-background-runtime"
     ? input.config
     : readApexBackgroundRuntimeConfig(input);
-  const [ollama, gpu, localVoice, residency] = await Promise.all([
+  const [ollama, llamaCpp, gpu, localVoice, residency] = await Promise.all([
     input.ollama || getOllamaProviderStatus(input.ollamaInput || {}),
+    input.llamaCpp || getLlamaCppProviderStatus(input.llamaCppInput || {}),
     input.gpu || getApexGpuStatus(input.gpuInput || {}),
     input.localVoice || getCachedApexLocalVoiceRuntimeStatus(input.localVoiceInput || {}),
     input.residency || getApexOllamaResidencyStatus(input.residencyInput || {}),
   ]);
+  const llamaRuntime = input.llamaRuntime || getApexLlamaCppRuntimeState();
   const agentSpeedBenchmarkHistory = input.agentSpeedBenchmarkHistory
     || await readApexLocalAgentSpeedBenchmarkHistory(input.agentSpeedBenchmarkHistoryInput || {}).catch(() => null);
   const liveTurnLatencyHistory = input.liveTurnLatencyHistory
@@ -659,6 +723,8 @@ export async function collectApexBackgroundRuntimeStatus(input = {}) {
     api: input.api || { ok: true, status: "ready" },
     client: input.client || {},
     ollama,
+    llamaCpp,
+    llamaRuntime,
     gpu,
     localVoice,
     residency,

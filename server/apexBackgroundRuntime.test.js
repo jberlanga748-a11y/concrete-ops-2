@@ -163,6 +163,27 @@ test("background status marks local workstation components without execution", (
       modelNames: ["qwen3:14b", "qwen3-coder:30b"],
       modelCount: 2,
     },
+    llamaCpp: {
+      provider: "llama.cpp",
+      available: true,
+      status: "available",
+      canChatNow: true,
+      modelNames: ["gpt-oss:20b", "qwen3:4b-instruct", "qwen3:14b"],
+      modelCount: 3,
+      loadedModel: { model: "gpt-oss:20b", matchedKnownFile: true },
+      models: [
+        { model: "gpt-oss:20b", fileAvailable: true, loaded: true },
+        { model: "qwen3:4b-instruct", fileAvailable: true, loaded: false },
+        { model: "qwen3:14b", fileAvailable: true, loaded: false },
+      ],
+    },
+    llamaRuntime: {
+      provider: "apex-llama-cpp-runtime",
+      ownedProcessActive: true,
+      ownedPid: 4242,
+      model: "gpt-oss:20b",
+      startedAt: "2026-06-08T20:00:00.000Z",
+    },
     gpu: {
       provider: "nvidia-smi",
       status: "available",
@@ -250,7 +271,13 @@ test("background status marks local workstation components without execution", (
   });
 
   assert.equal(status.status, "healthy");
+  assert.equal(status.llamaCpp.ready, true);
+  assert.equal(status.llamaCpp.selectedModel, "gpt-oss:20b");
+  assert.equal(status.primaryRuntime.status, "resident");
+  assert.equal(status.primaryRuntime.model, "gpt-oss:20b");
+  assert.equal(status.primaryRuntime.legacyOllamaKeepWarmRequired, false);
   assert.equal(status.ollama.defaultModel.status, "ready");
+  assert.equal(status.ollama.legacyFallback, true);
   assert.equal(status.ollama.codingModel.status, "ready");
   assert.equal(status.brain.provider, "apex-workstation-brain");
   assert.equal(status.brain.activeMode, "speed");
@@ -290,7 +317,9 @@ test("background status marks local workstation components without execution", (
   assert.equal(status.latency.profile.provider, "apex-latency-profiler");
   assert.equal(status.latency.liveTurn.diagnosis, "model-fast-voice-slow");
   assert.equal(status.latency.liveTurn.bottleneckOwner, "voice-pipeline");
-  assert.equal(status.latency.warmRuntimeReady, false);
+  assert.equal(status.latency.warmRuntimeReady, true);
+  assert.equal(status.latency.profile.warmRuntime.ready, true);
+  assert.equal(status.latency.profile.warmRuntime.targetModel, "gpt-oss:20b");
   assert.equal(status.safety.windowsServiceRegistered, false);
   assert.equal(status.safety.externalExecutionAdded, false);
 });
@@ -301,6 +330,7 @@ test("background status degrades when infrastructure drops without exposing secr
     api: { ok: true, status: "ready" },
     client: { ok: true, status: "ready" },
     ollama: { available: false, status: "unavailable", modelNames: [] },
+    llamaCpp: { provider: "llama.cpp", available: false, status: "unavailable", modelNames: [] },
     gpu: { available: false, status: "unavailable", reason: "nvidia-smi-unavailable" },
     localVoice: { status: "missing", canHearLocally: false, canSpeakLocally: false },
     keepWarm: {
@@ -319,7 +349,8 @@ test("background status degrades when infrastructure drops without exposing secr
   });
 
   assert.equal(status.status, "degraded");
-  assert.equal(status.degradedReasons.includes("ollama-not-ready"), true);
+  assert.equal(status.degradedReasons.includes("llama-cpp-not-ready"), true);
+  assert.equal(status.degradedReasons.includes("ollama-not-ready"), false);
   assert.equal(status.degradedReasons.includes("gpu-not-ready"), true);
   assert.equal(status.degradedReasons.includes("voice-not-ready"), true);
   assert.equal(status.safety.openAiUsed, false);

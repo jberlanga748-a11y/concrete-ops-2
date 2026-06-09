@@ -141,7 +141,7 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /label: "Brain"/);
   assert.match(componentSource, /speed cap/);
   assert.match(componentSource, /VRAM \{cockpitLocalIntelligence\.brainVramLabel\}/);
-  assert.match(componentSource, /Warm \{cockpitBackgroundPayload\?\.keepWarm\?\.enabled/);
+  assert.match(componentSource, /Warm \{cockpitBackgroundPayload\?\.primaryRuntime\?\.ready/);
   assert.match(componentSource, /Bench \{cockpitLocalIntelligence\.lastBenchmarkLabel\}/);
   assert.match(componentSource, /label: "Benchmark"/);
   assert.match(componentSource, /cockpitRuntimeSttEngines/);

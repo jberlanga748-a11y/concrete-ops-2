@@ -126,6 +126,7 @@ function runtimeReceipt(input = {}) {
     processStarted: Boolean(input.processStarted),
     processStopped: Boolean(input.processStopped),
     processOwned: Boolean(input.processOwned),
+    processDetached: Boolean(input.processDetached),
     canChatNow: Boolean(input.canChatNow),
     manualOnly: false,
     primaryProvider: true,
@@ -382,14 +383,16 @@ export async function runApexLlamaCppRuntimeAction(input = {}) {
   const stopped = await stopOwnedRuntime(input);
   const ollamaUnload = await unloadOllamaIfRequested(input);
   const spawnImpl = input.spawnImpl || spawn;
+  const detachedProcess = input.detachProcess === true;
   let child = null;
   try {
     child = spawnImpl(config.exePath, config.args, {
       cwd: path.dirname(config.exePath),
       windowsHide: true,
-      detached: false,
+      detached: detachedProcess,
       stdio: "ignore",
     });
+    if (detachedProcess && typeof child?.unref === "function") child.unref();
   } catch {
     return runtimeReceipt({
       action,
@@ -402,12 +405,21 @@ export async function runApexLlamaCppRuntimeAction(input = {}) {
     });
   }
 
-  runtimeState.child = child;
-  runtimeState.pid = Math.round(safeNumber(child?.pid));
-  runtimeState.model = model;
-  runtimeState.modelFileName = config.modelFile.fileName;
-  runtimeState.port = config.port;
-  runtimeState.startedAt = new Date().toISOString();
+  if (detachedProcess) {
+    runtimeState.child = null;
+    runtimeState.pid = 0;
+    runtimeState.model = "";
+    runtimeState.modelFileName = "";
+    runtimeState.port = config.port;
+    runtimeState.startedAt = "";
+  } else {
+    runtimeState.child = child;
+    runtimeState.pid = Math.round(safeNumber(child?.pid));
+    runtimeState.model = model;
+    runtimeState.modelFileName = config.modelFile.fileName;
+    runtimeState.port = config.port;
+    runtimeState.startedAt = new Date().toISOString();
+  }
 
   const ready = await waitForReady({
     ...input,
@@ -425,7 +437,8 @@ export async function runApexLlamaCppRuntimeAction(input = {}) {
       ollamaUnload,
       processStarted: true,
       processStopped: stopped.stopped,
-      processOwned: true,
+      processOwned: !detachedProcess,
+      processDetached: detachedProcess,
       canChatNow: false,
     });
   }
@@ -439,7 +452,8 @@ export async function runApexLlamaCppRuntimeAction(input = {}) {
     ollamaUnload,
     processStarted: true,
     processStopped: stopped.stopped,
-    processOwned: true,
+    processOwned: !detachedProcess,
+    processDetached: detachedProcess,
     canChatNow: true,
   });
 }
