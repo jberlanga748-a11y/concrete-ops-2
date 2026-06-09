@@ -25,8 +25,13 @@ test("Apex Home Base v1 declares this PC as Apex dedicated local home", () => {
   assert.equal(manifest.launch.primaryCommand, "npm.cmd run apex:desktop");
   assert.equal(manifest.launch.shortcutCommand, "npm.cmd run apex:local -- --shortcuts-only");
   assert.equal(manifest.launch.dedicatedDesktopApp, true);
+  assert.equal(manifest.launch.trustedLocalDesktopSession, true);
+  assert.equal(manifest.launch.loginPromptExpected, false);
   assert.equal(manifest.launch.userShouldSeeLocalhost, false);
   assert.equal(manifest.launch.localhostIsInternalPlumbing, true);
+  assert.equal(manifest.runtime.trustedDesktopEntry.enabled, true);
+  assert.equal(manifest.runtime.trustedDesktopEntry.normalBrowserAuthPreserved, true);
+  assert.equal(manifest.runtime.trustedDesktopEntry.schemaChanged, false);
   assert.equal(manifest.runtime.brain.provider, "llama.cpp");
   assert.equal(manifest.runtime.brain.model, "gpt-oss:20b");
   assert.equal(manifest.runtime.legacyFallback.defaultUse, false);
@@ -35,6 +40,10 @@ test("Apex Home Base v1 declares this PC as Apex dedicated local home", () => {
   assert.equal(manifest.selfEditLoop.pushDefault, false);
   assert.equal(manifest.safety.openAiUsedByDefault, false);
   assert.equal(manifest.safety.deployAdded, false);
+  assert.equal(manifest.safety.schemaAuthSessionChanged, true);
+  assert.equal(manifest.safety.authSessionChangeScope, "local-desktop-loopback-only");
+  assert.equal(manifest.safety.schemaChanged, false);
+  assert.equal(manifest.safety.normalBrowserAuthPreserved, true);
   assert.equal(manifest.safety.permissionsLoosened, false);
 });
 

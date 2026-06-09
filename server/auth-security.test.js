@@ -9,6 +9,10 @@ import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 
 import { createUserRecord } from "./store.js";
+import {
+  APEX_DESKTOP_TRUSTED_SESSION_HEADER,
+  APEX_DESKTOP_TRUSTED_SESSION_VALUE,
+} from "../shared/apexDesktopTrustedEntry.js";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -226,8 +230,8 @@ function insertUser(sqliteFile, user) {
   const database = new DatabaseSync(sqliteFile);
   try {
     database.prepare(`
-      INSERT INTO users (id, email, name, role, phone, status, created_at, updated_at, last_login_at, password_hash)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO users (id, email, name, role, phone, status, created_at, updated_at, last_login_at, password_hash, operator_access)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       user.id,
       user.email,
@@ -239,11 +243,76 @@ function insertUser(sqliteFile, user) {
       user.updatedAt || user.createdAt || new Date().toISOString(),
       user.lastLoginAt || null,
       user.passwordHash,
+      user.operatorAccess ? 1 : 0,
     );
   } finally {
     database.close();
   }
 }
+
+test("local desktop trusted session requires the desktop header", async () => {
+  const fixture = await startServer();
+
+  try {
+    const denied = await requestJson(fixture.baseUrl, "/api/apex-os/local-desktop-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+
+    assert.equal(denied.response.status, 403);
+    assert.match(denied.payload.error, /desktop trusted entry header/i);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("local desktop trusted session opens the existing operator session without returning a bearer token", async () => {
+  const fixture = await startServer();
+
+  try {
+    insertUser(fixture.sqliteFile, createUserRecord({
+      id: "U-LOCAL-DESKTOP-OPERATOR",
+      email: "local-desktop-operator@apexhq.test",
+      password: "apexdemo123",
+      name: "John Local Operator",
+      role: "Operations Manager",
+      operatorAccess: true,
+    }));
+
+    const opened = await requestJson(fixture.baseUrl, "/api/apex-os/local-desktop-session", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        [APEX_DESKTOP_TRUSTED_SESSION_HEADER]: APEX_DESKTOP_TRUSTED_SESSION_VALUE,
+      },
+      body: "{}",
+    });
+
+    assert.equal(opened.response.status, 200);
+    assert.equal(opened.payload.token, undefined);
+    assert.equal(opened.payload.user.email, "local-desktop-operator@apexhq.test");
+    assert.equal(opened.payload.user.operatorAccess, true);
+    assert.equal(opened.payload.localDesktopSession.trustedLocalDesktop, true);
+    assert.equal(opened.payload.localDesktopSession.localOnly, true);
+    assert.equal(opened.payload.localDesktopSession.normalBrowserLoginPreserved, true);
+    assert.equal(opened.payload.localDesktopSession.schemaChanged, false);
+    assert.equal(opened.payload.localDesktopSession.permissionsLoosened, false);
+
+    const cookies = cookieHeaderFromResponse(opened.response);
+    assert.match(cookies, /apex_hq_session=/);
+    assert.match(cookies, /apex_hq_csrf=/);
+
+    const bootstrap = await requestJson(fixture.baseUrl, "/api/bootstrap", {
+      headers: { Cookie: cookies },
+    });
+    assert.equal(bootstrap.response.status, 200);
+    assert.equal(bootstrap.payload.user.email, "local-desktop-operator@apexhq.test");
+    assert.equal(bootstrap.payload.user.operatorAccess, true);
+  } finally {
+    await fixture.stop();
+  }
+});
 
 test("login rate limit blocks repeated bad credentials for the same target", async () => {
   const fixture = await startServer();

@@ -1,6 +1,9 @@
+const path = require("node:path");
+const { pathToFileURL } = require("node:url");
 const { app, BrowserWindow, Menu, session } = require("electron");
 
 const DEFAULT_APEX_URL = "http://localhost:5173/apex";
+const DEFAULT_APEX_API_URL = "http://localhost:4000";
 let mainWindow = null;
 
 function isLocalApexUrl(value = "") {
@@ -43,11 +46,65 @@ function installApexPermissionPolicy() {
   }
 }
 
-function createApexWindow() {
+async function loadTrustedEntryHelpers() {
+  const helperPath = path.join(__dirname, "..", "shared", "apexDesktopTrustedEntry.js");
+  return import(pathToFileURL(helperPath).href);
+}
+
+async function installTrustedDesktopCookies({ response, apiUrl }) {
+  const helpers = await loadTrustedEntryHelpers();
+  const setCookieHeaders = helpers.getSetCookieHeaders(response.headers);
+  const cookies = setCookieHeaders
+    .map((setCookie) => helpers.parseSetCookieForElectron(setCookie, apiUrl))
+    .filter(Boolean);
+
+  await Promise.all(cookies.map((cookie) => session.defaultSession.cookies.set(cookie)));
+  return cookies.length;
+}
+
+async function prepareTrustedDesktopSession() {
+  const helpers = await loadTrustedEntryHelpers();
+  const apiUrl = process.env.APEX_DESKTOP_API_URL || DEFAULT_APEX_API_URL;
+  const endpoint = helpers.apexDesktopTrustedSessionEndpoint(apiUrl);
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: helpers.buildApexDesktopTrustedSessionHeaders(),
+      body: "{}",
+    });
+
+    if (!response.ok) {
+      return Object.freeze({
+        status: "not-ready",
+        sessionSeeded: false,
+        reason: `trusted-session-http-${response.status}`,
+      });
+    }
+
+    const cookieCount = await installTrustedDesktopCookies({ response, apiUrl });
+    return Object.freeze({
+      status: cookieCount > 0 ? "ready" : "not-ready",
+      sessionSeeded: cookieCount > 0,
+      cookieCount,
+      trustedLocalDesktop: true,
+    });
+  } catch (error) {
+    return Object.freeze({
+      status: "not-ready",
+      sessionSeeded: false,
+      reason: String(error?.message || "trusted-session-request-failed").slice(0, 160),
+    });
+  }
+}
+
+async function createApexWindow() {
   const appUrl = process.env.APEX_DESKTOP_APP_URL || DEFAULT_APEX_URL;
   if (!isLocalApexUrl(appUrl)) {
     throw new Error("Apex desktop app can only open a local Apex URL.");
   }
+
+  const trustedSession = await prepareTrustedDesktopSession();
 
   mainWindow = new BrowserWindow({
     title: "Apex",
@@ -85,8 +142,16 @@ function createApexWindow() {
     mainWindow = null;
   });
 
+  mainWindow.apexTrustedSession = trustedSession;
   mainWindow.loadURL(appUrl);
   return mainWindow;
+}
+
+function openApexWindow() {
+  createApexWindow().catch((error) => {
+    console.error(`Apex desktop window failed: ${error?.message || error}`);
+    app.quit();
+  });
 }
 
 const gotLock = app.requestSingleInstanceLock();
@@ -105,11 +170,11 @@ if (!gotLock) {
   app.whenReady().then(() => {
     Menu.setApplicationMenu(null);
     installApexPermissionPolicy();
-    createApexWindow();
+    openApexWindow();
   });
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createApexWindow();
+    if (BrowserWindow.getAllWindows().length === 0) openApexWindow();
   });
 
   app.on("window-all-closed", () => {
@@ -119,5 +184,6 @@ if (!gotLock) {
 
 module.exports = {
   isLocalApexUrl,
+  prepareTrustedDesktopSession,
   shouldAllowLocalMediaPermission,
 };

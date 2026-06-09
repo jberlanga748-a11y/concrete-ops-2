@@ -10,11 +10,18 @@ import {
   startApexLocalOperatorRuntime,
 } from "./apex-local-operator-runtime.mjs";
 import {
+  APEX_DESKTOP_TRUSTED_SESSION_PATH,
+  DEFAULT_APEX_DESKTOP_API_URL,
+  apexDesktopTrustedSessionEndpoint,
+  normalizeApexDesktopApiUrl,
+} from "../shared/apexDesktopTrustedEntry.js";
+import {
   buildApexHomeBaseManifest,
   summarizeApexHomeBaseManifest,
 } from "../shared/apexHomeBaseManifest.js";
 
 const DEFAULT_APEX_APP_URL = "http://localhost:5173/apex";
+const DEFAULT_APEX_API_URL = DEFAULT_APEX_DESKTOP_API_URL;
 const DEFAULT_ELECTRON_MAIN = "desktop/apex-desktop-main.cjs";
 
 function text(value = "", limit = 240) {
@@ -45,6 +52,7 @@ function resolveElectronMain({
 export function parseApexDesktopAppArgs(argv = []) {
   const options = {
     appUrl: DEFAULT_APEX_APP_URL,
+    apiUrl: DEFAULT_APEX_API_URL,
     open: true,
     statusOnly: false,
     prepareBrain: true,
@@ -66,6 +74,7 @@ export function parseApexDesktopAppArgs(argv = []) {
     else if (arg === "--prepare-brain") options.prepareBrain = true;
     else if (arg === "--no-prepare-brain") options.prepareBrain = false;
     else if (arg.startsWith("--app-url=")) options.appUrl = arg.slice("--app-url=".length);
+    else if (arg.startsWith("--api-url=")) options.apiUrl = arg.slice("--api-url=".length);
     else if (arg.startsWith("--ready-timeout-ms=")) options.readyTimeoutMs = arg.slice("--ready-timeout-ms=".length);
     else if (arg.startsWith("--probe-timeout-ms=")) options.probeTimeoutMs = arg.slice("--probe-timeout-ms=".length);
     else throw new Error(`Unknown argument: ${arg}`);
@@ -74,6 +83,7 @@ export function parseApexDesktopAppArgs(argv = []) {
   if (!isLocalRuntimeUrl(options.appUrl)) {
     throw new Error("Apex desktop app can only open a local Apex URL.");
   }
+  options.apiUrl = normalizeApexDesktopApiUrl(options.apiUrl);
   options.readyTimeoutMs = safeTimeout(options.readyTimeoutMs, 45_000);
   options.probeTimeoutMs = safeTimeout(options.probeTimeoutMs, 1200);
   return options;
@@ -84,6 +94,7 @@ export function buildApexDedicatedDesktopAppPlan({
   appUrl = DEFAULT_APEX_APP_URL,
   electronBinary = resolveElectronBinary({ workspaceRoot }),
   electronMain = resolveElectronMain({ workspaceRoot }),
+  apiUrl = DEFAULT_APEX_API_URL,
   exists = existsSync,
   electronVersion = "",
 } = {}) {
@@ -104,6 +115,12 @@ export function buildApexDedicatedDesktopAppPlan({
     localhostUserVisible: false,
     localOnly: true,
     appUrl,
+    apiUrl: normalizeApexDesktopApiUrl(apiUrl),
+    trustedLocalDesktopSession: true,
+    trustedLocalDesktopSessionEndpoint: apexDesktopTrustedSessionEndpoint(apiUrl),
+    trustedLocalDesktopSessionPath: APEX_DESKTOP_TRUSTED_SESSION_PATH,
+    loginPromptExpected: false,
+    normalBrowserAuthPreserved: true,
     workspaceRoot,
     electronBinary,
     electronMain,
@@ -118,7 +135,9 @@ export function buildApexDedicatedDesktopAppPlan({
     startupRegistration: false,
     trayAppAdded: false,
     deployRequired: false,
-    schemaAuthSessionChanged: false,
+    schemaAuthSessionChanged: true,
+    schemaChanged: false,
+    authSessionChangeScope: "local-desktop-loopback-only",
     secretsExposed: false,
   });
 }
@@ -126,6 +145,7 @@ export function buildApexDedicatedDesktopAppPlan({
 export async function launchApexElectronWindow({
   workspaceRoot = process.cwd(),
   appUrl = DEFAULT_APEX_APP_URL,
+  apiUrl = DEFAULT_APEX_API_URL,
   electronBinary = resolveElectronBinary({ workspaceRoot }),
   electronMain = resolveElectronMain({ workspaceRoot }),
   spawnImpl = spawn,
@@ -146,6 +166,7 @@ export async function launchApexElectronWindow({
       env: {
         ...env,
         APEX_DESKTOP_APP_URL: appUrl,
+        APEX_DESKTOP_API_URL: normalizeApexDesktopApiUrl(apiUrl),
         APEX_DESKTOP_WORKSPACE_ROOT: workspaceRoot,
       },
       detached: true,
@@ -196,6 +217,7 @@ export async function startApexDedicatedDesktopApp(input = {}) {
   const desktopApp = buildApexDedicatedDesktopAppPlan({
     workspaceRoot,
     appUrl: options.appUrl,
+    apiUrl: options.apiUrl,
     electronBinary: input.electronBinary,
     electronMain: input.electronMain,
     exists: input.exists || existsSync,
@@ -203,6 +225,7 @@ export async function startApexDedicatedDesktopApp(input = {}) {
   });
   const homeBase = buildApexHomeBaseManifest({
     workspaceRoot,
+    apiUrl: options.apiUrl,
     clientUrl: options.appUrl,
     route: "/apex",
     generatedAt,
@@ -224,6 +247,7 @@ export async function startApexDedicatedDesktopApp(input = {}) {
     ? await (input.windowLauncher || launchApexElectronWindow)({
         workspaceRoot,
         appUrl: options.appUrl,
+        apiUrl: options.apiUrl,
         electronBinary: desktopApp.electronBinary,
         electronMain: desktopApp.electronMain,
         spawnImpl: input.spawnImpl || spawn,
@@ -271,9 +295,13 @@ export async function startApexDedicatedDesktopApp(input = {}) {
       cloudSttTtsUsed: false,
       hiddenMicCaptureAdded: false,
       productionTouched: false,
-      schemaAuthSessionChanged: false,
+      schemaAuthSessionChanged: true,
       permissionsLoosened: false,
       deployAdded: false,
+      trustedLocalDesktopSession: true,
+      normalBrowserAuthPreserved: true,
+      schemaChanged: false,
+      authSessionChangeScope: "local-desktop-loopback-only",
       secretsExposed: false,
     }),
   });
@@ -295,7 +323,7 @@ Options:
   --help                       Print this message.
 
 Safety:
-  Local-only desktop launcher. It starts or reuses the Apex local runtime, opens only the local Apex URL in a dedicated desktop window, keeps localhost as internal plumbing, and does not deploy, change schema/auth/session, touch production, expose secrets, add cloud fallback, or add hidden mic capture.
+  Local-only desktop launcher. It starts or reuses the Apex local runtime, opens only the local Apex URL in a dedicated desktop window, keeps localhost as internal plumbing, seeds a loopback-only desktop session for the existing Apex operator, and does not deploy, change schema, touch production, expose secrets, add cloud fallback, or add hidden mic capture.
 `);
 }
 
@@ -304,6 +332,7 @@ function printReceipt(receipt = {}) {
   console.log(`Status: ${receipt.status}`);
   console.log(`Home base: ${receipt.homeBase?.identity?.operatingRule || "This PC is Apex's dedicated home."}`);
   console.log(`Window: ${receipt.desktopApp?.currentBridgeDisplay || "Apex desktop window"} / ${receipt.launch?.status || "unknown"}`);
+  console.log(`Login: ${receipt.desktopApp?.loginPromptExpected === false ? "not expected in desktop app" : "unknown"}`);
   console.log(`Runtime: ${receipt.runtimeStatus || "unknown"} / ${receipt.runtime?.localIntelligence?.provider || "llama.cpp"} / ${receipt.runtime?.localIntelligence?.primaryRuntime?.model || "gpt-oss:20b"}`);
   console.log("Localhost: internal plumbing only");
   console.log("OpenAI/cloud: not used");
