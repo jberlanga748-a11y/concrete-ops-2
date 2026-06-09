@@ -42,6 +42,7 @@ export const APEX_OLLAMA_PROVIDER_STATUS = Object.freeze({
 
 const PRIVATE_CONFIG = Symbol("ollamaPrivateConfig");
 const SHORT_LIMIT = 180;
+const ASK_ANSWER_TEXT_LIMIT = 4000;
 const DEFAULT_TIMEOUT_MS = 1200;
 const DEFAULT_CHAT_TIMEOUT_MS = 60_000;
 const DEFAULT_CHAT_MAX_OUTPUT_TOKENS = 900;
@@ -324,7 +325,7 @@ function appendOllamaJsonOnlyInstruction(messages = [], model = APEX_OLLAMA_DEFA
   if (!safeMessages.length) return safeMessages;
   const first = safeMessages[0];
   const localModel = normalizeModelName(model) || APEX_OLLAMA_DEFAULT_CHAT_MODEL;
-  const localJsonInstruction = ` Local Ollama mode: you are responding through local Ollama model ${localModel}. If asked what model or provider is being used, say local Ollama ${localModel}, not any route alias from context. Return one JSON object only when you can. Do not include markdown, code fences, hidden reasoning, or <think> blocks.`;
+  const localJsonInstruction = ` Local Ollama mode: you are responding through local Ollama model ${localModel}. If asked what model or provider is being used, say local Ollama ${localModel}, not any route alias from context. Return one JSON object only when you can. Do not include markdown, code fences, hidden reasoning, <think> blocks, "read the rest", or "I can provide the rest" endings.`;
   return Object.freeze([
     Object.freeze({
       ...first,
@@ -867,7 +868,7 @@ export function parseOllamaApexOsAskPayload(payload = {}) {
     const extractedAnswer = parseJsonStringFieldFromText(content, ["answer", "response", "message", "summary"]);
     parsed = { answer: extractedAnswer || stripLocalReasoningArtifacts(content) };
   }
-  const answer = text(parsed.answer || parsed.response || parsed.message || parsed.summary, 2400);
+  const answer = text(parsed.answer || parsed.response || parsed.message || parsed.summary, ASK_ANSWER_TEXT_LIMIT);
   if (!answer) {
     throw new Error("ollama-chat-answer-empty");
   }

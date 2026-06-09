@@ -106,6 +106,7 @@ export const APEX_OS_ASK_CONTEXT_SCOPE_VALUES = Object.freeze([
 ]);
 
 const TEXT_LIMIT = 2400;
+const ANSWER_TEXT_LIMIT = 4000;
 const QUESTION_LIMIT = 1000;
 const TITLE_LIMIT = 140;
 const SHORT_LIMIT = 180;
@@ -879,8 +880,8 @@ function askSourceUri(requestId = "", suffix = "answer") {
 }
 
 function answerText(answer = {}) {
-  if (typeof answer === "string") return text(answer, 1600);
-  return text(answer.answer || "", 1600);
+  if (typeof answer === "string") return text(answer, ANSWER_TEXT_LIMIT);
+  return text(answer.answer || "", ANSWER_TEXT_LIMIT);
 }
 
 function handoffSafeAnswerText(answer = {}) {
@@ -1103,6 +1104,8 @@ export function buildApexOsAskOpenAiRequest(context, model = "") {
           "Do not execute external, customer-visible, provider, production, money, deletion, desktop, music, plugin, auth/schema, or irreversible actions from chat.",
           "Do not send, spend, charge, publish, deploy, delete, modify providers, modify auth/schema, or perform customer-visible/external actions without explicit approval and the proper gated workflow.",
           "Do not over-warn. State approval boundaries briefly only when relevant.",
+          "Answer completely within the current output budget. If John asks for the full answer, all details, a breakdown, a plan, or step-by-step reasoning, give the full useful answer instead of a teaser.",
+          "Do not end with or include phrases like read the rest, see the rest, continue reading, truncated, or I can provide the rest. If the topic is too large, give the best complete answer with compact sections inside this response.",
           "Always provide a useful next move.",
           "Return only JSON matching the schema.",
         ].join(" "),
@@ -1124,7 +1127,7 @@ export function parseOpenAiApexOsAskPayload(payload = {}) {
   return {
     ok: true,
     providerConfigured: true,
-    answer: text(parsed.answer, TEXT_LIMIT),
+    answer: text(parsed.answer, ANSWER_TEXT_LIMIT),
     sourceLabels: (Array.isArray(parsed.sourceLabels) ? parsed.sourceLabels : []).map((entry) => text(entry, 180)).filter(Boolean).slice(0, 8),
     approvalWarnings: (Array.isArray(parsed.approvalWarnings) ? parsed.approvalWarnings : []).map((entry) => text(entry, 260)).filter(Boolean).slice(0, 8),
     nextAction: text(parsed.nextAction, 240),

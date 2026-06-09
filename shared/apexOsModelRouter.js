@@ -75,14 +75,14 @@ const ROUTE_CONFIG = Object.freeze({
   [APEX_OS_MODEL_ROUTE.NORMAL_CHAT]: {
     tier: APEX_OS_MODEL_TIER.MINI,
     budgetLevel: APEX_OS_MODEL_BUDGET_LEVEL.SMALL,
-    routeMaxOutputTokens: 420,
+    routeMaxOutputTokens: 650,
     escalationAllowed: false,
     reason: "Normal private conversation should use a compact fast-answer tier.",
   },
   [APEX_OS_MODEL_ROUTE.PLANNING]: {
     tier: APEX_OS_MODEL_TIER.MINI,
     budgetLevel: APEX_OS_MODEL_BUDGET_LEVEL.NORMAL,
-    routeMaxOutputTokens: 1100,
+    routeMaxOutputTokens: 1600,
     escalationAllowed: true,
     reason: "Planning drafts usually fit the low-cost tier with optional escalation.",
   },
@@ -117,14 +117,14 @@ const ROUTE_CONFIG = Object.freeze({
   [APEX_OS_MODEL_ROUTE.COMPLEX_REASONING]: {
     tier: APEX_OS_MODEL_TIER.FLAGSHIP,
     budgetLevel: APEX_OS_MODEL_BUDGET_LEVEL.DEEP,
-    routeMaxOutputTokens: 1800,
+    routeMaxOutputTokens: 2600,
     escalationAllowed: true,
     reason: "Ambiguous multi-step strategy can use the strongest tier.",
   },
   [APEX_OS_MODEL_ROUTE.CODING_ANALYSIS]: {
     tier: APEX_OS_MODEL_TIER.FLAGSHIP,
     budgetLevel: APEX_OS_MODEL_BUDGET_LEVEL.DEEP,
-    routeMaxOutputTokens: 2000,
+    routeMaxOutputTokens: 2600,
     escalationAllowed: true,
     reason: "Coding architecture and bug analysis can use the strongest tier.",
   },
@@ -155,7 +155,7 @@ const BUDGET_MAX_OUTPUT_TOKENS = Object.freeze({
   [APEX_OS_MODEL_BUDGET_LEVEL.TINY]: 240,
   [APEX_OS_MODEL_BUDGET_LEVEL.SMALL]: 650,
   [APEX_OS_MODEL_BUDGET_LEVEL.NORMAL]: 1300,
-  [APEX_OS_MODEL_BUDGET_LEVEL.DEEP]: 2200,
+  [APEX_OS_MODEL_BUDGET_LEVEL.DEEP]: 2600,
 });
 
 const TEXT_LIMIT = 260;

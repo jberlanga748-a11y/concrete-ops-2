@@ -12,6 +12,8 @@ Status: saved plan only. Do not implement from this document while another Build
 
 2026-06-08: Apex Auto Effort v1 is the current private local model-effort behavior. `/apex` now defaults to Auto instead of sending `fast` on every Ask Apex turn, removes the visible effort dropdown from the daily surface, and lets the shared local lane policy pick fast, normal, coding, or explicit manual deep/reasoning/MoE/coder from the route and John wording. Short status/voice turns stay fast; detailed, full-answer, breakdown, comparison, diagnosis, and plan requests automatically get the larger normal answer budget; coding/build/debug routes use the coding lane; manual deep/reasoning/MoE/coder remains explicit-only. llama.cpp/GPT-OSS stays the primary local brain, Ollama stays legacy fallback only, no OpenAI/cloud fallback was added.
 
+2026-06-08: Apex Full Answer v1 is the current private local answer-continuity behavior. Ask Apex now has a no-teaser response contract: answer completely within the current output budget, do not end with "read the rest" / "I can provide the rest" style copy, and use compact sections instead of truncation language when John asks for full detail. Detailed/complex/coding route budgets and local lane caps were widened, long answer parser limits were raised for llama.cpp/Ollama/OpenAI-compatible parsing, and the latest typed answer area now scrolls instead of line-clamping to four lines.
+
 ### Private Local Operator Refinement Ledger
 
 Use this ledger after each phase. Do not treat these as blockers for the current pass unless John explicitly says to loop back now.
@@ -20,7 +22,7 @@ Use this ledger after each phase. Do not treat these as blockers for the current
 - Phase 2 avatar-first UI follow-up: diagnostics, status chips, benchmarks, Builder, patches, and receipts should stay hidden behind command-revealed overlays. The default screen should be Apex avatar, voice state, conversation strip, and optional prompt/transcript only.
 - Phase 3 voice-loop follow-up: voice should feel always ready on John's machine, with native local mic preferred, longer patience before turn close, no cut-off while John is talking, and clearer recovery when STT/TTS stalls. Browser permission workarounds remain a bridge, not the final target.
 - Phase 4 effort/model follow-up: keep tuning Auto from real turn receipts. Apex should explain its choice conversationally when asked, learn which prompts deserve full Normal output, and recommend manual reasoning/MoE/coder only when receipts prove it is worth the load.
-- Phase 5 answer-quality follow-up: Apex should stop ending with "read the rest" style truncation. It should answer fully when John asks for full detail, summarize only when the turn is voice-short or explicitly fast, and keep continuation available in the conversation strip.
+- Phase 5 answer-quality follow-up: tune full-answer style from real conversations. Apex should keep voice replies understandable, keep typed full answers complete, and add a clean "continue that section" conversation command without ever pretending the original answer was complete when it was not.
 - Phase 6 overlay follow-up: every hidden panel needs a spoken/typed command route, a compact open/close state, and no scroll-heavy dashboard wall on the home screen.
 - Phase 7 checkpoint follow-up: each loop ends with local-only validation, exact changed-file staging, local commits, and a clean or intentionally documented working tree before the next loop begins.
 

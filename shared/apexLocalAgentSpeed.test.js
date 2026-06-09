@@ -54,7 +54,7 @@ test("local agent speed auto effort expands detailed turns without manual dropdo
   assert.equal(detailed.effortId, APEX_LOCAL_AGENT_EFFORT_ID.NORMAL);
   assert.equal(detailed.modelId, APEX_LOCAL_AGENT_SPEED_MODEL.FAST);
   assert.equal(detailed.numCtx, 4096);
-  assert.equal(detailed.maxOutputTokens, 1400);
+  assert.equal(detailed.maxOutputTokens, 1800);
   assert.equal(detailed.routeSelectionMode, "automatic");
   assert.equal(detailed.effortAutoSelected, true);
   assert.equal(detailed.manualOnly, false);

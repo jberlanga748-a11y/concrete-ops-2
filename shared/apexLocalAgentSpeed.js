@@ -87,7 +87,7 @@ export const APEX_LOCAL_AGENT_SPEED_LANES = Object.freeze({
     numCtx: APEX_LOCAL_AGENT_SPEED_CONTEXT.CODING,
     maxNumCtx: APEX_LOCAL_AGENT_SPEED_CONTEXT.CODING,
     keepAlive: APEX_LOCAL_AGENT_SPEED_KEEP_ALIVE.CODING,
-    maxOutputTokens: 1400,
+    maxOutputTokens: 1800,
     autoSelectable: true,
     manualOnly: false,
     coderModel: false,
@@ -99,7 +99,7 @@ export const APEX_LOCAL_AGENT_SPEED_LANES = Object.freeze({
     numCtx: APEX_LOCAL_AGENT_SPEED_CONTEXT.CODING,
     maxNumCtx: APEX_LOCAL_AGENT_SPEED_CONTEXT.CODING,
     keepAlive: APEX_LOCAL_AGENT_SPEED_KEEP_ALIVE.CODING,
-    maxOutputTokens: 1400,
+    maxOutputTokens: 2200,
     autoSelectable: true,
     manualOnly: false,
     coderModel: false,
@@ -123,7 +123,7 @@ export const APEX_LOCAL_AGENT_SPEED_LANES = Object.freeze({
     numCtx: APEX_LOCAL_AGENT_SPEED_CONTEXT.EFFORT,
     maxNumCtx: APEX_LOCAL_AGENT_SPEED_CONTEXT.EFFORT,
     keepAlive: APEX_LOCAL_AGENT_SPEED_KEEP_ALIVE.REASONING,
-    maxOutputTokens: 1800,
+    maxOutputTokens: 2200,
     autoSelectable: false,
     manualOnly: true,
     coderModel: false,
@@ -135,7 +135,7 @@ export const APEX_LOCAL_AGENT_SPEED_LANES = Object.freeze({
     numCtx: APEX_LOCAL_AGENT_SPEED_CONTEXT.EFFORT,
     maxNumCtx: APEX_LOCAL_AGENT_SPEED_CONTEXT.EFFORT,
     keepAlive: APEX_LOCAL_AGENT_SPEED_KEEP_ALIVE.MOE,
-    maxOutputTokens: 1800,
+    maxOutputTokens: 2200,
     autoSelectable: false,
     manualOnly: true,
     coderModel: false,
@@ -147,7 +147,7 @@ export const APEX_LOCAL_AGENT_SPEED_LANES = Object.freeze({
     numCtx: APEX_LOCAL_AGENT_SPEED_CONTEXT.EFFORT,
     maxNumCtx: APEX_LOCAL_AGENT_SPEED_CONTEXT.EFFORT,
     keepAlive: APEX_LOCAL_AGENT_SPEED_KEEP_ALIVE.CODER,
-    maxOutputTokens: 2200,
+    maxOutputTokens: 2600,
     autoSelectable: false,
     manualOnly: true,
     coderModel: true,
@@ -159,7 +159,7 @@ export const APEX_LOCAL_AGENT_SPEED_LANES = Object.freeze({
     numCtx: APEX_LOCAL_AGENT_SPEED_CONTEXT.DEEP,
     maxNumCtx: APEX_LOCAL_AGENT_SPEED_CONTEXT.DEEP,
     keepAlive: APEX_LOCAL_AGENT_SPEED_KEEP_ALIVE.DEEP,
-    maxOutputTokens: 2200,
+    maxOutputTokens: 2600,
     autoSelectable: false,
     manualOnly: true,
     coderModel: true,
@@ -447,10 +447,12 @@ export function selectApexLocalAgentEffort(input = {}) {
     maxOutputTokens: resolvedEffortId === APEX_LOCAL_AGENT_EFFORT_ID.FAST
       ? 240
       : resolvedEffortId === APEX_LOCAL_AGENT_EFFORT_ID.NORMAL
-        ? 1400
+        ? 1800
         : resolvedEffortId === APEX_LOCAL_AGENT_EFFORT_ID.CODER
-          ? 2200
-          : 1800,
+          ? 2600
+          : resolvedEffortId === APEX_LOCAL_AGENT_EFFORT_ID.DEEP
+            ? 2600
+            : 2200,
     temperature: resolvedEffortId === APEX_LOCAL_AGENT_EFFORT_ID.FAST ? 0.12 : 0.16,
     manualOnly,
     autoSelectable: !manualOnly,
@@ -687,7 +689,11 @@ export function selectApexLocalAgentSpeedLane(input = {}) {
   const preserveFastCoderLane = lane.id === APEX_LOCAL_AGENT_SPEED_LANE_ID.FAST_CODER && !requestedEffort;
   const selectedModelId = preserveFastCoderLane ? lane.modelId : effort.modelId;
   const selectedKeepAlive = preserveFastCoderLane ? lane.keepAlive : effort.keepAlive;
-  const selectedMaxOutputTokens = preserveFastCoderLane ? lane.maxOutputTokens : effort.maxOutputTokens;
+  const selectedMaxOutputTokens = preserveFastCoderLane
+    ? lane.maxOutputTokens
+    : lane.id === APEX_LOCAL_AGENT_SPEED_LANE_ID.CODING && !requestedEffort
+      ? lane.maxOutputTokens
+      : effort.maxOutputTokens;
   const selectedManualOnly = Boolean(preserveFastCoderLane ? lane.manualOnly : effort.manualOnly || lane.manualOnly);
   const selectedAutoSelectable = Boolean(preserveFastCoderLane ? lane.autoSelectable : effort.autoSelectable && !lane.manualOnly);
   const selectedCoderModel = Boolean(preserveFastCoderLane ? lane.coderModel : lane.coderModel || effort.effortId === APEX_LOCAL_AGENT_EFFORT_ID.CODER);

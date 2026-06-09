@@ -13920,7 +13920,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                           <span className="shrink-0 rounded-md border border-cyan-300/18 bg-cyan-500/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-cyan-200">Apex Answer</span>
                           <span className="min-w-0 break-words text-[9px] font-bold leading-4 text-slate-400">{cockpitLastQuestion || "Typed answer"}</span>
                         </div>
-                        <p className={`line-clamp-4 min-w-0 break-words text-[10px] font-bold leading-4 ${cockpitError ? "text-red-200" : "text-slate-100"}`}>{cockpitError || cockpitAnswerText}</p>
+                        <p className={`max-h-44 min-w-0 overflow-y-auto break-words pr-1 text-[10px] font-bold leading-4 ${cockpitError ? "text-red-200" : "text-slate-100"}`}>{cockpitError || cockpitAnswerText}</p>
                         {(cockpitVoiceNotice || cockpitRecognitionError) ? (
                           <p className="min-w-0 break-words text-[9px] font-bold leading-4 text-cyan-100">{cockpitVoiceNotice || cockpitRecognitionError}</p>
                         ) : null}

@@ -488,6 +488,7 @@ test("Ollama Ask Apex chat helper selects local models and receipts processor sn
   assert.equal(Object.hasOwn(calls[1].body.options, "think"), false);
   assert.match(calls[1].body.messages[0].content, /Local Ollama mode/i);
   assert.match(calls[1].body.messages[0].content, /private local workstation operator/i);
+  assert.match(calls[1].body.messages[0].content, /read the rest/i);
   assert.match(calls[1].body.messages[0].content, new RegExp(APEX_OLLAMA_DEFAULT_CHAT_MODEL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.equal(Object.hasOwn(calls[1].body, "apexBrain"), false);
   assertNoSecrets(result);
@@ -521,11 +522,11 @@ test("Ollama chat request keeps coding lane scoped and deep lane manual", () => 
   assert.equal(coding.model, APEX_OLLAMA_DEFAULT_CHAT_MODEL);
   assert.equal(coding.keep_alive, "30m");
   assert.equal(coding.options.num_ctx, 4096);
-  assert.equal(coding.options.num_predict, 1400);
+  assert.equal(coding.options.num_predict, 2000);
   assert.equal(deep.model, "gpt-oss:20b");
   assert.equal(deep.keep_alive, "5m");
   assert.equal(deep.options.num_ctx, 8192);
-  assert.equal(deep.options.num_predict, 1800);
+  assert.equal(deep.options.num_predict, 2400);
   assert.equal(clampedNormal.model, APEX_OLLAMA_DEFAULT_CHAT_MODEL);
   assert.equal(clampedNormal.options.num_ctx, 4096);
   assert.equal(clampedNormal.keep_alive, "30m");
@@ -648,6 +649,23 @@ test("Ollama Ask Apex parser accepts response-shaped local JSON", () => {
   assert.equal(parsed.ok, true);
   assert.equal(parsed.answer, "Yes, John. I heard you locally.");
   assert.deepEqual(parsed.sourceLabels, ["Apex local voice"]);
+});
+
+test("Ollama Ask Apex parser preserves long complete local answers", () => {
+  const longAnswer = Array.from({ length: 130 }, (_, index) => `Local section ${index + 1} complete.`).join(" ");
+  const parsed = parseOllamaApexOsAskPayload({
+    message: {
+      content: JSON.stringify({
+        answer: longAnswer,
+        sourceLabels: ["local llama.cpp fallback"],
+        approvalWarnings: [],
+        nextAction: "Review local answer",
+      }),
+    },
+  });
+
+  assert.equal(parsed.answer, longAnswer);
+  assert.doesNotMatch(parsed.answer, /read the rest|provide the rest/i);
 });
 
 test("Ollama Ask Apex parser extracts response text from malformed local JSON", () => {

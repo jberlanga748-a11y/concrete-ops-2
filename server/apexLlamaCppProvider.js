@@ -33,7 +33,7 @@ const PRIVATE_CONFIG = Symbol("llamaCppPrivateConfig");
 const SHORT_LIMIT = 180;
 const DEFAULT_TIMEOUT_MS = 1200;
 const DEFAULT_CHAT_TIMEOUT_MS = 60_000;
-const MAX_OUTPUT_TOKENS = 2400;
+const MAX_OUTPUT_TOKENS = 3200;
 const LOCAL_HOSTNAMES = Object.freeze(new Set(["127.0.0.1", "localhost", "::1", "[::1]"]));
 
 const DEFAULT_LLAMA_CPP_MODELS = Object.freeze({

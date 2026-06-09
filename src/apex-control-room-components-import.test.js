@@ -119,6 +119,8 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(componentSource, /Auto effort/);
   assert.match(componentSource, /Auto picked \$\{cockpitLocalIntelligence\.effortLabel\}/);
   assert.match(componentSource, /30B \{cockpitLocalIntelligence\.coderStatusLabel\}/);
+  assert.match(componentSource, /max-h-44 min-w-0 overflow-y-auto/);
+  assert.doesNotMatch(componentSource, /line-clamp-4 min-w-0 break-words text-\[10px\] font-bold/);
   assert.match(componentSource, /buildApexPersonalOsCoreState/);
   assert.match(componentSource, /buildApexPersonalOsLocalVoiceReadiness/);
   assert.match(componentSource, /getApexOsBackgroundStatus/);

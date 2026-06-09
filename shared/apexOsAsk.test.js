@@ -192,13 +192,13 @@ test("Ask Apex uses compact model routing metadata without raw prompt content", 
   assert.equal(context.modelRoutingSummary.route, "coding-analysis");
   assert.equal(context.modelRoutingSummary.selectedTier, "flagship");
   assert.equal(context.modelRoutingSummary.selectedModelAlias, "gpt-4o");
-  assert.equal(context.modelRoutingSummary.maxOutputTokens, 2000);
+  assert.equal(context.modelRoutingSummary.maxOutputTokens, 2600);
   assert.equal(context.modelRoutingSummary.storesRawPrompt, false);
   assert.equal(context.modelRoutingSummary.storesRawResponse, false);
   assert.equal(Object.hasOwn(context.modelRoutingSummary, "question"), false);
   assert.equal(Object.hasOwn(context.modelRoutingSummary, "messages"), false);
   assert.equal(request.model, "gpt-4o");
-  assert.equal(request.max_tokens, 2000);
+  assert.equal(request.max_tokens, 2600);
   assert.match(request.messages[0].content, /compact modelRoutingSummary/i);
   assert.match(request.messages[0].content, /traceSummary and traceEntries/i);
   assert.equal(context.traceEntries.some((entry) => entry.eventType === "model-route" && entry.modelAlias === "gpt-4o"), true);
@@ -804,6 +804,8 @@ test("Ask Apex OpenAI request and parser keep strict source-backed shape", () =>
   assert.match(request.messages[0].content, /Use provided Apex HQ sources/i);
   assert.match(request.messages[0].content, /memoryRetrievalSummary as the compact Memory Retrieval \+ Compaction v0 packet/i);
   assert.match(request.messages[0].content, /actual provider model/i);
+  assert.match(request.messages[0].content, /Answer completely within the current output budget/i);
+  assert.match(request.messages[0].content, /read the rest/i);
 
   const requestPayload = JSON.parse(request.messages[1].content);
   assert.equal(requestPayload.context.providerRuntimeSummary.providerModel, request.model);
@@ -832,6 +834,27 @@ test("Ask Apex OpenAI request and parser keep strict source-backed shape", () =>
   assert.equal(parsed.providerConfigured, true);
   assert.equal(parsed.mode, "provider-source-backed");
   assert.equal(parsed.sourceLabels[0], "Apex OS master plan");
+});
+
+test("Ask Apex parser preserves long complete answers within the local budget", () => {
+  const longAnswer = Array.from({ length: 130 }, (_, index) => `Section ${index + 1} complete.`).join(" ");
+  const parsed = parseOpenAiApexOsAskPayload({
+    choices: [
+      {
+        message: {
+          content: JSON.stringify({
+            answer: longAnswer,
+            sourceLabels: ["Apex local answer"],
+            approvalWarnings: [],
+            nextAction: "Review complete answer",
+          }),
+        },
+      },
+    ],
+  });
+
+  assert.equal(parsed.answer, longAnswer);
+  assert.doesNotMatch(parsed.answer, /read the rest|provide the rest/i);
 });
 
 test("Ask Apex draft action payloads stay review-only", () => {

@@ -93,7 +93,7 @@ test("unknown routes fall back safely and never select flagship", () => {
   assert.equal(resolved.requestedRoute, "telepathy-router");
   assert.equal(resolved.selectedTier, APEX_OS_MODEL_TIER.MINI);
   assert.equal(resolved.budgetLevel, APEX_OS_MODEL_BUDGET_LEVEL.SMALL);
-  assert.equal(resolved.maxOutputTokens, 420);
+  assert.equal(resolved.maxOutputTokens, 650);
   assert.match(resolved.routeReason, /never flagship/i);
 
   const fallback = buildApexOsSafeModelRouteFallback({ requestedRoute: "unknown" });
@@ -103,7 +103,7 @@ test("unknown routes fall back safely and never select flagship", () => {
 test("max output token caps honor route and budget", () => {
   assert.equal(getApexOsMaxOutputTokens({ route: APEX_OS_MODEL_ROUTE.INTENT_CLASSIFICATION }), 180);
   assert.equal(getApexOsMaxOutputTokens({ route: APEX_OS_MODEL_ROUTE.COMPLEX_REASONING, budgetLevel: APEX_OS_MODEL_BUDGET_LEVEL.TINY }), 240);
-  assert.equal(getApexOsMaxOutputTokens({ route: APEX_OS_MODEL_ROUTE.CODING_ANALYSIS, budgetLevel: APEX_OS_MODEL_BUDGET_LEVEL.DEEP }), 2000);
+  assert.equal(getApexOsMaxOutputTokens({ route: APEX_OS_MODEL_ROUTE.CODING_ANALYSIS, budgetLevel: APEX_OS_MODEL_BUDGET_LEVEL.DEEP }), 2600);
   assert.equal(getApexOsMaxOutputTokens({ maxOutputTokens: 5000 }), 4000);
   assert.equal(getApexOsMaxOutputTokens({ maxOutputTokens: 12 }), 80);
 });
