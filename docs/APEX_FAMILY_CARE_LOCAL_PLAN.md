@@ -628,11 +628,20 @@ Phase 3A slice receipt (2026-06-09): added `buildApexFamilyCareCoordinatorPacket
 
 ### Phase 3B - Next Care Coordinator Follow-Up
 
-- [ ] Add human-reviewed prompt resolution state so family can mark coordinator prompts handled, deferred, or not useful.
+- [x] Add human-reviewed prompt resolution state so family can mark coordinator prompts handled, deferred, or not useful.
 - [ ] Connect the coordinator packet into Apex's private operator command path only after the Family Care app flow proves useful.
-- [ ] Add a daily digest review workflow that drafts what Dad/family should see without sending it automatically.
-- [ ] Add prompt usefulness/friction tracking so Apex can ask fewer, better questions.
-- [ ] Keep medication review confirmation-only and keep dosing, treatment, diagnosis, emergency, raw transcript/audio storage, real sends, cloud fallback, schema/auth/session changes, and Apex HQ exposure blocked unless explicitly approved.
+- [x] Add a daily digest review workflow that drafts what Dad/family should see without sending it automatically.
+- [x] Add prompt usefulness/friction tracking so Apex can ask fewer, better questions.
+- [x] Keep medication review confirmation-only and keep dosing, treatment, diagnosis, emergency, raw transcript/audio storage, real sends, cloud fallback, schema/auth/session changes, and Apex HQ exposure blocked unless explicitly approved.
+
+Phase 3B slice receipt (2026-06-09): added a local coordinator review packet and UI controls so family can mark Apex coordinator prompts handled, deferred, not useful, or reopened. Apex Health now shows a draft-only Daily Digest Review, prompt feedback counts, coordinator command-path status, provider-payload status, and raw-friction-text guardrails. The Apex brain can build metadata-only coordinator review receipts without enabling the operator command path, sends, provider payloads, cloud fallback, medication control, diagnosis, emergency replacement, raw audio, raw transcripts, raw prompts, raw responses, raw note text, schema/auth/session changes, deploys, or Apex HQ customer/product exposure. The operator command path remains deferred to Phase 3C after the Family Care flow proves useful. Focused validation: `node --test --test-concurrency=1 shared/apexFamilyCare.test.js shared/apexFamilyCareBrain.test.js shared/apexFamilyCareVoice.test.js shared/apexFamilyCareNotifications.test.js shared/apexFamilyCareKitchen.test.js shared/apexFamilyCareTestWeek.test.js src/apex-family-care-components-import.test.js src/pwa-config.test.js shared/permissions.test.js src/app-routing.test.js src/navigation-utils.test.js src/mobile-nav-utils.test.js src/app-navigation-components-import.test.js` passed 129/129.
+
+### Phase 3C - Apex Operator Command Path For Family Care
+
+- [ ] Connect the coordinator review packet into Apex's private operator command path only after family review proves the flow is useful.
+- [ ] Keep the command path operator-only and Family Care-only, with no Apex HQ customer/product exposure.
+- [ ] Keep receipts metadata-only with no raw note text, raw prompts, raw responses, raw audio, raw transcripts, secrets, customer data, or provider payloads.
+- [ ] Keep real sends, cloud fallback, medication control, diagnosis, emergency replacement, schema/auth/session changes, deploys, and production exposure blocked unless explicitly approved.
 
 ### Phase 3.5A - Standalone Boundary Release Prep
 
@@ -712,7 +721,7 @@ Complete the Current Next Step, advance the plan, then continue through foundati
 
 ## Current Next Step
 
-Next active build slice: Phase 3B - Next Care Coordinator Follow-Up.
+Next active build slice: Phase 3.5B - Next Standalone Boundary Follow-Up.
 
 Open validation track: Phase 7 - Family Test Week remains incomplete until one real family test week is run and reviewed. Do not mark Phase 7 complete from synthetic data or builder prep work.
 
@@ -720,9 +729,9 @@ Open approval-gated Phase 1A work: choose and approve the real family access mod
 
 Open Phase 2C work: add print/export doctor-brief polish only after the current doctor brief format is proven useful in family review.
 
-Open Phase 3B work: add coordinator prompt resolution, daily digest review, and usefulness/friction tracking after the first coordinator packet slice proves helpful.
+Open Phase 3C work: connect the coordinator review packet into Apex's private operator command path only after Family Care flow proves useful.
 
-Open Phase 3.5B work: choose the real family access/release path and add human-run install/smoke steps only after approval.
+Open approval-gated Phase 3.5B work: choose the real family access/release path and add human-run install/smoke steps only after approval.
 
 Open Phase 4B work: choose and approve the Family Care-specific local STT bridge before connecting real speech recognition.
 

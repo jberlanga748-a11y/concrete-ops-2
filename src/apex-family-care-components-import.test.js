@@ -48,6 +48,10 @@ test("Apex Family Care page contains family screens and no hidden mic APIs", () 
   assert.match(componentSource, /buildApexFamilyCareTestWeekRunPacket/);
   assert.match(componentSource, /addApexFamilyCareTestWeekFrictionNote/);
   assert.match(componentSource, /buildApexFamilyCareCoordinatorPacket/);
+  assert.match(componentSource, /buildApexFamilyCareCoordinatorReviewPacket/);
+  assert.match(componentSource, /normalizeApexFamilyCareCoordinatorReviewState/);
+  assert.match(componentSource, /applyApexFamilyCareCoordinatorPromptReview/);
+  assert.match(componentSource, /APEX_FAMILY_CARE_COORDINATOR_REVIEW_POLICY/);
   assert.match(componentSource, /Access Mode/);
   assert.match(componentSource, /Install Path/);
   assert.match(componentSource, /Boundary Checks/);
@@ -96,6 +100,17 @@ test("Apex Family Care page contains family screens and no hidden mic APIs", () 
   assert.match(componentSource, /No sends/);
   assert.match(componentSource, /No medication control/);
   assert.match(componentSource, /Metadata-only receipt/);
+  assert.match(componentSource, /Daily Digest Review/);
+  assert.match(componentSource, /Draft only/);
+  assert.match(componentSource, /Prompt feedback/);
+  assert.match(componentSource, /Handled/);
+  assert.match(componentSource, /Defer/);
+  assert.match(componentSource, /Not Useful/);
+  assert.match(componentSource, /Reopen/);
+  assert.match(componentSource, /Coordinator command path/);
+  assert.match(componentSource, /Coordinator provider payload/);
+  assert.match(componentSource, /Coordinator friction text/);
+  assert.match(componentSource, /No provider payload/);
   assert.match(componentSource, /Notification Decisions/);
   assert.match(componentSource, /Safe lock-screen copy/);
   assert.match(componentSource, /No live sends/);

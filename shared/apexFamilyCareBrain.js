@@ -18,6 +18,7 @@ export const APEX_FAMILY_CARE_BRAIN_ACTIONS = [
   "buildFamilyDigest",
   "listOpenConcerns",
   "buildCareCoordinatorPacket",
+  "buildCoordinatorReviewPacket",
   "markMedicationConfirmed",
 ];
 
@@ -62,6 +63,39 @@ export const APEX_FAMILY_CARE_COORDINATOR_POLICY = Object.freeze({
   emergencyReplacement: false,
 });
 
+export const APEX_FAMILY_CARE_COORDINATOR_REVIEW_POLICY = Object.freeze({
+  policyId: "apex-family-care-coordinator-review-v1",
+  phase: "phase-3b-care-coordinator-follow-up",
+  localOnly: true,
+  familyCareOnly: true,
+  apexHqProductWork: false,
+  humanReviewRequired: true,
+  operatorCommandPathEnabled: false,
+  operatorCommandPathDeferred: true,
+  dailyDigestDraftOnly: true,
+  autoSend: false,
+  smsSent: false,
+  emailSent: false,
+  pushSent: false,
+  providerPayloadCreated: false,
+  cloudUsed: false,
+  medicationConfirmationOnly: true,
+  medicationControl: false,
+  dosingAdvice: false,
+  treatmentInstructions: false,
+  rawPromptStored: false,
+  rawResponseStored: false,
+  rawAudioStored: false,
+  rawTranscriptStored: false,
+  rawNoteTextStoredInReceipt: false,
+  storesRawFrictionText: false,
+  medicalDiagnosis: false,
+  emergencyReplacement: false,
+});
+
+export const APEX_FAMILY_CARE_COORDINATOR_PROMPT_REVIEW_STATUSES = ["open", "handled", "deferred", "not-useful"];
+export const APEX_FAMILY_CARE_COORDINATOR_PROMPT_FEEDBACK = ["unrated", "useful", "too-much", "unclear", "duplicate", "wrong-time"];
+
 const MAX_RECEIPTS = 80;
 const OPEN_CONCERN_CATEGORIES = new Set(["concern", "pain", "mobility"]);
 const SAFE_METADATA_KEYS = new Set([
@@ -94,9 +128,29 @@ const SAFE_METADATA_KEYS = new Set([
   "medicationConfirmationOnly",
   "medicationControl",
   "changed",
+  "digestDraftReady",
+  "digestLineCount",
+  "draftOnly",
+  "openPromptCount",
+  "handledPromptCount",
+  "deferredPromptCount",
+  "notUsefulPromptCount",
+  "usefulPromptCount",
+  "tooMuchPromptCount",
+  "unclearPromptCount",
+  "duplicatePromptCount",
+  "wrongTimePromptCount",
+  "operatorCommandPathEnabled",
+  "operatorCommandPathDeferred",
+  "providerPayloadCreated",
+  "rawNoteTextStoredInReceipt",
+  "storesRawFrictionText",
   "found",
   "limit",
 ]);
+
+const PROMPT_REVIEW_STATUS_SET = new Set(APEX_FAMILY_CARE_COORDINATOR_PROMPT_REVIEW_STATUSES);
+const PROMPT_FEEDBACK_SET = new Set(APEX_FAMILY_CARE_COORDINATOR_PROMPT_FEEDBACK);
 
 function cleanText(value, maxLength = 96) {
   return String(value || "").replace(/\s+/g, " ").trim().slice(0, maxLength);
@@ -142,7 +196,7 @@ function createReceipt(action, generatedAt, metadata = {}) {
 }
 
 function isOpenConcern(note) {
-  if (note.status !== "active") return false;
+  if (note.status === "archived" || note.status === "needs-review") return false;
   if (note.urgent || note.severity === "severe" || note.category === "concern") return true;
   return OPEN_CONCERN_CATEGORIES.has(note.category) && note.severity !== "unknown";
 }
@@ -154,8 +208,11 @@ export function getApexFamilyCareBrainInterfaceSummary() {
     actions: APEX_FAMILY_CARE_BRAIN_ACTIONS,
     ...APEX_FAMILY_CARE_RECEIPT_PRIVACY,
     coordinatorPolicyId: APEX_FAMILY_CARE_COORDINATOR_POLICY.policyId,
+    coordinatorReviewPolicyId: APEX_FAMILY_CARE_COORDINATOR_REVIEW_POLICY.policyId,
     humanReviewRequired: true,
     autoSend: false,
+    operatorCommandPathEnabled: false,
+    operatorCommandPathDeferred: true,
     medicationConfirmationOnly: true,
     medicationControl: false,
   };
@@ -323,6 +380,194 @@ export function buildApexFamilyCareCoordinatorPacket(notes = [], options = {}) {
   };
 }
 
+function normalizePromptReviewRecord(input = {}, promptId = "", now = new Date()) {
+  const status = PROMPT_REVIEW_STATUS_SET.has(input.status) ? input.status : "open";
+  const feedback = PROMPT_FEEDBACK_SET.has(input.feedback) ? input.feedback : "unrated";
+  return {
+    promptId: cleanText(input.promptId || promptId, 120),
+    status,
+    feedback,
+    updatedAt: cleanText(input.updatedAt, 40) || now.toISOString(),
+    reviewedBy: cleanText(input.reviewedBy, 80) || "Family",
+  };
+}
+
+export function normalizeApexFamilyCareCoordinatorReviewState(input = {}, coordinatorPacket = {}, options = {}) {
+  const now = normalizeNow(options.now, new Date());
+  const prompts = Array.isArray(coordinatorPacket.prompts) ? coordinatorPacket.prompts : [];
+  const promptIds = new Set(prompts.map((prompt) => cleanText(prompt.id, 120)).filter(Boolean));
+  const records = Array.isArray(input.records) ? input.records : [];
+  const byPromptId = {};
+
+  for (const record of records) {
+    const promptId = cleanText(record?.promptId, 120);
+    if (!promptId || !promptIds.has(promptId)) continue;
+    byPromptId[promptId] = normalizePromptReviewRecord(record, promptId, now);
+  }
+
+  for (const prompt of prompts) {
+    const promptId = cleanText(prompt.id, 120);
+    if (!promptId || byPromptId[promptId]) continue;
+    byPromptId[promptId] = normalizePromptReviewRecord({ promptId }, promptId, now);
+  }
+
+  return {
+    schemaVersion: 1,
+    updatedAt: cleanText(input.updatedAt, 40) || now.toISOString(),
+    records: Object.values(byPromptId).sort((left, right) => left.promptId.localeCompare(right.promptId)),
+  };
+}
+
+export function applyApexFamilyCareCoordinatorPromptReview(input = {}, coordinatorPacket = {}, action = {}) {
+  const now = normalizeNow(action.now, new Date());
+  const promptId = cleanText(action.promptId, 120);
+  const status = PROMPT_REVIEW_STATUS_SET.has(action.status) ? action.status : "open";
+  const feedback = PROMPT_FEEDBACK_SET.has(action.feedback) ? action.feedback : (
+    status === "handled" ? "useful" : status === "not-useful" ? "too-much" : "unrated"
+  );
+  const reviewedBy = cleanText(action.reviewedBy, 80) || "Family";
+  const normalized = normalizeApexFamilyCareCoordinatorReviewState(input, coordinatorPacket, { now });
+  const records = normalized.records.map((record) => (
+    record.promptId === promptId
+      ? normalizePromptReviewRecord({ promptId, status, feedback, reviewedBy, updatedAt: now.toISOString() }, promptId, now)
+      : record
+  ));
+  const found = records.some((record) => record.promptId === promptId);
+
+  if (!found && promptId) {
+    records.push(normalizePromptReviewRecord({ promptId, status, feedback, reviewedBy, updatedAt: now.toISOString() }, promptId, now));
+  }
+
+  return normalizeApexFamilyCareCoordinatorReviewState({
+    ...normalized,
+    updatedAt: now.toISOString(),
+    records,
+  }, coordinatorPacket, { now });
+}
+
+function reviewCounts(records = []) {
+  const counts = {
+    open: 0,
+    handled: 0,
+    deferred: 0,
+    notUseful: 0,
+    useful: 0,
+    tooMuch: 0,
+    unclear: 0,
+    duplicate: 0,
+    wrongTime: 0,
+  };
+  for (const record of records) {
+    if (record.status === "open") counts.open += 1;
+    if (record.status === "handled") counts.handled += 1;
+    if (record.status === "deferred") counts.deferred += 1;
+    if (record.status === "not-useful") counts.notUseful += 1;
+    if (record.feedback === "useful") counts.useful += 1;
+    if (record.feedback === "too-much") counts.tooMuch += 1;
+    if (record.feedback === "unclear") counts.unclear += 1;
+    if (record.feedback === "duplicate") counts.duplicate += 1;
+    if (record.feedback === "wrong-time") counts.wrongTime += 1;
+  }
+  return counts;
+}
+
+export function buildApexFamilyCareCoordinatorReviewPacket(notes = [], reviewStateInput = {}, options = {}) {
+  const now = normalizeNow(options.now, new Date());
+  const coordinatorPacket = options.coordinatorPacket || buildApexFamilyCareCoordinatorPacket(notes, { now });
+  const familyDigest = buildApexFamilyCareFamilySummary(notes, now);
+  const normalizedReviewState = normalizeApexFamilyCareCoordinatorReviewState(reviewStateInput, coordinatorPacket, { now });
+  const recordsById = new Map(normalizedReviewState.records.map((record) => [record.promptId, record]));
+  const reviewedPrompts = coordinatorPacket.prompts.map((prompt) => ({
+    ...prompt,
+    review: recordsById.get(prompt.id) || normalizePromptReviewRecord({ promptId: prompt.id }, prompt.id, now),
+  }));
+  const counts = reviewCounts(normalizedReviewState.records);
+  const openPrompts = reviewedPrompts.filter((prompt) => prompt.review.status === "open" || prompt.review.status === "deferred");
+  const digestLines = [
+    familyDigest.headline,
+    ...familyDigest.keyPoints.slice(0, 4),
+    openPrompts.length
+      ? `${openPrompts.length} coordinator prompt${openPrompts.length === 1 ? "" : "s"} need family review.`
+      : "No coordinator prompts need family action right now.",
+  ].filter(Boolean);
+  const frictionSummary = counts.notUseful || counts.tooMuch || counts.unclear || counts.duplicate || counts.wrongTime
+    ? "Apex should ask fewer or clearer coordinator prompts."
+    : "Coordinator prompts look usable so far.";
+
+  return {
+    packetType: "apex-family-care-coordinator-review-packet",
+    generatedAt: now.toISOString(),
+    subject: APEX_FAMILY_CARE_SUBJECT,
+    policy: APEX_FAMILY_CARE_COORDINATOR_REVIEW_POLICY,
+    coordinatorPacket,
+    reviewState: normalizedReviewState,
+    reviewedPrompts,
+    openPrompts,
+    digestReview: {
+      draftOnly: true,
+      readyForHumanReview: true,
+      headline: familyDigest.headline,
+      lines: digestLines,
+      noSends: true,
+      providerPayloadCreated: false,
+      lockScreenSafePreview: familyDigest.lockScreenSafeNotification,
+    },
+    friction: {
+      summary: frictionSummary,
+      usefulPromptCount: counts.useful,
+      tooMuchPromptCount: counts.tooMuch,
+      unclearPromptCount: counts.unclear,
+      duplicatePromptCount: counts.duplicate,
+      wrongTimePromptCount: counts.wrongTime,
+      storesRawFrictionText: false,
+    },
+    summary: {
+      promptCount: reviewedPrompts.length,
+      openPromptCount: counts.open,
+      handledPromptCount: counts.handled,
+      deferredPromptCount: counts.deferred,
+      notUsefulPromptCount: counts.notUseful,
+      digestDraftReady: true,
+      operatorCommandPathEnabled: false,
+      operatorCommandPathDeferred: true,
+      nextHumanAction: openPrompts[0]?.detail || "Review the daily digest draft, then keep using quick updates.",
+    },
+    receipt: {
+      receiptType: "apex-family-care-coordinator-review",
+      schemaVersion: 1,
+      generatedAt: now.toISOString(),
+      subject: APEX_FAMILY_CARE_SUBJECT,
+      ...APEX_FAMILY_CARE_RECEIPT_PRIVACY,
+      ...APEX_FAMILY_CARE_COORDINATOR_REVIEW_POLICY,
+      metadata: safeMetadata({
+        action: "buildCoordinatorReviewPacket",
+        outcome: "ok",
+        coordinatorPromptCount: reviewedPrompts.length,
+        openPromptCount: counts.open,
+        handledPromptCount: counts.handled,
+        deferredPromptCount: counts.deferred,
+        notUsefulPromptCount: counts.notUseful,
+        usefulPromptCount: counts.useful,
+        tooMuchPromptCount: counts.tooMuch,
+        unclearPromptCount: counts.unclear,
+        duplicatePromptCount: counts.duplicate,
+        wrongTimePromptCount: counts.wrongTime,
+        digestDraftReady: true,
+        digestLineCount: digestLines.length,
+        draftOnly: true,
+        autoSend: false,
+        providerPayloadCreated: false,
+        operatorCommandPathEnabled: false,
+        operatorCommandPathDeferred: true,
+        rawNoteTextStoredInReceipt: false,
+        storesRawFrictionText: false,
+        medicationConfirmationOnly: true,
+        medicationControl: false,
+      }),
+    },
+  };
+}
+
 export function createApexFamilyCareBrain(initialNotes = [], options = {}) {
   const maxNotes = options.maxNotes || APEX_FAMILY_CARE_MAX_LOCAL_NOTES;
   let notes = listApexFamilyCareNotes(initialNotes, { limit: maxNotes, status: "" });
@@ -442,6 +687,30 @@ export function createApexFamilyCareBrain(initialNotes = [], options = {}) {
     return { coordinatorPacket, receipt };
   }
 
+  function buildCoordinatorReviewPacket(reviewStateInput = {}, actionOptions = {}) {
+    const now = readNow(actionOptions);
+    const reviewPacket = buildApexFamilyCareCoordinatorReviewPacket(notes, reviewStateInput, { now });
+    const receipt = pushReceipt("buildCoordinatorReviewPacket", now, {
+      coordinatorPromptCount: reviewPacket.summary.promptCount,
+      openPromptCount: reviewPacket.summary.openPromptCount,
+      handledPromptCount: reviewPacket.summary.handledPromptCount,
+      deferredPromptCount: reviewPacket.summary.deferredPromptCount,
+      notUsefulPromptCount: reviewPacket.summary.notUsefulPromptCount,
+      digestDraftReady: true,
+      digestLineCount: reviewPacket.digestReview.lines.length,
+      draftOnly: true,
+      autoSend: false,
+      providerPayloadCreated: false,
+      operatorCommandPathEnabled: false,
+      operatorCommandPathDeferred: true,
+      rawNoteTextStoredInReceipt: false,
+      storesRawFrictionText: false,
+      medicationConfirmationOnly: true,
+      medicationControl: false,
+    });
+    return { reviewPacket, receipt };
+  }
+
   function markMedicationConfirmed(input = {}, actionOptions = {}) {
     const now = readNow(actionOptions);
     const confirmedBy = cleanText(input.confirmedBy || input.reporter || "Family", 80) || "Family";
@@ -554,6 +823,7 @@ export function createApexFamilyCareBrain(initialNotes = [], options = {}) {
     buildFamilyDigest,
     listOpenConcerns,
     buildCareCoordinatorPacket,
+    buildCoordinatorReviewPacket,
     markMedicationConfirmed,
     getNotes,
     getReceipts,

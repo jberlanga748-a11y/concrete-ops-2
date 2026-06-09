@@ -22,8 +22,12 @@ import {
   updateApexFamilyCareNote,
 } from "../shared/apexFamilyCare.js";
 import {
+  APEX_FAMILY_CARE_COORDINATOR_REVIEW_POLICY,
+  applyApexFamilyCareCoordinatorPromptReview,
   buildApexFamilyCareCoordinatorPacket,
+  buildApexFamilyCareCoordinatorReviewPacket,
   getApexFamilyCareBrainInterfaceSummary,
+  normalizeApexFamilyCareCoordinatorReviewState,
 } from "../shared/apexFamilyCareBrain.js";
 import {
   APEX_FAMILY_CARE_HOUSEHOLD_DEVICE_PRESENCE_POLICY,
@@ -63,6 +67,7 @@ const STORAGE_KEY = "apex-family-care-local-notes-v1";
 const NOTIFICATION_STORAGE_KEY = "apex-family-care-notification-preferences-v1";
 const KITCHEN_STORAGE_KEY = "apex-family-care-kitchen-device-v1";
 const TEST_WEEK_STORAGE_KEY = "apex-family-care-test-week-v1";
+const COORDINATOR_REVIEW_STORAGE_KEY = "apex-family-care-coordinator-review-v1";
 
 const SCREEN_LABELS = {
   today: "Today",
@@ -165,6 +170,18 @@ function loadInitialTestWeekState() {
     return normalizeApexFamilyCareTestWeekState(JSON.parse(stored));
   } catch {
     return defaults;
+  }
+}
+
+function loadInitialCoordinatorReviewState() {
+  if (typeof window === "undefined") return { schemaVersion: 1, records: [] };
+  try {
+    const stored = window.localStorage.getItem(COORDINATOR_REVIEW_STORAGE_KEY);
+    if (!stored) return { schemaVersion: 1, records: [] };
+    const parsed = JSON.parse(stored);
+    return parsed && typeof parsed === "object" ? parsed : { schemaVersion: 1, records: [] };
+  } catch {
+    return { schemaVersion: 1, records: [] };
   }
 }
 
@@ -1353,15 +1370,34 @@ function AccessView({ accessReadiness, boundaryReleasePrep, gate, standalone = f
   );
 }
 
-function HealthView({ accessReadiness, boundaryReleasePrep, gate, summary, latestVoiceReceipt, notificationState, kitchenStatus, householdPresence, testWeekSummary, coordinatorPacket }) {
+function promptReviewTone(status) {
+  if (status === "handled") return "green";
+  if (status === "deferred") return "amber";
+  if (status === "not-useful") return "slate";
+  return "blue";
+}
+
+function promptReviewLabel(status) {
+  if (status === "not-useful") return "Not useful";
+  return status;
+}
+
+function HealthView({ accessReadiness, boundaryReleasePrep, gate, summary, latestVoiceReceipt, notificationState, kitchenStatus, householdPresence, testWeekSummary, coordinatorPacket, coordinatorReviewPacket, onCoordinatorPromptReview }) {
   const brainInterface = getApexFamilyCareBrainInterfaceSummary();
   const coordinatorSummary = coordinatorPacket?.summary || {};
-  const coordinatorPrompts = coordinatorPacket?.prompts || [];
+  const coordinatorPrompts = coordinatorReviewPacket?.reviewedPrompts || coordinatorPacket?.prompts || [];
+  const coordinatorReviewSummary = coordinatorReviewPacket?.summary || {};
+  const coordinatorFriction = coordinatorReviewPacket?.friction || {};
+  const digestReview = coordinatorReviewPacket?.digestReview || {};
   const coordinatorStats = [
     ["Daily review", coordinatorPacket?.dailyReviewItems?.length ?? 0, "green"],
     ["Open concerns", coordinatorSummary.openConcernCount ?? 0, coordinatorSummary.openConcernCount ? "amber" : "green"],
     ["Doctor prep", coordinatorSummary.doctorPrepPromptCount ?? 0, coordinatorSummary.doctorPrepPromptCount ? "amber" : "green"],
     ["Medication review", coordinatorSummary.medicationReviewCount ?? 0, coordinatorSummary.medicationReviewCount ? "amber" : "green"],
+    ["Open prompts", coordinatorReviewSummary.openPromptCount ?? coordinatorPrompts.length, coordinatorReviewSummary.openPromptCount ? "amber" : "green"],
+    ["Handled", coordinatorReviewSummary.handledPromptCount ?? 0, "green"],
+    ["Deferred", coordinatorReviewSummary.deferredPromptCount ?? 0, coordinatorReviewSummary.deferredPromptCount ? "amber" : "slate"],
+    ["Not useful", coordinatorReviewSummary.notUsefulPromptCount ?? 0, coordinatorReviewSummary.notUsefulPromptCount ? "amber" : "slate"],
   ];
   const healthItems = [
     ["Public access", gate.publicAccess ? "Open" : "Closed", gate.publicAccess ? "red" : "green"],
@@ -1384,6 +1420,10 @@ function HealthView({ accessReadiness, boundaryReleasePrep, gate, summary, lates
     ["Care coordinator", coordinatorPrompts.length ? `${coordinatorPrompts.length} prompts` : "Quiet", coordinatorPrompts.length ? "amber" : "green"],
     ["Coordinator review", brainInterface.humanReviewRequired ? "Human" : "Auto", brainInterface.humanReviewRequired ? "green" : "red"],
     ["Coordinator sends", brainInterface.autoSend ? "On" : "Off", brainInterface.autoSend ? "red" : "green"],
+    ["Coordinator digest", coordinatorReviewSummary.digestDraftReady ? "Draft" : "Check", coordinatorReviewSummary.digestDraftReady ? "green" : "amber"],
+    ["Coordinator command path", APEX_FAMILY_CARE_COORDINATOR_REVIEW_POLICY.operatorCommandPathEnabled ? "On" : "Deferred", APEX_FAMILY_CARE_COORDINATOR_REVIEW_POLICY.operatorCommandPathEnabled ? "amber" : "green"],
+    ["Coordinator provider payload", APEX_FAMILY_CARE_COORDINATOR_REVIEW_POLICY.providerPayloadCreated ? "Created" : "None", APEX_FAMILY_CARE_COORDINATOR_REVIEW_POLICY.providerPayloadCreated ? "red" : "green"],
+    ["Coordinator friction text", APEX_FAMILY_CARE_COORDINATOR_REVIEW_POLICY.storesRawFrictionText ? "Stored" : "No raw text", APEX_FAMILY_CARE_COORDINATOR_REVIEW_POLICY.storesRawFrictionText ? "red" : "green"],
     ["Medication control", brainInterface.medicationControl ? "On" : "Off", brainInterface.medicationControl ? "red" : "green"],
     ["Voice explicit start", APEX_FAMILY_CARE_VOICE_POLICY.explicitUserStartedRequired ? "Required" : "Off", APEX_FAMILY_CARE_VOICE_POLICY.explicitUserStartedRequired ? "green" : "red"],
     ["Voice hidden recording", APEX_FAMILY_CARE_VOICE_POLICY.hiddenRecording ? "On" : "Off", APEX_FAMILY_CARE_VOICE_POLICY.hiddenRecording ? "red" : "green"],
@@ -1417,7 +1457,7 @@ function HealthView({ accessReadiness, boundaryReleasePrep, gate, summary, lates
       <Card className="p-4">
         <SectionHeader
           title="Apex Care Coordinator"
-          description={coordinatorSummary.nextHumanAction || "No coordinator prompts need action right now."}
+          description={coordinatorReviewSummary.nextHumanAction || coordinatorSummary.nextHumanAction || "No coordinator prompts need action right now."}
           action={<Badge tone={coordinatorPrompts.length ? "amber" : "green"}>{coordinatorPrompts.length ? `${coordinatorPrompts.length} prompts` : "Quiet"}</Badge>}
         />
         <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
@@ -1433,6 +1473,7 @@ function HealthView({ accessReadiness, boundaryReleasePrep, gate, summary, lates
           <Badge tone="green">No sends</Badge>
           <Badge tone="green">No medication control</Badge>
           <Badge tone="green">Metadata-only receipt</Badge>
+          <Badge tone="green">Draft only</Badge>
         </div>
         <div className="mt-3 grid gap-2">
           {coordinatorPrompts.length ? coordinatorPrompts.slice(0, 4).map((prompt) => (
@@ -1441,15 +1482,56 @@ function HealthView({ accessReadiness, boundaryReleasePrep, gate, summary, lates
                 <Badge tone={prompt.priority === "high" ? "amber" : "slate"}>{prompt.priority}</Badge>
                 <Badge tone="green">Human review</Badge>
                 <Badge tone="green">No sends</Badge>
+                <Badge tone={promptReviewTone(prompt.review?.status)}>{promptReviewLabel(prompt.review?.status || "open")}</Badge>
+                <Badge tone="slate">{prompt.review?.feedback || "unrated"}</Badge>
               </div>
               <p className="mt-2 break-words text-sm font-black text-slate-950">{prompt.label}</p>
               <p className="mt-1 break-words text-xs font-bold text-slate-600">{prompt.detail}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button type="button" variant="secondary" onClick={() => onCoordinatorPromptReview(prompt.id, "handled", "useful")}>
+                  <Icon name="check" /> Handled
+                </Button>
+                <Button type="button" variant="secondary" onClick={() => onCoordinatorPromptReview(prompt.id, "deferred", "wrong-time")}>
+                  <Icon name="clock" /> Defer
+                </Button>
+                <Button type="button" variant="secondary" onClick={() => onCoordinatorPromptReview(prompt.id, "not-useful", "too-much")}>
+                  <Icon name="alert" /> Not Useful
+                </Button>
+                <Button type="button" variant="secondary" onClick={() => onCoordinatorPromptReview(prompt.id, "open", "unrated")}>
+                  <Icon name="refresh" /> Reopen
+                </Button>
+              </div>
             </div>
           )) : (
             <div className="rounded-lg border border-slate-200 bg-white p-3 text-sm font-bold text-slate-600">
               Coordinator is quiet. Keep using quick updates and doctor prep.
             </div>
           )}
+        </div>
+      </Card>
+
+      <Card className="p-4">
+        <SectionHeader title="Daily Digest Review" description="Draft what the family should see, then keep it human-reviewed and unsent." />
+        <div className="mb-3 flex flex-wrap gap-2">
+          <Badge tone="blue">Draft only</Badge>
+          <Badge tone="green">No sends</Badge>
+          <Badge tone={digestReview.providerPayloadCreated ? "red" : "green"}>{digestReview.providerPayloadCreated ? "Provider payload" : "No provider payload"}</Badge>
+          <Badge tone="green">Human review required</Badge>
+        </div>
+        <div className="space-y-2">
+          {(digestReview.lines || ["No daily digest draft is ready yet."]).map((line) => (
+            <div key={line} className="rounded-lg border border-slate-200 bg-white p-3 text-sm font-bold text-slate-600">{line}</div>
+          ))}
+        </div>
+        <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
+          <p className="text-sm font-black text-slate-950">Prompt feedback</p>
+          <p className="mt-1 text-sm font-bold text-slate-600">{coordinatorFriction.summary || "Coordinator prompts have no feedback yet."}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Badge tone="green">{coordinatorFriction.usefulPromptCount || 0} useful</Badge>
+            <Badge tone={(coordinatorFriction.tooMuchPromptCount || 0) ? "amber" : "slate"}>{coordinatorFriction.tooMuchPromptCount || 0} too much</Badge>
+            <Badge tone={(coordinatorFriction.unclearPromptCount || 0) ? "amber" : "slate"}>{coordinatorFriction.unclearPromptCount || 0} unclear</Badge>
+            <Badge tone={(coordinatorFriction.duplicatePromptCount || 0) ? "amber" : "slate"}>{coordinatorFriction.duplicatePromptCount || 0} duplicate</Badge>
+          </div>
         </div>
       </Card>
 
@@ -1480,6 +1562,7 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
   const [testWeekDraft, setTestWeekDraft] = useState(newTestWeekDraft);
   const [timelineFilters, setTimelineFilters] = useState(newTimelineFilters);
   const [revisionDraft, setRevisionDraft] = useState(() => newRevisionDraft());
+  const [coordinatorReviewState, setCoordinatorReviewState] = useState(loadInitialCoordinatorReviewState);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1501,6 +1584,11 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
     window.localStorage.setItem(TEST_WEEK_STORAGE_KEY, JSON.stringify(testWeekState));
   }, [testWeekState]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(COORDINATOR_REVIEW_STORAGE_KEY, JSON.stringify(coordinatorReviewState));
+  }, [coordinatorReviewState]);
+
   const allNotes = useMemo(() => listApexFamilyCareNotes(notes, { limit: APEX_FAMILY_CARE_MAX_LOCAL_NOTES, status: "" }), [notes]);
   const sortedNotes = useMemo(() => listApexFamilyCareNotes(allNotes, { limit: APEX_FAMILY_CARE_MAX_LOCAL_NOTES }), [allNotes]);
   const todaySummary = useMemo(() => buildApexFamilyCareTodaySummary(sortedNotes), [sortedNotes]);
@@ -1508,6 +1596,12 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
   const familySummary = useMemo(() => buildApexFamilyCareFamilySummary(sortedNotes), [sortedNotes]);
   const reviewState = useMemo(() => buildApexFamilyCareReviewState(allNotes, timelineFilters), [allNotes, timelineFilters]);
   const coordinatorPacket = useMemo(() => buildApexFamilyCareCoordinatorPacket(allNotes), [allNotes]);
+  const normalizedCoordinatorReviewState = useMemo(() => (
+    normalizeApexFamilyCareCoordinatorReviewState(coordinatorReviewState, coordinatorPacket)
+  ), [coordinatorPacket, coordinatorReviewState]);
+  const coordinatorReviewPacket = useMemo(() => buildApexFamilyCareCoordinatorReviewPacket(allNotes, normalizedCoordinatorReviewState, {
+    coordinatorPacket,
+  }), [allNotes, coordinatorPacket, normalizedCoordinatorReviewState]);
   const kitchenStatus = useMemo(() => buildApexFamilyCareKitchenModeStatus(kitchenDeviceState), [kitchenDeviceState]);
   const householdPresence = useMemo(() => buildApexFamilyCareHouseholdDevicePresence(kitchenStatus), [kitchenStatus]);
   const notificationState = useMemo(() => buildApexFamilyCareNotificationState(sortedNotes, {
@@ -1683,6 +1777,16 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
     setActiveScreen("timeline");
   }
 
+  function handleCoordinatorPromptReview(promptId, status, feedback) {
+    setCoordinatorReviewState((current) => applyApexFamilyCareCoordinatorPromptReview(current, coordinatorPacket, {
+      promptId,
+      status,
+      feedback,
+      reviewedBy: "Family",
+      now: new Date(),
+    }));
+  }
+
   function handleSave() {
     const saved = createApexFamilyCareNote({
       ...draft,
@@ -1826,7 +1930,22 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
       />
     ),
     access: <AccessView accessReadiness={accessReadiness} boundaryReleasePrep={boundaryReleasePrep} gate={gate} standalone={standalone} />,
-    health: <HealthView accessReadiness={accessReadiness} boundaryReleasePrep={boundaryReleasePrep} gate={gate} summary={todaySummary} latestVoiceReceipt={latestVoiceReceipt} notificationState={notificationState} kitchenStatus={kitchenStatus} householdPresence={householdPresence} testWeekSummary={testWeekSummary} coordinatorPacket={coordinatorPacket} />,
+    health: (
+      <HealthView
+        accessReadiness={accessReadiness}
+        boundaryReleasePrep={boundaryReleasePrep}
+        gate={gate}
+        summary={todaySummary}
+        latestVoiceReceipt={latestVoiceReceipt}
+        notificationState={notificationState}
+        kitchenStatus={kitchenStatus}
+        householdPresence={householdPresence}
+        testWeekSummary={testWeekSummary}
+        coordinatorPacket={coordinatorPacket}
+        coordinatorReviewPacket={coordinatorReviewPacket}
+        onCoordinatorPromptReview={handleCoordinatorPromptReview}
+      />
+    ),
   };
 
   return (
