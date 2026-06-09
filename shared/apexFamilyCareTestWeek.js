@@ -284,6 +284,7 @@ export function buildApexFamilyCareTestWeekSummary(input = {}, notes = [], optio
   const evidenceReady = Boolean(
     state.realWeekCompleted
     && trackedDays >= 7
+    && state.houseScreenReady
     && fullWeekUsageEvidence
     && state.baselineStatusTextsPerDay > 0
     && state.afterStatusTextsPerDay >= 0

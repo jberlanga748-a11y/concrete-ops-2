@@ -59,6 +59,7 @@ test("real-week evidence summary can become review-ready but still requires huma
     }),
   ];
   let state = startApexFamilyCareTestWeek({
+    houseScreenReady: true,
     baselineStatusTextsPerDay: 8,
     afterStatusTextsPerDay: 3,
     doctorPrepBeforeRating: 2,
@@ -230,4 +231,36 @@ test("test week summary requires full-week usage evidence before review-ready", 
   assert.equal(summary.evidenceReady, false);
   assert.equal(packet.guideSteps.some((step) => step.id === "daily-fast-updates" && !step.done), true);
   assert.equal(packet.receipt.metadata.dailyCheckInCount, 6);
+});
+
+test("test week summary requires house screen readiness before review-ready", () => {
+  let state = startApexFamilyCareTestWeek({
+    houseScreenReady: false,
+    baselineStatusTextsPerDay: 8,
+    afterStatusTextsPerDay: 4,
+    doctorPrepBeforeRating: 2,
+    doctorPrepAfterRating: 4,
+    familyInformedBeforeRating: 2,
+    familyInformedAfterRating: 4,
+    dadExplanationBurdenBeforeRating: 5,
+    dadExplanationBurdenAfterRating: 3,
+    grandmaDignityRating: 5,
+    updatesUnder10Seconds: "yes",
+    dailyCheckIns: [true, true, true, true, true, true, true],
+  }, new Date("2026-06-09T08:00:00.000Z"));
+  state = addApexFamilyCareTestWeekFrictionNote(state, {
+    reporter: "Dad",
+    category: "useful",
+    text: "Fast updates helped.",
+  }, new Date("2026-06-12T08:00:00.000Z"));
+  state = markApexFamilyCareTestWeekComplete(state, new Date("2026-06-16T08:00:00.000Z"));
+
+  const summary = buildApexFamilyCareTestWeekSummary(state, [], {
+    now: new Date("2026-06-16T08:00:00.000Z"),
+  });
+
+  assert.equal(summary.dailyCheckInCount, 7);
+  assert.equal(summary.fullWeekUsageEvidence, true);
+  assert.equal(summary.evidenceReady, false);
+  assert.equal(summary.receipt.metadata.houseScreenReady, false);
 });

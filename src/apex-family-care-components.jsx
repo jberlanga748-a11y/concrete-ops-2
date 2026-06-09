@@ -759,6 +759,7 @@ function TestWeekView({
 }) {
   const state = testWeekSummary.state;
   const statusTone = testWeekSummary.evidenceReady ? "amber" : state.realWeekStarted ? "blue" : "slate";
+  const dailyCheckInsEnabled = state.houseScreenReady && state.realWeekStarted;
 
   return (
     <div className="space-y-4">
@@ -814,7 +815,7 @@ function TestWeekView({
       <Card className="p-4">
         <SectionHeader
           title="Daily Check-Ins"
-          description="Tap a day only after Family Care was actually used for the real test week."
+          description={dailyCheckInsEnabled ? "Tap a day only after Family Care was actually used for the real test week." : "Mark the house screen ready and start the real week before checking off days."}
           action={<Badge tone={testWeekSummary.fullWeekUsageEvidence ? "green" : "slate"}>{testWeekSummary.dailyCheckInCount}/7</Badge>}
         />
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
@@ -823,6 +824,7 @@ function TestWeekView({
               key={`test-week-day-${index + 1}`}
               type="button"
               variant={checked ? "primary" : "secondary"}
+              disabled={!dailyCheckInsEnabled}
               className="min-h-11"
               onClick={() => {
                 const nextDailyCheckIns = state.dailyCheckIns.map((current, currentIndex) => (currentIndex === index ? !current : current));

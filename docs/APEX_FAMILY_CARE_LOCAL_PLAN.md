@@ -499,6 +499,8 @@ Phase 7 evidence-honesty receipt (2026-06-09): tightened the run-week guide so t
 
 Phase 7 daily-check-in receipt (2026-06-09): added a seven-day local check-in tracker so the family can mark each day Family Care was actually used during the real test week. The Test Week screen now shows Used Days and Daily Check-Ins, and the summary/receipts require full-week usage evidence from either seven daily check-ins or seven note days before Phase 7 can become review-ready. This does not auto-close Phase 7, does not send notifications or messages, does not add hidden recording, and stores only compact local metadata in receipts. The original Phase 7 checklist remains unchecked until the real family week is actually run and reviewed.
 
+Phase 7 check-in-gating receipt (2026-06-09): tightened daily check-in evidence so review-ready status also requires the house screen to be explicitly marked ready, and the Test Week UI disables daily day buttons until the house screen is ready and the real week has started. This prevents prep clicks from looking like real use evidence while keeping all receipt data compact/local and preserving the no-auto-close, no-send, no-hidden-recording, and no-medical-advice rules. The original Phase 7 checklist remains unchecked until the real family week is actually run and reviewed.
+
 ## Done And Frozen Rule
 
 When a checklist item is completed:
