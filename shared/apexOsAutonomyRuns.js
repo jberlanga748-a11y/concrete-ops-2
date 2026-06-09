@@ -214,7 +214,7 @@ export function buildApexOsAutonomyRunPlan(input = {}, { id = "", now = new Date
     steps: input.steps?.length ? input.steps : defaultRunSteps(routeLabel, now),
     evidence: input.evidence?.length ? input.evidence : [
       "Request captured in private Apex OS.",
-      "Run remains review-first and execution locked.",
+      "Run stays private; consequential actions remain gated.",
     ],
   }, { id, now, createdBy });
 }
@@ -469,7 +469,7 @@ export function buildApexOsAutonomyRunHandback(run = {}, { latestAnswer = "", no
     summary: redactApexOsAutonomyRunText(summary, 520),
     did: compactApexOsAutonomyRunHandbackItems(
       completedStepRows,
-      `Captured the request and created a review-first run ledger for ${normalized.title}.`,
+      `Captured the request and created a private run ledger for ${normalized.title}.`,
       { limit: 4, textLimit: 240 },
     ),
     proof: compactApexOsAutonomyRunHandbackItems(
@@ -605,7 +605,7 @@ export function buildApexOsAutonomyRunNextPrivateMove(run = {}, { now = new Date
       tone: "blue",
       buttonLabel: "Start Run",
       detail: "Apex is standing by. Start a private run when there is real work to track.",
-      recommendation: "Give Apex a command, then start a private review-first run.",
+      recommendation: "Give Apex a command, then start a private run.",
       canAdvance: true,
     };
   }
@@ -669,7 +669,7 @@ export function buildApexOsAutonomyRunNextPrivateMove(run = {}, { now = new Date
       tone: "blue",
       buttonLabel: "Draft Internal",
       detail: `${title} needs locked agent-control and execution handoff drafts before Apex can safely prep or proof the work.`,
-      recommendation: "Create linked private drafts, then continue prep. Execution remains locked.",
+      recommendation: "Create linked private drafts, then continue prep. Consequential actions remain gated.",
       canAdvance: true,
       progress,
     };
@@ -759,7 +759,7 @@ export function buildApexOsAutonomyRunNextPrivateMove(run = {}, { now = new Date
   };
 }
 
-export function buildApexOsAutonomyRunProactiveCheckIn(previousHeartbeat = null, heartbeat = {}, { now = new Date().toISOString() } = {}) {
+export function buildApexOsAutonomyRunProactiveCheckIn(previousHeartbeat = null, heartbeat = {}, { now = new Date().toISOString(), suppressReviewGateCheckIns = false } = {}) {
   const current = heartbeat || {};
   const previous = previousHeartbeat || null;
   const currentRunId = rawText(current.runId, 120);
@@ -779,7 +779,7 @@ export function buildApexOsAutonomyRunProactiveCheckIn(previousHeartbeat = null,
   let detail = currentRunId
     ? `${current.title || "Active private run"} is ${currentStatus}. ${current.progressLabel || "Progress is available"}.`
     : "No active private run is live. Apex is standing by for the next private run.";
-  let recommendation = current.recommendation || "Keep monitoring. Execution remains locked.";
+  let recommendation = current.recommendation || "Keep monitoring. Consequential actions remain gated.";
 
   if (currentRunId && !previousRunId) {
     trigger = currentIsAttention ? "attention-detected" : "active-run-detected";
@@ -798,7 +798,7 @@ export function buildApexOsAutonomyRunProactiveCheckIn(previousHeartbeat = null,
     trigger = currentIsAttention ? "attention-status" : currentIsReported ? "reported-status" : "status-change";
     shouldSurface = true;
     title = currentIsAttention
-      ? `Apex needs review on ${current.title || "the active run"}`
+      ? `Apex stopped at a review gate on ${current.title || "the active run"}`
       : currentIsReported
         ? `Apex sees ${current.title || "the active run"} reported`
         : `Apex sees ${current.title || "the active run"} moved to ${currentStatus}`;
@@ -812,7 +812,14 @@ export function buildApexOsAutonomyRunProactiveCheckIn(previousHeartbeat = null,
     detail = `${current.title || "Active private run"}: ${currentStatus}. Progress ${current.progressLabel || "unknown"}, updated ${current.ageLabel || "recently"}. Current step: ${current.currentStep || "review run"}.`;
   }
 
-  const answer = `${title}. ${detail} Recommendation: ${recommendation} Execution, sends, billing, provider work, production changes, deletion, deploy, rollback, and irreversible actions stay locked.`;
+  if (suppressReviewGateCheckIns && currentIsAttention) {
+    shouldSurface = false;
+    trigger = `${trigger || "watching"}-quiet`;
+    title = "Apex is holding a blocked run quietly";
+    recommendation = "Keep the home screen calm. Ask Apex what is blocked when you want the run ledger.";
+  }
+
+  const answer = `${title}. ${detail} Recommendation: ${recommendation} Money, sends, billing, provider work, production changes, deletion, deploy, rollback, and irreversible actions stay gated.`;
   return {
     id: `apex-proactive-check-in-${currentRunId || "standby"}`,
     signature: [
@@ -830,7 +837,7 @@ export function buildApexOsAutonomyRunProactiveCheckIn(previousHeartbeat = null,
     answer,
     checkedAt: now,
     sourceLabels: ["Apex Proactive Check-In", "Live Session Heartbeat", "Autonomy Run Center"],
-    voiceNotice: shouldSurface ? "Apex surfaced a proactive live-run check-in. Execution stayed locked." : "Apex is watching live-run status. Execution stayed locked.",
+    voiceNotice: shouldSurface ? "Apex surfaced a proactive live-run check-in. Consequential actions stayed gated." : "Apex is watching live-run status. Consequential actions stayed gated.",
     executionLocked: true,
     externalActionsLocked: true,
     canExecute: false,
@@ -954,7 +961,7 @@ export function advanceApexOsAutonomyRunPrivatePrep(run = {}, { now = new Date()
       return normalizeRunStep({
         ...step,
         status: "done",
-        evidence: "Apex built the review-first run path and kept execution locked.",
+        evidence: "Apex built the private run path and kept consequential actions gated.",
         updatedAt: now,
       }, index, now);
     }
@@ -1088,7 +1095,7 @@ export function runApexOsAutonomyRunPrivateOperatorCycle(run = {}, { now = new D
 
   const preparedRun = advanceApexOsAutonomyRunPrivatePrep(normalized, {
     now,
-    operatorNote: operatorNote || "Apex started a private operator cycle and kept execution locked.",
+    operatorNote: operatorNote || "Apex started a private operator cycle and kept consequential actions gated.",
   });
   const proofRun = validateApexOsAutonomyRunPrivateProof(preparedRun, {
     now,

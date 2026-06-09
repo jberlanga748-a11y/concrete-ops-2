@@ -135,6 +135,22 @@ import {
   validateApexOsAutonomyRunPrivateProof,
 } from "../shared/apexOsAutonomyRuns.js";
 import {
+  createApexOsTaskRecord,
+  filterApexOsTasksByType,
+  normalizeApexOsTasks,
+  summarizeApexOsTasks,
+  updateApexOsTaskRecord,
+} from "../shared/apexOsTasks.js";
+import {
+  executeApexOsInternalAction,
+  inferApexOsInternalActionFromText,
+  sanitizeApexOsInternalActionResult,
+} from "../shared/apexOsInternalActionEngine.js";
+import {
+  buildApexOsSkillRegistrySummary,
+  buildDefaultApexOsSkillRegistry,
+} from "../shared/apexOsSkillRegistry.js";
+import {
   APEX_OS_ASK_OPENAI_URL,
   buildApexOsAskContext,
   buildApexOsAskEvidenceRows,
@@ -142,6 +158,52 @@ import {
   buildLocalApexOsAnswer,
   parseOpenAiApexOsAskPayload,
 } from "../shared/apexOsAsk.js";
+import {
+  APEX_OS_PROVIDER_DECISION,
+  buildApexOsCloudBudgetGuardFromEnv,
+  buildApexOsLocalFirstProviderDecision,
+  isApexOsProviderFlagEnabled,
+} from "../shared/apexOsLocalFirstProviderPolicy.js";
+import {
+  buildApexEffortModelInstallStatus,
+  buildApexStableResidencyPolicy,
+  selectApexLocalAgentSpeedLane,
+} from "../shared/apexLocalAgentSpeed.js";
+import {
+  buildApexOsExternalPreparationPacket,
+  buildApexOsExternalPreparationPacketSummary,
+} from "../shared/apexOsExternalPreparationPackets.js";
+import {
+  buildHomeAssistantCommandPreview,
+  createHomeAssistantExecutionGuard,
+  executeHomeAssistantCommandOnce,
+  getHomeAssistantConnectorStatus,
+  readHomeAssistantEntityStatus,
+  sanitizeHomeAssistantReceipt,
+} from "./apexHomeAssistantConnector.js";
+import {
+  getOllamaProviderStatus,
+  getApexOllamaResidencyStatus,
+  reloadApexOllamaBrainResidency,
+} from "./apexOllamaProvider.js";
+import {
+  chatWithLlamaCppForApexOs,
+  chatWithLlamaCppForApexOsKnowledge,
+  getLlamaCppProviderStatus,
+  isLlamaCppReadyForApexLane,
+  selectLlamaCppModelForApexLane,
+} from "./apexLlamaCppProvider.js";
+import {
+  getApexLlamaCppRuntimeState,
+  runApexLlamaCppRuntimeAction,
+} from "./apexLlamaCppRuntime.js";
+import {
+  buildApexSpeedCoreStatus,
+  getApexGpuStatus,
+} from "./apexGpuSpeedCore.js";
+import {
+  inferApexOsModelRouteFromRequest,
+} from "../shared/apexOsModelRouter.js";
 import {
   APEX_OS_VOICE_SPEECH_OPENAI_URL,
   APEX_OS_VOICE_TRANSCRIPTION_OPENAI_URL,
@@ -153,16 +215,52 @@ import {
   sanitizeApexOsVoiceSpeechText,
 } from "../shared/apexOsVoice.js";
 import {
+  getCachedApexLocalVoiceRuntimeStatus,
+  getApexLocalVoiceRuntimeStatus,
+  speakWithApexLocalVoice,
+  transcribeWithApexLocalVoice,
+} from "./apexLocalVoiceRuntime.js";
+import {
+  saveApexLiveTurnLatencyReceipt,
+} from "./apexLiveTurnLatencyHistory.js";
+import {
+  runApexTypedLiveTurnLatencyBenchmark,
+} from "./apexLiveTurnLatencyBenchmark.js";
+import {
+  listenWithApexNativeVoice,
+} from "./apexNativeVoiceRuntime.js";
+import {
+  collectApexBackgroundRuntimeStatus,
+  startApexBackgroundRuntimeHeartbeat,
+} from "./apexBackgroundRuntime.js";
+import {
+  readApexLocalAgentSpeedBenchmarkHistory,
+} from "./apexLocalAgentSpeedHistory.js";
+import {
+  updateApexLightweightVoiceSelection,
+} from "./apexLightweightVoiceProvider.js";
+import {
   buildApexOsKnowledgeIntelligence,
   buildApexOsKnowledgeOpenAiRequest,
   parseOpenAiApexOsKnowledgePayload,
 } from "../shared/apexOsKnowledgeIntelligence.js";
+import {
+  applyApexWorkstationBrainCommand,
+  buildApexWorkstationBrainCommandAnswer,
+  buildApexWorkstationBrainStatus,
+  inferApexWorkstationBrainCommand,
+} from "../shared/apexWorkstationBrainMode.js";
 import {
   buildApexOsDailyBriefing,
   buildApexOsDailyBriefingHistorySnapshot,
   normalizeApexOsDailyBriefingHistory,
 } from "../shared/apexOsDailyBriefing.js";
 import { collectApexOsBuildAwareness } from "./apex-os-build-awareness.js";
+import { runApexBuilderControlledFix, runApexBuilderUndoLastFix, runApexBuilderValidationCommand } from "./apex-os-builder-mode.js";
+import {
+  getApexAutonomousBuildLoopState,
+  runApexAutonomousBuildLoop,
+} from "./apexAutonomousBuildLoopRuntime.js";
 import {
   buildEstimateRoughNotesContext,
   generateEstimateRoughNotesDrafts,
@@ -6180,13 +6278,32 @@ function ownerHealthCountsForUser(state, user) {
   };
 }
 
+const APEX_OS_PRIVATE_COMPANY_SETTING_KEYS = [
+  "apexOsMemory",
+  "apexOsApprovalPackets",
+  "apexOsExecutionHandoffs",
+  "apexOsAgentControlRequests",
+  "apexOsAutonomyRuns",
+  "apexOsTasks",
+  "apexOsDailyBriefingHistory",
+];
+
+function redactApexOsCompanySettingsForUser(settings = {}, user = {}) {
+  const safeSettings = { ...(settings || {}) };
+  if (canAccessApexOs(user)) return safeSettings;
+  for (const key of APEX_OS_PRIVATE_COMPANY_SETTING_KEYS) {
+    delete safeSettings[key];
+  }
+  return safeSettings;
+}
+
 function sanitizeBootstrap(state, user) {
   const customerPermissions = customerPermissionsForUser(state, user);
   const leadPermissions = leadPermissionsForUser(user);
   const userPermissions = userPermissionsForUser(user);
   const settings = companySettingsForState(state, user);
   const canViewWorkspaceSettings = canViewSettings(user);
-  const bootstrapCompanySettings = canViewWorkspaceSettings
+  const rawBootstrapCompanySettings = canViewWorkspaceSettings
     ? settings
     : {
       companyName: settings.companyName || "",
@@ -6199,6 +6316,7 @@ function sanitizeBootstrap(state, user) {
       serviceArea: settings.serviceArea || "",
       toolChecklistEnabled: settings.toolChecklistEnabled !== false,
     };
+  const bootstrapCompanySettings = redactApexOsCompanySettingsForUser(rawBootstrapCompanySettings, user);
   const companies = companiesForState(state);
   const currentCompanyId = currentCompanyIdForRequestUser(state, user);
   const currentCompany = companies.find((company) => company.id === currentCompanyId) || companies[0] || null;
@@ -7581,6 +7699,24 @@ function assertCanManageApexOsMemory(_state, user) {
   }
 }
 
+function assertCanManageApexOsTaskRecords(_state, user) {
+  if (!canAccessApexOs(user)) {
+    throw new ApiError(403, "You do not have permission to manage Apex OS tasks and reminders.");
+  }
+}
+
+function assertCanReadApexOsSkillRegistry(_state, user) {
+  if (!canAccessApexOs(user)) {
+    throw new ApiError(403, "You do not have permission to view Apex OS skills.");
+  }
+}
+
+function assertCanUseApexOsHomeAssistant(_state, user) {
+  if (!canAccessApexOs(user)) {
+    throw new ApiError(403, "You do not have permission to use Apex OS Home Assistant connector.");
+  }
+}
+
 function apexOsMemoryForState(state, user) {
   return normalizeApexOsMemory(companySettingsForState(state, user).apexOsMemory);
 }
@@ -7611,6 +7747,131 @@ function persistApexOsMemory(draft, user, memory) {
 function publicApexOsMemoryEntry(entry) {
   const { blockedReasons: _blockedReasons, ...safeEntry } = entry;
   return safeEntry;
+}
+
+function apexOsTaskRecordsForState(state, user) {
+  return normalizeApexOsTasks(companySettingsForState(state, user).apexOsTasks);
+}
+
+function rejectUnsafeApexOsTaskRecord(record) {
+  if (record.safetyFlags?.length) {
+    throw new ApiError(400, record.safetyFlags[0]);
+  }
+  if (!record.title) {
+    throw new ApiError(400, "Apex OS tasks and reminders require a title.");
+  }
+}
+
+function persistApexOsTaskRecords(draft, user, records) {
+  const currentCompanyId = currentCompanyIdForRequestUser(draft, user);
+  draft.currentCompanyId = currentCompanyId;
+  draft.companySettingsByCompanyId ||= {};
+  draft.companySettings = {
+    ...companySettingsForState(draft, user),
+    apexOsTasks: normalizeApexOsTasks(records),
+  };
+  draft.companySettingsByCompanyId[currentCompanyId] = draft.companySettings;
+}
+
+function publicApexOsTaskRecord(record) {
+  const { safetyFlags: _safetyFlags, ...safeRecord } = record;
+  return safeRecord;
+}
+
+function assertCanRunApexOsInternalActions(_state, user) {
+  if (!canAccessApexOs(user)) {
+    throw new ApiError(403, "You do not have permission to run Apex OS internal actions.");
+  }
+}
+
+function publicApexOsInternalActionResult(result = {}) {
+  const {
+    nextTasks: _nextTasks,
+    nextMemory: _nextMemory,
+    record: _record,
+    safety = {},
+  } = result || {};
+  const safeResult = sanitizeApexOsInternalActionResult(result || {});
+  return {
+    ...safeResult,
+    safety: {
+      actionPermissionSummary: safety.actionPermissionSummary || null,
+      privacyFirewallSummary: safety.privacyFirewallSummary || null,
+      untrustedContentFirewallSummary: safety.untrustedContentFirewallSummary || null,
+      toolRouteSummary: safety.toolRouteSummary || null,
+      traceEntry: safety.traceEntry || null,
+    },
+  };
+}
+
+function publicApexOsInternalActionRecord(result = {}) {
+  if (!result?.record) return null;
+  if (result.record.type === "task" || result.record.type === "reminder") {
+    return publicApexOsTaskRecord(result.record);
+  }
+  return publicApexOsMemoryEntry(result.record);
+}
+
+function persistApexOsInternalActionResult(draft, user, result) {
+  if (!result?.performed) return [];
+  const changedFields = [];
+  const changedTaskRecord = result.record?.type === "task" || result.record?.type === "reminder";
+  if (changedTaskRecord && Array.isArray(result.nextTasks)) {
+    persistApexOsTaskRecords(draft, user, result.nextTasks);
+    changedFields.push("apexOsTasks");
+  }
+  if (result.record && !changedTaskRecord && Array.isArray(result.nextMemory)) {
+    persistApexOsMemory(draft, user, result.nextMemory);
+    changedFields.push("apexOsMemory");
+  }
+  return [...new Set(changedFields)];
+}
+
+function recordApexOsInternalActionActivity(draft, user, result, changedFields = []) {
+  const publicResult = publicApexOsInternalActionResult(result);
+  const summary = result?.receipt?.summary || result?.reason || "Apex OS internal action evaluated.";
+  appendActivity(draft, result?.performed ? "Apex OS internal action completed" : "Apex OS internal action blocked", `${user.name} requested ${summary}`);
+  appendAuditEvent(draft, {
+    entityType: "apexOsInternalAction",
+    entityId: result?.actionId || makeId("AOIA"),
+    action: result?.performed ? "performed" : result?.escalated ? "escalated" : "blocked",
+    summary: result?.performed ? "Apex OS internal action completed" : "Apex OS internal action stopped",
+    detail: JSON.stringify({
+      actionId: publicResult.actionId,
+      actionType: publicResult.actionType,
+      status: publicResult.status,
+      performed: publicResult.performed,
+      blocked: publicResult.blocked,
+      escalated: publicResult.escalated,
+      affectedRecordId: publicResult.affectedRecordId,
+      undoAvailable: publicResult.undoAvailable,
+      undoHint: publicResult.undoHint,
+      receiptSummary: publicResult.receipt?.summary,
+      actionRiskTier: publicResult.safety?.actionPermissionSummary?.riskTier,
+      toolRoute: publicResult.safety?.toolRouteSummary?.routeId,
+      externalActionExecuted: false,
+      customerVisible: false,
+    }),
+    actor: user,
+    changedFields,
+  });
+}
+
+function runApexOsInternalActionForDraft(draft, user, input = {}, options = {}) {
+  assertCanRunApexOsInternalActions(draft, user);
+  const result = executeApexOsInternalAction(input, {
+    tasks: apexOsTaskRecordsForState(draft, user),
+    memory: apexOsMemoryForState(draft, user),
+    actor: user,
+    now: options.now || new Date().toISOString(),
+    makeId,
+    trustLevel: input.trustLevel,
+    sourceType: input.sourceType,
+    sourceLabel: input.sourceLabel,
+  });
+  const changedFields = persistApexOsInternalActionResult(draft, user, result);
+  recordApexOsInternalActionActivity(draft, user, result, changedFields);
+  return result;
 }
 
 function apexOsApprovalPacketsForState(state, user) {
@@ -7660,6 +7921,7 @@ function publicApexOsApprovalPacket(packet) {
     approvalDecisionLocked: packet.status !== "approved",
     executionLocked: true,
     canExecute: false,
+    canExecuteAfterApproval: false,
   };
 }
 
@@ -12891,6 +13153,238 @@ app.get("/api/apex-os/memory", requireAuth, asyncRoute(async (req, res) => {
   });
 }));
 
+app.get("/api/apex-os/skills", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanReadApexOsSkillRegistry(state, req.auth.user);
+  const registry = buildDefaultApexOsSkillRegistry();
+  res.json({
+    apexOsSkills: registry,
+    summary: buildApexOsSkillRegistrySummary(registry),
+    executionLocked: true,
+    canExecute: false,
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/internal-actions", requireAuth, asyncRoute(async (req, res) => {
+  let internalActionResult = null;
+  let internalActionRecord = null;
+  const now = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    internalActionResult = runApexOsInternalActionForDraft(draft, req.auth.user, req.body || {}, { now });
+    internalActionRecord = publicApexOsInternalActionRecord(internalActionResult);
+    return draft;
+  });
+
+  res.status(internalActionResult?.performed ? 201 : 200).json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    apexOsInternalAction: publicApexOsInternalActionResult(internalActionResult),
+    apexOsInternalActionRecord: internalActionRecord,
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/apex-os/tasks", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsTaskRecords(state, req.auth.user);
+  const tasks = filterApexOsTasksByType(apexOsTaskRecordsForState(state, req.auth.user), "task");
+  res.json({
+    apexOsTasks: tasks.map(publicApexOsTaskRecord),
+    summary: summarizeApexOsTasks(tasks),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/tasks", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let createdTask = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageApexOsTaskRecords(draft, req.auth.user);
+    const current = apexOsTaskRecordsForState(draft, req.auth.user);
+    createdTask = createApexOsTaskRecord({
+      ...(req.body || {}),
+      type: "task",
+    }, {
+      id: makeId("AOT"),
+      now,
+      createdBy: req.auth.user.id,
+    });
+    rejectUnsafeApexOsTaskRecord(createdTask);
+    persistApexOsTaskRecords(draft, req.auth.user, [createdTask, ...current].slice(0, 300));
+    appendActivity(draft, "Apex OS task added", `${req.auth.user.name} added ${createdTask.title} to private Apex OS tasks.`);
+    appendAuditEvent(draft, {
+      entityType: "apexOsTask",
+      entityId: createdTask.id,
+      action: "created",
+      summary: "Apex OS task added",
+      detail: JSON.stringify({
+        id: createdTask.id,
+        type: createdTask.type,
+        title: createdTask.title,
+        status: createdTask.status,
+        priority: createdTask.priority,
+        category: createdTask.category,
+        externalNotificationsEnabled: false,
+      }),
+      actor: req.auth.user,
+      changedFields: ["apexOsTasks"],
+    });
+    return draft;
+  });
+
+  res.status(201).json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    apexOsTask: publicApexOsTaskRecord(createdTask),
+  });
+}));
+
+app.patch("/api/apex-os/tasks/:id", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let updatedTask = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageApexOsTaskRecords(draft, req.auth.user);
+    const current = apexOsTaskRecordsForState(draft, req.auth.user);
+    const index = current.findIndex((record) => record.id === req.params.id && record.type === "task");
+    if (index < 0) {
+      throw new ApiError(404, "Apex OS task not found.");
+    }
+    updatedTask = updateApexOsTaskRecord(current[index], req.body || {}, { now });
+    rejectUnsafeApexOsTaskRecord(updatedTask);
+    const nextRecords = [...current];
+    nextRecords[index] = updatedTask;
+    persistApexOsTaskRecords(draft, req.auth.user, nextRecords);
+    appendActivity(draft, "Apex OS task updated", `${req.auth.user.name} updated ${updatedTask.title} in private Apex OS tasks.`);
+    appendAuditEvent(draft, {
+      entityType: "apexOsTask",
+      entityId: updatedTask.id,
+      action: updatedTask.status === "done" ? "completed" : updatedTask.status === "archived" ? "archived" : "updated",
+      summary: "Apex OS task updated",
+      detail: JSON.stringify({
+        id: updatedTask.id,
+        type: updatedTask.type,
+        title: updatedTask.title,
+        status: updatedTask.status,
+        priority: updatedTask.priority,
+        category: updatedTask.category,
+        externalNotificationsEnabled: false,
+      }),
+      actor: req.auth.user,
+      changedFields: ["apexOsTasks"],
+    });
+    return draft;
+  });
+
+  res.json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    apexOsTask: publicApexOsTaskRecord(updatedTask),
+  });
+}));
+
+app.get("/api/apex-os/reminders", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsTaskRecords(state, req.auth.user);
+  const reminders = filterApexOsTasksByType(apexOsTaskRecordsForState(state, req.auth.user), "reminder");
+  res.json({
+    apexOsReminders: reminders.map(publicApexOsTaskRecord),
+    summary: summarizeApexOsTasks(reminders),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/reminders", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let createdReminder = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageApexOsTaskRecords(draft, req.auth.user);
+    const current = apexOsTaskRecordsForState(draft, req.auth.user);
+    createdReminder = createApexOsTaskRecord({
+      ...(req.body || {}),
+      type: "reminder",
+    }, {
+      id: makeId("AOR"),
+      now,
+      createdBy: req.auth.user.id,
+    });
+    rejectUnsafeApexOsTaskRecord(createdReminder);
+    persistApexOsTaskRecords(draft, req.auth.user, [createdReminder, ...current].slice(0, 300));
+    appendActivity(draft, "Apex OS reminder added", `${req.auth.user.name} added ${createdReminder.title} to private Apex OS reminders.`);
+    appendAuditEvent(draft, {
+      entityType: "apexOsReminder",
+      entityId: createdReminder.id,
+      action: "created",
+      summary: "Apex OS reminder added",
+      detail: JSON.stringify({
+        id: createdReminder.id,
+        type: createdReminder.type,
+        title: createdReminder.title,
+        status: createdReminder.status,
+        priority: createdReminder.priority,
+        category: createdReminder.category,
+        dueText: createdReminder.dueText,
+        dueAt: createdReminder.dueAt,
+        externalNotificationsEnabled: false,
+      }),
+      actor: req.auth.user,
+      changedFields: ["apexOsTasks"],
+    });
+    return draft;
+  });
+
+  res.status(201).json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    apexOsReminder: publicApexOsTaskRecord(createdReminder),
+  });
+}));
+
+app.patch("/api/apex-os/reminders/:id", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let updatedReminder = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageApexOsTaskRecords(draft, req.auth.user);
+    const current = apexOsTaskRecordsForState(draft, req.auth.user);
+    const index = current.findIndex((record) => record.id === req.params.id && record.type === "reminder");
+    if (index < 0) {
+      throw new ApiError(404, "Apex OS reminder not found.");
+    }
+    updatedReminder = updateApexOsTaskRecord(current[index], req.body || {}, { now });
+    rejectUnsafeApexOsTaskRecord(updatedReminder);
+    const nextRecords = [...current];
+    nextRecords[index] = updatedReminder;
+    persistApexOsTaskRecords(draft, req.auth.user, nextRecords);
+    appendActivity(draft, "Apex OS reminder updated", `${req.auth.user.name} updated ${updatedReminder.title} in private Apex OS reminders.`);
+    appendAuditEvent(draft, {
+      entityType: "apexOsReminder",
+      entityId: updatedReminder.id,
+      action: updatedReminder.status === "done" ? "completed" : updatedReminder.status === "archived" ? "archived" : "updated",
+      summary: "Apex OS reminder updated",
+      detail: JSON.stringify({
+        id: updatedReminder.id,
+        type: updatedReminder.type,
+        title: updatedReminder.title,
+        status: updatedReminder.status,
+        priority: updatedReminder.priority,
+        category: updatedReminder.category,
+        dueText: updatedReminder.dueText,
+        dueAt: updatedReminder.dueAt,
+        externalNotificationsEnabled: false,
+      }),
+      actor: req.auth.user,
+      changedFields: ["apexOsTasks"],
+    });
+    return draft;
+  });
+
+  res.json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    apexOsReminder: publicApexOsTaskRecord(updatedReminder),
+  });
+}));
+
 app.get("/api/apex-os/approval-packets", requireAuth, asyncRoute(async (req, res) => {
   const state = await readDb();
   assertCanManageApexOsMemory(state, req.auth.user);
@@ -12945,6 +13439,94 @@ app.get("/api/apex-os/build-awareness", requireAuth, asyncRoute(async (req, res)
   assertCanManageApexOsMemory(state, req.auth.user);
   res.json({
     buildAwareness: await collectApexOsBuildAwareness(),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/builder/validation-runs", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  res.json({
+    validationRun: await runApexBuilderValidationCommand({
+      commandId: req.body?.commandId,
+      repoRoot: process.cwd(),
+    }),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/builder/fix-runs", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  res.json({
+    fixRun: await runApexBuilderControlledFix({
+      request: req.body?.request,
+      fixId: req.body?.fixId,
+      selfFixPatchHandoff: req.body?.selfFixPatchHandoff,
+      source: req.body?.source,
+      applyPatch: req.body?.applyPatch !== false,
+      runValidation: req.body?.runValidation !== false,
+      repoRoot: process.cwd(),
+    }),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/builder/undo-runs", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  res.json({
+    undoRun: await runApexBuilderUndoLastFix({
+      fixRun: req.body?.fixRun,
+      runValidation: req.body?.runValidation !== false,
+      repoRoot: process.cwd(),
+    }),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/apex-os/build-loop/status", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  res.json({
+    buildLoop: getApexAutonomousBuildLoopState(),
+    execution: {
+      canExecuteNow: true,
+      canExecuteAfterApproval: false,
+      executionLocked: false,
+      noExecutionTokens: true,
+      controlledBuilderOnly: true,
+      rawFilesystemWritesEnabled: false,
+      gitAutomationEnabled: false,
+      deployEnabled: false,
+      note: "Apex Autonomous Build Loop v0 can create Apex-owned local build tasks and route them through controlled Builder/Self-Fix tooling only. It cannot run raw filesystem writes, git automation, deploy, production, schema/auth/session, secrets, sends, spend, orders, bookings, customer-visible work, unrelated process killing, or permission weakening.",
+    },
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/build-loop/runs", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const result = await runApexAutonomousBuildLoop({
+    request: req.body?.request || req.body?.question || "",
+    applyPatch: req.body?.applyPatch !== false,
+    runValidation: req.body?.runValidation !== false,
+    repoRoot: process.cwd(),
+  });
+  res.json({
+    ...result,
+    execution: {
+      canExecuteNow: true,
+      canExecuteAfterApproval: false,
+      executionLocked: false,
+      noExecutionTokens: true,
+      controlledBuilderOnly: true,
+      rawFilesystemWritesEnabled: false,
+      gitAutomationEnabled: false,
+      deployEnabled: false,
+      note: "Apex Build Loop v0 executed only private/local controlled build-loop coordination. Any patching, validation, and auto-revert stayed inside the existing Builder/Self-Fix safeguards.",
+    },
     requestId: res.locals.requestId,
   });
 }));
@@ -13643,27 +14225,688 @@ app.patch("/api/apex-os/approval-packets/:id", requireAuth, asyncRoute(async (re
   });
 }));
 
-app.post("/api/apex-os/ask", requireAuth, asyncRoute(async (req, res) => {
+app.post("/api/apex-os/external-preparation-packets", requireAuth, asyncRoute(async (req, res) => {
   const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const body = req.body || {};
+  const packet = buildApexOsExternalPreparationPacket({
+    ...body,
+    request: body.request || body.description || body.question || body.prompt || body.action || "",
+    user: req.auth.user,
+    actor: {
+      userId: req.auth.user.id,
+      workspaceId: req.auth.user.currentCompanyId || "",
+    },
+    sourceLabel: body.sourceLabel || "Apex OS external preparation packet endpoint",
+  });
+  if (!packet) {
+    throw new ApiError(400, "Apex OS Level 3 preparation requires one allowed category: order-plan, booking-plan, message-draft, calendar-draft, browser-action-plan, desktop-action-plan, music-second-screen-plan, or deploy-production-checklist.");
+  }
+
+  res.json({
+    apexOsExternalPreparationPacket: packet,
+    summary: buildApexOsExternalPreparationPacketSummary(packet),
+    execution: {
+      canExecuteNow: false,
+      canExecuteAfterApproval: false,
+      executionLocked: true,
+      noExecutionTokens: true,
+      note: "Level 3 preparation is response-only. No external connector, approval-submit, execute, send, spend, order, book, browser/desktop/music control, deploy, production, schema/auth/session, billing, security, or deletion endpoint was created.",
+    },
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/apex-os/local-providers/status", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const ollama = await getOllamaProviderStatus();
+  const llamaCpp = await getLlamaCppProviderStatus({ timeoutMs: 350 });
+  const llamaRuntime = getApexLlamaCppRuntimeState();
+  const residency = await getApexOllamaResidencyStatus();
+  const gpu = await getApexGpuStatus();
+  const speedCore = buildApexSpeedCoreStatus({ gpu });
+  const agentSpeedBenchmarkHistory = await readApexLocalAgentSpeedBenchmarkHistory().catch(() => null);
+  const stableResidency = buildApexStableResidencyPolicy({
+    gpu,
+    residency,
+    benchmarkSummary: agentSpeedBenchmarkHistory,
+  });
+  const effortInstallStatus = buildApexEffortModelInstallStatus({ modelNames: ollama.modelNames || [] });
+  const agentSpeed = selectApexLocalAgentSpeedLane({
+    route: "normal-chat",
+    stableResidency,
+    modelNames: ollama.modelNames || [],
+  });
+
+  res.json({
+    localProviders: {
+      primary: "llama.cpp",
+      primaryProvider: llamaCpp,
+      legacyFallbackProvider: ollama,
+      ollama,
+      llamaCpp,
+      llamaRuntime,
+      residency,
+      gpu,
+      agentSpeed,
+      effortInstallStatus,
+      stableResidency,
+      agentSpeedBenchmarkHistory,
+    },
+    providers: [ollama, llamaCpp, llamaRuntime, residency, gpu],
+    residency,
+    speedCore,
+    primaryProvider: "llama.cpp",
+    legacyFallbackProvider: "ollama",
+    agentSpeed,
+    effortInstallStatus,
+    stableResidency,
+    agentSpeedBenchmarkHistory,
+    execution: {
+      canExecuteNow: false,
+      canExecuteAfterApproval: false,
+      executionLocked: true,
+      noExecutionTokens: true,
+      promptsEnabled: false,
+      generationEnabled: false,
+      chatEnabled: false,
+      noPromptBody: true,
+      note: "This local provider status route is read-only. llama.cpp is the primary Apex local provider; Ollama is reported only as legacy fallback/residency state. It checks local health/model readiness, Apex-owned llama.cpp runtime state, model residency, and local GPU status only. It does not send prompts, call chat/generate, download models, install providers, kill processes, or call OpenAI. Ask Apex local chat uses a separate policy-gated path.",
+    },
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/local-providers/reload-brain", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const receipt = await reloadApexOllamaBrainResidency({
+    confirmation: req.body?.confirmation || req.body?.confirm || "",
+    lane: req.body?.lane || "normal",
+    reload: req.body?.reload !== false,
+  });
+
+  res.json({
+    brainReload: receipt,
+    execution: {
+      canExecuteNow: receipt.status === "completed",
+      canExecuteAfterApproval: false,
+      executionLocked: false,
+      noExecutionTokens: true,
+      processKilling: false,
+      targetModel: receipt.targetModel,
+      note: "This operator-only action unloads/reloads only Apex-owned Ollama qwen3:14b residency through Ollama keep_alive. It does not kill processes, touch qwen3-coder, call OpenAI, deploy, change schema/auth/session, or affect production.",
+    },
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/local-providers/llama-runtime", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const receipt = await runApexLlamaCppRuntimeAction({
+    action: req.body?.action || "status",
+    model: req.body?.model || "gpt-oss:20b",
+    effort: req.body?.effort || "reasoning",
+    unloadOllama: req.body?.unloadOllama !== false,
+    waitMs: req.body?.waitMs,
+  });
+
+  res.json({
+    llamaRuntime: receipt,
+    execution: {
+      canExecuteNow: ["completed", "noop"].includes(receipt.status),
+      canExecuteAfterApproval: false,
+      executionLocked: false,
+      noExecutionTokens: true,
+      processStarted: Boolean(receipt.processStarted),
+      processStopped: Boolean(receipt.processStopped),
+      processOwned: Boolean(receipt.processOwned),
+      randomProcessesTouched: false,
+      broadProcessKill: false,
+      openAiUsed: false,
+      cloudUsed: false,
+      note: "This operator-only action manages only Apex-owned llama.cpp sidecar runtime state. prepare-gpt may unload Apex's Ollama qwen3:14b residency through Ollama keep_alive to free VRAM, start the configured local llama-server.exe with GPT-OSS GGUF, and wait for local readiness. stop only stops the process Apex started. restore-ollama stops Apex-owned llama.cpp and restores qwen3:14b. It does not deploy, change schema/auth/session, register startup services, touch secrets, or kill unrelated processes.",
+    },
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/apex-os/local-voice/status", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const localVoice = await getCachedApexLocalVoiceRuntimeStatus();
+
+  res.json({
+    localVoice,
+    execution: {
+      canExecuteNow: false,
+      canExecuteAfterApproval: false,
+      executionLocked: true,
+      noExecutionTokens: true,
+      openAiAudioUsed: false,
+      cloudAudioAllowed: false,
+      browserPlaybackIsFallbackOnly: true,
+      note: "This route checks local STT/TTS readiness only. It does not call OpenAI, cloud STT/TTS, browser speech synthesis, or store audio.",
+    },
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/apex-os/background/status", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const background = await collectApexBackgroundRuntimeStatus({
+    client: {
+      status: "unknown",
+      url: "http://localhost:5173/apex",
+      reason: "client-status-is-checked-by-the-local-supervisor",
+    },
+  });
+
+  res.json({
+    background,
+    execution: {
+      canExecuteNow: false,
+      canExecuteAfterApproval: false,
+      executionLocked: true,
+      noExecutionTokens: true,
+      keepWarmEnabled: Boolean(background.keepWarm?.enabled),
+      windowsServiceRegistered: false,
+      startupRegistration: false,
+      trayAppAdded: false,
+      note: "This operator-only route reports local background runtime health. It does not register a Windows service, start on boot, execute external actions, send/spend/order/book, deploy, touch production, or expose secrets.",
+    },
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/local-voice/voice-selection", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const selection = await updateApexLightweightVoiceSelection({
+    action: req.body?.action || "",
+    voiceId: req.body?.voiceId || "",
+  });
+  const localVoice = await getApexLocalVoiceRuntimeStatus();
+
+  res.status(200).json({
+    voiceSelection: selection,
+    localVoice,
+    execution: {
+      canExecuteNow: true,
+      canExecuteAfterApproval: false,
+      executionLocked: false,
+      noExecutionTokens: true,
+      openAiAudioUsed: false,
+      cloudAudioAllowed: false,
+      note: "This operator-only route changes only Apex's safe local Kokoro ONNX voice selection. It does not send audio to cloud, use Voicebox, modify .env, expose secrets, store generated audio, or control external systems.",
+    },
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/local-voice/speech", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const payload = await speakWithApexLocalVoice({
+    turnId: req.body?.turnId || req.body?.voiceTurnId || "",
+    text: req.body?.text || "",
+    voice: req.body?.voice || "",
+    voiceMode: req.body?.voiceMode || "",
+    mode: req.body?.mode || "",
+    preferFastVoice: Boolean(req.body?.preferFastVoice),
+    fastVoice: Boolean(req.body?.fastVoice),
+    lowLatencyVoice: Boolean(req.body?.lowLatencyVoice),
+    saveLatencyReceipt: true,
+  });
+
+  res.status(200).json({
+    ...payload,
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/local-voice/native-listen", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const payload = await listenWithApexNativeVoice({
+    turnId: req.body?.turnId || "",
+    listenSeconds: req.body?.listenSeconds,
+    timeoutMs: req.body?.timeoutMs,
+    provider: req.body?.provider || "",
+    localTranscriber: (transcribeInput) => transcribeWithApexLocalVoice({
+      ...transcribeInput,
+      saveLatencyReceipt: true,
+    }),
+  });
+
+  res.status(payload.ok ? 200 : 503).json({
+    ...payload,
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/local-voice/transcribe", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const payload = await transcribeWithApexLocalVoice({
+    turnId: req.body?.turnId || req.body?.audioTurn?.turnId || "",
+    audioDataUrl: req.body?.audioDataUrl || "",
+    audioTurn: req.body?.audioTurn || null,
+    alwaysOpenMic: req.body?.alwaysOpenMic || null,
+    browserTranscript: req.body?.browserTranscript || req.body?.finalBrowserTranscript || "",
+    saveLatencyReceipt: true,
+  });
+
+  res.status(payload.ok || payload.gated ? 200 : 503).json({
+    ...payload,
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/local-voice/live-turn-receipt", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const liveTurnLatency = await saveApexLiveTurnLatencyReceipt(req.body?.receipt || req.body?.liveTurnReceipt || req.body || {});
+
+  res.status(200).json({
+    liveTurnLatency,
+    execution: {
+      canExecuteNow: false,
+      canExecuteAfterApproval: false,
+      executionLocked: true,
+      noExecutionTokens: true,
+      rawAudioStored: false,
+      rawPromptStored: false,
+      rawResponseStored: false,
+      transcriptStored: false,
+      openAiAudioUsed: false,
+      cloudAudioAllowed: false,
+      note: "This operator-only route saves compact local live-turn timing metadata only. It stores no raw audio, transcript, prompt, response, secrets, tokens, or cloud payload.",
+    },
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/local-voice/live-turn-benchmark/typed", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const benchmark = await runApexTypedLiveTurnLatencyBenchmark({
+    explicitUserStarted: req.body?.explicitUserStarted === true,
+    residentNumCtx: req.body?.residentNumCtx || 4096,
+  });
+  const blocked = benchmark.status === "blocked";
+
+  res.status(blocked ? 400 : benchmark.ok ? 200 : 503).json({
+    ...benchmark,
+    execution: {
+      canExecuteNow: false,
+      canExecuteAfterApproval: false,
+      executionLocked: true,
+      noExecutionTokens: true,
+      noHiddenMicCapture: true,
+      rawAudioStored: false,
+      rawPromptStored: false,
+      rawResponseStored: false,
+      transcriptStored: false,
+      openAiAudioUsed: false,
+      cloudAudioAllowed: false,
+      note: "This private operator benchmark sends a fixed local-only typed benchmark prompt to the resident Ollama lane and stores compact timing metadata only.",
+    },
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/apex-os/home-assistant/status", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanUseApexOsHomeAssistant(state, req.auth.user);
+  const apexDeviceId = optionalString(req.query?.apexDeviceId || req.query?.deviceId, "").slice(0, 120);
+  const sceneId = optionalString(req.query?.sceneId, "").slice(0, 120);
+  const entityId = optionalString(req.query?.entityId || req.query?.entity_id, "").slice(0, 160);
+  const shouldReadEntity = Boolean(apexDeviceId || sceneId || entityId);
+  const homeAssistant = shouldReadEntity
+    ? await readHomeAssistantEntityStatus({ apexDeviceId, sceneId, entityId })
+    : getHomeAssistantConnectorStatus();
+  const connectorStatus = shouldReadEntity ? homeAssistant.configStatus : homeAssistant;
+
+  res.json({
+    homeAssistant,
+    execution: {
+      canExecuteNow: false,
+      canExecuteAfterApproval: Boolean(connectorStatus?.canExecuteAfterApproval),
+      executionLocked: !connectorStatus?.canExecuteAfterApproval,
+      noExecutionTokens: !connectorStatus?.canExecuteAfterApproval,
+      executeEndpointAvailable: true,
+      note: "Home Assistant v1 execute route exists but only works for one exact previewed allowlisted command when execution config is enabled, kill switch is off, and John confirms the preview.",
+    },
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/home-assistant/preview", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanUseApexOsHomeAssistant(state, req.auth.user);
+  const preview = buildHomeAssistantCommandPreview(req.body || {});
+  const executionGuard = createHomeAssistantExecutionGuard(preview, {
+    actorId: req.auth.user?.id,
+    workspaceId: req.auth.user?.currentCompanyId || req.auth.user?.selectedCompanyId || req.auth.user?.companyId,
+  });
+  const guardCreated = executionGuard.status === "created";
+
+  res.json({
+    homeAssistantPreview: preview,
+    homeAssistantExecutionGuard: guardCreated ? executionGuard : null,
+    execution: {
+      canExecuteNow: false,
+      canExecuteAfterApproval: guardCreated,
+      executionLocked: !guardCreated,
+      noExecutionTokens: !guardCreated,
+      executeEndpointAvailable: true,
+      guardStatus: executionGuard.status,
+      guardReason: executionGuard.reason,
+      note: guardCreated
+        ? "Home Assistant preview is non-executing. A short-lived single-use guard was created for the exact preview and still requires John's confirmation before execution."
+        : "Home Assistant preview is non-executing. No execution guard was created because execution is disabled, blocked, or the preview is not v1-executable.",
+    },
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/home-assistant/execute", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanUseApexOsHomeAssistant(state, req.auth.user);
+  const receipt = await executeHomeAssistantCommandOnce(req.body || {}, {
+    actorId: req.auth.user?.id,
+    workspaceId: req.auth.user?.currentCompanyId || req.auth.user?.selectedCompanyId || req.auth.user?.companyId,
+  });
+  const safeReceipt = sanitizeHomeAssistantReceipt(receipt);
+
+  res.json({
+    homeAssistantExecution: safeReceipt,
+    execution: {
+      canExecuteNow: false,
+      canExecuteAfterApproval: false,
+      executionLocked: true,
+      noExecutionTokens: true,
+      executeEndpointAvailable: true,
+      note: safeReceipt.externalActionExecuted
+        ? "Home Assistant executed exactly one preview-bound allowlisted command and consumed the one-time guard."
+        : "Home Assistant did not execute a device command. The request was blocked, dry-run only, failed safely, or was not confirmed.",
+    },
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/ask", requireAuth, asyncRoute(async (req, res) => {
+  let state = await readDb();
   assertCanManageApexOsMemory(state, req.auth.user);
   const question = optionalString(req.body?.question, "").slice(0, 1000);
   if (!question) {
     throw new ApiError(400, "Ask Apex requires a question.");
   }
   const liveConversationContext = optionalString(req.body?.liveConversationContext || req.body?.conversationContext, "").slice(0, 2600);
+  let internalActionResult = null;
+  const inferredInternalAction = inferApexOsInternalActionFromText(question);
+  if (inferredInternalAction) {
+    const now = new Date().toISOString();
+    state = await updateDb((draft) => {
+      internalActionResult = runApexOsInternalActionForDraft(draft, req.auth.user, {
+        ...inferredInternalAction,
+        sourceLabel: "Ask Apex chat",
+      }, { now });
+      return draft;
+    });
+  }
 
   const context = buildApexOsAskContext({
     question,
     contextScope: req.body?.contextScope,
+    assistantMode: req.body?.assistantMode,
     liveConversationContext,
     companySettings: companySettingsForState(state, req.auth.user),
     user: req.auth.user,
   });
+  const workstationBrainCommand = inferApexWorkstationBrainCommand(question);
+  const workstationBrainReceipt = workstationBrainCommand.status === "detected"
+    ? applyApexWorkstationBrainCommand({ command: workstationBrainCommand })
+    : null;
   const apiKey = String(process.env.OPENAI_API_KEY || "").trim();
   let answer = null;
+  const selectedEffort = optionalString(req.body?.effort || req.body?.selectedEffort || req.body?.agentEffort || req.body?.requestedEffort, "").slice(0, 80);
+  const legacyOllamaStatusPromise = getOllamaProviderStatus({ timeoutMs: 250 }).catch(() => ({
+    provider: "ollama",
+    available: false,
+    status: "unavailable",
+    reason: "legacy-ollama-status-unavailable",
+    modelNames: [],
+    modelCount: 0,
+  }));
+  const selectedAgentSpeed = selectApexLocalAgentSpeedLane({
+    route: context.modelRoutingSummary?.route,
+    question,
+    effort: selectedEffort,
+    modelNames: [],
+  });
+  const selectedLlamaCppModelSpec = selectLlamaCppModelForApexLane(selectedAgentSpeed);
+  let llamaCppStatus = selectedLlamaCppModelSpec
+    ? await getLlamaCppProviderStatus({ timeoutMs: 350 }).catch(() => null)
+    : null;
+  let selectedLlamaCppAvailable = Boolean(
+    selectedLlamaCppModelSpec
+    && isLlamaCppReadyForApexLane({
+      status: llamaCppStatus,
+      laneSelection: selectedAgentSpeed,
+      modelSpec: selectedLlamaCppModelSpec,
+    }),
+  );
+  const privacyFirewallBlocksProvider = Boolean(
+    context.privacyFirewallSummary?.blockedCount
+    || context.privacyFirewallSummary?.approvalRequiredCount,
+  );
+  const untrustedContentBlocksProvider = Boolean(
+    context.untrustedContentFirewallSummary?.blocked
+    || context.untrustedContentFirewallSummary?.requiresOperatorReview,
+  );
+  const providerBlockedByContext = Boolean(privacyFirewallBlocksProvider || untrustedContentBlocksProvider);
+  const llamaRuntimePrepare = !providerBlockedByContext && selectedLlamaCppModelSpec && !selectedLlamaCppAvailable
+    ? await runApexLlamaCppRuntimeAction({
+        action: "prepare-primary",
+        model: selectedLlamaCppModelSpec.model,
+        effort: selectedAgentSpeed.effortId || "normal",
+        unloadOllama: true,
+        waitMs: 180_000,
+      }).catch(() => null)
+    : null;
+  if (llamaRuntimePrepare?.providerStatus) {
+    llamaCppStatus = llamaRuntimePrepare.providerStatus;
+    selectedLlamaCppAvailable = Boolean(isLlamaCppReadyForApexLane({
+      status: llamaCppStatus,
+      laneSelection: selectedAgentSpeed,
+      modelSpec: selectedLlamaCppModelSpec,
+    }));
+  }
+  const providerPolicy = buildApexOsLocalFirstProviderDecision({
+    route: context.modelRoutingSummary?.route,
+    providerMode: process.env.APEX_OS_AI_MODE || process.env.APEX_OS_PROVIDER_MODE,
+    localProviderAvailable: selectedLlamaCppAvailable,
+    cloudProviderConfigured: Boolean(apiKey),
+    serverCloudEnabled: isApexOsProviderFlagEnabled(process.env.APEX_OS_CLOUD_OVERRIDE_ENABLED || process.env.APEX_OS_OPENAI_ENABLED),
+    cloudKillSwitch: isApexOsProviderFlagEnabled(process.env.APEX_OS_CLOUD_KILL_SWITCH),
+    cloudOverrideText: question,
+    privacyFirewallSummary: context.privacyFirewallSummary,
+    promptInjectionFirewallSummary: context.untrustedContentFirewallSummary,
+    budgetGuard: buildApexOsCloudBudgetGuardFromEnv(process.env),
+  });
+  const ollamaStatus = await legacyOllamaStatusPromise;
+  const publicInternalActionResult = internalActionResult
+    ? publicApexOsInternalActionResult(internalActionResult)
+    : null;
+  const localProviderIdentityRequested = /\b(model|provider|ollama|openai|cloud|local)\b/i.test(question)
+    && /\b(using|use|running|powered|provider|model|local|cloud)\b/i.test(question);
 
-  if (!apiKey) {
-    answer = buildLocalApexOsAnswer(context);
+  if (publicInternalActionResult) {
+    const receiptSummary = publicInternalActionResult.receipt?.summary || publicInternalActionResult.reason;
+    answer = {
+      ok: true,
+      providerConfigured: false,
+      mode: publicInternalActionResult.performed ? "level-2-internal-action" : "level-2-internal-action-stopped",
+      answer: publicInternalActionResult.performed
+        ? `${receiptSummary} ${publicInternalActionResult.undoHint || "This stayed private inside Apex OS."}`
+        : `I can't do that as a Level 2 internal action yet. ${publicInternalActionResult.reason} ${publicInternalActionResult.safety?.actionPermissionSummary?.safeAlternative || "I can keep it as a private plan or ask for review."}`,
+      sourceLabels: ["Apex OS Internal Action Engine", "Ask Apex chat"],
+      approvalWarnings: publicInternalActionResult.performed ? [] : [publicInternalActionResult.reason],
+      nextAction: publicInternalActionResult.performed ? "Review activity receipt" : "Review safe alternative",
+    };
+  } else if (workstationBrainReceipt) {
+    const gpuStatus = await getApexGpuStatus().catch(() => ({}));
+    const brainStatus = buildApexWorkstationBrainStatus({
+      gpu: gpuStatus,
+      modelNames: ollamaStatus.modelNames || [],
+    });
+    const brainAnswer = buildApexWorkstationBrainCommandAnswer({
+      command: workstationBrainCommand,
+      brainStatus,
+    });
+    answer = {
+      ok: true,
+      provider: "apex-workstation-brain",
+      providerConfigured: true,
+      providerFallback: false,
+      mode: "workstation-brain-command",
+      model: brainStatus.modelId,
+      brainMode: brainStatus.activeMode,
+      brainStatus,
+      brainReceipt: workstationBrainReceipt,
+      processor: brainStatus.processor || "unknown",
+      vramUsedMb: Number(brainStatus.vramUsedMb || 0) || 0,
+      responseTimingMs: Number(brainStatus.responseTimingMs || 0) || 0,
+      answer: brainAnswer.answer,
+      sourceLabels: brainAnswer.sourceLabels,
+      approvalWarnings: [],
+      nextAction: "Continue local Apex operation",
+      providerPolicyDecision: providerPolicy.decision,
+      storesRawPrompt: false,
+      storesRawResponse: false,
+    };
+  } else if (privacyFirewallBlocksProvider || untrustedContentBlocksProvider) {
+    answer = {
+      ...buildLocalApexOsAnswer(context),
+      providerConfigured: Boolean(apiKey || llamaCppStatus?.available || ollamaStatus.available),
+      providerFallback: true,
+      mode: untrustedContentBlocksProvider ? "untrusted-content-firewall-local-fallback" : "privacy-firewall-local-fallback",
+      providerPolicyDecision: providerPolicy.decision,
+    };
+  } else if (providerPolicy.decision === APEX_OS_PROVIDER_DECISION.USE_LOCAL && selectedLlamaCppAvailable) {
+    const selectedProviderName = "llama.cpp";
+    const selectedProviderMode = "local-llama-cpp-source-backed";
+    const selectedProviderModel = selectedLlamaCppModelSpec.model;
+    try {
+      const localRequest = buildApexOsAskOpenAiRequest(context, selectedProviderModel);
+      const localAnswer = await chatWithLlamaCppForApexOs({
+        model: selectedProviderModel,
+        route: context.modelRoutingSummary?.route,
+        effort: selectedEffort,
+        laneSelection: selectedAgentSpeed,
+        providerStatus: llamaCppStatus,
+        messages: localRequest.messages,
+        maxOutputTokens: localRequest.max_tokens,
+        privacyFirewallSummary: context.privacyFirewallSummary,
+        promptInjectionFirewallSummary: context.untrustedContentFirewallSummary,
+      });
+      if (!localAnswer.ok || localAnswer.status === "blocked" || localAnswer.status === "unavailable" || localAnswer.status === "error") {
+        throw new Error([
+          localAnswer.reason || `${selectedProviderName}-local-answer-unavailable`,
+          localAnswer.httpStatus ? `http-${localAnswer.httpStatus}` : "",
+          localAnswer.httpBodyHint || "",
+        ].filter(Boolean).join(": "));
+      }
+      answer = {
+        ok: true,
+        provider: selectedProviderName,
+        providerConfigured: true,
+        providerFallback: false,
+        mode: selectedProviderMode,
+        model: localAnswer.modelUsed || selectedProviderModel,
+        processor: localAnswer.processor || localAnswer.modelProcessor?.processor || "unknown",
+        vramUsedMb: Number(localAnswer.vramUsedMb || localAnswer.modelProcessor?.vramUsedMb || 0) || 0,
+        responseTimingMs: Number(localAnswer.responseTimingMs || localAnswer.modelProcessor?.responseTimingMs || 0) || 0,
+        modelAlreadyLoaded: Boolean(localAnswer.modelAlreadyLoaded || localAnswer.modelProcessor?.modelAlreadyLoaded),
+        modelProcessor: localAnswer.modelProcessor || null,
+        brainMode: localAnswer.brainMode || localAnswer.brainReceipt?.activeMode || "",
+        brainProfile: localAnswer.brainProfile || null,
+        brainReceipt: localAnswer.brainReceipt || null,
+        brainTelemetry: localAnswer.brainTelemetry || null,
+        queueReceipt: localAnswer.queueReceipt || null,
+        agentSpeed: localAnswer.agentSpeed || selectedAgentSpeed,
+        agentSpeedLane: localAnswer.agentSpeedLane || selectedAgentSpeed.laneId,
+        agentSpeedLabel: localAnswer.agentSpeedLabel || selectedAgentSpeed.laneLabel,
+        agentEffort: localAnswer.agentEffort || selectedAgentSpeed.effortId,
+        agentEffortLabel: localAnswer.agentEffortLabel || selectedAgentSpeed.effortLabel,
+        effortModel: localAnswer.effortModel || selectedProviderModel,
+        effortNumCtx: localAnswer.effortNumCtx || selectedAgentSpeed.numCtx,
+        benchmarkReceipt: localAnswer.benchmarkReceipt || null,
+        residency: localAnswer.residency || null,
+        answer: localProviderIdentityRequested
+          ? `I am using local llama.cpp ${localAnswer.modelUsed || selectedProviderModel} through the raw Harmony adapter at ctx ${localAnswer.agentSpeed?.numCtx || selectedAgentSpeed.numCtx}. llama.cpp is the primary Apex brain path now; Ollama is legacy fallback only and OpenAI was not used.`
+          : localAnswer.answer,
+        sourceLabels: localProviderIdentityRequested
+          ? [...new Set(["Apex OS local provider status", ...(localAnswer.sourceLabels || [])])].slice(0, 8)
+          : localAnswer.sourceLabels,
+        approvalWarnings: localAnswer.approvalWarnings,
+        nextAction: localAnswer.nextAction,
+        providerPolicyDecision: providerPolicy.decision,
+        storesRawPrompt: false,
+        storesRawResponse: false,
+      };
+    } catch (error) {
+      logger.warn("Apex OS local provider answer failed; using local source-backed fallback", {
+        requestId: res.locals.requestId,
+        provider: selectedProviderName,
+        route: context.modelRoutingSummary?.route || "unknown",
+        model: selectedProviderModel,
+        reason: serializeError(error)?.message || `${selectedProviderName}-local-answer-failed`,
+      });
+      answer = {
+        ...buildLocalApexOsAnswer(context),
+        ok: false,
+        provider: selectedProviderName,
+        providerConfigured: Boolean(llamaCppStatus?.available),
+        providerFallback: true,
+        mode: "local-llama-cpp-fallback",
+        model: selectedProviderModel,
+        providerPolicyDecision: providerPolicy.decision,
+      };
+    }
+  } else if (!apiKey || providerPolicy.decision !== APEX_OS_PROVIDER_DECISION.ALLOW_CLOUD_ONCE) {
+    const annotateProviderFallback = Boolean(apiKey || llamaCppStatus?.available || ollamaStatus.available);
+    answer = {
+      ...buildLocalApexOsAnswer(context),
+      ...(annotateProviderFallback ? {
+        providerConfigured: false,
+        providerFallback: true,
+        mode: providerPolicy.decision === APEX_OS_PROVIDER_DECISION.ASK_BEFORE_CLOUD
+          ? "local-first-ask-before-cloud"
+          : "local-first-provider-policy-fallback",
+        providerPolicyDecision: providerPolicy.decision,
+      } : {
+        providerPolicyDecision: providerPolicy.decision,
+      }),
+      ...(annotateProviderFallback ? { localProvider: {
+        provider: "llama.cpp",
+        available: Boolean(llamaCppStatus?.available),
+        llamaCppAvailable: Boolean(llamaCppStatus?.available),
+        llamaCppReadyForSelectedLane: Boolean(selectedLlamaCppAvailable),
+        selectedModel: selectedLlamaCppModelSpec?.model || "",
+        selectedLlamaCppModel: selectedLlamaCppModelSpec?.model || "",
+        selectedModelAvailable: Boolean(selectedLlamaCppAvailable),
+        selectedEffort: selectedAgentSpeed.effortId,
+        effortLabel: selectedAgentSpeed.effortLabel,
+        effortManualOnly: Boolean(selectedAgentSpeed.effortManualOnly || selectedAgentSpeed.manualOnly),
+        llamaRuntimePrepare,
+      } } : {}),
+    };
   } else {
     try {
       const response = await fetch(APEX_OS_ASK_OPENAI_URL, {
@@ -13700,9 +14943,69 @@ app.post("/api/apex-os/ask", requireAuth, asyncRoute(async (req, res) => {
       contextScope: context.contextScope,
       sourceCount: context.sources.length,
       memoryCount: context.memory.length,
+      openTaskCount: context.taskReminderSummary?.openTaskCount || 0,
+      openReminderCount: context.taskReminderSummary?.openReminderCount || 0,
+      taskReminderSummary: context.taskReminderSummary,
+      skillRegistrySummary: context.skillRegistrySummary,
+      actionPermissionSummary: context.actionPermissionSummary,
+      modelRoutingSummary: context.modelRoutingSummary,
+      affectiveStateSummary: context.affectiveStateSummary,
+      activeIntelligenceLoopSummary: context.activeIntelligenceLoopSummary,
+      knowledgeEngineSummary: context.knowledgeEngineSummary,
+      desktopWatchSummary: context.desktopWatchSummary,
+      browserActionSummary: context.browserActionSummary,
+      musicSecondScreenSummary: context.musicSecondScreenSummary,
+      lifeAutomationConnectorSummary: context.lifeAutomationConnectorSummary,
+      builderOperatorSummary: context.builderOperatorSummary,
+      privacyFirewallSummary: context.privacyFirewallSummary,
+      untrustedContentFirewallSummary: context.untrustedContentFirewallSummary,
+      toolRouteSummary: context.toolRouteSummary,
+      externalActionApprovalSummary: context.externalActionApprovalSummary,
+      externalPreparationPacketSummary: context.externalPreparationPacketSummary,
+      localFirstProviderPolicy: providerPolicy,
+      localProviderStatus: {
+        provider: "llama.cpp",
+        primaryProvider: true,
+        legacyOllamaAvailable: Boolean(ollamaStatus.available),
+        available: Boolean(llamaCppStatus?.available),
+        status: llamaCppStatus?.status || "unavailable",
+        reason: llamaCppStatus?.reason || "llama-cpp-status-unavailable",
+        baseUrlIsLocal: Boolean(llamaCppStatus?.baseUrlIsLocal),
+        modelCount: Number(llamaCppStatus?.modelCount || 0),
+        modelNames: llamaCppStatus?.modelNames || [],
+        selectedModel: selectedLlamaCppModelSpec?.model || "",
+        selectedModelAvailable: selectedLlamaCppAvailable,
+        llamaRuntimePrepare,
+        selectedEffort: selectedAgentSpeed.effortId,
+        effortLabel: selectedAgentSpeed.effortLabel,
+        effortManualOnly: Boolean(selectedAgentSpeed.effortManualOnly || selectedAgentSpeed.manualOnly),
+        agentSpeed: answer?.agentSpeed || selectedAgentSpeed,
+        agentSpeedLane: answer?.agentSpeedLane || selectedAgentSpeed.laneId,
+        agentSpeedLabel: answer?.agentSpeedLabel || selectedAgentSpeed.laneLabel,
+        benchmarkReceipt: answer?.benchmarkReceipt || null,
+        residency: answer?.residency || null,
+        modelProcessor: answer?.modelProcessor || null,
+        processor: answer?.processor || answer?.modelProcessor?.processor || "unknown",
+        vramUsedMb: Number(answer?.vramUsedMb || answer?.modelProcessor?.vramUsedMb || 0) || 0,
+        responseTimingMs: Number(answer?.responseTimingMs || answer?.modelProcessor?.responseTimingMs || 0) || 0,
+        canChatNow: Boolean(selectedLlamaCppAvailable),
+        promptSentByStatusCheck: false,
+        storesRawPrompt: false,
+        storesRawResponse: false,
+      },
+      traceSummary: context.traceSummary,
+      traceEntries: context.traceEntries,
+      internalAction: publicInternalActionResult,
+      approvedMemoryCount: context.memorySummary?.approvedCount || 0,
+      suggestedMemoryCount: context.memorySummary?.suggestedCount || 0,
+      memorySummary: context.memorySummary,
+      memoryRetrievalSummary: context.memoryRetrievalSummary,
+      memorySuggestionAvailable: Boolean(context.memorySuggestion?.body),
       approvalWarningCount: context.approvalWarnings.length,
       liveConversationContextIncluded: Boolean(context.liveConversationContext),
     },
+    externalPreparationPacket: context.externalPreparationPacket || null,
+    memorySuggestion: context.memorySuggestion || null,
     requestId: res.locals.requestId,
   });
 }));
@@ -13712,24 +15015,181 @@ app.post("/api/apex-os/knowledge-intelligence", requireAuth, asyncRoute(async (r
   assertCanManageApexOsMemory(state, req.auth.user);
 
   const settings = companySettingsForState(state, req.auth.user);
+  const knowledgeQuery = optionalString(req.body?.query, "").slice(0, 260);
+  const knowledgeCategory = optionalString(req.body?.category, "all").slice(0, 80);
+  const knowledgeSource = optionalString(req.body?.source, "all").slice(0, 180);
+  const requestedKnowledgeRoute = inferApexOsModelRouteFromRequest({
+    question: [
+      knowledgeQuery,
+      optionalString(req.body?.route || req.body?.modelRoute, "").slice(0, 80),
+      knowledgeCategory,
+      knowledgeSource,
+    ].filter(Boolean).join(" "),
+  });
   const intelligence = buildApexOsKnowledgeIntelligence(settings.apexOsMemory || [], {
-    query: optionalString(req.body?.query, "").slice(0, 260),
-    category: optionalString(req.body?.category, "all").slice(0, 80),
-    source: optionalString(req.body?.source, "all").slice(0, 180),
+    query: knowledgeQuery,
+    category: knowledgeCategory,
+    source: knowledgeSource,
     status: optionalString(req.body?.status, "all").slice(0, 40),
     dateRange: optionalString(req.body?.dateRange, "all").slice(0, 40),
     limit: Number(req.body?.limit) || 8,
   });
   const apiKey = String(process.env.OPENAI_API_KEY || "").trim();
+  const knowledgeLocalRoute = requestedKnowledgeRoute === "coding-analysis"
+    ? requestedKnowledgeRoute
+    : intelligence.modelRoutingSummary?.route;
+  const selectedKnowledgeAgentSpeed = selectApexLocalAgentSpeedLane({
+    route: knowledgeLocalRoute,
+    question: optionalString(req.body?.query || "", "").slice(0, 1000),
+  });
+  const selectedLlamaCppModelSpec = selectLlamaCppModelForApexLane(selectedKnowledgeAgentSpeed);
+  const legacyOllamaStatusPromise = getOllamaProviderStatus({ timeoutMs: 250 }).catch(() => ({
+    provider: "ollama",
+    available: false,
+    status: "unavailable",
+    reason: "legacy-ollama-status-unavailable",
+    modelNames: [],
+    modelCount: 0,
+  }));
+  let llamaCppStatus = selectedLlamaCppModelSpec
+    ? await getLlamaCppProviderStatus({ timeoutMs: 350 }).catch(() => null)
+    : null;
+  let selectedLlamaCppAvailable = Boolean(
+    selectedLlamaCppModelSpec
+    && isLlamaCppReadyForApexLane({
+      status: llamaCppStatus,
+      laneSelection: selectedKnowledgeAgentSpeed,
+      modelSpec: selectedLlamaCppModelSpec,
+    }),
+  );
+  const knowledgePrivacyBlocksProvider = Boolean(
+    intelligence.privacyFirewallSummary?.blockedCount
+    || intelligence.privacyFirewallSummary?.approvalRequiredCount,
+  );
+  const knowledgeUntrustedContentBlocksProvider = Boolean(
+    intelligence.untrustedContentFirewallSummary?.blocked
+    || intelligence.untrustedContentFirewallSummary?.requiresOperatorReview,
+  );
+  const knowledgeProviderBlockedByContext = Boolean(knowledgePrivacyBlocksProvider || knowledgeUntrustedContentBlocksProvider);
+  const llamaRuntimePrepare = !knowledgeProviderBlockedByContext && selectedLlamaCppModelSpec && !selectedLlamaCppAvailable
+    ? await runApexLlamaCppRuntimeAction({
+        action: "prepare-primary",
+        model: selectedLlamaCppModelSpec.model,
+        effort: selectedKnowledgeAgentSpeed.effortId || "normal",
+        unloadOllama: true,
+        waitMs: 180_000,
+      }).catch(() => null)
+    : null;
+  if (llamaRuntimePrepare?.providerStatus) {
+    llamaCppStatus = llamaRuntimePrepare.providerStatus;
+    selectedLlamaCppAvailable = Boolean(isLlamaCppReadyForApexLane({
+      status: llamaCppStatus,
+      laneSelection: selectedKnowledgeAgentSpeed,
+      modelSpec: selectedLlamaCppModelSpec,
+    }));
+  }
+  const ollamaStatus = await legacyOllamaStatusPromise;
+  const selectedLocalModel = selectedLlamaCppModelSpec?.model || "";
+  const selectedLocalModelAvailable = Boolean(selectedLlamaCppAvailable);
+  const providerPolicy = buildApexOsLocalFirstProviderDecision({
+    route: knowledgeLocalRoute,
+    providerMode: process.env.APEX_OS_AI_MODE || process.env.APEX_OS_PROVIDER_MODE,
+    localProviderAvailable: selectedLocalModelAvailable,
+    cloudProviderConfigured: Boolean(apiKey),
+    serverCloudEnabled: isApexOsProviderFlagEnabled(process.env.APEX_OS_CLOUD_OVERRIDE_ENABLED || process.env.APEX_OS_OPENAI_ENABLED),
+    cloudKillSwitch: isApexOsProviderFlagEnabled(process.env.APEX_OS_CLOUD_KILL_SWITCH),
+    cloudOverrideText: optionalString(req.body?.query || req.body?.cloudOverridePhrase, "").slice(0, 260),
+    privacyFirewallSummary: intelligence.privacyFirewallSummary,
+    promptInjectionFirewallSummary: intelligence.untrustedContentFirewallSummary,
+    budgetGuard: buildApexOsCloudBudgetGuardFromEnv(process.env),
+  });
   let providerInsight = {
     ok: true,
     providerConfigured: false,
     mode: "local-knowledge-intelligence",
-    providerSummary: "Local source ranking, document summaries, confidence labels, and conflict warnings are active. Server-side AI summaries are available only when OPENAI_API_KEY is configured.",
+    providerSummary: "Local-first source ranking, document summaries, confidence labels, and conflict warnings are active. Cloud provider summaries require explicit Apex OS cloud override policy approval.",
     classifications: [],
   };
 
-  if (apiKey && req.body?.includeProviderSummary !== false && intelligence.rankedRows.length) {
+  if ((apiKey || llamaCppStatus?.available || ollamaStatus.available) && (knowledgePrivacyBlocksProvider || knowledgeUntrustedContentBlocksProvider)) {
+    providerInsight = {
+      ok: true,
+      providerConfigured: Boolean(apiKey || llamaCppStatus?.available || ollamaStatus.available),
+      providerFallback: true,
+      mode: knowledgeUntrustedContentBlocksProvider ? "untrusted-content-firewall-local-fallback" : "privacy-firewall-local-fallback",
+      providerSummary: knowledgeUntrustedContentBlocksProvider
+        ? "Untrusted content firewall kept this Knowledge Intelligence packet local because source content requires operator review."
+        : "Privacy firewall kept this Knowledge Intelligence packet local because cloud-bound content was blocked or approval-required.",
+      classifications: [],
+      providerPolicyDecision: providerPolicy.decision,
+    };
+  } else if (req.body?.includeProviderSummary !== false && intelligence.rankedRows.length && providerPolicy.decision === APEX_OS_PROVIDER_DECISION.USE_LOCAL && selectedLocalModelAvailable) {
+    try {
+      const localRequest = buildApexOsKnowledgeOpenAiRequest(intelligence, selectedLocalModel);
+      const localKnowledge = await chatWithLlamaCppForApexOsKnowledge({
+        model: selectedLocalModel,
+        route: knowledgeLocalRoute,
+        laneSelection: selectedKnowledgeAgentSpeed,
+        providerStatus: llamaCppStatus,
+        messages: localRequest.messages,
+        maxOutputTokens: localRequest.max_tokens,
+        privacyFirewallSummary: intelligence.privacyFirewallSummary,
+        untrustedContentFirewallSummary: intelligence.untrustedContentFirewallSummary,
+      });
+      if (!localKnowledge.ok || localKnowledge.status === "blocked" || localKnowledge.status === "unavailable" || localKnowledge.status === "error") {
+        throw new Error(localKnowledge.reason || "llama-cpp-local-knowledge-unavailable");
+      }
+      providerInsight = {
+        ok: true,
+        provider: "llama.cpp",
+        providerConfigured: true,
+        providerFallback: false,
+        mode: "local-llama-cpp-knowledge-summary",
+        model: localKnowledge.modelUsed || selectedLocalModel,
+        processor: localKnowledge.processor || localKnowledge.modelProcessor?.processor || "unknown",
+        vramUsedMb: Number(localKnowledge.vramUsedMb || localKnowledge.modelProcessor?.vramUsedMb || 0) || 0,
+        responseTimingMs: Number(localKnowledge.responseTimingMs || localKnowledge.modelProcessor?.responseTimingMs || 0) || 0,
+        modelAlreadyLoaded: Boolean(localKnowledge.modelAlreadyLoaded || localKnowledge.modelProcessor?.modelAlreadyLoaded),
+        modelProcessor: localKnowledge.modelProcessor || null,
+        brainMode: localKnowledge.brainMode || localKnowledge.brainReceipt?.activeMode || "",
+        brainProfile: localKnowledge.brainProfile || null,
+        brainReceipt: localKnowledge.brainReceipt || null,
+        brainTelemetry: localKnowledge.brainTelemetry || null,
+        queueReceipt: localKnowledge.queueReceipt || null,
+        agentSpeed: localKnowledge.agentSpeed || selectedKnowledgeAgentSpeed,
+        agentSpeedLane: localKnowledge.agentSpeedLane || selectedKnowledgeAgentSpeed.laneId,
+        agentSpeedLabel: localKnowledge.agentSpeedLabel || selectedKnowledgeAgentSpeed.laneLabel,
+        benchmarkReceipt: localKnowledge.benchmarkReceipt || null,
+        residency: localKnowledge.residency || null,
+        providerSummary: localKnowledge.providerSummary,
+        classifications: localKnowledge.classifications,
+        providerPolicyDecision: providerPolicy.decision,
+        storesRawPrompt: false,
+        storesRawResponse: false,
+      };
+    } catch (error) {
+      logger.warn("Apex OS local llama.cpp knowledge summary failed; using local intelligence", {
+        requestId: res.locals.requestId,
+        provider: "llama.cpp",
+        route: knowledgeLocalRoute || "unknown",
+        model: selectedLocalModel,
+        reason: serializeError(error)?.message || "llama-cpp-local-knowledge-failed",
+      });
+      providerInsight = {
+        ok: false,
+        provider: "llama.cpp",
+        providerConfigured: Boolean(llamaCppStatus?.available),
+        providerFallback: true,
+        mode: "local-llama-cpp-knowledge-fallback",
+        model: selectedLocalModel,
+        providerSummary: "Local llama.cpp summary failed, so Apex OS is using deterministic local source ranking, summaries, confidence labels, and conflict warnings.",
+        classifications: [],
+        providerPolicyDecision: providerPolicy.decision,
+        storesRawPrompt: false,
+        storesRawResponse: false,
+      };
+    }
+  } else if (apiKey && req.body?.includeProviderSummary !== false && intelligence.rankedRows.length && providerPolicy.decision === APEX_OS_PROVIDER_DECISION.ALLOW_CLOUD_ONCE) {
     try {
       const response = await fetch(APEX_OS_ASK_OPENAI_URL, {
         method: "POST",
@@ -13757,6 +15217,29 @@ app.post("/api/apex-os/knowledge-intelligence", requireAuth, asyncRoute(async (r
         classifications: [],
       };
     }
+  } else if ((apiKey || llamaCppStatus?.available || ollamaStatus.available) && req.body?.includeProviderSummary !== false) {
+    providerInsight = {
+      ok: true,
+      providerConfigured: false,
+      providerFallback: true,
+      mode: providerPolicy.decision === APEX_OS_PROVIDER_DECISION.ASK_BEFORE_CLOUD
+        ? "local-first-ask-before-cloud"
+        : "local-first-provider-policy-fallback",
+      providerSummary: providerPolicy.decision === APEX_OS_PROVIDER_DECISION.ASK_BEFORE_CLOUD
+        ? "Local-first Knowledge Intelligence is active. Apex OS can ask John before any cloud summary because cloud use requires an explicit override phrase."
+        : "Local-first Knowledge Intelligence is active. Cloud provider summaries are blocked unless the Apex OS cloud override policy allows exactly one request.",
+      classifications: [],
+      providerPolicyDecision: providerPolicy.decision,
+      localProvider: {
+        provider: "llama.cpp",
+        primaryProvider: true,
+        legacyOllamaAvailable: Boolean(ollamaStatus.available),
+        available: Boolean(llamaCppStatus?.available),
+        selectedModel: selectedLocalModel,
+        selectedModelAvailable: selectedLocalModelAvailable,
+        llamaRuntimePrepare,
+      },
+    };
   }
 
   res.json({
@@ -13769,6 +15252,39 @@ app.post("/api/apex-os/knowledge-intelligence", requireAuth, asyncRoute(async (r
       suggestedCount: intelligence.suggestedCount,
       conflictCount: intelligence.conflictWarnings.length,
       embeddingStatus: intelligence.embeddingStatus,
+      privacyFirewallSummary: intelligence.privacyFirewallSummary,
+      untrustedContentFirewallSummary: intelligence.untrustedContentFirewallSummary,
+      localFirstProviderPolicy: providerPolicy,
+      localProviderStatus: {
+        provider: "llama.cpp",
+        primaryProvider: true,
+        legacyOllamaAvailable: Boolean(ollamaStatus.available),
+        available: Boolean(llamaCppStatus?.available),
+        status: llamaCppStatus?.status || "unavailable",
+        reason: llamaCppStatus?.reason || "llama-cpp-status-unavailable",
+        baseUrlIsLocal: Boolean(llamaCppStatus?.baseUrlIsLocal),
+        modelCount: Number(llamaCppStatus?.modelCount || 0),
+        modelNames: llamaCppStatus?.modelNames || [],
+        selectedModel: selectedLocalModel,
+        selectedModelAvailable: selectedLocalModelAvailable,
+        llamaRuntimePrepare,
+        agentSpeed: providerInsight?.agentSpeed || selectedKnowledgeAgentSpeed,
+        agentSpeedLane: providerInsight?.agentSpeedLane || selectedKnowledgeAgentSpeed.laneId,
+        agentSpeedLabel: providerInsight?.agentSpeedLabel || selectedKnowledgeAgentSpeed.laneLabel,
+        benchmarkReceipt: providerInsight?.benchmarkReceipt || null,
+        residency: providerInsight?.residency || null,
+        requestedRoute: requestedKnowledgeRoute,
+        knowledgeRoute: knowledgeLocalRoute,
+        modelProcessor: providerInsight?.modelProcessor || null,
+        processor: providerInsight?.processor || providerInsight?.modelProcessor?.processor || "unknown",
+        vramUsedMb: Number(providerInsight?.vramUsedMb || providerInsight?.modelProcessor?.vramUsedMb || 0) || 0,
+        responseTimingMs: Number(providerInsight?.responseTimingMs || providerInsight?.modelProcessor?.responseTimingMs || 0) || 0,
+        canChatNow: Boolean(selectedLocalModelAvailable),
+        promptSentByStatusCheck: false,
+        storesRawPrompt: false,
+        storesRawResponse: false,
+      },
+      traceSummary: intelligence.traceSummary,
     },
     requestId: res.locals.requestId,
   });
@@ -13931,6 +15447,11 @@ app.post("/api/apex-os/memory", requireAuth, asyncRoute(async (req, res) => {
     createdEntry.createdBy = req.auth.user.id;
     createdEntry.createdAt = now;
     if (isApexOsKnowledgeCategory(createdEntry.category) && String(createdEntry.sourceType || "").toLowerCase() === "knowledge-upload") {
+      createdEntry.status = "suggested";
+      createdEntry.approvedBy = "";
+      createdEntry.approvedAt = "";
+    }
+    if (String(createdEntry.sourceType || "").toLowerCase().includes("memory-suggestion")) {
       createdEntry.status = "suggested";
       createdEntry.approvedBy = "";
       createdEntry.approvedAt = "";
@@ -21099,6 +22620,7 @@ app.use((error, req, res, next) => {
 await ensureDb();
 
 app.listen(port, () => {
+  startApexBackgroundRuntimeHeartbeat();
   logger.info("Apex HQ API listening", {
     environment: serverConfig.nodeEnv,
     port,

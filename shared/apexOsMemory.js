@@ -11,6 +11,18 @@ export const APEX_OS_LIVE_OPERATOR_MEMORY_SOURCE_TYPES = Object.freeze([
 
 const STATUS_VALUES = new Set(["suggested", "approved", "archived"]);
 const LIVE_OPERATOR_MEMORY_SOURCE_TYPE_SET = new Set(APEX_OS_LIVE_OPERATOR_MEMORY_SOURCE_TYPES);
+export const APEX_OS_MEMORY_TYPE_VALUES = Object.freeze([
+  "john-personal",
+  "john-business",
+  "assistant-preference",
+  "apex-project",
+  "life-routine",
+  "business-goal",
+  "active-priority",
+  "saved-idea",
+  "people-context",
+  "do-not-do",
+]);
 export const APEX_OS_DECISION_CATEGORY_VALUES = Object.freeze([
   "product-identity",
   "safety-rule",
@@ -19,6 +31,15 @@ export const APEX_OS_DECISION_CATEGORY_VALUES = Object.freeze([
   "business-goal",
   "provider-account-decision",
   "personal-preference",
+  "john-personal",
+  "john-business",
+  "assistant-preference",
+  "apex-project",
+  "life-routine",
+  "active-priority",
+  "saved-idea",
+  "people-context",
+  "do-not-do",
   "decision",
   "operating-rule",
   "general",
@@ -36,6 +57,7 @@ export const APEX_OS_KNOWLEDGE_CATEGORY_VALUES = Object.freeze([
 
 const CATEGORY_VALUES = new Set([
   ...APEX_OS_DECISION_CATEGORY_VALUES,
+  ...APEX_OS_MEMORY_TYPE_VALUES,
   "app-docs",
   "business-strategy",
   "marketing-sales",
@@ -52,6 +74,49 @@ const SECRET_PATTERNS = [
 ];
 
 const EMAIL_PATTERN = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
+const PHONE_PATTERN = /\b(?:\+?1[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?)\d{3}[\s.-]?\d{4}\b/g;
+
+const MEMORY_TYPE_ALIASES = Object.freeze({
+  "personal-preference": "assistant-preference",
+  preference: "assistant-preference",
+  preferences: "assistant-preference",
+  "assistant-style": "assistant-preference",
+  "communication-style": "assistant-preference",
+  "private-owner-notes": "john-personal",
+  "owner-notes": "john-personal",
+  personal: "john-personal",
+  "life-planning": "life-routine",
+  routine: "life-routine",
+  routines: "life-routine",
+  "business-strategy": "john-business",
+  "marketing-sales": "john-business",
+  "customer-research": "john-business",
+  business: "john-business",
+  goal: "business-goal",
+  goals: "business-goal",
+  priority: "active-priority",
+  priorities: "active-priority",
+  idea: "saved-idea",
+  ideas: "saved-idea",
+  "remembered-idea": "saved-idea",
+  "product-ideas": "saved-idea",
+  people: "people-context",
+  person: "people-context",
+  contact: "people-context",
+  "do-not": "do-not-do",
+  "dont-do": "do-not-do",
+  "do-not-do-rule": "do-not-do",
+  "safety-rule": "do-not-do",
+  "operating-rule": "do-not-do",
+  "apex-hq": "apex-project",
+  "apex-os": "apex-project",
+  "app-docs": "apex-project",
+  "roadmap-decision": "apex-project",
+  "build-freeze": "apex-project",
+  "product-identity": "apex-project",
+  decision: "apex-project",
+  general: "apex-project",
+});
 
 function rawText(value = "", limit = TEXT_LIMIT) {
   return String(value ?? "").replace(/\s+\n/g, "\n").replace(/\s+/g, " ").trim().slice(0, limit);
@@ -60,7 +125,9 @@ function rawText(value = "", limit = TEXT_LIMIT) {
 export function redactApexOsMemoryText(value = "", limit = TEXT_LIMIT) {
   let next = rawText(value, limit);
   next = next.replace(EMAIL_PATTERN, "[REDACTED]");
+  next = next.replace(PHONE_PATTERN, "[REDACTED]");
   for (const pattern of SECRET_PATTERNS) {
+    pattern.lastIndex = 0;
     next = next.replace(pattern, "[REDACTED]");
   }
   return next.slice(0, limit);
@@ -72,7 +139,14 @@ export function detectApexOsMemorySafetyIssues(value = "") {
   if (!raw) return issues;
   if (EMAIL_PATTERN.test(raw)) issues.push("Apex OS memory cannot store customer email addresses.");
   EMAIL_PATTERN.lastIndex = 0;
-  if (SECRET_PATTERNS.some((pattern) => pattern.test(raw))) {
+  if (PHONE_PATTERN.test(raw)) issues.push("Apex OS memory cannot store private phone numbers or raw customer contact values.");
+  PHONE_PATTERN.lastIndex = 0;
+  if (SECRET_PATTERNS.some((pattern) => {
+    pattern.lastIndex = 0;
+    const matched = pattern.test(raw);
+    pattern.lastIndex = 0;
+    return matched;
+  })) {
     issues.push("Apex OS memory cannot store passwords, tokens, MFA, CAPTCHA, paywall, login, provider keys, or portal credential instructions.");
   }
   return [...new Set(issues)];
@@ -105,7 +179,36 @@ function normalizeCategory(value = "general") {
   return CATEGORY_VALUES.has(normalized) ? normalized : "general";
 }
 
+export function normalizeApexOsMemoryType(value = "apex-project") {
+  const normalized = rawText(value, 80).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  const aliased = MEMORY_TYPE_ALIASES[normalized] || normalized;
+  return APEX_OS_MEMORY_TYPE_VALUES.includes(aliased) ? aliased : "apex-project";
+}
+
+export function getApexOsMemoryType(value = "apex-project") {
+  const id = normalizeApexOsMemoryType(value);
+  const labels = {
+    "john-personal": "John personal",
+    "john-business": "John business",
+    "assistant-preference": "Assistant preference",
+    "apex-project": "Apex project",
+    "life-routine": "Life routine",
+    "business-goal": "Business goal",
+    "active-priority": "Active priority",
+    "saved-idea": "Saved idea",
+    "people-context": "People context",
+    "do-not-do": "Do-not-do",
+  };
+  return {
+    id,
+    label: labels[id] || "Apex project",
+    category: id,
+  };
+}
+
 export function normalizeApexOsMemoryEntry(input = {}, { existing = {}, id = "", now = new Date().toISOString() } = {}) {
+  const category = normalizeCategory(input.category ?? existing.category ?? input.type ?? existing.type);
+  const type = normalizeApexOsMemoryType(input.type ?? input.memoryType ?? existing.type ?? existing.memoryType ?? category);
   const title = redactApexOsMemoryText(input.title ?? existing.title ?? "", TITLE_LIMIT);
   const body = redactApexOsMemoryText(input.body ?? existing.body ?? input.detail ?? existing.detail ?? "", TEXT_LIMIT);
   const sourceLabel = redactApexOsMemoryText(input.sourceLabel ?? existing.sourceLabel ?? "", SHORT_LIMIT);
@@ -123,7 +226,8 @@ export function normalizeApexOsMemoryEntry(input = {}, { existing = {}, id = "",
 
   return {
     id: rawText(existing.id || input.id || id, 80),
-    category: normalizeCategory(input.category ?? existing.category),
+    category,
+    type,
     title,
     body,
     sourceType: rawText(input.sourceType ?? existing.sourceType ?? "manual", SHORT_LIMIT) || "manual",
@@ -156,6 +260,214 @@ export function summarizeApexOsMemory(value = []) {
     approved: memory.filter((entry) => entry.status === "approved").length,
     suggested: memory.filter((entry) => entry.status === "suggested").length,
     archived: memory.filter((entry) => entry.status === "archived").length,
+  };
+}
+
+function suggestionTitle(value = "", type = "apex-project") {
+  const cleaned = rawText(value, 90).replace(/[.!?]+$/g, "");
+  if (cleaned) return cleaned;
+  return `${getApexOsMemoryType(type).label} memory`;
+}
+
+function comparableMemoryText(value = "") {
+  return rawText(value, 1000).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function memorySuggestionExists(candidate = {}, existingMemory = []) {
+  const candidateBody = comparableMemoryText(candidate.body);
+  const candidateTitle = comparableMemoryText(candidate.title);
+  if (!candidateBody && !candidateTitle) return false;
+  return normalizeApexOsMemory(existingMemory)
+    .filter((entry) => entry.status !== "archived")
+    .some((entry) => (
+      normalizeApexOsMemoryType(entry.type || entry.category) === normalizeApexOsMemoryType(candidate.type || candidate.category)
+      && (
+        comparableMemoryText(entry.body) === candidateBody
+        || comparableMemoryText(entry.title) === candidateTitle
+      )
+    ));
+}
+
+export function buildApexOsMemorySuggestion({
+  text = "",
+  type = "apex-project",
+  reason = "John stated a durable memory candidate.",
+  source = {},
+} = {}) {
+  const normalizedType = normalizeApexOsMemoryType(type);
+  const blockedReasons = detectApexOsMemorySafetyIssues(text);
+  const safeText = redactApexOsMemoryText(text, TEXT_LIMIT);
+  const safeReason = redactApexOsMemoryText(reason, 300);
+  const sourceObject = source && typeof source === "object" ? source : { sourceLabel: source };
+  const suggestion = normalizeApexOsMemoryEntry({
+    category: normalizedType,
+    type: normalizedType,
+    title: suggestionTitle(safeText, normalizedType),
+    body: safeText,
+    sourceType: sourceObject.sourceType || "apex-os-memory-suggestion",
+    sourceLabel: sourceObject.sourceLabel || "Apex OS conversation",
+    sourceUri: sourceObject.sourceUri || "",
+    status: "suggested",
+    confidence: sourceObject.confidence ?? 82,
+    reviewNote: safeReason || "Suggested from conversation; John/operator review required before durable use.",
+  });
+  return {
+    ...suggestion,
+    blockedReasons: [...new Set([...(suggestion.blockedReasons || []), ...blockedReasons])],
+  };
+}
+
+function extractRememberedIdea(textValue = "") {
+  const match = textValue.match(/\b(?:remember this idea|save this idea|idea)\s*:?\s+(.+)$/i);
+  return rawText(match?.[1] || "", 260);
+}
+
+function buildExplicitMemoryCandidate(normalized = "") {
+  if (/\b(?:never|do not|don't)\b.*\b(send|text|email|message|sms)\b.*\b(ask|asking|approval|approve|permission)\b/i.test(normalized)) {
+    return {
+      type: "do-not-do",
+      text: "John wants Apex OS to ask for explicit approval before sending external messages.",
+      reason: "John stated a durable external-message boundary.",
+    };
+  }
+  if (/\b(?:don't|do not)\b.*\b(long answers?|too long|long responses?)\b|\b(short answers?|concise|keep it short|keep answers short)\b/i.test(normalized)) {
+    return {
+      type: "assistant-preference",
+      text: "John prefers concise, practical answers unless he asks for detail.",
+      reason: "John stated a durable response-style preference.",
+    };
+  }
+  if (/\b(business and life|life too|business and personal|general private assistant|not only as an apex hq app assistant|not just apex hq)\b/i.test(normalized)) {
+    return {
+      type: "assistant-preference",
+      text: "John wants Apex OS to operate as a general private assistant for business and life, not only as an Apex HQ app assistant.",
+      reason: "John stated a durable assistant-scope preference.",
+    };
+  }
+  const idea = extractRememberedIdea(normalized);
+  if (idea) {
+    return {
+      type: "saved-idea",
+      text: `Idea: ${idea.replace(/^idea\s*:?\s*/i, "")}`,
+      reason: "John asked Apex OS to remember an idea.",
+    };
+  }
+  if (/\b(?:my priority is|top priority is|focus on|active priority)\b/i.test(normalized)) {
+    return {
+      type: "active-priority",
+      text: rawText(normalized.replace(/^.*?\b(?:my priority is|top priority is|focus on|active priority)\b\s*:?\s*/i, "Active priority: "), 360),
+      reason: "John stated an active priority.",
+    };
+  }
+  if (/\b(?:business goal|goal is|i want to grow|revenue goal)\b/i.test(normalized)) {
+    return {
+      type: "business-goal",
+      text: rawText(normalized.replace(/^.*?\b(?:business goal|goal is)\b\s*:?\s*/i, "Business goal: "), 360),
+      reason: "John stated a durable business goal.",
+    };
+  }
+  if (/\b(?:routine|every morning|every day|daily)\b/i.test(normalized) && /\b(?:remember|save|learn|do this)\b/i.test(normalized)) {
+    return {
+      type: "life-routine",
+      text: rawText(`Routine: ${normalized}`, 360),
+      reason: "John stated a durable life routine.",
+    };
+  }
+  return null;
+}
+
+export function detectApexOsMemorySuggestionFromTurn({
+  userText = "",
+  assistantMode = "",
+  existingMemory = [],
+} = {}) {
+  const normalized = rawText(userText, 1000);
+  if (!normalized) return null;
+  const candidate = buildExplicitMemoryCandidate(normalized);
+  if (!candidate) return null;
+  const suggestion = buildApexOsMemorySuggestion({
+    ...candidate,
+    source: {
+      sourceType: "apex-os-memory-suggestion",
+      sourceLabel: assistantMode ? `Apex OS ${assistantMode} conversation` : "Apex OS conversation",
+      sourceUri: "ask-apex:memory-suggestion",
+    },
+  });
+  return memorySuggestionExists(suggestion, existingMemory) ? null : suggestion;
+}
+
+function memorySummaryRow(entry = {}) {
+  return {
+    id: entry.id,
+    type: entry.type,
+    category: entry.category,
+    title: entry.title,
+    body: rawText(entry.body, 360),
+    sourceLabel: entry.sourceLabel,
+    sourceUri: entry.sourceUri,
+    status: entry.status,
+    confidence: entry.confidence,
+    approvedAt: entry.approvedAt,
+    updatedAt: entry.updatedAt,
+    createdAt: entry.createdAt,
+  };
+}
+
+function sortMemoryContextRows(left = {}, right = {}) {
+  return String(right.approvedAt || right.updatedAt || right.createdAt || "")
+    .localeCompare(String(left.approvedAt || left.updatedAt || left.createdAt || ""));
+}
+
+export function buildApexOsMemorySummary(memoryRows = [], { limit = 4 } = {}) {
+  const rowLimit = Math.max(1, Math.min(8, Number(limit) || 4));
+  const rows = normalizeApexOsMemory(memoryRows);
+  const approvedRows = rows.filter((entry) => entry.status === "approved").slice().sort(sortMemoryContextRows);
+  const suggestedRows = rows.filter((entry) => entry.status === "suggested").slice().sort(sortMemoryContextRows);
+  const rowsByType = (types = []) => approvedRows
+    .filter((entry) => types.includes(normalizeApexOsMemoryType(entry.type || entry.category)))
+    .slice(0, rowLimit)
+    .map(memorySummaryRow);
+  const sections = {
+    personalBusinessAssistant: rowsByType(["john-personal", "john-business", "assistant-preference", "life-routine", "business-goal", "people-context"]),
+    apexProject: rowsByType(["apex-project"]),
+    activePriorities: rowsByType(["active-priority"]),
+    savedIdeas: rowsByType(["saved-idea"]),
+    doNotDo: rowsByType(["do-not-do"]),
+  };
+  const approvedTypeCounts = Object.fromEntries(APEX_OS_MEMORY_TYPE_VALUES.map((type) => [
+    type,
+    approvedRows.filter((entry) => normalizeApexOsMemoryType(entry.type || entry.category) === type).length,
+  ]));
+  const suggestedTypeCounts = Object.fromEntries(APEX_OS_MEMORY_TYPE_VALUES.map((type) => [
+    type,
+    suggestedRows.filter((entry) => normalizeApexOsMemoryType(entry.type || entry.category) === type).length,
+  ]));
+  const compactRows = [
+    ...sections.personalBusinessAssistant,
+    ...sections.apexProject,
+    ...sections.activePriorities,
+    ...sections.savedIdeas,
+    ...sections.doNotDo,
+  ].slice(0, rowLimit * 3);
+  const summaryText = approvedRows.length
+    ? [
+      `${approvedRows.length} approved memory item${approvedRows.length === 1 ? "" : "s"}`,
+      approvedTypeCounts["assistant-preference"] ? `${approvedTypeCounts["assistant-preference"]} assistant preference${approvedTypeCounts["assistant-preference"] === 1 ? "" : "s"}` : "",
+      approvedTypeCounts["active-priority"] ? `${approvedTypeCounts["active-priority"]} active priorit${approvedTypeCounts["active-priority"] === 1 ? "y" : "ies"}` : "",
+      approvedTypeCounts["do-not-do"] ? `${approvedTypeCounts["do-not-do"]} do-not-do rule${approvedTypeCounts["do-not-do"] === 1 ? "" : "s"}` : "",
+    ].filter(Boolean).join("; ")
+    : "No approved durable Apex OS memory is available yet.";
+  return {
+    total: rows.length,
+    approvedCount: approvedRows.length,
+    suggestedCount: suggestedRows.length,
+    archivedCount: rows.filter((entry) => entry.status === "archived").length,
+    approvedTypeCounts,
+    suggestedTypeCounts,
+    sections,
+    compactRows,
+    pendingSuggestions: suggestedRows.slice(0, rowLimit).map(memorySummaryRow),
+    summaryText,
   };
 }
 
@@ -316,6 +628,7 @@ export function buildApexOsMemoryContext(value = [], { limit = 12 } = {}) {
     .map((entry) => ({
       id: entry.id,
       category: entry.category,
+      type: entry.type,
       title: entry.title,
       body: entry.body,
       sourceType: entry.sourceType,

@@ -1,3 +1,7 @@
+import {
+  buildApexLocalCodingSpeedPrepReceipt,
+} from "./apexLocalAgentSpeed.js";
+
 const STATUS_LABELS = Object.freeze({
   "??": "untracked",
   A: "added",
@@ -339,6 +343,7 @@ export function buildApexOsBuildAwarenessSnapshot({
   collectedAt = new Date().toISOString(),
 } = {}) {
   const changedFiles = parseGitStatusPorcelain(gitStatusText);
+  const localCodingSpeedPrep = buildApexLocalCodingSpeedPrepReceipt({ changedFiles });
   const recentCommits = parseGitLogOneline(recentCommitsText);
   const frozenPhaseRows = extractApexOsFrozenPhaseRows(docs.livingPlan || "");
   const deployHistoryRows = extractApexOsDeployHistoryRows(docs.livingPlan || "");
@@ -400,6 +405,7 @@ export function buildApexOsBuildAwarenessSnapshot({
     gitAvailable: Boolean(gitAvailable),
     changedFileCount: dirtyCount,
     changedFiles: changedFiles.slice(0, 24),
+    localCodingSpeedPrep,
     recentCommits,
     buildStatus: {
       id: "build-script",
@@ -464,6 +470,24 @@ export function restrictedApexOsBuildAwarenessSnapshot() {
     gitAvailable: false,
     changedFileCount: 0,
     changedFiles: [],
+    localCodingSpeedPrep: {
+      provider: "apex-local-agent-speed",
+      receiptType: "local-coding-speed-prep",
+      version: "v1",
+      status: "restricted",
+      changedFileCount: 0,
+      topSurfaces: [],
+      fileRows: [],
+      recommendedLane: "fast",
+      recommendedModel: "qwen3:14b",
+      recommendedNumCtx: 2048,
+      noKnowledgeGraphBuilt: true,
+      noFileCrawlerAdded: true,
+      fieldDataIncluded: false,
+      noCloudFallback: true,
+      secretsExposed: false,
+      summary: "Private operator access is required.",
+    },
     recentCommits: [],
     buildStatus: { id: "restricted", title: "Build awareness", status: "Restricted", detail: "Private operator access is required.", tone: "slate" },
     testStatus: { id: "restricted-tests", title: "Test awareness", status: "Restricted", detail: "Private operator access is required.", tone: "slate" },

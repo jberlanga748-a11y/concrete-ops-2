@@ -3,7 +3,7 @@ export const DEMO_COMPANY_NAME = "Apex HQ Demo Company";
 export const DEMO_CREDENTIALS = {
   email: "demo.ops@apexhq.app",
   password: "apexdemo123",
-  name: "Jordan Berl",
+  name: "Demo Operator",
   role: "Operations Manager",
 };
 

@@ -128,9 +128,7 @@ export function detectApexOsVoiceCommand(transcript = "") {
     status: "Source-backed question",
     tone: hasRiskyExternalAction(normalized) ? "amber" : "blue",
     risky: hasRiskyExternalAction(normalized),
-    askQuestion: normalized
-      ? `${normalized} Keep the answer source-backed and do not execute any external, irreversible, customer-visible, production, provider, send, spend, billing, deletion, schema, auth, or session action.`
-      : "",
+    askQuestion: normalized,
   };
 }
 

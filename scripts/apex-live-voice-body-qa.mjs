@@ -175,6 +175,10 @@ function browserVoiceHarness() {
   });
 }
 
+function isBenignBrowserConsoleMessage(line) {
+  return /GL Driver Message/i.test(line) && /ReadPixels/i.test(line);
+}
+
 async function waitForApexRoom(page) {
   await mark("opening /apex-control-room");
   await page.goto(`${baseUrl}/apex-control-room`, { waitUntil: "domcontentloaded" });
@@ -208,6 +212,49 @@ async function clickFirstVisible(page, selectorDescription, locators) {
   return false;
 }
 
+async function collectApexBodyEvidence(page, { expectedTranscript = "what's blocked today" } = {}) {
+  return page.evaluate((transcript) => {
+    const qa = window.__apexVoiceBodyQa || {};
+    const body = document.querySelector('[aria-label="Apex digital body"]');
+    const rect = body?.getBoundingClientRect();
+    const text = (document.body.textContent || "").replace(/\s+/g, " ").trim();
+    const expectedTranscript = String(transcript || "").trim().toLowerCase();
+    return {
+      spokenCount: qa.spoken?.length || 0,
+      spokenSamples: (qa.spoken || []).map((item) => String(item).slice(0, 220)),
+      recognitionStarts: qa.recognitionStarts || 0,
+      emittedTranscripts: qa.emittedTranscripts || [],
+      bodyStates: qa.bodyStates || [],
+      currentBodyState: body?.getAttribute("data-voice-state") || "",
+      currentIntensity: body?.getAttribute("data-intensity") || "",
+      currentRenderer: body?.getAttribute("data-renderer") || "",
+      currentModel: body?.getAttribute("data-model") || "",
+      currentStateClip: document.querySelector(".co-apex-life-glb-shell")?.getAttribute("data-apex-intelligence-state-clip") || "",
+      hasApexBody: Boolean(body && rect?.width && rect?.height),
+      hasGlbCanvas: Boolean(document.querySelector(".co-apex-life-glb-canvas")),
+      hasAura: Boolean(document.querySelector(".co-apex-life-aura")),
+      hasNeuralGrid: Boolean(document.querySelector(".co-apex-life-neural-grid")),
+      hasVoiceBand: Boolean(document.querySelector(".co-apex-life-voice-band")),
+      hasHumanoid: Boolean(document.querySelector(".co-apex-life-humanoid")),
+      hasHead: Boolean(document.querySelector(".co-apex-life-head")),
+      hasTorso: Boolean(document.querySelector(".co-apex-life-torso")),
+      hasFaceRig: Boolean(document.querySelector(".co-apex-life-face-rig")),
+      hasMouth: Boolean(document.querySelector(".co-apex-life-mouth")),
+      hasReactor: Boolean(document.querySelector(".co-apex-life-reactor")),
+      hasSpectrum: Boolean(document.querySelector(".co-apex-life-spectrum")),
+      hasDataRain: Boolean(document.querySelector(".co-apex-life-data-rain")),
+      hasHoloShell: Boolean(document.querySelector(".co-apex-life-holo-shell")),
+      hasMockupImage: Boolean(document.querySelector('img[src*="apex-cockpit-body-reference"]')),
+      soundCheckVisible: /Sound Check/i.test(text),
+      soundCheckPassedNotice: /Sound check passed|desktop voice is audible/i.test(text),
+      voiceOpenVisible: /Voice Open|Apex is listening/i.test(text),
+      transcriptVisible: expectedTranscript ? text.toLowerCase().includes(expectedTranscript) : true,
+      speakerReadyVisible: /Speaker\s*Unlocked|Speaker\s*Talking|Sound check passed|desktop voice is audible/i.test(text),
+      horizontalOverflow: Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth),
+    };
+  }, expectedTranscript);
+}
+
 async function runDesktopPass(browser) {
   await mark("creating browser context");
   const context = await browser.newContext({
@@ -225,7 +272,8 @@ async function runDesktopPass(browser) {
   const logs = [];
   const failedRequests = [];
   page.on("console", (message) => {
-    if (["error", "warning"].includes(message.type())) logs.push(`${message.type()}: ${message.text()}`);
+    const line = `${message.type()}: ${message.text()}`;
+    if (["error", "warning"].includes(message.type()) && !isBenignBrowserConsoleMessage(line)) logs.push(line);
   });
   page.on("pageerror", (error) => logs.push(`pageerror: ${error.message}`));
   page.on("requestfailed", (request) => {
@@ -261,9 +309,9 @@ async function runDesktopPass(browser) {
   }
   if (!voiceOpen) {
     const wokeApex = await clickFirstVisible(page, "Wake, Resume, or Recover Voice", [
-      page.getByRole("button", { name: /Wake Apex|Resume Voice|Recover Voice/i }),
-      page.locator('[aria-label="Apex focus controls"] button').filter({ hasText: /Wake Apex|Resume Voice|Wake|Resume|Recover Voice/i }),
-      page.locator("button").filter({ hasText: /Wake Apex|Resume Voice|Wake|Resume|Recover Voice/i }),
+      page.getByRole("button", { name: /Allow Mic|Start Voice|Resume Voice|Recover Voice/i }),
+      page.locator('[aria-label="Apex focus controls"] button').filter({ hasText: /Allow Mic|Start Voice|Resume Voice|Resume|Recover Voice/i }),
+      page.locator("button").filter({ hasText: /Allow Mic|Start Voice|Resume Voice|Resume|Recover Voice/i }),
     ]);
     if (!wokeApex) {
       const buttonLabels = await page.evaluate(() => Array.from(document.querySelectorAll("button"))
@@ -295,30 +343,7 @@ async function runDesktopPass(browser) {
   await page.screenshot({ path: postAnswerListeningScreenshotPath, fullPage: true });
   await mark("post-answer listening screenshot captured");
 
-  const evidence = await page.evaluate(() => {
-    const qa = window.__apexVoiceBodyQa || {};
-    const body = document.querySelector('[aria-label="Apex digital body"]');
-    const rect = body?.getBoundingClientRect();
-    const text = (document.body.textContent || "").replace(/\s+/g, " ").trim();
-    return {
-      spokenCount: qa.spoken?.length || 0,
-      spokenSamples: (qa.spoken || []).map((item) => String(item).slice(0, 220)),
-      recognitionStarts: qa.recognitionStarts || 0,
-      emittedTranscripts: qa.emittedTranscripts || [],
-      bodyStates: qa.bodyStates || [],
-      currentBodyState: body?.getAttribute("data-voice-state") || "",
-      hasApexBody: Boolean(body && rect?.width && rect?.height),
-      hasAura: Boolean(document.querySelector(".co-apex-life-aura")),
-      hasNeuralGrid: Boolean(document.querySelector(".co-apex-life-neural-grid")),
-      hasVoiceBand: Boolean(document.querySelector(".co-apex-life-voice-band")),
-      soundCheckVisible: /Sound Check/i.test(text),
-      soundCheckPassedNotice: /Sound check passed|desktop voice is audible/i.test(text),
-      voiceOpenVisible: /Voice Open|Apex is listening/i.test(text),
-      transcriptVisible: /what's blocked today/i.test(text),
-      speakerReadyVisible: /Speaker\s*Unlocked|Speaker\s*Talking|Sound check passed|desktop voice is audible/i.test(text),
-      horizontalOverflow: Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth),
-    };
-  });
+  const evidence = await collectApexBodyEvidence(page);
 
   const pass = evidence.spokenCount >= 2
     && evidence.spokenSamples.some((sample) => /Apex audio is on/i.test(sample))
@@ -327,9 +352,23 @@ async function runDesktopPass(browser) {
     && evidence.bodyStates.includes("speaking")
     && (evidence.bodyStates.includes("listening") || evidence.bodyStates.includes("hearing"))
     && evidence.hasApexBody
+    && evidence.currentRenderer === "glb"
+    && evidence.currentModel === "apex-intelligence-live-web"
+    && ["Idle", "Listening", "Hearing", "Thinking", "Speaking", "Blocked", "Alert"].includes(evidence.currentStateClip)
+    && evidence.hasGlbCanvas
     && evidence.hasAura
     && evidence.hasNeuralGrid
     && evidence.hasVoiceBand
+    && evidence.hasHumanoid
+    && evidence.hasHead
+    && evidence.hasTorso
+    && evidence.hasFaceRig
+    && evidence.hasMouth
+    && evidence.hasReactor
+    && evidence.hasSpectrum
+    && evidence.hasDataRain
+    && evidence.hasHoloShell
+    && !evidence.hasMockupImage
     && evidence.soundCheckVisible
     && evidence.voiceOpenVisible
     && evidence.transcriptVisible
@@ -344,6 +383,97 @@ async function runDesktopPass(browser) {
     soundCheckScreenshotPath,
     voiceTurnScreenshotPath,
     postAnswerListeningScreenshotPath,
+    evidence,
+    logs,
+    failedRequests,
+  };
+}
+
+async function runMobilePass(browser) {
+  await mark("creating mobile browser context");
+  const context = await browser.newContext({
+    baseURL: baseUrl,
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+  });
+  await mark("mobile browser context created");
+  await context.grantPermissions(["microphone"], { origin: baseUrl });
+  await context.addInitScript(browserVoiceHarness);
+  const page = await context.newPage();
+  page.setDefaultTimeout(15_000);
+  const logs = [];
+  const failedRequests = [];
+  page.on("console", (message) => {
+    const line = `${message.type()}: ${message.text()}`;
+    if (["error", "warning"].includes(message.type()) && !isBenignBrowserConsoleMessage(line)) logs.push(line);
+  });
+  page.on("pageerror", (error) => logs.push(`pageerror: ${error.message}`));
+  page.on("requestfailed", (request) => {
+    if (!request.url().startsWith(baseUrl)) return;
+    failedRequests.push(`${request.method()} ${request.url()} ${request.failure()?.errorText || "failed"}`);
+  });
+
+  await mark("mobile logging in");
+  await loginContext(context);
+  await waitForApexRoom(page);
+  await mark("mobile opening voice");
+  const clicked = await clickFirstVisible(page, "mobile voice wake", [
+    page.getByRole("button", { name: /Allow Mic|Start Voice|Resume|Open Voice|Voice Open/i }),
+    page.locator("button").filter({ hasText: /Allow Mic|Start Voice|Resume|Open Voice|Voice Open/i }),
+  ]);
+  if (!clicked) {
+    const buttonLabels = await page.evaluate(() => Array.from(document.querySelectorAll("button"))
+      .map((button) => (button.textContent || "").replace(/\s+/g, " ").trim())
+      .filter(Boolean));
+    await page.screenshot({ path: path.join(outputDir, "mobile-no-wake-button.png"), fullPage: true });
+    throw new Error(`Could not find mobile voice wake button. Visible buttons: ${buttonLabels.join(" | ")}`);
+  }
+  await page.waitForFunction(() => /Voice Open|Apex is listening|Live captions active/i.test(document.body.textContent || ""), null, { timeout: 20_000 });
+  await mark("mobile emitting fake voice transcript");
+  await page.evaluate(() => window.__apexVoiceBodyQa.emitTranscript("what's blocked today"));
+  await page.waitForFunction(() => {
+    const qa = window.__apexVoiceBodyQa || {};
+    const bodyText = document.body.textContent || "";
+    const bodyState = document.querySelector('[aria-label="Apex digital body"]')?.getAttribute("data-voice-state") || "";
+    return qa.spoken?.length >= 1 && bodyState === "speaking" && /what's blocked today/i.test(bodyText);
+  }, null, { timeout: 45_000 });
+  const mobileVoiceTurnScreenshotPath = path.join(outputDir, "mobile-voice-turn-talkback.png");
+  await page.screenshot({ path: mobileVoiceTurnScreenshotPath, fullPage: true });
+  await mark("mobile voice turn screenshot captured");
+
+  const evidence = await collectApexBodyEvidence(page);
+  const pass = evidence.spokenCount >= 1
+    && evidence.emittedTranscripts.includes("what's blocked today")
+    && evidence.bodyStates.includes("speaking")
+    && evidence.hasApexBody
+    && evidence.currentRenderer === "glb"
+    && evidence.currentModel === "apex-intelligence-live-web"
+    && ["Idle", "Listening", "Hearing", "Thinking", "Speaking", "Blocked", "Alert"].includes(evidence.currentStateClip)
+    && evidence.hasGlbCanvas
+    && evidence.hasAura
+    && evidence.hasNeuralGrid
+    && evidence.hasVoiceBand
+    && evidence.hasHumanoid
+    && evidence.hasHead
+    && evidence.hasTorso
+    && evidence.hasFaceRig
+    && evidence.hasMouth
+    && evidence.hasReactor
+    && evidence.hasSpectrum
+    && evidence.hasDataRain
+    && evidence.hasHoloShell
+    && !evidence.hasMockupImage
+    && evidence.soundCheckVisible
+    && evidence.horizontalOverflow === 0
+    && logs.length === 0
+    && failedRequests.length === 0;
+
+  await context.close();
+  return {
+    name: "mobile-live-body-voice-turn",
+    pass,
+    mobileVoiceTurnScreenshotPath,
     evidence,
     logs,
     failedRequests,
@@ -397,18 +527,19 @@ async function main() {
     });
     await mark("chromium launched");
     const result = await runDesktopPass(browser);
+    const mobileResult = await runMobilePass(browser);
     const summary = {
       baseUrl,
       dataDir,
       outputDir,
       serverLogPath,
-      results: [result],
-      pass: result.pass,
+      results: [result, mobileResult],
+      pass: result.pass && mobileResult.pass,
     };
     await fs.writeFile(path.join(outputDir, "summary.json"), JSON.stringify(summary, null, 2));
-    await mark(result.pass ? "desktop live voice/body QA passed" : "desktop live voice/body QA failed");
+    await mark(summary.pass ? "desktop and mobile live voice/body QA passed" : "live voice/body QA failed");
     console.log(JSON.stringify(summary, null, 2));
-    if (!result.pass) process.exitCode = 1;
+    if (!summary.pass) process.exitCode = 1;
   } finally {
     if (browser) await browser.close().catch(() => {});
     await stopServer();

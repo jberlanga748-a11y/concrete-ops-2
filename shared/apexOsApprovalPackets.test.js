@@ -124,5 +124,36 @@ test("flags missing readiness fields and unsafe packet text", () => {
 test("provides approval templates with risk scoring and exact approval phrases", () => {
   assert.equal(APEX_OS_APPROVAL_PACKET_TEMPLATES.length >= 5, true);
   assert.equal(APEX_OS_APPROVAL_PACKET_TEMPLATES.some((template) => template.id === "deploy" && template.exactApprovalPhrase === "BACKUP_FIRST_PRODUCTION_RELEASE_APPROVED"), true);
+  assert.equal(APEX_OS_APPROVAL_PACKET_TEMPLATES.some((template) => template.id === "ordering" && template.exactApprovalPhrase === "EXTERNAL_ORDER_APPROVED"), true);
+  assert.equal(APEX_OS_APPROVAL_PACKET_TEMPLATES.some((template) => template.id === "calendar" && template.exactApprovalPhrase === "EXTERNAL_CALENDAR_WRITE_APPROVED"), true);
   assert.equal(APEX_OS_APPROVAL_PACKET_TEMPLATES.every((template) => scoreApexOsApprovalPacketRisk(template).score > 0), true);
+});
+
+test("normalizes Phase 5B external action approval metadata without execution", () => {
+  const packet = normalizeApexOsApprovalPacket({
+    id: "AAP-ORDER",
+    title: "External order approval",
+    action: "Review-only order approval draft.",
+    requestedActionCategory: "ordering",
+    riskLevel: "high",
+    reason: "Ordering requires explicit approval.",
+    affectedScope: "External food order; no execution from packet.",
+    validationPlan: "Confirm merchant, item, cost, delivery, and cancellation path.",
+    rollbackPlan: "Archive if not approved.",
+    exactApprovalPhrase: "EXTERNAL_ORDER_APPROVED",
+    sourceLabel: "Apex OS Tool Router",
+    sourceRouteId: "ordering-plan",
+    sourceRouteStatus: "approval-required",
+    sourceActionDomain: "ordering",
+    approvalSystemPhase: "phase-5b-external-action-approval",
+    executionGate: "approval-record-only-no-execution",
+  });
+
+  assert.equal(packet.requestedActionCategory, "ordering");
+  assert.equal(packet.sourceRouteId, "ordering-plan");
+  assert.equal(packet.sourceActionDomain, "ordering");
+  assert.equal(packet.executionGate, "approval-record-only-no-execution");
+  assert.equal(isApexOsApprovalPacketReady(packet), true);
+  assert.equal(isApexOsApprovalPacketApprovalConfirmed(packet, "EXTERNAL_ORDER_APPROVED"), true);
+  assert.equal(scoreApexOsApprovalPacketRisk(packet).band, "high");
 });

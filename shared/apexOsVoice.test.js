@@ -42,6 +42,16 @@ test("Apex OS general voice question is source-backed and non-executing", () => 
   assert.equal(review.audioStored, false);
 });
 
+test("Apex OS ordinary voice question does not inject hard-stop keywords into Ask Apex text", () => {
+  const review = buildApexOsVoiceCommandReview("Apex can you hear me?");
+
+  assert.equal(review.commandId, "ask-apex");
+  assert.equal(review.askQuestion, "Apex can you hear me?");
+  assert.equal(review.approvalRequired, false);
+  assert.equal(review.executionLocked, true);
+  assert.doesNotMatch(review.askQuestion, /schema|auth|session|billing|deletion|provider/i);
+});
+
 test("Apex OS speech request uses server-side TTS shape and clamps voice", () => {
   const request = buildApexOsVoiceSpeechRequest({
     text: "Apex can talk back after a source-backed answer.",

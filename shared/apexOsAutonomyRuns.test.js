@@ -531,7 +531,7 @@ test("proactive check-in stays quiet when no run has started", () => {
   assert.equal(checkIn.executionLocked, true);
   assert.equal(checkIn.externalActionsLocked, true);
   assert.equal(checkIn.canExecute, false);
-  assert.match(checkIn.answer, /Execution, sends, billing/i);
+  assert.match(checkIn.answer, /Money, sends, billing/i);
 });
 
 test("proactive check-in surfaces a new active run without enabling execution", () => {
@@ -587,7 +587,70 @@ test("proactive check-in surfaces status and progress changes", () => {
   assert.equal(checkIn.shouldSurface, true);
   assert.match(checkIn.trigger, /status-change|progress-change/);
   assert.match(checkIn.answer, /Progress live run/i);
-  assert.match(checkIn.answer, /Execution, sends, billing/i);
+  assert.match(checkIn.answer, /Money, sends, billing/i);
+});
+
+test("proactive check-in uses review-gate language instead of asking John to review", () => {
+  const baseRun = buildApexOsAutonomyRunPlan({
+    title: "Blocked voice repair",
+    request: "Fix the voice loop.",
+    routeLabel: "Apex",
+  }, {
+    id: "AAR-PROACTIVE-BLOCKED",
+    now: "2026-06-05T10:00:00.000Z",
+    createdBy: "U-1",
+  });
+  const previous = buildApexOsAutonomyRunHeartbeat(baseRun, {
+    now: "2026-06-05T10:02:00.000Z",
+  });
+  const blockedRun = {
+    ...baseRun,
+    status: "validating",
+    updatedAt: "2026-06-05T10:05:00.000Z",
+    steps: baseRun.steps.map((step, index) => (index === 1 ? { ...step, status: "blocked" } : step)),
+  };
+  const current = buildApexOsAutonomyRunHeartbeat(blockedRun, {
+    now: "2026-06-05T10:06:00.000Z",
+  });
+  const checkIn = buildApexOsAutonomyRunProactiveCheckIn(previous, current, {
+    now: "2026-06-05T10:06:10.000Z",
+  });
+
+  assert.equal(checkIn.shouldSurface, true);
+  assert.match(checkIn.title, /stopped at a review gate/i);
+  assert.doesNotMatch(checkIn.title, /needs review/i);
+});
+
+test("proactive check-in can keep review gates quiet on Apex home", () => {
+  const baseRun = buildApexOsAutonomyRunPlan({
+    title: "Blocked voice repair",
+    request: "Fix the voice loop.",
+    routeLabel: "Apex",
+  }, {
+    id: "AAR-PROACTIVE-BLOCKED-QUIET",
+    now: "2026-06-05T10:00:00.000Z",
+    createdBy: "U-1",
+  });
+  const previous = buildApexOsAutonomyRunHeartbeat(baseRun, {
+    now: "2026-06-05T10:02:00.000Z",
+  });
+  const blockedRun = {
+    ...baseRun,
+    status: "validating",
+    updatedAt: "2026-06-05T10:05:00.000Z",
+    steps: baseRun.steps.map((step, index) => (index === 1 ? { ...step, status: "blocked" } : step)),
+  };
+  const current = buildApexOsAutonomyRunHeartbeat(blockedRun, {
+    now: "2026-06-05T10:06:00.000Z",
+  });
+  const checkIn = buildApexOsAutonomyRunProactiveCheckIn(previous, current, {
+    now: "2026-06-05T10:06:10.000Z",
+    suppressReviewGateCheckIns: true,
+  });
+
+  assert.equal(checkIn.shouldSurface, false);
+  assert.match(checkIn.trigger, /quiet/i);
+  assert.match(checkIn.recommendation, /home screen calm/i);
 });
 
 test("proactive check-in does not resurface unchanged heartbeat signatures", () => {

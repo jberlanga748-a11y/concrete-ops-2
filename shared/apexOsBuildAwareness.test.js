@@ -61,6 +61,15 @@ test("builds read-only Apex OS build awareness snapshot", () => {
   assert.equal(snapshot.status, "Local changes present");
   assert.equal(snapshot.branch, "codex/apex-os-command-center");
   assert.equal(snapshot.changedFileCount, 2);
+  assert.equal(snapshot.localCodingSpeedPrep.provider, "apex-local-agent-speed");
+  assert.equal(snapshot.localCodingSpeedPrep.receiptType, "local-coding-speed-prep");
+  assert.equal(snapshot.localCodingSpeedPrep.recommendedLane, "coding");
+  assert.equal(snapshot.localCodingSpeedPrep.recommendedModel, "qwen3:14b");
+  assert.equal(snapshot.localCodingSpeedPrep.recommendedNumCtx, 4096);
+  assert.equal(snapshot.localCodingSpeedPrep.deepModel, "qwen3-coder:30b");
+  assert.equal(snapshot.localCodingSpeedPrep.deepLaneManualOnly, true);
+  assert.equal(snapshot.localCodingSpeedPrep.noKnowledgeGraphBuilt, true);
+  assert.equal(snapshot.localCodingSpeedPrep.noFileCrawlerAdded, true);
   assert.equal(snapshot.buildStatus.status, "Available");
   assert.equal(snapshot.testStatus.status, "1 scripts");
   assert.equal(snapshot.latestDeploy.version, "646");
