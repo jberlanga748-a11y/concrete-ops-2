@@ -24,8 +24,8 @@ export function Sidebar({
       label: "Apex",
       helper: "Private",
       icon: "spark",
-      target: firstVisible(["apexControlRoom", "familyCare", "apexAvatarLab"]),
-      modules: ["apexControlRoom", "familyCare", "apexAvatarLab"],
+      target: firstVisible(["apexControlRoom", "apexAvatarLab"]),
+      modules: ["apexControlRoom", "apexAvatarLab"],
       count: null,
     },
     {

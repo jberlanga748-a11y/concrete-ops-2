@@ -1,10 +1,29 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
+function familyCareRoutePlugin() {
+  return {
+    name: "apex-family-care-local-route",
+    configureServer(server) {
+      server.middlewares.use((req, _res, next) => {
+        const pathname = (req.url || "").split("?")[0];
+        if (pathname === "/family-care" || pathname === "/family-care/") {
+          req.url = "/family-care.html";
+        }
+        next();
+      });
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [familyCareRoutePlugin(), react()],
   build: {
     rollupOptions: {
+      input: {
+        main: "index.html",
+        familyCare: "family-care.html",
+      },
       output: {
         manualChunks(id) {
           if (id.includes("node_modules")) {

@@ -4,6 +4,22 @@ Last updated: 2026-06-09
 
 Status: local source-of-truth plan. This is Apex private life-operator work, not Apex HQ customer/product work.
 
+## Boundary Rule
+
+Apex Family Care is its own private family PWA. It is Apex-powered, but it is not Apex HQ, not a contractor app module, and not a page family members should reach through John's business app or private Apex cockpit.
+
+Apex is the behind-the-scenes intelligence that can operate Family Care, just like Apex can operate Apex HQ. The apps stay separate.
+
+Family Care must have:
+
+- its own direct PWA entry
+- its own PWA metadata/manifest
+- family-facing copy
+- no Apex HQ contractor/customer/field navigation
+- no Apex private operator cockpit dependency for family use
+
+The current repo may reuse shared code, helpers, tests, and build tooling, but the user-facing Family Care app boundary is separate.
+
 ## North Star
 
 Apex Family Care exists to make Grandma's care easier on the family, especially Dad and Brother, without turning care into another chore.
@@ -217,6 +233,23 @@ Phase 2 receipt (2026-06-09): added an explicit compact care-note model, create/
 Done means: Apex can operate the Family Care domain through a clean internal interface.
 
 Phase 3 receipt (2026-06-09): added the local-only Apex Family Care brain interface with `logCareNote`, `getTodayCareStatus`, `buildDoctorSummary`, `buildFamilyDigest`, `listOpenConcerns`, and medication-confirmation-only `markMedicationConfirmed`. Receipts stay compact and metadata-only with no raw prompts, raw responses, raw audio, raw transcripts, secrets, customer data, cloud use, diagnosis, emergency replacement claims, or medication-control behavior. The existing Apex System Health screen now surfaces a compact brain-ready signal and medication-control-off guard without adding a dashboard, voice capture, server route, schema, auth/session, deploy, or Apex HQ customer/product exposure. Focused validation: `node --test --test-concurrency=1 shared/apexFamilyCare.test.js shared/apexFamilyCareBrain.test.js src/apex-family-care-components-import.test.js shared/permissions.test.js src/app-routing.test.js src/navigation-utils.test.js src/mobile-nav-utils.test.js src/app-navigation-components-import.test.js` passed 85/85.
+
+### Phase 3.5 - Family Care PWA Boundary Split
+
+- [x] Add explicit boundary rule: Family Care is its own PWA, not Apex HQ.
+- [x] Add standalone Family Care HTML entry.
+- [x] Add separate Family Care PWA manifest/metadata.
+- [x] Mount Family Care without booting the Apex HQ app shell.
+- [x] Remove Family Care from Apex HQ/App workspace navigation.
+- [x] Remove Family Care from Apex OS/private operator mobile navigation.
+- [x] Remove Family Care from Apex HQ module permissions/routing.
+- [x] Keep Apex brain/domain helpers reusable behind the app.
+- [x] Keep standalone route local-only until family access is explicitly designed.
+- [x] Add tests that prevent Family Care from drifting back into Apex HQ.
+
+Done means: family can open/install Family Care directly as its own local PWA boundary, while Apex remains the behind-the-scenes brain and Apex HQ remains separate.
+
+Phase 3.5 receipt (2026-06-09): corrected the Family Care boundary so it is Apex-powered but not an Apex HQ/customer/contractor module and not a page family members reach through John's business app or private Apex cockpit. Added standalone `family-care.html`, `src/family-care-main.jsx`, and `public/family-care.webmanifest`; removed Family Care from Apex HQ/App routing, desktop navigation, mobile operator navigation, and module permissions; kept the care-note, summary, and Apex brain helpers reusable behind the standalone app; and made the server serve Family Care only outside production while production explicitly 404s the Family Care route/manifest. Focused validation passed 90/90. Repo validation: `npm.cmd run verify:roles` passed 15/15, `npm.cmd run verify:server` passed 42/42, `npm.cmd run verify:docs` passed, `npm.cmd run build` passed and emitted `dist/family-care.html`, and `git diff --check` passed with CRLF warnings only.
 
 ### Phase 4 - Voice-First Entry
 

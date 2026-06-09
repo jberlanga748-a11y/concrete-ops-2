@@ -2,7 +2,7 @@ import { DEFAULT_COMPANY_SETTINGS, canAccessModule, getAllowedModuleIds, getDefa
 
 export { canAccessModule };
 
-const APEX_OS_OPERATOR_MODULE_IDS = new Set(["apexControlRoom", "familyCare", "apexAvatarLab", "appHealth", "copilot", "settings", "support"]);
+const APEX_OS_OPERATOR_MODULE_IDS = new Set(["apexControlRoom", "apexAvatarLab", "appHealth", "copilot", "settings", "support"]);
 
 export function isApexOsOperatorWorkspace(user, permissions = null) {
   return Boolean(user && permissions?.apexOs?.canView);
@@ -33,7 +33,7 @@ function packageAllowsModule(moduleId, permissions = null) {
     return Boolean(permissionFlag(permissions, "appHealth.canView"));
   }
 
-  if (moduleId === "apexControlRoom" || moduleId === "familyCare" || moduleId === "apexAvatarLab") {
+  if (moduleId === "apexControlRoom" || moduleId === "apexAvatarLab") {
     return Boolean(permissionFlag(permissions, "apexOs.canView"));
   }
 

@@ -333,13 +333,13 @@ function SettingsView() {
   );
 }
 
-function AccessView({ gate }) {
+function AccessView({ gate, standalone = false }) {
   return (
     <Card className="p-4">
-      <SectionHeader title="Family Access" description="Private operator gate first; family invite flow comes after storage/access design is approved." />
+      <SectionHeader title="Family Access" description="Family-only access first; invite and device trust come after the local boundary is proven." />
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        <StatCard title="Route Private" value={gate.routePrivate ? "Yes" : "No"} detail="/family-care is not public." />
-        <StatCard title="Apex Only" value={gate.apexOsOnly ? "Yes" : "No"} detail="Uses Apex OS visibility." />
+        <StatCard title="Family App" value={standalone ? "Direct" : "Legacy"} detail={standalone ? "Opens without Apex HQ navigation." : "Temporary legacy app-shell view."} />
+        <StatCard title="Apex Brain" value="Ready" detail="Apex can operate the care domain behind the scenes." />
         <StatCard title="Outside Access" value={gate.publicAccess ? "Open" : "Closed"} detail="No customer or field exposure." />
       </div>
     </Card>
@@ -377,7 +377,7 @@ function HealthView({ gate, summary }) {
   );
 }
 
-export function ApexFamilyCarePage({ user, permissions }) {
+export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
   const [activeScreen, setActiveScreen] = useState("today");
   const [notes, setNotes] = useState(loadInitialNotes);
   const [draft, setDraft] = useState(() => newDraft("normal"));
@@ -392,9 +392,9 @@ export function ApexFamilyCarePage({ user, permissions }) {
   const doctorSummary = useMemo(() => buildApexFamilyCareDoctorSummary(sortedNotes), [sortedNotes]);
   const familySummary = useMemo(() => buildApexFamilyCareFamilySummary(sortedNotes), [sortedNotes]);
   const gate = useMemo(() => getApexFamilyCareAccessGateSummary({
-    routePrivate: Boolean(user?.operatorAccess),
-    apexOsOnly: Boolean(permissions?.apexOs?.canView),
-  }), [permissions?.apexOs?.canView, user?.operatorAccess]);
+    routePrivate: standalone || Boolean(user?.operatorAccess),
+    apexOsOnly: !standalone && Boolean(permissions?.apexOs?.canView),
+  }), [permissions?.apexOs?.canView, standalone, user?.operatorAccess]);
 
   function handleQuickAdd(categoryId) {
     const nextDraft = newDraft(categoryId);
@@ -420,20 +420,20 @@ export function ApexFamilyCarePage({ user, permissions }) {
     doctor: <DoctorSummaryView doctorSummary={doctorSummary} />,
     family: <FamilySummaryView familySummary={familySummary} />,
     settings: <SettingsView />,
-    access: <AccessView gate={gate} />,
+    access: <AccessView gate={gate} standalone={standalone} />,
     health: <HealthView gate={gate} summary={todaySummary} />,
   };
 
   return (
     <div className="min-h-screen bg-slate-50">
       <PageHeader
-        eyebrow="Apex Private Operator"
-        title="Family Care"
-        description="Private family care workspace for Grandma. Separate from Apex HQ customer, field, and business data."
+        eyebrow={standalone ? "Family-only PWA" : "Legacy Family Care Shell"}
+        title="Apex Family Care"
+        description={standalone ? "Private family care workspace for Grandma. Opens directly without Apex HQ, contractor tools, or the private Apex cockpit." : "Temporary legacy view. The family-facing app now opens directly as its own PWA."}
         actions={(
           <>
             <Badge tone="green">Family-only</Badge>
-            <Badge tone="blue">PWA route</Badge>
+            <Badge tone="blue">{standalone ? "Direct PWA" : "Legacy shell"}</Badge>
             <Badge tone="slate">Local notes</Badge>
           </>
         )}
@@ -453,11 +453,11 @@ export function ApexFamilyCarePage({ user, permissions }) {
         <main className="min-w-0">{screenContent[activeScreen]}</main>
         <aside className="space-y-4">
           <Card className="p-4">
-            <SectionHeader title="Care Boundary" description="Built for John's family, not Apex HQ product use." />
+            <SectionHeader title="Care Boundary" description="Built for John's family. Apex is the brain; Apex HQ is not this app." />
             <div className="flex flex-wrap gap-2">
-              <Badge tone="green">No public route</Badge>
-              <Badge tone="green">No customer access</Badge>
-              <Badge tone="green">No field access</Badge>
+              <Badge tone="green">Direct family app</Badge>
+              <Badge tone="green">No Apex HQ nav</Badge>
+              <Badge tone="green">No customer/field access</Badge>
               <Badge tone="green">No raw audio</Badge>
               <Badge tone="green">No diagnosis</Badge>
             </div>
@@ -483,4 +483,8 @@ export function ApexFamilyCarePage({ user, permissions }) {
       </div>
     </div>
   );
+}
+
+export function ApexFamilyCareStandaloneApp() {
+  return <ApexFamilyCarePage standalone />;
 }

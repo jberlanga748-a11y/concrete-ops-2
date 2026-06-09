@@ -23,7 +23,6 @@ export const OWNER_ADMIN_MOBILE_MORE_ORDER = [
 
 export const APEX_OS_MOBILE_NAV_ORDER = [
   { id: "apexControlRoom", label: "Apex OS", icon: "spark" },
-  { id: "familyCare", label: "Family", icon: "users" },
   { id: "appHealth", label: "Health", icon: "database" },
   { id: "copilot", label: "Assistant", icon: "spark" },
   { id: "support", label: "Help", icon: "help" },

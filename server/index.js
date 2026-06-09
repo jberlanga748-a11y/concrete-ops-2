@@ -22584,6 +22584,21 @@ app.get("/manifest.webmanifest", (_req, res) => {
   res.type("application/manifest+json").sendFile(path.join(distDir, "manifest.webmanifest"));
 });
 
+if (serverConfig.nodeEnv !== "production") {
+  app.get("/family-care.webmanifest", (_req, res) => {
+    res.type("application/manifest+json").sendFile(path.join(distDir, "family-care.webmanifest"));
+  });
+
+  app.get(["/family-care", "/family-care/", "/family-care.html"], asyncRoute(async (_req, res) => {
+    const html = await fs.readFile(path.join(distDir, "family-care.html"), "utf8");
+    return res.type("html").send(html);
+  }));
+} else {
+  app.get(["/family-care", "/family-care/", "/family-care.html", "/family-care.webmanifest"], (_req, res) => {
+    return res.status(404).send("Apex Family Care is local-only in this build.");
+  });
+}
+
 app.use(async (req, res, next) => {
   if (req.path.startsWith("/api")) return next();
 

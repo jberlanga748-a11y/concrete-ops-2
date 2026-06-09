@@ -9,7 +9,6 @@ const NAV_GROUPS = [
     label: "Apex",
     items: [
       { id: "apexControlRoom", label: "Apex Control Room" },
-      { id: "familyCare", label: "Family Care" },
       { id: "apexAvatarLab", label: "Avatar Lab" },
     ],
   },
@@ -146,7 +145,7 @@ test("Apex Control Room stays hidden unless the private bootstrap permission is 
   };
 
   assert.equal(canAccessModule("apexControlRoom", privateOperator, { toolChecklistEnabled: true }), true);
-  assert.equal(canAccessModule("familyCare", privateOperator, { toolChecklistEnabled: true }), true);
+  assert.equal(canAccessModule("familyCare", privateOperator, { toolChecklistEnabled: true }), false);
   assert.equal(canAccessModule("apexAvatarLab", privateOperator, { toolChecklistEnabled: true }), true);
   assert.equal(canAccessModule("apexControlRoom", switchedOperator, { toolChecklistEnabled: true }), false);
   assert.equal(canAccessModule("familyCare", switchedOperator, { toolChecklistEnabled: true }), false);
@@ -155,7 +154,7 @@ test("Apex Control Room stays hidden unless the private bootstrap permission is 
   assert.equal(canAccessModule("familyCare", normalOwner, { toolChecklistEnabled: true }), false);
   assert.equal(canAccessModule("apexAvatarLab", normalOwner, { toolChecklistEnabled: true }), false);
   assert.equal(canAccessWorkspaceModule("apexControlRoom", privateOperator, { toolChecklistEnabled: true }, privatePermissions), true);
-  assert.equal(canAccessWorkspaceModule("familyCare", privateOperator, { toolChecklistEnabled: true }, privatePermissions), true);
+  assert.equal(canAccessWorkspaceModule("familyCare", privateOperator, { toolChecklistEnabled: true }, privatePermissions), false);
   assert.equal(canAccessWorkspaceModule("apexAvatarLab", privateOperator, { toolChecklistEnabled: true }, privatePermissions), true);
   assert.equal(canAccessWorkspaceModule("apexControlRoom", switchedOperator, { toolChecklistEnabled: true }, privatePermissions), false);
   assert.equal(canAccessWorkspaceModule("familyCare", switchedOperator, { toolChecklistEnabled: true }, privatePermissions), false);
@@ -177,7 +176,7 @@ test("Apex Control Room stays hidden unless the private bootstrap permission is 
   );
   assert.equal(
     getVisibleNavGroups(NAV_GROUPS, privateOperator, { toolChecklistEnabled: true }, privatePermissions).flatMap((group) => group.items.map((item) => item.id)).includes("familyCare"),
-    true,
+    false,
   );
   assert.equal(
     getVisibleNavGroups(NAV_GROUPS, privateOperator, { toolChecklistEnabled: true }, privatePermissions).flatMap((group) => group.items.map((item) => item.id)).includes("apexAvatarLab"),
@@ -208,7 +207,7 @@ test("Apex OS operator shell only exposes private operator routes", () => {
 
   assert.deepEqual(
     getVisibleNavGroups(NAV_GROUPS, privateOperator, { toolChecklistEnabled: true }, privatePermissions).flatMap((group) => group.items.map((item) => item.id)),
-    ["apexControlRoom", "familyCare", "apexAvatarLab", "support", "appHealth", "copilot", "settings"],
+    ["apexControlRoom", "apexAvatarLab", "support", "appHealth", "copilot", "settings"],
   );
   assert.equal(canAccessWorkspaceModule("leads", privateOperator, { toolChecklistEnabled: true }, privatePermissions), false);
   assert.equal(canAccessWorkspaceModule("jobs", privateOperator, { toolChecklistEnabled: true }, privatePermissions), false);

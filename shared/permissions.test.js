@@ -129,7 +129,7 @@ test("Apex OS access requires private operator access plus an office role", () =
   assert.equal(isApexOsWorkspace({ companyId: "COMPANY-DEFAULT" }), true);
   assert.equal(isApexOsWorkspace({ currentCompanyId: "COMPANY-LYF" }), false);
   assert.equal(getAllowedModuleIds({ role: "Owner", operatorAccess: true }).has("apexControlRoom"), true);
-  assert.equal(getAllowedModuleIds({ role: "Owner", operatorAccess: true }).has("familyCare"), true);
+  assert.equal(getAllowedModuleIds({ role: "Owner", operatorAccess: true }).has("familyCare"), false);
   assert.equal(getAllowedModuleIds({ role: "Owner", operatorAccess: true }).has("apexAvatarLab"), true);
   assert.equal(getAllowedModuleIds({ role: "Owner", operatorAccess: false }).has("apexControlRoom"), false);
   assert.equal(getAllowedModuleIds({ role: "Owner", operatorAccess: false }).has("familyCare"), false);
