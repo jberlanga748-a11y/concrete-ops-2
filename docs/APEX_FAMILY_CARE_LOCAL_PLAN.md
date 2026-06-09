@@ -49,11 +49,13 @@ The builder must not treat this loop as permission to broaden scope, rebuild fro
 
 If the builder discovers a better idea while building, it must pass the Idea Filter, then either fit inside the current phase or be added to the Foundation Follow-Up Roadmap for later. Do not silently change the phase order.
 
+John override (2026-06-09): do not keep the active builder trapped trying to finish Phase 7 before continuing the foundation. Phase 7's real family test week stays open as a validation track, but active building loops back through Phase 1A, 2A, 3A, 3.5A, 4A, 5A, 6A, and 7A in small slices. Each slice still updates this plan, validates, and commits only Family Care-owned files.
+
 ## Loop-Back Rule
 
-Phase 7 is not the finish line. Phase 7 closes only the first foundation lap after one real family test week is run and reviewed.
+Phase 7 is not the finish line. Phase 7 closes only the first real-world validation lap after one real family test week is run and reviewed.
 
-After Phase 7 is actually complete, the builder must loop back to the earliest useful follow-up slice instead of stopping:
+The active build loop must now cycle through the earliest useful follow-up slices instead of stopping or getting stuck polishing Phase 7 forever:
 
 1. Phase 1A - Family Access And Install Hardening.
 2. Phase 2A - Care Review And Doctor-Prep Polish.
@@ -66,7 +68,7 @@ After Phase 7 is actually complete, the builder must loop back to the earliest u
 
 When that follow-up lap reaches the end, the builder must loop again through any remaining or newly added versioned slices, such as Phase 1B, 2B, 3B, and so on. Each slice must still be small, validated, committed, and aligned with the North Star. Better and better is the point; random broader building is not.
 
-The builder must never skip the real Phase 7 family test week just to reach Phase 1A. The loop-back begins only after the current Phase 7 evidence exists.
+The builder must not mark Phase 7 complete without the real family test week evidence. That evidence track remains open while infrastructure slices continue.
 
 ## Boundary Rule
 
@@ -501,6 +503,20 @@ Phase 7 daily-check-in receipt (2026-06-09): added a seven-day local check-in tr
 
 Phase 7 check-in-gating receipt (2026-06-09): tightened daily check-in evidence so review-ready status also requires the house screen to be explicitly marked ready, and the Test Week UI disables daily day buttons until the house screen is ready and the real week has started. This prevents prep clicks from looking like real use evidence while keeping all receipt data compact/local and preserving the no-auto-close, no-send, no-hidden-recording, and no-medical-advice rules. The original Phase 7 checklist remains unchecked until the real family week is actually run and reviewed.
 
+## Follow-Up Loop Checklist
+
+### Phase 1A - Family Access And Install Hardening
+
+- [x] Add a local-only access readiness policy and compact metadata receipt.
+- [x] Show access mode, install path, and boundary checks in the Family Access screen.
+- [x] Confirm this slice makes no auth/session/schema, remote access, provider, send, deploy, or Apex HQ navigation changes.
+- [x] Add tests proving the access-readiness receipt is metadata-only and that Family Care still does not expose Apex HQ, customer, field, or private operator routes.
+- [ ] Choose the real family access model: family code, invite, trusted-device pairing, private LAN, or private remote access.
+- [ ] Add the approved real phone/house-device install flow after the access model is chosen.
+- [ ] Add any needed auth/session or remote access implementation only after explicit approval.
+
+Phase 1A slice receipt (2026-06-09): looped the active builder back from Phase 7 into the first foundation follow-up slice per John's override. Added `buildApexFamilyCareAccessReadiness` with local-only access mode, direct PWA checks, install-target steps, remote-access approval gate, no Apex HQ navigation requirement, no private cockpit requirement, no auth/session/schema changes, no sends, no cloud, no public/customer/field exposure, no raw audio/transcript storage, no diagnosis, and metadata-only receipt data. The standalone Family Access screen now shows Access Mode, Install Path, Boundary Checks, and explicit No auth change / No schema change / No Apex HQ nav / No sends badges. Phase 1A is not fully closed because the real family access model and any approved remote/auth work remain later decisions.
+
 ## Done And Frozen Rule
 
 When a checklist item is completed:
@@ -561,4 +577,8 @@ Complete the Current Next Step, advance the plan, then continue through foundati
 
 ## Current Next Step
 
-Next unchecked phase: Phase 7 - Family Test Week. Phase 7 now has a readiness tracker, but it is not complete until one real family test week is run and reviewed.
+Next active build slice: Phase 2A - Care Review And Doctor-Prep Polish.
+
+Open validation track: Phase 7 - Family Test Week remains incomplete until one real family test week is run and reviewed. Do not mark Phase 7 complete from synthetic data or builder prep work.
+
+Open approval-gated Phase 1A work: choose and approve the real family access model before adding real remote access, auth/session changes, provider setup, or family-device rollout.

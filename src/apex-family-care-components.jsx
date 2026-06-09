@@ -8,6 +8,7 @@ import {
   APEX_FAMILY_CARE_REQUIRED_SCREENS,
   APEX_FAMILY_CARE_SEVERITIES,
   addApexFamilyCareNote,
+  buildApexFamilyCareAccessReadiness,
   buildApexFamilyCareDoctorSummary,
   buildApexFamilyCareFamilySummary,
   buildApexFamilyCareTodaySummary,
@@ -940,20 +941,56 @@ function TestWeekView({
   );
 }
 
-function AccessView({ gate, standalone = false }) {
+function AccessView({ accessReadiness, gate, standalone = false }) {
   return (
-    <Card className="p-4">
-      <SectionHeader title="Family Access" description="Family-only access first; invite and device trust come after the local boundary is proven." />
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        <StatCard title="Family App" value={standalone ? "Direct" : "Legacy"} detail={standalone ? "Opens without Apex HQ navigation." : "Temporary legacy app-shell view."} />
-        <StatCard title="Apex Brain" value="Ready" detail="Apex can operate the care domain behind the scenes." />
-        <StatCard title="Outside Access" value={gate.publicAccess ? "Open" : "Closed"} detail="No customer or field exposure." />
-      </div>
-    </Card>
+    <div className="space-y-4">
+      <Card className="p-4">
+        <SectionHeader title="Family Access" description="Family-only access first; real invites, trusted devices, or remote access require approval later." />
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <StatCard title="Family App" value={standalone ? "Direct" : "Legacy"} detail={standalone ? "Opens without Apex HQ navigation." : "Temporary legacy app-shell view."} />
+          <StatCard title="Access Mode" value={accessReadiness.accessMode} detail={accessReadiness.localReady ? "Ready for local-only use." : "Needs local access setup."} />
+          <StatCard title="Remote Access" value={accessReadiness.remoteReady ? "Ready" : "Approval"} detail="Family rollout method comes later." />
+          <StatCard title="Outside Access" value={gate.publicAccess ? "Open" : "Closed"} detail="No customer or field exposure." />
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Badge tone="green">No auth change</Badge>
+          <Badge tone="green">No schema change</Badge>
+          <Badge tone="green">No Apex HQ nav</Badge>
+          <Badge tone="green">No sends</Badge>
+        </div>
+      </Card>
+
+      <Card className="p-4">
+        <SectionHeader title="Install Path" description={accessReadiness.nextApprovalNeeded} />
+        <div className="grid gap-2 md:grid-cols-2">
+          {accessReadiness.installSteps.map((step, index) => (
+            <div key={step} className="flex min-w-0 gap-3 rounded-lg border border-slate-200 bg-white p-3">
+              <Badge tone="blue">{index + 1}</Badge>
+              <p className="min-w-0 break-words text-sm font-black text-slate-700">{step}</p>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <Card className="p-4">
+        <SectionHeader title="Boundary Checks" description="Phase 1A keeps the family app separate while access decisions stay explicit." />
+        <div className="grid gap-2 md:grid-cols-2">
+          {accessReadiness.checks.map((check) => (
+            <div key={check.id} className="rounded-lg border border-slate-200 bg-white p-3">
+              <div className="flex min-w-0 items-center justify-between gap-3">
+                <p className="min-w-0 break-words text-sm font-black text-slate-950">{check.label}</p>
+                <Badge tone={check.ready ? "green" : "amber"}>{check.status}</Badge>
+              </div>
+              <p className="mt-1 break-words text-xs font-bold text-slate-600">{check.detail}</p>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
   );
 }
 
-function HealthView({ gate, summary, latestVoiceReceipt, notificationState, kitchenStatus, testWeekSummary }) {
+function HealthView({ accessReadiness, gate, summary, latestVoiceReceipt, notificationState, kitchenStatus, testWeekSummary }) {
   const brainInterface = getApexFamilyCareBrainInterfaceSummary();
   const healthItems = [
     ["Public access", gate.publicAccess ? "Open" : "Closed", gate.publicAccess ? "red" : "green"],
@@ -963,6 +1000,10 @@ function HealthView({ gate, summary, latestVoiceReceipt, notificationState, kitc
     ["Raw transcript stored", gate.rawTranscriptStored ? "Yes" : "No", gate.rawTranscriptStored ? "red" : "green"],
     ["Medical diagnosis", gate.medicalDiagnosis ? "Yes" : "No", gate.medicalDiagnosis ? "red" : "green"],
     ["Emergency replacement", gate.emergencyReplacement ? "Yes" : "No", gate.emergencyReplacement ? "red" : "green"],
+    ["Family access mode", accessReadiness?.accessMode || "local-only", accessReadiness?.localReady ? "green" : "amber"],
+    ["Remote access", accessReadiness?.remoteReady ? "Ready" : "Approval", accessReadiness?.remoteReady ? "green" : "amber"],
+    ["Auth/session change", accessReadiness?.policy?.authSessionChanged ? "Yes" : "No", accessReadiness?.policy?.authSessionChanged ? "red" : "green"],
+    ["Schema change", accessReadiness?.policy?.schemaChanged ? "Yes" : "No", accessReadiness?.policy?.schemaChanged ? "red" : "green"],
     ["Missing update detector", summary?.missingUpdate ? "On" : "Off", summary?.missingUpdate ? "green" : "amber"],
     ["Pattern detector", summary?.repeatedConcernPatterns ? "On" : "Off", summary?.repeatedConcernPatterns ? "green" : "amber"],
     ["Apex care brain", brainInterface.status === "ready" ? "Ready" : "Off", brainInterface.status === "ready" ? "green" : "amber"],
@@ -1043,6 +1084,13 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
     routePrivate: standalone || Boolean(user?.operatorAccess),
     apexOsOnly: !standalone && Boolean(permissions?.apexOs?.canView),
   }), [permissions?.apexOs?.canView, standalone, user?.operatorAccess]);
+  const accessReadiness = useMemo(() => buildApexFamilyCareAccessReadiness({
+    standalone,
+    routePrivate: gate.routePrivate,
+    accessMode: "local-only",
+    installTarget: "house tablet or old phone",
+    familyMembers: ["Dad", "Brother", "John", "Family"],
+  }), [gate.routePrivate, standalone]);
 
   function handleQuickAdd(categoryId) {
     const nextDraft = newDraft(categoryId);
@@ -1226,8 +1274,8 @@ export function ApexFamilyCarePage({ user, permissions, standalone = false }) {
         onUpdateTestWeekMetric={handleUpdateTestWeekMetric}
       />
     ),
-    access: <AccessView gate={gate} standalone={standalone} />,
-    health: <HealthView gate={gate} summary={todaySummary} latestVoiceReceipt={latestVoiceReceipt} notificationState={notificationState} kitchenStatus={kitchenStatus} testWeekSummary={testWeekSummary} />,
+    access: <AccessView accessReadiness={accessReadiness} gate={gate} standalone={standalone} />,
+    health: <HealthView accessReadiness={accessReadiness} gate={gate} summary={todaySummary} latestVoiceReceipt={latestVoiceReceipt} notificationState={notificationState} kitchenStatus={kitchenStatus} testWeekSummary={testWeekSummary} />,
   };
 
   return (

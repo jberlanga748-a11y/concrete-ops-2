@@ -42,9 +42,16 @@ test("Apex Family Care page contains family screens and no hidden mic APIs", () 
   assert.match(componentSource, /APEX_FAMILY_CARE_NOTIFICATION_POLICY/);
   assert.match(componentSource, /buildApexFamilyCareKitchenModeStatus/);
   assert.match(componentSource, /APEX_FAMILY_CARE_KITCHEN_MODE_POLICY/);
+  assert.match(componentSource, /buildApexFamilyCareAccessReadiness/);
   assert.match(componentSource, /buildApexFamilyCareTestWeekSummary/);
   assert.match(componentSource, /buildApexFamilyCareTestWeekRunPacket/);
   assert.match(componentSource, /addApexFamilyCareTestWeekFrictionNote/);
+  assert.match(componentSource, /Access Mode/);
+  assert.match(componentSource, /Install Path/);
+  assert.match(componentSource, /Boundary Checks/);
+  assert.match(componentSource, /Remote Access/);
+  assert.match(componentSource, /No auth change/);
+  assert.match(componentSource, /No schema change/);
   assert.match(componentSource, /Start Voice Update/);
   assert.match(componentSource, /Done Talking \/ Review/);
   assert.match(componentSource, /Save Needs Review/);

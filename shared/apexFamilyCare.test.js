@@ -7,6 +7,7 @@ import {
   APEX_FAMILY_CARE_SOURCES,
   APEX_FAMILY_CARE_ROUTE_PATH,
   addApexFamilyCareNote,
+  buildApexFamilyCareAccessReadiness,
   buildApexFamilyCareDoctorSummary,
   buildApexFamilyCareFamilySummary,
   buildApexFamilyCareTodaySummary,
@@ -262,4 +263,32 @@ test("Family Care access gate defaults closed to public/customer/field exposure"
     medicalDiagnosis: false,
     emergencyReplacement: false,
   });
+});
+
+test("Family Care access readiness keeps Phase 1A local and approval-gated", () => {
+  const readiness = buildApexFamilyCareAccessReadiness({
+    standalone: true,
+    routePrivate: true,
+    accessMode: "local-only",
+    installTarget: "house tablet",
+    familyMembers: ["Dad", "Brother", "John", "Family"],
+    generatedAt: "2026-06-09T12:00:00.000Z",
+  });
+
+  assert.equal(readiness.readinessType, "apex-family-care-access-readiness");
+  assert.equal(readiness.localReady, true);
+  assert.equal(readiness.remoteReady, false);
+  assert.equal(readiness.policy.familyCareOnly, true);
+  assert.equal(readiness.policy.apexHqProductWork, false);
+  assert.equal(readiness.policy.apexHqNavigationRequired, false);
+  assert.equal(readiness.policy.authSessionChanged, false);
+  assert.equal(readiness.policy.schemaChanged, false);
+  assert.equal(readiness.policy.cloudUsed, false);
+  assert.equal(readiness.checks.some((check) => check.id === "remote-family-access" && check.status === "approval-required"), true);
+  assert.equal(readiness.installSteps.some((step) => step.includes("add-to-home-screen")), true);
+  assert.equal(readiness.receipt.metadata.approvedFamilyMemberCount, 4);
+  assert.equal(readiness.receipt.metadata.rawFamilyDetailsStoredInReceipt, false);
+  assert.equal(readiness.receipt.metadata.noSends, true);
+  assert.equal(JSON.stringify(readiness.receipt).includes("Dad"), false);
+  assert.equal(JSON.stringify(readiness.receipt).includes("Brother"), false);
 });

@@ -20,6 +20,29 @@ export const APEX_FAMILY_CARE_CATEGORIES = [
 export const APEX_FAMILY_CARE_SEVERITIES = ["unknown", "mild", "medium", "severe"];
 export const APEX_FAMILY_CARE_REPORTERS = ["Dad", "Brother", "Grandma", "Family"];
 export const APEX_FAMILY_CARE_SOURCES = ["tap", "typed", "voice", "imported", "system", "apex"];
+export const APEX_FAMILY_CARE_ACCESS_POLICY = Object.freeze({
+  policyId: "apex-family-care-access-hardening-v1",
+  phase: "phase-1a-family-access-install-hardening",
+  familyCareOnly: true,
+  apexHqProductWork: false,
+  localOnly: true,
+  publicAccess: false,
+  customerAccess: false,
+  fieldAccess: false,
+  apexHqNavigationRequired: false,
+  apexPrivateCockpitRequired: false,
+  authSessionChanged: false,
+  schemaChanged: false,
+  productionExposure: false,
+  cloudUsed: false,
+  smsSent: false,
+  emailSent: false,
+  pushSent: false,
+  rawAudioStored: false,
+  rawTranscriptStored: false,
+  medicalDiagnosis: false,
+  emergencyReplacement: false,
+});
 export const APEX_FAMILY_CARE_REQUIRED_SCREENS = [
   "today",
   "kitchen",
@@ -405,5 +428,87 @@ export function getApexFamilyCareAccessGateSummary({ routePrivate = true, apexOs
     rawTranscriptStored: false,
     medicalDiagnosis: false,
     emergencyReplacement: false,
+  };
+}
+
+export function buildApexFamilyCareAccessReadiness(input = {}) {
+  const accessMode = cleanText(input.accessMode, 40) || "local-only";
+  const routePrivate = input.routePrivate !== false;
+  const standalone = input.standalone !== false;
+  const installTarget = cleanText(input.installTarget, 80) || "house tablet or old phone";
+  const familyMemberCount = Array.isArray(input.familyMembers) ? input.familyMembers.length : 4;
+  const localReady = Boolean(standalone && routePrivate && accessMode === "local-only");
+  const remoteReady = false;
+  const checks = [
+    {
+      id: "direct-family-pwa",
+      label: "Direct family PWA",
+      status: standalone ? "ready" : "needs-direct-entry",
+      ready: standalone,
+      detail: standalone ? "Opens without Apex HQ navigation." : "Needs the standalone Family Care entry.",
+    },
+    {
+      id: "family-only-boundary",
+      label: "Family-only boundary",
+      status: routePrivate ? "closed" : "needs-gate",
+      ready: routePrivate,
+      detail: routePrivate ? "Public, customer, and field access stay closed." : "Add a private gate before real family rollout.",
+    },
+    {
+      id: "install-target",
+      label: "Install target",
+      status: installTarget ? "chosen" : "needed",
+      ready: Boolean(installTarget),
+      detail: `Use a ${installTarget} for the first house screen.`,
+    },
+    {
+      id: "remote-family-access",
+      label: "Remote family access",
+      status: "approval-required",
+      ready: false,
+      detail: "Private remote access waits for an approved family access method.",
+    },
+  ];
+
+  return {
+    readinessType: "apex-family-care-access-readiness",
+    policy: APEX_FAMILY_CARE_ACCESS_POLICY,
+    accessMode,
+    localReady,
+    remoteReady,
+    installTarget,
+    familyMemberCount,
+    checks,
+    installSteps: [
+      "Open Apex Family Care directly.",
+      "Use the browser install or add-to-home-screen option.",
+      `Keep the first house screen on the ${installTarget}.`,
+      "Use Family Access to confirm the app is local-only before real rollout.",
+    ],
+    nextApprovalNeeded: remoteReady
+      ? "No remote access approval pending."
+      : "Choose family code, invite, trusted device, private LAN, or private remote access before anyone outside John's machine uses it.",
+    receipt: {
+      receiptType: "apex-family-care-access-readiness",
+      schemaVersion: 1,
+      generatedAt: cleanText(input.generatedAt, 40) || new Date().toISOString(),
+      policyId: APEX_FAMILY_CARE_ACCESS_POLICY.policyId,
+      ...APEX_FAMILY_CARE_ACCESS_POLICY,
+      metadata: {
+        accessMode,
+        localReady,
+        remoteReady,
+        routePrivate,
+        standalone,
+        approvedFamilyMemberCount: familyMemberCount,
+        checkCount: checks.length,
+        readyCheckCount: checks.filter((check) => check.ready).length,
+        installStepCount: 4,
+        rawFamilyDetailsStoredInReceipt: false,
+        authSessionChanged: false,
+        schemaChanged: false,
+        noSends: true,
+      },
+    },
   };
 }
