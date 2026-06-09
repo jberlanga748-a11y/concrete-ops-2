@@ -13726,7 +13726,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     <Icon name="refresh" /> Recover
                   </ApexCockpitControlButton>
                   <ApexCockpitControlButton
-                    className="shrink-0 px-3"
+                    className="co-apex-cockpit-debug-control shrink-0 px-3"
                     onClick={() => runCockpitTypedLiveLatencyBenchmark()}
                     disabled={!state.canView || !sessionToken || Boolean(cockpitLiveBenchmarkBusy)}
                     active={cockpitLiveBenchmarkBusy === "typed"}
@@ -13735,7 +13735,7 @@ function ApexCockpitScreen({ state, activeSection, onChange, askQuestion, setAsk
                     <Icon name="clock" /> {cockpitLiveBenchmarkBusy === "typed" ? "Typed..." : "Bench Typed"}
                   </ApexCockpitControlButton>
                   <ApexCockpitControlButton
-                    className="shrink-0 px-3"
+                    className="co-apex-cockpit-debug-control shrink-0 px-3"
                     onClick={() => armCockpitVoiceLiveLatencyBenchmark()}
                     disabled={!state.canView || !sessionToken || Boolean(cockpitLiveBenchmarkBusy) || (!canUseCockpitVoiceInput && !cockpitRecording)}
                     active={cockpitVoiceBenchmarkArmed}
@@ -15643,7 +15643,7 @@ function ApexHomePanel({ state, activeSection, onChange, askQuestion, setAskQues
         }}
         conversationFirst
       />
-      <ApexTalkToApexPulse feed={whatChangedFeed} />
+      {activeDetailPanel === "activity" ? <ApexTalkToApexPulse feed={whatChangedFeed} /> : null}
       {activeDetailPanel ? (
         <section className="grid min-w-0 gap-3" aria-label="Apex summoned detail panel">
           <div className="flex min-w-0 flex-col gap-2 rounded-xl border border-slate-800 bg-slate-950/86 p-3 text-white sm:flex-row sm:items-center sm:justify-between">

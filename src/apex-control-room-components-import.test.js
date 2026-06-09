@@ -186,6 +186,10 @@ test("Apex Control Room route is extracted and wired through App", () => {
   assert.match(cssSource, /co-apex-cockpit-mobile-section-nav/);
   assert.match(cssSource, /co-apex-cockpit-mobile-voice-card/);
   assert.match(cssSource, /co-apex-cockpit-visible-response/);
+  assert.match(cssSource, /co-apex-cockpit-debug-control/);
+  assert.match(cssSource, /\[aria-label="Apex local intelligence status"\]/);
+  assert.match(cssSource, /\[aria-label="Apex local voice status"\]/);
+  assert.match(cssSource, /\[aria-label="Apex Personal OS skills status"\]/);
   assert.match(componentSource, /show-what-changed/);
   assert.match(componentSource, /show-patch-panel/);
   assert.match(componentSource, /show-undo-panel/);
@@ -1112,7 +1116,7 @@ test("Apex Home v1 keeps the default home surface conversation-first", () => {
 
   assert.match(homeSource, /<ApexCockpitScreen/);
   assert.match(homeSource, /conversationFirst/);
-  assert.match(homeSource, /<ApexTalkToApexPulse/);
+  assert.match(homeSource, /activeDetailPanel === "activity" \? <ApexTalkToApexPulse/);
   assert.doesNotMatch(homeSource, /<ApexWhatChangedFeedPanel\b/);
   assert.doesNotMatch(homeSource, /Surface Router v0/);
   assert.doesNotMatch(homeSource, /Summon Details/);
