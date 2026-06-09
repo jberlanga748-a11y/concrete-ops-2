@@ -4,6 +4,7 @@ export const MODULE_PATHS = {
   dashboard: "/",
   fieldWorkspace: FIELD_JOBS_ROUTE_MODULES.fieldWorkspace.path,
   apexControlRoom: "/apex",
+  familyCare: "/family-care",
   apexAvatarLab: "/apex-avatar-lab",
   commandCenter: "/command-center",
   communications: "/communications",

@@ -356,6 +356,7 @@ const MaterialPrepPage = lazyRouteComponent(() => import("./material-prep-route-
 const RateBookPage = lazyRouteComponent(() => import("./rate-book-route-components"), "RateBookPage");
 const CommunicationCenterPage = lazyRouteComponent(() => import("./communications-route-components"), "CommunicationCenterPage");
 const ApexControlRoomPage = lazyRouteComponent(() => import("./apex-control-room-components"), "ApexControlRoomPage");
+const ApexFamilyCarePage = lazyRouteComponent(() => import("./apex-family-care-components"), "ApexFamilyCarePage");
 const ApexAvatarLabPage = lazyRouteComponent(() => import("./apex-avatar-lab-components"), "ApexAvatarLabPage");
 const ProposalsWorkspace = lazy(() => import("./ProposalGenerator"));
 const DashboardPage = lazyRouteComponent(() => import("./dashboard-route-wrapper-components"), "DashboardPage");
@@ -391,6 +392,7 @@ const NAV_GROUPS = [
     label: "Apex",
     items: [
       { id: "apexControlRoom", label: "Apex Home", icon: "spark" },
+      { id: "familyCare", label: "Family Care", icon: "users" },
       { id: "apexAvatarLab", label: "Avatar Lab", icon: "spark" },
     ],
   },
@@ -12384,6 +12386,7 @@ function MainContent(props) {
     );
   }
   if (active === "apexControlRoom") return <ApexControlRoomPage {...props} />;
+  if (active === "familyCare") return <ApexFamilyCarePage {...props} />;
   if (active === "apexAvatarLab") return <ApexAvatarLabPage {...props} />;
   if (active === "dashboard") return <DashboardPage {...props} components={dashboardRouteComponents} />;
   const fieldJobsRouteModule = getFieldJobsRouteModule(active);
@@ -12784,6 +12787,8 @@ export default function App() {
   useEffect(() => {
     document.title = active === "apexControlRoom"
       ? "Apex"
+      : active === "familyCare"
+        ? "Apex Family Care"
       : active === "apexAvatarLab"
         ? "Apex Avatar Lab"
         : APP_NAME;

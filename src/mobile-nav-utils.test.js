@@ -60,13 +60,14 @@ test("Apex OS mobile nav uses private operator order", () => {
     { id: "support", label: "Support", icon: "original-support" },
     { id: "settings", label: "Settings", icon: "original-settings" },
     { id: "apexControlRoom", label: "Apex Control Room", icon: "original-apex" },
+    { id: "familyCare", label: "Family Care", icon: "original-family" },
     { id: "copilot", label: "Apex Assistant", icon: "original-assistant" },
     { id: "appHealth", label: "App Health", icon: "original-health" },
   ], { operatorShell: true });
 
-  assert.deepEqual(APEX_OS_MOBILE_NAV_ORDER.map((item) => item.id), ["apexControlRoom", "appHealth", "copilot", "support", "settings"]);
-  assert.deepEqual(items.map((item) => item.id), ["apexControlRoom", "appHealth", "copilot", "support", "settings"]);
-  assert.deepEqual(items.map((item) => item.label), ["Apex OS", "Health", "Assistant", "Help", "Setup"]);
+  assert.deepEqual(APEX_OS_MOBILE_NAV_ORDER.map((item) => item.id), ["apexControlRoom", "familyCare", "appHealth", "copilot", "support", "settings"]);
+  assert.deepEqual(items.map((item) => item.id), ["apexControlRoom", "familyCare", "appHealth", "copilot", "support", "settings"]);
+  assert.deepEqual(items.map((item) => item.label), ["Apex OS", "Family", "Health", "Assistant", "Help", "Setup"]);
 });
 
 test("estimator mobile nav prioritizes sales routes and preserves remaining visible items", () => {

@@ -471,6 +471,7 @@ export function getAllowedModuleIds(user, companySettings = DEFAULT_COMPANY_SETT
 
   if (canAccessApexOs(user)) {
     modules.add("apexControlRoom");
+    modules.add("familyCare");
     modules.add("apexAvatarLab");
   }
 

@@ -86,6 +86,18 @@ test("Apex Avatar Lab route resolves directly", () => {
   });
 });
 
+test("Apex Family Care route resolves directly", () => {
+  assert.equal(getModulePath("familyCare"), "/family-care");
+  assert.deepEqual(parseAppPath("/family-care"), {
+    active: "familyCare",
+    leadId: "",
+    jobId: "",
+    customerId: "",
+    reportId: "",
+    importedDraftId: "",
+  });
+});
+
 test("field workspace module route resolves directly", () => {
   assert.equal(getModulePath("fieldWorkspace"), "/field");
   assert.deepEqual(parseAppPath("/field"), {

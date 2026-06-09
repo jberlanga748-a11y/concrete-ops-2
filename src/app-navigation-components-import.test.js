@@ -12,7 +12,7 @@ test("desktop Sidebar is extracted from App and keeps filtered navigation inputs
   assert.match(navSource, /export function Sidebar\b/);
   assert.match(navSource, /import \{ Card, Icon \} from "\.\/app-shell-components";/);
   assert.match(navSource, /visibleItems/);
-  assert.match(navSource, /firstVisible\(\["apexControlRoom", "apexAvatarLab"\]\)/);
+  assert.match(navSource, /firstVisible\(\["apexControlRoom", "familyCare", "apexAvatarLab"\]\)/);
   assert.match(navSource, /label: "Apex"/);
   assert.match(navSource, /firstVisible\(\["fieldWorkspace", "jobs", "schedule", "time", "reports", "uploads", "deliveryTickets", "prePour", "postPour"\]\)/);
   assert.match(navSource, /brandAssets\.appLogo/);
