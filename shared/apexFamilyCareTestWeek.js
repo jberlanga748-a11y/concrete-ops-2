@@ -160,6 +160,7 @@ export function getDefaultApexFamilyCareTestWeekState(now = new Date()) {
     completedAt: "",
     realWeekStarted: false,
     realWeekCompleted: false,
+    houseScreenReady: false,
     baselineStatusTextsPerDay: 0,
     afterStatusTextsPerDay: 0,
     doctorPrepBeforeRating: 0,
@@ -190,6 +191,7 @@ export function normalizeApexFamilyCareTestWeekState(input = {}, now = new Date(
     completedAt,
     realWeekStarted,
     realWeekCompleted,
+    houseScreenReady: Boolean(input.houseScreenReady),
     baselineStatusTextsPerDay: normalizeNonNegativeNumber(input.baselineStatusTextsPerDay),
     afterStatusTextsPerDay: normalizeNonNegativeNumber(input.afterStatusTextsPerDay),
     doctorPrepBeforeRating: normalizeRating(input.doctorPrepBeforeRating),
@@ -304,6 +306,7 @@ export function buildApexFamilyCareTestWeekSummary(input = {}, notes = [], optio
         trackedDays,
         realWeekStarted: state.realWeekStarted,
         realWeekCompleted: state.realWeekCompleted,
+        houseScreenReady: state.houseScreenReady,
         evidenceReady,
         phaseClosureStatus: evidenceReady ? "human-review-required" : "real-week-evidence-missing",
         frictionNoteCount: state.frictionNotes.length,
@@ -327,7 +330,7 @@ export function buildApexFamilyCareTestWeekRunPacket(input = {}, notes = [], opt
   const state = summary.state;
   const guideSteps = APEX_FAMILY_CARE_TEST_WEEK_GUIDE_STEPS.map((step) => {
     let done = false;
-    if (step.id === "install-house-screen") done = true;
+    if (step.id === "install-house-screen") done = state.houseScreenReady;
     if (step.id === "baseline-texts") done = state.baselineStatusTextsPerDay > 0;
     if (step.id === "daily-fast-updates") done = summary.noteDayCount >= Math.min(7, Math.max(1, summary.trackedDays || 1));
     if (step.id === "doctor-prep-check") done = state.doctorPrepAfterRating > 0 || state.doctorPrepBeforeRating > 0;
@@ -395,7 +398,9 @@ export function buildApexFamilyCareTestWeekRunPacket(input = {}, notes = [], opt
     reviewPrompts,
     nextHumanAction: summary.evidenceReady
       ? "Review the real week with Dad/Brother/family, simplify friction, and freeze what helped."
-      : state.realWeekStarted
+      : !state.houseScreenReady
+        ? "Set up the house screen, mark it ready, then run the real family test week."
+        : state.realWeekStarted
         ? "Keep using Family Care through the full real week, then enter after counts and ratings."
         : "Start the real family test week before collecting after ratings.",
     noAutoClose: true,
@@ -413,6 +418,7 @@ export function buildApexFamilyCareTestWeekRunPacket(input = {}, notes = [], opt
         progressPercent,
         reviewPromptCount: reviewPrompts.length,
         readyReviewPromptCount: reviewPrompts.filter((prompt) => prompt.ready).length,
+        houseScreenReady: state.houseScreenReady,
         evidenceReady: summary.evidenceReady,
         noAutoClose: true,
         noSends: true,

@@ -33,6 +33,7 @@ test("test week summary stays missing until a real seven-day week is complete", 
 
   assert.equal(summary.state.realWeekStarted, true);
   assert.equal(summary.state.realWeekCompleted, false);
+  assert.equal(summary.state.houseScreenReady, false);
   assert.equal(summary.trackedDays, 3);
   assert.equal(summary.evidenceReady, false);
   assert.equal(summary.phaseClosureStatus, "real-week-evidence-missing");
@@ -114,6 +115,7 @@ test("test week receipts do not store raw friction text", () => {
 
 test("test week run packet gives a practical guide without closing the phase", () => {
   const state = startApexFamilyCareTestWeek({
+    houseScreenReady: true,
     baselineStatusTextsPerDay: 6,
     doctorPrepBeforeRating: 2,
   }, new Date("2026-06-09T08:00:00.000Z"));
@@ -123,6 +125,7 @@ test("test week run packet gives a practical guide without closing the phase", (
 
   assert.equal(packet.packetType, "apex-family-care-test-week-run-packet");
   assert.equal(packet.guideSteps.length, 6);
+  assert.equal(packet.guideSteps.some((step) => step.id === "install-house-screen" && step.done), true);
   assert.equal(packet.guideSteps.some((step) => step.id === "baseline-texts" && step.done), true);
   assert.equal(packet.guideSteps.some((step) => step.id === "end-week-review" && !step.done), true);
   assert.equal(packet.progressPercent > 0, true);
@@ -143,6 +146,7 @@ test("test week run packet review prompts become ready from real evidence", () =
     }),
   ];
   let state = startApexFamilyCareTestWeek({
+    houseScreenReady: true,
     baselineStatusTextsPerDay: 8,
     afterStatusTextsPerDay: 3,
     doctorPrepBeforeRating: 2,
@@ -172,4 +176,17 @@ test("test week run packet review prompts become ready from real evidence", () =
   assert.equal(JSON.stringify(packet.receipt).includes("too many choices"), false);
   assert.equal(packet.receipt.metadata.noAutoClose, true);
   assert.equal(packet.receipt.metadata.noSends, true);
+});
+
+test("test week run packet does not auto-count the house screen setup", () => {
+  const state = startApexFamilyCareTestWeek({
+    baselineStatusTextsPerDay: 6,
+  }, new Date("2026-06-09T08:00:00.000Z"));
+  const packet = buildApexFamilyCareTestWeekRunPacket(state, [], {
+    now: new Date("2026-06-09T08:00:00.000Z"),
+  });
+
+  assert.equal(packet.guideSteps.some((step) => step.id === "install-house-screen" && !step.done), true);
+  assert.equal(packet.receipt.metadata.houseScreenReady, false);
+  assert.match(packet.nextHumanAction, /mark it ready/i);
 });

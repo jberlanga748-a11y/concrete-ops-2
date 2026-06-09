@@ -768,8 +768,9 @@ function TestWeekView({
           description="Collect the real family evidence before Phase 7 can close."
           action={<Badge tone={statusTone}>{testWeekSummary.phaseClosureStatus}</Badge>}
         />
-        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
           <StatCard title="Status" value={state.status} detail={state.realWeekStarted ? "Real week started" : "Ready to start"} />
+          <StatCard title="House Screen" value={state.houseScreenReady ? "Ready" : "Not Ready"} detail="Kitchen/house device" />
           <StatCard title="Tracked Days" value={testWeekSummary.trackedDays} detail="Needs 7 real days" />
           <StatCard title="Checks Passing" value={`${testWeekSummary.passedCount}/7`} detail="Success test" />
           <StatCard title="Friction Notes" value={state.frictionNotes.length} detail={`${testWeekSummary.simplifyCount} simplify / ${testWeekSummary.freezeCount} freeze`} />
@@ -780,6 +781,9 @@ function TestWeekView({
           </Button>
           <Button type="button" variant="secondary" onClick={onCompleteTestWeek} disabled={!state.realWeekStarted || state.realWeekCompleted}>
             <Icon name="calendar" /> Mark Week Complete
+          </Button>
+          <Button type="button" variant="secondary" onClick={() => onUpdateTestWeekMetric("houseScreenReady", true)} disabled={state.houseScreenReady}>
+            <Icon name="check" /> Mark House Screen Ready
           </Button>
           <Badge tone="green">No auto-close</Badge>
           <Badge tone="green">Human review required</Badge>

@@ -495,6 +495,8 @@ Phase 7 readiness receipt (2026-06-09): added a local Family Test Week evidence 
 
 Phase 7 run-guide receipt (2026-06-09): added a local run-week guide and review packet so the family knows how to run the real test without the builder guessing later. The Test Week screen now shows setup, baseline text count, daily fast update, doctor-prep check, friction note, and end-week review steps, plus review prompts for Dad burden, family informed, doctor prep, Grandma dignity, simplify, and freeze decisions. The run packet does not auto-close Phase 7, does not send messages or notifications, does not add voice capture, does not give medical advice, and keeps receipts metadata-only with no raw feedback text, raw audio, transcripts, prompts, responses, secrets, cloud use, or Apex HQ customer/product exposure. The original Phase 7 checklist remains unchecked until the real family week is actually run and reviewed.
 
+Phase 7 evidence-honesty receipt (2026-06-09): tightened the run-week guide so the house-screen setup step is not counted automatically. The Test Week screen now shows a House Screen readiness status and a visible Mark House Screen Ready control; the run packet only marks that setup step done after explicit local user action. This keeps Phase 7 evidence honest while preserving the no-auto-close, no-send, no-hidden-recording, no-medical-advice, metadata-only receipt rules. The original Phase 7 checklist remains unchecked until the real family week is actually run and reviewed.
+
 ## Done And Frozen Rule
 
 When a checklist item is completed:
