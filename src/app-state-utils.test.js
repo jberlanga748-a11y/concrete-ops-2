@@ -12,10 +12,13 @@ import {
 
 test("normalizes AI Office and Opportunity Scout permissions from bootstrap", () => {
   const permissions = normalizeAppPermissions({
+    apexOs: { canView: true, canManage: true },
     aiOffice: { canView: true, canUseLeadAssistant: true },
     opportunityScout: { canView: true, canManage: true },
   });
 
+  assert.equal(permissions.apexOs.canView, true);
+  assert.equal(permissions.apexOs.canManage, true);
   assert.equal(permissions.aiOffice.canView, true);
   assert.equal(permissions.aiOffice.canUseLeadAssistant, true);
   assert.equal(permissions.opportunityScout.canView, true);
@@ -47,6 +50,7 @@ test("keeps field users blocked when bootstrap omits office entitlements", () =>
 
   assert.equal(permissions.jobs.canView, true);
   assert.equal(permissions.uploads.canCreate, true);
+  assert.equal(permissions.apexOs.canView, false);
   assert.equal(permissions.aiOffice.canView, false);
   assert.equal(permissions.opportunityScout.canView, false);
   assert.equal(permissions.leads.canView, false);

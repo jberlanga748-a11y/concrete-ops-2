@@ -1,6 +1,17 @@
 import { Card, Icon } from "./app-shell-components";
 
-export function Sidebar({ active, setActive, counts = {}, navGroups, logoInitials, brandAssets = {}, appName = "Apex HQ" }) {
+export function Sidebar({
+  active,
+  setActive,
+  counts = {},
+  navGroups,
+  logoInitials,
+  brandAssets = {},
+  appName = "Apex HQ",
+  workspaceLabel = "Team workspace",
+  statusTitle = "Live workspace",
+  statusDescription = "Pick the workspace. The page shows the tools inside it.",
+}) {
   void logoInitials;
   const visibleItems = (Array.isArray(navGroups) ? navGroups : []).flatMap((group) => group.items || []);
   const visibleIds = new Set(visibleItems.map((item) => item.id));
@@ -77,7 +88,7 @@ export function Sidebar({ active, setActive, counts = {}, navGroups, logoInitial
     <aside className="co-sidebar-shell hidden h-screen shrink-0 overflow-hidden border-r text-white lg:sticky lg:top-0 lg:block">
       <div className="co-sidebar-brand-panel border-b border-white/10 px-4 py-4">
         <img className="co-sidebar-brand-logo" src={brandAssets.appLogo} alt={appName} />
-        <p className="mt-2 text-[10px] font-black uppercase tracking-widest text-slate-400">Team workspace</p>
+        <p className="mt-2 text-[10px] font-black uppercase tracking-widest text-slate-400">{workspaceLabel}</p>
       </div>
       <div className="co-sidebar-scroll flex h-[calc(100vh-86px)] flex-col p-3">
         <div className="co-sidebar-workspace-list" aria-label="Workspace navigation">
@@ -102,8 +113,8 @@ export function Sidebar({ active, setActive, counts = {}, navGroups, logoInitial
           })}
         </div>
         <Card variant="shell" className="co-sidebar-status-card p-4">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-orange-300">Live workspace</p>
-          <p className="mt-2 text-sm leading-6 text-slate-300">Pick the workspace. The page shows the tools inside it.</p>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-orange-300">{statusTitle}</p>
+          <p className="mt-2 text-sm leading-6 text-slate-300">{statusDescription}</p>
         </Card>
       </div>
     </aside>

@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 import { chromium } from "playwright";
 
@@ -278,6 +279,12 @@ function isIgnorableNavigationAbort(request) {
     && isNavigationAbort(request.failure()?.errorText || "");
 }
 
+export function isIgnorableConsoleMessage(message) {
+  const text = String(message?.text?.() || "");
+  return message?.type?.() === "warning"
+    && /WebGL.*GPU stall due to ReadPixels/i.test(text);
+}
+
 async function login(browser, options, role, viewportName) {
   const context = await browser.newContext({
     baseURL: options.baseUrl,
@@ -539,6 +546,7 @@ async function auditRoute(browser, storageState, options, role, viewportName, sp
   const consoleMessages = [];
   const failedRequests = [];
   page.on("console", (message) => {
+    if (isIgnorableConsoleMessage(message)) return;
     if (["error", "warning"].includes(message.type())) {
       consoleMessages.push(`${message.type()}: ${message.text()}`);
     }
@@ -701,7 +709,11 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+const isDirectRun = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (isDirectRun) {
+  main().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}

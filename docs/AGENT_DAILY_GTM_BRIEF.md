@@ -1,178 +1,137 @@
 # Apex HQ Daily GTM Brief
 
-Date: 2026-05-26
-Mode: business and marketing prep only (manual approval required before any send or post)
+Date: 2026-06-07
+Prepared for: John Berlanga
+Mode: business and marketing prep only
+Send/Post Status: no messages sent, no posts published, no outreach actions taken by agent
 
-## Facts vs Assumptions
+## Facts Vs Inference
 
-### Facts
+### Verified From Repo Docs
 
-- Apex HQ positioning remains founder-led demos and controlled pilots, not a broad self-serve launch.
-- The 45-day business map centers on owner-led contractor closes, with the founder package direction at $999/month.
-- No overpromise language is allowed: no guaranteed leads, jobs, revenue, or growth.
-- AI must be described as review-first, with owner approval before key actions.
-- First workflow stays: Lead -> Estimate -> Job -> Schedule -> Field Proof -> Owner Review.
-- The first-30 prospect queue and outreach draft pack already contain approval-ready local prospect targets and message templates.
-- Verified prospect contact facts were refreshed on 2026-05-25 for M2 Mini LLC, LME Concrete, and Rosewood Concrete (website checks only).
+- Apex HQ should stay positioned as a founder-led demo and controlled-pilot offer, not public self-serve SaaS.
+- The safest first workflow to sell is still: lead/estimate -> job setup -> field handoff -> photo/report proof -> owner review -> follow-up.
+- Current GTM guardrails still ban guaranteed-lead, guaranteed-revenue, AI-autopilot, payroll/accounting-replacement, and enterprise-ready claims.
+- The tracker still shows no completed real touches yet for the top five prospects.
 
-### Assumptions (John should confirm before outreach)
+### Newly Verified Public Facts (checked 2026-06-06 from official websites)
 
-- M2 MINI LLC is still the best near-term close candidate.
-- John can complete one focused outbound block today (minimum 10 calls).
-- Email-first is the lowest-risk first touch for cold prospects today.
-- The guided demo path is ready for a 15–20 minute founder walkthrough (confirm via manual smoke test before any scheduled demo).
+- M2 Mini LLC: official site says it serves Albany, Lebanon, Corvallis, Salem, Harrisburg, Junction City, Philomath, Stayton, Lyons, and nearby Linn County communities; offers residential and light commercial concrete plus excavation/site prep; lists phone 541-990-7365, email M2minicase@gmail.com, Albany, Oregon, PO Box 1337 Albany OR 97321, and Oregon CCB #242728; and the older site version names Joseph Madesh as owner.
+- RPB Fence: official site says Redpoint Builders LLC DBA RPB Fence lists phone (541) 360-1468, email Golive@rpbfence.com, address 146 Chemawa Rd. N, Keizer, OR 97303, hours Monday-Saturday 7:00 AM-6:00 PM, and Oregon CCB #246584; and shows fencing, gate installation/repair, fence post replacement, and decking services across Salem, Keizer, Albany, Corvallis, and other Willamette Valley cities.
+- Mid Valley Fence & Construction: official site says phone 971-208-3360, email ian@midvalleyfence.com, Salem, Oregon, hours Monday-Friday 8:00 AM-5:00 PM, Oregon CCB #220320, and services that include fence installation, fence repair, wooden fences, gates and automation, agricultural fences, pool fences, and commercial fencing.
+- OnPoint Fencing & Decking remains a validated fourth-priority cold target from the 2026-06-04 official-site refresh: phone (503) 949-2712, email info@onpointfencing.com, Salem/Portland/Eugene service areas, and fencing/decks/patios/patio covers/gates.
+- LME Concrete remains the best concrete backup from the 2026-06-03 official-site refresh: Salem address, bilingual phone lines, founder listed, and CCB#235123.
 
-## Today's Top 5 Sales Actions
+### Inference To Use For Targeting, Not As Claims
 
-1. Lock and rehearse the no-hype package talk track before first outreach (price + boundaries + one workflow).
-2. Call M2 MINI LLC first and ask for a specific walkthrough slot this week (offer 2 time options).
-3. Send only John-approved email drafts to two highest-fit cold prospects (Rosewood Concrete and LME Concrete).
-4. Run one call block to 5 backup prospects after top 3 touches are complete (RT Concrete + Catt Hardscape + 3 others from `docs/OUTREACH_TRACKER.md`).
-5. End day by logging every outcome, top objection, and exact next follow-up date in `docs/OUTREACH_TRACKER.md`.
+- M2 Mini is still the best first live conversation because there is warm context and the likely workflow is simple enough for a Basic founder pilot.
+- RPB Fence is the best first cold target because the contact surface is complete and the visible fence/gate/post/deck mix likely creates estimate, scheduling, and follow-up work.
+- Mid Valley Fence is the best second cold target because the broad service map and category spread imply steady quoting and scheduling work, but that pain is still an inference until John talks to them.
+- OnPoint is the best third cold target because the multi-service scope fits the Apex HQ handoff/photo/follow-up story, but it remains a step behind the three refreshed prospects.
 
-## Prospects To Call (Priority)
+## Tomorrow's Priority Order
 
-1. M2 MINI LLC (warm)
-- Phone: 541-990-7365
-- Why first: warm relationship and strongest pilot-close path.
+1. M2 Mini LLC
+Reason: warm, high-fit, simplest founder-pilot path.
 
-2. Rosewood Concrete
-- Phone: (971) 289-6488
-- Email: info@rosewoodconcrete.com
-- Why now: high fit for estimate-to-job-to-proof workflow.
+2. RPB Fence
+Reason: strongest first cold fence target with complete current public facts.
 
-3. LME Concrete LLC
-- Phones: (503) 270-1575 (Spanish), (503) 420-6286 (English)
-- Email: lopez@lmeconcrete.com
-- Why now: clear local service area and concrete workflow fit.
+3. Mid Valley Fence & Construction
+Reason: broad service footprint plus a visible CCB number and likely active estimate volume.
 
-4. RPB Fence
-- Phone: (541) 360-1468
-- Email: Golive@rpbfence.com
+4. OnPoint Fencing & Decking
+Reason: multi-service workflow fit and still-current backup once the top three are worked.
 
-5. Mid Valley Fence & Construction
-- Phone: 971-208-3360
-- Email: ian@midvalleyfence.com
+5. LME Concrete
+Reason: best concrete backup if the fence-first wave is worked.
 
-## Verified Prospect Facts (Sources: Public Websites Checked 2026-05-25)
+## Outreach Drafts For Approval Only
 
-- M2 Mini LLC: lists owner name Joseph Madesh; phone 541-990-7365; email M2minicase@gmail.com; Albany, OR; license #242728.
-- LME Concrete: lists address 3959 Stanley Lane South, Salem, OR 97302; phone 503-270-1575; additional phone 503-420-6286; email lopez@lmeconcrete.com; CCB#235123.
-- Rosewood Concrete: lists phone (971) 289-6488; email info@rosewoodconcrete.com; CCB #253867; licensed & insured.
-
-## Emails/Texts Ready For Approval (Draft Only, Not Sent)
-
-### Warm Text (M2 MINI LLC)
+### Warm Follow-Up For M2 Mini
 
 ```text
-Hey Joe, it is John. I want to show you one clean workflow in Apex HQ: lead, estimate, job, schedule, field photos/proof, and owner review.
+Hey Joseph, it is John. I want to show you one clean Apex HQ workflow without turning it into a big software pitch:
+lead, estimate, job info, field photos/proof, and owner follow-up.
 
-This is founder-led and practical, not hype. Can we lock a 20-minute walkthrough for today or tomorrow?
+I am still keeping the first demos founder-led and practical.
+Would you be open to a 20-minute walkthrough next week?
 ```
 
-### Cold Email (Rosewood Concrete)
+### Cold Text For RPB Fence Or Mid Valley Fence
 
 ```text
-Subject: Quick concrete workflow walkthrough
+Hi, this is John with Apex HQ. I built it for contractors who want leads, estimates, job details, photos, and follow-up to stop getting scattered.
 
-Hi, this is John with Apex HQ.
+I am showing a few fence companies one simple workflow first, not doing a broad launch.
+Would a quick guided walkthrough be worth looking at?
+Reply STOP and I will not text again.
+```
 
-I have 15 years in concrete and built Apex HQ to help contractors keep leads, estimates, jobs, photos/proof, and follow-up organized in one place.
+### Cold Email For RPB Fence Or Mid Valley Fence
 
-I am opening a small founder-led demo group and keeping it controlled. Would a quick 15-20 minute walkthrough be worth it?
+```text
+Subject: Quick fence workflow walkthrough
+
+Hi [Name],
+
+I am John Berlanga, founder of Apex HQ.
+
+I built Apex HQ for contractors who are tired of leads, estimates, job details, photos, and follow-up getting scattered across texts, notes, and memory.
+
+I am opening a small founder-led demo group and showing one workflow first:
+lead -> estimate -> job handoff -> photo/proof -> owner review -> follow-up.
+
+Would a short walkthrough be worth a look?
 
 John Berlanga
 Apex HQ
 john@apexhq.online
 ```
 
-### Cold Email (LME Concrete LLC)
+### Call Opener For RPB Fence
 
 ```text
-Subject: Founder-led Apex HQ demo
+Hi, this is John Berlanga with Apex HQ. I will keep it quick.
 
-Hi, this is John with Apex HQ.
+I spent years in concrete and I am building Apex HQ to help contractors keep estimates, job details, photos, and follow-up from getting scattered.
 
-I built Apex HQ for contractors who are growing past texts, paper, and scattered apps. The first workflow I show is lead to estimate to job to field proof to owner review.
-
-Would a short 15-20 minute walkthrough be worth looking at?
-
-John Berlanga
-Apex HQ
-john@apexhq.online
+I saw you handle fencing, gates, post replacement, and decks. Are you the right person to ask how those jobs get quoted and handed off now?
 ```
 
-### Same-Day Follow-Up (M2 MINI LLC) (Draft Only)
+## Risky Claims To Remove Or Avoid
 
-```text
-If tomorrow is better, does [Tue 10:30am] or [Tue 3:30pm] work for a quick 20-minute walkthrough?
-```
+- Replace `contractor command center` in first-touch outreach with `contractor operations platform` or plain workflow language.
+- Do not repeat a prospect's own marketing claims like `50+ five-star Google reviews`, `50+ years`, `30 years of experience`, or `free quote` as Apex HQ proof.
+- Do not state `licensed`, `bonded`, `insured`, `family-owned`, or `locally owned` as verified facts from Apex HQ unless John separately confirms them outside the prospect's own site.
+- Do not imply Apex HQ already handles every advanced workflow named in the app. First-touch outreach should stay on leads, estimates, jobs, photos/proof, and follow-up.
+- Do not personalize beyond verified facts. For the cold fence targets, say what they publicly offer and where they serve; do not claim you know their internal pain.
+- Do not send cold email broadly until John manually confirms the footer/address/compliance handling he wants to use.
 
-### Cold Text Fallback (Use only if John approves)
+## What John Should Measure Tomorrow
 
-```text
-Hey, this is John with Apex HQ. I built a contractor command center to keep leads, estimates, jobs, photos/proof, and follow-up from getting scattered. I am doing a few founder-led walkthroughs. Worth a quick look? Reply STOP and I will not text again.
-```
-
-## Instagram Post Draft (Approval Required)
-
-```text
-Most contractors do not struggle because they cannot do the work.
-
-They struggle because business details get scattered: lead in one place, estimate somewhere else, job notes in texts, photos on one phone, and follow-up in memory.
-
-Apex HQ is built to clean up one real workflow:
-Lead -> Estimate -> Job -> Schedule -> Field Proof -> Owner Review.
-
-Founder-led demos. Controlled pilots. Built for real trade businesses.
-
-#contractorlife #constructionbusiness #contractorsoftware #jobmanagement #fieldwork #smallbusinessowner
-```
-
-## Follow-Ups Due Today
-
-1. M2 MINI LLC: if no reply after first touch, send one same-day follow-up with 2 time options.
-2. No-answer calls: leave one voicemail, then set follow-up for 2 business days.
-3. Prior "maybe later" prospects: send one short one-workflow follow-up.
-4. Any opt-out/no-thanks: stop immediately and log do-not-contact.
-
-## Risks/Claims To Avoid
-
-- Do not claim guaranteed leads, jobs, revenue, or growth.
-- Do not claim AI autopilot or automatic send/pricing/billing.
-- Do not imply payroll/accounting replacement.
-- Do not claim customer proof/testimonials that are not documented.
-- Do not position Apex HQ as broad public launch today.
-
-## Manual Approval Checklist (John)
-
-Approve or edit before sending anything:
-
-1. Approve the exact M2 text + follow-up time options (or rewrite them).
-2. Approve the exact Rosewood email subject/body.
-3. Approve the exact LME email subject/body.
-4. Confirm demo readiness before booking: quick manual smoke test of the guided demo path.
-
-## What John Should Measure Today
-
-- calls made
-- live conversations
-- voicemails left
-- emails sent (approved only)
-- texts sent (approved only)
+- warm touches attempted
+- cold calls placed
+- emails manually approved
+- emails manually sent
 - replies
-- opt-outs
+- live conversations
 - demos booked
-- demos completed
-- offers made
-- invoices sent
-- payments collected
-- top objection heard
-- referrals requested
-- referrals received
+- strongest pain angle
+- top objection
+- next follow-up date created for each touched prospect
 
-## End-Of-Day Call
+## Exact Manual Actions For John
 
-If today yields at least 1 booked walkthrough and 1 active follow-up thread, repeat the same founder-led controlled-pilot motion tomorrow.
+1. Approve or edit the M2 Mini text before any send on Saturday, 2026-06-07.
+2. Approve one cold text, one cold email, and one call opener for the fence wave before any outreach.
+3. Manually decide whether Saturday, 2026-06-07 starts call-first or text/email-first for RPB Fence and Mid Valley Fence.
+4. Manually verify the outbound email footer/address setup you want to use before sending any cold email.
+5. Manually work prospects in this order if approved: M2 Mini, RPB Fence, Mid Valley Fence, OnPoint, then LME Concrete.
+6. Log each real touch, reply, objection, and next date in [docs/OUTREACH_TRACKER.md](C:/Users/jberl/Documents/New%20project/docs/OUTREACH_TRACKER.md) the same day.
 
-If not, narrow tomorrow to one trade and one message angle, then retest.
+## Recommended Focus
+
+Stay narrow.
+
+Use the warm touch first, then the two refreshed fence prospects, then OnPoint, then LME only if the first wave is already worked. Keep Apex HQ framed as a practical founder-led workflow demo, not a broad software launch.

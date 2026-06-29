@@ -3,6 +3,7 @@ import fs from "node:fs";
 import test from "node:test";
 
 import {
+  APEX_OS_MOBILE_NAV_ORDER,
   ESTIMATOR_MOBILE_NAV_ROUTES,
   getEstimatorMobileNavItems,
   getOwnerAdminMobileNavItems,
@@ -41,6 +42,28 @@ test("owner admin mobile nav preserves permission-filtered order and labels", ()
   ]);
   assert.equal(items.find((item) => item.id === "settings")?.label, "Setup");
   assert.equal(items.some((item) => item.id === "appHealth"), false);
+});
+
+test("owner admin mobile overflow does not include private Apex after separation", () => {
+  const items = getOwnerAdminMobileNavItems([
+    ...visibleNavItems,
+    { id: "apexControlRoom", label: "Apex Control Room", icon: "original-apex" },
+  ]);
+
+  assert.equal(items.some((item) => item.id === "apexControlRoom"), false);
+});
+
+test("private Apex mobile shell order is retired", () => {
+  const items = getOwnerAdminMobileNavItems([
+    { id: "support", label: "Support", icon: "original-support" },
+    { id: "settings", label: "Settings", icon: "original-settings" },
+    { id: "apexControlRoom", label: "Apex Control Room", icon: "original-apex" },
+    { id: "copilot", label: "Apex Assistant", icon: "original-assistant" },
+    { id: "appHealth", label: "App Health", icon: "original-health" },
+  ], { operatorShell: true });
+
+  assert.deepEqual(APEX_OS_MOBILE_NAV_ORDER, []);
+  assert.equal(items.some((item) => item.id === "apexControlRoom"), false);
 });
 
 test("estimator mobile nav prioritizes sales routes and preserves remaining visible items", () => {
@@ -82,6 +105,7 @@ test("mobile nav helpers are extracted from App", () => {
   assert.match(utilSource, /export function getOwnerAdminMobileNavItems\b/);
   assert.match(utilSource, /export function getEstimatorMobileNavItems\b/);
   assert.match(utilSource, /export const ESTIMATOR_MOBILE_NAV_ROUTES\b/);
+  assert.match(utilSource, /export const APEX_OS_MOBILE_NAV_ORDER\b/);
 
   assert.doesNotMatch(appSource, /const OWNER_ADMIN_MOBILE_NAV_ORDER\s*=/);
   assert.doesNotMatch(appSource, /const OWNER_ADMIN_MOBILE_MORE_ORDER\s*=/);

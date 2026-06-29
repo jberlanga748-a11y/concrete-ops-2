@@ -20,6 +20,9 @@ export const OWNER_ADMIN_MOBILE_MORE_ORDER = [
   { id: "settings", label: "Setup", icon: "settings" },
 ];
 
+export const APEX_OS_MOBILE_NAV_ORDER = [
+];
+
 export const ESTIMATOR_MOBILE_NAV_ORDER = [
   { id: "leads", label: "Pipeline", icon: "grid" },
   { id: "estimates", label: "Estimates", icon: "quote" },
@@ -28,9 +31,12 @@ export const ESTIMATOR_MOBILE_NAV_ORDER = [
 ];
 
 export const ESTIMATOR_MOBILE_NAV_ROUTES = new Set(["leads", "estimates", "customers", "communications"]);
+const RETIRED_PRIVATE_APEX_MODULES = new Set(["apexControlRoom", "apexAvatarLab"]);
 
-export function getOwnerAdminMobileNavItems(visibleNavItems = []) {
-  const visibleById = new Map((visibleNavItems || []).map((item) => [item.id, item]));
+export function getOwnerAdminMobileNavItems(visibleNavItems = [], options = {}) {
+  const filteredVisibleNavItems = (visibleNavItems || []).filter((item) => !RETIRED_PRIVATE_APEX_MODULES.has(item.id));
+  const visibleById = new Map(filteredVisibleNavItems.map((item) => [item.id, item]));
+  void options;
   const ordered = OWNER_ADMIN_MOBILE_NAV_ORDER
     .map((item) => {
       const visible = visibleById.get(item.id);

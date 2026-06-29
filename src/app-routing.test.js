@@ -51,6 +51,19 @@ test("command center module route resolves directly", () => {
   });
 });
 
+test("private Apex routes are retired from Apex HQ and fall back to dashboard", () => {
+  for (const route of ["/apex", "/apex-control-room", "/apex-avatar-lab"]) {
+    assert.deepEqual(parseAppPath(route), {
+      active: "dashboard",
+      leadId: "",
+      jobId: "",
+      customerId: "",
+      reportId: "",
+      importedDraftId: "",
+    });
+  }
+});
+
 test("field workspace module route resolves directly", () => {
   assert.equal(getModulePath("fieldWorkspace"), "/field");
   assert.deepEqual(parseAppPath("/field"), {

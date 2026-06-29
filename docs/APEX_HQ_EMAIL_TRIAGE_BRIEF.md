@@ -1,61 +1,55 @@
 # Apex HQ Daily Email Triage Brief
 
-Date: 2026-05-25
-Run time: 2026-05-25 07:32:34 -07:00
+Date: 2026-06-06
+Run time: 2026-06-06 07:33:34 -07:00
 Automation: apex-hq-daily-email-triage
 
 ## Inbox Scope Checked
-- Gmail searches run for: Apex HQ mentions, demo/pricing intent, outreach replies, objections, opt-outs, pilot/customer signals, and founder inbox items since the last run (after 2026-05-24).
-- Result: No inbound contractor/customer/pilot replies needing direct response were found in this run.
+- Gmail searches were run for mail after the last automation run at 2026-06-05T14:30:41.358Z.
+- Scope searched: recent inbox mail, all-mail targeted searches for Apex HQ / contractor / demo / pricing / estimate / proposal / pilot / objection / opt-out language, and reply-style searches for possible outreach responses.
+- Search method used in Gmail:
+  - broad inbox sweep for all mail after 2026-06-05
+  - targeted all-mail searches for Apex HQ business-intent keywords after 2026-06-05
+  - targeted escalation-word searches for opt-out, cancellation, refund, dispute, legal, and complaint language after 2026-06-05
+- Result: No new Apex HQ-related prospect, customer, pilot, or outreach-reply messages requiring a founder response were found in this run.
 
 ## Messages Needing Reply
-1. **None (external Apex HQ prospects/customers)**
-- No demo requests, pricing inquiries, objection replies, or interested contractor replies were detected.
+1. **None**
+- No demo requests, pricing questions, interested contractor replies, objection replies, customer/pilot follow-ups, or valid outreach responses were found in the checked timeframe.
+
+## Suggested Reply Drafts
+- No Gmail drafts were created in this run.
+- Reason: no low-risk Apex HQ inbound messages were found that justified a draft reply.
+- Draft IDs: none.
+
+## Urgency
+1. **Inbox triage status: low urgency**
+- No same-day Apex HQ reply obligation was identified from the messages reviewed.
 
 ## Urgent / Escalation Queue (Do Not Auto-Reply)
-1. **The Google Workspace Team <workspace-noreply@google.com>** — Subject: Payment failure: Google Workspace Business Plus for apexhq.online (received 2026-05-25 00:15:43 -07:00)
-- Why escalated: Business email continuity and account access risk due to failed payment on `apexhq.online` subscription.
-- Category: Billing/account service interruption.
-- Instruction: Do not reply by email; resolve in Google Admin/Billing.
-- Exact next action for John: Update or confirm payment method for Google Workspace Business Plus today (2026-05-25) and verify service remains active.
+1. **None from Apex HQ inbound mail in this run**
+- No legal, payment dispute, cancellation, angry-customer, sensitive-data, or opt-out threads related to Apex HQ were found in the checked slice.
 
-2. **Supabase Billing Team <billing-support@supabase.com>** — Subject: Supabase - New project launched (received 2026-05-23 23:22:44 -07:00)
-- Why escalated: New project cost increase notice (+$10/month stated previously).
-- Category: Billing/cost-sensitive.
-- Instruction: Do not auto-reply until cost intent is confirmed.
-- Exact next action for John: Confirm whether `apex-hq-data-platform` should remain active this week; if not needed, pause/remove it.
-
-## Objections / Opt-Outs / Sensitive Threads
-- Objections from prospects: None detected.
-- Opt-out/unsubscribe requests: None detected.
-- Legal, payment dispute, cancellation, angry customer, sensitive-data messages from Apex HQ prospects/customers: None detected.
+## Opt-Outs To Honor
+- None detected for Apex HQ in this run.
 
 ## Demos To Book
-- None requested in inbox during this run.
+- None requested in Gmail during this run.
 
 ## Follow-Ups Due
-1. **OpenAI vendor thread draft remains unsent**
-- Thread: Re: Codex for Apex HQ (draft exists, low-risk informational request).
-- Urgency: Medium.
-- Exact next action for John: Decide whether to send this existing draft today to keep vendor evaluation moving.
-
-2. **Outbound contractor outreach monitoring**
-- Urgency: Medium.
-- Exact next action for John: Manually send a small batch of outreach emails, then monitor replies for demo/pricing/objection signals in the next run.
-
-## Suggested Reply Drafts Created In Gmail
-- No new Gmail drafts were created in this run.
-- Existing low-risk draft still present from prior run:
-  - Draft ID: `r-1664098072077526808`
-  - Thread ID: `19e3bac31404ec84`
+1. **No inbound follow-up is due from this run**
+- There were no qualified contractor/customer replies to advance from Gmail in this pass.
 
 ## Risk / Claims Notes
-- Keep founder-led tone and avoid guarantees (no promised ROI, close rate, revenue, or compliance outcomes).
-- Escalate before replying to any legal, dispute, cancellation, angry, payment conflict, or opt-out thread.
-- Honor opt-outs immediately if any appear in future runs.
+- Keep Apex HQ founder-led and claims-safe: no ROI guarantees, job-volume guarantees, close-rate promises, or compliance guarantees in any future reply.
+- Continue escalating before replying to any legal, dispute, cancellation, angry-customer, payment-conflict, sensitive-data, or opt-out thread.
+- Excluded from the Apex HQ reply queue in this run:
+  - repeated GitHub notifications about `Apex HQ Demo Hosted Smoke` failures and CI failure notices
+  - HighLevel product/promotional mail
+  - Namecheap/vendor notices and general newsletters
+  - personal, finance, retail, and school-related inbox mail unrelated to Apex HQ
 
-## Exact Next Action For John (Priority Order)
-1. Resolve Google Workspace payment failure for `apexhq.online` today (2026-05-25) and confirm mailbox continuity.
-2. Confirm keep/pause decision on Supabase `apex-hq-data-platform` to control recurring cost.
-3. Decide whether to send the existing OpenAI draft reply.
-4. Manually send a controlled contractor outreach batch and monitor for inbound intent signals.
+## Exact Next Action For John
+1. Do not send any Apex HQ reply from this run.
+2. Ignore the excluded system, vendor, and promotional mail for sales triage purposes.
+3. Watch the next triage pass for real contractor, pilot, demo, or pricing replies.

@@ -107,12 +107,12 @@ function insertUsers(sqliteFile, users) {
   const database = new DatabaseSync(sqliteFile);
   try {
     const insertUser = database.prepare(`
-      INSERT INTO users (id, email, name, role, password_hash)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO users (id, email, name, role, password_hash, operator_access)
+      VALUES (?, ?, ?, ?, ?, ?)
     `);
 
     for (const user of users) {
-      insertUser.run(user.id, user.email, user.name, user.role, user.passwordHash);
+      insertUser.run(user.id, user.email, user.name, user.role, user.passwordHash, user.operatorAccess ? 1 : 0);
     }
   } finally {
     database.close();
@@ -232,6 +232,177 @@ test("job visibility is role-scoped and field roles receive redacted job payload
       headers: employeeHeaders,
     });
     assert.equal(employeeCustomersDenied.response.status, 403);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("Apex OS bootstrap permission is retired from Apex HQ", async () => {
+  const fixture = await startServer();
+
+  try {
+    const privateOwner = createUserRecord({
+      id: "U-PRIVATE-APEX-OS",
+      email: "private-owner@apexhq.test",
+      password: "apexdemo123",
+      name: "Private Owner",
+      role: "Owner",
+      operatorAccess: true,
+    });
+    const normalOwner = createUserRecord({
+      id: "U-NORMAL-APEX-OS",
+      email: "normal-owner@apexhq.test",
+      password: "apexdemo123",
+      name: "Normal Owner",
+      role: "Owner",
+      operatorAccess: false,
+    });
+    const operatorAdmin = createUserRecord({
+      id: "U-ADMIN-PRIVATE-APEX-OS",
+      email: "operator-admin@apexhq.test",
+      password: "apexdemo123",
+      name: "Operator Admin",
+      role: "Administrator",
+      operatorAccess: true,
+    });
+    const normalAdmin = createUserRecord({
+      id: "U-ADMIN-BLOCKED-APEX-OS",
+      email: "normal-admin@apexhq.test",
+      password: "apexdemo123",
+      name: "Normal Admin",
+      role: "Administrator",
+      operatorAccess: false,
+    });
+    const estimatorUser = createUserRecord({
+      id: "U-ESTIMATOR-APEX-OS",
+      email: "estimator-apex-os@apexhq.test",
+      password: "apexdemo123",
+      name: "Estimator Apex",
+      role: "Estimator",
+      operatorAccess: true,
+    });
+    const fieldUser = createUserRecord({
+      id: "U-FIELD-APEX-OS",
+      email: "field-apex-os@apexhq.test",
+      password: "apexdemo123",
+      name: "Field Apex",
+      role: "Foreman",
+      operatorAccess: true,
+    });
+    const employeeUser = createUserRecord({
+      id: "U-EMPLOYEE-APEX-OS",
+      email: "employee-apex-os@apexhq.test",
+      password: "apexdemo123",
+      name: "Employee Apex",
+      role: "Employee",
+      operatorAccess: true,
+    });
+
+    insertUsers(fixture.sqliteFile, [privateOwner, normalOwner, operatorAdmin, normalAdmin, estimatorUser, fieldUser, employeeUser]);
+
+    const privateLogin = await login(fixture.baseUrl, {
+      email: "private-owner@apexhq.test",
+      password: "apexdemo123",
+    });
+    const normalLogin = await login(fixture.baseUrl, {
+      email: "normal-owner@apexhq.test",
+      password: "apexdemo123",
+    });
+    const operatorAdminLogin = await login(fixture.baseUrl, { email: "operator-admin@apexhq.test", password: "apexdemo123" });
+    const blockedLogins = await Promise.all([
+      login(fixture.baseUrl, { email: "normal-admin@apexhq.test", password: "apexdemo123" }),
+      login(fixture.baseUrl, { email: "estimator-apex-os@apexhq.test", password: "apexdemo123" }),
+      login(fixture.baseUrl, { email: "field-apex-os@apexhq.test", password: "apexdemo123" }),
+      login(fixture.baseUrl, { email: "employee-apex-os@apexhq.test", password: "apexdemo123" }),
+    ]);
+    const privateBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(privateLogin.token),
+    });
+    const normalBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(normalLogin.token),
+    });
+    const operatorAdminBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(operatorAdminLogin.token),
+    });
+    const blockedBootstraps = await Promise.all(blockedLogins.map((blockedLogin) => assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(blockedLogin.token),
+    })));
+
+    assert.equal(privateBootstrap.permissions.apexOs.canView, false);
+    assert.equal(privateBootstrap.permissions.apexOs.canManage, false);
+    assert.equal(operatorAdminBootstrap.permissions.apexOs.canView, false);
+    assert.equal(operatorAdminBootstrap.permissions.apexOs.canManage, false);
+    assert.equal(normalBootstrap.permissions.apexOs.canView, false);
+    assert.deepEqual(blockedBootstraps.map((bootstrap) => bootstrap.permissions.apexOs.canView), [false, false, false, false]);
+
+    const privateMemory = await requestJson(fixture.baseUrl, "/api/apex-os/memory", {
+      headers: authHeaders(privateLogin.token),
+    });
+    assert.equal(privateMemory.response.status, 410);
+    assert.match(privateMemory.payload.error, /standalone local repo/i);
+
+    const privateBuilderValidation = await requestJson(fixture.baseUrl, "/api/apex-os/builder/validation-runs", {
+      method: "POST",
+      headers: authHeaders(privateLogin.token),
+      body: JSON.stringify({ commandId: "not-a-real-command" }),
+    });
+    assert.equal(privateBuilderValidation.response.status, 410);
+
+    const privateBuilderFix = await requestJson(fixture.baseUrl, "/api/apex-os/builder/fix-runs", {
+      method: "POST",
+      headers: authHeaders(privateLogin.token),
+      body: JSON.stringify({ request: "deploy production" }),
+    });
+    assert.equal(privateBuilderFix.response.status, 410);
+
+    const privateBuilderUndo = await requestJson(fixture.baseUrl, "/api/apex-os/builder/undo-runs", {
+      method: "POST",
+      headers: authHeaders(privateLogin.token),
+      body: JSON.stringify({ fixRun: null }),
+    });
+    assert.equal(privateBuilderUndo.response.status, 410);
+
+    const privateBuildLoop = await requestJson(fixture.baseUrl, "/api/apex-os/build-loop/runs", {
+      method: "POST",
+      headers: authHeaders(privateLogin.token),
+      body: JSON.stringify({ request: "deploy production", runValidation: false }),
+    });
+    assert.equal(privateBuildLoop.response.status, 410);
+
+    for (const blockedLogin of [normalLogin, ...blockedLogins]) {
+      const blockedMemory = await requestJson(fixture.baseUrl, "/api/apex-os/memory", {
+        headers: authHeaders(blockedLogin.token),
+      });
+      assert.equal(blockedMemory.response.status, 410);
+
+      const blockedBuilderValidation = await requestJson(fixture.baseUrl, "/api/apex-os/builder/validation-runs", {
+        method: "POST",
+        headers: authHeaders(blockedLogin.token),
+        body: JSON.stringify({ commandId: "not-a-real-command" }),
+      });
+      assert.equal(blockedBuilderValidation.response.status, 410);
+
+      const blockedBuilderFix = await requestJson(fixture.baseUrl, "/api/apex-os/builder/fix-runs", {
+        method: "POST",
+        headers: authHeaders(blockedLogin.token),
+        body: JSON.stringify({ request: "fix small UI copy" }),
+      });
+      assert.equal(blockedBuilderFix.response.status, 410);
+
+      const blockedBuilderUndo = await requestJson(fixture.baseUrl, "/api/apex-os/builder/undo-runs", {
+        method: "POST",
+        headers: authHeaders(blockedLogin.token),
+        body: JSON.stringify({ fixRun: null }),
+      });
+      assert.equal(blockedBuilderUndo.response.status, 410);
+
+      const blockedBuildLoop = await requestJson(fixture.baseUrl, "/api/apex-os/build-loop/runs", {
+        method: "POST",
+        headers: authHeaders(blockedLogin.token),
+        body: JSON.stringify({ request: "Apex, work on yourself.", runValidation: false }),
+      });
+      assert.equal(blockedBuildLoop.response.status, 410);
+    }
   } finally {
     await fixture.stop();
   }

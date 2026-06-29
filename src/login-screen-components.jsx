@@ -22,12 +22,14 @@ export function LoginScreen({
   onOpenPublicEstimateRequest,
   brandAssets = {},
   demoLoginPresets = [],
+  requestedRoute = "",
   SplashScreenComponent = null,
 }) {
   const backendTone = backendStatus === "online" ? "green" : backendStatus === "offline" ? "red" : "amber";
   const backendLabel = backendStatus === "online" ? "Workspace online" : backendStatus === "offline" ? "Workspace offline" : "Checking workspace";
   const isSetupMode = backendStatus === "online" && setupStatus.checked && setupStatus.needsSetup;
   const isSignupMode = !isSetupMode && showSignup && setupStatus.publicSignupEnabled;
+  void requestedRoute;
   const canShowDemoCredentials = setupStatus.demoMode && setupStatus.demoUserExists && !isSetupMode;
   const heroKickerLabel = isSignupMode ? "Self-serve workspace" : "Founder-led demo workspace";
   const heroKickerStatus = isSignupMode ? "Owner setup ready" : "Guided pilot ready";

@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   canAcknowledgeSafety,
+  canAccessApexOs,
   canCreateDailyReports,
   canCreateDeliveryTickets,
   canCreateJobs,
@@ -49,6 +50,7 @@ import {
   canViewUploads,
   canExportData,
   getAllowedModuleIds,
+  isApexOsWorkspace,
   normalizeTimeLocationEvidencePolicy,
 } from "./permissions.js";
 
@@ -110,6 +112,34 @@ test("company switching requires explicit operator access plus an office role", 
   assert.equal(canManageCompanies({ role: "Owner", operatorAccess: false }), false);
   assert.equal(canManageCompanies({ role: "Foreman", operatorAccess: true }), false);
   assert.equal(canManageCompanies({ role: "Employee", operatorAccess: true }), false);
+});
+
+test("private Apex access is retired from Apex HQ permissions", () => {
+  assert.equal(canAccessApexOs({ role: "Owner", operatorAccess: true }), false);
+  assert.equal(canAccessApexOs({ role: "Administrator", operatorAccess: true }), false);
+  assert.equal(canAccessApexOs({ role: "Operations Manager", operatorAccess: true }), false);
+  assert.equal(canAccessApexOs({ role: "Owner", operatorAccess: false }), false);
+  assert.equal(canAccessApexOs({ role: "Administrator", operatorAccess: false }), false);
+  assert.equal(canAccessApexOs({ role: "Estimator", operatorAccess: true }), false);
+  assert.equal(canAccessApexOs({ role: "Foreman", operatorAccess: true }), false);
+  assert.equal(canAccessApexOs({ role: "Employee", operatorAccess: true }), false);
+  assert.equal(canAccessApexOs({ role: "Customer", operatorAccess: true }), false);
+  assert.equal(canAccessApexOs({ role: "Demo", operatorAccess: true }), false);
+  assert.equal(canAccessApexOs({ role: "Owner", operatorAccess: true, currentCompanyId: "COMPANY-LYF" }), false);
+  assert.equal(isApexOsWorkspace({ companyId: "COMPANY-DEFAULT" }), true);
+  assert.equal(isApexOsWorkspace({ currentCompanyId: "COMPANY-LYF" }), false);
+  assert.equal(getAllowedModuleIds({ role: "Owner", operatorAccess: true }).has("apexControlRoom"), false);
+  assert.equal(getAllowedModuleIds({ role: "Owner", operatorAccess: true }).has("familyCare"), false);
+  assert.equal(getAllowedModuleIds({ role: "Owner", operatorAccess: true }).has("apexAvatarLab"), false);
+  assert.equal(getAllowedModuleIds({ role: "Owner", operatorAccess: false }).has("apexControlRoom"), false);
+  assert.equal(getAllowedModuleIds({ role: "Owner", operatorAccess: false }).has("familyCare"), false);
+  assert.equal(getAllowedModuleIds({ role: "Owner", operatorAccess: false }).has("apexAvatarLab"), false);
+  assert.equal(getAllowedModuleIds({ role: "Customer", operatorAccess: true }).has("apexControlRoom"), false);
+  assert.equal(getAllowedModuleIds({ role: "Customer", operatorAccess: true }).has("familyCare"), false);
+  assert.equal(getAllowedModuleIds({ role: "Demo", operatorAccess: true }).has("apexControlRoom"), false);
+  assert.equal(getAllowedModuleIds({ role: "Owner", operatorAccess: true, currentCompanyId: "COMPANY-LYF" }).has("apexControlRoom"), false);
+  assert.equal(getAllowedModuleIds({ role: "Owner", operatorAccess: true, currentCompanyId: "COMPANY-LYF" }).has("familyCare"), false);
+  assert.equal(getAllowedModuleIds({ role: "Owner", operatorAccess: true, currentCompanyId: "COMPANY-LYF" }).has("apexAvatarLab"), false);
 });
 
 test("operations manager can manage users and see employees module", () => {

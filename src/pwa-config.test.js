@@ -5,7 +5,9 @@ import test from "node:test";
 
 const repoRoot = process.cwd();
 const manifestPath = path.join(repoRoot, "public", "manifest.webmanifest");
+const familyCareManifestPath = path.join(repoRoot, "public", "family-care.webmanifest");
 const htmlPath = path.join(repoRoot, "index.html");
+const familyCareHtmlPath = path.join(repoRoot, "family-care.html");
 const envSecretPattern = new RegExp([
   "OPENAI" + "_API_KEY",
   "VITE_" + "OPENAI" + "_API_KEY",
@@ -67,6 +69,27 @@ test("manifest icon entries reference local PNG files that exist", () => {
   }
 });
 
+test("Family Care has separate PWA metadata from Apex HQ", () => {
+  assert.equal(fs.existsSync(familyCareManifestPath), true);
+  assert.equal(fs.existsSync(familyCareHtmlPath), true);
+  const manifest = readJson(familyCareManifestPath);
+  const html = fs.readFileSync(familyCareHtmlPath, "utf8");
+
+  assert.equal(manifest.name, "Apex Family Care");
+  assert.equal(manifest.short_name, "Family Care");
+  assert.match(manifest.description, /private family care PWA/i);
+  assert.equal(manifest.id, "/family-care");
+  assert.equal(manifest.start_url, "/family-care");
+  assert.equal(manifest.scope, "/family-care");
+  assert.equal(manifest.display, "standalone");
+  assert.deepEqual(manifest.categories, ["lifestyle", "productivity"]);
+  assert.match(html, /<title>Apex Family Care<\/title>/);
+  assert.match(html, /<link rel="manifest" href="\/family-care\.webmanifest"/);
+  assert.match(html, /src="\/src\/family-care-main\.jsx"/);
+  assert.doesNotMatch(JSON.stringify(manifest), /contractor operations|leads|jobs|field|billing/i);
+  assert.doesNotMatch(html, envSecretPattern);
+});
+
 test("manifest shortcuts stay role-safe for field install workflows", () => {
   const manifest = readJson(manifestPath);
   const shortcuts = Array.isArray(manifest.shortcuts) ? manifest.shortcuts : [];
@@ -107,7 +130,9 @@ test("index html links the manifest and mobile app metadata without secrets", ()
 test("PWA configuration does not add private-data caching or offline editing claims", () => {
   const changedFiles = [
     "index.html",
+    "family-care.html",
     "public/manifest.webmanifest",
+    "public/family-care.webmanifest",
     "src/App.jsx",
   ].map((file) => fs.readFileSync(path.join(repoRoot, file), "utf8")).join("\n");
 
@@ -127,5 +152,9 @@ test("server exposes PWA static assets without changing API behavior", () => {
   assert.match(serverSource, /app\.use\("\/icons", express\.static\(path\.join\(distDir, "icons"\)\)\)/);
   assert.match(serverSource, /app\.use\("\/brand", express\.static\(path\.join\(distDir, "brand"\)\)\)/);
   assert.match(serverSource, /app\.get\("\/manifest\.webmanifest"/);
+  assert.match(serverSource, /app\.get\("\/family-care\.webmanifest"/);
+  assert.match(serverSource, /serverConfig\.nodeEnv !== "production"/);
+  assert.match(serverSource, /"\/family-care"/);
+  assert.match(serverSource, /Apex Family Care is local-only in this build/);
   assert.match(serverSource, /application\/manifest\+json/);
 });

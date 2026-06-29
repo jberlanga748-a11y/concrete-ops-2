@@ -90,6 +90,178 @@ import {
   summarizeAgentLearningPreferences,
 } from "../shared/agentLearningPreferences.js";
 import {
+  findApexOsMemoryDuplicate,
+  isApexOsKnowledgeCategory,
+  normalizeApexOsMemory,
+  normalizeApexOsMemoryEntry,
+  summarizeApexOsMemory,
+} from "../shared/apexOsMemory.js";
+import {
+  getApexOsApprovalPacketMissingFields,
+  isApexOsApprovalPacketApprovalConfirmed,
+  isApexOsApprovalPacketReady,
+  normalizeApexOsApprovalPacket,
+  normalizeApexOsApprovalPackets,
+  scoreApexOsApprovalPacketRisk,
+  summarizeApexOsApprovalPackets,
+} from "../shared/apexOsApprovalPackets.js";
+import {
+  getApexOsExecutionHandoffMissingFields,
+  buildApexOsExecutionContract,
+  isApexOsExecutionHandoffReady,
+  normalizeApexOsExecutionHandoff,
+  normalizeApexOsExecutionHandoffs,
+  summarizeApexOsExecutionHandoffs,
+} from "../shared/apexOsExecutionHandoffs.js";
+import {
+  buildApexOsAgentControlPlane,
+  getApexOsAgentControlRequestMissingFields,
+  isApexOsAgentControlRequestReady,
+  normalizeApexOsAgentControlRequest,
+  normalizeApexOsAgentControlRequests,
+  summarizeApexOsAgentControlRequests,
+} from "../shared/apexOsAgentControl.js";
+import {
+  advanceApexOsAutonomyRunPrivatePrep,
+  buildApexOsAutonomyRunPlan,
+  buildApexOsAutonomyRunNextPrivateMove,
+  getApexOsAutonomyRunMissingFields,
+  isApexOsAutonomyRunReady,
+  markApexOsAutonomyRunInternalDrafted,
+  normalizeApexOsAutonomyRun,
+  normalizeApexOsAutonomyRuns,
+  runApexOsAutonomyRunPrivateOperatorCycle,
+  summarizeApexOsAutonomyRuns,
+  validateApexOsAutonomyRunPrivateProof,
+} from "../shared/apexOsAutonomyRuns.js";
+import {
+  createApexOsTaskRecord,
+  filterApexOsTasksByType,
+  normalizeApexOsTasks,
+  summarizeApexOsTasks,
+  updateApexOsTaskRecord,
+} from "../shared/apexOsTasks.js";
+import {
+  executeApexOsInternalAction,
+  inferApexOsInternalActionFromText,
+  sanitizeApexOsInternalActionResult,
+} from "../shared/apexOsInternalActionEngine.js";
+import {
+  buildApexOsSkillRegistrySummary,
+  buildDefaultApexOsSkillRegistry,
+} from "../shared/apexOsSkillRegistry.js";
+import {
+  APEX_OS_ASK_OPENAI_URL,
+  buildApexOsAskContext,
+  buildApexOsAskEvidenceRows,
+  buildApexOsAskOpenAiRequest,
+  buildLocalApexOsAnswer,
+  parseOpenAiApexOsAskPayload,
+} from "../shared/apexOsAsk.js";
+import {
+  APEX_OS_PROVIDER_DECISION,
+  buildApexOsCloudBudgetGuardFromEnv,
+  buildApexOsLocalFirstProviderDecision,
+  isApexOsProviderFlagEnabled,
+} from "../shared/apexOsLocalFirstProviderPolicy.js";
+import {
+  buildApexEffortModelInstallStatus,
+  buildApexStableResidencyPolicy,
+  selectApexLocalAgentSpeedLane,
+} from "../shared/apexLocalAgentSpeed.js";
+import {
+  buildApexOsExternalPreparationPacket,
+  buildApexOsExternalPreparationPacketSummary,
+} from "../shared/apexOsExternalPreparationPackets.js";
+import {
+  buildHomeAssistantCommandPreview,
+  createHomeAssistantExecutionGuard,
+  executeHomeAssistantCommandOnce,
+  getHomeAssistantConnectorStatus,
+  readHomeAssistantEntityStatus,
+  sanitizeHomeAssistantReceipt,
+} from "./apexHomeAssistantConnector.js";
+import {
+  getOllamaProviderStatus,
+  getApexOllamaResidencyStatus,
+  reloadApexOllamaBrainResidency,
+} from "./apexOllamaProvider.js";
+import {
+  chatWithLlamaCppForApexOs,
+  chatWithLlamaCppForApexOsKnowledge,
+  getLlamaCppProviderStatus,
+  isLlamaCppReadyForApexLane,
+  selectLlamaCppModelForApexLane,
+} from "./apexLlamaCppProvider.js";
+import {
+  getApexLlamaCppRuntimeState,
+  runApexLlamaCppRuntimeAction,
+} from "./apexLlamaCppRuntime.js";
+import {
+  buildApexSpeedCoreStatus,
+  getApexGpuStatus,
+} from "./apexGpuSpeedCore.js";
+import {
+  inferApexOsModelRouteFromRequest,
+} from "../shared/apexOsModelRouter.js";
+import {
+  APEX_OS_VOICE_SPEECH_OPENAI_URL,
+  APEX_OS_VOICE_TRANSCRIPTION_OPENAI_URL,
+  APEX_OS_VOICE_TRANSCRIPTION_MODEL,
+  buildApexOsVoiceCommandReview,
+  buildApexOsVoiceSpeechRequest,
+  parseApexOsVoiceAudioDataUrl,
+  parseApexOsVoiceTranscriptionPayload,
+  sanitizeApexOsVoiceSpeechText,
+} from "../shared/apexOsVoice.js";
+import {
+  getCachedApexLocalVoiceRuntimeStatus,
+  getApexLocalVoiceRuntimeStatus,
+  speakWithApexLocalVoice,
+  transcribeWithApexLocalVoice,
+} from "./apexLocalVoiceRuntime.js";
+import {
+  saveApexLiveTurnLatencyReceipt,
+} from "./apexLiveTurnLatencyHistory.js";
+import {
+  runApexTypedLiveTurnLatencyBenchmark,
+} from "./apexLiveTurnLatencyBenchmark.js";
+import {
+  listenWithApexNativeVoice,
+} from "./apexNativeVoiceRuntime.js";
+import {
+  collectApexBackgroundRuntimeStatus,
+  startApexBackgroundRuntimeHeartbeat,
+} from "./apexBackgroundRuntime.js";
+import {
+  readApexLocalAgentSpeedBenchmarkHistory,
+} from "./apexLocalAgentSpeedHistory.js";
+import {
+  updateApexLightweightVoiceSelection,
+} from "./apexLightweightVoiceProvider.js";
+import {
+  buildApexOsKnowledgeIntelligence,
+  buildApexOsKnowledgeOpenAiRequest,
+  parseOpenAiApexOsKnowledgePayload,
+} from "../shared/apexOsKnowledgeIntelligence.js";
+import {
+  applyApexWorkstationBrainCommand,
+  buildApexWorkstationBrainCommandAnswer,
+  buildApexWorkstationBrainStatus,
+  inferApexWorkstationBrainCommand,
+} from "../shared/apexWorkstationBrainMode.js";
+import {
+  buildApexOsDailyBriefing,
+  buildApexOsDailyBriefingHistorySnapshot,
+  normalizeApexOsDailyBriefingHistory,
+} from "../shared/apexOsDailyBriefing.js";
+import { collectApexOsBuildAwareness } from "./apex-os-build-awareness.js";
+import { runApexBuilderControlledFix, runApexBuilderUndoLastFix, runApexBuilderValidationCommand } from "./apex-os-builder-mode.js";
+import {
+  getApexAutonomousBuildLoopState,
+  runApexAutonomousBuildLoop,
+} from "./apexAutonomousBuildLoopRuntime.js";
+import {
   buildEstimateRoughNotesContext,
   generateEstimateRoughNotesDrafts,
 } from "../shared/estimateRoughNotesAi.js";
@@ -199,6 +371,11 @@ import {
   recordBelongsToCompany,
   visibleRecordsForCompany,
 } from "../shared/companyScope.js";
+import {
+  APEX_DESKTOP_TRUSTED_SESSION_HEADER,
+  APEX_DESKTOP_TRUSTED_SESSION_VALUE,
+  isLoopbackAddress,
+} from "../shared/apexDesktopTrustedEntry.js";
 import { deriveFirstOwnerOnboardingState, managedSetupSettingsFromPayload } from "../shared/managedCompanySetup.js";
 import {
   FEATURE_KEYS,
@@ -283,6 +460,7 @@ import {
   canReviewSafetyIncidents,
   canSubmitSafetyIncidents,
   canContributeToolChecklist,
+  canAccessApexOs,
   canManageJobToolChecklist,
   canManageToolChecklist,
   canManageUploads,
@@ -443,6 +621,7 @@ const SESSION_TOUCH_INTERVAL_MS = 60 * 1000;
 const SESSION_COOKIE_NAME = "apex_hq_session";
 const CSRF_COOKIE_NAME = "apex_hq_csrf";
 const AUTH_MODE_HEADER = "x-apex-auth-mode";
+const LOCAL_DESKTOP_SESSION_AUDIT_ACTION = "local_desktop_trusted_session_opened";
 const SAFE_HTTP_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 const serverStartedAt = Date.now();
 const publicEstimateRequestRateLimit = new Map();
@@ -480,7 +659,7 @@ function securityHeaders(_req, res, next) {
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("Referrer-Policy", "no-referrer");
   res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
-  res.setHeader("Permissions-Policy", "geolocation=(self), microphone=(), payment=(), usb=()");
+  res.setHeader("Permissions-Policy", "geolocation=(self), microphone=(self), payment=(), usb=()");
   res.setHeader("Content-Security-Policy", [
     "default-src 'self'",
     "base-uri 'self'",
@@ -512,6 +691,15 @@ app.use(cors({
   optionsSuccessStatus: 204,
 }));
 app.use(express.json({ limit: "72mb" }));
+
+app.use("/api/apex-os", (_req, res) => {
+  res.status(410).json({
+    error: "Private Apex has moved to the standalone local repo at C:\\Users\\jberl\\Documents\\Apex.",
+    movedTo: "C:\\Users\\jberl\\Documents\\Apex",
+    apexHqProductAiStillAvailable: true,
+    cloudUsed: false,
+  });
+});
 
 class ApiError extends Error {
   constructor(status, message) {
@@ -924,6 +1112,64 @@ function tokenMatches(expected, provided) {
   const providedBuffer = Buffer.from(provided);
   if (expectedBuffer.length !== providedBuffer.length) return false;
   return crypto.timingSafeEqual(expectedBuffer, providedBuffer);
+}
+
+function firstRequestHeader(req, name) {
+  const value = req.headers[String(name || "").toLowerCase()];
+  if (Array.isArray(value)) return String(value[0] || "").trim();
+  return String(value || "").trim();
+}
+
+function localDesktopRemoteAddresses(req) {
+  return [
+    req.ip,
+    req.socket?.remoteAddress,
+    req.connection?.remoteAddress,
+  ].map((value) => String(value || "").trim()).filter(Boolean);
+}
+
+function assertTrustedLocalDesktopSessionRequest(req) {
+  if (serverConfig.nodeEnv === "production") {
+    throw new ApiError(403, "Local desktop trusted entry is disabled in production.");
+  }
+
+  const remoteAddresses = localDesktopRemoteAddresses(req);
+  if (!remoteAddresses.some((address) => isLoopbackAddress(address))) {
+    throw new ApiError(403, "Local desktop trusted entry is loopback-only.");
+  }
+
+  const providedDesktopHeader = firstRequestHeader(req, APEX_DESKTOP_TRUSTED_SESSION_HEADER);
+  if (!tokenMatches(APEX_DESKTOP_TRUSTED_SESSION_VALUE, providedDesktopHeader)) {
+    throw new ApiError(403, "Local desktop trusted entry header missing or invalid.");
+  }
+
+  return Object.freeze({
+    remoteAddresses,
+    loopbackOnly: true,
+    productionBlocked: true,
+  });
+}
+
+function findTrustedLocalDesktopOperatorUser(state = {}) {
+  const users = Array.isArray(state.users) ? state.users : [];
+  const eligibleUsers = users.filter((user) => optionalUserStatus(user?.status, "active") === "active" && canAccessApexOs(user));
+  if (!eligibleUsers.length) return null;
+
+  const demoOperatorEmail = String(DEMO_CREDENTIALS.email || "").toLowerCase();
+  const preferredByEmail = eligibleUsers.find((user) => String(user.email || "").toLowerCase() === demoOperatorEmail);
+  if (preferredByEmail) return preferredByEmail;
+
+  const preferredByName = eligibleUsers.find((user) => {
+    const fingerprint = `${user.name || ""} ${user.email || ""}`.toLowerCase();
+    return /\b(john|jordan|berl|jberl)\b/.test(fingerprint);
+  });
+  if (preferredByName) return preferredByName;
+
+  return eligibleUsers.find((user) => isOwner(user))
+    || eligibleUsers.find((user) => isAdministrator(user))
+    || eligibleUsers.find((user) => isOperationsManager(user))
+    || eligibleUsers[0]
+    || null;
 }
 
 function hasMultipleActiveCompanies(state = {}) {
@@ -6105,13 +6351,32 @@ function ownerHealthCountsForUser(state, user) {
   };
 }
 
+const APEX_OS_PRIVATE_COMPANY_SETTING_KEYS = [
+  "apexOsMemory",
+  "apexOsApprovalPackets",
+  "apexOsExecutionHandoffs",
+  "apexOsAgentControlRequests",
+  "apexOsAutonomyRuns",
+  "apexOsTasks",
+  "apexOsDailyBriefingHistory",
+];
+
+function redactApexOsCompanySettingsForUser(settings = {}, user = {}) {
+  const safeSettings = { ...(settings || {}) };
+  if (canAccessApexOs(user)) return safeSettings;
+  for (const key of APEX_OS_PRIVATE_COMPANY_SETTING_KEYS) {
+    delete safeSettings[key];
+  }
+  return safeSettings;
+}
+
 function sanitizeBootstrap(state, user) {
   const customerPermissions = customerPermissionsForUser(state, user);
   const leadPermissions = leadPermissionsForUser(user);
   const userPermissions = userPermissionsForUser(user);
   const settings = companySettingsForState(state, user);
   const canViewWorkspaceSettings = canViewSettings(user);
-  const bootstrapCompanySettings = canViewWorkspaceSettings
+  const rawBootstrapCompanySettings = canViewWorkspaceSettings
     ? settings
     : {
       companyName: settings.companyName || "",
@@ -6124,6 +6389,7 @@ function sanitizeBootstrap(state, user) {
       serviceArea: settings.serviceArea || "",
       toolChecklistEnabled: settings.toolChecklistEnabled !== false,
     };
+  const bootstrapCompanySettings = redactApexOsCompanySettingsForUser(rawBootstrapCompanySettings, user);
   const companies = companiesForState(state);
   const currentCompanyId = currentCompanyIdForRequestUser(state, user);
   const currentCompany = companies.find((company) => company.id === currentCompanyId) || companies[0] || null;
@@ -6231,6 +6497,10 @@ function sanitizeBootstrap(state, user) {
       },
       customerPortal: {
         canPreview: packageEntitlements.customerPortal.canUsePreview && canPreviewCustomerPortal(user),
+      },
+      apexOs: {
+        canView: canAccessApexOs(user),
+        canManage: canAccessApexOs(user),
       },
       contactHistory: contactHistoryPermissionsForUser(user),
       estimates: {
@@ -7496,6 +7766,538 @@ function publicAgentLearningPreference(preference) {
   return safePreference;
 }
 
+function assertCanManageApexOsMemory(_state, user) {
+  if (!canAccessApexOs(user)) {
+    throw new ApiError(403, "You do not have permission to manage Apex OS memory.");
+  }
+}
+
+function assertCanManageApexOsTaskRecords(_state, user) {
+  if (!canAccessApexOs(user)) {
+    throw new ApiError(403, "You do not have permission to manage Apex OS tasks and reminders.");
+  }
+}
+
+function assertCanReadApexOsSkillRegistry(_state, user) {
+  if (!canAccessApexOs(user)) {
+    throw new ApiError(403, "You do not have permission to view Apex OS skills.");
+  }
+}
+
+function assertCanUseApexOsHomeAssistant(_state, user) {
+  if (!canAccessApexOs(user)) {
+    throw new ApiError(403, "You do not have permission to use Apex OS Home Assistant connector.");
+  }
+}
+
+function apexOsMemoryForState(state, user) {
+  return normalizeApexOsMemory(companySettingsForState(state, user).apexOsMemory);
+}
+
+function rejectUnsafeApexOsMemoryEntry(entry) {
+  if (entry.blockedReasons?.length) {
+    throw new ApiError(400, entry.blockedReasons[0]);
+  }
+  if (!entry.title || !entry.body) {
+    throw new ApiError(400, "Apex OS memory requires a title and body.");
+  }
+  if (!entry.sourceLabel) {
+    throw new ApiError(400, "Apex OS memory requires a source label.");
+  }
+}
+
+function persistApexOsMemory(draft, user, memory) {
+  const currentCompanyId = currentCompanyIdForRequestUser(draft, user);
+  draft.currentCompanyId = currentCompanyId;
+  draft.companySettingsByCompanyId ||= {};
+  draft.companySettings = {
+    ...companySettingsForState(draft, user),
+    apexOsMemory: normalizeApexOsMemory(memory),
+  };
+  draft.companySettingsByCompanyId[currentCompanyId] = draft.companySettings;
+}
+
+function publicApexOsMemoryEntry(entry) {
+  const { blockedReasons: _blockedReasons, ...safeEntry } = entry;
+  return safeEntry;
+}
+
+function apexOsTaskRecordsForState(state, user) {
+  return normalizeApexOsTasks(companySettingsForState(state, user).apexOsTasks);
+}
+
+function rejectUnsafeApexOsTaskRecord(record) {
+  if (record.safetyFlags?.length) {
+    throw new ApiError(400, record.safetyFlags[0]);
+  }
+  if (!record.title) {
+    throw new ApiError(400, "Apex OS tasks and reminders require a title.");
+  }
+}
+
+function persistApexOsTaskRecords(draft, user, records) {
+  const currentCompanyId = currentCompanyIdForRequestUser(draft, user);
+  draft.currentCompanyId = currentCompanyId;
+  draft.companySettingsByCompanyId ||= {};
+  draft.companySettings = {
+    ...companySettingsForState(draft, user),
+    apexOsTasks: normalizeApexOsTasks(records),
+  };
+  draft.companySettingsByCompanyId[currentCompanyId] = draft.companySettings;
+}
+
+function publicApexOsTaskRecord(record) {
+  const { safetyFlags: _safetyFlags, ...safeRecord } = record;
+  return safeRecord;
+}
+
+function assertCanRunApexOsInternalActions(_state, user) {
+  if (!canAccessApexOs(user)) {
+    throw new ApiError(403, "You do not have permission to run Apex OS internal actions.");
+  }
+}
+
+function publicApexOsInternalActionResult(result = {}) {
+  const {
+    nextTasks: _nextTasks,
+    nextMemory: _nextMemory,
+    record: _record,
+    safety = {},
+  } = result || {};
+  const safeResult = sanitizeApexOsInternalActionResult(result || {});
+  return {
+    ...safeResult,
+    safety: {
+      actionPermissionSummary: safety.actionPermissionSummary || null,
+      privacyFirewallSummary: safety.privacyFirewallSummary || null,
+      untrustedContentFirewallSummary: safety.untrustedContentFirewallSummary || null,
+      toolRouteSummary: safety.toolRouteSummary || null,
+      traceEntry: safety.traceEntry || null,
+    },
+  };
+}
+
+function publicApexOsInternalActionRecord(result = {}) {
+  if (!result?.record) return null;
+  if (result.record.type === "task" || result.record.type === "reminder") {
+    return publicApexOsTaskRecord(result.record);
+  }
+  return publicApexOsMemoryEntry(result.record);
+}
+
+function persistApexOsInternalActionResult(draft, user, result) {
+  if (!result?.performed) return [];
+  const changedFields = [];
+  const changedTaskRecord = result.record?.type === "task" || result.record?.type === "reminder";
+  if (changedTaskRecord && Array.isArray(result.nextTasks)) {
+    persistApexOsTaskRecords(draft, user, result.nextTasks);
+    changedFields.push("apexOsTasks");
+  }
+  if (result.record && !changedTaskRecord && Array.isArray(result.nextMemory)) {
+    persistApexOsMemory(draft, user, result.nextMemory);
+    changedFields.push("apexOsMemory");
+  }
+  return [...new Set(changedFields)];
+}
+
+function recordApexOsInternalActionActivity(draft, user, result, changedFields = []) {
+  const publicResult = publicApexOsInternalActionResult(result);
+  const summary = result?.receipt?.summary || result?.reason || "Apex OS internal action evaluated.";
+  appendActivity(draft, result?.performed ? "Apex OS internal action completed" : "Apex OS internal action blocked", `${user.name} requested ${summary}`);
+  appendAuditEvent(draft, {
+    entityType: "apexOsInternalAction",
+    entityId: result?.actionId || makeId("AOIA"),
+    action: result?.performed ? "performed" : result?.escalated ? "escalated" : "blocked",
+    summary: result?.performed ? "Apex OS internal action completed" : "Apex OS internal action stopped",
+    detail: JSON.stringify({
+      actionId: publicResult.actionId,
+      actionType: publicResult.actionType,
+      status: publicResult.status,
+      performed: publicResult.performed,
+      blocked: publicResult.blocked,
+      escalated: publicResult.escalated,
+      affectedRecordId: publicResult.affectedRecordId,
+      undoAvailable: publicResult.undoAvailable,
+      undoHint: publicResult.undoHint,
+      receiptSummary: publicResult.receipt?.summary,
+      actionRiskTier: publicResult.safety?.actionPermissionSummary?.riskTier,
+      toolRoute: publicResult.safety?.toolRouteSummary?.routeId,
+      externalActionExecuted: false,
+      customerVisible: false,
+    }),
+    actor: user,
+    changedFields,
+  });
+}
+
+function runApexOsInternalActionForDraft(draft, user, input = {}, options = {}) {
+  assertCanRunApexOsInternalActions(draft, user);
+  const result = executeApexOsInternalAction(input, {
+    tasks: apexOsTaskRecordsForState(draft, user),
+    memory: apexOsMemoryForState(draft, user),
+    actor: user,
+    now: options.now || new Date().toISOString(),
+    makeId,
+    trustLevel: input.trustLevel,
+    sourceType: input.sourceType,
+    sourceLabel: input.sourceLabel,
+  });
+  const changedFields = persistApexOsInternalActionResult(draft, user, result);
+  recordApexOsInternalActionActivity(draft, user, result, changedFields);
+  return result;
+}
+
+function apexOsApprovalPacketsForState(state, user) {
+  return normalizeApexOsApprovalPackets(companySettingsForState(state, user).apexOsApprovalPackets);
+}
+
+function rejectUnsafeApexOsApprovalPacket(packet, requestedStatus = packet.status, requestBody = {}) {
+  const normalizedStatus = String(requestedStatus || "").trim().toLowerCase();
+  if (["executed", "running", "queued"].includes(normalizedStatus)) {
+    throw new ApiError(400, "Apex OS approval packets can record draft, ready, approved, rejected, deferred, blocked, or archived review states here; queueing, running, execution, and irreversible action still require a separate gated workflow.");
+  }
+  if (packet.blockedReasons?.length) {
+    throw new ApiError(400, packet.blockedReasons[0]);
+  }
+  if (!packet.title || !packet.action) {
+    throw new ApiError(400, "Apex OS approval packets require a title and action details.");
+  }
+  if ((packet.status === "ready" || packet.status === "approved") && !isApexOsApprovalPacketReady(packet)) {
+    throw new ApiError(400, `Ready approval packets are missing: ${getApexOsApprovalPacketMissingFields(packet).join(", ")}.`);
+  }
+  if (packet.status === "approved" && !isApexOsApprovalPacketApprovalConfirmed(packet, requestBody?.approvalPhraseConfirmation)) {
+    throw new ApiError(400, "Approving an Apex OS approval packet requires the exact approval phrase from the packet. Approval records do not execute the action.");
+  }
+  if (!packet.sourceLabel) {
+    throw new ApiError(400, "Apex OS approval packets require a source label.");
+  }
+}
+
+function persistApexOsApprovalPackets(draft, user, packets) {
+  const currentCompanyId = currentCompanyIdForRequestUser(draft, user);
+  draft.currentCompanyId = currentCompanyId;
+  draft.companySettingsByCompanyId ||= {};
+  draft.companySettings = {
+    ...companySettingsForState(draft, user),
+    apexOsApprovalPackets: normalizeApexOsApprovalPackets(packets),
+  };
+  draft.companySettingsByCompanyId[currentCompanyId] = draft.companySettings;
+}
+
+function publicApexOsApprovalPacket(packet) {
+  const { blockedReasons: _blockedReasons, ...safePacket } = packet;
+  return {
+    ...safePacket,
+    missingFields: getApexOsApprovalPacketMissingFields(packet),
+    readyToReview: isApexOsApprovalPacketReady(packet),
+    riskAssessment: scoreApexOsApprovalPacketRisk(packet),
+    approvalDecisionLocked: packet.status !== "approved",
+    executionLocked: true,
+    canExecute: false,
+    canExecuteAfterApproval: false,
+  };
+}
+
+function apexOsExecutionHandoffsForState(state, user) {
+  return normalizeApexOsExecutionHandoffs(companySettingsForState(state, user).apexOsExecutionHandoffs);
+}
+
+function rejectUnsafeApexOsExecutionHandoff(handoff, requestedStatus = handoff.status) {
+  const normalizedStatus = String(requestedStatus || "").trim().toLowerCase();
+  if (["approved", "executed", "running", "queued"].includes(normalizedStatus)) {
+    throw new ApiError(400, "Apex OS execution handoffs can be drafted, readied, blocked, or archived here; approval, queueing, running, and execution require a separate gated workflow.");
+  }
+  if (handoff.blockedReasons?.length) {
+    throw new ApiError(400, handoff.blockedReasons[0]);
+  }
+  if (!handoff.title || !handoff.objective) {
+    throw new ApiError(400, "Apex OS execution handoffs require a title and objective.");
+  }
+  if (handoff.workstreamStatus === "finished" && (!handoff.validationResults || !handoff.resultReport)) {
+    throw new ApiError(400, "Finished Apex OS execution handoffs require validation results and a result report.");
+  }
+  if (handoff.status === "ready" && !isApexOsExecutionHandoffReady(handoff)) {
+    throw new ApiError(400, `Ready execution handoffs are missing: ${getApexOsExecutionHandoffMissingFields(handoff).join(", ")}.`);
+  }
+  if (!handoff.sourceLabel) {
+    throw new ApiError(400, "Apex OS execution handoffs require a source label.");
+  }
+}
+
+function persistApexOsExecutionHandoffs(draft, user, handoffs) {
+  const currentCompanyId = currentCompanyIdForRequestUser(draft, user);
+  draft.currentCompanyId = currentCompanyId;
+  draft.companySettingsByCompanyId ||= {};
+  draft.companySettings = {
+    ...companySettingsForState(draft, user),
+    apexOsExecutionHandoffs: normalizeApexOsExecutionHandoffs(handoffs),
+  };
+  draft.companySettingsByCompanyId[currentCompanyId] = draft.companySettings;
+}
+
+function publicApexOsExecutionHandoff(handoff) {
+  const { blockedReasons: _blockedReasons, ...safeHandoff } = handoff;
+  return {
+    ...safeHandoff,
+    missingFields: getApexOsExecutionHandoffMissingFields(handoff),
+    readyToReview: isApexOsExecutionHandoffReady(handoff),
+    executionContract: buildApexOsExecutionContract(handoff),
+    executionLocked: true,
+    canQueue: false,
+    canRun: false,
+    canExecute: false,
+  };
+}
+
+function maybeCreateApexOsExecutionHandoffMemoryDraft(draft, user, handoff, now) {
+  if (handoff.workstreamStatus !== "finished" || !handoff.decisionMemoryUpdate) {
+    return null;
+  }
+  if (handoff.decisionMemoryId) {
+    return null;
+  }
+  const currentMemory = apexOsMemoryForState(draft, user);
+  const memoryEntry = normalizeApexOsMemoryEntry({
+    category: "decision",
+    title: `Finished handoff: ${handoff.title}`,
+    body: handoff.decisionMemoryUpdate,
+    sourceType: "execution-handoff",
+    sourceLabel: handoff.title,
+    sourceUri: `apex-os-execution-handoff:${handoff.id}`,
+    status: "suggested",
+    confidence: 72,
+    reviewNote: "Suggested after a finished Apex OS execution handoff; manual approval required before trusted memory.",
+  }, {
+    id: makeId("AOM"),
+    now,
+  });
+  memoryEntry.createdBy = user.id;
+  memoryEntry.createdAt = now;
+  rejectUnsafeApexOsMemoryEntry(memoryEntry);
+  const duplicate = findApexOsMemoryDuplicate(memoryEntry, currentMemory);
+  if (duplicate) {
+    handoff.decisionMemoryId = duplicate.id;
+    return null;
+  }
+  persistApexOsMemory(draft, user, [memoryEntry, ...currentMemory].slice(0, 200));
+  handoff.decisionMemoryId = memoryEntry.id;
+  appendActivity(draft, "Apex OS handoff memory suggested", `${user.name} captured suggested decision memory from ${handoff.title}.`);
+  appendAuditEvent(draft, {
+    entityType: "apexOsMemory",
+    entityId: memoryEntry.id,
+    action: "suggested",
+    summary: "Apex OS handoff memory suggested",
+    detail: JSON.stringify({
+      id: memoryEntry.id,
+      category: memoryEntry.category,
+      title: memoryEntry.title,
+      status: memoryEntry.status,
+      sourceType: memoryEntry.sourceType,
+      sourceUri: memoryEntry.sourceUri,
+      handoffId: handoff.id,
+    }),
+    actor: user,
+    changedFields: ["apexOsMemory", "apexOsExecutionHandoffs"],
+  });
+  return memoryEntry;
+}
+
+function apexOsAgentControlRequestsForState(state, user) {
+  return normalizeApexOsAgentControlRequests(companySettingsForState(state, user).apexOsAgentControlRequests);
+}
+
+function rejectUnsafeApexOsAgentControlRequest(request, requestedStatus = request.status) {
+  const normalizedStatus = String(requestedStatus || "").trim().toLowerCase();
+  if (["approved", "executed", "running", "queued"].includes(normalizedStatus)) {
+    throw new ApiError(400, "Apex OS agent control requests can be requested, readied, blocked, closed, or archived here; approval, queueing, running, and execution require a separate gated workflow.");
+  }
+  if (request.blockedReasons?.length) {
+    throw new ApiError(400, request.blockedReasons[0]);
+  }
+  if (!request.title || !request.objective) {
+    throw new ApiError(400, "Apex OS agent control requests require a title and objective.");
+  }
+  if (request.status === "ready" && !isApexOsAgentControlRequestReady(request)) {
+    throw new ApiError(400, `Ready agent control requests are missing: ${getApexOsAgentControlRequestMissingFields(request).join(", ")}.`);
+  }
+  if (!request.sourceLabel) {
+    throw new ApiError(400, "Apex OS agent control requests require a source label.");
+  }
+}
+
+function persistApexOsAgentControlRequests(draft, user, requests) {
+  const currentCompanyId = currentCompanyIdForRequestUser(draft, user);
+  draft.currentCompanyId = currentCompanyId;
+  draft.companySettingsByCompanyId ||= {};
+  draft.companySettings = {
+    ...companySettingsForState(draft, user),
+    apexOsAgentControlRequests: normalizeApexOsAgentControlRequests(requests),
+  };
+  draft.companySettingsByCompanyId[currentCompanyId] = draft.companySettings;
+}
+
+function publicApexOsAgentControlRequest(request) {
+  const { blockedReasons: _blockedReasons, ...safeRequest } = request;
+  return {
+    ...safeRequest,
+    missingFields: getApexOsAgentControlRequestMissingFields(request),
+    readyToReview: isApexOsAgentControlRequestReady(request),
+    executionLocked: true,
+    externalApprovalRequired: true,
+  };
+}
+
+function apexOsAutonomyRunsForState(state, user) {
+  return normalizeApexOsAutonomyRuns(companySettingsForState(state, user).apexOsAutonomyRuns);
+}
+
+function rejectUnsafeApexOsAutonomyRun(run, requestedStatus = run.status) {
+  const normalizedStatus = String(requestedStatus || "").trim().toLowerCase();
+  if (["approved", "executed", "running", "queued"].includes(normalizedStatus)) {
+    throw new ApiError(400, "Apex autonomy runs can be planned, drafted, validated, blocked, completed, or archived here; approval, queueing, running, and execution require a separate gated workflow.");
+  }
+  if (run.blockedReasons?.length) {
+    throw new ApiError(400, run.blockedReasons[0]);
+  }
+  if (!run.title || !run.request) {
+    throw new ApiError(400, "Apex autonomy runs require a title and request.");
+  }
+  if (run.status === "done" && !isApexOsAutonomyRunReady(run)) {
+    throw new ApiError(400, `Completed autonomy runs are missing: ${getApexOsAutonomyRunMissingFields(run).join(", ")}.`);
+  }
+  if (!run.sourceLabel) {
+    throw new ApiError(400, "Apex autonomy runs require a source label.");
+  }
+}
+
+function persistApexOsAutonomyRuns(draft, user, runs) {
+  const currentCompanyId = currentCompanyIdForRequestUser(draft, user);
+  draft.currentCompanyId = currentCompanyId;
+  draft.companySettingsByCompanyId ||= {};
+  draft.companySettings = {
+    ...companySettingsForState(draft, user),
+    apexOsAutonomyRuns: normalizeApexOsAutonomyRuns(runs),
+  };
+  draft.companySettingsByCompanyId[currentCompanyId] = draft.companySettings;
+}
+
+function publicApexOsAutonomyRun(run) {
+  const { blockedReasons: _blockedReasons, ...safeRun } = run;
+  return {
+    ...safeRun,
+    missingFields: getApexOsAutonomyRunMissingFields(run),
+    readyToReview: isApexOsAutonomyRunReady(run),
+    executionLocked: true,
+    externalActionsLocked: true,
+    canDraftInternal: true,
+    canQueue: false,
+    canRunAgent: false,
+    canExecute: false,
+  };
+}
+
+function buildApexOsAutonomyRunAgentControlDraft(run, user) {
+  return {
+    requestType: "scoped-run",
+    agentRole: run.agentRole || "build",
+    title: `Autonomy run draft: ${run.title}`,
+    objective: `Prepare private internal draft work for: ${run.request}`,
+    scope: "Private Apex HQ planning, implementation notes, validation checklist, result report, and suggested memory only. No external action is allowed from this request.",
+    riskLevel: run.riskLevel || "medium",
+    validationPlan: "Confirm the draft stays private, review-first, scoped to the run, and backed by tests, role checks, browser or mobile QA, build evidence, and rollback notes when code changes are involved.",
+    rollbackPlan: "Archive or close this request and keep the saved run history intact. No external systems are changed by this draft.",
+    sourceLabel: "Apex Autonomy Run Ledger",
+    sourceUri: `apex-os-autonomy-run:${run.id}`,
+    operatorNote: `Linked run ${run.id}.`,
+    status: "requested",
+  };
+}
+
+function buildApexOsAutonomyRunExecutionHandoffDraft(run, user) {
+  return {
+    title: `Autonomy handoff: ${run.title}`,
+    agentRole: run.agentRole || "build",
+    workType: run.workType || "local-code-plan",
+    objective: `Draft and validate private internal work for: ${run.request}`,
+    sourceEvidence: `Saved Apex autonomy run ${run.id} from ${run.sourceLabel || "Apex Autonomy Run Ledger"}. Route: ${run.routeLabel || "Apex"}.`,
+    allowedActions: "Read Apex HQ source context, prepare private implementation notes, draft the validation checklist, collect local proof, and report evidence.",
+    blockedActions: "No customer messages, money movement, publishing, production changes, provider credential handling, deletion, queueing, agent execution, rollback, or irreversible work.",
+    validationPlan: "Use focused tests, role checks, build, browser/mobile QA, and result notes as relevant before the operator trusts completion.",
+    rollbackPlan: "Archive this draft and leave linked run history intact. Since this draft performs no external action, rollback is limited to reverting code/doc edits if later work changes files.",
+    handoffPrompt: "Continue only as a private review-first draft. Stop before any approval-gated action and report evidence.",
+    sourceLabel: "Apex Autonomy Run Ledger",
+    sourceUri: `apex-os-autonomy-run:${run.id}`,
+    sourceQuestion: run.request,
+    riskLevel: run.riskLevel || "medium",
+    status: "draft",
+    workstreamStatus: "planned",
+    operatorNote: `Linked run ${run.id}.`,
+  };
+}
+
+function ensureApexOsAutonomyRunInternalDrafts(draft, user, existingRun, now) {
+  let agentControlRequestId = existingRun.linkedAgentControlRequestId;
+  let executionHandoffId = existingRun.linkedExecutionHandoffId;
+  let createdRequest = null;
+  let createdHandoff = null;
+
+  if (!agentControlRequestId) {
+    const currentRequests = apexOsAgentControlRequestsForState(draft, user);
+    createdRequest = normalizeApexOsAgentControlRequest(buildApexOsAutonomyRunAgentControlDraft(existingRun, user), {
+      id: makeId("AAC"),
+      now,
+      requestedBy: user.id,
+    });
+    createdRequest.createdBy = user.id;
+    createdRequest.createdAt = now;
+    rejectUnsafeApexOsAgentControlRequest(createdRequest, createdRequest.status);
+    agentControlRequestId = createdRequest.id;
+    persistApexOsAgentControlRequests(draft, user, [createdRequest, ...currentRequests].slice(0, 160));
+  }
+
+  if (!executionHandoffId) {
+    const currentHandoffs = apexOsExecutionHandoffsForState(draft, user);
+    createdHandoff = normalizeApexOsExecutionHandoff(buildApexOsAutonomyRunExecutionHandoffDraft(existingRun, user), {
+      id: makeId("AEH"),
+      now,
+    });
+    createdHandoff.createdBy = user.id;
+    createdHandoff.createdAt = now;
+    rejectUnsafeApexOsExecutionHandoff(createdHandoff, createdHandoff.status);
+    executionHandoffId = createdHandoff.id;
+    persistApexOsExecutionHandoffs(draft, user, [createdHandoff, ...currentHandoffs].slice(0, 120));
+  }
+
+  return {
+    updatedRun: markApexOsAutonomyRunInternalDrafted(existingRun, {
+      agentControlRequestId,
+      executionHandoffId,
+      now,
+    }),
+    createdRequest,
+    createdHandoff,
+  };
+}
+
+function apexOsDailyBriefingHistoryForState(state, user) {
+  return normalizeApexOsDailyBriefingHistory(companySettingsForState(state, user).apexOsDailyBriefingHistory);
+}
+
+function persistApexOsDailyBriefingHistory(draft, user, history) {
+  const currentCompanyId = currentCompanyIdForRequestUser(draft, user);
+  draft.currentCompanyId = currentCompanyId;
+  draft.companySettingsByCompanyId ||= {};
+  draft.companySettings = {
+    ...companySettingsForState(draft, user),
+    apexOsDailyBriefingHistory: normalizeApexOsDailyBriefingHistory(history),
+  };
+  draft.companySettingsByCompanyId[currentCompanyId] = draft.companySettings;
+}
+
+function publicApexOsDailyBriefingSnapshot(snapshot) {
+  return normalizeApexOsDailyBriefingHistory([snapshot])[0] || null;
+}
+
 function estimatesForAgentLearningSuggestions(state, user) {
   const companyId = currentCompanyIdForRequestUser(state, user);
   const estimateItems = Array.isArray(state.estimateItems) ? state.estimateItems : [];
@@ -8655,6 +9457,55 @@ app.post("/api/auth/login", asyncRoute(async (req, res) => {
   });
 
   return res.json(payload);
+}));
+
+app.post("/api/apex-os/local-desktop-session", asyncRoute(async (req, res) => {
+  const trustReceipt = assertTrustedLocalDesktopSessionRequest(req);
+  const openedAt = new Date().toISOString();
+  await cleanupExpiredSessions(openedAt);
+
+  const state = await readDb();
+  const user = findTrustedLocalDesktopOperatorUser(state);
+  if (!user) {
+    throw new ApiError(409, "No active Apex local operator user is available for desktop entry.");
+  }
+
+  const token = generateToken();
+  await replaceSessionForUser(user.id, {
+    tokenHash: hashToken(token),
+    currentCompanyId: user.currentCompanyId || user.companyId || DEFAULT_COMPANY_ID,
+    createdAt: openedAt,
+    lastSeenAt: openedAt,
+    expiresAt: nextSessionExpiry(),
+  });
+
+  await appendAuthAuditEvent({
+    user,
+    action: LOCAL_DESKTOP_SESSION_AUDIT_ACTION,
+    summary: "Local desktop trusted session opened",
+    detail: `${user.name} opened Apex from the dedicated local desktop app on this PC.`,
+    changedFields: ["session"],
+    createdAt: openedAt,
+  });
+
+  const csrfToken = setAuthCookies(res, token);
+  return res.json({
+    csrfToken,
+    user: publicUser(user, { includeNotificationState: true }),
+    localDesktopSession: {
+      status: "opened",
+      trustedLocalDesktop: true,
+      localOnly: true,
+      loopbackOnly: trustReceipt.loopbackOnly,
+      productionBlocked: trustReceipt.productionBlocked,
+      normalBrowserLoginPreserved: true,
+      schemaChanged: false,
+      permissionsLoosened: false,
+      secretsExposed: false,
+      cloudUsed: false,
+      openedAt,
+    },
+  });
 }));
 
 app.get("/api/auth/me", requireAuth, asyncRoute(async (req, res) => {
@@ -12410,6 +13261,2411 @@ app.patch("/api/agent/learning-preferences/:id", requireAuth, asyncRoute(async (
   res.json({
     ...sanitizeBootstrap(nextState, req.auth.user),
     agentLearningPreference: publicAgentLearningPreference(updatedPreference),
+  });
+}));
+
+app.get("/api/apex-os/memory", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const memory = apexOsMemoryForState(state, req.auth.user);
+  res.json({
+    apexOsMemory: memory.map(publicApexOsMemoryEntry),
+    summary: summarizeApexOsMemory(memory),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/apex-os/skills", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanReadApexOsSkillRegistry(state, req.auth.user);
+  const registry = buildDefaultApexOsSkillRegistry();
+  res.json({
+    apexOsSkills: registry,
+    summary: buildApexOsSkillRegistrySummary(registry),
+    executionLocked: true,
+    canExecute: false,
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/internal-actions", requireAuth, asyncRoute(async (req, res) => {
+  let internalActionResult = null;
+  let internalActionRecord = null;
+  const now = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    internalActionResult = runApexOsInternalActionForDraft(draft, req.auth.user, req.body || {}, { now });
+    internalActionRecord = publicApexOsInternalActionRecord(internalActionResult);
+    return draft;
+  });
+
+  res.status(internalActionResult?.performed ? 201 : 200).json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    apexOsInternalAction: publicApexOsInternalActionResult(internalActionResult),
+    apexOsInternalActionRecord: internalActionRecord,
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/apex-os/tasks", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsTaskRecords(state, req.auth.user);
+  const tasks = filterApexOsTasksByType(apexOsTaskRecordsForState(state, req.auth.user), "task");
+  res.json({
+    apexOsTasks: tasks.map(publicApexOsTaskRecord),
+    summary: summarizeApexOsTasks(tasks),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/tasks", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let createdTask = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageApexOsTaskRecords(draft, req.auth.user);
+    const current = apexOsTaskRecordsForState(draft, req.auth.user);
+    createdTask = createApexOsTaskRecord({
+      ...(req.body || {}),
+      type: "task",
+    }, {
+      id: makeId("AOT"),
+      now,
+      createdBy: req.auth.user.id,
+    });
+    rejectUnsafeApexOsTaskRecord(createdTask);
+    persistApexOsTaskRecords(draft, req.auth.user, [createdTask, ...current].slice(0, 300));
+    appendActivity(draft, "Apex OS task added", `${req.auth.user.name} added ${createdTask.title} to private Apex OS tasks.`);
+    appendAuditEvent(draft, {
+      entityType: "apexOsTask",
+      entityId: createdTask.id,
+      action: "created",
+      summary: "Apex OS task added",
+      detail: JSON.stringify({
+        id: createdTask.id,
+        type: createdTask.type,
+        title: createdTask.title,
+        status: createdTask.status,
+        priority: createdTask.priority,
+        category: createdTask.category,
+        externalNotificationsEnabled: false,
+      }),
+      actor: req.auth.user,
+      changedFields: ["apexOsTasks"],
+    });
+    return draft;
+  });
+
+  res.status(201).json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    apexOsTask: publicApexOsTaskRecord(createdTask),
+  });
+}));
+
+app.patch("/api/apex-os/tasks/:id", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let updatedTask = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageApexOsTaskRecords(draft, req.auth.user);
+    const current = apexOsTaskRecordsForState(draft, req.auth.user);
+    const index = current.findIndex((record) => record.id === req.params.id && record.type === "task");
+    if (index < 0) {
+      throw new ApiError(404, "Apex OS task not found.");
+    }
+    updatedTask = updateApexOsTaskRecord(current[index], req.body || {}, { now });
+    rejectUnsafeApexOsTaskRecord(updatedTask);
+    const nextRecords = [...current];
+    nextRecords[index] = updatedTask;
+    persistApexOsTaskRecords(draft, req.auth.user, nextRecords);
+    appendActivity(draft, "Apex OS task updated", `${req.auth.user.name} updated ${updatedTask.title} in private Apex OS tasks.`);
+    appendAuditEvent(draft, {
+      entityType: "apexOsTask",
+      entityId: updatedTask.id,
+      action: updatedTask.status === "done" ? "completed" : updatedTask.status === "archived" ? "archived" : "updated",
+      summary: "Apex OS task updated",
+      detail: JSON.stringify({
+        id: updatedTask.id,
+        type: updatedTask.type,
+        title: updatedTask.title,
+        status: updatedTask.status,
+        priority: updatedTask.priority,
+        category: updatedTask.category,
+        externalNotificationsEnabled: false,
+      }),
+      actor: req.auth.user,
+      changedFields: ["apexOsTasks"],
+    });
+    return draft;
+  });
+
+  res.json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    apexOsTask: publicApexOsTaskRecord(updatedTask),
+  });
+}));
+
+app.get("/api/apex-os/reminders", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsTaskRecords(state, req.auth.user);
+  const reminders = filterApexOsTasksByType(apexOsTaskRecordsForState(state, req.auth.user), "reminder");
+  res.json({
+    apexOsReminders: reminders.map(publicApexOsTaskRecord),
+    summary: summarizeApexOsTasks(reminders),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/reminders", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let createdReminder = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageApexOsTaskRecords(draft, req.auth.user);
+    const current = apexOsTaskRecordsForState(draft, req.auth.user);
+    createdReminder = createApexOsTaskRecord({
+      ...(req.body || {}),
+      type: "reminder",
+    }, {
+      id: makeId("AOR"),
+      now,
+      createdBy: req.auth.user.id,
+    });
+    rejectUnsafeApexOsTaskRecord(createdReminder);
+    persistApexOsTaskRecords(draft, req.auth.user, [createdReminder, ...current].slice(0, 300));
+    appendActivity(draft, "Apex OS reminder added", `${req.auth.user.name} added ${createdReminder.title} to private Apex OS reminders.`);
+    appendAuditEvent(draft, {
+      entityType: "apexOsReminder",
+      entityId: createdReminder.id,
+      action: "created",
+      summary: "Apex OS reminder added",
+      detail: JSON.stringify({
+        id: createdReminder.id,
+        type: createdReminder.type,
+        title: createdReminder.title,
+        status: createdReminder.status,
+        priority: createdReminder.priority,
+        category: createdReminder.category,
+        dueText: createdReminder.dueText,
+        dueAt: createdReminder.dueAt,
+        externalNotificationsEnabled: false,
+      }),
+      actor: req.auth.user,
+      changedFields: ["apexOsTasks"],
+    });
+    return draft;
+  });
+
+  res.status(201).json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    apexOsReminder: publicApexOsTaskRecord(createdReminder),
+  });
+}));
+
+app.patch("/api/apex-os/reminders/:id", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let updatedReminder = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageApexOsTaskRecords(draft, req.auth.user);
+    const current = apexOsTaskRecordsForState(draft, req.auth.user);
+    const index = current.findIndex((record) => record.id === req.params.id && record.type === "reminder");
+    if (index < 0) {
+      throw new ApiError(404, "Apex OS reminder not found.");
+    }
+    updatedReminder = updateApexOsTaskRecord(current[index], req.body || {}, { now });
+    rejectUnsafeApexOsTaskRecord(updatedReminder);
+    const nextRecords = [...current];
+    nextRecords[index] = updatedReminder;
+    persistApexOsTaskRecords(draft, req.auth.user, nextRecords);
+    appendActivity(draft, "Apex OS reminder updated", `${req.auth.user.name} updated ${updatedReminder.title} in private Apex OS reminders.`);
+    appendAuditEvent(draft, {
+      entityType: "apexOsReminder",
+      entityId: updatedReminder.id,
+      action: updatedReminder.status === "done" ? "completed" : updatedReminder.status === "archived" ? "archived" : "updated",
+      summary: "Apex OS reminder updated",
+      detail: JSON.stringify({
+        id: updatedReminder.id,
+        type: updatedReminder.type,
+        title: updatedReminder.title,
+        status: updatedReminder.status,
+        priority: updatedReminder.priority,
+        category: updatedReminder.category,
+        dueText: updatedReminder.dueText,
+        dueAt: updatedReminder.dueAt,
+        externalNotificationsEnabled: false,
+      }),
+      actor: req.auth.user,
+      changedFields: ["apexOsTasks"],
+    });
+    return draft;
+  });
+
+  res.json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    apexOsReminder: publicApexOsTaskRecord(updatedReminder),
+  });
+}));
+
+app.get("/api/apex-os/approval-packets", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const packets = apexOsApprovalPacketsForState(state, req.auth.user);
+  res.json({
+    apexOsApprovalPackets: packets.map(publicApexOsApprovalPacket),
+    summary: summarizeApexOsApprovalPackets(packets),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/apex-os/execution-handoffs", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const handoffs = apexOsExecutionHandoffsForState(state, req.auth.user);
+  res.json({
+    apexOsExecutionHandoffs: handoffs.map(publicApexOsExecutionHandoff),
+    summary: summarizeApexOsExecutionHandoffs(handoffs),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/apex-os/agent-control", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const handoffs = apexOsExecutionHandoffsForState(state, req.auth.user);
+  const requests = apexOsAgentControlRequestsForState(state, req.auth.user);
+  res.json({
+    apexOsAgentControlRequests: requests.map(publicApexOsAgentControlRequest),
+    summary: summarizeApexOsAgentControlRequests(requests),
+    controlPlane: buildApexOsAgentControlPlane({
+      executionHandoffs: handoffs,
+      agentControlRequests: requests,
+    }),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/apex-os/autonomy-runs", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const runs = apexOsAutonomyRunsForState(state, req.auth.user);
+  res.json({
+    apexOsAutonomyRuns: runs.map(publicApexOsAutonomyRun),
+    summary: summarizeApexOsAutonomyRuns(runs),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/apex-os/build-awareness", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  res.json({
+    buildAwareness: await collectApexOsBuildAwareness(),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/builder/validation-runs", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  res.json({
+    validationRun: await runApexBuilderValidationCommand({
+      commandId: req.body?.commandId,
+      repoRoot: process.cwd(),
+    }),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/builder/fix-runs", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  res.json({
+    fixRun: await runApexBuilderControlledFix({
+      request: req.body?.request,
+      fixId: req.body?.fixId,
+      selfFixPatchHandoff: req.body?.selfFixPatchHandoff,
+      source: req.body?.source,
+      applyPatch: req.body?.applyPatch !== false,
+      runValidation: req.body?.runValidation !== false,
+      repoRoot: process.cwd(),
+    }),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/builder/undo-runs", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  res.json({
+    undoRun: await runApexBuilderUndoLastFix({
+      fixRun: req.body?.fixRun,
+      runValidation: req.body?.runValidation !== false,
+      repoRoot: process.cwd(),
+    }),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/apex-os/build-loop/status", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  res.json({
+    buildLoop: getApexAutonomousBuildLoopState(),
+    execution: {
+      canExecuteNow: true,
+      canExecuteAfterApproval: false,
+      executionLocked: false,
+      noExecutionTokens: true,
+      controlledBuilderOnly: true,
+      rawFilesystemWritesEnabled: false,
+      gitAutomationEnabled: false,
+      deployEnabled: false,
+      note: "Apex Autonomous Build Loop v0 can create Apex-owned local build tasks and route them through controlled Builder/Self-Fix tooling only. It cannot run raw filesystem writes, git automation, deploy, production, schema/auth/session, secrets, sends, spend, orders, bookings, customer-visible work, unrelated process killing, or permission weakening.",
+    },
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/build-loop/runs", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const result = await runApexAutonomousBuildLoop({
+    request: req.body?.request || req.body?.question || "",
+    applyPatch: req.body?.applyPatch !== false,
+    runValidation: req.body?.runValidation !== false,
+    repoRoot: process.cwd(),
+  });
+  res.json({
+    ...result,
+    execution: {
+      canExecuteNow: true,
+      canExecuteAfterApproval: false,
+      executionLocked: false,
+      noExecutionTokens: true,
+      controlledBuilderOnly: true,
+      rawFilesystemWritesEnabled: false,
+      gitAutomationEnabled: false,
+      deployEnabled: false,
+      note: "Apex Build Loop v0 executed only private/local controlled build-loop coordination. Any patching, validation, and auto-revert stayed inside the existing Builder/Self-Fix safeguards.",
+    },
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/apex-os/daily-briefing", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  res.json({
+    dailyBriefing: buildApexOsDailyBriefing({
+      state: {
+        ...state,
+        companySettings: companySettingsForState(state, req.auth.user),
+      },
+      user: req.auth.user,
+    }),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/daily-briefing/history", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let savedSnapshot = null;
+  let dailyBriefing = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageApexOsMemory(draft, req.auth.user);
+    const companySettings = companySettingsForState(draft, req.auth.user);
+    const currentHistory = apexOsDailyBriefingHistoryForState(draft, req.auth.user);
+    dailyBriefing = buildApexOsDailyBriefing({
+      state: {
+        ...draft,
+        companySettings,
+      },
+      user: req.auth.user,
+      now,
+    });
+    savedSnapshot = buildApexOsDailyBriefingHistorySnapshot(dailyBriefing, {
+      id: makeId("ADB"),
+      now,
+      savedBy: req.auth.user.id,
+    });
+    persistApexOsDailyBriefingHistory(draft, req.auth.user, [savedSnapshot, ...currentHistory].slice(0, 30));
+    appendActivity(draft, "Apex OS daily briefing saved", `${req.auth.user.name} saved a private Apex OS daily briefing snapshot.`);
+    appendAuditEvent(draft, {
+      entityType: "apexOsDailyBriefing",
+      entityId: savedSnapshot.id,
+      action: "saved",
+      summary: "Apex OS daily briefing saved",
+      detail: JSON.stringify({
+        id: savedSnapshot.id,
+        status: savedSnapshot.status,
+        rowCount: savedSnapshot.rowCount,
+        alertCount: savedSnapshot.alertCount,
+        sourceLabel: savedSnapshot.sourceLabel,
+        externalAlertsEnabled: false,
+        executionLocked: true,
+      }),
+      actor: req.auth.user,
+      changedFields: ["apexOsDailyBriefingHistory"],
+    });
+    return draft;
+  });
+
+  const updatedSettings = companySettingsForState(nextState, req.auth.user);
+  dailyBriefing = buildApexOsDailyBriefing({
+    state: {
+      ...nextState,
+      companySettings: updatedSettings,
+    },
+    user: req.auth.user,
+    now,
+  });
+
+  res.status(201).json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    dailyBriefing,
+    apexOsDailyBriefingSnapshot: publicApexOsDailyBriefingSnapshot(savedSnapshot),
+    summary: dailyBriefing.history,
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/autonomy-runs", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let createdRun = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageApexOsMemory(draft, req.auth.user);
+    const current = apexOsAutonomyRunsForState(draft, req.auth.user);
+    createdRun = buildApexOsAutonomyRunPlan(req.body || {}, {
+      id: makeId("AAR"),
+      now,
+      createdBy: req.auth.user.id,
+    });
+    createdRun.createdBy = req.auth.user.id;
+    createdRun.createdAt = now;
+    rejectUnsafeApexOsAutonomyRun(createdRun, req.body?.status);
+    persistApexOsAutonomyRuns(draft, req.auth.user, [createdRun, ...current].slice(0, 120));
+    appendActivity(draft, "Apex autonomy run saved", `${req.auth.user.name} saved ${createdRun.title} in the Apex autonomy run ledger.`);
+    appendAuditEvent(draft, {
+      entityType: "apexOsAutonomyRun",
+      entityId: createdRun.id,
+      action: "planned",
+      summary: "Apex autonomy run saved",
+      detail: JSON.stringify({
+        id: createdRun.id,
+        title: createdRun.title,
+        status: createdRun.status,
+        routeId: createdRun.routeId,
+        routeLabel: createdRun.routeLabel,
+        agentRole: createdRun.agentRole,
+        riskLevel: createdRun.riskLevel,
+        executionLocked: true,
+        externalActionsLocked: true,
+      }),
+      actor: req.auth.user,
+      changedFields: ["apexOsAutonomyRuns"],
+    });
+    return draft;
+  });
+
+  const runs = apexOsAutonomyRunsForState(nextState, req.auth.user);
+  res.status(201).json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    apexOsAutonomyRun: publicApexOsAutonomyRun(createdRun),
+    apexOsAutonomyRuns: runs.map(publicApexOsAutonomyRun),
+    summary: summarizeApexOsAutonomyRuns(runs),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.patch("/api/apex-os/autonomy-runs/:id", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let updatedRun = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageApexOsMemory(draft, req.auth.user);
+    const current = apexOsAutonomyRunsForState(draft, req.auth.user);
+    const index = current.findIndex((run) => run.id === req.params.id);
+    if (index < 0) {
+      throw new ApiError(404, "Apex autonomy run not found.");
+    }
+    const existing = current[index];
+    updatedRun = normalizeApexOsAutonomyRun(req.body || {}, {
+      existing,
+      now,
+      createdBy: existing.createdBy || req.auth.user.id,
+    });
+    updatedRun.createdBy = existing.createdBy;
+    updatedRun.createdAt = existing.createdAt;
+    if (updatedRun.status === "archived" && existing.status !== "archived") {
+      updatedRun.archivedAt = now;
+    }
+    if (updatedRun.status === "done" && existing.status !== "done") {
+      updatedRun.completedAt = now;
+    }
+    rejectUnsafeApexOsAutonomyRun(updatedRun, req.body?.status);
+    const nextRuns = [...current];
+    nextRuns[index] = updatedRun;
+    persistApexOsAutonomyRuns(draft, req.auth.user, nextRuns);
+    appendActivity(draft, "Apex autonomy run updated", `${req.auth.user.name} updated ${updatedRun.title} in the Apex autonomy run ledger.`);
+    appendAuditEvent(draft, {
+      entityType: "apexOsAutonomyRun",
+      entityId: updatedRun.id,
+      action: updatedRun.status === "archived" ? "archived" : updatedRun.status === "done" ? "completed" : updatedRun.status === "blocked" ? "blocked" : "updated",
+      summary: "Apex autonomy run updated",
+      detail: JSON.stringify({
+        id: updatedRun.id,
+        title: updatedRun.title,
+        status: updatedRun.status,
+        routeId: updatedRun.routeId,
+        routeLabel: updatedRun.routeLabel,
+        agentRole: updatedRun.agentRole,
+        riskLevel: updatedRun.riskLevel,
+        executionLocked: true,
+        externalActionsLocked: true,
+      }),
+      actor: req.auth.user,
+      changedFields: ["apexOsAutonomyRuns"],
+    });
+    return draft;
+  });
+
+  const runs = apexOsAutonomyRunsForState(nextState, req.auth.user);
+  res.json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    apexOsAutonomyRun: publicApexOsAutonomyRun(updatedRun),
+    apexOsAutonomyRuns: runs.map(publicApexOsAutonomyRun),
+    summary: summarizeApexOsAutonomyRuns(runs),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/autonomy-runs/:id/draft-internal", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let updatedRun = null;
+  let createdRequest = null;
+  let createdHandoff = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageApexOsMemory(draft, req.auth.user);
+    const currentRuns = apexOsAutonomyRunsForState(draft, req.auth.user);
+    const runIndex = currentRuns.findIndex((run) => run.id === req.params.id);
+    if (runIndex < 0) {
+      throw new ApiError(404, "Apex autonomy run not found.");
+    }
+    const existingRun = currentRuns[runIndex];
+    rejectUnsafeApexOsAutonomyRun(existingRun, existingRun.status);
+    if (["archived", "done", "blocked"].includes(existingRun.status)) {
+      throw new ApiError(400, "Archived, completed, or blocked autonomy runs cannot create new internal draft packages.");
+    }
+
+    const prepared = ensureApexOsAutonomyRunInternalDrafts(draft, req.auth.user, existingRun, now);
+    updatedRun = prepared.updatedRun;
+    createdRequest = prepared.createdRequest;
+    createdHandoff = prepared.createdHandoff;
+    rejectUnsafeApexOsAutonomyRun(updatedRun, updatedRun.status);
+    const nextRuns = [...currentRuns];
+    nextRuns[runIndex] = updatedRun;
+    persistApexOsAutonomyRuns(draft, req.auth.user, nextRuns);
+
+    appendActivity(draft, "Apex autonomy internal draft prepared", `${req.auth.user.name} prepared internal drafts for ${updatedRun.title}.`);
+    appendAuditEvent(draft, {
+      entityType: "apexOsAutonomyRun",
+      entityId: updatedRun.id,
+      action: "internal-draft-prepared",
+      summary: "Apex autonomy internal draft prepared",
+      detail: JSON.stringify({
+        id: updatedRun.id,
+        title: updatedRun.title,
+        status: updatedRun.status,
+        linkedAgentControlRequestId: updatedRun.linkedAgentControlRequestId,
+        linkedExecutionHandoffId: updatedRun.linkedExecutionHandoffId,
+        executionLocked: true,
+        externalActionsLocked: true,
+        canExecute: false,
+      }),
+      actor: req.auth.user,
+      changedFields: ["apexOsAutonomyRuns", "apexOsAgentControlRequests", "apexOsExecutionHandoffs"],
+    });
+    return draft;
+  });
+
+  const runs = apexOsAutonomyRunsForState(nextState, req.auth.user);
+  res.status(201).json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    apexOsAutonomyRun: publicApexOsAutonomyRun(updatedRun),
+    apexOsAutonomyRuns: runs.map(publicApexOsAutonomyRun),
+    apexOsAgentControlRequest: createdRequest ? publicApexOsAgentControlRequest(createdRequest) : null,
+    apexOsExecutionHandoff: createdHandoff ? publicApexOsExecutionHandoff(createdHandoff) : null,
+    summary: summarizeApexOsAutonomyRuns(runs),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/autonomy-runs/:id/advance-private", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let updatedRun = null;
+  let createdRequest = null;
+  let createdHandoff = null;
+  let privateAdvance = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageApexOsMemory(draft, req.auth.user);
+    const currentRuns = apexOsAutonomyRunsForState(draft, req.auth.user);
+    const runIndex = currentRuns.findIndex((run) => run.id === req.params.id);
+    if (runIndex < 0) {
+      throw new ApiError(404, "Apex autonomy run not found.");
+    }
+
+    const existingRun = currentRuns[runIndex];
+    rejectUnsafeApexOsAutonomyRun(existingRun, existingRun.status);
+    if (["archived", "done", "blocked"].includes(existingRun.status)) {
+      throw new ApiError(400, "Archived, completed, or blocked autonomy runs cannot be advanced by private Auto Drive.");
+    }
+
+    const move = buildApexOsAutonomyRunNextPrivateMove(existingRun, { now });
+    if (!move.canAdvance || move.actionId === "operator-review") {
+      throw new ApiError(400, `Apex Auto Drive is stopped at ${move.title || "manual review"}. ${move.recommendation || "Manual operator review is required."}`);
+    }
+
+    let workingRun = existingRun;
+    if (["draft-internal", "private-prep", "proof-check", "private-cycle"].includes(move.actionId)) {
+      const prepared = ensureApexOsAutonomyRunInternalDrafts(draft, req.auth.user, workingRun, now);
+      workingRun = prepared.updatedRun;
+      createdRequest = prepared.createdRequest;
+      createdHandoff = prepared.createdHandoff;
+    }
+
+    if (move.actionId === "draft-internal") {
+      updatedRun = workingRun;
+    } else if (move.actionId === "private-prep") {
+      updatedRun = advanceApexOsAutonomyRunPrivatePrep(workingRun, {
+        now,
+        operatorNote: "Apex Auto Drive advanced this saved run through server-backed private prep and stopped before approval-gated work.",
+      });
+    } else if (move.actionId === "proof-check") {
+      const preparedRun = advanceApexOsAutonomyRunPrivatePrep(workingRun, {
+        now,
+        operatorNote: "Apex Auto Drive prepared this saved run for server-backed proof checking.",
+      });
+      updatedRun = validateApexOsAutonomyRunPrivateProof(preparedRun, {
+        now,
+        operatorNote: "Apex Auto Drive proof-checked this saved run and stopped at the manual review gate.",
+      });
+    } else if (move.actionId === "private-cycle") {
+      updatedRun = runApexOsAutonomyRunPrivateOperatorCycle(workingRun, {
+        now,
+        operatorNote: "Apex Auto Drive ran a server-backed private operator cycle and stopped at manual approval/report review.",
+      });
+    } else {
+      throw new ApiError(400, "Apex Auto Drive can only advance private draft, prep, proof, or cycle steps.");
+    }
+
+    rejectUnsafeApexOsAutonomyRun(updatedRun, updatedRun.status);
+    const nextRuns = [...currentRuns];
+    nextRuns[runIndex] = updatedRun;
+    persistApexOsAutonomyRuns(draft, req.auth.user, nextRuns);
+
+    const nextMove = buildApexOsAutonomyRunNextPrivateMove(updatedRun, { now });
+    privateAdvance = {
+      actionId: move.actionId,
+      title: move.title,
+      status: updatedRun.status,
+      nextActionId: nextMove.actionId,
+      nextTitle: nextMove.title,
+      recommendation: nextMove.recommendation,
+      canContinue: Boolean(nextMove.canAdvance && !["operator-review", "review-blocker", "review-result"].includes(nextMove.actionId)),
+      handbackRequired: !Boolean(nextMove.canAdvance && !["operator-review", "review-blocker", "review-result"].includes(nextMove.actionId)),
+      stopReason: nextMove.canAdvance && !["operator-review", "review-blocker", "review-result"].includes(nextMove.actionId) ? "next-private-move" : "manual-review-gate",
+      handbackTitle: nextMove.title,
+      handbackRecommendation: nextMove.recommendation,
+      executionLocked: true,
+      externalActionsLocked: true,
+      canExecute: false,
+    };
+
+    appendActivity(draft, "Apex Auto Drive advanced private run", `${req.auth.user.name} let Apex Auto Drive advance ${updatedRun.title} through ${move.title}.`);
+    appendAuditEvent(draft, {
+      entityType: "apexOsAutonomyRun",
+      entityId: updatedRun.id,
+      action: "private-auto-drive-advanced",
+      summary: "Apex Auto Drive advanced private run",
+      detail: JSON.stringify({
+        id: updatedRun.id,
+        title: updatedRun.title,
+        status: updatedRun.status,
+        actionId: move.actionId,
+        nextActionId: nextMove.actionId,
+        linkedAgentControlRequestId: updatedRun.linkedAgentControlRequestId,
+        linkedExecutionHandoffId: updatedRun.linkedExecutionHandoffId,
+        executionLocked: true,
+        externalActionsLocked: true,
+        canExecute: false,
+      }),
+      actor: req.auth.user,
+      changedFields: ["apexOsAutonomyRuns", "apexOsAgentControlRequests", "apexOsExecutionHandoffs"],
+    });
+    return draft;
+  });
+
+  const runs = apexOsAutonomyRunsForState(nextState, req.auth.user);
+  res.json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    apexOsAutonomyRun: publicApexOsAutonomyRun(updatedRun),
+    apexOsAutonomyRuns: runs.map(publicApexOsAutonomyRun),
+    apexOsAgentControlRequest: createdRequest ? publicApexOsAgentControlRequest(createdRequest) : null,
+    apexOsExecutionHandoff: createdHandoff ? publicApexOsExecutionHandoff(createdHandoff) : null,
+    privateAdvance,
+    summary: summarizeApexOsAutonomyRuns(runs),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/agent-control/requests", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let createdRequest = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageApexOsMemory(draft, req.auth.user);
+    const current = apexOsAgentControlRequestsForState(draft, req.auth.user);
+    createdRequest = normalizeApexOsAgentControlRequest(req.body || {}, {
+      id: makeId("AAC"),
+      now,
+      requestedBy: req.auth.user.id,
+    });
+    createdRequest.createdBy = req.auth.user.id;
+    createdRequest.createdAt = now;
+    rejectUnsafeApexOsAgentControlRequest(createdRequest, req.body?.status);
+    persistApexOsAgentControlRequests(draft, req.auth.user, [createdRequest, ...current].slice(0, 160));
+    appendActivity(draft, "Apex OS agent control requested", `${req.auth.user.name} requested ${createdRequest.title} for the ${createdRequest.agentRole} agent.`);
+    appendAuditEvent(draft, {
+      entityType: "apexOsAgentControlRequest",
+      entityId: createdRequest.id,
+      action: createdRequest.status === "ready" ? "readied" : createdRequest.status === "blocked" ? "blocked" : "requested",
+      summary: "Apex OS agent control requested",
+      detail: JSON.stringify({
+        id: createdRequest.id,
+        title: createdRequest.title,
+        requestType: createdRequest.requestType,
+        agentRole: createdRequest.agentRole,
+        status: createdRequest.status,
+        riskLevel: createdRequest.riskLevel,
+        sourceLabel: createdRequest.sourceLabel,
+        executionLocked: true,
+      }),
+      actor: req.auth.user,
+      changedFields: ["apexOsAgentControlRequests"],
+    });
+    return draft;
+  });
+
+  res.status(201).json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    apexOsAgentControlRequest: publicApexOsAgentControlRequest(createdRequest),
+  });
+}));
+
+app.patch("/api/apex-os/agent-control/requests/:id", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let updatedRequest = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageApexOsMemory(draft, req.auth.user);
+    const current = apexOsAgentControlRequestsForState(draft, req.auth.user);
+    const index = current.findIndex((request) => request.id === req.params.id);
+    if (index < 0) {
+      throw new ApiError(404, "Apex OS agent control request not found.");
+    }
+    const existing = current[index];
+    updatedRequest = normalizeApexOsAgentControlRequest(req.body || {}, {
+      existing,
+      now,
+      requestedBy: existing.requestedBy || existing.createdBy || req.auth.user.id,
+    });
+    updatedRequest.createdBy = existing.createdBy;
+    updatedRequest.createdAt = existing.createdAt;
+    if (updatedRequest.status === "closed" && existing.status !== "closed") {
+      updatedRequest.closedAt = now;
+    }
+    if (updatedRequest.status === "archived" && existing.status !== "archived") {
+      updatedRequest.archivedAt = now;
+    }
+    rejectUnsafeApexOsAgentControlRequest(updatedRequest, req.body?.status);
+    const nextRequests = [...current];
+    nextRequests[index] = updatedRequest;
+    persistApexOsAgentControlRequests(draft, req.auth.user, nextRequests);
+    appendActivity(draft, "Apex OS agent control updated", `${req.auth.user.name} updated ${updatedRequest.title} in Apex OS agent control.`);
+    appendAuditEvent(draft, {
+      entityType: "apexOsAgentControlRequest",
+      entityId: updatedRequest.id,
+      action: updatedRequest.status === "archived" ? "archived" : updatedRequest.status === "closed" ? "closed" : updatedRequest.status === "ready" ? "readied" : updatedRequest.status === "blocked" ? "blocked" : "updated",
+      summary: "Apex OS agent control updated",
+      detail: JSON.stringify({
+        id: updatedRequest.id,
+        title: updatedRequest.title,
+        requestType: updatedRequest.requestType,
+        agentRole: updatedRequest.agentRole,
+        status: updatedRequest.status,
+        riskLevel: updatedRequest.riskLevel,
+        sourceLabel: updatedRequest.sourceLabel,
+        executionLocked: true,
+      }),
+      actor: req.auth.user,
+      changedFields: ["apexOsAgentControlRequests"],
+    });
+    return draft;
+  });
+
+  res.json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    apexOsAgentControlRequest: publicApexOsAgentControlRequest(updatedRequest),
+  });
+}));
+
+app.post("/api/apex-os/execution-handoffs", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let createdHandoff = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageApexOsMemory(draft, req.auth.user);
+    const current = apexOsExecutionHandoffsForState(draft, req.auth.user);
+    createdHandoff = normalizeApexOsExecutionHandoff(req.body || {}, {
+      id: makeId("AEH"),
+      now,
+    });
+    createdHandoff.createdBy = req.auth.user.id;
+    createdHandoff.createdAt = now;
+    rejectUnsafeApexOsExecutionHandoff(createdHandoff, req.body?.status);
+    maybeCreateApexOsExecutionHandoffMemoryDraft(draft, req.auth.user, createdHandoff, now);
+    persistApexOsExecutionHandoffs(draft, req.auth.user, [createdHandoff, ...current].slice(0, 120));
+    appendActivity(draft, "Apex OS execution handoff drafted", `${req.auth.user.name} drafted ${createdHandoff.title} for Apex OS agent handoff review.`);
+    appendAuditEvent(draft, {
+      entityType: "apexOsExecutionHandoff",
+      entityId: createdHandoff.id,
+      action: createdHandoff.status === "ready" ? "readied" : createdHandoff.status === "blocked" ? "blocked" : "drafted",
+      summary: "Apex OS execution handoff drafted",
+      detail: JSON.stringify({
+        id: createdHandoff.id,
+        title: createdHandoff.title,
+        status: createdHandoff.status,
+        agentRole: createdHandoff.agentRole,
+        workType: createdHandoff.workType,
+        workstreamStatus: createdHandoff.workstreamStatus,
+        riskLevel: createdHandoff.riskLevel,
+        sourceLabel: createdHandoff.sourceLabel,
+        decisionMemoryId: createdHandoff.decisionMemoryId,
+        executionLocked: true,
+      }),
+      actor: req.auth.user,
+      changedFields: ["apexOsExecutionHandoffs"],
+    });
+    return draft;
+  });
+
+  res.status(201).json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    apexOsExecutionHandoff: publicApexOsExecutionHandoff(createdHandoff),
+  });
+}));
+
+app.patch("/api/apex-os/execution-handoffs/:id", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let updatedHandoff = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageApexOsMemory(draft, req.auth.user);
+    const current = apexOsExecutionHandoffsForState(draft, req.auth.user);
+    const index = current.findIndex((handoff) => handoff.id === req.params.id);
+    if (index < 0) {
+      throw new ApiError(404, "Apex OS execution handoff not found.");
+    }
+    const existing = current[index];
+    updatedHandoff = normalizeApexOsExecutionHandoff(req.body || {}, {
+      existing,
+      now,
+    });
+    updatedHandoff.createdBy = existing.createdBy;
+    updatedHandoff.createdAt = existing.createdAt;
+    if (updatedHandoff.status === "archived" && existing.status !== "archived") {
+      updatedHandoff.archivedAt = now;
+    }
+    rejectUnsafeApexOsExecutionHandoff(updatedHandoff, req.body?.status);
+    maybeCreateApexOsExecutionHandoffMemoryDraft(draft, req.auth.user, updatedHandoff, now);
+    const nextHandoffs = [...current];
+    nextHandoffs[index] = updatedHandoff;
+    persistApexOsExecutionHandoffs(draft, req.auth.user, nextHandoffs);
+    appendActivity(draft, "Apex OS execution handoff updated", `${req.auth.user.name} updated ${updatedHandoff.title} in Apex OS agent handoff review.`);
+    appendAuditEvent(draft, {
+      entityType: "apexOsExecutionHandoff",
+      entityId: updatedHandoff.id,
+      action: updatedHandoff.status === "archived" ? "archived" : updatedHandoff.status === "ready" ? "readied" : updatedHandoff.status === "blocked" ? "blocked" : "updated",
+      summary: "Apex OS execution handoff updated",
+      detail: JSON.stringify({
+        id: updatedHandoff.id,
+        title: updatedHandoff.title,
+        status: updatedHandoff.status,
+        agentRole: updatedHandoff.agentRole,
+        workType: updatedHandoff.workType,
+        workstreamStatus: updatedHandoff.workstreamStatus,
+        riskLevel: updatedHandoff.riskLevel,
+        sourceLabel: updatedHandoff.sourceLabel,
+        decisionMemoryId: updatedHandoff.decisionMemoryId,
+        executionLocked: true,
+      }),
+      actor: req.auth.user,
+      changedFields: ["apexOsExecutionHandoffs"],
+    });
+    return draft;
+  });
+
+  res.json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    apexOsExecutionHandoff: publicApexOsExecutionHandoff(updatedHandoff),
+  });
+}));
+
+app.post("/api/apex-os/approval-packets", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let createdPacket = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageApexOsMemory(draft, req.auth.user);
+    const current = apexOsApprovalPacketsForState(draft, req.auth.user);
+    createdPacket = normalizeApexOsApprovalPacket(req.body || {}, {
+      id: makeId("AAP"),
+      now,
+    });
+    createdPacket.createdBy = req.auth.user.id;
+    createdPacket.createdAt = now;
+    if (createdPacket.status === "approved") {
+      createdPacket.approvedBy = req.auth.user.id;
+      createdPacket.approvedAt = now;
+    }
+    if (createdPacket.status === "rejected") {
+      createdPacket.rejectedBy = req.auth.user.id;
+      createdPacket.rejectedAt = now;
+    }
+    if (createdPacket.status === "deferred") {
+      createdPacket.deferredBy = req.auth.user.id;
+      createdPacket.deferredAt = now;
+    }
+    rejectUnsafeApexOsApprovalPacket(createdPacket, req.body?.status, req.body || {});
+    persistApexOsApprovalPackets(draft, req.auth.user, [createdPacket, ...current].slice(0, 120));
+    appendActivity(draft, "Apex OS approval packet drafted", `${req.auth.user.name} drafted ${createdPacket.title} for Apex OS approval review.`);
+    appendAuditEvent(draft, {
+      entityType: "apexOsApprovalPacket",
+      entityId: createdPacket.id,
+      action: createdPacket.status === "approved" ? "approved" : createdPacket.status === "rejected" ? "rejected" : createdPacket.status === "deferred" ? "deferred" : createdPacket.status === "ready" ? "readied" : createdPacket.status === "blocked" ? "blocked" : "drafted",
+      summary: "Apex OS approval packet drafted",
+      detail: JSON.stringify({
+        id: createdPacket.id,
+        title: createdPacket.title,
+        status: createdPacket.status,
+        requestedActionCategory: createdPacket.requestedActionCategory,
+        riskLevel: createdPacket.riskLevel,
+        sourceLabel: createdPacket.sourceLabel,
+        executionLocked: true,
+      }),
+      actor: req.auth.user,
+      changedFields: ["apexOsApprovalPackets"],
+    });
+    return draft;
+  });
+
+  res.status(201).json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    apexOsApprovalPacket: publicApexOsApprovalPacket(createdPacket),
+  });
+}));
+
+app.patch("/api/apex-os/approval-packets/:id", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let updatedPacket = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageApexOsMemory(draft, req.auth.user);
+    const current = apexOsApprovalPacketsForState(draft, req.auth.user);
+    const index = current.findIndex((packet) => packet.id === req.params.id);
+    if (index < 0) {
+      throw new ApiError(404, "Apex OS approval packet not found.");
+    }
+    const existing = current[index];
+    updatedPacket = normalizeApexOsApprovalPacket(req.body || {}, {
+      existing,
+      now,
+    });
+    updatedPacket.createdBy = existing.createdBy;
+    updatedPacket.createdAt = existing.createdAt;
+    updatedPacket.approvedBy = existing.approvedBy || "";
+    updatedPacket.rejectedBy = existing.rejectedBy || "";
+    updatedPacket.deferredBy = existing.deferredBy || "";
+    if (updatedPacket.status === "archived" && existing.status !== "archived") {
+      updatedPacket.archivedAt = now;
+    }
+    if (updatedPacket.status === "approved" && existing.status !== "approved") {
+      updatedPacket.approvedBy = req.auth.user.id;
+      updatedPacket.approvedAt = now;
+    }
+    if (updatedPacket.status === "rejected" && existing.status !== "rejected") {
+      updatedPacket.rejectedBy = req.auth.user.id;
+      updatedPacket.rejectedAt = now;
+    }
+    if (updatedPacket.status === "deferred" && existing.status !== "deferred") {
+      updatedPacket.deferredBy = req.auth.user.id;
+      updatedPacket.deferredAt = now;
+    }
+    rejectUnsafeApexOsApprovalPacket(updatedPacket, req.body?.status, req.body || {});
+    const nextPackets = [...current];
+    nextPackets[index] = updatedPacket;
+    persistApexOsApprovalPackets(draft, req.auth.user, nextPackets);
+    appendActivity(draft, "Apex OS approval packet updated", `${req.auth.user.name} updated ${updatedPacket.title} in Apex OS approval review.`);
+    appendAuditEvent(draft, {
+      entityType: "apexOsApprovalPacket",
+      entityId: updatedPacket.id,
+      action: updatedPacket.status === "archived" ? "archived" : updatedPacket.status === "approved" ? "approved" : updatedPacket.status === "rejected" ? "rejected" : updatedPacket.status === "deferred" ? "deferred" : updatedPacket.status === "ready" ? "readied" : updatedPacket.status === "blocked" ? "blocked" : "updated",
+      summary: "Apex OS approval packet updated",
+      detail: JSON.stringify({
+        id: updatedPacket.id,
+        title: updatedPacket.title,
+        status: updatedPacket.status,
+        requestedActionCategory: updatedPacket.requestedActionCategory,
+        riskLevel: updatedPacket.riskLevel,
+        sourceLabel: updatedPacket.sourceLabel,
+        executionLocked: true,
+      }),
+      actor: req.auth.user,
+      changedFields: ["apexOsApprovalPackets"],
+    });
+    return draft;
+  });
+
+  res.json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    apexOsApprovalPacket: publicApexOsApprovalPacket(updatedPacket),
+  });
+}));
+
+app.post("/api/apex-os/external-preparation-packets", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const body = req.body || {};
+  const packet = buildApexOsExternalPreparationPacket({
+    ...body,
+    request: body.request || body.description || body.question || body.prompt || body.action || "",
+    user: req.auth.user,
+    actor: {
+      userId: req.auth.user.id,
+      workspaceId: req.auth.user.currentCompanyId || "",
+    },
+    sourceLabel: body.sourceLabel || "Apex OS external preparation packet endpoint",
+  });
+  if (!packet) {
+    throw new ApiError(400, "Apex OS Level 3 preparation requires one allowed category: order-plan, booking-plan, message-draft, calendar-draft, browser-action-plan, desktop-action-plan, music-second-screen-plan, or deploy-production-checklist.");
+  }
+
+  res.json({
+    apexOsExternalPreparationPacket: packet,
+    summary: buildApexOsExternalPreparationPacketSummary(packet),
+    execution: {
+      canExecuteNow: false,
+      canExecuteAfterApproval: false,
+      executionLocked: true,
+      noExecutionTokens: true,
+      note: "Level 3 preparation is response-only. No external connector, approval-submit, execute, send, spend, order, book, browser/desktop/music control, deploy, production, schema/auth/session, billing, security, or deletion endpoint was created.",
+    },
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/apex-os/local-providers/status", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const ollama = await getOllamaProviderStatus();
+  const llamaCpp = await getLlamaCppProviderStatus({ timeoutMs: 350 });
+  const llamaRuntime = getApexLlamaCppRuntimeState();
+  const residency = await getApexOllamaResidencyStatus();
+  const gpu = await getApexGpuStatus();
+  const speedCore = buildApexSpeedCoreStatus({ gpu });
+  const agentSpeedBenchmarkHistory = await readApexLocalAgentSpeedBenchmarkHistory().catch(() => null);
+  const stableResidency = buildApexStableResidencyPolicy({
+    gpu,
+    residency,
+    benchmarkSummary: agentSpeedBenchmarkHistory,
+  });
+  const effortInstallStatus = buildApexEffortModelInstallStatus({ modelNames: ollama.modelNames || [] });
+  const agentSpeed = selectApexLocalAgentSpeedLane({
+    route: "normal-chat",
+    stableResidency,
+    modelNames: ollama.modelNames || [],
+  });
+
+  res.json({
+    localProviders: {
+      primary: "llama.cpp",
+      primaryProvider: llamaCpp,
+      legacyFallbackProvider: ollama,
+      ollama,
+      llamaCpp,
+      llamaRuntime,
+      residency,
+      gpu,
+      agentSpeed,
+      effortInstallStatus,
+      stableResidency,
+      agentSpeedBenchmarkHistory,
+    },
+    providers: [ollama, llamaCpp, llamaRuntime, residency, gpu],
+    residency,
+    speedCore,
+    primaryProvider: "llama.cpp",
+    legacyFallbackProvider: "ollama",
+    agentSpeed,
+    effortInstallStatus,
+    stableResidency,
+    agentSpeedBenchmarkHistory,
+    execution: {
+      canExecuteNow: false,
+      canExecuteAfterApproval: false,
+      executionLocked: true,
+      noExecutionTokens: true,
+      promptsEnabled: false,
+      generationEnabled: false,
+      chatEnabled: false,
+      noPromptBody: true,
+      note: "This local provider status route is read-only. llama.cpp is the primary Apex local provider; Ollama is reported only as legacy fallback/residency state. It checks local health/model readiness, Apex-owned llama.cpp runtime state, model residency, and local GPU status only. It does not send prompts, call chat/generate, download models, install providers, kill processes, or call OpenAI. Ask Apex local chat uses a separate policy-gated path.",
+    },
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/local-providers/reload-brain", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const receipt = await reloadApexOllamaBrainResidency({
+    confirmation: req.body?.confirmation || req.body?.confirm || "",
+    lane: req.body?.lane || "normal",
+    reload: req.body?.reload !== false,
+  });
+
+  res.json({
+    brainReload: receipt,
+    execution: {
+      canExecuteNow: receipt.status === "completed",
+      canExecuteAfterApproval: false,
+      executionLocked: false,
+      noExecutionTokens: true,
+      processKilling: false,
+      targetModel: receipt.targetModel,
+      note: "This operator-only action unloads/reloads only Apex-owned Ollama qwen3:14b residency through Ollama keep_alive. It does not kill processes, touch qwen3-coder, call OpenAI, deploy, change schema/auth/session, or affect production.",
+    },
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/local-providers/llama-runtime", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const receipt = await runApexLlamaCppRuntimeAction({
+    action: req.body?.action || "status",
+    model: req.body?.model || "gpt-oss:20b",
+    effort: req.body?.effort || "reasoning",
+    unloadOllama: req.body?.unloadOllama !== false,
+    waitMs: req.body?.waitMs,
+  });
+
+  res.json({
+    llamaRuntime: receipt,
+    execution: {
+      canExecuteNow: ["completed", "noop"].includes(receipt.status),
+      canExecuteAfterApproval: false,
+      executionLocked: false,
+      noExecutionTokens: true,
+      processStarted: Boolean(receipt.processStarted),
+      processStopped: Boolean(receipt.processStopped),
+      processOwned: Boolean(receipt.processOwned),
+      randomProcessesTouched: false,
+      broadProcessKill: false,
+      openAiUsed: false,
+      cloudUsed: false,
+      note: "This operator-only action manages only Apex-owned llama.cpp sidecar runtime state. prepare-gpt may unload Apex's Ollama qwen3:14b residency through Ollama keep_alive to free VRAM, start the configured local llama-server.exe with GPT-OSS GGUF, and wait for local readiness. stop only stops the process Apex started. restore-ollama stops Apex-owned llama.cpp and restores qwen3:14b. It does not deploy, change schema/auth/session, register startup services, touch secrets, or kill unrelated processes.",
+    },
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/apex-os/local-voice/status", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const localVoice = await getCachedApexLocalVoiceRuntimeStatus();
+
+  res.json({
+    localVoice,
+    execution: {
+      canExecuteNow: false,
+      canExecuteAfterApproval: false,
+      executionLocked: true,
+      noExecutionTokens: true,
+      openAiAudioUsed: false,
+      cloudAudioAllowed: false,
+      browserPlaybackIsFallbackOnly: true,
+      note: "This route checks local STT/TTS readiness only. It does not call OpenAI, cloud STT/TTS, browser speech synthesis, or store audio.",
+    },
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/apex-os/background/status", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const background = await collectApexBackgroundRuntimeStatus({
+    client: {
+      status: "unknown",
+      url: "http://localhost:5173/apex",
+      reason: "client-status-is-checked-by-the-local-supervisor",
+    },
+  });
+
+  res.json({
+    background,
+    execution: {
+      canExecuteNow: false,
+      canExecuteAfterApproval: false,
+      executionLocked: true,
+      noExecutionTokens: true,
+      keepWarmEnabled: Boolean(background.keepWarm?.enabled),
+      windowsServiceRegistered: false,
+      startupRegistration: false,
+      trayAppAdded: false,
+      note: "This operator-only route reports local background runtime health. It does not register a Windows service, start on boot, execute external actions, send/spend/order/book, deploy, touch production, or expose secrets.",
+    },
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/local-voice/voice-selection", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const selection = await updateApexLightweightVoiceSelection({
+    action: req.body?.action || "",
+    voiceId: req.body?.voiceId || "",
+  });
+  const localVoice = await getApexLocalVoiceRuntimeStatus();
+
+  res.status(200).json({
+    voiceSelection: selection,
+    localVoice,
+    execution: {
+      canExecuteNow: true,
+      canExecuteAfterApproval: false,
+      executionLocked: false,
+      noExecutionTokens: true,
+      openAiAudioUsed: false,
+      cloudAudioAllowed: false,
+      note: "This operator-only route changes only Apex's safe local Kokoro ONNX voice selection. It does not send audio to cloud, use Voicebox, modify .env, expose secrets, store generated audio, or control external systems.",
+    },
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/local-voice/speech", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const payload = await speakWithApexLocalVoice({
+    turnId: req.body?.turnId || req.body?.voiceTurnId || "",
+    text: req.body?.text || "",
+    voice: req.body?.voice || "",
+    voiceMode: req.body?.voiceMode || "",
+    mode: req.body?.mode || "",
+    preferFastVoice: Boolean(req.body?.preferFastVoice),
+    fastVoice: Boolean(req.body?.fastVoice),
+    lowLatencyVoice: Boolean(req.body?.lowLatencyVoice),
+    saveLatencyReceipt: true,
+  });
+
+  res.status(200).json({
+    ...payload,
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/local-voice/native-listen", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const payload = await listenWithApexNativeVoice({
+    turnId: req.body?.turnId || "",
+    listenSeconds: req.body?.listenSeconds,
+    timeoutMs: req.body?.timeoutMs,
+    provider: req.body?.provider || "",
+    localTranscriber: (transcribeInput) => transcribeWithApexLocalVoice({
+      ...transcribeInput,
+      saveLatencyReceipt: true,
+    }),
+  });
+
+  res.status(payload.ok ? 200 : 503).json({
+    ...payload,
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/local-voice/transcribe", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const payload = await transcribeWithApexLocalVoice({
+    turnId: req.body?.turnId || req.body?.audioTurn?.turnId || "",
+    audioDataUrl: req.body?.audioDataUrl || "",
+    audioTurn: req.body?.audioTurn || null,
+    alwaysOpenMic: req.body?.alwaysOpenMic || null,
+    browserTranscript: req.body?.browserTranscript || req.body?.finalBrowserTranscript || "",
+    saveLatencyReceipt: true,
+  });
+
+  res.status(payload.ok || payload.gated ? 200 : 503).json({
+    ...payload,
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/local-voice/live-turn-receipt", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const liveTurnLatency = await saveApexLiveTurnLatencyReceipt(req.body?.receipt || req.body?.liveTurnReceipt || req.body || {});
+
+  res.status(200).json({
+    liveTurnLatency,
+    execution: {
+      canExecuteNow: false,
+      canExecuteAfterApproval: false,
+      executionLocked: true,
+      noExecutionTokens: true,
+      rawAudioStored: false,
+      rawPromptStored: false,
+      rawResponseStored: false,
+      transcriptStored: false,
+      openAiAudioUsed: false,
+      cloudAudioAllowed: false,
+      note: "This operator-only route saves compact local live-turn timing metadata only. It stores no raw audio, transcript, prompt, response, secrets, tokens, or cloud payload.",
+    },
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/local-voice/live-turn-benchmark/typed", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const benchmark = await runApexTypedLiveTurnLatencyBenchmark({
+    explicitUserStarted: req.body?.explicitUserStarted === true,
+    residentNumCtx: req.body?.residentNumCtx || 4096,
+  });
+  const blocked = benchmark.status === "blocked";
+
+  res.status(blocked ? 400 : benchmark.ok ? 200 : 503).json({
+    ...benchmark,
+    execution: {
+      canExecuteNow: false,
+      canExecuteAfterApproval: false,
+      executionLocked: true,
+      noExecutionTokens: true,
+      noHiddenMicCapture: true,
+      rawAudioStored: false,
+      rawPromptStored: false,
+      rawResponseStored: false,
+      transcriptStored: false,
+      openAiAudioUsed: false,
+      cloudAudioAllowed: false,
+      note: "This private operator benchmark sends a fixed local-only typed benchmark prompt to the resident llama.cpp/GPT-OSS lane and stores compact timing metadata only.",
+    },
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/apex-os/home-assistant/status", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanUseApexOsHomeAssistant(state, req.auth.user);
+  const apexDeviceId = optionalString(req.query?.apexDeviceId || req.query?.deviceId, "").slice(0, 120);
+  const sceneId = optionalString(req.query?.sceneId, "").slice(0, 120);
+  const entityId = optionalString(req.query?.entityId || req.query?.entity_id, "").slice(0, 160);
+  const shouldReadEntity = Boolean(apexDeviceId || sceneId || entityId);
+  const homeAssistant = shouldReadEntity
+    ? await readHomeAssistantEntityStatus({ apexDeviceId, sceneId, entityId })
+    : getHomeAssistantConnectorStatus();
+  const connectorStatus = shouldReadEntity ? homeAssistant.configStatus : homeAssistant;
+
+  res.json({
+    homeAssistant,
+    execution: {
+      canExecuteNow: false,
+      canExecuteAfterApproval: Boolean(connectorStatus?.canExecuteAfterApproval),
+      executionLocked: !connectorStatus?.canExecuteAfterApproval,
+      noExecutionTokens: !connectorStatus?.canExecuteAfterApproval,
+      executeEndpointAvailable: true,
+      note: "Home Assistant v1 execute route exists but only works for one exact previewed allowlisted command when execution config is enabled, kill switch is off, and John confirms the preview.",
+    },
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/home-assistant/preview", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanUseApexOsHomeAssistant(state, req.auth.user);
+  const preview = buildHomeAssistantCommandPreview(req.body || {});
+  const executionGuard = createHomeAssistantExecutionGuard(preview, {
+    actorId: req.auth.user?.id,
+    workspaceId: req.auth.user?.currentCompanyId || req.auth.user?.selectedCompanyId || req.auth.user?.companyId,
+  });
+  const guardCreated = executionGuard.status === "created";
+
+  res.json({
+    homeAssistantPreview: preview,
+    homeAssistantExecutionGuard: guardCreated ? executionGuard : null,
+    execution: {
+      canExecuteNow: false,
+      canExecuteAfterApproval: guardCreated,
+      executionLocked: !guardCreated,
+      noExecutionTokens: !guardCreated,
+      executeEndpointAvailable: true,
+      guardStatus: executionGuard.status,
+      guardReason: executionGuard.reason,
+      note: guardCreated
+        ? "Home Assistant preview is non-executing. A short-lived single-use guard was created for the exact preview and still requires John's confirmation before execution."
+        : "Home Assistant preview is non-executing. No execution guard was created because execution is disabled, blocked, or the preview is not v1-executable.",
+    },
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/home-assistant/execute", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanUseApexOsHomeAssistant(state, req.auth.user);
+  const receipt = await executeHomeAssistantCommandOnce(req.body || {}, {
+    actorId: req.auth.user?.id,
+    workspaceId: req.auth.user?.currentCompanyId || req.auth.user?.selectedCompanyId || req.auth.user?.companyId,
+  });
+  const safeReceipt = sanitizeHomeAssistantReceipt(receipt);
+
+  res.json({
+    homeAssistantExecution: safeReceipt,
+    execution: {
+      canExecuteNow: false,
+      canExecuteAfterApproval: false,
+      executionLocked: true,
+      noExecutionTokens: true,
+      executeEndpointAvailable: true,
+      note: safeReceipt.externalActionExecuted
+        ? "Home Assistant executed exactly one preview-bound allowlisted command and consumed the one-time guard."
+        : "Home Assistant did not execute a device command. The request was blocked, dry-run only, failed safely, or was not confirmed.",
+    },
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/ask", requireAuth, asyncRoute(async (req, res) => {
+  let state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+  const question = optionalString(req.body?.question, "").slice(0, 1000);
+  if (!question) {
+    throw new ApiError(400, "Ask Apex requires a question.");
+  }
+  const liveConversationContext = optionalString(req.body?.liveConversationContext || req.body?.conversationContext, "").slice(0, 2600);
+  let internalActionResult = null;
+  const inferredInternalAction = inferApexOsInternalActionFromText(question);
+  if (inferredInternalAction) {
+    const now = new Date().toISOString();
+    state = await updateDb((draft) => {
+      internalActionResult = runApexOsInternalActionForDraft(draft, req.auth.user, {
+        ...inferredInternalAction,
+        sourceLabel: "Ask Apex chat",
+      }, { now });
+      return draft;
+    });
+  }
+
+  const context = buildApexOsAskContext({
+    question,
+    contextScope: req.body?.contextScope,
+    assistantMode: req.body?.assistantMode,
+    liveConversationContext,
+    companySettings: companySettingsForState(state, req.auth.user),
+    user: req.auth.user,
+  });
+  const workstationBrainCommand = inferApexWorkstationBrainCommand(question);
+  const workstationBrainReceipt = workstationBrainCommand.status === "detected"
+    ? applyApexWorkstationBrainCommand({ command: workstationBrainCommand })
+    : null;
+  const apiKey = String(process.env.OPENAI_API_KEY || "").trim();
+  let answer = null;
+  const selectedEffort = optionalString(req.body?.effort || req.body?.selectedEffort || req.body?.agentEffort || req.body?.requestedEffort, "").slice(0, 80);
+  const legacyOllamaStatusPromise = getOllamaProviderStatus({ timeoutMs: 250 }).catch(() => ({
+    provider: "ollama",
+    available: false,
+    status: "unavailable",
+    reason: "legacy-ollama-status-unavailable",
+    modelNames: [],
+    modelCount: 0,
+  }));
+  const selectedAgentSpeed = selectApexLocalAgentSpeedLane({
+    route: context.modelRoutingSummary?.route,
+    question,
+    effort: selectedEffort,
+    modelNames: [],
+  });
+  const selectedLlamaCppModelSpec = selectLlamaCppModelForApexLane(selectedAgentSpeed);
+  let llamaCppStatus = selectedLlamaCppModelSpec
+    ? await getLlamaCppProviderStatus({ timeoutMs: 350 }).catch(() => null)
+    : null;
+  let selectedLlamaCppAvailable = Boolean(
+    selectedLlamaCppModelSpec
+    && isLlamaCppReadyForApexLane({
+      status: llamaCppStatus,
+      laneSelection: selectedAgentSpeed,
+      modelSpec: selectedLlamaCppModelSpec,
+    }),
+  );
+  const privacyFirewallBlocksProvider = Boolean(
+    context.privacyFirewallSummary?.blockedCount
+    || context.privacyFirewallSummary?.approvalRequiredCount,
+  );
+  const untrustedContentBlocksProvider = Boolean(
+    context.untrustedContentFirewallSummary?.blocked
+    || context.untrustedContentFirewallSummary?.requiresOperatorReview,
+  );
+  const providerBlockedByContext = Boolean(privacyFirewallBlocksProvider || untrustedContentBlocksProvider);
+  const llamaRuntimePrepare = !providerBlockedByContext && selectedLlamaCppModelSpec && !selectedLlamaCppAvailable
+    ? await runApexLlamaCppRuntimeAction({
+        action: "prepare-primary",
+        model: selectedLlamaCppModelSpec.model,
+        effort: selectedAgentSpeed.effortId || "normal",
+        unloadOllama: true,
+        waitMs: 180_000,
+      }).catch(() => null)
+    : null;
+  if (llamaRuntimePrepare?.providerStatus) {
+    llamaCppStatus = llamaRuntimePrepare.providerStatus;
+    selectedLlamaCppAvailable = Boolean(isLlamaCppReadyForApexLane({
+      status: llamaCppStatus,
+      laneSelection: selectedAgentSpeed,
+      modelSpec: selectedLlamaCppModelSpec,
+    }));
+  }
+  const providerPolicy = buildApexOsLocalFirstProviderDecision({
+    route: context.modelRoutingSummary?.route,
+    providerMode: process.env.APEX_OS_AI_MODE || process.env.APEX_OS_PROVIDER_MODE,
+    localProviderAvailable: selectedLlamaCppAvailable,
+    cloudProviderConfigured: Boolean(apiKey),
+    serverCloudEnabled: isApexOsProviderFlagEnabled(process.env.APEX_OS_CLOUD_OVERRIDE_ENABLED || process.env.APEX_OS_OPENAI_ENABLED),
+    cloudKillSwitch: isApexOsProviderFlagEnabled(process.env.APEX_OS_CLOUD_KILL_SWITCH),
+    cloudOverrideText: question,
+    privacyFirewallSummary: context.privacyFirewallSummary,
+    promptInjectionFirewallSummary: context.untrustedContentFirewallSummary,
+    budgetGuard: buildApexOsCloudBudgetGuardFromEnv(process.env),
+  });
+  const ollamaStatus = await legacyOllamaStatusPromise;
+  const publicInternalActionResult = internalActionResult
+    ? publicApexOsInternalActionResult(internalActionResult)
+    : null;
+  const localProviderIdentityRequested = /\b(model|provider|ollama|openai|cloud|local)\b/i.test(question)
+    && /\b(using|use|running|powered|provider|model|local|cloud)\b/i.test(question);
+
+  if (publicInternalActionResult) {
+    const receiptSummary = publicInternalActionResult.receipt?.summary || publicInternalActionResult.reason;
+    answer = {
+      ok: true,
+      providerConfigured: false,
+      mode: publicInternalActionResult.performed ? "level-2-internal-action" : "level-2-internal-action-stopped",
+      answer: publicInternalActionResult.performed
+        ? `${receiptSummary} ${publicInternalActionResult.undoHint || "This stayed private inside Apex OS."}`
+        : `I can't do that as a Level 2 internal action yet. ${publicInternalActionResult.reason} ${publicInternalActionResult.safety?.actionPermissionSummary?.safeAlternative || "I can keep it as a private plan or ask for review."}`,
+      sourceLabels: ["Apex OS Internal Action Engine", "Ask Apex chat"],
+      approvalWarnings: publicInternalActionResult.performed ? [] : [publicInternalActionResult.reason],
+      nextAction: publicInternalActionResult.performed ? "Review activity receipt" : "Review safe alternative",
+    };
+  } else if (workstationBrainReceipt) {
+    const gpuStatus = await getApexGpuStatus().catch(() => ({}));
+    const brainStatus = buildApexWorkstationBrainStatus({
+      gpu: gpuStatus,
+      modelNames: ollamaStatus.modelNames || [],
+    });
+    const brainAnswer = buildApexWorkstationBrainCommandAnswer({
+      command: workstationBrainCommand,
+      brainStatus,
+    });
+    answer = {
+      ok: true,
+      provider: "apex-workstation-brain",
+      providerConfigured: true,
+      providerFallback: false,
+      mode: "workstation-brain-command",
+      model: brainStatus.modelId,
+      brainMode: brainStatus.activeMode,
+      brainStatus,
+      brainReceipt: workstationBrainReceipt,
+      processor: brainStatus.processor || "unknown",
+      vramUsedMb: Number(brainStatus.vramUsedMb || 0) || 0,
+      responseTimingMs: Number(brainStatus.responseTimingMs || 0) || 0,
+      answer: brainAnswer.answer,
+      sourceLabels: brainAnswer.sourceLabels,
+      approvalWarnings: [],
+      nextAction: "Continue local Apex operation",
+      providerPolicyDecision: providerPolicy.decision,
+      storesRawPrompt: false,
+      storesRawResponse: false,
+    };
+  } else if (privacyFirewallBlocksProvider || untrustedContentBlocksProvider) {
+    answer = {
+      ...buildLocalApexOsAnswer(context),
+      providerConfigured: Boolean(apiKey || llamaCppStatus?.available || ollamaStatus.available),
+      providerFallback: true,
+      mode: untrustedContentBlocksProvider ? "untrusted-content-firewall-local-fallback" : "privacy-firewall-local-fallback",
+      providerPolicyDecision: providerPolicy.decision,
+    };
+  } else if (providerPolicy.decision === APEX_OS_PROVIDER_DECISION.USE_LOCAL && selectedLlamaCppAvailable) {
+    const selectedProviderName = "llama.cpp";
+    const selectedProviderMode = "local-llama-cpp-source-backed";
+    const selectedProviderModel = selectedLlamaCppModelSpec.model;
+    try {
+      const localRequest = buildApexOsAskOpenAiRequest(context, selectedProviderModel);
+      const localAnswer = await chatWithLlamaCppForApexOs({
+        model: selectedProviderModel,
+        route: context.modelRoutingSummary?.route,
+        effort: selectedEffort,
+        laneSelection: selectedAgentSpeed,
+        providerStatus: llamaCppStatus,
+        messages: localRequest.messages,
+        maxOutputTokens: localRequest.max_tokens,
+        privacyFirewallSummary: context.privacyFirewallSummary,
+        promptInjectionFirewallSummary: context.untrustedContentFirewallSummary,
+      });
+      if (!localAnswer.ok || localAnswer.status === "blocked" || localAnswer.status === "unavailable" || localAnswer.status === "error") {
+        throw new Error([
+          localAnswer.reason || `${selectedProviderName}-local-answer-unavailable`,
+          localAnswer.httpStatus ? `http-${localAnswer.httpStatus}` : "",
+          localAnswer.httpBodyHint || "",
+        ].filter(Boolean).join(": "));
+      }
+      answer = {
+        ok: true,
+        provider: selectedProviderName,
+        providerConfigured: true,
+        providerFallback: false,
+        mode: selectedProviderMode,
+        model: localAnswer.modelUsed || selectedProviderModel,
+        processor: localAnswer.processor || localAnswer.modelProcessor?.processor || "unknown",
+        vramUsedMb: Number(localAnswer.vramUsedMb || localAnswer.modelProcessor?.vramUsedMb || 0) || 0,
+        responseTimingMs: Number(localAnswer.responseTimingMs || localAnswer.modelProcessor?.responseTimingMs || 0) || 0,
+        modelAlreadyLoaded: Boolean(localAnswer.modelAlreadyLoaded || localAnswer.modelProcessor?.modelAlreadyLoaded),
+        modelProcessor: localAnswer.modelProcessor || null,
+        brainMode: localAnswer.brainMode || localAnswer.brainReceipt?.activeMode || "",
+        brainProfile: localAnswer.brainProfile || null,
+        brainReceipt: localAnswer.brainReceipt || null,
+        brainTelemetry: localAnswer.brainTelemetry || null,
+        queueReceipt: localAnswer.queueReceipt || null,
+        agentSpeed: localAnswer.agentSpeed || selectedAgentSpeed,
+        agentSpeedLane: localAnswer.agentSpeedLane || selectedAgentSpeed.laneId,
+        agentSpeedLabel: localAnswer.agentSpeedLabel || selectedAgentSpeed.laneLabel,
+        agentEffort: localAnswer.agentEffort || selectedAgentSpeed.effortId,
+        agentEffortLabel: localAnswer.agentEffortLabel || selectedAgentSpeed.effortLabel,
+        effortModel: localAnswer.effortModel || selectedProviderModel,
+        effortNumCtx: localAnswer.effortNumCtx || selectedAgentSpeed.numCtx,
+        benchmarkReceipt: localAnswer.benchmarkReceipt || null,
+        residency: localAnswer.residency || null,
+        answer: localProviderIdentityRequested
+          ? `I am using local llama.cpp ${localAnswer.modelUsed || selectedProviderModel} through the raw Harmony adapter at ctx ${localAnswer.agentSpeed?.numCtx || selectedAgentSpeed.numCtx}. llama.cpp is the primary Apex brain path now; Ollama is legacy fallback only and OpenAI was not used.`
+          : localAnswer.answer,
+        sourceLabels: localProviderIdentityRequested
+          ? [...new Set(["Apex OS local provider status", ...(localAnswer.sourceLabels || [])])].slice(0, 8)
+          : localAnswer.sourceLabels,
+        approvalWarnings: localAnswer.approvalWarnings,
+        nextAction: localAnswer.nextAction,
+        providerPolicyDecision: providerPolicy.decision,
+        storesRawPrompt: false,
+        storesRawResponse: false,
+      };
+    } catch (error) {
+      logger.warn("Apex OS local provider answer failed; using local source-backed fallback", {
+        requestId: res.locals.requestId,
+        provider: selectedProviderName,
+        route: context.modelRoutingSummary?.route || "unknown",
+        model: selectedProviderModel,
+        reason: serializeError(error)?.message || `${selectedProviderName}-local-answer-failed`,
+      });
+      answer = {
+        ...buildLocalApexOsAnswer(context),
+        ok: false,
+        provider: selectedProviderName,
+        providerConfigured: Boolean(llamaCppStatus?.available),
+        providerFallback: true,
+        mode: "local-llama-cpp-fallback",
+        model: selectedProviderModel,
+        providerPolicyDecision: providerPolicy.decision,
+      };
+    }
+  } else if (!apiKey || providerPolicy.decision !== APEX_OS_PROVIDER_DECISION.ALLOW_CLOUD_ONCE) {
+    const annotateProviderFallback = Boolean(apiKey || llamaCppStatus?.available || ollamaStatus.available);
+    answer = {
+      ...buildLocalApexOsAnswer(context),
+      ...(annotateProviderFallback ? {
+        providerConfigured: false,
+        providerFallback: true,
+        mode: providerPolicy.decision === APEX_OS_PROVIDER_DECISION.ASK_BEFORE_CLOUD
+          ? "local-first-ask-before-cloud"
+          : "local-first-provider-policy-fallback",
+        providerPolicyDecision: providerPolicy.decision,
+      } : {
+        providerPolicyDecision: providerPolicy.decision,
+      }),
+      ...(annotateProviderFallback ? { localProvider: {
+        provider: "llama.cpp",
+        available: Boolean(llamaCppStatus?.available),
+        llamaCppAvailable: Boolean(llamaCppStatus?.available),
+        llamaCppReadyForSelectedLane: Boolean(selectedLlamaCppAvailable),
+        selectedModel: selectedLlamaCppModelSpec?.model || "",
+        selectedLlamaCppModel: selectedLlamaCppModelSpec?.model || "",
+        selectedModelAvailable: Boolean(selectedLlamaCppAvailable),
+        selectedEffort: selectedAgentSpeed.effortId,
+        effortLabel: selectedAgentSpeed.effortLabel,
+        effortManualOnly: Boolean(selectedAgentSpeed.effortManualOnly || selectedAgentSpeed.manualOnly),
+        llamaRuntimePrepare,
+      } } : {}),
+    };
+  } else {
+    try {
+      const response = await fetch(APEX_OS_ASK_OPENAI_URL, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(buildApexOsAskOpenAiRequest(context)),
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!response.ok) {
+        throw new Error(`OpenAI request failed with ${response.status}.`);
+      }
+      answer = parseOpenAiApexOsAskPayload(await response.json());
+    } catch (error) {
+      logger.warn("Apex OS provider answer failed; using local source-backed fallback", {
+        requestId: res.locals.requestId,
+        error: serializeError(error),
+      });
+      answer = {
+        ...buildLocalApexOsAnswer(context),
+        ok: false,
+        providerConfigured: true,
+        mode: "provider-fallback",
+      };
+    }
+  }
+
+  res.json({
+    answer,
+    evidenceUsed: buildApexOsAskEvidenceRows(context),
+    context: {
+      contextScope: context.contextScope,
+      sourceCount: context.sources.length,
+      memoryCount: context.memory.length,
+      openTaskCount: context.taskReminderSummary?.openTaskCount || 0,
+      openReminderCount: context.taskReminderSummary?.openReminderCount || 0,
+      taskReminderSummary: context.taskReminderSummary,
+      skillRegistrySummary: context.skillRegistrySummary,
+      actionPermissionSummary: context.actionPermissionSummary,
+      modelRoutingSummary: context.modelRoutingSummary,
+      affectiveStateSummary: context.affectiveStateSummary,
+      activeIntelligenceLoopSummary: context.activeIntelligenceLoopSummary,
+      knowledgeEngineSummary: context.knowledgeEngineSummary,
+      desktopWatchSummary: context.desktopWatchSummary,
+      browserActionSummary: context.browserActionSummary,
+      musicSecondScreenSummary: context.musicSecondScreenSummary,
+      lifeAutomationConnectorSummary: context.lifeAutomationConnectorSummary,
+      builderOperatorSummary: context.builderOperatorSummary,
+      privacyFirewallSummary: context.privacyFirewallSummary,
+      untrustedContentFirewallSummary: context.untrustedContentFirewallSummary,
+      toolRouteSummary: context.toolRouteSummary,
+      externalActionApprovalSummary: context.externalActionApprovalSummary,
+      externalPreparationPacketSummary: context.externalPreparationPacketSummary,
+      localFirstProviderPolicy: providerPolicy,
+      localProviderStatus: {
+        provider: "llama.cpp",
+        primaryProvider: true,
+        legacyOllamaAvailable: Boolean(ollamaStatus.available),
+        available: Boolean(llamaCppStatus?.available),
+        status: llamaCppStatus?.status || "unavailable",
+        reason: llamaCppStatus?.reason || "llama-cpp-status-unavailable",
+        baseUrlIsLocal: Boolean(llamaCppStatus?.baseUrlIsLocal),
+        modelCount: Number(llamaCppStatus?.modelCount || 0),
+        modelNames: llamaCppStatus?.modelNames || [],
+        selectedModel: selectedLlamaCppModelSpec?.model || "",
+        selectedModelAvailable: selectedLlamaCppAvailable,
+        llamaRuntimePrepare,
+        selectedEffort: selectedAgentSpeed.effortId,
+        effortLabel: selectedAgentSpeed.effortLabel,
+        effortManualOnly: Boolean(selectedAgentSpeed.effortManualOnly || selectedAgentSpeed.manualOnly),
+        agentSpeed: answer?.agentSpeed || selectedAgentSpeed,
+        agentSpeedLane: answer?.agentSpeedLane || selectedAgentSpeed.laneId,
+        agentSpeedLabel: answer?.agentSpeedLabel || selectedAgentSpeed.laneLabel,
+        benchmarkReceipt: answer?.benchmarkReceipt || null,
+        residency: answer?.residency || null,
+        modelProcessor: answer?.modelProcessor || null,
+        processor: answer?.processor || answer?.modelProcessor?.processor || "unknown",
+        vramUsedMb: Number(answer?.vramUsedMb || answer?.modelProcessor?.vramUsedMb || 0) || 0,
+        responseTimingMs: Number(answer?.responseTimingMs || answer?.modelProcessor?.responseTimingMs || 0) || 0,
+        canChatNow: Boolean(selectedLlamaCppAvailable),
+        promptSentByStatusCheck: false,
+        storesRawPrompt: false,
+        storesRawResponse: false,
+      },
+      traceSummary: context.traceSummary,
+      traceEntries: context.traceEntries,
+      internalAction: publicInternalActionResult,
+      approvedMemoryCount: context.memorySummary?.approvedCount || 0,
+      suggestedMemoryCount: context.memorySummary?.suggestedCount || 0,
+      memorySummary: context.memorySummary,
+      memoryRetrievalSummary: context.memoryRetrievalSummary,
+      memorySuggestionAvailable: Boolean(context.memorySuggestion?.body),
+      approvalWarningCount: context.approvalWarnings.length,
+      liveConversationContextIncluded: Boolean(context.liveConversationContext),
+    },
+    externalPreparationPacket: context.externalPreparationPacket || null,
+    memorySuggestion: context.memorySuggestion || null,
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/knowledge-intelligence", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+
+  const settings = companySettingsForState(state, req.auth.user);
+  const knowledgeQuery = optionalString(req.body?.query, "").slice(0, 260);
+  const knowledgeCategory = optionalString(req.body?.category, "all").slice(0, 80);
+  const knowledgeSource = optionalString(req.body?.source, "all").slice(0, 180);
+  const requestedKnowledgeRoute = inferApexOsModelRouteFromRequest({
+    question: [
+      knowledgeQuery,
+      optionalString(req.body?.route || req.body?.modelRoute, "").slice(0, 80),
+      knowledgeCategory,
+      knowledgeSource,
+    ].filter(Boolean).join(" "),
+  });
+  const intelligence = buildApexOsKnowledgeIntelligence(settings.apexOsMemory || [], {
+    query: knowledgeQuery,
+    category: knowledgeCategory,
+    source: knowledgeSource,
+    status: optionalString(req.body?.status, "all").slice(0, 40),
+    dateRange: optionalString(req.body?.dateRange, "all").slice(0, 40),
+    limit: Number(req.body?.limit) || 8,
+  });
+  const apiKey = String(process.env.OPENAI_API_KEY || "").trim();
+  const knowledgeLocalRoute = requestedKnowledgeRoute === "coding-analysis"
+    ? requestedKnowledgeRoute
+    : intelligence.modelRoutingSummary?.route;
+  const selectedKnowledgeAgentSpeed = selectApexLocalAgentSpeedLane({
+    route: knowledgeLocalRoute,
+    question: optionalString(req.body?.query || "", "").slice(0, 1000),
+  });
+  const selectedLlamaCppModelSpec = selectLlamaCppModelForApexLane(selectedKnowledgeAgentSpeed);
+  const legacyOllamaStatusPromise = getOllamaProviderStatus({ timeoutMs: 250 }).catch(() => ({
+    provider: "ollama",
+    available: false,
+    status: "unavailable",
+    reason: "legacy-ollama-status-unavailable",
+    modelNames: [],
+    modelCount: 0,
+  }));
+  let llamaCppStatus = selectedLlamaCppModelSpec
+    ? await getLlamaCppProviderStatus({ timeoutMs: 350 }).catch(() => null)
+    : null;
+  let selectedLlamaCppAvailable = Boolean(
+    selectedLlamaCppModelSpec
+    && isLlamaCppReadyForApexLane({
+      status: llamaCppStatus,
+      laneSelection: selectedKnowledgeAgentSpeed,
+      modelSpec: selectedLlamaCppModelSpec,
+    }),
+  );
+  const knowledgePrivacyBlocksProvider = Boolean(
+    intelligence.privacyFirewallSummary?.blockedCount
+    || intelligence.privacyFirewallSummary?.approvalRequiredCount,
+  );
+  const knowledgeUntrustedContentBlocksProvider = Boolean(
+    intelligence.untrustedContentFirewallSummary?.blocked
+    || intelligence.untrustedContentFirewallSummary?.requiresOperatorReview,
+  );
+  const knowledgeProviderBlockedByContext = Boolean(knowledgePrivacyBlocksProvider || knowledgeUntrustedContentBlocksProvider);
+  const llamaRuntimePrepare = !knowledgeProviderBlockedByContext && selectedLlamaCppModelSpec && !selectedLlamaCppAvailable
+    ? await runApexLlamaCppRuntimeAction({
+        action: "prepare-primary",
+        model: selectedLlamaCppModelSpec.model,
+        effort: selectedKnowledgeAgentSpeed.effortId || "normal",
+        unloadOllama: true,
+        waitMs: 180_000,
+      }).catch(() => null)
+    : null;
+  if (llamaRuntimePrepare?.providerStatus) {
+    llamaCppStatus = llamaRuntimePrepare.providerStatus;
+    selectedLlamaCppAvailable = Boolean(isLlamaCppReadyForApexLane({
+      status: llamaCppStatus,
+      laneSelection: selectedKnowledgeAgentSpeed,
+      modelSpec: selectedLlamaCppModelSpec,
+    }));
+  }
+  const ollamaStatus = await legacyOllamaStatusPromise;
+  const selectedLocalModel = selectedLlamaCppModelSpec?.model || "";
+  const selectedLocalModelAvailable = Boolean(selectedLlamaCppAvailable);
+  const providerPolicy = buildApexOsLocalFirstProviderDecision({
+    route: knowledgeLocalRoute,
+    providerMode: process.env.APEX_OS_AI_MODE || process.env.APEX_OS_PROVIDER_MODE,
+    localProviderAvailable: selectedLocalModelAvailable,
+    cloudProviderConfigured: Boolean(apiKey),
+    serverCloudEnabled: isApexOsProviderFlagEnabled(process.env.APEX_OS_CLOUD_OVERRIDE_ENABLED || process.env.APEX_OS_OPENAI_ENABLED),
+    cloudKillSwitch: isApexOsProviderFlagEnabled(process.env.APEX_OS_CLOUD_KILL_SWITCH),
+    cloudOverrideText: optionalString(req.body?.query || req.body?.cloudOverridePhrase, "").slice(0, 260),
+    privacyFirewallSummary: intelligence.privacyFirewallSummary,
+    promptInjectionFirewallSummary: intelligence.untrustedContentFirewallSummary,
+    budgetGuard: buildApexOsCloudBudgetGuardFromEnv(process.env),
+  });
+  let providerInsight = {
+    ok: true,
+    providerConfigured: false,
+    mode: "local-knowledge-intelligence",
+    providerSummary: "Local-first source ranking, document summaries, confidence labels, and conflict warnings are active. Cloud provider summaries require explicit Apex OS cloud override policy approval.",
+    classifications: [],
+  };
+
+  if ((apiKey || llamaCppStatus?.available || ollamaStatus.available) && (knowledgePrivacyBlocksProvider || knowledgeUntrustedContentBlocksProvider)) {
+    providerInsight = {
+      ok: true,
+      providerConfigured: Boolean(apiKey || llamaCppStatus?.available || ollamaStatus.available),
+      providerFallback: true,
+      mode: knowledgeUntrustedContentBlocksProvider ? "untrusted-content-firewall-local-fallback" : "privacy-firewall-local-fallback",
+      providerSummary: knowledgeUntrustedContentBlocksProvider
+        ? "Untrusted content firewall kept this Knowledge Intelligence packet local because source content requires operator review."
+        : "Privacy firewall kept this Knowledge Intelligence packet local because cloud-bound content was blocked or approval-required.",
+      classifications: [],
+      providerPolicyDecision: providerPolicy.decision,
+    };
+  } else if (req.body?.includeProviderSummary !== false && intelligence.rankedRows.length && providerPolicy.decision === APEX_OS_PROVIDER_DECISION.USE_LOCAL && selectedLocalModelAvailable) {
+    try {
+      const localRequest = buildApexOsKnowledgeOpenAiRequest(intelligence, selectedLocalModel);
+      const localKnowledge = await chatWithLlamaCppForApexOsKnowledge({
+        model: selectedLocalModel,
+        route: knowledgeLocalRoute,
+        laneSelection: selectedKnowledgeAgentSpeed,
+        providerStatus: llamaCppStatus,
+        messages: localRequest.messages,
+        maxOutputTokens: localRequest.max_tokens,
+        privacyFirewallSummary: intelligence.privacyFirewallSummary,
+        untrustedContentFirewallSummary: intelligence.untrustedContentFirewallSummary,
+      });
+      if (!localKnowledge.ok || localKnowledge.status === "blocked" || localKnowledge.status === "unavailable" || localKnowledge.status === "error") {
+        throw new Error(localKnowledge.reason || "llama-cpp-local-knowledge-unavailable");
+      }
+      providerInsight = {
+        ok: true,
+        provider: "llama.cpp",
+        providerConfigured: true,
+        providerFallback: false,
+        mode: "local-llama-cpp-knowledge-summary",
+        model: localKnowledge.modelUsed || selectedLocalModel,
+        processor: localKnowledge.processor || localKnowledge.modelProcessor?.processor || "unknown",
+        vramUsedMb: Number(localKnowledge.vramUsedMb || localKnowledge.modelProcessor?.vramUsedMb || 0) || 0,
+        responseTimingMs: Number(localKnowledge.responseTimingMs || localKnowledge.modelProcessor?.responseTimingMs || 0) || 0,
+        modelAlreadyLoaded: Boolean(localKnowledge.modelAlreadyLoaded || localKnowledge.modelProcessor?.modelAlreadyLoaded),
+        modelProcessor: localKnowledge.modelProcessor || null,
+        brainMode: localKnowledge.brainMode || localKnowledge.brainReceipt?.activeMode || "",
+        brainProfile: localKnowledge.brainProfile || null,
+        brainReceipt: localKnowledge.brainReceipt || null,
+        brainTelemetry: localKnowledge.brainTelemetry || null,
+        queueReceipt: localKnowledge.queueReceipt || null,
+        agentSpeed: localKnowledge.agentSpeed || selectedKnowledgeAgentSpeed,
+        agentSpeedLane: localKnowledge.agentSpeedLane || selectedKnowledgeAgentSpeed.laneId,
+        agentSpeedLabel: localKnowledge.agentSpeedLabel || selectedKnowledgeAgentSpeed.laneLabel,
+        benchmarkReceipt: localKnowledge.benchmarkReceipt || null,
+        residency: localKnowledge.residency || null,
+        providerSummary: localKnowledge.providerSummary,
+        classifications: localKnowledge.classifications,
+        providerPolicyDecision: providerPolicy.decision,
+        storesRawPrompt: false,
+        storesRawResponse: false,
+      };
+    } catch (error) {
+      logger.warn("Apex OS local llama.cpp knowledge summary failed; using local intelligence", {
+        requestId: res.locals.requestId,
+        provider: "llama.cpp",
+        route: knowledgeLocalRoute || "unknown",
+        model: selectedLocalModel,
+        reason: serializeError(error)?.message || "llama-cpp-local-knowledge-failed",
+      });
+      providerInsight = {
+        ok: false,
+        provider: "llama.cpp",
+        providerConfigured: Boolean(llamaCppStatus?.available),
+        providerFallback: true,
+        mode: "local-llama-cpp-knowledge-fallback",
+        model: selectedLocalModel,
+        providerSummary: "Local llama.cpp summary failed, so Apex OS is using deterministic local source ranking, summaries, confidence labels, and conflict warnings.",
+        classifications: [],
+        providerPolicyDecision: providerPolicy.decision,
+        storesRawPrompt: false,
+        storesRawResponse: false,
+      };
+    }
+  } else if (apiKey && req.body?.includeProviderSummary !== false && intelligence.rankedRows.length && providerPolicy.decision === APEX_OS_PROVIDER_DECISION.ALLOW_CLOUD_ONCE) {
+    try {
+      const response = await fetch(APEX_OS_ASK_OPENAI_URL, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(buildApexOsKnowledgeOpenAiRequest(intelligence)),
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!response.ok) {
+        throw new Error(`OpenAI knowledge intelligence request failed with ${response.status}.`);
+      }
+      providerInsight = parseOpenAiApexOsKnowledgePayload(await response.json());
+    } catch (error) {
+      logger.warn("Apex OS knowledge provider summary failed; using local intelligence", {
+        requestId: res.locals.requestId,
+        error: serializeError(error),
+      });
+      providerInsight = {
+        ok: false,
+        providerConfigured: true,
+        mode: "provider-fallback",
+        providerSummary: "Provider summary failed, so Apex OS is using local source ranking, summaries, confidence labels, and conflict warnings.",
+        classifications: [],
+      };
+    }
+  } else if ((apiKey || llamaCppStatus?.available || ollamaStatus.available) && req.body?.includeProviderSummary !== false) {
+    providerInsight = {
+      ok: true,
+      providerConfigured: false,
+      providerFallback: true,
+      mode: providerPolicy.decision === APEX_OS_PROVIDER_DECISION.ASK_BEFORE_CLOUD
+        ? "local-first-ask-before-cloud"
+        : "local-first-provider-policy-fallback",
+      providerSummary: providerPolicy.decision === APEX_OS_PROVIDER_DECISION.ASK_BEFORE_CLOUD
+        ? "Local-first Knowledge Intelligence is active. Apex OS can ask John before any cloud summary because cloud use requires an explicit override phrase."
+        : "Local-first Knowledge Intelligence is active. Cloud provider summaries are blocked unless the Apex OS cloud override policy allows exactly one request.",
+      classifications: [],
+      providerPolicyDecision: providerPolicy.decision,
+      localProvider: {
+        provider: "llama.cpp",
+        primaryProvider: true,
+        legacyOllamaAvailable: Boolean(ollamaStatus.available),
+        available: Boolean(llamaCppStatus?.available),
+        selectedModel: selectedLocalModel,
+        selectedModelAvailable: selectedLocalModelAvailable,
+        llamaRuntimePrepare,
+      },
+    };
+  }
+
+  res.json({
+    intelligence,
+    providerInsight,
+    context: {
+      sourceCount: intelligence.rankedRows.length,
+      totalRows: intelligence.totalRows,
+      trustedCount: intelligence.trustedCount,
+      suggestedCount: intelligence.suggestedCount,
+      conflictCount: intelligence.conflictWarnings.length,
+      embeddingStatus: intelligence.embeddingStatus,
+      privacyFirewallSummary: intelligence.privacyFirewallSummary,
+      untrustedContentFirewallSummary: intelligence.untrustedContentFirewallSummary,
+      localFirstProviderPolicy: providerPolicy,
+      localProviderStatus: {
+        provider: "llama.cpp",
+        primaryProvider: true,
+        legacyOllamaAvailable: Boolean(ollamaStatus.available),
+        available: Boolean(llamaCppStatus?.available),
+        status: llamaCppStatus?.status || "unavailable",
+        reason: llamaCppStatus?.reason || "llama-cpp-status-unavailable",
+        baseUrlIsLocal: Boolean(llamaCppStatus?.baseUrlIsLocal),
+        modelCount: Number(llamaCppStatus?.modelCount || 0),
+        modelNames: llamaCppStatus?.modelNames || [],
+        selectedModel: selectedLocalModel,
+        selectedModelAvailable: selectedLocalModelAvailable,
+        llamaRuntimePrepare,
+        agentSpeed: providerInsight?.agentSpeed || selectedKnowledgeAgentSpeed,
+        agentSpeedLane: providerInsight?.agentSpeedLane || selectedKnowledgeAgentSpeed.laneId,
+        agentSpeedLabel: providerInsight?.agentSpeedLabel || selectedKnowledgeAgentSpeed.laneLabel,
+        benchmarkReceipt: providerInsight?.benchmarkReceipt || null,
+        residency: providerInsight?.residency || null,
+        requestedRoute: requestedKnowledgeRoute,
+        knowledgeRoute: knowledgeLocalRoute,
+        modelProcessor: providerInsight?.modelProcessor || null,
+        processor: providerInsight?.processor || providerInsight?.modelProcessor?.processor || "unknown",
+        vramUsedMb: Number(providerInsight?.vramUsedMb || providerInsight?.modelProcessor?.vramUsedMb || 0) || 0,
+        responseTimingMs: Number(providerInsight?.responseTimingMs || providerInsight?.modelProcessor?.responseTimingMs || 0) || 0,
+        canChatNow: Boolean(selectedLocalModelAvailable),
+        promptSentByStatusCheck: false,
+        storesRawPrompt: false,
+        storesRawResponse: false,
+      },
+      traceSummary: intelligence.traceSummary,
+    },
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/apex-os/voice/speech", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+
+  const speechText = sanitizeApexOsVoiceSpeechText(req.body?.text || "");
+  if (!speechText) {
+    throw new ApiError(400, "Apex OS voice speech requires text.");
+  }
+
+  const apiKey = String(process.env.OPENAI_API_KEY || "").trim();
+  if (!apiKey) {
+    return res.json({
+      ok: true,
+      providerConfigured: false,
+      providerFallback: true,
+      fallbackText: speechText,
+      audioBase64: "",
+      contentType: "",
+      audioStored: false,
+      aiDisclosure: "Apex OS voice output is AI-generated.",
+      requestId: res.locals.requestId,
+    });
+  }
+
+  try {
+    const response = await fetch(APEX_OS_VOICE_SPEECH_OPENAI_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(buildApexOsVoiceSpeechRequest({
+        text: speechText,
+        voice: req.body?.voice,
+      })),
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!response.ok) {
+      throw new Error(`OpenAI speech request failed with ${response.status}.`);
+    }
+    const audioBuffer = Buffer.from(await response.arrayBuffer());
+    return res.json({
+      ok: true,
+      providerConfigured: true,
+      providerFallback: false,
+      audioBase64: audioBuffer.toString("base64"),
+      contentType: response.headers.get("content-type") || "audio/mpeg",
+      audioStored: false,
+      aiDisclosure: "Apex OS voice output is AI-generated.",
+      requestId: res.locals.requestId,
+    });
+  } catch (error) {
+    logger.warn("Apex OS voice speech provider failed; browser fallback can speak the answer", {
+      requestId: res.locals.requestId,
+      error: serializeError(error),
+    });
+    return res.json({
+      ok: false,
+      providerConfigured: true,
+      providerFallback: true,
+      fallbackText: speechText,
+      audioBase64: "",
+      contentType: "",
+      audioStored: false,
+      aiDisclosure: "Apex OS voice output is AI-generated.",
+      error: "Speech provider failed; browser playback fallback is available.",
+      requestId: res.locals.requestId,
+    });
+  }
+}));
+
+app.post("/api/apex-os/voice/transcribe", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanManageApexOsMemory(state, req.auth.user);
+
+  const parsedAudio = parseApexOsVoiceAudioDataUrl(req.body?.audioDataUrl || "");
+  if (!parsedAudio.ok) {
+    throw new ApiError(400, parsedAudio.error || "Apex OS voice audio is invalid.");
+  }
+
+  const apiKey = String(process.env.OPENAI_API_KEY || "").trim();
+  if (!apiKey) {
+    return res.status(503).json({
+      ok: false,
+      providerConfigured: false,
+      transcript: "",
+      commandReview: buildApexOsVoiceCommandReview(""),
+      audioStored: false,
+      executionLocked: true,
+      error: "Speech-to-text is not configured. Set OPENAI_API_KEY on the server or use manual transcript review.",
+      requestId: res.locals.requestId,
+    });
+  }
+
+  try {
+    const form = new FormData();
+    form.set("model", APEX_OS_VOICE_TRANSCRIPTION_MODEL);
+    form.set("response_format", "json");
+    form.set(
+      "file",
+      new Blob([Buffer.from(parsedAudio.base64, "base64")], { type: parsedAudio.mimeType }),
+      `apex-os-voice.${parsedAudio.extension}`,
+    );
+
+    const response = await fetch(APEX_OS_VOICE_TRANSCRIPTION_OPENAI_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: form,
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!response.ok) {
+      throw new Error(`OpenAI transcription request failed with ${response.status}.`);
+    }
+    const transcript = parseApexOsVoiceTranscriptionPayload(await response.json());
+    return res.json({
+      ok: true,
+      providerConfigured: true,
+      transcript,
+      commandReview: buildApexOsVoiceCommandReview(transcript),
+      audioStored: false,
+      executionLocked: true,
+      requestId: res.locals.requestId,
+    });
+  } catch (error) {
+    logger.warn("Apex OS voice transcription provider failed", {
+      requestId: res.locals.requestId,
+      error: serializeError(error),
+    });
+    return res.status(502).json({
+      ok: false,
+      providerConfigured: true,
+      transcript: "",
+      commandReview: buildApexOsVoiceCommandReview(""),
+      audioStored: false,
+      executionLocked: true,
+      error: "Speech-to-text provider failed. Use manual transcript review and try again later.",
+      requestId: res.locals.requestId,
+    });
+  }
+}));
+
+app.post("/api/apex-os/memory", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let createdEntry = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageApexOsMemory(draft, req.auth.user);
+    const current = apexOsMemoryForState(draft, req.auth.user);
+    createdEntry = normalizeApexOsMemoryEntry(req.body || {}, {
+      id: makeId("AOM"),
+      now,
+    });
+    createdEntry.createdBy = req.auth.user.id;
+    createdEntry.createdAt = now;
+    if (isApexOsKnowledgeCategory(createdEntry.category) && String(createdEntry.sourceType || "").toLowerCase() === "knowledge-upload") {
+      createdEntry.status = "suggested";
+      createdEntry.approvedBy = "";
+      createdEntry.approvedAt = "";
+    }
+    if (String(createdEntry.sourceType || "").toLowerCase().includes("memory-suggestion")) {
+      createdEntry.status = "suggested";
+      createdEntry.approvedBy = "";
+      createdEntry.approvedAt = "";
+    }
+    if (createdEntry.status === "approved") {
+      createdEntry.approvedBy = req.auth.user.id;
+      createdEntry.approvedAt = now;
+    }
+    rejectUnsafeApexOsMemoryEntry(createdEntry);
+    const duplicate = findApexOsMemoryDuplicate(createdEntry, current);
+    if (duplicate) {
+      throw new ApiError(409, `Apex OS memory already has an active item for this source/title: ${duplicate.title}. Archive the existing item before adding a replacement.`);
+    }
+    persistApexOsMemory(draft, req.auth.user, [createdEntry, ...current].slice(0, 200));
+    appendActivity(draft, "Apex OS memory added", `${req.auth.user.name} added ${createdEntry.title} to Apex OS memory.`);
+    appendAuditEvent(draft, {
+      entityType: "apexOsMemory",
+      entityId: createdEntry.id,
+      action: createdEntry.status === "approved" ? "approved" : "suggested",
+      summary: "Apex OS memory added",
+      detail: JSON.stringify({
+        id: createdEntry.id,
+        category: createdEntry.category,
+        title: createdEntry.title,
+        status: createdEntry.status,
+        sourceType: createdEntry.sourceType,
+        sourceLabel: createdEntry.sourceLabel,
+      }),
+      actor: req.auth.user,
+      changedFields: ["apexOsMemory"],
+    });
+    return draft;
+  });
+
+  res.status(201).json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    apexOsMemoryEntry: publicApexOsMemoryEntry(createdEntry),
+  });
+}));
+
+app.patch("/api/apex-os/memory/:id", requireAuth, asyncRoute(async (req, res) => {
+  const now = new Date().toISOString();
+  let updatedEntry = null;
+
+  const nextState = await updateDb((draft) => {
+    assertCanManageApexOsMemory(draft, req.auth.user);
+    const current = apexOsMemoryForState(draft, req.auth.user);
+    const index = current.findIndex((entry) => entry.id === req.params.id);
+    if (index < 0) {
+      throw new ApiError(404, "Apex OS memory item not found.");
+    }
+    const existing = current[index];
+    updatedEntry = normalizeApexOsMemoryEntry(req.body || {}, {
+      existing,
+      now,
+    });
+    updatedEntry.createdBy = existing.createdBy;
+    updatedEntry.createdAt = existing.createdAt;
+    if (updatedEntry.status === "approved" && existing.status !== "approved") {
+      updatedEntry.approvedBy = req.auth.user.id;
+      updatedEntry.approvedAt = now;
+    }
+    if (updatedEntry.status === "archived" && existing.status !== "archived") {
+      updatedEntry.archivedAt = now;
+    }
+    rejectUnsafeApexOsMemoryEntry(updatedEntry);
+    const nextMemory = [...current];
+    nextMemory[index] = updatedEntry;
+    persistApexOsMemory(draft, req.auth.user, nextMemory);
+    appendActivity(draft, "Apex OS memory updated", `${req.auth.user.name} updated ${updatedEntry.title} in Apex OS memory.`);
+    appendAuditEvent(draft, {
+      entityType: "apexOsMemory",
+      entityId: updatedEntry.id,
+      action: updatedEntry.status === "archived" ? "archived" : updatedEntry.status === "approved" ? "approved" : "updated",
+      summary: "Apex OS memory updated",
+      detail: JSON.stringify({
+        id: updatedEntry.id,
+        category: updatedEntry.category,
+        title: updatedEntry.title,
+        status: updatedEntry.status,
+        sourceType: updatedEntry.sourceType,
+        sourceLabel: updatedEntry.sourceLabel,
+      }),
+      actor: req.auth.user,
+      changedFields: ["apexOsMemory"],
+    });
+    return draft;
+  });
+
+  res.json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    apexOsMemoryEntry: publicApexOsMemoryEntry(updatedEntry),
   });
 }));
 
@@ -19450,6 +22706,21 @@ app.get("/manifest.webmanifest", (_req, res) => {
   res.type("application/manifest+json").sendFile(path.join(distDir, "manifest.webmanifest"));
 });
 
+if (serverConfig.nodeEnv !== "production") {
+  app.get("/family-care.webmanifest", (_req, res) => {
+    res.type("application/manifest+json").sendFile(path.join(distDir, "family-care.webmanifest"));
+  });
+
+  app.get(["/family-care", "/family-care/", "/family-care.html"], asyncRoute(async (_req, res) => {
+    const html = await fs.readFile(path.join(distDir, "family-care.html"), "utf8");
+    return res.type("html").send(html);
+  }));
+} else {
+  app.get(["/family-care", "/family-care/", "/family-care.html", "/family-care.webmanifest"], (_req, res) => {
+    return res.status(404).send("Apex Family Care is local-only in this build.");
+  });
+}
+
 app.use(async (req, res, next) => {
   if (req.path.startsWith("/api")) return next();
 
@@ -19486,6 +22757,7 @@ app.use((error, req, res, next) => {
 await ensureDb();
 
 app.listen(port, () => {
+  startApexBackgroundRuntimeHeartbeat();
   logger.info("Apex HQ API listening", {
     environment: serverConfig.nodeEnv,
     port,

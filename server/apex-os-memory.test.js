@@ -1,0 +1,1104 @@
+import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import process from "node:process";
+import { spawn } from "node:child_process";
+import test from "node:test";
+import { DatabaseSync } from "node:sqlite";
+
+import { DEFAULT_COMPANY_ID } from "../shared/companyScope.js";
+import { createUserRecord } from "./store.js";
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function createPort() {
+  return 18750 + Math.floor(Math.random() * 700);
+}
+
+async function waitForServer(baseUrl, serverOutput) {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    try {
+      const response = await fetch(`${baseUrl}/api/ready`);
+      if (response.ok) return;
+    } catch {
+      // Poll until ready.
+    }
+    await sleep(250);
+  }
+  throw new Error(`Apex OS memory test server did not become ready.\n${serverOutput()}`);
+}
+
+async function startServer(extraEnv = {}) {
+  const tempDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "apex-os-memory-"));
+  const sqliteFile = path.join(tempDataDir, "app-data.sqlite");
+  const port = createPort();
+  const baseUrl = `http://localhost:${port}`;
+  let output = "";
+  const server = spawn(process.execPath, ["server/index.js"], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      PORT: String(port),
+      DATA_DIR: tempDataDir,
+      LOG_LEVEL: "warn",
+      OPENAI_API_KEY: "",
+      APEX_OLLAMA_BASE_URL: "http://127.0.0.1:9",
+      ...extraEnv,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  server.stdout.on("data", (chunk) => {
+    output += String(chunk);
+  });
+  server.stderr.on("data", (chunk) => {
+    output += String(chunk);
+  });
+
+  await waitForServer(baseUrl, () => output);
+
+  async function stop() {
+    server.kill("SIGTERM");
+    await new Promise((resolve) => server.once("exit", resolve));
+    await fs.rm(tempDataDir, { recursive: true, force: true });
+  }
+
+  return { baseUrl, sqliteFile, stop };
+}
+
+async function requestJson(baseUrl, pathname, options = {}) {
+  const response = await fetch(`${baseUrl}${pathname}`, options);
+  const payload = response.status === 204 ? null : await response.json().catch(() => null);
+  return { response, payload };
+}
+
+async function assertOk(baseUrl, pathname, options = {}) {
+  const { response, payload } = await requestJson(baseUrl, pathname, options);
+  assert.equal(response.ok, true, payload?.error || `Expected ${pathname} to succeed.`);
+  return payload;
+}
+
+async function login(baseUrl, credentials) {
+  return assertOk(baseUrl, "/api/auth/login", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Apex-Auth-Mode": "bearer",
+    },
+    body: JSON.stringify({ ...credentials, returnToken: true }),
+  });
+}
+
+function authHeaders(token) {
+  return {
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+  };
+}
+
+function setOperatorAccess(sqliteFile, email, enabled) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    database.prepare("UPDATE users SET operator_access = ? WHERE email = ?").run(enabled ? 1 : 0, email);
+  } finally {
+    database.close();
+  }
+}
+
+function insertUser(sqliteFile, user) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    database.prepare(`
+      INSERT INTO users (id, email, name, role, phone, status, company_id, operator_access, created_at, updated_at, last_login_at, password_hash)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      user.id,
+      user.email,
+      user.name,
+      user.role,
+      user.phone,
+      user.status,
+      user.companyId,
+      user.operatorAccess ? 1 : 0,
+      user.createdAt,
+      user.updatedAt,
+      user.lastLoginAt,
+      user.passwordHash,
+    );
+  } finally {
+    database.close();
+  }
+}
+
+function storedApexOsMemory(sqliteFile, companyId = DEFAULT_COMPANY_ID) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    const row = database.prepare(`
+      SELECT value FROM company_settings
+      WHERE company_id = ? AND key = 'apexOsMemory'
+    `).get(companyId);
+    return JSON.parse(row?.value || "[]");
+  } finally {
+    database.close();
+  }
+}
+
+function storedApexOsApprovalPackets(sqliteFile, companyId = DEFAULT_COMPANY_ID) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    const row = database.prepare(`
+      SELECT value FROM company_settings
+      WHERE company_id = ? AND key = 'apexOsApprovalPackets'
+    `).get(companyId);
+    return JSON.parse(row?.value || "[]");
+  } finally {
+    database.close();
+  }
+}
+
+function storedApexOsExecutionHandoffs(sqliteFile, companyId = DEFAULT_COMPANY_ID) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    const row = database.prepare(`
+      SELECT value FROM company_settings
+      WHERE company_id = ? AND key = 'apexOsExecutionHandoffs'
+    `).get(companyId);
+    return JSON.parse(row?.value || "[]");
+  } finally {
+    database.close();
+  }
+}
+
+function storedApexOsAgentControlRequests(sqliteFile, companyId = DEFAULT_COMPANY_ID) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    const row = database.prepare(`
+      SELECT value FROM company_settings
+      WHERE company_id = ? AND key = 'apexOsAgentControlRequests'
+    `).get(companyId);
+    return JSON.parse(row?.value || "[]");
+  } finally {
+    database.close();
+  }
+}
+
+function storedApexOsTasks(sqliteFile, companyId = DEFAULT_COMPANY_ID) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    const row = database.prepare(`
+      SELECT value FROM company_settings
+      WHERE company_id = ? AND key = 'apexOsTasks'
+    `).get(companyId);
+    return JSON.parse(row?.value || "[]");
+  } finally {
+    database.close();
+  }
+}
+
+function auditEvents(sqliteFile) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    return database.prepare(`
+      SELECT entity_type AS entityType, action, summary
+      FROM audit_events
+      WHERE entity_type IN ('apexOsMemory', 'apexOsApprovalPacket', 'apexOsExecutionHandoff', 'apexOsAgentControlRequest', 'apexOsTask', 'apexOsReminder')
+      ORDER BY created_at DESC
+    `).all();
+  } finally {
+    database.close();
+  }
+}
+
+test("Apex OS local-first policy blocks OpenAI key-only cloud calls", async () => {
+  const fixture = await startServer({ OPENAI_API_KEY: "fake-openai-key-for-local-first-policy-test" });
+
+  try {
+    setOperatorAccess(fixture.sqliteFile, "demo.ops@apexhq.app", true);
+    const operatorLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+
+    const asked = await assertOk(fixture.baseUrl, "/api/apex-os/ask", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({ question: "Apex, help me plan today." }),
+    });
+    assert.notEqual(asked.answer.provider, "openai");
+    assert.notEqual(asked.answer.mode, "provider");
+    assert.match(asked.answer.mode, /local|fallback|policy|llama/i);
+    assert.match(asked.answer.providerPolicyDecision, /^use-local/);
+    assert.equal(asked.context.localFirstProviderPolicy.cloudProviderConfigured, true);
+    assert.equal(asked.context.localFirstProviderPolicy.serverCloudEnabled, false);
+    assert.equal(asked.context.localFirstProviderPolicy.cloudAllowedForRequest, false);
+    assert.equal(asked.context.localFirstProviderPolicy.paidCloudAutomatic, false);
+
+    const knowledge = await assertOk(fixture.baseUrl, "/api/apex-os/knowledge-intelligence", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({ query: "Apex OS", includeProviderSummary: true }),
+    });
+    assert.notEqual(knowledge.providerInsight.provider, "openai");
+    assert.notEqual(knowledge.providerInsight.mode, "provider");
+    assert.match(knowledge.providerInsight.mode, /local|fallback|policy|llama/i);
+    assert.equal(knowledge.context.localFirstProviderPolicy.cloudProviderConfigured, true);
+    assert.equal(knowledge.context.localFirstProviderPolicy.serverCloudEnabled, false);
+    assert.equal(knowledge.context.localFirstProviderPolicy.cloudAllowedForRequest, false);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("Apex OS memory is operator-only, source-backed, persisted, and audited", async () => {
+  const fixture = await startServer();
+
+  try {
+    setOperatorAccess(fixture.sqliteFile, "demo.ops@apexhq.app", true);
+    const operatorLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const adminUser = createUserRecord({
+      id: "U-APEX-OS-MEMORY-ADMIN",
+      email: "apex-os-memory-admin@apexhq.test",
+      password: "apexdemo123",
+      name: "Apex OS Memory Admin",
+      role: "Administrator",
+    });
+    insertUser(fixture.sqliteFile, adminUser);
+    const adminLogin = await login(fixture.baseUrl, {
+      email: adminUser.email,
+      password: "apexdemo123",
+    });
+    const employeeUser = createUserRecord({
+      id: "U-APEX-OS-MEMORY-EMPLOYEE",
+      email: "apex-os-memory-employee@apexhq.test",
+      password: "apexdemo123",
+      name: "Apex OS Memory Employee",
+      role: "Employee",
+    });
+    insertUser(fixture.sqliteFile, employeeUser);
+    const employeeLogin = await login(fixture.baseUrl, {
+      email: employeeUser.email,
+      password: "apexdemo123",
+    });
+
+    const adminBlocked = await requestJson(fixture.baseUrl, "/api/apex-os/memory", {
+      headers: authHeaders(adminLogin.token),
+    });
+    assert.equal(adminBlocked.response.status, 403);
+
+    const employeeBlocked = await requestJson(fixture.baseUrl, "/api/apex-os/memory", {
+      headers: authHeaders(employeeLogin.token),
+    });
+    assert.equal(employeeBlocked.response.status, 403);
+    const adminSkillsBlocked = await requestJson(fixture.baseUrl, "/api/apex-os/skills", {
+      headers: authHeaders(adminLogin.token),
+    });
+    assert.equal(adminSkillsBlocked.response.status, 403);
+    const employeeSkillsBlocked = await requestJson(fixture.baseUrl, "/api/apex-os/skills", {
+      headers: authHeaders(employeeLogin.token),
+    });
+    assert.equal(employeeSkillsBlocked.response.status, 403);
+    const adminAskBlocked = await requestJson(fixture.baseUrl, "/api/apex-os/ask", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({ question: "What is next?" }),
+    });
+    assert.equal(adminAskBlocked.response.status, 403);
+    const adminKnowledgeIntelligenceBlocked = await requestJson(fixture.baseUrl, "/api/apex-os/knowledge-intelligence", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({ query: "What knowledge is trusted?" }),
+    });
+    assert.equal(adminKnowledgeIntelligenceBlocked.response.status, 403);
+    const adminVoiceSpeechBlocked = await requestJson(fixture.baseUrl, "/api/apex-os/voice/speech", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({ text: "Apex should talk back." }),
+    });
+    assert.equal(adminVoiceSpeechBlocked.response.status, 403);
+    const adminVoiceTranscribeBlocked = await requestJson(fixture.baseUrl, "/api/apex-os/voice/transcribe", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({ audioDataUrl: "data:audio/webm;base64,AAAA" }),
+    });
+    assert.equal(adminVoiceTranscribeBlocked.response.status, 403);
+    const adminBriefingBlocked = await requestJson(fixture.baseUrl, "/api/apex-os/daily-briefing", {
+      headers: authHeaders(adminLogin.token),
+    });
+    assert.equal(adminBriefingBlocked.response.status, 403);
+    const adminPacketsBlocked = await requestJson(fixture.baseUrl, "/api/apex-os/approval-packets", {
+      headers: authHeaders(adminLogin.token),
+    });
+    assert.equal(adminPacketsBlocked.response.status, 403);
+    const adminHandoffsBlocked = await requestJson(fixture.baseUrl, "/api/apex-os/execution-handoffs", {
+      headers: authHeaders(adminLogin.token),
+    });
+    assert.equal(adminHandoffsBlocked.response.status, 403);
+    const adminAgentControlBlocked = await requestJson(fixture.baseUrl, "/api/apex-os/agent-control", {
+      headers: authHeaders(adminLogin.token),
+    });
+    assert.equal(adminAgentControlBlocked.response.status, 403);
+
+    const adminTasksBlocked = await requestJson(fixture.baseUrl, "/api/apex-os/tasks", {
+      headers: authHeaders(adminLogin.token),
+    });
+    assert.equal(adminTasksBlocked.response.status, 403);
+    const employeeRemindersBlocked = await requestJson(fixture.baseUrl, "/api/apex-os/reminders", {
+      headers: authHeaders(employeeLogin.token),
+    });
+    assert.equal(employeeRemindersBlocked.response.status, 403);
+
+    const listedSkills = await assertOk(fixture.baseUrl, "/api/apex-os/skills", {
+      headers: authHeaders(operatorLogin.token),
+    });
+    assert.equal(listedSkills.canExecute, false);
+    assert.equal(listedSkills.executionLocked, true);
+    assert.equal(listedSkills.summary.executableCount, 0);
+    assert.equal(listedSkills.summary.availableCount >= 1, true);
+    assert.equal(listedSkills.summary.plannedCount >= 1, true);
+    assert.equal(listedSkills.apexOsSkills.some((skill) => skill.id === "desktop-browser-control" && skill.status === "planned" && skill.canExecute === false), true);
+    assert.equal(listedSkills.apexOsSkills.some((skill) => skill.id === "production-deploy-admin-actions" && skill.status === "blocked" && skill.canExecute === false), true);
+
+    const unsafeTask = await requestJson(fixture.baseUrl, "/api/apex-os/tasks", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Unsafe task",
+        notes: "Store password: super-secret and email mike@example.test here.",
+      }),
+    });
+    assert.equal(unsafeTask.response.status, 400);
+
+    const createdTask = await assertOk(fixture.baseUrl, "/api/apex-os/tasks", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Make a task for the assistant brain layer",
+        notes: "Keep this private inside Apex OS.",
+        category: "apex-hq",
+        priority: "critical",
+        source: "chat",
+      }),
+    });
+    assert.equal(createdTask.apexOsTask.type, "task");
+    assert.equal(createdTask.apexOsTask.status, "open");
+    assert.equal(createdTask.apexOsTask.priority, "critical");
+    assert.equal(createdTask.apexOsTask.createdBy, operatorLogin.user.id);
+    assert.equal(storedApexOsTasks(fixture.sqliteFile)[0].title, "Make a task for the assistant brain layer");
+
+    const createdReminder = await assertOk(fixture.baseUrl, "/api/apex-os/reminders", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Call Mike",
+        dueText: "tomorrow morning",
+        dueAt: "2026-06-07T09:00:00.000Z",
+        category: "business",
+        priority: "high",
+        source: "voice",
+      }),
+    });
+    assert.equal(createdReminder.apexOsReminder.type, "reminder");
+    assert.equal(createdReminder.apexOsReminder.dueText, "tomorrow morning");
+    assert.equal(storedApexOsTasks(fixture.sqliteFile).length, 2);
+
+    const adminBootstrapAfterPrivateTasks = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(adminLogin.token),
+    });
+    assert.equal(Object.prototype.hasOwnProperty.call(adminBootstrapAfterPrivateTasks.companySettings || {}, "apexOsTasks"), false);
+
+    const operatorBootstrapAfterPrivateTasks = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(operatorLogin.token),
+    });
+    assert.equal(operatorBootstrapAfterPrivateTasks.companySettings.apexOsTasks.length, 2);
+
+    const listedTasks = await assertOk(fixture.baseUrl, "/api/apex-os/tasks", {
+      headers: authHeaders(operatorLogin.token),
+    });
+    assert.equal(listedTasks.apexOsTasks.length, 1);
+    assert.equal(listedTasks.summary.openTaskCount, 1);
+    assert.equal(listedTasks.summary.openReminderCount, 0);
+
+    const listedReminders = await assertOk(fixture.baseUrl, "/api/apex-os/reminders", {
+      headers: authHeaders(operatorLogin.token),
+    });
+    assert.equal(listedReminders.apexOsReminders.length, 1);
+    assert.equal(listedReminders.summary.openReminderCount, 1);
+    assert.equal(listedReminders.summary.dueSoonItems[0].title, "Call Mike");
+
+    const updatedTask = await assertOk(fixture.baseUrl, `/api/apex-os/tasks/${createdTask.apexOsTask.id}`, {
+      method: "PATCH",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        status: "in-progress",
+        title: "Make a task for the assistant brain layer v2",
+      }),
+    });
+    assert.equal(updatedTask.apexOsTask.status, "in-progress");
+    assert.equal(updatedTask.apexOsTask.type, "task");
+    assert.equal(updatedTask.apexOsTask.createdBy, operatorLogin.user.id);
+
+    const wrongTypePatch = await requestJson(fixture.baseUrl, `/api/apex-os/reminders/${createdTask.apexOsTask.id}`, {
+      method: "PATCH",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({ status: "done" }),
+    });
+    assert.equal(wrongTypePatch.response.status, 404);
+
+    const askWithTasks = await assertOk(fixture.baseUrl, "/api/apex-os/ask", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({ question: "What do I need to handle today?", contextScope: "docs-memory" }),
+    });
+    assert.equal(askWithTasks.context.openTaskCount, 1);
+    assert.equal(askWithTasks.context.openReminderCount, 1);
+    assert.equal(askWithTasks.context.skillRegistrySummary.executableCount, 0);
+    assert.match(askWithTasks.answer.answer, /task\/reminder context|open task|\btask\b|\breminder\b/i);
+
+    const askWithMemorySuggestion = await assertOk(fixture.baseUrl, "/api/apex-os/ask", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({ question: "Never send messages without asking me first.", contextScope: "docs-memory" }),
+    });
+    assert.equal(askWithMemorySuggestion.context.memorySuggestionAvailable, true);
+    assert.equal(askWithMemorySuggestion.memorySuggestion.type, "do-not-do");
+    assert.equal(askWithMemorySuggestion.memorySuggestion.status, "suggested");
+
+    const forcedSuggestedMemory = await assertOk(fixture.baseUrl, "/api/apex-os/memory", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        category: "assistant-preference",
+        type: "assistant-preference",
+        title: "John prefers concise answers",
+        body: "John prefers concise, practical answers unless he asks for detail.",
+        sourceType: "apex-os-memory-suggestion",
+        sourceLabel: "Ask Apex memory suggestion",
+        sourceUri: "ask-apex:memory-suggestion:test",
+        status: "approved",
+      }),
+    });
+    assert.equal(forcedSuggestedMemory.apexOsMemoryEntry.status, "suggested");
+    assert.equal(forcedSuggestedMemory.apexOsMemoryEntry.approvedBy, "");
+
+    const unsafe = await requestJson(fixture.baseUrl, "/api/apex-os/memory", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Unsafe credential",
+        body: "Remember API key sk-test-123456789abc and customer@example.test.",
+        sourceLabel: "Bad note",
+      }),
+    });
+    assert.equal(unsafe.response.status, 400);
+
+    const missingSource = await requestJson(fixture.baseUrl, "/api/apex-os/memory", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Missing source",
+        body: "This should not become durable without a source label.",
+      }),
+    });
+    assert.equal(missingSource.response.status, 400);
+
+    const uploadedKnowledge = await assertOk(fixture.baseUrl, "/api/apex-os/memory", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        category: "Apex HQ app docs",
+        title: "Phase 5 upload intake",
+        body: "Knowledge Upload Vault text intake starts as suggested until manually reviewed.",
+        sourceType: "knowledge-upload",
+        sourceLabel: "phase-5-upload.md",
+        sourceUri: "local-upload:phase-5-upload.md",
+        status: "approved",
+        reviewNote: "Summary pending - manual review required.",
+      }),
+    });
+    assert.equal(uploadedKnowledge.apexOsMemoryEntry.category, "app-docs");
+    assert.equal(uploadedKnowledge.apexOsMemoryEntry.status, "suggested");
+    assert.equal(uploadedKnowledge.apexOsMemoryEntry.approvedBy, "");
+    assert.equal(storedApexOsMemory(fixture.sqliteFile)[0].sourceType, "knowledge-upload");
+
+    const duplicateKnowledge = await requestJson(fixture.baseUrl, "/api/apex-os/memory", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        category: "Apex HQ app docs",
+        title: "Phase 5 upload intake",
+        body: "A duplicate active knowledge upload should be blocked before manual review.",
+        sourceType: "knowledge-upload",
+        sourceLabel: "phase-5-upload.md",
+        sourceUri: "local-upload:phase-5-upload.md",
+        status: "suggested",
+      }),
+    });
+    assert.equal(duplicateKnowledge.response.status, 409);
+
+    const created = await assertOk(fixture.baseUrl, "/api/apex-os/memory", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        category: "decision",
+        title: "Apex OS private command center",
+        body: "Apex OS is John's private operating center for Apex HQ.",
+        sourceType: "document",
+        sourceLabel: "Apex OS master plan",
+        sourceUri: "docs/APEX_HQ_APEX_OS_COMMAND_CENTER_MASTER_PLAN.md",
+        status: "suggested",
+      }),
+    });
+
+    assert.equal(created.apexOsMemoryEntry.status, "suggested");
+    assert.equal(created.companySettings.apexOsMemory[0].title, "Apex OS private command center");
+    assert.equal(storedApexOsMemory(fixture.sqliteFile)[0].sourceLabel, "Apex OS master plan");
+
+    const duplicate = await requestJson(fixture.baseUrl, "/api/apex-os/memory", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        category: "decision",
+        title: "Apex OS private command center",
+        body: "This should be blocked until the active source/title row is archived.",
+        sourceType: "document",
+        sourceLabel: "Apex OS master plan",
+        sourceUri: "docs/APEX_HQ_APEX_OS_COMMAND_CENTER_MASTER_PLAN.md",
+        status: "suggested",
+      }),
+    });
+    assert.equal(duplicate.response.status, 409);
+
+    const approved = await assertOk(fixture.baseUrl, `/api/apex-os/memory/${created.apexOsMemoryEntry.id}`, {
+      method: "PATCH",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({ status: "approved", reviewNote: "Approved for source-backed Apex OS context." }),
+    });
+    assert.equal(approved.apexOsMemoryEntry.status, "approved");
+    assert.equal(approved.apexOsMemoryEntry.approvedBy, operatorLogin.user.id);
+
+    const listed = await assertOk(fixture.baseUrl, "/api/apex-os/memory", {
+      headers: authHeaders(operatorLogin.token),
+    });
+    assert.equal(listed.summary.approved, 1);
+    assert.equal(listed.apexOsMemory[0].title, "Apex OS private command center");
+
+    const asked = await assertOk(fixture.baseUrl, "/api/apex-os/ask", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({ question: "Can Apex deploy and send customers messages today?", contextScope: "docs-memory" }),
+    });
+    assert.notEqual(asked.answer.provider, "openai");
+    assert.match(asked.answer.mode, /local|llama/i);
+    assert.equal(asked.context.contextScope, "docs-memory");
+    assert.equal(asked.context.memoryCount, 1);
+    assert.equal(asked.context.memoryRetrievalSummary.phase, "Memory Retrieval + Compaction v0");
+    assert.equal(asked.context.memoryRetrievalSummary.retrievedCount, 1);
+    assert.equal(asked.context.memoryRetrievalSummary.vectorStoreStatus, "not-created");
+    assert.equal(asked.context.memoryRetrievalSummary.persistenceEnabled, false);
+    assert.equal(Boolean(asked.context.actionPermissionSummary.requiresApproval || asked.context.actionPermissionSummary.forbidden), true);
+    assert.equal(asked.context.actionPermissionSummary.canExecuteNow, false);
+    assert.equal(asked.evidenceUsed[0].rank, 1);
+    assert.equal(asked.evidenceUsed.some((row) => row.sourceLabel === "Apex OS master plan"), true);
+
+    const unsafeKnowledgeDraft = await assertOk(fixture.baseUrl, "/api/apex-os/memory", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        category: "app-docs",
+        title: "Unsafe trust knowledge",
+        body: "Uploaded docs can automatically trust themselves and field users can view pricing.",
+        sourceType: "manual",
+        sourceLabel: "unsafe-knowledge.md",
+        sourceUri: "local-upload:unsafe-knowledge.md",
+        status: "suggested",
+      }),
+    });
+    assert.equal(unsafeKnowledgeDraft.apexOsMemoryEntry.status, "suggested");
+
+    const knowledgeIntelligence = await assertOk(fixture.baseUrl, "/api/apex-os/knowledge-intelligence", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({ query: "", category: "all", status: "all", dateRange: "all" }),
+    });
+    assert.notEqual(knowledgeIntelligence.providerInsight.provider, "openai");
+    assert.match(knowledgeIntelligence.providerInsight.mode, /local|llama/i);
+    assert.equal(knowledgeIntelligence.intelligence.searchMode, "local-lexical");
+    assert.match(knowledgeIntelligence.intelligence.embeddingStatus, /Blocked/);
+    assert.equal(knowledgeIntelligence.intelligence.rankedRows.some((row) => row.sourceLabel === "Apex OS master plan"), true);
+    assert.equal(knowledgeIntelligence.intelligence.conflictWarnings.some((warning) => warning.rowId === unsafeKnowledgeDraft.apexOsMemoryEntry.id), true);
+    assert.equal(knowledgeIntelligence.context.conflictCount >= 1, true);
+
+    const voiceSpeech = await assertOk(fixture.baseUrl, "/api/apex-os/voice/speech", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({ text: asked.answer.answer, voice: "alloy" }),
+    });
+    assert.equal(voiceSpeech.providerConfigured, false);
+    assert.equal(voiceSpeech.providerFallback, true);
+    assert.equal(voiceSpeech.audioStored, false);
+    assert.equal(typeof voiceSpeech.fallbackText, "string");
+    assert.equal(voiceSpeech.fallbackText.length > 0, true);
+    assert.match(voiceSpeech.aiDisclosure, /AI-generated/i);
+
+    const invalidVoiceAudio = await requestJson(fixture.baseUrl, "/api/apex-os/voice/transcribe", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({ audioDataUrl: "data:text/plain;base64,AAAA" }),
+    });
+    assert.equal(invalidVoiceAudio.response.status, 400);
+
+    const voiceTranscribeNoKey = await requestJson(fixture.baseUrl, "/api/apex-os/voice/transcribe", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({ audioDataUrl: "data:audio/webm;base64,AAAA" }),
+    });
+    assert.equal(voiceTranscribeNoKey.response.status, 503);
+    assert.equal(voiceTranscribeNoKey.payload.providerConfigured, false);
+    assert.equal(voiceTranscribeNoKey.payload.audioStored, false);
+    assert.equal(voiceTranscribeNoKey.payload.executionLocked, true);
+
+    const recorderVoiceTranscribeNoKey = await requestJson(fixture.baseUrl, "/api/apex-os/voice/transcribe", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({ audioDataUrl: "data:audio/webm;codecs=opus;base64,AAAA" }),
+    });
+    assert.equal(recorderVoiceTranscribeNoKey.response.status, 503);
+    assert.equal(recorderVoiceTranscribeNoKey.payload.providerConfigured, false);
+    assert.equal(recorderVoiceTranscribeNoKey.payload.audioStored, false);
+    assert.equal(recorderVoiceTranscribeNoKey.payload.executionLocked, true);
+
+    const briefing = await assertOk(fixture.baseUrl, "/api/apex-os/daily-briefing", {
+      headers: authHeaders(operatorLogin.token),
+    });
+    assert.equal(briefing.dailyBriefing.operatorName, operatorLogin.user.name);
+    assert.equal(briefing.dailyBriefing.briefingRows.some((row) => row.id === "memory-context" && row.status === "1 approved"), true);
+    assert.equal(briefing.dailyBriefing.alerts.some((row) => row.id === "no-execution" && row.status === "Locked"), true);
+    assert.equal(briefing.dailyBriefing.history.status, "Baseline needed");
+    assert.equal(briefing.dailyBriefing.changedSincePreviousRows.some((row) => row.id === "briefing-baseline-needed"), true);
+    assert.equal(briefing.dailyBriefing.sourceLabels.includes("AGENTS.md field-role protection rules"), true);
+
+    const savedBriefing = await assertOk(fixture.baseUrl, "/api/apex-os/daily-briefing/history", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+    });
+    assert.equal(savedBriefing.apexOsDailyBriefingSnapshot.status, savedBriefing.dailyBriefing.status);
+    assert.equal(savedBriefing.dailyBriefing.history.status, "History active");
+    assert.equal(savedBriefing.dailyBriefing.history.snapshotCount, 1);
+    assert.equal(savedBriefing.dailyBriefing.historyRows.length, 1);
+    assert.equal(savedBriefing.dailyBriefing.externalAlertsEnabled, false);
+    assert.equal(savedBriefing.dailyBriefing.canExecute, false);
+
+    const adminBriefingSaveBlocked = await requestJson(fixture.baseUrl, "/api/apex-os/daily-briefing/history", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+    });
+    assert.equal(adminBriefingSaveBlocked.response.status, 403);
+
+    const buildAwareness = await assertOk(fixture.baseUrl, "/api/apex-os/build-awareness", {
+      headers: authHeaders(operatorLogin.token),
+    });
+    assert.equal(buildAwareness.buildAwareness.executionLocked, true);
+    assert.equal(buildAwareness.buildAwareness.canExecute, false);
+    assert.equal(buildAwareness.buildAwareness.fieldDataIncluded, false);
+    assert.equal(Array.isArray(buildAwareness.buildAwareness.changedFiles), true);
+    assert.equal(buildAwareness.buildAwareness.sourceLinks.some((row) => row.path === "docs/APEX_HQ_LIVING_FINISH_PLAN.md"), true);
+
+    const adminBuildAwarenessBlocked = await requestJson(fixture.baseUrl, "/api/apex-os/build-awareness", {
+      headers: authHeaders(adminLogin.token),
+    });
+    assert.equal(adminBuildAwarenessBlocked.response.status, 403);
+
+    const unsafePacket = await requestJson(fixture.baseUrl, "/api/apex-os/approval-packets", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Unsafe approval packet",
+        action: "Use provider API key sk-test-123456789abc for a speech provider.",
+        sourceLabel: "Unsafe note",
+      }),
+    });
+    assert.equal(unsafePacket.response.status, 400);
+
+    const executedStatusPacket = await requestJson(fixture.baseUrl, "/api/apex-os/approval-packets", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Executed status is blocked",
+        action: "Execute now.",
+        status: "executed",
+        sourceLabel: "Manual approval note",
+      }),
+    });
+    assert.equal(executedStatusPacket.response.status, 400);
+
+    const incompleteApprovedPacket = await requestJson(fixture.baseUrl, "/api/apex-os/approval-packets", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Incomplete approval is blocked",
+        action: "Deploy now.",
+        status: "approved",
+        sourceLabel: "Manual approval note",
+      }),
+    });
+    assert.equal(incompleteApprovedPacket.response.status, 400);
+
+    const incompleteReadyPacket = await requestJson(fixture.baseUrl, "/api/apex-os/approval-packets", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Incomplete ready packet",
+        action: "Deploy the Apex OS package.",
+        status: "ready",
+        sourceLabel: "Release Desk",
+      }),
+    });
+    assert.equal(incompleteReadyPacket.response.status, 400);
+
+    const createdPacket = await assertOk(fixture.baseUrl, "/api/apex-os/approval-packets", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Deploy Apex OS Control Room",
+        action: "Deploy the private Apex OS Control Room package after release gates pass.",
+        requestedActionCategory: "deploy",
+        riskLevel: "high",
+        status: "draft",
+        reason: "John wants Apex OS available in production after validation.",
+        affectedScope: "Production web app release only.",
+        validationPlan: "Run focused Apex OS tests, verify roles, build, backup, restore, hosted smoke, and production auth smoke.",
+        rollbackPlan: "Rollback to the previous Fly release if hosted smoke fails.",
+        exactApprovalPhrase: "BACKUP_FIRST_PRODUCTION_RELEASE_APPROVED",
+        sourceLabel: "docs/APEX_HQ_LIVING_FINISH_PLAN.md",
+      }),
+    });
+    assert.equal(createdPacket.apexOsApprovalPacket.status, "draft");
+    assert.equal(createdPacket.apexOsApprovalPacket.readyToReview, true);
+    assert.equal(createdPacket.apexOsApprovalPacket.executionLocked, true);
+    assert.equal(createdPacket.apexOsApprovalPacket.canExecute, false);
+    assert.equal(createdPacket.apexOsApprovalPacket.canExecuteAfterApproval, false);
+    assert.equal(createdPacket.apexOsApprovalPacket.riskAssessment.band, "high");
+    assert.equal(storedApexOsApprovalPackets(fixture.sqliteFile)[0].title, "Deploy Apex OS Control Room");
+
+    const readyPacket = await assertOk(fixture.baseUrl, `/api/apex-os/approval-packets/${createdPacket.apexOsApprovalPacket.id}`, {
+      method: "PATCH",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({ status: "ready" }),
+    });
+    assert.equal(readyPacket.apexOsApprovalPacket.status, "ready");
+
+    const wrongApprovalPhrase = await requestJson(fixture.baseUrl, `/api/apex-os/approval-packets/${createdPacket.apexOsApprovalPacket.id}`, {
+      method: "PATCH",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({ status: "approved", approvalPhraseConfirmation: "WRONG_PHRASE" }),
+    });
+    assert.equal(wrongApprovalPhrase.response.status, 400);
+
+    const approvedPacket = await assertOk(fixture.baseUrl, `/api/apex-os/approval-packets/${createdPacket.apexOsApprovalPacket.id}`, {
+      method: "PATCH",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        status: "approved",
+        approvalPhraseConfirmation: "BACKUP_FIRST_PRODUCTION_RELEASE_APPROVED",
+        decisionNote: "John approved the packet for review record only.",
+      }),
+    });
+    assert.equal(approvedPacket.apexOsApprovalPacket.status, "approved");
+    assert.equal(approvedPacket.apexOsApprovalPacket.approvedBy, operatorLogin.user.id);
+    assert.equal(approvedPacket.apexOsApprovalPacket.executionLocked, true);
+    assert.equal(approvedPacket.apexOsApprovalPacket.canExecute, false);
+    assert.equal(approvedPacket.apexOsApprovalPacket.canExecuteAfterApproval, false);
+
+    const externalActionPacket = await assertOk(fixture.baseUrl, "/api/apex-os/approval-packets", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "External order approval",
+        action: "Review-only order approval draft. No purchase is executed from this packet.",
+        requestedActionCategory: "ordering",
+        riskLevel: "high",
+        status: "draft",
+        reason: "Ordering requires explicit approval before any future tool could act.",
+        affectedScope: "External food order route only. Execution remains locked.",
+        validationPlan: "Confirm merchant, item, total cost, delivery or pickup, and cancellation path.",
+        rollbackPlan: "Archive if not approved. Later execution-capable phases need their own cancel/reversal path.",
+        exactApprovalPhrase: "EXTERNAL_ORDER_APPROVED",
+        sourceLabel: "Apex OS Tool Router",
+        sourceRouteId: "ordering-plan",
+        sourceRouteStatus: "approval-required",
+        sourceActionDomain: "ordering",
+        approvalSystemPhase: "phase-5b-external-action-approval",
+        executionGate: "approval-record-only-no-execution",
+      }),
+    });
+    assert.equal(externalActionPacket.apexOsApprovalPacket.requestedActionCategory, "ordering");
+    assert.equal(externalActionPacket.apexOsApprovalPacket.sourceRouteId, "ordering-plan");
+    assert.equal(externalActionPacket.apexOsApprovalPacket.readyToReview, true);
+    assert.equal(externalActionPacket.apexOsApprovalPacket.executionLocked, true);
+    assert.equal(externalActionPacket.apexOsApprovalPacket.canExecute, false);
+    assert.equal(externalActionPacket.apexOsApprovalPacket.canExecuteAfterApproval, false);
+
+    const rejectedPacket = await assertOk(fixture.baseUrl, "/api/apex-os/approval-packets", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Reject provider setup",
+        action: "Reject provider setup until credentials and compliance are ready.",
+        requestedActionCategory: "provider-connection",
+        riskLevel: "high",
+        status: "rejected",
+        sourceLabel: "Provider setup review",
+        decisionNote: "Provider setup is not approved yet.",
+      }),
+    });
+    assert.equal(rejectedPacket.apexOsApprovalPacket.status, "rejected");
+    assert.equal(rejectedPacket.apexOsApprovalPacket.rejectedBy, operatorLogin.user.id);
+    assert.equal(rejectedPacket.apexOsApprovalPacket.executionLocked, true);
+
+    const deferredPacket = await assertOk(fixture.baseUrl, "/api/apex-os/approval-packets", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Defer billing action",
+        action: "Defer live billing setup until payment provider testing is approved.",
+        requestedActionCategory: "billing-payment",
+        riskLevel: "critical",
+        status: "deferred",
+        sourceLabel: "Billing review",
+        decisionNote: "Billing remains parked.",
+      }),
+    });
+    assert.equal(deferredPacket.apexOsApprovalPacket.status, "deferred");
+    assert.equal(deferredPacket.apexOsApprovalPacket.deferredBy, operatorLogin.user.id);
+    assert.equal(deferredPacket.apexOsApprovalPacket.executionLocked, true);
+
+    const listedPackets = await assertOk(fixture.baseUrl, "/api/apex-os/approval-packets", {
+      headers: authHeaders(operatorLogin.token),
+    });
+    assert.equal(listedPackets.summary.approved, 1);
+    assert.equal(listedPackets.summary.rejected, 1);
+    assert.equal(listedPackets.summary.deferred, 1);
+    assert.equal(listedPackets.apexOsApprovalPackets.some((packet) => packet.title === "Deploy Apex OS Control Room" && packet.status === "approved" && packet.executionLocked === true), true);
+
+    const unsafeHandoff = await requestJson(fixture.baseUrl, "/api/apex-os/execution-handoffs", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Unsafe handoff",
+        objective: "Use provider API key sk-test-123456789abc to configure a live provider.",
+        sourceLabel: "Unsafe note",
+      }),
+    });
+    assert.equal(unsafeHandoff.response.status, 400);
+
+    const executedStatusHandoff = await requestJson(fixture.baseUrl, "/api/apex-os/execution-handoffs", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Executed status is blocked",
+        objective: "Run the agent now.",
+        status: "executed",
+        sourceLabel: "Manual note",
+      }),
+    });
+    assert.equal(executedStatusHandoff.response.status, 400);
+
+    const queuedStatusHandoff = await requestJson(fixture.baseUrl, "/api/apex-os/execution-handoffs", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Queued status is blocked",
+        objective: "Queue the agent now.",
+        status: "queued",
+        sourceLabel: "Manual note",
+      }),
+    });
+    assert.equal(queuedStatusHandoff.response.status, 400);
+
+    const incompleteReadyHandoff = await requestJson(fixture.baseUrl, "/api/apex-os/execution-handoffs", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Incomplete ready handoff",
+        objective: "Prepare the next local Apex OS slice.",
+        status: "ready",
+        sourceLabel: "Agent Work Queue",
+      }),
+    });
+    assert.equal(incompleteReadyHandoff.response.status, 400);
+
+    const createdHandoff = await assertOk(fixture.baseUrl, "/api/apex-os/execution-handoffs", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Build Apex OS handoff drafts",
+        agentRole: "build",
+        workType: "local-code-plan",
+        riskLevel: "medium",
+        sourceApprovalPacketId: createdPacket.apexOsApprovalPacket.id,
+        objective: "Prepare the safe agent handoff draft slice for Apex OS.",
+        sourceEvidence: "Apex OS living finish plan, master plan, and approval packet context.",
+        allowedActions: "Read files, draft local code, run local tests, and report evidence.",
+        blockedActions: "No deploy, sends, spend, provider setup, production mutation, customer-visible changes, deletion, or irreversible actions.",
+        validationPlan: "Run focused handoff tests, server tests, role checks, build, and browser QA.",
+        rollbackPlan: "Revert the handoff branch commit.",
+        handoffPrompt: "Act as Apex feature builder and implement local-only handoff drafting.",
+        sourceLabel: "docs/APEX_HQ_LIVING_FINISH_PLAN.md",
+      }),
+    });
+    assert.equal(createdHandoff.apexOsExecutionHandoff.status, "draft");
+    assert.equal(createdHandoff.apexOsExecutionHandoff.readyToReview, true);
+    assert.equal(storedApexOsExecutionHandoffs(fixture.sqliteFile)[0].title, "Build Apex OS handoff drafts");
+
+    const readyHandoff = await assertOk(fixture.baseUrl, `/api/apex-os/execution-handoffs/${createdHandoff.apexOsExecutionHandoff.id}`, {
+      method: "PATCH",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({ status: "ready" }),
+    });
+    assert.equal(readyHandoff.apexOsExecutionHandoff.status, "ready");
+
+    const listedHandoffs = await assertOk(fixture.baseUrl, "/api/apex-os/execution-handoffs", {
+      headers: authHeaders(operatorLogin.token),
+    });
+    assert.equal(listedHandoffs.summary.ready, 1);
+    assert.equal(listedHandoffs.apexOsExecutionHandoffs[0].title, "Build Apex OS handoff drafts");
+    assert.equal(listedHandoffs.apexOsExecutionHandoffs[0].executionLocked, true);
+    assert.equal(listedHandoffs.apexOsExecutionHandoffs[0].canRun, false);
+
+    const incompleteFinishedHandoff = await requestJson(fixture.baseUrl, `/api/apex-os/execution-handoffs/${createdHandoff.apexOsExecutionHandoff.id}`, {
+      method: "PATCH",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        ...readyHandoff.apexOsExecutionHandoff,
+        workstreamStatus: "finished",
+      }),
+    });
+    assert.equal(incompleteFinishedHandoff.response.status, 400);
+
+    const finishedHandoff = await assertOk(fixture.baseUrl, `/api/apex-os/execution-handoffs/${createdHandoff.apexOsExecutionHandoff.id}`, {
+      method: "PATCH",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        ...readyHandoff.apexOsExecutionHandoff,
+        workstreamStatus: "finished",
+        validationResults: "Focused handoff tests, server access tests, role checks, build, and browser QA passed.",
+        resultReport: "Phase 14 safe execution handoff package finished without queueing or running agents.",
+        decisionMemoryUpdate: "Apex OS Phase 14 execution handoffs capture validation/results and only draft suggested memory after finished work.",
+      }),
+    });
+    assert.equal(finishedHandoff.apexOsExecutionHandoff.workstreamStatus, "finished");
+    assert.equal(finishedHandoff.apexOsExecutionHandoff.decisionMemoryId.startsWith("AOM"), true);
+    assert.equal(finishedHandoff.apexOsExecutionHandoff.executionContract.decisionMemoryDraftReady, true);
+    const handoffMemory = storedApexOsMemory(fixture.sqliteFile).find((entry) => entry.id === finishedHandoff.apexOsExecutionHandoff.decisionMemoryId);
+    assert.equal(handoffMemory.status, "suggested");
+    assert.equal(handoffMemory.sourceType, "execution-handoff");
+    assert.equal(handoffMemory.sourceUri, `apex-os-execution-handoff:${createdHandoff.apexOsExecutionHandoff.id}`);
+
+    const unsafeAgentControl = await requestJson(fixture.baseUrl, "/api/apex-os/agent-control/requests", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Unsafe agent control",
+        requestType: "scoped-run",
+        agentRole: "build",
+        objective: "Use provider API key sk-test-123456789abc and customer@example.test.",
+        sourceLabel: "Unsafe note",
+      }),
+    });
+    assert.equal(unsafeAgentControl.response.status, 400);
+
+    const queuedAgentControl = await requestJson(fixture.baseUrl, "/api/apex-os/agent-control/requests", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Queued status is blocked",
+        requestType: "scoped-run",
+        agentRole: "build",
+        objective: "Queue this agent now.",
+        status: "queued",
+        sourceLabel: "Manual note",
+      }),
+    });
+    assert.equal(queuedAgentControl.response.status, 400);
+
+    const incompleteReadyAgentControl = await requestJson(fixture.baseUrl, "/api/apex-os/agent-control/requests", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Incomplete ready control",
+        requestType: "scoped-run",
+        agentRole: "qa",
+        objective: "Run QA for Phase 7.",
+        status: "ready",
+        sourceLabel: "Agent Control Plane",
+      }),
+    });
+    assert.equal(incompleteReadyAgentControl.response.status, 400);
+
+    const createdAgentControl = await assertOk(fixture.baseUrl, "/api/apex-os/agent-control/requests", {
+      method: "POST",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({
+        title: "Run Phase 7 QA",
+        requestType: "scoped-run",
+        agentRole: "qa",
+        riskLevel: "medium",
+        objective: "Run the Phase 7 focused QA pass after the agent control plane is built.",
+        scope: "Local tests, build, role checks, browser QA, docs, and report evidence only.",
+        validationPlan: "Run focused shared, server, UI, permission, build, and browser smoke checks.",
+        rollbackPlan: "Revert the Phase 7 branch commit and redeploy previous production if release smoke fails.",
+        sourceLabel: "docs/APEX_HQ_APEX_OS_COMMAND_CENTER_MASTER_PLAN.md",
+        status: "requested",
+      }),
+    });
+    assert.equal(createdAgentControl.apexOsAgentControlRequest.status, "requested");
+    assert.equal(createdAgentControl.apexOsAgentControlRequest.readyToReview, true);
+    assert.equal(createdAgentControl.apexOsAgentControlRequest.executionLocked, true);
+    assert.equal(storedApexOsAgentControlRequests(fixture.sqliteFile)[0].title, "Run Phase 7 QA");
+
+    const readyAgentControl = await assertOk(fixture.baseUrl, `/api/apex-os/agent-control/requests/${createdAgentControl.apexOsAgentControlRequest.id}`, {
+      method: "PATCH",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({ status: "ready" }),
+    });
+    assert.equal(readyAgentControl.apexOsAgentControlRequest.status, "ready");
+
+    const listedAgentControl = await assertOk(fixture.baseUrl, "/api/apex-os/agent-control", {
+      headers: authHeaders(operatorLogin.token),
+    });
+    assert.equal(listedAgentControl.summary.ready, 1);
+    assert.equal(listedAgentControl.controlPlane.rosterRows.length, 7);
+    assert.equal(listedAgentControl.controlPlane.rosterRows.some((row) => row.id === "qa" && row.status === "needs approval"), true);
+    assert.equal(listedAgentControl.controlPlane.safetyRows.some((row) => row.id === "external-action-gates"), true);
+
+    const archived = await assertOk(fixture.baseUrl, `/api/apex-os/memory/${created.apexOsMemoryEntry.id}`, {
+      method: "PATCH",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({ status: "archived" }),
+    });
+    assert.equal(archived.apexOsMemoryEntry.status, "archived");
+    assert.ok(archived.apexOsMemoryEntry.archivedAt);
+    const audits = auditEvents(fixture.sqliteFile);
+    assert.equal(audits.some((event) => event.entityType === "apexOsAgentControlRequest" && event.action === "readied"), true);
+    assert.equal(audits.some((event) => event.entityType === "apexOsExecutionHandoff" && event.action === "readied"), true);
+    assert.equal(audits.some((event) => event.entityType === "apexOsApprovalPacket" && event.action === "readied"), true);
+    assert.equal(audits.some((event) => event.entityType === "apexOsApprovalPacket" && event.action === "approved"), true);
+    assert.equal(audits.some((event) => event.entityType === "apexOsApprovalPacket" && event.action === "rejected"), true);
+    assert.equal(audits.some((event) => event.entityType === "apexOsApprovalPacket" && event.action === "deferred"), true);
+    assert.equal(audits.some((event) => event.entityType === "apexOsTask" && event.action === "created"), true);
+    assert.equal(audits.some((event) => event.entityType === "apexOsTask" && event.action === "updated"), true);
+    assert.equal(audits.some((event) => event.entityType === "apexOsReminder" && event.action === "created"), true);
+    const memoryAuditActions = audits.filter((event) => event.entityType === "apexOsMemory").map((event) => event.action);
+    assert.equal(memoryAuditActions[0], "archived");
+    assert.equal(memoryAuditActions.includes("approved"), true);
+    assert.equal(memoryAuditActions.includes("suggested"), true);
+  } finally {
+    await fixture.stop();
+  }
+});

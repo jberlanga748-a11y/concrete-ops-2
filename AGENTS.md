@@ -13,7 +13,7 @@ Use **Apex HQ** for all user-facing product language. Legacy technical names may
 Read these before starting major work:
 
 1. `AGENTS.md` - mandatory repo operating contract for every Apex HQ chat.
-2. `.agents/skills/apex-codex-operator/SKILL.md` - Codex behavior contract for how to work with Josh on this project.
+2. `.agents/skills/apex-codex-operator/SKILL.md` - Codex behavior contract for how to work with John on this project.
 3. `docs/APEX_HQ_CANONICAL_SOURCE_OF_TRUTH.md` - first-read workspace, transition, archive, and no-loop file.
 4. `README.md` - current app/deploy/runtime overview.
 5. `docs/APEX_HQ_LIVING_FINISH_PLAN.md` - current user-request memory, deploy log, and phase memory.
@@ -29,7 +29,7 @@ Read these before starting major work:
 
 ## Codex Working Contract
 
-Every Apex HQ chat must start from this contract without Josh having to restate it. Apex HQ is one active project in `C:\Users\jberl\Documents\New project`; archive/reference folders are not active build targets unless explicitly named.
+Every Apex HQ chat must start from this contract without John having to restate it. Apex HQ is one active project in `C:\Users\jberl\Documents\New project`; archive/reference folders are not active build targets unless explicitly named.
 
 Codex must:
 
@@ -37,8 +37,8 @@ Codex must:
 - use `.agents/skills/apex-codex-operator` first for work style, then route to the Apex skill that matches the task
 - treat Apex skills as working roles, not decorative labels
 - answer direct questions directly before taking action
-- do no file, browser, test, git, deploy, or production work when Josh only asks a question
-- act decisively when Josh clearly asks for work: inspect the real app/files, implement the needed fix, validate it, and report
+- do no file, browser, test, git, deploy, or production work when John only asks a question
+- act decisively when John clearly asks for work: inspect the real app/files, implement the needed fix, validate it, and report
 - stay on the requested workflow, phase, or page; do not broaden into unrelated checklists
 - preserve frozen phases and avoid rebuilding working systems
 - inspect the real UI visually when asked about UI/UX, not only import tests or text assertions
@@ -46,15 +46,15 @@ Codex must:
 - distinguish clearly between what was actually verified and what was not
 - keep company separation, auth/account safety, field-private data boundaries, and no accidental live irreversible external actions
 - remove unnecessary friction only inside those baseline protections
-- never touch another active phase/thread's files unless Josh explicitly asks
+- never touch another active phase/thread's files unless John explicitly asks
 - stop and ask only when the next step is impossible or risky without approval
 
-Interpret Josh's wording this way:
+Interpret John's wording this way:
 
 - "Can you..." or "why..." is a question unless it clearly asks for action.
 - "Go through", "fix", "build", "audit", "click around", "make sure", or "do what needs to be done" is action.
 - "Next" means continue the current documented Apex HQ phase from the canonical/living plan using the proper Apex skills.
-- If Josh says a previous response missed the point, acknowledge it, correct course, and do the exact requested thing without defending the old path.
+- If John says a previous response missed the point, acknowledge it, correct course, and do the exact requested thing without defending the old path.
 
 When acting, Codex should follow this execution loop:
 

@@ -24,6 +24,8 @@ const ROUTE_EXPECTATIONS = [
   { routes: ["/app-health"], labels: ["Owner Health", "App Health", "Backup"] },
   { routes: ["/ai-office"], labels: ["AI Office", "Review", "Agent"] },
   { routes: ["/support"], labels: ["Support", "Workflow"] },
+  { routes: ["/apex", "/apex-control-room"], labels: ["Apex", "Local Voice", "Resume Voice", "Ask Apex"] },
+  { routes: ["/apex-avatar-lab"], labels: ["Avatar", "Apex", "Voice"] },
 ];
 
 function normalizePath(pathname = "/") {

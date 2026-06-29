@@ -9,6 +9,7 @@ data
 .agents
 .playwright-cli
 output
+outputs
 ui-audit
 tmp
 tmp-*

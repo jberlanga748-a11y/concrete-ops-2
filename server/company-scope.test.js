@@ -433,6 +433,7 @@ test("operator user can switch companies without leaking selected company access
       headers: authHeaders(operatorLogin.token),
     });
     assert.equal(operatorBootstrap.permissions.companies.canSwitch, true);
+    assert.equal(operatorBootstrap.permissions.apexOs.canView, true);
     assert.equal(operatorBootstrap.companies.some((company) => company.id === "COMPANY-LYF"), true);
     assert.equal(operatorBootstrap.leads.some((lead) => lead.id === "L-LYF-001"), false);
 
@@ -442,9 +443,16 @@ test("operator user can switch companies without leaking selected company access
     assert.equal(switched.currentCompanyId, "COMPANY-LYF");
     assert.equal(switched.currentWorkspaceId, "COMPANY-LYF");
     assert.equal(switched.currentCompany.name, "Live Your Future Construction");
+    assert.equal(switched.permissions.companies.canSwitch, true);
+    assert.equal(switched.permissions.apexOs.canView, false);
     assert.equal(switched.companies.some((company) => company.id === DEFAULT_COMPANY_ID), true);
     assert.equal(switched.leads.some((lead) => lead.id === "L-LYF-001"), true);
     assert.ok(switched.leads.every((lead) => lead.companyId === "COMPANY-LYF"));
+
+    const apexOsInCustomerWorkspace = await requestJson(fixture.baseUrl, "/api/apex-os/memory", {
+      headers: authHeaders(operatorLogin.token),
+    });
+    assert.equal(apexOsInCustomerWorkspace.response.status, 403);
 
     const createdLeadPayload = await postJson(fixture.baseUrl, "/api/leads", operatorLogin.token, {
       customer: "Operator LYF Lead",
@@ -461,6 +469,15 @@ test("operator user can switch companies without leaking selected company access
       body: { companyId: "COMPANY-MISSING" },
     });
     assert.match(invalidSwitch.error, /not found/i);
+
+    const switchedBack = await postJson(fixture.baseUrl, "/api/companies/select", operatorLogin.token, {
+      companyId: DEFAULT_COMPANY_ID,
+    });
+    assert.equal(switchedBack.permissions.apexOs.canView, true);
+    const apexOsInDefaultWorkspace = await requestJson(fixture.baseUrl, "/api/apex-os/memory", {
+      headers: authHeaders(operatorLogin.token),
+    });
+    assert.equal(apexOsInDefaultWorkspace.response.status, 200);
   } finally {
     await fixture.stop();
   }

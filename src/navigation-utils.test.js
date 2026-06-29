@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { canAccessModule, canAccessWorkspaceModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, getWorkspaceModuleLock, resolveDashboardShortcut } from "./navigation-utils.js";
+import { canAccessModule, canAccessWorkspaceModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, getWorkspaceModuleLock, isApexOsOperatorWorkspace, resolveDashboardShortcut } from "./navigation-utils.js";
 import { canUseToolChecklist, isEstimator, isOfficeManager } from "../shared/permissions.js";
 
 const NAV_GROUPS = [
@@ -122,6 +122,110 @@ test("package-aware navigation hides premium import and AI Office surfaces", () 
     getVisibleNavGroups(NAV_GROUPS, owner, { toolChecklistEnabled: true }, basicPermissions).flatMap((group) => group.items.map((item) => item.id)).includes("appHealth"),
     false,
   );
+});
+
+test("private Apex modules stay retired from Apex HQ navigation", () => {
+  const privateOperator = { role: "Owner", operatorAccess: true };
+  const switchedOperator = { role: "Owner", operatorAccess: true, currentCompanyId: "COMPANY-LYF" };
+  const normalOwner = { role: "Owner", operatorAccess: false };
+  const privatePermissions = {
+    apexOs: { canView: true },
+    support: { canView: true },
+  };
+  const blockedPermissions = {
+    apexOs: { canView: false },
+    support: { canView: true },
+  };
+
+  assert.equal(canAccessModule("apexControlRoom", privateOperator, { toolChecklistEnabled: true }), false);
+  assert.equal(canAccessModule("familyCare", privateOperator, { toolChecklistEnabled: true }), false);
+  assert.equal(canAccessModule("apexAvatarLab", privateOperator, { toolChecklistEnabled: true }), false);
+  assert.equal(canAccessModule("apexControlRoom", switchedOperator, { toolChecklistEnabled: true }), false);
+  assert.equal(canAccessModule("familyCare", switchedOperator, { toolChecklistEnabled: true }), false);
+  assert.equal(canAccessModule("apexAvatarLab", switchedOperator, { toolChecklistEnabled: true }), false);
+  assert.equal(canAccessModule("apexControlRoom", normalOwner, { toolChecklistEnabled: true }), false);
+  assert.equal(canAccessModule("familyCare", normalOwner, { toolChecklistEnabled: true }), false);
+  assert.equal(canAccessModule("apexAvatarLab", normalOwner, { toolChecklistEnabled: true }), false);
+  assert.equal(canAccessWorkspaceModule("apexControlRoom", privateOperator, { toolChecklistEnabled: true }, privatePermissions), false);
+  assert.equal(canAccessWorkspaceModule("familyCare", privateOperator, { toolChecklistEnabled: true }, privatePermissions), false);
+  assert.equal(canAccessWorkspaceModule("apexAvatarLab", privateOperator, { toolChecklistEnabled: true }, privatePermissions), false);
+  assert.equal(canAccessWorkspaceModule("apexControlRoom", switchedOperator, { toolChecklistEnabled: true }, privatePermissions), false);
+  assert.equal(canAccessWorkspaceModule("familyCare", switchedOperator, { toolChecklistEnabled: true }, privatePermissions), false);
+  assert.equal(canAccessWorkspaceModule("apexAvatarLab", switchedOperator, { toolChecklistEnabled: true }, privatePermissions), false);
+  assert.equal(canAccessWorkspaceModule("apexControlRoom", privateOperator, { toolChecklistEnabled: true }, blockedPermissions), false);
+  assert.equal(canAccessWorkspaceModule("familyCare", privateOperator, { toolChecklistEnabled: true }, blockedPermissions), false);
+  assert.equal(canAccessWorkspaceModule("apexAvatarLab", privateOperator, { toolChecklistEnabled: true }, blockedPermissions), false);
+  assert.equal(canAccessWorkspaceModule("apexControlRoom", normalOwner, { toolChecklistEnabled: true }, privatePermissions), false);
+  assert.equal(canAccessWorkspaceModule("familyCare", normalOwner, { toolChecklistEnabled: true }, privatePermissions), false);
+  assert.equal(canAccessWorkspaceModule("apexAvatarLab", normalOwner, { toolChecklistEnabled: true }, privatePermissions), false);
+  assert.equal(isApexOsOperatorWorkspace(privateOperator, privatePermissions), false);
+  assert.equal(isApexOsOperatorWorkspace(privateOperator, blockedPermissions), false);
+  assert.equal(getDefaultModuleId(privateOperator, privatePermissions), "dashboard");
+  assert.equal(getDefaultModuleId(switchedOperator, blockedPermissions), "dashboard");
+  assert.equal(canAccessWorkspaceModule("dashboard", privateOperator, { toolChecklistEnabled: true }, privatePermissions), true);
+  assert.equal(
+    getVisibleNavGroups(NAV_GROUPS, privateOperator, { toolChecklistEnabled: true }, privatePermissions).flatMap((group) => group.items.map((item) => item.id)).includes("apexControlRoom"),
+    false,
+  );
+  assert.equal(
+    getVisibleNavGroups(NAV_GROUPS, privateOperator, { toolChecklistEnabled: true }, privatePermissions).flatMap((group) => group.items.map((item) => item.id)).includes("familyCare"),
+    false,
+  );
+  assert.equal(
+    getVisibleNavGroups(NAV_GROUPS, privateOperator, { toolChecklistEnabled: true }, privatePermissions).flatMap((group) => group.items.map((item) => item.id)).includes("apexAvatarLab"),
+    false,
+  );
+  assert.equal(
+    getVisibleNavGroups(NAV_GROUPS, privateOperator, { toolChecklistEnabled: true }, blockedPermissions).flatMap((group) => group.items.map((item) => item.id)).includes("apexControlRoom"),
+    false,
+  );
+  assert.equal(
+    getVisibleNavGroups(NAV_GROUPS, privateOperator, { toolChecklistEnabled: true }, blockedPermissions).flatMap((group) => group.items.map((item) => item.id)).includes("familyCare"),
+    false,
+  );
+  assert.equal(
+    getVisibleNavGroups(NAV_GROUPS, privateOperator, { toolChecklistEnabled: true }, blockedPermissions).flatMap((group) => group.items.map((item) => item.id)).includes("apexAvatarLab"),
+    false,
+  );
+});
+
+test("private Apex permission no longer creates an Apex HQ operator shell", () => {
+  const privateOperator = { role: "Owner", operatorAccess: true, currentCompanyId: "COMPANY-DEFAULT" };
+  const privatePermissions = {
+    apexOs: { canView: true },
+    jobDraftImports: { canView: true },
+    appHealth: { canView: true },
+    aiOffice: { canView: true },
+    support: { canView: true },
+  };
+
+  assert.deepEqual(
+    getVisibleNavGroups(NAV_GROUPS, privateOperator, { toolChecklistEnabled: true }, privatePermissions).flatMap((group) => group.items.map((item) => item.id)),
+    ["dashboard", "jobs", "schedule", "reports", "deliveryTickets", "prePour", "postPour", "leads", "communications", "customers", "employees", "calculator", "support", "toolChecklist", "jobDraftImports", "appHealth", "copilot", "settings"],
+  );
+  assert.equal(canAccessWorkspaceModule("leads", privateOperator, { toolChecklistEnabled: true }, privatePermissions), true);
+  assert.equal(canAccessWorkspaceModule("jobs", privateOperator, { toolChecklistEnabled: true }, privatePermissions), true);
+  assert.equal(canAccessWorkspaceModule("settings", privateOperator, { toolChecklistEnabled: true }, privatePermissions), true);
+});
+
+test("operator switched into a contractor company keeps contractor route behavior", () => {
+  const switchedOperator = { role: "Owner", operatorAccess: true, currentCompanyId: "COMPANY-LYF" };
+  const contractorPermissions = {
+    apexOs: { canView: false },
+    appHealth: { canView: true },
+    aiOffice: { canView: true },
+    support: { canView: true },
+  };
+  const visibleIds = getVisibleNavGroups(NAV_GROUPS, switchedOperator, { toolChecklistEnabled: true }, contractorPermissions)
+    .flatMap((group) => group.items.map((item) => item.id));
+
+  assert.equal(getDefaultModuleId(switchedOperator, contractorPermissions), "dashboard");
+  assert.equal(visibleIds.includes("dashboard"), true);
+  assert.equal(visibleIds.includes("leads"), true);
+  assert.equal(visibleIds.includes("apexControlRoom"), false);
+  assert.equal(visibleIds.includes("familyCare"), false);
+  assert.equal(visibleIds.includes("apexAvatarLab"), false);
+  assert.equal(canAccessWorkspaceModule("dashboard", switchedOperator, { toolChecklistEnabled: true }, contractorPermissions), true);
 });
 
 test("workspace module locks do not replace role protection for field users", () => {
