@@ -111,7 +111,7 @@ export function deriveCoreOperationsLoopState(source = {}, options = {}) {
     return {
       mode: "blocked_core_operations_loop",
       canView: false,
-      title: "Core Operations Loop",
+      title: "From Lead To Paid",
       summary: "Core operations loop is office-only. Field users stay in assigned field work and cannot access leads, estimates, pricing, billing, margins, profit, payroll, or office-only controls.",
       status: "Locked",
       tone: "slate",
@@ -176,7 +176,7 @@ export function deriveCoreOperationsLoopState(source = {}, options = {}) {
       count: leadWorkCount,
       ready: leadWorkCount === 0,
       helper: leadWorkCount
-        ? `${leadWorkCount} lead, source, or follow-up action needs owner/admin review before more work can be won.`
+        ? `${leadWorkCount} lead, source, or follow-up action is waiting on a look from the office.`
         : "Lead follow-up and source checks are clear in the current command view.",
       moduleId: "leads",
       actionLabel: "Open leads",
@@ -287,12 +287,12 @@ export function deriveCoreOperationsLoopState(source = {}, options = {}) {
   return {
     mode: "review_first_core_operations_loop",
     canView: true,
-    title: "Core Operations Loop",
+    title: "From Lead To Paid",
     status,
     tone: blockerCount ? "amber" : closeoutReadyCount || materialReadyCount ? "green" : "slate",
     summary: blockerCount
-      ? `${stagesReady} of ${stages.length} workflow stages are clear. Start with ${nextAction.label}: ${nextAction.helper}`
-      : `${stagesReady} of ${stages.length} workflow stages are clear. No automatic sends, billing, purchasing, schedule, or crew changes are triggered here.`,
+      ? `${stagesReady} of ${stages.length} steps are in good shape. Next up: ${nextAction.label}. ${nextAction.helper}`
+      : `${stagesReady} of ${stages.length} steps are in good shape. Nothing is sent or changed from here without you.`,
     coreLoopLabel: "Lead -> estimate -> proposal -> approved job -> schedule -> field proof -> change orders -> closeout -> billing readiness",
     stages,
     nextAction,
@@ -313,6 +313,6 @@ export function deriveCoreOperationsLoopState(source = {}, options = {}) {
     materialQueue: asArray(materialPrep.queue).slice(0, 3),
     changeOrderKpis: asArray(changeOrderMoney.kpis),
     blockedActions: BLOCKED_ACTIONS.slice(),
-    safetyBoundary: "Review-first operations command only. Open the full module for each action; Apex HQ does not mutate records, send customers, order materials, invoice, collect payment, submit bills, or expose field users to office-only data from this panel.",
+    safetyBoundary: "This panel is a guide, not a robot. Apex HQ never creates, sends, or changes anything from here. Open the full module to take each action yourself.",
   };
 }

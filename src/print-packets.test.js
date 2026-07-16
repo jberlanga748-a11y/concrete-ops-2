@@ -640,7 +640,7 @@ test("estimate print packet includes customer-facing estimate details without in
   assert.match(html, /Warranty terms are project-specific/);
   assert.match(html, /Acceptance \/ Next Steps/);
   assert.match(html, /Signed approval and deposit release scheduling\./);
-  assert.match(html, /Concrete Specifications/);
+  assert.match(html, /Project Specifications/);
   assert.match(html, /Broom finish with sawcut control joints\./);
   assert.match(html, /Customer Pricing Options/);
   assert.match(html, /Pricing choices/);
@@ -1080,7 +1080,7 @@ test("estimate print packet presets control included customer-facing sections", 
     estimate,
     packetSettings: { presetId: "polishedEstimateSheet" },
   }));
-  assert.match(estimateSheetHtml, /Concrete Estimate/);
+  assert.match(estimateSheetHtml, /Estimate Sheet/);
   assert.match(estimateSheetHtml, /Why This Estimate Is Ready/);
   assert.match(estimateSheetHtml, /Apex HQ estimate sheet\./);
   assert.doesNotMatch(estimateSheetHtml, /Concrete Proposal/);
@@ -1091,7 +1091,7 @@ test("estimate print packet presets control included customer-facing sections", 
     estimate,
     packetSettings: { presetId: "residentialProposalPacket" },
   }));
-  assert.match(residentialHtml, /Residential Concrete Proposal/);
+  assert.match(residentialHtml, /Residential Proposal/);
   assert.match(residentialHtml, /Ready for homeowner review\./);
   assert.match(residentialHtml, /homeowner-ready proposal/);
   assert.match(residentialHtml, /Home scope/);
@@ -1111,7 +1111,7 @@ test("estimate print packet presets control included customer-facing sections", 
     estimate,
     packetSettings: { presetId: "gcPrimeProposalPacket" },
   }));
-  assert.match(gcPrimeHtml, /Concrete Bid Package/);
+  assert.match(gcPrimeHtml, /Bid Package/);
   assert.match(gcPrimeHtml, /Ready for award review\./);
   assert.match(gcPrimeHtml, /GC-ready bid package/);
   assert.match(gcPrimeHtml, /Bid scope/);

@@ -401,11 +401,11 @@ function JobDetailPanel({
         <TextAreaField label="Safety notes" value={job.safetyNotes || ""} onChange={(event) => onFieldChange("safetyNotes", event.target.value)} disabled={!canManageAll || disabled} />
         <TextAreaField label="Material notes" value={job.materialNotes || ""} onChange={(event) => onFieldChange("materialNotes", event.target.value)} disabled={!canManageAll || disabled} />
         <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
-          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Pre-pour checklist</p>
+          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Job prep checklist</p>
           <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{job.prePourChecklist?.statusLabel || "Not started"}</p>
         </div>
         <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
-          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Post-pour checklist</p>
+          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Closeout checklist</p>
           <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{job.postPourChecklist?.statusLabel || "Not started"}</p>
         </div>
         <TextAreaField label={canManageAll ? "Office notes (hidden from field)" : "Field notes"} value={notesValue} onChange={(event) => onFieldChange(canManageAll ? "notes" : "fieldNotes", event.target.value)} disabled={!canEditField || disabled} />

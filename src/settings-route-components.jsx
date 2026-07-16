@@ -83,7 +83,7 @@ export function AdminFoundationFinishPanel({ state, onJump, onNavigate }) {
         <SectionHeader title={state.title || "Admin Foundation Finish"} description={state.summary || "Review Phase 1 setup, access, providers, and support readiness."} />
         <div className="flex flex-wrap gap-2">
           <Badge tone={adminFoundationTone(state.tone)}>{state.status || "Review"}</Badge>
-          <Badge tone={metrics.fieldLockoutReady ? "green" : "red"}>{metrics.fieldLockoutReady ? "Field locked" : "Field risk"}</Badge>
+          <Badge tone={metrics.fieldLockoutReady ? "green" : "red"}>{metrics.fieldLockoutReady ? "Crew access safe" : "Check crew access"}</Badge>
         </div>
       </div>
 
@@ -93,7 +93,7 @@ export function AdminFoundationFinishPanel({ state, onJump, onNavigate }) {
           <strong className="mt-1 block text-2xl font-black text-slate-950">{metrics.readyRows || 0}/{metrics.totalRows || 0}</strong>
         </div>
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-          <p className="text-xs font-black uppercase text-slate-500">Blockers</p>
+          <p className="text-xs font-black uppercase text-slate-500">To finish</p>
           <strong className="mt-1 block text-2xl font-black text-slate-950">{metrics.blockerCount || 0}</strong>
         </div>
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
@@ -108,7 +108,7 @@ export function AdminFoundationFinishPanel({ state, onJump, onNavigate }) {
 
       <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
         <div className="min-w-0">
-          <SectionHeader title="Phase 1 Readiness" description="The owner/admin finish line before this setup system freezes." />
+          <SectionHeader title="Setup Readiness" description="The last few owner/admin steps before the workspace is ready for the crew." />
           <div className="mt-3 grid gap-2">
             {readinessRows.map((item) => (
               <button key={item.id} type="button" className="co-settings-action-row text-left" onClick={() => handleRowAction(item)}>
@@ -354,7 +354,7 @@ export function SettingsCommandRailPolished({
       </Card>
 
       <Card className="co-settings-rail-card p-4">
-        <SectionHeader title="Readiness Blockers" description="Critical setup items that must stay visible." />
+        <SectionHeader title="Setup Items To Finish" description="Key setup items that still need attention." />
         <div className="grid gap-2">
           {setupBlockers.length ? setupBlockers.map((item) => (
             <div key={item.key} className="co-settings-blocker-row">

@@ -164,9 +164,9 @@ function postPourDateLabel(checklist = {}) {
 }
 
 function postPourSupportScopeLabel(user = {}, permissions = {}) {
-  if (permissions?.postPour?.canManageAll) return "all visible company Post-Pour checklists";
-  if (permissions?.postPour?.canManage || permissions?.postPour?.canComplete) return "assigned job Post-Pour checklists";
-  return `${String(user?.role || "role").trim() || "role"} visible Post-Pour checklists`;
+  if (permissions?.postPour?.canManageAll) return "all visible company Closeout checklists";
+  if (permissions?.postPour?.canManage || permissions?.postPour?.canComplete) return "assigned job Closeout checklists";
+  return `${String(user?.role || "role").trim() || "role"} visible Closeout checklists`;
 }
 
 function postPourNeedsAttention(checklist = {}) {
@@ -225,11 +225,11 @@ export function buildPostPourSupportContext({
       `${selectedSummary.completedCount}/${selectedSummary.totalCount} closeout items clear`,
       `${selectedSummary.incompleteCount} open`,
     ].join("; ")
-    : "No Post-Pour checklist selected.";
+    : "No Closeout checklist selected.";
   const reviewItems = postPourSupportPriorityItems(activeRows);
   const reviewText = reviewItems.length
     ? reviewItems.map((item) => `${item.label}: ${item.reason}`).join("; ")
-    : "No visible Post-Pour checklist has completed, draft, reopened, or open-closeout follow-up in this view.";
+    : "No visible Closeout checklist has completed, draft, reopened, or open-closeout follow-up in this view.";
   const filterText = [
     `status ${filters.status || "All"}`,
     `archive ${filters.archived || "Active"}`,
@@ -242,15 +242,15 @@ export function buildPostPourSupportContext({
   return {
     workflow: "Tickets / checklists",
     blockerLevel: completedCount || openItemCount || draftOrReopenedCount ? "Slowing work down" : "Not a blocker",
-    followUpNeeded: completedCount || openItemCount || draftOrReopenedCount ? "Manual Post-Pour closeout review" : "Post-Pour checklist workflow question",
+    followUpNeeded: completedCount || openItemCount || draftOrReopenedCount ? "Manual closeout review" : "Closeout checklist workflow question",
     summary: [
-      `Post-Pour support request for ${String(user?.name || user?.email || "workspace user").trim() || "workspace user"}.`,
+      `Closeout support request for ${String(user?.name || user?.email || "workspace user").trim() || "workspace user"}.`,
       `Scope: ${postPourSupportScopeLabel(user, permissions)}.`,
       `Current filters: ${filterText}.`,
       `Visible checklists: ${safeRows.length}; active: ${activeRows.length}; completed for review: ${completedCount}; reviewed accepted: ${reviewedCount}; draft or reopened: ${draftOrReopenedCount}; open closeout items: ${openItemCount}; needing attention: ${needsAttentionCount}; archived in view: ${archivedCount}.`,
       `Selected checklist: ${selectedText}`,
     ].join(" "),
-    expected: "Keep Post-Pour closeout review tied to visible jobs only, including cleanup, cure, photo, punch, and closeout follow-up without exposing estimate pricing, margins, payroll, internal job notes, hidden users, unrelated jobs, GPS coordinates, customer notifications, automatic messages, or customer data mutation.",
+    expected: "Keep closeout review tied to visible jobs only, including cleanup, cure, photo, punch, and closeout follow-up without exposing estimate pricing, margins, payroll, internal job notes, hidden users, unrelated jobs, GPS coordinates, customer notifications, automatic messages, or customer data mutation.",
     workaround: `Visible job options: ${pluralize(Array.isArray(visibleJobs) ? visibleJobs.length : 0, "job")}. Review queue in this view: ${reviewText}`,
   };
 }

@@ -125,7 +125,7 @@ test("GC Lite customer-facing content prints while office-only packet notes stay
     gcReviewNotes: "Office strategy note",
     internalPacketNotes: "Missing internal packet item",
   });
-  const model = deriveEstimatePrintModel(estimate);
+  const model = deriveEstimatePrintModel(estimate, { presetId: "gcBidPacket" });
   const printedText = JSON.stringify(model);
 
   assert.deepEqual(model.gcPacketLiteSections.map((section) => section.title), [

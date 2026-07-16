@@ -259,9 +259,9 @@ export function deriveProofChainSummary(commandCenter = {}) {
     },
     {
       id: "materials",
-      label: "Tickets / pour",
+      label: "Tickets / checklists",
       value: materialsBlockers,
-      helper: "Delivery tickets plus pre/post-pour checklists",
+      helper: "Delivery tickets plus job prep and closeout checklists",
       moduleId: "deliveryTickets",
       actionLabel: "Open tickets",
       tone: materialsBlockers > 0 ? "blue" : "green",
@@ -366,8 +366,8 @@ export function deriveWatchtowerActions(commandCenter = {}) {
     id: "concrete-closeout-gaps",
     count: Number(stats.pendingDeliveryTickets || 0) + Number(stats.pendingPrePourChecklists || 0) + Number(stats.pendingPostPourChecklists || 0),
     priority: 40,
-    title: "Review concrete readiness",
-    description: "Tickets or pour checklists are still incomplete and need field or office follow-up.",
+    title: "Review job readiness",
+    description: "Tickets or job checklists are still incomplete and need field or office follow-up.",
     moduleId: "deliveryTickets",
     tone: "blue",
     icon: "clipboard",
@@ -546,12 +546,12 @@ export function deriveWatchtowerQueue(commandCenter = {}) {
     addRow({
       id: `prepour:${checklist.id}:pending`,
       priority: 55,
-      title: checklist.title || jobLabel(recordJobId(checklist), "Pre-pour checklist"),
-      description: `Pre-pour status: ${checklist.status || "open"}.`,
+      title: checklist.title || jobLabel(recordJobId(checklist), "Job prep checklist"),
+      description: `Job prep status: ${checklist.status || "open"}.`,
       moduleId: "prePour",
       tone: "blue",
       actionLabel: "Open pre-pour",
-      sourceLabel: "Pre-pour",
+      sourceLabel: "Job prep",
     });
   }
 
@@ -559,12 +559,12 @@ export function deriveWatchtowerQueue(commandCenter = {}) {
     addRow({
       id: `postpour:${checklist.id}:pending`,
       priority: 60,
-      title: checklist.title || jobLabel(recordJobId(checklist), "Post-pour checklist"),
-      description: `Post-pour status: ${checklist.status || "open"}.`,
+      title: checklist.title || jobLabel(recordJobId(checklist), "Closeout checklist"),
+      description: `Closeout status: ${checklist.status || "open"}.`,
       moduleId: "postPour",
       tone: "blue",
       actionLabel: "Open post-pour",
-      sourceLabel: "Post-pour",
+      sourceLabel: "Closeout",
     });
   }
 
@@ -1005,8 +1005,8 @@ function routeLabel(moduleId = "", settingsSectionId = "") {
     jobs: "Jobs",
     leads: "Leads / Client Finder",
     materialPrep: "Material Prep",
-    postPour: "Post-Pour",
-    prePour: "Pre-Pour",
+    postPour: "Closeout",
+    prePour: "Job Prep",
     reports: "Reports",
     schedule: "Schedule",
     settings: "Settings",

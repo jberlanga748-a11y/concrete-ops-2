@@ -175,7 +175,7 @@ test("pre-pour support context summarizes office-visible readiness without sensi
   });
 
   assert.equal(context.workflow, "Tickets / checklists");
-  assert.match(context.summary, /Scope: all visible company Pre-Pour checklists/);
+  assert.match(context.summary, /Scope: all visible company Job Prep checklists/);
   assert.match(context.summary, /Visible checklists: 2; active: 1; completed for review: 1; reviewed ready: 1; draft or reopened: 0; open readiness items: 1; needing attention: 1; archived in view: 1/);
   assert.match(context.summary, /Selected checklist: Martinez Walk is Completed; owner Fran; updated 2026-04-25; 1\/2 readiness items clear; 1 open/);
   assert.match(context.workaround, /Visible job options: 2 jobs/);
@@ -219,7 +219,7 @@ test("pre-pour support context stays limited to field-visible checklist rows", (
     visibleJobs: [{ id: "J-FIELD" }],
   });
 
-  assert.match(context.summary, /Scope: assigned job Pre-Pour checklists/);
+  assert.match(context.summary, /Scope: assigned job Job Prep checklists/);
   assert.match(context.summary, /Visible checklists: 1/);
   assert.match(context.summary, /Selected checklist: Assigned Patio is Draft/);
   assert.match(context.workaround, /Assigned Patio: 1 readiness item still open/);

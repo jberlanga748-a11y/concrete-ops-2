@@ -61,7 +61,7 @@ test("estimate print model includes safe GC Lite sections and excludes office-on
       JSON.stringify([{ snapshotId: "snap-private", notes: "Private sent history" }]),
       "[/Apex HQ Sent Proposal History]",
     ].join("\n"),
-  });
+  }, { presetId: "gcBidPacket" });
 
   assert.deepEqual(model.gcPacketLiteSections.map((section) => section.title), [
     "Proposal Cover Note",
@@ -136,7 +136,7 @@ test("professional estimate packet presets standardize customer-facing sections"
     presetId: "polishedEstimateSheet",
   });
   assert.equal(estimateSheet.packetSettings.presetLabel, "Polished Estimate Sheet");
-  assert.equal(estimateSheet.cover.coverKicker, "Concrete Estimate");
+  assert.equal(estimateSheet.cover.coverKicker, "Estimate");
   assert.equal(estimateSheet.cover.statementTitle, "Ready for customer review.");
   assert.equal(estimateSheet.cover.isEstimateSheet, true);
   assert.equal(estimateSheet.cover.trustCards[0].title, "Scope clarity");
@@ -187,7 +187,7 @@ test("professional estimate packet presets standardize customer-facing sections"
   const defaultResidentialPacket = deriveEstimatePrintModel(estimate, {
     presetId: "residentialProposalPacket",
   });
-  assert.equal(defaultResidentialPacket.cover.coverKicker, "Residential Concrete Proposal");
+  assert.equal(defaultResidentialPacket.cover.coverKicker, "Residential Proposal");
   assert.equal(defaultResidentialPacket.cover.statementTitle, "Ready for homeowner review.");
   assert.match(defaultResidentialPacket.cover.statementBody, /homeowner-ready proposal/);
   assert.doesNotMatch(defaultResidentialPacket.cover.statementBody, /contractor proposal packet/);
@@ -219,7 +219,7 @@ test("professional estimate packet presets standardize customer-facing sections"
   const defaultGcPrimePacket = deriveEstimatePrintModel(estimate, {
     presetId: "gcPrimeProposalPacket",
   });
-  assert.equal(defaultGcPrimePacket.cover.coverKicker, "Concrete Bid Package");
+  assert.equal(defaultGcPrimePacket.cover.coverKicker, "Bid Package");
   assert.equal(defaultGcPrimePacket.cover.statementTitle, "Ready for award review.");
   assert.match(defaultGcPrimePacket.cover.statementBody, /GC-ready bid package/);
   assert.doesNotMatch(defaultGcPrimePacket.cover.statementBody, /contractor proposal packet/);

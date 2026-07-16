@@ -77,8 +77,8 @@ export const NOTIFICATION_TRIGGER_DEFINITIONS = [
   { type: "daily_report_missing", label: "Daily Report", title: "Daily report missing", defaultSeverity: "warning", moduleId: "reports", officeOnly: false, description: "A visible assigned job is missing its daily report for the operating date." },
   { type: "job_photos_missing", label: "Photo Evidence", title: "Job photos missing", defaultSeverity: "warning", moduleId: "uploads", officeOnly: false, description: "A visible assigned job has no photo evidence for the operating date." },
   { type: "delivery_ticket_missing", label: "Delivery Ticket", title: "Delivery ticket missing", defaultSeverity: "warning", moduleId: "deliveryTickets", officeOnly: false, description: "A visible concrete/material job appears to need a delivery ticket." },
-  { type: "pre_pour_incomplete", label: "Pre-Pour", title: "Pre-pour checklist incomplete", defaultSeverity: "warning", moduleId: "prePour", officeOnly: false, description: "A visible job has incomplete pre-pour readiness items." },
-  { type: "post_pour_incomplete", label: "Post-Pour", title: "Post-pour checklist incomplete", defaultSeverity: "warning", moduleId: "postPour", officeOnly: false, description: "A visible job has incomplete post-pour closeout items." },
+  { type: "pre_pour_incomplete", label: "Job Prep", title: "Job prep checklist incomplete", defaultSeverity: "warning", moduleId: "prePour", officeOnly: false, description: "A visible job has incomplete job prep readiness items." },
+  { type: "post_pour_incomplete", label: "Closeout", title: "Closeout checklist incomplete", defaultSeverity: "warning", moduleId: "postPour", officeOnly: false, description: "A visible job has incomplete closeout items." },
   { type: "safety_unresolved", label: "Safety", title: "Safety item unresolved", defaultSeverity: "critical", moduleId: "incidents", officeOnly: false, description: "A visible job has an unresolved incident or safety item." },
   { type: "tool_checklist_unresolved", label: "Tools", title: "Tool checklist needs attention", defaultSeverity: "warning", moduleId: "toolChecklist", officeOnly: false, description: "A visible job has missing, damaged, or unfinished tool checklist items." },
 ];
@@ -284,8 +284,8 @@ export function notificationActionLabel(item = {}) {
   if (item.moduleId === "reports") return "Open Reports";
   if (item.moduleId === "uploads") return "Open Photo Evidence";
   if (item.moduleId === "deliveryTickets") return "Open Delivery Tickets";
-  if (item.moduleId === "prePour") return "Open Pre-Pour";
-  if (item.moduleId === "postPour") return "Open Post-Pour";
+  if (item.moduleId === "prePour") return "Open Job Prep";
+  if (item.moduleId === "postPour") return "Open Closeout";
   if (item.moduleId === "incidents") return "Open Safety";
   if (item.moduleId === "toolChecklist") return "Open Tool Checklist";
   return "Open";
@@ -861,7 +861,7 @@ function buildOperationalWorkflowNotifications(source = {}, options = {}) {
         id: `job:${job.id}:prePourIncomplete`,
         type: "pre_pour_incomplete",
         severity: "warning",
-        title: "Pre-pour checklist incomplete",
+        title: "Job prep checklist incomplete",
         description: `${label} has ${prePourOpen.length} pre-pour readiness record${prePourOpen.length === 1 ? "" : "s"} needing action.`,
         job,
         moduleId: "prePour",
@@ -877,7 +877,7 @@ function buildOperationalWorkflowNotifications(source = {}, options = {}) {
         id: `job:${job.id}:postPourIncomplete`,
         type: "post_pour_incomplete",
         severity: "warning",
-        title: "Post-pour checklist incomplete",
+        title: "Closeout checklist incomplete",
         description: `${label} has ${postPourOpen.length} post-pour closeout record${postPourOpen.length === 1 ? "" : "s"} needing action.`,
         job,
         moduleId: "postPour",

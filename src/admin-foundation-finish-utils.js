@@ -237,7 +237,7 @@ export function deriveAdminFoundationFinishState({
       status: setupState.status || "In Progress",
       tone: setupState.blockerCount ? "amber" : "green",
       ready: setupState.blockerCount === 0,
-      helper: `${setupState.completedCount || 0}/${setupState.totalCount || 0} setup items ready; ${setupState.blockerCount || 0} critical blockers.`,
+      helper: `${setupState.completedCount || 0}/${setupState.totalCount || 0} setup items ready; ${setupState.blockerCount || 0} still open.`,
       action: "Review managed setup",
       moduleId: "settings",
     }),
@@ -291,12 +291,12 @@ export function deriveAdminFoundationFinishState({
 
   return {
     canView: true,
-    title: "Admin Foundation Finish",
-    status: blockerRows.length ? "Needs finish pass" : "Ready to freeze",
+    title: "Workspace Setup Check",
+    status: blockerRows.length ? "A few steps left" : "All set",
     tone: blockerRows.length ? "amber" : "green",
     summary: blockerRows.length
-      ? `${readyRows.length}/${requiredRows.length} admin foundation areas are ready. Finish ${blockerRows[0].label} next.`
-      : "Admin setup, users, field lockout, app health, support, imports, provider readiness, and package readiness are ready for Phase 1 freeze.",
+      ? `${readyRows.length}/${requiredRows.length} setup areas are ready. Next up: ${blockerRows[0].label}.`
+      : "Admin setup, users, field access, support, and package readiness are all set.",
     readinessRows,
     providerReadinessRows,
     accessReviewRows,

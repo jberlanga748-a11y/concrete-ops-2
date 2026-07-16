@@ -93,9 +93,11 @@ export function dailyReportNeedsReview(report) {
 }
 
 export function dailyReportConcreteSummary(report) {
-  if (!report?.concretePoured) return "No pour marked";
-  const yards = Number(report.yardsPoured || 0);
-  return `${yards || 0} yd${yards === 1 ? "" : "s"} poured`;
+  if (report?.concretePoured) {
+    const yards = Number(report.yardsPoured || 0);
+    return `${yards || 0} yd${yards === 1 ? "" : "s"} poured`;
+  }
+  return String(report?.materialNotes || "").trim() ? "Materials noted" : "No material notes";
 }
 
 export function dailyReportPrimaryNote(report) {
@@ -507,6 +509,7 @@ export function deriveAdvancedReportSummary(reports, {
   let reportsWithDelays = 0;
   let reportsWithSafetyNotes = 0;
   let concreteYards = 0;
+  let reportsWithMaterialNotes = 0;
   const reviewQueue = [];
 
   visibleReports.forEach((report) => {
@@ -516,6 +519,7 @@ export function deriveAdvancedReportSummary(reports, {
       concreteReports += 1;
       concreteYards += Number(report.yardsPoured || 0);
     }
+    if (String(report.materialNotes || "").trim()) reportsWithMaterialNotes += 1;
     if (reportDelayText(report)) reportsWithDelays += 1;
     if (reportSafetyText(report)) reportsWithSafetyNotes += 1;
     if (isReportMissingBasics(report)) missingBasics += 1;
@@ -543,6 +547,7 @@ export function deriveAdvancedReportSummary(reports, {
     reviewedReports: statusCounts.reviewed,
     concreteReports,
     concreteYards,
+    reportsWithMaterialNotes,
     missingBasics,
     proofGaps,
     closeoutReady,

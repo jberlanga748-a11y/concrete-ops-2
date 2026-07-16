@@ -1397,11 +1397,11 @@ export function ApexAssistantShell({ permissions = {}, commandCenter = {}, agent
                         className="co-focus-ring rounded-2xl border border-white/10 bg-white/[0.08] p-3 text-left transition hover:border-orange-300/60 hover:bg-orange-500/20"
                       >
                         <span className="block text-sm font-black text-white">{match.label}</span>
-                        <span className="mt-1 block text-xs font-bold leading-5 text-slate-300">{match.helper || "Open the Pre-Pour review tools. No review action happens automatically."}</span>
+                        <span className="mt-1 block text-xs font-bold leading-5 text-slate-300">{match.helper || "Open the Job Prep review tools. No review action happens automatically."}</span>
                       </button>
                     )) : null}
                     <Button type="button" size="sm" onClick={() => openPrePourReview(response.fallback || {})}>
-                      {response.matches?.length ? "Open Pre-Pour instead" : response.actionLabel}
+                      {response.matches?.length ? "Open Job Prep instead" : response.actionLabel}
                     </Button>
                   </div>
                 ) : response.type === "post-pour-review" ? (
@@ -1414,11 +1414,11 @@ export function ApexAssistantShell({ permissions = {}, commandCenter = {}, agent
                         className="co-focus-ring rounded-2xl border border-white/10 bg-white/[0.08] p-3 text-left transition hover:border-orange-300/60 hover:bg-orange-500/20"
                       >
                         <span className="block text-sm font-black text-white">{match.label}</span>
-                        <span className="mt-1 block text-xs font-bold leading-5 text-slate-300">{match.helper || "Open the Post-Pour review tools. No review action happens automatically."}</span>
+                        <span className="mt-1 block text-xs font-bold leading-5 text-slate-300">{match.helper || "Open the Closeout review tools. No review action happens automatically."}</span>
                       </button>
                     )) : null}
                     <Button type="button" size="sm" onClick={() => openPostPourReview(response.fallback || {})}>
-                      {response.matches?.length ? "Open Post-Pour instead" : response.actionLabel}
+                      {response.matches?.length ? "Open Closeout instead" : response.actionLabel}
                     </Button>
                   </div>
                 ) : response.type === "safety-incident-review" ? (

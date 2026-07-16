@@ -71,7 +71,7 @@ function DailyReportProofChecklist({ proofState }) {
     { label: "Crew summary", state: proofState.missingCore.includes("Crew summary") ? "needs" : "ready", value: proofState.missingCore.includes("Crew summary") ? "Needed" : "Set" },
     { label: "Weather", state: proofState.missingCore.includes("Weather") ? "needs" : "ready", value: proofState.missingCore.includes("Weather") ? "Needed" : "Set" },
     { label: "Photos", state: proofState.photoMissing ? "needs" : "ready", value: proofState.photoMissing ? "Missing" : `${proofState.photoCount} linked` },
-    { label: "Delivery ticket", state: proofState.ticketMissing ? "needs" : "ready", value: proofState.ticketExpected ? `${proofState.ticketCount} linked` : "If pour" },
+    { label: "Delivery ticket", state: proofState.ticketMissing ? "needs" : "ready", value: proofState.ticketExpected ? `${proofState.ticketCount} linked` : "If delivery" },
     { label: "Checklists", state: proofState.openChecklistCount ? "needs" : "ready", value: proofState.openChecklistCount ? `${proofState.openChecklistCount} open` : "Clear" },
   ];
 
@@ -158,8 +158,8 @@ function DailyReportsOperationsBoard({
             {permissions?.time?.canView ? <button type="button" onClick={() => onOpenModule("time")}><Icon name="clock" />Clock</button> : null}
             {permissions?.uploads?.canView ? <button type="button" onClick={() => onOpenModule("uploads")}><Icon name="upload" />Photos</button> : null}
             {permissions?.deliveryTickets?.canView ? <button type="button" onClick={() => onOpenModule("deliveryTickets")}><Icon name="clipboard" />Tickets</button> : null}
-            {permissions?.prePour?.canView ? <button type="button" onClick={() => onOpenModule("prePour")}><Icon name="clipboard" />Pre-Pour</button> : null}
-            {permissions?.postPour?.canView ? <button type="button" onClick={() => onOpenModule("postPour")}><Icon name="clipboard" />Post-Pour</button> : null}
+            {permissions?.prePour?.canView ? <button type="button" onClick={() => onOpenModule("prePour")}><Icon name="clipboard" />Job Prep</button> : null}
+            {permissions?.postPour?.canView ? <button type="button" onClick={() => onOpenModule("postPour")}><Icon name="clipboard" />Closeout</button> : null}
             {permissions?.toolChecklist?.canUse ? <button type="button" onClick={() => onOpenModule("toolChecklist")}><Icon name="hardhat" />Tools</button> : null}
           </div>
         </Card>
@@ -274,7 +274,7 @@ function DailyReportsOperationsBoard({
   ].slice(0, 6);
   const focusProofBadges = focusProof ? [
     { label: "Photos", value: focusProof.photoMissing ? "Missing" : `${focusProof.photoCount} linked`, state: focusProof.photoMissing ? "needs" : "ready" },
-    { label: "Ticket", value: focusProof.ticketMissing ? "Missing" : focusProof.ticketExpected ? `${focusProof.ticketCount} linked` : "If pour", state: focusProof.ticketMissing ? "needs" : "ready" },
+    { label: "Ticket", value: focusProof.ticketMissing ? "Missing" : focusProof.ticketExpected ? `${focusProof.ticketCount} linked` : "If delivery", state: focusProof.ticketMissing ? "needs" : "ready" },
     { label: "Checklists", value: focusProof.openChecklistCount ? `${focusProof.openChecklistCount} open` : "Clear", state: focusProof.openChecklistCount ? "needs" : "ready" },
     { label: "Basics", value: focusProof.missingCore?.length ? `${focusProof.missingCore.length} missing` : "Ready", state: focusProof.missingCore?.length ? "needs" : "ready" },
   ] : [];
@@ -474,7 +474,7 @@ function AdvancedReportsPrepPanel({ summary, onSetFilter, onOpenModule, onOpenRe
   const fieldSignals = [
     `${summary.submittedForReview} submitted report${summary.submittedForReview === 1 ? "" : "s"} waiting on office review`,
     `${summary.fieldDrafts} draft or reopened report${summary.fieldDrafts === 1 ? "" : "s"} still in field completion`,
-    `${summary.concreteReports} concrete report${summary.concreteReports === 1 ? "" : "s"} / ${summary.concreteYards} yd poured`,
+    `${summary.reportsWithMaterialNotes || 0} report${(summary.reportsWithMaterialNotes || 0) === 1 ? "" : "s"} with material notes`,
     `${summary.reportsWithDelays} delay note${summary.reportsWithDelays === 1 ? "" : "s"} and ${summary.reportsWithSafetyNotes} safety note${summary.reportsWithSafetyNotes === 1 ? "" : "s"}`,
   ];
 
@@ -645,7 +645,7 @@ function DailyReportCreateCard({ draft, setDraft, onCreate, disabled, canCreate,
   const reportDateLabel = draft.reportDate || "Date pending";
   const requiredReadyCount = [draft.jobId, draft.reportDate].filter(Boolean).length;
   const noteCount = [draft.workPerformed, draft.crewSummary, draft.weather, draft.materialNotes, draft.delays, draft.safetyNotes, draft.equipmentUsed, draft.visitorNotes, draft.inspectionNotes, draft.generalNotes].filter(Boolean).length;
-  const pourLabel = draft.concretePoured ? `${Number(draft.yardsPoured || 0)} yd${Number(draft.yardsPoured || 0) === 1 ? "" : "s"}` : "No pour marked";
+  const pourLabel = draft.materialNotes ? "Materials noted" : "No material notes";
   const requiredSummary = requiredReadyCount === 2 ? "Ready to start" : `${2 - requiredReadyCount} required field${2 - requiredReadyCount === 1 ? "" : "s"} left`;
   const notesSummary = noteCount ? `${noteCount} note area${noteCount === 1 ? "" : "s"} started` : "Notes optional";
   const canStartReport = Boolean(draft.jobId && draft.reportDate);
@@ -682,25 +682,20 @@ function DailyReportCreateCard({ draft, setDraft, onCreate, disabled, canCreate,
             <summary>
               <span>
                 <strong>Optional details</strong>
-                <em>Work, crew, concrete, safety, and notes.</em>
+                <em>Work, crew, materials, safety, and notes.</em>
               </span>
               <b aria-hidden="true" />
             </summary>
             <div className="co-field-mobile-optional-body">
               <DailyReportMobileFieldGroup title="Work performed" summary={draft.workPerformed ? "Work notes added" : "Add work completed"}>
-                <TextAreaField label="Work performed" value={draft.workPerformed} onChange={(event) => setDraft((current) => ({ ...current, workPerformed: event.target.value }))} placeholder="Prep, pour, formwork, cleanup..." className="field-input min-h-16 resize-y" />
+                <TextAreaField label="Work performed" value={draft.workPerformed} onChange={(event) => setDraft((current) => ({ ...current, workPerformed: event.target.value }))} placeholder="Demo, prep, install, cleanup..." className="field-input min-h-16 resize-y" />
               </DailyReportMobileFieldGroup>
               <DailyReportMobileFieldGroup title="Crew / labor summary" summary={draft.crewSummary ? "Crew summary added" : "Add crew summary"}>
                 <TextAreaField label="Crew summary" value={draft.crewSummary} onChange={(event) => setDraft((current) => ({ ...current, crewSummary: event.target.value }))} placeholder="Foreman + 3, finisher + laborer..." className="field-input min-h-16 resize-y" />
               </DailyReportMobileFieldGroup>
-              <DailyReportMobileFieldGroup title="Concrete / materials" summary={draft.concretePoured ? `${draft.yardsPoured || 0} yards poured` : "No concrete marked yet"}>
+              <DailyReportMobileFieldGroup title="Materials" summary={draft.materialNotes ? "Notes added" : "No material notes yet"}>
                 <InputField label="Weather" value={draft.weather} onChange={(event) => setDraft((current) => ({ ...current, weather: event.target.value }))} />
-                <label className="field-label min-h-[60px] justify-center rounded-2xl border border-orange-100 bg-orange-50/60 px-4 py-3">
-                  <span>Concrete poured</span>
-                  <input type="checkbox" checked={Boolean(draft.concretePoured)} onChange={(event) => setDraft((current) => ({ ...current, concretePoured: event.target.checked, yardsPoured: event.target.checked ? current.yardsPoured : 0 }))} />
-                </label>
-                {draft.concretePoured ? <InputField label="Yards poured" type="number" min="0" step="0.1" value={draft.yardsPoured} onChange={(event) => setDraft((current) => ({ ...current, yardsPoured: Number(event.target.value) }))} /> : null}
-                <TextAreaField label="Material / concrete notes" value={draft.materialNotes} onChange={(event) => setDraft((current) => ({ ...current, materialNotes: event.target.value }))} />
+                <TextAreaField label="Material notes" value={draft.materialNotes} onChange={(event) => setDraft((current) => ({ ...current, materialNotes: event.target.value }))} />
               </DailyReportMobileFieldGroup>
               <DailyReportMobileFieldGroup title="Delays / safety / equipment" summary={[draft.delays, draft.safetyNotes, draft.equipmentUsed].filter(Boolean).length ? "Notes added" : "Optional"}>
                 <TextAreaField label="Delays" value={draft.delays} onChange={(event) => setDraft((current) => ({ ...current, delays: event.target.value }))} />
@@ -718,7 +713,7 @@ function DailyReportCreateCard({ draft, setDraft, onCreate, disabled, canCreate,
       </DailyReportMobileAccordionCard>
       <Card className="co-reports-create-card hidden overflow-hidden md:block">
         <div className="co-reports-create-header border-b border-slate-200 bg-white p-4">
-          <SectionHeader title="Start today's field report" description="Capture crew, work, weather, and pour details while the day is fresh." />
+          <SectionHeader title="Start today's field report" description="Capture crew, work, weather, and material details while the day is fresh." />
         </div>
         <form className="co-reports-create-form p-4" onSubmit={onCreate}>
           <div className="co-reports-create-target">
@@ -741,14 +736,9 @@ function DailyReportCreateCard({ draft, setDraft, onCreate, disabled, canCreate,
               <TextAreaField label="Crew summary" value={draft.crewSummary} onChange={(event) => setDraft((current) => ({ ...current, crewSummary: event.target.value }))} placeholder="Foreman + 3, finisher + laborer..." className="field-input min-h-16 resize-y" />
             </div>
             <div className="co-reports-create-field-wide">
-              <TextAreaField label="Work performed" value={draft.workPerformed} onChange={(event) => setDraft((current) => ({ ...current, workPerformed: event.target.value }))} placeholder="Prep, pour, formwork, cleanup..." className="field-input min-h-16 resize-y" />
+              <TextAreaField label="Work performed" value={draft.workPerformed} onChange={(event) => setDraft((current) => ({ ...current, workPerformed: event.target.value }))} placeholder="Demo, prep, install, cleanup..." className="field-input min-h-16 resize-y" />
             </div>
             <InputField label="Weather" value={draft.weather} onChange={(event) => setDraft((current) => ({ ...current, weather: event.target.value }))} />
-            <label className="field-label min-h-[60px] justify-center rounded-2xl border border-orange-100 bg-orange-50/60 px-4 py-3">
-              <span>Concrete poured</span>
-              <input type="checkbox" checked={Boolean(draft.concretePoured)} onChange={(event) => setDraft((current) => ({ ...current, concretePoured: event.target.checked, yardsPoured: event.target.checked ? current.yardsPoured : 0 }))} />
-            </label>
-            {draft.concretePoured ? <InputField label="Yards poured" type="number" min="0" step="0.1" value={draft.yardsPoured} onChange={(event) => setDraft((current) => ({ ...current, yardsPoured: Number(event.target.value) }))} /> : null}
           </div>
           <div className="co-reports-create-action-stack">
             <Button type="submit" className="co-reports-create-cta" disabled={disabled || !canStartReport}>
@@ -817,7 +807,7 @@ function DailyReportDetailPanel({
             <div className="mt-4 grid gap-2 text-xs font-bold text-slate-500 sm:grid-cols-3">
               <span className="rounded-2xl bg-white px-3 py-2 text-center shadow-sm">Crew</span>
               <span className="rounded-2xl bg-white px-3 py-2 text-center shadow-sm">Work</span>
-              <span className="rounded-2xl bg-white px-3 py-2 text-center shadow-sm">Pour details</span>
+              <span className="rounded-2xl bg-white px-3 py-2 text-center shadow-sm">Materials</span>
             </div>
           </div>
         </div>
@@ -865,7 +855,7 @@ function DailyReportDetailPanel({
           <div className="co-reports-mobile-closeout-facts">
             <span><em>Date</em><strong>{reportDraft.reportDate || report.reportDate}</strong></span>
             <span><em>Weather</em><strong>{reportDraft.weather || "Pending"}</strong></span>
-            <span><em>Concrete</em><strong>{dailyReportConcreteSummary(reportDraft)}</strong></span>
+            <span><em>Materials</em><strong>{dailyReportConcreteSummary(reportDraft)}</strong></span>
             <span><em>Time</em><strong>{formatMinutes(report.timeSummary.totalMinutes)}</strong></span>
           </div>
           <DailyReportProofChecklist proofState={proofState} />
@@ -908,14 +898,9 @@ function DailyReportDetailPanel({
                 <TextAreaField label="Crew summary" value={reportDraft.crewSummary} onChange={(event) => setReportDraft((current) => ({ ...current, crewSummary: event.target.value }))} disabled />
               </DailyReportMobileFieldGroup>
             ) : null}
-            <DailyReportMobileFieldGroup title="Concrete / materials" summary={reportDraft.concretePoured ? `${reportDraft.yardsPoured || 0} yards poured` : "No concrete marked yet"}>
+            <DailyReportMobileFieldGroup title="Materials" summary={reportDraft.materialNotes ? "Notes added" : "No material notes yet"}>
               <div className="grid gap-3">
-                <label className="field-label">
-                  <span>Concrete poured</span>
-                  <input type="checkbox" checked={Boolean(reportDraft.concretePoured)} onChange={(event) => setReportDraft((current) => ({ ...current, concretePoured: event.target.checked, yardsPoured: event.target.checked ? current.yardsPoured : 0 }))} disabled={!canEdit || disabled} />
-                </label>
-                <InputField label="Yards poured" type="number" min="0" step="0.1" value={reportDraft.yardsPoured} onChange={(event) => setReportDraft((current) => ({ ...current, yardsPoured: Number(event.target.value) }))} disabled={!canEdit || disabled || !reportDraft.concretePoured} />
-                <TextAreaField label="Material / concrete notes" value={reportDraft.materialNotes} onChange={(event) => setReportDraft((current) => ({ ...current, materialNotes: event.target.value }))} disabled={!canEdit || disabled} />
+                <TextAreaField label="Material notes" value={reportDraft.materialNotes} onChange={(event) => setReportDraft((current) => ({ ...current, materialNotes: event.target.value }))} disabled={!canEdit || disabled} />
               </div>
             </DailyReportMobileFieldGroup>
             <DailyReportMobileFieldGroup title="Delays / safety / equipment" summary={[reportDraft.delays, reportDraft.safetyNotes, reportDraft.equipmentUsed].filter(Boolean).length ? "Notes added" : "Optional"}>
@@ -992,14 +977,7 @@ function DailyReportDetailPanel({
           </div>
           <div className="grid gap-3 md:grid-cols-2">
             <TextAreaField label="Equipment used" value={reportDraft.equipmentUsed} onChange={(event) => setReportDraft((current) => ({ ...current, equipmentUsed: event.target.value }))} disabled={!canEdit || disabled} />
-            <TextAreaField label="Material / concrete notes" value={reportDraft.materialNotes} onChange={(event) => setReportDraft((current) => ({ ...current, materialNotes: event.target.value }))} disabled={!canEdit || disabled} />
-          </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            <label className="field-label">
-              <span>Concrete poured</span>
-              <input type="checkbox" checked={Boolean(reportDraft.concretePoured)} onChange={(event) => setReportDraft((current) => ({ ...current, concretePoured: event.target.checked, yardsPoured: event.target.checked ? current.yardsPoured : 0 }))} disabled={!canEdit || disabled} />
-            </label>
-            <InputField label="Yards poured" type="number" min="0" step="0.1" value={reportDraft.yardsPoured} onChange={(event) => setReportDraft((current) => ({ ...current, yardsPoured: Number(event.target.value) }))} disabled={!canEdit || disabled || !reportDraft.concretePoured} />
+            <TextAreaField label="Material notes" value={reportDraft.materialNotes} onChange={(event) => setReportDraft((current) => ({ ...current, materialNotes: event.target.value }))} disabled={!canEdit || disabled} />
           </div>
           <div className="grid gap-3 md:grid-cols-2">
             <TextAreaField label="Visitor notes" value={reportDraft.visitorNotes} onChange={(event) => setReportDraft((current) => ({ ...current, visitorNotes: event.target.value }))} disabled={!canEdit || disabled} />
@@ -1084,7 +1062,7 @@ function ReportsCommandRailPolished({
           <div className="co-reports-empty-rail">
             <span><Icon name="document" /></span>
             <strong>No report selected</strong>
-            <p>Choose a row to review job context, crew/time, concrete notes, and review actions here.</p>
+            <p>Choose a row to review job context, crew/time, material notes, and review actions here.</p>
           </div>
           {canCreate ? <Button type="button" className="mt-3 w-full" onClick={() => onOpenTool("create")}>Start Report</Button> : null}
         </Card>
@@ -1114,7 +1092,7 @@ function ReportsCommandRailPolished({
             <strong>{report.crewAssignments?.length || 0} assigned</strong>
           </div>
           <div>
-            <span>Concrete</span>
+            <span>Materials</span>
             <strong>{dailyReportConcreteSummary(report)}</strong>
           </div>
           <div>
@@ -1222,7 +1200,7 @@ export function ReportsPagePolished({
   const submittedCount = visibleRows.filter(dailyReportNeedsReview).length;
   const reviewedCount = visibleRows.filter((report) => report.status === "reviewed").length;
   const needsActionCount = visibleRows.filter(dailyReportNeedsAction).length;
-  const concreteCount = visibleRows.filter((report) => report.concretePoured).length;
+  const concreteCount = visibleRows.filter((report) => report.concretePoured || String(report.materialNotes || "").trim()).length;
   const missingBasicsCount = visibleRows.filter((report) => !report.workPerformed || !report.crewSummary || !report.weather).length;
   const operatingDate = dateFilter !== "All dates" ? dateFilter : todayDateInputValue();
   const liveReportJobs = useMemo(() => normalizeObjectArray(jobs).filter(dailyReportIsLiveJob), [jobs]);
@@ -1266,7 +1244,7 @@ export function ReportsPagePolished({
     { label: "Submitted", value: submittedCount, helper: "Waiting office review", icon: "clipboard", tone: submittedCount ? "orange" : "slate", actionLabel: "Review queue", onAction: () => setFilter("Submitted") },
     { label: "Reviewed", value: reviewedCount, helper: "Closed for field review", icon: "check", tone: "green", actionLabel: "View reviewed", onAction: () => setFilter("Reviewed") },
     { label: "Needs Action", value: needsActionCount, helper: "Drafts or reopened reports", icon: "alert", tone: needsActionCount ? "amber" : "slate", actionLabel: "Open drafts", onAction: () => setFilter("Draft") },
-    { label: "Concrete", value: concreteCount, helper: "Reports with pour detail", icon: "hardhat", tone: concreteCount ? "orange" : "slate" },
+    { label: "Materials", value: concreteCount, helper: "Reports with material detail", icon: "hardhat", tone: concreteCount ? "orange" : "slate" },
   ];
   const reportToolTabs = [
     { id: "create", label: "Start Report", count: canCreate ? 1 : 0 },
@@ -2133,7 +2111,7 @@ function ReportsPageLegacy({
 
   return (
     <div>
-      <PageHeader eyebrow={permissions.reports.canManageAll ? "Field Ops" : "Field Workspace"} title="Daily Reports" description="Capture crew notes, job progress, weather, and pour details in one daily field report." actions={<Badge tone="blue">{canView ? visibleRows.length : 0} reports</Badge>} />
+      <PageHeader eyebrow={permissions.reports.canManageAll ? "Field Ops" : "Field Workspace"} title="Daily Reports" description="Capture crew notes, job progress, weather, and material details in one daily field report." actions={<Badge tone="blue">{canView ? visibleRows.length : 0} reports</Badge>} />
       {canView ? <ModuleKpiStrip items={reportKpis} /> : null}
       <div className="mx-auto grid w-full max-w-[1600px] min-w-0 gap-4 px-5 sm:px-6 lg:px-8">
         <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start xl:grid-cols-[minmax(0,1fr)_420px]">

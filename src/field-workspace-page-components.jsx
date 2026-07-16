@@ -37,7 +37,7 @@ function FieldJobFocusCard({ job, permissions, onFieldChange, disabled, embedded
   const canManageField = Boolean(job.canManageField || permissions.jobs.canManageField);
   const crewAssignments = Array.isArray(job.crewAssignments) ? job.crewAssignments : [];
   const fieldNoteCount = [job.fieldNotes, job.materialNotes, job.equipmentNotes, job.safetyNotes].filter((value) => String(value || "").trim()).length;
-  const checklistSummary = [job.prePourChecklist?.statusLabel || "Pre-pour pending", job.postPourChecklist?.statusLabel || "Post-pour pending"].join(" / ");
+  const checklistSummary = [job.prePourChecklist?.statusLabel || "Job prep pending", job.postPourChecklist?.statusLabel || "Closeout pending"].join(" / ");
   const tradeGuidance = deriveFieldTradeGuidance(job);
   const snapshotItems = [
     { label: "Schedule", value: formatJobScheduleDetail(job) },
@@ -91,11 +91,11 @@ function FieldJobFocusCard({ job, permissions, onFieldChange, disabled, embedded
                 <p className="mt-2 text-sm leading-6 text-slate-700">{job.scopeSummary || "Scope summary pending."}</p>
               </div>
               <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
-                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Pre-pour</p>
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Job prep</p>
                 <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{job.prePourChecklist?.statusLabel || "Not started"}</p>
               </div>
               <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
-                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Post-pour</p>
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Closeout</p>
                 <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{job.postPourChecklist?.statusLabel || "Not started"}</p>
               </div>
             </div>
@@ -296,9 +296,9 @@ function FieldMobileRemoteControlPanel({
   const tradeGuidance = deriveFieldTradeGuidance(primaryJob);
   const proofPrompt = tradeGuidance?.proofPhotoChecklist?.slice(0, 2).join(", ");
   const checklistTarget = permissions?.prePour?.canView && fieldChecklistNeedsAction(primaryJob?.prePourChecklist)
-    ? { id: "prePour", label: "Pre-Pour", helper: fieldChecklistSummary(primaryJob?.prePourChecklist) }
+    ? { id: "prePour", label: "Job Prep", helper: fieldChecklistSummary(primaryJob?.prePourChecklist) }
     : permissions?.postPour?.canView && fieldChecklistNeedsAction(primaryJob?.postPourChecklist)
-      ? { id: "postPour", label: "Post-Pour", helper: fieldChecklistSummary(primaryJob?.postPourChecklist) }
+      ? { id: "postPour", label: "Closeout", helper: fieldChecklistSummary(primaryJob?.postPourChecklist) }
       : permissions?.toolChecklist?.canUse
         ? { id: "toolChecklist", label: "Checklist", helper: "Tool and safety checks" }
         : permissions?.safety?.canView
@@ -555,7 +555,7 @@ function FieldWorkspaceActionsPolished({ permissions, role = "employee", setActi
     },
     {
       id: "prePour",
-      label: "Pre-Pour",
+      label: "Job Prep",
       helper: "Readiness checks",
       icon: "clipboard",
       enabled: permissions.prePour.canView,
@@ -563,7 +563,7 @@ function FieldWorkspaceActionsPolished({ permissions, role = "employee", setActi
     },
     {
       id: "postPour",
-      label: "Post-Pour",
+      label: "Closeout",
       helper: "Closeout checks",
       icon: "clipboard",
       enabled: permissions.postPour.canView,
@@ -718,9 +718,9 @@ function FieldRequiredItemsPanel({
   const prePourPending = permissions?.prePour?.canView && fieldChecklistNeedsAction(primaryJob?.prePourChecklist);
   const postPourPending = permissions?.postPour?.canView && fieldChecklistNeedsAction(primaryJob?.postPourChecklist);
   const checklistTarget = prePourPending
-    ? { id: "prePour", label: "Pre-Pour", detail: fieldChecklistSummary(primaryJob?.prePourChecklist) }
+    ? { id: "prePour", label: "Job Prep", detail: fieldChecklistSummary(primaryJob?.prePourChecklist) }
     : postPourPending
-      ? { id: "postPour", label: "Post-Pour", detail: fieldChecklistSummary(primaryJob?.postPourChecklist) }
+      ? { id: "postPour", label: "Closeout", detail: fieldChecklistSummary(primaryJob?.postPourChecklist) }
       : permissions?.toolChecklist?.canUse
         ? { id: "toolChecklist", label: "Tool Checklist", detail: "Review loadout" }
         : null;

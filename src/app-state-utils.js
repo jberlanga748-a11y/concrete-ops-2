@@ -375,7 +375,13 @@ export function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
 
 export function shouldRenderCommandCenterForDashboard({ permissions = {}, firstOwnerOnboarding = null } = {}) {
   const isOfficeWorkspace = Boolean(permissions?.jobs?.canManageAll || permissions?.leads?.canView);
-  const firstOwnerSetupIncomplete = Boolean(firstOwnerOnboarding && firstOwnerOnboarding.complete === false);
+  // Gate on the core first-run steps (profile, service, first user/estimate/job).
+  // The full managed-setup checklist should not keep an active workspace off the
+  // command view.
+  const firstOwnerSetupIncomplete = Boolean(firstOwnerOnboarding)
+    && (typeof firstOwnerOnboarding.coreComplete === "boolean"
+      ? firstOwnerOnboarding.coreComplete === false
+      : firstOwnerOnboarding.complete === false);
 
   return isOfficeWorkspace && !firstOwnerSetupIncomplete;
 }

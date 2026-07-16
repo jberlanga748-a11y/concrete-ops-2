@@ -246,7 +246,7 @@ function packetAudienceLabel(printModel = {}) {
   if (/subcontractor/i.test(presetLabel)) return "Subcontractor proposal packet";
   if (/gc|prime/i.test(presetLabel)) return "GC / prime proposal packet";
   if (/estimate sheet/i.test(presetLabel)) return "Customer estimate sheet";
-  return "Customer-ready proposal packet";
+  return "Proposal packet";
 }
 
 function drawHeader(doc, { companyName, companyProfile, headerLabel = "PROPOSAL PACKET", theme = {} }) {
@@ -330,7 +330,7 @@ function drawProposalCoverPage(doc, {
   doc.circle(PAGE_MARGIN + 74, top + 82, 44).fill(colors.accentColor).strokeColor(COLORS.white).lineWidth(2).stroke();
   doc.font("Helvetica-Bold").fontSize(20).fillColor(colors.headerTextColor).text(initials, PAGE_MARGIN + 30, top + 72, { width: 88, align: "center" });
 
-  doc.font("Helvetica-Bold").fontSize(8).fillColor(colors.accentSoftColor).text(cleanText(cover.coverKicker, "CONCRETE PROPOSAL").toUpperCase(), PAGE_MARGIN + 160, top + 38, { width: 250 });
+  doc.font("Helvetica-Bold").fontSize(8).fillColor(colors.accentSoftColor).text(cleanText(cover.coverKicker, "PROPOSAL").toUpperCase(), PAGE_MARGIN + 160, top + 38, { width: 250 });
   doc.font("Helvetica-Bold").fontSize(28).fillColor(colors.headerTextColor).text(cleanText(cover.packetTitle, "Professional Proposal"), PAGE_MARGIN + 160, top + 56, {
     width: 270,
     lineGap: 1,
@@ -365,7 +365,7 @@ function drawProposalCoverPage(doc, {
     lineGap: 1,
   });
   doc.font("Helvetica").fontSize(9.2).fillColor(COLORS.slateDark).text(
-    cleanText(cover.statementBody, "A contractor proposal packet with project scope, pricing, exclusions, payment terms, approval records, and customer-safe backup organized for review."),
+    cleanText(cover.statementBody, "Your project scope, pricing, options, and terms, organized so this proposal is easy to review and approve."),
     statementX,
     bodyTop + 56,
     { width: 250, lineGap: 3 },
@@ -429,10 +429,10 @@ function drawProposalCoverPage(doc, {
     ["NEXT STEPS", "Terms and schedule path are visible."],
     ["PROTECTED NOTES", "Internal notes stay protected."],
   ] : [
-    ["PROVEN RELIABILITY", "Scope and pricing are clear."],
-    ["QUALITY CRAFTSMANSHIP", "Details read like a real bid."],
-    ["SAFETY FIRST", "Field handoff stays separated."],
-    ["BUILT ON INTEGRITY", "Internal notes stay protected."],
+    ["CLEAR SCOPE", "The work and exclusions are spelled out."],
+    ["HONEST PRICING", "Line items and totals are easy to review."],
+    ["QUALITY WORK", "Careful workmanship, start to finish."],
+    ["EASY NEXT STEPS", "Approval and scheduling are simple."],
   ];
   const trustCardWidth = (CONTENT_WIDTH - 60) / 4;
   trustCards.forEach(([title, copy], index) => {
@@ -556,9 +556,9 @@ function drawPacketSnapshot(doc, { printModel, customerName, projectName }) {
     ],
     ["Prepared for", customerName, projectName],
     [
-      "Packet privacy",
-      isInternal ? "Internal review" : "Customer-safe",
-      isInternal ? "Office-only sections enabled." : "Internal notes and private links excluded.",
+      isInternal ? "Packet privacy" : "Questions?",
+      isInternal ? "Internal review" : "We're happy to help",
+      isInternal ? "Office-only sections enabled." : "Reply or call any time. We'll walk through every detail.",
     ],
   ];
 
@@ -930,10 +930,15 @@ function drawFooter(doc, { companyName, printPacketFooter, printPacketDisclaimer
   doc.font("Helvetica").fontSize(7.5).fillColor(COLORS.slate);
   const footer = cleanText(printPacketFooter || defaultFooterLabel || `${companyName} proposal packet.`);
   const disclaimer = cleanText(printPacketDisclaimer);
+  const savedBottomMargin = doc.page.margins.bottom;
+  doc.page.margins.bottom = 0;
   doc.text([footer, disclaimer].filter(Boolean).join("  |  "), PAGE_MARGIN, footerY, {
     width: CONTENT_WIDTH,
     align: "center",
+    height: doc.page.height - footerY - 8,
+    ellipsis: true,
   });
+  doc.page.margins.bottom = savedBottomMargin;
 }
 
 export async function buildEstimatePdfBuffer({
@@ -1021,19 +1026,20 @@ export async function buildEstimatePdfBuffer({
   }
 
   const pageRange = doc.bufferedPageRange();
+  const isInternalPacket = printModel.packetSettings.allowInternalSections;
   for (let pageIndex = pageRange.start; pageIndex < pageRange.start + pageRange.count; pageIndex += 1) {
     if (hasCoverPage && pageIndex === pageRange.start) continue;
     doc.switchToPage(pageIndex);
     drawFooter(doc, {
       companyName,
-      printPacketFooter,
-      printPacketDisclaimer,
+      // The company print-packet footer/disclaimer is written for internal job
+      // documentation; customer-facing estimate output gets customer copy instead.
+      printPacketFooter: isInternalPacket ? printPacketFooter : "",
+      printPacketDisclaimer: isInternalPacket ? printPacketDisclaimer : "",
       theme: packetTheme,
-      defaultFooterLabel: printModel.cover.isEstimateSheet
-        ? `${companyName} estimate sheet.`
-        : printModel.packetSettings.allowInternalSections
-          ? `${companyName} internal review packet.`
-          : `${companyName} proposal packet.`,
+      defaultFooterLabel: isInternalPacket
+        ? `${companyName} internal review packet.`
+        : `${companyName} thanks you for the opportunity to earn your business.`,
     });
   }
 

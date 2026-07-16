@@ -1,4 +1,4 @@
-export const DEFAULT_ESTIMATE_PACKET_PRESET_ID = "gcBidPacket";
+export const DEFAULT_ESTIMATE_PACKET_PRESET_ID = "customerProposalPacket";
 export const INTERNAL_REVIEW_PACKET_PRESET_ID = "internalReviewPacket";
 export const DEFAULT_ESTIMATE_PACKET_THEME_ID = "safety-orange";
 export const CUSTOM_ESTIMATE_PACKET_THEME_ID = "custom-brand";
@@ -183,8 +183,8 @@ export const ESTIMATE_PACKET_SECTION_DEFS = [
   },
   {
     id: "concreteSpecifications",
-    label: "Concrete specifications",
-    description: "Concrete strength, thickness, finish, joints, cure/sealer, supplier, pump, and reinforcement notes.",
+    label: "Project specifications",
+    description: "Materials, finish, supplier, and technical specification notes.",
   },
   {
     id: "alternatesAddOns",
@@ -399,7 +399,7 @@ export const ESTIMATE_PACKET_PRESETS = [
     ],
   },
   {
-    id: DEFAULT_ESTIMATE_PACKET_PRESET_ID,
+    id: "gcBidPacket",
     label: "GC Bid Packet",
     description: "Customer-facing GC bid output with all safe proposal and GC packet sections.",
     sectionIds: [

@@ -182,7 +182,7 @@ export function deriveFieldModeFinishState(source = {}, options = {}) {
       id: "checklists",
       label: "Tickets / checklists",
       status: prePourPending ? fieldChecklistSummary(primaryJob?.prePourChecklist) : postPourPending ? fieldChecklistSummary(primaryJob?.postPourChecklist) : openToolChecklists.length ? `${openToolChecklists.length} tool list open` : toolChecklistReady ? "Tool list ready" : "Ready",
-      helper: prePourPending ? "Pre-pour still needs field action." : postPourPending ? "Post-pour still needs field action." : openToolChecklists.length ? "Finish open tool checklist items before handoff." : "Use ticket, pour, and tool workflows for clean handoff.",
+      helper: prePourPending ? "Job prep still needs field action." : postPourPending ? "Closeout still needs field action." : openToolChecklists.length ? "Finish open tool checklist items before handoff." : "Use ticket, checklist, and tool workflows for clean handoff.",
       moduleId: prePourPending ? "prePour" : postPourPending ? "postPour" : "toolChecklist",
       actionLabel: "Open checklist",
       ready: !prePourPending && !postPourPending && openToolChecklists.length === 0,

@@ -476,7 +476,7 @@ export function deriveFirstOwnerOnboardingState({
     {
       key: "company_profile",
       label: "Confirm company profile",
-      description: "Confirm company name, phone, email, and workspace identity for proposals and job packets.",
+      description: "Add your company name, phone, email, and primary trade so estimates and proposals go out under your business, not a placeholder.",
       completed: hasCompanyProfile,
       moduleId: "settings",
       settingsSectionId: "settings-company-profile",

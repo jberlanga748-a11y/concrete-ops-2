@@ -49,7 +49,7 @@ test("assistant shell is hidden without AI Office permission", () => {
   assert.deepEqual(state.watchtowerActions, []);
 });
 
-test("assistant shell is available to office roles even when AI Office is not included", () => {
+test("assistant shell stays hidden when the package does not include AI Office", () => {
   const state = deriveApexAssistantShellState({
     permissions: { aiOffice: { canView: false }, jobs: { canManageAll: true }, leads: { canView: true } },
     commandCenter: {
@@ -57,8 +57,8 @@ test("assistant shell is available to office roles even when AI Office is not in
     },
   });
 
-  assert.equal(state.canView, true);
-  assert.equal(state.watchtowerQueue.length, 1);
+  assert.equal(state.canView, false);
+  assert.equal(state.watchtowerQueue.length, 0);
 });
 
 test("assistant shell summarizes watchtower context for permitted office users", () => {
@@ -1266,7 +1266,7 @@ test("assistant opens completed pre-pour review without write actions", () => {
   assert.equal(command.type, "pre-pour-review");
   assert.equal(command.matches.length, 1);
   assert.equal(command.matches[0].checklistId, "PRE-1");
-  assert.match(command.message, /No Pre-Pour checklist will be completed, reviewed, reopened, archived, or changed automatically/i);
+  assert.match(command.message, /No Job Prep checklist will be completed, reviewed, reopened, archived, or changed automatically/i);
 });
 
 test("assistant pre-pour review is blocked for field roles", () => {
@@ -1311,7 +1311,7 @@ test("assistant opens completed post-pour review without write actions", () => {
   assert.equal(command.type, "post-pour-review");
   assert.equal(command.matches.length, 1);
   assert.equal(command.matches[0].checklistId, "POST-1");
-  assert.match(command.message, /No Post-Pour checklist will be completed, reviewed, reopened, archived, or changed automatically/i);
+  assert.match(command.message, /No Closeout checklist will be completed, reviewed, reopened, archived, or changed automatically/i);
 });
 
 test("assistant post-pour review is blocked for field roles", () => {

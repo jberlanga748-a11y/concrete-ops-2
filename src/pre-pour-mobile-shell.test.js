@@ -18,7 +18,7 @@ test("Pre-Pour admin mobile ops shell is phone-only and capped", () => {
   assert.match(normalizedAppSource, /\}\)\.slice\(0, 3\);/);
   assert.match(normalizedAppSource, /const adminMobilePrePourStatusTiles = \[/);
   assert.match(normalizedAppSource, /className="co-admin-mobile-ops-shell co-admin-mobile-prepour-shell"/);
-  assert.match(normalizedAppSource, /<strong>Pre-Pour queue<\/strong>/);
+  assert.match(normalizedAppSource, /<strong>Job Prep queue<\/strong>/);
   assert.doesNotMatch(mobileBlock, /PrePourCommandRailPolished/);
   assert.doesNotMatch(mobileBlock, /co-prepour-right-rail/);
   assert.doesNotMatch(mobileBlock, /AssistantRail/);

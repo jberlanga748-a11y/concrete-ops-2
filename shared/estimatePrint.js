@@ -579,7 +579,7 @@ function deriveConcreteSpecSections(records = [], includes = {}) {
   if (!includes.concreteSpecifications || records.length === 0) return [];
   return [{
     key: "concreteSpecifications",
-    title: "Concrete Specifications",
+    title: "Project Specifications",
     type: "records",
     records,
   }];
@@ -607,11 +607,12 @@ function deriveProposalCover({
     if (isGcPrimeProposal) return "GC / Prime Proposal";
     if (isInternalReviewPacket) return "Internal Bid Review";
     if (isEstimateSheet) return "Estimate Sheet";
+    if (/customer proposal/i.test(presetLabel)) return "Project Proposal";
     return presetLabel;
   })();
   return {
     packetTitle: coverTitle,
-    coverKicker: customization.coverKicker || (isEstimateSheet ? "Concrete Estimate" : isResidentialProposal ? "Residential Concrete Proposal" : isGcPrimeProposal ? "Concrete Bid Package" : isCommercialSubcontractorProposal ? "Subcontractor Proposal" : isInternalReviewPacket ? "Office Review Packet" : "Concrete Proposal"),
+    coverKicker: customization.coverKicker || (isEstimateSheet ? "Estimate" : isResidentialProposal ? "Residential Proposal" : isGcPrimeProposal ? "Bid Package" : isCommercialSubcontractorProposal ? "Subcontractor Proposal" : isInternalReviewPacket ? "Office Review Packet" : "Proposal"),
     tagline: customization.tagline || (isEstimateSheet ? "Clear scope. Clean pricing. Ready for review." : isResidentialProposal ? "Clear scope. Clean finish. Ready for homeowner review." : isGcPrimeProposal ? "Bid scope, addenda, terms, and schedule assumptions ready for GC review." : isCommercialSubcontractorProposal ? "Scope boundaries, coordination notes, and billing terms ready for review." : isInternalReviewPacket ? "Estimator backup, scope checks, risks, and handoff notes for office use." : "Solid work. Clear scope. Every detail counts."),
     statementTitle: customization.statementTitle || (isEstimateSheet ? "Ready for customer review." : isResidentialProposal ? "Ready for homeowner review." : isGcPrimeProposal ? "Ready for award review." : isCommercialSubcontractorProposal ? "Ready for subcontract review." : isInternalReviewPacket ? "Ready for office review." : "Ready for approval."),
     statementBody: customization.statementBody || (isEstimateSheet
@@ -624,7 +625,7 @@ function deriveProposalCover({
           ? "Qualifications, schedule coordination, alternates, exclusions, and billing terms are organized for the project team."
         : isInternalReviewPacket
           ? "Scope, pricing summary, SOV backup, takeoff references, internal notes, and review risks are organized for the office team before customer release."
-      : "A contractor proposal packet with project scope, pricing, exclusions, payment terms, approval records, and customer-safe backup organized for review."),
+      : "Your project scope, pricing, options, and terms, organized so this proposal is easy to review and approve."),
     reviewNote: customization.reviewNote || (isEstimateSheet ? "Review scope, exclusions, and payment terms before scheduling." : isResidentialProposal ? "Confirm finish, access, payment terms, and approval before scheduling." : isGcPrimeProposal ? "Confirm addenda, inclusions, exclusions, access, and schedule assumptions before award." : isCommercialSubcontractorProposal ? "Confirm scope limits, addenda, access, and billing terms before award." : isInternalReviewPacket ? "Office-only packet. Do not send to customers or field crews." : "Review scope, exclusions, and terms before approval."),
     isEstimateSheet,
     trustCards: isEstimateSheet
@@ -662,7 +663,12 @@ function deriveProposalCover({
               { title: "Risk review", copy: "RFIs, exclusions, assumptions, and internal notes are visible." },
               { title: "Office-only", copy: "Built for estimator and office review, not customer or field release." },
             ]
-          : [],
+          : [
+            { title: "Clear scope", copy: "The work, inclusions, and exclusions are spelled out." },
+            { title: "Honest pricing", copy: "Line items and totals are easy to review." },
+            { title: "Quality work", copy: "Careful workmanship and a clean site, start to finish." },
+            { title: "Easy next steps", copy: "Approval and scheduling steps are simple to follow." },
+          ],
     theme: customization.theme,
     proposalTitle: textValue(estimate?.title || projectName || "Customer Estimate"),
     customerName,

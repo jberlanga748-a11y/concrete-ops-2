@@ -165,9 +165,9 @@ function prePourDateLabel(checklist = {}) {
 }
 
 function prePourSupportScopeLabel(user = {}, permissions = {}) {
-  if (permissions?.prePour?.canManageAll) return "all visible company Pre-Pour checklists";
-  if (permissions?.prePour?.canManage || permissions?.prePour?.canComplete) return "assigned job Pre-Pour checklists";
-  return `${String(user?.role || "role").trim() || "role"} visible Pre-Pour checklists`;
+  if (permissions?.prePour?.canManageAll) return "all visible company Job Prep checklists";
+  if (permissions?.prePour?.canManage || permissions?.prePour?.canComplete) return "assigned job Job Prep checklists";
+  return `${String(user?.role || "role").trim() || "role"} visible Job Prep checklists`;
 }
 
 function prePourNeedsAttention(checklist = {}) {
@@ -226,11 +226,11 @@ export function buildPrePourSupportContext({
       `${selectedSummary.completedCount}/${selectedSummary.totalCount} readiness items clear`,
       `${selectedSummary.incompleteCount} open`,
     ].join("; ")
-    : "No Pre-Pour checklist selected.";
+    : "No Job Prep checklist selected.";
   const reviewItems = prePourSupportPriorityItems(activeRows);
   const reviewText = reviewItems.length
     ? reviewItems.map((item) => `${item.label}: ${item.reason}`).join("; ")
-    : "No visible Pre-Pour checklist has completed, draft, reopened, or open-readiness follow-up in this view.";
+    : "No visible Job Prep checklist has completed, draft, reopened, or open-readiness follow-up in this view.";
   const filterText = [
     `status ${filters.status || "All"}`,
     `archive ${filters.archived || "Active"}`,
@@ -243,15 +243,15 @@ export function buildPrePourSupportContext({
   return {
     workflow: "Tickets / checklists",
     blockerLevel: completedCount || openItemCount || draftOrReopenedCount ? "Slowing work down" : "Not a blocker",
-    followUpNeeded: completedCount || openItemCount || draftOrReopenedCount ? "Manual Pre-Pour readiness review" : "Pre-Pour checklist workflow question",
+    followUpNeeded: completedCount || openItemCount || draftOrReopenedCount ? "Manual job prep readiness review" : "Job Prep checklist workflow question",
     summary: [
-      `Pre-Pour support request for ${String(user?.name || user?.email || "workspace user").trim() || "workspace user"}.`,
+      `Job Prep support request for ${String(user?.name || user?.email || "workspace user").trim() || "workspace user"}.`,
       `Scope: ${prePourSupportScopeLabel(user, permissions)}.`,
       `Current filters: ${filterText}.`,
       `Visible checklists: ${safeRows.length}; active: ${activeRows.length}; completed for review: ${completedCount}; reviewed ready: ${reviewedCount}; draft or reopened: ${draftOrReopenedCount}; open readiness items: ${openItemCount}; needing attention: ${needsAttentionCount}; archived in view: ${archivedCount}.`,
       `Selected checklist: ${selectedText}`,
     ].join(" "),
-    expected: "Keep Pre-Pour readiness review tied to visible jobs only, without exposing estimate pricing, margin, payroll, internal job notes, hidden users, unrelated jobs, GPS coordinates, customer notifications, or automation.",
+    expected: "Keep job prep readiness review tied to visible jobs only, without exposing estimate pricing, margin, payroll, internal job notes, hidden users, unrelated jobs, GPS coordinates, customer notifications, or automation.",
     workaround: `Visible job options: ${pluralize(Array.isArray(visibleJobs) ? visibleJobs.length : 0, "job")}. Review queue in this view: ${reviewText}`,
   };
 }

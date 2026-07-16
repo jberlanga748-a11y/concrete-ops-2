@@ -296,7 +296,7 @@ export function TodayCommandPage({
     { id: "money-ready", label: "Money Ready", value: moneyReadyCount, helper: `${commandCenter.stats.jobsReadyToBill || 0} jobs / ${commandCenter.stats.approvedEstimatesReadyToConvert || 0} estimates`, icon: "check", tone: moneyReadyCount ? "green" : "slate", onClick: () => openModule(commandCenter.stats.jobsReadyToBill ? "jobs" : "estimates") },
     { id: "jobs-today", label: "Jobs Today", value: jobsTodayCount, helper: `${commandCenter.stats.scheduledTomorrowJobs || 0} tomorrow / ${commandCenter.stats.jobsMissingCrew || 0} missing crew`, icon: "briefcase", tone: jobsTodayCount ? "blue" : "slate", onClick: () => openModule("jobs") },
     { id: "estimates-to-win", label: "Estimates To Win", value: estimatesToWinCount, helper: canViewEstimates ? `${commandCenter.stats.sentEstimatesWaiting || 0} sent / ${commandCenter.stats.draftEstimates || 0} drafts` : "Estimate access unavailable", icon: "quote", tone: estimatesToWinCount ? "orange" : "slate", onClick: () => canViewEstimates && openModule("estimates") },
-    { id: "problems", label: "Problems", value: problemsCount, helper: `${commandCenter.proofChainSummary?.blockerCount || 0} blockers / ${commandCenter.stats.openChangeOrders || 0} changes`, icon: "alert", tone: problemsCount ? "amber" : "green", onClick: () => openModule(commandCenter.proofChainSummary?.nextModuleId || "reports") },
+    { id: "problems", label: "Needs A Look", value: problemsCount, helper: `${commandCenter.proofChainSummary?.blockerCount || 0} held up / ${commandCenter.stats.openChangeOrders || 0} changes`, icon: "alert", tone: problemsCount ? "amber" : "green", onClick: () => openModule(commandCenter.proofChainSummary?.nextModuleId || "reports") },
   ];
   const quickActions = [
     commandFinish.nextActions?.[0] ? { id: "command-next", label: commandFinish.nextActions[0].actionLabel || "Open next", icon: "grid", onClick: () => openCommandAction(commandFinish.nextActions[0]) } : null,
@@ -323,7 +323,7 @@ export function TodayCommandPage({
         title={commandRouteMode ? "Operations Command" : "Today"}
         description={commandRouteMode
           ? "Run today's office command from one queue: money ready, jobs today, estimates to win, and problems."
-          : "Start with money ready, jobs today, estimates to win, and problems. Everything here is review-first and manual."}
+          : "Your money, jobs, estimates, and anything that needs a look today, all in one place. Nothing happens without you."}
         kpis={kpis}
         queue={{
           title: "Main priority queue",
@@ -361,7 +361,7 @@ export function TodayCommandPage({
                   <div className="co-estimates-shell-workflow-head">
                     <div>
                       <Badge tone={coreOperationsLoop.tone || "blue"}>{coreOperationsLoop.status}</Badge>
-                      <h3>Core Operations Loop</h3>
+                      <h3>From Lead To Paid</h3>
                       <p>{coreOperationsLoop.summary}</p>
                     </div>
                     <Badge tone="slate">Review-first</Badge>

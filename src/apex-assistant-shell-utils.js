@@ -223,7 +223,7 @@ const BLOCKED_ACTIONS = [
 ];
 
 export function deriveApexAssistantShellState({ permissions = {}, commandCenter = {} } = {}) {
-  const canView = Boolean(permissions?.aiOffice?.canView || permissions?.jobs?.canManageAll || permissions?.leads?.canView);
+  const canView = Boolean(permissions?.aiOffice?.canView);
   const watchtowerQueue = canView ? asArray(commandCenter.watchtowerQueue).slice(0, 4) : [];
   const watchtowerActions = canView ? asArray(commandCenter.watchtowerActions).slice(0, 4) : [];
   const stats = commandCenter.stats || {};
@@ -1273,10 +1273,10 @@ export function resolveAssistantPrePourReviewCommand(input = "", context = {}) {
     type: "pre-pour-review",
     permissionKey: "prePour",
     recordsKey: "prePourChecklists",
-    label: "Pre-Pour",
-    fallbackLabel: "Open Pre-Pour board",
-    blockedMessage: "Pre-Pour review assistant commands are office readiness-review tools. Field users stay limited to assigned checklist completion and cannot open office review controls.",
-    noWriteMessage: "No Pre-Pour checklist will be completed, reviewed, reopened, archived, or changed automatically.",
+    label: "Job Prep",
+    fallbackLabel: "Open Job Prep board",
+    blockedMessage: "Job Prep review assistant commands are office readiness-review tools. Field users stay limited to assigned checklist completion and cannot open office review controls.",
+    noWriteMessage: "No Job Prep checklist will be completed, reviewed, reopened, archived, or changed automatically.",
   });
 }
 
@@ -1287,10 +1287,10 @@ export function resolveAssistantPostPourReviewCommand(input = "", context = {}) 
     type: "post-pour-review",
     permissionKey: "postPour",
     recordsKey: "postPourChecklists",
-    label: "Post-Pour",
-    fallbackLabel: "Open Post-Pour board",
-    blockedMessage: "Post-Pour review assistant commands are office closeout-review tools. Field users stay limited to assigned checklist completion and cannot open office review controls.",
-    noWriteMessage: "No Post-Pour checklist will be completed, reviewed, reopened, archived, or changed automatically.",
+    label: "Closeout",
+    fallbackLabel: "Open Closeout board",
+    blockedMessage: "Closeout review assistant commands are office closeout-review tools. Field users stay limited to assigned checklist completion and cannot open office review controls.",
+    noWriteMessage: "No Closeout checklist will be completed, reviewed, reopened, archived, or changed automatically.",
   });
 }
 
@@ -3351,7 +3351,7 @@ function deriveMissingProofItemsForJob(job = {}, commandCenter = {}) {
     },
     {
       id: "pre-pour",
-      label: "Pre-pour",
+      label: "Job prep",
       status: pendingPrePour.length ? "needs-review" : "complete",
       detail: pendingPrePour.length ? `${pendingPrePour.length} pre-pour checklist${pendingPrePour.length === 1 ? "" : "s"} incomplete.` : "No open pre-pour checklist is showing for this job.",
       moduleId: "prePour",
@@ -3359,7 +3359,7 @@ function deriveMissingProofItemsForJob(job = {}, commandCenter = {}) {
     },
     {
       id: "post-pour",
-      label: "Post-pour",
+      label: "Closeout",
       status: pendingPostPour.length ? "needs-review" : "complete",
       detail: pendingPostPour.length ? `${pendingPostPour.length} post-pour checklist${pendingPostPour.length === 1 ? "" : "s"} incomplete.` : "No open post-pour checklist is showing for this job.",
       moduleId: "postPour",

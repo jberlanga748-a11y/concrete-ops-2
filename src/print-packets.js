@@ -1136,7 +1136,7 @@ export function deriveJobPrintPacket({
     ] : [
       { title: "Field-ready", copy: "Crew scope, assignments, and notes without office-only details." },
       { title: "Proof trail", copy: "Uploads, reports, tickets, and checklists are grouped for jobsite use." },
-      { title: "Closeout-ready", copy: "Pre-pour, post-pour, and tool checklist status is visible." },
+      { title: "Closeout-ready", copy: "Job prep, closeout, and tool checklist status is visible." },
       { title: "Change-order watch", copy: "Field scope changes are visible without office pricing notes." },
     ],
   };
@@ -1226,7 +1226,7 @@ export function deriveJobPrintPacket({
       })),
     },
     {
-      title: "Pre-Pour Checklists",
+      title: "Job Prep Checklists",
       type: "records",
       records: relatedPrePour.map((checklist) => ({
         title: prePourChecklistStatusLabel(checklist.status),
@@ -1235,7 +1235,7 @@ export function deriveJobPrintPacket({
       })),
     },
     {
-      title: "Post-Pour Checklists",
+      title: "Closeout Checklists",
       type: "records",
       records: relatedPostPour.map((checklist) => ({
         title: postPourChecklistStatusLabel(checklist.status),
@@ -1421,7 +1421,7 @@ export function deriveProofCloseoutPrintPacket({
     trustCards: [
       { title: "Proof trail", copy: "Photos and uploads are organized without raw private links." },
       { title: "Ticket backup", copy: "Supplier tickets, yardage, mix, slump, and truck details stay attached." },
-      { title: "Closeout checks", copy: "Pre-pour, post-pour, and tool checklist status is visible." },
+      { title: "Closeout checks", copy: "Job prep, closeout, and tool checklist status is visible." },
       { title: isInternal ? "Billing support" : "Final review", copy: "Reports, calculations, and change orders support final review." },
     ],
   };
@@ -1537,12 +1537,12 @@ export function deriveProofCloseoutPrintPacket({
         type: "records",
         records: [
           ...relatedPrePour.map((checklist) => ({
-            title: `Pre-pour / ${prePourChecklistStatusLabel(checklist.status)}`,
+            title: `Job prep / ${prePourChecklistStatusLabel(checklist.status)}`,
             meta: [checklist.completedAt ? `Completed ${formatDateTime(checklist.completedAt)}` : "", checklist.reviewedAt ? `Reviewed ${formatDateTime(checklist.reviewedAt)}` : ""].filter(Boolean),
             body: safeArray(checklist.items).map((item) => cleanOperationalPacketText(`${item.label || item.key}: ${prePourItemStatusLabel(item.status)}`, { fieldSafe })).filter(Boolean),
           })),
           ...relatedPostPour.map((checklist) => ({
-            title: `Post-pour / ${postPourChecklistStatusLabel(checklist.status)}`,
+            title: `Closeout / ${postPourChecklistStatusLabel(checklist.status)}`,
             meta: [checklist.completedAt ? `Completed ${formatDateTime(checklist.completedAt)}` : "", checklist.reviewedAt ? `Reviewed ${formatDateTime(checklist.reviewedAt)}` : ""].filter(Boolean),
             body: safeArray(checklist.items).map((item) => cleanOperationalPacketText(`${item.label || item.key}: ${postPourItemStatusLabel(item.status)}`, { fieldSafe })).filter(Boolean),
           })),

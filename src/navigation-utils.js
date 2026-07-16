@@ -152,13 +152,26 @@ const DASHBOARD_SHORTCUTS = {
   },
 };
 
+// Modules whose UI is written for concrete work (ready-mix delivery tickets,
+// the concrete proposal generator). Hidden from the nav when the company has
+// picked a specific non-concrete trade; the routes themselves stay reachable.
+const CONCRETE_TRADE_MODULE_IDS = new Set(["proposals", "deliveryTickets"]);
+
+export function tradeAllowsModule(moduleId, companySettings = DEFAULT_COMPANY_SETTINGS) {
+  if (!CONCRETE_TRADE_MODULE_IDS.has(moduleId)) return true;
+  const primaryTrade = String(companySettings?.primaryTrade || "").trim().toLowerCase();
+  return !primaryTrade || primaryTrade === "concrete" || primaryTrade === "general-contractor";
+}
+
 export function getVisibleNavGroups(navGroups, user, companySettings = DEFAULT_COMPANY_SETTINGS, permissions = null) {
   const allowedModules = getAllowedModuleIds(user, companySettings);
 
   return navGroups
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => allowedModules.has(item.id) && packageAllowsModule(item.id, permissions)),
+      items: group.items.filter((item) => allowedModules.has(item.id)
+        && packageAllowsModule(item.id, permissions)
+        && tradeAllowsModule(item.id, companySettings)),
     }))
     .filter((group) => group.items.length > 0);
 }

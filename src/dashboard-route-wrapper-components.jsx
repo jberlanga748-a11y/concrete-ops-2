@@ -9,7 +9,7 @@ export function DashboardPage({ components = {}, ...props }) {
     DashboardPagePolished,
   } = components;
 
-  if (props.permissions?.leads?.canView || shouldRenderCommandCenterForDashboard({
+  if (shouldRenderCommandCenterForDashboard({
     permissions: props.permissions,
     firstOwnerOnboarding: props.firstOwnerOnboarding,
   })) {

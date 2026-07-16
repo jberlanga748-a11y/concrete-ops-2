@@ -69,8 +69,8 @@ test("deriveAdminFoundationFinishState builds the Phase 1 owner/admin readiness 
   });
 
   assert.equal(state.canView, true);
-  assert.equal(state.title, "Admin Foundation Finish");
-  assert.equal(state.status, "Ready to freeze");
+  assert.equal(state.title, "Workspace Setup Check");
+  assert.equal(state.status, "All set");
   assert.equal(state.metrics.blockerCount, 0);
   assert.equal(state.metrics.importedDrafts, 2);
   assert.equal(state.metrics.importedDraftsNeedingReview, 1);
@@ -154,6 +154,6 @@ test("deriveAdminFoundationFinishState flags imported draft route readiness as a
 
   assert.equal(importedDraftsRow.ready, false);
   assert.equal(importedDraftsRow.status, "Partial");
-  assert.equal(state.status, "Needs finish pass");
+  assert.equal(state.status, "A few steps left");
   assert.equal(state.nextAction.id, "imported-drafts");
 });

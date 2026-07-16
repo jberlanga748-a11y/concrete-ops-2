@@ -67,7 +67,7 @@ test("core operations loop composes lead, estimate, schedule, proof, change, mat
   assert.equal(state.metrics.materialReadyPackets, 1);
   assert.equal(state.metrics.changeOrdersReadyForBillingHandoff, 1);
   assert.equal(state.blockedActions.some((action) => /No lead, estimate, job/i.test(action)), true);
-  assert.match(state.safetyBoundary, /does not mutate records/i);
+  assert.match(state.safetyBoundary, /never creates, sends, or changes anything/i);
 });
 
 test("core operations loop blocks field-only users from office context", () => {

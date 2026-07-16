@@ -101,14 +101,14 @@ export const AGENT_OS_INTERNAL_DRAFT_ACTIONS = Object.freeze([
   },
   {
     actionId: "pre_pour_review",
-    label: "Pre-pour review",
+    label: "Job prep review",
     helper: "Prepare pour readiness prompts. No checklist completion, pour approval, schedule mutation, or crew notification.",
     targetEntityType: "prePourChecklist",
     targetCollection: "prePourChecklists",
   },
   {
     actionId: "post_pour_review",
-    label: "Post-pour review",
+    label: "Closeout review",
     helper: "Prepare closeout and punch-list prompts. No job closeout, warranty note, customer message, or billing change.",
     targetEntityType: "postPourChecklist",
     targetCollection: "postPourChecklists",
