@@ -104,6 +104,123 @@ export const DEFAULT_COMPANY_SETTINGS = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// Company logo image value handling.
+//
+// A company logo may be supplied either as an http/https URL (paste a link) or
+// as an uploaded image stored inline as a base64 data URL. PNG and JPEG are the
+// ONLY accepted image types: the print/proposal PDF pipeline (pdfkit) can only
+// rasterize PNG and JPEG, so webp/heic/heif/gif/svg are rejected here even
+// though the general upload allow-list (ALLOWED_UPLOAD_TYPES) is broader.
+//
+// This logic is shared so the two persistence gates -- the request validator in
+// server/index.js and the storage normalizer in server/store.js -- can never
+// drift. If they disagreed, a value could pass validation on write yet get
+// blanked on the next normalize/read (silent data loss), or vice versa. The
+// classifier is pure and idempotent so both gates agree exactly on what persists.
+// ---------------------------------------------------------------------------
+
+// Inline logos ride along inside every company-settings payload, so keep the
+// decoded image comfortably small. 2MB is generous for a logo yet far tighter
+// than the 10MB general image upload cap.
+export const MAX_COMPANY_LOGO_IMAGE_BYTES = 2 * 1024 * 1024;
+export const MAX_COMPANY_LOGO_IMAGE_URL_LENGTH = 500;
+
+const COMPANY_LOGO_IMAGE_DATA_URL_PATTERN = /^data:image\/(png|jpeg);base64,([A-Za-z0-9+/]+={0,2})$/i;
+
+function base64DecodedByteLength(base64) {
+  const length = base64.length;
+  if (length === 0) return 0;
+  let padding = 0;
+  if (base64.endsWith("==")) padding = 2;
+  else if (base64.endsWith("=")) padding = 1;
+  return Math.floor((length * 3) / 4) - padding;
+}
+
+// Decode just the file header so we can confirm the bytes really are the
+// declared format -- a webp/svg mislabeled as image/png must not slip through
+// and crash pdfkit downstream. Uses the global atob so it works in Node and the
+// browser bundle without pulling in Buffer.
+function base64HeaderBytes(base64) {
+  const head = base64.slice(0, 12); // 12 base64 chars -> 9 decoded bytes
+  const binary = atob(head);
+  const bytes = new Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i) & 0xff;
+  }
+  return bytes;
+}
+
+function headerMatchesImageFormat(bytes, format) {
+  if (format === "png") {
+    return bytes.length >= 8
+      && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47
+      && bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a;
+  }
+  if (format === "jpeg") {
+    return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  }
+  return false;
+}
+
+// Classify a raw company logo value. Returns one of:
+//   { kind: "empty", value: "" }
+//   { kind: "url",   value: "<trimmed http(s) url>" }
+//   { kind: "data",  value: "data:image/<png|jpeg>;base64,<body>" }
+//   { kind: "invalid", reason, message }  -- message is safe to surface to the API caller
+export function classifyCompanyLogoImageValue(rawValue) {
+  if (typeof rawValue !== "string") return { kind: "empty", value: "" };
+  const trimmed = rawValue.trim();
+  if (!trimmed) return { kind: "empty", value: "" };
+
+  if (/^data:/i.test(trimmed)) {
+    // Reject oversize before running the full-body regex / decode on a large string.
+    const maxDataUrlLength = Math.ceil((MAX_COMPANY_LOGO_IMAGE_BYTES * 4) / 3) + 64;
+    const tooLargeMessage = `Uploaded logo must be ${Math.round(MAX_COMPANY_LOGO_IMAGE_BYTES / (1024 * 1024))}MB or smaller.`;
+    if (trimmed.length > maxDataUrlLength) {
+      return { kind: "invalid", reason: "image-too-large", message: tooLargeMessage };
+    }
+    const match = trimmed.match(COMPANY_LOGO_IMAGE_DATA_URL_PATTERN);
+    if (!match) {
+      return { kind: "invalid", reason: "unsupported-image-type", message: "Uploaded logo must be a PNG or JPEG image." };
+    }
+    const format = match[1].toLowerCase();
+    const base64 = match[2];
+    const byteLength = base64DecodedByteLength(base64);
+    if (byteLength <= 0) {
+      return { kind: "invalid", reason: "empty-image", message: "Uploaded logo image is empty." };
+    }
+    if (byteLength > MAX_COMPANY_LOGO_IMAGE_BYTES) {
+      return { kind: "invalid", reason: "image-too-large", message: tooLargeMessage };
+    }
+    let header;
+    try {
+      header = base64HeaderBytes(base64);
+    } catch {
+      return { kind: "invalid", reason: "image-decode-failed", message: "Uploaded logo image could not be decoded." };
+    }
+    if (!headerMatchesImageFormat(header, format)) {
+      return { kind: "invalid", reason: "image-type-mismatch", message: "Uploaded logo data must be a real PNG or JPEG image." };
+    }
+    return { kind: "data", value: `data:image/${format};base64,${base64}` };
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return { kind: "url", value: trimmed };
+  }
+
+  return { kind: "invalid", reason: "unsupported-scheme", message: "Logo image must be an http(s) URL or an uploaded PNG or JPEG." };
+}
+
+// Storage-side normalizer: keep a valid logo value, blank anything else. Never
+// throws -- mirrors how normalizeCompanySettings silently sanitizes every field.
+export function normalizeCompanyLogoImageValue(rawValue) {
+  const result = classifyCompanyLogoImageValue(rawValue);
+  if (result.kind === "url") return result.value.slice(0, MAX_COMPANY_LOGO_IMAGE_URL_LENGTH);
+  if (result.kind === "data") return result.value;
+  return "";
+}
+
 export function normalizeRole(role) {
   return String(role || "").trim().toLowerCase();
 }

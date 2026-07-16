@@ -652,6 +652,54 @@ test("operator company settings remain scoped to the selected company", async ()
   }
 });
 
+test("uploaded logo images stay scoped to the selected company", async () => {
+  const fixture = await startServer();
+
+  try {
+    insertOtherCompanyLeadData(fixture.sqliteFile);
+    enableOperatorAccess(fixture.sqliteFile);
+
+    const operatorLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const token = operatorLogin.token;
+
+    const lyfLogo = `data:image/png;base64,${Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 11, 22, 33]).toString("base64")}`;
+    const defaultLogo = `data:image/jpeg;base64,${Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 7, 8, 9]).toString("base64")}`;
+
+    // Upload a logo on the LYF company.
+    const switched = await postJson(fixture.baseUrl, "/api/companies/select", token, { companyId: "COMPANY-LYF" });
+    assert.equal(switched.currentCompanyId, "COMPANY-LYF");
+    const lyfSettings = await assertOk(fixture.baseUrl, "/api/settings/company", {
+      method: "PATCH",
+      headers: authHeaders(token),
+      body: JSON.stringify({ logoImageUrl: lyfLogo }),
+    });
+    assert.equal(lyfSettings.companySettings.logoImageUrl, lyfLogo);
+
+    // The default company must not inherit the LYF upload...
+    const backToDefault = await postJson(fixture.baseUrl, "/api/companies/select", token, { companyId: DEFAULT_COMPANY_ID });
+    assert.equal(backToDefault.currentCompanyId, DEFAULT_COMPANY_ID);
+    assert.notEqual(backToDefault.companySettings.logoImageUrl, lyfLogo);
+
+    // ...and setting a different logo on the default company must not touch LYF's.
+    const defaultSettings = await assertOk(fixture.baseUrl, "/api/settings/company", {
+      method: "PATCH",
+      headers: authHeaders(token),
+      body: JSON.stringify({ logoImageUrl: defaultLogo }),
+    });
+    assert.equal(defaultSettings.companySettings.logoImageUrl, defaultLogo);
+
+    const backToLyf = await postJson(fixture.baseUrl, "/api/companies/select", token, { companyId: "COMPANY-LYF" });
+    assert.equal(backToLyf.currentCompanyId, "COMPANY-LYF");
+    assert.equal(backToLyf.companySettings.logoImageUrl, lyfLogo);
+    assert.notEqual(backToLyf.companySettings.logoImageUrl, defaultLogo);
+  } finally {
+    await fixture.stop();
+  }
+});
+
 test("company settings ignore client-supplied company scope fields", async () => {
   const fixture = await startServer();
 

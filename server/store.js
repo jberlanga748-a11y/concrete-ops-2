@@ -19,7 +19,7 @@ import { normalizeManagedSetupSettings } from "../shared/managedCompanySetup.js"
 import { normalizeAgentLearningPreferences } from "../shared/agentLearningPreferences.js";
 import { normalizeAgentConversationThread } from "../shared/agentConversations.js";
 import { normalizeApexAgentAutomationPolicy } from "../shared/apexAgentAutomationPolicy.js";
-import { DEFAULT_COMPANY_SETTINGS, normalizeTimeLocationEvidencePolicy } from "../shared/permissions.js";
+import { DEFAULT_COMPANY_SETTINGS, normalizeCompanyLogoImageValue, normalizeTimeLocationEvidencePolicy } from "../shared/permissions.js";
 import { normalizeConstructionTradeId } from "../shared/constructionTrades.js";
 import { normalizeImportedJobDrafts } from "../shared/jobDraftImports.js";
 import { normalizeJobStartupFields } from "../shared/jobStartup.js";
@@ -3846,9 +3846,8 @@ function normalizeCompanySettings(settings = {}) {
   const normalizedLogoInitials = typeof settings?.logoInitials === "string"
     ? settings.logoInitials.trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3)
     : "";
-  const normalizedLogoImageUrl = typeof settings?.logoImageUrl === "string"
-    ? settings.logoImageUrl.trim().slice(0, 500)
-    : "";
+  // Accepts an http/https URL or an uploaded PNG/JPEG data URL; blanks anything else.
+  const normalizedLogoImageUrl = normalizeCompanyLogoImageValue(settings?.logoImageUrl);
   const normalizedAccentColor = typeof settings?.accentColor === "string" ? settings.accentColor.trim().toLowerCase() : "";
   const normalizeText = (value, limit) => (typeof value === "string" ? value.trim().slice(0, limit) : "");
   const managedSetup = normalizeManagedSetupSettings(settings);
@@ -3858,7 +3857,7 @@ function normalizeCompanySettings(settings = {}) {
     ...(settings || {}),
     companyName: normalizedCompanyName,
     logoInitials: normalizedLogoInitials,
-    logoImageUrl: /^https?:\/\//i.test(normalizedLogoImageUrl) ? normalizedLogoImageUrl : "",
+    logoImageUrl: normalizedLogoImageUrl,
     accentColor: new Set(["blue", "slate", "emerald", "amber", "orange"]).has(normalizedAccentColor)
       ? normalizedAccentColor
       : DEFAULT_COMPANY_SETTINGS.accentColor,

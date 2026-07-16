@@ -324,6 +324,8 @@ import {
   isOfficeManager,
   isOperationsManager,
   isOwner,
+  classifyCompanyLogoImageValue,
+  MAX_COMPANY_LOGO_IMAGE_URL_LENGTH,
 } from "../shared/permissions.js";
 import { deriveTimeEntryJobsitePresenceReview } from "../shared/timeLocationPresence.js";
 import { buildConstructionAgentTradeContext, normalizeConstructionTradeId } from "../shared/constructionTrades.js";
@@ -4856,18 +4858,25 @@ function optionalLogoInitials(value, fallback = "") {
 
 function optionalCompanyLogoImageUrl(value, fallback = "") {
   if (value == null) return fallback;
-  const normalized = String(value).trim().slice(0, 500);
-  if (!normalized) return "";
-  let parsed;
-  try {
-    parsed = new URL(normalized);
-  } catch {
-    throw new ApiError(400, "Logo image URL must be a valid http or https URL.");
+  const classified = classifyCompanyLogoImageValue(value);
+  if (classified.kind === "empty") return "";
+  if (classified.kind === "data") {
+    // Uploaded PNG/JPEG logo, stored inline as a data URL.
+    return classified.value;
   }
-  if (!["http:", "https:"].includes(parsed.protocol)) {
-    throw new ApiError(400, "Logo image URL must use http or https.");
+  if (classified.kind === "url") {
+    let parsed;
+    try {
+      parsed = new URL(classified.value.slice(0, MAX_COMPANY_LOGO_IMAGE_URL_LENGTH));
+    } catch {
+      throw new ApiError(400, "Logo image URL must be a valid http or https URL.");
+    }
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+      throw new ApiError(400, "Logo image URL must use http or https.");
+    }
+    return parsed.href;
   }
-  return parsed.href;
+  throw new ApiError(400, classified.message || "Logo image must be an http(s) URL or an uploaded PNG or JPEG.");
 }
 
 function optionalAccentColor(value, fallback = DEFAULT_COMPANY_SETTINGS.accentColor) {

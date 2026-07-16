@@ -256,6 +256,51 @@ test("tool checklist toggle and role-scoped checklist workflows work without lea
     });
     assert.equal(invalidLogoState.response.status, 400);
 
+    // Contractors can upload an image file (stored inline as a PNG/JPEG data URL), not just paste a URL.
+    const pngLogo = `data:image/png;base64,${Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]).toString("base64")}`;
+    const uploadedLogoState = await assertOk(fixture.baseUrl, "/api/settings/company", {
+      method: "PATCH",
+      headers: officeHeaders,
+      body: JSON.stringify({ logoImageUrl: pngLogo }),
+    });
+    assert.equal(uploadedLogoState.companySettings.logoImageUrl, pngLogo);
+
+    // The uploaded logo round-trips through a fresh read of company settings.
+    const bootstrapAfterUpload = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers: officeHeaders });
+    assert.equal(bootstrapAfterUpload.companySettings.logoImageUrl, pngLogo);
+
+    const jpegLogo = `data:image/jpeg;base64,${Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 1, 2, 3]).toString("base64")}`;
+    const jpegLogoState = await assertOk(fixture.baseUrl, "/api/settings/company", {
+      method: "PATCH",
+      headers: officeHeaders,
+      body: JSON.stringify({ logoImageUrl: jpegLogo }),
+    });
+    assert.equal(jpegLogoState.companySettings.logoImageUrl, jpegLogo);
+
+    // A non-PNG/JPEG image (webp) is rejected with a clear message.
+    const webpLogo = `data:image/webp;base64,${Buffer.from([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50]).toString("base64")}`;
+    const rejectedWebp = await requestJson(fixture.baseUrl, "/api/settings/company", {
+      method: "PATCH",
+      headers: officeHeaders,
+      body: JSON.stringify({ logoImageUrl: webpLogo }),
+    });
+    assert.equal(rejectedWebp.response.status, 400);
+    assert.match(rejectedWebp.payload.error || "", /PNG or JPEG/i);
+
+    // An oversize upload is rejected with a clear size message.
+    const oversizeLogo = `data:image/png;base64,${Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(3 * 1024 * 1024)]).toString("base64")}`;
+    const rejectedOversize = await requestJson(fixture.baseUrl, "/api/settings/company", {
+      method: "PATCH",
+      headers: officeHeaders,
+      body: JSON.stringify({ logoImageUrl: oversizeLogo }),
+    });
+    assert.equal(rejectedOversize.response.status, 400);
+    assert.match(rejectedOversize.payload.error || "", /2MB or smaller/i);
+
+    // Rejected uploads leave the previously-stored logo intact.
+    const afterRejections = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers: officeHeaders });
+    assert.equal(afterRejections.companySettings.logoImageUrl, jpegLogo);
+
     const companyProfileState = await assertOk(fixture.baseUrl, "/api/settings/company", {
       method: "PATCH",
       headers: officeHeaders,

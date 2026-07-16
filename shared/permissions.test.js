@@ -50,7 +50,17 @@ import {
   canExportData,
   getAllowedModuleIds,
   normalizeTimeLocationEvidencePolicy,
+  classifyCompanyLogoImageValue,
+  normalizeCompanyLogoImageValue,
+  MAX_COMPANY_LOGO_IMAGE_BYTES,
 } from "./permissions.js";
+
+const toBase64 = (bytes) => Buffer.from(bytes).toString("base64");
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+const JPEG_SIGNATURE = [0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10];
+const RIFF_WEBP = [0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50];
+const pngDataUrl = (extra = [1, 2, 3, 4]) => `data:image/png;base64,${toBase64([...PNG_SIGNATURE, ...extra])}`;
+const jpegDataUrl = (extra = [1, 2, 3]) => `data:image/jpeg;base64,${toBase64([...JPEG_SIGNATURE, ...extra])}`;
 
 test("time location evidence policy defaults to off with bounded worker notice", () => {
   const defaultPolicy = normalizeTimeLocationEvidencePolicy();
@@ -313,4 +323,59 @@ test("office can still access tool checklist records while the field module is d
 
   assert.equal(canUseToolChecklist(owner, { toolChecklistEnabled: false }), true);
   assert.equal(canViewAllToolChecklists(owner), true);
+});
+
+test("company logo accepts uploaded PNG and JPEG data URLs and round-trips unchanged", () => {
+  const png = pngDataUrl();
+  const jpeg = jpegDataUrl();
+
+  const classifiedPng = classifyCompanyLogoImageValue(png);
+  assert.equal(classifiedPng.kind, "data");
+  assert.equal(classifiedPng.value, png);
+
+  const classifiedJpeg = classifyCompanyLogoImageValue(jpeg);
+  assert.equal(classifiedJpeg.kind, "data");
+  assert.equal(classifiedJpeg.value, jpeg);
+
+  // Storage normalizer preserves the data URL, and re-normalizing is idempotent.
+  assert.equal(normalizeCompanyLogoImageValue(png), png);
+  assert.equal(normalizeCompanyLogoImageValue(normalizeCompanyLogoImageValue(png)), png);
+  assert.equal(normalizeCompanyLogoImageValue(jpeg), jpeg);
+
+  // Mixed-case mime is normalized to lowercase but the base64 body is untouched.
+  const upperMime = png.replace("image/png", "image/PNG");
+  assert.equal(normalizeCompanyLogoImageValue(upperMime), png);
+});
+
+test("company logo still accepts http and https URLs", () => {
+  const url = "https://cdn.example.test/logo.png";
+  assert.equal(classifyCompanyLogoImageValue(url).kind, "url");
+  assert.equal(normalizeCompanyLogoImageValue(url), url);
+  assert.equal(normalizeCompanyLogoImageValue("http://example.test/a.png"), "http://example.test/a.png");
+});
+
+test("company logo rejects non-PNG/JPEG images, oversize uploads, and unsafe schemes", () => {
+  const svg = `data:image/svg+xml;base64,${toBase64([1, 2, 3])}`;
+  const webp = `data:image/webp;base64,${toBase64(RIFF_WEBP)}`;
+  // Real webp bytes mislabeled with an image/png mime must not slip past the type check.
+  const webpMislabeledAsPng = `data:image/png;base64,${toBase64([...RIFF_WEBP, 9, 9, 9])}`;
+  const oversize = `data:image/png;base64,${toBase64([...PNG_SIGNATURE, ...new Array(MAX_COMPANY_LOGO_IMAGE_BYTES + 100).fill(0)])}`;
+
+  for (const value of [svg, webp, webpMislabeledAsPng, "javascript:alert(1)", "ftp://example.test/logo.png", "not a url"]) {
+    const classified = classifyCompanyLogoImageValue(value);
+    assert.equal(classified.kind, "invalid", `expected ${value.slice(0, 40)} to be invalid`);
+    assert.ok(classified.message && classified.message.length > 0, "invalid results carry a message");
+    // The storage normalizer blanks anything the validator would reject (no drift).
+    assert.equal(normalizeCompanyLogoImageValue(value), "");
+  }
+
+  const oversizeResult = classifyCompanyLogoImageValue(oversize);
+  assert.equal(oversizeResult.kind, "invalid");
+  assert.match(oversizeResult.message, /2MB or smaller/);
+  assert.equal(normalizeCompanyLogoImageValue(oversize), "");
+
+  // Empty / non-string inputs collapse to empty (clears the logo).
+  assert.equal(classifyCompanyLogoImageValue("").kind, "empty");
+  assert.equal(classifyCompanyLogoImageValue(null).kind, "empty");
+  assert.equal(normalizeCompanyLogoImageValue(undefined), "");
 });
