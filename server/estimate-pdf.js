@@ -249,7 +249,37 @@ function packetAudienceLabel(printModel = {}) {
   return "Proposal packet";
 }
 
-function drawHeader(doc, { companyName, companyProfile, headerLabel = "PROPOSAL PACKET", theme = {} }) {
+// Draws the uploaded logo inside a white container so transparent PNGs stay
+// visible on the dark header. Returns false so callers fall back to the
+// initials mark when there is no logo or PDFKit cannot decode it.
+function drawLogoMark(doc, logoImage, { x, y, width, height, radius = 10, pad = 4 }) {
+  if (!logoImage) return false;
+  let image;
+  try {
+    // Parse before painting so an undecodable logo leaves the page untouched
+    // and the caller can draw the initials mark instead.
+    image = doc.openImage(logoImage);
+  } catch {
+    return false;
+  }
+  try {
+    doc.save();
+    doc.roundedRect(x, y, width, height, radius).fill(COLORS.white);
+    doc.roundedRect(x, y, width, height, radius).clip();
+    doc.image(image, x + pad, y + pad, {
+      fit: [width - (pad * 2), height - (pad * 2)],
+      align: "center",
+      valign: "center",
+    });
+    return true;
+  } catch {
+    return false;
+  } finally {
+    doc.restore();
+  }
+}
+
+function drawHeader(doc, { companyName, companyProfile, headerLabel = "PROPOSAL PACKET", theme = {}, logoImage = null }) {
   const headerTop = PAGE_MARGIN;
   const initials = cleanText(companyProfile.logoInitials || companyName.slice(0, 2) || "CO").slice(0, 3).toUpperCase();
   const colors = pdfTheme(theme);
@@ -259,12 +289,14 @@ function drawHeader(doc, { companyName, companyProfile, headerLabel = "PROPOSAL 
     .rect(PAGE_MARGIN, headerTop + 82, CONTENT_WIDTH, 4)
     .fill(colors.accentColor);
 
-  doc.roundedRect(PAGE_MARGIN + 18, headerTop + 18, 48, 48, 10).fill(colors.accentColor);
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(17)
-    .fillColor(colors.headerTextColor)
-    .text(initials, PAGE_MARGIN + 18, headerTop + 33, { width: 48, align: "center" });
+  if (!drawLogoMark(doc, logoImage, { x: PAGE_MARGIN + 18, y: headerTop + 18, width: 48, height: 48, radius: 10 })) {
+    doc.roundedRect(PAGE_MARGIN + 18, headerTop + 18, 48, 48, 10).fill(colors.accentColor);
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(17)
+      .fillColor(colors.headerTextColor)
+      .text(initials, PAGE_MARGIN + 18, headerTop + 33, { width: 48, align: "center" });
+  }
 
   doc
     .font("Helvetica-Bold")
@@ -309,6 +341,7 @@ function drawProposalCoverPage(doc, {
   companyProfile = {},
   cover = {},
   packetModeLabel = "Customer-ready proposal packet",
+  logoImage = null,
 }) {
   const initials = cleanText(companyProfile.logoInitials || companyName.slice(0, 2) || "CO").slice(0, 3).toUpperCase();
   const colors = pdfTheme(cover.theme);
@@ -327,8 +360,12 @@ function drawProposalCoverPage(doc, {
     [PAGE_MARGIN + CONTENT_WIDTH - 136, top + heroHeight],
   ).fill("#cbd5e1");
 
-  doc.circle(PAGE_MARGIN + 74, top + 82, 44).fill(colors.accentColor).strokeColor(COLORS.white).lineWidth(2).stroke();
-  doc.font("Helvetica-Bold").fontSize(20).fillColor(colors.headerTextColor).text(initials, PAGE_MARGIN + 30, top + 72, { width: 88, align: "center" });
+  // Uploaded logos (usually wide) get a rounded-rect plate instead of the
+  // initials circle so they are letterboxed, never cropped or distorted.
+  if (!drawLogoMark(doc, logoImage, { x: PAGE_MARGIN + 24, y: top + 46, width: 100, height: 72, radius: 12, pad: 6 })) {
+    doc.circle(PAGE_MARGIN + 74, top + 82, 44).fill(colors.accentColor).strokeColor(COLORS.white).lineWidth(2).stroke();
+    doc.font("Helvetica-Bold").fontSize(20).fillColor(colors.headerTextColor).text(initials, PAGE_MARGIN + 30, top + 72, { width: 88, align: "center" });
+  }
 
   doc.font("Helvetica-Bold").fontSize(8).fillColor(colors.accentSoftColor).text(cleanText(cover.coverKicker, "PROPOSAL").toUpperCase(), PAGE_MARGIN + 160, top + 38, { width: 250 });
   doc.font("Helvetica-Bold").fontSize(28).fillColor(colors.headerTextColor).text(cleanText(cover.packetTitle, "Professional Proposal"), PAGE_MARGIN + 160, top + 56, {
@@ -965,6 +1002,9 @@ export async function buildEstimatePdfBuffer({
   const printModel = deriveEstimatePrintModel(estimate, applyCompanyProfilePacketTheme(packetSettings, companyProfile));
   const printIncludes = printModel.packetSettings.includes;
   const packetTheme = printModel.cover.theme;
+  // Load the uploaded company logo once; draw sites stay synchronous and fall
+  // back to the initials mark when this resolves to null.
+  const logoImage = await loadPdfImageSource(companyProfile?.logoImageUrl);
 
   const hasCoverPage = Boolean(printIncludes.projectInfo);
   if (hasCoverPage) {
@@ -973,11 +1013,12 @@ export async function buildEstimatePdfBuffer({
       companyProfile,
       cover: printModel.cover,
       packetModeLabel: packetAudienceLabel(printModel),
+      logoImage,
     });
     doc.addPage();
     doc.y = PAGE_MARGIN;
   }
-  drawHeader(doc, { companyName, companyProfile, headerLabel: packetHeaderLabel(printModel), theme: packetTheme });
+  drawHeader(doc, { companyName, companyProfile, headerLabel: packetHeaderLabel(printModel), theme: packetTheme, logoImage });
   if (!hasCoverPage && printIncludes.projectInfo) {
     drawProposalIntro(doc, {
       estimate,

@@ -13,6 +13,7 @@ import { buildTakeoffStudioFieldHandoff, takeoffStudioHasContent } from "./takeo
 import { deriveEstimatePrintModel } from "../shared/estimatePrint.js";
 import { CUSTOM_ESTIMATE_PACKET_THEME_ID } from "../shared/estimatePacketPresets.js";
 import { buildConstructionAgentTradeContext } from "../shared/constructionTrades.js";
+import { normalizeCompanyLogoImageValue } from "../shared/permissions.js";
 
 function safeArray(value) {
   return Array.isArray(value) ? value.filter(Boolean) : [];
@@ -60,15 +61,10 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
+// Same allow-list as the storage validator (http/https URL or PNG/JPEG data
+// URL), so the browser packet and the server PDF can never drift apart.
 function normalizeLogoImageUrl(value) {
-  const normalized = String(value || "").trim();
-  if (!normalized) return "";
-  try {
-    const parsed = new URL(normalized);
-    return ["http:", "https:"].includes(parsed.protocol) ? parsed.href : "";
-  } catch {
-    return "";
-  }
+  return normalizeCompanyLogoImageValue(value);
 }
 
 const PACKET_MODE_LABELS = {

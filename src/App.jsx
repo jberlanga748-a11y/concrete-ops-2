@@ -306,7 +306,7 @@ import { deriveGrowthCommandCenterState } from "./growth-command-utils";
 import { deriveReputationPortfolioEngineState } from "./reputation-portfolio-utils";
 import { applyOpportunityScoutAgentPreviewToDraft, applyOpportunityScoutSourceCheckToDraft, buildFoundOpportunityDraftFromScoutExecutionCard, buildFoundOpportunityEvidenceIntakeFromScoutCard, buildOpportunityScoutConnectorSetupDraft, buildOpportunityScoutConnectorSetupDraftFromCoverageRecommendation, buildOpportunityScoutConnectorSetupPayload, buildOpportunityScoutSourceBrief, deriveFoundOpportunityDraftDuplicateWarnings, deriveOpportunityScoutState } from "./opportunity-scout-utils";
 import { deriveAppHealthAuditState } from "./owner-health-utils";
-import { canRequestPackageReview, normalizeTimeLocationEvidencePolicy } from "../shared/permissions.js";
+import { canRequestPackageReview, classifyCompanyLogoImageValue, normalizeTimeLocationEvidencePolicy } from "../shared/permissions.js";
 import { BrandIntroScreen, LoadingScreen, ModuleLoadingFallback, SplashScreen, StartupFallbackScreen } from "./startup-screen-components";
 import { DEMO_LOGIN_PRESETS } from "./demo-login-presets";
 import { LEAD_SCORE_LABELS } from "../shared/leadScoring.js";
@@ -7402,6 +7402,7 @@ function SettingsPagePolished({
     accentColor: normalizeAccentColor(safeCompanySettings.accentColor),
   }));
   const [brandingNotice, setBrandingNotice] = useState("");
+  const logoFileInputRef = useRef(null);
   const [profileDraft, setProfileDraft] = useState(() => ({
     primaryTrade: safeCompanySettings.primaryTrade || "general-contractor",
     businessPhone: safeCompanySettings.businessPhone || "",
@@ -7921,6 +7922,31 @@ function SettingsPagePolished({
     setBrandingNotice(saved ? "Branding saved." : "Could not save branding. Please try again.");
   }
 
+  function handleLogoFileChange(event) {
+    const input = event.target;
+    const file = input.files?.[0];
+    input.value = "";
+    if (!file) return;
+    if (!["image/png", "image/jpeg"].includes(file.type)) {
+      setBrandingNotice("Logo must be a PNG or JPEG image.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const classified = classifyCompanyLogoImageValue(String(reader.result || ""));
+      if (classified.kind !== "data") {
+        setBrandingNotice(classified.message || "Logo must be a PNG or JPEG image up to 2MB.");
+        return;
+      }
+      setBrandingDraft((current) => ({ ...current, logoImageUrl: classified.value }));
+      setBrandingNotice("Logo ready. Click Save branding to keep it.");
+    };
+    reader.onerror = () => {
+      setBrandingNotice("Could not read that file. Please try again.");
+    };
+    reader.readAsDataURL(file);
+  }
+
   async function handleCompanyProfileSave(event) {
     event.preventDefault();
     if (typeof onUpdateCompanySettings !== "function") return;
@@ -8203,20 +8229,55 @@ function SettingsPagePolished({
                         ))}
                       </SelectField>
                     </div>
+                    <div className="grid gap-2">
+                      <p className="text-sm font-black text-slate-700">Company logo</p>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <input
+                          ref={logoFileInputRef}
+                          type="file"
+                          accept="image/png,image/jpeg"
+                          className="hidden"
+                          onChange={handleLogoFileChange}
+                          disabled={busy || typeof onUpdateCompanySettings !== "function"}
+                        />
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => logoFileInputRef.current?.click()}
+                          disabled={busy || typeof onUpdateCompanySettings !== "function"}
+                        >
+                          Upload logo
+                        </Button>
+                        {brandingDraft.logoImageUrl.trim() ? (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => {
+                              setBrandingDraft((current) => ({ ...current, logoImageUrl: "" }));
+                              setBrandingNotice("Logo removed. Click Save branding to keep the change.");
+                            }}
+                            disabled={busy || typeof onUpdateCompanySettings !== "function"}
+                          >
+                            Remove logo
+                          </Button>
+                        ) : null}
+                      </div>
+                      <p className="text-sm font-bold text-slate-500">PNG or JPEG, up to 2MB. Your logo shows on estimates, proposals, and print packets.</p>
+                    </div>
                     <InputField
-                      label="Logo image URL"
+                      label="Or paste a hosted logo URL"
                       type="url"
-                      value={brandingDraft.logoImageUrl}
+                      value={brandingDraft.logoImageUrl.startsWith("data:") ? "" : brandingDraft.logoImageUrl}
                       onChange={(event) => {
                         setBrandingDraft((current) => ({ ...current, logoImageUrl: event.target.value }));
                         setBrandingNotice("");
                       }}
-                      placeholder="https://yourcompany.com/logo.png"
+                      placeholder={brandingDraft.logoImageUrl.startsWith("data:") ? "Uploaded logo in use" : "https://yourcompany.com/logo.png"}
                       disabled={busy || typeof onUpdateCompanySettings !== "function"}
                     />
                     <div className="flex flex-wrap items-center gap-3">
                       <Button type="submit" disabled={busy || !brandingDirty || typeof onUpdateCompanySettings !== "function"}>Save branding</Button>
-                      <p className="text-sm font-bold text-slate-500">{brandingNotice || "Logo URLs show in browser print packets. File upload storage comes later."}</p>
+                      <p className="text-sm font-bold text-slate-500">{brandingNotice || "Your logo appears on the estimate PDF and browser print packets."}</p>
                     </div>
                   </form>
                   <div className="co-settings-brand-preview">

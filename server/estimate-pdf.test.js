@@ -597,3 +597,40 @@ test("estimate PDF internal review packet uses polished office-review defaults",
   assert.doesNotMatch(decodedText, /PROPOSAL DATE|Review proposal options|Apex HQ Workspace proposal packet/);
   assert.doesNotMatch(decodedText, /Private sent history|Apex HQ Sent Proposal History/);
 });
+
+test("estimate PDF renders an uploaded logo and falls back to initials when absent or invalid", async () => {
+  const logoEstimate = {
+    title: "Logo Test Proposal",
+    createdAt: "2026-05-01T12:00:00.000Z",
+    scopeSummary: "Scope of Work:\nInstall cedar fence.",
+    customerNotes: "Customer Notes / Terms:\nValid for 30 days.",
+    items: [{ description: "Fence install", quantity: 1, unit: "LS", unitPrice: 5000 }],
+  };
+
+  // With an uploaded PNG logo: the image is embedded and the initials mark is not drawn.
+  const withLogo = await buildEstimatePdfBuffer({
+    companyName: "Zeta Fence Co.",
+    companyProfile: { logoInitials: "ZZQ", logoImageUrl: SAMPLE_OPTION_IMAGE },
+    estimate: logoEstimate,
+  });
+  assert.match(withLogo.toString("latin1"), /\/Subtype \/Image/);
+  assert.doesNotMatch(extractPdfText(withLogo), /ZZQ/);
+
+  // Without a logo: no embedded image, initials mark renders.
+  const withoutLogo = await buildEstimatePdfBuffer({
+    companyName: "Zeta Fence Co.",
+    companyProfile: { logoInitials: "ZZQ" },
+    estimate: logoEstimate,
+  });
+  assert.doesNotMatch(withoutLogo.toString("latin1"), /\/Subtype \/Image/);
+  assert.match(extractPdfText(withoutLogo), /ZZQ/);
+
+  // With an invalid logo value: silently falls back to the initials mark.
+  const withBadLogo = await buildEstimatePdfBuffer({
+    companyName: "Zeta Fence Co.",
+    companyProfile: { logoInitials: "ZZQ", logoImageUrl: "data:image/png;base64,not-a-real-image" },
+    estimate: logoEstimate,
+  });
+  assert.doesNotMatch(withBadLogo.toString("latin1"), /\/Subtype \/Image/);
+  assert.match(extractPdfText(withBadLogo), /ZZQ/);
+});
