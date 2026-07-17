@@ -41,6 +41,7 @@ export const DEFAULT_COMPANY_SETTINGS = {
   logoInitials: "",
   logoImageUrl: "",
   accentColor: "blue",
+  brandColorHex: "",
   businessPhone: "",
   businessEmail: "",
   website: "",
