@@ -192,6 +192,71 @@ test("derivePayrollPrepState requires exception-free completed hours before expo
   assert.match(prep.exceptions[0].reason, /Clock still active/);
 });
 
+test("payroll prep still computes every worker's hours and flags a stuck clock as clockable", () => {
+  const prep = derivePayrollPrepState([
+    {
+      id: "T-READY",
+      userId: "U-1",
+      userName: "Sam Field",
+      userRole: "Employee",
+      jobId: "J-1",
+      jobTitle: "North Patio",
+      workCategory: "job",
+      clockInAt: "2026-05-18T15:00:00.000Z",
+      clockOutAt: "2026-05-18T23:30:00.000Z",
+      totalMinutes: 480,
+      breakMinutes: 30,
+      status: "completed",
+      updatedAt: "2026-05-18T23:35:00.000Z",
+    },
+    {
+      id: "T-ACTIVE",
+      userId: "U-2",
+      userName: "Riley Crew",
+      workCategory: "job",
+      jobId: "J-1",
+      clockInAt: "2026-05-19T15:00:00.000Z",
+      totalMinutes: 0,
+      breakMinutes: 0,
+      status: "active",
+      updatedAt: "2026-05-19T15:00:00.000Z",
+    },
+    {
+      // A completed-but-zero-hour exception whose name sorts BEFORE the active one.
+      id: "T-ZERO",
+      userId: "U-3",
+      userName: "Aaron Idle",
+      workCategory: "job",
+      jobId: "J-1",
+      clockInAt: "2026-05-20T15:00:00.000Z",
+      clockOutAt: "2026-05-20T15:00:00.000Z",
+      totalMinutes: 0,
+      breakMinutes: 0,
+      status: "completed",
+      updatedAt: "2026-05-20T15:05:00.000Z",
+    },
+  ], [], { periodStart: "2026-05-18", periodEnd: "2026-05-31" });
+
+  // Safety preserved: exceptions still block approval/export.
+  assert.equal(prep.exceptions.length, 2);
+  assert.equal(prep.canApprove, false);
+  assert.equal(prep.canExport, false);
+
+  // The still-clocked-in (clockable) exception is surfaced FIRST -- ahead of the
+  // alphabetically-earlier zero-hour one -- so it stays in the visible slice and the
+  // owner can resolve it in one tap.
+  assert.equal(prep.exceptions[0].userId, "U-2");
+  assert.equal(prep.exceptions[0].active, true);
+  assert.equal(prep.exceptions[1].userId, "U-3");
+  assert.equal(prep.exceptions[1].active, false);
+
+  // Every other worker's ready hours are still computed -- the UI always shows them
+  // instead of hiding all hours behind the stuck clock.
+  assert.equal(prep.employeeSummaries.length, 1);
+  assert.equal(prep.employeeSummaries[0].userId, "U-1");
+  assert.equal(prep.employeeSummaries[0].totalMinutes, 480);
+});
+
 test("payroll prep approval is audit-backed and CSV stays hours-only", () => {
   const periodStart = "2026-05-18";
   const periodEnd = "2026-05-31";

@@ -764,3 +764,130 @@ test("payroll prep approval and CSV export stay owner-admin only and hours-only"
     await fixture.stop();
   }
 });
+
+test("employees can clock into General labor with no job assigned", async () => {
+  const fixture = await startServer();
+
+  try {
+    const workerA = createUserRecord({
+      id: "U-GL-A",
+      email: "gl-a@lastyard.test",
+      password: "apexdemo123",
+      name: "GL Worker A",
+      role: "Employee",
+    });
+    const workerB = createUserRecord({
+      id: "U-GL-B",
+      email: "gl-b@lastyard.test",
+      password: "apexdemo123",
+      name: "GL Worker B",
+      role: "Employee",
+    });
+    insertUsers(fixture.sqliteFile, [workerA, workerB]);
+    configureJobs(fixture.sqliteFile);
+
+    const loginA = await login(fixture.baseUrl, { email: workerA.email, password: "apexdemo123" });
+    const headersA = authHeaders(loginA.token);
+
+    // Employees still cannot use categories they were never granted.
+    const travel = await requestJson(fixture.baseUrl, "/api/time-entries/clock-in", {
+      method: "POST",
+      headers: headersA,
+      body: JSON.stringify({ workCategory: "travel" }),
+    });
+    assert.equal(travel.response.status, 403);
+
+    // General labor clocks in with NO job assigned and NO jobId supplied.
+    const clockedIn = await assertOk(fixture.baseUrl, "/api/time-entries/clock-in", {
+      method: "POST",
+      headers: headersA,
+      body: JSON.stringify({ workCategory: "general_labor" }),
+    });
+    const entry = clockedIn.timeEntries.find((item) => item.userId === workerA.id);
+    assert.ok(entry);
+    assert.equal(entry.status, "active");
+    assert.equal(entry.workCategory, "general_labor");
+    assert.equal(entry.jobId, "");
+
+    // General labor must not carry a job (keeps the job vs non-job split clean).
+    const loginB = await login(fixture.baseUrl, { email: workerB.email, password: "apexdemo123" });
+    const headersB = authHeaders(loginB.token);
+    const withJob = await requestJson(fixture.baseUrl, "/api/time-entries/clock-in", {
+      method: "POST",
+      headers: headersB,
+      body: JSON.stringify({ workCategory: "general_labor", jobId: "J-2201" }),
+    });
+    assert.equal(withJob.response.status, 400);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("office can clock out a stuck worker's active entry and it is audit-logged", async () => {
+  const fixture = await startServer();
+
+  try {
+    const adminUser = createUserRecord({
+      id: "U-STUCK-ADMIN",
+      email: "stuck-admin@lastyard.test",
+      password: "apexdemo123",
+      name: "Stuck Admin",
+      role: "Administrator",
+    });
+    const employeeUser = createUserRecord({
+      id: "U-STUCK-EMP",
+      email: "stuck-emp@lastyard.test",
+      password: "apexdemo123",
+      name: "Stuck Worker",
+      role: "Employee",
+    });
+    insertUsers(fixture.sqliteFile, [adminUser, employeeUser]);
+    configureJobs(fixture.sqliteFile);
+
+    const adminLogin = await login(fixture.baseUrl, { email: adminUser.email, password: "apexdemo123" });
+    const adminHeaders = authHeaders(adminLogin.token);
+    await assertOk(fixture.baseUrl, "/api/jobs/J-2201/assignments", {
+      method: "POST",
+      headers: adminHeaders,
+      body: JSON.stringify({ userId: employeeUser.id, roleOnJob: "crew" }),
+    });
+
+    const employeeLogin = await login(fixture.baseUrl, { email: employeeUser.email, password: "apexdemo123" });
+    const employeeHeaders = authHeaders(employeeLogin.token);
+    const clockedIn = await assertOk(fixture.baseUrl, "/api/time-entries/clock-in", {
+      method: "POST",
+      headers: employeeHeaders,
+      body: JSON.stringify({ workCategory: "job", jobId: "J-2201" }),
+    });
+    const entry = clockedIn.timeEntries.find((item) => item.userId === employeeUser.id);
+    assert.ok(entry);
+    assert.equal(entry.status, "active");
+
+    // A field worker cannot force-clock-out anyone.
+    const denied = await requestJson(fixture.baseUrl, `/api/time-entries/${entry.id}/admin-clock-out`, {
+      method: "POST",
+      headers: employeeHeaders,
+    });
+    assert.equal(denied.response.status, 403);
+
+    // Office leadership clocks the stuck worker out in one call.
+    const clockedOut = await assertOk(fixture.baseUrl, `/api/time-entries/${entry.id}/admin-clock-out`, {
+      method: "POST",
+      headers: adminHeaders,
+    });
+    const closed = clockedOut.timeEntries.find((item) => item.id === entry.id);
+    assert.ok(closed);
+    assert.equal(closed.status, "completed");
+    assert.ok(closed.clockOutAt);
+    assert.ok(clockedOut.auditEvents.some((event) => event.entityType === "timeEntry" && event.action === "admin_clocked_out"));
+
+    // An already-closed entry cannot be re-clocked-out.
+    const already = await requestJson(fixture.baseUrl, `/api/time-entries/${entry.id}/admin-clock-out`, {
+      method: "POST",
+      headers: adminHeaders,
+    });
+    assert.equal(already.response.status, 409);
+  } finally {
+    await fixture.stop();
+  }
+});

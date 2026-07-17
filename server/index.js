@@ -357,7 +357,7 @@ const LEAD_SOURCES = new Set(["Website", "Referral", "Call-in", "Drive-by", "Rep
 const USER_STATUSES = new Set(["active", "inactive"]);
 const USER_ROLES = new Set(["Owner", "Administrator", "Operations Manager", "Estimator", "Foreman", "Employee"]);
 const TIME_ENTRY_STATUSES = new Set(["active", "on_break", "completed"]);
-const TIME_WORK_CATEGORIES = new Set(["job", "office_admin", "estimating", "lead_follow_up", "shop_yard", "travel", "training", "meeting", "maintenance", "other"]);
+const TIME_WORK_CATEGORIES = new Set(["job", "general_labor", "office_admin", "estimating", "lead_follow_up", "shop_yard", "travel", "training", "meeting", "maintenance", "other"]);
 const DAILY_REPORT_STATUSES = new Set(["draft", "submitted", "reviewed", "reopened", "archived"]);
 const ESTIMATE_STATUSES = new Set(["draft", "sent", "approved", "rejected", "archived"]);
 const ESTIMATE_PROPOSAL_PACKET_TYPES = new Set(["residential", "commercial", "gc"]);
@@ -3634,7 +3634,9 @@ function safetyPermissionsForUser(user) {
 
 function allowedSelfTimeCategories(user) {
   if (isEmployee(user)) {
-    return new Set(["job"]);
+    // Employees can clock into an assigned job, or "General labor" when they have no
+    // job assigned yet (so a worker is never locked out of the clock).
+    return new Set(["job", "general_labor"]);
   }
 
   if (isForeman(user)) {
@@ -17408,6 +17410,46 @@ app.post("/api/time-entries/:id/clock-out", requireAuth, asyncRoute(async (req, 
       detail: `${req.auth.user.name} clocked out.`,
       actor: req.auth.user,
       changedFields: ["clockOutAt", "totalMinutes", "status", ...timeEntryLocationChangedFields("clockOut", clockOutLocation)],
+    });
+    return draft;
+  });
+
+  return res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+// Office leadership can clock out another worker's stuck (still-active) entry in one
+// tap -- e.g. from payroll prep when a crew member forgot to clock out. Reuses the
+// correction permission gate; logged with a distinct audit action. No location
+// evidence is required (this is an office correction, not a self clock-out).
+app.post("/api/time-entries/:id/admin-clock-out", requireAuth, asyncRoute(async (req, res) => {
+  assertCanCorrectTimeEntries(req.auth.user);
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.timeEntries ||= [];
+    const entry = findRequiredTimeEntry(draft, id, req.auth.user);
+    if (deriveTimeEntryStatus(entry) === "completed") {
+      throw new ApiError(409, "This time entry is already clocked out.");
+    }
+    if (deriveTimeEntryStatus(entry) === "on_break" && entry.breakStartAt && !entry.breakEndAt) {
+      entry.breakEndAt = changedAt;
+    }
+    entry.clockOutAt = changedAt;
+    entry.updatedAt = changedAt;
+    applyTimeEntryTotals(entry);
+
+    const worker = findUserById(draft, entry.userId);
+    const workerName = worker?.name || "a crew member";
+    appendActivity(draft, "Time clocked out by office", `${req.auth.user.name} clocked out ${workerName}'s stuck time entry for payroll.`, { companyId: entry.companyId });
+    appendAuditEvent(draft, {
+      entityType: "timeEntry",
+      entityId: entry.id,
+      action: "admin_clocked_out",
+      summary: "Stuck time entry clocked out by office",
+      detail: `${req.auth.user.name} clocked out ${workerName}'s active time entry from payroll prep.`,
+      actor: req.auth.user,
+      changedFields: ["clockOutAt", "totalMinutes", "status"],
     });
     return draft;
   });

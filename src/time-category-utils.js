@@ -1,6 +1,7 @@
 export function workCategoryLabel(workCategory = "") {
   const labels = {
     job: "Job",
+    general_labor: "General labor",
     office_admin: "Office/Admin",
     estimating: "Estimating",
     lead_follow_up: "Lead Follow-up",

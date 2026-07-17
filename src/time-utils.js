@@ -394,11 +394,18 @@ export function derivePayrollPrepState(entries = [], auditEvents = [], input = {
         reason,
         clockInAt: entry.clockInAt || "",
         status: entry.status || "",
+        // An open (still-clocked-in) entry can be resolved by clocking the worker
+        // out; completed-but-flagged entries (zero-hour, unlinked job, presence) cannot.
+        active: (entry.status || "") !== "completed",
       });
     } else {
       readyEntries.push(entry);
     }
   });
+
+  // Surface still-clocked-in (clockable) exceptions first so the office can always
+  // resolve a stuck clock from the visible list, even when other exceptions exist.
+  exceptions.sort((left, right) => Number(Boolean(right.active)) - Number(Boolean(left.active)));
 
   const employeeMap = new Map();
   readyEntries.forEach((entry) => {
