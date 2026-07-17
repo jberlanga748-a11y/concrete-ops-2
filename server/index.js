@@ -13280,6 +13280,36 @@ app.get("/api/estimates", requireAuth, asyncRoute(async (req, res) => {
   });
 }));
 
+// View / download the customer-facing estimate PDF. Renders the SAME buffer the
+// email-send workflow attaches (identical inputs + renderer), but requires no
+// email configuration and no send-review gate -- a contractor can just look at
+// their own estimate. Company-scoped: findEstimate 404s for another company's id.
+app.get("/api/estimates/:id/pdf", requireAuth, asyncRoute(async (req, res) => {
+  assertCanViewEstimates(req.auth.user);
+  const state = await readDb();
+  const estimateRecord = findEstimate(state, req.params.id, req.auth.user);
+  const estimate = sanitizeEstimateForUser(estimateRecord, state, req.auth.user);
+  if (!estimate) {
+    throw new ApiError(404, "Estimate not found.");
+  }
+  const settings = companySettingsForState(state, req.auth.user);
+  const companyName = settings.companyName || "Apex HQ Workspace";
+  const attachment = await buildEstimatePdfAttachment({
+    companyName,
+    companyProfile: settings,
+    printPacketFooter: settings.printPacketFooter || "",
+    printPacketDisclaimer: settings.printPacketDisclaimer || "",
+    estimate,
+  });
+  const forceDownload = req.query.download === "1" || req.query.download === "true";
+  const disposition = forceDownload ? "attachment" : "inline";
+  res.setHeader("Content-Type", attachment.contentType);
+  res.setHeader("Content-Disposition", `${disposition}; filename="${attachment.filename}"`);
+  res.setHeader("Content-Length", String(attachment.content.length));
+  res.setHeader("Cache-Control", "no-store");
+  res.send(attachment.content);
+}));
+
 app.post("/api/estimates", requireAuth, asyncRoute(async (req, res) => {
   assertCanManageEstimatesForRequest(req.auth.user);
   const payload = req.body || {};

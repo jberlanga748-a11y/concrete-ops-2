@@ -1105,6 +1105,18 @@ export function EstimatesPagePolished({
     return true;
   }
 
+  function handleViewEstimatePdf() {
+    const estimateId = selectedEstimate?.id;
+    if (!estimateId) {
+      showCopyFeedback("Save the estimate before viewing its PDF.");
+      return;
+    }
+    if (typeof window === "undefined") return;
+    // Opens the same customer-facing PDF the email path renders (inline preview);
+    // auth rides on the session cookie and this needs no email configuration.
+    window.open(`/api/estimates/${encodeURIComponent(estimateId)}/pdf`, "_blank", "noopener");
+  }
+
   async function handleRecordSentSnapshot() {
     if (!selectedEstimate?.id || !detailEstimatePreview || typeof onSaveEstimate !== "function") return false;
     const withSnapshot = addEstimateSentSnapshot(detailEstimatePreview, {
@@ -2429,6 +2441,9 @@ export function EstimatesPagePolished({
             </Button>
             <Button type="button" variant="secondary" onClick={() => onPrintEstimate?.(detailEstimatePreview, customerSafePacketSettings)} disabled={!detailEstimatePreview}>
               Print customer proposal
+            </Button>
+            <Button type="button" variant="secondary" onClick={handleViewEstimatePdf} disabled={!selectedEstimate?.id}>
+              View PDF
             </Button>
             {emailSendingConfigured ? (
               <Button type="button" onClick={handleSendEstimate} disabled={!sendReviewCanSend || busy}>

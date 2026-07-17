@@ -199,6 +199,15 @@ function buildEstimatePayload({ customerId, leadId = "", ...overrides } = {}) {
   };
 }
 
+function reassignEstimateCompany(sqliteFile, estimateId, companyId) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    database.prepare("UPDATE estimates SET company_id = ? WHERE id = ?").run(companyId, estimateId);
+  } finally {
+    database.close();
+  }
+}
+
 test("office and estimator users can manage estimates while field roles are blocked", async () => {
   const fixture = await startServer();
 
@@ -534,5 +543,63 @@ test("failed estimate email send does not mark estimate sent", async () => {
   } finally {
     await fixture.stop();
     await emailApi.stop();
+  }
+});
+
+test("estimate PDF can be viewed/downloaded without email config and stays company-scoped", async () => {
+  const fixture = await startServer();
+
+  try {
+    const officeLogin = await login(fixture.baseUrl, { email: "demo.ops@apexhq.app", password: "apexdemo123" });
+    const officeHeaders = authHeaders(officeLogin.token);
+    const officeBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers: officeHeaders });
+    const customerId = officeBootstrap.customers[0].id;
+    const leadId = officeBootstrap.leads[0].id;
+
+    const createdState = await assertOk(fixture.baseUrl, "/api/estimates", {
+      method: "POST",
+      headers: officeHeaders,
+      body: JSON.stringify(buildEstimatePayload({ customerId, leadId })),
+    });
+    const estimate = createdState.estimates.find((entry) => entry.title === "Martinez Driveway Proposal");
+    assert.ok(estimate);
+
+    // Email is NOT configured in this fixture (a send would 503), yet the PDF renders and downloads.
+    const inlineResponse = await fetch(`${fixture.baseUrl}/api/estimates/${estimate.id}/pdf`, { headers: authHeaders(officeLogin.token) });
+    assert.equal(inlineResponse.status, 200);
+    assert.equal(inlineResponse.headers.get("content-type"), "application/pdf");
+    assert.match(inlineResponse.headers.get("content-disposition") || "", /^inline; filename=".+\.pdf"/);
+    const inlineBuffer = Buffer.from(await inlineResponse.arrayBuffer());
+    assert.equal(inlineBuffer.subarray(0, 5).toString("latin1"), "%PDF-");
+    assert.ok(inlineBuffer.length > 1000);
+
+    // Customer-facing content rendered; internal-only notes must NOT leak into the PDF.
+    const inlineText = extractPdfText(inlineBuffer);
+    assert.match(inlineText, /Martinez Driveway Proposal/);
+    assert.match(inlineText, /PROJECT TOTAL/);
+    assert.doesNotMatch(inlineText, /Office-only/);
+
+    // ?download=1 flips to an attachment disposition and renders the same customer-facing content
+    // (same renderer + inputs as the emailed PDF; only the embedded creation timestamp / doc-id differ).
+    const downloadResponse = await fetch(`${fixture.baseUrl}/api/estimates/${estimate.id}/pdf?download=1`, { headers: authHeaders(officeLogin.token) });
+    assert.equal(downloadResponse.status, 200);
+    assert.match(downloadResponse.headers.get("content-disposition") || "", /^attachment; filename=".+\.pdf"/);
+    const downloadBuffer = Buffer.from(await downloadResponse.arrayBuffer());
+    assert.equal(downloadBuffer.subarray(0, 5).toString("latin1"), "%PDF-");
+    const downloadText = extractPdfText(downloadBuffer);
+    assert.match(downloadText, /Martinez Driveway Proposal/);
+    assert.match(downloadText, /PROJECT TOTAL/);
+    assert.doesNotMatch(downloadText, /Office-only/);
+
+    // Company-scoped: once the estimate belongs to another company, the office user is 404'd.
+    reassignEstimateCompany(fixture.sqliteFile, estimate.id, "COMPANY-OTHER");
+    const crossCompanyResponse = await fetch(`${fixture.baseUrl}/api/estimates/${estimate.id}/pdf`, { headers: authHeaders(officeLogin.token) });
+    assert.equal(crossCompanyResponse.status, 404);
+
+    // An unknown estimate id is 404 too.
+    const missingResponse = await fetch(`${fixture.baseUrl}/api/estimates/EST-DOES-NOT-EXIST/pdf`, { headers: authHeaders(officeLogin.token) });
+    assert.equal(missingResponse.status, 404);
+  } finally {
+    await fixture.stop();
   }
 });
