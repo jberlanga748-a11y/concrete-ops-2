@@ -307,6 +307,7 @@ import { deriveReputationPortfolioEngineState } from "./reputation-portfolio-uti
 import { applyOpportunityScoutAgentPreviewToDraft, applyOpportunityScoutSourceCheckToDraft, buildFoundOpportunityDraftFromScoutExecutionCard, buildFoundOpportunityEvidenceIntakeFromScoutCard, buildOpportunityScoutConnectorSetupDraft, buildOpportunityScoutConnectorSetupDraftFromCoverageRecommendation, buildOpportunityScoutConnectorSetupPayload, buildOpportunityScoutSourceBrief, deriveFoundOpportunityDraftDuplicateWarnings, deriveOpportunityScoutState } from "./opportunity-scout-utils";
 import { deriveAppHealthAuditState } from "./owner-health-utils";
 import { canRequestPackageReview, classifyCompanyLogoImageValue, normalizeTimeLocationEvidencePolicy } from "../shared/permissions.js";
+import { ACCENT_PRESET_HEX, normalizeBrandColorHex, resolveCompanyBrandHex } from "../shared/brandColor.js";
 import { BrandIntroScreen, LoadingScreen, ModuleLoadingFallback, SplashScreen, StartupFallbackScreen } from "./startup-screen-components";
 import { DEMO_LOGIN_PRESETS } from "./demo-login-presets";
 import { LEAD_SCORE_LABELS } from "../shared/leadScoring.js";
@@ -7400,6 +7401,7 @@ function SettingsPagePolished({
     logoInitials: safeCompanySettings.logoInitials || "",
     logoImageUrl: safeCompanySettings.logoImageUrl || "",
     accentColor: normalizeAccentColor(safeCompanySettings.accentColor),
+    brandColorHex: normalizeBrandColorHex(safeCompanySettings.brandColorHex),
   }));
   const [brandingNotice, setBrandingNotice] = useState("");
   const logoFileInputRef = useRef(null);
@@ -7430,8 +7432,9 @@ function SettingsPagePolished({
       logoInitials: safeCompanySettings.logoInitials || "",
       logoImageUrl: safeCompanySettings.logoImageUrl || "",
       accentColor: normalizeAccentColor(safeCompanySettings.accentColor),
+      brandColorHex: normalizeBrandColorHex(safeCompanySettings.brandColorHex),
     });
-  }, [safeCompanySettings.accentColor, safeCompanySettings.companyName, safeCompanySettings.logoImageUrl, safeCompanySettings.logoInitials]);
+  }, [safeCompanySettings.accentColor, safeCompanySettings.brandColorHex, safeCompanySettings.companyName, safeCompanySettings.logoImageUrl, safeCompanySettings.logoInitials]);
 
   useEffect(() => {
     setProfileDraft({
@@ -7471,6 +7474,9 @@ function SettingsPagePolished({
   const previewCompanyName = brandingDraft.companyName.trim() || workspaceCompanyName;
   const previewAccentColor = normalizeAccentColor(brandingDraft.accentColor);
   const previewTheme = getAccentTheme(previewAccentColor);
+  // The custom brand color (if valid) overrides the named preset on the estimate PDF.
+  const previewBrandColorHex = normalizeBrandColorHex(brandingDraft.brandColorHex);
+  const effectiveBrandColorHex = resolveCompanyBrandHex({ brandColorHex: previewBrandColorHex, accentColor: previewAccentColor });
   const previewLogoInitials = resolveWorkspaceLogoInitials({
     companySettings: { logoInitials: brandingDraft.logoInitials },
     companyName: previewCompanyName,
@@ -7478,7 +7484,8 @@ function SettingsPagePolished({
   const brandingDirty = brandingDraft.companyName !== (safeCompanySettings.companyName || "")
     || sanitizeLogoInitials(brandingDraft.logoInitials) !== (safeCompanySettings.logoInitials || "")
     || brandingDraft.logoImageUrl.trim() !== (safeCompanySettings.logoImageUrl || "")
-    || previewAccentColor !== normalizeAccentColor(safeCompanySettings.accentColor);
+    || previewAccentColor !== normalizeAccentColor(safeCompanySettings.accentColor)
+    || previewBrandColorHex !== normalizeBrandColorHex(safeCompanySettings.brandColorHex);
   const profileDirty = profileDraft.businessPhone !== (safeCompanySettings.businessPhone || "")
     || profileDraft.primaryTrade !== (safeCompanySettings.primaryTrade || "general-contractor")
     || profileDraft.businessEmail !== (safeCompanySettings.businessEmail || "")
@@ -7918,6 +7925,7 @@ function SettingsPagePolished({
       logoInitials: sanitizeLogoInitials(brandingDraft.logoInitials),
       logoImageUrl: brandingDraft.logoImageUrl.trim(),
       accentColor: previewAccentColor,
+      brandColorHex: previewBrandColorHex,
     });
     setBrandingNotice(saved ? "Branding saved." : "Could not save branding. Please try again.");
   }
@@ -8228,6 +8236,58 @@ function SettingsPagePolished({
                           <option key={option.value} value={option.value}>{option.label}</option>
                         ))}
                       </SelectField>
+                    </div>
+                    <div className="grid gap-2">
+                      <p className="text-sm font-black text-slate-700">Brand color</p>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <input
+                          type="color"
+                          aria-label="Brand color"
+                          value={effectiveBrandColorHex}
+                          onChange={(event) => {
+                            setBrandingDraft((current) => ({ ...current, brandColorHex: event.target.value }));
+                            setBrandingNotice("");
+                          }}
+                          className="h-10 w-14 cursor-pointer rounded-xl border border-slate-200 bg-white p-1"
+                          disabled={busy || typeof onUpdateCompanySettings !== "function"}
+                        />
+                        <div className="flex items-center gap-1.5">
+                          {BRANDING_ACCENT_OPTIONS.map((option) => (
+                            <button
+                              key={option.value}
+                              type="button"
+                              aria-label={`${option.label} brand color`}
+                              title={option.label}
+                              onClick={() => {
+                                setBrandingDraft((current) => ({ ...current, brandColorHex: ACCENT_PRESET_HEX[option.value] }));
+                                setBrandingNotice("");
+                              }}
+                              className="h-7 w-7 rounded-full border border-slate-200 shadow-sm"
+                              style={{ backgroundColor: ACCENT_PRESET_HEX[option.value] }}
+                              disabled={busy || typeof onUpdateCompanySettings !== "function"}
+                            />
+                          ))}
+                        </div>
+                        <span className="text-xs font-black uppercase tracking-wide text-slate-500">{effectiveBrandColorHex}</span>
+                        {previewBrandColorHex ? (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => {
+                              setBrandingDraft((current) => ({ ...current, brandColorHex: "" }));
+                              setBrandingNotice("Brand color reset to the accent preset. Click Save branding to keep the change.");
+                            }}
+                            disabled={busy || typeof onUpdateCompanySettings !== "function"}
+                          >
+                            Use accent preset
+                          </Button>
+                        ) : null}
+                      </div>
+                      <p className="text-sm font-bold text-slate-500">
+                        {previewBrandColorHex
+                          ? "Your custom brand color drives the accent on your estimate PDF."
+                          : "Pick any color (or a preset swatch) to brand your estimate PDF. Leave it on the accent preset to use the color above."}
+                      </p>
                     </div>
                     <div className="grid gap-2">
                       <p className="text-sm font-black text-slate-700">Company logo</p>

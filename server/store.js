@@ -21,6 +21,7 @@ import { normalizeAgentConversationThread } from "../shared/agentConversations.j
 import { normalizeApexAgentAutomationPolicy } from "../shared/apexAgentAutomationPolicy.js";
 import { DEFAULT_COMPANY_SETTINGS, normalizeCompanyLogoImageValue, normalizeTimeLocationEvidencePolicy } from "../shared/permissions.js";
 import { normalizeConstructionTradeId } from "../shared/constructionTrades.js";
+import { normalizeBrandColorHex } from "../shared/brandColor.js";
 import { normalizeImportedJobDrafts } from "../shared/jobDraftImports.js";
 import { normalizeJobStartupFields } from "../shared/jobStartup.js";
 import {
@@ -3861,6 +3862,8 @@ function normalizeCompanySettings(settings = {}) {
     accentColor: new Set(["blue", "slate", "emerald", "amber", "orange"]).has(normalizedAccentColor)
       ? normalizedAccentColor
       : DEFAULT_COMPANY_SETTINGS.accentColor,
+    // Free brand color: any valid hex, blanks anything else. Empty = fall back to the named accentColor preset.
+    brandColorHex: normalizeBrandColorHex(settings?.brandColorHex),
     businessPhone: normalizeText(settings?.businessPhone, 40),
     businessEmail: normalizeText(settings?.businessEmail, 120),
     website: normalizeText(settings?.website, 160),
@@ -3886,6 +3889,7 @@ function companySettingsPairs(settings = {}) {
     ["logoInitials", normalized.logoInitials || ""],
     ["logoImageUrl", normalized.logoImageUrl || ""],
     ["accentColor", normalized.accentColor || DEFAULT_COMPANY_SETTINGS.accentColor],
+    ["brandColorHex", normalized.brandColorHex || ""],
     ["businessPhone", normalized.businessPhone || ""],
     ["businessEmail", normalized.businessEmail || ""],
     ["website", normalized.website || ""],

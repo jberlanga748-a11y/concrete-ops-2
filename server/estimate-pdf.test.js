@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-import { buildEstimatePdfAttachment, buildEstimatePdfBuffer, buildEstimatePdfFilename } from "./estimate-pdf.js";
+import { applyCompanyProfilePacketTheme, buildEstimatePdfAttachment, buildEstimatePdfBuffer, buildEstimatePdfFilename } from "./estimate-pdf.js";
+import { ACCENT_PRESET_HEX } from "../shared/brandColor.js";
 
 const SAMPLE_OPTION_IMAGE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=";
 
@@ -432,6 +433,37 @@ test("estimate PDF applies saved company packet brand colors by default", () => 
   assert.match(source, /companyProfile\.printPacketAccentDarkColor/);
   assert.match(source, /companyProfile\.printPacketAccentSoftColor/);
   assert.match(source, /deriveEstimatePrintModel\(estimate, applyCompanyProfilePacketTheme\(packetSettings, companyProfile\)\)/);
+});
+
+test("estimate PDF accent is driven by the company brand color (custom hex + derived dark/soft, presets, explicit override)", () => {
+  // A picked custom hex flows straight into the PDF accent, with derived dark/soft.
+  const custom = applyCompanyProfilePacketTheme({}, { brandColorHex: "#3366cc" }).customization;
+  assert.equal(custom.themeId, "custom-brand");
+  assert.equal(custom.accentColor, "#3366cc");
+  assert.match(custom.accentDarkColor, /^#[0-9a-f]{6}$/);
+  assert.match(custom.accentSoftColor, /^#[0-9a-f]{6}$/);
+  assert.notEqual(custom.accentDarkColor, custom.accentColor);
+  assert.notEqual(custom.accentSoftColor, custom.accentColor);
+
+  // A named preset (no custom hex) still reaches the PDF as its mapped hex.
+  const preset = applyCompanyProfilePacketTheme({}, { accentColor: "emerald" }).customization;
+  assert.equal(preset.accentColor, ACCENT_PRESET_HEX.emerald);
+  assert.match(preset.accentDarkColor, /^#[0-9a-f]{6}$/);
+
+  // A custom hex wins over the preset.
+  const both = applyCompanyProfilePacketTheme({}, { brandColorHex: "#aa1133", accentColor: "emerald" }).customization;
+  assert.equal(both.accentColor, "#aa1133");
+
+  // An explicit saved packet accent still wins (back-compat) and is not overwritten.
+  const explicit = applyCompanyProfilePacketTheme({}, { printPacketAccentColor: "#0f766e", brandColorHex: "#3366cc" }).customization;
+  assert.equal(explicit.accentColor, "#0f766e");
+
+  // A per-estimate customization theme is left untouched by the company brand color.
+  const perEstimate = applyCompanyProfilePacketTheme(
+    { customization: { themeId: "custom-brand", accentColor: "#00aa88" } },
+    { brandColorHex: "#3366cc" },
+  );
+  assert.equal(perEstimate.customization.accentColor, "#00aa88");
 });
 
 test("polished estimate sheet PDF uses estimate language instead of proposal cover language", async () => {

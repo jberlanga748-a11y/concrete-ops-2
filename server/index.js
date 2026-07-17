@@ -327,6 +327,7 @@ import {
   classifyCompanyLogoImageValue,
   MAX_COMPANY_LOGO_IMAGE_URL_LENGTH,
 } from "../shared/permissions.js";
+import { normalizeBrandColorHex } from "../shared/brandColor.js";
 import { deriveTimeEntryJobsitePresenceReview } from "../shared/timeLocationPresence.js";
 import { buildConstructionAgentTradeContext, normalizeConstructionTradeId } from "../shared/constructionTrades.js";
 import {
@@ -4884,6 +4885,19 @@ function optionalAccentColor(value, fallback = DEFAULT_COMPANY_SETTINGS.accentCo
   const normalized = String(value).trim().toLowerCase();
   if (!COMPANY_ACCENT_COLORS.has(normalized)) {
     throw new ApiError(400, `Accent color must be one of: ${Array.from(COMPANY_ACCENT_COLORS).join(", ")}.`);
+  }
+  return normalized;
+}
+
+// Free brand color: any valid hex (#RGB / #RRGGBB). "" clears it (falls back to
+// the named accentColor preset). Junk is rejected with a clear message.
+function optionalBrandColorHex(value, fallback = "") {
+  if (value == null) return fallback;
+  const raw = String(value).trim();
+  if (!raw) return "";
+  const normalized = normalizeBrandColorHex(raw);
+  if (!normalized) {
+    throw new ApiError(400, "Brand color must be a valid hex color like #2563eb.");
   }
   return normalized;
 }
@@ -12963,6 +12977,9 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
     const nextAccentColor = payload.accentColor == null
       ? draft.companySettings.accentColor
       : optionalAccentColor(payload.accentColor, draft.companySettings.accentColor);
+    const nextBrandColorHex = payload.brandColorHex == null
+      ? draft.companySettings.brandColorHex
+      : optionalBrandColorHex(payload.brandColorHex, "");
     const nextBusinessPhone = payload.businessPhone == null
       ? draft.companySettings.businessPhone
       : optionalCompanySettingText(payload.businessPhone, "", 40);
@@ -13093,6 +13110,11 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
       draft.companySettings.accentColor = nextAccentColor;
       brandingChangedFields.push("accentColor");
       brandingChanges.push("accent color");
+    }
+    if ((draft.companySettings.brandColorHex || "") !== nextBrandColorHex) {
+      draft.companySettings.brandColorHex = nextBrandColorHex;
+      brandingChangedFields.push("brandColorHex");
+      brandingChanges.push("brand color");
     }
     if (draft.companySettings.businessPhone !== nextBusinessPhone) {
       draft.companySettings.businessPhone = nextBusinessPhone;

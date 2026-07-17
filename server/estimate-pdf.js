@@ -6,6 +6,7 @@ import {
 } from "../shared/estimate-email.js";
 import { CUSTOM_ESTIMATE_PACKET_THEME_ID } from "../shared/estimatePacketPresets.js";
 import { deriveEstimatePrintModel } from "../shared/estimatePrint.js";
+import { deriveBrandAccentColors, resolveCompanyBrandHex } from "../shared/brandColor.js";
 
 const COLORS = {
   navy: "#0f2a44",
@@ -131,16 +132,28 @@ function packetProfileHexColor(value = "") {
   return /^#[0-9a-f]{6}$/.test(normalized) ? normalized : "";
 }
 
-function applyCompanyProfilePacketTheme(packetSettings = {}, companyProfile = {}) {
+export function applyCompanyProfilePacketTheme(packetSettings = {}, companyProfile = {}) {
   const customization = packetSettings?.customization || {};
   if (customization.themeId || customization.headerColor || customization.accentColor) {
     return packetSettings;
   }
   const headerColor = packetProfileHexColor(companyProfile.printPacketHeaderColor);
   const headerTextColor = packetProfileHexColor(companyProfile.printPacketHeaderTextColor);
-  const accentColor = packetProfileHexColor(companyProfile.printPacketAccentColor);
-  const accentDarkColor = packetProfileHexColor(companyProfile.printPacketAccentDarkColor);
-  const accentSoftColor = packetProfileHexColor(companyProfile.printPacketAccentSoftColor);
+  let accentColor = packetProfileHexColor(companyProfile.printPacketAccentColor);
+  let accentDarkColor = packetProfileHexColor(companyProfile.printPacketAccentDarkColor);
+  let accentSoftColor = packetProfileHexColor(companyProfile.printPacketAccentSoftColor);
+  // No explicit packet accent set: drive it from the company's brand color -- the
+  // free brandColorHex if picked, else the named accentColor preset -- and derive
+  // the dark/soft variants from it. This is the seam the custom brand color flows
+  // through to the estimate PDF.
+  if (!accentColor) {
+    const brand = deriveBrandAccentColors(resolveCompanyBrandHex(companyProfile));
+    if (brand) {
+      accentColor = brand.accentColor;
+      if (!accentDarkColor) accentDarkColor = brand.accentDarkColor;
+      if (!accentSoftColor) accentSoftColor = brand.accentSoftColor;
+    }
+  }
   if (!headerColor && !headerTextColor && !accentColor) {
     return packetSettings;
   }

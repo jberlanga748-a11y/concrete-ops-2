@@ -652,7 +652,7 @@ test("operator company settings remain scoped to the selected company", async ()
   }
 });
 
-test("uploaded logo images stay scoped to the selected company", async () => {
+test("uploaded logo images and brand color stay scoped to the selected company", async () => {
   const fixture = await startServer();
 
   try {
@@ -667,34 +667,41 @@ test("uploaded logo images stay scoped to the selected company", async () => {
 
     const lyfLogo = `data:image/png;base64,${Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 11, 22, 33]).toString("base64")}`;
     const defaultLogo = `data:image/jpeg;base64,${Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 7, 8, 9]).toString("base64")}`;
+    const lyfBrandColor = "#0a7d32";
+    const defaultBrandColor = "#c81e5b";
 
-    // Upload a logo on the LYF company.
+    // Upload a logo and pick a brand color on the LYF company.
     const switched = await postJson(fixture.baseUrl, "/api/companies/select", token, { companyId: "COMPANY-LYF" });
     assert.equal(switched.currentCompanyId, "COMPANY-LYF");
     const lyfSettings = await assertOk(fixture.baseUrl, "/api/settings/company", {
       method: "PATCH",
       headers: authHeaders(token),
-      body: JSON.stringify({ logoImageUrl: lyfLogo }),
+      body: JSON.stringify({ logoImageUrl: lyfLogo, brandColorHex: lyfBrandColor }),
     });
     assert.equal(lyfSettings.companySettings.logoImageUrl, lyfLogo);
+    assert.equal(lyfSettings.companySettings.brandColorHex, lyfBrandColor);
 
-    // The default company must not inherit the LYF upload...
+    // The default company must not inherit the LYF upload or brand color...
     const backToDefault = await postJson(fixture.baseUrl, "/api/companies/select", token, { companyId: DEFAULT_COMPANY_ID });
     assert.equal(backToDefault.currentCompanyId, DEFAULT_COMPANY_ID);
     assert.notEqual(backToDefault.companySettings.logoImageUrl, lyfLogo);
+    assert.notEqual(backToDefault.companySettings.brandColorHex, lyfBrandColor);
 
-    // ...and setting a different logo on the default company must not touch LYF's.
+    // ...and setting a different logo + brand color on the default company must not touch LYF's.
     const defaultSettings = await assertOk(fixture.baseUrl, "/api/settings/company", {
       method: "PATCH",
       headers: authHeaders(token),
-      body: JSON.stringify({ logoImageUrl: defaultLogo }),
+      body: JSON.stringify({ logoImageUrl: defaultLogo, brandColorHex: defaultBrandColor }),
     });
     assert.equal(defaultSettings.companySettings.logoImageUrl, defaultLogo);
+    assert.equal(defaultSettings.companySettings.brandColorHex, defaultBrandColor);
 
     const backToLyf = await postJson(fixture.baseUrl, "/api/companies/select", token, { companyId: "COMPANY-LYF" });
     assert.equal(backToLyf.currentCompanyId, "COMPANY-LYF");
     assert.equal(backToLyf.companySettings.logoImageUrl, lyfLogo);
     assert.notEqual(backToLyf.companySettings.logoImageUrl, defaultLogo);
+    assert.equal(backToLyf.companySettings.brandColorHex, lyfBrandColor);
+    assert.notEqual(backToLyf.companySettings.brandColorHex, defaultBrandColor);
   } finally {
     await fixture.stop();
   }

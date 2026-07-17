@@ -239,6 +239,7 @@ test("tool checklist toggle and role-scoped checklist workflows work without lea
         logoInitials: "pc",
         logoImageUrl: "https://cdn.example.test/pnc-logo.png",
         accentColor: "amber",
+        brandColorHex: "#12ABEF",
       }),
     });
     assert.equal(brandingOnlyState.companySettings.toolChecklistEnabled, true);
@@ -246,6 +247,8 @@ test("tool checklist toggle and role-scoped checklist workflows work without lea
     assert.equal(brandingOnlyState.companySettings.logoInitials, "PC");
     assert.equal(brandingOnlyState.companySettings.logoImageUrl, "https://cdn.example.test/pnc-logo.png");
     assert.equal(brandingOnlyState.companySettings.accentColor, "amber");
+    // Free brand color persists (normalized to lowercase) alongside the named preset.
+    assert.equal(brandingOnlyState.companySettings.brandColorHex, "#12abef");
     assert.equal(brandingOnlyState.auditEvents[0]?.summary, "Workspace branding updated");
     assert.equal(brandingOnlyState.auditEvents.filter((event) => /Tool checklist (enabled|disabled)/i.test(event.summary || "")).length, toolChecklistAuditCount + 1);
 
@@ -255,6 +258,25 @@ test("tool checklist toggle and role-scoped checklist workflows work without lea
       body: JSON.stringify({ logoImageUrl: "javascript:alert(1)" }),
     });
     assert.equal(invalidLogoState.response.status, 400);
+
+    // A junk brand color is rejected with a clear message and does not overwrite the saved one.
+    const invalidBrandColorState = await requestJson(fixture.baseUrl, "/api/settings/company", {
+      method: "PATCH",
+      headers: officeHeaders,
+      body: JSON.stringify({ brandColorHex: "not-a-color" }),
+    });
+    assert.equal(invalidBrandColorState.response.status, 400);
+    assert.match(invalidBrandColorState.payload.error || "", /hex color/i);
+
+    // The brand color round-trips through a fresh read, and can be cleared back to the preset.
+    const bootstrapAfterBrand = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers: officeHeaders });
+    assert.equal(bootstrapAfterBrand.companySettings.brandColorHex, "#12abef");
+    const clearedBrandState = await assertOk(fixture.baseUrl, "/api/settings/company", {
+      method: "PATCH",
+      headers: officeHeaders,
+      body: JSON.stringify({ brandColorHex: "" }),
+    });
+    assert.equal(clearedBrandState.companySettings.brandColorHex, "");
 
     // Contractors can upload an image file (stored inline as a PNG/JPEG data URL), not just paste a URL.
     const pngLogo = `data:image/png;base64,${Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]).toString("base64")}`;
