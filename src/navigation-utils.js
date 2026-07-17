@@ -163,6 +163,36 @@ export function tradeAllowsModule(moduleId, companySettings = DEFAULT_COMPANY_SE
   return !primaryTrade || primaryTrade === "concrete" || primaryTrade === "general-contractor";
 }
 
+// Fence-pilot "simple mode" front door. The pilot ships as an ordinary
+// workspace whose existing configuration is: primaryTrade "fencing" (set
+// through the pilot setup checklist) on the default Basic package. That
+// combination IS the flag -- no new setting. Fencing workspaces on Premium or
+// Elite (like the sales demo company) keep the full app, and upgrading the
+// package is the built-in way back to the full experience.
+export function isSimpleFenceMode(companySettings = DEFAULT_COMPANY_SETTINGS) {
+  const primaryTrade = String(companySettings?.primaryTrade || "").trim().toLowerCase();
+  if (primaryTrade !== "fencing") return false;
+  const packageId = String(companySettings?.packageId || "").trim().toLowerCase();
+  return !packageId || packageId === "basic";
+}
+
+// Hidden in simple mode only: the second command-center home, the concrete
+// volume calculator, the pour checklists, and the AI office. Nothing is
+// deleted -- the routes stay reachable and the modules return the moment the
+// package or trade changes.
+const SIMPLE_FENCE_HIDDEN_MODULE_IDS = new Set([
+  "commandCenter",
+  "calculator",
+  "prePour",
+  "postPour",
+  "copilot",
+]);
+
+function simpleModeAllowsModule(moduleId, companySettings = DEFAULT_COMPANY_SETTINGS) {
+  if (!isSimpleFenceMode(companySettings)) return true;
+  return !SIMPLE_FENCE_HIDDEN_MODULE_IDS.has(moduleId);
+}
+
 export function getVisibleNavGroups(navGroups, user, companySettings = DEFAULT_COMPANY_SETTINGS, permissions = null) {
   const allowedModules = getAllowedModuleIds(user, companySettings);
 
@@ -171,7 +201,8 @@ export function getVisibleNavGroups(navGroups, user, companySettings = DEFAULT_C
       ...group,
       items: group.items.filter((item) => allowedModules.has(item.id)
         && packageAllowsModule(item.id, permissions)
-        && tradeAllowsModule(item.id, companySettings)),
+        && tradeAllowsModule(item.id, companySettings)
+        && simpleModeAllowsModule(item.id, companySettings)),
     }))
     .filter((group) => group.items.length > 0);
 }

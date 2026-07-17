@@ -232,6 +232,7 @@ export function EstimatesPagePolished({
   companyProfile = {},
   setActive,
   EstimatorMobilePipelineComponent,
+  simpleFenceMode = false,
 }) {
   const MobilePipelinePage = EstimatorMobilePipelineComponent;
   const [statusFilter, setStatusFilter] = useState("All");
@@ -1390,7 +1391,13 @@ export function EstimatesPagePolished({
     { id: "open-takeoff", label: "Open Takeoff", icon: "layers", onClick: () => setEstimateShellMode("takeoff"), disabled: !selectedEstimate || !canManage },
     { id: "ready-send", label: "Ready Send", icon: "arrowUpRight", onClick: () => selectEstimateShellEstimate(readyToSendRows[0], "sendReview"), disabled: !readyToSendRows.length },
   ];
-  const estimateShellModes = [
+  const estimateShellModes = simpleFenceMode ? [
+    { id: "overview", label: "1. Details", title: "Details", manages: "customer, scope, totals, and where this estimate stands." },
+    { id: "create", label: "New Estimate", title: "New Estimate", manages: "new estimate creation from customer, notes, and pricing." },
+    { id: "pricing", label: "2. Price", title: "Price", manages: "line item pricing, taxes, and fees." },
+    { id: "sendReview", label: "3. Preview", title: "Preview", manages: "the customer-facing proposal: view the PDF, print, and check what the customer will see." },
+    { id: "send", label: "4. Send", title: "Send", manages: "sending the estimate to the customer after your review." },
+  ] : [
     { id: "overview", label: "Overview", title: "Overview", manages: "proposal readiness, current totals, contact status, packet readiness, and handoff context." },
     { id: "create", label: "New Estimate", title: "New Estimate", manages: "new estimate creation from customer, lead, notes, pricing, proposal sections, and packet backup." },
     { id: "pricing", label: "Pricing", title: "Pricing Mode", manages: "line item pricing review, options totals, taxes, fees, and price readiness." },
@@ -1479,10 +1486,10 @@ export function EstimatesPagePolished({
         : readiness.missing.length
           ? `Finish ${readiness.missing.slice(0, 3).join(", ")}.`
           : "Open the estimate tool you need next.";
-    const isFocusedShellEditMode = ["create", "pricing", "proposal", "backup", "packet", "roughNotes", "takeoff", "visualPreview", "sendReview", "handoff"].includes(activeShellMode.id);
+    const isFocusedShellEditMode = ["create", "pricing", "proposal", "backup", "packet", "roughNotes", "takeoff", "visualPreview", "sendReview", "send", "handoff"].includes(activeShellMode.id);
     const visibleEstimateShellModes = isFocusedShellEditMode
       ? estimateShellModes.filter((mode) => mode.id === "overview" || mode.id === activeShellMode.id)
-      : estimateShellModes;
+      : estimateShellModes.filter((mode) => !(simpleFenceMode && mode.id === "create"));
     const pricingSaveDisabled = busy || !canManage || !selectedEstimate?.id;
     const proposalSaveDisabled = busy || !canManage || !selectedEstimate?.id;
     const backupSaveDisabled = busy || !canManage || !selectedEstimate?.id;
@@ -2545,6 +2552,7 @@ export function EstimatesPagePolished({
       if (activeShellMode.id === "takeoff") return renderEstimateShellTakeoffMode();
       if (activeShellMode.id === "visualPreview") return renderEstimateShellVisualPreviewMode();
       if (activeShellMode.id === "sendReview") return renderEstimateShellSendReviewMode();
+      if (activeShellMode.id === "send") return renderEstimateShellSendReviewMode();
       if (activeShellMode.id === "handoff") return renderEstimateShellHandoffMode();
       return (
         <div className="co-estimates-shell-mode-placeholder" role="region" aria-label={`${activeShellMode.title} placeholder`}>

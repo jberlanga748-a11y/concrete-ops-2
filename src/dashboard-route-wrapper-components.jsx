@@ -1,4 +1,5 @@
 import { shouldRenderCommandCenterForDashboard } from "./app-state-utils";
+import { isSimpleFenceMode } from "./navigation-utils";
 import { isOwnerAdminMobileCommandUser } from "./owner-admin-mobile-command-utils";
 import { useDesktopCommandViewport } from "./viewport-utils";
 
@@ -7,12 +8,18 @@ export function DashboardPage({ components = {}, ...props }) {
     TodayCommandPage,
     OwnerAdminMobileCommandPage,
     DashboardPagePolished,
+    SimpleFenceTodayPage,
   } = components;
 
   if (shouldRenderCommandCenterForDashboard({
     permissions: props.permissions,
     firstOwnerOnboarding: props.firstOwnerOnboarding,
   })) {
+    // Fence-pilot front door: after first-owner setup is done, a Basic fencing
+    // workspace gets the calm Today home instead of the command center.
+    if (SimpleFenceTodayPage && isSimpleFenceMode(props.companySettings)) {
+      return <SimpleFenceTodayPage {...props} />;
+    }
     if (isOwnerAdminMobileCommandUser(props.user, props.permissions)) {
       return (
         <>
