@@ -15,6 +15,7 @@ import {
 import { deriveFieldOpsAgentState } from "./field-ops-agent-utils";
 import { directionsUrl, fieldChecklistNeedsAction, fieldChecklistSummary, formatJobScheduleDetail, humanizeAssignmentRole } from "./field-format-utils";
 import { deriveEmployeeWorkspace, deriveFieldTradeGuidance, deriveForemanWorkspace } from "./field-workspace-utils";
+import { isSimpleFenceMode, simpleFenceModeAllowsFieldAction } from "./navigation-utils";
 import { JobCalculationsCard } from "./job-route-components";
 import { jobStatusLabel, jobTitle, normalizeJobStatus } from "./job-utils";
 import { workCategoryLabel } from "./time-category-utils";
@@ -22,7 +23,7 @@ import { deriveTimeWorkspace } from "./time-utils";
 
 const ActiveTimeCard = lazy(() => import("./time-route-components").then((module) => ({ default: module.ActiveTimeCard })));
 
-function FieldJobFocusCard({ job, permissions, onFieldChange, disabled, embedded = false }) {
+function FieldJobFocusCard({ job, permissions, onFieldChange, disabled, embedded = false, companySettings, simpleFenceMode = false }) {
   if (!job) {
     const EmptyShell = embedded ? "div" : Card;
     return (
@@ -37,8 +38,10 @@ function FieldJobFocusCard({ job, permissions, onFieldChange, disabled, embedded
   const canManageField = Boolean(job.canManageField || permissions.jobs.canManageField);
   const crewAssignments = Array.isArray(job.crewAssignments) ? job.crewAssignments : [];
   const fieldNoteCount = [job.fieldNotes, job.materialNotes, job.equipmentNotes, job.safetyNotes].filter((value) => String(value || "").trim()).length;
-  const checklistSummary = [job.prePourChecklist?.statusLabel || "Job prep pending", job.postPourChecklist?.statusLabel || "Closeout pending"].join(" / ");
-  const tradeGuidance = deriveFieldTradeGuidance(job);
+  const checklistSummary = simpleFenceMode
+    ? (job.scopeSummary ? "Scope ready" : "Scope summary pending")
+    : [job.prePourChecklist?.statusLabel || "Job prep pending", job.postPourChecklist?.statusLabel || "Closeout pending"].join(" / ");
+  const tradeGuidance = deriveFieldTradeGuidance(job, companySettings);
   const snapshotItems = [
     { label: "Schedule", value: formatJobScheduleDetail(job) },
     { label: "Address", value: job.address || "Address pending" },
@@ -90,14 +93,18 @@ function FieldJobFocusCard({ job, permissions, onFieldChange, disabled, embedded
                 <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Scope summary</p>
                 <p className="mt-2 text-sm leading-6 text-slate-700">{job.scopeSummary || "Scope summary pending."}</p>
               </div>
-              <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
-                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Job prep</p>
-                <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{job.prePourChecklist?.statusLabel || "Not started"}</p>
-              </div>
-              <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
-                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Closeout</p>
-                <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{job.postPourChecklist?.statusLabel || "Not started"}</p>
-              </div>
+              {simpleFenceMode ? null : (
+                <>
+                  <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Job prep</p>
+                    <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{job.prePourChecklist?.statusLabel || "Not started"}</p>
+                  </div>
+                  <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Closeout</p>
+                    <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{job.postPourChecklist?.statusLabel || "Not started"}</p>
+                  </div>
+                </>
+              )}
             </div>
           </FieldDetailDisclosure>
           {tradeGuidance ? (
@@ -185,9 +192,11 @@ function FieldJobFocusCard({ job, permissions, onFieldChange, disabled, embedded
           </FieldDetailDisclosure>
         </div>
       </FocusShell>
-      <FieldWorkspaceDisclosure title="Saved calculations" description="Calculator results connected to this assigned job." badge={(job.calculatorResults || []).length ? `${job.calculatorResults.length} saved` : "None"}>
-        <JobCalculationsCard calculations={job.calculatorResults} title="Saved calculations" description="Team-visible concrete volume records for this job." showInternalBadge={false} />
-      </FieldWorkspaceDisclosure>
+      {simpleFenceMode ? null : (
+        <FieldWorkspaceDisclosure title="Saved calculations" description="Calculator results connected to this assigned job." badge={(job.calculatorResults || []).length ? `${job.calculatorResults.length} saved` : "None"}>
+          <JobCalculationsCard calculations={job.calculatorResults} title="Saved calculations" description="Team-visible concrete volume records for this job." showInternalBadge={false} />
+        </FieldWorkspaceDisclosure>
+      )}
     </div>
   );
 }
@@ -218,7 +227,7 @@ function FieldWalkthroughCard({ role = "employee" }) {
   );
 }
 
-function FieldJobOperatorPanel({ role = "employee", workspace, focusJob, permissions, setActive, onSelectJob, activeEntry }) {
+function FieldJobOperatorPanel({ role = "employee", workspace, focusJob, permissions, setActive, onSelectJob, activeEntry, simpleFenceMode = false }) {
   const isForeman = role === "foreman";
   const primaryJob = workspace?.nextAssignedJob || focusJob || workspace?.assignedJobs?.[0] || null;
   const noticeCount = Array.isArray(workspace?.assignmentNotices) ? workspace.assignmentNotices.length : 0;
@@ -264,7 +273,7 @@ function FieldJobOperatorPanel({ role = "employee", workspace, focusJob, permiss
         permissions?.time?.canView && canRoute ? { id: "time", label: activeEntry ? "Open Time" : "Clock In", icon: "clock", onClick: () => openFieldTool("time") } : null,
         primaryJob ? { id: "job", label: "View Job", icon: "briefcase", variant: "secondary", onClick: () => onSelectJob(primaryJob.id) } : null,
         mapUrl ? { id: "directions", label: "Directions", icon: "arrowUpRight", href: mapUrl } : null,
-        permissions?.reports?.canView && canRoute ? { id: "reports", label: "Report", icon: "document", variant: "secondary", onClick: () => openFieldTool("reports") } : null,
+        permissions?.reports?.canView && canRoute && simpleFenceModeAllowsFieldAction("reports", simpleFenceMode) ? { id: "reports", label: "Report", icon: "document", variant: "secondary", onClick: () => openFieldTool("reports") } : null,
         permissions?.uploads?.canView && canRoute ? { id: "uploads", label: "Photos", icon: "upload", variant: "secondary", onClick: () => openFieldTool("uploads") } : null,
       ]}
       facts={summaryItems}
@@ -284,6 +293,8 @@ function FieldMobileRemoteControlPanel({
   onStartBreak,
   onEndBreak,
   busy,
+  companySettings,
+  simpleFenceMode = false,
 }) {
   const isForeman = role === "foreman";
   const primaryJob = workspace?.nextAssignedJob || focusJob || workspace?.assignedJobs?.[0] || null;
@@ -293,13 +304,14 @@ function FieldMobileRemoteControlPanel({
   const canQuickClockIn = Boolean(!activeEntry && primaryJob?.id && permissions?.time?.canManageOwn && allowedCategories.includes("job") && typeof onClockIn === "function");
   const canClockOut = Boolean(activeEntry?.id && permissions?.time?.canManageOwn && typeof onClockOut === "function");
   const canManageBreakTime = Boolean(activeEntry?.id && permissions?.time?.canManageOwn && typeof (activeEntry?.status === "on_break" ? onEndBreak : onStartBreak) === "function");
-  const tradeGuidance = deriveFieldTradeGuidance(primaryJob);
+  const tradeGuidance = deriveFieldTradeGuidance(primaryJob, companySettings);
   const proofPrompt = tradeGuidance?.proofPhotoChecklist?.slice(0, 2).join(", ");
-  const checklistTarget = permissions?.prePour?.canView && fieldChecklistNeedsAction(primaryJob?.prePourChecklist)
+  const allowsFieldAction = (moduleId) => simpleFenceModeAllowsFieldAction(moduleId, simpleFenceMode);
+  const checklistTarget = permissions?.prePour?.canView && allowsFieldAction("prePour") && fieldChecklistNeedsAction(primaryJob?.prePourChecklist)
     ? { id: "prePour", label: "Job Prep", helper: fieldChecklistSummary(primaryJob?.prePourChecklist) }
-    : permissions?.postPour?.canView && fieldChecklistNeedsAction(primaryJob?.postPourChecklist)
+    : permissions?.postPour?.canView && allowsFieldAction("postPour") && fieldChecklistNeedsAction(primaryJob?.postPourChecklist)
       ? { id: "postPour", label: "Closeout", helper: fieldChecklistSummary(primaryJob?.postPourChecklist) }
-      : permissions?.toolChecklist?.canUse
+      : permissions?.toolChecklist?.canUse && allowsFieldAction("toolChecklist")
         ? { id: "toolChecklist", label: "Checklist", helper: "Tool and safety checks" }
         : permissions?.safety?.canView
           ? { id: "ppe", label: "Safety", helper: "PPE and field safety" }
@@ -341,7 +353,7 @@ function FieldMobileRemoteControlPanel({
       onClick: () => openFieldTool("uploads"),
       disabled: !canRoute,
     } : null,
-    permissions?.reports?.canView ? {
+    permissions?.reports?.canView && allowsFieldAction("reports") ? {
       id: "report",
       label: "Report",
       helper: "Field notes",
@@ -359,7 +371,7 @@ function FieldMobileRemoteControlPanel({
       onClick: () => openFieldTool(checklistTarget.id),
       disabled: !canRoute,
     } : null,
-    isForeman && (permissions?.changeOrders?.canRequest || permissions?.changeOrders?.canManage) ? {
+    isForeman && (permissions?.changeOrders?.canRequest || permissions?.changeOrders?.canManage) && allowsFieldAction("changeOrders") ? {
       id: "change",
       label: "Change Request",
       helper: "Field request",
@@ -367,7 +379,7 @@ function FieldMobileRemoteControlPanel({
       tone: "slate",
       onClick: () => openFieldTool("changeOrders"),
       disabled: !canRoute,
-    } : permissions?.support?.canView ? {
+    } : permissions?.support?.canView && allowsFieldAction("support") ? {
       id: "blocker",
       label: "Report",
       helper: "Blocker or issue",
@@ -517,7 +529,7 @@ function FieldWorkspaceKpisPolished({ workspace, timeWorkspace, focusJob, role =
   );
 }
 
-function FieldWorkspaceActionsPolished({ permissions, role = "employee", setActive, activeEntry, focusJob }) {
+function FieldWorkspaceActionsPolished({ permissions, role = "employee", setActive, activeEntry, focusJob, simpleFenceMode = false }) {
   if (typeof setActive !== "function") return null;
 
   const actions = [
@@ -601,7 +613,7 @@ function FieldWorkspaceActionsPolished({ permissions, role = "employee", setActi
       enabled: permissions.changeOrders.canRequest || permissions.changeOrders.canManage,
       tone: "slate",
     },
-  ].filter((action) => action.enabled);
+  ].filter((action) => action.enabled && simpleFenceModeAllowsFieldAction(action.id, simpleFenceMode));
 
   if (actions.length === 0) return null;
 
@@ -690,6 +702,8 @@ function FieldRequiredItemsPanel({
   onClockOut,
   onStartBreak,
   onEndBreak,
+  companySettings,
+  simpleFenceMode = false,
 }) {
   const isForeman = role === "foreman";
   const primaryJob = workspace?.nextAssignedJob || focusJob || workspace?.assignedJobs?.[0] || null;
@@ -697,7 +711,8 @@ function FieldRequiredItemsPanel({
   const firstNotice = notices[0] || null;
   const activeEntry = timeWorkspace?.activeEntry || null;
   const allowedCategories = Array.isArray(timeWorkspace?.allowedCategories) ? timeWorkspace.allowedCategories : [];
-  const tradeGuidance = deriveFieldTradeGuidance(primaryJob);
+  const allowsFieldAction = (moduleId) => simpleFenceModeAllowsFieldAction(moduleId, simpleFenceMode);
+  const tradeGuidance = deriveFieldTradeGuidance(primaryJob, companySettings);
   const proofPrompt = tradeGuidance?.proofPhotoChecklist?.slice(0, 3).join(", ");
   const reportPrompt = tradeGuidance?.fieldHandoffChecklist?.slice(0, 2).join(", ");
   const canRoute = typeof setActive === "function";
@@ -715,13 +730,13 @@ function FieldRequiredItemsPanel({
     if (!canQuickClockIn) return;
     onClockIn({ workCategory: "job", jobId: primaryJob.id, notes: "" });
   };
-  const prePourPending = permissions?.prePour?.canView && fieldChecklistNeedsAction(primaryJob?.prePourChecklist);
-  const postPourPending = permissions?.postPour?.canView && fieldChecklistNeedsAction(primaryJob?.postPourChecklist);
+  const prePourPending = permissions?.prePour?.canView && allowsFieldAction("prePour") && fieldChecklistNeedsAction(primaryJob?.prePourChecklist);
+  const postPourPending = permissions?.postPour?.canView && allowsFieldAction("postPour") && fieldChecklistNeedsAction(primaryJob?.postPourChecklist);
   const checklistTarget = prePourPending
     ? { id: "prePour", label: "Job Prep", detail: fieldChecklistSummary(primaryJob?.prePourChecklist) }
     : postPourPending
       ? { id: "postPour", label: "Closeout", detail: fieldChecklistSummary(primaryJob?.postPourChecklist) }
-      : permissions?.toolChecklist?.canUse
+      : permissions?.toolChecklist?.canUse && allowsFieldAction("toolChecklist")
         ? { id: "toolChecklist", label: "Tool Checklist", detail: "Review loadout" }
         : null;
 
@@ -772,7 +787,7 @@ function FieldRequiredItemsPanel({
       onAction: () => openFieldTool("uploads"),
       disabled: !canRoute,
     } : null,
-    isForeman && permissions?.reports?.canView ? {
+    isForeman && permissions?.reports?.canView && allowsFieldAction("reports") ? {
       id: "report",
       tone: "blue",
       status: "Foreman",
@@ -899,6 +914,8 @@ function FieldWorkspacePagePolished({
   changeOrderRequests,
   safetyIncidents,
   toolChecklists,
+  companySettings,
+  simpleFenceMode = false,
 }) {
   const isForeman = role === "foreman";
   const assignedTitle = isForeman ? "Assigned Jobs" : "Assigned Work";
@@ -923,7 +940,8 @@ function FieldWorkspacePagePolished({
     safetyIncidents,
     toolChecklists,
     pwaInstallReady: true,
-  }), [changeOrderRequests, dailyReports, deliveryTickets, focusJob, permissions, priorityJob, role, safetyIncidents, timeWorkspace, toolChecklists, uploads, workspace]);
+    simpleFenceMode,
+  }), [changeOrderRequests, dailyReports, deliveryTickets, focusJob, permissions, priorityJob, role, safetyIncidents, simpleFenceMode, timeWorkspace, toolChecklists, uploads, workspace]);
 
   return (
     <FieldMobileJobsLayout role={role}>
@@ -952,6 +970,8 @@ function FieldWorkspacePagePolished({
           onStartBreak={onStartBreak}
           onEndBreak={onEndBreak}
           busy={busy}
+          companySettings={companySettings}
+          simpleFenceMode={simpleFenceMode}
         />
         <FieldMobileJobsQueue
           role={role}
@@ -963,7 +983,7 @@ function FieldWorkspacePagePolished({
         />
         <FieldModeFinishPanel state={fieldModeFinish} setActive={setActive} />
         <div className="co-field-operator-wrap">
-          <FieldJobOperatorPanel role={role} workspace={workspace} focusJob={focusJob} permissions={permissions} setActive={setActive} onSelectJob={onSelectJob} activeEntry={timeWorkspace.activeEntry} />
+          <FieldJobOperatorPanel role={role} workspace={workspace} focusJob={focusJob} permissions={permissions} setActive={setActive} onSelectJob={onSelectJob} activeEntry={timeWorkspace.activeEntry} simpleFenceMode={simpleFenceMode} />
         </div>
         <div className="co-field-required-wrap">
           <FieldRequiredItemsPanel
@@ -980,6 +1000,8 @@ function FieldWorkspacePagePolished({
             onClockOut={onClockOut}
             onStartBreak={onStartBreak}
             onEndBreak={onEndBreak}
+            companySettings={companySettings}
+            simpleFenceMode={simpleFenceMode}
           />
         </div>
         {fieldOpsAgent?.canView ? (
@@ -1026,14 +1048,14 @@ function FieldWorkspacePagePolished({
               />
             </div>
           </section>
-          <FieldWorkspaceActionsPolished permissions={permissions} role={role} setActive={setActive} activeEntry={timeWorkspace.activeEntry} focusJob={focusJob} />
+          <FieldWorkspaceActionsPolished permissions={permissions} role={role} setActive={setActive} activeEntry={timeWorkspace.activeEntry} focusJob={focusJob} simpleFenceMode={simpleFenceMode} />
           <div className="co-field-mobile-focus-card">
             <FieldWorkspaceDisclosure
               title={focusJob ? "Selected job details" : "Selected job"}
               description={focusJob ? (focusJob.customer || "Assigned site") : "Choose an assigned job to review field-safe details."}
               badge={focusJob ? jobStatusLabel(focusJob.status || focusJob.stage) : "None"}
             >
-              <FieldJobFocusCard job={focusJob} permissions={permissions} onFieldChange={onJobFieldChange} disabled={busy} embedded />
+              <FieldJobFocusCard job={focusJob} permissions={permissions} onFieldChange={onJobFieldChange} disabled={busy} embedded companySettings={companySettings} simpleFenceMode={simpleFenceMode} />
             </FieldWorkspaceDisclosure>
           </div>
           <FieldWorkspaceDisclosure title={assignedTitle} description={assignedDescription} badge={`${workspace.assignedJobs.length} assigned`} defaultOpen={workspace.assignedJobs.length > 0}>
@@ -1062,7 +1084,7 @@ function FieldWorkspacePagePolished({
           ) : null}
         </div>
         <div className="co-field-right-rail min-w-0">
-          <FieldJobFocusCard job={focusJob} permissions={permissions} onFieldChange={onJobFieldChange} disabled={busy} />
+          <FieldJobFocusCard job={focusJob} permissions={permissions} onFieldChange={onJobFieldChange} disabled={busy} companySettings={companySettings} simpleFenceMode={simpleFenceMode} />
         </div>
       </div>
     </FieldMobileJobsLayout>
@@ -1091,7 +1113,8 @@ function deriveFieldWorkspaceFocusJob(workspace, selectedJobId, selectedJob, { i
   return workspace?.nextAssignedJob || workspace?.primaryJob || allowedJobs[0] || null;
 }
 
-export function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selectedJob, onJobFieldChange, onAcknowledgeAssignmentNotice, busy, permissions, setActive, timeEntries, dailyReports, uploads, deliveryTickets, changeOrderRequests, prePourChecklists, postPourChecklists, safetyIncidents, toolChecklists, currentCompanyId, onClockIn, onClockOut, onStartBreak, onEndBreak }) {
+export function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selectedJob, onJobFieldChange, onAcknowledgeAssignmentNotice, busy, permissions, setActive, timeEntries, dailyReports, uploads, deliveryTickets, changeOrderRequests, prePourChecklists, postPourChecklists, safetyIncidents, toolChecklists, currentCompanyId, companySettings, onClockIn, onClockOut, onStartBreak, onEndBreak }) {
+  const simpleFenceMode = isSimpleFenceMode(companySettings);
   const safeRows = Array.isArray(rows) ? rows : [];
   const workspace = useMemo(() => deriveForemanWorkspace(safeRows, user?.id), [safeRows, user?.id]);
   const fieldJobs = useMemo(() => fieldWorkspaceJobList(workspace, { includeUpcoming: true }), [workspace]);
@@ -1137,11 +1160,14 @@ export function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, s
       changeOrderRequests={changeOrderRequests}
       safetyIncidents={safetyIncidents}
       toolChecklists={toolChecklists}
+      companySettings={companySettings}
+      simpleFenceMode={simpleFenceMode}
     />
   );
 }
 
-export function EmployeeWorkspacePage({ rows, user, selectedJobId, onSelectJob, selectedJob, permissions, setActive, timeEntries, dailyReports, uploads, deliveryTickets, changeOrderRequests, prePourChecklists, postPourChecklists, safetyIncidents, toolChecklists, currentCompanyId, onClockIn, onClockOut, onStartBreak, onEndBreak, onAcknowledgeAssignmentNotice, busy }) {
+export function EmployeeWorkspacePage({ rows, user, selectedJobId, onSelectJob, selectedJob, permissions, setActive, timeEntries, dailyReports, uploads, deliveryTickets, changeOrderRequests, prePourChecklists, postPourChecklists, safetyIncidents, toolChecklists, currentCompanyId, companySettings, onClockIn, onClockOut, onStartBreak, onEndBreak, onAcknowledgeAssignmentNotice, busy }) {
+  const simpleFenceMode = isSimpleFenceMode(companySettings);
   const safeRows = Array.isArray(rows) ? rows : [];
   const workspace = useMemo(() => deriveEmployeeWorkspace(safeRows, user?.id), [safeRows, user?.id]);
   const fallbackJob = useMemo(() => deriveFieldWorkspaceFocusJob(workspace, selectedJobId, selectedJob), [selectedJob, selectedJobId, workspace]);
@@ -1186,6 +1212,8 @@ export function EmployeeWorkspacePage({ rows, user, selectedJobId, onSelectJob, 
       changeOrderRequests={changeOrderRequests}
       safetyIncidents={safetyIncidents}
       toolChecklists={toolChecklists}
+      companySettings={companySettings}
+      simpleFenceMode={simpleFenceMode}
     />
   );
 }

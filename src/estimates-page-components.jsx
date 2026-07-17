@@ -308,7 +308,10 @@ export function EstimatesPagePolished({
   const canManage = Boolean(permissions?.estimates?.canManage);
   const canUseAiRoughNotes = Boolean(permissions?.estimates?.canUseAiRoughNotes);
   const canUseGcPackets = Boolean(permissions?.estimates?.canUseGcPackets);
-  const canUseEstimatesCommandShell = Boolean(permissions?.estimates?.canView && isDesktopCommandViewport);
+  // Simple fence mode uses the command shell's stripped 4-step flow
+  // (Details/Price/Preview/Send) on every viewport instead of the multi-tool
+  // studio drawer.
+  const canUseEstimatesCommandShell = Boolean(permissions?.estimates?.canView && (isDesktopCommandViewport || simpleFenceMode));
   const companyPrimaryTrade = companyProfile?.primaryTrade || "general-contractor";
   const singleCustomerId = visibleCustomers.length === 1 ? visibleCustomers[0].id : "";
   const singleCustomerName = visibleCustomers.length === 1 ? visibleCustomers[0].name || "" : "";
@@ -400,8 +403,8 @@ export function EstimatesPagePolished({
     [detailEstimateBackup.takeoffStudio],
   );
   const detailEstimateHandoffReadiness = useMemo(
-    () => deriveEstimateJobHandoffReadiness(detailEstimatePreview || detailDraft),
-    [detailDraft, detailEstimatePreview],
+    () => deriveEstimateJobHandoffReadiness(detailEstimatePreview || detailDraft, { simpleFenceMode }),
+    [detailDraft, detailEstimatePreview, simpleFenceMode],
   );
   const detailSaveDisabled = busy || (!detailDraft.customerId && !detailDraft.leadId) || !detailDraft.title;
   const createTakeoffDraftSaveDisabled = busy || (!createDraft.customerId && !createDraft.leadId && !createDraft.customerName) || !createDraft.title;
@@ -423,11 +426,11 @@ export function EstimatesPagePolished({
     { id: "create", label: "New Estimate", count: canManage ? 1 : 0 },
     canUseAiRoughNotes ? { id: "roughNotes", label: "AI Notes", count: estimateRoughNotesHasSuggestions(roughNotesState.result) ? 1 : 0 } : null,
     { id: "edit", label: "Edit / Pricing", count: selectedEstimate ? 1 : 0 },
-    canManage ? { id: "fenceTakeoff", label: "Takeoff", count: (detailTakeoffStudioReadiness.itemCount || 0) + (detailEstimateBackup.fenceTakeoff?.segments?.length || 0) } : null,
-    canManage ? { id: "visual", label: "Visual Preview", count: canRequestEstimateVisualPreview(visualPreviewPacket) ? 1 : 0 } : null,
+    canManage && !simpleFenceMode ? { id: "fenceTakeoff", label: "Takeoff", count: (detailTakeoffStudioReadiness.itemCount || 0) + (detailEstimateBackup.fenceTakeoff?.segments?.length || 0) } : null,
+    canManage && !simpleFenceMode ? { id: "visual", label: "Visual Preview", count: canRequestEstimateVisualPreview(visualPreviewPacket) ? 1 : 0 } : null,
     { id: "sections", label: "Sections", count: detailDraft.items?.length || 0 },
-    { id: "backup", label: "SOV / Backup", count: 1 },
-    canUseGcPackets ? { id: "packet", label: "Packet", count: packetSectionIds.length } : null,
+    simpleFenceMode ? null : { id: "backup", label: "SOV / Backup", count: 1 },
+    canUseGcPackets && !simpleFenceMode ? { id: "packet", label: "Packet", count: packetSectionIds.length } : null,
   ].filter(Boolean);
   const estimateStudioOptionRows = selectedEstimate
     ? [selectedEstimate, ...filteredRows.filter((estimate) => estimate.id !== selectedEstimate.id)].slice(0, 5)
@@ -444,19 +447,19 @@ export function EstimatesPagePolished({
     { label: "Branded Cover", icon: "document", onClick: () => openEstimateTool("packet"), disabled: !selectedEstimate },
     { label: "Scope", icon: "clipboard", onClick: () => openEstimateTool("sections"), disabled: !selectedEstimate },
     { label: "Line Items", icon: "document", onClick: () => openEstimateTool("edit"), disabled: !selectedEstimate },
-    { label: "Takeoff", icon: "layers", onClick: () => openEstimateTool("fenceTakeoff"), disabled: !selectedEstimate || !canManage },
-    { label: "Visual Preview", icon: "photo", onClick: () => openEstimateTool("visual"), disabled: !selectedEstimate || !canManage },
+    simpleFenceMode ? null : { label: "Takeoff", icon: "layers", onClick: () => openEstimateTool("fenceTakeoff"), disabled: !selectedEstimate || !canManage },
+    simpleFenceMode ? null : { label: "Visual Preview", icon: "photo", onClick: () => openEstimateTool("visual"), disabled: !selectedEstimate || !canManage },
     { label: "Exclusions", icon: "alert", onClick: () => openEstimateTool("sections"), disabled: !selectedEstimate },
-    { label: "Photo Backup", icon: "clipboard", onClick: () => openEstimateTool("backup"), disabled: !selectedEstimate },
+    simpleFenceMode ? null : { label: "Photo Backup", icon: "clipboard", onClick: () => openEstimateTool("backup"), disabled: !selectedEstimate },
     { label: "Price Summary", icon: "briefcase", onClick: () => openEstimateTool("packet"), disabled: !selectedEstimate },
-    { label: "Field Handoff", icon: "users", onClick: () => openEstimateTool("packet"), disabled: !selectedEstimate || !canUseGcPackets },
-  ];
+    simpleFenceMode ? null : { label: "Field Handoff", icon: "users", onClick: () => openEstimateTool("packet"), disabled: !selectedEstimate || !canUseGcPackets },
+  ].filter(Boolean);
   const estimateAssistantActions = [
     canUseAiRoughNotes ? { label: "Turn rough notes into packet", icon: "spark", onClick: () => openEstimateTool("roughNotes") } : null,
-    { label: "Open Takeoff", icon: "layers", onClick: () => openEstimateTool("fenceTakeoff"), disabled: !selectedEstimate || !canManage },
-    { label: "Prepare visual preview", icon: "photo", onClick: () => openEstimateTool("visual"), disabled: !selectedEstimate || !canManage },
+    simpleFenceMode ? null : { label: "Open Takeoff", icon: "layers", onClick: () => openEstimateTool("fenceTakeoff"), disabled: !selectedEstimate || !canManage },
+    simpleFenceMode ? null : { label: "Prepare visual preview", icon: "photo", onClick: () => openEstimateTool("visual"), disabled: !selectedEstimate || !canManage },
     { label: "Review missing scope", icon: "clipboard", onClick: () => openEstimateTool("sections"), disabled: !selectedEstimate },
-    { label: "Create foreman handoff", icon: "users", onClick: () => openEstimateTool("packet"), disabled: !selectedEstimate || !canUseGcPackets },
+    simpleFenceMode ? null : { label: "Create foreman handoff", icon: "users", onClick: () => openEstimateTool("packet"), disabled: !selectedEstimate || !canUseGcPackets },
   ].filter(Boolean);
 
   function linkedEstimateCustomerEmail(draft = {}) {
@@ -911,6 +914,7 @@ export function EstimatesPagePolished({
   }
 
   function focusNewTakeoff() {
+    if (simpleFenceMode) return;
     setEstimateViewMode("create");
     setSelectedEstimateId("");
     setEstimateShellSelectionId("estimate-takeoff-tool");
@@ -1226,6 +1230,7 @@ export function EstimatesPagePolished({
   }
 
   function openEstimateShellMode(mode = "overview") {
+    if (simpleFenceMode && (mode === "takeoff" || mode === "visualPreview")) return;
     setEstimateShellMode(mode);
     if (mode === "create") {
       setEstimateViewMode("create");
@@ -1387,10 +1392,10 @@ export function EstimatesPagePolished({
   ];
   const estimateShellQuickActions = [
     { id: "new-estimate", label: "New Estimate", icon: "plus", onClick: () => openEstimateShellMode("create"), disabled: !canManage },
-    { id: "takeoff-tool", label: "New Takeoff", icon: "layers", onClick: focusNewTakeoff, disabled: !canManage },
-    { id: "open-takeoff", label: "Open Takeoff", icon: "layers", onClick: () => setEstimateShellMode("takeoff"), disabled: !selectedEstimate || !canManage },
+    simpleFenceMode ? null : { id: "takeoff-tool", label: "New Takeoff", icon: "layers", onClick: focusNewTakeoff, disabled: !canManage },
+    simpleFenceMode ? null : { id: "open-takeoff", label: "Open Takeoff", icon: "layers", onClick: () => setEstimateShellMode("takeoff"), disabled: !selectedEstimate || !canManage },
     { id: "ready-send", label: "Ready Send", icon: "arrowUpRight", onClick: () => selectEstimateShellEstimate(readyToSendRows[0], "sendReview"), disabled: !readyToSendRows.length },
-  ];
+  ].filter(Boolean);
   const estimateShellModes = simpleFenceMode ? [
     { id: "overview", label: "1. Details", title: "Details", manages: "customer, scope, totals, and where this estimate stands." },
     { id: "create", label: "New Estimate", title: "New Estimate", manages: "new estimate creation from customer, notes, and pricing." },
@@ -1458,7 +1463,7 @@ export function EstimatesPagePolished({
     }
 
     const readiness = estimateShellStateById.get(estimate.id) || estimateShellReadiness(estimate);
-    const handoffReadiness = deriveEstimateJobHandoffReadiness(detailEstimatePreview || estimate);
+    const handoffReadiness = deriveEstimateJobHandoffReadiness(detailEstimatePreview || estimate, { simpleFenceMode });
     const proposalFinishState = deriveEstimateProposalFinishState({
       estimate: detailEstimatePreview || estimate,
       permissions,
@@ -1573,7 +1578,7 @@ export function EstimatesPagePolished({
               <>
                 {renderCreateProposalTypeChooser()}
                 <div className="grid gap-3 md:grid-cols-2">
-                  <InputField label="Customer / company name" value={createDraft.customerName} onChange={(event) => setCreateDraft((current) => updateDraftLinkFields(current, { customerName: event.target.value }))} placeholder="Martinez Concrete LLC" />
+                  <InputField label="Customer / company name" value={createDraft.customerName} onChange={(event) => setCreateDraft((current) => updateDraftLinkFields(current, { customerName: event.target.value }))} placeholder={simpleFenceMode ? "Smith Fencing" : "Martinez Concrete LLC"} />
                   <SelectField label="Customer" value={createDraft.customerId} onChange={(event) => setCreateDraft((current) => updateDraftLinkFields(current, { customerId: event.target.value }))}>
                     <option value="">Select a customer</option>
                     {visibleCustomers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
@@ -1583,7 +1588,7 @@ export function EstimatesPagePolished({
                     {visibleLeads.map((lead) => <option key={lead.id} value={lead.id}>{`${lead.customer} - ${lead.project}`}</option>)}
                   </SelectField>
                   <InputField label="Customer email / Send estimate to" value={createDraft.customerEmail} onChange={(event) => setCreateDraft((current) => ({ ...current, customerEmail: event.target.value }))} placeholder="customer@example.com" />
-                  <InputField label="Title" value={createDraft.title} onChange={(event) => setCreateDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Martinez driveway proposal" />
+                  <InputField label="Title" value={createDraft.title} onChange={(event) => setCreateDraft((current) => ({ ...current, title: event.target.value }))} placeholder={simpleFenceMode ? "Backyard fence quote" : "Martinez driveway proposal"} />
                   <SelectField label="Starting status" value={createDraft.status} onChange={(event) => setCreateDraft((current) => ({ ...current, status: event.target.value }))}>
                     {["draft", "sent", "approved", "rejected"].map((option) => <option key={option} value={option}>{estimateStatusLabel(option)}</option>)}
                   </SelectField>
@@ -1675,7 +1680,7 @@ export function EstimatesPagePolished({
             <div className="co-estimates-shell-workflow-head">
               <div>
                 <Badge tone="green">Inside Estimates</Badge>
-                <h3>Plan Room</h3>
+                <h3>{simpleFenceMode ? "Takeoff" : "Plan Room"}</h3>
                 <p>Plan work stays inside Estimates. Add customer and title details only when you are ready to save the takeoff as an estimate.</p>
               </div>
               <StatusBadge status={estimateStatusLabel(createDraft.status || "draft")} />
@@ -2262,7 +2267,7 @@ export function EstimatesPagePolished({
         <div className="co-estimates-shell-workflow-panel co-estimates-shell-takeoff-panel" role="region" aria-label="Estimate takeoff editor">
           <div className="co-estimates-shell-workflow-head">
             <div>
-              <Badge tone="green">Plan Room</Badge>
+              <Badge tone="green">{simpleFenceMode ? "Takeoff" : "Plan Room"}</Badge>
               <h3>Open Takeoff</h3>
               <p>Upload or review the job PDF, move through sheets, and save reviewed quantities back to this estimate. Nothing is sent or converted automatically.</p>
             </div>
@@ -2621,49 +2626,51 @@ export function EstimatesPagePolished({
                 <p>{handoffReadiness.status}</p>
               </div>
             </div>
-            <div className="co-estimates-shell-workflow-panel co-estimates-shell-proposal-finish-panel" role="region" aria-label="Final proposal packet review">
-              <div className="co-estimates-shell-workflow-head">
-                <div>
-                  <Badge tone={proposalFinishState.tone || "blue"}>{proposalFinishState.status}</Badge>
-                  <h3>Final Proposal Packet Review</h3>
-                  <p>{proposalFinishState.summary}</p>
-                </div>
-                <StatusBadge status={emailSendingConfigured ? "Provider ready" : "Manual mode"} />
-              </div>
-              <div className="co-estimates-shell-packet-readiness-grid">
-                {proposalFinishStats.map((stat) => (
-                  <span key={stat.label}><em>{stat.label}</em><strong>{stat.value}</strong></span>
-                ))}
-              </div>
-              <div className="co-estimates-shell-readiness-grid">
-                {proposalFinishReviewRows.map((row) => (
-                  <div key={row.id} data-state={row.ready ? "ready" : "needs"}>
-                    <span>{row.label}</span>
-                    <strong>{row.status}</strong>
-                    <p>{row.helper}</p>
+            {simpleFenceMode ? null : (
+              <div className="co-estimates-shell-workflow-panel co-estimates-shell-proposal-finish-panel" role="region" aria-label="Final proposal packet review">
+                <div className="co-estimates-shell-workflow-head">
+                  <div>
+                    <Badge tone={proposalFinishState.tone || "blue"}>{proposalFinishState.status}</Badge>
+                    <h3>Final Proposal Packet Review</h3>
+                    <p>{proposalFinishState.summary}</p>
                   </div>
-                ))}
+                  <StatusBadge status={emailSendingConfigured ? "Provider ready" : "Manual mode"} />
+                </div>
+                <div className="co-estimates-shell-packet-readiness-grid">
+                  {proposalFinishStats.map((stat) => (
+                    <span key={stat.label}><em>{stat.label}</em><strong>{stat.value}</strong></span>
+                  ))}
+                </div>
+                <div className="co-estimates-shell-readiness-grid">
+                  {proposalFinishReviewRows.map((row) => (
+                    <div key={row.id} data-state={row.ready ? "ready" : "needs"}>
+                      <span>{row.label}</span>
+                      <strong>{row.status}</strong>
+                      <p>{row.helper}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="co-estimates-shell-packet-section-list" aria-label="Final proposal packet review boundaries">
+                  <span>Customer Packet</span>
+                  <span>Option Comparison</span>
+                  <span>Proof / Takeoff Backup</span>
+                  <span>GC Packet</span>
+                  <span>Foreman Handoff</span>
+                  <span>Send Review</span>
+                  <span data-internal="true">Provider setup respected</span>
+                </div>
+                <div className="co-estimates-shell-workflow-actions">
+                  <Button type="button" variant="secondary" onClick={() => setEstimateShellMode("proposal")}>Proposal</Button>
+                  <Button type="button" variant="secondary" onClick={() => setEstimateShellMode("packet")}>Packet</Button>
+                  <Button type="button" variant="secondary" onClick={() => setEstimateShellMode("sendReview")}>Send Review</Button>
+                  <Button type="button" variant="secondary" onClick={() => setEstimateShellMode("handoff")}>Handoff</Button>
+                </div>
+                <div className="co-estimates-shell-packet-lock">
+                  <strong>Owner/admin control.</strong>
+                  <span>Use Send Review or Handoff when you are ready for those explicit actions.</span>
+                </div>
               </div>
-              <div className="co-estimates-shell-packet-section-list" aria-label="Final proposal packet review boundaries">
-                <span>Customer Packet</span>
-                <span>Option Comparison</span>
-                <span>Proof / Takeoff Backup</span>
-                <span>GC Packet</span>
-                <span>Foreman Handoff</span>
-                <span>Send Review</span>
-                <span data-internal="true">Provider setup respected</span>
-              </div>
-              <div className="co-estimates-shell-workflow-actions">
-                <Button type="button" variant="secondary" onClick={() => setEstimateShellMode("proposal")}>Proposal</Button>
-                <Button type="button" variant="secondary" onClick={() => setEstimateShellMode("packet")}>Packet</Button>
-                <Button type="button" variant="secondary" onClick={() => setEstimateShellMode("sendReview")}>Send Review</Button>
-                <Button type="button" variant="secondary" onClick={() => setEstimateShellMode("handoff")}>Handoff</Button>
-              </div>
-              <div className="co-estimates-shell-packet-lock">
-                <strong>Owner/admin control.</strong>
-                <span>Use Send Review or Handoff when you are ready for those explicit actions.</span>
-              </div>
-            </div>
+            )}
             <EstimateJobHandoffReadinessCard readiness={handoffReadiness} />
             <div className="co-apex-selected-next">
               <span>Next action</span>
@@ -2780,13 +2787,13 @@ export function EstimatesPagePolished({
               { label: "Rough Notes", icon: "spark", onClick: () => setEstimateShellMode("roughNotes"), disabled: !selectedEstimate },
               { label: "Overview", icon: "briefcase", onClick: () => setEstimateShellMode("overview") },
             ]
-            : estimateShellMode === "takeoff"
+            : estimateShellMode === "takeoff" && !simpleFenceMode
               ? [
                 { label: "Takeoff", icon: "layers", onClick: () => setEstimateShellMode("takeoff"), disabled: !selectedEstimate },
                 { label: "Visual Preview", icon: "photo", onClick: () => setEstimateShellMode("visualPreview"), disabled: !selectedEstimate },
                 { label: "Overview", icon: "briefcase", onClick: () => setEstimateShellMode("overview") },
               ]
-              : estimateShellMode === "visualPreview"
+              : estimateShellMode === "visualPreview" && !simpleFenceMode
                 ? [
                   { label: "Copy Prompt", icon: "photo", onClick: () => copyEstimateText(() => visualPreviewPacket.prompt, "Visual preview prompt copied. Review it before using any image generator."), disabled: !selectedEstimate },
                   { label: "Takeoff", icon: "layers", onClick: () => setEstimateShellMode("takeoff"), disabled: !selectedEstimate },
@@ -2830,13 +2837,13 @@ export function EstimatesPagePolished({
               { id: "rough-notes-mode", label: "Rough Notes", icon: "spark", onClick: () => setEstimateShellMode("roughNotes"), disabled: !selectedEstimate },
               { id: "rough-notes-overview", label: "Overview", icon: "briefcase", onClick: () => setEstimateShellMode("overview") },
             ]
-            : estimateShellMode === "takeoff"
+            : estimateShellMode === "takeoff" && !simpleFenceMode
               ? [
                 { id: "takeoff-mode", label: "Takeoff", icon: "layers", onClick: () => setEstimateShellMode("takeoff"), disabled: !selectedEstimate },
                 { id: "takeoff-visual", label: "Visual", icon: "photo", onClick: () => setEstimateShellMode("visualPreview"), disabled: !selectedEstimate },
                 { id: "takeoff-overview", label: "Overview", icon: "briefcase", onClick: () => setEstimateShellMode("overview") },
               ]
-              : estimateShellMode === "visualPreview"
+              : estimateShellMode === "visualPreview" && !simpleFenceMode
                 ? [
                   { id: "visual-copy", label: "Copy Prompt", icon: "photo", onClick: () => copyEstimateText(() => visualPreviewPacket.prompt, "Visual preview prompt copied. Review it before using any image generator."), disabled: !selectedEstimate },
                   { id: "visual-takeoff", label: "Takeoff", icon: "layers", onClick: () => setEstimateShellMode("takeoff"), disabled: !selectedEstimate },
@@ -2876,6 +2883,7 @@ export function EstimatesPagePolished({
   const showEstimatorMobilePipeline = canUseEstimatorMobilePipeline && !forceMobileEstimateStudio;
 
   function openMobileTakeoffStudio(id) {
+    if (simpleFenceMode) return;
     if (!id) {
       focusNewTakeoff();
       setForceMobileEstimateStudio(true);
@@ -2914,9 +2922,10 @@ export function EstimatesPagePolished({
               setSelectedEstimateId(id);
               setActive?.("estimates");
             }}
-            onOpenTakeoff={openMobileTakeoffStudio}
-            onStartTakeoff={focusNewTakeoff}
+            onOpenTakeoff={simpleFenceMode ? undefined : openMobileTakeoffStudio}
+            onStartTakeoff={simpleFenceMode ? undefined : focusNewTakeoff}
             activeModule="estimates"
+            simpleFenceMode={simpleFenceMode}
           />
         </div>
       ) : null}
@@ -2937,9 +2946,10 @@ export function EstimatesPagePolished({
               setSelectedEstimateId(id);
               setActive?.("estimates");
             }}
-            onOpenTakeoff={openMobileTakeoffStudio}
-            onStartTakeoff={focusNewTakeoff}
+            onOpenTakeoff={simpleFenceMode ? undefined : openMobileTakeoffStudio}
+            onStartTakeoff={simpleFenceMode ? undefined : focusNewTakeoff}
             activeModule="estimates"
+            simpleFenceMode={simpleFenceMode}
           />
         </div>
       ) : null}
@@ -2999,9 +3009,10 @@ export function EstimatesPagePolished({
             setSelectedEstimateId(id);
             setActive?.("estimates");
           }}
-          onOpenTakeoff={openMobileTakeoffStudio}
-          onStartTakeoff={focusNewTakeoff}
+          onOpenTakeoff={simpleFenceMode ? undefined : openMobileTakeoffStudio}
+          onStartTakeoff={simpleFenceMode ? undefined : focusNewTakeoff}
           activeModule="estimates"
+          simpleFenceMode={simpleFenceMode}
         />
       </div>
     ) : null}
@@ -3022,9 +3033,10 @@ export function EstimatesPagePolished({
             setSelectedEstimateId(id);
             setActive?.("estimates");
           }}
-          onOpenTakeoff={openMobileTakeoffStudio}
-          onStartTakeoff={focusNewTakeoff}
+          onOpenTakeoff={simpleFenceMode ? undefined : openMobileTakeoffStudio}
+          onStartTakeoff={simpleFenceMode ? undefined : focusNewTakeoff}
           activeModule="estimates"
+          simpleFenceMode={simpleFenceMode}
         />
       </div>
     ) : null}
@@ -3042,7 +3054,7 @@ export function EstimatesPagePolished({
         actions={
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="secondary" onClick={() => openEstimateTool("edit")}>{filteredRows.length} visible estimates</Button>
-            {canManage ? <Button type="button" variant="secondary" onClick={focusNewTakeoff}>New Takeoff</Button> : null}
+            {canManage && !simpleFenceMode ? <Button type="button" variant="secondary" onClick={focusNewTakeoff}>New Takeoff</Button> : null}
             {canManage ? <Button type="button" onClick={focusNewEstimate}>New Estimate</Button> : null}
           </div>
         }
@@ -3179,7 +3191,7 @@ export function EstimatesPagePolished({
                 <>
                   {renderCreateProposalTypeChooser()}
                   <div className="grid gap-3 md:grid-cols-2">
-                    <InputField label="Customer / company name" value={createDraft.customerName} onChange={(event) => setCreateDraft((current) => updateDraftLinkFields(current, { customerName: event.target.value }))} placeholder="Martinez Concrete LLC" />
+                    <InputField label="Customer / company name" value={createDraft.customerName} onChange={(event) => setCreateDraft((current) => updateDraftLinkFields(current, { customerName: event.target.value }))} placeholder={simpleFenceMode ? "Smith Fencing" : "Martinez Concrete LLC"} />
                     <SelectField label="Customer" value={createDraft.customerId} onChange={(event) => setCreateDraft((current) => updateDraftLinkFields(current, { customerId: event.target.value }))}>
                       <option value="">Select a customer</option>
                       {visibleCustomers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
@@ -3189,7 +3201,7 @@ export function EstimatesPagePolished({
                       {visibleLeads.map((lead) => <option key={lead.id} value={lead.id}>{`${lead.customer} - ${lead.project}`}</option>)}
                     </SelectField>
                     <InputField label="Customer email / Send estimate to" value={createDraft.customerEmail} onChange={(event) => setCreateDraft((current) => ({ ...current, customerEmail: event.target.value }))} placeholder="customer@example.com" />
-                    <InputField label="Title" value={createDraft.title} onChange={(event) => setCreateDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Martinez driveway proposal" />
+                    <InputField label="Title" value={createDraft.title} onChange={(event) => setCreateDraft((current) => ({ ...current, title: event.target.value }))} placeholder={simpleFenceMode ? "Backyard fence quote" : "Martinez driveway proposal"} />
                     <SelectField label="Starting status" value={createDraft.status} onChange={(event) => setCreateDraft((current) => ({ ...current, status: event.target.value }))}>
                       {["draft", "sent", "approved", "rejected"].map((option) => <option key={option} value={option}>{estimateStatusLabel(option)}</option>)}
                     </SelectField>
@@ -3371,7 +3383,7 @@ export function EstimatesPagePolished({
 
           {activeEstimateTool === "fenceTakeoff" ? (
             <Card ref={takeoffToolRef} className="scroll-mt-24 p-4">
-              <SectionHeader title="Plan Room" description={selectedEstimate ? "Open the job plan, measure reviewed quantities, and keep takeoff backup available inside this estimate." : "Upload the job PDF first, work through the pages, then save the reviewed takeoff as a draft estimate."} />
+              <SectionHeader title={simpleFenceMode ? "Takeoff" : "Plan Room"} description={selectedEstimate ? "Open the job plan, measure reviewed quantities, and keep takeoff backup available inside this estimate." : "Upload the job PDF first, work through the pages, then save the reviewed takeoff as a draft estimate."} />
               {renderMobileTakeoffActionBar()}
               {(selectedEstimate || estimateViewMode === "create") && canManage ? (
                 <div className="grid gap-3">
@@ -3520,7 +3532,7 @@ export function EstimatesPagePolished({
 
           {activeEstimateTool === "backup" ? (
             <Card className="p-4">
-              <SectionHeader title="SOV / Takeoff Backup / GC Packet" description="Office-only backup stays organized without crowding the command board." />
+              <SectionHeader title={simpleFenceMode ? "Backup notes" : "SOV / Takeoff Backup / GC Packet"} description="Office-only backup stays organized without crowding the command board." />
               {selectedEstimate ? (
                 <div className="grid gap-3">
                   <EstimateBackupEditor draft={detailDraft} setDraft={setDetailDraft} disabled={busy || !canManage} />

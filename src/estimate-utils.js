@@ -381,7 +381,7 @@ export function calculateEstimateOptionTotals(estimate = {}) {
   };
 }
 
-export function deriveEstimateJobHandoffReadiness(estimate = {}) {
+export function deriveEstimateJobHandoffReadiness(estimate = {}, { simpleFenceMode = false } = {}) {
   const status = String(estimate?.status || "draft").trim().toLowerCase();
   const sections = deriveEstimateProposalSections(estimate);
   const totals = calculateEstimateTotals(estimate?.items, {
@@ -441,10 +441,12 @@ export function deriveEstimateJobHandoffReadiness(estimate = {}) {
     },
     {
       id: "field-handoff",
-      label: "Field handoff",
+      label: simpleFenceMode ? "Crew notes" : "Field handoff",
       complete: hasFieldHandoff,
-      helper: hasFieldHandoff ? "Job startup backup or foreman handoff notes are present." : "Add takeoff backup, references, schedule notes, or foreman handoff context.",
-      nextAction: "Prepare handoff packet",
+      helper: hasFieldHandoff
+        ? (simpleFenceMode ? "Crew notes for job startup are present." : "Job startup backup or foreman handoff notes are present.")
+        : (simpleFenceMode ? "Add schedule notes or crew instructions before starting the job." : "Add takeoff backup, references, schedule notes, or foreman handoff context."),
+      nextAction: simpleFenceMode ? "Add crew notes" : "Prepare handoff packet",
     },
     {
       id: "job",

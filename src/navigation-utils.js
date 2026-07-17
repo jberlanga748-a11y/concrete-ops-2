@@ -177,20 +177,38 @@ export function isSimpleFenceMode(companySettings = DEFAULT_COMPANY_SETTINGS) {
 }
 
 // Hidden in simple mode only: the second command-center home, the concrete
-// volume calculator, the pour checklists, and the AI office. Nothing is
+// volume calculator, the pour checklists, the AI office, and the office/
+// enterprise tooling a five-person fence crew never touches. Nothing is
 // deleted -- the routes stay reachable and the modules return the moment the
 // package or trade changes.
-const SIMPLE_FENCE_HIDDEN_MODULE_IDS = new Set([
+export const SIMPLE_FENCE_HIDDEN_MODULE_IDS = new Set([
   "commandCenter",
   "calculator",
   "prePour",
   "postPour",
   "copilot",
+  "fieldWorkspace",
+  "rateBook",
+  "materialPrep",
+  "changeOrders",
+  "reports",
+  "toolbox",
+  "toolChecklist",
+  "support",
 ]);
 
 function simpleModeAllowsModule(moduleId, companySettings = DEFAULT_COMPANY_SETTINGS) {
   if (!isSimpleFenceMode(companySettings)) return true;
   return !SIMPLE_FENCE_HIDDEN_MODULE_IDS.has(moduleId);
+}
+
+// Field Mode action tiles and finish items route by module id too. They read
+// permissions.* directly instead of visibleNavItems, so they filter through
+// the same hidden-id set (plus the concrete-only modules, which simple mode
+// implies) to keep nav and field tiles from drifting apart.
+export function simpleFenceModeAllowsFieldAction(moduleId, simpleFenceMode = false) {
+  if (!simpleFenceMode) return true;
+  return !SIMPLE_FENCE_HIDDEN_MODULE_IDS.has(moduleId) && !CONCRETE_TRADE_MODULE_IDS.has(moduleId);
 }
 
 export function getVisibleNavGroups(navGroups, user, companySettings = DEFAULT_COMPANY_SETTINGS, permissions = null) {

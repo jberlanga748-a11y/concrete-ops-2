@@ -54,9 +54,15 @@ function buildItem({ id, label, status, helper, moduleId, actionLabel, ready = f
   };
 }
 
+// In fence-pilot simple mode the finish panel collapses to a plain "Today's
+// checklist": clock, photos, and safety. Delivery tickets, pour prep/closeout,
+// daily reports, change requests, and install/handoff coaching stay out.
+const SIMPLE_FENCE_FINISH_ITEM_IDS = new Set(["today_job", "clock_time", "photos_proof", "safety"]);
+
 export function deriveFieldModeFinishState(source = {}, options = {}) {
   const role = source.role === "foreman" ? "foreman" : "employee";
   const isForeman = role === "foreman";
+  const simpleFenceMode = Boolean(source.simpleFenceMode);
   const permissions = source.permissions || {};
   const workspace = source.workspace || {};
   const primaryJob = source.focusJob || workspace.nextAssignedJob || asArray(workspace.assignedJobs)[0] || null;
@@ -246,7 +252,7 @@ export function deriveFieldModeFinishState(source = {}, options = {}) {
       tone: hasPwaInstallPath ? "blue" : "amber",
       phase: "access",
     }),
-  ].filter(Boolean);
+  ].filter(Boolean).filter((item) => !simpleFenceMode || SIMPLE_FENCE_FINISH_ITEM_IDS.has(item.id));
 
   const requiredItems = items.filter((item) => item.enabled && item.tone !== "slate");
   const readyRequiredItems = requiredItems.filter((item) => item.ready);
@@ -257,7 +263,7 @@ export function deriveFieldModeFinishState(source = {}, options = {}) {
     mode: "field_mode_finish",
     role,
     canView: true,
-    title: "Field Execution Finish",
+    title: simpleFenceMode ? "Today's checklist" : "Field Execution Finish",
     status: blockerCount ? "Needs field action" : "Field-ready",
     tone: blockerCount ? "amber" : "green",
     summary: primaryJob

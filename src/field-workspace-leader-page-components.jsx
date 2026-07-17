@@ -22,6 +22,7 @@ function todayDateInputValue() {
 export function FieldWorkspaceLeaderPage({
   user,
   currentCompanyId,
+  companySettings,
   jobs,
   visibleJobs,
   selectedJobId,
@@ -71,6 +72,7 @@ export function FieldWorkspaceLeaderPage({
         safetyIncidents={safetyIncidents}
         toolChecklists={toolChecklists}
         currentCompanyId={currentCompanyId}
+        companySettings={companySettings}
         onClockIn={onClockIn}
         onClockOut={onClockOut}
         onStartBreak={onStartBreak}
@@ -100,6 +102,7 @@ export function FieldWorkspaceLeaderPage({
         safetyIncidents={safetyIncidents}
         toolChecklists={toolChecklists}
         currentCompanyId={currentCompanyId}
+        companySettings={companySettings}
         onClockIn={onClockIn}
         onClockOut={onClockOut}
         onStartBreak={onStartBreak}

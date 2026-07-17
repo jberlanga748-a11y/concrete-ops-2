@@ -17418,7 +17418,7 @@ export default function App() {
   const isOwnerAdminMobileWorkspace = isOwnerAdminMobileCommandUser(appState.user, appState.permissions);
   const isEstimatorMobileWorkspace = isEstimatorMobilePipelineUser(appState.user, appState.permissions) && ESTIMATOR_MOBILE_NAV_ROUTES.has(active);
   const mobileNavItems = isFieldMobileWorkspace ? getFieldMobileNavItems(visibleNavItems) : visibleNavItems;
-  const ownerAdminMobileNavItems = getOwnerAdminMobileNavItems(visibleNavItems);
+  const ownerAdminMobileNavItems = getOwnerAdminMobileNavItems(visibleNavItems, { simpleFenceMode: isSimpleFenceMode(appState.companySettings) });
   const estimatorMobileNavItems = getEstimatorMobileNavItems(visibleNavItems);
   const customerRelated = relatedCustomerRecords(selectedCustomer, appState.leads, appState.jobs, appState.activity);
   const leadRelated = relatedLeadActivity(selectedLead, appState.customers, appState.activity, appState.leadStatusHistory);
